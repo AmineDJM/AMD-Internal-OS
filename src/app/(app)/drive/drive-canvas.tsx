@@ -4,6 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { FolderPlus, FileText, FileSpreadsheet, Presentation, RefreshCw, Loader2 } from "lucide-react";
 import { createFolder, createOfficeNode } from "@/lib/actions/drive-actions";
+import { executerCreationOffice } from "@/lib/office/creation-ui";
 
 type NewKind = "folder" | "word" | "cell" | "slide";
 
@@ -84,13 +85,17 @@ export function DriveCanvas({
     fd.set("name", name);
     if (parentId) fd.set("parentId", parentId);
     if (spaceId) fd.set("spaceId", spaceId);
-    const r = naming === "folder"
-      ? await createFolder(undefined, fd)
-      : await (async () => { fd.set("kind", naming); return createOfficeNode(fd); })();
+    // Un appel qui REJETTE laissait `busy` à vrai pour toujours : la roue tournait, sans un mot.
+    // `executerCreationOffice` rend toujours une issue (identifiant ou phrase), dossier compris.
+    const r = await executerCreationOffice(() => {
+      if (naming === "folder") return createFolder(undefined, fd);
+      fd.set("kind", naming);
+      return createOfficeNode(fd);
+    });
     setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Création impossible."); return; }
+    if (!r.ok) { setErr(r.error); return; }
     close();
-    if (naming !== "folder" && officeEnabled && r.id) router.push(`/drive/${r.id}/edit`);
+    if (naming !== "folder" && officeEnabled) router.push(`/drive/${r.id}/edit`);
     else router.refresh();
   };
 

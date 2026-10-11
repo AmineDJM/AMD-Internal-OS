@@ -8,6 +8,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import type { OfficeKind } from "@/lib/office-templates";
+import { executerCreationOffice } from "@/lib/office/creation-ui";
 import { LetterheadChoice } from "@/components/office/letterhead-choice";
 import type { LetterheadOption } from "@/lib/queries/letterheads";
 
@@ -40,18 +41,23 @@ export function NewOfficeButton({
         <FilePlus2 className="h-4 w-4" /> Nouveau document
       </Button>
       <Sheet open={open} onClose={() => !saving && setOpen(false)} title="Nouveau document Office" width="md">
+        {/* `onSubmit` et non `action={…}` : une action de formulaire tourne dans une transition React,
+            qui RETIENT `setSaving(true)` jusqu'à la fin de l'appel (aucun retour visuel, double clic
+            possible) et, si l'appel rejette, ne laisse ni message ni bouton utilisable. */}
         <form
-          action={async (fd) => {
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (saving) return;
+            const fd = new FormData(e.currentTarget);
             setSaving(true); setErr(null);
             fd.set("kind", kind);
             if (letterheadId) fd.set("letterheadId", letterheadId);
-            const r = await createOfficeNode(fd);
+            const r = await executerCreationOffice(() => createOfficeNode(fd));
             setSaving(false);
-            if (r.ok && r.id) {
-              setOpen(false);
-              if (officeEnabled) router.push(`/drive/${r.id}/edit`);
-              else router.refresh();
-            } else setErr(r.error ?? "Erreur.");
+            if (!r.ok) { setErr(r.error); return; }
+            setOpen(false);
+            if (officeEnabled) router.push(`/drive/${r.id}/edit`);
+            else router.refresh();
           }}
           className="space-y-4"
         >

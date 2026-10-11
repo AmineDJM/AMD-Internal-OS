@@ -312,70 +312,86 @@ export async function unshareNode(formData: FormData): Promise<ActionResult> {
  * modèle plus tard ne réécrit jamais un courrier déjà parti.
  */
 export async function createOfficeNode(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const kind = fdStr(formData, "kind");
-  if (!kind || !isOfficeKind(kind)) return { ok: false, error: "Type de document invalide." };
-  const parentId = fdStr(formData, "parentId");
-  const spaceId = fdStr(formData, "spaceId");
-  // Éditeur sur le dossier de destination (partage/catégorie) suffit ; racine d'une catégorie →
-  // gestionnaire ; racine personnelle → droit module « Créer ».
-  if (parentId) {
-    if ((await resolveDriveAccess(user, parentId)) !== "EDIT") return DENIED;
-  } else if (spaceId) {
-    if (!(await canCreateInSpace(user, spaceId))) return DENIED;
-  } else if (!userCan(user, "DRIVE", "CREATE")) {
-    return DENIED;
-  }
-  const effSpaceId = await effectiveSpaceId(parentId || null, spaceId || null);
+  const user = await requireUser(); // hors du `try` : sa redirection vers /login doit passer
+  try {
+    const kind = fdStr(formData, "kind");
+    if (!kind || !isOfficeKind(kind)) return { ok: false, error: "Type de document invalide." };
+    const parentId = fdStr(formData, "parentId");
+    const spaceId = fdStr(formData, "spaceId");
+    // Éditeur sur le dossier de destination (partage/catégorie) suffit ; racine d'une catégorie →
+    // gestionnaire ; racine personnelle → droit module « Créer ».
+    if (parentId) {
+      if ((await resolveDriveAccess(user, parentId)) !== "EDIT") return DENIED;
+    } else if (spaceId) {
+      if (!(await canCreateInSpace(user, spaceId))) return DENIED;
+    } else if (!userCan(user, "DRIVE", "CREATE")) {
+      return DENIED;
+    }
+    const effSpaceId = await effectiveSpaceId(parentId || null, spaceId || null);
 
-  const base = fdStr(formData, "name") ?? "Document";
-  const name = documentName(base, kind);
-  const blank = blankOffice(kind);
-  let data = blank.data;
-  let mime = blank.mime;
-  let letterheadName: string | null = null;
+    const base = fdStr(formData, "name") ?? "Document";
+    const name = documentName(base, kind);
+    const blank = blankOffice(kind);
+    let data = blank.data;
+    let mime = blank.mime;
+    let letterheadName: string | null = null;
 
-  const letterheadId = fdStr(formData, "letterheadId");
-  if (letterheadId) {
-    const lh = await prisma.officeLetterhead.findUnique({
-      where: { id: letterheadId },
-      select: { name: true, kind: true, blobId: true, mime: true, isActive: true, companyId: true },
+    const letterheadId = fdStr(formData, "letterheadId");
+    if (letterheadId) {
+      const lh = await prisma.officeLetterhead.findUnique({
+        where: { id: letterheadId },
+        select: { name: true, kind: true, blobId: true, mime: true, isActive: true, companyId: true },
+      });
+      if (!lh || !lh.isActive) return { ok: false, error: "Ce papier en-tête n'existe plus." };
+      // Le type doit correspondre : un en-tête Word recopié sous un nom `.xlsx` donnerait un
+      // fichier qui refuse de s'ouvrir, et l'erreur ne se verrait qu'au moment de l'urgence.
+      if (lh.kind !== kind) {
+        const label = isOfficeKind(lh.kind) ? KIND_LABEL[lh.kind] : lh.kind;
+        return { ok: false, error: `Ce papier en-tête est un modèle ${label} — il ne convient pas ici.` };
+      }
+      // Le cloisonnement s'applique aussi à la papeterie : on n'écrit pas sur l'en-tête d'une
+      // société qu'on ne voit pas. Les en-têtes communs (sans entité) restent ouverts à tous.
+      if (lh.companyId) {
+        const mine = await getMyCompanies(user.id);
+        if (!mine.some((c) => c.id === lh.companyId)) return { ok: false, error: "Ce papier en-tête n'est pas dans votre périmètre." };
+      }
+      const bytes = await getBlob(lh.blobId);
+      if (!bytes) return { ok: false, error: "Le fichier du papier en-tête est introuvable sur le serveur." };
+      data = bytes;
+      mime = lh.mime || blank.mime;
+      letterheadName = lh.name;
+    }
+
+    const { blobId, size } = await putBlob(data);
+    const node = await prisma.driveNode.create({
+      data: {
+        name, type: "FILE", parentId: parentId || null, spaceId: effSpaceId, ownerId: user.id, createdById: user.id, mimeType: mime, size,
+        versions: { create: { blobId, version: 1, size, mimeType: mime, createdById: user.id } },
+      },
+      select: { id: true },
     });
-    if (!lh || !lh.isActive) return { ok: false, error: "Ce papier en-tête n'existe plus." };
-    // Le type doit correspondre : un en-tête Word recopié sous un nom `.xlsx` donnerait un
-    // fichier qui refuse de s'ouvrir, et l'erreur ne se verrait qu'au moment de l'urgence.
-    if (lh.kind !== kind) {
-      const label = isOfficeKind(lh.kind) ? KIND_LABEL[lh.kind] : lh.kind;
-      return { ok: false, error: `Ce papier en-tête est un modèle ${label} — il ne convient pas ici.` };
-    }
-    // Le cloisonnement s'applique aussi à la papeterie : on n'écrit pas sur l'en-tête d'une
-    // société qu'on ne voit pas. Les en-têtes communs (sans entité) restent ouverts à tous.
-    if (lh.companyId) {
-      const mine = await getMyCompanies(user.id);
-      if (!mine.some((c) => c.id === lh.companyId)) return { ok: false, error: "Ce papier en-tête n'est pas dans votre périmètre." };
-    }
-    const bytes = await getBlob(lh.blobId);
-    if (!bytes) return { ok: false, error: "Le fichier du papier en-tête est introuvable sur le serveur." };
-    data = bytes;
-    mime = lh.mime || blank.mime;
-    letterheadName = lh.name;
+    await recordAudit({
+      actorId: user.id, action: "CREATE", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id,
+      summary: `Nouveau document « ${name} »${letterheadName ? ` — papier en-tête « ${letterheadName} »` : ""}`,
+    });
+    revalidatePath("/drive");
+    if (effSpaceId) revalidatePath(`/drive/espace/${effSpaceId}`);
+    return { ok: true, id: node.id };
+  } catch (err) {
+    const digest = (err as { digest?: unknown } | null)?.digest;
+    if (typeof digest === "string" && digest.startsWith("NEXT_")) throw err; // redirect / notFound de Next
+    // UNE ERREUR LEVÉE N'ARRIVE PAS À L'ÉCRAN : en production, Next la remplace par un message opaque,
+    // et l'écran qui attendait la réponse restait sur sa roue. On la journalise (journaux Render) et on RÉPOND.
+    console.error("[drive] createOfficeNode : création du document Office impossible", err);
+    const detail = err instanceof Error ? err.message : "";
+    // Les refus du stockage sont déjà rédigés pour l'utilisateur (`drive-storage.ts`) : on les relaie.
+    if (/^(Le fichier n'a pas pu être enregistré|Fichier trop volumineux)/.test(detail)) return { ok: false, error: detail };
+    return {
+      ok: false,
+      error: "Le document n'a pas pu être créé (erreur du serveur). Réessayez ; si cela persiste, "
+        + "signalez-le à l'administrateur.",
+    };
   }
-
-  const { blobId, size } = await putBlob(data);
-  const node = await prisma.driveNode.create({
-    data: {
-      name, type: "FILE", parentId: parentId || null, spaceId: effSpaceId, ownerId: user.id, createdById: user.id, mimeType: mime, size,
-      versions: { create: { blobId, version: 1, size, mimeType: mime, createdById: user.id } },
-    },
-    select: { id: true },
-  });
-  await recordAudit({
-    actorId: user.id, action: "CREATE", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id,
-    summary: `Nouveau document « ${name} »${letterheadName ? ` — papier en-tête « ${letterheadName} »` : ""}`,
-  });
-  revalidatePath("/drive");
-  if (effSpaceId) revalidatePath(`/drive/espace/${effSpaceId}`);
-  return { ok: true, id: node.id };
 }
 
 /**

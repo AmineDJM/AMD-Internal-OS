@@ -8,6 +8,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createOfficeNode } from "@/lib/actions/drive-actions";
+import { executerCreationOffice } from "@/lib/office/creation-ui";
 import { OFFICE_APPS, OFFICE_PINS_KEY, parsePinned, togglePinned, type OfficeAppKey } from "@/lib/office/apps";
 import { LetterheadChoice } from "@/components/office/letterhead-choice";
 import { lireStockagePersonnel, useIdentiteEcran } from "@/components/layout/identite-vue";
@@ -74,9 +75,10 @@ export function OfficeLauncher({
     fd.set("kind", open);
     fd.set("name", clean);
     if (letterheadId) fd.set("letterheadId", letterheadId);
-    const r = await createOfficeNode(fd);
+    // Un appel qui REJETTE laissait `busy` à vrai pour toujours : la roue tournait, sans un mot.
+    const r = await executerCreationOffice(() => createOfficeNode(fd));
     setBusy(false);
-    if (!r.ok || !r.id) { setErr(r.error ?? "Création impossible."); return; }
+    if (!r.ok) { setErr(r.error); return; }
     setOpen(null);
     if (officeEnabled) router.push(`/drive/${r.id}/edit`);
     else router.refresh();
