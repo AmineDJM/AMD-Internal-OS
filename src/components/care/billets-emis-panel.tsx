@@ -5,13 +5,18 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { resumeBillet, resumeHotel, type CellRow } from "@/lib/care-fiches";
 import { BilletEmis, IconePoste, type Run } from "@/components/care/fiche-voyageur";
+import { BoutonLivret } from "@/components/care/bouton-livret";
 
 /**
  * LES BILLETS ÉMIS ET LES CONFIRMATIONS D'HÔTEL D'UNE PRISE EN CHARGE — l'écran de l'assistante de direction
  * (Direction, 10/2026) : une ligne par personne, chaque billet et chaque hôtel à réserver, et pour chacun le
  * dépôt de l'e-billet ou du voucher avec sa référence et ses horaires. Rien d'autre de la demande n'est ici.
  */
-export function BilletsEmisPanel({ lignes }: { lignes: { id: string; name: string; postes: CellRow[] }[] }) {
+export function BilletsEmisPanel({ lignes, demande }: {
+  lignes: { id: string; name: string; postes: CellRow[] }[];
+  /** La demande, pour le livret de séjour de chaque personne. */
+  demande?: { scope: "NATIONAL" | "INTERNATIONAL"; id: string };
+}) {
   const { enCours, rafraichir } = useRafraichir();
   const [action, setAction] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -39,7 +44,10 @@ export function BilletsEmisPanel({ lignes }: { lignes: { id: string; name: strin
       {lignes.length === 0 && <p className="text-sm text-muted-foreground">Aucun billet ni hôtel à réserver sur cette demande.</p>}
       {lignes.map((l) => (
         <section key={l.id} className="rounded-xl border border-border bg-card">
-          <p className="border-b border-border px-4 py-2.5 text-sm font-semibold [overflow-wrap:anywhere]">{l.name}</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-2.5">
+            <p className="min-w-0 text-sm font-semibold [overflow-wrap:anywhere]">{l.name}</p>
+            {demande && <BoutonLivret scope={demande.scope} requestId={demande.id} personneId={l.id} libelle="Livret" />}
+          </div>
           <div className="divide-y divide-border">
             {l.postes.map((c) => (
               <div key={c.id} className="space-y-2 px-4 py-3">

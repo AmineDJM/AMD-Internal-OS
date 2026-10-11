@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
-import { peutLirePasseportDuSujet } from "@/lib/ad-pro/passeport-acces";
+import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "@/lib/ad-pro/passeport-acces";
 import { readFileByKey } from "@/lib/storage";
 import { cleObjetDirect, infoBlob } from "@/lib/drive-storage";
 import { presignGetUrl } from "@/lib/storage/object-storage";
@@ -28,8 +28,10 @@ export async function GET(
 
   // Le passeport d'un voyageur s'ouvre aussi à qui réserve son billet (audit 360°, I10) — une porte
   // ÉTROITE, à la pièce près : voir `peutLirePasseportDuSujet`.
+  // Même porte pour un congrès (passeports, billets émis, vouchers, livrets de séjour) : `peutLirePieceDePriseEnCharge`.
   const allowed = (await canAccessEntity(user, doc.entityType, doc.entityId, "VIEW"))
-    || (await peutLirePasseportDuSujet(user.id, doc));
+    || (await peutLirePasseportDuSujet(user.id, doc))
+    || (await peutLirePieceDePriseEnCharge(user, doc));
   if (!allowed) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
   if (!doc.fileKey) {

@@ -26,7 +26,8 @@ import { EspaceDiscussion } from "@/components/ad-pro/espace-discussion";
 import { InvolvementConversations } from "@/components/ad-pro/involvement-conversations";
 import { CarePanel } from "@/components/care/care-panel";
 import { getCareDossier } from "@/lib/queries/care";
-import { careDirectoryOptions } from "@/lib/actions/care-actions";
+import { careDirectoryOptions, carePromoOptions } from "@/lib/actions/care-actions";
+import { BoutonLivret } from "@/components/care/bouton-livret";
 import { peutTeleverserBillet, resumeDesFiches } from "@/lib/care-fiches";
 import { AdProTransferButton } from "@/components/ad-pro/transfer-button";
 import { AdProEditButton } from "@/components/ad-pro/edit-request-button";
@@ -101,7 +102,7 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
   const materielStock = await contexteMaterielStock(user, "CONGRESS_NATIONAL", detail.id, canAllocate);
 
   // Le dossier de prise en charge : les personnes, ce qu'il faut pour chacune, et les devis.
-  const [care, directory] = await Promise.all([getCareDossier("NATIONAL", detail.id), careDirectoryOptions()]);
+  const [care, directory, carePromo] = await Promise.all([getCareDossier("NATIONAL", detail.id), careDirectoryOptions(), carePromoOptions()]);
   const canEditCare = userCan(user, "CONGRESS_NATIONAL", "CREATE") || userCan(user, "CONGRESS_NATIONAL", "UPDATE") || canAllocate;
   // LES FICHES VOYAGEUR : l'estimé et les fiches prêtes, lus une fois pour le bandeau (`resumeDesFiches`).
   const fiches = resumeDesFiches("NATIONAL", care.beneficiaries, care.quotes, care.groupPostes);
@@ -125,6 +126,7 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
       </BackLink>
       <PageHeader title={detail.name} description="Demande de prise en charge — événement national.">
         <StatusBadge map={CONGRESS_REQUEST_STATUS} value={detail.requestStatus} />
+        {peutTeleverser && <BoutonLivret scope="NATIONAL" requestId={detail.id} libelle="Livret général" />}
         {canEditRequest && editValues && (
           <AdProEditButton kind="CONGRESS_NATIONAL" id={detail.id} decided={requestDecided} values={editValues} />
         )}
@@ -155,6 +157,7 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
             reglages={care.reglages}
             enveloppe={congress?.finalAmount != null ? toNumber(congress.finalAmount) : null}
             directory={directory}
+            promoOptions={carePromo}
             eventApproved={["APPROVED", "COMPLETED"].includes(congress?.requestStatus ?? "")}
             canEdit={canEditCare}
             canDecide={canAllocate}

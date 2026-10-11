@@ -20,9 +20,10 @@ import { piecesDuProfessionnel, CELL_STATUS_LABELS, ETAT_PIECE_LABELS, OPINION_L
 import { TRANSPORTS, TRANSPORT_LIBELLE, ETAPES_MAX, type EtapeTrajet } from "@/lib/ad-pro/voyageurs";
 import { TYPES_CHAMBRE } from "@/lib/ad-pro/hebergements";
 import {
-  addCareCell, decideCareBeneficiary, demanderBCPriseEnCharge, deposerPiecePriseEnCharge, enregistrerBilletEmis, modifierPosteFiche,
-  modifierPosteGroupe, removeCareBeneficiary, removeCareCell, retenirDevisPriseEnCharge, setCareCellStatus, setCareOpinion,
+  addCareCell, decideCareBeneficiary, demanderBCPriseEnCharge, deposerPiecePriseEnCharge, enregistrerBilletEmis, linkCareCellPromoMaterial,
+  modifierPosteFiche, modifierPosteGroupe, removeCareBeneficiary, removeCareCell, retenirDevisPriseEnCharge, setCareCellStatus, setCareOpinion,
 } from "@/lib/actions/care-actions";
+import { BoutonLivret } from "@/components/care/bouton-livret";
 
 export type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText?: string) => Promise<unknown>;
 
@@ -60,6 +61,8 @@ interface FicheProps {
   canEdit: boolean;
   canDecide: boolean;
   peutTeleverser: boolean;
+  /** Les supports promotionnels rattachables à un poste (⋯ du poste). */
+  promoOptions: { id: string; reference: string; title: string }[];
   busy: string | null;
   run: Run;
   onRetour: () => void;
@@ -109,6 +112,9 @@ export function FicheVoyageur(p: FicheProps) {
               <p className="text-xs text-muted-foreground">{[b.subtitle, b.fromDirectory ? "fiche de l'annuaire" : "profil libre"].filter(Boolean).join(" · ")}</p>
             </div>
             <PastilleDecision status={b.status} />
+            {p.peutTeleverser && (b.status === "PROPOSED" || b.status === "APPROVED") && (
+              <BoutonLivret scope={scope} requestId={p.requestId} personneId={b.id} libelle="Livret" />
+            )}
             {(canEdit || canDecide) && (
               <button type="button" onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-label={`Autres actions pour ${b.name}`}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-muted-foreground hover:bg-secondary">
@@ -565,6 +571,8 @@ function PosteAutre(p: PosteProps) {
   const [lieu, setLieu] = React.useState(c.address ?? "");
   const [montant, setMontant] = React.useState(montantInitial(c));
   const edit = canEdit && !c.expenseOrderId;
+  const [menu, setMenu] = React.useState(false);
+  const [support, setSupport] = React.useState(c.promoMaterialId ?? "");
   const enregistrer = () => {
     const f = fd({ id: c.id, label, notes, dateStart: date, timeStart: heure, address: lieu });
     if (p.mode === "INDIVIDUAL") f.set("amount", montant);
@@ -577,7 +585,32 @@ function PosteAutre(p: PosteProps) {
           <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-secondary text-muted-foreground"><IconePoste kind={c.serviceKind} /></span>
           <input value={label} disabled={!edit} onChange={(e) => setLabel(e.target.value)} aria-label="Intitulé du poste" className="min-w-0 flex-1 rounded-lg border border-transparent bg-transparent px-1 py-1 text-sm font-semibold outline-none hover:border-border focus:border-primary/60" />
           <Badge tone={c.status === "SETTLED" ? "success" : c.status === "WAIVED" ? "neutral" : c.status === "PROVIDED" ? "info" : "warning"} dot={false}>{CELL_STATUS_LABELS[c.status]}</Badge>
+          {edit && (
+            <button type="button" onClick={() => setMenu((m) => !m)} aria-expanded={menu} aria-label={`Autres actions pour « ${c.label} »`}
+              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-secondary sm:h-7 sm:w-7">
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          )}
         </div>
+        {c.promoMaterial && (
+          <p className="text-xs text-muted-foreground sm:col-span-6">
+            Support promotionnel : <span className="text-foreground">{c.promoMaterial.reference} — {c.promoMaterial.title}</span> · {c.promoMaterial.status}
+          </p>
+        )}
+        {menu && edit && (
+          <div className="flex flex-wrap items-end gap-2 rounded-lg bg-secondary/40 p-2 sm:col-span-6" role="menu">
+            <label className={`${ETIQUETTE} w-full sm:w-auto sm:flex-1`}>Support promotionnel rattaché
+              <select value={support} disabled={busy !== null} onChange={(e) => setSupport(e.target.value)} className={CHAMP}>
+                <option value="">— aucun —</option>
+                {p.promoOptions.map((o) => <option key={o.id} value={o.id}>{o.reference} — {o.title}</option>)}
+              </select>
+            </label>
+            <Button size="sm" variant="outline" disabled={busy !== null || support === (c.promoMaterialId ?? "")}
+              onClick={() => void run(`pm:${c.id}`, () => linkCareCellPromoMaterial(undefined, fd({ id: c.id, promoMaterialId: support })), support ? "Support rattaché." : "Support détaché.").then(() => setMenu(false))}>
+              {busy === `pm:${c.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Rattacher
+            </Button>
+          </div>
+        )}
         <label className={`${ETIQUETTE} sm:col-span-2`}>Détail<input value={notes} disabled={!edit} onChange={(e) => setNotes(e.target.value)} placeholder="Restaurant, prestataire…" className={CHAMP} /></label>
         <label className={ETIQUETTE}>Date<input type="date" value={date} disabled={!edit} onChange={(e) => setDate(e.target.value)} className={CHAMP} /></label>
         <label className={ETIQUETTE}>Heure<input type="time" value={heure} disabled={!edit} onChange={(e) => setHeure(e.target.value)} className={CHAMP} /></label>

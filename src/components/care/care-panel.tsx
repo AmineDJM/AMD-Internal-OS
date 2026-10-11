@@ -46,8 +46,10 @@ interface Props {
   canEdit: boolean;
   /** Trancher : accorder une personne, accepter un devis, envoyer aux Finances. */
   canDecide: boolean;
-  /** Déposer le billet émis et la confirmation d'hôtel (`peutTeleverserBillet`). */
+  /** Déposer le billet émis et la confirmation d'hôtel (`peutTeleverserBillet`) — et éditer les livrets de séjour. */
   peutTeleverser: boolean;
+  /** Les supports promotionnels rattachables à un poste (`carePromoOptions`). */
+  promoOptions?: { id: string; reference: string; title: string }[];
 }
 
 const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
@@ -61,7 +63,7 @@ const fd = (o: Record<string, string>) => { const f = new FormData(); for (const
  * les devis, les pièces et le passage aux Finances. Les règles vivent dans `lib/care-fiches.ts`.
  */
 export function CarePanel({
-  scope, requestId, beneficiaries, quotes, groupPostes, reglages, enveloppe, directory, eventApproved, canEdit, canDecide, peutTeleverser,
+  scope, requestId, beneficiaries, quotes, groupPostes, reglages, enveloppe, directory, eventApproved, canEdit, canDecide, peutTeleverser, promoOptions = [],
 }: Props) {
   const { enCours, rafraichir } = useRafraichir();
   const [action, setAction] = React.useState<string | null>(null);
@@ -125,7 +127,7 @@ export function CarePanel({
         <FicheVoyageur
           scope={scope} requestId={requestId} mode={mode} b={fiche} quotes={quotes} groupPostes={groupPostes} personnes={personnes}
           taux={reglages.taux} eventCity={reglages.city} parCase={est.parCase} estime={est.parPersonne.get(fiche.id) ?? 0}
-          canEdit={canEdit} canDecide={canDecide} peutTeleverser={peutTeleverser} busy={busy} run={run}
+          canEdit={canEdit} canDecide={canDecide} peutTeleverser={peutTeleverser} busy={busy} run={run} promoOptions={promoOptions}
           onRetour={() => setFicheId(null)} onDevis={ouvrirDevis}
         />
       ) : (

@@ -9,6 +9,7 @@ import { peutTeleverserBillet, personneVivante } from "@/lib/care-fiches";
 import { PageHeader } from "@/components/shared/page-header";
 import { BackLink } from "@/components/shared/back-link";
 import { BilletsEmisPanel } from "@/components/care/billets-emis-panel";
+import { BoutonLivret } from "@/components/care/bouton-livret";
 
 /**
  * LA PAGE « BILLETS ET CONFIRMATIONS » D'UNE PRISE EN CHARGE (Direction, 10/2026) — par où l'assistante de
@@ -44,8 +45,10 @@ export async function PageBilletsEmis({ scope, id }: { scope: "NATIONAL" | "INTE
   return (
     <div className="space-y-5">
       <BackLink href={retour}><ArrowLeft className="h-4 w-4" /> {ficheVisible ? "La demande" : "Mes sujets"}</BackLink>
-      <PageHeader title={`Billets et confirmations — ${req.name}`} description="L'e-billet ou le voucher de chaque personne, sa référence et ses horaires." />
-      <BilletsEmisPanel lignes={lignes} />
+      <PageHeader title={`Billets et confirmations — ${req.name}`} description="L'e-billet ou le voucher de chaque personne, sa référence et ses horaires.">
+        <BoutonLivret scope={scope} requestId={id} libelle="Livret général" />
+      </PageHeader>
+      <BilletsEmisPanel lignes={lignes} demande={{ scope, id }} />
     </div>
   );
 }

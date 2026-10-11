@@ -1,5 +1,23 @@
 ## 🧾 Journal des évolutions récentes
 
+### PRISES EN CHARGE : LIVRETS DE SÉJOUR EN PDF, SELON LA CHARTE ADVENTUM (2026-10-11)
+
+Aucune migration. Règles : `lib/livret/modele.ts` (pur, testé) — voir « Fiches voyageur » dans la référence des circuits.
+
+- **Livret individuel** (bouton « Livret » de la fiche voyageur, et sur `…/billets`) : couverture, lettre d'invitation
+  sur le papier à en-tête (mentions légales), voyage (vols, n°, heures, PNR, transferts), hébergement (hôtel, nuits,
+  chambre, confirmation, repas, accès), planning jour par jour trié, contacts (équipe sur place, assistante de direction),
+  à emporter. **Livret général** (« Livret général » sur la demande) : délégation et vols, chambres et repas du groupe,
+  programme commun, équipe Adventum (dates convenues, billet), dos.
+- **Charte** : logo horizontal officiel (le vertical est retiré), jamais déformé ; bleu 2945 C pour les titres, teal
+  7714 C pour les sous-titres ; Calibri embarquée en Carlito (OFL) + Helvetica ; puces carrées, mosaïque de carrés, pied
+  du papier à en-tête. Absent → « à confirmer » ; aucun montant, devis ni passeport.
+- Rangé dans les pièces de la demande (SUPPORTING_DOC, nouvelle version à chaque génération) ; la page de mission d'un
+  membre de l'équipe lie le dernier « Livret de la délégation ».
+- **Assistante de direction** : passeports (depuis son sujet de réservation), billets émis, vouchers et livrets
+  s'ouvrent désormais pour elle (`peutLirePieceDePriseEnCharge`, miroir de la porte du sponsoring).
+- Fiche voyageur : le ⋯ d'un « autre poste » rattache de nouveau un **support promotionnel**.
+
 ### BUDGET MARKETING : VUE D'ENSEMBLE REFAITE — DISPONIBLE, À TRAITER, SIX GRAPHIQUES FILTRABLES, EXPORTS, RÉALLOUER ; ENGAGÉ ET DATES CORRIGÉS (2026-10-11)
 
 - **Un disponible** (enveloppe − payé − engagé), son rythme face à l'année, une barre payé / engagé / disponible avec le
