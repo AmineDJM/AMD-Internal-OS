@@ -1158,6 +1158,9 @@ X("BUDGETS DES PÔLES — Budget Marketing, Budget Regulatory, Budget Operations
   "budget-pole-actions:completerCategoriesPole",
   "budget-pole-actions:saisirBvManuel",
   "budget-pole-actions:imputerBv",
+  // RÉALLOUER entre deux catégories (Budget Marketing, 10/2026) : un montant déplacé, motif obligatoire gardé dans
+  // l'historique — décidé devant le tableau « Par catégorie » de la vue d'ensemble, pas par un appel d'Adam.
+  "budget-pole-actions:reallouerCategorie",
 ]);
 X("RESOUMETTRE ET RETIRER UNE DEMANDE AD & PRO (§118.186, audit R02/R24) : deux gestes du DEMANDEUR sur SA "
   + "demande, ajoutés avec le renvoi pour correction. Resoumettre suppose qu'une personne a corrigé ce que le "

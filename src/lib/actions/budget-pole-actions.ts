@@ -11,6 +11,7 @@ import { DOMAINES, bornesAnnee, estDomainePole, poleDe, type DomainePole } from 
 import { CATEGORIES_AD_PRO, MODULES_AD_PRO_BUDGET } from "@/lib/budget-marketing/domaine";
 import { CATEGORIES_BV, CLE_DE_LA_NATURE, natureDuLibelle, type NatureBv } from "@/lib/budget-regulatory/bv";
 import { CATEGORIES_OPERATIONS, CLE_MASSE_SALARIALE } from "@/lib/budget-operations/force-de-vente";
+import { refusReallocation } from "@/lib/budget/marketing-vue";
 
 /**
  * LES BUDGETS DES PÔLES — les gestes de chaque pôle sur SES enveloppes (Direction, 08/10).
@@ -193,6 +194,55 @@ export async function completerCategoriesPole(formData: FormData): Promise<Actio
   if (crees > 0) await recordAudit({ actorId: user.id, action: "UPDATE", module: DOMAINES[pole].titre, entityId: env.id, summary: `Enveloppe « ${env.name} » : ${crees} catégorie(s) ajoutée(s)` });
   revalider(pole);
   return { ok: true, message: crees > 0 ? `${crees} catégorie(s) ajoutée(s).` : "Rien à ajouter : les catégories sont déjà là." };
+}
+
+/**
+ * RÉALLOUER (Budget Marketing, Direction 10/2026) — déplacer un montant d'une catégorie de tête à une autre de la MÊME
+ * enveloppe : ce que l'une cède, l'autre le reçoit, l'enveloppe ne bouge pas. Le motif est obligatoire et reste dans
+ * l'historique du budget (journal d'audit de l'enveloppe, champ « reallocation »). Gardé par le droit de gérer le contenu
+ * de l'enveloppe (`canManageEnvelope` : Super Admin, délégués, « Modifier » du budget du pôle — la Direction Marketing).
+ * La cession est CONDITIONNELLE : lue et écrite dans la même instruction, deux réallocations simultanées ne font jamais
+ * passer une allocation sous zéro.
+ */
+export async function reallouerCategorie(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const sourceId = fdStr(formData, "sourceId");
+  const cibleId = fdStr(formData, "cibleId");
+  const montant = fdNum(formData, "montant");
+  const motif = fdStr(formData, "motif")?.trim() ?? null;
+  const [source, cible] = await Promise.all([
+    sourceId ? prisma.budgetCategoryLine.findUnique({ where: { id: sourceId }, select: { id: true, name: true, envelopeId: true, parentId: true, allocated: true } }) : null,
+    cibleId ? prisma.budgetCategoryLine.findUnique({ where: { id: cibleId }, select: { id: true, name: true, envelopeId: true, parentId: true } }) : null,
+  ]);
+  const refusSaisie = refusReallocation({
+    sourceId, cibleId, montant, motif,
+    source: source ? { envelopeId: source.envelopeId, parentId: source.parentId, alloue: Number(source.allocated) } : null,
+    cible: cible ? { envelopeId: cible.envelopeId, parentId: cible.parentId } : null,
+  });
+  if (refusSaisie || !source || !cible || montant == null || !motif) return { ok: false, error: refusSaisie ?? "Saisie incomplète." };
+  const env = await prisma.budgetEnvelope.findUnique({
+    where: { id: source.envelopeId },
+    select: { id: true, name: true, domaine: true, accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true },
+  });
+  const pole = env ? poleDe(env) : null;
+  if (!env || !pole) return { ok: false, error: "Enveloppe introuvable." };
+  if (!canManageEnvelope(user, env)) return refus(pole);
+
+  const fait = await prisma.$transaction(async (tx) => {
+    const cede = await tx.budgetCategoryLine.updateMany({ where: { id: source.id, allocated: { gte: montant } }, data: { allocated: { decrement: montant } } });
+    if (cede.count === 0) return false;
+    await tx.budgetCategoryLine.update({ where: { id: cible.id }, data: { allocated: { increment: montant } } });
+    return true;
+  });
+  if (!fait) return { ok: false, error: "L'allocation de la catégorie qui cède a changé entre-temps : rechargez et recommencez." };
+  const somme = `${Math.round(montant).toLocaleString("fr-FR")} DZD`;
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: DOMAINES[pole].titre, entityType: "BUDGET", entityId: env.id, field: "reallocation",
+    oldValue: `${source.name} → ${cible.name}`, newValue: String(montant),
+    summary: `Réallocation de ${somme} : « ${source.name} » → « ${cible.name} » — motif : ${motif.slice(0, 500)}`,
+  });
+  revalider(pole);
+  return { ok: true, message: `${somme} réalloués à « ${cible.name} ».` };
 }
 
 function natureDuFormulaire(formData: FormData): NatureBv | null {

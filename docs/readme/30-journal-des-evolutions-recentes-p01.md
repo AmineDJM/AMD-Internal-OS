@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### BUDGET MARKETING : VUE D'ENSEMBLE REFAITE — DISPONIBLE, À TRAITER, SIX GRAPHIQUES FILTRABLES, EXPORTS, RÉALLOUER ; ENGAGÉ ET DATES CORRIGÉS (2026-10-11)
+
+- **Un disponible** (enveloppe − payé − engagé), son rythme face à l'année, une barre payé / engagé / disponible avec le
+  repère du jour ; « À traiter » (dépassement → Réallouer, sans catégorie → Les imputer, répartition > enveloppe → Ajuster) ;
+  filtres période / catégorie / N-1 appliqués aux six graphiques et aux exports (Excel 5 feuilles, PDF, CSV, PowerPoint,
+  PNG par graphique) ; tableau « Par catégorie » et détail par demande. Calculs purs : `lib/budget/marketing-vue.ts`.
+- **Engagé = 0 corrigé à la source** (`queries/budget-sources.ts`, règle `lib/budget/engage.ts`) : ordres de dépense émis
+  non réglés + BC émis des postes accordés, moins le déjà payé — l'ancien calcul ne lisait que des écritures `PENDING`
+  que le circuit n'écrit jamais. **Courbe datée par la dépense** (date saisie, sinon règlement / date de la facture).
+- **Réallouer** (`reallouerCategorie`) : Direction Marketing / Super Admin, motif obligatoire, journal de l'enveloppe.
+
 ### MISSIONS DE L'ÉQUIPE ADVENTUM : DEMANDE DE PARTICIPATION, CONTRE-PROPOSITIONS, OM EN UN CLIC, BILLET / HÔTEL PAR MEMBRE, NOTES DE FRAIS ET CLÔTURE (2026-10-11)
 
 Migration additive et idempotente `20270120090000_mission_equipe_participation` (`MissionParticipationVersion`,

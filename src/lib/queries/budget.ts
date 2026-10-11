@@ -8,6 +8,8 @@ import { generalMeansConsumption } from "@/lib/queries/budget-general-means";
 import { getAppSettings } from "@/lib/settings";
 import { dansLaPortee, totaliser, type PorteeBudget } from "@/lib/budget/domaines";
 import { masseSalarialeConsumption } from "@/lib/queries/budget-operations";
+import { datesReellesDesEcritures, engagementsDesCategories } from "@/lib/queries/budget-sources";
+import { dansLaPeriode } from "@/lib/budget/engage";
 
 /**
  * LA PORTÉE D'UN ÉCRAN (Budget Marketing, 08/10) : Budgets lit toutes les enveloppes visibles, Budget Marketing les
@@ -408,6 +410,13 @@ export async function getBudgetOverview(
   for (const [catId, amount] of paie.byCategory) {
     consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
   }
+  // L'ENGAGÉ AFFICHAIT 0 (Direction, 10/2026) : il ne lisait que des écritures `PENDING`, que le circuit n'écrit jamais.
+  // Ce qui est promis et pas payé, ce sont les ORDRES DE DÉPENSE émis et les BC émis des postes accordés
+  // (`budget-sources.ts`, règle pure et testée dans `budget/engage.ts`) — ajouté aux écritures `PENDING` saisies à la main.
+  const engagements = await engagementsDesCategories(catIds, to);
+  for (const [catId, amount] of engagements.parCategorie) {
+    committedByCat.set(catId, (committedByCat.get(catId) ?? 0) + amount);
+  }
 
   const categories: BudgetCategoryView[] = envelope.categories.map((c) => {
     const allocated = toNumber(c.allocated);
@@ -479,7 +488,7 @@ export async function getBudgetOverview(
     ? await Promise.all([
         prisma.financeTransaction.findMany({
           where: { direction: "OUT", status: "SETTLED", budgetCategoryId: { in: [...catNameById.keys()] }, date: { gte: from, lte: to } },
-          select: { date: true, amount: true },
+          select: { id: true, date: true, createdAt: true, amount: true },
         }),
         prisma.budgetExpenseLine.findMany({
           where: { categoryId: { in: [...catNameById.keys()] }, date: { gte: from, lte: to } },
@@ -487,8 +496,12 @@ export async function getBudgetOverview(
         }),
       ])
     : [[], []];
+  // LA COURBE SAUTAIT EN JUILLET : une écriture réglée au centre de paiement porte la date du clic. Chaque dépense se
+  // date par ce qui la date vraiment (`datesReellesDesEcritures`), ramenée dans la période pour que la courbe et le
+  // compteur racontent la même histoire.
+  const datesReelles = await datesReellesDesEcritures(monthlyFinance);
   const monthly = buildMonthlySeries(from, to, toNumber(envelope.totalAmount), [
-    ...monthlyFinance.map((t) => ({ date: t.date, amount: toNumber(t.amount) })),
+    ...monthlyFinance.map((t) => ({ date: dansLaPeriode(datesReelles.get(t.id) ?? t.date, from, to), amount: toNumber(t.amount) })),
     ...monthlyLines.map((l) => ({ date: l.date, amount: toNumber(l.amount) })),
     // La courbe doit raconter la MÊME histoire que le compteur : sans les moyens généraux,
     // elle resterait plate pendant que le consommé, lui, monte.
