@@ -1,5 +1,21 @@
 ## 🧾 Journal des évolutions récentes
 
+### MISSIONS DE L'ÉQUIPE ADVENTUM : DEMANDE DE PARTICIPATION, CONTRE-PROPOSITIONS, OM EN UN CLIC, BILLET / HÔTEL PAR MEMBRE, NOTES DE FRAIS ET CLÔTURE (2026-10-11)
+
+Migration additive et idempotente `20270120090000_mission_equipe_participation` (`MissionParticipationVersion`,
+`MissionExpenseLine` ; accord, billet, hôtel, réservation, imputation, rapport et clôture sur `MissionAssignment`).
+Règles : `lib/missions-equipe/participation.ts` — voir « Demande de participation » dans la référence des circuits.
+
+- **Équipe Adventum** : « Inviter à participer » ; colonnes Où en est-on (« état — chez qui ») · Transport · Hébergement ·
+  Ordre de mission · Imputation (Direction Marketing) ; « Répondre » quand la balle est chez Adventum.
+- **Fiche de participation** puis versions négociées (accepter, refuser motivé, modifier et contre-proposer), changements
+  surlignés, fil de commentaires jusqu'à la clôture ; arbitres : organisateur, Direction Marketing, Super Admin.
+- **Accord → ordre de mission en un clic**, pré-rempli ; à l'émission, réservation à l'assistante de direction et dépôt du
+  billet émis / de la confirmation d'hôtel par membre.
+- **Ma mission** (`/mon-espace/missions/[id]`) : avant le départ (OM, billet, hôtel, rôle et professionnels accompagnés),
+  après (dépenses USD hors billet au taux figé, justificatifs, rapport), clôture → note de frais N+1 puis RH, rapport à
+  l'organisateur.
+
 ### PRISES EN CHARGE : FICHES VOYAGEUR, MODE INDIVIDUEL / DE GROUPE, DOLLAR À L'INTERNATIONAL, BILLETS ÉMIS (2026-10-11)
 
 Migration additive et idempotente `20270119090000_fiches_voyageur_prise_en_charge` (`CareMode`, `CareCurrency`,

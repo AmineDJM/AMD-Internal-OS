@@ -200,10 +200,11 @@ export function refusDecisionN1(
   return null;
 }
 
-/** Les RH ne produisent pas un ordre que le N+1 n'a pas encore validé (ou a refusé). */
+/** Les RH ne traitent pas une demande (ordre de mission, note de frais de mission) que le N+1 n'a pas encore validée (ou a refusée). */
 export function refusTraitementRh(managerGate: GateN1 | null): string | null {
-  if (managerGate === "PENDING") return "Cet ordre de mission attend encore la validation du N+1.";
-  if (managerGate === "REJECTED") return "Le N+1 a refusé cet ordre de mission.";
+  // Vaut aussi pour la note de frais d'une mission de l'équipe, qui monte au N+1 avant les RH.
+  if (managerGate === "PENDING") return "Cette demande attend encore la validation du N+1.";
+  if (managerGate === "REJECTED") return "Le N+1 a refusé cette demande.";
   return null;
 }
 

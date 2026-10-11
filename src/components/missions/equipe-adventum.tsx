@@ -5,8 +5,12 @@ import Link from "next/link";
 import type { EntityType } from "@prisma/client";
 import { Loader2, UserPlus, Users } from "lucide-react";
 import type { MissionAssignmentDTO, PersonneInvitable } from "@/lib/queries/missions";
-import { assignMission, relancerMission, remplacerMission, removeMission, integrerFraisEquipe } from "@/lib/actions/mission-actions";
-import { etatReponse, peutRelancerInvitation, type Etat } from "@/lib/missions-equipe/etat";
+import { assignMission, relancerMission, remplacerMission, removeMission, integrerFraisEquipe, choisirBudgetMission } from "@/lib/actions/mission-actions";
+import { peutRelancerInvitation, type Etat } from "@/lib/missions-equipe/etat";
+import {
+  estArbitre, etatParticipation, aQuiLeTour, HEBERGEMENT_LIBELLE, MODE_TRANSPORT_LIBELLE, type FicheParticipation,
+} from "@/lib/missions-equipe/participation";
+import { lienMission } from "@/lib/chemins/espace";
 import { MISSION_ROLE } from "@/lib/labels";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,19 +28,27 @@ function Pastille({ etat }: { etat: Etat | null }) {
   return <Badge tone={etat.ton} dot={false}>{etat.texte}</Badge>;
 }
 
+/** Le transport d'une fiche, en une ligne : « Avion · Oran → Paris ». */
+const transportCourt = (f: FicheParticipation) =>
+  [MODE_TRANSPORT_LIBELLE[f.transport.mode], f.transport.depart || f.transport.arrivee ? `${f.transport.depart ?? "?"} → ${f.transport.arrivee ?? "?"}` : null].filter(Boolean).join(" · ");
+
 /**
  * « ÉQUIPE ADVENTUM » — les personnes de la société sur une demande Ad & Pro (Direction, 10/2026). Une ligne par
- * personne : sa réponse, et où en sont son ordre de mission, son transport, son hébergement, son matériel — « — »
- * tant que rien n'est demandé. Les gestes secondaires (relancer, remplacer, retirer) sont dans « ⋯ ». En bas, à la
- * clôture : les frais de l'équipe, intégrés au budget À LA MAIN.
+ * personne : où en est sa participation (« état — chez qui »), le transport et l'hébergement sur la table (ou convenus),
+ * son ordre de mission, et l'imputation de ses frais (choisie par la Direction Marketing). « Inviter à participer »
+ * envoie une demande de participation : la personne répond par sa fiche. Les gestes secondaires (relancer, remplacer,
+ * retirer) sont dans « ⋯ ». En bas, à la clôture : les frais de l'équipe, intégrés au budget À LA MAIN.
  */
-export function EquipeAdventum({ entityType, entityId, assignments, personnes, canManage, currentUserId }: {
+export function EquipeAdventum({ entityType, entityId, assignments, personnes, canManage, currentUserId, viewerRoles = [], peutBudget = false, budgetOptions = [] }: {
   entityType: EntityType;
   entityId: string;
   assignments: MissionAssignmentDTO[];
   personnes: PersonneInvitable[];
   canManage: boolean;
   currentUserId: string;
+  viewerRoles?: string[];
+  peutBudget?: boolean;
+  budgetOptions?: { id: string; label: string }[];
 }) {
   const { enCours, rafraichir } = useRafraichir();
   const [inviter, setInviter] = React.useState(false);
@@ -72,14 +84,14 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
           <Users className="h-4 w-4" /> Équipe Adventum
           <Badge tone="neutral" dot={false}>{assignments.length}</Badge>
           <InfoBulle align="left">
-            Inviter quelqu&apos;un lui envoie une invitation dans « Mes missions » : il confirme ou décline (avec un motif).
-            Une fois confirmée, la personne demande elle-même son ordre de mission (N+1 puis RH) et, si besoin, transport,
-            hébergement et matériel — chaque colonne dit où en est sa demande.
+            « Inviter à participer » envoie une demande de participation : la personne répond par sa fiche (dates, transport,
+            hébergement) dans Mon espace. Chaque partie accepte, refuse ou contre-propose ; l&apos;accord ouvre l&apos;ordre de
+            mission (N+1 puis RH). « Où en est-on » dit toujours qui doit agir.
           </InfoBulle>
         </CardTitle>
         {canManage && (
           <Button size="sm" onClick={() => setInviter((v) => !v)} disabled={occupe}>
-            <UserPlus className="h-4 w-4" /> Inviter
+            <UserPlus className="h-4 w-4" /> Inviter à participer
           </Button>
         )}
       </CardHeader>
@@ -122,14 +134,14 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
             <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
               <Button type="button" size="sm" variant="ghost" onClick={() => setInviter(false)}>Annuler</Button>
               <Button type="submit" size="sm" disabled={occupe}>
-                {busy === "inviter" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Envoyer l&apos;invitation
+                {busy === "inviter" ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} Envoyer la demande
               </Button>
             </div>
           </form>
         )}
 
         {assignments.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">Personne de l&apos;équipe n&apos;est encore invité.</p>
+          <p className="rounded-lg border border-dashed border-border px-3 py-4 text-center text-sm text-muted-foreground">Personne de l&apos;équipe n&apos;est encore invité à participer.</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full border-collapse text-sm">
@@ -137,34 +149,60 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
                 <tr className="bg-secondary/40 text-left text-xs text-muted-foreground">
                   <th className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2 font-medium">Personne</th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">Rôle</th>
-                  <th className="whitespace-nowrap px-3 py-2 font-medium">Réponse</th>
-                  <th className="whitespace-nowrap px-3 py-2 font-medium">Ordre de mission</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-medium">Où en est-on</th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">Transport</th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">Hébergement</th>
-                  <th className="whitespace-nowrap px-3 py-2 font-medium">Matériel</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-medium">Ordre de mission</th>
+                  <th className="whitespace-nowrap px-3 py-2 font-medium">
+                    <span className="inline-flex items-center gap-1">Imputation
+                      <InfoBulle align="right">La Direction Marketing choisit la ligne budgétaire des frais de mission de chacun. Rien n&apos;est imputé sans son choix.</InfoBulle>
+                    </span>
+                  </th>
                   <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 {assignments.map((a) => {
-                  const reponse = etatReponse({ response: a.response, createdAt: a.createdAt, declineReason: a.declineReason });
+                  const p = a.participation;
+                  const arbitre = estArbitre({ id: currentUserId, roles: viewerRoles }, a.organisateurIds);
+                  const vue = a.userId === currentUserId ? "PERSONNE" as const : arbitre ? "ADVENTUM" as const : null;
+                  const ouEnEst = etatParticipation(p.etape, p.derniere, vue, { personne: a.userName, organisateur: a.organiserName }, { declineReason: a.declineReason, depuis: a.createdAt });
+                  const fiche = p.convenue ?? p.courante;
+                  const aMoi = vue !== null && aQuiLeTour(p.etape) === vue;
                   const relance = peutRelancerInvitation({ response: a.response, createdAt: a.createdAt, lastNudgeAt: a.lastNudgeAt, archivedAt: a.archivedAt });
+                  const budget = a.budgetCategoryId ? budgetOptions.find((o) => o.id === a.budgetCategoryId)?.label ?? "imputé" : null;
                   return (
                     <React.Fragment key={a.id}>
                       <tr className="border-t border-border align-middle">
                         <td className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2 font-medium">
-                          {a.userId === currentUserId ? <Link href="/mon-espace/missions" className="text-primary hover:underline">{a.userName}</Link> : a.userName}
+                          <Link href={lienMission(a.id)} className="text-primary hover:underline">{a.userName}</Link>
                         </td>
                         <td className="whitespace-nowrap px-3 py-2">{MISSION_ROLE[a.role]?.label ?? a.role}</td>
-                        <td className="whitespace-nowrap px-3 py-2"><Pastille etat={reponse} /></td>
+                        <td className="whitespace-nowrap px-3 py-2"><Pastille etat={ouEnEst} /></td>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {fiche ? transportCourt(fiche) : <Pastille etat={a.transport?.etat ?? null} />}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {fiche ? HEBERGEMENT_LIBELLE[fiche.hebergement.choix] : <Pastille etat={a.hebergement?.etat ?? null} />}
+                        </td>
                         <td className="whitespace-nowrap px-3 py-2"><Pastille etat={a.om.etat === "AUCUN" ? null : a.om.libelle} /></td>
-                        <td className="whitespace-nowrap px-3 py-2"><Pastille etat={a.transport?.etat ?? null} /></td>
-                        <td className="whitespace-nowrap px-3 py-2"><Pastille etat={a.hebergement?.etat ?? null} /></td>
-                        <td className="whitespace-nowrap px-3 py-2"><Pastille etat={a.materiel?.etat ?? null} /></td>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {peutBudget && a.response !== "DECLINEE" ? (
+                            <Select aria-label={`Imputation — ${a.userName}`} className="h-8 min-w-[160px] text-xs" defaultValue={a.budgetCategoryId ?? ""} disabled={occupe}
+                              onChange={(e) => void executer(`budget-${a.id}`, choisirBudgetMission, avecId(a.id, { budgetCategoryId: e.target.value }))}>
+                              <option value="">— À choisir —</option>
+                              {budgetOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                            </Select>
+                          ) : budget ?? <span className="text-muted-foreground">—</span>}
+                        </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">
+                          <span className="inline-flex items-center gap-1">
+                          <Link href={lienMission(a.id)} className={`inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium ${aMoi ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border border-border hover:bg-secondary"}`}>
+                            {aMoi ? "Répondre" : p.etape === "ACCORD" || p.etape === "CONFIRMEE_SANS_FICHE" ? "Voir la mission" : "Ouvrir"}
+                          </Link>
                           {canManage && (
                             <MenuDossier>
-                              {a.response === "INVITEE" && (
+                              {p.etape === "FICHE_A_REMPLIR" && (
                                 <Button size="sm" variant="ghost" className="justify-start" disabled={occupe || !relance.ok}
                                   title={relance.ok ? undefined : relance.raison}
                                   onClick={() => void executer(`relance-${a.id}`, relancerMission, avecId(a.id))}>
@@ -180,6 +218,7 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
                               </Button>
                             </MenuDossier>
                           )}
+                          </span>
                         </td>
                       </tr>
                       {remplacer === a.id && (

@@ -28,6 +28,7 @@ import type { LigneTache, LigneMissionAAccepter, OngletTaches as Donnees } from 
 import type { InvitationMissionDTO, OrdreAValiderDTO } from "@/lib/queries/missions";
 import { repondreMission, deciderOrdreMissionN1 } from "@/lib/actions/mission-actions";
 import { MISSION_ROLE } from "@/lib/labels";
+import { lienMission } from "@/lib/chemins/espace";
 import { TaskWorkPanel } from "./[id]/work-panel";
 import { TaskComments } from "./[id]/comments";
 
@@ -151,9 +152,12 @@ function AAccepter({ lignes, missions, ouvrir }: { lignes: LigneTache[]; mission
 const periodeMission = (d: string | null, f: string | null) =>
   d ? `${formatDate(d)}${f && f.slice(0, 10) !== d.slice(0, 10) ? ` → ${formatDate(f)}` : ""}` : "dates à préciser";
 
-/** Une invitation à une mission — même geste que sur « Mes missions » (`repondreMission`). */
+/**
+ * Une demande de participation où la balle est chez moi (Direction, 10/2026) : la fiche se remplit — ou la
+ * contre-proposition se lit — sur la mission ; décliner (motif) reste possible d'ici (`repondreMission`).
+ */
 function LigneInvitationMission({ invitation: m }: { invitation: InvitationMissionDTO }) {
-  const { ferme, busy, err, run } = useGeste();
+  const { ferme, err, run } = useGeste();
   const [refus, setRefus] = React.useState(false);
   const [motif, setMotif] = React.useState("");
   const sousTitre = [
@@ -165,17 +169,16 @@ function LigneInvitationMission({ invitation: m }: { invitation: InvitationMissi
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <span className="block break-words font-medium">
-            <span className={cn("mr-2 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", TON_PILL.info)}>Invitation mission</span>
+            <span className={cn("mr-2 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", TON_PILL.info)}>{m.attente === "FICHE" ? "Demande de participation" : "Contre-proposition"}</span>
             <Link href={m.parentPath} className="hover:underline">{m.parentLabel}</Link>
           </span>
           <span className="block text-xs text-muted-foreground">{sousTitre}</span>
         </div>
         {!refus && (
           <div className="flex shrink-0 gap-2">
-            <Button size="sm" variant="outline" className="text-success" disabled={ferme}
-              onClick={() => run(() => repondreMission(fd({ id: m.id, decision: "CONFIRMER" })))}>
-              {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Je confirme
-            </Button>
+            <Link href={lienMission(m.id)} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-xs font-medium text-success hover:bg-secondary sm:h-8">
+              <Check className="h-3.5 w-3.5" /> {m.attente === "FICHE" ? "Remplir ma fiche" : "Répondre"}
+            </Link>
             <Button size="sm" variant="outline" className="text-destructive" disabled={ferme} onClick={() => setRefus(true)}>
               <X className="h-3.5 w-3.5" /> Je décline
             </Button>
@@ -204,14 +207,14 @@ function LigneOrdreMissionN1({ ordre: o }: { ordre: OrdreAValiderDTO }) {
   const { ferme, busy, err, run } = useGeste();
   const [refus, setRefus] = React.useState(false);
   const [motif, setMotif] = React.useState("");
-  const sousTitre = [periodeMission(o.dates.depart, o.dates.retour), o.destination].filter(Boolean).join(" · ");
+  const sousTitre = [periodeMission(o.dates.depart, o.dates.retour), o.destination, o.montant != null ? `${o.montant.toLocaleString("fr-FR")} DZD` : null].filter(Boolean).join(" · ");
   return (
     <li className="bg-warning/5 px-4 py-3 last:rounded-b-[var(--radius)]">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <span className="block break-words font-medium">
-            <span className={cn("mr-2 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", TON_PILL.info)}>Ordre de mission à valider</span>
-            {o.employeeName} — {o.mission}
+            <span className={cn("mr-2 rounded-full px-2 py-0.5 text-[0.6875rem] font-medium", TON_PILL.info)}>{o.nature === "NF" ? "Note de frais de mission à valider" : "Ordre de mission à valider"}</span>
+            {o.employeeName} — {o.missionId && o.nature === "NF" ? <Link href={lienMission(o.missionId, "frais")} className="hover:underline">{o.mission}</Link> : o.mission}
           </span>
           <span className="block text-xs text-muted-foreground">{sousTitre}</span>
         </div>

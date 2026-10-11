@@ -52,7 +52,7 @@ export interface HrRequestDTO {
   archivedNodeId: string | null;
   /** Ordre de mission d'une mission Ad & Pro : la marche du N+1 (nulle = aucune) et les champs pré-remplis. */
   managerGate: "PENDING" | "APPROVED" | "REJECTED" | null;
-  missionPrefill: { objet: string; destination: string; datesDepart: string[]; datesRetour: string[] } | null;
+  missionPrefill: { objet: string; destination: string; datesDepart: string[]; datesRetour: string[]; transport?: string; hebergement?: string } | null;
   documents: DocItem[];
   comments: CommentItem[];
 }
@@ -67,6 +67,9 @@ function lirePrefill(v: unknown): HrRequestDTO["missionPrefill"] {
     destination: typeof o.destination === "string" ? o.destination : "",
     datesDepart: liste(o.datesDepart),
     datesRetour: liste(o.datesRetour),
+    // La mission de l'équipe convenue (Direction, 10/2026) : le transport et l'hébergement de l'accord.
+    ...(typeof o.transport === "string" ? { transport: o.transport } : {}),
+    ...(typeof o.hebergement === "string" ? { hebergement: o.hebergement } : {}),
   };
 }
 

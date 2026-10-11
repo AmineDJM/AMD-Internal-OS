@@ -323,6 +323,8 @@ export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
   DossierMessage: ["message de sujet", "messages de sujet"],
   DossierMessageAttachment: ["pièce de message", "pièces de message"],
   MissionAssignment: ["affectation", "affectations"],
+  MissionParticipationVersion: ["version de fiche de participation", "versions de fiche de participation"],
+  MissionExpenseLine: ["dépense de mission", "dépenses de mission"],
   Task: ["tâche", "tâches"],
   TaskComment: ["commentaire de tâche", "commentaires de tâche"],
   Reminder: ["rappel", "rappels"],

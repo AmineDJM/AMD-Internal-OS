@@ -25,7 +25,7 @@ import { accesAuReleveStockPch } from "@/lib/queries/stock-pch";
 import {
   userCan, hasGlobalView, isTopManagement, scopeMedicalDoctors, scopeMedicalVisits, scopeSales, scopeBusinessDevelopment, scopeSupport, scopeDossiers, type Action, type Module, type SessionUser,
   annuaireOuvertParConsole, scopeCongressIntl, scopeCongressNational, scopePromoMaterial, scopeSponsoring,
-  moduleDuDossierRegulatory,
+  moduleDuDossierRegulatory, hasRole,
 } from "@/lib/rbac";
 
 /** Maps a polymorphic entity type to its owning module. */
@@ -783,6 +783,15 @@ export async function canAccessEntity(
     });
     if (!a) return false;
     if (a.userId === user.id) return action !== "DELETE";
+    // LA MISSION D'UN MEMBRE DE L'ÉQUIPE (Direction, 10/2026) : la Direction Marketing et le Super Admin tranchent la
+    // participation, l'assistante de direction y dépose billet et hôtel — ils voient la mission, son fil et ses pièces.
+    if (action !== "DELETE" && (hasRole(user, "PRODUCT_MANAGER") || hasRole(user, "SUPER_ADMIN") || hasRole(user, "DIRECTION_ASSISTANT"))) return true;
+    // Le N+1 qui valide l'ordre ou la note de frais, et les RH qui les traitent, lisent la mission (justificatifs compris).
+    if (action === "VIEW") {
+      const lie = await prisma.hrDocumentRequest.findFirst({ where: { missionAssignmentId: entityId, managerUserId: user.id }, select: { id: true } });
+      if (lie) return true;
+      if (userCan(user, "HR_REQUESTS", "VIEW") && (await prisma.hrDocumentRequest.count({ where: { missionAssignmentId: entityId } })) > 0) return true;
+    }
     return canAccessEntity(user, a.entityType, a.entityId, action === "VIEW" ? "VIEW" : "UPDATE");
   }
 

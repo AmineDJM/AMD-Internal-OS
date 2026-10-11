@@ -8637,9 +8637,88 @@ model MissionAssignment {
   transportPosteId   String?
   hebergementPosteId String?
 
+  /// LA DEMANDE DE PARTICIPATION (Direction, 10/2026) — la personne répond par sa fiche ; chaque proposition
+  /// ou contre-proposition est une VERSION (`MissionParticipationVersion`). L'accord pointe la version retenue.
+  versions        MissionParticipationVersion[]
+  accordVersionId String?
+  accordAt        DateTime?
+  /// LE BILLET ÉMIS quand Adventum réserve (assistante de direction, organisateur, Direction Marketing, Super
+  /// Admin) : e-billet, PNR, et pour l'aller puis le retour le n° de vol / train et les heures (`DetailTrajet[]`).
+  billetDocumentId  String?
+  billetReference   String?
+  billetTrajets     Json?
+  billetDeposeParId String?
+  billetDeposeLe    DateTime?
+  /// LA CONFIRMATION D'HÔTEL : voucher, nom de l'hôtel, n° de confirmation.
+  hotelNom          String?
+  hotelConfirmation String?
+  hotelDocumentId   String?
+  hotelDeposeParId  String?
+  hotelDeposeLe     DateTime?
+  /// Le sujet de l'assistante de direction qui réserve pour l'équipe (un par demande, partagé par ses membres).
+  reservationDossierId String?
+  reservationDemandeeLe DateTime?
+  /// L'IMPUTATION des frais de mission — choisie par la Direction Marketing (`BudgetCategoryLine`), jamais d'office.
+  budgetCategoryId  String?
+  budgetChoisiParId String?
+  budgetChoisiLe    DateTime?
+  /// LE RAPPORT DE MISSION — envoyé à l'organisateur à la clôture.
+  rapportDeroule   String?
+  rapportMedecins  String?
+  rapportRetombees String?
+  rapportSuites    String?
+  rapportLe        DateTime?
+  /// LA CLÔTURE — les notes de frais partent au N+1 puis aux RH (`noteFraisRequestId`), le rapport à l'organisateur.
+  clotureLe          DateTime?
+  clotureParId       String?
+  noteFraisRequestId String?
+  frais              MissionExpenseLine[]
+
   @@unique([entityType, entityId, userId])
   @@index([userId])
   @@index([entityType, entityId])
+}
+
+/// UNE VERSION DE LA FICHE DE PARTICIPATION — proposition de la personne ou contre-proposition d'Adventum
+/// (organisateur, Direction Marketing, Super Admin). `contenu` = la fiche (`FicheParticipation`, missions-equipe/
+/// participation.ts). Son sort s'écrit sur elle : EN_ATTENTE, ACCEPTEE, REFUSEE (motif) ou REMPLACEE (contre-proposée).
+model MissionParticipationVersion {
+  id            String            @id @default(cuid())
+  assignmentId  String
+  assignment    MissionAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  numero        Int
+  auteurId      String
+  cote          String // PERSONNE | ADVENTUM
+  nature        String // PROPOSITION | CONTRE_PROPOSITION
+  contenu       Json
+  motif         String?
+  statut        String            @default("EN_ATTENTE")
+  decideParId   String?
+  decideLe      DateTime?
+  motifDecision String?
+  createdAt     DateTime          @default(now())
+
+  @@unique([assignmentId, numero])
+}
+
+/// UNE DÉPENSE DE MISSION (note de frais d'un membre de l'équipe) — à l'international, tout sauf le billet se
+/// saisit en USD et entre à `montant × usdDzdRate` de la demande (240 par défaut).
+model MissionExpenseLine {
+  id           String            @id @default(cuid())
+  assignmentId String
+  assignment   MissionAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  date         DateTime
+  nature       String // TRANSPORT | TAXI | REPAS | HOTEL | AUTRE
+  detail       String?
+  amount       Decimal           @db.Decimal(14, 2)
+  currency     CareCurrency      @default(DZD)
+  amountDzd    Decimal?          @db.Decimal(14, 2)
+  documentId   String?
+  createdById  String
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@index([assignmentId])
 }
 
 /// Anti-bruteforce / anti-credential-stuffing : suivi des tentatives de connexion

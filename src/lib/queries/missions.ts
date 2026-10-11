@@ -7,6 +7,11 @@ import {
   etatOrdreMission, libelleOrdreMission, etatDemandeSecretariat, etatDemandeMateriel, etatNoteFrais, SOUS_TYPE_SECRETARIAT,
   type EtatOM, type Etat, type EtapeFacultative, type HrStatut, type GateN1,
 } from "@/lib/missions-equipe/etat";
+import {
+  etapeParticipation, ficheStockee, tauxMission, versionLite, TRAJETS_BILLET,
+  type EtapeParticipation, type FicheParticipation, type VersionLite,
+} from "@/lib/missions-equipe/participation";
+import { detailsStockes, personneVivante, type DetailTrajet } from "@/lib/care-fiches";
 
 export interface MissionCommentDTO {
   id: string; author: string; authorId: string | null; body: string; createdAt: string; editedAt: string | null;
@@ -60,6 +65,25 @@ export interface MissionAssignmentDTO {
   noteFrais: EtapeLieeDTO | null;
   transportPosteId: string | null;
   hebergementPosteId: string | null;
+  // ── La demande de participation (Direction, 10/2026) ──
+  participation: {
+    etape: EtapeParticipation;
+    derniere: VersionLite | null;
+    nbVersions: number;
+    /** La fiche de la dernière version (ce qui est sur la table). */
+    courante: FicheParticipation | null;
+    /** La fiche de l'accord — nulle tant qu'il n'y en a pas. */
+    convenue: FicheParticipation | null;
+    accordAt: string | null;
+  };
+  /** Le demandeur de l'opération et celui qui a invité — ils tranchent avec la Direction Marketing et le Super Admin. */
+  organisateurIds: string[];
+  international: boolean;
+  billet: { documentId: string | null; reference: string | null; trajets: DetailTrajet[]; deposeLe: string | null };
+  hotel: { nom: string | null; confirmation: string | null; documentId: string | null; deposeLe: string | null };
+  reservationDemandeeLe: string | null;
+  budgetCategoryId: string | null;
+  clotureLe: string | null;
 }
 
 function pathFor(entityType: EntityType, entityId: string): string {
@@ -77,12 +101,15 @@ const SELECT = {
   issuedAt: true, issuedById: true, note: true, createdById: true, createdAt: true,
   response: true, respondedAt: true, declineReason: true, lastNudgeAt: true, nudgeCount: true, archivedAt: true,
   dateDepart: true, dateRetour: true, ville: true, etapes: true, transportPosteId: true, hebergementPosteId: true,
+  accordVersionId: true, accordAt: true, billetDocumentId: true, billetReference: true, billetTrajets: true, billetDeposeLe: true,
+  hotelNom: true, hotelConfirmation: true, hotelDocumentId: true, hotelDeposeLe: true, reservationDemandeeLe: true,
+  budgetCategoryId: true, clotureLe: true,
   user: { select: { name: true } },
 } satisfies Prisma.MissionAssignmentSelect;
 type Row = Prisma.MissionAssignmentGetPayload<{ select: typeof SELECT }>;
 
-/** Ce que la demande Ad & Pro dit de la mission : libellé, ville, dates. */
-export interface ParentMission { label: string; ville: string | null; debut: Date | null; fin: Date | null }
+/** Ce que la demande Ad & Pro dit de la mission : libellé, ville, dates, demandeur, périmètre. */
+export interface ParentMission { label: string; ville: string | null; debut: Date | null; fin: Date | null; requesterId?: string | null; international?: boolean; taux?: number | null }
 
 /** Résout les demandes parentes (par type), en lots. */
 export async function resolveParents(rows: readonly { entityType: EntityType; entityId: string }[]): Promise<Map<string, ParentMission>> {
@@ -93,17 +120,22 @@ export async function resolveParents(rows: readonly { entityType: EntityType; en
   for (const [type, idList] of byType) {
     const ids = Array.from(new Set(idList));
     if (type === "EVENT") {
-      const items = await prisma.event.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, city: true, startDate: true, endDate: true } });
-      for (const i of items) out.set(`EVENT:${i.id}`, { label: i.name, ville: i.city, debut: i.startDate, fin: i.endDate ?? i.startDate });
+      const items = await prisma.event.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, city: true, startDate: true, endDate: true, requesterId: true } });
+      for (const i of items) out.set(`EVENT:${i.id}`, { label: i.name, ville: i.city, debut: i.startDate, fin: i.endDate ?? i.startDate, requesterId: i.requesterId });
     } else if (type === "SPONSORING") {
-      const items = await prisma.sponsoringRequest.findMany({ where: { id: { in: ids } }, select: { id: true, reference: true, institution: true, city: true } });
-      for (const i of items) out.set(`SPONSORING:${i.id}`, { label: `${i.reference} — ${i.institution}`, ville: i.city, debut: null, fin: null });
+      const items = await prisma.sponsoringRequest.findMany({ where: { id: { in: ids } }, select: { id: true, reference: true, institution: true, city: true, requesterId: true } });
+      for (const i of items) out.set(`SPONSORING:${i.id}`, { label: `${i.reference} — ${i.institution}`, ville: i.city, debut: null, fin: null, requesterId: i.requesterId });
     } else if (type === "CONGRESS_INTERNATIONAL") {
-      const items = await prisma.congressInternational.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, city: true, startDate: true, endDate: true } });
-      for (const i of items) out.set(`CONGRESS_INTERNATIONAL:${i.id}`, { label: i.name, ville: i.city, debut: i.startDate, fin: i.endDate ?? i.startDate });
+      const items = await prisma.congressInternational.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, city: true, startDate: true, endDate: true, requesterId: true, usdDzdRate: true } });
+      for (const i of items) {
+        out.set(`CONGRESS_INTERNATIONAL:${i.id}`, {
+          label: i.name, ville: i.city, debut: i.startDate, fin: i.endDate ?? i.startDate, requesterId: i.requesterId,
+          international: true, taux: i.usdDzdRate != null ? Number(i.usdDzdRate) : null,
+        });
+      }
     } else if (type === "CONGRESS_NATIONAL") {
-      const items = await prisma.congressNational.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, city: true, date: true, endDate: true } });
-      for (const i of items) out.set(`CONGRESS_NATIONAL:${i.id}`, { label: i.name, ville: i.city, debut: i.date, fin: i.endDate ?? i.date });
+      const items = await prisma.congressNational.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, city: true, date: true, endDate: true, requesterId: true } });
+      for (const i of items) out.set(`CONGRESS_NATIONAL:${i.id}`, { label: i.name, ville: i.city, debut: i.date, fin: i.endDate ?? i.date, requesterId: i.requesterId });
     }
   }
   return out;
@@ -116,7 +148,7 @@ async function hydrate(rows: Row[]): Promise<MissionAssignmentDTO[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [documents, comments, personnes, parents, hrRequests, adminRequests, promoRequests] = await Promise.all([
+  const [documents, comments, personnes, parents, hrRequests, adminRequests, promoRequests, versions] = await Promise.all([
     prisma.document.findMany({
       where: { entityType: "MISSION_ASSIGNMENT", entityId: { in: ids } },
       include: { uploadedBy: { select: { name: true } } },
@@ -150,7 +182,14 @@ async function hydrate(rows: Row[]): Promise<MissionAssignmentDTO[]> {
       select: { id: true, statut: true, quantite: true, missionAssignmentId: true, item: { select: { name: true } } },
       orderBy: { createdAt: "desc" },
     }),
+    prisma.missionParticipationVersion.findMany({
+      where: { assignmentId: { in: ids } },
+      select: { id: true, assignmentId: true, numero: true, cote: true, nature: true, statut: true, motifDecision: true, contenu: true, createdAt: true },
+      orderBy: { numero: "asc" },
+    }),
   ]);
+  const versionsDe = new Map<string, typeof versions>();
+  for (const v of versions) (versionsDe.get(v.assignmentId) ?? versionsDe.set(v.assignmentId, []).get(v.assignmentId)!).push(v);
 
   const managerIds = Array.from(new Set(hrRequests.map((h) => h.managerUserId).filter(Boolean) as string[]));
   const managers = managerIds.length ? await prisma.user.findMany({ where: { id: { in: managerIds } }, select: { id: true, name: true } }) : [];
@@ -194,6 +233,11 @@ async function hydrate(rows: Row[]): Promise<MissionAssignmentDTO[]> {
     const he = hebergementDe.get(r.id);
     const ma = materielDe.get(r.id);
     const nf = nfDe.get(r.id);
+    // Les versions de l'invitation EN COURS — une réinvitation repart d'une fiche vierge.
+    const vs = (versionsDe.get(r.id) ?? []).filter((v) => v.createdAt >= r.createdAt);
+    const der = vs.length ? vs[vs.length - 1]! : null;
+    const derLite = der ? versionLite(der) : null;
+    const accord = r.accordVersionId ? vs.find((v) => v.id === r.accordVersionId) ?? null : null;
     return {
       id: r.id, entityType: r.entityType, entityId: r.entityId,
       parentLabel: parent?.label ?? "Mission",
@@ -224,8 +268,124 @@ async function hydrate(rows: Row[]): Promise<MissionAssignmentDTO[]> {
       noteFrais: nf ? { id: nf.id, statut: nf.status, etat: etatNoteFrais(nf.status), detail: null, href: "/mon-dossier" } : null,
       transportPosteId: r.transportPosteId,
       hebergementPosteId: r.hebergementPosteId,
+      participation: {
+        etape: etapeParticipation(r, derLite),
+        derniere: derLite,
+        nbVersions: vs.length,
+        courante: der ? ficheStockee(der.contenu) : null,
+        convenue: accord ? ficheStockee(accord.contenu) : null,
+        accordAt: iso(r.accordAt),
+      },
+      organisateurIds: [parent?.requesterId, r.createdById].filter((x): x is string => Boolean(x)),
+      international: Boolean(parent?.international),
+      billet: { documentId: r.billetDocumentId, reference: r.billetReference, trajets: detailsStockes(r.billetTrajets, TRAJETS_BILLET.length), deposeLe: iso(r.billetDeposeLe) },
+      hotel: { nom: r.hotelNom, confirmation: r.hotelConfirmation, documentId: r.hotelDocumentId, deposeLe: iso(r.hotelDeposeLe) },
+      reservationDemandeeLe: iso(r.reservationDemandeeLe),
+      budgetCategoryId: r.budgetCategoryId,
+      clotureLe: iso(r.clotureLe),
     };
   });
+}
+
+/** UNE VERSION DE LA FICHE, pour l'écran : son auteur, son contenu, son sort. */
+export interface VersionDTO {
+  id: string;
+  numero: number;
+  auteur: string;
+  cote: VersionLite["cote"];
+  nature: VersionLite["nature"];
+  statut: VersionLite["statut"];
+  fiche: FicheParticipation | null;
+  motif: string | null;
+  decidePar: string | null;
+  decideLe: string | null;
+  motifDecision: string | null;
+  createdAt: string;
+}
+
+/** UNE DÉPENSE de la mission. */
+export interface FraisDTO {
+  id: string;
+  date: string;
+  nature: string;
+  detail: string | null;
+  montant: number;
+  devise: "USD" | "DZD";
+  montantDzd: number | null;
+  documentId: string | null;
+}
+
+/** LA PAGE D'UNE MISSION DE L'ÉQUIPE — participation, versions, fil, puis mission (billet, hôtel, dépenses, rapport). */
+export interface MissionDetailDTO {
+  mission: MissionAssignmentDTO;
+  versions: VersionDTO[];
+  frais: FraisDTO[];
+  taux: number | null;
+  rapport: { deroule: string | null; medecins: string | null; retombees: string | null; suites: string | null; le: string | null };
+  noteFrais: { id: string; statut: string; gate: string | null; managerNote: string | null; montant: number | null } | null;
+  budgetLibelle: string | null;
+  /** Les professionnels de santé de la demande — ceux que l'équipe accompagne sur place. */
+  accompagnes: string[];
+  demandeurName: string | null;
+  reservationDossierId: string | null;
+}
+
+export async function getMissionDetail(id: string): Promise<MissionDetailDTO | null> {
+  const row = await prisma.missionAssignment.findUnique({ where: { id }, select: { ...SELECT, rapportDeroule: true, rapportMedecins: true, rapportRetombees: true, rapportSuites: true, rapportLe: true, noteFraisRequestId: true, reservationDossierId: true } });
+  if (!row) return null;
+  const [mission] = await hydrate([row]);
+  if (!mission) return null;
+  const [versions, frais, parents, nf, budget] = await Promise.all([
+    prisma.missionParticipationVersion.findMany({ where: { assignmentId: id, createdAt: { gte: row.createdAt } }, orderBy: { numero: "desc" } }),
+    prisma.missionExpenseLine.findMany({ where: { assignmentId: id }, orderBy: [{ date: "asc" }, { createdAt: "asc" }] }),
+    resolveParents([row]),
+    row.noteFraisRequestId ? prisma.hrDocumentRequest.findUnique({ where: { id: row.noteFraisRequestId }, select: { id: true, status: true, managerGate: true, managerNote: true, expenseAmount: true } }) : Promise.resolve(null),
+    row.budgetCategoryId ? prisma.budgetCategoryLine.findUnique({ where: { id: row.budgetCategoryId }, select: { name: true, envelope: { select: { name: true } } } }) : Promise.resolve(null),
+  ]);
+  const parent = parents.get(`${row.entityType}:${row.entityId}`);
+  const noms = new Map(
+    (await prisma.user.findMany({
+      where: { id: { in: Array.from(new Set([...versions.flatMap((v) => [v.auteurId, v.decideParId]), parent?.requesterId].filter((x): x is string => Boolean(x)))) } },
+      select: { id: true, name: true },
+    })).map((u) => [u.id, u.name]),
+  );
+  const accompagnes = await professionnelsDeLaDemande(row.entityType, row.entityId).catch(() => [] as string[]);
+  return {
+    mission,
+    versions: versions.map((v) => {
+      const l = versionLite(v);
+      return {
+        id: v.id, numero: v.numero, auteur: noms.get(v.auteurId) ?? "—", cote: l.cote, nature: l.nature, statut: l.statut,
+        fiche: ficheStockee(v.contenu), motif: v.motif, decidePar: v.decideParId ? noms.get(v.decideParId) ?? null : null,
+        decideLe: iso(v.decideLe), motifDecision: v.motifDecision, createdAt: v.createdAt.toISOString(),
+      };
+    }),
+    frais: frais.map((f) => ({
+      id: f.id, date: f.date.toISOString().slice(0, 10), nature: f.nature, detail: f.detail, montant: Number(f.amount),
+      devise: f.currency === "USD" ? "USD" : "DZD", montantDzd: f.amountDzd != null ? Number(f.amountDzd) : null, documentId: f.documentId,
+    })),
+    taux: tauxMission(Boolean(parent?.international), parent?.taux ?? null),
+    rapport: { deroule: row.rapportDeroule, medecins: row.rapportMedecins, retombees: row.rapportRetombees, suites: row.rapportSuites, le: iso(row.rapportLe) },
+    noteFrais: nf ? { id: nf.id, statut: nf.status, gate: nf.managerGate ?? null, managerNote: nf.managerNote, montant: nf.expenseAmount != null ? Number(nf.expenseAmount) : null } : null,
+    budgetLibelle: budget ? `${budget.envelope.name} › ${budget.name}` : null,
+    accompagnes,
+    demandeurName: parent?.requesterId ? noms.get(parent.requesterId) ?? null : null,
+    reservationDossierId: row.reservationDossierId,
+  };
+}
+
+/** Les professionnels de santé pris en charge par la demande (congrès) — ce que l'équipe accompagne. */
+async function professionnelsDeLaDemande(entityType: EntityType, entityId: string): Promise<string[]> {
+  if (entityType !== "CONGRESS_INTERNATIONAL" && entityType !== "CONGRESS_NATIONAL") return [];
+  const personnes = await prisma.careBeneficiary.findMany({
+    where: entityType === "CONGRESS_INTERNATIONAL" ? { congressInternationalId: entityId } : { congressNationalId: entityId },
+    orderBy: { position: "asc" },
+    select: { doctorId: true, firstName: true, lastName: true, status: true },
+  });
+  const vivantes = personnes.filter((p) => personneVivante(p.status));
+  const ids = vivantes.map((p) => p.doctorId).filter((x): x is string => Boolean(x));
+  const nomDe = new Map((ids.length ? await prisma.medicalDoctor.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : []).map((d) => [d.id, d.name]));
+  return vivantes.map((p) => (p.doctorId ? nomDe.get(p.doctorId) : [p.firstName, p.lastName].filter(Boolean).join(" ")) ?? "").map((n) => n.trim()).filter(Boolean);
 }
 
 /** Assignations ACTIVES d'une entité (congrès / événement / sponsoring) — vue organisateur. */
@@ -261,16 +421,33 @@ export interface InvitationMissionDTO {
   dateRetour: string | null;
   ville: string | null;
   organiserName: string | null;
+  /** Ma fiche à remplir, ou une réponse attendue de moi (contre-proposition, refus à reprendre). */
+  attente: "FICHE" | "REPONSE";
 }
 
-/** Mes invitations en attente de réponse, la plus ancienne en tête. */
+/** Mes demandes de participation où la balle est chez moi (fiche à remplir, contre-proposition reçue), la plus ancienne en tête. */
 export async function invitationsMissionAAccepter(userId: string): Promise<InvitationMissionDTO[]> {
-  const rows = await prisma.missionAssignment.findMany({
+  const brutes = await prisma.missionAssignment.findMany({
     where: { userId, archivedAt: null, response: "INVITEE" },
     select: SELECT,
     orderBy: { createdAt: "asc" },
     take: 50,
   });
+  if (brutes.length === 0) return [];
+  const versions = await prisma.missionParticipationVersion.findMany({
+    where: { assignmentId: { in: brutes.map((r) => r.id) } },
+    select: { assignmentId: true, numero: true, cote: true, nature: true, statut: true, motifDecision: true, createdAt: true },
+    orderBy: { numero: "asc" },
+  });
+  const attente = new Map<string, "FICHE" | "REPONSE">();
+  for (const r of brutes) {
+    const vs = versions.filter((v) => v.assignmentId === r.id && v.createdAt >= r.createdAt);
+    const der = vs.length ? versionLite(vs[vs.length - 1]!) : null;
+    const etape = etapeParticipation(r, der);
+    if (etape === "FICHE_A_REMPLIR") attente.set(r.id, "FICHE");
+    else if (etape === "CHEZ_PERSONNE") attente.set(r.id, "REPONSE");
+  }
+  const rows = brutes.filter((r) => attente.has(r.id));
   if (rows.length === 0) return [];
   const organisateurs = Array.from(new Set(rows.map((r) => r.createdById).filter((x): x is string => Boolean(x))));
   const [parents, personnes] = await Promise.all([
@@ -289,6 +466,7 @@ export async function invitationsMissionAAccepter(userId: string): Promise<Invit
       dateRetour: iso(r.dateRetour ?? parent?.fin ?? null),
       ville: r.ville ?? parent?.ville ?? null,
       organiserName: r.createdById ? nom.get(r.createdById) ?? null : null,
+      attente: attente.get(r.id) ?? "FICHE",
     };
   });
 }
@@ -306,17 +484,47 @@ export interface OrdreAValiderDTO {
   dates: { depart: string | null; retour: string | null };
   destination: string | null;
   createdAt: string;
+  /** Ordre de mission, ou note de frais d'une mission de l'équipe (Direction, 10/2026) — même marche N+1. */
+  nature: "OM" | "NF";
+  /** Note de frais : le total DZD. */
+  montant: number | null;
+  missionId: string | null;
 }
 
-/** LES ORDRES DE MISSION QUI ATTENDENT MA VALIDATION (N+1) — la marche avant les RH. */
+/**
+ * Ce qui attend la marche du N+1 sur les missions : les ordres de mission, et les notes de frais des missions de
+ * l'équipe (clôture). Le même filtre partout (Tâches, centre d'actions, Mon équipe, compteurs).
+ */
+export const MARCHE_N1_MISSIONS = (userId: string): Prisma.HrDocumentRequestWhereInput => ({
+  status: "PENDING", managerGate: "PENDING", managerUserId: userId,
+  OR: [{ type: "MISSION_ORDER" }, { type: "EXPENSE_REPORT", missionAssignmentId: { not: null } }],
+});
+
+/** LES ORDRES DE MISSION (et notes de frais de mission) QUI ATTENDENT MA VALIDATION (N+1) — la marche avant les RH. */
 export async function ordresMissionAValider(userId: string): Promise<OrdreAValiderDTO[]> {
   const rows = await prisma.hrDocumentRequest.findMany({
-    where: { type: "MISSION_ORDER", status: "PENDING", managerGate: "PENDING", managerUserId: userId },
-    select: { id: true, createdAt: true, omPrefill: true, employee: { select: { fullName: true } } },
+    where: MARCHE_N1_MISSIONS(userId),
+    select: { id: true, type: true, createdAt: true, omPrefill: true, expenseAmount: true, missionAssignmentId: true, employee: { select: { fullName: true } } },
     orderBy: { createdAt: "asc" },
     take: 50,
   });
+  const nf = rows.filter((r) => r.type === "EXPENSE_REPORT" && r.missionAssignmentId);
+  const assignations = nf.length
+    ? await prisma.missionAssignment.findMany({ where: { id: { in: nf.map((r) => r.missionAssignmentId!) } }, select: { id: true, entityType: true, entityId: true, dateDepart: true, dateRetour: true, ville: true } })
+    : [];
+  const parents = await resolveParents(assignations);
+  const parAssignation = new Map(assignations.map((a) => [a.id, a]));
   return rows.map((r) => {
+    if (r.type === "EXPENSE_REPORT") {
+      const a = r.missionAssignmentId ? parAssignation.get(r.missionAssignmentId) : undefined;
+      const parent = a ? parents.get(`${a.entityType}:${a.entityId}`) : undefined;
+      return {
+        requestId: r.id, employeeName: r.employee.fullName, mission: parent?.label ?? "Mission",
+        dates: { depart: iso(a?.dateDepart), retour: iso(a?.dateRetour) }, destination: a?.ville ?? parent?.ville ?? null,
+        createdAt: r.createdAt.toISOString(), nature: "NF" as const,
+        montant: r.expenseAmount != null ? Number(r.expenseAmount) : null, missionId: r.missionAssignmentId,
+      };
+    }
     const p = (r.omPrefill as Record<string, unknown> | null) ?? {};
     const premiers = (v: unknown) => (Array.isArray(v) && typeof v[0] === "string" ? (v[0] as string) : null);
     return {
@@ -326,6 +534,7 @@ export async function ordresMissionAValider(userId: string): Promise<OrdreAValid
       dates: { depart: premiers(p.datesDepart), retour: premiers(p.datesRetour) },
       destination: typeof p.destination === "string" ? p.destination : null,
       createdAt: r.createdAt.toISOString(),
+      nature: "OM" as const, montant: null, missionId: r.missionAssignmentId,
     };
   });
 }

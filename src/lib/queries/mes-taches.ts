@@ -17,7 +17,7 @@ import {
 import type { ModuleTab } from "@/components/shared/module-tabs";
 import type { TaskCommentItem } from "@/app/(app)/mon-espace/taches/[id]/comments";
 import type { DocItem } from "@/components/documents/document-list";
-import { invitationsMissionAAccepter, ordresMissionAValider, type InvitationMissionDTO, type OrdreAValiderDTO } from "@/lib/queries/missions";
+import { invitationsMissionAAccepter, ordresMissionAValider, MARCHE_N1_MISSIONS, type InvitationMissionDTO, type OrdreAValiderDTO } from "@/lib/queries/missions";
 
 /**
  * L'ONGLET « TÂCHES » DE MON ESPACE — la lecture (Direction, 07/10).
@@ -230,7 +230,7 @@ export async function ongletsEspace(user: SessionUser, compte?: number): Promise
     // « Mes missions » compte ce qui attend un geste : mes invitations et les ordres de mission à valider (N+1).
     Promise.all([
       prisma.missionAssignment.count({ where: { userId: user.id, archivedAt: null, response: "INVITEE" } }),
-      prisma.hrDocumentRequest.count({ where: { type: "MISSION_ORDER", status: "PENDING", managerGate: "PENDING", managerUserId: user.id } }),
+      prisma.hrDocumentRequest.count({ where: MARCHE_N1_MISSIONS(user.id) }),
     ]).then(([a, b]) => a + b).catch(() => 0),
   ]);
   return tabs.map((t) => (t.href === ONGLET_TACHES_HREF ? { ...t, compte: n } : t.href === "/mon-espace/missions" && missions > 0 ? { ...t, compte: missions } : t));

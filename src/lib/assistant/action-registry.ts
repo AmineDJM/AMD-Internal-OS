@@ -1372,6 +1372,19 @@ X("LES MISSIONS AD & PRO RELIÉES AU PROFIL (Direction, 10/2026) — confirmer o
   "mission-actions:demanderMaterielMission", "mission-actions:deposerNoteFraisMission",
   "mission-actions:integrerFraisEquipe",
 ]);
+X("LA DEMANDE DE PARTICIPATION ET LA MISSION D'UN MEMBRE DE L'ÉQUIPE ADVENTUM (Direction, 10/2026) — envoyer sa fiche, "
+  + "contre-proposer, accepter ou refuser une version, déposer le billet émis ou la confirmation d'hôtel, choisir "
+  + "l'imputation des frais (Direction Marketing), saisir ses dépenses et leurs justificatifs, rédiger le rapport, clôturer "
+  + "la mission. Chacun engage une PERSONNE — sa présence et ses dates, la parole d'Adventum dans une négociation, un "
+  + "billet réellement émis, une ligne budgétaire, une dépense et son justificatif lus sur un reçu — et la clôture fait "
+  + "partir une note de frais au N+1 puis aux RH : un modèle ne les pose pas à sa place, et Adam est en pause de "
+  + "développement. Un clic sur Mon espace › Missions › la mission, ou sur la carte « Équipe Adventum » de la demande.", [
+  "mission-actions:proposerParticipation", "mission-actions:deciderParticipation",
+  "mission-actions:enregistrerBilletMission", "mission-actions:enregistrerHotelMission",
+  "mission-actions:choisirBudgetMission", "mission-actions:ajouterFraisMission",
+  "mission-actions:joindreJustificatifFrais", "mission-actions:retirerFraisMission",
+  "mission-actions:enregistrerRapportMission", "mission-actions:cloturerMission",
+]);
 X("LE CATALOGUE PROMOTIONNEL (§118.164) : la liste de RÉFÉRENCE que citent les stocks et les demandes "
   + "d'achat — ses références CAT-NNNN sont fixes, et le Super Admin choisit nommément qui la lit et qui l'écrit "
   + "(Administration › Accès). La tenir est une décision d'organisation, pas une demande de conversation ; et Adam "

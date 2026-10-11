@@ -793,6 +793,44 @@ par marqueur sur l'assignation (`/missions`, `mission-item.tsx` supprimé ; `/mi
   Hôtellerie) créé par le mécanisme habituel, qui le validera et l'imputera ; rien d'automatique. Migration
   `20270116170000_missions_profil`.
 
+#### Demande de participation, négociation, mission et clôture (11/10)
+
+« Inviter à participer » envoie une **demande de participation** ; la personne répond par une **fiche native**. Règles
+PURES `lib/missions-equipe/participation.ts` (+ tests) ; page unique `/mon-espace/missions/[id]` (`lienMission`,
+`components/missions/mission-equipe.tsx`), destination de toutes les notifications. Migration
+`20270120090000_mission_equipe_participation`.
+
+- **Fiche** (`proposerParticipation`) : présence du / au (reprise de l'événement), rôle (lecture seule), transport
+  (avion, train, bus, véhicule de service, véhicule personnel ; départ / arrivée ; aller / retour ; « Adventum réserve » ou
+  « je réserve, note de frais » ; précisions), hébergement (Adventum réserve / je m'en occupe — hôtel, nuits, estimation
+  en USD à l'international / pas besoin), commentaire. Décliner (motif) reste possible ; « Je confirme » sans fiche est refusé.
+- **Versions** (`MissionParticipationVersion` : numéro, auteur, côté PERSONNE / ADVENTUM, nature, contenu JSON, motif,
+  sort EN_ATTENTE / ACCEPTEE / REFUSEE / REMPLACEE). La balle passe de côté à chaque version ; un refus (motif exigé) la
+  rend à l'auteur ; « Modifier et contre-proposer » remplace la version en attente. L'écran surligne ce qui a changé
+  (`comparerFiches`) ; l'état se lit « état — chez qui ». Côté Adventum tranchent l'**organisateur** (demandeur de
+  l'opération ou celui qui a invité), la **Direction Marketing** et le **Super Admin** (`estArbitre`). Une réinvitation
+  repart d'une fiche vierge (versions postérieures à l'invitation). Le fil `addMissionComment` reste ouvert jusqu'à la
+  clôture et prévient l'autre partie.
+- **Accord** (`deciderParticipation`) : `accordVersionId`, mission CONFIRMEE, dates et ville reprises du voyage convenu.
+  L'accord se rediscute tant que l'ordre de mission n'est ni en cours ni émis. **« Demander l'ordre de mission »** part
+  pré-rempli (dates, destination, transport, hébergement dans `omPrefill` ; transport repris par le formulaire RH) — circuit
+  inchangé : N+1 puis RH, numérotation `NNN/DG/AAAA`.
+- **OM émis** (`synchroniserOrdreEmis`) : la mission s'ouvre (notification), et ce qu'Adventum réserve part **une fois**
+  dans le sujet « Billets » de l'**assistante de direction** (un sujet par demande pour toute l'équipe,
+  `envoyerReservationEquipe`). L'assistante, l'organisateur, la Direction Marketing et le Super Admin déposent par membre
+  le **billet émis** (`enregistrerBilletMission` : e-billet, PNR `billetReference`, n° et heures aller / retour
+  `billetTrajets`) et la **confirmation d'hôtel** (`enregistrerHotelMission` : voucher, `hotelNom`, `hotelConfirmation`).
+- **Imputation** (`choisirBudgetMission`) : la Direction Marketing (ou le Super Admin) choisit la ligne budgétaire
+  (`budgetCategoryId`, options `adProBudgetOptions`) — colonne de la carte « Équipe Adventum » ; rien d'imputé sans elle.
+- **Après la mission** : dépenses en lignes (`MissionExpenseLine` : date, nature taxi / repas / hôtel / billet / autre,
+  détail, montant, devise, équivalent DZD, justificatif) — à l'international **en USD sauf le billet**, au taux figé
+  `usdDzdRate` de la demande (240 par défaut, helpers de `care-fiches.ts`) ; **rapport** (déroulé, médecins rencontrés,
+  retombées, suites). **Clôturer** (`cloturerMission` : OM émis, jour du retour atteint, rapport, chaque justificatif) crée
+  UNE demande RH `EXPENSE_REPORT` (total DZD, lignes et liens des justificatifs, imputation) qui monte au **N+1**
+  (`deciderOrdreMissionN1` la traite aussi ; `MARCHE_N1_MISSIONS` alimente Tâches, centre d'actions, Mon équipe) puis aux
+  RH ; le rapport part à l'organisateur. Un refus du N+1 rouvre la mission. Accès (`entity-access`) : la personne, les
+  organisateurs, Direction Marketing, Super Admin, assistante de direction, le N+1 et les RH des demandes liées.
+
 ### Force de vente — gamme et produits attribués
 
 `PromoProduct.channel` (RETAIL · HOSPITAL · BOTH) et `PromotionAssignment` (KAM × produit ×

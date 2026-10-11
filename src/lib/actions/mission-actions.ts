@@ -15,13 +15,24 @@ import { requestHrDocument } from "@/lib/actions/hr-document-actions";
 import { createRequest } from "@/lib/actions/admin-request-actions";
 import { demanderMateriel } from "@/lib/actions/promo-stock-actions";
 import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
-import { MES_MISSIONS, PARENT_TYPES, parentPath, parentMission } from "@/lib/missions-equipe/serveur";
+import { MES_MISSIONS, PARENT_TYPES, parentPath, parentMission, rolesDe, organisateursDe } from "@/lib/missions-equipe/serveur";
 import {
   refusReponse, peutRelancerInvitation, retraitSouple, refusAjoutEtape, etatOrdreMission, peutDemanderOrdre,
   peutRetirerOrdre, marcheInitiale, refusDecisionN1, noteFraisOuverte, jourIso, objetOrdreMission,
   refusMontantFrais, demandeRelancable, SOUS_TYPE_SECRETARIAT, LIBELLE_ETAPE,
   type HrStatut, type GateN1, type ReponseMission,
 } from "@/lib/missions-equipe/etat";
+import {
+  lireFiche, ficheStockee, etapeParticipation, estArbitre, coteDe, refusProposition, refusDecision, natureNouvelleVersion,
+  peutDemanderOmParticipation, datesConvenues, destinationConvenue, hebergementPourOm, peutDeposerReservation,
+  peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture, refusModifFrais, refusDecisionN1NoteFrais,
+  moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE, TRAJETS_BILLET,
+  type Cote, type NatureFrais,
+} from "@/lib/missions-equipe/participation";
+import { lireDetailsTrajets } from "@/lib/care-fiches";
+import { persistUploadedDocument } from "@/lib/documents";
+import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
+import { toNumber } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -40,6 +51,7 @@ const MISSION_ROLES: MissionRole[] = ["ACCOMPAGNANT", "DELEGATE_REFERENCE"];
 function revalider(entityType: EntityType, entityId: string): void {
   revalidatePath(parentPath(entityType, entityId));
   revalidatePath(MES_MISSIONS);
+  revalidatePath(`${MES_MISSIONS}/[id]`, "page");
   revalidatePath("/missions");
 }
 
@@ -76,11 +88,17 @@ async function inviter(
     ? await prisma.missionAssignment.update({ where: { id: existante.id }, data: { ...data, createdAt: new Date() }, select: { id: true } })
     : await prisma.missionAssignment.create({ data: { entityType, entityId, userId, ...data }, select: { id: true } });
   if (!soi) {
+    // UNE DEMANDE DE PARTICIPATION (Direction, 10/2026) : la personne répond par sa fiche — ou décline.
+    // Une personne réinvitée repart d'une fiche vierge : seules comptent les versions postérieures à l'invitation
+    // (`createdAt` remis à maintenant) — celles d'avant restent en base, en histoire.
+    if (existante) {
+      await prisma.missionAssignment.update({ where: { id: existante.id }, data: { accordVersionId: null, accordAt: null } });
+    }
     await notifyUser({
       userId, type: "ASSIGNMENT",
-      title: role === "DELEGATE_REFERENCE" ? "Invitation — délégué de référence" : "Invitation — accompagnant",
-      body: `${parent.label}${ville ? ` · ${ville}` : ""}${dates(dateDepart, dateRetour)} — par ${actor.name}. Confirmez ou déclinez.`,
-      link: MES_MISSIONS,
+      title: role === "DELEGATE_REFERENCE" ? "Demande de participation — délégué de référence" : "Demande de participation — accompagnant",
+      body: `${parent.label}${ville ? ` · ${ville}` : ""}${dates(dateDepart, dateRetour)} — par ${actor.name}. Remplissez votre fiche ou déclinez.`,
+      link: lienMission(a.id),
     }).catch(() => undefined);
   }
   await recordAudit({ actorId: actor.id, action: "CREATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Invitation (${role}) sur ${parent.label}` });
@@ -121,6 +139,10 @@ export async function repondreMission(formData: FormData): Promise<ActionResult>
   const motif = fdStr(formData, "motif");
   const refus = refusReponse(a, user.id, decision, motif);
   if (refus) return { ok: false, error: refus };
+  // UNE DEMANDE DE PARTICIPATION SE RÉPOND PAR LA FICHE (Direction, 10/2026) : « Je confirme » sans fiche ne vaut plus.
+  if (decision === "CONFIRMER" && a.response === "INVITEE") {
+    return { ok: false, error: "Répondez par votre fiche de participation (dates, transport, hébergement)." };
+  }
 
   const response: ReponseMission = decision === "CONFIRMER" ? "CONFIRMEE" : "DECLINEE";
   const pris = await prisma.missionAssignment.updateMany({
@@ -160,7 +182,7 @@ export async function relancerMission(formData: FormData): Promise<ActionResult>
   await notifyUser({
     userId: a.userId, type: "ASSIGNMENT",
     title: rang <= 1 ? "Relance — invitation à une mission" : `Relance (${rang}ᵉ) — invitation à une mission`,
-    body: `${parent.label} — ${user.name} attend votre réponse.`, link: MES_MISSIONS,
+    body: `${parent.label} — ${user.name} attend votre fiche de participation.`, link: lienMission(a.id),
     push: { requireInteraction: true },
   }).catch(() => undefined);
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, field: "relance", newValue: String(rang), summary: `Relance ${rang} — ${parent.label}` });
@@ -170,14 +192,17 @@ export async function relancerMission(formData: FormData): Promise<ActionResult>
 
 /** Les traces qui interdisent l'effacement : pièces, fil, demandes reliées. */
 async function tracesDe(id: string) {
-  const [documents, commentaires, rh, secretariat, materiel] = await Promise.all([
+  const [documents, commentaires, rh, secretariat, materiel, versions, frais] = await Promise.all([
     prisma.document.count({ where: { entityType: "MISSION_ASSIGNMENT", entityId: id } }),
     prisma.comment.count({ where: { entityType: "MISSION_ASSIGNMENT", entityId: id } }),
     prisma.hrDocumentRequest.count({ where: { missionAssignmentId: id } }),
     prisma.administrativeRequest.count({ where: { linkedEntityType: "MISSION_ASSIGNMENT", linkedEntityId: id } }),
     prisma.promoStockRequest.count({ where: { missionAssignmentId: id } }),
+    // Une fiche envoyée ou une dépense saisie est une trace : la négociation et les frais restent, archivés.
+    prisma.missionParticipationVersion.count({ where: { assignmentId: id } }),
+    prisma.missionExpenseLine.count({ where: { assignmentId: id } }),
   ]);
-  return { documents, commentaires, demandes: rh + secretariat + materiel };
+  return { documents, commentaires, demandes: rh + secretariat + materiel + versions + frais };
 }
 
 /** Retirer sans effacer ce qui a eu lieu : archive si traces, effacement sinon. */
@@ -287,7 +312,7 @@ export async function requestMissionOrder(formData: FormData): Promise<ActionRes
   const a = await chargerAssignation(fdStr(formData, "id"));
   if (!a || a.archivedAt) return { ok: false, error: "Assignation introuvable." };
   if (a.userId !== user.id) return { ok: false, error: "Seule la personne assignée peut demander un ordre de mission." };
-  if (a.response !== "CONFIRMEE") return { ok: false, error: "Confirmez d'abord la mission." };
+  if (a.response !== "CONFIRMEE") return { ok: false, error: "La participation doit d'abord être convenue (accord trouvé)." };
   const precedent = await dernierOrdre(a.id);
   const etat = etatOrdreMission(precedent ? { status: precedent.status as HrStatut, managerGate: (precedent.managerGate ?? null) as GateN1 | null } : null, a.orderStatus);
   if (!peutDemanderOrdre(etat)) return { ok: false, error: etat === "EMIS" ? "L'ordre de mission est déjà émis." : "Un ordre de mission est déjà en cours." };
@@ -298,15 +323,22 @@ export async function requestMissionOrder(formData: FormData): Promise<ActionRes
   const marche = marcheInitiale(manager?.userId ?? null, user.id);
 
   const parent = await parentMission(a.entityType, a.entityId);
-  const depart = a.dateDepart ?? parent.debut;
-  const retour = a.dateRetour ?? parent.fin;
-  const ville = a.ville ?? parent.ville;
+  // L'ACCORD FAIT FOI (Direction, 10/2026) : l'ordre part pré-rempli avec les dates, la destination, le transport
+  // et l'hébergement convenus. Une mission d'avant la fiche garde ses dates propres.
+  const convenue = a.accordVersionId
+    ? ficheStockee((await prisma.missionParticipationVersion.findUnique({ where: { id: a.accordVersionId }, select: { contenu: true } }))?.contenu ?? null)
+    : null;
+  const datesAccord = convenue ? datesConvenues(convenue) : null;
+  const depart = datesAccord?.depart ? new Date(`${datesAccord.depart}T00:00:00.000Z`) : a.dateDepart ?? parent.debut;
+  const retour = datesAccord?.retour ? new Date(`${datesAccord.retour}T00:00:00.000Z`) : a.dateRetour ?? parent.fin;
+  const ville = convenue ? destinationConvenue(convenue, a.ville ?? parent.ville) : a.ville ?? parent.ville;
   const omPrefill = {
     libelle: parent.label,
     objet: objetOrdreMission(a.role, parent.label),
     destination: ville ?? "",
     datesDepart: depart ? [jourIso(depart)] : [],
     datesRetour: retour ? [jourIso(retour)] : [],
+    ...(convenue ? { transport: MODE_TRANSPORT_LIBELLE[convenue.transport.mode], hebergement: hebergementPourOm(convenue) } : {}),
   } satisfies Prisma.InputJsonObject;
 
   const created = await prisma.hrDocumentRequest.create({
@@ -321,7 +353,7 @@ export async function requestMissionOrder(formData: FormData): Promise<ActionRes
   await prisma.missionAssignment.update({ where: { id: a.id }, data: { orderStatus: "REQUESTED", requestedAt: new Date() } });
 
   if (marche.gate === "PENDING" && manager?.userId) {
-    await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Ordre de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label}${dates(depart, retour)}`, link: `${MES_MISSIONS}#a-valider` }).catch(() => undefined);
+    await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Ordre de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label}${dates(depart, retour)}`, link: LIEN_MISSIONS_A_VALIDER }).catch(() => undefined);
   } else {
     await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Ordre de mission à établir", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${created.id}` }).catch(() => undefined);
   }
@@ -388,8 +420,13 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
   }
   const decision = fdStr(formData, "decision") === "REFUSER" ? "REFUSER" : "VALIDER";
   const motif = fdStr(formData, "motif");
-  const refus = refusDecisionN1({ type: req.type, status: req.status as HrStatut, managerGate: (req.managerGate ?? null) as GateN1 | null }, estN1, decision, motif);
+  // LA NOTE DE FRAIS D'UNE MISSION DE L'ÉQUIPE suit la même marche (Direction, 10/2026) : N+1, puis RH.
+  const noteFrais = req.type === "EXPENSE_REPORT";
+  const refus = noteFrais
+    ? refusDecisionN1NoteFrais({ type: req.type, status: req.status, managerGate: req.managerGate ?? null, missionAssignmentId: req.missionAssignmentId }, estN1, decision, motif)
+    : refusDecisionN1({ type: req.type, status: req.status as HrStatut, managerGate: (req.managerGate ?? null) as GateN1 | null }, estN1, decision, motif);
   if (refus) return { ok: false, error: refus };
+  const quoi = noteFrais ? "Note de frais de mission" : "Ordre de mission";
 
   const pris = await prisma.hrDocumentRequest.updateMany({
     where: { id, managerGate: "PENDING", status: "PENDING" },
@@ -397,29 +434,38 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
       ? { managerGate: "APPROVED", managerDecidedAt: new Date(), managerNote: motif }
       : { managerGate: "REJECTED", managerDecidedAt: new Date(), managerNote: motif, status: "REJECTED" },
   });
-  if (pris.count === 0) return { ok: false, error: "Cet ordre de mission vient d'être traité — rechargez la page." };
+  if (pris.count === 0) return { ok: false, error: `${quoi} vient d'être traité(e) — rechargez la page.` };
   if (decision === "REFUSER" && req.missionAssignmentId) {
-    await prisma.missionAssignment.updateMany({ where: { id: req.missionAssignmentId, orderStatus: "REQUESTED" }, data: { orderStatus: "NONE" } });
+    if (noteFrais) {
+      // Refusée : la mission se rouvre — la personne corrige ses dépenses et clôture de nouveau.
+      await prisma.missionAssignment.updateMany({ where: { id: req.missionAssignmentId, noteFraisRequestId: id }, data: { clotureLe: null, clotureParId: null } });
+    } else {
+      await prisma.missionAssignment.updateMany({ where: { id: req.missionAssignmentId, orderStatus: "REQUESTED" }, data: { orderStatus: "NONE" } });
+    }
   }
   if (req.employee.userId) {
     await notifyUser({
       userId: req.employee.userId, type: "GENERIC",
-      title: decision === "VALIDER" ? "Ordre de mission validé par votre N+1" : "Ordre de mission refusé par votre N+1",
-      body: decision === "VALIDER" ? "Il part aux RH, qui l'établissent." : `Motif : ${motif}`,
-      link: MES_MISSIONS,
+      title: `${quoi} ${decision === "VALIDER" ? "validé(e)" : "refusé(e)"} par votre N+1`,
+      body: decision === "VALIDER" ? "Elle part aux RH." : noteFrais ? `Motif : ${motif} — corrigez vos dépenses et clôturez de nouveau.` : `Motif : ${motif}`,
+      link: req.missionAssignmentId ? lienMission(req.missionAssignmentId, noteFrais ? "frais" : undefined) : MES_MISSIONS,
     }).catch(() => undefined);
   }
   if (decision === "VALIDER") {
-    await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Ordre de mission à établir", body: `${req.employee.fullName} — validé par le N+1`, link: `/rh/demandes?demande=${id}` }).catch(() => undefined);
+    await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), {
+      type: "GENERIC", title: noteFrais ? "Note de frais de mission à traiter" : "Ordre de mission à établir",
+      body: `${req.employee.fullName} — validé par le N+1`, link: `/rh/demandes?demande=${id}`,
+    }).catch(() => undefined);
   }
   await recordAudit({
     actorId: user.id, action: decision === "VALIDER" ? "VALIDATE" : "REFUSE", module: "RH", entityType: "EMPLOYEE", entityId: req.employeeId,
-    summary: `Ordre de mission ${decision === "VALIDER" ? "validé" : "refusé"} par le N+1 — ${req.employee.fullName}${motif ? ` (${motif})` : ""}`,
+    summary: `${quoi} ${decision === "VALIDER" ? "validé(e)" : "refusé(e)"} par le N+1 — ${req.employee.fullName}${motif ? ` (${motif})` : ""}`,
   });
   revalidatePath(MES_MISSIONS);
+  revalidatePath(`${MES_MISSIONS}/[id]`, "page");
   revalidatePath("/mon-equipe");
   revalidatePath("/rh/demandes");
-  return { ok: true, message: decision === "VALIDER" ? "Validé : l'ordre part aux RH." : "Refusé : la personne est prévenue." };
+  return { ok: true, message: decision === "VALIDER" ? "Validé : la demande part aux RH." : "Refusé : la personne est prévenue." };
 }
 
 /**
@@ -596,7 +642,411 @@ export async function addMissionComment(formData: FormData): Promise<ActionResul
   if (!(await canAccessEntity(user, "MISSION_ASSIGNMENT", id, "VIEW"))) return { ok: false, error: "Action non autorisée." };
 
   await prisma.comment.create({ data: { entityType: "MISSION_ASSIGNMENT", entityId: id, body, authorId: user.id } });
-  const a = await prisma.missionAssignment.findUnique({ where: { id }, select: { entityType: true, entityId: true } });
-  if (a) revalider(a.entityType, a.entityId);
+  const a = await prisma.missionAssignment.findUnique({ where: { id }, select: { entityType: true, entityId: true, userId: true, createdById: true } });
+  if (a) {
+    // LE FIL RESTE OUVERT DE L'INVITATION À LA CLÔTURE : l'autre partie est prévenue, sur la mission même.
+    const parent = await parentMission(a.entityType, a.entityId);
+    const destinataires = new Set([a.userId, ...organisateursDe(a, parent)]);
+    destinataires.delete(user.id);
+    for (const d of destinataires) {
+      await notifyUser({ userId: d, type: "GENERIC", title: `Commentaire — ${parent.label}`, body: `${user.name} : ${body.slice(0, 120)}`, link: lienMission(id, "fil") }).catch(() => undefined);
+    }
+    revalider(a.entityType, a.entityId);
+  }
   return { ok: true };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// LA DEMANDE DE PARTICIPATION, LA MISSION ET SA CLÔTURE (Direction, 10/2026) — règles dans
+// `missions-equipe/participation.ts`.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+type Assignation = NonNullable<Awaited<ReturnType<typeof chargerAssignation>>>;
+
+/** Les versions de l'invitation EN COURS (une réinvitation repart à zéro), de la plus ancienne à la plus récente. */
+async function versionsCourantes(a: { id: string; createdAt: Date }) {
+  return prisma.missionParticipationVersion.findMany({
+    where: { assignmentId: a.id, createdAt: { gte: a.createdAt } },
+    orderBy: { numero: "asc" },
+  });
+}
+
+/** Le contexte d'une participation pour l'acteur : demande parente, organisateurs, son côté, l'état. */
+async function contexteParticipation(a: Assignation, user: { id: string; role: string; secondaryRole?: string | null }) {
+  const parent = await parentMission(a.entityType, a.entityId);
+  const organisateurs = organisateursDe(a, parent);
+  const roles = rolesDe(user);
+  const arbitre = estArbitre({ id: user.id, roles }, organisateurs);
+  const cote = coteDe(user.id, a.userId, arbitre);
+  const versions = await versionsCourantes(a);
+  const derniere = versions.length ? versions[versions.length - 1]! : null;
+  const etape = etapeParticipation(a, derniere ? versionLite(derniere) : null);
+  return { parent, organisateurs, roles, arbitre, cote, versions, derniere, etape };
+}
+
+/** Prévenir l'autre côté : la personne, ou les organisateurs (hors soi). */
+async function prevenirAutreCote(a: Assignation, cote: Cote, acteurId: string, organisateurs: string[], titre: string, corps: string, ancre?: "fil") {
+  const cibles = cote === "PERSONNE" ? organisateurs : [a.userId];
+  for (const c of new Set(cibles)) {
+    if (c === acteurId) continue;
+    await notifyUser({ userId: c, type: "ASSIGNMENT", title: titre, body: corps, link: lienMission(a.id, ancre) }).catch(() => undefined);
+  }
+}
+
+/**
+ * ENVOYER SA FICHE / « MODIFIER ET CONTRE-PROPOSER » — une nouvelle VERSION de la fiche. La personne ouvre ;
+ * ensuite seul le côté qui a la balle propose. La version en attente qu'elle remplace est marquée REMPLACÉE ;
+ * après un accord (ordre de mission pas encore demandé), proposer rouvre la discussion.
+ */
+export async function proposerParticipation(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const a = await chargerAssignation(fdStr(formData, "id"));
+  if (!a) return { ok: false, error: "Participation introuvable." };
+  const ctx = await contexteParticipation(a, user);
+  const om = await dernierOrdre(a.id);
+  const etatOm = etatOrdreMission(om ? { status: om.status as HrStatut, managerGate: (om.managerGate ?? null) as GateN1 | null } : null, a.orderStatus);
+  // Après l'accord, la discussion se rouvre tant que l'ordre de mission n'est ni en cours ni émis.
+  const refus = refusProposition(ctx.etape, ctx.cote, peutDemanderOrdre(etatOm));
+  if (refus) return { ok: false, error: refus };
+  // Champ par champ, nommés en clair : le contrat des actions (Adam, §118) les lit dans la source.
+  const lu = lireFiche({
+    presenceDu: fdStr(formData, "presenceDu"), presenceAu: fdStr(formData, "presenceAu"),
+    transportMode: fdStr(formData, "transportMode"), transportDepart: fdStr(formData, "transportDepart"),
+    transportArrivee: fdStr(formData, "transportArrivee"), transportAller: fdStr(formData, "transportAller"),
+    transportRetour: fdStr(formData, "transportRetour"), transportReservation: fdStr(formData, "transportReservation"),
+    transportPrecisions: fdStr(formData, "transportPrecisions"), hebergementChoix: fdStr(formData, "hebergementChoix"),
+    hebergementHotel: fdStr(formData, "hebergementHotel"), hebergementNuits: fdStr(formData, "hebergementNuits"),
+    hebergementEstimation: fdStr(formData, "hebergementEstimation"), commentaire: fdStr(formData, "commentaire"),
+  });
+  if (!lu.ok) return { ok: false, error: lu.error };
+  const motif = fdStr(formData, "motif");
+  const cote = ctx.cote!;
+  const numero = (await prisma.missionParticipationVersion.count({ where: { assignmentId: a.id } })) + 1;
+  const nature = natureNouvelleVersion(ctx.versions.length);
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.missionParticipationVersion.updateMany({ where: { assignmentId: a.id, statut: "EN_ATTENTE" }, data: { statut: "REMPLACEE", decideParId: user.id, decideLe: new Date() } });
+      await tx.missionParticipationVersion.create({
+        data: { assignmentId: a.id, numero, auteurId: user.id, cote, nature, contenu: lu.fiche as unknown as Prisma.InputJsonObject, motif },
+      });
+      if (ctx.etape === "ACCORD") {
+        await tx.missionAssignment.update({ where: { id: a.id }, data: { accordVersionId: null, accordAt: null, response: "INVITEE" } });
+      }
+    });
+  } catch {
+    return { ok: false, error: "La participation vient de changer — rechargez la page." };
+  }
+  const qui = cote === "PERSONNE" ? user.name : `${user.name} (Adventum)`;
+  await prevenirAutreCote(a, cote, user.id, ctx.organisateurs,
+    nature === "PROPOSITION" ? "Fiche de participation reçue" : "Contre-proposition reçue",
+    `${ctx.parent.label} — ${qui}${motif ? ` : « ${motif} »` : ""}. À vous de répondre.`);
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Participation — version ${numero} (${nature === "PROPOSITION" ? "proposition" : "contre-proposition"}) par ${qui}` });
+  revalider(a.entityType, a.entityId);
+  return { ok: true, message: nature === "PROPOSITION" ? "Fiche envoyée à l'organisateur." : "Contre-proposition envoyée." };
+}
+
+/** ACCEPTER / REFUSER la dernière version — le côté qui a la balle. L'accord ouvre l'ordre de mission. */
+export async function deciderParticipation(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const a = await chargerAssignation(fdStr(formData, "id"));
+  if (!a) return { ok: false, error: "Participation introuvable." };
+  const ctx = await contexteParticipation(a, user);
+  const decision = fdStr(formData, "decision") === "REFUSER" ? "REFUSER" : "ACCEPTER";
+  const motif = fdStr(formData, "motif");
+  const refus = refusDecision(ctx.etape, ctx.derniere ? versionLite(ctx.derniere) : null, ctx.cote, decision, motif);
+  if (refus) return { ok: false, error: refus };
+  const v = ctx.derniere!;
+  const pris = await prisma.missionParticipationVersion.updateMany({
+    where: { id: v.id, statut: "EN_ATTENTE" },
+    data: { statut: decision === "ACCEPTER" ? "ACCEPTEE" : "REFUSEE", decideParId: user.id, decideLe: new Date(), motifDecision: motif },
+  });
+  if (pris.count === 0) return { ok: false, error: "La participation vient de changer — rechargez la page." };
+  if (decision === "ACCEPTER") {
+    const fiche = ficheStockee(v.contenu);
+    const d = fiche ? datesConvenues(fiche) : null;
+    await prisma.missionAssignment.update({
+      where: { id: a.id },
+      data: {
+        accordVersionId: v.id, accordAt: new Date(), response: "CONFIRMEE", respondedAt: new Date(), declineReason: null,
+        ...(d?.depart ? { dateDepart: new Date(`${d.depart}T00:00:00.000Z`) } : {}),
+        ...(d?.retour ? { dateRetour: new Date(`${d.retour}T00:00:00.000Z`) } : {}),
+        ...(fiche?.transport.arrivee ? { ville: fiche.transport.arrivee } : {}),
+      },
+    });
+  }
+  await prevenirAutreCote(a, ctx.cote!, user.id, ctx.organisateurs,
+    decision === "ACCEPTER" ? "Accord trouvé — participation" : "Proposition refusée",
+    decision === "ACCEPTER"
+      ? `${ctx.parent.label} — version ${v.numero} acceptée par ${user.name}. L'ordre de mission peut être demandé.`
+      : `${ctx.parent.label} — ${user.name} : « ${motif} ». Modifiez et reproposez.`);
+  await recordAudit({
+    actorId: user.id, action: decision === "ACCEPTER" ? "VALIDATE" : "REFUSE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id,
+    summary: `Participation — version ${v.numero} ${decision === "ACCEPTER" ? "acceptée (accord)" : `refusée (${motif})`} par ${user.name}`,
+  });
+  revalider(a.entityType, a.entityId);
+  return { ok: true, message: decision === "ACCEPTER" ? "Accord trouvé : l'ordre de mission peut être demandé." : "Refus envoyé : l'autre partie peut reproposer." };
+}
+
+/** La porte des dépôts de la plateforme (billet, hôtel) : assistante de direction, organisateurs, Direction Marketing, Super Admin. */
+async function porteReservation(id: string | null, user: { id: string; role: string; secondaryRole?: string | null }) {
+  const a = await chargerAssignation(id);
+  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
+  const parent = await parentMission(a.entityType, a.entityId);
+  if (!peutDeposerReservation({ id: user.id, roles: rolesDe(user) }, organisateursDe(a, parent))) {
+    return { erreur: "Le billet émis et la confirmation d'hôtel se déposent par l'assistante de direction, l'organisateur, la Direction Marketing ou le Super Admin." } as const;
+  }
+  return { a, parent } as const;
+}
+
+async function deposerPiece(userId: string, assignmentId: string, f: FormDataEntryValue | null, stepKey: "BILLET" | "HOTEL" | "FRAIS"): Promise<{ ok: true; id: string | undefined } | { ok: false; error: string }> {
+  if (!(f instanceof File) || f.size === 0) return { ok: true, id: undefined };
+  const r = await persistUploadedDocument(userId, { entityType: "MISSION_ASSIGNMENT", entityId: assignmentId, category: "SUPPORTING_DOC", confidentiality: "INTERNAL", stepKey, file: f });
+  if (!r.ok || !r.documentId) return { ok: false, error: r.error ?? "Le fichier n'a pas pu être enregistré." };
+  return { ok: true, id: r.documentId };
+}
+
+/**
+ * LE BILLET ÉMIS d'un membre de l'équipe (Adventum réserve) — l'e-billet, le PNR et, pour l'aller puis le retour,
+ * le n° de vol / train et les heures : la même structure que le billet émis d'une fiche voyageur.
+ */
+export async function enregistrerBilletMission(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const p = await porteReservation(fdStr(formData, "id"), user);
+  if ("erreur" in p) return { ok: false, error: p.erreur };
+  const { a, parent } = p;
+  let billetTrajets: Prisma.InputJsonValue | undefined;
+  if (formData.has("legDetails")) {
+    const lus = lireDetailsTrajets(fdStr(formData, "legDetails") ?? "", TRAJETS_BILLET.length);
+    if (!lus.ok) return { ok: false, error: lus.error };
+    billetTrajets = lus.details as unknown as Prisma.InputJsonValue;
+  }
+  const billetReference = formData.has("billetReference") ? (fdStr(formData, "billetReference")?.slice(0, 60) ?? null) : undefined;
+  const piece = await deposerPiece(user.id, a.id, formData.get("file"), "BILLET");
+  if (!piece.ok) return { ok: false, error: piece.error };
+  if (billetTrajets === undefined && billetReference === undefined && !piece.id) return { ok: false, error: "Rien à enregistrer." };
+  await prisma.missionAssignment.update({
+    where: { id: a.id },
+    data: {
+      ...(billetTrajets !== undefined ? { billetTrajets } : {}),
+      ...(billetReference !== undefined ? { billetReference } : {}),
+      ...(piece.id ? { billetDocumentId: piece.id } : {}),
+      billetDeposeParId: user.id, billetDeposeLe: new Date(),
+    },
+  });
+  if (a.userId !== user.id && piece.id) {
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre billet est émis", body: parent.label, link: lienMission(a.id, "reservation") }).catch(() => undefined);
+  }
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Billet émis ${piece.id ? "déposé" : "mis à jour"}${billetReference ? ` (PNR ${billetReference})` : ""} — ${parent.label}` });
+  revalider(a.entityType, a.entityId);
+  return { ok: true, message: "Billet émis enregistré." };
+}
+
+/** LA CONFIRMATION D'HÔTEL d'un membre de l'équipe — le voucher, le nom de l'hôtel, le n° de confirmation. */
+export async function enregistrerHotelMission(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const p = await porteReservation(fdStr(formData, "id"), user);
+  if ("erreur" in p) return { ok: false, error: p.erreur };
+  const { a, parent } = p;
+  const hotelNom = formData.has("hotelNom") ? (fdStr(formData, "hotelNom")?.slice(0, 120) ?? null) : undefined;
+  const hotelConfirmation = formData.has("hotelConfirmation") ? (fdStr(formData, "hotelConfirmation")?.slice(0, 60) ?? null) : undefined;
+  const piece = await deposerPiece(user.id, a.id, formData.get("file"), "HOTEL");
+  if (!piece.ok) return { ok: false, error: piece.error };
+  if (hotelNom === undefined && hotelConfirmation === undefined && !piece.id) return { ok: false, error: "Rien à enregistrer." };
+  await prisma.missionAssignment.update({
+    where: { id: a.id },
+    data: {
+      ...(hotelNom !== undefined ? { hotelNom } : {}),
+      ...(hotelConfirmation !== undefined ? { hotelConfirmation } : {}),
+      ...(piece.id ? { hotelDocumentId: piece.id } : {}),
+      hotelDeposeParId: user.id, hotelDeposeLe: new Date(),
+    },
+  });
+  if (a.userId !== user.id && (piece.id || hotelConfirmation)) {
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre hôtel est confirmé", body: `${parent.label}${hotelNom ? ` — ${hotelNom}` : ""}`, link: lienMission(a.id, "reservation") }).catch(() => undefined);
+  }
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Confirmation d'hôtel ${piece.id ? "déposée" : "mise à jour"}${hotelConfirmation ? ` (n° ${hotelConfirmation})` : ""} — ${parent.label}` });
+  revalider(a.entityType, a.entityId);
+  return { ok: true, message: "Confirmation d'hôtel enregistrée." };
+}
+
+/** L'IMPUTATION des frais de mission d'un membre — choisie par la Direction Marketing, jamais d'office. */
+export async function choisirBudgetMission(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const a = await chargerAssignation(fdStr(formData, "id"));
+  if (!a || a.archivedAt) return { ok: false, error: "Mission introuvable." };
+  if (!peutChoisirBudgetMission(rolesDe(user))) return { ok: false, error: "L'imputation des frais de mission se choisit par la Direction Marketing." };
+  const budgetCategoryId = fdStr(formData, "budgetCategoryId");
+  let libelle = "retirée";
+  if (budgetCategoryId) {
+    const cat = await prisma.budgetCategoryLine.findUnique({ where: { id: budgetCategoryId }, select: { name: true, envelope: { select: { name: true } } } });
+    if (!cat) return { ok: false, error: "Catégorie budgétaire introuvable." };
+    libelle = `${cat.envelope.name} › ${cat.name}`;
+  }
+  await prisma.missionAssignment.update({
+    where: { id: a.id },
+    data: budgetCategoryId
+      ? { budgetCategoryId, budgetChoisiParId: user.id, budgetChoisiLe: new Date() }
+      : { budgetCategoryId: null, budgetChoisiParId: null, budgetChoisiLe: null },
+  });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, field: "budgetCategoryId", newValue: budgetCategoryId ?? "", summary: `Imputation des frais de mission : ${libelle}` });
+  revalider(a.entityType, a.entityId);
+  return { ok: true, message: budgetCategoryId ? `Imputé à ${libelle}.` : "Imputation retirée." };
+}
+
+/** La porte des dépenses : la personne, sa mission ouverte (OM émis), pas encore clôturée. */
+async function porteFrais(id: string | null, userId: string) {
+  const a = await chargerAssignation(id);
+  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
+  const om = await dernierOrdre(a.id);
+  const etatOm = etatOrdreMission(om ? { status: om.status as HrStatut, managerGate: (om.managerGate ?? null) as GateN1 | null } : null, a.orderStatus);
+  const refus = refusModifFrais({ cloturee: Boolean(a.clotureLe), omEmis: etatOm === "EMIS" }, a.userId === userId);
+  if (refus) return { erreur: refus } as const;
+  return { a, etatOm } as const;
+}
+
+/** AJOUTER UNE DÉPENSE — date, nature, détail, montant (USD à l'international hors billet), justificatif. */
+export async function ajouterFraisMission(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const p = await porteFrais(fdStr(formData, "id"), user.id);
+  if ("erreur" in p) return { ok: false, error: p.erreur };
+  const { a } = p;
+  const parent = await parentMission(a.entityType, a.entityId);
+  const taux = tauxMission(parent.international, parent.taux);
+  const lu = lireLigneFrais({ date: fdStr(formData, "date"), nature: fdStr(formData, "nature"), detail: fdStr(formData, "detail"), montant: fdStr(formData, "montant") }, parent.international, taux);
+  if (!lu.ok) return { ok: false, error: lu.error };
+  const piece = await deposerPiece(user.id, a.id, formData.get("file"), "FRAIS");
+  if (!piece.ok) return { ok: false, error: piece.error };
+  const l = lu.ligne;
+  const cree = await prisma.missionExpenseLine.create({
+    data: {
+      assignmentId: a.id, date: new Date(`${l.date}T00:00:00.000Z`), nature: l.nature, detail: l.detail,
+      amount: l.montant, currency: l.devise, amountDzd: l.montantDzd, documentId: piece.id ?? null, createdById: user.id,
+    },
+    select: { id: true },
+  });
+  revalider(a.entityType, a.entityId);
+  return { ok: true, id: cree.id, message: "Dépense ajoutée." };
+}
+
+/** JOINDRE (ou remplacer) LE JUSTIFICATIF d'une dépense. */
+export async function joindreJustificatifFrais(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const ligne = await prisma.missionExpenseLine.findUnique({ where: { id: fdStr(formData, "ligneId") ?? "" }, select: { id: true, assignmentId: true } });
+  if (!ligne) return { ok: false, error: "Dépense introuvable." };
+  const p = await porteFrais(ligne.assignmentId, user.id);
+  if ("erreur" in p) return { ok: false, error: p.erreur };
+  const piece = await deposerPiece(user.id, ligne.assignmentId, formData.get("file"), "FRAIS");
+  if (!piece.ok) return { ok: false, error: piece.error };
+  if (!piece.id) return { ok: false, error: "Choisissez le justificatif." };
+  await prisma.missionExpenseLine.update({ where: { id: ligne.id }, data: { documentId: piece.id } });
+  revalider(p.a.entityType, p.a.entityId);
+  return { ok: true, message: "Justificatif joint." };
+}
+
+/** RETIRER UNE DÉPENSE saisie par erreur — avant la clôture ; son justificatif reste dans les pièces de la mission. */
+export async function retirerFraisMission(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const ligne = await prisma.missionExpenseLine.findUnique({ where: { id: fdStr(formData, "ligneId") ?? "" }, select: { id: true, assignmentId: true, nature: true, amount: true, currency: true } });
+  if (!ligne) return { ok: false, error: "Dépense introuvable." };
+  const p = await porteFrais(ligne.assignmentId, user.id);
+  if ("erreur" in p) return { ok: false, error: p.erreur };
+  await prisma.missionExpenseLine.delete({ where: { id: ligne.id } });
+  await recordAudit({ actorId: user.id, action: "DELETE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: ligne.assignmentId, summary: `Dépense retirée — ${NATURE_FRAIS_LIBELLE[ligne.nature as NatureFrais] ?? ligne.nature} ${toNumber(ligne.amount)} ${ligne.currency}` });
+  revalider(p.a.entityType, p.a.entityId);
+  return { ok: true, message: "Dépense retirée." };
+}
+
+/** LE RAPPORT DE MISSION — déroulé, médecins rencontrés, retombées, suites à donner. */
+export async function enregistrerRapportMission(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const a = await chargerAssignation(fdStr(formData, "id"));
+  if (!a || a.archivedAt) return { ok: false, error: "Mission introuvable." };
+  if (a.userId !== user.id) return { ok: false, error: "Seule la personne en mission rédige son rapport." };
+  if (a.clotureLe) return { ok: false, error: "La mission est clôturée : le rapport est parti." };
+  const court = (v: string | null) => v?.slice(0, 5000) ?? null;
+  await prisma.missionAssignment.update({
+    where: { id: a.id },
+    data: {
+      rapportDeroule: court(fdStr(formData, "deroule")), rapportMedecins: court(fdStr(formData, "medecins")),
+      rapportRetombees: court(fdStr(formData, "retombees")), rapportSuites: court(fdStr(formData, "suites")), rapportLe: new Date(),
+    },
+  });
+  revalider(a.entityType, a.entityId);
+  return { ok: true, message: "Rapport enregistré." };
+}
+
+/**
+ * CLÔTURER LA MISSION — les dépenses partent en UNE note de frais (demande RH `EXPENSE_REPORT`, montant DZD au taux
+ * figé de la demande, justificatifs liés) qui monte au N+1 puis aux RH ; le rapport part à l'organisateur.
+ */
+export async function cloturerMission(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const a = await chargerAssignation(fdStr(formData, "id"));
+  if (!a || a.archivedAt) return { ok: false, error: "Mission introuvable." };
+  if (a.userId !== user.id) return { ok: false, error: "Seule la personne en mission la clôture." };
+  const parent = await parentMission(a.entityType, a.entityId);
+  const om = await dernierOrdre(a.id);
+  const etatOm = etatOrdreMission(om ? { status: om.status as HrStatut, managerGate: (om.managerGate ?? null) as GateN1 | null } : null, a.orderStatus);
+  const lignes = await prisma.missionExpenseLine.findMany({ where: { assignmentId: a.id }, orderBy: { date: "asc" } });
+  const rapport = { deroule: a.rapportDeroule, medecins: a.rapportMedecins, retombees: a.rapportRetombees, suites: a.rapportSuites };
+  const manques = manquesCloture({
+    cloturee: Boolean(a.clotureLe), omEmis: etatOm === "EMIS", terminee: noteFraisOuverte(a.dateRetour ?? parent.fin, a.dateDepart ?? parent.debut),
+    rapport, lignes: lignes.map((l) => ({ justificatif: Boolean(l.documentId) })),
+  });
+  if (manques.length) return { ok: false, error: manques.join(" ") };
+
+  let noteFraisRequestId: string | null = null;
+  let message = "Mission clôturée : le rapport est parti à l'organisateur.";
+  if (lignes.length > 0) {
+    const employee = await prisma.employee.findUnique({ where: { userId: user.id }, select: { id: true, fullName: true } });
+    if (!employee) return { ok: false, error: "Aucun dossier RH n'est lié à votre compte : les RH ne peuvent pas traiter la note de frais. Contactez-les." };
+    const taux = tauxMission(parent.international, parent.taux);
+    const lues = lignes.map((l) => ({ montant: toNumber(l.amount), devise: l.currency === "USD" ? "USD" as const : "DZD" as const }));
+    const total = totalFrais(lues, taux);
+    if (total.totalDzd == null || total.totalDzd <= 0) return { ok: false, error: "Le total des dépenses n'a pas pu être converti en DZD." };
+    const budget = a.budgetCategoryId
+      ? await prisma.budgetCategoryLine.findUnique({ where: { id: a.budgetCategoryId }, select: { name: true, envelope: { select: { name: true } } } })
+      : null;
+    const details = [
+      `Mission — ${parent.label}${a.ville ? ` · ${a.ville}` : ""}${dates(a.dateDepart, a.dateRetour)}`,
+      ...lignes.map((l) => `• ${jourIso(l.date)} — ${NATURE_FRAIS_LIBELLE[l.nature as NatureFrais] ?? l.nature}${l.detail ? ` (${l.detail})` : ""} : ${toNumber(l.amount).toLocaleString("fr-FR")} ${l.currency}${l.currency === "USD" && l.amountDzd != null ? ` = ${toNumber(l.amountDzd).toLocaleString("fr-FR")} DZD` : ""}${l.documentId ? ` — justificatif /api/documents/${l.documentId}` : ""}`),
+      parent.international ? `Taux : 1 USD = ${taux} DZD (figé sur la demande).` : null,
+      `Total : ${total.totalDzd.toLocaleString("fr-FR")} DZD${total.usd > 0 ? ` (dont ${total.usd.toLocaleString("fr-FR")} USD)` : ""}.`,
+      budget ? `Imputation (Direction Marketing) : ${budget.envelope.name} › ${budget.name}.` : "Imputation : à choisir par la Direction Marketing.",
+      `Mission : ${lienMission(a.id, "frais")}`,
+    ].filter(Boolean).join("\n");
+    const manager = await getManagerOf(employee.id).catch(() => null);
+    const marche = marcheInitiale(manager?.userId ?? null, user.id);
+    const retour = jourIso(a.dateRetour ?? parent.fin) || null;
+    const cree = await prisma.hrDocumentRequest.create({
+      data: {
+        employeeId: employee.id, type: "EXPENSE_REPORT", status: "PENDING", details,
+        expenseMonth: moisNoteFrais(retour, new Date().toISOString().slice(0, 10)), expenseAmount: total.totalDzd,
+        missionAssignmentId: a.id, managerGate: marche.gate, managerUserId: marche.gate ? manager?.userId ?? null : null,
+      },
+      select: { id: true },
+    });
+    noteFraisRequestId = cree.id;
+    if (marche.gate === "PENDING" && manager?.userId) {
+      await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Note de frais de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label} : ${total.totalDzd.toLocaleString("fr-FR")} DZD`, link: LIEN_MISSIONS_A_VALIDER }).catch(() => undefined);
+      message = "Mission clôturée : la note de frais part à votre N+1 puis aux RH, le rapport à l'organisateur.";
+    } else {
+      await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Note de frais de mission à traiter", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${cree.id}` }).catch(() => undefined);
+      message = "Mission clôturée : la note de frais part aux RH (aucun N+1 rattaché), le rapport à l'organisateur.";
+    }
+  }
+  const pris = await prisma.missionAssignment.updateMany({
+    where: { id: a.id, clotureLe: null },
+    data: { clotureLe: new Date(), clotureParId: user.id, ...(noteFraisRequestId ? { noteFraisRequestId } : {}) },
+  });
+  if (pris.count === 0) return { ok: false, error: "La mission vient d'être clôturée — rechargez la page." };
+  for (const o of new Set(organisateursDe(a, parent))) {
+    if (o === user.id) continue;
+    await notifyUser({ userId: o, type: "GENERIC", title: `Rapport de mission — ${user.name}`, body: `${parent.label}${rapportRedige(rapport) ? ` : ${(rapport.deroule ?? "").slice(0, 100)}` : ""}`, link: lienMission(a.id, "rapport") }).catch(() => undefined);
+  }
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Mission clôturée — ${parent.label}${noteFraisRequestId ? " (note de frais au circuit N+1 / RH)" : " (sans dépense)"}` });
+  revalider(a.entityType, a.entityId);
+  revalidatePath("/rh/demandes");
+  revalidatePath("/mon-dossier");
+  return { ok: true, message };
 }

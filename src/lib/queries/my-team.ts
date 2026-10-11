@@ -9,6 +9,7 @@ import { canDecideStep, CONTRACT_LABEL, type RecruitmentContract, type Recruitme
 import { STATUT_PLAN_LABELS, clausePlansADecider, type StatutPlan } from "@/lib/sfe/tournee";
 import { lienDeLigne, type LienDeLigne } from "@/lib/queries/lien-ouvrable";
 import { lienFormation } from "@/lib/chemins/formations";
+import { MARCHE_N1_MISSIONS } from "@/lib/queries/missions";
 import {
   aujourdhuiAlger, chevauchementsDe, couvreLeJour, jourDuConge, minuitUtc, periodesCommunes,
   type AbsenceDEquipe, type PeriodeCommune,
@@ -424,8 +425,10 @@ export async function getMyTeam(user: SessionUser, opts: { maintenant?: Date } =
   // LES ORDRES DE MISSION À VALIDER (missions Ad & Pro, 10/2026) — la marche du N+1 avant les RH, adressée à MOI.
   // Ils se tranchent dans « Mon espace › Mes missions », où la ligne porte les boutons.
   const ordresOm = await prisma.hrDocumentRequest.findMany({
-    where: { type: "MISSION_ORDER", status: "PENDING", managerGate: "PENDING", managerUserId: user.id },
-    select: { id: true, employeeId: true, details: true, createdAt: true, omPrefill: true, employee: { select: { fullName: true } } },
+    // + les notes de frais des missions de l'équipe (clôture), même marche N+1 (Direction, 10/2026).
+    where: MARCHE_N1_MISSIONS(user.id),
+    // La NATURE se lit au mois de la note de frais, pas au `type` (confidentialité RH : le type ne se lit pas ici).
+    select: { id: true, expenseMonth: true, expenseAmount: true, employeeId: true, details: true, createdAt: true, omPrefill: true, employee: { select: { fullName: true } } },
     orderBy: { createdAt: "asc" },
     take: 50,
   });
@@ -438,9 +441,9 @@ export async function getMyTeam(user: SessionUser, opts: { maintenant?: Date } =
       kind: "MISSION_ORDER" as const,
       employeeId: o.employeeId,
       who: o.employee.fullName,
-      title: "Ordre de mission",
+      title: o.expenseMonth ? "Note de frais de mission" : "Ordre de mission",
       detail: o.details,
-      amount: null,
+      amount: o.expenseMonth && o.expenseAmount != null ? Number(o.expenseAmount) : null,
       createdAt: o.createdAt.toISOString(),
       deadline: premier,
       ...lienOm,
