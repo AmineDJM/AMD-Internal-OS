@@ -1,5 +1,83 @@
 ## 🧾 Journal des évolutions récentes
 
+### PRISES EN CHARGE : LIVRETS DE SÉJOUR EN PDF, SELON LA CHARTE ADVENTUM (2026-10-11)
+
+Aucune migration. Règles : `lib/livret/modele.ts` (pur, testé) — voir « Fiches voyageur » dans la référence des circuits.
+
+- **Livret individuel** (bouton « Livret » de la fiche voyageur, et sur `…/billets`) : couverture, lettre d'invitation
+  sur le papier à en-tête (mentions légales), voyage (vols, n°, heures, PNR, transferts), hébergement (hôtel, nuits,
+  chambre, confirmation, repas, accès), planning jour par jour trié, contacts (équipe sur place, assistante de direction),
+  à emporter. **Livret général** (« Livret général » sur la demande) : délégation et vols, chambres et repas du groupe,
+  programme commun, équipe Adventum (dates convenues, billet), dos.
+- **Charte** : logo horizontal officiel (le vertical est retiré), jamais déformé ; bleu 2945 C pour les titres, teal
+  7714 C pour les sous-titres ; Calibri embarquée en Carlito (OFL) + Helvetica ; puces carrées, mosaïque de carrés, pied
+  du papier à en-tête. Absent → « à confirmer » ; aucun montant, devis ni passeport.
+- Rangé dans les pièces de la demande (SUPPORTING_DOC, nouvelle version à chaque génération) ; la page de mission d'un
+  membre de l'équipe lie le dernier « Livret de la délégation ».
+- **Assistante de direction** : passeports (depuis son sujet de réservation), billets émis, vouchers et livrets
+  s'ouvrent désormais pour elle (`peutLirePieceDePriseEnCharge`, miroir de la porte du sponsoring).
+- Fiche voyageur : le ⋯ d'un « autre poste » rattache de nouveau un **support promotionnel**.
+
+### BUDGET MARKETING : VUE D'ENSEMBLE REFAITE — DISPONIBLE, À TRAITER, SIX GRAPHIQUES FILTRABLES, EXPORTS, RÉALLOUER ; ENGAGÉ ET DATES CORRIGÉS (2026-10-11)
+
+- **Un disponible** (enveloppe − payé − engagé), son rythme face à l'année, une barre payé / engagé / disponible avec le
+  repère du jour ; « À traiter » (dépassement → Réallouer, sans catégorie → Les imputer, répartition > enveloppe → Ajuster) ;
+  filtres période / catégorie / N-1 appliqués aux six graphiques et aux exports (Excel 5 feuilles, PDF, CSV, PowerPoint,
+  PNG par graphique) ; tableau « Par catégorie » et détail par demande. Calculs purs : `lib/budget/marketing-vue.ts`.
+- **Engagé = 0 corrigé à la source** (`queries/budget-sources.ts`, règle `lib/budget/engage.ts`) : ordres de dépense émis
+  non réglés + BC émis des postes accordés, moins le déjà payé — l'ancien calcul ne lisait que des écritures `PENDING`
+  que le circuit n'écrit jamais. **Courbe datée par la dépense** (date saisie, sinon règlement / date de la facture).
+- **Réallouer** (`reallouerCategorie`) : Direction Marketing / Super Admin, motif obligatoire, journal de l'enveloppe.
+
+### BUREAU DU SECRÉTARIAT : DIRECTEMENT À L'ASSISTANTE, DEUX GESTES, PLUS DE MISSION CHAUFFEUR NI DE DEMANDE MULTIPLE (2026-10-11)
+
+Aucune migration : les valeurs retirées restent dans l'énumération pour relire l'existant. Règles :
+`lib/secretariat/traitement.ts` (pur, testé) — voir « Bureau du secrétariat — flux par demande ».
+
+- **Nouvelle demande** : plus de « Personne concernée » ni de « Responsable » — elle va directement aux assistantes de
+  direction (notifiées ; celle qui commence en devient responsable). Le demandeur peut ajouter des **participants**
+  (`fields.participantIds`), qui lisent la demande.
+- **Deux gestes** : « Commencer le traitement » → le demandeur lit « En cours — chez l'assistante de direction »,
+  « Fin du traitement » → « Traitée » ; il est notifié aux deux pas (lien vers la demande). Retirés de la fiche : en
+  attente d'un tiers / d'un document, bloquer, reprendre, validation Finances / interne, mission chauffeur. Restent
+  « Annuler la demande… », « Rouvrir… » (demande traitée) et « Supprimer la demande ».
+- **Anciennes demandes** : « en attente d'un tiers / d'un document » et « bloquée » à la main se lisent « En cours » et
+  se terminent par « Fin du traitement ». « Mission chauffeur » se relit, ne se crée plus (formulaire, assistant) ;
+  `createMission` et `createRequestBatch` (demande multiple) sont retirées, les courses déjà posées se mènent encore.
+
+### MISSIONS DE L'ÉQUIPE ADVENTUM : DEMANDE DE PARTICIPATION, CONTRE-PROPOSITIONS, OM EN UN CLIC, BILLET / HÔTEL PAR MEMBRE, NOTES DE FRAIS ET CLÔTURE (2026-10-11)
+
+Migration additive et idempotente `20270120090000_mission_equipe_participation` (`MissionParticipationVersion`,
+`MissionExpenseLine` ; accord, billet, hôtel, réservation, imputation, rapport et clôture sur `MissionAssignment`).
+Règles : `lib/missions-equipe/participation.ts` — voir « Demande de participation » dans la référence des circuits.
+
+- **Équipe Adventum** : « Inviter à participer » ; colonnes Où en est-on (« état — chez qui ») · Transport · Hébergement ·
+  Ordre de mission · Imputation (Direction Marketing) ; « Répondre » quand la balle est chez Adventum.
+- **Fiche de participation** puis versions négociées (accepter, refuser motivé, modifier et contre-proposer), changements
+  surlignés, fil de commentaires jusqu'à la clôture ; arbitres : organisateur, Direction Marketing, Super Admin.
+- **Accord → ordre de mission en un clic**, pré-rempli ; à l'émission, réservation à l'assistante de direction et dépôt du
+  billet émis / de la confirmation d'hôtel par membre.
+- **Ma mission** (`/mon-espace/missions/[id]`) : avant le départ (OM, billet, hôtel, rôle et professionnels accompagnés),
+  après (dépenses USD hors billet au taux figé, justificatifs, rapport), clôture → note de frais N+1 puis RH, rapport à
+  l'organisateur.
+
+### PRISES EN CHARGE : FICHES VOYAGEUR, MODE INDIVIDUEL / DE GROUPE, DOLLAR À L'INTERNATIONAL, BILLETS ÉMIS (2026-10-11)
+
+Migration additive et idempotente `20270119090000_fiches_voyageur_prise_en_charge` (`CareMode`, `CareCurrency`,
+`CareGroupPoste` ; colonnes de détail, de montant saisi et de billet émis sur `CareCell` ; montant, devise, catégorie,
+retenu et BC demandé sur `CareQuote` ; `careMode`, `usdDzdRate`, `initiativeDoctorIds`, `careReservationDossierId` sur
+les deux congrès). Règles : `lib/care-fiches.ts` — voir « Fiches voyageur » dans la référence des circuits.
+
+- **Création** : l'événement seul (ville et pays séparés), le mode de prise en charge, et pour « Initiative du médecin »
+  le ou les médecins d'origine ; on atterrit sur les professionnels de la demande.
+- **Liste « Professionnels pris en charge »** : un tableau (colonne du nom fixe au téléphone), une ligne par personne
+  — billetterie, hôtellerie, autres postes, estimé, décision ; « Demander la réservation (N prêtes) », « Demander le BC ».
+- **Fiche voyageur** : billet (aller / aller-retour / multi-destinations), hôtel pré-rempli (ville de l'événement, dates du
+  billet), « sans billet / sans hôtel », un « + » par catégorie, prochain geste, documents, décision, total.
+- **International** : tout sauf la billetterie en dollars, converti au taux figé de la demande (1 USD = 240 DZD).
+- **Billet émis / confirmation d'hôtel** : e-billet ou voucher, PNR / n° de confirmation, n° de vol et horaires par trajet ;
+  heure et lieu des autres postes — page `…/[id]/billets` ouverte à l'assistante de direction.
+
 ### MANQUES COMBLÉS : LIENS DE NOTIFICATION EXACTS, KPI DEMANDES TRAITÉES / PCH / CIBLE LUNA, STOCKS PCH CENTRAL + DR, INFO MÉDICALE PAR PRODUIT, DATE DE BESOIN DU MATÉRIEL PROMO (2026-10-10)
 
 Commit `4d3e3325`. Migrations additives et idempotentes : `20270118150000_kpi_complements`

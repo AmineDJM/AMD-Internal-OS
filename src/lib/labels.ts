@@ -854,7 +854,7 @@ export const ADMIN_REQUEST_TYPE: Record<string, string> = {
   PURCHASE: "Achat interne / Fournitures",
   QUOTE: "Devis fournisseur",
   PAYMENT: "Paiement / Facture",
-  DRIVER: "Mission chauffeur",
+  DRIVER: "Mission chauffeur", // ne se crée plus (10/2026) — le libellé relit les demandes déjà posées
   GUEST_VISA: "Visa / Professeur / Invité",
   HR_SIMPLE: "Demande RH",
   OTHER: "Autre",
@@ -864,11 +864,12 @@ export const ADMIN_REQUEST_STATUS: Record<string, Display> = {
   NEW: { label: "Nouvelle", tone: "info" },
   IN_PROGRESS: { label: "En cours", tone: "info" },
   AWAITING_VALIDATION: { label: "Attente validation", tone: "warning" },
-  AWAITING_EXTERNAL: { label: "Attente externe", tone: "warning" },
+  // Étapes intermédiaires retirées (Direction, 10/2026) : une demande qui les porte encore se lit « En cours ».
+  AWAITING_EXTERNAL: { label: "En cours", tone: "info" },
   AWAITING_PAYMENT: { label: "Attente paiement", tone: "warning" },
-  AWAITING_DOCUMENT: { label: "Attente document", tone: "warning" },
+  AWAITING_DOCUMENT: { label: "En cours", tone: "info" },
   BLOCKED: { label: "Bloquée", tone: "danger" },
-  DONE: { label: "Terminée", tone: "success" },
+  DONE: { label: "Traitée", tone: "success" },
   CANCELLED: { label: "Annulée", tone: "neutral" },
 };
 

@@ -22,8 +22,11 @@ export interface MedecinConcerne {
   role: RoleMedecin;
   /** Montant attribuable à ce praticien (DZD), saisi sur son lien. */
   montant: number | null;
-  /** LIEN = rattaché ici, modifiable ; INVITE_CONGRES / PRISE_EN_CHARGE = lu du congrès, modifiable dans le congrès. */
-  source: "LIEN" | "INVITE_CONGRES" | "PRISE_EN_CHARGE";
+  /**
+   * LIEN = rattaché ici, modifiable ; INVITE_CONGRES / PRISE_EN_CHARGE / ORIGINE_DEMANDE = lu du congrès, modifiable dans le
+   * congrès. ORIGINE_DEMANDE : le médecin à l'origine d'une « initiative du médecin » — concerné, sans être pris en charge.
+   */
+  source: "LIEN" | "INVITE_CONGRES" | "PRISE_EN_CHARGE" | "ORIGINE_DEMANDE";
 }
 
 const FICHE_MEDECIN = {
@@ -55,8 +58,8 @@ export async function medecinsConcernesDe(entityType: TypeMedecinsConcernes, ent
     const cle = entityType === "CONGRESS_NATIONAL" ? "congressNationalId" : "congressInternationalId";
     const [congres, prises] = await Promise.all([
       entityType === "CONGRESS_NATIONAL"
-        ? prisma.congressNational.findUnique({ where: { id: entityId }, select: { invitedDoctorIds: true } })
-        : prisma.congressInternational.findUnique({ where: { id: entityId }, select: { invitedDoctorIds: true } }),
+        ? prisma.congressNational.findUnique({ where: { id: entityId }, select: { invitedDoctorIds: true, initiativeDoctorIds: true } })
+        : prisma.congressInternational.findUnique({ where: { id: entityId }, select: { invitedDoctorIds: true, initiativeDoctorIds: true } }),
       prisma.careBeneficiary.findMany({
         where: { [cle]: entityId, doctorId: { not: null }, status: { notIn: ["REJECTED", "WITHDRAWN"] } },
         select: { doctorId: true },
@@ -64,7 +67,9 @@ export async function medecinsConcernesDe(entityType: TypeMedecinsConcernes, ent
     ]);
     const invites = (congres?.invitedDoctorIds ?? []).filter((id) => !deja.has(id));
     const pris = prises.map((p) => p.doctorId!).filter((id) => !deja.has(id) && !invites.includes(id));
-    const ids = [...new Set([...invites, ...pris])];
+    // Les médecins À L'ORIGINE de la demande (initiative du médecin) — sans doublon avec les invités et les pris en charge.
+    const origine = (congres?.initiativeDoctorIds ?? []).filter((id) => !deja.has(id) && !invites.includes(id) && !pris.includes(id));
+    const ids = [...new Set([...invites, ...pris, ...origine])];
     if (ids.length) {
       const fiches = await prisma.medicalDoctor.findMany({ where: { id: { in: ids } }, select: FICHE_MEDECIN });
       const parId = new Map(fiches.map((f) => [f.id, f]));
@@ -72,7 +77,11 @@ export async function medecinsConcernesDe(entityType: TypeMedecinsConcernes, ent
         const f = parId.get(id);
         if (!f) continue;
         const invite = invites.includes(id);
-        out.push({ ...identite(f), role: invite ? "INVITE" : "BENEFICIAIRE", montant: null, source: invite ? "INVITE_CONGRES" : "PRISE_EN_CHARGE" });
+        const aLOrigine = !invite && !pris.includes(id);
+        out.push({
+          ...identite(f), role: invite ? "INVITE" : aLOrigine ? "AUTRE" : "BENEFICIAIRE", montant: null,
+          source: invite ? "INVITE_CONGRES" : aLOrigine ? "ORIGINE_DEMANDE" : "PRISE_EN_CHARGE",
+        });
       }
     }
   }

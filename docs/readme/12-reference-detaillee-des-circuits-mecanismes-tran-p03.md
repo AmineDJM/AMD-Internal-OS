@@ -793,6 +793,44 @@ par marqueur sur l'assignation (`/missions`, `mission-item.tsx` supprimé ; `/mi
   Hôtellerie) créé par le mécanisme habituel, qui le validera et l'imputera ; rien d'automatique. Migration
   `20270116170000_missions_profil`.
 
+#### Demande de participation, négociation, mission et clôture (11/10)
+
+« Inviter à participer » envoie une **demande de participation** ; la personne répond par une **fiche native**. Règles
+PURES `lib/missions-equipe/participation.ts` (+ tests) ; page unique `/mon-espace/missions/[id]` (`lienMission`,
+`components/missions/mission-equipe.tsx`), destination de toutes les notifications. Migration
+`20270120090000_mission_equipe_participation`.
+
+- **Fiche** (`proposerParticipation`) : présence du / au (reprise de l'événement), rôle (lecture seule), transport
+  (avion, train, bus, véhicule de service, véhicule personnel ; départ / arrivée ; aller / retour ; « Adventum réserve » ou
+  « je réserve, note de frais » ; précisions), hébergement (Adventum réserve / je m'en occupe — hôtel, nuits, estimation
+  en USD à l'international / pas besoin), commentaire. Décliner (motif) reste possible ; « Je confirme » sans fiche est refusé.
+- **Versions** (`MissionParticipationVersion` : numéro, auteur, côté PERSONNE / ADVENTUM, nature, contenu JSON, motif,
+  sort EN_ATTENTE / ACCEPTEE / REFUSEE / REMPLACEE). La balle passe de côté à chaque version ; un refus (motif exigé) la
+  rend à l'auteur ; « Modifier et contre-proposer » remplace la version en attente. L'écran surligne ce qui a changé
+  (`comparerFiches`) ; l'état se lit « état — chez qui ». Côté Adventum tranchent l'**organisateur** (demandeur de
+  l'opération ou celui qui a invité), la **Direction Marketing** et le **Super Admin** (`estArbitre`). Une réinvitation
+  repart d'une fiche vierge (versions postérieures à l'invitation). Le fil `addMissionComment` reste ouvert jusqu'à la
+  clôture et prévient l'autre partie.
+- **Accord** (`deciderParticipation`) : `accordVersionId`, mission CONFIRMEE, dates et ville reprises du voyage convenu.
+  L'accord se rediscute tant que l'ordre de mission n'est ni en cours ni émis. **« Demander l'ordre de mission »** part
+  pré-rempli (dates, destination, transport, hébergement dans `omPrefill` ; transport repris par le formulaire RH) — circuit
+  inchangé : N+1 puis RH, numérotation `NNN/DG/AAAA`.
+- **OM émis** (`synchroniserOrdreEmis`) : la mission s'ouvre (notification), et ce qu'Adventum réserve part **une fois**
+  dans le sujet « Billets » de l'**assistante de direction** (un sujet par demande pour toute l'équipe,
+  `envoyerReservationEquipe`). L'assistante, l'organisateur, la Direction Marketing et le Super Admin déposent par membre
+  le **billet émis** (`enregistrerBilletMission` : e-billet, PNR `billetReference`, n° et heures aller / retour
+  `billetTrajets`) et la **confirmation d'hôtel** (`enregistrerHotelMission` : voucher, `hotelNom`, `hotelConfirmation`).
+- **Imputation** (`choisirBudgetMission`) : la Direction Marketing (ou le Super Admin) choisit la ligne budgétaire
+  (`budgetCategoryId`, options `adProBudgetOptions`) — colonne de la carte « Équipe Adventum » ; rien d'imputé sans elle.
+- **Après la mission** : dépenses en lignes (`MissionExpenseLine` : date, nature taxi / repas / hôtel / billet / autre,
+  détail, montant, devise, équivalent DZD, justificatif) — à l'international **en USD sauf le billet**, au taux figé
+  `usdDzdRate` de la demande (240 par défaut, helpers de `care-fiches.ts`) ; **rapport** (déroulé, médecins rencontrés,
+  retombées, suites). **Clôturer** (`cloturerMission` : OM émis, jour du retour atteint, rapport, chaque justificatif) crée
+  UNE demande RH `EXPENSE_REPORT` (total DZD, lignes et liens des justificatifs, imputation) qui monte au **N+1**
+  (`deciderOrdreMissionN1` la traite aussi ; `MARCHE_N1_MISSIONS` alimente Tâches, centre d'actions, Mon équipe) puis aux
+  RH ; le rapport part à l'organisateur. Un refus du N+1 rouvre la mission. Accès (`entity-access`) : la personne, les
+  organisateurs, Direction Marketing, Super Admin, assistante de direction, le N+1 et les RH des demandes liées.
+
 ### Force de vente — gamme et produits attribués
 
 `PromoProduct.channel` (RETAIL · HOSPITAL · BOTH) et `PromotionAssignment` (KAM × produit ×
@@ -884,6 +922,34 @@ Fichiers : `lib/care.ts` (`beneficiaryName`, `careProgress`, `quoteConflicts`, `
 + `care.test.ts`, 24 tests), `lib/actions/care-actions.ts`, `lib/queries/care.ts`,
 `components/care/care-panel.tsx`. Migration `20260806160000_care_beneficiaries` — reprend le JSON
 existant en lignes **sans l'effacer** : en cas de doute sur la reprise, la source reste lisible.
+
+#### Fiches voyageur (Direction, 10/2026)
+
+La création ne porte plus que l'**événement** (ville et pays séparés ; au national, pays = Algérie
+s'il n'est pas dit), l'origine (« Initiative du médecin » → médecin(s) d'origine dans
+`initiativeDoctorIds`, **pas** une prise en charge ; lus par « Médecins concernés » en
+`ORIGINE_DEMANDE`) et le **mode** (`careMode` : `INDIVIDUAL` | `GROUP`, corrigeable par la liste
+blanche `EDITABLE_FIELDS`). On atterrit sur `#professionnels` ; chaque professionnel ajouté
+(annuaire, nouveau profil, profil libre) **naît avec sa billetterie et son hôtellerie**.
+
+| Règle | Où | Pourquoi |
+|---|---|---|
+| Un poste = une `CareCell` SERVICE ; le 1er billet / le 1er hôtel est le **principal** | `billetPrincipal`, `hotelPrincipal` | Un « + » par catégorie (billetterie, hôtellerie, transport, déjeuner, dîner, accès, autre) — autant de fois qu'il le faut. |
+| « Sans billet / sans hôtel » | case principale `WAIVED` | La trace qu'on a regardé. |
+| Billet et hôtel lus par les règles du **sponsoring** | `lirePosteSaisi` → `lireVoyageur` / `lireHebergement`, `manquesPourReserver` | Une seule règle de trajet, d'étapes et de dates. Passeport exigé à l'international ; pièce d'identité facultative au national. |
+| **Dollar** à l'international sauf la billetterie | `deviseDuPoste`, `versDzd`, `usdDzdRate` (240, `TAUX_USD_DZD_DEFAUT`, figé à la création) | `amount` + `currency` gardent la saisie ; `amountDzd` nourrit totaux, enveloppe, ordre de dépense. Un devis mêlant billets et autres postes se refuse (`deviseDuDevis`). |
+| Estimé = devis qui comptent + montants saisis + postes de groupe | `estimations` (pure, testée) | Un devis accepté ou **retenu** compte en entier, partagé entre les cases qu'il couvre ; indépendant du mode. |
+| Mode **de groupe** | `casesDeLaCategorie`, `CareGroupPoste` (`montantPosteGroupe`) | Un devis par catégorie couvre tout le monde ; « repas 100 par personne » × personnes vivantes, exclusions une à une. |
+| Dépassement de l'enveloppe | `depassementEnveloppe` | Dit, jamais bloquant. |
+| Retenir puis BC, réservation | `retenirDevisPriseEnCharge`, `demanderBCPriseEnCharge`, `demanderReservationPriseEnCharge` | Même circuit que le sponsoring : un **sujet** pour l'assistante de direction (`careReservationDossierId`), fiches prêtes nommées, manques dits ; l'acceptation par la Direction émet l'ordre de dépense (DZD). |
+| Billet émis / confirmation d'hôtel | `enregistrerBilletEmis`, page `…/[id]/billets` | E-billet ou voucher (`issuedDocumentId`), `bookingRef`, détail par trajet `legDetails` [{numero, heureDepart, heureArrivee, reference}] aligné sur `etapesDuBillet` ; autres postes : `timeStart` + `address`. Assistante de direction, demandeur, Direction Marketing, Super Admin (`peutTeleverserBillet`). Lu par le livret de séjour. |
+| **Livret de séjour** (PDF A5, charte Adventum) | `lib/livret/modele.ts` (pur, testé), `rendu-pdf.ts` (pdfkit), `serveur.ts` ; `POST /api/prises-en-charge/livret` ; `BoutonLivret` | **Individuel** (fiche voyageur, « Livret ») : couverture, lettre sur papier à en-tête, voyage, hébergement + repas + accès, planning jour par jour trié, contacts, à emporter. **Général** (« Livret général » sur la demande et sur `…/billets`) : délégation et vols, chambres + repas du groupe, programme commun, équipe Adventum (missions confirmées, dates convenues, billet), dos. Absent → « à confirmer » ; aucun montant, devis ni passeport (`versPoste` ne recopie que ce qu'il imprime). Rangé en `Document` SUPPORTING_DOC, `stepKey` `livret:general` / `livret:<personne>`, même nom → nouvelle version ; la page de mission d'un membre lie le dernier livret général. Générer : `peutTeleverserBillet`. |
+| Pièces lisibles par qui réserve et qui accompagne | `peutLirePieceDePriseEnCharge` (`ad-pro/passeport-acces.ts`) + `care-pieces-acces.ts` (pur) | `/api/documents/[id]` : passeports → membres du sujet de réservation ; billets émis, vouchers, livrets → sujet ou `peutTeleverserBillet` ; livret général → aussi l'équipe (mission non déclinée). Le reste reste derrière la porte de la demande. |
+| Support promotionnel d'un poste | ⋯ d'un « autre poste » → `linkCareCellPromoMaterial` (options `carePromoOptions`) | Le circuit du matériel garde sa vérité ; le poste en montre la référence et l'état. |
+
+Fichiers : `lib/care-fiches.ts` (+ `care-fiches.test.ts`), `components/care/{care-panel,fiche-voyageur,billets-emis-panel,page-billets-emis}.tsx`.
+Migration `20270119090000_fiches_voyageur_prise_en_charge` (idempotente ; taux 240 posé sur les
+internationales existantes, rien d'autre de deviné).
 
 ### Ad & Pro — postes, validation par poste et chaîne jusqu'au paiement
 

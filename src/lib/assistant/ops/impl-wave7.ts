@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
-  requestApproval, decideApproval, createMission, toggleMissionStop, updateMission,
-  createRequestBatch, editOwnRequest, deleteOwnRequest, deleteRequests, restoreRequest,
+  requestApproval, decideApproval, toggleMissionStop, updateMission,
+  editOwnRequest, deleteOwnRequest, deleteRequests, restoreRequest,
   startRequestProcessing, requestFinanceValidation, requestInternalValidation, finishRequest,
   submitAttachmentValidation, cancelAttachmentValidation,
 } from "@/lib/actions/admin-request-actions";
@@ -14,8 +14,8 @@ import { matchLabel, fold } from "./impl-regulatory";
 
 /**
  * OPS VAGUE 7 — DEMANDES ADMINISTRATIVES de bout en bout : validation hiérarchique (demande +
- * décision qui émet l'ordre de dépense au montant accordé), missions chauffeur (points de
- * passage, statuts, preuve), lot de demandes (cellules), fenêtre demandeur 30 min (édition
+ * décision qui émet l'ordre de dépense au montant accordé), missions chauffeur DÉJÀ posées (points de
+ * passage, statuts, preuve — on n'en crée plus, ni de lot de demandes : Direction, 10/2026), fenêtre demandeur 30 min (édition
  * FUSION, retrait), suppression TRAÇABLE à motif + restauration, flux assistante (traitement,
  * validation Finances / interne, FIN de demande avec facture exigée et imputation moyens
  * généraux), pièces jointes soumises à validation UNE PAR UNE (retirables), et l'ACHAT depuis
@@ -147,64 +147,6 @@ export const ADMIN_REQUEST_OPS_IMPL: Record<string, OpImpl> = {
     execute: (args) => runFd(decideApproval, args, "La décision a été refusée.", { revalidate: ["/demandes"] }),
   },
 
-  create_mission: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const title = opStr(input, "label") || opStr(input, "name");
-      if (!title) return { error: "Donnez le titre de la course (champ « label »)." };
-      let requestId: string | null = null; let requestShown: string | null = null;
-      if (opStr(input, "target")) {
-        const req = await resolveAdminRequest(opStr(input, "target"));
-        if ("error" in req) return req;
-        requestId = req.id; requestShown = req.reference;
-      }
-      let driverId: string | null = null; let driverShown: string | null = null;
-      if (opStr(input, "person")) {
-        const u = await wave7User(opStr(input, "person"));
-        if ("error" in u) return u;
-        driverId = u.id; driverShown = u.name;
-      }
-      const stops = (opStr(input, "stops") || "").split(/[;\n]/).map((s) => s.trim()).filter(Boolean);
-      return {
-        title: `Créer la course « ${title} »${driverShown ? ` → ${driverShown}` : ""}`,
-        fields: fieldsOf([
-          ["Course", title],
-          ["Demande liée", requestShown],
-          ["Chauffeur", driverShown],
-          ["Départ", opStr(input, "location") || null],
-          ["Destination", opStr(input, "destination") || null],
-          ["Points de passage", stops.length ? stops.join(" → ") : null],
-          ["Échéance", isoDate(opStr(input, "date"))],
-          ["Consignes", opStr(input, "notes") || null],
-        ]),
-        args: {
-          requestId, title, assignedToId: driverId,
-          startLocation: opStr(input, "location") || null, destination: opStr(input, "destination") || null,
-          address: opStr(input, "address") || null, contactName: opStr(input, "contact") || null,
-          contactPhone: opStr(input, "phone") || null, instructions: opStr(input, "notes") || null,
-          deadline: isoDate(opStr(input, "date")), stops: stops.join("\n") || null,
-        },
-        successMessage: `Course « ${title} » créée${driverShown ? ` (${driverShown} notifié·e)` : ""}.`,
-        revalidate: ["/demandes/driver", "/demandes/courses"],
-      };
-    },
-    async execute(args) {
-      const fd = new FormData();
-      for (const [k, v] of Object.entries(args)) {
-        if (v == null || k === "stops") continue;
-        fd.set(k, v);
-      }
-      for (const stop of (args.stops ?? "").split("\n").filter(Boolean)) {
-        // « Lieu : consigne » — la consigne est optionnelle.
-        const [location, ...task] = stop.split(":");
-        fd.append("stopLocation", location.trim());
-        fd.append("stopTask", task.join(":").trim());
-      }
-      const r = await createMission(fd);
-      if (!r.ok) return { ok: false, error: r.error ?? "La création de la course a été refusée." };
-      return { ok: true, revalidate: ["/demandes/driver"] };
-    },
-  },
-
   toggle_mission_stop: {
     async propose(input): Promise<OpProposalDraft | { error: string }> {
       const mission = await resolveMission(opStr(input, "target") || opStr(input, "label"));
@@ -252,45 +194,6 @@ export const ADMIN_REQUEST_OPS_IMPL: Record<string, OpImpl> = {
       };
     },
     execute: (args) => runFd(updateMission, args, "Le changement de statut a été refusé.", { revalidate: ["/demandes/driver"] }),
-  },
-
-  create_request_batch: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const raw = opStr(input, "cells") || opStr(input, "notes") || opStr(input, "message");
-      const titles = raw.split(/[;\n]/).map((s) => s.trim()).filter(Boolean);
-      if (titles.length === 0) return { error: "Listez les demandes du lot (champ « cells » — une par ligne ou séparées par des points-virgules)." };
-      if (titles.length > 25) return { error: "25 demandes maximum par lot." };
-      const typeRaw = opStr(input, "kind");
-      const type = typeRaw ? matchLabel(typeRaw, REQUEST_TYPE_PAIRS) : null;
-      if (type && typeof type === "object") return type;
-      let assignedToId: string | null = null; let assignedShown: string | null = null;
-      if (opStr(input, "person")) {
-        const u = await wave7User(opStr(input, "person"));
-        if ("error" in u) return u;
-        assignedToId = u.id; assignedShown = u.name;
-      }
-      return {
-        title: `Créer un LOT de ${titles.length} demande(s)`,
-        fields: fieldsOf([
-          ["Demandes", titles.join(" ; ")],
-          ["Type", type ? REQUEST_TYPE_PAIRS.find(([c]) => c === type)?.[1] ?? null : "Autre (défaut)"],
-          ["Traitant", assignedShown],
-        ]),
-        warnings: ["Chaque cellule devient une demande À PART ENTIÈRE (même lot, pilotage indépendant par l'assistante)."],
-        args: { titles: titles.join("\n"), type: type || "OTHER", assignedToId },
-        successMessage: `Lot de ${titles.length} demande(s) créé.`,
-        revalidate: ["/demandes", "/demandes/assistant"],
-      };
-    },
-    async execute(args) {
-      const cells = (args.titles ?? "").split("\n").filter(Boolean).map((title) => ({ title, type: args.type ?? "OTHER" }));
-      const fd = new FormData();
-      fd.set("cells", JSON.stringify(cells));
-      if (args.assignedToId) fd.set("assignedToId", args.assignedToId);
-      const r = await createRequestBatch(undefined, fd);
-      if (!r.ok) return { ok: false, error: r.error ?? "La création du lot a été refusée." };
-      return { ok: true, revalidate: ["/demandes"] };
-    },
   },
 
   edit_own_request: {

@@ -17,7 +17,7 @@ import { ChampReference } from "@/components/references/champ-reference";
 export function OrdreMissionForm({ requestId, employeeName, employeePosition, details, referenceSuggeree, prefill = null }: {
   requestId: string; employeeName: string; employeePosition: string | null; details: string | null; referenceSuggeree: string;
   /** Mission Ad & Pro : objet, lieu et dates repris de la demande (modifiables). */
-  prefill?: { objet: string; destination: string; datesDepart: string[]; datesRetour: string[] } | null;
+  prefill?: { objet: string; destination: string; datesDepart: string[]; datesRetour: string[]; transport?: string } | null;
 }) {
   const { enCours, rafraichir } = useRafraichir();
   const [ouvert, setOuvert] = React.useState(false);
@@ -86,7 +86,7 @@ export function OrdreMissionForm({ requestId, employeeName, employeePosition, de
         <div className="space-y-1"><Label>Date(s) de retour</Label>{listeDates("dateRetour", retours, setRetours)}</div>
         <div className="space-y-1">
           <Label>Mode de transport</Label>
-          <Input name="transport" list={`transports-${requestId}`} defaultValue={MODES_TRANSPORT_MISSION[0]} required />
+          <Input name="transport" list={`transports-${requestId}`} defaultValue={prefill?.transport || MODES_TRANSPORT_MISSION[0]} required />
           <datalist id={`transports-${requestId}`}>{MODES_TRANSPORT_MISSION.map((m) => <option key={m} value={m} />)}</datalist>
         </div>
         <div className="space-y-1">

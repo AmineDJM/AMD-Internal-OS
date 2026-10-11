@@ -38,6 +38,7 @@ import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { PurchaseLines } from "@/components/purchase/purchase-lines";
 import { porteDuDemandeur, refusDeModification, suitLaDemandeDeBcDuPoste, refusDemandeDeBcDuPoste } from "@/lib/secretariat/porte-demandeur";
 import { decideurAffiche, libelleMotif, interditSurSaPropreDemande } from "@/lib/secretariat/decision-approbation";
+import { statutAffiche, chezQui, lireParticipants } from "@/lib/secretariat/traitement";
 
 const REQ_DOC_CATEGORIES = ["QUOTE", "INVOICE", "REQUEST_LETTER", "CONVENTION", "SUPPORTING_DOC", "PHOTO", "OTHER"];
 
@@ -92,14 +93,13 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
     ? await prisma.expenseOrder.count({ where: { sourceType: "ADMIN_REQUEST", sourceId: req.id, status: { not: "CANCELLED" } } })
     : 0;
 
-  const [documents, comments, history, users, financeUsers, linkedValidations, siblings] = await Promise.all([
+  const [documents, comments, history, users, linkedValidations, siblings] = await Promise.all([
     prisma.document.findMany({ where: { entityType: "ADMIN_REQUEST", entityId: req.id }, include: { uploadedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.comment.findMany({ where: { entityType: "ADMIN_REQUEST", entityId: req.id }, include: { author: { select: { name: true } } }, orderBy: { createdAt: "desc" } }),
     prisma.auditLog.findMany({ where: { entityType: "ADMIN_REQUEST", entityId: req.id }, orderBy: { createdAt: "desc" }, take: 30, include: { actor: { select: { name: true } } } }),
     canManage || req.requesterId === user.id ? prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([] as { id: string; name: string }[]),
-    canManage ? prisma.user.findMany({ where: { isActive: true, role: "FINANCE_BUDGET_MANAGER" }, select: { id: true, name: true }, orderBy: { name: "asc" } }) : Promise.resolve([] as { id: string; name: string }[]),
     prisma.validationRequest.findMany({ where: { entityType: "ADMIN_REQUEST", entityId: req.id }, include: { steps: { include: { validator: { select: { name: true } } }, orderBy: { order: "asc" } } }, orderBy: { createdAt: "desc" } }),
-    req.batchId ? prisma.administrativeRequest.findMany({ where: { batchId: req.batchId, deletedAt: null }, select: { id: true, reference: true, title: true, status: true, type: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([] as { id: string; reference: string; title: string; status: string; type: string }[]),
+    req.batchId ? prisma.administrativeRequest.findMany({ where: { batchId: req.batchId, deletedAt: null }, select: { id: true, reference: true, title: true, status: true, type: true, blockedReason: true }, orderBy: { createdAt: "asc" } }) : Promise.resolve([] as { id: string; reference: string; title: string; status: string; type: string; blockedReason: string | null }[]),
   ]);
 
   // Dossier Matériel promotionnel lié : l'assistante le pilote ici (sans accès au module).
@@ -123,6 +123,13 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
         paiementEmis: ordresEmis > 0,
       })
     : null;
+
+  // Ce que lit chacun : une étape retirée se lit « En cours », chez l'assistante de direction (10/2026).
+  const statut = statutAffiche(req.status, req.blockedReason);
+  const participantIds = lireParticipants(req.fields);
+  const participants = participantIds.length
+    ? (await prisma.user.findMany({ where: { id: { in: participantIds } }, select: { name: true }, orderBy: { name: "asc" } })).map((u) => u.name)
+    : [];
 
   const labels = fieldLabels(req.type);
   const fields = (req.fields as Record<string, unknown> | null) ?? {};
@@ -149,7 +156,8 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
           <h1 className="text-2xl font-semibold tracking-tight">{req.title}</h1>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <StatusBadge map={ADMIN_REQUEST_STATUS} value={req.status} />
+          <StatusBadge map={ADMIN_REQUEST_STATUS} value={statut} />
+          {chezQui(statut) && <p className="text-xs text-muted-foreground">{chezQui(statut)}</p>}
           <div className="flex items-center gap-2">
             <ReminderButton defaultTitle={`Demande ${req.reference} — ${req.title}`} link={`/demandes/${req.id}`} entityType="ADMIN_REQUEST" entityId={req.id} />
             <SuperAdminDeleteButton kind="ADMIN_REQUEST" id={req.id} name={`${req.reference} — ${req.title}`} enabled={suppressionPermise(user, "ADMIN_REQUEST")} />
@@ -165,7 +173,9 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
               <Info label="Demandeur" value={req.requester?.name} />
               <Info label="Responsable" value={req.assignedTo?.name} />
               <Info label="Validateur" value={req.validator?.name} />
-              <Info label="Personne concernée" value={req.concerned?.name} />
+              {/* « Personne concernée » ne se saisit plus (10/2026) : elle se relit sur les demandes qui la portent. */}
+              {req.concerned?.name && <Info label="Personne concernée" value={req.concerned.name} />}
+              {participants.length > 0 && <Info label="Participants" value={participants.join(", ")} />}
               <Info label="Département" value={req.department?.name} />
               <Info label="Échéance" value={req.deadline ? formatDate(req.deadline) : null} />
               {req.description && <div className="col-span-full"><p className="text-xs text-muted-foreground">Description</p><p className="font-medium">{req.description}</p></div>}
@@ -211,7 +221,7 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
                 {siblings.map((s) => (
                   <Link key={s.id} href={`/demandes/${s.id}`} className={cn("flex items-center justify-between rounded-md px-2 py-1.5 hover:bg-secondary", s.id === req.id && "bg-secondary font-medium")}>
                     <span className="min-w-0 truncate"><span className="font-mono text-xs text-muted-foreground">{s.reference}</span> — {s.title}</span>
-                    <StatusBadge map={ADMIN_REQUEST_STATUS} value={s.status} dot={false} />
+                    <StatusBadge map={ADMIN_REQUEST_STATUS} value={statutAffiche(s.status, s.blockedReason)} dot={false} />
                   </Link>
                 ))}
               </CardContent>
@@ -223,8 +233,8 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
               <CardHeader><CardTitle>Traitement</CardTitle></CardHeader>
               <CardContent>
                 <RequestActions
-                  requestId={req.id} status={req.status} type={req.type}
-                  users={users} financeUsers={financeUsers} canManage={canManage}
+                  requestId={req.id} status={req.status} commencee={req.processingStartedAt !== null} type={req.type}
+                  canManage={canManage}
                   departments={departments}
                   defaultDepartmentId={req.departmentId ?? req.requester?.employee?.departmentId ?? null}
                   fromAdPro={fromAdPro}
@@ -385,12 +395,12 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
             </Card>
           )}
 
+          {/* Les missions chauffeur ne se créent plus (10/2026) : celles déjà posées se relisent ici. */}
+          {req.missions.length > 0 && (
           <Card>
             <CardHeader><CardTitle>Missions chauffeur</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
-              {req.missions.length === 0 ? (
-                <p className="text-muted-foreground">Aucune mission.</p>
-              ) : req.missions.map((m) => (
+              {req.missions.map((m) => (
                 <div key={m.id} className="flex items-center justify-between">
                   <span className="min-w-0"><span className="block truncate font-medium">{m.title}</span><span className="text-xs text-muted-foreground">{m.assignedTo?.name ?? "Non assignée"}</span></span>
                   <StatusBadge map={DRIVER_MISSION_STATUS} value={m.status} dot={false} />
@@ -398,6 +408,7 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
               ))}
             </CardContent>
           </Card>
+          )}
 
           <Card>
             <CardHeader><CardTitle>Historique</CardTitle></CardHeader>

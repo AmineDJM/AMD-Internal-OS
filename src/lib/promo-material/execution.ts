@@ -32,7 +32,7 @@ export interface FactureDuBC {
   /** Un paiement a-t-il été DEMANDÉ pour elle (ordre de dépense créé) ? */
   paiementDemande: boolean;
   /** Sa demande de visa publicitaire ou de déclaration au ministère, si elle existe. */
-  demandeInfoMedicale: { reference: string; nature: string } | null;
+  demandeInfoMedicale: { reference: string; nature: string; formalite?: string | null } | null;
   /**
    * Les lignes de la facture DÉTAILLÉE qui attendent encore leur réception (§118.165) — le paiement
    * les attend. 0 (ou absent) pour une facture d'avant le détail ligne à ligne.

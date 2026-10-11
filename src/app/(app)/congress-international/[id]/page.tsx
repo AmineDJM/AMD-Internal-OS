@@ -20,6 +20,8 @@ import { getInvolvementThreads } from "@/lib/queries/involvement";
 import { CarePanel } from "@/components/care/care-panel";
 import { getCareDossier } from "@/lib/queries/care";
 import { careDirectoryOptions, carePromoOptions } from "@/lib/actions/care-actions";
+import { BoutonLivret } from "@/components/care/bouton-livret";
+import { peutTeleverserBillet, resumeDesFiches } from "@/lib/care-fiches";
 import { AdProTransferButton } from "@/components/ad-pro/transfer-button";
 import { AdProEditButton } from "@/components/ad-pro/edit-request-button";
 import { canEditAdProRequest, isAdProDecided } from "@/lib/ad-pro-edit";
@@ -86,12 +88,18 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
   // Le dossier de prise en charge : les personnes, ce qu'il faut pour chacune, et les devis.
   const canDecideCare = hasGlobalView(user) || userCan(user, "CONGRESS_INTERNATIONAL", "VALIDATE");
   const canEditCare = userCan(user, "CONGRESS_INTERNATIONAL", "CREATE") || userCan(user, "CONGRESS_INTERNATIONAL", "UPDATE") || canDecideCare;
-  const [care, directory, carePromos, intl] = await Promise.all([
+  const [care, directory, intl, carePromo] = await Promise.all([
     getCareDossier("INTERNATIONAL", detail.id),
     careDirectoryOptions(),
-    carePromoOptions(),
     prisma.congressInternational.findUnique({ where: { id: detail.id }, select: { requestStatus: true, finalAmount: true } }),
+    carePromoOptions(),
   ]);
+  // LES FICHES VOYAGEUR : l'estimé et les fiches prêtes, lus une fois pour le bandeau (`resumeDesFiches`).
+  const fiches = resumeDesFiches("INTERNATIONAL", care.beneficiaries, care.quotes, care.groupPostes);
+  const peutTeleverser = peutTeleverserBillet(
+    { id: user.id, roles: [user.role, user.secondaryRole].filter((r): r is NonNullable<typeof r> => Boolean(r)), vueGlobale: hasGlobalView(user) },
+    { requesterId: detail.requesterId },
+  );
 
   // Corriger la demande : le demandeur tant qu'elle n'est pas tranchée, la Direction toujours.
   const requestDecided = isAdProDecided("CONGRESS_INTERNATIONAL", detail.requestStatus);
@@ -122,6 +130,7 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
       </BackLink>
       <PageHeader title={detail.name} description="Demande de prise en charge — congrès international.">
         <StatusBadge map={CONGRESS_REQUEST_STATUS} value={detail.requestStatus} />
+        {peutTeleverser && <BoutonLivret scope="INTERNATIONAL" requestId={detail.id} libelle="Livret général" />}
         {canEditRequest && editValues && (
           <AdProEditButton kind="CONGRESS_INTERNATIONAL" id={detail.id} decided={requestDecided} values={editValues} />
         )}
@@ -131,24 +140,28 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
       {/* LA PRISE EN CHARGE EN UNE CARTE (Direction, 07/10) : l'événement et ses pièces jointes, un seul bandeau de chiffres,
           les professionnels, puis ce que couvre la prise en charge — trois rubriques qui se répétaient, fusionnées. */}
       <CartePriseEnCharge
-        evenement={{ eventType: detail.eventType, location: detail.location, date: detail.date, endDate: detail.endDate, requester: detail.requester, initiative: detail.initiative }}
+        evenement={{ eventType: detail.eventType, location: detail.location, ville: detail.ville, pays: detail.pays, medecinsOrigine: detail.medecinsOrigine, date: detail.date, endDate: detail.endDate, requester: detail.requester, initiative: detail.initiative }}
         pieces={{ entityType: "CONGRESS_INTERNATIONAL", entityId: detail.id, documents: docItems, peutDeposer: canUpload, categories: categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES), canDelete, canRename: canUpload, canEdit: onlyofficeConfigured() && canUpload, path: `/congress-international/${detail.id}` }}
         beneficiaires={care.beneficiaries}
         devis={care.quotes.map((q) => ({ id: q.id, status: q.status, amountDzd: q.amountDzd, cellIds: q.cellIds }))}
         postes={items.map((i) => ({ amountGranted: i.amountGranted, status: i.status }))}
         enveloppe={intl?.finalAmount != null ? toNumber(intl.finalAmount) : null}
+        fiches={{ estime: fiches.estimations.total, pretes: fiches.pretes, vivantes: fiches.vivantes }}
         professionnels={
           <CarePanel
             scope="INTERNATIONAL"
             requestId={detail.id}
             beneficiaries={care.beneficiaries}
             quotes={care.quotes}
+            groupPostes={care.groupPostes}
+            reglages={care.reglages}
+            enveloppe={intl?.finalAmount != null ? toNumber(intl.finalAmount) : null}
             directory={directory}
+            promoOptions={carePromo}
             eventApproved={["APPROVED", "COMPLETED"].includes(intl?.requestStatus ?? "")}
             canEdit={canEditCare}
             canDecide={canDecideCare}
-            promoOptions={carePromos}
-            resume={false}
+            peutTeleverser={peutTeleverser}
           />
         }
         couverture={

@@ -220,9 +220,9 @@ const CORE_ERP_ACTIONS: NativeAction[] = [
     module: "Demandes",
     uiLabel: "Nouvelle demande administrative",
     toolName: "create_admin_request",
-    aliases: ["demande administrative", "demande de billet", "demande de signature", "demande d'achat", "mission chauffeur"],
+    aliases: ["demande administrative", "demande de billet", "demande de signature", "demande d'achat"],
     risk: "NORMAL",
-    summary: "Ouvre une demande administrative typée (déplacement, courrier, signature, achat, devis, paiement, chauffeur, visa, RH simple…) — DERNIER RECOURS quand aucune action de module plus précise n'existe.",
+    summary: "Ouvre une demande administrative typée (déplacement, courrier, signature, achat, devis, paiement, visa…), adressée à l'assistante de direction — DERNIER RECOURS quand aucune action de module plus précise n'existe.",
     gate: (u) => userCan(u, "ADMIN_REQUESTS", "CREATE"),
   },
   {
@@ -883,9 +883,9 @@ G("tâches : répondre/faire/valider POUR SOI (accepter la tâche, déposer le t
   "task-actions:addTaskComment",
 ]);
 G("demandes administratives avancées (approbations, missions, lots, corbeille propre, validations)", [
-  "admin-request-actions:requestApproval", "admin-request-actions:decideApproval", "admin-request-actions:createMission",
+  "admin-request-actions:requestApproval", "admin-request-actions:decideApproval",
   "admin-request-actions:toggleMissionStop", "admin-request-actions:updateMission",
-  "admin-request-actions:createRequestBatch", "admin-request-actions:editOwnRequest",
+  "admin-request-actions:editOwnRequest",
   "admin-request-actions:deleteOwnRequest", "admin-request-actions:deleteRequests",
   "admin-request-actions:restoreRequest", "admin-request-actions:startRequestProcessing",
   "admin-request-actions:requestFinanceValidation", "admin-request-actions:requestInternalValidation",
@@ -1158,6 +1158,9 @@ X("BUDGETS DES PÔLES — Budget Marketing, Budget Regulatory, Budget Operations
   "budget-pole-actions:completerCategoriesPole",
   "budget-pole-actions:saisirBvManuel",
   "budget-pole-actions:imputerBv",
+  // RÉALLOUER entre deux catégories (Budget Marketing, 10/2026) : un montant déplacé, motif obligatoire gardé dans
+  // l'historique — décidé devant le tableau « Par catégorie » de la vue d'ensemble, pas par un appel d'Adam.
+  "budget-pole-actions:reallouerCategorie",
 ]);
 X("RESOUMETTRE ET RETIRER UNE DEMANDE AD & PRO (§118.186, audit R02/R24) : deux gestes du DEMANDEUR sur SA "
   + "demande, ajoutés avec le renvoi pour correction. Resoumettre suppose qu'une personne a corrigé ce que le "
@@ -1255,6 +1258,15 @@ X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : 
   + "demander ses pièces (passeport, visa, informations de voyage) et les déposer. Chacun touche à une identité ou "
   + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
   "care-actions:creerProfilProfessionnel", "care-actions:demanderPiecesPriseEnCharge", "care-actions:deposerPiecePriseEnCharge",
+]);
+X("PRISES EN CHARGE — FICHES VOYAGEUR (Direction, 10/2026) : enregistrer un poste de la fiche (billet, hôtel, autre poste, "
+  + "montant en dollars à l'international), déposer le billet émis ou la confirmation d'hôtel, retenir un devis, demander "
+  + "la réservation et le BC à l'assistante de direction, gérer les postes de groupe. Des gestes faits DEVANT la fiche "
+  + "(fichiers, horaires, choix d'une proposition), ou qui ouvrent un sujet chez l'assistante. Adam est en pause de "
+  + "développement : aucun geste neuf ne lui est ouvert.", [
+  "care-actions:modifierPosteFiche", "care-actions:enregistrerBilletEmis", "care-actions:retenirDevisPriseEnCharge",
+  "care-actions:demanderReservationPriseEnCharge", "care-actions:demanderBCPriseEnCharge",
+  "care-actions:ajouterPosteGroupe", "care-actions:modifierPosteGroupe", "care-actions:retirerPosteGroupe",
 ]);
 X("ANNULER SA DEMANDE TANT QU'ELLE N'EST PAS EXÉCUTÉE (décision du 04/10) — rallonges de budget et de caisse, "
   + "document RH, ordre de mission, tâche demandée, formation. Des gestes qui RÉDUISENT, mais Adam est en pause de "
@@ -1362,6 +1374,19 @@ X("LES MISSIONS AD & PRO RELIÉES AU PROFIL (Direction, 10/2026) — confirmer o
   "mission-actions:deciderOrdreMissionN1", "mission-actions:demanderLogistiqueMission",
   "mission-actions:demanderMaterielMission", "mission-actions:deposerNoteFraisMission",
   "mission-actions:integrerFraisEquipe",
+]);
+X("LA DEMANDE DE PARTICIPATION ET LA MISSION D'UN MEMBRE DE L'ÉQUIPE ADVENTUM (Direction, 10/2026) — envoyer sa fiche, "
+  + "contre-proposer, accepter ou refuser une version, déposer le billet émis ou la confirmation d'hôtel, choisir "
+  + "l'imputation des frais (Direction Marketing), saisir ses dépenses et leurs justificatifs, rédiger le rapport, clôturer "
+  + "la mission. Chacun engage une PERSONNE — sa présence et ses dates, la parole d'Adventum dans une négociation, un "
+  + "billet réellement émis, une ligne budgétaire, une dépense et son justificatif lus sur un reçu — et la clôture fait "
+  + "partir une note de frais au N+1 puis aux RH : un modèle ne les pose pas à sa place, et Adam est en pause de "
+  + "développement. Un clic sur Mon espace › Missions › la mission, ou sur la carte « Équipe Adventum » de la demande.", [
+  "mission-actions:proposerParticipation", "mission-actions:deciderParticipation",
+  "mission-actions:enregistrerBilletMission", "mission-actions:enregistrerHotelMission",
+  "mission-actions:choisirBudgetMission", "mission-actions:ajouterFraisMission",
+  "mission-actions:joindreJustificatifFrais", "mission-actions:retirerFraisMission",
+  "mission-actions:enregistrerRapportMission", "mission-actions:cloturerMission",
 ]);
 X("LE CATALOGUE PROMOTIONNEL (§118.164) : la liste de RÉFÉRENCE que citent les stocks et les demandes "
   + "d'achat — ses références CAT-NNNN sont fixes, et le Super Admin choisit nommément qui la lit et qui l'écrit "

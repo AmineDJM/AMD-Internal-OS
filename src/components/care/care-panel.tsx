@@ -1,444 +1,333 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
-  Plus, Trash2, Loader2, CheckCircle2, XCircle, UserPlus, Receipt, AlertTriangle,
-  ThumbsUp, ThumbsDown, Minus, Send, FileText,
+  Plus, Loader2, CheckCircle2, XCircle, UserPlus, Receipt, AlertTriangle, Send, FileText, ExternalLink, Users, Trash2,
 } from "lucide-react";
-import type { CareBeneficiaryStatus, CareCellKind, CareCellStatus, CareOpinion, CareQuoteStatus, CareServiceKind } from "@prisma/client";
+import type { CareCellStatus, CareMode, CareServiceKind } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { InfoBulle } from "@/components/ui/info-bulle";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { formatCurrency } from "@/lib/utils";
 import {
-  careProgress, financeReadiness, quoteSummary, piecesDuProfessionnel, ETAT_PIECE_LABELS,
-  BENEFICIARY_STATUS_LABELS, CELL_STATUS_LABELS, OPINION_LABELS,
-  QUOTE_STATUS_LABELS, SERVICE_KINDS, SERVICE_KIND_LABELS,
+  careProgress, financeReadiness, piecesDuProfessionnel, ETAT_PIECE_LABELS, CELL_STATUS_LABELS, QUOTE_STATUS_LABELS, SERVICE_KIND_LABELS,
 } from "@/lib/care";
 import {
-  addCareBeneficiary, setCareOpinion, decideCareBeneficiary, removeCareBeneficiary,
-  addCareCell, setCareCellStatus, removeCareCell,
-  createCareQuote, decideCareQuote, requestCareQuotes, sendCareToFinance,
-  linkCareCellPromoMaterial,
-  demanderPiecesPriseEnCharge, deposerPiecePriseEnCharge,
+  depassementEnveloppe, deviseDuPoste, etatBilletterie, etatHotellerie, montantLisible, montantPosteGroupe, personneVivante,
+  personnePasseport, pucesAutresPostes, resumeDesFiches, versDzd, MODE_LIBELLE, TYPES_POSTE,
+  type BeneficiaryRow, type GroupPosteRow, type Perimetre, type QuoteRow,
+} from "@/lib/care-fiches";
+import {
+  addCareBeneficiary, createCareQuote, decideCareQuote, requestCareQuotes, sendCareToFinance,
+  demanderPiecesPriseEnCharge, deposerPiecePriseEnCharge, setCareCellStatus,
+  demanderReservationPriseEnCharge, demanderBCPriseEnCharge, ajouterPosteGroupe, modifierPosteGroupe, retirerPosteGroupe,
+  retenirDevisPriseEnCharge,
 } from "@/lib/actions/care-actions";
 import { listBeneficiaryRefs } from "@/lib/actions/congress-beneficiary-actions";
 import { filtrerAnnuaire, PLAFOND_MENU } from "@/components/care/filtrer-annuaire";
+import { CHAMP, FicheVoyageur, PastilleDecision, TON_BADGE, type Run } from "@/components/care/fiche-voyageur";
 
-export interface CellRow {
-  id: string;
-  kind: CareCellKind;
-  serviceKind: CareServiceKind | null;
-  label: string;
-  notes: string | null;
-  status: CareCellStatus;
-  amountDzd: number | null;
-  expenseOrderId: string | null;
-  promoMaterialId: string | null;
-  /** La pièce déposée (document de la demande) — pour une case PIÈCE. */
-  documentId: string | null;
-  /** Résolu côté serveur — le matériel garde son circuit, on n'en montre que l'avancement. */
-  promoMaterial: { reference: string; title: string; status: string } | null;
-}
-
-export interface BeneficiaryRow {
-  id: string;
-  name: string;
-  subtitle: string;
-  fromDirectory: boolean;
-  requesterOpinion: CareOpinion;
-  requesterNote: string | null;
-  status: CareBeneficiaryStatus;
-  decisionNote: string | null;
-  cells: CellRow[];
-}
-
-export interface QuoteRow {
-  id: string;
-  supplier: string;
-  reference: string | null;
-  amountDzd: number;
-  status: CareQuoteStatus;
-  note: string | null;
-  cellIds: string[];
-  cellLabels: string[];
-}
+export type { CellRow, BeneficiaryRow, QuoteRow } from "@/lib/care-fiches";
 
 interface Props {
-  scope: "NATIONAL" | "INTERNATIONAL";
+  scope: Perimetre;
   requestId: string;
   beneficiaries: BeneficiaryRow[];
   quotes: QuoteRow[];
+  groupPostes: GroupPosteRow[];
+  /** Le mode, le taux figé, le sujet de l'assistante de direction, la ville de l'événement. */
+  reglages: { mode: CareMode; taux: number | null; reservation: { id: string; reference: string } | null; city: string | null };
+  /** L'enveloppe accordée par la Direction — `null` tant qu'elle n'a pas tranché. */
+  enveloppe: number | null;
   directory: { id: string; name: string; specialty: string | null; institution: string | null }[];
-  /** La Direction a-t-elle validé l'événement ? Conditionne la demande de devis. */
+  /** La Direction a-t-elle validé l'événement ? Conditionne la demande de devis au secrétariat. */
   eventApproved: boolean;
   canEdit: boolean;
   /** Trancher : accorder une personne, accepter un devis, envoyer aux Finances. */
   canDecide: boolean;
-  /** Matériels promotionnels rattachables à une case — ils gardent leur propre circuit. */
-  promoOptions: { id: string; reference: string; title: string }[];
-  /** Faux : la fiche porte déjà les chiffres de la prise en charge en un seul bandeau (Direction, 07/10). */
-  resume?: boolean;
+  /** Déposer le billet émis et la confirmation d'hôtel (`peutTeleverserBillet`) — et éditer les livrets de séjour. */
+  peutTeleverser: boolean;
+  /** Les supports promotionnels rattachables à un poste (`carePromoOptions`). */
+  promoOptions?: { id: string; reference: string; title: string }[];
 }
 
+const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
+
 /**
- * PRISE EN CHARGE — une ligne par personne.
+ * PRISE EN CHARGE — « Professionnels pris en charge » : UNE LIGNE PAR PERSONNE, et sa fiche voyageur
+ * (Direction, 10/2026). La liste reste un tableau au téléphone (il défile, la colonne du nom reste fixe).
  *
- * Le module ne traite pas d'un congrès : il traite de **personnes** qu'on emmène quelque part.
- * Chacune est examinée séparément — on peut en accorder une et en écarter une autre — et
- * chacune a ses propres besoins : l'une a besoin d'un visa et pas l'autre, l'une loge à l'hôtel
- * et l'autre chez elle.
- *
- * D'où ce tableau, et non un formulaire commun : les cases appartiennent à la LIGNE, pas à une
- * colonne partagée. Le « + » ajoute un besoin **à cette personne-là**.
- *
- * Deux natures de cases, qui ne se traitent pas pareil :
- *   • une **pièce à fournir** — on la collecte ;
- *   • un **élément à acheter** — on demande un devis, il est accepté ou refusé d'un bloc, puis
- *     il devient une dépense.
+ * Le bandeau des chiffres est celui de la carte de la demande ; ici, la liste, les gestes de la demande
+ * (ajouter un professionnel, demander la réservation, demander le BC), les prix du groupe en mode « de groupe »,
+ * les devis, les pièces et le passage aux Finances. Les règles vivent dans `lib/care-fiches.ts`.
  */
 export function CarePanel({
-  scope, requestId, beneficiaries, quotes, directory, eventApproved, canEdit, canDecide, promoOptions, resume = true,
+  scope, requestId, beneficiaries, quotes, groupPostes, reglages, enveloppe, directory, eventApproved, canEdit, canDecide, peutTeleverser, promoOptions = [],
 }: Props) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
+  const { enCours, rafraichir } = useRafraichir();
+  const [action, setAction] = React.useState<string | null>(null);
+  const busy = action ?? (enCours ? "rafraichir" : null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [adding, setAdding] = React.useState(false);
-  const [quoting, setQuoting] = React.useState(false);
+  const [quoting, setQuoting] = React.useState<{ cellIds: string[] } | null>(null);
+  const [ficheId, setFicheId] = React.useState<string | null>(null);
   const lock = React.useRef(false);
+  const devisRef = React.useRef<HTMLElement>(null);
 
-  const run = async (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText?: string) => {
+  const run: Run = async (key, fn, okText) => {
     if (lock.current) return { ok: false };
     lock.current = true;
-    setBusy(key);
+    setAction(key);
     setMsg(null);
     try {
       const r = await fn();
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText ?? "Terminé.") : (r.error ?? "Échec.") });
-      if (r.ok) router.refresh();
+      if (r.ok) rafraichir();
       return r;
     } finally {
-      setBusy(null);
+      setAction(null);
       lock.current = false;
     }
   };
 
-  const rows = beneficiaries.map((b) => ({ b, progress: careProgress(b.cells) }));
-  const approved = rows.filter((r) => r.b.status === "APPROVED");
-  const qs = quoteSummary(quotes.map((q) => ({ id: q.id, status: q.status, amountDzd: q.amountDzd, cellIds: q.cellIds })));
+  const mode = reglages.mode;
+  const resume = resumeDesFiches(scope, beneficiaries, quotes, groupPostes);
+  const est = resume.estimations;
+  const depasse = depassementEnveloppe(est.total, enveloppe);
+  const retenusEnAttente = quotes.filter((q) => q.status === "PENDING" && q.retained && !q.bcRequested);
+  const fiche = ficheId ? beneficiaries.find((b) => b.id === ficheId) ?? null : null;
+  const personnes = beneficiaries.map((b) => ({ id: b.id, status: b.status }));
+
+  const ouvrirDevis = (cellIds: string[]) => {
+    setFicheId(null);
+    setQuoting({ cellIds });
+    window.setTimeout(() => devisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  };
+
+  const qLike = quotes.map((q) => ({ id: q.id, status: q.status, amountDzd: q.amountDzd, cellIds: q.cellIds }));
   const readiness = financeReadiness(
-    rows.map((r) => ({ status: r.b.status, name: r.b.name, progress: r.progress })),
-    quotes.map((q) => ({ id: q.id, status: q.status, amountDzd: q.amountDzd, cellIds: q.cellIds })),
+    beneficiaries.map((b) => ({ status: b.status, name: b.name, progress: careProgress(b.cells) })),
+    qLike,
   );
-  // Les éléments à acheter encore sans devis — c'est eux qu'on envoie chiffrer.
-  const toQuote = approved.flatMap((r) =>
-    r.b.cells.filter((c) => c.kind === "SERVICE" && c.status === "REQUESTED").map((c) => ({ ...c, who: r.b.name })),
-  );
+  // Les éléments à acheter des personnes ACCORDÉES encore sans devis — ce qu'on envoie chiffrer au secrétariat.
+  const toQuote = beneficiaries.filter((b) => b.status === "APPROVED").flatMap((b) => b.cells.filter((c) => c.kind === "SERVICE" && c.status === "REQUESTED"));
 
   return (
-    <div className="space-y-5">
-      {/* ── Vue d'ensemble ── */}
-      {resume && <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Figure label="Professionnels proposés" value={String(beneficiaries.length)} />
-        <Figure label="Accordées" value={String(approved.length)} tone={approved.length > 0 ? "success" : undefined} />
-        <Figure label="Devis acceptés" value={formatCurrency(qs.acceptedDzd)} hint={`${qs.accepted} devis`} />
-        <Figure
-          label="Devis en attente"
-          value={qs.pending > 0 ? formatCurrency(qs.pendingDzd) : "—"}
-          hint={qs.pending > 0 ? `${qs.pending} à trancher` : undefined}
-          tone={qs.pending > 0 ? "warning" : undefined}
-        />
-      </div>}
-
+    <div className="space-y-4" id="professionnels">
       {msg && (
         <p className={`flex items-start gap-2 rounded-xl px-3 py-2 text-sm ${msg.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
           {msg.ok ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" /> : <XCircle className="mt-0.5 h-4 w-4 shrink-0" />}
-          {msg.text}
+          <span className="min-w-0 [overflow-wrap:anywhere]">{msg.text}</span>
         </p>
       )}
+      {depasse && <p className="flex items-start gap-2 rounded-xl bg-warning/10 px-3 py-2 text-sm text-warning"><AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" /> {depasse}</p>}
 
-      {/* ── Les personnes ── */}
-      {beneficiaries.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-          Aucun professionnel proposé pour l&apos;instant.
-        </p>
+      {fiche ? (
+        <FicheVoyageur
+          scope={scope} requestId={requestId} mode={mode} b={fiche} quotes={quotes} groupPostes={groupPostes} personnes={personnes}
+          taux={reglages.taux} eventCity={reglages.city} parCase={est.parCase} estime={est.parPersonne.get(fiche.id) ?? 0}
+          canEdit={canEdit} canDecide={canDecide} peutTeleverser={peutTeleverser} busy={busy} run={run} promoOptions={promoOptions}
+          onRetour={() => setFicheId(null)} onDevis={ouvrirDevis}
+        />
       ) : (
-        <ul className="space-y-3">
-          {rows.map(({ b, progress }) => (
-            <li key={b.id} className="surface space-y-3 p-3">
-              {/* Identité + avis + décision */}
-              <div className="flex flex-wrap items-start gap-2">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium [overflow-wrap:anywhere]">{b.name}</p>
-                  {b.subtitle && <p className="text-xs text-muted-foreground">{b.subtitle}</p>}
-                  {!b.fromDirectory && <p className="text-[0.6875rem] text-muted-foreground/80">Profil saisi — pas à l&apos;annuaire</p>}
-                </div>
-                <StatusChip status={b.status} />
-              </div>
-
-              {/* L'avis du demandeur — « pas d'avis » est une réponse valable. */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs text-muted-foreground">Avis du demandeur :</span>
-                {canEdit && b.status === "PROPOSED" ? (
-                  (["FAVORABLE", "UNFAVORABLE", "NONE"] as CareOpinion[]).map((o) => (
-                    <button
-                      key={o}
-                      disabled={busy === `op:${b.id}`}
-                      onClick={() => {
-                        const fd = new FormData();
-                        fd.set("id", b.id);
-                        fd.set("opinion", o);
-                        void run(`op:${b.id}`, () => setCareOpinion(undefined, fd), "Avis enregistré.");
-                      }}
-                      className={`inline-flex min-h-9 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs transition sm:min-h-0 sm:px-2 ${
-                        b.requesterOpinion === o ? "border-primary bg-primary/10 font-medium text-foreground" : "border-border text-muted-foreground hover:bg-secondary"
-                      }`}
-                    >
-                      {o === "FAVORABLE" ? <ThumbsUp className="h-3 w-3" /> : o === "UNFAVORABLE" ? <ThumbsDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-                      {OPINION_LABELS[o]}
-                    </button>
-                  ))
-                ) : (
-                  <Badge tone={b.requesterOpinion === "FAVORABLE" ? "success" : b.requesterOpinion === "UNFAVORABLE" ? "danger" : "neutral"} dot={false}>
-                    {OPINION_LABELS[b.requesterOpinion]}
-                  </Badge>
+        <section className="rounded-xl border border-border bg-card">
+          <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold">Professionnels pris en charge</h3>
+              <Badge tone={mode === "GROUP" ? "purple" : "neutral"} dot={false}>{MODE_LIBELLE[mode]}</Badge>
+              <InfoBulle label="Le mode de prise en charge">
+                {mode === "GROUP"
+                  ? "De groupe : un devis par catégorie couvre tout le monde, et un poste « par personne » s'applique à chacun. Les fiches gardent l'identité, le trajet, les dates et la chambre de chaque personne."
+                  : "Individuelle : chaque fiche a ses postes et ses devis. Le mode se change en corrigeant la demande."}
+                {scope === "INTERNATIONAL" && ` Tout sauf la billetterie se saisit en dollars (1 USD = ${reglages.taux ?? "?"} DZD, taux figé sur la demande).`}
+              </InfoBulle>
+              {reglages.reservation && (
+                <a href={`/dossiers/${reglages.reservation.id}`} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+                  sujet {reglages.reservation.reference} <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+              {peutTeleverser && beneficiaries.length > 0 && (
+                <a href={`${scope === "NATIONAL" ? "/congress-national" : "/congress-international"}/${requestId}/billets`} className="text-xs text-primary hover:underline">
+                  billets et confirmations
+                </a>
+              )}
+            </div>
+            {canEdit && (
+              <div className="flex flex-wrap gap-2">
+                {retenusEnAttente.length > 0 && (
+                  <Button size="sm" variant="outline" disabled={busy !== null}
+                    onClick={() => void run("bc", () => demanderBCPriseEnCharge(undefined, fd({ scope, requestId })))}>
+                    {busy === "bc" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Demander le BC ({retenusEnAttente.length})
+                  </Button>
                 )}
+                <Button size="sm" variant="outline" disabled={busy !== null || resume.pretes === 0}
+                  title={resume.pretes === 0 ? "Aucune fiche n'est complète pour réserver." : undefined}
+                  onClick={() => void run("resa", () => demanderReservationPriseEnCharge(undefined, fd({ scope, requestId })))}>
+                  {busy === "resa" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Demander la réservation ({resume.pretes} prête{resume.pretes > 1 ? "s" : ""})
+                </Button>
+                <Button size="sm" disabled={busy !== null} onClick={() => setAdding(true)}><UserPlus className="h-4 w-4" /> Ajouter un professionnel</Button>
               </div>
-              {b.requesterNote && <p className="text-xs italic text-muted-foreground">« {b.requesterNote} »</p>}
-              {b.decisionNote && <p className="text-xs text-muted-foreground">Décision : {b.decisionNote}</p>}
+            )}
+          </header>
 
-              {/* La décision de la Direction, personne par personne. */}
-              {canDecide && b.status === "PROPOSED" && (
-                <div className="flex flex-wrap gap-2">
-                  {(["APPROVED", "REJECTED"] as const).map((d) => (
-                    <Button
-                      key={d} size="sm" variant={d === "APPROVED" ? "primary" : "outline"}
-                      disabled={busy === `dec:${b.id}`}
-                      onClick={() => {
-                        const fd = new FormData();
-                        fd.set("id", b.id);
-                        fd.set("decision", d);
-                        void run(`dec:${b.id}`, () => decideCareBeneficiary(undefined, fd), d === "APPROVED" ? "Prise en charge accordée." : "Personne écartée.");
-                      }}
-                    >
-                      {busy === `dec:${b.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : d === "APPROVED" ? <ThumbsUp className="h-4 w-4" /> : <ThumbsDown className="h-4 w-4" />}
-                      {d === "APPROVED" ? "Accorder" : "Écarter"}
-                    </Button>
-                  ))}
-                </div>
-              )}
-
-              {/* Les cases de CETTE personne. */}
-              {b.status === "APPROVED" && (
-                <div className="rounded-xl border border-border p-2.5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="text-xs font-medium">Ce qu&apos;il faut pour {b.name.split(" ")[0]}</span>
-                    <span className="text-[0.6875rem] text-muted-foreground">
-                      {progress.settled}/{progress.total} réglé{progress.total > 1 ? "s" : ""}
-                      {progress.costDzd > 0 ? ` · ${formatCurrency(progress.costDzd)}` : ""}
-                    </span>
-                    {progress.complete && <Badge tone="success" dot={false}>complet</Badge>}
-                  </div>
-
-                  {/* LES PIÈCES se suivent dans la liste « Pièces des professionnels » plus bas — une
-                      seule place pour elles ; ici, ce qu'il faut ACHETER pour cette personne. */}
-                  {b.cells.filter((c) => c.kind === "SERVICE").length === 0 ? (
-                    <p className="mt-1 text-xs text-muted-foreground">Rien à acheter pour l&apos;instant — les pièces se suivent plus bas.</p>
-                  ) : (
-                    <ul className="mt-1.5 divide-y divide-border">
-                      {b.cells.filter((c) => c.kind === "SERVICE").map((c) => (
-                        <li key={c.id} className="flex flex-wrap items-center gap-2 py-1.5 text-sm">
-                          <Badge tone={c.kind === "DOCUMENT" ? "info" : "purple"} dot={false}>
-                            {c.kind === "DOCUMENT" ? "Pièce" : SERVICE_KIND_LABELS[c.serviceKind ?? "OTHER"]}
-                          </Badge>
-                          <span className="min-w-0 basis-full [overflow-wrap:anywhere] sm:grow sm:basis-0">{c.label}</span>
-                          {c.amountDzd != null && <span className="tabular-nums text-xs">{formatCurrency(c.amountDzd)}</span>}
-                          <Badge tone={c.status === "SETTLED" ? "success" : c.status === "WAIVED" ? "neutral" : c.status === "PROVIDED" ? "info" : "warning"} dot={false}>
-                            {CELL_STATUS_LABELS[c.status]}
-                          </Badge>
-                          {c.serviceKind === "PROMO_MATERIAL" && (
-                            c.promoMaterial ? (
-                              <a href={`/promo-material/${c.promoMaterialId}`} className="text-xs font-medium text-primary hover:underline">
-                                {c.promoMaterial.reference} · {c.promoMaterial.status}
-                              </a>
-                            ) : canEdit ? (
-                              <select
-                                defaultValue=""
-                                onChange={(e) => {
-                                  if (!e.target.value) return;
-                                  const fd = new FormData();
-                                  fd.set("id", c.id);
-                                  fd.set("promoMaterialId", e.target.value);
-                                  void run(`pm:${c.id}`, () => linkCareCellPromoMaterial(undefined, fd), "Matériel rattaché.");
-                                }}
-                                aria-label={`Rattacher un matériel à « ${c.label} »`}
-                                className="min-h-9 max-w-full rounded-lg border border-border bg-background px-1.5 py-1 text-base outline-none focus:border-primary/60 sm:min-h-0 sm:text-[0.6875rem]"
-                              >
-                                <option value="">Rattacher un matériel…</option>
-                                {promoOptions.map((p) => <option key={p.id} value={p.id}>{p.reference} — {p.title}</option>)}
-                              </select>
-                            ) : null
-                          )}
-                          {canEdit && !c.expenseOrderId && (
-                            <>
-                              <select
-                                value={c.status}
-                                onChange={(e) => {
-                                  const fd = new FormData();
-                                  fd.set("id", c.id);
-                                  fd.set("status", e.target.value);
-                                  void run(`cs:${c.id}`, () => setCareCellStatus(undefined, fd), "État mis à jour.");
-                                }}
-                                aria-label={`État de « ${c.label} »`}
-                                className="min-h-9 rounded-lg border border-border bg-background px-1.5 py-1 text-base outline-none focus:border-primary/60 sm:min-h-0 sm:text-[0.6875rem]"
-                              >
-                                {(["REQUESTED", "PROVIDED", "SETTLED", "WAIVED"] as CareCellStatus[]).map((s) => (
-                                  <option key={s} value={s}>{CELL_STATUS_LABELS[s]}</option>
-                                ))}
-                              </select>
-                              <button
-                                onClick={() => {
-                                  const fd = new FormData();
-                                  fd.set("id", c.id);
-                                  void run(`cd:${c.id}`, () => removeCareCell(undefined, fd), "Élément retiré.");
-                                }}
-                                aria-label={`Retirer « ${c.label} »`}
-                                className="inline-flex h-9 w-9 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:h-6 sm:w-6"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-
-                  {canEdit && <AddCellForm beneficiaryId={b.id} busy={busy === `cell:${b.id}`} onSubmit={(fd) => void run(`cell:${b.id}`, () => addCareCell(undefined, fd), "Élément ajouté.")} />}
-                </div>
-              )}
-
-              {canEdit && b.status !== "APPROVED" && (
-                <button
-                  onClick={() => {
-                    const fd = new FormData();
-                    fd.set("id", b.id);
-                    void run(`bd:${b.id}`, () => removeCareBeneficiary(undefined, fd), "Personne retirée.");
-                  }}
-                  className="inline-flex min-h-9 items-center gap-1 text-xs text-muted-foreground hover:text-destructive sm:min-h-0"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Retirer
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-
-      {canEdit && (
-        adding ? (
-          <AddBeneficiaryForm
-            scope={scope} requestId={requestId} directory={directory} busy={busy === "add"}
-            onCancel={() => setAdding(false)}
-            onSubmit={(fd) => void run("add", async () => {
-              const r = await addCareBeneficiary(undefined, fd);
-              if (r.ok) setAdding(false);
-              return r;
-            }, "Personne ajoutée.")}
-          />
-        ) : (
-          <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-            <UserPlus className="h-4 w-4" /> Proposer un professionnel
-          </Button>
-        )
-      )}
-
-      {/* ── Les pièces de chaque professionnel ── */}
-      <PiecesDesProfessionnels
-        scope={scope} requestId={requestId} beneficiaries={beneficiaries} canEdit={canEdit} busy={busy}
-        run={run}
-      />
-
-      {/* ── Devis ── */}
-      {(quotes.length > 0 || toQuote.length > 0) && (
-        <section className="space-y-3 border-t border-border pt-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Receipt className="h-4 w-4 text-primary" />
-            <h3 className="text-sm font-semibold">Devis</h3>
-            {toQuote.length > 0 && <Badge tone="warning" dot={false}>{toQuote.length} élément(s) à chiffrer</Badge>}
-          </div>
-
-          {canEdit && toQuote.length > 0 && (
-            <Button
-              size="sm" variant="outline" disabled={busy === "rq" || !eventApproved}
-              title={eventApproved ? undefined : "La Direction n'a pas encore validé l'événement."}
-              onClick={() => {
-                const fd = new FormData();
-                fd.set("scope", scope);
-                fd.set("requestId", requestId);
-                void run("rq", () => requestCareQuotes(undefined, fd));
-              }}
-            >
-              {busy === "rq" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Demander les devis au secrétariat
-            </Button>
-          )}
-
-          {quotes.length > 0 && (
-            <ul className="divide-y divide-border">
-              {quotes.map((q) => (
-                <li key={q.id} className="space-y-1 py-2.5 text-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{q.supplier}</span>
-                    {q.reference && <span className="min-w-0 font-mono text-[0.6875rem] text-muted-foreground [overflow-wrap:anywhere]">{q.reference}</span>}
-                    <span className="tabular-nums">{formatCurrency(q.amountDzd)}</span>
-                    <Badge tone={q.status === "ACCEPTED" ? "success" : q.status === "REJECTED" ? "danger" : "warning"} dot={false}>
-                      {QUOTE_STATUS_LABELS[q.status]}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Couvre : {q.cellLabels.join(" · ") || "—"}</p>
-                  {q.note && <p className="text-xs italic text-muted-foreground">{q.note}</p>}
-                  {canDecide && q.status === "PENDING" && (
-                    <div className="flex gap-2 pt-0.5">
-                      {(["ACCEPTED", "REJECTED"] as const).map((d) => (
-                        <Button
-                          key={d} size="sm" variant={d === "ACCEPTED" ? "primary" : "outline"} disabled={busy === `q:${q.id}`}
-                          onClick={() => {
-                            const fd = new FormData();
-                            fd.set("id", q.id);
-                            fd.set("decision", d);
-                            void run(`q:${q.id}`, () => decideCareQuote(undefined, fd), d === "ACCEPTED" ? "Devis accepté — ordre de dépense émis." : "Devis refusé.");
-                          }}
-                        >
-                          {busy === `q:${q.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                          {d === "ACCEPTED" ? "Accepter" : "Refuser"}
-                        </Button>
-                      ))}
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-
-          {canEdit && (
-            quoting ? (
-              <QuoteForm
-                scope={scope} requestId={requestId} cells={toQuote} busy={busy === "nq"}
-                onCancel={() => setQuoting(false)}
-                onSubmit={(fd) => void run("nq", async () => {
-                  const r = await createCareQuote(undefined, fd);
-                  if (r.ok) setQuoting(false);
+          {adding && canEdit && (
+            <div className="border-b border-border p-3">
+              <AddBeneficiaryForm
+                scope={scope} requestId={requestId} directory={directory} busy={busy === "add"}
+                onCancel={() => setAdding(false)}
+                onSubmit={(f) => void run("add", async () => {
+                  const r = await addCareBeneficiary(undefined, f);
+                  if (r.ok) { setAdding(false); if (r.id) setFicheId(r.id); }
                   return r;
-                }, "Devis enregistré.")}
+                }, "Professionnel ajouté — sa fiche est ouverte.")}
               />
-            ) : toQuote.length > 0 ? (
-              <Button size="sm" variant="outline" onClick={() => setQuoting(true)}>
-                <Plus className="h-4 w-4" /> Enregistrer un devis reçu
-              </Button>
-            ) : null
+            </div>
+          )}
+
+          {beneficiaries.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">Aucun professionnel pour l&apos;instant — ajoutez-les depuis l&apos;annuaire ou en profil libre.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[820px] border-collapse text-sm tabular-nums">
+                <thead>
+                  <tr className="bg-secondary/40 text-left text-xs text-muted-foreground">
+                    <th className="sticky left-0 z-[1] bg-card px-3 py-2 font-medium">Professionnel</th>
+                    <th className="px-3 py-2 font-medium">Billetterie</th>
+                    <th className="px-3 py-2 font-medium">Hôtellerie</th>
+                    <th className="px-3 py-2 font-medium">Autres postes</th>
+                    <th className="px-3 py-2 text-right font-medium">Estimé</th>
+                    <th className="px-3 py-2 font-medium">Décision</th>
+                    <th className="px-3 py-2"><span className="sr-only">Fiche</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {beneficiaries.map((b) => {
+                    const billet = etatBilletterie(scope, b.name, b.cells, personnePasseport(b.cells), quotes);
+                    const hotel = etatHotellerie(b.cells, quotes);
+                    const puces = pucesAutresPostes(b.cells);
+                    const vivant = personneVivante(b.status);
+                    return (
+                      <tr key={b.id} className={`border-t border-border ${vivant ? "" : "text-muted-foreground"}`}>
+                        <td className="sticky left-0 z-[1] max-w-[220px] bg-card px-3 py-2.5">
+                          <span className="block font-medium [overflow-wrap:anywhere]">{b.name}</span>
+                          <span className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{[b.subtitle, b.fromDirectory ? null : "profil libre"].filter(Boolean).join(" · ")}</span>
+                        </td>
+                        <td className="px-3 py-2.5"><Badge tone={TON_BADGE[billet.ton]} dot={false}>{billet.libelle}</Badge></td>
+                        <td className="px-3 py-2.5"><Badge tone={TON_BADGE[hotel.ton]} dot={false}>{hotel.libelle}</Badge></td>
+                        <td className="px-3 py-2.5">
+                          {puces.length === 0 ? <span className="text-muted-foreground">—</span> : (
+                            <span className="flex flex-wrap gap-1">{puces.map((x) => <Badge key={x} tone="neutral" dot={false}>{x}</Badge>)}</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-3 py-2.5 text-right">{formatCurrency(est.parPersonne.get(b.id) ?? 0)}</td>
+                        <td className="px-3 py-2.5"><PastilleDecision status={b.status} /></td>
+                        <td className="px-3 py-2.5 text-right">
+                          <Button size="sm" variant="outline" disabled={enCours} onClick={() => setFicheId(b.id)}>Ouvrir la fiche</Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t border-border font-semibold">
+                    <td className="sticky left-0 z-[1] bg-card px-3 py-2.5">Total</td>
+                    <td colSpan={3} className="px-3 py-2.5 text-xs font-normal text-muted-foreground">
+                      Inclus : {resume.billets} billet{resume.billets > 1 ? "s" : ""} · {resume.nuits} nuit{resume.nuits > 1 ? "s" : ""} · {resume.autres} autre{resume.autres > 1 ? "s" : ""} poste{resume.autres > 1 ? "s" : ""}
+                      {est.groupe > 0 ? ` · postes de groupe ${formatCurrency(est.groupe)}` : ""}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2.5 text-right">{formatCurrency(est.total)}</td>
+                    <td colSpan={2} />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           )}
         </section>
       )}
+
+      {/* ── Les prix du groupe ── */}
+      {(mode === "GROUP" || groupPostes.length > 0) && (
+        <PrixDuGroupe
+          scope={scope} requestId={requestId} postes={groupPostes} personnes={personnes} taux={reglages.taux}
+          canEdit={canEdit} busy={busy} run={run} onDevis={() => ouvrirDevis([])}
+        />
+      )}
+
+      {/* ── Devis ── */}
+      <section ref={devisRef} className="space-y-3 rounded-xl border border-border bg-card p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Receipt className="h-4 w-4 text-primary" />
+          <h3 className="text-sm font-semibold">Devis</h3>
+          {retenusEnAttente.length > 0 && <Badge tone="info" dot={false}>{retenusEnAttente.length} retenu{retenusEnAttente.length > 1 ? "s" : ""}</Badge>}
+          {canEdit && !quoting && (
+            <Button size="sm" variant="outline" className="ml-auto" disabled={busy !== null || beneficiaries.length === 0} onClick={() => setQuoting({ cellIds: [] })}>
+              <Plus className="h-4 w-4" /> Enregistrer un devis reçu
+            </Button>
+          )}
+        </div>
+        {canEdit && toQuote.length > 0 && (
+          <Button
+            size="sm" variant="outline" disabled={busy !== null || !eventApproved}
+            title={eventApproved ? undefined : "La Direction n'a pas encore validé l'événement."}
+            onClick={() => void run("rq", () => requestCareQuotes(undefined, fd({ scope, requestId })))}
+          >
+            {busy === "rq" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Demander les devis au secrétariat ({toQuote.length})
+          </Button>
+        )}
+        {quoting && canEdit && (
+          <QuoteForm
+            scope={scope} requestId={requestId} mode={mode} taux={reglages.taux} beneficiaries={beneficiaries} preselection={quoting.cellIds}
+            busy={busy === "nq"} onCancel={() => setQuoting(null)}
+            onSubmit={(f) => void run("nq", async () => {
+              const r = await createCareQuote(undefined, f);
+              if (r.ok) setQuoting(null);
+              return r;
+            }, "Devis enregistré.")}
+          />
+        )}
+        {quotes.length === 0 ? (
+          <p className="text-xs text-muted-foreground">Aucun devis pour l&apos;instant.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {quotes.map((q) => (
+              <li key={q.id} className="space-y-1 py-2.5 text-sm">
+                <div className="flex flex-wrap items-center gap-2">
+                  {q.documentId
+                    ? <a href={`/api/documents/${q.documentId}`} target="_blank" rel="noreferrer" className="min-w-0 font-medium text-primary underline underline-offset-2 [overflow-wrap:anywhere]">{q.supplier}</a>
+                    : <span className="min-w-0 font-medium [overflow-wrap:anywhere]">{q.supplier}</span>}
+                  {q.reference && <span className="min-w-0 font-mono text-[0.6875rem] text-muted-foreground [overflow-wrap:anywhere]">{q.reference}</span>}
+                  {q.serviceKind && <Badge tone="neutral" dot={false}>{SERVICE_KIND_LABELS[q.serviceKind]}</Badge>}
+                  <span className="tabular-nums">{q.amount != null && q.currency === "USD" ? `${montantLisible(q.amount, "USD")} = ${formatCurrency(q.amountDzd)}` : formatCurrency(q.amountDzd)}</span>
+                  <Badge tone={q.status === "ACCEPTED" ? "success" : q.status === "REJECTED" ? "danger" : q.retained ? "success" : "warning"} dot={false}>
+                    {q.status === "PENDING" && q.retained ? (q.bcRequested ? "retenu · BC demandé" : "retenu") : QUOTE_STATUS_LABELS[q.status]}
+                  </Badge>
+                </div>
+                <p className="text-xs text-muted-foreground">Couvre : {q.cellLabels.length ? `${q.cellIds.length} poste${q.cellIds.length > 1 ? "s" : ""} (${[...new Set(q.cellLabels)].join(", ")})` : "—"}</p>
+                {q.note && <p className="text-xs italic text-muted-foreground">{q.note}</p>}
+                <div className="flex flex-wrap gap-2 pt-0.5">
+                  {canEdit && q.status === "PENDING" && !q.bcRequested && (
+                    <Button size="sm" variant="outline" disabled={busy !== null}
+                      onClick={() => void run(`ret:${q.id}`, () => retenirDevisPriseEnCharge(undefined, fd(q.retained ? { id: q.id, annuler: "on" } : { id: q.id })))}>
+                      {q.retained ? "Ne plus retenir" : "Retenir"}
+                    </Button>
+                  )}
+                  {canDecide && q.status === "PENDING" && (["ACCEPTED", "REJECTED"] as const).map((d) => (
+                    <Button key={d} size="sm" variant={d === "ACCEPTED" ? "primary" : "outline"} disabled={busy !== null}
+                      onClick={() => void run(`q:${q.id}`, () => decideCareQuote(undefined, fd({ id: q.id, decision: d })), d === "ACCEPTED" ? "Devis accepté — ordre de dépense émis." : "Devis refusé.")}>
+                      {busy === `q:${q.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                      {d === "ACCEPTED" ? "Accepter" : "Refuser"}
+                    </Button>
+                  ))}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* ── Les pièces de chaque professionnel ── */}
+      <PiecesDesProfessionnels scope={scope} requestId={requestId} beneficiaries={beneficiaries} canEdit={canEdit} busy={busy} run={run} />
 
       {/* ── Finances ── */}
       {canDecide && beneficiaries.length > 0 && (
@@ -449,19 +338,12 @@ export function CarePanel({
                 <AlertTriangle className="h-4 w-4 text-warning" /> Le dossier n&apos;est pas complet
               </p>
               <ul className="mt-1 space-y-0.5">
-                {readiness.blockers.map((b, i) => <li key={i} className="text-xs text-muted-foreground">• {b}</li>)}
+                {readiness.blockers.map((x, i) => <li key={i} className="text-xs text-muted-foreground">• {x}</li>)}
               </ul>
             </div>
           )}
-          <Button
-            size="sm" disabled={!readiness.ready || busy === "fin"}
-            onClick={() => {
-              const fd = new FormData();
-              fd.set("scope", scope);
-              fd.set("requestId", requestId);
-              void run("fin", () => sendCareToFinance(undefined, fd));
-            }}
-          >
+          <Button size="sm" disabled={!readiness.ready || busy !== null}
+            onClick={() => void run("fin", () => sendCareToFinance(undefined, fd({ scope, requestId })))}>
             {busy === "fin" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Transmettre aux Finances
           </Button>
         </section>
@@ -471,13 +353,130 @@ export function CarePanel({
 }
 
 /**
- * PROPOSER UN PROFESSIONNEL — un menu déroulant AVEC RECHERCHE sur l'annuaire, la création d'un profil
- * de médecin, ou une personne libre (décision du 04/10/2026). Les trois écrivent la MÊME ligne
- * (`addCareBeneficiary`) : il n'y a plus de second bloc « Personnes prises en charge ».
+ * LES PRIX DU GROUPE (mode « de groupe ») — les postes « par personne » (montant unitaire × personnes concernées,
+ * une exclusion se fait sur la fiche) ; les devis par catégorie s'enregistrent dans « Devis », catégorie choisie.
+ */
+function PrixDuGroupe({ scope, requestId, postes, personnes, taux, canEdit, busy, run, onDevis }: {
+  scope: Perimetre; requestId: string; postes: GroupPosteRow[]; personnes: { id: string; status: BeneficiaryRow["status"] }[];
+  taux: number | null; canEdit: boolean; busy: string | null; run: Run; onDevis: () => void;
+}) {
+  const [ajout, setAjout] = React.useState(false);
+  const [type, setType] = React.useState("DEJEUNER");
+  const t = TYPES_POSTE.find((x) => x.cle === type) ?? TYPES_POSTE[0]!;
+  const devise = deviseDuPoste(scope, t.serviceKind);
+  const [unitaire, setUnitaire] = React.useState("");
+  const n = Number(unitaire.replace(",", "."));
+  return (
+    <section className="space-y-3 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Users className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold">Prix du groupe</h3>
+        <InfoBulle label="Comment ça marche ?">Un devis par catégorie (billetterie, hôtellerie…) couvre les postes de tout le monde. Un poste « par personne » (ex. repas) s&apos;applique à chacun ; une personne s&apos;en exclut depuis sa fiche.</InfoBulle>
+        {canEdit && (
+          <span className="ml-auto flex flex-wrap gap-2">
+            <Button size="sm" variant="outline" disabled={busy !== null} onClick={onDevis}><FileText className="h-4 w-4" /> Devis de groupe</Button>
+            <Button size="sm" variant="outline" disabled={busy !== null} onClick={() => setAjout((v) => !v)}><Plus className="h-4 w-4" /> Poste par personne</Button>
+          </span>
+        )}
+      </div>
+      {ajout && canEdit && (
+        <form
+          className="grid grid-cols-1 gap-2 rounded-lg border border-border p-3 sm:grid-cols-6 sm:items-end"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const f = new FormData(e.currentTarget);
+            f.set("scope", scope);
+            f.set("requestId", requestId);
+            void run("gadd", async () => {
+              const r = await ajouterPosteGroupe(undefined, f);
+              if (r.ok) { setAjout(false); setUnitaire(""); }
+              return r;
+            });
+          }}
+        >
+          <label className="block text-xs text-muted-foreground">Catégorie
+            <select name="posteType" value={type} onChange={(e) => setType(e.target.value)} className={CHAMP}>
+              {TYPES_POSTE.map((x) => <option key={x.cle} value={x.cle}>{x.libelle}</option>)}
+            </select>
+          </label>
+          <label className="block text-xs text-muted-foreground sm:col-span-2">Libellé<input name="label" placeholder={t.libelle} className={CHAMP} /></label>
+          <label className="block text-xs text-muted-foreground">Date<input name="date" type="date" className={CHAMP} /></label>
+          <label className="block text-xs text-muted-foreground">Heure<input name="timeStart" type="time" className={CHAMP} /></label>
+          <label className="block text-xs text-muted-foreground">Par personne ({devise})
+            <input name="unitAmount" inputMode="decimal" value={unitaire} onChange={(e) => setUnitaire(e.target.value)} className={CHAMP} />
+            {devise === "USD" && unitaire && Number.isFinite(n) && <span className="text-[0.6875rem] text-primary">≈ {formatCurrency(versDzd(n, "USD", taux) ?? 0)}</span>}
+          </label>
+          <label className="block text-xs text-muted-foreground sm:col-span-3">Lieu / adresse<input name="address" placeholder="Facultatif" className={CHAMP} /></label>
+          <label className="block text-xs text-muted-foreground sm:col-span-3">Précisions<input name="notes" className={CHAMP} /></label>
+          <div className="flex flex-wrap gap-2 sm:col-span-6">
+            <Button type="submit" size="sm" disabled={busy !== null}>{busy === "gadd" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter</Button>
+            <Button type="button" size="sm" variant="ghost" onClick={() => setAjout(false)}>Annuler</Button>
+          </div>
+        </form>
+      )}
+      {postes.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Aucun poste par personne.</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] border-collapse text-sm tabular-nums">
+            <thead>
+              <tr className="bg-secondary/40 text-left text-xs text-muted-foreground">
+                <th className="sticky left-0 z-[1] bg-card px-3 py-2 font-medium">Poste</th>
+                <th className="px-3 py-2 font-medium">Quand, où</th>
+                <th className="px-3 py-2 text-right font-medium">Par personne</th>
+                <th className="px-3 py-2 text-right font-medium">Personnes</th>
+                <th className="px-3 py-2 text-right font-medium">Total</th>
+                <th className="px-3 py-2 font-medium">État</th>
+                <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {postes.map((g) => {
+                const concernees = personnes.filter((x) => personneVivante(x.status) && !g.excludedBeneficiaryIds.includes(x.id)).length;
+                const total = montantPosteGroupe(g, personnes);
+                return (
+                  <tr key={g.id} className="border-t border-border">
+                    <td className="sticky left-0 z-[1] bg-card px-3 py-2"><span className="font-medium">{g.label}</span></td>
+                    <td className="px-3 py-2 text-xs text-muted-foreground">{[g.date?.split("-").reverse().join("/"), g.timeStart, g.address].filter(Boolean).join(" · ") || "—"}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">{g.unitAmount != null ? montantLisible(g.unitAmount, g.currency) : "—"}</td>
+                    <td className="px-3 py-2 text-right">{concernees}</td>
+                    <td className="whitespace-nowrap px-3 py-2 text-right">{total != null ? formatCurrency(total) : "—"}</td>
+                    <td className="px-3 py-2">
+                      {canEdit ? (
+                        <select value={g.status} disabled={busy !== null} aria-label={`État de « ${g.label} »`}
+                          onChange={(e) => void run(`gs:${g.id}`, () => modifierPosteGroupe(undefined, fd({ id: g.id, status: e.target.value })))}
+                          className="min-h-9 rounded-lg border border-border bg-background px-1.5 py-1 text-base sm:min-h-0 sm:text-xs">
+                          {(["REQUESTED", "PROVIDED", "SETTLED", "WAIVED"] as CareCellStatus[]).map((s) => <option key={s} value={s}>{CELL_STATUS_LABELS[s]}</option>)}
+                        </select>
+                      ) : <Badge tone="neutral" dot={false}>{CELL_STATUS_LABELS[g.status]}</Badge>}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {canEdit && g.status !== "SETTLED" && (
+                        <button type="button" disabled={busy !== null} aria-label={`Retirer « ${g.label} »`}
+                          onClick={() => { if (window.confirm(`Retirer le poste « ${g.label} » ?`)) void run(`gd:${g.id}`, () => retirerPosteGroupe(undefined, fd({ id: g.id }))); }}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:h-7 sm:w-7">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/**
+ * AJOUTER UN PROFESSIONNEL — depuis l'annuaire (menu AVEC RECHERCHE), en créant son profil de médecin, ou en profil
+ * libre. Les trois écrivent la MÊME ligne (`addCareBeneficiary`), qui naît avec sa billetterie et son hôtellerie.
  */
 function AddBeneficiaryForm({ scope, requestId, directory, busy, onCancel, onSubmit }: {
   scope: string; requestId: string; directory: Props["directory"]; busy: boolean;
-  onCancel: () => void; onSubmit: (fd: FormData) => void;
+  onCancel: () => void; onSubmit: (f: FormData) => void;
 }) {
   const [mode, setMode] = React.useState<"directory" | "new" | "free">("directory");
   const [q, setQ] = React.useState("");
@@ -487,9 +486,8 @@ function AddBeneficiaryForm({ scope, requestId, directory, busy, onCancel, onSub
     listBeneficiaryRefs().then((r) => setRefs({ specialties: r.specialties, institutions: r.institutions })).catch(() => setRefs({ specialties: [], institutions: [] }));
   }, [mode, refs]);
   const filtres = filtrerAnnuaire(directory, q);
-  const champ = "mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm";
   return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); }} className="space-y-2 rounded-xl border border-border p-3">
+    <form onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); }} className="space-y-2">
       <input type="hidden" name="scope" value={scope} />
       <input type="hidden" name="requestId" value={requestId} />
       {mode === "new" && <input type="hidden" name="createDoctor" value="on" />}
@@ -500,7 +498,7 @@ function AddBeneficiaryForm({ scope, requestId, directory, busy, onCancel, onSub
             key={m} type="button" onClick={() => setMode(m)}
             className={`min-h-9 rounded-lg border px-2.5 py-1 text-xs transition sm:min-h-0 ${mode === m ? "border-primary bg-primary/10 font-medium" : "border-border text-muted-foreground hover:bg-secondary"}`}
           >
-            {m === "directory" ? "Depuis l'annuaire" : m === "new" ? "Nouveau médecin" : "Personne libre"}
+            {m === "directory" ? "Depuis l'annuaire" : m === "new" ? "Nouveau médecin" : "Profil libre"}
           </button>
         ))}
       </div>
@@ -509,11 +507,11 @@ function AddBeneficiaryForm({ scope, requestId, directory, busy, onCancel, onSub
         <div className="space-y-1.5">
           <label className="block text-xs">
             Rechercher un praticien
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, spécialité, établissement…" className={champ} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Nom, spécialité, établissement…" className={CHAMP} />
           </label>
           <label className="block text-xs">
             Praticien
-            <select name="doctorId" required className={champ}>
+            <select name="doctorId" required className={CHAMP}>
               <option value="">{filtres.length ? "Choisir…" : "Aucun praticien ne correspond"}</option>
               {filtres.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}{d.specialty ? ` — ${d.specialty}` : ""}{d.institution ? ` (${d.institution})` : ""}</option>
@@ -525,30 +523,30 @@ function AddBeneficiaryForm({ scope, requestId, directory, busy, onCancel, onSub
       )}
       {mode === "new" && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="text-xs sm:col-span-2">Nom du médecin<input name="doctorName" required placeholder="Dr …" className={champ} /></label>
+          <label className="text-xs sm:col-span-2">Nom du médecin<input name="doctorName" required placeholder="Dr …" className={CHAMP} /></label>
           <label className="text-xs">Spécialité
-            <select name="specialtyId" defaultValue="" className={champ}><option value="">—</option>{(refs?.specialties ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+            <select name="specialtyId" defaultValue="" className={CHAMP}><option value="">—</option>{(refs?.specialties ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
           </label>
           <label className="text-xs">Secteur
-            <select name="sector" defaultValue="" className={champ}><option value="">—</option><option value="HOSPITAL">Hospitalier</option><option value="LIBERAL">Libéral</option><option value="BOTH">Les deux</option></select>
+            <select name="sector" defaultValue="" className={CHAMP}><option value="">—</option><option value="HOSPITAL">Hospitalier</option><option value="LIBERAL">Libéral</option><option value="BOTH">Les deux</option></select>
           </label>
           <label className="text-xs sm:col-span-2">Établissement
-            <select name="institutionId" defaultValue="" className={champ}><option value="">—</option>{(refs?.institutions ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.wilaya ? ` · ${x.wilaya}` : ""}</option>)}</select>
+            <select name="institutionId" defaultValue="" className={CHAMP}><option value="">—</option>{(refs?.institutions ?? []).map((x) => <option key={x.id} value={x.id}>{x.name}{x.wilaya ? ` · ${x.wilaya}` : ""}</option>)}</select>
           </label>
         </div>
       )}
       {mode === "free" && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="text-xs">Prénom<input name="firstName" className={champ} /></label>
-          <label className="text-xs">Nom<input name="lastName" required className={champ} /></label>
-          <label className="text-xs sm:col-span-2">Établissement<input name="institution" placeholder="CHU Mustapha…" className={champ} /></label>
+          <label className="text-xs">Prénom<input name="firstName" className={CHAMP} /></label>
+          <label className="text-xs">Nom<input name="lastName" required className={CHAMP} /></label>
+          <label className="text-xs sm:col-span-2">Établissement<input name="institution" placeholder="CHU Mustapha…" className={CHAMP} /></label>
         </div>
       )}
-      <label className="block text-xs">Qualité<input name="jobTitle" placeholder="Orateur, invité, chef de service…" className={champ} /></label>
+      <label className="block text-xs">Qualité<input name="jobTitle" placeholder="Orateur, invité, chef de service…" className={CHAMP} /></label>
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button size="sm" type="submit" className="w-full sm:w-auto" disabled={busy}>
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} {mode === "new" ? "Créer et proposer" : "Proposer"}
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />} {mode === "new" ? "Créer et ajouter" : "Ajouter"}
         </Button>
         <Button size="sm" type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancel}>Annuler</Button>
       </div>
@@ -556,88 +554,83 @@ function AddBeneficiaryForm({ scope, requestId, directory, busy, onCancel, onSub
   );
 }
 
-/** Ajouter un besoin à CETTE personne : une pièce à fournir ou un élément à acheter. */
-function AddCellForm({ beneficiaryId, busy, onSubmit }: { beneficiaryId: string; busy: boolean; onSubmit: (fd: FormData) => void }) {
-  const [open, setOpen] = React.useState(false);
-  const [kind, setKind] = React.useState<CareCellKind>("DOCUMENT");
-
-  if (!open) {
-    return (
-      <button onClick={() => setOpen(true)} className="mt-1.5 inline-flex min-h-9 items-center gap-1 rounded-lg border border-dashed border-border px-2.5 py-1 text-xs text-muted-foreground hover:bg-secondary sm:min-h-0 sm:px-2">
-        <Plus className="h-3.5 w-3.5" /> Ajouter un élément
-      </button>
-    );
-  }
-
+/**
+ * ENREGISTRER UN DEVIS REÇU — il couvre CE QU'IL COUVRE : en mode individuel, on coche les postes (éventuellement
+ * de plusieurs fiches : un devis d'agence pour un groupe de billets) ; en mode « de groupe », on choisit la
+ * catégorie et le devis couvre les postes de cette catégorie de tout le monde. Le montant se saisit dans la devise
+ * des postes couverts (le dollar à l'international, sauf la billetterie).
+ */
+function QuoteForm({ scope, requestId, mode, taux, beneficiaries, preselection, busy, onCancel, onSubmit }: {
+  scope: Perimetre; requestId: string; mode: CareMode; taux: number | null; beneficiaries: BeneficiaryRow[]; preselection: string[];
+  busy: boolean; onCancel: () => void; onSubmit: (f: FormData) => void;
+}) {
+  const [parCategorie, setParCategorie] = React.useState(mode === "GROUP" && preselection.length === 0);
+  const [categorie, setCategorie] = React.useState<CareServiceKind>("TICKET");
+  const [coches, setCoches] = React.useState<Set<string>>(new Set(preselection));
+  const [montant, setMontant] = React.useState("");
+  const postes = beneficiaries.filter((b) => personneVivante(b.status)).flatMap((b) =>
+    b.cells.filter((c) => c.kind === "SERVICE" && c.status !== "WAIVED" && c.status !== "SETTLED").map((c) => ({ ...c, who: b.name })));
+  const kinds = parCategorie ? [categorie] : postes.filter((c) => coches.has(c.id)).map((c) => c.serviceKind);
+  const devises = new Set(kinds.map((k) => deviseDuPoste(scope, k)));
+  const devise = devises.size === 1 ? [...devises][0]! : null;
+  const n = Number(montant.replace(/[\s ]/g, "").replace(",", "."));
+  const categories: CareServiceKind[] = ["TICKET", "HOTEL", "TRANSPORT", "CATERING", "REGISTRATION", "OTHER"];
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); setOpen(false); }}
-      className="mt-2 space-y-2 rounded-lg border border-border p-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const f = new FormData(e.currentTarget);
+        f.set("scope", scope);
+        f.set("requestId", requestId);
+        f.set("amount", montant);
+        if (parCategorie) f.set("categorie", categorie);
+        else for (const id of coches) f.append("cellIds", id);
+        onSubmit(f);
+      }}
+      className="space-y-2 rounded-xl border border-border p-3"
     >
-      <input type="hidden" name="beneficiaryId" value={beneficiaryId} />
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <label className="text-xs">
-          Nature
-          <select name="kind" value={kind} onChange={(e) => setKind(e.target.value as CareCellKind)} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-base outline-none focus:border-primary/60 sm:text-sm">
-            <option value="DOCUMENT">Pièce à fournir</option>
-            <option value="SERVICE">Élément à acheter</option>
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">
+        <label className="text-xs">Fournisseur<input name="supplier" required placeholder="Agence de voyage, hôtel…" className={CHAMP} /></label>
+        <label className="text-xs">Référence<input name="reference" placeholder="Facultatif" className={CHAMP} /></label>
+        <label className="text-xs">Montant ({devise ?? "—"})
+          <input inputMode="decimal" required value={montant} onChange={(e) => setMontant(e.target.value)} className={`${CHAMP} tabular-nums`} />
+          {devise === "USD" && montant && Number.isFinite(n) && <span className="text-[0.6875rem] text-primary">≈ {formatCurrency(versDzd(n, "USD", taux) ?? 0)}</span>}
+        </label>
+        <label className="text-xs">Devis (PDF)<input name="file" type="file" accept="application/pdf,image/*" className="mt-1 block w-full text-xs" /></label>
+      </div>
+      {devises.size > 1 && <p className="text-xs text-destructive">Un devis couvre soit des billets (en DZD), soit d&apos;autres postes (en dollars) : enregistrez-en un pour chaque.</p>}
+
+      <div className="flex flex-wrap gap-2 text-xs">
+        {([[true, "Une catégorie, pour tout le groupe"], [false, "Des postes choisis"]] as const).map(([v, l]) => (
+          <button key={l} type="button" onClick={() => setParCategorie(v)}
+            className={`min-h-9 rounded-lg border px-2.5 py-1 sm:min-h-0 ${parCategorie === v ? "border-primary bg-primary/10 font-medium" : "border-border text-muted-foreground hover:bg-secondary"}`}>{l}</button>
+        ))}
+      </div>
+      {parCategorie ? (
+        <label className="block text-xs">Catégorie
+          <select value={categorie} onChange={(e) => setCategorie(e.target.value as CareServiceKind)} className={CHAMP}>
+            {categories.map((k) => <option key={k} value={k}>{SERVICE_KIND_LABELS[k]}</option>)}
           </select>
         </label>
-        {kind === "SERVICE" && (
-          <label className="text-xs">
-            Type
-            <select name="serviceKind" className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-base outline-none focus:border-primary/60 sm:text-sm">
-              {SERVICE_KINDS.map((s) => <option key={s} value={s}>{SERVICE_KIND_LABELS[s]}</option>)}
-            </select>
-          </label>
-        )}
-        <label className={`text-xs ${kind === "SERVICE" ? "" : "sm:col-span-2"}`}>
-          Libellé
-          <input name="label" required placeholder={kind === "DOCUMENT" ? "Copie du visa" : "Hôtel 3 nuits"} className="mt-1 w-full rounded-lg border border-border bg-background px-2 py-1.5 text-base outline-none focus:border-primary/60 sm:text-sm" />
-        </label>
-      </div>
+      ) : (
+        <fieldset className="rounded-lg border border-border p-2">
+          <legend className="px-1 text-xs font-medium">Ce que ce devis couvre</legend>
+          <div className="max-h-48 space-y-1 overflow-y-auto">
+            {postes.length === 0 && <p className="text-xs text-muted-foreground">Aucun poste à couvrir.</p>}
+            {postes.map((c) => (
+              <label key={c.id} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm sm:min-h-0">
+                <input type="checkbox" checked={coches.has(c.id)} className="h-4 w-4 shrink-0"
+                  onChange={() => setCoches((s) => { const x = new Set(s); if (x.has(c.id)) x.delete(c.id); else x.add(c.id); return x; })} />
+                <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{c.label} <span className="text-xs text-muted-foreground">— {c.who}</span></span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+
+      <label className="block text-xs">Note<input name="note" placeholder="Facultatif" className={CHAMP} /></label>
       <div className="flex flex-col gap-2 sm:flex-row">
-        <Button size="sm" type="submit" className="w-full sm:w-auto" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} Ajouter</Button>
-        <Button size="sm" type="button" variant="outline" className="w-full sm:w-auto" onClick={() => setOpen(false)}>Annuler</Button>
-      </div>
-    </form>
-  );
-}
-
-/** Un devis couvre CE QU'IL COUVRE : on coche les éléments concernés, éventuellement de plusieurs personnes. */
-function QuoteForm({ scope, requestId, cells, busy, onCancel, onSubmit }: {
-  scope: string; requestId: string; cells: { id: string; label: string; who: string }[];
-  busy: boolean; onCancel: () => void; onSubmit: (fd: FormData) => void;
-}) {
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); }} className="space-y-2 rounded-xl border border-border p-3">
-      <input type="hidden" name="scope" value={scope} />
-      <input type="hidden" name="requestId" value={requestId} />
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <label className="text-xs">Fournisseur<input name="supplier" required placeholder="Agence de voyage…" className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm" /></label>
-        <label className="text-xs">Référence<input name="reference" placeholder="Facultatif" className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm" /></label>
-        <label className="text-xs">Montant (DZD)<input name="amountDzd" type="number" inputMode="decimal" min="0" step="0.01" required className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base tabular-nums outline-none focus:border-primary/60 sm:text-sm" /></label>
-      </div>
-
-      <fieldset className="rounded-lg border border-border p-2">
-        <legend className="px-1 text-xs font-medium">Ce que ce devis couvre</legend>
-        <p className="mb-1 text-[0.6875rem] text-muted-foreground">
-          Une agence chiffre souvent le groupe entier : cochez tout ce que ce devis inclut, même pour plusieurs personnes.
-        </p>
-        <div className="max-h-40 space-y-1 overflow-y-auto">
-          {cells.map((c) => (
-            <label key={c.id} className="flex min-h-9 cursor-pointer items-center gap-2 text-sm sm:min-h-0">
-              <input type="checkbox" name="cellIds" value={c.id} className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 flex-1 [overflow-wrap:anywhere] sm:truncate">{c.label} <span className="text-xs text-muted-foreground">— {c.who}</span></span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      <label className="block text-xs">Note<input name="note" placeholder="Facultatif" className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm" /></label>
-
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button size="sm" type="submit" className="w-full sm:w-auto" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Enregistrer le devis</Button>
+        <Button size="sm" type="submit" className="w-full sm:w-auto" disabled={busy || devises.size > 1}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileText className="h-4 w-4" />} Enregistrer le devis</Button>
         <Button size="sm" type="button" variant="outline" className="w-full sm:w-auto" onClick={onCancel}>Annuler</Button>
       </div>
     </form>
@@ -645,18 +638,14 @@ function QuoteForm({ scope, requestId, cells, busy, onCancel, onSubmit }: {
 }
 
 /**
- * LES PIÈCES DE CHAQUE PROFESSIONNEL — une liste compacte, une ligne par personne proposée ou
- * accordée : chaque pièce attendue (national : passeport ; international : passeport, visa,
- * informations de voyage) avec son état — manquante, demandée, reçue —, le dépôt du fichier sur SA
- * pièce, et la demande des pièces en un clic. Ce que l'ancien bloc « Personnes prises en charge »
- * comptait en vrac (« Pièces d'identité reçues 0/— ») se lit ici par personne et par pièce.
+ * LES PIÈCES DE CHAQUE PROFESSIONNEL — une liste compacte, une ligne par personne proposée ou accordée :
+ * chaque pièce attendue (national : passeport, facultatif pour réserver ; international : passeport, visa,
+ * informations de voyage) avec son état, le dépôt du fichier sur SA pièce, et la demande des pièces en un clic.
  */
 function PiecesDesProfessionnels({ scope, requestId, beneficiaries, canEdit, busy, run }: {
-  scope: "NATIONAL" | "INTERNATIONAL"; requestId: string; beneficiaries: BeneficiaryRow[]; canEdit: boolean;
-  busy: string | null;
-  run: (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText?: string) => Promise<unknown>;
+  scope: Perimetre; requestId: string; beneficiaries: BeneficiaryRow[]; canEdit: boolean; busy: string | null; run: Run;
 }) {
-  const vivants = beneficiaries.filter((b) => b.status === "PROPOSED" || b.status === "APPROVED");
+  const vivants = beneficiaries.filter((b) => personneVivante(b.status));
   if (vivants.length === 0) return null;
   const lignes = vivants.map((b) => ({ b, pieces: piecesDuProfessionnel(scope, b.cells) }));
   const attendues = lignes.reduce((n, l) => n + l.pieces.filter((p) => p.etat !== "SANS_OBJET").length, 0);
@@ -668,15 +657,8 @@ function PiecesDesProfessionnels({ scope, requestId, beneficiaries, canEdit, bus
         <h3 className="text-sm font-semibold">Pièces des professionnels</h3>
         <span className="text-xs text-muted-foreground">{recues}/{attendues} reçue{recues > 1 ? "s" : ""}</span>
         {canEdit && (
-          <Button
-            size="sm" variant="outline" className="ml-auto" disabled={busy === "pieces"}
-            onClick={() => {
-              const fd = new FormData();
-              fd.set("scope", scope);
-              fd.set("requestId", requestId);
-              void run("pieces", () => demanderPiecesPriseEnCharge(undefined, fd));
-            }}
-          >
+          <Button size="sm" variant="outline" className="ml-auto" disabled={busy !== null}
+            onClick={() => void run("pieces", () => demanderPiecesPriseEnCharge(undefined, fd({ scope, requestId })))}>
             {busy === "pieces" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Demander les pièces
           </Button>
         )}
@@ -701,11 +683,11 @@ function PiecesDesProfessionnels({ scope, requestId, beneficiaries, canEdit, bus
                         onChange={(e) => {
                           const f = e.target.files?.[0];
                           if (!f || !p.cellId) return;
-                          const fd = new FormData();
-                          fd.set("cellId", p.cellId);
-                          fd.set("file", f);
+                          const form = new FormData();
+                          form.set("cellId", p.cellId);
+                          form.set("file", f);
                           e.target.value = "";
-                          void run(`dep:${p.cellId}`, () => deposerPiecePriseEnCharge(undefined, fd));
+                          void run(`dep:${p.cellId}`, () => deposerPiecePriseEnCharge(undefined, form));
                         }}
                       />
                     </label>
@@ -715,10 +697,7 @@ function PiecesDesProfessionnels({ scope, requestId, beneficiaries, canEdit, bus
                       value=""
                       onChange={(e) => {
                         if (!e.target.value || !p.cellId) return;
-                        const fd = new FormData();
-                        fd.set("id", p.cellId);
-                        fd.set("status", e.target.value);
-                        void run(`cs:${p.cellId}`, () => setCareCellStatus(undefined, fd), "État mis à jour.");
+                        void run(`cs:${p.cellId}`, () => setCareCellStatus(undefined, fd({ id: p.cellId!, status: e.target.value })), "État mis à jour.");
                       }}
                       aria-label={`Changer l'état de « ${p.label} » de ${b.name}`}
                       className="min-h-8 rounded border border-border bg-background px-1 py-0.5 text-base outline-none sm:min-h-0 sm:text-[0.6875rem]"
@@ -736,21 +715,5 @@ function PiecesDesProfessionnels({ scope, requestId, beneficiaries, canEdit, bus
         ))}
       </ul>
     </section>
-  );
-}
-
-function StatusChip({ status }: { status: CareBeneficiaryStatus }) {
-  const tone = status === "APPROVED" ? "success" : status === "REJECTED" ? "danger" : status === "WITHDRAWN" ? "neutral" : "warning";
-  return <Badge tone={tone} dot={false}>{BENEFICIARY_STATUS_LABELS[status]}</Badge>;
-}
-
-function Figure({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "success" | "warning" }) {
-  const cls = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "";
-  return (
-    <div className="min-w-0 rounded-lg border border-border px-3 py-2">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 text-base font-semibold tabular-nums [overflow-wrap:anywhere] ${cls}`}>{value}</p>
-      {hint && <p className="text-[0.6875rem] text-muted-foreground">{hint}</p>}
-    </div>
   );
 }

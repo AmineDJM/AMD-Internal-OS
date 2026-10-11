@@ -420,24 +420,30 @@ dessous, directement) → émission par les Finances.
 ### Bureau du secrétariat — flux par demande
 
 ```
-Demande (employé) — simple OU multi-cellules (lot), articles depuis le catalogue
+Demande (employé) — une demande par besoin, + participants (facultatif)
+   → directement aux assistantes de direction (notifiées) — ni « Responsable » ni « Personne concernée »
    → 30 min : le demandeur peut encore MODIFIER (tous les champs saisis) ou SUPPRIMER sa demande
-   → l'assistante « Commence le traitement »
-   → SI ACHAT : upload du DEVIS → « Demande de validation des Finances »
-        → bureau central des validations (Finances) : accord / refus / « trop cher, autre agence, réduire »
-        → va-et-vient possible ; à l'accord, upload de la FACTURE finale → « Fin de la demande »
-   → SINON : validation interne (opérations / autre) ou aucune, à l'estimation de l'assistante → « Fin de la demande »
+   → l'assistante « Commencer le traitement »  → le demandeur lit « En cours — chez l'assistante de direction »
+   → « Fin du traitement » (achat : facture finale + imputation)  → « Traitée »
+   (le demandeur est notifié aux deux pas ; « Annuler la demande… » et « Supprimer » restent)
 ```
 
-Chaque **cellule** d'une demande multi-cellules est pilotée **indépendamment** (statut + validations). La
+**Deux gestes, rien d'autre (Direction, 10/2026 — `secretariat/traitement.ts`).** Retirés : la demande multiple
+(`createRequestBatch`), le type « Mission chauffeur » et la création de courses (`createMission`), les statuts posés à la
+main (en attente d'un tiers / d'un document, bloquer, reprendre — `updateRequestStatus` refuse tout et nomme les deux
+gestes), la validation Finances / interne demandée depuis la fiche. L'existant se relit : un statut retiré se lit
+« En cours » (`statutAffiche`) et se termine par « Fin du traitement » ; une demande « Mission chauffeur » se lit ; un lot
+garde ses voisines sur la fiche. Les **participants** (`fields.participantIds`) lisent la demande (`scopeAdminRequests`).
+Les demandes nées d'un autre module (devis d'un poste Ad & Pro, demande de BC, devis promo, achat N+1) suivent le même
+traitement ; l'approbation N+1 d'un achat reste en amont (« Attente validation »).
+
+Les cellules d'un ancien lot restent pilotées **indépendamment**. La
 **suppression** par l'assistante est **traçable** (corbeille + motif + audit, restauration possible) ; une
 demande restaurée revient dans l'état où on l'a supprimée — seule la suppression discrète du demandeur revient
 « nouvelle ».
 
-**Pas de menu de statut libre (audit 360°, R12 — §118.191).** Le gestionnaire pose à la main ce qui n'a pas
-d'autre geste : « En attente d'un tiers », « En attente d'un document », « Reprendre », « Bloquer… » (motif
-exigé, lu par le demandeur, effacé à la reprise). Le reste a sa porte : « Commencer le traitement », les
-demandes de validation et d'approbation, « Fin de la demande » (seule à vérifier la facture d'un achat et son
+**Pas de menu de statut libre (audit 360°, R12 — §118.191 ; depuis 10/2026, plus aucun statut à la main).** Chaque
+issue a sa porte : « Commencer le traitement », « Fin du traitement » (seule à vérifier la facture d'un achat et son
 imputation, et qui archive la demande dans le Drive), « Annuler la demande… » (motif ; la validation,
 l'approbation et le paiement en attente partent avec elle ; non offerte pour la demande de BC d'un poste, qui se
 retire depuis le poste), « Rouvrir… » une demande terminée (motif ; une annulée ne se rouvre pas). La règle

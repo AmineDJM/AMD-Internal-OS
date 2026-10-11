@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { hasGlobalView, type SessionUser } from "@/lib/rbac";
+import { peutTeleverserBillet } from "@/lib/care-fiches";
+import { natureDuLivret, peutLirePiecePriseEnCharge, type NaturePiece } from "@/lib/care-pieces-acces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -36,4 +39,45 @@ export async function peutLirePasseportDuSujet(
     prisma.adProHebergement.count({ where: { id: doc.stepKey, itemId: doc.entityId } }),
   ]);
   return voyageur + hebergement > 0;
+}
+
+/**
+ * LES PIÈCES D'UNE PRISE EN CHARGE (congrès) POUR QUI RÉSERVE ET QUI ACCOMPAGNE — le pendant de la porte ci-dessus :
+ * passeports (au sujet de réservation), billets émis et vouchers, livrets de séjour. La règle est pure et testée
+ * (`care-pieces-acces.ts`) ; ici, les faits.
+ */
+export async function peutLirePieceDePriseEnCharge(
+  user: Pick<SessionUser, "id" | "role" | "secondaryRole"> & Parameters<typeof hasGlobalView>[0],
+  doc: { id: string; entityType: string; entityId: string; stepKey: string | null },
+): Promise<boolean> {
+  if (doc.entityType !== "CONGRESS_INTERNATIONAL" && doc.entityType !== "CONGRESS_NATIONAL") return false;
+  const intl = doc.entityType === "CONGRESS_INTERNATIONAL";
+  const demande = intl
+    ? await prisma.congressInternational.findUnique({ where: { id: doc.entityId }, select: { requesterId: true, careReservationDossierId: true } })
+    : await prisma.congressNational.findUnique({ where: { id: doc.entityId }, select: { requesterId: true, careReservationDossierId: true } });
+  if (!demande) return false;
+  const parent = intl ? { congressInternationalId: doc.entityId } : { congressNationalId: doc.entityId };
+
+  let nature: NaturePiece = natureDuLivret(doc.stepKey) ?? "AUTRE";
+  if (nature === "AUTRE") {
+    const [emis, piece] = await Promise.all([
+      prisma.careCell.count({ where: { issuedDocumentId: doc.id, beneficiary: parent } }),
+      prisma.careCell.count({ where: { kind: "DOCUMENT", beneficiary: parent, OR: [{ documentId: doc.id }, ...(doc.stepKey ? [{ id: doc.stepKey }] : [])] } }),
+    ]);
+    nature = emis > 0 ? "BILLET_EMIS" : piece > 0 ? "PIECE_IDENTITE" : "AUTRE";
+  }
+  if (nature === "AUTRE") return false;
+
+  const sujet = demande.careReservationDossierId
+    ? await prisma.dossier.findUnique({ where: { id: demande.careReservationDossierId }, select: { assignedToId: true, participantIds: true } })
+    : null;
+  const membreDuSujet = Boolean(sujet && (sujet.assignedToId === user.id || sujet.participantIds.includes(user.id)));
+  const organise = peutTeleverserBillet(
+    { id: user.id, roles: [user.role, user.secondaryRole].filter((r): r is NonNullable<typeof r> => Boolean(r)), vueGlobale: hasGlobalView(user) },
+    { requesterId: demande.requesterId },
+  );
+  const equipe = nature === "LIVRET_GENERAL"
+    ? (await prisma.missionAssignment.count({ where: { entityType: doc.entityType, entityId: doc.entityId, userId: user.id, archivedAt: null, response: { not: "DECLINEE" } } })) > 0
+    : false;
+  return peutLirePiecePriseEnCharge({ nature, membreDuSujet, organise, equipe });
 }

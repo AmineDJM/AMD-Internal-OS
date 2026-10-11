@@ -273,6 +273,8 @@ export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
   CareCell: ["case de prise en charge", "cases de prise en charge"],
   CareQuote: ["devis de prise en charge", "devis de prise en charge"],
   CareQuoteCell: ["ligne de devis", "lignes de devis"],
+  // Les postes « par personne » d'une prise en charge de groupe (Direction, 10/2026) : ils partent avec la demande.
+  CareGroupPoste: ["poste de groupe", "postes de groupe"],
   AdProStockLine: ["article du stock demandé", "articles du stock demandés"],
   // Les voyageurs d'un poste de billetterie (§118.175) : ils partent avec leur poste, et reviennent avec lui.
   AdProVoyageur: ["voyageur", "voyageurs"],
@@ -321,6 +323,8 @@ export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
   DossierMessage: ["message de sujet", "messages de sujet"],
   DossierMessageAttachment: ["pièce de message", "pièces de message"],
   MissionAssignment: ["affectation", "affectations"],
+  MissionParticipationVersion: ["version de fiche de participation", "versions de fiche de participation"],
+  MissionExpenseLine: ["dépense de mission", "dépenses de mission"],
   Task: ["tâche", "tâches"],
   TaskComment: ["commentaire de tâche", "commentaires de tâche"],
   Reminder: ["rappel", "rappels"],

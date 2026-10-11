@@ -33,6 +33,13 @@ export function vueTachePour(
 
 /** « Mes missions » — invitations, ordre de mission, étapes. */
 export const CHEMIN_MES_MISSIONS = "/mon-espace/missions";
+/**
+ * UNE MISSION DE L'ÉQUIPE ADVENTUM, ouverte : la fiche de participation, les versions et le fil, puis la mission
+ * (billet, hôtel, notes de frais, rapport, clôture). La même page pour la personne et pour l'organisateur.
+ */
+export function lienMission(id: string, ancre?: "frais" | "rapport" | "reservation" | "fil"): string {
+  return `${CHEMIN_MES_MISSIONS}/${encodeURIComponent(id)}${ancre ? `#${ancre}` : ""}`;
+}
 /** Les ordres de mission qui attendent la signature du N+1. */
 export const LIEN_MISSIONS_A_VALIDER = `${CHEMIN_MES_MISSIONS}#a-valider`;
 

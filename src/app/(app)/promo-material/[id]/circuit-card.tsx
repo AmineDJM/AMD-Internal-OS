@@ -396,7 +396,7 @@ export function PromoStatutCard(p: StatutProps) {
       case "ENVOYER_BC":
         return <Button size="sm" onClick={() => run(() => marquerBonDeCommandeEnvoye(dossier({ quoteId: g.quoteId ?? "" })))} disabled={occupe}>{icone ?? <Send className="h-4 w-4" />} Marquer envoyé</Button>;
       case "ADRESSER_IM":
-        return <Button size="sm" onClick={() => versLeTableau("visa", g)}>Adresser</Button>;
+        return <Button size="sm" onClick={() => versLeTableau("bc", g)}>Adresser</Button>;
       case "CLORE":
         return <BoutonDecisif size="sm" variant="success" onClick={clore} disabled={occupe}>{icone ?? <CheckCircle2 className="h-4 w-4" />} Clore le dossier</BoutonDecisif>;
       case "RESOUMETTRE":

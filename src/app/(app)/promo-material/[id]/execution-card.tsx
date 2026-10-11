@@ -12,6 +12,9 @@ import { formatDzd } from "@/lib/promo-material/devis";
 import { designationAvecAction, type PromoAction } from "@/lib/promo-material/actions-fournisseur";
 import { ETAT_RECEPTION_LABEL, totauxFacture, type EtatReception, type FamillePromo } from "@/lib/promo-material/achats";
 import { familleAValidite, familleQuantifiee } from "@/lib/promo/catalogue";
+import {
+  formaliteDuDossier, gesteDeLaCommande, jourMois, pastillesDeLaCommande, totalDesCommandes, type CommandeFaits, type Pastille,
+} from "@/lib/promo-material/fiche";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,6 +55,8 @@ export interface LigneFactureAffichee {
   quantite: number;
   prixUnitaire: number;
   quantiteRecue: number | null;
+  /** Le jour où la réception a été cochée (ISO). */
+  recueLe: string | null;
   renonce: boolean;
   etat: EtatReception;
   nature: NatureAffichee;
@@ -65,9 +70,11 @@ export interface FactureAffichee {
   montant: number | null;
   date: string | null;
   etatReglement: string;
+  /** L'état du règlement en code (`EtatReglement`) — ce que lit la pastille « Paiement ». */
+  etat: string;
   reglee: boolean;
   paiementDemande: boolean;
-  demandeInfoMedicale: { reference: string; nature: string } | null;
+  demandeInfoMedicale: { reference: string; nature: string; formalite?: string | null } | null;
   /** Le fichier déposé (table `Document`) — ouvert par `/api/documents/<id>`. */
   fichierId: string | null;
   /** Le détail ligne à ligne — nul pour une facture d'avant (§118.165). */
@@ -93,6 +100,8 @@ export interface ExecutionAffichee {
   reference: string | null;
   lignes: number;
   ttc: number;
+  /** Ce qui est commandé, en mots courts (« Lingettes unitaires · 2 000 ») — sous le fournisseur. */
+  articles: string[];
   bc: { id: string; reference: string | null; montant: number | null; etape: string; libelleEtape: string; pdf: boolean; docx: boolean } | null;
   envoyeLe: string | null;
   factures: FactureAffichee[];
@@ -148,9 +157,9 @@ const TON_ETAT: Record<EtatReception, "neutral" | "success" | "warning" | "dange
 };
 
 /** Choix de la formalité qui accompagne un paiement — visa publicitaire ou déclaration au ministère. */
-function ChoixFormalite({ name }: { name: string }) {
+function ChoixFormalite({ name, defaut }: { name: string; defaut?: string | null }) {
   return (
-    <select name={name} required defaultValue="" className="h-10 w-full rounded-md border border-input bg-background px-2 text-base sm:h-9 sm:w-auto sm:text-sm" aria-label="Formalité à l'information médicale">
+    <select name={name} required defaultValue={defaut ?? ""} className="h-10 w-full rounded-md border border-input bg-background px-2 text-base sm:h-9 sm:w-auto sm:text-sm" aria-label="Formalité à l'information médicale">
       <option value="" disabled>Formalité…</option>
       <option value="AD_VISA">Demande de visa publicitaire</option>
       <option value="MIP">Déclaration au ministère</option>
@@ -320,13 +329,15 @@ function DepotFacture({ id, e, onDone, onCancel }: { id: string; e: ExecutionAff
 
 // ───────────────────────── La réception d'une ligne ─────────────────────────
 
-function ReceptionLigne({ id, l, options, run, saving }: {
+function ReceptionLigne({ id, l, options, run, saving, deplie = false }: {
   id: string; l: LigneFactureAffichee;
   options: Props["optionsReception"];
   run: (fn: () => Promise<ActionResult>, after?: () => void) => Promise<void>;
   saving: boolean;
+  /** Ouvert d'emblée — la ligne du tableau a été ouverte par « J'ai reçu ». */
+  deplie?: boolean;
 }) {
-  const [ouvert, setOuvert] = React.useState(false);
+  const [ouvert, setOuvert] = React.useState(deplie);
   const [catalogueId, setCatalogueId] = React.useState("");
   const choisi = options?.catalogue.find((c) => c.id === catalogueId) ?? null;
   const famille: FamillePromo | null = l.nature.type === "STOCK" ? l.nature.famille : choisi?.famille ?? null;
@@ -397,8 +408,12 @@ function ReceptionLigne({ id, l, options, run, saving }: {
 
 // ───────────────────────── Une facture ─────────────────────────
 
-function Facture({ id, f, agir, canReceive, options }: {
+function Facture({ id, f, agir, canReceive, options, formalite, deplie = false }: {
   id: string; f: FactureAffichee; agir: boolean; canReceive: boolean; options: Props["optionsReception"];
+  /** « J'ai reçu » : les réceptions à cocher s'ouvrent d'emblée. */
+  deplie?: boolean;
+  /** La formalité de la dernière demande du dossier — proposée d'office au paiement suivant. */
+  formalite: string | null;
 }) {
   const { saving, err, msg, run } = useRun();
   const [annulation, setAnnulation] = React.useState(false);
@@ -463,7 +478,7 @@ function Facture({ id, f, agir, canReceive, options }: {
                     <div className="w-full">
                       <Badge tone={TON_ETAT[l.etat]}>{l.nature.type === "PRESTATION" && l.etat === "RECUE" ? "Faite" : ETAT_RECEPTION_LABEL[l.etat]}</Badge>
                       {l.quantiteRecue != null && l.etat !== "RECUE" && <span className="ml-1 tabular-nums text-muted-foreground">{nombre(l.quantiteRecue)} reçue(s)</span>}
-                      {receptionOuverte && l.etat === "EN_ATTENTE" && <div className="mt-1"><ReceptionLigne id={id} l={l} options={options} run={run} saving={saving} /></div>}
+                      {receptionOuverte && l.etat === "EN_ATTENTE" && <div className="mt-1"><ReceptionLigne id={id} l={l} options={options} run={run} saving={saving} deplie={deplie} /></div>}
                       {receptionOuverte && l.quantiteRecue != null && (
                         <Button size="sm" variant="ghost" className="mt-1" disabled={saving}
                           onClick={() => {
@@ -503,7 +518,10 @@ function Facture({ id, f, agir, canReceive, options }: {
 
       {agir && !f.paiementDemande && (
         <form className="flex flex-wrap items-center gap-2" action={demanderPaiement}>
-          <ChoixFormalite name="formalite" />
+          <ChoixFormalite name="formalite" defaut={formalite} />
+          <InfoBulle label="Ce qui part avec le paiement" align="left">
+            La demande de visa publicitaire — ou la déclaration au ministère — part à l&apos;information médicale avec ce paiement.
+          </InfoBulle>
           {enAttente.length > 0 && <Input name="motifRenoncement" required aria-label="Motif du renoncement" placeholder="Motif (obligatoire) — ligne non livrée" className="w-full sm:w-64" />}
           <BoutonDecisif type="submit" size="sm" className={aLaLigne} variant={enAttente.length > 0 ? "outline" : "primary"} disabled={saving}
             confirmation={enAttente.length > 0 ? `renoncer à ${enAttente.map((l) => `« ${l.designation} »`).join(", ")} et demander le paiement` : undefined}>
@@ -517,7 +535,14 @@ function Facture({ id, f, agir, canReceive, options }: {
           )}
         </form>
       )}
-      {/* LA DEMANDE À L'INFORMATION MÉDICALE d'un paiement déjà demandé vit dans la carte « Visa / déclaration ». */}
+      {/* LE RATTRAPAGE — la demande à l'information médicale part AVEC le paiement ; si elle n'a pas pu partir (ou si le
+          paiement est parti par un autre chemin), elle s'adresse ici. */}
+      {agir && f.paiementDemande && !f.demandeInfoMedicale && (
+        <form className="flex flex-wrap items-center gap-2" action={(fd: FormData) => { fd.set("promoMaterialId", id); fd.set("invoiceId", f.id); run(() => adresserInfoMedicaleFacturePromo(fd)); }}>
+          <ChoixFormalite name="formalite" defaut={formalite} />
+          <Button type="submit" size="sm" className={aLaLigne} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stethoscope className="h-4 w-4" />} Adresser à l&apos;information médicale</Button>
+        </form>
+      )}
       <Erreur msg={err} />
       <Info msg={msg} />
     </div>
@@ -565,16 +590,16 @@ function FriseBcPromo({ etape, libelleEtape, envoyeLe, envoyer }: { etape: strin
 
 // ───────────────────────── Le détail d'un BC (un devis retenu) ─────────────────────────
 
-type ModeBc = "modifier" | "supprimer" | "facture" | null;
+type ModeBc = "modifier" | "supprimer" | "facture" | "reception" | null;
 
 /**
  * LE DÉTAIL D'UNE LIGNE DU TABLEAU — sous le tableau, pleine largeur (au téléphone comme au bureau) : la frise du BC,
  * ses fichiers, la modification ou la suppression, le dépôt d'une facture, et chaque facture avec sa réception et son
  * paiement. Le geste ouvert arrive du « ⋯ » de la ligne (ou de « Ce qu'il reste à faire »).
  */
-function DetailBc({ id, e, canPilot, canReceive, ouvert, options, mode, setMode }: {
+function DetailBc({ id, e, canPilot, canReceive, ouvert, options, mode, setMode, formalite }: {
   id: string; e: ExecutionAffichee; canPilot: boolean; canReceive: boolean; ouvert: boolean; options: Props["optionsReception"];
-  mode: ModeBc; setMode: (m: ModeBc) => void;
+  mode: ModeBc; setMode: (m: ModeBc) => void; formalite: string | null;
 }) {
   const { saving, err, msg, run } = useRun();
   const bc = e.bc;
@@ -655,7 +680,7 @@ function DetailBc({ id, e, canPilot, canReceive, ouvert, options, mode, setMode 
       {/* LES FACTURES DE CE BC — détaillées, chacune avec sa réception, son paiement et sa formalité. */}
       {bc && (e.factures.length > 0 || signe) && (
         <div className="space-y-2">
-          {e.factures.map((f) => <Facture key={f.id} id={id} f={f} agir={agir} canReceive={canReceive && ouvert} options={options} />)}
+          {e.factures.map((f) => <Facture key={`${f.id}:${mode === "reception"}`} id={id} f={f} agir={agir} canReceive={canReceive && ouvert} options={options} formalite={formalite} deplie={mode === "reception"} />)}
           {agir && signe && resteAFacturer && mode !== "facture" && (
             <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={saving} onClick={() => setMode("facture")}><Upload className="h-4 w-4" /> Déposer une facture</Button>
           )}
@@ -669,29 +694,36 @@ function DetailBc({ id, e, canPilot, canReceive, ouvert, options, mode, setMode 
   );
 }
 
-/** L'état du BC d'une ligne, en une pastille : où il est, chez qui. */
-function etatDuBc(e: ExecutionAffichee): { texte: string; ton: "neutral" | "success" | "warning" | "danger" | "info" } {
-  if (!e.bc) return e.brouillon ? { texte: "à vérifier par le demandeur", ton: "warning" } : { texte: "à préparer", ton: "neutral" };
-  switch (e.bc.etape) {
-    case "A_SIGNER": return { texte: "chez les Finances", ton: "warning" };
-    case "A_VALIDER": return { texte: "au centre Ad & Pro", ton: "info" };
-    case "SANS_PORTE": return { texte: "à adresser au centre", ton: "warning" };
-    case "A_REVOIR": case "A_CORRIGER": return { texte: "à corriger", ton: "warning" };
-    case "REFUSE": return { texte: "refusé", ton: "danger" };
-    case "SIGNE": return e.envoyeLe
-      ? { texte: `envoyé le ${new Date(e.envoyeLe).toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })}`, ton: "success" }
-      : { texte: "signé — à envoyer", ton: "info" };
-    default: return { texte: e.bc.libelleEtape.toLowerCase(), ton: "neutral" };
-  }
+/** Les faits d'une ligne du tableau, dans la forme que lisent les pastilles et le geste (`promo-material/fiche.ts`). */
+function faitsDeLaCommande(e: ExecutionAffichee): CommandeFaits {
+  return {
+    etape: e.bc?.etape ?? null, brouillon: !e.bc && e.brouillon !== null, envoyeLe: e.envoyeLe,
+    resteAFacturer: !e.bc || e.lignesBC.some((l) => l.reste > 0),
+    factures: e.factures.map((f) => {
+      const lignes = f.detail?.lignes ?? [];
+      const dates = lignes.map((l) => l.recueLe).filter((x): x is string => Boolean(x)).sort();
+      return {
+        lignes: lignes.length,
+        enAttente: lignes.filter((l) => l.etat === "EN_ATTENTE" || l.etat === "PARTIELLE").length,
+        recues: lignes.filter((l) => l.quantiteRecue != null).length,
+        renoncees: lignes.filter((l) => l.renonce).length,
+        derniereReception: dates.length ? dates[dates.length - 1] : null,
+        paiementDemande: f.paiementDemande, reglee: f.reglee, etatReglement: f.etat, demandeIM: Boolean(f.demandeInfoMedicale),
+      };
+    }),
+  };
 }
 
 const nombreDzd = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+const Vide = () => <span className="text-muted-foreground">—</span>;
+const PastilleOuVide = ({ p }: { p: Pastille | null }) => (p ? <Badge tone={p.ton} className="whitespace-nowrap">{p.texte}</Badge> : <Vide />);
 
 /**
- * BONS DE COMMANDE, RÉCEPTION, FACTURES — UNE LIGNE PAR BC (maquette validée, 10/2026) : son numéro (le PDF), le fournisseur,
- * le TTC, où en est le BC (aperçu « à vérifier par le demandeur », chez les Finances, signé, envoyé), la réception, les
- * factures et le paiement. « ⋯ » : les fichiers (PDF, Word, Excel), l'aperçu à valider, modifier, supprimer, marquer envoyé,
- * déposer la facture — les gestes d'hier, rangés. Le détail de la ligne choisie s'ouvre sous le tableau.
+ * COMMANDES — UNE LIGNE PAR BC (maquette validée, étape 4 « Commande, livraison, paiement », 10/2026) : le fournisseur (et
+ * ce qui est commandé), le BC (le PDF), le TTC, la livraison, la facture, le paiement, le visa ou la déclaration — chaque
+ * état en une pastille — et UN bouton, le prochain geste de la personne qui regarde (« J'ai reçu », « Demander le
+ * paiement », « Joindre la facture »). « ⋯ » garde tous les autres gestes (aperçu, fichiers, envoi, correction,
+ * suppression, détail de la réception…). Le détail de la ligne choisie s'ouvre sous le tableau. Le total en pied.
  */
 export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouvert, optionsReception, peutValiderBc }: Props) {
   const { saving, err, msg, run } = useRun();
@@ -705,6 +737,8 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
   const detailRef = React.useRef<HTMLDivElement>(null);
   const aGenerer = executions.filter((e) => !e.bc && !e.brouillon).length;
   const agir = canPilot && ouvert;
+  const formalite = formaliteDuDossier(executions.flatMap((e) => e.factures.map((f) => f.demandeInfoMedicale)));
+  const total = totalDesCommandes(executions.map((e) => ({ ttc: e.bc?.montant ?? e.ttc })));
   const ouvrir = (quoteId: string, m: ModeBc) => {
     setChoisi(quoteId); setMode(m);
     window.setTimeout(() => detailRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50);
@@ -716,6 +750,7 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
     if (g.cle === "VERIFIER_BC") setApercu(g.quoteId);
     else if (g.cle === "MODIFIER_BC") ouvrir(g.quoteId, "modifier");
     else if (g.cle === "DEPOSER_FACTURE") ouvrir(g.quoteId, "facture");
+    else if (g.cle === "RECEPTIONNER") ouvrir(g.quoteId, "reception");
     else ouvrir(g.quoteId, null);
   });
 
@@ -727,6 +762,7 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
     const signe = bc?.etape === "SIGNE";
     const fige = e.factures.length > 0;
     const reste = e.lignesBC.some((l) => l.reste > 0);
+    const aViser = e.factures.some((f) => f.paiementDemande && !f.demandeInfoMedicale);
     const form = () => { const f = new FormData(); f.set("promoMaterialId", id); f.set("quoteId", e.quoteId); return f; };
     return [
       ...(e.brouillon ? [{ libelle: peutValiderBc ? "Vérifier et valider l'aperçu" : "Voir l'aperçu", onClick: () => setApercu(e.quoteId) }] : []),
@@ -734,17 +770,27 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
       ...(bc?.docx ? [{ libelle: "Word", href: lienFichierEmis(bc.id, "docx", true), telecharger: true }] : []),
       ...(bc ? [{ libelle: "Excel", href: lienFichierEmis(bc.id, "xlsx", true), telecharger: true }] : []),
       ...(agir && bc && signe && !e.envoyeLe ? [{ libelle: "Marquer envoyé au fournisseur", onClick: () => run(() => marquerBonDeCommandeEnvoye(form())), disabled: saving }] : []),
-      ...(agir && bc && signe && reste ? [{ libelle: "Déposer la facture", onClick: () => ouvrir(e.quoteId, "facture") }] : []),
+      ...(agir && bc && signe && reste ? [{ libelle: "Joindre une facture", onClick: () => ouvrir(e.quoteId, "facture") }] : []),
+      ...(agir && aViser ? [{ libelle: "Adresser le visa / la déclaration", onClick: () => ouvrir(e.quoteId, null) }] : []),
       ...(agir && bc && !fige ? [{ libelle: "Modifier le BC", onClick: () => ouvrir(e.quoteId, "modifier") }] : []),
       ...(agir && bc && !fige ? [{ libelle: "Supprimer le BC", danger: true, onClick: () => ouvrir(e.quoteId, "supprimer") }] : []),
       ...(bc ? [{ libelle: "Détail, réception, paiement", onClick: () => ouvrir(e.quoteId, null) }] : []),
     ];
   };
 
+  // La colonne figée (Fournisseur) garde un fond opaque — sur la ligne choisie comme ailleurs — et un filet à droite.
+  const fige = (actif: boolean) => `sticky left-0 z-[1] min-w-[9.5rem] max-w-[11rem] shadow-[inset_-1px_0_0_hsl(var(--border))] sm:min-w-[12rem] sm:max-w-[16rem] ${actif ? "bg-accent" : "bg-card"}`;
+
   return (
     <section id="bc" className="surface scroll-mt-20 overflow-hidden" aria-labelledby="titre-bc">
       <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-        <h2 id="titre-bc" className="text-[0.9375rem] font-semibold">Bons de commande, réception, factures</h2>
+        <h2 id="titre-bc" className="flex items-center gap-1 text-[0.9375rem] font-semibold">
+          Commandes
+          <InfoBulle label="Comment avance une commande" align="left">
+            Un seul bouton par ligne : le prochain geste. La demande de visa ou de déclaration part toute seule avec chaque
+            paiement. Le dossier se clôt seul quand tout est reçu, payé et visé. Les autres gestes sont dans « ⋯ ».
+          </InfoBulle>
+        </h2>
         {agir && aGenerer > 0 && !generer && (
           <Button size="sm" variant="outline" onClick={() => setGenerer(true)}><Wand2 className="h-4 w-4" /> Préparer les BC ({aGenerer})</Button>
         )}
@@ -754,61 +800,80 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
         <p className="px-4 py-3 text-sm text-muted-foreground">Aucune ligne de devis n&apos;est retenue.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[46rem] text-sm">
+          <table className="w-full min-w-[54rem] text-sm">
             <thead>
-              <tr className="bg-muted/50 text-left text-xs text-muted-foreground">
-                <th className="sticky left-0 z-[1] bg-card px-3 py-2 font-medium">BC</th>
-                <th className="px-3 py-2 font-medium">Fournisseur</th>
-                <th className="px-3 py-2 text-right font-medium">TTC</th>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className={`${fige(false)} px-3 py-2 font-medium`}>Fournisseur</th>
                 <th className="px-3 py-2 font-medium">BC</th>
-                <th className="px-3 py-2 font-medium">Réception</th>
+                <th className="px-3 py-2 text-right font-medium">TTC</th>
+                <th className="px-3 py-2 font-medium">Livraison</th>
                 <th className="px-3 py-2 font-medium">Facture</th>
                 <th className="px-3 py-2 font-medium">Paiement</th>
-                <th className="w-10 px-2 py-2" aria-label="Actions" />
+                <th className="px-3 py-2 font-medium">Visa / déclaration IM</th>
+                <th className="px-3 py-2"><span className="sr-only">Action</span></th>
               </tr>
             </thead>
             <tbody>
               {executions.map((e) => {
-                const etat = etatDuBc(e);
-                const lignes = e.factures.flatMap((f) => f.detail?.lignes ?? []);
-                const recues = lignes.filter((l) => l.etat !== "EN_ATTENTE" && l.etat !== "PARTIELLE").length;
-                const factureTtc = e.factures.reduce((s, f) => s + (f.montant ?? 0), 0);
-                const reste = e.lignesBC.some((l) => l.reste > 0);
-                const nonReglee = e.factures.find((f) => !f.reglee);
+                const faits = faitsDeLaCommande(e);
+                const p = pastillesDeLaCommande(faits);
+                const geste = gesteDeLaCommande(faits, { ouvert, pilote: canPilot, peutReceptionner: canReceive });
                 const menu = entrees(e);
+                const actif = choisi === e.quoteId;
+                const visibles = e.articles.slice(0, 2);
                 return (
-                  <tr key={e.quoteId} className={`border-t border-border ${choisi === e.quoteId ? "bg-primary/5" : ""}`}>
-                    <td className={`sticky left-0 z-[1] whitespace-nowrap px-3 py-2 ${choisi === e.quoteId ? "bg-primary/5" : "bg-card"}`}>
+                  <tr key={e.quoteId} className={`border-t border-border align-top ${actif ? "bg-accent" : ""}`}>
+                    <td className={`${fige(actif)} px-3 py-2`}>
+                      <span className="block font-semibold [overflow-wrap:anywhere]">{e.fournisseur}</span>
+                      {visibles.map((a) => <span key={a} className="block text-xs text-muted-foreground [overflow-wrap:anywhere]">{a}</span>)}
+                      {e.articles.length > visibles.length && <span className="block text-xs text-muted-foreground">+ {e.articles.length - visibles.length} autre{e.articles.length - visibles.length > 1 ? "s" : ""}</span>}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-2">
                       {e.bc
                         ? (e.bc.pdf
                           ? <a className="font-medium text-primary hover:underline" href={lienFichierEmis(e.bc.id, "pdf")} target="_blank" rel="noreferrer">{e.bc.reference ?? "Bon de commande"}</a>
                           : <span className="font-medium">{e.bc.reference ?? "Bon de commande"}</span>)
                         : e.brouillon
                           ? <button type="button" className="font-medium text-primary hover:underline" onClick={() => setApercu(e.quoteId)}>Aperçu</button>
-                          : <span className="text-muted-foreground">—</span>}
+                          : <Vide />}
+                      {p.bc && <span className="mt-1 block"><Badge tone={p.bc.ton} className="whitespace-nowrap">{p.bc.texte}</Badge></span>}
+                      {e.envoyeLe && <span className="block text-xs text-muted-foreground">envoyé le {jourMois(e.envoyeLe)}</span>}
                     </td>
-                    <td className="px-3 py-2">{e.fournisseur}</td>
                     <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{nombreDzd(e.bc?.montant ?? e.ttc)}</td>
-                    <td className="px-3 py-2"><Badge tone={etat.ton}>{etat.texte}</Badge></td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {lignes.length === 0 ? <span className="text-muted-foreground">—</span>
-                        : <Badge tone={recues === lignes.length ? "success" : "warning"}>{recues}/{lignes.length} reçue{lignes.length > 1 ? "s" : ""}</Badge>}
+                    <td className="px-3 py-2"><PastilleOuVide p={p.livraison} /></td>
+                    <td className="px-3 py-2">
+                      <span className="flex items-center gap-1">
+                        <PastilleOuVide p={p.facture} />
+                        {e.factures.length === 1 && e.factures[0].fichierId && (
+                          <a className="text-muted-foreground hover:text-foreground" href={`/api/documents/${e.factures[0].fichierId}`} target="_blank" rel="noreferrer" aria-label="Ouvrir la facture"><FileText className="h-3.5 w-3.5" /></a>
+                        )}
+                      </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {e.factures.length > 0
-                        ? <span className="tabular-nums">{e.factures.length > 1 ? `${e.factures.length} · ` : ""}{nombreDzd(factureTtc)}</span>
-                        : e.bc?.etape === "SIGNE" && reste ? <span className="text-warning">à déposer</span> : <span className="text-muted-foreground">—</span>}
+                    <td className="px-3 py-2"><PastilleOuVide p={p.paiement} /></td>
+                    <td className="px-3 py-2"><PastilleOuVide p={p.visa} /></td>
+                    <td className="whitespace-nowrap px-2 py-2 text-right">
+                      <span className="inline-flex items-center gap-1">
+                        {geste && (
+                          <Button size="sm" disabled={saving} onClick={() => ouvrir(e.quoteId, geste.cle === "DEPOSER_FACTURE" ? "facture" : geste.cle === "RECEPTIONNER" ? "reception" : null)}>
+                            {geste.cle === "RECEPTIONNER" ? <PackageCheck className="h-4 w-4" /> : geste.cle === "DEPOSER_FACTURE" ? <Upload className="h-4 w-4" /> : <Send className="h-4 w-4" />}
+                            {geste.libelle}
+                          </Button>
+                        )}
+                        {menu.length > 0 && <MenuLigne entrees={menu} label={`Actions — ${e.fournisseur}`} />}
+                      </span>
                     </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      {e.factures.length === 0 ? <span className="text-muted-foreground">—</span>
-                        : !nonReglee ? <Badge tone="success">payé</Badge>
-                        : <span className="text-xs text-muted-foreground">{nonReglee.etatReglement}</span>}
-                    </td>
-                    <td className="px-2 py-2 text-right">{menu.length > 0 && <MenuLigne entrees={menu} label={`Actions — ${e.fournisseur}`} />}</td>
                   </tr>
                 );
               })}
             </tbody>
+            <tfoot>
+              <tr className="border-t border-border font-semibold">
+                <td className={`${fige(false)} px-3 py-2`}>Total</td>
+                <td className="px-3 py-2" />
+                <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{nombreDzd(total)}</td>
+                <td className="px-3 py-2" colSpan={5} />
+              </tr>
+            </tfoot>
           </table>
         </div>
       )}
@@ -860,7 +925,7 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
             <p className="font-medium">{detail.bc?.reference ? `BC ${detail.bc.reference}` : "Bon de commande"} — {detail.fournisseur}</p>
             <Button size="sm" variant="ghost" onClick={() => { setChoisi(null); setMode(null); }} aria-label="Fermer le détail"><X className="h-4 w-4" /></Button>
           </div>
-          <DetailBc key={detail.quoteId} id={id} e={detail} canPilot={canPilot} canReceive={canReceive} ouvert={ouvert} options={optionsReception} mode={mode} setMode={setMode} />
+          <DetailBc key={detail.quoteId} id={id} e={detail} canPilot={canPilot} canReceive={canReceive} ouvert={ouvert} options={optionsReception} mode={mode} setMode={setMode} formalite={formalite} />
         </div>
       )}
 
@@ -874,58 +939,3 @@ export function PromoExecutionCard({ id, executions, canPilot, canReceive, ouver
     </section>
   );
 }
-
-/**
- * VISA / DÉCLARATION — compacte, à côté du tableau des BC : la demande de visa publicitaire (ou la déclaration au
- * ministère) qui part avec chaque paiement, à l'information médicale. Une ligne par facture dont le paiement est demandé ;
- * « Adresser » pour celle qui n'a pas encore la sienne (les pilotes de l'exécution).
- */
-export function PromoVisaCard({ id, executions, canPilot, ouvert }: { id: string; executions: ExecutionAffichee[]; canPilot: boolean; ouvert: boolean }) {
-  const { saving, err, msg, run } = useRun();
-  const [ouverte, setOuverte] = React.useState<string | null>(null);
-  const agir = canPilot && ouvert;
-  const payees = executions.flatMap((e) => e.factures.filter((f) => f.paiementDemande).map((f) => ({ e, f })));
-  const aAdresser = payees.find(({ f }) => !f.demandeInfoMedicale);
-  useGeste((g) => { if (g.cle === "ADRESSER_IM" && aAdresser) setOuverte(aAdresser.f.id); });
-
-  return (
-    <section id="visa" className="surface scroll-mt-20 overflow-hidden" aria-labelledby="titre-visa">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
-        <h2 id="titre-visa" className="text-[0.9375rem] font-semibold">Visa / déclaration</h2>
-        {payees.length === 0 && <Badge tone="neutral">après le 1er paiement</Badge>}
-      </header>
-      {payees.length === 0 ? (
-        <div className="flex items-center gap-1 px-4 py-3 text-sm text-muted-foreground">
-          Déclaration ou visa publicitaire
-          <InfoBulle label="Quand part la demande" align="left">Elle part avec chaque demande de paiement, à l&apos;information médicale : visa publicitaire ou déclaration au ministère.</InfoBulle>
-        </div>
-      ) : (
-        <ul className="divide-y divide-border">
-          {payees.map(({ e, f }) => (
-            <li key={f.id} className="space-y-2 px-4 py-2.5 text-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="min-w-0">
-                  Facture {f.reference ?? "sans numéro"}
-                  <span className="block text-xs text-muted-foreground">{e.fournisseur}</span>
-                </span>
-                {f.demandeInfoMedicale
-                  ? <span className="text-right text-xs"><span className="block font-medium">{f.demandeInfoMedicale.reference}</span><span className="text-muted-foreground">{f.demandeInfoMedicale.nature}</span></span>
-                  : agir && ouverte !== f.id
-                    ? <Button size="sm" variant="outline" onClick={() => setOuverte(f.id)}><Stethoscope className="h-4 w-4" /> Adresser</Button>
-                    : <Badge tone="warning">à adresser</Badge>}
-              </div>
-              {agir && !f.demandeInfoMedicale && ouverte === f.id && (
-                <form className="flex flex-wrap items-center gap-2" action={(fd: FormData) => { fd.set("promoMaterialId", id); fd.set("invoiceId", f.id); run(() => adresserInfoMedicaleFacturePromo(fd), () => setOuverte(null)); }}>
-                  <ChoixFormalite name="formalite" />
-                  <Button type="submit" size="sm" className={aLaLigne} disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Stethoscope className="h-4 w-4" />} Adresser à l&apos;information médicale</Button>
-                </form>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {(err || msg) && <div className="space-y-2 border-t border-border px-4 py-2.5"><Erreur msg={err} /><Info msg={msg} /></div>}
-    </section>
-  );
-}
-

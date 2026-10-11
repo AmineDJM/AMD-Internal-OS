@@ -2129,7 +2129,14 @@ export function scopeAdminRequests(user: SessionUser): Prisma.AdministrativeRequ
   if (!m) return { id: "__none__" };
   // Les demandes supprimées (soft delete traçable) sont masquées des vues normales.
   if (m.scope === "ALL") return { deletedAt: null };
-  return { deletedAt: null, OR: [{ requesterId: user.id }, { concernedUserId: user.id }, { assignedToId: user.id }, { validatorId: user.id }] };
+  // Les PARTICIPANTS ajoutés par le demandeur (`fields.participantIds`, Direction 10/2026) lisent la demande.
+  return {
+    deletedAt: null,
+    OR: [
+      { requesterId: user.id }, { concernedUserId: user.id }, { assignedToId: user.id }, { validatorId: user.id },
+      { fields: { path: ["participantIds"], array_contains: [user.id] } },
+    ],
+  };
 }
 
 /** Matériel promotionnel : scope ALL voit tout ; sinon l'initiateur Marketing et

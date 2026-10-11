@@ -14,6 +14,8 @@ import {
   etapesVisibles, etapesAAjouter, peutDemanderOrdre, peutRetirerOrdre, noteFraisOuverte, demandeRelancable, jourIso,
   LIBELLE_ETAPE, type EtapeFacultative, type Etat,
 } from "@/lib/missions-equipe/etat";
+import { etatParticipation, aQuiLeTour } from "@/lib/missions-equipe/participation";
+import { lienMission } from "@/lib/chemins/espace";
 import { MISSION_ROLE } from "@/lib/labels";
 import { formatDate, cn } from "@/lib/utils";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
@@ -67,8 +69,11 @@ export function MesMissions({ missions, aValider, articles, currentUserId }: {
     if (r.ok) { apres?.(); rafraichir(); }
   };
 
-  const invitations = missions.filter((m) => m.response === "INVITEE");
-  const confirmees = missions.filter((m) => m.response === "CONFIRMEE");
+  // LA DEMANDE DE PARTICIPATION (Direction, 10/2026) : une fiche à remplir en tête ; les participations en discussion
+  // ou convenues dans un tableau qui dit « où — chez qui » ; les missions d'avant la fiche gardent leur carte.
+  const invitations = missions.filter((m) => m.participation.etape === "FICHE_A_REMPLIR");
+  const participations = missions.filter((m) => m.participation.nbVersions > 0 && m.response !== "DECLINEE");
+  const confirmees = missions.filter((m) => m.participation.etape === "CONFIRMEE_SANS_FICHE");
   const declinees = missions.filter((m) => m.response === "DECLINEE");
 
   return (
@@ -79,9 +84,11 @@ export function MesMissions({ missions, aValider, articles, currentUserId }: {
 
       {invitations.length > 0 && (
         <Card className="overflow-hidden">
-          {invitations.map((m) => <Invitation key={m.id} m={m} occupe={occupe} busy={busy} executer={executer} />)}
+          {invitations.map((m) => <Invitation key={m.id} m={m} occupe={occupe} executer={executer} />)}
         </Card>
       )}
+
+      {participations.length > 0 && <MesParticipations lignes={participations} />}
 
       {confirmees.map((m) => (
         <CarteMission key={m.id} m={m} articles={articles} occupe={occupe} busy={busy} executer={executer} currentUserId={currentUserId} />
@@ -111,8 +118,8 @@ function OrdresAValider({ lignes, occupe, busy, executer }: { lignes: OrdreAVali
   return (
     <section id="a-valider" className="scroll-mt-20 space-y-2">
       <h2 className="flex items-center gap-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        Ordres de mission à valider ({lignes.length})
-        <InfoBulle align="left">Vous êtes le N+1 : votre validation envoie l&apos;ordre aux RH, qui l&apos;établissent. Un refus porte un motif et prévient la personne.</InfoBulle>
+        À valider comme N+1 ({lignes.length})
+        <InfoBulle align="left">Ordres de mission et notes de frais de mission de votre équipe : votre validation les envoie aux RH. Un refus porte un motif et prévient la personne.</InfoBulle>
       </h2>
       <Card className="overflow-x-auto">
         <table className="w-full border-collapse text-sm">
@@ -130,7 +137,11 @@ function OrdresAValider({ lignes, occupe, busy, executer }: { lignes: OrdreAVali
               <React.Fragment key={l.requestId}>
                 <tr className="border-t border-border">
                   <td className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2 font-medium">{l.employeeName}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{l.mission}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <span className="mr-1.5 text-xs text-muted-foreground">{l.nature === "NF" ? "Note de frais" : "Ordre de mission"} ·</span>
+                    {l.missionId && l.nature === "NF" ? <Link href={lienMission(l.missionId, "frais")} className="text-primary hover:underline">{l.mission}</Link> : l.mission}
+                    {l.montant != null ? ` · ${l.montant.toLocaleString("fr-FR")} DZD` : ""}
+                  </td>
                   <td className="whitespace-nowrap px-3 py-2">{periode(l.dates.depart, l.dates.retour)}</td>
                   <td className="whitespace-nowrap px-3 py-2">{l.destination || "—"}</td>
                   <td className="whitespace-nowrap px-3 py-2 text-right">
@@ -168,23 +179,68 @@ function OrdresAValider({ lignes, occupe, busy, executer }: { lignes: OrdreAVali
   );
 }
 
+// ─────────────────────────────── Mes participations ───────────────────────────────
+
+/** Les participations en discussion ou convenues — une ligne chacune, « où en est-on — chez qui », et la mission à ouvrir. */
+function MesParticipations({ lignes }: { lignes: MissionAssignmentDTO[] }) {
+  return (
+    <Card className="overflow-x-auto">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="bg-secondary/40 text-left text-xs text-muted-foreground">
+            <th className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2 font-medium">Mission</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Rôle</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Dates</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Où en est-on</th>
+            <th className="whitespace-nowrap px-3 py-2 font-medium">Ordre de mission</th>
+            <th className="px-3 py-2"><span className="sr-only">Ouvrir</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {lignes.map((m) => {
+            const p = m.participation;
+            const etat = m.clotureLe ? { texte: "clôturée", ton: "success" as const } : etatParticipation(p.etape, p.derniere, "PERSONNE", { personne: m.userName, organisateur: m.organiserName });
+            const aMoi = aQuiLeTour(p.etape) === "PERSONNE";
+            return (
+              <tr key={m.id} className="border-t border-border">
+                <td className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2 font-medium">
+                  <Link href={lienMission(m.id)} className="text-primary hover:underline">{m.parentLabel}</Link>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2">{MISSION_ROLE[m.role]?.label ?? m.role}</td>
+                <td className="whitespace-nowrap px-3 py-2">{periode(m.dateDepart, m.dateRetour)}</td>
+                <td className="whitespace-nowrap px-3 py-2"><Pastille etat={etat} /></td>
+                <td className="whitespace-nowrap px-3 py-2">{m.om.etat === "AUCUN" ? <span className="text-muted-foreground">—</span> : <Pastille etat={m.om.libelle} />}</td>
+                <td className="whitespace-nowrap px-3 py-2 text-right">
+                  <Link href={lienMission(m.id)} className={cn("inline-flex h-8 items-center rounded-lg px-3 text-xs font-medium", aMoi ? "bg-primary text-primary-foreground hover:bg-primary/90" : "border border-border hover:bg-secondary")}>
+                    {aMoi ? "Répondre" : m.om.etat === "EMIS" ? "Ma mission" : "Ouvrir"}
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </Card>
+  );
+}
+
 // ─────────────────────────────── Invitation ───────────────────────────────
 
-function Invitation({ m, occupe, busy, executer }: { m: MissionAssignmentDTO; occupe: boolean; busy: string | null; executer: Executer }) {
+function Invitation({ m, occupe, executer }: { m: MissionAssignmentDTO; occupe: boolean; executer: Executer }) {
   const [decliner, setDecliner] = React.useState(false);
   return (
     <div className="border-b border-border bg-warning/10 px-4 py-3 last:border-b-0">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="font-medium">Invitation — <Link href={m.parentPath} className="hover:underline">{m.parentLabel}</Link></p>
+          <p className="font-medium">Demande de participation — <Link href={m.parentPath} className="hover:underline">{m.parentLabel}</Link></p>
           <p className="text-xs text-muted-foreground">
             {MISSION_ROLE[m.role]?.label ?? m.role} · {periode(m.dateDepart, m.dateRetour)}{m.ville ? ` · ${m.ville}` : ""}{m.organiserName ? ` · par ${m.organiserName}` : ""}
           </p>
         </div>
         <div className="flex shrink-0 gap-1.5">
-          <Button size="sm" disabled={occupe} onClick={() => void executer(`ok-${m.id}`, repondreMission, { id: m.id, decision: "CONFIRMER" })}>
-            {busy === `ok-${m.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Je confirme
-          </Button>
+          <Link href={lienMission(m.id)} className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90 sm:h-8">
+<Check className="h-4 w-4" /> Remplir ma fiche
+          </Link>
           <Button size="sm" variant="outline" disabled={occupe} onClick={() => setDecliner((v) => !v)}>Je décline</Button>
         </div>
       </div>

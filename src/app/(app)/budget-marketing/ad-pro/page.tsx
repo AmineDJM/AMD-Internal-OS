@@ -22,12 +22,15 @@ const TD = "whitespace-nowrap px-3 py-2";
  * BUDGET MARKETING — LES DEMANDES Ad & Pro QUI CONSOMMENT L'ENVELOPPE. Chaque poste accordé rangé dans une catégorie de
  * l'enveloppe, avec sa demande, son montant accordé, ce qui est engagé (ordre émis, non payé) et réglé.
  */
-export default async function BudgetMarketingAdProPage({ searchParams }: { searchParams: ParamsBudget }) {
+export default async function BudgetMarketingAdProPage({ searchParams }: { searchParams: ParamsBudget & { cat?: string } }) {
   const user = await requireModule("BUDGET_MARKETING");
   const opts = { portee: "MARKETING" as const };
   const [envelopes, tabs] = await Promise.all([getEnvelopes(user, opts), visibleTabs(user, BUDGET_MARKETING_TABS)]);
   const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), null, null, opts);
-  const lignes = overview ? await demandesAdProDeLEnveloppe(overview.categories) : [];
+  // « Voir les N demandes » d'une catégorie (vue d'ensemble) : la catégorie et ses sous-catégories seulement.
+  const filtre = overview && searchParams.cat ? overview.categories.find((c) => c.id === searchParams.cat) ?? null : null;
+  const categories = overview ? (filtre ? overview.categories.filter((c) => c.id === filtre.id || c.parentId === filtre.id) : overview.categories) : [];
+  const lignes = overview ? await demandesAdProDeLEnveloppe(categories) : [];
   const somme = (k: "accorde" | "engage" | "regle") => lignes.reduce((a, l) => a + l[k], 0);
 
   return (
@@ -41,7 +44,8 @@ export default async function BudgetMarketingAdProPage({ searchParams }: { searc
           <BudgetContextBar envelopes={envelopes} currentId={overview.envelope.id} from={overview.period.from} to={overview.period.to} />
           <section className="surface min-w-0 overflow-hidden rounded-xl">
             <header className="flex items-center gap-1.5 border-b border-border px-4 py-3">
-              <h2 className="text-sm font-semibold">Postes rangés dans l&apos;enveloppe <span className="font-normal text-muted-foreground">({lignes.length})</span></h2>
+              <h2 className="text-sm font-semibold">{filtre ? <>Postes rangés dans « {filtre.name} »</> : <>Postes rangés dans l&apos;enveloppe</>} <span className="font-normal text-muted-foreground">({lignes.length})</span></h2>
+              {filtre && <Link href={`?env=${encodeURIComponent(overview.envelope.id)}`} className="text-xs text-primary hover:underline">Toutes les catégories</Link>}
               <InfoBulle label="À propos : postes Ad & Pro">
                 Un poste Ad &amp; Pro accordé est rangé dans une catégorie de l&apos;enveloppe. Engagé = ordre de dépense émis, pas encore payé ; réglé = payé par les Finances.
               </InfoBulle>

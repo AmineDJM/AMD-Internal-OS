@@ -36,3 +36,20 @@ dossier (`canAccessEntity` UPLOAD, portée de ligne, gamme, verrou) ; retirer, r
 
 ---
 
+
+### Matériel promotionnel — « Commandes » : une ligne par BC, un bouton, clôture automatique (2026-10)
+
+Étape 4 de la maquette validée (« Commande, livraison, paiement ») : la carte « Bons de commande, réception, factures » devient
+**« Commandes »**, pleine largeur ; la carte « Visa / déclaration » disparaît (sa colonne entre dans le tableau). Une ligne par BC :
+Fournisseur (figé, avec les articles commandés) · BC (NNN/DG/AAAA, le PDF) · TTC · Livraison · Facture · Paiement · Visa /
+déclaration IM, chaque état en une pastille, et **un seul bouton** — le prochain geste de qui regarde : « Joindre la facture »,
+« J'ai reçu » (la réception se coche sur les lignes de la facture, ce qui entre au stock), « Demander le paiement ». Le reste
+(aperçu, fichiers, envoi, modification, suppression, détail, renoncement, rattrapage du visa) reste dans « ⋯ ». Total en pied.
+La demande de visa / déclaration part avec chaque paiement (formalité proposée : celle de la demande précédente du dossier).
+**Clôture automatique** (`lib/promo-cloture.ts`) : quand chaque BC est signé, entièrement facturé, reçu, réglé et visé, le dossier
+passe « terminé » — au règlement de l'ordre (`settleExpenseOrder`) ou au rattrapage du visa ; mêmes vérifications que
+`completePromoTrack` (extraites, inchangées) ; « Clore le dossier » reste offert aux pilotes en repli. Règles pures :
+`promo-material/fiche.ts` (`pastillesDeLaCommande`, `gesteDeLaCommande`, `totalDesCommandes`, `commandesSoldees`,
+`formaliteDuDossier`), testées dans `commandes.test.ts`.
+
+---

@@ -20,14 +20,12 @@ import {
   contexteDuDossier, validateursDeLaDemande, validateursMarketing, devisLu, SELECT_DEVIS,
 } from "@/lib/queries/promo-circuit";
 import { totauxDeLaSelection, formatDzd } from "@/lib/promo-material/devis";
-import { verdictDuChantierPromo, executionDuDossier } from "@/lib/queries/promo-execution";
+import { executionDuDossier } from "@/lib/queries/promo-execution";
+import { refusDuChantierPromo } from "@/lib/promo-cloture";
 import { notifierSignatairesBC } from "@/lib/bons-de-commande/signataires";
 import { lienBonDeCommande } from "@/lib/chemins/bons-de-commande";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { hasGlobalView } from "@/lib/rbac";
-import { etatsDesBC } from "@/lib/bons-de-commande/etat";
-import { chantierBCClos } from "@/lib/bons-de-commande/regle";
-import { chantierPaiementClos, etatDeLOrdre, type PieceDeReglement } from "@/lib/payments/reglement";
 
 /**
  * LE CIRCUIT DU MATÉRIEL PROMOTIONNEL — les transitions de validation, et les chantiers.
@@ -54,74 +52,6 @@ const ETAPE_CHANGEE = "Ce dossier vient de changer d'étape — rechargez la fic
 const CHOIX_CHANGE = "La sélection a changé pendant votre validation (un autre onglet, ou un déblocage du Super Admin) : rien n'a été validé — rechargez la fiche, vérifiez les lignes retenues, puis validez.";
 /** Le refus d'une écriture qui a perdu la course — levé dans la transaction pour l'annuler entière, rattrapé à sa sortie. */
 class RefusEtape extends Error {}
-
-/**
- * LES RÈGLEMENTS RATTACHÉS À UN DOSSIER — tout ce qui peut porter son paiement (§118.148).
- *
- * Trois chemins mènent à un ordre de dépense, et un dossier peut les avoir empruntés tous :
- *   • l'ordre né du dossier lui-même (ancien parcours : bordereau, règlement final) ;
- *   • la FACTURE enregistrée depuis le dossier — ou qui découle d'un de ses bons de commande —,
- *     envoyée au règlement : son ordre ; ou, sans ordre, la date qu'elle porte si elle a été
- *     ENREGISTRÉE comme déjà réglée (le chemin que le registre des paiements nomme, §PAYMENT_PATHS) ;
- *   • le dossier de paiement ouvert sur le dossier.
- * Un même ordre peut être atteint par deux chemins (le dossier compagnon d'un ordre) : on compte
- * par ORDRE, jamais par chemin, sans quoi un paiement réglé compterait double et un paiement en
- * attente pourrait se cacher derrière son jumeau réglé.
- */
-async function reglementsDuDossierPromo(id: string): Promise<PieceDeReglement[]> {
-  const [ordresDirects, bcs, demandes] = await Promise.all([
-    prisma.expenseOrder.findMany({
-      where: { sourceType: "PROMO_MATERIAL", sourceId: id },
-      select: { id: true, reference: true, status: true, centralStatus: true },
-    }),
-    prisma.legalDocument.findMany({
-      where: { sourceType: "PROMO_MATERIAL", sourceId: id, kind: "PURCHASE_ORDER" },
-      select: { id: true },
-    }),
-    prisma.paymentRequest.findMany({
-      where: { entityType: "PROMO_MATERIAL", entityId: id, status: { notIn: ["CANCELLED", "REJECTED"] } },
-      select: { reference: true, expenseOrderId: true },
-    }),
-  ]);
-  const factures = await prisma.legalDocument.findMany({
-    where: {
-      kind: "INVOICE", status: { not: "CANCELLED" },
-      OR: [
-        { sourceType: "PROMO_MATERIAL", sourceId: id },
-        ...(bcs.length ? [{ chainFromId: { in: bcs.map((b) => b.id) } }] : []),
-      ],
-    },
-    select: { reference: true, title: true, expenseOrderId: true, paidDate: true },
-  });
-
-  const ordresIds = [
-    ...factures.map((f) => f.expenseOrderId), ...demandes.map((d) => d.expenseOrderId),
-  ].filter((x): x is string => Boolean(x));
-  const ordresLies = ordresIds.length
-    ? await prisma.expenseOrder.findMany({
-        where: { id: { in: ordresIds } },
-        select: { id: true, reference: true, status: true, centralStatus: true },
-      })
-    : [];
-
-  const parOrdre = new Map<string, PieceDeReglement>();
-  for (const o of [...ordresDirects, ...ordresLies]) {
-    parOrdre.set(o.id, { libelle: `ordre ${o.reference}`, etat: etatDeLOrdre(o) });
-  }
-  const sansOrdre: PieceDeReglement[] = [];
-  for (const f of factures) {
-    if (f.expenseOrderId) continue; // compté par son ordre
-    sansOrdre.push({
-      libelle: `facture ${f.reference?.trim() || `« ${f.title} »`}`,
-      etat: f.paidDate ? "REGLE" : "NON_ENVOYE",
-    });
-  }
-  for (const d of demandes) {
-    if (d.expenseOrderId) continue;
-    sansOrdre.push({ libelle: `demande de paiement ${d.reference}`, etat: "NON_ENVOYE" });
-  }
-  return [...parOrdre.values(), ...sansOrdre];
-}
 
 /** Les chantiers clos, lus depuis la colonne (liste séparée par des virgules). */
 function readTracks(raw: string | null): PromoTrack[] {
@@ -605,38 +535,11 @@ export async function completePromoTrack(formData: FormData): Promise<ActionResu
   const done = readTracks(item.tracksDone);
   if (done.includes(track as PromoTrack)) return { ok: true, message: "Ce chantier est déjà clos." };
 
-  // AU CIRCUIT 2, CHAQUE CHANTIER SE CONSTATE SUR SES PIÈCES (§118.152) : un BC SIGNÉ par devis
-  // retenu ; au moins une facture par BC, toutes réglées ; une demande de visa ou de déclaration
-  // par paiement. Le verdict dit TOUT ce qui manque, nommé — puis les gardes communes s'appliquent.
-  if (version === 2) {
-    const verdict = await verdictDuChantierPromo(id, track as PromoTrack);
-    if (!verdict.ok) return { ok: false, error: verdict.raison };
-  }
-
-  // LE CHANTIER « BON DE COMMANDE » EXIGE UN BC VALIDÉ PAR SON CENTRE (§118.148). Il se refermait
-  // d'un clic, sans pièce, sans qu'aucun centre ait rien vu — la règle de la Direction dit que tout
-  // BC né d'Ad & Pro passe par le centre de validation Ad & Pro.
-  if (track === "PURCHASE_ORDER") {
-    const bcs = await prisma.legalDocument.findMany({
-      where: { sourceType: "PROMO_MATERIAL", sourceId: id, kind: "PURCHASE_ORDER", status: { not: "CANCELLED" } },
-      select: { id: true, reference: true },
-    });
-    // L'ÉTAPE de chaque BC (§118.149) : validé ne suffit plus, il faut aussi la signature des
-    // Finances — un BC validé mais pas signé ne part pas chez le fournisseur.
-    const etats = await etatsDesBC(bcs.map((b) => b.id));
-    const verdict = chantierBCClos(bcs.map((b) => {
-      const e = etats.get(b.id);
-      return { reference: b.reference, porte: e?.porte ?? null, ...(e ? { etape: e.etape } : {}) };
-    }));
-    if (!verdict.ok) return { ok: false, error: verdict.raison };
-  }
-  // LE CHANTIER « PAIEMENT » EXIGE UN PAIEMENT RÉGLÉ (§118.148). Il se refermait d'un clic, sans
-  // ordre de dépense : le dossier se disait payé alors qu'aucun centre de paiement n'avait rien vu
-  // — et la Direction a dit que TOUS les paiements y passent.
-  if (track === "PAYMENT") {
-    const verdict = chantierPaiementClos(await reglementsDuDossierPromo(id));
-    if (!verdict.ok) return { ok: false, error: verdict.raison };
-  }
+  // AU CIRCUIT 2, CHAQUE CHANTIER SE CONSTATE SUR SES PIÈCES (§118.152) ; puis les gardes communes :
+  // un BC VALIDÉ PAR SON CENTRE et SIGNÉ (§118.148/149), un paiement RÉGLÉ par le centre de paiement
+  // (§118.148). Les MÊMES vérifications que la clôture automatique (`promo-cloture.ts`).
+  const refus = await refusDuChantierPromo(id, track as PromoTrack, version);
+  if (refus) return { ok: false, error: refus };
   const nextDone = [...done, track as PromoTrack];
   const finished = allTracksDone(nextDone);
 

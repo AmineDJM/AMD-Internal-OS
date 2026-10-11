@@ -11,7 +11,6 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
 import { getRequestList } from "@/lib/queries/admin-requests";
-import { createRequestBatch } from "./admin-request-actions";
 import { demanderPieceSecretariat } from "./ad-pro-item-actions";
 
 /**
@@ -79,8 +78,9 @@ describe("cliquet — toute création de demande au secrétariat pose sa sociét
   }
 
   it("PLANCHER : le parcours trouve les créations — sinon le cliquet serait vert en ne lisant rien (§118.17)", () => {
-    // Mesuré : six créations dans le dépôt au §118.154.
-    expect(sites.length).toBeGreaterThanOrEqual(6);
+    // Mesuré : six créations dans le dépôt au §118.154 ; cinq depuis que la demande multiple (`createRequestBatch`)
+    // est retirée (Direction, 10/2026).
+    expect(sites.length).toBeGreaterThanOrEqual(5);
   });
 
   it("chaque création écrit `companyId`, et jamais le littéral `null`", () => {
@@ -181,19 +181,6 @@ suite("les demandes au secrétariat arrivent dans le bureau cloisonné", () => {
     expect(dem.companyId).toBe(societeD);
   });
 
-  it("un LOT de cellules : chaque demande porte la société de son auteur, qui la retrouve dans sa liste", async () => {
-    ACTOR = await acteur(u.kam);
-    const fd = new FormData();
-    fd.set("cells", JSON.stringify([
-      { type: "PURCHASE", title: `${TAG} Cartouches d'encre` },
-      { type: "TRAVEL", title: `${TAG} Billet Oran` },
-    ]));
-    const r = await createRequestBatch(undefined, fd);
-    expect(r.ok, r.ok ? "" : r.error).toBe(true);
-    const lot = await prisma.administrativeRequest.findMany({ where: { requesterId: u.kam, title: { startsWith: TAG } }, select: { id: true, companyId: true } });
-    expect(lot).toHaveLength(2);
-    for (const d of lot) expect(d.companyId).toBe(societeC);
-    const miens = (await getRequestList(await acteur(u.kam), {})).rows.map((x) => x.id);
-    for (const d of lot) expect(miens, "l'auteur retrouve ses propres demandes").toContain(d.id);
-  });
+  // (Le banc « un LOT de cellules porte la société de son auteur » est retiré : la demande multiple n'existe
+  // plus — Direction, 10/2026 — et `createRequestBatch` avec elle.)
 });

@@ -385,6 +385,7 @@ export type AssistantActionPayload =
       type: string;
       title: string;
       description?: string | null;
+      /** Ignorés depuis 10/2026 (la demande va à l'assistante de direction) — lus sur d'anciennes cartes. */
       assigneeId?: string | null;
       assigneeName?: string | null;
       concernedId?: string | null;
@@ -1409,18 +1410,16 @@ const WRITE_TOOLS: ClaudeToolDef[] = [
   {
     name: "create_admin_request",
     description:
-      "PROPOSE la création d'une demande administrative (déplacement/billet, courrier, signature, achat, devis, paiement, mission chauffeur, visa/invité, RH simple, autre). N'exécute rien : confirmation requise. Pour un billet d'avion pour un invité, utiliser type=TRAVEL, détailler passager et trajet dans la description, et renseigner startDate/endDate.",
+      "PROPOSE la création d'une demande administrative (déplacement/billet, courrier, signature, achat, devis, paiement, visa/invité, autre) — elle va directement à l'assistante de direction ; le demandeur peut y associer des participants à l'écran. N'exécute rien : confirmation requise. Pour un billet d'avion pour un invité, utiliser type=TRAVEL, détailler passager et trajet dans la description, et renseigner startDate/endDate.",
     input_schema: {
       type: "object",
       properties: {
         type: {
           type: "string",
-          enum: ["TRAVEL", "MAIL", "SIGNATURE", "PURCHASE", "QUOTE", "PAYMENT", "DRIVER", "GUEST_VISA", "OTHER"],
+          enum: ["TRAVEL", "MAIL", "SIGNATURE", "PURCHASE", "QUOTE", "PAYMENT", "GUEST_VISA", "OTHER"],
         },
         title: { type: "string", description: "Titre court de la demande." },
         description: { type: "string", description: "Tous les détails (passager, trajet, montant estimé…)." },
-        assigneeName: { type: "string", description: "Collègue chargé de traiter la demande (ex. assistante de direction)." },
-        concernedName: { type: "string", description: "Personne concernée par la demande, si différente." },
         startDate: { type: "string", description: "Date de début / départ au format AAAA-MM-JJ." },
         endDate: { type: "string", description: "Date de fin / retour au format AAAA-MM-JJ." },
         deadline: { type: "string", description: "Échéance au format AAAA-MM-JJ." },
@@ -1634,13 +1633,12 @@ const WRITE_TOOLS: ClaudeToolDef[] = [
   {
     name: "update_request",
     description:
-      "PROPOSE la MODIFICATION d'une demande du secrétariat (REQ-…) : statut, responsable, commentaire. N'exécute rien : confirmation requise. " +
-      "Statuts posables : IN_PROGRESS (reprendre), AWAITING_EXTERNAL, AWAITING_DOCUMENT. Terminer, annuler, bloquer (avec motif) et rouvrir se font à l'écran de la demande — chacun a ses gardes.",
+      "PROPOSE la MODIFICATION d'une demande du secrétariat (REQ-…) : responsable, commentaire. N'exécute rien : confirmation requise. " +
+      "Le statut ne se change pas d'ici : le traitement n'a que deux gestes, « Commencer le traitement » et « Fin du traitement », à l'écran de la demande (annuler et rouvrir aussi, avec leur motif).",
     input_schema: {
       type: "object",
       properties: {
         reference: { type: "string", description: "Référence de la demande (REQ-AAAA-NNN) ou fragment du titre." },
-        status: { type: "string", enum: ["IN_PROGRESS", "AWAITING_EXTERNAL", "AWAITING_DOCUMENT"] },
         assigneeName: { type: "string", description: "Nouveau responsable (résoudre via search_people)." },
         comment: { type: "string", description: "Commentaire à ajouter au fil de la demande." },
       },
@@ -2169,8 +2167,9 @@ PROFONDEUR & VITESSE (fast + smart — jamais l'un contre l'autre) :
   aussi par fonction) ; pour un congrès lié à un médecin, l'annuaire médical.
 
 INTERPRÉTATION DES DEMANDES :
-- « Fais une demande / un ticket », « il me faut un billet, un achat, une signature, un devis, un paiement, une mission
-  chauffeur » = DEMANDE ADMINISTRATIVE (create_admin_request, assignée à l'assistante de direction), pas un message.
+- « Fais une demande / un ticket », « il me faut un billet, un achat, une signature, un devis, un paiement » = DEMANDE
+  ADMINISTRATIVE (create_admin_request, qui va à l'assistante de direction), pas un message. Les missions chauffeur
+  ne se créent plus.
 - « Envoie un message / écris / préviens » un collègue = messagerie interne (send_message) ; « envoie un mail à … » =
   send_email, UN SEUL appel (il prépare le message ET affiche la carte d'approbation) ; jamais d'adresse devinée.
 - N'écris JAMAIS « tu confirmes l'envoi ? » : la carte d'approbation EST la confirmation.
@@ -3162,12 +3161,11 @@ export async function buildProposal(toolName: string, input: Record<string, unkn
   if (toolName === "create_admin_request") {
     const type = asStr(input, "type").toUpperCase();
     // Plus de `HR_SIMPLE` : une demande RH se pose dans le module RH (§118.138).
-    const validTypes = ["TRAVEL", "MAIL", "SIGNATURE", "PURCHASE", "QUOTE", "PAYMENT", "DRIVER", "GUEST_VISA", "OTHER"];
+    // Plus de `DRIVER` non plus : les missions chauffeur ne se créent plus (Direction, 10/2026).
+    const validTypes = ["TRAVEL", "MAIL", "SIGNATURE", "PURCHASE", "QUOTE", "PAYMENT", "GUEST_VISA", "OTHER"];
     const title = asStr(input, "title");
     if (!validTypes.includes(type)) return { error: "Type de demande invalide." };
     if (!title) return { error: "Titre de demande manquant." };
-    const assignee = await resolve("Responsable", input.assigneeName);
-    const concerned = await resolve("Personne concernée", input.concernedName);
     const startDate = asStr(input, "startDate") ? isoDate(asStr(input, "startDate")) : null;
     const endDate = asStr(input, "endDate") ? isoDate(asStr(input, "endDate")) : null;
     const deadline = asStr(input, "deadline") ? isoDate(asStr(input, "deadline")) : null;
@@ -3180,8 +3178,7 @@ export async function buildProposal(toolName: string, input: Record<string, unkn
       { label: "Objet", value: title },
     ];
     if (asStr(input, "description")) fields.push({ label: "Détails", value: asStr(input, "description") });
-    if (assignee.name) fields.push({ label: "À traiter par", value: assignee.name });
-    if (concerned.name) fields.push({ label: "Concerne", value: concerned.name });
+    fields.push({ label: "À traiter par", value: "L'assistante de direction" });
     if (startDate || endDate) fields.push({ label: "Dates", value: [startDate, endDate].filter(Boolean).join(" → ") });
     if (deadline) fields.push({ label: "Échéance", value: deadline });
     if (priority) fields.push({ label: "Priorité", value: PRIORITY[priority]?.label ?? priority });
@@ -3189,7 +3186,6 @@ export async function buildProposal(toolName: string, input: Record<string, unkn
       kind: "create_admin_request", module: "ADMIN_REQUESTS", title: "Créer une demande administrative", fields, warnings,
       payload: {
         kind: "create_admin_request", type, title, description: asStr(input, "description") || null,
-        assigneeId: assignee.id, assigneeName: assignee.name, concernedId: concerned.id, concernedName: concerned.name,
         deadline, startDate, endDate, priority,
       },
     };
@@ -3666,10 +3662,10 @@ export async function buildProposal(toolName: string, input: Record<string, unkn
 
     const status = asStr(input, "status").toUpperCase();
     if (status) {
-      // Les seuls statuts qui se posent à la main sans motif (§118.191) : terminer, annuler, bloquer et
-      // rouvrir ont leur geste à l'écran, avec leurs gardes — la carte ne les propose plus.
-      const valid = ["IN_PROGRESS", "AWAITING_EXTERNAL", "AWAITING_DOCUMENT"];
-      if (!valid.includes(status)) return { error: "Ce statut ne se pose pas d'ici : terminer, annuler, bloquer (avec son motif) et rouvrir se font sur la fiche de la demande." };
+      // AUCUN statut ne se pose plus à la main (Direction, 10/2026) : l'assistante n'a que deux gestes,
+      // « Commencer le traitement » et « Fin du traitement », sur la fiche de la demande.
+      const valid: string[] = [];
+      if (!valid.includes(status)) return { error: "Le statut ne se change pas d'ici : le traitement n'a que deux gestes, « Commencer le traitement » et « Fin du traitement », sur la fiche de la demande." };
       payload.status = status;
       fields.push({ label: "Statut", value: `${ADMIN_REQUEST_STATUS[req.status]?.label ?? req.status} → ${ADMIN_REQUEST_STATUS[status as keyof typeof ADMIN_REQUEST_STATUS]?.label ?? status}` });
     }
@@ -6618,14 +6614,15 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
   if (payload?.kind === "create_admin_request") {
     if (!userCan(user, "ADMIN_REQUESTS", "CREATE")) return { ok: false, error: "Vous n'avez pas le droit de créer une demande administrative." };
     // Plus de `HR_SIMPLE` : une demande RH se pose dans le module RH (§118.138).
-    const validTypes: AdminRequestType[] = ["TRAVEL", "MAIL", "SIGNATURE", "PURCHASE", "QUOTE", "PAYMENT", "DRIVER", "GUEST_VISA", "OTHER"];
+    // Plus de `DRIVER` non plus : les missions chauffeur ne se créent plus (Direction, 10/2026).
+    const validTypes: AdminRequestType[] = ["TRAVEL", "MAIL", "SIGNATURE", "PURCHASE", "QUOTE", "PAYMENT", "GUEST_VISA", "OTHER"];
     const type = (payload.type ?? "").toUpperCase() as AdminRequestType;
     const title = (payload.title ?? "").trim();
     if (!validTypes.includes(type)) return { ok: false, error: "Type de demande invalide." };
     if (!title) return { ok: false, error: "Titre de demande manquant." };
 
-    const assignedToId = await activeUserId(payload.assigneeId);
-    const concernedUserId = await activeUserId(payload.concernedId);
+    // LA DEMANDE VA DIRECTEMENT À L'ASSISTANTE DE DIRECTION (Direction, 10/2026) : ni responsable ni personne
+    // concernée — une ancienne carte qui en porte encore n'est pas suivie sur ce point.
     const extraFields: Record<string, string> = {};
     if (payload.startDate) extraFields.dateDebut = payload.startDate;
     if (payload.endDate) extraFields.dateFin = payload.endDate;
@@ -6639,7 +6636,7 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
           priority: priorityOf(payload.priority),
           deadline: dateValue(payload.deadline) ?? dateValue(payload.startDate),
           fields: Object.keys(extraFields).length ? extraFields : undefined,
-          assignedToId, concernedUserId, requesterId: user.id, createdById: user.id,
+          requesterId: user.id, createdById: user.id,
           // Entité : même règle que par formulaire — la portée en cours, sinon la société
           // d'appartenance. Une demande créée par l'assistant n'échappe pas au cloisonnement.
           companyId: await companyIdForNew(user.id),
@@ -6649,9 +6646,7 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
     });
     // Effets de bord NON bloquants : une notification/un audit en échec ne doit pas faire croire
     // que la demande n'a pas été créée (elle l'est).
-    if (assignedToId && assignedToId !== user.id) {
-      await notifyUser({ userId: assignedToId, type: "ASSIGNMENT", title: "Nouvelle demande administrative", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(() => undefined);
-    }
+    await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(() => undefined);
     await recordAudit({
       actorId: user.id, action: "CREATE", module: "Assistant IA", entityType: "ADMIN_REQUEST",
       entityId: created.id, summary: `Demande ${created.reference} — ${title} créée via l'assistant`,

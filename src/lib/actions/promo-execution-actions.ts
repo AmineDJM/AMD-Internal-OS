@@ -25,6 +25,7 @@ import { lignesProposeesFacturePromo, preremplirFacturePromo, type PrerempliFact
 import { fdCase } from "@/lib/actions/types";
 import { reviserDocumentDrive } from "@/platform/in-process/artifact/factory";
 import { genererLesBonsDeCommande, apercuDuBcPromo, type ApercuBcPromo } from "@/lib/promo-automatismes";
+import { cloreLeDossierPromoSiSolde } from "@/lib/promo-cloture";
 import { brouillonPromoEnJson, lireBrouillonPromo, type BrouillonBcPromo } from "@/lib/promo-material/bc-brouillon-promo";
 import { peutValiderLeBrouillon, REFUS_VALIDATION_BROUILLON } from "@/lib/bons-de-commande/brouillon";
 import { MODES_PAIEMENT } from "@/lib/artifact/factory/commercial";
@@ -1082,7 +1083,9 @@ export async function adresserInfoMedicaleFacturePromo(formData: FormData): Prom
     declarationKind: formalite,
   });
   await audit(user, pm.id, `${LIBELLE_FORMALITE[formalite]} ${declaration.reference} adressée à l'information médicale (facture ${facture.reference ?? ""})`);
+  // LA DERNIÈRE PIÈCE PEUT ÊTRE CELLE-CI (un paiement déjà réglé dont la demande avait échoué) : le dossier se clôt seul.
+  const clos = await cloreLeDossierPromoSiSolde(pm.id, user.id);
   revalidatePath(chemin(pm.id));
   revalidatePath("/information-medicale");
-  return { ok: true, message: `${LIBELLE_FORMALITE[formalite][0].toUpperCase()}${LIBELLE_FORMALITE[formalite].slice(1)} ${declaration.reference} adressée à l'information médicale.` };
+  return { ok: true, message: `${LIBELLE_FORMALITE[formalite][0].toUpperCase()}${LIBELLE_FORMALITE[formalite].slice(1)} ${declaration.reference} adressée à l'information médicale.${clos ? " Tout est reçu, payé et visé : le dossier est terminé." : ""}` };
 }

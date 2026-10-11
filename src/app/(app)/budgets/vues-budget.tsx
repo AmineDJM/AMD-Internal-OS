@@ -26,6 +26,7 @@ import { BudgetSettings } from "./budget-settings";
 import { CreateEnvelopeButton } from "./budget-forms";
 import { NouvelleEnveloppePole } from "./enveloppe-marketing-forms";
 import { VueEnsembleRegulatory } from "./vue-regulatory";
+import { VueEnsembleMarketing } from "./vue-marketing";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
 import { ancreCategorieBudget } from "@/lib/chemins/budgets";
 
@@ -121,8 +122,19 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
     );
   }
 
+  // BUDGET MARKETING a sa vue d'ensemble refaite (maquette validée, Direction 10/2026) : un disponible, « À traiter »,
+  // six graphiques filtrables et exportables, le tableau par catégorie et la réallocation.
+  if (pole === "MARKETING") {
+    return (
+      <>
+        <SurlignerCible ids={[searchParams.cible]} />
+        <VueEnsembleMarketing user={user} base={config.base} titre={config.titre} description={description} overview={overview} envelopes={envelopes} tabs={tabs} />
+      </>
+    );
+  }
+
   const t = overview.totals;
-  const topCats = overview.categories.filter((c) => c.parentId === null);
+  const topCats =overview.categories.filter((c) => c.parentId === null);
   const gPct = grandTotal.total > 0 ? Math.round((grandTotal.consumed / grandTotal.total) * 100) : 0;
   // Camembert : comment le budget est RÉPARTI (au plus 6 parts — au-delà, l'œil ne compare plus).
   const allocSlices = foldTail(topCats.map((c) => ({ label: c.name, value: c.allocated })));

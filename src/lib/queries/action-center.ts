@@ -14,6 +14,8 @@ import { toNumber, formatCurrency } from "@/lib/utils";
 import { polesLisibles } from "@/lib/lecteurs/consulting";
 import { reécriteLienNotification } from "@/lib/notifications/lien-actuel";
 import type { PromoMaterialStatus } from "@prisma/client";
+import { MARCHE_N1_MISSIONS } from "@/lib/queries/missions";
+import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import {
   type BadgeTone, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, MEDICAL_INFO_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
 } from "@/lib/labels";
@@ -392,8 +394,8 @@ export async function getActionCenter(user: SessionUser) {
   //     mes invitations à confirmer (un geste). Les deux se tranchent dans « Mon espace › Mes missions ».
   const [omAValider, invitationsMission] = await Promise.all([
     prisma.hrDocumentRequest.findMany({
-      where: { type: "MISSION_ORDER", status: "PENDING", managerGate: "PENDING", managerUserId: user.id },
-      select: { id: true, createdAt: true, details: true, employee: { select: { fullName: true } } },
+      where: MARCHE_N1_MISSIONS(user.id),
+      select: { id: true, type: true, createdAt: true, details: true, employee: { select: { fullName: true } } },
       orderBy: { createdAt: "asc" }, take: 30,
     }).catch(() => []),
     prisma.missionAssignment.findMany({
@@ -404,15 +406,15 @@ export async function getActionCenter(user: SessionUser) {
   ]);
   for (const o of omAValider) {
     items.push({
-      key: `om-n1-${o.id}`, objet: `HR_REQUEST:${o.id}`, title: `Ordre de mission — ${o.employee.fullName}`, subtitle: o.details ?? "",
-      module: "Missions", href: "/mon-espace/missions#a-valider", kind: "validation", priority: null,
+      key: `om-n1-${o.id}`, objet: `HR_REQUEST:${o.id}`, title: `${o.type === "EXPENSE_REPORT" ? "Note de frais de mission" : "Ordre de mission"} — ${o.employee.fullName}`, subtitle: o.details ?? "",
+      module: "Missions", href: LIEN_MISSIONS_A_VALIDER, kind: "validation", priority: null,
       deadline: null, depuis: o.createdAt.toISOString(), owner: "", statusLabel: "À valider (N+1)", statusTone: "warning",
     });
   }
   for (const m of invitationsMission) {
     items.push({
-      key: `mission-invit-${m.id}`, objet: `MISSION_ASSIGNMENT:${m.id}`, title: "Invitation à une mission", subtitle: "Confirmez ou déclinez",
-      module: "Missions", href: "/mon-espace/missions", kind: "request", priority: null,
+      key: `mission-invit-${m.id}`, objet: `MISSION_ASSIGNMENT:${m.id}`, title: "Demande de participation", subtitle: "Votre fiche, ou votre réponse",
+      module: "Missions", href: lienMission(m.id), kind: "request", priority: null,
       deadline: m.dateDepart?.toISOString() ?? null, depuis: m.createdAt.toISOString(), owner: "", statusLabel: "À accepter", statusTone: "warning",
     });
   }

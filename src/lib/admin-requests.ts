@@ -15,6 +15,9 @@ import type { VisibleFieldDef } from "@/components/shared/create-record-button";
  * portent : retirer le libellé afficherait « HR_SIMPLE » en clair sur leur fiche, et retirer la
  * valeur de l'énumération rendrait leur ligne illisible. On ferme la porte d'ENTRÉE, on ne
  * réécrit pas l'histoire.
+ *
+ * « MISSION CHAUFFEUR » (`DRIVER`) n'y est plus non plus (Direction, 10/2026) — même règle : ses
+ * champs restent ci-dessous pour relire les demandes déjà posées (`secretariat/traitement.ts`).
  */
 export const REQUEST_TYPES: { value: string; label: string; icon: string; description: string }[] = [
   { value: "TRAVEL", label: "Déplacement / Hôtel / Billet", icon: "Plane", description: "Billet, hôtel, mission, congrès, invité, aéroport" },
@@ -23,7 +26,6 @@ export const REQUEST_TYPES: { value: string; label: string; icon: string; descri
   { value: "PURCHASE", label: "Achat interne / Fournitures", icon: "ShoppingCart", description: "Mobilier, fournitures, café, petit matériel" },
   { value: "QUOTE", label: "Devis fournisseur", icon: "FileText", description: "Demander ou comparer des devis" },
   { value: "PAYMENT", label: "Paiement / Facture", icon: "Banknote", description: "Prestataire, agence, fournisseur, remboursement" },
-  { value: "DRIVER", label: "Mission chauffeur", icon: "Car", description: "Déposer / récupérer, aéroport, PCH/ANPP" },
   { value: "GUEST_VISA", label: "Visa / Professeur / Invité", icon: "UserCheck", description: "Invitation, visa, venue & suivi d'un invité" },
   { value: "OTHER", label: "Autre", icon: "CircleHelp", description: "Demande libre en texte normal" },
 ];
@@ -83,6 +85,7 @@ export const REQUEST_TYPE_FIELDS: Record<string, VisibleFieldDef[]> = {
     { type: "text", name: "modePaiement", label: "Mode de paiement souhaité" },
     { type: "date", name: "datePaiement", label: "Date souhaitée de paiement" },
   ],
+  // DRIVER ne se crée plus : ses champs servent à RELIRE les demandes déjà posées.
   DRIVER: [
     { type: "text", name: "lieuDepart", label: "Lieu de départ" },
     { type: "text", name: "destination", label: "Destination" },

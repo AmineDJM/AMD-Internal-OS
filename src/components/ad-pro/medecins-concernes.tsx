@@ -7,7 +7,9 @@ import { medecinsConcernesDe } from "@/lib/queries/ad-pro-medecins";
 import type { TypeMedecinsConcernes } from "@/lib/ad-pro/medecins-concernes";
 import { MedecinsConcernesClient, type PuceMedecin } from "./medecins-concernes-client";
 
-const ORIGINE = { LIEN: null, INVITE_CONGRES: "invité du congrès", PRISE_EN_CHARGE: "prise en charge du congrès" } as const;
+const ORIGINE = {
+  LIEN: null, INVITE_CONGRES: "invité du congrès", PRISE_EN_CHARGE: "prise en charge du congrès", ORIGINE_DEMANDE: "à l'origine de la demande",
+} as const;
 
 /**
  * LA CARTE « MÉDECINS CONCERNÉS » d'une demande Ad & Pro (Direction, 08/10) — les praticiens de l'annuaire que la demande

@@ -57,10 +57,19 @@ export function NewRequestButton({ users, departments, articles = [] }: { users:
               <FieldWrap full label="Titre" required><Input name="title" required placeholder="Ex. Billet délégué Oran → Alger" /></FieldWrap>
               <FieldWrap label="Priorité"><Select name="priority" defaultValue="MEDIUM">{optionsFromMap(PRIORITY).map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</Select></FieldWrap>
               <FieldWrap label="Échéance"><Input name="deadline" type="date" /></FieldWrap>
-              <FieldWrap label="Personne concernée"><Select name="concernedUserId" defaultValue=""><option value="">—</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</Select></FieldWrap>
-              <FieldWrap label="Responsable"><Select name="assignedToId" defaultValue=""><option value="">— (l'assistante)</option>{users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</Select></FieldWrap>
               <FieldWrap label="Département"><Select name="departmentId" defaultValue=""><option value="">—</option>{departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</Select></FieldWrap>
               <FieldWrap full label="Description"><Textarea name="description" placeholder="Précisez votre besoin…" /></FieldWrap>
+              {/* La demande va directement à l'assistante de direction ; le demandeur peut y associer des participants. */}
+              <FieldWrap full label="Participants">
+                <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-input p-2">
+                  {users.map((u) => (
+                    <label key={u.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-sm hover:bg-secondary">
+                      <input type="checkbox" name="participantIds" value={u.id} className="h-4 w-4 rounded border-input" />
+                      {u.name}
+                    </label>
+                  ))}
+                </div>
+              </FieldWrap>
 
               {typeFields.map((f) => {
                 const name = `f_${f.name}`;

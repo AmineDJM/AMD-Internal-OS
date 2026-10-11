@@ -29,7 +29,7 @@ export default async function AssistantPage() {
         <KpiCard label="En retard" value={s.enRetard} icon="AlarmClock" tone={s.enRetard > 0 ? "danger" : "default"} />
         <KpiCard label="Attente validation" value={s.attenteValidation} icon="ShieldQuestion" tone={s.attenteValidation > 0 ? "warning" : "default"} />
         <KpiCard label="Attente paiement" value={s.attentePaiement} icon="Banknote" tone={s.attentePaiement > 0 ? "warning" : "default"} />
-        <KpiCard label="Missions en cours" value={s.missions} icon="Car" />
+        <KpiCard label="En cours" value={s.enCours} icon="Play" />
       </div>
 
       <section className="space-y-3">
