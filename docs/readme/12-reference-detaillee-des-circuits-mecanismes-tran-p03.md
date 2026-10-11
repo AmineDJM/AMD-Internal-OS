@@ -885,6 +885,31 @@ Fichiers : `lib/care.ts` (`beneficiaryName`, `careProgress`, `quoteConflicts`, `
 `components/care/care-panel.tsx`. Migration `20260806160000_care_beneficiaries` — reprend le JSON
 existant en lignes **sans l'effacer** : en cas de doute sur la reprise, la source reste lisible.
 
+#### Fiches voyageur (Direction, 10/2026)
+
+La création ne porte plus que l'**événement** (ville et pays séparés ; au national, pays = Algérie
+s'il n'est pas dit), l'origine (« Initiative du médecin » → médecin(s) d'origine dans
+`initiativeDoctorIds`, **pas** une prise en charge ; lus par « Médecins concernés » en
+`ORIGINE_DEMANDE`) et le **mode** (`careMode` : `INDIVIDUAL` | `GROUP`, corrigeable par la liste
+blanche `EDITABLE_FIELDS`). On atterrit sur `#professionnels` ; chaque professionnel ajouté
+(annuaire, nouveau profil, profil libre) **naît avec sa billetterie et son hôtellerie**.
+
+| Règle | Où | Pourquoi |
+|---|---|---|
+| Un poste = une `CareCell` SERVICE ; le 1er billet / le 1er hôtel est le **principal** | `billetPrincipal`, `hotelPrincipal` | Un « + » par catégorie (billetterie, hôtellerie, transport, déjeuner, dîner, accès, autre) — autant de fois qu'il le faut. |
+| « Sans billet / sans hôtel » | case principale `WAIVED` | La trace qu'on a regardé. |
+| Billet et hôtel lus par les règles du **sponsoring** | `lirePosteSaisi` → `lireVoyageur` / `lireHebergement`, `manquesPourReserver` | Une seule règle de trajet, d'étapes et de dates. Passeport exigé à l'international ; pièce d'identité facultative au national. |
+| **Dollar** à l'international sauf la billetterie | `deviseDuPoste`, `versDzd`, `usdDzdRate` (240, `TAUX_USD_DZD_DEFAUT`, figé à la création) | `amount` + `currency` gardent la saisie ; `amountDzd` nourrit totaux, enveloppe, ordre de dépense. Un devis mêlant billets et autres postes se refuse (`deviseDuDevis`). |
+| Estimé = devis qui comptent + montants saisis + postes de groupe | `estimations` (pure, testée) | Un devis accepté ou **retenu** compte en entier, partagé entre les cases qu'il couvre ; indépendant du mode. |
+| Mode **de groupe** | `casesDeLaCategorie`, `CareGroupPoste` (`montantPosteGroupe`) | Un devis par catégorie couvre tout le monde ; « repas 100 par personne » × personnes vivantes, exclusions une à une. |
+| Dépassement de l'enveloppe | `depassementEnveloppe` | Dit, jamais bloquant. |
+| Retenir puis BC, réservation | `retenirDevisPriseEnCharge`, `demanderBCPriseEnCharge`, `demanderReservationPriseEnCharge` | Même circuit que le sponsoring : un **sujet** pour l'assistante de direction (`careReservationDossierId`), fiches prêtes nommées, manques dits ; l'acceptation par la Direction émet l'ordre de dépense (DZD). |
+| Billet émis / confirmation d'hôtel | `enregistrerBilletEmis`, page `…/[id]/billets` | E-billet ou voucher (`issuedDocumentId`), `bookingRef`, détail par trajet `legDetails` [{numero, heureDepart, heureArrivee, reference}] aligné sur `etapesDuBillet` ; autres postes : `timeStart` + `address`. Assistante de direction, demandeur, Direction Marketing, Super Admin (`peutTeleverserBillet`). Base du futur livret de séjour. |
+
+Fichiers : `lib/care-fiches.ts` (+ `care-fiches.test.ts`), `components/care/{care-panel,fiche-voyageur,billets-emis-panel,page-billets-emis}.tsx`.
+Migration `20270119090000_fiches_voyageur_prise_en_charge` (idempotente ; taux 240 posé sur les
+internationales existantes, rien d'autre de deviné).
+
 ### Ad & Pro — postes, validation par poste et chaîne jusqu'au paiement
 
 `SponsoringRequest` ne portait qu'un montant (`amountRequested` → `amountProposed` →

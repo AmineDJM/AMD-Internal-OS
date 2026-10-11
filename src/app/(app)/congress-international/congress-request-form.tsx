@@ -11,6 +11,7 @@ import { filtrerAnnuaire, PLAFOND_MENU } from "@/components/care/filtrer-annuair
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
+import { InfoBulle } from "@/components/ui/info-bulle";
 import { wilayaOptions } from "@/lib/geo/algeria";
 import { NATIONAL_EVENT_TYPE } from "@/lib/labels";
 import { businessUnitField } from "@/lib/ad-pro/create-fields";
@@ -65,6 +66,8 @@ export function CongressRequestForm({
   const [pickedDoctors, setPickedDoctors] = React.useState<Set<string>>(new Set());
   // QUI EST À L'ORIGINE DE LA DEMANDE (Direction, 07/10) — et, à l'initiative du médecin, lequel (ou lesquels).
   const [initiative, setInitiative] = React.useState<"" | "DEMANDEUR" | "MEDECIN">("");
+  // LE MODE DE PRISE EN CHARGE (Direction, 10/2026) : individuelle (par défaut) ou de groupe.
+  const [careMode, setCareMode] = React.useState<"INDIVIDUAL" | "GROUP">("INDIVIDUAL");
 
   /*
    * NI SPÉCIALITÉ NI PRODUITS sur une prise en charge (décision de la Direction, 04/10/2026). La
@@ -94,8 +97,11 @@ export function CongressRequestForm({
     if (!form) return;
     const fd = new FormData(form);
     fd.set("type", national ? "NATIONAL" : "INTL");
-    pickedDoctors.forEach((id) => fd.append("invitedDoctorIds", id));
+    // LE OU LES MÉDECINS À L'ORIGINE (initiative du médecin) — l'origine de la demande, pas une prise en charge :
+    // les professionnels pris en charge s'ajoutent DANS la demande, fiche par fiche (Direction, 10/2026).
+    if (initiative === "MEDECIN") pickedDoctors.forEach((id) => fd.append("initiativeDoctorIds", id));
     fd.set("initiative", initiative);
+    fd.set("careMode", careMode);
     // Tout ce qui manque, en une fois — le serveur dit la même chose (`createCongressRequest`).
     const manque = [
       String(fd.get("name") ?? "").trim() ? null : "le nom de l'événement",
@@ -108,7 +114,8 @@ export function CongressRequestForm({
     setSaving(true); setErr(null);
     const r = await createCongressRequest(undefined, fd);
     setSaving(false);
-    if (r.ok) { onDone(); router.refresh(); if (r.id) router.push(`${national ? "/congress-national" : "/congress-international"}/${r.id}`); }
+    // On atterrit sur la demande, section Professionnels : c'est là qu'on ajoute les personnes prises en charge.
+    if (r.ok) { onDone(); router.refresh(); if (r.id) router.push(`${national ? "/congress-national" : "/congress-international"}/${r.id}#professionnels`); }
     else setErr(r.error ?? "Erreur.");
   };
 
@@ -189,10 +196,31 @@ export function CongressRequestForm({
           </div>
         </fieldset>
 
-        <div className="space-y-2 rounded-lg border border-border p-3">
+        {/* LE MODE DE PRISE EN CHARGE (Direction, 10/2026) — modifiable ensuite en corrigeant la demande. */}
+        <fieldset className="space-y-2 rounded-lg border border-border p-3">
+          <legend className="flex items-center gap-1 px-1 text-sm font-medium">
+            Mode de prise en charge
+            <InfoBulle label="Individuelle ou de groupe ?">
+              Individuelle : chaque personne a ses postes et ses devis. De groupe : un devis par catégorie (billets, hôtel…) couvre tout le monde, et un poste « par personne » (ex. repas) s&apos;applique à chacun.
+              {!national && " À l'international, tout sauf la billetterie se saisit en dollars."}
+            </InfoBulle>
+          </legend>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {([["INDIVIDUAL", "Individuelle"], ["GROUP", "De groupe"]] as const).map(([v, l]) => (
+              <label key={v} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-input px-3 py-2 text-sm has-[:checked]:border-primary has-[:checked]:bg-primary/5 sm:min-h-10">
+                <input type="radio" name="careMode-choix" value={v} checked={careMode === v} onChange={() => setCareMode(v)} className="h-4 w-4 shrink-0" />
+                {l}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        {/* LES PROFESSIONNELS NE SE SAISISSENT PLUS ICI (Direction, 10/2026) : ils s'ajoutent dans la demande, chacun
+            avec sa fiche voyageur. Seule l'INITIATIVE DU MÉDECIN demande ici le ou les médecins à l'origine. */}
+        {initiative === "MEDECIN" && <div className="space-y-2 rounded-lg border border-border p-3">
           <Label>
-            {initiative === "MEDECIN" ? "Médecin(s) à l'origine de la demande" : "Professionnels proposés pour la prise en charge"}
-            {initiative === "MEDECIN" && <span className="ml-0.5 text-destructive">*</span>}
+            Médecin(s) à l&apos;origine de la demande
+            <span className="ml-0.5 text-destructive">*</span>
           </Label>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -225,7 +253,7 @@ export function CongressRequestForm({
               setPickedDoctors((p) => new Set(p).add(d.id));
             }}
           />
-        </div>
+        </div>}
 
         {err && <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> <span className="min-w-0 break-words">{err}</span></div>}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -253,7 +281,7 @@ export function CongressRequestButton(props: CongressFormProps) {
         open={open}
         onClose={() => setOpen(false)}
         title={props.national ? "Nouvelle prise en charge \u2014 nationale" : "Nouvelle prise en charge \u2014 internationale"}
-        description={"Renseignez l\u2019\u00e9v\u00e9nement et les professionnels propos\u00e9s pour la prise en charge."}
+        description={"L\u2019\u00e9v\u00e9nement d\u2019abord. Les professionnels s\u2019ajoutent dans la demande, une fois cr\u00e9\u00e9e."}
         width="lg"
       >
         <CongressRequestForm {...props} onDone={() => setOpen(false)} onCancel={() => setOpen(false)} />

@@ -26,7 +26,8 @@ import { EspaceDiscussion } from "@/components/ad-pro/espace-discussion";
 import { InvolvementConversations } from "@/components/ad-pro/involvement-conversations";
 import { CarePanel } from "@/components/care/care-panel";
 import { getCareDossier } from "@/lib/queries/care";
-import { careDirectoryOptions, carePromoOptions } from "@/lib/actions/care-actions";
+import { careDirectoryOptions } from "@/lib/actions/care-actions";
+import { peutTeleverserBillet, resumeDesFiches } from "@/lib/care-fiches";
 import { AdProTransferButton } from "@/components/ad-pro/transfer-button";
 import { AdProEditButton } from "@/components/ad-pro/edit-request-button";
 import { canEditAdProRequest, isAdProDecided } from "@/lib/ad-pro-edit";
@@ -100,8 +101,14 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
   const materielStock = await contexteMaterielStock(user, "CONGRESS_NATIONAL", detail.id, canAllocate);
 
   // Le dossier de prise en charge : les personnes, ce qu'il faut pour chacune, et les devis.
-  const [care, directory, carePromos] = await Promise.all([getCareDossier("NATIONAL", detail.id), careDirectoryOptions(), carePromoOptions()]);
+  const [care, directory] = await Promise.all([getCareDossier("NATIONAL", detail.id), careDirectoryOptions()]);
   const canEditCare = userCan(user, "CONGRESS_NATIONAL", "CREATE") || userCan(user, "CONGRESS_NATIONAL", "UPDATE") || canAllocate;
+  // LES FICHES VOYAGEUR : l'estimé et les fiches prêtes, lus une fois pour le bandeau (`resumeDesFiches`).
+  const fiches = resumeDesFiches("NATIONAL", care.beneficiaries, care.quotes, care.groupPostes);
+  const peutTeleverser = peutTeleverserBillet(
+    { id: user.id, roles: [user.role, user.secondaryRole].filter((r): r is NonNullable<typeof r> => Boolean(r)), vueGlobale: hasGlobalView(user) },
+    { requesterId: detail.requesterId },
+  );
 
   // Corriger la demande : le demandeur tant qu'elle n'est pas tranchée, la Direction toujours.
   const requestDecided = isAdProDecided("CONGRESS_NATIONAL", detail.requestStatus);
@@ -126,7 +133,7 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
       </PageHeader>
       {/* LA PRISE EN CHARGE EN UNE CARTE (Direction, 07/10) — la même que l'international. */}
       <CartePriseEnCharge
-        evenement={{ eventType: detail.eventType, location: detail.location, date: detail.date, endDate: detail.endDate, requester: detail.requester, initiative: detail.initiative }}
+        evenement={{ eventType: detail.eventType, location: detail.location, ville: detail.ville, pays: detail.pays, medecinsOrigine: detail.medecinsOrigine, date: detail.date, endDate: detail.endDate, requester: detail.requester, initiative: detail.initiative }}
         pieces={{
           entityType: "CONGRESS_NATIONAL", entityId: detail.id, documents: docItems,
           peutDeposer: canUpload, categories: categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES),
@@ -137,18 +144,21 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
         devis={care.quotes.map((q) => ({ id: q.id, status: q.status, amountDzd: q.amountDzd, cellIds: q.cellIds }))}
         postes={items.map((i) => ({ amountGranted: i.amountGranted, status: i.status }))}
         enveloppe={congress?.finalAmount != null ? toNumber(congress.finalAmount) : null}
+        fiches={{ estime: fiches.estimations.total, pretes: fiches.pretes, vivantes: fiches.vivantes }}
         professionnels={
           <CarePanel
             scope="NATIONAL"
             requestId={detail.id}
             beneficiaries={care.beneficiaries}
             quotes={care.quotes}
+            groupPostes={care.groupPostes}
+            reglages={care.reglages}
+            enveloppe={congress?.finalAmount != null ? toNumber(congress.finalAmount) : null}
             directory={directory}
             eventApproved={["APPROVED", "COMPLETED"].includes(congress?.requestStatus ?? "")}
             canEdit={canEditCare}
             canDecide={canAllocate}
-            promoOptions={carePromos}
-            resume={false}
+            peutTeleverser={peutTeleverser}
           />
         }
         couverture={

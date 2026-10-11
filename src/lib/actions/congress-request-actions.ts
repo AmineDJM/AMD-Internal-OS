@@ -19,6 +19,7 @@ import { referentAInscrire } from "@/lib/ad-pro/referent-de-la-gamme";
 import { gammeImposee } from "@/lib/ad-pro/business-unit-auto";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
+import { deviseDuPoste, lireMode, TAUX_USD_DZD_DEFAUT } from "@/lib/care-fiches";
 
 // Le **même** circuit de prise en charge sert les prises en charge internationales/nationaux
 // ET les événements (module Events) : on paramètre tout par `type`.
@@ -83,17 +84,26 @@ export async function createCongressRequest(
 
   // LES PROFESSIONNELS PROPOSÉS, vérifiés AVANT la création : un identifiant qui ne désigne aucun
   // praticien de l'annuaire est refusé, au lieu de créer une demande amputée en silence.
+  // (Appelants d'avant : `invitedDoctorIds` reste lu comme « professionnels proposés ». Le formulaire de création
+  // ne les envoie plus — les professionnels s'ajoutent dans la demande, fiche par fiche, Direction 10/2026.)
   const proposes = [...new Set(fdList(formData, "invitedDoctorIds"))];
+  // LE OU LES MÉDECINS À L'ORIGINE d'une « initiative du médecin » : l'origine de la demande, PAS une prise en charge.
+  const origine = [...new Set(fdList(formData, "initiativeDoctorIds"))];
   // QUI EST À L'ORIGINE DE LA DEMANDE (Direction, 07/10) : « Mon initiative » ou « Initiative du médecin » — et dans ce
   // second cas, le ou les médecins de l'annuaire qui l'ont demandée. Facultatif pour les appelants d'avant (aucun choix posté).
   const initiativeBrute = fdStr(formData, "initiative");
   const initiative = initiativeBrute === "MEDECIN" || initiativeBrute === "DEMANDEUR" ? initiativeBrute : null;
   if (initiativeBrute && !initiative) return { ok: false, error: "Initiative inconnue : choisissez « Mon initiative » ou « Initiative du médecin »." };
-  if (initiative === "MEDECIN" && proposes.length === 0) return { ok: false, error: "Initiative du médecin : choisissez dans l'annuaire le ou les médecins à l'origine de la demande." };
-  if (proposes.length > 0) {
-    const connus = await prisma.medicalDoctor.count({ where: { id: { in: proposes } } });
-    if (connus !== proposes.length) return { ok: false, error: "Un professionnel proposé est introuvable dans l'annuaire — rechargez le formulaire." };
+  if (initiative === "MEDECIN" && proposes.length === 0 && origine.length === 0) return { ok: false, error: "Initiative du médecin : choisissez dans l'annuaire le ou les médecins à l'origine de la demande." };
+  const annuaire = [...new Set([...proposes, ...origine])];
+  if (annuaire.length > 0) {
+    const connus = await prisma.medicalDoctor.count({ where: { id: { in: annuaire } } });
+    if (connus !== annuaire.length) return { ok: false, error: "Un médecin choisi est introuvable dans l'annuaire — rechargez le formulaire." };
   }
+  // LE MODE DE PRISE EN CHARGE (Direction, 10/2026) : individuelle (par défaut) ou de groupe.
+  const modeBrut = fdStr(formData, "careMode");
+  const careMode = modeBrut ? lireMode(modeBrut) : "INDIVIDUAL";
+  if (!careMode) return { ok: false, error: "Mode de prise en charge inconnu : individuelle ou de groupe." };
 
   const eventType: NationalEventType = EVENT_TYPES.includes(fdStr(formData, "eventType") as NationalEventType)
     ? (fdStr(formData, "eventType") as NationalEventType)
@@ -134,6 +144,8 @@ export async function createCongressRequest(
     name,
     eventType,
     initiative,
+    initiativeDoctorIds: initiative === "MEDECIN" ? origine : [],
+    careMode,
     estimatedBudget: fdNum(formData, "estimatedBudget"),
     participantIds: fdList(formData, "participantIds"),
     requesterId: user.id,
@@ -173,6 +185,8 @@ export async function createCongressRequest(
             city: normalizeCity(fdStr(formData, "city")),
             startDate: debut,
             endDate: fin,
+            // LE TAUX USD → DZD, FIGÉ À LA CRÉATION : tout sauf la billetterie s'y convertit (Direction, 10/2026).
+            usdDzdRate: TAUX_USD_DZD_DEFAUT,
           },
         })
       : await prisma.congressNational.create({
@@ -190,11 +204,24 @@ export async function createCongressRequest(
         });
 
   if (proposes.length > 0) {
-    await prisma.careBeneficiary.createMany({
-      data: proposes.map((doctorId, i) => ({
-        ...(t === "INTL" ? { congressInternationalId: created.id } : { congressNationalId: created.id }),
-        doctorId, position: i + 1, createdById: user.id, updatedById: user.id,
-      })),
+    // Chaque professionnel proposé reçoit SA fiche, billetterie et hôtellerie ouvertes (Direction, 10/2026).
+    const ville = created.city ?? null;
+    await prisma.$transaction(async (tx) => {
+      for (const [i, doctorId] of proposes.entries()) {
+        const b = await tx.careBeneficiary.create({
+          data: {
+            ...(t === "INTL" ? { congressInternationalId: created.id } : { congressNationalId: created.id }),
+            doctorId, position: i + 1, createdById: user.id, updatedById: user.id,
+          },
+          select: { id: true },
+        });
+        await tx.careCell.createMany({
+          data: [
+            { beneficiaryId: b.id, kind: "SERVICE", serviceKind: "TICKET", label: "Billetterie", currency: "DZD", requestedById: user.id, position: 1 },
+            { beneficiaryId: b.id, kind: "SERVICE", serviceKind: "HOTEL", label: "Hôtellerie", city: ville, currency: deviseDuPoste(t === "INTL" ? "INTERNATIONAL" : "NATIONAL", "HOTEL"), requestedById: user.id, position: 2 },
+          ],
+        });
+      }
     });
   }
 

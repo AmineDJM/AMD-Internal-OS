@@ -22,6 +22,7 @@
 
 import { SPONSORING_TYPES, PRIORITY, NATIONAL_EVENT_TYPE, EVENT_TYPE, EVENT_FORMAT, CONSULTING_BILLING_OPTIONS } from "@/lib/labels";
 import { etatAdProDuDossier } from "@/lib/promo-material/statut";
+import { MODE_LIBELLE } from "@/lib/care-fiches";
 
 // LE CONSULTING ET LES « AUTRES DEMANDES » (audit 360°, R11 et rapport 17 R13/R14) : absents de cette
 // liste, ils ne se corrigeaient jamais — même en brouillon —, et la seule issue d'un montant mal tapé
@@ -163,6 +164,8 @@ export const EDITABLE_FIELDS: Record<AdProKind, readonly EditableField[]> = {
     { key: "city", label: "Ville", type: "text" },
     { key: "date", label: "Date de début", type: "date", requis: "La date de début est obligatoire." },
     { key: "endDate", label: "Date de fin", type: "date", requis: "La date de fin est obligatoire." },
+    // LE MODE DE PRISE EN CHARGE (Direction, 10/2026) — corrigeable par le demandeur avant la décision, par la Direction toujours.
+    { key: "careMode", label: "Mode de prise en charge", type: "select", options: mapOptions(MODE_LIBELLE), requis: "Choisissez le mode de prise en charge." },
     { key: "estimatedBudget", label: "Budget estimé", type: "number" },
   ],
   CONGRESS_INTERNATIONAL: [
@@ -171,6 +174,7 @@ export const EDITABLE_FIELDS: Record<AdProKind, readonly EditableField[]> = {
     { key: "city", label: "Ville", type: "text" },
     { key: "startDate", label: "Date de début", type: "date", requis: "La date de début est obligatoire." },
     { key: "endDate", label: "Date de fin", type: "date", requis: "La date de fin est obligatoire." },
+    { key: "careMode", label: "Mode de prise en charge", type: "select", options: mapOptions(MODE_LIBELLE), requis: "Choisissez le mode de prise en charge." },
     { key: "estimatedBudget", label: "Budget estimé", type: "number" },
     { key: "participants", label: "Participants Adventum", type: "textarea" },
   ],

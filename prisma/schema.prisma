@@ -3383,6 +3383,17 @@ model CongressInternational {
   expenseOrderId       String? // ordre de dépense émis après validation définitive
   beneficiaries        Json? // personnes prises en charge : [{ id, name, role }] (pièces d'identité = Documents catégorie ID_DOCUMENT, stepKey = id)
 
+  /// FICHES VOYAGEUR (Direction, 10/2026) — voir `src/lib/care-fiches.ts`. Le MODE dit où vivent les prix : sur chaque
+  /// fiche (individuelle) ou par catégorie pour tout le groupe (de groupe).
+  careMode                 CareMode @default(INDIVIDUAL)
+  /// LE TAUX USD → DZD FIGÉ SUR LA DEMANDE : à l'international, tout sauf la billetterie se saisit en dollars et entre au
+  /// budget à CE taux (240 par défaut, `TAUX_USD_DZD_DEFAUT`). Figé pour que le budget d'une demande ne bouge pas seul.
+  usdDzdRate               Decimal? @db.Decimal(10, 4)
+  /// « Initiative du médecin » : le ou les médecins de l'annuaire À L'ORIGINE de la demande — pas une prise en charge.
+  initiativeDoctorIds      String[] @default([])
+  /// Le sujet ouvert pour l'assistante de direction (réservations, puis BC) — `Dossier.id`.
+  careReservationDossierId String?
+
   createdById String?
   updatedById String?
   createdAt   DateTime @default(now())
@@ -3390,6 +3401,7 @@ model CongressInternational {
 
   careBeneficiaries CareBeneficiary[]
   careQuotes        CareQuote[]
+  careGroupPostes   CareGroupPoste[]
 
   /// Postes (consulting, traiteur, salle…) validés un par un — voir AdProItem.
   items AdProItem[]
@@ -3451,6 +3463,12 @@ model CongressNational {
   expenseOrderId       String?
   beneficiaries        Json? // personnes prises en charge : [{ id, name, role }] (pièces d'identité = Documents catégorie ID_DOCUMENT, stepKey = id)
 
+  /// FICHES VOYAGEUR (Direction, 10/2026) — mêmes champs qu'à l'international ; ici tout se saisit en DZD (`usdDzdRate` reste nul).
+  careMode                 CareMode @default(INDIVIDUAL)
+  usdDzdRate               Decimal? @db.Decimal(10, 4)
+  initiativeDoctorIds      String[] @default([])
+  careReservationDossierId String?
+
   createdById String?
   updatedById String?
   createdAt   DateTime @default(now())
@@ -3459,6 +3477,7 @@ model CongressNational {
   items             AdProItem[]
   careBeneficiaries CareBeneficiary[]
   careQuotes        CareQuote[]
+  careGroupPostes   CareGroupPoste[]
 
   @@index([status])
   @@index([date])
@@ -3511,6 +3530,18 @@ enum CareCellStatus {
   PROVIDED // document déposé, ou devis reçu
   SETTLED // pièce acceptée / devis accepté
   WAIVED // finalement inutile pour cette personne
+}
+
+/// Où vivent les prix d'une prise en charge (Direction, 10/2026).
+enum CareMode {
+  INDIVIDUAL // chaque fiche a ses postes et ses devis
+  GROUP // un devis par catégorie couvre tout le monde ; les postes « par personne » s'appliquent à chacun
+}
+
+/// La devise SAISIE d'un montant. Le budget, lui, est toujours en DZD (`amountDzd`).
+enum CareCurrency {
+  DZD
+  USD
 }
 
 /// UNE PERSONNE À PRENDRE EN CHARGE.
@@ -3589,8 +3620,38 @@ model CareCell {
   promoMaterialId String?
   /// SERVICE : le devis retenu et ce qu'il coûte.
   quoteId         String?
+  /// Le montant en DZD — ce qui entre au budget. Pour un montant saisi en dollars, `amount × usdDzdRate` de la demande.
   amountDzd       Decimal? @db.Decimal(14, 2)
   expenseOrderId  String?
+
+  /// LE POSTE D'UNE FICHE VOYAGEUR (Direction, 10/2026) — détails selon la nature (`src/lib/care-fiches.ts`).
+  /// Billet : départ / retour ; hôtel : arrivée / départ ; autre poste : sa date (`dateStart`).
+  dateStart DateTime?
+  dateEnd   DateTime?
+  trajet    AdProTrajet?
+  transport AdProTransport?
+  fromCity  String?
+  toCity    String?
+  /// Les étapes d'un trajet à plusieurs destinations : [{ de, vers, date }] (même forme que `AdProVoyageur.segments`).
+  segments  Json?
+  hotelName String?
+  city      String?
+  roomType  String?
+  /// Le montant SAISI, dans sa devise (`currency`) ; `amountDzd` en est l'équivalent au budget.
+  amount    Decimal?     @db.Decimal(14, 2)
+  currency  CareCurrency @default(DZD)
+
+  /// LE BILLET ÉMIS / LA CONFIRMATION D'HÔTEL (Direction, 10/2026) — ce que lit le livret de séjour.
+  /// Le fichier (e-billet, voucher) : `Document.id` de la demande, catégorie SUPPORTING_DOC, `stepKey` = cette case.
+  issuedDocumentId String?
+  /// Billet : la référence de réservation (PNR) ; hôtel : le n° de confirmation.
+  bookingRef       String?
+  /// Billet : le détail de CHAQUE trajet, aligné sur `etapesDuBillet` (aller, retour, ou chaque étape) :
+  /// [{ numero, heureDepart, heureArrivee, reference }] — n° de vol/train, heures « HH:MM », PNR du trajet.
+  legDetails       Json?
+  /// Autre poste (repas, transport, accès…) : l'HEURE « HH:MM » (en plus de `dateStart`) et le lieu / l'adresse.
+  timeStart        String?
+  address          String?
 
   /// Qui a demandé cette case — le chef de produit peut en ajouter après coup.
   requestedById String?
@@ -3637,6 +3698,17 @@ model CareQuote {
   /// Ordre de dépense émis à l'acceptation.
   expenseOrderId String?
 
+  /// Le montant SAISI dans sa devise ; `amountDzd` en est l'équivalent (taux figé de la demande).
+  amount          Decimal?         @db.Decimal(14, 2)
+  currency        CareCurrency     @default(DZD)
+  /// La CATÉGORIE d'un devis (billetterie, hôtellerie…) — en mode « de groupe », un devis par catégorie couvre tout le monde.
+  serviceKind     CareServiceKind?
+  /// La proposition RETENUE par le demandeur (comme au sponsoring) — puis le BC demandé à l'assistante de direction.
+  retainedAt      DateTime?
+  retainedById    String?
+  bcRequestedAt   DateTime?
+  bcRequestedById String?
+
   createdById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -3657,6 +3729,40 @@ model CareQuoteCell {
 
   @@id([quoteId, cellId])
   @@index([cellId])
+}
+
+/// UN POSTE DE GROUPE (Direction, 10/2026) — en prise en charge « de groupe », un coût qui s'applique à CHAQUE personne :
+/// « repas 100 par personne ». Montant unitaire × personnes concernées ; une personne s'exclut une à une
+/// (`excludedBeneficiaryIds`), sans toucher aux autres. Même parent exclusif que les personnes (contrainte `CareGroupPoste_one_parent`).
+model CareGroupPoste {
+  id                      String                 @id @default(cuid())
+  congressNationalId      String?
+  congressNational        CongressNational?      @relation(fields: [congressNationalId], references: [id], onDelete: Cascade)
+  congressInternationalId String?
+  congressInternational   CongressInternational? @relation(fields: [congressInternationalId], references: [id], onDelete: Cascade)
+
+  serviceKind            CareServiceKind
+  label                  String
+  notes                  String?
+  date                   DateTime?
+  /// L'heure « HH:MM » et le lieu / l'adresse — le planning du livret de séjour.
+  timeStart              String?
+  address                String?
+  /// Le montant PAR PERSONNE saisi, dans sa devise ; `unitAmountDzd` en est l'équivalent au budget.
+  unitAmount             Decimal?       @db.Decimal(14, 2)
+  currency               CareCurrency   @default(DZD)
+  unitAmountDzd          Decimal?       @db.Decimal(14, 2)
+  excludedBeneficiaryIds String[]       @default([])
+  status                 CareCellStatus @default(REQUESTED)
+
+  position    Int      @default(0)
+  createdById String?
+  updatedById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([congressNationalId])
+  @@index([congressInternationalId])
 }
 
 // ─────────────────────── Information médicale (déclaration réglementaire) ───────────────────────

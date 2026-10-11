@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### PRISES EN CHARGE : FICHES VOYAGEUR, MODE INDIVIDUEL / DE GROUPE, DOLLAR À L'INTERNATIONAL, BILLETS ÉMIS (2026-10-11)
+
+Migration additive et idempotente `20270119090000_fiches_voyageur_prise_en_charge` (`CareMode`, `CareCurrency`,
+`CareGroupPoste` ; colonnes de détail, de montant saisi et de billet émis sur `CareCell` ; montant, devise, catégorie,
+retenu et BC demandé sur `CareQuote` ; `careMode`, `usdDzdRate`, `initiativeDoctorIds`, `careReservationDossierId` sur
+les deux congrès). Règles : `lib/care-fiches.ts` — voir « Fiches voyageur » dans la référence des circuits.
+
+- **Création** : l'événement seul (ville et pays séparés), le mode de prise en charge, et pour « Initiative du médecin »
+  le ou les médecins d'origine ; on atterrit sur les professionnels de la demande.
+- **Liste « Professionnels pris en charge »** : un tableau (colonne du nom fixe au téléphone), une ligne par personne
+  — billetterie, hôtellerie, autres postes, estimé, décision ; « Demander la réservation (N prêtes) », « Demander le BC ».
+- **Fiche voyageur** : billet (aller / aller-retour / multi-destinations), hôtel pré-rempli (ville de l'événement, dates du
+  billet), « sans billet / sans hôtel », un « + » par catégorie, prochain geste, documents, décision, total.
+- **International** : tout sauf la billetterie en dollars, converti au taux figé de la demande (1 USD = 240 DZD).
+- **Billet émis / confirmation d'hôtel** : e-billet ou voucher, PNR / n° de confirmation, n° de vol et horaires par trajet ;
+  heure et lieu des autres postes — page `…/[id]/billets` ouverte à l'assistante de direction.
+
 ### MANQUES COMBLÉS : LIENS DE NOTIFICATION EXACTS, KPI DEMANDES TRAITÉES / PCH / CIBLE LUNA, STOCKS PCH CENTRAL + DR, INFO MÉDICALE PAR PRODUIT, DATE DE BESOIN DU MATÉRIEL PROMO (2026-10-10)
 
 Commit `4d3e3325`. Migrations additives et idempotentes : `20270118150000_kpi_complements`

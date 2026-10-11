@@ -71,6 +71,10 @@ export async function getCongressDetail(type: CongressType, user: SessionUser, i
   const participants = c.participantIds.length
     ? await prisma.user.findMany({ where: { id: { in: c.participantIds } }, select: { id: true, name: true, title: true } })
     : [];
+  // « Initiative du médecin » : le ou les médecins À L'ORIGINE de la demande (pas des prises en charge).
+  const origine = c.initiativeDoctorIds.length
+    ? await prisma.medicalDoctor.findMany({ where: { id: { in: c.initiativeDoctorIds } }, select: { name: true } })
+    : [];
   const expenseOrder = c.expenseOrderId
     ? await prisma.expenseOrder.findUnique({ where: { id: c.expenseOrderId }, select: { reference: true, status: true, amount: true } })
     : null;
@@ -96,6 +100,11 @@ export async function getCongressDetail(type: CongressType, user: SessionUser, i
     location: type === "INTL"
       ? [(c as { country?: string | null }).country, (c as { city?: string | null }).city].filter(Boolean).join(", ")
       : [(c as { city?: string | null }).city, (c as { hostInstitution?: string | null }).hostInstitution].filter(Boolean).join(" · "),
+    // VILLE ET PAYS, SÉPARÉS (Direction, 10/2026). Au national, le pays tu est l'Algérie — un pays saisi
+    // sur une demande d'avant reste lu tel quel.
+    ville: c.city ?? null,
+    pays: c.country ?? (type === "NATIONAL" ? "Algérie" : null),
+    medecinsOrigine: origine.map((d) => d.name),
     date: (type === "INTL" ? (c as { startDate?: Date | null }).startDate : (c as { date?: Date | null }).date)?.toISOString() ?? null,
     // LA FIN DE L'ÉVÉNEMENT, des deux côtés désormais : une prise en charge nationale se tient sur
     // plusieurs jours aussi (décision du 04/10/2026 — `CongressNational.endDate`).

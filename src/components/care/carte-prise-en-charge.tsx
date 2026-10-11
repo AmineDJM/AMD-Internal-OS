@@ -19,14 +19,22 @@ import { quoteSummary } from "@/lib/care";
 
 const INITIATIVE: Record<string, string> = { DEMANDEUR: "Initiative du demandeur", MEDECIN: "Initiative du médecin" };
 
-export function CartePriseEnCharge({ evenement, pieces, beneficiaires, devis, postes, enveloppe, professionnels, couverture }: {
-  evenement: { eventType: string | null; location: string; date: string | null; endDate: string | null; requester: string; initiative: string | null };
+export function CartePriseEnCharge({ evenement, pieces, beneficiaires, devis, postes, enveloppe, fiches, professionnels, couverture }: {
+  evenement: {
+    eventType: string | null; location: string; date: string | null; endDate: string | null; requester: string; initiative: string | null;
+    /** VILLE ET PAYS, séparés (Direction, 10/2026) ; au national, le pays est l'Algérie quand rien n'est dit. */
+    ville?: string | null; pays?: string | null;
+    /** « Initiative du médecin » : le ou les médecins à l'origine de la demande. */
+    medecinsOrigine?: string[];
+  };
   pieces: PiecesJointesDeLaDemande;
   beneficiaires: { status: string }[];
   devis: Parameters<typeof quoteSummary>[0];
   postes: { amountGranted: number | null; status: string }[];
   /** L'enveloppe accordée par la Direction — `null` tant qu'elle n'a pas tranché. */
   enveloppe: number | null;
+  /** Les fiches voyageur : l'estimé (devis retenus + montants saisis + postes de groupe) et les fiches prêtes pour réserver. */
+  fiches?: { estime: number; pretes: number; vivantes: number };
   professionnels: React.ReactNode;
   couverture: React.ReactNode;
 }) {
@@ -34,6 +42,8 @@ export function CartePriseEnCharge({ evenement, pieces, beneficiaires, devis, po
   const qs = quoteSummary(devis);
   const vivants = postes.filter((p) => p.status !== "REJECTED");
   const affecte = vivants.reduce((s, p) => s + (p.amountGranted ?? 0), 0);
+  const engage = (fiches?.estime ?? 0) + affecte;
+  const separes = evenement.ville !== undefined || evenement.pays !== undefined;
   const dates = evenement.date
     ? `${formatDate(evenement.date)}${evenement.endDate && evenement.endDate.slice(0, 10) !== evenement.date.slice(0, 10) ? ` → ${formatDate(evenement.endDate)}` : ""}`
     : null;
@@ -42,18 +52,34 @@ export function CartePriseEnCharge({ evenement, pieces, beneficiaires, devis, po
     <CarteDetailsDemande titre="La prise en charge" pieces={pieces} contentClassName="space-y-5" entete={
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
         {evenement.eventType && <Fait label="Type" valeur={NATIONAL_EVENT_TYPE[evenement.eventType] ?? evenement.eventType} />}
-        <Fait label="Lieu" valeur={evenement.location} />
+        {separes ? (
+          <>
+            <Fait label="Ville" valeur={evenement.ville} />
+            <Fait label="Pays" valeur={evenement.pays} />
+          </>
+        ) : <Fait label="Lieu" valeur={evenement.location} />}
         <Fait label="Dates de l'événement" valeur={dates} />
         <Fait label="Demandeur" valeur={evenement.requester} />
-        {evenement.initiative && <Fait label="Origine" valeur={INITIATIVE[evenement.initiative] ?? evenement.initiative} />}
+        {evenement.initiative && (
+          <Fait label="Origine" valeur={[INITIATIVE[evenement.initiative] ?? evenement.initiative, ...(evenement.medecinsOrigine?.length ? [evenement.medecinsOrigine.join(", ")] : [])].join(" — ")} />
+        )}
       </dl>
     }>
 
       <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
         <Chiffre label="Professionnels" valeur={String(beneficiaires.length)} note={beneficiaires.length ? `${accordes} accordé${accordes > 1 ? "s" : ""}` : undefined} ton={accordes > 0 ? "succes" : undefined} />
+        {fiches ? (
+          <>
+            <Chiffre label="Fiches complètes pour réserver" valeur={`${fiches.pretes} / ${fiches.vivantes}`} />
+            <Chiffre label="Estimé (fiches + postes)" valeur={formatCurrency(engage)} note={affecte > 0 ? `dont ${formatCurrency(affecte)} affectés aux postes` : qs.pending > 0 ? `${qs.pending} devis en attente` : undefined} ton={enveloppe != null && engage > enveloppe ? "alerte" : undefined} />
+          </>
+        ) : (
+          <>
+            <Chiffre label="Affecté aux postes" valeur={formatCurrency(affecte)} note={`${vivants.length} poste${vivants.length > 1 ? "s" : ""}`} ton={enveloppe != null && affecte > enveloppe ? "alerte" : undefined} />
+            <Chiffre label="Devis acceptés" valeur={formatCurrency(qs.acceptedDzd)} note={qs.pending > 0 ? `${qs.pending} en attente` : undefined} ton={qs.pending > 0 ? "attente" : undefined} />
+          </>
+        )}
         <Chiffre label="Enveloppe accordée" valeur={enveloppe != null ? formatCurrency(enveloppe) : "Non tranchée"} discret={enveloppe == null} />
-        <Chiffre label="Affecté aux postes" valeur={formatCurrency(affecte)} note={`${vivants.length} poste${vivants.length > 1 ? "s" : ""}`} ton={enveloppe != null && affecte > enveloppe ? "alerte" : undefined} />
-        <Chiffre label="Devis acceptés" valeur={formatCurrency(qs.acceptedDzd)} note={qs.pending > 0 ? `${qs.pending} en attente` : undefined} ton={qs.pending > 0 ? "attente" : undefined} />
       </div>
 
       <section className="space-y-2">

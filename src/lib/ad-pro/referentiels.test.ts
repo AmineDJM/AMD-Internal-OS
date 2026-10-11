@@ -80,15 +80,17 @@ const PORTE_DE_CREATION: Record<AdProKind, Porte> = {
     }),
   },
   EVENT: { source: "src/app/(app)/events/event-form.tsx" },
+  // FICHES VOYAGEUR (Direction, 10/2026) : les professionnels pris en charge s'ajoutent DANS la demande ;
+  // à la création, les praticiens de l'annuaire sont ceux À L'ORIGINE d'une « initiative du médecin ».
   CONGRESS_INTERNATIONAL: {
     source: "src/app/(app)/congress-international/congress-request-form.tsx",
-    medecinsSous: "invitedDoctorIds",
+    medecinsSous: "initiativeDoctorIds",
   },
   // Le MÊME formulaire sert les deux prises en charge (`national`) : c'est voulu, et c'est ce qui
   // garantit qu'un champ ajouté d'un côté ne manque pas de l'autre.
   CONGRESS_NATIONAL: {
     source: "src/app/(app)/congress-international/congress-request-form.tsx",
-    medecinsSous: "invitedDoctorIds",
+    medecinsSous: "initiativeDoctorIds",
   },
   CONSULTING: { champs: () => consultingCreateFields({ companies: ENTITES, businessUnits: GAMMES, products: PRODUITS, doctors: MEDECINS }) },
   OTHER: { champs: () => adProOtherCreateFields({ companies: ENTITES, businessUnits: GAMMES, products: PRODUITS, doctors: MEDECINS }) },
