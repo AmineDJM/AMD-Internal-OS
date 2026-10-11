@@ -1,7 +1,6 @@
 "use server";
 
 import { refusDuRetraitValidation, validateursSollicites } from "@/lib/validations/retrait";
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { FinanceCategory } from "@prisma/client";
 import type { AdminRequestType, AdminRequestStatus, Priority, AdminApprovalStatus, DriverMissionStatus, Prisma } from "@prisma/client";
@@ -11,9 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { journaliserDemandeAchat } from "@/lib/general-means/purchase-journal";
 import { companyIdForNew } from "@/lib/company";
-import { saveFile, validateUpload } from "@/lib/storage";
-import { getAppSettings } from "@/lib/settings";
-import { algiersInputToUtc, formatAlgiers } from "@/lib/calendar-tz";
+import { formatAlgiers } from "@/lib/calendar-tz";
 import { archiveProcessedRequest } from "@/lib/archive";
 import { ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS } from "@/lib/labels";
 import { recordAudit } from "@/lib/audit";
@@ -25,7 +22,7 @@ import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { dejaPorteParSaFiche } from "@/lib/ad-pro/unified";
 import { ecrireAuFil } from "@/lib/ad-pro/fil";
 import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
-import { fieldLabels } from "@/lib/admin-requests";
+import { fieldLabels, REQUEST_TYPES } from "@/lib/admin-requests";
 import {
   porteDuDemandeur, refusDeModification, changementsDeLaDemande, suitLaDemandeDeBcDuPoste, refusDemandeDeBcDuPoste, type ContenuDemande,
 } from "@/lib/secretariat/porte-demandeur";
@@ -130,6 +127,15 @@ export async function createRequest(
   const type = fdStr(formData, "type") as AdminRequestType | null;
   const title = fdStr(formData, "title");
   if (!type || !title) return { ok: false, error: "Type et titre obligatoires." };
+  // Seuls les types du catalogue se créent : « Mission chauffeur » et « Demande RH » se relisent, ne se créent plus.
+  if (!REQUEST_TYPES.some((t) => t.value === type)) return { ok: false, error: "Ce type de demande ne se crée plus." };
+
+  // LA DEMANDE VA DIRECTEMENT À L'ASSISTANTE DE DIRECTION (Direction, 10/2026) : le formulaire ne porte plus
+  // « Personne concernée » ni « Responsable ». Le demandeur peut ajouter des PARTICIPANTS (`fields.participantIds`).
+  const participantIds = [...new Set(formData.getAll("participantIds").map((v) => String(v).trim()).filter((v) => v && v !== user.id))];
+  const participants = participantIds.length
+    ? (await prisma.user.findMany({ where: { id: { in: participantIds }, isActive: true }, select: { id: true } })).map((u) => u.id)
+    : [];
 
   // LA RÉFÉRENCE SE RECALCULE SOUS COLLISION (§118.175, lot E5) : deux demandes déposées à la même seconde lisaient le
   // même maximum, et la seconde échouait sur une erreur brute — mesuré quand deux bancs déposaient ensemble. Le lot
@@ -142,25 +148,18 @@ export async function createRequest(
       description: fdStr(formData, "description"),
       priority: (fdStr(formData, "priority") as Priority) ?? "MEDIUM",
       deadline: fdDate(formData, "deadline"),
-      concernedUserId: fdStr(formData, "concernedUserId"),
-      assignedToId: fdStr(formData, "assignedToId"),
       departmentId: fdStr(formData, "departmentId"),
-      fields: collectFields(formData),
+      fields: { ...collectFields(formData), ...(participants.length ? { participantIds: participants } : {}) },
       requesterId: user.id,
       createdById: user.id,
       companyId,
     },
-    select: { id: true, reference: true, assignedToId: true },
+    select: { id: true, reference: true },
   }));
 
-  if (created.assignedToId && created.assignedToId !== user.id) {
-    await notifyUser({ userId: created.assignedToId, type: "ASSIGNMENT", title: "Nouvelle demande administrative", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` });
-  } else if (!created.assignedToId) {
-    // SANS RESPONSABLE, LE SECRÉTARIAT EST PRÉVENU (audit 360°, I10). Le formulaire propose
-    // « — (l'assistante) » par défaut : la demande lui revient, et personne ne le lui disait — elle
-    // devait ouvrir le bureau pour découvrir son travail.
-    await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(() => undefined);
-  }
+  // LE SECRÉTARIAT EST PRÉVENU (audit 360°, I10) : chaque assistante de direction ; celle qui commence le
+  // traitement en devient responsable (`startRequestProcessing`).
+  await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(() => undefined);
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: created.id, summary: `Demande ${created.reference} — ${title}` });
   revalidatePath("/demandes");
   revalidatePath("/demandes/assistant");
@@ -173,8 +172,11 @@ export async function createRequest(
  * CHANGER LE STATUT À LA MAIN — seulement ce qui n'a pas d'autre geste (§118.191, audit 360° R12) :
  * attendre un tiers ou un document, être bloqué (et dire pourquoi), reprendre. Le menu offrait les neuf
  * statuts sans condition : « Terminée » contournait la fin gardée, « Annulée » l'annulation commune, et
- * une demande annulée se ressuscitait d'un clic. La règle vit dans `secretariat/statut-manuel.ts`, lue
- * aussi par l'écran — qui ne propose plus de menu, mais des gestes nommés.
+ * une demande annulée se ressuscitait d'un clic. La règle vit dans `secretariat/statut-manuel.ts`.
+ *
+ * DEPUIS 10/2026, ELLE REFUSE TOUT (Direction) : l'assistante n'a que deux gestes, « Commencer le
+ * traitement » et « Fin du traitement ». La porte reste pour répondre — en nommant ces deux gestes — à
+ * qui l'appelle encore (l'assistant, un ancien lien).
  */
 export async function updateRequestStatus(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -514,71 +516,8 @@ export async function decideApproval(formData: FormData): Promise<ActionResult> 
 
 // ─────────────────────────────── Missions chauffeur ───────────────────────────────
 
-export async function createMission(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const requestId = fdStr(formData, "requestId");
-  const title = fdStr(formData, "title");
-  if (!title) return { ok: false, error: "Titre de mission requis." };
-  if (requestId) {
-    const req = await prisma.administrativeRequest.findUnique({ where: { id: requestId }, select: { assignedToId: true } });
-    if (!req || !isManager(user, req.assignedToId)) return DENIED;
-  } else if (!(hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE"))) {
-    return DENIED;
-  }
-  const assignedToId = fdStr(formData, "assignedToId");
-  // Échéance : « date et heure max » (datetime-local, heure d'Alger) ou simple date.
-  const deadlineRaw = fdStr(formData, "deadline");
-  const deadline = deadlineRaw ? algiersInputToUtc(deadlineRaw) ?? fdDate(formData, "deadline") : null;
-  // Points de passage (point A, B, C…) avec la consigne à chaque point.
-  const stopLocations = formData.getAll("stopLocation").map((v) => String(v).trim());
-  const stopTasks = formData.getAll("stopTask").map((v) => String(v).trim());
-  const stops = stopLocations
-    .map((location, i) => ({ location, task: stopTasks[i] || null }))
-    .filter((s) => s.location);
-
-  const created = await prisma.driverMission.create({
-    data: {
-      requestId: requestId ?? undefined, title, assignedToId,
-      startLocation: fdStr(formData, "startLocation"), destination: fdStr(formData, "destination"),
-      address: fdStr(formData, "address"), contactName: fdStr(formData, "contactName"), contactPhone: fdStr(formData, "contactPhone"),
-      instructions: fdStr(formData, "instructions"), deadline,
-      proofType: fdStr(formData, "proofType"), createdById: user.id,
-      stops: stops.length ? { create: stops.map((s, i) => ({ position: i, location: s.location, task: s.task })) } : undefined,
-    },
-    select: { id: true },
-  });
-
-  // Pièces jointes (bon de commande, dossier à déposer, plan…) versées à la course.
-  const files = formData.getAll("files").filter((f): f is File => f instanceof File && f.size > 0);
-  if (files.length) {
-    const maxMb = (await getAppSettings()).maxUploadMb;
-    for (const file of files) {
-      const invalid = validateUpload(file.name, file.size, maxMb);
-      if (invalid) return { ok: false, error: invalid };
-      const key = `DRIVER_MISSION/${created.id}/${randomUUID()}__${file.name}`;
-      try {
-        await saveFile(key, Buffer.from(await file.arrayBuffer()));
-      } catch (err) {
-        console.error("[mission] storage write failed, recording metadata only", err);
-      }
-      await prisma.document.create({
-        data: {
-          name: file.name, category: "OTHER", entityType: "DRIVER_MISSION", entityId: created.id,
-          fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: "INTERNAL", uploadedById: user.id,
-        },
-      });
-    }
-  }
-
-  if (assignedToId && assignedToId !== user.id) {
-    await notifyUser({ userId: assignedToId, type: "MEDICAL_TOUR", title: "Nouvelle course chauffeur", body: title, link: `/demandes/driver` });
-  }
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Demandes administratives", entityType: "DRIVER_MISSION", entityId: created.id, summary: `Mission « ${title} »` });
-  if (requestId) revalidatePath(`/demandes/${requestId}`);
-  revalidatePath("/demandes/driver");
-  revalidatePath("/demandes/courses");
-  return { ok: true, id: created.id };
-}
+// LES MISSIONS CHAUFFEUR NE SE CRÉENT PLUS (Direction, 10/2026) — `createMission` est retirée. Les courses déjà
+// posées se lisent, et le chauffeur les mène à leur terme (`toggleMissionStop`, `updateMission`).
 
 /** Coche / décoche un point de passage d'une course (chauffeur assigné ou gestionnaire). */
 export async function toggleMissionStop(formData: FormData): Promise<ActionResult> {
@@ -656,103 +595,8 @@ export async function addRequestComment(formData: FormData): Promise<ActionResul
   return { ok: true };
 }
 
-// ─────────────────────────── Demande multi-cellules (lot) ───────────────────────────
-
-interface BatchCell {
-  type?: string;
-  title?: string;
-  description?: string;
-  priority?: string;
-  deadline?: string;
-  articleId?: string;
-  articleName?: string;
-  quantity?: string;
-  budget?: string;
-}
-
-/**
- * LES TYPES QU'ON PEUT ENCORE CRÉER. `HR_SIMPLE` n'y est plus (§118.138) : les demandes RH se
- * posent dans le module RH. La valeur reste dans l'énumération Prisma pour les demandes déjà
- * posées — c'est la porte d'ENTRÉE qu'on ferme, pas l'historique.
- */
-const REQ_TYPES: AdminRequestType[] = ["TRAVEL", "MAIL", "SIGNATURE", "PURCHASE", "QUOTE", "PAYMENT", "DRIVER", "GUEST_VISA", "OTHER"];
-const PRIORITIES: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
-
-/**
- * Crée plusieurs demandes en un seul envoi (cellules). Chaque cellule devient une
- * demande administrative à part entière, partageant un même `batchId` afin de
- * rester regroupées — mais pilotée indépendamment par l'assistante (statut,
- * validations). Idéal quand un employé a plusieurs besoins à formuler d'un coup.
- */
-export async function createRequestBatch(
-  _prev: ActionResult | undefined,
-  formData: FormData,
-): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "ADMIN_REQUESTS", "CREATE")) return DENIED;
-
-  let cells: BatchCell[];
-  try {
-    cells = JSON.parse(fdStr(formData, "cells") ?? "[]");
-  } catch {
-    return { ok: false, error: "Format des cellules invalide." };
-  }
-  const clean = (Array.isArray(cells) ? cells : []).filter((c) => c && c.title && String(c.title).trim() && c.type);
-  if (clean.length === 0) return { ok: false, error: "Ajoutez au moins une cellule (type + objet)." };
-  if (clean.length > 25) return { ok: false, error: "25 cellules maximum par envoi." };
-
-  const batchId = randomUUID();
-  const concernedUserId = fdStr(formData, "concernedUserId");
-  const assignedToId = fdStr(formData, "assignedToId");
-  const departmentId = fdStr(formData, "departmentId");
-  const createdIds: string[] = [];
-  // LA MÊME SOCIÉTÉ QUE LA CRÉATION UNITAIRE (`createRequest`, plus haut dans ce fichier) : le lot
-  // créait ses demandes sans société, donc invisibles dans toute vue cloisonnée du bureau — même
-  // pour leur auteur (§118.154). Lue une fois : toutes les cellules d'un envoi sont du même auteur.
-  const companyId = await companyIdForNew(user.id);
-
-  for (const c of clean) {
-    const type = (REQ_TYPES.includes(c.type as AdminRequestType) ? c.type : "OTHER") as AdminRequestType;
-    const priority = (c.priority && PRIORITIES.includes(c.priority as Priority) ? c.priority : "MEDIUM") as Priority;
-    const fields: Record<string, string> = {};
-    if (c.articleName) fields.article = String(c.articleName);
-    if (c.articleId) fields.articleId = String(c.articleId);
-    if (c.quantity) fields.quantite = String(c.quantity);
-    if (c.budget) fields.budget = String(c.budget);
-    const deadline = c.deadline ? new Date(c.deadline) : null;
-
-    const created = await createWithRetry(async () =>
-      prisma.administrativeRequest.create({
-        data: {
-          reference: await nextRequestRef(),
-          title: String(c.title).trim(),
-          type,
-          description: c.description ? String(c.description).trim() : null,
-          priority,
-          deadline: deadline && !Number.isNaN(deadline.getTime()) ? deadline : null,
-          concernedUserId,
-          assignedToId,
-          departmentId,
-          fields,
-          batchId,
-          companyId,
-          requesterId: user.id,
-          createdById: user.id,
-        },
-        select: { id: true },
-      }),
-    );
-    createdIds.push(created.id);
-  }
-
-  if (assignedToId && assignedToId !== user.id) {
-    await notifyUser({ userId: assignedToId, type: "ASSIGNMENT", title: "Nouvelles demandes (lot)", body: `${createdIds.length} demande(s) à traiter`, link: `/demandes/${createdIds[0]}` });
-  }
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: createdIds[0], summary: `Lot de ${createdIds.length} demande(s) créé` });
-  revalidatePath("/demandes");
-  revalidatePath("/demandes/assistant");
-  return { ok: true, id: createdIds[0] };
-}
+// LA DEMANDE MULTIPLE N'EXISTE PLUS (Direction, 10/2026) — `createRequestBatch` est retirée : une demande par
+// besoin. Les lots déjà déposés se lisent : chaque demande garde son `batchId`, la fiche montre ses voisines.
 
 // ─────────────────────────── Le demandeur corrige ou annule (§118.187) ───────────────────────────
 
@@ -948,7 +792,7 @@ export async function startRequestProcessing(formData: FormData): Promise<Action
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande introuvable." };
-  const req = await prisma.administrativeRequest.findUnique({ where: { id }, select: { assignedToId: true, status: true, reference: true, deletedAt: true } });
+  const req = await prisma.administrativeRequest.findUnique({ where: { id }, select: { assignedToId: true, requesterId: true, status: true, reference: true, deletedAt: true } });
   if (!req || req.deletedAt) return { ok: false, error: "Demande introuvable." };
   if (!isManager(user, req.assignedToId)) return DENIED;
   const close = refusDemandeClose(req.status);
@@ -962,7 +806,12 @@ export async function startRequestProcessing(formData: FormData): Promise<Action
   });
   if (r.count === 0) return { ok: false, error: DEMANDE_CHANGEE };
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, field: "status", newValue: "IN_PROGRESS", summary: req.assignedToId ? "Traitement démarré" : "Traitement démarré — responsable : la personne qui l'a commencé" });
+  // LE DEMANDEUR LIT « EN COURS — chez l'assistante de direction » (Direction, 10/2026).
+  if (req.requesterId && req.requesterId !== user.id) {
+    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande en cours", body: `${req.reference} — en cours, chez l'assistante de direction`, link: `/demandes/${id}` }).catch(() => undefined);
+  }
   revalidatePath(`/demandes/${id}`);
+  revalidatePath("/demandes");
   revalidatePath("/demandes/assistant");
   return { ok: true };
 }
@@ -1072,7 +921,7 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
   if (!id) return { ok: false, error: "Demande introuvable." };
   const req = await prisma.administrativeRequest.findUnique({
     where: { id },
-    select: { assignedToId: true, type: true, reference: true, title: true, linkedEntityType: true, status: true },
+    select: { assignedToId: true, requesterId: true, type: true, reference: true, title: true, linkedEntityType: true, status: true },
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
   if (!isManager(user, req.assignedToId)) return DENIED;
@@ -1149,7 +998,10 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
     revalidatePath("/budgets/departements");
   }
 
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, field: "status", newValue: "DONE", summary: "Fin de la demande" });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, field: "status", newValue: "DONE", summary: "Fin du traitement" });
+  if (req.requesterId && req.requesterId !== user.id) {
+    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande traitée", body: `${req.reference} — ${req.title}`, link: `/demandes/${id}` }).catch(() => undefined);
+  }
   // L'ARCHIVE DANS LE DRIVE (« Dossier traité ») — elle n'était faite que par le menu libre, c'est-à-dire
   // par le seul chemin qui contournait les gardes de cette fin (§118.191, audit R12). Une fois, jamais
   // bloquante : la demande est terminée même si l'archive échoue.

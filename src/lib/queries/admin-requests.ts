@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auNomDeQui, standInForUserIds } from "@/lib/hr/stand-in-resolve";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
 import { interditSurSaPropreDemande } from "@/lib/secretariat/decision-approbation";
+import { statutAffiche } from "@/lib/secretariat/traitement";
 
 const REQ_INCLUDE = {
   requester: { select: { name: true } },
@@ -58,29 +59,20 @@ export async function getRequestList(user: SessionUser, filters: { status?: stri
 export async function getAssistantData(user: SessionUser) {
   const now = new Date();
   const scope = scopeAdminRequests(user);
-  const [requests, missions] = await Promise.all([
-    prisma.administrativeRequest.findMany({ where: scope, include: REQ_INCLUDE, orderBy: { createdAt: "desc" }, take: 300 }),
-    prisma.driverMission.findMany({
-      where: { status: { in: ["NEW", "ACCEPTED", "EN_ROUTE", "PROBLEM"] } },
-      include: { assignedTo: { select: { name: true } }, request: { select: { reference: true } } },
-      orderBy: { createdAt: "desc" }, take: 100,
-    }),
-  ]);
+  const requests = await prisma.administrativeRequest.findMany({ where: scope, include: REQ_INCLUDE, orderBy: { createdAt: "desc" }, take: 300 });
   const terminal = ["DONE", "CANCELLED"];
-  const open = requests.filter((r) => !terminal.includes(r.status));
+  // Une étape retirée (en attente d'un tiers, d'un document, bloquée à la main) se lit « En cours » (10/2026).
+  const open = requests.filter((r) => !terminal.includes(r.status)).map((r) => ({ ...r, status: statutAffiche(r.status, r.blockedReason) as AdminRequestStatus }));
   const stats = {
-    nouvelles: requests.filter((r) => r.status === "NEW").length,
+    nouvelles: open.filter((r) => r.status === "NEW").length,
+    enCours: open.filter((r) => r.status === "IN_PROGRESS").length,
     urgentes: open.filter((r) => r.priority === "HIGH" || r.priority === "CRITICAL").length,
     enRetard: open.filter((r) => r.deadline && r.deadline < now).length,
-    attenteValidation: requests.filter((r) => r.status === "AWAITING_VALIDATION").length,
-    attentePaiement: requests.filter((r) => r.status === "AWAITING_PAYMENT").length,
-    attenteExterne: requests.filter((r) => r.status === "AWAITING_EXTERNAL").length,
-    attenteDoc: requests.filter((r) => r.status === "AWAITING_DOCUMENT").length,
-    bloquees: requests.filter((r) => r.status === "BLOCKED").length,
-    missions: missions.length,
+    attenteValidation: open.filter((r) => r.status === "AWAITING_VALIDATION").length,
+    attentePaiement: open.filter((r) => r.status === "AWAITING_PAYMENT").length,
     ouvertes: open.length,
   };
-  return { requests, open, missions, stats };
+  return { requests, open, stats };
 }
 
 /** Corbeille : demandes supprimées (soft delete) — réservé aux gestionnaires. */

@@ -11,6 +11,22 @@
   que le circuit n'écrit jamais. **Courbe datée par la dépense** (date saisie, sinon règlement / date de la facture).
 - **Réallouer** (`reallouerCategorie`) : Direction Marketing / Super Admin, motif obligatoire, journal de l'enveloppe.
 
+### BUREAU DU SECRÉTARIAT : DIRECTEMENT À L'ASSISTANTE, DEUX GESTES, PLUS DE MISSION CHAUFFEUR NI DE DEMANDE MULTIPLE (2026-10-11)
+
+Aucune migration : les valeurs retirées restent dans l'énumération pour relire l'existant. Règles :
+`lib/secretariat/traitement.ts` (pur, testé) — voir « Bureau du secrétariat — flux par demande ».
+
+- **Nouvelle demande** : plus de « Personne concernée » ni de « Responsable » — elle va directement aux assistantes de
+  direction (notifiées ; celle qui commence en devient responsable). Le demandeur peut ajouter des **participants**
+  (`fields.participantIds`), qui lisent la demande.
+- **Deux gestes** : « Commencer le traitement » → le demandeur lit « En cours — chez l'assistante de direction »,
+  « Fin du traitement » → « Traitée » ; il est notifié aux deux pas (lien vers la demande). Retirés de la fiche : en
+  attente d'un tiers / d'un document, bloquer, reprendre, validation Finances / interne, mission chauffeur. Restent
+  « Annuler la demande… », « Rouvrir… » (demande traitée) et « Supprimer la demande ».
+- **Anciennes demandes** : « en attente d'un tiers / d'un document » et « bloquée » à la main se lisent « En cours » et
+  se terminent par « Fin du traitement ». « Mission chauffeur » se relit, ne se crée plus (formulaire, assistant) ;
+  `createMission` et `createRequestBatch` (demande multiple) sont retirées, les courses déjà posées se mènent encore.
+
 ### MISSIONS DE L'ÉQUIPE ADVENTUM : DEMANDE DE PARTICIPATION, CONTRE-PROPOSITIONS, OM EN UN CLIC, BILLET / HÔTEL PAR MEMBRE, NOTES DE FRAIS ET CLÔTURE (2026-10-11)
 
 Migration additive et idempotente `20270120090000_mission_equipe_participation` (`MissionParticipationVersion`,

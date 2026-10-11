@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS, PRIORITY } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
+import { STATUTS_FILTRABLES, typeRetire } from "@/lib/secretariat/traitement";
 
 /**
  * LES DEMANDES DU SECRÉTARIAT — un tableau qui se filtre PAR SES COLONNES.
@@ -52,6 +53,9 @@ export function RequestsTable({ rows, totaux }: { rows: RequestRow[]; totaux?: T
     return true;
   });
   const active = Object.values(f).some(Boolean);
+  // Un type retiré (« Mission chauffeur », « Demande RH ») ne se propose au filtre que s'il reste des demandes à relire.
+  const typesPresents = new Set(rows.map((r) => r.type));
+  const typesFiltre = Object.entries(ADMIN_REQUEST_TYPE).filter(([v]) => !typeRetire(v) || typesPresents.has(v));
 
   return (
     <div className="space-y-2">
@@ -89,7 +93,7 @@ export function RequestsTable({ rows, totaux }: { rows: RequestRow[]; totaux?: T
               <th className="px-2 pb-2 pt-1">
                 <select value={f.type} onChange={set("type")} className={cellInput}>
                   <option value="">Tous</option>
-                  {Object.entries(ADMIN_REQUEST_TYPE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  {typesFiltre.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </th>
               <th className="px-2 pb-2 pt-1">
@@ -101,7 +105,7 @@ export function RequestsTable({ rows, totaux }: { rows: RequestRow[]; totaux?: T
               <th className="px-2 pb-2 pt-1">
                 <select value={f.status} onChange={set("status")} className={cellInput}>
                   <option value="">Tous</option>
-                  {Object.entries(ADMIN_REQUEST_STATUS).map(([v, d]) => <option key={v} value={v}>{d.label}</option>)}
+                  {STATUTS_FILTRABLES.map((v) => <option key={v} value={v}>{ADMIN_REQUEST_STATUS[v]?.label ?? v}</option>)}
                 </select>
               </th>
               <th className="px-2 pb-2 pt-1"><input type="month" value={f.deadlineMonth} onChange={set("deadlineMonth")} title="Mois d'échéance" className={cellInput} /></th>

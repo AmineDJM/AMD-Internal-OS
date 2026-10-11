@@ -82,15 +82,12 @@ suite("EXÉCUTION GÉNÉRIQUE — l'action de l'écran, appelée par son contrat
 
   it("MODIFIE réellement, par l'action de l'écran", async () => {
     ACTEUR = await acteur(pdgId, "SUPER_ADMIN");
-    // « En attente d'un tiers » : un statut que le gestionnaire pose À LA MAIN. « En cours » ne se pose
-    // plus ainsi sur une demande neuve — elle se prend en charge par « Commencer le traitement »
-    // (§118.191, audit R12) : le statut libre de ce banc lisait l'ancienne règle.
-    const r = await executerAction(ACTEUR, "admin-request-actions:updateRequestStatus", {
-      id: demandeId, status: "AWAITING_EXTERNAL",
-    });
+    // « Commencer le traitement » : depuis 10/2026, plus aucun statut ne se pose à la main — l'assistante n'a
+    // que deux gestes (Direction). Ce banc posait « En attente d'un tiers », étape retirée.
+    const r = await executerAction(ACTEUR, "admin-request-actions:startRequestProcessing", { id: demandeId });
     expect(r.ok, JSON.stringify(r)).toBe(true);
     const ligne = await prisma.administrativeRequest.findUniqueOrThrow({ where: { id: demandeId } });
-    expect(ligne.status).toBe("AWAITING_EXTERNAL");
+    expect(ligne.status).toBe("IN_PROGRESS");
   });
 
   it("LA PORTE DE L'ACTION tient — l'exécuteur n'est pas une porte dérobée", async () => {
@@ -104,7 +101,7 @@ suite("EXÉCUTION GÉNÉRIQUE — l'action de l'écran, appelée par son contrat
     expect(r.ok).toBe(false);
     expect(r.ok === false && r.motif, JSON.stringify(r)).toBe("refusee");
     const ligne = await prisma.administrativeRequest.findUniqueOrThrow({ where: { id: demandeId } });
-    expect(ligne.status).toBe("AWAITING_EXTERNAL"); // rien n'a bougé
+    expect(ligne.status).toBe("IN_PROGRESS"); // rien n'a bougé
   });
 
   it("§118.25 — l'échec déclaré est lu sur les ÉCRITURES, et seulement sur elles", () => {

@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { toNumber } from "@/lib/utils";
 import { NewRequestButton } from "./new-request";
-import { MultiRequestButton } from "./multi-request";
+import { statutAffiche } from "@/lib/secretariat/traitement";
 import { SuppliesManager } from "./supplies-manager";
 import { ExpenseAckList, type ExpenseAckItem } from "./expense-ack";
 import { RequestsTable, type RequestRow } from "./requests-table";
@@ -56,7 +56,8 @@ export default async function DemandesPage({ searchParams }: { searchParams: { s
     title: r.title,
     type: r.type,
     priority: r.priority,
-    status: r.status,
+    // Une étape retirée (en attente d'un tiers, d'un document, bloquée à la main) se lit « En cours ».
+    status: statutAffiche(r.status, r.blockedReason),
     deadline: r.deadline ? r.deadline.toISOString() : null,
     assignedTo: r.assignedTo?.name ?? null,
     batch: Boolean(r.batchId),
@@ -66,7 +67,6 @@ export default async function DemandesPage({ searchParams }: { searchParams: { s
     <div className="space-y-5">
       <PageHeader title="Bureau du secrétariat" description="Centre de traitement des demandes transverses de l'entreprise. Filtrez directement dans les colonnes du tableau.">
         {isManager && <SuppliesManager articles={catalogRows} />}
-        <MultiRequestButton users={users} departments={departments} articles={activeArticles} />
         <NewRequestButton users={users} departments={departments} articles={activeArticles} />
       </PageHeader>
 

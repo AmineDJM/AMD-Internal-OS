@@ -149,18 +149,8 @@ suite("ops vague 7 — demandes administratives et achats", () => {
     }
   });
 
-  it("create_mission : les points « Lieu : consigne » partent en points de passage ordonnés", async () => {
-    const p = await buildProposal("request_operation", {
-      op: "create_mission", label: "Tournée administrative", person: "Kamel Directeur",
-      location: "Siège", stops: "Banque BNA : déposer les chèques ; Mairie : retirer l'extrait",
-    }, sa());
-    expect("error" in p).toBe(false);
-    if (!("error" in p)) {
-      expect(domainArgs(p).assignedToId).toBe(validatorId);
-      expect(domainArgs(p).stops).toContain("Banque BNA : déposer les chèques");
-      expect(p.fields.map((f) => f.value).join(" ")).toMatch(/Banque BNA.*Mairie/);
-    }
-  });
+  // (Golden « create_mission » retiré : les missions chauffeur ne se créent plus — Direction, 10/2026 — et l'op
+  // n'existe plus. Les courses déjà posées se mènent encore : toggle_mission_stop, update_mission ci-dessous.)
 
   it("toggle_mission_stop : le point se désigne par son LIEU et annonce le sens du basculement", async () => {
     const p = await buildProposal("request_operation", {

@@ -121,7 +121,8 @@ const POINTS: Point[] = [
   ["src/app/(app)/admin/corbeille/trash-list.tsx", 'run(it, "restore")', 1],
   ["src/components/shared/super-admin-delete.tsx", "Oui, supprimer définitivement", 1],
   // Secrétariat
-  ["src/app/(app)/demandes/[id]/request-actions.tsx", "Fin de la demande", 1],
+  // « Fin de la demande » s'appelle « Fin du traitement » (Direction, 10/2026 : deux gestes).
+  ["src/app/(app)/demandes/[id]/request-actions.tsx", "Fin du traitement", 1],
   ["src/app/(app)/demandes/[id]/request-actions.tsx", "Annuler la demande", 1],
   ["src/app/(app)/demandes/[id]/request-actions.tsx", "Supprimer", 1],
   ["src/app/(app)/demandes/[id]/requester-window.tsx", "Supprimer", 1],

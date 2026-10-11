@@ -220,9 +220,9 @@ const CORE_ERP_ACTIONS: NativeAction[] = [
     module: "Demandes",
     uiLabel: "Nouvelle demande administrative",
     toolName: "create_admin_request",
-    aliases: ["demande administrative", "demande de billet", "demande de signature", "demande d'achat", "mission chauffeur"],
+    aliases: ["demande administrative", "demande de billet", "demande de signature", "demande d'achat"],
     risk: "NORMAL",
-    summary: "Ouvre une demande administrative typée (déplacement, courrier, signature, achat, devis, paiement, chauffeur, visa, RH simple…) — DERNIER RECOURS quand aucune action de module plus précise n'existe.",
+    summary: "Ouvre une demande administrative typée (déplacement, courrier, signature, achat, devis, paiement, visa…), adressée à l'assistante de direction — DERNIER RECOURS quand aucune action de module plus précise n'existe.",
     gate: (u) => userCan(u, "ADMIN_REQUESTS", "CREATE"),
   },
   {
@@ -883,9 +883,9 @@ G("tâches : répondre/faire/valider POUR SOI (accepter la tâche, déposer le t
   "task-actions:addTaskComment",
 ]);
 G("demandes administratives avancées (approbations, missions, lots, corbeille propre, validations)", [
-  "admin-request-actions:requestApproval", "admin-request-actions:decideApproval", "admin-request-actions:createMission",
+  "admin-request-actions:requestApproval", "admin-request-actions:decideApproval",
   "admin-request-actions:toggleMissionStop", "admin-request-actions:updateMission",
-  "admin-request-actions:createRequestBatch", "admin-request-actions:editOwnRequest",
+  "admin-request-actions:editOwnRequest",
   "admin-request-actions:deleteOwnRequest", "admin-request-actions:deleteRequests",
   "admin-request-actions:restoreRequest", "admin-request-actions:startRequestProcessing",
   "admin-request-actions:requestFinanceValidation", "admin-request-actions:requestInternalValidation",

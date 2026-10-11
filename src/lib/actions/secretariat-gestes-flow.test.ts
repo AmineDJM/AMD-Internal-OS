@@ -112,42 +112,57 @@ suite("Demande au secrétariat — gestes nommés, fin gardée, réouverture mot
     expect(userCan(c, "ADMIN_REQUESTS", "UPDATE")).toBe(false);
   });
 
-  it("le statut libre ne TERMINE ni n'ANNULE plus — chacun a sa porte, et le refus la nomme", async () => {
+  // DEUX GESTES (Direction, 10/2026). Ce banc éprouvait les gestes « à la main » de §118.191 — bloquer (avec
+  // motif), en attente d'un tiers / d'un document, reprendre. Ils sont retirés : il éprouve désormais que le
+  // statut ne se change plus à la main (le refus nomme la porte), et que les deux gestes préviennent le demandeur.
+  it("le statut ne se change plus à la main — le refus nomme la porte, et rien ne bouge", async () => {
     const id = await enCours("Menu");
-    expect(err(await changer("asst", id, "DONE"))).toMatch(/passe par « Fin de la demande »/);
+    expect(err(await changer("asst", id, "DONE"))).toMatch(/passe par « Fin du traitement »/);
     expect(err(await changer("asst", id, "CANCELLED"))).toMatch(/passe par « Annuler la demande »/);
-    expect(err(await changer("asst", id, "AWAITING_VALIDATION"))).toMatch(/découle d'un geste/);
-    expect(err(await changer("asst", id, "NEW"))).toMatch(/découle d'un geste/);
-    expect((await statut(id)).status).toBe("IN_PROGRESS");
+    for (const cible of ["AWAITING_VALIDATION", "NEW", "AWAITING_EXTERNAL", "AWAITING_DOCUMENT", "IN_PROGRESS"]) {
+      expect(err(await changer("asst", id, cible))).toMatch(/deux gestes/);
+    }
+    expect(err(await changer("asst", id, "BLOCKED", "le fournisseur ne répond plus"))).toMatch(/deux gestes/);
+    expect(await statut(id)).toMatchObject({ status: "IN_PROGRESS", blockedReason: null });
   });
 
   it("une demande neuve se PREND en charge — elle ne passe pas « en cours » par le menu", async () => {
     const id = await nouvelle("Neuve");
-    expect(err(await changer("asst", id, "IN_PROGRESS"))).toMatch(/Commencer le traitement/);
+    expect(err(await changer("asst", id, "IN_PROGRESS"))).toMatch(/« Commencer le traitement »/);
   });
 
-  it("BLOQUER exige son motif ; le demandeur lit le motif, jamais l'énumération brute", async () => {
-    const id = await enCours("Bloquée");
-    expect(err(await changer("asst", id, "BLOCKED"))).toBe("Dites ce qui bloque : c'est ce que lira le demandeur.");
-    expect(err(await changer("asst", id, "BLOCKED", "le fournisseur ne répond plus"))).toBeNull();
-    expect(await statut(id)).toMatchObject({ status: "BLOCKED", blockedReason: "le fournisseur ne répond plus" });
-    const [n] = await notifs(u.req!, "Demande bloquée");
-    expect(n?.body).toMatch(/— le fournisseur ne répond plus$/);
-    const fil = await prisma.comment.findFirst({ where: { entityType: "ADMIN_REQUEST", entityId: id } });
-    expect(fil?.body).toBe("Demande bloquée — le fournisseur ne répond plus");
+  it("la demande va À L'ASSISTANTE : ni responsable ni personne concernée saisis ; les participants restent", async () => {
+    await comme("req");
+    const r = await createRequest(undefined, form({ type: "OTHER", title: `${TAG}Directe`, assignedToId: u.coll!, concernedUserId: u.coll!, participantIds: u.coll! }));
+    expect(r.ok, err(r) ?? "").toBe(true);
+    created.push(r.id!);
+    const d = await prisma.administrativeRequest.findUniqueOrThrow({ where: { id: r.id! }, select: { assignedToId: true, concernedUserId: true, fields: true } });
+    expect(d).toMatchObject({ assignedToId: null, concernedUserId: null });
+    expect((d.fields as { participantIds?: string[] }).participantIds).toEqual([u.coll!]);
+    expect((await notifs(u.asst!, "Nouvelle demande au secrétariat")).some((n) => (n.body ?? "").includes("Directe"))).toBe(true);
   });
 
-  it("REPRENDRE efface le motif de blocage ; la notification dit le statut par son nom", async () => {
-    const id = await enCours("Reprise");
-    expect(err(await changer("asst", id, "BLOCKED", "pièce manquante"))).toBeNull();
-    expect(err(await changer("asst", id, "IN_PROGRESS"))).toBeNull();
-    expect(await statut(id)).toMatchObject({ status: "IN_PROGRESS", blockedReason: null });
-    const [n] = await notifs(u.req!, "Demande mise à jour");
-    expect(n?.body).not.toMatch(/IN_PROGRESS/);
-    expect(n?.body).toMatch(/Statut|En cours|cours/i);
-    expect(err(await changer("asst", id, "AWAITING_EXTERNAL"))).toBeNull();
-    expect(err(await changer("asst", id, "AWAITING_DOCUMENT"))).toBeNull();
-    expect(err(await changer("asst", id, "AWAITING_DOCUMENT"))).toBe("La demande est déjà dans cet état.");
+  it("« Mission chauffeur » et la demande multiple ne se créent plus", async () => {
+    await comme("req");
+    expect(err(await createRequest(undefined, form({ type: "DRIVER", title: `${TAG}Chauffeur` })))).toMatch(/ne se crée plus/);
+    expect(await prisma.administrativeRequest.count({ where: { title: `${TAG}Chauffeur` } })).toBe(0);
+  });
+
+  it("COMMENCER puis FIN DU TRAITEMENT : le demandeur lit « en cours — chez l'assistante », puis « traitée »", async () => {
+    const id = await enCours("Deux gestes");
+    expect((await notifs(u.req!, "Demande en cours"))[0]?.body).toMatch(/chez l'assistante de direction/);
+    await comme("asst");
+    expect(err(await finishRequest(form({ id })))).toBeNull();
+    expect((await statut(id)).status).toBe("DONE");
+    expect((await notifs(u.req!, "Demande traitée")).length).toBeGreaterThan(0);
+  });
+
+  it("une ancienne demande « bloquée » à la main se termine par « Fin du traitement »", async () => {
+    const id = await enCours("Ancienne étape");
+    await prisma.administrativeRequest.update({ where: { id }, data: { status: "BLOCKED", blockedReason: "ancienne étape" } });
+    await comme("asst");
+    expect(err(await finishRequest(form({ id })))).toBeNull();
+    expect((await statut(id)).status).toBe("DONE");
   });
 
   it("qui ne gère pas la demande ne change pas son statut — avant toute autre raison", async () => {
@@ -167,7 +182,7 @@ suite("Demande au secrétariat — gestes nommés, fin gardée, réouverture mot
   it("ROUVRIR : une demande terminée, avec son motif ; jamais une annulée ; jamais une en cours", async () => {
     const id = await enCours("Rouvrir");
     await comme("asst");
-    expect(err(await rouvrirDemande(form({ id, motif: "x" })))).toBe("Seule une demande terminée se rouvre.");
+    expect(err(await rouvrirDemande(form({ id, motif: "x" })))).toBe("Seule une demande traitée se rouvre.");
     expect(err(await finishRequest(form({ id })))).toBeNull();
     expect(err(await rouvrirDemande(form({ id })))).toBe("Dites pourquoi vous la rouvrez : c'est ce que lira le demandeur.");
     await comme("coll");
@@ -254,14 +269,8 @@ suite("Demande au secrétariat — gestes nommés, fin gardée, réouverture mot
     expect(await statut(discrete)).toMatchObject({ status: "NEW", deletedAt: null });
   });
 
-  it("TÉMOIN : la demande se termine PENDANT le changement de statut — le statut ne l'écrase pas", async () => {
-    const id = await enCours("Course statut");
-    const r = await pendantLaLecture(
-      () => changer("asst", id, "BLOCKED", "en attente du transporteur"),
-      (tx) => tx.administrativeRequest.update({ where: { id }, data: { status: "DONE", completedAt: new Date() } }));
-    expect(err(r)).toBe("Cette demande vient de changer : rouvrez-la pour voir où elle en est.");
-    expect((await statut(id)).status, "une demande terminée ne se retrouve pas « bloquée » en douce").toBe("DONE");
-  });
+  // (Le témoin « la demande se termine PENDANT le changement de statut » est retiré : plus aucun statut ne se pose
+  // à la main — le refus tombe avant toute écriture, il n'y a plus de course à éprouver.)
 
   it("TÉMOIN : deux réouvertures à la même seconde — une seule rouvre, un seul message part", async () => {
     const id = await enCours("Course réouverture");

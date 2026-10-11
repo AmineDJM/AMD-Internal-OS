@@ -4625,16 +4625,6 @@ export const OPS_CATALOG: OpMeta[] = [
     covers: ["admin-request-actions:decideApproval"],
   },
   {
-    tool: "request_operation", op: "create_mission", module: "Missions",
-    uiLabel: "Créer une course chauffeur",
-    aliases: ["crée une course pour le chauffeur", "envoie Akila déposer le dossier", "nouvelle mission coursier"],
-    risk: "NORMAL",
-    summary: "Crée une course chauffeur (rattachée à une demande en option) — départ, destination, contact, échéance, POINTS DE PASSAGE « Lieu : consigne » (points-virgules) ; le chauffeur est notifié.",
-    gate: () => true,
-    gateNote: "traitant de la demande liée, ou droit Modifier / vue globale (revérifié par l'action)",
-    covers: ["admin-request-actions:createMission"],
-  },
-  {
     tool: "request_operation", op: "toggle_mission_stop", module: "Missions",
     uiLabel: "Cocher un point de passage",
     aliases: ["coche le point de passage de la course", "le point banque est fait"],
@@ -4653,15 +4643,6 @@ export const OPS_CATALOG: OpMeta[] = [
     gate: () => true,
     gateNote: "chauffeur assigné ou gestionnaire (revérifié par l'action)",
     covers: ["admin-request-actions:updateMission"],
-  },
-  {
-    tool: "request_operation", op: "create_request_batch", module: "RH → Demandes",
-    uiLabel: "Créer un lot de demandes",
-    aliases: ["crée un lot de demandes", "plusieurs demandes d'un coup"],
-    risk: "NORMAL",
-    summary: "Crée jusqu'à 25 demandes d'un seul envoi (une par ligne) — même lot, mais chacune est pilotée INDÉPENDAMMENT par l'assistante.",
-    gate: (u) => userCan(u, "ADMIN_REQUESTS", "CREATE"),
-    covers: ["admin-request-actions:createRequestBatch"],
   },
   {
     tool: "request_operation", op: "edit_own_request", module: "RH → Demandes",
@@ -4733,7 +4714,7 @@ export const OPS_CATALOG: OpMeta[] = [
   },
   {
     tool: "request_operation", op: "finish_request", module: "RH → Demandes",
-    uiLabel: "Fin de la demande",
+    uiLabel: "Fin du traitement",
     aliases: ["termine la demande", "clôture la demande administrative"],
     risk: "SENSITIVE",
     summary: "Clôt la demande — pour un ACHAT : facture finale exigée ET imputation aux MOYENS GÉNÉRAUX (département + montant réel), sauf demande déjà imputée ou issue d'Ad & Pro (déjà portée par son budget).",

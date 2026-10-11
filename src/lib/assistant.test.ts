@@ -188,7 +188,10 @@ d("Exécution après confirmation — ré-autorisation + audit", () => {
     expect(r.message).toMatch(/REQ-\d{4}-\d{3}/);
     const req = await prisma.administrativeRequest.findFirstOrThrow({ where: { title } });
     expect(req.requesterId).toBe(bob.id);
-    expect(req.assignedToId).toBe(carla.id);
+    // La demande va DIRECTEMENT à l'assistante de direction (Direction, 10/2026) : un responsable porté par
+    // une ancienne carte n'est plus écrit — celle qui commence le traitement en devient responsable.
+    expect(req.assignedToId).toBeNull();
+    expect(req.concernedUserId).toBeNull();
     expect(req.type).toBe("TRAVEL");
   });
 });
