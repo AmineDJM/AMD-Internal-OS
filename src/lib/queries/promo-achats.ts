@@ -77,7 +77,7 @@ export async function optionsDesArticlesDemandes(): Promise<{ catalogue: OptionC
 
 export const SELECT_LIGNE_FACTURE = {
   id: true, position: true, designation: true, action: true, unite: true, quantite: true, prixUnitaire: true,
-  quoteLineId: true, requestItemId: true, quantiteRecue: true, renonce: true, stockItemId: true, stockLotId: true,
+  quoteLineId: true, requestItemId: true, quantiteRecue: true, recueLe: true, renonce: true, stockItemId: true, stockLotId: true,
 } satisfies Prisma.PromoFactureLigneSelect;
 
 type LigneBrute = Prisma.PromoFactureLigneGetPayload<{ select: typeof SELECT_LIGNE_FACTURE }>;
@@ -87,7 +87,7 @@ export function ligneFactureLue(l: LigneBrute): LigneFactureLue {
     id: l.id, position: l.position, designation: l.designation, action: l.action && estAction(l.action) ? l.action : null,
     unite: l.unite, quantite: Number(l.quantite), prixUnitaire: Number(l.prixUnitaire),
     quoteLineId: l.quoteLineId, requestItemId: l.requestItemId,
-    quantiteRecue: num(l.quantiteRecue), renonce: l.renonce, stockItemId: l.stockItemId, stockLotId: l.stockLotId,
+    quantiteRecue: num(l.quantiteRecue), recueLe: l.recueLe, renonce: l.renonce, stockItemId: l.stockItemId, stockLotId: l.stockLotId,
   };
 }
 

@@ -12,7 +12,7 @@ import {
 } from "@/lib/queries/promo-circuit";
 import { executionDuDossier, verdictDuChantierPromo } from "@/lib/queries/promo-execution";
 import { listPartyOptions } from "@/lib/queries/company-contacts";
-import { manquesDeRetranscription } from "@/lib/promo-material/devis";
+import { lignesDuBonDeCommande, manquesDeRetranscription } from "@/lib/promo-material/devis";
 import { refusDeRangement } from "@/lib/promo-material/rangement";
 import { texteDemandeDeDevis } from "@/lib/promo-material/texte-demande-devis";
 import { ACTION_LABEL } from "@/lib/promo-material/actions-fournisseur";
@@ -57,7 +57,7 @@ import { PromoCircuitCard, PromoStatutCard, type ChantierAffiche } from "./circu
 import { PromoQuotesCard, type DevisAffiche } from "./quotes-card";
 import { RetirerDemandeDevis } from "./retirer-demande-devis";
 import { etatRetraitDemandeDevis } from "@/lib/promo-material/retrait-devis";
-import { PromoExecutionCard, PromoVisaCard, type ExecutionAffichee, type NatureAffichee } from "./execution-card";
+import { PromoExecutionCard, type ExecutionAffichee, type NatureAffichee } from "./execution-card";
 import { PromoArticlesCard } from "./articles-card";
 import { DateBesoin } from "./date-besoin";
 import { materielLivre } from "@/lib/promo-material/date-besoin";
@@ -325,9 +325,14 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
   const retenues = execution.filter((e) => e.lignesRetenues > 0);
   const executions: ExecutionAffichee[] = retenues.map((e) => {
     const b = e.bc ? null : brouillonDe(e.quoteId);
+    const brutDevis = devisParId.get(e.quoteId);
     return {
       quoteId: e.quoteId, fournisseur: e.fournisseur, reference: e.reference,
       lignes: e.lignesRetenues, ttc: e.retenu.ttc,
+      // Ce qui est commandé, sous le fournisseur : « Lingettes unitaires · 2 000 ».
+      articles: brutDevis
+        ? lignesDuBonDeCommande(devisLu(brutDevis)).map((l) => `${l.designation} · ${l.quantite.toLocaleString("fr-FR", { maximumFractionDigits: 3 })}${l.unite ? ` ${l.unite}` : ""}`)
+        : [],
       bc: e.bcDetail && e.bc ? { ...e.bcDetail, etape: e.bc.etape } : null,
       envoyeLe: e.envoyeLe ? e.envoyeLe.toISOString() : null,
       brouillon: b ? {
@@ -341,7 +346,7 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
       taxes: e.taxes,
       factures: e.factures.map((f) => ({
         id: f.id, reference: f.reference, montant: f.montant, date: f.date ? f.date.toISOString() : null,
-        etatReglement: f.etatReglement, reglee: f.reglee, paiementDemande: f.paiementDemande,
+        etatReglement: f.etatReglement, etat: f.etat, reglee: f.reglee, paiementDemande: f.paiementDemande,
         demandeInfoMedicale: f.demandeInfoMedicale, fichierId: fichiersFactures.get(f.id) ?? null,
         detail: f.detail
           ? {
@@ -354,7 +359,7 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
                   : n;
                 return {
                   id: l.id, designation: l.designation, action: l.action, unite: l.unite, quantite: l.quantite, prixUnitaire: l.prixUnitaire,
-                  quantiteRecue: l.quantiteRecue, renonce: l.renonce, etat: etatReception(l), nature,
+                  quantiteRecue: l.quantiteRecue, recueLe: l.recueLe ? l.recueLe.toISOString() : null, renonce: l.renonce, etat: etatReception(l), nature,
                   entree: l.stockLotId ? lots.get(l.stockLotId) ?? null : null,
                 };
               }),
@@ -525,16 +530,13 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
           } : null}
         />
 
-        {/* L'EXÉCUTION — un tableau des BC (réception, factures, paiement) et, à côté, le visa ou la déclaration. */}
+        {/* L'EXÉCUTION — « Commandes », pleine largeur : une ligne par BC (livraison, facture, paiement, visa / déclaration). */}
         {enExecution && (
-          <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-            <PromoExecutionCard
-              id={pm.id} executions={executions} canPilot={piloteLExecution(acteur, pm)} canReceive={canReceive}
-              ouvert={circuitState === "IN_EXECUTION"} optionsReception={choixAReception ? optionsCatalogue : null}
-              peutValiderBc={regard.peutValiderBc}
-            />
-            <PromoVisaCard id={pm.id} executions={executions} canPilot={piloteLExecution(acteur, pm)} ouvert={circuitState === "IN_EXECUTION"} />
-          </div>
+          <PromoExecutionCard
+            id={pm.id} executions={executions} canPilot={piloteLExecution(acteur, pm)} canReceive={canReceive}
+            ouvert={circuitState === "IN_EXECUTION"} optionsReception={choixAReception ? optionsCatalogue : null}
+            peutValiderBc={regard.peutValiderBc}
+          />
         )}
 
         {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}

@@ -102,7 +102,7 @@ export async function executionDuDossier(promoId: string): Promise<ExecutionDevi
             reglee: e === "REGLE", etatReglement: LIBELLE_ETAT_REGLEMENT[e],
             paiementDemande: Boolean(f.expenseOrderId) || Boolean(f.paidDate),
             demandeInfoMedicale: decl
-              ? { reference: decl.reference, nature: isDeclarationKind(decl.declarationKind) ? DECLARATION_KIND_LABEL[decl.declarationKind] : "Information médicale" }
+              ? { reference: decl.reference, nature: isDeclarationKind(decl.declarationKind) ? DECLARATION_KIND_LABEL[decl.declarationKind] : "Information médicale", formalite: decl.declarationKind }
               : null,
           };
         })

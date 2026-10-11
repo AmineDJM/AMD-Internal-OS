@@ -374,6 +374,8 @@ export interface LigneFactureLue {
   quoteLineId: string | null;
   requestItemId: string | null;
   quantiteRecue: number | null;
+  /** Le jour où la réception a été cochée (absent d'une lecture qui ne le charge pas). */
+  recueLe?: Date | null;
   renonce: boolean;
   stockItemId: string | null;
   stockLotId: string | null;

@@ -450,3 +450,176 @@ export function prochainGeste(f: FaitsDuDossier, r: RegardFiche): GesteFiche | n
   }
   return null;
 }
+
+// ─────────────────────────────── 7. LE TABLEAU « COMMANDES » ───────────────────────────────
+//
+// Maquette validée (Direction, 10/2026, étape 4 « Commande, livraison, paiement ») : une ligne par BC — Fournisseur,
+// BC, TTC, Livraison, Facture, Paiement, Visa / déclaration IM — chaque état en UNE pastille « état — chez qui », et UN
+// seul bouton : le prochain geste de la personne qui regarde. La réception se coche sur les lignes de la FACTURE (elle
+// est ce qui entre au stock, §118.165) : la facture se joint donc avant « J'ai reçu ».
+
+export type TonPastille = "info" | "warning" | "success" | "danger" | "neutral";
+export interface Pastille { texte: string; ton: TonPastille }
+
+/** Une facture d'une ligne du tableau, en faits. */
+export interface FactureDeCommande {
+  /** Lignes détaillées (0 : facture d'avant le détail), celles qui attendent leur réception, celles reçues, celles renoncées. */
+  lignes: number;
+  enAttente: number;
+  recues: number;
+  renoncees: number;
+  /** La dernière réception cochée (ISO), s'il y en a une. */
+  derniereReception: string | null;
+  paiementDemande: boolean;
+  reglee: boolean;
+  /** L'état du règlement (`EtatReglement` : REGLE, AU_CENTRE, REFUSE, AUX_FINANCES, NON_ENVOYE). */
+  etatReglement: string;
+  demandeIM: boolean;
+}
+
+/** Une ligne du tableau « Commandes » — un devis retenu, son BC et ce qui en découle. */
+export interface CommandeFaits {
+  /** L'étape du BC émis (`EtapeBC`) ; `null` : pas de BC émis. */
+  etape: string | null;
+  /** L'aperçu attend la validation du demandeur. */
+  brouillon: boolean;
+  /** Envoyé au fournisseur le (ISO). */
+  envoyeLe: string | null;
+  resteAFacturer: boolean;
+  factures: FactureDeCommande[];
+}
+
+export interface PastillesDeCommande {
+  /** Où est le BC tant qu'il n'est pas parti ; `null` une fois envoyé (la livraison prend le relais). */
+  bc: Pastille | null;
+  livraison: Pastille | null;
+  facture: Pastille | null;
+  paiement: Pastille | null;
+  visa: Pastille | null;
+}
+
+const deux = (n: number) => String(n).padStart(2, "0");
+/** « 20/10 » — le jour et le mois d'une date ISO. */
+export function jourMois(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : `${deux(d.getDate())}/${deux(d.getMonth() + 1)}`;
+}
+
+/** Où est le BC, en une pastille. */
+function pastilleBc(c: CommandeFaits): Pastille | null {
+  if (c.etape === null) return c.brouillon ? { texte: "aperçu à vérifier", ton: "warning" } : { texte: "à préparer", ton: "neutral" };
+  switch (c.etape) {
+    case "A_SIGNER": return { texte: "chez les Finances", ton: "info" };
+    case "A_VALIDER": return { texte: "au centre Ad & Pro", ton: "info" };
+    case "SANS_PORTE": return { texte: "à adresser au centre", ton: "warning" };
+    case "A_REVOIR": case "A_CORRIGER": return { texte: "à corriger", ton: "warning" };
+    case "REFUSE": return { texte: "refusé", ton: "danger" };
+    case "SIGNE": return c.envoyeLe ? null : { texte: "signé — à envoyer", ton: "warning" };
+    default: return { texte: "en cours", ton: "neutral" };
+  }
+}
+
+/** La livraison — lue sur les lignes des factures, là où la réception se coche. */
+function pastilleLivraison(c: CommandeFaits): Pastille | null {
+  const detaillees = c.factures.filter((f) => f.lignes > 0);
+  if (detaillees.length === 0) {
+    if (c.factures.length > 0) return null; // une facture d'avant le détail : pas de réception à suivre
+    return c.etape === "SIGNE" && c.envoyeLe ? { texte: "attendue", ton: "warning" } : null;
+  }
+  const lignes = detaillees.reduce((s, f) => s + f.lignes, 0);
+  const enAttente = detaillees.reduce((s, f) => s + f.enAttente, 0);
+  const recues = detaillees.reduce((s, f) => s + f.recues, 0);
+  if (enAttente > 0) return recues > 0 ? { texte: `en partie — ${recues}/${lignes}`, ton: "warning" } : { texte: "attendue", ton: "warning" };
+  if (detaillees.some((f) => f.renoncees > 0)) return { texte: "reçue en partie", ton: "neutral" };
+  const dates = detaillees.map((f) => f.derniereReception).filter((x): x is string => Boolean(x)).sort();
+  const derniere = dates.length ? jourMois(dates[dates.length - 1]) : "";
+  return { texte: derniere ? `reçue le ${derniere}` : "reçue", ton: "success" };
+}
+
+function pastilleFacture(c: CommandeFaits): Pastille | null {
+  if (c.factures.length === 0) return c.etape === "SIGNE" ? { texte: "attendue", ton: "neutral" } : null;
+  if (c.resteAFacturer) return { texte: "en partie", ton: "warning" };
+  return { texte: c.factures.length > 1 ? `${c.factures.length} jointes` : "jointe", ton: "success" };
+}
+
+/** Le règlement — la facture la moins avancée dit où en est la ligne. */
+function pastillePaiement(c: CommandeFaits): Pastille | null {
+  if (c.factures.length === 0) return null;
+  if (c.factures.some((f) => !f.paiementDemande)) return { texte: "à demander", ton: "warning" };
+  const enCours = c.factures.filter((f) => !f.reglee);
+  if (enCours.length === 0) return { texte: "payé", ton: "success" };
+  if (enCours.some((f) => f.etatReglement === "REFUSE")) return { texte: "refusé par le centre de paiement", ton: "danger" };
+  if (enCours.some((f) => f.etatReglement === "NON_ENVOYE")) return { texte: "à redemander", ton: "warning" };
+  if (enCours.some((f) => f.etatReglement === "AU_CENTRE")) return { texte: "au centre de paiement", ton: "info" };
+  return { texte: "chez les Finances", ton: "info" };
+}
+
+/** Le visa ou la déclaration — il part AVEC chaque paiement ; « à adresser » ne se voit que si son départ a échoué. */
+function pastilleVisa(c: CommandeFaits): Pastille | null {
+  const payees = c.factures.filter((f) => f.paiementDemande);
+  if (payees.length === 0) return null;
+  if (payees.some((f) => !f.demandeIM)) return { texte: "à adresser", ton: "warning" };
+  return { texte: "demandée avec le paiement", ton: "info" };
+}
+
+/** LES PASTILLES D'UNE LIGNE — une par colonne, `null` : rien encore (« — »). */
+export function pastillesDeLaCommande(c: CommandeFaits): PastillesDeCommande {
+  return { bc: pastilleBc(c), livraison: pastilleLivraison(c), facture: pastilleFacture(c), paiement: pastillePaiement(c), visa: pastilleVisa(c) };
+}
+
+export type CleGesteCommande = "RECEPTIONNER" | "DEMANDER_PAIEMENT" | "DEPOSER_FACTURE";
+
+/** Ce que la personne qui regarde peut faire sur le tableau — tranché au serveur. */
+export interface RegardCommande {
+  /** Le dossier est en exécution. */
+  ouvert: boolean;
+  /** Le demandeur, l'assistante de direction, la Direction (`piloteLExecution`). */
+  pilote: boolean;
+  /** Le demandeur (le Super Admin en suppléance) coche la réception. */
+  peutReceptionner: boolean;
+}
+
+/**
+ * LE SEUL BOUTON DE LA LIGNE — le prochain geste de la personne qui regarde, dans l'ordre où la ligne avance :
+ * « J'ai reçu » (une facture attend sa réception), « Demander le paiement » (une facture reçue n'est pas partie au
+ * règlement — le visa ou la déclaration part avec), « Joindre la facture » (le BC envoyé reste à facturer). Les autres
+ * gestes (aperçu, envoi, correction, renoncement…) restent dans « ⋯ » ; `null` : rien à faire de son côté.
+ */
+export function gesteDeLaCommande(c: CommandeFaits, r: RegardCommande): { cle: CleGesteCommande; libelle: string } | null {
+  if (!r.ouvert || c.etape !== "SIGNE") return null;
+  if (r.peutReceptionner && c.factures.some((f) => !f.paiementDemande && f.enAttente > 0)) return { cle: "RECEPTIONNER", libelle: "J'ai reçu" };
+  if (!r.pilote) return null;
+  if (c.factures.some((f) => !f.paiementDemande && f.enAttente === 0)) return { cle: "DEMANDER_PAIEMENT", libelle: "Demander le paiement" };
+  if (c.envoyeLe && c.resteAFacturer) return { cle: "DEPOSER_FACTURE", libelle: "Joindre la facture" };
+  return null;
+}
+
+/** LE TOTAL DU TABLEAU — le TTC de chaque ligne (celui du BC émis, sinon le retenu), au centime. */
+export function totalDesCommandes(lignes: readonly { ttc: number }[]): number {
+  return lignes.reduce((s, l) => s + Math.round(l.ttc * 100), 0) / 100;
+}
+
+/**
+ * LA FORMALITÉ PROPOSÉE au paiement suivant — celle de la dernière demande déjà adressée pour ce dossier (visa
+ * publicitaire ou déclaration au ministère) : le même matériel suit la même formalité. `null` : à choisir.
+ */
+export function formaliteDuDossier(demandes: readonly ({ formalite?: string | null } | null)[]): "AD_VISA" | "MIP" | null {
+  for (let i = demandes.length - 1; i >= 0; i--) {
+    const f = demandes[i]?.formalite;
+    if (f === "AD_VISA" || f === "MIP") return f;
+  }
+  return null;
+}
+
+/**
+ * LE DOSSIER EST-IL SOLDÉ ? — la condition de la CLÔTURE AUTOMATIQUE : chaque BC est signé, entièrement facturé, chaque
+ * facture reçue (ou son reliquat renoncé), partie au règlement, réglée, et sa demande de visa ou de déclaration adressée.
+ * Aucun BC : rien n'est soldé. Le serveur relit en plus les verdicts des chantiers (`promo-cloture.ts`).
+ */
+export function commandesSoldees(bcs: readonly {
+  etape: string | null; resteAFacturer: boolean;
+  factures: readonly Pick<FactureFaits, "enAttente" | "paiementDemande" | "reglee" | "demandeIM">[];
+}[]): boolean {
+  return bcs.length > 0 && bcs.every((b) => b.etape === "SIGNE" && !b.resteAFacturer && b.factures.length > 0
+    && b.factures.every((f) => f.enAttente === 0 && f.paiementDemande && f.reglee && f.demandeIM));
+}

@@ -22,6 +22,7 @@ import { compteDeLEcriture } from "@/lib/finance/comptes";
 import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/lib/ad-pro/cloture-sponsoring";
 import { solderVirementPaie } from "@/lib/hr/paie-centre";
 import { lienOrdreAPayer } from "@/lib/chemins/finances";
+import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 
 /**
  * OÙ ENVOYER LE DEMANDEUR D'UN ORDRE — le dossier qui l'a émis (sa demande, ses pièces), qu'il peut
@@ -210,6 +211,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
       where: { id: order.sourceId, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
       data: { status: "IN_PROGRESS" },
     }).catch(() => undefined);
+  } else if (order.sourceType === "LEGAL_DOCUMENT" && order.sourceId) {
+    // LA FACTURE D'UN BC DE MATÉRIEL PROMOTIONNEL EST RÉGLÉE : c'est souvent la dernière pièce du dossier — il se clôt
+    // seul quand chaque BC est reçu, facturé, payé et visé (maquette validée, 10/2026). Ne lève jamais.
+    const promoId = await dossierPromoDeLaFacture(order.sourceId).catch(() => null);
+    if (promoId && (await cloreLeDossierPromoSiSolde(promoId, user.id))) revalidatePath(`/promo-material/${promoId}`);
   } else if (order.sourceType === "PAYROLL" && order.sourceId) {
     // LA PAIE EST VIRÉE (§118.176) : le virement garde le FAIT (il survit à la purge de
     // l'historique), et la masse salariale suit. Les salariés seront prévenus par le planificateur.
