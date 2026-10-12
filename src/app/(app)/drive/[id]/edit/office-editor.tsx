@@ -3,10 +3,15 @@
 import * as React from "react";
 import Script from "next/script";
 import Link from "next/link";
-import { AlertCircle, ArrowLeft, Loader2, Maximize2, Minimize2 } from "lucide-react";
+import { AlertCircle, ArrowLeft, Download, FileText, Loader2, Maximize2, Minimize2, RotateCw, Stethoscope } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DELAI_EDITEUR_OFFICE_MS } from "@/lib/office/creation-ui";
+import { natureApercu } from "@/lib/formats/apercu";
 import { BackLink } from "@/components/shared/back-link";
+import { InfoBulle } from "@/components/ui/info-bulle";
+import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
+import { DocxView, XlsxView, PptxView } from "@/components/documents/office-viewers";
+import { ApercuUniversel, SansApercu } from "@/components/documents/apercu-universel";
 
 // L'API du Document Server est injectée globalement par api.js.
 declare global {
@@ -20,7 +25,43 @@ function originOf(url: string): string | null {
   try { return new URL(url).origin; } catch { return null; }
 }
 
-export function OfficeEditor({ apiJs, config, name, backHref = "/drive", backLabel = "Retour au Drive" }: { apiJs: string; config: unknown; name: string; backHref?: string; backLabel?: string }) {
+/** Les octets du fichier pour l'aperçu de secours, et s'il est encore le modèle vierge. */
+export interface ApercuSecours { src: string; telechargement: string; vierge?: boolean }
+
+/**
+ * L'APERÇU QUAND L'ÉDITEUR NE VIENT PAS — les visionneuses du navigateur (Word, Excel, PowerPoint
+ * modernes, PDF, texte), sans aucun appel au Document Server. Surtout PAS `ApercuUniversel` avec
+ * une cible : il retenterait l'éditeur qu'on sait injoignable.
+ */
+function ApercuHorsEditeur({ src, telechargement, vierge, name }: ApercuSecours & { name: string }) {
+  if (vierge) {
+    return (
+      <div className="flex min-h-[30vh] flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border bg-background p-6 text-center">
+        <FileText className="h-6 w-6 text-muted-foreground" />
+        <p className="text-sm font-medium">Document vierge</p>
+        <p className="text-xs text-muted-foreground">L&apos;édition reviendra dès que l&apos;éditeur est joignable.</p>
+      </div>
+    );
+  }
+  const nature = natureApercu(name);
+  if (nature === "docx") return <DocxView src={src} name={name} />;
+  if (nature === "xlsx") return <XlsxView src={src} name={name} />;
+  if (nature === "pptx") return <PptxView src={src} name={name} />;
+  if (nature === "converti") {
+    return <SansApercu nom={name} telechargement={telechargement} raison="Ce format ne s'affiche que dans l'éditeur Office : téléchargez-le pour l'ouvrir." />;
+  }
+  return <ApercuUniversel src={src} name={name} telechargement={telechargement} />;
+}
+
+export function OfficeEditor({
+  apiJs, config, name, backHref = "/drive", backLabel = "Retour au Drive", apercu, diagnostic = false,
+}: {
+  apiJs: string; config: unknown; name: string; backHref?: string; backLabel?: string;
+  /** Ce qu'on montre si l'éditeur ne se charge pas. */
+  apercu: ApercuSecours;
+  /** Lien « Diagnostiquer » vers le test d'Administration (Super Admin). */
+  diagnostic?: boolean;
+}) {
   const editorRef = React.useRef<{ destroyEditor?: () => void } | null>(null);
   const wrapRef = React.useRef<HTMLDivElement | null>(null);
   const [ready, setReady] = React.useState(false);
@@ -108,23 +149,36 @@ export function OfficeEditor({ apiJs, config, name, backHref = "/drive", backLab
           </div>
         )}
         {echec && (
-          <div className="absolute inset-0 flex items-center justify-center p-4">
-            <div className="max-w-md space-y-2 rounded-lg border border-border bg-secondary/40 px-4 py-3 text-sm">
-              <p className="flex items-start gap-2 font-medium">
-                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" /> {echec}
-              </p>
-              <p className="text-muted-foreground">
-                Le fichier, lui, est bien enregistré : vous pouvez le télécharger depuis sa fiche.
-                Réessayez dans un instant ; si cela persiste, signalez-le à l&apos;administrateur.
-              </p>
-              <div className="flex gap-3 pt-1">
-                <button type="button" onClick={() => window.location.reload()} className="text-primary hover:underline">Réessayer</button>
-                <Link href={backHref} className="text-muted-foreground hover:text-foreground">{backLabel}</Link>
+          // L'ÉDITEUR NE VIENT PAS : on montre quand même le document (aperçu du navigateur, sans
+          // dépendance externe), avec une ligne d'état — pas une carte d'erreur à la place du fichier.
+          <div className="absolute inset-0 flex flex-col">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-border bg-secondary/40 px-3 py-1.5 text-sm sm:px-4">
+              <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+              <span className="font-medium">Éditeur indisponible — aperçu en lecture seule</span>
+              <InfoBulle label="Pourquoi" align="left">
+                {echec} Le fichier, lui, est bien enregistré. Réessayez dans un instant ; si cela persiste, signalez-le à
+                l&apos;administrateur.
+              </InfoBulle>
+              <div className="ml-auto flex items-center gap-3 text-xs">
+                <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-1 py-1.5 text-primary hover:underline">
+                  <RotateCw className="h-3.5 w-3.5" /> Réessayer
+                </button>
+                <BoutonTelecharger href={apercu.telechargement} nom={name} sansChoix className="inline-flex items-center gap-1 py-1.5 text-primary hover:underline">
+                  <Download className="h-3.5 w-3.5" /> Télécharger
+                </BoutonTelecharger>
+                {diagnostic && (
+                  <Link href="/admin#editeur-office" className="inline-flex items-center gap-1 py-1.5 text-muted-foreground hover:text-foreground">
+                    <Stethoscope className="h-3.5 w-3.5" /> Diagnostiquer
+                  </Link>
+                )}
               </div>
+            </div>
+            <div className="flex-1 overflow-auto bg-muted/20 p-2 sm:p-3">
+              <ApercuHorsEditeur {...apercu} name={name} />
             </div>
           </div>
         )}
-        <div id="onlyoffice-editor" className="h-full w-full" />
+        <div id="onlyoffice-editor" className={cn("h-full w-full", echec && "invisible")} />
       </div>
       <Script
         src={apiJs} strategy="afterInteractive" onLoad={init}

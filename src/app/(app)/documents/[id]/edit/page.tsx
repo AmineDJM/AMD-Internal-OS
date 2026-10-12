@@ -9,6 +9,7 @@ import {
   onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, fileExt, makeDocEditToken, signJwt,
 } from "@/lib/onlyoffice";
 import { OfficeEditor } from "@/app/(app)/drive/[id]/edit/office-editor";
+import { estDocumentVierge } from "@/lib/onlyoffice-config";
 import { BackLink } from "@/components/shared/back-link";
 
 export const dynamic = "force-dynamic";
@@ -44,7 +45,7 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
 
   const doc = await prisma.document.findUnique({
     where: { id: params.id },
-    select: { name: true, version: true, fileKey: true, entityType: true, entityId: true },
+    select: { name: true, version: true, fileKey: true, entityType: true, entityId: true, sizeBytes: true },
   });
   if (!doc) notFound();
 
@@ -94,5 +95,12 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
   };
   const signed = { ...config, token: signJwt(config, 24 * 3600) };
 
-  return <OfficeEditor apiJs={`${onlyofficeServerUrl()}/web-apps/apps/api/documents/api.js`} config={signed} name={doc.name} backHref={backHref} backLabel="Retour" />;
+  const src = `/api/documents/${encodeURIComponent(params.id)}`;
+  return (
+    <OfficeEditor
+      apiJs={`${onlyofficeServerUrl()}/web-apps/apps/api/documents/api.js`} config={signed} name={doc.name} backHref={backHref} backLabel="Retour"
+      apercu={{ src, telechargement: `${src}?dl=1`, vierge: estDocumentVierge(doc.name, doc.sizeBytes, doc.version) }}
+      diagnostic={user.role === "SUPER_ADMIN"}
+    />
+  );
 }

@@ -27,5 +27,12 @@ export default async function DriveEditPage({ params }: { params: { id: string }
     if (setup.reason === "not-found") notFound();
     return <Notice>{EDITOR_REASON[setup.reason]}</Notice>;
   }
-  return <OfficeEditor apiJs={setup.apiJs} config={setup.config} name={setup.name} />;
+  const src = `/api/drive/${encodeURIComponent(params.id)}/raw`;
+  return (
+    <OfficeEditor
+      apiJs={setup.apiJs} config={setup.config} name={setup.name}
+      apercu={{ src, telechargement: `${src}?dl=1`, vierge: setup.vierge }}
+      diagnostic={user.role === "SUPER_ADMIN"}
+    />
+  );
 }

@@ -4,6 +4,7 @@ import type { SessionUser } from "@/lib/rbac";
 import {
   onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, fileExt, makeEditToken, signJwt,
 } from "@/lib/onlyoffice";
+import { blankOffice } from "@/lib/office-templates";
 
 /**
  * LA CONFIGURATION DE L'ÉDITEUR, construite UNE FOIS.
@@ -17,7 +18,7 @@ import {
  * l'oublier.
  */
 export type EditorSetup =
-  | { ok: true; apiJs: string; config: Record<string, unknown>; name: string }
+  | { ok: true; apiJs: string; config: Record<string, unknown>; name: string; vierge: boolean }
   | { ok: false; reason: "not-configured" | "no-base-url" | "denied" | "not-found" | "not-editable" };
 
 export async function buildEditorSetup(
@@ -30,7 +31,7 @@ export async function buildEditorSetup(
 
   if ((await resolveDriveAccess(user, nodeId)) !== "EDIT") return { ok: false, reason: "denied" };
 
-  const node = await prisma.driveNode.findUnique({ where: { id: nodeId }, select: { name: true, type: true } });
+  const node = await prisma.driveNode.findUnique({ where: { id: nodeId }, select: { name: true, type: true, size: true } });
   if (!node || node.type !== "FILE") return { ok: false, reason: "not-found" };
 
   const docType = onlyofficeDocType(node.name);
@@ -74,7 +75,29 @@ export async function buildEditorSetup(
     apiJs: `${onlyofficeServerUrl()}/web-apps/apps/api/documents/api.js`,
     config: { ...config, token: signJwt(config, 24 * 3600) },
     name: node.name,
+    vierge: estDocumentVierge(node.name, node.size, last?.version ?? 1),
   };
+}
+
+/**
+ * UN DOCUMENT ENCORE VIERGE — tel que « Nouveau document » l'a créé, jamais enregistré depuis.
+ *
+ * Quand l'éditeur est injoignable, l'écran montre un aperçu de secours ; pour un document neuf,
+ * cet aperçu serait une page blanche sans explication. Le modèle vierge est DÉTERMINISTE
+ * (`blankOffice`) : une version unique, de la taille exacte du modèle, c'est lui.
+ */
+const modelesVierges = new Map<string, { ext: string; taille: number }>();
+export function estDocumentVierge(name: string, size: number | null | undefined, version: number): boolean {
+  if (version !== 1 || !size) return false;
+  const kind = onlyofficeDocType(name);
+  if (!kind) return false;
+  let modele = modelesVierges.get(kind);
+  if (!modele) {
+    const b = blankOffice(kind);
+    modele = { ext: b.ext, taille: b.data.length };
+    modelesVierges.set(kind, modele);
+  }
+  return fileExt(name) === modele.ext && size === modele.taille;
 }
 
 /** Le message à afficher quand l'éditeur ne peut pas s'ouvrir — le même partout. */

@@ -53,3 +53,20 @@ passe « terminé » — au règlement de l'ordre (`settleExpenseOrder`) ou au r
 `formaliteDuDossier`), testées dans `commandes.test.ts`.
 
 ---
+
+
+### Éditeur Office — « Tester l'éditeur Office » et aperçu de secours (2026-10)
+
+**Administration › carte « Éditeur Office (OnlyOffice) »** (Super Admin, sous « Stockage objet », ancre `#editeur-office`) :
+« Tester l'éditeur Office » (`onlyoffice-diagnostic-actions:testerEditeurOffice`, lecture seule) rend ✓ / ⚠ / ✗ + correctif pour
+les variables (`ONLYOFFICE_URL`, `ONLYOFFICE_JWT_SECRET` — « défini, N caractères », jamais la valeur —, `APP_URL` ou son repli),
+la forme des adresses (https, barre finale, adresse interne), `/healthcheck` et `api.js` vus de notre serveur (DNS, refus,
+certificat, délai, 502/503 « endormi » distingués), la même adresse en https si elle est en http, `{APP_URL}/api/onlyoffice/file`
+(401 attendu), puis le chargement d'`api.js` **dans le navigateur** (contenu mixte, réseau interne). Interprétation pure :
+`lib/onlyoffice-diagnostic.ts` (testée). **Écran d'édition** : quand l'éditeur ne se charge pas, une ligne « Éditeur indisponible
+— aperçu en lecture seule » (Réessayer, Télécharger, Diagnostiquer pour le Super Admin) au-dessus de l'aperçu du navigateur
+(Word, Excel, PowerPoint, PDF, texte) ; un document neuf jamais enregistré dit « Document vierge » (`estDocumentVierge`).
+**Correctif** : `/api/onlyoffice/file` et `/callback` étaient derrière la connexion (middleware) — le Document Server, sans
+session, recevait `/login` ; ils sont exemptés (chemins exacts, jeton signé vérifié par chaque route).
+
+---

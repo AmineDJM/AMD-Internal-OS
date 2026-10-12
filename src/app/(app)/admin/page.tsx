@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, Gauge, Globe2, HardDrive, History, Layers, Library, Mail, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, Trash2, Workflow, ScanSearch, ScrollText } from "lucide-react";
+import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog,Gauge, Globe2, HardDrive, History, Layers, Library, Mail, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, Trash2, Workflow, ScanSearch, ScrollText } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -21,7 +21,9 @@ import { AuditPanel } from "./audit-panel";
 import { RolesTable } from "./roles-table";
 import { DriveStorageSettings } from "./drive-storage-settings";
 import { StoragePanel } from "./storage-panel";
+import { OnlyofficePanel } from "./onlyoffice-panel";
 import { describeConfig } from "@/lib/storage/s3-config";
+import { onlyofficeConfigured, onlyofficeServerUrl } from "@/lib/onlyoffice";
 
 const GB = 1024 ** 3;
 const fmtBytes = (n: number) => (n >= GB ? `${(n / GB).toFixed(2)} Go` : n >= 1024 ** 2 ? `${(n / 1024 ** 2).toFixed(1)} Mo` : `${Math.ceil(n / 1024)} Ko`);
@@ -201,6 +203,19 @@ export default async function AdminPage() {
           </CardHeader>
           <CardContent>
             <StoragePanel initial={describeConfig(process.env as Record<string, string | undefined>)} />
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ÉDITEUR OFFICE — même place, même geste que le stockage : quand l'éditeur ne s'ouvre pas,
+          c'est ici que le lien « Diagnostiquer » de l'écran d'édition mène (#editeur-office). */}
+      {admin.role === "SUPER_ADMIN" && (
+        <Card id="editeur-office" className="scroll-mt-20">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2"><FileCog className="h-4 w-4" /> Éditeur Office (OnlyOffice)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <OnlyofficePanel configure={onlyofficeConfigured()} adresse={onlyofficeServerUrl() || null} />
           </CardContent>
         </Card>
       )}

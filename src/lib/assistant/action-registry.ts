@@ -1099,6 +1099,11 @@ X("INTELLIGENCE TERRAIN (console d'administration, Direction 10/2026 : « visibl
   + "les yeux. Réservé au SUPER ADMIN, non délégable — chaque action relit le rôle ; aucune ouverture conversationnelle.", [
   "intelligence-terrain-actions:relancerAnalyseInfluence", "intelligence-terrain-actions:deciderLienInfluence",
 ]);
+X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de configuration — variables, adresses, réponse du "
+  + "Document Server. Une moitié du test se joue DANS LE NAVIGATEUR de l'administrateur (chargement d'api.js) : une "
+  + "conversation ne peut pas la faire. C'est un écran de dépannage, pas un geste métier.", [
+  "onlyoffice-diagnostic-actions:testerEditeurOffice",
+]);
 X("INFORMATION MÉDICALE › RELANCER UNE PIÈCE (Direction, 07/10) : une notification à la personne sollicitée, limitée à une "
   + "toutes les quatre heures. Le geste se décide en REGARDANT la fiche du dossier (depuis quand la pièce est attendue, "
   + "dernière relance) ; Adam est en pause de développement (Super Admin seul).", [

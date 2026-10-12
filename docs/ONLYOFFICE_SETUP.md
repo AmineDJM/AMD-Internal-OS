@@ -79,6 +79,13 @@ Redéployez. Le bouton « Modifier » apparaît de lui-même sur les `.docx`, `.
 
 ## Si ça ne marche pas
 
+**Premier réflexe : Administration → « Éditeur Office (OnlyOffice) » → « Tester l'éditeur Office »** (Super Admin ; lien
+« Diagnostiquer » depuis l'écran d'édition). Le test vérifie les trois variables (le secret n'est jamais affiché), la forme des
+adresses (`http://` est forcé en `https://` par le navigateur ; une adresse interne n'est pas joignable depuis Internet),
+`/healthcheck` et `api.js` depuis le serveur de l'ERP, l'adresse publique de l'ERP (`/api/onlyoffice/file` doit répondre 401),
+puis charge `api.js` dans votre navigateur. Chaque ✗ dit quoi corriger. Pendant la panne, l'écran d'édition affiche un
+aperçu en lecture seule du document.
+
 | Symptôme | Cause quasi certaine |
 |---|---|
 | Le bouton « Modifier » n'apparaît pas | `ONLYOFFICE_URL` ou `ONLYOFFICE_JWT_SECRET` absent |

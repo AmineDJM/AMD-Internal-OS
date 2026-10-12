@@ -38,6 +38,13 @@ export const authConfig = {
       // comprise : `/api/site-web/candidatures/…` (le CV servi aux RH) reste derrière la session.
       if (nextUrl.pathname.startsWith("/api/site-web/v1/")) return true;
 
+      // LE DOCUMENT SERVER (OnlyOffice) lit le fichier et rappelle l'enregistrement SERVEUR À
+      // SERVEUR, sans session : derrière la connexion, il recevait la page /login et l'éditeur
+      // disait « erreur de téléchargement ». Ces deux routes vérifient ELLES-MÊMES le jeton signé
+      // (`readEditToken` / `readDocEditToken`) avant toute lecture. Chemins exacts : `/session`
+      // (qui émet ces jetons) reste derrière la connexion.
+      if (nextUrl.pathname === "/api/onlyoffice/file" || nextUrl.pathname === "/api/onlyoffice/callback") return true;
+
       if (isOnLogin) {
         if (isLoggedIn) {
           return Response.redirect(new URL("/mon-espace", nextUrl));
