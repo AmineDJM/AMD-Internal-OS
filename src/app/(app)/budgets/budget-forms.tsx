@@ -284,7 +284,11 @@ export function ExpenseEditSheet({ tx, categories, onClose }: { tx: AttributedTx
   );
 }
 
-export function CategoryCard({ c, subs, canManage, onEdit, onDelete, onAddSub }: { c: BudgetCategoryView; subs: BudgetCategoryView[]; canManage: boolean; onEdit: (cat: BudgetCategoryView) => void; onDelete: (cat: BudgetCategoryView) => void; onAddSub: () => void }) {
+/**
+ * `c` arrive CUMULÉE (ses sous-catégories comprises, `budget/cumul-categories.ts`) ; `propre` est la part
+ * imputée directement à la catégorie, rappelée quand des sous-catégories existent.
+ */
+export function CategoryCard({ c, propre, subs, canManage, onEdit, onDelete, onAddSub }: { c: BudgetCategoryView; propre?: number; subs: BudgetCategoryView[]; canManage: boolean; onEdit: (cat: BudgetCategoryView) => void; onDelete: (cat: BudgetCategoryView) => void; onAddSub: () => void }) {
   const h = HEALTH[c.health];
   const pct = Math.min(c.pct, 100);
   const subAllocated = subs.reduce((a, s) => a + s.allocated, 0);
@@ -311,7 +315,13 @@ export function CategoryCard({ c, subs, canManage, onEdit, onDelete, onAddSub }:
         <span>Reste : <span className={cn("font-medium", c.remaining < 0 ? "text-destructive" : "text-foreground")}>{formatCurrency(c.remaining)}</span></span>
         <span>{c.pct}% consommé</span>
         {c.committed > 0 && <span>{formatCurrency(c.committed)} engagé (prévu)</span>}
-        {subs.length > 0 && <span>{subs.length} sous-catégorie{subs.length > 1 ? "s" : ""} · {formatCurrency(subAllocated)} réparti</span>}
+        {subs.length > 0 && (
+          <span>
+            {subs.length} sous-catégorie{subs.length > 1 ? "s" : ""} comprise{subs.length > 1 ? "s" : ""}
+            {propre !== undefined && <> · dont {formatCurrency(c.consumed - propre)} consommé dans les sous-catégories</>}
+            {subAllocated > 0 && <> · {formatCurrency(subAllocated)} réparti</>}
+          </span>
+        )}
       </div>
 
       {/* Sous-catégories (ex. Table ronde sous Événement) */}
@@ -322,7 +332,7 @@ export function CategoryCard({ c, subs, canManage, onEdit, onDelete, onAddSub }:
               <CornerDownRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: s.color ?? "#94a3b8" }} />
               <span className="min-w-0 flex-1 truncate">{s.name}</span>
-              <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground tabular-nums">{formatCurrency(s.consumed)} / {formatCurrency(s.allocated)}</span>
+              <span className="ml-auto whitespace-nowrap text-xs text-muted-foreground tabular-nums">{formatCurrency(s.consumed)}{s.allocated > 0 ? <> / {formatCurrency(s.allocated)}</> : <> · sur l&apos;allocation de la catégorie</>}</span>
               {canManage && (
                 <div className="flex items-center gap-0.5">
                   <button title="Modifier" aria-label="Modifier" onClick={() => onEdit(s)} className="rounded p-2 text-muted-foreground hover:bg-secondary hover:text-foreground sm:p-1"><Pencil className="h-3.5 w-3.5" /></button>

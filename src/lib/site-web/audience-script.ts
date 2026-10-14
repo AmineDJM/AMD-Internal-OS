@@ -107,7 +107,7 @@ export function scriptAudience(repli: string): string {
     if (!el) return;
     var href = el.getAttribute("href") || "", txt = texte(el), label = null, cible = null;
     if (marque) {
-      label = (marque.getAttribute("data-adventum-track") || "cta").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").slice(0, 40) || "cta";
+      label = (marque.getAttribute("data-adventum-track") || "cta").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").slice(0, 80) || "cta";
       cible = href || txt;
     } else if (/postuler/i.test(txt) || (/\\/carrieres\\//i.test(href) && /postuler/i.test(href))) { label = "postuler"; cible = href || txt; }
     else if (/^tel:/i.test(href)) { label = "telephone"; cible = href; }

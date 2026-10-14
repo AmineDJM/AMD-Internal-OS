@@ -243,7 +243,11 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
         const lue: EnveloppeLue = {
           id: v.envelope.id, nom: v.envelope.name, alloue: v.totals.total, consomme: v.totals.consumed, engage: v.totals.committed,
           debut: v.period.from, fin: v.period.to,
-          categories: v.categories.filter((c) => !c.parentId).map((c) => ({ id: c.id, nom: c.name, alloue: c.allocated, consomme: c.consumed })),
+          // Une catégorie comprend ses sous-catégories (une sous-catégorie ne se rattache qu'à une catégorie de tête).
+          categories: v.categories.filter((c) => !c.parentId).map((c) => ({
+            id: c.id, nom: c.name, alloue: c.allocated,
+            consomme: c.consumed + v.categories.filter((s) => s.parentId === c.id).reduce((a, s) => a + s.consumed, 0),
+          })),
         };
         signaux.push(...signauxBudget(lue, now));
       }

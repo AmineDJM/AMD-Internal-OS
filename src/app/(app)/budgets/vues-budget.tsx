@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cumulerSousCategories } from "@/lib/budget/cumul-categories";
 import { ArrowRight, AlertTriangle, Download } from "lucide-react";
 import type { CurrentUser } from "@/lib/session";
 import { canManageEnvelopes, canManageEnvelope, canGovernPoleEnvelope, hasGlobalView, peutBudgetDuPole } from "@/lib/rbac";
@@ -141,7 +142,10 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
   // Camembert : comment le budget est RÉPARTI (au plus 6 parts — au-delà, l'œil ne compare plus).
   const allocSlices = foldTail(topCats.map((c) => ({ label: c.name, value: c.allocated })));
   // Barres : où en est CHAQUE catégorie (statut, pas identité).
+  // Une catégorie comprend ses sous-catégories (`budget/cumul-categories.ts`).
+  const cumul = cumulerSousCategories(overview.categories);
   const barRows = topCats
+    .map((c) => ({ ...c, consumed: cumul.get(c.id)?.consumed ?? c.consumed }))
     .filter((c) => c.allocated > 0 || c.consumed > 0)
     .sort((a, b) => b.consumed - a.consumed)
     .map((c) => ({ id: ancreCategorieBudget(c.id), label: c.name, budget: c.allocated, consumed: c.consumed }));

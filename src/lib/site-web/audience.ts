@@ -99,6 +99,13 @@ async function pages(debut: Date, fin: Date): Promise<LignePage[]> {
 }
 
 /**
+ * UN CLIC « POSTULER » : celui que le script reconnaît de lui-même (`postuler`) ET celui que le site
+ * marque par offre (`data-adventum-track="postuler-<poste>"`). L'envoi du formulaire
+ * (`postuler-<poste>-envoyer`) est l'étape suivante de l'entonnoir, pas un second clic « Postuler ».
+ */
+const CLIC_POSTULER = Prisma.sql`("label" = 'postuler' OR ("label" LIKE 'postuler-%' AND "label" NOT LIKE '%-envoyer'))`;
+
+/**
  * Les pages d'un préfixe REGROUPÉES PAR SLUG en base (`/carrieres/x` et `/carrieres/x/postuler`
  * font une offre) — un visiteur des deux pages n'y compte qu'une fois.
  */
@@ -110,7 +117,7 @@ async function parSlug(prefixe: "carrieres" | "blog", debut: Date, fin: Date) {
       count(*) FILTER (WHERE "type" = 'PAGEVIEW') AS vues,
       count(DISTINCT "visitor") FILTER (WHERE "type" = 'PAGEVIEW') AS visiteurs,
       coalesce(sum("durationMs") FILTER (WHERE "type" = 'LEAVE'), 0) AS duree,
-      count(*) FILTER (WHERE "type" = 'CLICK' AND "label" = 'postuler') AS postuler
+      count(*) FILTER (WHERE "type" = 'CLICK' AND ${CLIC_POSTULER}) AS postuler
     FROM "SiteAnalyticsEvent"
     WHERE "at" >= ${debut} AND "at" < ${fin} AND "path" ~ ${motif}
     GROUP BY 1
@@ -142,7 +149,7 @@ async function campagnes(debut: Date, fin: Date): Promise<Campagne[]> {
     SELECT "campaign" AS cle, max("source") AS source,
       count(DISTINCT "visitor") FILTER (WHERE "type" = 'PAGEVIEW') AS visiteurs,
       count(*) FILTER (WHERE "type" = 'PAGEVIEW') AS vues,
-      count(*) FILTER (WHERE "type" = 'CLICK' AND "label" = 'postuler') AS postuler
+      count(*) FILTER (WHERE "type" = 'CLICK' AND ${CLIC_POSTULER}) AS postuler
     FROM "SiteAnalyticsEvent" WHERE "campaign" IS NOT NULL AND "at" >= ${debut} AND "at" < ${fin}
     GROUP BY 1 ORDER BY visiteurs DESC LIMIT 15`;
   return lignes.map((l) => ({

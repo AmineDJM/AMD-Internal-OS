@@ -11,6 +11,7 @@ import type { BudgetOverview, BudgetCategoryView } from "@/lib/queries/budget";
 import { useRun, CategoryCard, CategorySheet, EnvelopeSheet, BudgetTotalSheet } from "./budget-forms";
 import { EnveloppePoleSheet, type RattachementOptions } from "./enveloppe-marketing-forms";
 import type { DomainePole } from "@/lib/budget/domaines";
+import { cumulerSousCategories } from "@/lib/budget/cumul-categories";
 
 interface BudgetTotalInfo { mode: "FIXED" | "FLEXIBLE"; value: number; fixed: number }
 type UserOpt = { id: string; name: string };
@@ -46,10 +47,14 @@ export function BudgetSettings({
   const [totalSheet, setTotalSheet] = React.useState(false);
   const [catSheet, setCatSheet] = React.useState<{ cat?: BudgetCategoryView; parentId?: string } | null>(null);
 
+  // Chaque catégorie AFFICHÉE comprend ses sous-catégories (consommé, engagé, reste, santé) ;
+  // la requête, elle, rend la part propre de chaque nœud — le total d'enveloppe n'est pas doublé.
+  const cumul = cumulerSousCategories(overview.categories);
+  const cumulee = (c: BudgetCategoryView): BudgetCategoryView => ({ ...c, ...(cumul.get(c.id) ?? {}) });
   const topCats = overview.categories.filter((c) => c.parentId === null);
   const subsByParent = new Map<string, BudgetCategoryView[]>();
   for (const c of overview.categories) {
-    if (c.parentId) subsByParent.set(c.parentId, [...(subsByParent.get(c.parentId) ?? []), c]);
+    if (c.parentId) subsByParent.set(c.parentId, [...(subsByParent.get(c.parentId) ?? []), cumulee(c)]);
   }
   const topCatOptions = topCats.map((c) => ({ id: c.id, name: c.name }));
 
@@ -118,7 +123,8 @@ export function BudgetSettings({
             {topCats.map((c) => (
               <CategoryCard
                 key={c.id}
-                c={c}
+                c={cumulee(c)}
+                propre={c.consumed}
                 subs={subsByParent.get(c.id) ?? []}
                 canManage={canManage}
                 onEdit={(cat) => setCatSheet({ cat })}
