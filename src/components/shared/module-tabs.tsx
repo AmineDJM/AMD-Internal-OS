@@ -19,6 +19,8 @@ export interface ModuleTab {
   chemin?: string;
   /** Un compteur discret à côté du libellé (« Tâches 7 ») — absent ou 0 : rien. */
   compte?: number;
+  /** Le ton du compteur : discret par défaut, « warning » pour ce qui attend une décision (Intégration 2026). */
+  tonCompte?: "warning";
 }
 
 /**
@@ -86,7 +88,7 @@ export function ModuleTabs({ tabs, arrows = false }: { tabs: ModuleTab[]; arrows
         >
           {t.label}
           {t.compte ? (
-            <span className="ml-1.5 inline-block rounded-full bg-muted px-1.5 text-[0.6875rem] font-medium tabular-nums text-muted-foreground">{t.compte}</span>
+            <span className={cn("ml-1.5 inline-block rounded-full px-1.5 text-[0.6875rem] font-medium tabular-nums", t.tonCompte === "warning" ? "bg-warning/15 font-semibold text-warning" : "bg-muted text-muted-foreground")}>{t.compte}</span>
           ) : null}
         </Link>
       ))}

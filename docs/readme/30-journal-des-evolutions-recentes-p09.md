@@ -1,3 +1,16 @@
+### Budget Marketing : les onglets — Intégration 2026 en onglet, une ligne par demande, cumul des sous-catégories, réallocation bornée (2026-10-14)
+
+Maquette « onglets » validée par la Direction (Dépenses inchangé). **Onglet Intégration 2026** (gestionnaire seulement,
+pastille des absentes à décider) au lieu du bandeau des Réglages. **Vue d'ensemble** : « À traiter » enrichi (payée sans
+allocation → Réallouer ; pièces manquantes ; absentes du fichier), camemberts remplacés par deux barres à 100 % et un
+classement par nature, cumul payé face au rythme sur son graphique, tableau « Par catégorie » dépliable (cumul des
+sous-catégories) qui ouvre les demandes filtrées. **Réallouer** borné à la part cessible (au-dessus du payé + engagé et
+de ce que répartissent les sous-catégories), seconde confirmation, audit. **Demandes Ad & Pro** : une ligne par demande,
+tuiles, filtres dans l'adresse (statut dont pièces manquantes, catégorie sous-catégories comprises, origine, recherche),
+fiche en panneau avec dépôt des pièces. **Réglages** : cartes dépliables, formule du cumul, « Sans allocation », part
+répartie. Calculs purs : `budget/marketing-vue.ts` (`arbreCategories`, `cessible`, `alertesBudget`…),
+`budget-marketing/demandes-vue.ts` ; tests purs + flux `reallocation-flow.test.ts`.
+
 ### Ad & Pro — intégration des dépenses réelles 2026 : 32 dépenses, 30 demandes, 33 558 715,94 DZD (2026-10-14)
 
 Maquette « adpro-integration » validée par la Direction : le fichier « Dépenses AP » (Feuil1) entre dans Ad & Pro d'un bloc,

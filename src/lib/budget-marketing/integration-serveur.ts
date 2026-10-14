@@ -706,6 +706,8 @@ export interface DemandeDuLot {
   href: string | null;
   attendues: number;
   manquantes: number;
+  /** « Demandé par » affiché sur une demande créée par le lot (« Direction Marketing »). */
+  demandeurAffiche: string | null;
 }
 
 export interface VueLot {
@@ -751,6 +753,7 @@ export async function vueDuLot(user: SessionUser, envelopeId: string): Promise<V
         id: d.id, ligne: d.ligne, lignes: d.lignes, libelle: d.libelle, type: d.demandeType as TypeDemandeIntegree, demandeId: d.demandeId,
         mode: d.mode as "CREEE" | "COMPLETEE", montant: toNumber(d.montant), href: lienDemande(d.demandeType, d.demandeId),
         attendues: attendues.length, manquantes: attendues.filter((a) => !fournies.has(a.cle)).length,
+        demandeurAffiche: d.demandeurAffiche,
       };
     }),
     absentes: jugees.filter((j) => estAbsenteDuFichier(j.verdict)).map((j) => vueAbsente(j, nomCat)),

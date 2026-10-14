@@ -23,6 +23,7 @@ import {
 } from "@/lib/actions/budget-envelope-actions";
 import type { BudgetOverview, BudgetEnvelopeOption, BudgetCategoryView, BudgetHealth, EnvelopesGrandTotal, AttributedTx } from "@/lib/queries/budget";
 import { ROLE_LABELS } from "@/lib/labels";
+import { effetAllocation } from "@/lib/budget/marketing-vue";
 
 interface BudgetTotalInfo { mode: "FIXED" | "FLEXIBLE"; value: number; fixed: number }
 type UserOpt = { id: string; name: string };
@@ -372,9 +373,19 @@ export function EnvelopeSheet({ envelope, users, onClose, onDeleted, canDelete }
   );
 }
 
-export function CategorySheet({ envelopeId, cat, defaultParentId, parentOptions, onClose }: { envelopeId: string; cat?: BudgetCategoryView; defaultParentId?: string; parentOptions: { id: string; name: string }[]; onClose: () => void }) {
+/**
+ * `repartition` (Budget Marketing, maquette « onglets ») : le panneau dit l'effet de l'allocation saisie — dans sa
+ * catégorie (« les sous-catégories répartiraient X sur Y alloués ») ou dans l'enveloppe (`effetAllocation`).
+ */
+export function CategorySheet({ envelopeId, cat, defaultParentId, parentOptions, onClose, repartition }: {
+  envelopeId: string; cat?: BudgetCategoryView; defaultParentId?: string; parentOptions: { id: string; name: string }[]; onClose: () => void;
+  repartition?: { total: number; categories: { id: string; parentId: string | null; alloue: number; nom: string }[] };
+}) {
   const { busy, err, run } = useRun();
   const [parent, setParent] = React.useState(cat?.parentId ?? defaultParentId ?? "");
+  const [alloue, setAlloue] = React.useState(cat ? String(cat.allocated) : "");
+  const effet = repartition ? effetAllocation({ total: repartition.total, categories: repartition.categories, id: cat?.id ?? null, parentId: parent || null, alloue: Number(alloue.replace(",", ".")) || 0 }) : null;
+  const nomParent = repartition?.categories.find((c) => c.id === parent)?.nom ?? "";
   // On ne propose pas la catégorie elle-même comme parente (édition) → pas de cycle.
   const opts = parentOptions.filter((o) => o.id !== cat?.id);
   return (
@@ -408,9 +419,17 @@ export function CategorySheet({ envelopeId, cat, defaultParentId, parentOptions,
             <p className="text-xs text-muted-foreground">Les dépenses d'une demande de ce module, une fois validées et réglées par les Finances, sont attribuées automatiquement à cette catégorie.</p>
           </div>
         )}
-        {field("allocated", "Allocation (DZD)", { type: "number", inputMode: "decimal", step: "any", defaultValue: cat?.allocated ?? "" })}
+        {field("allocated", "Allocation (DZD)", { type: "number", inputMode: "decimal", step: "any", defaultValue: cat?.allocated ?? "", onChange: (e) => setAlloue(e.target.value) })}
         <div className="space-y-1.5"><Label>Couleur</Label><input type="color" name="color" defaultValue={cat?.color ?? "#0ea5e9"} className="h-9 w-full cursor-pointer rounded-lg border border-input" /></div>
         <div className="space-y-1.5 sm:col-span-2"><Label>Notes</Label><Textarea name="notes" defaultValue={cat?.notes ?? ""} rows={2} /></div>
+        {effet && (
+          <p className="rounded-lg border border-border bg-secondary/50 p-3 text-xs text-muted-foreground sm:col-span-2" role="status">
+            {effet.dans === "CATEGORIE"
+              ? <><b className="text-foreground">Comprise dans « {nomParent} ».</b> Ce qu&apos;elle consomme, « {nomParent} » le consomme aussi. Les sous-catégories répartiraient {formatCurrency(effet.reparti)} sur {formatCurrency(effet.plafond)} alloués</>
+              : <><b className="text-foreground">Catégorie de tête.</b> Les catégories répartiraient {formatCurrency(effet.reparti)} sur {formatCurrency(effet.plafond)}</>}
+            {effet.depassement > 0.5 ? <> — <b className="text-destructive">{formatCurrency(effet.depassement)} {effet.dans === "CATEGORIE" ? "de trop" : "au-delà de l'enveloppe"}</b>.</> : "."}
+          </p>
+        )}
         {err && <p className="text-sm text-destructive sm:col-span-2">{err}</p>}
         <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button></div>
       </form>

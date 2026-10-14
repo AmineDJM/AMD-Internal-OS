@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * BUDGET MARKETING — LES SIX GRAPHIQUES DE LA VUE D'ENSEMBLE (maquette validée, Direction 10/2026).
+ * BUDGET MARKETING — LES SIX GRAPHIQUES DE LA VUE D'ENSEMBLE (maquettes validées, Direction 10/2026 : la vue d'ensemble,
+ * puis les « onglets » — plus de camembert : deux barres à 100 %, un classement par nature, le cumul sur son graphique).
  *
  * Ils lisent tous la MÊME `VueFiltree` (période, catégorie, comparaison N-1) : un filtre change les six à la fois. Les
  * couleurs se lisent sur le thème de la page (jetons CSS) au moment du dessin, et se relisent quand le thème change.
@@ -10,7 +11,7 @@
 
 import * as React from "react";
 import {
-  Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
+  Area, Bar, BarChart, CartesianGrid, ComposedChart, Line, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import { ImageDown } from "lucide-react";
 import { OTHER_COLOR, SERIES } from "@/components/charts/palette";
@@ -162,7 +163,7 @@ function CarteGraphique({ id, titre, legende, couleurs, registre, hauteur, large
     return () => { r.delete(id); };
   }, [id, exporter, registre, vide]);
   return (
-    <section className={`surface min-w-0 overflow-hidden rounded-xl ${large ? "lg:col-span-3" : ""}`}>
+    <section className={`surface min-w-0 overflow-hidden rounded-xl ${large ? "lg:col-span-2" : ""}`}>
       <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-2.5">
         <h2 className="text-sm font-semibold">{titre}</h2>
         {!vide && (
@@ -201,66 +202,71 @@ export const pct = (v: number, total: number): string => {
   return p > 0 && p < 1 ? "< 1 %" : `${Math.round(p)} %`;
 };
 
-/**
- * `ResponsiveContainer` donne sa taille en CLONANT son enfant avec `width` / `height`. Enveloppé dans ce
- * composant, le `PieChart` ne les recevait jamais : il se rendait sans taille, donc vide, alors que la légende
- * (calculée à part) affichait ses pourcentages. On les relaie.
- */
-function Camembert({ parts, couleurs, width, height }: {
-  parts: { nom: string; valeur: number; couleur: string }[]; couleurs: Couleurs; width?: number; height?: number;
-}) {
-  return (
-    <PieChart width={width} height={height}>
-      <Pie data={parts} dataKey="valeur" nameKey="nom" innerRadius="55%" outerRadius="85%" paddingAngle={1} stroke={couleurs.card} strokeWidth={2} isAnimationActive={false}>
-        {parts.map((p) => <Cell key={p.nom} fill={p.couleur} />)}
-      </Pie>
-      <Tooltip {...infobulle(couleurs)} />
-    </PieChart>
-  );
-}
-
 // ───────────────────────────── Les six graphiques ─────────────────────────────
 
-export function GraphiquesMarketing({ vue, vueToutes, couleurCat, couleurs, registre, comparer, anneeN1 }: {
+/**
+ * Les six graphiques de la vue d'ensemble (maquette « onglets » validée, 10/2026). Les trois camemberts deviennent :
+ * DEUX BARRES À 100 % (alloué au-dessus du payé, mêmes couleurs : on voit où l'argent va par rapport à ce qui était
+ * prévu) et un CLASSEMENT par nature ; le cumul payé face au rythme régulier a SON graphique, à sa propre échelle.
+ */
+export function GraphiquesMarketing({ vue, vueToutes, couleurCat, couleurs, registre, comparer, anneeN1, moisCourant }: {
   /** La sélection (période + catégorie). */
   vue: VueFiltree;
-  /** La même période, toutes catégories (les camemberts grisent ce qui n'est pas sélectionné). */
+  /** La même période, toutes catégories (les barres à 100 % grisent ce qui n'est pas sélectionné). */
   vueToutes: VueFiltree;
   couleurCat: (id: string) => string;
   couleurs: Couleurs;
   registre: RegistreExports;
   comparer: boolean;
   anneeN1: number | null;
+  /** Le mois du jour (« 2026-10 ») : le repère d'aujourd'hui, et la fin du cumul. */
+  moisCourant: string;
 }) {
   const cat = vue.filtres.cat;
   const grise = (id: string) => (cat !== null && id !== cat ? couleurs.border : couleurCat(id));
 
-  // 1. L'enveloppe répartie.
+  // 1. Alloué et payé : deux barres à 100 %, une couleur par catégorie (« Sans catégorie » en neutre, côté payé).
+  const nomCat = new Map([...vueToutes.barres.map((b) => [b.id, b.nom] as const), ...vueToutes.repartition.map((p) => [p.id, p.nom] as const), [CLE_SANS, LIBELLE_SANS] as const]);
+  const idsRep = [...new Set([...vueToutes.repartition.map((p) => p.id), ...vueToutes.payeParCat.map((p) => p.id)])]
+    .sort((a, b) => (a === CLE_SANS ? 1 : b === CLE_SANS ? -1 : 0));
+  const alloueDe = new Map(vueToutes.repartition.map((p) => [p.id, p.valeur]));
+  const payeDe = new Map(vueToutes.payeParCat.map((p) => [p.id, p.valeur]));
   const totalAlloue = vueToutes.repartition.reduce((a, p) => a + p.valeur, 0);
-  const partsAlloue = vueToutes.repartition.map((p) => ({ nom: p.nom, valeur: p.valeur, couleur: grise(p.id) }));
-  const legAlloue = partsAlloue.map((p) => ({ label: p.nom, color: p.couleur, valeur: pct(p.valeur, totalAlloue) }));
-  // 2. Le payé par catégorie, « Sans catégorie » compris.
   const totalPaye = vueToutes.payeParCat.reduce((a, p) => a + p.valeur, 0);
-  const partsPaye = vueToutes.payeParCat.map((p) => ({ nom: p.nom, valeur: p.valeur, couleur: p.id === CLE_SANS ? (cat === null ? OTHER_COLOR : couleurs.border) : grise(p.id) }));
-  const legPaye = partsPaye.map((p) => ({ label: p.nom, color: p.couleur, valeur: pct(p.valeur, totalPaye) }));
-  // 3. La nature.
-  const totalNature = vue.natures.reduce((a, n) => a + n.montant, 0);
-  const partsNature = vue.natures.map((n, i) => ({ nom: n.nature, valeur: n.montant, couleur: n.nature === "Non renseignée" ? OTHER_COLOR : SERIES[i % SERIES.length] }));
-  const legNature = partsNature.map((p) => ({ label: p.nom, color: p.couleur, valeur: pct(p.valeur, totalNature) }));
+  const donneesRep = [
+    { ligne: "Alloué", ...Object.fromEntries(idsRep.map((id) => [id, alloueDe.get(id) ?? 0])) },
+    { ligne: "Payé", ...Object.fromEntries(idsRep.map((id) => [id, payeDe.get(id) ?? 0])) },
+  ];
+  const couleurRep = (id: string) => (id === CLE_SANS ? (cat === null ? OTHER_COLOR : couleurs.border) : grise(id));
+  const legRep = idsRep.map((id) => ({ label: nomCat.get(id) ?? "—", color: couleurRep(id), valeur: `${fmtM(alloueDe.get(id) ?? 0)} · ${fmtM(payeDe.get(id) ?? 0)}` }));
 
-  // 4. Alloué / payé / engagé par catégorie.
+  // 2. La nature : un classement, du plus gros au plus petit.
+  const donneesNature = vue.natures.map((n) => ({ nom: n.nature, montant: n.montant }));
+  const totalNature = vue.natures.reduce((a, n) => a + n.montant, 0);
+  const legNature: EntreeLegende[] = [{ label: "Payé sur la période", color: couleurs.primary, valeur: `${fmt(totalNature)} DZD` }];
+
+  // 3. Alloué / payé / engagé par catégorie.
   const legBarres: EntreeLegende[] = [
     { label: "Alloué", color: couleurs.border }, { label: "Payé", color: couleurs.primary }, { label: "Engagé", color: couleurs.warning },
     ...(comparer && anneeN1 ? [{ label: `Payé ${anneeN1}`, color: couleurs.violet }] : []),
   ];
-  // 5. Payé par mois.
+  // 4. Payé par mois et par catégorie (barres empilées seules : le cumul a son graphique).
   const catsDuMois = [...new Set(vue.mois.flatMap((m) => Object.keys(m.parCat)))]
     .sort((a, b) => (a === CLE_SANS ? 1 : b === CLE_SANS ? -1 : 0));
-  const nomCat = new Map([...vueToutes.barres.map((b) => [b.id, b.nom] as const), [CLE_SANS, LIBELLE_SANS] as const]);
-  const donneesMois = vue.mois.map((m) => ({ libelle: m.libelle, ...m.parCat, cumul: m.cumul, rythme: Math.round(m.rythme), ...(m.cumulN1 !== undefined ? { cumulN1: m.cumulN1 } : {}) }));
-  const legMois: EntreeLegende[] = [
-    ...catsDuMois.map((id) => ({ label: nomCat.get(id) ?? "—", color: couleurCat(id) })),
-    { label: "Cumul payé", color: couleurs.fg }, { label: "Rythme régulier", color: couleurs.muted },
+  const donneesMois = vue.mois.map((m) => ({ libelle: m.libelle, ...m.parCat }));
+  const legMois: EntreeLegende[] = catsDuMois.map((id) => ({ label: nomCat.get(id) ?? "—", color: couleurCat(id) }));
+  const libelleDuJour = vue.mois.find((m) => m.mois === moisCourant)?.libelle ?? null;
+  // 5. Le cumul payé face au rythme régulier — le cumul s'arrête au mois du jour (l'avenir n'est pas payé).
+  const donneesCumul = vue.mois.map((m) => ({
+    libelle: m.libelle, rythme: Math.round(m.rythme),
+    ...(m.mois <= moisCourant ? { cumul: m.cumul } : {}),
+    ...(m.cumulN1 !== undefined ? { cumulN1: m.cumulN1 } : {}),
+  }));
+  const dernier = [...vue.mois].reverse().find((m) => m.mois <= moisCourant);
+  const base = vue.mois.length ? vue.mois[vue.mois.length - 1].rythme : 0;
+  const legCumul: EntreeLegende[] = [
+    { label: "Payé cumulé", color: couleurs.primary, valeur: dernier ? `${fmtM(dernier.cumul)} fin ${dernier.libelle}` : undefined },
+    { label: "Rythme régulier", color: couleurs.muted, valeur: `${fmtM(base)} sur ${vue.mois.length} mois` },
     ...(comparer && anneeN1 ? [{ label: `Cumul ${anneeN1}`, color: couleurs.violet }] : []),
   ];
   // 6. Les plus grosses demandes.
@@ -269,17 +275,55 @@ export function GraphiquesMarketing({ vue, vueToutes, couleurCat, couleurs, regi
 
   const axe = { stroke: couleurs.muted, fontSize: 11, tickLine: false, axisLine: false } as const;
   const tip = infobulle(couleurs);
+  const repere = (yAxisId?: string) => (libelleDuJour
+    ? <ReferenceLine x={libelleDuJour} {...(yAxisId ? { yAxisId } : {})} stroke={couleurs.fg} strokeDasharray="3 3" strokeOpacity={0.6} label={{ value: "aujourd'hui", position: "insideTopRight", fill: couleurs.muted, fontSize: 10 }} />
+    : null);
 
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-      <CarteGraphique id="alloue" titre="Répartition de l'enveloppe" legende={legAlloue} couleurs={couleurs} registre={registre} hauteur={240} vide={partsAlloue.length === 0}>
-        <Camembert parts={partsAlloue} couleurs={couleurs} />
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <CarteGraphique id="repartition" titre="Répartition : alloué et payé" legende={legRep} couleurs={couleurs} registre={registre} hauteur={150} vide={totalAlloue <= 0.5 && totalPaye <= 0.5}>
+        <BarChart data={donneesRep} layout="vertical" stackOffset="expand" margin={{ top: 4, right: 12, left: 4, bottom: 4 }} barCategoryGap="28%">
+          <XAxis type="number" tickFormatter={(v: number) => `${Math.round(v * 100)} %`} {...axe} />
+          <YAxis type="category" dataKey="ligne" width={52} {...axe} stroke={couleurs.fg} />
+          <Tooltip {...tip} cursor={{ fill: couleurs.border, opacity: 0.4 }} />
+          {idsRep.map((id) => <Bar key={id} dataKey={id} name={nomCat.get(id) ?? "—"} stackId="r" fill={couleurRep(id)} isAnimationActive={false} />)}
+        </BarChart>
       </CarteGraphique>
-      <CarteGraphique id="paye" titre="Payé par catégorie" legende={legPaye} couleurs={couleurs} registre={registre} hauteur={240} vide={partsPaye.length === 0}>
-        <Camembert parts={partsPaye} couleurs={couleurs} />
+
+      <CarteGraphique id="nature" titre="Par nature de dépense" legende={legNature} couleurs={couleurs} registre={registre} hauteur={Math.max(150, 30 + donneesNature.length * 30)} vide={donneesNature.length === 0}>
+        <BarChart data={donneesNature} layout="vertical" margin={{ top: 4, right: 16, left: 4, bottom: 4 }} barCategoryGap="25%">
+          <CartesianGrid horizontal={false} stroke={couleurs.border} />
+          <XAxis type="number" tickFormatter={fmtM} {...axe} />
+          <YAxis type="category" dataKey="nom" width={150} tickFormatter={(s: string) => court(s, 22)} {...axe} stroke={couleurs.fg} />
+          <Tooltip {...tip} cursor={{ fill: couleurs.border, opacity: 0.4 }} />
+          <Bar dataKey="montant" name="Payé" fill={couleurs.primary} radius={[0, 4, 4, 0]} isAnimationActive={false} />
+        </BarChart>
       </CarteGraphique>
-      <CarteGraphique id="nature" titre="Par nature de dépense" legende={legNature} couleurs={couleurs} registre={registre} hauteur={240} vide={partsNature.length === 0}>
-        <Camembert parts={partsNature} couleurs={couleurs} />
+
+      <CarteGraphique id="mois" titre="Payé par mois et par catégorie" legende={legMois} couleurs={couleurs} registre={registre} hauteur={260} vide={donneesMois.length === 0}>
+        <BarChart data={donneesMois} margin={{ top: 14, right: 8, left: 4, bottom: 4 }}>
+          <CartesianGrid vertical={false} stroke={couleurs.border} />
+          <XAxis dataKey="libelle" {...axe} />
+          <YAxis tickFormatter={fmtM} width={52} {...axe} />
+          <Tooltip {...tip} cursor={{ fill: couleurs.border, opacity: 0.4 }} />
+          {catsDuMois.map((id) => (
+            <Bar key={id} dataKey={id} name={nomCat.get(id) ?? "—"} stackId="m" fill={couleurCat(id)} isAnimationActive={false} />
+          ))}
+          {repere()}
+        </BarChart>
+      </CarteGraphique>
+
+      <CarteGraphique id="cumul" titre="Cumul payé face au rythme régulier" legende={legCumul} couleurs={couleurs} registre={registre} hauteur={260} vide={donneesCumul.length === 0}>
+        <ComposedChart data={donneesCumul} margin={{ top: 14, right: 8, left: 4, bottom: 4 }}>
+          <CartesianGrid vertical={false} stroke={couleurs.border} />
+          <XAxis dataKey="libelle" {...axe} />
+          <YAxis tickFormatter={fmtM} width={52} {...axe} />
+          <Tooltip {...tip} />
+          <Area type="linear" dataKey="cumul" name="Payé cumulé" stroke={couleurs.primary} strokeWidth={2.2} fill={couleurs.primary} fillOpacity={0.1} dot={{ r: 2.5, fill: couleurs.primary }} connectNulls={false} isAnimationActive={false} />
+          <Line type="linear" dataKey="rythme" name="Rythme régulier" stroke={couleurs.muted} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
+          {comparer && anneeN1 && <Line type="monotone" dataKey="cumulN1" name={`Cumul ${anneeN1}`} stroke={couleurs.violet} strokeWidth={2} dot={false} isAnimationActive={false} />}
+          {repere()}
+        </ComposedChart>
       </CarteGraphique>
 
       <CarteGraphique id="categories" titre="Alloué, payé et engagé par catégorie" legende={legBarres} couleurs={couleurs} registre={registre} hauteur={Math.max(180, 56 + vue.barres.length * (comparer ? 56 : 42))} large vide={vue.barres.length === 0}>
@@ -295,27 +339,11 @@ export function GraphiquesMarketing({ vue, vueToutes, couleurCat, couleurs, regi
         </BarChart>
       </CarteGraphique>
 
-      <CarteGraphique id="mois" titre="Payé par mois et par catégorie" legende={legMois} couleurs={couleurs} registre={registre} hauteur={300} large vide={donneesMois.length === 0}>
-        <ComposedChart data={donneesMois} margin={{ top: 8, right: 8, left: 4, bottom: 4 }}>
-          <CartesianGrid vertical={false} stroke={couleurs.border} />
-          <XAxis dataKey="libelle" {...axe} />
-          <YAxis yAxisId="m" tickFormatter={fmtM} width={52} {...axe} />
-          <YAxis yAxisId="c" orientation="right" tickFormatter={fmtM} width={52} {...axe} />
-          <Tooltip {...tip} cursor={{ fill: couleurs.border, opacity: 0.4 }} />
-          {catsDuMois.map((id) => (
-            <Bar key={id} yAxisId="m" dataKey={id} name={nomCat.get(id) ?? "—"} stackId="m" fill={couleurCat(id)} isAnimationActive={false} />
-          ))}
-          <Line yAxisId="c" type="monotone" dataKey="cumul" name="Cumul payé" stroke={couleurs.fg} strokeWidth={2} dot={{ r: 2.5, fill: couleurs.fg }} isAnimationActive={false} />
-          <Line yAxisId="c" type="linear" dataKey="rythme" name="Rythme régulier" stroke={couleurs.muted} strokeDasharray="5 4" dot={false} isAnimationActive={false} />
-          {comparer && anneeN1 && <Line yAxisId="c" type="monotone" dataKey="cumulN1" name={`Cumul ${anneeN1}`} stroke={couleurs.violet} strokeWidth={2} dot={false} isAnimationActive={false} />}
-        </ComposedChart>
-      </CarteGraphique>
-
       <CarteGraphique id="demandes" titre="Les 8 demandes qui pèsent le plus" legende={legTop} couleurs={couleurs} registre={registre} hauteur={Math.max(160, 40 + donneesTop.length * 36)} large vide={donneesTop.length === 0}>
         <BarChart data={donneesTop} layout="vertical" margin={{ top: 4, right: 16, left: 8, bottom: 4 }} barCategoryGap="25%">
           <CartesianGrid horizontal={false} stroke={couleurs.border} />
           <XAxis type="number" tickFormatter={fmtM} {...axe} />
-          <YAxis type="category" dataKey="nom" width={230} {...axe} stroke={couleurs.fg} />
+          <YAxis type="category" dataKey="nom" width={190} tickFormatter={(s: string) => court(s, 30)} {...axe} stroke={couleurs.fg} />
           <Tooltip {...tip} cursor={{ fill: couleurs.border, opacity: 0.4 }} />
           <Bar dataKey="paye" name="Payé" stackId="t" fill={couleurs.primary} isAnimationActive={false} />
           <Bar dataKey="engage" name="Engagé" stackId="t" fill={couleurs.warning} radius={[0, 4, 4, 0]} isAnimationActive={false} />
