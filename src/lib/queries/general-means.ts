@@ -164,8 +164,13 @@ function grantOf(rows: { departmentId: string | null; accessRoles: string[]; acc
  */
 export async function openRemittances(
   departmentId: string,
+  /**
+   * LA LECTURE SOUS VERROU (audit Assistante de direction, 10/2026) : la dépense sur caisse relit le fond DANS sa
+   * transaction, après avoir verrouillé le département — deux dépenses simultanées ne lisent plus le même solde.
+   */
+  db: Pick<typeof prisma, "pettyCashAllotment"> = prisma,
 ): Promise<(CashRemittance & { holderId: string | null; enAttenteDuCentre: boolean })[]> {
-  const rows = await prisma.pettyCashAllotment.findMany({
+  const rows = await db.pettyCashAllotment.findMany({
     where: { departmentId, status: { not: "CLOSED" } },
     orderBy: { createdAt: "desc" },
     select: {

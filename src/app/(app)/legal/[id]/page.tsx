@@ -40,7 +40,7 @@ import { EntityLinks } from "@/components/shared/entity-links";
 import { linksOf, linkedViews } from "@/lib/links/store";
 import { porteDuBC, origineDuBC, centreVouluDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { blocageParLeBC, reserveEtapeBC } from "@/lib/bons-de-commande/regle";
-import { REFUS_FACTURE_EMISE_AU_REGLEMENT } from "@/lib/finances/settlement";
+import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement } from "@/lib/finances/settlement";
 import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
 import { sitsOnValidationCentre } from "@/lib/validations/centre";
 import { BonDeCommandeGate } from "./bc-gate";
@@ -311,7 +311,8 @@ export default async function LegalDocumentPage({ params, searchParams }: { para
     folderId: doc.folderId ?? undefined,
     chainFromId: doc.chainFromId ?? undefined,
   }, "edit", [], folderOptions, chainCandidates, false,
-     { options: partyOptions, canCreate: canCreateContact, selected: doc.counterpartyIds }, Boolean(emise));
+     { options: partyOptions, canCreate: canCreateContact, selected: doc.counterpartyIds }, Boolean(emise),
+     peutDaterLeReglement({ financesModifier: userCan(user, "FINANCES", "UPDATE") }));
 
   return (
     <div className="space-y-5">

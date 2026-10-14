@@ -567,7 +567,7 @@ function AddBeneficiaryForm({ scope, requestId, directory, busy, onCancel, onSub
  * catégorie et le devis couvre les postes de cette catégorie de tout le monde. Le montant se saisit dans la devise
  * des postes couverts (le dollar à l'international, sauf la billetterie).
  */
-function QuoteForm({ scope, requestId, mode, taux, beneficiaries, preselection, busy, onCancel, onSubmit }: {
+export function QuoteForm({ scope, requestId, mode, taux, beneficiaries, preselection, busy, onCancel, onSubmit }: {
   scope: Perimetre; requestId: string; mode: CareMode; taux: number | null; beneficiaries: BeneficiaryRow[]; preselection: string[];
   busy: boolean; onCancel: () => void; onSubmit: (f: FormData) => void;
 }) {

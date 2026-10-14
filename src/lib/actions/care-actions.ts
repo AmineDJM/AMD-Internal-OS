@@ -21,6 +21,7 @@ import {
 } from "@/lib/care-fiches";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";
+import { peutSaisirLesDevis } from "@/lib/care-devis-acces";
 import { creerProfilMedecin } from "@/lib/medical/profil-rapide";
 import { persistUploadedDocument } from "@/lib/documents";
 import { deleteFileByKey } from "@/lib/storage";
@@ -60,6 +61,7 @@ const DECIDED = ["APPROVED", "COMPLETED"];
 function revalidate(scope: Scope, id: string) {
   revalidatePath(SPEC[scope].path);
   revalidatePath(`${SPEC[scope].path}/${id}`);
+  revalidatePath(`${SPEC[scope].path}/${id}/devis`);
 }
 
 /** Décrire les personnes et leurs besoins : ouvert aux acteurs de la demande. */
@@ -818,12 +820,17 @@ export async function createCareQuote(_prev: ActionResult | undefined, formData:
   const user = await requireUser();
   const scopeRaw = fdStr(formData, "scope") ?? "";
   if (!isScope(scopeRaw)) return { ok: false, error: "Périmètre inconnu." };
-  if (!canEdit(user, scopeRaw)) return { ok: false, error: "Non autorisé." };
 
   const requestId = fdStr(formData, "requestId");
   const supplier = fdStr(formData, "supplier");
-  if (!requestId || !supplier) return { ok: false, error: "Le fournisseur est obligatoire." };
-  if (!(await canAccessEntity(user, SPEC[scopeRaw].module, requestId, "UPDATE"))) return { ok: false, error: "Demande introuvable." };
+  // QUI SAISIT UN DEVIS (audit Assistante de direction, 10/2026) : qui tient la fiche, comme avant — et
+  // l'assistante de direction à qui l'on a DEMANDÉ les devis de cette prise en charge, qui n'a pas le module
+  // (`care-devis-acces.ts`). Sans elle, les devis repartaient par e-mail.
+  if (!requestId) return { ok: false, error: "Demande non précisée." };
+  if (!(await peutSaisirLesDevis(user, scopeRaw, requestId))) {
+    return { ok: false, error: canEdit(user, scopeRaw) ? "Demande introuvable." : "Non autorisé." };
+  }
+  if (!supplier) return { ok: false, error: "Le fournisseur est obligatoire." };
   const req = await loadRequest(scopeRaw, requestId);
   if (!req) return { ok: false, error: "Demande introuvable." };
 
@@ -1059,6 +1066,8 @@ export async function requestCareQuotes(_prev: ActionResult | undefined, formDat
   const requestId = fdStr(formData, "requestId");
   if (!isScope(scopeRaw) || !requestId) return { ok: false, error: "Demande non précisée." };
   if (!canEdit(user, scopeRaw)) return { ok: false, error: "Non autorisé." };
+  // Elle écrit désormais dans le sujet de l'assistante : la même porte que la demande de réservation.
+  if (!(await canAccessEntity(user, SPEC[scopeRaw].module, requestId, "UPDATE"))) return { ok: false, error: "Demande introuvable." };
 
   const req = await loadRequest(scopeRaw, requestId);
   if (!req) return { ok: false, error: "Demande introuvable." };
@@ -1069,16 +1078,25 @@ export async function requestCareQuotes(_prev: ActionResult | undefined, formDat
   });
   if (toQuote === 0) return { ok: false, error: "Aucun élément n'attend de devis." };
 
+  // UNE PORTE QU'ELLE PEUT OUVRIR (audit Assistante de direction, 10/2026). La notification menait à la fiche du
+  // congrès — un module que l'assistante n'a pas. La demande s'écrit désormais dans SON sujet (celui de la
+  // réservation, ouvert s'il n'existe pas : c'est lui qui la désigne), et le lien mène à la page « Devis » de la
+  // prise en charge, où elle les saisit (`care-devis-acces.ts`).
+  const lienDevis = `${SPEC[scopeRaw].path}/${requestId}/devis`;
+  const sujet = await ecrireAAssistante(scopeRaw, req, user, "Demande de devis.",
+    `${toQuote} élément(s) à chiffrer — saisissez chaque devis reçu (fournisseur, montant, PDF) : ${lienDevis}`);
+  if (!sujet.ok) return { ok: false, error: sujet.error };
   await notifyRoles(["DIRECTION_ASSISTANT", "SUPER_ADMIN"], {
     type: "VALIDATION_REQUIRED",
     title: "Devis à obtenir — prise en charge",
     body: `${req.name} : ${toQuote} élément(s) à chiffrer.`,
-    link: `${SPEC[scopeRaw].path}/${requestId}`,
+    link: lienDevis,
   }).catch(() => undefined);
 
-  await audit(user, scopeRaw, requestId, "UPDATE", `Secrétariat sollicité pour ${toQuote} devis.`);
+  await audit(user, scopeRaw, requestId, "UPDATE", `Secrétariat sollicité pour ${toQuote} devis — sujet ${sujet.reference}.`);
   revalidate(scopeRaw, requestId);
-  return { ok: true, message: `Le secrétariat est prévenu — ${toQuote} élément(s) à chiffrer.` };
+  revalidatePath("/dossiers");
+  return { ok: true, message: `Le secrétariat est prévenu — ${toQuote} élément(s) à chiffrer (sujet ${sujet.reference}).` };
 }
 
 /**

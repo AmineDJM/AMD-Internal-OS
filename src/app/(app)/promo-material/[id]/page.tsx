@@ -2,7 +2,8 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, Megaphone, Scale } from "lucide-react";
 import { requireUser, safeLanding } from "@/lib/session";
-import { userCan, hasGlobalView } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
+import { peutDaterLeReglement } from "@/lib/finances/settlement";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/settings";
 import { canOpenModule } from "@/lib/modules-visibility";
@@ -107,7 +108,7 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
   const isDirection = hasGlobalView(user.role);
   const flags = {
     isMarketing: pm.requesterId === user.id || isDirection,
-    isAssistant: user.role === "DIRECTION_ASSISTANT" || isDirection,
+    isAssistant: hasRole(user, "DIRECTION_ASSISTANT") || isDirection,
     isFinance: user.role === "FINANCE_BUDGET_MANAGER" || isDirection,
     isMedicalInfo: user.role === "MEDICAL_INFO_PHARMACIST" || isDirection,
     isDirection,
@@ -413,7 +414,8 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
         <AdProEditButton kind="PROMO_MATERIAL" id={pm.id} decided={promoDecided} values={promoEditValues} />
       )}
       {naturesEngagement.length > 0 && (
-        <AttachToSourceButtons entityType="PROMO_MATERIAL" entityId={pm.id} reference={pm.reference} kinds={naturesEngagement} />
+        <AttachToSourceButtons entityType="PROMO_MATERIAL" entityId={pm.id} reference={pm.reference} kinds={naturesEngagement}
+          daterLeReglement={peutDaterLeReglement({ financesModifier: userCan(user, "FINANCES", "UPDATE") })} />
       )}
       <SupprimerDemandeAdPro kind="PROMO_MATERIAL" id={pm.id} name={pm.title} enabled={peutSupprimer} />
     </MenuDossier>

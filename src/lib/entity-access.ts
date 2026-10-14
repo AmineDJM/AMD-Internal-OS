@@ -19,6 +19,7 @@ import { clauseRegulatoryVisible } from "@/lib/queries/regulatory-visibilite";
 import { clauseBonsDeCommandePchVisibles, clauseFormationsVisibles, clauseMarchesPchVisibles } from "@/lib/queries/visibilite-listes";
 import { isManagerOfUser, getManagementChain } from "@/lib/departments";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
+import { tientPourLaSollicitee } from "@/lib/doc-request-interim";
 import { canViewDeclaration } from "@/lib/queries/medical-info";
 import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import { accesAuCasPv } from "@/lib/pharmacovigilance/acces";
@@ -507,13 +508,14 @@ export async function canAccessEntity(
   if (entityType === "DOCUMENT_REQUEST") {
     if (hasGlobalView(user.role)) return true;
     const r = await prisma.documentRequest.findUnique({
-      where: { id: entityId }, select: { askedById: true, askedToId: true, status: true },
+      where: { id: entityId }, select: { askedById: true, askedToId: true, status: true, entityType: true, kind: true },
     });
     if (!r) return false;
     if (r.askedById === user.id) return true;
     // Celui qui dépose ne peut plus toucher aux pièces une fois la demande close : sinon on ne
-    // saurait plus laquelle a servi à la décision.
-    if (r.askedToId !== user.id) return false;
+    // saurait plus laquelle a servi à la décision. L'INTÉRIMAIRE de l'assistante sollicitée pour le BC d'un
+    // poste Ad & Pro dépose à sa place (`tientPourLaSollicitee` — audit Assistante de direction, 10/2026).
+    if (r.askedToId !== user.id && !(await tientPourLaSollicitee(user.id, r))) return false;
     return action === "VIEW" || (r.status !== "ACCEPTED" && r.status !== "CANCELLED");
   }
 
@@ -714,14 +716,14 @@ export async function canAccessEntity(
   // L'Assistante de Direction pilote le circuit Matériel promotionnel depuis les
   // Demandes administratives, SANS accès au module dédié : elle peut consulter,
   // joindre et gérer les pièces du dossier promo lié.
-  if (entityType === "PROMO_MATERIAL" && user.role === "DIRECTION_ASSISTANT") {
+  if (entityType === "PROMO_MATERIAL" && hasRole(user, "DIRECTION_ASSISTANT")) {
     return true;
   }
 
   // L'Assistante de Direction tient le **bureau du secrétariat** : elle modère TOUTE
   // demande administrative (éditer/supprimer les messages, supprimer / renommer /
   // re-téléverser les pièces jointes), quel que soit le demandeur ou l'assignation.
-  if (entityType === "ADMIN_REQUEST" && user.role === "DIRECTION_ASSISTANT") {
+  if (entityType === "ADMIN_REQUEST" && hasRole(user, "DIRECTION_ASSISTANT")) {
     return true;
   }
 
