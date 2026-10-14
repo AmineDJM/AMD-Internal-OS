@@ -1,20 +1,23 @@
 import Link from "next/link";
 import { ExternalLink, Paperclip } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { accessibleModules } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getMyValidations, type PendingValidationItem, type MyValidationItem } from "@/lib/queries/validations";
 import { groupValidations, type ValidationGroup } from "@/lib/validations/grouping";
-import { createValidationRequest } from "@/lib/actions/validation-actions";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { CreateRecordButton, type FieldDef } from "@/components/shared/create-record-button";
 import { optionsFromMap } from "@/components/shared/form-fields";
-import { NAVIGATION, PRIORITY, VALIDATION_STATUS, VALIDATION_STEP_STATE, VALIDATION_MODE } from "@/lib/labels";
+import { PRIORITY, VALIDATION_STATUS, VALIDATION_STEP_STATE, VALIDATION_MODE } from "@/lib/labels";
+import { bcDesDemandes, bcImportables, peutCreerUnBC } from "@/lib/bons-de-commande/retenue-bc";
+import { etatsDesBC } from "@/lib/bons-de-commande/etat";
+import { LIBELLE_ETAPE_BC } from "@/lib/bons-de-commande/regle";
+import { compositionDesPieces } from "@/lib/queries/composition-pieces";
+import { DemanderUneValidation } from "./demande-validation";
+import { ValidationFinaleBC } from "./validation-finale-bc";
 import { formatCurrency, formatDate, formatDateTime, daysUntil } from "@/lib/utils";
 import { ValidationDecision } from "./validation-decision";
 import { ItemReview } from "./validation-item-review";
@@ -46,38 +49,30 @@ export default async function ValidationsPage({ searchParams }: { searchParams: 
     focusStep ? [...list].sort((a, b) => Number(b.stepId === focusStep) - Number(a.stepId === focusStep)) : list;
   const actionable = focusFirst(toValidate.filter((v) => v.actionable));
 
-  const mods = accessibleModules(user);
-  const seen = new Set<string>();
-  const moduleOptions = NAVIGATION
-    .filter((n) => mods.includes(n.module) && !seen.has(n.module) && seen.add(n.module))
-    .map((n) => ({ value: n.label, label: n.label }));
-
   // Validateurs possibles : tous les collaborateurs actifs (le demandeur s'exclut
   // de fait, l'action ignore une étape qui le viserait lui-même).
-  const people = await prisma.user.findMany({
-    where: { isActive: true, id: { not: user.id } },
-    select: { id: true, name: true },
-    orderBy: { name: "asc" },
-  });
-
+  const [people, importables, composition] = await Promise.all([
+    prisma.user.findMany({
+      where: { isActive: true, id: { not: user.id } },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+    bcImportables(user),
+    compositionDesPieces(user),
+  ]);
   const peopleOptions = people.map((p) => ({ value: p.id, label: p.name }));
-
-  const requestFields: FieldDef[] = [
-    { type: "text", name: "title", label: "Objet à valider", required: true, full: true, placeholder: "Ex. Courrier à signer, paiement prestataire…" },
-    { type: "select", name: "validator1Id", label: "Validateur", options: peopleOptions, placeholder: "— Choisir un validateur —" },
-    { type: "select", name: "validator2Id", label: "2ᵉ validateur (optionnel)", options: peopleOptions, placeholder: "— Aucun —" },
-    { type: "select", name: "priority", label: "Priorité", options: optionsFromMap(PRIORITY), defaultValue: "MEDIUM" },
-    { type: "date", name: "deadline", label: "Échéance" },
-    { type: "text", name: "link", label: "Lien vers l'objet (optionnel)", placeholder: "/courrier/… ou /demandes/…" },
-    { type: "textarea", name: "description", label: "Détails / contexte", full: true },
-    { type: "file", name: "files", label: "Pièces jointes (optionnel)", multiple: true, full: true, hint: "Documents à faire valider (PDF, images, Word…)." },
-    { type: "select", name: "module", label: "Module concerné (routage auto si aucun validateur)", options: moduleOptions, placeholder: "— Routage automatique par règles —" },
-  ];
+  // Le compositeur n'est offert que si la personne peut ÉMETTRE un bon de commande (même règle que Legal).
+  const compositionBC = composition?.types.includes("BON_DE_COMMANDE")
+    ? { societes: composition.societes, societeParDefaut: composition.societeParDefaut, letterheads: composition.letterheads, peutReglerNumerotation: composition.peutReglerNumerotation, amont: composition.amont }
+    : null;
 
   // UNE DEMANDE = UNE DEMANDE. Les validations de pièces se regroupent sous la demande dont
   // elles proviennent : sans cela, quatre pièces soumises séparément s'affichaient comme quatre
   // demandes, et l'acceptation de l'une se lisait comme celle du tout.
   const myGroups = groupValidations(myRequests);
+  // LES PRÉ-VALIDATIONS DE BC : le BC visé, s'il est encore retenu (CTA « validation finale »), et où il en est ensuite.
+  const prevalidations = await bcDesDemandes(myGroups.flatMap((g) => (g.main ? [g.main.id] : [])));
+  const etatsBC = await etatsDesBC([...prevalidations.values()].map((p) => p.docId));
   const pendingMine = myGroups.filter((g) => g.status === "PENDING").length;
   // Les compteurs de supervision sont calculés côté serveur pour l'en-tête ; le tableau les
   // recalcule pour ses filtres, à partir des MÊMES fonctions pures — les deux ne peuvent pas
@@ -98,12 +93,12 @@ export default async function ValidationsPage({ searchParams }: { searchParams: 
         title="Demandes de validations"
         description="Le bureau de validation : demandez une validation professionnelle à la personne de votre choix, et traitez ce qui requiert la vôtre. Le demandeur ne voit que ses propres demandes ; les validateurs voient ce qu'ils ont à valider."
       >
-        <CreateRecordButton
-          label="Demander une validation"
-          title="Demander une validation"
-          description="Choisissez le(s) validateur(s). À défaut, la demande est routée automatiquement selon les règles définies par le Super Admin."
-          action={createValidationRequest}
-          fields={requestFields}
+        <DemanderUneValidation
+          personnes={peopleOptions}
+          priorites={optionsFromMap(PRIORITY)}
+          bcImportables={importables}
+          peutDeposerBC={peutCreerUnBC(user)}
+          composition={compositionBC}
         />
         {/* LA DEMANDE DE PAIEMENT SE FAIT D'ICI — c'est sa seule porte d'entrée, le module à
             part a disparu. Le dossier passe OBLIGATOIREMENT par le centre de paiement — tout
@@ -174,7 +169,16 @@ export default async function ValidationsPage({ searchParams }: { searchParams: 
           <EmptyState icon="Send" title="Aucune demande envoyée" description="Vos demandes de validation et leur avancement apparaîtront ici." />
         ) : (
           <div className="space-y-2">
-            {myGroups.map((g) => <MyRequestCard key={g.key} g={g} isSuperAdmin={user.role === "SUPER_ADMIN"} />)}
+            {myGroups.map((g) => {
+              const pv = g.main ? prevalidations.get(g.main.id) : undefined;
+              const bc = pv ? etatsBC.get(pv.docId) : undefined;
+              return (
+                <MyRequestCard
+                  key={g.key} g={g} isSuperAdmin={user.role === "SUPER_ADMIN"}
+                  bc={pv && bc ? { docId: pv.docId, reference: bc.reference ?? bc.title, retenu: pv.retenu, etape: pv.retenu ? null : LIBELLE_ETAPE_BC[bc.etape] } : null}
+                />
+              );
+            })}
           </div>
         )}
       </section>
@@ -233,7 +237,11 @@ export default async function ValidationsPage({ searchParams }: { searchParams: 
  * attend ne fait pas une demande acceptée. Le détail par pièce est là, juste en dessous, avec
  * son propre verdict — c'est là, et seulement là, qu'« accepté » veut dire « cette pièce ».
  */
-function MyRequestCard({ g, isSuperAdmin }: { g: ValidationGroup<MyValidationItem>; isSuperAdmin: boolean }) {
+function MyRequestCard({ g, isSuperAdmin, bc }: {
+  g: ValidationGroup<MyValidationItem>; isSuperAdmin: boolean;
+  /** La pré-validation d'un BC : la pièce, si elle est encore retenue, et son étape une fois la validation finale demandée. */
+  bc: { docId: string; reference: string; retenu: boolean; etape: string | null } | null;
+}) {
   const head = g.main ?? g.pieces[0];
   return (
     <Card>
@@ -267,6 +275,21 @@ function MyRequestCard({ g, isSuperAdmin }: { g: ValidationGroup<MyValidationIte
         {g.summary && <p className="text-xs text-muted-foreground">{g.summary}</p>}
 
         {g.main && <StepChips steps={g.main.steps} />}
+
+        {/* LA PRÉ-VALIDATION D'UN BC : acquise, le demandeur demande la validation finale ; ensuite, on suit le BC. */}
+        {bc && g.main && (
+          bc.retenu
+            ? (g.main.status === "APPROVED"
+              ? <ValidationFinaleBC demandeId={g.main.id} reference={bc.reference} />
+              : <p className="text-xs text-muted-foreground">Pré-validation du bon de commande {bc.reference} : la validation finale se demandera quand tous les validateurs auront accepté.</p>)
+            : (
+              <p className="flex flex-wrap items-center gap-x-2 text-xs">
+                <span className="text-muted-foreground">Validation finale demandée — bon de commande {bc.reference} :</span>
+                <span className="font-medium">{bc.etape}</span>
+                <Link href={`/legal/${bc.docId}`} className="text-primary hover:underline">Ouvrir le bon de commande</Link>
+              </p>
+            )
+        )}
 
         {/* PIÈCE PAR PIÈCE — chaque validation garde SON verdict, clairement nommée. */}
         {g.pieces.length > 0 && (

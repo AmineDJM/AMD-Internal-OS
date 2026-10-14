@@ -421,6 +421,8 @@ export interface ResultatAiguillage {
    * derniers sans porte, et la phrase de l'émission muette (§118.148).
    */
   enEchec?: boolean;
+  /** Vrai quand le BC est retenu par sa pré-validation : aucun centre ne le voit encore (`prevalidation.ts`). */
+  enPrevalidation?: boolean;
 }
 
 /**
@@ -484,10 +486,18 @@ export async function aiguillerBC(
       select: {
         id: true, kind: true, status: true, reference: true, title: true, counterparty: true,
         amount: true, createdById: true, sourceType: true, sourceId: true, chainFromId: true,
-        signedAt: true, signedById: true, bcCircuitAt: true, signatureReturnedAt: true,
+        signedAt: true, signedById: true, bcCircuitAt: true, signatureReturnedAt: true, bcPrevalidationAt: true,
       },
     });
     if (!doc) return { porte: null, geste: null };
+
+    // EN PRÉ-VALIDATION (Demandes de validations) : le BC n'est adressé à AUCUN centre tant que le demandeur n'a pas
+    // demandé la validation finale (`prevalidation.ts`). Une porte qui attendrait encore est retirée — personne ne
+    // l'a vue, et la validation finale la reposera. Annulé ou re-qualifié, il suit la règle ordinaire ci-dessous.
+    if (doc.bcPrevalidationAt && doc.kind === "PURCHASE_ORDER" && doc.status !== "CANCELLED") {
+      const retires = await retirerEnAttente(doc.id);
+      return { porte: null, geste: retires > 0 ? "RETIREE" : null, etape: "HORS_CIRCUIT", enPrevalidation: true };
+    }
 
     // Plus un BC (re-qualifié) ou annulé : ce qui attendait n'a plus d'objet.
     if (doc.kind !== "PURCHASE_ORDER" || doc.status === "CANCELLED") {

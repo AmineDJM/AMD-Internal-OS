@@ -505,6 +505,11 @@ export interface DemandeDocument {
   forcerDoublon?: boolean;
   sansPdf?: boolean;
   /**
+   * BON DE COMMANDE composé depuis « Demandes de validations » : il naît EN PRÉ-VALIDATION — aucun centre ne le voit
+   * tant que le demandeur n'a pas demandé la validation finale (`bons-de-commande/prevalidation.ts`).
+   */
+  prevalidation?: boolean;
+  /**
    * Pour une pièce au REGISTRE COMMUN NNN/DG/AAAA (`ApercuDocument.surRegistre`) : la référence choisie à la génération
    * (ex. « 040/DG/2026 »), unique pour la société et l'année, tous documents confondus. Vide = le prochain numéro libre.
    */
@@ -992,6 +997,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
         sourceId: opts.source?.id ?? null,
         notes: `${LIBELLE_TYPE[type]} émis${type === "FACTURE" ? "e" : ""} ${parQui(user, opts.canal)} — TTC ${formaterDzd(totaux.totalTtc)}.`,
         createdById: user.id, updatedById: user.id,
+        ...(demande.prevalidation && type === "BON_DE_COMMANDE" ? { bcPrevalidationAt: new Date() } : {}),
         custom: { fabrique } as unknown as Prisma.InputJsonValue,
       },
       select: { id: true },

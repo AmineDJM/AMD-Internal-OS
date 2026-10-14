@@ -116,7 +116,11 @@ export function repriseApresCorrection(
  * précédente, audit 360° I9). La resoumettre ici contournerait la correction que ce circuit exige :
  * un BC « à revoir » se lève en MODIFIANT le BC, pas en appuyant sur un bouton.
  */
-export function resoumissionSurPlace(demande: { entityType: string | null; documentId?: string | null }): boolean {
+export function resoumissionSurPlace(demande: { entityType: string | null; documentId?: string | null; objectType?: string | null }): boolean {
+  // LA PRÉ-VALIDATION D'UN BC (Demandes de validations, 10/2026) vise une pièce Legal mais n'est pas née d'un autre
+  // circuit : c'est le demandeur qui l'a ouverte ici, et c'est ici qu'il la corrige et la resoumet. La valeur est
+  // écrite en clair (module au socle, sans import) : c'est `OBJET_PREVALIDATION_BC`.
+  if (demande.objectType === "PREVALIDATION_BC") return true;
   return !demande.entityType && !demande.documentId;
 }
 

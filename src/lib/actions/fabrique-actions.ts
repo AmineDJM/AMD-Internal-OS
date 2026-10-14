@@ -146,6 +146,8 @@ function lireDemande(formData: FormData, lignes: DemandeDocument["lignes"]): { o
       letterheadId: texte(formData, "letterheadId"),
       chainFromId: texte(formData, "chainFromId"),
       forcerDoublon: fdStr(formData, "forcerDoublon") === "1",
+      // Composé depuis « Demandes de validations » : le BC naît en pré-validation, aucun centre ne le voit encore.
+      prevalidation: fdStr(formData, "prevalidation") === "1",
       // LA RÉFÉRENCE CHOISIE (registre commun NNN/DG/AAAA) : le champ est prérempli avec le numéro prévu ; laissé tel quel, rien
       // n'est figé (le prochain libre est attribué) ; modifié, la fabrique le vérifie sous verrou.
       numeroChoisi: saisieEffective(fdStr(formData, "numeroChoisi"), fdStr(formData, "numeroSuggere")),

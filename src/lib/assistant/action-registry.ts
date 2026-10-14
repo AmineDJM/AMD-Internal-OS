@@ -1289,6 +1289,12 @@ X("RENVOYER, RÉEXAMINER, RESOUMETTRE DANS LES CENTRES (§118.188, audit R07/R08
   "validation-actions:resoumettreValidation",
   "ad-pro-centre-actions:resoumettreAuCentreAdPro", "ad-pro-centre-actions:reexaminerVisaCentreAdPro",
 ]);
+X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de validations, 10/2026) — le geste du "
+  + "DEMANDEUR une fois que tous ses validateurs ont accepté : la retenue du BC tombe et l'aiguillage ordinaire l'adresse "
+  + "à son centre de validation, puis à la signature. Adam est en pause de développement : aucun geste neuf ne lui est "
+  + "ouvert. Un clic, confirmé, sur la carte de la demande.", [
+  "validation-actions:demanderValidationFinaleBC",
+]);
 X("RESOUMETTRE UNE « AUTRE DEMANDE » REFUSÉE ET PROLONGER UN CONTRAT DE CONSULTING (audit 360°, lot C4a) — la "
   + "resoumission est le geste du DEMANDEUR qui dit ce qui a changé depuis le refus (elle peut corriger la description "
   + "et le montant, que le centre Ad & Pro relit) ; la prolongation engage la société sur un terme plus long et "

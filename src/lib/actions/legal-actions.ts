@@ -18,6 +18,8 @@ import { attachFormFiles } from "@/lib/documents";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { normalizeReaderIds, canManageLegalReaders } from "@/lib/lecteurs/legal";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
+import { PHRASE_PREVALIDATION } from "@/lib/bons-de-commande/prevalidation";
+import { libererPrevalidation, retenueOrpheline } from "@/lib/bons-de-commande/retenue-bc";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
 import { syncInvoiceSettlement } from "@/lib/finance/settle-invoice";
 import { invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement } from "@/lib/finances/settlement";
@@ -229,6 +231,9 @@ export async function createLegalDocument(
       driveNodeId,
       sourceType: source.type,
       sourceId: source.id,
+      // Déposé depuis « Demandes de validations » : le BC naît EN PRÉ-VALIDATION — l'aiguillage ci-dessous ne l'adresse
+      // à aucun centre tant que le demandeur n'a pas demandé la validation finale (`bons-de-commande/prevalidation.ts`).
+      ...(f.kind === "PURCHASE_ORDER" && fdStr(formData, "prevalidation") === "1" ? { bcPrevalidationAt: new Date() } : {}),
       createdById: user.id,
       updatedById: user.id,
     },
@@ -886,7 +891,7 @@ export async function adresserBCAuCentre(formData: FormData): Promise<ActionResu
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Bon de commande introuvable." };
 
-  const doc = await prisma.legalDocument.findUnique({ where: { id }, select: { kind: true, status: true } });
+  const doc = await prisma.legalDocument.findUnique({ where: { id }, select: { kind: true, status: true, bcPrevalidationAt: true, bcPrevalidationRequestId: true } });
   if (!doc) return { ok: false, error: "Bon de commande introuvable." };
   if (!peutEcrire(user, "UPDATE", doc.kind)) return { ok: false, error: "Non autorisé." };
   if (doc.kind !== "PURCHASE_ORDER") {
@@ -896,7 +901,19 @@ export async function adresserBCAuCentre(formData: FormData): Promise<ActionResu
     return { ok: false, error: "Ce bon de commande est annulé : il n'a plus rien à faire valider." };
   }
 
-  const r = await aiguillerBC(id, { acteurId: user.id });
+  // EN PRÉ-VALIDATION : la validation finale se demande depuis la demande de validation, pas d'ici — sinon ce bouton
+  // serait la porte dérobée qui envoie au centre un BC dont on recueille encore les avis. Une retenue ORPHELINE (BC
+  // composé puis abandonné, demande retirée) se lève ici : personne d'autre ne la lèverait.
+  let r: Awaited<ReturnType<typeof aiguillerBC>>;
+  if (doc.bcPrevalidationAt) {
+    if (!(await retenueOrpheline(doc))) {
+      return { ok: false, error: `${PHRASE_PREVALIDATION} La validation finale se demande depuis « Demandes de validations ».` };
+    }
+    const libere = await libererPrevalidation(id, doc.bcPrevalidationRequestId, user.id, "pré-validation sans demande en cours — adressé au centre depuis sa fiche.");
+    r = libere.aiguillage ?? await aiguillerBC(id, { acteurId: user.id });
+  } else {
+    r = await aiguillerBC(id, { acteurId: user.id });
+  }
   if (r.sansSiege) return { ok: false, error: phraseAiguillage(r) ?? "Aucun siège au centre de validations." };
   if (r.enEchec) {
     return { ok: false, error: "Le bon de commande n'a pas pu être adressé au centre. Réessayez ; si l'échec persiste, signalez-le à un administrateur." };

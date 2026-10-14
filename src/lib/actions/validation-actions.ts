@@ -1,8 +1,12 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { OBJET_BC, CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
+import { OBJET_BC, MODULE_BC, CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
+import { LIBELLE_CENTRE_BC, reserveDeLAiguillage } from "@/lib/bons-de-commande/regle";
 import { signalerSiASigner } from "@/lib/bons-de-commande/etat";
+import { LIBELLE_SOURCE_BC, OBJET_PREVALIDATION_BC, lireSourceBC, refusSoumissionBC, refusValidationFinale, validateursDuFormulaire } from "@/lib/bons-de-commande/prevalidation";
+import { bcASoumettre, libererPrevalidation, peutCreerUnBC, retenirPourPrevalidation } from "@/lib/bons-de-commande/retenue-bc";
+import { createLegalDocument } from "@/lib/actions/legal-actions";
 import type { Priority, UserRole, ValidationMode, ValidationStatus, ValidationStepState } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
@@ -19,7 +23,7 @@ import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { toNumber } from "@/lib/utils";
 import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
-import { lecteurDeLaDemandeDeValidation } from "@/lib/entity-access";
+import { canAccessEntity, lecteurDeLaDemandeDeValidation } from "@/lib/entity-access";
 import { lienEtapeAValider } from "@/lib/chemins/validations";
 
 const ROLES: UserRole[] = [
@@ -127,10 +131,17 @@ export async function createValidationRequest(
     if (invalid) return { ok: false, error: invalid };
   }
 
-  // Validateurs choisis directement par le demandeur (validation professionnelle
-  // libre, ex. l'assistante de direction). Prioritaire sur le routage par règles.
-  const directValidators = [fdStr(formData, "validator1Id"), fdStr(formData, "validator2Id")]
-    .filter((v): v is string => Boolean(v));
+  // LES VALIDATEURS, choisis par le demandeur : le PRINCIPAL, puis ceux qu'il ajoute par « + » (Direction, 10/2026),
+  // dans l'ordre où il les a posés — c'est l'ordre du circuit. Les anciens champs (`validator1Id`, `validator2Id`)
+  // restent lus : l'assistant et les écrans d'avant les envoient encore.
+  const directValidators = validateursDuFormulaire([
+    ...formData.getAll("validatorId"), formData.get("validator1Id"), formData.get("validator2Id"),
+  ]);
+
+  // ── L'OBJET EST UN BON DE COMMANDE : la PRÉ-VALIDATION (`bons-de-commande/prevalidation.ts`) ──
+  if (fdStr(formData, "objectKind") === "BON_DE_COMMANDE") {
+    return creerPrevalidationBC(user, formData, title, directValidators, files);
+  }
 
   let res;
   if (directValidators.length > 0) {
@@ -145,8 +156,10 @@ export async function createValidationRequest(
       validatorIds: directValidators,
     });
   } else {
+    // LE ROUTAGE PAR RÈGLES n'est plus proposé par l'écran (« Module concerné » retiré, Direction 10/2026) : on y
+    // choisit un validateur principal. Il reste ouvert aux appelants qui nomment le module (assistant, autres circuits).
     const module = fdStr(formData, "module");
-    if (!module) return { ok: false, error: "Choisissez un validateur, ou renseignez le module pour un routage automatique." };
+    if (!module) return { ok: false, error: "Choisissez le validateur principal." };
     res = await createValidationFromRules({
       module,
       objectType: fdStr(formData, "objectType"),
@@ -172,6 +185,135 @@ export async function createValidationRequest(
   revalidatePath("/validations");
   revalidatePath("/mon-travail");
   return { ok: true, id: res.requestId };
+}
+
+/**
+ * LA PRÉ-VALIDATION D'UN BC — le bon de commande vient de Legal, de l'ordinateur, ou du compositeur ; les validateurs
+ * choisis donnent leur avis ; le BC est RETENU (aucun centre ne le voit) jusqu'à la validation finale.
+ *
+ * Déposé depuis l'ordinateur, il passe par l'écrivain du registre (`createLegalDocument`) : mêmes droits, même partie
+ * de l'annuaire, même pièce jointe qu'un BC enregistré dans Legal — et il y naît déjà retenu.
+ */
+async function creerPrevalidationBC(
+  user: Awaited<ReturnType<typeof requireUser>>, formData: FormData, title: string, validateurs: string[], files: File[],
+): Promise<ActionResult> {
+  if (validateurs.filter((v) => v !== user.id).length === 0) return { ok: false, error: "Choisissez le validateur principal." };
+  const source = lireSourceBC(fdStr(formData, "bcSource"));
+  if (!source) return { ok: false, error: "Choisissez d'où vient le bon de commande : Legal, votre ordinateur, ou composez-le ici." };
+
+  let docId: string | null;
+  if (source === "ORDINATEUR") {
+    if (!peutCreerUnBC(user)) return { ok: false, error: "Déposer un bon de commande demande le droit d'écrire au registre Legal (ou aux Finances)." };
+    const fichier = formData.get("bcFile");
+    if (!(fichier instanceof File) || fichier.size === 0) return { ok: false, error: "Joignez le fichier du bon de commande." };
+    const fd = new FormData();
+    fd.set("kind", "PURCHASE_ORDER");
+    fd.set("title", fdStr(formData, "bcTitle") ?? title);
+    const montant = fdStr(formData, "bcAmount");
+    if (montant) fd.set("amount", montant);
+    const reference = fdStr(formData, "bcReference");
+    if (reference) fd.set("reference", reference);
+    // Le fournisseur vient de l'ANNUAIRE, comme pour tout BC enregistré dans Legal (le sélecteur de l'écran, ou un nom
+    // que l'écrivain du registre résout contre l'annuaire).
+    for (const partie of formData.getAll("bcCounterpartyIds").map(String).filter(Boolean)) fd.append("counterpartyIds", partie);
+    const fournisseur = fdStr(formData, "bcFournisseur");
+    if (fournisseur) fd.set("counterpartyName", fournisseur);
+    fd.append("attachment", fichier);
+    fd.set("prevalidation", "1");
+    const cree = await createLegalDocument(undefined, fd);
+    if (!cree.ok || !cree.id) return { ok: false, error: cree.ok ? "Le bon de commande n'a pas pu être enregistré." : cree.error };
+    docId = cree.id;
+  } else {
+    docId = fdStr(formData, "legalDocumentId");
+    if (!docId) {
+      return { ok: false, error: source === "COMPOSER" ? "Composez puis émettez le bon de commande avant d'envoyer la demande." : "Choisissez le bon de commande à importer." };
+    }
+    if (!(await canAccessEntity(user, "LEGAL_DOCUMENT", docId, "VIEW"))) return { ok: false, error: "Ce bon de commande ne vous est pas ouvert." };
+  }
+
+  const bc = await bcASoumettre(docId);
+  if (!bc) return { ok: false, error: "Bon de commande introuvable." };
+  const refus = refusSoumissionBC(bc);
+  if (refus) return { ok: false, error: refus };
+
+  const res = await createDirectValidation({
+    requesterId: user.id,
+    title,
+    description: fdStr(formData, "description"),
+    link: `/legal/${docId}`,
+    module: MODULE_BC,
+    objectType: OBJET_PREVALIDATION_BC,
+    entityType: "LEGAL_DOCUMENT",
+    entityId: docId,
+    amount: bc.amount,
+    priority: priorityOrNull(fdStr(formData, "priority")) ?? "MEDIUM",
+    deadline: fdDate(formData, "deadline"),
+    validatorIds: validateurs,
+  });
+  if (!res.ok || !res.requestId) return { ok: false, error: res.error ?? "La demande n'a pas pu être créée." };
+
+  const retenu = await retenirPourPrevalidation(docId, res.requestId, user.id);
+  if (!retenu.ok) {
+    // Une demande qui ne retient pas son BC le laisserait partir au centre pendant qu'on recueille des avis : on la
+    // ferme aussitôt, en disant pourquoi.
+    await prisma.validationRequest.update({ where: { id: res.requestId }, data: { status: "CANCELLED", decidedAt: new Date() } }).catch(() => undefined);
+    return { ok: false, error: retenu.error };
+  }
+  if (files.length) await joindrePiecesValidation(res.requestId, files, user.id);
+
+  await recordAudit({
+    actorId: user.id, action: "CREATE", module: "Validations", entityType: "VALIDATION_REQUEST", entityId: res.requestId,
+    summary: `${res.reference} — pré-validation du bon de commande ${bc.reference ?? bc.title} (${LIBELLE_SOURCE_BC[source].toLowerCase()})`,
+  });
+  revalidatePath("/validations");
+  revalidatePath("/mon-travail");
+  revalidatePath(`/legal/${docId}`);
+  return {
+    ok: true, id: res.requestId,
+    message: "Pré-validation envoyée. Quand tous les validateurs auront accepté, demandez la validation finale : le bon de commande partira alors au centre de validation.",
+  };
+}
+
+/**
+ * DEMANDER LA VALIDATION FINALE D'UN BC PRÉ-VALIDÉ — le CTA du demandeur.
+ *
+ * La retenue tombe et l'aiguillage ordinaire prend la main : le centre de validation des bons de commande (Ad & Pro si
+ * le BC en vient, le centre de validations sinon), puis, validé, la signature dans le module Bons de commande. Rien de
+ * plus n'est inventé ici : c'est le circuit de tout BC (§118.148, §118.149).
+ */
+export async function demanderValidationFinaleBC(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false, error: "Demande introuvable." };
+  const req = await prisma.validationRequest.findUnique({
+    where: { id },
+    select: { id: true, reference: true, title: true, status: true, requesterId: true, objectType: true, entityType: true, entityId: true },
+  });
+  if (!req || req.objectType !== OBJET_PREVALIDATION_BC || req.entityType !== "LEGAL_DOCUMENT" || !req.entityId) {
+    return { ok: false, error: "Cette demande ne porte pas sur un bon de commande." };
+  }
+  const doc = await prisma.legalDocument.findUnique({ where: { id: req.entityId }, select: { bcPrevalidationRequestId: true } });
+  const refus = refusValidationFinale({ statut: req.status, demandeurId: req.requesterId, retenu: doc?.bcPrevalidationRequestId === req.id }, user);
+  if (refus) return { ok: false, error: refus };
+
+  const { libere, aiguillage } = await libererPrevalidation(req.entityId, req.id, user.id, `validation finale demandée après la pré-validation ${req.reference}.`);
+  if (!libere) return { ok: false, error: "La validation finale a déjà été demandée." };
+
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "Validations", entityType: "VALIDATION_REQUEST", entityId: req.id,
+    summary: `${req.reference} — validation finale du bon de commande demandée`,
+  });
+  revalidatePath("/validations");
+  revalidatePath(`/validations/${req.id}`);
+  revalidatePath(`/legal/${req.entityId}`);
+  revalidatePath("/centre-de-validations");
+  revalidatePath("/centre-ad-pro");
+  revalidatePath(CHEMIN_BC_A_SIGNER);
+  const phrase = aiguillage ? reserveDeLAiguillage(aiguillage) : null;
+  const tete = aiguillage?.porte
+    ? `Validation finale demandée : le bon de commande est adressé au ${LIBELLE_CENTRE_BC[aiguillage.porte.centre]}. Validé, il passera à la signature (module Bons de commande).`
+    : "Validation finale demandée.";
+  return { ok: true, message: [tete, aiguillage?.porte ? null : phrase].filter(Boolean).join(" ") };
 }
 
 /**
@@ -289,7 +431,10 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
       ? (resoumissionSurPlace(req)
         ? " Corrigez-la puis « Resoumettre » sur la demande : elle reviendra à la même étape."
         : " Corrigez depuis l'objet d'origine, puis renvoyez-la depuis lui.")
-      : "";
+      // LA PRÉ-VALIDATION D'UN BC ACQUISE : le geste suivant est au demandeur, et la notification le nomme.
+      : newStatus === "APPROVED" && req.objectType === OBJET_PREVALIDATION_BC
+        ? " Tous les validateurs ont donné leur accord : demandez maintenant la validation finale du bon de commande."
+        : "";
     await notifyUser({
       userId: req.requesterId,
       type: "GENERIC",
@@ -522,6 +667,16 @@ export async function clearValidationItem(formData: FormData): Promise<ActionRes
  * porte dans son fil ce qu'un validateur a demandé. L'abandon la CLÔT (annulée, visible, son fil
  * intact) au lieu de la supprimer — seule une demande vierge, à sa première version, s'efface encore.
  */
+/**
+ * UNE PRÉ-VALIDATION RETIRÉE REND SON BC AU CIRCUIT ORDINAIRE. Le laisser retenu sans demande pour le lever serait un
+ * BC bloqué pour toujours ; le laisser hors circuit, une pièce qui n'a l'air ni validée ni à valider. Le sens sûr :
+ * l'aiguillage le rend à son centre, comme tout BC — le demandeur peut l'y annuler s'il n'en veut plus.
+ */
+async function rendreLeBCAuCircuit(req: { id: string; reference: string; objectType: string | null; entityId: string | null }, acteurId: string): Promise<void> {
+  if (req.objectType !== OBJET_PREVALIDATION_BC || !req.entityId) return;
+  await libererPrevalidation(req.entityId, req.id, acteurId, `pré-validation ${req.reference} retirée — le bon de commande retourne au circuit ordinaire.`).catch(() => undefined);
+}
+
 export async function deleteMyValidationRequest(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
@@ -530,6 +685,7 @@ export async function deleteMyValidationRequest(formData: FormData): Promise<Act
     where: { id },
     select: {
       id: true, reference: true, title: true, requesterId: true, status: true, version: true, entityType: true, documentId: true,
+      objectType: true, entityId: true,
       mode: true, currentOrder: true, steps: { select: { status: true, validatorId: true, order: true } },
     },
   });
@@ -552,6 +708,7 @@ export async function deleteMyValidationRequest(formData: FormData): Promise<Act
       data: { status: "CANCELLED", decidedAt: new Date() },
     });
     if (close.count === 0) return { ok: false, error: "Cette demande vient de changer : rouvrez-la pour voir où elle en est." };
+    await rendreLeBCAuCircuit(req, user.id);
     if (req.status === "PENDING") {
       for (const v of validateursSollicites(req, user.id)) {
         await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur, il n'y a plus rien à trancher.`, link: `/validations/${id}` }).catch(() => undefined);
@@ -573,6 +730,7 @@ export async function deleteMyValidationRequest(formData: FormData): Promise<Act
     where: { id, status: "PENDING", version: req.version, steps: { every: { status: "PENDING" } } },
   });
   if (efface.count === 0) return { ok: false, error: "Cette demande vient de changer : rouvrez-la pour voir où elle en est." };
+  await rendreLeBCAuCircuit(req, user.id);
   for (const v of validateursSollicites(req, user.id)) {
     await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur.`, link: "/validations" }).catch(() => undefined);
   }
@@ -610,7 +768,7 @@ export async function resoumettreValidation(formData: FormData): Promise<ActionR
     where: { id },
     select: {
       id: true, reference: true, title: true, requesterId: true, status: true, mode: true, currentOrder: true,
-      version: true, amount: true, entityType: true, documentId: true, link: true,
+      version: true, amount: true, entityType: true, documentId: true, link: true, objectType: true,
       steps: { select: { id: true, order: true, status: true, reason: true, validatorId: true, validator: { select: { name: true } } } },
     },
   });

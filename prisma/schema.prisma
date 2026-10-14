@@ -12851,6 +12851,12 @@ model LegalDocument {
   /// règle, jamais touché depuis : il n'est présumé ni à valider ni à signer — sans ce marqueur,
   /// fixer un seuil ferait apparaître tout l'historique dans la file des Finances.
   bcCircuitAt            DateTime?
+  /// LA PRÉ-VALIDATION d'un bon de commande (Direction, 10/2026) : le demandeur le soumet d'abord aux validateurs
+  /// qu'il choisit (« Demandes de validations »), puis demande la validation FINALE, qui l'adresse au centre. Tant
+  /// que `bcPrevalidationAt` est posé, l'aiguillage ne l'envoie à aucun centre (`bons-de-commande/prevalidation.ts`).
+  /// `bcPrevalidationRequestId` = la demande de validation qui le retient (nulle : pièce composée, demande pas encore créée).
+  bcPrevalidationAt        DateTime?
+  bcPrevalidationRequestId String?
   effectiveAt            DateTime?
   /// Les LIGNES CONTRACTUELLES portées par cette pièce (contrat de base ou avenant).
   contractLines          PchContractLine[]     @relation("DocContractLines")
@@ -12923,6 +12929,7 @@ model LegalDocument {
   @@index([chainFromId])
   @@index([tenderId])
   @@index([amendsId])
+  @@index([bcPrevalidationRequestId])
   @@index([paidDate])
 }
 

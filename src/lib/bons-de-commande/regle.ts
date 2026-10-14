@@ -58,6 +58,7 @@
  */
 
 import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
+import { PHRASE_PREVALIDATION } from "./prevalidation";
 
 /** Les deux centres entre lesquels un BC s'aiguille. */
 export type CentreBC = "AD_PRO" | "VALIDATION";
@@ -204,7 +205,9 @@ export function reserveBC(porte: PorteBC | null): string | null {
  * seconde : un BC sans porte sortait avec une phrase qui ne disait rien (§118.5, §118.148).
  * `null` quand une porte a bien été posée — c'est alors `reserveBC` qui parle.
  */
-export function reserveSansPorte(a: { sansSiege?: boolean; enEchec?: boolean }): string | null {
+export function reserveSansPorte(a: { sansSiege?: boolean; enEchec?: boolean; enPrevalidation?: boolean }): string | null {
+  // Retenu par sa pré-validation : il n'a pas de porte PARCE QUE le demandeur recueille d'abord des avis.
+  if (a.enPrevalidation) return PHRASE_PREVALIDATION;
   if (a.sansSiege) {
     return "Aucun siège au centre de validations : ce bon de commande n'a pas pu y être adressé — il n'est PAS validé. Un Super Admin doit exister pour le valider.";
   }
@@ -434,6 +437,7 @@ export function reserveDeLAiguillage(a: {
   seuil?: number | null;
   sansSiege?: boolean;
   enEchec?: boolean;
+  enPrevalidation?: boolean;
   signatureRetiree?: boolean;
 }): string | null {
   const sansPorte = reserveSansPorte(a);

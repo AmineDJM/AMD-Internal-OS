@@ -66,6 +66,12 @@ export interface ComposerPieceProps {
   letterheads: { id: string; name: string; companyId: string | null; companyLabel: string | null }[];
   peutReglerNumerotation: boolean;
   amont: AmontComposable;
+  /**
+   * COMPOSÉ DEPUIS « DEMANDES DE VALIDATIONS » (pré-validation d'un BC, 10/2026) : la pièce naît retenue — aucun centre
+   * ne la voit avant la validation finale — et l'émission rend la main au formulaire (`onEmis`) au lieu d'ouvrir la fiche.
+   */
+  prevalidation?: boolean;
+  onEmis?: (piece: { legalDocumentId: string; reference: string }) => void;
 }
 
 const aujourdhui = (): string => new Date().toISOString().slice(0, 10);
@@ -141,6 +147,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     const fd = new FormData();
     fd.set("type", type);
     fd.set("societe", societe);
+    if (props.prevalidation) fd.set("prevalidation", "1");
     if (letterheadId) fd.set("letterheadId", letterheadId);
     for (const [k, v] of Object.entries(tiers)) fd.set(`tiers${k[0].toUpperCase()}${k.slice(1)}`, v);
     for (const [k, v] of Object.entries(champs)) fd.set(k, v);
@@ -156,7 +163,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     for (const t of taxes) { fd.append("taxeLibelle", t.libelle); fd.append("taxeTaux", t.taux); }
     if (amontRetenu) fd.set("chainFromId", amontRetenu);
     return fd;
-  }, [type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu]);
+  }, [type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu, props.prevalidation]);
 
   // L'APERÇU suit la saisie, avec un demi-seconde de retenue : assez pour ne pas appeler le
   // serveur à chaque touche, assez peu pour que les totaux paraissent vivants.
@@ -196,6 +203,12 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     startEmission(async () => {
       const r = await emettrePieceCommerciale(undefined, fd);
       setResultat(r);
+      // RENDRE LA MAIN au formulaire qui a ouvert le compositeur : il attache la pièce émise à sa demande.
+      if (r.ok && r.legalDocumentId && props.onEmis) {
+        props.onEmis({ legalDocumentId: r.legalDocumentId, reference: r.reference ?? "" });
+        props.onClose();
+        return;
+      }
       // LA PIÈCE S'AFFICHE (§118.209) : « il doit s'afficher, pas juste se sauvegarder dans Legal et qu'on aille le
       // rechercher ». L'émission mène à la fiche, où le PDF est ouvert sous la phrase de succès. Quand la fiche
       // est fermée à la personne (`lien` nul), le panneau reste ouvert sur ses liens — le PDF s'ouvre sous la porte de la pièce.
