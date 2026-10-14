@@ -30,6 +30,8 @@ import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import type { CurrentUser } from "@/lib/session";
 import { aiguillerBC, retirerPortesEnAttente, porteDuBC, CHEMIN_BC_A_SIGNER, type ResultatAiguillage } from "@/lib/bons-de-commande/aiguillage";
 import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
+import { memeNumero, nettoyerNumero, resumeChangementNumero } from "@/lib/bons-de-commande/numero-reference";
+import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
 import {
   reserveBC, reserveSansPorte, reserveEtapeBC, PHRASE_SIGNATURE_RETIREE,
   LIBELLE_CENTRE_BC, LIBELLE_ETAT_BC, CHEMIN_CENTRE_BC,
@@ -236,6 +238,11 @@ export async function createLegalDocument(
   if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
 
   const companyId = await companyIdForNew(user.id);
+  // LE NUMÉRO D'UN BC DÉPOSÉ, ÉCRIT À LA MAIN (Direction, 14/10/2026) : unique parmi les BC de la société (et au registre).
+  if (f.kind === "PURCHASE_ORDER") {
+    const refusNumero = await refusNumeroBcDepose({ companyId, reference: f.reference, exclure: null });
+    if (refusNumero) return { ok: false, error: refusNumero };
+  }
   const created = await prisma.legalDocument.create({
     data: {
       ...reste, title,
@@ -253,6 +260,8 @@ export async function createLegalDocument(
     },
     select: { id: true },
   });
+  // Un numéro NNN/DG/AAAA d'une société au registre y entre : le compteur commun ne repassera jamais en dessous.
+  if (f.kind === "PURCHASE_ORDER" && f.reference) await inscrireNumeroBcDepose({ companyId, reference: f.reference, legalDocumentId: created.id, userId: user.id }).catch(() => undefined);
   // LES LECTEURS DÉSIGNÉS. Aucun nom = document visible de tout le module (le cas d'une police
   // d'assurance courante). Un ou plusieurs noms = personne d'autre ne le voit, ni dans la liste
   // ni par son lien — le déposant gardant sa propre porte, on le retire de la liste.
@@ -313,7 +322,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     where: { id },
     select: {
       kind: true, expenseOrderId: true, counterparty: true, counterpartyIds: true, amount: true, chainFromId: true, promoFacture: { select: { id: true } },
-      custom: true, reference: true, startDate: true, endDate: true, direction: true, paidDate: true,
+      custom: true, reference: true, startDate: true, endDate: true, direction: true, paidDate: true, companyId: true,
     },
   });
   if (!avant) return { ok: false, error: "Document introuvable." };
@@ -394,6 +403,13 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
   if (parties.ids.length === 0 && !heritage && kind !== "QUOTE") {
     return { ok: false, error: "Choisissez au moins une partie dans l'annuaire de l'entreprise (« Créer un contact » l'y ajoute si elle en est absente)." };
   }
+  // LE NUMÉRO D'UN BC DÉPOSÉ, MODIFIÉ (Direction, 14/10/2026) : unique parmi les BC de la société (et au registre), tracé.
+  // (Celui d'un BC ÉMIS se modifie par sa révision, qui réécrit le Word et le PDF avec lui.)
+  const numeroChange = !emise && kind === "PURCHASE_ORDER" && formData.has("reference") && nettoyerNumero(f.reference) !== nettoyerNumero(avant.reference) && !memeNumero(f.reference, avant.reference);
+  if (numeroChange) {
+    const refusNumero = await refusNumeroBcDepose({ companyId: avant.companyId, reference: f.reference, exclure: id });
+    if (refusNumero) return { ok: false, error: refusNumero };
+  }
 
   await prisma.legalDocument.update({
     where: { id },
@@ -416,6 +432,14 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     entityType: "LEGAL_DOCUMENT", entityId: id,
     summary: `Document légal « ${title} » mis à jour`,
   });
+  if (numeroChange) {
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: id, field: "numero",
+      oldValue: avant.reference, newValue: f.reference,
+      summary: `Bon de commande : ${resumeChangementNumero(avant.reference ?? "(sans numéro)", f.reference ?? "(sans numéro)")} par ${user.name?.trim() || "un utilisateur"}`,
+    });
+    if (f.reference) await inscrireNumeroBcDepose({ companyId: avant.companyId, reference: f.reference, legalDocumentId: id, userId: user.id }).catch(() => undefined);
+  }
   // Une date de règlement posée ou retirée depuis le formulaire ORDINAIRE fait bouger l'argent
   // exactement comme depuis la ligne du tableau : c'est le même document, donc la même règle.
   await syncInvoiceSettlement(id, user.id);

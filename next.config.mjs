@@ -169,7 +169,28 @@ const nextConfig = {
   },
 };
 
-export default (phase) => ({
-  ...nextConfig,
-  typescript: { ignoreBuildErrors: typecheckSepare(phase) },
-});
+/**
+ * LE PLAFOND DE TAS DES PROCESSUS DU BUILD, QUELLE QUE SOIT LA COMMANDE.
+ *
+ * `build:render` pose `--max-old-space-size=3072` ; mais le tableau de bord Render lance un
+ * `npx next build` NU — sans plafond, V8 laisse un worker de compilation grossir avant de ramasser :
+ * mesuré (10/2026, build propre, commande nue) un worker à 6395 Mo, pic 6671 Mo, contre 4716 Mo
+ * avec le plafond. Ajoutés à node_modules et .next dans le même conteneur, c'est la ligne des
+ * 8 Go de Render. Les workers (compilation, génération) héritent de `process.env` au moment où
+ * ils naissent (`next/dist/lib/worker.js`), et ce fichier est lu par le parent AVANT : le plafond
+ * posé ici les couvre tous. Seulement en phase de build et seulement si personne n'a déjà fixé
+ * de plafond — `next start` (autre phase) n'est jamais touché.
+ */
+function plafondDuBuild(phase) {
+  if (phase !== "phase-production-build") return;
+  const actuel = process.env.NODE_OPTIONS ?? "";
+  if (/--max[-_]old[-_]space[-_]size=/.test(actuel)) return;
+  process.env.NODE_OPTIONS = `${actuel} --max-old-space-size=3072`.trim();
+}
+
+export default (phase) => {
+  // Le typecheck séparé fixe son propre tas (5 Go) en argument : il passe AVANT le plafond.
+  const ignoreBuildErrors = typecheckSepare(phase);
+  plafondDuBuild(phase);
+  return { ...nextConfig, typescript: { ignoreBuildErrors } };
+};

@@ -1,27 +1,16 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { getMyWorkspace } from "@/lib/queries/hr";
-import { PageHeader } from "@/components/shared/page-header";
-import { KpiCard } from "@/components/shared/kpi-card";
-import { Card, CardContent } from "@/components/ui/card";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { ongletsEspace } from "@/lib/queries/mes-taches";
-import { getActionCenter, type ActionItem } from "@/lib/queries/action-center";
-import { sectionsMonEspace } from "@/lib/queries/mes-decisions";
-import { depuisLisible } from "@/lib/calendar-tz";
-import { Badge } from "@/components/ui/badge";
-import { formatDate, daysUntil } from "@/lib/utils";
-import { ROLE_LABELS, PRIORITY } from "@/lib/labels";
+import { trierConges } from "@/lib/queries/mes-decisions";
+import { chargerAujourdhui } from "@/lib/queries/aujourdhui-espace";
+import { cn } from "@/lib/utils";
 import { listMyReminders } from "@/lib/queries/reminders";
 import { MyReminders } from "@/components/reminders/my-reminders";
-import { ReminderButton } from "@/components/reminders/reminder-button";
 import { LeaveApprovals } from "@/components/hr/leave-approvals";
 import { discussionsDesConges } from "@/lib/queries/conges-discussion";
-import { isOutstanding, isLate } from "@/lib/doc-request";
-import { StatusBadge } from "@/components/shared/status-badge";
-import { PIECE_REQUEST_STATUS } from "@/lib/labels";
 import { MyAdvances, type AdvanceItem } from "./my-advances";
 import { MyPortfolioCard } from "@/components/planning/my-portfolio-card";
 import { getMyPortfolio } from "@/lib/queries/portfolio";
@@ -29,259 +18,290 @@ import { TrainingRequestButton } from "@/components/purchase/training-request-bu
 import { ExpenseClaimButton } from "@/components/hr/expense-claim-button";
 import { getManagerOfUser } from "@/lib/departments";
 import { ANCRE_MES_AVANCES } from "@/lib/chemins/rh";
+import type { Fragment, Semaine, Tuile } from "@/lib/espace/aujourdhui";
+import { FileAFaire } from "./file-a-faire";
+import { RappelRapide } from "./rappel-rapide";
+import { EquipeEncart } from "./equipe-encart";
 
+/**
+ * « AUJOURD'HUI » — L'ONGLET PRINCIPAL DE L'ESPACE (Direction, 14/10/2026 : « Je valide l'onglet
+ * Aujourd'hui qui va remplacer l'onglet Mon espace »).
+ *
+ * Même adresse (`/mon-espace` : liens, notifications et l'ancre `#conges-a-signer` y pointent), nouvelle
+ * composition — celle du MÉTIER de la personne, lue sur ses rôles réels (`espace/aujourdhui.ts`) :
+ * « Votre journée » (une phrase, 3 à 4 chiffres du métier), « À faire maintenant » groupé par lot et trié
+ * par urgence, « Ma semaine », « Mon équipe » pour un N+1, les rappels, les raccourcis du métier et un
+ * bloc « Moi » discret qui remplace les deux gros boutons de l'en-tête. Les autres onglets ne changent pas.
+ *
+ * Tout vient des lectures existantes, déjà gardées par les droits (`getActionCenter` et consorts —
+ * `queries/aujourdhui-espace.ts`) : aucune donnée simulée, aucun chiffre sans source.
+ */
 export default async function MonEspacePage() {
   const user = await requireModule("WORKSPACE");
+  const maintenant = new Date();
   const data = await getMyWorkspace(user.id);
-
-  // LES TÂCHES ONT LEUR ONGLET (Direction, 07/10) : « Tâches demandées », « Mes tâches », partagées, « que j'ai
-  // demandées », « déléguées » — cinq listes dispersées ici — vivent désormais dans « Mon espace › Tâches ».
-  // LES DEMANDES D'ACHAT passent par le Bureau du secrétariat : elles ont quitté cet écran.
   const [reminders, manager] = await Promise.all([
     listMyReminders(user.id),
-    // Le responsable hiérarchique — nommé dans le formulaire de formation, pour qu'on sache à qui
-    // l'on écrit. Il ne se choisit pas : laisser choisir son validateur reviendrait à laisser
-    // choisir qui vous dit oui.
+    // Le responsable hiérarchique — nommé dans le formulaire de formation : il ne se choisit pas.
     getManagerOfUser(user.id).catch(() => null),
   ]);
   const reminderRows = reminders.map((r) => ({ ...r, remindAt: r.remindAt.toISOString(), sentAt: r.sentAt ? r.sentAt.toISOString() : null }));
-  // « MES CONGÉS » NE VIT PLUS ICI : le congé est une affaire de dossier RH — demande, solde,
-  // historique se lisent dans « Mon dossier RH », et là seulement. Rester ici, c'était deux
-  // écrans pour le même objet. Ce qui RESTE dans l'espace : signer les congés des autres (le
-  // rôle de N+1 est du travail, pas « mes congés »).
-  // Les congés à signer arrivent AVEC le centre d'actions (lot E2) : une lecture de la file, celle de la
-  // porte. La relire ici en faisait une seconde — et le congé d'un intérim s'affichait deux fois.
-  const [centre, pieces] = await Promise.all([
-    // « MON TRAVAIL » A FONDU ICI : ce qui attend une signature se lit en tête de son espace,
-    // au lieu d'un second écran qu'on ouvrait — ou pas.
-    getActionCenter(user),
-    // Les pièces demandées ne sont PLUS un onglet à part. Les MISSIONS, elles, ont leur onglet
-    // (« Mes missions », Direction 10/2026) : invitations, ordre de mission, étapes.
-    prisma.documentRequest.findMany({
-      where: { OR: [{ askedToId: user.id }, { askedById: user.id }] },
-      orderBy: { createdAt: "desc" }, take: 100,
-      include: { askedBy: { select: { name: true } }, askedTo: { select: { name: true } } },
-    }),
+
+  const jour = await chargerAujourdhui(user, {
+    maintenant,
+    nom: user.name,
+    employeeId: data.employee?.id ?? null,
+    tachesOuvertes: data.stats.openTasks,
+    tachesRetard: data.stats.overdue,
+    rappels: reminders.filter((r) => r.status === "PENDING").length,
+  });
+  // LES CONGÉS À SIGNER gardent leur bloc (la fiche, les boutons, le fil) : le lot « Congés à signer »
+  // de la file y mène (`#conges-a-signer`), et les notifications aussi.
+  const congesASigner = trierConges(jour.conges);
+  const [discussionsConges, tabs, portfolio] = await Promise.all([
+    discussionsDesConges(congesASigner.map((c) => c.id)),
+    ongletsEspace(user),
+    getMyPortfolio(user.id),
   ]);
-  // Ce que JE dois déposer (l'action), et ce que J'attends (le suivi, en résumé).
-  const piecesADeposer = pieces.filter((r) => r.askedToId === user.id && isOutstanding(r.status));
-  const piecesEnAttente = pieces.filter((r) => r.askedById === user.id && isOutstanding(r.status)).length;
-  // CE QUI ATTEND MA DÉCISION — une ligne par objet, l'attente la plus ancienne d'abord (lot E2). Les
-  // validations et les congés à signer sont deux blocs, et « À valider » compte EXACTEMENT leurs lignes
-  // (§118.51) : il ignorait les congés du bloc des signatures et comptait ceux de l'intérim, montrés deux
-  // fois. Les TÂCHES du centre ne sont pas reprises : elles ont leur onglet (« Tâches »).
-  const { decisions, conges: congesASigner, aTraiter, aValider } = sectionsMonEspace(centre.items, centre.conges);
-  // LA DISCUSSION DE CHAQUE CONGÉ À SIGNER (Direction, 07/10) — le même fil que les RH et le salarié.
-  const discussionsConges = await discussionsDesConges(congesASigner.map((c) => c.id));
-  // Un seul instant pour toute la page : deux blocs ne disent pas « depuis hier » et « depuis 2 j » du même moment.
-  const maintenant = new Date();
+  const onglets = tabs.map((t) => (t.href === "/mon-espace" && jour.ouverts > 0 ? { ...t, compte: jour.ouverts, tonCompte: jour.enRetard > 0 ? ("warning" as const) : undefined } : t));
   const myAdvances: AdvanceItem[] = data.myAdvances.map((a) => ({
     id: a.id, amount: Number(a.amount), reason: a.reason, status: a.status, createdAt: a.createdAt.toISOString(),
   }));
 
+  const fmt = (o: Intl.DateTimeFormatOptions, d: Date) => new Intl.DateTimeFormat("fr-FR", { ...o, timeZone: "Africa/Algiers" }).format(d);
+  const dateDuJour = fmt({ weekday: "long", day: "numeric", month: "long", year: "numeric" }, maintenant);
+  const premier = jour.semaine.barres[0];
+  const dernier = jour.semaine.barres[jour.semaine.barres.length - 1];
+  const numero = (j: string) => String(Number(j.slice(8, 10)));
+  const semaineLabel = premier && dernier ? `semaine du ${premier.label} ${numero(premier.jour)} au ${dernier.label} ${numero(dernier.jour)}` : null;
+  const congesEnCours = data.stats.pendingLeaves;
+
   return (
-    <div className="space-y-6">
-      <PageHeader
-        title={`Bonjour ${user.name.split(" ")[0]} 👋`}
-        description={`Votre espace de travail — ${ROLE_LABELS[user.role] ?? user.role}.`}
-      >
-        {/* « NOUVELLE TÂCHE » VIT DANS L'ONGLET « TÂCHES » (07/10) : une ligne pour créer, « Pour moi » ou
-            « Demander à… », et le formulaire complet à côté. */}
-        {/* « DEMANDER UN CONGÉ » A ÉTÉ RETIRÉ D'ICI (2026-08). Ce n'était pas une action de cet
-            écran mais un lien vers « Mon dossier RH » — où le congé se demande, avec son solde
-            sous les yeux, ses justificatifs et l'historique de ses décisions. Deux portes pour
-            un même geste font douter qu'il s'agisse du même. Le dossier RH reste à un clic dans
-            le menu. */}
-        <TrainingRequestButton managerName={manager?.fullName ?? null} />
-        {/* LA NOTE DE FRAIS SE DÉPOSE ICI, avec le reçu qu'on a dans la main. Elle n'existait
-            que derrière la liste des douze types de « Mon dossier RH » : on y allait pour une
-            attestation, pas pour se faire rembourser un taxi. Même action, même demande — le
-            bouton n'ouvre pas un second circuit, il ouvre une porte. */}
-        <ExpenseClaimButton />
-      </PageHeader>
-      <ModuleTabs tabs={await ongletsEspace(user)} />
-
-      {/* Ce que je porte ce cycle. L'affectation existait dans « Prévisions & Force de vente »
-          mais personne ne la voyait depuis son espace. */}
-      <MyPortfolioCard portfolio={await getMyPortfolio(user.id)} />
-
-      {/* Les KPI disent le TRAVAIL de l'espace : tâches, retards, signatures, pièces à
-          déposer. Les congés (solde, demandes) se lisent dans « Mon dossier RH ». */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <KpiCard label="Tâches ouvertes" value={data.stats.openTasks} icon="ListTodo" />
-        <KpiCard label="En retard" value={data.stats.overdue} icon="AlarmClock" tone={data.stats.overdue > 0 ? "danger" : "default"} />
-        <KpiCard label="À valider" value={aValider} icon="CheckCheck" tone={aValider > 0 ? "warning" : "default"}
-          hint={congesASigner.length > 0 ? `dont ${congesASigner.length} congé${congesASigner.length > 1 ? "s" : ""} à signer` : undefined} />
-        <KpiCard label="Pièces à déposer" value={piecesADeposer.length} icon="Paperclip" tone={piecesADeposer.length > 0 ? "warning" : "default"} />
-      </div>
-
-      {/* CE QUI ATTEND MA SIGNATURE — en tête, parce que c'est ce qui bloque quelqu'un d'autre.
-          Validations et paiements sont un seul bloc : un paiement à régler n'est rien d'autre
-          qu'une validation qui porte un montant. */}
-      {decisions.length > 0 && (
-        <ActionSection
-          title={`Validations à faire (${decisions.length})`}
-          items={decisions}
-          cta="/validations"
-          ctaLabel="Toutes mes validations"
-          maintenant={maintenant}
-        />
-      )}
-
-      {/* LES CONGÉS À SIGNER — juste sous les validations : ce sont des décisions, et « À valider » les
-          compte. Ce bloc porte la fiche et les boutons ; la liste au-dessus ne les reprend pas (lot E2). */}
-      {congesASigner.length > 0 && (
-        <section id="conges-a-signer" className="scroll-mt-20 space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            Congés qui attendent votre signature ({congesASigner.length})
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Circuit <strong>responsable (N+1) → ressources humaines → direction générale</strong>.
-            Approuver fait monter d&apos;une marche ; refuser arrête le circuit.
-          </p>
-          <LeaveApprovals
-            leaves={congesASigner.map((c) => ({ ...c, commentaires: discussionsConges[c.id] ?? [] }))}
-            maintenant={maintenant.toISOString()} currentUserId={user.id}
-          />
-        </section>
-      )}
-
-      {aTraiter.length > 0 && (
-        <ActionSection title={`Demandes & dossiers à traiter (${aTraiter.length})`} items={aTraiter} maintenant={maintenant} />
-      )}
-
-      {/* LES PIÈCES QU'ON ME DEMANDE — sur place, plus dans un onglet à part : déposer une
-          pièce est un travail comme un autre, il se lit avec le reste. Le détail (fil,
-          dépôt) reste sur la fiche de chaque demande ; « vous attendez » se résume en une
-          ligne — c'est de la relance, pas de l'action. */}
-      {(piecesADeposer.length > 0 || piecesEnAttente > 0) && (
-        <section className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Pièces demandées{piecesADeposer.length > 0 ? ` (${piecesADeposer.length} à déposer)` : ""}
-            </h2>
-            <Link href="/pieces" className="inline-flex items-center gap-1 text-sm text-primary hover:underline">
-              Tout voir <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-          {piecesADeposer.length > 0 && (
-            <Card>
-              <CardContent className="p-0">
-                <ul className="divide-y divide-border">
-                  {piecesADeposer.map((r) => (
-                    <li key={r.id}>
-                      <Link href={`/pieces/${r.id}`} className="flex flex-col gap-1.5 px-4 py-3 transition-colors hover:bg-secondary/50 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="min-w-0 space-y-0.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="min-w-0 break-words font-medium">{r.label}</span>
-                            <StatusBadge map={PIECE_REQUEST_STATUS} value={r.status} dot={false} />
-                            {isLate(r) && <Badge tone="danger" dot={false}>en retard</Badge>}
-                          </div>
-                          <p className="break-words text-xs text-muted-foreground">
-                            {r.reference} · demandée par {r.askedBy.name}
-                            {r.dueDate ? ` · échéance ${formatDate(r.dueDate.toISOString())}` : ""}
-                          </p>
-                        </div>
-                        <ArrowRight className="hidden h-4 w-4 shrink-0 text-muted-foreground sm:block" />
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-          {piecesEnAttente > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Vous attendez {piecesEnAttente} pièce{piecesEnAttente > 1 ? "s" : ""} de la part d'autres personnes.
-            </p>
-          )}
-        </section>
-      )}
-
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Mes rappels{reminderRows.length > 0 ? ` (${reminderRows.length})` : ""}</h2>
-          <ReminderButton label="Nouveau rappel" defaultTitle="" link="/mon-espace" />
+    <div className="space-y-5">
+      <header className="min-w-0 space-y-1">
+        <h1 className="break-words text-xl font-semibold tracking-tight sm:text-2xl">Bonjour {user.name.split(" ")[0]} 👋</h1>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+          {jour.metiers.map((m) => (
+            <span key={m} className="rounded-md border border-border bg-secondary px-1.5 py-0.5 text-xs font-medium">{m}</span>
+          ))}
+          <span className="inline-block text-xs first-letter:uppercase">{dateDuJour}{semaineLabel ? ` · ${semaineLabel}` : ""}</span>
         </div>
-        <MyReminders reminders={reminderRows} />
+      </header>
+      <ModuleTabs tabs={onglets} />
+
+      {/* VOTRE JOURNÉE — une phrase calculée sur la file, et les chiffres du métier. */}
+      <section aria-labelledby="journee-titre" className="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
+        <p id="journee-titre" className="text-[11px] font-bold uppercase tracking-wider text-primary">Votre journée</p>
+        <p className="max-w-[80ch] text-[15px] leading-relaxed sm:text-base"><Phrase fragments={jour.phrase} /></p>
+        <Tuiles tuiles={jour.tuiles} />
       </section>
 
-      {/* LES MISSIONS ONT LEUR ONGLET (« Mes missions », Direction 10/2026) — invitations, ordre de mission, étapes. */}
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="min-w-0 space-y-5">
+          <FileAFaire lots={jour.lots} />
 
-      {/* L'AVANCE SUR SALAIRE NE SE DEMANDE PLUS ICI. L'historique reste tant qu'il y en a
-          un — effacer l'écran effacerait la trace de ce que la personne a demandé et
-          reçu — mais rien ne se crée depuis cet espace. Les congés, eux, vivent ENTIÈREMENT
-          dans « Mon dossier RH » (bouton en tête pour y aller). */}
-      {myAdvances.length > 0 && (
-        <section id={ANCRE_MES_AVANCES} className="scroll-mt-20 space-y-3">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Mes avances sur salaire</h2>
-          <MyAdvances advances={myAdvances} />
-        </section>
-      )}
+          {congesASigner.length > 0 && (
+            <section id="conges-a-signer" className="scroll-mt-20 space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Congés qui attendent votre signature ({congesASigner.length})
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Circuit <strong>responsable (N+1) → ressources humaines → direction générale</strong>.
+                Approuver fait monter d&apos;une marche ; refuser arrête le circuit.
+              </p>
+              <LeaveApprovals
+                leaves={congesASigner.map((c) => ({ ...c, commentaires: discussionsConges[c.id] ?? [] }))}
+                maintenant={maintenant.toISOString()} currentUserId={user.id}
+              />
+            </section>
+          )}
 
+          {jour.piecesEnAttente > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Vous attendez {jour.piecesEnAttente} pièce{jour.piecesEnAttente > 1 ? "s" : ""} de la part d&apos;autres personnes —{" "}
+              <Link href="/pieces" className="text-primary hover:underline">voir les pièces demandées</Link>.
+            </p>
+          )}
+
+          {/* Ce que je porte ce cycle (« Prévisions & Force de vente ») — rien quand rien n'est affecté. */}
+          <MyPortfolioCard portfolio={portfolio} />
+
+          {myAdvances.length > 0 && (
+            <section id={ANCRE_MES_AVANCES} className="scroll-mt-20 space-y-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Mes avances sur salaire</h2>
+              <MyAdvances advances={myAdvances} />
+            </section>
+          )}
+        </div>
+
+        <aside className="min-w-0 space-y-5">
+          <Panneau titre="Ma semaine" aside="dim. → jeu.">
+            <MaSemaine s={jour.semaine} />
+          </Panneau>
+
+          {jour.equipe && jour.equipe.directs > 0 && (
+            <Panneau titre="Mon équipe" aside={`${jour.equipe.directs} direct${jour.equipe.directs > 1 ? "s" : ""}`}>
+              <EquipeEncart membres={jour.equipe.membres} personnesEnRetard={jour.equipe.personnesEnRetard} retards={jour.equipe.retards} />
+            </Panneau>
+          )}
+
+          <Panneau titre="Mes rappels" aside={reminderRows.length > 0 ? `${reminderRows.length} actif${reminderRows.length > 1 ? "s" : ""}` : undefined}>
+            <div className="space-y-3">
+              <MyReminders reminders={reminderRows} />
+              <RappelRapide />
+            </div>
+          </Panneau>
+
+          {jour.raccourcis.length > 0 && (
+            <Panneau titre="Raccourcis du métier">
+              <div className="flex flex-wrap gap-1.5">
+                {jour.raccourcis.map((r) => (
+                  <Link key={r.href} href={r.href} className="inline-flex h-8 items-center rounded-md border border-border bg-card px-2.5 text-xs font-medium hover:bg-secondary">
+                    {r.label}
+                  </Link>
+                ))}
+              </div>
+            </Panneau>
+          )}
+
+          {/* MOI — discret : les gestes pour soi (note de frais, congé, formation, attestation), là où ils se font. */}
+          <Panneau titre="Moi" lien={{ href: "/mon-dossier", label: "Mon dossier RH" }}>
+            <ul className="divide-y divide-border text-sm">
+              <LigneMoi titre="Note de frais" detail="Avec le justificatif scanné">
+                <ExpenseClaimButton compact />
+              </LigneMoi>
+              <LigneMoi titre="Congé" detail={data.stats.leaveBalance !== null ? `Solde ${data.stats.leaveBalance} j` : "Depuis votre dossier RH"}>
+                <Link href="/mon-dossier" className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-xs font-medium hover:bg-secondary sm:h-8">Demander</Link>
+              </LigneMoi>
+              <LigneMoi titre="Formation" detail={manager?.fullName ? `Validée par ${manager.fullName}` : "Validée par votre responsable"}>
+                <TrainingRequestButton managerName={manager?.fullName ?? null} compact />
+              </LigneMoi>
+              <LigneMoi titre="Attestation de travail" detail="Depuis votre dossier RH">
+                <Link href="/mon-dossier" className="inline-flex h-9 items-center rounded-[var(--radius)] border border-border bg-card px-3 text-xs font-medium hover:bg-secondary sm:h-8">Demander</Link>
+              </LigneMoi>
+              {congesEnCours > 0 && (
+                <LigneMoi titre="En cours" detail={`${congesEnCours} demande${congesEnCours > 1 ? "s" : ""} de congé en instruction`} />
+              )}
+            </ul>
+          </Panneau>
+        </aside>
+      </div>
     </div>
   );
 }
 
-/**
- * UNE SECTION D'ACTIONS — reprise telle quelle de « Mon travail », qui n'existe plus.
- *
- * Le lien de chaque ligne mène DANS l'élément (la validation ouverte, ses pièces lisibles),
- * pas sur l'écran du module : arriver sur une liste pour y rechercher ce qu'on venait de
- * cliquer est un pas de trop, et c'est celui qu'on ne fait pas.
- */
-function ActionSection({ title, items, cta, ctaLabel, maintenant }: { title: string; items: ActionItem[]; cta?: string; ctaLabel?: string; maintenant: Date }) {
+function Phrase({ fragments }: { fragments: Fragment[] }) {
+  return <>{fragments.map((f, i) => (f.b ? <b key={i} className="font-semibold">{f.t}</b> : <span key={i}>{f.t}</span>))}</>;
+}
+
+const TON_TUILE: Record<Tuile["ton"], { carte: string; valeur: string }> = {
+  late: { carte: "border-transparent bg-destructive/10", valeur: "text-destructive" },
+  warn: { carte: "border-transparent bg-warning/10", valeur: "text-warning" },
+  ok: { carte: "border-transparent bg-success/10", valeur: "text-success" },
+  "": { carte: "border-border bg-card", valeur: "" },
+};
+
+function Tuiles({ tuiles }: { tuiles: Tuile[] }) {
+  if (tuiles.length === 0) return null;
   return (
-    <section className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{title}</h2>
-        {cta && <Link href={cta} className="inline-flex items-center gap-1 text-sm text-primary hover:underline">{ctaLabel} <ArrowRight className="h-3.5 w-3.5" /></Link>}
+    <div className={cn("grid grid-cols-2 gap-2.5", tuiles.length >= 4 ? "md:grid-cols-4" : "md:grid-cols-3")}>
+      {tuiles.map((t) => (
+        <div key={t.cle} className={cn("grid min-w-0 content-start gap-0.5 rounded-xl border px-3 py-2.5", TON_TUILE[t.ton].carte)}>
+          <span className="text-xs font-semibold text-muted-foreground">{t.k}</span>
+          <span className={cn("break-words text-xl font-bold leading-tight tabular-nums sm:text-[22px]", TON_TUILE[t.ton].valeur)}>{t.v}</span>
+          <span className="break-words text-xs text-muted-foreground">{t.c}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Panneau({ titre, aside, lien, children }: { titre: string; aside?: string; lien?: { href: string; label: string }; children: React.ReactNode }) {
+  return (
+    <section className="min-w-0 rounded-xl border border-border bg-card shadow-sm">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{titre}</h2>
+        {aside && <span className="text-xs text-muted-foreground">{aside}</span>}
+        {lien && (
+          <Link href={lien.href} className="inline-flex items-center gap-1 text-xs text-primary hover:underline">
+            {lien.label} <ArrowRight className="h-3 w-3" aria-hidden />
+          </Link>
+        )}
       </div>
-      <Card>
-        <CardContent className="p-0">
-          <ul className="divide-y divide-border">
-            {items.map((i) => <ActionRow key={i.key} item={i} maintenant={maintenant} />)}
-          </ul>
-        </CardContent>
-      </Card>
+      <div className="min-w-0 px-4 py-3">{children}</div>
     </section>
   );
 }
 
-function ActionRow({ item, maintenant }: { item: ActionItem; maintenant: Date }) {
-  const d = item.deadline ? daysUntil(item.deadline) : null;
-  // DEPUIS QUAND ÇA ATTEND (07-05) — l'échéance dit quand c'est dû, pas depuis quand quelqu'un est bloqué.
-  // Une ligne que rien ne date ne dit rien : on n'invente pas une ancienneté (§118.16).
-  const attente = depuisLisible(item.depuis, maintenant);
-  const overdue = d !== null && d < 0;
-  const prio = item.priority ? PRIORITY[item.priority] : null;
+function MaSemaine({ s }: { s: Semaine }) {
+  const max = Math.max(4, ...s.barres.map((b) => b.n));
   return (
-    <li>
-      <Link href={item.href} className="flex flex-col gap-2 px-4 py-3 transition-colors hover:bg-secondary/50 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="min-w-0 break-words font-medium">{item.title}</span>
-            {prio && (prio.tone === "warning" || prio.tone === "danger") && <Badge tone={prio.tone} dot={false}>{prio.label}</Badge>}
-            {item.statusLabel && <Badge tone={item.statusTone ?? "neutral"} dot={false}>{item.statusLabel}</Badge>}
+    <div className="space-y-3">
+      <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-4">
+        <div
+          className="grid h-[72px] w-[72px] place-items-center rounded-full"
+          style={{ background: `conic-gradient(hsl(var(--success)) ${s.pct}%, hsl(var(--secondary)) 0)` }}
+          role="img"
+          aria-label={`${s.fait} faits, ${s.reste} restants`}
+        >
+          <div className="grid h-[56px] w-[56px] place-items-center rounded-full bg-card text-center leading-none">
+            <b className="text-base tabular-nums">{s.pct}%</b>
+            <span className="text-[10px] text-muted-foreground">fait</span>
           </div>
-          <p className="text-xs text-muted-foreground">
-            <span className="font-medium">{item.module}</span>
-            {item.subtitle ? ` · ${item.subtitle}` : ""}
-            {item.owner ? ` · ${item.owner}` : ""}
-          </p>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-3">
-          {attente && item.depuis && (
-            <span className="text-xs text-muted-foreground" title={formatDate(item.depuis)}>En attente {attente}</span>
-          )}
-          {item.deadline && (
-            <span className={`text-xs ${overdue ? "font-medium text-destructive" : "text-muted-foreground"}`}>
-              {formatDate(item.deadline)}{overdue ? " · en retard" : d === 0 ? " · aujourd'hui" : ""}
-            </span>
-          )}
-          <ArrowRight className="hidden h-4 w-4 text-muted-foreground sm:block" />
+        <div className="grid h-[72px] grid-cols-5 items-end gap-1.5" aria-label="Gestes par jour">
+          {s.barres.map((b) => (
+            <div key={b.jour} className="grid h-full grid-rows-[1fr_auto] gap-1 text-center">
+              <div className="relative flex items-end justify-center">
+                {b.etat === "futur" ? (
+                  <div className="h-[18px] w-full rounded border border-dashed border-border" />
+                ) : (
+                  <div
+                    className={cn("w-full rounded-t-[5px] rounded-b-[2px]", b.etat === "aujourdhui" ? "bg-success" : "bg-success/50")}
+                    style={{ height: `${Math.max(3, Math.round((b.n / max) * 48))}px` }}
+                    title={`${b.n} geste${b.n > 1 ? "s" : ""}`}
+                  />
+                )}
+              </div>
+              <span className={cn("text-[11px]", b.etat === "aujourdhui" ? "font-bold text-foreground" : "text-muted-foreground")}>
+                {b.label}{b.etat !== "futur" ? <span className="block tabular-nums">{b.n}</span> : <span className="block">&nbsp;</span>}
+              </span>
+            </div>
+          ))}
         </div>
-      </Link>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Fait n={s.fait} label="faits cette semaine" />
+        <Fait n={s.reste} label="restent dans la file" />
+        <Fait n={s.mois} label="gestes ce mois-ci" />
+      </div>
+      {s.reconnaissance && (
+        <p className="rounded-lg bg-success/10 px-3 py-2 text-[13px]"><Phrase fragments={s.reconnaissance} /></p>
+      )}
+      <p className="text-[11px] text-muted-foreground">
+        Un geste = une décision datée (validation, achat, congé, étape Ad &amp; Pro), un paiement réglé, une déclaration validée, une tâche terminée.
+      </p>
+    </div>
+  );
+}
+
+function Fait({ n, label }: { n: number; label: string }) {
+  return (
+    <div className="grid min-w-0 gap-0.5 rounded-lg bg-secondary px-2.5 py-2">
+      <b className="text-base tabular-nums">{n}</b>
+      <span className="break-words text-[11px] text-muted-foreground">{label}</span>
+    </div>
+  );
+}
+
+function LigneMoi({ titre, detail, children }: { titre: string; detail: string; children?: React.ReactNode }) {
+  return (
+    <li className="flex items-center justify-between gap-3 py-2 first:pt-0 last:pb-0">
+      <div className="min-w-0">
+        <p className="font-medium">{titre}</p>
+        <p className="break-words text-xs text-muted-foreground">{detail}</p>
+      </div>
+      {children && <div className="shrink-0">{children}</div>}
     </li>
   );
 }

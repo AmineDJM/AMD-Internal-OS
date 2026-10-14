@@ -1,6 +1,7 @@
 import { MODES_PAIEMENT, type ModePaiement } from "@/lib/artifact/factory/commercial";
 import { lignesDepuisListes, type ListesDeLignes } from "@/lib/artifact/factory/lignes-saisies";
 import type { SaisieBc } from "@/lib/bons-de-commande/brouillon";
+import { memeNumero } from "@/lib/bons-de-commande/numero-reference";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -93,7 +94,19 @@ export function lireSaisieDuComposeur(formData: FormData): SaisieBc {
   else if (coordonnees !== null) m.coordonneesEmetteur = null;
   if (brut(formData, "signatairePersonnalise") === "1") m.signataire = champ("signataireNom") ? { nom: champ("signataireNom") ?? "", qualite: champ("signataireQualite") } : null;
   if (formData.has("mentions")) m.mentions = (brut(formData, "mentions") ?? "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  // Présent : le numéro modifié, ou `null` (le numéro actuel — efface un numéro modifié gardé sur un brouillon).
+  if (formData.has("numeroRevise")) m.numero = numeroReviseDuFormulaire(formData);
   return m;
+}
+
+/**
+ * LE NUMÉRO DE RÉFÉRENCE MODIFIÉ (Direction, 14/10/2026) — le champ « N° de référence » du composeur sur un BC qui a déjà son
+ * numéro (révision, BC à régénérer) : `numeroRevise`, comparé à `numeroActuel`. Vide ou identique : pas de changement.
+ */
+export function numeroReviseDuFormulaire(formData: FormData): string | null {
+  const v = (brut(formData, "numeroRevise") ?? "").trim();
+  if (!v) return null;
+  return memeNumero(v, brut(formData, "numeroActuel")) ? null : v;
 }
 
 /**

@@ -277,6 +277,32 @@ suite("Bureau du secrétariat — devis natifs, lignes retenues, BC généré ou
     expect(tiers.ok).toBe(false);
   });
 
+  it("LE N° DE RÉFÉRENCE SE MODIFIE DANS LA MÊME RÉVISION (Direction, 14/10/2026) : unique dans la série, tracé, le circuit inchangé", async () => {
+    await comme("dem");
+    const lire = () => prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true, reference: true } });
+    const doc = await lire();
+    const v = valeursComposables(doc.custom)!;
+    const ancien = doc.reference!;
+    const autre = await prisma.legalDocument.create({ data: { companyId, kind: "PURCHASE_ORDER", title: `${TAG} autre BC`, reference: `${TAG}-BC-PRIS`, counterparty: "x" }, select: { id: true } });
+    const formulaire = (numeroRevise: string) => formulaireDuComposeur(v, {
+      legalDocumentId: bcId, revisionDe: bcId, versionVue: String(pieceEmise(doc.custom)!.version), motif: "Numéro de la série papier.", numeroRevise, numeroActuel: ancien,
+    });
+    const pris = await reviserPieceCommerciale(undefined, formulaire(`${TAG}-bc-pris`));
+    expect(pris.ok).toBe(false);
+    expect(pris.ok ? "" : pris.error).toMatch(/déjà porté/);
+    // L'aperçu imprime déjà le nouveau numéro ; la révision l'écrit.
+    const nouveau = ancien.replace(/\d+$/, (n) => String(Number(n) + 500).padStart(n.length, "0"));
+    const ap = await previsualiserPieceCommerciale(undefined, formulaire(nouveau));
+    expect(ap.ok && ap.numeroProchain).toBe(nouveau);
+    const r = await reviserPieceCommerciale(undefined, formulaire(nouveau));
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    expect((await lire()).reference).toBe(nouveau);
+    expect(await prisma.auditLog.findFirst({ where: { entityId: bcId, field: "numero" }, select: { oldValue: true, newValue: true } })).toEqual({ oldValue: ancien, newValue: nouveau });
+    // Seulement le numéro : le BC reste où il était dans son circuit.
+    expect((await etatDuBC(bcId))?.etape).toBe("A_VALIDER");
+    await prisma.legalDocument.delete({ where: { id: autre.id } });
+  });
+
   it("« Terminer » attend la signature : refusé tant que le BC est au centre", async () => {
     await comme("asst");
     const r = await finishRequest(form({ id: demandeId, budgetDepartmentId: departementId, budgetAmount: "1000", facture: pdf("facture.pdf") }));

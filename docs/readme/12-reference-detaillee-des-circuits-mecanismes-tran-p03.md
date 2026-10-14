@@ -549,6 +549,37 @@ annuel du service** (voir Marketing cockpit). **Un plan de tournée en brouillon
 un brouillon (un plan soumis, validé ou rejeté garde sa trace de décision), dans le périmètre, et jamais si une de ses
 visites est déjà rapportée — le refus le dit et le plan reste ; les visites planifiées partent avec lui (audité).
 
+### Mon espace › Aujourd'hui — la journée du métier (14/10)
+
+Décision de la Direction (maquette « Mon espace par métier ») : l'onglet **Aujourd'hui** remplace l'onglet « Mon espace »
+sur la même adresse `/mon-espace` (`WORKSPACE_TABS` ; l'ancien onglet `/aujourdhui`, nouveauté `home_today` au stade
+TEST, quitte la barre pour ne pas doubler le nom — sa page reste servie, inchangée). Les autres onglets (Tâches, Mes
+missions, Mon dossier RH, Mon bilan) ne changent pas.
+
+- **Source unique** : `getActionCenter` (déjà gardé par les droits, une ligne par objet) + les pièces qu'on me demande —
+  lus par `lib/queries/aujourdhui-espace.ts:chargerAujourdhui`. `ActionItem` porte désormais `montant` (ordre de dépense,
+  validation chiffrée, poste Ad & Pro, achat, déclaration), `famille` (catégorie de l'ordre, nature de la source d'une
+  déclaration) et `statut` (déclarations).
+- **Règles PURES** `lib/espace/aujourdhui.ts` (+ `aujourdhui.test.ts`) : `regrouperFile` (lots par nature — paiements,
+  déclarations à faire / prêtes / en attente de pièces / finales, validations, congés, achats, demandes, Ad & Pro,
+  plans, missions, pièces, tâches…, titre concret « 12 paiements à régler — 2 022 550 DZD, dont 5 en retard »,
+  sous-lignes par famille, une ligne « et d'autres… » devient la suite du lot), urgence **retard cumulé > montant >
+  ancienneté** ; `phraseJournee` ; `composerTuiles` / `composerRaccourcis` (composition par rôle `METIERS`, union sans
+  doublon pour un compte à deux rôles, tuile absente quand aucune donnée ne la porte) ; `calculerSemaine` ;
+  `composerEquipe`.
+- **Gestes** : chaque lot et chaque ligne MÈNENT à l'écran qui fait le geste (aucun circuit neuf). « Régler les N en
+  retard » ouvre `/finances/paiements-a-faire?focus=id1,id2…` (l'écran met en évidence chaque ordre listé) ; les
+  congés gardent leur bloc `#conges-a-signer` sur la page. Pas de « Confier à… » : aucun mécanisme de réaffectation
+  ponctuelle n'existe pour un paiement ou une déclaration.
+- **Ma semaine** (dimanche → jeudi, `semaineOuvree` ; un vendredi/samedi, la semaine qui vient de finir) : gestes datés
+  de la personne — `ValidationStep.decidedAt`, `AdminApproval.decidedAt`, marches N+1/RH/DG d'un congé,
+  `WorkflowStepEvent` (APPROVE/REJECT/REFUSE/RETURN), `ExpenseOrder.paidDate`, `pharmacistValidatedAt`/`validatedAt`,
+  tâches terminées. Pas de série « jours sans retard » : aucun historique ne permet de la calculer honnêtement.
+- **Mon équipe** (N+1 seulement) : `getMyTeam` → `getMyTeamOverview` (directs, tâches en retard, présence, alertes) ;
+  « Relancer » = `relanceTaskRequest` sur la plus ancienne tâche en retard que JE lui ai demandée, si `peutRelancer`.
+- **Rappels** : `MyReminders` + ajout rapide (`createReminder`). **Moi** : note de frais et formation (mêmes feuilles,
+  boutons compacts), congé et attestation (lien « Mon dossier RH »). Banc de droits : `queries/aujourdhui-espace-flow.test.ts`.
+
 ### Mon espace › Tâches — un seul endroit pour toutes les tâches (07/10)
 
 Cinq listes dispersées dans Mon espace (demandées, mes tâches, où je participe, en lecture, que j'ai demandées,

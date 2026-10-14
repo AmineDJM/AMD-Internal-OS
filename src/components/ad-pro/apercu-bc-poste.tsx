@@ -90,6 +90,8 @@ export function ApercuBonDeCommande({ itemId, pieceId, nomDevis, peutEditer, peu
         titre,
         valeurs: etat.valeurs,
         numeroExistant: etat.referenceExistante,
+        pieceExistanteId: etat.bcExistantId,
+        numeroModifie: etat.numeroModifie,
         numeroChoisi: etat.numeroChoisi,
         pdfInitial: etat.pdfBase64 ? { base64: etat.pdfBase64, pages: etat.pages } : null,
         apercu: (fd) => previsualiserApercuBcPoste(avec(fd)),

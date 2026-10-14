@@ -386,6 +386,31 @@ suite("Poste Ad & Pro — l'aperçu du BC est obligatoire, et tout s'y corrige",
     expect(apres.papierEnTeteId).toBe(papierId);
   }, 120_000);
 
+  it("LE N° DE RÉFÉRENCE SE MODIFIE DEPUIS LE POSTE (Direction, 14/10/2026) : dans « Modifier le BC », unique, compteur jamais en arrière, tracé", async () => {
+    ACTOR = await acteur(demId, "NATIONAL_SALES");
+    const lire = () => prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true, reference: true } });
+    const doc = await lire();
+    const v = valeursComposables(doc.custom)!;
+    const ancien = doc.reference!;
+    const version = pieceEmise(doc.custom)!.version;
+    const autre = await prisma.legalDocument.create({ data: { companyId, kind: "PURCHASE_ORDER", title: `${TAG} autre BC`, reference: `${TAG}-PRIS-1`, counterparty: "x" }, select: { id: true } });
+    const formulaire = (numeroRevise: string) => formulaireDuComposeur(v, { id: posteId, legalDocumentId: bcId, versionVue: String(version), motif: "Numéro.", numeroRevise, numeroActuel: ancien });
+    const pris = await modifierBcDuPoste(formulaire(`${TAG}-PRIS-1`));
+    expect(pris.ok).toBe(false);
+    expect(pris.ok ? "" : pris.error).toMatch(/déjà porté/);
+    // Au motif de la série : le compteur monte jusqu'à lui.
+    const nouveau = ancien.replace(/\d+$/, (n) => String(Number(n) + 700).padStart(n.length, "0"));
+    const seq = Number(/\d+$/.exec(nouveau)![0]);
+    const ok = await modifierBcDuPoste(formulaire(nouveau));
+    expect(ok.ok, ok.ok ? "" : ok.error).toBe(true);
+    expect((await lire()).reference).toBe(nouveau);
+    expect(fabriqueDe((await lire()).custom).spec).toMatchObject({ numero: nouveau });
+    const compteur = await prisma.documentSequence.findUnique({ where: { companyId_kind_year: { companyId, kind: "PURCHASE_ORDER", year: ANNEE } }, select: { last: true } });
+    expect(compteur?.last ?? 0).toBeGreaterThanOrEqual(seq);
+    expect(await prisma.auditLog.findFirst({ where: { entityId: bcId, field: "numero" }, select: { oldValue: true, newValue: true, actorId: true } })).toEqual({ oldValue: ancien, newValue: nouveau, actorId: demId });
+    await prisma.legalDocument.delete({ where: { id: autre.id } });
+  }, 120_000);
+
   it("UN BC SIGNÉ NE SE MODIFIE PLUS DEPUIS LE POSTE", async () => {
     ACTOR = await acteur(demId, "NATIONAL_SALES");
     await prisma.legalDocument.update({ where: { id: bcId }, data: { signedAt: new Date() } });

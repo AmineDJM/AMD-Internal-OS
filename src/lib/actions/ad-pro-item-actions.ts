@@ -4375,7 +4375,7 @@ export async function imprimerApercuBcPoste(formData: FormData): Promise<{ ok: t
   if (!c.ok) return c;
   if (c.r.bloquants.length > 0) return { ok: false, error: `L'aperçu n'est pas possible : ${c.r.bloquants.slice(0, 3).join(" ; ")}` };
   if (!c.r.pdf) return { ok: false, error: c.r.pdfErreur ?? "Le rendu de l'aperçu n'a pas pu être produit." };
-  return { ok: true, pdfBase64: c.r.pdf.octets.toString("base64"), pages: c.r.pdf.pages, numeroProchain: s.lu.devis.bc?.reference ?? "à attribuer à la validation" };
+  return { ok: true, pdfBase64: c.r.pdf.octets.toString("base64"), pages: c.r.pdf.pages, numeroProchain: s.lu.devis.bc ? c.r.numeroProchain : "à attribuer à la validation" };
 }
 
 /**

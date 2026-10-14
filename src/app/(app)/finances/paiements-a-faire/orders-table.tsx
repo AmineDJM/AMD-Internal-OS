@@ -312,12 +312,14 @@ const TONE: Record<SettlementState, "neutral" | "warning" | "success"> = {
  *
  * `focusId` — LA LIGNE QU'ON VIENT DE CLIQUER, mise en évidence et atteignable par ancre. On
  * arrivait ici depuis « Mon espace » sur un tableau de trois cents ordres, à chercher des yeux
- * celui qu'on venait de cliquer.
+ * celui qu'on venait de cliquer. Plusieurs identifiants séparés par des virgules (« Régler les 5 en
+ * retard » d'Aujourd'hui, 14/10/2026) mettent en évidence chacun de ces ordres.
  */
 export function OrdersTable({ rows, canSettle, emptyLabel, focusId = null, budgets = [], comptes = [] }: { rows: OrderRow[]; canSettle: boolean; emptyLabel?: string; focusId?: string | null; budgets?: BudgetChoice[]; comptes?: CompteChoice[] }) {
   // `now` est figé au premier rendu : recalculer l'expiration d'un report à chaque re-render
   // ferait sauter une ligne d'une section à l'autre pendant qu'on la regarde.
   const now = React.useMemo(() => new Date(), []);
+  const enAvant = new Set((focusId ?? "").split(",").filter(Boolean));
   if (rows.length === 0) {
     return <EmptyState icon="ReceiptText" title={emptyLabel ?? "Aucun ordre de dépense"} description="Les ordres autorisés par le centre de paiement apparaîtront ici." />;
   }
@@ -348,7 +350,7 @@ export function OrdersTable({ rows, canSettle, emptyLabel, focusId = null, budge
               <TableRow
                 key={r.id}
                 id={`ord-${r.id}`}
-                className={r.id === focusId ? "scroll-mt-24 bg-primary/5 outline outline-2 -outline-offset-2 outline-primary/40" : "scroll-mt-24"}
+                className={enAvant.has(r.id) ? "scroll-mt-24 bg-primary/5 outline outline-2 -outline-offset-2 outline-primary/40" : "scroll-mt-24"}
               >
                 <TableCell className="font-mono text-xs">{r.reference}</TableCell>
                 <TableCell>{formatDate(r.createdAt)}</TableCell>

@@ -56,9 +56,12 @@ import {
 import { construireDossier } from "@/lib/artifact/factory/dossier";
 import { charteDe, lireMarque, mentionsDe, resumerMarque, signatairePour, type Charte, type Marque } from "@/lib/brand/model";
 import {
-  attribuerReference, estMotifDg, largeurDuMotif, plancherRegistre, registreActif, typeSurRegistre, validerReferenceSaisie,
+  attribuerReference, estMotifDg, largeurDuMotif, LIBELLE_TYPE_REFERENCE, plancherRegistre, registreActif, typeSurRegistre, validerReferenceSaisie,
 } from "@/lib/references/registre";
 import { magasinPrisma, prevoirReference, rattacherReference } from "@/lib/references/registre-serveur";
+import {
+  memeNumero, nettoyerNumero, phraseNumeroPris, refusNumeroLibre, resumeChangementNumero, sequenceDuNumero,
+} from "@/lib/bons-de-commande/numero-reference";
 import type { DonneesCanoniques } from "@/lib/artifact/factory/canonical";
 import { MIME_DOCX } from "@/lib/artifact/factory/word";
 import { MIME_XLSX } from "@/lib/artifact/adapters/xlsx/adapter";
@@ -776,6 +779,146 @@ async function attribuerNumero(tx: Prisma.TransactionClient, companyId: string, 
   return Number(rows[0].last);
 }
 
+// ─────────────────────────── Le numéro choisi ou modifié (Direction, 14/10/2026) ───────────────────────────
+
+/**
+ * PORTE LE COMPTEUR DE LA SÉRIE AU MOINS À `sequence` — jamais en arrière (`GREATEST`) — et le VERROUILLE pour la suite de la
+ * transaction : deux saisies concurrentes du même numéro s'attendent. `null` : le numéro ne suit pas le motif ; le compteur
+ * est seulement verrouillé.
+ */
+async function porterSerieAuMoins(tx: Prisma.TransactionClient, companyId: string, kind: string, year: number, sequence: number | null): Promise<void> {
+  const n = sequence ?? 0;
+  await tx.$queryRaw`
+    INSERT INTO "DocumentSequence" ("id", "companyId", "kind", "year", "last", "updatedAt")
+    VALUES (${randomUUID()}, ${companyId}, ${kind}, ${year}, ${n}::int, now())
+    ON CONFLICT ("companyId", "kind", "year")
+    DO UPDATE SET "last" = GREATEST("DocumentSequence"."last", ${n}::int), "updatedAt" = now()
+    RETURNING "last"`;
+}
+
+/** Le motif du numéro d'une nature pour la société (celui du profil, sinon le défaut). */
+const motifDe = (type: TypeDocumentCommercial, profil: ProfilDocumentaire): string => {
+  const m = profil.reglages.numerotation[type] ?? null;
+  return m && !validerMotifNumero(m) ? m.trim() : "{prefixe}-{aaaa}-{n:4}";
+};
+
+/**
+ * QUI PORTE DÉJÀ CE NUMÉRO ? — dans sa série : au registre commun (tous documents de la société, l'année du numéro), et parmi
+ * les pièces de même nature de la société (une pièce d'avant le registre, une pièce déposée). `exclure` : la pièce elle-même
+ * (son propre numéro n'est pas « pris »). `null` : libre.
+ */
+async function porteurDuNumero(
+  client: Prisma.TransactionClient | typeof prisma,
+  o: { companyId: string; kind: string; numero: string; registre: { annee: number; numero: number } | null; exclure: string | null },
+): Promise<{ libelle: string; reference: string | null } | null> {
+  if (o.registre) {
+    const entree = await client.documentReference.findUnique({
+      where: { companyId_year_numero: { companyId: o.companyId, year: o.registre.annee, numero: o.registre.numero } },
+      select: { reference: true, docType: true, entityType: true, entityId: true },
+    });
+    if (entree && !(o.exclure && entree.entityType === "LEGAL_DOCUMENT" && entree.entityId === o.exclure)) {
+      const lib = (LIBELLE_TYPE_REFERENCE as Record<string, string>)[entree.docType] ?? "document";
+      return { libelle: `un ${lib}`, reference: entree.reference };
+    }
+  }
+  const autre = await client.legalDocument.findFirst({
+    where: { companyId: o.companyId, kind: o.kind as Prisma.LegalDocumentWhereInput["kind"], reference: { equals: o.numero, mode: "insensitive" }, ...(o.exclure ? { id: { not: o.exclure } } : {}) },
+    select: { reference: true, title: true },
+  });
+  return autre ? { libelle: `la pièce « ${autre.title ?? autre.reference} »`, reference: null } : null;
+}
+
+/** Ce qu'une révision fait du numéro : rien, ou un NOUVEAU numéro jugé sur sa forme (l'unicité se juge au registre). */
+type NumeroRevise =
+  | { change: false }
+  | { change: true; ancien: string; numero: string; annee: number; registre: { numero: number } | null; sequence: number | null; kind: string };
+
+/**
+ * LE NUMÉRO D'UNE PIÈCE RÉVISÉE (Direction, 14/10/2026 — « modifié quand on modifie ou qu'on révise n'importe quel bon de
+ * commande ») : un BC ou un devis émis change de numéro DANS sa révision. Au registre commun NNN/DG/AAAA : la forme et l'année
+ * de la pièce ; hors registre : un numéro libre, lisible. Le même numéro (casse, espaces) n'est pas un changement.
+ */
+function jugerNumeroRevise(f: Fabrique, saisie: string | null | undefined, date: string, profil: ProfilDocumentaire): NumeroRevise | { refus: string } {
+  const s = nettoyerNumero(saisie);
+  if (!s || memeNumero(s, f.numero)) return { change: false };
+  if (f.type !== "BON_DE_COMMANDE" && f.type !== "DEVIS") return { refus: `Le numéro d'une ${LIBELLE_TYPE[f.type].toLowerCase()} ne se modifie pas.` };
+  const annee = Number(date.slice(0, 4));
+  if (!Number.isFinite(annee)) return { refus: "La date de la pièce ne se lit pas : son numéro ne peut pas être jugé." };
+  const kind = NATURE_LEGALE[f.type];
+  const registre = registreDeLaPiece(f.type, profil, annee);
+  if (registre) {
+    const v = validerReferenceSaisie(s, annee, registre.largeur);
+    if (!v.ok) return { refus: v.motif };
+    if (memeNumero(v.reference, f.numero)) return { change: false };
+    return { change: true, ancien: f.numero, numero: v.reference, annee, registre: { numero: v.numero }, sequence: null, kind };
+  }
+  const refus = refusNumeroLibre(s);
+  if (refus) return { refus };
+  return { change: true, ancien: f.numero, numero: s, annee, registre: null, sequence: sequenceDuNumero(s, { prefixe: prefixeDe(f.type, profil), annee, motif: motifDe(f.type, profil) }), kind };
+}
+
+/**
+ * ÉCRIT LE NOUVEAU NUMÉRO, sous verrou, dans la transaction de la révision : au registre, l'entrée de la pièce change de
+ * numéro (ou naît, pour une pièce d'avant le registre) et le compteur commun est porté au moins à lui ; hors registre, le
+ * compteur de la série est porté au moins à sa séquence. Un numéro pris entre-temps fait échouer la révision ENTIÈRE.
+ */
+async function appliquerNumeroRevise(
+  tx: Prisma.TransactionClient, n: Extract<NumeroRevise, { change: true }>, piece: { id: string; companyId: string; type: TypeDocumentCommercial }, userId: string,
+): Promise<void> {
+  const magasin = magasinPrisma(tx);
+  if (n.registre) await magasin.porterAuMoins(piece.companyId, n.annee, 0); // le verrou de la société d'abord
+  else await porterSerieAuMoins(tx, piece.companyId, n.kind, n.annee, n.sequence);
+  const pris = await porteurDuNumero(tx, { companyId: piece.companyId, kind: n.kind, numero: n.numero, registre: n.registre ? { annee: n.annee, numero: n.registre.numero } : null, exclure: piece.id });
+  if (pris) throw new ReferenceRefusee(phraseNumeroPris(n.numero, pris));
+  if (!n.registre) return;
+  const propre = await tx.documentReference.findFirst({ where: { companyId: piece.companyId, entityType: "LEGAL_DOCUMENT", entityId: piece.id }, select: { id: true } });
+  if (propre) {
+    await tx.documentReference.update({ where: { id: propre.id }, data: { year: n.annee, numero: n.registre.numero, reference: n.numero } });
+  } else {
+    const id = await magasin.inscrire({ companyId: piece.companyId, annee: n.annee, numero: n.registre.numero, reference: n.numero, docType: piece.type, entityType: "LEGAL_DOCUMENT", entityId: piece.id, createdById: userId });
+    if (!id) throw new ReferenceRefusee(phraseNumeroPris(n.numero, null));
+  }
+  await magasin.porterAuMoins(piece.companyId, n.annee, n.registre.numero);
+}
+
+/**
+ * LE NUMÉRO EST-IL LIBRE POUR CETTE PIÈCE ? — la vérification EN DIRECT du champ « N° de référence » du composeur, en
+ * révision (la pièce elle-même exclue) comme à la composition hors registre. Lecture seule : rien n'est réservé.
+ */
+export async function verifierNumeroDeLaPiece(
+  user: CurrentUser, o: { legalDocumentId?: string | null; societe?: string | null; type?: TypeDocumentCommercial; date?: string | null; numero: string },
+): Promise<{ ok: true; numero: string; change: boolean } | { ok: false; motif: string }> {
+  if (o.legalDocumentId) {
+    const doc = await prisma.legalDocument.findUnique({ where: { id: o.legalDocumentId }, select: { id: true, companyId: true, custom: true } });
+    const f = doc ? fabriqueDe(doc.custom) : null;
+    if (!doc || !f) return { ok: false, motif: "Pièce introuvable." };
+    const p = await profilDocumentaire(user, doc.companyId);
+    if (!p.ok) return { ok: false, motif: p.motif };
+    const j = jugerNumeroRevise(f, o.numero, (o.date ?? "").trim() || f.spec.date, p.profil);
+    if ("refus" in j) return { ok: false, motif: j.refus };
+    if (!j.change) return { ok: true, numero: f.numero, change: false };
+    const pris = await porteurDuNumero(prisma, { companyId: f.societeId, kind: j.kind, numero: j.numero, registre: j.registre ? { annee: j.annee, numero: j.registre.numero } : null, exclure: doc.id });
+    return pris ? { ok: false, motif: phraseNumeroPris(j.numero, pris) } : { ok: true, numero: j.numero, change: true };
+  }
+  const type = o.type ?? "BON_DE_COMMANDE";
+  const p = await profilDocumentaire(user, o.societe ?? null);
+  if (!p.ok) return { ok: false, motif: p.motif };
+  const annee = Number((o.date ?? "").slice(0, 4)) || new Date().getUTCFullYear();
+  const registre = registreDeLaPiece(type, p.profil, annee);
+  const kind = NATURE_LEGALE[type];
+  if (registre) {
+    const v = validerReferenceSaisie(o.numero, annee, registre.largeur);
+    if (!v.ok) return { ok: false, motif: v.motif };
+    const pris = await porteurDuNumero(prisma, { companyId: p.profil.societe.id, kind, numero: v.reference, registre: { annee, numero: v.numero }, exclure: null });
+    return pris ? { ok: false, motif: phraseNumeroPris(v.reference, pris) } : { ok: true, numero: v.reference, change: true };
+  }
+  const refus = refusNumeroLibre(o.numero);
+  if (refus) return { ok: false, motif: refus };
+  const numero = nettoyerNumero(o.numero);
+  const pris = await porteurDuNumero(prisma, { companyId: p.profil.societe.id, kind, numero, registre: null, exclure: null });
+  return pris ? { ok: false, motif: phraseNumeroPris(numero, pris) } : { ok: true, numero, change: true };
+}
+
 function peutEcrire(user: CurrentUser, verbe: "CREATE" | "UPDATE", type: TypeDocumentCommercial): boolean {
   return legalWriteAllowed({ onLegal: userCan(user, "LEGAL", verbe), onFinances: userCan(user, "FINANCES", verbe), kind: NATURE_LEGALE[type] });
 }
@@ -1024,8 +1167,15 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
   // génération (vérifié ici sur sa forme, puis sous verrou sur son unicité, tous types de documents de la société confondus).
   const registre = Number.isFinite(annee) ? registreDeLaPiece(type, profil, annee) : null;
   const saisie = demande.numeroChoisi?.trim() || null;
-  if (saisie && !registre) {
+  // HORS REGISTRE, LE NUMÉRO D'UN BON DE COMMANDE SE CHOISIT AUSSI (Direction, 14/10/2026 — « il peut être écrit
+  // manuellement ») : unique parmi les BC de la société, il porte le compteur de la série AU MOINS à sa séquence (jamais en
+  // arrière). Une facture, un avoir, un devis gardent la série continue : leur numéro ne se choisit pas.
+  if (saisie && !registre && type !== "BON_DE_COMMANDE") {
     return echec("MISSING_INPUT", `${profil.societe.nom} ne tient pas le registre NNN/DG/AAAA pour cette pièce (${LIBELLE_TYPE[type].toLowerCase()}) : son numéro vient de sa série et ne se choisit pas. Laissez le champ vide.`);
+  }
+  if (saisie && !registre) {
+    const refus = refusNumeroLibre(saisie);
+    if (refus) return echec("MISSING_INPUT", refus);
   }
   if (saisie && registre) {
     const v = validerReferenceSaisie(saisie, annee, registre.largeur);
@@ -1051,6 +1201,13 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
       if (!r.ok) throw new ReferenceRefusee(r.motif);
       numero = r.reference;
       entreeRegistre = r.id;
+    } else if (saisie) {
+      // LE NUMÉRO ÉCRIT À LA MAIN, hors registre : la série est verrouillée et portée au moins à sa séquence, puis il est
+      // vérifié libre parmi les pièces de même nature de la société — sous ce verrou, deux saisies du même numéro s'attendent.
+      numero = nettoyerNumero(saisie);
+      await porterSerieAuMoins(tx, profil.societe.id, kind, annee, sequenceDuNumero(numero, { prefixe, annee, motif: motifDe(type, profil) }));
+      const pris = await porteurDuNumero(tx, { companyId: profil.societe.id, kind, numero, registre: null, exclure: null });
+      if (pris) throw new ReferenceRefusee(phraseNumeroPris(numero, pris));
     } else {
       const seq = await attribuerNumero(tx, profil.societe.id, kind, annee, departDe(profil.reglages.numerotationDepart, type, annee));
       numero = formaterNumero(prefixe, annee, seq, profil.reglages.numerotation[type] ?? null);
@@ -1251,9 +1408,16 @@ export async function previsualiserDocument(
  * CE QU'UNE RÉVISION PEUT CHANGER — TOUT ce que le composeur saisit (Direction, 10/2026 : « modifiables totalement, de A à
  * Z ») : le tiers et ses coordonnées, les lignes, la date (dans l'année de son numéro), les références, le paiement, la
  * TVA, la remise, les taxes, la livraison, le contact, les notes, le papier en-tête et les coordonnées imprimées de
- * l'émetteur. Restent la NATURE, la SOCIÉTÉ et le NUMÉRO : ce sont eux qui font que c'est la même pièce.
+ * l'émetteur. Restent la NATURE et la SOCIÉTÉ ; le NUMÉRO se change aussi (14/10/2026), unique dans sa série et tracé.
  */
-export type ModificationsDocument = Partial<Pick<DemandeDocument, "tiers" | "lignes" | "date" | "echeance" | "validiteJours" | "tvaDefaut" | "remiseGlobale" | "modePaiement" | "conditionsPaiement" | "objet" | "referenceAmont" | "referenceAmontDate" | "numeroClient" | "contact" | "taxes" | "livraison" | "notes" | "coordonneesEmetteur" | "letterheadId" | "signataire" | "mentions">>;
+export type ModificationsDocument = Partial<Pick<DemandeDocument, "tiers" | "lignes" | "date" | "echeance" | "validiteJours" | "tvaDefaut" | "remiseGlobale" | "modePaiement" | "conditionsPaiement" | "objet" | "referenceAmont" | "referenceAmontDate" | "numeroClient" | "contact" | "taxes" | "livraison" | "notes" | "coordonneesEmetteur" | "letterheadId" | "signataire" | "mentions">> & {
+  /**
+   * LE NUMÉRO DE RÉFÉRENCE, MODIFIÉ (Direction, 14/10/2026) — d'un BC ou d'un devis : unique dans sa série (registre commun
+   * NNN/DG/AAAA, ou pièces de même nature de la société), le compteur porté au moins à lui, le changement tracé. Absent ou
+   * identique : la pièce garde son numéro.
+   */
+  numero?: string | null;
+};
 
 /**
  * LA DATE D'UNE PIÈCE RÉVISÉE reste dans l'année de son numéro : « 012/DG/2026 » daté de 2027 serait une pièce que le
@@ -1390,14 +1554,24 @@ export async function reviserDocumentDrive(
     const lu = await profilDeLaRevision(user, doc.companyId, f, m);
     if (!lu.ok) return lu;
     const p = lu.p;
-    const spec = specRevisee(f, m, p.profil);
+    const specSansNumero = specRevisee(f, m, p.profil);
+    // LE NUMÉRO MODIFIÉ (Direction, 14/10/2026) : jugé sur sa forme ici, sur son unicité ici ET sous verrou à l'écriture.
+    const renum = jugerNumeroRevise(f, m.numero, specSansNumero.date, p.profil);
+    if ("refus" in renum) return echec("MISSING_INPUT", renum.refus);
+    if (renum.change) {
+      const pris = await porteurDuNumero(prisma, { companyId: doc.companyId ?? f.societeId, kind: renum.kind, numero: renum.numero, registre: renum.registre ? { annee: renum.annee, numero: renum.registre.numero } : null, exclure: doc.id });
+      if (pris) return echec("MISSING_INPUT", phraseNumeroPris(renum.numero, pris));
+    }
+    const numero = renum.change ? renum.numero : f.numero;
+    const spec: SpecDocumentCommercial = { ...specSansNumero, numero };
     const regles = verifierSpecCommerciale(spec);
     if (regles.bloquants.length > 0) return echec("MISSING_INPUT", `Révision refusée : ${regles.bloquants.slice(0, 4).join(" ; ")}`, { bloquants: regles.bloquants });
     const construit = await construireDocumentCommercial(spec, p.habillage);
     if (!construit.verification.ok || !construit.totaux) return echec("CAPABILITY_FAILURE", `Révision refusée : ${construit.verification.bloquants.slice(0, 4).join(" ; ")}`, { bloquants: construit.verification.bloquants });
 
     const version = f.version + 1;
-    const resume = `v${version}${opts.motif?.trim() ? ` — ${opts.motif.trim()}` : ""}`;
+    const motifs = [renum.change ? resumeChangementNumero(f.numero, numero) : null, opts.motif?.trim() || null].filter(Boolean);
+    const resume = `v${version}${motifs.length ? ` — ${motifs.join(" ; ")}` : ""}`;
     // LA PIÈCE SE RÉVISE, PAS LE DRIVE D'UNE AUTRE PERSONNE (§118.152, §118.194) : son fichier vit dans le Drive de
     // qui l'a émise. Le droit vérifié plus haut — modifier cette pièce au registre ET engager sa société, ou la
     // délégation d'un dossier — couvre SON fichier, et lui seul : le port vérifie que le nœud est bien le sien.
@@ -1413,31 +1587,53 @@ export async function reviserDocumentDrive(
         const v = await portsArtefact.documents.ecrireVersion(user.id, pdf.nodeId, conv.pdf, { mime: "application/pdf", resume, piece });
         pdf = { ...pdf, version: v.version, pages: conv.pages, methode: conv.methode };
       } else {
-        const n = await portsArtefact.documents.creerFichier(user.id, { nom: nomFichier(f.numero, spec.tiers.nom, "pdf"), octets: conv.pdf, mime: "application/pdf" });
+        const n = await portsArtefact.documents.creerFichier(user.id, { nom: nomFichier(numero, spec.tiers.nom, "pdf"), octets: conv.pdf, mime: "application/pdf" });
         pdf = { nodeId: n.nodeId, version: n.version, pages: conv.pages, methode: conv.methode };
       }
       const reserve = reservePdf(conv.methode, construit.surPapierEnTete);
       if (reserve) avertissements.push(reserve);
     } else avertissements.push(`PDF non produit : ${conv.error}`);
     const finale: Fabrique = {
-      ...f, version, spec, totaux: resumeTotaux(construit.totaux), docx: { nodeId: doc.driveNodeId, version: ecrit.version }, pdf, surPapierEnTete: construit.surPapierEnTete,
+      ...f, version, numero, spec, totaux: resumeTotaux(construit.totaux), docx: { nodeId: doc.driveNodeId, version: ecrit.version }, pdf, surPapierEnTete: construit.surPapierEnTete,
       papierEnTeteId: p.profil.papierEnTete?.id ?? null,
       historique: [...(f.historique ?? []), { version, le: new Date().toISOString(), par: user.id, resume }],
     };
     // LA VERSION LUE, ENCORE (§118.194) : la file sérialise dans ce processus ; entre deux processus, c'est
-    // cette condition qui empêche la seconde révision de réécrire la première au registre.
-    const ecritAuRegistre = await prisma.legalDocument.updateMany({
-      where: { id: doc.id, custom: { path: ["fabrique", "version"], equals: f.version } },
-      data: {
-        title: titreDocument({ type: f.type, numero: f.numero, tiers: spec.tiers }), counterparty: spec.tiers.nom,
-        amount: new Prisma.Decimal(construit.totaux.totalTtc), startDate: new Date(`${spec.date}T00:00:00Z`), endDate: echeanceLegale(spec), updatedById: user.id,
-        custom: { fabrique: finale } as unknown as Prisma.InputJsonValue,
-      },
-    });
+    // cette condition qui empêche la seconde révision de réécrire la première au registre. Le NOUVEAU NUMÉRO s'écrit dans la
+    // MÊME transaction (registre, compteur, fiche) : pris entre-temps, rien de la révision n'est écrit au registre.
+    let ecritAuRegistre: { count: number };
+    try {
+      ecritAuRegistre = await prisma.$transaction(async (tx) => {
+        const n = await tx.legalDocument.updateMany({
+          where: { id: doc.id, custom: { path: ["fabrique", "version"], equals: f.version } },
+          data: {
+            ...(renum.change ? { reference: numero } : {}),
+            title: titreDocument({ type: f.type, numero, tiers: spec.tiers }), counterparty: spec.tiers.nom,
+            amount: new Prisma.Decimal(construit.totaux!.totalTtc), startDate: new Date(`${spec.date}T00:00:00Z`), endDate: echeanceLegale(spec), updatedById: user.id,
+            custom: { fabrique: finale } as unknown as Prisma.InputJsonValue,
+          },
+        });
+        if (n.count === 1 && renum.change) await appliquerNumeroRevise(tx, renum, { id: doc.id, companyId: doc.companyId ?? f.societeId, type: f.type }, user.id);
+        return n;
+      });
+    } catch (e) {
+      if (e instanceof ReferenceRefusee) return echec("MISSING_INPUT", e.message);
+      throw e;
+    }
     if (ecritAuRegistre.count === 0) {
       return echec("CAPABILITY_FAILURE", `La pièce ${f.numero} a été révisée entre-temps : rouvrez-la pour partir de sa version actuelle.`);
     }
-    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id, summary: `${LIBELLE_TYPE[f.type]} ${f.numero} révisé ${parQui(user, emission.canal)} (${resume}) — ${formaterDzd(construit.totaux.totalTtc)}${emission.delegation ? ` — autorisé par : ${emission.delegation}` : ""}` });
+    if (renum.change) {
+      // Les fichiers du Drive portent le numéro dans leur nom : ils le suivent (au mieux — le registre fait foi).
+      await prisma.driveNode.update({ where: { id: doc.driveNodeId }, data: { name: nomFichier(numero, spec.tiers.nom, "docx") } }).catch(() => undefined);
+      if (pdf) await prisma.driveNode.update({ where: { id: pdf.nodeId }, data: { name: nomFichier(numero, spec.tiers.nom, "pdf") } }).catch(() => undefined);
+      // TRACÉ : ancien → nouveau, qui, quand — une ligne du journal à part, lisible sans ouvrir la version.
+      await recordAudit({
+        actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id, field: "numero", oldValue: f.numero, newValue: numero,
+        summary: `${LIBELLE_TYPE[f.type]} : ${resumeChangementNumero(f.numero, numero)} ${parQui(user, emission.canal)}${emission.delegation ? ` — autorisé par : ${emission.delegation}` : ""}`,
+      });
+    }
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id, summary: `${LIBELLE_TYPE[f.type]} ${numero} révisé ${parQui(user, emission.canal)} (${resume}) — ${formaterDzd(construit.totaux.totalTtc)}${emission.delegation ? ` — autorisé par : ${emission.delegation}` : ""}` });
     // UN BC RÉVISÉ SE RÉAIGUILLE (§118.148) : montant RELEVÉ après validation, il retourne au
     // centre ; corrigé à la demande du centre, il y est renvoyé. Le montant d'avant est celui de la
     // version précédente — c'est lui que le centre avait sous les yeux.
@@ -1452,10 +1648,10 @@ export async function reviserDocumentDrive(
       if (reserveBonDeCommande) avertissements.push(reserveBonDeCommande);
     }
     return {
-      ok: true, dejaEmis: false, repris: false, legalDocumentId: doc.id, reference: f.numero, type: f.type, version,
+      ok: true, dejaEmis: false, repris: false, legalDocumentId: doc.id, reference: numero, type: f.type, version,
       societe: { id: p.profil.societe.id, nom: p.profil.societe.nom }, tiers: spec.tiers.nom,
-      docx: { nodeId: doc.driveNodeId, nom: nomFichier(f.numero, spec.tiers.nom, "docx"), version: ecrit.version },
-      pdf: pdf ? { nodeId: pdf.nodeId, nom: nomFichier(f.numero, spec.tiers.nom, "pdf"), pages: pdf.pages, methode: pdf.methode ?? "rendu" } : null,
+      docx: { nodeId: doc.driveNodeId, nom: nomFichier(numero, spec.tiers.nom, "docx"), version: ecrit.version },
+      pdf: pdf ? { nodeId: pdf.nodeId, nom: nomFichier(numero, spec.tiers.nom, "pdf"), pages: pdf.pages, methode: pdf.methode ?? "rendu" } : null,
       totaux: finale.totaux, surPapierEnTete: construit.surPapierEnTete, avertissements, reglesAppliquees: p.profil.reglesAppliquees, porteBC, reserveBonDeCommande, ms: Date.now() - debut,
     };
   });
@@ -1523,16 +1719,25 @@ export async function previsualiserRevision(
   const lu = await profilDeLaRevision(user, doc.companyId, f, m);
   if (!lu.ok) return lu;
   const { profil, habillage } = lu.p;
-  const spec = specRevisee(f, m, profil);
+  const specSansNumero = specRevisee(f, m, profil);
+  // LE NUMÉRO MODIFIÉ s'affiche (et s'imprime) dès l'aperçu ; pris ou mal écrit, il bloque comme à la révision.
+  const renum = jugerNumeroRevise(f, m.numero, specSansNumero.date, profil);
+  let refusNumero: string | null = "refus" in renum ? renum.refus : null;
+  if (!("refus" in renum) && renum.change) {
+    const pris = await porteurDuNumero(prisma, { companyId: doc.companyId ?? f.societeId, kind: renum.kind, numero: renum.numero, registre: renum.registre ? { annee: renum.annee, numero: renum.registre.numero } : null, exclure: doc.id });
+    if (pris) refusNumero = phraseNumeroPris(renum.numero, pris);
+  }
+  const numero = !("refus" in renum) && renum.change && !refusNumero ? renum.numero : f.numero;
+  const spec: SpecDocumentCommercial = { ...specSansNumero, numero };
   const commun = {
-    ok: true as const, societe: { id: profil.societe.id, nom: profil.societe.nom }, numeroProchain: f.numero, motif: null, surRegistre: false,
+    ok: true as const, societe: { id: profil.societe.id, nom: profil.societe.nom }, numeroProchain: numero, motif: null, surRegistre: false,
     papierEnTete: profil.papierEnTete, identiteIncomplete: profil.identiteIncomplete, spec, pdfParEditeur: convertConfigured(), coordonneesSociete: coordonneesParDefaut(profil),
   };
   const refusDate = refusDateRevisee(f, m.date);
   const regles = verifierSpecCommerciale(spec);
   const avertissements = [...manquesDIdentite(profil), ...(lu.avertissement ? [lu.avertissement] : [])];
-  if (refusDate || regles.bloquants.length > 0) {
-    return { ...commun, totaux: null, bloquants: [...(refusDate ? [refusDate] : []), ...regles.bloquants], avertissements: [...regles.avertissements, ...avertissements], peutEmettre: false, ...(opts.avecPdf ? { pdf: null, pdfErreur: "Le rendu n'est pas possible tant que la révision est refusée." } : {}) };
+  if (refusDate || refusNumero || regles.bloquants.length > 0) {
+    return { ...commun, totaux: null, bloquants: [...(refusDate ? [refusDate] : []), ...(refusNumero ? [refusNumero] : []), ...regles.bloquants], avertissements: [...regles.avertissements, ...avertissements], peutEmettre: false, ...(opts.avecPdf ? { pdf: null, pdfErreur: "Le rendu n'est pas possible tant que la révision est refusée." } : {}) };
   }
   const essai = await construireDocumentCommercial(spec, habillage);
   const rendu = opts.avecPdf && essai.verification.ok ? await docxToPdf(essai.octets) : null;

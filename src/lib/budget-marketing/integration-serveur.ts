@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import type { AdProItemKind, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { buildRef } from "@/lib/refs";
+import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
 import { canManageEnvelope, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview } from "@/lib/queries/budget";
 import { engagementsBruts } from "@/lib/queries/budget-sources";
@@ -190,7 +190,8 @@ export type ChoixDemande =
 export interface EntreeIntegration {
   envelopeId: string;
   choix: readonly ChoixDemande[];
-  decisions: readonly { cleSource: string; decision: "GARDER" | "SORTIR" }[];
+  /** Les choix « garder / sortir » des éléments absents du fichier — libellé et montant pour le journal du lot. */
+  decisions: readonly { cleSource: string; decision: "GARDER" | "SORTIR"; libelle?: string | null; montant?: number | null }[];
   /** Le dossier de matériel promotionnel que couvre le visa : `lot:<clé de demande>` (créé par ce lot), un id, ou rien. */
   dossierPromoDuVisa?: string | null;
   /** Rattacher d'office les pièces de la plateforme repérées (la facture ePrint…). */
@@ -218,6 +219,10 @@ export interface AbsenteVue {
   date: string;
   decision: "GARDER" | "SORTIR" | null;
   raison: string;
+  /** La catégorie de l'enveloppe qu'il charge — l'assistant recalcule l'aperçu à chaque « garder / sortir » sans relire le fichier. */
+  categoryId: string | null;
+  /** Ce qu'il charge : le consommé, ou l'engagé (engagement, écriture en attente). */
+  effet: "CONSOMME" | "ENGAGE";
 }
 
 export interface Apercu {
@@ -335,16 +340,22 @@ export async function apercuIntegration(user: SessionUser, plan: PlanIntegration
     totalApres: { consomme: somme((l) => l.apres.consomme), engage: somme((l) => l.apres.engage) },
     historiqueCentimes: plan.totalCentimes,
     remplacees: jugees.filter((j) => !j.verdict.compte && !estAbsenteDuFichier(j.verdict)).map((j) => ({ cle: j.cle, libelle: `${j.reference} — ${j.libelle}`, montant: j.montant, raison: LIBELLE_RAISON[j.verdict.raison] })),
-    absentes: jugees.filter((j) => estAbsenteDuFichier(j.verdict)).map((j) => vueAbsente(j, nomCat)),
+    absentes: jugees.filter((j) => estAbsenteDuFichier(j.verdict)).map((j) => vueAbsente(j, nomCat, statutDe)),
   };
 }
 
-function vueAbsente(j: SourceJugee, nomCat: Map<string, string>): AbsenteVue {
+/**
+ * Un élément « absent du fichier », tel que l'écran le montre. Son EFFET suit la règle de l'aperçu : un engagement charge
+ * l'engagé, une ligne le consommé, une écriture le consommé — ou l'engagé tant qu'elle est en attente (`statutDe`).
+ */
+function vueAbsente(j: SourceJugee, nomCat: Map<string, string>, statutDe: ReadonlyMap<string, string> = new Map()): AbsenteVue {
+  const effet: AbsenteVue["effet"] = j.nature === "ENGAGEMENT" || (j.nature === "ECRITURE" && statutDe.get(j.cle.slice(3)) === "PENDING") ? "ENGAGE" : "CONSOMME";
   return {
     cle: j.cle, nature: j.nature, libelle: j.libelle, reference: j.reference, montant: j.montant,
     categorie: nomCat.get(j.categoryId ?? "") ?? "—", date: j.date.toISOString(),
     decision: j.verdict.raison === "ABSENTE_GARDEE" ? "GARDER" : j.verdict.raison === "ABSENTE_SORTIE" ? "SORTIR" : null,
     raison: LIBELLE_RAISON[j.verdict.raison],
+    categoryId: j.categoryId ?? null, effet,
   };
 }
 
@@ -491,7 +502,9 @@ export async function ecrireLot(user: SessionUser, plan: PlanIntegration, fichie
   const ecritures = await ecrituresIndiquees(plan);
 
   try {
-    const resultat = await prisma.$transaction(async (tx) => {
+    // LES RÉFÉRENCES SPO/FORM/MP/DIM des demandes créées se numérotent dans la transaction (`prochaineRef`) : une écriture de
+    // lot à la fois dans ce processus (`enSerie`), et une collision venue d'ailleurs rejoue le lot entier (`createWithRetry`).
+    const resultat = await enSerie("integration-adpro:lot", () => createWithRetry(() => prisma.$transaction(async (tx) => {
       // Le lot d'abord (l'index partiel refuse un second lot actif, même simultané).
       const lot = await tx.adProIntegrationLot.create({
         data: {
@@ -577,11 +590,13 @@ export async function ecrireLot(user: SessionUser, plan: PlanIntegration, fichie
         journal.push({ cle: d.cle, ligne: d.ligne, lignes: d.lignes, type, demandeId, mode: c.mode, postes });
       }
       for (const dec of entree.decisions) {
-        await tx.adProIntegrationDecision.create({ data: { lotId: lot.id, cleSource: dec.cleSource, decision: dec.decision, libelle: dec.cleSource, montant: 0, decideParId: user.id } });
+        // Les choix de l'étape 4, dans la MÊME transaction que le lot : le lot naît avec eux, ou rien n'est écrit.
+        const montant = typeof dec.montant === "number" && Number.isFinite(dec.montant) ? Math.round(dec.montant * 100) / 100 : 0;
+        await tx.adProIntegrationDecision.create({ data: { lotId: lot.id, cleSource: dec.cleSource, decision: dec.decision, libelle: (dec.libelle?.trim() || dec.cleSource).slice(0, 300), montant, decideParId: user.id } });
       }
       await tx.adProIntegrationLot.update({ where: { id: lot.id }, data: { lignes: { version: VERSION_INTEGRATION_2026, categoriesCreees: creees, demandes: journal } as Prisma.InputJsonValue } });
       return { lotId: lot.id, demandes: plan.demandes.length, creees: nbCreees, completees: nbCompletees, total: dzd(plan.totalCentimes) };
-    }, { timeout: 120_000, maxWait: 20_000 });
+    }, { timeout: 120_000, maxWait: 20_000 })));
     return { ok: true, resultat };
   } catch (err) {
     if (err instanceof ErreurIntegration) return { ok: false, erreur: err.message };

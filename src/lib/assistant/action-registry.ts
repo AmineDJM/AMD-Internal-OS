@@ -1232,6 +1232,9 @@ X("LES LIGNES DES DEVIS D'UN POSTE ET LES BC QU'ELLES FONT GÉNÉRER (§118.206)
   // de la société (prévu, jamais réservé) et vérifier en direct un numéro saisi — des lectures d'écran, pas des gestes d'Adam.
   "ad-pro-item-actions:referenceDemandeDevisPoste", "promo-devis-actions:referenceDemandeDevisPromo",
   "hr-document-actions:referenceOrdreDeMission", "registre-references-actions:verifierReferenceRegistre",
+  // LE « N° DE RÉFÉRENCE » D'UN BC MODIFIABLE (Direction, 14/10/2026) : la vérification en direct du champ du composeur
+  // (révision, BC à régénérer, composition hors registre) — une lecture d'écran qui ne réserve rien.
+  "fabrique-actions:verifierNumeroPiece",
 ]);
 X("DEMANDER À SON N+1 UN AVIS SUR UN CONGÉ (Direction, 06/10) : le responsable remonte la marche du N+1 à son propre N+1, "
   + "qui la redescend validée ou refusée. Un geste de la ligne « Mon équipe », devant la demande — pas un appel d'Adam.", [
