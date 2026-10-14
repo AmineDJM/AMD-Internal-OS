@@ -150,8 +150,10 @@ export function lignesDuBon(entete: EnteteDevisPoste, lignes: readonly LigneDevi
  *   • A_REGENERER — des lignes ont été ajoutées ou retirées depuis : régénérer RÉVISE le même BC ;
  *   • FIGE — il faudrait régénérer, mais le BC est signé ou facturé : le refus nomme le geste ;
  *   • A_ANNULER — plus aucune ligne n'est validée alors qu'un BC existe : on l'annule, on ne le vide pas.
+ *   • MIS_A_PART — des lignes validées, pas de BC, mais le devis ne compte pas : c'est la COPIE d'une pièce déjà
+ *     comptée, ou une proposition d'un voyageur qui n'est pas la retenue (`devisMisAPart`). Rien à générer pour lui.
  */
-export type EtatBcDuDevis = "AUCUNE_LIGNE" | "A_GENERER" | "A_JOUR" | "A_REGENERER" | "FIGE" | "A_ANNULER";
+export type EtatBcDuDevis = "AUCUNE_LIGNE" | "A_GENERER" | "A_JOUR" | "A_REGENERER" | "FIGE" | "A_ANNULER" | "MIS_A_PART";
 
 export interface DecisionBcDuDevis {
   etat: EtatBcDuDevis;
@@ -263,6 +265,197 @@ export function refusDepassement(totalTtc: number, accorde: number | null, total
     : `${formatDzd(totalTtc)} TTC`;
   return `Les lignes validées pour ce poste totalisent ${taxe}, au-delà des ${formatDzd(accorde)} accordés (+${formatDzd(totalTtc - accorde)}). `
     + "Le montant accordé s'entend TTC : demandez une révision du poste pour le relever (ou décochez une ligne) — le bon de commande ne dépasse pas ce que la Direction a accordé.";
+}
+
+/**
+ * LE PLAFOND, SUR LES DEVIS QUI COMPTENT — la somme des lignes validées des devis vivants qui ne sont pas mis à part
+ * (une copie de la même pièce ne se paie pas deux fois ; une proposition écartée ne se commande pas). Lue par la
+ * carte ET par l'action (`refusMontantDuPoste`) : un seul calcul (§118.5).
+ */
+export interface DevisAuPlafond {
+  annule: boolean;
+  miseAPart: MiseAPart | null;
+  nbValidees: number;
+  totalValideHt: number;
+  totalValideTtc: number;
+  entete: { tvaRate: number | null };
+}
+
+export const devisQuiComptent = <T extends Pick<DevisAuPlafond, "annule" | "miseAPart">>(devis: readonly T[]): T[] =>
+  devis.filter((d) => !d.annule && !d.miseAPart);
+
+export function totalValideDesDevis(devis: readonly DevisAuPlafond[]): { ht: number; ttc: number } {
+  const comptes = devisQuiComptent(devis);
+  return {
+    ht: comptes.reduce((s, d) => s + cents(d.totalValideHt), 0) / 100,
+    ttc: comptes.reduce((s, d) => s + cents(d.totalValideTtc), 0) / 100,
+  };
+}
+
+export function refusMontantDesDevis(devis: readonly DevisAuPlafond[], accorde: number | null): string | null {
+  const t = totalValideDesDevis(devis);
+  const tvaIndiquee = devisQuiComptent(devis).filter((d) => d.nbValidees > 0).every((d) => d.entete.tvaRate !== null);
+  return refusDepassement(t.ttc, accorde, t.ht, tvaIndiquee);
+}
+
+// ───────────────────────── La même pièce ne se compte qu'une fois ─────────────────────────
+
+/**
+ * LA MÊME PIÈCE, DÉPOSÉE PLUSIEURS FOIS — ET LES PROPOSITIONS CONCURRENTES (Direction, 10/2026).
+ *
+ * « Les lignes validées pour ce poste totalisent 586 250 DZD » pour une pro forma de 117 250 DZD : la pièce de
+ * l'agence avait été déposée cinq fois (une par voyageur), chaque dépôt lu et ses lignes validées d'office — et la
+ * carte additionnait les cinq. Le plafond bloquait la génération, et la carte n'avait plus de geste.
+ *
+ * DEUX RÈGLES, ET RIEN DE DEVINÉ :
+ *
+ *   1. UNE PIÈCE NE SE COMPTE QU'UNE FOIS. Deux devis sont la MÊME pièce quand ils portent les mêmes lignes ET qu'on
+ *      le sait d'ailleurs : le même fichier (empreinte SHA-256 des octets), ou le même numéro imprimé chez le même
+ *      fournisseur. Les mêmes lignes SEULES ne suffisent pas : deux voyageurs au même trajet ont deux billets au même
+ *      prix — deux commandes. Une seule copie compte : celle qui a déjà un BC, sinon la retenue, sinon la première.
+ *   2. UNE PROPOSITION ÉCARTÉE NE SE COMMANDE PAS. Un voyageur qui a plusieurs propositions n'en commande qu'UNE —
+ *      celle qu'on a retenue (`validerDevisVoyageur`) ; seule, elle l'est d'office. Plusieurs et aucune retenue : la
+ *      carte dit de choisir, aucune ne compte en attendant.
+ *
+ * Un devis qui porte déjà un BC n'est jamais mis à part : sa commande existe, elle se lit telle quelle.
+ */
+export interface DevisAComparer {
+  pieceId: string;
+  /** Ce que la personne lit : la référence, sinon le titre. */
+  nom: string;
+  annule: boolean;
+  /** Les empreintes (SHA-256) de ses fichiers. */
+  empreintes: readonly string[];
+  /** Le numéro du devis (tel que saisi ou imprimé), et son fournisseur. */
+  reference: string | null;
+  fournisseur: string | null;
+  lignes: readonly Pick<LigneDevisPoste, "reference" | "quantity" | "unitPrice">[];
+  aUnBc: boolean;
+  nbValidees: number;
+  /** Le voyageur pour qui il a été déposé (billetterie), et s'il est sa proposition retenue. */
+  voyageur: { id: string; nom: string; retenu: boolean } | null;
+}
+
+export type MiseAPart =
+  | { motif: "COPIE"; de: string; phrase: string }
+  | { motif: "ECARTE"; de: string; phrase: string }
+  | { motif: "A_CHOISIR"; de: null; phrase: string };
+
+const normal = (s: string | null | undefined): string => (s ?? "").normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+
+/** La signature des lignes d'un devis — désignation, quantité, prix — sans l'ordre. Vide : le devis n'a pas de lignes. */
+export function signatureDesLignes(lignes: DevisAComparer["lignes"]): string {
+  return lignes
+    .map((l) => `${normal(l.reference)}|${l.quantity ?? "?"}|${l.unitPrice ?? "?"}`)
+    .sort()
+    .join("¶");
+}
+
+/** Deux devis sont-ils la MÊME pièce ? Mêmes lignes, et le même fichier ou le même numéro chez le même fournisseur. */
+export function memePiece(a: DevisAComparer, b: DevisAComparer): boolean {
+  const sa = signatureDesLignes(a.lignes);
+  if (!sa || sa !== signatureDesLignes(b.lignes)) return false;
+  if (a.empreintes.some((e) => b.empreintes.includes(e))) return true;
+  const ra = normal(a.reference);
+  const fa = normal(a.fournisseur);
+  return ra !== "" && ra === normal(b.reference) && fa !== "" && fa === normal(b.fournisseur);
+}
+
+/**
+ * MÊME CONTENU, PAS FORCÉMENT LA MÊME PIÈCE — mêmes lignes, même fournisseur, mais rien d'autre ne le prouve. On ne
+ * le décide pas à la place de la personne (§118.16) : la carte le DIT, avec le geste (retirer la copie). Rend, pour
+ * chaque devis concerné, le nom de l'autre.
+ */
+export function doublonsProbables(devis: readonly DevisAComparer[]): Map<string, string> {
+  const res = new Map<string, string>();
+  const vivants = devis.filter((d) => !d.annule && d.lignes.length > 0);
+  for (let i = 0; i < vivants.length; i++) {
+    for (let j = 0; j < i; j++) {
+      const a = vivants[i]!;
+      const b = vivants[j]!;
+      if (memePiece(a, b)) continue;
+      if (signatureDesLignes(a.lignes) !== signatureDesLignes(b.lignes)) continue;
+      if (normal(a.fournisseur) !== normal(b.fournisseur)) continue;
+      if (!res.has(a.pieceId)) res.set(a.pieceId, b.nom);
+    }
+  }
+  return res;
+}
+
+export function devisMisAPart(devis: readonly DevisAComparer[]): Map<string, MiseAPart> {
+  const res = new Map<string, MiseAPart>();
+  const vivants = devis.filter((d) => !d.annule);
+  const parId = new Map(vivants.map((d) => [d.pieceId, d]));
+
+  // 1. LES COPIES : des groupes de la même pièce (union de proche en proche), et dans chacun UNE pièce qui compte.
+  const groupe = new Map<string, string>(vivants.map((d) => [d.pieceId, d.pieceId]));
+  const racine = (id: string): string => {
+    let r = id;
+    while (groupe.get(r) !== r) r = groupe.get(r)!;
+    return r;
+  };
+  for (let i = 0; i < vivants.length; i++) {
+    for (let j = 0; j < i; j++) {
+      if (memePiece(vivants[i]!, vivants[j]!)) groupe.set(racine(vivants[i]!.pieceId), racine(vivants[j]!.pieceId));
+    }
+  }
+  const membres = new Map<string, DevisAComparer[]>();
+  vivants.forEach((d) => { const r = racine(d.pieceId); membres.set(r, [...(membres.get(r) ?? []), d]); });
+  const canonique = new Map<string, string>();
+  for (const liste of membres.values()) {
+    const rang = (d: DevisAComparer) => [d.aUnBc ? 0 : 1, d.voyageur?.retenu ? 0 : 1, d.nbValidees > 0 ? 0 : 1, vivants.indexOf(d)];
+    const tete = [...liste].sort((a, b) => {
+      const ra = rang(a), rb = rang(b);
+      for (let k = 0; k < ra.length; k++) if (ra[k] !== rb[k]) return ra[k]! - rb[k]!;
+      return 0;
+    })[0]!;
+    for (const d of liste) {
+      canonique.set(d.pieceId, tete.pieceId);
+      if (d.pieceId === tete.pieceId || d.aUnBc) continue;
+      const pour = tete.voyageur ? ` (déposée pour ${tete.voyageur.nom})` : "";
+      res.set(d.pieceId, {
+        motif: "COPIE", de: tete.pieceId,
+        phrase: `Même pièce que « ${tete.nom} »${pour} : elle ne se compte qu'une fois.`,
+      });
+    }
+  }
+
+  // 2. LES PROPOSITIONS D'UN VOYAGEUR : seule la retenue (ou l'unique) se commande.
+  const parVoyageur = new Map<string, { nom: string; groupes: Set<string>; retenu: string | null }>();
+  for (const d of vivants) {
+    if (!d.voyageur) continue;
+    const v = parVoyageur.get(d.voyageur.id) ?? { nom: d.voyageur.nom, groupes: new Set<string>(), retenu: null };
+    const c = canonique.get(d.pieceId)!;
+    v.groupes.add(c);
+    if (d.voyageur.retenu) v.retenu = c;
+    parVoyageur.set(d.voyageur.id, v);
+  }
+  const retenus = new Set<string>();
+  const ecartes = new Map<string, { voyageur: string; retenu: string }>();
+  const aChoisir = new Map<string, { voyageur: string; n: number }>();
+  for (const v of parVoyageur.values()) {
+    const retenu = v.retenu ?? (v.groupes.size === 1 ? [...v.groupes][0]! : null);
+    if (retenu) {
+      retenus.add(retenu);
+      for (const g of v.groupes) if (g !== retenu && !ecartes.has(g)) ecartes.set(g, { voyageur: v.nom, retenu });
+    } else {
+      for (const g of v.groupes) if (!aChoisir.has(g)) aChoisir.set(g, { voyageur: v.nom, n: v.groupes.size });
+    }
+  }
+  for (const [r, liste] of membres) {
+    const c = canonique.get(r)!;
+    // Compte : une pièce du poste (sans voyageur), une proposition retenue, ou une commande déjà faite.
+    if (retenus.has(c) || liste.some((d) => !d.voyageur || d.aUnBc)) continue;
+    const e = ecartes.get(c);
+    const tete = parId.get(c)!;
+    const mise: MiseAPart | null = e
+      ? { motif: "ECARTE", de: e.retenu, phrase: `Proposition écartée pour ${e.voyageur} : le devis retenu est « ${parId.get(e.retenu)?.nom ?? "un autre"} » — elle ne se commande pas.` }
+      : aChoisir.has(c)
+        ? { motif: "A_CHOISIR", de: null, phrase: `${aChoisir.get(c)!.n} propositions pour ${aChoisir.get(c)!.voyageur} : retenez-en une (Voyageurs › « Choisir le devis ») — d'ici là, aucune ne se commande.` }
+        : null;
+    if (mise && !tete.aUnBc) res.set(c, mise);
+  }
+  return res;
 }
 
 // ───────────────────────── Ce que le BC peut porter ─────────────────────────

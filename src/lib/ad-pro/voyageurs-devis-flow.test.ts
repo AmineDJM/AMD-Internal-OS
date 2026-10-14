@@ -32,7 +32,11 @@ const fd = (champs: Record<string, string>) => {
   for (const [k, v] of Object.entries(champs)) f.set(k, v);
   return f;
 };
-const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], nom, { type: "application/pdf" });
+/**
+ * Des octets PROPRES À CHAQUE PIÈCE : deux devis distincts n'ont jamais le même fichier. Le même fichier redéposé est la
+ * MÊME pièce, que `ajouterDevisVoyageur` ne duplique plus (banc `bc-meme-piece-flow.test.ts`).
+ */
+const pdf = (nom: string) => new File([new TextEncoder().encode(`%PDF-1 ${nom}`)], nom, { type: "application/pdf" });
 
 /**
  * ENTRELACEMENT FORCÉ (§118.164e) : la transaction du banc verrouille les lignes visées ; les gestes

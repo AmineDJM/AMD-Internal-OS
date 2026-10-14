@@ -51,7 +51,8 @@ import { validateAttachments } from "@/lib/attach-files";
 import { creerPosteEtFiches, donneesVoyageur, lireFichesDuFormulaire } from "@/lib/ad-pro/fiches-poste";
 import { readFileByKey } from "@/lib/storage";
 import { resolveParties } from "@/lib/queries/company-contacts";
-import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
+import { createHash } from "node:crypto";
+import { devisDesPostes, empreintesDesDevis } from "@/lib/queries/ad-pro-devis-poste";
 import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-poste-lecture";
 import {
   noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste,
@@ -3561,6 +3562,30 @@ export async function ajouterDevisVoyageur(_prev: ActionResult | undefined, form
   // La proposition d'UN voyageur est un devis : ses fichiers en sont les pages (le lien « pour ce voyageur » porte sur un devis).
   formData.delete("unDevisParFichier");
   formData.set("id", item.id);
+  // LA MÊME PIÈCE NE SE DÉPOSE PAS DEUX FOIS (Direction, 10/2026) : la pro forma de l'agence couvre souvent TOUS les voyageurs.
+  // La redéposer pour chacun créait autant de devis, chacun lu et validé d'office, et la carte du BC les additionnait
+  // (5 × 117 250 DZD pour une seule pièce). Le même fichier rejoint ce voyageur s'il n'est à personne ; sinon, il n'est
+  // pas dupliqué, et la phrase le dit.
+  const fichiers = formData.getAll("attachment").filter((x): x is File => x instanceof File && x.size > 0);
+  const deja = await devisDuMemeFichier(item.id, fichiers);
+  if (deja) {
+    if (deja.voyageur?.id === voyageurId) {
+      return { ok: true, id: deja.legalDocumentId, message: `Cette pièce est déjà déposée pour ${nomComplet(v)} (« ${deja.nom} ») : rien n'a été ajouté.` };
+    }
+    if (!deja.voyageur) {
+      const lie = await prisma.adProVoyageurDevis.create({ data: { voyageurId, pieceId: deja.itemPieceId, createdById: user.id }, select: { id: true } }).catch(() => null);
+      if (lie) {
+        await audit(user, owner.parent, owner.id, "UPDATE", `Devis « ${deja.nom} » du poste « ${item.label} » rattaché au voyageur « ${nomComplet(v)} » (même fichier, non dupliqué).`);
+        revalidate(owner.parent, owner.id);
+        return { ok: true, id: deja.legalDocumentId, message: `Cette pièce est déjà sur le poste (« ${deja.nom} ») : elle est rattachée à ${nomComplet(v)}, sans être enregistrée une seconde fois.` };
+      }
+    }
+    return {
+      ok: true, id: deja.legalDocumentId,
+      message: `Cette pièce est déjà déposée sur le poste${deja.voyageur ? ` pour ${deja.voyageur.nom}` : ""} (« ${deja.nom} ») : elle n'est pas enregistrée une seconde fois — `
+        + "une même pro forma de l'agence vaut pour tous les voyageurs qu'elle couvre, et le bon de commande se génère d'après ses lignes (case « Bon de commande »).",
+    };
+  }
   const depose = await ajouterDevisPoste(undefined, formData);
   if (!depose.ok || !depose.id) return depose;
   const piece = await prisma.adProItemPiece.findUnique({
@@ -3577,16 +3602,55 @@ export async function ajouterDevisVoyageur(_prev: ActionResult | undefined, form
   return { ok: true, id: depose.id, message: `${depose.message ?? "Devis déposé."} Pour ${nomComplet(v)} — validez-le quand il convient.` };
 }
 
-/** La phrase du dépassement, sur l'ensemble des devis retenus du poste (tous voyageurs). */
+/**
+ * LA MÊME PIÈCE RETENUE POUR PLUSIEURS VOYAGEURS ne se compte qu'une fois : chaque devis → la pièce qu'il copie (lui-même s'il
+ * n'en copie aucune), lue par la même règle que la carte du BC (`devisMisAPart`).
+ */
+async function pieceComptee(itemId: string): Promise<(pieceId: string) => string> {
+  const vues = (await devisDesPostes([itemId])).get(itemId) ?? [];
+  const copieDe = new Map(vues.filter((v) => v.miseAPart?.motif === "COPIE").map((v) => [v.pieceId, v.miseAPart!.de as string]));
+  return (pieceId) => copieDe.get(pieceId) ?? pieceId;
+}
+
+/** La phrase du dépassement, sur l'ensemble des devis retenus du poste (tous voyageurs) — chaque pièce une fois. */
 async function depassementDuPoste(itemId: string, accorde: unknown): Promise<string | null> {
-  const retenus = await prisma.adProVoyageurDevis.findMany({
-    where: { retenuLe: { not: null }, voyageur: { itemId }, piece: { legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } } },
-    select: { piece: { select: { legalDocument: { select: { amount: true } } } } },
-  });
+  const [retenus, piece] = await Promise.all([
+    prisma.adProVoyageurDevis.findMany({
+      where: { retenuLe: { not: null }, voyageur: { itemId }, piece: { legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } } },
+      select: { piece: { select: { legalDocument: { select: { id: true, amount: true } } } } },
+    }),
+    pieceComptee(itemId),
+  ]);
+  const uniques = new Map(retenus.map((r) => [piece(r.piece.legalDocument.id), r.piece.legalDocument.amount]));
   return depassementDevisRetenus(
-    retenus.map((r) => (r.piece.legalDocument.amount != null ? toNumber(r.piece.legalDocument.amount) : null)),
+    [...uniques.values()].map((m) => (m != null ? toNumber(m) : null)),
     accorde != null ? toNumber(accorde) : null,
   );
+}
+
+/**
+ * LE FICHIER DÉJÀ DÉPOSÉ SUR CE POSTE — la même pièce (mêmes octets) qu'un devis vivant du poste, et pour quel voyageur.
+ * C'est ce qui faisait naître une pro forma par voyageur : la pièce de l'agence, déposée pour chacun, devenait N devis.
+ */
+async function devisDuMemeFichier(itemId: string, fichiers: readonly File[]) {
+  if (fichiers.length === 0) return null;
+  const voulues = new Set(await Promise.all(fichiers.map(async (f) => createHash("sha256").update(Buffer.from(await f.arrayBuffer())).digest("hex"))));
+  const liens = await prisma.adProItemPiece.findMany({
+    where: { itemId, nature: "DEVIS", legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true, legalDocumentId: true, legalDocument: { select: { title: true, reference: true } },
+      voyageur: { select: { voyageurId: true, voyageur: { select: { nom: true, prenom: true } } } },
+    },
+  });
+  if (liens.length === 0) return null;
+  const empreintes = await empreintesDesDevis(liens.map((l) => l.legalDocumentId));
+  const meme = liens.find((l) => (empreintes.get(l.legalDocumentId) ?? []).some((e) => voulues.has(e)));
+  if (!meme) return null;
+  return {
+    itemPieceId: meme.id, legalDocumentId: meme.legalDocumentId, nom: meme.legalDocument.reference?.trim() || meme.legalDocument.title,
+    voyageur: meme.voyageur ? { id: meme.voyageur.voyageurId, nom: nomComplet(meme.voyageur.voyageur) } : null,
+  };
 }
 
 /**
@@ -3684,7 +3748,7 @@ export async function demanderBCBilletterie(formData: FormData): Promise<ActionR
   const [retenus, total] = await Promise.all([
     prisma.adProVoyageurDevis.findMany({
       where: { retenuLe: { not: null }, voyageur: { itemId: id }, piece: { legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } } },
-      select: { voyageur: { select: { nom: true, prenom: true, position: true } }, piece: { select: { legalDocument: { select: { title: true, reference: true, amount: true } } } } },
+      select: { voyageur: { select: { nom: true, prenom: true, position: true } }, piece: { select: { legalDocument: { select: { id: true, title: true, reference: true, amount: true } } } } },
     }),
     prisma.adProVoyageur.count({ where: { itemId: id } }),
   ]);
@@ -3692,9 +3756,15 @@ export async function demanderBCBilletterie(formData: FormData): Promise<ActionR
     return { ok: false, error: "Validez d'abord le devis d'au moins un voyageur : le bon de commande s'établit d'après les propositions retenues." };
   }
   retenus.sort((a, b) => a.voyageur.position - b.voyageur.position);
+  // LA MÊME PIÈCE RETENUE POUR PLUSIEURS VOYAGEURS se nomme une fois avec son montant ; les autres la désignent (« même pièce »).
+  const piece = await pieceComptee(id);
+  const dejaNommee = new Set<string>();
   const liste = retenus.map((r) => {
     const d = r.piece.legalDocument;
-    return `• ${nomComplet(r.voyageur)} — ${d.reference ?? d.title}${d.amount != null ? ` (${toNumber(d.amount).toLocaleString("fr-FR")} DZD)` : ""}`;
+    const cle = piece(d.id);
+    const montant = dejaNommee.has(cle) ? " (même pièce que ci-dessus, comptée une fois)" : d.amount != null ? ` (${toNumber(d.amount).toLocaleString("fr-FR")} DZD)` : "";
+    dejaNommee.add(cle);
+    return `• ${nomComplet(r.voyageur)} — ${d.reference ?? d.title}${montant}`;
   }).join("\n");
   const sansDevis = total - retenus.length;
   const note = [fdStr(formData, "note"), `Devis retenus (${retenus.length}/${total} voyageur(s)) :\n${liste}`].filter(Boolean).join("\n\n");
@@ -3982,6 +4052,9 @@ export async function enregistrerLignesDuDevis(formData: FormData): Promise<Acti
 async function validerAutomatiquementLesLignesLues(userId: string, itemId: string, pieceId: string): Promise<number> {
   const devis = await devisDuPoste(itemId, pieceId);
   if (!devis || !devis.structure || devis.bc || devis.ecartTotal || devis.lignes.length === 0) return 0;
+  // LA MÊME PIÈCE DÉPOSÉE DEUX FOIS (ou une proposition écartée) ne valide rien d'office : ses lignes seraient comptées
+  // deux fois. Un contenu identique à un autre devis, sans preuve que c'est la même pièce, est un doute — rien non plus.
+  if (devis.miseAPart || devis.doublonProbableDe) return 0;
   if (devis.lignes.some((l) => l.validee)) return 0; // une personne a déjà tranché : on ne repasse pas derrière elle
   const sansDoute = devis.lignes.every((l) =>
     !l.valideeAilleurs && !l.refusValidation && !l.aVerifier && l.quantity != null && l.unitPrice != null);
@@ -4060,7 +4133,21 @@ export async function validerEtEnvoyerBcPoste(formData: FormData): Promise<Actio
   return traiterLeBCDuPoste(formData, "VALIDER");
 }
 
-async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"): Promise<ActionResult> {
+/**
+ * GÉNÉRER LE BON DE COMMANDE EN UN CLIC (Direction, 10/2026) — « des fois il n'y a pas où générer le BC, pourtant il doit
+ * pouvoir être généré automatiquement en un clic ». Le DEMANDEUR (ou le Super Admin : la même porte que « Valider et envoyer »)
+ * génère d'un geste le BC de chaque devis qui compte, d'après ses lignes validées : numéroté, Word et PDF, aiguillé vers son
+ * centre par la fabrique (`emettreDocumentDrive` → `aiguillerBC`). Un aperçu déjà corrigé garde ses corrections ; l'aperçu
+ * reste offert à qui veut relire d'abord, et « Modifier le BC » tant qu'il n'est pas signé. Mêmes refus que la validation :
+ * poste accordé, budget, plafond (sur les devis qui COMPTENT), fournisseur nommé, taux admis.
+ */
+export async function genererEtEnvoyerBcPoste(formData: FormData): Promise<ActionResult> {
+  if (!fdStr(formData, "id")) return { ok: false, error: "Poste non précisé." };
+  fdStr(formData, "pieceId"); // facultatif : un seul devis ; absent, tous ceux qui ont quelque chose à générer
+  return traiterLeBCDuPoste(formData, "DIRECT");
+}
+
+async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER" | "DIRECT"): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   const pieceVoulue = fdStr(formData, "pieceId");
@@ -4078,7 +4165,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   if (!info) return { ok: false, error: "Opération introuvable." };
   const fermee = refusDemandeFermee(info);
   if (fermee) return { ok: false, error: fermee };
-  if (mode === "VALIDER" && !peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: info.requesterId })) {
+  if (mode !== "APERCU" && !peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: info.requesterId })) {
     return { ok: false, error: REFUS_VALIDATION_BROUILLON };
   }
 
@@ -4105,6 +4192,8 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
       const bloque = visees.find((d) => d.etat === "FIGE" || d.etat === "A_ANNULER");
       if (bloque?.refus) return { ok: false, error: bloque.refus };
       if (visees.some((d) => d.etat === "A_JOUR")) return { ok: true, id, message: "Chaque devis validé a déjà son bon de commande, à jour : rien de nouveau à générer." };
+      const aPart = visees.find((d) => d.etat === "MIS_A_PART" && d.miseAPart);
+      if (aPart?.miseAPart) return { ok: false, error: `${aPart.reference ?? aPart.titre} : ${aPart.miseAPart.phrase}` };
       return { ok: false, error: "Aucune ligne n'est validée : cochez, dans un devis, les lignes à commander, puis générez le bon de commande." };
     }
     // L'APERÇU d'abord : un devis qui a déjà son brouillon le garde (ses corrections ne sont jamais écrasées par un clic) ;
@@ -4113,15 +4202,16 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
     if (mode === "APERCU" && sansBrouillon.length === 0) {
       return { ok: true, id, message: `${ETIQUETTE_BROUILLON} : l'aperçu existe déjà — relisez-le, corrigez au besoin, puis « Valider et envoyer aux Finances ».` };
     }
-    const aFaire = mode === "APERCU" ? sansBrouillon : aFaireTous.filter((d) => d.brouillon);
+    // EN UN CLIC (DIRECT) : tout ce qui est à générer, avec l'aperçu corrigé quand il existe, sans lui sinon.
+    const aFaire = mode === "APERCU" ? sansBrouillon : mode === "DIRECT" ? aFaireTous : aFaireTous.filter((d) => d.brouillon);
     if (aFaire.length === 0) {
       return { ok: false, error: "Aucun aperçu de bon de commande à valider : générez d'abord l'aperçu (« Générer le BC »), relisez-le, puis validez-le." };
     }
     // Les lignes CORRIGÉES par le demandeur portent leur propre plafond (le hors-taxe saisi, comme « Modifier le BC ») ; sans correction,
     // ce sont les lignes validées des devis qui le portent.
-    const corrigees = mode === "VALIDER" ? aFaire.filter((d) => d.brouillon?.lignes) : [];
+    const corrigees = mode !== "APERCU" ? aFaire.filter((d) => d.brouillon?.lignes) : [];
     if (corrigees.length > 0) {
-      const ht = aFaire.reduce((s, d) => s + totalHtDesLignes(d.brouillon?.lignes ?? d.brouillon?.lignesBc ?? []), 0);
+      const ht = aFaire.reduce((s, d) => s + totalHtDesLignes(d.brouillon?.lignes ?? d.brouillon?.lignesBc ?? lignesDuBCDuDevis(d, id)), 0);
       if (montantAccorde !== null && Number.isFinite(ht) && ht > montantAccorde + TOLERANCE_DZD) {
         return { ok: false, error: `Les lignes corrigées font ${Math.round(ht).toLocaleString("fr-FR")} DZD hors taxes, au-delà de l'accordé (${montantAccorde.toLocaleString("fr-FR")} DZD) : corrigez-les, ou demandez une révision du poste.` };
       }

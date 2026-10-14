@@ -956,6 +956,20 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   signature). Côté matériel promotionnel, le brouillon se crée **automatiquement** à la dernière validation des lignes
   retenues. Les devis téléversés sont cliquables. Historique : départ fixé d'abord à 037 (`20270117130500`), puis
   **040/DG/2026** pour Adventum, Pharmagène et AMD (`20270117140000_bc_numerotation_040`, jamais à reculons).
+- **Le BC du poste EN UN CLIC, et la même pièce comptée une fois (Direction, 14/10)** — la case « Bon de commande »
+  (`components/ad-pro/devis-bc-poste.tsx`) porte TOUJOURS « Générer le bon de commande » dès qu'un devis qui compte a des
+  lignes validées : le demandeur (ou le Super Admin) génère d'un geste (`genererEtEnvoyerBcPoste`, même chemin que la
+  validation de l'aperçu : fabrique → numéro, Word + PDF → `aiguillerBC`) ; « Voir l'aperçu d'abord » reste offert, et
+  qui n'est pas le demandeur prépare l'aperçu. Bloqué (plafond, budget, demande chez l'assistante), le bouton reste visible,
+  inactif, la raison écrite à côté et « Demander une révision du poste ». Le plafond ne somme que les devis QUI COMPTENT
+  (`refusMontantDesDevis`, `lib/ad-pro/devis-poste.ts`) : `devisMisAPart` écarte la COPIE d'une pièce déjà comptée (mêmes
+  lignes ET même fichier — empreinte SHA-256 du blob ou de la lecture, `empreintesDesDevis` — ou même numéro chez le même
+  fournisseur ; les mêmes lignes seules ne sont qu'un « doublon probable », dit sans être décidé) et, en billetterie, les
+  propositions d'un voyageur autres que la retenue (seule = retenue d'office ; plusieurs sans choix = aucune). La cause :
+  la pro forma de l'agence, redéposée pour chaque voyageur, devenait N devis validés d'office (5 × 117 250 DZD affichés
+  « au-delà des 124 750 accordés ») ; `ajouterDevisVoyageur` reconnaît désormais le même fichier (rattaché au voyageur
+  s'il n'est à personne, jamais dupliqué) et la validation d'office saute toute copie ou doublon probable.
+  Banc : `lib/ad-pro/bc-meme-piece-flow.test.ts`.
 - **La mise en page est du code, et c'est celle des pièces de la maison** (`build.ts` → `word.ts`). Deux modèles,
   relevés sur deux pièces réelles fournies par la Direction. La **FACTURE** (modèle Pharmagène) : émetteur et
   « Facture » face à face avec numéro de client, numéro et date ; bande « Facturer à : » ; bloc client et RC / NIF /

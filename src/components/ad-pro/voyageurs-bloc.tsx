@@ -30,6 +30,8 @@ export interface DevisVoyageurVue {
   retenu: boolean;
   annule: boolean;
   fichier: { id: string; name: string; hasFile: boolean } | null;
+  /** La pièce dont celle-ci est une COPIE (le même fichier, déposé pour un autre voyageur) — comptée une fois. */
+  copieDe?: string | null;
 }
 
 /** Un voyageur tel que l'écran le montre — les dates en AAAA-MM-JJ, prêtes pour un champ « date ». */
@@ -102,7 +104,8 @@ export function BlocVoyageurs({
   const basculer = (id: string, quoi: NonNullable<typeof ouvert>["quoi"]) =>
     setOuvert((o) => (o && o.id === id && o.quoi === quoi ? null : { id, quoi }));
 
-  const retenus = voyageurs.flatMap((v) => v.devis.filter((d) => d.retenu && !d.annule));
+  // UNE PIÈCE RETENUE POUR PLUSIEURS VOYAGEURS (la même pro forma) ne se compte qu'une fois.
+  const retenus = [...new Map(voyageurs.flatMap((v) => v.devis.filter((d) => d.retenu && !d.annule)).map((d) => [d.copieDe ?? d.id, d])).values()];
   const depasse = depassementDevisRetenus(retenus.map((d) => d.montant), montantAccorde);
 
   return (
