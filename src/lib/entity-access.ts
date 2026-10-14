@@ -19,7 +19,10 @@ import { clauseRegulatoryVisible } from "@/lib/queries/regulatory-visibilite";
 import { clauseBonsDeCommandePchVisibles, clauseFormationsVisibles, clauseMarchesPchVisibles } from "@/lib/queries/visibilite-listes";
 import { isManagerOfUser, getManagementChain } from "@/lib/departments";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
+import { tientPourLaSollicitee } from "@/lib/doc-request-interim";
 import { canViewDeclaration } from "@/lib/queries/medical-info";
+import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
+import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { accesAuCasPv } from "@/lib/pharmacovigilance/acces";
 import { accesAuReleveStockPch } from "@/lib/queries/stock-pch";
 import {
@@ -27,6 +30,7 @@ import {
   annuaireOuvertParConsole, scopeCongressIntl, scopeCongressNational, scopePromoMaterial, scopeSponsoring,
   moduleDuDossierRegulatory, hasRole,
 } from "@/lib/rbac";
+import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
 
 /** Maps a polymorphic entity type to its owning module. */
 export const ENTITY_MODULE: Record<EntityType, Module> = {
@@ -398,6 +402,23 @@ export async function accesAuxPiecesLegalDetaille(
       }
     }
 
+    // LES PIÈCES D'ACHAT D'UNE DEMANDE AU SECRÉTARIAT (devis natifs, 10/2026) — devis, BC, facture rangés au registre
+    // pour une demande. « Le demandeur valide les références de chaque devis, puis génère le BC » : il doit les LIRE,
+    // sans avoir Legal. La porte est celle de la FICHE de la demande (`clauseDemandeLisible` : sa portée du module, le
+    // validateur d'une pièce, l'intérimaire) — une fois par demande ; les engagements (contrats) restent fermés.
+    const achatsDemande = (await prisma.legalDocument.findMany({
+      where: { id: { in: uniques }, sourceType: "ADMIN_REQUEST", sourceId: { not: null } },
+      select: { id: true, kind: true, sourceId: true },
+    })).filter((p) => SECTIONS_ARBITREES.has(sectionDeLaNature(String(p.kind))));
+    if (achatsDemande.length > 0) {
+      const lisibles = new Set<string>();
+      for (const demandeId of new Set(achatsDemande.map((p) => p.sourceId as string))) {
+        const n = await prisma.administrativeRequest.count({ where: await clauseDemandeLisible(user, demandeId) });
+        if (n > 0) lisibles.add(demandeId);
+      }
+      for (const p of achatsDemande) if (lisibles.has(p.sourceId as string)) parException.add(p.id);
+    }
+
     if (porteLeRoleQuiTranche(user)) {
       // La société de la PIÈCE n'est pas relue : c'est la porte de la FICHE qui décide, plus bas.
       const achats = (await prisma.legalDocument.findMany({
@@ -506,13 +527,14 @@ export async function canAccessEntity(
   if (entityType === "DOCUMENT_REQUEST") {
     if (hasGlobalView(user.role)) return true;
     const r = await prisma.documentRequest.findUnique({
-      where: { id: entityId }, select: { askedById: true, askedToId: true, status: true },
+      where: { id: entityId }, select: { askedById: true, askedToId: true, status: true, entityType: true, kind: true },
     });
     if (!r) return false;
     if (r.askedById === user.id) return true;
     // Celui qui dépose ne peut plus toucher aux pièces une fois la demande close : sinon on ne
-    // saurait plus laquelle a servi à la décision.
-    if (r.askedToId !== user.id) return false;
+    // saurait plus laquelle a servi à la décision. L'INTÉRIMAIRE de l'assistante sollicitée pour le BC d'un
+    // poste Ad & Pro dépose à sa place (`tientPourLaSollicitee` — audit Assistante de direction, 10/2026).
+    if (r.askedToId !== user.id && !(await tientPourLaSollicitee(user.id, r))) return false;
     return action === "VIEW" || (r.status !== "ACCEPTED" && r.status !== "CANCELLED");
   }
 
@@ -630,6 +652,18 @@ export async function canAccessEntity(
   // La garde est donc le CERCLE du dossier — demandeur, destinataire, Finances — et elle ne
   // dépend PAS de l'écran où le dossier s'affiche. C'est ce qui lui a permis de traverser sans
   // dommage ses deux déménagements (Validations → Finances → Validations).
+  // LES PIÈCES D'UN ORDRE DE DÉPENSE SE LISENT AU CENTRE DE PAIEMENT ET PAR LEUR DEMANDEUR.
+  //
+  // Le centre autorise une sortie d'argent : il doit pouvoir OUVRIR la proforma jointe à la demande
+  // (un BV de dossier réglementaire, par exemple), même sans le module Finances — un siège nommé ne
+  // l'a pas forcément. Le demandeur relit ce qu'il a joint. LECTURE SEULE, et pour un siège, dans
+  // une société qu'il voit (la même portée que la file du centre). Sinon : la règle ordinaire.
+  if (entityType === "EXPENSE_ORDER" && action === "VIEW") {
+    const o = await prisma.expenseOrder.findUnique({ where: { id: entityId }, select: { requestedById: true, companyId: true } });
+    if (o && o.requestedById === user.id) return true;
+    if (o && sitsOnPaymentCentre(user) && (await entitePermisePourFiche(user.id, o.companyId))) return true;
+  }
+
   if (entityType === "PAYMENT_REQUEST") {
     if (hasGlobalView(user.role)) return true;
     const r = await prisma.paymentRequest.findUnique({
@@ -713,14 +747,14 @@ export async function canAccessEntity(
   // L'Assistante de Direction pilote le circuit Matériel promotionnel depuis les
   // Demandes administratives, SANS accès au module dédié : elle peut consulter,
   // joindre et gérer les pièces du dossier promo lié.
-  if (entityType === "PROMO_MATERIAL" && user.role === "DIRECTION_ASSISTANT") {
+  if (entityType === "PROMO_MATERIAL" && hasRole(user, "DIRECTION_ASSISTANT")) {
     return true;
   }
 
   // L'Assistante de Direction tient le **bureau du secrétariat** : elle modère TOUTE
   // demande administrative (éditer/supprimer les messages, supprimer / renommer /
   // re-téléverser les pièces jointes), quel que soit le demandeur ou l'assignation.
-  if (entityType === "ADMIN_REQUEST" && user.role === "DIRECTION_ASSISTANT") {
+  if (entityType === "ADMIN_REQUEST" && hasRole(user, "DIRECTION_ASSISTANT")) {
     return true;
   }
 
@@ -731,13 +765,17 @@ export async function canAccessEntity(
     action === "VIEW" &&
     (entityType === "SPONSORING" || entityType === "CONGRESS_INTERNATIONAL" || entityType === "CONGRESS_NATIONAL" || entityType === "EVENT")
   ) {
-    const isMedManager = hasGlobalView(user.role) || user.role === "MEDICAL_INFO_PHARMACIST" || userCan(user, "MEDICAL_INFO", "VALIDATE");
+    // Le DÉCIDEUR aussi (le Directeur des Opérations, `medical-info/decideur.ts`) : la fiche lui montre
+    // les pièces de l'événement sur lequel il tranche — un lien qui lui répondrait « interdit » le
+    // ferait décider sans les avoir lues.
+    const decideur = estDecideurInfoMed(user) && userCan(user, "MEDICAL_INFO", "VIEW");
+    const isMedManager = hasGlobalView(user.role) || user.role === "MEDICAL_INFO_PHARMACIST" || userCan(user, "MEDICAL_INFO", "VALIDATE") || decideur;
     if (isMedManager) {
       const decl = await prisma.medicalInfoDeclaration.findUnique({
         where: { sourceType_sourceId: { sourceType: entityType, sourceId: entityId } },
         select: { pharmacistId: true },
       });
-      if (decl && (decl.pharmacistId === user.id || hasGlobalView(user.role) || userCan(user, "MEDICAL_INFO", "VALIDATE"))) {
+      if (decl && (decl.pharmacistId === user.id || hasGlobalView(user.role) || userCan(user, "MEDICAL_INFO", "VALIDATE") || decideur)) {
         return true;
       }
     }

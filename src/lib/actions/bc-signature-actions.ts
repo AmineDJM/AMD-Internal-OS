@@ -15,6 +15,7 @@ import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { motifNonSignable } from "@/lib/bons-de-commande/regle";
 import { bcVisiblesWhere, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
+import { apresSignatureDuBCDeDemande } from "@/lib/secretariat/bc-signe";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -120,6 +121,9 @@ export async function signerBonDeCommande(formData: FormData): Promise<ActionRes
   revalidatePath("/legal");
   revalidatePath(`/legal/${id}`);
   revalidatePath("/ad-pro", "layout");
+  // LE BC D'UNE DEMANDE AU SECRÉTARIAT revient « signé et validé » sur sa fiche : l'assistante et le demandeur le savent.
+  await apresSignatureDuBCDeDemande(id, user.id, signataire).catch(() => undefined);
+  revalidatePath("/demandes", "layout");
   return { ok: true, id, message: `Bon de commande ${ref} signé par ${signataire}. ${constat} Il remplace le BC non signé, et la facture peut être déposée.` };
 }
 

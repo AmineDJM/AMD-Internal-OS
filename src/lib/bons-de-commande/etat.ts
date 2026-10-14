@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { getAppSettings } from "@/lib/settings";
-import { portesDesBC, notifierSignatairesBCASigner } from "./aiguillage";
-import { etapeBC, validationRequiseBC, type EtapeBC, type PorteBC } from "./regle";
+import { portesDesBC, notifierSignatairesBCASigner, origineDuBC, centreVouluDuBC } from "./aiguillage";
+import { etapeBC, validationRequiseBC, seuilDuCentre, type EtapeBC, type PorteBC } from "./regle";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -59,16 +59,24 @@ export async function etatsDesBC(ids: readonly string[], opts: { seuil?: number 
       id: true, reference: true, title: true, counterparty: true, createdById: true, amount: true,
       status: true, signedAt: true, bcCircuitAt: true, updatedAt: true, signedBy: { select: { id: true, name: true } }, signedByName: true,
       signatureReturnedAt: true, signatureReturnNote: true, signatureReturnedBy: { select: { name: true } },
+      sourceType: true, sourceId: true, chainFromId: true,
     },
   });
   if (docs.length === 0) return res;
-  const [portes, seuil] = await Promise.all([
-    portesDesBC(docs.map((d) => d.id)),
-    opts.seuil !== undefined ? Promise.resolve(opts.seuil) : getAppSettings().then((s) => s.bcValidationThreshold),
-  ]);
+  const [portes, reglages] = await Promise.all([portesDesBC(docs.map((d) => d.id)), getAppSettings()]);
+  const seuils = { adPro: reglages.bcValidationThreshold, validation: reglages.bcValidationThresholdCentre };
+  // LE SEUIL DE SON CENTRE (Direction, 10/2026). La porte le dit quand il y en a une ; sinon l'origine — lue seulement
+  // quand les deux seuils diffèrent : égaux, le centre ne change rien au résultat.
+  const seuilDe = async (d: (typeof docs)[number], porte: PorteBC | null): Promise<number> => {
+    if (opts.seuil !== undefined) return opts.seuil;
+    if (porte) return seuilDuCentre(seuils, porte.centre);
+    if (seuils.adPro === seuils.validation) return seuils.adPro;
+    return seuilDuCentre(seuils, await centreVouluDuBC(await origineDuBC(d)));
+  };
   for (const d of docs) {
     const montant = d.amount == null ? null : toNumber(d.amount);
     const porte = portes.get(d.id) ?? null;
+    const seuil = await seuilDe(d, porte);
     const validationRequise = validationRequiseBC(montant, seuil);
     res.set(d.id, {
       id: d.id, reference: d.reference, title: d.title, counterparty: d.counterparty, createdById: d.createdById,

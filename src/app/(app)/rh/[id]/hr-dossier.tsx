@@ -17,6 +17,7 @@ import { ExpenseClaimHrPanel } from "@/components/hr/expense-claim-hr-panel";
 import type { HrDocumentDTO, HrRequestDTO } from "@/lib/queries/hr-documents";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { OrdreMissionForm } from "./ordre-mission-form";
+import { AttestationTravailForm } from "./attestation-travail-form";
 
 export function HrDossier({ employeeId, employeeName, employeePosition = null, referenceOrdreMission = "", documents, requests, currentUserId }: { employeeId: string; employeeName: string; employeePosition?: string | null; referenceOrdreMission?: string; documents: HrDocumentDTO[]; requests: HrRequestDTO[]; currentUserId: string }) {
   const router = useRouter();
@@ -348,6 +349,12 @@ function RequestRow({ req, employeeId, employeeName, employeePosition, reference
           {req.type === "MISSION_ORDER" && req.status !== "CANCELLED" && req.managerGate !== "PENDING" && req.managerGate !== "REJECTED" && (
             <div className="mt-2">
               <OrdreMissionForm requestId={req.id} employeeName={employeeName} employeePosition={employeePosition} details={req.details} referenceSuggeree={referenceOrdreMission} prefill={req.missionPrefill} />
+            </div>
+          )}
+          {/* L'ATTESTATION DE TRAVAIL SE GÉNÈRE (Direction, 10/2026) — préremplie par la fiche et le contrat de travail. */}
+          {req.type === "WORK_CERTIFICATE" && req.status !== "CANCELLED" && req.status !== "REJECTED" && (
+            <div className="mt-2">
+              <AttestationTravailForm requestId={req.id} details={req.details} dejaGeneree={Boolean(req.fulfilmentDocId) || req.status === "READY" || req.status === "DELIVERED"} />
             </div>
           )}
           <div className="mt-2">

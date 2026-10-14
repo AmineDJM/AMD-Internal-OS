@@ -11,13 +11,15 @@
  *   • BILLET ÉMIS / VOUCHER : aux membres du sujet, et à qui peut les déposer (`peutTeleverserBillet` : assistante de
  *     direction, demandeur, Direction Marketing, Super Admin, vue globale) ;
  *   • LIVRET DE SÉJOUR : comme un billet émis — et le livret GÉNÉRAL aussi à l'équipe Adventum qui accompagne ;
- *   • tout le reste (devis, factures, programme…) reste derrière la porte de la demande.
+ *   • DEVIS saisi sur la demande (`CareQuote.documentId`) : aux membres du sujet, et à l'assistante SOLLICITÉE pour
+ *     les devis de cette demande (`care-devis-acces.ts` — audit Assistante de direction, 10/2026) ;
+ *   • tout le reste (factures, programme…) reste derrière la porte de la demande.
  *
  * Module PUR : le serveur (`ad-pro/passeport-acces.ts`) établit les faits, cette fonction tranche.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export type NaturePiece = "PIECE_IDENTITE" | "BILLET_EMIS" | "LIVRET_INDIVIDUEL" | "LIVRET_GENERAL" | "AUTRE";
+export type NaturePiece = "PIECE_IDENTITE" | "BILLET_EMIS" | "LIVRET_INDIVIDUEL" | "LIVRET_GENERAL" | "DEVIS" | "AUTRE";
 
 /** Le `stepKey` d'un livret : « livret:general » ou « livret:<id de la personne> ». */
 export const CLE_LIVRET_GENERAL = "livret:general";
@@ -36,6 +38,8 @@ export interface FaitsPiece {
   organise: boolean;
   /** Membre de l'équipe Adventum qui accompagne (mission active, non déclinée). */
   equipe: boolean;
+  /** Assistante sollicitée pour les devis de la demande (`solliciteePourLesDevis`). Absent : non. */
+  solliciteePourDevis?: boolean;
 }
 
 export function peutLirePiecePriseEnCharge(f: FaitsPiece): boolean {
@@ -44,6 +48,7 @@ export function peutLirePiecePriseEnCharge(f: FaitsPiece): boolean {
     case "BILLET_EMIS":
     case "LIVRET_INDIVIDUEL": return f.membreDuSujet || f.organise;
     case "LIVRET_GENERAL": return f.membreDuSujet || f.organise || f.equipe;
+    case "DEVIS": return f.membreDuSujet || f.solliciteePourDevis === true;
     default: return false;
   }
 }

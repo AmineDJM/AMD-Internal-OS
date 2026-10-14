@@ -7,7 +7,7 @@ import type { ModelReply } from "@/lib/models/contract";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 // LE MONDE EXTÉRIEUR, ET LUI SEUL : le moteur OCR, le fournisseur de modèle, la bascule et le journal du
 // Contrôle de l'IA, la clé. Tout le reste — l'action, ses portes, le lecteur, le cache, le repérage, le

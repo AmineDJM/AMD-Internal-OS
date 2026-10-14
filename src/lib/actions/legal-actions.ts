@@ -18,9 +18,11 @@ import { attachFormFiles } from "@/lib/documents";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { normalizeReaderIds, canManageLegalReaders } from "@/lib/lecteurs/legal";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
+import { PHRASE_PREVALIDATION } from "@/lib/bons-de-commande/prevalidation";
+import { libererPrevalidation, retenueOrpheline } from "@/lib/bons-de-commande/retenue-bc";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
 import { syncInvoiceSettlement } from "@/lib/finance/settle-invoice";
-import { invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement } from "@/lib/finances/settlement";
+import { invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement, dateDeReglementAEcrire } from "@/lib/finances/settlement";
 import { enSerie } from "@/lib/refs";
 import { champsDuFichierChanges, pieceEmise, refusChampsDuFichier } from "@/lib/legal/piece-emise";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
@@ -171,6 +173,9 @@ export async function createLegalDocument(
   const user = await requireUser();
   const { title, ...f } = readFields(formData);
   if (!peutEcrire(user, "CREATE", f.kind)) return { ok: false, error: "Non autorisé." };
+  // LA DATE DE RÈGLEMENT SE POSE PAR QUI RÈGLE AUX FINANCES (audit Assistante de direction, 10/2026).
+  const datation = dateDeReglementAEcrire({ avant: null, demandee: f.paidDate, champEnvoye: true, financesModifier: userCan(user, "FINANCES", "UPDATE") });
+  if (!datation.ok) return { ok: false, error: datation.error };
 
   if (!title) return { ok: false, error: "Le titre exact du document est obligatoire." };
   const dates = validateDates(f.startDate, f.endDate);
@@ -229,6 +234,9 @@ export async function createLegalDocument(
       driveNodeId,
       sourceType: source.type,
       sourceId: source.id,
+      // Déposé depuis « Demandes de validations » : le BC naît EN PRÉ-VALIDATION — l'aiguillage ci-dessous ne l'adresse
+      // à aucun centre tant que le demandeur n'a pas demandé la validation finale (`bons-de-commande/prevalidation.ts`).
+      ...(f.kind === "PURCHASE_ORDER" && fdStr(formData, "prevalidation") === "1" ? { bcPrevalidationAt: new Date() } : {}),
       createdById: user.id,
       updatedById: user.id,
     },
@@ -292,7 +300,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     where: { id },
     select: {
       kind: true, expenseOrderId: true, counterparty: true, counterpartyIds: true, amount: true, chainFromId: true, promoFacture: { select: { id: true } },
-      custom: true, reference: true, startDate: true, endDate: true, direction: true,
+      custom: true, reference: true, startDate: true, endDate: true, direction: true, paidDate: true,
     },
   });
   if (!avant) return { ok: false, error: "Document introuvable." };
@@ -343,6 +351,14 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
   if (avant.promoFacture && (f.chainFromId ?? null) !== (avant.chainFromId ?? null)) {
     return { ok: false, error: REFUS_CHAINE_FACTURE_PROMO };
   }
+  // LA DATE DE RÈGLEMENT SE POSE PAR QUI RÈGLE AUX FINANCES (audit Assistante de direction, 10/2026) — absente du
+  // formulaire (masquée à qui ne règle pas), elle garde sa valeur au lieu de s'effacer.
+  const datation = dateDeReglementAEcrire({
+    avant: avant.paidDate, demandee: f.paidDate, champEnvoye: kind !== "INVOICE" || formData.has("paidDate"),
+    financesModifier: userCan(user, "FINANCES", "UPDATE"),
+  });
+  if (!datation.ok) return { ok: false, error: datation.error };
+  f.paidDate = datation.paidDate;
   // Le circuit de règlement possède la date de paiement des factures qu'il porte.
   const reglement = canMarkPaidDirectly({ paidDate: f.paidDate, expenseOrderId: avant.expenseOrderId });
   if (!reglement.ok) return { ok: false, error: reglement.error };
@@ -390,6 +406,10 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
   // Une date de règlement posée ou retirée depuis le formulaire ORDINAIRE fait bouger l'argent
   // exactement comme depuis la ligne du tableau : c'est le même document, donc la même règle.
   await syncInvoiceSettlement(id, user.id);
+  // LE FICHIER D'UNE PIÈCE DÉPOSÉE se remplace depuis la même fiche (Direction, 10/2026 — « modifiable de A à Z ») : la
+  // nouvelle version rejoint les pièces jointes. Une pièce ÉMISE n'en reçoit pas ici — son fichier est celui de la
+  // fabrique, que seule la révision réécrit (le Word et le PDF ne diraient plus la même chose que la pièce jointe).
+  const fichiers = emise ? { attached: 0, failed: [] as { name: string }[] } : await attachFormFiles(user.id, "LEGAL_DOCUMENT", id, formData);
   // UN BC MODIFIÉ SE RÉAIGUILLE : devenu BC, il reçoit sa porte ; ayant cessé de l'être, il la
   // perd ; montant RELEVÉ après validation ou correction demandée par le centre, il y retourne.
   // `montantAvant` est lu AVANT l'écriture — c'est ce qui permet de savoir qu'il a été relevé.
@@ -397,13 +417,19 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     ? phraseAiguillage(await aiguillerBC(id, {
         acteurId: user.id, modifie: true,
         montantAvant: avant.amount == null ? null : Number(avant.amount),
-        // UN AUTRE FOURNISSEUR n'est plus le BC signé : la signature des Finances tombe (§118.149).
-        pieceRevisee: parties.ids.length > 0 && [...avant.counterpartyIds].sort().join("|") !== [...parties.ids].sort().join("|"),
+        // UN AUTRE FOURNISSEUR n'est plus le BC signé : la signature des Finances tombe (§118.149). Un NOUVEAU FICHIER
+        // non plus : ce n'est plus la pièce que les Finances ont signée.
+        pieceRevisee: fichiers.attached > 0
+          || (parties.ids.length > 0 && [...avant.counterpartyIds].sort().join("|") !== [...parties.ids].sort().join("|")),
       }))
     : null;
   revalidatePath("/legal");
   revalidatePath(`/legal/${id}`);
-  return { ok: true, message: aiguillage ?? undefined };
+  const phraseFichiers = fichiers.failed.length
+    ? `${fichiers.attached} fichier(s) ajouté(s) ; échec sur : ${fichiers.failed.map((x) => x.name).join(", ")}.`
+    : fichiers.attached > 0 ? `${fichiers.attached} fichier(s) ajouté(s) aux pièces jointes — retirez l'ancien s'il est remplacé.` : null;
+  const message = [phraseFichiers, aiguillage].filter(Boolean).join(" ");
+  return { ok: true, message: message || undefined };
 }
 
 /**
@@ -886,7 +912,7 @@ export async function adresserBCAuCentre(formData: FormData): Promise<ActionResu
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Bon de commande introuvable." };
 
-  const doc = await prisma.legalDocument.findUnique({ where: { id }, select: { kind: true, status: true } });
+  const doc = await prisma.legalDocument.findUnique({ where: { id }, select: { kind: true, status: true, bcPrevalidationAt: true, bcPrevalidationRequestId: true } });
   if (!doc) return { ok: false, error: "Bon de commande introuvable." };
   if (!peutEcrire(user, "UPDATE", doc.kind)) return { ok: false, error: "Non autorisé." };
   if (doc.kind !== "PURCHASE_ORDER") {
@@ -896,7 +922,19 @@ export async function adresserBCAuCentre(formData: FormData): Promise<ActionResu
     return { ok: false, error: "Ce bon de commande est annulé : il n'a plus rien à faire valider." };
   }
 
-  const r = await aiguillerBC(id, { acteurId: user.id });
+  // EN PRÉ-VALIDATION : la validation finale se demande depuis la demande de validation, pas d'ici — sinon ce bouton
+  // serait la porte dérobée qui envoie au centre un BC dont on recueille encore les avis. Une retenue ORPHELINE (BC
+  // composé puis abandonné, demande retirée) se lève ici : personne d'autre ne la lèverait.
+  let r: Awaited<ReturnType<typeof aiguillerBC>>;
+  if (doc.bcPrevalidationAt) {
+    if (!(await retenueOrpheline(doc))) {
+      return { ok: false, error: `${PHRASE_PREVALIDATION} La validation finale se demande depuis « Demandes de validations ».` };
+    }
+    const libere = await libererPrevalidation(id, doc.bcPrevalidationRequestId, user.id, "pré-validation sans demande en cours — adressé au centre depuis sa fiche.");
+    r = libere.aiguillage ?? await aiguillerBC(id, { acteurId: user.id });
+  } else {
+    r = await aiguillerBC(id, { acteurId: user.id });
+  }
   if (r.sansSiege) return { ok: false, error: phraseAiguillage(r) ?? "Aucun siège au centre de validations." };
   if (r.enEchec) {
     return { ok: false, error: "Le bon de commande n'a pas pu être adressé au centre. Réessayez ; si l'échec persiste, signalez-le à un administrateur." };

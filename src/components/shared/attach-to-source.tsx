@@ -85,6 +85,11 @@ interface ContexteFormulaire {
   devis: MaillonAmont[];
   bons: MaillonAmont[];
   pieceExistante?: PieceExistante | null;
+  /**
+   * LA DATE DE PAIEMENT D'UNE FACTURE ne s'offre qu'à qui règle aux Finances (`peutDaterLeReglement`, calculé par
+   * l'appelant serveur — audit Assistante de direction, 10/2026). Absent : le champ n'est pas proposé.
+   */
+  daterLeReglement?: boolean;
 }
 
 /** Le nom d'un fichier sans son extension — le titre qu'on aurait tapé. */
@@ -183,7 +188,7 @@ function champs(kind: NaturePieceLiee, ctx: ContexteFormulaire): FieldDef[] {
         { type: "number", name: "amount", label: "Montant (DZD)" },
         { type: "date", name: "issueDate", label: "Date d'émission" },
         { type: "date", name: "dueDate", label: "Échéance de règlement" },
-        { type: "date", name: "paidDate", label: "Date de paiement (si déjà réglée)" },
+        ...(ctx.daterLeReglement ? [{ type: "date", name: "paidDate", label: "Date de paiement (si déjà réglée)" } as FieldDef] : []),
         // UN SEUL NOM, ET LE SENS. « Destinataire » et « payeur » demandaient deux fois la même
         // chose : l'un des deux est TOUJOURS nous. On saisit donc la partie EN FACE, et le sens
         // dit de quel côté elle se tient.
@@ -271,10 +276,12 @@ function FeuilleDeCreation({ kind, ctx, onClose }: { kind: NaturePieceLiee; ctx:
   );
 }
 
-export function AttachToSourceButtons({ entityType, entityId, reference, kinds, devis, bons }: {
+export function AttachToSourceButtons({ entityType, entityId, reference, kinds, devis, bons, daterLeReglement = false }: {
   entityType: EntityType;
   entityId: string;
   reference: string | null;
+  /** Proposer la date de paiement d'une facture (`peutDaterLeReglement`) — faux par défaut. */
+  daterLeReglement?: boolean;
   /** Natures proposées — par défaut engagement, facture, courrier. Un bon de commande PCH, lui, n'appelle qu'une facture. */
   kinds?: NaturePieceLiee[];
   /** Les devis de la fiche — un BC dit duquel il découle. */
@@ -284,7 +291,7 @@ export function AttachToSourceButtons({ entityType, entityId, reference, kinds, 
 }) {
   const [open, setOpen] = React.useState<NaturePieceLiee | null>(null);
   const offered: NaturePieceLiee[] = kinds ?? ["legal", "invoice", "mail"];
-  const ctx: ContexteFormulaire = { entityType, entityId, reference, devis: devis ?? [], bons: bons ?? [] };
+  const ctx: ContexteFormulaire = { entityType, entityId, reference, devis: devis ?? [], bons: bons ?? [], daterLeReglement };
 
   return (
     <>
@@ -306,17 +313,19 @@ export function AttachToSourceButtons({ entityType, entityId, reference, kinds, 
  * nom, et le fichier est RANGÉ dans la fiche créée : rien n'est téléversé une seconde fois, et
  * rien ne disparaît.
  */
-export function CreerFicheDepuisPiece({ entityType, entityId, reference, kind, piece, devis, bons }: {
+export function CreerFicheDepuisPiece({ entityType, entityId, reference, kind, piece, devis, bons, daterLeReglement = false }: {
   entityType: EntityType;
   entityId: string;
   reference: string | null;
+  /** Proposer la date de paiement d'une facture (`peutDaterLeReglement`) — faux par défaut. */
+  daterLeReglement?: boolean;
   kind: Exclude<NaturePieceLiee, "mail">;
   piece: PieceExistante;
   devis?: MaillonAmont[];
   bons?: MaillonAmont[];
 }) {
   const [open, setOpen] = React.useState(false);
-  const ctx: ContexteFormulaire = { entityType, entityId, reference, devis: devis ?? [], bons: bons ?? [], pieceExistante: piece };
+  const ctx: ContexteFormulaire = { entityType, entityId, reference, devis: devis ?? [], bons: bons ?? [], pieceExistante: piece, daterLeReglement };
   return (
     <>
       <Button size="sm" variant="ghost" onClick={() => setOpen(true)} title={`Créer la fiche de « ${piece.nom} » et y ranger le fichier`}>

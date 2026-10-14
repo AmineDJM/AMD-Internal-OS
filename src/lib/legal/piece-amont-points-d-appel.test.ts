@@ -30,12 +30,13 @@ describe("le compositeur envoie la pièce amont qu'il propose — et seulement c
   const ecran = lire("src/components/pieces/composer-piece.tsx");
 
   it("`construireFormData` envoie `chainFromId` depuis la pièce RETENUE, et l'aperçu se recalcule quand elle change", () => {
-    expect(corps(ecran, "construireFormData")).toMatch(/if \(amontRetenu\) fd\.set\("chainFromId", amontRetenu\)/);
+    // Une RÉVISION (pièce rouverte) ne change pas sa chaîne : le rattachement se fait depuis la fiche.
+    expect(corps(ecran, "construireFormData")).toMatch(/if \(amontRetenu && !rev\) fd\.set\("chainFromId", amontRetenu\)/);
     expect(ecran).toMatch(/const empreinte = JSON\.stringify\(\{[^}]*amontRetenu[^}]*\}\)/);
   });
 
   it("le menu filtre par la table de la fabrique (`NATURES_AMONT[type]`) ET par la société émettrice, et abandonne une pièce qu'il ne propose plus", () => {
-    expect(ecran).toMatch(/import \{ NATURES_AMONT \} from "@\/lib\/legal\/piece-emise"/);
+    expect(ecran).toMatch(/import \{ NATURES_AMONT(, type ValeursComposables)? \} from "@\/lib\/legal\/piece-emise"/);
     expect(ecran).toMatch(/NATURES_AMONT\[type\]/);
     expect(ecran).toMatch(/naturesAmont\.includes\(o\.kind\) && \(!o\.companyId \|\| o\.companyId === societe\)/);
     expect(ecran).toMatch(/amontsProposes\.some\(\(o\) => o\.value === amont\) \? amont : ""/);

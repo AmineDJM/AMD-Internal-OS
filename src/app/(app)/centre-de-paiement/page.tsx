@@ -11,6 +11,8 @@ import { entityHref } from "@/lib/entity-href";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { existingSources } from "@/lib/entity-exists";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
+import { canAccessEntity } from "@/lib/entity-access";
+import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { CentreBoard, type CentreOrder } from "./centre-board";
 import { BarreEntites, OngletsSections } from "./centre-navigation";
 
@@ -118,6 +120,41 @@ export default async function CentreDePaiementPage({ searchParams }: { searchPar
   // pour ce qui s'ouvre vraiment ; le reste est DIT (« source supprimée »), pas caché.
   const sourceVivante = await existingSources(orders.map((o) => ({ type: o.sourceType, id: o.sourceId })));
 
+  // LE PRODUIT D'OÙ VIENT UN BV (« Demande du BV 25 % » cliquée sur l'étape du dossier) — et les
+  // PIÈCES jointes à l'ordre par le demandeur. Le centre arbitre entre les BV de plusieurs dossiers :
+  // « BV 25 % — REG-2026-014 » ne dit pas de quel médicament il s'agit. Le lien vers le dossier n'est
+  // proposé qu'à qui peut l'ouvrir ; le nom, lui, se lit toujours.
+  const idsProduits = [...new Set(orders.filter((o) => o.sourceType === "REGULATORY_PRODUCT" && o.sourceId).map((o) => o.sourceId!))];
+  const [produits, pieces] = await Promise.all([
+    idsProduits.length
+      ? prisma.regulatoryProduct.findMany({ where: { id: { in: idsProduits } }, select: { id: true, reference: true, dci: true, brandName: true } })
+      : Promise.resolve([] as { id: string; reference: string; dci: string; brandName: string | null }[]),
+    orders.length
+      ? prisma.document.findMany({
+          where: { entityType: "EXPENSE_ORDER", entityId: { in: orders.map((o) => o.id) } },
+          select: { id: true, name: true, entityId: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([] as { id: string; name: string; entityId: string }[]),
+  ]);
+  const produitOuvrable = new Set(
+    (await Promise.all(idsProduits.map(async (id) => ((await canAccessEntity(user, "REGULATORY_PRODUCT", id, "VIEW")) ? id : null))))
+      .filter((v): v is string => Boolean(v)),
+  );
+  const produitDe = new Map(produits.map((p) => [p.id, p]));
+  const piecesDe = new Map<string, { id: string; name: string }[]>();
+  for (const d of pieces) piecesDe.set(d.entityId, [...(piecesDe.get(d.entityId) ?? []), { id: d.id, name: d.name }]);
+  const produitDeLOrdre = (o: (typeof orders)[number]): CentreOrder["produit"] => {
+    const p = o.sourceType === "REGULATORY_PRODUCT" && o.sourceId ? produitDe.get(o.sourceId) : undefined;
+    if (!p) return null;
+    const nature = natureDeLOrdreBv(o);
+    return {
+      reference: p.reference, nom: p.brandName?.trim() || p.dci, dci: p.dci,
+      nature: nature ? LIBELLE_NATURE_BV[nature] : null,
+      href: produitOuvrable.has(p.id) ? `/regulatory/${p.id}` : null,
+    };
+  };
+
   const rows: CentreOrder[] = orders.map((o) => ({
     id: o.id,
     reference: o.reference,
@@ -145,6 +182,9 @@ export default async function CentreDePaiementPage({ searchParams }: { searchPar
     sourceLabel: o.sourceType
       ? `${ENTITY_TYPE_LABELS[o.sourceType] ?? o.sourceType}${o.sourceId && !sourceVivante(o.sourceType, o.sourceId) ? " (source supprimée)" : ""}`
       : null,
+    produit: produitDeLOrdre(o),
+    note: o.notes?.trim() || null,
+    pieces: piecesDe.get(o.id) ?? [],
     isMine: o.requestedById === user.id,
     messages: o.centralMessages.map((m) => ({
       id: m.id, decision: m.decision, body: m.body,

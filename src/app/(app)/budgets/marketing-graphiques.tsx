@@ -194,11 +194,23 @@ function infobulle(c: Couleurs) {
   };
 }
 
-const pct = (v: number, total: number) => (total > 0 ? `${Math.round((v / total) * 100)} %` : "");
+/** Une part réelle mais minuscule se dit « < 1 % » : « 0 % » à côté d'un libellé ferait croire à une ligne vide. */
+export const pct = (v: number, total: number): string => {
+  if (!(total > 0)) return "";
+  const p = (v / total) * 100;
+  return p > 0 && p < 1 ? "< 1 %" : `${Math.round(p)} %`;
+};
 
-function Camembert({ parts, couleurs }: { parts: { nom: string; valeur: number; couleur: string }[]; couleurs: Couleurs }) {
+/**
+ * `ResponsiveContainer` donne sa taille en CLONANT son enfant avec `width` / `height`. Enveloppé dans ce
+ * composant, le `PieChart` ne les recevait jamais : il se rendait sans taille, donc vide, alors que la légende
+ * (calculée à part) affichait ses pourcentages. On les relaie.
+ */
+function Camembert({ parts, couleurs, width, height }: {
+  parts: { nom: string; valeur: number; couleur: string }[]; couleurs: Couleurs; width?: number; height?: number;
+}) {
   return (
-    <PieChart>
+    <PieChart width={width} height={height}>
       <Pie data={parts} dataKey="valeur" nameKey="nom" innerRadius="55%" outerRadius="85%" paddingAngle={1} stroke={couleurs.card} strokeWidth={2} isAnimationActive={false}>
         {parts.map((p) => <Cell key={p.nom} fill={p.couleur} />)}
       </Pie>

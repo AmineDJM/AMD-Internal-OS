@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { FinanceCategory } from "@prisma/client";
 import type { AdminRequestType, AdminRequestStatus, Priority, AdminApprovalStatus, DriverMissionStatus, Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, isTopManagement, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, isTopManagement, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { journaliserDemandeAchat } from "@/lib/general-means/purchase-journal";
@@ -29,9 +29,13 @@ import {
 import { annulerDemandeSecretariat, prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import { ramenerSiPlusDeDemandeDevis } from "@/lib/promo-material/retrait-devis";
 import { refusDuStatutManuel, refusDeReouverture } from "@/lib/secretariat/statut-manuel";
-import { estDecisionDApprobation, refusSansMotif, interditSurSaPropreDemande, LIBELLE_DECISION } from "@/lib/secretariat/decision-approbation";
+import { estDecisionDApprobation, refusSansMotif, interditSurSaPropreDemande, LIBELLE_DECISION, peutTrancherApprobation, refusValidateursPieceChiffree } from "@/lib/secretariat/decision-approbation";
+import { refusFinApresDecision, refusFinDevisPromo } from "@/lib/secretariat/traitement";
 import { ficheAFacture } from "@/lib/finance/facture-ordre";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { etatsDesBC } from "@/lib/bons-de-commande/etat";
+import { refusFinBCEnRoute } from "@/lib/secretariat/devis-natif";
+import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -393,12 +397,15 @@ export async function decideApproval(formData: FormData): Promise<ActionResult> 
   // UNE DEMANDE ANNULÉE OU EFFACÉE NE S'APPROUVE PLUS (§118.187) — l'approbation d'un montant émet un
   // ordre de dépense : sans cette garde, une validation restée en file payait une demande retirée.
   if (approval.request.deletedAt || approval.request.status === "CANCELLED") return { ok: false, error: VALIDATION_SANS_OBJET };
-  // LE VALIDATEUR NOMMÉ, OU SON INTÉRIMAIRE (§118.185 — audit 360°, I18) — jamais sur sa propre
-  // demande : remplacer son directeur ne donne pas le droit de s'approuver un achat.
-  const parDroit = approval.validatorId === user.id || userCan(user, "ADMIN_REQUESTS", "VALIDATE") || hasGlobalView(user.role);
+  // LE VALIDATEUR NOMMÉ, SON INTÉRIMAIRE (§118.185 — audit 360°, I18) OU LE SOMMET — jamais sur sa propre
+  // demande : remplacer son directeur ne donne pas le droit de s'approuver un achat. Le droit « Valider » du
+  // module ne suffit plus (audit du 14/10/2026) : l'assistante tranchait l'achat adressé au N+1 d'un autre.
+  const parDroit = approval.validatorId === user.id || isTopManagement(user);
   const parInterim = !parDroit && approval.validatorId !== null && approval.request.requesterId !== user.id
     && (await actsForUser(user.id, approval.validatorId));
-  if (!parDroit && !parInterim) return DENIED;
+  if (!peutTrancherApprobation({ estValidateur: approval.validatorId === user.id, parInterim, sommet: isTopManagement(user) })) {
+    return { ok: false, error: `Cette validation est adressée à ${approval.validator?.name ?? "une autre personne"} : seul le validateur, son intérimaire ou la Direction la tranche.` };
+  }
   // … ET PERSONNE D'AUTRE NE S'AUTO-VALIDE (lot E5) : le droit « Valider » du module n'en dispense pas — une
   // assistante de direction ou un Directeur des opérations validait son propre achat. Le sommet garde la main,
   // comme dans les circuits de congé et de formation (`approval-chain.ts`).
@@ -666,6 +673,7 @@ export async function editOwnRequest(formData: FormData): Promise<ActionResult> 
   });
   if (ecrite.count === 0) return { ok: false, error: DEMANDE_CHANGEE };
   const quoi = changes.join(", ");
+  const resoumise = await resoumettreApresModification(id, req.reference, user.id, quoi);
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id,
     summary: `Demande ${req.reference} corrigée par son demandeur${porte.discret ? " (fenêtre discrète)" : ""} — ${quoi}`,
@@ -678,7 +686,49 @@ export async function editOwnRequest(formData: FormData): Promise<ActionResult> 
   }
   revalidatePath(`/demandes/${id}`);
   revalidatePath("/demandes");
+  if (resoumise) {
+    revalidatePath("/demandes/approvals");
+    return { ok: true, message: `Demande corrigée — elle repart chez ${resoumise} pour validation.` };
+  }
   return { ok: true, message: porte.discret ? "Demande modifiée." : `Demande modifiée — l'assistante est prévenue (${quoi}).` };
+}
+
+/**
+ * LA CORRECTION REPART CHEZ LE VALIDATEUR (audit du 14/10/2026). Après « modification demandée », la demande corrigée
+ * revenait à l'assistante, qui pouvait acheter sans nouvelle validation. Quand la DERNIÈRE approbation demandait une
+ * modification, la correction du demandeur rouvre une approbation EN ATTENTE chez le même validateur, au même montant.
+ * Conditionnelle puis compensée, comme `requestApproval` : une demande close entre-temps ne repart pas.
+ * Rend le nom du validateur quand la demande est repartie, `null` sinon.
+ */
+async function resoumettreApresModification(requestId: string, reference: string, auteurId: string, quoi: string): Promise<string | null> {
+  const derniere = await prisma.adminApproval.findFirst({
+    where: { requestId }, orderBy: { createdAt: "desc" },
+    select: { status: true, validatorId: true, amount: true, comment: true, validator: { select: { name: true, isActive: true } } },
+  });
+  if (!derniere || derniere.status !== "CHANGES_REQUESTED" || !derniere.validatorId || derniere.validator?.isActive === false) return null;
+  const nouvelle = await prisma.adminApproval.create({
+    data: {
+      requestId, requestedById: auteurId, validatorId: derniere.validatorId, status: "PENDING",
+      comment: derniere.comment, amount: derniere.amount ?? undefined,
+    },
+    select: { id: true },
+  });
+  const posee = await prisma.administrativeRequest.updateMany({
+    where: { id: requestId, ...OUVERTE }, data: { validatorId: derniere.validatorId, status: "AWAITING_VALIDATION" },
+  });
+  if (posee.count === 0) {
+    await prisma.adminApproval.deleteMany({ where: { id: nouvelle.id, status: "PENDING" } });
+    return null;
+  }
+  await notifyUser({
+    userId: derniere.validatorId, type: "VALIDATION_REQUIRED", title: "Demande corrigée — à revalider",
+    body: `${reference} — ${quoi}`, link: `/demandes/${requestId}`,
+  }).catch(() => undefined);
+  await recordAudit({
+    actorId: auteurId, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: requestId,
+    summary: `Demande ${reference} corrigée et resoumise à ${derniere.validator?.name ?? "son validateur"}`,
+  });
+  return derniere.validator?.name ?? "son validateur";
 }
 
 /**
@@ -745,8 +795,30 @@ export async function deleteRequests(formData: FormData): Promise<ActionResult> 
   const reason = fdStr(formData, "reason");
   if (!reason) return { ok: false, error: "Le motif de suppression est obligatoire (traçabilité)." };
 
-  const targets = await prisma.administrativeRequest.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, reference: true, linkedEntityType: true, linkedEntityId: true, type: true } });
-  if (targets.length === 0) return { ok: false, error: "Demande(s) introuvable(s)." };
+  const lues = await prisma.administrativeRequest.findMany({ where: { id: { in: ids }, deletedAt: null }, select: { id: true, reference: true, linkedEntityType: true, linkedEntityId: true, type: true, title: true, status: true } });
+  if (lues.length === 0) return { ok: false, error: "Demande(s) introuvable(s)." };
+
+  // SUPPRIMER, C'EST D'ABORD ANNULER CE QUI EN DÉPEND (audit du 14/10/2026). La suppression posait `deletedAt` et
+  // laissait vivre l'ordre de dépense et les validations : l'ordre restait payable au centre pour une demande que
+  // plus personne ne voyait. Une demande encore ouverte passe donc par la MÊME porte que l'annulation
+  // (`annulerDemandeSecretariat` : validations et approbations retirées, ordres non réglés annulés) ; un paiement
+  // déjà réglé la refuse, comme il refuse l'annulation. Une demande close ne garde aucun ordre en vol.
+  const targets: typeof lues = [];
+  const refus: string[] = [];
+  for (const t of lues) {
+    if (suitLaDemandeDeBcDuPoste(t)) { refus.push(`${t.reference} : ${refusDemandeDeBcDuPoste("annuler")}`); continue; }
+    if (t.status !== "DONE" && t.status !== "CANCELLED") {
+      const a = await annulerDemandeSecretariat(t.id, { acteurId: user.id, motif: reason, cause: "par sa suppression" });
+      if (!a.ok) { refus.push(a.error); continue; }
+    } else {
+      const enVol = await prisma.expenseOrder.findFirst({
+        where: { sourceType: "ADMIN_REQUEST", sourceId: t.id, status: { notIn: ["CANCELLED", "PAID"] } }, select: { reference: true },
+      });
+      if (enVol) { refus.push(`${t.reference} : son paiement ${enVol.reference} est encore en cours — annulez-le au centre de paiement d'abord.`); continue; }
+    }
+    targets.push(t);
+  }
+  if (targets.length === 0) return { ok: false, error: refus.join(" ") };
 
   await prisma.administrativeRequest.updateMany({
     where: { id: { in: targets.map((t) => t.id) } },
@@ -758,6 +830,9 @@ export async function deleteRequests(formData: FormData): Promise<ActionResult> 
   }
   revalidatePath("/demandes");
   revalidatePath("/demandes/assistant");
+  revalidatePath("/validations");
+  revalidatePath("/finances/paiements-a-faire");
+  if (refus.length > 0) return { ok: true, message: `${targets.length} demande(s) supprimée(s). Non supprimée(s) : ${refus.join(" ")}` };
   return { ok: true };
 }
 
@@ -921,12 +996,40 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
   if (!id) return { ok: false, error: "Demande introuvable." };
   const req = await prisma.administrativeRequest.findUnique({
     where: { id },
-    select: { assignedToId: true, requesterId: true, type: true, reference: true, title: true, linkedEntityType: true, status: true },
+    select: { assignedToId: true, requesterId: true, type: true, reference: true, title: true, linkedEntityType: true, linkedEntityId: true, status: true },
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
   if (!isManager(user, req.assignedToId)) return DENIED;
   const close = refusDemandeClose(req.status);
   if (close) return { ok: false, error: close };
+  // LA DERNIÈRE DÉCISION DU VALIDATEUR FAIT FOI (audit du 14/10/2026) : un achat refusé ne se termine pas (il
+  // s'imputait au budget), un achat renvoyé pour modification ne s'achète pas avant d'être revalidé.
+  const derniere = await prisma.adminApproval.findFirst({ where: { requestId: id }, orderBy: { createdAt: "desc" }, select: { status: true } });
+  const apresDecision = refusFinApresDecision(derniere);
+  if (apresDecision) return { ok: false, error: apresDecision };
+  if (req.linkedEntityType === "PROMO_MATERIAL" && req.linkedEntityId && req.type === "QUOTE") {
+    const dossier = await prisma.promoMaterial.findUnique({ where: { id: req.linkedEntityId }, select: { circuitState: true } });
+    const devisPromo = refusFinDevisPromo(dossier?.circuitState ?? null);
+    if (devisPromo) return { ok: false, error: devisPromo };
+  }
+
+  // « TERMINER » ATTEND LA SIGNATURE DU BC (devis natifs, Direction 10/2026) : un bon de commande de la demande encore
+  // au centre, à signer ou renvoyé n'engage pas la société — la demande se termine une fois le BC « signé et validé ».
+  const bcsDeLaDemande = await prisma.legalDocument.findMany({ where: { sourceType: "ADMIN_REQUEST", sourceId: id, kind: "PURCHASE_ORDER" }, select: { id: true } });
+  if (bcsDeLaDemande.length > 0) {
+    const etats = await etatsDesBC(bcsDeLaDemande.map((b) => b.id));
+    const refusBC = refusFinBCEnRoute([...etats.values()].map((e) => ({ reference: e.reference, etape: e.etape, annule: e.annule })));
+    if (refusBC) return { ok: false, error: refusBC };
+  }
+
+  // LA FACTURE DANS LA MÊME FENÊTRE (refonte du bureau, 10/2026) : « Terminer » demande la facture et l'imputation
+  // ensemble. Jointe ici, elle est rangée parmi les pièces de la demande (catégorie « Facture ») AVANT la règle
+  // ci-dessous, qui la trouve donc là où elle la cherche déjà.
+  const factureJointe = formData.getAll("facture").find((v): v is File => v instanceof File && v.size > 0) ?? null;
+  if (factureJointe) {
+    const refusFacture = await joindreFactureALaDemande(user.id, id, factureJointe);
+    if (refusFacture) return { ok: false, error: refusFacture };
+  }
 
   // LA FACTURE SE LIT LÀ OÙ L'ÉCRAN LA RANGE (lot E5). La règle ne regardait que les fichiers « Facture » de la
   // demande ; la même fiche propose « Pièces liées → Facture » (« elle restera liée à cette demande »), qui la
@@ -936,7 +1039,7 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
   if (req.type === "PURCHASE" && !(await ficheAFacture({ entityType: "ADMIN_REQUEST", entityId: id }))) {
     return {
       ok: false,
-      error: "Pour un achat, joignez d'abord la facture finale : dans « Documents » (catégorie « Facture »), ou au registre par « Pièces liées → Facture », avec son PDF. Une facture annulée, ou enregistrée sans son fichier, ne compte pas.",
+      error: "Pour un achat, joignez la facture finale : dans cette fenêtre, ou dans « Pièces » (« + Ajouter une pièce » → Facture) — une facture au registre (« Pièces liées → Facture ») compte aussi, avec son PDF. Une facture annulée, ou enregistrée sans son fichier, ne compte pas.",
     };
   }
 
@@ -1041,10 +1144,14 @@ export async function submitAttachmentValidation(formData: FormData): Promise<{ 
     select: { id: true, reference: true, title: true, requesterId: true, assignedToId: true },
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
-  const isSecretary = user.role === "DIRECTION_ASSISTANT";
+  const isSecretary = hasRole(user, "DIRECTION_ASSISTANT");
   const allowed = hasGlobalView(user.role) || isSecretary || userCan(user, "ADMIN_REQUESTS", "UPDATE")
     || req.requesterId === user.id || req.assignedToId === user.id;
   if (!allowed) return { ok: false, error: "Non autorisé sur cette demande." };
+  const autoValidation = refusValidateursPieceChiffree({
+    montant: amount, validateurs: validatorIds, soumetteurId: user.id, demandeurId: req.requesterId, traitanteId: req.assignedToId,
+  });
+  if (autoValidation) return { ok: false, error: autoValidation };
 
   const doc = await prisma.document.findFirst({
     where: { id: documentId, entityType: "ADMIN_REQUEST", entityId: requestId },
@@ -1072,10 +1179,11 @@ export async function submitAttachmentValidation(formData: FormData): Promise<{ 
     validatorIds,
     amount,
     category,
-    // Se choisir soi-même comme validateur est PERMIS ici : la validation de pièce est un avis,
-    // pas un circuit hiérarchique — sans cela, le choix s'évaporait et l'écran réclamait
-    // « au moins un validateur » alors qu'on venait d'en saisir un.
-    allowSelf: true,
+    // Se choisir soi-même comme validateur est PERMIS ici quand la pièce n'est pas chiffrée : la validation
+    // est alors un avis, pas un circuit hiérarchique — sans cela, le choix s'évaporait et l'écran réclamait
+    // « au moins un validateur » alors qu'on venait d'en saisir un. Chiffrée, elle émet un paiement : la
+    // règle ci-dessus (`refusValidateursPieceChiffree`) a déjà refusé tout validateur intéressé.
+    allowSelf: !(amount !== null && amount > 0),
   });
   if (!res.ok) return { ok: false, error: res.error };
 
@@ -1115,7 +1223,7 @@ export async function cancelAttachmentValidation(formData: FormData): Promise<{ 
   const refusRetrait = refusDuRetraitValidation({ status: val.status, version: val.version, surPlace: false, steps: val.steps });
   if (refusRetrait) return { ok: false, error: val.status === "PENDING" ? refusRetrait : "Cette validation est déjà clôturée." };
 
-  const isSecretary = user.role === "DIRECTION_ASSISTANT";
+  const isSecretary = hasRole(user, "DIRECTION_ASSISTANT");
   const allowed = hasGlobalView(user.role) || isSecretary || userCan(user, "ADMIN_REQUESTS", "UPDATE") || val.requesterId === user.id;
   if (!allowed) return { ok: false, error: "Non autorisé." };
 

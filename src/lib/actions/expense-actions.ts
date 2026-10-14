@@ -23,6 +23,10 @@ import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/lib/ad-pro/cloture-sponsoring
 import { solderVirementPaie } from "@/lib/hr/paie-centre";
 import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
+import { validateUpload } from "@/lib/storage";
+import { getAppSettings } from "@/lib/settings";
+import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
+import { ordresBvAvecQuittance, deposerQuittanceBv, cocherPaiementBv } from "@/lib/regulatory/bv-reglement";
 
 /**
  * OÙ ENVOYER LE DEMANDEUR D'UN ORDRE — le dossier qui l'a émis (sa demande, ses pièces), qu'il peut
@@ -89,6 +93,24 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // financière (§118.185, audit 360° I6) : trois écritures de la même question divergeaient.
   if (order.requiresInvoice && !(await ordreAFacture({ id: order.id, sourceType: order.sourceType, sourceId: order.sourceId }))) {
     return { ok: false, error: "Facture obligatoire : joignez la facture à l'ordre, à son dossier ou à la fiche d'origine (ou enregistrez-la dans Legal) avant de régler, ou demandez-la au demandeur." };
+  }
+
+  // ── LE BV D'UN DOSSIER RÉGLEMENTAIRE SE RÈGLE AVEC SA QUITTANCE (Direction, 10/2026) ────────
+  //
+  // « Une fois payé, les Finances uploadent le document et mettent “payé”. » La quittance (bon de
+  // versement payé) arrive avec ce geste — champ `quittance` — ou est déjà jointe ; sans elle, le
+  // dossier se dirait payé sans la pièce que l'équipe Regulatory doit remettre à l'ANPP. Le fichier
+  // se juge ICI, avant toute écriture ; il ne se range qu'une fois le règlement certain de passer.
+  const natureBv = natureDeLOrdreBv(order);
+  const quittance = natureBv ? formData.get("quittance") : null;
+  const fichierQuittance = quittance instanceof File && quittance.size > 0 ? quittance : null;
+  if (natureBv) {
+    if (fichierQuittance) {
+      const err = validateUpload(fichierQuittance.name, fichierQuittance.size, (await getAppSettings()).maxUploadMb);
+      if (err) return { ok: false, error: err };
+    } else if (!(await ordresBvAvecQuittance([order])).has(order.id)) {
+      return { ok: false, error: `Quittance obligatoire : joignez le ${LIBELLE_NATURE_BV[natureBv]} payé (quittance) pour marquer ce paiement « payé » — elle se range sur l'étape « Paiement du ${LIBELLE_NATURE_BV[natureBv]} » du dossier.` };
+    }
   }
 
   // ── UNE REMISE DE CAISSE D'AVANCE N'EST PAS UNE DÉPENSE (§118.176) ─────────────────────────
@@ -163,6 +185,17 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     budgetCategoryId = gate.categoryId;
   }
 
+  // LA QUITTANCE DU BV SE RANGE MAINTENANT — sur l'étape « Paiement du BV » du dossier, avant l'écriture :
+  // un stockage qui échoue arrête le règlement au lieu de laisser un BV « payé » sans sa pièce.
+  if (natureBv && fichierQuittance) {
+    try {
+      await deposerQuittanceBv(order, fichierQuittance, user.id);
+    } catch (e) {
+      console.error("[expense] quittance du BV non enregistrée", e);
+      return { ok: false, error: "La quittance n'a pas pu être enregistrée : réessayez — rien n'a été réglé." };
+    }
+  }
+
   // L'ÉCRITURE PORTE L'ENTITÉ DE L'ORDRE ET LE COMPTE D'OÙ PART L'ARGENT (§118.176). Sans
   // l'entité, un comptable cloisonné sur sa société ne voyait pas ses propres règlements dans le
   // livre ; sans le compte, le solde de chaque compte ne se calcule pas. Le compte CHOISI au
@@ -216,6 +249,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     // seul quand chaque BC est reçu, facturé, payé et visé (maquette validée, 10/2026). Ne lève jamais.
     const promoId = await dossierPromoDeLaFacture(order.sourceId).catch(() => null);
     if (promoId && (await cloreLeDossierPromoSiSolde(promoId, user.id))) revalidatePath(`/promo-material/${promoId}`);
+  } else if (natureBv && order.sourceId) {
+    // LE BV DU DOSSIER EST PAYÉ : l'étape « Paiement du BV » se coche (idempotent), et le niveau de
+    // process suit par son seul écrivain. Ne lève jamais : l'argent est parti, l'étape se rattrape.
+    await cocherPaiementBv(order, user.id).catch((e) => console.error("[expense] étape « Paiement du BV » non cochée", e));
+    revalidatePath(`/regulatory/${order.sourceId}`);
   } else if (order.sourceType === "PAYROLL" && order.sourceId) {
     // LA PAIE EST VIRÉE (§118.176) : le virement garde le FAIT (il survit à la purge de
     // l'historique), et la masse salariale suit. Les salariés seront prévenus par le planificateur.
@@ -243,7 +281,9 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     // pas son écran — la même règle que « Facture demandée » ci-dessous.
     await notifyUser({
       userId: order.requestedById, type: "GENERIC", title: "Ordre de dépense réglé",
-      body: `${order.reference} — ${order.label}`, link: await lienDuDossierDeLOrdre(order.id),
+      // Un BV de dossier : le demandeur va sur le DOSSIER, où l'étape « Paiement du BV » porte la quittance.
+      body: `${order.reference} — ${order.label}`,
+      link: natureBv && order.sourceId ? `/regulatory/${order.sourceId}` : await lienDuDossierDeLOrdre(order.id),
     });
   }
 

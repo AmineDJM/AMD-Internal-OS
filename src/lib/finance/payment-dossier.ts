@@ -59,7 +59,9 @@ export function hasJustifyingPiece(pieces: readonly DossierPiece[]): boolean {
  * Le rattachement à une déclaration d'information médicale, et lui seul : c'est ce que pose
  * `requestMedicalInfoQuittance` au moment où elle crée la demande. Aucune heuristique sur le
  * titre — « bon de versement » écrit dans l'objet d'une demande fournisseur ordinaire ouvrirait
- * l'exemption à qui saurait la formule.
+ * l'exemption à qui saurait la formule. Le rattachement lui-même se PROUVE à la création
+ * (`createPaymentRequest` → `bonDeVersementRattache`, audit 10/2026) : la déclaration existe, le
+ * demandeur la voit, et la demande naît d'un de ses bons. Ce module pur lit un fait déjà vérifié.
  */
 export function isBonDeVersement(req: { entityType?: string | null }): boolean {
   return req.entityType === "MEDICAL_INFO_DECLARATION";

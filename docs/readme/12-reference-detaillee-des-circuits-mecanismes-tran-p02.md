@@ -938,12 +938,29 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   numéro, TOUS types confondus, jamais supprimé). Y vont : le **bon de commande** d'une société au registre
   (`settings.registreDG`, posé pour Adventum, Pharmagène et AMD par la migration `20270117160000_registre_dg`, ou BC déjà
   au motif /DG/) et toute pièce de la fabrique au motif /DG/, l'**ordre de mission** (`ordre-mission-depot.ts`, société
-  imprimée sinon employeur), la **lettre de demande de devis** (`demande-devis-depot.ts`, poste Ad & Pro et dossier
-  promotionnel). Le numéro est attribué à la FINALISATION (jamais à l'aperçu ni au brouillon) ; chaque formulaire
+  imprimée sinon employeur), l'**attestation de travail** (`attestation-travail-depot.ts`, docType `ATTESTATION_TRAVAIL`,
+  rattachée à la demande RH — une régénération GARDE la référence de la version précédente), la **lettre de demande de
+  devis** (`demande-devis-depot.ts`, poste Ad & Pro et dossier promotionnel). Le numéro est attribué à la FINALISATION (jamais à l'aperçu ni au brouillon) ; chaque formulaire
   porte un champ « Référence » (`components/references/champ-reference.tsx`) prérempli avec le prochain numéro, modifiable,
   vérifié en direct (`verifierReferenceRegistre`) : un numéro libre est accepté, plus haut il fait avancer le compteur,
   pris il est refusé ; laissé tel quel, le prochain libre est attribué (`saisieEffective`). 2026 commence à `040/DG/2026`,
   chaque année repart à `001`. Les autres sociétés gardent leur numérotation (ordre de mission `NNN/DPG/AAAA`).
+- **L'ATTESTATION DE TRAVAIL GÉNÉRÉE (Demandes RH, 10/2026)** — « comme les ordres de mission ». Sur une demande
+  `WORK_CERTIFICATE`, « Générer l'attestation » (`rh/[id]/attestation-travail-form.tsx`, dans la file « Demandes RH » et
+  sur la fiche du salarié ; porte `HR_REQUESTS` UPDATE + périmètre `clauseSalariesVisibles`). `preparerAttestationDeTravail`
+  préremplit, champ par champ et avec sa PROVENANCE : la fiche RH d'abord (nom, poste, naissance, date d'embauche =
+  `hireDate` ?? `contractStart`, champs personnalisés « lieu de naissance » / « civilité »), puis ce qui a été lu dans le
+  **contrat de travail** versé au dossier (`EmployeeDocument` `CONTRACT` le plus récent) — par **Luna**
+  (`lib/attestation-travail-luna.ts`, fonction IA `attestation_travail` qui suit la bascule de l'assistant ; interrupteur
+  général, clé, appel borné, JSON relu strictement, journal) ou, IA fermée/en panne, par la **lecture déterministe**
+  (`lireContratDeterministe` : « né(e) le … à … », « en qualité de … », « à compter du … ») — puis l'identité légale de la
+  société (dénomination + forme ; signataire du profil documentaire, sinon représentant légal), puis les défauts (« Fait à
+  Alger », aujourd'hui à Alger). Le **signataire** se choisit EN FIN de formulaire dans la liste des personnes (salariés
+  actifs avec leur fonction, comptes sans fiche) ; tout reste modifiable. `genererAttestationDeTravail` : référence au
+  registre, modèle `hr/attestation-travail/modele-attestation-de-travail.docx` (bâti sur l'attestation de la Direction,
+  même papier à en-tête que l'ordre de mission, marqueurs `{{…}}`, accords Monsieur/Madame), PDF remis au salarié
+  (« Mon dossier RH »), Word aux RH, demande « prête », audit sur la demande (`field = attestation_travail`). **Régénérer
+  = nouvelle version** : l'ancienne pièce quitte la demande et n'est plus visible du salarié, mais reste au dossier RH.
 - **Le BROUILLON du BC — « à vérifier par le demandeur » (08-09/10)** — règle pure `lib/bons-de-commande/brouillon.ts`
   (+ tests ; partagée par le poste Ad & Pro et le devis de matériel promotionnel, `promo-material/bc-brouillon-promo.ts`).
   Générer un BC ne l'émet plus : un **aperçu** se dépose sur le devis (`AdProDevis.bcBrouillon`, `PromoQuote.bcBrouillon`,
@@ -956,6 +973,20 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   signature). Côté matériel promotionnel, le brouillon se crée **automatiquement** à la dernière validation des lignes
   retenues. Les devis téléversés sont cliquables. Historique : départ fixé d'abord à 037 (`20270117130500`), puis
   **040/DG/2026** pour Adventum, Pharmagène et AMD (`20270117140000_bc_numerotation_040`, jamais à reculons).
+- **Le BC du poste EN UN CLIC, et la même pièce comptée une fois (Direction, 14/10)** — la case « Bon de commande »
+  (`components/ad-pro/devis-bc-poste.tsx`) porte TOUJOURS « Générer le bon de commande » dès qu'un devis qui compte a des
+  lignes validées : le demandeur (ou le Super Admin) génère d'un geste (`genererEtEnvoyerBcPoste`, même chemin que la
+  validation de l'aperçu : fabrique → numéro, Word + PDF → `aiguillerBC`) ; « Voir l'aperçu d'abord » reste offert, et
+  qui n'est pas le demandeur prépare l'aperçu. Bloqué (plafond, budget, demande chez l'assistante), le bouton reste visible,
+  inactif, la raison écrite à côté et « Demander une révision du poste ». Le plafond ne somme que les devis QUI COMPTENT
+  (`refusMontantDesDevis`, `lib/ad-pro/devis-poste.ts`) : `devisMisAPart` écarte la COPIE d'une pièce déjà comptée (mêmes
+  lignes ET même fichier — empreinte SHA-256 du blob ou de la lecture, `empreintesDesDevis` — ou même numéro chez le même
+  fournisseur ; les mêmes lignes seules ne sont qu'un « doublon probable », dit sans être décidé) et, en billetterie, les
+  propositions d'un voyageur autres que la retenue (seule = retenue d'office ; plusieurs sans choix = aucune). La cause :
+  la pro forma de l'agence, redéposée pour chaque voyageur, devenait N devis validés d'office (5 × 117 250 DZD affichés
+  « au-delà des 124 750 accordés ») ; `ajouterDevisVoyageur` reconnaît désormais le même fichier (rattaché au voyageur
+  s'il n'est à personne, jamais dupliqué) et la validation d'office saute toute copie ou doublon probable.
+  Banc : `lib/ad-pro/bc-meme-piece-flow.test.ts`.
 - **La mise en page est du code, et c'est celle des pièces de la maison** (`build.ts` → `word.ts`). Deux modèles,
   relevés sur deux pièces réelles fournies par la Direction. La **FACTURE** (modèle Pharmagène) : émetteur et
   « Facture » face à face avec numéro de client, numéro et date ; bande « Facturer à : » ; bloc client et RC / NIF /

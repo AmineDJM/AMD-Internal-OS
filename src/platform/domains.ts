@@ -167,6 +167,12 @@ const SOCLE = [
    */
   "src/lib/bons-de-commande/regle",
   /**
+   * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
+   * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions
+   * en lisent les refus. Chemin EXACT, comme `regle`.
+   */
+  "src/lib/bons-de-commande/prevalidation",
+  /**
    * `chemins/` : les ADRESSES des écrans que plusieurs couches citent (§118.173) — des constantes,
    * zéro import. Le menu (`labels.ts`, au socle) lit l'adresse du stock promotionnel ; les
    * écrivains du stock (domaine `adpro`), les actions, les chargeurs et les écrans aussi. Écrite

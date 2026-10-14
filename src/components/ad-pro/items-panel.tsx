@@ -50,6 +50,8 @@ import { faitDeStock, NATURE_MATERIEL_STOCK } from "@/lib/promo/reservations";
 import { BlocMaterielStock, type LigneStockVue, type ContexteMaterielStock } from "./materiel-stock";
 import { BlocVoyageurs, type VoyageurVue } from "./voyageurs-bloc";
 import { BlocHebergements, type HebergementVue } from "./hebergements-bloc";
+import { FichesNouveauPoste, joindreFichiersDesFiches, type FicheBrouillon } from "./fiches-nouveau-poste";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 import { ConseilLuna } from "./conseil-luna";
 import type { PiecesDuPoste, PieceDePoste, DemandeBCDuPoste } from "@/lib/ad-pro/pieces-poste";
 import type { DevisDePosteVue } from "@/lib/queries/ad-pro-devis-poste";
@@ -86,7 +88,7 @@ export interface ItemRow {
   promoMaterialId: string | null;
   promoMaterial: { reference: string; title: string; status: string } | null;
   expenseOrderId: string | null;
-  expenseOrder: { reference: string; status: string } | null;
+  expenseOrder: { reference: string; status: string; centralStatus?: string | null } | null;
   /** Cycle de validation propre au poste. */
   status: AdProItemStatus;
   budgetKind: AdProItemBudgetKind;
@@ -137,6 +139,8 @@ export interface ItemRow {
   voyageurs: VoyageurVue[];
   /** Les fiches hôtellerie d'un poste « hôtellerie » — vide sinon (Direction, 06/10). */
   hebergements: HebergementVue[];
+  /** L'état de chaque fiche (voyageur, fiche hôtellerie) chez l'assistante de direction — par fiche (14/10). */
+  envois?: Record<string, EnvoiVue>;
   /**
    * Le poste vit dans un sponsoring INDIRECT (né d'une répartition, ou posé sur un sponsoring de
    * nature indirecte) : ses fiches par personne sont facultatives. Calculé au serveur.
@@ -577,10 +581,18 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
     entrees.push({ cle: "modifier-bc", libelle: "Modifier la demande de BC", icone: <Pencil className="h-3.5 w-3.5" />, faire: () => setPanneau("MODIFIER_BC") });
     if (bcAnnulable) entrees.push({ cle: "retirer-bc", libelle: "Annuler la demande de BC", icone: <Undo2 className="h-3.5 w-3.5" />, danger: bcLegal, faire: () => setPanneau("RETIRER_BC") });
   }
-  // L'ORDRE ÉMIS S'ANNULE TANT QU'IL N'EST PAS RÉGLÉ (audit R06) — les Finances ou qui tranche.
-  const ordreAnnulable = Boolean(item.expenseOrderId) && ["PENDING", "REVISION_REQUESTED"].includes(item.expenseOrder?.status ?? "");
-  if (ordreAnnulable && regard.canEmettre) {
-    entrees.push({ cle: "annuler-ordre", libelle: "Annuler la demande de paiement", icone: <Ban className="h-3.5 w-3.5" />, danger: true, faire: () => setPanneau("ANNULER_ORDRE") });
+  // L'ORDRE ÉMIS S'ANNULE TANT QU'IL N'EST PAS RÉGLÉ (audit R06) — les Finances, qui tranche, ET le demandeur : l'action
+  // l'accepte de lui (« on annule sa demande tant qu'elle n'a pas été exécutée », 04/10), la carte ne le lui cachait pas
+  // moins (audit Ad & Pro, 14/10). Un ordre déjà ANNULÉ ailleurs (facture annulée dans Legal) se « libère » par le même
+  // geste : sans lui, le poste restait « paiement en cours » pour toujours, et ne se repayait plus.
+  const ordreAnnulable = Boolean(item.expenseOrderId) && ["PENDING", "REVISION_REQUESTED", "CANCELLED"].includes(item.expenseOrder?.status ?? "");
+  const peutAnnulerOrdre = ordreAnnulable && (regard.canEmettre || regard.canEdit);
+  if (peutAnnulerOrdre) {
+    entrees.push({
+      cle: "annuler-ordre",
+      libelle: item.expenseOrder?.status === "CANCELLED" ? "Libérer le poste (ordre annulé)" : "Annuler la demande de paiement",
+      icone: <Ban className="h-3.5 w-3.5" />, danger: true, faire: () => setPanneau("ANNULER_ORDRE"),
+    });
   }
   // REVOIR LA DÉCISION (audit R12) — qui tranche le SECOND temps pour un poste d'argent (l'action le
   // refuse à tout autre), qui arbitre pour le matériel du stock. Le demandeur, lui, DEMANDE une révision.
@@ -589,7 +601,8 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
   if (peutRevoir && revisable) {
     entrees.push({ cle: "revoir", libelle: "Revoir la décision", icone: <Scale className="h-3.5 w-3.5" />, faire: () => setPanneau("REVOIR_DECISION") });
   }
-  if (!arbitrer && editer && !stock && !bcLegal && item.status === "APPROVED" && !item.expenseOrderId && item.orderStage !== "ISSUED") {
+  const peutDemanderRevision = !arbitrer && editer && !stock && !bcLegal && item.status === "APPROVED" && !item.expenseOrderId && item.orderStage !== "ISSUED";
+  if (peutDemanderRevision) {
     entrees.push({ cle: "revision", libelle: "Demander une révision", icone: <RotateCcw className="h-3.5 w-3.5" />, faire: () => setPanneau("REVISION_DEMANDEE") });
   }
   // DEMANDER UN DEVIS (ou réclamer la facture) À L'ASSISTANTE — la liste canonique et sa garde
@@ -807,7 +820,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
           onSend={(motif) => void run(`por:${item.id}`, () => retirerDemandeBC(undefined, fdOf({ motif })), "Demande de bon de commande annulée.").then(fermer)}
         />
       )}
-      {panneau === "ANNULER_ORDRE" && ordreAnnulable && regard.canEmettre && (
+      {panneau === "ANNULER_ORDRE" && peutAnnulerOrdre && (
         <GesteAvecMotif
           titre={`Annuler la demande de paiement ${item.expenseOrder?.reference ?? ""}`}
           aide="Elle n'est pas réglée : elle s'annule, et la facture pourra être redéposée — corrigée si besoin."
@@ -920,6 +933,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
           titre={direct ? `Joindre la ${LIBELLE_JUSTIFICATIF_DIRECT.toLocaleLowerCase("fr")}` : "Joindre un devis ou une facture pro forma"}
           aide="Le fichier est obligatoire. Un même devis peut couvrir d'autres postes de cette demande."
           montantInitial={null} fournisseurInitial={item.supplier ?? ""} proforma={direct ? "imposee" : "choix"} freres={freres}
+          plusieursDevis
           bouton="Joindre" busy={busy === `dev:${item.id}`} onCancel={fermer}
           onSubmit={(fd) => {
             fd.set("id", item.id);
@@ -1064,6 +1078,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
           montantAccorde={item.amountGranted}
           bcPossible={pas.geste?.cle === "DEMANDER_BC" && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK"}
           assistantes={assistantes}
+          envois={item.envois}
         />
       )}
 
@@ -1077,6 +1092,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
           obligatoire={!item.priseEnChargeIndirecte}
           busy={busy}
           run={run}
+          envois={item.envois}
         />
       )}
 
@@ -1160,6 +1176,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
                   busy={busy}
                   run={run}
                   onJoindre={() => basculer("DEMANDER_BC")}
+                  onReviser={peutDemanderRevision ? () => setPanneau("REVISION_DEMANDEE") : undefined}
                   repli={<EtatBC item={item} />}
                 />
                 {bcAnnulable && toucheBC && (
@@ -1605,7 +1622,13 @@ function VerifierBC({ demandeId, busy, onDecide, onCancel }: {
 function FormulairePiece({
   titre, aide, bouton, busy, onSubmit, onCancel, montantInitial, montantMax = null, montantObligatoire = false,
   fournisseurInitial, proforma, freres = [], libelleFichier = "Fichier", fichierObligatoire = true, factureFacultative = false,
+  plusieursDevis = false,
 }: {
+  /**
+   * DÉPÔT DE DEVIS : plusieurs fichiers joints d'un coup sont, d'office, PLUSIEURS devis — chacun lu et transformé en lignes
+   * (`ajouterDevisPoste`, `unDevisParFichier`). La case se décoche quand les fichiers sont les pages d'un même devis.
+   */
+  plusieursDevis?: boolean;
   titre: string; aide: string; bouton: string; busy: boolean; onSubmit: (fd: FormData) => void; onCancel: () => void;
   montantInitial: number | null; montantMax?: number | null; montantObligatoire?: boolean;
   /** Ce que le fichier principal EST (« Proforma / lettre de demande de sponsoring » pour un versement à l'association). */
@@ -1622,6 +1645,9 @@ function FormulairePiece({
   freres?: PosteFrere[];
 }) {
   const champ = "mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:py-1.5 sm:text-sm";
+  const [nbFichiers, setNbFichiers] = React.useState(0);
+  const [unParFichier, setUnParFichier] = React.useState(true);
+  const separes = plusieursDevis && nbFichiers > 1 && unParFichier;
   return (
     <form
       onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); }}
@@ -1631,8 +1657,19 @@ function FormulairePiece({
       <p className="text-muted-foreground">{aide}</p>
       <label className="block">
         {libelleFichier}{fichierObligatoire ? "" : " — déjà sur le poste"}
-        <input type="file" name="attachment" multiple required={fichierObligatoire} className="mt-1 block w-full text-xs" />
+        <input
+          type="file" name="attachment" multiple required={fichierObligatoire} className="mt-1 block w-full text-xs"
+          onChange={(e) => setNbFichiers(e.target.files?.length ?? 0)}
+        />
       </label>
+      {plusieursDevis && nbFichiers > 1 && (
+        <label className="inline-flex min-h-9 items-start gap-1.5 sm:min-h-0">
+          <input type="checkbox" name="unDevisParFichier" checked={unParFichier} onChange={(e) => setUnParFichier(e.target.checked)} className="mt-0.5" />
+          <span>
+            Un devis par fichier ({nbFichiers} devis) — chacun est lu et transformé en lignes. Décochez si ces fichiers sont les pages d&apos;un même devis.
+          </span>
+        </label>
+      )}
       {factureFacultative && (
         <label className="block">
           Facture — facultative
@@ -1640,17 +1677,22 @@ function FormulairePiece({
         </label>
       )}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <label>
-          Montant (DZD){montantObligatoire ? "" : " — facultatif"}
-          <input
-            type="number" inputMode="decimal" name="montant" min="0" step="0.01" required={montantObligatoire}
-            max={montantMax ?? undefined} defaultValue={montantInitial ?? ""} className={`${champ} tabular-nums`}
-          />
-        </label>
-        <label>
-          Référence — facultatif
-          <input name="reference" placeholder="N° de la pièce" className={champ} />
-        </label>
+        {/* Plusieurs devis d'un coup : le montant et la référence se lisent sur CHACUN — un champ unique serait faux pour tous. */}
+        {!separes && (
+          <>
+            <label>
+              Montant (DZD){montantObligatoire ? "" : " — facultatif"}
+              <input
+                type="number" inputMode="decimal" name="montant" min="0" step="0.01" required={montantObligatoire}
+                max={montantMax ?? undefined} defaultValue={montantInitial ?? ""} className={`${champ} tabular-nums`}
+              />
+            </label>
+            <label>
+              Référence — facultatif
+              <input name="reference" placeholder="N° de la pièce" className={champ} />
+            </label>
+          </>
+        )}
         {fournisseurInitial !== undefined && (
           <label className="sm:col-span-2">
             Fournisseur — facultatif
@@ -1893,9 +1935,17 @@ function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
   const [nature, setNature] = React.useState<AdProItemKind>("STAND");
   const stock = nature === NATURE_MATERIEL_STOCK;
   const indirect = nature === "INDIRECT_SUPPORT";
+  // LES FICHES SAISIES AVEC LE POSTE (Direction, 10/2026) : billetterie → voyageurs, hôtellerie → personnes logées.
+  const natureFiches = porteDesVoyageurs(nature) ? "VOYAGEUR" as const : porteDesHebergements(nature) ? "HEBERGEMENT" as const : null;
+  const [fiches, setFiches] = React.useState<FicheBrouillon[]>([]);
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        if (natureFiches) joindreFichiersDesFiches(fd, fiches, natureFiches);
+        onSubmit(fd);
+      }}
       className="space-y-2 rounded-xl border border-border p-3"
     >
       <input type="hidden" name="parent" value={parent} />
@@ -1904,7 +1954,7 @@ function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
         <label className="text-xs">
           Nature
           <select
-            name="kind" value={nature} onChange={(e) => setNature(e.target.value as AdProItemKind)}
+            name="kind" value={nature} onChange={(e) => { setNature(e.target.value as AdProItemKind); setFiches([]); }}
             className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
           >
             {ITEM_KINDS.map((k) => <option key={k} value={k}>{ITEM_KIND_LABELS[k]}</option>)}
@@ -1933,6 +1983,8 @@ function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
       </div>
 
       {indirect && <EditeurRepartition />}
+
+      {natureFiches && <FichesNouveauPoste key={natureFiches} nature={natureFiches} fiches={fiches} onChange={setFiches} />}
 
       {stock && (
         <p className="rounded-lg bg-secondary/40 px-2.5 py-1.5 text-xs text-muted-foreground">

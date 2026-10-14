@@ -174,6 +174,11 @@ export const MODULES = [
   // TOUT) = la vue de la Direction ; Modifier = piloter la campagne ; le responsable d'un département prépare SON pôle
   // par l'organigramme (accès implicite, portée bornée). Valider = le comité nommé dans la campagne, pas ce droit seul.
   "BUDGET_CAMPAIGN",
+  // ART_DIRECTION : « Direction artistique » (Transverse, 10/2026) — la papeterie de CHAQUE entité, tenue par l'assistante
+  // de direction : papiers en-tête Word, modèle de bon de commande (et de devis, facture, avoir), modèles PowerPoint et
+  // Excel, logo et charte. C'est ICI que la fabrique va chercher le modèle d'une pièce. Voir = lire ; Téléverser =
+  // déposer un modèle ; Modifier = choisir le modèle par défaut / par nature, régler la charte ; Supprimer = retirer.
+  "ART_DIRECTION",
 ] as const;
 export type Module = (typeof MODULES)[number];
 
@@ -325,6 +330,11 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     GENERAL_MEANS: MANAGE, ADMIN_REQUESTS: MANAGE, LEGAL: CONTRIBUTE, MAIL_REGISTER: READ,
     REGULATORY: READ, BUDGETS: READ, FINANCES: READ, RH: READ, MEDICAL: READ, FIELD_REPORTS: READ,
     DOCUMENTS: CONTRIBUTE,
+    // L'INFORMATION MÉDICALE, EN LECTURE ET EN ENTIER (Direction, 10/2026) : tout ce que le pharmacien
+    // responsable fait valider lui revient (`medical-info/decideur.ts`) — il ouvre donc le registre, le
+    // dossier et ses pièces. Il TRANCHE sans instruire : pas de VALIDATE ici, qui ferait de lui un
+    // second pharmacien (demander des pièces, ouvrir des dossiers). La portée ALL est dans `defaultScope`.
+    MEDICAL_INFO: READ,
     // LA FORCE DE VENTE ET LES BUSINESS UNITS (Direction, 08/10 : « Droits du Directeur des opérations : gestion de la
     // Force de vente et des Business Units … → oui ») : il les GÈRE, en portée TOUT (`resolveRepScope` → « all »). Le
     // Marketing cockpit, lui, reste en LECTURE : il se recopiait de la Force de vente (plus bas) et n'est pas son métier.
@@ -720,6 +730,15 @@ for (const [role, actions] of Object.entries(BUDGET_CAMPAIGN_PAR_DEFAUT) as [Use
   if (!PERMISSIONS[role].BUDGET_CAMPAIGN) PERMISSIONS[role].BUDGET_CAMPAIGN = [...actions];
 }
 
+/** « DIRECTION ARTISTIQUE » PAR DÉFAUT (Transverse, 10/2026) — l'assistante de direction la tient (le Super Admin a tout).
+ *  Personne d'autre : la console l'ouvre au cas par cas, personne par personne. */
+const ART_DIRECTION_PAR_DEFAUT: Partial<Record<UserRole, Action[]>> = {
+  DIRECTION_ASSISTANT: ["VIEW", "CREATE", "UPDATE", "DELETE", "UPLOAD"],
+};
+for (const [role, actions] of Object.entries(ART_DIRECTION_PAR_DEFAUT) as [UserRole, Action[]][]) {
+  if (!PERMISSIONS[role].ART_DIRECTION) PERMISSIONS[role].ART_DIRECTION = [...actions];
+}
+
 const GLOBAL_VIEW_ROLES: UserRole[] = ["SUPER_ADMIN", "DIRECTION"];
 
 /** Type minimal « porteur de rôles » : rôle principal + éventuel rôle secondaire. */
@@ -1048,7 +1067,8 @@ export function defaultScope(role: UserRole, module: Module): AccessScope {
   }
   // Information médicale : le pharmacien responsable voit tout ; les autres (Direction
   // exceptée via hasGlobalView) ne voient que les déclarations où une pièce leur est demandée.
-  if (module === "MEDICAL_INFO") return role === "MEDICAL_INFO_PHARMACIST" ? "ALL" : "ASSIGNED";
+  // Le Directeur des Opérations, qui tranche tout ce que le pharmacien fait valider, voit tout aussi.
+  if (module === "MEDICAL_INFO") return role === "MEDICAL_INFO_PHARMACIST" || role === "OPERATIONS_DIRECTOR" ? "ALL" : "ASSIGNED";
   // Directives : chacun ne voit que celles qui le concernent (la Direction voit tout via ALL).
   if (module === "DIRECTIVES") return "ASSIGNED";
   // Demandes de support : chacun ne voit que ce qu'il a émis / reçu (rôle visé) / pris en charge.

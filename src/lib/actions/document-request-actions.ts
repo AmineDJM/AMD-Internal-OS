@@ -10,12 +10,15 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { buildRef, createWithRetry } from "@/lib/refs";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { nextDocRequestStatus, canSubmit, canDecide, refusAnnulationPiece, STATUTS_PIECE_ANNULABLES } from "@/lib/doc-request";
+import {
+  nextDocRequestStatus, canSubmit, canDecide, refusAnnulationPiece, refusReaffectation, STATUTS_PIECE_ANNULABLES, STATUTS_PIECE_REAFFECTABLES,
+} from "@/lib/doc-request";
+import { tientPourLaSollicitee } from "@/lib/doc-request-interim";
 import { companyIdForNew } from "@/lib/company";
 import { pieceKindOf, legalKindOfPiece, legalTitleFromPiece, PIECE_KIND_LABEL } from "@/lib/legal/from-piece";
 import { aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
 import { reserveDeLAiguillage } from "@/lib/bons-de-commande/regle";
-import { natureDePiece, rattacherPieceAuPoste, societeDuPoste } from "@/lib/ad-pro/pieces-poste";
+import { assistantesDeDirection, natureDePiece, rattacherPieceAuPoste, societeDuPoste } from "@/lib/ad-pro/pieces-poste";
 
 const PATH = "/pieces";
 
@@ -108,7 +111,9 @@ export async function submitDocumentRequest(formData: FormData): Promise<ActionR
     if (!id) return { ok: false, error: "Demande introuvable." };
     const req = await prisma.documentRequest.findUnique({ where: { id } });
     if (!req) return { ok: false, error: "Demande introuvable." };
-    if (!canSubmit(req, user.id)) return { ok: false, error: "Seule la personne sollicitée peut déposer." };
+    // L'INTÉRIMAIRE de l'assistante sollicitée pour le BC d'un poste Ad & Pro dépose à sa place (audit
+    // Assistante de direction, 10/2026) : absente, la demande restait figée chez elle.
+    if (!canSubmit(req, user.id, await tientPourLaSollicitee(user.id, req))) return { ok: false, error: "Seule la personne sollicitée (ou son intérimaire, pour le BC d'un poste) peut déposer." };
 
     // Signaler « déposé » sans rien avoir joint enverrait le demandeur chercher un fichier
     // inexistant — et le fil repartirait pour un tour inutile.
@@ -306,6 +311,60 @@ export async function cancelDocumentRequest(formData: FormData): Promise<ActionR
     return { ok: true, id };
   } catch (err) {
     console.error("[doc-request] cancelDocumentRequest failed", err);
+    return { ok: false, error: "L'opération a échoué." };
+  }
+}
+
+/**
+ * RÉAFFECTER LE BC D'UN POSTE À UNE AUTRE ASSISTANTE (audit Assistante de direction, 10/2026).
+ *
+ * La demande de bon de commande d'un poste Ad & Pro part chez UNE assistante nommée (`requestAdProItemOrder`) : absente,
+ * débordée ou partie, la demande restait figée chez elle. Qui l'a demandée, l'assistante sollicitée (ou son intérimaire)
+ * et la Direction la passent à une autre assistante de direction ACTIVE (`refusReaffectation`). Tant que la pièce n'est
+ * pas déposée : l'écriture est conditionnelle (un dépôt croisé l'emporte), le poste suit (`bcAssistantId`), la nouvelle
+ * assistante est prévenue, l'ancienne aussi.
+ */
+export async function reaffecterDemandeBC(formData: FormData): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    const id = fdStr(formData, "id");
+    const cibleId = fdStr(formData, "assistantId");
+    if (!id) return { ok: false, error: "Demande introuvable." };
+    if (!cibleId) return { ok: false, error: "Choisissez l'assistante de direction qui reprend la demande." };
+    const req = await prisma.documentRequest.findUnique({ where: { id } });
+    if (!req) return { ok: false, error: "Demande introuvable." };
+    const remplace = await tientPourLaSollicitee(user.id, req);
+    const refus = refusReaffectation(req, { id: user.id, vueGlobale: hasGlobalView(user.role), remplace }, cibleId);
+    if (refus) return { ok: false, error: refus };
+    const cible = (await assistantesDeDirection()).find((a) => a.id === cibleId);
+    if (!cible) return { ok: false, error: "Cette personne n'est pas une assistante de direction active." };
+
+    const pris = await prisma.documentRequest.updateMany({
+      where: { id, askedToId: req.askedToId, status: { in: [...STATUTS_PIECE_REAFFECTABLES] } },
+      data: { askedToId: cible.id },
+    });
+    if (pris.count === 0) return { ok: false, error: "Cette demande vient de changer — rechargez la page." };
+    await prisma.adProItem.updateMany({ where: { id: req.entityId }, data: { bcAssistantId: cible.id } });
+    const avant = await prisma.user.findUnique({ where: { id: req.askedToId }, select: { name: true } });
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Pièces demandées", entityType: "DOCUMENT_REQUEST", entityId: id,
+      field: "askedToId", oldValue: req.askedToId, newValue: cible.id,
+      summary: `Demande de pièce ${req.reference} réaffectée de ${avant?.name ?? "—"} à ${cible.name} — ${req.label}`,
+    });
+    await notifyUser({
+      userId: cible.id, type: "ASSIGNMENT",
+      title: "Bon de commande à établir", body: `${req.reference} — ${req.label} (repris de ${avant?.name ?? "une collègue"})`, link: `${PATH}/${id}`,
+    });
+    if (req.askedToId !== user.id) {
+      await notifyUser({
+        userId: req.askedToId, type: "GENERIC",
+        title: "Demande de bon de commande réaffectée", body: `${req.reference} — reprise par ${cible.name}.`, link: `${PATH}/${id}`,
+      });
+    }
+    revalidate(id, req.link);
+    return { ok: true, id, message: `Demande réaffectée à ${cible.name}.` };
+  } catch (err) {
+    console.error("[doc-request] reaffecterDemandeBC failed", err);
     return { ok: false, error: "L'opération a échoué." };
   }
 }

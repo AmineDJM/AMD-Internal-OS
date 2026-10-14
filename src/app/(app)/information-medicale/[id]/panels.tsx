@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Send, Upload, Trash2, ShieldCheck, AlertCircle, FileText, BadgeCheck, Lock, HandCoins, PackageCheck, Plus, BellRing } from "lucide-react";
+import { Loader2, Send, Upload, Trash2, ShieldCheck, AlertCircle, FileText, BadgeCheck, Lock, HandCoins, PackageCheck, Plus, BellRing, XCircle, CheckCircle2 } from "lucide-react";
 import {
-  requestDocument, cancelDocRequest, fulfillDocRequest, validateDeclaration, validateDeclarationByDirection, recordAuthorityDeclaration,
+  requestDocument, cancelDocRequest, fulfillDocRequest, validateDeclaration, validateDeclarationByDirection, refuseDeclarationByDirection, recordAuthorityDeclaration,
   relancerPieceInfoMed,
   requestDeclareDecision, addMedicalInfoSlip, removeMedicalInfoSlip, requestSlipsValidation,
   requestSlipPayment, deliverMedicalInfoSlip, skipMedicalInfoBv, createMedicalInfoItem, changerProduitDeclaration,
@@ -13,7 +13,7 @@ import {
   declareMessage, declareStage, declareStageLabel, DECLARE_INTENT_LABEL, type DeclareInput,
 } from "@/lib/medical-info/declare-decision";
 import {
-  slipStage, slipsMessage, SLIP_STAGE_LABEL, SLIPS_LOT_LABEL,
+  slipStage, slipsMessage, canRequestSlipPayment, slipSansPaiementVivant, SLIP_STAGE_LABEL, SLIPS_LOT_LABEL,
   type SlipsLotStage, type SlipsSummary, type SlipInput,
 } from "@/lib/medical-info/slips";
 import { OPENABLE_DECLARATION_KINDS, DECLARATION_KIND_LABEL, DECLARATION_KIND_HINT } from "@/lib/medical-info/circuits";
@@ -29,6 +29,10 @@ interface UserOpt { id: string; name: string; role: string }
 
 const Err = ({ msg }: { msg: string | null }) =>
   msg ? <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="h-4 w-4 shrink-0" /> {msg}</div> : null;
+
+/** LA CONFIRMATION DE L'ACTION — où est partie la demande (le Directeur des Opérations, ou le Super Admin à défaut). */
+const Ok = ({ msg }: { msg: string | null }) =>
+  msg ? <div role="status" className="flex items-center gap-2 rounded-lg bg-success/10 px-3 py-2 text-sm text-success"><CheckCircle2 className="h-4 w-4 shrink-0" /> {msg}</div> : null;
 
 
 // ───────────── Pharmacien : demander une pièce ─────────────
@@ -157,6 +161,7 @@ export function DeclareDecisionCard({
   validationHref: string | null;
 }) {
   const { saving, err, run } = useAction();
+  const [info, setInfo] = React.useState<string | null>(null);
   const etape = declareStage(state);
 
   return (
@@ -176,10 +181,11 @@ export function DeclareDecisionCard({
           <FileText className="h-3.5 w-3.5" /> Ouvrir la demande de validation
         </a>
       )}
+      <Ok msg={info} />
 
       {canRequest && (
         <form
-          action={(fd) => { fd.set("id", id); run(() => requestDeclareDecision(undefined, fd)); }}
+          action={(fd) => { fd.set("id", id); setInfo(null); run(async () => { const r = await requestDeclareDecision(undefined, fd); if (r.ok) setInfo(r.message ?? null); return r; }); }}
           className="space-y-3 rounded-lg border border-border bg-secondary/30 p-3"
         >
           <div className="space-y-1">
@@ -191,11 +197,11 @@ export function DeclareDecisionCard({
           </div>
           <div className="space-y-1">
             <Label>Motif / note</Label>
-            <Textarea name="note" className="min-h-[60px]" placeholder="Ce que lira le validateur — exigé si le dossier ne se déclare pas." />
+            <Textarea name="note" className="min-h-[60px]" placeholder="Ce que lira le Directeur des Opérations — exigé si le dossier ne se déclare pas." />
           </div>
           <Err msg={err} />
           <Button type="submit" size="sm" disabled={saving}>
-            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Faire valider cette lecture
+            {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Faire valider par le Directeur des Opérations
           </Button>
         </form>
       )}
@@ -237,6 +243,7 @@ export function SlipsCard({
 }) {
   const { saving, err, run } = useAction();
   const [pane, setPane] = React.useState<string | null>(null);
+  const [info, setInfo] = React.useState<string | null>(null);
 
   if (skipReason) {
     return (
@@ -281,7 +288,7 @@ export function SlipsCard({
             </thead>
           {slips.map((sl) => {
             const etape = slipStage(sl);
-            const peutPayer = canManage && lot === "QUITTANCE_A_DEMANDER" && (etape === "A_DEMANDER" || etape === "REFUSE");
+            const peutPayer = canManage && lot === "QUITTANCE_A_DEMANDER" && canRequestSlipPayment(sl);
             const peutRemettre = canDeliver && etape === "PAYE";
             return (
               <tbody key={sl.id} className="border-t border-border">
@@ -292,13 +299,13 @@ export function SlipsCard({
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{sl.amount != null ? formatCurrency(sl.amount) : "—"}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    <span className={etape === "REMIS" ? "text-success" : etape === "REFUSE" || etape === "RENVOYE" ? "text-destructive" : "text-muted-foreground"}>
+                    <span className={etape === "REMIS" ? "text-success" : etape === "REFUSE" || etape === "RENVOYE" || etape === "ANNULE" ? "text-destructive" : "text-muted-foreground"}>
                       {SLIP_STAGE_LABEL[etape]}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{sl.deliveredAtIso ? formatDate(sl.deliveredAtIso) : "—"}</td>
                   <td className="px-1 py-2 text-right">
-                    {canEdit && !sl.requestId && (
+                    {((canEdit && !sl.requestId) || (canManage && lot === "QUITTANCE_A_DEMANDER" && slipSansPaiementVivant(sl))) && (
                       <button
                         type="button" title="Retirer ce matériel" aria-label="Retirer ce matériel" disabled={saving}
                         onClick={() => { const fd = new FormData(); fd.set("slipId", sl.id); run(() => removeMedicalInfoSlip(fd)); }}
@@ -401,12 +408,13 @@ export function SlipsCard({
       )}
 
       <Err msg={err} />
+      <Ok msg={info} />
 
       <div className="flex flex-wrap gap-2">
         {canValidate && (
-          <form action={(fd) => { fd.set("id", id); run(() => requestSlipsValidation(undefined, fd)); }} className="flex flex-wrap items-end gap-2">
+          <form action={(fd) => { fd.set("id", id); setInfo(null); run(async () => { const r = await requestSlipsValidation(undefined, fd); if (r.ok) setInfo(r.message ?? null); return r; }); }} className="flex flex-wrap items-end gap-2">
             <div className="min-w-[12rem] space-y-1">
-              <Label>Note pour les validateurs</Label>
+              <Label>Note pour le Directeur des Opérations</Label>
               <Input name="note" className="h-9" placeholder="Facultatif" />
             </div>
             <Button type="submit" size="sm" disabled={saving || slips.length === 0}>
@@ -565,7 +573,7 @@ export function AuthorityForm({ id, authorityRef, authorityNotes }: { id: string
   );
 }
 
-// ───────────── Pharmacien : validation → transmission à la Direction ─────────────
+// ───────────── Pharmacien : validation → transmission au Directeur des Opérations ─────────────
 
 export function ValidateButton({ id, hasPending }: { id: string; hasPending: boolean; amount?: number | null }) {
   const { saving, err, run } = useAction();
@@ -576,8 +584,8 @@ export function ValidateButton({ id, hasPending }: { id: string; hasPending: boo
       <Err msg={err} />
       {!confirm ? (
         <div className="flex items-center gap-1">
-          <Button onClick={() => setConfirm(true)} disabled={saving} className="h-auto min-h-10 w-full whitespace-normal py-2 sm:w-auto"><BadgeCheck className="h-4 w-4 shrink-0" /> Valider et transmettre à la Direction</Button>
-          <InfoBulle label="Ce que fait la validation" align="left">Votre validation transmet la déclaration à la Direction, qui donnera la validation finale (pour le comptable).</InfoBulle>
+          <Button onClick={() => setConfirm(true)} disabled={saving} className="h-auto min-h-10 w-full whitespace-normal py-2 sm:w-auto"><BadgeCheck className="h-4 w-4 shrink-0" /> Valider et transmettre au Directeur des Opérations</Button>
+          <InfoBulle label="Ce que fait la validation" align="left">Votre validation transmet la déclaration au Directeur des Opérations (à défaut, au Super Admin), qui la valide pour le comptable — ou la refuse avec son motif, et elle vous revient.</InfoBulle>
         </div>
       ) : (
         <div className="flex flex-wrap gap-2">
@@ -591,26 +599,46 @@ export function ValidateButton({ id, hasPending }: { id: string; hasPending: boo
   );
 }
 
-// ───────────── Direction : validation finale → ordre de dépense (comptable) ─────────────
+// ───────────── Directeur des Opérations : validation finale → ordre de dépense (comptable), ou refus motivé ─────────────
 
 export function DirectionValidateButton({ id, amount }: { id: string; amount: number | null }) {
   const { saving, err, run } = useAction();
   const [confirm, setConfirm] = React.useState(false);
   const [comment, setComment] = React.useState("");
+  const [refus, setRefus] = React.useState(false);
+  const [motif, setMotif] = React.useState("");
   return (
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
         {amount && amount > 0
-          ? `Votre validation déclenche l'ordre de dépense (${amount.toLocaleString("fr-FR")} DZD) vers le comptable.`
-          : "Aucun budget associé : la validation clôt simplement la déclaration."}
+          ? `Votre validation déclenche l'ordre de dépense (${amount.toLocaleString("fr-FR")} DZD) vers le comptable — sauf si les postes de l'opération portent déjà la dépense.`
+          : "Aucun ordre de dépense n'est émis ici (la dépense est portée ailleurs, ou il n'y en a pas) : la validation clôt la déclaration."}
       </p>
       <div className="space-y-1">
         <Label>Commentaire (facultatif)</Label>
-        <Textarea value={comment} onChange={(e) => setComment(e.target.value)} className="min-h-[56px]" placeholder="Observation de la Direction à destination du comptable / des parties prenantes…" />
+        <Textarea value={comment} onChange={(e) => setComment(e.target.value)} className="min-h-[56px]" placeholder="Observation à destination du comptable / des parties prenantes…" />
       </div>
       <Err msg={err} />
-      {!confirm ? (
-        <Button onClick={() => setConfirm(true)} disabled={saving} className="w-full sm:w-auto"><BadgeCheck className="h-4 w-4" /> Valider pour le comptable</Button>
+      {refus ? (
+        <div className="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <Label>Motif du refus</Label>
+          <Textarea value={motif} onChange={(e) => setMotif(e.target.value)} className="min-h-[56px]" placeholder="Ce que lira le pharmacien pour reprendre le dossier (exigé)." />
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="destructive"
+              onClick={() => { const fd = new FormData(); fd.set("id", id); if (motif.trim()) fd.set("reason", motif); run(() => refuseDeclarationByDirection(fd)); }}
+              disabled={saving || !motif.trim()}
+            >
+              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <XCircle className="h-4 w-4" />} Refuser et renvoyer au pharmacien
+            </Button>
+            <Button variant="ghost" onClick={() => setRefus(false)} disabled={saving}>Annuler</Button>
+          </div>
+        </div>
+      ) : !confirm ? (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => setConfirm(true)} disabled={saving} className="w-full sm:w-auto"><BadgeCheck className="h-4 w-4" /> Valider pour le comptable</Button>
+          <Button variant="outline" onClick={() => setRefus(true)} disabled={saving} className="w-full sm:w-auto"><XCircle className="h-4 w-4" /> Refuser</Button>
+        </div>
       ) : (
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => { const fd = new FormData(); fd.set("id", id); if (comment.trim()) fd.set("comment", comment); run(() => validateDeclarationByDirection(fd)); }} disabled={saving}>

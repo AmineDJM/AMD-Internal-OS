@@ -12,6 +12,7 @@ import { toNumber } from "@/lib/utils";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
 import { effectiveStatus, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
 import { legalFields } from "./legal-fields";
+import { peutDaterLeReglement } from "@/lib/finances/settlement";
 import { LegalTable, type LegalRow } from "./legal-table";
 import { LegalFolderBar, type FolderRow } from "./folder-bar";
 import { buildFolderTree, flattenFolders, indentedLabel } from "@/lib/legal/folders";
@@ -235,6 +236,8 @@ export default async function LegalPage({ searchParams }: { searchParams?: { ech
               "create", people, folderOptions, chainCandidates,
               facturesSeules,
               { options: partyOptions, canCreate: canCreateContact },
+              false,
+              peutDaterLeReglement({ financesModifier: userCan(user, "FINANCES", "UPDATE") }),
             )}
             redirectBase="/legal"
           />

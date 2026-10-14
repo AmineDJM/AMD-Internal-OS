@@ -43,6 +43,8 @@ const entree = (personnes: PersonneLivret[]): EntreeLivret => ({
   demandeur: { nom: "Karim Délégué", fonction: "Délégué médical", telephone: "0555 00 00 00" },
   assistante: null,
   edition: "2026-10-14",
+  // La carte Legal de la société qui invite — c'est d'elle, et d'elle seule, que viennent standard, e-mail et adresse.
+  societe: { nom: "Labo Test SARL", telephones: ["+213 (0)20 339 430"], email: "contact@labo-test.dz", adresse: "1 rue du Test, Alger", siteWeb: null, mentions: [["NIF : ", "000000000000001"]] },
 });
 
 describe("livret de séjour — les règles", () => {
@@ -154,6 +156,19 @@ describe("livret de séjour — les règles", () => {
     expect(prog).toContain("Déjeuner du groupe");
     expect(JSON.stringify(l)).not.toContain("Écarté");
     expect(l.dos).toBe(true);
+  });
+
+  it("les coordonnées imprimées sont celles de la société qui invite — sans société, aucune (jamais une adresse écrite dans le code)", () => {
+    const p = personne("n1", "Nadia Exemple", [billet]);
+    const avec = livretIndividuel(p, entree([p]));
+    expect(avec.societe?.email).toBe("contact@labo-test.dz");
+    const sans = livretIndividuel(p, { ...entree([p]), societe: null });
+    expect(sans.societe).toBeNull();
+    // Le standard d'Alger vient de la carte : sans elle, « à confirmer » — pas le numéro d'une autre société.
+    expect(JSON.stringify(sans.sections[3])).toContain(A_CONFIRMER);
+    expect(JSON.stringify(sans)).not.toMatch(/339 430|@/);
+    const rendu = readFileSync(join(process.cwd(), "src", "lib", "livret", "rendu-pdf.ts"), "utf8");
+    expect(rendu).not.toMatch(/@[a-z0-9-]+\.(dz|com)|339 430|Cheraga/i);
   });
 });
 

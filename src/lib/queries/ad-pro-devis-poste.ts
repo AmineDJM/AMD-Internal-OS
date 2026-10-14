@@ -4,7 +4,8 @@ import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import type { EtapeBC } from "@/lib/bons-de-commande/regle";
 import {
   decisionBcDuDevis, ecartAvecLeTotalImprime, refusValidationLigne, totauxDuDevisLu, totauxValides, lignesValidees, reservesEncoreVraies, lignesDuBon,
-  type BcActifDuDevis, type EnteteDevisPoste, type EtatBcDuDevis, type LigneDevisPoste,
+  devisMisAPart, doublonsProbables,
+  type BcActifDuDevis, type DevisAComparer, type EnteteDevisPoste, type EtatBcDuDevis, type LigneDevisPoste, type MiseAPart,
 } from "@/lib/ad-pro/devis-poste";
 import { IDENTITE_VIDE, identiteUtilisable, type IdentiteEmetteur } from "@/lib/pieces-lues/emetteur";
 import { montantLu } from "@/lib/pieces-lues/montants";
@@ -87,6 +88,49 @@ export interface DevisDePosteVue {
    * sont celles qu'il imprimera (corrigées, ou celles des lignes validées).
    */
   brouillon: (BrouillonBc & { perime: boolean; lignesBc: LigneCommerciale[] }) | null;
+  /**
+   * NE COMPTE PAS (sans BC) : la copie d'une pièce déjà comptée, ou une proposition d'un voyageur qui n'est pas la retenue
+   * (`devisMisAPart`). Ses lignes validées restent lisibles ; elles n'entrent ni dans le plafond, ni dans un BC.
+   */
+  miseAPart: MiseAPart | null;
+  /** Mêmes lignes et même fournisseur qu'un autre devis, sans preuve que c'est la même pièce : le nom de l'autre. */
+  doublonProbableDe: string | null;
+  /** Le voyageur pour qui ce devis a été déposé (billetterie), s'il y en a un. */
+  voyageur: { id: string; nom: string; retenu: boolean } | null;
+}
+
+/**
+ * LES EMPREINTES (SHA-256 des octets) DES FICHIERS DE CHAQUE DEVIS — celles de ses documents (le blob chiffré garde
+ * l'empreinte du clair) et celle de la lecture qui en a tiré les lignes. Deux devis qui partagent une empreinte ont été
+ * déposés avec le MÊME fichier.
+ */
+export async function empreintesDesDevis(legalDocumentIds: readonly string[]): Promise<Map<string, string[]>> {
+  const res = new Map<string, string[]>(legalDocumentIds.map((id) => [id, []]));
+  if (legalDocumentIds.length === 0) return res;
+  const ids = [...legalDocumentIds];
+  const [docs, devis] = await Promise.all([
+    prisma.document.findMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: ids }, fileKey: { not: null } }, select: { entityId: true, fileKey: true } }),
+    prisma.adProDevis.findMany({ where: { legalDocumentId: { in: ids }, lectureId: { not: null } }, select: { legalDocumentId: true, lectureId: true } }),
+  ]);
+  const stockes = docs.length
+    ? await prisma.storedFile.findMany({ where: { key: { in: docs.map((d) => d.fileKey as string) } }, select: { key: true, blobId: true } })
+    : [];
+  const [blobs, lectures] = await Promise.all([
+    stockes.length ? prisma.fileBlob.findMany({ where: { id: { in: [...new Set(stockes.map((x) => x.blobId))] } }, select: { id: true, sha256: true } }) : Promise.resolve([]),
+    devis.length ? prisma.lecturePiece.findMany({ where: { id: { in: devis.map((d) => d.lectureId as string) } }, select: { id: true, empreinte: true } }) : Promise.resolve([]),
+  ]);
+  const blobDeCle = new Map(stockes.map((x) => [x.key, x.blobId]));
+  const shaDeBlob = new Map(blobs.map((b) => [b.id, b.sha256]));
+  const empreinteDeLecture = new Map(lectures.map((l) => [l.id, l.empreinte]));
+  const ajouter = (id: string, e: string | undefined) => {
+    if (!e) return;
+    const l = res.get(id) ?? [];
+    if (!l.includes(e)) l.push(e);
+    res.set(id, l);
+  };
+  for (const d of docs) ajouter(d.entityId, shaDeBlob.get(blobDeCle.get(d.fileKey as string) ?? ""));
+  for (const d of devis) ajouter(d.legalDocumentId, empreinteDeLecture.get(d.lectureId as string));
+  return res;
 }
 
 /** Une ligne en base → la forme que le module pur lit. */
@@ -113,6 +157,7 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
       orderBy: { createdAt: "asc" },
       select: {
         itemId: true,
+        voyageur: { select: { retenuLe: true, voyageur: { select: { id: true, nom: true, prenom: true } } } },
         legalDocument: {
           select: {
             id: true, title: true, reference: true, counterparty: true, status: true, cancelledAt: true,
@@ -143,13 +188,14 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
   const validesPour = new Set<string>();
   for (const l of liensDevis) for (const x of l.legalDocument.devisPoste?.lignes ?? []) if (x.validatedItemId) validesPour.add(x.validatedItemId);
 
-  const [etats, factures, fichiers, postes] = await Promise.all([
+  const [etats, factures, fichiers, postes, empreintes] = await Promise.all([
     etatsDesBC(bcIds),
     bcIds.length
       ? prisma.legalDocument.findMany({ where: { chainFromId: { in: bcIds }, kind: "INVOICE", status: { not: "CANCELLED" } }, select: { chainFromId: true, reference: true, title: true } })
       : Promise.resolve([]),
     prisma.document.findMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: devisIds } }, orderBy: { createdAt: "asc" }, select: { id: true, entityId: true } }),
     validesPour.size ? prisma.adProItem.findMany({ where: { id: { in: [...validesPour] } }, select: { id: true, label: true } }) : Promise.resolve([]),
+    empreintesDesDevis(devisIds),
   ]);
   const factureDe = new Map<string, string>();
   for (const f of factures) if (f.chainFromId && !factureDe.has(f.chainFromId)) factureDe.set(f.chainFromId, f.reference?.trim() || f.title);
@@ -208,6 +254,15 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
       nbValidees: gardees.length, totalValideHt: t.ht, totalValideTtc: t.ttc,
       bc, etat: decision.etat, nbAjoutees: decision.ajoutees.length, nbRetirees: decision.retirees.length, refus: decision.refus,
       brouillon: null,
+      miseAPart: null,
+      doublonProbableDe: null,
+      voyageur: lien.voyageur
+        ? {
+            id: lien.voyageur.voyageur.id,
+            nom: [lien.voyageur.voyageur.prenom, lien.voyageur.voyageur.nom].filter((x) => x && x.trim()).join(" "),
+            retenu: lien.voyageur.retenuLe != null,
+          }
+        : null,
     };
     const brut = lireBrouillon(entreeBase?.bcBrouillon);
     if (brut && brut.itemId === lien.itemId && (decision.etat === "A_GENERER" || decision.etat === "A_REGENERER")) {
@@ -215,6 +270,26 @@ export async function devisDesPostes(itemIds: readonly string[]): Promise<Map<st
       vue.brouillon = { ...brut, perime: brouillonPerime(brut, lignesBc), lignesBc: lignesEffectives(brut, lignesBc) };
     }
     res.get(lien.itemId)?.push(vue);
+  }
+
+  // LA MÊME PIÈCE NE SE COMPTE QU'UNE FOIS, UNE PROPOSITION ÉCARTÉE NE SE COMMANDE PAS (`devisMisAPart`) — poste par poste.
+  for (const vues of res.values()) {
+    if (vues.length < 2) continue;
+    const aComparer: DevisAComparer[] = vues.map((v) => ({
+      pieceId: v.pieceId, nom: v.reference?.trim() || v.titre, annule: v.annule, empreintes: empreintes.get(v.pieceId) ?? [],
+      reference: v.reference, fournisseur: v.fournisseurLu?.nom ?? v.fournisseur, lignes: v.lignes, aUnBc: v.bc !== null,
+      nbValidees: v.nbValidees, voyageur: v.voyageur,
+    }));
+    const misAPart = devisMisAPart(aComparer);
+    const probables = doublonsProbables(aComparer.filter((d) => !misAPart.has(d.pieceId)));
+    for (const v of vues) {
+      v.doublonProbableDe = probables.get(v.pieceId) ?? null;
+      const m = misAPart.get(v.pieceId);
+      if (!m || v.bc) continue;
+      v.miseAPart = m;
+      // Rien à générer pour lui : son état le dit, et aucun aperçu ne s'ouvre sur une pièce qui ne compte pas.
+      if (v.etat === "A_GENERER") { v.etat = "MIS_A_PART"; v.nbAjoutees = 0; v.brouillon = null; }
+    }
   }
   return res;
 }

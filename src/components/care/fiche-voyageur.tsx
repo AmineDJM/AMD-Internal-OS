@@ -22,8 +22,12 @@ import { TYPES_CHAMBRE } from "@/lib/ad-pro/hebergements";
 import {
   addCareCell, decideCareBeneficiary, demanderBCPriseEnCharge, deposerPiecePriseEnCharge, enregistrerBilletEmis, linkCareCellPromoMaterial,
   modifierPosteFiche, modifierPosteGroupe, removeCareBeneficiary, removeCareCell, retenirDevisPriseEnCharge, setCareCellStatus, setCareOpinion,
+  retirerFichierPiecePriseEnCharge,
 } from "@/lib/actions/care-actions";
+import { DocumentPreview } from "@/components/documents/document-preview";
 import { BoutonLivret } from "@/components/care/bouton-livret";
+import { EnvoiFiche } from "@/components/reservation-fiche/envoi-fiche";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
 export type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText?: string) => Promise<unknown>;
 
@@ -68,6 +72,8 @@ interface FicheProps {
   onRetour: () => void;
   /** Ouvre l'enregistrement d'un devis (le formulaire de la demande), pour ces cases. */
   onDevis: (cellIds: string[]) => void;
+  /** L'état de chaque billet / hôtel chez l'assistante de direction (par case) — 14/10. */
+  envois?: Record<string, EnvoiVue>;
 }
 
 /**
@@ -259,30 +265,50 @@ export function FicheVoyageur(p: FicheProps) {
           <div ref={docRef}>
             <Carte titre="Documents">
               {pieces.length === 0 && <p className="text-muted-foreground">Aucune pièce demandée — « Demander les pièces » sous la liste.</p>}
-              {pieces.map((x) => (
-                <div key={x.cellId ?? x.label} className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <Badge tone={x.etat === "RECUE" ? "success" : x.etat === "SANS_OBJET" ? "neutral" : x.etat === "DEMANDEE" ? "warning" : "danger"} dot={false}>
-                    {x.label === "Passeport" && scope === "NATIONAL" ? "Pièce d'identité (facultative)" : x.label}
-                  </Badge>
-                  <span className="text-muted-foreground">{ETAT_PIECE_LABELS[x.etat]}</span>
-                  {x.documentId && <a href={`/api/documents/${x.documentId}`} target="_blank" rel="noreferrer" className="text-primary hover:underline">voir</a>}
-                  {canEdit && x.cellId && (x.etat === "DEMANDEE" || x.etat === "RECUE") && (
-                    <label className="cursor-pointer px-1 py-1.5 text-primary hover:underline sm:p-0">
-                      {busy === `dep:${x.cellId}` ? "envoi…" : x.etat === "RECUE" ? "remplacer" : "déposer"}
-                      <input type="file" className="sr-only" aria-label={`Déposer « ${x.label} » de ${b.name}`}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (!f || !x.cellId) return;
-                          const form = new FormData();
-                          form.set("cellId", x.cellId);
-                          form.set("file", f);
-                          e.target.value = "";
-                          void run(`dep:${x.cellId}`, () => deposerPiecePriseEnCharge(undefined, form));
-                        }} />
-                    </label>
-                  )}
-                </div>
-              ))}
+              {pieces.map((x) => {
+                // TOUS LES FICHIERS DE LA PIÈCE (Direction, 10/2026) — recto, verso, pages, visa : chacun s'ouvre, et
+                // se retire tant que la pièce n'est pas validée. Le dernier retiré, la pièce redevient attendue.
+                const cellule = x.cellId ? b.cells.find((c) => c.id === x.cellId) : undefined;
+                const fichiers = cellule?.fichiers ?? (x.documentId ? [{ id: x.documentId, name: x.label, hasFile: true }] : []);
+                const modifiable = canEdit && Boolean(x.cellId) && (x.etat === "DEMANDEE" || x.etat === "RECUE");
+                return (
+                  <div key={x.cellId ?? x.label} className="space-y-1 text-xs">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge tone={x.etat === "RECUE" ? "success" : x.etat === "SANS_OBJET" ? "neutral" : x.etat === "DEMANDEE" ? "warning" : "danger"} dot={false}>
+                        {x.label === "Passeport" && scope === "NATIONAL" ? "Pièce d'identité (facultative)" : x.label}
+                      </Badge>
+                      <span className="text-muted-foreground">
+                        {ETAT_PIECE_LABELS[x.etat]}{fichiers.length > 1 ? ` · ${fichiers.length} fichiers` : ""}
+                      </span>
+                      {modifiable && x.cellId && (
+                        <label className="cursor-pointer px-1 py-1.5 text-primary hover:underline sm:p-0">
+                          {busy === `dep:${x.cellId}` ? "envoi…" : fichiers.length > 0 ? "ajouter des fichiers" : "déposer"}
+                          <input type="file" multiple className="sr-only" aria-label={`Déposer « ${x.label} » de ${b.name} (un ou plusieurs fichiers)`}
+                            onChange={(e) => {
+                              const choisis = Array.from(e.target.files ?? []);
+                              e.target.value = "";
+                              if (choisis.length === 0 || !x.cellId) return;
+                              const form = new FormData();
+                              form.set("cellId", x.cellId);
+                              for (const f of choisis) form.append("file", f);
+                              void run(`dep:${x.cellId}`, () => deposerPiecePriseEnCharge(undefined, form));
+                            }} />
+                        </label>
+                      )}
+                    </div>
+                    {fichiers.length > 0 && (
+                      <ul className="space-y-0.5 pl-2" aria-label={`Fichiers de « ${x.label} »`}>
+                        {fichiers.map((f) => (
+                          <li key={f.id} className="flex min-w-0 items-center gap-1.5">
+                            <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <DocumentPreview id={f.id} name={f.name} hasFile={f.hasFile} canDelete={modifiable} supprimer={retirerFichierPiecePriseEnCharge} />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                );
+              })}
               {[...billets, ...hotels].filter((c) => c.issuedDocumentId).map((c) => (
                 <div key={c.id} className="flex flex-wrap items-center gap-1.5 text-xs">
                   <Badge tone="success" dot={false}>{c.serviceKind === "TICKET" ? "billet émis" : "confirmation d'hôtel"}</Badge>
@@ -439,6 +465,7 @@ function PosteBillet(p: PosteProps & { principal: boolean; passeportRecu: boolea
   return (
     <div className="border-t border-border first:border-t-0">
       <TetePoste kind="TICKET" titre={c.label} resume={sans ? "sans billet — vient par ses propres moyens" : resumeBillet(c)} etat={etat} />
+      {!sans && p.envois?.[c.id] && <div className="px-4 pb-2 sm:pl-14"><EnvoiFiche envoi={p.envois[c.id]} peutEditer={canEdit} busy={busy} run={run} /></div>}
       {!sans && (
         <div className="space-y-2.5 px-4 pb-3 sm:pl-14">
           <div role="radiogroup" aria-label="Trajet" className="inline-flex flex-wrap gap-0.5 rounded-lg bg-secondary p-0.5">
@@ -524,6 +551,7 @@ function PosteHotel(p: PosteProps & { principal: boolean; billet: CellRow | null
   return (
     <div className="border-t border-border">
       <TetePoste kind="HOTEL" titre={c.label} resume={sans ? "sans hôtel" : resumeHotel({ ...c, dateStart: arrivee || null, dateEnd: depart || null, hotelName: hotel || null, city: ville || null, roomType: chambre || null })} etat={etat} />
+      {!sans && p.envois?.[c.id] && <div className="px-4 pb-2 sm:pl-14"><EnvoiFiche envoi={p.envois[c.id]} peutEditer={canEdit} busy={busy} run={run} /></div>}
       {!sans && (
         <div className="space-y-2.5 px-4 pb-3 sm:pl-14">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">

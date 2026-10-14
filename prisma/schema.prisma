@@ -2390,6 +2390,17 @@ model AdProItem {
   opsDecidedById  String?
   opsDecisionNote String?
 
+  /// LA DÉPENSE DU POSTE AU BUDGET MARKETING (Direction, 10/2026 — « on sépare absolument une dépense engagée d'une
+  /// dépense payée »). Une fois TOUS ses bons de commande signés, la Direction Marketing IMPUTE le poste à une catégorie
+  /// d'une enveloppe marketing (`budgetCategoryId`) : la dépense devient ENGAGÉE. « Consommer » demande ensuite le
+  /// paiement par le chemin du poste (centre de paiement, puis Finances) : consommée et payée se LISENT sur l'ordre de
+  /// dépense, jamais recopiées ici. « Annuler » libère l'engagement. Règles pures : `lib/budget/depense-poste.ts`.
+  depenseImputeeLe       DateTime?
+  depenseImputeeParId    String?
+  depenseAnnuleeLe       DateTime?
+  depenseAnnuleeParId    String?
+  depenseAnnulationMotif String?
+
   decisions  AdProItemDecision[]
   /// LES PIÈCES DU POSTE au registre Legal — devis / pro forma, bon de commande, facture (§118.204).
   pieces     AdProItemPiece[]
@@ -2428,6 +2439,7 @@ model AdProItem {
   @@index([status])
   @@index([repartitionId])
   @@index([reservationDossierId])
+  @@index([depenseImputeeLe])
 }
 
 /// UN VOYAGEUR D'UN POSTE « BILLETTERIE » (§118.175).
@@ -2466,6 +2478,8 @@ model AdProVoyageur {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   devis        AdProVoyageurDevis[]
+  /// La demande de réservation de CETTE fiche chez l'assistante de direction — son état, jamais ses données.
+  demandeReservation DemandeReservation?
 
   @@index([itemId])
 }
@@ -2529,8 +2543,93 @@ model AdProHebergement {
   updatedById String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  /// La demande de réservation de CETTE fiche chez l'assistante de direction — son état, jamais ses données.
+  demandeReservation DemandeReservation?
 
   @@index([itemId])
+}
+
+/// L'ÉTAT D'UNE FICHE CHEZ L'ASSISTANTE DE DIRECTION (fiches de voyage, Direction 14/10/2026).
+/// ENVOYEE → PRISE → DEVIS_RECU → RESERVEE ; branches MANQUE_SIGNALE (revient « à compléter » au demandeur),
+/// MODIFIEE_APRES_ENVOI (« à renvoyer »), RETIREE. La machine d'états est `src/lib/reservation-fiche/etat.ts`.
+enum EtatDemandeReservation {
+  ENVOYEE
+  PRISE
+  DEVIS_RECU
+  RESERVEE
+  MANQUE_SIGNALE
+  MODIFIEE_APRES_ENVOI
+  RETIREE
+}
+
+enum NatureFicheReservation {
+  BILLET
+  HOTEL
+}
+
+/// LA DEMANDE DE RÉSERVATION D'UNE FICHE — une par fiche de billetterie ou d'hôtellerie, envoyée seule.
+///
+/// UNE SEULE VÉRITÉ : les données du voyage (nom, trajet, dates, passeport) restent sur la FICHE — voyageur
+/// d'un poste Ad & Pro, fiche hôtellerie, ou poste billet / hôtel d'une prise en charge (`CareCell`). La
+/// demande ne garde que l'ÉTAT : qui l'a prise, quand elle est partie, ses relances, l'EMPREINTE de la fiche
+/// à l'envoi (ce qui permet de dire « modifiée après l'envoi » et de montrer ce qui a changé), et les pièces
+/// du billet ou de la confirmation déposées par l'assistante. Le sujet DOS du poste reste le FIL.
+///
+/// Exactement une fiche (contrainte `DemandeReservation_une_fiche`). Toutes les écritures d'état sont
+/// CONDITIONNELLES sur l'état lu (`updateMany`) : deux clics font un seul envoi, une seule prise.
+model DemandeReservation {
+  id                   String                 @id @default(cuid())
+  nature               NatureFicheReservation
+  voyageurId           String?                @unique
+  voyageur             AdProVoyageur?         @relation(fields: [voyageurId], references: [id], onDelete: Cascade)
+  hebergementId        String?                @unique
+  hebergement          AdProHebergement?      @relation(fields: [hebergementId], references: [id], onDelete: Cascade)
+  careCellId           String?                @unique
+  careCell             CareCell?              @relation(fields: [careCellId], references: [id], onDelete: Cascade)
+  /// Le POSTE Ad & Pro de la fiche, ou la PERSONNE d'une prise en charge — dénormalisés pour la file.
+  itemId               String?
+  careBeneficiaryId    String?
+  /// L'OPÉRATION (sponsoring, prise en charge nationale / internationale, événement) et sa société.
+  operationType        EntityType
+  operationId          String
+  companyId            String?
+  /// Le SUJET (DOS) du poste ou de la prise en charge : le fil de discussion, où s'écrivent les événements.
+  dossierId            String?
+  etat                 EtatDemandeReservation @default(ENVOYEE)
+  /// Qui a envoyé (le demandeur), quand — `premierEnvoiLe` ne bouge plus, `envoyeeLe` suit le dernier renvoi.
+  demandeurId          String
+  envoyeeLe            DateTime               @default(now())
+  premierEnvoiLe       DateTime               @default(now())
+  envois               Int                    @default(1)
+  /// Les champs de la fiche au moment de l'envoi (`{ libellé: valeur }`). Nulle : reprise d'un envoi en bloc d'avant.
+  empreinte            Json?
+  priseParId           String?
+  priseLe              DateTime?
+  relances             Int                    @default(0)
+  derniereRelanceLe    DateTime?
+  manqueMotif          String?
+  manqueLe             DateTime?
+  manqueParId          String?
+  modifieeLe           DateTime?
+  /// Le devis de l'agence joint par l'assistante — par le circuit devis existant (demande de pièce du poste,
+  /// ou devis de la prise en charge) : l'identifiant de ce qu'il a créé.
+  devisRecuLe          DateTime?
+  devisRef             String?
+  reserveeLe           DateTime?
+  reserveeParId        String?
+  /// PNR du billet / n° de confirmation de l'hôtel.
+  referenceReservation String?
+  /// Le billet émis / la confirmation d'hôtel : `Document.id` (pièces de la fiche, `stepKey` = la fiche).
+  pieceIds             String[]               @default([])
+  retireeLe            DateTime?
+  retraitMotif         String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  @@index([etat])
+  @@index([itemId])
+  @@index([operationType, operationId])
+  @@index([priseParId])
 }
 
 /// HISTORIQUE DES DÉCISIONS D'UN POSTE — « autant de fois qu'il le faut » : une demande de
@@ -3660,6 +3759,8 @@ model CareCell {
   updatedAt     DateTime @updatedAt
 
   quoteLinks CareQuoteCell[]
+  /// La demande de réservation de ce billet / cet hôtel chez l'assistante de direction (son état seulement).
+  demandeReservation DemandeReservation?
 
   @@index([beneficiaryId])
   @@index([quoteId])
@@ -8633,7 +8734,8 @@ model MissionAssignment {
   /// Retrait SOUPLE : une assignation qui porte des pièces, un fil ou des demandes s'archive.
   archivedAt    DateTime?
   archivedById  String?
-  /// Frais de l'équipe intégrés au budget de la demande à la clôture (poste Ad & Pro créé à la main).
+  /// Frais de l'équipe intégrés au budget à la clôture : depuis 10/2026 l'id d'une ligne `BudgetExpenseLine` du budget
+  /// Operations & Sales ; avant, l'id d'un poste Ad & Pro créé à la main (historique, laissé tel quel).
   transportPosteId   String?
   hebergementPosteId String?
 
@@ -8658,7 +8760,8 @@ model MissionAssignment {
   /// Le sujet de l'assistante de direction qui réserve pour l'équipe (un par demande, partagé par ses membres).
   reservationDossierId String?
   reservationDemandeeLe DateTime?
-  /// L'IMPUTATION des frais de mission — choisie par la Direction Marketing (`BudgetCategoryLine`), jamais d'office.
+  /// L'IMPUTATION des frais de mission (`BudgetCategoryLine`) — au budget Operations & Sales depuis 10/2026 : catégorie par
+  /// défaut posée d'office (`budgetChoisiParId` nul), changeable par la Direction ; une ancienne ligne Ad & Pro reste telle quelle.
   budgetCategoryId  String?
   budgetChoisiParId String?
   budgetChoisiLe    DateTime?
@@ -9024,6 +9127,10 @@ model AppSetting {
   /// l'un gouverne les DEMANDES, l'autre les PIÈCES qui engagent la société. 0 = tout BC passe
   /// par un centre — le comportement d'avant la règle, jusqu'à ce que la Direction fixe le montant.
   bcValidationThreshold         Decimal   @default(0) @db.Decimal(14, 2)
+  /// SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026 : « les BC hors Ad & Pro passent par le centre de
+  /// validation, mets-moi un seuil là-bas aussi »). Celui qui précède ne vaut plus que pour les BC du centre Ad & Pro ;
+  /// celui-ci, réglé depuis le centre de validations, pour les BC qu'il valide. 0 = tout BC y passe.
+  bcValidationThresholdCentre   Decimal   @default(0) @db.Decimal(14, 2)
   // Onglet Regulatory « Enregistrement » (analyseur de dossier CTD) — masqué tant que
   // le Super Admin ne l'a pas débloqué.
   regEnrollmentEnabled          Boolean   @default(false)
@@ -12851,6 +12958,12 @@ model LegalDocument {
   /// règle, jamais touché depuis : il n'est présumé ni à valider ni à signer — sans ce marqueur,
   /// fixer un seuil ferait apparaître tout l'historique dans la file des Finances.
   bcCircuitAt            DateTime?
+  /// LA PRÉ-VALIDATION d'un bon de commande (Direction, 10/2026) : le demandeur le soumet d'abord aux validateurs
+  /// qu'il choisit (« Demandes de validations »), puis demande la validation FINALE, qui l'adresse au centre. Tant
+  /// que `bcPrevalidationAt` est posé, l'aiguillage ne l'envoie à aucun centre (`bons-de-commande/prevalidation.ts`).
+  /// `bcPrevalidationRequestId` = la demande de validation qui le retient (nulle : pièce composée, demande pas encore créée).
+  bcPrevalidationAt        DateTime?
+  bcPrevalidationRequestId String?
   effectiveAt            DateTime?
   /// Les LIGNES CONTRACTUELLES portées par cette pièce (contrat de base ou avenant).
   contractLines          PchContractLine[]     @relation("DocContractLines")
@@ -12923,6 +13036,7 @@ model LegalDocument {
   @@index([chainFromId])
   @@index([tenderId])
   @@index([amendsId])
+  @@index([bcPrevalidationRequestId])
   @@index([paidDate])
 }
 

@@ -45,10 +45,17 @@ export function legalFields(
    * changer : la révision (ou, pour une facture, l'annulation) est le geste qui les corrige.
    */
   pieceEmise = false,
+  /**
+   * LA DATE DE RÈGLEMENT NE S'OFFRE QU'À QUI RÈGLE AUX FINANCES (`peutDaterLeReglement`, audit Assistante de
+   * direction, 10/2026) : la poser déclare la facture réglée et écrit au livre. Absente du formulaire, le serveur
+   * garde la date existante — il ne l'efface pas.
+   */
+  daterLeReglement = true,
 ): FieldDef[] {
   const v = (k: string) => values[k] ?? undefined;
   const facture = invoiceOnly || v("kind") === "INVOICE";
-  const champs = construire();
+  const tous = construire();
+  const champs = daterLeReglement ? tous : tous.filter((c) => !("name" in c) || c.name !== "paidDate");
   return pieceEmise ? champs.filter((c) => !("name" in c) || !CHAMPS_DU_FICHIER.has(c.name)) : champs;
 
   function construire(): FieldDef[] {
@@ -136,7 +143,15 @@ export function legalFields(
             hint: "Le fichier RESTE dans le Drive : il continuera de s'y versionner, et Legal en montrera toujours la version courante.",
           },
         ] as FieldDef[])
-      : []),
+      // UNE PIÈCE DÉPOSÉE se corrige aussi par son FICHIER (Direction, 10/2026 — « modifiable de A à Z ») : la nouvelle
+      // version s'ajoute aux pièces jointes de la fiche, où l'ancienne se retire. Une pièce ÉMISE n'a pas ce champ : son
+      // fichier, c'est la fabrique qui le réécrit (révision).
+      : pieceEmise
+        ? []
+        : ([{
+            type: "file", name: "attachment", label: "Remplacer / ajouter le fichier de la pièce", multiple: true, full: true,
+            hint: "Le nouveau fichier rejoint les pièces jointes de la fiche ; retirez l'ancien depuis « Pièces jointes ». Sur un bon de commande, un nouveau fichier n'est plus la pièce signée : la signature tombe et le circuit de validation repart.",
+          }] as FieldDef[])),
   ];
   }
 }

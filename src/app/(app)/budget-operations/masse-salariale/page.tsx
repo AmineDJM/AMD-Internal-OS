@@ -1,4 +1,5 @@
 import { requireModule } from "@/lib/session";
+import { assurerEnveloppeAnnuelle } from "@/lib/budget/enveloppes-pole";
 import { canManageEnvelope } from "@/lib/rbac";
 import { getEnvelopes, getBudgetOverview } from "@/lib/queries/budget";
 import { vueMasseSalariale } from "@/lib/queries/budget-operations";
@@ -27,6 +28,8 @@ const court = (v: number) => (v === 0 ? "—" : formatCurrency(v));
  */
 export default async function BudgetOperationsMasseSalarialePage({ searchParams }: { searchParams: ParamsBudget }) {
   const user = await requireModule("BUDGET_OPERATIONS");
+  // L'enveloppe de l'année existe d'emblée, masse salariale en tête (Direction, 10/2026) : rien à créer avant de saisir.
+  await assurerEnveloppeAnnuelle("OPERATIONS", user);
   const opts = { portee: "OPERATIONS" as const };
   const [envelopes, tabs] = await Promise.all([getEnvelopes(user, opts), visibleTabs(user, BUDGET_OPERATIONS_TABS)]);
   const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), null, null, opts);

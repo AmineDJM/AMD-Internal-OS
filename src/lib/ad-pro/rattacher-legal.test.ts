@@ -389,8 +389,10 @@ describe("les fiches Ad & Pro n'ont plus de dépôt générique — et gardent l
     }
     // Le plancher, MESURÉ au 04/10 : les trois fiches Ad & Pro sans postes et la demande du
     // secrétariat. Sans lui, un parcours cassé ne trouverait AUCUN montage et ce cas passerait au
-    // vert sans rien vérifier (§118.17).
-    expect(montages).toBeGreaterThanOrEqual(4);
+    // vert sans rien vérifier (§118.17). 4 → 3 (refonte du bureau, 10/2026) : la fiche d'une demande au
+    // secrétariat ne monte plus le bloc — ses pièces sont UNE liste (« Pièces »), lue par le même chargeur
+    // (`chargerPiecesLiees`) AVEC le spectateur, donc sous la même porte pièce par pièce.
+    expect(montages).toBeGreaterThanOrEqual(3);
   });
 
   it("le dépôt de la DEMANDE ne propose plus devis, BC, facture ni convention — ils ont leur place", () => {

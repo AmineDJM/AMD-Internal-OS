@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { statutAffiche, chezQui, gestesDuTraitement, lireParticipants, typeRetire, STATUTS_FILTRABLES } from "./traitement";
+import { statutAffiche, chezQui, gestesDuTraitement, lireParticipants, typeRetire, STATUTS_FILTRABLES, refusFinApresDecision, refusFinDevisPromo } from "./traitement";
 import { REQUEST_TYPES } from "@/lib/admin-requests";
 
 /** Le traitement au secrétariat : deux gestes (Direction, 10/2026). */
@@ -55,5 +55,20 @@ describe("Types retirés et participants", () => {
     expect(lireParticipants({ participantIds: ["a", "b", "a", "", 3] })).toEqual(["a", "b"]);
     expect(lireParticipants(null)).toEqual([]);
     expect(lireParticipants({ participantIds: "a" })).toEqual([]);
+  });
+});
+
+describe("audit du 14/10/2026 — la fin après une décision", () => {
+  it("la dernière approbation fait foi", () => {
+    expect(refusFinApresDecision(null)).toBeNull();
+    expect(refusFinApresDecision({ status: "APPROVED" })).toBeNull();
+    expect(refusFinApresDecision({ status: "PENDING" })).toMatch(/en attente/);
+    expect(refusFinApresDecision({ status: "REJECTED" })).toMatch(/s'annule/);
+    expect(refusFinApresDecision({ status: "CHANGES_REQUESTED" })).toMatch(/modification/);
+  });
+  it("une demande de devis promo ne se termine pas avant la retranscription", () => {
+    expect(refusFinDevisPromo("QUOTE_REQUESTED")).toMatch(/Retranscription terminée/);
+    expect(refusFinDevisPromo("REVIEW_REQUESTER")).toBeNull();
+    expect(refusFinDevisPromo(null)).toBeNull();
   });
 });

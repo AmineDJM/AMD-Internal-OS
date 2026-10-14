@@ -45,6 +45,11 @@ export interface AppSettings {
    * par un centre (le comportement d'avant la règle, et le plus sûr tant que rien n'est fixé).
    */
   bcValidationThreshold: number;
+  /**
+   * SEUIL DES BONS DE COMMANDE HORS AD & PRO (DZD) — ceux que valide le CENTRE DE VALIDATIONS, réglé depuis ce centre
+   * (Direction, 10/2026). `bcValidationThreshold` ne vaut plus que pour les BC du centre Ad & Pro. `0` = tout BC y passe.
+   */
+  bcValidationThresholdCentre: number;
   /** Capacité globale du Drive (Go) — modifiable par le Super Admin. */
   driveCapacityGb: number;
   /** Quota Drive par utilisateur (Go) — modifiable par le Super Admin. */
@@ -109,6 +114,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   budgetFixedTotal: 0,
   adProDgThreshold: SEUIL_DG_DEFAUT,
   bcValidationThreshold: 0,
+  bcValidationThresholdCentre: 0,
   driveCapacityGb: 100,
   driveUserQuotaGb: 10,
   regEnrollmentEnabled: false,
@@ -149,6 +155,7 @@ export const getAppSettings = perRequest(async (): Promise<AppSettings> => {
       budgetFixedTotal: Number(row.budgetFixedTotal),
       adProDgThreshold: Number(row.adProDgThreshold),
       bcValidationThreshold: Number(row.bcValidationThreshold),
+      bcValidationThresholdCentre: Number(row.bcValidationThresholdCentre),
       driveCapacityGb: row.driveCapacityGb,
       driveUserQuotaGb: row.driveUserQuotaGb,
       regEnrollmentEnabled: row.regEnrollmentEnabled,

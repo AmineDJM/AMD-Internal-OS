@@ -77,3 +77,35 @@ export function decideurAffiche(a: { status: string; decidedAt: Date | string | 
   if (a.status === "PENDING" || !a.decidedAt) return null;
   return a.decidedByName ? `Décision prise par ${a.decidedByName}` : "Décision prise — auteur inconnu";
 }
+
+/**
+ * QUI TRANCHE UNE APPROBATION (audit assistante & PRIM, 14/10/2026 — Direction : « corrige tout de suite »).
+ *
+ * Le validateur NOMMÉ, son INTÉRIMAIRE, ou le SOMMET (`isTopManagement`) — et personne d'autre. Le droit « Valider »
+ * du module suffisait : l'assistante de direction (ou tout détenteur du droit) approuvait l'achat adressé au N+1 d'un
+ * autre, et une approbation chiffrée émet un ordre de dépense. L'assistante relance ; elle ne décide plus à sa place.
+ * La règle de l'auto-validation (`interditSurSaPropreDemande`) s'applique EN PLUS.
+ */
+export function peutTrancherApprobation(a: { estValidateur: boolean; parInterim: boolean; sommet: boolean }): boolean {
+  return a.estValidateur || a.parInterim || a.sommet;
+}
+
+/**
+ * UNE PIÈCE CHIFFRÉE NE SE VALIDE PAS PAR CELUI QUI LA PORTE (audit 14/10/2026). Soumettre une pièce avec un montant,
+ * c'est demander un ordre de dépense : le demandeur qui se choisissait validateur, saisissait 450 000 DZD et validait
+ * faisait partir un paiement à son nom. Dès qu'un montant est saisi, ni le soumetteur, ni le demandeur, ni l'assistante
+ * qui traite ne valident. Sans montant, la validation reste un AVIS, et se l'adresser reste permis.
+ * `null` quand le choix tient.
+ */
+export function refusValidateursPieceChiffree(a: {
+  montant: number | null;
+  validateurs: readonly string[];
+  soumetteurId: string;
+  demandeurId: string | null;
+  traitanteId: string | null;
+}): string | null {
+  if (a.montant === null || a.montant <= 0) return null;
+  const exclus = new Set([a.soumetteurId, a.demandeurId, a.traitanteId].filter((v): v is string => Boolean(v)));
+  if (!a.validateurs.some((v) => exclus.has(v))) return null;
+  return "Une pièce chiffrée émet un paiement à sa validation : ni vous, ni le demandeur, ni l'assistante qui traite la demande ne pouvez la valider. Choisissez un autre validateur, ou retirez le montant.";
+}

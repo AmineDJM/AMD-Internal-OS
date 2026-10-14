@@ -789,8 +789,11 @@ par marqueur sur l'assignation (`/missions`, `mission-item.tsx` supprimé ; `/mi
   `PromoStockRequest.missionAssignmentId`), **note de frais** (la demande RH `EXPENSE_REPORT`, à partir du jour du
   retour).
 - **Frais de l'équipe** (`integrerFraisEquipe`, à la clôture, droit de modifier la demande) : l'organisateur reporte
-  **à la main** le montant exact du transport ou de l'hébergement d'un membre → un **poste Ad & Pro** (Déplacement /
-  Hôtellerie) créé par le mécanisme habituel, qui le validera et l'imputera ; rien d'automatique. Migration
+  **à la main** le montant exact du transport ou de l'hébergement d'un membre → depuis le 14/10, une **ligne de dépense
+  du budget Operations & Sales** (`BudgetExpenseLine`, catégorie choisie sur la ligne, à défaut l'imputation du membre,
+  à défaut « Frais de déplacement terrain » de l'enveloppe de l'année ouverte d'office) ; son id va dans
+  `transportPosteId` / `hebergementPosteId`. Avant : un poste Ad & Pro (Déplacement / Hôtellerie) — ceux-là restent où
+  ils sont et s'affichent « intégré à Ad & Pro (avant le changement) ». Rien d'automatique. Migration
   `20270116170000_missions_profil`.
 
 #### Demande de participation, négociation, mission et clôture (11/10)
@@ -820,8 +823,18 @@ PURES `lib/missions-equipe/participation.ts` (+ tests) ; page unique `/mon-espac
   `envoyerReservationEquipe`). L'assistante, l'organisateur, la Direction Marketing et le Super Admin déposent par membre
   le **billet émis** (`enregistrerBilletMission` : e-billet, PNR `billetReference`, n° et heures aller / retour
   `billetTrajets`) et la **confirmation d'hôtel** (`enregistrerHotelMission` : voucher, `hotelNom`, `hotelConfirmation`).
-- **Imputation** (`choisirBudgetMission`) : la Direction Marketing (ou le Super Admin) choisit la ligne budgétaire
-  (`budgetCategoryId`, options `adProBudgetOptions`) — colonne de la carte « Équipe Adventum » ; rien d'imputé sans elle.
+- **Imputation → budget Operations & Sales** (14/10 — « ici le budget à imputer, ce n'est pas Ad & Pro, c'est
+  Operations & Sales ») : les frais de l'équipe INTERNE (transport, hébergement, OM, frais de mission) vont à l'enveloppe
+  Operations & Sales de l'année de la mission (`enveloppeDuPolePour`, ouverte d'office si absente), jamais à une ligne
+  Ad & Pro (qui porte les invités externes). Catégorie par défaut posée dès l'invitation (`assurerImputationEquipe`,
+  `budgetChoisiParId` nul = « par défaut ») ; la Direction Marketing, la Direction des opérations ou le Super Admin la
+  change (`choisirBudgetMission` refuse une catégorie hors Operations & Sales et la masse salariale ; valeur vide = retour
+  au défaut). Options : `imputationsProposees` (`missions-equipe/imputation-serveur.ts`), règles pures
+  `missions-equipe/imputation.ts`. Une ancienne imputation Ad & Pro reste affichée telle quelle (« ancienne imputation
+  Ad & Pro »), jamais réécrite. **Ce que le budget compte** : la ligne de clôture (consommé, ligne budgétaire) et la
+  **note de frais de mission** (`fraisMissionConsumption`, lue dans `getBudgetOverview` / `getEnvelopesGrandTotal`,
+  catégories d'enveloppe `OPERATIONS` seulement) — engagée en route (N+1, RH), consommée une fois validée par les RH,
+  ligne « Mission » non modifiable dans Dépenses. Ad & Pro n'en compte rien.
 - **Après la mission** : dépenses en lignes (`MissionExpenseLine` : date, nature taxi / repas / hôtel / billet / autre,
   détail, montant, devise, équivalent DZD, justificatif) — à l'international **en USD sauf le billet**, au taux figé
   `usdDzdRate` de la demande (240 par défaut, helpers de `care-fiches.ts`) ; **rapport** (déroulé, médecins rencontrés,

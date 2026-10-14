@@ -19,7 +19,7 @@ const pharmagene = {
 };
 const adventum = {
   nom: "SARL ADVENTUM Pharma", formeJuridique: "SARL", adresse: "N° 14 Rue El Moudjahidine, Sec. 45 GP 15 Lot. 01 RDC Chéraga - Alger",
-  rc: "16/00 1019094 B 23", nif: "002316101909460", ai: "16500570121", nis: "002316500139550", telephone: "020 339 430", email: "info@adventumdz.com",
+  rc: "16/00 1019094 B 23", nif: "002316101909460", ai: "16500570121", nis: "002316500139550", telephone: "020 339 430", email: "contact@societe-test.dz",
 };
 
 const facture = (extra: Partial<SpecDocumentCommercial> = {}): SpecDocumentCommercial => ({

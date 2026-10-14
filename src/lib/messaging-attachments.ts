@@ -15,7 +15,10 @@
  * des cinq « fait foi ».
  *
  * Module PUR — testé, sans base de données, importable côté serveur comme côté client.
+ * (Sa seule importation, la table des aperçus, est elle-même un module pur sans importation.)
  */
+
+import { extensionDe, natureApercu } from "@/lib/formats/apercu";
 
 /** Au-delà, ce n'est plus un message : c'est un envoi de fichiers déguisé. */
 export const MAX_ATTACHMENTS = 10;
@@ -37,9 +40,87 @@ export function driveRefLabel(name: string, isFolder: boolean): string {
   return isFolder ? `Dossier « ${name} » — Drive` : `${name} — Drive`;
 }
 
-/** Où mène un clic sur une référence : le fichier s'ouvre, le dossier se navigue. */
+/** Où mène « Ouvrir dans le Drive » : la page du fichier, ou le dossier qui se navigue. */
 export function driveRefHref(nodeId: string, isFolder: boolean): string {
   return isFolder ? `/drive?folder=${nodeId}` : `/drive/${nodeId}`;
+}
+
+// ─────────────────────────── Ouvrir une pièce SANS quitter la conversation ───────────────────────────
+
+/**
+ * OUVRIR, REGARDER, FERMER — « je dois juste pouvoir ouvrir et fermer l'image » (Direction, 14/10).
+ *
+ * Un clic sur « Capture PJ.png — Fichier du Drive » emmenait sur la page Drive du fichier (Nouvelle
+ * version, Renommer, Corbeille, Partage…) : on quittait la conversation pour regarder une capture.
+ * Désormais la pièce s'ouvre EN SURIMPRESSION au-dessus de la conversation, et se referme d'un geste.
+ *
+ *   image           → la visionneuse plein écran (←/→ entre les images du même message) ;
+ *   apercu          → PDF, Word, Excel, PowerPoint, texte, vidéo… dans l'aperçu universel, même panneau ;
+ *   dossier         → un dossier se NAVIGUE : il reste une page du Drive ;
+ *   telechargement  → archive, binaire : rien à montrer, le fichier se télécharge.
+ */
+export type OuverturePiece = "image" | "apercu" | "dossier" | "telechargement";
+
+/** Ce qu'il faut d'une pièce jointe pour savoir comment l'ouvrir — un sous-ensemble du DTO. */
+export interface PieceOuvrable {
+  id: string;
+  name: string;
+  mime: string;
+  /** Référence au Drive (rien de recopié) — null pour un fichier téléversé dans le message. */
+  driveNodeId: string | null;
+  isFolder: boolean;
+}
+
+/**
+ * Les images qu'un navigateur AFFICHE. Une photo HEIC d'iPhone ou un TIFF de scanner sont bien des
+ * « image/* », mais `<img>` les montre en cadre vide : mieux vaut les traiter comme des fichiers.
+ */
+const IMAGES_NON_AFFICHABLES = new Set(["tif", "tiff", "heic", "heif", "psd", "raw", "cr2", "nef", "dng"]);
+const MIMES_NON_AFFICHABLES = /^image\/(tiff|x-tiff|heic|heif|heic-sequence|heif-sequence|vnd\.adobe\.photoshop|x-canon-cr2|x-nikon-nef|x-adobe-dng)$/i;
+
+/** Cette pièce est-elle une image que le navigateur sait montrer (PNG, JPEG, GIF, WebP, SVG…) ? */
+export function estImageAffichable(nom: string, mime?: string | null): boolean {
+  if (IMAGES_NON_AFFICHABLES.has(extensionDe(nom))) return false;
+  if (MIMES_NON_AFFICHABLES.test((mime ?? "").trim())) return false;
+  return natureApercu(nom, (mime ?? "").trim()) === "image";
+}
+
+/** Comment s'ouvre une pièce jointe au clic. */
+export function ouverturePiece(p: Pick<PieceOuvrable, "name" | "mime" | "isFolder">): OuverturePiece {
+  if (p.isFolder) return "dossier";
+  if (estImageAffichable(p.name, p.mime)) return "image";
+  const n = natureApercu(p.name, p.mime);
+  return n === "zip" || n === "autre" ? "telechargement" : "apercu";
+}
+
+/**
+ * L'ADRESSE DU CONTENU d'une pièce — toujours par LA porte de la messagerie.
+ *
+ * `/api/messaging/attachment/<id>` vérifie d'abord qu'on est PARTICIPANT ACTIF de la conversation.
+ * Pour une référence au Drive, `?contenu=1` la fait ensuite passer au contenu du fichier
+ * (`/api/drive/<nœud>/raw`), qui vérifie À SON TOUR le droit de lecture du Drive : deux portes, et
+ * jamais d'adresse du Drive écrite en dur dans la page.
+ */
+export function urlContenuPiece(p: Pick<PieceOuvrable, "id" | "driveNodeId">, opts: { telecharger?: boolean } = {}): string {
+  const q: string[] = [];
+  if (p.driveNodeId) q.push("contenu=1");
+  if (opts.telecharger) q.push("dl=1");
+  return `/api/messaging/attachment/${encodeURIComponent(p.id)}${q.length ? `?${q.join("&")}` : ""}`;
+}
+
+/**
+ * OÙ LA ROUTE DE LA MESSAGERIE RENVOIE UNE RÉFÉRENCE AU DRIVE, une fois la participation vérifiée.
+ * Sans `contenu` : la page du Drive (ancien comportement, liens déjà émis). Avec : les octets de la
+ * version courante, servis par le Drive après SON contrôle d'accès. Un dossier n'a pas d'octets.
+ */
+export function redirectionReferenceDrive(nodeId: string, isFolder: boolean, opts: { contenu?: boolean; telecharger?: boolean } = {}): string {
+  if (isFolder || !opts.contenu) return driveRefHref(nodeId, isFolder);
+  return `/api/drive/${encodeURIComponent(nodeId)}/raw${opts.telecharger ? "?dl=1" : ""}`;
+}
+
+/** Les images d'un message, dans l'ordre : ce que ←/→ parcourent dans la visionneuse. */
+export function imagesDuMessage<T extends PieceOuvrable>(pieces: readonly T[]): T[] {
+  return pieces.filter((p) => ouverturePiece(p) === "image");
 }
 
 /**

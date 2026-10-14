@@ -1,7 +1,7 @@
 // ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir `npm run actions:contrat`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
-// chargé avant l'appel. `executer.test.ts` résout les 1089 actions et échoue en
+// chargé avant l'appel. `executer.test.ts` résout les 1120 actions et échoue en
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
 
 export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<string, unknown>>>> = {
@@ -33,6 +33,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "brand-actions": () => import("./brand-actions") as unknown as Promise<Record<string, unknown>>,
   "budget-actions": () => import("./budget-actions") as unknown as Promise<Record<string, unknown>>,
   "budget-campagne-actions": () => import("./budget-campagne-actions") as unknown as Promise<Record<string, unknown>>,
+  "budget-depense-poste-actions": () => import("./budget-depense-poste-actions") as unknown as Promise<Record<string, unknown>>,
   "budget-envelope-actions": () => import("./budget-envelope-actions") as unknown as Promise<Record<string, unknown>>,
   "budget-pole-actions": () => import("./budget-pole-actions") as unknown as Promise<Record<string, unknown>>,
   "budget-scope-actions": () => import("./budget-scope-actions") as unknown as Promise<Record<string, unknown>>,
@@ -56,6 +57,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "demande-stocks-actions": () => import("./demande-stocks-actions") as unknown as Promise<Record<string, unknown>>,
   "department-actions": () => import("./department-actions") as unknown as Promise<Record<string, unknown>>,
   "department-budget-actions": () => import("./department-budget-actions") as unknown as Promise<Record<string, unknown>>,
+  "direction-artistique-actions": () => import("./direction-artistique-actions") as unknown as Promise<Record<string, unknown>>,
   "directive-actions": () => import("./directive-actions") as unknown as Promise<Record<string, unknown>>,
   "directory-actions": () => import("./directory-actions") as unknown as Promise<Record<string, unknown>>,
   "document-actions": () => import("./document-actions") as unknown as Promise<Record<string, unknown>>,
@@ -150,8 +152,10 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "regulatory-timeline-actions": () => import("./regulatory-timeline-actions") as unknown as Promise<Record<string, unknown>>,
   "reminder-actions": () => import("./reminder-actions") as unknown as Promise<Record<string, unknown>>,
   "repartition-couts-actions": () => import("./repartition-couts-actions") as unknown as Promise<Record<string, unknown>>,
+  "reservation-fiche-actions": () => import("./reservation-fiche-actions") as unknown as Promise<Record<string, unknown>>,
   "sales-actions": () => import("./sales-actions") as unknown as Promise<Record<string, unknown>>,
   "sales-planning-actions": () => import("./sales-planning-actions") as unknown as Promise<Record<string, unknown>>,
+  "secretariat-devis-actions": () => import("./secretariat-devis-actions") as unknown as Promise<Record<string, unknown>>,
   "segmentation-actions": () => import("./segmentation-actions") as unknown as Promise<Record<string, unknown>>,
   "settings-actions": () => import("./settings-actions") as unknown as Promise<Record<string, unknown>>,
   "site-web-actions": () => import("./site-web-actions") as unknown as Promise<Record<string, unknown>>,

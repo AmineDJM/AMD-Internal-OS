@@ -12,6 +12,8 @@ import {
   type EtapeParticipation, type FicheParticipation, type VersionLite,
 } from "@/lib/missions-equipe/participation";
 import { detailsStockes, personneVivante, type DetailTrajet } from "@/lib/care-fiches";
+import { fraisIntegres, imputationsDe } from "@/lib/missions-equipe/imputation-serveur";
+import type { ImputationEquipe } from "@/lib/missions-equipe/imputation";
 
 export interface MissionCommentDTO {
   id: string; author: string; authorId: string | null; body: string; createdAt: string; editedAt: string | null;
@@ -83,6 +85,10 @@ export interface MissionAssignmentDTO {
   hotel: { nom: string | null; confirmation: string | null; documentId: string | null; deposeLe: string | null };
   reservationDemandeeLe: string | null;
   budgetCategoryId: string | null;
+  /** L'imputation lisible des frais du membre : Operations & Sales (la règle), ou une ancienne imputation Ad & Pro. */
+  imputation: ImputationEquipe | null;
+  /** Où sont intégrés les frais de clôture : une ligne Operations & Sales, un ancien poste Ad & Pro (historique), ou rien. */
+  fraisIntegres: { TRANSPORT: "OPERATIONS" | "AD_PRO" | null; HEBERGEMENT: "OPERATIONS" | "AD_PRO" | null };
   clotureLe: string | null;
 }
 
@@ -103,7 +109,7 @@ const SELECT = {
   dateDepart: true, dateRetour: true, ville: true, etapes: true, transportPosteId: true, hebergementPosteId: true,
   accordVersionId: true, accordAt: true, billetDocumentId: true, billetReference: true, billetTrajets: true, billetDeposeLe: true,
   hotelNom: true, hotelConfirmation: true, hotelDocumentId: true, hotelDeposeLe: true, reservationDemandeeLe: true,
-  budgetCategoryId: true, clotureLe: true,
+  budgetCategoryId: true, budgetChoisiParId: true, clotureLe: true,
   user: { select: { name: true } },
 } satisfies Prisma.MissionAssignmentSelect;
 type Row = Prisma.MissionAssignmentGetPayload<{ select: typeof SELECT }>;
@@ -148,7 +154,7 @@ async function hydrate(rows: Row[]): Promise<MissionAssignmentDTO[]> {
   if (rows.length === 0) return [];
   const ids = rows.map((r) => r.id);
 
-  const [documents, comments, personnes, parents, hrRequests, adminRequests, promoRequests, versions] = await Promise.all([
+  const [documents, comments, personnes, parents, hrRequests, adminRequests, promoRequests, versions, imputations, integres] = await Promise.all([
     prisma.document.findMany({
       where: { entityType: "MISSION_ASSIGNMENT", entityId: { in: ids } },
       include: { uploadedBy: { select: { name: true } } },
@@ -187,6 +193,8 @@ async function hydrate(rows: Row[]): Promise<MissionAssignmentDTO[]> {
       select: { id: true, assignmentId: true, numero: true, cote: true, nature: true, statut: true, motifDecision: true, contenu: true, createdAt: true },
       orderBy: { numero: "asc" },
     }),
+    imputationsDe(rows.map((r) => r.budgetCategoryId)),
+    fraisIntegres(rows.flatMap((r) => [r.transportPosteId, r.hebergementPosteId])),
   ]);
   const versionsDe = new Map<string, typeof versions>();
   for (const v of versions) (versionsDe.get(v.assignmentId) ?? versionsDe.set(v.assignmentId, []).get(v.assignmentId)!).push(v);
@@ -282,6 +290,14 @@ async function hydrate(rows: Row[]): Promise<MissionAssignmentDTO[]> {
       hotel: { nom: r.hotelNom, confirmation: r.hotelConfirmation, documentId: r.hotelDocumentId, deposeLe: iso(r.hotelDeposeLe) },
       reservationDemandeeLe: iso(r.reservationDemandeeLe),
       budgetCategoryId: r.budgetCategoryId,
+      imputation: (() => {
+        const i = r.budgetCategoryId ? imputations.get(r.budgetCategoryId) : undefined;
+        return i ? { ...i, parDefaut: !r.budgetChoisiParId } : null;
+      })(),
+      fraisIntegres: {
+        TRANSPORT: r.transportPosteId ? integres.get(r.transportPosteId) ?? null : null,
+        HEBERGEMENT: r.hebergementPosteId ? integres.get(r.hebergementPosteId) ?? null : null,
+      },
       clotureLe: iso(r.clotureLe),
     };
   });

@@ -18,12 +18,14 @@ import {
 } from "@/lib/actions/hr-document-actions";
 import type { HrQueueItem } from "@/lib/queries/hr-documents";
 import { OrdreMissionForm } from "../[id]/ordre-mission-form";
+import { AttestationTravailForm } from "../[id]/attestation-travail-form";
 
 /**
  * LA FILE DES DEMANDES RH (Direction, 07/10 — maquette « Demandes RH ») : UNE ligne par demande, la plus ancienne en
  * tête, UN geste (« Traiter », « Reprendre »). « Traiter » ouvre sous la ligne le panneau de traitement : trois étapes,
  * le dépôt du document qui rend la demande « prête » et prévient le salarié, le générateur quand il existe (ordre de
- * mission), « Refuser… » avec un motif, un message au salarié et le fil. Les gestes rares vont dans « ⋯ ».
+ * mission, attestation de travail), « Refuser… » avec un motif, un message au salarié et le fil. Les gestes rares vont dans
+ * « ⋯ ».
  *
  * Mêmes actions serveur que la fiche du salarié : seul l'écran change.
  */
@@ -267,7 +269,7 @@ function frise(r: HrQueueItem, nature: HrNature): Etape[] {
   if (nature === "DOCUMENT") {
     milieu = r.fulfilmentDocId || termine
       ? { texte: "Document joint", etat: "fait" }
-      : { texte: r.type === "MISSION_ORDER" ? "Ordre à générer — RH" : "Document à joindre — RH", etat: "encours" };
+      : { texte: r.type === "MISSION_ORDER" ? "Ordre à générer — RH" : r.type === "WORK_CERTIFICATE" ? "Attestation à générer — RH" : "Document à joindre — RH", etat: "encours" };
   } else if (nature === "EXPENSE") {
     milieu = termine
       ? { texte: "Décision prise", etat: "fait" }
@@ -391,6 +393,12 @@ function PanneauTraitement({ r, nature, referenceOrdreMission, currentUserId }: 
           {r.type === "MISSION_ORDER" && !termine && (
             <div>
               <OrdreMissionForm requestId={r.id} employeeName={r.employeeName} employeePosition={r.employeePosition} details={r.details} referenceSuggeree={referenceOrdreMission} prefill={r.missionPrefill} />
+            </div>
+          )}
+          {/* L'ATTESTATION DE TRAVAIL SE GÉNÈRE AUSSI (Direction, 10/2026) — et se RÉGÉNÈRE une fois prête : nouvelle version. */}
+          {r.type === "WORK_CERTIFICATE" && r.status !== "REJECTED" && r.status !== "CANCELLED" && (
+            <div>
+              <AttestationTravailForm requestId={r.id} details={r.details} dejaGeneree={termine || Boolean(r.fulfilmentDocId)} />
             </div>
           )}
           {r.fulfilmentDocId && (

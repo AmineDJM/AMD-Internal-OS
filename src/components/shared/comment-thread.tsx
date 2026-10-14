@@ -2,11 +2,14 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Send, Loader2, Pencil, Trash2, Check, X } from "lucide-react";
+import { Send, Loader2, Pencil, Trash2, Check, X, Paperclip } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { formatDateTime } from "@/lib/utils";
+import { DocumentPreview } from "@/components/documents/document-preview";
+import { ChoixFichiers } from "@/components/shared/choix-fichiers";
+import { messageRecevable } from "@/lib/fil-pieces";
 
 export interface CommentItem {
   id: string;
@@ -15,13 +18,15 @@ export interface CommentItem {
   body: string;
   createdAt: string;
   editedAt?: string | null;
+  /** Les pièces jointes du message (des `Document` de l'entité, `stepKey` = le message — voir `lib/fil-pieces`). */
+  attachments?: { id: string; name: string; hasFile: boolean }[];
 }
 
 type ModAction = (formData: FormData) => Promise<{ ok: boolean; error?: string }>;
 
 interface CommentThreadProps {
   comments: CommentItem[];
-  action: (formData: FormData) => Promise<{ ok: boolean; error?: string }>;
+  action: (formData: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>;
   hiddenFields: Record<string, string>;
   /** Utilisateur courant (pour autoriser l'édition/suppression de ses propres commentaires). */
   currentUserId?: string;
@@ -32,16 +37,24 @@ interface CommentThreadProps {
   deleteAction?: ModAction;
   /** Chemin à revalider après modération. */
   path?: string;
+  /**
+   * Le formulaire accepte des PIÈCES JOINTES (plusieurs) envoyées avec le message, sous le champ `files`.
+   * L'action doit les rattacher (fils Ad & Pro : `addAdProComment`). Absent : le fil reste texte seul.
+   */
+  piecesJointes?: boolean;
 }
 
 export function CommentThread({
-  comments, action, hiddenFields, currentUserId, canModerate = false, updateAction, deleteAction, path,
+  comments, action, hiddenFields, currentUserId, canModerate = false, updateAction, deleteAction, path, piecesJointes = false,
 }: CommentThreadProps) {
   const router = useRouter();
   const [pending, setPending] = React.useState(false);
   const [editing, setEditing] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
+  const [texte, setTexte] = React.useState("");
+  const [fichiers, setFichiers] = React.useState<File[]>([]);
+  const [retour, setRetour] = React.useState<{ ok: boolean; texte: string } | null>(null);
 
   const canManage = (c: CommentItem) => Boolean((updateAction || deleteAction) && (canModerate || (c.authorId && c.authorId === currentUserId)));
 
@@ -52,12 +65,33 @@ export function CommentThread({
     await updateAction(fd);
     setBusy(null); setEditing(null); router.refresh();
   }
-  async function remove(id: string) {
-    if (!deleteAction || !window.confirm("Supprimer ce commentaire ?")) return;
+  async function remove(id: string, nbPieces: number) {
+    // SUPPRIMER UN MESSAGE EMPORTE SES PIÈCES : la question le dit, rien ne disparaît en silence.
+    const question = nbPieces > 0
+      ? `Supprimer ce commentaire et ${nbPieces > 1 ? `ses ${nbPieces} pièces jointes` : "sa pièce jointe"} ?`
+      : "Supprimer ce commentaire ?";
+    if (!deleteAction || !window.confirm(question)) return;
     setBusy(id);
     const fd = new FormData(); fd.set("id", id); if (path) fd.set("path", path);
     await deleteAction(fd);
     setBusy(null); router.refresh();
+  }
+
+  async function publier(fd: FormData) {
+    if (!messageRecevable(texte, fichiers.length)) return;
+    setPending(true);
+    setRetour(null);
+    for (const f of fichiers) fd.append("files", f);
+    const r = await action(fd);
+    setPending(false);
+    // UN REFUS GARDE LA SAISIE : le texte et les fichiers choisis restent, la phrase du serveur s'affiche.
+    if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "Le message n'a pas pu être publié." }); return; }
+    if (r.message) setRetour({ ok: true, texte: r.message });
+    const avecPieces = fichiers.length > 0;
+    formRef.current?.reset();
+    setTexte("");
+    setFichiers([]);
+    if (avecPieces) router.refresh();
   }
 
   return (
@@ -80,7 +114,7 @@ export function CommentThread({
                       </button>
                     )}
                     {deleteAction && (
-                      <button type="button" onClick={() => remove(c.id)} disabled={busy === c.id} title="Supprimer" aria-label="Supprimer le commentaire" className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1">
+                      <button type="button" onClick={() => remove(c.id, c.attachments?.length ?? 0)} disabled={busy === c.id} title="Supprimer" aria-label="Supprimer le commentaire" className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1">
                         {busy === c.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
                       </button>
                     )}
@@ -89,31 +123,44 @@ export function CommentThread({
               </div>
               {editing === c.id ? (
                 <EditRow initial={c.body} busy={busy === c.id} onCancel={() => setEditing(null)} onSave={(v) => save(c.id, v)} />
-              ) : (
+              ) : c.body ? (
                 <p className="whitespace-pre-wrap break-words text-sm text-foreground/90">{c.body}</p>
+              ) : null}
+              {/* LES PIÈCES DU MESSAGE, sous lui : un clic ouvre l'aperçu (même porte que le fil — celle du dossier). */}
+              {c.attachments && c.attachments.length > 0 && (
+                <ul className="mt-1.5 flex flex-col gap-1" aria-label="Pièces jointes du message">
+                  {c.attachments.map((a) => (
+                    <li key={a.id} className="flex min-w-0 items-center gap-1.5 text-xs">
+                      <Paperclip className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      <DocumentPreview id={a.id} name={a.name} hasFile={a.hasFile} />
+                    </li>
+                  ))}
+                </ul>
               )}
             </div>
           </li>
         ))}
       </ul>
 
-      <form
-        ref={formRef}
-        action={async (fd) => {
-          setPending(true);
-          await action(fd);
-          setPending(false);
-          formRef.current?.reset();
-        }}
-        className="flex items-end gap-2"
-      >
-        {Object.entries(hiddenFields).map(([k, v]) => (
-          <input key={k} type="hidden" name={k} value={v} />
-        ))}
-        <Textarea name="body" required placeholder="Ajouter un commentaire…" className="min-h-[40px] flex-1" />
-        <Button type="submit" size="icon" disabled={pending}>
-          {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-        </Button>
+      <form ref={formRef} action={publier} className="space-y-2">
+        <div className="flex items-end gap-2">
+          {Object.entries(hiddenFields).map(([k, v]) => (
+            <input key={k} type="hidden" name={k} value={v} />
+          ))}
+          <Textarea
+            name="body" required={!piecesJointes || fichiers.length === 0} value={texte} onChange={(e) => setTexte(e.target.value)}
+            placeholder="Ajouter un commentaire…" className="min-h-[40px] flex-1"
+          />
+          <Button type="submit" size="icon" disabled={pending} aria-label="Publier le commentaire">
+            {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+          </Button>
+        </div>
+        {piecesJointes && (
+          <ChoixFichiers fichiers={fichiers} onChange={setFichiers} disabled={pending} libelle="Joindre des fichiers" ariaLabel="Pièces jointes du message" />
+        )}
+        {retour && (
+          <p className={`text-xs ${retour.ok ? "text-warning" : "text-destructive"}`} role="status">{retour.texte}</p>
+        )}
       </form>
     </div>
   );

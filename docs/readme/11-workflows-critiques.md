@@ -428,6 +428,16 @@ Demande (employé) — une demande par besoin, + participants (facultatif)
    (le demandeur est notifié aux deux pas ; « Annuler la demande… » et « Supprimer » restent)
 ```
 
+**Refonte du bureau (maquette validée, 10/2026).** Tableau : tuiles-filtres (à traiter, en cours, en validation, en
+paiement, en retard, terminées 30 j), raccourcis (notes de frais, courses, corbeille), colonnes « chez qui » et UN montant
+(`montantDeLaDemande` — payé › imputé › facturé › engagé › validé › devis retenu › estimé, `secretariat/bureau.ts`). Fiche :
+le geste suivant en tête (`gesteSuivant`) + « ⋯ », frise calculée (`friseDeLaDemande`), UNE liste « Pièces » Devis → BC →
+Facture → Justificatifs (`grouperLesPieces`), une carte Montant, UNE carte Validations, Discussion vs Historique (`separerLeFil`).
+**Devis natifs → BC (« comme dans Ad & Pro »)** : l'assistante dépose et retranscrit le devis (registre Legal `QUOTE`, lignes
+sous `custom.devisNatif`) ; le **demandeur** (ou le Super Admin) retient ses lignes et génère UN BC par fournisseur (fabrique,
+sous délégation de la demande) ou dépose un BC ; centre de validations → signature → « Signé et validé », l'assistante prévenue
+(`secretariat/devis-natif*.ts`, `secretariat-devis-actions.ts`, `devis-bc-flow.test.ts`). « Terminer » attend un BC en route.
+
 **Deux gestes, rien d'autre (Direction, 10/2026 — `secretariat/traitement.ts`).** Retirés : la demande multiple
 (`createRequestBatch`), le type « Mission chauffeur » et la création de courses (`createMission`), les statuts posés à la
 main (en attente d'un tiers / d'un document, bloquer, reprendre — `updateRequestStatus` refuse tout et nomme les deux
@@ -478,20 +488,41 @@ de faire changer un dossier de chemin (`lib/medical-info/circuits.ts`) :
 CIRCUIT ÉVÉNEMENT — prise en charge nationale / internationale, événement, sponsoring
    → MedicalInfoDeclaration (DIM-AAAA-NNN) notifiée au pharmacien
    → il SOUMET sa lecture : « à déclarer au ministère » ou « sans déclaration » (motif EXIGÉ)
-   → trois signatures : son responsable, le référent Direction Marketing du dossier, le centre de validations
+   → le DIRECTEUR DES OPÉRATIONS tranche (tous les comptes actifs saisis, le premier qui tranche décide ;
+     aucun actif → le Super Admin, et la confirmation du pharmacien le dit)
    → accordée : il réclame les pièces s'il en manque, dépose auprès du ministère de l'Industrie
      pharmaceutique, enregistre la référence
-   → il VALIDE  →  la Direction (vue globale) valide  →  l'ordre de dépense naît, en attente du centre de paiement
+   → il VALIDE  →  le DIRECTEUR DES OPÉRATIONS valide (ou refuse, motif exigé : le dossier revient au pharmacien)
+     →  l'ordre de dépense naît — un seul, même à deux clics (écriture conditionnelle) —, en attente du centre de paiement
      (aucun ordre global quand des postes portent la dépense : chacun émet le sien)
 
 CIRCUIT MATÉRIEL PROMOTIONNEL
    → il réclame les pièces s'il en manque
    → il SÉPARE le dossier en matériels — un bon de versement PAR matériel
-   → UNE validation couvre le dépôt du lot (mêmes trois signatures)
+   → UNE validation couvre le dépôt du lot (le Directeur des Opérations, comme ci-dessus)
    → accordée : il demande le paiement de CHAQUE quittance séparément
      (centre de paiement → Finances → REMISE de la quittance à son bureau)
-   → toutes remises : le dépôt aux autorités s'ouvre, puis il VALIDE
+   → toutes remises : le dépôt aux autorités s'ouvre, puis il VALIDE  →  validation finale du Directeur des Opérations
 ```
+
+**Ce que le PRIM fait valider, le DIRECTEUR DES OPÉRATIONS le tranche (Direction, 10/2026).** « Quand le pharmacien
+responsable d'information médicale demande une validation, elle doit automatiquement aller chez le directeur des
+opérations. C'est lui qui valide, ou pas. » Les trois demandes — la lecture « à déclarer ? », le dépôt des bons, la
+validation finale — vont au rôle `OPERATIONS_DIRECTOR` (la PERSONNE, principal ou secondaire), plus au N+1 / référent
+Direction Marketing / centre, ni à la Direction des opérations (`DIRECTION`, le SERVICE). Règle pure
+`lib/medical-info/decideur.ts` ; les deux premières sont des demandes de validation `PARALLEL` de nature
+`INFO_MED_DIRECTEUR_OPS`, que le moteur commun clôt au premier accord (`validations/decision.ts:unSeulSuffit`, les autres
+étapes passent « sans objet ») ; la troisième garde la machine du module (`validateDeclarationByDirection` /
+`refuseDeclarationByDirection`, motif exigé, relu à l'écran via le journal). Le Super Admin reste souverain. Le
+directeur lit le module en portée ALL (`MEDICAL_INFO: READ`) : registre, fiche et pièces. Les demandes déjà en cours sous
+l'ancienne chaîne finissent leur circuit.
+
+**L'argent, tenu (audit 10/2026).** L'ordre GLOBAL de la validation finale ne naît que pour un dossier d'événement venu
+d'Ad & Pro, sans postes qui portent la dépense et sans ordre déjà émis (`circuits.ts:ordreGlobalALaValidation`) —
+jamais sur la saisie libre d'un dossier ouvert par le PRIM, ni pour un MIP / visa / circuit matériel. Un bon ne porte
+qu'UNE demande de paiement vivante (prise conditionnelle) ; un paiement annulé ou refusé le libère (redemander,
+retirer, ou « sans versement »). L'exemption de facture d'une demande rattachée à une déclaration se prouve à la
+création (`bonDeVersementRattache`). Sans pharmacien actif, la déclaration naît non assignée, avec l'ordre déjà parti.
 
 **Ce qu'on fait valider est la LECTURE, pas la question.** Une demande de validation répond oui ou non :
 poser « faut-il déclarer ? » aurait fait dire « refusé » pour signifier « non, ne déclarez pas », et un
@@ -507,7 +538,7 @@ du circuit. Le bon de versement ne s'ouvre pas : c'est une étape du circuit du 
 
 **L'écran (07/10) — où en est le dossier, chez qui, depuis quand.** Une seule lecture, `lib/medical-info/parcours.ts`
 (PUR, testé), sert la liste ET la fiche : étapes **Événement** = Reçu → À déclarer ? → Pièces → Dépôt ministère →
-Pharmacien → Direction ; **Matériel** = Reçu → Pièces → Bons de versement → Dépôt ministère → Pharmacien → Direction.
+Pharmacien → Directeur des Opérations ; **Matériel** = Reçu → Pièces → Bons de versement → Dépôt ministère → Pharmacien → Directeur des Opérations.
 L'étape courante est la première ni faite ni « sans objet » (les pièces sont facultatives : sans demande, l'étape est
 sans objet). La **liste** (`information-medicale/dossiers-table.tsx`) : quatre tuiles (chaque dossier ouvert compté une
 fois, dans le groupe où il attend), une ligne « état — chez qui », le délai, et le **produit** déduit de la source

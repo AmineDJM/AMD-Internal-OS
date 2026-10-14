@@ -35,7 +35,10 @@ export interface ToolbarTool {
   label: string;
   description?: string;
   icon: React.ReactNode;
-  panel: React.ReactNode;
+  /** Une feuille montée au niveau de la barre… */
+  panel?: React.ReactNode;
+  /** …ou un LIEN vers l'écran qui tient l'outil (la papeterie vit dans « Direction artistique »). */
+  href?: string;
 }
 
 export function DriveToolbar({
@@ -120,7 +123,20 @@ export function DriveToolbar({
               >
                 <Trash2 className="h-4 w-4 text-muted-foreground" /> {trashLabel}
               </Link>
-              {tools.map((t) => (
+              {tools.map((t) => t.href ? (
+                <Link
+                  key={t.key}
+                  href={t.href}
+                  onClick={() => setOpen(false)}
+                  className="flex w-full items-start gap-2.5 rounded-md px-2.5 py-2.5 sm:py-2 text-left text-sm hover:bg-secondary"
+                >
+                  <span className="mt-0.5 shrink-0 text-muted-foreground">{t.icon}</span>
+                  <span>
+                    <span className="block">{t.label}</span>
+                    {t.description && <span className="block text-xs text-muted-foreground">{t.description}</span>}
+                  </span>
+                </Link>
+              ) : (
                 <button
                   key={t.key}
                   type="button"
@@ -139,7 +155,7 @@ export function DriveToolbar({
         )}
       </div>
 
-      {tools.map((t) => (
+      {tools.filter((t) => !t.href).map((t) => (
         <Sheet key={t.key} open={tool === t.key} onClose={() => setTool(null)} title={t.label} description={t.description} width="md">
           {t.panel}
         </Sheet>

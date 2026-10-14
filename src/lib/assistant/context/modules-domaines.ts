@@ -117,6 +117,8 @@ export const SERVICE_DU_MODULE: Record<CleModule, ServiceDuModule> = {
   PHARMACOVIGILANCE: { domaines: ["REGULATORY"], mots: ["pharmacovigilance", "effet indesirable", "cas pv", "signalement"] },
   DOCUMENTS: { domaines: ["DRIVE"] },
   DRIVE: { domaines: ["DRIVE"] },
+  // Direction artistique (10/2026) — papeterie par entité. Aucun outil d'Adam : gestes d'écran.
+  ART_DIRECTION: { domaines: ["DRIVE"], mots: ["direction artistique", "papier en-tete", "papier entete", "modele de bon de commande", "charte graphique"] },
   ADMIN: { domaines: ["ADMIN"] },
   PCH: { domaines: ["REGULATORY"], outils: ["pch_operation", "pch_market_status"] },
   PRODUCT_EXPLORER: { domaines: ["REGULATORY"] },

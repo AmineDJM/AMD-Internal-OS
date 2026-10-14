@@ -218,8 +218,8 @@ suite("« Mon espace » — ce qui m'attend, une ligne par objet, et depuis quan
     expect(r.ok, r.ok ? undefined : r.error).toBe(true);
     expect(lignesDe(await centre("asst"), `ADMIN_REQUEST:${a.requestId}`), "plus rien à traiter").toEqual([]);
     expect(lignesDe(await centre("m"), `ADMIN_REQUEST:${a.requestId}`), "plus rien à valider").toEqual([]);
-    // Le filtre l'écarte — l'approbation, elle, est restée en attente en base.
-    expect((await prisma.adminApproval.findUniqueOrThrow({ where: { id: a.approbationId } })).status).toBe("PENDING");
+    // La suppression retire l'approbation en attente (audit du 14/10/2026 : supprimer, c'est annuler ce qui en dépend).
+    expect(await prisma.adminApproval.count({ where: { id: a.approbationId, status: "PENDING" } })).toBe(0);
   });
 
   it("une demande ANNULÉE par un chemin qui ne retire pas son approbation ne s'attend plus chez le validateur", async () => {

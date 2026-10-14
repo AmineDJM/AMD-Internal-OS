@@ -1,19 +1,20 @@
 import type { EntityType } from "@prisma/client";
-import { personnesInvitables, type MissionAssignmentDTO } from "@/lib/queries/missions";
-import { adProBudgetOptions } from "@/lib/queries/ad-pro-items";
+import { personnesInvitables, getEntityMissions, type MissionAssignmentDTO } from "@/lib/queries/missions";
 import { getCurrentUser } from "@/lib/session";
-import { rolesDe } from "@/lib/missions-equipe/serveur";
+import { parentMission, rolesDe } from "@/lib/missions-equipe/serveur";
+import { assurerImputationEquipe, imputationsProposees } from "@/lib/missions-equipe/imputation-serveur";
 import { peutChoisirBudgetMission } from "@/lib/missions-equipe/participation";
 import { EquipeAdventum } from "./equipe-adventum";
 
 /**
  * « ÉQUIPE ADVENTUM » sur une demande Ad & Pro (sponsoring, événement, congrès national / international) — composant
- * SERVEUR : il lit lui-même les salariés actifs, groupés par département, pour le sélecteur, et — pour la Direction
- * Marketing — les lignes budgétaires où imputer les frais de mission. Les fiches lui passent encore `users` (liste à
- * plat d'avant) : il n'en a plus besoin.
+ * SERVEUR : il lit lui-même les salariés actifs, groupés par département, pour le sélecteur, et les catégories du
+ * BUDGET OPERATIONS & SALES où vont les frais de l'équipe (Direction, 10/2026 : « ici le budget à imputer, ce n'est pas
+ * Ad & Pro, c'est Operations & Sales ») — l'enveloppe de l'année ouverte d'office, et l'imputation par défaut posée sur
+ * un membre qui n'en a pas encore. Les fiches lui passent encore `users` (liste à plat d'avant) : il n'en a plus besoin.
  */
 export async function MissionAssignmentsCard({
-  entityType, entityId, assignments, canManage, currentUserId,
+  entityType, entityId, assignments: initiales, canManage, currentUserId,
 }: {
   entityType: EntityType;
   entityId: string;
@@ -26,15 +27,25 @@ export async function MissionAssignmentsCard({
   const viewer = await getCurrentUser();
   const roles = viewer ? rolesDe(viewer) : [];
   const peutBudget = peutChoisirBudgetMission(roles);
-  const [personnes, budgetOptions] = await Promise.all([
-    canManage ? personnesInvitables() : Promise.resolve([]),
-    viewer && assignments.length > 0 ? adProBudgetOptions(viewer).catch(() => []) : Promise.resolve([]),
-  ]);
+  let assignments = initiales;
+  let imputation: Awaited<ReturnType<typeof imputationsProposees>> = { options: [], defaut: null };
+  if (viewer && assignments.length > 0) {
+    const parent = await parentMission(entityType, entityId);
+    // Un membre invité avant la règle n'a pas d'imputation : la sienne est posée par défaut (Operations & Sales), une
+    // fois. Une ancienne imputation Ad & Pro n'est jamais réécrite — l'écran la montre comme telle.
+    const sans = assignments.filter((a) => !a.budgetCategoryId && a.response !== "DECLINEE");
+    if (sans.length > 0) {
+      for (const a of sans) await assurerImputationEquipe(a.id, viewer.id, parent.debut);
+      assignments = await getEntityMissions(entityType, entityId);
+    }
+    imputation = await imputationsProposees({ date: parent.debut, actorId: viewer.id }).catch(() => ({ options: [], defaut: null }));
+  }
+  const personnes = canManage ? await personnesInvitables() : [];
   return (
     <EquipeAdventum
       entityType={entityType} entityId={entityId} assignments={assignments}
       personnes={personnes} canManage={canManage} currentUserId={currentUserId}
-      viewerRoles={roles} peutBudget={peutBudget} budgetOptions={budgetOptions}
+      viewerRoles={roles} peutBudget={peutBudget} budgetOptions={imputation.options} imputationDefaut={imputation.defaut}
     />
   );
 }

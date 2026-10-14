@@ -17,6 +17,7 @@ import { recordAudit } from "@/lib/audit";
 import { getBlob, putBlob } from "@/lib/drive-storage";
 import { canManageLetterheads } from "@/lib/office/letterhead";
 import { hasGlobalView } from "@/lib/rbac";
+import { peutGererDirectionArtistique } from "@/lib/direction-artistique/droits";
 import type { CurrentUser } from "@/lib/session";
 import { resoudreSociete, type EchecFabrique } from "@/platform/in-process/artifact/factory";
 import { charteDe, lireMarque, mentionsDe, resumerMarque, validerMarque, type Charte, type Marque } from "@/lib/brand/model";
@@ -27,9 +28,11 @@ export { charteDe, lireMarque, mentionsDe, resumerMarque, signatairePour, valide
  * QUI RÈGLE LA MARQUE : la Direction (vue globale — c'est elle qui décide de la charte) et ceux qui
  * tiennent la papeterie (assistante de direction, Super Admin — c'est eux qui l'exécutent). Le banc
  * l'a montré : le PDG qui dit « règle la charte d'Adventum » ne peut pas être renvoyé vers son
- * assistante ; la charte est une décision de direction, pas un geste de papeterie.
+ * assistante ; la charte est une décision de direction, pas un geste de papeterie. Et quiconque
+ * tient la « Direction artistique » (module ouvert par la console à une personne) : la charte de
+ * l'entité s'y règle (Transverse › Direction artistique).
  */
-export const peutReglerMarque = (user: { role: string; secondaryRole?: string | null }): boolean => canManageLetterheads(user) || hasGlobalView(user as never);
+export const peutReglerMarque = (user: { role: string; secondaryRole?: string | null; access?: CurrentUser["access"] }): boolean => canManageLetterheads(user) || hasGlobalView(user as never) || peutGererDirectionArtistique(user, "UPDATE");
 
 export const LOGO_TAILLE_MAX = 2 * 1024 * 1024;
 export const LOGO_MIMES = new Set(["image/png", "image/jpeg"]);

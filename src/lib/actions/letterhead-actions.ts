@@ -4,12 +4,9 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { putBlob, releaseBlob } from "@/lib/drive-storage";
-import { validateUpload } from "@/lib/storage";
-import { getAppSettings } from "@/lib/settings";
-import { getMyCompanies } from "@/lib/company";
-import { isOfficeKind } from "@/lib/office-templates";
-import { canManageLetterheads, validateLetterheadFile, KIND_LABEL } from "@/lib/office/letterhead";
+import { releaseBlob } from "@/lib/drive-storage";
+import { peutGererDirectionArtistique } from "@/lib/direction-artistique/droits";
+import { deposerPapier, papierDansPerimetre, MODULE_AUDIT } from "@/lib/direction-artistique/serveur";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 
 /**
@@ -22,67 +19,40 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
  * destinataire.
  */
 
-const PATH = "/drive"; // la papeterie vit dans le menu « ⋯ » du Drive
+// La papeterie vit désormais dans « Direction artistique » (Transverse) ; le Drive la propose
+// toujours à la création d'un document.
+const PATHS = ["/direction-artistique", "/drive"];
+const revalider = () => { for (const p of PATHS) revalidatePath(p); };
 
 /** Téléverse un papier en-tête. Le fichier doit correspondre au type annoncé. */
 export async function uploadLetterhead(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!canManageLetterheads(user)) {
-    return { ok: false, error: "Seule l'assistante de direction (et la direction) tient les papiers en-tête." };
-  }
-
-  const kind = fdStr(formData, "kind");
-  if (!kind || !isOfficeKind(kind)) return { ok: false, error: "Type de document invalide." };
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choisissez un fichier." };
-
-  const badType = validateLetterheadFile(kind, file.name);
-  if (badType) return { ok: false, error: badType };
-  const badUpload = validateUpload(file.name, file.size, (await getAppSettings()).maxUploadMb);
-  if (badUpload) return { ok: false, error: badUpload };
-
-  // L'entité, si elle est précisée, doit être dans le périmètre : on ne dépose pas le papier
-  // à en-tête d'une société qu'on ne voit pas.
-  const companyId = fdStr(formData, "companyId");
-  if (companyId) {
-    const mine = await getMyCompanies(user.id);
-    if (!mine.some((c) => c.id === companyId)) return { ok: false, error: "Cette entité n'est pas dans votre périmètre." };
-  }
-
-  const buf = Buffer.from(await file.arrayBuffer());
-  const { blobId, size } = await putBlob(buf);
-  const name = fdStr(formData, "name") || file.name;
-
-  const created = await prisma.officeLetterhead.create({
-    data: {
-      name, kind, companyId: companyId || null,
-      blobId, mime: file.type || "application/octet-stream", size,
-      uploadedById: user.id,
-    },
-    select: { id: true },
+  const r = await deposerPapier(user, {
+    kind: fdStr(formData, "kind"), file: formData.get("file"),
+    name: fdStr(formData, "name"), companyId: fdStr(formData, "companyId"),
   });
-
-  await recordAudit({
-    actorId: user.id, action: "UPLOAD", module: "Drive",
-    summary: `Papier en-tête ${KIND_LABEL[kind]} ajouté : ${name}`,
-  });
-  revalidatePath(PATH);
-  revalidatePath("/drive");
-  return { ok: true, id: created.id };
+  if (!r.ok) return r;
+  revalider();
+  return { ok: true, id: r.id };
 }
 
 /** Renomme un papier en-tête, le rattache à une entité, ou le désactive. */
 export async function updateLetterhead(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!canManageLetterheads(user)) return { ok: false, error: "Non autorisé." };
+  if (!peutGererDirectionArtistique(user, "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "En-tête introuvable." };
-  const existing = await prisma.officeLetterhead.findUnique({ where: { id }, select: { name: true } });
-  if (!existing) return { ok: false, error: "En-tête introuvable." };
+  const existing = await prisma.officeLetterhead.findUnique({ where: { id }, select: { name: true, companyId: true } });
+  // Hors périmètre = introuvable : on ne révèle pas la papeterie d'une entité qu'on ne voit pas.
+  if (!existing || !(await papierDansPerimetre(user.id, existing.companyId))) return { ok: false, error: "En-tête introuvable." };
 
   const activeRaw = formData.get("isActive");
   const name = fdStr(formData, "name") || existing.name;
   const companyRaw = formData.get("companyId");
+  // On ne rattache pas un modèle à une entité qu'on ne voit pas.
+  if (companyRaw != null && String(companyRaw) && !(await papierDansPerimetre(user.id, String(companyRaw)))) {
+    return { ok: false, error: "Cette entité n'est pas dans votre périmètre." };
+  }
 
   await prisma.officeLetterhead.update({
     where: { id },
@@ -94,10 +64,10 @@ export async function updateLetterhead(formData: FormData): Promise<ActionResult
     },
   });
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Drive",
+    actorId: user.id, action: "UPDATE", module: MODULE_AUDIT,
     summary: `Papier en-tête modifié : ${existing.name}${name !== existing.name ? ` → ${name}` : ""}`,
   });
-  revalidatePath(PATH);
+  revalider();
   return { ok: true };
 }
 
@@ -109,18 +79,18 @@ export async function updateLetterhead(formData: FormData): Promise<ActionResult
  */
 export async function deleteLetterhead(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!canManageLetterheads(user)) return { ok: false, error: "Non autorisé." };
+  if (!peutGererDirectionArtistique(user, "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "En-tête introuvable." };
-  const existing = await prisma.officeLetterhead.findUnique({ where: { id }, select: { name: true, blobId: true } });
-  if (!existing) return { ok: false, error: "En-tête introuvable." };
+  const existing = await prisma.officeLetterhead.findUnique({ where: { id }, select: { name: true, blobId: true, companyId: true } });
+  if (!existing || !(await papierDansPerimetre(user.id, existing.companyId))) return { ok: false, error: "En-tête introuvable." };
 
   await prisma.officeLetterhead.delete({ where: { id } });
   await releaseBlob(existing.blobId).catch(() => undefined);
   await recordAudit({
-    actorId: user.id, action: "DELETE", module: "Drive",
+    actorId: user.id, action: "DELETE", module: MODULE_AUDIT,
     summary: `Papier en-tête supprimé : ${existing.name}`,
   });
-  revalidatePath(PATH);
+  revalider();
   return { ok: true };
 }

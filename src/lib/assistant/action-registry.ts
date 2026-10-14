@@ -1089,6 +1089,11 @@ X("SEGMENTATION STUDIO (Direction, 06/10) : stratégie, classement des produits,
   // Le classeur de la Direction importé « en une fois » : un fichier, une BU, un aperçu lu à l'écran avant d'importer.
   "segmentation-actions:apercuImportClasseurDirection", "segmentation-actions:importerClasseurDirection",
 ]);
+X("PIÈCES DEMANDÉES › CONFIER LE BC D'UN POSTE À UNE AUTRE ASSISTANTE (audit Assistante de direction, 10/2026) : le geste se "
+  + "décide en REGARDANT le fil de la pièce (`/pieces/[id]`) — qui la tient, depuis quand, si elle est déposée — et ne vise "
+  + "qu'une assistante de direction ACTIVE, proposée par l'écran. Adam est en pause de développement (Super Admin seul).", [
+  "document-request-actions:reaffecterDemandeBC",
+]);
 X("FORCE DE VENTE › TERRITOIRES (Direction, 07/10) : rattacher en un clic une cible H ou A hors panel au délégué de son "
   + "secteur. Le geste se décide en REGARDANT la liste du secteur (lettre, statut, établissement) que l'écran "
   + "`/planning/territoires` montre ; il ne réaffecte jamais un praticien déjà suivi.", [
@@ -1211,9 +1216,15 @@ X("LES LIGNES DES DEVIS D'UN POSTE ET LES BC QU'ELLES FONT GÉNÉRER (§118.206)
   // attribue le numéro NNN/DG/AAAA et envoie aux Finances (`validerEtEnvoyerBcPoste`). Des gestes d'écran, jamais des appels d'Adam.
   "ad-pro-item-actions:apercuBcPoste", "ad-pro-item-actions:modifierApercuBcPoste", "ad-pro-item-actions:annulerApercuBcPoste",
   "ad-pro-item-actions:validerEtEnvoyerBcPoste",
+  // LE BC EN UN CLIC (Direction, 10/2026 : « il doit pouvoir être généré automatiquement en un clic ») : le demandeur génère, numérote et
+  // aiguille d'un geste le BC de chaque devis qui compte — la même porte que la validation de l'aperçu. Un geste d'écran, jamais d'Adam.
+  "ad-pro-item-actions:genererEtEnvoyerBcPoste",
   // LE BC MODIFIÉ EN NATIF ET LA FACTURE CONTRÔLÉE PAR LUNA (Direction, 06/10) : une révision du Word et du PDF, et un
   // fichier de facture lu puis comparé au(x) BC signé(s) — des gestes devant la carte du poste, pas des appels d'Adam.
   "ad-pro-item-actions:modifierBcDuPoste", "ad-pro-item-actions:deposerFacturePoste",
+  // L'APERÇU DU BC MODIFIÉ DE A À Z (Direction, 10/2026) : le composeur montre les totaux de la version à venir, à blanc,
+  // sous la porte du poste — une lecture d'écran qui n'écrit rien, pas un geste d'Adam.
+  "ad-pro-item-actions:previsualiserBcDuPoste",
   // LA LETTRE DE DEMANDE DE DEVIS (Direction, 07/10) : rédigée par Luna, posée sur le poste — un bouton de l'étape.
   "ad-pro-item-actions:genererDemandeDevisPoste", "promo-devis-actions:regenererDemandeDevisPromo",
   // LE CHAMP « RÉFÉRENCE » DES FORMULAIRES DE GÉNÉRATION (registre commun NNN/DG/AAAA, Direction 10/2026) : lire le prochain numéro
@@ -1264,6 +1275,11 @@ X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : 
   + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
   "care-actions:creerProfilProfessionnel", "care-actions:demanderPiecesPriseEnCharge", "care-actions:deposerPiecePriseEnCharge",
 ]);
+X("PRISES EN CHARGE — PLUSIEURS FICHIERS PAR PIÈCE (Direction, 10/2026) : retirer UN fichier d'une pièce (la page en trop, "
+  + "le scan illisible) ; le dernier retiré, la pièce redevient attendue. Un geste fait DEVANT l'aperçu du fichier, sur une "
+  + "pièce d'identité. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "care-actions:retirerFichierPiecePriseEnCharge",
+]);
 X("PRISES EN CHARGE — FICHES VOYAGEUR (Direction, 10/2026) : enregistrer un poste de la fiche (billet, hôtel, autre poste, "
   + "montant en dollars à l'international), déposer le billet émis ou la confirmation d'hôtel, retenir un devis, demander "
   + "la réservation et le BC à l'assistante de direction, gérer les postes de groupe. Des gestes faits DEVANT la fiche "
@@ -1272,6 +1288,17 @@ X("PRISES EN CHARGE — FICHES VOYAGEUR (Direction, 10/2026) : enregistrer un po
   "care-actions:modifierPosteFiche", "care-actions:enregistrerBilletEmis", "care-actions:retenirDevisPriseEnCharge",
   "care-actions:demanderReservationPriseEnCharge", "care-actions:demanderBCPriseEnCharge",
   "care-actions:ajouterPosteGroupe", "care-actions:modifierPosteGroupe", "care-actions:retirerPosteGroupe",
+]);
+X("LES FICHES DE VOYAGE CHEZ L'ASSISTANTE DE DIRECTION (Direction, 14/10/2026) — côté demandeur : envoyer UNE fiche "
+  + "(billet ou hôtel) ou « les fiches prêtes » (chacune séparément), relancer (une fois par 24 h), retirer ; côté "
+  + "assistante, dans l'onglet « Ad & Pro » du Bureau du secrétariat : prendre la fiche, signaler un manque, joindre "
+  + "le devis de l'agence (par le circuit devis existant du poste) et déposer le billet ou la confirmation d'hôtel "
+  + "(des FICHIERS, après l'accord du poste). Des gestes faits DEVANT la fiche, qui engagent le travail d'une personne "
+  + "ou portent une pièce. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "reservation-fiche-actions:envoyerFiche", "reservation-fiche-actions:envoyerFichesPretes",
+  "reservation-fiche-actions:relancerFiche", "reservation-fiche-actions:retirerFiche",
+  "reservation-fiche-actions:prendreFiche", "reservation-fiche-actions:signalerManque",
+  "reservation-fiche-actions:joindreDevisAgence", "reservation-fiche-actions:deposerBillet",
 ]);
 X("ANNULER SA DEMANDE TANT QU'ELLE N'EST PAS EXÉCUTÉE (décision du 04/10) — rallonges de budget et de caisse, "
   + "document RH, ordre de mission, tâche demandée, formation. Des gestes qui RÉDUISENT, mais Adam est en pause de "
@@ -1288,6 +1315,57 @@ X("RENVOYER, RÉEXAMINER, RESOUMETTRE DANS LES CENTRES (§118.188, audit R07/R08
   + "demande (validations, consulting, autre demande) ou sur le centre de validation Ad & Pro.", [
   "validation-actions:resoumettreValidation",
   "ad-pro-centre-actions:resoumettreAuCentreAdPro", "ad-pro-centre-actions:reexaminerVisaCentreAdPro",
+]);
+X("BUDGET MARKETING — LA DÉPENSE D'UN POSTE AD & PRO (onglet « Dépenses », maquette validée 10/2026) : imputer un poste "
+  + "aux BC signés (il devient engagé), changer son budget à tout moment (le poste, ses ordres et ses écritures suivent), "
+  + "le consommer (montant ≤ l'engagé, facture facultative : un ordre de dépense naît au centre de paiement) ou l'annuler. "
+  + "Chaque geste engage le budget et passe par une seconde confirmation à l'écran, qui dit ce qui va se passer. Adam est "
+  + "en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "budget-depense-poste-actions:imputerDepensePoste",
+  "budget-depense-poste-actions:changerBudgetDepensePoste",
+  "budget-depense-poste-actions:consommerDepensePoste",
+  "budget-depense-poste-actions:annulerDepensePoste",
+]);
+X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de validations, 10/2026) — le geste du "
+  + "DEMANDEUR une fois que tous ses validateurs ont accepté : la retenue du BC tombe et l'aiguillage ordinaire l'adresse "
+  + "à son centre de validation, puis à la signature. Adam est en pause de développement : aucun geste neuf ne lui est "
+  + "ouvert. Un clic, confirmé, sur la carte de la demande.", [
+  "validation-actions:demanderValidationFinaleBC",
+]);
+X("REFUSER LA VALIDATION FINALE D'UNE DÉCLARATION D'INFORMATION MÉDICALE (Direction, 10/2026) — le geste du Directeur "
+  + "des Opérations (à défaut, du Super Admin), motif EXIGÉ : le dossier revient au pharmacien avec le motif. Adam est en "
+  + "pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur la fiche de la déclaration.", [
+  "medical-info-actions:refuseDeclarationByDirection",
+]);
+X("DEVIS NATIFS → BON DE COMMANDE AU BUREAU DU SECRÉTARIAT (Direction, 10/2026, « comme dans Ad & Pro ») — l'assistante "
+  + "dépose et RETRANSCRIT le devis ligne à ligne devant le papier ; le DEMANDEUR coche les lignes qu'il retient, puis génère "
+  + "(fabrique, sous délégation de la demande) ou dépose le BC, qui part au centre de validations puis à la signature. Des "
+  + "gestes d'écran qui attestent un papier ou engagent la société ; Adam est en pause de développement : aucun geste neuf "
+  + "ne lui est ouvert. « Relancer » est un clic sur la fiche, une fois par jour.", [
+  "secretariat-devis-actions:deposerDevisDemande", "secretariat-devis-actions:enregistrerLignesDevisDemande",
+  "secretariat-devis-actions:retenirLignesDevisDemande", "secretariat-devis-actions:genererBonDeCommandeDemande",
+  "secretariat-devis-actions:deposerBonDeCommandeDemande", "secretariat-devis-actions:relancerDemande",
+]);
+X("DIRECTION ARTISTIQUE (Transverse, 10/2026) — déposer un modèle Word/Excel/PowerPoint POUR UNE ENTITÉ, désigner son "
+  + "papier en-tête par défaut et le modèle de chaque nature de pièce (bon de commande, devis, facture, avoir) que la "
+  + "fabrique applique. Geste de l'assistante de direction (ou de qui tient le module), sur un FICHIER choisi à l'écran. "
+  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "direction-artistique-actions:televerserModele",
+  "direction-artistique-actions:definirPapierParDefaut",
+  "direction-artistique-actions:definirModeleDePiece",
+  "direction-artistique-actions:televerserModeleDePiece",
+]);
+X("GÉNÉRER L'ATTESTATION DE TRAVAIL D'UNE DEMANDE RH (Direction, 10/2026) — comme l'ordre de mission : le formulaire des "
+  + "RH s'ouvre prérempli (fiche RH, puis le contrat de travail lu par Luna — ou, IA fermée, par la lecture déterministe), "
+  + "les RH relisent chaque champ et choisissent le signataire en fin de formulaire ; la plateforme remplit le modèle sur "
+  + "papier à en-tête, attribue la référence au registre NNN/DG/AAAA et remet le PDF au salarié (régénérer = une nouvelle "
+  + "version). Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire devant la demande.", [
+  "hr-document-actions:preparerAttestationDeTravail", "hr-document-actions:genererAttestationDeTravail",
+]);
+X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
+  + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
+  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [
+  "settings-actions:setBcValidationThresholdCentre",
 ]);
 X("RESOUMETTRE UNE « AUTRE DEMANDE » REFUSÉE ET PROLONGER UN CONTRAT DE CONSULTING (audit 360°, lot C4a) — la "
   + "resoumission est le geste du DEMANDEUR qui dit ce qui a changé depuis le refus (elle peut corriger la description "

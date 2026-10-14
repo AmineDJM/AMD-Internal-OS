@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { DEFAULT_APP_SETTINGS } from "@/lib/settings";
 import { reaiguillerSurChangementDeSeuil, CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
+import { sitsOnValidationCentre } from "@/lib/validations/centre";
+import type { CentreBC } from "@/lib/bons-de-commande/regle";
 import { fdNum, type ActionResult } from "@/lib/actions/types";
 import { CHEMIN_APERCU_RAPPORTS, CHEMIN_RAPPORTS_TERRAIN } from "@/lib/chemins/rapports-terrain";
 import { normalizeHidden } from "@/lib/modules-visibility";
@@ -111,31 +113,47 @@ export async function setAdProDgThreshold(formData: FormData): Promise<ActionRes
 export async function setBcValidationThreshold(formData: FormData): Promise<ActionResult> {
   const admin = await requireUser();
   if (!siegeAuCentreAdPro(admin)) return { ok: false, error: REFUS_CENTRE_AD_PRO };
+  return reglerSeuilBC(admin.id, fdNum(formData, "bcValidationThreshold"), "AD_PRO");
+}
 
-  const brut = fdNum(formData, "bcValidationThreshold");
+/**
+ * LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026 : « les BC hors Ad & Pro passent par le centre de
+ * validation, mets-moi un seuil là-bas aussi »). Réglé depuis le centre de validations, par ses sièges (DG, Super
+ * Admin) : c'est ce centre qui valide ces BC, c'est lui qui dit à partir de quel montant.
+ */
+export async function setBcValidationThresholdCentre(formData: FormData): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (!sitsOnValidationCentre(admin)) return { ok: false, error: "Réservé aux sièges du centre de validations (Directeur Général, Super Admin)." };
+  return reglerSeuilBC(admin.id, fdNum(formData, "bcValidationThresholdCentre"), "VALIDATION");
+}
+
+/** Le geste commun aux deux seuils : écrire, journaliser, réaiguiller les BC EN VOL de CE centre, et le dire. */
+async function reglerSeuilBC(adminId: string, brut: number | null, centre: CentreBC): Promise<ActionResult> {
+  const champ = centre === "AD_PRO" ? "bcValidationThreshold" : "bcValidationThresholdCentre";
+  const nomCentre = centre === "AD_PRO" ? "centre Ad & Pro" : "centre de validations";
   if (brut === null || !Number.isFinite(brut)) {
-    return { ok: false, error: "Indiquez un montant en DZD (0 = tout bon de commande passe par un centre de validation)." };
+    return { ok: false, error: "Indiquez un montant en DZD (0 = tout bon de commande passe par le centre)." };
   }
-  if (brut < 0) return { ok: false, error: "Un seuil ne peut pas être négatif (0 = tout bon de commande passe par un centre de validation)." };
+  if (brut < 0) return { ok: false, error: "Un seuil ne peut pas être négatif (0 = tout bon de commande passe par le centre)." };
   const seuil = Math.round(brut * 100) / 100;
 
-  const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { bcValidationThreshold: true } });
-  const ancien = avant ? Number(avant.bcValidationThreshold) : DEFAULT_APP_SETTINGS.bcValidationThreshold;
+  const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { bcValidationThreshold: true, bcValidationThresholdCentre: true } });
+  const ancien = avant ? Number(avant[champ]) : DEFAULT_APP_SETTINGS[champ];
 
   await prisma.appSetting.upsert({
     where: { id: "global" },
-    create: { id: "global", bcValidationThreshold: seuil, updatedById: admin.id },
-    update: { bcValidationThreshold: seuil, updatedById: admin.id },
+    create: { id: "global", [champ]: seuil, updatedById: adminId },
+    update: { [champ]: seuil, updatedById: adminId },
   });
   await recordAudit({
-    actorId: admin.id, action: "UPDATE", module: "Administration",
-    field: "bcValidationThreshold", oldValue: String(ancien), newValue: String(seuil),
+    actorId: adminId, action: "UPDATE", module: "Administration",
+    field: champ, oldValue: String(ancien), newValue: String(seuil),
     summary: seuil > 0
-      ? `Seuil de validation des bons de commande : ${seuil.toLocaleString("fr-FR")} DZD (au-dessus : un centre ; en deçà : directement à la signature des Finances)`
-      : "Seuil de validation des bons de commande : aucun — tout bon de commande passe par un centre",
+      ? `Seuil des bons de commande du ${nomCentre} : ${seuil.toLocaleString("fr-FR")} DZD (au-dessus : le centre ; en deçà : directement à la signature)`
+      : `Seuil des bons de commande du ${nomCentre} : aucun — tout bon de commande y passe`,
   });
 
-  const bilan = await reaiguillerSurChangementDeSeuil(ancien, seuil, admin.id);
+  const bilan = await reaiguillerSurChangementDeSeuil(ancien, seuil, adminId, centre);
 
   revalidatePath("/admin");
   revalidatePath("/centre-ad-pro");
@@ -146,11 +164,11 @@ export async function setBcValidationThreshold(formData: FormData): Promise<Acti
     ? "Aucun bon de commande en cours n'a changé de côté du seuil."
     : [
         bilan.versLaSignature > 0 ? `${bilan.versLaSignature} passé${bilan.versLaSignature > 1 ? "s" : ""} directement à la signature des Finances` : null,
-        bilan.versUnCentre > 0 ? `${bilan.versUnCentre} adressé${bilan.versUnCentre > 1 ? "s" : ""} à un centre de validation` : null,
+        bilan.versUnCentre > 0 ? `${bilan.versUnCentre} adressé${bilan.versUnCentre > 1 ? "s" : ""} au ${nomCentre}` : null,
       ].filter(Boolean).join(", ").replace(/^./, (c) => c.toUpperCase()) + ".";
   return {
     ok: true,
-    message: `${seuil > 0 ? `Seuil fixé à ${seuil.toLocaleString("fr-FR")} DZD.` : "Aucun seuil : tout bon de commande passe par un centre."} ${effet}`
+    message: `${seuil > 0 ? `Seuil fixé à ${seuil.toLocaleString("fr-FR")} DZD.` : "Aucun seuil : tout bon de commande passe par le centre."} ${effet}`
       // Borné, et DIT : la file des Finances et la signature lisent le seuil EN DIRECT, donc un
       // BC non réaiguillé ne peut pas être signé du mauvais côté — seule sa porte attend d'être
       // posée ou retirée, ce que sa prochaine modification fera.

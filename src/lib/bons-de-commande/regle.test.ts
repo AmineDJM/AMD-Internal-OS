@@ -317,3 +317,12 @@ describe("chantierBCClos avec l'étape — validé ne suffit plus, il faut la si
     expect(r.ok ? "" : r.raison).not.toContain("BC-4");
   });
 });
+
+describe("seuilDuCentre — un seuil par centre (Direction, 10/2026)", () => {
+  it("le BC d'Ad & Pro lit le seuil du centre Ad & Pro, les autres celui du centre de validations", async () => {
+    const { seuilDuCentre } = await import("./regle");
+    const seuils = { adPro: 1_000_000, validation: 200_000 };
+    expect(seuilDuCentre(seuils, "AD_PRO")).toBe(1_000_000);
+    expect(seuilDuCentre(seuils, "VALIDATION")).toBe(200_000);
+  });
+});

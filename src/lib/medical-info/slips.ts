@@ -67,6 +67,7 @@ export type SlipStage =
   | "AU_CENTRE"    // demandée, en attente du centre de paiement
   | "RENVOYE"      // le centre a rendu la main au demandeur
   | "REFUSE"       // le centre a refusé CE règlement
+  | "ANNULE"       // la demande ou son ordre a été annulé / refusé : rien ne paiera ce bon
   | "AUX_FINANCES" // autorisé, pas encore réglé
   | "PAYE"         // réglé, quittance pas encore remise
   | "REMIS";       // quittance remise au bureau du pharmacien
@@ -79,13 +80,29 @@ export interface SlipInput {
   /** État de l'ordre de dépense (`ExpenseOrderStatus`), ou `null`. */
   orderStatus: string | null;
   deliveredAt: Date | null;
+  /**
+   * L'état de la DEMANDE DE PAIEMENT elle-même (`PaymentRequestStatus`), ou `null` — `"INTROUVABLE"`
+   * quand le bon la désigne et qu'elle n'existe plus. Facultatif : les écrans d'avant ne le passaient pas.
+   */
+  requestStatus?: string | null;
 }
+
+/** La prise du bon pendant qu'on crée sa demande de paiement (`requestSlipPayment`) — un jeton, pas une demande. */
+export const PRISE_DU_BON = "prise:";
 
 export function slipStage(i: SlipInput): SlipStage {
   // La REMISE prime sur tout : une fois la quittance en main, l'état des circuits ne rouvre plus
   // la question.
   if (i.deliveredAt) return "REMIS";
   if (!i.requestId) return "A_DEMANDER";
+  // UNE DEMANDE EN COURS DE CRÉATION : le bon est pris, personne d'autre ne le redemande.
+  if (i.requestId.startsWith(PRISE_DU_BON)) return "AU_CENTRE";
+  // UN PAIEMENT MORT NE BLOQUE PLUS LE BON (audit 10/2026). L'ordre ANNULÉ (la source retirée,
+  // `payments/annulation.ts`), la demande refusée ou annulée, la demande disparue : le bon restait
+  // « autorisé — à régler » à vie, sans que rien ne puisse plus le payer ni le rouvrir.
+  if (i.orderStatus === "CANCELLED" || i.requestStatus === "CANCELLED" || i.requestStatus === "REJECTED" || i.requestStatus === "INTROUVABLE") {
+    return "ANNULE";
+  }
   switch (i.centralStatus) {
     case "REFUSED": return "REFUSE";
     case "CHANGES_REQUESTED":
@@ -105,7 +122,17 @@ export function slipStage(i: SlipInput): SlipStage {
  */
 export function canRequestSlipPayment(i: SlipInput): boolean {
   const s = slipStage(i);
-  return s === "A_DEMANDER" || s === "REFUSE";
+  return s === "A_DEMANDER" || s === "REFUSE" || s === "ANNULE";
+}
+
+/**
+ * LE BON N'A AUCUN PAIEMENT VIVANT — jamais demandé, ou demandé puis refusé / annulé. C'est ce qui
+ * permet, même après la validation du lot, de le RETIRER ou de déclarer le dossier « sans versement » :
+ * rien n'est en route, rien n'est payé, aucune signature ne porte sur un argent qui circule.
+ */
+export function slipSansPaiementVivant(i: SlipInput): boolean {
+  const s = slipStage(i);
+  return s === "A_DEMANDER" || s === "REFUSE" || s === "ANNULE";
 }
 
 /** Les Finances peuvent-elles remettre CETTE quittance ? Une fois réglée, et une seule fois. */
@@ -118,6 +145,7 @@ export const SLIP_STAGE_LABEL: Record<SlipStage, string> = {
   AU_CENTRE: "Au centre de paiement",
   RENVOYE: "Rendu au demandeur",
   REFUSE: "Refusé par le centre",
+  ANNULE: "Paiement annulé — à redemander",
   AUX_FINANCES: "Autorisé — à régler",
   PAYE: "Réglé — quittance à remettre",
   REMIS: "Quittance remise",
@@ -189,7 +217,7 @@ export function slipsMessage(lotStage: SlipsLotStage, s: SlipsSummary): string {
         ? "Séparez ce dossier en matériels : un bon de versement par matériel. Vous ferez ensuite valider leur dépôt en une seule fois."
         : `${s.count} matériel(s) listé(s). Faites valider le dépôt de ces bons : une validation couvre le lot entier.`;
     case "EN_VALIDATION":
-      return "Le dépôt des bons est en validation : votre responsable, la Direction Marketing, puis le centre de validations. Rien à faire tant qu'ils n'ont pas signé.";
+      return "Le dépôt des bons est en validation chez le Directeur des Opérations (à défaut, le Super Admin). Rien à faire tant qu'il n'a pas tranché.";
     case "VALIDATION_A_REVOIR":
       return "Un validateur demande une modification : lisez son commentaire dans la demande de validation, corrigez la liste des matériels et redemandez ici — la demande précédente sera close.";
     case "VALIDATION_REFUSEE":

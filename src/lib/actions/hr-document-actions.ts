@@ -35,6 +35,9 @@ import type { ReferenceProchaine } from "@/lib/references/registre";
 import { synchroniserOrdreEmis } from "@/lib/missions-equipe/serveur";
 import { refusTraitementRh } from "@/lib/missions-equipe/etat";
 import { estEtatRhTraite, marquerDemandeRhTraitee } from "@/lib/hr-demande-traitee";
+import { genererEtRemettreAttestation, preparerAttestationTravail, type PreparationAttestation } from "@/lib/attestation-travail-depot";
+import type { Civilite } from "@/lib/hr/attestation-travail/regles";
+import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
 
 const REQUEST_TYPES: HrRequestType[] = ["WORK_CERTIFICATE", "CNAS_CERTIFICATE", "SALARY_STATEMENT", "DOMICILIATION", "LEAVE_CERTIFICATE", "LEAVE_TITLE", "MISSION_ORDER", "EXPENSE_REPORT", "EXCEPTIONAL_EXIT", "SICK_LEAVE", "ANNUAL_LEAVE", "UNPAID_LEAVE", "SPECIAL_LEAVE", "MATERNITY_LEAVE", "HR_INTERVIEW", "OTHER"];
 const REQUEST_STATUSES: HrRequestStatus[] = ["PENDING", "IN_PROGRESS", "READY", "DELIVERED", "REJECTED"];
@@ -527,6 +530,55 @@ export async function referenceOrdreDeMission(formData: FormData): Promise<Refer
   const requestId = fdStr(formData, "requestId");
   if (!requestId) return { ok: false, error: "Demande introuvable." };
   return etatDuRegistre(await societeDeLOrdreDeMission(requestId, fdStr(formData, "entreprise")));
+}
+
+/**
+ * L'ATTESTATION DE TRAVAIL — la demande doit être celle d'un salarié que la personne VOIT (la même clause que la file
+ * « Demandes RH ») : le formulaire montre une date et un lieu de naissance, il ne s'ouvre pas sur un salarié hors périmètre.
+ */
+async function demandeRhVisible(userId: string, requestId: string): Promise<boolean> {
+  const perimetre = await clauseSalariesVisibles(userId);
+  return (await prisma.hrDocumentRequest.count({ where: { id: requestId, employee: perimetre } })) > 0;
+}
+
+/**
+ * PRÉPARER L'ATTESTATION DE TRAVAIL d'une demande (Direction, 10/2026) — le formulaire des RH s'ouvre prérempli : la fiche
+ * RH, puis ce que Luna (ou, IA fermée, la lecture déterministe) a lu dans le CONTRAT DE TRAVAIL du salarié, l'identité
+ * légale de la société, les signataires possibles, le registre NNN/DG/AAAA. Lecture seule : rien n'est enregistré.
+ */
+export async function preparerAttestationDeTravail(formData: FormData): Promise<PreparationAttestation | { ok: false; error: string }> {
+  const user = await requireUser();
+  if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
+  const requestId = fdStr(formData, "requestId");
+  if (!requestId || !(await demandeRhVisible(user.id, requestId))) return { ok: false, error: "Demande introuvable." };
+  return preparerAttestationTravail(user.id, requestId);
+}
+
+/**
+ * GÉNÉRER L'ATTESTATION DE TRAVAIL (Direction, 10/2026) — « comme les ordres de mission » : les RH relisent et corrigent
+ * les champs, choisissent le signataire en fin de formulaire ; la plateforme remplit le modèle de la Direction (papier à
+ * en-tête), attribue la référence au registre, remet le PDF au salarié. Régénérer = une nouvelle version.
+ */
+export async function genererAttestationDeTravail(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
+  const requestId = fdStr(formData, "requestId");
+  if (!requestId || !(await demandeRhVisible(user.id, requestId))) return { ok: false, error: "Demande introuvable." };
+  const txt = (k: string) => fdStr(formData, k) ?? "";
+  const civ = (v: string): Civilite | "" => (v === "Monsieur" || v === "Madame" ? v : "");
+  const r = await genererEtRemettreAttestation(user.id, requestId, {
+    reference: txt("reference"), civilite: civ(txt("civilite")), salarie: txt("salarie"), dateNaissance: txt("dateNaissance"),
+    lieuNaissance: txt("lieuNaissance"), societe: txt("societe"), societeSignature: txt("societeSignature"), poste: txt("poste"),
+    dateEmbauche: txt("dateEmbauche"), signataireCivilite: civ(txt("signataireCivilite")), signataire: txt("signataire"),
+    signataireFonction: txt("signataireFonction"), lieuSignature: txt("lieuSignature"), dateSignature: txt("dateSignature"),
+  }, { referenceSuggeree: fdStr(formData, "referenceSuggeree") });
+  if (!r.ok) return r;
+  await archiveHrRequestIfDone(requestId, user.id);
+  revalidatePath("/mon-dossier");
+  revalidatePath(`/rh/${r.employeeId}`);
+  revalidatePath("/rh/demandes");
+  revalidatePath("/rh");
+  return { ok: true, id: requestId, message: r.message };
 }
 
 export async function processHrRequest(formData: FormData): Promise<ActionResult> {

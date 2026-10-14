@@ -21,10 +21,14 @@ import {
 } from "@/lib/care-fiches";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";
+import { peutSaisirLesDevis } from "@/lib/care-devis-acces";
 import { creerProfilMedecin } from "@/lib/medical/profil-rapide";
 import { persistUploadedDocument } from "@/lib/documents";
 import { deleteFileByKey } from "@/lib/storage";
+import { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "@/lib/care-pieces-db";
+import { phraseDepot } from "@/lib/care-pieces";
 import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
+import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).
@@ -57,6 +61,7 @@ const DECIDED = ["APPROVED", "COMPLETED"];
 function revalidate(scope: Scope, id: string) {
   revalidatePath(SPEC[scope].path);
   revalidatePath(`${SPEC[scope].path}/${id}`);
+  revalidatePath(`${SPEC[scope].path}/${id}/devis`);
 }
 
 /** Décrire les personnes et leurs besoins : ouvert aux acteurs de la demande. */
@@ -477,12 +482,16 @@ export async function demanderPiecesPriseEnCharge(_prev: ActionResult | undefine
  *
  * Une pièce déjà VALIDÉE ou déclarée SANS OBJET ne se remplace pas d'ici : l'état se rouvre d'abord
  * depuis la case. L'écriture de l'état est conditionnelle ; perdue, le fichier déposé est retiré.
+ *
+ * PLUSIEURS FICHIERS (Direction, 10/2026) : recto, verso, pages, visa — `file` peut se répéter, en un
+ * geste ou en plusieurs ; chaque fichier s'ajoute aux autres (`lib/care-pieces`). Le lot est contrôlé
+ * entier AVANT d'écrire (limites des réglages).
  */
 export async function deposerPiecePriseEnCharge(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const cellId = fdStr(formData, "cellId");
   if (!cellId) return { ok: false, error: "Pièce non précisée." };
-  const cell = await prisma.careCell.findUnique({ where: { id: cellId }, select: { id: true, kind: true, label: true, status: true, beneficiaryId: true } });
+  const cell = await prisma.careCell.findUnique({ where: { id: cellId }, select: { id: true, kind: true, label: true, status: true, beneficiaryId: true, documentId: true } });
   if (!cell || cell.kind !== "DOCUMENT") return { ok: false, error: "Pièce introuvable." };
   const found = await scopeOfBeneficiary(cell.beneficiaryId);
   if (!found) return { ok: false, error: "Personne introuvable." };
@@ -490,26 +499,54 @@ export async function deposerPiecePriseEnCharge(_prev: ActionResult | undefined,
   if (!(await canAccessEntity(user, module, found.requestId, "UPLOAD"))) return { ok: false, error: "Vous n'êtes pas autorisé à déposer une pièce sur cette demande." };
   if (cell.status === "SETTLED") return { ok: false, error: `« ${cell.label} » est déjà validée : rouvrez son état avant d'en déposer une autre.` };
   if (cell.status === "WAIVED") return { ok: false, error: `« ${cell.label} » est déclarée sans objet : rouvrez son état avant de la déposer.` };
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Aucun fichier sélectionné." };
+  const fichiers = formData.getAll("file").filter((v): v is File => v instanceof File);
+  if (fichiers.length === 0) return { ok: false, error: "Aucun fichier sélectionné." };
 
-  const r = await persistUploadedDocument(user.id, {
-    entityType: module, entityId: found.requestId, category: "ID_DOCUMENT", confidentiality: "INTERNAL", stepKey: cell.id, file,
-  });
-  if (!r.ok || !r.documentId) return { ok: false, error: r.error ?? "Le fichier n'a pas pu être enregistré." };
-
-  const pose = await prisma.careCell.updateMany({
-    where: { id: cell.id, status: { in: ["REQUESTED", "PROVIDED"] } },
-    data: { status: "PROVIDED", documentId: r.documentId },
-  });
-  if (pose.count === 0) {
-    const doc = await prisma.document.delete({ where: { id: r.documentId } }).catch(() => null);
-    if (doc?.fileKey) await deleteFileByKey(doc.fileKey).catch(() => undefined);
-    return { ok: false, error: `L'état de « ${cell.label} » vient de changer : rechargez la fiche.` };
-  }
-  await audit(user, found.scope, found.requestId, "UPDATE", `${await nameOf(found.beneficiary)} — « ${cell.label} » reçue.`);
+  const r = await deposerFichiersSurLaPiece(user.id, cell, { entityType: module, entityId: found.requestId }, fichiers);
+  if (!r.ok) return { ok: false, error: r.error };
+  await audit(user, found.scope, found.requestId, "UPDATE",
+    `${await nameOf(found.beneficiary)} — « ${cell.label} » reçue${r.ids.length > 1 ? ` (${r.ids.length} fichiers)` : ""}.`);
   revalidate(found.scope, found.requestId);
-  return { ok: true, id: cell.id, message: `${cell.label} reçue.` };
+  const manques = r.echecs.length > 0 ? ` Non joint : ${r.echecs.join(" ")}` : "";
+  return { ok: true, id: cell.id, message: `${phraseDepot(cell.label, r.ids.length)}${manques}` };
+}
+
+/**
+ * RETIRER UN FICHIER D'UNE PIÈCE (Direction, 10/2026) — la page en trop, le scan illisible. Le dernier
+ * retiré, la pièce redevient attendue : « passeport manquant » revient, sans qu'on le déclare.
+ *
+ * Signature `(id, path?)` : celle que l'aperçu des documents (`DocumentPreview.supprimer`) appelle — son
+ * bouton, sa confirmation et son rafraîchissement sont ceux de tous les documents. Le fichier doit être
+ * celui d'une pièce de CETTE demande (la case désignée par le fichier, sur l'entité de la demande) ; la
+ * porte est celle du dépôt. Une pièce validée ou sans objet ne se touche pas d'ici.
+ */
+export async function retirerFichierPiecePriseEnCharge(documentId: string, _path?: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!documentId) return { ok: false, error: "Fichier non précisé." };
+  const doc = await prisma.document.findUnique({ where: { id: documentId }, select: { id: true, name: true, entityType: true, entityId: true, stepKey: true } });
+  if (!doc) return { ok: false, error: "Fichier introuvable." };
+  const cell = await prisma.careCell.findFirst({
+    where: { kind: "DOCUMENT", OR: [{ documentId: doc.id }, ...(doc.stepKey ? [{ id: doc.stepKey }] : [])] },
+    select: { id: true, label: true, status: true, documentId: true, beneficiaryId: true },
+  });
+  if (!cell) return { ok: false, error: "Ce fichier n'est pas celui d'une pièce de prise en charge." };
+  const found = await scopeOfBeneficiary(cell.beneficiaryId);
+  if (!found) return { ok: false, error: "Personne introuvable." };
+  const module = SPEC[found.scope].module;
+  if (doc.entityType !== module || doc.entityId !== found.requestId) return { ok: false, error: "Ce fichier n'appartient pas à cette demande." };
+  if (!(await canAccessEntity(user, module, found.requestId, "UPLOAD"))) return { ok: false, error: "Vous n'êtes pas autorisé à retirer une pièce de cette demande." };
+  if (cell.status === "SETTLED") return { ok: false, error: `« ${cell.label} » est validée : rouvrez son état avant d'en retirer un fichier.` };
+  if (cell.status === "WAIVED") return { ok: false, error: `« ${cell.label} » est déclarée sans objet : rouvrez son état avant d'en retirer un fichier.` };
+
+  const r = await retirerFichierDeLaPiece(cell, doc.id, { entityType: module, entityId: found.requestId });
+  if (!r.ok) return { ok: false, error: r.error };
+  await audit(user, found.scope, found.requestId, "UPDATE",
+    `${await nameOf(found.beneficiary)} — « ${cell.label} » : fichier « ${doc.name} » retiré${r.restants === 0 ? " — pièce de nouveau attendue" : ""}.`);
+  revalidate(found.scope, found.requestId);
+  return {
+    ok: true, id: cell.id,
+    message: r.restants === 0 ? `${cell.label} : plus aucun fichier, la pièce est de nouveau attendue.` : `Fichier retiré (${r.restants} restant${r.restants > 1 ? "s" : ""}).`,
+  };
 }
 
 // ───────────────────────────── Les cases ─────────────────────────────
@@ -694,6 +731,8 @@ export async function modifierPosteFiche(_prev: ActionResult | undefined, formDa
       ...(montantEnvoye ? { amount: p.amount, currency: devise, amountDzd } : {}),
     },
   });
+  // LA FICHE CHEZ L'ASSISTANTE (14/10) : un billet / un hôtel modifié après l'envoi passe « à renvoyer ».
+  if (cell.serviceKind === "TICKET" || cell.serviceKind === "HOTEL") await noterModificationFiche("CARE_CELL", id, user.id);
   await audit(user, found.scope, found.requestId, "UPDATE",
     `${nom} — poste « ${p.label ?? cell.label} » enregistré${montantEnvoye && p.amount != null ? ` (${montantLisible(p.amount, devise)}${devise === "USD" && amountDzd != null ? ` = ${montantLisible(amountDzd)}` : ""})` : ""}.`);
   revalidate(found.scope, found.requestId);
@@ -781,12 +820,17 @@ export async function createCareQuote(_prev: ActionResult | undefined, formData:
   const user = await requireUser();
   const scopeRaw = fdStr(formData, "scope") ?? "";
   if (!isScope(scopeRaw)) return { ok: false, error: "Périmètre inconnu." };
-  if (!canEdit(user, scopeRaw)) return { ok: false, error: "Non autorisé." };
 
   const requestId = fdStr(formData, "requestId");
   const supplier = fdStr(formData, "supplier");
-  if (!requestId || !supplier) return { ok: false, error: "Le fournisseur est obligatoire." };
-  if (!(await canAccessEntity(user, SPEC[scopeRaw].module, requestId, "UPDATE"))) return { ok: false, error: "Demande introuvable." };
+  // QUI SAISIT UN DEVIS (audit Assistante de direction, 10/2026) : qui tient la fiche, comme avant — et
+  // l'assistante de direction à qui l'on a DEMANDÉ les devis de cette prise en charge, qui n'a pas le module
+  // (`care-devis-acces.ts`). Sans elle, les devis repartaient par e-mail.
+  if (!requestId) return { ok: false, error: "Demande non précisée." };
+  if (!(await peutSaisirLesDevis(user, scopeRaw, requestId))) {
+    return { ok: false, error: canEdit(user, scopeRaw) ? "Demande introuvable." : "Non autorisé." };
+  }
+  if (!supplier) return { ok: false, error: "Le fournisseur est obligatoire." };
   const req = await loadRequest(scopeRaw, requestId);
   if (!req) return { ok: false, error: "Demande introuvable." };
 
@@ -1022,6 +1066,8 @@ export async function requestCareQuotes(_prev: ActionResult | undefined, formDat
   const requestId = fdStr(formData, "requestId");
   if (!isScope(scopeRaw) || !requestId) return { ok: false, error: "Demande non précisée." };
   if (!canEdit(user, scopeRaw)) return { ok: false, error: "Non autorisé." };
+  // Elle écrit désormais dans le sujet de l'assistante : la même porte que la demande de réservation.
+  if (!(await canAccessEntity(user, SPEC[scopeRaw].module, requestId, "UPDATE"))) return { ok: false, error: "Demande introuvable." };
 
   const req = await loadRequest(scopeRaw, requestId);
   if (!req) return { ok: false, error: "Demande introuvable." };
@@ -1032,16 +1078,25 @@ export async function requestCareQuotes(_prev: ActionResult | undefined, formDat
   });
   if (toQuote === 0) return { ok: false, error: "Aucun élément n'attend de devis." };
 
+  // UNE PORTE QU'ELLE PEUT OUVRIR (audit Assistante de direction, 10/2026). La notification menait à la fiche du
+  // congrès — un module que l'assistante n'a pas. La demande s'écrit désormais dans SON sujet (celui de la
+  // réservation, ouvert s'il n'existe pas : c'est lui qui la désigne), et le lien mène à la page « Devis » de la
+  // prise en charge, où elle les saisit (`care-devis-acces.ts`).
+  const lienDevis = `${SPEC[scopeRaw].path}/${requestId}/devis`;
+  const sujet = await ecrireAAssistante(scopeRaw, req, user, "Demande de devis.",
+    `${toQuote} élément(s) à chiffrer — saisissez chaque devis reçu (fournisseur, montant, PDF) : ${lienDevis}`);
+  if (!sujet.ok) return { ok: false, error: sujet.error };
   await notifyRoles(["DIRECTION_ASSISTANT", "SUPER_ADMIN"], {
     type: "VALIDATION_REQUIRED",
     title: "Devis à obtenir — prise en charge",
     body: `${req.name} : ${toQuote} élément(s) à chiffrer.`,
-    link: `${SPEC[scopeRaw].path}/${requestId}`,
+    link: lienDevis,
   }).catch(() => undefined);
 
-  await audit(user, scopeRaw, requestId, "UPDATE", `Secrétariat sollicité pour ${toQuote} devis.`);
+  await audit(user, scopeRaw, requestId, "UPDATE", `Secrétariat sollicité pour ${toQuote} devis — sujet ${sujet.reference}.`);
   revalidate(scopeRaw, requestId);
-  return { ok: true, message: `Le secrétariat est prévenu — ${toQuote} élément(s) à chiffrer.` };
+  revalidatePath("/dossiers");
+  return { ok: true, message: `Le secrétariat est prévenu — ${toQuote} élément(s) à chiffrer (sujet ${sujet.reference}).` };
 }
 
 /**

@@ -125,7 +125,9 @@ function faitsDeCloture(execution: readonly ExecutionDevis[]) {
     resteAFacturer: !e.bc || e.lignesBC.some((l) => resteAFacturer(l) > 0),
     factures: e.factures.map((f) => ({
       enAttente: f.detail ? lignesAReceptionner(f.detail.lignes).length : 0,
-      paiementDemande: f.paiementDemande, reglee: f.reglee, demandeIM: Boolean(f.demandeInfoMedicale),
+      // « VISÉ » VEUT DIRE VALIDÉ (audit 10/2026), pas « demandé » : le dossier ne se clôt « payé et visé »
+      // que quand la déclaration d'information médicale de chaque paiement est VALIDÉE.
+      paiementDemande: f.paiementDemande, reglee: f.reglee, demandeIM: Boolean(f.demandeInfoMedicale?.validee),
     })),
   }));
 }

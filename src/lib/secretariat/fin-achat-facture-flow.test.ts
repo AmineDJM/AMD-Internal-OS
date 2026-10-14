@@ -228,7 +228,9 @@ suite("Secrétariat — la fin d'un achat trouve sa facture où l'écran la rang
     expect(c.ok).toBe(true);
     ACTOR = await acteur(u.asst);
     expect((await requestApproval(form({ requestId: c.id!, validatorId: u.n1, amount: "9000" }))).ok).toBe(true);
-    expect((await finishRequest(form({ id: c.id! }))).ok).toBe(true);
+    // « Fin » est refusée tant que la validation attend (audit du 14/10/2026) : la demande terminée avant se simule en base.
+    expect((await finishRequest(form({ id: c.id! }))).ok).toBe(false);
+    await prisma.administrativeRequest.update({ where: { id: c.id! }, data: { status: "DONE", completedAt: new Date() } });
     const appro = await prisma.adminApproval.findFirstOrThrow({ where: { requestId: c.id! }, select: { id: true } });
     ACTOR = await acteur(u.n1);
     expect((await decideApproval(form({ approvalId: appro.id, decision: "APPROVED" }))).ok).toBe(true);

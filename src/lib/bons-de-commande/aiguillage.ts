@@ -13,7 +13,7 @@ import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import { notifierSignatairesBC } from "./signataires";
 import {
   centreDeLOrigine, etatDepuisPoste, etatDepuisValidation, etatDepuisVisa, gesteAiguillage,
-  validationRequiseBC, etapeBC,
+  validationRequiseBC, etapeBC, seuilDuCentre,
   LIBELLE_CENTRE_BC,
   type CentreBC, type EtapeBC, type PorteBC,
 } from "./regle";
@@ -421,6 +421,8 @@ export interface ResultatAiguillage {
    * derniers sans porte, et la phrase de l'émission muette (§118.148).
    */
   enEchec?: boolean;
+  /** Vrai quand le BC est retenu par sa pré-validation : aucun centre ne le voit encore (`prevalidation.ts`). */
+  enPrevalidation?: boolean;
 }
 
 /**
@@ -473,9 +475,14 @@ export async function aiguillerBC(
     /**
      * Le seuil à appliquer, quand l'appelant le TIENT déjà : le réglage vient d'être écrit dans la
      * même requête, et la lecture des réglages est mise en cache par requête — relire rendrait
-     * l'ancienne valeur. Absent : le réglage en vigueur.
+     * l'ancienne valeur. Absent : le réglage en vigueur du centre du BC.
      */
     seuil?: number;
+    /**
+     * Le centre dont `seuil` est le réglage (Direction, 10/2026 : un seuil PAR centre). Un BC d'un autre centre garde
+     * le seuil en vigueur du sien. Absent : `seuil` vaut pour tout BC (ancien comportement des appelants).
+     */
+    seuilPour?: CentreBC;
   },
 ): Promise<ResultatAiguillage> {
   try {
@@ -484,10 +491,18 @@ export async function aiguillerBC(
       select: {
         id: true, kind: true, status: true, reference: true, title: true, counterparty: true,
         amount: true, createdById: true, sourceType: true, sourceId: true, chainFromId: true,
-        signedAt: true, signedById: true, bcCircuitAt: true, signatureReturnedAt: true,
+        signedAt: true, signedById: true, bcCircuitAt: true, signatureReturnedAt: true, bcPrevalidationAt: true,
       },
     });
     if (!doc) return { porte: null, geste: null };
+
+    // EN PRÉ-VALIDATION (Demandes de validations) : le BC n'est adressé à AUCUN centre tant que le demandeur n'a pas
+    // demandé la validation finale (`prevalidation.ts`). Une porte qui attendrait encore est retirée — personne ne
+    // l'a vue, et la validation finale la reposera. Annulé ou re-qualifié, il suit la règle ordinaire ci-dessous.
+    if (doc.bcPrevalidationAt && doc.kind === "PURCHASE_ORDER" && doc.status !== "CANCELLED") {
+      const retires = await retirerEnAttente(doc.id);
+      return { porte: null, geste: retires > 0 ? "RETIREE" : null, etape: "HORS_CIRCUIT", enPrevalidation: true };
+    }
 
     // Plus un BC (re-qualifié) ou annulé : ce qui attendait n'a plus d'objet.
     if (doc.kind !== "PURCHASE_ORDER" || doc.status === "CANCELLED") {
@@ -503,7 +518,13 @@ export async function aiguillerBC(
       return { porte: null, geste: retires > 0 ? "RETIREE" : null };
     }
 
-    const seuil = opts.seuil ?? (await getAppSettings()).bcValidationThreshold;
+    // LE SEUIL DE SON CENTRE (Direction, 10/2026) : le centre se lit sur l'origine du BC, avant tout le reste.
+    const origine = await origineDuBC(doc);
+    const centreVoulu = await centreVouluDuBC(origine);
+    const reglages = await getAppSettings();
+    const seuil = opts.seuil !== undefined && (!opts.seuilPour || opts.seuilPour === centreVoulu)
+      ? opts.seuil
+      : seuilDuCentre({ adPro: reglages.bcValidationThreshold, validation: reglages.bcValidationThresholdCentre }, centreVoulu);
     const montant = montantDe(doc);
     const requise = validationRequiseBC(montant, seuil);
 
@@ -572,8 +593,6 @@ export async function aiguillerBC(
       renvoye = false;
     }
 
-    const origine = await origineDuBC(doc);
-    const centreVoulu = await centreVouluDuBC(origine);
     const actuelle = await porteDuBC(doc.id);
     const etapeAvant = etapeBC({ porte: actuelle, validationRequise: requise, signe: signeALEntree !== null, dansLeCircuit: dejaDansLeCircuit, renvoye: renvoyeAvant });
     const geste = gesteAiguillage({
@@ -741,7 +760,7 @@ const LOT_SEUIL = 500;
  * Le nouveau seuil est PASSÉ à chaque aiguillage : la lecture des réglages est mise en cache par
  * requête, et relire rendrait la valeur d'avant l'écriture.
  */
-export async function reaiguillerSurChangementDeSeuil(ancien: number, nouveau: number, acteurId: string): Promise<BilanSeuil> {
+export async function reaiguillerSurChangementDeSeuil(ancien: number, nouveau: number, acteurId: string, centre: CentreBC = "AD_PRO"): Promise<BilanSeuil> {
   const bilan: BilanSeuil = { reevalues: 0, versLaSignature: 0, versUnCentre: 0, tronque: false };
   if (ancien === nouveau) return bilan;
   // LA BANDE DE MONTANTS QUI CHANGE DE CÔTÉ, calculée AVANT de lire : sans elle, on lirait les
@@ -756,17 +775,22 @@ export async function reaiguillerSurChangementDeSeuil(ancien: number, nouveau: n
       kind: "PURCHASE_ORDER", bcCircuitAt: { not: null }, signedAt: null, status: { notIn: ["CANCELLED", "RENEWED"] },
       amount: { gt: bas, lte: haut },
     },
-    select: { id: true, amount: true },
+    select: { id: true, amount: true, sourceType: true, sourceId: true, chainFromId: true },
     orderBy: { createdAt: "asc" },
     take: LOT_SEUIL + 1,
   });
   bilan.tronque = enVol.length > LOT_SEUIL;
-  const aTraiter = enVol.slice(0, LOT_SEUIL).filter((d) => {
+  const changeDeCote = enVol.slice(0, LOT_SEUIL).filter((d) => {
     const m = montantDe(d);
     return validationRequiseBC(m, ancien) !== validationRequiseBC(m, nouveau);
   });
+  // UN SEUIL PAR CENTRE (Direction, 10/2026) : seuls les BC dont l'origine désigne CE centre sont concernés.
+  const aTraiter: typeof changeDeCote = [];
+  for (const d of changeDeCote) {
+    if ((await centreVouluDuBC(await origineDuBC(d))) === centre) aTraiter.push(d);
+  }
   for (const d of aTraiter) {
-    const r = await aiguillerBC(d.id, { acteurId, seuil: nouveau, silencieux: true });
+    const r = await aiguillerBC(d.id, { acteurId, seuil: nouveau, seuilPour: centre, silencieux: true });
     bilan.reevalues += 1;
     if (r.versLesFinances) bilan.versLaSignature += 1;
     if (r.geste === "POSEE") bilan.versUnCentre += 1;
@@ -775,7 +799,7 @@ export async function reaiguillerSurChangementDeSeuil(ancien: number, nouveau: n
     await notifierSignatairesBC({
       type: "VALIDATION_REQUIRED",
       title: bilan.versLaSignature === 1 ? "Un bon de commande à signer" : `${bilan.versLaSignature} bons de commande à signer`,
-      body: `Le seuil de validation des bons de commande est passé à ${nouveau.toLocaleString("fr-FR")} DZD : `
+      body: `Le seuil de validation des bons de commande (${LIBELLE_CENTRE_BC[centre]}) est passé à ${nouveau.toLocaleString("fr-FR")} DZD : `
         + `${bilan.versLaSignature === 1 ? "un BC qui attendait un centre passe" : `${bilan.versLaSignature} BC qui attendaient un centre passent`} directement à votre signature.`,
       link: CHEMIN_BC_A_SIGNER,
     }).catch(() => undefined);

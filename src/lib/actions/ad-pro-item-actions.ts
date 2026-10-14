@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView, anyRoleFilter, rolesWithModule, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
+import { reporterLesPostesSurLaDeclaration } from "@/lib/workflow/engine";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
@@ -39,18 +40,22 @@ import { familleQuantifiee, type PromoFamille } from "@/lib/promo/catalogue";
 import { articleDansMonPerimetre, gestionnairesDuMagasin } from "@/lib/queries/promo-stock";
 import { lireRepartition, libelleLigne, type LigneRepartition } from "@/lib/ad-pro/repartition";
 import { ecrireRepartition, type PosteReparti } from "@/lib/ad-pro/repartition-ecriture";
-import { STATUTS_EDITABLES, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, facturePourPayer } from "@/lib/ad-pro/poste-etapes";
+import {
+  STATUTS_EDITABLES, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, facturePourPayer, etatDuPaiement, phrasePaiementBloque,
+} from "@/lib/ad-pro/poste-etapes";
 import {
   assistantesDeDirection, demanderBcAAssistante, demandesBCDesPostes, annulerDemandesPiecesDuPoste, rattacherPieceAuPoste, piecesDesPostes,
 } from "@/lib/ad-pro/pieces-poste";
 import { Prisma } from "@prisma/client";
 import { validateAttachments } from "@/lib/attach-files";
+import { creerPosteEtFiches, donneesVoyageur, lireFichesDuFormulaire } from "@/lib/ad-pro/fiches-poste";
 import { readFileByKey } from "@/lib/storage";
 import { resolveParties } from "@/lib/queries/company-contacts";
-import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
+import { createHash } from "node:crypto";
+import { devisDesPostes, empreintesDesDevis } from "@/lib/queries/ad-pro-devis-poste";
 import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-poste-lecture";
 import {
-  refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste,
+  noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste,
 } from "@/lib/ad-pro/devis-poste";
 import { genererLesBCsDuPoste, phraseBilanGeneration, refusMontantDuPoste, tiersDuDevis, apercuDuBC, lignesDuBCDuDevis, type ApercuDuBC } from "@/lib/ad-pro-bc-devis";
 import { MODES_PAIEMENT, type LigneCommerciale } from "@/lib/artifact/factory/commercial";
@@ -64,7 +69,7 @@ import { etatDuRegistre } from "@/lib/references/registre-serveur";
 import { controlerFacture, refusDemandePaiementBC, TOLERANCE_DZD, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
 import { lireFactureDuPoste } from "@/lib/ad-pro/facture-poste-lecture";
 import { lignesDepuisListes, type ListesDeLignes } from "@/lib/artifact/factory/lignes-saisies";
-import { reviserDocumentDrive, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
+import { apercuPourEcran, previsualiserRevision, reviserDocumentDrive, type ApercuPiece, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
 import {
   lireVoyageur, lireEtapes, nomComplet, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, depassementDevisRetenus, refusRetraitReservation,
   type SaisieVoyageur, type VoyageurLu,
@@ -73,7 +78,8 @@ import {
   lireHebergement, changementsHebergement, porteDesHebergements, refusChangementNatureFiches, type SaisieHebergement, type HebergementLu,
 } from "@/lib/ad-pro/hebergements";
 import { cloreSujetVivant, createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
-import { gesteVisaPoste, memePrestataire, type EtatBcPoste, type GesteVisaPoste } from "@/lib/ad-pro/bc-poste";
+import { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire, type EtatBcPoste, type GesteVisaPoste } from "@/lib/ad-pro/bc-poste";
+import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { annulerDemandeSecretariat, prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import { supprimerReversible } from "@/lib/suppression/coeur";
@@ -306,7 +312,7 @@ function valideursDuPoste(parent: AdProParent): UserRole[] {
 /** Les rôles du DEMANDEUR de la demande — c'est lui qui décide qui tient le second temps (§118.204). */
 async function demandeurDe(requesterId: string | null | undefined): Promise<Porteur | null> {
   if (!requesterId) return null;
-  return prisma.user.findUnique({ where: { id: requesterId }, select: { role: true, secondaryRole: true } });
+  return prisma.user.findUnique({ where: { id: requesterId }, select: { id: true, role: true, secondaryRole: true } });
 }
 
 /**
@@ -425,6 +431,10 @@ async function reprojeterMontantDemande(parent: AdProParent, parentId: string): 
   } catch (err) {
     console.error("[ad-pro] montant de la demande non reprojeté (non bloquant)", err);
   }
+  // LA DÉCLARATION D'INFORMATION MÉDICALE SUIT LES POSTES (§118.191) — son montant est l'estimation
+  // de ce qu'ils portent, tant qu'elle n'est pas validée et qu'aucun ordre n'en est né.
+  await reporterLesPostesSurLaDeclaration(parent, parentId)
+    .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
 }
 
 /**
@@ -737,6 +747,12 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     }
   }
 
+  // LES FICHES SAISIES AVEC LE POSTE (Direction, 10/2026) — billetterie : ses voyageurs ; hôtellerie : ses
+  // personnes logées. Toutes lues (et leurs pièces contrôlées) AVANT d'écrire : une fiche refusée, aucun poste.
+  const fichesLues = await lireFichesDuFormulaire(formData, kind);
+  if (!fichesLues.ok) return { ok: false, error: fichesLues.error };
+  const fiches = fichesLues.fiches;
+
   try {
     // Un poste ajouté APRÈS la décision est autorisé — c'est le choix retenu — mais il est
     // marqué. C'est ce marqueur qui expliquera un dépassement d'enveloppe à l'écran, au lieu
@@ -745,25 +761,34 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     const where = { [PARENTS[parentRaw].column]: parentId } as Record<string, string>;
     const last = await prisma.adProItem.findFirst({ where, orderBy: { position: "desc" }, select: { position: true } });
 
-    const created = await prisma.adProItem.create({
-      data: {
-        ...where,
-        kind,
-        label,
-        notes: fdStr(formData, "notes"),
-        supplier: fdStr(formData, "supplier"),
-        amountEstimated: kind === "STOCK_MATERIAL" ? null : amountEstimated ?? null,
-        budgetKind,
-        addedAfterDecision: late,
-        position: (last?.position ?? 0) + 1,
-        createdById: user.id,
-        updatedById: user.id,
-      },
-      select: { id: true },
-    });
+    const data = {
+      ...where,
+      kind,
+      label,
+      notes: fdStr(formData, "notes"),
+      supplier: fdStr(formData, "supplier"),
+      amountEstimated: kind === "STOCK_MATERIAL" ? null : amountEstimated ?? null,
+      budgetKind,
+      addedAfterDecision: late,
+      position: (last?.position ?? 0) + 1,
+      createdById: user.id,
+      updatedById: user.id,
+    } as Prisma.AdProItemUncheckedCreateInput;
+    let detailFiches = "";
+    let created: { id: string };
+    if (fiches.length > 0) {
+      // LE POSTE ET SES FICHES ENSEMBLE — rien de partiel : un échec défait tout (`creerPosteEtFiches`).
+      const r = await creerPosteEtFiches(data, fiches, user.id);
+      if (!r.ok) return { ok: false, error: r.error };
+      created = { id: r.itemId };
+      const quoi = porteDesVoyageurs(kind) ? "voyageur" : "fiche hôtellerie";
+      detailFiches = ` — ${fiches.length} ${quoi}${fiches.length > 1 ? "s" : ""}${r.pieces > 0 ? `, ${r.pieces} document${r.pieces > 1 ? "s" : ""} joint${r.pieces > 1 ? "s" : ""}` : ""}`;
+    } else {
+      created = await prisma.adProItem.create({ data, select: { id: true } });
+    }
 
     await audit(user, parentRaw, parentId, "CREATE",
-      `Poste ajouté — ${ITEM_KIND_LABELS[kind]} « ${label} » (${budgetKind === "ADDITIONAL" ? "budget supplémentaire" : "inclus dans le budget accordé"})${late ? " — APRÈS la décision définitive" : ""}.`);
+      `Poste ajouté — ${ITEM_KIND_LABELS[kind]} « ${label} » (${budgetKind === "ADDITIONAL" ? "budget supplémentaire" : "inclus dans le budget accordé"})${late ? " — APRÈS la décision définitive" : ""}${detailFiches}.`);
     // UN POSTE HORS BUDGET OU APRÈS LA DÉCISION SE DIT, EN LECTURE, À CEUX QUI DÉCIDENT (§118.200) :
     // il n'est pas encore à valider (la validation partira à sa soumission), mais il change ce que
     // la demande coûtera. Le dire seulement là : un poste inclus avant la décision est le détail
@@ -776,8 +801,11 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
         link: lienPosteAdPro(parentRaw, parentId, created.id),
       }).catch(() => undefined);
     }
+    // Le poste ajouté change l'estimation que porte la déclaration d'information médicale (§118.191).
+    await reporterLesPostesSurLaDeclaration(parentRaw, parentId)
+      .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
     revalidate(parentRaw, parentId);
-    return { ok: true, id: created.id };
+    return { ok: true, id: created.id, ...(detailFiches ? { message: `Poste ajouté${detailFiches}.` } : {}) };
   } catch (err) {
     console.error("[ad-pro-item] création impossible", err);
     return { ok: false, error: "Le poste n'a pas pu être ajouté. Réessayez dans un instant." };
@@ -1050,6 +1078,18 @@ export async function deleteAdProItem(_prev: ActionResult | undefined, formData:
  * Ces pièces ne passent plus par le bloc « Pièces liées » de la fiche : elles sont SUR le poste.
  */
 
+/**
+ * LE REFUS « PAIEMENT DÉJÀ DEMANDÉ », AVEC L'ÉTAT RÉEL DE L'ORDRE (audit Ad & Pro, 14/10) : un ordre refusé par le centre
+ * ou annulé ailleurs ne se « redemande » pas tant que le poste le porte — la phrase nomme le geste qui le libère.
+ */
+async function refusPaiementDejaDemande(expenseOrderId: string): Promise<string> {
+  const o = await prisma.expenseOrder.findUnique({ where: { id: expenseOrderId }, select: { reference: true, status: true, centralStatus: true } });
+  const bloque = o
+    ? phrasePaiementBloque(etatDuPaiement({ expenseOrderId, expenseOrderStatus: o.status, expenseOrderCentral: o.centralStatus }), o.reference)
+    : null;
+  return bloque ?? "Le paiement de ce poste a déjà été demandé.";
+}
+
 /** Charge plusieurs postes de la MÊME demande, sous la porte de la fiche ; `null` dès qu'un seul manque. */
 async function postesDeLaMemeDemande(ids: readonly string[], user: SessionUser) {
   const charges = [];
@@ -1097,44 +1137,87 @@ export async function ajouterDevisPoste(_prev: ActionResult | undefined, formDat
   const proforma = formData.get("proforma") === "on";
   const nature = proforma ? "Facture pro forma" : "Devis";
   const libelles = charges.map(({ item }) => item.label);
+  // PLUSIEURS DEVIS EN UN GESTE (audit Ad & Pro, 14/10 — « qu'on puisse mettre plusieurs devis, qu'ils soient TOUS
+  // transformés en natif »). Jusqu'ici, plusieurs fichiers joints d'un coup devenaient UN seul devis au registre, et
+  // seul le PREMIER était lu : les autres restaient des fichiers sans lignes, invisibles du contrôle et du BC. Avec
+  // « un devis par fichier » (la carte le coche d'office dès qu'on joint plusieurs fichiers), chaque fichier devient
+  // SON devis, lu, contrôlé et validable à part. Sans la case, les fichiers sont les pages d'UN devis (le premier est lu,
+  // et la phrase le dit).
+  const unParFichier = fichiers.length > 1 && formData.get("unDevisParFichier") === "on";
+  if (unParFichier && (montant !== null || fdStr(formData, "reference"))) {
+    return { ok: false, error: "Plusieurs devis d'un coup : le montant et la référence se lisent sur chacun — laissez ces deux champs vides, ou déposez les devis un par un." };
+  }
+  const companyId = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
+  const fournisseurSaisi = fdStr(formData, "fournisseur") ?? charges[0].item.supplier ?? null;
+  const lots: File[][] = unParFichier ? fichiers.map((f) => [f]) : [fichiers];
 
-  const doc = await prisma.legalDocument.create({
-    data: {
-      title: `${nature} — ${libelles.join(", ")} (${info.ref})`,
-      kind: "QUOTE",
-      reference: fdStr(formData, "reference"),
-      amount: montant,
-      counterparty: fdStr(formData, "fournisseur") ?? charges[0].item.supplier ?? null,
-      companyId: info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id)),
-      sourceType: PARENT_ENTITE[owner.parent], sourceId: owner.id,
-      createdById: user.id, updatedById: user.id,
-      notes: `${nature} déposé${proforma ? "e" : ""} sur ${charges.length > 1 ? "les postes" : "le poste"} ${libelles.map((l) => `« ${l} »`).join(", ")}.`,
-    },
-    select: { id: true },
-  });
-  const joints = await attachFormFiles(user.id, "LEGAL_DOCUMENT", doc.id, formData);
-  for (const { item } of charges) {
-    await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: doc.id, nature: "DEVIS", acteurId: user.id });
-  }
-  // LA LECTURE À L'UPLOAD (§118.206) : « Luna doit directement, lors de l'ingestion des devis, les rendre
-  // mangeables et consommables par la plateforme ». Le devis est déjà au poste : une lecture qui échoue ne fait
-  // JAMAIS échouer le dépôt, mais elle se DIT (une absence de lignes sans cause se lirait comme un devis vide).
-  const premier = fichiers[0];
-  let lecture = "";
-  if (premier && joints.failed.length < fichiers.length) {
-    const ing = await ingererDevisDuPoste({ userId: user.id, legalDocumentId: doc.id, octets: Buffer.from(await premier.arrayBuffer()), nomFichier: premier.name });
-    lecture = ing.ok ? ` ${phraseDeLecture(ing)}` : ` Lecture du devis impossible (${ing.raison}) — saisissez ses lignes depuis la carte du poste.`;
-    // UN SEUL POSTE : les lignes bien lues sont validées d'office (voir la fonction). Un devis commun à
-    // plusieurs postes se répartit à la main — on ne devine pas à quel poste va chaque ligne.
-    if (ing.ok && charges.length === 1) {
-      const nb = await validerAutomatiquementLesLignesLues(user.id, charges[0].item.id, doc.id).catch(() => 0);
-      if (nb > 0) lecture = ` Devis lu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.`;
+  const deposes: string[] = [];
+  const phrases: string[] = [];
+  const echecs: string[] = [];
+  for (const [rang, lot] of lots.entries()) {
+    const doc = await prisma.legalDocument.create({
+      data: {
+        title: `${nature}${unParFichier ? ` ${rang + 1}/${lots.length}` : ""} — ${libelles.join(", ")} (${info.ref})`,
+        kind: "QUOTE",
+        reference: unParFichier ? null : fdStr(formData, "reference"),
+        amount: unParFichier ? null : montant,
+        // Un devis par fichier : chacun a SON émetteur, lu sur le papier ; le fournisseur saisi ne comble qu'un vide (plus bas).
+        counterparty: unParFichier ? null : fournisseurSaisi,
+        companyId,
+        sourceType: PARENT_ENTITE[owner.parent], sourceId: owner.id,
+        createdById: user.id, updatedById: user.id,
+        notes: `${nature} déposé${proforma ? "e" : ""} sur ${charges.length > 1 ? "les postes" : "le poste"} ${libelles.map((l) => `« ${l} »`).join(", ")}${unParFichier ? ` — fichier « ${lot[0].name} »` : ""}.`,
+      },
+      select: { id: true },
+    });
+    deposes.push(doc.id);
+    let joints: { attached: number; failed: { name: string; error: string }[] };
+    if (unParFichier) {
+      const seul = new FormData();
+      seul.append("attachment", lot[0]);
+      joints = await attachFormFiles(user.id, "LEGAL_DOCUMENT", doc.id, seul);
+    } else {
+      joints = await attachFormFiles(user.id, "LEGAL_DOCUMENT", doc.id, formData);
     }
+    echecs.push(...joints.failed.map((x) => x.name));
+    for (const { item } of charges) {
+      await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: doc.id, nature: "DEVIS", acteurId: user.id });
+    }
+    // LA LECTURE À L'UPLOAD (§118.206) : « Luna doit directement, lors de l'ingestion des devis, les rendre
+    // mangeables et consommables par la plateforme ». Le devis est déjà au poste : une lecture qui échoue ne fait
+    // JAMAIS échouer le dépôt, mais elle se DIT (une absence de lignes sans cause se lirait comme un devis vide).
+    const premier = lot[0];
+    const nom = unParFichier ? `« ${premier.name} » : ` : "";
+    let lecture = "";
+    if (premier && joints.failed.length < lot.length) {
+      const ing = await ingererDevisDuPoste({ userId: user.id, legalDocumentId: doc.id, octets: Buffer.from(await premier.arrayBuffer()), nomFichier: premier.name });
+      lecture = ing.ok ? phraseDeLecture(ing) : `Lecture du devis impossible (${ing.raison}) — saisissez ses lignes depuis la carte du poste.`;
+      // UN SEUL POSTE : les lignes bien lues sont validées d'office (voir la fonction). Un devis commun à
+      // plusieurs postes se répartit à la main — on ne devine pas à quel poste va chaque ligne. Un DOUTE du contrôle
+      // des totaux (TTC imprimé que les lignes ne font pas, TVA non imprimée…) laisse les lignes à valider à la main.
+      if (ing.ok && charges.length === 1 && ing.doutes.length === 0) {
+        const nb = await validerAutomatiquementLesLignesLues(user.id, charges[0].item.id, doc.id).catch(() => 0);
+        if (nb > 0) lecture = `Devis lu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.`;
+      }
+      if (!unParFichier && lot.length > 1) {
+        lecture += ` Seul le premier fichier (« ${premier.name} ») a été lu : les ${lot.length - 1} autre(s) sont jointes comme pages du même devis — leurs lignes se saisissent depuis la carte.`;
+      }
+    }
+    if (unParFichier && fournisseurSaisi) {
+      await prisma.legalDocument.updateMany({ where: { id: doc.id, OR: [{ counterparty: null }, { counterparty: "" }] }, data: { counterparty: fournisseurSaisi } });
+    }
+    if (lecture) phrases.push(`${nom}${lecture}`);
   }
-  await audit(user, owner.parent, owner.id, "UPDATE", `${nature} déposé sur ${libelles.map((l) => `« ${l} »`).join(", ")}${montant ? ` — ${montant.toLocaleString("fr-FR")} DZD` : ""}.`);
+  await audit(user, owner.parent, owner.id, "UPDATE", `${unParFichier ? `${lots.length} ${nature.toLowerCase()}s déposés` : `${nature} déposé`} sur ${libelles.map((l) => `« ${l} »`).join(", ")}${montant ? ` — ${montant.toLocaleString("fr-FR")} DZD` : ""}.`);
   revalidate(owner.parent, owner.id);
-  const echec = joints.failed.length ? ` Échec sur : ${joints.failed.map((x) => x.name).join(", ")}.` : "";
-  return { ok: true, id: doc.id, message: `${nature} déposé${proforma ? "e" : ""}${charges.length > 1 ? ` — commun à ${charges.length} postes` : ""}.${echec}${lecture}` };
+  const echec = echecs.length ? ` Échec sur : ${echecs.join(", ")}.` : "";
+  const entete = unParFichier
+    ? `${lots.length} ${proforma ? "factures pro forma déposées" : "devis déposés"}, un par fichier`
+    : `${nature} déposé${proforma ? "e" : ""}`;
+  return {
+    ok: true, id: deposes[0],
+    message: `${entete}${charges.length > 1 ? ` — commun${unParFichier ? "s" : ""} à ${charges.length} postes` : ""}.${echec}${phrases.length ? ` ${phrases.join(" ")}` : ""}`,
+  };
 }
 
 /**
@@ -1196,7 +1279,7 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
 
   // L'ÉTAT D'ABORD (§118.18) — puis la facture.
   if (item.orderStage === "ISSUED" || item.expenseOrderId) {
-    return { ok: false, error: item.expenseOrderId ? "Le paiement de ce poste a déjà été demandé." : "Une demande de paiement est déjà en cours pour ce poste : rouvrez la fiche." };
+    return { ok: false, error: item.expenseOrderId ? await refusPaiementDejaDemande(item.expenseOrderId) : "Une demande de paiement est déjà en cours pour ce poste : rouvrez la fiche." };
   }
   const montantAccorde = item.amountGranted != null ? toNumber(item.amountGranted) : null;
   const check = canEmitOrder({ amountGranted: montantAccorde, expenseOrderId: item.expenseOrderId, status: item.status }, info.decided);
@@ -1206,9 +1289,12 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
   // UN POSTE À BON DE COMMANDE (Direction, 06/10) : la facture DÉPOSÉE et contrôlée par Luna contre le(s) BC signé(s)
   // fait la demande — une facture jointe ici est d'abord déposée, et passe le même contrôle.
   if (!direct) {
-    const fichier = formData.getAll("attachment").find((v): v is File => v instanceof File && v.size > 0) ?? null;
+    // PLUSIEURS PIÈCES POUR UNE FACTURE (audit Ad & Pro, 14/10) : la première est la facture (lue, contrôlée), les
+    // suivantes ses annexes (bon de livraison, PV de réception, relevé…) — toutes gardées, aucune jetée en silence.
+    const joints = formData.getAll("attachment").filter((v): v is File => v instanceof File && v.size > 0);
+    const fichier = joints[0] ?? null;
     return payerLesFacturesDuPoste({
-      user, item, owner, info, montantAccorde, fichier,
+      user, item, owner, info, montantAccorde, fichier, annexes: joints.slice(1),
       montantSaisi: fdNum(formData, "montant"), reference: fdStr(formData, "reference"),
       bcIds: formData.getAll("bcId").map(String).filter(Boolean),
       argumentation: fdStr(formData, "argumentation"), confirme: fdCase(formData, "confirme") === true,
@@ -1365,7 +1451,9 @@ type PosteAvecOperation = NonNullable<Awaited<ReturnType<typeof loadItem>>>;
  */
 async function deposerFactureSurPoste(a: {
   user: SessionUser; poste: PosteAvecOperation; info: ParentInfo; fichier: File; montantSaisi: number | null; reference: string | null; bcIds: string[];
-}): Promise<{ ok: true; factureId: string; controle: ControleFacture } | { ok: false; error: string }> {
+  /** Les AUTRES pièces jointes à la facture (annexes, pages, bon de livraison) : gardées avec elle, jamais lues comme facture. */
+  annexes?: File[];
+}): Promise<{ ok: true; factureId: string; controle: ControleFacture; annexesEchouees: string[] } | { ok: false; error: string }> {
   const { item, owner } = a.poste;
   const pieces = (await piecesDesPostes([item.id])).get(item.id);
   const bcs = pieces?.bcs ?? [];
@@ -1381,7 +1469,9 @@ async function deposerFactureSurPoste(a: {
   if (nonSigne) return { ok: false, error: `Le bon de commande ${nonSigne.reference ?? nonSigne.titre} n'est pas encore signé : sa facture se dépose après la signature.` };
   const dejaFacture = choisis.find((b) => couverts.has(b.id));
   if (dejaFacture) return { ok: false, error: `Le bon de commande ${dejaFacture.reference ?? dejaFacture.titre} a déjà sa facture : annulez-la dans Legal pour en déposer une autre.` };
-  const refusFichier = await validateAttachments([a.fichier]);
+  const annexes = (a.annexes ?? []).filter((f) => f.size > 0);
+  // Toutes les pièces se jugent AVANT d'écrire quoi que ce soit (§118.196d) : une annexe refusée ne laisse pas une facture à moitié.
+  const refusFichier = await validateAttachments([a.fichier, ...annexes]);
   if (refusFichier) return { ok: false, error: refusFichier };
 
   const octets = Buffer.from(await a.fichier.arrayBuffer());
@@ -1415,8 +1505,24 @@ async function deposerFactureSurPoste(a: {
     await prisma.legalDocument.update({ where: { id: facture.id }, data: { status: "CANCELLED" } }).catch(() => undefined);
     return { ok: false, error: `La facture n'a pas pu être enregistrée (${depot.error ?? "erreur"}).` };
   }
+  // LES ANNEXES : chacune sur la MÊME pièce du registre, après la facture (qui reste la première : c'est elle qu'on ouvre).
+  const annexesEchouees: string[] = [];
+  for (const f of annexes) {
+    const r = await persistUploadedDocument(a.user.id, {
+      entityType: "LEGAL_DOCUMENT", entityId: facture.id, category: "INVOICE", confidentiality: "INTERNAL", stepKey: null, file: f,
+    }).catch(() => ({ ok: false as const }));
+    if (!r.ok) annexesEchouees.push(f.name);
+  }
   await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: facture.id, nature: "FACTURE", acteurId: a.user.id });
-  return { ok: true, factureId: facture.id, controle };
+  return { ok: true, factureId: facture.id, controle, annexesEchouees };
+}
+
+/** La phrase des annexes d'une facture — dite seulement quand il y en a. */
+function phraseAnnexes(n: number, echouees: readonly string[]): string {
+  if (n === 0) return "";
+  const gardees = n - echouees.length;
+  return (gardees > 0 ? ` ${gardees} pièce${gardees > 1 ? "s" : ""} jointe${gardees > 1 ? "s" : ""} à la facture.` : "")
+    + (echouees.length > 0 ? ` Non enregistrée${echouees.length > 1 ? "s" : ""} : ${echouees.join(", ")}.` : "");
 }
 
 /** La phrase qui rend le contrôle d'une facture — cohérente, ou ses écarts et le geste qui reste. */
@@ -1440,19 +1546,22 @@ export async function deposerFacturePoste(formData: FormData): Promise<ActionRes
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (VERSEMENT_SANS_BC.includes(item.kind)) return { ok: false, error: "Un sponsoring direct n'a pas de bon de commande : sa pièce se joint à la demande de paiement." };
-  if (item.expenseOrderId) return { ok: false, error: "Le paiement de ce poste est déjà demandé." };
+  if (item.expenseOrderId) return { ok: false, error: await refusPaiementDejaDemande(item.expenseOrderId) };
   const info = await PARENTS[owner.parent].load(owner.id);
   if (!info) return { ok: false, error: "Opération introuvable." };
-  const fichier = formData.getAll("attachment").find((v): v is File => v instanceof File && v.size > 0) ?? null;
+  // PLUSIEURS PIÈCES (audit Ad & Pro, 14/10) : la première est la facture, lue et contrôlée ; les suivantes ses annexes.
+  // Seule la première était gardée — les autres disparaissaient sans un mot.
+  const joints = formData.getAll("attachment").filter((v): v is File => v instanceof File && v.size > 0);
+  const fichier = joints[0] ?? null;
   if (!fichier) return { ok: false, error: "Joignez la facture." };
   const r = await enSerie(filePoste(id), () => deposerFactureSurPoste({
-    user, poste: found, info, fichier, montantSaisi: fdNum(formData, "montant"), reference: fdStr(formData, "reference"),
+    user, poste: found, info, fichier, annexes: joints.slice(1), montantSaisi: fdNum(formData, "montant"), reference: fdStr(formData, "reference"),
     bcIds: formData.getAll("bcId").map(String).filter(Boolean),
   }));
   if (!r.ok) return r;
-  await audit(user, owner.parent, owner.id, "UPDATE", `Facture déposée pour le poste « ${item.label} » — ${r.controle.coherente ? "cohérente avec le bon de commande" : `écarts : ${r.controle.ecarts.join(" ")}`}`);
+  await audit(user, owner.parent, owner.id, "UPDATE", `Facture déposée pour le poste « ${item.label} »${joints.length > 1 ? ` (${joints.length} pièces)` : ""} — ${r.controle.coherente ? "cohérente avec le bon de commande" : `écarts : ${r.controle.ecarts.join(" ")}`}`);
   revalidate(owner.parent, owner.id);
-  return { ok: true, id: r.factureId, message: `Facture déposée. ${phraseControleFacture(r.controle)}` };
+  return { ok: true, id: r.factureId, message: `Facture déposée.${phraseAnnexes(joints.length - 1, r.annexesEchouees)} ${phraseControleFacture(r.controle)}` };
 }
 
 /**
@@ -1463,6 +1572,8 @@ export async function deposerFacturePoste(formData: FormData): Promise<ActionRes
 async function payerLesFacturesDuPoste(a: {
   user: SessionUser; item: PosteAvecOperation["item"]; owner: PosteAvecOperation["owner"]; info: ParentInfo; montantAccorde: number | null;
   fichier: File | null; montantSaisi: number | null; reference: string | null; bcIds: string[]; argumentation: string | null; confirme: boolean;
+  /** Les autres pièces jointes avec la facture (annexes) — gardées avec elle. */
+  annexes?: File[];
 }): Promise<ActionResult> {
   const { user, item, owner, info } = a;
   const id = item.id;
@@ -1484,10 +1595,10 @@ async function payerLesFacturesDuPoste(a: {
     const couverts = new Set((avant?.factures ?? []).filter((f) => !f.annulee).flatMap((f) => f.controle?.bcIds ?? []));
     const bcIds = a.bcIds.length > 0 ? a.bcIds : (avant?.bcs ?? []).filter((b) => b.etape === "SIGNE" && !couverts.has(b.id)).map((b) => b.id);
     const r = await enSerie(filePoste(id), () => deposerFactureSurPoste({
-      user, poste: { item, owner } as PosteAvecOperation, info, fichier: a.fichier as File, montantSaisi: a.montantSaisi, reference: a.reference, bcIds,
+      user, poste: { item, owner } as PosteAvecOperation, info, fichier: a.fichier as File, annexes: a.annexes, montantSaisi: a.montantSaisi, reference: a.reference, bcIds,
     }));
     if (!r.ok) return r;
-    deposee = `Facture déposée. ${phraseControleFacture(r.controle)}`;
+    deposee = `Facture déposée.${phraseAnnexes((a.annexes ?? []).length, r.annexesEchouees)} ${phraseControleFacture(r.controle)}`;
   }
   const pieces = (await piecesDesPostes([id])).get(id);
   const factures = (pieces?.factures ?? []).filter((f) => !f.annulee);
@@ -1521,13 +1632,21 @@ async function payerLesFacturesDuPoste(a: {
     data: { orderStage: "ISSUED", updatedById: user.id },
   });
   if (prise.count === 0) return { ok: false, error: "Ce poste vient de changer (paiement déjà demandé, ou sa décision a été revue) : rouvrez la fiche." };
+  // À QUI PART L'ARGENT (audit Ad & Pro, 14/10) : au fournisseur que les factures NOMMENT (celui du BC signé), pas au texte
+  // libre « prestataire » du poste — souvent vide, et alors l'ordre partait au nom de l'OPÉRATION (le congrès « ESMO 2026 »,
+  // l'institution d'un sponsoring) alors que la facture était celle de l'hôtel. Un seul fournisseur sur toutes les factures,
+  // sinon le prestataire du poste, sinon le bénéficiaire de l'opération, comme avant.
+  const tiersFactures = factures.length > 0
+    ? await prisma.legalDocument.findMany({ where: { id: { in: factures.map((f) => f.id) } }, select: { counterparty: true } })
+    : [];
+  const beneficiaire = beneficiaireDuPaiement(tiersFactures.map((t) => t.counterparty), item.supplier, info.beneficiary);
   let ordreNe = false;
   try {
     const order = await createExpenseOrder({
       label: `${info.ref} — ${ITEM_KIND_LABELS[item.kind]} : ${item.label}`,
       amount: montant,
       category: "EVENEMENT",
-      beneficiary: item.supplier ?? info.beneficiary,
+      beneficiary: beneficiaire,
       sourceType: owner.parent === "EVENT" ? "EVENT" : owner.parent,
       sourceId: info.id,
       requestedById: user.id,
@@ -1555,15 +1674,16 @@ async function payerLesFacturesDuPoste(a: {
 }
 
 /**
- * MODIFIER LE BON DE COMMANDE GÉNÉRÉ, EN NATIF ET SANS LIMITE (Direction, 06/10) — tant qu'il n'est pas signé. Chaque
- * modification est une nouvelle VERSION du même BC (même numéro) : le Word et le PDF sont régénérés, la fiche suit, et le
- * BC se réaiguille (un montant relevé le renvoie à son centre). Le demandeur du poste le fait sans droit d'écriture
- * Legal : le poste qu'il porte est la délégation, nommée au journal.
+ * LE BC D'UN POSTE QU'ON PEUT MODIFIER — la porte de « Modifier le BC » et de son aperçu, une seule fois : le poste existe et
+ * s'édite, son paiement n'est pas demandé, le BC lui est rattaché et n'est PAS SIGNÉ (un BC signé ne se modifie plus depuis
+ * le poste : il se remplace avec les Finances).
  */
-export async function modifierBcDuPoste(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
+async function bcModifiableDuPoste(user: SessionUser, formData: FormData): Promise<
+  | { ok: true; item: NonNullable<Awaited<ReturnType<typeof loadItem>>>["item"]; owner: NonNullable<Awaited<ReturnType<typeof loadItem>>>["owner"]; info: { ref: string }; legalDocumentId: string }
+  | { ok: false; error: string }
+> {
   const id = fdStr(formData, "id");
-  const legalDocumentId = fdStr(formData, "legalDocumentId");
+  const legalDocumentId = fdStr(formData, "legalDocumentId") ?? fdStr(formData, "revisionDe");
   if (!id || !legalDocumentId) return { ok: false, error: "Bon de commande non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
@@ -1575,31 +1695,114 @@ export async function modifierBcDuPoste(formData: FormData): Promise<ActionResul
   const lien = await prisma.adProItemPiece.findFirst({ where: { itemId: id, legalDocumentId, nature: "BON_DE_COMMANDE" }, select: { legalDocument: { select: { signedAt: true, reference: true } } } });
   if (!lien) return { ok: false, error: "Ce bon de commande n'est pas rattaché à ce poste." };
   if (lien.legalDocument.signedAt) return { ok: false, error: `Le bon de commande ${lien.legalDocument.reference ?? ""} est signé : il ne se modifie plus. Voyez avec les Finances pour le remplacer.` };
+  return { ok: true, item, owner, info, legalDocumentId };
+}
 
+/**
+ * CE QUE LE COMPOSEUR ENVOIE pour un BC de poste — les mêmes champs que la révision de la fiche Legal
+ * (`fabrique-actions.ts`, `lireModifications`), relus ici parce que le contrat d'une action ne suit que ses délégués LOCAUX
+ * (§118.87c). Une clé absente garde sa valeur ; présente et vide, elle l'efface.
+ */
+function lireModificationsDuBc(formData: FormData): ModificationsDocument {
+  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
+  const pourcent = (cle: string): number | null => {
+    const v = (fdStr(formData, cle) ?? "").replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
+    const n = v ? Number(v) : Number.NaN;
+    return Number.isFinite(n) ? n / 100 : null;
+  };
   const listes: ListesDeLignes = {
     designations: formData.getAll("ligneDesignation").map(String), details: formData.getAll("ligneDetails").map(String),
     quantites: formData.getAll("ligneQuantite").map(String), prix: formData.getAll("lignePrix").map(String),
     remises: formData.getAll("ligneRemise").map(String), tvas: formData.getAll("ligneTva").map(String), sections: formData.getAll("ligneSection").map(String),
   };
-  const modifications: ModificationsDocument = {};
-  if (listes.designations.length > 0) modifications.lignes = lignesDepuisListes(listes);
-  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
-  if (formData.has("objet")) modifications.objet = champ("objet");
-  if (formData.has("notes")) modifications.notes = champ("notes");
+  const m: ModificationsDocument = {};
+  if (listes.designations.length > 0) m.lignes = lignesDepuisListes(listes);
+  if (formData.has("tiersNom")) {
+    m.tiers = {
+      nom: champ("tiersNom") ?? "",
+      ...(formData.has("tiersAdresse") ? { adresse: champ("tiersAdresse") } : {}),
+      ...(formData.has("tiersTelephone") ? { telephone: champ("tiersTelephone") } : {}),
+      ...(formData.has("tiersEmail") ? { email: champ("tiersEmail") } : {}),
+      ...(formData.has("tiersRc") ? { rc: champ("tiersRc") } : {}),
+      ...(formData.has("tiersNif") ? { nif: champ("tiersNif") } : {}),
+      ...(formData.has("tiersAi") ? { ai: champ("tiersAi") } : {}),
+      ...(formData.has("tiersNis") ? { nis: champ("tiersNis") } : {}),
+    };
+  }
+  if (formData.has("date")) m.date = champ("date");
+  if (formData.has("objet")) m.objet = champ("objet");
+  if (formData.has("notes")) m.notes = champ("notes");
+  if (formData.has("referenceAmont")) m.referenceAmont = champ("referenceAmont");
+  if (formData.has("referenceAmontDate")) m.referenceAmontDate = champ("referenceAmontDate");
+  if (formData.has("conditionsPaiement")) m.conditionsPaiement = champ("conditionsPaiement");
+  if (formData.has("modePaiement")) {
+    const mode = fdStr(formData, "modePaiement");
+    m.modePaiement = mode && (MODES_PAIEMENT as readonly string[]).includes(mode) ? (mode as (typeof MODES_PAIEMENT)[number]) : null;
+  }
+  if (formData.has("tvaDefaut")) m.tvaDefaut = pourcent("tvaDefaut");
+  if (formData.has("remiseGlobale")) m.remiseGlobale = pourcent("remiseGlobale");
+  if (formData.has("taxeLibelle")) {
+    const libelles = formData.getAll("taxeLibelle").map(String);
+    const taux = formData.getAll("taxeTaux").map(String);
+    const taxes = libelles.map((libelle, i) => {
+      const t = (taux[i] ?? "").replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
+      return { libelle: libelle.trim(), taux: t && Number.isFinite(Number(t)) ? Number(t) / 100 : Number.NaN };
+    }).filter((t) => t.libelle || Number.isFinite(t.taux));
+    m.taxes = taxes.length ? taxes : null;
+  }
   if (formData.has("livraisonAdresse") || formData.has("livraisonDelai")) {
-    modifications.livraison = {
+    m.livraison = {
       ...(formData.has("livraisonAdresse") ? { adresse: champ("livraisonAdresse") } : {}),
       ...(formData.has("livraisonDelai") ? { delai: champ("livraisonDelai") } : {}),
     };
   }
   if (formData.has("contactNom") || formData.has("contactTelephone")) {
-    modifications.contact = {
+    m.contact = {
       ...(formData.has("contactNom") ? { nom: champ("contactNom") } : {}),
       ...(formData.has("contactTelephone") ? { telephone: champ("contactTelephone") } : {}),
     };
   }
-  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à modifier : changez une ligne, l'objet, les notes, la livraison ou le contact." };
-  // UN BC NE DÉPASSE PAS L'ACCORDÉ : le hors-taxe des lignes seul le dépasse-t-il déjà ? (le TTC, la fabrique le calcule.)
+  if (formData.has("letterheadId")) m.letterheadId = champ("letterheadId");
+  const coordonnees = fdStr(formData, "emetteurPersonnalise");
+  if (coordonnees === "1") m.coordonneesEmetteur = { adresse: champ("emetteurAdresse"), telephone: champ("emetteurTelephone"), email: champ("emetteurEmail") };
+  else if (coordonnees !== null) m.coordonneesEmetteur = null;
+  if (fdStr(formData, "signatairePersonnalise") === "1") m.signataire = champ("signataireNom") ? { nom: champ("signataireNom") ?? "", qualite: champ("signataireQualite") } : null;
+  if (formData.has("mentions")) m.mentions = (fdStr(formData, "mentions") ?? "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  return m;
+}
+
+/**
+ * L'APERÇU DU BC MODIFIÉ, depuis le poste — la même composition que la modification (`previsualiserRevision`, à blanc),
+ * sous la délégation du poste : le demandeur voit les totaux de SON bon de commande sans droit Legal. Rien n'est écrit.
+ */
+export async function previsualiserBcDuPoste(formData: FormData): Promise<ApercuPiece | { ok: false; error: string }> {
+  const user = await requireUser();
+  const lu = await bcModifiableDuPoste(user, formData);
+  if (!lu.ok) return { ok: false, error: lu.error };
+  const modifications = lireModificationsDuBc(formData);
+  const r = await previsualiserRevision(user, { legalDocumentId: lu.legalDocumentId, modifications }, {
+    delegation: `${lu.info.ref} — poste « ${lu.item.label} » : aperçu de son bon de commande par le demandeur du poste`,
+  });
+  if (!r.ok) return { ok: false, error: r.motif };
+  return apercuPourEcran(r, true);
+}
+
+/**
+ * MODIFIER LE BON DE COMMANDE GÉNÉRÉ, EN NATIF ET SANS LIMITE (Direction, 06/10) — tant qu'il n'est pas signé. Chaque
+ * modification est une nouvelle VERSION du même BC (même numéro) : le Word et le PDF sont régénérés, la fiche suit, et le
+ * BC se réaiguille (un montant relevé le renvoie à son centre). Le demandeur du poste le fait sans droit d'écriture
+ * Legal : le poste qu'il porte est la délégation, nommée au journal.
+ */
+export async function modifierBcDuPoste(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const lu = await bcModifiableDuPoste(user, formData);
+  if (!lu.ok) return { ok: false, error: lu.error };
+  const { item, owner, info, legalDocumentId } = lu;
+  // TOUT SE MODIFIE (Direction, 10/2026 — « chaque écriture et détail ») : le formulaire est celui du composeur de pièces,
+  // lu champ par champ — ce qu'il ne porte pas garde sa valeur (§118.152).
+  const modifications = lireModificationsDuBc(formData);
+  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à modifier : changez une ligne, le fournisseur, une date, une condition, la livraison, le contact, les notes ou les mentions." };
+  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
   const accorde = item.amountGranted != null ? toNumber(item.amountGranted) : null;
   const ht = (modifications.lignes ?? []).filter((l) => !l.section).reduce((s, l) => s + l.quantite * l.prixUnitaire * (1 - (l.remise ?? 0)), 0);
   if (accorde !== null && Number.isFinite(ht) && ht > accorde + TOLERANCE_DZD) {
@@ -2918,7 +3121,7 @@ function etapesEnBase(json: unknown) {
 }
 
 /** Ce que l'écriture d'un voyageur lu pose en base — les étapes en JSON. */
-const donneesVoyageur = (v: VoyageurLu) => ({ ...v, segments: v.segments as unknown as import("@prisma/client").Prisma.InputJsonValue });
+// `donneesVoyageur` : ce que l'écriture d'un voyageur lu pose en base — UNE définition, dans `ad-pro/fiches-poste`.
 
 /** La ligne d'un voyageur telle qu'il est en base — ce que `changementsVoyageur` compare. */
 const voyageurLu = (v: Omit<VoyageurLu, "segments" | "prenom"> & { prenom?: string | null; segments?: unknown }): VoyageurLu => ({
@@ -3028,6 +3231,8 @@ export async function modifierVoyageur(_prev: ActionResult | undefined, formData
   if (changements.length === 0) return { ok: true, id, message: "Rien n'a changé." };
 
   await prisma.adProVoyageur.update({ where: { id }, data: { ...donneesVoyageur(lu.voyageur), updatedById: user.id } });
+  // LA FICHE CHEZ L'ASSISTANTE (14/10) : modifiée après l'envoi, elle passe « à renvoyer ».
+  await noterModificationFiche("VOYAGEUR", id, user.id);
   const sujet = await signalerAuSujet(item, user.id, `voyageur modifié — ${nomComplet(v)} : ${changements.join(" ; ")}`);
   await audit(user, owner.parent, owner.id, "UPDATE", `Voyageur « ${nomComplet(v)} » du poste « ${item.label} » modifié — ${changements.join(" ; ")}.`);
   revalidate(owner.parent, owner.id);
@@ -3154,6 +3359,8 @@ export async function modifierHebergement(_prev: ActionResult | undefined, formD
   if (changements.length === 0) return { ok: true, id, message: "Rien n'a changé." };
 
   await prisma.adProHebergement.update({ where: { id }, data: { ...lu.hebergement, updatedById: user.id } });
+  // LA FICHE CHEZ L'ASSISTANTE (14/10) : modifiée après l'envoi, elle passe « à renvoyer ».
+  await noterModificationFiche("HEBERGEMENT", id, user.id);
   await audit(user, owner.parent, owner.id, "UPDATE", `Fiche hôtellerie « ${nomComplet(h)} » du poste « ${item.label} » modifiée — ${changements.join(" ; ")}.`);
   revalidate(owner.parent, owner.id);
   return { ok: true, id, message: "Fiche hôtellerie modifiée." };
@@ -3352,7 +3559,33 @@ export async function ajouterDevisVoyageur(_prev: ActionResult | undefined, form
   const { voyageur: v, item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   formData.delete("autresPostes");
+  // La proposition d'UN voyageur est un devis : ses fichiers en sont les pages (le lien « pour ce voyageur » porte sur un devis).
+  formData.delete("unDevisParFichier");
   formData.set("id", item.id);
+  // LA MÊME PIÈCE NE SE DÉPOSE PAS DEUX FOIS (Direction, 10/2026) : la pro forma de l'agence couvre souvent TOUS les voyageurs.
+  // La redéposer pour chacun créait autant de devis, chacun lu et validé d'office, et la carte du BC les additionnait
+  // (5 × 117 250 DZD pour une seule pièce). Le même fichier rejoint ce voyageur s'il n'est à personne ; sinon, il n'est
+  // pas dupliqué, et la phrase le dit.
+  const fichiers = formData.getAll("attachment").filter((x): x is File => x instanceof File && x.size > 0);
+  const deja = await devisDuMemeFichier(item.id, fichiers);
+  if (deja) {
+    if (deja.voyageur?.id === voyageurId) {
+      return { ok: true, id: deja.legalDocumentId, message: `Cette pièce est déjà déposée pour ${nomComplet(v)} (« ${deja.nom} ») : rien n'a été ajouté.` };
+    }
+    if (!deja.voyageur) {
+      const lie = await prisma.adProVoyageurDevis.create({ data: { voyageurId, pieceId: deja.itemPieceId, createdById: user.id }, select: { id: true } }).catch(() => null);
+      if (lie) {
+        await audit(user, owner.parent, owner.id, "UPDATE", `Devis « ${deja.nom} » du poste « ${item.label} » rattaché au voyageur « ${nomComplet(v)} » (même fichier, non dupliqué).`);
+        revalidate(owner.parent, owner.id);
+        return { ok: true, id: deja.legalDocumentId, message: `Cette pièce est déjà sur le poste (« ${deja.nom} ») : elle est rattachée à ${nomComplet(v)}, sans être enregistrée une seconde fois.` };
+      }
+    }
+    return {
+      ok: true, id: deja.legalDocumentId,
+      message: `Cette pièce est déjà déposée sur le poste${deja.voyageur ? ` pour ${deja.voyageur.nom}` : ""} (« ${deja.nom} ») : elle n'est pas enregistrée une seconde fois — `
+        + "une même pro forma de l'agence vaut pour tous les voyageurs qu'elle couvre, et le bon de commande se génère d'après ses lignes (case « Bon de commande »).",
+    };
+  }
   const depose = await ajouterDevisPoste(undefined, formData);
   if (!depose.ok || !depose.id) return depose;
   const piece = await prisma.adProItemPiece.findUnique({
@@ -3369,16 +3602,55 @@ export async function ajouterDevisVoyageur(_prev: ActionResult | undefined, form
   return { ok: true, id: depose.id, message: `${depose.message ?? "Devis déposé."} Pour ${nomComplet(v)} — validez-le quand il convient.` };
 }
 
-/** La phrase du dépassement, sur l'ensemble des devis retenus du poste (tous voyageurs). */
+/**
+ * LA MÊME PIÈCE RETENUE POUR PLUSIEURS VOYAGEURS ne se compte qu'une fois : chaque devis → la pièce qu'il copie (lui-même s'il
+ * n'en copie aucune), lue par la même règle que la carte du BC (`devisMisAPart`).
+ */
+async function pieceComptee(itemId: string): Promise<(pieceId: string) => string> {
+  const vues = (await devisDesPostes([itemId])).get(itemId) ?? [];
+  const copieDe = new Map(vues.filter((v) => v.miseAPart?.motif === "COPIE").map((v) => [v.pieceId, v.miseAPart!.de as string]));
+  return (pieceId) => copieDe.get(pieceId) ?? pieceId;
+}
+
+/** La phrase du dépassement, sur l'ensemble des devis retenus du poste (tous voyageurs) — chaque pièce une fois. */
 async function depassementDuPoste(itemId: string, accorde: unknown): Promise<string | null> {
-  const retenus = await prisma.adProVoyageurDevis.findMany({
-    where: { retenuLe: { not: null }, voyageur: { itemId }, piece: { legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } } },
-    select: { piece: { select: { legalDocument: { select: { amount: true } } } } },
-  });
+  const [retenus, piece] = await Promise.all([
+    prisma.adProVoyageurDevis.findMany({
+      where: { retenuLe: { not: null }, voyageur: { itemId }, piece: { legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } } },
+      select: { piece: { select: { legalDocument: { select: { id: true, amount: true } } } } },
+    }),
+    pieceComptee(itemId),
+  ]);
+  const uniques = new Map(retenus.map((r) => [piece(r.piece.legalDocument.id), r.piece.legalDocument.amount]));
   return depassementDevisRetenus(
-    retenus.map((r) => (r.piece.legalDocument.amount != null ? toNumber(r.piece.legalDocument.amount) : null)),
+    [...uniques.values()].map((m) => (m != null ? toNumber(m) : null)),
     accorde != null ? toNumber(accorde) : null,
   );
+}
+
+/**
+ * LE FICHIER DÉJÀ DÉPOSÉ SUR CE POSTE — la même pièce (mêmes octets) qu'un devis vivant du poste, et pour quel voyageur.
+ * C'est ce qui faisait naître une pro forma par voyageur : la pièce de l'agence, déposée pour chacun, devenait N devis.
+ */
+async function devisDuMemeFichier(itemId: string, fichiers: readonly File[]) {
+  if (fichiers.length === 0) return null;
+  const voulues = new Set(await Promise.all(fichiers.map(async (f) => createHash("sha256").update(Buffer.from(await f.arrayBuffer())).digest("hex"))));
+  const liens = await prisma.adProItemPiece.findMany({
+    where: { itemId, nature: "DEVIS", legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } },
+    orderBy: { createdAt: "asc" },
+    select: {
+      id: true, legalDocumentId: true, legalDocument: { select: { title: true, reference: true } },
+      voyageur: { select: { voyageurId: true, voyageur: { select: { nom: true, prenom: true } } } },
+    },
+  });
+  if (liens.length === 0) return null;
+  const empreintes = await empreintesDesDevis(liens.map((l) => l.legalDocumentId));
+  const meme = liens.find((l) => (empreintes.get(l.legalDocumentId) ?? []).some((e) => voulues.has(e)));
+  if (!meme) return null;
+  return {
+    itemPieceId: meme.id, legalDocumentId: meme.legalDocumentId, nom: meme.legalDocument.reference?.trim() || meme.legalDocument.title,
+    voyageur: meme.voyageur ? { id: meme.voyageur.voyageurId, nom: nomComplet(meme.voyageur.voyageur) } : null,
+  };
 }
 
 /**
@@ -3476,7 +3748,7 @@ export async function demanderBCBilletterie(formData: FormData): Promise<ActionR
   const [retenus, total] = await Promise.all([
     prisma.adProVoyageurDevis.findMany({
       where: { retenuLe: { not: null }, voyageur: { itemId: id }, piece: { legalDocument: { status: { not: "CANCELLED" }, cancelledAt: null } } },
-      select: { voyageur: { select: { nom: true, prenom: true, position: true } }, piece: { select: { legalDocument: { select: { title: true, reference: true, amount: true } } } } },
+      select: { voyageur: { select: { nom: true, prenom: true, position: true } }, piece: { select: { legalDocument: { select: { id: true, title: true, reference: true, amount: true } } } } },
     }),
     prisma.adProVoyageur.count({ where: { itemId: id } }),
   ]);
@@ -3484,9 +3756,15 @@ export async function demanderBCBilletterie(formData: FormData): Promise<ActionR
     return { ok: false, error: "Validez d'abord le devis d'au moins un voyageur : le bon de commande s'établit d'après les propositions retenues." };
   }
   retenus.sort((a, b) => a.voyageur.position - b.voyageur.position);
+  // LA MÊME PIÈCE RETENUE POUR PLUSIEURS VOYAGEURS se nomme une fois avec son montant ; les autres la désignent (« même pièce »).
+  const piece = await pieceComptee(id);
+  const dejaNommee = new Set<string>();
   const liste = retenus.map((r) => {
     const d = r.piece.legalDocument;
-    return `• ${nomComplet(r.voyageur)} — ${d.reference ?? d.title}${d.amount != null ? ` (${toNumber(d.amount).toLocaleString("fr-FR")} DZD)` : ""}`;
+    const cle = piece(d.id);
+    const montant = dejaNommee.has(cle) ? " (même pièce que ci-dessus, comptée une fois)" : d.amount != null ? ` (${toNumber(d.amount).toLocaleString("fr-FR")} DZD)` : "";
+    dejaNommee.add(cle);
+    return `• ${nomComplet(r.voyageur)} — ${d.reference ?? d.title}${montant}`;
   }).join("\n");
   const sansDevis = total - retenus.length;
   const note = [fdStr(formData, "note"), `Devis retenus (${retenus.length}/${total} voyageur(s)) :\n${liste}`].filter(Boolean).join("\n\n");
@@ -3705,6 +3983,10 @@ export async function enregistrerLignesDuDevis(formData: FormData): Promise<Acti
       ...(formData.has("extraTaxRate") ? { extraTaxRate: taxeSaisie !== null ? new Prisma.Decimal(taxeSaisie) : null, extraTaxLabel: taxeSaisie !== null ? (fdStr(formData, "extraTaxLabel") ?? "Taxe additionnelle") : null } : {}),
       ...(formData.has("announcedTotal") ? { announcedTotal: totalSaisi !== null ? new Prisma.Decimal(totalSaisi) : null } : {}),
       ...(supplierId ? { supplierId } : {}),
+      // Les doutes de la lecture sont tranchés par cette correction, faite devant le papier : ils ne restent pas affichés.
+      ...(devis.entete.lectureNote && noteApresCorrection(devis.entete.lectureNote) !== devis.entete.lectureNote
+        ? { lectureNote: noteApresCorrection(devis.entete.lectureNote) }
+        : {}),
     };
     const quand = fdStr(formData, "quoteDate");
     const date = quand && !Number.isNaN(Date.parse(quand)) ? new Date(`${quand.slice(0, 10)}T00:00:00.000Z`) : null;
@@ -3770,6 +4052,9 @@ export async function enregistrerLignesDuDevis(formData: FormData): Promise<Acti
 async function validerAutomatiquementLesLignesLues(userId: string, itemId: string, pieceId: string): Promise<number> {
   const devis = await devisDuPoste(itemId, pieceId);
   if (!devis || !devis.structure || devis.bc || devis.ecartTotal || devis.lignes.length === 0) return 0;
+  // LA MÊME PIÈCE DÉPOSÉE DEUX FOIS (ou une proposition écartée) ne valide rien d'office : ses lignes seraient comptées
+  // deux fois. Un contenu identique à un autre devis, sans preuve que c'est la même pièce, est un doute — rien non plus.
+  if (devis.miseAPart || devis.doublonProbableDe) return 0;
   if (devis.lignes.some((l) => l.validee)) return 0; // une personne a déjà tranché : on ne repasse pas derrière elle
   const sansDoute = devis.lignes.every((l) =>
     !l.valideeAilleurs && !l.refusValidation && !l.aVerifier && l.quantity != null && l.unitPrice != null);
@@ -3811,7 +4096,8 @@ export async function lireLesLignesDuDevis(formData: FormData): Promise<ActionRe
     });
     if (!ing.ok) return { ok: false, error: ing.raison };
     await audit(user, owner.parent, owner.id, "UPDATE", `Devis « ${devis.reference ?? devis.titre} » du poste « ${item.label} » relu : ${ing.nbLignes} ligne${ing.nbLignes > 1 ? "s" : ""} proposée${ing.nbLignes > 1 ? "s" : ""}.`);
-    const nb = await validerAutomatiquementLesLignesLues(user.id, id, pieceId).catch(() => 0);
+    // Un doute du contrôle des totaux (TTC imprimé que les lignes ne font pas, TVA non imprimée…) : rien d'office.
+    const nb = ing.doutes.length === 0 ? await validerAutomatiquementLesLignesLues(user.id, id, pieceId).catch(() => 0) : 0;
     revalidate(owner.parent, owner.id);
     return { ok: true, id, message: nb > 0 ? `Devis relu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.` : phraseDeLecture(ing) };
   });
@@ -3847,7 +4133,21 @@ export async function validerEtEnvoyerBcPoste(formData: FormData): Promise<Actio
   return traiterLeBCDuPoste(formData, "VALIDER");
 }
 
-async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"): Promise<ActionResult> {
+/**
+ * GÉNÉRER LE BON DE COMMANDE EN UN CLIC (Direction, 10/2026) — « des fois il n'y a pas où générer le BC, pourtant il doit
+ * pouvoir être généré automatiquement en un clic ». Le DEMANDEUR (ou le Super Admin : la même porte que « Valider et envoyer »)
+ * génère d'un geste le BC de chaque devis qui compte, d'après ses lignes validées : numéroté, Word et PDF, aiguillé vers son
+ * centre par la fabrique (`emettreDocumentDrive` → `aiguillerBC`). Un aperçu déjà corrigé garde ses corrections ; l'aperçu
+ * reste offert à qui veut relire d'abord, et « Modifier le BC » tant qu'il n'est pas signé. Mêmes refus que la validation :
+ * poste accordé, budget, plafond (sur les devis qui COMPTENT), fournisseur nommé, taux admis.
+ */
+export async function genererEtEnvoyerBcPoste(formData: FormData): Promise<ActionResult> {
+  if (!fdStr(formData, "id")) return { ok: false, error: "Poste non précisé." };
+  fdStr(formData, "pieceId"); // facultatif : un seul devis ; absent, tous ceux qui ont quelque chose à générer
+  return traiterLeBCDuPoste(formData, "DIRECT");
+}
+
+async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER" | "DIRECT"): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   const pieceVoulue = fdStr(formData, "pieceId");
@@ -3865,7 +4165,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   if (!info) return { ok: false, error: "Opération introuvable." };
   const fermee = refusDemandeFermee(info);
   if (fermee) return { ok: false, error: fermee };
-  if (mode === "VALIDER" && !peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: info.requesterId })) {
+  if (mode !== "APERCU" && !peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: info.requesterId })) {
     return { ok: false, error: REFUS_VALIDATION_BROUILLON };
   }
 
@@ -3892,6 +4192,8 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
       const bloque = visees.find((d) => d.etat === "FIGE" || d.etat === "A_ANNULER");
       if (bloque?.refus) return { ok: false, error: bloque.refus };
       if (visees.some((d) => d.etat === "A_JOUR")) return { ok: true, id, message: "Chaque devis validé a déjà son bon de commande, à jour : rien de nouveau à générer." };
+      const aPart = visees.find((d) => d.etat === "MIS_A_PART" && d.miseAPart);
+      if (aPart?.miseAPart) return { ok: false, error: `${aPart.reference ?? aPart.titre} : ${aPart.miseAPart.phrase}` };
       return { ok: false, error: "Aucune ligne n'est validée : cochez, dans un devis, les lignes à commander, puis générez le bon de commande." };
     }
     // L'APERÇU d'abord : un devis qui a déjà son brouillon le garde (ses corrections ne sont jamais écrasées par un clic) ;
@@ -3900,15 +4202,16 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
     if (mode === "APERCU" && sansBrouillon.length === 0) {
       return { ok: true, id, message: `${ETIQUETTE_BROUILLON} : l'aperçu existe déjà — relisez-le, corrigez au besoin, puis « Valider et envoyer aux Finances ».` };
     }
-    const aFaire = mode === "APERCU" ? sansBrouillon : aFaireTous.filter((d) => d.brouillon);
+    // EN UN CLIC (DIRECT) : tout ce qui est à générer, avec l'aperçu corrigé quand il existe, sans lui sinon.
+    const aFaire = mode === "APERCU" ? sansBrouillon : mode === "DIRECT" ? aFaireTous : aFaireTous.filter((d) => d.brouillon);
     if (aFaire.length === 0) {
       return { ok: false, error: "Aucun aperçu de bon de commande à valider : générez d'abord l'aperçu (« Générer le BC »), relisez-le, puis validez-le." };
     }
     // Les lignes CORRIGÉES par le demandeur portent leur propre plafond (le hors-taxe saisi, comme « Modifier le BC ») ; sans correction,
     // ce sont les lignes validées des devis qui le portent.
-    const corrigees = mode === "VALIDER" ? aFaire.filter((d) => d.brouillon?.lignes) : [];
+    const corrigees = mode !== "APERCU" ? aFaire.filter((d) => d.brouillon?.lignes) : [];
     if (corrigees.length > 0) {
-      const ht = aFaire.reduce((s, d) => s + totalHtDesLignes(d.brouillon?.lignes ?? d.brouillon?.lignesBc ?? []), 0);
+      const ht = aFaire.reduce((s, d) => s + totalHtDesLignes(d.brouillon?.lignes ?? d.brouillon?.lignesBc ?? lignesDuBCDuDevis(d, id)), 0);
       if (montantAccorde !== null && Number.isFinite(ht) && ht > montantAccorde + TOLERANCE_DZD) {
         return { ok: false, error: `Les lignes corrigées font ${Math.round(ht).toLocaleString("fr-FR")} DZD hors taxes, au-delà de l'accordé (${montantAccorde.toLocaleString("fr-FR")} DZD) : corrigez-les, ou demandez une révision du poste.` };
       }

@@ -11,7 +11,7 @@ import { createLegalDocument, updateLegalDocument, adresserBCAuCentre } from "@/
 import { decideValidation } from "@/lib/actions/validation-actions";
 import { signerBonDeCommande } from "@/lib/actions/bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
-import { setBcValidationThreshold } from "@/lib/actions/settings-actions";
+import { setBcValidationThreshold, setBcValidationThresholdCentre } from "@/lib/actions/settings-actions";
 import { fileBonsDeCommande, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
 import { requestAdProItemOrder } from "@/lib/actions/ad-pro-item-actions";
 import { completePromoTrack } from "@/lib/actions/promo-circuit-actions";
@@ -61,6 +61,7 @@ const form = (fields: Record<string, string>): FormData => {
 suite("Seuil des bons de commande et signature des Finances — le flux réel", () => {
   let legalId = "", financeId = "", saId = "", contactId = "", kamId = "", eventId = "", catId = "";
   let seuilDOrigine = 0;
+  let seuilCentreDOrigine = 0;
   const docs: string[] = [];
 
   const creerBC = async (suffix: string, montant: string) => {
@@ -81,9 +82,14 @@ suite("Seuil des bons de commande et signature des Finances — le flux réel", 
     ACTOR = qui === "FINANCE" ? await actorFor(financeId, "FINANCE_BUDGET_MANAGER") : await actorFor(legalId, "DIRECTION_ASSISTANT");
     return signerBonDeCommande(avecCopieSignee(form({ id: docId })));
   };
+  // UN SEUIL PAR CENTRE (Direction, 10/2026) : les BC de Legal relèvent du centre de validations, ceux d'Ad & Pro du
+  // centre Ad & Pro. Le banc règle les DEUX à la même valeur, et rend la réponse du centre de validations — c'est
+  // lui qui réaiguille les BC de Legal que ce banc observe.
   const reglerSeuil = async (seuil: number) => {
     ACTOR = await actorFor(saId, "SUPER_ADMIN");
-    const r = await setBcValidationThreshold(form({ bcValidationThreshold: String(seuil) }));
+    const a = await setBcValidationThreshold(form({ bcValidationThreshold: String(seuil) }));
+    expect(a.ok, a.ok === false ? a.error : "").toBe(true);
+    const r = await setBcValidationThresholdCentre(form({ bcValidationThresholdCentre: String(seuil) }));
     expect(r.ok, r.ok === false ? r.error : "").toBe(true);
     return r;
   };
@@ -109,16 +115,19 @@ suite("Seuil des bons de commande et signature des Finances — le flux réel", 
     catId = (await prisma.budgetCategoryLine.create({
       data: { envelopeId: env.id, name: `${TAG}Traiteurs`, allocated: 1_000_000 }, select: { id: true },
     })).id;
-    const row = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { bcValidationThreshold: true } });
+    const row = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { bcValidationThreshold: true, bcValidationThresholdCentre: true } });
     seuilDOrigine = row ? Number(row.bcValidationThreshold) : 0;
-    // 1 DZD : voir l'en-tête — aucun BC d'un banc voisin ne change de côté.
+    seuilCentreDOrigine = row ? Number(row.bcValidationThresholdCentre) : 0;
+    // 1 DZD : voir l'en-tête — aucun BC d'un banc voisin ne change de côté. Les deux centres.
     await prisma.appSetting.upsert({
-      where: { id: "global" }, create: { id: "global", bcValidationThreshold: 1 }, update: { bcValidationThreshold: 1 },
+      where: { id: "global" },
+      create: { id: "global", bcValidationThreshold: 1, bcValidationThresholdCentre: 1 },
+      update: { bcValidationThreshold: 1, bcValidationThresholdCentre: 1 },
     });
   });
 
   afterAll(async () => {
-    await prisma.appSetting.updateMany({ where: { id: "global" }, data: { bcValidationThreshold: seuilDOrigine } }).catch(() => {});
+    await prisma.appSetting.updateMany({ where: { id: "global" }, data: { bcValidationThreshold: seuilDOrigine, bcValidationThresholdCentre: seuilCentreDOrigine } }).catch(() => {});
     const vIds = (await prisma.validationRequest.findMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: docs } }, select: { id: true } })).map((v) => v.id);
     await prisma.validationStep.deleteMany({ where: { requestId: { in: vIds } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { id: { in: vIds } } }).catch(() => {});
@@ -301,7 +310,7 @@ suite("Seuil des bons de commande et signature des Finances — le flux réel", 
 
     // ABAISSÉ à 1 : il repasse au-dessus — une porte est reposée, il quitte la file des Finances.
     const bas = await reglerSeuil(1);
-    expect(bas.ok ? bas.message ?? "" : "").toMatch(/adressé.* à un centre/);
+    expect(bas.ok ? bas.message ?? "" : "").toMatch(/adressé.* au centre de validations/);
     expect(await validationsDe(r.id!, "PENDING")).toHaveLength(1);
     expect((await etatDuBC(r.id!))?.etape).toBe("A_VALIDER");
   });

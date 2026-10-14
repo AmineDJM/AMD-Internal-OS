@@ -10,6 +10,7 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { LEGAL_DOC_KIND, LEGAL_DOC_STATUS, LEGAL_EXPIRY_LEVEL, natureLegale } from "@/lib/labels";
 import { renewLegalDocument, cancelLegalDocument, restoreLegalDocument } from "@/lib/actions/legal-actions";
 import { setInvoicePaid } from "@/lib/actions/invoice-actions";
+import { peutDaterLeReglement } from "@/lib/finances/settlement";
 import { moveLegalDocuments } from "@/lib/actions/legal-folder-actions";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { invoiceSettlementState, INVOICE_SETTLEMENT, isInvoice } from "@/lib/labels";
@@ -72,6 +73,8 @@ export function LegalTable({
 }) {
   const peutSurLaPiece = (verbe: "creer" | "modifier", kind: string) =>
     legalWriteAllowed({ onLegal: droitsEcriture.legal[verbe], onFinances: droitsEcriture.finances[verbe], kind });
+  // « Réglée » / « À régler » ÉCRIVENT AU LIVRE : le geste de qui règle aux Finances, la même règle que l'action.
+  const dateLeReglement = peutDaterLeReglement({ financesModifier: droitsEcriture.finances.modifier });
   const router = useRouter();
   const [state, setState] = React.useState(() => initialLegalListState(scope, watchByDefault, initialKind));
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -322,13 +325,13 @@ export function LegalTable({
                             qui faisait tenir les règlements dans un tableur à côté. Une facture
                             partie au circuit n'a pas ce bouton : son paiement la soldera, et le
                             serveur le refuse de toute façon. */}
-                        {etatReglement === "UNPAID" && (
+                        {dateLeReglement && etatReglement === "UNPAID" && (
                           <Button size="sm" variant="outline" disabled={busy === `p:${r.id}`}
                             onClick={() => void run(`p:${r.id}`, () => setInvoicePaid({ id: r.id, paidDate: new Date().toISOString() }))}>
                             {busy === `p:${r.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Réglée
                           </Button>
                         )}
-                        {etatReglement === "PAID" && (
+                        {dateLeReglement && etatReglement === "PAID" && (
                           <Button size="sm" variant="ghost" disabled={busy === `p:${r.id}`}
                             onClick={() => void run(`p:${r.id}`, () => setInvoicePaid({ id: r.id, paidDate: null }))}>
                             {busy === `p:${r.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />} À régler

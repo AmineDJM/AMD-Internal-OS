@@ -58,6 +58,7 @@
  */
 
 import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
+import { PHRASE_PREVALIDATION } from "./prevalidation";
 
 /** Les deux centres entre lesquels un BC s'aiguille. */
 export type CentreBC = "AD_PRO" | "VALIDATION";
@@ -204,7 +205,9 @@ export function reserveBC(porte: PorteBC | null): string | null {
  * seconde : un BC sans porte sortait avec une phrase qui ne disait rien (§118.5, §118.148).
  * `null` quand une porte a bien été posée — c'est alors `reserveBC` qui parle.
  */
-export function reserveSansPorte(a: { sansSiege?: boolean; enEchec?: boolean }): string | null {
+export function reserveSansPorte(a: { sansSiege?: boolean; enEchec?: boolean; enPrevalidation?: boolean }): string | null {
+  // Retenu par sa pré-validation : il n'a pas de porte PARCE QUE le demandeur recueille d'abord des avis.
+  if (a.enPrevalidation) return PHRASE_PREVALIDATION;
   if (a.sansSiege) {
     return "Aucun siège au centre de validations : ce bon de commande n'a pas pu y être adressé — il n'est PAS validé. Un Super Admin doit exister pour le valider.";
   }
@@ -226,6 +229,15 @@ export function validationRequiseBC(montant: number | null | undefined, seuil: n
   if (!(typeof seuil === "number" && Number.isFinite(seuil) && seuil > 0)) return true;
   if (!(typeof montant === "number" && Number.isFinite(montant) && montant > 0)) return true;
   return montant > seuil;
+}
+
+/**
+ * LE SEUIL QUI S'APPLIQUE À UN BC — celui de SON centre (Direction, 10/2026 : « les BC hors Ad & Pro passent par le
+ * centre de validation ; mets-moi un seuil là-bas aussi »). Le centre Ad & Pro règle le sien, le centre de validations
+ * le sien : un BC de promotion et un BC de fournitures ne relèvent pas de la même instance, ni du même montant.
+ */
+export function seuilDuCentre(seuils: { adPro: number; validation: number }, centre: CentreBC): number {
+  return centre === "AD_PRO" ? seuils.adPro : seuils.validation;
 }
 
 /** Le motif écrit quand un BC passe sous le seuil : il dit POURQUOI aucun centre ne le voit. */
@@ -434,6 +446,7 @@ export function reserveDeLAiguillage(a: {
   seuil?: number | null;
   sansSiege?: boolean;
   enEchec?: boolean;
+  enPrevalidation?: boolean;
   signatureRetiree?: boolean;
 }): string | null {
   const sansPorte = reserveSansPorte(a);

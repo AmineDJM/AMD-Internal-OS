@@ -23,6 +23,8 @@ import { OrdersTable, type OrderRow, type BudgetChoice, type CompteChoice } from
 import { compteParDefaut } from "@/lib/finance/tresorerie";
 import { comptesTresorerie } from "@/lib/finance/comptes";
 import { PurgeHistoryButton } from "./purge-history";
+import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
+import { ordresBvAvecQuittance } from "@/lib/regulatory/bv-reglement";
 
 /**
  * BANQUE & PAIEMENTS — ce qu'il y a en banque, et ce qu'il faut en sortir.
@@ -142,6 +144,14 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   const [tresorerie, tousLesComptes] = await Promise.all([chargerTresorerie(user.id, entiteId), comptesTresorerie()]);
   const comptes: CompteChoice[] = tresorerie.comptes.map((c) => ({ id: c.id, nom: c.nom }));
 
+  // LE BV D'UN DOSSIER RÉGLEMENTAIRE se règle avec sa QUITTANCE : l'écran la demande au geste « Payé »
+  // quand elle n'est pas déjà jointe — par la MÊME règle que le serveur (`ordresBvAvecQuittance`).
+  const avecQuittance = await ordresBvAvecQuittance(orders.filter((o) => o.status === "PENDING"));
+  const bvDe = (o: (typeof orders)[number]): OrderRow["bv"] => {
+    const nature = natureDeLOrdreBv(o);
+    return nature ? { nature: LIBELLE_NATURE_BV[nature], quittanceJointe: avecQuittance.has(o.id) } : null;
+  };
+
   const toRow = (o: (typeof orders)[number]): OrderRow => ({
     id: o.id, reference: o.reference, label: o.label, beneficiary: o.beneficiary,
     category: o.category, amount: toNumber(o.amount), status: o.status,
@@ -159,6 +169,7 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
       availableCount: categoryLines.length,
     }),
     compteParDefautId: compteParDefaut(tousLesComptes, o.companyId),
+    bv: bvDe(o),
   });
 
   // UN ORDRE REPORTÉ RESTE DANS LA FILE — daté, pas classé. Le sortir d'ici ferait de « reporter »

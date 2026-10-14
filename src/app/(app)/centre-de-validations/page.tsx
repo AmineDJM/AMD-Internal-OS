@@ -5,6 +5,8 @@ import { sitsOnValidationCentre, centreCounters, sortForCentre } from "@/lib/val
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { ValidationCentreBoard, type CentreRow } from "./centre-board";
+import { SeuilBCCentre } from "./seuil-bc";
+import { getAppSettings } from "@/lib/settings";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Centre de validations — AMD Internal OS" };
@@ -28,7 +30,8 @@ export default async function CentreDeValidationsPage() {
   // société. La règle pure a le dernier mot.
   if (!sitsOnValidationCentre(user)) notFound();
 
-  const rows: CentreRow[] = sortForCentre(await getPendingValidations(user.id));
+  const [pending, reglages] = await Promise.all([getPendingValidations(user.id), getAppSettings()]);
+  const rows: CentreRow[] = sortForCentre(pending);
   const c = centreCounters(rows, new Date());
 
   return (
@@ -58,6 +61,9 @@ export default async function CentreDeValidationsPage() {
       </div>
 
       <ValidationCentreBoard rows={rows} />
+
+      {/* LE SEUIL DES BC HORS AD & PRO (Direction, 10/2026) — réglé ici, par les sièges du centre. */}
+      <SeuilBCCentre seuil={reglages.bcValidationThresholdCentre} />
     </div>
   );
 }

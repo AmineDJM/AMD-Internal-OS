@@ -37,7 +37,8 @@ import type { CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
-import { canManageLetterheads, letterheadsFor } from "@/lib/office/letterhead";
+import { canManageLetterheads } from "@/lib/office/letterhead";
+import { lireModelesParType, resoudrePapierEnTete } from "@/lib/direction-artistique/modeles";
 import { canEditCompanyId, getMyCompanies, moneyEntityOf, type CompanyLite } from "@/lib/company";
 import { getBlob } from "@/lib/drive-storage";
 import { recordAudit } from "@/lib/audit";
@@ -50,7 +51,7 @@ import { empreinteDocument } from "@/lib/artifact/factory/empreinte";
 import {
   ajouterJours, formaterDzd, formaterNumero, LIBELLE_TYPE, NATURE_LEGALE, PREFIXE_DEFAUT, TAUX_TVA_ADMIS, titreDocument,
   TYPES_DOCUMENT, validerMotifNumero, verifierSpecCommerciale, departDe, prochaineSequence, validerDepart, PLURIEL_TYPE, type DepartsNumerotation,
-  type LigneCommerciale, type ModePaiement, type PartieCommerciale, type SpecDocumentCommercial, type TaxeAdditionnelle, type TotauxCommerciaux, type TypeDocumentCommercial,
+  type CoordonneesEmetteur, type LigneCommerciale, type ModePaiement, type PartieCommerciale, type SpecDocumentCommercial, type TaxeAdditionnelle, type TotauxCommerciaux, type TypeDocumentCommercial,
 } from "@/lib/artifact/factory/commercial";
 import { construireDossier } from "@/lib/artifact/factory/dossier";
 import { charteDe, lireMarque, mentionsDe, resumerMarque, signatairePour, type Charte, type Marque } from "@/lib/brand/model";
@@ -242,8 +243,8 @@ export function manquesDIdentite(profil: ProfilDocumentaire): string[] {
   if (!profil.papierEnTete && !profil.marque.logo) {
     out.push(
       `Aucun papier en-tête ni logo n'est enregistré pour ${profil.societe.nom} : la mise en page est NEUTRE, `
-      + `elle ne porte pas la charte de la société. Téléversez l'en-tête (Bureautique → Papiers en-tête) ou le logo `
-      + `(profil documentaire) pour que la pièce ressemble vraiment à ${profil.societe.nom}.`,
+      + `elle ne porte pas la charte de la société. Téléversez l'en-tête ou le logo (Transverse → Direction artistique) `
+      + `pour que la pièce ressemble vraiment à ${profil.societe.nom}.`,
     );
   }
   if (!profil.reglages.existe) {
@@ -261,8 +262,13 @@ export function manquesDIdentite(profil: ProfilDocumentaire): string[] {
  * `opts.papierEnTeteId` : un papier CHOISI pour cette pièce (le bouton des Finances propose la
  * bibliothèque de la société) à la place de celui que le profil désigne — jamais le papier d'une
  * autre société : écrire sur son en-tête, c'est l'engager.
+ *
+ * `opts.type` : la NATURE de la pièce à habiller. La Direction artistique (Transverse) désigne, par
+ * entité, le modèle Word d'un bon de commande, d'un devis… (`settings.modelesParType`) : c'est là
+ * que la fabrique va le chercher. Ordre : choisi > modèle de la nature > papier par défaut de
+ * l'entité > premier papier de l'entité > commun au groupe (`resoudrePapierEnTete`).
  */
-export async function profilDocumentaire(user: CurrentUser, societe?: string | null, opts: { papierEnTeteId?: string | null } = {}): Promise<{ ok: true; profil: ProfilDocumentaire; papierOctets: Buffer | null; logo: Habillage["logo"]; habillage: Habillage } | EchecFabrique> {
+export async function profilDocumentaire(user: CurrentUser, societe?: string | null, opts: { papierEnTeteId?: string | null; type?: TypeDocumentCommercial | null } = {}): Promise<{ ok: true; profil: ProfilDocumentaire; papierOctets: Buffer | null; logo: Habillage["logo"]; habillage: Habillage } | EchecFabrique> {
   const r = await resoudreSociete(user.id, societe);
   if (!r.ok) return r;
   const s = r.societe;
@@ -307,17 +313,21 @@ export async function profilDocumentaire(user: CurrentUser, societe?: string | n
   appliquer("tvaDefaut", (v) => (typeof v === "number" && TAUX_TVA_ADMIS.some((t) => Math.abs(t - v) < 1e-9) ? ((reglages.vatRate = v), `TVA par défaut : ${Math.round(v * 100)} %`) : null));
   appliquer("conditionsPaiement", (v) => (typeof v === "string" && v.trim() ? ((reglages.paymentTerms = v.trim()), `conditions de paiement : ${v.trim()}`) : null));
   appliquer("mentionPied", (v) => (typeof v === "string" && v.trim() ? ((reglages.footerNote = v.trim()), "mention de pied de page") : null));
-  // Le papier : celui que le profil désigne s'il est toujours actif, sinon le premier de la
-  // société, sinon un papier commun au groupe — jamais celui d'une autre société.
-  const voulu = (opts.papierEnTeteId ?? "").trim();
-  if (voulu && !entetes.some((l) => l.id === voulu)) {
-    // `entetes` ne contient que les en-têtes Word ACTIFS de cette société ou communs au groupe :
+  // Le papier : celui CHOISI pour la pièce, sinon le modèle que la Direction artistique désigne pour
+  // sa nature, sinon le papier par défaut de l'entité, sinon le premier de la société, sinon un
+  // papier commun au groupe — jamais celui d'une autre société (`resoudrePapierEnTete`).
+  const resolu = resoudrePapierEnTete(entetes, {
+    societeId: s.id,
+    choisi: opts.papierEnTeteId,
+    parNature: opts.type ? lireModelesParType(profil?.settings)[opts.type] ?? null : null,
+    defaut: reglages.letterheadId,
+  });
+  if (resolu.choisiIntrouvable) {
+    // Seuls les en-têtes Word ACTIFS de cette société ou communs au groupe sont candidats :
     // « introuvable » couvre donc aussi « appartient à une autre société », sans le révéler.
     return echec("NOT_FOUND", "Ce papier en-tête n'existe pas, n'est plus actif, ou n'est pas un modèle Word de cette société.");
   }
-  const choisi = voulu ? entetes.find((l) => l.id === voulu) ?? null : null;
-  const designe = reglages.letterheadId ? entetes.find((l) => l.id === reglages.letterheadId) ?? null : null;
-  const papier = choisi ?? designe ?? letterheadsFor(entetes, "word", s.id).find((l) => l.companyId === s.id || l.companyId === null) ?? null;
+  const papier = resolu.papier;
   const papierOctets = papier ? await getBlob(papier.blobId) : null;
   // LA MARQUE (§26) : lue dans `settings.marque` du profil ; la charte effective tranche marque >
   // bleu canard de la maison (la pastille de l'entité colore les écrans, pas les pièces). Le logo n'est chargé que s'il servira : sans papier en-tête.
@@ -491,6 +501,17 @@ export interface DemandeDocument {
   numeroClient?: string | null;
   /** Bon de commande / devis : l'interlocuteur nommé sur la pièce. */
   contact?: { nom?: string | null; telephone?: string | null } | null;
+  /**
+   * LES COORDONNÉES DE L'ÉMETTEUR pour CETTE pièce (adresse du siège, téléphone, e-mail) — absent = celles de la société
+   * émettrice ; une clé présente les remplace, `null` ou vide n'imprime rien (`SpecDocumentCommercial.coordonneesEmetteur`).
+   */
+  coordonneesEmetteur?: CoordonneesEmetteur | null;
+  /**
+   * LE SIGNATAIRE imprimé sur CETTE pièce — absent : celui de la marque (par type), sinon celui du profil ; `null` : aucun.
+   */
+  signataire?: { nom: string; qualite?: string | null } | null;
+  /** Les mentions propres à la pièce, imprimées au pied après celles de la société (`SpecDocumentCommercial.mentionsPiece`). */
+  mentions?: string[] | null;
   /** Taxes additionnelles sur le HT, hors base de TVA (« Taxe Pub » 2 %). */
   taxes?: TaxeAdditionnelle[] | null;
   livraison?: { adresse?: string | null; delai?: string | null; date?: string | null } | null;
@@ -504,6 +525,11 @@ export interface DemandeDocument {
   /** Émettre même si une pièce au contenu identique existe déjà. */
   forcerDoublon?: boolean;
   sansPdf?: boolean;
+  /**
+   * BON DE COMMANDE composé depuis « Demandes de validations » : il naît EN PRÉ-VALIDATION — aucun centre ne le voit
+   * tant que le demandeur n'a pas demandé la validation finale (`bons-de-commande/prevalidation.ts`).
+   */
+  prevalidation?: boolean;
   /**
    * Pour une pièce au REGISTRE COMMUN NNN/DG/AAAA (`ApercuDocument.surRegistre`) : la référence choisie à la génération
    * (ex. « 040/DG/2026 »), unique pour la société et l'année, tous documents confondus. Vide = le prochain numéro libre.
@@ -629,14 +655,70 @@ const aujourdhui = (): string => new Date().toISOString().slice(0, 10);
 const present = (v: string | null | undefined): v is string => !!v && v.trim() !== "";
 const nomFichier = (numero: string, tiers: string, ext: string): string => `${numero} — ${tiers.trim().replace(/[\\/:*?"<>|]+/g, " ").slice(0, 60)}.${ext}`;
 
+/**
+ * LES COORDONNÉES CHOISIES, nettoyées : seules les clés présentes restent, une valeur vide devient `null` (rien
+ * d'imprimé). `null` quand rien n'est choisi — la pièce suit la carte de SA société, jamais celle d'une autre.
+ */
+function coordonneesChoisies(c: CoordonneesEmetteur | null | undefined): CoordonneesEmetteur | null {
+  if (!c || typeof c !== "object") return null;
+  const propre = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const a = Object.prototype.hasOwnProperty.bind(c);
+  const r: CoordonneesEmetteur = {
+    ...(a("adresse") ? { adresse: propre(c.adresse) } : {}),
+    ...(a("telephone") ? { telephone: propre(c.telephone) } : {}),
+    ...(a("email") ? { email: propre(c.email) } : {}),
+  };
+  return Object.keys(r).length ? r : null;
+}
+
+/** L'ÉMETTEUR tel que la pièce l'imprime : la carte de la société, et par-dessus les coordonnées choisies pour la pièce. */
+function emetteurDeLaPiece(p: ProfilDocumentaire, c: CoordonneesEmetteur | null): PartieCommerciale {
+  return c ? { ...p.identite, ...c } : p.identite;
+}
+
+/** Les mentions de la pièce, nettoyées : une par ligne, sans vide ; `null` quand il n'y en a pas. */
+function mentionsNettoyees(m: string[] | null | undefined): string[] | null {
+  const l = Array.isArray(m) ? m.map((x) => String(x ?? "").trim()).filter(Boolean).slice(0, 12) : [];
+  return l.length ? l : null;
+}
+
+/** Le signataire choisi, nettoyé : un nom vide n'est pas un signataire (`null`). */
+function signataireChoisi(s: { nom?: string | null; qualite?: string | null } | null | undefined): { nom: string; qualite: string | null } | null {
+  const nom = (s?.nom ?? "").trim();
+  return nom ? { nom, qualite: (s?.qualite ?? "").trim() || null } : null;
+}
+
+/** Le PIED de la pièce : la note du profil, puis les mentions de la marque — coordonnées de la pièce comprises —, puis les siennes. */
+function piedDePageDe(p: ProfilDocumentaire, c: CoordonneesEmetteur | null, mentionsPiece: string[] | null = null): string[] | null {
+  const lignes = [...(p.reglages.footerNote ? [p.reglages.footerNote] : []), ...mentionsDe(p.marque, p.identite, c), ...(mentionsPiece ?? [])].filter(Boolean);
+  return lignes.length ? lignes : null;
+}
+
+/**
+ * LES COORDONNÉES QUE LA SOCIÉTÉ IMPRIME PAR DÉFAUT — ce que l'écran de composition pré-remplit : le siège de la carte
+ * Legal, le téléphone et l'e-mail de la marque sinon de la carte. Rien d'autre : une société sans e-mail n'en imprime pas.
+ */
+export function coordonneesParDefaut(p: ProfilDocumentaire): { adresse: string | null; telephone: string | null; email: string | null } {
+  return {
+    adresse: p.identite.adresse?.trim() || null,
+    telephone: p.marque.coordonnees.telephone?.trim() || p.identite.telephone?.trim() || null,
+    email: p.marque.coordonnees.email?.trim() || p.identite.email?.trim() || null,
+  };
+}
+
 /** La spécification (sans numéro) telle que la fabrique la compose depuis la demande et le profil. */
 function specDepuisDemande(d: DemandeDocument, p: ProfilDocumentaire): Omit<SpecDocumentCommercial, "numero"> {
   const date = (d.date ?? "").trim() || aujourdhui();
   const validite = d.validiteJours ?? p.reglages.quoteValidityDays;
+  const coordonnees = coordonneesChoisies(d.coordonneesEmetteur);
+  const mentionsPiece = mentionsNettoyees(d.mentions);
   return {
     type: d.type,
     date,
-    emetteur: p.identite,
+    emetteur: emetteurDeLaPiece(p, coordonnees),
+    // Le CHOIX est gardé (pas seulement son effet) : une révision le reprend au lieu de revenir à la carte.
+    ...(coordonnees ? { coordonneesEmetteur: coordonnees } : {}),
+    ...(mentionsPiece ? { mentionsPiece } : {}),
     tiers: { ...d.tiers, nom: (d.tiers?.nom ?? "").trim() },
     lignes: (d.lignes ?? []).map((l) => ({
       ...l, designation: String(l.designation ?? "").trim(),
@@ -662,10 +744,11 @@ function specDepuisDemande(d: DemandeDocument, p: ProfilDocumentaire): Omit<Spec
     // LA MARQUE tranche : le signataire du type de pièce, sinon celui par défaut, sinon celui du
     // profil ; les mentions choisies par la société s'ajoutent à la note de pied ; l'accent est
     // celui de la charte (marque > bleu canard de la maison).
-    signataire: signatairePour(p.marque, d.type === "AVOIR" ? "FACTURE" : d.type, p.reglages.signatoryName ? { nom: p.reglages.signatoryName, qualite: p.reglages.signatoryTitle } : null),
-    piedDePage: [...(p.reglages.footerNote ? [p.reglages.footerNote] : []), ...mentionsDe(p.marque, p.identite)].filter(Boolean).length
-      ? [...(p.reglages.footerNote ? [p.reglages.footerNote] : []), ...mentionsDe(p.marque, p.identite)]
-      : null,
+    // Un signataire CHOISI pour la pièce l'emporte ; `null` choisi = aucun.
+    signataire: d.signataire !== undefined
+      ? signataireChoisi(d.signataire)
+      : signatairePour(p.marque, d.type === "AVOIR" ? "FACTURE" : d.type, p.reglages.signatoryName ? { nom: p.reglages.signatoryName, qualite: p.reglages.signatoryTitle } : null),
+    piedDePage: piedDePageDe(p, coordonnees, mentionsPiece),
     couleur: p.charte.accent,
   };
 }
@@ -847,7 +930,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
   if (opts.delegation && !(demande.societe ?? "").trim()) {
     return echec("MISSING_INPUT", "Cette émission est autorisée par un dossier qui ne nomme aucune société : rattachez le dossier à la société qui commande, puis relancez.");
   }
-  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null });
+  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null, type });
   if (!p.ok) return p;
   const { profil, papierOctets, habillage } = p;
   if (!opts.delegation && !(await canEditCompanyId(user.id, profil.societe.id))) return echec("MISSING_PERMISSION", `Vous voyez ${profil.societe.nom} sans pouvoir l'engager : la pièce ne peut pas être émise en son nom.`);
@@ -992,6 +1075,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
         sourceId: opts.source?.id ?? null,
         notes: `${LIBELLE_TYPE[type]} émis${type === "FACTURE" ? "e" : ""} ${parQui(user, opts.canal)} — TTC ${formaterDzd(totaux.totalTtc)}.`,
         createdById: user.id, updatedById: user.id,
+        ...(demande.prevalidation && type === "BON_DE_COMMANDE" ? { bcPrevalidationAt: new Date() } : {}),
         custom: { fabrique } as unknown as Prisma.InputJsonValue,
       },
       select: { id: true },
@@ -1087,6 +1171,8 @@ export interface ApercuDocument {
   pdf?: { octets: Buffer; pages: number } | null;
   /** Pourquoi le rendu n'a pas pu être produit, quand il était demandé. */
   pdfErreur?: string;
+  /** Ce que la société émettrice imprime par défaut (siège, téléphone, e-mail) — ce que l'écran pré-remplit. */
+  coordonneesSociete: { adresse: string | null; telephone: string | null; email: string | null };
 }
 
 /**
@@ -1113,7 +1199,7 @@ export async function previsualiserDocument(
   if (opts.delegation && !(demande.societe ?? "").trim()) {
     return echec("MISSING_INPUT", "Cet aperçu est autorisé par un dossier qui ne nomme aucune société : rattachez le dossier à la société qui commande, puis relancez.");
   }
-  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null });
+  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null, type });
   if (!p.ok) return p;
   const { profil, habillage } = p;
   if (!opts.delegation && !(await canEditCompanyId(user.id, profil.societe.id))) return echec("MISSING_PERMISSION", `Vous voyez ${profil.societe.nom} sans pouvoir l'engager : la pièce ne peut pas être émise en son nom.`);
@@ -1141,7 +1227,7 @@ export async function previsualiserDocument(
     ? await prevoirReference(profil.societe.id, anneeSure, registre)
     : formaterNumero(prefixe, anneeSure, prochaineSequence(seq?.last ?? 0, departDe(profil.reglages.numerotationDepart, type, anneeSure)), motif);
   const spec: SpecDocumentCommercial = { ...base, numero: opts.numeroAffiche?.trim() || numeroProchain };
-  const commun = { ok: true as const, societe: { id: profil.societe.id, nom: profil.societe.nom }, numeroProchain, motif, surRegistre: registre !== null, papierEnTete: profil.papierEnTete, identiteIncomplete: profil.identiteIncomplete, spec, pdfParEditeur: convertConfigured() };
+  const commun = { ok: true as const, societe: { id: profil.societe.id, nom: profil.societe.nom }, numeroProchain, motif, surRegistre: registre !== null, papierEnTete: profil.papierEnTete, identiteIncomplete: profil.identiteIncomplete, spec, pdfParEditeur: convertConfigured(), coordonneesSociete: coordonneesParDefaut(profil) };
   // LA PIÈCE AMONT SE JUGE DÈS L'APERÇU (lot D1c — F1) : l'écran ne propose pas d'émettre ce que l'émission refusera.
   const amontId = (demande.chainFromId ?? "").trim() || null;
   const refusAmont = amontId && type !== "AVOIR" ? await jugerPieceAmont(user, type, amontId, profil.societe.id) : null;
@@ -1161,7 +1247,94 @@ export async function previsualiserDocument(
 
 // ─────────────────────────── La révision ───────────────────────────
 
-export type ModificationsDocument = Partial<Pick<DemandeDocument, "tiers" | "lignes" | "echeance" | "validiteJours" | "tvaDefaut" | "remiseGlobale" | "modePaiement" | "conditionsPaiement" | "objet" | "referenceAmont" | "referenceAmontDate" | "numeroClient" | "contact" | "taxes" | "livraison" | "notes">>;
+/**
+ * CE QU'UNE RÉVISION PEUT CHANGER — TOUT ce que le composeur saisit (Direction, 10/2026 : « modifiables totalement, de A à
+ * Z ») : le tiers et ses coordonnées, les lignes, la date (dans l'année de son numéro), les références, le paiement, la
+ * TVA, la remise, les taxes, la livraison, le contact, les notes, le papier en-tête et les coordonnées imprimées de
+ * l'émetteur. Restent la NATURE, la SOCIÉTÉ et le NUMÉRO : ce sont eux qui font que c'est la même pièce.
+ */
+export type ModificationsDocument = Partial<Pick<DemandeDocument, "tiers" | "lignes" | "date" | "echeance" | "validiteJours" | "tvaDefaut" | "remiseGlobale" | "modePaiement" | "conditionsPaiement" | "objet" | "referenceAmont" | "referenceAmontDate" | "numeroClient" | "contact" | "taxes" | "livraison" | "notes" | "coordonneesEmetteur" | "letterheadId" | "signataire" | "mentions">>;
+
+/**
+ * LA DATE D'UNE PIÈCE RÉVISÉE reste dans l'année de son numéro : « 012/DG/2026 » daté de 2027 serait une pièce que le
+ * registre de 2027 ne connaît pas. `null` = acceptée.
+ */
+function refusDateRevisee(f: Fabrique, date: string | null | undefined): string | null {
+  const d = (date ?? "").trim();
+  if (!d) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(`${d}T00:00:00Z`))) return `La date « ${d} » ne se lit pas (AAAA-MM-JJ attendu).`;
+  if (d.slice(0, 4) !== f.spec.date.slice(0, 4)) return `La pièce ${f.numero} est numérotée en ${f.spec.date.slice(0, 4)} : sa date révisée reste dans cette année. Pour une autre année, annulez-la et composez-en une nouvelle.`;
+  return null;
+}
+
+/**
+ * LA SPÉCIFICATION RÉVISÉE — une seule composition pour la révision et son aperçu : l'écran montre ce qui sera écrit.
+ * CE QUI N'EST PAS NOMMÉ GARDE SA VALEUR, champ par champ (§118.152) ; `null` l'efface.
+ */
+function specRevisee(f: Fabrique, m: ModificationsDocument, p: ProfilDocumentaire): SpecDocumentCommercial {
+  // LES COORDONNÉES DE L'ÉMETTEUR : celles choisies maintenant, sinon celles choisies à l'émission, sinon la carte
+  // ACTUELLE de la société (une société qui a changé d'e-mail le voit sur la version suivante).
+  const coordonnees = m.coordonneesEmetteur !== undefined ? coordonneesChoisies(m.coordonneesEmetteur) : coordonneesChoisies(f.spec.coordonneesEmetteur);
+  const mentionsPiece = m.mentions !== undefined ? mentionsNettoyees(m.mentions) : mentionsNettoyees(f.spec.mentionsPiece);
+  const sansCoordonnees: SpecDocumentCommercial = { ...f.spec };
+  delete sansCoordonnees.coordonneesEmetteur;
+  delete sansCoordonnees.mentionsPiece;
+  return {
+    ...sansCoordonnees,
+    ...(coordonnees ? { coordonneesEmetteur: coordonnees } : {}),
+    ...(mentionsPiece ? { mentionsPiece } : {}),
+    emetteur: emetteurDeLaPiece(p, coordonnees),
+    // LE PIED SUIT LES COORDONNÉES : un e-mail retiré de la pièce ne survit pas dans son pied.
+    piedDePage: piedDePageDe(p, coordonnees, mentionsPiece),
+    signataire: m.signataire !== undefined ? signataireChoisi(m.signataire) : f.spec.signataire,
+    // LA CHARTE D'AUJOURD'HUI : une pièce révisée prend l'accent courant de la société (marque, sinon le bleu canard de la
+    // maison) — l'ancien rouge d'une pièce émise avant la décision de la Direction ne survit pas à sa révision. Les pièces
+    // NON révisées gardent leur couleur d'émission : un document émis ne se repeint pas.
+    couleur: p.societe.couleur,
+    date: m.date !== undefined && (m.date ?? "").trim() ? (m.date as string).trim() : f.spec.date,
+    tiers: m.tiers ? { ...f.spec.tiers, ...m.tiers, nom: (m.tiers.nom ?? f.spec.tiers.nom).trim() } : f.spec.tiers,
+    lignes: m.lignes ? m.lignes.map((l) => ({ ...l, designation: String(l.designation ?? "").trim(), ...(l.section ? { section: true, quantite: 0, prixUnitaire: 0 } : {}) })) : f.spec.lignes,
+    echeance: m.echeance !== undefined ? m.echeance : f.spec.echeance,
+    validiteJours: m.validiteJours !== undefined ? m.validiteJours : f.spec.validiteJours,
+    tvaDefaut: m.tvaDefaut !== undefined ? m.tvaDefaut : f.spec.tvaDefaut,
+    remiseGlobale: m.remiseGlobale !== undefined ? m.remiseGlobale : f.spec.remiseGlobale,
+    modePaiement: m.modePaiement !== undefined ? m.modePaiement : f.spec.modePaiement,
+    conditionsPaiement: m.conditionsPaiement !== undefined ? m.conditionsPaiement : f.spec.conditionsPaiement,
+    objet: m.objet !== undefined ? m.objet : f.spec.objet,
+    referenceAmont: m.referenceAmont !== undefined ? m.referenceAmont : f.spec.referenceAmont,
+    referenceAmontDate: m.referenceAmontDate !== undefined ? m.referenceAmontDate : f.spec.referenceAmontDate,
+    numeroClient: m.numeroClient !== undefined ? m.numeroClient : f.spec.numeroClient,
+    // Remplacer l'objet entier effaçait l'adresse de livraison de qui ne changeait que le délai — et la pièce révisée
+    // partait sans elle, sans un mot. Une clé ABSENTE garde sa valeur ; `null` l'efface.
+    contact: m.contact !== undefined ? (m.contact === null ? null : { ...(f.spec.contact ?? {}), ...m.contact }) : f.spec.contact,
+    taxes: m.taxes !== undefined ? m.taxes : f.spec.taxes,
+    livraison: m.livraison !== undefined ? (m.livraison === null ? null : { ...(f.spec.livraison ?? {}), ...m.livraison }) : f.spec.livraison,
+    notes: m.notes !== undefined ? m.notes : f.spec.notes,
+  };
+}
+
+type ProfilCharge = Extract<Awaited<ReturnType<typeof profilDocumentaire>>, { ok: true }>;
+
+/**
+ * LE PAPIER D'UNE PIÈCE RÉVISÉE : celui choisi maintenant (vide = celui du profil), sinon celui de son émission — une
+ * révision ne change pas de papier en silence. Le papier d'origine retiré depuis : celui du profil, et on le dit.
+ */
+async function profilDeLaRevision(user: CurrentUser, companyId: string | null, f: Fabrique, m: ModificationsDocument): Promise<
+  { ok: true; p: ProfilCharge; avertissement: string | null } | EchecFabrique
+> {
+  if (m.letterheadId !== undefined) {
+    const p = await profilDocumentaire(user, companyId, { papierEnTeteId: (m.letterheadId ?? "").trim() || null });
+    return p.ok ? { ok: true, p, avertissement: null } : p;
+  }
+  if (f.papierEnTeteId) {
+    const p = await profilDocumentaire(user, companyId, { papierEnTeteId: f.papierEnTeteId });
+    if (p.ok) return { ok: true, p, avertissement: null };
+    if (p.echec !== "NOT_FOUND") return p;
+  }
+  const p = await profilDocumentaire(user, companyId);
+  if (!p.ok) return p;
+  return { ok: true, p, avertissement: f.papierEnTeteId && f.papierEnTeteId !== p.profil.papierEnTete?.id ? "Le papier en-tête de l'émission n'est plus actif : la version révisée prend celui du profil de la société." : null };
+}
 
 /**
  * RÉVISE un devis ou un bon de commande émis : même numéro, nouvelle version du même fichier,
@@ -1211,36 +1384,13 @@ export async function reviserDocumentDrive(
     if (opts.exigerMotif && !opts.motif?.trim()) {
       return echec("MISSING_INPUT", "Dites ce qui change dans cette pièce : c'est ce que retiendra son historique.");
     }
-    const p = await profilDocumentaire(user, doc.companyId);
-    if (!p.ok) return p;
     const m = opts.modifications ?? {};
-    const spec: SpecDocumentCommercial = {
-      ...f.spec,
-      emetteur: p.profil.identite,
-      // LA CHARTE D'AUJOURD'HUI : une pièce révisée prend l'accent courant de la société (marque, sinon le bleu canard de la
-      // maison) — l'ancien rouge d'une pièce émise avant la décision de la Direction ne survit pas à sa révision. Les pièces
-      // NON révisées gardent leur couleur d'émission : un document émis ne se repeint pas.
-      couleur: p.profil.societe.couleur,
-      tiers: m.tiers ? { ...f.spec.tiers, ...m.tiers, nom: (m.tiers.nom ?? f.spec.tiers.nom).trim() } : f.spec.tiers,
-      lignes: m.lignes ? m.lignes.map((l) => ({ ...l, designation: String(l.designation ?? "").trim(), ...(l.section ? { section: true, quantite: 0, prixUnitaire: 0 } : {}) })) : f.spec.lignes,
-      echeance: m.echeance !== undefined ? m.echeance : f.spec.echeance,
-      validiteJours: m.validiteJours !== undefined ? m.validiteJours : f.spec.validiteJours,
-      tvaDefaut: m.tvaDefaut !== undefined ? m.tvaDefaut : f.spec.tvaDefaut,
-      remiseGlobale: m.remiseGlobale !== undefined ? m.remiseGlobale : f.spec.remiseGlobale,
-      modePaiement: m.modePaiement !== undefined ? m.modePaiement : f.spec.modePaiement,
-      conditionsPaiement: m.conditionsPaiement !== undefined ? m.conditionsPaiement : f.spec.conditionsPaiement,
-      objet: m.objet !== undefined ? m.objet : f.spec.objet,
-      referenceAmont: m.referenceAmont !== undefined ? m.referenceAmont : f.spec.referenceAmont,
-      referenceAmontDate: m.referenceAmontDate !== undefined ? m.referenceAmontDate : f.spec.referenceAmontDate,
-      numeroClient: m.numeroClient !== undefined ? m.numeroClient : f.spec.numeroClient,
-      // CE QUI N'EST PAS NOMMÉ GARDE SA VALEUR, champ par champ (§118.152). Remplacer l'objet entier
-      // effaçait l'adresse de livraison de qui ne changeait que le délai — et la pièce révisée
-      // partait sans elle, sans un mot. Une clé ABSENTE garde sa valeur ; `null` l'efface.
-      contact: m.contact !== undefined ? (m.contact === null ? null : { ...(f.spec.contact ?? {}), ...m.contact }) : f.spec.contact,
-      taxes: m.taxes !== undefined ? m.taxes : f.spec.taxes,
-      livraison: m.livraison !== undefined ? (m.livraison === null ? null : { ...(f.spec.livraison ?? {}), ...m.livraison }) : f.spec.livraison,
-      notes: m.notes !== undefined ? m.notes : f.spec.notes,
-    };
+    const refusDate = refusDateRevisee(f, m.date);
+    if (refusDate) return echec("MISSING_INPUT", refusDate);
+    const lu = await profilDeLaRevision(user, doc.companyId, f, m);
+    if (!lu.ok) return lu;
+    const p = lu.p;
+    const spec = specRevisee(f, m, p.profil);
     const regles = verifierSpecCommerciale(spec);
     if (regles.bloquants.length > 0) return echec("MISSING_INPUT", `Révision refusée : ${regles.bloquants.slice(0, 4).join(" ; ")}`, { bloquants: regles.bloquants });
     const construit = await construireDocumentCommercial(spec, p.habillage);
@@ -1256,7 +1406,7 @@ export async function reviserDocumentDrive(
     const piece = doc.id;
     const ecrit = await portsArtefact.documents.ecrireVersion(user.id, doc.driveNodeId, construit.octets, { mime: MIME_DOCX, resume, piece });
     let pdf = f.pdf;
-    const avertissements = [...regles.avertissements, ...construit.verification.avertissements, ...manquesDIdentite(p.profil)];
+    const avertissements = [...regles.avertissements, ...construit.verification.avertissements, ...manquesDIdentite(p.profil), ...(lu.avertissement ? [lu.avertissement] : [])];
     const conv = await pdfDeLaPiece(user, { nodeId: doc.driveNodeId, version: ecrit.version }, construit.octets);
     if (conv.ok) {
       if (pdf) {
@@ -1271,6 +1421,7 @@ export async function reviserDocumentDrive(
     } else avertissements.push(`PDF non produit : ${conv.error}`);
     const finale: Fabrique = {
       ...f, version, spec, totaux: resumeTotaux(construit.totaux), docx: { nodeId: doc.driveNodeId, version: ecrit.version }, pdf, surPapierEnTete: construit.surPapierEnTete,
+      papierEnTeteId: p.profil.papierEnTete?.id ?? null,
       historique: [...(f.historique ?? []), { version, le: new Date().toISOString(), par: user.id, resume }],
     };
     // LA VERSION LUE, ENCORE (§118.194) : la file sérialise dans ce processus ; entre deux processus, c'est
@@ -1279,7 +1430,7 @@ export async function reviserDocumentDrive(
       where: { id: doc.id, custom: { path: ["fabrique", "version"], equals: f.version } },
       data: {
         title: titreDocument({ type: f.type, numero: f.numero, tiers: spec.tiers }), counterparty: spec.tiers.nom,
-        amount: new Prisma.Decimal(construit.totaux.totalTtc), endDate: echeanceLegale(spec), updatedById: user.id,
+        amount: new Prisma.Decimal(construit.totaux.totalTtc), startDate: new Date(`${spec.date}T00:00:00Z`), endDate: echeanceLegale(spec), updatedById: user.id,
         custom: { fabrique: finale } as unknown as Prisma.InputJsonValue,
       },
     });
@@ -1308,6 +1459,87 @@ export async function reviserDocumentDrive(
       totaux: finale.totaux, surPapierEnTete: construit.surPapierEnTete, avertissements, reglesAppliquees: p.profil.reglesAppliquees, porteBC, reserveBonDeCommande, ms: Date.now() - debut,
     };
   });
+}
+
+/** L'aperçu tel que l'ÉCRAN du composeur le reçoit (sérialisable : ni octets, ni spécification entière). */
+export interface ApercuPiece {
+  ok: true;
+  societe: { id: string; nom: string };
+  numeroProchain: string;
+  motif: string | null;
+  /** Le numéro vient du registre commun NNN/DG/AAAA de la société : il peut être choisi à l'émission. */
+  surRegistre: boolean;
+  papierEnTete: { id: string; nom: string } | null;
+  identiteIncomplete: string[];
+  totaux: { totalHt: number; totalTaxes: number; totalTva: number; timbre: number; totalTtc: number; enLettres: string; taxes: { libelle: string; taux: number; montant: number }[]; tva: { taux: number; montant: number }[] } | null;
+  bloquants: string[];
+  avertissements: string[];
+  peutEmettre: boolean;
+  pdfParEditeur: boolean;
+  /** Ce que la société émettrice imprime par défaut — l'écran le pré-remplit, chacun le change pour sa pièce. */
+  coordonneesSociete: { adresse: string | null; telephone: string | null; email: string | null };
+  /** Le signataire que la pièce imprimera (marque, profil, ou celui choisi) — l'écran le pré-remplit. */
+  signataire: { nom: string; qualite: string | null } | null;
+  /** Vrai quand l'aperçu est celui d'une RÉVISION : le numéro est celui de la pièce, pas un numéro prévu. */
+  revision: boolean;
+}
+
+/** L'aperçu de la fabrique, ramené à ce que l'écran lit — une conversion, pour l'aperçu de Legal comme pour celui d'un poste. */
+export function apercuPourEcran(r: ApercuDocument, revision: boolean): ApercuPiece {
+  return {
+    ok: true, revision, coordonneesSociete: r.coordonneesSociete,
+    signataire: r.spec.signataire ? { nom: r.spec.signataire.nom, qualite: r.spec.signataire.qualite ?? null } : null,
+    societe: r.societe, numeroProchain: r.numeroProchain, motif: r.motif, surRegistre: r.surRegistre, papierEnTete: r.papierEnTete, identiteIncomplete: r.identiteIncomplete,
+    totaux: r.totaux
+      ? {
+        totalHt: r.totaux.totalHt, totalTaxes: r.totaux.totalTaxes, totalTva: r.totaux.totalTva, timbre: r.totaux.timbre, totalTtc: r.totaux.totalTtc, enLettres: r.totaux.enLettres,
+        taxes: r.totaux.taxes.map((x) => ({ libelle: x.libelle, taux: x.taux, montant: x.montant })),
+        tva: r.totaux.tva.map((x) => ({ taux: x.taux, montant: x.montant })),
+      }
+      : null,
+    bloquants: r.bloquants, avertissements: r.avertissements, peutEmettre: r.peutEmettre, pdfParEditeur: r.pdfParEditeur,
+  };
+}
+
+/**
+ * L'APERÇU D'UNE RÉVISION — la MÊME composition que `reviserDocumentDrive` (`specRevisee`), jouée à blanc : totaux, papier,
+ * ce qui bloquerait, et le PDF tel qu'il sera imprimé sous SON numéro. Rien n'est écrit. Les mêmes portes que la révision :
+ * une pièce qu'on ne pourrait pas réviser ne se prévisualise pas non plus (§118.83).
+ */
+export async function previsualiserRevision(
+  user: CurrentUser,
+  opts: { legalDocumentId: string; modifications: ModificationsDocument; avecPdf?: boolean },
+  /** Comme la révision : sous la délégation d'un dossier (le demandeur d'un poste Ad & Pro), les droits Legal cèdent. */
+  emission: Pick<OptionsEmission, "delegation"> = {},
+): Promise<ApercuDocument | EchecFabrique> {
+  const doc = await prisma.legalDocument.findUnique({ where: { id: opts.legalDocumentId }, select: { id: true, companyId: true, status: true, custom: true } });
+  const f = doc ? fabriqueDe(doc.custom) : null;
+  if (!doc || !f) return echec("NOT_FOUND", "Cette pièce n'existe pas, ou n'a pas été émise par la fabrique (seules celles-ci se révisent).");
+  if (f.type === "FACTURE" || f.type === "AVOIR") return echec("CAPABILITY_FAILURE", `La pièce ${f.numero} est une pièce fiscale émise : elle ne se réécrit pas.`);
+  if (doc.status !== "ACTIVE") return echec("CAPABILITY_FAILURE", `La pièce ${f.numero} est ${doc.status === "CANCELLED" ? "annulée" : "close"} : elle ne se révise plus.`);
+  if (!emission.delegation && !peutEcrire(user, "UPDATE", f.type)) return echec("MISSING_PERMISSION", "Réviser cette pièce exige le droit de modifier dans Legal.");
+  if (!emission.delegation && !(await canEditCompanyId(user.id, doc.companyId))) return echec("MISSING_PERMISSION", "Cette pièce appartient à une société que vous ne pouvez pas engager.");
+  const m = opts.modifications ?? {};
+  const lu = await profilDeLaRevision(user, doc.companyId, f, m);
+  if (!lu.ok) return lu;
+  const { profil, habillage } = lu.p;
+  const spec = specRevisee(f, m, profil);
+  const commun = {
+    ok: true as const, societe: { id: profil.societe.id, nom: profil.societe.nom }, numeroProchain: f.numero, motif: null, surRegistre: false,
+    papierEnTete: profil.papierEnTete, identiteIncomplete: profil.identiteIncomplete, spec, pdfParEditeur: convertConfigured(), coordonneesSociete: coordonneesParDefaut(profil),
+  };
+  const refusDate = refusDateRevisee(f, m.date);
+  const regles = verifierSpecCommerciale(spec);
+  const avertissements = [...manquesDIdentite(profil), ...(lu.avertissement ? [lu.avertissement] : [])];
+  if (refusDate || regles.bloquants.length > 0) {
+    return { ...commun, totaux: null, bloquants: [...(refusDate ? [refusDate] : []), ...regles.bloquants], avertissements: [...regles.avertissements, ...avertissements], peutEmettre: false, ...(opts.avecPdf ? { pdf: null, pdfErreur: "Le rendu n'est pas possible tant que la révision est refusée." } : {}) };
+  }
+  const essai = await construireDocumentCommercial(spec, habillage);
+  const rendu = opts.avecPdf && essai.verification.ok ? await docxToPdf(essai.octets) : null;
+  return {
+    ...commun, totaux: essai.totaux, bloquants: essai.verification.bloquants, avertissements: [...essai.verification.avertissements, ...avertissements], peutEmettre: essai.verification.ok,
+    ...(opts.avecPdf ? (rendu && rendu.ok ? { pdf: { octets: rendu.pdf, pages: rendu.pages } } : { pdf: null, pdfErreur: rendu && !rendu.ok ? rendu.error : "Le rendu n'est pas possible tant que la révision est refusée." }) : {}),
+  };
 }
 
 // ─────────────────────────── Le dossier à trois formats ───────────────────────────

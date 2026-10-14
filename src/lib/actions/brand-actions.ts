@@ -50,6 +50,7 @@ export async function enregistrerMarque(_prev: ResultatMarque | undefined, formD
   const r = await definirMarque(user, { societe, modification });
   if (!r.ok) return { ok: false, error: r.motif };
   revalidatePath(PATH);
+  revalidatePath("/direction-artistique");
   const quoi = r.champsModifies.length ? `Enregistré : ${r.champsModifies.join(", ")}.` : "Rien à modifier.";
   return { ok: true, message: r.refus.length ? `${quoi} Refusé : ${r.refus.join(" ; ")}` : quoi, refus: r.refus, champsModifies: r.champsModifies };
 }
@@ -63,6 +64,7 @@ export async function deposerLogo(_prev: ActionResult | undefined, formData: For
     const r = await definirLogo(user, { societe, fichier: null });
     if (!r.ok) return { ok: false, error: r.motif };
     revalidatePath(PATH);
+    revalidatePath("/direction-artistique");
     return { ok: true, message: "Logo retiré." };
   }
   const file = formData.get("file");
@@ -72,5 +74,6 @@ export async function deposerLogo(_prev: ActionResult | undefined, formData: For
   const r = await definirLogo(user, { societe, fichier: { nom: file.name, mime: file.type, octets, largeurCm: Number.isFinite(largeur) ? largeur : 4 } });
   if (!r.ok) return { ok: false, error: r.motif };
   revalidatePath(PATH);
+  revalidatePath("/direction-artistique");
   return { ok: true, message: `Logo déposé : ${r.lue.marque.logo?.nom ?? file.name} (${Math.round(octets.length / 1024)} Ko, ${r.lue.marque.logo?.largeurCm ?? 4} cm de large).` };
 }

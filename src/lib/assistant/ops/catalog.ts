@@ -1,5 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
-import { userCan, hasGlobalView, peutGererSpecialites } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, peutGererSpecialites } from "@/lib/rbac";
+import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import { canManageLetterheads } from "@/lib/office/letterhead";
 import { siegeAuCentreAdPro } from "@/platform/in-process/capacites";
 
@@ -2076,7 +2077,7 @@ export const OPS_CATALOG: OpMeta[] = [
     uiLabel: "Faire valider la décision de déclarer",
     aliases: ["faut-il déclarer cet événement", "fais valider que je déclare", "ce dossier ne se déclare pas"],
     risk: "NORMAL",
-    summary: "Circuit ÉVÉNEMENT (prises en charge, événements, sponsorings — AUCUN bon de versement) : soumet à validation la LECTURE du pharmacien — « declare » (à déclarer au ministère de l'Industrie pharmaceutique) ou « skip » (sans déclaration, motif EXIGÉ dans « note »). Le responsable, la Direction Marketing, puis le centre de validations. C'est cette décision qui ouvre le dépôt.",
+    summary: "Circuit ÉVÉNEMENT (prises en charge, événements, sponsorings — AUCUN bon de versement) : soumet à validation la LECTURE du pharmacien — « declare » (à déclarer au ministère de l'Industrie pharmaceutique) ou « skip » (sans déclaration, motif EXIGÉ dans « note »). Elle va au Directeur des Opérations (à défaut, au Super Admin), qui tranche seul. C'est cette décision qui ouvre le dépôt.",
     gate: (u) => hasGlobalView(u) || userCan(u, "MEDICAL_INFO", "VALIDATE"),
     covers: ["medical-info-actions:requestDeclareDecision"],
   },
@@ -2103,7 +2104,7 @@ export const OPS_CATALOG: OpMeta[] = [
     uiLabel: "Faire valider le dépôt des bons",
     aliases: ["demande le bon de versement", "fais valider les BV du dossier", "il faut verser la taxe"],
     risk: "NORMAL",
-    summary: "Circuit MATÉRIEL : fait valider le DÉPÔT des bons de versement du dossier — une seule validation pour le LOT (le responsable du pharmacien, la Direction Marketing, puis le centre de validations). Aucun argent n'est engagé ici ; le paiement de chaque quittance se demande ensuite SÉPARÉMENT. Le dossier doit d'abord être séparé en matériels (op « add_slip »).",
+    summary: "Circuit MATÉRIEL : fait valider le DÉPÔT des bons de versement du dossier — une seule validation pour le LOT (le Directeur des Opérations, à défaut le Super Admin, tranche seul). Aucun argent n'est engagé ici ; le paiement de chaque quittance se demande ensuite SÉPARÉMENT. Le dossier doit d'abord être séparé en matériels (op « add_slip »).",
     gate: (u) => hasGlobalView(u) || userCan(u, "MEDICAL_INFO", "VALIDATE"),
     covers: ["medical-info-actions:requestSlipsValidation"],
   },
@@ -2157,18 +2158,18 @@ export const OPS_CATALOG: OpMeta[] = [
     uiLabel: "Valider (pharmacien)",
     aliases: ["valide la déclaration", "validation pharmacien de la déclaration"],
     risk: "SENSITIVE",
-    summary: "Validation PHARMACIEN d'une déclaration — elle monte ensuite à la Direction.",
+    summary: "Validation PHARMACIEN d'une déclaration — elle monte ensuite au Directeur des Opérations (à défaut, au Super Admin).",
     gate: (u) => hasGlobalView(u) || userCan(u, "MEDICAL_INFO", "VALIDATE"),
     covers: ["medical-info-actions:validateDeclaration"],
   },
   {
     tool: "medical_info_operation", op: "validate_declaration_direction", module: "Information médicale",
-    uiLabel: "Valider (Direction)",
-    aliases: ["validation direction de la déclaration", "la direction valide la déclaration"],
+    uiLabel: "Valider (Directeur des Opérations)",
+    aliases: ["validation direction de la déclaration", "la direction valide la déclaration", "le directeur des opérations valide la déclaration"],
     risk: "SENSITIVE",
-    summary: "Validation DIRECTION — dernière marche, la déclaration passe VALIDÉE.",
-    gate: (u) => hasGlobalView(u),
-    gateNote: "Direction / Super Admin",
+    summary: "Validation FINALE par le Directeur des Opérations (à défaut, le Super Admin) — dernière marche, la déclaration passe VALIDÉE.",
+    gate: (u) => estDecideurInfoMed(u),
+    gateNote: "Directeur des Opérations / Super Admin",
     covers: ["medical-info-actions:validateDeclarationByDirection"],
   },
   {
@@ -3724,7 +3725,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["les devis des agences sont déposés", "dépose les devis sur le dossier MP"],
     risk: "NORMAL",
     summary: "L'assistante clôt la prospection : devis des agences déposés — le Marketing arbitre ensuite (circuit long, marche 2).",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:submitQuotes"],
   },
   {
@@ -3743,7 +3744,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["transmets le bon de commande du matériel promo aux finances", "le BC du dossier MP part aux finances", "transmets le BC du matériel promo au centre de validation"],
     risk: "NORMAL",
     summary: "L'assistante crée le bon de commande (n° en option) et le transmet au CENTRE DE VALIDATION AD & PRO pour validation (ancien parcours du matériel promotionnel).",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:submitBcForFinance"],
   },
   {
@@ -3771,7 +3772,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["le bon de commande est parti à l'agence", "confirme l'envoi du BC à l'agence"],
     risk: "NORMAL",
     summary: "L'assistante confirme l'envoi du BC validé à l'agence — l'information médicale initie ensuite le bordereau de paiement.",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:confirmBcSent"],
   },
   {
@@ -3846,7 +3847,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["enregistre la facture finale du matériel promo", "la facture de l'agence est arrivée"],
     risk: "NORMAL",
     summary: "L'assistante enregistre la facture finale de l'agence — reste le règlement des Finances (dernière marche).",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:recordInvoice"],
   },
   {

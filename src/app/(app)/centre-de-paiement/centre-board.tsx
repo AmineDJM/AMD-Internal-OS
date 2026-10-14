@@ -3,10 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { ShieldCheck, ShieldX, MessageSquare, Coins, Loader2, Send, ChevronDown, ExternalLink } from "lucide-react";
+import { ShieldCheck, ShieldX, MessageSquare, Coins, Loader2, Send, ChevronDown, ExternalLink, Paperclip, Pill } from "lucide-react";
 import { decidePayment, respondToPaymentCentre } from "@/lib/actions/payment-centre-actions";
 import {
-  CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, awaitsCentre, awaitsRequester,
+  CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, MOTIFS_REFUS_RAPIDES, awaitsCentre, awaitsRequester,
   type CentralStatus, type CentralDecision,
 } from "@/lib/payments/authorization";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,17 @@ export interface CentreOrder {
   sourceHref: string | null;
   /** L'origine de la dépense en clair (« Demande administrative », « Avance sur salaire »…). */
   sourceLabel: string | null;
+  /**
+   * LE PRODUIT D'OÙ VIENT LA DEMANDE — pour un BV de dossier réglementaire (« Demande du BV 25 % »
+   * cliquée sur l'étape du processus). Le centre arbitre entre des BV de plusieurs dossiers : sans
+   * le produit, il autorise « BV 25 % — REG-2026-014 » sans savoir de quel médicament il s'agit.
+   * `href` n'est posé que si la personne peut ouvrir le dossier.
+   */
+  produit: { reference: string; nom: string; dci: string; nature: string | null; href: string | null } | null;
+  /** Le commentaire du demandeur, écrit avec sa demande. */
+  note: string | null;
+  /** Les pièces jointes à l'ordre par le demandeur (proforma, courrier…). */
+  pieces: { id: string; name: string }[];
   messages: CentreMessage[];
   /** L'utilisateur courant est-il le demandeur ? Il peut alors répondre et resoumettre. */
   isMine: boolean;
@@ -95,6 +106,9 @@ export function CentreBoard({
   const [open, setOpen] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  // Le motif, CONTRÔLÉ : les motifs rapides (« Non prioritaire »…) s'y écrivent d'un clic, et l'on complète.
+  const [motif, setMotif] = React.useState("");
+  const ouvrir = (order: CentreOrder, decision: CentralDecision) => { setErr(null); setMotif(""); setActing({ order, decision }); };
 
   // UNE seule file : l'entité et la section sont déjà choisies par la page.
   const groups: [string, CentreOrder[]][] = [[titre, orders]];
@@ -158,6 +172,35 @@ export function CentreBoard({
                         <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                           {o.reference} · {o.beneficiary ?? "bénéficiaire non précisé"} · demandé par {o.requestedBy ?? "—"} · {formatDateTime(o.createdAt)}
                         </p>
+                        {o.produit && (
+                          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs [overflow-wrap:anywhere]">
+                            <Pill className="h-3.5 w-3.5 shrink-0 text-primary" />
+                            {o.produit.nature && <Badge tone="info" dot={false}>{o.produit.nature}</Badge>}
+                            <span>
+                              Produit :{" "}
+                              {o.produit.href
+                                ? <Link href={o.produit.href} className="font-medium text-primary hover:underline">{o.produit.nom}</Link>
+                                : <span className="font-medium text-foreground">{o.produit.nom}</span>}
+                              {" · "}<span className="font-mono">{o.produit.reference}</span>
+                              {o.produit.dci && o.produit.dci !== o.produit.nom ? <> · {o.produit.dci}</> : null}
+                            </span>
+                          </p>
+                        )}
+                        {o.note && (
+                          <p className="mt-1 whitespace-pre-wrap rounded-md bg-secondary/50 px-2 py-1 text-xs [overflow-wrap:anywhere]">
+                            <span className="font-medium">Commentaire du demandeur : </span>{o.note}
+                          </p>
+                        )}
+                        {o.pieces.length > 0 && (
+                          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+                            <Paperclip className="h-3 w-3 shrink-0 text-muted-foreground" />
+                            {o.pieces.map((p) => (
+                              <a key={p.id} href={`/api/documents/${p.id}`} target="_blank" rel="noreferrer" className="min-w-0 text-primary [overflow-wrap:anywhere] hover:underline">
+                                {p.name}
+                              </a>
+                            ))}
+                          </p>
+                        )}
                         {o.proposedAmount != null && (
                           <p className="text-xs text-info tabular-nums">
                             Montant proposé par le centre : {formatCurrency(o.proposedAmount)}
@@ -212,10 +255,10 @@ export function CentreBoard({
                           {/* Au téléphone, les deux issues prennent toute la largeur de la carte, côte à côte,
                               à hauteur de pouce : on ne les cherche pas au bout d'une rangée. */}
                           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-                            <Button size="sm" disabled={enCours} className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => { setErr(null); setActing({ order: o, decision: "APPROVE" }); }}>
+                            <Button size="sm" disabled={enCours} className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "APPROVE")}>
                               <ShieldCheck className="h-4 w-4" /> Autoriser
                             </Button>
-                            <Button size="sm" variant="outline" disabled={enCours} className="h-11 text-sm text-destructive hover:bg-destructive/10 sm:h-8 sm:text-xs" onClick={() => { setErr(null); setActing({ order: o, decision: "REFUSE" }); }}>
+                            <Button size="sm" variant="outline" disabled={enCours} className="h-11 text-sm text-destructive hover:bg-destructive/10 sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "REFUSE")}>
                               <ShieldX className="h-4 w-4" /> Refuser
                             </Button>
                           </div>
@@ -300,8 +343,24 @@ export function CentreBoard({
                 {acting.decision === "APPROVE" ? "Note (facultative)" : "Motif"}
                 {acting.decision !== "APPROVE" && <span className="ml-0.5 text-destructive">*</span>}
               </Label>
+              {/* LES MOTIFS EN UN CLIC — « Non prioritaire » d'abord. Un raccourci d'écriture : le texte
+                  reste libre, on complète ou l'on écrit le sien. */}
+              {acting.decision === "REFUSE" && (
+                <div className="flex flex-wrap gap-1.5">
+                  {MOTIFS_REFUS_RAPIDES.map((m) => (
+                    <button
+                      key={m} type="button"
+                      onClick={() => setMotif((prev) => (!prev.trim() ? m : prev.includes(m) ? prev : `${prev.trim()} — ${m}`))}
+                      className={`min-h-9 rounded-full border px-3 py-1 text-xs sm:min-h-0 ${motif.includes(m) ? "border-destructive/50 bg-destructive/10 text-destructive" : "border-border text-muted-foreground hover:bg-secondary"}`}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              )}
               <Textarea
                 id="pc-body" name="body" rows={3}
+                value={motif} onChange={(e) => setMotif(e.target.value)}
                 required={acting.decision !== "APPROVE"}
                 placeholder={
                   acting.decision === "REFUSE" ? "Pourquoi ce paiement ne doit pas partir…"

@@ -5,9 +5,12 @@ import { BedDouble, Plus, Loader2, CheckCircle2, MoreHorizontal } from "lucide-r
 import { Button } from "@/components/ui/button";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentPreview } from "@/components/documents/document-preview";
+import { ChoixFichiers } from "@/components/shared/choix-fichiers";
 import { ajouterHebergement, modifierHebergement, retirerHebergement } from "@/lib/actions/ad-pro-item-actions";
 import { jourLisible, nomComplet, separerNom } from "@/lib/ad-pro/voyageurs";
 import { nuitsLisibles, TYPES_CHAMBRE } from "@/lib/ad-pro/hebergements";
+import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
 /** Une fiche hôtellerie telle que l'écran la montre — les dates en AAAA-MM-JJ, prêtes pour un champ « date ». */
 export interface HebergementVue {
@@ -38,7 +41,7 @@ const jour = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00.000Z`) : n
  * `obligatoire` : le poste ne se soumet pas sans au moins une fiche — sauf dans un sponsoring
  * indirect, où elles restent possibles mais facultatives (la règle est `refusFichesPersonnes`).
  */
-export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEditer, obligatoire, busy, run }: {
+export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEditer, obligatoire, busy, run, envois }: {
   itemId: string;
   hebergements: HebergementVue[];
   nomsSuggeres: string[];
@@ -47,6 +50,8 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
   obligatoire: boolean;
   busy: string | null;
   run: Run;
+  /** L'ÉTAT DE CHAQUE FICHE chez l'assistante (`EnvoiVue`, par fiche) — chaque fiche s'envoie seule (14/10). */
+  envois?: Record<string, EnvoiVue>;
 }) {
   const [ajout, setAjout] = React.useState(false);
   const [ouvert, setOuvert] = React.useState<{ id: string; quoi: "MENU" | "EDITER" | "DOCUMENTS" } | null>(null);
@@ -61,6 +66,7 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
         <span className="font-medium text-foreground">Fiches hôtellerie ({hebergements.length})</span>
         {!obligatoire && <span className="text-muted-foreground">· facultatives (sponsoring indirect)</span>}
       </div>
+      <BandeauEnvois envois={hebergements.map((h) => envois?.[h.id])} lot={{ itemId }} peutEditer={peutEditer} busy={busy} run={run} />
 
       {hebergements.length === 0 ? (
         <p className="text-muted-foreground">
@@ -99,6 +105,7 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
                   )}
                 </div>
                 {h.notes && <p className="text-muted-foreground">{h.notes}</p>}
+                <EnvoiFiche envoi={envois?.[h.id]} peutEditer={peutEditer} busy={busy} run={run} />
 
                 {mode === "MENU" && peutEditer && (
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-secondary/30 p-1.5" role="menu">
@@ -204,25 +211,57 @@ function FormulaireHebergement({ suggestions, defaut, busy, libelle, onSubmit, o
   onSubmit: (fd: FormData) => void;
   onCancel: () => void;
 }) {
-  const [prenom, setPrenom] = React.useState(defaut?.prenom ?? "");
-  const [nom, setNom] = React.useState(defaut?.nom ?? "");
-  const [arrivee, setArrivee] = React.useState(defaut?.dateArrivee ?? "");
-  const [depart, setDepart] = React.useState(defaut?.dateDepart ?? "");
-  const [pieceIdentite, setPieceIdentite] = React.useState<File | null>(null);
+  const [pieces, setPieces] = React.useState<File[]>([]);
   const [documents, setDocuments] = React.useState<File[]>([]);
-  const listeChambres = `chambres-${defaut?.id ?? "nouvelle"}`;
 
   return (
     <form
       onSubmit={(e) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
-        if (pieceIdentite) fd.set("pieceIdentite", pieceIdentite);
+        for (const p of pieces) fd.append("pieceIdentite", p);
         for (const d of documents) fd.append("documents", d);
         onSubmit(fd);
       }}
       className="space-y-3"
     >
+      <ChampsHebergement
+        suggestions={suggestions} defaut={defaut}
+        pieces={pieces} setPieces={setPieces} documents={documents} setDocuments={setDocuments}
+      />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button size="sm" type="submit" disabled={busy} className="h-10 w-full sm:h-8 sm:w-auto">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {libelle}
+        </Button>
+        <Button size="sm" type="button" variant="outline" onClick={onCancel} className="h-10 w-full sm:h-8 sm:w-auto">Annuler</Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * LES CHAMPS D'UNE FICHE HÔTELLERIE — sans formulaire autour, pour servir DEUX formulaires : celui d'une fiche
+ * (préfixe vide) et celui de l'ajout d'un poste « hôtellerie », qui en porte plusieurs (`lib/ad-pro/fiches-saisie`).
+ * Les fichiers choisis remontent au formulaire, qui les joint sous `<préfixe>pieceIdentite` et `<préfixe>documents`.
+ */
+export function ChampsHebergement({ prefixe = "", suggestions, defaut, pieces, setPieces, documents, setDocuments }: {
+  prefixe?: string;
+  suggestions: string[];
+  defaut?: HebergementVue;
+  pieces: File[];
+  setPieces: (f: File[]) => void;
+  documents: File[];
+  setDocuments: (f: File[]) => void;
+}) {
+  const n = (cle: string) => `${prefixe}${cle}`;
+  const [prenom, setPrenom] = React.useState(defaut?.prenom ?? "");
+  const [nom, setNom] = React.useState(defaut?.nom ?? "");
+  const [arrivee, setArrivee] = React.useState(defaut?.dateArrivee ?? "");
+  const [depart, setDepart] = React.useState(defaut?.dateDepart ?? "");
+  const listeChambres = `chambres-${defaut?.id ?? prefixe ?? "nouvelle"}`;
+
+  return (
+    <div className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {suggestions.length > 0 && (
           <label className="text-xs sm:col-span-2">
@@ -232,37 +271,37 @@ function FormulaireHebergement({ suggestions, defaut, busy, libelle, onSubmit, o
               onChange={(e) => { if (e.target.value) { const c = separerNom(e.target.value); setPrenom(c.prenom); setNom(c.nom); } }}
             >
               <option value="">— Saisir à la main —</option>
-              {suggestions.map((n) => <option key={n} value={n}>{n}</option>)}
+              {suggestions.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
         )}
         <label className="text-xs">
           Prénom
-          <input name="prenom" value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Amel" className={champ} />
+          <input name={n("prenom")} value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Amel" className={champ} />
         </label>
         <label className="text-xs">
           Nom
-          <input name="nom" required value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Haddad" className={champ} />
+          <input name={n("nom")} required value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Haddad" className={champ} />
         </label>
         <label className="text-xs">
           Hôtel
-          <input name="hotel" defaultValue={defaut?.hotel ?? ""} placeholder="Sheraton" className={champ} />
+          <input name={n("hotel")} defaultValue={defaut?.hotel ?? ""} placeholder="Sheraton" className={champ} />
         </label>
         <label className="text-xs">
           Ville
-          <input name="ville" defaultValue={defaut?.ville ?? ""} placeholder="Oran" className={champ} />
+          <input name={n("ville")} defaultValue={defaut?.ville ?? ""} placeholder="Oran" className={champ} />
         </label>
         <label className="text-xs">
           Arrivée
-          <input name="dateArrivee" type="date" value={arrivee} onChange={(e) => setArrivee(e.target.value)} className={champ} />
+          <input name={n("dateArrivee")} type="date" value={arrivee} onChange={(e) => setArrivee(e.target.value)} className={champ} />
         </label>
         <label className="text-xs">
           Départ
-          <input name="dateDepart" type="date" value={depart} min={arrivee || undefined} onChange={(e) => setDepart(e.target.value)} className={champ} />
+          <input name={n("dateDepart")} type="date" value={depart} min={arrivee || undefined} onChange={(e) => setDepart(e.target.value)} className={champ} />
         </label>
         <label className="text-xs">
           Type de chambre
-          <input name="typeChambre" list={listeChambres} defaultValue={defaut?.typeChambre ?? ""} placeholder="Single" className={champ} />
+          <input name={n("typeChambre")} list={listeChambres} defaultValue={defaut?.typeChambre ?? ""} placeholder="Single" className={champ} />
           <datalist id={listeChambres}>
             {TYPES_CHAMBRE.map((t) => <option key={t} value={t} />)}
           </datalist>
@@ -272,31 +311,28 @@ function FormulaireHebergement({ suggestions, defaut, busy, libelle, onSubmit, o
         </p>
         <label className="text-xs sm:col-span-2">
           Précisions
-          <input name="notes" defaultValue={defaut?.notes ?? ""} placeholder="Petit-déjeuner, lit bébé, arrivée tardive…" className={champ} />
+          <input name={n("notes")} defaultValue={defaut?.notes ?? ""} placeholder="Petit-déjeuner, lit bébé, arrivée tardive…" className={champ} />
         </label>
       </div>
 
-      {/* LES DOCUMENTS DÈS LA CRÉATION, comme pour un voyageur. */}
+      {/* LES DOCUMENTS DÈS LA CRÉATION, comme pour un voyageur — plusieurs fichiers par rubrique. */}
       {!defaut && (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="text-xs">
-            Pièce d&apos;identité (scan ou photo)
-            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" onChange={(e) => setPieceIdentite(e.target.files?.[0] ?? null)} className={champ} aria-label="Pièce d'identité" />
-          </label>
-          <label className="text-xs">
-            Autres documents (réservation, confirmation…)
-            <input type="file" multiple onChange={(e) => setDocuments(Array.from(e.target.files ?? []))} className={champ} aria-label="Autres documents" />
-          </label>
+          <div className="min-w-0 space-y-1 text-xs">
+            <p>Pièce d&apos;identité (scans ou photos — recto, verso)</p>
+            <ChoixFichiers
+              fichiers={pieces} onChange={setPieces} libelle="Joindre la pièce d'identité" ariaLabel="Pièce d'identité"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,application/pdf,image/*"
+            />
+          </div>
+          <div className="min-w-0 space-y-1 text-xs">
+            <p>Autres documents (réservation, confirmation…)</p>
+            <ChoixFichiers fichiers={documents} onChange={setDocuments} libelle="Joindre des documents" ariaLabel="Autres documents" />
+          </div>
         </div>
       )}
 
       <p className="text-[0.6875rem] text-muted-foreground">Seul le nom est exigé : l&apos;hôtel, les dates et les documents peuvent venir plus tard.</p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button size="sm" type="submit" disabled={busy} className="h-10 w-full sm:h-8 sm:w-auto">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {libelle}
-        </Button>
-        <Button size="sm" type="button" variant="outline" onClick={onCancel} className="h-10 w-full sm:h-8 sm:w-auto">Annuler</Button>
-      </div>
-    </form>
+    </div>
   );
 }

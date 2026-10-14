@@ -87,6 +87,26 @@ export interface RevisionBcSpec {
   contact: { nom: string | null; telephone: string | null } | null;
 }
 
+/**
+ * CE QUE LE COMPOSEUR REPREND pour modifier le BC « de A à Z » (Direction, 10/2026) — la même forme que
+ * `ValeursComposables` (`legal/piece-emise.ts`), écrite ici pour la même raison que `RevisionBcSpec` : le domaine Ad & Pro
+ * n'importe pas Legal. La façade la remplit avec `valeursComposables`, et le compilateur vérifie que les formes coïncident.
+ */
+export interface ValeursBcPoste {
+  tiers: { nom: string; adresse: string; telephone: string; email: string; rc: string; nif: string; ai: string; nis: string };
+  champs: {
+    numeroClient: string; date: string; echeance: string; validiteJours: string; objet: string; referenceAmont: string; referenceAmontDate: string;
+    contactNom: string; contactTelephone: string; livraisonAdresse: string; livraisonDelai: string; modePaiement: string; conditionsPaiement: string;
+    tvaDefaut: string; remiseGlobale: string; notes: string;
+  };
+  lignes: { designation: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }[];
+  taxes: { libelle: string; taux: string }[];
+  letterheadId: string;
+  emetteur: { adresse: string; telephone: string; email: string } | null;
+  signataire: { nom: string; qualite: string } | null;
+  mentions: string;
+}
+
 /** Un bon de commande du poste : sa pièce, et OÙ IL EN EST (circuit des centres et des Finances). */
 export type BcDePoste = PieceDePoste & {
   etape: EtapeBC | null;
@@ -96,7 +116,7 @@ export type BcDePoste = PieceDePoste & {
    */
   copieSignee: { documentId: string; signataire: string | null; constat: string | null } | null;
   /** Ce que l'éditeur natif reprend (version, lignes, objet…) — `null` si la pièce n'est pas de la fabrique ou ne se modifie plus. */
-  revision: { version: number; numero: string; spec: RevisionBcSpec } | null;
+  revision: { version: number; numero: string; spec: RevisionBcSpec; valeurs: ValeursBcPoste } | null;
   /** Les DATES de sa frise sur la carte du poste (Direction, 07/10 : « je ne sais pas si le BC a été envoyé aux Finances ») — ISO. */
   creeLe: string;
   signeLe: string | null;

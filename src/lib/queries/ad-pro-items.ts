@@ -21,9 +21,10 @@ import type { HebergementVue } from "@/components/ad-pro/hebergements-bloc";
 import { porteDesHebergements } from "@/lib/ad-pro/hebergements";
 import { piecesDesPostes, demandesBCDesPostes, assistantesDeDirection } from "@/lib/ad-pro/pieces-poste";
 import { peutValiderLeBrouillon } from "@/lib/bons-de-commande/brouillon";
-import { pieceEmise, specRevisable } from "@/lib/legal/piece-emise";
+import { pieceEmise, specRevisable, valeursComposables } from "@/lib/legal/piece-emise";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
 import { droitsValidation, estDirectionMarketingPoste, type DroitsValidation } from "@/lib/ad-pro/validation-poste";
+import { envoisDesFiches } from "@/lib/queries/reservations-fiches";
 
 /**
  * CHARGEMENT DES POSTES D'UNE OPÉRATION AD & PRO — un seul endroit pour les quatre modules.
@@ -151,13 +152,16 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     hebergementsDe.set(h.itemId, l);
   }
   const sujetDe = new Map(sujetRows.map((d) => [d.id, { id: d.id, reference: d.reference, statut: String(d.status) }]));
+  // LES FICHES CHEZ L'ASSISTANTE (14/10) : l'état de chaque voyageur et de chaque fiche hôtellerie, en lot.
+  const envois = await envoisDesFiches({ voyageurIds: voyageurRows.map((v) => v.id), hebergementIds: hebergementRows.map((h) => h.id) });
 
   const [promoRows, orderRows, demandeRows, docRows, lignesParPoste, bcLegalParPoste] = await Promise.all([
     promoIds.length
       ? prisma.promoMaterial.findMany({ where: { id: { in: promoIds } }, select: { id: true, reference: true, title: true, status: true, circuitState: true, circuitVersion: true, returnedAt: true } })
       : Promise.resolve([]),
     orderIds.length
-      ? prisma.expenseOrder.findMany({ where: { id: { in: orderIds } }, select: { id: true, reference: true, status: true } })
+      // La décision du CENTRE aussi : un ordre refusé n'est pas « en cours » (audit Ad & Pro, 14/10).
+      ? prisma.expenseOrder.findMany({ where: { id: { in: orderIds } }, select: { id: true, reference: true, status: true, centralStatus: true } })
       : Promise.resolve([]),
     // LES DEMANDES DE PIÈCE, par le lien CANONIQUE — devis ET facture. En lire une par poste
     // ferait N allers-retours sur un écran qu'on ouvre pour tout voir (§118.102b).
@@ -182,6 +186,13 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
   // LA CHAÎNE D'ACHAT DE CHAQUE POSTE (§118.204) — devis, BC, factures — et la demande de BC chez
   // l'assistante. En lot, comme le reste.
   const [piecesParPoste, demandeBcParPoste, devisParPoste] = await Promise.all([piecesDesPostes(itemIds), demandesBCDesPostes(itemIds), devisDesPostes(itemIds)]);
+  // LA MÊME PIÈCE DÉPOSÉE POUR PLUSIEURS VOYAGEURS (`devisMisAPart`) : chaque copie nomme la pièce qu'elle répète, et le
+  // total des devis retenus ne la compte qu'une fois — la même règle que la carte du BC.
+  for (const [itemId, vues] of devisParPoste) {
+    const copieDe = new Map(vues.filter((v) => v.miseAPart?.motif === "COPIE").map((v) => [v.pieceId, v.miseAPart!.de as string]));
+    if (copieDe.size === 0) continue;
+    for (const v of voyageursDe.get(itemId) ?? []) for (const d of v.devis) d.copieDe = copieDe.get(d.id) ?? null;
+  }
   // « MODIFIER LE BC » (Direction, 06/10) : ce que l'éditeur natif reprend d'un BC de la fabrique, ni signé ni annulé. Lu
   // ICI, dans la façade : la lecture d'une pièce émise est du domaine Legal, et le domaine Ad & Pro n'en importe pas.
   const bcsRevisables = [...piecesParPoste.values()].flatMap((p) => p.bcs).filter((b) => !b.annulee && b.etape !== "SIGNE");
@@ -194,7 +205,8 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
       const custom = parId.get(b.id);
       const emise = custom !== undefined ? pieceEmise(custom) : null;
       const spec = emise ? specRevisable(custom) : null;
-      b.revision = emise && spec ? { version: emise.version, numero: emise.numero, spec } : null;
+      const valeurs = emise ? valeursComposables(custom) : null;
+      b.revision = emise && spec && valeurs ? { version: emise.version, numero: emise.numero, spec, valeurs } : null;
     }
   }
   const natureDuType = new Map<string, NaturePieceSecretariat>(
@@ -231,7 +243,7 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     lettresParPoste.set(d.entityId, [...(lettresParPoste.get(d.entityId) ?? []), { id: d.id, nom: d.name, pdf: d.mimeType === "application/pdf", le: d.createdAt.toISOString() }]);
   }
   const promoById = new Map(promoRows.map((p) => [p.id, { reference: p.reference, title: p.title, status: statutDuDossier(p).libelle }]));
-  const orderById = new Map(orderRows.map((o) => [o.id, { reference: o.reference, status: String(o.status) }]));
+  const orderById = new Map(orderRows.map((o) => [o.id, { reference: o.reference, status: String(o.status), centralStatus: o.centralStatus }]));
 
   return rawItems.map((i) => ({
     id: i.id, kind: i.kind, label: i.label, notes: i.notes, supplier: i.supplier,
@@ -266,6 +278,7 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     })(),
     voyageurs: voyageursDe.get(i.id) ?? [],
     hebergements: hebergementsDe.get(i.id) ?? [],
+    envois,
     priseEnChargeIndirecte: i.repartitionId != null || sponsoringIndirect,
     nomsSuggeres: porteDesVoyageurs(i.kind) || porteDesHebergements(i.kind) ? nomsSuggeres : [],
     orderStage: i.orderStage,
@@ -497,10 +510,10 @@ const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> 
 
 export async function contextePostes(user: SessionUser, parent: AdProParent, parentId: string): Promise<ContextePostes> {
   const requesterId = await DEMANDEUR_DE[parent](parentId);
-  const demandeur = requesterId ? await prisma.user.findUnique({ where: { id: requesterId }, select: { role: true, secondaryRole: true } }) : null;
-  const moi = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true, secondaryRole: true } });
+  const demandeur = requesterId ? await prisma.user.findUnique({ where: { id: requesterId }, select: { id: true, role: true, secondaryRole: true } }) : null;
+  const moi = await prisma.user.findUnique({ where: { id: user.id }, select: { id: true, role: true, secondaryRole: true } });
   return {
-    validation: droitsValidation(moi ?? { role: user.role }, demandeur),
+    validation: droitsValidation(moi ?? { id: user.id, role: user.role }, demandeur),
     assistantes: await assistantesDeDirection(),
     userId: user.id,
     secondTempsParOperations: estDirectionMarketingPoste(demandeur),

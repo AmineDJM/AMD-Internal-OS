@@ -1304,7 +1304,7 @@ export const MEDICAL_INFO_STATUS: Record<string, Display> = {
   AWAITING_REVIEW: { label: "À déclarer", tone: "warning" },
   DOCS_REQUESTED: { label: "Pièces demandées", tone: "info" },
   READY: { label: "Prêt à valider", tone: "purple" },
-  AWAITING_DIRECTION: { label: "Validation Direction", tone: "warning" },
+  AWAITING_DIRECTION: { label: "Validation Directeur des Opérations", tone: "warning" },
   VALIDATED: { label: "Validé", tone: "success" },
 };
 
@@ -1820,6 +1820,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   KPI: "KPI & bilans",
   COCKPIT_OPERATIONS: "Cockpit Opérations",
   BUDGET_CAMPAIGN: "Campagne budgétaire",
+  ART_DIRECTION: "Direction artistique",
 };
 
 /**
@@ -2195,6 +2196,9 @@ export const NAVIGATION: NavItem[] = [
   // « Nouveau document » du Drive, et la papeterie de la société est dans son menu « ⋯ ».
   // Un second écran pour les mêmes fichiers finissait par en donner une seconde liste.
   { module: "ADMIN_REQUESTS", label: "Bureau du secrétariat", href: "/demandes", icon: "ClipboardList", group: "Transverse" },
+  // DIRECTION ARTISTIQUE (10/2026) — la papeterie de chaque entité (en-têtes, modèles de pièces, PowerPoint, Excel, logo
+  // et charte), tenue par l'assistante de direction. La fabrique y lit le modèle d'un bon de commande.
+  { module: "ART_DIRECTION", label: "Direction artistique", href: "/direction-artistique", icon: "Palette", group: "Transverse" },
   // FEEDBACK — module à part, donc réglable : accès par rôle ou par personne, et masquable
   // depuis la console d'administration comme n'importe quel autre. Rattaché à « espace de
   // travail », il était ouvert à tous sans qu'on puisse ni le fermer ni le retirer.

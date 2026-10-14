@@ -14,9 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentList, type DocItem } from "@/components/documents/document-list";
 import { PIECE_REQUEST_STATUS, ENTITY_TYPE_LABELS } from "@/lib/labels";
-import { canSubmit, canDecide, canCancel, isLate, docRequestSummary } from "@/lib/doc-request";
+import { canSubmit, canDecide, canCancel, isLate, docRequestSummary, refusReaffectation } from "@/lib/doc-request";
+import { tientPourLaSollicitee } from "@/lib/doc-request-interim";
+import { assistantesDeDirection } from "@/lib/ad-pro/pieces-poste";
 import { PIECE_KIND_LABEL, pieceKindOf } from "@/lib/legal/from-piece";
 import { RespondPanel } from "./respond-panel";
+import { ReaffecterPanel } from "./reaffecter-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -35,7 +38,9 @@ export default async function DocumentRequestPage({ params }: { params: { id: st
   });
   if (!req) notFound();
 
-  const involved = req.askedById === user.id || req.askedToId === user.id || hasGlobalView(user.role);
+  // L'INTÉRIMAIRE de l'assistante sollicitée pour le BC d'un poste la remplace ici (audit Assistante de direction, 10/2026).
+  const remplace = await tientPourLaSollicitee(user.id, req);
+  const involved = req.askedById === user.id || req.askedToId === user.id || remplace || hasGlobalView(user.role);
   // Une demande de pièce n'est pas un objet public : celui qui n'y est pour rien n'a pas à
   // découvrir qu'on réclame une facture à quelqu'un.
   if (!involved) redirect("/pieces");
@@ -62,7 +67,10 @@ export default async function DocumentRequestPage({ params }: { params: { id: st
     createdAt: d.createdAt.toISOString(), hasFile: Boolean(d.fileKey),
   }));
 
-  const mayUpload = canSubmit(req, user.id);
+  const mayUpload = canSubmit(req, user.id, remplace);
+  // CONFIER À UNE AUTRE ASSISTANTE : la règle de l'action (`refusReaffectation`), les seules assistantes actives.
+  const reaffectable = refusReaffectation(req, { id: user.id, vueGlobale: hasGlobalView(user.role), remplace }, "") === null;
+  const autresAssistantes = reaffectable ? (await assistantesDeDirection()).filter((a) => a.id !== req.askedToId) : [];
 
   return (
     <div className="space-y-5">
@@ -138,13 +146,16 @@ export default async function DocumentRequestPage({ params }: { params: { id: st
           </Card>
         </div>
 
-        <RespondPanel
-          id={req.id}
-          canSubmit={mayUpload}
-          canDecide={canDecide(req, user.id)}
-          canCancel={canCancel(req, user.id)}
-          attachmentCount={documents.length}
-        />
+        <div className="space-y-4">
+          <RespondPanel
+            id={req.id}
+            canSubmit={mayUpload}
+            canDecide={canDecide(req, user.id)}
+            canCancel={canCancel(req, user.id)}
+            attachmentCount={documents.length}
+          />
+          {autresAssistantes.length > 0 && <ReaffecterPanel id={req.id} assistantes={autresAssistantes} />}
+        </div>
       </div>
     </div>
   );

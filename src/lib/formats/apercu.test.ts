@@ -51,3 +51,16 @@ describe("quel aperçu pour quel fichier — une table pour tous les écrans", (
     expect(extensionDe("archive.tar.GZ")).toBe("gz");
   });
 });
+
+describe("visionneuseDeSecours — les modèles OOXML se lisent aussi sans l'éditeur", () => {
+  it("donne la visionneuse Word aux modèles et variantes de Word", async () => {
+    const { visionneuseDeSecours } = await import("./apercu");
+    expect(visionneuseDeSecours("Attestation de travail AMINE DJOUMAI.dotx")).toBe("docx");
+    expect(visionneuseDeSecours("rapport.docm")).toBe("docx");
+    expect(visionneuseDeSecours("budget.xltx")).toBe("xlsx");
+    expect(visionneuseDeSecours("ancien.xls")).toBe("xlsx");
+    expect(visionneuseDeSecours("charte.potx")).toBe("pptx");
+    expect(visionneuseDeSecours("vieux.doc")).toBeNull();
+    expect(visionneuseDeSecours("note.odt")).toBeNull();
+  });
+});

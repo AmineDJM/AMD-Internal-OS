@@ -3,7 +3,8 @@ import { ArrowRight, AlertTriangle, Download } from "lucide-react";
 import type { CurrentUser } from "@/lib/session";
 import { canManageEnvelopes, canManageEnvelope, canGovernPoleEnvelope, hasGlobalView, peutBudgetDuPole } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { getEnvelopes, getBudgetOverview, getEnvelopesGrandTotal } from "@/lib/queries/budget";
+import { getEnvelopes, getBudgetOverview, getEnvelopesGrandTotal, type BudgetOverview } from "@/lib/queries/budget";
+import { depensesPostesMarketing } from "@/lib/queries/budget-marketing-depenses";
 import { libelleRattachement, optionsRattachement } from "@/lib/queries/budget-marketing";
 import { getAppSettings } from "@/lib/settings";
 import { getMyCompanies } from "@/lib/company";
@@ -22,6 +23,7 @@ import { DOMAINES, poleDe, type DomainePole, type PorteeBudget } from "@/lib/bud
 import { ecrituresDeLaForceDeVente } from "@/lib/queries/budget-operations";
 import { BudgetContextBar } from "./budget-context-bar";
 import { BudgetExpenses } from "./budget-expenses";
+import { DepensesMarketing } from "./depenses-marketing";
 import { BudgetSettings } from "./budget-settings";
 import { CreateEnvelopeButton } from "./budget-forms";
 import { NouvelleEnveloppePole } from "./enveloppe-marketing-forms";
@@ -334,6 +336,43 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
   const marques = config.portee === "OPERATIONS" && overview
     ? Object.fromEntries([...(await ecrituresDeLaForceDeVente(overview.unattributed.transactions.map((t) => t.id)))].map((id) => [id, "Force de vente"]))
     : undefined;
+
+  // BUDGET MARKETING (maquette validée, 10/2026) : les postes Ad & Pro à BC signé — à imputer, engagés, consommés, payés,
+  // annulés — puis, dans une seconde section, les autres dépenses de l'enveloppe (à imputer, lignes budgétaires…).
+  if (config.portee === "MARKETING" && overview) {
+    const { donnees, ecritures } = await depensesPostesMarketing(user, overview);
+    const autres: BudgetOverview = {
+      ...overview,
+      attributed: (() => {
+        const tx = overview.attributed.transactions.filter((x) => !(x.kind === "FINANCE" && ecritures.has(x.id)));
+        return { count: tx.length, transactions: tx };
+      })(),
+    };
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          title={config.titre}
+          description="Une dépense devient engagée quand la Direction Marketing l'impute à un budget, après signature du ou des bons de commande. Elle devient consommée quand on confirme l'avoir reçue, puis payée par les Finances. L'imputation se change à tout moment."
+        />
+        <ModuleTabs tabs={tabs} />
+        <BudgetContextBar envelopes={envelopes} currentId={overview.envelope.id} from={overview.period.from} to={overview.period.to} />
+        <DepensesMarketing donnees={donnees} annee={overview.envelope.periodStart.slice(0, 4)} enveloppe={overview.envelope.name} />
+        <section className="space-y-3" aria-label="Les autres dépenses de l'enveloppe">
+          <div>
+            <h2 className="text-base font-semibold">Autres dépenses de l&apos;enveloppe</h2>
+            <p className="text-sm text-muted-foreground">Dépenses de trésorerie à imputer, lignes budgétaires et dépenses déjà imputées hors postes Ad &amp; Pro.</p>
+          </div>
+          <BudgetExpenses
+            overview={autres}
+            canAttribute={canAttribute}
+            canEditLines={canAttribute}
+            canDelete={user.role === "SUPER_ADMIN"}
+            societes={societes.map((s) => ({ id: s.id, nom: s.shortName || s.name }))}
+          />
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

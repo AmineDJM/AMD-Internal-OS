@@ -6,7 +6,7 @@
  *
  * Volontairement plus courts que ceux de Budgets : ni listes d'accès ni délégations (le module du pôle suffit à voir et
  * gérer ses enveloppes ; les accès fins restent au Super Admin, dans Budgets). Une enveloppe se crée pour une ANNÉE,
- * avec ou sans les catégories d'office du pôle ; la BU et le produit sont facultatifs.
+ * avec ou sans les catégories d'office du pôle ; la BU (et, hors Operations & Sales, le produit) est facultative.
  */
 
 import * as React from "react";
@@ -39,7 +39,7 @@ const MODELE: Record<DomainePole, { titre: string; exemple: string; libelle: str
     aide: "Crée « BV 25 % (préparation) » et « BV 75 % (avant dépôt) » : les BV demandés depuis les dossiers s'y rangent selon leur part. Décochez pour une enveloppe libre.",
   },
   OPERATIONS: {
-    titre: "Nouvelle enveloppe Operations & Sales", exemple: "Operations & Sales", libelle: "Catégories d'office",
+    titre: "Nouvelle enveloppe Operations & Sales", exemple: "Operations & Sales", libelle: "Catégories d'office (masse salariale en tête)",
     aide: "Crée la masse salariale de la force de vente (une sous-catégorie par BU, alimentée par la paie), puis Véhicules & carburant, Frais de déplacement terrain, Téléphonie, Logistique et Formations commerciales. Ad & Pro n'y est pas : il relève du Budget Marketing.",
   },
 };
@@ -57,7 +57,8 @@ function useEnvoi() {
   return { busy: busy || enCours, err, envoyer };
 }
 
-function ChampsRattachement({ options, bu, produit }: { options: RattachementOptions; bu?: string | null; produit?: string | null }) {
+/** La BU, et le produit hors Operations & Sales — là, la Business Unit dit déjà les produits (Direction, 10/2026). */
+function ChampsRattachement({ options, bu, produit, avecProduit = true }: { options: RattachementOptions; bu?: string | null; produit?: string | null; avecProduit?: boolean }) {
   return (
     <>
       <div className="space-y-1.5">
@@ -67,13 +68,15 @@ function ChampsRattachement({ options, bu, produit }: { options: RattachementOpt
           {options.businessUnits.map((b) => <option key={b.id} value={b.id}>{b.nom}</option>)}
         </Select>
       </div>
-      <div className="space-y-1.5">
-        <Label>Produit</Label>
-        <Select name="productId" defaultValue={produit ?? ""}>
-          <option value="">— Aucun —</option>
-          {options.produits.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}
-        </Select>
-      </div>
+      {avecProduit && (
+        <div className="space-y-1.5">
+          <Label>Produit</Label>
+          <Select name="productId" defaultValue={produit ?? ""}>
+            <option value="">— Aucun —</option>
+            {options.produits.map((p) => <option key={p.id} value={p.id}>{p.nom}</option>)}
+          </Select>
+        </div>
+      )}
     </>
   );
 }
@@ -100,7 +103,7 @@ export function NouvelleEnveloppePole({ domaine, options }: { domaine: DomainePo
             <Label>Montant (DZD)</Label>
             <Input name="totalAmount" type="number" inputMode="decimal" step="any" min={0} placeholder="0" />
           </div>
-          <ChampsRattachement options={options} />
+          <ChampsRattachement options={options} avecProduit={domaine !== "OPERATIONS"} />
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
             {domaine === "MARKETING"
               ? <input type="checkbox" name="adPro" value="on" defaultChecked className="h-4 w-4 rounded border-input" />
@@ -140,7 +143,7 @@ export function EnveloppePoleSheet({ domaine, envelope, options, canDelete, onCl
         </div>
         <div className="space-y-1.5"><Label>Début</Label><Input name="periodStart" type="date" defaultValue={d10(envelope.periodStart)} /></div>
         <div className="space-y-1.5"><Label>Fin</Label><Input name="periodEnd" type="date" defaultValue={d10(envelope.periodEnd)} /></div>
-        <ChampsRattachement options={options} bu={envelope.businessUnitId} produit={envelope.productId} />
+        <ChampsRattachement options={options} bu={envelope.businessUnitId} produit={envelope.productId} avecProduit={domaine !== "OPERATIONS"} />
         <div className="space-y-1.5 sm:col-span-2"><Label>Notes</Label><Textarea name="notes" defaultValue={envelope.notes ?? ""} rows={2} /></div>
         <label className="flex items-center gap-2 text-sm sm:col-span-2">
           <input type="hidden" name="isActive" value="off" />

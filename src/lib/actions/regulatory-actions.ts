@@ -3,7 +3,7 @@
 import { randomUUID } from "crypto";
 import { effectiveTherapeuticSegments } from "@/lib/labels";
 import { revalidatePath } from "next/cache";
-import type { Priority, ProductChannel, ProductType, RegulatoryCategory, RegulatoryStatus, StepStatus, ManufacturingStatus, VariationStatus, UserRole } from "@prisma/client";
+import type { Priority, ProductChannel, ProductType, RegulatoryCategory, RegulatoryStatus, StepStatus, ManufacturingStatus, VariationStatus } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
@@ -23,23 +23,25 @@ import { prisma } from "@/lib/prisma";
 import { projetsBdVisibles } from "@/lib/queries/bd";
 import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
-import { ensureProduitDuDossier, synchroniserCycleDeVie } from "@/lib/products/canonique";
+import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { phraseProduitDuDossier } from "@/lib/products/produit-du-dossier";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { categorieBvPourOrdre } from "@/lib/queries/budget-regulatory";
+import { natureDuLibelle } from "@/lib/budget-regulatory/bv";
+import { bloqueUneNouvelleDemande, etatDeLOrdreBv, ETAT_BV } from "@/lib/regulatory/bv-circuit";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { REGULATORY_STEP_ORDER, LOCAL_MANUFACTURING_VARIATIONS, VARIATION_TARGETS, MANUFACTURING_STATUS } from "@/lib/labels";
 import {
   isRegStepKey, isRegStepState, isRegChecklistKey, isRegPresubOutcome,
   REG_STEPS, REG_CHECKLIST, REG_PRESUB_OUTCOME, PRESUB_ANSWER_STEP,
-  REG_STATUS_MILESTONE, completeStepsThrough,
+  REG_STATUS_MILESTONE, completeStepsThrough, BV_REQUEST_STEPS,
   type RegWorkflowState, type RegChecklistState,
 } from "@/lib/regulatory-workflow";
-import { deriveStatus } from "@/lib/regulatory/process-status";
 import { creerDossierDriveProduit, synchroniserDossierDrive } from "@/lib/regulatory-drive-dossier";
 import { emit } from "@/platform/events";
+import { syncStatusFromWorkflow, regSupervisorRoles } from "@/lib/regulatory/sync-status";
 
 export interface ActionResult {
   ok: boolean;
@@ -66,12 +68,6 @@ function normalizeDci(value: string): string {
   return value.trim().toUpperCase().replace(/\s*\+\s*/g, " + ").replace(/\s+/g, " ");
 }
 const upperMolecules = (list: string[]): string[] => list.map((m) => m.trim().toUpperCase()).filter(Boolean);
-
-/** Rôles superviseurs Regulatory = Super Admin (toujours) + rôles configurés en Administration. */
-async function regSupervisorRoles(): Promise<UserRole[]> {
-  const settings = await getAppSettings();
-  return Array.from(new Set(["SUPER_ADMIN", ...settings.regulatorySupervisorRoles])) as UserRole[];
-}
 
 /** L'utilisateur courant est-il superviseur Regulatory (fixe priorité/dates, demande des MàJ) ? */
 async function ensureRegSupervisor(user: Awaited<ReturnType<typeof requireUser>>): Promise<boolean> {
@@ -1032,56 +1028,8 @@ export async function addRegulatoryComment(formData: FormData): Promise<ActionRe
 
 // ───────────────────────── Processus officiel ANPP (workflow + checklist) ─────────────────────────
 
-/**
- * LE NIVEAU DE PROCESS SUIT LES ÉTAPES — automatiquement, à chaque coche.
- *
- * Le menu déroulant « Niveau de process » a disparu de l'écran : la valeur se DÉDUIT du travail
- * réellement coché (`lib/regulatory/process-status.ts`). Cette fonction est le seul endroit qui
- * l'écrit ; toute action qui touche au processus l'appelle juste après.
- *
- * Elle n'écrit QUE si le niveau change, et laisse une trace nommée : « déposé » apparu tout seul
- * dans un tableau, sans ligne d'audit, se lirait comme une anomalie.
- */
-async function syncStatusFromWorkflow(
-  productId: string,
-  wf: RegWorkflowState,
-  current: string,
-  reference: string,
-  actorId: string,
-): Promise<string> {
-  const d = deriveStatus(wf, current);
-  if (!d.changed) return current;
-
-  const maj = await prisma.regulatoryProduct.update({
-    where: { id: productId },
-    data: { status: d.status as RegulatoryStatus, updatedById: actorId },
-    select: { productId: true },
-  });
-  await recordAudit({
-    actorId, action: "UPDATE", module: "Regulatory",
-    entityType: "REGULATORY_PRODUCT", entityId: productId,
-    field: "status", oldValue: current, newValue: d.status,
-    summary: `Niveau de process de ${reference} → ${d.status} (déduit du processus d'enregistrement)`,
-  });
-  // Le CYCLE DE VIE du produit canonique suit ce que ses dossiers prouvent : une décision obtenue
-  // l'enregistre (§118.178). C'est le seul écrivain du niveau de process, donc le seul endroit
-  // où le cycle de vie peut prendre du retard.
-  if (maj.productId) await synchroniserCycleDeVie(maj.productId);
-
-  // Dépôt effectué : la supervision doit fixer la date cible d'enregistrement. Le message
-  // partait déjà quand le niveau se posait à la main — il ne doit pas se perdre maintenant
-  // qu'il se déduit.
-  if (d.status === "SUBMITTED" && current !== "SUBMITTED") {
-    await notifyRoles(await regSupervisorRoles(), {
-      type: "GENERIC",
-      title: "Dossier déposé — fixer la date cible d'enregistrement",
-      body: `${reference} vient d'être déposé à l'ANPP.`,
-      link: `/regulatory/${productId}`,
-    });
-  }
-  revalidatePath("/regulatory");
-  return d.status;
-}
+// `syncStatusFromWorkflow` — le seul écrivain du niveau de process — vit dans `lib/regulatory/sync-status.ts` :
+// le règlement d'un BV par les Finances (qui coche « Paiement du BV ») l'appelle aussi.
 
 /** Met à jour l'état d'une étape du processus ANPP (statut + date + note) sur un produit. */
 export async function setRegulatoryStepState(formData: FormData): Promise<ActionResult> {
@@ -1183,7 +1131,12 @@ export async function requestBV(formData: FormData): Promise<ActionResult> {
   const product = await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { reference: true, dci: true, workflow: true, status: true } });
   if (!product) return { ok: false, error: "Dossier introuvable." };
 
-  const bvType = str(formData, "bvType") || "BV";
+  // LA NATURE DU BV EST CELLE DE L'ÉTAPE d'où l'on part (« Demande du BV 25 % » → BV 25 %) : un
+  // `bvType` envoyé à côté ne la contredit pas. Sans étape (assistant, ancien appel), le libellé libre.
+  const stepKey = str(formData, "stepKey");
+  const etapeValide = stepKey && isRegStepKey(stepKey) ? stepKey : null;
+  const bvType = (etapeValide && BV_REQUEST_STEPS[etapeValide]) || str(formData, "bvType") || "BV";
+  const nature = natureDuLibelle(bvType);
   const amount = Number(str(formData, "amount"));
   if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Montant invalide." };
   const dueRaw = str(formData, "dueDate");
@@ -1204,7 +1157,7 @@ export async function requestBV(formData: FormData): Promise<ActionResult> {
   // L'ORDRE NAÎT EN ATTENTE DU CENTRE DE PAIEMENT (`initialCentralStatus`, aucune exemption de
   // module) ; les Finances ne le voient qu'une fois autorisé. Son entité est celle du DOSSIER.
   const label = `${bvType} — ${product.reference} ${product.dci}`;
-  const order = await createExpenseOrder({
+  const emettre = async () => createExpenseOrder({
     label,
     amount,
     category: "IMPOT",
@@ -1218,6 +1171,37 @@ export async function requestBV(formData: FormData): Promise<ActionResult> {
     // Regulatory active — il s'y imputera à son règlement. Aucune enveloppe → le chemin ordinaire.
     budgetCategoryId: await categorieBvPourOrdre(label),
   });
+
+  // UN BV DE CETTE NATURE À LA FOIS, PAR DOSSIER. Un double clic (ou deux personnes sur le même
+  // dossier) émettait deux ordres — deux paiements du même bon à l'ANPP au centre. Le contrôle et
+  // l'émission se font SOUS UN VERROU propre au couple (dossier, nature) : la seconde demande attend
+  // la première, puis lit son ordre et s'arrête. Seuls un refus du centre ou une annulation rendent
+  // la main — redemander un BV refusé est le geste prévu (`bloqueUneNouvelleDemande`).
+  let order: Awaited<ReturnType<typeof emettre>>;
+  if (nature) {
+    const issue = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('bv-demande'), hashtext(${`${productId}:${nature}`}))`;
+      const existants = await tx.expenseOrder.findMany({
+        where: { sourceType: "REGULATORY_PRODUCT", sourceId: productId, status: { not: "CANCELLED" } },
+        select: { reference: true, label: true, status: true, centralStatus: true },
+        orderBy: { createdAt: "desc" },
+      });
+      const vivant = existants.find((o) => natureDuLibelle(o.label) === nature && bloqueUneNouvelleDemande(o));
+      if (vivant) return { deja: vivant, cree: null };
+      return { deja: null, cree: await emettre() };
+    }, { maxWait: 10_000, timeout: 30_000 });
+    if (issue.deja) {
+      const etat = etatDeLOrdreBv(issue.deja) ?? "DEMANDE";
+      return {
+        ok: false,
+        error: `Le ${bvType} de ce dossier est déjà demandé (${issue.deja.reference} — ${ETAT_BV[etat].label.toLowerCase()}, ${ETAT_BV[etat].detail}). Une seconde demande ferait payer deux fois le même bon ; on ne redemande qu'un BV refusé par le centre de paiement.`,
+      };
+    }
+    if (!issue.cree) return { ok: false, error: "La demande n'a pas pu être émise : réessayez." };
+    order = issue.cree;
+  } else {
+    order = await emettre();
+  }
 
   // JUSTIFICATIFS — UNE OU PLUSIEURS PIÈCES. Un BV arrive rarement seul : proforma, courrier
   // de l'agence, calcul du montant. N'en accepter qu'une obligeait à choisir laquelle compte,
@@ -1246,11 +1230,10 @@ export async function requestBV(formData: FormData): Promise<ActionResult> {
 
   // DEMANDÉ DEPUIS LE PROCESSUS : l'étape « Demande du BV … » est faite — la demande EST
   // l'étape. La cocher à part serait redire d'un second geste ce que le premier a prouvé.
-  const stepKey = str(formData, "stepKey");
-  if (stepKey && isRegStepKey(stepKey)) {
+  if (etapeValide) {
     const wf = { ...((product.workflow as RegWorkflowState | null) ?? {}) };
-    if (wf[stepKey]?.status !== "DONE") {
-      wf[stepKey] = { ...wf[stepKey], status: "DONE", date: wf[stepKey]?.date ?? new Date().toISOString().slice(0, 10) };
+    if (wf[etapeValide]?.status !== "DONE") {
+      wf[etapeValide] = { ...wf[etapeValide], status: "DONE", date: wf[etapeValide]?.date ?? new Date().toISOString().slice(0, 10) };
       await prisma.regulatoryProduct.update({ where: { id: productId }, data: { workflow: wf as unknown as Prisma.InputJsonValue } });
       await syncStatusFromWorkflow(productId, wf, product.status, product.reference, user.id);
     }

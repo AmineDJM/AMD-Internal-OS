@@ -60,7 +60,13 @@ export type AiFeature =
    * rapports de visite NOUVEAUX et repère les liens d'influence entre médecins, chacun prouvé par une citation mot pour mot,
    * PROPOSÉ jamais appliqué. Suit la bascule des rapports terrain.
    */
-  | "influence";
+  | "influence"
+  /**
+   * L'ATTESTATION DE TRAVAIL (Demandes RH, Direction 10/2026) : Luna lit le contrat de travail du salarié pour préremplir
+   * ce que la fiche RH n'a pas (naissance, poste, date d'embauche) — proposé, jamais écrit ; sans elle, la lecture
+   * déterministe du contrat prend le relais (`attestation-travail-luna.ts`). Suit la bascule de l'assistant.
+   */
+  | "attestation_travail";
 
 export interface AiSettingsView {
   masterEnabled: boolean;
@@ -112,6 +118,7 @@ const FEATURE_KEY: Record<AiFeature, keyof AiSettingsView> = {
   produit_360: "assistantEnabled",
   budget_campagne: "assistantEnabled",
   influence: "fieldReportAiEnabled",
+  attestation_travail: "assistantEnabled",
 };
 
 /**

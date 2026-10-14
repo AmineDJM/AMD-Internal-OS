@@ -2,9 +2,7 @@ import { notFound } from "next/navigation";
 import { requireModule } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
-import { ComposerPieceButton } from "@/components/pieces/composer-piece";
 import { fileBonsDeCommande, peutSignerBC, REFUS_SIGNATURE_BC } from "@/lib/queries/bons-de-commande";
-import { compositionDesPieces } from "@/lib/queries/composition-pieces";
 import { FileBonsDeCommande } from "./file-bc";
 
 export const dynamic = "force-dynamic";
@@ -25,13 +23,12 @@ export const metadata = { title: "Bons de commande à signer — AMD Internal OS
  * arrive. L'étape se lit à UN endroit (`etatsDesBC`) : la file, l'action de signature et la fiche
  * Legal ne peuvent pas diverger sur « prêt à signer ».
  *
- * « Même chose pour les financiers dans les finances » : le bouton qui COMPOSE un bon de commande
- * sur le papier en-tête de la société est aussi ici, avec les mêmes droits que dans Legal
- * (`compositionDesPieces`) — une pièce composée ici passe par le même circuit qu'ailleurs.
+ * On ne COMPOSE plus de bon de commande ici (Direction, 10/2026) : cet écran est celui de la SIGNATURE. Un BC se compose
+ * dans Legal, ou depuis « Demandes de validations » pour le faire pré-valider.
  */
 export default async function BonsDeCommandePage({ searchParams }: { searchParams: { bc?: string } }) {
   const user = await requireModule("PURCHASE_ORDERS");
-  const [file, composition] = await Promise.all([fileBonsDeCommande(user), compositionDesPieces(user)]);
+  const file = await fileBonsDeCommande(user);
   if (!file) notFound();
   const peutSigner = peutSignerBC(user);
   const montantASigner = file.aSigner.reduce((t, l) => t + (l.montant ?? 0), 0);
@@ -42,19 +39,7 @@ export default async function BonsDeCommandePage({ searchParams }: { searchParam
       <PageHeader
         title="Bons de commande à signer"
         description="Les bons de commande qui attendent leur signature : validés par leur centre de validation, ou sous le seuil de validation. Un bon de commande ne part chez le fournisseur qu'une fois signé."
-      >
-        {composition?.types.includes("BON_DE_COMMANDE") && (
-          <ComposerPieceButton
-            typeInitial="BON_DE_COMMANDE"
-            typesAutorises={["BON_DE_COMMANDE"]}
-            societes={composition.societes}
-            societeParDefaut={composition.societeParDefaut}
-            letterheads={composition.letterheads}
-            peutReglerNumerotation={composition.peutReglerNumerotation}
-            amont={composition.amont}
-          />
-        )}
-      </PageHeader>
+      />
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <KpiCard label="À signer" value={String(file.aSigner.length)} icon="FilePen" tone={file.aSigner.length > 0 ? "warning" : "default"} />
@@ -73,12 +58,10 @@ export default async function BonsDeCommandePage({ searchParams }: { searchParam
           hint="Ils arriveront ici une fois validés — ils ne sont pas encore à signer."
         />
         <KpiCard
-          label="Seuil de validation"
-          value={file.seuil > 0 ? `${file.seuil.toLocaleString("fr-FR")} DZD` : "Aucun"}
+          label="Seuils de validation"
+          value={`${file.seuilCentre > 0 ? `${file.seuilCentre.toLocaleString("fr-FR")} DZD` : "Aucun"} · ${file.seuil > 0 ? `${file.seuil.toLocaleString("fr-FR")} DZD` : "Aucun"}`}
           icon="SlidersHorizontal"
-          hint={file.seuil > 0
-            ? "Au-dessus : un centre valide d'abord. En deçà : directement ici. Réglé depuis le centre de validation Ad & Pro."
-            : "Tout bon de commande passe d'abord par un centre de validation."}
+          hint="Centre de validations (BC hors Ad & Pro) · centre Ad & Pro. Au-dessus du seuil de son centre, un BC est d'abord validé ; en deçà, il arrive directement ici. Chaque centre règle le sien."
         />
       </div>
 

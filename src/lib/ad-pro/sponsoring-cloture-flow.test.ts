@@ -347,7 +347,7 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     ).toBe("CLOSED");
   });
 
-  it("la DÉCLARATION validée par la Direction n'émet pas d'ordre GLOBAL : les postes portent la dépense", async () => {
+  it("la DÉCLARATION validée (validation finale) n'émet pas d'ordre GLOBAL : les postes portent la dépense", async () => {
     const decl = await createMedicalInfoDeclaration({
       sourceType: "SPONSORING", sourceId: spoId, label: `${TAG}Sponsoring`, beneficiary: `${TAG}Association cardio`,
       amount: 90_000, requesterId: demandeurId,
@@ -355,7 +355,8 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     // DÉCOR : l'instruction du pharmacien n'est pas ce que ce banc mesure.
     await prisma.medicalInfoDeclaration.update({ where: { id: decl.id }, data: { status: "AWAITING_DIRECTION" } });
     const avant = await prisma.expenseOrder.count({ where: { sourceType: "SPONSORING", sourceId: spoId } });
-    ACTOR = await actorFor(dirId, "DIRECTION");
+    // La validation finale revient au Directeur des Opérations (Direction, 10/2026) ; le Super Admin, souverain, la donne aussi.
+    ACTOR = await actorFor(saId, "SUPER_ADMIN");
     const r = await validateDeclarationByDirection(fd({ id: decl.id }));
     expect(r.ok, r.ok === false ? r.error : "").toBe(true);
     expect(await prisma.expenseOrder.count({ where: { sourceType: "SPONSORING", sourceId: spoId } }), "un ordre global en plus paierait la dépense deux fois").toBe(avant);

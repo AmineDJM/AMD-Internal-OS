@@ -35,7 +35,7 @@ suite("PRIM — circuit information médicale (déclaration → pièces → phar
       mk("pharm", "MEDICAL_INFO_PHARMACIST"),
       mk("deleg", "MEDICAL_DELEGATE"),
       mk("other", "SALES_USER"),
-      mk("dir", "DIRECTION"),
+      mk("dir", "OPERATIONS_DIRECTOR"),
     ]);
     pharmacistId = ph.id; delegateId = dg.id; otherId = ot.id; directionId = dir.id;
 
@@ -52,6 +52,9 @@ suite("PRIM — circuit information médicale (déclaration → pièces → phar
     await prisma.comment.deleteMany({ where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: declId } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
+    // Le Directeur des Opérations du banc, actif pendant son passage, a pu être saisi par les demandes
+    // d'information médicale des bancs voisins (tous les directeurs actifs le sont) : ses étapes partent avec lui.
+    await prisma.validationStep.deleteMany({ where: { validator: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
@@ -129,7 +132,7 @@ suite("PRIM — circuit information médicale (déclaration → pièces → phar
     expect(r.error).toMatch(/décision/i);
   });
 
-  it("le pharmacien valide → transmis à la Direction (AWAITING_DIRECTION), AUCUN ordre encore", async () => {
+  it("le pharmacien valide → transmis au Directeur des Opérations (AWAITING_DIRECTION), AUCUN ordre encore", async () => {
     // La décision est accordée : ici, « sans déclaration » — il n'y a donc rien à déposer, et le
     // dossier se valide directement.
     await prisma.medicalInfoDeclaration.update({
@@ -148,7 +151,7 @@ suite("PRIM — circuit information médicale (déclaration → pièces → phar
     expect(orders).toHaveLength(0); // toujours déféré : l'ordre n'est émis qu'à l'étape Direction
   });
 
-  it("un pharmacien NE peut PAS donner la validation finale Direction (réservée à la vue globale)", async () => {
+  it("un pharmacien NE peut PAS donner la validation finale (réservée au Directeur des Opérations)", async () => {
     ACTOR = await actorFor(pharmacistId, "MEDICAL_INFO_PHARMACIST");
     const fd = new FormData(); fd.set("id", declId);
     const r = await validateDeclarationByDirection(fd);
@@ -157,8 +160,8 @@ suite("PRIM — circuit information médicale (déclaration → pièces → phar
     expect(decl.status).toBe("AWAITING_DIRECTION"); // inchangé
   });
 
-  it("la Direction valide pour le comptable → ordre de dépense créé et reporté sur le sponsoring + commentaire", async () => {
-    ACTOR = await actorFor(directionId, "DIRECTION");
+  it("le Directeur des Opérations valide pour le comptable → ordre de dépense créé et reporté sur le sponsoring + commentaire", async () => {
+    ACTOR = await actorFor(directionId, "OPERATIONS_DIRECTOR");
     const fd = new FormData(); fd.set("id", declId); fd.set("comment", "Validé — RAS");
     const r = await validateDeclarationByDirection(fd);
     expect(r.ok).toBe(true);

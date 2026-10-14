@@ -106,7 +106,7 @@ export function SuppliesManager({ articles }: { articles: SupplyArticleRow[] }) 
     <>
       <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
         <Package className="h-4 w-4" />
-        Catalogue articles
+        Catalogue fournitures
       </Button>
 
       <Sheet
