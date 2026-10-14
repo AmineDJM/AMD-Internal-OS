@@ -286,6 +286,10 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     opsDecisionNote: i.opsDecisionNote,
     pieces: piecesParPoste.get(i.id) ?? { devis: [], bc: null, bcs: [], factures: [] },
     devisLignes: devisParPoste.get(i.id) ?? [],
+    // UN POSTE HISTORIQUE (intégration des dépenses réelles Ad & Pro 2026) : payé, sans circuit — la carte le dit.
+    historique: i.montantPayeHistorique != null
+      ? { montant: toNumber(i.montantPayeHistorique), ligne: i.historiqueLigne, payeLe: i.historiquePayeLe?.toISOString() ?? null }
+      : null,
     demandeBC: demandeBcParPoste.get(i.id) ?? null,
     // SOUS LE SEUIL (§118.149) : le BC est passé aux Finances sans qu'aucun centre le vise — seul
     // le visa du centre pose `orderDirectionAt`. La fiche ne doit pas dire « validé par le centre ».

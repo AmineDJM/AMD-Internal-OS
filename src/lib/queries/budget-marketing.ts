@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
+import { contextesDesCategories } from "@/lib/queries/budget-integration";
+import { lienDemande } from "@/lib/budget-marketing/integration-vue";
 
 /**
  * BUDGET MARKETING — ce que Budgets ne montrait pas : QUELLES DEMANDES Ad & Pro consomment l'enveloppe.
@@ -20,6 +22,8 @@ export interface LigneDemandeAdPro {
   accorde: number;
   engage: number;
   regle: number;
+  /** Un poste HISTORIQUE (intégration Ad & Pro 2026) : payé, sans circuit — sa ligne du fichier. */
+  historique?: { ligne: number | null } | null;
 }
 
 const STATUT_POSTE: Record<string, string> = {
@@ -40,8 +44,13 @@ export async function demandesAdProDeLEnveloppe(categories: readonly { id: strin
       congressInternational: { select: { id: true, name: true } },
       event: { select: { id: true, name: true } },
       training: { select: { id: true, title: true } },
+      promoMaterialParent: { select: { id: true, reference: true, title: true } },
+      declarationInfoMed: { select: { id: true, reference: true, label: true } },
+      montantPayeHistorique: true, historiqueLigne: true, historiqueLotId: true,
     },
   });
+  // Un poste historique ne compte que tant que son lot est actif (la règle d'intégration le lit de la même façon).
+  const lotsActifs = new Set((await contextesDesCategories([...nomCategorie.keys()])).map((c) => c.regle.lotId));
   const ordreIds = postes.map((p) => p.expenseOrderId).filter((x): x is string => Boolean(x));
   const ordres = new Map(
     (ordreIds.length ? await prisma.expenseOrder.findMany({ where: { id: { in: ordreIds } }, select: { id: true, status: true, amount: true } }) : [])
@@ -56,7 +65,19 @@ export async function demandesAdProDeLEnveloppe(categories: readonly { id: strin
           ? { demande: p.congressInternational.name, nature: "Congrès international", href: `/congress-international/${p.congressInternational.id}` }
           : p.event
             ? { demande: p.event.name, nature: "Événement", href: `/events/${p.event.id}` }
-            : { demande: p.training?.title ?? "—", nature: "Formation", href: null };
+            : p.promoMaterialParent
+              ? { demande: `${p.promoMaterialParent.reference} — ${p.promoMaterialParent.title}`, nature: "Matériel promotionnel", href: `/promo-material/${p.promoMaterialParent.id}` }
+              : p.declarationInfoMed
+                ? { demande: `${p.declarationInfoMed.reference} — ${p.declarationInfoMed.label}`, nature: "Information médicale", href: `/information-medicale/${p.declarationInfoMed.id}` }
+                : { demande: p.training?.title ?? "—", nature: "Formation", href: p.training ? lienDemande("TRAINING", p.training.id) : null };
+    const historique = p.montantPayeHistorique != null && p.historiqueLotId != null && lotsActifs.has(p.historiqueLotId);
+    if (historique) {
+      const montant = toNumber(p.montantPayeHistorique);
+      return {
+        id: p.id, ...parent, poste: p.label, categorie: nomCategorie.get(p.budgetCategoryId ?? "") ?? "—",
+        statut: "Payé — Historique 2026", accorde: montant, engage: 0, regle: montant, historique: { ligne: p.historiqueLigne },
+      };
+    }
     const ordre = p.expenseOrderId ? ordres.get(p.expenseOrderId) : undefined;
     const montantOrdre = ordre ? toNumber(ordre.amount) : 0;
     return {

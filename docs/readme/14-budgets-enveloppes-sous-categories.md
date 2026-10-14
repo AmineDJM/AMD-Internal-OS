@@ -29,6 +29,12 @@ intention** — on ne consulte plus son budget en traversant tout ce qui le modi
 > (migration `20270123100000_depense_poste_budget_marketing`). Vue d'ensemble et Budgets : « engagé, pas encore payé »
 > = engagé + consommé en circuit — même disponible que les tuiles (budget − engagé − consommé).
 
+> **Intégration des dépenses réelles Ad & Pro 2026 (14/10/2026)** — une enveloppe Budget Marketing sur laquelle un lot
+> d'intégration est validé se lit par UNE règle (`budget/integration-regle.ts`, lue par tous les lecteurs via
+> `queries/budget-integration.ts`) : ses postes historiques (payés, à leur date, dans leur catégorie ou sous-catégorie),
+> ce qui naît après l'intégration, jamais deux fois une dépense d'une demande intégrée ; ce qui comptait avant sans ligne
+> au fichier se garde ou se sort. → [36-integration-depenses-adpro-2026.md](36-integration-depenses-adpro-2026.md)
+
 La **barre de contexte** (`budget-context-bar.tsx`) ne porte que ce qui change ce qu'on **regarde** : l'enveloppe et
 la période. Une **alerte actionnable** unique remplace l'ancienne section « dépenses non attribuées » dépliée.
 

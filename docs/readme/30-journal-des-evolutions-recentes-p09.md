@@ -1,3 +1,22 @@
+### Ad & Pro — intégration des dépenses réelles 2026 : 32 dépenses, 30 demandes, 33 558 715,94 DZD (2026-10-14)
+
+Maquette « adpro-integration » validée par la Direction : le fichier « Dépenses AP » (Feuil1) entre dans Ad & Pro d'un bloc,
+chaque dépense dans SA demande — créée **« Historique 2026 »** (demandée par la Direction Marketing, aucun circuit : ni
+validation, ni BC, ni centre de paiement, ni ordre de dépense) ou existante **complétée** — avec ses postes payés, ses
+pièces attendues (obligatoires, non bloquantes, jointes à tout moment, plusieurs fichiers, lues par Luna, une facture déjà
+connue rattachée au lieu d'être redéposée) et son imputation (catégories et sous-catégories d'Événements). Les symposiums
+SAI et Pr Djaballah sont des postes de leur congrès ; le visa de publicité est une déclaration DIM « visa publicitaire »
+avec son bon de versement payé. Les décisions sont versionnées (`budget-marketing/integration-2026.ts`) et un fichier qui
+ne leur correspond plus est refusé. Assistant en quatre étapes (`/budget-marketing/integration`, depuis Réglages) : lire,
+trouver ou créer, pièces, vérifier (avant → après au centime) et valider (double confirmation, écriture atomique) ;
+**annulable d'un bloc**. **Une seule règle de budget** pour tous les lecteurs (`budget/integration-regle.ts` +
+`queries/budget-integration.ts`) : postes historiques, ce qui naît après, jamais deux fois ; la liste « Dans la
+plateforme, absentes du fichier » se tranche élément par élément (garder / sortir). Cliquet
+`integration-regle.cliquet.test.ts`. Livre de trésorerie et ordres de dépense jamais touchés. Migration
+`20270124100000_integration_adpro_2026`. Détail : [36-integration-depenses-adpro-2026.md](36-integration-depenses-adpro-2026.md).
+
+---
+
 ### Factures — « pas deux factures » : doublons bloqués, relance unifiée, recensement (2026-10-14)
 
 Décision de la Direction (14/10) : une facture déjà connue — même fichier (SHA-256), ou même fournisseur et même numéro

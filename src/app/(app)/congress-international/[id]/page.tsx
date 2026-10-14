@@ -1,3 +1,4 @@
+import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -137,6 +138,7 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
         {hasGlobalView(user) && <AdProTransferButton from="CONGRESS_INTERNATIONAL" sourceId={detail.id} title={detail.name} />}
         <SupprimerDemandeAdPro kind="CONGRESS_INTERNATIONAL" id={detail.id} name={detail.name} enabled={await peutSupprimerUneDemandeAdPro(user, "CONGRESS_INTERNATIONAL", detail.id)} />
       </PageHeader>
+      <BlocHistorique user={user} type="CONGRESS_INTERNATIONAL" id={detail.id} />
       {/* LA PRISE EN CHARGE EN UNE CARTE (Direction, 07/10) : l'événement et ses pièces jointes, un seul bandeau de chiffres,
           les professionnels, puis ce que couvre la prise en charge — trois rubriques qui se répétaient, fusionnées. */}
       <CartePriseEnCharge
