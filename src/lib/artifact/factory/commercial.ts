@@ -166,6 +166,26 @@ export interface SpecDocumentCommercial {
   couleur?: string | null;
   /** Vrai quand le document sera posé sur un papier en-tête : l'identité de l'émetteur y est déjà. */
   surPapierEnTete?: boolean;
+  /**
+   * LES COORDONNÉES DE L'ÉMETTEUR CHOISIES POUR CETTE PIÈCE (Direction, 10/2026 — « l'adresse mail dépend de la société,
+   * elle doit pouvoir se modifier »). Absent = celles de la société émettrice (carte Legal, marque) ; une clé PRÉSENTE
+   * gouverne le corps ET le pied de la pièce — `null` n'imprime rien. Jamais les coordonnées d'une autre société : il n'y a
+   * pas de valeur par défaut ailleurs que dans la carte de la société qui émet. `emetteur` porte déjà le résultat ; ce
+   * champ garde le CHOIX, pour qu'une révision le reprenne au lieu de revenir à la carte.
+   */
+  coordonneesEmetteur?: CoordonneesEmetteur | null;
+  /**
+   * LES MENTIONS PROPRES À CETTE PIÈCE (« Livraison franco », « Toute réclamation sous 8 jours ») — imprimées au pied,
+   * après celles de la société. Gardées à part de `piedDePage` (qui en est le résultat) pour qu'une révision les reprenne.
+   */
+  mentionsPiece?: string[] | null;
+}
+
+/** Les coordonnées de l'émetteur qu'une pièce peut imprimer autrement que sa carte (voir `coordonneesEmetteur`). */
+export interface CoordonneesEmetteur {
+  adresse?: string | null;
+  telephone?: string | null;
+  email?: string | null;
 }
 
 export interface LigneCalculee extends LigneCommerciale {

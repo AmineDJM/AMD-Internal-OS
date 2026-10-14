@@ -95,7 +95,8 @@ describe("le composeur de pièces — taxes, numérotation, aperçu avant impres
   const composeur = lire("src/components/pieces/composer-piece.tsx");
 
   it("une ligne de taxe est TOUJOURS là au départ : la case ne se cherche pas derrière un bouton « Ajouter »", () => {
-    expect(composeur).toMatch(/useState<Taxe\[\]>\(\[\{ id: 0, libelle: "", taux: "" \}\]\)/);
+    // Hors révision (une pièce rouverte reprend SES taxes), le composeur part d'une ligne de taxe vide.
+    expect(composeur).toMatch(/useState<Taxe\[\]>\(\(\) => \([^\n]*: \[\{ id: 0, libelle: "", taux: "" \}\]\)\)/);
     expect(composeur).toContain("Taxes supplémentaires");
     expect(composeur).toContain("Taxe Pub 2 %");
   });
@@ -144,7 +145,10 @@ describe("la fabrique — le titre, le plancher de numérotation, la couleur de 
 
   it("une révision repeint l'accent d'après la charte d'AUJOURD'HUI — jamais celui, périmé, de la pièce", () => {
     const revision = fabrique.slice(fabrique.indexOf("export async function reviserDocumentDrive"));
-    expect(revision.slice(0, revision.indexOf("const regles = verifierSpecCommerciale"))).toContain("couleur: p.profil.societe.couleur");
+    // La révision et son aperçu composent par la MÊME fonction (`specRevisee`) : c'est elle qui repeint.
+    expect(revision.slice(0, revision.indexOf("const regles = verifierSpecCommerciale"))).toContain("const spec = specRevisee(f, m, p.profil)");
+    const compose = fabrique.slice(fabrique.indexOf("function specRevisee("), fabrique.indexOf("type ProfilCharge"));
+    expect(compose).toContain("couleur: p.societe.couleur");
   });
 
   it("la pastille de la société ne colore plus rien : la charte ne lit que la marque, puis le bleu canard", () => {

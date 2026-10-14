@@ -110,6 +110,22 @@ export interface EntreeLivret {
   assistante: ContactLivret | null;
   /** Jour d'édition, AAAA-MM-JJ. */
   edition: string;
+  /**
+   * LES COORDONNÉES DE LA SOCIÉTÉ QUI INVITE — sa carte Legal (et sa marque), lues au serveur (Direction, 10/2026 :
+   * « l'e-mail dépend vraiment de la société »). Absentes : le livret n'en imprime aucune — jamais celles d'une autre.
+   */
+  societe?: CoordonneesLivret | null;
+}
+
+/** Ce que le livret imprime de la société : pied de couverture, papier à en-tête de la lettre, dos, standard. */
+export interface CoordonneesLivret {
+  nom: string | null;
+  telephones: string[];
+  email: string | null;
+  adresse: string | null;
+  siteWeb: string | null;
+  /** Les mentions légales de la lettre : [« NIF : », « 0023… »]… — seules celles renseignées. */
+  mentions: [string, string][];
 }
 
 /** Une case lue par l'écran (`CellRow`) — on n'en RECOPIE que ce que le livret imprime : jamais un montant. */
@@ -159,6 +175,8 @@ export interface Livret {
   lettre: { date: string; destinataire: string[] | null; objet: string; salutation: string; paragraphes: string[]; formule: string };
   sections: Section[];
   dos: boolean;
+  /** Les coordonnées imprimées (couverture, lettre, dos) — celles de la société qui invite, ou aucune. */
+  societe: CoordonneesLivret | null;
 }
 
 // ───────────────────────────── Dates et noms ─────────────────────────────
@@ -365,7 +383,8 @@ function planningDe(p: PersonneLivret, entree: EntreeLivret): EvenementPlanning[
 
 // ───────────────────────────── Contacts ─────────────────────────────
 
-export const STANDARD = "+213 (0)20 339 430";
+/** LE STANDARD : le premier téléphone de la société qui invite (sa carte) — aucun numéro écrit dans le code. */
+const standardDe = (entree: EntreeLivret): string => plein(entree.societe?.telephones[0]) ?? A_CONFIRMER;
 
 function contacts(entree: EntreeLivret): { titre: string; lignes: string[] }[] {
   const surPlace: ContactLivret[] = [...entree.equipe];
@@ -376,7 +395,7 @@ function contacts(entree: EntreeLivret): { titre: string; lignes: string[] }[] {
   }));
   cartes.push({
     titre: "À Alger",
-    lignes: [entree.assistante?.nom ? entree.assistante.nom : "Assistante de direction", entree.assistante?.nom ? "Assistante de direction" : "Adventum Pharma", plein(entree.assistante?.telephone) ?? STANDARD],
+    lignes: [entree.assistante?.nom ? entree.assistante.nom : "Assistante de direction", entree.assistante?.nom ? "Assistante de direction" : "Adventum Pharma", plein(entree.assistante?.telephone) ?? standardDe(entree)],
   });
   return cartes;
 }
@@ -512,6 +531,7 @@ export function livretIndividuel(p: PersonneLivret, entree: EntreeLivret): Livre
       },
     ],
     dos: false,
+    societe: entree.societe ?? null,
   };
 }
 
@@ -654,5 +674,6 @@ export function livretGeneral(entree: EntreeLivret): Livret {
     },
     sections,
     dos: true,
+    societe: entree.societe ?? null,
   };
 }

@@ -6,7 +6,8 @@ import { getCareDossier } from "@/lib/queries/care";
 import { detailsStockes } from "@/lib/care-fiches";
 import { ficheStockee } from "@/lib/missions-equipe/participation";
 import { cleLivret } from "@/lib/care-pieces-acces";
-import { civiliteDuGrade, livretGeneral, livretIndividuel, versPoste, type EntreeLivret, type MembreLivret } from "./modele";
+import { lireMarque } from "@/lib/brand/model";
+import { civiliteDuGrade, livretGeneral, livretIndividuel, versPoste, type CoordonneesLivret, type EntreeLivret, type MembreLivret } from "./modele";
 import { rendreLivretPdf } from "./rendu-pdf";
 
 /**
@@ -26,11 +27,40 @@ const iso = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : 
 
 async function evenement(scope: PerimetreLivret, id: string) {
   if (scope === "INTERNATIONAL") {
-    const r = await prisma.congressInternational.findUnique({ where: { id }, select: { name: true, city: true, country: true, startDate: true, endDate: true, requesterId: true, careReservationDossierId: true } });
-    return r ? { nom: r.name, ville: r.city, pays: r.country, lieu: null, debut: iso(r.startDate), fin: iso(r.endDate ?? r.startDate), requesterId: r.requesterId, sujetId: r.careReservationDossierId } : null;
+    const r = await prisma.congressInternational.findUnique({ where: { id }, select: { name: true, city: true, country: true, startDate: true, endDate: true, requesterId: true, careReservationDossierId: true, companyId: true } });
+    return r ? { nom: r.name, ville: r.city, pays: r.country, lieu: null, debut: iso(r.startDate), fin: iso(r.endDate ?? r.startDate), requesterId: r.requesterId, sujetId: r.careReservationDossierId, companyId: r.companyId } : null;
   }
-  const r = await prisma.congressNational.findUnique({ where: { id }, select: { name: true, city: true, country: true, hostInstitution: true, date: true, endDate: true, requesterId: true, careReservationDossierId: true } });
-  return r ? { nom: r.name, ville: r.city, pays: r.country, lieu: r.hostInstitution, debut: iso(r.date), fin: iso(r.endDate ?? r.date), requesterId: r.requesterId, sujetId: r.careReservationDossierId } : null;
+  const r = await prisma.congressNational.findUnique({ where: { id }, select: { name: true, city: true, country: true, hostInstitution: true, date: true, endDate: true, requesterId: true, careReservationDossierId: true, companyId: true } });
+  return r ? { nom: r.name, ville: r.city, pays: r.country, lieu: r.hostInstitution, debut: iso(r.date), fin: iso(r.endDate ?? r.date), requesterId: r.requesterId, sujetId: r.careReservationDossierId, companyId: r.companyId } : null;
+}
+
+/**
+ * LES COORDONNÉES DE LA SOCIÉTÉ QUI INVITE — sa carte Legal (« Coordonnées des entités »), et par-dessus ce que sa marque
+ * choisit d'imprimer (téléphone, e-mail, site). Rien d'écrit dans le code : une demande sans société, ou une société sans
+ * e-mail, n'en imprime pas — jamais celles d'une autre (Direction, 10/2026).
+ */
+async function coordonneesDeLaSociete(companyId: string | null): Promise<CoordonneesLivret | null> {
+  if (!companyId) return null;
+  const [c, id, profil] = await Promise.all([
+    prisma.company.findUnique({ where: { id: companyId }, select: { name: true } }),
+    prisma.companyLegalIdentity.findUnique({ where: { companyId } }),
+    prisma.companyDocumentProfile.findUnique({ where: { companyId }, select: { settings: true } }),
+  ]);
+  if (!c) return null;
+  const m = lireMarque(profil?.settings).coordonnees;
+  const plein = (v: string | null | undefined) => (v && v.trim() ? v.trim() : null);
+  const mentions: [string, string][] = [];
+  if (plein(id?.nif)) mentions.push(["NIF : ", id!.nif!.trim()]);
+  if (plein(id?.rcNumber)) mentions.push(["N° RC : ", id!.rcNumber!.trim()]);
+  if (plein(id?.taxArticle)) mentions.push(["N° Article : ", id!.taxArticle!.trim()]);
+  return {
+    nom: plein(id?.legalName) ?? c.name,
+    telephones: [plein(m.telephone) ?? plein(id?.phone)].filter((x): x is string => Boolean(x)),
+    email: plein(m.email) ?? plein(id?.email),
+    adresse: plein(m.adresse) ?? plein(id?.headOffice),
+    siteWeb: plein(m.siteWeb) ?? plein(id?.website),
+    mentions,
+  };
 }
 
 /** Tout ce que le livret lit d'une demande — sans un montant (les cases passent par `versPoste`). */
@@ -103,6 +133,7 @@ export async function entreeDuLivret(scope: PerimetreLivret, requestId: string):
     demandeur: demandeur ? { nom: demandeur.name, fonction: demandeur.title, telephone: demandeur.phone } : null,
     assistante: assistante ? { nom: assistante.name, fonction: "Assistante de direction", telephone: assistante.phone } : null,
     edition: new Date().toISOString().slice(0, 10),
+    societe: await coordonneesDeLaSociete(ev.companyId),
   };
 }
 

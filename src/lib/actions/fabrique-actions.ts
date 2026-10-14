@@ -27,9 +27,10 @@ import { requireUser } from "@/lib/session";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { MODES_PAIEMENT, TYPES_DOCUMENT, type ModePaiement, type TypeDocumentCommercial } from "@/lib/artifact/factory/commercial";
 import {
-  definirProfilDocumentaire, emettreDocumentDrive, previsualiserDocument, reviserDocumentDrive,
-  type DemandeDocument, type MethodePdf, type ModificationsDocument,
+  apercuPourEcran, definirProfilDocumentaire, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive,
+  type ApercuDocument, type ApercuPiece, type DemandeDocument, type EchecFabrique, type MethodePdf, type ModificationsDocument,
 } from "@/platform/in-process/artifact/factory";
+import type { CoordonneesEmetteur } from "@/lib/artifact/factory/commercial";
 import { factureACrediter } from "@/lib/legal/aval";
 import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { netDeLaFacture } from "@/lib/lecteurs/avoir";
@@ -86,15 +87,50 @@ function lireLignes(formData: FormData): DemandeDocument["lignes"] {
   return lignes;
 }
 
+/** Ce que la personne CHOISIT pour sa pièce au-delà de la saisie courante : coordonnées imprimées, signataire, mentions. */
+interface ChoixDeLaPiece {
+  coordonnees: CoordonneesEmetteur | null | undefined;
+  signataire: { nom: string; qualite: string | null } | null | undefined;
+  mentions: string[] | undefined;
+}
+
+/**
+ * LES CHOIX DE LA PIÈCE — dont LES COORDONNÉES DE L'ÉMETTEUR choisies pour la pièce (Direction, 10/2026 — « l'e-mail dépend de la société, il doit
+ * pouvoir se modifier »). `emetteurPersonnalise=1` : les trois champs gouvernent, un champ vide n'imprime rien.
+ * `emetteurPersonnalise=0` : retour à la carte de la société (`null`). Clé absente : rien n'est dit (`undefined`) — une
+ * révision garde alors le choix fait à l'émission.
+ */
+function lireChoixDeLaPiece(formData: FormData): ChoixDeLaPiece {
+  const drapeau = fdStr(formData, "emetteurPersonnalise");
+  const coordonnees: ChoixDeLaPiece["coordonnees"] = drapeau === null
+    ? undefined
+    : drapeau !== "1"
+      ? null
+      : { adresse: texte(formData, "emetteurAdresse"), telephone: texte(formData, "emetteurTelephone"), email: texte(formData, "emetteurEmail") };
+  // LE SIGNATAIRE : `signatairePersonnalise=1` le fixe (nom vide = aucun) ; absent, celui de la marque (émission) ou de la pièce (révision).
+  const drapeauSignataire = fdStr(formData, "signatairePersonnalise");
+  const signataire: ChoixDeLaPiece["signataire"] = drapeauSignataire === "1"
+    ? (texte(formData, "signataireNom") ? { nom: texte(formData, "signataireNom") ?? "", qualite: texte(formData, "signataireQualite") } : null)
+    : undefined;
+  // LES MENTIONS de la pièce : une par ligne ; présentes et vides, il n'y en a plus.
+  const mentions: ChoixDeLaPiece["mentions"] = formData.has("mentions")
+    ? (fdStr(formData, "mentions") ?? "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean)
+    : undefined;
+  return { coordonnees, signataire, mentions };
+}
+
 /**
  * La DEMANDE de fabrique, lue depuis le formulaire — une seule lecture, pour l'aperçu et l'émission.
  * Les lignes arrivent DÉJÀ lues : l'appelant appelle `lireLignes` lui-même, parce que la dérivation des
  * contrats ne suit qu'un niveau de délégation (§118.87c) — lues ici, à deux niveaux, elles disparaissaient
  * de ce que l'action déclare recevoir. Et il les lit dans une instruction À PART : un appel imbriqué
  * (`lireDemande(formData, lireLignes(formData))`) n'est pas reconnu comme une délégation — mesuré, ce
- * sont alors TOUS les autres champs de la demande qui disparaissaient du contrat.
+ * sont alors TOUS les autres champs de la demande qui disparaissaient du contrat. Les coordonnées de l'émetteur
+ * (`lireChoixDeLaPiece`) arrivent de même, lues par l'appelant : ce sont des champs du formulaire comme les autres.
  */
-function lireDemande(formData: FormData, lignes: DemandeDocument["lignes"]): { ok: true; demande: DemandeDocument } | { ok: false; error: string } {
+function lireDemande(
+  formData: FormData, lignes: DemandeDocument["lignes"], choix: ChoixDeLaPiece,
+): { ok: true; demande: DemandeDocument } | { ok: false; error: string } {
   const type = (fdStr(formData, "type") ?? "") as TypeDocumentCommercial;
   if (!TYPES_DOCUMENT.includes(type)) return { ok: false, error: "Nature de pièce inconnue : facture, bon de commande ou devis." };
   const mode = fdStr(formData, "modePaiement");
@@ -140,6 +176,10 @@ function lireDemande(formData: FormData, lignes: DemandeDocument["lignes"]): { o
       referenceAmont: texte(formData, "referenceAmont"),
       referenceAmontDate: texte(formData, "referenceAmontDate"),
       contact: contactNom || contactTelephone ? { nom: contactNom, telephone: contactTelephone } : null,
+      // Les coordonnées de l'émetteur que CETTE pièce imprime — absentes, celles de la société émettrice.
+      coordonneesEmetteur: choix.coordonnees === undefined ? null : choix.coordonnees,
+      ...(choix.signataire !== undefined ? { signataire: choix.signataire } : {}),
+      mentions: choix.mentions ?? null,
       taxes: taxes.length ? taxes : null,
       livraison: livraisonAdresse || livraisonDelai ? { adresse: livraisonAdresse, delai: livraisonDelai } : null,
       notes: texte(formData, "notes"),
@@ -157,21 +197,8 @@ function lireDemande(formData: FormData, lignes: DemandeDocument["lignes"]): { o
   };
 }
 
-export interface ApercuPiece {
-  ok: true;
-  societe: { id: string; nom: string };
-  numeroProchain: string;
-  motif: string | null;
-  /** Le numéro vient du registre commun NNN/DG/AAAA de la société : il peut être choisi à l'émission. */
-  surRegistre: boolean;
-  papierEnTete: { id: string; nom: string } | null;
-  identiteIncomplete: string[];
-  totaux: { totalHt: number; totalTaxes: number; totalTva: number; timbre: number; totalTtc: number; enLettres: string; taxes: { libelle: string; taux: number; montant: number }[]; tva: { taux: number; montant: number }[] } | null;
-  bloquants: string[];
-  avertissements: string[];
-  peutEmettre: boolean;
-  pdfParEditeur: boolean;
-}
+/** Ce que l'écran du composeur reçoit de l'aperçu — défini avec la fabrique (`apercuPourEcran`), une seule forme pour deux actions. */
+export type { ApercuPiece } from "@/platform/in-process/artifact/factory";
 
 /**
  * L'APERÇU — la même composition que l'émission, à blanc : totaux, somme en lettres, numéro
@@ -180,22 +207,18 @@ export interface ApercuPiece {
 export async function previsualiserPieceCommerciale(_prev: ApercuPiece | { ok: false; error: string } | undefined, formData: FormData): Promise<ApercuPiece | { ok: false; error: string }> {
   const user = await requireUser();
   const lignes = lireLignes(formData);
-  const lu = lireDemande(formData, lignes);
-  if (!lu.ok) return lu;
-  const r = await previsualiserDocument(user, lu.demande);
+  // LA RÉVISION D'UNE PIÈCE ÉMISE (« Modifier de A à Z » depuis sa fiche) : la même composition que `reviserPieceCommerciale`,
+  // à blanc — nature, société et numéro sont ceux de la pièce, pas ceux du formulaire.
+  const revisionDe = fdStr(formData, "revisionDe");
+  const choix = lireChoixDeLaPiece(formData);
+  const lignesRevisees = formData.has("ligneDesignation") ? lignes : undefined;
+  const modifications = lireModifications(formData, lignesRevisees, choix);
+  const lu = lireDemande(formData, lignes, choix);
+  const r: ApercuDocument | EchecFabrique = revisionDe
+    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications })
+    : lu.ok ? await previsualiserDocument(user, lu.demande) : { ok: false, echec: "MISSING_INPUT", motif: lu.error };
   if (!r.ok) return { ok: false, error: r.motif };
-  return {
-    ok: true,
-    societe: r.societe, numeroProchain: r.numeroProchain, motif: r.motif, surRegistre: r.surRegistre, papierEnTete: r.papierEnTete, identiteIncomplete: r.identiteIncomplete,
-    totaux: r.totaux
-      ? {
-        totalHt: r.totaux.totalHt, totalTaxes: r.totaux.totalTaxes, totalTva: r.totaux.totalTva, timbre: r.totaux.timbre, totalTtc: r.totaux.totalTtc, enLettres: r.totaux.enLettres,
-        taxes: r.totaux.taxes.map((x) => ({ libelle: x.libelle, taux: x.taux, montant: x.montant })),
-        tva: r.totaux.tva.map((x) => ({ taux: x.taux, montant: x.montant })),
-      }
-      : null,
-    bloquants: r.bloquants, avertissements: r.avertissements, peutEmettre: r.peutEmettre, pdfParEditeur: r.pdfParEditeur,
-  };
+  return apercuPourEcran(r, Boolean(revisionDe));
 }
 
 export type ApercuImpression = { ok: true; pdfBase64: string; pages: number; numeroProchain: string } | { ok: false; error: string };
@@ -208,9 +231,16 @@ export type ApercuImpression = { ok: true; pdfBase64: string; pages: number; num
  */
 export async function apercuAvantImpressionPiece(_prev: ApercuImpression | undefined, formData: FormData): Promise<ApercuImpression> {
   const user = await requireUser();
-  const lu = lireDemande(formData, lireLignes(formData));
-  if (!lu.ok) return lu;
-  const r = await previsualiserDocument(user, lu.demande, { avecPdf: true });
+  const lignes = lireLignes(formData);
+  // Une RÉVISION s'imprime sous SON numéro, par la même composition que la révision (voir `previsualiserPieceCommerciale`).
+  const revisionDe = fdStr(formData, "revisionDe");
+  const choix = lireChoixDeLaPiece(formData);
+  const lignesRevisees = formData.has("ligneDesignation") ? lignes : undefined;
+  const modifications = lireModifications(formData, lignesRevisees, choix);
+  const lu = lireDemande(formData, lignes, choix);
+  const r: ApercuDocument | EchecFabrique = revisionDe
+    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications, avecPdf: true })
+    : lu.ok ? await previsualiserDocument(user, lu.demande, { avecPdf: true }) : { ok: false, echec: "MISSING_INPUT", motif: lu.error };
   if (!r.ok) return { ok: false, error: r.motif };
   if (r.bloquants.length > 0) return { ok: false, error: `L'aperçu n'est pas possible : ${r.bloquants.slice(0, 3).join(" ; ")}` };
   if (!r.pdf) return { ok: false, error: r.pdfErreur ?? "Le rendu de l'aperçu n'a pas pu être produit." };
@@ -246,7 +276,8 @@ export interface ResultatEmission extends ActionResult {
 export async function emettrePieceCommerciale(_prev: ResultatEmission | undefined, formData: FormData): Promise<ResultatEmission> {
   const user = await requireUser();
   const lignes = lireLignes(formData);
-  const lu = lireDemande(formData, lignes);
+  const choix = lireChoixDeLaPiece(formData);
+  const lu = lireDemande(formData, lignes, choix);
   if (!lu.ok) return { ok: false, error: lu.error };
   const r = await emettreDocumentDrive(user, lu.demande);
   if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
@@ -271,6 +302,75 @@ export async function emettrePieceCommerciale(_prev: ResultatEmission | undefine
   };
 }
 
+/**
+ * CE QUE LE FORMULAIRE DE RÉVISION PORTE — et RIEN d'autre (§118.152) : une clé absente garde la valeur de la pièce, une clé
+ * présente et vide l'efface. Le composeur en mode révision envoie tout (« modifiable de A à Z ») ; l'ancien formulaire
+ * réduit (poste Ad & Pro) n'envoie que ses champs, et le reste de la pièce ne bouge pas. Les lignes arrivent DÉJÀ lues, par
+ * l'appelant, dans une instruction à part (voir `lireDemande`, §118.87c).
+ */
+function lireModifications(
+  formData: FormData, lignes: DemandeDocument["lignes"] | undefined, choix: ChoixDeLaPiece,
+): ModificationsDocument {
+  const m: ModificationsDocument = {};
+  if (lignes) m.lignes = lignes;
+  if (formData.has("tiersNom")) {
+    m.tiers = {
+      nom: texte(formData, "tiersNom") ?? "",
+      ...(formData.has("tiersAdresse") ? { adresse: texte(formData, "tiersAdresse") } : {}),
+      ...(formData.has("tiersTelephone") ? { telephone: texte(formData, "tiersTelephone") } : {}),
+      ...(formData.has("tiersEmail") ? { email: texte(formData, "tiersEmail") } : {}),
+      ...(formData.has("tiersRc") ? { rc: texte(formData, "tiersRc") } : {}),
+      ...(formData.has("tiersNif") ? { nif: texte(formData, "tiersNif") } : {}),
+      ...(formData.has("tiersAi") ? { ai: texte(formData, "tiersAi") } : {}),
+      ...(formData.has("tiersNis") ? { nis: texte(formData, "tiersNis") } : {}),
+    };
+  }
+  if (formData.has("date")) m.date = texte(formData, "date");
+  if (formData.has("echeance")) m.echeance = texte(formData, "echeance");
+  if (formData.has("objet")) m.objet = texte(formData, "objet");
+  if (formData.has("notes")) m.notes = texte(formData, "notes");
+  if (formData.has("referenceAmont")) m.referenceAmont = texte(formData, "referenceAmont");
+  if (formData.has("referenceAmontDate")) m.referenceAmontDate = texte(formData, "referenceAmontDate");
+  if (formData.has("numeroClient")) m.numeroClient = texte(formData, "numeroClient");
+  if (formData.has("conditionsPaiement")) m.conditionsPaiement = texte(formData, "conditionsPaiement");
+  if (formData.has("modePaiement")) {
+    const mode = fdStr(formData, "modePaiement");
+    m.modePaiement = mode && (MODES_PAIEMENT as readonly string[]).includes(mode) ? (mode as ModePaiement) : null;
+  }
+  if (formData.has("tvaDefaut")) m.tvaDefaut = fraction(fdStr(formData, "tvaDefaut"));
+  if (formData.has("remiseGlobale")) m.remiseGlobale = fraction(fdStr(formData, "remiseGlobale"));
+  if (formData.has("taxeLibelle")) {
+    const libelles = formData.getAll("taxeLibelle").map(String);
+    const taux = formData.getAll("taxeTaux").map(String);
+    const taxes = libelles
+      .map((libelle, i) => ({ libelle: libelle.trim(), taux: fraction(taux[i]) ?? Number.NaN }))
+      .filter((t) => t.libelle || Number.isFinite(t.taux));
+    m.taxes = taxes.length ? taxes : null;
+  }
+  if (formData.has("validiteJours")) {
+    const v = nombre(fdStr(formData, "validiteJours"));
+    m.validiteJours = v !== null && Number.isInteger(v) ? v : null;
+  }
+  if (formData.has("livraisonAdresse") || formData.has("livraisonDelai")) {
+    m.livraison = {
+      ...(formData.has("livraisonAdresse") ? { adresse: texte(formData, "livraisonAdresse") } : {}),
+      ...(formData.has("livraisonDelai") ? { delai: texte(formData, "livraisonDelai") } : {}),
+    };
+  }
+  if (formData.has("contactNom") || formData.has("contactTelephone")) {
+    m.contact = {
+      ...(formData.has("contactNom") ? { nom: texte(formData, "contactNom") } : {}),
+      ...(formData.has("contactTelephone") ? { telephone: texte(formData, "contactTelephone") } : {}),
+    };
+  }
+  // Le papier en-tête : présent et vide = celui du profil de la société ; absent = celui de l'émission.
+  if (formData.has("letterheadId")) m.letterheadId = texte(formData, "letterheadId");
+  if (choix.coordonnees !== undefined) m.coordonneesEmetteur = choix.coordonnees;
+  if (choix.signataire !== undefined) m.signataire = choix.signataire;
+  if (choix.mentions !== undefined) m.mentions = choix.mentions;
+  return m;
+}
+
 export interface ResultatRevision extends ActionResult {
   reference?: string;
   version?: number;
@@ -291,27 +391,11 @@ export async function reviserPieceCommerciale(_prev: ResultatRevision | undefine
   const legalDocumentId = fdStr(formData, "legalDocumentId");
   if (!legalDocumentId) return { ok: false, error: "Pièce introuvable." };
   const vue = nombre(fdStr(formData, "versionVue"));
-  const modifications: ModificationsDocument = {};
-  if (formData.has("ligneDesignation")) modifications.lignes = lireLignes(formData);
-  if (formData.has("objet")) modifications.objet = texte(formData, "objet");
-  if (formData.has("notes")) modifications.notes = texte(formData, "notes");
-  if (formData.has("validiteJours")) {
-    const v = nombre(fdStr(formData, "validiteJours"));
-    modifications.validiteJours = v !== null && Number.isInteger(v) ? v : null;
-  }
-  if (formData.has("livraisonAdresse") || formData.has("livraisonDelai")) {
-    modifications.livraison = {
-      ...(formData.has("livraisonAdresse") ? { adresse: texte(formData, "livraisonAdresse") } : {}),
-      ...(formData.has("livraisonDelai") ? { delai: texte(formData, "livraisonDelai") } : {}),
-    };
-  }
-  if (formData.has("contactNom") || formData.has("contactTelephone")) {
-    modifications.contact = {
-      ...(formData.has("contactNom") ? { nom: texte(formData, "contactNom") } : {}),
-      ...(formData.has("contactTelephone") ? { telephone: texte(formData, "contactTelephone") } : {}),
-    };
-  }
-  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à réviser : la révision porte sur les lignes, l'objet, les notes, la validité, la livraison ou le contact." };
+  const lignes = lireLignes(formData);
+  const choix = lireChoixDeLaPiece(formData);
+  const lignesRevisees = formData.has("ligneDesignation") ? lignes : undefined;
+  const modifications = lireModifications(formData, lignesRevisees, choix);
+  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à réviser : la révision porte sur le tiers, les lignes, la date, les références, le paiement, la TVA, les taxes, la livraison, le contact, les notes, le papier en-tête ou les coordonnées de l'émetteur." };
   const r = await reviserDocumentDrive(user, {
     legalDocumentId, modifications, motif: texte(formData, "motif"),
     versionVue: vue !== null && Number.isInteger(vue) ? vue : null, exigerMotif: true,

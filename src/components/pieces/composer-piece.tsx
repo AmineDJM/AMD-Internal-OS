@@ -7,11 +7,11 @@ import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
-import { NATURES_AMONT } from "@/lib/legal/piece-emise";
+import { NATURES_AMONT, type ValeursComposables } from "@/lib/legal/piece-emise";
 import { PLURIEL_TYPE } from "@/lib/artifact/factory/commercial";
 import {
-  apercuAvantImpressionPiece, emettrePieceCommerciale, previsualiserPieceCommerciale, reglerNumerotationPieces,
-  type ApercuPiece, type ResultatEmission,
+  apercuAvantImpressionPiece, emettrePieceCommerciale, previsualiserPieceCommerciale, reglerNumerotationPieces, reviserPieceCommerciale,
+  type ApercuPiece, type ResultatEmission, type ResultatRevision,
 } from "@/lib/actions/fabrique-actions";
 import { ChampReference } from "@/components/references/champ-reference";
 
@@ -72,6 +72,44 @@ export interface ComposerPieceProps {
    */
   prevalidation?: boolean;
   onEmis?: (piece: { legalDocumentId: string; reference: string }) => void;
+  /**
+   * MODIFIER UNE PIÈCE ÉMISE DE A À Z (Direction, 10/2026 — « les bons de commande doivent être modifiables totalement,
+   * en natif ») : le composeur s'ouvre PRÉ-REMPLI de la version courante (`valeurs`, lues dans `custom.fabrique.spec`),
+   * tout se modifie, et l'enregistrement est une RÉVISION (`reviserPieceCommerciale`) : même numéro, nouvelle version du
+   * Word et du PDF, historique gardé — et, pour un BC, le circuit de validation repart (signature retirée, centre rouvert).
+   * Restent fixes la nature, la société et le numéro : ce sont eux qui font que c'est la même pièce.
+   */
+  revision?: RevisionComposeur;
+  /** Le bouton qui ouvre le composeur : son libellé, et sa forme discrète (un lien, pour la case d'un poste). */
+  declencheur?: { libelle?: string; discret?: boolean };
+}
+
+/** Une RÉVISION ouverte dans le composeur — la même saisie que la composition, sur la version courante de la pièce. */
+export interface RevisionComposeur {
+  legalDocumentId: string;
+  numero: string;
+  version: number;
+  valeurs: ValeursComposables;
+  /**
+   * L'ACTION QUI RÉVISE et L'APERÇU — par défaut ceux de la fiche Legal (`reviserPieceCommerciale`, droits Legal). Le poste
+   * Ad & Pro passe les siens (`modifierBcDuPoste`, `previsualiserBcDuPoste`) : son demandeur modifie SON bon de commande
+   * sans droit d'écriture Legal. Le formulaire est le même : un seul écran pour composer et réviser.
+   */
+  envoyer?: (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string; version?: number }>;
+  apercu?: (fd: FormData) => Promise<ApercuPiece | { ok: false; error: string }>;
+  /** Le motif est-il exigé ? Oui sur la fiche Legal ; facultatif depuis le poste. */
+  motifFacultatif?: boolean;
+  /** Pas d'aperçu avant impression (le poste n'a que l'aperçu des totaux). */
+  sansImpression?: boolean;
+}
+
+/** Les champs qu'une nature de pièce porte — l'écran ne montre pas les autres, et ne les envoie pas. */
+function champPorte(cle: string, type: TypePieceComposable): boolean {
+  if (cle === "numeroClient" || cle === "echeance") return type === "FACTURE";
+  if (cle === "validiteJours") return type === "DEVIS";
+  if (cle === "contactNom" || cle === "contactTelephone") return type !== "FACTURE";
+  if (cle === "livraisonAdresse" || cle === "livraisonDelai") return type === "BON_DE_COMMANDE";
+  return true;
 }
 
 const aujourdhui = (): string => new Date().toISOString().slice(0, 10);
@@ -81,12 +119,19 @@ const nouvelleLigne = (section = false): Ligne => ({ id: compteur++, designation
 export function ComposerPieceButton(props: ComposerPieceProps) {
   const [open, setOpen] = React.useState(false);
   const lib = LIBELLE[props.typeInitial];
+  const libelle = props.declencheur?.libelle ?? (props.revision ? `Modifier ${lib.article}` : lib.bouton);
   return (
     <>
-      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
-        <FileText className="h-4 w-4" aria-hidden />
-        {lib.bouton}
-      </Button>
+      {props.declencheur?.discret ? (
+        <button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-1 text-primary hover:underline">
+          <FileText className="h-3 w-3" aria-hidden /> {libelle}
+        </button>
+      ) : (
+        <Button type="button" variant="outline" size={props.revision ? "sm" : undefined} onClick={() => setOpen(true)}>
+          <FileText className="h-4 w-4" aria-hidden />
+          {libelle}
+        </Button>
+      )}
       {open && <ComposerPieceSheet {...props} onClose={() => setOpen(false)} />}
     </>
   );
@@ -96,18 +141,38 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
   const router = useRouter();
   const [type, setType] = React.useState<TypePieceComposable>(props.typeInitial);
   const [societe, setSociete] = React.useState<string>(props.societeParDefaut ?? props.societes[0]?.id ?? "");
-  const [letterheadId, setLetterheadId] = React.useState<string>("");
+  // EN RÉVISION, tout part de la version courante de la pièce (`props.revision.valeurs`) — rien n'est ressaisi.
+  const rev = props.revision ?? null;
+  const v0 = rev?.valeurs ?? null;
+  // Le papier de l'émission, s'il est toujours proposé ; sinon celui du profil (vide).
+  const [letterheadId, setLetterheadIdBrut] = React.useState<string>(() => (v0 && props.letterheads.some((l) => l.id === v0.letterheadId) ? v0.letterheadId : ""));
+  // En révision, le papier n'est envoyé que s'il a été CHANGÉ : sinon la pièce garde celui de son émission, même absent du menu.
+  const [papierChange, setPapierChange] = React.useState(false);
+  const setLetterheadId = (v: string) => { setLetterheadIdBrut(v); setPapierChange(true); };
   const [amont, setAmont] = React.useState<string>("");
-  const [tiers, setTiers] = React.useState({ nom: "", adresse: "", telephone: "", email: "", rc: "", nif: "", ai: "", nis: "" });
-  const [champs, setChamps] = React.useState({
-    numeroClient: "", date: aujourdhui(), echeance: "", validiteJours: "30", objet: "", referenceAmont: "", referenceAmontDate: "",
-    contactNom: "", contactTelephone: "", livraisonAdresse: "", livraisonDelai: "", modePaiement: "VIREMENT", conditionsPaiement: "",
-    tvaDefaut: "19", remiseGlobale: "", notes: "",
+  const [tiers, setTiers] = React.useState(() => v0 ? { ...v0.tiers } : { nom: "", adresse: "", telephone: "", email: "", rc: "", nif: "", ai: "", nis: "" });
+  const [champs, setChamps] = React.useState(() => {
+    const defaut = {
+      numeroClient: "", date: aujourdhui(), echeance: "", validiteJours: "30", objet: "", referenceAmont: "", referenceAmontDate: "",
+      contactNom: "", contactTelephone: "", livraisonAdresse: "", livraisonDelai: "", modePaiement: "VIREMENT", conditionsPaiement: "",
+      tvaDefaut: "19", remiseGlobale: "", notes: "",
+    };
+    return v0 ? { ...v0.champs, date: v0.champs.date || defaut.date, validiteJours: v0.champs.validiteJours || defaut.validiteJours, tvaDefaut: v0.champs.tvaDefaut || defaut.tvaDefaut } : defaut;
   });
-  const [lignes, setLignes] = React.useState<Ligne[]>([nouvelleLigne()]);
+  const [lignes, setLignes] = React.useState<Ligne[]>(() => (v0 && v0.lignes.length ? v0.lignes.map((l) => ({ ...l, id: compteur++ })) : [nouvelleLigne()]));
   // LA CASE DES TAXES SUPPLÉMENTAIRES est TOUJOURS là (Direction, 10/2026) : une ligne vide attend « Taxe Pub » et son taux —
   // elle n'est envoyée que remplie (le serveur écarte une ligne sans libellé ni taux), et la dernière ligne retirée se vide au lieu de disparaître.
-  const [taxes, setTaxes] = React.useState<Taxe[]>([{ id: 0, libelle: "", taux: "" }]);
+  const [taxes, setTaxes] = React.useState<Taxe[]>(() => (v0 && v0.taxes.length ? v0.taxes.map((t) => ({ ...t, id: compteur++ })) : [{ id: 0, libelle: "", taux: "" }]));
+  // LES COORDONNÉES DE L'ÉMETTEUR IMPRIMÉES (Direction, 10/2026 — « l'e-mail dépend de la société, il doit être modifiable ») :
+  // `null` = celles de la société émettrice (carte Legal, marque), montrées telles que l'aperçu les rend ; dès qu'on en
+  // touche une, la pièce porte SES coordonnées — un champ vidé n'imprime rien, jamais l'e-mail d'une autre société.
+  const [emetteur, setEmetteur] = React.useState<{ adresse: string; telephone: string; email: string } | null>(() => v0?.emetteur ?? null);
+  // LE SIGNATAIRE et LES MENTIONS de la pièce : en révision, ceux de la version courante ; à la composition, `null` = ceux
+  // que la marque désigne (montrés par l'aperçu), jusqu'à ce qu'on les change.
+  const [signataire, setSignataire] = React.useState<{ nom: string; qualite: string } | null>(() => (v0 ? v0.signataire ?? { nom: "", qualite: "" } : null));
+  const [mentions, setMentions] = React.useState<string>(() => v0?.mentions ?? "");
+  const [motifRevision, setMotifRevision] = React.useState<string>("");
+  const [revisionResultat, setRevisionResultat] = React.useState<ResultatRevision | null>(null);
   const [apercu, setApercu] = React.useState<ApercuPiece | { ok: false; error: string } | null>(null);
   const [resultat, setResultat] = React.useState<ResultatEmission | null>(null);
   const [motif, setMotif] = React.useState<string>("");
@@ -148,9 +213,24 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     fd.set("type", type);
     fd.set("societe", societe);
     if (props.prevalidation) fd.set("prevalidation", "1");
-    if (letterheadId) fd.set("letterheadId", letterheadId);
+    // En révision, le papier n'est dit que s'il a changé (vide = celui du profil) ; sinon la pièce garde celui de son émission.
+    if (rev ? papierChange : letterheadId) fd.set("letterheadId", letterheadId);
+    if (rev) fd.set("revisionDe", rev.legalDocumentId);
     for (const [k, v] of Object.entries(tiers)) fd.set(`tiers${k[0].toUpperCase()}${k.slice(1)}`, v);
-    for (const [k, v] of Object.entries(champs)) fd.set(k, v);
+    for (const [k, v] of Object.entries(champs)) if (champPorte(k, type)) fd.set(k, v);
+    // Les coordonnées de l'émetteur : choisies (« 1 »), ou — en révision — rendues à la société (« 0 »).
+    if (emetteur) {
+      fd.set("emetteurPersonnalise", "1");
+      fd.set("emetteurAdresse", emetteur.adresse);
+      fd.set("emetteurTelephone", emetteur.telephone);
+      fd.set("emetteurEmail", emetteur.email);
+    } else if (rev) fd.set("emetteurPersonnalise", "0");
+    if (signataire) {
+      fd.set("signatairePersonnalise", "1");
+      fd.set("signataireNom", signataire.nom);
+      fd.set("signataireQualite", signataire.qualite);
+    }
+    fd.set("mentions", mentions);
     for (const l of lignes) {
       fd.append("ligneDesignation", l.designation);
       fd.append("ligneDetails", l.details);
@@ -161,30 +241,30 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
       fd.append("ligneSection", l.section ? "1" : "0");
     }
     for (const t of taxes) { fd.append("taxeLibelle", t.libelle); fd.append("taxeTaux", t.taux); }
-    if (amontRetenu) fd.set("chainFromId", amontRetenu);
+    if (amontRetenu && !rev) fd.set("chainFromId", amontRetenu);
     return fd;
-  }, [type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu, props.prevalidation]);
+  }, [type, societe, letterheadId, papierChange, tiers, champs, lignes, taxes, amontRetenu, props.prevalidation, emetteur, signataire, mentions, rev]);
 
   // L'APERÇU suit la saisie, avec un demi-seconde de retenue : assez pour ne pas appeler le
   // serveur à chaque touche, assez peu pour que les totaux paraissent vivants.
   const pret = tiers.nom.trim() !== "" && lignes.some((l) => !l.section && l.designation.trim() !== "");
-  const empreinte = JSON.stringify({ type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu });
+  const empreinte = JSON.stringify({ type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu, emetteur, signataire, mentions });
   // Un aperçu d'avant la dernière frappe n'est plus l'aperçu : il se ferme (et libère son blob) plutôt que de montrer un document périmé.
   React.useEffect(() => { setImpression(null); setImpressionErreur(null); }, [empreinte]);
   React.useEffect(() => () => { if (impression) URL.revokeObjectURL(impression.url); }, [impression]);
   React.useEffect(() => {
-    if (!pret || resultat) return;
+    if (!pret || resultat || revisionResultat?.ok) return;
     const fd = construireFormData();
     const t = setTimeout(() => {
       startChargement(async () => {
-        const r = await previsualiserPieceCommerciale(undefined, fd);
+        const r = rev?.apercu ? await rev.apercu(fd) : await previsualiserPieceCommerciale(undefined, fd);
         setApercu(r);
         if (r.ok && !motif) setMotif(r.motif ?? "");
       });
     }, 500);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empreinte, pret, resultat]);
+  }, [empreinte, pret, resultat, revisionResultat?.ok]);
 
   const modifierLigne = (id: number, patch: Partial<Ligne>) => setLignes((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   const deplacer = (id: number, sens: -1 | 1) => setLignes((ls) => {
@@ -217,6 +297,21 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     });
   };
 
+  // LA RÉVISION : le même formulaire que l'aperçu (ce qu'on a vu est ce qui est écrit), la version montrée (`versionVue`)
+  // et ce qui change (`motif`) — la fabrique refuse une version dépassée au lieu d'écrire par-dessus.
+  const reviser = () => {
+    if (!rev) return;
+    const fd = construireFormData();
+    fd.set("legalDocumentId", rev.legalDocumentId);
+    fd.set("versionVue", String(rev.version));
+    fd.set("motif", motifRevision);
+    startEmission(async () => {
+      const r: ResultatRevision = rev.envoyer ? await rev.envoyer(fd) : await reviserPieceCommerciale(undefined, fd);
+      setRevisionResultat(r);
+      if (r.ok) router.refresh();
+    });
+  };
+
   const voirImpression = () => {
     const fd = construireFormData();
     setImpressionErreur(null);
@@ -243,16 +338,44 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
   const totaux = apercu && apercu.ok ? apercu.totaux : null;
   const bloquants = apercu && apercu.ok ? apercu.bloquants : apercu && !apercu.ok ? [apercu.error] : [];
   const peutEmettre = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !resultat?.ok && !(apercu.surRegistre && reference.refusee);
+  const peutReviser = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !revisionResultat?.ok && (!!rev?.motifFacultatif || motifRevision.trim().length > 0);
+  // Le signataire montré : celui choisi, sinon celui que l'aperçu annonce (la marque, le profil).
+  const signataireAffiche = signataire ?? { nom: apercu && apercu.ok ? apercu.signataire?.nom ?? "" : "", qualite: apercu && apercu.ok ? apercu.signataire?.qualite ?? "" : "" };
+  // Les coordonnées montrées : celles choisies, sinon celles que la société imprime (connues par l'aperçu).
+  const defautsSociete = apercu && apercu.ok ? apercu.coordonneesSociete : null;
+  const coordonneesAffichees = emetteur ?? {
+    adresse: defautsSociete?.adresse ?? "", telephone: defautsSociete?.telephone ?? "", email: defautsSociete?.email ?? "",
+  };
+  const modifierCoordonnee = (cle: "adresse" | "telephone" | "email", valeur: string) => setEmetteur({ ...coordonneesAffichees, [cle]: valeur });
 
   return (
     <Sheet
       open
-      onClose={props.onClose}
-      title={lib.bouton}
-      description="Au format de la société, sur son papier en-tête, en Word et en PDF — numérotée par son compteur et inscrite au registre."
+      onClose={revisionResultat?.ok ? () => { props.onClose(); router.refresh(); } : props.onClose}
+      title={rev ? `Modifier ${lib.article} ${rev.numero}` : lib.bouton}
+      description={rev
+        ? `Version ${rev.version} affichée — tout se modifie. L'enregistrement produit la version ${rev.version + 1} du même fichier, sous le même numéro : le Word, le PDF et la fiche restent d'accord, et l'historique garde les versions.${type === "BON_DE_COMMANDE" ? " Un bon de commande modifié repasse par son circuit de validation : la signature tombe, le centre est rouvert selon ses règles." : ""}`
+        : "Au format de la société, sur son papier en-tête, en Word et en PDF — numérotée par son compteur et inscrite au registre."}
       width="xl"
       footer={
-        resultat?.ok ? (
+        rev ? (
+          revisionResultat?.ok ? (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-muted-foreground">Version {revisionResultat.version ?? rev.version + 1} enregistrée.</span>
+              <Button type="button" onClick={() => { props.onClose(); router.refresh(); }}>Fermer</Button>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-sm text-muted-foreground">
+                {motifRevision.trim() || rev.motifFacultatif ? (chargement ? "Calcul…" : "") : "Dites ce qui change (historique de la pièce) pour enregistrer."}
+              </span>
+              <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
+                <Button type="button" variant="outline" onClick={props.onClose}>Annuler</Button>
+                <Button type="button" onClick={reviser} disabled={!peutReviser}>{emission ? "Enregistrement…" : `Enregistrer la version ${rev.version + 1}`}</Button>
+              </div>
+            </div>
+          )
+        ) : resultat?.ok ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-sm text-muted-foreground">Pièce émise.</span>
             <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row">
@@ -280,13 +403,14 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
             <Label htmlFor="cp-type">Nature</Label>
-            <Select id="cp-type" value={type} onChange={(e) => { setType(e.target.value as TypePieceComposable); setResultat(null); }}>
+            <Select id="cp-type" value={type} disabled={!!rev} onChange={(e) => { setType(e.target.value as TypePieceComposable); setResultat(null); }}>
               {props.typesAutorises.map((t) => <option key={t} value={t}>{LIBELLE[t].nom}</option>)}
             </Select>
           </div>
           <div>
             <Label htmlFor="cp-societe">Société émettrice</Label>
-            <Select id="cp-societe" value={societe} onChange={(e) => { setSociete(e.target.value); setLetterheadId(""); }}>
+            {/* Changer de société, c'est aussi quitter SES coordonnées : celles choisies pour l'autre ne la suivent pas. */}
+            <Select id="cp-societe" value={societe} disabled={!!rev} onChange={(e) => { setSociete(e.target.value); setLetterheadId(""); setEmetteur(null); }}>
               {props.societes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </Select>
           </div>
@@ -327,7 +451,12 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
         <section className="space-y-2">
           <h3 className="font-semibold">Références</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {naturesAmont.length > 0 && (
+            {rev && naturesAmont.length > 0 && (
+              <p className="text-xs text-muted-foreground sm:col-span-3">
+                La pièce du registre dont celle-ci découle se rattache depuis sa fiche (« Modifier » › « Fait suite à ») ; le numéro du devis imprimé se corrige ci-dessous.
+              </p>
+            )}
+            {!rev && naturesAmont.length > 0 && (
               <div className="sm:col-span-3">
                 <Label htmlFor="cp-amont">Fait suite à (pièce du registre)</Label>
                 <Select id="cp-amont" value={amontRetenu} onChange={(e) => setAmont(e.target.value)}>
@@ -453,13 +582,56 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
           <Textarea id="cp-notes" rows={2} value={champs.notes} onChange={(e) => setChamps({ ...champs, notes: e.target.value })} />
         </section>
 
+        {/* ── Les coordonnées de l'émetteur, telles que la pièce les imprime ── */}
+        <section className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="font-semibold">Coordonnées de l&apos;émetteur imprimées</h3>
+            {emetteur && (
+              <Button type="button" size="sm" variant="outline" onClick={() => setEmetteur(null)}>Reprendre celles de la société</Button>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {emetteur
+              ? "Propres à cette pièce : un champ vidé n'est pas imprimé."
+              : defautsSociete
+                ? "Celles de la société émettrice (Legal › Coordonnées des entités, ou sa marque). Les modifier ici ne vaut que pour cette pièce."
+                : "Celles de la société émettrice s'affichent avec l'aperçu — renseignez le tiers et une ligne."}
+          </p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="sm:col-span-3"><Label htmlFor="cp-em-adresse">Siège social imprimé</Label><Input id="cp-em-adresse" disabled={!emetteur && !defautsSociete} value={coordonneesAffichees.adresse} onChange={(e) => modifierCoordonnee("adresse", e.target.value)} /></div>
+            <div><Label htmlFor="cp-em-tel">Téléphone</Label><Input id="cp-em-tel" type="tel" inputMode="tel" disabled={!emetteur && !defautsSociete} value={coordonneesAffichees.telephone} onChange={(e) => modifierCoordonnee("telephone", e.target.value)} /></div>
+            <div className="sm:col-span-2"><Label htmlFor="cp-em-email">E-mail</Label><Input id="cp-em-email" type="email" inputMode="email" autoCapitalize="off" spellCheck={false} disabled={!emetteur && !defautsSociete} value={coordonneesAffichees.email} onChange={(e) => modifierCoordonnee("email", e.target.value)} placeholder="Aucun e-mail imprimé" /></div>
+          </div>
+        </section>
+
+        {/* ── Le signataire et les mentions de la pièce ── */}
+        <section className="space-y-2">
+          <h3 className="font-semibold">Signataire et mentions</h3>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div><Label htmlFor="cp-sig-nom">Signataire (vide = aucun)</Label><Input id="cp-sig-nom" value={signataireAffiche.nom} onChange={(e) => setSignataire({ ...signataireAffiche, nom: e.target.value })} /></div>
+            <div><Label htmlFor="cp-sig-qualite">Qualité</Label><Input id="cp-sig-qualite" value={signataireAffiche.qualite} onChange={(e) => setSignataire({ ...signataireAffiche, qualite: e.target.value })} placeholder="Gérant, Directeur général…" /></div>
+            <div className="sm:col-span-2">
+              <Label htmlFor="cp-mentions">Mentions de la pièce (une par ligne, imprimées au pied)</Label>
+              <Textarea id="cp-mentions" rows={2} value={mentions} onChange={(e) => setMentions(e.target.value)} placeholder="Livraison franco de port." />
+            </div>
+          </div>
+        </section>
+
+        {rev && !revisionResultat?.ok && (
+          <section>
+            <Label htmlFor="cp-motif-revision">Ce qui change dans la pièce{rev.motifFacultatif ? " (facultatif)" : " *"}</Label>
+            <Textarea id="cp-motif-revision" rows={2} value={motifRevision} onChange={(e) => setMotifRevision(e.target.value)} placeholder="Quantité ramenée à 80 boîtes, nouvel e-mail du fournisseur." />
+            <p className="mt-1 text-xs text-muted-foreground">C&apos;est ce que retiendra l&apos;historique de la pièce.</p>
+          </section>
+        )}
+
         {/* ── L'aperçu : ce que la fabrique a calculé, pas le navigateur ── */}
         <section className="rounded-lg border border-border bg-secondary/30 p-3" aria-live="polite">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h3 className="font-semibold">Aperçu</h3>
             {apercu && apercu.ok && (
               <span className="text-xs text-muted-foreground">
-                {apercu.societe.nom} · numéro prévu <b>{apercu.numeroProchain}</b> · {apercu.papierEnTete ? `papier « ${apercu.papierEnTete.nom} »` : "sans papier en-tête"} · PDF {apercu.pdfParEditeur ? "par l'éditeur Office" : "rendu du serveur"}
+                {apercu.societe.nom} · {apercu.revision ? "numéro" : "numéro prévu"} <b>{apercu.numeroProchain}</b> · {apercu.papierEnTete ? `papier « ${apercu.papierEnTete.nom} »` : "sans papier en-tête"} · PDF {apercu.pdfParEditeur ? "par l'éditeur Office" : "rendu du serveur"}
               </span>
             )}
           </div>
@@ -498,10 +670,10 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
           )}
           {/* ── L'aperçu AVANT IMPRESSION : le PDF tel qu'il sera imprimé, numéro prévu compris — rien n'est émis ni numéroté ── */}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={voirImpression} disabled={!pret || rendu || bloquants.length > 0 || !!resultat}>
+            {!rev?.sansImpression && <Button type="button" size="sm" variant="outline" onClick={voirImpression} disabled={!pret || rendu || bloquants.length > 0 || !!resultat}>
               <Eye className="h-4 w-4" aria-hidden />{rendu ? "Rendu…" : "Aperçu avant impression"}
-            </Button>
-            <span className="text-xs text-muted-foreground">Le PDF tel qu&apos;il sera imprimé, avec le numéro prévu — rien n&apos;est émis ni numéroté.</span>
+            </Button>}
+            {!rev?.sansImpression && <span className="text-xs text-muted-foreground">{rev ? "Le PDF tel qu’il sera imprimé, sous son numéro — rien n’est enregistré." : "Le PDF tel qu’il sera imprimé, avec le numéro prévu — rien n’est émis ni numéroté."}</span>}
           </div>
           {impressionErreur && <p className="mt-2 text-sm text-destructive" role="alert">{impressionErreur}</p>}
           {impression && (
@@ -524,7 +696,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
         </section>
 
         {/* ── La numérotation, pour ceux qui tiennent la papeterie ── */}
-        {props.peutReglerNumerotation && (
+        {props.peutReglerNumerotation && !rev && (
           <details className="rounded-lg border border-border p-3">
             <summary className="cursor-pointer font-semibold">Numérotation des {PLURIEL_TYPE[type]} de cette société</summary>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -538,6 +710,13 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
             <p className="mt-1 text-xs text-muted-foreground">Le premier numéro est un plancher : 32 avec le motif {"{n:3}/DG/{aaaa}"} donne 032/DG/{champs.date.slice(0, 4)} pour la prochaine pièce, sans jamais reculer un compteur déjà plus loin.</p>
             {motifMessage && <p className="mt-1 text-xs text-muted-foreground">{motifMessage}</p>}
           </details>
+        )}
+
+        {/* ── Le résultat d'une révision : la phrase de la fabrique (version, TTC, circuit du BC) ── */}
+        {revisionResultat && (
+          <section className={`rounded-lg border p-3 ${revisionResultat.ok ? "border-success/50 bg-success/5" : "border-destructive/50 bg-destructive/5"}`} aria-live="polite" role={revisionResultat.ok ? "status" : "alert"}>
+            <p className="font-medium">{revisionResultat.ok ? revisionResultat.message : revisionResultat.error}</p>
+          </section>
         )}
 
         {/* ── Le résultat ── */}

@@ -65,7 +65,7 @@ import { etatDuRegistre } from "@/lib/references/registre-serveur";
 import { controlerFacture, refusDemandePaiementBC, TOLERANCE_DZD, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
 import { lireFactureDuPoste } from "@/lib/ad-pro/facture-poste-lecture";
 import { lignesDepuisListes, type ListesDeLignes } from "@/lib/artifact/factory/lignes-saisies";
-import { reviserDocumentDrive, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
+import { apercuPourEcran, previsualiserRevision, reviserDocumentDrive, type ApercuPiece, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
 import {
   lireVoyageur, lireEtapes, nomComplet, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, depassementDevisRetenus, refusRetraitReservation,
   type SaisieVoyageur, type VoyageurLu,
@@ -1571,15 +1571,16 @@ async function payerLesFacturesDuPoste(a: {
 }
 
 /**
- * MODIFIER LE BON DE COMMANDE GÉNÉRÉ, EN NATIF ET SANS LIMITE (Direction, 06/10) — tant qu'il n'est pas signé. Chaque
- * modification est une nouvelle VERSION du même BC (même numéro) : le Word et le PDF sont régénérés, la fiche suit, et le
- * BC se réaiguille (un montant relevé le renvoie à son centre). Le demandeur du poste le fait sans droit d'écriture
- * Legal : le poste qu'il porte est la délégation, nommée au journal.
+ * LE BC D'UN POSTE QU'ON PEUT MODIFIER — la porte de « Modifier le BC » et de son aperçu, une seule fois : le poste existe et
+ * s'édite, son paiement n'est pas demandé, le BC lui est rattaché et n'est PAS SIGNÉ (un BC signé ne se modifie plus depuis
+ * le poste : il se remplace avec les Finances).
  */
-export async function modifierBcDuPoste(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
+async function bcModifiableDuPoste(user: SessionUser, formData: FormData): Promise<
+  | { ok: true; item: NonNullable<Awaited<ReturnType<typeof loadItem>>>["item"]; owner: NonNullable<Awaited<ReturnType<typeof loadItem>>>["owner"]; info: { ref: string }; legalDocumentId: string }
+  | { ok: false; error: string }
+> {
   const id = fdStr(formData, "id");
-  const legalDocumentId = fdStr(formData, "legalDocumentId");
+  const legalDocumentId = fdStr(formData, "legalDocumentId") ?? fdStr(formData, "revisionDe");
   if (!id || !legalDocumentId) return { ok: false, error: "Bon de commande non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
@@ -1591,31 +1592,114 @@ export async function modifierBcDuPoste(formData: FormData): Promise<ActionResul
   const lien = await prisma.adProItemPiece.findFirst({ where: { itemId: id, legalDocumentId, nature: "BON_DE_COMMANDE" }, select: { legalDocument: { select: { signedAt: true, reference: true } } } });
   if (!lien) return { ok: false, error: "Ce bon de commande n'est pas rattaché à ce poste." };
   if (lien.legalDocument.signedAt) return { ok: false, error: `Le bon de commande ${lien.legalDocument.reference ?? ""} est signé : il ne se modifie plus. Voyez avec les Finances pour le remplacer.` };
+  return { ok: true, item, owner, info, legalDocumentId };
+}
 
+/**
+ * CE QUE LE COMPOSEUR ENVOIE pour un BC de poste — les mêmes champs que la révision de la fiche Legal
+ * (`fabrique-actions.ts`, `lireModifications`), relus ici parce que le contrat d'une action ne suit que ses délégués LOCAUX
+ * (§118.87c). Une clé absente garde sa valeur ; présente et vide, elle l'efface.
+ */
+function lireModificationsDuBc(formData: FormData): ModificationsDocument {
+  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
+  const pourcent = (cle: string): number | null => {
+    const v = (fdStr(formData, cle) ?? "").replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
+    const n = v ? Number(v) : Number.NaN;
+    return Number.isFinite(n) ? n / 100 : null;
+  };
   const listes: ListesDeLignes = {
     designations: formData.getAll("ligneDesignation").map(String), details: formData.getAll("ligneDetails").map(String),
     quantites: formData.getAll("ligneQuantite").map(String), prix: formData.getAll("lignePrix").map(String),
     remises: formData.getAll("ligneRemise").map(String), tvas: formData.getAll("ligneTva").map(String), sections: formData.getAll("ligneSection").map(String),
   };
-  const modifications: ModificationsDocument = {};
-  if (listes.designations.length > 0) modifications.lignes = lignesDepuisListes(listes);
-  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
-  if (formData.has("objet")) modifications.objet = champ("objet");
-  if (formData.has("notes")) modifications.notes = champ("notes");
+  const m: ModificationsDocument = {};
+  if (listes.designations.length > 0) m.lignes = lignesDepuisListes(listes);
+  if (formData.has("tiersNom")) {
+    m.tiers = {
+      nom: champ("tiersNom") ?? "",
+      ...(formData.has("tiersAdresse") ? { adresse: champ("tiersAdresse") } : {}),
+      ...(formData.has("tiersTelephone") ? { telephone: champ("tiersTelephone") } : {}),
+      ...(formData.has("tiersEmail") ? { email: champ("tiersEmail") } : {}),
+      ...(formData.has("tiersRc") ? { rc: champ("tiersRc") } : {}),
+      ...(formData.has("tiersNif") ? { nif: champ("tiersNif") } : {}),
+      ...(formData.has("tiersAi") ? { ai: champ("tiersAi") } : {}),
+      ...(formData.has("tiersNis") ? { nis: champ("tiersNis") } : {}),
+    };
+  }
+  if (formData.has("date")) m.date = champ("date");
+  if (formData.has("objet")) m.objet = champ("objet");
+  if (formData.has("notes")) m.notes = champ("notes");
+  if (formData.has("referenceAmont")) m.referenceAmont = champ("referenceAmont");
+  if (formData.has("referenceAmontDate")) m.referenceAmontDate = champ("referenceAmontDate");
+  if (formData.has("conditionsPaiement")) m.conditionsPaiement = champ("conditionsPaiement");
+  if (formData.has("modePaiement")) {
+    const mode = fdStr(formData, "modePaiement");
+    m.modePaiement = mode && (MODES_PAIEMENT as readonly string[]).includes(mode) ? (mode as (typeof MODES_PAIEMENT)[number]) : null;
+  }
+  if (formData.has("tvaDefaut")) m.tvaDefaut = pourcent("tvaDefaut");
+  if (formData.has("remiseGlobale")) m.remiseGlobale = pourcent("remiseGlobale");
+  if (formData.has("taxeLibelle")) {
+    const libelles = formData.getAll("taxeLibelle").map(String);
+    const taux = formData.getAll("taxeTaux").map(String);
+    const taxes = libelles.map((libelle, i) => {
+      const t = (taux[i] ?? "").replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
+      return { libelle: libelle.trim(), taux: t && Number.isFinite(Number(t)) ? Number(t) / 100 : Number.NaN };
+    }).filter((t) => t.libelle || Number.isFinite(t.taux));
+    m.taxes = taxes.length ? taxes : null;
+  }
   if (formData.has("livraisonAdresse") || formData.has("livraisonDelai")) {
-    modifications.livraison = {
+    m.livraison = {
       ...(formData.has("livraisonAdresse") ? { adresse: champ("livraisonAdresse") } : {}),
       ...(formData.has("livraisonDelai") ? { delai: champ("livraisonDelai") } : {}),
     };
   }
   if (formData.has("contactNom") || formData.has("contactTelephone")) {
-    modifications.contact = {
+    m.contact = {
       ...(formData.has("contactNom") ? { nom: champ("contactNom") } : {}),
       ...(formData.has("contactTelephone") ? { telephone: champ("contactTelephone") } : {}),
     };
   }
-  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à modifier : changez une ligne, l'objet, les notes, la livraison ou le contact." };
-  // UN BC NE DÉPASSE PAS L'ACCORDÉ : le hors-taxe des lignes seul le dépasse-t-il déjà ? (le TTC, la fabrique le calcule.)
+  if (formData.has("letterheadId")) m.letterheadId = champ("letterheadId");
+  const coordonnees = fdStr(formData, "emetteurPersonnalise");
+  if (coordonnees === "1") m.coordonneesEmetteur = { adresse: champ("emetteurAdresse"), telephone: champ("emetteurTelephone"), email: champ("emetteurEmail") };
+  else if (coordonnees !== null) m.coordonneesEmetteur = null;
+  if (fdStr(formData, "signatairePersonnalise") === "1") m.signataire = champ("signataireNom") ? { nom: champ("signataireNom") ?? "", qualite: champ("signataireQualite") } : null;
+  if (formData.has("mentions")) m.mentions = (fdStr(formData, "mentions") ?? "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  return m;
+}
+
+/**
+ * L'APERÇU DU BC MODIFIÉ, depuis le poste — la même composition que la modification (`previsualiserRevision`, à blanc),
+ * sous la délégation du poste : le demandeur voit les totaux de SON bon de commande sans droit Legal. Rien n'est écrit.
+ */
+export async function previsualiserBcDuPoste(formData: FormData): Promise<ApercuPiece | { ok: false; error: string }> {
+  const user = await requireUser();
+  const lu = await bcModifiableDuPoste(user, formData);
+  if (!lu.ok) return { ok: false, error: lu.error };
+  const modifications = lireModificationsDuBc(formData);
+  const r = await previsualiserRevision(user, { legalDocumentId: lu.legalDocumentId, modifications }, {
+    delegation: `${lu.info.ref} — poste « ${lu.item.label} » : aperçu de son bon de commande par le demandeur du poste`,
+  });
+  if (!r.ok) return { ok: false, error: r.motif };
+  return apercuPourEcran(r, true);
+}
+
+/**
+ * MODIFIER LE BON DE COMMANDE GÉNÉRÉ, EN NATIF ET SANS LIMITE (Direction, 06/10) — tant qu'il n'est pas signé. Chaque
+ * modification est une nouvelle VERSION du même BC (même numéro) : le Word et le PDF sont régénérés, la fiche suit, et le
+ * BC se réaiguille (un montant relevé le renvoie à son centre). Le demandeur du poste le fait sans droit d'écriture
+ * Legal : le poste qu'il porte est la délégation, nommée au journal.
+ */
+export async function modifierBcDuPoste(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const lu = await bcModifiableDuPoste(user, formData);
+  if (!lu.ok) return { ok: false, error: lu.error };
+  const { item, owner, info, legalDocumentId } = lu;
+  // TOUT SE MODIFIE (Direction, 10/2026 — « chaque écriture et détail ») : le formulaire est celui du composeur de pièces,
+  // lu champ par champ — ce qu'il ne porte pas garde sa valeur (§118.152).
+  const modifications = lireModificationsDuBc(formData);
+  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à modifier : changez une ligne, le fournisseur, une date, une condition, la livraison, le contact, les notes ou les mentions." };
+  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
   const accorde = item.amountGranted != null ? toNumber(item.amountGranted) : null;
   const ht = (modifications.lignes ?? []).filter((l) => !l.section).reduce((s, l) => s + l.quantite * l.prixUnitaire * (1 - (l.remise ?? 0)), 0);
   if (accorde !== null && Number.isFinite(ht) && ht > accorde + TOLERANCE_DZD) {

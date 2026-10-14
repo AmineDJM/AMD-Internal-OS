@@ -253,17 +253,28 @@ export interface IdentiteImprimable {
   rc?: string | null; nif?: string | null; ai?: string | null; nis?: string | null; telephone?: string | null; email?: string | null;
 }
 
+/** Les coordonnées qu'UNE pièce imprime à la place de celles de la société (même forme que `CoordonneesEmetteur`). */
+export interface CoordonneesPiece { adresse?: string | null; telephone?: string | null; email?: string | null }
+
 /**
- * LES MENTIONS DE PIED : les coordonnées choisies par la marque (sinon la carte Legal), puis les
+ * LES MENTIONS DE PIED : les coordonnées choisies pour la pièce, sinon par la marque, sinon la carte Legal, puis les
  * mentions libres. L'identité légale chiffrée (RC, NIF, AI, NIS) et la raison sociale sont déjà
  * composées par la fabrique commerciale — ici on n'ajoute que ce que la marque DÉCIDE.
  */
-export function mentionsDe(marque: Marque, identite: IdentiteImprimable): string[] {
+export function mentionsDe(marque: Marque, identite: IdentiteImprimable, piece?: CoordonneesPiece | null): string[] {
   const c = marque.coordonnees;
+  // LES COORDONNÉES CHOISIES POUR LA PIÈCE (Direction, 10/2026) : une clé présente gouverne — vide, rien ne s'imprime.
+  // Elles ne retombent JAMAIS sur une valeur d'ailleurs : seule la carte de la société émettrice sert de défaut.
+  const choix = (cle: keyof CoordonneesPiece, defaut: string | null): string | null =>
+    piece && Object.prototype.hasOwnProperty.call(piece, cle) ? ((piece[cle] ?? "").trim() || null) : defaut;
+  const telephone = choix("telephone", c.telephone ?? identite.telephone ?? null);
+  const email = choix("email", c.email ?? identite.email ?? null);
+  // L'adresse de la pièce s'imprime dans son corps (« Siège Social ») : choisie, le pied ne la répète pas.
+  const adresse = piece && Object.prototype.hasOwnProperty.call(piece, "adresse") ? null : c.adresse && c.adresse !== identite.adresse ? c.adresse : null;
   const coordonnees = [
-    c.adresse && c.adresse !== identite.adresse ? c.adresse : null,
-    c.telephone ?? identite.telephone ?? null ? `Tél. ${c.telephone ?? identite.telephone}` : null,
-    c.email ?? identite.email ?? null ? `${c.email ?? identite.email}` : null,
+    adresse,
+    telephone ? `Tél. ${telephone}` : null,
+    email,
     c.siteWeb ? c.siteWeb.replace(/^https?:\/\//i, "") : null,
   ].filter((x): x is string => Boolean(x));
   const lignes: string[] = [];
