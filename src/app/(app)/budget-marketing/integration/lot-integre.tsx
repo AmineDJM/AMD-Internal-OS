@@ -33,7 +33,18 @@ export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: Vu
   const [filtre, setFiltre] = React.useState<FiltreLot>(filtreInitial);
   const [fiche, setFiche] = React.useState<FicheOuverte | null>(null);
 
+  // GARDER / SORTIR À TOUT MOMENT, SANS QUITTER LA PAGE (Direction, 14/10/2026) : le choix s'affiche AUSSITÔT (optimiste),
+  // s'enregistre, puis la page se relit en arrière-plan (`startTransition`) — même écran, même filtre, même panneau ouvert.
+  // Un refus rend l'ancien choix et le dit.
+  const [locales, setLocales] = React.useState<Record<string, "GARDER" | "SORTIR">>({});
+  const [, demarrer] = React.useTransition();
+  const decisionDe = (a: VueLot["absentes"][number]) => locales[a.cle] ?? a.decision;
+  // La page relue fait foi : ses choix remplacent les choix optimistes (déjà enregistrés).
+  React.useEffect(() => { setLocales({}); }, [lot]);
   async function decider(a: VueLot["absentes"][number], decision: "GARDER" | "SORTIR") {
+    if (decisionDe(a) === decision) return;
+    const avant = locales[a.cle];
+    setLocales((x) => ({ ...x, [a.cle]: decision }));
     setOccupe(a.cle); setMsg(null);
     try {
       const fd = new FormData();
@@ -41,7 +52,11 @@ export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: Vu
       fd.set("libelle", `${a.reference} — ${a.libelle}`); fd.set("montant", String(a.montant));
       const r = await deciderAbsenteIntegration(fd);
       setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Enregistré." : r.error ?? "Échec." });
-      if (r.ok) router.refresh();
+      if (r.ok) demarrer(() => router.refresh());
+      else setLocales((x) => { const n = { ...x }; if (avant) n[a.cle] = avant; else delete n[a.cle]; return n; });
+    } catch {
+      setLocales((x) => { const n = { ...x }; if (avant) n[a.cle] = avant; else delete n[a.cle]; return n; });
+      setMsg({ ok: false, text: "Le choix n'a pas pu être enregistré : réessayez." });
     } finally { setOccupe(null); }
   }
 
@@ -60,7 +75,7 @@ export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: Vu
   const manquantes = lot.demandes.reduce((s, d) => s + d.manquantes, 0);
   const creees = lot.demandes.filter((d) => d.mode === "CREEE").length;
   const nIncompletes = lot.demandes.filter((d) => d.manquantes > 0).length;
-  const aDecider = lot.absentes.filter((a) => a.decision === null).length;
+  const aDecider = lot.absentes.filter((a) => decisionDe(a) === null).length;
   const lignesFichier = lot.demandes.reduce((s, d) => s + Math.max(1, d.lignes.length), 0);
   const passe = (d: VueLot["demandes"][number]) => filtre === "TOUT" || (filtre === "MANQUANTES" ? d.manquantes > 0 : d.manquantes === 0);
   const ouvrir = (d: VueLot["demandes"][number]) => setFiche({
@@ -149,9 +164,9 @@ export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: Vu
           <ul className="divide-y divide-border">
             {lot.absentes.map((a) => (
               <li key={a.cle} className="flex flex-wrap items-center gap-2 px-4 py-2">
-                <span className="min-w-0 flex-1 basis-[16rem] [overflow-wrap:anywhere]">{a.reference} — {a.libelle} <span className="text-xs text-muted-foreground">· {a.categorie} · {jour(a.date)}{a.decision === null ? " · à décider (comptée en attendant)" : a.decision === "GARDER" ? " · gardée au budget" : " · sortie du budget"}</span></span>
+                <span className="min-w-0 flex-1 basis-[16rem] [overflow-wrap:anywhere]">{a.reference} — {a.libelle} <span className="text-xs text-muted-foreground">· {a.categorie} · {jour(a.date)}{decisionDe(a) === null ? " · à décider (comptée en attendant)" : decisionDe(a) === "GARDER" ? " · gardée au budget" : " · sortie du budget"}</span></span>
                 <span className="tabular-nums">{dzd(a.montant)}</span>
-                {occupe === a.cle ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChoixAbsente valeur={a.decision} disabled={!lot.peutGerer || occupe !== null} onChange={(v) => decider(a, v)} />}
+                {occupe === a.cle ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChoixAbsente valeur={decisionDe(a)} disabled={!lot.peutGerer || occupe !== null} onChange={(v) => decider(a, v)} />}
               </li>
             ))}
           </ul>

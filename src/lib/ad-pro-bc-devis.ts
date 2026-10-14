@@ -254,6 +254,10 @@ export interface ApercuDuBC {
   surRegistre: boolean;
   /** Le BC existe déjà (révision) : sa référence, inchangée. */
   referenceExistante: string | null;
+  /** Le BC existant (à régénérer) — son numéro se modifie dans l'aperçu, la pièce exclue de l'unicité. */
+  bcExistantId: string | null;
+  /** Le numéro modifié gardé sur le brouillon d'un BC à régénérer (Direction, 14/10/2026), sinon `null`. */
+  numeroModifie: string | null;
   totaux: { totalHt: number; totalTva: number; totalTaxes: number; totalTtc: number; enLettres: string } | null;
   bloquants: string[];
   avertissements: string[];
@@ -316,6 +320,8 @@ export async function apercuDuBC(
     societeId: r.societe.id,
     surRegistre: r.surRegistre,
     referenceExistante: d.bc ? d.bc.reference : null,
+    bcExistantId: d.bc ? d.bc.id : null,
+    numeroModifie: d.bc ? correctionsDuBrouillon(brouillon).numero ?? null : null,
     totaux: r.totaux ? { totalHt: r.totaux.totalHt, totalTva: r.totaux.totalTva, totalTaxes: r.totaux.totalTaxes, totalTtc: r.totaux.totalTtc, enLettres: r.totaux.enLettres } : null,
     bloquants: r.bloquants.length > 0 ? r.bloquants : (r.pdf ? [] : r.pdfErreur ? [r.pdfErreur] : []),
     avertissements: r.avertissements,

@@ -27,7 +27,7 @@ import { requireUser } from "@/lib/session";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { MODES_PAIEMENT, TYPES_DOCUMENT, type ModePaiement, type TypeDocumentCommercial } from "@/lib/artifact/factory/commercial";
 import {
-  apercuPourEcran, definirProfilDocumentaire, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive,
+  apercuPourEcran, definirProfilDocumentaire, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive, verifierNumeroDeLaPiece,
   type ApercuDocument, type ApercuPiece, type DemandeDocument, type EchecFabrique, type MethodePdf, type ModificationsDocument,
 } from "@/platform/in-process/artifact/factory";
 import type { CoordonneesEmetteur } from "@/lib/artifact/factory/commercial";
@@ -37,6 +37,7 @@ import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { accesAuxPiecesLegalDetaille } from "@/lib/entity-access";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { saisieEffective } from "@/lib/references/registre";
+import { memeNumero } from "@/lib/bons-de-commande/numero-reference";
 import { delegationDuBcDeLaDemande } from "@/lib/secretariat/delegation-bc";
 
 /** « 2 500 000,00 » (espaces, insécables, virgule) → 2500000 ; vide ou illisible → null. */
@@ -383,6 +384,9 @@ function lireModifications(
   if (choix.coordonnees !== undefined) m.coordonneesEmetteur = choix.coordonnees;
   if (choix.signataire !== undefined) m.signataire = choix.signataire;
   if (choix.mentions !== undefined) m.mentions = choix.mentions;
+  // LE NUMÉRO DE RÉFÉRENCE, modifiable dans la même révision (Direction, 14/10/2026) : vide ou identique, la pièce le garde.
+  const numeroRevise = fdStr(formData, "numeroRevise");
+  if (numeroRevise && !memeNumero(numeroRevise, fdStr(formData, "numeroActuel"))) m.numero = numeroRevise;
   return m;
 }
 
@@ -410,7 +414,7 @@ export async function reviserPieceCommerciale(_prev: ResultatRevision | undefine
   const choix = lireChoixDeLaPiece(formData);
   const lignesRevisees = formData.has("ligneDesignation") ? lignes : undefined;
   const modifications = lireModifications(formData, lignesRevisees, choix);
-  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à réviser : la révision porte sur le tiers, les lignes, la date, les références, le paiement, la TVA, les taxes, la livraison, le contact, les notes, le papier en-tête ou les coordonnées de l'émetteur." };
+  if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à réviser : la révision porte sur le numéro, le tiers, les lignes, la date, les références, le paiement, la TVA, les taxes, la livraison, le contact, les notes, le papier en-tête ou les coordonnées de l'émetteur." };
   const r = await reviserDocumentDrive(user, {
     legalDocumentId, modifications, motif: texte(formData, "motif"),
     versionVue: vue !== null && Number.isInteger(vue) ? vue : null, exigerMotif: true,
@@ -514,4 +518,23 @@ export async function reglerNumerotationPieces(_prev: ActionResult | undefined, 
       : `Premier numéro de ${depart.annee} : ${depart.numero}. Le compteur ne recule jamais — s'il est déjà plus loin, la série continue.`);
   }
   return { ok: true, message: parts.join(" ") };
+}
+
+export type VerificationNumeroPiece = { ok: true; numero: string; change: boolean } | { ok: false; error: string };
+
+/**
+ * LE CHAMP « N° DE RÉFÉRENCE » DU COMPOSEUR, VÉRIFIÉ EN DIRECT (Direction, 14/10/2026) — à la révision d'un BC (la pièce
+ * elle-même exclue : garder son numéro n'est jamais « pris ») comme à la composition hors registre : forme, année, et
+ * unicité dans la série de la société. Lecture seule : rien n'est réservé ; la révision et l'émission revérifient sous verrou.
+ */
+export async function verifierNumeroPiece(formData: FormData): Promise<VerificationNumeroPiece> {
+  const user = await requireUser();
+  const numero = fdStr(formData, "numero");
+  if (!numero) return { ok: false, error: "Le numéro de référence est obligatoire." };
+  const type = fdStr(formData, "type") as TypeDocumentCommercial | null;
+  const r = await verifierNumeroDeLaPiece(user, {
+    legalDocumentId: fdStr(formData, "legalDocumentId"), societe: fdStr(formData, "societe"),
+    type: type && TYPES_DOCUMENT.includes(type) ? type : "BON_DE_COMMANDE", date: fdStr(formData, "date"), numero,
+  });
+  return r.ok ? r : { ok: false, error: r.motif };
 }

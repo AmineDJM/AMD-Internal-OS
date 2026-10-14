@@ -598,6 +598,25 @@ suite("Matériel promotionnel — circuit 2 de bout en bout", () => {
     expect(Number((await piece()).amount)).toBe(avant);
   }, 120_000);
 
+  it("LE N° DE RÉFÉRENCE DU BC PROMOTIONNEL SE MODIFIE (Direction, 14/10/2026) : porté par l'autre BC du dossier → refusé ; libre → écrit, imprimé, tracé", async () => {
+    ACTOR = await actorFor(u.asst);
+    const [premier, second] = await prisma.promoQuote.findMany({ where: { promoMaterialId: pmId, purchaseOrderId: { not: null } }, orderBy: { createdAt: "asc" }, select: { id: true, purchaseOrderId: true } });
+    const ref = async (id: string) => (await prisma.legalDocument.findUniqueOrThrow({ where: { id }, select: { reference: true } })).reference!;
+    const ancien = await ref(premier.purchaseOrderId!);
+    const base = { promoMaterialId: pmId, quoteId: premier.id, numeroActuel: ancien, motif: "Numéro corrigé" };
+    const pris = await modifierBonDeCommandePromo(form({ ...base, numeroRevise: await ref(second.purchaseOrderId!) }));
+    expect(pris.ok).toBe(false);
+    expect(pris.error).toMatch(/déjà porté/);
+    const nouveau = `${ancien}-B`;
+    const ok = await modifierBonDeCommandePromo(form({ ...base, numeroRevise: nouveau }));
+    expect(ok.ok, ok.ok ? "" : ok.error).toBe(true);
+    expect(ok.message).toContain(nouveau);
+    expect(await ref(premier.purchaseOrderId!)).toBe(nouveau);
+    expect(await prisma.auditLog.findFirst({ where: { entityId: premier.purchaseOrderId!, field: "numero" }, select: { oldValue: true, newValue: true } })).toEqual({ oldValue: ancien, newValue: nouveau });
+    // Remis comme avant : les bancs qui suivent lisent le numéro d'origine.
+    expect((await modifierBonDeCommandePromo(form({ ...base, numeroActuel: nouveau, numeroRevise: ancien }))).ok).toBe(true);
+  }, 120_000);
+
   it("LE FICHIER DU BC s'ouvre sous la porte de la PIÈCE : le demandeur et les Finances le lisent, pas un tiers", async () => {
     const bc = await prisma.legalDocument.findFirstOrThrow({ where: { sourceType: "PROMO_MATERIAL", sourceId: pmId, kind: "PURCHASE_ORDER" }, select: { id: true, custom: true } });
     const f = fichiersEmis(bc.custom);

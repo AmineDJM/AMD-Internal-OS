@@ -11,6 +11,33 @@ Les autres onglets de l'ERP restent tels quels. » — voir « Mon espace › Au
 - `ActionItem` gagne `montant`, `famille`, `statut` ; l'écran des paiements met en évidence plusieurs ordres
   (`?focus=a,b,c`). L'onglet `/aujourdhui` quitte la barre de l'espace (la page reste servie).
 
+### INTÉGRATION AD & PRO 2026 : « EN SORTIR » NE FAIT PLUS QUITTER L'ÉTAPE 4 — ET LE N° DE RÉFÉRENCE DES BC MODIFIABLE (2026-10-14)
+
+Aucune migration.
+
+- **« Garder / En sortir » avant la validation** (`budget-marketing/integration/assistant-integration.tsx`). Cause : chaque
+  choix faisait `setApercu(null)` — la table avant → après, la liste et la validation disparaissaient, et il fallait renvoyer
+  et relire le fichier. Le choix est désormais LOCAL : l'aperçu reste et se recalcule à l'écran (PUR
+  `lib/budget-marketing/integration-absentes.ts`, `appliquerDecisionsLocales` — chaque absente porte `categoryId` et `effet`
+  consommé/engagé). « Tout sortir », « Tout garder », et la **sélection proposée** : un élément au même libellé normalisé
+  qu'une ligne du fichier, ou au même montant (±1 DZD) dans la même catégorie, est pré-réglé « En sortir » avec « doublon
+  probable de la ligne Lnn » (`doublonsProbables`). Les choix partent avec la validation et s'écrivent dans la transaction du
+  lot (libellé et montant compris) ; l'empreinte du fichier lu est renvoyée et un fichier remplacé est refusé. Après
+  validation (`lot-integre.tsx`) : mise à jour optimiste, relecture en arrière-plan, même écran. Écriture du lot sous
+  `enSerie` + `createWithRetry` (références SPO/FORM/MP/DIM). Bancs : `integration-absentes.test.ts`, `integration-flow.test.ts`.
+- **Le N° de référence d'un BC se modifie** (Direction : « écrit manuellement, ou modifié quand on modifie ou qu'on révise
+  n'importe quel bon de commande »). Règle PURE `lib/bons-de-commande/numero-reference.ts` ; fabrique : `ModificationsDocument.numero`
+  jugé par `jugerNumeroRevise`, unicité `porteurDuNumero` (registre commun NNN/DG/AAAA tous documents, ou BC de la société),
+  écrit sous verrou avec la révision (`appliquerNumeroRevise` : entrée du registre déplacée, compteur porté AU MOINS au
+  numéro — jamais en arrière), Word/PDF/fiche/titre au nouveau numéro, audit `field = numero` (ancien → nouveau). Hors
+  registre, un BC se compose aussi avec un numéro écrit à la main (série verrouillée, compteur porté à sa séquence).
+  Composeur : champ « N° de référence » (`components/references/champ-numero-piece.tsx`, vérifié en direct par
+  `verifierNumeroPiece`) en révision (fiche Legal, demande au secrétariat, poste Ad & Pro), sur l'aperçu d'un BC à
+  régénérer, et à la composition hors registre ; BC promotionnel : « Modifier » et aperçu prérempli du prochain numéro ;
+  BC déposés (fiche Legal, secrétariat) : unicité + registre + trace (`lib/bons-de-commande/numero-depose.ts`). Les circuits
+  de validation et de signature ne changent pas. Bancs : `actions/bc-numero-reference-flow.test.ts`,
+  `numero-reference.test.ts`, et un cas dans `bc-apercu-complet-flow`, `secretariat/devis-bc-flow`, `promo-circuit-v2-flow`.
+
 ### BONS DE COMMANDE : L'APERÇU OBLIGATOIRE, ET TOUT S'Y CORRIGE (2026-10-14)
 
 Aucune migration (le brouillon reste le JSON `AdProDevis.bcBrouillon`). Décision de la Direction : « Je veux l'aperçu

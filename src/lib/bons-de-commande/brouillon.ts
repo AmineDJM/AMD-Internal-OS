@@ -60,6 +60,11 @@ export interface CorrectionsBc {
   letterheadId?: string | null;
   signataire?: { nom: string; qualite?: string | null } | null;
   mentions?: string[] | null;
+  /**
+   * LE NUMÉRO DE RÉFÉRENCE MODIFIÉ (Direction, 14/10/2026) — seulement pour un BC qui a DÉJÀ son numéro (un BC à régénérer,
+   * une révision) : la régénération le passe à la fabrique, qui le juge (unique dans sa série, compteur jamais en arrière).
+   */
+  numero?: string | null;
 }
 
 /** Ce que le composeur envoie : les corrections, et les lignes quand il en porte. */
@@ -133,7 +138,7 @@ export function lireCorrections(brut: unknown): CorrectionsBc | null {
     for (const k of ["adresse", "telephone", "email", "rc", "nif", "ai", "nis", "rib", "banque"]) if (present(t, k)) tiers[k] = texte(t[k]);
     c.tiers = tiers as PartieCommerciale;
   }
-  for (const k of ["date", "conditionsPaiement", "objet", "referenceAmont", "referenceAmontDate", "notes", "letterheadId"] as const) {
+  for (const k of ["date", "conditionsPaiement", "objet", "referenceAmont", "referenceAmontDate", "notes", "letterheadId", "numero"] as const) {
     if (present(o, k)) c[k] = texte(o[k]);
   }
   for (const k of ["tvaDefaut", "remiseGlobale"] as const) if (present(o, k)) c[k] = nombre(o[k]);
@@ -269,6 +274,8 @@ export type DemandeCorrigeable = Omit<CorrectionsBc, "tiers"> & { tiers: PartieC
 export function appliquerCorrections<D extends DemandeCorrigeable>(d: D, c: CorrectionsBc | null | undefined): D {
   if (!c) return d;
   const { tiers, contact, livraison, ...reste } = c;
+  // Le numéro modifié n'est pas une correction de la DEMANDE : il passe par la révision (`numero` de la fabrique).
+  delete reste.numero;
   const ecrits = Object.fromEntries(Object.entries(reste).filter(([, v]) => v !== undefined));
   return {
     ...d,

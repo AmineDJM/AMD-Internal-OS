@@ -12,7 +12,7 @@ import { IDENTITE_FACTURE_VIDE } from "@/lib/factures/identite";
 import {
   annulerLot, apercuIntegration, blocHistoriqueDe, chargerCandidates, correspondanceCategories, ecrireLot, empreinte,
   enveloppesGerees, lireFichierIntegration, peutJoindrePieces, piecesConnuesDuPlan, proposer,
-  type Apercu, type BlocHistorique, type ChoixDemande, type CorrespondanceCategories, type EnveloppeCandidate, type PropositionDemande,
+  type Apercu, type BlocHistorique, type ChoixDemande, type CorrespondanceCategories, type EntreeIntegration, type EnveloppeCandidate, type PropositionDemande,
 } from "@/lib/budget-marketing/integration-serveur";
 import { controleDeLaPiece, piecesAttenduesDe, piecesRattacheesDe, stepKeyDePiece } from "@/lib/budget-marketing/integration-vue";
 import { formatCentimes, type PlanIntegration, type TypeDemandeIntegree } from "@/lib/budget-marketing/integration-2026";
@@ -78,10 +78,33 @@ function lireChoix(formData: FormData): ChoixDemande[] {
   }
   return out;
 }
-function lireDecisions(formData: FormData): { cleSource: string; decision: "GARDER" | "SORTIR" }[] {
+/**
+ * LES CHOIX « GARDER / SORTIR » DE L'ÉTAPE 4 — choisis à l'écran (localement, sans rien écrire), envoyés avec l'aperçu et
+ * avec la validation. Une clé inconnue de la règle est écartée ; une même clé ne compte qu'une fois (la dernière) — deux
+ * lignes pour un même élément feraient échouer l'écriture du lot sur l'unicité (lot, élément).
+ */
+function lireDecisions(formData: FormData): EntreeIntegration["decisions"] {
   const brut = json<unknown[]>(formData, "decisions", []);
-  return (Array.isArray(brut) ? brut : [])
-    .filter((d): d is { cleSource: string; decision: "GARDER" | "SORTIR" } => typeof d === "object" && d !== null && typeof (d as { cleSource?: unknown }).cleSource === "string" && ((d as { decision?: unknown }).decision === "GARDER" || (d as { decision?: unknown }).decision === "SORTIR"));
+  const parCle = new Map<string, EntreeIntegration["decisions"][number]>();
+  for (const d of (Array.isArray(brut) ? brut : []).slice(0, 5000)) {
+    if (typeof d !== "object" || d === null) continue;
+    const o = d as Record<string, unknown>;
+    if (typeof o.cleSource !== "string" || !/^(TX|LIGNE|POSTE|ORDRE):/.test(o.cleSource) || (o.decision !== "GARDER" && o.decision !== "SORTIR")) continue;
+    parCle.set(o.cleSource, {
+      cleSource: o.cleSource, decision: o.decision,
+      libelle: typeof o.libelle === "string" ? o.libelle.slice(0, 300) : null,
+      montant: typeof o.montant === "number" && Number.isFinite(o.montant) ? o.montant : null,
+    });
+  }
+  return [...parCle.values()];
+}
+
+/**
+ * LE FICHIER LU À L'ÉTAPE 1, ET NUL AUTRE : l'écran renvoie l'empreinte de sa lecture ; un fichier remplacé entre-temps
+ * (même nom, autre contenu) est refusé au lieu d'être intégré sur un aperçu qui ne le décrivait pas.
+ */
+function refusEmpreinte(lue: string | null, sha256: string): string | null {
+  return lue && lue !== sha256 ? "Le fichier a changé depuis sa lecture (étape 1) : relisez-le avant de vérifier ou de valider — rien n'est écrit." : null;
 }
 
 // ─────────────────────────────── 1. Lire ───────────────────────────────
@@ -134,6 +157,8 @@ export async function apercuIntegrationAdPro(formData: FormData): Promise<{ ok: 
   if ("erreur" in f) return { ok: false, error: f.erreur };
   const lu = lireFichierIntegration(f.octets);
   if (!lu.ok) return { ok: false, error: lu.erreurs.join(" ") };
+  const change = refusEmpreinte(fdStr(formData, "sha256"), lu.sha256);
+  if (change) return { ok: false, error: change };
   const r = await apercuIntegration(user, lu.plan, {
     envelopeId: env.id, choix: lireChoix(formData), decisions: lireDecisions(formData), dossierPromoDuVisa: fdStr(formData, "dossierPromoDuVisa"),
   });
@@ -154,8 +179,11 @@ export async function validerIntegrationAdPro(formData: FormData): Promise<Actio
   if ("erreur" in f) return { ok: false, error: f.erreur };
   const lu = lireFichierIntegration(f.octets);
   if (!lu.ok) return { ok: false, error: `Le fichier ne correspond plus aux décisions : ${lu.erreurs.join(" ")}` };
+  const change = refusEmpreinte(fdStr(formData, "sha256"), lu.sha256);
+  if (change) return { ok: false, error: change };
+  const decisions = lireDecisions(formData);
   const r = await ecrireLot(user, lu.plan, { nom: f.nom, sha256: lu.sha256 }, {
-    envelopeId: env.id, choix: lireChoix(formData), decisions: lireDecisions(formData),
+    envelopeId: env.id, choix: lireChoix(formData), decisions,
     dossierPromoDuVisa: fdStr(formData, "dossierPromoDuVisa"), rattacherConnues: fdStr(formData, "rattacherConnues") !== "off",
   });
   if (!r.ok) return { ok: false, error: r.erreur };
@@ -168,7 +196,7 @@ export async function validerIntegrationAdPro(formData: FormData): Promise<Actio
   await recordAudit({
     actorId: user.id, action: "IMPORT", module: MODULE_AUDIT, entityType: "BUDGET", entityId: env.id, field: "integration",
     newValue: r.resultat.lotId,
-    summary: `Intégration des dépenses réelles Ad & Pro 2026 validée — ${r.resultat.demandes} demandes (${r.resultat.creees} créées « Historique 2026 », ${r.resultat.completees} complétées), ${formatCentimes(Math.round(r.resultat.total * 100))} DZD, fichier « ${f.nom} » (${lu.sha256.slice(0, 12)}…).`,
+    summary: `Intégration des dépenses réelles Ad & Pro 2026 validée — ${r.resultat.demandes} demandes (${r.resultat.creees} créées « Historique 2026 », ${r.resultat.completees} complétées), ${formatCentimes(Math.round(r.resultat.total * 100))} DZD, fichier « ${f.nom} » (${lu.sha256.slice(0, 12)}…) ; éléments absents du fichier : ${decisions.filter((d) => d.decision === "SORTIR").length} sorti(s), ${decisions.filter((d) => d.decision === "GARDER").length} gardé(s), décidés avec le lot.`,
   });
   revalider();
   return { ok: true, id: r.resultat.lotId, message: `Intégration validée : ${r.resultat.demandes} demandes, ${formatCentimes(Math.round(r.resultat.total * 100))} DZD au centime. Les pièces se joignent à tout moment sur chaque demande.` };

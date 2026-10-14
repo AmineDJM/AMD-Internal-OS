@@ -88,6 +88,7 @@ export function ApercuBcPromo({ promoMaterialId, quoteId, fournisseur, brouillon
     fd.set("livraisonAdresse", lieu); fd.set("livraisonDate", dateLivraison); fd.set("livraisonDelai", delai);
     fd.set("extraTaxLabel", taxeLibelle); fd.set("extraTaxRate", taxeTaux);
     fd.set("numeroChoisi", numeroChoisi);
+    if (apercu && apercu.ok) fd.set("numeroSuggere", apercu.numeroPrevu);
     return fd;
   };
 
@@ -96,6 +97,8 @@ export function ApercuBcPromo({ promoMaterialId, quoteId, fournisseur, brouillon
     startCharge(async () => {
       const r = await apercuBcPromo(simple());
       setApercu(r);
+      // LE N° DE RÉFÉRENCE PRÉREMPLI (Direction, 14/10/2026) : le prochain numéro, à garder ou à réécrire à la main.
+      if (r.ok) setNumeroChoisi((n) => n.trim() ? n : r.numeroPrevu);
       setUrl((ancien) => {
         if (ancien) URL.revokeObjectURL(ancien);
         if (!r.ok || !r.pdfBase64) return null;
@@ -121,6 +124,7 @@ export function ApercuBcPromo({ promoMaterialId, quoteId, fournisseur, brouillon
     setErreur(null);
     startValide(async () => {
       const fd = simple(); fd.set("numeroChoisi", numeroChoisi);
+      if (apercu && apercu.ok) fd.set("numeroSuggere", apercu.numeroPrevu);
       const r = await validerEtEnvoyerBcPromo(fd);
       if (!r.ok) { setErreur(r.error ?? "La validation n'a pas abouti."); return; }
       onDone(r);
@@ -155,9 +159,9 @@ export function ApercuBcPromo({ promoMaterialId, quoteId, fournisseur, brouillon
           </p>
           {apercu && apercu.ok && peutValider && (
             <div className="space-y-1">
-              <Label htmlFor="bc-promo-numero">Numéro du BC à valider</Label>
+              <Label htmlFor="bc-promo-numero">N° de référence du BC à valider</Label>
               <Input id="bc-promo-numero" value={numeroChoisi} onChange={(e) => setNumeroChoisi(e.target.value)} placeholder={apercu.numeroPrevu} className="text-sm" />
-              <p className="text-xs text-muted-foreground">Vide : le prochain numéro ({apercu.numeroPrevu}).</p>
+              <p className="text-xs text-muted-foreground">Proposé : le prochain numéro ({apercu.numeroPrevu}). Gardez-le, ou écrivez le vôtre — il doit être libre ; le compteur ne recule jamais.</p>
             </div>
           )}
         </div>

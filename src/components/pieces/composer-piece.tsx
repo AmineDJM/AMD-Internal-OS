@@ -14,6 +14,7 @@ import {
   type ApercuImpression, type ApercuPiece, type ResultatEmission, type ResultatRevision,
 } from "@/lib/actions/fabrique-actions";
 import { ChampReference } from "@/components/references/champ-reference";
+import { ChampNumeroPiece, type EtatNumeroPiece } from "@/components/references/champ-numero-piece";
 
 /**
  * COMPOSER UNE PIÈCE — le bouton des Finances (et de Legal) : une facture, un bon de commande ou
@@ -77,7 +78,7 @@ export interface ComposerPieceProps {
    * en natif ») : le composeur s'ouvre PRÉ-REMPLI de la version courante (`valeurs`, lues dans `custom.fabrique.spec`),
    * tout se modifie, et l'enregistrement est une RÉVISION (`reviserPieceCommerciale`) : même numéro, nouvelle version du
    * Word et du PDF, historique gardé — et, pour un BC, le circuit de validation repart (signature retirée, centre rouvert).
-   * Restent fixes la nature, la société et le numéro : ce sont eux qui font que c'est la même pièce.
+   * Restent fixes la nature et la société ; le numéro se modifie dans le même formulaire (Direction, 14/10/2026).
    */
   revision?: RevisionComposeur;
   /**
@@ -99,6 +100,10 @@ export interface BrouillonComposeur {
   valeurs: ValeursComposables;
   /** Un BC à régénérer garde son numéro ; sinon `null` (« à attribuer à la validation »). */
   numeroExistant: string | null;
+  /** Le BC à régénérer lui-même (son numéro se modifie dans l'aperçu, la pièce exclue de l'unicité). */
+  pieceExistanteId?: string | null;
+  /** Le numéro déjà modifié gardé sur le brouillon d'un BC à régénérer ; `null` = son numéro actuel. */
+  numeroModifie?: string | null;
   /** Le numéro choisi déjà gardé sur le brouillon (registre NNN/DG/AAAA). */
   numeroChoisi: string | null;
   /** Le PDF de l'aperçu à l'ouverture (rendu à blanc) : l'aperçu s'ouvre prêt à relire. */
@@ -220,6 +225,12 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
   const [depart, setDepart] = React.useState<string>("");
   // La référence saisie au registre commun NNN/DG/AAAA (quand la pièce y va) : la saisie, la proposition, et son refus en direct.
   const [reference, setReference] = React.useState({ valeur: "", suggeree: "", refusee: false });
+  // LE N° DE RÉFÉRENCE MODIFIABLE (Direction, 14/10/2026) — d'un BC (ou devis) déjà numéroté, en révision ou à régénérer : le
+  // numéro actuel prérempli, modifiable dans le même formulaire, vérifié en direct (`ChampNumeroPiece`).
+  const numeroDepart = rev && (type === "BON_DE_COMMANDE" || type === "DEVIS") ? rev.numero : br?.numeroExistant ?? null;
+  const [numeroPiece, setNumeroPiece] = React.useState<EtatNumeroPiece>(() => ({ valeur: br?.numeroModifie?.trim() || numeroDepart || "", change: false, erreur: null, verification: false }));
+  // HORS REGISTRE, À LA COMPOSITION D'UN BC : le prochain numéro de la série prérempli, ou un numéro écrit à la main.
+  const [numeroLibre, setNumeroLibre] = React.useState<EtatNumeroPiece | null>(null);
   // L'APERÇU AVANT IMPRESSION : le PDF de la pièce à blanc, en blob local — jamais un fichier du Drive. L'aperçu d'un BC s'ouvre
   // avec SON PDF déjà rendu : un clic du demandeur ouvre l'aperçu prêt à relire, sans geste intermédiaire.
   const [impression, setImpression] = React.useState<{ url: string; pages: number; numero: string } | null>(() => {
@@ -296,13 +307,15 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
     }
     for (const t of taxes) { fd.append("taxeLibelle", t.libelle); fd.append("taxeTaux", t.taux); }
     if (amontRetenu && !pieceDonnee) fd.set("chainFromId", amontRetenu);
+    // Le numéro d'une pièce déjà numérotée : la saisie et le numéro actuel — l'aperçu l'imprime, la révision l'écrit.
+    if (numeroDepart) { fd.set("numeroRevise", numeroPiece.valeur); fd.set("numeroActuel", numeroDepart); }
     return fd;
-  }, [type, societe, letterheadId, papierChange, tiers, champs, lignes, taxes, amontRetenu, props.prevalidation, emetteur, signataire, mentions, rev, br, pieceDonnee, v0]);
+  }, [type, societe, letterheadId, papierChange, tiers, champs, lignes, taxes, amontRetenu, props.prevalidation, emetteur, signataire, mentions, rev, br, pieceDonnee, v0, numeroDepart, numeroPiece.valeur]);
 
   // L'APERÇU suit la saisie, avec un demi-seconde de retenue : assez pour ne pas appeler le
   // serveur à chaque touche, assez peu pour que les totaux paraissent vivants.
   const pret = tiers.nom.trim() !== "" && lignes.some((l) => !l.section && l.designation.trim() !== "");
-  const empreinte = JSON.stringify({ type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu, emetteur, signataire, mentions });
+  const empreinte = JSON.stringify({ type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu, emetteur, signataire, mentions, numero: numeroDepart ? numeroPiece.valeur : null });
   // Un aperçu d'avant la dernière frappe n'est plus l'aperçu : il se ferme (et libère son blob) plutôt que de montrer un document périmé.
   // La saisie d'ouverture garde le PDF avec lequel l'aperçu d'un BC s'est ouvert.
   const empreinteOuverture = React.useRef(empreinte);
@@ -340,6 +353,8 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
     const fd = construireFormData();
     // LA RÉFÉRENCE (registre commun NNN/DG/AAAA) : envoyée à l'ÉMISSION seulement — l'aperçu montre le numéro prévu.
     if (apercu && apercu.ok && apercu.surRegistre) { fd.set("numeroChoisi", reference.valeur); fd.set("numeroSuggere", reference.suggeree); }
+    // Hors registre : un numéro écrit à la main (gardé tel quel, le prochain de la série est attribué).
+    else if (numeroLibre?.change) fd.set("numeroChoisi", numeroLibre.valeur);
     startEmission(async () => {
       const r = await emettrePieceCommerciale(undefined, fd);
       setResultat(r);
@@ -388,6 +403,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
   const formulaireDuBrouillon = (): FormData => {
     const fd = construireFormData();
     if (br && !br.numeroExistant && apercu && apercu.ok && apercu.surRegistre) { fd.set("numeroChoisi", reference.valeur); fd.set("numeroSuggere", reference.suggeree); }
+    else if (br && !br.numeroExistant && numeroLibre?.change) fd.set("numeroChoisi", numeroLibre.valeur);
     return fd;
   };
   const gesteBrouillon = (geste: ((fd: FormData) => Promise<Retour>) | undefined, fermer: boolean) => {
@@ -426,9 +442,14 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
 
   const totaux = apercu && apercu.ok ? apercu.totaux : null;
   const bloquants = apercu && apercu.ok ? apercu.bloquants : apercu && !apercu.ok ? [apercu.error] : [];
-  const peutEmettre = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !resultat?.ok && !(apercu.surRegistre && reference.refusee);
-  const peutReviser = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !revisionResultat?.ok && (!!rev?.motifFacultatif || motifRevision.trim().length > 0);
-  const peutValiderBrouillon = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !chargement && !(apercu.surRegistre && !br?.numeroExistant && reference.refusee);
+  // Un numéro refusé (pris, mal écrit) ou en cours de vérification retient le geste qui l'écrirait.
+  const numeroRetenu = Boolean(numeroDepart && (numeroPiece.erreur || numeroPiece.verification));
+  const libreRetenu = Boolean(numeroLibre && (numeroLibre.erreur || numeroLibre.verification) && numeroLibre.change);
+  const peutEmettre = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !resultat?.ok && !(apercu.surRegistre && reference.refusee) && !libreRetenu;
+  const peutReviser = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !revisionResultat?.ok && (!!rev?.motifFacultatif || motifRevision.trim().length > 0) && !numeroRetenu;
+  const peutValiderBrouillon = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !chargement && !(apercu.surRegistre && !br?.numeroExistant && reference.refusee) && !numeroRetenu && !libreRetenu;
+  // HORS REGISTRE, le champ du numéro d'un BC à composer (le registre a le sien, `ChampReference`).
+  const montrerNumeroLibre = !numeroDepart && type === "BON_DE_COMMANDE" && !!apercu && apercu.ok && !apercu.surRegistre && !resultat?.ok && !(br && !br.valider);
   // Le signataire montré : celui choisi, sinon celui que l'aperçu annonce (la marque, le profil).
   const signataireAffiche = signataire ?? { nom: apercu && apercu.ok ? apercu.signataire?.nom ?? "" : "", qualite: apercu && apercu.ok ? apercu.signataire?.qualite ?? "" : "" };
   // Les coordonnées montrées : celles choisies, sinon celles que la société imprime (connues par l'aperçu).
@@ -458,6 +479,29 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
               annee={Number(champs.date.slice(0, 4)) || undefined}
               charger={async () => ({ ok: true, actif: true, societeId: apercu.societe.id, prochaine: apercu.numeroProchain })}
               onChange={(e) => setReference({ valeur: e.valeur, suggeree: e.suggeree ?? "", refusee: e.erreur !== null })}
+            />
+          </div>
+        )}
+        {numeroDepart && !revisionResultat?.ok && (
+          <div className="mt-2 max-w-sm">
+            <ChampNumeroPiece
+              depart={numeroDepart} initial={br?.numeroModifie ?? null}
+              legalDocumentId={rev?.legalDocumentId ?? br?.pieceExistanteId ?? null}
+              type={type === "DEVIS" ? "DEVIS" : "BON_DE_COMMANDE"} date={champs.date}
+              label={type === "DEVIS" ? "N° de référence du devis" : "N° de référence du BC"}
+              aide="Le numéro actuel de la pièce. Écrivez-en un autre pour le modifier : unique dans la série de la société, le changement est tracé."
+              onChange={setNumeroPiece}
+            />
+          </div>
+        )}
+        {montrerNumeroLibre && apercu && apercu.ok && (
+          <div className="mt-2 max-w-sm">
+            <ChampNumeroPiece
+              key={`${apercu.societe.id}:${champs.date.slice(0, 4)}`}
+              depart={apercu.numeroProchain} societe={apercu.societe.id} type="BON_DE_COMMANDE" date={champs.date}
+              label={br ? "N° de référence du BC (attribué à la validation)" : "N° de référence du BC"}
+              aide="Le prochain numéro de la série, proposé. Gardez-le, ou écrivez le vôtre : il doit être libre, et le compteur ne recule jamais."
+              onChange={setNumeroLibre}
             />
           </div>
         )}

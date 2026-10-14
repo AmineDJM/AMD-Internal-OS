@@ -28,6 +28,8 @@ import { genererLesBonsDeCommande, apercuDuBcPromo, type ApercuBcPromo } from "@
 import { cloreLeDossierPromoSiSolde } from "@/lib/promo-cloture";
 import { brouillonPromoEnJson, lireBrouillonPromo, type BrouillonBcPromo } from "@/lib/promo-material/bc-brouillon-promo";
 import { peutValiderLeBrouillon, REFUS_VALIDATION_BROUILLON } from "@/lib/bons-de-commande/brouillon";
+import { memeNumero } from "@/lib/bons-de-commande/numero-reference";
+import { saisieEffective } from "@/lib/references/registre";
 import { MODES_PAIEMENT } from "@/lib/artifact/factory/commercial";
 import { devisDuDossier, devisLu } from "@/lib/queries/promo-circuit";
 import { formatDzd } from "@/lib/promo-material/devis";
@@ -232,7 +234,8 @@ export async function modifierApercuBcPromo(formData: FormData): Promise<ActionR
     modePaiement: (mode as BrouillonBcPromo["modePaiement"]) ?? null,
     conditionsPaiement: fdStr(formData, "conditionsPaiement"),
     livraison: adresse || dateLivraison || delai ? { adresse, date: dateLivraison, delai } : null,
-    numeroChoisi: fdStr(formData, "numeroChoisi"),
+    // Le numéro prérempli (le prochain) n'est pas un choix : laissé tel quel, le prochain libre est attribué à la validation.
+    numeroChoisi: saisieEffective(fdStr(formData, "numeroChoisi"), fdStr(formData, "numeroSuggere")),
     taxe: taxeSaisie.taxe,
     modifieLe: new Date().toISOString(), modifiePar: user.id,
   };
@@ -277,7 +280,7 @@ export async function validerEtEnvoyerBcPromo(formData: FormData): Promise<Actio
   if (!lu.brouillon) return { ok: false, error: "Ce devis n'a pas d'aperçu de bon de commande à valider : rechargez la fiche." };
   // LE NUMÉRO PROPOSÉ au dernier moment (« Numéro du BC à valider ») : écrit sur l'aperçu, que l'émission lit.
   if (formData.has("numeroChoisi")) {
-    const numero = fdStr(formData, "numeroChoisi");
+    const numero = saisieEffective(fdStr(formData, "numeroChoisi"), fdStr(formData, "numeroSuggere"));
     if (numero !== lu.brouillon.numeroChoisi) {
       await prisma.promoQuote.updateMany({
         where: { id: lu.devis.id, purchaseOrderId: lu.devis.purchaseOrderId },
@@ -322,6 +325,7 @@ export async function modifierBonDeCommandePromo(formData: FormData): Promise<Ac
   const contactNom = saisi("contactNom");
   const contactTelephone = saisi("contactTelephone");
   const notes = saisi("notes");
+  const numeroRevise = saisi("numeroRevise");
   // LA TAXE SUPPLÉMENTAIRE se corrige aussi : un taux la change, « 0 » la retire, vide la garde — et sans libellé
   // nouveau, le libellé de la pièce reste (« Taxe Pub » ne devient pas « Taxe additionnelle » parce qu'on change le taux).
   const taxeSaisie = lireTaxeSupplementaire(formData);
@@ -346,6 +350,9 @@ export async function modifierBonDeCommandePromo(formData: FormData): Promise<Ac
       : {}),
     ...(notes !== undefined ? { notes } : {}),
     ...(taxes !== undefined ? { taxes } : {}),
+    // LE N° DE RÉFÉRENCE (Direction, 14/10/2026) : prérempli du numéro actuel ; changé, la fabrique le juge (unique dans sa
+    // série, compteur jamais en arrière) et le trace.
+    ...(numeroRevise && !memeNumero(numeroRevise, fdStr(formData, "numeroActuel") ?? lu.bc.reference) ? { numero: numeroRevise } : {}),
   };
   if (Object.keys(modifications).length === 0) {
     return { ok: false, error: "Rien à modifier : renseignez au moins un champ — ceux laissés vides gardent leur valeur." };
