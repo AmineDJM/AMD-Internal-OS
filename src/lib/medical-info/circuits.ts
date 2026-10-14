@@ -83,10 +83,10 @@ export const CIRCUIT_LABEL: Record<MedicalCircuit, string> = {
 export const CIRCUIT_HINT: Record<MedicalCircuit, string> = {
   EVENT:
     "Prises en charge nationales et internationales, événements, sponsorings. Pas de bon de versement : "
-    + "le pharmacien fait valider s'il y a lieu de déclarer, puis fait le nécessaire auprès du ministère "
+    + "le pharmacien fait valider par le Directeur des Opérations s'il y a lieu de déclarer, puis fait le nécessaire auprès du ministère "
     + "de l'Industrie pharmaceutique.",
   PROMO:
-    "Le dossier se sépare en matériels, un bon de versement par matériel. Une validation couvre le dépôt "
+    "Le dossier se sépare en matériels, un bon de versement par matériel. Une validation du Directeur des Opérations couvre le dépôt "
     + "des bons ; le paiement de chacun se demande ensuite séparément.",
 };
 

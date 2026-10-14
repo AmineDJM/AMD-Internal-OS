@@ -1295,6 +1295,11 @@ X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de 
   + "ouvert. Un clic, confirmé, sur la carte de la demande.", [
   "validation-actions:demanderValidationFinaleBC",
 ]);
+X("REFUSER LA VALIDATION FINALE D'UNE DÉCLARATION D'INFORMATION MÉDICALE (Direction, 10/2026) — le geste du Directeur "
+  + "des Opérations (à défaut, du Super Admin), motif EXIGÉ : le dossier revient au pharmacien avec le motif. Adam est en "
+  + "pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur la fiche de la déclaration.", [
+  "medical-info-actions:refuseDeclarationByDirection",
+]);
 X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
   + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
   + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [

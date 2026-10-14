@@ -7,8 +7,11 @@
  *
  * ── LES ÉTAPES ──────────────────────────────────────────────────────────────────────────────
  *
- *   ÉVÉNEMENT : Reçu → À déclarer ? → Pièces → Dépôt ministère → Pharmacien → Direction
- *   MATÉRIEL  : Reçu → Pièces → Bons de versement → Dépôt ministère → Pharmacien → Direction
+ *   ÉVÉNEMENT : Reçu → À déclarer ? → Pièces → Dépôt ministère → Pharmacien → Directeur des Opérations
+ *   MATÉRIEL  : Reçu → Pièces → Bons de versement → Dépôt ministère → Pharmacien → Directeur des Opérations
+ *
+ * La dernière étape garde sa clé `DIRECTION` (la validation finale) ; elle appartient au Directeur
+ * des Opérations depuis 10/2026 (`decideur.ts`) — à défaut au Super Admin, que `chezDecideur` nomme.
  *
  * L'étape COURANTE est la première qui n'est ni faite ni sans objet. Les pièces sont facultatives
  * (le pharmacien en réclame quand il lui en manque) : sans demande, l'étape est « sans objet ».
@@ -19,6 +22,7 @@ import { declareStage, type DeclareInput } from "./declare-decision";
 import { slipStage, type SlipInput, type SlipsLotStage, type SlipsSummary } from "./slips";
 import type { MedicalCircuit } from "./circuits";
 import { RELANCE_DELAI_MS } from "@/lib/tasks/request-flow";
+import { DECIDEUR_INFO_MED_LABEL } from "./decideur";
 
 export type EtapeCle = "RECU" | "DECLARER" | "PIECES" | "BONS" | "DEPOT" | "PHARMACIEN" | "DIRECTION";
 export type EtatEtape = "FAIT" | "ICI" | "A_VENIR" | "SANS_OBJET";
@@ -32,7 +36,7 @@ export const ETAPE_LABEL: Record<EtapeCle, string> = {
   BONS: "Bons de versement",
   DEPOT: "Dépôt ministère",
   PHARMACIEN: "Pharmacien",
-  DIRECTION: "Direction",
+  DIRECTION: DECIDEUR_INFO_MED_LABEL,
 };
 
 const ORDRE: Record<MedicalCircuit, EtapeCle[]> = {
@@ -70,6 +74,11 @@ export interface ParcoursInput {
   pharmacistValidatedAt: Date | null;
   validatedAt: Date | null;
   pharmacistName: string | null;
+  /**
+   * Chez qui attendent les décisions du pharmacien — « le Directeur des Opérations », ou « le Super
+   * Admin » quand aucun directeur n'est actif (`chezDecideur`). Absent : le Directeur des Opérations.
+   */
+  chezDecideur?: string | null;
 }
 
 export interface Etape {
@@ -227,7 +236,7 @@ export function parcoursOf(i: ParcoursInput): Parcours {
       etat = "Validé"; chez = null; ton = "success"; depuis = null; groupe = "VALIDE";
       break;
     case "DIRECTION":
-      etat = "À valider"; chez = "la Direction"; ton = "purple";
+      etat = "À valider"; chez = i.chezDecideur ?? `le ${DECIDEUR_INFO_MED_LABEL}`; ton = "purple";
       depuis = i.pharmacistValidatedAt ?? i.updatedAt; groupe = "A_VALIDER_DIRECTION";
       break;
     case "PHARMACIEN":
@@ -236,7 +245,7 @@ export function parcoursOf(i: ParcoursInput): Parcours {
       groupe = "A_VALIDER_PHARMACIEN";
       break;
     case "DECLARER":
-      if (stage === "EN_VALIDATION") { etat = "Décision en validation"; chez = "les validateurs"; ton = "info"; }
+      if (stage === "EN_VALIDATION") { etat = "Décision en validation"; chez = i.chezDecideur ?? `le ${DECIDEUR_INFO_MED_LABEL}`; ton = "info"; }
       else if (stage === "A_REVOIR" || stage === "REFUSEE") { etat = "Décision à reprendre"; chez = pharmacien; ton = "warning"; }
       else { etat = "À déclarer ?"; chez = pharmacien; ton = "warning"; }
       depuis = stage === "A_DEMANDER" ? i.createdAt : (i.declareRequestedAt ?? i.createdAt);
@@ -253,7 +262,7 @@ export function parcoursOf(i: ParcoursInput): Parcours {
         || i.slips.some((s) => slipStage(s) === "RENVOYE"));
       depuis = dernierMouvementBons ?? i.createdAt;
       if (i.lot === "EN_VALIDATION") {
-        etat = "Bons en validation"; chez = "les validateurs"; ton = "info"; groupe = "A_DECLARER";
+        etat = "Bons en validation"; chez = i.chezDecideur ?? `le ${DECIDEUR_INFO_MED_LABEL}`; ton = "info"; groupe = "A_DECLARER";
       } else if (resteChezPharmacien) {
         etat = "Bons de versement"; chez = pharmacien; ton = "warning"; groupe = "A_DECLARER";
       } else if (paiement.finances > 0) {
@@ -314,7 +323,7 @@ export type BlocAction =
 export interface Spectateur {
   /** Pharmacien responsable, Direction, admin — qui instruit le dossier. */
   gestionnaire: boolean;
-  /** Qui donne la validation finale. */
+  /** Qui donne la validation finale — le Directeur des Opérations (à défaut le Super Admin). */
   direction: boolean;
   /** Les Finances, hors gestionnaires, quand un bon leur est parvenu. */
   finances: boolean;
@@ -378,7 +387,7 @@ export function carteAction(
   }
 
   if (p.courante === "DIRECTION" && v.direction) principal.push("VALIDER_DIRECTION");
-  // Transmis à la Direction, le dépôt se corrige encore (une référence mal saisie) — replié.
+  // Transmis au Directeur des Opérations, le dépôt se corrige encore (une référence mal saisie) — replié.
   if (p.courante === "DIRECTION" && v.gestionnaire && regles.autoritesOuvertes) {
     aussi = { bloc: "DEPOT", libelle: "Modifier le dépôt au ministère" };
   }

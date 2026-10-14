@@ -6,7 +6,9 @@ import { ArrowLeft, ChevronRight, ExternalLink, FileText, CheckCircle2, Clock } 
 import { requireUser } from "@/lib/session";
 import { hasGlobalView, userCan, scopeCongressIntl, scopeCongressNational, scopeSponsoring } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { getDeclaration, canViewDeclaration, sourceLink, dernieresRelancesPieces } from "@/lib/queries/medical-info";
+import { getDeclaration, canViewDeclaration, sourceLink, dernieresRelancesPieces, dernierRefusFinal } from "@/lib/queries/medical-info";
+import { decideursInfoMedActifs } from "@/lib/medical-info";
+import { estDecideurInfoMed, chezDecideur } from "@/lib/medical-info/decideur";
 import { peutOuvrirLeDossierPromo } from "@/lib/queries/promo-circuit";
 import { toNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -60,7 +62,9 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
   const carteFinances = !canManage && canDeliverSlips && etat.circuit === "PROMO" && etat.slips.some((sl) => sl.requestId);
   const lotEditable = canEditSlips(etat.lot);
   const isValidated = decl.status === "VALIDATED";
-  const isDirection = hasGlobalView(user.role);
+  // QUI TRANCHE (Direction, 10/2026) : le Directeur des Opérations, à défaut le Super Admin — jamais le
+  // pharmacien qui a lui-même validé le dossier (la même porte que `validateDeclarationByDirection`).
+  const isDirection = estDecideurInfoMed(user) && (user.role === "SUPER_ADMIN" || decl.pharmacistValidatedById !== user.id);
   // Instruire, c'est avant la validation finale : après, les gestes du pharmacien se referment.
   const instruit = canManage && !isValidated;
   // UN PAIEMENT DE MATÉRIEL PROMOTIONNEL (§118.152) : la source déclarée est la FACTURE (une pièce
@@ -104,7 +108,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
   const amount = decl.amount != null ? toNumber(decl.amount) : null;
   const pendingCount = decl.requests.filter((r) => r.status === "PENDING").length;
 
-  const [documents, users, comments, sourceDocuments, requesterUser, relances, produits, nosProduits] = await Promise.all([
+  const [documents, users, comments, sourceDocuments, requesterUser, relances, produits, nosProduits, decideurs, refusFinal] = await Promise.all([
     prisma.document.findMany({
       where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id },
       include: { uploadedBy: { select: { name: true } } },
@@ -134,6 +138,10 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
     canManage && decl.status !== "VALIDATED"
       ? prisma.product.findMany({ where: { isActive: true }, select: { id: true, canonicalName: true }, orderBy: { canonicalName: "asc" }, take: 1000 })
       : Promise.resolve([]),
+    // CHEZ QUI ATTEND CE QUE LE PHARMACIEN A FAIT VALIDER — le Directeur des Opérations, ou le Super Admin à défaut.
+    decideursInfoMedActifs(decl.pharmacistValidatedById ?? decl.pharmacistId),
+    // LE DERNIER REFUS de la validation finale, tant que le dossier est revenu au pharmacien.
+    !isValidated && decl.status !== "AWAITING_DIRECTION" ? dernierRefusFinal(decl.id) : Promise.resolve(null),
   ]);
   const produit = produits.get(decl.id) ?? null;
 
@@ -160,6 +168,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
       targetUserId: r.targetUserId, targetName: r.targetUser?.name ?? null,
     })),
     pharmacistValidatedAt: decl.pharmacistValidatedAt, validatedAt: decl.validatedAt, pharmacistName: decl.pharmacist?.name ?? null,
+    chezDecideur: chezDecideur(decideurs),
   });
   const mesPieces = isValidated ? [] : decl.requests.filter((r) => r.status === "PENDING" && r.targetUserId === user.id);
   const carte = carteAction(parcours, {
@@ -347,6 +356,13 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
 
           <section className="space-y-3 border-t border-border pt-4" aria-labelledby="reste-a-faire">
             <h2 id="reste-a-faire" className="text-sm font-semibold">Ce qu&apos;il reste à faire</h2>
+            {/* LE REFUS DE LA VALIDATION FINALE revient au pharmacien AVEC son motif : sans lui, il
+                reprendrait le dossier sans savoir quoi corriger. */}
+            {refusFinal && (
+              <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+                Validation finale refusée{refusFinal.par ? ` par ${refusFinal.par}` : ""} le {formatDate(refusFinal.le.toISOString())} — {refusFinal.motif}
+              </p>
+            )}
             {principal.map((b) => <div key={b}>{rendreBloc(b)}</div>)}
             {carte.aussi && (
               <details className="rounded-lg border border-border px-3 py-2">
@@ -401,7 +417,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
               {decl.authorityRef && <Row label="Référence ministère" value={decl.authorityRef} />}
               {decl.authorityNotes && <Row label="Notes de déclaration" value={decl.authorityNotes} />}
               {decl.pharmacistValidatedAt && <Row label="Validé (pharmacien) le" value={formatDateTime(decl.pharmacistValidatedAt.toISOString())} />}
-              {isValidated && decl.validatedAt && <Row label="Validé (Direction) le" value={formatDateTime(decl.validatedAt.toISOString())} />}
+              {isValidated && decl.validatedAt && <Row label="Validé (validation finale) le" value={formatDateTime(decl.validatedAt.toISOString())} />}
               <div className="flex flex-wrap gap-x-4 gap-y-1 pt-1">
                 {link && canOpenSource && (
                   <Link href={link} className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline">

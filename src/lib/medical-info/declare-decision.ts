@@ -144,7 +144,7 @@ export function declareMessage(i: DeclareInput, filed: { authorityRef: string | 
     case "A_DEMANDER":
       return "Ce dossier n'appelle aucun bon de versement. Dites si vous comptez le déclarer au ministère de l'Industrie pharmaceutique — ou non — et faites valider cette lecture : c'est elle qui ouvre la suite.";
     case "EN_VALIDATION":
-      return "Votre lecture est en validation. Rien à faire de votre côté tant que le validateur n'a pas signé.";
+      return "Votre lecture est en validation chez le Directeur des Opérations (à défaut, le Super Admin). Rien à faire de votre côté tant qu'il n'a pas tranché.";
     case "A_REVOIR":
       return "Le validateur demande une modification : lisez son commentaire dans la demande de validation, corrigez votre lecture et soumettez-la de nouveau ici — la demande précédente sera close.";
     case "REFUSEE":

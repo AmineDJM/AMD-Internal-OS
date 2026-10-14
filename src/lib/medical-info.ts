@@ -4,6 +4,23 @@ import { prisma } from "./prisma";
 import { anyRoleFilter } from "./rbac";
 import { notifyRoles } from "./notify";
 import { produitDeLaSource } from "./medical-info/produits";
+import { decideursInfoMed, ROLE_DECIDEUR_INFO_MED, type DecideursInfoMed } from "./medical-info/decideur";
+
+/**
+ * QUI TRANCHE, MAINTENANT — les Directeurs des Opérations actifs, à défaut les Super Admins actifs,
+ * jamais le demandeur (`medical-info/decideur.ts`). Lu à chaque demande, pas figé : un directeur
+ * nommé demain reçoit les demandes de demain.
+ */
+export async function decideursInfoMedActifs(requesterId: string | null): Promise<DecideursInfoMed> {
+  const [directeurs, superAdmins] = await Promise.all([
+    prisma.user.findMany({
+      where: { ...anyRoleFilter([ROLE_DECIDEUR_INFO_MED]), isActive: true },
+      select: { id: true }, orderBy: { createdAt: "asc" },
+    }),
+    prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true }, orderBy: { createdAt: "asc" } }),
+  ]);
+  return decideursInfoMed({ directeurs: directeurs.map((u) => u.id), superAdmins: superAdmins.map((u) => u.id), requesterId });
+}
 
 export async function nextDeclarationRef(): Promise<string> {
   const year = new Date().getFullYear();

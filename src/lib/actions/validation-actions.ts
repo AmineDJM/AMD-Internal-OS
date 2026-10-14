@@ -15,7 +15,7 @@ import { getAppSettings } from "@/lib/settings";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { createValidationFromRules, createDirectValidation, notifyValidator, joindrePiecesValidation, reprendreEtapesRenvoyees, verifierPiecesValidation } from "@/lib/validation";
-import { issueDeLaDecision, motifExige, MOTIF_EXIGE, repriseApresCorrection, resoumissionSurPlace, cheminsDeLObjetLie, type DecisionEtape } from "@/lib/validations/decision";
+import { issueDeLaDecision, motifExige, MOTIF_EXIGE, repriseApresCorrection, resoumissionSurPlace, cheminsDeLObjetLie, unSeulSuffit, type DecisionEtape } from "@/lib/validations/decision";
 import { lireCircuit } from "@/lib/validations/lecture-circuit";
 import { refusDuRetraitValidation, retraitEfface, validateursSollicites } from "@/lib/validations/retrait";
 import { createExpenseOrder } from "@/lib/expense-orders";
@@ -396,12 +396,18 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
     });
     if (ecrite.count === 0) return { ok: false as const, error: "Étape déjà traitée." };
     const etapes = frais.steps.map((e) => (e.id === stepId ? { ...e, status: decision } : e));
-    const r = issueDeLaDecision({ mode: frais.mode, currentOrder: frais.currentOrder, steps: etapes }, stepId, decision as DecisionEtape);
+    const unSeul = unSeulSuffit(req.objectType);
+    const r = issueDeLaDecision({ mode: frais.mode, currentOrder: frais.currentOrder, steps: etapes, unSeulSuffit: unSeul }, stepId, decision as DecisionEtape);
     const finalisee = r.status !== "PENDING";
     await tx.validationRequest.update({
       where: { id: req.id },
       data: { status: r.status, currentOrder: r.currentOrder, decidedAt: finalisee ? new Date() : null },
     });
+    // UN SEUL A TRANCHÉ POUR TOUS : les autres saisis n'ont plus rien à décider — leur étape se clôt
+    // (« sans objet »), sans quoi elle resterait « à valider » dans leur file pour une demande close.
+    if (unSeul && finalisee) {
+      await tx.validationStep.updateMany({ where: { requestId: req.id, status: "PENDING", id: { not: stepId } }, data: { status: "SKIPPED" } });
+    }
     const suivante = r.suivanteId ? etapes.find((e) => e.id === r.suivanteId) ?? null : null;
     return { ok: true as const, status: r.status, finalisee, currentOrder: r.currentOrder, suivanteValidatorId: suivante?.validatorId ?? null, suivanteStepId: suivante?.id ?? null };
   });

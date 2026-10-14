@@ -189,7 +189,7 @@ export function slipsMessage(lotStage: SlipsLotStage, s: SlipsSummary): string {
         ? "Séparez ce dossier en matériels : un bon de versement par matériel. Vous ferez ensuite valider leur dépôt en une seule fois."
         : `${s.count} matériel(s) listé(s). Faites valider le dépôt de ces bons : une validation couvre le lot entier.`;
     case "EN_VALIDATION":
-      return "Le dépôt des bons est en validation : votre responsable, la Direction Marketing, puis le centre de validations. Rien à faire tant qu'ils n'ont pas signé.";
+      return "Le dépôt des bons est en validation chez le Directeur des Opérations (à défaut, le Super Admin). Rien à faire tant qu'il n'a pas tranché.";
     case "VALIDATION_A_REVOIR":
       return "Un validateur demande une modification : lisez son commentaire dans la demande de validation, corrigez la liste des matériels et redemandez ici — la demande précédente sera close.";
     case "VALIDATION_REFUSEE":

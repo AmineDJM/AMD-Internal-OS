@@ -4,14 +4,14 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { EntityType, MedicalInfoStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, anyRoleFilter, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, anyRoleFilter, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
-import { getDeclaration, canViewDeclaration, dernieresRelancesPieces, RELANCE_PIECE_CHAMP } from "@/lib/queries/medical-info";
+import { getDeclaration, canViewDeclaration, dernieresRelancesPieces, RELANCE_PIECE_CHAMP, REFUS_FINAL_CHAMP } from "@/lib/queries/medical-info";
 import { peutRelancerPiece } from "@/lib/medical-info/parcours";
 import { archiveProcessedRequest } from "@/lib/archive";
 import { formatAlgiers } from "@/lib/calendar-tz";
@@ -28,12 +28,13 @@ import {
   slipStage, SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
 } from "@/lib/medical-info/slips";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
-import { bvChain, bvChainNote } from "@/lib/medical-info/bv-approval";
-import { nextDeclarationRef } from "@/lib/medical-info";
+import { nextDeclarationRef, decideursInfoMedActifs } from "@/lib/medical-info";
+import {
+  estDecideurInfoMed, noteDecideurs, confirmationDemande, AUCUN_DECIDEUR, OBJET_DECISION_INFO_MED, DECIDEUR_INFO_MED_LABEL,
+  ROLE_DECIDEUR_INFO_MED, type DecideursInfoMed,
+} from "@/lib/medical-info/decideur";
 
-import { centreValidatorFrom } from "@/lib/validations/centre";
-import { createDirectValidation } from "@/lib/validation";
-import { getManagerOfUser } from "@/lib/departments";
+import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
 import { toNumber } from "@/lib/utils";
 import { postesPortantLaDepense } from "@/lib/workflow/engine";
 
@@ -81,7 +82,10 @@ function revalidate(id: string) {
 /** Recalcule le statut READY / DOCS_REQUESTED / AWAITING_REVIEW selon l'état des pièces. */
 async function refreshStatus(declarationId: string) {
   const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id: declarationId }, include: { requests: true } });
-  if (!decl || decl.status === "VALIDATED") return;
+  // NI VALIDÉ, NI CHEZ LE DÉCIDEUR : une pièce déposée (ou une demande annulée) pendant que le dossier
+  // attend la validation finale le faisait repasser « prêt à valider » — il sortait de la file du
+  // Directeur des Opérations sans que personne l'ait tranché.
+  if (!decl || decl.status === "VALIDATED" || decl.status === "AWAITING_DIRECTION") return;
   const reqs = decl.requests;
   const next: MedicalInfoStatus =
     reqs.length > 0 && reqs.every((r) => r.status === "FULFILLED") ? "READY"
@@ -325,37 +329,30 @@ export async function requestDeclareDecision(_prev: ActionResult | undefined, fo
     return { ok: false, error: "Dites pourquoi ce dossier ne se déclare pas : c'est ce que lira le validateur, puis l'audit." };
   }
 
-  const validateurs = await declarationValidators(user.id, decl.sourceType, decl.sourceId);
-  if (validateurs.validatorIds.length === 0) {
-    return { ok: false, error: "Aucun signataire disponible (responsable, Direction Marketing, Directeur Général) : la demande n'aurait personne à qui aller." };
-  }
+  // LE DIRECTEUR DES OPÉRATIONS TRANCHE (Direction, 10/2026) — à défaut le Super Admin, et on le dit.
+  const decideurs = await decideursInfoMedActifs(user.id);
+  if (decideurs.validatorIds.length === 0) return { ok: false, error: AUCUN_DECIDEUR };
   // UNE DEMANDE À REVOIR SE RESOUMET ICI, ET LA PRÉCÉDENTE SE CLÔT (audit 360°, I9).
   if (declareStage(etat.declare) === "A_REVOIR") {
     const close = await clorePrecedente(decl.declareValidationId, user.id, decl.reference);
     if (!close.ok) return close;
   }
 
-  const res = await createDirectValidation({
+  const res = await demanderAuDecideur(decideurs, {
     requesterId: user.id,
     title: `Information médicale — ${DECLARE_INTENT_LABEL[intent]} : ${decl.label}`,
     description: [
       note,
       `Déclaration ${decl.reference}${decl.beneficiary ? ` — ${decl.beneficiary}` : ""}.`,
-      bvChainNote(validateurs),
-    ].filter(Boolean).join("\n\n") || null,
-    link: `${PATH}/${id}`,
-    module: "Information médicale",
-    priority: "HIGH",
-    validatorIds: validateurs.validatorIds,
-    // SÉQUENTIEL : l'ordre EST le contrôle — chaque marche s'appuie sur la précédente.
-    mode: "SEQUENTIAL",
-    entityType: "MEDICAL_INFO_DECLARATION",
-    entityId: id,
+    ],
+    declarationId: id,
   });
   if (!res.ok) return { ok: false, error: res.error ?? "La demande de décision n'a pas pu être créée." };
 
-  await prisma.medicalInfoDeclaration.update({
-    where: { id },
+  // UN DOUBLE CLIC NE FAIT PAS DEUX DEMANDES VIVANTES : le rattachement est CONDITIONNEL à la demande
+  // lue ; le second trouve la place prise, et la demande qu'il vient de créer est retirée.
+  const rattachee = await prisma.medicalInfoDeclaration.updateMany({
+    where: { id, declareValidationId: decl.declareValidationId },
     data: {
       declareValidationId: res.requestId ?? null,
       declareIntent: intent,
@@ -364,14 +361,53 @@ export async function requestDeclareDecision(_prev: ActionResult | undefined, fo
       declareRequestedById: user.id,
     },
   });
+  if (rattachee.count === 0) {
+    if (res.requestId) await retirerValidationSansObjet(res.requestId);
+    return { ok: false, error: "Une demande vient déjà d'être soumise pour ce dossier — rechargez la page." };
+  }
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Information médicale",
     entityType: "MEDICAL_INFO_DECLARATION", entityId: id,
     field: "Décision de déclarer", newValue: intent,
-    summary: `${DECLARE_INTENT_LABEL[intent]} — soumis à validation (${decl.reference})`,
+    summary: `${DECLARE_INTENT_LABEL[intent]} — soumis à validation du ${decideurs.repli ? "Super Admin (aucun Directeur des Opérations actif)" : DECIDEUR_INFO_MED_LABEL} (${decl.reference})`,
   });
   revalidate(id);
-  return { ok: true, id: res.requestId };
+  return { ok: true, id: res.requestId, message: confirmationDemande(decideurs, "Votre lecture est envoyée") };
+}
+
+/**
+ * LA DEMANDE DE VALIDATION D'UN GESTE DU PRIM — adressée au(x) Directeur(s) des Opérations.
+ *
+ * Tous les comptes saisis EN MÊME TEMPS (`PARALLEL`), et l'accord du premier qui tranche vaut pour
+ * tous (`OBJET_DECISION_INFO_MED`, lu par le moteur commun) : une fonction tenue par deux personnes
+ * ne devient pas une double signature.
+ *
+ * L'EXISTANT N'EST PAS RE-ROUTÉ : une demande déjà en cours sous l'ancienne chaîne (N+1, référent
+ * Direction Marketing, centre — en série) finit son circuit tel qu'il a été annoncé à ses signataires ;
+ * seules les demandes soumises (ou resoumises) à partir d'ici vont au Directeur des Opérations. Une
+ * demande à revoir qui se resoumet passe donc, elle, chez lui (`clorePrecedente` clôt l'ancienne).
+ *
+ * Non exportée : une fonction qui reçoit un demandeur en
+ * argument n'a pas sa place parmi les points d'entrée d'un fichier « use server » (§118.153).
+ */
+async function demanderAuDecideur(
+  decideurs: DecideursInfoMed,
+  d: { requesterId: string; title: string; description: (string | null)[]; declarationId: string; amount?: number },
+) {
+  return createDirectValidation({
+    requesterId: d.requesterId,
+    title: d.title,
+    description: [...d.description, noteDecideurs(decideurs)].filter(Boolean).join("\n\n") || null,
+    link: `${PATH}/${d.declarationId}`,
+    module: "Information médicale",
+    priority: "HIGH",
+    validatorIds: decideurs.validatorIds,
+    mode: "PARALLEL",
+    objectType: OBJET_DECISION_INFO_MED,
+    entityType: "MEDICAL_INFO_DECLARATION",
+    entityId: d.declarationId,
+    amount: d.amount,
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -452,8 +488,8 @@ export async function removeMedicalInfoSlip(formData: FormData): Promise<ActionR
 /**
  * FAIRE VALIDER LE DÉPÔT DES BONS — une fois pour le lot entier.
  *
- * Trois signatures : le N+1 du pharmacien, le référent Direction Marketing du dossier, puis le centre de
- * validations. Faire signer cinq fois la même décision, une par matériel, n'ajoute aucune
+ * Une décision, celle du Directeur des Opérations (Direction, 10/2026 — `medical-info/decideur.ts`).
+ * Faire signer cinq fois la même décision, une par matériel, n'ajoute aucune
  * sécurité : cela ajoute quatre relances. Ce qui se demande matériel par matériel, c'est le
  * PAIEMENT, et il vient après.
  */
@@ -475,38 +511,31 @@ export async function requestSlipsValidation(_prev: ActionResult | undefined, fo
 
   const total = etat.summary.announced;
   const note = fdStr(formData, "note");
-  const validateurs = await declarationValidators(user.id, decl.sourceType, decl.sourceId);
-  if (validateurs.validatorIds.length === 0) {
-    return { ok: false, error: "Aucun signataire disponible (responsable, Direction Marketing, Directeur Général) : la demande n'aurait personne à qui aller." };
-  }
+  // LE DIRECTEUR DES OPÉRATIONS TRANCHE (Direction, 10/2026) — à défaut le Super Admin, et on le dit.
+  const decideurs = await decideursInfoMedActifs(user.id);
+  if (decideurs.validatorIds.length === 0) return { ok: false, error: AUCUN_DECIDEUR };
   // Le dépôt À REVOIR se resoumet ici, et la demande précédente se clôt (audit 360°, I9).
   if (etat.lot === "VALIDATION_A_REVOIR") {
     const close = await clorePrecedente(decl.bvValidationId, user.id, decl.reference);
     if (!close.ok) return close;
   }
 
-  const res = await createDirectValidation({
+  const res = await demanderAuDecideur(decideurs, {
     requesterId: user.id,
     title: `Bons de versement — ${decl.label} · ${etat.slips.length} matériel(s) · ${total.toLocaleString("fr-FR")} DZD`,
     description: [
       note,
       etat.slips.map((sl) => `• ${sl.label}${sl.amount ? ` — ${sl.amount.toLocaleString("fr-FR")} DZD` : ""}`).join("\n"),
       `Déclaration ${decl.reference}${decl.beneficiary ? ` — ${decl.beneficiary}` : ""}.`,
-      bvChainNote(validateurs),
-    ].filter(Boolean).join("\n\n") || null,
-    link: `${PATH}/${id}`,
-    module: "Information médicale",
-    priority: "HIGH",
-    validatorIds: validateurs.validatorIds,
-    mode: "SEQUENTIAL",
-    entityType: "MEDICAL_INFO_DECLARATION",
-    entityId: id,
+    ],
+    declarationId: id,
     amount: total > 0 ? total : undefined,
   });
   if (!res.ok) return { ok: false, error: res.error ?? "La demande de validation n'a pas pu être créée." };
 
-  await prisma.medicalInfoDeclaration.update({
-    where: { id },
+  // Un double clic ne fait pas deux demandes vivantes (même règle que la décision de déclarer).
+  const rattachee = await prisma.medicalInfoDeclaration.updateMany({
+    where: { id, bvValidationId: decl.bvValidationId },
     data: {
       bvValidationId: res.requestId ?? null,
       bvAmount: total > 0 ? total : null,
@@ -515,75 +544,17 @@ export async function requestSlipsValidation(_prev: ActionResult | undefined, fo
       bvRequestedById: user.id,
     },
   });
+  if (rattachee.count === 0) {
+    if (res.requestId) await retirerValidationSansObjet(res.requestId);
+    return { ok: false, error: "Une demande vient déjà d'être soumise pour ce dossier — rechargez la page." };
+  }
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Information médicale",
     entityType: "MEDICAL_INFO_DECLARATION", entityId: id,
-    summary: `Dépôt de ${etat.slips.length} bon(s) de versement soumis à validation — ${total.toLocaleString("fr-FR")} DZD (${decl.reference})`,
+    summary: `Dépôt de ${etat.slips.length} bon(s) de versement soumis à validation du ${decideurs.repli ? "Super Admin (aucun Directeur des Opérations actif)" : DECIDEUR_INFO_MED_LABEL} — ${total.toLocaleString("fr-FR")} DZD (${decl.reference})`,
   });
   revalidate(id);
-  return { ok: true, id: res.requestId };
-}
-
-/**
- * LES TROIS SIGNATAIRES D'UN DOSSIER — le N+1, la Direction Marketing de la source, le centre.
- *
- * La même chaîne sert aux deux circuits : ce qu'on soumet diffère (une lecture, un dépôt de bons),
- * les personnes qui répondent sont les mêmes, et pour la même raison — l'une connaît le travail,
- * l'autre le budget, la troisième engage la société.
- */
-async function declarationValidators(requesterId: string, sourceType: string, sourceId: string) {
-  const [manager, productManagerId, sieges] = await Promise.all([
-    getManagerOfUser(requesterId).catch(() => null),
-    productManagerOfSource(sourceType, sourceId),
-    // LE PLUS ANCIEN siège, et jamais le demandeur (vague « restes ») — la règle du centre (§118.148h), que
-    // l'aiguillage des bons de commande lit déjà. Sans ordre, Postgres rendait les sièges dans l'ordre PHYSIQUE
-    // de la table : un compte neuf logé avant le siège désigné devenait « le centre » ; s'il était le demandeur,
-    // `bvChain` l'écartait à raison et la demande partait en annonçant « aucun Directeur Général ni Super Admin
-    // actif » — alors qu'un autre siège existait. Le demandeur écarté AVANT de choisir, c'est un autre siège qui
-    // signe ; s'il est le SEUL siège, la marche manque et la demande le dit (`bvChainNote`), comme avant.
-    prisma.user.findMany({
-      where: { isActive: true, role: { in: ["GENERAL_MANAGER", "SUPER_ADMIN"] } },
-      select: { id: true, role: true },
-      orderBy: { createdAt: "asc" },
-    }),
-  ]);
-  return bvChain({
-    managerUserId: manager?.userId ?? null,
-    productManagerUserId: productManagerId,
-    centreUserId: centreValidatorFrom(sieges.filter((s) => s.id !== requesterId)),
-    requesterId,
-  });
-}
-
-/**
- * LE RÉFÉRENT DIRECTION MARKETING DU DOSSIER — celui du dossier SOURCE, jamais un « Direction Marketing » générique.
- *
- * La question qu'on lui pose est « le montant correspond-il à CET événement ? ». Y répondre
- * suppose de connaître le budget accordé et ce qu'il couvre — donc d'être celui qui a instruit
- * ce dossier-là. Désigner n'importe quel titulaire du rôle ferait signer quelqu'un qui n'a pas
- * la question, ce qui est pire qu'une marche sautée : la signature existe et ne vaut rien.
- *
- * LE SPONSORING MANQUAIT — mesuré par la vraie porte (`requestDeclareDecision`), pas supposé. Un
- * sponsoring porte son référent comme les trois autres natures (`createSponsoring` l'écrit depuis
- * la configuration de la gamme, §118.144), la chaîne le promet (« sponsoring, congrès,
- * événement », `bv-approval.ts`), et le README annonce trois signatures. Sans cette branche, la
- * déclaration d'un sponsoring partait au seul centre, avec « aucun référent Direction Marketing sur
- * le dossier » écrit dans la demande — une marche sautée faute d'avoir été cherchée.
- */
-async function productManagerOfSource(sourceType: string, sourceId: string): Promise<string | null> {
-  const sel = { select: { productManagerId: true } } as const;
-  switch (sourceType) {
-    case "SPONSORING":
-      return (await prisma.sponsoringRequest.findUnique({ where: { id: sourceId }, ...sel }))?.productManagerId ?? null;
-    case "CONGRESS_INTERNATIONAL":
-      return (await prisma.congressInternational.findUnique({ where: { id: sourceId }, ...sel }))?.productManagerId ?? null;
-    case "CONGRESS_NATIONAL":
-      return (await prisma.congressNational.findUnique({ where: { id: sourceId }, ...sel }))?.productManagerId ?? null;
-    case "EVENT":
-      return (await prisma.event.findUnique({ where: { id: sourceId }, ...sel }))?.productManagerId ?? null;
-    default:
-      return null;
-  }
+  return { ok: true, id: res.requestId, message: confirmationDemande(decideurs, "Le dépôt des bons est envoyé") };
 }
 
 /**
@@ -819,12 +790,15 @@ export async function createMedicalInfoItem(_prev: ActionResult | undefined, for
   return { ok: true, id: decl.id };
 }
 
-// ───────────── Validation pharmacien (PRIM) → transmission à la Direction ─────────────
+// ───────────── Validation pharmacien (PRIM) → transmission au Directeur des Opérations ─────────────
 
 /**
- * Le pharmacien responsable valide son instruction : la déclaration ne part PAS
- * directement au comptable mais à la Direction, qui donnera la validation finale
- * (pour le comptable). L'ordre de dépense n'est émis qu'à l'étape Direction.
+ * Le pharmacien responsable valide son instruction : la déclaration ne part PAS directement au
+ * comptable mais au DIRECTEUR DES OPÉRATIONS (Direction, 10/2026 — `medical-info/decideur.ts`), qui
+ * la valide ou la refuse. L'ordre de dépense n'est émis qu'à cette validation finale.
+ *
+ * Plusieurs directeurs actifs : tous sont notifiés, le premier qui tranche décide. Aucun : la
+ * demande va au Super Admin, et la confirmation du pharmacien le DIT.
  */
 export async function validateDeclaration(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -834,7 +808,7 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
   const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id } });
   if (!decl) return { ok: false, error: "Déclaration introuvable." };
   if (decl.status === "VALIDATED") return { ok: false, error: "Déclaration déjà validée." };
-  if (decl.status === "AWAITING_DIRECTION") return { ok: false, error: "Déjà transmise à la Direction pour validation finale." };
+  if (decl.status === "AWAITING_DIRECTION") return { ok: false, error: `Déjà transmise au ${DECIDEUR_INFO_MED_LABEL} pour validation finale.` };
 
   // LE CIRCUIT TIENT ICI, pas seulement à l'écran. Masquer un bouton est du confort ; un
   // formulaire posté à la main doit rencontrer la même règle, et le refus DIT ce qui manque.
@@ -855,17 +829,31 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
     };
   }
 
-  await prisma.medicalInfoDeclaration.update({
-    where: { id },
+  // QUI TRANCHERA — lu AVANT d'écrire : une demande que personne ne peut recevoir ne part pas.
+  const decideurs = await decideursInfoMedActifs(user.id);
+  if (decideurs.validatorIds.length === 0) return { ok: false, error: AUCUN_DECIDEUR };
+
+  // UN GESTE À LA FOIS : deux validations simultanées lisent toutes deux « à instruire » ; la
+  // première transmet, la seconde trouve le dossier déjà parti et s'arrête — sans doubler les
+  // notifications ni l'archive.
+  const pris = await prisma.medicalInfoDeclaration.updateMany({
+    where: { id, status: { notIn: ["VALIDATED", "AWAITING_DIRECTION"] } },
     data: { status: "AWAITING_DIRECTION", pharmacistValidatedAt: new Date(), pharmacistValidatedById: user.id },
   });
-  await notifyRoles(["DIRECTION", "SUPER_ADMIN"], {
-    type: "VALIDATION_REQUIRED",
-    title: "Information médicale — validation finale requise (Direction)",
-    body: `${decl.reference} — ${decl.label}`,
-    link: `${PATH}/${id}`,
+  if (pris.count === 0) return { ok: false, error: "Ce dossier vient d'être transmis — rechargez la page." };
+  for (const decideurId of decideurs.validatorIds) {
+    await notifyUser({
+      userId: decideurId,
+      type: "VALIDATION_REQUIRED",
+      title: `Information médicale — validation finale requise (${decideurs.repli ? "Super Admin, aucun Directeur des Opérations actif" : DECIDEUR_INFO_MED_LABEL})`,
+      body: `${decl.reference} — ${decl.label}`,
+      link: `${PATH}/${id}`,
+    });
+  }
+  await recordAudit({
+    actorId: user.id, action: "VALIDATE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id,
+    summary: `Validation pharmacien — transmise ${decideurs.repli ? "au Super Admin (aucun Directeur des Opérations actif)" : `au ${DECIDEUR_INFO_MED_LABEL}`} (${decl.reference})`,
   });
-  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id, summary: `Validation pharmacien — transmise à la Direction (${decl.reference})` });
 
   // Instruction du PRIM terminée → archive dans SON Drive (« Dossier traité / Information médicale »).
   if (!decl.archivedNodeId) {
@@ -881,7 +869,7 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
       decl.authorityNotes ? `Notes de déclaration : ${decl.authorityNotes}` : null,
       `Créée le : ${formatAlgiers(decl.createdAt, { day: "2-digit", month: "long", year: "numeric" })}`,
       `Validée par le pharmacien le : ${formatAlgiers(new Date(), { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
-      `Transmise à la Direction pour validation finale.`,
+      `Transmise ${decideurs.repli ? "au Super Admin" : `au ${DECIDEUR_INFO_MED_LABEL}`} pour validation finale.`,
     ].filter(Boolean).join("\n");
     const day = new Date().toISOString().slice(0, 10);
     const nodeId = await archiveProcessedRequest({
@@ -897,65 +885,163 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
     }
   }
   revalidate(id);
-  return { ok: true };
+  revalidatePath("/mon-travail");
+  return { ok: true, message: confirmationDemande(decideurs, "Le dossier est transmis pour validation finale") };
 }
 
-// ───────────── Validation finale (Direction) → ordre de dépense au comptable ─────────────
+// ───────────── Validation finale (Directeur des Opérations) → ordre de dépense au comptable ─────────────
+
+/** Ce que l'écran et le journal disent de celui qui tranche. */
+function qualiteDuDecideur(user: SessionUser): string {
+  return hasRole(user, ROLE_DECIDEUR_INFO_MED) ? DECIDEUR_INFO_MED_LABEL : "Super Admin";
+}
 
 /**
- * La Direction donne la validation finale « pour le comptable », avec un commentaire
- * facultatif (versé dans l'espace de discussion). C'est ICI qu'est émis l'ordre de
- * dépense, qui part alors au comptable.
+ * La porte commune aux deux décisions finales : le décideur, et jamais le pharmacien qui a validé
+ * lui-même le dossier (un PRIM qui porterait aussi le rôle de directeur ne se valide pas).
+ */
+function refusDecideur(user: SessionUser, decl: { pharmacistValidatedById: string | null }): string | null {
+  if (!estDecideurInfoMed(user)) return `Validation finale réservée au ${DECIDEUR_INFO_MED_LABEL} (à défaut, au Super Admin).`;
+  if (user.role !== "SUPER_ADMIN" && decl.pharmacistValidatedById === user.id) {
+    return "Vous avez validé ce dossier comme pharmacien : la validation finale revient à un autre décideur.";
+  }
+  return null;
+}
+
+const DEJA_TRANCHE = "Ce dossier vient d'être tranché par un autre décideur — rechargez la page.";
+
+/**
+ * Le Directeur des Opérations donne la validation finale « pour le comptable », avec un commentaire
+ * facultatif (versé dans l'espace de discussion). C'est ICI qu'est émis l'ordre de dépense, qui part
+ * alors au comptable.
+ *
+ * UN SEUL ORDRE, MÊME À DEUX CLICS. Deux validations simultanées lisaient toutes deux « en attente »
+ * et émettaient chacune un ordre : la même dépense payée deux fois. Le passage à « validée » est
+ * désormais une écriture CONDITIONNELLE au statut lu ; seul celui qui l'emporte émet l'ordre.
  */
 export async function validateDeclarationByDirection(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!hasGlobalView(user.role)) return { ok: false, error: "Validation finale réservée à la Direction." };
+  if (!estDecideurInfoMed(user)) return { ok: false, error: `Validation finale réservée au ${DECIDEUR_INFO_MED_LABEL} (à défaut, au Super Admin).` };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id } });
   if (!decl) return { ok: false, error: "Déclaration introuvable." };
   if (decl.status === "VALIDATED") return { ok: false, error: "Déclaration déjà validée." };
   if (decl.status !== "AWAITING_DIRECTION") return { ok: false, error: "La déclaration doit d'abord être validée par le pharmacien responsable." };
+  const refus = refusDecideur(user, decl);
+  if (refus) return { ok: false, error: refus };
+
+  // Émission de l'ordre de dépense (si un budget a été accordé) → part au comptable — SAUF quand
+  // ce sont les postes qui portent la dépense : ils émettent chacun leur pièce (§118.151).
+  const amount = Number(decl.amount ?? 0);
+  const parLesPostes = amount > 0 && (await laDepenseEstPorteeParLesPostes(decl.sourceType, decl.sourceId));
+
+  // LE GAGNANT SEUL : l'écriture ne passe que sur un dossier encore en attente de validation finale.
+  const pris = await prisma.medicalInfoDeclaration.updateMany({
+    where: { id, status: "AWAITING_DIRECTION" },
+    data: { status: "VALIDATED", validatedAt: new Date(), validatedById: user.id },
+  });
+  if (pris.count === 0) return { ok: false, error: DEJA_TRANCHE };
+
+  let order: Awaited<ReturnType<typeof createExpenseOrder>> | null;
+  try {
+    order = amount > 0 && !parLesPostes
+      ? await createExpenseOrder({
+          label: decl.label,
+          amount,
+          category: "EVENEMENT",
+          beneficiary: decl.beneficiary,
+          sourceType: decl.sourceType,
+          sourceId: decl.sourceId,
+          requestedById: decl.requesterId,
+          budgetCategoryId: decl.budgetCategoryId,
+        })
+      : null;
+  } catch (err) {
+    // L'ORDRE N'EST PAS NÉ : la validation n'a pas eu lieu. Le dossier revient en attente (seulement
+    // s'il porte encore CETTE validation, sans ordre) — sinon il resterait « validé » sans paiement.
+    await prisma.medicalInfoDeclaration.updateMany({
+      where: { id, status: "VALIDATED", validatedById: user.id, expenseOrderId: null },
+      data: { status: "AWAITING_DIRECTION", validatedAt: null, validatedById: null },
+    });
+    console.error("[medical-info] ordre de dépense non émis à la validation finale :", err);
+    return { ok: false, error: "L'ordre de dépense n'a pas pu être émis : le dossier reste en attente de votre validation." };
+  }
+  if (order) await prisma.medicalInfoDeclaration.update({ where: { id }, data: { expenseOrderId: order.id } });
 
   // Commentaire de validation (facultatif) → espace de discussion.
   const comment = fdStr(formData, "comment");
   if (comment) {
     await prisma.comment.create({ data: { entityType: "MEDICAL_INFO_DECLARATION", entityId: id, body: comment, authorId: user.id } });
   }
-
-  // Émission de l'ordre de dépense (si un budget a été accordé) → part au comptable — SAUF quand
-  // ce sont les postes qui portent la dépense : ils émettent chacun leur pièce (§118.151).
-  const amount = Number(decl.amount ?? 0);
-  const parLesPostes = amount > 0 && (await laDepenseEstPorteeParLesPostes(decl.sourceType, decl.sourceId));
-  const order = amount > 0 && !parLesPostes
-    ? await createExpenseOrder({
-        label: decl.label,
-        amount,
-        category: "EVENEMENT",
-        beneficiary: decl.beneficiary,
-        sourceType: decl.sourceType,
-        sourceId: decl.sourceId,
-        requestedById: decl.requesterId,
-        budgetCategoryId: decl.budgetCategoryId,
-      })
-    : null;
-
-  await prisma.medicalInfoDeclaration.update({
-    where: { id },
-    data: { status: "VALIDATED", validatedAt: new Date(), validatedById: user.id, expenseOrderId: order?.id ?? null },
-  });
   // Reporte l'ordre de dépense sur l'événement source (tout reste interconnecté).
   if (order) {
     if (decl.sourceType === "SPONSORING") await prisma.sponsoringRequest.update({ where: { id: decl.sourceId }, data: { expenseOrderId: order.id } });
     else if (decl.sourceType === "CONGRESS_INTERNATIONAL") await prisma.congressInternational.update({ where: { id: decl.sourceId }, data: { expenseOrderId: order.id } });
     else if (decl.sourceType === "CONGRESS_NATIONAL") await prisma.congressNational.update({ where: { id: decl.sourceId }, data: { expenseOrderId: order.id } });
   }
-  if (decl.requesterId) await notifyUser({ userId: decl.requesterId, type: "GENERIC", title: "Information médicale — événement validé par la Direction", body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
-  if (decl.pharmacistId && decl.pharmacistId !== user.id) await notifyUser({ userId: decl.pharmacistId, type: "GENERIC", title: "Information médicale — validé par la Direction", body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
-  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id, summary: `Validation Direction — ${decl.reference}${order ? ` (ordre ${order.reference})` : parLesPostes ? " (dépense portée par les postes — aucun ordre global)" : ""}` });
+  const qualite = qualiteDuDecideur(user);
+  if (decl.requesterId) await notifyUser({ userId: decl.requesterId, type: "GENERIC", title: `Information médicale — événement validé (${qualite})`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
+  if (decl.pharmacistId && decl.pharmacistId !== user.id) await notifyUser({ userId: decl.pharmacistId, type: "GENERIC", title: `Information médicale — validé par le ${qualite}`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
+  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id, summary: `Validation finale (${qualite}) — ${decl.reference}${order ? ` (ordre ${order.reference})` : parLesPostes ? " (dépense portée par les postes — aucun ordre global)" : ""}` });
   revalidate(id);
+  revalidatePath("/mon-travail");
   revalidatePath("/finances/paiements-a-faire");
   revalidatePath("/comptabilite");
+  return { ok: true };
+}
+
+/**
+ * LE DIRECTEUR DES OPÉRATIONS REFUSE — motif EXIGÉ, et le dossier revient au pharmacien.
+ *
+ * Il n'avait que « valider » : un dossier qu'il n'acceptait pas restait en attente sans fin, et le
+ * pharmacien n'apprenait jamais pourquoi. Le refus rend la main au PRIM (le statut d'instruction
+ * se recalcule sur ses pièces), le motif lui est notifié, versé dans la discussion et tracé au
+ * journal (`REFUS_FINAL_CHAMP`, que la fiche relit). Écriture conditionnelle : un refus et une
+ * validation simultanés ne s'appliquent pas tous les deux.
+ */
+export async function refuseDeclarationByDirection(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!estDecideurInfoMed(user)) return { ok: false, error: `Le refus revient au ${DECIDEUR_INFO_MED_LABEL} (à défaut, au Super Admin).` };
+  const id = fdStr(formData, "id");
+  const reason = fdStr(formData, "reason");
+  if (!id) return { ok: false, error: "Identifiant manquant." };
+  if (reason === null) return { ok: false, error: "Indiquez le motif du refus : c'est ce que lira le pharmacien pour reprendre le dossier." };
+  const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id } });
+  if (!decl) return { ok: false, error: "Déclaration introuvable." };
+  if (decl.status === "VALIDATED") return { ok: false, error: "Déclaration déjà validée." };
+  if (decl.status !== "AWAITING_DIRECTION") return { ok: false, error: "Ce dossier n'attend pas de validation finale." };
+  const refus = refusDecideur(user, decl);
+  if (refus) return { ok: false, error: refus };
+
+  const pris = await prisma.medicalInfoDeclaration.updateMany({
+    where: { id, status: "AWAITING_DIRECTION" },
+    data: { status: "AWAITING_REVIEW", pharmacistValidatedAt: null, pharmacistValidatedById: null },
+  });
+  if (pris.count === 0) return { ok: false, error: DEJA_TRANCHE };
+  // Le statut d'instruction se relit sur les pièces (à instruire / pièces demandées / prêt).
+  await refreshStatus(id);
+
+  const qualite = qualiteDuDecideur(user);
+  await prisma.comment.create({
+    data: { entityType: "MEDICAL_INFO_DECLARATION", entityId: id, body: `Validation finale refusée (${qualite}) — ${reason}`, authorId: user.id },
+  });
+  const destinataires = new Set([decl.pharmacistValidatedById, decl.pharmacistId].filter((x): x is string => Boolean(x) && x !== user.id));
+  for (const userId of destinataires) {
+    await notifyUser({
+      userId, type: "GENERIC",
+      title: `Information médicale — validation finale refusée (${qualite})`,
+      body: `${decl.reference} — ${decl.label}. Motif : « ${reason} ». Reprenez le dossier, puis validez-le de nouveau.`,
+      link: `${PATH}/${id}`,
+    });
+  }
+  await recordAudit({
+    actorId: user.id, action: "REFUSE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id,
+    field: REFUS_FINAL_CHAMP, newValue: reason,
+    summary: `Validation finale refusée (${qualite}) — ${decl.reference} : ${reason}`,
+  });
+  revalidate(id);
+  revalidatePath("/mon-travail");
   return { ok: true };
 }
 

@@ -325,6 +325,11 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     GENERAL_MEANS: MANAGE, ADMIN_REQUESTS: MANAGE, LEGAL: CONTRIBUTE, MAIL_REGISTER: READ,
     REGULATORY: READ, BUDGETS: READ, FINANCES: READ, RH: READ, MEDICAL: READ, FIELD_REPORTS: READ,
     DOCUMENTS: CONTRIBUTE,
+    // L'INFORMATION MÉDICALE, EN LECTURE ET EN ENTIER (Direction, 10/2026) : tout ce que le pharmacien
+    // responsable fait valider lui revient (`medical-info/decideur.ts`) — il ouvre donc le registre, le
+    // dossier et ses pièces. Il TRANCHE sans instruire : pas de VALIDATE ici, qui ferait de lui un
+    // second pharmacien (demander des pièces, ouvrir des dossiers). La portée ALL est dans `defaultScope`.
+    MEDICAL_INFO: READ,
     // LA FORCE DE VENTE ET LES BUSINESS UNITS (Direction, 08/10 : « Droits du Directeur des opérations : gestion de la
     // Force de vente et des Business Units … → oui ») : il les GÈRE, en portée TOUT (`resolveRepScope` → « all »). Le
     // Marketing cockpit, lui, reste en LECTURE : il se recopiait de la Force de vente (plus bas) et n'est pas son métier.
@@ -1048,7 +1053,8 @@ export function defaultScope(role: UserRole, module: Module): AccessScope {
   }
   // Information médicale : le pharmacien responsable voit tout ; les autres (Direction
   // exceptée via hasGlobalView) ne voient que les déclarations où une pièce leur est demandée.
-  if (module === "MEDICAL_INFO") return role === "MEDICAL_INFO_PHARMACIST" ? "ALL" : "ASSIGNED";
+  // Le Directeur des Opérations, qui tranche tout ce que le pharmacien fait valider, voit tout aussi.
+  if (module === "MEDICAL_INFO") return role === "MEDICAL_INFO_PHARMACIST" || role === "OPERATIONS_DIRECTOR" ? "ALL" : "ASSIGNED";
   // Directives : chacun ne voit que celles qui le concernent (la Direction voit tout via ALL).
   if (module === "DIRECTIVES") return "ASSIGNED";
   // Demandes de support : chacun ne voit que ce qu'il a émis / reçu (rôle visé) / pris en charge.

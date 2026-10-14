@@ -20,6 +20,7 @@ import { clauseBonsDeCommandePchVisibles, clauseFormationsVisibles, clauseMarche
 import { isManagerOfUser, getManagementChain } from "@/lib/departments";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { canViewDeclaration } from "@/lib/queries/medical-info";
+import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import { accesAuCasPv } from "@/lib/pharmacovigilance/acces";
 import { accesAuReleveStockPch } from "@/lib/queries/stock-pch";
 import {
@@ -731,13 +732,17 @@ export async function canAccessEntity(
     action === "VIEW" &&
     (entityType === "SPONSORING" || entityType === "CONGRESS_INTERNATIONAL" || entityType === "CONGRESS_NATIONAL" || entityType === "EVENT")
   ) {
-    const isMedManager = hasGlobalView(user.role) || user.role === "MEDICAL_INFO_PHARMACIST" || userCan(user, "MEDICAL_INFO", "VALIDATE");
+    // Le DÉCIDEUR aussi (le Directeur des Opérations, `medical-info/decideur.ts`) : la fiche lui montre
+    // les pièces de l'événement sur lequel il tranche — un lien qui lui répondrait « interdit » le
+    // ferait décider sans les avoir lues.
+    const decideur = estDecideurInfoMed(user) && userCan(user, "MEDICAL_INFO", "VIEW");
+    const isMedManager = hasGlobalView(user.role) || user.role === "MEDICAL_INFO_PHARMACIST" || userCan(user, "MEDICAL_INFO", "VALIDATE") || decideur;
     if (isMedManager) {
       const decl = await prisma.medicalInfoDeclaration.findUnique({
         where: { sourceType_sourceId: { sourceType: entityType, sourceId: entityId } },
         select: { pharmacistId: true },
       });
-      if (decl && (decl.pharmacistId === user.id || hasGlobalView(user.role) || userCan(user, "MEDICAL_INFO", "VALIDATE"))) {
+      if (decl && (decl.pharmacistId === user.id || hasGlobalView(user.role) || userCan(user, "MEDICAL_INFO", "VALIDATE") || decideur)) {
         return true;
       }
     }

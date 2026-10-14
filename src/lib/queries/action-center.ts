@@ -6,6 +6,7 @@ import { getLeavesToDecide } from "@/lib/queries/hr";
 import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIXE_RESTE } from "@/lib/queries/mes-decisions";
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";
+import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
@@ -775,12 +776,14 @@ export async function getActionCenter(user: SessionUser) {
 
   // 6c. Information médicale — l'INSTRUCTION (à déclarer, pièces demandées, prêt à valider)
   //     est le travail du PHARMACIEN RESPONSABLE (PRIM), et de lui seul : la Direction a le
-  //     droit d'agir sur le module, mais ces événements ne sont pas SA file. Elle ne reçoit
-  //     que l'étape qui lui appartient — la validation finale (AWAITING_DIRECTION), même
-  //     garde que l'action `validateDeclarationByDirection`. Le Super Admin voit tout.
+  //     droit d'agir sur le module, mais ces événements ne sont pas SA file. La validation
+  //     finale (AWAITING_DIRECTION) est la file du DIRECTEUR DES OPÉRATIONS (Direction, 10/2026 —
+  //     `medical-info/decideur.ts`), même garde que l'action `validateDeclarationByDirection`.
+  //     Ses autres décisions (lecture « à déclarer ? », dépôt des bons) sont des demandes de
+  //     validation : elles remontent par la file commune. Le Super Admin voit tout.
   {
     const prim = hasRole(user, "MEDICAL_INFO_PHARMACIST") || user.role === "SUPER_ADMIN";
-    const direction = hasGlobalView(user);
+    const direction = estDecideurInfoMed(user);
     const miStatuses: ("AWAITING_REVIEW" | "DOCS_REQUESTED" | "READY" | "AWAITING_DIRECTION")[] = [
       ...(prim ? (["AWAITING_REVIEW", "DOCS_REQUESTED", "READY"] as const) : []),
       ...(direction ? (["AWAITING_DIRECTION"] as const) : []),
