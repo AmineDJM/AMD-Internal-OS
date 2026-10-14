@@ -10,7 +10,7 @@ vi.mock("next/headers", () => ({
   headers: () => new Headers(),
 }));
 let ACTEUR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";

@@ -33,7 +33,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 let ACTEUR: CurrentUser;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR , requireUserAuNomDeLaVue: async () => ACTEUR}));
 
 const { prisma } = await import("@/lib/prisma");
 const { getAccess } = await import("@/lib/rbac");

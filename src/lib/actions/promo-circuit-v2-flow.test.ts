@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 // ⚠ ORDRE D'IMPORT (documenté dans `assistant/capability-audit.test.ts`) : `ops/index.ts` et
 // `lib/assistant.ts` forment un cycle d'INITIALISATION. `assistant` se charge le PREMIER, comme dans

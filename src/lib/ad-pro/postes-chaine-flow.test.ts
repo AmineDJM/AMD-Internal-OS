@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 /**
  * LE SEUIL DES BONS DE COMMANDE EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'INJECTE dans son propre
  * processus, la base partagée garde le sien.
@@ -69,7 +69,8 @@ const fd = (champs: Record<string, string>) => {
   for (const [k, v] of Object.entries(champs)) f.set(k, v);
   return f;
 };
-const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], nom, { type: "application/pdf" });
+// UN FICHIER DISTINCT PAR DÉPÔT (Direction, 14/10) : le même fichier déposé comme deux factures serait la même facture, refusée.
+const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]), `${nom}-${Date.now()}-${Math.random()}`], nom, { type: "application/pdf" });
 const avecFichier = (champs: Record<string, string>, nom = `${TAG}piece.pdf`) => {
   const f = fd(champs);
   f.append("attachment", pdf(nom));
@@ -688,7 +689,10 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     await bcSigne(id);
     ACTOR = await acteur(u.kam, "MEDICAL_DELEGATE");
     const unePaie = () => demanderPaiementPoste(undefined, avecFichier({ id, montant: "100000", argumentation: "Écart connu et accepté (banc).", confirme: "1" }, `${TAG}facture.pdf`));
-    const [a, b] = await sousBarriere(() => [unePaie(), unePaie()]);
+    // La facture se dépose AVANT la prise du poste (toutes les pièces jointes sont gardées — audit Ad & Pro, H-04) : le
+    // second geste peut donc s'arrêter plus tôt, sur « a déjà sa facture », sans atteindre la barrière. On attend le
+    // premier sur le verrou, puis on lâche : l'issue est la même — un seul ordre, une seule facture.
+    const [a, b] = await sousBarriere(() => [unePaie(), unePaie()], 1);
     expect([a.ok, b.ok].filter(Boolean), JSON.stringify([a, b])).toHaveLength(1);
     expect(await prisma.expenseOrder.count({ where: { sourceId: congres, label: { contains: "Goodies" } } })).toBe(1);
     expect(await prisma.adProItemPiece.count({ where: { itemId: id, nature: "FACTURE" } })).toBe(1);

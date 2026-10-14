@@ -31,6 +31,9 @@ import { canSubmitDossier } from "@/lib/finance/payment-dossier";
 import { canNudge, nudgeKindOf, nudgeMessage, NUDGE_LABEL, isCompanionDossier, canDecideFromDossier } from "@/lib/finance/dossier-auto";
 import { deadlineNatureOf, deadlineNatureLabel } from "@/lib/finance/deadline-nature";
 import { ENTITY_MODULE } from "@/lib/entity-access";
+import { etatDuPaiement } from "@/lib/finance/relance-paiement";
+import { prevenirQuiALaMain } from "@/lib/payments/relance-destinataires";
+import { verifierFacturesAvantDepot, marquerDoublonPossible, type FichierDepose } from "@/lib/factures/connues";
 import { PAYMENT_URGENCY } from "@/lib/labels";
 
 const PATH = "/validations/paiements";
@@ -229,6 +232,17 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
       if (!gate.ok) return { ok: false, error: gate.reason ?? "Le dossier est incomplet." };
     }
 
+    // UNE FACTURE DÉJÀ CONNUE NE REPART PAS AU PAIEMENT (Direction, 14/10) — jugé AVANT toute écriture : le même
+    // fichier, ou la même facture lue par Luna (même fournisseur, même numéro), déjà dans une autre demande, un poste
+    // Ad & Pro, le registre Legal ou un dossier → refus, et la relance comme seul geste. Un doublon seulement PROBABLE
+    // passe, avec la marque « doublon possible » posée plus bas.
+    const facturesJointes: (FichierDepose & { i: number })[] = [];
+    for (const [i, f] of joints.entries()) {
+      if (kindOf(fdStr(formData, `kind_${i}`)) === "INVOICE") facturesJointes.push({ i, octets: Buffer.from(await f.arrayBuffer()), nom: f.name, saisie: { fournisseur: payee } });
+    }
+    const garde = await verifierFacturesAvantDepot(user, facturesJointes, { instances: [] });
+    if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
+
     // LA SÉRIE PAY EST PARTAGÉE avec le dossier compagnon d'un ordre (`expense-orders.ts`) : une seule
     // file pour une série, sinon chacune ne protège que sa moitié (§118.182).
     const req = await enSerie(SERIE_DEMANDES_PAIEMENT, () => createWithRetry(async () =>
@@ -296,6 +310,7 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
     // TRANSMETTRE, C'EST ENTRER AU CENTRE. La demande déposée directement (sans passer par le
     // brouillon) suit le même chemin que celle transmise depuis la fiche : l'ordre de dépense naît
     // ici, en attente du centre. Un brouillon, lui, n'engage rien et n'y entre pas.
+    let ordreId: string | null = null;
     if (submit) {
       const order = await createExpenseOrder({
         label: `${req.reference} — ${req.title}`,
@@ -305,16 +320,20 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
         deadlineNature,
         notes: fdStr(formData, "description"),
       });
+      ordreId = order.id;
       await prisma.paymentRequest.update({ where: { id: req.id }, data: { expenseOrderId: order.id } });
     }
     await trace(req.id, user.id, submit ? "SUBMIT" : "COMMENT", submit ? "Demande transmise au centre de paiement." : "Brouillon créé.");
+    // LA MARQUE « DOUBLON POSSIBLE » — dans le fil et sur l'ordre : le centre de paiement et les Finances la lisent.
+    for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, ordreIds: [ordreId], demandeId: req.id, acteurId: user.id });
     await recordAudit({
       actorId: user.id, action: "CREATE", module: "Demandes de paiement",
       entityType: "PAYMENT_REQUEST", entityId: req.id,
       summary: `Demande de paiement ${req.reference} — ${payee} · ${amount} DZD`,
     });
     revalidate(req.id);
-    return { ok: true, id: req.id };
+    const avertissement = garde.probables.map((p) => p.phrase).join(" ") || undefined;
+    return { ok: true, id: req.id, ...(avertissement ? { avertissement, message: avertissement } : {}) };
   } catch (err) {
     console.error("[payment] createPaymentRequest failed", err);
     return { ok: false, error: "La demande n'a pas pu être créée. Réessayez dans un instant." };
@@ -361,6 +380,16 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
       ancienne = old;
     }
 
+    // UNE FACTURE DÉJÀ CONNUE AILLEURS NE S'AJOUTE PAS (Direction, 14/10) — jugé avant d'écrire. Ce dossier-ci (et son
+    // ordre) est hors de la comparaison : remplacer sa propre facture, ou la redéposer ici, n'est pas un second paiement.
+    const estFacture = kindOf(fdStr(formData, "kind")) === "INVOICE";
+    const garde = estFacture
+      ? await verifierFacturesAvantDepot(user, [{ octets: Buffer.from(await file.arrayBuffer()), nom: file.name, saisie: { fournisseur: req.payee } }], {
+          instances: [`DEMANDE:${requestId}`, ...(req.expenseOrderId ? [`ORDRE:${req.expenseOrderId}`] : [])],
+        })
+      : { ok: true as const, identites: [], probables: [] };
+    if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
+
     const doc = await persistUploadedDocument(user.id, {
       entityType: "PAYMENT_REQUEST", entityId: requestId,
       category: "OTHER", confidentiality: "INTERNAL", stepKey: null, file,
@@ -391,11 +420,15 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
     // demandeur ne lui retire jamais son dossier : il le renvoie quand sa correction est complète
     // (« Envoyer aux Finances »). Un geste des Finances, lui, peut le ramener chez elles.
     if (!parLeDemandeur) await syncStatus(requestId, req.status, user.id);
+    for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, ordreIds: [req.expenseOrderId], demandeId: requestId, acteurId: user.id });
     revalidate(requestId);
     const resteChezLui = parLeDemandeur && req.status === "CHANGES_REQUESTED";
-    return resteChezLui
-      ? { ok: true, id: piece.id, message: `${replacesId ? "Pièce remplacée" : "Pièce ajoutée"} — renvoyez le dossier aux Finances quand votre correction est complète.` }
-      : { ok: true, id: piece.id };
+    const avertissement = garde.probables.map((p) => p.phrase).join(" ") || undefined;
+    const phrase = resteChezLui
+      ? `${replacesId ? "Pièce remplacée" : "Pièce ajoutée"} — renvoyez le dossier aux Finances quand votre correction est complète.`
+      : null;
+    const message = [phrase, avertissement].filter(Boolean).join(" ");
+    return { ok: true, id: piece.id, ...(message ? { message } : {}), ...(avertissement ? { avertissement } : {}) };
   } catch (err) {
     console.error("[payment] addPaymentPiece failed", err);
     return { ok: false, error: "La pièce n'a pas pu être ajoutée." };
@@ -951,10 +984,17 @@ export async function nudgePaymentRequest(formData: FormData): Promise<ActionRes
       await prisma.paymentRequest.update({ where: { id }, data: { urgency: "URGENT" } });
     }
 
-    const link = `${PATH}/${id}`;
+    // LES DESTINATAIRES : QUI A LA MAIN (Direction, 14/10) — la règle de la relance unifiée (`prevenirQuiALaMain`) :
+    // le centre de paiement tant qu'il n'a pas autorisé, les Finances ensuite. La Direction reste prévenue d'une URGENCE.
     const title = kind === "URGENT" ? "Paiement signalé urgent" : "Relance sur une demande de paiement";
-    if (req.recipientId) await notifyUser({ userId: req.recipientId, type: "VALIDATION_REQUIRED", title, body: message, link });
-    await notifyRoles(["FINANCE_BUDGET_MANAGER", "DIRECTION", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title, body: message, link });
+    const ordre = req.expenseOrderId
+      ? await prisma.expenseOrder.findUnique({ where: { id: req.expenseOrderId }, select: { status: true, centralStatus: true } })
+      : null;
+    await prevenirQuiALaMain({
+      etat: etatDuPaiement({ ordre, demande: req }), title, body: message, dossierId: id,
+      recipientId: req.recipientId, demandeurId: req.requesterId, acteurId: user.id,
+    });
+    if (kind === "URGENT") await notifyRoles(["DIRECTION", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title, body: message, link: `${PATH}/${id}` });
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Demandes de paiement",
       entityType: "PAYMENT_REQUEST", entityId: id, summary: message,

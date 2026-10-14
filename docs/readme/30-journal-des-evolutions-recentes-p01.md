@@ -1,5 +1,20 @@
 ## 🧾 Journal des évolutions récentes
 
+### BONS DE COMMANDE : L'APERÇU OBLIGATOIRE, ET TOUT S'Y CORRIGE (2026-10-14)
+
+Aucune migration (le brouillon reste le JSON `AdProDevis.bcBrouillon`). Décision de la Direction : « Je veux l'aperçu
+obligatoire ; modification et révision possibles du BC ultra complètes, chaque détail peut être modifié dans le BC. »
+
+- **Un seul chemin** : Générer → aperçu → relecture/correction → Valider et envoyer. Le geste « en un clic » du poste
+  (`genererEtEnvoyerBcPoste`) est retiré ; le clic ouvre l'aperçu prêt à relire (PDF à blanc, sans numéro). Le Bureau du
+  secrétariat passe aussi par l'aperçu (rien n'est écrit avant la validation) ; le matériel promotionnel y passait déjà.
+- **L'aperçu est le composeur de la révision** (mode brouillon) : fournisseur complet, lignes (unité, détails, sections,
+  remise, TVA), dates, références amont, paiement, TVA, remise globale, taxes, livraison (avec sa date), contact, notes,
+  papier en-tête, coordonnées de l'émetteur, signataire, mentions — gardés sur le brouillon et appliqués à l'émission.
+- **Plafond de l'accordé en TTC partout** (audit M-03 corrigé) ; brouillon périmé si les lignes validées changent ; BC
+  signé non modifiable depuis le poste. Le BC d'une demande au secrétariat se modifie depuis la demande tant qu'il n'est
+  pas signé. Le composeur gagne l'**unité** des lignes et la **date de livraison** (Legal compris).
+
 ### INFORMATION MÉDICALE : CE QUE LE PRIM FAIT VALIDER VA AU DIRECTEUR DES OPÉRATIONS (2026-10-14)
 
 Aucune migration. Règle pure `lib/medical-info/decideur.ts` (testée) — voir « Information médicale » dans les workflows.

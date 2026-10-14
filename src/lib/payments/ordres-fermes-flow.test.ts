@@ -5,7 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({
-  requireUser: async () => ACTEUR,
+  requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR,
   getUser: async () => ACTEUR,
   getCurrentUser: async () => ACTEUR,
   requireModule: async () => ACTEUR,

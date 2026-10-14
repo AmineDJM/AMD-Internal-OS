@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 let ACTOR: { id: string; name: string; email: string; role: string; access: Record<string, unknown>; mustChangePassword: boolean } | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR, requireModule: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, requireModule: async () => ACTOR }));
 
 const piege = (nom: string) => () => { throw new Error(`${nom} appelé sans être Super Admin`); };
 vi.mock("@/lib/influence-luna", () => ({

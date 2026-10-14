@@ -7,7 +7,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 // Hors requête, `cookies()` lève : la sélection d'en-tête vaut « toutes les entités ».
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 let ACTEUR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 // LE MODÈLE, SCRIPTÉ : il rend les lignes qu'on lui dit — ou un texte brut — et garde ce qu'on lui a envoyé.
 const IA = { lignes: [] as unknown[], brut: null as string | null, prompts: [] as string[], appels: 0 };

@@ -1,7 +1,7 @@
 // ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir `npm run actions:contrat`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
-// chargé avant l'appel. `executer.test.ts` résout les 1120 actions et échoue en
+// chargé avant l'appel. `executer.test.ts` résout les 1126 actions et échoue en
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
 
 export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<string, unknown>>>> = {
@@ -63,6 +63,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "document-actions": () => import("./document-actions") as unknown as Promise<Record<string, unknown>>,
   "document-request-actions": () => import("./document-request-actions") as unknown as Promise<Record<string, unknown>>,
   "dossier-actions": () => import("./dossier-actions") as unknown as Promise<Record<string, unknown>>,
+  "doublons-factures-actions": () => import("./doublons-factures-actions") as unknown as Promise<Record<string, unknown>>,
   "drive-actions": () => import("./drive-actions") as unknown as Promise<Record<string, unknown>>,
   "drive-browse-actions": () => import("./drive-browse-actions") as unknown as Promise<Record<string, unknown>>,
   "drive-comment-actions": () => import("./drive-comment-actions") as unknown as Promise<Record<string, unknown>>,
@@ -150,6 +151,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "regulatory-drive-actions": () => import("./regulatory-drive-actions") as unknown as Promise<Record<string, unknown>>,
   "regulatory-reminder-actions": () => import("./regulatory-reminder-actions") as unknown as Promise<Record<string, unknown>>,
   "regulatory-timeline-actions": () => import("./regulatory-timeline-actions") as unknown as Promise<Record<string, unknown>>,
+  "relance-paiement-actions": () => import("./relance-paiement-actions") as unknown as Promise<Record<string, unknown>>,
   "reminder-actions": () => import("./reminder-actions") as unknown as Promise<Record<string, unknown>>,
   "repartition-couts-actions": () => import("./repartition-couts-actions") as unknown as Promise<Record<string, unknown>>,
   "reservation-fiche-actions": () => import("./reservation-fiche-actions") as unknown as Promise<Record<string, unknown>>,

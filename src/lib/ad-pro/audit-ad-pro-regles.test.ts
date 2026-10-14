@@ -6,7 +6,7 @@ import { etapesDuPoste, etatDuPaiement, phrasePaiementBloque, prochainPas, type 
 import { beneficiaireDuPaiement } from "@/lib/ad-pro/bc-poste";
 import { droitsValidation, peutTenir, opsFranchiALaSoumission } from "@/lib/ad-pro/validation-poste";
 import { depassementDevisRetenus } from "@/lib/ad-pro/voyageurs";
-import { refusDepassement, totauxValides, type LigneDevisPoste } from "@/lib/ad-pro/devis-poste";
+import { plafondDesDevis, refusDepassement, totauxValides, type LigneDevisPoste } from "@/lib/ad-pro/devis-poste";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -125,14 +125,28 @@ describe("D. CONSTATS DOCUMENTÉS — défauts réels laissés à leur chantier 
    * validation d'un aperçu CORRIGÉ (`traiterLeBCDuPoste`) ne comparent que le HORS-TAXE. Un BC de 440 000 HT à 19 %
    * (523 600 TTC) passe donc la modification pour 450 000 accordés, alors que la génération l'aurait refusé.
    */
-  it.fails("M-03 — modifier un BC applique le MÊME plafond que le générer (TTC ≤ accordé)", () => {
+  // M-03 CORRIGÉ (Direction, 14/10/2026 — aperçu obligatoire et ultra complet) : la génération, la correction de l'aperçu, sa
+  // validation et « Modifier le BC » lisent UN plafond TTC (`plafondDesDevis` → `refusDepassement`, via `refusPlafondDuPoste`) :
+  // le TTC que la fabrique compose pour le BC corrigé prend la place des lignes de son devis. Le flux est éprouvé de bout en bout
+  // par `bc-apercu-complet-flow.test.ts` ; le cas ci-dessous protège la règle et son branchement.
+  it("M-03 — modifier un BC applique le MÊME plafond que le générer (TTC ≤ accordé)", () => {
     const lignes: LigneDevisPoste[] = [{ id: "l", position: 0, reference: "Location salle", unit: null, quantity: 1, unitPrice: 440_000, lue: null, aVerifier: null, validatedItemId: "p", bcId: null }];
     const t = totauxValides({ tvaRate: 19, extraTaxLabel: null, extraTaxRate: null, announcedTotal: null }, lignes, "p");
     const generation = refusDepassement(t.ttc, 450_000, t.ht, true);
     expect(generation, "la génération refuse").not.toBeNull();
+    // Le BC MODIFIÉ (440 000 HT, 523 600 TTC) à la place d'un devis de 300 000 HT : le même refus, mot pour mot.
+    const p = plafondDesDevis(
+      [{ pieceId: "d", annule: false, miseAPart: null, nbValidees: 1, totalValideHt: 300_000, totalValideTtc: 357_000, entete: { tvaRate: 19 } }],
+      new Map([["d", { ht: t.ht, ttc: t.ttc }]]),
+    );
+    expect(refusDepassement(p.ttc, 450_000, p.ht, p.tvaIndiquee)).toBe(generation);
     const action = readFileSync(join(process.cwd(), "src/lib/actions/ad-pro-item-actions.ts"), "utf8");
     const modifier = action.slice(action.indexOf("export async function modifierBcDuPoste"), action.indexOf("// ───────────────────────────── Matériel promotionnel"));
-    expect(modifier, "la modification devrait lire la même règle que la génération").toMatch(/refusDepassement\(/);
+    expect(modifier, "la modification lit la même règle que la génération").toMatch(/refusPlafondDuPoste\(/);
+    expect(modifier, "plus de plafond comparé au seul hors-taxe").not.toMatch(/hors taxes, au-delà de l'accordé/);
+    const traiter = action.slice(action.indexOf("async function traiterLeBCDuPoste"), action.indexOf("// ═══════════════ L'APERÇU DU BC"));
+    expect(traiter, "la génération et la validation lisent la même règle").toMatch(/refusPlafondDuPoste\(/);
+    expect(traiter).not.toMatch(/totalHtDesLignes\(/);
   });
 
   /**
@@ -148,9 +162,12 @@ describe("D. CONSTATS DOCUMENTÉS — défauts réels laissés à leur chantier 
     const action = readFileSync(join(process.cwd(), "src/lib/actions/ad-pro-item-actions.ts"), "utf8");
     const modifier = action.slice(action.indexOf("export async function modifierBcDuPoste"), action.indexOf("// ───────────────────────────── Matériel promotionnel"));
     expect(modifier).toContain("lireModificationsDuBc(");
+    // UNE SEULE LECTURE du formulaire du composeur (Direction, 14/10/2026) : la révision, l'aperçu du poste et celui du
+    // secrétariat lisent `lireSaisieDuComposeur`.
     const debut = action.indexOf("function lireModificationsDuBc");
-    const lecteur = action.slice(debut, action.indexOf("\n}\n", debut));
-    for (const champ of ["tiersNom", "tiersEmail", "tiersAdresse", "tvaDefaut", "modePaiement", "conditionsPaiement", "livraisonAdresse"]) {
+    expect(action.slice(debut, action.indexOf("\n}\n", debut))).toContain("lireSaisieDuComposeur(");
+    const lecteur = readFileSync(join(process.cwd(), "src/lib/bons-de-commande/saisie-composeur.ts"), "utf8");
+    for (const champ of ["tiersNom", "tiersEmail", "tiersAdresse", "tvaDefaut", "modePaiement", "conditionsPaiement", "livraisonAdresse", "livraisonDate", "ligneUnite", "letterheadId", "signataireNom", "mentions"]) {
       expect(lecteur, champ).toContain(`"${champ}"`);
     }
   });

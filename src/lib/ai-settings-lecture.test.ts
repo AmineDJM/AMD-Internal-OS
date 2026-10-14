@@ -24,7 +24,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 const AUDITS = vi.hoisted(() => [] as { summary?: string }[]);
 vi.mock("@/lib/audit", () => ({ recordAudit: async (a: { summary?: string }) => { AUDITS.push(a); } }));
 let ACTEUR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR , requireUserAuNomDeLaVue: async () => ACTEUR}));
 
 import { Prisma } from "@prisma/client";
 import { aiFeatureEnabled, getAiSettings } from "@/lib/ai-settings";

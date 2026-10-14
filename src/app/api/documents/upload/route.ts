@@ -9,6 +9,7 @@ import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { shouldMirrorToDrive } from "@/lib/drive/mirror-path";
 import { prisma } from "@/lib/prisma";
 import { refusDevisLibre } from "@/lib/promo-material/rangement";
+import { gardeDuDepotLibre } from "@/lib/factures/connues";
 
 /**
  * Téléversement de documents **en lot** (fichiers ET dossiers) pour un objet métier :
@@ -59,7 +60,18 @@ export async function POST(req: NextRequest) {
   // à Luna où ranger la pièce (« + Pièce jointe » des détails d'une demande Ad & Pro).
   const ids: string[] = [];
   const errors: { name: string; error: string }[] = [];
-  for (const file of files) {
+  // UNE FACTURE DÉJÀ CONNUE AILLEURS NE SE DÉPOSE PAS UNE SECONDE FOIS (Direction, 14/10/2026) : la première pièce
+  // d'une facture du registre, ou un fichier « Facture » posé sur un dossier. Jugé avant d'écrire ; le fichier refusé
+  // a son erreur (la phrase du blocage), les autres du lot passent.
+  // Les octets ne sont relus ici que pour un dépôt qui PEUT être une facture : un lot de quarante pièces réglementaires
+  // ne passe pas deux fois en mémoire.
+  const peutEtreFacture = entityType === "LEGAL_DOCUMENT" || category === "INVOICE";
+  const garde = await gardeDuDepotLibre(user, { entityType, entityId, category }, peutEtreFacture
+    ? await Promise.all(files.map(async (f) => ({ octets: Buffer.from(await f.arrayBuffer()), nom: f.name })))
+    : []);
+  for (const [index, file] of files.entries()) {
+    const refusFacture = garde.refus.get(index);
+    if (refusFacture) { errors.push({ name: file.name, error: refusFacture }); continue; }
     // Chaque fichier est isolé : une erreur (lecture, stockage, base) devient une erreur DE CE
     // fichier avec sa cause exacte — jamais une 500 opaque qui ferait échouer tout le lot.
     try {
@@ -80,6 +92,8 @@ export async function POST(req: NextRequest) {
       errors.push({ name: file.name, error: err instanceof Error ? err.message : "Échec du téléversement." });
     }
   }
+
+  if (created > 0) await garde.apres();
 
   // Miroir Drive automatique EN ARRIÈRE-PLAN : on NE bloque PAS la réponse dessus. Le document
   // est déjà enregistré (c'est ce que l'utilisateur voit) ; la copie Drive se termine juste après,

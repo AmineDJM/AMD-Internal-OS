@@ -16,7 +16,7 @@ import type { CurrentUser } from "@/lib/session";
  */
 
 let ACTEUR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR , requireUserAuNomDeLaVue: async () => ACTEUR}));
 
 interface Appel { role: string; prompt: string; schema: { name: string }; opts: { system?: string } }
 const APPELS: Appel[] = [];

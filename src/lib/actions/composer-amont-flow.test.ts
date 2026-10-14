@@ -5,7 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 // Hors requête, `cookies()` lève : la sélection d'en-tête vaut « toutes les entités » de la personne.
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";

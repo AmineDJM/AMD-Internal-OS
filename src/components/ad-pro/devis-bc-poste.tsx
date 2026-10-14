@@ -10,7 +10,7 @@ import type { BcDePoste } from "@/lib/ad-pro/pieces-poste";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { refusMontantDesDevis } from "@/lib/ad-pro/devis-poste";
 import {
-  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, genererEtEnvoyerBcPoste, modifierBcDuPoste,
+  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, modifierBcDuPoste,
   previsualiserBcDuPoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
@@ -183,9 +183,8 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   // GÉNÉRER = préparer l'APERÇU (un brouillon, sans numéro) ; le BC n'existe qu'une fois l'aperçu validé par le demandeur.
   const aFaireTous = vivants.filter((d) => d.etat === "A_GENERER" || d.etat === "A_REGENERER");
   const aFaire = aFaireTous.filter((d) => !d.brouillon);
-  const avecApercu = aFaireTous.filter((d) => d.brouillon);
   const [apercuOuvert, setApercuOuvert] = React.useState<string | null>(null);
-  const apercuDuDevis = apercuOuvert ? avecApercu.find((d) => d.pieceId === apercuOuvert) ?? null : null;
+  const devisDeLApercu = apercuOuvert ? vivants.find((d) => d.pieceId === apercuOuvert) ?? null : null;
   // LE PLAFOND SUR LES DEVIS QUI COMPTENT — une copie de la même pièce, une proposition écartée n'y entrent pas (§118.5 :
   // le même calcul que l'action, `refusMontantDuPoste`).
   const depasse = refusMontantDesDevis(vivants, accorde);
@@ -196,15 +195,18 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
     if (pieceId) fd.set("pieceId", pieceId);
     return fd;
   };
-  /** L'APERÇU (un brouillon, sans numéro) — pour relire et corriger avant de valider. */
-  const apercu = (pieceId: string | null) => {
-    void run(`gen:${pieceId ?? "tous"}:${itemId}`, () => genererBonDeCommandePoste(formulaire(pieceId)), "Aperçu du bon de commande prêt — à vérifier par le demandeur.");
-  };
-  /** EN UN CLIC : le BC numéroté, Word et PDF, aiguillé vers son centre — le demandeur (ou le Super Admin) seulement. */
-  const enUnClic = peutGenerer && peutValider;
+  /**
+   * GÉNÉRER = L'APERÇU, OBLIGATOIREMENT (Direction, 14/10/2026 — « Je veux l'aperçu obligatoire ») : le clic dépose le brouillon
+   * (sans numéro) et OUVRE AUSSITÔT l'aperçu dans le composeur, prêt à relire et à corriger — pas de geste intermédiaire. Le BC
+   * n'est émis que par « Valider et envoyer aux Finances », depuis l'aperçu. Il n'y a plus de génération « en un clic ».
+   */
   const generer = (pieceId: string | null) => {
-    if (!enUnClic) { apercu(pieceId); return; }
-    void run(`gen:${pieceId ?? "tous"}:${itemId}`, () => genererEtEnvoyerBcPoste(formulaire(pieceId)), "Bon de commande généré.");
+    const cible = pieceId ?? aFaire[0]?.pieceId ?? null;
+    void run(`gen:${pieceId ?? "tous"}:${itemId}`, async () => {
+      const r = await genererBonDeCommandePoste(formulaire(pieceId));
+      if (r.ok && cible) setApercuOuvert(cible);
+      return r;
+    }, "Aperçu du bon de commande prêt — à vérifier par le demandeur.");
   };
   const ouverte = peutGenerer && refusGeneration === null && !depasse;
   // POURQUOI LE BOUTON NE PEUT PAS ABOUTIR — dit À CÔTÉ de lui, jamais à sa place (§118.83).
@@ -271,9 +273,10 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       {peutGenerer && aFaire.length > 0 && refusGeneration && <p className="text-muted-foreground">{refusGeneration}</p>}
       {!peutGenerer && aFaire.length > 0 && <p className="text-muted-foreground">Le demandeur génère le bon de commande d&apos;ici, d&apos;après les lignes validées.</p>}
 
-      {apercuDuDevis && (
+      {apercuOuvert && (
         <ApercuBonDeCommande
-          itemId={itemId} devis={apercuDuDevis} peutEditer={peutGenerer} peutValider={peutValider} busy={busy} run={run}
+          itemId={itemId} pieceId={apercuOuvert} nomDevis={devisDeLApercu ? devisDeLApercu.reference ?? devisDeLApercu.titre : "devis"}
+          peutEditer={peutGenerer} peutValider={peutValider} run={run}
           onClose={() => setApercuOuvert(null)}
         />
       )}
@@ -288,13 +291,8 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
               title={!ouverte && pourquoiPas ? pourquoiPas : undefined}
             >
               {enCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              {libelleGeneration(aFaire.length, aFaire.every((d) => d.etat === "A_REGENERER"), enUnClic)}
+              {libelleGeneration(aFaire.length, aFaire.every((d) => d.etat === "A_REGENERER"), peutValider)}
             </Button>
-          )}
-          {enUnClic && ouverte && aFaire.length > 0 && (
-            <button type="button" onClick={() => apercu(aFaire.length === 1 ? aFaire[0].pieceId : null)} disabled={enCours} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline disabled:opacity-50 sm:min-h-0">
-              <Eye className="h-3 w-3" /> Voir l&apos;aperçu d&apos;abord
-            </button>
           )}
           {peutGenerer && aFaire.length > 0 && depasse && onReviser && (
             <button type="button" onClick={onReviser} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline sm:min-h-0">
@@ -312,9 +310,12 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   );
 }
 
-/** Le libellé du geste : un clic qui GÉNÈRE (le demandeur), ou qui prépare l'aperçu (qui le prépare pour lui). */
-function libelleGeneration(n: number, regenerer: boolean, enUnClic: boolean): string {
-  if (!enUnClic) return n > 1 ? `Préparer les BC (${n}) — aperçus` : regenerer ? "Régénérer le BC (aperçu)" : "Préparer le BC (aperçu)";
+/**
+ * Le libellé du geste. Le demandeur (qui valide) « génère » : le clic ouvre l'aperçu, d'où il valide et envoie. Qui prépare pour
+ * lui « prépare » l'aperçu, que le demandeur validera. Dans les deux cas, aucun BC n'existe avant la validation de l'aperçu.
+ */
+function libelleGeneration(n: number, regenerer: boolean, valide: boolean): string {
+  if (!valide) return n > 1 ? `Préparer les BC (${n}) — aperçus` : regenerer ? "Régénérer le BC (aperçu)" : "Préparer le BC (aperçu)";
   if (n > 1) return `Générer les bons de commande (${n})`;
   return regenerer ? "Régénérer le bon de commande" : "Générer le bon de commande";
 }

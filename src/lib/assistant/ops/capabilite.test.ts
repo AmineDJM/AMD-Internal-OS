@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {}, revalidateTag: () => {} }));
 let ACTEUR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getUser: async () => ACTEUR }));
 
 // ⚠ ORDRE D'IMPORT. `ops/index.ts` et `lib/assistant.ts` forment un cycle d'INITIALISATION
 // CONNU : `ops` → `impl-wave7d` → `actions/adventum-actions` → `assistant.ts`, qui lit

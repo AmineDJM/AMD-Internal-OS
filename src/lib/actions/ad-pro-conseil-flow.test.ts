@@ -13,7 +13,7 @@ import type { CurrentUser } from "@/lib/session";
  */
 
 let ACTEUR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR , requireUserAuNomDeLaVue: async () => ACTEUR}));
 
 const APPELS: { prompt: string; system?: string }[] = [];
 let DONNEES: unknown = null;

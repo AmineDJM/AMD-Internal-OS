@@ -5,7 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 // Le dépôt de fichier passe par S3 en production : ici on teste la RÈGLE, pas le stockage. Le faux
 // rend un `documentId` réel, que le nettoyage retrouve par son nom.

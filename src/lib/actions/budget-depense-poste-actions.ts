@@ -18,6 +18,7 @@ import {
   MOTIF_MAX, refusAnnulation, refusConsommation, refusImputation, type GesteImputation,
 } from "@/lib/budget/depense-poste";
 import { fdNum, fdStr, type ActionResult } from "@/lib/actions/types";
+import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -208,6 +209,11 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   }
   const op = await operation(owner);
   if (!op) return { ok: false, error: "Opération introuvable." };
+  // LA FACTURE DÉJÀ CONNUE AILLEURS (Direction, 14/10) — jugée avant la prise et avant toute écriture.
+  const garde = await verifierFacturesAvantDepot(user, fichier
+    ? [{ octets: Buffer.from(await fichier.arrayBuffer()), nom: fichier.name, saisie: { ttc: montant, fournisseur: poste.supplier ?? op.beneficiaire } }]
+    : [], { instances: [`POSTE:${id}`] });
+  if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
 
   // LA PRISE : un poste à la fois — deux clics ne demandent pas deux paiements.
   const prise = await prisma.adProItem.updateMany({
@@ -261,9 +267,14 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
     await journal(user, id, "depense-consommation",
       `Dépense du poste « ${poste.label} » consommée : ${dzd(montant)} sur « ${nomCategorie(actuelle)} »${rendu > 0.5 ? `, ${dzd(rendu)} rendus au budget` : ""} — ordre ${ordre.reference}, au centre de paiement${fichier ? ", facture jointe" : ", sans facture pour l'instant"}.`,
       null, String(montant));
+    for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, legalDocumentId: factureId, ordreIds: [ordre.id], acteurId: user.id });
     revalider(owner);
     revalidatePath("/finances/paiements-a-faire");
-    return { ok: true, id: ordre.id, message: `Consommée : ${dzd(montant)}. Envoyée au centre de paiement (${ordre.reference}).` };
+    const avertissement = garde.probables.map((p) => p.phrase).join(" ");
+    return {
+      ok: true, id: ordre.id, message: `Consommée : ${dzd(montant)}. Envoyée au centre de paiement (${ordre.reference}).${avertissement ? ` ${avertissement}` : ""}`,
+      ...(avertissement ? { avertissement } : {}),
+    };
   } catch (err) {
     console.error("[budget-marketing] consommation impossible", err);
     if (!ordreNe) {

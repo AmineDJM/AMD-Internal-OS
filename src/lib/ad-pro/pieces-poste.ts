@@ -96,10 +96,10 @@ export interface ValeursBcPoste {
   tiers: { nom: string; adresse: string; telephone: string; email: string; rc: string; nif: string; ai: string; nis: string };
   champs: {
     numeroClient: string; date: string; echeance: string; validiteJours: string; objet: string; referenceAmont: string; referenceAmontDate: string;
-    contactNom: string; contactTelephone: string; livraisonAdresse: string; livraisonDelai: string; modePaiement: string; conditionsPaiement: string;
+    contactNom: string; contactTelephone: string; livraisonAdresse: string; livraisonDelai: string; livraisonDate: string; modePaiement: string; conditionsPaiement: string;
     tvaDefaut: string; remiseGlobale: string; notes: string;
   };
-  lignes: { designation: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }[];
+  lignes: { designation: string; unite: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }[];
   taxes: { libelle: string; taux: string }[];
   letterheadId: string;
   emetteur: { adresse: string; telephone: string; email: string } | null;

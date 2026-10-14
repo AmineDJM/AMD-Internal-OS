@@ -9,6 +9,7 @@ import { SECTION_CENTRE_LABEL } from "@/lib/payments/sections-centre";
 import { chargerCentre } from "@/lib/queries/centre-paiement";
 import { entityHref } from "@/lib/entity-href";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
+import { marquesDesOrdres } from "@/lib/factures/connues";
 import { existingSources } from "@/lib/entity-exists";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -113,6 +114,8 @@ export default async function CentreDePaiementPage({ searchParams }: { searchPar
   // une sortie d'argent : sans pouvoir ouvrir la facture, il autorise une ligne de tableau.
   // Tout ordre en porte un désormais, quelle que soit sa provenance (`createExpenseOrder`).
   const dossiers = await dossierHrefByOrder(orders.map((o) => o.id));
+  // LA MARQUE « DOUBLON POSSIBLE » de chaque paiement (Direction, 14/10/2026) — l'ordre, ses factures, le fil.
+  const doublons = await marquesDesOrdres(orders.map((o) => o.id));
 
   // LA SOURCE EXISTE-T-ELLE ENCORE ? Un ordre survit à la demande, au congrès ou au sponsoring
   // qui l'a fait naître ; `entityHref` en ferait un lien ordinaire vers une page 404 — l'audit
@@ -184,6 +187,7 @@ export default async function CentreDePaiementPage({ searchParams }: { searchPar
       : null,
     produit: produitDeLOrdre(o),
     note: o.notes?.trim() || null,
+    doublonPossible: doublons.get(o.id) ?? null,
     pieces: piecesDe.get(o.id) ?? [],
     isMine: o.requestedById === user.id,
     messages: o.centralMessages.map((m) => ({

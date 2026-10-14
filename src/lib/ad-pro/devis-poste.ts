@@ -298,6 +298,37 @@ export function refusMontantDesDevis(devis: readonly DevisAuPlafond[], accorde: 
   return refusDepassement(t.ttc, accorde, t.ht, tvaIndiquee);
 }
 
+/**
+ * LE PLAFOND QUAND UN BC CORRIGÉ PREND LA PLACE DES LIGNES DE SON DEVIS (audit M-03, Direction 14/10/2026) — UN calcul TTC pour la
+ * génération, la correction de l'aperçu, sa validation et « Modifier le BC ». Le total que la FABRIQUE compose pour le BC
+ * corrigé (remises, TVA par ligne, remise globale, taxes, timbre) remplace les lignes validées de son devis ; les autres devis
+ * qui comptent restent ce qu'ils sont. Sans correction, c'est exactement `refusMontantDesDevis` : l'accordé s'entend TTC partout.
+ * Une correction dont le devis n'est pas dans la liste (un BC sans devis amont) s'ajoute.
+ */
+export function plafondDesDevis(
+  devis: readonly (DevisAuPlafond & { pieceId: string })[],
+  corriges: ReadonlyMap<string, { ht: number; ttc: number }> = new Map(),
+): { ht: number; ttc: number; tvaIndiquee: boolean } {
+  let ht = 0;
+  let ttc = 0;
+  let tvaIndiquee = true;
+  const vus = new Set<string>();
+  for (const d of devisQuiComptent(devis)) {
+    const c = corriges.get(d.pieceId);
+    vus.add(d.pieceId);
+    if (c) { ht += cents(c.ht); ttc += cents(c.ttc); continue; }
+    ht += cents(d.totalValideHt);
+    ttc += cents(d.totalValideTtc);
+    if (d.nbValidees > 0 && d.entete.tvaRate === null) tvaIndiquee = false;
+  }
+  for (const [pieceId, c] of corriges) {
+    if (vus.has(pieceId) || devis.some((d) => d.pieceId === pieceId)) continue;
+    ht += cents(c.ht);
+    ttc += cents(c.ttc);
+  }
+  return { ht: ht / 100, ttc: ttc / 100, tvaIndiquee };
+}
+
 // ───────────────────────── La même pièce ne se compte qu'une fois ─────────────────────────
 
 /**

@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 // L'ABSENCE DE TOUT DIRECTEUR ne se fabrique pas dans une base partagée (d'autres bancs en créent le temps
 // de leur passage) : quand le banc le demande, la lecture des décideurs voit « aucun directeur » — la règle
 // pure (`decideursInfoMed`) et la lecture réelle des Super Admins restent celles du produit.

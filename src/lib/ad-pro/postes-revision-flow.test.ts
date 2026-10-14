@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 /**
  * LE SEUIL DES BONS DE COMMANDE EST UN RÉGLAGE GLOBAL (une ligne `AppSetting`). Le poser pour de vrai
  * changerait ce que voient les suites qui tournent en parallèle sur la même base (§118.132) : le banc
@@ -130,7 +130,7 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
               : qui === "fin" ? await acteur(finId, "FINANCE_BUDGET_MANAGER")
                 : await acteur(saId, "SUPER_ADMIN");
   };
-  const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], nom, { type: "application/pdf" });
+  const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]), `${nom}-${Date.now()}-${Math.random()}`], nom, { type: "application/pdf" });
   const ok = (r: { ok: boolean; error?: string }) => expect(r.ok, r.error ?? "").toBe(true);
 
   /**

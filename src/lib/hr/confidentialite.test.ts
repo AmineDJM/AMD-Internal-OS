@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 let ACTEUR: unknown = null;
-vi.mock("@/lib/session", () => ({ getCurrentUser: async () => ACTEUR, requireUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ getCurrentUser: async () => ACTEUR, requireUser: async () => ACTEUR , requireUserAuNomDeLaVue: async () => ACTEUR}));
 // Les octets d'une pièce : le banc juge la PORTE, pas le stockage chiffré.
 vi.mock("@/lib/drive-storage", () => ({ getBlob: async () => Buffer.from("PDF") }));
 

@@ -121,7 +121,7 @@ export function TableauAdPro({ data, ficheInitiale }: { data: BureauAdProData; f
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="min-w-0 space-y-4">
           {montrerFiches && (
             groupes.length === 0 ? (

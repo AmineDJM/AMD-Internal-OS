@@ -3,8 +3,9 @@
 import * as React from "react";
 import { Loader2, Plus, Trash2, Pencil, FileText, CheckCircle2, Wand2, Upload } from "lucide-react";
 import {
-  deposerDevisDemande, enregistrerLignesDevisDemande, retenirLignesDevisDemande, genererBonDeCommandeDemande, deposerBonDeCommandeDemande,
+  deposerDevisDemande, enregistrerLignesDevisDemande, retenirLignesDevisDemande, deposerBonDeCommandeDemande,
 } from "@/lib/actions/secretariat-devis-actions";
+import { ApercuBcDemande } from "./apercu-bc-demande";
 import { TAUX_TVA_DEVIS, nombreSaisi, totauxDesLignes, type LigneDevisNatif } from "@/lib/secretariat/devis-natif";
 import { CATEGORIES_AJOUT, type NatureAjout } from "@/lib/secretariat/pieces";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
@@ -215,24 +216,33 @@ export function CarteDevis({ requestId, d, peutRetranscrire, peutRetenir }: { re
 
 export interface BcAGenererVue { cle: string; fournisseur: string; nbLignes: number; ttc: number; devis: string[] }
 
+/**
+ * LES BC À GÉNÉRER — UN par fournisseur. « Générer le bon de commande » OUVRE L'APERÇU (Direction, 14/10/2026 — « Je veux
+ * l'aperçu obligatoire ») : le composeur pré-rempli, le PDF à blanc ; le BC n'est émis que par « Valider et envoyer », depuis
+ * l'aperçu. Rien n'est écrit tant qu'on ne valide pas.
+ */
 export function BcAGenerer({ requestId, groupes, peutGenerer }: { requestId: string; groupes: BcAGenererVue[]; peutGenerer: boolean }) {
-  const g = useGeste();
-  if (groupes.length === 0) return null;
+  const [ouvert, setOuvert] = React.useState<BcAGenererVue | null>(null);
+  const [note, setNote] = React.useState<string | null>(null);
+  if (groupes.length === 0 && !note) return null;
   return (
     <div className="space-y-2 rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3">
       {groupes.map((x) => (
-        <form key={x.cle} action={(fd) => { fd.set("id", requestId); fd.set("fournisseur", x.cle); return g.run(genererBonDeCommandeDemande, fd); }} className="flex flex-wrap items-center justify-between gap-2">
+        <div key={x.cle} className="flex flex-wrap items-center justify-between gap-2">
           <div className="min-w-0 text-sm">
             <p className="font-semibold">À commander chez {x.fournisseur}</p>
             <p className="text-xs text-muted-foreground">{x.nbLignes} ligne{x.nbLignes > 1 ? "s" : ""} retenue{x.nbLignes > 1 ? "s" : ""} · {formatCurrency(x.ttc)} TTC · {x.devis.join(", ")}</p>
           </div>
           {peutGenerer
-            ? <BoutonDecisif type="submit" size="sm" disabled={g.busy}>{g.busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />} Générer le bon de commande</BoutonDecisif>
+            ? <Button type="button" size="sm" onClick={() => { setNote(null); setOuvert(x); }}><Wand2 className="h-4 w-4" /> Générer le bon de commande</Button>
             : <span className="text-xs text-muted-foreground">En attente du demandeur, qui génère le bon de commande.</span>}
-        </form>
+        </div>
       ))}
-      {g.note && <p className="text-xs text-success">{g.note}</p>}
-      {g.err && <p className="text-xs text-destructive">{g.err}</p>}
+      {peutGenerer && groupes.length > 0 && <p className="text-xs text-muted-foreground">Le bon de commande s&apos;ouvre en aperçu : relisez-le, corrigez au besoin, puis « Valider et envoyer ». Aucun numéro n&apos;est attribué avant.</p>}
+      {note && <p className="text-xs text-success">{note}</p>}
+      {ouvert && (
+        <ApercuBcDemande requestId={requestId} cle={ouvert.cle} fournisseur={ouvert.fournisseur} onClose={() => setOuvert(null)} onEmis={setNote} />
+      )}
     </div>
   );
 }

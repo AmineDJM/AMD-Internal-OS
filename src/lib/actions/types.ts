@@ -1,3 +1,5 @@
+import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
+
 /** Shared result type returned by all server actions. */
 export interface ActionResult {
   ok: boolean;
@@ -6,6 +8,13 @@ export interface ActionResult {
   message?: string;
   /** Où aller après l'action quand l'objet n'existe plus (une demande retirée = supprimée). */
   redirect?: string;
+  /**
+   * LE DÉPÔT REFUSÉ PARCE QUE LA FACTURE EXISTE DÉJÀ (Direction, 14/10/2026) — la phrase, l'endroit (si la personne y a
+   * accès) et le seul geste proposé : la relancer (`FactureDejaConnue`, `factures/blocage-vue.ts`). Sérialisable.
+   */
+  factureConnue?: FactureDejaConnue;
+  /** Un dépôt ACCEPTÉ mais marqué « doublon possible » : l'avertissement à montrer. */
+  avertissement?: string;
 }
 
 /** Helpers for parsing FormData values inside server actions. */

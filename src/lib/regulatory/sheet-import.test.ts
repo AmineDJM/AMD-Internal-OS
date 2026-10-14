@@ -117,6 +117,9 @@ describe("formOf", () => {
     expect(formOf("GELULE")).toBe("GELULE");
     expect(formOf("PDRE+SOLV P/SOL INJ IV ET PERF 10MG/10ML")).toBe("POUDRE_INJECTABLE");
     expect(formOf("INJ 20MG")).toBe("SOLUTION_INJECTABLE");
+    expect(formOf("EMULSION INJECTABLE 10 ML")).toBe("EMULSION_INJECTABLE");
+    expect(formOf("ÉMULSION POUR PERFUSION 20%")).toBe("EMULSION_INJECTABLE");
+    expect(formOf("INJ EMULS 200MG")).toBe("EMULSION_INJECTABLE");
   });
 
   it("« CAPS/Ovule » est un ovule — la voie compte plus que le contenant", () => {

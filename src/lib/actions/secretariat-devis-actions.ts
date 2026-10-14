@@ -23,8 +23,13 @@ import {
   validerSaisie, appliquerSaisie, appliquerRetenue, refusEditionDevis, totauxDesLignes, etapeBCAttendue, type LigneSaisie,
 } from "@/lib/secretariat/devis-natif";
 import {
-  devisDeLaDemande, devisNatifDe, ecrireDevisNatif, fileDuDevis, genererBCDuFournisseur, nouvelIdDeLigne,
+  apercuBCDuFournisseur, devisDeLaDemande, devisNatifDe, ecrireDevisNatif, fileDuDevis, genererBCDuFournisseur, nouvelIdDeLigne,
 } from "@/lib/secretariat/devis-natif-serveur";
+import { lireSaisieDuComposeur, refusDeLaSaisie } from "@/lib/bons-de-commande/saisie-composeur";
+import { apercuPourEcran, type ApercuPiece } from "@/platform/in-process/artifact/factory";
+import { valeursDeLaSpec, type ValeursComposables } from "@/lib/legal/piece-emise";
+import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
+import { saisieEffective } from "@/lib/references/registre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -234,15 +239,98 @@ export async function retenirLignesDevisDemande(formData: FormData): Promise<Act
 
 // ─────────────────────────── 3. Le bon de commande ───────────────────────────
 
-/** GÉNÉRER LE BC D'UN FOURNISSEUR (`fournisseur` = sa clé) d'après les lignes retenues — par le demandeur ou le Super Admin. */
-export async function genererBonDeCommandeDemande(formData: FormData): Promise<ActionResult> {
+/**
+ * LA PORTE DU BC D'UN FOURNISSEUR — l'aperçu, ses totaux, son PDF et l'émission la partagent : la demande existe et reste ouverte,
+ * le fournisseur est nommé, et c'est le DEMANDEUR (ou le Super Admin) — l'assistante prépare, elle ne commande pas.
+ */
+async function porteDuBCFournisseur(formData: FormData) {
   const user = await requireUser();
   const req = await chargerDemande(fdStr(formData, "id"));
   const cle = fdStr(formData, "fournisseur");
-  if (!req || !cle) return { ok: false, error: "Demande ou fournisseur introuvable." };
-  if (!commandeLaDemande(user, req)) return { ok: false, error: REFUS_COMMANDE };
-  if (!ouverte(req.status)) return { ok: false, error: FERMEE };
-  const r = await genererBCDuFournisseur(user, req, cle);
+  if (!req || !cle) return { ok: false as const, error: "Demande ou fournisseur introuvable." };
+  if (!commandeLaDemande(user, req)) return { ok: false as const, error: REFUS_COMMANDE };
+  if (!ouverte(req.status)) return { ok: false as const, error: FERMEE };
+  return { ok: true as const, user, req, cle };
+}
+
+export type OuvertureApercuBcDemande =
+  | {
+    ok: true;
+    /** Le composeur pré-rempli : la pièce telle que la fabrique la composerait d'après les lignes retenues. */
+    valeurs: ValeursComposables;
+    pdfBase64: string | null;
+    pages: number;
+    societeId: string;
+    societeNom: string;
+    papeterie: { id: string; name: string; companyId: string | null; companyLabel: string | null }[];
+  }
+  | { ok: false; error: string };
+
+/**
+ * L'APERÇU DU BC D'UN FOURNISSEUR, AVANT TOUTE ÉMISSION (Direction, 14/10/2026 — « Je veux l'aperçu obligatoire ») — « comme dans
+ * Ad & Pro » : le composeur s'ouvre pré-rempli, le PDF rendu à blanc (numéro « à attribuer à la validation »). RIEN n'est écrit :
+ * ni brouillon, ni pièce, ni numéro — tant que le demandeur n'a pas validé, la demande est telle qu'avant.
+ */
+export async function ouvrirApercuBcDemande(formData: FormData): Promise<OuvertureApercuBcDemande> {
+  const p = await porteDuBCFournisseur(formData);
+  if (!p.ok) return p;
+  const r = await apercuBCDuFournisseur(p.user, p.req, p.cle, null, { avecPdf: true });
+  if (!r.ok) return r;
+  return {
+    ok: true,
+    valeurs: valeursDeLaSpec(r.r.spec, r.demande.letterheadId ?? null),
+    pdfBase64: r.r.pdf ? r.r.pdf.octets.toString("base64") : null,
+    pages: r.r.pdf?.pages ?? 0,
+    societeId: r.r.societe.id,
+    societeNom: r.r.societe.nom,
+    papeterie: await papeterieDeLaSociete(r.r.societe.id),
+  };
+}
+
+/** LES TOTAUX DE L'APERÇU, à mesure que le demandeur corrige — la composition de l'émission, à blanc. */
+export async function previsualiserApercuBcDemande(formData: FormData): Promise<ApercuPiece | { ok: false; error: string }> {
+  const p = await porteDuBCFournisseur(formData);
+  if (!p.ok) return p;
+  const saisie = lireSaisieDuComposeur(formData);
+  const refus = refusDeLaSaisie(saisie);
+  if (refus) return { ok: false, error: refus };
+  const r = await apercuBCDuFournisseur(p.user, p.req, p.cle, saisie);
+  if (!r.ok) return r;
+  return apercuPourEcran(r.r, false);
+}
+
+/** L'APERÇU AVANT IMPRESSION de la saisie en cours — le PDF, numéro « à attribuer à la validation », sans rien écrire. */
+export async function imprimerApercuBcDemande(formData: FormData): Promise<{ ok: true; pdfBase64: string; pages: number; numeroProchain: string } | { ok: false; error: string }> {
+  const p = await porteDuBCFournisseur(formData);
+  if (!p.ok) return p;
+  const saisie = lireSaisieDuComposeur(formData);
+  const refus = refusDeLaSaisie(saisie);
+  if (refus) return { ok: false, error: refus };
+  const r = await apercuBCDuFournisseur(p.user, p.req, p.cle, saisie, { avecPdf: true });
+  if (!r.ok) return r;
+  if (r.r.bloquants.length > 0) return { ok: false, error: `L'aperçu n'est pas possible : ${r.r.bloquants.slice(0, 3).join(" ; ")}` };
+  if (!r.r.pdf) return { ok: false, error: r.r.pdfErreur ?? "Le rendu de l'aperçu n'a pas pu être produit." };
+  return { ok: true, pdfBase64: r.r.pdf.octets.toString("base64"), pages: r.r.pdf.pages, numeroProchain: "à attribuer à la validation" };
+}
+
+/**
+ * GÉNÉRER LE BC D'UN FOURNISSEUR (`fournisseur` = sa clé) d'après les lignes retenues — par le demandeur ou le Super Admin, et
+ * SEULEMENT DEPUIS SON APERÇU (Direction, 14/10/2026) : le formulaire est celui du composeur, relu et corrigé — ce qu'il montre est
+ * ce qui est émis (numéro, Word, PDF, centre de validations, signature). Un appel sans l'aperçu est refusé : il n'y a pas de
+ * chemin qui émette un BC que personne n'a relu.
+ */
+export async function genererBonDeCommandeDemande(formData: FormData): Promise<ActionResult> {
+  const p = await porteDuBCFournisseur(formData);
+  if (!p.ok) return { ok: false, error: p.error };
+  const { user, req, cle } = p;
+  if (!formData.has("ligneDesignation")) {
+    return { ok: false, error: "Le bon de commande s'émet depuis son aperçu : ouvrez « Générer le bon de commande », relisez-le (et corrigez-le au besoin), puis « Valider et envoyer »." };
+  }
+  const saisie = lireSaisieDuComposeur(formData);
+  const refus = refusDeLaSaisie(saisie);
+  if (refus) return { ok: false, error: refus };
+  const numeroChoisi = saisieEffective(fdStr(formData, "numeroChoisi"), fdStr(formData, "numeroSuggere"));
+  const r = await genererBCDuFournisseur(user, req, cle, saisie, numeroChoisi);
   if (!r.ok) return { ok: false, error: r.error };
   revalider(req.id);
   revalidatePath("/bons-de-commande");

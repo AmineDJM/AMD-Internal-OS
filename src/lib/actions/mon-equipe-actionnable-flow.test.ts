@@ -5,7 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 // LES RÉGLAGES SONT GLOBAUX (§118.132, §118.170) : les modules masqués et l'accès au pipeline s'INJECTENT dans ce
 // processus — les écrire en base ferait masquer un module, le temps d'un cas, à toute la suite qui tourne à côté.

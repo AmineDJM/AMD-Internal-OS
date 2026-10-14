@@ -17,7 +17,7 @@ import type { CurrentUser } from "@/lib/session";
 
 let ACTEUR: CurrentUser | null = null;
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUserPourEcrire: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR, getCurrentUserPourEcrire: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 vi.mock("@/lib/drive/document-mirror", () => ({ mirrorDocumentsToDrive: async () => {} }));
 vi.mock("@/lib/regulatory-drive-mirror", () => ({ mirrorRegulatoryUpload: async () => {} }));
 

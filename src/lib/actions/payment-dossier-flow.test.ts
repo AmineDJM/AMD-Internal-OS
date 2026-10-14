@@ -5,7 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 
 // Le dépôt de fichier passe par S3 en production. Ici on ne teste PAS le stockage : on teste la
 // RÈGLE, et il n'y a que par cette porte qu'une pièce entre. Le faux rend un `documentId` réel.

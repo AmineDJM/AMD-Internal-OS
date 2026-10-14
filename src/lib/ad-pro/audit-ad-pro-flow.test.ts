@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 /** Le seuil des BC est un réglage GLOBAL : le banc le pose HAUT — ses BC passent sous le seuil, droit à la signature des Finances. */
 vi.mock("@/lib/settings", async (importOriginal) => {
   const vrai = await importOriginal<typeof import("@/lib/settings")>();

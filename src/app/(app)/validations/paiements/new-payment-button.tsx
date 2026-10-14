@@ -10,6 +10,8 @@ import { PAYMENT_PIECE_KIND_OPTIONS, PAYMENT_URGENCY_OPTIONS } from "@/lib/label
 import { DEADLINE_NATURE_OPTIONS } from "@/lib/finance/deadline-nature";
 import { dossierHint } from "@/lib/finance/payment-dossier";
 import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
+import { FactureDejaConnueCarte } from "@/components/factures/facture-deja-connue";
+import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
 
 interface PieceDraft { file: File; kind: string; note: string }
 
@@ -40,12 +42,13 @@ export function NewPaymentButton() {
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  const [connue, setConnue] = React.useState<FactureDejaConnue | null>(null);
   const [pieces, setPieces] = React.useState<PieceDraft[]>([]);
   const [methodStated, setMethodStated] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  const reset = () => { setPieces([]); setMethodStated(false); setErr(null); };
+  const reset = () => { setPieces([]); setMethodStated(false); setErr(null); setConnue(null); };
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
@@ -77,7 +80,7 @@ export function NewPaymentButton() {
   const submit = async (draft: boolean) => {
     const form = formRef.current;
     if (!form) return;
-    setBusy(true); setErr(null);
+    setBusy(true); setErr(null); setConnue(null);
     const fd = new FormData(form);
     fd.set("submit", draft ? "0" : "1");
     fd.set("paymentMethodStated", methodStated ? "1" : "0");
@@ -89,7 +92,10 @@ export function NewPaymentButton() {
     }
     const r = await createPaymentRequest(undefined, fd);
     setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "La demande n'a pas pu être créée."); return; }
+    if (!r.ok) {
+      if (r.factureConnue) setConnue(r.factureConnue); else setErr(r.error ?? "La demande n'a pas pu être créée.");
+      return;
+    }
     setOpen(false); reset();
     router.push(`/validations/paiements/${r.id}`);
   };
@@ -247,6 +253,7 @@ export function NewPaymentButton() {
               <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" /> {manque}
             </p>
           )}
+          {connue && <FactureDejaConnueCarte info={connue} />}
           {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
           <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:flex-wrap sm:justify-end">

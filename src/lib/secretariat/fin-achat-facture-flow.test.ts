@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
@@ -40,7 +40,8 @@ const form = (o: Record<string, string>, fichiers: File[] = []) => {
   for (const x of fichiers) f.append("attachment", x);
   return f;
 };
-const pdf = () => new File([new Uint8Array([37, 80, 68, 70, 45, 49])], "facture.pdf", { type: "application/pdf" });
+// UNE FACTURE DISTINCTE PAR DÉPÔT (Direction, 14/10) : le même fichier deux fois serait la même facture, refusée.
+const pdf = () => new File([new Uint8Array([37, 80, 68, 70, 45, 49]), `${Date.now()}-${Math.random()}`], "facture.pdf", { type: "application/pdf" });
 async function acteur(id: string): Promise<CurrentUser> {
   const u = await prisma.user.findUniqueOrThrow({ where: { id } });
   const access = await getAccess(id, u.role as SessionUser["role"]);
