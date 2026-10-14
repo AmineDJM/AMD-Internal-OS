@@ -688,7 +688,10 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     await bcSigne(id);
     ACTOR = await acteur(u.kam, "MEDICAL_DELEGATE");
     const unePaie = () => demanderPaiementPoste(undefined, avecFichier({ id, montant: "100000", argumentation: "Écart connu et accepté (banc).", confirme: "1" }, `${TAG}facture.pdf`));
-    const [a, b] = await sousBarriere(() => [unePaie(), unePaie()]);
+    // La facture se dépose AVANT la prise du poste (toutes les pièces jointes sont gardées — audit Ad & Pro, H-04) : le
+    // second geste peut donc s'arrêter plus tôt, sur « a déjà sa facture », sans atteindre la barrière. On attend le
+    // premier sur le verrou, puis on lâche : l'issue est la même — un seul ordre, une seule facture.
+    const [a, b] = await sousBarriere(() => [unePaie(), unePaie()], 1);
     expect([a.ok, b.ok].filter(Boolean), JSON.stringify([a, b])).toHaveLength(1);
     expect(await prisma.expenseOrder.count({ where: { sourceId: congres, label: { contains: "Goodies" } } })).toBe(1);
     expect(await prisma.adProItemPiece.count({ where: { itemId: id, nature: "FACTURE" } })).toBe(1);
