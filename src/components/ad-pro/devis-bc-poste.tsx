@@ -450,9 +450,15 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
             {devis.entete.announcedTotal != null && <> · imprimé : {dzd(devis.entete.announcedTotal)}</>}
             {" · "}validé : {dzd(totalCoche)} HT
           </p>
-          {devis.entete.tvaRate === null && (
+          {devis.entete.tvaRate === null ? (
             <p className="text-muted-foreground">
               Aucune TVA indiquée sur le devis : les montants sont ceux du papier, sans TVA ajoutée.
+            </p>
+          ) : (
+            // LA TVA RETENUE SE VOIT (audit Ad & Pro, 14/10) : elle s'ajoutera au bon de commande. Jusqu'ici la carte ne
+            // montrait que des montants HT — un taux mal lu ne se découvrait qu'à l'aperçu du BC, ou pas du tout.
+            <p className="tabular-nums text-muted-foreground">
+              TVA retenue : {devis.entete.tvaRate.toLocaleString("fr-FR")} % — validé : {dzd(devis.totalValideTtc)} TTC. Vérifiez qu&apos;elle est bien imprimée sur le devis.
             </p>
           )}
           {devis.ecartTotal && (

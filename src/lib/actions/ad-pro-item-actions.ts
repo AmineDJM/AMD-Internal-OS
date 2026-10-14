@@ -40,7 +40,9 @@ import { familleQuantifiee, type PromoFamille } from "@/lib/promo/catalogue";
 import { articleDansMonPerimetre, gestionnairesDuMagasin } from "@/lib/queries/promo-stock";
 import { lireRepartition, libelleLigne, type LigneRepartition } from "@/lib/ad-pro/repartition";
 import { ecrireRepartition, type PosteReparti } from "@/lib/ad-pro/repartition-ecriture";
-import { STATUTS_EDITABLES, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, facturePourPayer } from "@/lib/ad-pro/poste-etapes";
+import {
+  STATUTS_EDITABLES, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, facturePourPayer, etatDuPaiement, phrasePaiementBloque,
+} from "@/lib/ad-pro/poste-etapes";
 import {
   assistantesDeDirection, demanderBcAAssistante, demandesBCDesPostes, annulerDemandesPiecesDuPoste, rattacherPieceAuPoste, piecesDesPostes,
 } from "@/lib/ad-pro/pieces-poste";
@@ -52,7 +54,7 @@ import { resolveParties } from "@/lib/queries/company-contacts";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
 import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-poste-lecture";
 import {
-  refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste,
+  noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste,
 } from "@/lib/ad-pro/devis-poste";
 import { genererLesBCsDuPoste, phraseBilanGeneration, refusMontantDuPoste, tiersDuDevis, apercuDuBC, lignesDuBCDuDevis, type ApercuDuBC } from "@/lib/ad-pro-bc-devis";
 import { MODES_PAIEMENT, type LigneCommerciale } from "@/lib/artifact/factory/commercial";
@@ -75,7 +77,7 @@ import {
   lireHebergement, changementsHebergement, porteDesHebergements, refusChangementNatureFiches, type SaisieHebergement, type HebergementLu,
 } from "@/lib/ad-pro/hebergements";
 import { cloreSujetVivant, createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
-import { gesteVisaPoste, memePrestataire, type EtatBcPoste, type GesteVisaPoste } from "@/lib/ad-pro/bc-poste";
+import { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire, type EtatBcPoste, type GesteVisaPoste } from "@/lib/ad-pro/bc-poste";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { annulerDemandeSecretariat, prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import { supprimerReversible } from "@/lib/suppression/coeur";
@@ -308,7 +310,7 @@ function valideursDuPoste(parent: AdProParent): UserRole[] {
 /** Les rôles du DEMANDEUR de la demande — c'est lui qui décide qui tient le second temps (§118.204). */
 async function demandeurDe(requesterId: string | null | undefined): Promise<Porteur | null> {
   if (!requesterId) return null;
-  return prisma.user.findUnique({ where: { id: requesterId }, select: { role: true, secondaryRole: true } });
+  return prisma.user.findUnique({ where: { id: requesterId }, select: { id: true, role: true, secondaryRole: true } });
 }
 
 /**
@@ -1074,6 +1076,18 @@ export async function deleteAdProItem(_prev: ActionResult | undefined, formData:
  * Ces pièces ne passent plus par le bloc « Pièces liées » de la fiche : elles sont SUR le poste.
  */
 
+/**
+ * LE REFUS « PAIEMENT DÉJÀ DEMANDÉ », AVEC L'ÉTAT RÉEL DE L'ORDRE (audit Ad & Pro, 14/10) : un ordre refusé par le centre
+ * ou annulé ailleurs ne se « redemande » pas tant que le poste le porte — la phrase nomme le geste qui le libère.
+ */
+async function refusPaiementDejaDemande(expenseOrderId: string): Promise<string> {
+  const o = await prisma.expenseOrder.findUnique({ where: { id: expenseOrderId }, select: { reference: true, status: true, centralStatus: true } });
+  const bloque = o
+    ? phrasePaiementBloque(etatDuPaiement({ expenseOrderId, expenseOrderStatus: o.status, expenseOrderCentral: o.centralStatus }), o.reference)
+    : null;
+  return bloque ?? "Le paiement de ce poste a déjà été demandé.";
+}
+
 /** Charge plusieurs postes de la MÊME demande, sous la porte de la fiche ; `null` dès qu'un seul manque. */
 async function postesDeLaMemeDemande(ids: readonly string[], user: SessionUser) {
   const charges = [];
@@ -1121,44 +1135,87 @@ export async function ajouterDevisPoste(_prev: ActionResult | undefined, formDat
   const proforma = formData.get("proforma") === "on";
   const nature = proforma ? "Facture pro forma" : "Devis";
   const libelles = charges.map(({ item }) => item.label);
+  // PLUSIEURS DEVIS EN UN GESTE (audit Ad & Pro, 14/10 — « qu'on puisse mettre plusieurs devis, qu'ils soient TOUS
+  // transformés en natif »). Jusqu'ici, plusieurs fichiers joints d'un coup devenaient UN seul devis au registre, et
+  // seul le PREMIER était lu : les autres restaient des fichiers sans lignes, invisibles du contrôle et du BC. Avec
+  // « un devis par fichier » (la carte le coche d'office dès qu'on joint plusieurs fichiers), chaque fichier devient
+  // SON devis, lu, contrôlé et validable à part. Sans la case, les fichiers sont les pages d'UN devis (le premier est lu,
+  // et la phrase le dit).
+  const unParFichier = fichiers.length > 1 && formData.get("unDevisParFichier") === "on";
+  if (unParFichier && (montant !== null || fdStr(formData, "reference"))) {
+    return { ok: false, error: "Plusieurs devis d'un coup : le montant et la référence se lisent sur chacun — laissez ces deux champs vides, ou déposez les devis un par un." };
+  }
+  const companyId = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
+  const fournisseurSaisi = fdStr(formData, "fournisseur") ?? charges[0].item.supplier ?? null;
+  const lots: File[][] = unParFichier ? fichiers.map((f) => [f]) : [fichiers];
 
-  const doc = await prisma.legalDocument.create({
-    data: {
-      title: `${nature} — ${libelles.join(", ")} (${info.ref})`,
-      kind: "QUOTE",
-      reference: fdStr(formData, "reference"),
-      amount: montant,
-      counterparty: fdStr(formData, "fournisseur") ?? charges[0].item.supplier ?? null,
-      companyId: info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id)),
-      sourceType: PARENT_ENTITE[owner.parent], sourceId: owner.id,
-      createdById: user.id, updatedById: user.id,
-      notes: `${nature} déposé${proforma ? "e" : ""} sur ${charges.length > 1 ? "les postes" : "le poste"} ${libelles.map((l) => `« ${l} »`).join(", ")}.`,
-    },
-    select: { id: true },
-  });
-  const joints = await attachFormFiles(user.id, "LEGAL_DOCUMENT", doc.id, formData);
-  for (const { item } of charges) {
-    await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: doc.id, nature: "DEVIS", acteurId: user.id });
-  }
-  // LA LECTURE À L'UPLOAD (§118.206) : « Luna doit directement, lors de l'ingestion des devis, les rendre
-  // mangeables et consommables par la plateforme ». Le devis est déjà au poste : une lecture qui échoue ne fait
-  // JAMAIS échouer le dépôt, mais elle se DIT (une absence de lignes sans cause se lirait comme un devis vide).
-  const premier = fichiers[0];
-  let lecture = "";
-  if (premier && joints.failed.length < fichiers.length) {
-    const ing = await ingererDevisDuPoste({ userId: user.id, legalDocumentId: doc.id, octets: Buffer.from(await premier.arrayBuffer()), nomFichier: premier.name });
-    lecture = ing.ok ? ` ${phraseDeLecture(ing)}` : ` Lecture du devis impossible (${ing.raison}) — saisissez ses lignes depuis la carte du poste.`;
-    // UN SEUL POSTE : les lignes bien lues sont validées d'office (voir la fonction). Un devis commun à
-    // plusieurs postes se répartit à la main — on ne devine pas à quel poste va chaque ligne.
-    if (ing.ok && charges.length === 1) {
-      const nb = await validerAutomatiquementLesLignesLues(user.id, charges[0].item.id, doc.id).catch(() => 0);
-      if (nb > 0) lecture = ` Devis lu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.`;
+  const deposes: string[] = [];
+  const phrases: string[] = [];
+  const echecs: string[] = [];
+  for (const [rang, lot] of lots.entries()) {
+    const doc = await prisma.legalDocument.create({
+      data: {
+        title: `${nature}${unParFichier ? ` ${rang + 1}/${lots.length}` : ""} — ${libelles.join(", ")} (${info.ref})`,
+        kind: "QUOTE",
+        reference: unParFichier ? null : fdStr(formData, "reference"),
+        amount: unParFichier ? null : montant,
+        // Un devis par fichier : chacun a SON émetteur, lu sur le papier ; le fournisseur saisi ne comble qu'un vide (plus bas).
+        counterparty: unParFichier ? null : fournisseurSaisi,
+        companyId,
+        sourceType: PARENT_ENTITE[owner.parent], sourceId: owner.id,
+        createdById: user.id, updatedById: user.id,
+        notes: `${nature} déposé${proforma ? "e" : ""} sur ${charges.length > 1 ? "les postes" : "le poste"} ${libelles.map((l) => `« ${l} »`).join(", ")}${unParFichier ? ` — fichier « ${lot[0].name} »` : ""}.`,
+      },
+      select: { id: true },
+    });
+    deposes.push(doc.id);
+    let joints: { attached: number; failed: { name: string; error: string }[] };
+    if (unParFichier) {
+      const seul = new FormData();
+      seul.append("attachment", lot[0]);
+      joints = await attachFormFiles(user.id, "LEGAL_DOCUMENT", doc.id, seul);
+    } else {
+      joints = await attachFormFiles(user.id, "LEGAL_DOCUMENT", doc.id, formData);
     }
+    echecs.push(...joints.failed.map((x) => x.name));
+    for (const { item } of charges) {
+      await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: doc.id, nature: "DEVIS", acteurId: user.id });
+    }
+    // LA LECTURE À L'UPLOAD (§118.206) : « Luna doit directement, lors de l'ingestion des devis, les rendre
+    // mangeables et consommables par la plateforme ». Le devis est déjà au poste : une lecture qui échoue ne fait
+    // JAMAIS échouer le dépôt, mais elle se DIT (une absence de lignes sans cause se lirait comme un devis vide).
+    const premier = lot[0];
+    const nom = unParFichier ? `« ${premier.name} » : ` : "";
+    let lecture = "";
+    if (premier && joints.failed.length < lot.length) {
+      const ing = await ingererDevisDuPoste({ userId: user.id, legalDocumentId: doc.id, octets: Buffer.from(await premier.arrayBuffer()), nomFichier: premier.name });
+      lecture = ing.ok ? phraseDeLecture(ing) : `Lecture du devis impossible (${ing.raison}) — saisissez ses lignes depuis la carte du poste.`;
+      // UN SEUL POSTE : les lignes bien lues sont validées d'office (voir la fonction). Un devis commun à
+      // plusieurs postes se répartit à la main — on ne devine pas à quel poste va chaque ligne. Un DOUTE du contrôle
+      // des totaux (TTC imprimé que les lignes ne font pas, TVA non imprimée…) laisse les lignes à valider à la main.
+      if (ing.ok && charges.length === 1 && ing.doutes.length === 0) {
+        const nb = await validerAutomatiquementLesLignesLues(user.id, charges[0].item.id, doc.id).catch(() => 0);
+        if (nb > 0) lecture = `Devis lu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.`;
+      }
+      if (!unParFichier && lot.length > 1) {
+        lecture += ` Seul le premier fichier (« ${premier.name} ») a été lu : les ${lot.length - 1} autre(s) sont jointes comme pages du même devis — leurs lignes se saisissent depuis la carte.`;
+      }
+    }
+    if (unParFichier && fournisseurSaisi) {
+      await prisma.legalDocument.updateMany({ where: { id: doc.id, OR: [{ counterparty: null }, { counterparty: "" }] }, data: { counterparty: fournisseurSaisi } });
+    }
+    if (lecture) phrases.push(`${nom}${lecture}`);
   }
-  await audit(user, owner.parent, owner.id, "UPDATE", `${nature} déposé sur ${libelles.map((l) => `« ${l} »`).join(", ")}${montant ? ` — ${montant.toLocaleString("fr-FR")} DZD` : ""}.`);
+  await audit(user, owner.parent, owner.id, "UPDATE", `${unParFichier ? `${lots.length} ${nature.toLowerCase()}s déposés` : `${nature} déposé`} sur ${libelles.map((l) => `« ${l} »`).join(", ")}${montant ? ` — ${montant.toLocaleString("fr-FR")} DZD` : ""}.`);
   revalidate(owner.parent, owner.id);
-  const echec = joints.failed.length ? ` Échec sur : ${joints.failed.map((x) => x.name).join(", ")}.` : "";
-  return { ok: true, id: doc.id, message: `${nature} déposé${proforma ? "e" : ""}${charges.length > 1 ? ` — commun à ${charges.length} postes` : ""}.${echec}${lecture}` };
+  const echec = echecs.length ? ` Échec sur : ${echecs.join(", ")}.` : "";
+  const entete = unParFichier
+    ? `${lots.length} ${proforma ? "factures pro forma déposées" : "devis déposés"}, un par fichier`
+    : `${nature} déposé${proforma ? "e" : ""}`;
+  return {
+    ok: true, id: deposes[0],
+    message: `${entete}${charges.length > 1 ? ` — commun${unParFichier ? "s" : ""} à ${charges.length} postes` : ""}.${echec}${phrases.length ? ` ${phrases.join(" ")}` : ""}`,
+  };
 }
 
 /**
@@ -1220,7 +1277,7 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
 
   // L'ÉTAT D'ABORD (§118.18) — puis la facture.
   if (item.orderStage === "ISSUED" || item.expenseOrderId) {
-    return { ok: false, error: item.expenseOrderId ? "Le paiement de ce poste a déjà été demandé." : "Une demande de paiement est déjà en cours pour ce poste : rouvrez la fiche." };
+    return { ok: false, error: item.expenseOrderId ? await refusPaiementDejaDemande(item.expenseOrderId) : "Une demande de paiement est déjà en cours pour ce poste : rouvrez la fiche." };
   }
   const montantAccorde = item.amountGranted != null ? toNumber(item.amountGranted) : null;
   const check = canEmitOrder({ amountGranted: montantAccorde, expenseOrderId: item.expenseOrderId, status: item.status }, info.decided);
@@ -1230,9 +1287,12 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
   // UN POSTE À BON DE COMMANDE (Direction, 06/10) : la facture DÉPOSÉE et contrôlée par Luna contre le(s) BC signé(s)
   // fait la demande — une facture jointe ici est d'abord déposée, et passe le même contrôle.
   if (!direct) {
-    const fichier = formData.getAll("attachment").find((v): v is File => v instanceof File && v.size > 0) ?? null;
+    // PLUSIEURS PIÈCES POUR UNE FACTURE (audit Ad & Pro, 14/10) : la première est la facture (lue, contrôlée), les
+    // suivantes ses annexes (bon de livraison, PV de réception, relevé…) — toutes gardées, aucune jetée en silence.
+    const joints = formData.getAll("attachment").filter((v): v is File => v instanceof File && v.size > 0);
+    const fichier = joints[0] ?? null;
     return payerLesFacturesDuPoste({
-      user, item, owner, info, montantAccorde, fichier,
+      user, item, owner, info, montantAccorde, fichier, annexes: joints.slice(1),
       montantSaisi: fdNum(formData, "montant"), reference: fdStr(formData, "reference"),
       bcIds: formData.getAll("bcId").map(String).filter(Boolean),
       argumentation: fdStr(formData, "argumentation"), confirme: fdCase(formData, "confirme") === true,
@@ -1389,7 +1449,9 @@ type PosteAvecOperation = NonNullable<Awaited<ReturnType<typeof loadItem>>>;
  */
 async function deposerFactureSurPoste(a: {
   user: SessionUser; poste: PosteAvecOperation; info: ParentInfo; fichier: File; montantSaisi: number | null; reference: string | null; bcIds: string[];
-}): Promise<{ ok: true; factureId: string; controle: ControleFacture } | { ok: false; error: string }> {
+  /** Les AUTRES pièces jointes à la facture (annexes, pages, bon de livraison) : gardées avec elle, jamais lues comme facture. */
+  annexes?: File[];
+}): Promise<{ ok: true; factureId: string; controle: ControleFacture; annexesEchouees: string[] } | { ok: false; error: string }> {
   const { item, owner } = a.poste;
   const pieces = (await piecesDesPostes([item.id])).get(item.id);
   const bcs = pieces?.bcs ?? [];
@@ -1405,7 +1467,9 @@ async function deposerFactureSurPoste(a: {
   if (nonSigne) return { ok: false, error: `Le bon de commande ${nonSigne.reference ?? nonSigne.titre} n'est pas encore signé : sa facture se dépose après la signature.` };
   const dejaFacture = choisis.find((b) => couverts.has(b.id));
   if (dejaFacture) return { ok: false, error: `Le bon de commande ${dejaFacture.reference ?? dejaFacture.titre} a déjà sa facture : annulez-la dans Legal pour en déposer une autre.` };
-  const refusFichier = await validateAttachments([a.fichier]);
+  const annexes = (a.annexes ?? []).filter((f) => f.size > 0);
+  // Toutes les pièces se jugent AVANT d'écrire quoi que ce soit (§118.196d) : une annexe refusée ne laisse pas une facture à moitié.
+  const refusFichier = await validateAttachments([a.fichier, ...annexes]);
   if (refusFichier) return { ok: false, error: refusFichier };
 
   const octets = Buffer.from(await a.fichier.arrayBuffer());
@@ -1439,8 +1503,24 @@ async function deposerFactureSurPoste(a: {
     await prisma.legalDocument.update({ where: { id: facture.id }, data: { status: "CANCELLED" } }).catch(() => undefined);
     return { ok: false, error: `La facture n'a pas pu être enregistrée (${depot.error ?? "erreur"}).` };
   }
+  // LES ANNEXES : chacune sur la MÊME pièce du registre, après la facture (qui reste la première : c'est elle qu'on ouvre).
+  const annexesEchouees: string[] = [];
+  for (const f of annexes) {
+    const r = await persistUploadedDocument(a.user.id, {
+      entityType: "LEGAL_DOCUMENT", entityId: facture.id, category: "INVOICE", confidentiality: "INTERNAL", stepKey: null, file: f,
+    }).catch(() => ({ ok: false as const }));
+    if (!r.ok) annexesEchouees.push(f.name);
+  }
   await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: facture.id, nature: "FACTURE", acteurId: a.user.id });
-  return { ok: true, factureId: facture.id, controle };
+  return { ok: true, factureId: facture.id, controle, annexesEchouees };
+}
+
+/** La phrase des annexes d'une facture — dite seulement quand il y en a. */
+function phraseAnnexes(n: number, echouees: readonly string[]): string {
+  if (n === 0) return "";
+  const gardees = n - echouees.length;
+  return (gardees > 0 ? ` ${gardees} pièce${gardees > 1 ? "s" : ""} jointe${gardees > 1 ? "s" : ""} à la facture.` : "")
+    + (echouees.length > 0 ? ` Non enregistrée${echouees.length > 1 ? "s" : ""} : ${echouees.join(", ")}.` : "");
 }
 
 /** La phrase qui rend le contrôle d'une facture — cohérente, ou ses écarts et le geste qui reste. */
@@ -1464,19 +1544,22 @@ export async function deposerFacturePoste(formData: FormData): Promise<ActionRes
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (VERSEMENT_SANS_BC.includes(item.kind)) return { ok: false, error: "Un sponsoring direct n'a pas de bon de commande : sa pièce se joint à la demande de paiement." };
-  if (item.expenseOrderId) return { ok: false, error: "Le paiement de ce poste est déjà demandé." };
+  if (item.expenseOrderId) return { ok: false, error: await refusPaiementDejaDemande(item.expenseOrderId) };
   const info = await PARENTS[owner.parent].load(owner.id);
   if (!info) return { ok: false, error: "Opération introuvable." };
-  const fichier = formData.getAll("attachment").find((v): v is File => v instanceof File && v.size > 0) ?? null;
+  // PLUSIEURS PIÈCES (audit Ad & Pro, 14/10) : la première est la facture, lue et contrôlée ; les suivantes ses annexes.
+  // Seule la première était gardée — les autres disparaissaient sans un mot.
+  const joints = formData.getAll("attachment").filter((v): v is File => v instanceof File && v.size > 0);
+  const fichier = joints[0] ?? null;
   if (!fichier) return { ok: false, error: "Joignez la facture." };
   const r = await enSerie(filePoste(id), () => deposerFactureSurPoste({
-    user, poste: found, info, fichier, montantSaisi: fdNum(formData, "montant"), reference: fdStr(formData, "reference"),
+    user, poste: found, info, fichier, annexes: joints.slice(1), montantSaisi: fdNum(formData, "montant"), reference: fdStr(formData, "reference"),
     bcIds: formData.getAll("bcId").map(String).filter(Boolean),
   }));
   if (!r.ok) return r;
-  await audit(user, owner.parent, owner.id, "UPDATE", `Facture déposée pour le poste « ${item.label} » — ${r.controle.coherente ? "cohérente avec le bon de commande" : `écarts : ${r.controle.ecarts.join(" ")}`}`);
+  await audit(user, owner.parent, owner.id, "UPDATE", `Facture déposée pour le poste « ${item.label} »${joints.length > 1 ? ` (${joints.length} pièces)` : ""} — ${r.controle.coherente ? "cohérente avec le bon de commande" : `écarts : ${r.controle.ecarts.join(" ")}`}`);
   revalidate(owner.parent, owner.id);
-  return { ok: true, id: r.factureId, message: `Facture déposée. ${phraseControleFacture(r.controle)}` };
+  return { ok: true, id: r.factureId, message: `Facture déposée.${phraseAnnexes(joints.length - 1, r.annexesEchouees)} ${phraseControleFacture(r.controle)}` };
 }
 
 /**
@@ -1487,6 +1570,8 @@ export async function deposerFacturePoste(formData: FormData): Promise<ActionRes
 async function payerLesFacturesDuPoste(a: {
   user: SessionUser; item: PosteAvecOperation["item"]; owner: PosteAvecOperation["owner"]; info: ParentInfo; montantAccorde: number | null;
   fichier: File | null; montantSaisi: number | null; reference: string | null; bcIds: string[]; argumentation: string | null; confirme: boolean;
+  /** Les autres pièces jointes avec la facture (annexes) — gardées avec elle. */
+  annexes?: File[];
 }): Promise<ActionResult> {
   const { user, item, owner, info } = a;
   const id = item.id;
@@ -1508,10 +1593,10 @@ async function payerLesFacturesDuPoste(a: {
     const couverts = new Set((avant?.factures ?? []).filter((f) => !f.annulee).flatMap((f) => f.controle?.bcIds ?? []));
     const bcIds = a.bcIds.length > 0 ? a.bcIds : (avant?.bcs ?? []).filter((b) => b.etape === "SIGNE" && !couverts.has(b.id)).map((b) => b.id);
     const r = await enSerie(filePoste(id), () => deposerFactureSurPoste({
-      user, poste: { item, owner } as PosteAvecOperation, info, fichier: a.fichier as File, montantSaisi: a.montantSaisi, reference: a.reference, bcIds,
+      user, poste: { item, owner } as PosteAvecOperation, info, fichier: a.fichier as File, annexes: a.annexes, montantSaisi: a.montantSaisi, reference: a.reference, bcIds,
     }));
     if (!r.ok) return r;
-    deposee = `Facture déposée. ${phraseControleFacture(r.controle)}`;
+    deposee = `Facture déposée.${phraseAnnexes((a.annexes ?? []).length, r.annexesEchouees)} ${phraseControleFacture(r.controle)}`;
   }
   const pieces = (await piecesDesPostes([id])).get(id);
   const factures = (pieces?.factures ?? []).filter((f) => !f.annulee);
@@ -1545,13 +1630,21 @@ async function payerLesFacturesDuPoste(a: {
     data: { orderStage: "ISSUED", updatedById: user.id },
   });
   if (prise.count === 0) return { ok: false, error: "Ce poste vient de changer (paiement déjà demandé, ou sa décision a été revue) : rouvrez la fiche." };
+  // À QUI PART L'ARGENT (audit Ad & Pro, 14/10) : au fournisseur que les factures NOMMENT (celui du BC signé), pas au texte
+  // libre « prestataire » du poste — souvent vide, et alors l'ordre partait au nom de l'OPÉRATION (le congrès « ESMO 2026 »,
+  // l'institution d'un sponsoring) alors que la facture était celle de l'hôtel. Un seul fournisseur sur toutes les factures,
+  // sinon le prestataire du poste, sinon le bénéficiaire de l'opération, comme avant.
+  const tiersFactures = factures.length > 0
+    ? await prisma.legalDocument.findMany({ where: { id: { in: factures.map((f) => f.id) } }, select: { counterparty: true } })
+    : [];
+  const beneficiaire = beneficiaireDuPaiement(tiersFactures.map((t) => t.counterparty), item.supplier, info.beneficiary);
   let ordreNe = false;
   try {
     const order = await createExpenseOrder({
       label: `${info.ref} — ${ITEM_KIND_LABELS[item.kind]} : ${item.label}`,
       amount: montant,
       category: "EVENEMENT",
-      beneficiary: item.supplier ?? info.beneficiary,
+      beneficiary: beneficiaire,
       sourceType: owner.parent === "EVENT" ? "EVENT" : owner.parent,
       sourceId: info.id,
       requestedById: user.id,
@@ -3460,6 +3553,8 @@ export async function ajouterDevisVoyageur(_prev: ActionResult | undefined, form
   const { voyageur: v, item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   formData.delete("autresPostes");
+  // La proposition d'UN voyageur est un devis : ses fichiers en sont les pages (le lien « pour ce voyageur » porte sur un devis).
+  formData.delete("unDevisParFichier");
   formData.set("id", item.id);
   const depose = await ajouterDevisPoste(undefined, formData);
   if (!depose.ok || !depose.id) return depose;
@@ -3813,6 +3908,10 @@ export async function enregistrerLignesDuDevis(formData: FormData): Promise<Acti
       ...(formData.has("extraTaxRate") ? { extraTaxRate: taxeSaisie !== null ? new Prisma.Decimal(taxeSaisie) : null, extraTaxLabel: taxeSaisie !== null ? (fdStr(formData, "extraTaxLabel") ?? "Taxe additionnelle") : null } : {}),
       ...(formData.has("announcedTotal") ? { announcedTotal: totalSaisi !== null ? new Prisma.Decimal(totalSaisi) : null } : {}),
       ...(supplierId ? { supplierId } : {}),
+      // Les doutes de la lecture sont tranchés par cette correction, faite devant le papier : ils ne restent pas affichés.
+      ...(devis.entete.lectureNote && noteApresCorrection(devis.entete.lectureNote) !== devis.entete.lectureNote
+        ? { lectureNote: noteApresCorrection(devis.entete.lectureNote) }
+        : {}),
     };
     const quand = fdStr(formData, "quoteDate");
     const date = quand && !Number.isNaN(Date.parse(quand)) ? new Date(`${quand.slice(0, 10)}T00:00:00.000Z`) : null;
@@ -3919,7 +4018,8 @@ export async function lireLesLignesDuDevis(formData: FormData): Promise<ActionRe
     });
     if (!ing.ok) return { ok: false, error: ing.raison };
     await audit(user, owner.parent, owner.id, "UPDATE", `Devis « ${devis.reference ?? devis.titre} » du poste « ${item.label} » relu : ${ing.nbLignes} ligne${ing.nbLignes > 1 ? "s" : ""} proposée${ing.nbLignes > 1 ? "s" : ""}.`);
-    const nb = await validerAutomatiquementLesLignesLues(user.id, id, pieceId).catch(() => 0);
+    // Un doute du contrôle des totaux (TTC imprimé que les lignes ne font pas, TVA non imprimée…) : rien d'office.
+    const nb = ing.doutes.length === 0 ? await validerAutomatiquementLesLignesLues(user.id, id, pieceId).catch(() => 0) : 0;
     revalidate(owner.parent, owner.id);
     return { ok: true, id, message: nb > 0 ? `Devis relu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.` : phraseDeLecture(ing) };
   });

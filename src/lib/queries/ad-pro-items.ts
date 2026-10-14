@@ -157,7 +157,8 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
       ? prisma.promoMaterial.findMany({ where: { id: { in: promoIds } }, select: { id: true, reference: true, title: true, status: true, circuitState: true, circuitVersion: true, returnedAt: true } })
       : Promise.resolve([]),
     orderIds.length
-      ? prisma.expenseOrder.findMany({ where: { id: { in: orderIds } }, select: { id: true, reference: true, status: true } })
+      // La décision du CENTRE aussi : un ordre refusé n'est pas « en cours » (audit Ad & Pro, 14/10).
+      ? prisma.expenseOrder.findMany({ where: { id: { in: orderIds } }, select: { id: true, reference: true, status: true, centralStatus: true } })
       : Promise.resolve([]),
     // LES DEMANDES DE PIÈCE, par le lien CANONIQUE — devis ET facture. En lire une par poste
     // ferait N allers-retours sur un écran qu'on ouvre pour tout voir (§118.102b).
@@ -232,7 +233,7 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     lettresParPoste.set(d.entityId, [...(lettresParPoste.get(d.entityId) ?? []), { id: d.id, nom: d.name, pdf: d.mimeType === "application/pdf", le: d.createdAt.toISOString() }]);
   }
   const promoById = new Map(promoRows.map((p) => [p.id, { reference: p.reference, title: p.title, status: statutDuDossier(p).libelle }]));
-  const orderById = new Map(orderRows.map((o) => [o.id, { reference: o.reference, status: String(o.status) }]));
+  const orderById = new Map(orderRows.map((o) => [o.id, { reference: o.reference, status: String(o.status), centralStatus: o.centralStatus }]));
 
   return rawItems.map((i) => ({
     id: i.id, kind: i.kind, label: i.label, notes: i.notes, supplier: i.supplier,
@@ -498,10 +499,10 @@ const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> 
 
 export async function contextePostes(user: SessionUser, parent: AdProParent, parentId: string): Promise<ContextePostes> {
   const requesterId = await DEMANDEUR_DE[parent](parentId);
-  const demandeur = requesterId ? await prisma.user.findUnique({ where: { id: requesterId }, select: { role: true, secondaryRole: true } }) : null;
-  const moi = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true, secondaryRole: true } });
+  const demandeur = requesterId ? await prisma.user.findUnique({ where: { id: requesterId }, select: { id: true, role: true, secondaryRole: true } }) : null;
+  const moi = await prisma.user.findUnique({ where: { id: user.id }, select: { id: true, role: true, secondaryRole: true } });
   return {
-    validation: droitsValidation(moi ?? { role: user.role }, demandeur),
+    validation: droitsValidation(moi ?? { id: user.id, role: user.role }, demandeur),
     assistantes: await assistantesDeDirection(),
     userId: user.id,
     secondTempsParOperations: estDirectionMarketingPoste(demandeur),

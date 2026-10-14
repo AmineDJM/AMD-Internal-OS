@@ -68,6 +68,11 @@ export interface PrerempliDevisPromo {
   lignes: LignePreremplie[];
   /** Tout ce qui N'EST PAS prérempli et pourquoi — avec le geste qui reste (§118.30). */
   reserves: string[];
+  /**
+   * Le taux (en POUR CENT) que le MODÈLE a proposé mais que RIEN sur le papier ne confirme — ni une TVA imprimée, ni
+   * des totaux qui la contiennent : il n'est PAS repris (`tvaRate` reste `null`). `null` : aucun taux écarté.
+   */
+  tvaNonImprimee?: number | null;
 }
 
 /** Ce que l'écran affiche d'une lecture — et rien de plus : le texte lu ne quitte pas le serveur. */
@@ -179,8 +184,18 @@ export function preremplirDevisPromo(
     for (const l of piece.lignes) if (!l.section && l.tva !== null) taux.set(cleTaux(l.tva), l.tva);
   }
   let tvaRate: number | null = null;
-  if (taux.size === 1) tvaRate = pct([...taux.values()][0]);
-  else if (taux.size > 1) {
+  let tvaNonImprimee: number | null = null;
+  if (taux.size === 1) {
+    const t = [...taux.values()][0];
+    // LE TAUX DU MODÈLE N'EST REPRIS QUE SI LE PAPIER LE PORTE (audit Ad & Pro, 14/10) : « s'il n'y a pas de TVA
+    // renseignée, il n'y a pas de TVA ». Un 19 % rendu par le modèle sur un devis qui n'imprime aucune TVA faisait
+    // un bon de commande de 476 000 TTC pour un devis de 400 000 — exactement ce que la Direction a interdit.
+    if (t === 0 || tvaCorroboree(entetes, t, htDesLignesLues(piece))) tvaRate = pct(t);
+    else {
+      tvaNonImprimee = pct(t);
+      reserves.push(phraseTvaNonImprimee(pct(t)));
+    }
+  } else if (taux.size > 1) {
     const liste = [...taux.values()].sort((a, b) => a - b).map((t) => formaterTaux(t)).join(", ");
     reserves.push(`Plusieurs taux de TVA lus (${liste}) : la TVA n'est pas préremplie — le devis interne porte UN taux ; saisissez un devis par taux (décision de la Direction).`);
   }
@@ -222,7 +237,59 @@ export function preremplirDevisPromo(
     extraTaxRate,
     lignes,
     reserves,
+    tvaNonImprimee,
   };
+}
+
+// ───────────────────────── La TVA du modèle, confrontée au papier ─────────────────────────
+
+const centimes = (x: number): number => Math.round(x * 100);
+/** ± 1 DZD, la tolérance de toutes les retranscriptions du dépôt. */
+const TOLERANCE_TVA_CENTIMES = 100;
+
+/** Le hors-taxe des lignes chiffrées que le modèle a lues — `null` dès qu'une ligne est incomplète ou remisée. */
+export function htDesLignesLues(piece: PieceLue | null): number | null {
+  if (!piece || (piece.devise && piece.devise !== "DZD")) return null;
+  const chiffrees = piece.lignes.filter((l) => !l.section);
+  if (chiffrees.length === 0) return null;
+  if (chiffrees.some((l) => l.quantite === null || l.prixUnitaire === null || (l.remise ?? 0) > 0)) return null;
+  if ((piece.remiseGlobale ?? 0) > 0) return null;
+  return chiffrees.reduce((s, l) => s + centimes((l.quantite as number) * (l.prixUnitaire as number)), 0) / 100;
+}
+
+/**
+ * LE PAPIER CONFIRME-T-IL CE TAUX DE TVA ? (audit Ad & Pro, 14/10) — oui si le repérage a lu une TVA imprimée (à ce
+ * taux, ou un « Total TVA » / « Montant TVA », ou deux valeurs en conflit : la TVA est là, même illisible) ; oui aussi
+ * quand les TOTAUX IMPRIMÉS la contiennent : le TTC (ou le net à payer) imprimé vaut le HT — imprimé, sinon celui des
+ * lignes — augmenté de ce taux (et des taxes additionnelles imprimées, et du timbre), à un dinar près. Sinon NON :
+ * le taux ne vient que du modèle, et un taux qui ne vient que du modèle n'est jamais repris (§118.16, §118.34).
+ *
+ * Module PUR : la lecture du devis d'un poste et celle du matériel promotionnel lisent la même règle (§118.5).
+ */
+export function tvaCorroboree(entetes: Pick<EntetesReperes, "tva" | "totalTva" | "conflits" | "totalHt" | "totalTtc" | "netAPayer" | "taxes" | "timbre">, taux: number, htLignes: number | null = null): boolean {
+  if (entetes.tva.some((t) => Math.abs(t.taux - taux) < 1e-9)) return true;
+  // Un « Total TVA » imprimé — sauf « TVA : 0,00 », qui dit justement qu'il n'y en a pas.
+  if (entetes.totalTva && !(entetes.totalTva.valeur === 0)) return true;
+  if (entetes.conflits.some((k) => k.quoi === "TVA" || k.quoi === "TVA_TOTAL")) return true;
+  const finaux = [entetes.totalTtc?.valeur, entetes.netAPayer?.valeur].filter((v): v is number => typeof v === "number");
+  if (finaux.length === 0) return false;
+  const bases = [entetes.totalHt?.valeur ?? null, htLignes].filter((v): v is number => typeof v === "number" && v > 0);
+  if (bases.length === 0) return false;
+  const taxesImprimees = entetes.taxes.reduce((s, t) => s + (typeof t.montant.valeur === "number" ? centimes(t.montant.valeur) : 0), 0);
+  const timbre = typeof entetes.timbre?.valeur === "number" ? centimes(entetes.timbre.valeur) : 0;
+  for (const ht of bases) {
+    const attendu = centimes(ht) + Math.round(centimes(ht) * taux) + taxesImprimees;
+    for (const f of finaux) {
+      const c = centimes(f);
+      if (Math.abs(c - attendu) <= TOLERANCE_TVA_CENTIMES || Math.abs(c - (attendu + timbre)) <= TOLERANCE_TVA_CENTIMES) return true;
+    }
+  }
+  return false;
+}
+
+/** La réserve d'un taux écarté — elle dit ce qui a été vu, ce qui n'a pas été repris, et le geste qui reste. */
+export function phraseTvaNonImprimee(tauxPct: number): string {
+  return `TVA de ${tauxPct.toLocaleString("fr-FR")} % proposée par la lecture, mais aucune TVA n'est imprimée sur le papier (ni taux, ni montant, ni total TTC qui la contienne) : elle n'est PAS reprise — pas de TVA imprimée, pas de TVA. Si le devis en porte une, saisissez-la dans « Corriger les lignes ».`;
 }
 
 /** CE QUE L'ÉCRAN REÇOIT d'une lecture : la note, les absences, le contrôle en phrases, le préremplissage. */
