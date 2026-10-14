@@ -428,6 +428,16 @@ Demande (employé) — une demande par besoin, + participants (facultatif)
    (le demandeur est notifié aux deux pas ; « Annuler la demande… » et « Supprimer » restent)
 ```
 
+**Refonte du bureau (maquette validée, 10/2026).** Tableau : tuiles-filtres (à traiter, en cours, en validation, en
+paiement, en retard, terminées 30 j), raccourcis (notes de frais, courses, corbeille), colonnes « chez qui » et UN montant
+(`montantDeLaDemande` — payé › imputé › facturé › engagé › validé › devis retenu › estimé, `secretariat/bureau.ts`). Fiche :
+le geste suivant en tête (`gesteSuivant`) + « ⋯ », frise calculée (`friseDeLaDemande`), UNE liste « Pièces » Devis → BC →
+Facture → Justificatifs (`grouperLesPieces`), une carte Montant, UNE carte Validations, Discussion vs Historique (`separerLeFil`).
+**Devis natifs → BC (« comme dans Ad & Pro »)** : l'assistante dépose et retranscrit le devis (registre Legal `QUOTE`, lignes
+sous `custom.devisNatif`) ; le **demandeur** (ou le Super Admin) retient ses lignes et génère UN BC par fournisseur (fabrique,
+sous délégation de la demande) ou dépose un BC ; centre de validations → signature → « Signé et validé », l'assistante prévenue
+(`secretariat/devis-natif*.ts`, `secretariat-devis-actions.ts`, `devis-bc-flow.test.ts`). « Terminer » attend un BC en route.
+
 **Deux gestes, rien d'autre (Direction, 10/2026 — `secretariat/traitement.ts`).** Retirés : la demande multiple
 (`createRequestBatch`), le type « Mission chauffeur » et la création de courses (`createMission`), les statuts posés à la
 main (en attente d'un tiers / d'un document, bloquer, reprendre — `updateRequestStatus` refuse tout et nomme les deux

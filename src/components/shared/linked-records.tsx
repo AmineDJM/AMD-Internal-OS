@@ -328,7 +328,7 @@ function FichiersLibres({ documents, slot, creer }: {
  * Le compte est TOUJOURS affiché, zéro compris : « aucune pièce » sur une facture est une
  * information (le justificatif manque), et le taire ferait chercher ailleurs.
  */
-function LignePieceRow({ l }: { l: LignePiece }) {
+export function LignePieceRow({ l }: { l: LignePiece }) {
   const plateforme: FichiersEmis | null = l.plateforme;
   const aPlateforme = Boolean(plateforme?.pdf || plateforme?.docx);
   // Sur une fiche Ad & Pro (§118.209), la suppression de pièce et de fichier suit LE verdict de la demande — la

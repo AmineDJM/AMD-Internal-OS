@@ -12,6 +12,17 @@ const REQ_INCLUDE = {
   validator: { select: { name: true } },
 } as const;
 
+/**
+ * LE TABLEAU DU BUREAU (refonte, 10/2026) lit aussi le département et l'approbation EN ATTENTE (le
+ * validateur chez qui la demande attend) — le reste de ses colonnes (montant, pièces, BC) vient
+ * d'une lecture en lot (`queries/demandes-tableau.ts`), jamais d'une requête par ligne.
+ */
+const LISTE_INCLUDE = {
+  ...REQ_INCLUDE,
+  department: { select: { name: true } },
+  approvals: { where: { status: "PENDING" as const }, select: { validator: { select: { name: true } } }, orderBy: { createdAt: "desc" as const }, take: 1 },
+} as const;
+
 /** Les statuts qui ne demandent plus rien au secrétariat. */
 const TERMINAUX: AdminRequestStatus[] = ["DONE", "CANCELLED"];
 /** Une limite OPÉRATIONNELLE (§118.2) : au-delà, la page le dit — elle ne se tait jamais. */
@@ -34,7 +45,7 @@ export async function getRequestList(user: SessionUser, filters: { status?: stri
   if (filters.status) {
     const where = { AND: [...and, { status: filters.status as AdminRequestStatus }] };
     const [rows, total] = await Promise.all([
-      prisma.administrativeRequest.findMany({ where, include: REQ_INCLUDE, orderBy: [{ createdAt: "desc" }], take: PLAFOND_OUVERTES }),
+      prisma.administrativeRequest.findMany({ where, include: LISTE_INCLUDE, orderBy: [{ createdAt: "desc" }], take: PLAFOND_OUVERTES }),
       prisma.administrativeRequest.count({ where }),
     ]);
     return { rows, ouvertes: total, terminees: 0, terminesMontrees: 0, coupe: total > rows.length };
@@ -42,9 +53,9 @@ export async function getRequestList(user: SessionUser, filters: { status?: stri
   const ouvertesWhere = { AND: [...and, { status: { notIn: TERMINAUX } }] };
   const termineesWhere = { AND: [...and, { status: { in: TERMINAUX } }] };
   const [ouvertes, nbOuvertes, terminees, nbTerminees] = await Promise.all([
-    prisma.administrativeRequest.findMany({ where: ouvertesWhere, include: REQ_INCLUDE, orderBy: [{ createdAt: "desc" }], take: PLAFOND_OUVERTES }),
+    prisma.administrativeRequest.findMany({ where: ouvertesWhere, include: LISTE_INCLUDE, orderBy: [{ createdAt: "desc" }], take: PLAFOND_OUVERTES }),
     prisma.administrativeRequest.count({ where: ouvertesWhere }),
-    prisma.administrativeRequest.findMany({ where: termineesWhere, include: REQ_INCLUDE, orderBy: [{ createdAt: "desc" }], take: DERNIERES_TERMINEES }),
+    prisma.administrativeRequest.findMany({ where: termineesWhere, include: LISTE_INCLUDE, orderBy: [{ createdAt: "desc" }], take: DERNIERES_TERMINEES }),
     prisma.administrativeRequest.count({ where: termineesWhere }),
   ]);
   return {

@@ -1324,6 +1324,15 @@ X("REFUSER LA VALIDATION FINALE D'UNE DÉCLARATION D'INFORMATION MÉDICALE (Dire
   + "pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur la fiche de la déclaration.", [
   "medical-info-actions:refuseDeclarationByDirection",
 ]);
+X("DEVIS NATIFS → BON DE COMMANDE AU BUREAU DU SECRÉTARIAT (Direction, 10/2026, « comme dans Ad & Pro ») — l'assistante "
+  + "dépose et RETRANSCRIT le devis ligne à ligne devant le papier ; le DEMANDEUR coche les lignes qu'il retient, puis génère "
+  + "(fabrique, sous délégation de la demande) ou dépose le BC, qui part au centre de validations puis à la signature. Des "
+  + "gestes d'écran qui attestent un papier ou engagent la société ; Adam est en pause de développement : aucun geste neuf "
+  + "ne lui est ouvert. « Relancer » est un clic sur la fiche, une fois par jour.", [
+  "secretariat-devis-actions:deposerDevisDemande", "secretariat-devis-actions:enregistrerLignesDevisDemande",
+  "secretariat-devis-actions:retenirLignesDevisDemande", "secretariat-devis-actions:genererBonDeCommandeDemande",
+  "secretariat-devis-actions:deposerBonDeCommandeDemande", "secretariat-devis-actions:relancerDemande",
+]);
 X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
   + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
   + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [
