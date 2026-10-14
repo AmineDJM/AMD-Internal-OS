@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { FinanceCategory } from "@prisma/client";
 import type { AdminRequestType, AdminRequestStatus, Priority, AdminApprovalStatus, DriverMissionStatus, Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, isTopManagement, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, isTopManagement, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { journaliserDemandeAchat } from "@/lib/general-means/purchase-journal";
@@ -1123,7 +1123,7 @@ export async function submitAttachmentValidation(formData: FormData): Promise<{ 
     select: { id: true, reference: true, title: true, requesterId: true, assignedToId: true },
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
-  const isSecretary = user.role === "DIRECTION_ASSISTANT";
+  const isSecretary = hasRole(user, "DIRECTION_ASSISTANT");
   const allowed = hasGlobalView(user.role) || isSecretary || userCan(user, "ADMIN_REQUESTS", "UPDATE")
     || req.requesterId === user.id || req.assignedToId === user.id;
   if (!allowed) return { ok: false, error: "Non autorisé sur cette demande." };
@@ -1202,7 +1202,7 @@ export async function cancelAttachmentValidation(formData: FormData): Promise<{ 
   const refusRetrait = refusDuRetraitValidation({ status: val.status, version: val.version, surPlace: false, steps: val.steps });
   if (refusRetrait) return { ok: false, error: val.status === "PENDING" ? refusRetrait : "Cette validation est déjà clôturée." };
 
-  const isSecretary = user.role === "DIRECTION_ASSISTANT";
+  const isSecretary = hasRole(user, "DIRECTION_ASSISTANT");
   const allowed = hasGlobalView(user.role) || isSecretary || userCan(user, "ADMIN_REQUESTS", "UPDATE") || val.requesterId === user.id;
   if (!allowed) return { ok: false, error: "Non autorisé." };
 
