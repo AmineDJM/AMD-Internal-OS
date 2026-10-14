@@ -69,7 +69,8 @@ const fd = (champs: Record<string, string>) => {
   for (const [k, v] of Object.entries(champs)) f.set(k, v);
   return f;
 };
-const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], nom, { type: "application/pdf" });
+// UN FICHIER DISTINCT PAR DÉPÔT (Direction, 14/10) : le même fichier déposé comme deux factures serait la même facture, refusée.
+const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]), `${nom}-${Date.now()}-${Math.random()}`], nom, { type: "application/pdf" });
 const avecFichier = (champs: Record<string, string>, nom = `${TAG}piece.pdf`) => {
   const f = fd(champs);
   f.append("attachment", pdf(nom));

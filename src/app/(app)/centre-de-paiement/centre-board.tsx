@@ -68,6 +68,12 @@ export interface CentreOrder {
   produit: { reference: string; nom: string; dci: string; nature: string | null; href: string | null } | null;
   /** Le commentaire du demandeur, écrit avec sa demande. */
   note: string | null;
+  /**
+   * LA MARQUE « DOUBLON POSSIBLE » (Direction, 14/10/2026) : une facture de ce paiement ressemble à une facture déjà
+   * connue ailleurs — la phrase, avec la référence de l'autre pièce. Elle ne bloque rien : elle se vérifie avant
+   * d'autoriser. `null` sans marque.
+   */
+  doublonPossible?: string | null;
   /** Les pièces jointes à l'ordre par le demandeur (proforma, courrier…). */
   pieces: { id: string; name: string }[];
   messages: CentreMessage[];
@@ -184,6 +190,11 @@ export function CentreBoard({
                               {" · "}<span className="font-mono">{o.produit.reference}</span>
                               {o.produit.dci && o.produit.dci !== o.produit.nom ? <> · {o.produit.dci}</> : null}
                             </span>
+                          </p>
+                        )}
+                        {o.doublonPossible && (
+                          <p className="mt-1 rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-xs [overflow-wrap:anywhere]" data-doublon-possible>
+                            <span className="font-medium">Doublon possible — </span>{o.doublonPossible}
                           </p>
                         )}
                         {o.note && (

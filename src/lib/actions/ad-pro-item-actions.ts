@@ -68,6 +68,8 @@ import { saisieEffective, type ReferenceProchaine } from "@/lib/references/regis
 import { etatDuRegistre } from "@/lib/references/registre-serveur";
 import { controlerFacture, refusDemandePaiementBC, TOLERANCE_DZD, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
 import { lireFactureDuPoste } from "@/lib/ad-pro/facture-poste-lecture";
+import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
+import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
 import { lignesDepuisListes, type ListesDeLignes } from "@/lib/artifact/factory/lignes-saisies";
 import { apercuPourEcran, previsualiserRevision, reviserDocumentDrive, type ApercuPiece, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
 import {
@@ -1344,6 +1346,12 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
     }
   }
 
+  // LA FACTURE DÉJÀ CONNUE AILLEURS (Direction, 14/10) — jugée avant la prise et avant toute écriture.
+  const gardeFactures = await verifierFacturesAvantDepot(user, await Promise.all(facturesFacultatives.map(async (f) => ({
+    octets: Buffer.from(await f.arrayBuffer()), nom: f.name, saisie: { ttc: montant, fournisseur: item.supplier ?? info.beneficiary },
+  }))), { instances: [`POSTE:${id}`] });
+  if (!gardeFactures.ok) return { ok: false, error: gardeFactures.error, factureConnue: gardeFactures.factureConnue };
+
   // LA PRISE (§118.187) : un poste à la fois — deux clics ne déposent pas deux factures.
   const etapeLue = item.orderStage;
   const prise = await prisma.adProItem.updateMany({
@@ -1421,13 +1429,16 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
     ordreNe = true;
     await prisma.adProItem.update({ where: { id }, data: { expenseOrderId: order.id, orderStage: "ISSUED", updatedById: user.id } });
     if (factureId) await prisma.legalDocument.update({ where: { id: factureId }, data: { expenseOrderId: order.id } });
+    for (const p of gardeFactures.probables) await marquerDoublonPossible({ marque: p.marque, legalDocumentId: factureId, ordreIds: [order.id], acteurId: user.id });
     await audit(user, owner.parent, owner.id, "UPDATE",
       `${direct ? `${LIBELLE_JUSTIFICATIF_DIRECT} jointe` : "Facture déposée"} et paiement demandé pour le poste « ${item.label} » — ${montant.toLocaleString("fr-FR")} DZD (ordre ${order.reference}, au centre de paiement).`);
     revalidate(owner.parent, owner.id);
     revalidatePath("/finances/paiements-a-faire");
+    const avertissement = gardeFactures.probables.map((p) => p.phrase).join(" ");
     return {
       ok: true, id: order.id,
-      message: `${direct ? `${LIBELLE_JUSTIFICATIF_DIRECT} jointe` : "Facture déposée"} — paiement de ${montant.toLocaleString("fr-FR")} DZD demandé au centre de paiement (${order.reference}).`,
+      message: `${direct ? `${LIBELLE_JUSTIFICATIF_DIRECT} jointe` : "Facture déposée"} — paiement de ${montant.toLocaleString("fr-FR")} DZD demandé au centre de paiement (${order.reference}).${avertissement ? ` ${avertissement}` : ""}`,
+      ...(avertissement ? { avertissement } : {}),
     };
   } catch (err) {
     console.error("[ad-pro-item] demande de paiement impossible", err);
@@ -1453,7 +1464,7 @@ async function deposerFactureSurPoste(a: {
   user: SessionUser; poste: PosteAvecOperation; info: ParentInfo; fichier: File; montantSaisi: number | null; reference: string | null; bcIds: string[];
   /** Les AUTRES pièces jointes à la facture (annexes, pages, bon de livraison) : gardées avec elle, jamais lues comme facture. */
   annexes?: File[];
-}): Promise<{ ok: true; factureId: string; controle: ControleFacture; annexesEchouees: string[] } | { ok: false; error: string }> {
+}): Promise<{ ok: true; factureId: string; controle: ControleFacture; annexesEchouees: string[]; avertissement: string | null } | { ok: false; error: string; factureConnue?: FactureDejaConnue }> {
   const { item, owner } = a.poste;
   const pieces = (await piecesDesPostes([item.id])).get(item.id);
   const bcs = pieces?.bcs ?? [];
@@ -1475,6 +1486,13 @@ async function deposerFactureSurPoste(a: {
   if (refusFichier) return { ok: false, error: refusFichier };
 
   const octets = Buffer.from(await a.fichier.arrayBuffer());
+  // UNE FACTURE DÉJÀ CONNUE AILLEURS NE SE DÉPOSE PAS UNE SECONDE FOIS (Direction, 14/10) — dans les deux sens : déjà
+  // dans une demande de paiement, au registre, sur un autre poste. Jugé avant d'écrire ; les factures de CE poste sont
+  // hors de la comparaison (le BC déjà facturé est refusé plus haut).
+  const garde = await verifierFacturesAvantDepot(a.user, [{
+    octets, nom: a.fichier.name, saisie: { numero: a.reference, ttc: a.montantSaisi, fournisseur: item.supplier },
+  }], { instances: [`POSTE:${item.id}`, ...(item.expenseOrderId ? [`ORDRE:${item.expenseOrderId}`] : [])] });
+  if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
   const lu = await lireFactureDuPoste({ userId: a.user.id, octets, nomFichier: a.fichier.name, montantSaisi: a.montantSaisi });
   const docs = await prisma.legalDocument.findMany({ where: { id: { in: choisis.map((b) => b.id) } }, select: { id: true, reference: true, amount: true, counterparty: true } });
   const controle = controlerFacture(lu, choisis.map((b) => {
@@ -1514,7 +1532,8 @@ async function deposerFactureSurPoste(a: {
     if (!r.ok) annexesEchouees.push(f.name);
   }
   await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: facture.id, nature: "FACTURE", acteurId: a.user.id });
-  return { ok: true, factureId: facture.id, controle, annexesEchouees };
+  for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, legalDocumentId: facture.id, acteurId: a.user.id });
+  return { ok: true, factureId: facture.id, controle, annexesEchouees, avertissement: garde.probables.map((p) => p.phrase).join(" ") || null };
 }
 
 /** La phrase des annexes d'une facture — dite seulement quand il y en a. */
@@ -1561,7 +1580,11 @@ export async function deposerFacturePoste(formData: FormData): Promise<ActionRes
   if (!r.ok) return r;
   await audit(user, owner.parent, owner.id, "UPDATE", `Facture déposée pour le poste « ${item.label} »${joints.length > 1 ? ` (${joints.length} pièces)` : ""} — ${r.controle.coherente ? "cohérente avec le bon de commande" : `écarts : ${r.controle.ecarts.join(" ")}`}`);
   revalidate(owner.parent, owner.id);
-  return { ok: true, id: r.factureId, message: `Facture déposée.${phraseAnnexes(joints.length - 1, r.annexesEchouees)} ${phraseControleFacture(r.controle)}` };
+  return {
+    ok: true, id: r.factureId,
+    message: `Facture déposée.${phraseAnnexes(joints.length - 1, r.annexesEchouees)} ${phraseControleFacture(r.controle)}${r.avertissement ? ` ${r.avertissement}` : ""}`,
+    ...(r.avertissement ? { avertissement: r.avertissement } : {}),
+  };
 }
 
 /**
@@ -1598,7 +1621,7 @@ async function payerLesFacturesDuPoste(a: {
       user, poste: { item, owner } as PosteAvecOperation, info, fichier: a.fichier as File, annexes: a.annexes, montantSaisi: a.montantSaisi, reference: a.reference, bcIds,
     }));
     if (!r.ok) return r;
-    deposee = `Facture déposée.${phraseAnnexes((a.annexes ?? []).length, r.annexesEchouees)} ${phraseControleFacture(r.controle)}`;
+    deposee = `Facture déposée.${phraseAnnexes((a.annexes ?? []).length, r.annexesEchouees)} ${phraseControleFacture(r.controle)}${r.avertissement ? ` ${r.avertissement}` : ""}`;
   }
   const pieces = (await piecesDesPostes([id])).get(id);
   const factures = (pieces?.factures ?? []).filter((f) => !f.annulee);

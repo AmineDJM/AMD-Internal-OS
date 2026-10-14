@@ -14,6 +14,7 @@ import { KpiCard } from "@/components/shared/kpi-card";
 import { visibleToFinance, type CentralStatus } from "@/lib/payments/authorization";
 import { settlementState, sortForSettlement } from "@/lib/finance/settlement";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
+import { marquesDesOrdres } from "@/lib/factures/connues";
 import { needsBudgetChoice } from "@/lib/finance/settle-budget";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { ENTITY_MODULE, modulesDesEntites } from "@/lib/entity-access";
@@ -101,6 +102,8 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   // Depuis qu'un ordre ouvre son dossier en naissant (`createExpenseOrder`), le lien se lit sur
   // `expenseOrderId`, qui vaut pour les deux sens de l'histoire.
   const dossiers = await dossierHrefByOrder(orderIds);
+  // LA MARQUE « DOUBLON POSSIBLE » de chaque ordre (Direction, 14/10/2026).
+  const doublons = await marquesDesOrdres(orderIds);
 
   // ── OÙ CETTE DÉPENSE TOMBERA-T-ELLE ? ───────────────────────────────────────────────────────
   //
@@ -163,6 +166,7 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
     // autre module, avec d'autres droits, et que le comptable n'a pas à traverser pour lire une
     // facture.
     dossierHref: dossiers.get(o.id) ?? null,
+    doublonPossible: doublons.get(o.id) ?? null,
     needsBudget: needsBudgetChoice({
       onOrder: o.budgetCategoryId,
       auto: autoOf(o),

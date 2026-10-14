@@ -190,18 +190,23 @@ export function canNudge(input: NudgeCheck): { ok: boolean; reason?: string } {
   if (input.kind === "URGENT" && texte.length === 0) {
     return { ok: false, reason: "Dites pourquoi ce paiement est devenu urgent — c'est ce qui permet d'arbitrer entre deux dossiers pressants." };
   }
-  if (input.lastNudgeAt) {
-    const last = input.lastNudgeAt instanceof Date ? input.lastNudgeAt : new Date(input.lastNudgeAt);
-    if (!Number.isNaN(last.getTime())) {
-      const now = input.now ?? new Date();
-      const minutes = (now.getTime() - last.getTime()) / 60000;
-      if (minutes < NUDGE_COOLDOWN_MINUTES) {
-        const reste = Math.max(1, Math.ceil(NUDGE_COOLDOWN_MINUTES - minutes));
-        return { ok: false, reason: `Vous avez déjà relancé il y a moins d'une heure — réessayez dans ${reste} min.` };
-      }
-    }
-  }
+  const delai = refusDelaiDeCourtoisie(input.lastNudgeAt, input.now);
+  if (delai) return { ok: false, reason: delai };
   return { ok: true };
+}
+
+/**
+ * LE DÉLAI DE COURTOISIE, seul — lu par la relance du dossier (`canNudge`) ET par la relance unifiée d'un paiement
+ * (`finance/relance-paiement.ts`, Direction 14/10) : une seule règle, un seul délai. Rend le refus, ou `null`.
+ */
+export function refusDelaiDeCourtoisie(lastAt: Date | string | null | undefined, now: Date = new Date()): string | null {
+  if (!lastAt) return null;
+  const last = lastAt instanceof Date ? lastAt : new Date(lastAt);
+  if (Number.isNaN(last.getTime())) return null;
+  const minutes = (now.getTime() - last.getTime()) / 60000;
+  if (minutes >= NUDGE_COOLDOWN_MINUTES) return null;
+  const reste = Math.max(1, Math.ceil(NUDGE_COOLDOWN_MINUTES - minutes));
+  return `Vous avez déjà relancé il y a moins d'une heure — réessayez dans ${reste} min.`;
 }
 
 /** Le message porté par la notification, tel que les Finances le liront. */

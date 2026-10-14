@@ -43,6 +43,8 @@ export interface OrderRow {
    * d'autres droits. Tout ordre en porte un désormais, quelle que soit sa provenance.
    */
   dossierHref: string | null;
+  /** La marque « doublon possible » d'une de ses factures (Direction, 14/10/2026), ou rien. */
+  doublonPossible?: string | null;
   /**
    * LA DÉPENSE EST-ELLE DÉJÀ CLASSÉE dans un budget ? Si non, il faut le faire AVANT de régler :
    * après le virement, plus personne n'y revient et l'enveloppe affiche un chiffre faux.
@@ -368,6 +370,12 @@ export function OrdersTable({ rows, canSettle, emptyLabel, focusId = null, budge
                     )}
                     {/* Le motif du report s'écrit en entier au téléphone : le survol qui le révélait n'y existe pas. */}
                     {note && <p className="text-xs text-warning sm:truncate" title={note}>{note}</p>}
+                    {/* LA MARQUE « DOUBLON POSSIBLE » (Direction, 14/10) — à vérifier pièce en main avant de régler. */}
+                    {r.doublonPossible && (
+                      <p className="text-xs text-warning [overflow-wrap:anywhere]" data-doublon-possible>
+                        <span className="font-medium">Doublon possible — </span>{r.doublonPossible}
+                      </p>
+                    )}
                   </div>
                 </TableCell>
                 <TableCell>{r.beneficiary || "—"}</TableCell>

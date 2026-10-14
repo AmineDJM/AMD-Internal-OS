@@ -52,3 +52,4 @@ Contenu intégral de `README.md`, découpé par titres sans aucune perte : conca
 | 46 | [32-conventions-contribution.md](32-conventions-contribution.md) | ## 🤝 Conventions & contribution | 15445–15464 | 1 Ko |
 | 47 | [33-segmentation-studio.md](33-segmentation-studio.md) | ## Segmentation Studio | — | 17 Ko |
 | 48 | [34-bc-signe-facture-controlee.md](34-bc-signe-facture-controlee.md) | ## Ad & Pro — BC modifiable, BC signé sur papier, facture contrôlée par Luna | — | 3 Ko |
+| 49 | [35-doublons-de-factures.md](35-doublons-de-factures.md) | ## Factures — « pas deux factures » : blocage des doublons, relance unifiée, recensement | — | 7 Ko |

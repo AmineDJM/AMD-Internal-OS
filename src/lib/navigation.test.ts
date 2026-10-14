@@ -339,7 +339,8 @@ describe("Finances — deux écrans, et cliquer le module conduit au travail", (
     expect(enfants).not.toContain("Dashboard");
     // « Bons de commande » a quitté les Finances (§118.176) : un module À PART, et non plus un
     // troisième sous-module — sinon il s'ouvrirait encore à quiconque lit les Finances.
-    expect(enfants).toEqual(["Banque & paiements", "Comptabilité"]);
+    // « Doublons de factures » (Direction, 14/10/2026) : le recensement unique des doublons, en lecture seule.
+    expect(enfants).toEqual(["Banque & paiements", "Comptabilité", "Doublons de factures"]);
   });
 
   it("LES BONS DE COMMANDE SONT UN MODULE À PART — leur propre entrée, leur propre droit (§118.176)", () => {

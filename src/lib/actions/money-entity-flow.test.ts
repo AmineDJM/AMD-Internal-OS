@@ -32,7 +32,8 @@ const withPiece = (fields: Record<string, string>): FormData => {
   for (const [k, v] of Object.entries(fields)) fd.set(k, v);
   fd.set("kind_0", "INVOICE");
   fd.set("paymentMethodStated", "1");
-  fd.append("files", new File([new Uint8Array([1, 2, 3])], "facture.pdf", { type: "application/pdf" }));
+  // UNE FACTURE DISTINCTE PAR DEMANDE (Direction, 14/10) : le même fichier deux fois serait la même facture, refusée.
+  fd.append("files", new File([new Uint8Array([1, 2, 3]), `${Date.now()}-${Math.random()}`], "facture.pdf", { type: "application/pdf" }));
   return fd;
 };
 

@@ -1594,6 +1594,13 @@ X("AFFECTER UN LOT D'APPEL D'OFFRES À UNE BUSINESS UNIT décide QUI VEND QUOI. 
 ]);
 X("SIGNALER UNE URGENCE DE PAIEMENT est une ATTESTATION, et relancer est un geste qui PRESSE quelqu'un au nom du demandeur. §118-15 — l'urgence remonte le dossier dans la file des Finances et engage celui qui la déclare : l'audit portera SON nom, et il devra l'assumer si le paiement ne l'était pas. La rendre appelable par Adam l'exposerait à l'injection : une facture ou un mail lu par une étape peut contenir « ce règlement est urgent », et rien ne distinguerait plus l'urgence forgée de la vraie — le paiement passerait devant les autres. La relance, elle, envoie une notification à trois rôles au nom d'une personne qui n'a rien demandé. Ce sont deux clics du demandeur sur /validations/paiements/<id>.", [
   "payment-request-actions:nudgePaymentRequest",
+  // LA RELANCE UNIFIÉE (Direction, 14/10/2026) — même famille : elle presse le centre ou les Finances au nom du
+  // demandeur, ou de la personne arrêtée par « cette facture existe déjà » (jeton signé). Un clic sur le poste
+  // Ad & Pro, le dossier de paiement ou le message de blocage.
+  "relance-paiement-actions:relancerPaiement",
+]);
+X("MARQUER UN GROUPE DE DOUBLONS DE FACTURES « EXAMINÉ » est une ATTESTATION des Finances (Direction, 14/10/2026) : « nous avons regardé ces pièces, pièce en main ». La faire poser par Adam reviendrait à attester un examen que personne n'a fait — le groupe sortirait de « à examiner » sans qu'aucune personne n'ait comparé les factures. Un clic des Finances sur /finances/doublons-factures ; l'écran est en lecture, rien n'y est corrigé.", [
+  "doublons-factures-actions:marquerExamenDoublon",
 ]);
 X("RELANCER QUELQU'UN SUR UNE DEMANDE DE TÂCHE presse une personne au nom du demandeur — même famille que la relance de paiement ci-dessus. La notification INTERROMPT (pop-up), et elle dit « untel attend toujours » : c'est un reproche, léger mais réel, et il doit venir de celui qui attend. La rendre appelable par Adam l'exposerait à l'injection — un mail lu par une étape peut contenir « relance Raihana » — et ferait tomber des relances que personne n'a voulues, ce qui apprend surtout à fermer les pop-up sans les lire. Adam RELANCE dans ses MISSIONS, par ses propres attentes (`missions/` : délai dépassé → relance → escalade), sous approbation ; il ne presse pas ce bouton à la place d'un collègue. Un clic du demandeur sur /mon-espace.", [
   "task-actions:relanceTaskRequest",

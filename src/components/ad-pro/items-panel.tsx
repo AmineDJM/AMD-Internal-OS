@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import {
-  Plus, Trash2, Loader2, CheckCircle2, XCircle, Receipt, Link2, AlertTriangle, ExternalLink, Send, FileText,
+  Plus, Trash2, Loader2, CheckCircle2, XCircle, Link2, AlertTriangle, ExternalLink, Send, FileText,
   ThumbsUp, ThumbsDown, RotateCcw, History, Pencil, MoreHorizontal, Circle, X, Wallet, Split,
   Undo2, Ban, Scale, Paperclip, ShieldCheck, FileCheck2, MessageSquarePlus, Inbox, Clock,
 } from "lucide-react";
@@ -57,7 +57,7 @@ import type { PiecesDuPoste, PieceDePoste, DemandeBCDuPoste } from "@/lib/ad-pro
 import type { DevisDePosteVue } from "@/lib/queries/ad-pro-devis-poste";
 import { refusGenerationBC } from "@/lib/ad-pro/devis-poste";
 import { BlocBonDeCommande, PanneauLignesDevis } from "./devis-bc-poste";
-import { DeposerFactureBC, DemandePaiementBC, ControleDeFacture, bcsSansFacture } from "./facture-paiement-bc";
+import { DeposerFactureBC, DemandePaiementBC, ControleDeFacture, bcsSansFacture, PaiementDemande } from "./facture-paiement-bc";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { ancrePoste } from "@/lib/chemins/ad-pro";
 
@@ -88,7 +88,7 @@ export interface ItemRow {
   promoMaterialId: string | null;
   promoMaterial: { reference: string; title: string; status: string } | null;
   expenseOrderId: string | null;
-  expenseOrder: { reference: string; status: string; centralStatus?: string | null } | null;
+  expenseOrder: { id?: string; reference: string; status: string; centralStatus?: string | null } | null;
   /** Cycle de validation propre au poste. */
   status: AdProItemStatus;
   budgetKind: AdProItemBudgetKind;
@@ -1216,9 +1216,10 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
             <CasePiece titre="Paiement">
               {direct ? (
                 item.expenseOrder ? (
-                  <p className="inline-flex items-center gap-1 text-muted-foreground">
-                    <Receipt className="h-3.5 w-3.5" /> {item.expenseOrder.reference} · {item.expenseOrder.status === "PAID" ? "payé" : "au centre de paiement"}
-                  </p>
+                  <PaiementDemande
+                    expenseOrder={item.expenseOrder} paye={item.expenseOrder.status === "PAID"}
+                    peutRelancer={regard.canEdit || regard.canAllocate}
+                  />
                 ) : <p className="text-muted-foreground">Après le justificatif.</p>
               ) : (
                 <DemandePaiementBC

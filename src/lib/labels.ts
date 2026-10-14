@@ -2020,10 +2020,12 @@ export const NAVIGATION: NavItem[] = [
   // pour ceux qui arrivent par un lien ou un favori.
   {
     module: "FINANCES", label: "Finances", href: "/finances/paiements-a-faire", icon: "Landmark", group: "Pôles", pole: "ADMINISTRATION",
-    match: ["/finances", "/finances/comptabilite"],
+    match: ["/finances", "/finances/comptabilite", "/finances/doublons-factures"],
     children: [
       { module: "FINANCES", label: "Banque & paiements", href: "/finances/paiements-a-faire", icon: "Banknote", group: "Pôles", pole: "ADMINISTRATION" },
       { module: "FINANCES", label: "Comptabilité", href: "/finances/comptabilite", icon: "BookOpen", group: "Pôles", pole: "ADMINISTRATION" },
+      // LE RECENSEMENT DES DOUBLONS DE FACTURES (Direction, 14/10/2026) — lecture seule, droit Finances VIEW.
+      { module: "FINANCES", label: "Doublons de factures", href: "/finances/doublons-factures", icon: "Copy", group: "Pôles", pole: "ADMINISTRATION" },
     ],
   },
   // LES BONS DE COMMANDE — un module À PART (décision de la Direction, 01/10/2026, §118.176).
