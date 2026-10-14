@@ -8,6 +8,7 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import { formatCurrency } from "@/lib/utils";
 import type { BcDePoste, PieceDePoste } from "@/lib/ad-pro/pieces-poste";
 import { refusDemandePaiementBC } from "@/lib/bons-de-commande/copie-signee";
+import { etatDuPaiement, phrasePaiementBloque } from "@/lib/ad-pro/poste-etapes";
 import { deposerFacturePoste, demanderPaiementPoste } from "@/lib/actions/ad-pro-item-actions";
 
 /**
@@ -55,7 +56,8 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
   itemId: string; bcs: BcDePoste[]; factures: PieceDePoste[]; busy: string | null; run: Run; onClose: () => void;
 }) {
   const libres = bcsSansFacture(bcs, factures);
-  const [fichier, setFichier] = React.useState<File | null>(null);
+  // PLUSIEURS PIÈCES (audit Ad & Pro, 14/10) : la PREMIÈRE est la facture, lue et contrôlée ; les suivantes ses annexes.
+  const [fichiers, setFichiers] = React.useState<File[]>([]);
   const [coches, setCoches] = React.useState<Set<string>>(() => new Set(libres.length === 1 ? [libres[0].id] : []));
   const [montant, setMontant] = React.useState("");
   const [reference, setReference] = React.useState("");
@@ -63,7 +65,7 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
   const deposer = () => {
     const fd = new FormData();
     fd.set("id", itemId);
-    if (fichier) fd.set("attachment", fichier);
+    for (const f of fichiers) fd.append("attachment", f);
     for (const id of coches) fd.append("bcId", id);
     fd.set("montant", montant);
     fd.set("reference", reference);
@@ -80,9 +82,14 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
         <button type="button" onClick={onClose} className="min-h-9 px-2 text-muted-foreground hover:text-foreground sm:min-h-0 sm:px-0">Fermer</button>
       </div>
       <label className="block space-y-0.5">
-        <span className="font-medium text-foreground">Facture (PDF ou photo) — obligatoire</span>
-        <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" aria-label="Fichier de la facture" onChange={(e) => setFichier(e.target.files?.[0] ?? null)} className="block w-full min-w-0 max-w-full py-1 [overflow-wrap:anywhere]" />
+        <span className="font-medium text-foreground">Facture (PDF ou photo) — obligatoire, et ses annexes si besoin</span>
+        <input type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" aria-label="Fichiers de la facture" onChange={(e) => setFichiers(Array.from(e.target.files ?? []))} className="block w-full min-w-0 max-w-full py-1 [overflow-wrap:anywhere]" />
       </label>
+      {fichiers.length > 1 && (
+        <p className="text-muted-foreground [overflow-wrap:anywhere]">
+          « {fichiers[0].name} » est lu comme la facture ; {fichiers.length - 1} autre{fichiers.length > 2 ? "s" : ""} pièce{fichiers.length > 2 ? "s" : ""} jointe{fichiers.length > 2 ? "s" : ""} avec elle.
+        </p>
+      )}
       {libres.length > 1 && (
         <fieldset className="space-y-0.5">
           <legend className="font-medium text-foreground">Cette facture couvre</legend>
@@ -102,7 +109,7 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
         <label className="space-y-0.5">N° de facture (facultatif)<input className={champ} value={reference} onChange={(e) => setReference(e.target.value)} /></label>
         <label className="space-y-0.5">Montant TTC (si la lecture échoue)<input className={champ} inputMode="decimal" value={montant} onChange={(e) => setMontant(e.target.value)} /></label>
       </div>
-      <Button size="sm" className="h-10 w-full sm:h-8 sm:w-auto" onClick={deposer} disabled={enCours || !fichier || coches.size === 0}>
+      <Button size="sm" className="h-10 w-full sm:h-8 sm:w-auto" onClick={deposer} disabled={enCours || fichiers.length === 0 || coches.size === 0}>
         {enCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Déposer et contrôler
       </Button>
     </div>
@@ -111,14 +118,19 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
 
 export function DemandePaiementBC({ itemId, bcs, factures, accorde, peutDemander, expenseOrder, busy, run }: {
   itemId: string; bcs: BcDePoste[]; factures: PieceDePoste[]; accorde: number | null; peutDemander: boolean;
-  expenseOrder: { reference: string; status: string } | null; busy: string | null; run: Run;
+  expenseOrder: { reference: string; status: string; centralStatus?: string | null } | null; busy: string | null; run: Run;
 }) {
   const [argumentation, setArgumentation] = React.useState("");
   const [oui, setOui] = React.useState(false);
+  const [montantSaisi, setMontantSaisi] = React.useState("");
   if (expenseOrder) {
+    // L'ÉTAT RÉEL de l'ordre (audit Ad & Pro, 14/10) : un ordre refusé par le centre, ou annulé, n'est pas « au centre ».
+    const etat = etatDuPaiement({ expenseOrderId: expenseOrder.reference, expenseOrderStatus: expenseOrder.status, expenseOrderCentral: expenseOrder.centralStatus ?? null });
+    const bloque = phrasePaiementBloque(etat, expenseOrder.reference);
+    if (bloque) return <p className="flex gap-1 text-destructive [overflow-wrap:anywhere]"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {bloque}</p>;
     return (
       <p className="inline-flex flex-wrap items-center gap-1 text-muted-foreground [overflow-wrap:anywhere]">
-        <Receipt className="h-3 w-3 shrink-0" /> {expenseOrder.reference} · {expenseOrder.status === "PAID" ? "payé" : "au centre de paiement"}
+        <Receipt className="h-3 w-3 shrink-0" /> {expenseOrder.reference} · {etat === "PAYE" ? "payé" : "au centre de paiement"}
       </p>
     );
   }
@@ -143,11 +155,21 @@ export function DemandePaiementBC({ itemId, bcs, factures, accorde, peutDemander
     const fd = new FormData();
     fd.set("id", itemId);
     if (ecarts.length > 0) { fd.set("argumentation", argumentation); fd.set("confirme", oui ? "1" : "0"); }
+    if (total == null) fd.set("montant", montantSaisi);
     void run(`pay:${itemId}`, () => demanderPaiementPoste(undefined, fd), "Paiement demandé au centre de paiement.");
   };
+  // UN MONTANT QUI NE SE LIT PAS SE SAISIT ICI (audit Ad & Pro, 14/10) : l'action le demande (« indiquez-le »), et la case
+  // n'avait aucun champ pour le faire — la seule issue était d'annuler la facture dans Legal et de la redéposer.
+  const montantManquant = total == null && !(Number(montantSaisi.replace(/\s/g, "").replace(",", ".")) > 0);
   return (
     <div className="space-y-1.5">
       <p className="tabular-nums text-foreground">{total != null ? formatCurrency(total) : "Montant à confirmer"}{vivantes.length > 1 ? ` · ${vivantes.length} factures` : ""}</p>
+      {total == null && peutDemander && (
+        <label className="block space-y-0.5">
+          <span className="text-foreground">Montant TTC à payer — la facture ne se lit pas : saisissez-le depuis le papier</span>
+          <input className={`${champ} tabular-nums`} inputMode="decimal" value={montantSaisi} onChange={(e) => setMontantSaisi(e.target.value)} />
+        </label>
+      )}
       {depasse && <p className="flex gap-1 text-destructive"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> Au-delà de l&apos;accordé ({formatCurrency(accorde as number)}) : demandez une révision du poste.</p>}
       {ecarts.length > 0 && (
         <div className="space-y-1.5 rounded border border-warning/40 bg-warning/10 p-2">
@@ -168,7 +190,7 @@ export function DemandePaiementBC({ itemId, bcs, factures, accorde, peutDemander
         </div>
       )}
       {peutDemander && !depasse && (
-        <BoutonDecisif size="sm" className="max-sm:w-full" onClick={demander} disabled={enCours || (ecarts.length > 0 && (!argumentation.trim() || !oui))}>
+        <BoutonDecisif size="sm" className="max-sm:w-full" onClick={demander} disabled={enCours || montantManquant || (ecarts.length > 0 && (!argumentation.trim() || !oui))}>
           {enCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />} Demander le paiement
         </BoutonDecisif>
       )}

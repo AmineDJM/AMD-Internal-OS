@@ -274,7 +274,7 @@ export async function getActionCenter(user: SessionUser) {
     // DEUX TEMPS (§118.204) : la Direction des opérations, puis la Direction Marketing (montant et
     // budget). La file ne montre à chacun que le temps qu'il TIENT — la règle de l'action
     // (`peutTenir`), avec le demandeur de la demande (on n'arbitre pas sa propre demande).
-    const moi = await prisma.user.findUnique({ where: { id: user.id }, select: { role: true, secondaryRole: true } }) ?? { role: user.role };
+    const moi = await prisma.user.findUnique({ where: { id: user.id }, select: { id: true, role: true, secondaryRole: true } }) ?? { id: user.id, role: user.role };
     const tientUnTemps = moi.role === "SUPER_ADMIN" || estDirectionOperations(moi) || estDirectionMarketingPoste(moi);
     const decides = tientUnTemps ? PARENTS_POSTE.filter((p) => hasGlobalView(user.role) || userCan(user, p.module, "VIEW")) : [];
     if (decides.length > 0) {

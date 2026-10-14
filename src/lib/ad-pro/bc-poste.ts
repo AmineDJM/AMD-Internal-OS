@@ -66,6 +66,22 @@ export function memePrestataire(a: string | null | undefined, b: string | null |
   return n(a) === n(b);
 }
 
+/**
+ * À QUI PART LE PAIEMENT D'UN POSTE À BON DE COMMANDE (audit Ad & Pro, 14/10) — au fournisseur que ses factures nomment
+ * (la pièce du registre porte celui du BC signé), quand elles en nomment UN, le même partout. Sinon le prestataire saisi
+ * sur le poste, sinon le bénéficiaire de l'opération. Le « prestataire » du poste est un texte libre, souvent vide : il
+ * ne doit pas l'emporter sur le fournisseur qui a émis la facture qu'on paie.
+ */
+export function beneficiaireDuPaiement(
+  fournisseursDesFactures: readonly (string | null | undefined)[],
+  prestatairePoste: string | null | undefined,
+  beneficiaireOperation: string,
+): string {
+  const noms = fournisseursDesFactures.map((s) => (s ?? "").trim());
+  if (noms.length > 0 && noms.every((n) => n !== "") && noms.every((n) => memePrestataire(n, noms[0]))) return noms[0];
+  return prestatairePoste?.trim() || beneficiaireOperation;
+}
+
 const libellePrestataire = (s: string | null) => (s && s.trim() ? `« ${s.trim()} »` : "le bénéficiaire de l'opération");
 
 export function gesteVisaPoste(

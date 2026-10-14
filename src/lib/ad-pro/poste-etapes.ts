@@ -59,6 +59,8 @@ export interface FaitsPoste {
   expenseOrderId: string | null;
   /** Le statut de l'ordre de dépense (« PAID » = réglé). */
   expenseOrderStatus: string | null;
+  /** La décision du centre de paiement sur l'ordre (« REFUSED » = refusé) — absente : non lue. */
+  expenseOrderCentral?: string | null;
   /** Combien d'articles du magasin un poste « Matériel du stock » liste (§118.167). */
   lignesStock: number;
   /**
@@ -135,6 +137,36 @@ export interface ProchainPas {
 }
 
 /**
+ * OÙ EN EST LE PAIEMENT D'UN POSTE (audit Ad & Pro, 14/10) — lu sur l'ordre de dépense ET sur la décision du centre.
+ * La carte disait « Paiement en cours — chez le centre de paiement » pour un ordre que le centre avait REFUSÉ, ou que
+ * l'annulation de sa facture dans Legal avait ANNULÉ : le demandeur attendait un paiement qui ne viendrait jamais, et le
+ * geste qui libère le poste (« Annuler la demande de paiement ») n'était même pas proposé.
+ *
+ *   • PAYE — l'ordre est réglé ;
+ *   • REFUSE — le centre de paiement l'a refusé : on libère le poste, puis on redemande avec la pièce corrigée ;
+ *   • ANNULE — l'ordre est annulé ailleurs (facture annulée dans Legal…) : on libère le poste ;
+ *   • EN_COURS — au centre, ou chez la comptabilité ;
+ *   • AUCUN — pas d'ordre.
+ */
+export type EtatPaiementPoste = "AUCUN" | "EN_COURS" | "REFUSE" | "ANNULE" | "PAYE";
+
+export function etatDuPaiement(p: { expenseOrderId: string | null; expenseOrderStatus: string | null; expenseOrderCentral?: string | null }): EtatPaiementPoste {
+  if (!p.expenseOrderId) return "AUCUN";
+  if (p.expenseOrderStatus === "PAID") return "PAYE";
+  if (p.expenseOrderStatus === "CANCELLED") return "ANNULE";
+  if (p.expenseOrderCentral === "REFUSED") return "REFUSE";
+  return "EN_COURS";
+}
+
+/** La phrase d'un paiement qui n'aboutira pas — avec le geste qui libère le poste (§118.30). */
+export function phrasePaiementBloque(etat: EtatPaiementPoste, reference: string | null = null): string | null {
+  const ordre = reference ? `L'ordre ${reference}` : "L'ordre de dépense";
+  if (etat === "REFUSE") return `${ordre} a été refusé par le centre de paiement : « Annuler la demande de paiement » libère le poste, puis redemandez le paiement avec la pièce corrigée.`;
+  if (etat === "ANNULE") return `${ordre} a été annulé (sa facture a pu être annulée dans Legal) : « Annuler la demande de paiement » libère le poste pour redemander le paiement.`;
+  return null;
+}
+
+/**
  * LES FAITS D'UN POSTE TELS QUE LE CHARGEUR LES REND — une seule traduction, lue par l'écran ET par
  * le banc qui rejoue chaque geste proposé (§118.5). Recopiée dans le banc, elle aurait pu diverger
  * de celle de l'écran, et le banc aurait vérifié un geste que l'écran ne propose pas (§118.120).
@@ -147,7 +179,7 @@ export function faitsDuPoste(r: {
   budgetCategoryId: string | null;
   orderStage: AdProItemOrderStage;
   expenseOrderId: string | null;
-  expenseOrder: { status: string } | null;
+  expenseOrder: { status: string; centralStatus?: string | null } | null;
   lignesStock: readonly unknown[];
   orderSansCentre?: boolean;
   opsDecidedAt?: string | null;
@@ -165,7 +197,8 @@ export function faitsDuPoste(r: {
   return {
     kind: r.kind, status: r.status, amountEstimated: r.amountEstimated, amountGranted: r.amountGranted,
     budgetCategoryId: r.budgetCategoryId, orderStage: r.orderStage, expenseOrderId: r.expenseOrderId,
-    expenseOrderStatus: r.expenseOrder?.status ?? null, lignesStock: r.lignesStock.length, orderSansCentre: r.orderSansCentre,
+    expenseOrderStatus: r.expenseOrder?.status ?? null, expenseOrderCentral: r.expenseOrder?.centralStatus ?? null,
+    lignesStock: r.lignesStock.length, orderSansCentre: r.orderSansCentre,
     opsDecidedAt: r.opsDecidedAt ?? null, demandeBC: r.demandeBC?.etat ?? "AUCUNE",
     bc: r.pieces?.bc ? (r.pieces.bc.etape ?? "HORS_CIRCUIT") : null, factures: r.pieces?.factures.length ?? 0,
     devis: (r.pieces?.devis ?? []).filter((d) => !d.annulee).length,
@@ -257,9 +290,10 @@ export function etapesDuPoste(p: FaitsPoste): Etape[] {
         cle: "FACTURE", libelle: "Facture",
         etat: factures > 0 ? "FAIT" : factureOuverte || p.expenseOrderId ? "EN_COURS" : "A_VENIR",
       });
+  const paiement = etatDuPaiement(p);
   etapes.push({
     cle: "PAIEMENT", libelle: "Paiement",
-    etat: paye ? "FAIT" : p.expenseOrderId ? "EN_COURS" : "A_VENIR",
+    etat: paye ? "FAIT" : paiement === "REFUSE" || paiement === "ANNULE" ? "REFUSE" : p.expenseOrderId ? "EN_COURS" : "A_VENIR",
   });
   return etapes;
 }
@@ -342,7 +376,8 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
 
   // ── ACCORDÉ ────────────────────────────────────────────────────────────────────────────
   if (p.expenseOrderId) {
-    return { geste: null, attente: p.expenseOrderStatus === "PAID" ? null : "Paiement en cours — chez le centre de paiement." };
+    const paiement = etatDuPaiement(p);
+    return { geste: null, attente: paiement === "PAYE" ? null : phrasePaiementBloque(paiement) ?? "Paiement en cours — chez le centre de paiement." };
   }
   if (p.orderStage === "ISSUED") return { geste: null, attente: null };
   // Un poste accordé d'AVANT la validation en deux temps peut n'avoir ni montant ni budget.
