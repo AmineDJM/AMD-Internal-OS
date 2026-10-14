@@ -155,6 +155,7 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
             quotes={care.quotes}
             groupPostes={care.groupPostes}
             reglages={care.reglages}
+            envois={care.envois}
             enveloppe={congress?.finalAmount != null ? toNumber(congress.finalAmount) : null}
             directory={directory}
             promoOptions={carePromo}

@@ -60,11 +60,14 @@ export async function peutLirePieceDePriseEnCharge(
 
   let nature: NaturePiece = natureDuLivret(doc.stepKey) ?? "AUTRE";
   if (nature === "AUTRE") {
-    const [emis, piece] = await Promise.all([
+    const [emis, piece, billetDeFiche] = await Promise.all([
       prisma.careCell.count({ where: { issuedDocumentId: doc.id, beneficiary: parent } }),
       prisma.careCell.count({ where: { kind: "DOCUMENT", beneficiary: parent, OR: [{ documentId: doc.id }, ...(doc.stepKey ? [{ id: doc.stepKey }] : [])] } }),
+      // LES PIÈCES D'UN BILLET DÉPOSÉES PAR L'ASSISTANTE (fiches de voyage, 14/10) : un billet peut en compter plusieurs
+      // (aller, retour, voucher) ; seule la première devient le « billet émis » de la case — les autres le sont aussi.
+      prisma.demandeReservation.count({ where: { pieceIds: { has: doc.id }, operationId: doc.entityId } }),
     ]);
-    nature = emis > 0 ? "BILLET_EMIS" : piece > 0 ? "PIECE_IDENTITE" : "AUTRE";
+    nature = emis + billetDeFiche > 0 ? "BILLET_EMIS" : piece > 0 ? "PIECE_IDENTITE" : "AUTRE";
   }
   if (nature === "AUTRE") return false;
 

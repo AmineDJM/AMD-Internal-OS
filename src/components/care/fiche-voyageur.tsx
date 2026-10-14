@@ -26,6 +26,8 @@ import {
 } from "@/lib/actions/care-actions";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { BoutonLivret } from "@/components/care/bouton-livret";
+import { EnvoiFiche } from "@/components/reservation-fiche/envoi-fiche";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
 export type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText?: string) => Promise<unknown>;
 
@@ -70,6 +72,8 @@ interface FicheProps {
   onRetour: () => void;
   /** Ouvre l'enregistrement d'un devis (le formulaire de la demande), pour ces cases. */
   onDevis: (cellIds: string[]) => void;
+  /** L'état de chaque billet / hôtel chez l'assistante de direction (par case) — 14/10. */
+  envois?: Record<string, EnvoiVue>;
 }
 
 /**
@@ -461,6 +465,7 @@ function PosteBillet(p: PosteProps & { principal: boolean; passeportRecu: boolea
   return (
     <div className="border-t border-border first:border-t-0">
       <TetePoste kind="TICKET" titre={c.label} resume={sans ? "sans billet — vient par ses propres moyens" : resumeBillet(c)} etat={etat} />
+      {!sans && p.envois?.[c.id] && <div className="px-4 pb-2 sm:pl-14"><EnvoiFiche envoi={p.envois[c.id]} peutEditer={canEdit} busy={busy} run={run} /></div>}
       {!sans && (
         <div className="space-y-2.5 px-4 pb-3 sm:pl-14">
           <div role="radiogroup" aria-label="Trajet" className="inline-flex flex-wrap gap-0.5 rounded-lg bg-secondary p-0.5">
@@ -546,6 +551,7 @@ function PosteHotel(p: PosteProps & { principal: boolean; billet: CellRow | null
   return (
     <div className="border-t border-border">
       <TetePoste kind="HOTEL" titre={c.label} resume={sans ? "sans hôtel" : resumeHotel({ ...c, dateStart: arrivee || null, dateEnd: depart || null, hotelName: hotel || null, city: ville || null, roomType: chambre || null })} etat={etat} />
+      {!sans && p.envois?.[c.id] && <div className="px-4 pb-2 sm:pl-14"><EnvoiFiche envoi={p.envois[c.id]} peutEditer={canEdit} busy={busy} run={run} /></div>}
       {!sans && (
         <div className="space-y-2.5 px-4 pb-3 sm:pl-14">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-4">

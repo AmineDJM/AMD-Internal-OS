@@ -2466,6 +2466,8 @@ model AdProVoyageur {
   createdAt    DateTime             @default(now())
   updatedAt    DateTime             @updatedAt
   devis        AdProVoyageurDevis[]
+  /// La demande de réservation de CETTE fiche chez l'assistante de direction — son état, jamais ses données.
+  demandeReservation DemandeReservation?
 
   @@index([itemId])
 }
@@ -2529,8 +2531,93 @@ model AdProHebergement {
   updatedById String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  /// La demande de réservation de CETTE fiche chez l'assistante de direction — son état, jamais ses données.
+  demandeReservation DemandeReservation?
 
   @@index([itemId])
+}
+
+/// L'ÉTAT D'UNE FICHE CHEZ L'ASSISTANTE DE DIRECTION (fiches de voyage, Direction 14/10/2026).
+/// ENVOYEE → PRISE → DEVIS_RECU → RESERVEE ; branches MANQUE_SIGNALE (revient « à compléter » au demandeur),
+/// MODIFIEE_APRES_ENVOI (« à renvoyer »), RETIREE. La machine d'états est `src/lib/reservation-fiche/etat.ts`.
+enum EtatDemandeReservation {
+  ENVOYEE
+  PRISE
+  DEVIS_RECU
+  RESERVEE
+  MANQUE_SIGNALE
+  MODIFIEE_APRES_ENVOI
+  RETIREE
+}
+
+enum NatureFicheReservation {
+  BILLET
+  HOTEL
+}
+
+/// LA DEMANDE DE RÉSERVATION D'UNE FICHE — une par fiche de billetterie ou d'hôtellerie, envoyée seule.
+///
+/// UNE SEULE VÉRITÉ : les données du voyage (nom, trajet, dates, passeport) restent sur la FICHE — voyageur
+/// d'un poste Ad & Pro, fiche hôtellerie, ou poste billet / hôtel d'une prise en charge (`CareCell`). La
+/// demande ne garde que l'ÉTAT : qui l'a prise, quand elle est partie, ses relances, l'EMPREINTE de la fiche
+/// à l'envoi (ce qui permet de dire « modifiée après l'envoi » et de montrer ce qui a changé), et les pièces
+/// du billet ou de la confirmation déposées par l'assistante. Le sujet DOS du poste reste le FIL.
+///
+/// Exactement une fiche (contrainte `DemandeReservation_une_fiche`). Toutes les écritures d'état sont
+/// CONDITIONNELLES sur l'état lu (`updateMany`) : deux clics font un seul envoi, une seule prise.
+model DemandeReservation {
+  id                   String                 @id @default(cuid())
+  nature               NatureFicheReservation
+  voyageurId           String?                @unique
+  voyageur             AdProVoyageur?         @relation(fields: [voyageurId], references: [id], onDelete: Cascade)
+  hebergementId        String?                @unique
+  hebergement          AdProHebergement?      @relation(fields: [hebergementId], references: [id], onDelete: Cascade)
+  careCellId           String?                @unique
+  careCell             CareCell?              @relation(fields: [careCellId], references: [id], onDelete: Cascade)
+  /// Le POSTE Ad & Pro de la fiche, ou la PERSONNE d'une prise en charge — dénormalisés pour la file.
+  itemId               String?
+  careBeneficiaryId    String?
+  /// L'OPÉRATION (sponsoring, prise en charge nationale / internationale, événement) et sa société.
+  operationType        EntityType
+  operationId          String
+  companyId            String?
+  /// Le SUJET (DOS) du poste ou de la prise en charge : le fil de discussion, où s'écrivent les événements.
+  dossierId            String?
+  etat                 EtatDemandeReservation @default(ENVOYEE)
+  /// Qui a envoyé (le demandeur), quand — `premierEnvoiLe` ne bouge plus, `envoyeeLe` suit le dernier renvoi.
+  demandeurId          String
+  envoyeeLe            DateTime               @default(now())
+  premierEnvoiLe       DateTime               @default(now())
+  envois               Int                    @default(1)
+  /// Les champs de la fiche au moment de l'envoi (`{ libellé: valeur }`). Nulle : reprise d'un envoi en bloc d'avant.
+  empreinte            Json?
+  priseParId           String?
+  priseLe              DateTime?
+  relances             Int                    @default(0)
+  derniereRelanceLe    DateTime?
+  manqueMotif          String?
+  manqueLe             DateTime?
+  manqueParId          String?
+  modifieeLe           DateTime?
+  /// Le devis de l'agence joint par l'assistante — par le circuit devis existant (demande de pièce du poste,
+  /// ou devis de la prise en charge) : l'identifiant de ce qu'il a créé.
+  devisRecuLe          DateTime?
+  devisRef             String?
+  reserveeLe           DateTime?
+  reserveeParId        String?
+  /// PNR du billet / n° de confirmation de l'hôtel.
+  referenceReservation String?
+  /// Le billet émis / la confirmation d'hôtel : `Document.id` (pièces de la fiche, `stepKey` = la fiche).
+  pieceIds             String[]               @default([])
+  retireeLe            DateTime?
+  retraitMotif         String?
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  @@index([etat])
+  @@index([itemId])
+  @@index([operationType, operationId])
+  @@index([priseParId])
 }
 
 /// HISTORIQUE DES DÉCISIONS D'UN POSTE — « autant de fois qu'il le faut » : une demande de
@@ -3660,6 +3747,8 @@ model CareCell {
   updatedAt     DateTime @updatedAt
 
   quoteLinks CareQuoteCell[]
+  /// La demande de réservation de ce billet / cet hôtel chez l'assistante de direction (son état seulement).
+  demandeReservation DemandeReservation?
 
   @@index([beneficiaryId])
   @@index([quoteId])

@@ -155,6 +155,7 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
             quotes={care.quotes}
             groupPostes={care.groupPostes}
             reglages={care.reglages}
+            envois={care.envois}
             enveloppe={intl?.finalAmount != null ? toNumber(intl.finalAmount) : null}
             directory={directory}
             promoOptions={carePromo}

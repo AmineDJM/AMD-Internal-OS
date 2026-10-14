@@ -9,6 +9,8 @@ import { ChoixFichiers } from "@/components/shared/choix-fichiers";
 import { ajouterHebergement, modifierHebergement, retirerHebergement } from "@/lib/actions/ad-pro-item-actions";
 import { jourLisible, nomComplet, separerNom } from "@/lib/ad-pro/voyageurs";
 import { nuitsLisibles, TYPES_CHAMBRE } from "@/lib/ad-pro/hebergements";
+import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
 /** Une fiche hôtellerie telle que l'écran la montre — les dates en AAAA-MM-JJ, prêtes pour un champ « date ». */
 export interface HebergementVue {
@@ -39,7 +41,7 @@ const jour = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00.000Z`) : n
  * `obligatoire` : le poste ne se soumet pas sans au moins une fiche — sauf dans un sponsoring
  * indirect, où elles restent possibles mais facultatives (la règle est `refusFichesPersonnes`).
  */
-export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEditer, obligatoire, busy, run }: {
+export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEditer, obligatoire, busy, run, envois }: {
   itemId: string;
   hebergements: HebergementVue[];
   nomsSuggeres: string[];
@@ -48,6 +50,8 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
   obligatoire: boolean;
   busy: string | null;
   run: Run;
+  /** L'ÉTAT DE CHAQUE FICHE chez l'assistante (`EnvoiVue`, par fiche) — chaque fiche s'envoie seule (14/10). */
+  envois?: Record<string, EnvoiVue>;
 }) {
   const [ajout, setAjout] = React.useState(false);
   const [ouvert, setOuvert] = React.useState<{ id: string; quoi: "MENU" | "EDITER" | "DOCUMENTS" } | null>(null);
@@ -62,6 +66,7 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
         <span className="font-medium text-foreground">Fiches hôtellerie ({hebergements.length})</span>
         {!obligatoire && <span className="text-muted-foreground">· facultatives (sponsoring indirect)</span>}
       </div>
+      <BandeauEnvois envois={hebergements.map((h) => envois?.[h.id])} lot={{ itemId }} peutEditer={peutEditer} busy={busy} run={run} />
 
       {hebergements.length === 0 ? (
         <p className="text-muted-foreground">
@@ -100,6 +105,7 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
                   )}
                 </div>
                 {h.notes && <p className="text-muted-foreground">{h.notes}</p>}
+                <EnvoiFiche envoi={envois?.[h.id]} peutEditer={peutEditer} busy={busy} run={run} />
 
                 {mode === "MENU" && peutEditer && (
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-secondary/30 p-1.5" role="menu">

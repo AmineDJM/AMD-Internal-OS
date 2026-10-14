@@ -27,6 +27,21 @@ Aucune migration. Règle pure `lib/medical-info/decideur.ts` (testée) — voir 
   QUAND MÊME, non assignée, portant l'ordre déjà parti ; un visa publicitaire se valide avec son numéro ; le dossier
   promotionnel ne se clôt « payé et visé » qu'à la déclaration VALIDÉE ; une révision de poste Ad & Pro se reporte
   sur la déclaration non validée (`engine.ts:reporterLesPostesSurLaDeclaration`).
+### FICHES DE VOYAGE CHEZ L'ASSISTANTE : UNE PAR UNE, SUIVIES JUSQU'AU BILLET (2026-10-14)
+
+Migration `20270122090000_demandes_reservation_fiche` (idempotente) : table `DemandeReservation`, enums
+`EtatDemandeReservation` / `NatureFicheReservation`, contrainte `DemandeReservation_une_fiche`, reprise des envois en bloc.
+Règles : `lib/reservation-fiche/etat.ts` (pur, testé) — voir « Fiches de voyage chez l'assistante » dans la référence des circuits.
+
+- **Chaque fiche part seule** (voyageur d'une billetterie, fiche hôtellerie, billet / hôtel d'une prise en charge) : pastille
+  d'état et sous-état (« depuis 2 j · relancée 1 fois ») sur la fiche, bandeau du poste, « Envoyer les fiches prêtes (n) »
+  (un raccourci : fiche par fiche). L'ancien « Demander la réservation » (en bloc) et « Retirer la demande de réservation »
+  disparaissent des écrans ; leurs actions restent (compatibilité).
+- **Relance** une fois par 24 h ; elle prévient celle qui a pris la fiche, sinon toutes les assistantes actives.
+- **Bureau du secrétariat** : onglets « Général » (inchangé) et « Ad & Pro » (`?onglet=adpro`) — tuiles, filtre, file groupée
+  par opération, panneau de fiche (prendre, signaler un manque, joindre le devis de l'agence, déposer le billet, pièces, fil).
+- **Une fiche modifiée après l'envoi** passe « à renvoyer » ; l'assistante voit les champs changés et ne réserve pas avant le renvoi.
+- **Réservation après l'accord** du poste (ou de la personne) ; l'envoi pour devis est possible avant.
 
 ### PRISES EN CHARGE : LIVRETS DE SÉJOUR EN PDF, SELON LA CHARTE ADVENTUM (2026-10-11)
 
