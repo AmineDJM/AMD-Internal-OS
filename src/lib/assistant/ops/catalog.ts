@@ -1,5 +1,5 @@
 import type { CurrentUser } from "@/lib/session";
-import { userCan, hasGlobalView, peutGererSpecialites } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, peutGererSpecialites } from "@/lib/rbac";
 import { canManageLetterheads } from "@/lib/office/letterhead";
 import { siegeAuCentreAdPro } from "@/platform/in-process/capacites";
 
@@ -3724,7 +3724,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["les devis des agences sont déposés", "dépose les devis sur le dossier MP"],
     risk: "NORMAL",
     summary: "L'assistante clôt la prospection : devis des agences déposés — le Marketing arbitre ensuite (circuit long, marche 2).",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:submitQuotes"],
   },
   {
@@ -3743,7 +3743,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["transmets le bon de commande du matériel promo aux finances", "le BC du dossier MP part aux finances", "transmets le BC du matériel promo au centre de validation"],
     risk: "NORMAL",
     summary: "L'assistante crée le bon de commande (n° en option) et le transmet au CENTRE DE VALIDATION AD & PRO pour validation (ancien parcours du matériel promotionnel).",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:submitBcForFinance"],
   },
   {
@@ -3771,7 +3771,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["le bon de commande est parti à l'agence", "confirme l'envoi du BC à l'agence"],
     risk: "NORMAL",
     summary: "L'assistante confirme l'envoi du BC validé à l'agence — l'information médicale initie ensuite le bordereau de paiement.",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:confirmBcSent"],
   },
   {
@@ -3846,7 +3846,7 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["enregistre la facture finale du matériel promo", "la facture de l'agence est arrivée"],
     risk: "NORMAL",
     summary: "L'assistante enregistre la facture finale de l'agence — reste le règlement des Finances (dernière marche).",
-    gate: (u) => u.role === "DIRECTION_ASSISTANT" || hasGlobalView(u),
+    gate: (u) => hasRole(u, "DIRECTION_ASSISTANT") || hasGlobalView(u),
     covers: ["promo-material-actions:recordInvoice"],
   },
   {

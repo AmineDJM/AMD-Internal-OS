@@ -1,7 +1,8 @@
 import Link from "next/link";
 import type { EntityType } from "@prisma/client";
 import { Scale, ReceiptText, Mails, ExternalLink, Paperclip, FileText, ShoppingCart, ArrowDown } from "lucide-react";
-import type { SessionUser } from "@/lib/rbac";
+import { userCan, type SessionUser } from "@/lib/rbac";
+import { peutDaterLeReglement } from "@/lib/finances/settlement";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { lienFichierEmis, type FichiersEmis } from "@/lib/legal/fichiers-emis";
@@ -144,6 +145,8 @@ export async function LinkedRecords({
   const ref = reference ?? null;
   const boutonsChaine = (["quote", "order", "invoice"] as const).filter((k) => p.droitDeCreer[k]);
   const boutonsEngagement = (["legal", "mail"] as const).filter((k) => p.droitDeCreer[k]);
+  // La date de paiement d'une facture créée d'ici : à qui règle aux Finances seulement (`peutDaterLeReglement`).
+  const dater = acces?.spectateur ? peutDaterLeReglement({ financesModifier: userCan(acces.spectateur, "FINANCES", "UPDATE") }) : false;
 
   const fichiersLibres = (nature: NatureDeChaine) => p.libres[nature].length > 0 && piecesDeLaDemande ? (
     <FichiersLibres
@@ -153,6 +156,7 @@ export async function LinkedRecords({
             <CreerFicheDepuisPiece
               entityType={entityType} entityId={entityId} reference={ref}
               kind={FORMULAIRE_DE[nature]} piece={{ id: doc.id, nom: doc.name }} devis={p.devisAmont} bons={p.bonsAmont}
+              daterLeReglement={dater}
             />
           )
         : null}
@@ -197,7 +201,7 @@ export async function LinkedRecords({
         <Partie
           titre="Devis → Bon de commande → Facture"
           boutons={boutonsChaine.length > 0
-            ? <AttachToSourceButtons entityType={entityType} entityId={entityId} reference={ref} kinds={[...boutonsChaine]} devis={p.devisAmont} bons={p.bonsAmont} />
+            ? <AttachToSourceButtons entityType={entityType} entityId={entityId} reference={ref} kinds={[...boutonsChaine]} devis={p.devisAmont} bons={p.bonsAmont} daterLeReglement={dater} />
             : null}
         >
           <Maillon icone={<FileText className="h-3.5 w-3.5" />} titre="Devis" affiches={p.sections.QUOTE.length} total={p.totaux.QUOTE}

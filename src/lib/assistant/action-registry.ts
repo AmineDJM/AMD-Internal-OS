@@ -1089,6 +1089,11 @@ X("SEGMENTATION STUDIO (Direction, 06/10) : stratégie, classement des produits,
   // Le classeur de la Direction importé « en une fois » : un fichier, une BU, un aperçu lu à l'écran avant d'importer.
   "segmentation-actions:apercuImportClasseurDirection", "segmentation-actions:importerClasseurDirection",
 ]);
+X("PIÈCES DEMANDÉES › CONFIER LE BC D'UN POSTE À UNE AUTRE ASSISTANTE (audit Assistante de direction, 10/2026) : le geste se "
+  + "décide en REGARDANT le fil de la pièce (`/pieces/[id]`) — qui la tient, depuis quand, si elle est déposée — et ne vise "
+  + "qu'une assistante de direction ACTIVE, proposée par l'écran. Adam est en pause de développement (Super Admin seul).", [
+  "document-request-actions:reaffecterDemandeBC",
+]);
 X("FORCE DE VENTE › TERRITOIRES (Direction, 07/10) : rattacher en un clic une cible H ou A hors panel au délégué de son "
   + "secteur. Le geste se décide en REGARDANT la liste du secteur (lettre, statut, établissement) que l'écran "
   + "`/planning/territoires` montre ; il ne réaffecte jamais un praticien déjà suivi.", [

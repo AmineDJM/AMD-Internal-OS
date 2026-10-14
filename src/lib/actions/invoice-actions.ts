@@ -9,7 +9,7 @@ import { recordAudit } from "@/lib/audit";
 import { companyIdForNew } from "@/lib/company";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFormFiles } from "@/lib/documents";
-import { invoiceDirection, canMarkPaidDirectly } from "@/lib/finances/settlement";
+import { invoiceDirection, canMarkPaidDirectly, dateDeReglementAEcrire } from "@/lib/finances/settlement";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
 import { syncInvoiceSettlement } from "@/lib/finance/settle-invoice";
 import { refusMaillonAmont } from "@/lib/legal/chaine";
@@ -78,6 +78,9 @@ export async function createInvoice(
   const { title, ...f } = readFields(formData);
   if (!title) return { ok: false, error: "L'objet de la facture est obligatoire." };
   if (f.amount !== null && !Number.isFinite(f.amount)) return { ok: false, error: "Montant invalide." };
+  // LA DATE DE RÈGLEMENT SE POSE PAR QUI RÈGLE AUX FINANCES (audit Assistante de direction, 10/2026).
+  const datation = dateDeReglementAEcrire({ avant: null, demandee: f.paidDate, champEnvoye: true, financesModifier: userCan(user, "FINANCES", "UPDATE") });
+  if (!datation.ok) return { ok: false, error: datation.error };
 
   // LE BON DE COMMANDE DONT ELLE DÉCOULE (§118.161) — le « → » de la chaîne d'une fiche. C'est ce
   // lien qui fait attendre la validation du BC avant de payer la facture (§118.148) ; une facture
@@ -143,7 +146,7 @@ async function laFacture(id: string) {
   if (!id) return null;
   const doc = await prisma.legalDocument.findUnique({
     where: { id },
-    select: { id: true, title: true, reference: true, kind: true, expenseOrderId: true },
+    select: { id: true, title: true, reference: true, kind: true, expenseOrderId: true, paidDate: true },
   });
   return doc && doc.kind === "INVOICE" ? doc : null;
 }
@@ -156,6 +159,12 @@ export async function updateInvoice(formData: FormData): Promise<ActionResult> {
 
   const { title, ...f } = readFields(formData);
   if (!title) return { ok: false, error: "L'objet de la facture est obligatoire." };
+  // QUI RÈGLE DATE LE RÈGLEMENT (audit Assistante de direction, 10/2026) : absente du formulaire, la date garde sa valeur.
+  const datation = dateDeReglementAEcrire({
+    avant: doc.paidDate, demandee: f.paidDate, champEnvoye: formData.has("paidDate"), financesModifier: userCan(user, "FINANCES", "UPDATE"),
+  });
+  if (!datation.ok) return { ok: false, error: datation.error };
+  f.paidDate = datation.paidDate;
   // LE CIRCUIT POSSÈDE LA DATE DE RÈGLEMENT des factures qu'il porte (§118.148). La ligne du
   // tableau (`setInvoicePaid`) et la fiche Legal (`updateLegalDocument`) le refusaient déjà ; ce
   // formulaire-ci l'acceptait, et une date posée ici sur une facture partie au centre de paiement
@@ -226,6 +235,9 @@ export async function setInvoicePaid(input: { id: string; paidDate: string | nul
   if (!doc) return { ok: false, error: "Facture introuvable." };
   const paid = input.paidDate ? new Date(input.paidDate) : null;
   if (input.paidDate && Number.isNaN(paid!.getTime())) return { ok: false, error: "Date invalide." };
+  // MARQUER RÉGLÉE (ou dé-marquer), C'EST ÉCRIRE AU LIVRE : le geste de qui règle aux Finances (audit Assistante de direction, 10/2026).
+  const datation = dateDeReglementAEcrire({ avant: doc.paidDate, demandee: paid, champEnvoye: true, financesModifier: userCan(user, "FINANCES", "UPDATE") });
+  if (!datation.ok) return { ok: false, error: datation.error };
 
   // LE CIRCUIT A LA PRIORITÉ. Une facture partie au règlement sera soldée par le paiement de son
   // ordre : la marquer réglée à la main poserait la date d'un virement qui n'a pas encore eu

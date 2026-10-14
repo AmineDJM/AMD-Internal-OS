@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PIECE_REQUEST_STATUS, ENTITY_TYPE_LABELS, WORKSPACE_TABS } from "@/lib/labels";
 import { isLate, isOutstanding } from "@/lib/doc-request";
+import { standInForUserIds } from "@/lib/hr/stand-in-resolve";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,10 @@ export const dynamic = "force-dynamic";
 export default async function PiecesPage() {
   const user = await requireUser();
 
-  const [toMe, mine] = await Promise.all([
+  // LES BC QU'ON TIENT POUR UNE ABSENTE (audit Assistante de direction, 10/2026) : l'intérimaire de l'assistante
+  // sollicitée pour le bon de commande d'un poste Ad & Pro le dépose à sa place (`ouverteALInterim`).
+  const absents = await standInForUserIds(user.id);
+  const [toMe, mine, pourAbsents] = await Promise.all([
     prisma.documentRequest.findMany({
       where: { askedToId: user.id }, orderBy: { createdAt: "desc" }, take: 200,
       include: { askedBy: { select: { name: true } } },
@@ -32,6 +36,13 @@ export default async function PiecesPage() {
       where: { askedById: user.id }, orderBy: { createdAt: "desc" }, take: 200,
       include: { askedTo: { select: { name: true } } },
     }),
+    absents.length > 0
+      ? prisma.documentRequest.findMany({
+        where: { askedToId: { in: absents }, entityType: "AD_PRO_ITEM", kind: "PURCHASE_ORDER", status: { in: ["PENDING", "SUBMITTED", "DECLINED"] } },
+        orderBy: { createdAt: "desc" }, take: 200,
+        include: { askedTo: { select: { name: true } } },
+      })
+      : Promise.resolve([]),
   ]);
 
   const waiting = toMe.filter((r) => isOutstanding(r.status)).length;
@@ -84,6 +95,13 @@ export default async function PiecesPage() {
           ? <EmptyState icon="Inbox" title="Rien à déposer" description="Personne n'attend de pièce de votre part." />
           : <Rows rows={toMe} who={(i) => toMe[i].askedBy.name} label="Demandée par" />}
       </section>
+
+      {pourAbsents.length > 0 && (
+        <section className="space-y-2">
+          <h2 className="text-sm font-semibold">Pendant l&apos;absence d&apos;une collègue que vous remplacez</h2>
+          <Rows rows={pourAbsents} who={(i) => `Pour ${pourAbsents[i].askedTo.name}`} label="Demandée à" />
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="text-sm font-semibold">Vous attendez</h2>

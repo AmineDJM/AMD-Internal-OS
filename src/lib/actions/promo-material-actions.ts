@@ -3,7 +3,7 @@
 import { Prisma, type PromoMaterialStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
-import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
 import { ecrireAuFil } from "@/lib/ad-pro/fil";
 import { prisma } from "@/lib/prisma";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -47,7 +47,7 @@ const PATH = "/promo-material";
 function isAssistant(user: SessionUser): boolean {
   // L'assistante de direction pilote ses étapes depuis les Demandes administratives
   // (elle n'a pas accès au module promo) ; la Direction/Super Admin peut suppléer.
-  return user.role === "DIRECTION_ASSISTANT" || hasGlobalView(user.role);
+  return hasRole(user, "DIRECTION_ASSISTANT") || hasGlobalView(user.role);
 }
 function isFinance(user: SessionUser): boolean {
   return user.role === "FINANCE_BUDGET_MANAGER" || hasGlobalView(user.role);

@@ -45,10 +45,17 @@ export function legalFields(
    * changer : la révision (ou, pour une facture, l'annulation) est le geste qui les corrige.
    */
   pieceEmise = false,
+  /**
+   * LA DATE DE RÈGLEMENT NE S'OFFRE QU'À QUI RÈGLE AUX FINANCES (`peutDaterLeReglement`, audit Assistante de
+   * direction, 10/2026) : la poser déclare la facture réglée et écrit au livre. Absente du formulaire, le serveur
+   * garde la date existante — il ne l'efface pas.
+   */
+  daterLeReglement = true,
 ): FieldDef[] {
   const v = (k: string) => values[k] ?? undefined;
   const facture = invoiceOnly || v("kind") === "INVOICE";
-  const champs = construire();
+  const tous = construire();
+  const champs = daterLeReglement ? tous : tous.filter((c) => !("name" in c) || c.name !== "paidDate");
   return pieceEmise ? champs.filter((c) => !("name" in c) || !CHAMPS_DU_FICHIER.has(c.name)) : champs;
 
   function construire(): FieldDef[] {

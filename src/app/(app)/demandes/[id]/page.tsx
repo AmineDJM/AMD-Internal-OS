@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, CheckCircle2, XCircle, Clock, RotateCcw, MinusCircle } from "lucide-react";
 import { lireCircuit, libelleDuMode, type EtatEtape } from "@/lib/validations/lecture-circuit";
 import { requireModule } from "@/lib/session";
-import { userCan, hasGlobalView, isTopManagement } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, isTopManagement } from "@/lib/rbac";
 import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { prisma } from "@/lib/prisma";
 import { fieldLabels, REQUEST_TYPE_FIELDS } from "@/lib/admin-requests";
@@ -79,7 +79,7 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
   const alreadyImputed = (await prisma.departmentBudgetExpense.count({ where: { adminRequestId: req.id } })) > 0;
 
   // L'Assistante de Direction tient le bureau du secrétariat : elle gère et modère toute demande.
-  const isSecretary = user.role === "DIRECTION_ASSISTANT";
+  const isSecretary = hasRole(user, "DIRECTION_ASSISTANT");
   const canManage = hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE") || req.assignedToId === user.id || isSecretary;
   const canValidate = userCan(user, "ADMIN_REQUESTS", "VALIDATE") || hasGlobalView(user.role);
   // L'INTÉRIMAIRE tranche l'approbation adressée à l'absent — la même règle que l'action (I18).
@@ -104,7 +104,7 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
 
   // Dossier Matériel promotionnel lié : l'assistante le pilote ici (sans accès au module).
   const promo = await prisma.promoMaterial.findFirst({ where: { adminRequestId: req.id } });
-  const isPromoAssistant = hasGlobalView(user.role) || user.role === "DIRECTION_ASSISTANT";
+  const isPromoAssistant = hasGlobalView(user.role) || hasRole(user, "DIRECTION_ASSISTANT");
   const promoDocs = promo
     ? await prisma.document.findMany({ where: { entityType: "PROMO_MATERIAL", entityId: promo.id }, include: { uploadedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" } })
     : [];

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { peutTeleverserBillet } from "@/lib/care-fiches";
 import { natureDuLivret, peutLirePiecePriseEnCharge, type NaturePiece } from "@/lib/care-pieces-acces";
+import { solliciteePourLesDevis } from "@/lib/care-devis-acces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -60,11 +61,12 @@ export async function peutLirePieceDePriseEnCharge(
 
   let nature: NaturePiece = natureDuLivret(doc.stepKey) ?? "AUTRE";
   if (nature === "AUTRE") {
-    const [emis, piece] = await Promise.all([
+    const [emis, piece, devis] = await Promise.all([
       prisma.careCell.count({ where: { issuedDocumentId: doc.id, beneficiary: parent } }),
       prisma.careCell.count({ where: { kind: "DOCUMENT", beneficiary: parent, OR: [{ documentId: doc.id }, ...(doc.stepKey ? [{ id: doc.stepKey }] : [])] } }),
+      prisma.careQuote.count({ where: { ...parent, documentId: doc.id } }),
     ]);
-    nature = emis > 0 ? "BILLET_EMIS" : piece > 0 ? "PIECE_IDENTITE" : "AUTRE";
+    nature = emis > 0 ? "BILLET_EMIS" : piece > 0 ? "PIECE_IDENTITE" : devis > 0 ? "DEVIS" : "AUTRE";
   }
   if (nature === "AUTRE") return false;
 
@@ -79,5 +81,8 @@ export async function peutLirePieceDePriseEnCharge(
   const equipe = nature === "LIVRET_GENERAL"
     ? (await prisma.missionAssignment.count({ where: { entityType: doc.entityType, entityId: doc.entityId, userId: user.id, archivedAt: null, response: { not: "DECLINEE" } } })) > 0
     : false;
-  return peutLirePiecePriseEnCharge({ nature, membreDuSujet, organise, equipe });
+  const solliciteePourDevis = nature === "DEVIS" && !membreDuSujet
+    ? await solliciteePourLesDevis(user, intl ? "INTERNATIONAL" : "NATIONAL", doc.entityId)
+    : false;
+  return peutLirePiecePriseEnCharge({ nature, membreDuSujet, organise, equipe, solliciteePourDevis });
 }

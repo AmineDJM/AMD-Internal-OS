@@ -3,10 +3,11 @@
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView } from "@/lib/rbac";
+import type { UserRole } from "@prisma/client";
+import { userCan, hasGlobalView, getAccess, rolesWithModule, anyRoleFilter, PERMISSIONS } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { notifyUser, notifyRoles } from "@/lib/notify";
+import { notifyUser } from "@/lib/notify";
 import { lienRemiseCaisse, lienRallongeCaisse, lienCaisseAvance } from "@/lib/chemins/moyens-generaux";
 import { saveFile } from "@/lib/storage";
 import { validateAttachments } from "@/lib/attach-files";
@@ -45,6 +46,47 @@ function canAllot(user: Parameters<typeof userCan>[0]): boolean {
   return hasGlobalView(user)
     || userCan(user, "RH", "UPDATE")
     || userCan(user, "BUDGETS", "UPDATE") || userCan(user, "BUDGETS", "VALIDATE");
+}
+
+/**
+ * QUI TRANCHE UNE RALLONGE — et donc QUI EN EST PRÉVENU (audit Assistante de direction, 10/2026).
+ *
+ * La demande de rallonge notifiait la Direction et le Super Admin, alors que c'est `canAllot` qui
+ * tranche (`decidePettyCashTopUp`) : les RH et les Budgets, qui avaient le bouton, n'étaient pas
+ * prévenus, et la Direction l'était d'une décision qu'elle n'avait pas à prendre. Les destinataires
+ * sont désormais LUS PAR LA MÊME GARDE, sur l'accès effectif de chacun (rôle, autre rôle, console) :
+ * les candidats sont les comptes actifs dont le rôle — ou une ligne de la console — peut ouvrir
+ * l'un des droits de `canAllot`, puis chacun passe la garde elle-même.
+ */
+async function quiTrancheLesRallonges(): Promise<string[]> {
+  const roles = [...new Set<UserRole>([
+    ...(Object.keys(PERMISSIONS) as UserRole[]).filter((r) => hasGlobalView(r)),
+    ...rolesWithModule("RH", "UPDATE"), ...rolesWithModule("BUDGETS", "UPDATE"), ...rolesWithModule("BUDGETS", "VALIDATE"),
+  ])];
+  const [parRole, parConsole] = await Promise.all([
+    prisma.user.findMany({ where: { isActive: true, ...anyRoleFilter(roles) }, select: { id: true, role: true, secondaryRole: true } }),
+    prisma.userAccess.findMany({
+      where: { user: { isActive: true }, OR: [{ module: "RH", canUpdate: true }, { module: "BUDGETS", OR: [{ canUpdate: true }, { canValidate: true }] }] },
+      select: { user: { select: { id: true, role: true, secondaryRole: true } } },
+    }),
+  ]);
+  const candidats = new Map<string, { id: string; role: UserRole; secondaryRole: UserRole | null }>();
+  for (const u of [...parRole, ...parConsole.map((a) => a.user)]) candidats.set(u.id, u);
+  const ids: string[] = [];
+  for (const u of candidats.values()) {
+    if (canAllot({ id: u.id, role: u.role, secondaryRole: u.secondaryRole, access: await getAccess(u.id, u.role) })) ids.push(u.id);
+  }
+  return ids;
+}
+
+/** Prévient ceux qui tranchent les rallonges (`quiTrancheLesRallonges`) — jamais en faisant échouer le geste. */
+async function prevenirQuiTranche(input: { type: "VALIDATION_REQUIRED" | "GENERIC"; title: string; body: string; link: string }, sauf?: string): Promise<void> {
+  try {
+    const ids = await quiTrancheLesRallonges();
+    await Promise.all(ids.filter((id) => id !== sauf).map((userId) => notifyUser({ ...input, userId })));
+  } catch (e) {
+    console.error("[petty-cash] destinataires de la rallonge non prévenus", e);
+  }
 }
 
 /**
@@ -273,20 +315,38 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   // Un achat payé en liquide se classe dans le budget comme les autres : c'est la même dépense,
   // seul le moyen de paiement diffère. La case est revérifiée côté serveur.
   const budgetCategoryId = keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds());
-  const created = await prisma.departmentBudgetExpense.create({
-    data: {
-      departmentId: cash.departmentId,
-      year,
-      kind: "OPERATING",
-      label,
-      amount,
-      budgetCategoryId,
-      notes: fdStr(formData, "notes"),
-      pettyCashId: imputeSur,
-      createdById: user.id,
-    },
-    select: { id: true },
+
+  // ── LA DÉPENSE EST ATOMIQUE (audit Assistante de direction, 10/2026) ──────────────────────
+  //
+  // Le contrôle du fond ci-dessus lit le solde, puis la dépense s'écrivait : deux achats envoyés au
+  // même instant lisaient chacun « 30 000 en caisse » et passaient tous les deux — la caisse finissait
+  // en négatif, ce que la règle interdit précisément. Le fond se RELIT donc sous verrou, dans la
+  // transaction qui écrit : le département est verrouillé (`FOR UPDATE`), la seconde dépense attend la
+  // première, relit le solde déjà diminué, et se refuse en le disant. Le contrôle d'avant reste — il
+  // refuse tôt, avant le dépôt des pièces ; celui-ci tranche.
+  const ecrite = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${cash.departmentId} FOR UPDATE`;
+    const sousVerrou = continuousCash(await openRemittances(cash.departmentId, tx));
+    const encore = canSpendFromFund(sousVerrou, amount);
+    if (!encore.ok) return { ok: false as const, error: encore.reason ?? "Dépense impossible." };
+    const depense = await tx.departmentBudgetExpense.create({
+      data: {
+        departmentId: cash.departmentId,
+        year,
+        kind: "OPERATING",
+        label,
+        amount,
+        budgetCategoryId,
+        notes: fdStr(formData, "notes"),
+        pettyCashId: sousVerrou.currentId ?? imputeSur,
+        createdById: user.id,
+      },
+      select: { id: true },
+    });
+    return { ok: true as const, id: depense.id };
   });
+  if (!ecrite.ok) return { ok: false, error: ecrite.error };
+  const created = { id: ecrite.id };
   if (ticket) await saveReceiptLines(created.id, ticket.lines);
 
   for (const file of files) {
@@ -306,11 +366,10 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   }
 
   // Le fond baisse : on prévient AVANT d'être à sec, pas une fois bloqué.
-  const after = continuousCash(ouvertes.map((r) => (
-    r.id === imputeSur ? { ...r, expenses: [...r.expenses, { id: created.id, amount }] } : r
-  )));
+  // Relu APRÈS l'écriture : une dépense simultanée compte aussi dans ce qui reste.
+  const after = continuousCash(await openRemittances(cash.departmentId));
   if (after.lowOnCash) {
-    await notifyRoles(["SUPER_ADMIN", "DIRECTION"], {
+    await prevenirQuiTranche({
       type: "GENERIC",
       title: "Caisse d'avance presque épuisée",
       body: `Il reste ${Math.max(0, after.remaining)} DZD en caisse.`,
@@ -364,12 +423,12 @@ export async function requestPettyCashTopUp(formData: FormData): Promise<ActionR
   // CE QUI RESTE, C'EST LE FOND — pas ce qui reste sur la remise à laquelle la demande
   // s'accroche. Celui qui tranche décide sur le tiroir, pas sur une tranche.
   const remaining = continuousCash(ouvertes).remaining;
-  await notifyRoles(["SUPER_ADMIN", "DIRECTION"], {
+  await prevenirQuiTranche({
     type: "VALIDATION_REQUIRED",
     title: "Rallonge de caisse d'avance à trancher",
     body: `${cash.department.name} : +${amount} DZD demandés (il reste ${Math.max(0, remaining)} DZD en caisse)${reason ? ` — ${reason}` : ""}`,
     link: lienRallongeCaisse(demandee.id),
-  });
+  }, user.id);
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Budgets", entityType: "BUDGET", entityId: cash.departmentId,
     summary: `Rallonge de caisse demandée : +${amount} DZD`,
@@ -397,12 +456,12 @@ export async function annulerRallongeCaisse(formData: FormData): Promise<ActionR
   if (refus) return { ok: false, error: refus };
   const pris = await prisma.pettyCashTopUpRequest.updateMany({ where: { id, status: "PENDING" }, data: { status: "CANCELLED" } });
   if (pris.count === 0) return { ok: false, error: "Cette demande vient d'être tranchée — rechargez la page." };
-  await notifyRoles(["SUPER_ADMIN", "DIRECTION"], {
+  await prevenirQuiTranche({
     type: "GENERIC",
     title: "Rallonge de caisse retirée",
     body: `${req.allotment.department.name} : la demande de +${toNumber(req.amountRequested)} DZD est retirée par ${user.name} — il n'y a plus rien à trancher.`,
     link: lienRallongeCaisse(id),
-  }).catch(() => undefined);
+  }, user.id);
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: req.allotment.departmentId,
     field: "status", oldValue: "PENDING", newValue: "CANCELLED",
@@ -577,7 +636,7 @@ export async function runPettyCashRechargeReminders(now = new Date()): Promise<n
       now,
     );
     if (!r.due) continue;
-    await notifyRoles(["SUPER_ADMIN", "DIRECTION"], {
+    await prevenirQuiTranche({
       type: "GENERIC",
       title: "Caisse d'avance — rechargement dans 48 h",
       body: `${plan.department.name} : ${toNumber(plan.monthlyAmount)} DZD à remettre le ${r.at.toLocaleDateString("fr-FR")}. La remise passe par le centre de paiement : envoyez-la dès maintenant pour qu'elle soit autorisée et versée à temps.`,

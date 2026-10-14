@@ -299,3 +299,51 @@ export function canMarkPaidDirectly(input: {
   }
   return { ok: true };
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * QUI DATE LE RÈGLEMENT D'UNE FACTURE (audit Assistante de direction, 10/2026).
+ *
+ * Le défaut : la date de règlement d'une facture se posait par qui ÉCRIT la pièce — Legal compris. Sur
+ * une facture sans ordre, la poser la déclarait « réglée » et inscrivait le mouvement au livre
+ * (`syncInvoiceSettlement`) : la facture sortait du circuit du centre de paiement sans que les Finances
+ * l'aient vue, et le bouton « Envoyer au règlement » se taisait ensuite (`canSendToSettlement`).
+ *
+ * La règle : la date (la poser, la changer, l'effacer — c'est l'écriture du livre qui bouge) appartient
+ * à qui RÈGLE aux Finances, le droit même que le paiement d'un ordre exige (`settleExpenseOrder` :
+ * Finances, modifier). Les autres voient la date, ne la changent pas : l'action refuse, et l'écran
+ * masque le champ — la même fonction pour les deux, pas deux copies (§118.5).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export function peutDaterLeReglement(droits: { financesModifier: boolean }): boolean {
+  return droits.financesModifier;
+}
+
+/** La phrase du refus — lue par les actions ; l'écran, lui, ne propose pas le champ. */
+export const REFUS_DATE_REGLEMENT_HORS_FINANCES =
+  "La date de règlement d'une facture se pose par les Finances, qui règlent : envoyez la facture au règlement (centre de paiement) ou demandez-leur d'enregistrer un paiement déjà fait.";
+
+/** Deux dates de règlement désignent-elles le même jour ? (un formulaire renvoie la date sans l'heure) */
+function memeJour(a: Date | null, b: Date | null): boolean {
+  if (!a || !b) return a === b;
+  return a.toISOString().slice(0, 10) === b.toISOString().slice(0, 10);
+}
+
+/**
+ * LA DATE DE RÈGLEMENT À ÉCRIRE — celle d'avant si le champ n'a pas été envoyé (l'écran ne le montre pas
+ * à qui ne règle pas : son absence ne doit pas EFFACER la date posée par les Finances), la demandée si la
+ * personne règle, et un refus si quelqu'un d'autre tente de la changer. Renvoyer la même date est permis
+ * (un formulaire qui la recharge telle quelle ne change rien).
+ */
+export function dateDeReglementAEcrire(input: {
+  avant: Date | null;
+  demandee: Date | null;
+  /** Le champ figure-t-il dans ce qui est envoyé ? */
+  champEnvoye: boolean;
+  financesModifier: boolean;
+}): { ok: true; paidDate: Date | null } | { ok: false; error: string } {
+  if (!input.champEnvoye) return { ok: true, paidDate: input.avant };
+  if (peutDaterLeReglement(input)) return { ok: true, paidDate: input.demandee };
+  if (memeJour(input.avant, input.demandee)) return { ok: true, paidDate: input.avant };
+  return { ok: false, error: REFUS_DATE_REGLEMENT_HORS_FINANCES };
+}

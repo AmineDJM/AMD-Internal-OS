@@ -56,9 +56,44 @@ export interface DocRequestActor {
   status: string;
 }
 
-/** Celui à qui l'on demande — lui seul dépose. */
-export function canSubmit(req: DocRequestActor, userId: string): boolean {
-  return req.askedToId === userId && nextDocRequestStatus(req.status, "SUBMIT") !== null;
+/**
+ * Celui à qui l'on demande — lui seul dépose ; ou SON INTÉRIMAIRE, quand la demande le permet (`ouverteALInterim`) et
+ * que l'appelant a établi l'intérim (`remplace` = `actsForUser(userId, askedToId)`).
+ */
+export function canSubmit(req: DocRequestActor, userId: string, remplace = false): boolean {
+  return (req.askedToId === userId || remplace) && nextDocRequestStatus(req.status, "SUBMIT") !== null;
+}
+
+/**
+ * UNE DEMANDE QUE L'INTÉRIMAIRE PEUT TENIR (audit Assistante de direction, 10/2026) : le BON DE COMMANDE d'un poste
+ * Ad & Pro, demandé à une assistante NOMMÉE. Absente, la demande restait figée chez elle — le poste attendait son
+ * BC trois semaines. Les autres demandes de pièce (une attestation, une pièce personnelle) restent à la personne.
+ */
+export function ouverteALInterim(req: { entityType: string; kind: string | null }): boolean {
+  return req.entityType === "AD_PRO_ITEM" && req.kind === "PURCHASE_ORDER";
+}
+
+/** Les états d'une demande de BC qui peut encore changer d'assistante : la pièce n'est pas encore déposée. */
+export const STATUTS_PIECE_REAFFECTABLES = ["PENDING", "DECLINED"] as const;
+
+/**
+ * POURQUOI LA DEMANDE NE CHANGE PAS D'ASSISTANTE — `null` si elle change (audit Assistante de direction, 10/2026).
+ * Le BC d'un poste Ad & Pro, encore à déposer ; réaffecté par qui l'a demandé, la vue globale, ou l'assistante
+ * sollicitée elle-même (et son intérimaire) qui le passe à une collègue.
+ */
+export function refusReaffectation(
+  req: DocRequestActor & { entityType: string; kind: string | null },
+  acteur: { id: string; vueGlobale: boolean; remplace: boolean },
+  cibleId: string,
+): string | null {
+  if (!ouverteALInterim(req)) return "Seul le bon de commande d'un poste Ad & Pro change d'assistante.";
+  if (!(STATUTS_PIECE_REAFFECTABLES as readonly string[]).includes(req.status)) {
+    return req.status === "SUBMITTED" ? "Le bon de commande est déposé : il se vérifie, il ne change plus d'assistante." : "Cette demande est close.";
+  }
+  const peut = acteur.vueGlobale || req.askedById === acteur.id || req.askedToId === acteur.id || acteur.remplace;
+  if (!peut) return "La demande change d'assistante par qui l'a faite, par l'assistante sollicitée ou par la Direction.";
+  if (cibleId === req.askedToId) return "Cette assistante tient déjà la demande.";
+  return null;
 }
 
 /**

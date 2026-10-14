@@ -22,7 +22,7 @@ import { PHRASE_PREVALIDATION } from "@/lib/bons-de-commande/prevalidation";
 import { libererPrevalidation, retenueOrpheline } from "@/lib/bons-de-commande/retenue-bc";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
 import { syncInvoiceSettlement } from "@/lib/finance/settle-invoice";
-import { invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement } from "@/lib/finances/settlement";
+import { invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement, dateDeReglementAEcrire } from "@/lib/finances/settlement";
 import { enSerie } from "@/lib/refs";
 import { champsDuFichierChanges, pieceEmise, refusChampsDuFichier } from "@/lib/legal/piece-emise";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
@@ -173,6 +173,9 @@ export async function createLegalDocument(
   const user = await requireUser();
   const { title, ...f } = readFields(formData);
   if (!peutEcrire(user, "CREATE", f.kind)) return { ok: false, error: "Non autorisé." };
+  // LA DATE DE RÈGLEMENT SE POSE PAR QUI RÈGLE AUX FINANCES (audit Assistante de direction, 10/2026).
+  const datation = dateDeReglementAEcrire({ avant: null, demandee: f.paidDate, champEnvoye: true, financesModifier: userCan(user, "FINANCES", "UPDATE") });
+  if (!datation.ok) return { ok: false, error: datation.error };
 
   if (!title) return { ok: false, error: "Le titre exact du document est obligatoire." };
   const dates = validateDates(f.startDate, f.endDate);
@@ -297,7 +300,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     where: { id },
     select: {
       kind: true, expenseOrderId: true, counterparty: true, counterpartyIds: true, amount: true, chainFromId: true, promoFacture: { select: { id: true } },
-      custom: true, reference: true, startDate: true, endDate: true, direction: true,
+      custom: true, reference: true, startDate: true, endDate: true, direction: true, paidDate: true,
     },
   });
   if (!avant) return { ok: false, error: "Document introuvable." };
@@ -348,6 +351,14 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
   if (avant.promoFacture && (f.chainFromId ?? null) !== (avant.chainFromId ?? null)) {
     return { ok: false, error: REFUS_CHAINE_FACTURE_PROMO };
   }
+  // LA DATE DE RÈGLEMENT SE POSE PAR QUI RÈGLE AUX FINANCES (audit Assistante de direction, 10/2026) — absente du
+  // formulaire (masquée à qui ne règle pas), elle garde sa valeur au lieu de s'effacer.
+  const datation = dateDeReglementAEcrire({
+    avant: avant.paidDate, demandee: f.paidDate, champEnvoye: kind !== "INVOICE" || formData.has("paidDate"),
+    financesModifier: userCan(user, "FINANCES", "UPDATE"),
+  });
+  if (!datation.ok) return { ok: false, error: datation.error };
+  f.paidDate = datation.paidDate;
   // Le circuit de règlement possède la date de paiement des factures qu'il porte.
   const reglement = canMarkPaidDirectly({ paidDate: f.paidDate, expenseOrderId: avant.expenseOrderId });
   if (!reglement.ok) return { ok: false, error: reglement.error };
