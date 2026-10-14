@@ -1,5 +1,4 @@
 import type { ClaudeToolDef } from "@/lib/ai";
-import { cumulerSousCategories } from "@/lib/budget/cumul-categories";
 import { recordPermissionRefusal } from "@/lib/models/telemetry";
 import type { CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -171,8 +170,11 @@ export const POWER_TOOLS: PowerTool[] = [
       const ov = await getBudgetOverview(user, match.id);
       if (!ov) return `L'enveloppe « ${match.name} » ne vous est pas ouverte.`;
       // Chaque poste comprend ses sous-catégories — les mêmes chiffres que l'écran.
-      const cumul = cumulerSousCategories(ov.categories);
-      const cats = ov.categories.map((c) => ({ ...c, ...(cumul.get(c.id) ?? {}) }));
+      // (une sous-catégorie ne se rattache qu'à une catégorie de tête).
+      const cats = ov.categories.map((c) => {
+        const consumed = c.consumed + ov.categories.filter((s) => s.parentId === c.id).reduce((a, s) => a + s.consumed, 0);
+        return { ...c, consumed, remaining: c.allocated - consumed };
+      });
       return JSON.stringify({
         enveloppe: ov.envelope.name,
         periode: { du: ov.period.from.slice(0, 10), au: ov.period.to.slice(0, 10) },
