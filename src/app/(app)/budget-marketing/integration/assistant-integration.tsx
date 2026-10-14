@@ -14,11 +14,21 @@ import {
   apercuIntegrationAdPro, lireFichierIntegrationAdPro, validerIntegrationAdPro, type LectureIntegration,
 } from "@/lib/actions/integration-adpro-actions";
 import type { Apercu, ChoixDemande } from "@/lib/budget-marketing/integration-serveur";
+import {
+  appliquerDecisionsLocales, doublonsProbables, mentionDoublon, preselection, type DecisionAbsente, type DoublonProbable,
+} from "@/lib/budget-marketing/integration-absentes";
 
 /**
  * L'ASSISTANT D'INTÉGRATION — quatre étapes (maquette validée) : lire le fichier → trouver ou créer chaque demande →
  * pièces (facultatif) → vérifier et valider. Le fichier est RENVOYÉ et RELU par le serveur à chaque étape : l'écran ne
  * transporte que les choix, jamais le plan.
+ *
+ * « GARDER / EN SORTIR » AVANT LA VALIDATION (Direction, 14/10/2026 — « ça sort carrément et je dois refaire le calcul du
+ * fichier à chaque fois ») : un choix de l'étape 4 effaçait l'aperçu — la table, la liste et la validation disparaissaient,
+ * et il fallait renvoyer le fichier au serveur. Le choix est désormais LOCAL : l'aperçu reste et se RECALCULE à l'écran
+ * (`appliquerDecisionsLocales`), rien n'est rechargé, aucune étape n'est perdue. Les choix partent avec la validation et
+ * s'écrivent dans la même transaction que le lot. Rien ici ne remonte le composant (pas de `router.refresh()` avant la
+ * validation réussie) : le fichier lu et les choix des étapes 1 à 3 vivent tant que l'assistant est ouvert.
  */
 
 const MOIS = ["", "janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -33,8 +43,10 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
   const [choix, setChoix] = React.useState<Record<string, ChoixDemande>>({});
   const [visa, setVisa] = React.useState<string>("");
   const [rattacherConnues, setRattacherConnues] = React.useState(true);
-  const [decisions, setDecisions] = React.useState<Record<string, "GARDER" | "SORTIR">>({});
+  const [decisions, setDecisions] = React.useState<Record<string, DecisionAbsente>>({});
   const [apercu, setApercu] = React.useState<Apercu | null>(null);
+  const [doublons, setDoublons] = React.useState<Map<string, DoublonProbable>>(new Map());
+  const proposees = React.useRef<Set<string>>(new Set());
   const [verifie, setVerifie] = React.useState(false);
   const [mot, setMot] = React.useState("");
   const [occupe, setOccupe] = React.useState<string | null>(null);
@@ -45,7 +57,12 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
     if (fichier) fd.set("fichier", fichier);
     fd.set("envelopeId", envelopeId);
     fd.set("choix", JSON.stringify(Object.values(choix)));
-    fd.set("decisions", JSON.stringify(Object.entries(decisions).map(([cleSource, decision]) => ({ cleSource, decision }))));
+    // Les choix des éléments de l'aperçu (libellé et montant pour le journal du lot) ; sans aperçu, ceux déjà faits.
+    const lignes = apercu
+      ? apercu.absentes.filter((a) => decisions[a.cle]).map((a) => ({ cleSource: a.cle, decision: decisions[a.cle], libelle: `${a.reference} — ${a.libelle}`, montant: a.montant }))
+      : Object.entries(decisions).map(([cleSource, decision]) => ({ cleSource, decision }));
+    fd.set("decisions", JSON.stringify(lignes));
+    if (lecture?.sha256) fd.set("sha256", lecture.sha256);
     fd.set("dossierPromoDuVisa", visa);
     fd.set("rattacherConnues", rattacherConnues ? "on" : "off");
     for (const [k, v] of Object.entries(extra)) fd.set(k, v);
@@ -74,9 +91,27 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
     try {
       const r = await apercuIntegrationAdPro(formulaire());
       if (!r.ok || !r.apercu) { setMsg({ ok: false, text: r.error ?? "Aperçu impossible." }); return; }
+      // LA SÉLECTION PROPOSÉE : les doublons probables d'une ligne du fichier pré-réglés « En sortir » — une fois, jamais
+      // par-dessus un choix de la personne.
+      const d = doublonsProbables(r.apercu.absentes, lecture?.plan ?? { demandes: [] }, lecture?.correspondance, r.apercu.lignes);
+      setDoublons(d);
+      setDecisions((x) => preselection(x, d, proposees.current));
+      for (const cle of d.keys()) proposees.current.add(cle);
       setApercu(r.apercu); setVerifie(false); setMot("");
     } finally { setOccupe(null); }
   }
+
+  /** Un choix « garder / sortir » : local, l'aperçu se recalcule à l'écran — rien n'est rechargé ni relu. */
+  const decider = (cles: readonly string[], v: DecisionAbsente) => {
+    setDecisions((x) => { const n = { ...x }; for (const c of cles) n[c] = v; return n; });
+    setVerifie(false); // la case « j'ai vérifié » porte sur le budget affiché : il vient de changer
+  };
+
+  // Arriver à l'étape 4 sans aperçu (premier passage, ou un choix des étapes 2-3 changé) : il se calcule de lui-même.
+  React.useEffect(() => {
+    if (etape === 3 && lecture?.plan && !apercu && occupe === null && fichier) void verifier();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [etape, apercu, lecture]);
 
   async function valider() {
     setOccupe("valider"); setMsg(null);
@@ -88,13 +123,16 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
   }
 
   const plan = lecture?.plan ?? null;
+  // L'APERÇU AFFICHÉ = celui du serveur, recalculé avec les choix « garder / sortir » de l'écran.
+  const vue = React.useMemo(() => (apercu ? appliquerDecisionsLocales(apercu, decisions) : null), [apercu, decisions]);
+  const sorties = (vue?.absentes ?? []).filter((a) => decisions[a.cle] === "SORTIR");
   const propositions = new Map((lecture?.propositions ?? []).map((p) => [p.cle, p]));
   const parType = (t: string) => (plan?.demandes ?? []).filter((d) => d.type === t);
   const peutAvancer = etape === 0 ? Boolean(plan) : true;
 
   return (
     <div className="space-y-4">
-      <ol className="grid gap-2 sm:grid-cols-4">
+      <ol className="grid grid-cols-1 gap-2 sm:grid-cols-4">
         {ETAPES.map((e, i) => (
           <li key={e}>
             <button
@@ -134,7 +172,7 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
           </div>
           {plan && (
             <div className="space-y-3">
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 <Tuile titre="Dépenses du fichier" valeur={`${plan.lignes.length}`} sous={`→ ${plan.demandes.length} demandes (2 symposiums en postes de leur congrès)`} />
                 <Tuile titre="Total intégré" valeur={`${formatCentimes(plan.totalCentimes)} DZD`} sous="au centime" />
                 <Tuile titre="Écartée" valeur={plan.ecartees.map((e) => `L${e.ligne}`).join(", ") || "—"} sous={plan.ecartees.map((e) => e.raison).join(" ")} />
@@ -226,7 +264,7 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
             </Button>
             <span className="text-xs text-muted-foreground">Rien n&apos;est écrit tant que vous n&apos;avez pas validé.</span>
           </div>
-          {apercu && <TableAvantApres apercu={apercu} />}
+          {vue && <TableAvantApres apercu={vue} />}
           {apercu && apercu.remplacees.length > 0 && (
             <div className="surface rounded-xl p-4 text-sm">
               <h3 className="font-semibold">Remplacées par le fichier ({apercu.remplacees.length})</h3>
@@ -234,28 +272,48 @@ export function AssistantIntegration({ envelopeId, enveloppe }: { envelopeId: st
               <ul className="mt-2 divide-y divide-border">{apercu.remplacees.map((r) => <li key={r.cle} className="flex justify-between gap-2 py-1"><span>{r.libelle}</span><span className="tabular-nums">{dzd(r.montant)}</span></li>)}</ul>
             </div>
           )}
-          {apercu && (
-            <div className="surface rounded-xl p-4 text-sm">
-              <h3 className="font-semibold">Dans la plateforme, absentes du fichier ({apercu.absentes.length})</h3>
-              <p className="text-xs text-muted-foreground">Pour chacune : la garder dans le budget, ou l&apos;en sortir. Rien n&apos;est effacé. Sans choix, elle reste comptée — le choix se change à tout moment après la validation.</p>
-              {apercu.absentes.length === 0 ? <p className="mt-2 text-muted-foreground">Aucune.</p> : (
-                <ul className="mt-2 divide-y divide-border">
-                  {apercu.absentes.map((a) => (
-                    <li key={a.cle} className="flex flex-wrap items-center gap-2 py-1.5">
-                      <span className="min-w-0 flex-1">{a.reference} — {a.libelle} <span className="text-xs text-muted-foreground">· {a.categorie}</span></span>
-                      <span className="tabular-nums">{dzd(a.montant)}</span>
-                      <ChoixAbsente valeur={decisions[a.cle] ?? null} onChange={(v) => { setDecisions((x) => ({ ...x, [a.cle]: v })); setApercu(null); }} />
-                    </li>
-                  ))}
-                </ul>
+          {vue && (
+            <div id="absentes" className="surface rounded-xl p-4 text-sm">
+              <h3 className="font-semibold">Dans la plateforme, absentes du fichier ({vue.absentes.length})</h3>
+              <p className="text-xs text-muted-foreground">Pour chacune : la garder dans le budget, ou l&apos;en sortir. Rien n&apos;est effacé, rien n&apos;est rechargé : le budget avant → après se recalcule à chaque choix. Sans choix, elle reste comptée — le choix se change encore à tout moment après la validation.</p>
+              {vue.absentes.length === 0 ? <p className="mt-2 text-muted-foreground">Aucune.</p> : (
+                <>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <Button type="button" size="sm" variant="secondary" onClick={() => decider(vue.absentes.map((a) => a.cle), "SORTIR")}>Tout sortir</Button>
+                    <Button type="button" size="sm" variant="secondary" onClick={() => decider(vue.absentes.map((a) => a.cle), "GARDER")}>Tout garder</Button>
+                    {doublons.size > 0 && (
+                      <Button type="button" size="sm" variant="ghost" onClick={() => decider([...doublons.keys()], "SORTIR")}>
+                        Sortir les {doublons.size} doublon{doublons.size > 1 ? "s" : ""} probable{doublons.size > 1 ? "s" : ""}
+                      </Button>
+                    )}
+                    <span className="text-xs text-muted-foreground tabular-nums">
+                      {sorties.length} sortie{sorties.length > 1 ? "s" : ""} ({dzd(sorties.reduce((s, a) => s + a.montant, 0))}) · {vue.absentes.length - sorties.length} comptée{vue.absentes.length - sorties.length > 1 ? "s" : ""}
+                    </span>
+                  </div>
+                  <ul className="mt-2 divide-y divide-border">
+                    {vue.absentes.map((a) => {
+                      const dbl = doublons.get(a.cle);
+                      return (
+                        <li key={a.cle} className="flex flex-wrap items-center gap-2 py-1.5">
+                          <span className="min-w-0 flex-1 basis-[16rem] [overflow-wrap:anywhere]">
+                            {a.reference} — {a.libelle} <span className="text-xs text-muted-foreground">· {a.categorie}</span>
+                            {dbl && <span className="ml-1 text-xs text-warning">· {mentionDoublon(dbl)}</span>}
+                          </span>
+                          <span className="tabular-nums">{dzd(a.montant)}</span>
+                          <ChoixAbsente valeur={decisions[a.cle] ?? null} onChange={(v) => decider([a.cle], v)} />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
               )}
             </div>
           )}
-          {apercu && (
+          {vue && (
             <div className="surface space-y-3 rounded-xl border-primary/40 p-4 text-sm">
               <label className="flex items-start gap-2">
                 <input type="checkbox" checked={verifie} onChange={(e) => setVerifie(e.target.checked)} className="mt-1" />
-                <span>J&apos;ai vérifié le budget avant → après : {formatCentimes(apercu.historiqueCentimes)} DZD intégrés au centime, {plan.demandes.length} demandes. Le livre de trésorerie et les ordres de paiement ne sont pas modifiés.</span>
+                <span>J&apos;ai vérifié le budget avant → après : {formatCentimes(vue.historiqueCentimes)} DZD intégrés au centime, {plan.demandes.length} demandes{sorties.length ? `, ${sorties.length} élément${sorties.length > 1 ? "s" : ""} absent${sorties.length > 1 ? "s" : ""} du fichier sorti${sorties.length > 1 ? "s" : ""} du budget` : ""}. Le livre de trésorerie et les ordres de paiement ne sont pas modifiés.</span>
               </label>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 <input value={mot} onChange={(e) => setMot(e.target.value)} placeholder="Tapez INTÉGRER" className="rounded-lg border border-border bg-background px-3 py-2 sm:w-56" aria-label="Seconde confirmation" />

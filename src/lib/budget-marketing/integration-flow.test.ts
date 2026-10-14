@@ -26,6 +26,7 @@ import { demandesAdProDeLEnveloppe } from "@/lib/queries/budget-marketing";
 import { cellulesSynthetiques } from "./integration-fixture";
 import { TOTAL_ATTENDU_CENTIMES } from "./integration-2026";
 import { apercuIntegration, blocHistoriqueDe, lireFichierIntegration, vueDuLot, type ChoixDemande } from "./integration-serveur";
+import { appliquerDecisionsLocales } from "./integration-absentes";
 import {
   annulerIntegrationAdPro, deciderAbsenteIntegration, joindrePiecesIntegration, rattacherPieceIntegration, relierEcritureIntegration, validerIntegrationAdPro,
 } from "@/lib/actions/integration-adpro-actions";
@@ -368,5 +369,56 @@ suite("Intégration des dépenses réelles Ad & Pro 2026 — de bout en bout", (
     await ledgerInchange();
     // Le lot reste, annulé, motif au journal ; une nouvelle intégration redevient possible.
     expect((await prisma.adProIntegrationLot.findUniqueOrThrow({ where: { id: lotId } })).annuleLe).not.toBeNull();
+  });
+
+  it("« garder / sortir » choisis À L'ÉTAPE 4 : l'aperçu recalculé à l'écran est celui du serveur, et les choix s'écrivent avec le lot", async () => {
+    // UN fichier, lu une fois : son empreinte accompagne l'aperçu et la validation.
+    const octets = classeur();
+    const lu = lireFichierIntegration(octets);
+    if (!lu.ok) throw new Error(lu.erreurs.join(" "));
+    const leFichier = () => new File([octets as BlobPart], `${TAG}depenses.xlsx`, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const kakemonos = `LIGNE:${ligneAbsente}`, billet = `TX:${txManuelle}`;
+
+    // L'écran recalcule sans redemander le fichier — et tombe sur le calcul du serveur, ligne par ligne.
+    const base = await apercuIntegration(actor as SessionUser, lu.plan, { envelopeId: envId, choix: choix(), decisions: [] });
+    if ("erreur" in base) throw new Error(base.erreur);
+    expect(base.absentes.map((a) => a.cle).sort()).toEqual([kakemonos, billet].sort());
+    expect(base.absentes.find((a) => a.cle === kakemonos)).toMatchObject({ categoryId: cat.promo, effet: "CONSOMME" });
+    const local = appliquerDecisionsLocales(base, { [kakemonos]: "SORTIR", [billet]: "GARDER" });
+    const serveur = await apercuIntegration(actor as SessionUser, lu.plan, { envelopeId: envId, choix: choix(), decisions: [{ cleSource: kakemonos, decision: "SORTIR" }, { cleSource: billet, decision: "GARDER" }] });
+    if ("erreur" in serveur) throw new Error(serveur.erreur);
+    expect(arrondi(local.totalApres.consomme)).toBe(arrondi(serveur.totalApres.consomme));
+    for (const l of serveur.lignes) expect(local.lignes.find((x) => x.id === l.id)!.apres, l.nom).toEqual({ consomme: arrondi(l.apres.consomme), engage: arrondi(l.apres.engage) });
+
+    const decisions = JSON.stringify([
+      { cleSource: kakemonos, decision: "SORTIR", libelle: "Kakémonos hors fichier", montant: 100_000 },
+      { cleSource: billet, decision: "GARDER", libelle: "Billet orateur symposium SAI", montant: 20_000 },
+      { cleSource: "INCONNU:x", decision: "SORTIR" }, // écartée : pas une source de la règle
+    ]);
+    // Un fichier REMPLACÉ depuis la lecture (autre empreinte) est refusé : rien n'est écrit.
+    const change = await validerIntegrationAdPro(form({ ...champs({ verifie: "on", confirmation: "INTÉGRER", decisions, sha256: "0".repeat(64) }), fichier: leFichier() }));
+    expect(change.ok).toBe(false);
+    expect(change.error).toMatch(/a changé depuis sa lecture/);
+    expect(await prisma.adProIntegrationLot.count({ where: { envelopeId: envId, annuleLe: null } })).toBe(0);
+
+    const r = await validerIntegrationAdPro(form({ ...champs({ verifie: "on", confirmation: "INTÉGRER", decisions, sha256: lu.sha256 }), fichier: leFichier() }));
+    expect(r.error).toBeUndefined();
+    const lot2 = r.id!;
+    // Les choix sont nés AVEC le lot, libellé et montant au journal.
+    const rangs = await prisma.adProIntegrationDecision.findMany({ where: { lotId: lot2 }, orderBy: { cleSource: "asc" } });
+    expect(rangs.map((d) => [d.cleSource, d.decision]).sort()).toEqual([[billet, "GARDER"], [kakemonos, "SORTIR"]].sort());
+    expect(rangs.find((d) => d.cleSource === kakemonos)).toMatchObject({ libelle: "Kakémonos hors fichier" });
+    expect(Number(rangs.find((d) => d.cleSource === kakemonos)!.montant)).toBe(100_000);
+    // Le consommé APRÈS : les kakémonos sortis (le fichier seul en matériel promotionnel), le billet gardé.
+    const o = await ov();
+    expect(arrondi(consommeDe(o, cat.promo))).toBe(3_055_675);
+    expect(arrondi(consommeDe(o, cat.spo))).toBe(8_063_208.5);
+    expect(arrondi(o.totals.consumed)).toBe(arrondi(serveur.totalApres.consomme));
+    expect(o.integration).toMatchObject({ lotId: lot2, aDecider: 0 });
+    expect(await prisma.budgetExpenseLine.count({ where: { id: ligneAbsente } })).toBe(1); // rien n'est effacé
+    await ledgerInchange();
+    // Remis comme avant (le banc rend la base telle qu'il l'a trouvée).
+    const a = await annulerIntegrationAdPro(form({ lotId: lot2, motif: "Test : fin du banc", confirmation: "ANNULER" }));
+    expect(a.ok).toBe(true);
   });
 });

@@ -23,6 +23,7 @@ import type { ActionResult } from "@/lib/actions/types";
 import type { OptionCatalogue } from "@/lib/queries/promo-achats";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { InfoBulle } from "@/components/ui/info-bulle";
+import { ChampNumeroPiece } from "@/components/references/champ-numero-piece";
 import { ApercuBcPromo, type BrouillonAffiche } from "./apercu-bc-promo";
 import { MenuLigne, useGeste, type EntreeMenu } from "./menu-ligne";
 
@@ -647,6 +648,11 @@ function DetailBc({ id, e, canPilot, canReceive, ouvert, options, mode, setMode,
               la signature des Finances : le BC est à signer de nouveau.
             </InfoBulle>
           </p>
+          {bc.reference && (
+            <div className="sm:max-w-sm">
+              <ChampNumeroPiece depart={bc.reference} legalDocumentId={bc.id} name="numeroRevise" nameActuel="numeroActuel" label="N° de référence du BC" />
+            </div>
+          )}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             <div><Label htmlFor={`bc-adr-${e.quoteId}`}>Adresse de livraison</Label><Input id={`bc-adr-${e.quoteId}`} name="livraisonAdresse" /></div>
             <div><Label htmlFor={`bc-del-${e.quoteId}`}>Délai de livraison</Label><Input id={`bc-del-${e.quoteId}`} name="livraisonDelai" placeholder="15 jours" /></div>

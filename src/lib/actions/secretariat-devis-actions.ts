@@ -30,6 +30,7 @@ import { apercuPourEcran, type ApercuPiece } from "@/platform/in-process/artifac
 import { valeursDeLaSpec, type ValeursComposables } from "@/lib/legal/piece-emise";
 import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";
+import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -369,13 +370,17 @@ export async function deposerBonDeCommandeDemande(formData: FormData): Promise<A
   const fournisseur = f.nom ?? devisDoc?.counterparty ?? null;
   if (!fournisseur) return { ok: false, error: "Choisissez le fournisseur dans l'annuaire, ou le devis dont ce bon de commande découle." };
   const reference = fdStr(formData, "reference");
+  const companyId = req.companyId ?? (req.requesterId ? await moneyEntityOf(req.requesterId) : null);
+  // LE NUMÉRO DU BC DÉPOSÉ (Direction, 14/10/2026) : unique parmi les BC de la société (et au registre commun).
+  const refusNumero = await refusNumeroBcDepose({ companyId, reference, exclure: null });
+  if (refusNumero) return { ok: false, error: refusNumero };
 
   const bc = await prisma.legalDocument.create({
     data: {
       title: `Bon de commande ${fournisseur}${reference ? ` n° ${reference}` : ""} — ${req.reference}`,
       kind: "PURCHASE_ORDER", reference, amount: new Prisma.Decimal(montant),
       counterparty: fournisseur, counterpartyIds: f.id ? [f.id] : devisDoc?.counterpartyIds ?? [],
-      companyId: req.companyId ?? (req.requesterId ? await moneyEntityOf(req.requesterId) : null),
+      companyId,
       sourceType: "ADMIN_REQUEST", sourceId: req.id, chainFromId: devisId ?? null,
       createdById: user.id, updatedById: user.id, startDate: new Date(),
       notes: `Bon de commande déposé au bureau du secrétariat pour la demande ${req.reference}.`,
@@ -387,6 +392,7 @@ export async function deposerBonDeCommandeDemande(formData: FormData): Promise<A
     await prisma.legalDocument.delete({ where: { id: bc.id } }).catch(() => undefined);
     return { ok: false, error: `Le fichier du bon de commande n'a pas pu être enregistré (${depot.error ?? "erreur"}) : rien n'est déposé.` };
   }
+  if (reference) await inscrireNumeroBcDepose({ companyId, reference, legalDocumentId: bc.id, userId: user.id }).catch(() => undefined);
   // LES LIGNES RETENUES DU DEVIS sont désormais portées par ce BC : elles ne se commandent pas deux fois.
   if (devisId && devis?.natif) {
     await enSerie(fileDuDevis(devisId), async () => {
