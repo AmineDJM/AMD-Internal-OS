@@ -8,9 +8,9 @@ import { companyIdForNew } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdNum, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { DOMAINES, bornesAnnee, estDomainePole, poleDe, type DomainePole } from "@/lib/budget/domaines";
-import { CATEGORIES_AD_PRO, MODULES_AD_PRO_BUDGET } from "@/lib/budget-marketing/domaine";
-import { CATEGORIES_BV, CLE_DE_LA_NATURE, natureDuLibelle, type NatureBv } from "@/lib/budget-regulatory/bv";
-import { CATEGORIES_OPERATIONS, CLE_MASSE_SALARIALE } from "@/lib/budget-operations/force-de-vente";
+import { MODULES_AD_PRO_BUDGET } from "@/lib/budget-marketing/domaine";
+import { completerCategoriesDuPole as completer } from "@/lib/budget/enveloppes-pole";
+import { CLE_DE_LA_NATURE, natureDuLibelle, type NatureBv } from "@/lib/budget-regulatory/bv";
 import { refusReallocation } from "@/lib/budget/marketing-vue";
 
 /**
@@ -39,18 +39,6 @@ function poleDuFormulaire(formData: FormData): DomainePole | null {
   return estDomainePole(d) ? d : null;
 }
 
-/** Les catégories créées d'office pour une enveloppe neuve du pôle (cochées dans le formulaire). */
-async function categoriesModele(pole: DomainePole): Promise<{ name: string; module?: string | null; cle?: string | null; businessUnitId?: string | null; parentNom?: string }[]> {
-  if (pole === "MARKETING") return CATEGORIES_AD_PRO.map((c) => ({ name: c.nom, module: c.module }));
-  if (pole === "REGULATORY") return CATEGORIES_BV.map((c) => ({ name: c.nom, cle: c.cle }));
-  const bus = await prisma.businessUnit.findMany({ where: { isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true } });
-  const mere = CATEGORIES_OPERATIONS[0].nom;
-  return [
-    ...CATEGORIES_OPERATIONS.map((c) => ({ name: c.nom, cle: c.cle })),
-    ...bus.map((b) => ({ name: b.name, cle: CLE_MASSE_SALARIALE, businessUnitId: b.id, parentNom: mere })),
-  ];
-}
-
 export async function createPoleEnvelope(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const pole = poleDuFormulaire(formData);
@@ -75,7 +63,8 @@ export async function createPoleEnvelope(formData: FormData): Promise<ActionResu
       modules: adPro ? [...MODULES_AD_PRO_BUDGET] : [],
       module: adPro ? MODULES_AD_PRO_BUDGET[0] : null,
       businessUnitId: fdStr(formData, "businessUnitId"),
-      productId: fdStr(formData, "productId"),
+      // Operations & Sales : la Business Unit dit déjà les produits (Direction, 10/2026) — pas de produit.
+      productId: pole === "OPERATIONS" ? null : fdStr(formData, "productId"),
       periodStart: debut,
       periodEnd: fin,
       totalAmount: montant,
@@ -112,7 +101,7 @@ export async function updatePoleEnvelope(formData: FormData): Promise<ActionResu
     data: {
       name,
       businessUnitId: fdStr(formData, "businessUnitId"),
-      productId: fdStr(formData, "productId"),
+      productId: pole === "OPERATIONS" ? null : fdStr(formData, "productId"),
       notes: fdStr(formData, "notes"),
       ...(montant != null ? { totalAmount: montant } : {}),
       ...(debut ? { periodStart: debut } : {}),
@@ -145,34 +134,6 @@ export async function deletePoleEnvelope(formData: FormData): Promise<ActionResu
  * salariale) ou, pour une sous-catégorie de masse salariale, par sa BU. Rien n'est renommé ni retiré : relancer ne
  * crée pas de doublon.
  */
-async function completer(envelopeId: string, pole: DomainePole): Promise<number> {
-  const [existantes, modele] = await Promise.all([
-    prisma.budgetCategoryLine.findMany({ where: { envelopeId }, select: { id: true, name: true, cle: true, module: true, businessUnitId: true, parentId: true } }),
-    categoriesModele(pole),
-  ]);
-  let crees = 0;
-  const meres = new Map(existantes.filter((c) => c.parentId === null).map((c) => [c.name, c.id]));
-  for (const c of modele.filter((m) => !m.parentNom)) {
-    const deja = existantes.find((e) => e.parentId === null && ((c.cle && e.cle === c.cle) || (c.module && e.module === c.module) || e.name === c.name));
-    if (deja) {
-      // Une catégorie du même nom, créée à la main : elle devient la catégorie reconnue (sa clé), sans doublon.
-      if (c.cle && !deja.cle) { await prisma.budgetCategoryLine.update({ where: { id: deja.id }, data: { cle: c.cle } }); deja.cle = c.cle; crees += 1; }
-      continue;
-    }
-    const cree = await prisma.budgetCategoryLine.create({ data: { envelopeId, name: c.name, module: c.module ?? null, cle: c.cle ?? null }, select: { id: true } });
-    meres.set(c.name, cree.id);
-    crees += 1;
-  }
-  const mereMs = existantes.find((e) => e.parentId === null && e.cle === CLE_MASSE_SALARIALE)?.id ?? meres.get(CATEGORIES_OPERATIONS[0].nom) ?? null;
-  for (const c of modele.filter((m) => m.parentNom)) {
-    if (!mereMs) break;
-    if (existantes.some((e) => e.businessUnitId && e.businessUnitId === c.businessUnitId && e.cle === CLE_MASSE_SALARIALE)) continue;
-    await prisma.budgetCategoryLine.create({ data: { envelopeId, name: c.name, cle: CLE_MASSE_SALARIALE, businessUnitId: c.businessUnitId ?? null, parentId: mereMs } });
-    crees += 1;
-  }
-  return crees;
-}
-
 /** L'enveloppe visée, si elle est bien du pôle — le droit de la gérer (`canManageEnvelope`) se vérifie dans chaque geste. */
 async function enveloppeDuPole(envelopeId: string | null, pole: DomainePole) {
   if (!envelopeId) return null;
