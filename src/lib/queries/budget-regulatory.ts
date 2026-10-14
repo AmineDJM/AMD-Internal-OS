@@ -48,7 +48,9 @@ export async function vueBvParDossier(user: SessionUser, overview: BudgetOvervie
         sourceType: "REGULATORY_PRODUCT",
         AND: [
           deLaSociete,
-          { OR: [{ status: "PAID", paidDate: { gte: from, lte: to } }, { status: { in: ["PENDING", "REVISION_REQUESTED"] } }] },
+          // Un BV REFUSÉ par le centre de paiement (« non prioritaire »…) reste un ordre non réglé : il n'est plus demandé,
+          // et ne doit pas se compter comme tel — redemandé, c'est le nouvel ordre qui compte (circuit BV, 10/2026).
+          { OR: [{ status: "PAID", paidDate: { gte: from, lte: to } }, { status: { in: ["PENDING", "REVISION_REQUESTED"] }, centralStatus: { not: "REFUSED" } }] },
         ],
       },
       select: { id: true, sourceId: true, label: true, amount: true, status: true, paidDate: true, createdAt: true, budgetCategoryId: true, transactionId: true },
