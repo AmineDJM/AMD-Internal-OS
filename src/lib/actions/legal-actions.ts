@@ -395,6 +395,10 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
   // Une date de règlement posée ou retirée depuis le formulaire ORDINAIRE fait bouger l'argent
   // exactement comme depuis la ligne du tableau : c'est le même document, donc la même règle.
   await syncInvoiceSettlement(id, user.id);
+  // LE FICHIER D'UNE PIÈCE DÉPOSÉE se remplace depuis la même fiche (Direction, 10/2026 — « modifiable de A à Z ») : la
+  // nouvelle version rejoint les pièces jointes. Une pièce ÉMISE n'en reçoit pas ici — son fichier est celui de la
+  // fabrique, que seule la révision réécrit (le Word et le PDF ne diraient plus la même chose que la pièce jointe).
+  const fichiers = emise ? { attached: 0, failed: [] as { name: string }[] } : await attachFormFiles(user.id, "LEGAL_DOCUMENT", id, formData);
   // UN BC MODIFIÉ SE RÉAIGUILLE : devenu BC, il reçoit sa porte ; ayant cessé de l'être, il la
   // perd ; montant RELEVÉ après validation ou correction demandée par le centre, il y retourne.
   // `montantAvant` est lu AVANT l'écriture — c'est ce qui permet de savoir qu'il a été relevé.
@@ -402,13 +406,19 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     ? phraseAiguillage(await aiguillerBC(id, {
         acteurId: user.id, modifie: true,
         montantAvant: avant.amount == null ? null : Number(avant.amount),
-        // UN AUTRE FOURNISSEUR n'est plus le BC signé : la signature des Finances tombe (§118.149).
-        pieceRevisee: parties.ids.length > 0 && [...avant.counterpartyIds].sort().join("|") !== [...parties.ids].sort().join("|"),
+        // UN AUTRE FOURNISSEUR n'est plus le BC signé : la signature des Finances tombe (§118.149). Un NOUVEAU FICHIER
+        // non plus : ce n'est plus la pièce que les Finances ont signée.
+        pieceRevisee: fichiers.attached > 0
+          || (parties.ids.length > 0 && [...avant.counterpartyIds].sort().join("|") !== [...parties.ids].sort().join("|")),
       }))
     : null;
   revalidatePath("/legal");
   revalidatePath(`/legal/${id}`);
-  return { ok: true, message: aiguillage ?? undefined };
+  const phraseFichiers = fichiers.failed.length
+    ? `${fichiers.attached} fichier(s) ajouté(s) ; échec sur : ${fichiers.failed.map((x) => x.name).join(", ")}.`
+    : fichiers.attached > 0 ? `${fichiers.attached} fichier(s) ajouté(s) aux pièces jointes — retirez l'ancien s'il est remplacé.` : null;
+  const message = [phraseFichiers, aiguillage].filter(Boolean).join(" ");
+  return { ok: true, message: message || undefined };
 }
 
 /**

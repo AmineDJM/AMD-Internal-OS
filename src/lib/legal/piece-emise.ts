@@ -266,3 +266,92 @@ export function specRevisable(custom: unknown): SpecRevisable | null {
     contact: ctc ? { nom: chaine(ctc.nom), telephone: chaine(ctc.telephone) } : null,
   };
 }
+
+/**
+ * CE QUE LE COMPOSEUR PRÉ-REMPLIT pour « Modifier la pièce » (Direction, 10/2026 — « modifiables totalement, de A à Z ») :
+ * TOUTE la spécification de la version courante, en valeurs d'écran (textes, pourcentages en « 19 », pas en 0,19). Le
+ * composeur rouvre ainsi la pièce telle qu'elle a été émise — tiers, lignes, dates, références, paiement, TVA, remise,
+ * taxes, livraison, contact, notes, papier et coordonnées imprimées de l'émetteur — et la révision écrit ce qu'il montre.
+ */
+export interface ValeursComposables {
+  tiers: { nom: string; adresse: string; telephone: string; email: string; rc: string; nif: string; ai: string; nis: string };
+  champs: {
+    numeroClient: string; date: string; echeance: string; validiteJours: string; objet: string; referenceAmont: string; referenceAmontDate: string;
+    contactNom: string; contactTelephone: string; livraisonAdresse: string; livraisonDelai: string; modePaiement: string; conditionsPaiement: string;
+    tvaDefaut: string; remiseGlobale: string; notes: string;
+  };
+  lignes: { designation: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }[];
+  taxes: { libelle: string; taux: string }[];
+  /** Le papier de l'émission (`""` = celui du profil). */
+  letterheadId: string;
+  /** Les coordonnées choisies pour la pièce ; `null` = celles de la société émettrice (rien n'avait été choisi). */
+  emetteur: { adresse: string; telephone: string; email: string } | null;
+  /** Le signataire imprimé sur la version courante (`null` : aucun). */
+  signataire: { nom: string; qualite: string } | null;
+  /** Les mentions propres à la pièce, une par ligne. */
+  mentions: string;
+}
+
+const texteEcran = (v: unknown): string => (typeof v === "string" ? v : "");
+const nombreEcran = (v: unknown): string => (typeof v === "number" && Number.isFinite(v) ? String(v) : "");
+/** 0,19 → « 19 » ; 0,025 → « 2.5 » — arrondi au centième de point, pour ne pas montrer 19.000000000000004. */
+const pourcentEcran = (v: unknown): string => (typeof v === "number" && Number.isFinite(v) ? String(Math.round(v * 10000) / 100) : "");
+const objetLu = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
+
+export function valeursComposables(custom: unknown): ValeursComposables | null {
+  if (!pieceEmise(custom)) return null;
+  const f = (custom as { fabrique: Record<string, unknown> }).fabrique;
+  const spec = objetLu(f.spec);
+  if (!f.spec || typeof f.spec !== "object") return null;
+  const tiers = objetLu(spec.tiers);
+  const contact = objetLu(spec.contact);
+  const livraison = objetLu(spec.livraison);
+  const lignes = (Array.isArray(spec.lignes) ? spec.lignes : []).flatMap((l) => {
+    const x = objetLu(l);
+    if (typeof x.designation !== "string") return [];
+    const section = x.section === true;
+    return [{
+      designation: x.designation,
+      details: Array.isArray(x.details) ? x.details.filter((d): d is string => typeof d === "string").join("\n") : "",
+      quantite: section ? "" : nombreEcran(x.quantite),
+      prix: section ? "" : nombreEcran(x.prixUnitaire),
+      remise: pourcentEcran(x.remise),
+      tva: pourcentEcran(x.tva),
+      section,
+    }];
+  });
+  const taxes = (Array.isArray(spec.taxes) ? spec.taxes : []).flatMap((t) => {
+    const x = objetLu(t);
+    return typeof x.libelle === "string" ? [{ libelle: x.libelle, taux: pourcentEcran(x.taux) }] : [];
+  });
+  const choisies = spec.coordonneesEmetteur && typeof spec.coordonneesEmetteur === "object" ? objetLu(spec.coordonneesEmetteur) : null;
+  const emetteur = objetLu(spec.emetteur);
+  const signataire = objetLu(spec.signataire);
+  return {
+    tiers: {
+      nom: texteEcran(tiers.nom), adresse: texteEcran(tiers.adresse), telephone: texteEcran(tiers.telephone), email: texteEcran(tiers.email),
+      rc: texteEcran(tiers.rc), nif: texteEcran(tiers.nif), ai: texteEcran(tiers.ai), nis: texteEcran(tiers.nis),
+    },
+    champs: {
+      numeroClient: texteEcran(spec.numeroClient), date: texteEcran(spec.date), echeance: texteEcran(spec.echeance),
+      validiteJours: nombreEcran(spec.validiteJours), objet: texteEcran(spec.objet), referenceAmont: texteEcran(spec.referenceAmont),
+      referenceAmontDate: texteEcran(spec.referenceAmontDate), contactNom: texteEcran(contact.nom), contactTelephone: texteEcran(contact.telephone),
+      livraisonAdresse: texteEcran(livraison.adresse), livraisonDelai: texteEcran(livraison.delai), modePaiement: texteEcran(spec.modePaiement),
+      conditionsPaiement: texteEcran(spec.conditionsPaiement), tvaDefaut: pourcentEcran(spec.tvaDefaut), remiseGlobale: pourcentEcran(spec.remiseGlobale),
+      notes: texteEcran(spec.notes),
+    },
+    lignes,
+    taxes,
+    letterheadId: typeof f.papierEnTeteId === "string" ? f.papierEnTeteId : "",
+    // Un choix fait à l'émission se montre tel quel ; une clé non choisie montre ce que la pièce imprimait.
+    emetteur: choisies
+      ? {
+        adresse: "adresse" in choisies ? texteEcran(choisies.adresse) : texteEcran(emetteur.adresse),
+        telephone: "telephone" in choisies ? texteEcran(choisies.telephone) : texteEcran(emetteur.telephone),
+        email: "email" in choisies ? texteEcran(choisies.email) : texteEcran(emetteur.email),
+      }
+      : null,
+    signataire: typeof signataire.nom === "string" && signataire.nom.trim() ? { nom: signataire.nom, qualite: texteEcran(signataire.qualite) } : null,
+    mentions: (Array.isArray(spec.mentionsPiece) ? spec.mentionsPiece : []).filter((x): x is string => typeof x === "string").join("\n"),
+  };
+}

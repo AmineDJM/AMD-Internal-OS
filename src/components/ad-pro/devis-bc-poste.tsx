@@ -10,7 +10,7 @@ import type { BcDePoste } from "@/lib/ad-pro/pieces-poste";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { refusDepassement } from "@/lib/ad-pro/devis-poste";
 import {
-  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, modifierBcDuPoste,
+  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, modifierBcDuPoste, previsualiserBcDuPoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
@@ -95,11 +95,11 @@ function PieceDuBC({ bc, itemId, peutModifier }: { bc: BcDePoste; itemId: string
       <LiensBC bc={bc} />
       {peutModifier && bc.revision && bc.etape !== "SIGNE" && (
         <ReviserPieceButton
-          discret libelle="Modifier le BC" motifFacultatif
+          discret libelle="Modifier le BC" motifFacultatif sansImpression
           legalDocumentId={bc.id} type="BON_DE_COMMANDE" numero={bc.revision.numero} version={bc.revision.version}
-          lignes={bc.revision.spec.lignes} objet={bc.revision.spec.objet} notes={bc.revision.spec.notes} validiteJours={null}
-          livraison={bc.revision.spec.livraison} contact={bc.revision.spec.contact}
+          valeurs={bc.revision.valeurs}
           envoyer={(fd) => { fd.set("id", itemId); return modifierBcDuPoste(fd); }}
+          apercu={(fd) => { fd.set("id", itemId); fd.set("legalDocumentId", bc.id); return previsualiserBcDuPoste(fd); }}
         />
       )}
     </span>

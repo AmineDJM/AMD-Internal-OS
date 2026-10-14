@@ -24,7 +24,8 @@ import { sourceHref, sourceCaption } from "@/lib/links/source-link";
 import { legalFields, dateInput } from "../legal-fields";
 import { buildFolderTree, flattenFolders, indentedLabel } from "@/lib/legal/folders";
 import { EditLegalButton } from "./edit-legal";
-import { ReviserPieceButton } from "@/components/legal/reviser-piece";
+import { ComposerPieceButton } from "@/components/pieces/composer-piece";
+import { letterheadContextFor } from "@/lib/queries/letterheads";
 import { EmettreAvoirButton } from "./emettre-avoir";
 import { RecordDeleteButton } from "@/components/shared/record-delete-button";
 import { PartagerButton } from "@/components/shared/partager-button";
@@ -46,7 +47,7 @@ import { BonDeCommandeGate } from "./bc-gate";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { peutSignerBC } from "@/lib/queries/bons-de-commande";
 import { fichiersEmis, lienFichierEmis } from "@/lib/legal/fichiers-emis";
-import { pieceDefinitive, pieceEmise, refusRevisionAval, remedePieceEmise, specRevisable, type TypePieceEmise } from "@/lib/legal/piece-emise";
+import { pieceDefinitive, pieceEmise, refusRevisionAval, remedePieceEmise, specRevisable, valeursComposables, type TypePieceEmise } from "@/lib/legal/piece-emise";
 
 /** Le nom d'une pièce émise dans la phrase de succès. */
 const LIBELLE_PIECE_EMISE: Record<TypePieceEmise, string> = {
@@ -234,6 +235,14 @@ export default async function LegalDocumentPage({ params, searchParams }: { para
   const revisable = emise && !pieceDefinitive(emise.type) && doc.status === "ACTIVE" ? specRevisable(doc.custom) : null;
   const peutReviser = Boolean(revisable) && canEdit && (await canEditCompanyId(user.id, doc.companyId));
   const avalDeLaPiece = peutReviser && emise ? await avalActif(doc.id, emise.type) : null;
+  // « MODIFIABLE DE A À Z » (Direction, 10/2026) : le composeur rouvre la pièce PRÉ-REMPLIE de sa version courante, avec la
+  // papeterie Word de SA société (ou commune au groupe) — l'enregistrement est une révision (même numéro, version suivante).
+  const valeursPiece = peutReviser && !avalDeLaPiece ? valeursComposables(doc.custom) : null;
+  const papeterie = valeursPiece
+    ? (await letterheadContextFor(user.id)).letterheads
+      .filter((l) => l.kind === "word" && (l.companyId === null || l.companyId === doc.companyId))
+      .map((l) => ({ id: l.id, name: l.name, companyId: l.companyId, companyLabel: l.companyLabel }))
+    : [];
   // UNE FACTURE ÉMISE SE CORRIGE PAR UN AVOIR (§118.195) : ses avoirs, son NET et ce qui reste à créditer se lisent
   // ici par les mêmes lecteurs que la fabrique (qui plafonne) et que le règlement (qui encaisse le net). Le geste n'est
   // offert qu'à qui la fabrique l'accordera — le droit de créer un avoir ET celui d'engager la société.
@@ -491,13 +500,20 @@ export default async function LegalDocumentPage({ params, searchParams }: { para
                     avalDeLaPiece
                       ? <p className="mt-2 text-xs text-muted-foreground">{refusRevisionAval(emise.type, avalDeLaPiece)}</p>
                       : (
-                        <div className="mt-2">
-                          <ReviserPieceButton
-                            legalDocumentId={doc.id} type={emise.type} numero={emise.numero} version={emise.version}
-                            lignes={revisable.lignes} objet={revisable.objet} notes={revisable.notes}
-                            validiteJours={revisable.validiteJours} livraison={revisable.livraison} contact={revisable.contact}
-                          />
-                        </div>
+                        valeursPiece && doc.companyId ? (
+                          <div className="mt-2">
+                            <ComposerPieceButton
+                              typeInitial={emise.type} typesAutorises={[emise.type]}
+                              societes={[{ id: doc.companyId, label: doc.company?.shortName || doc.company?.name || "Société émettrice" }]}
+                              societeParDefaut={doc.companyId} letterheads={papeterie} peutReglerNumerotation={false}
+                              amont={{ options: [], tronquees: [], fermees: [], limite: 0 }}
+                              // Le nom que les refus et les avis citent déjà (« Réviser la pièce ») : un seul nom pour un seul geste.
+                              declencheur={{ libelle: "Réviser la pièce" }}
+                              revision={{ legalDocumentId: doc.id, numero: emise.numero, version: emise.version, valeurs: valeursPiece }}
+                            />
+                            <p className="mt-1 text-xs text-muted-foreground">Tout se modifie — fournisseur, lignes, prix, TVA, taxes, livraison, paiement, coordonnées imprimées : la pièce garde son numéro et passe à la version {emise.version + 1}.</p>
+                          </div>
+                        ) : null
                       )
                   )}
                 </div>

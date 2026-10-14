@@ -21,7 +21,7 @@ import type { HebergementVue } from "@/components/ad-pro/hebergements-bloc";
 import { porteDesHebergements } from "@/lib/ad-pro/hebergements";
 import { piecesDesPostes, demandesBCDesPostes, assistantesDeDirection } from "@/lib/ad-pro/pieces-poste";
 import { peutValiderLeBrouillon } from "@/lib/bons-de-commande/brouillon";
-import { pieceEmise, specRevisable } from "@/lib/legal/piece-emise";
+import { pieceEmise, specRevisable, valeursComposables } from "@/lib/legal/piece-emise";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
 import { droitsValidation, estDirectionMarketingPoste, type DroitsValidation } from "@/lib/ad-pro/validation-poste";
 
@@ -194,7 +194,8 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
       const custom = parId.get(b.id);
       const emise = custom !== undefined ? pieceEmise(custom) : null;
       const spec = emise ? specRevisable(custom) : null;
-      b.revision = emise && spec ? { version: emise.version, numero: emise.numero, spec } : null;
+      const valeurs = emise ? valeursComposables(custom) : null;
+      b.revision = emise && spec && valeurs ? { version: emise.version, numero: emise.numero, spec, valeurs } : null;
     }
   }
   const natureDuType = new Map<string, NaturePieceSecretariat>(
