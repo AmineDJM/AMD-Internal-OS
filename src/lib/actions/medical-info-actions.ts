@@ -4,7 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { EntityType, MedicalInfoStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, hasRole, anyRoleFilter, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -12,23 +12,25 @@ import { createExpenseOrder } from "@/lib/expense-orders";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { getDeclaration, canViewDeclaration, dernieresRelancesPieces, RELANCE_PIECE_CHAMP, REFUS_FINAL_CHAMP } from "@/lib/queries/medical-info";
-import { peutRelancerPiece } from "@/lib/medical-info/parcours";
+import { peutRelancerPiece, visaExige } from "@/lib/medical-info/parcours";
 import { archiveProcessedRequest } from "@/lib/archive";
 import { formatAlgiers } from "@/lib/calendar-tz";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationPieceInfoMed } from "@/lib/annulations/regles";
 import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
-import { circuitOfDeclaration, isOpenableDeclarationKind, DECLARATION_KIND_LABEL } from "@/lib/medical-info/circuits";
+import { circuitOfDeclaration, isOpenableDeclarationKind, DECLARATION_KIND_LABEL, ordreGlobalALaValidation } from "@/lib/medical-info/circuits";
 import {
   canRequestDecision, canValidateEvent, declareStage, declareStageLabel, isDeclareIntent,
   DECLARE_INTENT_LABEL,
 } from "@/lib/medical-info/declare-decision";
 import {
   canDeliverSlip, canEditSlips, canRequestSlipPayment, canRequestSlipsValidation,
-  slipStage, SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
+  slipStage, slipSansPaiementVivant, PRISE_DU_BON, SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
 } from "@/lib/medical-info/slips";
+import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
-import { nextDeclarationRef, decideursInfoMedActifs } from "@/lib/medical-info";
+import { nextDeclarationRef, decideursInfoMedActifs, pharmacienAssigne } from "@/lib/medical-info";
 import {
   estDecideurInfoMed, noteDecideurs, confirmationDemande, AUCUN_DECIDEUR, OBJET_DECISION_INFO_MED, DECIDEUR_INFO_MED_LABEL,
   ROLE_DECIDEUR_INFO_MED, type DecideursInfoMed,
@@ -470,16 +472,23 @@ export async function removeMedicalInfoSlip(formData: FormData): Promise<ActionR
   if (!slip) return { ok: false, error: "Matériel introuvable." };
 
   const etat = await circuitStateOf(slip.declaration);
-  if (!canEditSlips(etat.lot)) {
+  const courant = etat.slips.find((sl) => sl.id === slipId);
+  // APRÈS LA VALIDATION DU LOT, UN BON SANS PAIEMENT VIVANT SE RETIRE ENCORE (audit 10/2026) : jamais
+  // demandé, ou demandé puis refusé / annulé au centre. Il restait bloqué à vie ; le retirer ne paie
+  // rien de plus que ce qui a été signé — c'est un versement de MOINS, tracé.
+  const morteApresValidation = etat.lot === "QUITTANCE_A_DEMANDER" && !!courant && slipSansPaiementVivant(courant);
+  if (!canEditSlips(etat.lot) && !morteApresValidation) {
     return { ok: false, error: "Le dépôt des bons est déjà soumis à validation : retirer un matériel laisserait une signature portant sur autre chose." };
   }
-  if (slip.requestId) return { ok: false, error: "Une quittance est déjà demandée sur ce matériel." };
+  if (slip.requestId && !morteApresValidation) return { ok: false, error: "Une quittance est déjà demandée sur ce matériel." };
 
-  await prisma.medicalInfoSlip.delete({ where: { id: slipId } });
+  // Conditionnel : un paiement demandé entre la lecture et le clic garde son bon.
+  const retire = await prisma.medicalInfoSlip.deleteMany({ where: { id: slipId, requestId: slip.requestId, deliveredAt: null } });
+  if (retire.count === 0) return { ok: false, error: "Ce bon vient de changer — rechargez la page." };
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Information médicale",
     entityType: "MEDICAL_INFO_DECLARATION", entityId: slip.declarationId,
-    summary: `Matériel retiré du dossier — ${slip.label}`,
+    summary: `Matériel retiré du dossier — ${slip.label}${morteApresValidation && slip.requestId ? " (paiement refusé ou annulé)" : ""}`,
   });
   revalidate(slip.declarationId);
   return { ok: true };
@@ -575,6 +584,7 @@ export async function requestSlipPayment(_prev: ActionResult | undefined, formDa
   const slip = await prisma.medicalInfoSlip.findUnique({ where: { id: slipId }, include: { declaration: true } });
   if (!slip) return { ok: false, error: "Matériel introuvable." };
   const decl = slip.declaration;
+  if (decl.bvSkippedAt) return { ok: false, error: "Ce dossier a été déclaré sans versement." };
 
   const etat = await circuitStateOf(decl);
   if (etat.lot !== "QUITTANCE_A_DEMANDER") {
@@ -611,10 +621,42 @@ export async function requestSlipPayment(_prev: ActionResult | undefined, formDa
   fd.set("link", `${PATH}/${decl.id}`);
   for (const f of formData.getAll("files")) if (f instanceof File && f.size > 0) fd.append("files", f);
 
-  const created = await createPaymentRequest(undefined, fd);
-  if (!created.ok || !created.id) return { ok: false, error: created.error ?? "La demande de paiement a été refusée." };
+  // UN SEUL ORDRE VIVANT PAR BON (audit 10/2026). Deux soumissions simultanées lisaient toutes deux
+  // « quittance à demander » et créaient chacune leur demande — donc deux ordres au centre de paiement
+  // pour une seule taxe. Le bon est d'abord PRIS, par une écriture conditionnelle à ce qu'on a lu ; le
+  // second trouve la place prise et s'arrête avant d'avoir rien créé. Le jeton de prise voyage avec la
+  // demande : c'est lui qui prouve, à la création, qu'elle vient bien d'un bon de CE dossier — la seule
+  // porte de l'exemption de facture (`bonDeVersementRattache`).
+  const jeton = `${PRISE_DU_BON}${randomUUID()}`;
+  const pris = await prisma.medicalInfoSlip.updateMany({
+    where: { id: slipId, requestId: courant.requestId, deliveredAt: null },
+    data: { requestId: jeton },
+  });
+  if (pris.count === 0) return { ok: false, error: "Le paiement de ce bon vient d'être demandé — rechargez la page." };
+  fd.set("medicalInfoSlipClaim", jeton);
 
-  await prisma.medicalInfoSlip.update({ where: { id: slipId }, data: { requestId: created.id } });
+  let created: ActionResult;
+  try {
+    created = await createPaymentRequest(undefined, fd);
+  } catch (err) {
+    console.error("[medical-info] demande de paiement du bon non créée", err);
+    created = { ok: false, error: "La demande de paiement n'a pas pu être créée." };
+  }
+  if (!created.ok || !created.id) {
+    // Rien n'est parti : le bon retrouve son état d'avant la prise.
+    await prisma.medicalInfoSlip.updateMany({ where: { id: slipId, requestId: jeton }, data: { requestId: courant.requestId } });
+    return { ok: false, error: created.error ?? "La demande de paiement a été refusée." };
+  }
+
+  const rattache = await prisma.medicalInfoSlip.updateMany({ where: { id: slipId, requestId: jeton }, data: { requestId: created.id } });
+  if (rattache.count === 0) {
+    // Le bon a changé pendant la création (retiré, remis) : la demande née n'a plus d'objet — elle et son
+    // ordre sont annulés tant que rien n'est réglé, plutôt que de laisser un paiement orphelin au centre.
+    const orpheline = await prisma.paymentRequest.findUnique({ where: { id: created.id }, select: { expenseOrderId: true } });
+    await prisma.paymentRequest.updateMany({ where: { id: created.id, status: { notIn: ["APPROVED", "CANCELLED"] } }, data: { status: "CANCELLED" } });
+    await annulerOrdreNonRegle(orpheline?.expenseOrderId, { acteurId: user.id, motif: `bon de versement « ${slip.label} » modifié pendant la demande (${decl.reference})` });
+    return { ok: false, error: "Ce bon vient de changer pendant la demande : elle a été annulée — rechargez la page." };
+  }
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Information médicale",
     entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id,
@@ -698,10 +740,12 @@ export async function skipMedicalInfoBv(formData: FormData): Promise<ActionResul
   if (decl.bvSkippedAt) return { ok: false, error: "Ce dossier est déjà déclaré sans versement." };
 
   const etat = await circuitStateOf(decl);
-  if (etat.slips.some((sl) => sl.requestId)) {
+  // Un bon dont le paiement a été refusé ou annulé n'engage plus rien (audit 10/2026) : il ne doit
+  // plus empêcher de dire que le dossier n'appelle aucun versement — il le bloquait à vie.
+  if (etat.slips.some((sl) => !slipSansPaiementVivant(sl))) {
     return { ok: false, error: "Une quittance est engagée : elle doit être menée à son terme ou refusée." };
   }
-  if (etat.lot !== "A_DEMANDER" && etat.lot !== "VALIDATION_REFUSEE") {
+  if (etat.lot !== "A_DEMANDER" && etat.lot !== "VALIDATION_REFUSEE" && etat.lot !== "QUITTANCE_A_DEMANDER") {
     return { ok: false, error: "Le dépôt des bons est engagé en validation : il doit être mené à son terme ou refusé." };
   }
 
@@ -759,10 +803,8 @@ export async function createMedicalInfoItem(_prev: ActionResult | undefined, for
   // ferait apparaître un lien « voir l'événement source » qui ne mène nulle part. La clé unique
   // (sourceType, sourceId) tient avec un identifiant propre à ce dossier.
   const sourceId = `prim_${randomUUID()}`;
-  const pharmacist = await prisma.user.findFirst({
-    where: { ...anyRoleFilter(["MEDICAL_INFO_PHARMACIST"]), isActive: true },
-    select: { id: true },
-  });
+  // Le pharmacien désigné — le plus ancien actif, déterministe (`pharmacienAssigne`).
+  const pharmacist = await pharmacienAssigne();
 
   const decl = await prisma.medicalInfoDeclaration.create({
     data: {
@@ -777,7 +819,7 @@ export async function createMedicalInfoItem(_prev: ActionResult | undefined, for
       createdById: user.id,
       // Celui qui ouvre le dossier le tient, sauf s'il n'est pas pharmacien (Direction, admin) :
       // le laisser sans pharmacien le ferait disparaître de la file de celui qui doit l'instruire.
-      pharmacistId: userCan(user, "MEDICAL_INFO", "VALIDATE") ? user.id : (pharmacist?.id ?? null),
+      pharmacistId: userCan(user, "MEDICAL_INFO", "VALIDATE") ? user.id : pharmacist,
     },
   });
 
@@ -827,6 +869,9 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
       ok: false,
       error: `Les quittances ne sont pas toutes remises : ${etat.summary.delivered}/${etat.summary.count}. Dites, à défaut, que ce dossier n'appelle aucun versement.`,
     };
+  } else if (visaExige(decl) && !(decl.authorityRef && decl.authorityRef.trim())) {
+    // La même règle que l'écran (`pharmacienPeutValider`) : un visa publicitaire se valide avec son numéro.
+    return { ok: false, error: "Enregistrez d'abord le numéro du visa publicitaire obtenu (référence de dépôt)." };
   }
 
   // QUI TRANCHERA — lu AVANT d'écrire : une demande que personne ne peut recevoir ne part pas.
@@ -933,7 +978,9 @@ export async function validateDeclarationByDirection(formData: FormData): Promis
 
   // Émission de l'ordre de dépense (si un budget a été accordé) → part au comptable — SAUF quand
   // ce sont les postes qui portent la dépense : ils émettent chacun leur pièce (§118.151).
-  const amount = Number(decl.amount ?? 0);
+  // L'ordre GLOBAL ne naît que là où rien d'autre ne porte la dépense (`ordreGlobalALaValidation`) :
+  // pas sur la saisie libre d'un dossier ouvert par le PRIM, ni sur un MIP ou un visa, ni deux fois.
+  const amount = ordreGlobalALaValidation(decl) ? Number(decl.amount ?? 0) : 0;
   const parLesPostes = amount > 0 && (await laDepenseEstPorteeParLesPostes(decl.sourceType, decl.sourceId));
 
   // LE GAGNANT SEUL : l'écriture ne passe que sur un dossier encore en attente de validation finale.
@@ -984,6 +1031,12 @@ export async function validateDeclarationByDirection(formData: FormData): Promis
   if (decl.requesterId) await notifyUser({ userId: decl.requesterId, type: "GENERIC", title: `Information médicale — événement validé (${qualite})`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
   if (decl.pharmacistId && decl.pharmacistId !== user.id) await notifyUser({ userId: decl.pharmacistId, type: "GENERIC", title: `Information médicale — validé par le ${qualite}`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
   await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: id, summary: `Validation finale (${qualite}) — ${decl.reference}${order ? ` (ordre ${order.reference})` : parLesPostes ? " (dépense portée par les postes — aucun ordre global)" : ""}` });
+  // LE VISA D'UN PAIEMENT DE MATÉRIEL EST OBTENU : c'est peut-être la dernière pièce de son dossier,
+  // qui ne se clôt « payé et visé » qu'à la déclaration VALIDÉE (`promo-cloture.ts`). Best-effort.
+  if (decl.sourceType === "LEGAL_DOCUMENT") {
+    const promoId = await dossierPromoDeLaFacture(decl.sourceId).catch(() => null);
+    if (promoId && (await cloreLeDossierPromoSiSolde(promoId, user.id))) revalidatePath(`/promo-material/${promoId}`);
+  }
   revalidate(id);
   revalidatePath("/mon-travail");
   revalidatePath("/finances/paiements-a-faire");

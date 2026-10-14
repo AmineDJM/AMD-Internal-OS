@@ -17,6 +17,16 @@ Aucune migration. Règle pure `lib/medical-info/decideur.ts` (testée) — voir 
   : la seconde demande est retirée. Une pièce déposée pendant la validation finale ne sort plus le dossier de la file.
 - **Accès** : le Directeur des Opérations lit l'Information médicale en entier (registre, fiche, pièces de la source).
   Les demandes déjà en cours sous l'ancienne chaîne finissent leur circuit.
+- **L'argent (audit)** : un bon de versement ne fait qu'UNE demande de paiement même à deux clics (prise
+  conditionnelle du bon, jeton `prise:` — `requestSlipPayment`) ; un bon dont l'ordre est annulé ou la demande refusée
+  passe « Paiement annulé — à redemander » (`slips.ts`, étape `ANNULE`) et se redemande, se retire ou laisse déclarer
+  le dossier « sans versement » ; le rattachement d'une demande de paiement à une déclaration (exemption de facture)
+  se PROUVE (`bonDeVersementRattache`) ; plus d'ordre global à la validation finale d'un dossier ouvert par le PRIM,
+  d'un MIP, d'un visa ou du circuit matériel (`circuits.ts:ordreGlobalALaValidation`) ; pharmacien assigné
+  déterministe (le plus ancien actif, `pharmacienAssigne`), notifié seul ; sans pharmacien, la déclaration naît
+  QUAND MÊME, non assignée, portant l'ordre déjà parti ; un visa publicitaire se valide avec son numéro ; le dossier
+  promotionnel ne se clôt « payé et visé » qu'à la déclaration VALIDÉE ; une révision de poste Ad & Pro se reporte
+  sur la déclaration non validée (`engine.ts:reporterLesPostesSurLaDeclaration`).
 
 ### PRISES EN CHARGE : LIVRETS DE SÉJOUR EN PDF, SELON LA CHARTE ADVENTUM (2026-10-11)
 

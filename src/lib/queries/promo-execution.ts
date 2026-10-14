@@ -77,7 +77,7 @@ export async function executionDuDossier(promoId: string): Promise<ExecutionDevi
     factures.length
       ? prisma.medicalInfoDeclaration.findMany({
           where: { sourceType: "LEGAL_DOCUMENT", sourceId: { in: factures.map((f) => f.id) } },
-          select: { sourceId: true, reference: true, declarationKind: true },
+          select: { sourceId: true, reference: true, declarationKind: true, status: true },
         })
       : Promise.resolve([]),
     detailsDesFactures(factures.map((f) => f.id)),
@@ -102,7 +102,7 @@ export async function executionDuDossier(promoId: string): Promise<ExecutionDevi
             reglee: e === "REGLE", etatReglement: LIBELLE_ETAT_REGLEMENT[e],
             paiementDemande: Boolean(f.expenseOrderId) || Boolean(f.paidDate),
             demandeInfoMedicale: decl
-              ? { reference: decl.reference, nature: isDeclarationKind(decl.declarationKind) ? DECLARATION_KIND_LABEL[decl.declarationKind] : "Information médicale", formalite: decl.declarationKind }
+              ? { reference: decl.reference, nature: isDeclarationKind(decl.declarationKind) ? DECLARATION_KIND_LABEL[decl.declarationKind] : "Information médicale", formalite: decl.declarationKind, validee: decl.status === "VALIDATED" }
               : null,
           };
         })

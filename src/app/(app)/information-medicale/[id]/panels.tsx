@@ -13,7 +13,7 @@ import {
   declareMessage, declareStage, declareStageLabel, DECLARE_INTENT_LABEL, type DeclareInput,
 } from "@/lib/medical-info/declare-decision";
 import {
-  slipStage, slipsMessage, SLIP_STAGE_LABEL, SLIPS_LOT_LABEL,
+  slipStage, slipsMessage, canRequestSlipPayment, slipSansPaiementVivant, SLIP_STAGE_LABEL, SLIPS_LOT_LABEL,
   type SlipsLotStage, type SlipsSummary, type SlipInput,
 } from "@/lib/medical-info/slips";
 import { OPENABLE_DECLARATION_KINDS, DECLARATION_KIND_LABEL, DECLARATION_KIND_HINT } from "@/lib/medical-info/circuits";
@@ -288,7 +288,7 @@ export function SlipsCard({
             </thead>
           {slips.map((sl) => {
             const etape = slipStage(sl);
-            const peutPayer = canManage && lot === "QUITTANCE_A_DEMANDER" && (etape === "A_DEMANDER" || etape === "REFUSE");
+            const peutPayer = canManage && lot === "QUITTANCE_A_DEMANDER" && canRequestSlipPayment(sl);
             const peutRemettre = canDeliver && etape === "PAYE";
             return (
               <tbody key={sl.id} className="border-t border-border">
@@ -299,13 +299,13 @@ export function SlipsCard({
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-right tabular-nums">{sl.amount != null ? formatCurrency(sl.amount) : "—"}</td>
                   <td className="whitespace-nowrap px-3 py-2">
-                    <span className={etape === "REMIS" ? "text-success" : etape === "REFUSE" || etape === "RENVOYE" ? "text-destructive" : "text-muted-foreground"}>
+                    <span className={etape === "REMIS" ? "text-success" : etape === "REFUSE" || etape === "RENVOYE" || etape === "ANNULE" ? "text-destructive" : "text-muted-foreground"}>
                       {SLIP_STAGE_LABEL[etape]}
                     </span>
                   </td>
                   <td className="whitespace-nowrap px-3 py-2 text-muted-foreground">{sl.deliveredAtIso ? formatDate(sl.deliveredAtIso) : "—"}</td>
                   <td className="px-1 py-2 text-right">
-                    {canEdit && !sl.requestId && (
+                    {((canEdit && !sl.requestId) || (canManage && lot === "QUITTANCE_A_DEMANDER" && slipSansPaiementVivant(sl))) && (
                       <button
                         type="button" title="Retirer ce matériel" aria-label="Retirer ce matériel" disabled={saving}
                         onClick={() => { const fd = new FormData(); fd.set("slipId", sl.id); run(() => removeMedicalInfoSlip(fd)); }}
@@ -611,8 +611,8 @@ export function DirectionValidateButton({ id, amount }: { id: string; amount: nu
     <div className="space-y-2">
       <p className="text-xs text-muted-foreground">
         {amount && amount > 0
-          ? `Votre validation déclenche l'ordre de dépense (${amount.toLocaleString("fr-FR")} DZD) vers le comptable.`
-          : "Aucun budget associé : la validation clôt simplement la déclaration."}
+          ? `Votre validation déclenche l'ordre de dépense (${amount.toLocaleString("fr-FR")} DZD) vers le comptable — sauf si les postes de l'opération portent déjà la dépense.`
+          : "Aucun ordre de dépense n'est émis ici (la dépense est portée ailleurs, ou il n'y en a pas) : la validation clôt la déclaration."}
       </p>
       <div className="space-y-1">
         <Label>Commentaire (facultatif)</Label>

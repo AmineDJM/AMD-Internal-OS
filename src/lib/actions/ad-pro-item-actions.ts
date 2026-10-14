@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView, anyRoleFilter, rolesWithModule, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
+import { reporterLesPostesSurLaDeclaration } from "@/lib/workflow/engine";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
@@ -425,6 +426,10 @@ async function reprojeterMontantDemande(parent: AdProParent, parentId: string): 
   } catch (err) {
     console.error("[ad-pro] montant de la demande non reprojeté (non bloquant)", err);
   }
+  // LA DÉCLARATION D'INFORMATION MÉDICALE SUIT LES POSTES (§118.191) — son montant est l'estimation
+  // de ce qu'ils portent, tant qu'elle n'est pas validée et qu'aucun ordre n'en est né.
+  await reporterLesPostesSurLaDeclaration(parent, parentId)
+    .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
 }
 
 /**
@@ -776,6 +781,9 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
         link: lienPosteAdPro(parentRaw, parentId, created.id),
       }).catch(() => undefined);
     }
+    // Le poste ajouté change l'estimation que porte la déclaration d'information médicale (§118.191).
+    await reporterLesPostesSurLaDeclaration(parentRaw, parentId)
+      .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
     revalidate(parentRaw, parentId);
     return { ok: true, id: created.id };
   } catch (err) {

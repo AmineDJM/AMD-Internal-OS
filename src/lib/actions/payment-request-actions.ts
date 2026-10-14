@@ -7,6 +7,7 @@ import type {
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
+import { bonDeVersementRattache } from "@/lib/medical-info";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -195,6 +196,14 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
       if (!verdict.ok) return { ok: false, error: verdict.reason ?? "Entité manquante." };
     }
     const entityType = entityTypeOf(fdStr(formData, "entityType"));
+    // LE RATTACHEMENT À UNE DÉCLARATION D'INFORMATION MÉDICALE DISPENSE DE FACTURE — il se PROUVE
+    // (audit 10/2026). Il suffisait de poster le type pour passer sans pièce : n'importe quelle demande
+    // s'exemptait. La déclaration doit exister, être visible du demandeur, et la demande naître d'un de
+    // ses bons de versement (le jeton de prise que pose `requestSlipPayment`).
+    if (entityType === "MEDICAL_INFO_DECLARATION") {
+      const refus = await bonDeVersementRattache(user, fdStr(formData, "entityId"), fdStr(formData, "medicalInfoSlipClaim"));
+      if (refus) return { ok: false, error: refus };
+    }
     const paymentMethodStated = checked(formData, "paymentMethodStated");
     const deadlineNature = deadlineNatureOf(fdStr(formData, "deadlineNature")) as PaymentDeadlineNature;
 

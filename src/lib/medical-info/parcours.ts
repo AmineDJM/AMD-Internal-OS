@@ -152,13 +152,21 @@ function bonsEnPaiement(slips: readonly BonLu[]): { centre: number; finances: nu
 }
 
 /** Le pharmacien peut-il valider ? La même règle que le serveur (`validateDeclaration`). */
-export function pharmacienPeutValider(i: Pick<ParcoursInput, "circuit" | "declare" | "authorityRef" | "summary" | "skipped">): boolean {
+export function pharmacienPeutValider(i: Pick<ParcoursInput, "circuit" | "declare" | "authorityRef" | "summary" | "skipped"> & { declarationKind?: string | null }): boolean {
   if (i.circuit === "EVENT") {
     if (declareStage(i.declare) !== "ACCORDEE") return false;
     if (i.declare.intent === "SKIP") return true;
     return Boolean(i.authorityRef && i.authorityRef.trim());
   }
+  // UNE DEMANDE DE VISA PUBLICITAIRE se valide avec SON NUMÉRO DE VISA (audit 10/2026) : valider un
+  // visa qu'on n'a pas, c'est clore le dossier promotionnel « visé » sur une promesse.
+  if (visaExige(i) && !(i.authorityRef && i.authorityRef.trim())) return false;
   return i.summary.allDelivered || i.skipped;
+}
+
+/** Le dossier est-il une demande de visa publicitaire (nature choisie) ? — son numéro est alors exigé. */
+export function visaExige(i: { declarationKind?: string | null }): boolean {
+  return i.declarationKind === "AD_VISA";
 }
 
 export function parcoursOf(i: ParcoursInput): Parcours {

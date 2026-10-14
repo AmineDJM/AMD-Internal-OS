@@ -28,9 +28,9 @@ import {
   AuthorityLocked, DemanderPieceBouton, RelancerPieceButton, ProduitDeclarationForm,
 } from "./panels";
 import { Frise } from "./frise";
-import { CIRCUIT_LABEL, DECLARATION_KIND_LABEL, isDeclarationKind } from "@/lib/medical-info/circuits";
+import { CIRCUIT_LABEL, DECLARATION_KIND_LABEL, isDeclarationKind, ordreGlobalALaValidation } from "@/lib/medical-info/circuits";
 import { canRequestDecision, declareMessage } from "@/lib/medical-info/declare-decision";
-import { canEditSlips, canRequestSlipsValidation, slipStage, slipsMessage } from "@/lib/medical-info/slips";
+import { canEditSlips, canRequestSlipsValidation, slipStage, slipsMessage, slipSansPaiementVivant } from "@/lib/medical-info/slips";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
 import {
   parcoursOf, libellePastille, carteAction, pharmacienPeutValider, peutRelancerPiece, joursDepuis, type BlocAction,
@@ -178,7 +178,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
     aDeposer: mesPieces.length,
     aRemettre: etat.slips.some((sl) => slipStage(sl) === "PAYE"),
   }, {
-    pharmacienPeutValider: pharmacienPeutValider({ ...etat, authorityRef: decl.authorityRef }),
+    pharmacienPeutValider: pharmacienPeutValider({ ...etat, authorityRef: decl.authorityRef, declarationKind: decl.declarationKind }),
     autoritesOuvertes,
   });
   const blocsCarte = new Set<BlocAction>([...carte.principal, ...(carte.aussi ? [carte.aussi.bloc] : [])]);
@@ -240,7 +240,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
           lot={etat.lot}
           slips={etat.slips.map((sl) => ({
             id: sl.id, label: sl.label, amount: sl.amount, note: sl.note,
-            requestId: sl.requestId, centralStatus: sl.centralStatus, orderStatus: sl.orderStatus,
+            requestId: sl.requestId, centralStatus: sl.centralStatus, orderStatus: sl.orderStatus, requestStatus: sl.requestStatus ?? null,
             deliveredAt: sl.deliveredAt, deliveredAtIso: sl.deliveredAt?.toISOString() ?? null,
           }))}
           summary={etat.summary}
@@ -248,7 +248,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
           canValidate={instruit && canRequestSlipsValidation(etat.lot, etat.slips).ok}
           canManage={instruit}
           canDeliver={canDeliverSlips}
-          canSkip={instruit && lotEditable && !etat.skipped && etat.slips.every((sl) => !sl.requestId)}
+          canSkip={instruit && (lotEditable || etat.lot === "QUITTANCE_A_DEMANDER") && !etat.skipped && etat.slips.every(slipSansPaiementVivant)}
           skipReason={etat.skipped ? decl.bvSkipReason : null}
           validationHref={decl.bvValidationId ? `/validations/${decl.bvValidationId}` : null}
         />
@@ -261,7 +261,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
           lot={etat.lot}
           slips={etat.slips.map((sl) => ({
             id: sl.id, label: sl.label, amount: sl.amount, note: sl.note,
-            requestId: sl.requestId, centralStatus: sl.centralStatus, orderStatus: sl.orderStatus,
+            requestId: sl.requestId, centralStatus: sl.centralStatus, orderStatus: sl.orderStatus, requestStatus: sl.requestStatus ?? null,
             deliveredAt: sl.deliveredAt, deliveredAtIso: sl.deliveredAt?.toISOString() ?? null,
           }))}
           summary={etat.summary}
@@ -315,7 +315,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
       case "VALIDER_PHARMACIEN":
         return <ValidateButton id={decl.id} hasPending={pendingCount > 0} />;
       case "VALIDER_DIRECTION":
-        return <DirectionValidateButton id={decl.id} amount={amount} />;
+        return <DirectionValidateButton id={decl.id} amount={ordreGlobalALaValidation(decl) ? amount : null} />;
     }
   };
   // « BONS » et « REMETTRE_QUITTANCE » montrent le même tableau : une seule fois.
@@ -379,7 +379,7 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
               <p className="flex items-center gap-2 text-sm text-success">
                 <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
                 Dossier validé{decl.validatedAt ? ` le ${formatDate(decl.validatedAt.toISOString())}` : ""}
-                {amount && amount > 0 ? " — ordre de dépense transmis au comptable" : ""}
+                {decl.expenseOrderId ? " — ordre de dépense transmis au comptable" : ""}
               </p>
             )}
             {instruit && (

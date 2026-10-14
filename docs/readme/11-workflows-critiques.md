@@ -507,6 +507,13 @@ Direction Marketing / centre, ni à la Direction des opérations (`DIRECTION`, l
 directeur lit le module en portée ALL (`MEDICAL_INFO: READ`) : registre, fiche et pièces. Les demandes déjà en cours sous
 l'ancienne chaîne finissent leur circuit.
 
+**L'argent, tenu (audit 10/2026).** L'ordre GLOBAL de la validation finale ne naît que pour un dossier d'événement venu
+d'Ad & Pro, sans postes qui portent la dépense et sans ordre déjà émis (`circuits.ts:ordreGlobalALaValidation`) —
+jamais sur la saisie libre d'un dossier ouvert par le PRIM, ni pour un MIP / visa / circuit matériel. Un bon ne porte
+qu'UNE demande de paiement vivante (prise conditionnelle) ; un paiement annulé ou refusé le libère (redemander,
+retirer, ou « sans versement »). L'exemption de facture d'une demande rattachée à une déclaration se prouve à la
+création (`bonDeVersementRattache`). Sans pharmacien actif, la déclaration naît non assignée, avec l'ordre déjà parti.
+
 **Ce qu'on fait valider est la LECTURE, pas la question.** Une demande de validation répond oui ou non :
 poser « faut-il déclarer ? » aurait fait dire « refusé » pour signifier « non, ne déclarez pas », et un
 dossier parfaitement conforme aurait été marqué comme rejeté.
