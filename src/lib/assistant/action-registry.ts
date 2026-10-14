@@ -1338,6 +1338,18 @@ X("REFUSER LA VALIDATION FINALE D'UNE DÉCLARATION D'INFORMATION MÉDICALE (Dire
   + "pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur la fiche de la déclaration.", [
   "medical-info-actions:refuseDeclarationByDirection",
 ]);
+X("BUDGET MARKETING — L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 (maquette validée, 10/2026) : lire le fichier "
+  + "« Dépenses AP » et proposer les demandes existantes, calculer le budget avant → après, VALIDER (écriture d'un bloc de "
+  + "30 demandes, double confirmation : case cochée et mot « INTÉGRER »), ANNULER d'un bloc (motif, mot « ANNULER »), "
+  + "garder ou sortir du budget un élément « absent du fichier », joindre des pièces (plusieurs fichiers, lus par Luna) ou "
+  + "rattacher une pièce déjà dans la plateforme, relier (en lecture seule) l'écriture de trésorerie qui a payé la dépense. Des gestes d'écran : ils portent un FICHIER que le navigateur envoie, "
+  + "et les plus lourds réécrivent le budget d'une enveloppe devant l'aperçu qui en montre l'effet — gestionnaire de "
+  + "l'enveloppe ou Super Admin. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "integration-adpro-actions:lireFichierIntegrationAdPro", "integration-adpro-actions:apercuIntegrationAdPro",
+  "integration-adpro-actions:validerIntegrationAdPro", "integration-adpro-actions:annulerIntegrationAdPro",
+  "integration-adpro-actions:deciderAbsenteIntegration", "integration-adpro-actions:joindrePiecesIntegration",
+  "integration-adpro-actions:rattacherPieceIntegration", "integration-adpro-actions:relierEcritureIntegration",
+]);
 X("DEVIS NATIFS → BON DE COMMANDE AU BUREAU DU SECRÉTARIAT (Direction, 10/2026, « comme dans Ad & Pro ») — l'assistante "
   + "dépose et RETRANSCRIT le devis ligne à ligne devant le papier ; le DEMANDEUR coche les lignes qu'il retient, puis génère "
   + "(fabrique, sous délégation de la demande) ou dépose le BC, qui part au centre de validations puis à la signature. Des "

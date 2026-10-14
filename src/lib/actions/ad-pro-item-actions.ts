@@ -478,13 +478,21 @@ async function loadItem(id: string, user: SessionUser) {
       orderRequestedAt: true, orderDirectionAt: true, orderVisaAmount: true, orderVisaSupplier: true,
       reservationDossierId: true, opsDecidedAt: true, orderNote: true, repartitionId: true,
       sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
+      montantPayeHistorique: true,
     },
   });
   if (!item) return null;
   const owner = parentOf(item);
   if (!owner || !(await demandeVisible(user, owner.parent, owner.id))) return null;
-  return { item, owner };
+  // UN POSTE HISTORIQUE (intégration des dépenses réelles Ad & Pro 2026) est payé : aucun circuit ne s'y applique.
+  return { item, owner, historique: item.montantPayeHistorique != null };
 }
+
+/**
+ * LE REFUS D'UN GESTE DE CIRCUIT SUR UN POSTE HISTORIQUE — « déjà réalisé et payé » : ni validation, ni devis, ni BC,
+ * ni paiement, ni modification de montant. Ce qui reste ouvert : les pièces (sur la demande) et les fiches voyageurs.
+ */
+const REFUS_HISTORIQUE = "Ce poste est « Historique 2026 » : déjà réalisé et payé, il ne passe par aucun circuit (ni validation, ni devis, ni bon de commande, ni paiement). Ses pièces se joignent sur la demande.";
 
 /**
  * LES FICHES PAR PERSONNE D'UN POSTE (Direction, 06/10) : ses voyageurs (billetterie) ou ses fiches
@@ -661,6 +669,7 @@ export async function repartirPoste(_prev: ActionResult | undefined, formData: F
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const clos = await refusSiClos(owner.parent, owner.id);
@@ -824,6 +833,7 @@ export async function updateAdProItem(_prev: ActionResult | undefined, formData:
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
 
@@ -953,6 +963,7 @@ export async function deleteAdProItem(_prev: ActionResult | undefined, formData:
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const clos = await refusSiClos(owner.parent, owner.id);
@@ -1101,6 +1112,7 @@ async function postesDeLaMemeDemande(ids: readonly string[], user: SessionUser) 
   for (const pid of [...new Set(ids)]) {
     const f = await loadItem(pid, user);
     if (!f) return { error: "Un des postes est introuvable." } as const;
+    if (f.historique) return { error: REFUS_HISTORIQUE } as const;
     charges.push(f);
   }
   const o = charges[0]?.owner;
@@ -1237,6 +1249,7 @@ export async function retirerDevisDuPoste(_prev: ActionResult | undefined, formD
   if (!id || !pieceId) return { ok: false, error: "Poste ou pièce non précisés." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const lien = await prisma.adProItemPiece.findFirst({ where: { itemId: id, legalDocumentId: pieceId, nature: "DEVIS" }, select: { id: true } });
@@ -1275,6 +1288,7 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "une facture");
@@ -1565,6 +1579,7 @@ export async function deposerFacturePoste(formData: FormData): Promise<ActionRes
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (VERSEMENT_SANS_BC.includes(item.kind)) return { ok: false, error: "Un sponsoring direct n'a pas de bon de commande : sa pièce se joint à la demande de paiement." };
@@ -1713,6 +1728,7 @@ async function bcModifiableDuPoste(user: SessionUser, formData: FormData): Promi
   if (!id || !legalDocumentId) return { ok: false, error: "Bon de commande non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (item.expenseOrderId) return { ok: false, error: "Le paiement de ce poste est déjà demandé : son bon de commande ne se modifie plus." };
@@ -1816,6 +1832,7 @@ export async function linkPromoMaterial(_prev: ActionResult | undefined, formDat
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   // Rattacher un dossier d'ACHAT ferait de ce poste un poste « Matériel promotionnel » (la nature
@@ -1870,6 +1887,7 @@ export async function submitAdProItem(_prev: ActionResult | undefined, formData:
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const clos = await refusSiClos(owner.parent, owner.id, { partir: true });
@@ -1944,6 +1962,7 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
 
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   // QUI TRANCHE (§118.204). Un poste d'ARGENT se valide en deux temps — la Direction des opérations,
   // puis la Direction Marketing, qui fixe le montant et choisit le budget. Le matériel du stock garde
@@ -2143,6 +2162,7 @@ export async function setAdProItemBudget(_prev: ActionResult | undefined, formDa
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   const refusStock = refusArgentSurPosteStock(item.kind, "un budget");
   // La NATURE d'abord : un poste du stock n'a jamais de budget, quel que soit qui le demande.
@@ -2214,6 +2234,7 @@ export async function demanderPieceSecretariat(_prev: ActionResult | undefined, 
   if (!nature) return { ok: false, error: `Nature de pièce inconnue : ${brut}. Attendu : ${NATURES_PIECE_SECRETARIAT.join(", ")}.` };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un devis, un bon de commande ou une facture");
@@ -2298,6 +2319,7 @@ export async function genererDemandeDevisPoste(formData: FormData): Promise<Acti
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un devis, un bon de commande ou une facture");
@@ -2327,6 +2349,7 @@ export async function referenceDemandeDevisPoste(formData: FormData): Promise<Re
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const info = await PARENTS[found.owner.parent].load(found.owner.id);
   if (!info) return { ok: false, error: "Opération introuvable." };
   return etatDuRegistre(await societeDeLaLettre(user, info.companyId ?? null));
@@ -2404,6 +2427,7 @@ export async function requestAdProItemOrder(_prev: ActionResult | undefined, for
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un bon de commande");
@@ -2499,6 +2523,7 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!siegeAuCentreAdPro(user)) return { ok: false, error: REFUS_BC_CENTRE_AD_PRO };
   if (item.orderStage !== "REQUESTED") return { ok: false, error: "Aucune demande d'émission en attente sur ce poste." };
@@ -2612,6 +2637,7 @@ export async function retirerDemandeBC(_prev: ActionResult | undefined, formData
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!peutToucherDemandeBC(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (item.orderStage === "ISSUED" || item.expenseOrderId) {
@@ -2702,6 +2728,7 @@ export async function modifierDemandeBC(_prev: ActionResult | undefined, formDat
   if (!note) return { ok: false, error: "Écrivez le contenu de la demande : références, quantités, coordonnées du fournisseur." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!peutToucherDemandeBC(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK") {
@@ -2747,6 +2774,7 @@ export async function annulerOrdrePoste(_prev: ActionResult | undefined, formDat
   if (!motif) return { ok: false, error: "Dites pourquoi l'ordre est annulé : le motif reste à l'historique de l'ordre et du poste." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   // LE DEMANDEUR ANNULE SA DEMANDE DE PAIEMENT tant qu'elle n'est pas réglée (décision du 04/10 :
   // « on peut annuler sa demande tant qu'elle n'a pas été exécutée ») — les Finances et qui arbitre,
@@ -2807,6 +2835,7 @@ export async function demanderRevisionPoste(_prev: ActionResult | undefined, for
   if (estimation != null && estimation <= 0) return { ok: false, error: "La nouvelle estimation doit être un montant positif." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const clos = await refusSiClos(owner.parent, owner.id);
@@ -2947,6 +2976,7 @@ export async function ajouterArticleStockAuPoste(formData: FormData): Promise<Ac
   if (quantite == null || !Number.isFinite(quantite) || quantite < 0) return { ok: false, error: "Indiquez une quantité (0 pour retirer l'article)." };
   const found = await loadItem(itemId, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const info = await PARENTS[owner.parent].load(owner.id);
@@ -2998,6 +3028,7 @@ export async function confirmerMaterielStock(formData: FormData): Promise<Action
   if (!itemId) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(itemId, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (item.kind !== "STOCK_MATERIAL") return { ok: false, error: "Ce poste n'est pas un poste « Matériel du stock »." };
   const info = await PARENTS[owner.parent].load(owner.id);
@@ -3378,6 +3409,7 @@ export async function demanderReservation(formData: FormData): Promise<ActionRes
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (!porteDesVoyageurs(item.kind)) return { ok: false, error: "Seul un poste « billetterie » se réserve." };
@@ -3467,6 +3499,7 @@ export async function retirerReservation(formData: FormData): Promise<ActionResu
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (!porteDesVoyageurs(item.kind)) return { ok: false, error: "Seul un poste « billetterie » se réserve." };
@@ -3716,6 +3749,7 @@ export async function demanderBCBilletterie(formData: FormData): Promise<ActionR
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (!porteDesVoyageurs(item.kind)) return { ok: false, error: "Seul un poste « billetterie » demande son BC d'après les devis de ses voyageurs." };
@@ -3794,6 +3828,7 @@ async function cadreDesLignes(user: SessionUser, formData: FormData) {
   if (!id || !pieceId) return { error: "Poste ou devis non précisé." } as const;
   const found = await loadItem(id, user);
   if (!found) return { error: "Poste introuvable." } as const;
+  if (found.historique) return { error: REFUS_HISTORIQUE } as const;
   const { item, owner } = found;
   if (!peutTraiterLesDevis(user, owner.parent)) return { error: "Non autorisé." } as const;
   const refusStock = refusArgentSurPosteStock(item.kind, "des lignes de devis");
@@ -4124,6 +4159,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   if (!id) return { ok: false, error: "Poste non précisé." };
   const found = await loadItem(id, user);
   if (!found) return { ok: false, error: "Poste introuvable." };
+  if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un bon de commande");

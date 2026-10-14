@@ -12,6 +12,9 @@ import { fraisMissionConsumption } from "@/lib/missions-equipe/imputation-serveu
 import { datesReellesDesEcritures, engagementsDesCategories } from "@/lib/queries/budget-sources";
 import { dansLaPeriode } from "@/lib/budget/engage";
 import { lienMission } from "@/lib/chemins/espace";
+import { categoriesGouvernees, consommationIntegree, contexteDeLEnveloppe, contextesDesCategories } from "@/lib/queries/budget-integration";
+import { estAbsenteDuFichier } from "@/lib/budget/integration-regle";
+import { lienDemandeIntegree } from "@/lib/budget-marketing/integration-vue";
 
 /**
  * LA PORTÉE D'UN ÉCRAN (Budget Marketing, 08/10) : Budgets lit toutes les enveloppes visibles, Budget Marketing les
@@ -85,7 +88,7 @@ export interface AttributedTx {
   /** `PAIE` : la paie de la force de vente, en TOTAL par mois (Budget Operations & Sales) — elle se lit, ne se corrige pas.
    *  `MISSION` : la note de frais de mission d'un membre de l'équipe Adventum (Budget Operations & Sales) — lue, jamais
    *  recopiée ; elle se corrige sur la mission. */
-  kind: "FINANCE" | "BUDGET" | "GENERAL_MEANS" | "PAIE" | "MISSION";
+  kind: "FINANCE" | "BUDGET" | "GENERAL_MEANS" | "PAIE" | "MISSION" | "HISTORIQUE";
   reference: string;
   date: string;
   label: string;
@@ -168,6 +171,8 @@ export interface BudgetOverview {
   /** Consommation mois par mois (courbe de la vue d'ensemble). */
   monthly: BudgetMonthPoint[];
   unattributed: { total: number; count: number; transactions: UnattributedTx[] };
+  /** Le lot d'intégration des dépenses réelles posé sur l'enveloppe (Ad & Pro 2026), s'il y en a un — `budget/integration-regle.ts`. */
+  integration?: { lotId: string; integreLe: string; historique: number; absentes: number; aDecider: number } | null;
   attributed: { count: number; transactions: AttributedTx[] };
 }
 
@@ -261,9 +266,21 @@ export async function getEnvelopesGrandTotal(viewer: SessionUser, opts: OptionsP
     : [[], [], { byCategory: new Map<string, number>(), rows: [] }];
   // Consommation = dépenses réglées attribuées + lignes purement budgétaires (découplées)
   // + les achats des moyens généraux classés par ceux qui les font.
-  const consumedByCat = new Map<string | null, number>(sums.map((s) => [s.budgetCategoryId, toNumber(s._sum.amount)]));
+  // L'INTÉGRATION DES DÉPENSES RÉELLES : les catégories d'une enveloppe dont un lot est validé se relisent par la règle du
+  // lot (`budget/integration-regle.ts`) — leurs agrégats rapides sont écartés, remplacés par les sources qui comptent et
+  // les postes historiques. Les autres enveloppes gardent leur agrégat.
+  const ctxs = await contextesDesCategories(catIds);
+  const gouvernees = categoriesGouvernees(ctxs, catIds);
+  const integ = ctxs.length ? await consommationIntegree(ctxs, catIds, null, null, { statuts: ["SETTLED"] }) : null;
+  const consumedByCat = new Map<string | null, number>(sums.filter((s) => !gouvernees.has(s.budgetCategoryId ?? "")).map((s) => [s.budgetCategoryId, toNumber(s._sum.amount)]));
   for (const s of expenseSums) {
+    if (gouvernees.has(s.categoryId)) continue;
     consumedByCat.set(s.categoryId, (consumedByCat.get(s.categoryId) ?? 0) + toNumber(s._sum.amount));
+  }
+  if (integ) {
+    for (const e of integ.ecritures) consumedByCat.set(e.budgetCategoryId, (consumedByCat.get(e.budgetCategoryId) ?? 0) + toNumber(e.amount as Parameters<typeof toNumber>[0]));
+    for (const l of integ.lignes) consumedByCat.set(l.categoryId, (consumedByCat.get(l.categoryId) ?? 0) + toNumber(l.amount as Parameters<typeof toNumber>[0]));
+    for (const [catId, amount] of integ.historiqueParCategorie) consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
   }
   for (const [catId, amount] of generalMeans.byCategory) {
     consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
@@ -372,6 +389,11 @@ export async function getBudgetOverview(
   const to = toArg ?? envelope.periodEnd;
 
   const catIds = envelope.categories.map((c) => c.id);
+  // L'INTÉGRATION DES DÉPENSES RÉELLES (Ad & Pro 2026) : une enveloppe dont un lot est validé se lit par la règle du lot
+  // (`budget/integration-regle.ts`) — postes historiques, ce qui naît après, jamais deux fois. Sans lot : `null`, et
+  // rien ne change ci-dessous.
+  const ctxIntegration = await contexteDeLEnveloppe(envelope.id);
+  const integ = ctxIntegration ? await consommationIntegree([ctxIntegration], catIds, from, to) : null;
   // ⚠️ FILTRE SUR LES CATÉGORIES DE **CETTE** ENVELOPPE — la faute qui gonflait le consommé.
   // Sans lui, le groupBy ramenait TOUTES les dépenses de la plateforme : celles imputées aux
   // enveloppes VOISINES et celles ENCORE NON IMPUTÉES (clé `null`). Le total (ligne « consommé »)
@@ -380,7 +402,9 @@ export async function getBudgetOverview(
   // impossibles. Chaque enveloppe ne compte QUE ses propres catégories ; le non-imputé a sa
   // propre alerte (« à imputer »), il ne doit jamais peser dans une enveloppe qui ne l'a pas reçu.
   const [sums, expenseSums, generalMeans, reglages] = await Promise.all([
-    catIds.length
+    integ
+      ? Promise.resolve(integ.ecritures.map((e) => ({ budgetCategoryId: e.budgetCategoryId, status: e.status, _sum: { amount: e.amount } })))
+      : catIds.length
       ? prisma.financeTransaction.groupBy({
           by: ["budgetCategoryId", "status"],
           where: { direction: "OUT", date: { gte: from, lte: to }, status: { in: ["SETTLED", "PENDING"] }, budgetCategoryId: { in: catIds } },
@@ -388,7 +412,9 @@ export async function getBudgetOverview(
         })
       : Promise.resolve([] as { budgetCategoryId: string | null; status: string; _sum: { amount: unknown } }[]),
     // Lignes purement budgétaires (découplées des Finances) imputées aux catégories de l'enveloppe.
-    catIds.length
+    integ
+      ? Promise.resolve(integ.lignes.map((l) => ({ categoryId: l.categoryId, _sum: { amount: l.amount } })))
+      : catIds.length
       ? prisma.budgetExpenseLine.groupBy({
           by: ["categoryId"],
           where: { categoryId: { in: catIds }, date: { gte: from, lte: to } },
@@ -416,6 +442,10 @@ export async function getBudgetOverview(
   // Les moyens généraux aussi : un ticket de caisse justifié est une dépense au même titre.
   for (const [catId, amount] of generalMeans.byCategory) {
     consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
+  }
+  // (a) LES POSTES HISTORIQUES d'un lot d'intégration : payés, à leur date, dans leur catégorie ou sous-catégorie.
+  if (integ) {
+    for (const [catId, amount] of integ.historiqueParCategorie) consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
   }
   // La paie de la force de vente (Budget Operations & Sales) : des totaux par catégorie et par mois.
   const env = envelope;
@@ -493,7 +523,12 @@ export async function getBudgetOverview(
   // les vraies dépenses de trésorerie (FinanceTransaction, ré-attribuables) et les lignes
   // purement budgétaires (BudgetExpenseLine, supprimables ici).
   const catNameById = new Map(envelope.categories.map((c) => [c.id, c.name]));
-  const [financeAttr, expenseAttr] = catNameById.size
+  const [financeAttr, expenseAttr] = integ
+    ? [
+        [...integ.ecritures].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 60),
+        [...integ.lignes].sort((a, b) => b.date.getTime() - a.date.getTime()).slice(0, 60),
+      ]
+    : catNameById.size
     ? await Promise.all([
         prisma.financeTransaction.findMany({
           where: { direction: "OUT", budgetCategoryId: { in: [...catNameById.keys()] }, date: { gte: from, lte: to } },
@@ -511,7 +546,9 @@ export async function getBudgetOverview(
     : [[], []];
   // Série mensuelle (courbe) : on relit les seules dates + montants CONSOMMÉS de l'enveloppe,
   // sans plafond de lignes — la courbe doit couvrir toute la période, pas les 60 dernières.
-  const [monthlyFinance, monthlyLines] = catNameById.size
+  const [monthlyFinance, monthlyLines] = integ
+    ? [integ.ecritures.filter((e) => e.status === "SETTLED"), integ.lignes]
+    : catNameById.size
     ? await Promise.all([
         prisma.financeTransaction.findMany({
           where: { direction: "OUT", status: "SETTLED", budgetCategoryId: { in: [...catNameById.keys()] }, date: { gte: from, lte: to } },
@@ -535,6 +572,7 @@ export async function getBudgetOverview(
     ...generalMeans.rows.map((r) => ({ date: r.date, amount: r.amount })),
     ...paie.rows.map((r) => ({ date: r.date, amount: r.amount })),
     ...fraisMission.rows.map((r) => ({ date: dansLaPeriode(r.date, from, to), amount: r.amount })),
+    ...(integ?.historiques ?? []).map((h) => ({ date: h.payeLe, amount: h.montant })),
   ]);
 
   const attributedTx: AttributedTx[] = [
@@ -570,6 +608,13 @@ export async function getBudgetOverview(
       categoryId: r.categoryId, categoryName: catNameById.get(r.categoryId) ?? "—",
       lien: lienMission(r.assignmentId, "frais"),
     })),
+    // Les postes HISTORIQUES (intégration Ad & Pro 2026) : une ligne par poste payé, lue sur sa demande.
+    ...(integ?.historiques ?? []).map((h) => ({
+      id: h.id, kind: "HISTORIQUE" as const, reference: h.ligne ? `Fichier L${h.ligne}` : "Historique 2026",
+      date: h.payeLe.toISOString(), label: h.libelle, amount: h.montant, counterparty: null, status: "SETTLED",
+      categoryId: h.categoryId ?? "", categoryName: catNameById.get(h.categoryId ?? "") ?? "—",
+      lien: h.demande ? lienDemandeIntegree(h.demande) : null,
+    })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 
   return {
@@ -594,6 +639,13 @@ export async function getBudgetOverview(
         ...(piecesAImputer.get(t.id) ?? { paiement: t.status, liens: [], pieces: [] }),
       })),
     },
+    integration: ctxIntegration && integ ? {
+      lotId: ctxIntegration.regle.lotId,
+      integreLe: ctxIntegration.regle.integreLe.toISOString(),
+      historique: integ.historiques.reduce((s, h) => s + h.montant, 0),
+      absentes: integ.jugees.filter((j) => estAbsenteDuFichier(j.verdict)).length,
+      aDecider: integ.jugees.filter((j) => j.verdict.raison === "ABSENTE_A_DECIDER").length,
+    } : null,
     attributed: {
       count: attributedTx.length,
       transactions: attributedTx,

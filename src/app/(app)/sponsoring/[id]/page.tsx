@@ -1,3 +1,5 @@
+import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
+import { demandeurAfficheDe } from "@/lib/budget-marketing/integration-serveur";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Gavel } from "lucide-react";
 import { requireModule } from "@/lib/session";
@@ -230,7 +232,7 @@ export default async function SponsoringDetailPage({ params }: { params: { id: s
 
       <PageHeader
         title={req.institution}
-        description={`${req.reference} · demandé par ${req.requester?.name ?? "—"} le ${formatDate(req.requestDate)}`}
+        description={`${req.reference} · demandé par ${req.requester?.name ?? (await demandeurAfficheDe("SPONSORING", req.id)) ?? "—"} le ${formatDate(req.requestDate)}`}
       >
         <StatusBadge map={SPONSORING_STATUS} value={req.status} />
         {req.appealCount > 0 && (
@@ -253,6 +255,8 @@ export default async function SponsoringDetailPage({ params }: { params: { id: s
           </MenuDossier>
         )}
       </PageHeader>
+
+      <BlocHistorique user={user} type="SPONSORING" id={req.id} />
 
       {/* LA DEMANDE, EN UNE CARTE (Direction, 07/10) — « Détails de la demande », « Postes de la demande » et « Circuit de
           validation » fusionnés : la frise et la phrase de statut (avec les gestes de l'étape courante), les faits une fois,

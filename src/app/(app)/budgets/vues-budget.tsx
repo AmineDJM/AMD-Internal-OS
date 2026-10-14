@@ -462,6 +462,21 @@ export async function VueReglagesBudget({ user, searchParams, config }: { user: 
       ) : (
         <>
           <BudgetContextBar envelopes={envelopes} currentId={overview.envelope.id} from={overview.period.from} to={overview.period.to} />
+          {/* L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 — l'assistant, ou le lot déjà posé (garder / sortir, annuler). */}
+          {pole === "MARKETING" && canManageContent && (
+            <Link
+              href={`/budget-marketing/integration?env=${encodeURIComponent(overview.envelope.id)}`}
+              className="surface flex flex-wrap items-center gap-2 rounded-xl p-3 text-sm hover:bg-secondary/40"
+            >
+              <strong>Dépenses réelles Ad &amp; Pro 2026</strong>
+              <span className="text-muted-foreground">
+                {overview.integration
+                  ? `intégrées le ${overview.integration.integreLe.slice(8, 10)}/${overview.integration.integreLe.slice(5, 7)}${overview.integration.aDecider ? ` — ${overview.integration.aDecider} élément(s) absent(s) du fichier à décider` : ""}`
+                  : "— intégrer le fichier « Dépenses AP » (assistant en quatre étapes)"}
+              </span>
+              <ArrowRight className="ml-auto h-4 w-4" />
+            </Link>
+          )}
           <BudgetSettings
             overview={overview}
             canManage={canManageContent}

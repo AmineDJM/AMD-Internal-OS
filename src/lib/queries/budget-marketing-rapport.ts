@@ -7,6 +7,9 @@ import { getBudgetOverview, getEnvelopes, type BudgetOverview } from "@/lib/quer
 import { generalMeansConsumption } from "@/lib/queries/budget-general-means";
 import { masseSalarialeConsumption } from "@/lib/queries/budget-operations";
 import { datesReellesDesEcritures, engagementsDesCategories } from "@/lib/queries/budget-sources";
+import { contextesDesCategories, jugerEcritures, jugerLignes } from "@/lib/queries/budget-integration";
+import { consommationHistorique } from "@/lib/budget/integration-regle";
+import { lienDemande } from "@/lib/budget-marketing/integration-vue";
 import { cleMois, dansLaPeriode } from "@/lib/budget/engage";
 import { NATURE_NON_RENSEIGNEE, natureDeLaDepense, natureDuPoste, repartirParNature } from "@/lib/budget/natures";
 import {
@@ -47,7 +50,7 @@ export interface LigneDepense {
   montant: number;
 }
 
-const TYPES_DEMANDE = ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "TRAINING"] as const;
+const TYPES_DEMANDE = ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "TRAINING", "PROMO_MATERIAL", "MEDICAL_INFO_DECLARATION"] as const;
 type TypeDemande = (typeof TYPES_DEMANDE)[number];
 const estTypeDemande = (t: EntityType | string | null | undefined): t is TypeDemande => t != null && (TYPES_DEMANDE as readonly string[]).includes(t);
 const cleDemande = (t: TypeDemande, id: string) => `${t}:${id}`;
@@ -55,40 +58,51 @@ const cleDemande = (t: TypeDemande, id: string) => `${t}:${id}`;
 const LIBELLE_TYPE: Record<TypeDemande, string> = {
   SPONSORING: "Sponsoring", CONGRESS_NATIONAL: "Prise en charge nationale", CONGRESS_INTERNATIONAL: "Prise en charge internationale",
   EVENT: "Événement", TRAINING: "Formation",
+  PROMO_MATERIAL: "Matériel promotionnel", MEDICAL_INFO_DECLARATION: "Information médicale",
 };
 
 /** Le parent d'un poste Ad & Pro, en clé de demande. */
-export function demandeDuPoste(p: { sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null; trainingId: string | null }): string | null {
+export function demandeDuPoste(p: {
+  sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null; trainingId: string | null;
+  /** Les deux porteurs des seuls postes HISTORIQUES (intégration Ad & Pro 2026). */
+  promoMaterialParentId?: string | null; declarationInfoMedId?: string | null;
+}): string | null {
   if (p.sponsoringId) return cleDemande("SPONSORING", p.sponsoringId);
   if (p.congressNationalId) return cleDemande("CONGRESS_NATIONAL", p.congressNationalId);
   if (p.congressInternationalId) return cleDemande("CONGRESS_INTERNATIONAL", p.congressInternationalId);
   if (p.eventId) return cleDemande("EVENT", p.eventId);
   if (p.trainingId) return cleDemande("TRAINING", p.trainingId);
+  if (p.promoMaterialParentId) return cleDemande("PROMO_MATERIAL", p.promoMaterialParentId);
+  if (p.declarationInfoMedId) return cleDemande("MEDICAL_INFO_DECLARATION", p.declarationInfoMedId);
   return null;
 }
 
-const SELECT_PARENT = { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true } as const;
+const SELECT_PARENT = { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true, promoMaterialParentId: true, declarationInfoMedId: true } as const;
 
 /** Les libellés et liens des demandes, lus en lot. */
 export async function libellesDesDemandes(cles: Iterable<string>): Promise<Record<string, DemandeRef>> {
-  const par: Record<TypeDemande, string[]> = { SPONSORING: [], CONGRESS_NATIONAL: [], CONGRESS_INTERNATIONAL: [], EVENT: [], TRAINING: [] };
+  const par: Record<TypeDemande, string[]> = { SPONSORING: [], CONGRESS_NATIONAL: [], CONGRESS_INTERNATIONAL: [], EVENT: [], TRAINING: [], PROMO_MATERIAL: [], MEDICAL_INFO_DECLARATION: [] };
   for (const c of new Set(cles)) {
     const [t, id] = c.split(":");
     if (estTypeDemande(t) && id) par[t].push(id);
   }
-  const [sp, cn, ci, ev, tr] = await Promise.all([
+  const [sp, cn, ci, ev, tr, pm, dim] = await Promise.all([
     par.SPONSORING.length ? prisma.sponsoringRequest.findMany({ where: { id: { in: par.SPONSORING } }, select: { id: true, reference: true, institution: true } }) : [],
     par.CONGRESS_NATIONAL.length ? prisma.congressNational.findMany({ where: { id: { in: par.CONGRESS_NATIONAL } }, select: { id: true, name: true } }) : [],
     par.CONGRESS_INTERNATIONAL.length ? prisma.congressInternational.findMany({ where: { id: { in: par.CONGRESS_INTERNATIONAL } }, select: { id: true, name: true } }) : [],
     par.EVENT.length ? prisma.event.findMany({ where: { id: { in: par.EVENT } }, select: { id: true, name: true } }) : [],
     par.TRAINING.length ? prisma.training.findMany({ where: { id: { in: par.TRAINING } }, select: { id: true, title: true } }) : [],
+    par.PROMO_MATERIAL.length ? prisma.promoMaterial.findMany({ where: { id: { in: par.PROMO_MATERIAL } }, select: { id: true, reference: true, title: true } }) : [],
+    par.MEDICAL_INFO_DECLARATION.length ? prisma.medicalInfoDeclaration.findMany({ where: { id: { in: par.MEDICAL_INFO_DECLARATION } }, select: { id: true, reference: true, label: true } }) : [],
   ]);
   const out: Record<string, DemandeRef> = {};
   for (const s of sp) out[cleDemande("SPONSORING", s.id)] = { cle: cleDemande("SPONSORING", s.id), libelle: `${s.reference} — ${s.institution}`, href: `/sponsoring/${s.id}`, type: LIBELLE_TYPE.SPONSORING };
   for (const c of cn) out[cleDemande("CONGRESS_NATIONAL", c.id)] = { cle: cleDemande("CONGRESS_NATIONAL", c.id), libelle: c.name, href: `/congress-national/${c.id}`, type: LIBELLE_TYPE.CONGRESS_NATIONAL };
   for (const c of ci) out[cleDemande("CONGRESS_INTERNATIONAL", c.id)] = { cle: cleDemande("CONGRESS_INTERNATIONAL", c.id), libelle: c.name, href: `/congress-international/${c.id}`, type: LIBELLE_TYPE.CONGRESS_INTERNATIONAL };
   for (const e of ev) out[cleDemande("EVENT", e.id)] = { cle: cleDemande("EVENT", e.id), libelle: e.name, href: `/events/${e.id}`, type: LIBELLE_TYPE.EVENT };
-  for (const t of tr) out[cleDemande("TRAINING", t.id)] = { cle: cleDemande("TRAINING", t.id), libelle: t.title, href: null, type: LIBELLE_TYPE.TRAINING };
+  for (const t of tr) out[cleDemande("TRAINING", t.id)] = { cle: cleDemande("TRAINING", t.id), libelle: t.title, href: lienDemande("TRAINING", t.id), type: LIBELLE_TYPE.TRAINING };
+  for (const m of pm) out[cleDemande("PROMO_MATERIAL", m.id)] = { cle: cleDemande("PROMO_MATERIAL", m.id), libelle: `${m.reference} — ${m.title}`, href: `/promo-material/${m.id}`, type: LIBELLE_TYPE.PROMO_MATERIAL };
+  for (const d of dim) out[cleDemande("MEDICAL_INFO_DECLARATION", d.id)] = { cle: cleDemande("MEDICAL_INFO_DECLARATION", d.id), libelle: `${d.reference} — ${d.label}`, href: `/information-medicale/${d.id}`, type: LIBELLE_TYPE.MEDICAL_INFO_DECLARATION };
   return out;
 }
 
@@ -150,14 +164,21 @@ async function faitsPayes(overview: BudgetOverview, versTete: Record<string, str
       ? prisma.financeTransaction.findMany({ where: { direction: "OUT", status: "SETTLED", budgetCategoryId: { in: catIds }, date: { gte: from, lte: to } }, select })
       : Promise.resolve([] as Ecriture[]),
     prisma.financeTransaction.findMany({ where: aImputer, select }),
-    catIds.length ? prisma.budgetExpenseLine.findMany({ where: { categoryId: { in: catIds }, date: { gte: from, lte: to } }, select: { id: true, date: true, amount: true, reference: true, categoryId: true } }) : Promise.resolve([]),
+    catIds.length ? prisma.budgetExpenseLine.findMany({ where: { categoryId: { in: catIds }, date: { gte: from, lte: to } }, select: { id: true, date: true, createdAt: true, amount: true, reference: true, categoryId: true } }) : Promise.resolve([]),
     generalMeansConsumption(catIds, from, to),
     masseSalarialeConsumption(overview.categories.map((c) => ({
       id: c.id, cle: c.cle ?? null, businessUnitId: c.businessUnitId ?? null,
       envelope: { id: overview.envelope.id, periodStart: new Date(overview.envelope.periodStart), periodEnd: new Date(overview.envelope.periodEnd), companyId: overview.envelope.companyId ?? null },
     })), from, to),
   ]);
-  const ecritures: Ecriture[] = [...imputees, ...sansCat];
+  // L'INTÉGRATION DES DÉPENSES RÉELLES (Ad & Pro 2026) : la règle du lot trie les écritures et les lignes de l'enveloppe ;
+  // les postes historiques s'ajoutent plus bas, à leur date et dans leur catégorie (`budget/integration-regle.ts`).
+  const ctxs = await contextesDesCategories(catIds);
+  const imputeesComptees = ctxs.length
+    ? (await jugerEcritures(ctxs, imputees.map((e) => ({ ...e, status: "SETTLED", counterparty: null })))).comptees
+    : imputees;
+  const lignesComptees = ctxs.length ? jugerLignes(ctxs, lignesBudget).comptees : lignesBudget;
+  const ecritures: Ecriture[] = [...imputeesComptees, ...sansCat];
   const [dates, origines] = await Promise.all([datesReellesDesEcritures(ecritures), originesDesEcritures(ecritures.map((e) => e.id))]);
 
   const faits: Fait[] = [];
@@ -194,9 +215,17 @@ async function faitsPayes(overview: BudgetOverview, versTete: Record<string, str
     const nature = o?.nature ?? natureDeLaDepense({ rubrique: e.category });
     pousser(cat, date, nature, o?.demande ?? null, montant, base);
   }
-  for (const l of lignesBudget) {
+  for (const l of lignesComptees) {
     const cat = versTete[l.categoryId] ?? null;
     pousser(cat, l.date, NATURE_NON_RENSEIGNEE, null, toNumber(l.amount), { reference: l.reference, libelle: l.reference, origine: "Ligne budgétaire" });
+  }
+  // (a) Les postes HISTORIQUES : payés, à leur date, dans leur catégorie, nature dérivée du poste.
+  for (const ctx of ctxs) {
+    for (const h of consommationHistorique(ctx.postes, new Set(catIds), from, to).lignes) {
+      pousser(h.categoryId ? versTete[h.categoryId] ?? null : null, h.payeLe, natureDuPoste(h.kind) ?? NATURE_NON_RENSEIGNEE, h.demande, h.montant, {
+        reference: h.ligne ? `Fichier L${h.ligne}` : "Historique 2026", libelle: h.libelle, origine: "Historique 2026",
+      });
+    }
   }
   for (const r of moyens.rows) pousser(versTete[r.categoryId] ?? null, r.date, NATURE_NON_RENSEIGNEE, null, r.amount, { reference: "Moyens généraux", libelle: r.label, origine: "Moyens généraux" });
   for (const r of paie.rows) pousser(versTete[r.categoryId] ?? null, r.date, NATURE_NON_RENSEIGNEE, null, r.amount, { reference: "Paie", libelle: `Paie — ${r.effectif} personne${r.effectif > 1 ? "s" : ""}`, origine: "Paie" });

@@ -7,6 +7,7 @@ import { lienRapportTerrain } from "@/lib/chemins/rapports-terrain";
 import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import { lienCibleEnveloppe, ancreCategorieBudget } from "@/lib/chemins/budgets";
 import { DETECTEURS_PLUS } from "./risks-plus";
+import { categoriesGouvernees, consommationIntegree, contextesDesCategories } from "@/lib/queries/budget-integration";
 
 /**
  * Adventum Brain — moteur Risk Radar. **Lecture seule, calculé à la volée** (aucune
@@ -320,7 +321,16 @@ async function budgetRisks(th: RiskThresholds): Promise<Risk[]> {
   const sums = lines.length
     ? await prisma.financeTransaction.groupBy({ by: ["budgetCategoryId"], where: { budgetCategoryId: { in: lines.map((l) => l.id) }, direction: "OUT" }, _sum: { amount: true } })
     : [];
-  const consumedBy = new Map(sums.map((s) => [s.budgetCategoryId, toNumber(s._sum.amount ?? 0)]));
+  // L'INTÉGRATION DES DÉPENSES RÉELLES (Ad & Pro 2026) : une enveloppe dont un lot est validé se lit par la règle du lot
+  // (`budget/integration-regle.ts`) — ses agrégats rapides sont remplacés par les sources qui comptent et les postes historiques.
+  const ctxs = await contextesDesCategories(lines.map((l) => l.id));
+  const gouvernees = categoriesGouvernees(ctxs, lines.map((l) => l.id));
+  const consumedBy = new Map(sums.filter((s) => !gouvernees.has(s.budgetCategoryId ?? "")).map((s) => [s.budgetCategoryId, toNumber(s._sum.amount ?? 0)]));
+  if (ctxs.length) {
+    const integ = await consommationIntegree(ctxs, lines.map((l) => l.id));
+    for (const e of integ.ecritures) consumedBy.set(e.budgetCategoryId, (consumedBy.get(e.budgetCategoryId) ?? 0) + toNumber(e.amount as Parameters<typeof toNumber>[0]));
+    for (const [cat, m] of integ.historiqueParCategorie) consumedBy.set(cat, (consumedBy.get(cat) ?? 0) + m);
+  }
   const out: Risk[] = [];
   for (const l of lines) {
     const allocated = toNumber(l.allocated);

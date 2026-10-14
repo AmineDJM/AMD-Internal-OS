@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { canManageEnvelope, userCan, type SessionUser } from "@/lib/rbac";
 import type { BudgetOverview } from "@/lib/queries/budget";
 import { depensesDesPostes } from "@/lib/queries/budget-sources";
+import { contexteDeLEnveloppe } from "@/lib/queries/budget-integration";
 import { demandeDuPoste, libellesDesDemandes } from "@/lib/queries/budget-marketing-rapport";
 import { lienBonDeCommande } from "@/lib/chemins/bons-de-commande";
 import { ancrePoste } from "@/lib/chemins/ad-pro";
@@ -49,6 +50,8 @@ export interface LigneDepensePoste {
   facture: { nom: string; href: string | null } | null;
   ordre: string | null;
   motif: string | null;
+  /** Un poste HISTORIQUE (intégration Ad & Pro 2026) : payé, sans circuit — sa ligne du fichier. */
+  historique?: { ligne: number | null } | null;
 }
 
 export interface OptionBudget { id: string; label: string }
@@ -64,6 +67,8 @@ const SELECT_POSTE = {
   id: true, label: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true,
   depenseImputeeLe: true, depenseAnnuleeLe: true, depenseAnnulationMotif: true,
   sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true,
+  promoMaterialParentId: true, declarationInfoMedId: true,
+  montantPayeHistorique: true, historiqueLigne: true, historiquePayeLe: true,
 } as const;
 
 /** Les catégories des enveloppes MARKETING actives que la personne gère — l'enveloppe affichée d'abord. */
@@ -104,6 +109,9 @@ export async function depensesPostesMarketing(user: SessionUser, overview: Budge
     }),
   ]);
   const postes = [...rangees, ...aImputer.filter((p) => !rangees.some((r) => r.id === p.id))];
+  // Les postes HISTORIQUES du lot actif de l'enveloppe (intégration Ad & Pro 2026) : payés, sans circuit — lus tels quels.
+  const ctx = await contexteDeLEnveloppe(overview.envelope.id);
+  const historiques = new Set(ctx ? ctx.postes.map((p) => p.id) : []);
   const [depenses, options] = await Promise.all([depensesDesPostes(postes), optionsBudgetMarketing(user, overview.envelope.id)]);
 
   const cles = new Map(postes.map((p) => [p.id, demandeDuPoste(p)]));
@@ -133,6 +141,20 @@ export async function depensesPostesMarketing(user: SessionUser, overview: Budge
   const ecritures = new Set<string>();
   for (const p of postes) {
     const lue = depenses.get(p.id);
+    if (lue && historiques.has(p.id) && p.montantPayeHistorique != null) {
+      const montant = Number(p.montantPayeHistorique);
+      const cle = cles.get(p.id) ?? null;
+      const d = cle ? demandes[cle] : undefined;
+      for (const o of lue.ordres) if (o.transactionId) ecritures.add(o.transactionId);
+      lignes.push({
+        id: p.id, poste: p.label, posteHref: d?.href ? `${d.href}#${ancrePoste(p.id)}` : null,
+        demande: d?.libelle ?? "Demande Ad & Pro", typeDemande: d?.type ?? "", demandeHref: d?.href ?? null,
+        bcs: [], montantEngage: montant, consomme: montant, paye: montant, etat: "PAYEE", lieu: null,
+        categorieId: p.budgetCategoryId, categorie: libelleCat(p.budgetCategoryId), facture: null, ordre: null, motif: null,
+        historique: { ligne: p.historiqueLigne },
+      });
+      continue;
+    }
     const etat = lue?.depense.etat ?? null;
     if (!lue || etat === null) continue;
     const dansLEnveloppe = p.budgetCategoryId != null && catIds.includes(p.budgetCategoryId);

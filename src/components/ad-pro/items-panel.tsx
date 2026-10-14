@@ -157,6 +157,11 @@ export interface ItemRow {
   demandeBC: DemandeBCDuPoste | null;
   /** Les devis du poste lus avec leurs lignes structurées — d'après elles se génèrent les BC (§118.206). */
   devisLignes: DevisDePosteVue[];
+  /**
+   * UN POSTE HISTORIQUE (intégration des dépenses réelles Ad & Pro 2026) : déjà payé, il ne passe par aucun circuit —
+   * ni validation, ni BC, ni paiement. La carte le montre payé, sans geste. `null` pour tout autre poste.
+   */
+  historique?: { montant: number; ligne: number | null; payeLe: string | null } | null;
 }
 
 interface Props {
@@ -295,7 +300,17 @@ export function AdProItemsPanel({
     }
   };
 
-  const carte = (it: ItemRow) => (
+  const carte = (it: ItemRow) => it.historique ? (
+    <li key={it.id} id={ancrePoste(it.id)} className="flex flex-wrap items-center gap-2 rounded-xl border border-purple-200 bg-purple-50/40 p-3 text-sm dark:bg-purple-500/5">
+      <Badge tone="purple">Historique 2026</Badge>
+      <span className="min-w-0 flex-1 font-medium">{it.label}</span>
+      <span className="text-xs text-muted-foreground">
+        {it.budgetCategoryLabel ?? "—"}{it.historique.ligne ? ` · fichier L${it.historique.ligne}` : ""}{it.historique.payeLe ? ` · payé le ${formatDate(it.historique.payeLe)}` : ""}
+      </span>
+      <Badge tone="success">payé</Badge>
+      <span className="font-semibold tabular-nums">{formatCurrency(it.historique.montant)}</span>
+    </li>
+  ) : (
     <PosteCarte
       key={it.id}
       item={it}
