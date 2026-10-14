@@ -1,3 +1,4 @@
+import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Video } from "lucide-react";
 import { requireModule } from "@/lib/session";
@@ -172,6 +173,8 @@ export default async function EventDetailPage({ params }: { params: { id: string
           </MenuDossier>
         )}
       </PageHeader>
+
+      <BlocHistorique user={user} type="EVENT" id={e.id} />
 
       {/* LE BLOC « SUIVI DE VALIDATION » A ÉTÉ RETIRÉ (demande de la Direction, 09/2026).
           Il montrait une frise « Brouillon → En attente → Validé » dérivée de `Event.status`,

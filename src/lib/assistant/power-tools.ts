@@ -169,6 +169,12 @@ export const POWER_TOOLS: PowerTool[] = [
       }
       const ov = await getBudgetOverview(user, match.id);
       if (!ov) return `L'enveloppe « ${match.name} » ne vous est pas ouverte.`;
+      // Chaque poste comprend ses sous-catégories — les mêmes chiffres que l'écran.
+      // (une sous-catégorie ne se rattache qu'à une catégorie de tête).
+      const cats = ov.categories.map((c) => {
+        const consumed = c.consumed + ov.categories.filter((s) => s.parentId === c.id).reduce((a, s) => a + s.consumed, 0);
+        return { ...c, consumed, remaining: c.allocated - consumed };
+      });
       return JSON.stringify({
         enveloppe: ov.envelope.name,
         periode: { du: ov.period.from.slice(0, 10), au: ov.period.to.slice(0, 10) },
@@ -179,14 +185,14 @@ export const POWER_TOOLS: PowerTool[] = [
         engageDzd: dzd(ov.totals.committed),
         restantDzd: dzd(ov.totals.remaining),
         tauxConsommationPct: ov.totals.pct,
-        postes: ov.categories.map((c) => ({
+        postes: cats.map((c) => ({
           nom: c.name, alloueDzd: dzd(c.allocated), consommeDzd: dzd(c.consumed), restantDzd: dzd(c.remaining),
         })),
         depensesNonImputees: { nombre: ov.unattributed.count, montantDzd: dzd(ov.unattributed.total) },
         _blocs: [gaugesBlock(`${ov.envelope.name} — consommation`, [
           { label: "Enveloppe entière", valeur: dzd(ov.totals.consumed), total: dzd(ov.totals.total), unite: "DZD",
             detail: `reste ${new Intl.NumberFormat("fr-DZ").format(dzd(ov.totals.remaining))} DZD` },
-          ...ov.categories.map((c) => ({
+          ...cats.map((c) => ({
             label: c.name, valeur: dzd(c.consumed), total: dzd(c.allocated), unite: "DZD",
             detail: `reste ${new Intl.NumberFormat("fr-DZ").format(dzd(c.remaining))} DZD`,
           })),

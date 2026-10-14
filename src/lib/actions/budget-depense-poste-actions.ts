@@ -85,13 +85,16 @@ async function categorie(id: string | null) {
 type Categorie = NonNullable<Awaited<ReturnType<typeof categorie>>>;
 const nomCategorie = (c: Categorie | null) => (c ? `${c.envelope.name} › ${c.parent ? `${c.parent.name} › ` : ""}${c.name}` : "aucun budget");
 
+/** Un poste « Historique 2026 » (intégration des dépenses réelles) est déjà payé : sa dépense ne s'impute, ne se consomme ni ne s'annule. */
+const REFUS_HISTORIQUE = "Ce poste est « Historique 2026 » : déjà payé, il compte au budget par sa ligne du fichier — sa dépense ne s'impute, ne se consomme ni ne s'annule.";
+
 /** Le poste et l'état de sa dépense, relus à l'instant. */
 async function lirePoste(id: string) {
   const poste = await prisma.adProItem.findUnique({
     where: { id },
     select: {
       id: true, label: true, kind: true, supplier: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true,
-      orderStage: true, updatedAt: true, depenseImputeeLe: true, depenseAnnuleeLe: true,
+      orderStage: true, updatedAt: true, depenseImputeeLe: true, depenseAnnuleeLe: true, montantPayeHistorique: true,
       sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
     },
   });
@@ -124,6 +127,7 @@ async function imputation(formData: FormData, geste: GesteImputation): Promise<A
   if (!id) return { ok: false, error: "Poste non précisé." };
   const lu = await lirePoste(id);
   if (!lu) return { ok: false, error: "Poste introuvable." };
+  if (lu.poste.montantPayeHistorique != null) return { ok: false, error: REFUS_HISTORIQUE };
   const { poste, owner, lue } = lu;
   const [cible, actuelle] = await Promise.all([categorie(cibleId), categorie(poste.budgetCategoryId)]);
   // La porte : gérer l'enveloppe visée — et, pour un changement, celle d'où la dépense part.
@@ -196,6 +200,7 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   if (!id) return { ok: false, error: "Poste non précisé." };
   const lu = await lirePoste(id);
   if (!lu) return { ok: false, error: "Poste introuvable." };
+  if (lu.poste.montantPayeHistorique != null) return { ok: false, error: REFUS_HISTORIQUE };
   const { poste, owner, lue } = lu;
   const actuelle = await categorie(poste.budgetCategoryId);
   if (!actuelle || !canManageEnvelope(user, actuelle.envelope)) return { ok: false, error: REFUS_DROIT };
@@ -292,6 +297,7 @@ export async function annulerDepensePoste(formData: FormData): Promise<ActionRes
   if (!id) return { ok: false, error: "Poste non précisé." };
   const lu = await lirePoste(id);
   if (!lu) return { ok: false, error: "Poste introuvable." };
+  if (lu.poste.montantPayeHistorique != null) return { ok: false, error: REFUS_HISTORIQUE };
   const { poste, owner, lue } = lu;
   const actuelle = await categorie(poste.budgetCategoryId);
   if (!actuelle || !canManageEnvelope(user, actuelle.envelope)) return { ok: false, error: REFUS_DROIT };

@@ -3,6 +3,7 @@ import { toNumber } from "@/lib/utils";
 import { getDepartmentSubtreeIds } from "@/lib/departments";
 import { CATEGORIES_BV, lignesBv, natureDuLibelle, type DossierBv, type OrdreBv } from "@/lib/budget-regulatory/bv";
 import { projeter12Mois, type DomaineCampagne, type LignePrefill } from "./regles";
+import { categoriesGouvernees, consommationIntegree, contextesDesCategories } from "@/lib/queries/budget-integration";
 
 /**
  * « PRÉ-REMPLIR DEPUIS L'ANNÉE EN COURS » — jamais une page blanche (maquette validée).
@@ -64,8 +65,18 @@ export async function calculerPrefill(e: EntreePrefill): Promise<LignePrefill[]>
       ]);
       const parTete = new Map<string, number>();
       const ajoute = (id: string | null, m: unknown) => { if (!id) return; const t = tete(id); parTete.set(t, (parTete.get(t) ?? 0) + toNumber(m)); };
-      for (const r of tx) ajoute(r.budgetCategoryId, r._sum.amount);
-      for (const r of lignesBudget) ajoute(r.categoryId, r._sum.amount);
+      // L'INTÉGRATION DES DÉPENSES RÉELLES (Ad & Pro 2026) : le réalisé d'une enveloppe dont un lot est validé se lit par
+      // la règle du lot — postes historiques, ce qui est né après, jamais deux fois (`budget/integration-regle.ts`).
+      const ctxs = await contextesDesCategories(ids);
+      const gouvernees = categoriesGouvernees(ctxs, ids);
+      for (const r of tx) if (!gouvernees.has(r.budgetCategoryId ?? "")) ajoute(r.budgetCategoryId, r._sum.amount);
+      for (const r of lignesBudget) if (!gouvernees.has(r.categoryId)) ajoute(r.categoryId, r._sum.amount);
+      if (ctxs.length) {
+        const integ = await consommationIntegree(ctxs, ids, debut, fin, { statuts: ["SETTLED"] });
+        for (const e of integ.ecritures) ajoute(e.budgetCategoryId, e.amount);
+        for (const l of integ.lignes) ajoute(l.categoryId, l.amount);
+        for (const [cat, m] of integ.historiqueParCategorie) ajoute(cat, m);
+      }
       for (const r of dept) ajoute(r.budgetCategoryId, r._sum.amount);
       const parNom = new Map<string, { label: string; montant: number }>();
       for (const c of cats.filter((x) => x.parentId === null && !x.cle)) {

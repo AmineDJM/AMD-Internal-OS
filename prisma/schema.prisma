@@ -2431,6 +2431,30 @@ model AdProItem {
   updatedAt          DateTime                 @updatedAt
   productAllocations AdProProductAllocation[]
 
+  /// ─── L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 (Direction, 10/2026) ───
+  /// Un poste HISTORIQUE est une dépense déjà réalisée et payée, reprise du fichier « Dépenses AP » : il ne passe par
+  /// AUCUN circuit (ni validation, ni BC, ni centre de paiement, ni ordre de dépense) et compte au budget pour
+  /// `montantPayeHistorique`, à la date `historiquePayeLe`, dans sa (sous-)catégorie `budgetCategoryId`. Le lot dit
+  /// d'où il vient ; annuler le lot le retire (créé) ou le rend à son état d'avant (`historiqueAvant`, complété).
+  historiqueLotId       String?
+  historiqueLot         AdProIntegrationLot? @relation("AdProItemHistorique", fields: [historiqueLotId], references: [id], onDelete: SetNull)
+  /// La ligne du fichier (Feuil1) — la clé de rapprochement avec l'Excel.
+  historiqueLigne       Int?
+  montantPayeHistorique Decimal?             @db.Decimal(14, 2)
+  historiquePayeLe      DateTime?
+  /// L'état du poste AVANT qu'un lot ne le complète (budget, montants) — `null` pour un poste créé par le lot.
+  historiqueAvant       Json?
+  /// Deux porteurs de postes de plus, pour les seuls postes historiques : le DOSSIER DE MATÉRIEL PROMOTIONNEL (sa
+  /// fabrication payée) et la DÉCLARATION D'INFORMATION MÉDICALE (le bon de versement du visa). La contrainte
+  /// `AdProItem_one_parent` compte désormais sept parents.
+  promoMaterialParentId String?
+  promoMaterialParent   PromoMaterial?          @relation("AdProItemDossierPromo", fields: [promoMaterialParentId], references: [id], onDelete: Cascade)
+  declarationInfoMedId  String?
+  declarationInfoMed    MedicalInfoDeclaration? @relation("AdProItemDeclarationInfoMed", fields: [declarationInfoMedId], references: [id], onDelete: Cascade)
+
+  @@index([historiqueLotId])
+  @@index([promoMaterialParentId])
+  @@index([declarationInfoMedId])
   @@index([sponsoringId])
   @@index([congressNationalId])
   @@index([congressInternationalId])
@@ -2747,6 +2771,101 @@ model AdProItemDecision {
 
 // ───────────────────────────── Budgets ─────────────────────────────
 
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 (Direction, 10/2026 — maquette « adpro-integration » validée).
+///
+/// Un LOT = un fichier « Dépenses AP » intégré d'un bloc dans une enveloppe : chaque dépense rejoint sa demande Ad & Pro
+/// (créée « Historique 2026 », ou existante complétée), avec ses postes payés, ses pièces attendues et son imputation.
+/// Une fois le lot posé, le budget de l'enveloppe se calcule par la règle pure `budget/integration-regle.ts` (postes
+/// historiques + ce qui naît après `integreLe`, jamais deux fois la même dépense). Un lot s'ANNULE d'un bloc
+/// (`annuleLe`) : rien n'est effacé du livre de trésorerie, aucun ordre de dépense n'est créé ni touché.
+/// Un seul lot actif par enveloppe (index partiel `AdProIntegrationLot_actif`, posé par la migration).
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+model AdProIntegrationLot {
+  id                String         @id @default(cuid())
+  envelopeId        String
+  envelope          BudgetEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Restrict)
+  /// La version du module de décisions (`budget-marketing/integration-2026.ts`) appliquée.
+  configVersion     String
+  fichierNom        String
+  /// SHA-256 du fichier lu — le même fichier se reconnaît.
+  fichierSha256     String
+  /// Le fichier, rangé comme pièce du lot (`Document` BUDGET), quand il a pu l'être.
+  fichierDocumentId String?
+  total             Decimal        @db.Decimal(14, 2)
+  /// LA DATE D'INTÉGRATION — ce qui naît après compte au budget ; ce qui existait avant est remplacé par le fichier.
+  integreLe         DateTime       @default(now())
+  creeParId         String?
+  annuleLe          DateTime?
+  annuleParId       String?
+  annulationMotif   String?
+  /// Le budget de l'enveloppe AVANT le lot, par catégorie et sous-catégorie (consommé, engagé) — l'annulation se vérifie contre lui.
+  instantaneAvant   Json
+  /// Ce qui a été lu et décidé, ligne par ligne (le plan validé).
+  lignes            Json
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  demandes  AdProIntegrationDemande[]
+  decisions AdProIntegrationDecision[]
+  postes    AdProItem[]               @relation("AdProItemHistorique")
+
+  @@index([envelopeId])
+  @@index([annuleLe])
+}
+
+/// UNE DEMANDE AD & PRO TOUCHÉE PAR UN LOT — créée « Historique 2026 » (`mode = CREEE`) ou existante complétée
+/// (`COMPLETEE`). Une colonne polymorphe (`demandeType`, `demandeId`) : les sept natures de demande n'ont pas de parent
+/// commun, et l'annulation du lot passe par cette table (jamais par une recherche).
+model AdProIntegrationDemande {
+  id               String              @id @default(cuid())
+  lotId            String
+  lot              AdProIntegrationLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  /// La ligne principale du fichier (Feuil1), et toutes ses lignes (SAI : 21 + 22 ; ASARI : 25 + 24).
+  ligne            Int
+  lignes           Int[]               @default([])
+  libelle          String
+  /// SPONSORING · CONGRESS_NATIONAL · CONGRESS_INTERNATIONAL · EVENT · TRAINING · PROMO_MATERIAL · MEDICAL_INFO_DECLARATION
+  demandeType      String
+  demandeId        String
+  /// CREEE (badge « Historique 2026 », aucun circuit) · COMPLETEE (demande existante, son circuit reste le sien).
+  mode             String
+  /// « Demandé par » affiché sur la demande (« Direction Marketing »).
+  demandeurAffiche String?
+  montant          Decimal             @db.Decimal(14, 2)
+  /// Les pièces attendues : [{ cle, libelle }] — obligatoires mais NON bloquantes.
+  piecesAttendues  Json                @default("[]")
+  /// Les pièces déjà dans la plateforme RATTACHÉES (jamais redéposées) : [{ cle, documentId, nom, le, parId }].
+  piecesRattachees Json                @default("[]")
+  /// L'écriture de trésorerie existante qui a payé la dépense — LECTURE SEULE, jamais modifiée.
+  ecritureId       String?
+  /// L'état de la demande AVANT le complément (mode COMPLETEE) — ce que l'annulation rend.
+  avant            Json?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([lotId, ligne])
+  @@index([demandeType, demandeId])
+}
+
+/// « DANS LA PLATEFORME, ABSENTES DU FICHIER » — ce qui comptait au budget avant le lot et ne correspond à aucune ligne :
+/// on décide, élément par élément, de le GARDER dans le budget ou de l'en SORTIR. Rien n'est effacé.
+model AdProIntegrationDecision {
+  id          String              @id @default(cuid())
+  lotId       String
+  lot         AdProIntegrationLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  /// La clé de la source (`TX:<id>`, `LIGNE:<id>`, `POSTE:<id>`, `ORDRE:<id>`) — `budget/integration-regle.ts`.
+  cleSource   String
+  /// GARDER · SORTIR
+  decision    String
+  libelle     String
+  montant     Decimal             @db.Decimal(14, 2)
+  decideParId String?
+  decideLe    DateTime            @default(now())
+
+  @@unique([lotId, cleSource])
+}
+
 model BudgetLine {
   custom          Json? // admin-defined dynamic fields
   id              String         @id @default(cuid())
@@ -2811,6 +2930,8 @@ model BudgetEnvelope {
   businessUnitId String?
   productId      String?
   categories     BudgetCategoryLine[]
+  /// Les lots d'intégration des dépenses réelles (Ad & Pro 2026) posés sur cette enveloppe.
+  lotsIntegration AdProIntegrationLot[]
   createdById    String?
   createdAt      DateTime             @default(now())
   updatedAt      DateTime             @updatedAt
@@ -3973,6 +4094,8 @@ model MedicalInfoDeclaration {
   createdById             String?
   slips                   MedicalInfoSlip[]
   requests                MedicalInfoDocRequest[]
+  /// Les postes HISTORIQUES de la déclaration (intégration des dépenses réelles Ad & Pro 2026 — visa de publicité).
+  postesHistoriques       AdProItem[]             @relation("AdProItemDeclarationInfoMed")
   createdAt               DateTime                @default(now())
   updatedAt               DateTime                @updatedAt
 
@@ -7399,6 +7522,8 @@ model PromoMaterial {
   /// catalogue : c'est ce que l'assistante cherche à faire chiffrer, et à quoi chaque ligne de
   /// devis se rapproche.
   articlesDemandes     PromoRequestItem[]
+  /// Les postes HISTORIQUES du dossier (intégration des dépenses réelles Ad & Pro 2026).
+  postesHistoriques    AdProItem[]        @relation("AdProItemDossierPromo")
 
   createdById String?
   updatedById String?

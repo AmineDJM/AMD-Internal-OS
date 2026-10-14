@@ -1,3 +1,5 @@
+import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
+import { demandeurAfficheDe } from "@/lib/budget-marketing/integration-serveur";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, Megaphone, Scale } from "lucide-react";
@@ -94,6 +96,8 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
   if (!pm) notFound();
   if (!(await peutOuvrirLeDossierPromo(user, pm))) notFound();
   const names = await promoNames(pm);
+  // Une demande créée par l'intégration Ad & Pro 2026 n'a pas de demandeur : elle est « demandée par la Direction Marketing ».
+  if (!names.requester) names.requester = (await demandeurAfficheDe("PROMO_MATERIAL", pm.id)) ?? names.requester;
 
   // CORRIGER LA DEMANDE : le demandeur tant que l'agence n'est pas choisie, la Direction
   // toujours. Au-delà du choix d'agence, le bon de commande et le visa s'appuient sur ce qui a
@@ -497,6 +501,8 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
           </div>
         </header>
 
+        <BlocHistorique user={user} type="PROMO_MATERIAL" id={pm.id} />
+
         {/* LA FRISE, LES CINQ CHIFFRES, ET CE QU'IL RESTE À FAIRE. */}
         <PromoStatutCard
           id={pm.id}
@@ -628,6 +634,8 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
           : <StatusBadge map={PROMO_MATERIAL_STATUS} value={pm.status} />}
         {menuDossier}
       </PageHeader>
+
+      <BlocHistorique user={user} type="PROMO_MATERIAL" id={pm.id} />
       {/* « BESOIN POUR LE … » — la date posée par le demandeur, en orange sous 15 jours tant que le matériel n'est pas livré. */}
       <DateBesoin
         id={pm.id}

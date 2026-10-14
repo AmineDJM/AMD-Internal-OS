@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { cumulerSousCategories } from "@/lib/budget/cumul-categories";
 import { ArrowRight, AlertTriangle, Download } from "lucide-react";
 import type { CurrentUser } from "@/lib/session";
 import { canManageEnvelopes, canManageEnvelope, canGovernPoleEnvelope, hasGlobalView, peutBudgetDuPole } from "@/lib/rbac";
@@ -141,7 +142,10 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
   // Camembert : comment le budget est RÉPARTI (au plus 6 parts — au-delà, l'œil ne compare plus).
   const allocSlices = foldTail(topCats.map((c) => ({ label: c.name, value: c.allocated })));
   // Barres : où en est CHAQUE catégorie (statut, pas identité).
+  // Une catégorie comprend ses sous-catégories (`budget/cumul-categories.ts`).
+  const cumul = cumulerSousCategories(overview.categories);
   const barRows = topCats
+    .map((c) => ({ ...c, consumed: cumul.get(c.id)?.consumed ?? c.consumed }))
     .filter((c) => c.allocated > 0 || c.consumed > 0)
     .sort((a, b) => b.consumed - a.consumed)
     .map((c) => ({ id: ancreCategorieBudget(c.id), label: c.name, budget: c.allocated, consumed: c.consumed }));
@@ -462,6 +466,21 @@ export async function VueReglagesBudget({ user, searchParams, config }: { user: 
       ) : (
         <>
           <BudgetContextBar envelopes={envelopes} currentId={overview.envelope.id} from={overview.period.from} to={overview.period.to} />
+          {/* L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 — l'assistant, ou le lot déjà posé (garder / sortir, annuler). */}
+          {pole === "MARKETING" && canManageContent && (
+            <Link
+              href={`/budget-marketing/integration?env=${encodeURIComponent(overview.envelope.id)}`}
+              className="surface flex flex-wrap items-center gap-2 rounded-xl p-3 text-sm hover:bg-secondary/40"
+            >
+              <strong>Dépenses réelles Ad &amp; Pro 2026</strong>
+              <span className="text-muted-foreground">
+                {overview.integration
+                  ? `intégrées le ${overview.integration.integreLe.slice(8, 10)}/${overview.integration.integreLe.slice(5, 7)}${overview.integration.aDecider ? ` — ${overview.integration.aDecider} élément(s) absent(s) du fichier à décider` : ""}`
+                  : "— intégrer le fichier « Dépenses AP » (assistant en quatre étapes)"}
+              </span>
+              <ArrowRight className="ml-auto h-4 w-4" />
+            </Link>
+          )}
           <BudgetSettings
             overview={overview}
             canManage={canManageContent}

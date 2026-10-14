@@ -35,9 +35,18 @@ export const LIBELLES_CLIC: Record<string, string> = {
   cta: "Appels à l'action",
 };
 
+/** Longueur maximale d'un nom de clic — `postuler-<poste>-envoyer` doit tenir entier. */
+export const LABEL_MAX = 80;
+
 export function libelleClic(label: string | null): string {
   if (!label) return "Autre";
-  return LIBELLES_CLIC[label] ?? label;
+  if (LIBELLES_CLIC[label]) return LIBELLES_CLIC[label];
+  // L'entonnoir par offre que le site marque : `postuler-<poste>` puis `postuler-<poste>-envoyer`.
+  const envoi = /^postuler-(.+)-envoyer$/.exec(label);
+  if (envoi) return `Candidature envoyée — ${envoi[1]}`;
+  const offre = /^postuler-(.+)$/.exec(label);
+  if (offre) return `Postuler — ${offre[1]}`;
+  return label;
 }
 
 // ───────────────────────────── L'agent utilisateur ─────────────────────────────
@@ -213,7 +222,7 @@ export function validerEvenement(brut: unknown): EvenementValide | null {
   let durationMs: number | null = null;
   if (type === "CLICK") {
     const l = typeof o.label === "string" ? o.label.trim().toLowerCase() : "";
-    label = /^[a-z0-9][a-z0-9_-]{0,39}$/.test(l) ? l : "cta";
+    label = l.length <= LABEL_MAX && /^[a-z0-9][a-z0-9_-]*$/.test(l) ? l : "cta";
     target = normaliserCible(o.target);
   }
   if (type === "LEAVE") {

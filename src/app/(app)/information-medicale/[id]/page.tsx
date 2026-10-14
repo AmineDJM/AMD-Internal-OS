@@ -1,3 +1,4 @@
+import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
 import { refusAnnulationPieceInfoMed } from "@/lib/annulations/regles";
 import type { ReactNode } from "react";
 import Link from "next/link";
@@ -349,6 +350,8 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
           )}
         </div>
       </div>
+
+      <BlocHistorique user={user} type="MEDICAL_INFO_DECLARATION" id={decl.id} />
 
       <Card>
         <CardContent className="space-y-4 py-4">

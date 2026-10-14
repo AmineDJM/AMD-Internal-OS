@@ -1,3 +1,4 @@
+import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -133,6 +134,7 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
         {hasGlobalView(user) && <AdProTransferButton from="CONGRESS_NATIONAL" sourceId={detail.id} title={detail.name} />}
         <SupprimerDemandeAdPro kind="CONGRESS_NATIONAL" id={detail.id} name={detail.name} enabled={await peutSupprimerUneDemandeAdPro(user, "CONGRESS_NATIONAL", detail.id)} />
       </PageHeader>
+      <BlocHistorique user={user} type="CONGRESS_NATIONAL" id={detail.id} />
       {/* LA PRISE EN CHARGE EN UNE CARTE (Direction, 07/10) — la même que l'international. */}
       <CartePriseEnCharge
         evenement={{ eventType: detail.eventType, location: detail.location, ville: detail.ville, pays: detail.pays, medecinsOrigine: detail.medecinsOrigine, date: detail.date, endDate: detail.endDate, requester: detail.requester, initiative: detail.initiative }}

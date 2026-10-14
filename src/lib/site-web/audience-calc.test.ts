@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   analyserAgent, bornesPeriode, cleDeSeau, ecartPoints, formatDuree, hoteDuReferent, ilYA, libelleDeSeau, lirePeriode,
   normaliserChemin, normaliserCible, nomDuPays, paysDepuisEntetes, seauxDeLaPeriode, serieComplete, slugDeLAdresse, slugSous,
-  sourceDepuis, taux, tauxDeRebond, validerEvenement, validerLot, variation, DUREE_MAX_MS, LOT_MAX,
+  sourceDepuis, taux, tauxDeRebond, validerEvenement, validerLot, variation, DUREE_MAX_MS, LOT_MAX, libelleClic,
 } from "./audience-calc";
 import { scriptAudience } from "./audience-script";
 
@@ -126,6 +126,22 @@ describe("validerEvenement — strict", () => {
     expect(paysDepuisEntetes(h({}))).toBeNull();
     expect(nomDuPays("DZ")).toMatch(/Alg/);
     expect(nomDuPays("Inconnu")).toBe("Inconnu");
+  });
+});
+
+describe("L'entonnoir par offre que le site marque", () => {
+  it("un nom long `postuler-<poste>-envoyer` arrive ENTIER (l'envoi ne se confond pas avec le clic)", () => {
+    const poste = "responsable-affaires-reglementaires-alger";
+    expect(validerEvenement({ type: "CLICK", path: `/carrieres/${poste}`, label: `postuler-${poste}-envoyer` }))
+      .toMatchObject({ label: `postuler-${poste}-envoyer` });
+    expect(validerEvenement({ type: "CLICK", path: "/", label: `x${"a".repeat(80)}` })).toMatchObject({ label: "cta" });
+    expect(scriptAudience("https://erp.test/api/site-web/v1/audience")).toContain(".slice(0, 80)");
+  });
+  it("des libellés lisibles à l'écran", () => {
+    expect(libelleClic("postuler")).toBe("Postuler");
+    expect(libelleClic("postuler-delegue-alger")).toBe("Postuler — delegue-alger");
+    expect(libelleClic("postuler-delegue-alger-envoyer")).toBe("Candidature envoyée — delegue-alger");
+    expect(libelleClic("devenir-partenaire")).toBe("devenir-partenaire");
   });
 });
 

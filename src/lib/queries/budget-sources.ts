@@ -5,6 +5,7 @@ import { ENTITY_MODULE } from "@/lib/entity-access";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { STATUTS_ORDRE_ENGAGES, dateDeLaDepense, ordreEngage } from "@/lib/budget/engage";
 import { depenseDuPoste, ordreEnCircuit, type DepensePoste, type FaitsDepensePoste } from "@/lib/budget/depense-poste";
+import { contextesDesCategories, jugerEngagements } from "@/lib/queries/budget-integration";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -36,6 +37,8 @@ export interface DetailEngagement {
   sourceId: string | null;
   /** `ENGAGE` : imputé, pas encore consommé ; `EN_CIRCUIT` : un ordre émis, pas encore réglé. */
   nature: "ENGAGE" | "EN_CIRCUIT";
+  /** L'ordre émis d'un détail `EN_CIRCUIT` — la règle d'intégration le date par lui (`budget/integration-regle.ts`). */
+  ordreId?: string | null;
 }
 
 export interface EngagementsEnveloppe {
@@ -154,7 +157,8 @@ export async function depensesDesPostes(postes: readonly PostePourDepense[]): Pr
   return out;
 }
 
-export async function engagementsDesCategories(catIds: readonly string[], periodEnd: Date): Promise<EngagementsEnveloppe> {
+/** Les engagements BRUTS (avant la règle d'intégration) — pour juger chacun, et lister ceux « absents du fichier ». */
+export async function engagementsBruts(catIds: readonly string[], periodEnd: Date): Promise<EngagementsEnveloppe> {
   const parCategorie = new Map<string, number>();
   const enCircuitParCategorie = new Map<string, number>();
   const details: DetailEngagement[] = [];
@@ -181,7 +185,7 @@ export async function engagementsDesCategories(catIds: readonly string[], period
     for (const o of lue.ordres) rattaches.add(o.id);
     if (!cat || !dansLEnveloppe.has(cat)) continue;
     for (const o of lue.ordres) {
-      if (ordreEnCircuit(o.statut)) ajouter({ categoryId: cat, montant: o.montant, posteId: p.id, sourceType: null, sourceId: null, nature: "EN_CIRCUIT" });
+      if (ordreEnCircuit(o.statut)) ajouter({ categoryId: cat, montant: o.montant, posteId: p.id, sourceType: null, sourceId: null, nature: "EN_CIRCUIT", ordreId: o.id });
     }
     ajouter({ categoryId: cat, montant: lue.depense.engage, posteId: p.id, sourceType: null, sourceId: null, nature: "ENGAGE" });
   }
@@ -217,9 +221,29 @@ export async function engagementsDesCategories(catIds: readonly string[], period
     if (rattaches.has(o.id) || !ordreEngage(o.status) || o.pettyCashAllotment || o.payrollWire) continue;
     const cat = o.budgetCategoryId ?? (auto && o.sourceType ? auto(ENTITY_MODULE[o.sourceType] ?? null) : null);
     if (!cat || !dansLEnveloppe.has(cat)) continue;
-    ajouter({ categoryId: cat, montant: toNumber(o.amount), posteId: null, sourceType: o.sourceType, sourceId: o.sourceId, nature: "EN_CIRCUIT" });
+    ajouter({ categoryId: cat, montant: toNumber(o.amount), posteId: null, sourceType: o.sourceType, sourceId: o.sourceId, nature: "EN_CIRCUIT", ordreId: o.id });
   }
   return { parCategorie, enCircuitParCategorie, details };
+}
+
+/**
+ * L'ENGAGÉ D'UNE LISTE DE CATÉGORIES — ce que lisent TOUS les écrans. Les engagements bruts, puis la règle d'intégration :
+ * sur une enveloppe dont un lot est validé (Ad & Pro 2026), l'engagé né avant l'intégration et rattaché à une demande
+ * intégrée est remplacé par le fichier ; un poste historique n'engage rien (`budget/integration-regle.ts`). Sans lot,
+ * rien ne change.
+ */
+export async function engagementsDesCategories(catIds: readonly string[], periodEnd: Date): Promise<EngagementsEnveloppe> {
+  const brut = await engagementsBruts(catIds, periodEnd);
+  const ctxs = await contextesDesCategories(catIds);
+  if (ctxs.length === 0) return brut;
+  const { comptes } = await jugerEngagements(ctxs, brut.details);
+  const parCat = new Map<string, number>();
+  const enCircuit = new Map<string, number>();
+  for (const d of comptes) {
+    parCat.set(d.categoryId, (parCat.get(d.categoryId) ?? 0) + d.montant);
+    if (d.nature === "EN_CIRCUIT") enCircuit.set(d.categoryId, (enCircuit.get(d.categoryId) ?? 0) + d.montant);
+  }
+  return { parCategorie: parCat, enCircuitParCategorie: enCircuit, details: comptes };
 }
 
 /**

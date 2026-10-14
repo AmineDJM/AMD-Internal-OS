@@ -76,7 +76,7 @@ export default async function BudgetMarketingAdProPage({ searchParams }: { searc
                         <td className={TD}>{l.nature}</td>
                         <td className={`${TD} max-w-[14rem] truncate`}>{l.poste}</td>
                         <td className={TD}>{l.categorie}</td>
-                        <td className={TD}>{l.statut}</td>
+                        <td className={TD}>{l.historique ? <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 px-2 py-0.5 text-xs text-purple-700">Historique 2026{l.historique.ligne ? ` · L${l.historique.ligne}` : ""}</span> : l.statut}</td>
                         <td className={`${TD} text-right tabular-nums`}>{formatCurrency(l.accorde)}</td>
                         <td className={`${TD} text-right tabular-nums`}>{l.engage ? formatCurrency(l.engage) : "—"}</td>
                         <td className={`${TD} text-right tabular-nums`}>{l.regle ? formatCurrency(l.regle) : "—"}</td>
