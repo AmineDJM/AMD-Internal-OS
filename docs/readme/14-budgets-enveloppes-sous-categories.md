@@ -16,6 +16,19 @@ intention** — on ne consulte plus son budget en traversant tout ce qui le modi
 > salariale de la force de vente) — lisent les MÊMES enveloppes, bornées à leur `domaine`. Budgets lit et additionne
 > tout, mais une enveloppe de pôle s'y **lit sans se régler**. → [référence](#budgets-des-pôles--marketing-regulatory-operations--sales-0810)
 
+> **Budget Marketing › Dépenses (10/2026, maquette validée)** — « on sépare une dépense engagée d'une dépense payée ».
+> Un poste Ad & Pro dont **tous les BC sont signés** est **À imputer** ; la Direction Marketing l'**impute** à une
+> catégorie d'une enveloppe MARKETING → **Engagée** (somme des BC signés) ; **Consommer** (montant ≤ engagé, facture
+> facultative) crée l'ordre de dépense du poste, qui naît au **centre de paiement** puis va aux **Finances** →
+> **Consommée** (lue sur l'ordre : centre de paiement / réponse attendue / refusée / chez les Finances) → **Payée** ;
+> **Annuler** libère l'engagement (refusé une fois consommée). Le budget se **change à tout moment** (poste, ordres et
+> écritures suivent, tracé ancien → nouveau). Tout geste passe par une seconde confirmation. Règle pure :
+> `lib/budget/depense-poste.ts` ; lectures : `queries/budget-sources.ts` (`depensesDesPostes`, engagé ventilé
+> `ENGAGE` / `EN_CIRCUIT`), `queries/budget-marketing-depenses.ts` ; gestes : `actions/budget-depense-poste-actions.ts` ;
+> écran : `budgets/depenses-marketing.tsx`. Colonnes `AdProItem.depenseImputeeLe/…AnnuleeLe/…AnnulationMotif`
+> (migration `20270123100000_depense_poste_budget_marketing`). Vue d'ensemble et Budgets : « engagé, pas encore payé »
+> = engagé + consommé en circuit — même disponible que les tuiles (budget − engagé − consommé).
+
 La **barre de contexte** (`budget-context-bar.tsx`) ne porte que ce qui change ce qu'on **regarde** : l'enveloppe et
 la période. Une **alerte actionnable** unique remplace l'ancienne section « dépenses non attribuées » dépliée.
 

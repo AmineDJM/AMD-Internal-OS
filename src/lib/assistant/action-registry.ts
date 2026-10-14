@@ -1316,6 +1316,16 @@ X("RENVOYER, RÉEXAMINER, RESOUMETTRE DANS LES CENTRES (§118.188, audit R07/R08
   "validation-actions:resoumettreValidation",
   "ad-pro-centre-actions:resoumettreAuCentreAdPro", "ad-pro-centre-actions:reexaminerVisaCentreAdPro",
 ]);
+X("BUDGET MARKETING — LA DÉPENSE D'UN POSTE AD & PRO (onglet « Dépenses », maquette validée 10/2026) : imputer un poste "
+  + "aux BC signés (il devient engagé), changer son budget à tout moment (le poste, ses ordres et ses écritures suivent), "
+  + "le consommer (montant ≤ l'engagé, facture facultative : un ordre de dépense naît au centre de paiement) ou l'annuler. "
+  + "Chaque geste engage le budget et passe par une seconde confirmation à l'écran, qui dit ce qui va se passer. Adam est "
+  + "en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "budget-depense-poste-actions:imputerDepensePoste",
+  "budget-depense-poste-actions:changerBudgetDepensePoste",
+  "budget-depense-poste-actions:consommerDepensePoste",
+  "budget-depense-poste-actions:annulerDepensePoste",
+]);
 X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de validations, 10/2026) — le geste du "
   + "DEMANDEUR une fois que tous ses validateurs ont accepté : la retenue du BC tombe et l'aiguillage ordinaire l'adresse "
   + "à son centre de validation, puis à la signature. Adam est en pause de développement : aucun geste neuf ne lui est "

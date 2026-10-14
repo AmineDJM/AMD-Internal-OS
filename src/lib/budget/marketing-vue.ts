@@ -59,6 +59,12 @@ export function roulerCategories(cats: readonly CategorieBrute[]): { tetes: Cate
 
 export const dinar = (n: number): number => Math.round(Number.isFinite(n) ? n : 0);
 
+/**
+ * LE DISPONIBLE = enveloppe − payé − engagé (pas encore payé). L'« engagé » de la vue d'ensemble est TOUT ce qui est
+ * promis et pas réglé : les dépenses imputées par la Direction Marketing (BC signés) ET celles déjà consommées qui
+ * attendent leur paiement (`budget/depense-poste.ts`). L'onglet Dépenses coupe ce même montant en « engagé » +
+ * « consommé en circuit » : son disponible (`tuilesDepenses`) est rigoureusement celui-ci — un test le vérifie.
+ */
 export function disponible(total: number, paye: number, engage: number): number {
   return total - paye - engage;
 }
