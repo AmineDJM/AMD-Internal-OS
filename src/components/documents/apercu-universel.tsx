@@ -5,7 +5,7 @@ import { Download, Loader2, Pencil, Save, X } from "lucide-react";
 import { DocxView, XlsxView, PptxView } from "./office-viewers";
 import { EditeurEnLigne } from "./editeur-en-ligne";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
-import { natureApercu, TAILLE_MAX_TEXTE_OCTETS, type NatureApercu } from "@/lib/formats/apercu";
+import { natureApercu, visionneuseDeSecours, TAILLE_MAX_TEXTE_OCTETS, type NatureApercu } from "@/lib/formats/apercu";
 
 /**
  * L'APERÇU UNIVERSEL — un seul composant, pour le Drive, les documents et les pièces (Direction, 06/10 : « quand on
@@ -60,7 +60,9 @@ function Rendu({ nature, src, name, telechargement, cible }: {
     case "xlsx":
     case "pptx":
     case "converti": {
-      const viseuse = nature === "docx" ? <DocxView src={src} name={name} /> : nature === "xlsx" ? <XlsxView src={src} name={name} /> : nature === "pptx" ? <PptxView src={src} name={name} /> : null;
+      // La visionneuse se choisit sur l'EXTENSION, pas sur la nature : un .dotx ou un .xltx (« converti ») a la sienne.
+      const famille = visionneuseDeSecours(name);
+      const viseuse = famille === "docx" ? <DocxView src={src} name={name} /> : famille === "xlsx" ? <XlsxView src={src} name={name} /> : famille === "pptx" ? <PptxView src={src} name={name} /> : null;
       const secours = (message: string) => (
         <div className="space-y-3">
           <p className="rounded-lg border border-border bg-secondary/40 px-3 py-2 text-xs text-muted-foreground">

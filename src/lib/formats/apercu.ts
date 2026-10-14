@@ -89,6 +89,25 @@ export const ouvrableDansLEditeur = (nom: string, mime?: string | null): boolean
   return n === "converti" || n === "docx" || n === "xlsx" || n === "pptx";
 };
 
+/**
+ * LA VISIONNEUSE DE SECOURS du navigateur (lecture seule), quand l'éditeur Office n'est pas joignable — `null` : aucune.
+ *
+ * Un MODÈLE Word (.dotx), un Word à macros (.docm), un modèle Excel (.xltx), un modèle PowerPoint (.potx)… sont le
+ * MÊME format que .docx / .xlsx / .pptx (une archive OOXML) : la visionneuse du navigateur les lit aussi. Seuls les
+ * trois formats modernes en avaient une, et « Attestation de travail.dotx » tombait sur « téléchargez le fichier » dès
+ * que l'éditeur était injoignable. SheetJS lit en plus les tableurs anciens (.xls, .xlsb, .ods).
+ */
+const SECOURS_WORD = new Set(["docx", "dotx", "docm", "dotm"]);
+const SECOURS_TABLEUR = new Set(["xlsx", "csv", "xlsm", "xltx", "xltm", "xlsb", "xls", "ods"]);
+const SECOURS_DIAPORAMA = new Set(["pptx", "pptm", "potx", "potm", "ppsx", "ppsm"]);
+export function visionneuseDeSecours(nom: string): "docx" | "xlsx" | "pptx" | null {
+  const e = extensionDe(nom);
+  if (SECOURS_WORD.has(e)) return "docx";
+  if (SECOURS_TABLEUR.has(e)) return "xlsx";
+  if (SECOURS_DIAPORAMA.has(e)) return "pptx";
+  return null;
+}
+
 /** Les extensions que l'éditeur Office ouvre (anciens formats compris) — pour dire ce qui est admis dans un refus. */
 export const EXTENSIONS_CONVERTIBLES: readonly string[] = CONVERTI;
 
