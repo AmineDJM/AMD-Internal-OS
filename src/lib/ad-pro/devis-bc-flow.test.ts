@@ -96,7 +96,7 @@ async function genererEtValider(f: FormData) {
   if (!g.ok || /déjà son bon de commande, à jour/.test(g.message ?? "")) return g;
   return validerEtEnvoyerBcPoste(f);
 }
-const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])], nom, { type: "application/pdf" });
+const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]), `${nom}-${Date.now()}-${Math.random()}`], nom, { type: "application/pdf" });
 
 interface LigneSaisie { id?: string; ref: string; unite?: string; qte: string; prix: string }
 /** Le formulaire de saisie des lignes tel que la carte l'envoie : une rangée par ligne, l'identifiant d'une ligne qui existe déjà. */
