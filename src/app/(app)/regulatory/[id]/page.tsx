@@ -22,7 +22,9 @@ import { DocumentList, type DocItem } from "@/components/documents/document-list
 import { ProductDriveExplorer, dossierDriveAffiche } from "@/components/documents/product-drive-explorer";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { RegulatoryProcess } from "./anpp-process";
-import { regProgress, regChecklistProgress, type RegWorkflowState, type RegChecklistState } from "@/lib/regulatory-workflow";
+import { regProgress, regChecklistProgress, BV_REQUEST_STEPS, type RegWorkflowState, type RegChecklistState } from "@/lib/regulatory-workflow";
+import { natureDeLEtape, ordreQuiDitLEtat, type SuiviBvVue } from "@/lib/regulatory/bv-circuit";
+import { ETAPES_BV } from "@/lib/budget-regulatory/bv";
 import { StatusEditor } from "./status-editor";
 import { DossierMenu } from "./dossier-menu";
 import { deriveStatus, explainStatus } from "@/lib/regulatory/process-status";
@@ -115,7 +117,12 @@ export default async function RegulatoryDetailPage({ params, searchParams }: { p
     prisma.supplier.findMany({ where: { active: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     prisma.expenseOrder.findMany({
       where: { sourceType: "REGULATORY_PRODUCT", sourceId: product.id },
-      select: { id: true, reference: true, label: true, amount: true, status: true, dueDate: true, paidDate: true },
+      select: {
+        id: true, reference: true, label: true, amount: true, status: true, dueDate: true, paidDate: true,
+        centralStatus: true, centralDecidedAt: true, createdAt: true,
+        // Le motif du refus, tel que le centre l'a écrit — l'étape « Demande du BV » le dit.
+        centralMessages: { where: { decision: "REFUSE" }, orderBy: { createdAt: "desc" }, take: 1, select: { body: true } },
+      },
       orderBy: { createdAt: "desc" },
     }),
     canUpdate
@@ -203,8 +210,28 @@ export default async function RegulatoryDetailPage({ params, searchParams }: { p
 
   const bvItems: BvItem[] = bvOrders.map((o) => ({
     id: o.id, reference: o.reference, label: o.label, amount: toNumber(o.amount),
-    status: o.status, dueDate: o.dueDate?.toISOString() ?? null, paidDate: o.paidDate?.toISOString() ?? null,
+    status: o.status, centralStatus: o.centralStatus, dueDate: o.dueDate?.toISOString() ?? null, paidDate: o.paidDate?.toISOString() ?? null,
   }));
+
+  // L'ÉTAT DE CHAQUE BV, LU SUR SON ORDRE — demandé (au centre), autorisé (chez les Finances), payé (avec
+  // la quittance déposée sur l'étape de paiement), refusé (avec le motif, et l'on peut redemander).
+  const bvSuivi: Record<string, SuiviBvVue | null> = {};
+  for (const reqKey of Object.keys(BV_REQUEST_STEPS)) {
+    const nature = natureDeLEtape(reqKey);
+    const lu = nature ? ordreQuiDitLEtat(bvOrders, nature) : null;
+    if (!nature || !lu) { bvSuivi[reqKey] = null; continue; }
+    const o = lu.ordre;
+    const quittance = lu.etat === "PAYE"
+      ? documents.find((d) => d.category === "BV_RECEIPT" && d.stepKey === ETAPES_BV[nature].paiement && d.createdAt >= o.createdAt) ?? null
+      : null;
+    bvSuivi[reqKey] = {
+      etat: lu.etat, orderId: o.id, reference: o.reference, montant: toNumber(o.amount),
+      demandeLe: o.createdAt.toISOString(), decideLe: o.centralDecidedAt?.toISOString() ?? null,
+      payeLe: o.paidDate?.toISOString() ?? null,
+      motifRefus: lu.etat === "REFUSE" ? o.centralMessages[0]?.body ?? null : null,
+      quittance: quittance ? { id: quittance.id, name: quittance.name } : null,
+    };
+  }
 
   const doneSteps = product.steps.filter((s) => s.status === "DONE").length;
 
@@ -426,6 +453,7 @@ export default async function RegulatoryDetailPage({ params, searchParams }: { p
                 canUpload={canUpload}
                 canDelete={canDelete}
                 stepDocs={stepDocs}
+                bvSuivi={bvSuivi}
                 ctd={{
                   docs: ctdDocs,
                   canUpload: droitsCtd.deposer,

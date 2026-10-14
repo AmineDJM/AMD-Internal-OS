@@ -53,6 +53,11 @@ export interface OrderRow {
    * Nul quand la règle ne désigne aucun compte — l'écriture partira alors sans compte nommé.
    */
   compteParDefautId: string | null;
+  /**
+   * LE BV D'UN DOSSIER RÉGLEMENTAIRE (« BV 25 % » / « BV 75 % ») : il se règle AVEC SA QUITTANCE, déposée
+   * au geste « Payé » — elle se range sur l'étape « Paiement du BV » du dossier, qui se coche. Nul sinon.
+   */
+  bv: { nature: string; quittanceJointe: boolean } | null;
 }
 
 /** Un compte de trésorerie qu'on peut choisir au règlement (« payé depuis… »). */
@@ -198,8 +203,11 @@ function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: Budg
   // a sa réponse, et la poser apprendrait à cliquer sans lire (§118.176).
   const choisirCompte = comptes.length >= 2;
   const [compteId, setCompteId] = React.useState(row.compteParDefautId ?? "");
+  // LA QUITTANCE DU BV, exigée quand elle n'est pas déjà jointe : on paie ET on dépose, d'un seul geste.
+  const quittanceRequise = Boolean(row.bv && !row.bv.quittanceJointe);
+  const [quittance, setQuittance] = React.useState<File | null>(null);
 
-  if (!row.needsBudget && !choisirCompte) {
+  if (!row.needsBudget && !choisirCompte && !quittanceRequise) {
     return <SubmitForm action={settleExpenseOrder} id={row.id}><MiniBtn tone="success" decisif><Banknote className="h-3.5 w-3.5" /> Payé</MiniBtn></SubmitForm>;
   }
   return (
@@ -212,10 +220,12 @@ function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: Budg
       </button>
       <Sheet
         open={open} onClose={() => !saving && setOpen(false)}
-        title={row.needsBudget ? "Classer, puis régler" : "Régler"}
+        title={row.needsBudget ? "Classer, puis régler" : quittanceRequise ? `Marquer le ${row.bv?.nature ?? "BV"} payé` : "Régler"}
         description={row.needsBudget
           ? "La dépense n'est rattachée à aucun budget. On la classe maintenant : après le virement, plus personne n'y revient."
-          : "Le compte d'où part l'argent : c'est lui dont le solde baisse."}
+          : quittanceRequise
+            ? "Joignez la quittance (BV payé) : elle se range sur l'étape « Paiement du BV » du dossier, qui se coche."
+            : "Le compte d'où part l'argent : c'est lui dont le solde baisse."}
         width="md"
       >
         <form
@@ -224,6 +234,7 @@ function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: Budg
             fd.set("id", row.id);
             if (row.needsBudget) fd.set("budgetCategoryId", categoryId);
             if (choisirCompte && compteId) fd.set("treasuryAccountId", compteId);
+            if (quittance) fd.set("quittance", quittance);
             const r = await settleExpenseOrder(fd);
             setSaving(false);
             if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Erreur.");
@@ -245,6 +256,16 @@ function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: Budg
               </div>
             </>
           )}
+          {quittanceRequise && (
+            <div className="space-y-1">
+              <Label htmlFor={`qt-${row.id}`}>Quittance — {row.bv?.nature ?? "BV"} payé <span className="text-destructive">*</span></Label>
+              <Input
+                id={`qt-${row.id}`} type="file" required
+                onChange={(e) => setQuittance(e.target.files?.[0] ?? null)}
+              />
+              <p className="text-xs text-muted-foreground">Le bon de versement acquitté : l&apos;équipe Regulatory le retrouve sur l&apos;étape du dossier.</p>
+            </div>
+          )}
           {choisirCompte && (
             <div className="space-y-1">
               <Label htmlFor={`cpt-${row.id}`}>Payé depuis</Label>
@@ -257,7 +278,7 @@ function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: Budg
           {err && <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="h-4 w-4" /> {err}</div>}
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" className="w-full sm:w-auto" disabled={saving} onClick={() => setOpen(false)}>Annuler</Button>
-            <BoutonDecisif type="submit" className="h-11 w-full sm:h-10 sm:w-auto" disabled={saving || (row.needsBudget && !categoryId)}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} {row.needsBudget ? "Classer et régler" : "Régler"}</BoutonDecisif>
+            <BoutonDecisif type="submit" className="h-11 w-full sm:h-10 sm:w-auto" disabled={saving || (row.needsBudget && !categoryId) || (quittanceRequise && !quittance)}>{saving && <Loader2 className="h-4 w-4 animate-spin" />} {row.needsBudget ? "Classer et régler" : quittanceRequise ? "Joindre et marquer payé" : "Régler"}</BoutonDecisif>
           </div>
         </form>
       </Sheet>
@@ -371,6 +392,11 @@ export function OrdersTable({ rows, canSettle, emptyLabel, focusId = null, budge
                     {/* La facture est un ÉTAT du règlement, pas un geste : elle se joint et se
                         réclame dans le dossier, que le libellé ouvre. */}
                     {r.requiresInvoice && <span className="mt-0.5 block"><InvoiceState hasInvoice={r.hasInvoice} /></span>}
+                    {r.bv && r.status === "PENDING" && (
+                      <span className={`mt-0.5 block text-xs font-medium ${r.bv.quittanceJointe ? "text-success" : "text-warning"}`}>
+                        {r.bv.nature} · {r.bv.quittanceJointe ? "quittance jointe" : "quittance à joindre au paiement"}
+                      </span>
+                    )}
                   </div>
                 </TableCell>
                 {canSettle && (

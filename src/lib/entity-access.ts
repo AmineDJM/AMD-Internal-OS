@@ -30,6 +30,7 @@ import {
   annuaireOuvertParConsole, scopeCongressIntl, scopeCongressNational, scopePromoMaterial, scopeSponsoring,
   moduleDuDossierRegulatory, hasRole,
 } from "@/lib/rbac";
+import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
 
 /** Maps a polymorphic entity type to its owning module. */
 export const ENTITY_MODULE: Record<EntityType, Module> = {
@@ -651,6 +652,18 @@ export async function canAccessEntity(
   // La garde est donc le CERCLE du dossier — demandeur, destinataire, Finances — et elle ne
   // dépend PAS de l'écran où le dossier s'affiche. C'est ce qui lui a permis de traverser sans
   // dommage ses deux déménagements (Validations → Finances → Validations).
+  // LES PIÈCES D'UN ORDRE DE DÉPENSE SE LISENT AU CENTRE DE PAIEMENT ET PAR LEUR DEMANDEUR.
+  //
+  // Le centre autorise une sortie d'argent : il doit pouvoir OUVRIR la proforma jointe à la demande
+  // (un BV de dossier réglementaire, par exemple), même sans le module Finances — un siège nommé ne
+  // l'a pas forcément. Le demandeur relit ce qu'il a joint. LECTURE SEULE, et pour un siège, dans
+  // une société qu'il voit (la même portée que la file du centre). Sinon : la règle ordinaire.
+  if (entityType === "EXPENSE_ORDER" && action === "VIEW") {
+    const o = await prisma.expenseOrder.findUnique({ where: { id: entityId }, select: { requestedById: true, companyId: true } });
+    if (o && o.requestedById === user.id) return true;
+    if (o && sitsOnPaymentCentre(user) && (await entitePermisePourFiche(user.id, o.companyId))) return true;
+  }
+
   if (entityType === "PAYMENT_REQUEST") {
     if (hasGlobalView(user.role)) return true;
     const r = await prisma.paymentRequest.findUnique({
