@@ -25,6 +25,7 @@ import { onlyofficeConfigured } from "@/lib/onlyoffice";
 import { ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS, ADMIN_APPROVAL_STATUS, DRIVER_MISSION_STATUS, PRIORITY, AUDIT_ACTION, VALIDATION_STATUS } from "@/lib/labels";
 import { formatDate, formatDateTime, formatCurrency, toNumber, cn } from "@/lib/utils";
 import { RequestActions } from "./request-actions";
+import { refusFinApresDecision } from "@/lib/secretariat/traitement";
 import { RequesterWindow } from "./requester-window";
 import { ApprovalButtons } from "../approval-buttons";
 import { SuperAdminDeleteButton } from "@/components/shared/super-admin-delete";
@@ -81,7 +82,8 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
   // L'Assistante de Direction tient le bureau du secrétariat : elle gère et modère toute demande.
   const isSecretary = user.role === "DIRECTION_ASSISTANT";
   const canManage = hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE") || req.assignedToId === user.id || isSecretary;
-  const canValidate = userCan(user, "ADMIN_REQUESTS", "VALIDATE") || hasGlobalView(user.role);
+  // Trancher une approbation : le validateur nommé, son intérimaire ou le sommet — la règle de `decideApproval`.
+  const canValidate = isTopManagement(user);
   // L'INTÉRIMAIRE tranche l'approbation adressée à l'absent — la même règle que l'action (I18).
   const auNomInterim = await auNomDeQui(user.id);
   const canUpload = userCan(user, "ADMIN_REQUESTS", "UPLOAD") || isSecretary;
@@ -240,6 +242,7 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
                   fromAdPro={fromAdPro}
                   alreadyImputed={alreadyImputed}
                   refusAnnulation={suitLaDemandeDeBcDuPoste(req) ? refusDemandeDeBcDuPoste("annuler") : null}
+                  refusFin={refusFinApresDecision(req.approvals[0] ?? null)}
                 />
               </CardContent>
             </Card>

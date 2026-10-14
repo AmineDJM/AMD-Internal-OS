@@ -23,7 +23,7 @@ import { BoutonDecisif } from "@/components/ui/bouton-decisif";
  */
 export function RequestActions({
   requestId, status, commencee, type, canManage,
-  departments = [], defaultDepartmentId = null, fromAdPro = false, alreadyImputed = false, refusAnnulation = null,
+  departments = [], defaultDepartmentId = null, fromAdPro = false, alreadyImputed = false, refusAnnulation = null, refusFin = null,
 }: {
   requestId: string;
   status: string;
@@ -41,6 +41,9 @@ export function RequestActions({
   /** Pourquoi l'annulation ne se fait PAS d'ici (la demande de BC d'un poste se retire depuis le poste) :
    *  le bouton n'est pas offert, et la raison se lit à sa place (§118.83). */
   refusAnnulation?: string | null;
+  /** Pourquoi « Fin du traitement » n'est pas offerte : la dernière décision du validateur (refus, modification
+   *  demandée, validation en attente — `refusFinApresDecision`). La raison se lit à la place du bouton. */
+  refusFin?: string | null;
 }) {
   const router = useRouter();
   // Rafraîchir sans laisser rouvrir une fiche sur l'état d'avant (§118.172) : les gestes restent fermés
@@ -58,7 +61,8 @@ export function RequestActions({
   const isPurchase = type === "PURCHASE";
   // L'imputation est due pour un achat qui ne vient pas d'Ad & Pro et n'a pas déjà été imputé.
   const needsImputation = isPurchase && !fromAdPro && !alreadyImputed && departments.length > 0;
-  const gestes = gestesDuTraitement(status, commencee);
+  const gestesBruts = gestesDuTraitement(status, commencee);
+  const gestes = { ...gestesBruts, terminer: gestesBruts.terminer && refusFin === null };
   const ouverte = status !== "DONE" && status !== "CANCELLED";
 
   async function run(fd: FormData, action: (f: FormData) => Promise<{ ok: boolean; error?: string }>, close?: () => void) {
@@ -97,6 +101,9 @@ export function RequestActions({
           <Button size="sm" variant="outline" type="button" className="text-destructive" disabled={busy} onClick={() => { setErr(null); setAnnuler(true); }}><XCircle className="h-4 w-4" /> Annuler la demande…</Button>
         )}
       </div>
+      {gestesBruts.terminer && refusFin !== null && (
+        <p className="text-xs text-muted-foreground">{refusFin}</p>
+      )}
       {ouverte && refusAnnulation !== null && (
         <p className="text-xs text-muted-foreground">{refusAnnulation}</p>
       )}

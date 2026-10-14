@@ -163,7 +163,7 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
     }
     const asst = await acteur(u.asst);
     expect(hasGlobalView(asst.role)).toBe(false);
-    expect(userCan(asst, "ADMIN_REQUESTS", "VALIDATE"), "le fait de D2 : l'assistante tranche par le droit du module").toBe(true);
+    expect(userCan(asst, "ADMIN_REQUESTS", "VALIDATE"), "l'assistante a le droit « Valider » du module — il ne suffit plus à trancher (audit du 14/10/2026)").toBe(true);
     expect((await activeStandInsFor(u.s)).map((a) => a.absenteeUserId)).toEqual([u.n1]);
     expect(await activeStandInsFor(u.w)).toEqual([]);
   });
@@ -196,13 +196,17 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
     expect(audit.summary).toBe(`Validation refusée — Déjà en stock au siège. (par l'intérimaire de ${TAG} n1)`);
   });
 
-  it("M14 / D2 — L'ASSISTANTE (droit « Valider ») demande une modification : son nom, son motif, et « à modifier » pour le demandeur", async () => {
+  it("M14 / audit 14/10 — L'ASSISTANTE (droit « Valider ») ne tranche plus l'achat d'un autre ; LE SOMMET demande une modification : son nom, son motif", async () => {
     const { id, approval } = await deposerAchat("dem", "Fauteuil");
+    const refus = await decider("asst", approval, "CHANGES_REQUESTED", "Préciser le modèle et le fournisseur.");
+    expect(refus.ok, "avant : le droit « Valider » du module suffisait").toBe(false);
+    expect(refus.error).toBe(`Cette validation est adressée à ${TAG} n1 : seul le validateur, son intérimaire ou la Direction la tranche.`);
+    expect((await etat(approval)).status).toBe("PENDING");
     const t0 = new Date();
-    const r = await decider("asst", approval, "CHANGES_REQUESTED", "Préciser le modèle et le fournisseur.");
+    const r = await decider("v2", approval, "CHANGES_REQUESTED", "Préciser le modèle et le fournisseur.");
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
     const apres = await etat(approval);
-    expect(apres.decidedById).toBe(u.asst);
+    expect(apres.decidedById).toBe(u.v2);
     const demande = await prisma.administrativeRequest.findUniqueOrThrow({ where: { id }, select: { status: true } });
     expect(purchaseStage(demande.status, apres), "avant : « En attente de votre directeur »").toBe("CHANGES_REQUESTED");
     const avis = await prisma.notification.findMany({ where: { userId: u.dem, link: `/demandes/${id}`, createdAt: { gte: t0 } }, select: { title: true, body: true } });
@@ -242,7 +246,7 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
     const autre = await deposerAchat("dem", "Stylos");
     const temoin = await decider("w", autre.approval, "REJECTED");
     expect(temoin.ok).toBe(false);
-    expect(temoin.error).toBe("Non autorisé.");
+    expect(temoin.error).toBe(`Cette validation est adressée à ${TAG} n1 : seul le validateur, son intérimaire ou la Direction la tranche.`);
 
     // La demande annulée par un autre chemin, son approbation restée en file : on ne la tranche plus.
     const annulee = await deposerAchat("dem", "Toner");
@@ -266,19 +270,22 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
     const sienne = await deposerAchat("asst", "Badge");
     const r = await decider("asst", sienne.approval, "APPROVED");
     expect(r.ok, "avant : l'assistante validait son propre achat").toBe(false);
-    expect(r.error).toBe(`On ne valide pas sa propre demande : c'est à ${TAG} n1 de trancher.`);
+    expect(r.error).toBe(`Cette validation est adressée à ${TAG} n1 : seul le validateur, son intérimaire ou la Direction la tranche.`);
     expect((await etat(sienne.approval)).status).toBe("PENDING");
     const file = await getApprovals(await acteur(u.asst));
     expect(file.some((a) => a.id === sienne.approval), "la liste n'offre pas un bouton que l'action refuserait").toBe(false);
-    // Le témoin : celle d'un autre y est, et l'assistante la tranche.
+    // Celle d'un autre n'y est plus non plus (audit du 14/10/2026) : elle est adressée au N+1, l'assistante relance.
     const autre = await deposerAchat("dem", "Badge visiteur");
-    expect((await getApprovals(await acteur(u.asst))).some((a) => a.id === autre.approval)).toBe(true);
-    expect((await decider("asst", autre.approval, "APPROVED")).ok).toBe(true);
+    expect((await getApprovals(await acteur(u.asst))).some((a) => a.id === autre.approval)).toBe(false);
+    expect((await decider("asst", autre.approval, "APPROVED")).ok).toBe(false);
+    // Le sommet la voit et la tranche ; son propre achat aussi (il est parfois le seul au-dessus).
+    expect((await getApprovals(await acteur(u.v2))).some((a) => a.id === autre.approval)).toBe(true);
+    expect((await decider("v2", autre.approval, "APPROVED")).ok).toBe(true);
   });
 
-  it("COURSE — le directeur et l'assistante tranchent ENSEMBLE : un seul passe, l'autre le lit", async () => {
+  it("COURSE — le directeur et le Directeur Général tranchent ENSEMBLE : un seul passe, l'autre le lit", async () => {
     const { approval } = await deposerAchat("dem", "Écran");
-    const [n1, asst] = await Promise.all([acteur(u.n1), acteur(u.asst)]);
+    const [n1, asst] = await Promise.all([acteur(u.n1), acteur(u.v2)]);
     const [a, b] = await ensemble("AdminApproval", () => {
       ACTOR = n1;
       const p1 = decideApproval(form({ approvalId: approval, decision: "APPROVED" }));
@@ -290,7 +297,7 @@ suite("Secrétariat — l'approbation d'un achat dit qui a tranché, exige son m
     const perdant = a.ok ? b : a;
     expect(perdant.error).toBe("Cette validation vient d'être tranchée par quelqu'un d'autre — rechargez la page.");
     const apres = await etat(approval);
-    expect(apres.decidedById, "l'auteur est le gagnant").toBe(a.ok ? u.n1 : u.asst);
+    expect(apres.decidedById, "l'auteur est le gagnant").toBe(a.ok ? u.n1 : u.v2);
     expect(apres.status).toBe(a.ok ? "APPROVED" : "REJECTED");
   });
 
