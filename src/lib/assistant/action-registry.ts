@@ -1216,9 +1216,10 @@ X("LES LIGNES DES DEVIS D'UN POSTE ET LES BC QU'ELLES FONT GÉNÉRER (§118.206)
   // attribue le numéro NNN/DG/AAAA et envoie aux Finances (`validerEtEnvoyerBcPoste`). Des gestes d'écran, jamais des appels d'Adam.
   "ad-pro-item-actions:apercuBcPoste", "ad-pro-item-actions:modifierApercuBcPoste", "ad-pro-item-actions:annulerApercuBcPoste",
   "ad-pro-item-actions:validerEtEnvoyerBcPoste",
-  // LE BC EN UN CLIC (Direction, 10/2026 : « il doit pouvoir être généré automatiquement en un clic ») : le demandeur génère, numérote et
-  // aiguille d'un geste le BC de chaque devis qui compte — la même porte que la validation de l'aperçu. Un geste d'écran, jamais d'Adam.
-  "ad-pro-item-actions:genererEtEnvoyerBcPoste",
+  // L'APERÇU OBLIGATOIRE ET ULTRA COMPLET (Direction, 14/10/2026) : l'aperçu se corrige dans le composeur de pièces, qui en lit les
+  // totaux (`previsualiserApercuBcPoste`) et le PDF (`imprimerApercuBcPoste`) à blanc — des lectures d'écran, pas des gestes d'Adam.
+  // Le geste « en un clic » qui émettait sans aperçu est retiré : un seul chemin, Générer → aperçu → Valider et envoyer.
+  "ad-pro-item-actions:previsualiserApercuBcPoste", "ad-pro-item-actions:imprimerApercuBcPoste",
   // LE BC MODIFIÉ EN NATIF ET LA FACTURE CONTRÔLÉE PAR LUNA (Direction, 06/10) : une révision du Word et du PDF, et un
   // fichier de facture lu puis comparé au(x) BC signé(s) — des gestes devant la carte du poste, pas des appels d'Adam.
   "ad-pro-item-actions:modifierBcDuPoste", "ad-pro-item-actions:deposerFacturePoste",
@@ -1335,6 +1336,10 @@ X("DEVIS NATIFS → BON DE COMMANDE AU BUREAU DU SECRÉTARIAT (Direction, 10/202
   "secretariat-devis-actions:deposerDevisDemande", "secretariat-devis-actions:enregistrerLignesDevisDemande",
   "secretariat-devis-actions:retenirLignesDevisDemande", "secretariat-devis-actions:genererBonDeCommandeDemande",
   "secretariat-devis-actions:deposerBonDeCommandeDemande", "secretariat-devis-actions:relancerDemande",
+  // L'APERÇU OBLIGATOIRE DU BC (Direction, 14/10/2026) : le composeur s'ouvre pré-rempli (`ouvrirApercuBcDemande`), en lit les
+  // totaux et le PDF à blanc — rien n'est écrit avant « Valider et envoyer » (`genererBonDeCommandeDemande`). Lectures d'écran.
+  "secretariat-devis-actions:ouvrirApercuBcDemande", "secretariat-devis-actions:previsualiserApercuBcDemande",
+  "secretariat-devis-actions:imprimerApercuBcDemande",
 ]);
 X("DIRECTION ARTISTIQUE (Transverse, 10/2026) — déposer un modèle Word/Excel/PowerPoint POUR UNE ENTITÉ, désigner son "
   + "papier en-tête par défaut et le modèle de chaque nature de pièce (bon de commande, devis, facture, avoir) que la "

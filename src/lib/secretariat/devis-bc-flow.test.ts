@@ -15,7 +15,11 @@ import { canAccessEntity } from "@/lib/entity-access";
 import { createRequest, finishRequest } from "@/lib/actions/admin-request-actions";
 import {
   deposerDevisDemande, enregistrerLignesDevisDemande, retenirLignesDevisDemande, genererBonDeCommandeDemande, deposerBonDeCommandeDemande, relancerDemande,
+  ouvrirApercuBcDemande, previsualiserApercuBcDemande,
 } from "@/lib/actions/secretariat-devis-actions";
+import { previsualiserPieceCommerciale, reviserPieceCommerciale } from "@/lib/actions/fabrique-actions";
+import { formulaireDuComposeur } from "@/lib/bons-de-commande/composeur-test-outils";
+import { pieceEmise, valeursComposables } from "@/lib/legal/piece-emise";
 import { decideValidation } from "@/lib/actions/validation-actions";
 import { signerBonDeCommande } from "@/lib/actions/bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
@@ -202,10 +206,36 @@ suite("Bureau du secrétariat — devis natifs, lignes retenues, BC généré ou
     const refus = await genererBonDeCommandeDemande(form({ id: demandeId, fournisseur: `id:${fournisseur}` }));
     expect(refus.ok, "l'assistante ne génère pas à la place du demandeur").toBe(false);
 
+    expect((await ouvrirApercuBcDemande(form({ id: demandeId, fournisseur: `id:${fournisseur}` }))).ok, "ni n'ouvre son aperçu").toBe(false);
+
     await comme("dem");
-    const r = await genererBonDeCommandeDemande(form({ id: demandeId, fournisseur: `id:${fournisseur}` }));
+    // L'APERÇU OBLIGATOIRE (Direction, 14/10/2026) : sans l'aperçu, rien ne s'émet ; l'aperçu, ses totaux et son PDF n'écrivent RIEN.
+    const bcsDeLaDemande = () => prisma.legalDocument.count({ where: { kind: "PURCHASE_ORDER", sourceType: "ADMIN_REQUEST", sourceId: demandeId } });
+    const sansApercu = await genererBonDeCommandeDemande(form({ id: demandeId, fournisseur: `id:${fournisseur}` }));
+    expect(sansApercu.ok, "un BC que personne n'a relu ne s'émet pas").toBe(false);
+    expect(sansApercu.ok ? "" : sansApercu.error).toMatch(/s'émet depuis son aperçu/);
+    const ouvert = await ouvrirApercuBcDemande(form({ id: demandeId, fournisseur: `id:${fournisseur}` }));
+    expect(ouvert.ok, ouvert.ok ? "" : ouvert.error).toBe(true);
+    if (!ouvert.ok) return;
+    expect(ouvert.valeurs.lignes.map((l) => l.designation)).toEqual(["Ramette A4 80 g"]);
+    expect(ouvert.valeurs.champs.objet).toMatch(/Fournitures du 2e étage/);
+    // Le demandeur corrige l'aperçu — tout se corrige, comme à la révision : contact, livraison, notes, mentions.
+    const v = structuredClone(ouvert.valeurs);
+    v.champs = { ...v.champs, contactNom: "M. Karim Saadi", contactTelephone: "0661 00 00 00", livraisonAdresse: "Siège, 2e étage", livraisonDate: `${new Date().getUTCFullYear()}-12-15`, notes: "Livrer le matin." };
+    v.mentions = "Livraison franco de port.";
+    const t = await previsualiserApercuBcDemande(formulaireDuComposeur(v, { id: demandeId, fournisseur: `id:${fournisseur}` }));
+    expect(t.ok, t.ok ? "" : t.error).toBe(true);
+    if (t.ok) expect(t.totaux?.totalTtc).toBeCloseTo(prix * 1.19, 0);
+    expect(await bcsDeLaDemande(), "l'aperçu n'écrit rien : ni pièce, ni numéro").toBe(0);
+
+    const r = await genererBonDeCommandeDemande(formulaireDuComposeur(v, { id: demandeId, fournisseur: `id:${fournisseur}` }));
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
     bcId = r.id!;
+    const spec = (await prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true } })).custom as { fabrique: { spec: Record<string, unknown> } };
+    expect(spec.fabrique.spec, "le BC émis porte ce que l'aperçu a corrigé").toMatchObject({
+      contact: { nom: "M. Karim Saadi", telephone: "0661 00 00 00" }, livraison: { adresse: "Siège, 2e étage", date: `${new Date().getUTCFullYear()}-12-15` },
+      notes: "Livrer le matin.", mentionsPiece: ["Livraison franco de port."],
+    });
     const bc = await prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId } });
     expect(bc).toMatchObject({ kind: "PURCHASE_ORDER", sourceType: "ADMIN_REQUEST", sourceId: demandeId, chainFromId: devisA, companyId });
     expect(Number(bc.amount)).toBeCloseTo(prix * 1.19, 0);
@@ -221,6 +251,30 @@ suite("Bureau du secrétariat — devis natifs, lignes retenues, BC généré ou
     expect(decocher.ok).toBe(false);
     await comme("asst");
     expect((await enregistrerLignesDevisDemande(form({ id: demandeId, devisId: devisA, lignes: lignes([{ designation: "x", quantite: 1, prixUnitaire: 1 }]) }))).ok).toBe(false);
+  });
+
+  it("RÉVISER LE BC DEPUIS LA DEMANDE (Direction, 14/10/2026) : le demandeur, sans Legal, le modifie de A à Z tant qu'il n'est pas signé — un tiers non", async () => {
+    await comme("dem");
+    const doc = await prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true } });
+    const v = valeursComposables(doc.custom)!;
+    const version = pieceEmise(doc.custom)!.version;
+    v.champs = { ...v.champs, notes: "Livrer au 3e étage, le matin.", conditionsPaiement: "30 jours fin de mois" };
+    v.tiers = { ...v.tiers, email: "commandes@atlas.dz" };
+    const formulaire = () => formulaireDuComposeur(v, { legalDocumentId: bcId, revisionDe: bcId, versionVue: String(version), motif: "Étage et e-mail du fournisseur." });
+    // L'aperçu de la révision et la révision : le composeur de la fiche Legal, sous la délégation de la demande.
+    const apercu = await previsualiserPieceCommerciale(undefined, formulaire());
+    expect(apercu.ok, apercu.ok ? "" : apercu.error).toBe(true);
+    const r = await reviserPieceCommerciale(undefined, formulaire());
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    const apres = (await prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true } })).custom as { fabrique: { version: number; spec: { notes: string; conditionsPaiement: string; tiers: { email: string } } } };
+    expect(apres.fabrique.version).toBe(version + 1);
+    expect(apres.fabrique.spec).toMatchObject({ notes: "Livrer au 3e étage, le matin.", conditionsPaiement: "30 jours fin de mois", tiers: { email: "commandes@atlas.dz" } });
+    // Le BC révisé reste dans son circuit : le centre de validations l'attend toujours.
+    expect((await etatDuBC(bcId))?.etape).toBe("A_VALIDER");
+    // Un délégué sans rapport avec la demande n'a pas cette délégation.
+    ACTOR = await actorFor(u.autre);
+    const tiers = await reviserPieceCommerciale(undefined, formulaireDuComposeur(v, { legalDocumentId: bcId, versionVue: String(version + 1), motif: "Tentative." }));
+    expect(tiers.ok).toBe(false);
   });
 
   it("« Terminer » attend la signature : refusé tant que le BC est au centre", async () => {

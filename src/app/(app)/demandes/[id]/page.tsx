@@ -47,6 +47,9 @@ import { separerLeFil } from "@/lib/secretariat/fil-demande";
 import { LIBELLE_BC_DEMANDE, TON_BC_DEMANDE } from "@/lib/secretariat/devis-natif";
 import { devisDeLaDemande } from "@/lib/secretariat/devis-natif-serveur";
 import { gereLaDemande, commandeLaDemande } from "@/lib/secretariat/droits";
+import { pieceEmise, valeursComposables, type ValeursComposables } from "@/lib/legal/piece-emise";
+import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
+import { ReviserPieceButton } from "@/components/legal/reviser-piece";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -213,6 +216,25 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
   });
   const centralesHorsPieces = linkedValidations.filter((v) => !v.documentId);
   const bcVivants = lu.bcs.filter((b) => !b.annule);
+  // « MODIFIER LE BC » DEPUIS LA DEMANDE (Direction, 14/10/2026) — un BC émis par la fabrique, non signé, d'une demande ouverte :
+  // le demandeur (ou qui gère la demande) le révise de A à Z dans le composeur, sans passer par Legal ni l'annuler
+  // (`reviserPieceCommerciale`, sous la délégation de la demande — `secretariat/delegation-bc.ts`).
+  const bcsRevisables = ouverte && (commande || canManage) ? bcVivants.filter((b) => b.etape !== "SIGNE" && !b.signeLe) : [];
+  const revisions = new Map<string, { numero: string; version: number; valeurs: ValeursComposables }>();
+  let societeDesBCId: string | null = null;
+  if (bcsRevisables.length > 0) {
+    const docs = await prisma.legalDocument.findMany({ where: { id: { in: bcsRevisables.map((b) => b.id) }, signedAt: null }, select: { id: true, custom: true, companyId: true } });
+    for (const d of docs) {
+      const emise = pieceEmise(d.custom);
+      const valeurs = emise ? valeursComposables(d.custom) : null;
+      if (emise && valeurs && emise.type === "BON_DE_COMMANDE") {
+        revisions.set(d.id, { numero: emise.numero, version: emise.version, valeurs });
+        societeDesBCId ??= d.companyId;
+      }
+    }
+  }
+  const societeDesBC = societeDesBCId ? await prisma.company.findUnique({ where: { id: societeDesBCId }, select: { id: true, name: true, shortName: true } }) : null;
+  const papeterieDesBC = societeDesBC ? await papeterieDeLaSociete(societeDesBC.id) : [];
   const aucuneValidation = req.approvals.length === 0 && centralesHorsPieces.length === 0 && bcVivants.length === 0;
 
   return (
@@ -340,6 +362,16 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
                             <Fragment key={e.piece.id}>
                               <LignePieceRow l={e.piece} />
                               {bc && !bc.annule && <li className="list-none border-t-0"><NoteBC bc={bc} /></li>}
+                              {revisions.has(e.piece.id) && (
+                                <li className="list-none border-t-0 pb-2 pl-3 text-xs">
+                                  <ReviserPieceButton
+                                    discret libelle="Modifier le BC" legalDocumentId={e.piece.id} type="BON_DE_COMMANDE"
+                                    numero={revisions.get(e.piece.id)!.numero} version={revisions.get(e.piece.id)!.version} valeurs={revisions.get(e.piece.id)!.valeurs}
+                                    societe={societeDesBC ? { id: societeDesBC.id, label: societeDesBC.shortName || societeDesBC.name } : null}
+                                    letterheads={papeterieDesBC}
+                                  />
+                                </li>
+                              )}
                             </Fragment>
                           );
                         })}

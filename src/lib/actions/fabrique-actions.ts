@@ -37,6 +37,7 @@ import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { accesAuxPiecesLegalDetaille } from "@/lib/entity-access";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { saisieEffective } from "@/lib/references/registre";
+import { delegationDuBcDeLaDemande } from "@/lib/secretariat/delegation-bc";
 
 /** « 2 500 000,00 » (espaces, insécables, virgule) → 2500000 ; vide ou illisible → null. */
 function nombre(v: string | null | undefined): number | null {
@@ -70,6 +71,8 @@ function lireLignes(formData: FormData): DemandeDocument["lignes"] {
   const remises = formData.getAll("ligneRemise").map(String);
   const tvas = formData.getAll("ligneTva").map(String);
   const sections = formData.getAll("ligneSection").map(String);
+  // L'UNITÉ (« u », « boîte ») : le composeur la saisit ; un formulaire qui ne l'envoie pas ne l'efface pas.
+  const unites = formData.has("ligneUnite") ? formData.getAll("ligneUnite").map(String) : null;
   const lignes: DemandeDocument["lignes"] = designations.map((designation, i) => {
     const section = sections[i] === "1" || sections[i] === "true";
     return {
@@ -82,6 +85,7 @@ function lireLignes(formData: FormData): DemandeDocument["lignes"] {
       prixUnitaire: section ? 0 : (nombre(prix[i]) ?? Number.NaN),
       remise: fraction(remises[i]),
       tva: fraction(tvas[i]),
+      ...(unites ? { unite: section ? null : (unites[i] ?? "").trim() || null } : {}),
     };
   });
   return lignes;
@@ -146,6 +150,7 @@ function lireDemande(
   const contactTelephone = texte(formData, "contactTelephone");
   const livraisonAdresse = texte(formData, "livraisonAdresse");
   const livraisonDelai = texte(formData, "livraisonDelai");
+  const livraisonDate = texte(formData, "livraisonDate");
   const validite = nombre(fdStr(formData, "validiteJours"));
 
   return {
@@ -181,7 +186,7 @@ function lireDemande(
       ...(choix.signataire !== undefined ? { signataire: choix.signataire } : {}),
       mentions: choix.mentions ?? null,
       taxes: taxes.length ? taxes : null,
-      livraison: livraisonAdresse || livraisonDelai ? { adresse: livraisonAdresse, delai: livraisonDelai } : null,
+      livraison: livraisonAdresse || livraisonDelai || livraisonDate ? { adresse: livraisonAdresse, delai: livraisonDelai, ...(livraisonDate ? { date: livraisonDate } : {}) } : null,
       notes: texte(formData, "notes"),
       letterheadId: texte(formData, "letterheadId"),
       chainFromId: texte(formData, "chainFromId"),
@@ -201,6 +206,15 @@ function lireDemande(
 export type { ApercuPiece } from "@/platform/in-process/artifact/factory";
 
 /**
+ * LA DÉLÉGATION D'UNE RÉVISION — le BC d'une demande au secrétariat se révise depuis la demande, par son demandeur ou qui la
+ * gère, sans droit Legal (Direction, 14/10/2026 ; `secretariat/delegation-bc.ts`). Ailleurs : `{}`, les droits Legal s'appliquent.
+ */
+async function emissionDeLaPiece(user: Awaited<ReturnType<typeof requireUser>>, legalDocumentId: string): Promise<{ delegation?: string }> {
+  const delegation = await delegationDuBcDeLaDemande(user, legalDocumentId);
+  return delegation ? { delegation } : {};
+}
+
+/**
  * L'APERÇU — la même composition que l'émission, à blanc : totaux, somme en lettres, numéro
  * prévu, papier en-tête, et ce qui bloquerait. Rien n'est écrit, aucun numéro n'est consommé.
  */
@@ -215,7 +229,7 @@ export async function previsualiserPieceCommerciale(_prev: ApercuPiece | { ok: f
   const modifications = lireModifications(formData, lignesRevisees, choix);
   const lu = lireDemande(formData, lignes, choix);
   const r: ApercuDocument | EchecFabrique = revisionDe
-    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications })
+    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications }, await emissionDeLaPiece(user, revisionDe))
     : lu.ok ? await previsualiserDocument(user, lu.demande) : { ok: false, echec: "MISSING_INPUT", motif: lu.error };
   if (!r.ok) return { ok: false, error: r.motif };
   return apercuPourEcran(r, Boolean(revisionDe));
@@ -239,7 +253,7 @@ export async function apercuAvantImpressionPiece(_prev: ApercuImpression | undef
   const modifications = lireModifications(formData, lignesRevisees, choix);
   const lu = lireDemande(formData, lignes, choix);
   const r: ApercuDocument | EchecFabrique = revisionDe
-    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications, avecPdf: true })
+    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications, avecPdf: true }, await emissionDeLaPiece(user, revisionDe))
     : lu.ok ? await previsualiserDocument(user, lu.demande, { avecPdf: true }) : { ok: false, echec: "MISSING_INPUT", motif: lu.error };
   if (!r.ok) return { ok: false, error: r.motif };
   if (r.bloquants.length > 0) return { ok: false, error: `L'aperçu n'est pas possible : ${r.bloquants.slice(0, 3).join(" ; ")}` };
@@ -351,10 +365,11 @@ function lireModifications(
     const v = nombre(fdStr(formData, "validiteJours"));
     m.validiteJours = v !== null && Number.isInteger(v) ? v : null;
   }
-  if (formData.has("livraisonAdresse") || formData.has("livraisonDelai")) {
+  if (formData.has("livraisonAdresse") || formData.has("livraisonDelai") || formData.has("livraisonDate")) {
     m.livraison = {
       ...(formData.has("livraisonAdresse") ? { adresse: texte(formData, "livraisonAdresse") } : {}),
       ...(formData.has("livraisonDelai") ? { delai: texte(formData, "livraisonDelai") } : {}),
+      ...(formData.has("livraisonDate") ? { date: texte(formData, "livraisonDate") } : {}),
     };
   }
   if (formData.has("contactNom") || formData.has("contactTelephone")) {
@@ -399,10 +414,11 @@ export async function reviserPieceCommerciale(_prev: ResultatRevision | undefine
   const r = await reviserDocumentDrive(user, {
     legalDocumentId, modifications, motif: texte(formData, "motif"),
     versionVue: vue !== null && Number.isInteger(vue) ? vue : null, exigerMotif: true,
-  });
+  }, await emissionDeLaPiece(user, legalDocumentId));
   if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
   revalidatePath("/legal");
   revalidatePath(`/legal/${legalDocumentId}`);
+  revalidatePath("/demandes");
   const libelle = r.type === "DEVIS" ? "Devis" : "Bon de commande";
   return {
     ok: true, id: legalDocumentId, reference: r.reference, version: r.version,

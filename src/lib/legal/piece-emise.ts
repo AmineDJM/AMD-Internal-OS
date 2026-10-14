@@ -277,10 +277,10 @@ export interface ValeursComposables {
   tiers: { nom: string; adresse: string; telephone: string; email: string; rc: string; nif: string; ai: string; nis: string };
   champs: {
     numeroClient: string; date: string; echeance: string; validiteJours: string; objet: string; referenceAmont: string; referenceAmontDate: string;
-    contactNom: string; contactTelephone: string; livraisonAdresse: string; livraisonDelai: string; modePaiement: string; conditionsPaiement: string;
+    contactNom: string; contactTelephone: string; livraisonAdresse: string; livraisonDelai: string; livraisonDate: string; modePaiement: string; conditionsPaiement: string;
     tvaDefaut: string; remiseGlobale: string; notes: string;
   };
-  lignes: { designation: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }[];
+  lignes: { designation: string; unite: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }[];
   taxes: { libelle: string; taux: string }[];
   /** Le papier de l'émission (`""` = celui du profil). */
   letterheadId: string;
@@ -301,8 +301,17 @@ const objetLu = (v: unknown): Record<string, unknown> => (v && typeof v === "obj
 export function valeursComposables(custom: unknown): ValeursComposables | null {
   if (!pieceEmise(custom)) return null;
   const f = (custom as { fabrique: Record<string, unknown> }).fabrique;
-  const spec = objetLu(f.spec);
   if (!f.spec || typeof f.spec !== "object") return null;
+  return valeursDeLaSpec(f.spec, typeof f.papierEnTeteId === "string" ? f.papierEnTeteId : null);
+}
+
+/**
+ * LES VALEURS D'ÉCRAN D'UNE SPÉCIFICATION — celle d'une pièce émise (révision) comme celle d'une pièce PAS ENCORE émise : l'aperçu
+ * d'un bon de commande (brouillon, Direction 14/10/2026) s'ouvre dans le composeur pré-rempli de la pièce telle que la fabrique
+ * la composerait (`ApercuDocument.spec`). Une seule conversion pour les deux : le composeur montre la même chose.
+ */
+export function valeursDeLaSpec(specBrute: unknown, papierEnTeteId: string | null): ValeursComposables {
+  const spec = objetLu(specBrute);
   const tiers = objetLu(spec.tiers);
   const contact = objetLu(spec.contact);
   const livraison = objetLu(spec.livraison);
@@ -312,6 +321,7 @@ export function valeursComposables(custom: unknown): ValeursComposables | null {
     const section = x.section === true;
     return [{
       designation: x.designation,
+      unite: section ? "" : texteEcran(x.unite),
       details: Array.isArray(x.details) ? x.details.filter((d): d is string => typeof d === "string").join("\n") : "",
       quantite: section ? "" : nombreEcran(x.quantite),
       prix: section ? "" : nombreEcran(x.prixUnitaire),
@@ -336,13 +346,13 @@ export function valeursComposables(custom: unknown): ValeursComposables | null {
       numeroClient: texteEcran(spec.numeroClient), date: texteEcran(spec.date), echeance: texteEcran(spec.echeance),
       validiteJours: nombreEcran(spec.validiteJours), objet: texteEcran(spec.objet), referenceAmont: texteEcran(spec.referenceAmont),
       referenceAmontDate: texteEcran(spec.referenceAmontDate), contactNom: texteEcran(contact.nom), contactTelephone: texteEcran(contact.telephone),
-      livraisonAdresse: texteEcran(livraison.adresse), livraisonDelai: texteEcran(livraison.delai), modePaiement: texteEcran(spec.modePaiement),
+      livraisonAdresse: texteEcran(livraison.adresse), livraisonDelai: texteEcran(livraison.delai), livraisonDate: texteEcran(livraison.date), modePaiement: texteEcran(spec.modePaiement),
       conditionsPaiement: texteEcran(spec.conditionsPaiement), tvaDefaut: pourcentEcran(spec.tvaDefaut), remiseGlobale: pourcentEcran(spec.remiseGlobale),
       notes: texteEcran(spec.notes),
     },
     lignes,
     taxes,
-    letterheadId: typeof f.papierEnTeteId === "string" ? f.papierEnTeteId : "",
+    letterheadId: papierEnTeteId ?? "",
     // Un choix fait à l'émission se montre tel quel ; une clé non choisie montre ce que la pièce imprimait.
     emetteur: choisies
       ? {

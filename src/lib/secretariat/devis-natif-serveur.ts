@@ -5,7 +5,8 @@ import { recordAudit } from "@/lib/audit";
 import { moneyEntityOf } from "@/lib/company";
 import { enSerie } from "@/lib/refs";
 import { etatsDesBC, type EtatBC } from "@/lib/bons-de-commande/etat";
-import { emettreDocumentDrive } from "@/platform/in-process/artifact/factory";
+import { emettreDocumentDrive, previsualiserDocument, type ApercuDocument, type DemandeDocument } from "@/platform/in-process/artifact/factory";
+import { appliquerCorrections, type SaisieBc } from "@/lib/bons-de-commande/brouillon";
 import { prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import {
   lireDevisNatif, bcsAGenerer, tvaParDefaut, totauxDesLignes, enLignesCommerciales,
@@ -131,6 +132,66 @@ export type ResultatGeneration =
   | { ok: true; bcId: string; reference: string; totalTtc: number; reserve: string | null; dejaEmis: boolean }
   | { ok: false; error: string };
 
+type DemandeDuBC = { id: string; reference: string; title: string; companyId: string | null; requesterId: string | null; assignedToId: string | null };
+
+/**
+ * LA DEMANDE DE LA FABRIQUE POUR LE BC D'UN FOURNISSEUR — la MÊME pour l'aperçu et pour l'émission (§118.5) : les lignes
+ * retenues, le fournisseur de l'annuaire, les devis amont ; puis, PAR-DESSUS, ce que le demandeur a corrigé dans l'aperçu
+ * (`appliquerCorrections` — fournisseur, lignes, dates, paiement, TVA, remises, taxes, livraison, contact, notes, papier,
+ * émetteur, signataire, mentions). Rien n'est lu de l'écran ici : la saisie arrive DÉJÀ lue (`lireSaisieDuComposeur`).
+ */
+async function composerDemandeDuBC(demande: DemandeDuBC, g: BcAGenerer, societe: string, saisie: SaisieBc | null): Promise<DemandeDocument> {
+  const refs = g.devis.map((d) => d.reference?.trim()).filter((x): x is string => Boolean(x));
+  const duDevis: DemandeDocument = {
+    type: "BON_DE_COMMANDE",
+    societe,
+    tiers: await tiersDuFournisseur(g),
+    lignes: enLignesCommerciales(g.lignes),
+    tvaDefaut: tvaParDefaut(g.lignes),
+    referenceAmont: refs.length ? refs.join(", ") : null,
+    referenceAmontDate: g.devis[0]?.date ?? null,
+    objet: `${demande.reference} — ${demande.title}`,
+    chainFromId: g.devis[0].id,
+    dossier: `Bureau du secrétariat/${demande.reference}`,
+  };
+  if (!saisie) return duDevis;
+  const { lignes, ...corrections } = saisie;
+  return { ...appliquerCorrections(duDevis, corrections), ...(lignes && lignes.length > 0 ? { lignes } : {}) };
+}
+
+/** Le fournisseur à commander et la société qui commande — les refus communs à l'aperçu et à l'émission. */
+async function cadreDuBC(demande: DemandeDuBC, cle: string, lu?: LectureDevisDemande): Promise<{ ok: true; g: BcAGenerer; societe: string } | { ok: false; error: string }> {
+  const g = (lu ?? await devisDeLaDemande(demande.id)).aGenerer.find((x) => x.cle === cle);
+  if (!g) return { ok: false, error: "Rien à commander chez ce fournisseur : aucune ligne retenue qui ne soit déjà portée par un bon de commande. Rechargez la fiche." };
+  if (!g.fournisseur.trim()) return { ok: false, error: "Le fournisseur de ce devis n'est pas nommé : l'assistante doit le choisir dans l'annuaire avant la génération." };
+  const societe = demande.companyId ?? (demande.requesterId ? await moneyEntityOf(demande.requesterId) : null);
+  if (!societe) return { ok: false, error: "Cette demande n'est rattachée à aucune société : le bon de commande ne sait pas au nom de qui commander." };
+  return { ok: true, g, societe };
+}
+
+const delegationDuBC = (demande: DemandeDuBC, g: BcAGenerer): string => {
+  const refs = g.devis.map((d) => d.reference?.trim()).filter((x): x is string => Boolean(x));
+  return `${demande.reference} — bon de commande composé d'après les lignes retenues par le demandeur sur ${g.devis.length > 1 ? `les devis ${refs.join(", ") || "de la demande"}` : `le devis ${refs[0] ?? "de la demande"}`} (${g.fournisseur})`;
+};
+
+/**
+ * L'APERÇU DU BC D'UN FOURNISSEUR (Direction, 14/10/2026 — « Je veux l'aperçu obligatoire ») — la pièce telle qu'elle serait émise,
+ * composée À BLANC : aucun numéro consommé, rien au registre ni au Drive, RIEN d'écrit sur la demande. `saisie` : ce que le
+ * composeur montre (absente à l'ouverture : la pièce telle que les devis la donnent).
+ */
+export async function apercuBCDuFournisseur(
+  user: CurrentUser, demande: DemandeDuBC, cle: string, saisie: SaisieBc | null, opts: { avecPdf?: boolean } = {},
+): Promise<{ ok: true; r: ApercuDocument; demande: DemandeDocument } | { ok: false; error: string }> {
+  const c = await cadreDuBC(demande, cle);
+  if (!c.ok) return c;
+  const dem = await composerDemandeDuBC(demande, c.g, c.societe, saisie);
+  const r = await previsualiserDocument(user, dem, {
+    avecPdf: opts.avecPdf, delegation: `${delegationDuBC(demande, c.g)} — aperçu relu par le demandeur`, numeroAffiche: "À attribuer à la validation",
+  });
+  if (!r.ok) return { ok: false, error: r.motif };
+  return { ok: true, r, demande: dem };
+}
+
 /**
  * GÉNÉRER LE BON DE COMMANDE D'UN FOURNISSEUR — par la FABRIQUE (même numérotation, même papier
  * en-tête, même Word et PDF que les BC des Finances et d'Ad & Pro), sous DÉLÉGATION de la demande :
@@ -138,38 +199,29 @@ export type ResultatGeneration =
  * lui — qui l'autorise à commander au nom de la société DE LA DEMANDE. La fabrique pose la porte
  * du BC (`aiguillerBC` : centre de validations au-dessus de son seuil, sinon la signature).
  *
- * Les lignes émises sont marquées « portées par ce BC » dans chacun de leurs devis, sous le verrou
+ * Il n'est émis QUE depuis son aperçu (Direction, 14/10/2026) : `saisie` est ce que le demandeur a relu et corrigé dans le
+ * composeur, et c'est elle qui part — `numeroChoisi` : la référence choisie au registre commun NNN/DG/AAAA.
+ *
+ * Les lignes retenues sont marquées « portées par ce BC » dans chacun de leurs devis, sous le verrou
  * de version de chaque devis. L'appelant a vérifié QUI génère et l'état de la demande.
  */
 export async function genererBCDuFournisseur(
   user: CurrentUser,
-  demande: { id: string; reference: string; title: string; companyId: string | null; requesterId: string | null; assignedToId: string | null },
+  demande: DemandeDuBC,
   cle: string,
+  saisie: SaisieBc,
+  numeroChoisi: string | null = null,
 ): Promise<ResultatGeneration> {
   return enSerie(`secretariat-bc:${demande.id}`, async () => {
-    const lu = await devisDeLaDemande(demande.id);
-    const g = lu.aGenerer.find((x) => x.cle === cle);
-    if (!g) return { ok: false, error: "Rien à commander chez ce fournisseur : aucune ligne retenue qui ne soit déjà portée par un bon de commande. Rechargez la fiche." };
-    if (!g.fournisseur.trim()) return { ok: false, error: "Le fournisseur de ce devis n'est pas nommé : l'assistante doit le choisir dans l'annuaire avant la génération." };
-    const societe = demande.companyId ?? (demande.requesterId ? await moneyEntityOf(demande.requesterId) : null);
-    if (!societe) return { ok: false, error: "Cette demande n'est rattachée à aucune société : le bon de commande ne sait pas au nom de qui commander." };
-    const refs = g.devis.map((d) => d.reference?.trim()).filter((x): x is string => Boolean(x));
-    const r = await emettreDocumentDrive(user, {
-      type: "BON_DE_COMMANDE",
-      societe,
-      tiers: await tiersDuFournisseur(g),
-      lignes: enLignesCommerciales(g.lignes),
-      tvaDefaut: tvaParDefaut(g.lignes),
-      referenceAmont: refs.length ? refs.join(", ") : null,
-      referenceAmontDate: g.devis[0]?.date ?? null,
-      objet: `${demande.reference} — ${demande.title}`,
-      chainFromId: g.devis[0].id,
-      dossier: `Bureau du secrétariat/${demande.reference}`,
-    }, {
+    const c = await cadreDuBC(demande, cle);
+    if (!c.ok) return c;
+    const { g, societe } = c;
+    const dem = await composerDemandeDuBC(demande, g, societe, saisie);
+    const r = await emettreDocumentDrive(user, { ...dem, ...(numeroChoisi ? { numeroChoisi } : {}) }, {
       source: { type: "ADMIN_REQUEST", id: demande.id },
-      delegation: `${demande.reference} — bon de commande composé d'après les lignes retenues par le demandeur sur ${g.devis.length > 1 ? `les devis ${refs.join(", ") || "de la demande"}` : `le devis ${refs[0] ?? "de la demande"}`} (${g.fournisseur})`,
+      delegation: `${delegationDuBC(demande, g)}, aperçu validé par le demandeur`,
     });
-    if (!r.ok) return { ok: false, error: r.motif };
+    if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
 
     // LES LIGNES COMMANDÉES — chaque devis sous sa file et son verrou ; une version qui a bougé est relue une fois.
     const parDevis = new Map<string, Set<string>>();
@@ -187,7 +239,7 @@ export async function genererBCDuFournisseur(
 
     await recordAudit({
       actorId: user.id, action: "CREATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: demande.id,
-      summary: `Bon de commande ${r.reference} généré pour ${g.fournisseur} — ${Math.round(r.totaux.totalTtc).toLocaleString("fr-FR")} DZD TTC (${g.lignes.length} ligne${g.lignes.length > 1 ? "s" : ""} retenue${g.lignes.length > 1 ? "s" : ""})`,
+      summary: `Bon de commande ${r.reference} généré pour ${g.fournisseur}, aperçu validé par le demandeur — ${Math.round(r.totaux.totalTtc).toLocaleString("fr-FR")} DZD TTC (${g.lignes.length} ligne${g.lignes.length > 1 ? "s" : ""} retenue${g.lignes.length > 1 ? "s" : ""})`,
     });
     // L'ASSISTANTE LE VOIT : c'est elle qui suit la demande jusqu'au bout.
     await prevenirLeSecretariat(demande.assignedToId, {
