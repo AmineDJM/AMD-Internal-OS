@@ -19,7 +19,8 @@ import { Input, Label, Textarea } from "@/components/ui/input";
  * sa pièce, c'est empêcher d'en parler. Le montant annoncé suffit à ouvrir la discussion ; la
  * pièce se dépose ensuite sur la fiche.
  */
-export function TrainingRequestButton({ managerName }: { managerName: string | null }) {
+/** `compact` : le bouton discret du bloc « Moi » d'Aujourd'hui (« Demander ») — même formulaire, même action. */
+export function TrainingRequestButton({ managerName, compact = false }: { managerName: string | null; compact?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -31,9 +32,15 @@ export function TrainingRequestButton({ managerName }: { managerName: string | n
           « Ajouter une note de frais », dans l'en-tête de Mon espace : trois gestes du même
           rang. En laisser un en `md` et les deux autres en `sm` donnait trois hauteurs et deux
           tailles de texte sur une même ligne — on lit alors une hiérarchie qui n'existe pas. */}
-      <Button variant="outline" onClick={() => { setMsg(null); setOpen(true); }}>
-        <GraduationCap className="h-4 w-4" /> Demander une formation
-      </Button>
+      {compact ? (
+        <Button variant="outline" size="sm" onClick={() => { setMsg(null); setOpen(true); }} aria-label="Demander une formation">
+          Demander
+        </Button>
+      ) : (
+        <Button variant="outline" onClick={() => { setMsg(null); setOpen(true); }}>
+          <GraduationCap className="h-4 w-4" /> Demander une formation
+        </Button>
+      )}
 
       <Sheet
         open={open}

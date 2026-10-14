@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### MON ESPACE : L'ONGLET « AUJOURD'HUI » REMPLACE « MON ESPACE » (2026-10-14)
+
+Aucune migration. Décision de la Direction : « Je valide l'onglet Aujourd'hui qui va remplacer l'onglet Mon espace.
+Les autres onglets de l'ERP restent tels quels. » — voir « Mon espace › Aujourd'hui » dans la référence des circuits.
+
+- `/mon-espace` : « Votre journée » (phrase calculée + 3 à 4 chiffres du MÉTIER), « À faire maintenant » groupé par lot
+  et trié par urgence (règles pures `lib/espace/aujourdhui.ts`), « Ma semaine », encart « Mon équipe » pour un N+1,
+  rappels avec ajout rapide, raccourcis du métier, bloc « Moi » (remplace les deux boutons de l'en-tête).
+- `ActionItem` gagne `montant`, `famille`, `statut` ; l'écran des paiements met en évidence plusieurs ordres
+  (`?focus=a,b,c`). L'onglet `/aujourdhui` quitte la barre de l'espace (la page reste servie).
+
 ### BONS DE COMMANDE : L'APERÇU OBLIGATOIRE, ET TOUT S'Y CORRIGE (2026-10-14)
 
 Aucune migration (le brouillon reste le JSON `AdProDevis.bcBrouillon`). Décision de la Direction : « Je veux l'aperçu
