@@ -73,6 +73,7 @@ import {
   lireHebergement, changementsHebergement, porteDesHebergements, refusChangementNatureFiches, type SaisieHebergement, type HebergementLu,
 } from "@/lib/ad-pro/hebergements";
 import { cloreSujetVivant, createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
+import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { gesteVisaPoste, memePrestataire, type EtatBcPoste, type GesteVisaPoste } from "@/lib/ad-pro/bc-poste";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { annulerDemandeSecretariat, prevenirLeSecretariat } from "@/lib/secretariat/annulation";
@@ -3028,6 +3029,8 @@ export async function modifierVoyageur(_prev: ActionResult | undefined, formData
   if (changements.length === 0) return { ok: true, id, message: "Rien n'a changé." };
 
   await prisma.adProVoyageur.update({ where: { id }, data: { ...donneesVoyageur(lu.voyageur), updatedById: user.id } });
+  // LA FICHE CHEZ L'ASSISTANTE (14/10) : modifiée après l'envoi, elle passe « à renvoyer ».
+  await noterModificationFiche("VOYAGEUR", id, user.id);
   const sujet = await signalerAuSujet(item, user.id, `voyageur modifié — ${nomComplet(v)} : ${changements.join(" ; ")}`);
   await audit(user, owner.parent, owner.id, "UPDATE", `Voyageur « ${nomComplet(v)} » du poste « ${item.label} » modifié — ${changements.join(" ; ")}.`);
   revalidate(owner.parent, owner.id);
@@ -3154,6 +3157,8 @@ export async function modifierHebergement(_prev: ActionResult | undefined, formD
   if (changements.length === 0) return { ok: true, id, message: "Rien n'a changé." };
 
   await prisma.adProHebergement.update({ where: { id }, data: { ...lu.hebergement, updatedById: user.id } });
+  // LA FICHE CHEZ L'ASSISTANTE (14/10) : modifiée après l'envoi, elle passe « à renvoyer ».
+  await noterModificationFiche("HEBERGEMENT", id, user.id);
   await audit(user, owner.parent, owner.id, "UPDATE", `Fiche hôtellerie « ${nomComplet(h)} » du poste « ${item.label} » modifiée — ${changements.join(" ; ")}.`);
   revalidate(owner.parent, owner.id);
   return { ok: true, id, message: "Fiche hôtellerie modifiée." };

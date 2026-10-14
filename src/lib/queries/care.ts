@@ -4,6 +4,8 @@ import { toNumber } from "@/lib/utils";
 import { beneficiaryName, beneficiarySubtitle } from "@/lib/care";
 import { detailsStockes, etapesDuBillet, etapesStockees, tauxDeLaDemande, type BeneficiaryRow, type GroupPosteRow, type QuoteRow } from "@/lib/care-fiches";
 import { statutDuDossier } from "@/lib/promo-material/statut";
+import { envoisDePriseEnCharge } from "@/lib/queries/reservations-fiches";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
 const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const num = (v: unknown) => (v != null ? toNumber(v) : null);
@@ -21,6 +23,8 @@ export async function getCareDossier(scope: "NATIONAL" | "INTERNATIONAL", reques
   quotes: QuoteRow[];
   groupPostes: GroupPosteRow[];
   reglages: { mode: CareMode; taux: number | null; reservation: { id: string; reference: string } | null; city: string | null };
+  /** L'état de chaque billet / hôtel chez l'assistante de direction — par case (14/10). */
+  envois: Record<string, EnvoiVue>;
 }> {
   const where = scope === "NATIONAL" ? { congressNationalId: requestId } : { congressInternationalId: requestId };
 
@@ -127,5 +131,6 @@ export async function getCareDossier(scope: "NATIONAL" | "INTERNATIONAL", reques
       reservation: sujet,
       city: demande?.city ?? null,
     },
+    envois: await envoisDePriseEnCharge(scope, requestId),
   };
 }

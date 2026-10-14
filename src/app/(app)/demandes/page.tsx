@@ -10,6 +10,9 @@ import { statutAffiche } from "@/lib/secretariat/traitement";
 import { SuppliesManager } from "./supplies-manager";
 import { ExpenseAckList, type ExpenseAckItem } from "./expense-ack";
 import { RequestsTable, type RequestRow } from "./requests-table";
+import { OngletsBureau } from "@/components/reservation-fiche/onglets-bureau";
+import { BureauAdPro } from "@/components/reservation-fiche/bureau-adpro";
+import { compteurBureauAdPro, voitBureauAdPro } from "@/lib/queries/reservations-fiches";
 
 /**
  * LE BUREAU DU SECRÉTARIAT — les demandes, et rien qu'elles.
@@ -21,9 +24,12 @@ import { RequestsTable, type RequestRow } from "./requests-table";
  * `/demandes/approvals`…) : on y arrive par les liens des demandes et les notifications, pas par
  * une barre de boutons permanente. Le tri se fait maintenant DANS les colonnes du tableau.
  */
-export default async function DemandesPage({ searchParams }: { searchParams: { status?: string; type?: string } }) {
+export default async function DemandesPage({ searchParams }: { searchParams: { status?: string; type?: string; onglet?: string; fiche?: string } }) {
   const user = await requireModule("ADMIN_REQUESTS");
   const isManager = hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE");
+  // LES ONGLETS « Général » / « Ad & Pro » (14/10) — l'onglet Ad & Pro est celui de l'assistante de direction.
+  const compteurAdPro = voitBureauAdPro(user) ? await compteurBureauAdPro(user) : null;
+  const onglet = compteurAdPro !== null && searchParams.onglet === "adpro" ? "adpro" : "general";
 
   const [list, users, departments, activeArticles, supplyCatalog, expensePendingAck] = await Promise.all([
     getRequestList(user, { status: searchParams.status, type: searchParams.type }),
@@ -70,6 +76,9 @@ export default async function DemandesPage({ searchParams }: { searchParams: { s
         <NewRequestButton users={users} departments={departments} articles={activeArticles} />
       </PageHeader>
 
+      {compteurAdPro !== null && <OngletsBureau actif={onglet} general={list.ouvertes} adpro={compteurAdPro} />}
+
+      {onglet === "adpro" ? <BureauAdPro user={user} fiche={searchParams.fiche ?? null} /> : (<>
       {isManager && <ExpenseAckList items={ackItems} />}
 
       {rows.length === 0 ? (
@@ -77,6 +86,7 @@ export default async function DemandesPage({ searchParams }: { searchParams: { s
       ) : (
         <RequestsTable rows={rows} totaux={{ ouvertes: list.ouvertes, terminees: list.terminees, terminesMontrees: list.terminesMontrees, coupe: list.coupe }} />
       )}
+      </>)}
     </div>
   );
 }

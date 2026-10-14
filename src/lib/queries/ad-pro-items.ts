@@ -24,6 +24,7 @@ import { peutValiderLeBrouillon } from "@/lib/bons-de-commande/brouillon";
 import { pieceEmise, specRevisable } from "@/lib/legal/piece-emise";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
 import { droitsValidation, estDirectionMarketingPoste, type DroitsValidation } from "@/lib/ad-pro/validation-poste";
+import { envoisDesFiches } from "@/lib/queries/reservations-fiches";
 
 /**
  * CHARGEMENT DES POSTES D'UNE OPÉRATION AD & PRO — un seul endroit pour les quatre modules.
@@ -151,6 +152,8 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     hebergementsDe.set(h.itemId, l);
   }
   const sujetDe = new Map(sujetRows.map((d) => [d.id, { id: d.id, reference: d.reference, statut: String(d.status) }]));
+  // LES FICHES CHEZ L'ASSISTANTE (14/10) : l'état de chaque voyageur et de chaque fiche hôtellerie, en lot.
+  const envois = await envoisDesFiches({ voyageurIds: voyageurRows.map((v) => v.id), hebergementIds: hebergementRows.map((h) => h.id) });
 
   const [promoRows, orderRows, demandeRows, docRows, lignesParPoste, bcLegalParPoste] = await Promise.all([
     promoIds.length
@@ -266,6 +269,7 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
     })(),
     voyageurs: voyageursDe.get(i.id) ?? [],
     hebergements: hebergementsDe.get(i.id) ?? [],
+    envois,
     priseEnChargeIndirecte: i.repartitionId != null || sponsoringIndirect,
     nomsSuggeres: porteDesVoyageurs(i.kind) || porteDesHebergements(i.kind) ? nomsSuggeres : [],
     orderStage: i.orderStage,

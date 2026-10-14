@@ -8,9 +8,11 @@ import { Button } from "@/components/ui/button";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import {
-  ajouterVoyageur, modifierVoyageur, retirerVoyageur, demanderReservation, retirerReservation,
+  ajouterVoyageur, modifierVoyageur, retirerVoyageur,
   ajouterDevisVoyageur, validerDevisVoyageur, demanderBCBilletterie,
 } from "@/lib/actions/ad-pro-item-actions";
+import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 import {
   manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom, ETAPES_MAX,
   TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, TRAJETS, type EtapeTrajet,
@@ -70,7 +72,7 @@ const dzd = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
  */
 export function BlocVoyageurs({
   itemId, voyageurs, nomsSuggeres, reservation, peutEditer, peutReserver, busy, run,
-  montantAccorde, bcPossible, assistantes,
+  montantAccorde, bcPossible, assistantes, envois,
 }: {
   itemId: string;
   voyageurs: VoyageurVue[];
@@ -89,13 +91,12 @@ export function BlocVoyageurs({
   bcPossible: boolean;
   /** Les assistantes de direction actives : plusieurs ⇒ on choisit qui établit le BC (l'action l'exige). */
   assistantes: { id: string; name: string }[];
+  /** L'ÉTAT DE CHAQUE FICHE chez l'assistante (`EnvoiVue`, par voyageur) — chaque fiche s'envoie seule (14/10). */
+  envois?: Record<string, EnvoiVue>;
 }) {
   const [ajout, setAjout] = React.useState(false);
   const [ouvert, setOuvert] = React.useState<{ id: string; quoi: "MENU" | "EDITER" | "PASSEPORT" | "DEVIS" | "CHOIX" } | null>(null);
   const [assistanteId, setAssistanteId] = React.useState("");
-  // RETIRER LA DEMANDE DE RÉSERVATION (constat 37) — offert seulement si l'action l'accepte (§118.83).
-  const [retrait, setRetrait] = React.useState(false);
-  const [motifRetrait, setMotifRetrait] = React.useState("");
   const fermer = () => setOuvert(null);
   const basculer = (id: string, quoi: NonNullable<typeof ouvert>["quoi"]) =>
     setOuvert((o) => (o && o.id === id && o.quoi === quoi ? null : { id, quoi }));
@@ -114,33 +115,8 @@ export function BlocVoyageurs({
           </Link>
         )}
       </div>
-      {reservation?.refusRetrait && peutEditer && (
-        <p className="text-muted-foreground">{reservation.refusRetrait}</p>
-      )}
-      {retrait && reservation && !reservation.refusRetrait && (
-        <form
-          className="space-y-2 rounded-lg border border-border p-2"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const fd = new FormData();
-            fd.set("id", itemId);
-            fd.set("motif", motifRetrait);
-            void run(`resa-retrait:${itemId}`, () => retirerReservation(fd), "Demande de réservation retirée.").then(() => { setRetrait(false); setMotifRetrait(""); });
-          }}
-        >
-          <label className="block font-medium" htmlFor={`motif-resa-${itemId}`}>Pourquoi retirer la demande de réservation ?</label>
-          <textarea
-            id={`motif-resa-${itemId}`} value={motifRetrait} onChange={(e) => setMotifRetrait(e.target.value)} rows={2}
-            className="w-full rounded-lg border border-border bg-background px-2 py-1 text-xs"
-          />
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-            <Button type="submit" size="sm" variant="destructive" className="h-10 w-full sm:h-8 sm:w-auto" disabled={busy !== null || motifRetrait.trim() === ""}>
-              {busy === `resa-retrait:${itemId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Retirer la demande
-            </Button>
-            <Button type="button" size="sm" variant="ghost" className="h-10 w-full sm:h-8 sm:w-auto" disabled={busy !== null} onClick={() => setRetrait(false)}>Annuler</Button>
-          </div>
-        </form>
-      )}
+      {/* LES FICHES CHEZ L'ASSISTANTE (14/10) : où elles en sont, et « Envoyer les fiches prêtes ». */}
+      {peutReserver && <BandeauEnvois envois={voyageurs.map((v) => envois?.[v.id])} lot={{ itemId }} peutEditer={peutEditer} busy={busy} run={run} />}
 
       {voyageurs.length === 0 ? (
         <p className="text-muted-foreground">Aucun voyageur. Son nom suffit pour commencer — le reste (passeport, autres documents, dates) peut venir plus tard.</p>
@@ -222,6 +198,7 @@ export function BlocVoyageurs({
                 )}
                 {manque.length > 0 && <p className="text-[0.6875rem] text-muted-foreground">À préciser pour réserver : {manque.join(", ")}.</p>}
                 {v.notes && <p className="text-muted-foreground">{v.notes}</p>}
+                {peutReserver && <EnvoiFiche envoi={envois?.[v.id]} peutEditer={peutEditer} busy={busy} run={run} />}
 
                 {mode === "MENU" && peutEditer && (
                   <div className="flex flex-wrap gap-1.5 rounded-lg border border-border bg-secondary/30 p-1.5" role="menu">
@@ -349,24 +326,6 @@ export function BlocVoyageurs({
             <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" onClick={() => setAjout(true)} disabled={busy !== null}>
               <Plus className="h-4 w-4" /> Ajouter un voyageur
             </Button>
-            {voyageurs.length > 0 && peutReserver && (
-              <Button
-                size="sm" variant="outline" className="w-full sm:w-auto" disabled={busy !== null}
-                onClick={() => {
-                  const fd = new FormData();
-                  fd.set("id", itemId);
-                  void run(`resa:${itemId}`, () => demanderReservation(fd), "Demande de réservation envoyée.");
-                }}
-              >
-                {busy === `resa:${itemId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                {reservation ? "Mettre à jour la réservation" : "Demander la réservation"}
-              </Button>
-            )}
-            {reservation && peutEditer && !reservation.refusRetrait && !retrait && (
-              <Button size="sm" variant="outline" className="w-full sm:w-auto" disabled={busy !== null} onClick={() => setRetrait(true)}>
-                Retirer la demande de réservation
-              </Button>
-            )}
             {bcPossible && retenus.length > 0 && (
               <>
                 {assistantes.length > 1 && (

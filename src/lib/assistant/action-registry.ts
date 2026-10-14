@@ -1273,6 +1273,17 @@ X("PRISES EN CHARGE — FICHES VOYAGEUR (Direction, 10/2026) : enregistrer un po
   "care-actions:demanderReservationPriseEnCharge", "care-actions:demanderBCPriseEnCharge",
   "care-actions:ajouterPosteGroupe", "care-actions:modifierPosteGroupe", "care-actions:retirerPosteGroupe",
 ]);
+X("LES FICHES DE VOYAGE CHEZ L'ASSISTANTE DE DIRECTION (Direction, 14/10/2026) — côté demandeur : envoyer UNE fiche "
+  + "(billet ou hôtel) ou « les fiches prêtes » (chacune séparément), relancer (une fois par 24 h), retirer ; côté "
+  + "assistante, dans l'onglet « Ad & Pro » du Bureau du secrétariat : prendre la fiche, signaler un manque, joindre "
+  + "le devis de l'agence (par le circuit devis existant du poste) et déposer le billet ou la confirmation d'hôtel "
+  + "(des FICHIERS, après l'accord du poste). Des gestes faits DEVANT la fiche, qui engagent le travail d'une personne "
+  + "ou portent une pièce. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "reservation-fiche-actions:envoyerFiche", "reservation-fiche-actions:envoyerFichesPretes",
+  "reservation-fiche-actions:relancerFiche", "reservation-fiche-actions:retirerFiche",
+  "reservation-fiche-actions:prendreFiche", "reservation-fiche-actions:signalerManque",
+  "reservation-fiche-actions:joindreDevisAgence", "reservation-fiche-actions:deposerBillet",
+]);
 X("ANNULER SA DEMANDE TANT QU'ELLE N'EST PAS EXÉCUTÉE (décision du 04/10) — rallonges de budget et de caisse, "
   + "document RH, ordre de mission, tâche demandée, formation. Des gestes qui RÉDUISENT, mais Adam est en pause de "
   + "développement : aucun geste neuf ne lui est ouvert. Un clic du demandeur sur sa demande.", [

@@ -50,6 +50,7 @@ import { faitDeStock, NATURE_MATERIEL_STOCK } from "@/lib/promo/reservations";
 import { BlocMaterielStock, type LigneStockVue, type ContexteMaterielStock } from "./materiel-stock";
 import { BlocVoyageurs, type VoyageurVue } from "./voyageurs-bloc";
 import { BlocHebergements, type HebergementVue } from "./hebergements-bloc";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 import { ConseilLuna } from "./conseil-luna";
 import type { PiecesDuPoste, PieceDePoste, DemandeBCDuPoste } from "@/lib/ad-pro/pieces-poste";
 import type { DevisDePosteVue } from "@/lib/queries/ad-pro-devis-poste";
@@ -137,6 +138,8 @@ export interface ItemRow {
   voyageurs: VoyageurVue[];
   /** Les fiches hôtellerie d'un poste « hôtellerie » — vide sinon (Direction, 06/10). */
   hebergements: HebergementVue[];
+  /** L'état de chaque fiche (voyageur, fiche hôtellerie) chez l'assistante de direction — par fiche (14/10). */
+  envois?: Record<string, EnvoiVue>;
   /**
    * Le poste vit dans un sponsoring INDIRECT (né d'une répartition, ou posé sur un sponsoring de
    * nature indirecte) : ses fiches par personne sont facultatives. Calculé au serveur.
@@ -1064,6 +1067,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
           montantAccorde={item.amountGranted}
           bcPossible={pas.geste?.cle === "DEMANDER_BC" && item.orderStage !== "REQUESTED" && item.orderStage !== "DIRECTION_OK"}
           assistantes={assistantes}
+          envois={item.envois}
         />
       )}
 
@@ -1077,6 +1081,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
           obligatoire={!item.priseEnChargeIndirecte}
           busy={busy}
           run={run}
+          envois={item.envois}
         />
       )}
 

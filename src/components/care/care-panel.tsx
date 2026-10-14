@@ -21,12 +21,14 @@ import {
 import {
   addCareBeneficiary, createCareQuote, decideCareQuote, requestCareQuotes, sendCareToFinance,
   demanderPiecesPriseEnCharge, deposerPiecePriseEnCharge, setCareCellStatus,
-  demanderReservationPriseEnCharge, demanderBCPriseEnCharge, ajouterPosteGroupe, modifierPosteGroupe, retirerPosteGroupe,
+  demanderBCPriseEnCharge, ajouterPosteGroupe, modifierPosteGroupe, retirerPosteGroupe,
   retenirDevisPriseEnCharge,
 } from "@/lib/actions/care-actions";
 import { listBeneficiaryRefs } from "@/lib/actions/congress-beneficiary-actions";
 import { filtrerAnnuaire, PLAFOND_MENU } from "@/components/care/filtrer-annuaire";
 import { CHAMP, FicheVoyageur, PastilleDecision, TON_BADGE, type Run } from "@/components/care/fiche-voyageur";
+import { BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
+import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
 export type { CellRow, BeneficiaryRow, QuoteRow } from "@/lib/care-fiches";
 
@@ -50,6 +52,8 @@ interface Props {
   peutTeleverser: boolean;
   /** Les supports promotionnels rattachables à un poste (`carePromoOptions`). */
   promoOptions?: { id: string; reference: string; title: string }[];
+  /** L'état de chaque billet / hôtel chez l'assistante de direction (`EnvoiVue`, par case) — chaque fiche s'envoie seule (14/10). */
+  envois?: Record<string, EnvoiVue>;
 }
 
 const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
@@ -64,6 +68,7 @@ const fd = (o: Record<string, string>) => { const f = new FormData(); for (const
  */
 export function CarePanel({
   scope, requestId, beneficiaries, quotes, groupPostes, reglages, enveloppe, directory, eventApproved, canEdit, canDecide, peutTeleverser, promoOptions = [],
+  envois = {},
 }: Props) {
   const { enCours, rafraichir } = useRafraichir();
   const [action, setAction] = React.useState<string | null>(null);
@@ -127,7 +132,7 @@ export function CarePanel({
         <FicheVoyageur
           scope={scope} requestId={requestId} mode={mode} b={fiche} quotes={quotes} groupPostes={groupPostes} personnes={personnes}
           taux={reglages.taux} eventCity={reglages.city} parCase={est.parCase} estime={est.parPersonne.get(fiche.id) ?? 0}
-          canEdit={canEdit} canDecide={canDecide} peutTeleverser={peutTeleverser} busy={busy} run={run} promoOptions={promoOptions}
+          canEdit={canEdit} canDecide={canDecide} peutTeleverser={peutTeleverser} busy={busy} run={run} promoOptions={promoOptions} envois={envois}
           onRetour={() => setFicheId(null)} onDevis={ouvrirDevis}
         />
       ) : (
@@ -161,15 +166,17 @@ export function CarePanel({
                     {busy === "bc" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Demander le BC ({retenusEnAttente.length})
                   </Button>
                 )}
-                <Button size="sm" variant="outline" disabled={busy !== null || resume.pretes === 0}
-                  title={resume.pretes === 0 ? "Aucune fiche n'est complète pour réserver." : undefined}
-                  onClick={() => void run("resa", () => demanderReservationPriseEnCharge(undefined, fd({ scope, requestId })))}>
-                  {busy === "resa" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Demander la réservation ({resume.pretes} prête{resume.pretes > 1 ? "s" : ""})
-                </Button>
                 <Button size="sm" disabled={busy !== null} onClick={() => setAdding(true)}><UserPlus className="h-4 w-4" /> Ajouter un professionnel</Button>
               </div>
             )}
           </header>
+
+          {/* LES FICHES CHEZ L'ASSISTANTE (14/10) : chaque billet, chaque hôtel part seul — ici le bilan et le raccourci. */}
+          {Object.keys(envois).length > 0 && (
+            <div className="border-b border-border px-4 py-2">
+              <BandeauEnvois envois={Object.values(envois)} lot={{ scope, requestId }} peutEditer={canEdit} busy={busy} run={run} />
+            </div>
+          )}
 
           {adding && canEdit && (
             <div className="border-b border-border p-3">

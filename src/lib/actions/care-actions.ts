@@ -25,6 +25,7 @@ import { creerProfilMedecin } from "@/lib/medical/profil-rapide";
 import { persistUploadedDocument } from "@/lib/documents";
 import { deleteFileByKey } from "@/lib/storage";
 import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
+import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).
@@ -694,6 +695,8 @@ export async function modifierPosteFiche(_prev: ActionResult | undefined, formDa
       ...(montantEnvoye ? { amount: p.amount, currency: devise, amountDzd } : {}),
     },
   });
+  // LA FICHE CHEZ L'ASSISTANTE (14/10) : un billet / un hôtel modifié après l'envoi passe « à renvoyer ».
+  if (cell.serviceKind === "TICKET" || cell.serviceKind === "HOTEL") await noterModificationFiche("CARE_CELL", id, user.id);
   await audit(user, found.scope, found.requestId, "UPDATE",
     `${nom} — poste « ${p.label ?? cell.label} » enregistré${montantEnvoye && p.amount != null ? ` (${montantLisible(p.amount, devise)}${devise === "USD" && amountDzd != null ? ` = ${montantLisible(amountDzd)}` : ""})` : ""}.`);
   revalidate(found.scope, found.requestId);

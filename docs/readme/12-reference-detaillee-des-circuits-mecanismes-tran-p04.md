@@ -382,6 +382,29 @@ de l'étape. Le contrôle sans écriture est extrait dans `validateAttachments` 
   `src/lib/actions/ad-pro-edit-actions.ts`, `src/components/ad-pro/edit-request-button.tsx` ;
   `src/lib/actions/workflow-actions.ts` (`advanceWorkflow`), `src/components/workflow/workflow-panel.tsx`.
 
+### Fiches de voyage chez l'assistante de direction (Direction, 14/10/2026)
+
+« Après avoir rempli les fiches d'hôtellerie et de billetterie, on doit pouvoir les envoyer à l'assistante de direction en
+un clic, chacune indépendamment ; si c'est déjà chez elle, ça l'indique ; on peut la relancer. » **Un seul circuit** pour
+trois origines : voyageur d'un poste « billetterie » (`AdProVoyageur`), fiche d'un poste « hôtellerie » (`AdProHebergement`),
+billet / hôtel d'une prise en charge de congrès (`CareCell` TICKET / HOTEL).
+
+| Règle | Où | Pourquoi |
+|---|---|---|
+| **Une demande par fiche**, l'état seul | `DemandeReservation` (unique par fiche, contrainte `DemandeReservation_une_fiche`) | Les données du voyage restent sur la fiche (source unique) ; la demande garde l'état, qui l'a prise, les relances, l'**empreinte** de la fiche à l'envoi, les pièces du billet. |
+| Machine d'états | `reservation-fiche/etat.ts` (`gestePossible`, `etatApres`, `refusGeste`) | ENVOYEE → PRISE → DEVIS_RECU → RESERVEE ; MANQUE_SIGNALE (« à compléter » chez le demandeur), MODIFIEE_APRES_ENVOI (« à renvoyer »), RETIREE. Un renvoi rend la fiche à celle qui l'avait prise. |
+| Écritures **conditionnelles** | `reservation-fiche-actions.ts` (`updateMany` sur l'état lu, unicité en base) | Deux clics = un envoi ; deux assistantes = une prise (la seconde apprend qui). |
+| Modifiée après l'envoi | `noterModificationFiche` (appelé par `modifierVoyageur`, `modifierHebergement`, `modifierPosteFiche`) + lecture de repli `etatLu` | Champs comparés à l'empreinte ; l'assistante voit ce qui a changé (`diffEmpreintes`) et ne dépose rien avant le renvoi. Une reprise d'envoi en bloc (empreinte nulle) n'est pas comparée. |
+| Relance | `refusRelance` (24 h après le dernier envoi ou la dernière relance) | Prévient celle qui a pris la fiche, sinon toutes les assistantes actives (rôle principal ou secondaire). |
+| Réservation après l'accord | `deposerBillet` (`REFUS_AVANT_ACCORD`) | L'envoi pour devis est permis avant l'accord du poste (ou de la personne) ; le dépôt du billet / de la confirmation non. Pièces multiples : `Document` de la fiche (`stepKey` = la fiche), ids dans `pieceIds` ; en prise en charge, la première devient aussi `issuedDocumentId` (livret). |
+| Devis de l'agence | `joindreDevisAgence` → demande de pièce « devis » du poste + `submitDocumentRequest` ; prise en charge → `createCareQuote` | Le circuit devis EXISTANT, jamais un second : accepté par le demandeur, le devis rejoint le poste. |
+| Le fil | sujet DOS du poste (`reservationDossierId`) ou de la prise en charge (`careReservationDossierId`), `noterAuFil` | Né au premier envoi, rouvert s'il était clos ; chaque geste y écrit sa ligne ; notifications ciblées. |
+| Bureau du secrétariat | `/demandes?onglet=adpro` : `OngletsBureau`, `BureauAdPro` → `TableauAdPro` ; `queries/reservations-fiches.ts` (`bureauAdPro`, `compteurBureauAdPro`) | Tuiles (à prendre, en cours, relancées, BC de poste à établir, devis à retranscrire — ces deux lus dans leurs files existantes), filtre, file groupée par opération, panneau (gestes, pièces, fil). |
+| Écran du demandeur | `components/reservation-fiche/envoi-fiche.tsx` (`EnvoiFiche`, `BandeauEnvois`) dans `voyageurs-bloc`, `hebergements-bloc`, `fiche-voyageur`, `care-panel` | Pastille + sous-état + gestes ; « Envoyer les fiches prêtes (n) » appelle la même logique fiche par fiche. |
+
+Lecture : `passeport-acces.ts` ouvre aux membres du sujet les pièces de billet déposées sur une prise en charge
+(`pieceIds`). Tests : `reservation-fiche/etat.test.ts` (pur), `reservation-fiche/reservation-fiche-flow.test.ts` (base locale).
+
 ### Assistant — recherche Regulatory complète et écriture sur les produits
 
 - **`search_products` cherche là où les mots sont écrits** : DCI, nom commercial, référence, **classe
