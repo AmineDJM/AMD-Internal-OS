@@ -32,6 +32,9 @@ import { refusDuStatutManuel, refusDeReouverture } from "@/lib/secretariat/statu
 import { estDecisionDApprobation, refusSansMotif, interditSurSaPropreDemande, LIBELLE_DECISION } from "@/lib/secretariat/decision-approbation";
 import { ficheAFacture } from "@/lib/finance/facture-ordre";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { etatsDesBC } from "@/lib/bons-de-commande/etat";
+import { refusFinBCEnRoute } from "@/lib/secretariat/devis-natif";
+import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -928,6 +931,24 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
   const close = refusDemandeClose(req.status);
   if (close) return { ok: false, error: close };
 
+  // « TERMINER » ATTEND LA SIGNATURE DU BC (devis natifs, Direction 10/2026) : un bon de commande de la demande encore
+  // au centre, à signer ou renvoyé n'engage pas la société — la demande se termine une fois le BC « signé et validé ».
+  const bcsDeLaDemande = await prisma.legalDocument.findMany({ where: { sourceType: "ADMIN_REQUEST", sourceId: id, kind: "PURCHASE_ORDER" }, select: { id: true } });
+  if (bcsDeLaDemande.length > 0) {
+    const etats = await etatsDesBC(bcsDeLaDemande.map((b) => b.id));
+    const refusBC = refusFinBCEnRoute([...etats.values()].map((e) => ({ reference: e.reference, etape: e.etape, annule: e.annule })));
+    if (refusBC) return { ok: false, error: refusBC };
+  }
+
+  // LA FACTURE DANS LA MÊME FENÊTRE (refonte du bureau, 10/2026) : « Terminer » demande la facture et l'imputation
+  // ensemble. Jointe ici, elle est rangée parmi les pièces de la demande (catégorie « Facture ») AVANT la règle
+  // ci-dessous, qui la trouve donc là où elle la cherche déjà.
+  const factureJointe = formData.getAll("facture").find((v): v is File => v instanceof File && v.size > 0) ?? null;
+  if (factureJointe) {
+    const refusFacture = await joindreFactureALaDemande(user.id, id, factureJointe);
+    if (refusFacture) return { ok: false, error: refusFacture };
+  }
+
   // LA FACTURE SE LIT LÀ OÙ L'ÉCRAN LA RANGE (lot E5). La règle ne regardait que les fichiers « Facture » de la
   // demande ; la même fiche propose « Pièces liées → Facture » (« elle restera liée à cette demande »), qui la
   // range AU REGISTRE avec son PDF — une demande dont la facture était parfaitement rangée là ne se terminait
@@ -936,7 +957,7 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
   if (req.type === "PURCHASE" && !(await ficheAFacture({ entityType: "ADMIN_REQUEST", entityId: id }))) {
     return {
       ok: false,
-      error: "Pour un achat, joignez d'abord la facture finale : dans « Documents » (catégorie « Facture »), ou au registre par « Pièces liées → Facture », avec son PDF. Une facture annulée, ou enregistrée sans son fichier, ne compte pas.",
+      error: "Pour un achat, joignez la facture finale : dans cette fenêtre, ou dans « Pièces » (« + Ajouter une pièce » → Facture) — une facture au registre (« Pièces liées → Facture ») compte aussi, avec son PDF. Une facture annulée, ou enregistrée sans son fichier, ne compte pas.",
     };
   }
 

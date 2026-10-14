@@ -20,6 +20,7 @@ import { clauseBonsDeCommandePchVisibles, clauseFormationsVisibles, clauseMarche
 import { isManagerOfUser, getManagementChain } from "@/lib/departments";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { canViewDeclaration } from "@/lib/queries/medical-info";
+import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { accesAuCasPv } from "@/lib/pharmacovigilance/acces";
 import { accesAuReleveStockPch } from "@/lib/queries/stock-pch";
 import {
@@ -396,6 +397,23 @@ export async function accesAuxPiecesLegalDetaille(
         if (!ouvertes.has(cle)) ouvertes.set(cle, await canAccessEntity(user, PARENT_ENTITE[parent.parent], parent.id, "VIEW"));
         if (ouvertes.get(cle)) parException.add(l.legalDocumentId);
       }
+    }
+
+    // LES PIÈCES D'ACHAT D'UNE DEMANDE AU SECRÉTARIAT (devis natifs, 10/2026) — devis, BC, facture rangés au registre
+    // pour une demande. « Le demandeur valide les références de chaque devis, puis génère le BC » : il doit les LIRE,
+    // sans avoir Legal. La porte est celle de la FICHE de la demande (`clauseDemandeLisible` : sa portée du module, le
+    // validateur d'une pièce, l'intérimaire) — une fois par demande ; les engagements (contrats) restent fermés.
+    const achatsDemande = (await prisma.legalDocument.findMany({
+      where: { id: { in: uniques }, sourceType: "ADMIN_REQUEST", sourceId: { not: null } },
+      select: { id: true, kind: true, sourceId: true },
+    })).filter((p) => SECTIONS_ARBITREES.has(sectionDeLaNature(String(p.kind))));
+    if (achatsDemande.length > 0) {
+      const lisibles = new Set<string>();
+      for (const demandeId of new Set(achatsDemande.map((p) => p.sourceId as string))) {
+        const n = await prisma.administrativeRequest.count({ where: await clauseDemandeLisible(user, demandeId) });
+        if (n > 0) lisibles.add(demandeId);
+      }
+      for (const p of achatsDemande) if (lisibles.has(p.sourceId as string)) parException.add(p.id);
     }
 
     if (porteLeRoleQuiTranche(user)) {
