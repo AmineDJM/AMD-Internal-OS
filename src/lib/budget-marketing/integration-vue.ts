@@ -19,7 +19,13 @@ export function lienDemande(type: string, id: string): string | null {
 /** Une pièce attendue, telle que la demande la garde (`AdProIntegrationDemande.piecesAttendues`). */
 export interface PieceAttendueVue { cle: string; libelle: string }
 /** Une pièce déjà dans la plateforme, rattachée (jamais redéposée). */
-export interface PieceRattachee { cle: string; documentId: string | null; nom: string; le: string; parId: string | null; source: string }
+export interface PieceRattachee {
+  cle: string; documentId: string | null; nom: string; le: string; parId: string | null; source: string;
+  /** Le lien qui ouvre la pièce quand ce n'est pas un `Document` (fichier du Drive, pièce jointe de la messagerie). */
+  href?: string | null;
+  /** La source du Rapprochement (`DOC:` / `DRIVE:` / `MSG:`) qui l'a rattachée — pour l'annuler. */
+  ref?: string | null;
+}
 
 const estObjet = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
@@ -37,6 +43,8 @@ export function piecesRattacheesDe(json: unknown): PieceRattachee[] {
     le: typeof p.le === "string" ? p.le : "",
     parId: typeof p.parId === "string" ? p.parId : null,
     source: typeof p.source === "string" ? p.source : "",
+    ...(typeof p.href === "string" ? { href: p.href } : {}),
+    ...(typeof p.ref === "string" ? { ref: p.ref } : {}),
   }));
 }
 
@@ -46,7 +54,7 @@ export const stepKeyDePiece = (cle: string) => `${PREFIXE_PIECE}${cle}`;
 export const cleDuStepKey = (stepKey: string | null | undefined): string | null =>
   stepKey && stepKey.startsWith(PREFIXE_PIECE) ? stepKey.slice(PREFIXE_PIECE.length) : null;
 
-export interface EtatPiece { cle: string; libelle: string; fournie: boolean; fichiers: { id: string; nom: string; rattachee: boolean }[] }
+export interface EtatPiece { cle: string; libelle: string; fournie: boolean; fichiers: { id: string; nom: string; rattachee: boolean; href?: string | null }[] }
 
 /**
  * LES PIÈCES ATTENDUES ET MANQUANTES — obligatoires mais NON bloquantes : une pièce est fournie dès qu'un fichier est
@@ -60,7 +68,7 @@ export function etatDesPieces(
   const pieces = attendues.map((a) => {
     const fichiers = [
       ...deposees.filter((d) => cleDuStepKey(d.stepKey) === a.cle).map((d) => ({ id: d.id, nom: d.nom, rattachee: false })),
-      ...rattachees.filter((r) => r.cle === a.cle).map((r) => ({ id: r.documentId ?? `${r.cle}:${r.le}`, nom: r.nom, rattachee: true })),
+      ...rattachees.filter((r) => r.cle === a.cle).map((r) => ({ id: r.documentId ?? r.ref ?? `${r.cle}:${r.le}`, nom: r.nom, rattachee: true, href: r.href ?? null })),
     ];
     return { cle: a.cle, libelle: a.libelle, fournie: fichiers.length > 0, fichiers };
   });

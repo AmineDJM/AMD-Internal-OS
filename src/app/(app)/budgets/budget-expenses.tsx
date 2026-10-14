@@ -19,8 +19,12 @@ import { BarreSuppressionAImputer } from "./suppression-a-imputer";
  * imputées viennent donc EN PREMIER — elles faussent tous les chiffres tant qu'elles
  * traînent — et le reste (l'historique de ce qui est déjà imputé) vient après.
  */
-export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [], canEditLines = canAttribute, marques }: {
+export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [], canEditLines = canAttribute, marques, titreImpute = "Déjà imputé", noteAImputer }: {
   overview: BudgetOverview;
+  /** Le titre de la section des dépenses déjà imputées (Budget Marketing : « Déjà imputé hors postes Ad & Pro »). */
+  titreImpute?: string;
+  /** Une phrase sous « À imputer » (Budget Marketing : les écritures rattachées par le Rapprochement, retirées de la liste). */
+  noteAImputer?: string | null;
   /** Une étiquette par dépense à imputer (Budget Operations : « Force de vente » sur ce qu'un commercial a demandé). */
   marques?: Record<string, string>;
   canAttribute: boolean;
@@ -78,6 +82,7 @@ export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [
             </label>
           )}
         </div>
+        {noteAImputer && <p className="text-xs text-muted-foreground">{noteAImputer}</p>}
         {canDelete && (
           <BarreSuppressionAImputer
             selection={selection}
@@ -183,7 +188,7 @@ export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [
       {overview.attributed.transactions.length > 0 && (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">
-            Déjà imputé <span className="font-normal text-muted-foreground">({overview.attributed.count})</span>
+            {titreImpute} <span className="font-normal text-muted-foreground">({overview.attributed.count})</span>
           </h2>
           <ul className="surface divide-y divide-border">
             {overview.attributed.transactions.map((tx) => (

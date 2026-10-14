@@ -26,6 +26,12 @@ export interface ContexteIntegration {
   postes: PosteHistorique[];
   /** Les écritures de trésorerie RELIÉES à une demande du lot (lecture seule) : elles sont cette dépense, jamais une autre. */
   ecrituresReliees?: Map<string, string>;
+  /**
+   * LES DÉPENSES RATTACHÉES PAR LE RAPPROCHEMENT (`AdProRapprochement` acceptés) — par clé de source (`TX:`, `LIGNE:`,
+   * `ORDRE:`) : la demande du lot et, s'il est connu, le poste dont elles sont la preuve de paiement. Comme une écriture
+   * reliée, elles sont CETTE dépense : le fichier (ou le poste historique) la porte, elles ne comptent pas une seconde fois.
+   */
+  sourcesReliees?: Map<string, { demande: string; posteId: string | null }>;
 }
 
 const TYPES_DEMANDE = new Set(["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "TRAINING", "PROMO_MATERIAL", "MEDICAL_INFO_DECLARATION"]);
@@ -57,7 +63,7 @@ export function cleDemandeDuPoste(p: ParentsPoste): string | null {
 }
 
 async function construire(lot: { id: string; envelopeId: string; integreLe: Date }): Promise<ContexteIntegration> {
-  const [demandes, decisions, postes, cats] = await Promise.all([
+  const [demandes, decisions, postes, cats, rapprochees] = await Promise.all([
     prisma.adProIntegrationDemande.findMany({ where: { lotId: lot.id }, select: { demandeType: true, demandeId: true, ecritureId: true } }),
     prisma.adProIntegrationDecision.findMany({ where: { lotId: lot.id }, select: { cleSource: true, decision: true } }),
     prisma.adProItem.findMany({
@@ -65,6 +71,10 @@ async function construire(lot: { id: string; envelopeId: string; integreLe: Date
       select: { id: true, budgetCategoryId: true, montantPayeHistorique: true, historiquePayeLe: true, kind: true, label: true, historiqueLigne: true, ...SELECT_PARENTS_POSTE },
     }),
     prisma.budgetCategoryLine.findMany({ where: { envelopeId: lot.envelopeId }, select: { id: true } }),
+    prisma.adProRapprochement.findMany({
+      where: { lotId: lot.id, sens: "DEPENSE", decision: "ACCEPTEE", annuleLe: null, demandeType: { not: null }, demandeId: { not: null } },
+      select: { source: true, demandeType: true, demandeId: true, posteId: true },
+    }),
   ]);
   return {
     regle: regleDuLot({
@@ -75,6 +85,7 @@ async function construire(lot: { id: string; envelopeId: string; integreLe: Date
     }),
     categories: new Set(cats.map((c) => c.id)),
     ecrituresReliees: new Map(demandes.filter((d) => d.ecritureId).map((d) => [d.ecritureId as string, `${d.demandeType}:${d.demandeId}`])),
+    sourcesReliees: new Map(rapprochees.map((r) => [r.source, { demande: `${r.demandeType}:${r.demandeId}`, posteId: r.posteId }])),
     postes: postes.map((p) => ({
       id: p.id, categoryId: p.budgetCategoryId, montant: toNumber(p.montantPayeHistorique),
       payeLe: p.historiquePayeLe ?? lot.integreLe, kind: p.kind, libelle: p.label,
@@ -208,9 +219,11 @@ export async function jugerEcritures<T extends EcritureLue>(ctxs: readonly Conte
     const ctx = contexteDe(ctxs, e.budgetCategoryId);
     if (!ctx) { comptees.push(e); continue; }
     const o = origines.get(e.id);
-    // Une écriture RELIÉE à une demande du lot est cette dépense : remplacée par la ligne du fichier, quelle que soit sa date.
-    const reliee = ctx.ecrituresReliees?.get(e.id) ?? null;
-    const source: SourceBudget = { cle: `TX:${e.id}`, neeLe: reliee ? new Date(0) : plusAncienne(e.createdAt, o?.ordreCree), demande: reliee ?? o?.demande ?? null, posteId: o?.posteId ?? null };
+    // Une écriture RELIÉE à une demande du lot (ou rattachée par le Rapprochement) est cette dépense : remplacée par la
+    // ligne du fichier — ou portée par le poste historique —, quelle que soit sa date.
+    const rapprochee = ctx.sourcesReliees?.get(`TX:${e.id}`) ?? null;
+    const reliee = ctx.ecrituresReliees?.get(e.id) ?? rapprochee?.demande ?? null;
+    const source: SourceBudget = { cle: `TX:${e.id}`, neeLe: reliee ? new Date(0) : plusAncienne(e.createdAt, o?.ordreCree), demande: reliee ?? o?.demande ?? null, posteId: rapprochee?.posteId ?? o?.posteId ?? null };
     const verdict = verdictSource(ctx.regle, source);
     if (verdict.compte) comptees.push(e);
     jugees.push({ ...source, verdict, libelle: e.label, reference: e.reference, montant: toNumber(e.amount as Parameters<typeof toNumber>[0]), categoryId: e.budgetCategoryId, date: e.date, nature: "ECRITURE" });
@@ -225,7 +238,9 @@ export function jugerLignes<T extends LigneBudgetLue>(ctxs: readonly ContexteInt
   for (const l of lignes) {
     const ctx = contexteDe(ctxs, l.categoryId);
     if (!ctx) { comptees.push(l); continue; }
-    const source: SourceBudget = { cle: `LIGNE:${l.id}`, neeLe: l.createdAt, demande: null, posteId: null };
+    // Une ligne RATTACHÉE par le Rapprochement est la dépense d'une demande du lot : le fichier la porte.
+    const rapprochee = ctx.sourcesReliees?.get(`LIGNE:${l.id}`) ?? null;
+    const source: SourceBudget = { cle: `LIGNE:${l.id}`, neeLe: rapprochee ? new Date(0) : l.createdAt, demande: rapprochee?.demande ?? null, posteId: rapprochee?.posteId ?? null };
     const verdict = verdictSource(ctx.regle, source);
     if (verdict.compte) comptees.push(l);
     jugees.push({ ...source, verdict, libelle: l.reference, reference: l.reference, montant: toNumber(l.amount as Parameters<typeof toNumber>[0]), categoryId: l.categoryId, date: l.date, nature: "LIGNE" });
@@ -267,11 +282,13 @@ export async function jugerEngagements<T extends EngagementAJuger>(ctxs: readonl
     const poste = d.posteId ? postes.find((p) => p.id === d.posteId) : undefined;
     const ordre = d.ordreId ? ordres.find((o) => o.id === d.ordreId) : undefined;
     const o = ordre ? origineOrdre.get(ordre.id) : undefined;
+    // Un ordre hors poste RATTACHÉ par le Rapprochement est la dépense d'une demande du lot : il n'engage pas une seconde fois.
+    const rapproche = ordre ? ctx.sourcesReliees?.get(`ORDRE:${ordre.id}`) ?? null : null;
     const source: SourceBudget = {
       cle: ordre ? `ORDRE:${ordre.id}` : `POSTE:${d.posteId ?? `${d.sourceType}:${d.sourceId}`}`,
-      neeLe: ordre ? ordre.createdAt : plusAncienne(poste?.depenseImputeeLe ?? poste?.createdAt ?? null),
-      demande: poste ? cleDemandeDuPoste(poste) : o?.demande ?? (d.sourceType && d.sourceId && TYPES_DEMANDE.has(d.sourceType) ? `${d.sourceType}:${d.sourceId}` : null),
-      posteId: d.posteId ?? o?.posteId ?? null,
+      neeLe: rapproche ? new Date(0) : ordre ? ordre.createdAt : plusAncienne(poste?.depenseImputeeLe ?? poste?.createdAt ?? null),
+      demande: rapproche?.demande ?? (poste ? cleDemandeDuPoste(poste) : o?.demande ?? (d.sourceType && d.sourceId && TYPES_DEMANDE.has(d.sourceType) ? `${d.sourceType}:${d.sourceId}` : null)),
+      posteId: rapproche?.posteId ?? d.posteId ?? o?.posteId ?? null,
     };
     const verdict = verdictSource(ctx.regle, source);
     if (verdict.compte) comptes.push(d);

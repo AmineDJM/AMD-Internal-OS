@@ -30,6 +30,7 @@ const LECTEURS: Record<string, string> = {
   "src/lib/queries/budget-marketing-rapport.ts": "les faits de la vue d'ensemble Budget Marketing, de l'Excel, du PDF, du CSV et des diapositives",
   "src/lib/budget-campagne/prefill.ts": "le réalisé qui pré-remplit les campagnes budgétaires",
   "src/lib/adventum/risks.ts": "les risques budgétaires d'Adventum Brain",
+  "src/lib/budget-marketing/rapprochement-serveur.ts": "le Rapprochement Ad & Pro : les dépenses HORS poste qui comptent (consommationIntegree, ordres jugés par jugerEngagements) — et les postes de l'enveloppe pour les doublons probables",
 };
 
 /** Ce qui lit des catégories sans être un total d'enveloppe Ad & Pro — et pourquoi. */

@@ -2,6 +2,7 @@ import { History, Landmark, Users } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import type { SessionUser } from "@/lib/rbac";
 import { blocHistoriqueDe } from "@/lib/budget-marketing/integration-serveur";
+import { ecrituresRapprochees } from "@/lib/budget-marketing/rapprochement-serveur";
 import { BADGE_HISTORIQUE, formatCentimes, type TypeDemandeIntegree } from "@/lib/budget-marketing/integration-2026";
 import { PiecesHistorique, RelierEcriture } from "./pieces-historique";
 
@@ -20,6 +21,8 @@ const jour = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 
 export async function BlocHistorique({ user, type, id }: { user: SessionUser; type: TypeDemandeIntegree; id: string }) {
   const bloc = await blocHistoriqueDe(user, type, id);
   if (!bloc) return null;
+  // Les écritures que le Rapprochement a rattachées à cette demande : sa preuve de paiement, en lecture seule.
+  const rapprochees = await ecrituresRapprochees(bloc.demandeRowId);
   return (
     <section id="historique-2026" className="surface space-y-3 rounded-xl border-purple-200 p-4 text-sm">
       <header className="flex flex-wrap items-center gap-2">
@@ -56,6 +59,16 @@ export async function BlocHistorique({ user, type, id }: { user: SessionUser; ty
           Écriture de trésorerie reliée (lecture seule) : <strong>{bloc.ecriture.reference}</strong>, {dzd(bloc.ecriture.montant)} le {jour(bloc.ecriture.date)}.
           {bloc.ecriture.ecart !== 0 && <span className="text-warning"> Écart affiché : {dzd(Math.abs(bloc.ecriture.ecart))} — le budget retient {dzd(bloc.montant)}, comme décidé.</span>}
         </p>
+      )}
+
+      {rapprochees.length > 0 && (
+        <div className="flex flex-wrap items-start gap-1 text-xs">
+          <Landmark className="mt-0.5 h-3.5 w-3.5 text-muted-foreground" />
+          <span>
+            Rattachée{rapprochees.length > 1 ? "s" : ""} par le Rapprochement (preuve de paiement, lecture seule) :{" "}
+            {rapprochees.map((r, i) => <span key={r.reference}>{i > 0 && " ; "}<strong>{r.reference}</strong> {dzd(r.montant)} le {jour(r.date)}</span>)}.
+          </span>
+        </div>
       )}
 
       {bloc.peutJoindre && <RelierEcriture demandeRowId={bloc.demandeRowId} actuelle={bloc.ecriture?.reference ?? null} />}

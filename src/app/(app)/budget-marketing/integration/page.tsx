@@ -53,6 +53,14 @@ export default async function IntegrationAdProPage({ searchParams }: { searchPar
               ))}
             </nav>
           )}
+          {lot && (
+            // LE RAPPROCHEMENT (Direction, 14/10/2026) : dépenses hors postes et pièces de la plateforme → demandes du lot.
+            <Link href={`/budget-marketing/integration/rapprochement?env=${encodeURIComponent(env.id)}`} className="surface flex flex-wrap items-center gap-2 rounded-xl px-4 py-3 text-sm hover:bg-secondary">
+              <span className="font-semibold">Rapprochement assisté par Luna</span>
+              <span className="min-w-0 flex-1 text-muted-foreground">Dépenses hors postes, écritures à imputer et pièces de la plateforme (Legal, Ad &amp; Pro, Drive…) proposées pour chaque demande — rattachées après validation.</span>
+              <span className="text-primary">Ouvrir →</span>
+            </Link>
+          )}
           {lot ? <LotIntegre key={lot.id} lot={lot} enveloppe={env.nom} filtreInitial={filtre} /> : <AssistantIntegration envelopeId={env.id} enveloppe={env.nom} />}
         </>
       )}

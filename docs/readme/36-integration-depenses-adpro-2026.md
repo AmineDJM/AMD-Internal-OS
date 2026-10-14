@@ -113,3 +113,47 @@ dépense (aucun `ExpenseOrder`). Le test de flux le vérifie ligne à ligne, ava
 `src/app/(app)/budget-marketing/integration/` (assistant, lot, fiche), `src/components/ad-pro/{bloc-historique,pieces-historique}.tsx`.
 Tests : `integration-2026.test.ts`, `integration-suggestions.test.ts`, `integration-regle.test.ts`,
 `integration-regle.cliquet.test.ts`, `integration-flow.test.ts` (base locale, fixture synthétique du format).
+
+### Le rapprochement assisté par Luna
+
+> « Ce qui a déjà été intégré au budget, dans les demandes Ad & Pro ; chercher bien profond dans tous nos fichiers et les
+> faire matcher. » — Direction, 14/10/2026.
+
+**Écran** : Budget Marketing › Intégration 2026 › **Rapprochement** (`/budget-marketing/integration/rapprochement`), même
+porte que l'intégration (gérer l'enveloppe du lot, relue par chaque geste). Quatre onglets : Dépenses → demandes, Pièces →
+demandes (Historique 2026 aux pièces manquantes d'abord), Doublons probables, Décisions (journal, chacune annulable).
+
+**Le moteur** (`budget-marketing/rapprochement.ts`, pur) : montant exact 40 · à 1 DZD 35 · somme de 2 ou 3 dépenses = un
+poste 30 · proche ≤ 1 % 12 ; fournisseur 25 / proche 15 ; même mois 10 / voisin 5 ; mots communs 5 (15 max) ; référence
+(SPO-, MP-, DIM-, PAY-, OD-, FIN-, n° de facture / BC) 30 ; pièce déjà sur la demande ou un poste 30 ; type de pièce
+attendu 5. Seuil 35 (+ un signal fort) ; « probable » ≥ 60. **« Certaine »** = montant au centime + même fournisseur +
+référence concordante, **et une seule cible** (deux cibles, ou deux sources pour une même cible → « probable »). Seules les
+certaines passent par « Accepter toutes les propositions certaines » (confirmation au serveur). « Pas Ad & Pro » :
+location / frais de véhicule, Direction Générale → Operations & Sales ; frais de structure → Moyens généraux — un
+signalement, jamais une imputation. Doublons : même fournisseur + même montant ; montants non ronds à 2 DZD ; même objet
+(mot fort ou synonyme visa / ANPP) à 0,2 % ; somme des postes d'une demande face à un autre élément — regroupés, avec
+renvoi vers « garder / sortir » (`#absentes`) et `/finances/doublons-factures`.
+
+**Luna** (`rapprochement-luna.ts`) : le lecteur de pièces existant (`pieces-lues/service.ts` → `proposerLecture`, cache
+`LecturePiece`, Luna si la pièce peut sortir, moteur local sinon) puis l'identité de facture (`factures/identite.ts`) ; le
+résumé (fournisseur, TTC, date, n°, nature, références, mots) est gardé **par empreinte** dans
+`AdProRapprochementLecture` — une pièce n'est jamais relue, un format / une taille non lus sont notés `NON_LUE`. Lecture
+**par tranches** (6 fichiers, 20 s au plus par appel, un fichier en mémoire à la fois) déclenchée depuis l'écran, avec
+progression, pause et reprise. Fichiers parcourus (métadonnées, depuis le 01/07/2025) : documents des dossiers Legal, Ad &
+Pro (demandes, postes), secrétariat, ordres, demandes de paiement, écritures, Budget ; fichiers commerciaux du Drive ;
+pièces jointes des conversations **de la personne** (lecture locale seulement). Une proposition n'affiche qu'une pièce
+que la personne peut ouvrir.
+
+**Décider** (`actions/rapprochement-adpro-actions.ts`, `rapprochement-serveur.ts`) — `AdProRapprochement` (lot, source,
+décision ACCEPTEE / REFUSEE / PAS_ADPRO, cible, certitude, score, justification, auteur, annulation) : une **dépense**
+acceptée devient la preuve de paiement de la demande / du poste — `construire()` (`queries/budget-integration.ts`) la lit
+en `sourcesReliees` et la règle la juge « payée par un poste historique » ou « remplacée par le fichier » (jamais deux
+fois) ; une écriture « à imputer » rattachée quitte la liste « À imputer » du Budget Marketing (et son total) ; la fiche
+« Historique 2026 » l'affiche en lecture seule. Une **pièce** acceptée rejoint `piecesRattachees` (lien vers le document,
+le fichier du Drive ou la pièce jointe — jamais une copie). Annuler défait l'effet. Index partiels : une dépense n'a qu'un
+destin actif, une pièce se rattache une fois à une demande. Livre de trésorerie et ordres jamais écrits.
+
+Migration `20270125100000_rapprochement_adpro` (deux tables, additive, idempotente). Tests :
+`rapprochement.test.ts` (moteur pur, affichage « hors postes »), `rapprochement-flow.test.ts` (base locale, Luna simulée :
+gardes, lecture unique, propositions, accepter / refuser / autre demande / pas Ad & Pro / annuler, budget sans double
+compte, livre inchangé).

@@ -1356,6 +1356,15 @@ X("BUDGET MARKETING — L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 (maq
   // Intégration 2026 (maquette « onglets », 10/2026) : une lecture d'écran, gardée par l'enveloppe du lot.
   "integration-adpro-actions:ficheHistoriqueIntegration",
 ]);
+X("BUDGET MARKETING — LE RAPPROCHEMENT AD & PRO ASSISTÉ PAR LUNA (Direction, 14/10/2026) : lire par tranches les pièces "
+  + "de la plateforme (Luna, une fois par empreinte), accepter / refuser une proposition de rattachement d'une dépense hors "
+  + "poste ou d'une pièce à une demande intégrée, choisir une autre demande, signaler « pas Ad & Pro », accepter toutes "
+  + "les propositions certaines (confirmation exigée), annuler une décision. Des gestes d'écran qui changent ce que compte "
+  + "le budget d'une enveloppe et les pièces d'une demande, devant les propositions et leurs justifications — gestionnaire "
+  + "de l'enveloppe ou Super Admin. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "rapprochement-adpro-actions:lireTranchePiecesRapprochement", "rapprochement-adpro-actions:deciderRapprochement",
+  "rapprochement-adpro-actions:accepterRapprochementsCertains", "rapprochement-adpro-actions:annulerDecisionRapprochement",
+]);
 X("DEVIS NATIFS → BON DE COMMANDE AU BUREAU DU SECRÉTARIAT (Direction, 10/2026, « comme dans Ad & Pro ») — l'assistante "
   + "dépose et RETRANSCRIT le devis ligne à ligne devant le papier ; le DEMANDEUR coche les lignes qu'il retient, puis génère "
   + "(fabrique, sous délégation de la demande) ou dépose le BC, qui part au centre de validations puis à la signature. Des "
