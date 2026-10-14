@@ -2390,6 +2390,17 @@ model AdProItem {
   opsDecidedById  String?
   opsDecisionNote String?
 
+  /// LA DÉPENSE DU POSTE AU BUDGET MARKETING (Direction, 10/2026 — « on sépare absolument une dépense engagée d'une
+  /// dépense payée »). Une fois TOUS ses bons de commande signés, la Direction Marketing IMPUTE le poste à une catégorie
+  /// d'une enveloppe marketing (`budgetCategoryId`) : la dépense devient ENGAGÉE. « Consommer » demande ensuite le
+  /// paiement par le chemin du poste (centre de paiement, puis Finances) : consommée et payée se LISENT sur l'ordre de
+  /// dépense, jamais recopiées ici. « Annuler » libère l'engagement. Règles pures : `lib/budget/depense-poste.ts`.
+  depenseImputeeLe       DateTime?
+  depenseImputeeParId    String?
+  depenseAnnuleeLe       DateTime?
+  depenseAnnuleeParId    String?
+  depenseAnnulationMotif String?
+
   decisions  AdProItemDecision[]
   /// LES PIÈCES DU POSTE au registre Legal — devis / pro forma, bon de commande, facture (§118.204).
   pieces     AdProItemPiece[]
@@ -2428,6 +2439,7 @@ model AdProItem {
   @@index([status])
   @@index([repartitionId])
   @@index([reservationDossierId])
+  @@index([depenseImputeeLe])
 }
 
 /// UN VOYAGEUR D'UN POSTE « BILLETTERIE » (§118.175).

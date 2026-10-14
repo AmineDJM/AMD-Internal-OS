@@ -56,7 +56,7 @@ export async function VueEnsembleMarketing({ user, base, titre, description, ove
           <div className="min-w-0">
             <p className="inline-flex items-center gap-1 text-sm text-muted-foreground">
               Disponible
-              <InfoBulle label="À propos du disponible" align="left">Enveloppe − payé − engagé. Engagé = bons de commande émis et ordres de dépense pas encore payés.</InfoBulle>
+              <InfoBulle label="À propos du disponible" align="left">Enveloppe − payé − engagé. Engagé (pas encore payé) = les dépenses imputées par la Direction Marketing après signature de leurs bons de commande, et celles déjà consommées qui attendent leur paiement (centre de paiement, Finances) — les mêmes chiffres que l&apos;onglet Dépenses.</InfoBulle>
             </p>
             <p className={`text-3xl font-bold tracking-tight tabular-nums [overflow-wrap:anywhere] sm:text-4xl ${dispo < 0 ? "text-destructive" : ""}`}>{dzd(dispo)}</p>
             <p className="text-sm text-muted-foreground">sur {dzd(t.total)}</p>
@@ -75,7 +75,7 @@ export async function VueEnsembleMarketing({ user, base, titre, description, ove
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1.5 px-4 pb-4 pt-1 text-sm sm:px-5">
           <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-primary" />Payé <b className="tabular-nums">{nb(t.consumed)}</b></span>
-          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-primary/40" />Engagé, pas encore payé <b className="tabular-nums">{nb(t.committed)}</b></span>
+          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-primary/40" />Engagé, pas encore payé <b className="tabular-nums">{nb(t.committed)}</b>{(t.enCircuit ?? 0) > 0.5 && <span className="text-muted-foreground">(dont {nb(t.enCircuit ?? 0)} consommés, en paiement)</span>}</span>
           <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-muted ring-1 ring-border" />Disponible <b className={`tabular-nums ${dispo < 0 ? "text-destructive" : ""}`}>{nb(dispo)}</b></span>
         </div>
       </section>

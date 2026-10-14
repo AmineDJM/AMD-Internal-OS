@@ -153,7 +153,14 @@ export interface BudgetOverview {
   envelope: { id: string; name: string; module: string | null; modules: string[]; accessRoles: string[]; accessUserIds: string[]; managerRoles: string[]; managerUserIds: string[]; periodStart: string; periodEnd: string; total: number; notes: string | null; isActive: boolean; domaine: string; businessUnitId: string | null; productId: string | null; companyId?: string | null };
   period: { from: string; to: string };
   categories: BudgetCategoryView[];
-  totals: { total: number; allocated: number; unallocated: number; consumed: number; committed: number; remaining: number; pct: number };
+  totals: {
+    total: number; allocated: number; unallocated: number; consumed: number; committed: number; remaining: number; pct: number;
+    /**
+     * La part de `committed` déjà CONSOMMÉE : des ordres de dépense émis, au centre de paiement ou chez les Finances,
+     * pas encore réglés (`budget/depense-poste.ts`). L'onglet Dépenses coupe le « non payé » en engagé + consommé.
+     */
+    enCircuit?: number;
+  };
   /** Consommation mois par mois (courbe de la vue d'ensemble). */
   monthly: BudgetMonthPoint[];
   unattributed: { total: number; count: number; transactions: UnattributedTx[] };
@@ -544,6 +551,7 @@ export async function getBudgetOverview(
     totals: {
       total, allocated, unallocated: total - allocated,
       consumed: consumedTotal, committed: committedTotal,
+      enCircuit: [...engagements.enCircuitParCategorie.values()].reduce((x, v) => x + v, 0),
       remaining: total - consumedTotal,
       pct: total > 0 ? Math.round((consumedTotal / total) * 100) : 0,
     },

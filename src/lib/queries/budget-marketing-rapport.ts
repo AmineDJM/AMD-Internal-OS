@@ -58,7 +58,7 @@ const LIBELLE_TYPE: Record<TypeDemande, string> = {
 };
 
 /** Le parent d'un poste Ad & Pro, en clé de demande. */
-function demandeDuPoste(p: { sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null; trainingId: string | null }): string | null {
+export function demandeDuPoste(p: { sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null; trainingId: string | null }): string | null {
   if (p.sponsoringId) return cleDemande("SPONSORING", p.sponsoringId);
   if (p.congressNationalId) return cleDemande("CONGRESS_NATIONAL", p.congressNationalId);
   if (p.congressInternationalId) return cleDemande("CONGRESS_INTERNATIONAL", p.congressInternationalId);
@@ -70,7 +70,7 @@ function demandeDuPoste(p: { sponsoringId: string | null; congressNationalId: st
 const SELECT_PARENT = { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true } as const;
 
 /** Les libellés et liens des demandes, lus en lot. */
-async function libellesDesDemandes(cles: Iterable<string>): Promise<Record<string, DemandeRef>> {
+export async function libellesDesDemandes(cles: Iterable<string>): Promise<Record<string, DemandeRef>> {
   const par: Record<TypeDemande, string[]> = { SPONSORING: [], CONGRESS_NATIONAL: [], CONGRESS_INTERNATIONAL: [], EVENT: [], TRAINING: [] };
   for (const c of new Set(cles)) {
     const [t, id] = c.split(":");
