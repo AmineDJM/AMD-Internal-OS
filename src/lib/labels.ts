@@ -83,6 +83,7 @@ export const PHARMA_FORM: Record<string, string> = {
   SOLUTION_BUVABLE: "Solution buvable",
   SOLUTION_INJECTABLE: "Solution injectable",
   POUDRE_INJECTABLE: "Poudre pour solution injectable",
+  EMULSION_INJECTABLE: "Émulsion injectable",
   PERFUSION: "Solution pour perfusion",
   POMMADE: "Pommade",
   CREME: "Crème",

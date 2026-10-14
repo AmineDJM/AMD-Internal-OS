@@ -157,6 +157,9 @@ const FORM_RULES: { match: RegExp; form: string }[] = [
   { match: /PDRE\s*\+\s*SOLV|PDRE\/SOLV|POUDRE\s*\+\s*SOLV/, form: "POUDRE_INJECTABLE" },
   { match: /SUS\.?\s*BV|SUSP?\.?\s*BUV|GRANNUL|GRANUL/, form: "SUSPENSION_BUVABLE" },
   { match: /SOL(N|UTION)?\.?\s*BUV/, form: "SOLUTION_BUVABLE" },
+  // Une ÉMULSION injectable (ou pour perfusion — émulsions lipidiques) : avant « PERF » et « INJ », qui la prendraient
+  // pour une solution. Une émulsion cutanée ou buvable n'est pas concernée.
+  { match: /[ÉE]MULS.*(\bINJ|PERF)|(\bINJ|PERF).*[ÉE]MULS/, form: "EMULSION_INJECTABLE" },
   { match: /PERF/, form: "PERFUSION" },
   { match: /\bINJ\b|INJECTABLE/, form: "SOLUTION_INJECTABLE" },
   { match: /PELL|PELLIC/, form: "COMPRIME_PELLICULE" },
