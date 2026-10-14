@@ -6,7 +6,8 @@
  * AMD, et permets de modifier les numéros de référence à la génération » ; « un compteur commun pour les références ».
  *
  *   • UN compteur par société et par année (`DocumentSequence`, kind `REGISTRE_DG`), partagé par TOUS les documents qui
- *     portent une référence : bon de commande, ordre de mission, lettre de demande de devis (et toute pièce de la fabrique dont
+ *     portent une référence : bon de commande, ordre de mission, attestation de travail, lettre de demande de devis (et toute
+ *     pièce de la fabrique dont
  *     le motif porte « /DG/ »). L'année civile suivante repart à 001 (le plancher n'est réglé que pour l'année qu'il nomme).
  *   • UN registre (`DocumentReference`) : une ligne par numéro attribué, jamais supprimée — l'unicité (société, année, numéro)
  *     vaut pour tous les types à la fois : le 041 d'un ordre de mission n'est pas aussi celui d'un BC.
@@ -28,7 +29,7 @@ export const KIND_REGISTRE = "REGISTRE_DG";
 /** Au-delà, une saisie est une faute de frappe, pas un numéro. */
 export const NUMERO_MAX = 99_999;
 
-export const TYPES_REFERENCE = ["BON_DE_COMMANDE", "ORDRE_MISSION", "DEMANDE_DEVIS", "DEVIS", "FACTURE", "AVOIR"] as const;
+export const TYPES_REFERENCE = ["BON_DE_COMMANDE", "ORDRE_MISSION", "DEMANDE_DEVIS", "DEVIS", "FACTURE", "AVOIR", "ATTESTATION_TRAVAIL"] as const;
 export type TypeReference = (typeof TYPES_REFERENCE)[number];
 
 export const LIBELLE_TYPE_REFERENCE: Record<TypeReference, string> = {
@@ -38,6 +39,7 @@ export const LIBELLE_TYPE_REFERENCE: Record<TypeReference, string> = {
   DEVIS: "devis",
   FACTURE: "facture",
   AVOIR: "avoir",
+  ATTESTATION_TRAVAIL: "attestation de travail",
 };
 
 const libelleType = (t: string): string => (LIBELLE_TYPE_REFERENCE as Record<string, string>)[t] ?? "document";

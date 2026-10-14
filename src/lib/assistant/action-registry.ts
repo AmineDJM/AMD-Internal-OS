@@ -1345,6 +1345,13 @@ X("DIRECTION ARTISTIQUE (Transverse, 10/2026) — déposer un modèle Word/Excel
   "direction-artistique-actions:definirModeleDePiece",
   "direction-artistique-actions:televerserModeleDePiece",
 ]);
+X("GÉNÉRER L'ATTESTATION DE TRAVAIL D'UNE DEMANDE RH (Direction, 10/2026) — comme l'ordre de mission : le formulaire des "
+  + "RH s'ouvre prérempli (fiche RH, puis le contrat de travail lu par Luna — ou, IA fermée, par la lecture déterministe), "
+  + "les RH relisent chaque champ et choisissent le signataire en fin de formulaire ; la plateforme remplit le modèle sur "
+  + "papier à en-tête, attribue la référence au registre NNN/DG/AAAA et remet le PDF au salarié (régénérer = une nouvelle "
+  + "version). Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire devant la demande.", [
+  "hr-document-actions:preparerAttestationDeTravail", "hr-document-actions:genererAttestationDeTravail",
+]);
 X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
   + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
   + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [
