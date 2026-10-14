@@ -1295,6 +1295,15 @@ X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de 
   + "ouvert. Un clic, confirmé, sur la carte de la demande.", [
   "validation-actions:demanderValidationFinaleBC",
 ]);
+X("DIRECTION ARTISTIQUE (Transverse, 10/2026) — déposer un modèle Word/Excel/PowerPoint POUR UNE ENTITÉ, désigner son "
+  + "papier en-tête par défaut et le modèle de chaque nature de pièce (bon de commande, devis, facture, avoir) que la "
+  + "fabrique applique. Geste de l'assistante de direction (ou de qui tient le module), sur un FICHIER choisi à l'écran. "
+  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "direction-artistique-actions:televerserModele",
+  "direction-artistique-actions:definirPapierParDefaut",
+  "direction-artistique-actions:definirModeleDePiece",
+  "direction-artistique-actions:televerserModeleDePiece",
+]);
 X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
   + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
   + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [

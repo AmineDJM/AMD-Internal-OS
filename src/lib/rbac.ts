@@ -174,6 +174,11 @@ export const MODULES = [
   // TOUT) = la vue de la Direction ; Modifier = piloter la campagne ; le responsable d'un département prépare SON pôle
   // par l'organigramme (accès implicite, portée bornée). Valider = le comité nommé dans la campagne, pas ce droit seul.
   "BUDGET_CAMPAIGN",
+  // ART_DIRECTION : « Direction artistique » (Transverse, 10/2026) — la papeterie de CHAQUE entité, tenue par l'assistante
+  // de direction : papiers en-tête Word, modèle de bon de commande (et de devis, facture, avoir), modèles PowerPoint et
+  // Excel, logo et charte. C'est ICI que la fabrique va chercher le modèle d'une pièce. Voir = lire ; Téléverser =
+  // déposer un modèle ; Modifier = choisir le modèle par défaut / par nature, régler la charte ; Supprimer = retirer.
+  "ART_DIRECTION",
 ] as const;
 export type Module = (typeof MODULES)[number];
 
@@ -718,6 +723,15 @@ const BUDGET_CAMPAIGN_PAR_DEFAUT: Partial<Record<UserRole, Action[]>> = {
 };
 for (const [role, actions] of Object.entries(BUDGET_CAMPAIGN_PAR_DEFAUT) as [UserRole, Action[]][]) {
   if (!PERMISSIONS[role].BUDGET_CAMPAIGN) PERMISSIONS[role].BUDGET_CAMPAIGN = [...actions];
+}
+
+/** « DIRECTION ARTISTIQUE » PAR DÉFAUT (Transverse, 10/2026) — l'assistante de direction la tient (le Super Admin a tout).
+ *  Personne d'autre : la console l'ouvre au cas par cas, personne par personne. */
+const ART_DIRECTION_PAR_DEFAUT: Partial<Record<UserRole, Action[]>> = {
+  DIRECTION_ASSISTANT: ["VIEW", "CREATE", "UPDATE", "DELETE", "UPLOAD"],
+};
+for (const [role, actions] of Object.entries(ART_DIRECTION_PAR_DEFAUT) as [UserRole, Action[]][]) {
+  if (!PERMISSIONS[role].ART_DIRECTION) PERMISSIONS[role].ART_DIRECTION = [...actions];
 }
 
 const GLOBAL_VIEW_ROLES: UserRole[] = ["SUPER_ADMIN", "DIRECTION"];

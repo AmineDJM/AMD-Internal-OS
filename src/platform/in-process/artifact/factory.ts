@@ -37,7 +37,8 @@ import type { CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
-import { canManageLetterheads, letterheadsFor } from "@/lib/office/letterhead";
+import { canManageLetterheads } from "@/lib/office/letterhead";
+import { lireModelesParType, resoudrePapierEnTete } from "@/lib/direction-artistique/modeles";
 import { canEditCompanyId, getMyCompanies, moneyEntityOf, type CompanyLite } from "@/lib/company";
 import { getBlob } from "@/lib/drive-storage";
 import { recordAudit } from "@/lib/audit";
@@ -242,8 +243,8 @@ export function manquesDIdentite(profil: ProfilDocumentaire): string[] {
   if (!profil.papierEnTete && !profil.marque.logo) {
     out.push(
       `Aucun papier en-tête ni logo n'est enregistré pour ${profil.societe.nom} : la mise en page est NEUTRE, `
-      + `elle ne porte pas la charte de la société. Téléversez l'en-tête (Bureautique → Papiers en-tête) ou le logo `
-      + `(profil documentaire) pour que la pièce ressemble vraiment à ${profil.societe.nom}.`,
+      + `elle ne porte pas la charte de la société. Téléversez l'en-tête ou le logo (Transverse → Direction artistique) `
+      + `pour que la pièce ressemble vraiment à ${profil.societe.nom}.`,
     );
   }
   if (!profil.reglages.existe) {
@@ -261,8 +262,13 @@ export function manquesDIdentite(profil: ProfilDocumentaire): string[] {
  * `opts.papierEnTeteId` : un papier CHOISI pour cette pièce (le bouton des Finances propose la
  * bibliothèque de la société) à la place de celui que le profil désigne — jamais le papier d'une
  * autre société : écrire sur son en-tête, c'est l'engager.
+ *
+ * `opts.type` : la NATURE de la pièce à habiller. La Direction artistique (Transverse) désigne, par
+ * entité, le modèle Word d'un bon de commande, d'un devis… (`settings.modelesParType`) : c'est là
+ * que la fabrique va le chercher. Ordre : choisi > modèle de la nature > papier par défaut de
+ * l'entité > premier papier de l'entité > commun au groupe (`resoudrePapierEnTete`).
  */
-export async function profilDocumentaire(user: CurrentUser, societe?: string | null, opts: { papierEnTeteId?: string | null } = {}): Promise<{ ok: true; profil: ProfilDocumentaire; papierOctets: Buffer | null; logo: Habillage["logo"]; habillage: Habillage } | EchecFabrique> {
+export async function profilDocumentaire(user: CurrentUser, societe?: string | null, opts: { papierEnTeteId?: string | null; type?: TypeDocumentCommercial | null } = {}): Promise<{ ok: true; profil: ProfilDocumentaire; papierOctets: Buffer | null; logo: Habillage["logo"]; habillage: Habillage } | EchecFabrique> {
   const r = await resoudreSociete(user.id, societe);
   if (!r.ok) return r;
   const s = r.societe;
@@ -307,17 +313,21 @@ export async function profilDocumentaire(user: CurrentUser, societe?: string | n
   appliquer("tvaDefaut", (v) => (typeof v === "number" && TAUX_TVA_ADMIS.some((t) => Math.abs(t - v) < 1e-9) ? ((reglages.vatRate = v), `TVA par défaut : ${Math.round(v * 100)} %`) : null));
   appliquer("conditionsPaiement", (v) => (typeof v === "string" && v.trim() ? ((reglages.paymentTerms = v.trim()), `conditions de paiement : ${v.trim()}`) : null));
   appliquer("mentionPied", (v) => (typeof v === "string" && v.trim() ? ((reglages.footerNote = v.trim()), "mention de pied de page") : null));
-  // Le papier : celui que le profil désigne s'il est toujours actif, sinon le premier de la
-  // société, sinon un papier commun au groupe — jamais celui d'une autre société.
-  const voulu = (opts.papierEnTeteId ?? "").trim();
-  if (voulu && !entetes.some((l) => l.id === voulu)) {
-    // `entetes` ne contient que les en-têtes Word ACTIFS de cette société ou communs au groupe :
+  // Le papier : celui CHOISI pour la pièce, sinon le modèle que la Direction artistique désigne pour
+  // sa nature, sinon le papier par défaut de l'entité, sinon le premier de la société, sinon un
+  // papier commun au groupe — jamais celui d'une autre société (`resoudrePapierEnTete`).
+  const resolu = resoudrePapierEnTete(entetes, {
+    societeId: s.id,
+    choisi: opts.papierEnTeteId,
+    parNature: opts.type ? lireModelesParType(profil?.settings)[opts.type] ?? null : null,
+    defaut: reglages.letterheadId,
+  });
+  if (resolu.choisiIntrouvable) {
+    // Seuls les en-têtes Word ACTIFS de cette société ou communs au groupe sont candidats :
     // « introuvable » couvre donc aussi « appartient à une autre société », sans le révéler.
     return echec("NOT_FOUND", "Ce papier en-tête n'existe pas, n'est plus actif, ou n'est pas un modèle Word de cette société.");
   }
-  const choisi = voulu ? entetes.find((l) => l.id === voulu) ?? null : null;
-  const designe = reglages.letterheadId ? entetes.find((l) => l.id === reglages.letterheadId) ?? null : null;
-  const papier = choisi ?? designe ?? letterheadsFor(entetes, "word", s.id).find((l) => l.companyId === s.id || l.companyId === null) ?? null;
+  const papier = resolu.papier;
   const papierOctets = papier ? await getBlob(papier.blobId) : null;
   // LA MARQUE (§26) : lue dans `settings.marque` du profil ; la charte effective tranche marque >
   // bleu canard de la maison (la pastille de l'entité colore les écrans, pas les pièces). Le logo n'est chargé que s'il servira : sans papier en-tête.
@@ -852,7 +862,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
   if (opts.delegation && !(demande.societe ?? "").trim()) {
     return echec("MISSING_INPUT", "Cette émission est autorisée par un dossier qui ne nomme aucune société : rattachez le dossier à la société qui commande, puis relancez.");
   }
-  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null });
+  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null, type });
   if (!p.ok) return p;
   const { profil, papierOctets, habillage } = p;
   if (!opts.delegation && !(await canEditCompanyId(user.id, profil.societe.id))) return echec("MISSING_PERMISSION", `Vous voyez ${profil.societe.nom} sans pouvoir l'engager : la pièce ne peut pas être émise en son nom.`);
@@ -1119,7 +1129,7 @@ export async function previsualiserDocument(
   if (opts.delegation && !(demande.societe ?? "").trim()) {
     return echec("MISSING_INPUT", "Cet aperçu est autorisé par un dossier qui ne nomme aucune société : rattachez le dossier à la société qui commande, puis relancez.");
   }
-  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null });
+  const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null, type });
   if (!p.ok) return p;
   const { profil, habillage } = p;
   if (!opts.delegation && !(await canEditCompanyId(user.id, profil.societe.id))) return echec("MISSING_PERMISSION", `Vous voyez ${profil.societe.nom} sans pouvoir l'engager : la pièce ne peut pas être émise en son nom.`);

@@ -27,8 +27,6 @@ import { searchDrive } from "@/lib/queries/drive-search";
 import { normalizeQuery, searchSummary } from "@/lib/drive/search";
 import { letterheadContextFor } from "@/lib/queries/letterheads";
 import { canManageLetterheads } from "@/lib/office/letterhead";
-import { getMyCompanies, companyLabel } from "@/lib/company";
-import { LetterheadManager } from "@/components/office/letterhead-manager";
 import { Stamp } from "lucide-react";
 
 
@@ -127,27 +125,18 @@ export default async function DrivePage({ searchParams }: { searchParams: { fold
     ? await letterheadContextFor(user.id)
     : { letterheads: [], companyId: null };
   /**
-   * LA PAPETERIE DE LA SOCIÉTÉ — dans le menu « ⋯ », pour ceux qui la tiennent.
-   *
-   * Elle vivait sur l'écran « Bureautique », que tout le monde voyait dans le menu pour un
-   * réglage que deux personnes touchent — et qui ne servait, pour tous les autres, qu'à
-   * refaire ce que le Drive fait déjà (créer un document, l'ouvrir, le partager). L'écran
-   * disparaît ; la papeterie descend ici, invisible tant qu'on n'y a pas droit.
+   * LA PAPETERIE DE LA SOCIÉTÉ — elle vit dans « Direction artistique » (Transverse, 10/2026), une
+   * entité par onglet. Le menu « ⋯ » du Drive n'en garde qu'un LIEN, pour qui la tient (la
+   * responsabilité historique ou le module ouvert par la console) : créer un document avec en-tête
+   * reste sur le bouton « Nouveau document ».
    */
-  const canLetterheads = canManageLetterheads(user);
-  const letterheadTools = canLetterheads
+  const letterheadTools = canManageLetterheads(user) || userCan(user, "ART_DIRECTION", "VIEW")
     ? [{
         key: "letterheads",
-        label: "Papiers en-tête",
-        description: "Les modèles de la société, proposés à la création d'un document Word, Excel ou PowerPoint.",
+        label: "Direction artistique",
+        description: "Papiers en-tête et modèles Word, Excel, PowerPoint de chaque entité.",
         icon: <Stamp className="h-4 w-4" />,
-        panel: (
-          <LetterheadManager
-            embedded
-            letterheads={(await letterheadContextFor(user.id, { includeInactive: true })).letterheads}
-            companies={(await getMyCompanies(user.id)).map((c) => ({ id: c.id, label: companyLabel(c) }))}
-          />
-        ),
+        href: "/direction-artistique",
       }]
     : [];
 
