@@ -62,6 +62,7 @@ import { magasinPrisma, prevoirReference, rattacherReference } from "@/lib/refer
 import {
   memeNumero, nettoyerNumero, phraseNumeroPris, refusNumeroLibre, resumeChangementNumero, sequenceDuNumero,
 } from "@/lib/bons-de-commande/numero-reference";
+import { changementDeNumeroSeul, MENTION_NUMERO_SEUL, phraseNumeroSeul } from "@/lib/bons-de-commande/numero-seul";
 import type { DonneesCanoniques } from "@/lib/artifact/factory/canonical";
 import { MIME_DOCX } from "@/lib/artifact/factory/word";
 import { MIME_XLSX } from "@/lib/artifact/adapters/xlsx/adapter";
@@ -557,7 +558,7 @@ interface Fabrique {
   papierEnTeteId: string | null;
   emisPar: string;
   emisLe: string;
-  historique: { version: number; le: string; par: string; resume: string }[];
+  historique: { version: number; le: string; par: string; resume: string; numeroSeul?: boolean }[];
 }
 
 interface ResumeTotaux { totalHt: number; totalTva: number; totalTaxes?: number; timbre: number; totalTtc: number; enLettres: string }
@@ -637,6 +638,11 @@ export interface DocumentEmis {
    * le cliquet de frontière a compté 430 pour 428 quand il le faisait (§118.114).
    */
   reserveBonDeCommande: string | null;
+  /**
+   * UNE RÉVISION QUI NE CHANGE QUE LE NUMÉRO (Direction, 14/10/2026) : le BC garde son état — aucun réaiguillage, étapes et
+   * signature conservées. Décidé au serveur en comparant l'enregistré et le soumis (`bons-de-commande/numero-seul.ts`).
+   */
+  numeroSeul?: boolean;
   ms: number;
 }
 
@@ -855,6 +861,30 @@ function jugerNumeroRevise(f: Fabrique, saisie: string | null | undefined, date:
   const refus = refusNumeroLibre(s);
   if (refus) return { refus };
   return { change: true, ancien: f.numero, numero: s, annee, registre: null, sequence: sequenceDuNumero(s, { prefixe: prefixeDe(f.type, profil), annee, motif: motifDe(f.type, profil) }), kind };
+}
+
+/**
+ * LA RÉVISION NE CHANGE-T-ELLE QUE LE NUMÉRO ? (Direction, 14/10/2026) — la saisie (`apres`, composée comme la révision, même
+ * numéro) comparée à la pièce ENREGISTRÉE, champ saisi par champ saisi ; un autre papier en-tête choisi est un changement.
+ */
+function revisionDeNumeroSeul(f: Fabrique, apres: SpecDocumentCommercial, m: ModificationsDocument): boolean {
+  const papierChange = m.letterheadId !== undefined && ((m.letterheadId ?? "").trim() || null) !== (f.papierEnTeteId ?? null);
+  return changementDeNumeroSeul(f.spec as unknown as Record<string, unknown>, apres as unknown as Record<string, unknown>, { numeroChange: true, papierChange }).seul;
+}
+
+/**
+ * LE GESTE NE CHANGE-T-IL QUE LE NUMÉRO D'UNE PIÈCE ÉMISE ? — pour les portes qui retiennent un BC SIGNÉ (le poste Ad & Pro,
+ * la demande au secrétariat) : un numéro seul s'y modifie, rien d'autre. Lecture seule, la même composition que la révision.
+ */
+export async function estRevisionDeNumeroSeul(user: CurrentUser, legalDocumentId: string, modifications: ModificationsDocument): Promise<boolean> {
+  const doc = await prisma.legalDocument.findUnique({ where: { id: legalDocumentId }, select: { companyId: true, custom: true } });
+  const f = doc ? fabriqueDe(doc.custom) : null;
+  if (!doc || !f) return false;
+  const lu = await profilDeLaRevision(user, doc.companyId, f, modifications);
+  if (!lu.ok) return false;
+  const apres = specRevisee(f, modifications, lu.p.profil);
+  const renum = jugerNumeroRevise(f, modifications.numero, apres.date, lu.p.profil);
+  return !("refus" in renum) && renum.change && revisionDeNumeroSeul(f, apres, modifications);
 }
 
 /**
@@ -1526,7 +1556,7 @@ export async function reviserDocumentDrive(
   // de délégation (§118.87c) — déporté dans une fonction voisine, il ne déclarait plus ses écritures.
   return enSerie(`fabrique:revision:${opts.legalDocumentId}`, async () => {
     const debut = Date.now();
-    const doc = await prisma.legalDocument.findUnique({ where: { id: opts.legalDocumentId }, select: { id: true, companyId: true, kind: true, status: true, custom: true, driveNodeId: true } });
+    const doc = await prisma.legalDocument.findUnique({ where: { id: opts.legalDocumentId }, select: { id: true, companyId: true, kind: true, status: true, custom: true, driveNodeId: true, signedAt: true } });
     const f = doc ? fabriqueDe(doc.custom) : null;
     if (!doc || !f) return echec("NOT_FOUND", "Cette pièce n'existe pas, ou n'a pas été émise par la fabrique (seules celles-ci se révisent).");
     if (f.type === "FACTURE") return echec("CAPABILITY_FAILURE", `La facture ${f.numero} est émise : une facture ne se réécrit pas. Pour la corriger, émettez un avoir depuis sa fiche — en totalité ou en partie.`);
@@ -1563,14 +1593,17 @@ export async function reviserDocumentDrive(
       if (pris) return echec("MISSING_INPUT", phraseNumeroPris(renum.numero, pris));
     }
     const numero = renum.change ? renum.numero : f.numero;
-    const spec: SpecDocumentCommercial = { ...specSansNumero, numero };
+    // « SEUL LE NUMÉRO CHANGE » (Direction, 14/10/2026) : décidé ICI en comparant la pièce enregistrée et la saisie — la pièce
+    // est alors régénérée TELLE QU'ENREGISTRÉE, numéro excepté, et garde son état (voir plus bas : pas de réaiguillage).
+    const numeroSeul = renum.change && revisionDeNumeroSeul(f, specSansNumero, m);
+    const spec: SpecDocumentCommercial = numeroSeul ? { ...f.spec, numero } : { ...specSansNumero, numero };
     const regles = verifierSpecCommerciale(spec);
     if (regles.bloquants.length > 0) return echec("MISSING_INPUT", `Révision refusée : ${regles.bloquants.slice(0, 4).join(" ; ")}`, { bloquants: regles.bloquants });
     const construit = await construireDocumentCommercial(spec, p.habillage);
     if (!construit.verification.ok || !construit.totaux) return echec("CAPABILITY_FAILURE", `Révision refusée : ${construit.verification.bloquants.slice(0, 4).join(" ; ")}`, { bloquants: construit.verification.bloquants });
 
     const version = f.version + 1;
-    const motifs = [renum.change ? resumeChangementNumero(f.numero, numero) : null, opts.motif?.trim() || null].filter(Boolean);
+    const motifs = [renum.change ? resumeChangementNumero(f.numero, numero) : null, numeroSeul ? MENTION_NUMERO_SEUL : null, opts.motif?.trim() || null].filter(Boolean);
     const resume = `v${version}${motifs.length ? ` — ${motifs.join(" ; ")}` : ""}`;
     // LA PIÈCE SE RÉVISE, PAS LE DRIVE D'UNE AUTRE PERSONNE (§118.152, §118.194) : son fichier vit dans le Drive de
     // qui l'a émise. Le droit vérifié plus haut — modifier cette pièce au registre ET engager sa société, ou la
@@ -1596,7 +1629,7 @@ export async function reviserDocumentDrive(
     const finale: Fabrique = {
       ...f, version, numero, spec, totaux: resumeTotaux(construit.totaux), docx: { nodeId: doc.driveNodeId, version: ecrit.version }, pdf, surPapierEnTete: construit.surPapierEnTete,
       papierEnTeteId: p.profil.papierEnTete?.id ?? null,
-      historique: [...(f.historique ?? []), { version, le: new Date().toISOString(), par: user.id, resume }],
+      historique: [...(f.historique ?? []), { version, le: new Date().toISOString(), par: user.id, resume, ...(numeroSeul ? { numeroSeul: true } : {}) }],
     };
     // LA VERSION LUE, ENCORE (§118.194) : la file sérialise dans ce processus ; entre deux processus, c'est
     // cette condition qui empêche la seconde révision de réécrire la première au registre. Le NOUVEAU NUMÉRO s'écrit dans la
@@ -1630,7 +1663,7 @@ export async function reviserDocumentDrive(
       // TRACÉ : ancien → nouveau, qui, quand — une ligne du journal à part, lisible sans ouvrir la version.
       await recordAudit({
         actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id, field: "numero", oldValue: f.numero, newValue: numero,
-        summary: `${LIBELLE_TYPE[f.type]} : ${resumeChangementNumero(f.numero, numero)} ${parQui(user, emission.canal)}${emission.delegation ? ` — autorisé par : ${emission.delegation}` : ""}`,
+        summary: `${LIBELLE_TYPE[f.type]} : ${resumeChangementNumero(f.numero, numero)} ${parQui(user, emission.canal)}${numeroSeul ? ` (${MENTION_NUMERO_SEUL})` : ""}${emission.delegation ? ` — autorisé par : ${emission.delegation}` : ""}`,
       });
     }
     await recordAudit({ actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id, summary: `${LIBELLE_TYPE[f.type]} ${numero} révisé ${parQui(user, emission.canal)} (${resume}) — ${formaterDzd(construit.totaux.totalTtc)}${emission.delegation ? ` — autorisé par : ${emission.delegation}` : ""}` });
@@ -1639,7 +1672,10 @@ export async function reviserDocumentDrive(
     // version précédente — c'est lui que le centre avait sous les yeux.
     let porteBC: PorteBC | null = null;
     let reserveBonDeCommande: string | null = null;
-    if (f.type === "BON_DE_COMMANDE") {
+    if (numeroSeul) {
+      // SEUL LE NUMÉRO A CHANGÉ : le BC garde son état — aucun réaiguillage, étapes de validation et signature conservées.
+      avertissements.push(phraseNumeroSeul({ signe: Boolean(doc.signedAt) }));
+    } else if (f.type === "BON_DE_COMMANDE") {
       // Une RÉVISION est une nouvelle version du fichier : ce n'est plus la pièce que les Finances
       // ont signée, même à montant égal (§118.149).
       const a = await aiguillerBC(doc.id, { acteurId: user.id, modifie: true, montantAvant: f.totaux?.totalTtc ?? null, pieceRevisee: true });
@@ -1652,7 +1688,7 @@ export async function reviserDocumentDrive(
       societe: { id: p.profil.societe.id, nom: p.profil.societe.nom }, tiers: spec.tiers.nom,
       docx: { nodeId: doc.driveNodeId, nom: nomFichier(numero, spec.tiers.nom, "docx"), version: ecrit.version },
       pdf: pdf ? { nodeId: pdf.nodeId, nom: nomFichier(numero, spec.tiers.nom, "pdf"), pages: pdf.pages, methode: pdf.methode ?? "rendu" } : null,
-      totaux: finale.totaux, surPapierEnTete: construit.surPapierEnTete, avertissements, reglesAppliquees: p.profil.reglesAppliquees, porteBC, reserveBonDeCommande, ms: Date.now() - debut,
+      totaux: finale.totaux, surPapierEnTete: construit.surPapierEnTete, avertissements, reglesAppliquees: p.profil.reglesAppliquees, porteBC, reserveBonDeCommande, numeroSeul, ms: Date.now() - debut,
     };
   });
 }
@@ -1708,7 +1744,7 @@ export async function previsualiserRevision(
   /** Comme la révision : sous la délégation d'un dossier (le demandeur d'un poste Ad & Pro), les droits Legal cèdent. */
   emission: Pick<OptionsEmission, "delegation"> = {},
 ): Promise<ApercuDocument | EchecFabrique> {
-  const doc = await prisma.legalDocument.findUnique({ where: { id: opts.legalDocumentId }, select: { id: true, companyId: true, status: true, custom: true } });
+  const doc = await prisma.legalDocument.findUnique({ where: { id: opts.legalDocumentId }, select: { id: true, companyId: true, status: true, custom: true, signedAt: true } });
   const f = doc ? fabriqueDe(doc.custom) : null;
   if (!doc || !f) return echec("NOT_FOUND", "Cette pièce n'existe pas, ou n'a pas été émise par la fabrique (seules celles-ci se révisent).");
   if (f.type === "FACTURE" || f.type === "AVOIR") return echec("CAPABILITY_FAILURE", `La pièce ${f.numero} est une pièce fiscale émise : elle ne se réécrit pas.`);
@@ -1728,14 +1764,16 @@ export async function previsualiserRevision(
     if (pris) refusNumero = phraseNumeroPris(renum.numero, pris);
   }
   const numero = !("refus" in renum) && renum.change && !refusNumero ? renum.numero : f.numero;
-  const spec: SpecDocumentCommercial = { ...specSansNumero, numero };
+  // Seul le numéro change : la pièce enregistrée, telle quelle, au nouveau numéro — et l'écran dit que le BC garde son état.
+  const numeroSeul = numero !== f.numero && revisionDeNumeroSeul(f, specSansNumero, m);
+  const spec: SpecDocumentCommercial = numeroSeul ? { ...f.spec, numero } : { ...specSansNumero, numero };
   const commun = {
     ok: true as const, societe: { id: profil.societe.id, nom: profil.societe.nom }, numeroProchain: numero, motif: null, surRegistre: false,
     papierEnTete: profil.papierEnTete, identiteIncomplete: profil.identiteIncomplete, spec, pdfParEditeur: convertConfigured(), coordonneesSociete: coordonneesParDefaut(profil),
   };
   const refusDate = refusDateRevisee(f, m.date);
   const regles = verifierSpecCommerciale(spec);
-  const avertissements = [...manquesDIdentite(profil), ...(lu.avertissement ? [lu.avertissement] : [])];
+  const avertissements = [...(numeroSeul ? [phraseNumeroSeul({ signe: Boolean(doc.signedAt) })] : []), ...manquesDIdentite(profil), ...(lu.avertissement ? [lu.avertissement] : [])];
   if (refusDate || refusNumero || regles.bloquants.length > 0) {
     return { ...commun, totaux: null, bloquants: [...(refusDate ? [refusDate] : []), ...(refusNumero ? [refusNumero] : []), ...regles.bloquants], avertissements: [...regles.avertissements, ...avertissements], peutEmettre: false, ...(opts.avecPdf ? { pdf: null, pdfErreur: "Le rendu n'est pas possible tant que la révision est refusée." } : {}) };
   }

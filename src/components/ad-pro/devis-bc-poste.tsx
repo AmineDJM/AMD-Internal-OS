@@ -14,6 +14,7 @@ import {
   previsualiserBcDuPoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
+import { ModifierNumeroBc } from "@/components/references/modifier-numero-bc";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
 import { ApercuBonDeCommande } from "@/components/ad-pro/apercu-bc-poste";
 
@@ -93,6 +94,13 @@ function PieceDuBC({ bc, itemId, peutModifier }: { bc: BcDePoste; itemId: string
           <FileCheck className="h-3 w-3" /> Voir le BC signé
         </a>
         {bc.copieSignee.constat && <InfoBulle label="Ce que Luna a vérifié" align="left">{bc.copieSignee.constat}</InfoBulle>}
+        {/* SIGNÉ, SEUL SON NUMÉRO SE MODIFIE ENCORE (Direction, 14/10/2026) : circuit et signature conservés. */}
+        {peutModifier && bc.revision && (
+          <ModifierNumeroBc
+            legalDocumentId={bc.id} numero={bc.revision.numero} version={bc.revision.version} valeurs={bc.revision.valeurs} signe
+            extra={{ id: itemId }} envoyer={modifierBcDuPoste}
+          />
+        )}
       </span>
     );
   }

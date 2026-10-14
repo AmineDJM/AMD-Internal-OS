@@ -10,7 +10,9 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getBlob } from "@/lib/drive-storage";
-import { pieceEmise, valeursComposables } from "@/lib/legal/piece-emise";
+import { pieceEmise, valeursComposables, type ValeursComposables } from "@/lib/legal/piece-emise";
+import { deleteFileByKey } from "@/lib/storage";
+import { etatCompletDuBC } from "@/lib/bons-de-commande/etat-bc-test-outils";
 import { formulaireDuComposeur } from "@/lib/bons-de-commande/composeur-test-outils";
 import { emettrePieceCommerciale, previsualiserPieceCommerciale, reviserPieceCommerciale, verifierNumeroPiece } from "./fabrique-actions";
 import { updateLegalDocument } from "./legal-actions";
@@ -70,9 +72,11 @@ async function texteDuWord(legalDocumentId: string): Promise<string> {
 }
 
 /** La révision telle que le composeur l'envoie : la pièce courante, le numéro saisi et le numéro actuel. */
-async function reviser(legalDocumentId: string, numeroRevise: string, motif = "Numéro corrigé") {
+async function reviser(legalDocumentId: string, numeroRevise: string, motif = "Numéro corrigé", autre: (v: ValeursComposables) => void = () => {}) {
   const d = await prisma.legalDocument.findUniqueOrThrow({ where: { id: legalDocumentId }, select: { custom: true, reference: true } });
-  const fd = formulaireDuComposeur(valeursComposables(d.custom)!, {
+  const v = valeursComposables(d.custom)!;
+  autre(v);
+  const fd = formulaireDuComposeur(v, {
     legalDocumentId, revisionDe: legalDocumentId, versionVue: String(pieceEmise(d.custom)!.version), motif, numeroRevise, numeroActuel: d.reference ?? "",
   });
   ACTOR = sa;
@@ -194,6 +198,64 @@ suite("Le numéro de référence d'un BC — choisi à la composition, modifié 
       expect(await compteur(societeReg, "REGISTRE_DG")).toBe(90);
       expect(await prisma.documentReference.count({ where: { companyId: societeReg, entityId: depose.id, reference: DG(90) } })).toBe(1);
       expect(await prisma.auditLog.findFirst({ where: { entityId: depose.id, field: "numero" } })).toMatchObject({ oldValue: "BC-PAPIER-1", newValue: DG(90) });
+    }, 60_000);
+  });
+
+  describe("le NUMÉRO SEUL ne relance pas le circuit (Direction, 14/10/2026)", () => {
+    const signer = (id: string) => prisma.legalDocument.update({ where: { id }, data: { signedAt: new Date("2026-04-01T10:00:00Z"), signedById: sa.id, signedByName: "Finances", bcCircuitAt: new Date("2026-03-20T10:00:00Z") } });
+
+    it("BC NATIF (fiche Legal) : signé, son numéro seul change — état, étapes et signature intacts, version « numéro seul », audit ; numéro + autre champ → la règle d'avant", async () => {
+      const r = await emettre(societeReg, "Numéro seul");
+      expect(r.ok, r.error).toBe(true);
+      const id = r.legalDocumentId!;
+      await signer(id);
+      const avant = await etatCompletDuBC(id);
+      const seul = await reviser(id, DG(300));
+      expect(seul.ok, seul.error).toBe(true);
+      expect(seul.message).toMatch(/seul le numéro a changé/);
+      expect(await etatCompletDuBC(id)).toEqual(avant);
+      const doc = await prisma.legalDocument.findUniqueOrThrow({ where: { id }, select: { reference: true, custom: true } });
+      expect(doc.reference).toBe(DG(300));
+      const f = (doc.custom as { fabrique: { version: number; historique: { numeroSeul?: boolean; resume: string }[] } }).fabrique;
+      expect(f.version).toBe(2);
+      expect(f.historique.at(-1)).toMatchObject({ numeroSeul: true });
+      expect(await texteDuWord(id)).toContain(DG(300));
+      expect(await prisma.auditLog.findFirst({ where: { entityId: id, field: "numero" }, select: { oldValue: true, newValue: true, actorId: true } })).toEqual({ oldValue: r.reference, newValue: DG(300), actorId: sa.id });
+      // Unicité et compteur tiennent toujours.
+      expect(await compteur(societeReg, "REGISTRE_DG")).toBeGreaterThanOrEqual(300);
+      expect((await reviser(id, DG(70))).ok).toBe(false);
+      // NUMÉRO + NOTES : une révision ordinaire — la pièce n'est plus celle que les Finances ont signée.
+      const avec = await reviser(id, DG(301), "Numéro et notes", (v) => { v.champs = { ...v.champs, notes: "Livrer le matin." }; });
+      expect(avec.ok, avec.error).toBe(true);
+      expect(avec.message).not.toMatch(/seul le numéro/);
+      expect((await etatCompletDuBC(id)).doc.signedAt).toBeNull();
+    }, 180_000);
+
+    it("BC DÉPOSÉ (fiche Legal, ou « Demandes de validations » depuis l'ordinateur) : numéro seul → état gardé ; numéro + nouveau fichier → signature retirée", async () => {
+      const depose = await prisma.legalDocument.create({
+        data: { companyId: societeReg, kind: "PURCHASE_ORDER", title: `${TAG} BC déposé signé`, reference: "BC-PAPIER-9", counterparty: `${TAG} Fournisseur`, amount: 50_000, startDate: new Date(`${ANNEE}-02-01T00:00:00Z`), createdById: sa.id, updatedById: sa.id },
+        select: { id: true },
+      });
+      await signer(depose.id);
+      const fiche = (reference: string) => {
+        const fd = new FormData();
+        for (const [k, v] of Object.entries({ id: depose.id, title: `${TAG} BC déposé signé`, reference, kind: "PURCHASE_ORDER", amount: "50000", startDate: `${ANNEE}-02-01` })) fd.set(k, v);
+        return fd;
+      };
+      ACTOR = sa;
+      const avant = await etatCompletDuBC(depose.id);
+      const seul = await updateLegalDocument(fiche("BC-PAPIER-10"));
+      expect(seul.ok, seul.ok ? "" : seul.error).toBe(true);
+      expect(seul.message).toMatch(/Seul le numéro a changé/);
+      expect(await etatCompletDuBC(depose.id)).toEqual(avant);
+      expect(await prisma.auditLog.findFirst({ where: { entityId: depose.id, field: "numero" }, select: { oldValue: true, newValue: true } })).toEqual({ oldValue: "BC-PAPIER-9", newValue: "BC-PAPIER-10" });
+      const avecFichier = fiche("BC-PAPIER-11");
+      avecFichier.append("attachment", new File([Buffer.from("%PDF-1.4 v2")], "bc-v2.pdf", { type: "application/pdf" }));
+      const r = await updateLegalDocument(avecFichier);
+      expect(r.ok, r.ok ? "" : r.error).toBe(true);
+      expect((await etatCompletDuBC(depose.id)).doc.signedAt).toBeNull();
+      const pj = await prisma.document.findMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: depose.id }, select: { id: true, fileKey: true } });
+      for (const d of pj) { await prisma.document.delete({ where: { id: d.id } }).catch(() => {}); if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {}); }
     }, 60_000);
   });
 

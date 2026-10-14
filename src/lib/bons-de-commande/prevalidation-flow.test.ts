@@ -7,7 +7,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { createLegalDocument, adresserBCAuCentre } from "@/lib/actions/legal-actions";
+import { createLegalDocument, adresserBCAuCentre, updateLegalDocument } from "@/lib/actions/legal-actions";
+import { etatCompletDuBC } from "./etat-bc-test-outils";
 import {
   createValidationRequest, decideValidation, demanderValidationFinaleBC, deleteMyValidationRequest,
 } from "@/lib/actions/validation-actions";
@@ -172,6 +173,22 @@ suite("Pré-validation d'un BC depuis « Demandes de validations » — le flux 
     expect(doc.bcPrevalidationRequestId).toBe(r.id);
     expect(await porteDuBC(doc.id)).toBeNull();
     expect(await prisma.validationRequest.count({ where: { entityType: "LEGAL_DOCUMENT", entityId: doc.id, objectType: "BON_DE_COMMANDE" } })).toBe(0);
+  });
+
+  it("SON NUMÉRO SEUL SE MODIFIE (Direction, 14/10/2026) : la pré-validation et ses validateurs restent où ils en sont ; tracé", async () => {
+    const id = docs.at(-1)!;
+    const doc = await prisma.legalDocument.findUniqueOrThrow({ where: { id }, select: { title: true, reference: true, amount: true } });
+    const avant = await etatCompletDuBC(id);
+    const prevalidation = await prisma.validationRequest.findMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: id }, select: { id: true, status: true, steps: { select: { id: true, status: true } } } });
+    ACTOR = await actorFor(saId, "SUPER_ADMIN");
+    const r = await updateLegalDocument(form({ id, title: doc.title, reference: `${TAG}DEPOSE-2`, kind: "PURCHASE_ORDER", amount: String(Number(doc.amount)), counterpartyIds: contactId }));
+    expect(r.ok, r.ok === false ? r.error : "").toBe(true);
+    expect(r.message).toMatch(/Seul le numéro a changé/);
+    expect(await etatCompletDuBC(id)).toEqual(avant);
+    expect(await prisma.validationRequest.findMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: id }, select: { id: true, status: true, steps: { select: { id: true, status: true } } } })).toEqual(prevalidation);
+    expect(await porteDuBC(id)).toBeNull();
+    expect(await prisma.auditLog.findFirst({ where: { entityId: id, field: "numero" }, select: { oldValue: true, newValue: true } })).toEqual({ oldValue: doc.reference, newValue: `${TAG}DEPOSE-2` });
+    await prisma.auditLog.deleteMany({ where: { entityId: id } });
   });
 
   it("retirée par son demandeur, la pré-validation rend le BC au circuit ordinaire (son centre)", async () => {

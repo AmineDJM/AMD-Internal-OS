@@ -24,6 +24,7 @@ import type { OptionCatalogue } from "@/lib/queries/promo-achats";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { ChampNumeroPiece } from "@/components/references/champ-numero-piece";
+import { phraseNumeroSeul } from "@/lib/bons-de-commande/numero-seul";
 import { ApercuBcPromo, type BrouillonAffiche } from "./apercu-bc-promo";
 import { MenuLigne, useGeste, type EntreeMenu } from "./menu-ligne";
 
@@ -650,7 +651,8 @@ function DetailBc({ id, e, canPilot, canReceive, ouvert, options, mode, setMode,
           </p>
           {bc.reference && (
             <div className="sm:max-w-sm">
-              <ChampNumeroPiece depart={bc.reference} legalDocumentId={bc.id} name="numeroRevise" nameActuel="numeroActuel" label="N° de référence du BC" />
+              <ChampNumeroPiece depart={bc.reference} legalDocumentId={bc.id} name="numeroRevise" nameActuel="numeroActuel" label="N° de référence du BC"
+                aide={`Changé seul (les autres champs laissés vides), le numéro ne relance pas le circuit : ${phraseNumeroSeul({ signe }).replace(/^Seul le numéro change : /, "")}`} />
             </div>
           )}
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

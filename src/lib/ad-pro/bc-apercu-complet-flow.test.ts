@@ -51,6 +51,7 @@ import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { fichiersEmis } from "@/lib/lecteurs/fichiers-emis";
 import { pieceEmise, valeursComposables, type ValeursComposables } from "@/lib/legal/piece-emise";
 import { formulaireDuComposeur } from "@/lib/bons-de-commande/composeur-test-outils";
+import { etatCompletDuBC } from "@/lib/bons-de-commande/etat-bc-test-outils";
 import { lireBrouillon } from "@/lib/bons-de-commande/brouillon";
 import { plafondDesDevis, refusDepassement, refusMontantDesDevis } from "@/lib/ad-pro/devis-poste";
 
@@ -419,4 +420,24 @@ suite("Poste Ad & Pro — l'aperçu du BC est obligatoire, et tout s'y corrige",
     expect(r.ok).toBe(false);
     expect(r.ok ? "" : r.error).toMatch(/est signé : il ne se modifie plus/);
   });
+
+  it("SIGNÉ, SEUL SON NUMÉRO SE MODIFIE (Direction, 14/10/2026) : état, étapes et signature intacts, tracé ; numéro + autre champ → refusé", async () => {
+    ACTOR = await acteur(demId, "NATIONAL_SALES");
+    const lire = () => prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true, reference: true } });
+    const doc = await lire();
+    const v = valeursComposables(doc.custom)!;
+    const ancien = doc.reference!;
+    const version = pieceEmise(doc.custom)!.version;
+    const nouveau = `${ancien}-S`;
+    const avant = await etatCompletDuBC(bcId);
+    const autreChamp = await modifierBcDuPoste(formulaireDuComposeur({ ...v, champs: { ...v.champs, notes: "Autre note." } }, { id: posteId, legalDocumentId: bcId, versionVue: String(version), numeroRevise: nouveau, numeroActuel: ancien }));
+    expect(autreChamp.ok).toBe(false);
+    expect(autreChamp.ok ? "" : autreChamp.error).toMatch(/seul son numéro de référence peut encore changer/);
+    const seul = await modifierBcDuPoste(formulaireDuComposeur(v, { id: posteId, legalDocumentId: bcId, versionVue: String(version), numeroRevise: nouveau, numeroActuel: ancien }));
+    expect(seul.ok, seul.ok ? "" : seul.error).toBe(true);
+    expect(seul.message).toMatch(/seul le numéro a changé/);
+    expect((await lire()).reference).toBe(nouveau);
+    expect(await etatCompletDuBC(bcId)).toEqual(avant);
+    expect(await prisma.auditLog.findFirst({ where: { entityId: bcId, field: "numero", newValue: nouveau }, select: { oldValue: true, actorId: true } })).toEqual({ oldValue: ancien, actorId: demId });
+  }, 120_000);
 });

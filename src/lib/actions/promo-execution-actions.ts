@@ -364,6 +364,12 @@ export async function modifierBonDeCommandePromo(formData: FormData): Promise<Ac
     motif: fdStr(formData, "motif") ?? "modification par le demandeur",
   }, { delegation: `${pm.reference} — bon de commande du dossier, modifié par ses pilotes (livraison, contact, notes, taxe supplémentaire)` });
   if (!r.ok) return { ok: false, error: r.motif };
+  if (r.numeroSeul) {
+    // SEUL LE NUMÉRO A CHANGÉ (Direction, 14/10/2026) : le BC garde son état — signature, centre, et son envoi au fournisseur.
+    await audit(user, pm.id, `Bon de commande ${r.reference} : numéro seul modifié (v${r.version}) — circuit et signature conservés`);
+    revalidatePath(chemin(pm.id));
+    return { ok: true, message: `Bon de commande ${r.reference} : seul le numéro a changé (version ${r.version}) — son circuit et sa signature sont conservés.` };
+  }
   await prisma.promoQuote.update({ where: { id: lu.devis.id }, data: { purchaseOrderSentAt: null, purchaseOrderSentById: null } });
   await audit(user, pm.id, `Bon de commande ${r.reference} modifié (v${r.version})`);
   revalidatePath(chemin(pm.id));

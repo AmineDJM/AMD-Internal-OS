@@ -195,10 +195,12 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
   }
   // « MODIFIER LE BC » (Direction, 06/10) : ce que l'éditeur natif reprend d'un BC de la fabrique, ni signé ni annulé. Lu
   // ICI, dans la façade : la lecture d'une pièce émise est du domaine Legal, et le domaine Ad & Pro n'en importe pas.
-  const bcsRevisables = [...piecesParPoste.values()].flatMap((p) => p.bcs).filter((b) => !b.annulee && b.etape !== "SIGNE");
+  // SIGNÉ aussi (Direction, 14/10/2026) : son NUMÉRO seul se modifie encore (« Modifier le n° de référence ») — l'écran ne
+  // propose « Modifier le BC » qu'avant la signature, et le serveur ne laisse passer, signé, qu'un numéro seul.
+  const bcsRevisables = [...piecesParPoste.values()].flatMap((p) => p.bcs).filter((b) => !b.annulee);
   if (bcsRevisables.length > 0) {
     const docs = await prisma.legalDocument.findMany({
-      where: { id: { in: bcsRevisables.map((b) => b.id) }, signedAt: null }, select: { id: true, custom: true },
+      where: { id: { in: bcsRevisables.map((b) => b.id) } }, select: { id: true, custom: true },
     });
     const parId = new Map(docs.map((d) => [d.id, d.custom]));
     for (const b of bcsRevisables) {

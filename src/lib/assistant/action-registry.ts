@@ -1890,6 +1890,9 @@ X("RÉVISER UNE PIÈCE ÉMISE depuis sa fiche (audit 360°, lot C4d2b1, §118.19
   + "des Finances. Le geste se fait devant les lignes de la version affichée, motif à l'appui. Adam est en pause de "
   + "développement : aucun geste neuf ne lui est ouvert. Un clic sur la fiche Legal de la pièce (« Réviser la pièce »).", [
   "fabrique-actions:reviserPieceCommerciale",
+  // « MODIFIER LE N° DE RÉFÉRENCE » D'UN BC SIGNÉ (Direction, 14/10/2026) : la même révision, le numéro seul — un bouton de la
+  // fiche de la demande, pas un geste d'Adam.
+  "fabrique-actions:reviserNumeroDuBc",
 ]);
 
 X("ÉMETTRE UN AVOIR depuis la fiche d'une facture émise (audit 360°, lot C4d2b2, §118.195) — une pièce FISCALE qui "
