@@ -18,7 +18,7 @@ import type { PromoMaterialStatus } from "@prisma/client";
 import { MARCHE_N1_MISSIONS } from "@/lib/queries/missions";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import {
-  type BadgeTone, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, MEDICAL_INFO_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
+  type BadgeTone, FINANCE_CATEGORY, ENTITY_TYPE_LABELS, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, MEDICAL_INFO_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
 } from "@/lib/labels";
 
 /**
@@ -70,6 +70,16 @@ export interface ActionItem {
   statusTone: BadgeTone | null;
   /** Ce qu'on peut faire sans quitter la conversation. Absent = seul le lien reste. */
   actions?: ActionSuggestion[];
+  /**
+   * LE MONTANT QUE LA BASE PORTE (« Aujourd'hui », Direction 14/10) — ordre de dépense, validation chiffrée,
+   * poste Ad & Pro, achat, déclaration : la file l'additionne par lot (« 12 paiements — 2 022 550 DZD »).
+   * Absent quand l'objet n'en a pas : on n'en fabrique pas.
+   */
+  montant?: number | null;
+  /** La famille qui range un lot : catégorie de l'ordre de dépense, nature de la source d'une déclaration. */
+  famille?: string | null;
+  /** Le statut brut quand la file en dépend (déclarations : à faire, prête, en attente de pièces, finale). */
+  statut?: string | null;
 }
 
 export interface ActionNotification {
@@ -162,7 +172,7 @@ export async function getActionCenter(user: SessionUser) {
         // celui qu'on ne fait pas : on repart, et la validation attend un jour de plus.
         module: "Validations", href: `/validations?focus=${v.stepId}#val-${v.stepId}`, kind: "validation", priority: v.priority,
         // À SON TOUR depuis : le dépôt, la décision du rang précédent, ou la resoumission (07-05).
-        deadline: v.deadline, depuis: v.depuis, owner: v.requester,
+        deadline: v.deadline, depuis: v.depuis, owner: v.requester, montant: v.amount,
         statusLabel: "À valider",
         statusTone: "warning",
         actions: [
@@ -201,7 +211,7 @@ export async function getActionCenter(user: SessionUser) {
         request: { deletedAt: null, status: { not: "CANCELLED" }, OR: [{ requesterId: null }, { requesterId: { not: user.id } }] },
       },
       select: {
-        id: true, validatorId: true, createdAt: true,
+        id: true, validatorId: true, createdAt: true, amount: true,
         request: { select: { id: true, title: true, reference: true, deadline: true, priority: true, requester: { select: { name: true } } } },
       },
       orderBy: { createdAt: "asc" }, take: PLAFOND_DECISIONS + 1,
@@ -250,6 +260,7 @@ export async function getActionCenter(user: SessionUser) {
       module: "Demandes administratives", href: `/demandes/${a.request.id}`, kind: "validation", priority: a.request.priority,
       deadline: a.request.deadline?.toISOString() ?? null, depuis: a.createdAt.toISOString(),
       owner: a.request.requester?.name ?? "", statusLabel: "À valider", statusTone: "warning",
+      montant: a.amount != null ? toNumber(a.amount) : null,
     });
   }
   if (approbations.length > PLAFOND_DECISIONS) {
@@ -331,6 +342,7 @@ export async function getActionCenter(user: SessionUser) {
           subtitle: [hors, p.opsDecidedAt ? `validé par la Direction des opérations — montant et budget à décider${montant}` : `poste à valider${montant}`].filter(Boolean).join(" · "),
           module: "Ad & Pro", href: `${parent.path}/${parentId}`, kind: "validation", priority: null, deadline: null,
           depuis: (p.submittedAt ?? p.createdAt).toISOString(), owner: "", statusLabel: "À décider", statusTone: "warning",
+          montant: p.amountEstimated != null ? toNumber(p.amountEstimated) : null,
         });
       }
       if ((postes.length > lisibles.length && lisibles.length >= PLAFOND_DECISIONS) || (restePeutEtre && lisibles.length >= PLAFOND_DECISIONS)) {
@@ -598,6 +610,7 @@ export async function getActionCenter(user: SessionUser) {
         module: "Espace comptable", href: `/finances/paiements-a-faire?focus=${o.id}#ord-${o.id}`, kind: "payment", priority: null,
         deadline: o.dueDate?.toISOString() ?? null, depuis: (o.centralDecidedAt ?? o.createdAt).toISOString(),
         owner: o.beneficiary ?? "", ...resolve(EXPENSE_ORDER_STATUS, o.status),
+        montant: toNumber(o.amount), famille: FINANCE_CATEGORY[o.category] ?? null,
       });
     }
   }
@@ -802,6 +815,8 @@ export async function getActionCenter(user: SessionUser) {
         module: "Information médicale", href: `/information-medicale/${d.id}`, kind: "validation", priority: null,
         deadline: null, depuis: d.status === "AWAITING_DIRECTION" ? d.pharmacistValidatedAt?.toISOString() ?? null : null,
         owner: "", ...resolve(MEDICAL_INFO_STATUS, d.status),
+        statut: d.status, famille: ENTITY_TYPE_LABELS[d.sourceType] ?? null,
+        montant: d.amount != null ? toNumber(d.amount) : null,
       });
     }
   }

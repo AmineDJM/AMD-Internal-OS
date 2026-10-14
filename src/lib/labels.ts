@@ -1517,9 +1517,12 @@ export const CONGRESS_TABS: NavTab[] = [
  * personne (documents, demandes, congés), pas son travail. Le « Dashboard » a disparu.
  */
 export const WORKSPACE_TABS: NavTab[] = [
-  // « Aujourd'hui » : l'accueil qui répond à une seule question — que dois-je faire maintenant ?
-  { module: "WORKSPACE", label: "Aujourd'hui", href: "/aujourdhui", feature: "home_today" },
-  { module: "WORKSPACE", label: "Mon espace", href: "/mon-espace" },
+  // « AUJOURD'HUI » REMPLACE « MON ESPACE » (Direction, 14/10/2026 — maquette « Mon espace par métier ») :
+  // l'onglet principal de `/mon-espace` porte désormais la journée du MÉTIER (file groupée par lot, semaine,
+  // équipe). L'ancien onglet « Aujourd'hui » (`/aujourdhui`, nouveauté `home_today` au stade TEST) quitte la
+  // barre : deux onglets du même nom ne se distinguent pas. Sa page reste servie, inchangée (accueil des
+  // testeurs, liens existants).
+  { module: "WORKSPACE", label: "Aujourd'hui", href: "/mon-espace" },
   // TOUTES LES TÂCHES EN UN SEUL ENDROIT (Direction, 07/10) — à accepter, à faire, demandées, partagées, terminées.
   // Le compteur de l'onglet est posé par `ongletsEspace` (`queries/mes-taches.ts`).
   { module: "WORKSPACE", label: "Tâches", href: "/mon-espace/taches" },

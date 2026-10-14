@@ -35,7 +35,8 @@ import { EXPENSE_EDIT_MINUTES } from "@/lib/hr/expense-claim";
  * l'envoi : sans cela, la personne qui se relit croit devoir annuler et redéposer, ce qui laisse
  * deux demandes dont une morte.
  */
-export function ExpenseClaimButton() {
+/** `compact` : le bouton discret du bloc « Moi » d'Aujourd'hui (« Ajouter ») — même feuille, même action. */
+export function ExpenseClaimButton({ compact = false }: { compact?: boolean } = {}) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -55,9 +56,15 @@ export function ExpenseClaimButton() {
       {/* MÊME TAILLE QUE SES VOISINS — voir `training-request-button.tsx` : les trois boutons
           de l'en-tête de Mon espace forment un jeu, et une taille différente se lit comme une
           importance différente. */}
-      <Button variant="outline" onClick={() => { setErr(null); setOpen(true); }}>
-        <ReceiptText className="h-4 w-4" /> Ajouter une note de frais
-      </Button>
+      {compact ? (
+        <Button variant="outline" size="sm" onClick={() => { setErr(null); setOpen(true); }} aria-label="Ajouter une note de frais">
+          Ajouter
+        </Button>
+      ) : (
+        <Button variant="outline" onClick={() => { setErr(null); setOpen(true); }}>
+          <ReceiptText className="h-4 w-4" /> Ajouter une note de frais
+        </Button>
+      )}
 
       <Sheet
         open={open}
