@@ -7,7 +7,7 @@ import type { ActionResult } from "@/lib/actions/types";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 /**
  * LES ENTRÉES DANS LES FILES (`enSerie`) — observées, pas espérées. Une course « file contre file » ne se

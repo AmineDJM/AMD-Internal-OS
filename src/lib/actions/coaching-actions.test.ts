@@ -4,7 +4,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, getCurrentUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR }));
 
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";

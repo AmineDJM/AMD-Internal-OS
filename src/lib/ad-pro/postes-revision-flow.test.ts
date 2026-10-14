@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 /**
  * LE SEUIL DES BONS DE COMMANDE EST UN RÉGLAGE GLOBAL (une ligne `AppSetting`). Le poser pour de vrai
  * changerait ce que voient les suites qui tournent en parallèle sur la même base (§118.132) : le banc

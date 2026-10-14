@@ -5,7 +5,7 @@ vi.mock("next/cache", () => ({ revalidatePath: (p: string) => { revalides.push(p
 
 let ACTEUR: unknown = null;
 vi.mock("@/lib/session", () => ({
-  requireUser: async () => ACTEUR,
+  requireUser: async () => ACTEUR, requireUserAuNomDeLaVue: async () => ACTEUR,
   getUser: async () => ACTEUR,
   requireModule: async () => ACTEUR,
 }));

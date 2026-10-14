@@ -3,7 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
-vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR }));
+vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
 // Le push part sur de vrais abonnements VAPID : hors sujet ici, et lent.
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => {} }));
 
