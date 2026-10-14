@@ -17,8 +17,9 @@ const sans = (p: string) => readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g,
  * n'est pas une garde (§118.17).
  */
 describe("le siège du centre de validations", () => {
+  // L'information médicale n'en est plus (Direction, 10/2026) : ce que le pharmacien fait valider va au
+  // Directeur des Opérations (`medical-info/decideur.ts`), plus au centre.
   const appelants = [
-    "src/lib/actions/medical-info-actions.ts",
     "src/lib/bons-de-commande/aiguillage.ts",
   ];
 
@@ -32,9 +33,8 @@ describe("le siège du centre de validations", () => {
   });
 
   it("chaque appelant écarte le demandeur AVANT de choisir", () => {
-    expect(sans(appelants[0]!)).toMatch(/centreValidatorFrom\(sieges\.filter\(\(s\) => s\.id !== requesterId\)\)/);
     // Le bon de commande a une issue de plus, écrite exprès : seul siège, le demandeur valide en conscience.
-    expect(sans(appelants[1]!)).toMatch(/centreValidatorFrom\(sieges\.filter\(\(s\) => s\.id !== demandeurId\)\) \?\? centreValidatorFrom\(sieges\)/);
+    expect(sans(appelants[0]!)).toMatch(/centreValidatorFrom\(sieges\.filter\(\(s\) => s\.id !== demandeurId\)\) \?\? centreValidatorFrom\(sieges\)/);
   });
 
   it("aucun autre fichier de production ne choisit un siège à côté de ces deux-là", async () => {

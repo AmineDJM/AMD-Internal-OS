@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { toNumber } from "@/lib/utils";
 import { hasGlobalView, hasRole, userCan, type SessionUser } from "@/lib/rbac";
+import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import type { DocItem } from "@/components/documents/document-list";
 import { sortByUrgency, type SupervisedRow } from "@/lib/validation-supervision";
 import { entityHref } from "@/lib/entity-href";
@@ -343,13 +344,14 @@ export async function getCrossModuleValidations(user: SessionUser): Promise<Cros
 
   // 4) Information médicale : l'INSTRUCTION (à déclarer, pièces demandées, prêt à valider)
   //    est la file du PHARMACIEN RESPONSABLE (PRIM) — pas de tous ceux qui ont le droit
-  //    d'agir sur le module. La Direction ne reçoit que l'étape qui lui appartient :
-  //    la validation finale (AWAITING_DIRECTION). Le Super Admin voit tout.
+  //    d'agir sur le module. La validation finale (AWAITING_DIRECTION) appartient au Directeur
+  //    des Opérations (`medical-info/decideur.ts`, Direction 10/2026) — plus à la Direction des
+  //    opérations : même garde que l'action `validateDeclarationByDirection`. Le Super Admin voit tout.
   {
     const prim = hasRole(user, "MEDICAL_INFO_PHARMACIST") || user.role === "SUPER_ADMIN";
     const statuses: ("AWAITING_REVIEW" | "DOCS_REQUESTED" | "READY" | "AWAITING_DIRECTION")[] = [
       ...(prim ? (["AWAITING_REVIEW", "DOCS_REQUESTED", "READY"] as const) : []),
-      ...(global ? (["AWAITING_DIRECTION"] as const) : []),
+      ...(estDecideurInfoMed(user) ? (["AWAITING_DIRECTION"] as const) : []),
     ];
     const decls = statuses.length
       ? await prisma.medicalInfoDeclaration.findMany({
@@ -357,7 +359,7 @@ export async function getCrossModuleValidations(user: SessionUser): Promise<Cros
           orderBy: { createdAt: "asc" }, take: 100,
         })
       : [];
-    const MI_STAGE: Record<string, string> = { AWAITING_REVIEW: "À déclarer", DOCS_REQUESTED: "Pièces demandées", READY: "Prêt à valider", AWAITING_DIRECTION: "Validation Direction" };
+    const MI_STAGE: Record<string, string> = { AWAITING_REVIEW: "À déclarer", DOCS_REQUESTED: "Pièces demandées", READY: "Prêt à valider", AWAITING_DIRECTION: "Validation finale (Directeur des Opérations)" };
     for (const d of decls) out.push({
       id: `mi-${d.id}`, reference: d.reference, title: d.label, module: "Information médicale",
       stage: MI_STAGE[d.status] ?? d.status,

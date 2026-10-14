@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   estDecisionDApprobation, exigeMotif, refusSansMotif, interditSurSaPropreDemande, LIBELLE_DECISION, libelleMotif, decideurAffiche,
+  peutTrancherApprobation, refusValidateursPieceChiffree,
 } from "./decision-approbation";
 
 /**
@@ -152,5 +153,21 @@ describe("La migration — deux colonnes, une clé étrangère, aucun rattrapage
   it("n'attribue aucune décision passée par ressemblance (§118.36)", () => {
     // Une instruction UPDATE — pas la clause `ON UPDATE CASCADE` de la clé étrangère.
     expect(code).not.toMatch(/^\s*UPDATE\s/m);
+  });
+});
+
+describe("audit du 14/10/2026 — qui tranche, qui valide une pièce chiffrée", () => {
+  it("seuls le validateur, son intérimaire ou le sommet tranchent", () => {
+    expect(peutTrancherApprobation({ estValidateur: true, parInterim: false, sommet: false })).toBe(true);
+    expect(peutTrancherApprobation({ estValidateur: false, parInterim: true, sommet: false })).toBe(true);
+    expect(peutTrancherApprobation({ estValidateur: false, parInterim: false, sommet: true })).toBe(true);
+    expect(peutTrancherApprobation({ estValidateur: false, parInterim: false, sommet: false }), "le droit « Valider » ne suffit plus").toBe(false);
+  });
+  it("une pièce chiffrée écarte le soumetteur, le demandeur et la traitante ; sans montant, rien n'est écarté", () => {
+    const base = { soumetteurId: "s", demandeurId: "d", traitanteId: "t" };
+    for (const v of ["s", "d", "t"]) expect(refusValidateursPieceChiffree({ ...base, montant: 1000, validateurs: [v, "x"] })).not.toBeNull();
+    expect(refusValidateursPieceChiffree({ ...base, montant: 1000, validateurs: ["x"] })).toBeNull();
+    expect(refusValidateursPieceChiffree({ ...base, montant: null, validateurs: ["s"] })).toBeNull();
+    expect(refusValidateursPieceChiffree({ ...base, montant: 0, validateurs: ["d"] })).toBeNull();
   });
 });

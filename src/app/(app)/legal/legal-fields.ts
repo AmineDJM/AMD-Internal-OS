@@ -136,7 +136,15 @@ export function legalFields(
             hint: "Le fichier RESTE dans le Drive : il continuera de s'y versionner, et Legal en montrera toujours la version courante.",
           },
         ] as FieldDef[])
-      : []),
+      // UNE PIÈCE DÉPOSÉE se corrige aussi par son FICHIER (Direction, 10/2026 — « modifiable de A à Z ») : la nouvelle
+      // version s'ajoute aux pièces jointes de la fiche, où l'ancienne se retire. Une pièce ÉMISE n'a pas ce champ : son
+      // fichier, c'est la fabrique qui le réécrit (révision).
+      : pieceEmise
+        ? []
+        : ([{
+            type: "file", name: "attachment", label: "Remplacer / ajouter le fichier de la pièce", multiple: true, full: true,
+            hint: "Le nouveau fichier rejoint les pièces jointes de la fiche ; retirez l'ancien depuis « Pièces jointes ». Sur un bon de commande, un nouveau fichier n'est plus la pièce signée : la signature tombe et le circuit de validation repart.",
+          }] as FieldDef[])),
   ];
   }
 }

@@ -92,7 +92,9 @@ export async function getDeletedRequests(user: SessionUser) {
 }
 
 export async function getApprovals(user: SessionUser) {
-  const manager = hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "VALIDATE");
+  // LA FILE DE CE QUE JE TRANCHE (audit du 14/10/2026) : la règle de `decideApproval` — le validateur nommé, son
+  // intérimaire, le sommet. Le droit « Valider » du module listait toutes les approbations du bureau.
+  const manager = isTopManagement(user);
   // L'INTÉRIMAIRE voit les validations adressées à l'absent qu'il remplace (I18) — jamais celles de
   // ses propres demandes, que la porte de décision lui refuserait.
   const auNom = manager ? null : await auNomDeQui(user.id);

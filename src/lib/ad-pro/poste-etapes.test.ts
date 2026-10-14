@@ -221,9 +221,11 @@ describe("la traduction des faits d'un poste — une seule, lue par l'écran et 
     const f = faitsDuPoste(brut);
     expect(f).toEqual({
       kind: "STAND", status: "APPROVED", amountEstimated: 10, amountGranted: 9, budgetCategoryId: "b",
-      orderStage: "DIRECTION_OK", expenseOrderId: "e", expenseOrderStatus: "PAID", lignesStock: 2, orderSansCentre: true,
+      orderStage: "DIRECTION_OK", expenseOrderId: "e", expenseOrderStatus: "PAID", expenseOrderCentral: null, lignesStock: 2, orderSansCentre: true,
       opsDecidedAt: "2026-10-01", demandeBC: "DEPOSE", bc: "SIGNE", factures: 1, devis: 0, devisAGenerer: 0,
     });
+    // La décision du centre de paiement voyage aussi (audit Ad & Pro, 14/10) : un ordre refusé n'est pas « en cours ».
+    expect(faitsDuPoste({ ...brut, expenseOrder: { status: "PENDING", centralStatus: "REFUSED" } }).expenseOrderCentral).toBe("REFUSED");
     const vide = faitsDuPoste({ ...brut, expenseOrder: null, lignesStock: [], demandeBC: null, pieces: undefined, opsDecidedAt: null });
     expect(vide).toMatchObject({ expenseOrderStatus: null, demandeBC: "AUCUNE", bc: null, factures: 0, opsDecidedAt: null });
     // Un BC au registre dont l'étape ne se lit pas (hors circuit) reste un BC : « pas de BC » serait faux.

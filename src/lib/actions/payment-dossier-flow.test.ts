@@ -177,11 +177,33 @@ suite("Demande de paiement — le dossier porte sa justification, et le règleme
     // L'exemption tient au RATTACHEMENT, posé à la création. Le poser après coup ferait passer la
     // demande devant une règle qui ne sait pas encore ce qu'elle est, et elle serait refusée.
     ACTOR = await actorFor(requesterId, "DIRECTION");
-    const r = await createPaymentRequest(undefined, form({
-      title: `${TAG} Quittance BV`, payee: "Autorités sanitaires", amount: "45000",
-      entityType: "MEDICAL_INFO_DECLARATION", entityId: "decl-inexistante-mais-typee",
-    }));
-    expect(r.ok).toBe(true);
+    // LE RATTACHEMENT SE PROUVE (audit 10/2026) : une vraie déclaration, et un de ses bons PRIS pour
+    // cette demande — le jeton que pose `requestSlipPayment`.
+    const decl = await prisma.medicalInfoDeclaration.create({
+      data: { reference: `DIM-2035-${Math.floor(Math.random() * 900000 + 100000)}`, sourceType: "PROMO_MATERIAL", sourceId: `${TAG}pm-${Date.now()}`, label: `${TAG} dossier BV` },
+    });
+    const jeton = `prise:${TAG}${Date.now()}`;
+    await prisma.medicalInfoSlip.create({ data: { declarationId: decl.id, label: `${TAG} affiches`, requestId: jeton } });
+    const base = { title: `${TAG} Quittance BV`, payee: "Autorités sanitaires", amount: "45000", entityType: "MEDICAL_INFO_DECLARATION" };
+    try {
+      // Le type seul ne suffit plus : déclaration inventée, ou vraie déclaration sans bon pris.
+      const fauxRattachements: Record<string, string>[] = [
+        { entityId: "decl-inexistante-mais-typee", medicalInfoSlipClaim: jeton },
+        { entityId: decl.id, medicalInfoSlipClaim: "" },
+        { entityId: decl.id, medicalInfoSlipClaim: "prise:un-autre-jeton" },
+      ];
+      for (const faux of fauxRattachements) {
+        const refus = await createPaymentRequest(undefined, form({ ...base, ...faux }));
+        expect(refus.ok, JSON.stringify(faux)).toBe(false);
+        expect(refus.error).toMatch(/bon de versement de ce dossier/);
+      }
+    } catch (e) {
+      await prisma.medicalInfoDeclaration.delete({ where: { id: decl.id } }).catch(() => {});
+      throw e;
+    }
+    const r = await createPaymentRequest(undefined, form({ ...base, entityId: decl.id, medicalInfoSlipClaim: jeton }));
+    await prisma.medicalInfoDeclaration.delete({ where: { id: decl.id } }).catch(() => {});
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
     if (!r.id) throw new Error("id manquant");
     created.push(r.id);
     const req = await prisma.paymentRequest.findUniqueOrThrow({ where: { id: r.id }, include: { pieces: true } });

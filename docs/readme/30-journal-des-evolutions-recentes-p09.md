@@ -70,3 +70,25 @@ certificat, délai, 502/503 « endormi » distingués), la même adresse en http
 session, recevait `/login` ; ils sont exemptés (chemins exacts, jeton signé vérifié par chaque route).
 
 ---
+---
+
+### Ad & Pro — pièces jointes multiples : passeports, fils de discussion, fiches saisies avec le poste (2026-10)
+
+- **Passeport en plusieurs fichiers** (recto, verso, pages, visa). *Voyageurs d'un poste billetterie* (`voyageurs-bloc.tsx`) :
+  « Joindre le passeport » ouvre deux rubriques — **Passeport** (dépôt `ID_DOCUMENT` multiple, liste des fichiers avec aperçu et
+  retrait) et **Autres documents** ; « passeport manquant » disparaît dès le premier fichier ; à la création, `ChoixFichiers`
+  accumule plusieurs fichiers. *Fiche voyageur d'une prise en charge* (`care/fiche-voyageur.tsx`) : chaque pièce liste TOUS ses
+  fichiers (`Document` de la demande dont `stepKey` = la case ; `CellRow.fichiers` lu par `getCareDossier`), « déposer / ajouter
+  des fichiers » en sélection multiple (`deposerPiecePriseEnCharge`, `file` répété, lot contrôlé avant écriture), retrait par
+  fichier (`retirerFichierPiecePriseEnCharge`) ; le dernier retiré, la pièce redevient attendue. Règles pures : `lib/care-pieces.ts` ;
+  écritures : `lib/care-pieces-db.ts`.
+- **Pièces jointes dans tous les fils Ad & Pro** — un seul composant (`CommentThread`, option `piecesJointes`, monté par
+  `AdProDiscussionCard` sur les sept natures) et un seul écrivain (`addAdProComment`, champ `files`, `validateAttachments` avant
+  d'écrire, `attachFiles`). Une pièce = un `Document` de la MÊME entité, `stepKey` = `fil-message:<id>` (`lib/fil-pieces.ts`) :
+  elle s'ouvre sous la porte du fil (`canAccessEntity` sur la demande) et figure aussi parmi les documents du dossier.
+  Supprimer un message emporte ses pièces (`deleteComment` → `lib/fil-pieces-db.ts`). Aucune migration.
+- **Fiches saisies avec le poste** : « Ajouter un poste » de nature billetterie ou hôtellerie affiche les fiches (mêmes champs
+  que « Ajouter un voyageur » / « une fiche hôtellerie » : `ChampsVoyageur`, `ChampsHebergement`, préfixe `ficheN_` —
+  `lib/ad-pro/fiches-saisie.ts`) avec « + Ajouter une fiche ». `addAdProItem` lit toutes les fiches et contrôle leurs pièces AVANT
+  d'écrire (`lireFichesDuFormulaire`), crée le poste et ses fiches en une transaction, puis les pièces ; un échec défait tout
+  (`creerPosteEtFiches`, `lib/ad-pro/fiches-poste.ts`). Banc : `ad-pro/pieces-multiples-flow.test.ts`.

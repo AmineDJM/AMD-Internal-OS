@@ -199,12 +199,12 @@ suite("Une pièce validée pendant l'annulation de sa demande — le paiement ne
     await comme("asst");
     const sup = await deleteRequests(form({ ids: d.id, reason: "doublon d'une autre demande" }));
     expect(sup.ok, err(sup) ?? "").toBe(true);
-    // PRÉMISSE : la corbeille ne retire pas la validation de la pièce — elle reste à trancher.
-    expect((await prisma.validationRequest.findUniqueOrThrow({ where: { id: d.validation }, select: { status: true } })).status).toBe("PENDING");
+    // LA CORBEILLE RETIRE LA VALIDATION DE LA PIÈCE (audit du 14/10/2026) — avant, elle restait à trancher, et seule
+    // la garde de la décision empêchait le paiement. Supprimer passe désormais par la porte de l'annulation.
+    expect((await prisma.validationRequest.findUniqueOrThrow({ where: { id: d.validation }, select: { status: true } })).status).toBe("CANCELLED");
     await comme("val");
     const r = await decideValidation(form({ stepId: d.etape, decision: "APPROVED" }));
     expect(r.ok).toBe(false);
-    expect(err(r)).toMatch(/aucun paiement n'a été émis/);
     expect(await ordresDe(d.id), "une demande supprimée ne reçoit pas de paiement").toHaveLength(0);
   });
 });

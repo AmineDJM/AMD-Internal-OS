@@ -64,22 +64,22 @@ describe("parcoursOf — la frise et la pastille", () => {
     expect(p.groupe).toBe("A_VALIDER_PHARMACIEN");
   });
 
-  it("décision en validation : chez les validateurs, depuis la demande", () => {
+  it("décision en validation : chez le Directeur des Opérations, depuis la demande", () => {
     const p = parcoursOf(base({
       declare: { validationId: "v1", validationStatus: "PENDING", intent: "DECLARE", grantedAt: null },
       declareRequestedAt: J(4),
     }));
-    expect(libellePastille(p)).toBe("Décision en validation — chez les validateurs");
+    expect(libellePastille(p)).toBe("Décision en validation — chez le Directeur des Opérations");
     expect(p.depuis).toEqual(J(4));
   });
 
-  it("transmis à la Direction : à valider chez la Direction ; ce qui restait en amont est passé", () => {
+  it("transmis au Directeur des Opérations : à valider chez lui ; ce qui restait en amont est passé", () => {
     const p = parcoursOf(base({
       status: "AWAITING_DIRECTION", declare: accorde("DECLARE"), authorityRef: "MIP-12",
       pharmacistValidatedAt: J(6), requests: [piece("PENDING", 3)],
     }));
     expect(p.courante).toBe("DIRECTION");
-    expect(libellePastille(p)).toBe("À valider — chez la Direction");
+    expect(libellePastille(p)).toBe("À valider — chez le Directeur des Opérations");
     expect(p.etapes.find((e) => e.cle === "PIECES")?.etat).toBe("SANS_OBJET");
     expect(p.groupe).toBe("A_VALIDER_DIRECTION");
     expect(p.depuis).toEqual(J(6));
@@ -139,12 +139,12 @@ describe("carteAction — la seule chose à faire, pour celui qui regarde", () =
     expect(carteAction(p, lecteur, regles)).toEqual({ principal: [], aussi: null, attente: "En attente — chez Karim B." });
   });
 
-  it("chez la Direction : la Direction valide, le pharmacien attend (et peut corriger le dépôt)", () => {
+  it("chez le Directeur des Opérations : il valide, le pharmacien attend (et peut corriger le dépôt)", () => {
     const p = parcoursOf(base({ status: "AWAITING_DIRECTION", declare: accorde("DECLARE"), authorityRef: "MIP-1", pharmacistValidatedAt: J(5) }));
     expect(carteAction(p, { ...gestionnaire, direction: true }, regles).principal).toEqual(["VALIDER_DIRECTION"]);
     const pharma = carteAction(p, gestionnaire, { pharmacienPeutValider: true, autoritesOuvertes: true });
     expect(pharma.principal).toEqual([]);
-    expect(pharma.attente).toBe("En attente — chez la Direction");
+    expect(pharma.attente).toBe("En attente — chez le Directeur des Opérations");
     expect(pharma.aussi?.bloc).toBe("DEPOT");
   });
 

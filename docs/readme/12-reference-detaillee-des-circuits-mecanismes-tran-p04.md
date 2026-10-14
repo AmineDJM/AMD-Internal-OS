@@ -240,12 +240,16 @@ Marketing aura développées » ; puis « un Budget Regulatory » (« Regulatory
   part, jamais deviné ; **saisir un BV payé hors circuit** (`saisirBvManuel`, `BudgetExpenseLine.regulatoryProductId`)
   et **ranger un BV** demandé ou payé dans l'enveloppe (`imputerBv`). Ce ne sont PAS les bons de versement de
   l'Information médicale.
-- **Budget Regulatory allégé (09/10)** : la vue d'ensemble se lit en **4 chiffres** et des graphiques
-  (`components/charts/projection.tsx` — consommation prolongée par les BV 75 % attendus —, `repartition.tsx`, tuiles
-  `components/shared/tuile.tsx`) et la liste des **« Prochains BV »** (à demander / déjà demandé chez les Finances, mois
-  attendu ; un BV sans date n'a pas de mois, « — », jamais placé au hasard) — règles pures
-  `lib/budget-regulatory/synthese.ts` (+ tests), écran `budgets/vue-regulatory.tsx`. Même allègement pour **Moyens
-  généraux** (voir sa section).
+- **Budget Regulatory simplifié (10/2026, maquette validée — remplace la vue « allégée » du 09/10)** : **3 chiffres**
+  (Budget, Consommé, Restant = Budget − Consommé − Engagé), **une barre** Consommé | Engagé (hachuré) | Libre avec sa
+  légende, **deux cartes** BV 25 % (payés / demandés / au total) et BV 75 % (payés / demandés / à venir), en nombre et en
+  montant, et le tableau **« Dossiers (n) »**, replié, dont chaque ligne ouvre `/regulatory/<id>` (si la personne voit
+  les dossiers). Règle-clé : **un BV 25 % engage tout le dossier** (frais = BV 25 % × 4) — dès qu'il est demandé ou payé,
+  les 75 % restants (3 × BV 25 %) sont engagés jusqu'au paiement du BV 75 % ; un BV demandé non réglé est engagé.
+  Consommé = consommé de l'enveloppe ; Engagé = max(engagé de l'enveloppe, BV demandés) + BV 75 % attendus. Règle pure
+  `syntheseSimple` dans `lib/budget-regulatory/synthese.ts` (+ tests), écran `budgets/vue-regulatory.tsx`. La courbe,
+  les barres par catégorie et les « Prochains BV » ont quitté l'écran (leurs règles pures restent). Même allègement
+  pour **Moyens généraux** (voir sa section).
 - **Masse salariale** (`lib/budget-operations/force-de-vente.ts`, pur + tests ; `queries/budget-operations.ts`) : la
   force de vente = profil KAM actif → sa BU ; sinon superviseur d'une BU ; sinon département sous le sous-département
   d'une BU ; sinon sous la Direction commerciale → « hors BU » ; **depuis le 09/10**, un salarié de la **Direction des

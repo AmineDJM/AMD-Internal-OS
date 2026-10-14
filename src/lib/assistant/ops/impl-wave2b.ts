@@ -167,7 +167,7 @@ async function resolveMissionAssignment(input: Record<string, unknown>): Promise
 
 const MEDINFO_STATUS_FR: Record<string, string> = {
   AWAITING_REVIEW: "En attente de revue", DOCS_REQUESTED: "Pièces demandées", READY: "Prête",
-  AWAITING_DIRECTION: "En attente Direction", VALIDATED: "Validée",
+  AWAITING_DIRECTION: "En attente du Directeur des Opérations", VALIDATED: "Validée",
 };
 
 async function resolveDeclaration(raw: string, statuses?: string[]) {
@@ -1104,7 +1104,7 @@ export const MEDINFO_OPS_IMPL: Record<string, OpImpl> = {
           { label: "Déclaration", value: `${decl.reference} — ${decl.label}` },
           ...(decl.amount !== null ? [{ label: "Montant", value: dzd(toNumber(decl.amount)) }] : []),
         ],
-        warnings: ["Validation PHARMACIEN : la déclaration monte ensuite à la Direction."],
+        warnings: ["Validation PHARMACIEN : la déclaration monte ensuite au Directeur des Opérations."],
         args: { id: decl.id },
         successMessage: `Déclaration ${decl.reference} validée (pharmacien).`,
         revalidate: ["/information-medicale"],
@@ -1118,7 +1118,7 @@ export const MEDINFO_OPS_IMPL: Record<string, OpImpl> = {
       const decl = await resolveDeclaration(opStr(input, "reference") || opStr(input, "label"), ["AWAITING_DIRECTION"]);
       if ("error" in decl) return decl;
       return {
-        title: `Validation DIRECTION — déclaration ${decl.reference}`,
+        title: `Validation finale (Directeur des Opérations) — déclaration ${decl.reference}`,
         fields: fieldsOf([
           ["Déclaration", `${decl.reference} — ${decl.label}`],
           ["Montant", decl.amount !== null ? dzd(toNumber(decl.amount)) : null],
@@ -1126,11 +1126,11 @@ export const MEDINFO_OPS_IMPL: Record<string, OpImpl> = {
         ]),
         warnings: ["Dernière marche : la déclaration passe VALIDÉE."],
         args: { id: decl.id, comment: opStr(input, "note") || null },
-        successMessage: `Déclaration ${decl.reference} validée par la Direction.`,
+        successMessage: `Déclaration ${decl.reference} validée (validation finale).`,
         revalidate: ["/information-medicale"],
       };
     },
-    execute: (args) => runFd(validateDeclarationByDirection, args, "La validation Direction a été refusée.", { revalidate: ["/information-medicale"] }),
+    execute: (args) => runFd(validateDeclarationByDirection, args, "La validation finale a été refusée.", { revalidate: ["/information-medicale"] }),
   },
 
   comment_declaration: {

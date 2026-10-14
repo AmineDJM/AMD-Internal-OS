@@ -141,7 +141,10 @@ async function constat(entityType: ET, id: string) {
     : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUniqueOrThrow({ where: { id }, select: sel })
       : await prisma.event.findUniqueOrThrow({ where: { id }, select: sel });
   const ordres = await prisma.expenseOrder.findMany({ where: { sourceId: id }, select: { amount: true, budgetCategoryId: true } });
-  const declarations = await prisma.medicalInfoDeclaration.findMany({ where: { sourceId: id }, select: { amount: true, budgetCategoryId: true } });
+  // Une déclaration née APRÈS l'ordre (aucun pharmacien actif, Direction 10/2026) PORTE cet ordre : elle
+  // n'engage rien de plus — seule compte celle qui engage la dépense à la place de l'ordre.
+  const declarations = (await prisma.medicalInfoDeclaration.findMany({ where: { sourceId: id }, select: { amount: true, budgetCategoryId: true, expenseOrderId: true } }))
+    .filter((d) => !d.expenseOrderId);
   return { inst, ligne, ordres, declarations };
 }
 

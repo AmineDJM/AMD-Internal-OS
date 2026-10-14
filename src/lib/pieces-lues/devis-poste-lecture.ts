@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { annuaireDeLecture, proposerLecture } from "@/lib/pieces-lues/service";
 import { lectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
-import { lignesDepuisLaLecture } from "@/lib/ad-pro/devis-poste";
+import { doutesDeLaLecture, lignesDepuisLaLecture, noteDeLecture } from "@/lib/ad-pro/devis-poste";
 import { identiteUtilisable } from "@/lib/pieces-lues/emetteur";
 
 /**
@@ -43,6 +43,13 @@ export interface IngestionDevis {
   reserves: string[];
   /** Pourquoi il n'y a pas de lignes quand il n'y en a pas. */
   sansLignes: string | null;
+  /**
+   * CE QUE LE CONTRÔLE DES TOTAUX A TROUVÉ (audit Ad & Pro, 14/10) — un total imprimé (TTC, TVA, HT…) que les lignes lues
+   * ne font pas, deux lectures du même total qui divergent, une TVA proposée que le papier n'imprime pas. Tant qu'il y en
+   * a, aucune ligne n'est validée d'office, et le doute est ÉCRIT avec le devis (`lectureNote`) : il ne disparaît pas
+   * avec le message de l'upload.
+   */
+  doutes: string[];
 }
 
 /**
@@ -65,6 +72,7 @@ export async function ingererDevisDuPoste(i: {
     const lecture = lectureDevisPromo(r.proposition, annuaireVisible.map((c) => c.id));
     const p = lecture.prerempli;
     const lignes = lignesDepuisLaLecture(p.lignes);
+    const doutes = doutesDeLaLecture(lecture.controle, p.tvaNonImprimee ?? null);
     const donnees = {
       supplierId: p.fournisseurId,
       // RETRANSCRIRE, JAMAIS DEVINER : la TVA n'est écrite que si le devis l'imprime. Sinon `null` — il n'y a plus
@@ -75,7 +83,7 @@ export async function ingererDevisDuPoste(i: {
       announcedTotal: p.announcedTotal != null ? new Prisma.Decimal(p.announcedTotal) : null,
       quoteDate: p.quoteDate ? new Date(`${p.quoteDate}T00:00:00.000Z`) : null,
       lectureId: lecture.lectureId,
-      lectureNote: lecture.noteMethode.slice(0, 600),
+      lectureNote: noteDeLecture(lecture.noteMethode, doutes),
       // L'IDENTITÉ DU FOURNISSEUR, RECOPIÉE DU PAPIER — c'est elle que le bon de commande porte quand le fournisseur
       // n'a pas de fiche dans l'annuaire (sinon « le fournisseur de ce devis n'est pas nommé » alors qu'il l'est).
       fournisseurLu: identiteUtilisable(r.proposition.emetteur) ? (r.proposition.emetteur as unknown as Prisma.InputJsonValue) : Prisma.DbNull,
@@ -106,7 +114,7 @@ export async function ingererDevisDuPoste(i: {
         data: { counterparty: r.proposition.emetteur.nom },
       });
     }
-    return { ok: true, nbLignes: ecrites, note: lecture.noteMethode, reserves: p.reserves, sansLignes: lecture.sansLignes };
+    return { ok: true, nbLignes: ecrites, note: lecture.noteMethode, reserves: p.reserves, sansLignes: lecture.sansLignes, doutes };
   } catch (err) {
     console.error("[devis-poste] lecture impossible", err);
     return { ok: false, raison: "La lecture du devis a échoué (erreur technique) : saisissez ses lignes à la main." };
@@ -122,7 +130,12 @@ export function phraseDeLecture(i: IngestionDevis): string {
   if (i.nbLignes === 0) {
     return `Devis lu, mais aucune ligne n'a pu en être tirée${i.sansLignes ? ` (${sansPoint(i.sansLignes)})` : ""} : saisissez ses lignes depuis la carte du poste.`;
   }
-  const reserves = i.reserves.length > 0 ? ` À vérifier : ${i.reserves.slice(0, 2).join(" ")}` : "";
+  // LES DOUTES DU CONTRÔLE D'ABORD (un total qui ne tombe pas juste, une TVA non imprimée) : ce sont eux qui empêchent
+  // la validation d'office ; les autres réserves suivent, sans redite.
+  const doutes = i.doutes ?? [];
+  const tvaDite = doutes.some((d) => d.startsWith("TVA de "));
+  const aDire = [...doutes, ...i.reserves.filter((r) => !doutes.includes(r) && !(tvaDite && r.startsWith("TVA de ")))];
+  const reserves = aDire.length > 0 ? ` À vérifier : ${aDire.slice(0, 3).join(" ")}` : "";
   return `Devis lu (${sansPoint(i.note)}) : ${i.nbLignes} ligne${i.nbLignes > 1 ? "s" : ""} proposée${i.nbLignes > 1 ? "s" : ""} — `
     + `comparez-les au papier, puis cochez celles que vous validez : seules les lignes cochées entrent dans un bon de commande.${reserves}`;
 }

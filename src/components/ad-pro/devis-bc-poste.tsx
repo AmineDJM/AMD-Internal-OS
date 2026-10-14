@@ -11,6 +11,7 @@ import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
 import { refusMontantDesDevis } from "@/lib/ad-pro/devis-poste";
 import {
   validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, genererEtEnvoyerBcPoste, modifierBcDuPoste,
+  previsualiserBcDuPoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
@@ -100,11 +101,11 @@ function PieceDuBC({ bc, itemId, peutModifier }: { bc: BcDePoste; itemId: string
       <LiensBC bc={bc} />
       {peutModifier && bc.revision && bc.etape !== "SIGNE" && (
         <ReviserPieceButton
-          discret libelle="Modifier le BC" motifFacultatif
+          discret libelle="Modifier le BC" motifFacultatif sansImpression
           legalDocumentId={bc.id} type="BON_DE_COMMANDE" numero={bc.revision.numero} version={bc.revision.version}
-          lignes={bc.revision.spec.lignes} objet={bc.revision.spec.objet} notes={bc.revision.spec.notes} validiteJours={null}
-          livraison={bc.revision.spec.livraison} contact={bc.revision.spec.contact}
+          valeurs={bc.revision.valeurs}
           envoyer={(fd) => { fd.set("id", itemId); return modifierBcDuPoste(fd); }}
+          apercu={(fd) => { fd.set("id", itemId); fd.set("legalDocumentId", bc.id); return previsualiserBcDuPoste(fd); }}
         />
       )}
     </span>
@@ -491,9 +492,15 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
             {devis.entete.announcedTotal != null && <> · imprimé : {dzd(devis.entete.announcedTotal)}</>}
             {" · "}validé : {dzd(totalCoche)} HT
           </p>
-          {devis.entete.tvaRate === null && (
+          {devis.entete.tvaRate === null ? (
             <p className="text-muted-foreground">
               Aucune TVA indiquée sur le devis : les montants sont ceux du papier, sans TVA ajoutée.
+            </p>
+          ) : (
+            // LA TVA RETENUE SE VOIT (audit Ad & Pro, 14/10) : elle s'ajoutera au bon de commande. Jusqu'ici la carte ne
+            // montrait que des montants HT — un taux mal lu ne se découvrait qu'à l'aperçu du BC, ou pas du tout.
+            <p className="tabular-nums text-muted-foreground">
+              TVA retenue : {devis.entete.tvaRate.toLocaleString("fr-FR")} % — validé : {dzd(devis.totalValideTtc)} TTC. Vérifiez qu&apos;elle est bien imprimée sur le devis.
             </p>
           )}
           {devis.ecartTotal && (

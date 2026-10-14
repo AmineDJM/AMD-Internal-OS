@@ -1217,6 +1217,9 @@ X("LES LIGNES DES DEVIS D'UN POSTE ET LES BC QU'ELLES FONT GÉNÉRER (§118.206)
   // LE BC MODIFIÉ EN NATIF ET LA FACTURE CONTRÔLÉE PAR LUNA (Direction, 06/10) : une révision du Word et du PDF, et un
   // fichier de facture lu puis comparé au(x) BC signé(s) — des gestes devant la carte du poste, pas des appels d'Adam.
   "ad-pro-item-actions:modifierBcDuPoste", "ad-pro-item-actions:deposerFacturePoste",
+  // L'APERÇU DU BC MODIFIÉ DE A À Z (Direction, 10/2026) : le composeur montre les totaux de la version à venir, à blanc,
+  // sous la porte du poste — une lecture d'écran qui n'écrit rien, pas un geste d'Adam.
+  "ad-pro-item-actions:previsualiserBcDuPoste",
   // LA LETTRE DE DEMANDE DE DEVIS (Direction, 07/10) : rédigée par Luna, posée sur le poste — un bouton de l'étape.
   "ad-pro-item-actions:genererDemandeDevisPoste", "promo-devis-actions:regenererDemandeDevisPromo",
   // LE CHAMP « RÉFÉRENCE » DES FORMULAIRES DE GÉNÉRATION (registre commun NNN/DG/AAAA, Direction 10/2026) : lire le prochain numéro
@@ -1267,6 +1270,11 @@ X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : 
   + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
   "care-actions:creerProfilProfessionnel", "care-actions:demanderPiecesPriseEnCharge", "care-actions:deposerPiecePriseEnCharge",
 ]);
+X("PRISES EN CHARGE — PLUSIEURS FICHIERS PAR PIÈCE (Direction, 10/2026) : retirer UN fichier d'une pièce (la page en trop, "
+  + "le scan illisible) ; le dernier retiré, la pièce redevient attendue. Un geste fait DEVANT l'aperçu du fichier, sur une "
+  + "pièce d'identité. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "care-actions:retirerFichierPiecePriseEnCharge",
+]);
 X("PRISES EN CHARGE — FICHES VOYAGEUR (Direction, 10/2026) : enregistrer un poste de la fiche (billet, hôtel, autre poste, "
   + "montant en dollars à l'international), déposer le billet émis ou la confirmation d'hôtel, retenir un devis, demander "
   + "la réservation et le BC à l'assistante de direction, gérer les postes de groupe. Des gestes faits DEVANT la fiche "
@@ -1297,6 +1305,11 @@ X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de 
   + "à son centre de validation, puis à la signature. Adam est en pause de développement : aucun geste neuf ne lui est "
   + "ouvert. Un clic, confirmé, sur la carte de la demande.", [
   "validation-actions:demanderValidationFinaleBC",
+]);
+X("REFUSER LA VALIDATION FINALE D'UNE DÉCLARATION D'INFORMATION MÉDICALE (Direction, 10/2026) — le geste du Directeur "
+  + "des Opérations (à défaut, du Super Admin), motif EXIGÉ : le dossier revient au pharmacien avec le motif. Adam est en "
+  + "pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur la fiche de la déclaration.", [
+  "medical-info-actions:refuseDeclarationByDirection",
 ]);
 X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
   + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "

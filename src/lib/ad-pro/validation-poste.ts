@@ -40,6 +40,8 @@ export type TempsValidation = "OPERATIONS" | "MARKETING";
 export interface Porteur {
   role: string;
   secondaryRole?: string | null;
+  /** L'identifiant de la personne : ce qui dit « c'est SA demande », quels que soient ses rôles (audit Ad & Pro, 14/10). */
+  id?: string | null;
 }
 
 const ROLE_OPERATIONS = "DIRECTION";
@@ -71,6 +73,11 @@ export function tempsEnAttente(p: FaitsValidation): TempsValidation | null {
  */
 export function peutTenir(temps: TempsValidation, personne: Porteur, demandeur: Porteur | null): boolean {
   if (estSuperAdmin(personne)) return true;
+  // ON N'ARBITRE PAS SA PROPRE DEMANDE — par la PERSONNE, pas seulement par le rôle (audit Ad & Pro, 14/10). Une personne
+  // qui porte les DEUX rôles (Direction des opérations ET Direction Marketing) voyait son premier temps franchi d'office
+  // (elle est « Direction des opérations »), puis tenait le second (« demande de la Direction Marketing → la Direction des
+  // opérations tranche ») : elle accordait seule montant et budget de sa propre demande. Le Super Admin garde la suppléance.
+  if (personne.id && demandeur?.id && personne.id === demandeur.id) return false;
   if (temps === "OPERATIONS") return estDirectionOperations(personne);
   // MARKETING
   if (estDirectionMarketingPoste(demandeur)) return estDirectionOperations(personne);

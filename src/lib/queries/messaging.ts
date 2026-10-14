@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { presenceOf, preview, messagingUserSelect, type Presence } from "@/lib/messaging";
+import { estImageAffichable } from "@/lib/messaging-attachments";
 
 /**
  * Couche de lecture de la messagerie interne. Toutes les fonctions sont
@@ -58,6 +59,7 @@ export interface AttachmentDTO {
   name: string;
   mime: string;
   size: number;
+  /** Image que le navigateur affiche (PNG, JPEG, GIF, WebP, SVG…) — téléversée OU référencée au Drive : vignette + visionneuse. */
   isImage: boolean;
   /** Nœud du Drive RÉFÉRENCÉ (rien n'a été recopié) — null pour un fichier téléversé. */
   driveNodeId: string | null;
@@ -188,9 +190,10 @@ export function mapMessage(m: MessageRow, selfId: string): MessageDTO {
           name: a.name,
           mime: a.mime,
           size: a.size,
-          // Une RÉFÉRENCE au Drive ne s'affiche jamais en vignette : l'image ne passe pas par la
-          // route des pièces jointes, et le `<img>` afficherait un cadre vide.
-          isImage: a.driveNodeId === null && a.mime.startsWith("image/"),
+          // Une RÉFÉRENCE au Drive s'affiche aussi en vignette : son contenu passe par la route des
+          // pièces jointes (`?contenu=1`), qui vérifie la participation puis renvoie au Drive, qui
+          // vérifie la lecture. Un TIFF ou un HEIC, que `<img>` ne montre pas, reste une carte fichier.
+          isImage: !a.isFolder && estImageAffichable(a.name, a.mime),
           driveNodeId: a.driveNodeId,
           isFolder: a.isFolder,
         })),

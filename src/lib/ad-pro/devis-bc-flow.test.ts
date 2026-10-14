@@ -609,7 +609,8 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     const phrase = refus(await genererBonDeCommandePoste(fd({ id: pd })));
     expect(phrase).toMatch(/119\s000,00 DZD TTC/);
     expect(phrase).toMatch(/100\s000,00 DZD accordés/);
-    expect(phrase).toMatch(/Décochez une ligne, ou demandez une révision/);
+    // La phrase de `refusDepassement` (« le montant accordé s'entend TTC ») nomme les DEUX gestes qui lèvent l'écart.
+    expect(phrase).toMatch(/demandez une révision du poste pour le relever \(ou décochez une ligne\)/);
     expect(await bcsDe(x)).toHaveLength(0);
     expect((await poste(pd)).orderStage, "le refus ne prend pas la marche du BC").toBe("NONE");
     expect(await prisma.adProItemPiece.count({ where: { itemId: pd, nature: "BON_DE_COMMANDE" } })).toBe(0);

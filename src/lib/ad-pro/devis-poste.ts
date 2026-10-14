@@ -537,6 +537,48 @@ export function reservesEncoreVraies(aVerifier: string | null, lisible: (texte: 
   return gardees.length > 0 ? gardees.join(" ; ") : null;
 }
 
+/**
+ * LES DOUTES QU'UNE LECTURE LAISSE SUR UN DEVIS (audit Ad & Pro, 14/10) — ce que le contrôle arithmétique a trouvé contre
+ * les totaux IMPRIMÉS (un TTC, une TVA, un HT que les lignes lues ne font pas ; deux lectures du même total qui
+ * divergent), et la TVA que le modèle a proposée sans que le papier l'imprime. Jusqu'ici ce contrôle était calculé puis
+ * JETÉ par l'ingestion : un TTC imprimé de 400 000 contre 476 000 recalculés ne se voyait nulle part, et les lignes
+ * étaient validées d'office. Une liste vide : rien ne contredit la lecture.
+ */
+export function doutesDeLaLecture(
+  controle: { ecarts?: readonly string[]; desaccords?: readonly string[] } | null | undefined,
+  tvaNonImprimee: number | null,
+): string[] {
+  const doutes: string[] = [];
+  if (tvaNonImprimee != null) {
+    doutes.push(`TVA de ${tvaNonImprimee.toLocaleString("fr-FR")} % proposée par la lecture mais imprimée nulle part : non reprise (pas de TVA imprimée, pas de TVA).`);
+  }
+  for (const p of [...(controle?.ecarts ?? []), ...(controle?.desaccords ?? [])]) if (p.trim() && !doutes.includes(p)) doutes.push(p.trim());
+  return doutes;
+}
+
+/** La note gardée avec le devis : d'où viennent les lignes, puis ce qu'il faut vérifier — bornée à 600 caractères (la colonne). */
+export function noteDeLecture(noteMethode: string, doutes: readonly string[]): string {
+  const base = noteMethode.trim();
+  if (doutes.length === 0) return base.slice(0, 600);
+  const suite = `${MARQUE_DOUTE}${doutes.join(" ")}`;
+  const tout = `${base}${suite}`;
+  return tout.length <= 600 ? tout : `${tout.slice(0, 599)}…`;
+}
+
+const MARQUE_DOUTE = " — À VÉRIFIER SUR LE PAPIER : ";
+
+/**
+ * LA NOTE APRÈS UNE CORRECTION À LA MAIN — les doutes de la lecture ont été tranchés par une personne devant le papier :
+ * ils ne restent pas affichés en avertissement pour toujours (un avertissement qui ne s'éteint jamais apprend à ne plus
+ * le lire). La note le dit. Sans doute écrit, la note est rendue telle quelle.
+ */
+export function noteApresCorrection(note: string | null): string | null {
+  if (!note) return note;
+  const i = note.indexOf(MARQUE_DOUTE);
+  if (i < 0) return note;
+  return `${note.slice(0, i)} — les doutes de la lecture ont été revus et les lignes corrigées à la main.`.slice(0, 600);
+}
+
 export function lignesDepuisLaLecture(
   lues: readonly { rang: number; reference: string; unit: string | null; quantity: number | null; unitPrice: number | null; notes: string[] }[],
 ): LigneAEcrire[] {

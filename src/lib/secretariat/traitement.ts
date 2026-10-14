@@ -65,3 +65,30 @@ export function lireParticipants(fields: unknown): string[] {
   if (!Array.isArray(v)) return [];
   return [...new Set(v.filter((x): x is string => typeof x === "string" && x.length > 0))];
 }
+
+/**
+ * « FIN DU TRAITEMENT » APRÈS UNE DÉCISION (audit 14/10/2026). La DERNIÈRE approbation de la demande dit si l'achat
+ * est autorisé :
+ *   • EN ATTENTE — on n'achète pas avant la réponse ;
+ *   • REFUSÉE — la demande est close par le refus : elle s'ANNULE, elle ne se termine pas (un achat refusé se
+ *     terminait, et son montant s'imputait au budget d'un département) ;
+ *   • MODIFICATION DEMANDÉE — le demandeur corrige, et sa correction repart chez le même validateur
+ *     (`editOwnRequest`) : terminer avant reviendrait à acheter sans nouvelle validation.
+ * `null` : rien n'empêche de terminer (aucune approbation, ou la dernière est accordée).
+ */
+export function refusFinApresDecision(derniere: { status: string } | null): string | null {
+  if (!derniere) return null;
+  if (derniere.status === "PENDING") return "Une validation est en attente sur cette demande : attendez la réponse avant de terminer.";
+  if (derniere.status === "REJECTED") return "Cette demande a été refusée par son validateur : elle ne se termine pas, elle s'annule (« Annuler la demande », avec le motif).";
+  if (derniere.status === "CHANGES_REQUESTED") return "Le validateur a demandé une modification : le demandeur corrige sa demande, qui repart chez lui. Elle se termine une fois validée.";
+  return null;
+}
+
+/**
+ * Une demande de devis de matériel promotionnel se termine quand la RETRANSCRIPTION est faite (audit 14/10/2026) :
+ * « Fin » fermait la demande alors que le dossier attendait toujours ses devis (« devis demandés »).
+ */
+export function refusFinDevisPromo(etatDuDossier: string | null): string | null {
+  if (etatDuDossier !== "QUOTE_REQUESTED") return null;
+  return "Le dossier de matériel promotionnel attend toujours ses devis : retranscrivez-les et cliquez « Retranscription terminée » sur le dossier — la demande se clôt alors d'elle-même.";
+}

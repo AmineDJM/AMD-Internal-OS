@@ -13,6 +13,8 @@ import { CIRCUIT_LABEL, CIRCUIT_HINT, DECLARATION_KIND_LABEL, isDeclarationKind 
 import { circuitStatesOf } from "@/lib/medical-info/circuit-state";
 import { parcoursOf, libellePastille, joursDepuis, tonDelai, type Parcours } from "@/lib/medical-info/parcours";
 import { produitsDesDossiers } from "@/lib/medical-info/produits";
+import { decideursInfoMedActifs } from "@/lib/medical-info";
+import { chezDecideur } from "@/lib/medical-info/decideur";
 import { CreateDeclarationButton } from "./[id]/panels";
 import { DossiersTable, type LigneDossier } from "./dossiers-table";
 
@@ -37,7 +39,9 @@ export default async function MedicalInfoPage() {
   const canOpen = hasGlobalView(user.role) || userCan(user, "MEDICAL_INFO", "VALIDATE");
 
   // OÙ EN EST CHAQUE DOSSIER — la même lecture que la fiche, en un aller-retour par table.
-  const [etats, produits] = await Promise.all([circuitStatesOf(declarations), produitsDesDossiers(declarations)]);
+  const [etats, produits, decideurs] = await Promise.all([circuitStatesOf(declarations), produitsDesDossiers(declarations), decideursInfoMedActifs(null)]);
+  // Chez qui attendent les décisions du pharmacien : le Directeur des Opérations, ou le Super Admin à défaut.
+  const chez = chezDecideur(decideurs);
   const now = new Date();
   const lus = declarations.map((d) => {
     const etat = etats.get(d.id)!;
@@ -50,6 +54,7 @@ export default async function MedicalInfoPage() {
         targetUserId: r.targetUserId, targetName: r.targetUser?.name ?? null,
       })),
       pharmacistValidatedAt: d.pharmacistValidatedAt, validatedAt: d.validatedAt, pharmacistName: d.pharmacist?.name ?? null,
+      chezDecideur: chez,
     });
     return { d, etat, parcours, jours: joursDepuis(parcours.depuis, now) };
   });
@@ -96,7 +101,7 @@ export default async function MedicalInfoPage() {
   const tuiles = [
     { label: "À déclarer", value: aDeclarer.length, note: aDeclarer.length ? `le plus ancien : ${plusAncien} j` : null, ton: "" },
     { label: "Pièces attendues", value: pieces.length, note: pieces.length ? `chez ${personnes} personne${personnes > 1 ? "s" : ""}` : null, ton: pieces.length ? "text-warning" : "" },
-    { label: "À valider", value: pharmacien + direction, note: pharmacien + direction ? `${pharmacien} pharmacien · ${direction} Direction` : null, ton: "" },
+    { label: "À valider", value: pharmacien + direction, note: pharmacien + direction ? `${pharmacien} pharmacien · ${direction} Directeur des Opérations` : null, ton: "" },
     { label: "Bons de versement", value: bons, note: bons ? "en paiement aux Finances" : null, ton: "" },
   ];
 

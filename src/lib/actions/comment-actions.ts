@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { supprimerPiecesDuMessage } from "@/lib/fil-pieces-db";
 
 /** Auteur du commentaire, ou personne pouvant éditer l'objet parent (admin / responsable). */
 async function canManageComment(user: CurrentUser, comment: { authorId: string | null; entityType: import("@prisma/client").EntityType; entityId: string }): Promise<boolean> {
@@ -44,7 +45,12 @@ export async function deleteComment(formData: FormData): Promise<ActionResult> {
   if (!(await canManageComment(user, comment))) return { ok: false, error: "Suppression non autorisée." };
 
   await prisma.comment.delete({ where: { id } });
-  await recordAudit({ actorId: user.id, action: "DELETE", module: ENTITY_TYPE_LABELS[comment.entityType] ?? "Commentaires", entityType: comment.entityType, entityId: comment.entityId, summary: "Commentaire supprimé" });
+  // LES PIÈCES JOINTES DU MESSAGE PARTENT AVEC LUI (`lib/fil-pieces`) — l'écran l'a dit dans sa question.
+  const n = await supprimerPiecesDuMessage({ id, entityType: comment.entityType, entityId: comment.entityId });
+  await recordAudit({
+    actorId: user.id, action: "DELETE", module: ENTITY_TYPE_LABELS[comment.entityType] ?? "Commentaires", entityType: comment.entityType, entityId: comment.entityId,
+    summary: n > 0 ? `Commentaire supprimé, avec ${n} pièce${n > 1 ? "s" : ""} jointe${n > 1 ? "s" : ""}` : "Commentaire supprimé",
+  });
   const path = fdStr(formData, "path");
   if (path) revalidatePath(path);
   return { ok: true };

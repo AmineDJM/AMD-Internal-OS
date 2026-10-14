@@ -8,6 +8,8 @@ import { canAccessEntity } from "@/lib/entity-access";
 import { entityHref } from "@/lib/entity-href";
 import { AD_PRO_ENTITY_TYPE } from "@/lib/ad-pro/unified";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { attachFiles, validateAttachments } from "@/lib/attach-files";
+import { clePieceMessage, messageRecevable } from "@/lib/fil-pieces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -66,20 +68,46 @@ function chemin(entite: EntityType, id: string): string | null {
   return entityHref(entite, id);
 }
 
+/*
+ * ── LES PIÈCES JOINTES D'UN MESSAGE (Direction, 10/2026) ────────────────────────────────
+ *
+ * « Dans toutes les discussions et commentaires des demandes Ad & Pro, on doit pouvoir joindre des
+ * pièces jointes (plusieurs) à un message. » Elles arrivent sous `files` ; chacune devient un
+ * `Document` de la MÊME entité, désigné par le message (`lib/fil-pieces`). Elles s'ouvrent donc
+ * sous la porte du fil — celle de la demande — et nulle part ailleurs.
+ *
+ * Refusées AVANT d'écrire (`validateAttachments` : type exécutable, vide, plus lourd que la limite
+ * des réglages) : un message publié puis refusé pour sa pièce se republierait au second essai, en
+ * double. Un message sans texte mais avec des pièces se publie : la pièce EST le propos.
+ */
 export async function addAdProComment(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const entite = entiteDuPole(fdStr(formData, "entityType"));
   const id = fdStr(formData, "entityId");
   const body = fdStr(formData, "body");
+  const fichiers = formData.getAll("files").filter((v): v is File => v instanceof File);
   if (!entite || !id) return { ok: false, error: "Demande Ad & Pro non précisée." };
-  if (!body) return { ok: false, error: "Le message est vide." };
   // LA MÊME PORTE QUE LA FICHE : écrire dans le fil d'une demande qu'on ne peut pas lire serait
   // une porte à côté de la porte gardée.
   if (!(await canAccessEntity(user, entite, id, "VIEW"))) {
     return { ok: false, error: "Cette demande ne vous est pas ouverte." };
   }
-  await prisma.comment.create({ data: { entityType: entite, entityId: id, body, authorId: user.id } });
+  const refus = await validateAttachments(fichiers);
+  if (refus) return { ok: false, error: `Message non publié — ${refus}` };
+  // Un champ fichier vide envoie un fichier SANS octet ni vrai nom : ce n'est pas une pièce.
+  const pieces = fichiers.filter((f) => f.size > 0);
+  if (!messageRecevable(body, pieces.length)) return { ok: false, error: "Le message est vide." };
+
+  const message = await prisma.comment.create({ data: { entityType: entite, entityId: id, body: body ?? "", authorId: user.id }, select: { id: true } });
+  let avertissement: string | undefined;
+  if (pieces.length > 0) {
+    const r = await attachFiles({
+      files: pieces, entityType: entite, entityId: id, uploadedById: user.id, category: "OTHER", stepKey: clePieceMessage(message.id),
+    });
+    // Le message EXISTE : on ne le refait pas (il serait en double). Ce qui n'a pas suivi est dit.
+    if (r.error) avertissement = `Message publié, mais ${r.saved > 0 ? `seulement ${r.saved} pièce${r.saved > 1 ? "s" : ""} jointe${r.saved > 1 ? "s" : ""}` : "sans ses pièces"} : ${r.error}`;
+  }
   const path = chemin(entite, id);
   if (path) revalidatePath(path);
-  return { ok: true };
+  return { ok: true, id: message.id, ...(avertissement ? { message: avertissement } : {}) };
 }

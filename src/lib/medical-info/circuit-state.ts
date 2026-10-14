@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { circuitOfDeclaration, type MedicalCircuit } from "./circuits";
 import { canFileWithAuthorities, type DeclareInput } from "./declare-decision";
-import { slipsLotStage, slipsSummary, type SlipLike, type SlipsLotStage, type SlipsSummary } from "./slips";
+import { slipsLotStage, slipsSummary, PRISE_DU_BON, type SlipLike, type SlipsLotStage, type SlipsSummary } from "./slips";
 
 /**
  * OÙ EN EST UN DOSSIER D'INFORMATION MÉDICALE — la lecture, une fois, pour l'écran comme pour
@@ -87,7 +87,7 @@ export async function circuitStatesOf(decls: readonly DeclarationLike[]): Promis
   const requests = requestIds.length
     ? await prisma.paymentRequest.findMany({
         where: { id: { in: requestIds } },
-        select: { id: true, amount: true, expenseOrderId: true },
+        select: { id: true, amount: true, expenseOrderId: true, status: true },
       })
     : [];
   const orderIds = requests.map((r) => r.expenseOrderId).filter((x): x is string => Boolean(x));
@@ -116,6 +116,8 @@ export async function circuitStatesOf(decls: readonly DeclarationLike[]): Promis
       requestId: s.requestId,
       centralStatus: order ? String(order.centralStatus) : null,
       orderStatus: order ? String(order.status) : null,
+      // La demande elle-même : refusée, annulée — ou disparue (un bon qui désigne une demande absente).
+      requestStatus: req ? String(req.status) : (s.requestId && !s.requestId.startsWith(PRISE_DU_BON) ? "INTROUVABLE" : null),
       deliveredAt: s.deliveredAt,
       deliveredById: s.deliveredById,
       deliveryNote: s.deliveryNote,

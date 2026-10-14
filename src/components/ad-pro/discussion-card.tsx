@@ -7,6 +7,7 @@ import { entityHref } from "@/lib/entity-href";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CommentThread } from "@/components/shared/comment-thread";
 import { DISCUSSION_TITRE } from "@/lib/ad-pro/discussion";
+import { PREFIXE_PIECE_MESSAGE, piecesParMessage } from "@/lib/fil-pieces";
 import { addAdProComment } from "@/lib/actions/ad-pro-discussion-actions";
 import { updateComment, deleteComment } from "@/lib/actions/comment-actions";
 
@@ -35,11 +36,20 @@ export async function AdProDiscussionCard({
   /** Repliée sous « Discussion · n » (fiche du matériel promotionnel, maquette validée 10/2026) — le fil s'ouvre d'un clic. */
   replie?: boolean;
 }) {
-  const rows = await prisma.comment.findMany({
-    where: { entityType, entityId },
-    select: { id: true, body: true, createdAt: true, editedAt: true, authorId: true, author: { select: { name: true } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const [rows, pieces] = await Promise.all([
+    prisma.comment.findMany({
+      where: { entityType, entityId },
+      select: { id: true, body: true, createdAt: true, editedAt: true, authorId: true, author: { select: { name: true } } },
+      orderBy: { createdAt: "asc" },
+    }),
+    // LES PIÈCES JOINTES DES MESSAGES — des pièces du dossier désignées par leur message (`lib/fil-pieces`).
+    prisma.document.findMany({
+      where: { entityType, entityId, stepKey: { startsWith: PREFIXE_PIECE_MESSAGE } },
+      select: { id: true, name: true, fileKey: true, stepKey: true },
+      orderBy: { createdAt: "asc" },
+    }),
+  ]);
+  const piecesDe = piecesParMessage(pieces);
 
   // LE MÊME FAIT QUE L'ACTION, jamais un second : `canModerateEntity` est exactement ce que
   // `updateComment` / `deleteComment` vérifient. Un prédicat à part ici afficherait un bouton
@@ -55,8 +65,11 @@ export async function AdProDiscussionCard({
         body: c.body,
         createdAt: c.createdAt.toISOString(),
         editedAt: c.editedAt?.toISOString() ?? null,
+        attachments: (piecesDe.get(c.id) ?? []).map((d) => ({ id: d.id, name: d.name, hasFile: Boolean(d.fileKey) })),
       }))}
       action={addAdProComment}
+      // DES PIÈCES JOINTES SUR TOUS LES FILS DU PÔLE (Direction, 10/2026) — un seul composant, un seul écrivain.
+      piecesJointes
       hiddenFields={{ entityType, entityId }}
       currentUserId={user.id}
       canModerate={canModerate}

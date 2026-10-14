@@ -10,6 +10,7 @@ import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac"
 import {
   createRequest, editOwnRequest, deleteOwnRequest, addRequestComment, startRequestProcessing, assignRequest,
   requestInternalValidation, requestFinanceValidation, requestApproval, decideApproval, finishRequest, deleteRequests,
+  submitAttachmentValidation,
 } from "@/lib/actions/admin-request-actions";
 import type { Prisma } from "@prisma/client";
 import { decideValidation } from "@/lib/actions/validation-actions";
@@ -381,12 +382,14 @@ suite("Secrétariat — le demandeur corrige, annule, et sa parole arrive à que
     const id = await deposer("Effacée sous approbation");
     ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
     expect((await requestApproval(fd({ requestId: id, validatorId: valId, amount: "50000" }))).ok).toBe(true);
-    expect((await deleteRequests(fd({ ids: id, reason: "Doublon." }))).ok).toBe(true);
     const appro = await prisma.adminApproval.findFirstOrThrow({ where: { requestId: id }, select: { id: true } });
+    expect((await deleteRequests(fd({ ids: id, reason: "Doublon." }))).ok).toBe(true);
+    // SUPPRIMER, C'EST ANNULER CE QUI EN DÉPEND (audit du 14/10/2026) : l'approbation en attente part avec la demande.
+    expect(await prisma.adminApproval.count({ where: { requestId: id, status: "PENDING" } }), "avant : elle restait en file chez le validateur").toBe(0);
+    expect((await prisma.administrativeRequest.findUniqueOrThrow({ where: { id }, select: { status: true } })).status).toBe("CANCELLED");
     ACTOR = await acteur(valId, "GENERAL_MANAGER");
     const r = await decideApproval(fd({ approvalId: appro.id, decision: "APPROVED" }));
     expect(r.ok).toBe(false);
-    expect(r.error).toMatch(/a été annulée/);
     expect(await prisma.expenseOrder.count({ where: { sourceType: "ADMIN_REQUEST", sourceId: id } }), "aucun ordre de dépense pour une demande retirée").toBe(0);
   });
 
@@ -405,7 +408,12 @@ suite("Secrétariat — le demandeur corrige, annule, et sa parole arrive à que
     const id = await deposer("Approuvée après la fin");
     ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
     expect((await requestApproval(fd({ requestId: id, validatorId: valId, amount: "30000" }))).ok).toBe(true);
-    expect((await finishRequest(fd({ id }))).ok).toBe(true);
+    // « Fin » est refusée tant que la validation attend (audit du 14/10/2026) ; une demande terminée AVANT cette règle
+    // (ou par un chemin qu'elle ne couvre pas) se simule en base — c'est la garde de la décision qu'on éprouve ici.
+    const fin = await finishRequest(fd({ id }));
+    expect(fin.ok).toBe(false);
+    expect(fin.error).toBe("Une validation est en attente sur cette demande : attendez la réponse avant de terminer.");
+    await prisma.administrativeRequest.update({ where: { id }, data: { status: "DONE", completedAt: new Date() } });
     const appro = await prisma.adminApproval.findFirstOrThrow({ where: { requestId: id }, select: { id: true } });
     ACTOR = await acteur(valId, "GENERAL_MANAGER");
     expect((await decideApproval(fd({ approvalId: appro.id, decision: "APPROVED" }))).ok).toBe(true);
@@ -558,5 +566,76 @@ suite("Secrétariat — le demandeur corrige, annule, et sa parole arrive à que
     expect(d.ok).toBe(false);
     expect(d.error).toMatch(/« Annuler la demande de BC »/);
     expect((await prisma.administrativeRequest.findUniqueOrThrow({ where: { id: r.id }, select: { status: true } })).status).toBe("NEW");
+  });
+
+  // ── AUDIT DU 14/10/2026 — « corrige tout de suite » ─────────────────────────────────────────────
+
+  it("AUDIT — UNE PIÈCE CHIFFRÉE ne se fait pas valider par son demandeur, ni par l'assistante qui traite ; sans montant, l'avis reste libre", async () => {
+    const id = await deposer("Pièce chiffrée");
+    await prisma.administrativeRequest.update({ where: { id }, data: { assignedToId: a1Id } });
+    ACTOR = await acteur(demId, "MEDICAL_DELEGATE");
+    for (const validateur of [demId, a1Id]) {
+      const f = fd({ requestId: id, documentId: "x", amount: "450000" });
+      f.append("validatorIds", validateur);
+      const r = await submitAttachmentValidation(f);
+      expect(r.ok, "avant : le demandeur se choisissait validateur et faisait partir un paiement à son nom").toBe(false);
+      expect(r.error).toMatch(/Une pièce chiffrée émet un paiement/);
+    }
+    expect(await prisma.validationRequest.count({ where: { entityType: "ADMIN_REQUEST", entityId: id } })).toBe(0);
+  });
+
+  it("AUDIT — UN ACHAT REFUSÉ ne se termine pas (il s'annule) ; une validation en attente non plus", async () => {
+    const id = await deposer("Achat refusé");
+    ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
+    expect((await startRequestProcessing(fd({ id }))).ok).toBe(true);
+    expect((await requestApproval(fd({ requestId: id, validatorId: valId, amount: "20000" }))).ok).toBe(true);
+    const enAttente = await finishRequest(fd({ id }));
+    expect(enAttente.ok).toBe(false);
+    expect(enAttente.error).toMatch(/validation est en attente/);
+    const appro = await prisma.adminApproval.findFirstOrThrow({ where: { requestId: id }, select: { id: true } });
+    ACTOR = await acteur(valId, "GENERAL_MANAGER");
+    expect((await decideApproval(fd({ approvalId: appro.id, decision: "REJECTED", comment: "Hors budget." }))).ok).toBe(true);
+    ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
+    const fin = await finishRequest(fd({ id }));
+    expect(fin.ok, "avant : un achat refusé se terminait, et s'imputait au budget").toBe(false);
+    expect(fin.error).toMatch(/refusée par son validateur/);
+    expect((await prisma.administrativeRequest.findUniqueOrThrow({ where: { id }, select: { status: true } })).status).toBe("BLOCKED");
+  });
+
+  it("AUDIT — MODIFICATION DEMANDÉE : la correction du demandeur repart chez le même validateur, et rien ne se termine avant", async () => {
+    const id = await deposer("Achat à corriger");
+    ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
+    expect((await requestApproval(fd({ requestId: id, validatorId: valId, amount: "15000" }))).ok).toBe(true);
+    const appro = await prisma.adminApproval.findFirstOrThrow({ where: { requestId: id }, select: { id: true } });
+    ACTOR = await acteur(valId, "GENERAL_MANAGER");
+    expect((await decideApproval(fd({ approvalId: appro.id, decision: "CHANGES_REQUESTED", comment: "Préciser le fournisseur." }))).ok).toBe(true);
+    ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
+    const fin = await finishRequest(fd({ id }));
+    expect(fin.ok, "avant : l'assistante achetait sans nouvelle validation").toBe(false);
+    expect(fin.error).toMatch(/demandé une modification/);
+    const t0 = new Date();
+    ACTOR = await acteur(demId, "MEDICAL_DELEGATE");
+    const ed = await editOwnRequest(fd({ id, description: "Fournisseur : Bureau Plus, devis n° 42" }));
+    expect(ed.ok, ed.ok ? "" : ed.error).toBe(true);
+    expect(ed.message).toMatch(/repart chez/);
+    const nouvelles = await prisma.adminApproval.findMany({ where: { requestId: id, status: "PENDING" }, select: { validatorId: true, amount: true } });
+    expect(nouvelles).toHaveLength(1);
+    expect(nouvelles[0]!.validatorId).toBe(valId);
+    expect(Number(nouvelles[0]!.amount)).toBe(15000);
+    expect((await prisma.administrativeRequest.findUniqueOrThrow({ where: { id }, select: { status: true } })).status).toBe("AWAITING_VALIDATION");
+    expect(await prisma.notification.count({ where: { userId: valId, title: "Demande corrigée — à revalider", createdAt: { gte: t0 } } })).toBe(1);
+  });
+
+  it("AUDIT — SUPPRIMER une demande ANNULE son paiement non réglé (il restait payable au centre)", async () => {
+    const id = await deposer("Supprimée avec ordre");
+    ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
+    expect((await requestApproval(fd({ requestId: id, validatorId: valId, amount: "8000" }))).ok).toBe(true);
+    const appro = await prisma.adminApproval.findFirstOrThrow({ where: { requestId: id }, select: { id: true } });
+    ACTOR = await acteur(valId, "GENERAL_MANAGER");
+    expect((await decideApproval(fd({ approvalId: appro.id, decision: "APPROVED" }))).ok).toBe(true);
+    expect(await prisma.expenseOrder.count({ where: { sourceType: "ADMIN_REQUEST", sourceId: id, status: { not: "CANCELLED" } } }), "prémisse : un ordre est en vol").toBe(1);
+    ACTOR = await acteur(a1Id, "DIRECTION_ASSISTANT");
+    expect((await deleteRequests(fd({ ids: id, reason: "Doublon." }))).ok).toBe(true);
+    expect(await prisma.expenseOrder.count({ where: { sourceType: "ADMIN_REQUEST", sourceId: id, status: { not: "CANCELLED" } } }), "l'ordre part avec la demande").toBe(0);
   });
 });

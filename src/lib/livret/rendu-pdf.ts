@@ -1,7 +1,7 @@
 import { readFile } from "fs/promises";
 import { join } from "path";
 import PDFDocument from "pdfkit";
-import type { Bloc, CelluleTable, Livret, LigneInfo, Section } from "./modele";
+import type { Bloc, CelluleTable, CoordonneesLivret, Livret, LigneInfo, Section } from "./modele";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -63,8 +63,11 @@ const S = "Carlito";
 const B = "Helvetica";
 const BG = "Helvetica-Bold";
 
-const CONTACTS = ["+213 (0)20 339 430", "+213 (0)23 230 793", "Info@adventumdz.com", "Classe 45 GPR PROP 15 N°01, Cheraga, Alger."];
-const LEGAL: [string, string][] = [["NIF : ", "002316101909460"], ["N° RC : ", "16/00 1019094 B 23"], ["N° Article : ", "16500570121"]];
+// LES COORDONNÉES IMPRIMÉES sont celles de la société qui invite (`Livret.societe`, lues de sa carte Legal) — plus aucune
+// n'est écrite ici (Direction, 10/2026 : « l'e-mail dépend vraiment de la société »). Une société sans e-mail n'en imprime pas.
+const contactsDe = (s: CoordonneesLivret | null): string[] =>
+  s ? [...s.telephones, s.email, s.adresse].filter((x): x is string => Boolean(x && x.trim())) : [];
+const siteDe = (s: CoordonneesLivret | null): string => (s?.siteWeb ?? "").replace(/^https?:\/\//i, "");
 
 // Helvetica (WinAnsi) et Carlito (sous-ensemble latin) : tout caractère hors de ces jeux est ramené à sa lettre de base.
 const WINANSI_EXTRA = new Set("ŒœŠšŸŽžƒˆ˜–—‘’‚“”„†‡•…‰‹›€™");
@@ -100,7 +103,7 @@ class Dessin {
   page = 0;
   y = 0;
   titre = "";
-  constructor(doc: Doc, logo: unknown, private pied: string) {
+  constructor(doc: Doc, logo: unknown, private pied: string, private societe: CoordonneesLivret | null) {
     this.doc = doc;
     this.logo = logo;
   }
@@ -187,7 +190,7 @@ class Dessin {
     d.font(B).fontSize(9.6).fillColor(GRIS).text(propre(c.pourEtiquette), MX, y, { width: LARGEUR });
     y += 9.6 + 2;
     d.font(T).fontSize(4.6 * U).fillColor(NOIR).text(propre(c.pourNom), MX, y, { width: LARGEUR });
-    this.piedSimple("www.adventumdz.com", "Info@adventumdz.com", false);
+    this.piedSimple(siteDe(this.societe), this.societe?.email ?? "", false);
   }
 
   // ── Lettre, sur le papier à en-tête ──
@@ -201,12 +204,12 @@ class Dessin {
     const ligne = 9.4;
     const yPied = H - 4.4 * U - 4 * ligne;
     this.barres(MX, yPied - 1.8 * U - 0.55 * U, LARGEUR);
-    CONTACTS.forEach((t, i) => {
+    contactsDe(this.societe).slice(0, 4).forEach((t, i) => {
       const yy = yPied + i * ligne;
       d.circle(MX + 0.75 * U, yy + 3.4, 0.75 * U).fill(TEAL);
       d.font(B).fontSize(7.3).fillColor(BLEU).text(propre(t), MX + 2.6 * U, yy, { width: 60 * U, lineBreak: false });
     });
-    LEGAL.forEach(([cle, val], i) => {
+    (this.societe?.mentions ?? []).slice(0, 4).forEach(([cle, val], i) => {
       const yy = yPied + i * ligne;
       const wv = d.font(B).fontSize(7.3).widthOfString(val);
       const wc = d.font(BG).fontSize(7.3).widthOfString(propre(cle));
@@ -518,7 +521,12 @@ class Dessin {
     this.nouvelle();
     const d = this.doc;
     const wl = 52 * U, hl = wl * LOGO_RATIO;
-    const lignes = "+213 (0)20 339 430 · Info@adventumdz.com\nClasse 45 GPR PROP 15 N°01, Cheraga, Alger.\nwww.adventumdz.com";
+    const s = this.societe;
+    const lignes = [
+      [s?.telephones[0], s?.email].filter((x): x is string => Boolean(x && x.trim())).join(" · "),
+      s?.adresse ?? "",
+      siteDe(s),
+    ].filter((x) => x.trim()).join("\n");
     const ht = d.font(B).fontSize(2.2 * U).heightOfString(propre(lignes), { width: W - 24 * U, lineGap: 0.7 * 2.2 * U, align: "center" });
     const total = hl + 4 * U + 0.55 * U + 4 * U + ht;
     let y = (H - total) / 2;
@@ -535,7 +543,7 @@ export async function rendreLivretPdf(livret: Livret, assets?: AssetsLivret): Pr
   const a = assets ?? (await chargerAssetsLivret());
   const doc = new PDFDocument({
     size: [W, H], margin: 0, autoFirstPage: false,
-    info: { Title: propre(livret.nomFichier.replace(/\.pdf$/, "")), Author: "Adventum Pharma", Subject: livret.type === "GENERAL" ? "Livret de la délégation" : "Livret de séjour" },
+    info: { Title: propre(livret.nomFichier.replace(/\.pdf$/, "")), Author: livret.societe?.nom ?? "", Subject: livret.type === "GENERAL" ? "Livret de la délégation" : "Livret de séjour" },
   });
   const morceaux: Buffer[] = [];
   doc.on("data", (c: Buffer) => morceaux.push(c));
@@ -543,7 +551,7 @@ export async function rendreLivretPdf(livret: Livret, assets?: AssetsLivret): Pr
   doc.registerFont(S, a.regular);
   doc.registerFont(T, a.bold);
   const logo = (doc as unknown as { openImage: (b: Buffer) => unknown }).openImage(a.logo);
-  const dessin = new Dessin(doc, logo, livret.pied);
+  const dessin = new Dessin(doc, logo, livret.pied, livret.societe ?? null);
   dessin.couverture(livret.couverture);
   dessin.lettre(livret.lettre);
   for (const s of livret.sections) dessin.section(s);
