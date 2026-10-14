@@ -6,6 +6,7 @@ import { managementChainOf } from "@/lib/hr/reporting-line";
 import { anyRoleFilter, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { ROLE_DIRECTION_MARKETING } from "@/lib/personnes/roles-vente";
+import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import {
   validateurDeLaDemande, estCheffeMarketing, directriceMarketingDe, cheffesMarketing,
   type Personne, type ValidateurDemande,
@@ -300,8 +301,10 @@ export async function peutOuvrirLeDossierPromo(user: SessionUser, pm: {
   // (`canViewDeclaration`) : le pharmacien responsable, ou qui valide l'information médicale —
   // pas quiconque a simplement le droit de LIRE ce module (les Finances l'ont, pour les bons de
   // versement : ce n'est pas une raison d'ouvrir le dossier de matériel).
+  // Et le DÉCIDEUR de l'information médicale (le Directeur des Opérations, `medical-info/decideur.ts`) :
+  // il tranche la demande du pharmacien, il lit le support sur lequel elle porte.
   const instruit = userCan(user, "MEDICAL_INFO", "VALIDATE")
-    || (userCan(user, "MEDICAL_INFO", "VIEW") && (user.role === "MEDICAL_INFO_PHARMACIST" || user.secondaryRole === "MEDICAL_INFO_PHARMACIST"));
+    || (userCan(user, "MEDICAL_INFO", "VIEW") && (user.role === "MEDICAL_INFO_PHARMACIST" || user.secondaryRole === "MEDICAL_INFO_PHARMACIST" || estDecideurInfoMed(user)));
   if (instruit) {
     const factures = await prisma.legalDocument.findMany({
       where: { kind: "INVOICE", sourceType: "PROMO_MATERIAL", sourceId: pm.id },

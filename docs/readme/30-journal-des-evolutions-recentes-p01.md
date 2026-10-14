@@ -1,5 +1,33 @@
 ## 🧾 Journal des évolutions récentes
 
+### INFORMATION MÉDICALE : CE QUE LE PRIM FAIT VALIDER VA AU DIRECTEUR DES OPÉRATIONS (2026-10-14)
+
+Aucune migration. Règle pure `lib/medical-info/decideur.ts` (testée) — voir « Information médicale » dans les workflows.
+
+- **Un seul décideur** : la lecture « à déclarer ? », le dépôt des bons de versement et la validation finale partent
+  automatiquement au **Directeur des Opérations** (`OPERATIONS_DIRECTOR`, principal ou secondaire). Avant : N+1 →
+  référent Direction Marketing → centre (DG) en série pour les deux premières, Direction des opérations / Super Admin
+  (vue globale) pour la finale. Plusieurs directeurs actifs : tous saisis et notifiés, **le premier qui tranche décide**
+  (nature `INFO_MED_DIRECTEUR_OPS`, `validations/decision.ts:unSeulSuffit`). Aucun : le **Super Admin**, et la
+  confirmation du pharmacien le dit. Le Super Admin reste souverain.
+- **Refus de la validation finale** (`refuseDeclarationByDirection`, motif exigé) : le dossier revient au pharmacien,
+  le motif lui est notifié, versé dans la discussion et affiché sur la fiche.
+- **Course corrigée** : deux validations finales simultanées n'émettent plus deux ordres de dépense (passage à « validée »
+  conditionnel, l'ordre au seul gagnant ; ordre raté → le dossier revient en attente). Double clic sur « faire valider »
+  : la seconde demande est retirée. Une pièce déposée pendant la validation finale ne sort plus le dossier de la file.
+- **Accès** : le Directeur des Opérations lit l'Information médicale en entier (registre, fiche, pièces de la source).
+  Les demandes déjà en cours sous l'ancienne chaîne finissent leur circuit.
+- **L'argent (audit)** : un bon de versement ne fait qu'UNE demande de paiement même à deux clics (prise
+  conditionnelle du bon, jeton `prise:` — `requestSlipPayment`) ; un bon dont l'ordre est annulé ou la demande refusée
+  passe « Paiement annulé — à redemander » (`slips.ts`, étape `ANNULE`) et se redemande, se retire ou laisse déclarer
+  le dossier « sans versement » ; le rattachement d'une demande de paiement à une déclaration (exemption de facture)
+  se PROUVE (`bonDeVersementRattache`) ; plus d'ordre global à la validation finale d'un dossier ouvert par le PRIM,
+  d'un MIP, d'un visa ou du circuit matériel (`circuits.ts:ordreGlobalALaValidation`) ; pharmacien assigné
+  déterministe (le plus ancien actif, `pharmacienAssigne`), notifié seul ; sans pharmacien, la déclaration naît
+  QUAND MÊME, non assignée, portant l'ordre déjà parti ; un visa publicitaire se valide avec son numéro ; le dossier
+  promotionnel ne se clôt « payé et visé » qu'à la déclaration VALIDÉE ; une révision de poste Ad & Pro se reporte
+  sur la déclaration non validée (`engine.ts:reporterLesPostesSurLaDeclaration`).
+
 ### PRISES EN CHARGE : LIVRETS DE SÉJOUR EN PDF, SELON LA CHARTE ADVENTUM (2026-10-11)
 
 Aucune migration. Règles : `lib/livret/modele.ts` (pur, testé) — voir « Fiches voyageur » dans la référence des circuits.

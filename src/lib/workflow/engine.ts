@@ -5,8 +5,8 @@ import {
   aPrevenirPourLaGamme, laGammeEstConcernee, porteLeRoleQuiTranche, type ReferentMarketing,
 } from "@/lib/personnes/referents-gamme";
 import { recordAudit } from "@/lib/audit";
-import { anyRoleFilter, hasGlobalView, hasRole } from "@/lib/rbac";
-import { createMedicalInfoDeclaration } from "@/lib/medical-info";
+import { hasGlobalView, hasRole } from "@/lib/rbac";
+import { createMedicalInfoDeclaration, pharmacienAssigne } from "@/lib/medical-info";
 import { isManagerOfUser, getManagerOfUser } from "@/lib/departments";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { toNumber } from "@/lib/utils";
@@ -975,7 +975,8 @@ async function emitFinancials(
   const budgetCategoryId = instance.budgetCategoryId ?? null;
   const requestedById = summary.requesterId ?? viewer.id;
 
-  const pharmacist = await prisma.user.findFirst({ where: { ...anyRoleFilter(["MEDICAL_INFO_PHARMACIST"]), isActive: true }, select: { id: true } });
+  // Le pharmacien désigné — le plus ancien actif, déterministe (`pharmacienAssigne`).
+  const pharmacist = await pharmacienAssigne();
   if (pharmacist && step.emitDeclaration) {
     const montantDeclare = await montantADeclarer(entityType, entityId, amount);
     const decl = await createMedicalInfoDeclaration({
@@ -984,26 +985,41 @@ async function emitFinancials(
     });
     return { declarationId: decl.id, orderId: null };
   }
-  // Un ordre de dépense n'est JAMAIS émis sur un montant que personne n'a fixé.
-  if (!(amount > 0)) return null;
-  if (step.emitExpenseOrder) {
-    // ANTI-DOUBLE COMPTAGE : si l'opération est VENTILÉE EN POSTES, chaque poste émet sa propre
-    // pièce (bénéficiaires distincts : l'organisateur, l'agence, le prestataire). Émettre EN PLUS
-    // un ordre global ferait payer la même dépense deux fois — c'est exactement ce qu'on voyait
-    // dans « À régler » : un ordre de sponsoring de 53 350 DZD à côté de l'ordre du poste
-    // « Prestation : Webinar » de 53 000 DZD, pour une seule et même dépense.
-    const itemCount = await countAdProItems(entityType, entityId);
-    if (itemCount > 0) {
-      console.info(`[workflow] ${entityType} ${entityId} : ordre global NON émis — ${itemCount} poste(s) portent déjà la dépense.`);
-      return { declarationId: null, orderId: null };
+  // SANS PHARMACIEN : le paiement part comme avant — rien n'est bloqué ni débloqué ici.
+  const paiement = await (async (): Promise<{ declarationId: string | null; orderId: string | null } | null> => {
+    // Un ordre de dépense n'est JAMAIS émis sur un montant que personne n'a fixé.
+    if (!(amount > 0)) return null;
+    if (step.emitExpenseOrder) {
+      // ANTI-DOUBLE COMPTAGE : si l'opération est VENTILÉE EN POSTES, chaque poste émet sa propre
+      // pièce (bénéficiaires distincts : l'organisateur, l'agence, le prestataire). Émettre EN PLUS
+      // un ordre global ferait payer la même dépense deux fois — c'est exactement ce qu'on voyait
+      // dans « À régler » : un ordre de sponsoring de 53 350 DZD à côté de l'ordre du poste
+      // « Prestation : Webinar » de 53 000 DZD, pour une seule et même dépense.
+      const itemCount = await countAdProItems(entityType, entityId);
+      if (itemCount > 0) {
+        console.info(`[workflow] ${entityType} ${entityId} : ordre global NON émis — ${itemCount} poste(s) portent déjà la dépense.`);
+        return { declarationId: null, orderId: null };
+      }
+      const order = await createExpenseOrder({
+        label: summary.label, amount, category: "EVENEMENT", beneficiary: summary.beneficiary,
+        sourceType: entityType, sourceId: entityId, requestedById, budgetCategoryId,
+      });
+      return { declarationId: null, orderId: order.id };
     }
-    const order = await createExpenseOrder({
-      label: summary.label, amount, category: "EVENEMENT", beneficiary: summary.beneficiary,
-      sourceType: entityType, sourceId: entityId, requestedById, budgetCategoryId,
-    });
-    return { declarationId: null, orderId: order.id };
+    return null;
+  })();
+  // …MAIS LA DÉCLARATION NAÎT QUAND MÊME, non assignée (Direction, 10/2026). L'événement reste à déclarer
+  // au ministère : sans pharmacien, il ne l'était jamais, et personne ne le voyait. Elle porte l'ordre déjà
+  // parti, que la validation finale ne double pas (`ordreGlobalALaValidation`) ; elle n'est pas rendue à
+  // l'appelant, dont le statut suit le paiement comme avant. Best-effort : le paiement est fait.
+  if (step.emitDeclaration) {
+    await createMedicalInfoDeclaration({
+      sourceType: entityType, sourceId: entityId, label: summary.label, beneficiary: summary.beneficiary,
+      amount: await montantADeclarer(entityType, entityId, amount), requesterId: requestedById, budgetCategoryId,
+      expenseOrderId: paiement?.orderId ?? null,
+    }).catch((e) => console.error("[workflow] déclaration non assignée non créée", e));
   }
-  return null;
+  return paiement;
 }
 
 /**
@@ -1056,6 +1072,32 @@ async function countAdProItems(entityType: EntityType, entityId: string): Promis
  */
 export async function montantADeclarer(entityType: EntityType, entityId: string, montantFixe: number): Promise<number | null> {
   return montantFixe > 0 ? montantFixe : montantEstimeDesPostes(entityType, entityId);
+}
+
+/**
+ * UNE RÉVISION DE POSTE SE RÉPERCUTE SUR LA DÉCLARATION (§118.191, audit 10/2026).
+ *
+ * `repercuterMontantSurDeclaration` ne suivait que l'ancien chemin des congrès (le montant accordé
+ * révisé) : un poste Ad & Pro ajouté, réestimé, accordé, refusé ou retiré laissait la déclaration
+ * d'information médicale sur l'estimation de sa naissance. Quand des postes portent la dépense, le
+ * montant déclaré EST leur estimation — la même lecture que `postesPortantLaDepense` (§118.5).
+ *
+ * Seulement tant que la déclaration n'est pas validée et qu'aucun ordre n'en est né — écriture
+ * CONDITIONNELLE : une validation passée entre la lecture et l'écriture garde son montant. Sans poste,
+ * le montant reste celui que le circuit a fixé : rien à reporter.
+ */
+export async function reporterLesPostesSurLaDeclaration(entityType: EntityType, entityId: string): Promise<void> {
+  const decl = await prisma.medicalInfoDeclaration.findUnique({
+    where: { sourceType_sourceId: { sourceType: entityType, sourceId: entityId } },
+    select: { id: true, status: true, expenseOrderId: true },
+  });
+  if (!decl || decl.status === "VALIDATED" || decl.expenseOrderId) return;
+  const { nombre, montantEstime } = await postesPortantLaDepense(entityType, entityId);
+  if (nombre === 0) return;
+  await prisma.medicalInfoDeclaration.updateMany({
+    where: { id: decl.id, status: { not: "VALIDATED" }, expenseOrderId: null },
+    data: { amount: montantEstime > 0 ? montantEstime : null },
+  });
 }
 
 /** L'estimation déclarée d'une tenue pré-validée : ce que portent ses postes, `null` s'ils ne portent rien. */

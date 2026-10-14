@@ -9,7 +9,7 @@ import { moneyEntityOf } from "@/lib/company";
 import { normalizeCity } from "@/lib/geo/algeria";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createMedicalInfoDeclaration, repercuterMontantSurDeclaration } from "@/lib/medical-info";
+import { createMedicalInfoDeclaration, repercuterMontantSurDeclaration, pharmacienAssigne } from "@/lib/medical-info";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { reviserOrdreNonRegle, apresRevisionOrdre } from "@/lib/payments/revision-ordre";
 import { involveThirdParty } from "@/lib/third-party";
@@ -382,7 +382,8 @@ export async function finalDecision(formData: FormData): Promise<ActionResult> {
   // Étape « information médicale » : intercalée UNIQUEMENT si un pharmacien responsable
   // est configuré. Sinon, on route directement l'ordre de dépense vers les Finances
   // (le responsable des finances est notifié par createExpenseOrder).
-  const pharmacist = await prisma.user.findFirst({ where: { ...anyRoleFilter(["MEDICAL_INFO_PHARMACIST"]), isActive: true }, select: { id: true } });
+  // Le pharmacien désigné — le plus ancien actif, déterministe (`pharmacienAssigne`).
+  const pharmacist = await pharmacienAssigne();
 
   if (pharmacist) {
     const decl = await createMedicalInfoDeclaration({
@@ -421,6 +422,14 @@ export async function finalDecision(formData: FormData): Promise<ActionResult> {
       updatedById: user.id,
     });
     await recordAudit({ actorId: user.id, action: "VALIDATE", module: ML(t), entityType: entityFor(t), entityId: id, summary: `Validation définitive — ${c.name} (ordre ${order.reference})` });
+    // LA DÉCLARATION NAÎT QUAND MÊME, non assignée, et porte l'ordre déjà parti : l'événement reste à
+    // déclarer au ministère même sans pharmacien, et la validation finale ne doublera pas l'ordre.
+    // Le paiement, lui, ne change pas. Best-effort : l'ordre est parti, une déclaration ratée se rattrape.
+    await createMedicalInfoDeclaration({
+      sourceType: entityFor(t), sourceId: id, label: `${NOUN(t)} — ${c.name}`, beneficiary: c.name,
+      amount, requesterId: c.requesterId ?? user.id, budgetCategoryId, expenseOrderId: order.id,
+    }).catch((e) => console.error("[information médicale] déclaration non assignée non créée", e));
+    revalidatePath("/information-medicale");
     revalidatePath("/finances/paiements-a-faire");
     revalidatePath("/finances");
   }

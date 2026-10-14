@@ -54,7 +54,9 @@ export type DeclarationDetail = NonNullable<Awaited<ReturnType<typeof getDeclara
 /**
  * Le détail d'une déclaration est visible par : le pharmacien responsable / la
  * Direction / un admin (accès au module), ou tout utilisateur sollicité pour une
- * pièce sur cette déclaration (afin qu'il puisse la déposer).
+ * pièce sur cette déclaration (afin qu'il puisse la déposer). Le DIRECTEUR DES OPÉRATIONS,
+ * qui tranche tout ce que le pharmacien fait valider (`medical-info/decideur.ts`), lit le
+ * module en portée ALL (`rbac.ts`) : il ouvre le dossier et ses pièces sur lesquels il décide.
  */
 export function canViewDeclaration(
   user: SessionUser,
@@ -92,6 +94,22 @@ export async function dernieresRelancesPieces(declarationId: string): Promise<Ma
   const out = new Map<string, Date>();
   for (const l of lignes) if (l.newValue && !out.has(l.newValue)) out.set(l.newValue, l.createdAt);
   return out;
+}
+
+/**
+ * LE DERNIER REFUS DE LA VALIDATION FINALE — lu dans le journal, où `refuseDeclarationByDirection`
+ * l'écrit (`field` = REFUS_FINAL_CHAMP, `newValue` = le motif). Pas de colonne en plus : le journal
+ * garde déjà qui a refusé, quand et pourquoi.
+ */
+export const REFUS_FINAL_CHAMP = "refusValidationFinale";
+
+export async function dernierRefusFinal(declarationId: string): Promise<{ motif: string; le: Date; par: string | null } | null> {
+  const l = await prisma.auditLog.findFirst({
+    where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: declarationId, field: REFUS_FINAL_CHAMP },
+    select: { newValue: true, createdAt: true, actor: { select: { name: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+  return l?.newValue ? { motif: l.newValue, le: l.createdAt, par: l.actor?.name ?? null } : null;
 }
 
 /** Lien vers l'événement source (pour l'interconnexion). */

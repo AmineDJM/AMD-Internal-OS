@@ -28,6 +28,23 @@ export interface DemandeVue {
   mode: "SEQUENTIAL" | "PARALLEL" | string;
   currentOrder: number;
   steps: EtapeVue[];
+  /**
+   * L'ACCORD D'UN SEUL SUFFIT — une demande adressée à une FONCTION que plusieurs personnes tiennent
+   * (les Directeurs des Opérations, pour l'information médicale) : tous sont saisis, le premier qui
+   * tranche décide pour tous. Lu sur la NATURE de la demande (`unSeulSuffit`), jamais sur son titre.
+   */
+  unSeulSuffit?: boolean;
+}
+
+/**
+ * Les natures de demande (`ValidationRequest.objectType`) dont un seul validateur suffit à trancher.
+ * Écrites en clair (module au socle, sans import) : c'est `OBJET_DECISION_INFO_MED`
+ * (`medical-info/decideur.ts`) — le test de ce module tient l'égalité des deux.
+ */
+const OBJETS_UN_SEUL_SUFFIT: ReadonlySet<string> = new Set(["INFO_MED_DIRECTEUR_OPS"]);
+
+export function unSeulSuffit(objectType: string | null | undefined): boolean {
+  return objectType != null && OBJETS_UN_SEUL_SUFFIT.has(objectType);
 }
 
 /** Refuser ou renvoyer sans dire pourquoi laisse le demandeur deviner ce qu'il doit corriger. */
@@ -53,6 +70,7 @@ export function issueDeLaDecision(
 ): { status: StatutDemande; currentOrder: number; suivanteId: string | null } {
   if (decision === "REJECTED") return { status: "REJECTED", currentOrder: demande.currentOrder, suivanteId: null };
   if (decision === "CHANGES_REQUESTED") return { status: "CHANGES_REQUESTED", currentOrder: demande.currentOrder, suivanteId: null };
+  if (demande.unSeulSuffit) return { status: "APPROVED", currentOrder: demande.currentOrder, suivanteId: null };
   if (demande.mode === "PARALLEL") {
     const toutes = demande.steps.every((e) => (e.id === stepId ? true : e.status === "APPROVED"));
     return { status: toutes ? "APPROVED" : "PENDING", currentOrder: demande.currentOrder, suivanteId: null };

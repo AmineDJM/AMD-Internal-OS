@@ -1304,7 +1304,7 @@ export const MEDICAL_INFO_STATUS: Record<string, Display> = {
   AWAITING_REVIEW: { label: "À déclarer", tone: "warning" },
   DOCS_REQUESTED: { label: "Pièces demandées", tone: "info" },
   READY: { label: "Prêt à valider", tone: "purple" },
-  AWAITING_DIRECTION: { label: "Validation Direction", tone: "warning" },
+  AWAITING_DIRECTION: { label: "Validation Directeur des Opérations", tone: "warning" },
   VALIDATED: { label: "Validé", tone: "success" },
 };
 

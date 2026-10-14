@@ -83,10 +83,10 @@ export const CIRCUIT_LABEL: Record<MedicalCircuit, string> = {
 export const CIRCUIT_HINT: Record<MedicalCircuit, string> = {
   EVENT:
     "Prises en charge nationales et internationales, événements, sponsorings. Pas de bon de versement : "
-    + "le pharmacien fait valider s'il y a lieu de déclarer, puis fait le nécessaire auprès du ministère "
+    + "le pharmacien fait valider par le Directeur des Opérations s'il y a lieu de déclarer, puis fait le nécessaire auprès du ministère "
     + "de l'Industrie pharmaceutique.",
   PROMO:
-    "Le dossier se sépare en matériels, un bon de versement par matériel. Une validation couvre le dépôt "
+    "Le dossier se sépare en matériels, un bon de versement par matériel. Une validation du Directeur des Opérations couvre le dépôt "
     + "des bons ; le paiement de chacun se demande ensuite séparément.",
 };
 
@@ -188,4 +188,27 @@ export function circuitOfKind(kind: DeclarationKind): MedicalCircuit {
 export function circuitOfDeclaration(d: { sourceType: string; declarationKind?: string | null }): MedicalCircuit {
   if (isDeclarationKind(d.declarationKind)) return circuitOfKind(d.declarationKind);
   return circuitOf(d.sourceType);
+}
+
+/**
+ * L'ORDRE DE DÉPENSE GLOBAL À LA VALIDATION FINALE — seulement là où rien d'autre ne porte la dépense.
+ *
+ * La validation finale émettait un ordre du « montant » de la déclaration, quelle qu'en soit
+ * l'origine. Or :
+ *   · un dossier OUVERT PAR LE PRIM (MIP, visa publicitaire) n'a ni événement ni pièce derrière lui :
+ *     son « montant » est une saisie libre, et un ordre bâti dessus serait de l'argent sans justificatif ;
+ *   · une NATURE choisie (MIP, visa) et le CIRCUIT MATÉRIEL ont leurs propres paiements — les bons de
+ *     versement, la facture du matériel déjà réglée par le dossier promotionnel : un ordre de plus
+ *     paierait la même dépense deux fois ;
+ *   · un ordre DÉJÀ ÉMIS (la déclaration née sans pharmacien, après que l'ordre est parti) ne se
+ *     double pas.
+ * Restent les dossiers d'ÉVÉNEMENT venus d'Ad & Pro (sponsoring, prises en charge, événements), dont
+ * la demande source est la pièce — et encore, pas quand leurs postes portent la dépense (§118.151,
+ * vérifié par l'action). Module PUR, testé.
+ */
+export function ordreGlobalALaValidation(d: { sourceType: string; declarationKind?: string | null; expenseOrderId?: string | null }): boolean {
+  if (d.expenseOrderId) return false;
+  if (d.declarationKind) return false;
+  if (d.sourceType === "MEDICAL_INFO_DECLARATION" || d.sourceType === "LEGAL_DOCUMENT") return false;
+  return circuitOfDeclaration(d) === "EVENT";
 }
