@@ -9,6 +9,7 @@ import { recordAudit } from "@/lib/audit";
 import { companyIdForNew } from "@/lib/company";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFormFiles } from "@/lib/documents";
+import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 import { invoiceDirection, canMarkPaidDirectly, dateDeReglementAEcrire } from "@/lib/finances/settlement";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
 import { syncInvoiceSettlement } from "@/lib/finance/settle-invoice";
@@ -99,6 +100,15 @@ export async function createInvoice(
   const refusRangement = await refusPieceARanger(user, pieceExistanteId, source);
   if (refusRangement) return { ok: false, error: refusRangement };
 
+  // UNE FACTURE REÇUE DÉJÀ CONNUE AILLEURS NE S'ENREGISTRE PAS UNE SECONDE FOIS (Direction, 14/10) — avant d'écrire.
+  const fichiersFacture = f.direction !== "IN"
+    ? formData.getAll("attachment").filter((v): v is File => v instanceof File && v.size > 0).slice(0, 1)
+    : [];
+  const garde = await verifierFacturesAvantDepot(user, await Promise.all(fichiersFacture.map(async (fi) => ({
+    octets: Buffer.from(await fi.arrayBuffer()), nom: fi.name, saisie: { numero: f.reference, fournisseur: f.counterparty, ttc: f.amount },
+  }))), { instances: source.type && source.id ? [`FICHE:${source.type}:${source.id}`] : [] });
+  if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
+
   const created = await prisma.legalDocument.create({
     data: {
       ...f, title,
@@ -136,8 +146,10 @@ export async function createInvoice(
   const fichiers = files.failed.length
     ? `${files.attached} pièce(s) jointe(s) ; échec sur : ${files.failed.map((x) => x.name).join(", ")}.`
     : null;
-  return fichiers || rangement
-    ? { ok: true, id: created.id, message: ["Facture créée.", fichiers, rangement].filter(Boolean).join(" ") }
+  for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, legalDocumentId: created.id, acteurId: user.id });
+  const avertissement = garde.probables.map((p) => p.phrase).join(" ") || null;
+  return fichiers || rangement || avertissement
+    ? { ok: true, id: created.id, message: ["Facture créée.", fichiers, rangement, avertissement].filter(Boolean).join(" "), ...(avertissement ? { avertissement } : {}) }
     : { ok: true, id: created.id };
 }
 

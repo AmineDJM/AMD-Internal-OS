@@ -27,6 +27,8 @@ import {
 import { requestDocument, askablePeople } from "@/lib/actions/document-request-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
+import { FactureDejaConnueCarte } from "@/components/factures/facture-deja-connue";
+import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
 
 export interface PieceView {
   id: string;
@@ -56,7 +58,7 @@ export interface EventView {
   at: string;
 }
 
-type Runner = (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>;
+type Runner = (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string; factureConnue?: FactureDejaConnue }>;
 
 /** Ce que la correction de la demande lit sur la fiche (§118.191). */
 export interface CorrectionView {
@@ -211,19 +213,20 @@ export function PaymentDossier({
   // Un geste en vol OU un rafraîchissement en cours : les boutons restent fermés dans les deux cas.
   const busy = enVol ?? (enCours ? "refresh" : null);
   const [err, setErr] = React.useState<string | null>(null);
+  const [connue, setConnue] = React.useState<FactureDejaConnue | null>(null);
   // Ce que le geste a ENTRAÎNÉ (§118.185) : un refus ou un retrait annule aussi l'ordre de dépense non réglé.
   const [info, setInfo] = React.useState<string | null>(null);
   const [note, setNote] = React.useState("");
   const [message, setMessage] = React.useState("");
 
   const run = async (key: string, fn: Runner, fields: Record<string, string>, files?: Record<string, File>) => {
-    setEnVol(key); setErr(null); setInfo(null);
+    setEnVol(key); setErr(null); setInfo(null); setConnue(null);
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, v);
     for (const [k, f] of Object.entries(files ?? {})) fd.set(k, f);
     const r = await fn(fd);
     setEnVol(null);
-    if (!r.ok) { setErr(r.error ?? "L'opération a échoué."); return false; }
+    if (!r.ok) { if (r.factureConnue) setConnue(r.factureConnue); else setErr(r.error ?? "L'opération a échoué."); return false; }
     if (r.message) setInfo(r.message);
     setNote(""); setMessage("");
     rafraichir();
@@ -245,6 +248,15 @@ export function PaymentDossier({
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {companionNotice(orderReference)}
         </p>
       )}
+
+      {/* LA MARQUE « DOUBLON POSSIBLE » (Direction, 14/10) — une facture de ce dossier ressemble à une facture déjà connue
+          ailleurs (même fournisseur, même montant, même date, ou même numéro à confirmer). Elle n'a rien bloqué : elle se
+          vérifie pièce en main, avant de payer. */}
+      {events.filter((e) => e.kind === "DOUBLON_POSSIBLE").map((e) => (
+        <p key={e.id} className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground [overflow-wrap:anywhere]" data-doublon-possible>
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" /> {e.message}
+        </p>
+      ))}
 
       {/* ───────────── Les pièces, et leur conversation ───────────── */}
       <section className="space-y-3">
@@ -418,6 +430,7 @@ export function PaymentDossier({
         </section>
       )}
 
+      {connue && <FactureDejaConnueCarte info={connue} />}
       {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
       {info && <p role="status" className="rounded-lg bg-muted px-3 py-2 text-sm">{info}</p>}
     </div>
@@ -633,6 +646,7 @@ const EVENT_LABEL: Record<string, string> = {
   CORRECTED: "Demande corrigée",
   NUDGE: "Relance",
   URGENT: "Urgence signalée",
+  DOUBLON_POSSIBLE: "Doublon possible",
 };
 
 /** Une pièce, son commentaire, son verdict, et la réponse qu'elle appelle. */

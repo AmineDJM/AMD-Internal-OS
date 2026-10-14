@@ -1027,8 +1027,8 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
   // ci-dessous, qui la trouve donc là où elle la cherche déjà.
   const factureJointe = formData.getAll("facture").find((v): v is File => v instanceof File && v.size > 0) ?? null;
   if (factureJointe) {
-    const refusFacture = await joindreFactureALaDemande(user.id, id, factureJointe);
-    if (refusFacture) return { ok: false, error: refusFacture };
+    const refusFacture = await joindreFactureALaDemande(user, id, factureJointe);
+    if (refusFacture) return { ok: false, error: refusFacture.error, ...(refusFacture.factureConnue ? { factureConnue: refusFacture.factureConnue } : {}) };
   }
 
   // LA FACTURE SE LIT LÀ OÙ L'ÉCRAN LA RANGE (lot E5). La règle ne regardait que les fichiers « Facture » de la

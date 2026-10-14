@@ -10,6 +10,9 @@ import type { BcDePoste, PieceDePoste } from "@/lib/ad-pro/pieces-poste";
 import { refusDemandePaiementBC } from "@/lib/bons-de-commande/copie-signee";
 import { etatDuPaiement, phrasePaiementBloque } from "@/lib/ad-pro/poste-etapes";
 import { deposerFacturePoste, demanderPaiementPoste } from "@/lib/actions/ad-pro-item-actions";
+import { FactureDejaConnueCarte, RelancerPaiement } from "@/components/factures/facture-deja-connue";
+import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
+import { etatDuPaiement as etatPourRelance, relancable } from "@/lib/finance/relance-paiement";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -61,6 +64,9 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
   const [coches, setCoches] = React.useState<Set<string>>(() => new Set(libres.length === 1 ? [libres[0].id] : []));
   const [montant, setMontant] = React.useState("");
   const [reference, setReference] = React.useState("");
+  // LA FACTURE DÉJÀ CONNUE AILLEURS (Direction, 14/10) : le dépôt est refusé, la case reste ouverte avec la phrase du
+  // blocage et le seul geste proposé — relancer.
+  const [connue, setConnue] = React.useState<FactureDejaConnue | null>(null);
   const enCours = busy === `fac:${itemId}`;
   const deposer = () => {
     const fd = new FormData();
@@ -69,7 +75,17 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
     for (const id of coches) fd.append("bcId", id);
     fd.set("montant", montant);
     fd.set("reference", reference);
-    void run(`fac:${itemId}`, () => deposerFacturePoste(fd), "Facture déposée.").then(onClose);
+    setConnue(null);
+    let bloquee = false;
+    void run(`fac:${itemId}`, async () => {
+      const r = await deposerFacturePoste(fd);
+      if (!r.ok && r.factureConnue) {
+        bloquee = true;
+        setConnue(r.factureConnue);
+        return { ok: false, error: "Facture refusée : elle existe déjà (voir la case Facture)." };
+      }
+      return r;
+    }, "Facture déposée.").then(() => { if (!bloquee) onClose(); });
   };
   return (
     <div className="space-y-2 rounded-lg border border-border bg-background p-2.5 text-xs" aria-label="Déposer la facture">
@@ -112,13 +128,36 @@ export function DeposerFactureBC({ itemId, bcs, factures, busy, run, onClose }: 
       <Button size="sm" className="h-10 w-full sm:h-8 sm:w-auto" onClick={deposer} disabled={enCours || fichiers.length === 0 || coches.size === 0}>
         {enCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />} Déposer et contrôler
       </Button>
+      {connue && <FactureDejaConnueCarte info={connue} />}
+    </div>
+  );
+}
+
+/**
+ * LE PAIEMENT DEMANDÉ D'UN POSTE — sa référence, où il attend, et la RELANCE (Direction, 14/10/2026) : « les relances de
+ * demandes de paiement doivent être possibles, y compris depuis Ad & Pro ». Le poste n'a qu'un ordre de dépense : c'est
+ * lui qu'on relance (`relancerPaiement`), vers qui a la main — le centre, ou les Finances.
+ */
+export function PaiementDemande({ expenseOrder, paye, peutRelancer }: {
+  expenseOrder: { id?: string; reference: string; status: string; centralStatus?: string | null }; paye: boolean; peutRelancer: boolean;
+}) {
+  const etat = etatPourRelance({ ordre: { status: expenseOrder.status, centralStatus: expenseOrder.centralStatus ?? "AWAITING" } });
+  const ou = paye ? "payé" : etat === "FINANCES" ? "chez les Finances" : etat === "DEMANDEUR" ? "renvoyé au demandeur" : "au centre de paiement";
+  return (
+    <div className="space-y-1.5">
+      <p className="inline-flex flex-wrap items-center gap-1 text-muted-foreground [overflow-wrap:anywhere]">
+        <Receipt className="h-3 w-3 shrink-0" /> {expenseOrder.reference} · {ou}
+      </p>
+      {!paye && peutRelancer && expenseOrder.id && relancable(etat) && etat !== "DEMANDEUR" && (
+        <RelancerPaiement cible={{ type: "EXPENSE_ORDER", id: expenseOrder.id }} libelle="Relancer le paiement" compact />
+      )}
     </div>
   );
 }
 
 export function DemandePaiementBC({ itemId, bcs, factures, accorde, peutDemander, expenseOrder, busy, run }: {
   itemId: string; bcs: BcDePoste[]; factures: PieceDePoste[]; accorde: number | null; peutDemander: boolean;
-  expenseOrder: { reference: string; status: string; centralStatus?: string | null } | null; busy: string | null; run: Run;
+  expenseOrder: { id?: string; reference: string; status: string; centralStatus?: string | null } | null; busy: string | null; run: Run;
 }) {
   const [argumentation, setArgumentation] = React.useState("");
   const [oui, setOui] = React.useState(false);
@@ -128,11 +167,7 @@ export function DemandePaiementBC({ itemId, bcs, factures, accorde, peutDemander
     const etat = etatDuPaiement({ expenseOrderId: expenseOrder.reference, expenseOrderStatus: expenseOrder.status, expenseOrderCentral: expenseOrder.centralStatus ?? null });
     const bloque = phrasePaiementBloque(etat, expenseOrder.reference);
     if (bloque) return <p className="flex gap-1 text-destructive [overflow-wrap:anywhere]"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {bloque}</p>;
-    return (
-      <p className="inline-flex flex-wrap items-center gap-1 text-muted-foreground [overflow-wrap:anywhere]">
-        <Receipt className="h-3 w-3 shrink-0" /> {expenseOrder.reference} · {etat === "PAYE" ? "payé" : "au centre de paiement"}
-      </p>
-    );
+    return <PaiementDemande expenseOrder={expenseOrder} paye={etat === "PAYE"} peutRelancer={peutDemander} />;
   }
   const vivantes = factures.filter((f) => !f.annulee);
   const attente = refusDemandePaiementBC({

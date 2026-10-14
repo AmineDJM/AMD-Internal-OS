@@ -15,6 +15,7 @@ import { canAccessEntity } from "@/lib/entity-access";
 import { lecteursDeLaSuite } from "@/lib/lecteurs/legal";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFormFiles } from "@/lib/documents";
+import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { normalizeReaderIds, canManageLegalReaders } from "@/lib/lecteurs/legal";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
@@ -224,6 +225,16 @@ export async function createLegalDocument(
   const refusRangement = await refusPieceARanger(user, pieceExistanteId, source);
   if (refusRangement) return { ok: false, error: refusRangement };
 
+  // UNE FACTURE REÇUE DÉJÀ CONNUE AILLEURS NE S'ENREGISTRE PAS UNE SECONDE FOIS (Direction, 14/10) — même fichier, ou
+  // même fournisseur et même numéro lus par Luna. Jugé AVANT d'écrire ; un doublon seulement probable passe, marqué.
+  const fichiersFacture = f.kind === "INVOICE" && f.direction !== "IN"
+    ? formData.getAll("attachment").filter((v): v is File => v instanceof File && v.size > 0).slice(0, 1)
+    : [];
+  const garde = await verifierFacturesAvantDepot(user, await Promise.all(fichiersFacture.map(async (fi) => ({
+    octets: Buffer.from(await fi.arrayBuffer()), nom: fi.name, saisie: { numero: f.reference, fournisseur: parties.text, ttc: f.amount },
+  }))), { instances: source.type && source.id ? [`FICHE:${source.type}:${source.id}`, ...(source.type === "AD_PRO_ITEM" ? [`POSTE:${source.id}`] : [])] : [] });
+  if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
+
   const companyId = await companyIdForNew(user.id);
   const created = await prisma.legalDocument.create({
     data: {
@@ -285,8 +296,10 @@ export async function createLegalDocument(
   const rangement = pieceExistanteId
     ? (range ? `« ${range} » est rangé dans la fiche.` : "Le fichier n'a pas pu être rangé : il n'était plus sur la fiche d'origine.")
     : null;
-  const message = [fichiers ?? (aiguillage || rangement ? "Document créé." : null), rangement, aiguillage].filter(Boolean).join(" ");
-  return { ok: true, id: created.id, message: message || undefined };
+  for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, legalDocumentId: created.id, acteurId: user.id });
+  const avertissement = garde.probables.map((p) => p.phrase).join(" ") || null;
+  const message = [fichiers ?? (aiguillage || rangement || avertissement ? "Document créé." : null), rangement, aiguillage, avertissement].filter(Boolean).join(" ");
+  return { ok: true, id: created.id, message: message || undefined, ...(avertissement ? { avertissement } : {}) };
 }
 
 export async function updateLegalDocument(formData: FormData): Promise<ActionResult> {

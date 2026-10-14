@@ -1,3 +1,22 @@
+### Factures — « pas deux factures » : doublons bloqués, relance unifiée, recensement (2026-10-14)
+
+Décision de la Direction (14/10) : une facture déjà connue — même fichier (SHA-256), ou même fournisseur et même numéro
+lus par Luna — est **refusée avant toute écriture** à chaque porte de dépôt (demande de paiement, poste Ad & Pro, Budget
+Marketing, registre Legal, dépôt libre d'une facture, fin d'une demande au secrétariat), dans les deux sens. Le message
+dit « Cette facture existe déjà … elle est en cours de traitement — au centre de paiement / chez les Finances » (ou
+« déjà payée ») ; le dossier n'est nommé qu'à qui y a accès ; un seul geste : **Relancer** (un clic, commentaire
+facultatif, jeton signé). Un doublon **probable** (même fournisseur, même TTC, même date sans numéro lisible ; NIF à un
+caractère près…) passe avec un avertissement et la marque « doublon possible », lue au centre de paiement et dans
+« Banque & paiements ». Une pro forma face à sa facture finale, un avoir, deux acomptes ne sont pas des doublons. La
+comparaison est du code (`factures/identite.ts`), la lecture vient de Luna avec ses garde-fous ; le banc
+`identite.banc.test.ts` exige zéro faux CERTAIN. **Relance unifiée** `relancerPaiement` (demande OU ordre de dépense, à
+qui a la main : centre, puis Finances ; une par heure), aussi depuis la case Paiement d'un poste Ad & Pro ; la relance du
+dossier (`nudgePaymentRequest`) partage le délai et les destinataires. **Recensement unique** en lecture seule :
+`npm run factures:doublons` et Finances › **Doublons de factures** (`/finances/doublons-factures`, « à examiner /
+examiné » au journal d'audit, sans migration). Détail : [35-doublons-de-factures.md](35-doublons-de-factures.md).
+
+---
+
 ### BC et factures — titre centré, bleu canard, premier numéro, taxes, Excel, aperçu (2026-10)
 
 Ajustements de la Direction sur les bons de commande et les factures (§118.203) :

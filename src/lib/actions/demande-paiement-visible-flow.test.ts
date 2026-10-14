@@ -89,7 +89,8 @@ suite("Une demande de paiement envoyée reste visible de son demandeur", () => {
       paymentMethodStated: "on", deadlineNature: "IMPORTANT",
     });
     // Le dossier part avec sa facture — c'est ce que la règle exige à la transmission.
-    f.append("files", new File([new Uint8Array([1, 2, 3])], "facture.pdf", { type: "application/pdf" }));
+    // UNE FACTURE DISTINCTE PAR DEMANDE (Direction, 14/10) : le même fichier deux fois serait la même facture, refusée.
+    f.append("files", new File([new Uint8Array([1, 2, 3]), `${Date.now()}-${Math.random()}`], "facture.pdf", { type: "application/pdf" }));
     f.set("kind_0", "INVOICE");
     const r = await createPaymentRequest(undefined, f);
     expect(r.ok, r.error).toBe(true);
