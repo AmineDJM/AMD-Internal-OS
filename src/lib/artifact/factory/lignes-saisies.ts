@@ -26,6 +26,8 @@ export const fractionSaisie = (v: string | null | undefined): number | null => {
 
 export interface ListesDeLignes {
   designations: string[]; details: string[]; quantites: string[]; prix: string[]; remises: string[]; tvas: string[]; sections: string[];
+  /** L'unité de chaque ligne (« u », « boîte ») — absente des formulaires qui ne la saisissent pas. */
+  unites?: string[];
 }
 
 /** Les lignes : des listes parallèles, une entrée par ligne saisie, dans l'ordre de l'écran. */
@@ -42,6 +44,7 @@ export function lignesDepuisListes(l: ListesDeLignes): DemandeDocument["lignes"]
       prixUnitaire: section ? 0 : (nombreSaisi(l.prix[i]) ?? Number.NaN),
       remise: fractionSaisie(l.remises[i]),
       tva: fractionSaisie(l.tvas[i]),
+      ...(l.unites ? { unite: section ? null : (l.unites[i] ?? "").trim() || null } : {}),
     };
   });
 }

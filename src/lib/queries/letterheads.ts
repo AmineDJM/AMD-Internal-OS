@@ -76,3 +76,21 @@ export async function letterheadContextFor(
     })),
   };
 }
+
+/**
+ * LA PAPETERIE D'UNE PIÈCE COMPOSÉE SOUS DÉLÉGATION — l'aperçu d'un bon de commande (poste Ad & Pro, demande au secrétariat) :
+ * les en-têtes actifs de la société QUI COMMANDE, plus ceux communs au groupe. Pas ceux des entités de la personne : sous
+ * délégation, c'est la société du dossier qui émet, et la fabrique refuse le papier d'une autre société.
+ */
+export async function papeterieDeLaSociete(companyId: string): Promise<{ id: string; name: string; companyId: string | null; companyLabel: string | null }[]> {
+  const [rows, societe] = await Promise.all([
+    prisma.officeLetterhead.findMany({
+      where: { isActive: true, OR: [{ companyId: null }, { companyId }] },
+      select: { id: true, name: true, companyId: true },
+      orderBy: [{ kind: "asc" }, { name: "asc" }],
+    }),
+    prisma.company.findUnique({ where: { id: companyId }, select: { name: true, shortName: true } }),
+  ]);
+  const libelle = societe ? societe.shortName || societe.name : null;
+  return rows.map((r) => ({ id: r.id, name: r.name, companyId: r.companyId, companyLabel: r.companyId ? libelle : null }));
+}

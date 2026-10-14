@@ -30,8 +30,10 @@ describe("le compositeur envoie la pièce amont qu'il propose — et seulement c
   const ecran = lire("src/components/pieces/composer-piece.tsx");
 
   it("`construireFormData` envoie `chainFromId` depuis la pièce RETENUE, et l'aperçu se recalcule quand elle change", () => {
-    // Une RÉVISION (pièce rouverte) ne change pas sa chaîne : le rattachement se fait depuis la fiche.
-    expect(corps(ecran, "construireFormData")).toMatch(/if \(amontRetenu && !rev\) fd\.set\("chainFromId", amontRetenu\)/);
+    // Une RÉVISION (pièce rouverte) ne change pas sa chaîne : le rattachement se fait depuis la fiche. L'APERÇU d'un BC
+    // (brouillon, Direction 14/10/2026) non plus : sa pièce amont est le devis dont il naît, posé par le serveur.
+    expect(corps(ecran, "construireFormData")).toMatch(/if \(amontRetenu && !pieceDonnee\) fd\.set\("chainFromId", amontRetenu\)/);
+    expect(ecran).toMatch(/const pieceDonnee = Boolean\(rev \|\| br\)/);
     expect(ecran).toMatch(/const empreinte = JSON\.stringify\(\{[^}]*amontRetenu[^}]*\}\)/);
   });
 

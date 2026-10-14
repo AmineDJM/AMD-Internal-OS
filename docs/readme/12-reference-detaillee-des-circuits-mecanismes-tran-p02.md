@@ -973,11 +973,29 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   signature). Côté matériel promotionnel, le brouillon se crée **automatiquement** à la dernière validation des lignes
   retenues. Les devis téléversés sont cliquables. Historique : départ fixé d'abord à 037 (`20270117130500`), puis
   **040/DG/2026** pour Adventum, Pharmagène et AMD (`20270117140000_bc_numerotation_040`, jamais à reculons).
-- **Le BC du poste EN UN CLIC, et la même pièce comptée une fois (Direction, 14/10)** — la case « Bon de commande »
+- **L'APERÇU DU BC EST OBLIGATOIRE ET ULTRA COMPLET (Direction, 14/10 — « chaque détail peut être modifié dans le BC »)** —
+  un seul chemin, partout où un BC se génère depuis des lignes : **Générer → aperçu → relecture/correction → Valider et
+  envoyer**. Le geste « en un clic » (`genererEtEnvoyerBcPoste`) est retiré. Poste Ad & Pro : le clic pose le brouillon et
+  OUVRE l'aperçu (`components/ad-pro/apercu-bc-poste.tsx`) ; Bureau du secrétariat : « Générer le bon de commande » ouvre
+  l'aperçu du fournisseur (`demandes/[id]/apercu-bc-demande.tsx`, `ouvrirApercuBcDemande`), rien n'est écrit avant
+  « Valider et envoyer » (`genererBonDeCommandeDemande` refuse sans le formulaire de l'aperçu) ; matériel promotionnel :
+  déjà en deux temps (`genererLesBonsDeCommande`, « APERCU » puis « VALIDER »). L'aperçu est le **composeur de pièces** en
+  mode brouillon (`components/pieces/composer-piece.tsx`, `brouillon`) : les MÊMES champs que la révision — fournisseur
+  complet (nom, adresse, tél., e-mail, RC/NIF/AI/NIS), lignes (section, désignation, unité, détails, quantité, PU, remise,
+  TVA), date, objet, devis amont et sa date, mode et conditions de paiement, TVA par défaut, remise globale, taxes,
+  livraison (lieu, date, délai), contact, notes, papier en-tête, coordonnées de l'émetteur, signataire, mentions —, le PDF à
+  blanc en tête, « Enregistrer le brouillon » et « Valider et envoyer ». Une seule lecture du formulaire
+  (`bons-de-commande/saisie-composeur.ts`, `lireSaisieDuComposeur`) ; le brouillon garde tout (`BrouillonBc.corrections`,
+  JSON — sans migration) et l'émission l'applique (`appliquerCorrections`, `demandeDuBC`). Un BC « à régénérer » se
+  prévisualise comme la révision qui suivra. Le **plafond de l'accordé** est UN calcul TTC (audit M-03) pour la génération,
+  le brouillon, sa validation et « Modifier le BC » (`plafondDesDevis`, `refusPlafondDuPoste`). Le BC d'une demande au
+  secrétariat se **révise depuis la demande** (« Modifier le BC », `reviserPieceCommerciale` sous la délégation de la demande,
+  `secretariat/delegation-bc.ts`) tant qu'il n'est pas signé. Bancs : `ad-pro/bc-apercu-complet-flow.test.ts`,
+  `secretariat/devis-bc-flow.test.ts`.
+- **Le bouton du BC du poste, et la même pièce comptée une fois (Direction, 14/10)** — la case « Bon de commande »
   (`components/ad-pro/devis-bc-poste.tsx`) porte TOUJOURS « Générer le bon de commande » dès qu'un devis qui compte a des
-  lignes validées : le demandeur (ou le Super Admin) génère d'un geste (`genererEtEnvoyerBcPoste`, même chemin que la
-  validation de l'aperçu : fabrique → numéro, Word + PDF → `aiguillerBC`) ; « Voir l'aperçu d'abord » reste offert, et
-  qui n'est pas le demandeur prépare l'aperçu. Bloqué (plafond, budget, demande chez l'assistante), le bouton reste visible,
+  lignes validées : le clic ouvre l'aperçu (voir ci-dessus) ; qui n'est pas le demandeur prépare l'aperçu, que le demandeur
+  valide. Bloqué (plafond, budget, demande chez l'assistante), le bouton reste visible,
   inactif, la raison écrite à côté et « Demander une révision du poste ». Le plafond ne somme que les devis QUI COMPTENT
   (`refusMontantDesDevis`, `lib/ad-pro/devis-poste.ts`) : `devisMisAPart` écarte la COPIE d'une pièce déjà comptée (mêmes
   lignes ET même fichier — empreinte SHA-256 du blob ou de la lecture, `empreintesDesDevis` — ou même numéro chez le même

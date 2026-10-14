@@ -11,7 +11,7 @@ import { NATURES_AMONT, type ValeursComposables } from "@/lib/legal/piece-emise"
 import { PLURIEL_TYPE } from "@/lib/artifact/factory/commercial";
 import {
   apercuAvantImpressionPiece, emettrePieceCommerciale, previsualiserPieceCommerciale, reglerNumerotationPieces, reviserPieceCommerciale,
-  type ApercuPiece, type ResultatEmission, type ResultatRevision,
+  type ApercuImpression, type ApercuPiece, type ResultatEmission, type ResultatRevision,
 } from "@/lib/actions/fabrique-actions";
 import { ChampReference } from "@/components/references/champ-reference";
 
@@ -42,7 +42,7 @@ const LIBELLE: Record<TypePieceComposable, { nom: string; bouton: string; tiers:
   DEVIS: { nom: "Devis", bouton: "Composer un devis", tiers: "Client", article: "le devis" },
 };
 
-interface Ligne { id: number; designation: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }
+interface Ligne { id: number; designation: string; unite: string; details: string; quantite: string; prix: string; remise: string; tva: string; section: boolean }
 interface Taxe { id: number; libelle: string; taux: string }
 
 /**
@@ -80,8 +80,44 @@ export interface ComposerPieceProps {
    * Restent fixes la nature, la société et le numéro : ce sont eux qui font que c'est la même pièce.
    */
   revision?: RevisionComposeur;
+  /**
+   * L'APERÇU D'UN BON DE COMMANDE PAS ENCORE ÉMIS (Direction, 14/10/2026 — « Je veux l'aperçu obligatoire ; chaque détail peut être
+   * modifié dans le BC ») : le composeur s'ouvre PRÉ-REMPLI de la pièce telle que la fabrique la composerait (devis + corrections),
+   * SANS numéro — « Enregistrer le brouillon » garde la saisie, « Valider et envoyer » l'émet. Les mêmes champs que la révision :
+   * un seul écran pour composer, corriger l'aperçu et réviser (§118.5).
+   */
+  brouillon?: BrouillonComposeur;
   /** Le bouton qui ouvre le composeur : son libellé, et sa forme discrète (un lien, pour la case d'un poste). */
   declencheur?: { libelle?: string; discret?: boolean };
+}
+
+type Retour = { ok: boolean; error?: string; message?: string };
+
+/** L'APERÇU D'UN BC ouvert dans le composeur — rien n'est numéroté ni écrit au registre tant qu'on ne valide pas. */
+export interface BrouillonComposeur {
+  /** La pièce telle qu'elle serait émise, en valeurs d'écran. */
+  valeurs: ValeursComposables;
+  /** Un BC à régénérer garde son numéro ; sinon `null` (« à attribuer à la validation »). */
+  numeroExistant: string | null;
+  /** Le numéro choisi déjà gardé sur le brouillon (registre NNN/DG/AAAA). */
+  numeroChoisi: string | null;
+  /** Le PDF de l'aperçu à l'ouverture (rendu à blanc) : l'aperçu s'ouvre prêt à relire. */
+  pdfInitial: { base64: string; pages: number } | null;
+  /** Les totaux, à mesure de la saisie (à blanc). */
+  apercu: (fd: FormData) => Promise<ApercuPiece | { ok: false; error: string }>;
+  /** Le PDF de la saisie en cours (à blanc). */
+  impression: (fd: FormData) => Promise<ApercuImpression>;
+  /** Garder la saisie sur le brouillon — absent : rien ne se garde (l'aperçu du secrétariat n'écrit rien avant la validation). */
+  enregistrer?: (fd: FormData) => Promise<Retour>;
+  /** Valider et émettre — absent : la personne ne valide pas (`sansValidation` dit qui le fait). */
+  valider?: (fd: FormData) => Promise<Retour>;
+  sansValidation?: string;
+  /** Retirer l'aperçu (le brouillon disparaît, aucun numéro consommé). */
+  retirer?: () => Promise<Retour>;
+  /** Le libellé du geste d'émission (« Valider et envoyer aux Finances »). */
+  libelleValider?: string;
+  /** Le titre du panneau. */
+  titre: string;
 }
 
 /** Une RÉVISION ouverte dans le composeur — la même saisie que la composition, sur la version courante de la pièce. */
@@ -108,13 +144,13 @@ function champPorte(cle: string, type: TypePieceComposable): boolean {
   if (cle === "numeroClient" || cle === "echeance") return type === "FACTURE";
   if (cle === "validiteJours") return type === "DEVIS";
   if (cle === "contactNom" || cle === "contactTelephone") return type !== "FACTURE";
-  if (cle === "livraisonAdresse" || cle === "livraisonDelai") return type === "BON_DE_COMMANDE";
+  if (cle === "livraisonAdresse" || cle === "livraisonDelai" || cle === "livraisonDate") return type === "BON_DE_COMMANDE";
   return true;
 }
 
 const aujourdhui = (): string => new Date().toISOString().slice(0, 10);
 let compteur = 1;
-const nouvelleLigne = (section = false): Ligne => ({ id: compteur++, designation: "", details: "", quantite: section ? "" : "1", prix: "", remise: "", tva: "", section });
+const nouvelleLigne = (section = false): Ligne => ({ id: compteur++, designation: "", unite: "", details: "", quantite: section ? "" : "1", prix: "", remise: "", tva: "", section });
 
 export function ComposerPieceButton(props: ComposerPieceProps) {
   const [open, setOpen] = React.useState(false);
@@ -137,13 +173,17 @@ export function ComposerPieceButton(props: ComposerPieceProps) {
   );
 }
 
-function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void }) {
+export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void }) {
   const router = useRouter();
   const [type, setType] = React.useState<TypePieceComposable>(props.typeInitial);
   const [societe, setSociete] = React.useState<string>(props.societeParDefaut ?? props.societes[0]?.id ?? "");
-  // EN RÉVISION, tout part de la version courante de la pièce (`props.revision.valeurs`) — rien n'est ressaisi.
+  // EN RÉVISION, tout part de la version courante de la pièce (`props.revision.valeurs`) — rien n'est ressaisi. EN APERÇU D'UN
+  // BC (brouillon), de la pièce telle qu'elle serait émise (`props.brouillon.valeurs`).
   const rev = props.revision ?? null;
-  const v0 = rev?.valeurs ?? null;
+  const br = props.brouillon ?? null;
+  // Ce que la révision et l'aperçu d'un BC ont en commun : une pièce donnée d'avance, dont la nature et la société sont fixes.
+  const pieceDonnee = Boolean(rev || br);
+  const v0 = rev?.valeurs ?? br?.valeurs ?? null;
   // Le papier de l'émission, s'il est toujours proposé ; sinon celui du profil (vide).
   const [letterheadId, setLetterheadIdBrut] = React.useState<string>(() => (v0 && props.letterheads.some((l) => l.id === v0.letterheadId) ? v0.letterheadId : ""));
   // En révision, le papier n'est envoyé que s'il a été CHANGÉ : sinon la pièce garde celui de son émission, même absent du menu.
@@ -154,7 +194,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
   const [champs, setChamps] = React.useState(() => {
     const defaut = {
       numeroClient: "", date: aujourdhui(), echeance: "", validiteJours: "30", objet: "", referenceAmont: "", referenceAmontDate: "",
-      contactNom: "", contactTelephone: "", livraisonAdresse: "", livraisonDelai: "", modePaiement: "VIREMENT", conditionsPaiement: "",
+      contactNom: "", contactTelephone: "", livraisonAdresse: "", livraisonDelai: "", livraisonDate: "", modePaiement: "VIREMENT", conditionsPaiement: "",
       tvaDefaut: "19", remiseGlobale: "", notes: "",
     };
     return v0 ? { ...v0.champs, date: v0.champs.date || defaut.date, validiteJours: v0.champs.validiteJours || defaut.validiteJours, tvaDefaut: v0.champs.tvaDefaut || defaut.tvaDefaut } : defaut;
@@ -180,8 +220,15 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
   const [depart, setDepart] = React.useState<string>("");
   // La référence saisie au registre commun NNN/DG/AAAA (quand la pièce y va) : la saisie, la proposition, et son refus en direct.
   const [reference, setReference] = React.useState({ valeur: "", suggeree: "", refusee: false });
-  // L'APERÇU AVANT IMPRESSION : le PDF de la pièce à blanc, en blob local — jamais un fichier du Drive.
-  const [impression, setImpression] = React.useState<{ url: string; pages: number; numero: string } | null>(null);
+  // L'APERÇU AVANT IMPRESSION : le PDF de la pièce à blanc, en blob local — jamais un fichier du Drive. L'aperçu d'un BC s'ouvre
+  // avec SON PDF déjà rendu : un clic du demandeur ouvre l'aperçu prêt à relire, sans geste intermédiaire.
+  const [impression, setImpression] = React.useState<{ url: string; pages: number; numero: string } | null>(() => {
+    if (!br?.pdfInitial || typeof window === "undefined") return null;
+    const octets = Uint8Array.from(atob(br.pdfInitial.base64), (c) => c.charCodeAt(0));
+    return { url: URL.createObjectURL(new Blob([octets], { type: "application/pdf" })), pages: br.pdfInitial.pages, numero: br.numeroExistant ?? "à attribuer à la validation" };
+  });
+  // Le résultat d'un geste sur l'aperçu d'un BC (brouillon enregistré, BC émis, aperçu retiré).
+  const [brResultat, setBrResultat] = React.useState<Retour | null>(null);
   const [impressionErreur, setImpressionErreur] = React.useState<string | null>(null);
   const [rendu, startRendu] = React.useTransition();
   const [emission, startEmission] = React.useTransition();
@@ -214,17 +261,23 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     fd.set("societe", societe);
     if (props.prevalidation) fd.set("prevalidation", "1");
     // En révision, le papier n'est dit que s'il a changé (vide = celui du profil) ; sinon la pièce garde celui de son émission.
-    if (rev ? papierChange : letterheadId) fd.set("letterheadId", letterheadId);
+    if (pieceDonnee ? papierChange : letterheadId) fd.set("letterheadId", letterheadId);
     if (rev) fd.set("revisionDe", rev.legalDocumentId);
     for (const [k, v] of Object.entries(tiers)) fd.set(`tiers${k[0].toUpperCase()}${k.slice(1)}`, v);
-    for (const [k, v] of Object.entries(champs)) if (champPorte(k, type)) fd.set(k, v);
+    for (const [k, v] of Object.entries(champs)) {
+      if (!champPorte(k, type)) continue;
+      // L'APERÇU D'UN BC n'est pas encore daté : la date d'aujourd'hui n'est envoyée que si on l'a CHANGÉE — sinon le BC prend
+      // la date de sa validation, pas celle du jour où le brouillon a été relu.
+      if (br && k === "date" && v === v0?.champs.date) continue;
+      fd.set(k, v);
+    }
     // Les coordonnées de l'émetteur : choisies (« 1 »), ou — en révision — rendues à la société (« 0 »).
     if (emetteur) {
       fd.set("emetteurPersonnalise", "1");
       fd.set("emetteurAdresse", emetteur.adresse);
       fd.set("emetteurTelephone", emetteur.telephone);
       fd.set("emetteurEmail", emetteur.email);
-    } else if (rev) fd.set("emetteurPersonnalise", "0");
+    } else if (pieceDonnee) fd.set("emetteurPersonnalise", "0");
     if (signataire) {
       fd.set("signatairePersonnalise", "1");
       fd.set("signataireNom", signataire.nom);
@@ -233,6 +286,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     fd.set("mentions", mentions);
     for (const l of lignes) {
       fd.append("ligneDesignation", l.designation);
+      fd.append("ligneUnite", l.unite);
       fd.append("ligneDetails", l.details);
       fd.append("ligneQuantite", l.quantite);
       fd.append("lignePrix", l.prix);
@@ -241,23 +295,29 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
       fd.append("ligneSection", l.section ? "1" : "0");
     }
     for (const t of taxes) { fd.append("taxeLibelle", t.libelle); fd.append("taxeTaux", t.taux); }
-    if (amontRetenu && !rev) fd.set("chainFromId", amontRetenu);
+    if (amontRetenu && !pieceDonnee) fd.set("chainFromId", amontRetenu);
     return fd;
-  }, [type, societe, letterheadId, papierChange, tiers, champs, lignes, taxes, amontRetenu, props.prevalidation, emetteur, signataire, mentions, rev]);
+  }, [type, societe, letterheadId, papierChange, tiers, champs, lignes, taxes, amontRetenu, props.prevalidation, emetteur, signataire, mentions, rev, br, pieceDonnee, v0]);
 
   // L'APERÇU suit la saisie, avec un demi-seconde de retenue : assez pour ne pas appeler le
   // serveur à chaque touche, assez peu pour que les totaux paraissent vivants.
   const pret = tiers.nom.trim() !== "" && lignes.some((l) => !l.section && l.designation.trim() !== "");
   const empreinte = JSON.stringify({ type, societe, letterheadId, tiers, champs, lignes, taxes, amontRetenu, emetteur, signataire, mentions });
   // Un aperçu d'avant la dernière frappe n'est plus l'aperçu : il se ferme (et libère son blob) plutôt que de montrer un document périmé.
-  React.useEffect(() => { setImpression(null); setImpressionErreur(null); }, [empreinte]);
+  // La saisie d'ouverture garde le PDF avec lequel l'aperçu d'un BC s'est ouvert.
+  const empreinteOuverture = React.useRef(empreinte);
+  React.useEffect(() => {
+    if (empreinte === empreinteOuverture.current) return;
+    empreinteOuverture.current = "";
+    setImpression(null); setImpressionErreur(null);
+  }, [empreinte]);
   React.useEffect(() => () => { if (impression) URL.revokeObjectURL(impression.url); }, [impression]);
   React.useEffect(() => {
     if (!pret || resultat || revisionResultat?.ok) return;
     const fd = construireFormData();
     const t = setTimeout(() => {
       startChargement(async () => {
-        const r = rev?.apercu ? await rev.apercu(fd) : await previsualiserPieceCommerciale(undefined, fd);
+        const r = rev?.apercu ? await rev.apercu(fd) : br ? await br.apercu(fd) : await previsualiserPieceCommerciale(undefined, fd);
         setApercu(r);
         if (r.ok && !motif) setMotif(r.motif ?? "");
       });
@@ -316,10 +376,39 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
     const fd = construireFormData();
     setImpressionErreur(null);
     startRendu(async () => {
-      const r = await apercuAvantImpressionPiece(undefined, fd);
+      const r = br ? await br.impression(fd) : await apercuAvantImpressionPiece(undefined, fd);
       if (!r.ok) { setImpression(null); setImpressionErreur(r.error); return; }
       const octets = Uint8Array.from(atob(r.pdfBase64), (c) => c.charCodeAt(0));
       setImpression({ url: URL.createObjectURL(new Blob([octets], { type: "application/pdf" })), pages: r.pages, numero: r.numeroProchain });
+    });
+  };
+
+  // L'APERÇU D'UN BC : ce que le composeur montre est ce qui est gardé (« Enregistrer le brouillon ») puis émis (« Valider et
+  // envoyer ») — le même formulaire que les totaux et le PDF, et la référence choisie au registre quand le BC y prend son numéro.
+  const formulaireDuBrouillon = (): FormData => {
+    const fd = construireFormData();
+    if (br && !br.numeroExistant && apercu && apercu.ok && apercu.surRegistre) { fd.set("numeroChoisi", reference.valeur); fd.set("numeroSuggere", reference.suggeree); }
+    return fd;
+  };
+  const gesteBrouillon = (geste: ((fd: FormData) => Promise<Retour>) | undefined, fermer: boolean) => {
+    if (!geste) return;
+    const fd = formulaireDuBrouillon();
+    setBrResultat(null);
+    startEmission(async () => {
+      const r = await geste(fd);
+      setBrResultat(r);
+      if (r.ok && fermer) props.onClose();
+      if (r.ok) router.refresh();
+    });
+  };
+  const retirerBrouillon = () => {
+    if (!br?.retirer) return;
+    const retirer = br.retirer;
+    setBrResultat(null);
+    startEmission(async () => {
+      const r = await retirer();
+      setBrResultat(r);
+      if (r.ok) { props.onClose(); router.refresh(); }
     });
   };
 
@@ -339,6 +428,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
   const bloquants = apercu && apercu.ok ? apercu.bloquants : apercu && !apercu.ok ? [apercu.error] : [];
   const peutEmettre = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !resultat?.ok && !(apercu.surRegistre && reference.refusee);
   const peutReviser = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !revisionResultat?.ok && (!!rev?.motifFacultatif || motifRevision.trim().length > 0);
+  const peutValiderBrouillon = !!(apercu && apercu.ok && apercu.peutEmettre) && !emission && !chargement && !(apercu.surRegistre && !br?.numeroExistant && reference.refusee);
   // Le signataire montré : celui choisi, sinon celui que l'aperçu annonce (la marque, le profil).
   const signataireAffiche = signataire ?? { nom: apercu && apercu.ok ? apercu.signataire?.nom ?? "" : "", qualite: apercu && apercu.ok ? apercu.signataire?.qualite ?? "" : "" };
   // Les coordonnées montrées : celles choisies, sinon celles que la société imprime (connues par l'aperçu).
@@ -348,17 +438,113 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
   };
   const modifierCoordonnee = (cle: "adresse" | "telephone" | "email", valeur: string) => setEmetteur({ ...coordonneesAffichees, [cle]: valeur });
 
+  // L'APERÇU : ce que la fabrique a calculé, pas le navigateur. En aperçu d'un BC, il passe EN TÊTE : le demandeur relit
+  // d'abord le PDF, puis corrige dessous.
+  const sectionApercu = (
+      <section className="rounded-lg border border-border bg-secondary/30 p-3" aria-live="polite">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="font-semibold">Aperçu</h3>
+          {apercu && apercu.ok && (
+            <span className="text-xs text-muted-foreground">
+              {apercu.societe.nom} · {apercu.revision ? "numéro" : "numéro prévu"} <b>{apercu.numeroProchain}</b> · {apercu.papierEnTete ? `papier « ${apercu.papierEnTete.nom} »` : "sans papier en-tête"} · PDF {apercu.pdfParEditeur ? "par l'éditeur Office" : "rendu du serveur"}
+            </span>
+          )}
+        </div>
+        {apercu && apercu.ok && apercu.surRegistre && !resultat?.ok && !(br && (br.numeroExistant || !br.valider)) && (
+          <div className="mt-2 max-w-xs">
+            <ChampReference
+              valeurInitiale={br?.numeroChoisi ?? null}
+              label={br ? "Référence du BC (attribuée à la validation)" : "Référence"} name="numeroChoisi" nameSuggeree="numeroSuggere" cle={`${apercu.societe.id}:${champs.date.slice(0, 4)}`}
+              annee={Number(champs.date.slice(0, 4)) || undefined}
+              charger={async () => ({ ok: true, actif: true, societeId: apercu.societe.id, prochaine: apercu.numeroProchain })}
+              onChange={(e) => setReference({ valeur: e.valeur, suggeree: e.suggeree ?? "", refusee: e.erreur !== null })}
+            />
+          </div>
+        )}
+        {totaux ? (
+          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
+            <dt className="text-muted-foreground">Total HT</dt><dd className="text-right tabular-nums">{formatCurrency(totaux.totalHt)}</dd>
+            {totaux.taxes.map((x) => (
+              <React.Fragment key={x.libelle}>
+                <dt className="text-muted-foreground">{x.libelle} {Math.round(x.taux * 10000) / 100} %</dt><dd className="text-right tabular-nums">{formatCurrency(x.montant)}</dd>
+              </React.Fragment>
+            ))}
+            {totaux.tva.map((x) => (
+              <React.Fragment key={x.taux}>
+                <dt className="text-muted-foreground">TVA {Math.round(x.taux * 100)} %</dt><dd className="text-right tabular-nums">{formatCurrency(x.montant)}</dd>
+              </React.Fragment>
+            ))}
+            {totaux.timbre > 0 && <><dt className="text-muted-foreground">Droit de timbre</dt><dd className="text-right tabular-nums">{formatCurrency(totaux.timbre)}</dd></>}
+            <dt className="font-semibold">Total TTC</dt><dd className="text-right font-semibold tabular-nums">{formatCurrency(totaux.totalTtc)}</dd>
+            <dd className="col-span-2 mt-1 text-xs text-muted-foreground sm:col-span-4">{totaux.enLettres.charAt(0).toUpperCase() + totaux.enLettres.slice(1)}.</dd>
+          </dl>
+        ) : (
+          <p className="mt-1 text-muted-foreground">{pret ? (chargement ? "Calcul en cours…" : "Aucun total : voir ci-dessous.") : "Les totaux apparaissent dès qu'un tiers et une ligne sont saisis."}</p>
+        )}
+        {bloquants.length > 0 && (
+          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-destructive">{bloquants.map((b) => <li key={b}>{b}</li>)}</ul>
+        )}
+        {/* ── L'aperçu AVANT IMPRESSION : le PDF tel qu'il sera imprimé, numéro prévu compris — rien n'est émis ni numéroté ── */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          {!rev?.sansImpression && <Button type="button" size="sm" variant="outline" onClick={voirImpression} disabled={!pret || rendu || bloquants.length > 0 || !!resultat}>
+            <Eye className="h-4 w-4" aria-hidden />{rendu ? "Rendu…" : "Aperçu avant impression"}
+          </Button>}
+          {!rev?.sansImpression && <span className="text-xs text-muted-foreground">{br ? "Le PDF de votre saisie, tel qu’il sera imprimé — numéro attribué à la validation, rien n’est enregistré." : rev ? "Le PDF tel qu’il sera imprimé, sous son numéro — rien n’est enregistré." : "Le PDF tel qu’il sera imprimé, avec le numéro prévu — rien n’est émis ni numéroté."}</span>}
+        </div>
+        {impressionErreur && <p className="mt-2 text-sm text-destructive" role="alert">{impressionErreur}</p>}
+        {impression && (
+          <div className="mt-3 space-y-2">
+            <object data={impression.url} type="application/pdf" aria-label="Aperçu avant impression" className="h-[70vh] w-full rounded-md border border-border bg-card">
+              <a className="underline" href={impression.url} target="_blank" rel="noreferrer">Ouvrir l&apos;aperçu dans un onglet</a>
+            </object>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
+              <span>Aperçu : {impression.pages} page{impression.pages > 1 ? "s" : ""} · numéro prévu {impression.numero} · rendu du serveur, le Word fait foi pour l&apos;impression officielle.</span>
+              <span className="flex flex-wrap gap-x-4 gap-y-1">
+                <a className="py-1 underline" href={impression.url} target="_blank" rel="noreferrer">Ouvrir dans un onglet</a>
+                <button type="button" className="py-1 underline" onClick={() => setImpression(null)}>Fermer l&apos;aperçu</button>
+              </span>
+            </div>
+          </div>
+        )}
+        {apercu && apercu.ok && apercu.avertissements.length > 0 && (
+          <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">{apercu.avertissements.map((a) => <li key={a}>{a}</li>)}</ul>
+        )}
+      </section>
+  );
+
   return (
     <Sheet
       open
       onClose={revisionResultat?.ok ? () => { props.onClose(); router.refresh(); } : props.onClose}
-      title={rev ? `Modifier ${lib.article} ${rev.numero}` : lib.bouton}
-      description={rev
+      title={br ? br.titre : rev ? `Modifier ${lib.article} ${rev.numero}` : lib.bouton}
+      description={br
+        ? `Aperçu à vérifier — rien n'est numéroté ni envoyé tant que vous n'avez pas validé. Tout se corrige : fournisseur, lignes, dates, paiement, TVA, remises, taxes, livraison, contact, notes, papier, coordonnées de l'émetteur, signataire, mentions.${br.numeroExistant ? ` Le bon de commande ${br.numeroExistant} garde son numéro : la validation en produit la version suivante.` : ""}`
+        : rev
         ? `Version ${rev.version} affichée — tout se modifie. L'enregistrement produit la version ${rev.version + 1} du même fichier, sous le même numéro : le Word, le PDF et la fiche restent d'accord, et l'historique garde les versions.${type === "BON_DE_COMMANDE" ? " Un bon de commande modifié repasse par son circuit de validation : la signature tombe, le centre est rouvert selon ses règles." : ""}`
         : "Au format de la société, sur son papier en-tête, en Word et en PDF — numérotée par son compteur et inscrite au registre."}
       width="xl"
       footer={
-        rev ? (
+        br ? (
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-sm text-muted-foreground">
+              {chargement ? "Calcul…" : br.numeroExistant ? `N° ${br.numeroExistant} (inchangé)` : apercu && apercu.ok ? `N° à attribuer à la validation (prochain : ${apercu.numeroProchain})` : "N° à attribuer à la validation"}
+            </span>
+            <div className="flex w-full flex-col-reverse gap-2 sm:w-auto sm:flex-row sm:flex-wrap">
+              {br.retirer && <Button type="button" variant="ghost" onClick={retirerBrouillon} disabled={emission}>Retirer l&apos;aperçu</Button>}
+              <Button type="button" variant="outline" onClick={props.onClose}>Fermer</Button>
+              {br.enregistrer && (
+                <Button type="button" variant="outline" onClick={() => gesteBrouillon(br.enregistrer, false)} disabled={!pret || emission}>
+                  {emission ? "Enregistrement…" : "Enregistrer le brouillon"}
+                </Button>
+              )}
+              {br.valider && (
+                <Button type="button" onClick={() => gesteBrouillon(br.valider, true)} disabled={!peutValiderBrouillon}>
+                  {emission ? "Envoi…" : br.libelleValider ?? "Valider et envoyer"}
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : rev ? (
           revisionResultat?.ok ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Version {revisionResultat.version ?? rev.version + 1} enregistrée.</span>
@@ -399,18 +585,19 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
       }
     >
       <div className="space-y-5 text-sm">
+        {br && sectionApercu}
         {/* ── Nature, société, papier ── */}
         <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div>
             <Label htmlFor="cp-type">Nature</Label>
-            <Select id="cp-type" value={type} disabled={!!rev} onChange={(e) => { setType(e.target.value as TypePieceComposable); setResultat(null); }}>
+            <Select id="cp-type" value={type} disabled={pieceDonnee} onChange={(e) => { setType(e.target.value as TypePieceComposable); setResultat(null); }}>
               {props.typesAutorises.map((t) => <option key={t} value={t}>{LIBELLE[t].nom}</option>)}
             </Select>
           </div>
           <div>
             <Label htmlFor="cp-societe">Société émettrice</Label>
             {/* Changer de société, c'est aussi quitter SES coordonnées : celles choisies pour l'autre ne la suivent pas. */}
-            <Select id="cp-societe" value={societe} disabled={!!rev} onChange={(e) => { setSociete(e.target.value); setLetterheadId(""); setEmetteur(null); }}>
+            <Select id="cp-societe" value={societe} disabled={pieceDonnee} onChange={(e) => { setSociete(e.target.value); setLetterheadId(""); setEmetteur(null); }}>
               {props.societes.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
             </Select>
           </div>
@@ -456,7 +643,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
                 La pièce du registre dont celle-ci découle se rattache depuis sa fiche (« Modifier » › « Fait suite à ») ; le numéro du devis imprimé se corrige ci-dessous.
               </p>
             )}
-            {!rev && naturesAmont.length > 0 && (
+            {!pieceDonnee && naturesAmont.length > 0 && (
               <div className="sm:col-span-3">
                 <Label htmlFor="cp-amont">Fait suite à (pièce du registre)</Label>
                 <Select id="cp-amont" value={amontRetenu} onChange={(e) => setAmont(e.target.value)}>
@@ -502,6 +689,7 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
               <>
                 <div className="sm:col-span-2"><Label htmlFor="cp-livraison">Adresse de livraison (vide = le siège de la société)</Label><Input id="cp-livraison" value={champs.livraisonAdresse} onChange={(e) => setChamps({ ...champs, livraisonAdresse: e.target.value })} /></div>
                 <div><Label htmlFor="cp-delai">Délai de livraison</Label><Input id="cp-delai" value={champs.livraisonDelai} onChange={(e) => setChamps({ ...champs, livraisonDelai: e.target.value })} /></div>
+                <div><Label htmlFor="cp-livraison-date">Date de livraison</Label><Input id="cp-livraison-date" type="date" value={champs.livraisonDate} onChange={(e) => setChamps({ ...champs, livraisonDate: e.target.value })} /></div>
               </>
             )}
           </div>
@@ -529,7 +717,8 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
                   {!l.section && (
                     <>
                       {/* Au téléphone, deux champs par rangée : quatre sur un tiers de largeur ne laissaient rien lire. */}
-                      <div className="col-span-6 sm:col-span-2"><Input aria-label="Quantité" inputMode="decimal" value={l.quantite} onChange={(e) => modifierLigne(l.id, { quantite: e.target.value })} placeholder="Qté" /></div>
+                      <div className="col-span-6 sm:col-span-1"><Input aria-label={`Unité de la ligne ${i + 1}`} value={l.unite} onChange={(e) => modifierLigne(l.id, { unite: e.target.value })} placeholder="Unité" /></div>
+                      <div className="col-span-6 sm:col-span-1"><Input aria-label="Quantité" inputMode="decimal" value={l.quantite} onChange={(e) => modifierLigne(l.id, { quantite: e.target.value })} placeholder="Qté" /></div>
                       <div className="col-span-6 sm:col-span-2"><Input aria-label="Prix unitaire HT" inputMode="decimal" value={l.prix} onChange={(e) => modifierLigne(l.id, { prix: e.target.value })} placeholder="PU HT (0 = Offert)" /></div>
                       <div className="col-span-6 sm:col-span-1"><Input aria-label="Remise %" inputMode="decimal" value={l.remise} onChange={(e) => modifierLigne(l.id, { remise: e.target.value })} placeholder="Rem. %" /></div>
                       <div className="col-span-6 sm:col-span-1">
@@ -626,77 +815,10 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
         )}
 
         {/* ── L'aperçu : ce que la fabrique a calculé, pas le navigateur ── */}
-        <section className="rounded-lg border border-border bg-secondary/30 p-3" aria-live="polite">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="font-semibold">Aperçu</h3>
-            {apercu && apercu.ok && (
-              <span className="text-xs text-muted-foreground">
-                {apercu.societe.nom} · {apercu.revision ? "numéro" : "numéro prévu"} <b>{apercu.numeroProchain}</b> · {apercu.papierEnTete ? `papier « ${apercu.papierEnTete.nom} »` : "sans papier en-tête"} · PDF {apercu.pdfParEditeur ? "par l'éditeur Office" : "rendu du serveur"}
-              </span>
-            )}
-          </div>
-          {apercu && apercu.ok && apercu.surRegistre && !resultat?.ok && (
-            <div className="mt-2 max-w-xs">
-              <ChampReference
-                label="Référence" name="numeroChoisi" nameSuggeree="numeroSuggere" cle={`${apercu.societe.id}:${champs.date.slice(0, 4)}`}
-                annee={Number(champs.date.slice(0, 4)) || undefined}
-                charger={async () => ({ ok: true, actif: true, societeId: apercu.societe.id, prochaine: apercu.numeroProchain })}
-                onChange={(e) => setReference({ valeur: e.valeur, suggeree: e.suggeree ?? "", refusee: e.erreur !== null })}
-              />
-            </div>
-          )}
-          {totaux ? (
-            <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 sm:grid-cols-4">
-              <dt className="text-muted-foreground">Total HT</dt><dd className="text-right tabular-nums">{formatCurrency(totaux.totalHt)}</dd>
-              {totaux.taxes.map((x) => (
-                <React.Fragment key={x.libelle}>
-                  <dt className="text-muted-foreground">{x.libelle} {Math.round(x.taux * 10000) / 100} %</dt><dd className="text-right tabular-nums">{formatCurrency(x.montant)}</dd>
-                </React.Fragment>
-              ))}
-              {totaux.tva.map((x) => (
-                <React.Fragment key={x.taux}>
-                  <dt className="text-muted-foreground">TVA {Math.round(x.taux * 100)} %</dt><dd className="text-right tabular-nums">{formatCurrency(x.montant)}</dd>
-                </React.Fragment>
-              ))}
-              {totaux.timbre > 0 && <><dt className="text-muted-foreground">Droit de timbre</dt><dd className="text-right tabular-nums">{formatCurrency(totaux.timbre)}</dd></>}
-              <dt className="font-semibold">Total TTC</dt><dd className="text-right font-semibold tabular-nums">{formatCurrency(totaux.totalTtc)}</dd>
-              <dd className="col-span-2 mt-1 text-xs text-muted-foreground sm:col-span-4">{totaux.enLettres.charAt(0).toUpperCase() + totaux.enLettres.slice(1)}.</dd>
-            </dl>
-          ) : (
-            <p className="mt-1 text-muted-foreground">{pret ? (chargement ? "Calcul en cours…" : "Aucun total : voir ci-dessous.") : "Les totaux apparaissent dès qu'un tiers et une ligne sont saisis."}</p>
-          )}
-          {bloquants.length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-destructive">{bloquants.map((b) => <li key={b}>{b}</li>)}</ul>
-          )}
-          {/* ── L'aperçu AVANT IMPRESSION : le PDF tel qu'il sera imprimé, numéro prévu compris — rien n'est émis ni numéroté ── */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
-            {!rev?.sansImpression && <Button type="button" size="sm" variant="outline" onClick={voirImpression} disabled={!pret || rendu || bloquants.length > 0 || !!resultat}>
-              <Eye className="h-4 w-4" aria-hidden />{rendu ? "Rendu…" : "Aperçu avant impression"}
-            </Button>}
-            {!rev?.sansImpression && <span className="text-xs text-muted-foreground">{rev ? "Le PDF tel qu’il sera imprimé, sous son numéro — rien n’est enregistré." : "Le PDF tel qu’il sera imprimé, avec le numéro prévu — rien n’est émis ni numéroté."}</span>}
-          </div>
-          {impressionErreur && <p className="mt-2 text-sm text-destructive" role="alert">{impressionErreur}</p>}
-          {impression && (
-            <div className="mt-3 space-y-2">
-              <object data={impression.url} type="application/pdf" aria-label="Aperçu avant impression" className="h-[70vh] w-full rounded-md border border-border bg-card">
-                <a className="underline" href={impression.url} target="_blank" rel="noreferrer">Ouvrir l&apos;aperçu dans un onglet</a>
-              </object>
-              <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                <span>Aperçu : {impression.pages} page{impression.pages > 1 ? "s" : ""} · numéro prévu {impression.numero} · rendu du serveur, le Word fait foi pour l&apos;impression officielle.</span>
-                <span className="flex flex-wrap gap-x-4 gap-y-1">
-                  <a className="py-1 underline" href={impression.url} target="_blank" rel="noreferrer">Ouvrir dans un onglet</a>
-                  <button type="button" className="py-1 underline" onClick={() => setImpression(null)}>Fermer l&apos;aperçu</button>
-                </span>
-              </div>
-            </div>
-          )}
-          {apercu && apercu.ok && apercu.avertissements.length > 0 && (
-            <ul className="mt-2 list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">{apercu.avertissements.map((a) => <li key={a}>{a}</li>)}</ul>
-          )}
-        </section>
+        {!br && sectionApercu}
 
         {/* ── La numérotation, pour ceux qui tiennent la papeterie ── */}
-        {props.peutReglerNumerotation && !rev && (
+        {props.peutReglerNumerotation && !pieceDonnee && (
           <details className="rounded-lg border border-border p-3">
             <summary className="cursor-pointer font-semibold">Numérotation des {PLURIEL_TYPE[type]} de cette société</summary>
             <p className="mt-1 text-xs text-muted-foreground">
@@ -711,6 +833,14 @@ function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void })
             {motifMessage && <p className="mt-1 text-xs text-muted-foreground">{motifMessage}</p>}
           </details>
         )}
+
+        {/* ── L'aperçu d'un BC : ce que le dernier geste a dit, ou qui valide quand ce n'est pas la personne ── */}
+        {br && brResultat && (
+          <section className={`rounded-lg border p-3 ${brResultat.ok ? "border-success/50 bg-success/5" : "border-destructive/50 bg-destructive/5"}`} aria-live="polite" role={brResultat.ok ? "status" : "alert"}>
+            <p className="font-medium">{brResultat.ok ? brResultat.message : brResultat.error}</p>
+          </section>
+        )}
+        {br && !br.valider && br.sansValidation && <p className="text-sm text-muted-foreground">{br.sansValidation}</p>}
 
         {/* ── Le résultat d'une révision : la phrase de la fabrique (version, TTC, circuit du BC) ── */}
         {revisionResultat && (

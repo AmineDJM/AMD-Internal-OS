@@ -57,18 +57,21 @@ import { ingererDevisDuPoste, phraseDeLecture } from "@/lib/pieces-lues/devis-po
 import {
   noteApresCorrection, refusChangementDeValidation, refusEditionDesLignes, refusGenerationBC, refusTauxDuDevis, type LigneDevisPoste,
 } from "@/lib/ad-pro/devis-poste";
-import { genererLesBCsDuPoste, phraseBilanGeneration, refusMontantDuPoste, tiersDuDevis, apercuDuBC, lignesDuBCDuDevis, type ApercuDuBC } from "@/lib/ad-pro-bc-devis";
-import { MODES_PAIEMENT, type LigneCommerciale } from "@/lib/artifact/factory/commercial";
 import {
-  ETIQUETTE_BROUILLON, REFUS_VALIDATION_BROUILLON, brouillonNeuf, peutValiderLeBrouillon, signatureDesLignes, totalHtDesLignes,
+  genererLesBCsDuPoste, phraseBilanGeneration, refusPlafondDuPoste, tiersDuDevis, apercuDuBC, composerApercuDuBC, lignesDuBCDuDevis,
+  type ApercuDuBC,
+} from "@/lib/ad-pro-bc-devis";
+import {
+  ETIQUETTE_BROUILLON, REFUS_VALIDATION_BROUILLON, brouillonCorrige, brouillonNeuf, correctionsDuBrouillon, peutValiderLeBrouillon,
   type BrouillonBc,
 } from "@/lib/bons-de-commande/brouillon";
+import { lireSaisieDuComposeur, refusDeLaSaisie } from "@/lib/bons-de-commande/saisie-composeur";
+import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { attachFormFiles, persistUploadedDocument } from "@/lib/documents";
 import { saisieEffective, type ReferenceProchaine } from "@/lib/references/registre";
 import { etatDuRegistre } from "@/lib/references/registre-serveur";
 import { controlerFacture, refusDemandePaiementBC, TOLERANCE_DZD, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
 import { lireFactureDuPoste } from "@/lib/ad-pro/facture-poste-lecture";
-import { lignesDepuisListes, type ListesDeLignes } from "@/lib/artifact/factory/lignes-saisies";
 import { apercuPourEcran, previsualiserRevision, reviserDocumentDrive, type ApercuPiece, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
 import {
   lireVoyageur, lireEtapes, nomComplet, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, depassementDevisRetenus, refusRetraitReservation,
@@ -1699,76 +1702,13 @@ async function bcModifiableDuPoste(user: SessionUser, formData: FormData): Promi
 }
 
 /**
- * CE QUE LE COMPOSEUR ENVOIE pour un BC de poste — les mêmes champs que la révision de la fiche Legal
- * (`fabrique-actions.ts`, `lireModifications`), relus ici parce que le contrat d'une action ne suit que ses délégués LOCAUX
- * (§118.87c). Une clé absente garde sa valeur ; présente et vide, elle l'efface.
+ * CE QUE LE COMPOSEUR ENVOIE pour un BC de poste — la MÊME lecture pour « Modifier le BC » (révision d'un BC émis) et pour la
+ * correction de l'APERÇU (brouillon, sans numéro) : `lireSaisieDuComposeur` (`bons-de-commande/saisie-composeur.ts`), partagée
+ * avec le Bureau du secrétariat (Direction, 14/10/2026 — « chaque détail peut être modifié dans le BC »). Une clé absente garde
+ * sa valeur ; présente et vide, elle l'efface.
  */
 function lireModificationsDuBc(formData: FormData): ModificationsDocument {
-  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
-  const pourcent = (cle: string): number | null => {
-    const v = (fdStr(formData, cle) ?? "").replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
-    const n = v ? Number(v) : Number.NaN;
-    return Number.isFinite(n) ? n / 100 : null;
-  };
-  const listes: ListesDeLignes = {
-    designations: formData.getAll("ligneDesignation").map(String), details: formData.getAll("ligneDetails").map(String),
-    quantites: formData.getAll("ligneQuantite").map(String), prix: formData.getAll("lignePrix").map(String),
-    remises: formData.getAll("ligneRemise").map(String), tvas: formData.getAll("ligneTva").map(String), sections: formData.getAll("ligneSection").map(String),
-  };
-  const m: ModificationsDocument = {};
-  if (listes.designations.length > 0) m.lignes = lignesDepuisListes(listes);
-  if (formData.has("tiersNom")) {
-    m.tiers = {
-      nom: champ("tiersNom") ?? "",
-      ...(formData.has("tiersAdresse") ? { adresse: champ("tiersAdresse") } : {}),
-      ...(formData.has("tiersTelephone") ? { telephone: champ("tiersTelephone") } : {}),
-      ...(formData.has("tiersEmail") ? { email: champ("tiersEmail") } : {}),
-      ...(formData.has("tiersRc") ? { rc: champ("tiersRc") } : {}),
-      ...(formData.has("tiersNif") ? { nif: champ("tiersNif") } : {}),
-      ...(formData.has("tiersAi") ? { ai: champ("tiersAi") } : {}),
-      ...(formData.has("tiersNis") ? { nis: champ("tiersNis") } : {}),
-    };
-  }
-  if (formData.has("date")) m.date = champ("date");
-  if (formData.has("objet")) m.objet = champ("objet");
-  if (formData.has("notes")) m.notes = champ("notes");
-  if (formData.has("referenceAmont")) m.referenceAmont = champ("referenceAmont");
-  if (formData.has("referenceAmontDate")) m.referenceAmontDate = champ("referenceAmontDate");
-  if (formData.has("conditionsPaiement")) m.conditionsPaiement = champ("conditionsPaiement");
-  if (formData.has("modePaiement")) {
-    const mode = fdStr(formData, "modePaiement");
-    m.modePaiement = mode && (MODES_PAIEMENT as readonly string[]).includes(mode) ? (mode as (typeof MODES_PAIEMENT)[number]) : null;
-  }
-  if (formData.has("tvaDefaut")) m.tvaDefaut = pourcent("tvaDefaut");
-  if (formData.has("remiseGlobale")) m.remiseGlobale = pourcent("remiseGlobale");
-  if (formData.has("taxeLibelle")) {
-    const libelles = formData.getAll("taxeLibelle").map(String);
-    const taux = formData.getAll("taxeTaux").map(String);
-    const taxes = libelles.map((libelle, i) => {
-      const t = (taux[i] ?? "").replace(/[\s\u00a0\u202f]/g, "").replace(",", ".");
-      return { libelle: libelle.trim(), taux: t && Number.isFinite(Number(t)) ? Number(t) / 100 : Number.NaN };
-    }).filter((t) => t.libelle || Number.isFinite(t.taux));
-    m.taxes = taxes.length ? taxes : null;
-  }
-  if (formData.has("livraisonAdresse") || formData.has("livraisonDelai")) {
-    m.livraison = {
-      ...(formData.has("livraisonAdresse") ? { adresse: champ("livraisonAdresse") } : {}),
-      ...(formData.has("livraisonDelai") ? { delai: champ("livraisonDelai") } : {}),
-    };
-  }
-  if (formData.has("contactNom") || formData.has("contactTelephone")) {
-    m.contact = {
-      ...(formData.has("contactNom") ? { nom: champ("contactNom") } : {}),
-      ...(formData.has("contactTelephone") ? { telephone: champ("contactTelephone") } : {}),
-    };
-  }
-  if (formData.has("letterheadId")) m.letterheadId = champ("letterheadId");
-  const coordonnees = fdStr(formData, "emetteurPersonnalise");
-  if (coordonnees === "1") m.coordonneesEmetteur = { adresse: champ("emetteurAdresse"), telephone: champ("emetteurTelephone"), email: champ("emetteurEmail") };
-  else if (coordonnees !== null) m.coordonneesEmetteur = null;
-  if (fdStr(formData, "signatairePersonnalise") === "1") m.signataire = champ("signataireNom") ? { nom: champ("signataireNom") ?? "", qualite: champ("signataireQualite") } : null;
-  if (formData.has("mentions")) m.mentions = (fdStr(formData, "mentions") ?? "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
-  return m;
+  return lireSaisieDuComposeur(formData);
 }
 
 /**
@@ -1802,28 +1742,39 @@ export async function modifierBcDuPoste(formData: FormData): Promise<ActionResul
   // lu champ par champ — ce qu'il ne porte pas garde sa valeur (§118.152).
   const modifications = lireModificationsDuBc(formData);
   if (Object.keys(modifications).length === 0) return { ok: false, error: "Rien à modifier : changez une ligne, le fournisseur, une date, une condition, la livraison, le contact, les notes ou les mentions." };
+  const refusSaisie = refusDeLaSaisie(modifications);
+  if (refusSaisie) return { ok: false, error: refusSaisie };
   const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
   const accorde = item.amountGranted != null ? toNumber(item.amountGranted) : null;
-  const ht = (modifications.lignes ?? []).filter((l) => !l.section).reduce((s, l) => s + l.quantite * l.prixUnitaire * (1 - (l.remise ?? 0)), 0);
-  if (accorde !== null && Number.isFinite(ht) && ht > accorde + TOLERANCE_DZD) {
-    return { ok: false, error: `Ces lignes font déjà ${Math.round(ht).toLocaleString("fr-FR")} DZD hors taxes, au-delà de l'accordé (${accorde.toLocaleString("fr-FR")} DZD) : demandez une révision du poste.` };
+  const delegation = `${info.ref} — poste « ${item.label} » : son bon de commande, modifié par le demandeur du poste`;
+  // LE PLAFOND DE L'ACCORDÉ, LE MÊME QU'À LA GÉNÉRATION (audit M-03) : le TTC que la fabrique composera pour CE BC révisé —
+  // remises, TVA, taxes comprises — prend la place des lignes de son devis, et l'accordé s'entend TTC. Le HT seul laissait passer
+  // un BC de 440 000 HT (523 600 TTC) pour 450 000 accordés, que la génération aurait refusé.
+  if (accorde !== null) {
+    const essai = await previsualiserRevision(user, { legalDocumentId, modifications }, { delegation });
+    if (essai.ok && essai.totaux) {
+      const tous = ((await devisDesPostes([item.id])).get(item.id) ?? []).filter((d) => !d.annule);
+      const source = tous.find((d) => d.bc?.id === legalDocumentId);
+      const posteDuBC = { item: { id: item.id, label: item.label, kind: item.kind, supplier: item.supplier, amountGranted: accorde }, ref: info.ref, societe: "" };
+      const depasse = refusPlafondDuPoste(posteDuBC, tous, accorde, {
+        totaux: new Map([[source?.pieceId ?? legalDocumentId, { ht: essai.totaux.totalHt, ttc: essai.totaux.totalTtc }]]),
+      });
+      if (depasse) return { ok: false, error: depasse };
+    }
   }
   const vue = fdNum(formData, "versionVue");
   const r = await reviserDocumentDrive(user, {
     legalDocumentId, modifications, motif: champ("motif") ?? "Modifié depuis le poste Ad & Pro.",
     versionVue: vue !== null && Number.isInteger(vue) ? vue : null,
-  }, { delegation: `${info.ref} — poste « ${item.label} » : son bon de commande, modifié par le demandeur du poste` });
+  }, { delegation });
   if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
   await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande ${r.reference} du poste « ${item.label} » modifié — version ${r.version}, ${r.totaux.totalTtc.toLocaleString("fr-FR")} DZD TTC.`);
   revalidate(owner.parent, owner.id);
   revalidatePath(`/legal/${legalDocumentId}`);
   revalidatePath(CHEMIN_BC_A_SIGNER);
-  const depasse = accorde !== null && r.totaux.totalTtc > accorde + TOLERANCE_DZD
-    ? ` Attention : ${r.totaux.totalTtc.toLocaleString("fr-FR")} DZD TTC dépasse l'accordé (${accorde.toLocaleString("fr-FR")} DZD) — le paiement ne pourra pas le dépasser.`
-    : "";
   return {
     ok: true, id: legalDocumentId,
-    message: `Bon de commande ${r.reference} modifié : version ${r.version}, Word et PDF régénérés.${r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""}${depasse}`,
+    message: `Bon de commande ${r.reference} modifié : version ${r.version}, Word et PDF régénérés.${r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""}`,
   };
 }
 
@@ -4105,14 +4056,17 @@ export async function lireLesLignesDuDevis(formData: FormData): Promise<ActionRe
 
 /**
  * GÉNÉRER LE OU LES BONS DE COMMANDE D'UN POSTE d'après les lignes VALIDÉES de ses devis — UN BC PAR DEVIS, avec
- * uniquement ses lignes validées. `pieceId` : un seul devis ; absent : tous ceux qui ont quelque chose à générer. Un
- * devis dont le BC existe et n'est ni signé ni facturé est RÉVISÉ (même numéro, version suivante) quand on a coché ou
- * décoché des lignes depuis ; signé ou facturé, le refus nomme le geste qui reste.
+ * uniquement ses lignes validées. `pieceId` : un seul devis ; absent : tous ceux qui ont quelque chose à générer.
+ *
+ * L'APERÇU EST OBLIGATOIRE (Direction, 14/10/2026 — « Je veux l'aperçu obligatoire ») : ce geste ne fait JAMAIS de BC. Il dépose
+ * l'aperçu (un brouillon, sans numéro) de chaque devis à générer ; l'écran l'ouvre aussitôt dans le composeur, pré-rempli et prêt
+ * à relire ; le demandeur corrige ce qu'il veut, puis « Valider et envoyer » (`validerEtEnvoyerBcPoste`) — le SEUL chemin qui
+ * numérote, produit le Word et le PDF et aiguille le BC. Il n'y a plus de geste « en un clic » qui émettrait sans aperçu.
  *
  * Mêmes portes que « demander le BC » : le poste est accordé, son budget choisi, la demande n'est pas close, et
  * aucune demande de BC n'est ouverte chez l'assistante (deux chemins pour le même BC feraient deux commandes).
- * Le poste prend la marche du BC comme pour une demande — au-dessus du seuil le centre Ad & Pro le vise, une fois,
- * en deçà il passe à la signature des Finances. Les BC générés lisent CETTE porte (`portesDesBC`, source « POSTE »).
+ * Le poste prend la marche du BC à la validation comme pour une demande — au-dessus du seuil le centre Ad & Pro le vise, une
+ * fois, en deçà il passe à la signature des Finances. Les BC émis lisent CETTE porte (`portesDesBC`, source « POSTE »).
  */
 export async function genererBonDeCommandePoste(formData: FormData): Promise<ActionResult> {
   if (!fdStr(formData, "id")) return { ok: false, error: "Poste non précisé." };
@@ -4126,28 +4080,21 @@ export async function genererBonDeCommandePoste(formData: FormData): Promise<Act
  * un brouillon abandonné ne consomme rien), que le Word et le PDF définitifs sont produits et que la marche du BC démarre
  * (centre Ad & Pro au-dessus du seuil, puis signature des Finances). Le DEMANDEUR de la demande — ou le Super Admin — valide ;
  * l'assistante ou le collègue qui a préparé l'aperçu ne le valide pas à sa place.
+ *
+ * Envoyé DEPUIS LE COMPOSEUR (il porte ses champs), ce que le composeur montre est d'abord écrit sur le brouillon — sous les
+ * mêmes gardes que « Enregistrer le brouillon » (saisie, péremption, plafond TTC) —, puis émis : ce qu'on a vu est ce qui part.
  */
 export async function validerEtEnvoyerBcPoste(formData: FormData): Promise<ActionResult> {
   if (!fdStr(formData, "id")) return { ok: false, error: "Poste non précisé." };
   fdStr(formData, "pieceId"); // facultatif : un seul devis ; absent, tous ceux dont l'aperçu existe
+  if (formData.has("ligneDesignation") || formData.has("tiersNom")) {
+    const ecrit = await ecrireApercuBcPoste(formData);
+    if (!ecrit.ok) return ecrit;
+  }
   return traiterLeBCDuPoste(formData, "VALIDER");
 }
 
-/**
- * GÉNÉRER LE BON DE COMMANDE EN UN CLIC (Direction, 10/2026) — « des fois il n'y a pas où générer le BC, pourtant il doit
- * pouvoir être généré automatiquement en un clic ». Le DEMANDEUR (ou le Super Admin : la même porte que « Valider et envoyer »)
- * génère d'un geste le BC de chaque devis qui compte, d'après ses lignes validées : numéroté, Word et PDF, aiguillé vers son
- * centre par la fabrique (`emettreDocumentDrive` → `aiguillerBC`). Un aperçu déjà corrigé garde ses corrections ; l'aperçu
- * reste offert à qui veut relire d'abord, et « Modifier le BC » tant qu'il n'est pas signé. Mêmes refus que la validation :
- * poste accordé, budget, plafond (sur les devis qui COMPTENT), fournisseur nommé, taux admis.
- */
-export async function genererEtEnvoyerBcPoste(formData: FormData): Promise<ActionResult> {
-  if (!fdStr(formData, "id")) return { ok: false, error: "Poste non précisé." };
-  fdStr(formData, "pieceId"); // facultatif : un seul devis ; absent, tous ceux qui ont quelque chose à générer
-  return traiterLeBCDuPoste(formData, "DIRECT");
-}
-
-async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER" | "DIRECT"): Promise<ActionResult> {
+async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   const pieceVoulue = fdStr(formData, "pieceId");
@@ -4165,7 +4112,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   if (!info) return { ok: false, error: "Opération introuvable." };
   const fermee = refusDemandeFermee(info);
   if (fermee) return { ok: false, error: fermee };
-  if (mode !== "APERCU" && !peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: info.requesterId })) {
+  if (mode === "VALIDER" && !peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: info.requesterId })) {
     return { ok: false, error: REFUS_VALIDATION_BROUILLON };
   }
 
@@ -4197,35 +4144,33 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
       return { ok: false, error: "Aucune ligne n'est validée : cochez, dans un devis, les lignes à commander, puis générez le bon de commande." };
     }
     // L'APERÇU d'abord : un devis qui a déjà son brouillon le garde (ses corrections ne sont jamais écrasées par un clic) ;
-    // la VALIDATION, elle, ne porte que sur les devis dont l'aperçu existe.
+    // la VALIDATION, elle, ne porte que sur les devis dont l'aperçu existe — jamais sur un devis que personne n'a relu.
     const sansBrouillon = aFaireTous.filter((d) => !d.brouillon);
     if (mode === "APERCU" && sansBrouillon.length === 0) {
       return { ok: true, id, message: `${ETIQUETTE_BROUILLON} : l'aperçu existe déjà — relisez-le, corrigez au besoin, puis « Valider et envoyer aux Finances ».` };
     }
-    // EN UN CLIC (DIRECT) : tout ce qui est à générer, avec l'aperçu corrigé quand il existe, sans lui sinon.
-    const aFaire = mode === "APERCU" ? sansBrouillon : mode === "DIRECT" ? aFaireTous : aFaireTous.filter((d) => d.brouillon);
+    const aFaire = mode === "APERCU" ? sansBrouillon : aFaireTous.filter((d) => d.brouillon);
     if (aFaire.length === 0) {
-      return { ok: false, error: "Aucun aperçu de bon de commande à valider : générez d'abord l'aperçu (« Générer le BC »), relisez-le, puis validez-le." };
+      return { ok: false, error: "Aucun aperçu de bon de commande à valider : générez d'abord l'aperçu (« Générer le bon de commande »), relisez-le, puis validez-le." };
     }
-    // Les lignes CORRIGÉES par le demandeur portent leur propre plafond (le hors-taxe saisi, comme « Modifier le BC ») ; sans correction,
-    // ce sont les lignes validées des devis qui le portent.
-    const corrigees = mode !== "APERCU" ? aFaire.filter((d) => d.brouillon?.lignes) : [];
-    if (corrigees.length > 0) {
-      const ht = aFaire.reduce((s, d) => s + totalHtDesLignes(d.brouillon?.lignes ?? d.brouillon?.lignesBc ?? lignesDuBCDuDevis(d, id)), 0);
-      if (montantAccorde !== null && Number.isFinite(ht) && ht > montantAccorde + TOLERANCE_DZD) {
-        return { ok: false, error: `Les lignes corrigées font ${Math.round(ht).toLocaleString("fr-FR")} DZD hors taxes, au-delà de l'accordé (${montantAccorde.toLocaleString("fr-FR")} DZD) : corrigez-les, ou demandez une révision du poste.` };
-      }
-    } else {
-      const depasse = refusMontantDuPoste(tous, montantAccorde);
-      if (depasse) return { ok: false, error: depasse };
+    const perime = aFaire.find((d) => d.brouillon?.perime);
+    if (mode === "VALIDER" && perime) {
+      return { ok: false, error: `${perime.reference ?? perime.titre} : les lignes validées du devis ont changé depuis l'aperçu — retirez-le et générez-le de nouveau avant de valider.` };
     }
+    // LE PLAFOND DE L'ACCORDÉ — UNE règle, en TTC, à la génération comme à la validation (audit M-03) : un devis dont l'aperçu
+    // est corrigé pèse ce que son BC corrigé pèsera (`refusPlafondDuPoste`), les autres leurs lignes validées.
+    const posteGen = { item: { id, label: item.label, kind: item.kind, supplier: item.supplier, amountGranted: montantAccorde }, ref: info.ref, societe: "" };
+    const depasse = refusPlafondDuPoste(posteGen, tous, montantAccorde);
+    if (depasse) return { ok: false, error: depasse };
     for (const d of aFaire) {
       if (d.etat !== "A_GENERER") continue;
-      // Un taux de TVA que le BC ne peut pas porter se dit AVANT la marche : la fabrique le refuserait après.
-      const tauxRefuse = refusTauxDuDevis(d.entete.tvaRate);
+      const corrections = d.brouillon ? correctionsDuBrouillon(d.brouillon) : {};
+      // Un taux de TVA que le BC ne peut pas porter se dit AVANT la marche : la fabrique le refuserait après. Une TVA par défaut
+      // CHOISIE dans l'aperçu remplace celle du papier.
+      const tauxRefuse = corrections.tvaDefaut === undefined ? refusTauxDuDevis(d.entete.tvaRate) : null;
       if (tauxRefuse) return { ok: false, error: `${d.reference ?? d.titre} : ${tauxRefuse}` };
       const t = await tiersDuDevis(d, poste.supplier);
-      if (!t.ok) return { ok: false, error: `${d.reference ?? d.titre} : ${t.error}` };
+      if (!t.ok && !corrections.tiers?.nom) return { ok: false, error: `${d.reference ?? d.titre} : ${t.error}` };
     }
     const societe = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
     if (!societe) {
@@ -4254,7 +4199,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
     if (poste.orderStage === "NONE" || poste.orderStage === "REFUSED") {
       const prise = await lireLaMarcheDuBC({
         itemId: id, montantAccorde: montantAccorde as number, userId: user.id, assistantId: null,
-        note: "Bon de commande généré d'après les lignes validées des devis du poste.",
+        note: "Bon de commande généré d'après les lignes validées des devis du poste, aperçu validé par le demandeur.",
       });
       const posee = await prisma.adProItem.updateMany({ where: prise.where, data: prise.data });
       if (posee.count === 0) return { ok: false, error: REFUS_MARCHE_PRISE };
@@ -4288,7 +4233,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
       });
     }
     if (bilan.bcs.length === 0) return { ok: false, error: `Aucun bon de commande n'a pu être généré — ${bilan.echecs.join(" ; ")}.` };
-    await audit(user, owner.parent, owner.id, "UPDATE", `Bons de commande générés pour le poste « ${item.label} » d'après les lignes validées : ${bilan.bcs.map((b) => `${b.reference}${b.regenere ? ` (révisé v${b.version})` : ""}`).join(", ")}.`);
+    await audit(user, owner.parent, owner.id, "UPDATE", `Bons de commande générés pour le poste « ${item.label} » d'après les lignes validées, aperçu validé par le demandeur : ${bilan.bcs.map((b) => `${b.reference}${b.regenere ? ` (révisé v${b.version})` : ""}`).join(", ")}.`);
     revalidate(owner.parent, owner.id);
     revalidatePath(CHEMIN_BC_A_SIGNER);
     if (marche && !marche.sousLeSeuil) revalidatePath("/centre-ad-pro");
@@ -4309,78 +4254,110 @@ async function brouillonDuDevis(user: SessionUser, formData: FormData, ecriture:
   if (ecriture && !canEditItems(user, owner.parent)) return { error: "Non autorisé." } as const;
   const devis = await devisDuPoste(id, pieceId);
   if (!devis) return { error: "Ce devis n'est plus rattaché à ce poste : rechargez la fiche." } as const;
-  if (!devis.brouillon) return { error: "Il n'y a pas d'aperçu de bon de commande pour ce devis : générez-le d'abord (« Générer le BC »)." } as const;
+  if (!devis.brouillon) return { error: "Il n'y a pas d'aperçu de bon de commande pour ce devis : générez-le d'abord (« Générer le bon de commande »)." } as const;
   const societe = info.companyId ?? (await moneyEntityOf(info.requesterId ?? user.id));
   if (!societe) return { error: "La société qui commande est introuvable : renseignez la société du demandeur (RH › fiche salarié)." } as const;
   const poste = { item: { id, label: item.label, kind: item.kind, supplier: item.supplier, amountGranted: item.amountGranted != null ? toNumber(item.amountGranted) : null }, ref: info.ref, societe };
   return { id, pieceId, item, owner, info, devis, brouillon: devis.brouillon as BrouillonBc, poste } as const;
 }
 
-export type ApercuBcPoste = ApercuDuBC | { ok: false; error: string };
+export type ApercuBcPoste =
+  | (ApercuDuBC & {
+    /** La papeterie de la société qui commande (et celle commune au groupe) : le papier en-tête se choisit dans l'aperçu. */
+    papeterie: { id: string; name: string; companyId: string | null; companyLabel: string | null }[];
+    /** Le nom de la société qui commande, telle que le composeur l'affiche. */
+    societeNom: string;
+  })
+  | { ok: false; error: string };
 
 /**
  * L'APERÇU DU BC — le PDF tel qu'il sera imprimé, rendu à blanc, avec le numéro « À attribuer à la validation » : aucun numéro
- * consommé. Lisible par qui voit les devis du poste (le demandeur, qui arbitre).
+ * consommé ; et le COMPOSEUR PRÉ-REMPLI de ce que le BC portera (devis + corrections). Lisible par qui voit les devis du poste
+ * (le demandeur, qui arbitre).
  */
 export async function apercuBcPoste(formData: FormData): Promise<ApercuBcPoste> {
   if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
   const user = await requireUser();
   const lu = await brouillonDuDevis(user, formData, false);
   if ("error" in lu) return { ok: false, error: lu.error ?? "Échec." };
-  return apercuDuBC(user, lu.poste, lu.devis, lu.brouillon);
+  const r = await apercuDuBC(user, lu.poste, lu.devis, lu.brouillon);
+  if (!r.ok) return r;
+  return { ...r, papeterie: await papeterieDeLaSociete(r.societeId), societeNom: r.ecran.societe.nom };
+}
+
+/** La saisie du composeur, posée sur le brouillon EN MÉMOIRE — rien n'est écrit (aperçu des totaux, aperçu avant impression). */
+async function brouillonDeLaSaisie(formData: FormData) {
+  const user = await requireUser();
+  const lu = await brouillonDuDevis(user, formData, false);
+  if ("error" in lu) return { ok: false as const, error: lu.error ?? "Échec." };
+  const saisie = lireModificationsDuBc(formData);
+  const refus = refusDeLaSaisie(saisie);
+  if (refus) return { ok: false as const, error: refus };
+  const brouillon = brouillonCorrige(lu.brouillon, saisie, { lignesDuDevis: lignesDuBCDuDevis(lu.devis, lu.id), par: user.id });
+  return { ok: true as const, user, lu, brouillon };
+}
+
+/** LES TOTAUX DE L'APERÇU, à mesure que le demandeur corrige — la même composition que l'émission, à blanc (rien n'est écrit). */
+export async function previsualiserApercuBcPoste(formData: FormData): Promise<ApercuPiece | { ok: false; error: string }> {
+  if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
+  const s = await brouillonDeLaSaisie(formData);
+  if (!s.ok) return s;
+  const c = await composerApercuDuBC(s.user, s.lu.poste, s.lu.devis, s.brouillon);
+  if (!c.ok) return c;
+  return apercuPourEcran(c.r, Boolean(s.lu.devis.bc));
+}
+
+/** L'APERÇU AVANT IMPRESSION du brouillon corrigé — le PDF, numéro « À attribuer à la validation », sans rien écrire. */
+export async function imprimerApercuBcPoste(formData: FormData): Promise<{ ok: true; pdfBase64: string; pages: number; numeroProchain: string } | { ok: false; error: string }> {
+  if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
+  const s = await brouillonDeLaSaisie(formData);
+  if (!s.ok) return s;
+  const c = await composerApercuDuBC(s.user, s.lu.poste, s.lu.devis, s.brouillon, { avecPdf: true });
+  if (!c.ok) return c;
+  if (c.r.bloquants.length > 0) return { ok: false, error: `L'aperçu n'est pas possible : ${c.r.bloquants.slice(0, 3).join(" ; ")}` };
+  if (!c.r.pdf) return { ok: false, error: c.r.pdfErreur ?? "Le rendu de l'aperçu n'a pas pu être produit." };
+  return { ok: true, pdfBase64: c.r.pdf.octets.toString("base64"), pages: c.r.pdf.pages, numeroProchain: s.lu.devis.bc?.reference ?? "à attribuer à la validation" };
 }
 
 /**
- * CORRIGER L'APERÇU — le demandeur (ou qui prépare le poste) change la Référence, le Contact, les Modalités de paiement, le lieu et
- * la date de livraison, le bloc du fournisseur, les lignes (désignation, unité, quantité, PU) et les notes. Un champ vide revient à
- * ce que le devis donne. Rien n'est numéroté : on régénère l'aperçu autant de fois qu'il le faut.
+ * CORRIGER L'APERÇU — « chaque détail peut être modifié dans le BC » (Direction, 14/10/2026) : le composeur envoie TOUT ce que la
+ * révision d'un BC émis porte — fournisseur complet, lignes (désignation, unité, détails, section, quantité, PU, remise, TVA),
+ * date, objet, devis amont et sa date, mode et conditions de paiement, TVA par défaut, remise globale, taxes, livraison (lieu,
+ * date, délai), contact, notes, papier en-tête, coordonnées imprimées de l'émetteur, signataire, mentions — et TOUT est gardé sur
+ * le brouillon. Rien n'est numéroté : on relit l'aperçu autant de fois qu'il le faut.
+ *
+ * Gardes : la saisie se lit (lignes nommées), le brouillon n'est pas périmé (les lignes validées du devis n'ont pas bougé depuis),
+ * et le PLAFOND DE L'ACCORDÉ est celui de la génération, en TTC (audit M-03).
  */
 export async function modifierApercuBcPoste(formData: FormData): Promise<ActionResult> {
+  if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
+  return ecrireApercuBcPoste(formData);
+}
+
+async function ecrireApercuBcPoste(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const lu = await brouillonDuDevis(user, formData, true);
   if ("error" in lu) return { ok: false, error: lu.error ?? "Échec." };
-  const { id, pieceId, item, owner, devis, brouillon } = lu;
-  const champ = (cle: string): string | null => { const v = fdStr(formData, cle); return v && v.trim() ? v.trim() : null; };
-  const listes: ListesDeLignes = {
-    designations: formData.getAll("ligneDesignation").map(String), details: formData.getAll("ligneDetails").map(String),
-    quantites: formData.getAll("ligneQuantite").map(String), prix: formData.getAll("lignePrix").map(String),
-    remises: formData.getAll("ligneRemise").map(String), tvas: formData.getAll("ligneTva").map(String), sections: formData.getAll("ligneSection").map(String),
-  };
-  const unites = formData.getAll("ligneUnite").map(String);
-  let lignes: LigneCommerciale[] | null = brouillon.lignes;
-  if (listes.designations.length > 0) {
-    lignes = lignesDepuisListes(listes).map((l, i) => ({ ...l, unite: (unites[i] ?? "").trim() || null }));
-    const vide = lignes.findIndex((l) => !l.designation);
-    if (vide >= 0) return { ok: false, error: `Ligne ${vide + 1} : la désignation est obligatoire.` };
-    const mauvaise = lignes.findIndex((l) => !l.section && (!Number.isFinite(l.quantite) || l.quantite <= 0 || !Number.isFinite(l.prixUnitaire) || l.prixUnitaire < 0));
-    if (mauvaise >= 0) return { ok: false, error: `Ligne ${mauvaise + 1} : la quantité (supérieure à zéro) et le prix unitaire (positif) doivent être des nombres.` };
-  }
-  const mode = champ("modePaiement");
-  if (mode && !(MODES_PAIEMENT as readonly string[]).includes(mode)) return { ok: false, error: "Mode de paiement inconnu." };
-  const dateLivraison = champ("livraisonDate");
-  if (dateLivraison && !/^\d{4}-\d{2}-\d{2}$/.test(dateLivraison)) return { ok: false, error: "La date de livraison s'écrit AAAA-MM-JJ." };
-  const tiers = {
-    nom: champ("fournisseurNom") ?? undefined, adresse: champ("fournisseurAdresse"), telephone: champ("fournisseurTelephone"),
-    email: champ("fournisseurEmail"), rc: champ("fournisseurRc"), nif: champ("fournisseurNif"),
-  };
-  const maintenant = new Date().toISOString();
+  const { id, pieceId, item, owner, devis, brouillon, poste } = lu;
+  if (devis.brouillon?.perime) return { ok: false, error: "Les lignes validées du devis ont changé depuis vos corrections : retirez cet aperçu et générez-le de nouveau." };
+  const saisie = lireModificationsDuBc(formData);
+  const refus = refusDeLaSaisie(saisie);
+  if (refus) return { ok: false, error: refus };
+  // Le numéro PROPOSÉ ne se fige pas dans le brouillon : seul un numéro modifié y est gardé.
+  const numero = formData.has("numeroChoisi") ? saisieEffective(fdStr(formData, "numeroChoisi"), fdStr(formData, "numeroSuggere")) : undefined;
   const apres: BrouillonBc = {
-    ...brouillon, lignes,
-    signature: lignes ? signatureDesLignes(lignesDuBCDuDevis(devis, id)) : null,
-    objet: champ("objet"), notes: champ("notes"),
-    contact: champ("contactNom") || champ("contactTelephone") ? { nom: champ("contactNom"), telephone: champ("contactTelephone") } : null,
-    modePaiement: (mode as BrouillonBc["modePaiement"]) ?? null, conditionsPaiement: champ("conditionsPaiement"),
-    livraison: champ("livraisonAdresse") || dateLivraison || champ("livraisonDelai") ? { adresse: champ("livraisonAdresse"), date: dateLivraison, delai: champ("livraisonDelai") } : null,
-    tiers: Object.values(tiers).some(Boolean) ? tiers : null,
-    numeroChoisi: champ("numeroChoisi"),
-    modifieLe: maintenant, modifiePar: user.id,
+    ...brouillonCorrige(brouillon, saisie, { lignesDuDevis: lignesDuBCDuDevis(devis, id), par: user.id }),
+    ...(numero !== undefined ? { numeroChoisi: numero } : {}),
   };
   return chez(id, pieceId, async () => {
+    const tous = ((await devisDesPostes([id])).get(id) ?? []).filter((d) => !d.annule);
+    const depasse = refusPlafondDuPoste(poste, tous, poste.item.amountGranted, { brouillon: { pieceId, brouillon: apres } });
+    if (depasse) return { ok: false, error: depasse };
     const r = await prisma.adProDevis.updateMany({ where: { legalDocumentId: pieceId }, data: { bcBrouillon: apres as unknown as Prisma.InputJsonValue } });
     if (r.count === 0) return { ok: false, error: "Ce devis n'a plus d'aperçu : rechargez la fiche." };
-    await audit(user, owner.parent, owner.id, "UPDATE", `Aperçu du bon de commande du poste « ${item.label} » corrigé (devis « ${devis.reference ?? devis.titre} »).`);
+    await audit(user, owner.parent, owner.id, "UPDATE", `Aperçu du bon de commande du poste « ${item.label} » corrigé (devis « ${devis.reference ?? devis.titre} ») — aucun numéro attribué.`);
     revalidate(owner.parent, owner.id);
-    return { ok: true, id, message: "Aperçu mis à jour : régénérez-le pour relire le PDF, puis validez-le." };
+    return { ok: true, id, message: "Brouillon enregistré : relisez l'aperçu, puis « Valider et envoyer aux Finances »." };
   });
 }
 

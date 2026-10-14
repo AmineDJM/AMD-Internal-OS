@@ -43,7 +43,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { createSponsoring } from "@/lib/actions/sponsoring-actions";
 import {
-  addAdProItem, ajouterVoyageur, ajouterDevisVoyageur, ajouterDevisPoste, genererEtEnvoyerBcPoste, genererBonDeCommandePoste,
+  addAdProItem, ajouterVoyageur, ajouterDevisVoyageur, ajouterDevisPoste, genererBonDeCommandePoste, apercuBcPoste, validerEtEnvoyerBcPoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
 import { loadAdProItems } from "@/lib/queries/ad-pro-items";
@@ -126,7 +126,7 @@ describe("La même pièce ne se compte qu'une fois — la règle (devisMisAPart)
  * l'agence (117 250 DZD, trois lignes, sans TVA) rattachée à chaque voyageur. La carte disait « 586 250 DZD, au-delà des
  * 124 750 accordés » et n'offrait que « Joindre un BC existant ». L'acteur est le demandeur, un National Sales SANS vue globale.
  */
-suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée une fois, BC généré en un clic", () => {
+suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée une fois, BC généré depuis son aperçu", () => {
   let nsId = "", companyId = "", catId = "", spoId = "", posteId = "";
   const voyageurs: string[] = [];
   let piece = "";
@@ -300,9 +300,29 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     expect(copiesVues.map((x) => x.id).sort()).toEqual([...copies].sort());
   });
 
-  it("UN CLIC : « Générer le bon de commande » compose LE BC (numéroté, Word + PDF) d'après la pièce comptée, et l'aiguille vers les Finances", async () => {
+  it("L'APERÇU OBLIGATOIRE (Direction, 14/10/2026) : « Générer le bon de commande » ouvre l'aperçu de LA pièce comptée — aucun BC numéroté avant « Valider et envoyer », qui compose LE BC (Word + PDF) et l'aiguille vers les Finances", async () => {
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
-    const r = await genererEtEnvoyerBcPoste(fd({ id: posteId }));
+    const bcsDuPoste = () => prisma.legalDocument.count({ where: { kind: "PURCHASE_ORDER", sourceType: "AD_PRO_ITEM", sourceId: posteId } });
+    const apercu = await genererBonDeCommandePoste(fd({ id: posteId }));
+    expect(apercu.ok, apercu.ok ? "" : apercu.error).toBe(true);
+    expect(apercu.message).toMatch(/Brouillon — à vérifier par le demandeur — 1 aperçu prêt/);
+    expect(await bcsDuPoste(), "le clic n'émet RIEN : aucun bon de commande numéroté").toBe(0);
+    expect((await prisma.adProDevis.findFirstOrThrow({ where: { legalDocumentId: piece }, select: { bcBrouillon: true } })).bcBrouillon, "l'aperçu est posé sur la pièce comptée").not.toBeNull();
+    // L'aperçu s'ouvre PRÊT À RELIRE : le composeur pré-rempli de la pièce telle qu'elle serait émise — toujours sans numéro.
+    const ouvert = await apercuBcPoste(fd({ id: posteId, pieceId: piece }));
+    expect(ouvert.ok, ouvert.ok ? "" : ouvert.error).toBe(true);
+    if (ouvert.ok) {
+      expect(ouvert.valeurs.lignes.map((l) => l.designation)).toEqual(LIGNES_LUES.map((l) => l.reference));
+      expect(ouvert.valeurs.champs.objet).toMatch(/Prise en charge de la billetterie/);
+      expect(ouvert.referenceExistante).toBeNull();
+    }
+    expect(await bcsDuPoste(), "l'aperçu n'écrit rien au registre").toBe(0);
+    // Re-cliquer ne fait pas de BC non plus : l'aperçu existe déjà, il se relit.
+    const encoreApercu = await genererBonDeCommandePoste(fd({ id: posteId }));
+    expect(encoreApercu.message).toMatch(/l'aperçu existe déjà/);
+    expect(await bcsDuPoste()).toBe(0);
+
+    const r = await validerEtEnvoyerBcPoste(fd({ id: posteId, pieceId: piece }));
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
     expect(r.message).toMatch(/1 bon de commande généré/);
     const bcs = await prisma.legalDocument.findMany({ where: { kind: "PURCHASE_ORDER", sourceType: "AD_PRO_ITEM", sourceId: posteId, status: { not: "CANCELLED" } } });
@@ -321,7 +341,7 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     const d = await devisDuPoste();
     expect(d.find((x) => x.pieceId === piece)?.etat).toBe("A_JOUR");
     expect(d.filter((x) => x.pieceId !== piece).every((x) => x.bc === null && x.etat === "MIS_A_PART")).toBe(true);
-    const encore = await genererEtEnvoyerBcPoste(fd({ id: posteId }));
+    const encore = await genererBonDeCommandePoste(fd({ id: posteId }));
     expect(encore.ok).toBe(true);
     expect(encore.message).toMatch(/déjà son bon de commande, à jour/);
     expect(await prisma.legalDocument.count({ where: { kind: "PURCHASE_ORDER", sourceId: posteId, status: { not: "CANCELLED" } } })).toBe(1);
