@@ -3,6 +3,8 @@ import {
   MAX_ATTACHMENTS, driveRefLabel, driveRefHref, recipientsToGrant, shareWarning,
   folderZipName, rootFolderName,
   DOSSIER_MESSAGERIE, nomDossierConversation, nomLotMessagerie, piecesDuLot, libelleLot,
+  estImageAffichable, ouverturePiece, urlContenuPiece, redirectionReferenceDrive, imagesDuMessage,
+  type PieceOuvrable,
 } from "./messaging-attachments";
 
 describe("driveRefLabel — dire que ce n'est pas une copie", () => {
@@ -138,5 +140,98 @@ describe("gros envois de la messagerie — par le chemin du Drive (Direction, 06
     expect(libelleLot({ ...base, recus: 3, echecs: 1, enCours: false })).toEqual({ texte: "3 fichiers prêts · 1 non envoyé", pret: true });
     expect(libelleLot({ ...base, recus: 0, echecs: 4, enCours: false }).pret).toBe(false);
     expect(libelleLot({ ...base, recus: 0, annules: 4, enCours: false }).texte).toBe("Envoi annulé");
+  });
+});
+
+// ─────────────────────────── Ouvrir une pièce sans quitter la conversation ───────────────────────────
+
+const piece = (p: Partial<PieceOuvrable> & { name: string }): PieceOuvrable => ({
+  id: "a1", mime: "", driveNodeId: null, isFolder: false, ...p,
+});
+
+describe("estImageAffichable — ce que le navigateur sait montrer", () => {
+  it("reconnaît les images par extension, quelle que soit la casse", () => {
+    for (const nom of ["Capture PJ.png", "photo.JPG", "x.jpeg", "anim.gif", "y.webp", "logo.svg", "z.avif", "b.bmp"]) {
+      expect(estImageAffichable(nom, ""), nom).toBe(true);
+    }
+  });
+
+  it("reconnaît une image par son type MIME quand le nom n'a pas d'extension", () => {
+    expect(estImageAffichable("Capture", "image/png")).toBe(true);
+    expect(estImageAffichable("Capture", "image/svg+xml")).toBe(true);
+  });
+
+  it("l'extension prime : un .pdf déclaré image/* n'est pas une image", () => {
+    expect(estImageAffichable("note.pdf", "image/png")).toBe(false);
+  });
+
+  it("écarte les images que <img> ne montre pas (TIFF, HEIC…)", () => {
+    expect(estImageAffichable("scan.tiff", "image/tiff")).toBe(false);
+    expect(estImageAffichable("IMG_0001.HEIC", "image/heic")).toBe(false);
+    expect(estImageAffichable("IMG_0001", "image/heic")).toBe(false);
+  });
+
+  it("un document n'est pas une image", () => {
+    expect(estImageAffichable("contrat.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")).toBe(false);
+    expect(estImageAffichable("sans-nom", "")).toBe(false);
+    expect(estImageAffichable("sans-nom", null)).toBe(false);
+  });
+});
+
+describe("ouverturePiece — comment s'ouvre une pièce au clic", () => {
+  it("une image → la visionneuse (téléversée OU référencée au Drive)", () => {
+    expect(ouverturePiece(piece({ name: "Capture PJ.png" }))).toBe("image");
+    expect(ouverturePiece(piece({ name: "Capture PJ.png", driveNodeId: "n1" }))).toBe("image");
+  });
+
+  it("PDF, bureautique, texte, vidéo → l'aperçu universel en surimpression", () => {
+    for (const name of ["a.pdf", "b.docx", "c.xlsx", "d.pptx", "e.doc", "f.csv", "g.txt", "h.mp4"]) {
+      expect(ouverturePiece(piece({ name })), name).toBe("apercu");
+    }
+  });
+
+  it("une archive ou un binaire → téléchargement", () => {
+    expect(ouverturePiece(piece({ name: "lot.zip" }))).toBe("telechargement");
+    expect(ouverturePiece(piece({ name: "setup.exe", mime: "application/octet-stream" }))).toBe("telechargement");
+  });
+
+  it("un dossier se navigue, même nommé comme une image", () => {
+    expect(ouverturePiece(piece({ name: "Photos.png", isFolder: true, driveNodeId: "n1" }))).toBe("dossier");
+  });
+});
+
+describe("urlContenuPiece — toujours par la porte de la messagerie", () => {
+  it("un fichier téléversé : la route de la pièce", () => {
+    expect(urlContenuPiece({ id: "a1", driveNodeId: null })).toBe("/api/messaging/attachment/a1");
+    expect(urlContenuPiece({ id: "a1", driveNodeId: null }, { telecharger: true })).toBe("/api/messaging/attachment/a1?dl=1");
+  });
+
+  it("une référence au Drive : la MÊME route (participation vérifiée), jamais l'adresse du Drive en dur", () => {
+    const url = urlContenuPiece({ id: "a1", driveNodeId: "n1" });
+    expect(url).toBe("/api/messaging/attachment/a1?contenu=1");
+    expect(url).not.toContain("n1");
+    expect(urlContenuPiece({ id: "a1", driveNodeId: "n1" }, { telecharger: true })).toBe("/api/messaging/attachment/a1?contenu=1&dl=1");
+  });
+});
+
+describe("redirectionReferenceDrive — après la porte de la messagerie, celle du Drive", () => {
+  it("sans « contenu » : la page du Drive, comme avant", () => {
+    expect(redirectionReferenceDrive("n1", false)).toBe("/drive/n1");
+    expect(redirectionReferenceDrive("n1", true, { contenu: true })).toBe("/drive?folder=n1");
+  });
+
+  it("avec « contenu » : les octets, par la route du Drive qui revérifie la lecture", () => {
+    expect(redirectionReferenceDrive("n1", false, { contenu: true })).toBe("/api/drive/n1/raw");
+    expect(redirectionReferenceDrive("n1", false, { contenu: true, telecharger: true })).toBe("/api/drive/n1/raw?dl=1");
+  });
+});
+
+describe("imagesDuMessage — ce que ←/→ parcourent dans la visionneuse", () => {
+  it("garde les images du message, dans l'ordre, sans les documents ni les dossiers", () => {
+    const pieces = [
+      piece({ id: "1", name: "a.png" }), piece({ id: "2", name: "b.pdf" }),
+      piece({ id: "3", name: "c.jpg", driveNodeId: "n" }), piece({ id: "4", name: "d.png", isFolder: true, driveNodeId: "m" }),
+    ];
+    expect(imagesDuMessage(pieces).map((p) => p.id)).toEqual(["1", "3"]);
   });
 });

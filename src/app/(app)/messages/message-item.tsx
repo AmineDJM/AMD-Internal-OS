@@ -1,17 +1,37 @@
 "use client";
 
 import * as React from "react";
+import dynamic from "next/dynamic";
 import {
   SmilePlus, Reply, Pin, PinOff, Bookmark, BookmarkCheck, Pencil, Trash2, Copy, Check, CheckCheck,
   Download, FileText, Folder, CornerDownRight,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import type { MessageDTO } from "@/lib/queries/messaging";
+import type { MessageDTO, AttachmentDTO } from "@/lib/queries/messaging";
 import { timeOf, renderRich, formatBytes } from "./format";
 import { peutRetirerUnMessage } from "@/lib/messaging-ui";
-import { driveRefHref } from "@/lib/messaging-attachments";
+import { driveRefHref, imagesDuMessage, ouverturePiece, urlContenuPiece } from "@/lib/messaging-attachments";
+import type { PieceVisionnee } from "@/components/documents/visionneuse";
 import { QUICK_REACTIONS, EMOJI_PALETTE } from "./emoji";
+
+// La visionneuse (et l'aperçu universel qu'elle embarque) ne se charge qu'au premier clic sur une pièce.
+const Visionneuse = dynamic(() => import("@/components/documents/visionneuse").then((m) => m.Visionneuse), { ssr: false });
+
+/** Une pièce jointe telle que la visionneuse la montre — le contenu passe TOUJOURS par la route de la messagerie. */
+function versVisionnee(a: AttachmentDTO): PieceVisionnee {
+  return {
+    id: a.id,
+    nom: a.name,
+    mime: a.mime,
+    image: ouverturePiece(a) === "image",
+    src: urlContenuPiece(a),
+    telechargement: urlContenuPiece(a, { telecharger: true }),
+    lienDrive: a.driveNodeId ? driveRefHref(a.driveNodeId, false) : null,
+    // Référence au Drive : Word/Excel/PowerPoint s'ouvrent dans l'éditeur Office (lecture seule sans droit d'écriture).
+    cible: a.driveNodeId ? { type: "drive", id: a.driveNodeId } : undefined,
+  };
+}
 
 interface Props {
   m: MessageDTO;
@@ -41,6 +61,7 @@ export function MessageItem({
   const [editing, setEditing] = React.useState(false);
   const [editValue, setEditValue] = React.useState(m.body);
   const [copied, setCopied] = React.useState(false);
+  const [vue, setVue] = React.useState<{ pieces: PieceVisionnee[]; index: number } | null>(null);
   const editRef = React.useRef<HTMLTextAreaElement>(null);
 
   React.useEffect(() => {
@@ -85,6 +106,16 @@ export function MessageItem({
     if (!v || v === m.body) return setEditing(false);
     const ok = await onSaveEdit(m.id, v);
     if (ok) setEditing(false);
+  };
+
+  /** Ouvrir une pièce EN SURIMPRESSION : une image avec ses voisines du même message, un document seul. */
+  const ouvrir = (a: AttachmentDTO) => {
+    if (ouverturePiece(a) === "image") {
+      const images = imagesDuMessage(m.attachments);
+      setVue({ pieces: images.map(versVisionnee), index: Math.max(0, images.findIndex((x) => x.id === a.id)) });
+    } else {
+      setVue({ pieces: [versVisionnee(a)], index: 0 });
+    }
   };
 
   const react = (emoji: string) => {
@@ -167,61 +198,23 @@ export function MessageItem({
             {m.attachments.length > 0 && (
               <div className={cn("flex flex-col gap-2", m.body && "mt-2")}>
                 {m.attachments.map((a) =>
-                  a.driveNodeId ? (
-                    // UNE RÉFÉRENCE AU DRIVE — le document lui-même, pas une copie reçue. On le
-                    // dit explicitement : sans cette mention, on croit avoir une pièce jointe et
-                    // on la re-téléverse ailleurs, ce que ce partage existe précisément pour éviter.
+                  a.driveNodeId && a.isFolder ? (
+                    // UN DOSSIER DU DRIVE se navigue : il reste une page du Drive.
                     <a
                       key={a.id}
-                      href={driveRefHref(a.driveNodeId, a.isFolder)}
+                      href={driveRefHref(a.driveNodeId, true)}
                       className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-primary/40 bg-card px-3 py-2 text-foreground hover:bg-secondary/60"
                     >
-                      {a.isFolder
-                        ? <Folder className="h-5 w-5 shrink-0 text-primary" />
-                        : <FileText className="h-5 w-5 shrink-0 text-primary" />}
+                      <Folder className="h-5 w-5 shrink-0 text-primary" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{a.name}</span>
-                        <span className="block text-[0.6875rem] text-muted-foreground">
-                          {a.isFolder ? "Dossier du Drive" : "Fichier du Drive"} · version courante
-                        </span>
+                        <span className="block text-[0.6875rem] text-muted-foreground">Dossier du Drive · version courante</span>
                       </span>
-                      {!a.isFolder && a.size > 0 && (
-                        <span className="shrink-0 text-[0.6875rem] text-muted-foreground">{formatBytes(a.size)}</span>
-                      )}
                     </a>
-                  ) : a.isImage ? (
-                    <a key={a.id} href={`/api/messaging/attachment/${a.id}`} target="_blank" rel="noopener noreferrer" className="block">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/messaging/attachment/${a.id}`} alt={a.name} className="max-h-64 max-w-full rounded-lg border border-border object-cover" />
-                    </a>
+                  ) : ouverturePiece(a) === "image" ? (
+                    <MiniatureImage key={a.id} a={a} onOuvrir={() => ouvrir(a)} />
                   ) : (
-                    <div
-                      key={a.id}
-                      className="flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-border bg-card py-1.5 pl-3 pr-1.5 text-foreground sm:py-2 sm:pr-2"
-                    >
-                      <FileText className="h-5 w-5 shrink-0 text-primary" />
-                      {/* Clic = APERÇU (ouverture inline dans un nouvel onglet), plus de téléchargement automatique. */}
-                      <a
-                        href={`/api/messaging/attachment/${a.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Aperçu"
-                        className="min-w-0 flex-1 truncate text-sm font-medium hover:underline"
-                      >
-                        {a.name}
-                      </a>
-                      <span className="shrink-0 text-[0.6875rem] text-muted-foreground">{formatBytes(a.size)}</span>
-                      {/* Téléchargement explicite. */}
-                      <a
-                        href={`/api/messaging/attachment/${a.id}?dl=1`}
-                        download={a.name}
-                        title="Télécharger"
-                        aria-label="Télécharger"
-                        className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:p-1"
-                      >
-                        <Download className="h-4 w-4 shrink-0" />
-                      </a>
-                    </div>
+                    <CartePiece key={a.id} a={a} onOuvrir={() => ouvrir(a)} />
                   ),
                 )}
               </div>
@@ -314,6 +307,95 @@ export function MessageItem({
           )}
         </div>
       )}
+
+      {/* Rendue dans un portail (au-dessus de tout) : la conversation reste derrière, intacte. */}
+      {vue && (
+        <Visionneuse
+          pieces={vue.pieces}
+          index={vue.index}
+          onIndex={(index) => setVue((v) => (v ? { ...v, index } : v))}
+          onClose={() => setVue(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * UNE IMAGE JOINTE : sa miniature, dans la bulle. Un clic l'ouvre dans la visionneuse — on reste dans
+ * la conversation. Une référence au Drive garde sa mention (ce n'est pas une copie reçue). Si l'image
+ * ne se charge pas (retirée du Drive, accès changé), la carte fichier prend sa place.
+ */
+function MiniatureImage({ a, onOuvrir }: { a: AttachmentDTO; onOuvrir: () => void }) {
+  const [enEchec, setEnEchec] = React.useState(false);
+  if (enEchec) return <CartePiece a={a} onOuvrir={onOuvrir} />;
+  return (
+    <span className="flex max-w-full flex-col items-start gap-0.5">
+      <button
+        type="button"
+        onClick={onOuvrir}
+        title={`Voir ${a.name}`}
+        aria-label={`Voir l'image ${a.name}`}
+        className="block max-w-full overflow-hidden rounded-lg border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={urlContenuPiece(a)}
+          alt={a.name}
+          loading="lazy"
+          onError={() => setEnEchec(true)}
+          className="block max-h-64 max-w-full cursor-zoom-in object-cover"
+        />
+      </button>
+      {a.driveNodeId && (
+        <span className="max-w-full truncate px-0.5 text-[0.6875rem] opacity-75">{a.name} · Fichier du Drive</span>
+      )}
+    </span>
+  );
+}
+
+/**
+ * UN FICHIER JOINT (téléversé ou référencé au Drive) : un clic l'OUVRE en surimpression (PDF, Word,
+ * Excel, texte…) ; ce qui n'a pas d'aperçu (archive, binaire) se télécharge. Le bouton de
+ * téléchargement reste à côté, explicite.
+ */
+function CartePiece({ a, onOuvrir }: { a: AttachmentDTO; onOuvrir: () => void }) {
+  const telechargement = urlContenuPiece(a, { telecharger: true });
+  const ouvrable = ouverturePiece(a) !== "telechargement";
+  const contenu = (
+    <>
+      <FileText className="h-5 w-5 shrink-0 text-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{a.name}</span>
+        {/* UNE RÉFÉRENCE AU DRIVE — le document lui-même, pas une copie reçue. On le dit
+            explicitement : sans cette mention, on croit avoir une pièce jointe et on la
+            re-téléverse ailleurs, ce que ce partage existe précisément pour éviter. */}
+        {a.driveNodeId && <span className="block text-[0.6875rem] text-muted-foreground">Fichier du Drive · version courante</span>}
+      </span>
+      {a.size > 0 && <span className="shrink-0 text-[0.6875rem] text-muted-foreground">{formatBytes(a.size)}</span>}
+    </>
+  );
+  const zone = "flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 pl-3 text-left sm:py-2 hover:bg-secondary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+  return (
+    <div className={cn(
+      "flex min-w-0 max-w-full items-center gap-1 rounded-lg border bg-card pr-1.5 text-foreground sm:pr-2",
+      a.driveNodeId ? "border-primary/40" : "border-border",
+    )}>
+      {ouvrable ? (
+        <button type="button" onClick={onOuvrir} title="Aperçu" className={zone}>{contenu}</button>
+      ) : (
+        <a href={telechargement} download={a.name} title="Télécharger" className={zone}>{contenu}</a>
+      )}
+      {/* Téléchargement explicite. */}
+      <a
+        href={telechargement}
+        download={a.name}
+        title="Télécharger"
+        aria-label={`Télécharger ${a.name}`}
+        className="shrink-0 rounded-md p-2 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground sm:p-1"
+      >
+        <Download className="h-4 w-4 shrink-0" />
+      </a>
     </div>
   );
 }
