@@ -164,6 +164,8 @@ export interface CellRow {
   expenseOrderId: string | null;
   promoMaterialId: string | null;
   documentId: string | null;
+  /** Case PIÈCE : TOUS ses fichiers (recto, verso, pages, visa… — `lib/care-pieces`). Absent hors de la lecture de la fiche. */
+  fichiers?: { id: string; name: string; hasFile: boolean }[];
   promoMaterial: { reference: string; title: string; status: string } | null;
   dateStart: string | null;
   dateEnd: string | null;

@@ -45,6 +45,7 @@ import {
 } from "@/lib/ad-pro/pieces-poste";
 import { Prisma } from "@prisma/client";
 import { validateAttachments } from "@/lib/attach-files";
+import { creerPosteEtFiches, donneesVoyageur, lireFichesDuFormulaire } from "@/lib/ad-pro/fiches-poste";
 import { readFileByKey } from "@/lib/storage";
 import { resolveParties } from "@/lib/queries/company-contacts";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
@@ -737,6 +738,12 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     }
   }
 
+  // LES FICHES SAISIES AVEC LE POSTE (Direction, 10/2026) — billetterie : ses voyageurs ; hôtellerie : ses
+  // personnes logées. Toutes lues (et leurs pièces contrôlées) AVANT d'écrire : une fiche refusée, aucun poste.
+  const fichesLues = await lireFichesDuFormulaire(formData, kind);
+  if (!fichesLues.ok) return { ok: false, error: fichesLues.error };
+  const fiches = fichesLues.fiches;
+
   try {
     // Un poste ajouté APRÈS la décision est autorisé — c'est le choix retenu — mais il est
     // marqué. C'est ce marqueur qui expliquera un dépassement d'enveloppe à l'écran, au lieu
@@ -745,25 +752,34 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     const where = { [PARENTS[parentRaw].column]: parentId } as Record<string, string>;
     const last = await prisma.adProItem.findFirst({ where, orderBy: { position: "desc" }, select: { position: true } });
 
-    const created = await prisma.adProItem.create({
-      data: {
-        ...where,
-        kind,
-        label,
-        notes: fdStr(formData, "notes"),
-        supplier: fdStr(formData, "supplier"),
-        amountEstimated: kind === "STOCK_MATERIAL" ? null : amountEstimated ?? null,
-        budgetKind,
-        addedAfterDecision: late,
-        position: (last?.position ?? 0) + 1,
-        createdById: user.id,
-        updatedById: user.id,
-      },
-      select: { id: true },
-    });
+    const data = {
+      ...where,
+      kind,
+      label,
+      notes: fdStr(formData, "notes"),
+      supplier: fdStr(formData, "supplier"),
+      amountEstimated: kind === "STOCK_MATERIAL" ? null : amountEstimated ?? null,
+      budgetKind,
+      addedAfterDecision: late,
+      position: (last?.position ?? 0) + 1,
+      createdById: user.id,
+      updatedById: user.id,
+    } as Prisma.AdProItemUncheckedCreateInput;
+    let detailFiches = "";
+    let created: { id: string };
+    if (fiches.length > 0) {
+      // LE POSTE ET SES FICHES ENSEMBLE — rien de partiel : un échec défait tout (`creerPosteEtFiches`).
+      const r = await creerPosteEtFiches(data, fiches, user.id);
+      if (!r.ok) return { ok: false, error: r.error };
+      created = { id: r.itemId };
+      const quoi = porteDesVoyageurs(kind) ? "voyageur" : "fiche hôtellerie";
+      detailFiches = ` — ${fiches.length} ${quoi}${fiches.length > 1 ? "s" : ""}${r.pieces > 0 ? `, ${r.pieces} document${r.pieces > 1 ? "s" : ""} joint${r.pieces > 1 ? "s" : ""}` : ""}`;
+    } else {
+      created = await prisma.adProItem.create({ data, select: { id: true } });
+    }
 
     await audit(user, parentRaw, parentId, "CREATE",
-      `Poste ajouté — ${ITEM_KIND_LABELS[kind]} « ${label} » (${budgetKind === "ADDITIONAL" ? "budget supplémentaire" : "inclus dans le budget accordé"})${late ? " — APRÈS la décision définitive" : ""}.`);
+      `Poste ajouté — ${ITEM_KIND_LABELS[kind]} « ${label} » (${budgetKind === "ADDITIONAL" ? "budget supplémentaire" : "inclus dans le budget accordé"})${late ? " — APRÈS la décision définitive" : ""}${detailFiches}.`);
     // UN POSTE HORS BUDGET OU APRÈS LA DÉCISION SE DIT, EN LECTURE, À CEUX QUI DÉCIDENT (§118.200) :
     // il n'est pas encore à valider (la validation partira à sa soumission), mais il change ce que
     // la demande coûtera. Le dire seulement là : un poste inclus avant la décision est le détail
@@ -777,7 +793,7 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
       }).catch(() => undefined);
     }
     revalidate(parentRaw, parentId);
-    return { ok: true, id: created.id };
+    return { ok: true, id: created.id, ...(detailFiches ? { message: `Poste ajouté${detailFiches}.` } : {}) };
   } catch (err) {
     console.error("[ad-pro-item] création impossible", err);
     return { ok: false, error: "Le poste n'a pas pu être ajouté. Réessayez dans un instant." };
@@ -2918,7 +2934,7 @@ function etapesEnBase(json: unknown) {
 }
 
 /** Ce que l'écriture d'un voyageur lu pose en base — les étapes en JSON. */
-const donneesVoyageur = (v: VoyageurLu) => ({ ...v, segments: v.segments as unknown as import("@prisma/client").Prisma.InputJsonValue });
+// `donneesVoyageur` : ce que l'écriture d'un voyageur lu pose en base — UNE définition, dans `ad-pro/fiches-poste`.
 
 /** La ligne d'un voyageur telle qu'il est en base — ce que `changementsVoyageur` compare. */
 const voyageurLu = (v: Omit<VoyageurLu, "segments" | "prenom"> & { prenom?: string | null; segments?: unknown }): VoyageurLu => ({

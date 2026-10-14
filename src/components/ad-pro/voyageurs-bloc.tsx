@@ -7,6 +7,7 @@ import type { AdProTrajet, AdProTransport } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentPreview } from "@/components/documents/document-preview";
+import { ChoixFichiers } from "@/components/shared/choix-fichiers";
 import {
   ajouterVoyageur, modifierVoyageur, retirerVoyageur, demanderReservation, retirerReservation,
   ajouterDevisVoyageur, validerDevisVoyageur, demanderBCBilletterie,
@@ -170,9 +171,15 @@ export function BlocVoyageurs({
                     {multi ? ` · ${v.segments.length} étape${v.segments.length > 1 ? "s" : ""}` : ` · ${dates}`}
                     {` · ${v.transport ? TRANSPORT_LIBELLE[v.transport] : "mode à préciser"}`}
                   </span>
-                  {passeport
-                    ? <span className="inline-flex items-center gap-0.5 text-success"><CheckCircle2 className="h-3 w-3" /> passeport</span>
-                    : <span className="text-warning">passeport manquant</span>}
+                  {passeport ? (
+                    // Le passeport joint : un clic ouvre SES fichiers (recto, verso, pages…) — les voir, en ajouter, en retirer.
+                    <button
+                      type="button" onClick={() => basculer(v.id, "PASSEPORT")} aria-expanded={mode === "PASSEPORT"}
+                      className="inline-flex min-h-9 items-center gap-0.5 text-success hover:underline sm:min-h-0"
+                    >
+                      <CheckCircle2 className="h-3 w-3" /> passeport{v.passeports.length > 1 ? ` (${v.passeports.length} fichiers)` : ""}
+                    </button>
+                  ) : <span className="text-warning">passeport manquant</span>}
                   {retenu && (
                     <span className="inline-flex items-center gap-0.5 text-success">
                       <FileCheck2 className="h-3 w-3" /> devis retenu{retenu.montant != null ? ` (${dzd(retenu.montant)})` : ""}
@@ -244,7 +251,7 @@ export function BlocVoyageurs({
                 {/* LES DOCUMENTS D'UN VOYAGEUR : le passeport (pièce d'identité) et tout autre document — visa, assurance,
                     justificatif —, des pièces du POSTE désignées par le voyageur (`stepKey`). Remplacer = joindre le nouveau
                     puis retirer l'ancien depuis son aperçu (rien ne s'efface en silence). */}
-                {((passeport || v.autresDocuments.length > 0) && (mode === "PASSEPORT" || mode === "MENU")) && (
+                {mode === "MENU" && (passeport || v.autresDocuments.length > 0) && (
                   <div className="space-y-0.5">
                     {v.passeports.map((p) => (
                       <div key={p.id} className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -255,14 +262,46 @@ export function BlocVoyageurs({
                     {v.autresDocuments.map((p) => <DocumentPreview key={p.id} id={p.id} name={p.name} hasFile={p.hasFile} canDelete={peutEditer} />)}
                   </div>
                 )}
-                {mode === "PASSEPORT" && peutEditer && (
-                  <div className="rounded-lg border border-border p-2">
-                    <p className="mb-1 text-[0.6875rem] text-muted-foreground">
-                      Documents de {nomComplet(v)} — choisissez « Pièce d&apos;identité » pour le passeport, « Autre » pour le reste
-                      {passeport ? " (pour remplacer le passeport : joignez le nouveau, puis retirez l'ancien ci-dessus)" : ""}
-                    </p>
-                    <DocumentUpload entityType="AD_PRO_ITEM" entityId={itemId} categories={["ID_DOCUMENT", "SUPPORTING_DOC", "OTHER"]} stepKey={v.id} compact />
-                    <button type="button" onClick={fermer} className="mt-1 min-h-9 px-1 text-[0.6875rem] text-muted-foreground hover:text-foreground sm:min-h-0 sm:px-0">Fermer</button>
+                {/* LES DOCUMENTS D'UN VOYAGEUR, EN DEUX RUBRIQUES (Direction, 10/2026) : le PASSEPORT — autant de fichiers
+                    qu'il en faut (recto, verso, pages, visa collé…), choisis ensemble ou ajoutés plus tard, chacun ouvert ou
+                    retiré —, puis les autres documents. « Passeport manquant » disparaît dès le premier fichier joint. */}
+                {mode === "PASSEPORT" && (
+                  <div className="space-y-2.5 rounded-lg border border-border p-2">
+                    <section className="space-y-1" aria-label={`Passeport de ${nomComplet(v)}`}>
+                      <p className="text-[0.6875rem] font-medium text-foreground">
+                        Passeport de {nomComplet(v)}{v.passeports.length > 0 ? ` — ${v.passeports.length} fichier${v.passeports.length > 1 ? "s" : ""}` : " — aucun fichier"}
+                      </p>
+                      {v.passeports.length > 0 && (
+                        <ul className="space-y-0.5">
+                          {v.passeports.map((p) => (
+                            <li key={p.id} className="flex min-w-0 items-center gap-1.5">
+                              <FileCheck2 className="h-3.5 w-3.5 shrink-0 text-success" />
+                              <DocumentPreview id={p.id} name={p.name} hasFile={p.hasFile} canDelete={peutEditer} />
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {peutEditer && (
+                        <DocumentUpload
+                          entityType="AD_PRO_ITEM" entityId={itemId} categories={["ID_DOCUMENT"]} stepKey={v.id} compact
+                          libelleEnvoi={passeport ? "Ajouter au passeport" : "Joindre le passeport"}
+                        />
+                      )}
+                    </section>
+                    <section className="space-y-1" aria-label={`Autres documents de ${nomComplet(v)}`}>
+                      <p className="text-[0.6875rem] font-medium text-foreground">Autres documents (visa, assurance, invitation…)</p>
+                      {v.autresDocuments.length > 0 && (
+                        <ul className="space-y-0.5">
+                          {v.autresDocuments.map((p) => (
+                            <li key={p.id} className="min-w-0"><DocumentPreview id={p.id} name={p.name} hasFile={p.hasFile} canDelete={peutEditer} /></li>
+                          ))}
+                        </ul>
+                      )}
+                      {peutEditer && (
+                        <DocumentUpload entityType="AD_PRO_ITEM" entityId={itemId} categories={["SUPPORTING_DOC", "OTHER"]} stepKey={v.id} compact libelleEnvoi="Joindre" />
+                      )}
+                    </section>
+                    <button type="button" onClick={fermer} className="min-h-9 px-1 text-[0.6875rem] text-muted-foreground hover:text-foreground sm:min-h-0 sm:px-0">Fermer</button>
                   </div>
                 )}
 
@@ -474,6 +513,49 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
   onSubmit: (fd: FormData) => void;
   onCancel: () => void;
 }) {
+  const [passeports, setPasseports] = React.useState<File[]>([]);
+  const [documents, setDocuments] = React.useState<File[]>([]);
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        for (const p of passeports) fd.append("passeport", p);
+        for (const d of documents) fd.append("documents", d);
+        onSubmit(fd);
+      }}
+      className="space-y-3"
+    >
+      <ChampsVoyageur
+        suggestions={suggestions} defaut={defaut}
+        passeports={passeports} setPasseports={setPasseports} documents={documents} setDocuments={setDocuments}
+      />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button size="sm" type="submit" disabled={busy} className="h-10 w-full sm:h-8 sm:w-auto">
+          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {libelle}
+        </Button>
+        <Button size="sm" type="button" variant="outline" onClick={onCancel} className="h-10 w-full sm:h-8 sm:w-auto">Annuler</Button>
+      </div>
+    </form>
+  );
+}
+
+/**
+ * LES CHAMPS D'UNE FICHE VOYAGEUR — sans formulaire autour, pour servir DEUX formulaires : celui d'un voyageur
+ * (préfixe vide) et celui de l'ajout d'un poste « billetterie », qui en porte plusieurs (`fiche0_`, `fiche1_`… —
+ * `lib/ad-pro/fiches-saisie`). Les noms des champs sont ceux que lit l'action ; les fichiers choisis remontent
+ * au formulaire, qui les joint sous `<préfixe>passeport` et `<préfixe>documents`.
+ */
+export function ChampsVoyageur({ prefixe = "", suggestions, defaut, passeports, setPasseports, documents, setDocuments }: {
+  prefixe?: string;
+  suggestions: string[];
+  defaut?: VoyageurVue;
+  passeports: File[];
+  setPasseports: (f: File[]) => void;
+  documents: File[];
+  setDocuments: (f: File[]) => void;
+}) {
+  const n = (cle: string) => `${prefixe}${cle}`;
   const [trajet, setTrajet] = React.useState<AdProTrajet>(defaut?.trajet ?? "ALLER_RETOUR");
   // Un voyageur d'avant la séparation porte son nom complet dans `nom` : on PROPOSE la coupe, la personne la corrige.
   const initial = defaut && !defaut.prenom ? separerNom(defaut.nom) : { prenom: defaut?.prenom ?? "", nom: defaut?.nom ?? "" };
@@ -485,8 +567,6 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
       : [{ de: defaut?.villeDepart ?? "Alger", vers: defaut?.villeArrivee ?? "", date: defaut?.dateDepart ?? "" }],
   );
   const [dateRetour, setDateRetour] = React.useState(defaut?.dateRetour ?? "");
-  const [passeport, setPasseport] = React.useState<File | null>(null);
-  const [documents, setDocuments] = React.useState<File[]>([]);
   const multi = trajet === "MULTI_DESTINATIONS";
   const majEtape = (i: number, cle: keyof Etape, valeur: string) => setEtapes((l) => l.map((e, k) => (k === i ? { ...e, [cle]: valeur } : e)));
   // LE « + » D'UNE ÉTAPE : la destination suivante s'insère juste après, et part d'où celle-ci arrive.
@@ -503,16 +583,7 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
   const premiere = etapes[0] ?? { de: "", vers: "", date: "" };
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        const fd = new FormData(e.currentTarget);
-        if (passeport) fd.set("passeport", passeport);
-        for (const d of documents) fd.append("documents", d);
-        onSubmit(fd);
-      }}
-      className="space-y-3"
-    >
+    <div className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         {suggestions.length > 0 && (
           <label className="text-xs sm:col-span-2">
@@ -528,15 +599,15 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
         )}
         <label className="text-xs">
           Prénom
-          <input name="prenom" value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Amel" className={champ} />
+          <input name={n("prenom")} value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Amel" className={champ} />
         </label>
         <label className="text-xs">
           Nom
-          <input name="nom" required value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Haddad" className={champ} />
+          <input name={n("nom")} required value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Haddad" className={champ} />
         </label>
         <label className="text-xs sm:col-span-2">
           Mode de transport
-          <select name="transport" defaultValue={defaut ? (defaut.transport ?? "") : "AVION"} className={champ}>
+          <select name={n("transport")} defaultValue={defaut ? (defaut.transport ?? "") : "AVION"} className={champ}>
             {defaut && !defaut.transport && <option value="">À préciser</option>}
             {TRANSPORTS.map((m) => <option key={m} value={m}>{TRANSPORT_LIBELLE[m]}</option>)}
           </select>
@@ -545,7 +616,7 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
 
       {/* LE TRAJET, d'un geste. */}
       <div className="space-y-2">
-        <input type="hidden" name="trajet" value={trajet} />
+        <input type="hidden" name={n("trajet")} value={trajet} />
         <div className="inline-flex flex-wrap rounded-lg bg-muted p-1 text-xs" role="radiogroup" aria-label="Trajet">
           {TRAJETS_CHOIX.map(({ t, libelle: l }) => (
             <button
@@ -557,13 +628,13 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
           ))}
         </div>
 
-        {multi && <input type="hidden" name="segments" value={JSON.stringify(etapes)} />}
+        {multi && <input type="hidden" name={n("segments")} value={JSON.stringify(etapes)} />}
         {!multi && (
           <>
-            <input type="hidden" name="villeDepart" value={premiere.de} />
-            <input type="hidden" name="villeArrivee" value={premiere.vers} />
-            <input type="hidden" name="dateDepart" value={premiere.date} />
-            {trajet === "ALLER_RETOUR" && <input type="hidden" name="dateRetour" value={dateRetour} />}
+            <input type="hidden" name={n("villeDepart")} value={premiere.de} />
+            <input type="hidden" name={n("villeArrivee")} value={premiere.vers} />
+            <input type="hidden" name={n("dateDepart")} value={premiere.date} />
+            {trajet === "ALLER_RETOUR" && <input type="hidden" name={n("dateRetour")} value={dateRetour} />}
           </>
         )}
         <ol className="space-y-1.5">
@@ -613,21 +684,25 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
       {defaut && (
         <label className="block text-xs">
           Précisions
-          <input name="notes" defaultValue={defaut.notes ?? ""} placeholder="Classe, horaires souhaités…" className={champ} />
+          <input name={n("notes")} defaultValue={defaut.notes ?? ""} placeholder="Classe, horaires souhaités…" className={champ} />
         </label>
       )}
 
       {/* LES DOCUMENTS DÈS LA CRÉATION (Direction, 06/10) : le passeport, et ce qu'il faut d'autre. */}
       {!defaut && (
+        // PLUSIEURS FICHIERS PAR RUBRIQUE (Direction, 10/2026) : recto, verso, pages — choisis ensemble ou l'un après l'autre.
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <label className="text-xs">
-            Passeport (scan ou photo)
-            <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/*" onChange={(e) => setPasseport(e.target.files?.[0] ?? null)} className={champ} aria-label="Passeport" />
-          </label>
-          <label className="text-xs">
-            Autres documents (visa, invitation…)
-            <input type="file" multiple onChange={(e) => setDocuments(Array.from(e.target.files ?? []))} className={champ} aria-label="Autres documents" />
-          </label>
+          <div className="min-w-0 space-y-1 text-xs">
+            <p>Passeport (scans ou photos — recto, verso, pages)</p>
+            <ChoixFichiers
+              fichiers={passeports} onChange={setPasseports} libelle="Joindre le passeport" ariaLabel="Passeport"
+              accept=".pdf,.png,.jpg,.jpeg,.webp,.heic,application/pdf,image/*"
+            />
+          </div>
+          <div className="min-w-0 space-y-1 text-xs">
+            <p>Autres documents (visa, invitation…)</p>
+            <ChoixFichiers fichiers={documents} onChange={setDocuments} libelle="Joindre des documents" ariaLabel="Autres documents" />
+          </div>
         </div>
       )}
 
@@ -635,12 +710,6 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
         Seul le nom est exigé : le prénom, les dates, le trajet et les documents peuvent venir plus tard.
         {defaut && !defaut.prenom ? " Le nom complet a été proposé coupé en prénom et nom : corrigez si besoin." : ""}
       </p>
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button size="sm" type="submit" disabled={busy} className="h-10 w-full sm:h-8 sm:w-auto">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {libelle}
-        </Button>
-        <Button size="sm" type="button" variant="outline" onClick={onCancel} className="h-10 w-full sm:h-8 sm:w-auto">Annuler</Button>
-      </div>
-    </form>
+    </div>
   );
 }

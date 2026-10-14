@@ -50,6 +50,7 @@ import { faitDeStock, NATURE_MATERIEL_STOCK } from "@/lib/promo/reservations";
 import { BlocMaterielStock, type LigneStockVue, type ContexteMaterielStock } from "./materiel-stock";
 import { BlocVoyageurs, type VoyageurVue } from "./voyageurs-bloc";
 import { BlocHebergements, type HebergementVue } from "./hebergements-bloc";
+import { FichesNouveauPoste, joindreFichiersDesFiches, type FicheBrouillon } from "./fiches-nouveau-poste";
 import { ConseilLuna } from "./conseil-luna";
 import type { PiecesDuPoste, PieceDePoste, DemandeBCDuPoste } from "@/lib/ad-pro/pieces-poste";
 import type { DevisDePosteVue } from "@/lib/queries/ad-pro-devis-poste";
@@ -1893,9 +1894,17 @@ function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
   const [nature, setNature] = React.useState<AdProItemKind>("STAND");
   const stock = nature === NATURE_MATERIEL_STOCK;
   const indirect = nature === "INDIRECT_SUPPORT";
+  // LES FICHES SAISIES AVEC LE POSTE (Direction, 10/2026) : billetterie → voyageurs, hôtellerie → personnes logées.
+  const natureFiches = porteDesVoyageurs(nature) ? "VOYAGEUR" as const : porteDesHebergements(nature) ? "HEBERGEMENT" as const : null;
+  const [fiches, setFiches] = React.useState<FicheBrouillon[]>([]);
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); onSubmit(new FormData(e.currentTarget)); }}
+      onSubmit={(e) => {
+        e.preventDefault();
+        const fd = new FormData(e.currentTarget);
+        if (natureFiches) joindreFichiersDesFiches(fd, fiches, natureFiches);
+        onSubmit(fd);
+      }}
       className="space-y-2 rounded-xl border border-border p-3"
     >
       <input type="hidden" name="parent" value={parent} />
@@ -1904,7 +1913,7 @@ function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
         <label className="text-xs">
           Nature
           <select
-            name="kind" value={nature} onChange={(e) => setNature(e.target.value as AdProItemKind)}
+            name="kind" value={nature} onChange={(e) => { setNature(e.target.value as AdProItemKind); setFiches([]); }}
             className="mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm"
           >
             {ITEM_KINDS.map((k) => <option key={k} value={k}>{ITEM_KIND_LABELS[k]}</option>)}
@@ -1933,6 +1942,8 @@ function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
       </div>
 
       {indirect && <EditeurRepartition />}
+
+      {natureFiches && <FichesNouveauPoste key={natureFiches} nature={natureFiches} fiches={fiches} onChange={setFiches} />}
 
       {stock && (
         <p className="rounded-lg bg-secondary/40 px-2.5 py-1.5 text-xs text-muted-foreground">

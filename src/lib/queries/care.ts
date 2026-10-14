@@ -4,6 +4,7 @@ import { toNumber } from "@/lib/utils";
 import { beneficiaryName, beneficiarySubtitle } from "@/lib/care";
 import { detailsStockes, etapesDuBillet, etapesStockees, tauxDeLaDemande, type BeneficiaryRow, type GroupPosteRow, type QuoteRow } from "@/lib/care-fiches";
 import { statutDuDossier } from "@/lib/promo-material/statut";
+import { fichiersDeLaCase } from "@/lib/care-pieces";
 
 const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 const num = (v: unknown) => (v != null ? toNumber(v) : null);
@@ -71,6 +72,23 @@ export async function getCareDossier(scope: "NATIONAL" | "INTERNATIONAL", reques
     : [];
   const nameById = new Map(doctors.map((d) => [d.id, d.name]));
 
+  // LES FICHIERS DES PIÈCES (passeport recto/verso, pages, visa…), en UNE requête : tout document de la
+  // demande que désigne une case PIÈCE, plus son fichier principal (`lib/care-pieces`).
+  const casesPiece = rows.flatMap((r) => r.cells.filter((c) => c.kind === "DOCUMENT"));
+  const docsPieces = casesPiece.length
+    ? await prisma.document.findMany({
+      where: {
+        entityType: scope === "NATIONAL" ? "CONGRESS_NATIONAL" : "CONGRESS_INTERNATIONAL", entityId: requestId,
+        OR: [
+          { stepKey: { in: casesPiece.map((c) => c.id) } },
+          { id: { in: casesPiece.map((c) => c.documentId).filter((x): x is string => Boolean(x)) } },
+        ],
+      },
+      select: { id: true, name: true, fileKey: true, stepKey: true },
+      orderBy: { createdAt: "asc" },
+    })
+    : [];
+
   const sujet = demande?.careReservationDossierId
     ? await prisma.dossier.findUnique({ where: { id: demande.careReservationDossierId }, select: { id: true, reference: true } })
     : null;
@@ -97,6 +115,9 @@ export async function getCareDossier(scope: "NATIONAL" | "INTERNATIONAL", reques
             expenseOrderId: c.expenseOrderId,
             promoMaterialId: c.promoMaterialId,
             documentId: c.documentId,
+            ...(c.kind === "DOCUMENT"
+              ? { fichiers: fichiersDeLaCase(c, docsPieces).map((d) => ({ id: d.id, name: d.name, hasFile: Boolean(d.fileKey) })) }
+              : {}),
             promoMaterial: c.promoMaterialId ? promoById.get(c.promoMaterialId) ?? null : null,
             dateStart: iso(c.dateStart), dateEnd: iso(c.dateEnd),
             trajet: c.trajet, transport: c.transport, fromCity: c.fromCity, toCity: c.toCity,
