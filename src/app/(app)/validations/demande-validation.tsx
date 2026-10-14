@@ -196,7 +196,7 @@ function Formulaire(props: DemandeValidationProps & { onClose: () => void }) {
             )}
 
             {source === "ORDINATEUR" && (
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5 sm:col-span-2">
                   <Label htmlFor="dv-bc-fichier">Fichier du bon de commande</Label>
                   <Input id="dv-bc-fichier" type="file" onChange={(e) => setBcFichier(e.target.files?.[0] ?? null)} />
@@ -265,7 +265,7 @@ function Formulaire(props: DemandeValidationProps & { onClose: () => void }) {
           {validateurs.filter(Boolean).length > 1 && <p className="text-xs text-muted-foreground">Ils valident l&apos;un après l&apos;autre, dans cet ordre.</p>}
         </fieldset>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="dv-prio">Priorité</Label>
             <Select id="dv-prio" value={priorite} onChange={(e) => setPriorite(e.target.value)}>

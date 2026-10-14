@@ -1,6 +1,5 @@
 import type { CurrentUser } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, peutGererSpecialites } from "@/lib/rbac";
-import { estDecideurInfoMed } from "@/lib/medical-info/decideur";
 import { canManageLetterheads } from "@/lib/office/letterhead";
 import { siegeAuCentreAdPro } from "@/platform/in-process/capacites";
 
@@ -2168,7 +2167,9 @@ export const OPS_CATALOG: OpMeta[] = [
     aliases: ["validation direction de la déclaration", "la direction valide la déclaration", "le directeur des opérations valide la déclaration"],
     risk: "SENSITIVE",
     summary: "Validation FINALE par le Directeur des Opérations (à défaut, le Super Admin) — dernière marche, la déclaration passe VALIDÉE.",
-    gate: (u) => estDecideurInfoMed(u),
+    // La règle de `estDecideurInfoMed` (medical-info/decideur.ts), lue par `hasRole` déjà importé : un import de plus
+    // franchirait la frontière Adam ↔ ERP (src/platform/boundary.test.ts).
+    gate: (u) => u.role === "SUPER_ADMIN" || hasRole(u, "OPERATIONS_DIRECTOR"),
     gateNote: "Directeur des Opérations / Super Admin",
     covers: ["medical-info-actions:validateDeclarationByDirection"],
   },
