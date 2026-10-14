@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { contextesDesCategories } from "@/lib/queries/budget-integration";
 import { lienDemande } from "@/lib/budget-marketing/integration-vue";
+import type { PosteVue } from "@/lib/budget-marketing/demandes-vue";
 
 /**
  * BUDGET MARKETING — ce que Budgets ne montrait pas : QUELLES DEMANDES Ad & Pro consomment l'enveloppe.
@@ -11,17 +12,11 @@ import { lienDemande } from "@/lib/budget-marketing/integration-vue";
  * engagé (ordre émis, non payé), réglé. L'accès à l'enveloppe est vérifié par l'appelant (`getBudgetOverview`).
  */
 
-export interface LigneDemandeAdPro {
-  id: string;
-  demande: string;
-  nature: string;
-  href: string | null;
-  poste: string;
-  categorie: string;
-  statut: string;
-  accorde: number;
-  engage: number;
-  regle: number;
+/**
+ * Un poste Ad & Pro rangé dans l'enveloppe. Il porte de quoi le regrouper sous SA demande (`cleDemande`) et le filtrer
+ * par catégorie (`categorieId`, sous-catégories comprises) — `budget-marketing/demandes-vue.ts`.
+ */
+export interface LigneDemandeAdPro extends PosteVue {
   /** Un poste HISTORIQUE (intégration Ad & Pro 2026) : payé, sans circuit — sa ligne du fichier. */
   historique?: { ligne: number | null } | null;
 }
@@ -30,65 +25,82 @@ const STATUT_POSTE: Record<string, string> = {
   DRAFT: "En préparation", PENDING: "Soumis", REVISION: "À revoir", APPROVED: "Accordé", REJECTED: "Refusé",
 };
 
-export async function demandesAdProDeLEnveloppe(categories: readonly { id: string; name: string }[]): Promise<LigneDemandeAdPro[]> {
+export async function demandesAdProDeLEnveloppe(categories: readonly { id: string; name: string; parentId?: string | null }[]): Promise<LigneDemandeAdPro[]> {
   if (categories.length === 0) return [];
-  const nomCategorie = new Map(categories.map((c) => [c.id, c.name]));
+  const parId = new Map(categories.map((c) => [c.id, c]));
+  // L'imputation se lit « Tête › Sous-catégorie » : la sous-catégorie seule ne dit pas où l'argent est compté.
+  const imputation = (id: string | null) => {
+    const c = id ? parId.get(id) : undefined;
+    if (!c) return "—";
+    const parent = c.parentId ? parId.get(c.parentId) : undefined;
+    return parent ? `${parent.name} › ${c.name}` : c.name;
+  };
   const postes = await prisma.adProItem.findMany({
-    where: { budgetCategoryId: { in: [...nomCategorie.keys()] } },
+    where: { budgetCategoryId: { in: [...parId.keys()] } },
     orderBy: { updatedAt: "desc" },
     take: 300,
     select: {
-      id: true, label: true, status: true, amountGranted: true, amountEstimated: true, budgetCategoryId: true, expenseOrderId: true,
-      sponsoring: { select: { id: true, reference: true, institution: true } },
-      congressNational: { select: { id: true, name: true } },
-      congressInternational: { select: { id: true, name: true } },
-      event: { select: { id: true, name: true } },
-      training: { select: { id: true, title: true } },
-      promoMaterialParent: { select: { id: true, reference: true, title: true } },
-      declarationInfoMed: { select: { id: true, reference: true, label: true } },
-      montantPayeHistorique: true, historiqueLigne: true, historiqueLotId: true,
+      id: true, label: true, status: true, amountGranted: true, amountEstimated: true, budgetCategoryId: true, expenseOrderId: true, createdAt: true,
+      sponsoring: { select: { id: true, reference: true, institution: true, city: true, requesterId: true } },
+      congressNational: { select: { id: true, name: true, city: true, requesterId: true } },
+      congressInternational: { select: { id: true, name: true, city: true, requesterId: true } },
+      event: { select: { id: true, name: true, city: true, requesterId: true } },
+      training: { select: { id: true, title: true, location: true, requesterId: true } },
+      promoMaterialParent: { select: { id: true, reference: true, title: true, requesterId: true } },
+      declarationInfoMed: { select: { id: true, reference: true, label: true, requesterId: true } },
+      montantPayeHistorique: true, historiqueLigne: true, historiqueLotId: true, historiquePayeLe: true,
     },
   });
   // Un poste historique ne compte que tant que son lot est actif (la règle d'intégration le lit de la même façon).
-  const lotsActifs = new Set((await contextesDesCategories([...nomCategorie.keys()])).map((c) => c.regle.lotId));
+  const lotsActifs = new Set((await contextesDesCategories([...parId.keys()])).map((c) => c.regle.lotId));
   const ordreIds = postes.map((p) => p.expenseOrderId).filter((x): x is string => Boolean(x));
-  const ordres = new Map(
-    (ordreIds.length ? await prisma.expenseOrder.findMany({ where: { id: { in: ordreIds } }, select: { id: true, status: true, amount: true } }) : [])
-      .map((o) => [o.id, o]),
-  );
+  const demandeurIds = [...new Set(postes.map((p) => (p.sponsoring ?? p.congressNational ?? p.congressInternational ?? p.event ?? p.training ?? p.promoMaterialParent ?? p.declarationInfoMed)?.requesterId).filter((x): x is string => Boolean(x)))];
+  const [ordresLus, demandeurs] = await Promise.all([
+    ordreIds.length ? prisma.expenseOrder.findMany({ where: { id: { in: ordreIds } }, select: { id: true, status: true, amount: true } }) : [],
+    demandeurIds.length ? prisma.user.findMany({ where: { id: { in: demandeurIds } }, select: { id: true, name: true } }) : [],
+  ]);
+  const ordres = new Map(ordresLus.map((o) => [o.id, o]));
+  const nomDemandeur = new Map(demandeurs.map((u) => [u.id, u.name]));
   return postes.map((p) => {
     const parent = p.sponsoring
-      ? { demande: `${p.sponsoring.reference} — ${p.sponsoring.institution}`, nature: "Sponsoring", href: `/sponsoring/${p.sponsoring.id}` }
+      ? { cleDemande: `SPONSORING:${p.sponsoring.id}`, demande: `${p.sponsoring.reference} — ${p.sponsoring.institution}`, nature: "Sponsoring", href: `/sponsoring/${p.sponsoring.id}`, lieu: p.sponsoring.city, requesterId: p.sponsoring.requesterId }
       : p.congressNational
-        ? { demande: p.congressNational.name, nature: "Congrès national", href: `/congress-national/${p.congressNational.id}` }
+        ? { cleDemande: `CONGRESS_NATIONAL:${p.congressNational.id}`, demande: p.congressNational.name, nature: "Congrès national", href: `/congress-national/${p.congressNational.id}`, lieu: p.congressNational.city, requesterId: p.congressNational.requesterId }
         : p.congressInternational
-          ? { demande: p.congressInternational.name, nature: "Congrès international", href: `/congress-international/${p.congressInternational.id}` }
+          ? { cleDemande: `CONGRESS_INTERNATIONAL:${p.congressInternational.id}`, demande: p.congressInternational.name, nature: "Congrès international", href: `/congress-international/${p.congressInternational.id}`, lieu: p.congressInternational.city, requesterId: p.congressInternational.requesterId }
           : p.event
-            ? { demande: p.event.name, nature: "Événement", href: `/events/${p.event.id}` }
+            ? { cleDemande: `EVENT:${p.event.id}`, demande: p.event.name, nature: "Événement", href: `/events/${p.event.id}`, lieu: p.event.city, requesterId: p.event.requesterId }
             : p.promoMaterialParent
-              ? { demande: `${p.promoMaterialParent.reference} — ${p.promoMaterialParent.title}`, nature: "Matériel promotionnel", href: `/promo-material/${p.promoMaterialParent.id}` }
+              ? { cleDemande: `PROMO_MATERIAL:${p.promoMaterialParent.id}`, demande: `${p.promoMaterialParent.reference} — ${p.promoMaterialParent.title}`, nature: "Matériel promotionnel", href: `/promo-material/${p.promoMaterialParent.id}`, lieu: null, requesterId: p.promoMaterialParent.requesterId }
               : p.declarationInfoMed
-                ? { demande: `${p.declarationInfoMed.reference} — ${p.declarationInfoMed.label}`, nature: "Information médicale", href: `/information-medicale/${p.declarationInfoMed.id}` }
-                : { demande: p.training?.title ?? "—", nature: "Formation", href: p.training ? lienDemande("TRAINING", p.training.id) : null };
+                ? { cleDemande: `MEDICAL_INFO_DECLARATION:${p.declarationInfoMed.id}`, demande: `${p.declarationInfoMed.reference} — ${p.declarationInfoMed.label}`, nature: "Information médicale", href: `/information-medicale/${p.declarationInfoMed.id}`, lieu: null, requesterId: p.declarationInfoMed.requesterId }
+                : p.training
+                  ? { cleDemande: `TRAINING:${p.training.id}`, demande: p.training.title, nature: "Formation", href: lienDemande("TRAINING", p.training.id), lieu: p.training.location, requesterId: p.training.requesterId }
+                  : { cleDemande: `POSTE:${p.id}`, demande: p.label, nature: "Poste Ad & Pro", href: null, lieu: null, requesterId: null };
+    const { requesterId, ...demande } = parent;
+    const commun = {
+      id: p.id, ...demande, demandeur: requesterId ? nomDemandeur.get(requesterId) ?? null : null,
+      poste: p.label, categorieId: p.budgetCategoryId, categorie: imputation(p.budgetCategoryId),
+    };
     const historique = p.montantPayeHistorique != null && p.historiqueLotId != null && lotsActifs.has(p.historiqueLotId);
     if (historique) {
       const montant = toNumber(p.montantPayeHistorique);
       return {
-        id: p.id, ...parent, poste: p.label, categorie: nomCategorie.get(p.budgetCategoryId ?? "") ?? "—",
-        statut: "Payé — Historique 2026", accorde: montant, engage: 0, regle: montant, historique: { ligne: p.historiqueLigne },
+        ...commun, date: (p.historiquePayeLe ?? p.createdAt).toISOString(),
+        statutCle: "HISTORIQUE", statut: "Payé — Historique 2026", accorde: montant, engage: 0, regle: montant, historique: { ligne: p.historiqueLigne },
       };
     }
     const ordre = p.expenseOrderId ? ordres.get(p.expenseOrderId) : undefined;
     const montantOrdre = ordre ? toNumber(ordre.amount) : 0;
     return {
-      id: p.id,
-      ...parent,
-      poste: p.label,
-      categorie: nomCategorie.get(p.budgetCategoryId ?? "") ?? "—",
+      ...commun,
+      date: p.createdAt.toISOString(),
+      statutCle: p.status,
       statut: STATUT_POSTE[p.status] ?? p.status,
       accorde: toNumber(p.amountGranted ?? p.amountEstimated),
       engage: ordre && ordre.status === "PENDING" ? montantOrdre : 0,
       regle: ordre && ordre.status === "PAID" ? montantOrdre : 0,
+      historique: null,
     };
   });
 }

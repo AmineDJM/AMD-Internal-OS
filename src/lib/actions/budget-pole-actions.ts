@@ -11,7 +11,8 @@ import { DOMAINES, bornesAnnee, estDomainePole, poleDe, type DomainePole } from 
 import { MODULES_AD_PRO_BUDGET } from "@/lib/budget-marketing/domaine";
 import { completerCategoriesDuPole as completer } from "@/lib/budget/enveloppes-pole";
 import { CLE_DE_LA_NATURE, natureDuLibelle, type NatureBv } from "@/lib/budget-regulatory/bv";
-import { refusReallocation } from "@/lib/budget/marketing-vue";
+import { arbreCategories, refusReallocation } from "@/lib/budget/marketing-vue";
+import { getBudgetOverview } from "@/lib/queries/budget";
 
 /**
  * LES BUDGETS DES PÔLES — les gestes de chaque pôle sur SES enveloppes (Direction, 08/10).
@@ -162,8 +163,14 @@ export async function completerCategoriesPole(formData: FormData): Promise<Actio
  * enveloppe : ce que l'une cède, l'autre le reçoit, l'enveloppe ne bouge pas. Le motif est obligatoire et reste dans
  * l'historique du budget (journal d'audit de l'enveloppe, champ « reallocation »). Gardé par le droit de gérer le contenu
  * de l'enveloppe (`canManageEnvelope` : Super Admin, délégués, « Modifier » du budget du pôle — la Direction Marketing).
- * La cession est CONDITIONNELLE : lue et écrite dans la même instruction, deux réallocations simultanées ne font jamais
- * passer une allocation sous zéro.
+ *
+ * BORNÉE (maquette « onglets » validée, 10/2026) : la catégorie qui cède ne donne jamais plus que sa part CESSIBLE — ce
+ * qui reste libre au-dessus de son payé + engagé (cumulés, sous-catégories comprises : `cumul-categories.ts`) ET de ce
+ * que ses sous-catégories répartissent (`budget/marketing-vue.ts`, `cessible`). Le payé et l'engagé sont lus par la vue
+ * d'ensemble (`getBudgetOverview`), donc par la règle d'intégration : jamais additionnés ici.
+ *
+ * La cession est CONDITIONNELLE : lue et écrite dans la même instruction (alloué ≥ montant + plancher), deux
+ * réallocations simultanées ne font jamais passer une allocation sous son plancher.
  */
 export async function reallouerCategorie(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -177,7 +184,7 @@ export async function reallouerCategorie(formData: FormData): Promise<ActionResu
   ]);
   const refusSaisie = refusReallocation({
     sourceId, cibleId, montant, motif,
-    source: source ? { envelopeId: source.envelopeId, parentId: source.parentId, alloue: Number(source.allocated) } : null,
+    source: source ? { envelopeId: source.envelopeId, parentId: source.parentId, alloue: Number(source.allocated), nom: source.name } : null,
     cible: cible ? { envelopeId: cible.envelopeId, parentId: cible.parentId } : null,
   });
   if (refusSaisie || !source || !cible || montant == null || !motif) return { ok: false, error: refusSaisie ?? "Saisie incomplète." };
@@ -189,8 +196,20 @@ export async function reallouerCategorie(formData: FormData): Promise<ActionResu
   if (!env || !pole) return { ok: false, error: "Enveloppe introuvable." };
   if (!canManageEnvelope(user, env)) return refus(pole);
 
+  // La part cessible, lue par la vue d'ensemble (règle d'intégration comprise) — le même chiffre que l'écran.
+  const overview = await getBudgetOverview(user, env.id, null, null, { portee: pole });
+  const noeud = overview ? arbreCategories(overview.categories).find((n) => n.id === source.id) : undefined;
+  if (!overview || !noeud) return { ok: false, error: "Catégorie introuvable." };
+  const plancher = Math.max(0, noeud.paye + noeud.engage, noeud.sousAlloue);
+  const refusBorne = refusReallocation({
+    sourceId, cibleId, montant, motif,
+    source: { envelopeId: source.envelopeId, parentId: source.parentId, alloue: Number(source.allocated), cessible: noeud.cessible, nom: source.name },
+    cible: { envelopeId: cible.envelopeId, parentId: cible.parentId },
+  });
+  if (refusBorne) return { ok: false, error: refusBorne };
+
   const fait = await prisma.$transaction(async (tx) => {
-    const cede = await tx.budgetCategoryLine.updateMany({ where: { id: source.id, allocated: { gte: montant } }, data: { allocated: { decrement: montant } } });
+    const cede = await tx.budgetCategoryLine.updateMany({ where: { id: source.id, allocated: { gte: montant + plancher - 0.005 } }, data: { allocated: { decrement: montant } } });
     if (cede.count === 0) return false;
     await tx.budgetCategoryLine.update({ where: { id: cible.id }, data: { allocated: { increment: montant } } });
     return true;
@@ -203,7 +222,7 @@ export async function reallouerCategorie(formData: FormData): Promise<ActionResu
     summary: `Réallocation de ${somme} : « ${source.name} » → « ${cible.name} » — motif : ${motif.slice(0, 500)}`,
   });
   revalider(pole);
-  return { ok: true, message: `${somme} réalloués à « ${cible.name} ».` };
+  return { ok: true, message: `${somme} réalloués de « ${source.name} » à « ${cible.name} ».` };
 }
 
 function natureDuFormulaire(formData: FormData): NatureBv | null {

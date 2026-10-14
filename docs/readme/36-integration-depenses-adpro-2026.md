@@ -29,7 +29,11 @@ nationale 124 750 · Sponsoring 8 043 208,50 · Matériel promotionnel 3 055 675
 Événements 3 195 142,44 (Réunions 1 643 792 ; Symposium 410 950 ; Staff post-event 1 140 400,44). Les montants **alloués**
 de l'enveloppe ne sont pas modifiés ; une catégorie absente est créée allouée à 0.
 
-### L'assistant (Budget Marketing › Réglages › « Dépenses réelles Ad & Pro 2026 » → `/budget-marketing/integration`)
+### L'assistant (Budget Marketing › onglet **Intégration 2026** → `/budget-marketing/integration`)
+
+> Depuis la maquette « onglets » (10/2026), l'intégration est un **onglet** du module (plus un bandeau des Réglages),
+> visible du seul gestionnaire de l'enveloppe, avec la pastille du nombre d'éléments « absents du fichier » à décider
+> (`budget-marketing/onglets.ts`).
 
 Gestionnaire de l'enveloppe ou Super Admin (`canManageEnvelope`), sur une enveloppe **MARKETING** couvrant 2026.
 

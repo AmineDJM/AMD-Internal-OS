@@ -12,6 +12,9 @@ import { useRun, CategoryCard, CategorySheet, EnvelopeSheet, BudgetTotalSheet } 
 import { EnveloppePoleSheet, type RattachementOptions } from "./enveloppe-marketing-forms";
 import type { DomainePole } from "@/lib/budget/domaines";
 import { cumulerSousCategories } from "@/lib/budget/cumul-categories";
+import { partRepartie } from "@/lib/budget/marketing-vue";
+import { CategoriesMarketing } from "./categories-marketing";
+import { FenetreConfirmation, type Confirmation } from "./fenetre-confirmation";
 
 interface BudgetTotalInfo { mode: "FIXED" | "FLEXIBLE"; value: number; fixed: number }
 type UserOpt = { id: string; name: string };
@@ -42,10 +45,14 @@ export function BudgetSettings({
 }) {
   const peutModifier = marketing ? marketing.canEdit : canManageAccess && !bandeau;
   const router = useRouter();
-  const { run } = useRun();
+  const { run, err: erreurGeste } = useRun();
   const [editEnv, setEditEnv] = React.useState(false);
   const [totalSheet, setTotalSheet] = React.useState(false);
   const [catSheet, setCatSheet] = React.useState<{ cat?: BudgetCategoryView; parentId?: string } | null>(null);
+  const [confirmation, setConfirmation] = React.useState<Confirmation | null>(null);
+  // BUDGET MARKETING (maquette « onglets ») : cartes dépliables, formule du cumul, part répartie en tête, suppression
+  // confirmée dans une fenêtre.
+  const estMarketing = marketing?.domaine === "MARKETING";
 
   // Chaque catégorie AFFICHÉE comprend ses sous-catégories (consommé, engagé, reste, santé) ;
   // la requête, elle, rend la part propre de chaque nœud — le total d'enveloppe n'est pas doublé.
@@ -57,6 +64,20 @@ export function BudgetSettings({
     if (c.parentId) subsByParent.set(c.parentId, [...(subsByParent.get(c.parentId) ?? []), cumulee(c)]);
   }
   const topCatOptions = topCats.map((c) => ({ id: c.id, name: c.name }));
+  const part = partRepartie(overview.envelope.total, topCats.map((c) => ({ alloue: c.allocated })));
+  const repartition = estMarketing
+    ? { total: overview.envelope.total, categories: overview.categories.map((c) => ({ id: c.id, parentId: c.parentId, alloue: c.allocated, nom: c.name })) }
+    : undefined;
+
+  const demanderSuppression = (cat: BudgetCategoryView, n: { paye: number; engage: number; sous: unknown[] }) => setConfirmation({
+    titre: `Supprimer « ${cat.name} » ?`,
+    danger: true,
+    corps: `${n.sous.length ? `Ses ${n.sous.length} sous-catégorie${n.sous.length > 1 ? "s seront aussi supprimées" : " sera aussi supprimée"}. ` : ""}${n.paye > 0.5
+      ? `Les ${formatCurrency(n.paye)} qui y sont imputés repasseront en « à imputer » et remonteront dans « À traiter ».`
+      : "Aucune dépense n'y est imputée."}`,
+    bouton: "Supprimer",
+    ok: async () => { const fd = new FormData(); fd.set("id", cat.id); await run(() => deleteBudgetCategory(fd)); },
+  });
 
   const deleteCat = (cat: BudgetCategoryView) => {
     if (window.confirm(`Supprimer « ${cat.name} » ?${cat.parentId === null ? " Ses sous-catégories seront aussi supprimées." : ""} Les dépenses repasseront en « à imputer ».`)) {
@@ -83,12 +104,30 @@ export function BudgetSettings({
         <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
           <div><dt className="text-xs text-muted-foreground">Montant</dt><dd className="font-medium tabular-nums">{formatCurrency(overview.envelope.total)}</dd></div>
           <div><dt className="text-xs text-muted-foreground">Période</dt><dd className="font-medium">{formatDate(overview.envelope.periodStart)} → {formatDate(overview.envelope.periodEnd)}</dd></div>
-          {marketing ? (
+          {estMarketing ? (
+            <div>
+              <dt className="text-xs text-muted-foreground">Réparti en catégories</dt>
+              <dd className="font-medium tabular-nums">
+                {formatCurrency(part.reparti)} · {Math.round(part.pct)} %
+                {part.depassement > 0.5
+                  ? <span className="ml-1.5 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-semibold text-destructive">dépasse de {formatCurrency(part.depassement)}</span>
+                  : part.nonReparti > 0.5 ? <span className="ml-1.5 text-xs font-normal text-muted-foreground">{formatCurrency(part.nonReparti)} non répartis</span> : null}
+              </dd>
+            </div>
+          ) : marketing ? (
             <div><dt className="text-xs text-muted-foreground">BU · produit</dt><dd className="font-medium">{marketing.rattachement ?? "—"}</dd></div>
           ) : (
             <div><dt className="text-xs text-muted-foreground">Accès ouverts</dt><dd className="font-medium">{overview.envelope.accessRoles.length + overview.envelope.accessUserIds.length || "—"}</dd></div>
           )}
         </dl>
+        {estMarketing && (
+          <>
+            <div className="h-2 overflow-hidden rounded-full bg-secondary" role="img" aria-label={`Part répartie : ${Math.round(part.pct)} %`}>
+              <div className={part.depassement > 0.5 ? "h-full rounded-full bg-destructive" : "h-full rounded-full bg-primary"} style={{ width: `${Math.min(100, part.pct)}%` }} />
+            </div>
+            {marketing?.rattachement && <p className="text-xs text-muted-foreground">BU · produit : {marketing.rattachement}</p>}
+          </>
+        )}
         {overview.envelope.notes && <p className="border-t border-border pt-2 text-sm text-muted-foreground [overflow-wrap:anywhere]">{overview.envelope.notes}</p>}
       </section>
 
@@ -108,8 +147,20 @@ export function BudgetSettings({
         </section>
       )}
 
+      {estMarketing && erreurGeste && <p className="rounded-xl border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">{erreurGeste}</p>}
+      {estMarketing && (
+        <CategoriesMarketing
+          categories={overview.categories}
+          canManage={canManage}
+          onNew={() => setCatSheet({})}
+          onEdit={(cat) => setCatSheet({ cat })}
+          onAddSub={(parentId) => setCatSheet({ parentId })}
+          onDelete={demanderSuppression}
+        />
+      )}
+
       {/* Répartition en catégories */}
-      <section className="space-y-3">
+      {!estMarketing && <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="text-sm font-semibold">Catégories <span className="font-normal text-muted-foreground">({overview.categories.length})</span></h2>
           {canManage && <Button size="sm" onClick={() => setCatSheet({})}><Plus className="h-4 w-4" /> Nouvelle catégorie</Button>}
@@ -134,12 +185,13 @@ export function BudgetSettings({
             ))}
           </div>
         )}
-      </section>
+      </section>}
 
       {editEnv && (marketing
         ? <EnveloppePoleSheet domaine={marketing.domaine} envelope={overview.envelope} options={marketing.options} canDelete={marketing.canDelete} onClose={() => setEditEnv(false)} />
         : <EnvelopeSheet envelope={overview.envelope} users={users} onClose={() => setEditEnv(false)} onDeleted={() => router.push("/budgets")} canDelete={canManageAccess} />)}
-      {catSheet && <CategorySheet envelopeId={overview.envelope.id} cat={catSheet.cat} defaultParentId={catSheet.parentId} parentOptions={topCatOptions} onClose={() => setCatSheet(null)} />}
+      {catSheet && <CategorySheet envelopeId={overview.envelope.id} cat={catSheet.cat} defaultParentId={catSheet.parentId} parentOptions={topCatOptions} onClose={() => setCatSheet(null)} repartition={repartition} />}
+      {confirmation && <FenetreConfirmation c={confirmation} occupe={false} onFermer={() => setConfirmation(null)} />}
       {totalSheet && <BudgetTotalSheet info={budgetTotal} onClose={() => setTotalSheet(false)} />}
     </div>
   );

@@ -13,12 +13,14 @@ import type { EtatPiece } from "@/lib/budget-marketing/integration-vue";
  * coup, à tout moment ; une pièce déjà dans la plateforme se RATTACHE (sur la demande, un poste, le registre) au lieu
  * d'être redéposée — et le serveur la reconnaît de lui-même si on la redépose.
  */
-export function PiecesHistorique({ demandeRowId, pieces, manquantes, rattachables, peutJoindre }: {
+export function PiecesHistorique({ demandeRowId, pieces, manquantes, rattachables, peutJoindre, apres }: {
   demandeRowId: string;
   pieces: EtatPiece[];
   manquantes: number;
   rattachables: { documentId: string; nom: string; ou: string }[];
   peutJoindre: boolean;
+  /** Après un dépôt ou un rattachement réussi (un panneau relit sa fiche). */
+  apres?: () => void;
 }) {
   const { enCours, rafraichir } = useRafraichir();
   const [occupe, setOccupe] = React.useState<string | null>(null);
@@ -34,7 +36,7 @@ export function PiecesHistorique({ demandeRowId, pieces, manquantes, rattachable
       for (const f of Array.from(fichiers)) fd.append("fichiers", f);
       const r = await joindrePiecesIntegration(fd);
       setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Pièces jointes." : r.error ?? "Échec." });
-      if (r.ok) rafraichir();
+      if (r.ok) { rafraichir(); apres?.(); }
     } finally { setOccupe(null); verrou.current = false; }
   }
 
@@ -46,7 +48,7 @@ export function PiecesHistorique({ demandeRowId, pieces, manquantes, rattachable
       fd.set("demandeRowId", demandeRowId); fd.set("cle", cle); fd.set("documentId", documentId);
       const r = await rattacherPieceIntegration(fd);
       setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Rattachée." : r.error ?? "Échec." });
-      if (r.ok) rafraichir();
+      if (r.ok) { rafraichir(); apres?.(); }
     } finally { setOccupe(null); verrou.current = false; }
   }
 

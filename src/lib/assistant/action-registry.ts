@@ -1349,6 +1349,9 @@ X("BUDGET MARKETING — L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 (maq
   "integration-adpro-actions:validerIntegrationAdPro", "integration-adpro-actions:annulerIntegrationAdPro",
   "integration-adpro-actions:deciderAbsenteIntegration", "integration-adpro-actions:joindrePiecesIntegration",
   "integration-adpro-actions:rattacherPieceIntegration", "integration-adpro-actions:relierEcritureIntegration",
+  // LIRE la fiche « Historique 2026 » d'une demande pour le panneau latéral des onglets Demandes Ad & Pro et
+  // Intégration 2026 (maquette « onglets », 10/2026) : une lecture d'écran, gardée par l'enveloppe du lot.
+  "integration-adpro-actions:ficheHistoriqueIntegration",
 ]);
 X("DEVIS NATIFS → BON DE COMMANDE AU BUREAU DU SECRÉTARIAT (Direction, 10/2026, « comme dans Ad & Pro ») — l'assistante "
   + "dépose et RETRANSCRIT le devis ligne à ligne devant le papier ; le DEMANDEUR coche les lignes qu'il retient, puis génère "
