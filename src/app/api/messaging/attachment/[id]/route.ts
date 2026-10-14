@@ -53,12 +53,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   if (!bytes) return new NextResponse(null, { status: 404 });
 
   const filename = encodeURIComponent(attachment.name);
+  // UN FICHIER QUI PEUT PORTER DU SCRIPT (SVG, HTML, XML) s'affiche, mais n'exécute rien : ouvert directement à son
+  // adresse, un SVG piégé jouerait son script sous l'origine de la plateforme. `nosniff` partout : le navigateur ne
+  // devine pas un autre type que celui qu'on annonce.
+  const mime = attachment.mime || "application/octet-stream";
+  const scriptable = /svg|html|xml|javascript/i.test(mime) || /\.(svgz?|html?|xhtml|xml)$/i.test(attachment.name);
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
-      "Content-Type": attachment.mime || "application/octet-stream",
+      "Content-Type": mime,
       "Content-Disposition": `${dl ? "attachment" : "inline"}; filename*=UTF-8''${filename}`,
       "Content-Length": String(bytes.length),
       "Cache-Control": "private, no-store",
+      "X-Content-Type-Options": "nosniff",
+      ...(scriptable ? { "Content-Security-Policy": "default-src 'none'; img-src data:; style-src 'unsafe-inline'; sandbox" } : {}),
     },
   });
 }
