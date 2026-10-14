@@ -119,9 +119,12 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
 
   const order = await prisma.expenseOrder.findUnique({
     where: { id },
-    select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, status: true, dueDate: true },
+    select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, status: true, dueDate: true, sourceType: true, sourceId: true },
   });
   if (!order) return { ok: false, error: "Ordre de dépense introuvable." };
+  // LE BV D'UN DOSSIER RÉGLEMENTAIRE : la décision se lit sur l'étape « Demande du BV » du dossier
+  // (« autorisé — chez les Finances », « refusé — motif ») ; c'est là que le demandeur est renvoyé.
+  const dossierBv = order.sourceType === "REGULATORY_PRODUCT" && order.sourceId ? `/regulatory/${order.sourceId}` : null;
 
   const next = applyDecision(order.centralStatus as CentralStatus, decision);
   if (!next) {
@@ -207,7 +210,7 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   }
   if (order.requestedById) {
     // Le demandeur ne siège pas au centre : il va sur SON dossier (la demande qui porte l'ordre).
-    const dossier = await dossierHrefByOrder([id]).then((m) => m.get(id)).catch(() => undefined);
+    const dossier = dossierBv ?? await dossierHrefByOrder([id]).then((m) => m.get(id)).catch(() => undefined);
     await notifyUser({
       userId: order.requestedById,
       type: next === "APPROVED" ? "GENERIC" : "VALIDATION_REQUIRED",
@@ -219,6 +222,7 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
 
   revalidatePath(PATH);
   revalidatePath("/finances/paiements-a-faire");
+  if (dossierBv) revalidatePath(dossierBv);
   return { ok: true, message: `${CENTRAL_DECISION_LABEL[decision]} — enregistré.` };
 }
 

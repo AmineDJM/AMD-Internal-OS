@@ -24,6 +24,7 @@ import { BvRequestSheet } from "./bv-requests";
 import { DossierTimeline, type TimelineStepView } from "./dossier-timeline";
 import { CtdInitiale } from "./ctd-initiale";
 import { CTD_INITIALE_ETAPE, CTD_INITIALE_CATEGORIE } from "@/lib/regulatory/ctd-initiale";
+import { ETAT_BV, type SuiviBvVue } from "@/lib/regulatory/bv-circuit";
 
 const STATE_OPTS: RegStepState[] = ["TODO", "DOING", "DONE", "BLOCKED"];
 
@@ -74,8 +75,14 @@ function Dot({ state, n }: { state: RegStepState; n: number }) {
  */
 export function RegulatoryProcess({
   productId, workflow, checklist, canUpdate, canUpload, canDelete, stepDocs, path,
-  dossierSteps, reference, ctd,
+  dossierSteps, reference, ctd, bvSuivi = {},
 }: {
+  /**
+   * L'état de chaque BV, par étape de DEMANDE (`bv25_req`, `bv75_req`) — lu sur son ordre de dépense :
+   * demandé (au centre), autorisé (chez les Finances), payé (quittance), refusé (motif). `null` : rien
+   * n'a été demandé, ou la demande a été annulée.
+   */
+  bvSuivi?: Record<string, SuiviBvVue | null>;
   productId: string;
   workflow: RegWorkflowState | null;
   checklist: RegChecklistState | null;
@@ -146,6 +153,14 @@ export function RegulatoryProcess({
     const expanded = openKey === s.key;
     const bvType = BV_REQUEST_STEPS[s.key];
     const bvPaid = bvType ? regStepStatus(state, BV_PAYMENT_STEPS[s.key]) === "DONE" : false;
+    // LE BV SE DEMANDE EN CLIQUANT L'ÉTAPE — tant qu'aucune demande ne vit (rien demandé, ou refusé par
+    // le centre : on redemande). Une demande en cours, autorisée ou payée ne se double pas : le serveur
+    // le refuse aussi (`requestBV`), l'écran ne propose donc pas le geste.
+    const suivi = bvType ? bvSuivi[s.key] ?? null : null;
+    const peutDemanderBv = Boolean(bvType && canUpdate && (suivi ? suivi.etat === "REFUSE" : !bvPaid));
+    // L'étape de PAIEMENT rappelle la quittance déposée par les Finances.
+    const reqDuPaiement = Object.keys(BV_PAYMENT_STEPS).find((k) => BV_PAYMENT_STEPS[k] === s.key);
+    const quittance = reqDuPaiement ? bvSuivi[reqDuPaiement]?.quittance ?? null : null;
 
     return (
       <li key={s.key} className="relative pl-10">
@@ -197,15 +212,23 @@ export function RegulatoryProcess({
                 <Badge tone={REG_STEP_STATE[st].tone} dot={false}>{busy === s.key ? <Loader2 className="h-3 w-3 animate-spin" /> : REG_STEP_STATE[st].label}</Badge>
               )}
 
-              {/* LA DEMANDE DE BV SE FAIT ICI. Le bouton disparaît une fois le BV payé : ce
-                  qui est réglé ne se redemande pas depuis l'étape qui l'a demandé. */}
-              {bvType && canUpdate && !bvPaid && (
-                <Button size="sm" variant="outline" className="h-9 sm:h-8" onClick={() => setBvStep(s.key)}>
-                  <ReceiptText className="h-3.5 w-3.5" /> Demander le {bvType}
-                </Button>
-              )}
             </div>
           </div>
+
+          {/* LA DEMANDE DE BV SE FAIT ICI — l'étape elle-même est le geste (montant, pièce jointe et
+              commentaire facultatifs), puis elle raconte où en est le bon : au centre, chez les
+              Finances, payé avec sa quittance, ou refusé avec le motif — et l'on redemande. */}
+          {bvType && (suivi || peutDemanderBv) && (
+            <BvEtape suivi={suivi} bvType={bvType} peutDemander={peutDemanderBv} onDemander={() => setBvStep(s.key)} />
+          )}
+          {quittance && (
+            <a
+              href={`/api/documents/${quittance.id}`} target="_blank" rel="noreferrer"
+              className="mt-2 inline-flex min-h-9 items-center gap-1 text-xs text-primary hover:underline sm:min-h-0"
+            >
+              <Paperclip className="h-3 w-3" /> Quittance déposée par les Finances : {quittance.name}
+            </a>
+          )}
 
           {expanded && (
             <div className="mt-3 space-y-3 border-t border-border pt-3">
@@ -336,6 +359,66 @@ export function RegulatoryProcess({
           bvType={BV_REQUEST_STEPS[bvStep] ?? "BV"}
           onClose={() => setBvStep(null)}
         />
+      )}
+    </div>
+  );
+}
+
+const fmtJour = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("fr-FR") : null);
+
+/**
+ * LE BV DANS SON ÉTAPE — « Demande du BV 25 % » se clique, puis dit où en est le bon.
+ *
+ * Demandé (au centre de paiement) → Autorisé (chez les Finances) → Payé (la quittance, déposée par les
+ * Finances, s'ouvre d'ici) ; ou Refusé, avec le motif écrit par le centre (« Non prioritaire »…), et
+ * le geste pour redemander. L'état est lu sur l'ordre de dépense, jamais saisi à part.
+ */
+function BvEtape({
+  suivi, bvType, peutDemander, onDemander,
+}: { suivi: SuiviBvVue | null; bvType: string; peutDemander: boolean; onDemander: () => void }) {
+  const e = suivi ? ETAT_BV[suivi.etat] : null;
+  return (
+    <div className="mt-2 space-y-2">
+      {suivi && e && (
+        <div className={cn(
+          "rounded-md border px-2.5 py-2 text-xs",
+          suivi.etat === "REFUSE" ? "border-destructive/30 bg-destructive/5"
+            : suivi.etat === "PAYE" ? "border-success/30 bg-success/5" : "border-border bg-secondary/30",
+        )}>
+          <p className="flex flex-wrap items-center gap-1.5">
+            <Badge tone={e.tone} dot={false}>{e.label}</Badge>
+            <span className="text-muted-foreground [overflow-wrap:anywhere]">
+              {e.detail} · <span className="font-mono">{suivi.reference}</span> · {suivi.montant.toLocaleString("fr-FR")} DZD
+            </span>
+          </p>
+          <p className="mt-1 text-muted-foreground">
+            Demandé le {fmtJour(suivi.demandeLe)}
+            {suivi.decideLe && (suivi.etat === "AUTORISE" || suivi.etat === "REFUSE") && <> · {suivi.etat === "REFUSE" ? "refusé" : "autorisé"} le {fmtJour(suivi.decideLe)}</>}
+            {suivi.payeLe && <> · payé le {fmtJour(suivi.payeLe)}</>}
+          </p>
+          {suivi.etat === "REFUSE" && (
+            <p className="mt-1 whitespace-pre-wrap text-destructive [overflow-wrap:anywhere]">
+              <span className="font-medium">Motif : </span>{suivi.motifRefus ?? "non précisé"}
+            </p>
+          )}
+          {suivi.quittance && (
+            <a href={`/api/documents/${suivi.quittance.id}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-primary hover:underline">
+              <Paperclip className="h-3 w-3" /> Quittance : {suivi.quittance.name}
+            </a>
+          )}
+        </div>
+      )}
+      {peutDemander && (
+        <button
+          type="button" onClick={onDemander}
+          className="flex min-h-11 w-full flex-wrap items-center justify-between gap-x-3 gap-y-0.5 rounded-md border border-primary/40 bg-primary/5 px-3 py-2 text-left text-sm font-medium text-primary hover:bg-primary/10"
+        >
+          <span className="inline-flex items-center gap-2">
+            <ReceiptText className="h-4 w-4 shrink-0" />
+            {suivi?.etat === "REFUSE" ? `Redemander le ${bvType}` : `Demander le ${bvType}`}
+          </span>
+          <span className="text-xs font-normal text-muted-foreground">pièce jointe et commentaire facultatifs →</span>
+        </button>
       )}
     </div>
   );

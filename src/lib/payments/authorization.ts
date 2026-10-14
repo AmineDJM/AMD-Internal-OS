@@ -165,6 +165,18 @@ export const PAYMENT_CENTRE_REFUSAL =
   + "qui y ont été nommément désignées — un Super Admin peut vous y désigner depuis Administration → Accès.";
 
 /**
+ * LES MOTIFS DE REFUS QU'ON PROPOSE EN UN CLIC (Direction, 10/2026) — « refusé pour “non prioritaire” ou
+ * autre commentaire ». Ce sont des RACCOURCIS d'écriture, pas une liste fermée : le motif reste un texte
+ * libre, exigé par `decidePayment`, et le centre peut compléter ou écrire le sien.
+ */
+export const MOTIFS_REFUS_RAPIDES: readonly string[] = [
+  "Non prioritaire",
+  "Trésorerie insuffisante pour le moment",
+  "Pièces justificatives insuffisantes",
+  "Montant à justifier",
+];
+
+/**
  * L'état qui suit une décision.
  *
  * Le centre ne rend plus que DEUX décisions, autoriser ou refuser (décision de la Direction,

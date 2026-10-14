@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { etatDeLOrdreBv, ETAT_BV } from "@/lib/regulatory/bv-circuit";
 
 export interface BvItem {
   id: string;
@@ -15,16 +16,21 @@ export interface BvItem {
   label: string;
   amount: number;
   status: string;
+  /** La décision du centre de paiement — l'état se lit sur le couple (`etatDeLOrdreBv`). */
+  centralStatus: string;
   dueDate: string | null;
   paidDate: string | null;
 }
 
-const BV_STATUS: Record<string, { label: string; tone: "warning" | "success" | "danger" | "neutral" }> = {
-  PENDING: { label: "À régler", tone: "warning" },
-  REVISION_REQUESTED: { label: "Révision demandée", tone: "danger" },
-  PAID: { label: "Réglé", tone: "success" },
-  CANCELLED: { label: "Annulé", tone: "neutral" },
-};
+/**
+ * L'état d'un BV de la liste : celui du circuit — demandé (au centre), autorisé (chez les Finances),
+ * payé, refusé —, ou « Annulé ». « À régler » disait la même chose d'un BV que le centre n'avait pas
+ * encore vu et d'un BV qu'il venait de refuser.
+ */
+function etatLu(b: BvItem): { label: string; tone: "warning" | "success" | "danger" | "neutral" | "info" } {
+  const e = etatDeLOrdreBv(b);
+  return e ? { label: `${ETAT_BV[e].label} — ${ETAT_BV[e].detail}`, tone: ETAT_BV[e].tone } : { label: "Annulé", tone: "neutral" };
+}
 
 const fmtDZD = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("fr-FR") : null);
@@ -59,7 +65,7 @@ export function BvRequestSheet({
       open
       onClose={() => !busy && onClose()}
       title={`Demander le ${bvType}`}
-      description="Envoyée à l'espace comptable (ordre de dépense). L'étape du processus est cochée du même geste."
+      description="La demande part au centre de paiement, qui voit de quel produit elle vient ; autorisée, elle va aux Finances, qui la paient et déposent la quittance. L'étape du processus est cochée du même geste."
     >
       <form
         action={async (fd) => {
@@ -86,8 +92,8 @@ export function BvRequestSheet({
           </div>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="note">Note pour le comptable</Label>
-          <Textarea id="note" name="note" placeholder="Précisions éventuelles (référence, urgence…)" />
+          <Label htmlFor="note">Commentaire (facultatif)</Label>
+          <Textarea id="note" name="note" placeholder="Lu par le centre de paiement : urgence, échéance ANPP, précisions…" />
         </div>
 
         {/* UNE OU PLUSIEURS PIÈCES : un BV arrive rarement seul (proforma, courrier de
@@ -135,7 +141,7 @@ export function BvRequestSheet({
         <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Annuler</Button>
           <Button type="submit" disabled={busy}>
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />} Envoyer au comptable
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ReceiptText className="h-4 w-4" />} Envoyer au centre de paiement
           </Button>
         </div>
       </form>
@@ -170,7 +176,7 @@ export function BvRequests({ items }: { items: BvItem[] }) {
               {b.paidDate && <> · réglé le {fmtDate(b.paidDate)}</>}
             </p>
           </div>
-          <Badge tone={BV_STATUS[b.status]?.tone ?? "neutral"} dot={false}>{BV_STATUS[b.status]?.label ?? b.status}</Badge>
+          <Badge tone={etatLu(b).tone} dot={false}>{etatLu(b).label}</Badge>
         </li>
       ))}
     </ul>
