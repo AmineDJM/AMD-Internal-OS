@@ -3,32 +3,35 @@ import { requireModule } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ModuleTabs } from "@/components/shared/module-tabs";
-import { visibleTabs } from "@/lib/nav-tabs";
-import { BUDGET_MARKETING_TABS } from "@/lib/labels";
-import { enveloppesGerees, vueDuLot } from "@/lib/budget-marketing/integration-serveur";
+import { resolveBudgetEnvelope } from "@/lib/budget-scope";
+import { contexteIntegration, ongletsBudgetMarketing } from "@/lib/budget-marketing/onglets";
 import { AssistantIntegration } from "./assistant-integration";
-import { LotIntegre } from "./lot-integre";
+import { LotIntegre, type FiltreLot } from "./lot-integre";
 
 export const dynamic = "force-dynamic";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * BUDGET MARKETING › INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 (maquette « adpro-integration » validée).
+ * BUDGET MARKETING › INTÉGRATION 2026 — un ONGLET du module (maquette « onglets » validée, Direction 10/2026), réservé à
+ * qui gère l'enveloppe, avec le nombre d'éléments « absents du fichier » à décider (`budget-marketing/onglets.ts`).
  *
  * Sans lot sur l'enveloppe : l'ASSISTANT en quatre étapes — lire le fichier, trouver ou créer chaque demande, les pièces
- * (facultatives à ce stade), vérifier puis valider (double confirmation, écriture d'un bloc).
- * Avec un lot : ce qu'il a fait (30 demandes, pièces manquantes), la liste « Dans la plateforme, absentes du fichier »
- * (garder / sortir, à tout moment) et l'annulation d'un bloc.
+ * (facultatives à ce stade), vérifier puis valider (double confirmation, écriture d'un bloc). Une fois le lot validé, la
+ * page bascule d'elle-même sur le LOT : suivi des pièces (filtre « pièces manquantes », `?filtre=manquantes`), chaque
+ * demande en panneau, « Dans la plateforme, absentes du fichier » (`#absentes`, garder / sortir à tout moment) et
+ * l'annulation d'un bloc, repliée. Une annulation ramène l'assistant.
  *
- * Porte : le module Budget Marketing pour entrer ; gérer l'enveloppe (gestionnaire, Super Admin) pour agir — tenue par
- * chaque action serveur, jamais par l'écran seul.
+ * Porte : le module Budget Marketing pour entrer ; gérer l'enveloppe (gestionnaire, Super Admin) pour la voir et agir —
+ * tenue par chaque action serveur, jamais par l'écran seul.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export default async function IntegrationAdProPage({ searchParams }: { searchParams: { env?: string } }) {
+export default async function IntegrationAdProPage({ searchParams }: { searchParams: { env?: string; filtre?: string } }) {
   const user = await requireModule("BUDGET_MARKETING");
-  const [tabs, enveloppes] = await Promise.all([visibleTabs(user, BUDGET_MARKETING_TABS), enveloppesGerees(user)]);
-  const env = enveloppes.find((e) => e.id === searchParams.env) ?? enveloppes[0] ?? null;
-  const lot = env?.lotActif ? await vueDuLot(user, env.id) : null;
+  const ctx = await contexteIntegration(user, resolveBudgetEnvelope(searchParams.env));
+  const tabs = await ongletsBudgetMarketing(user, ctx);
+  const env = ctx.enveloppe;
+  const lot = ctx.lot;
+  const filtre: FiltreLot = searchParams.filtre === "manquantes" ? "MANQUANTES" : searchParams.filtre === "completes" ? "COMPLETES" : "TOUT";
 
   return (
     <div className="space-y-5">
@@ -41,16 +44,16 @@ export default async function IntegrationAdProPage({ searchParams }: { searchPar
         <EmptyState icon="Wallet" title="Aucune enveloppe à intégrer" description="L'intégration se pose sur une enveloppe Budget Marketing couvrant 2026 que vous gérez (gestionnaire de l'enveloppe ou Super Admin)." />
       ) : (
         <>
-          {enveloppes.length > 1 && (
+          {ctx.gerees.length > 1 && (
             <nav className="flex flex-wrap gap-2 text-sm" aria-label="Enveloppe">
-              {enveloppes.map((e) => (
+              {ctx.gerees.map((e) => (
                 <Link key={e.id} href={`?env=${encodeURIComponent(e.id)}`} className={e.id === env.id ? "rounded-full bg-primary px-3 py-1 text-primary-foreground" : "rounded-full border border-border px-3 py-1 hover:bg-secondary"}>
                   {e.nom}{e.lotActif ? " · intégrée" : ""}
                 </Link>
               ))}
             </nav>
           )}
-          {lot ? <LotIntegre lot={lot} enveloppe={env.nom} /> : <AssistantIntegration envelopeId={env.id} enveloppe={env.nom} />}
+          {lot ? <LotIntegre key={lot.id} lot={lot} enveloppe={env.nom} filtreInitial={filtre} /> : <AssistantIntegration envelopeId={env.id} enveloppe={env.nom} />}
         </>
       )}
     </div>

@@ -31,6 +31,8 @@ import { NouvelleEnveloppePole } from "./enveloppe-marketing-forms";
 import { VueEnsembleRegulatory } from "./vue-regulatory";
 import { VueEnsembleMarketing } from "./vue-marketing";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
+import { contexteIntegration, ongletsBudgetMarketing } from "@/lib/budget-marketing/onglets";
+import { vueDuLot, type VueLot } from "@/lib/budget-marketing/integration-serveur";
 import { ancreCategorieBudget } from "@/lib/chemins/budgets";
 
 /**
@@ -69,7 +71,14 @@ const ONGLETS: Record<PorteeBudget, NavTab[]> = {
   REGULATORY: BUDGET_REGULATORY_TABS,
   OPERATIONS: BUDGET_OPERATIONS_TABS,
 };
-const ongletsDe = (user: CurrentUser, c: Config) => visibleTabs(user, ONGLETS[c.portee]);
+/**
+ * Les onglets d'une portée. BUDGET MARKETING ajoute « Intégration 2026 » à qui gère une enveloppe 2026, avec le nombre
+ * d'éléments à décider sur l'enveloppe regardée (`budget-marketing/onglets.ts`) ; `lotConnu` évite de relire un lot.
+ */
+async function ongletsDe(user: CurrentUser, c: Config, envIdVu: string | null = null, lotConnu?: { envelopeId: string; lot: VueLot | null }) {
+  if (c.portee !== "MARKETING") return visibleTabs(user, ONGLETS[c.portee]);
+  return ongletsBudgetMarketing(user, await contexteIntegration(user, envIdVu, lotConnu));
+}
 const poleDeLaConfig = (c: Config): DomainePole | null => (c.portee === "TOUT" ? null : c.portee);
 
 /** Dans Budgets : le mot qui dit qu'une enveloppe se gère dans le budget de son pôle (lien si la personne y a accès). */
@@ -84,14 +93,16 @@ export function GerePar({ user, domaine }: { user: CurrentUser; domaine: Domaine
 
 export async function VueEnsembleBudget({ user, searchParams, config }: { user: CurrentUser; searchParams: ParamsBudget; config: Config }) {
   const opts = { portee: config.portee };
-  const [envelopes, grandTotal, tabs] = await Promise.all([
+  const [envelopes, grandTotal] = await Promise.all([
     getEnvelopes(user, opts),
     getEnvelopesGrandTotal(user, opts),
-    ongletsDe(user, config),
   ]);
   const { from, to } = periode(searchParams);
   const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), from, to, opts);
   const pole = poleDeLaConfig(config);
+  // Budget Marketing : le lot d'intégration de l'enveloppe regardée (« À traiter », onglet Intégration) — lu une fois.
+  const lot = pole === "MARKETING" && overview?.integration ? await vueDuLot(user, overview.envelope.id) : null;
+  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? resolveBudgetEnvelope(searchParams.env), overview ? { envelopeId: overview.envelope.id, lot } : undefined);
   const description = pole ? DOMAINES[pole].description : "Où en est votre budget, en un coup d'œil.";
 
   if (!overview) {
@@ -131,7 +142,7 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
     return (
       <>
         <SurlignerCible ids={[searchParams.cible]} />
-        <VueEnsembleMarketing user={user} base={config.base} titre={config.titre} description={description} overview={overview} envelopes={envelopes} tabs={tabs} />
+        <VueEnsembleMarketing user={user} base={config.base} titre={config.titre} description={description} overview={overview} envelopes={envelopes} tabs={tabs} lot={lot} />
       </>
     );
   }
@@ -327,9 +338,10 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
 
 export async function VueDepensesBudget({ user, searchParams, config }: { user: CurrentUser; searchParams: ParamsBudget; config: Config }) {
   const opts = { portee: config.portee };
-  const [envelopes, tabs, societes] = await Promise.all([getEnvelopes(user, opts), ongletsDe(user, config), getMyCompanies(user.id)]);
+  const [envelopes, societes] = await Promise.all([getEnvelopes(user, opts), getMyCompanies(user.id)]);
   const { from, to } = periode(searchParams);
   const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), from, to, opts);
+  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? resolveBudgetEnvelope(searchParams.env));
 
   const canManageContent = overview ? canManageEnvelope(user, overview.envelope) : canManageEnvelopes(user);
   const canAttribute = hasGlobalView(user.role) || canManageContent;
@@ -413,17 +425,17 @@ export async function VueReglagesBudget({ user, searchParams, config }: { user: 
   // total) : prérogative Super Admin. Une enveloppe de pôle se gouverne aussi par le module de budget de son pôle.
   const canManageAccess = canManageEnvelopes(user);
 
-  const [envelopes, settings, users, tabs, rattachements] = await Promise.all([
+  const [envelopes, settings, users, rattachements] = await Promise.all([
     getEnvelopes(user, opts),
     getAppSettings(),
     canManageAccess && !pole
       ? prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } })
       : Promise.resolve([] as { id: string; name: string }[]),
-    ongletsDe(user, config),
     pole ? optionsRattachement() : Promise.resolve(null),
   ]);
   const { from, to } = periode(searchParams);
   const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), from, to, opts);
+  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? resolveBudgetEnvelope(searchParams.env));
   const poleTenant = !pole && overview !== null ? poleDe(overview.envelope) : null;
   const tenueAilleurs = poleTenant !== null;
 
@@ -466,21 +478,6 @@ export async function VueReglagesBudget({ user, searchParams, config }: { user: 
       ) : (
         <>
           <BudgetContextBar envelopes={envelopes} currentId={overview.envelope.id} from={overview.period.from} to={overview.period.to} />
-          {/* L'INTÉGRATION DES DÉPENSES RÉELLES AD & PRO 2026 — l'assistant, ou le lot déjà posé (garder / sortir, annuler). */}
-          {pole === "MARKETING" && canManageContent && (
-            <Link
-              href={`/budget-marketing/integration?env=${encodeURIComponent(overview.envelope.id)}`}
-              className="surface flex flex-wrap items-center gap-2 rounded-xl p-3 text-sm hover:bg-secondary/40"
-            >
-              <strong>Dépenses réelles Ad &amp; Pro 2026</strong>
-              <span className="text-muted-foreground">
-                {overview.integration
-                  ? `intégrées le ${overview.integration.integreLe.slice(8, 10)}/${overview.integration.integreLe.slice(5, 7)}${overview.integration.aDecider ? ` — ${overview.integration.aDecider} élément(s) absent(s) du fichier à décider` : ""}`
-                  : "— intégrer le fichier « Dépenses AP » (assistant en quatre étapes)"}
-              </span>
-              <ArrowRight className="ml-auto h-4 w-4" />
-            </Link>
-          )}
           <BudgetSettings
             overview={overview}
             canManage={canManageContent}

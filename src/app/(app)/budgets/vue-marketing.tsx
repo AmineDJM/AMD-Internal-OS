@@ -5,7 +5,9 @@ import { rapportMarketing } from "@/lib/queries/budget-marketing-rapport";
 import { PageHeader } from "@/components/shared/page-header";
 import { ModuleTabs, type ModuleTab } from "@/components/shared/module-tabs";
 import { InfoBulle } from "@/components/ui/info-bulle";
-import { dinar, disponible, pctPeriodeEcoulee, pourcent, rythme } from "@/lib/budget/marketing-vue";
+import { dinar, disponible, pctPeriodeEcoulee, pourcent, resteIntegration, rythme } from "@/lib/budget/marketing-vue";
+import { cleMois } from "@/lib/budget/engage";
+import type { VueLot } from "@/lib/budget-marketing/integration-serveur";
 import { BudgetContextBar } from "./budget-context-bar";
 import { TableauMarketing } from "./marketing-tableau";
 
@@ -22,7 +24,7 @@ const dzd = (n: number) => `${dinar(n).toLocaleString("fr-FR")} DZD`;
 const nb = (n: number) => dinar(n).toLocaleString("fr-FR");
 const jourCourt = (d: Date) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 
-export async function VueEnsembleMarketing({ user, base, titre, description, overview, envelopes, tabs }: {
+export async function VueEnsembleMarketing({ user, base, titre, description, overview, envelopes, tabs, lot }: {
   user: CurrentUser;
   base: string;
   titre: string;
@@ -30,6 +32,8 @@ export async function VueEnsembleMarketing({ user, base, titre, description, ove
   overview: BudgetOverview;
   envelopes: BudgetEnvelopeOption[];
   tabs: ModuleTab[];
+  /** Le lot d'intégration Ad & Pro 2026 de l'enveloppe (pièces manquantes, absentes à décider) — `null` sans lot. */
+  lot: VueLot | null;
 }) {
   const { rapport } = await rapportMarketing(user, overview);
   const t = overview.totals;
@@ -42,6 +46,8 @@ export async function VueEnsembleMarketing({ user, base, titre, description, ove
   const env = overview.envelope.id;
   const q = `env=${encodeURIComponent(env)}`;
   const exportBase = `/api/budgets/marketing/export?${q}&from=${overview.period.from.slice(0, 10)}&to=${overview.period.to.slice(0, 10)}`;
+  const peutGerer = canManageEnvelope(user, overview.envelope);
+  const integration = lot ? resteIntegration(lot) : null;
   const pill = r.cle === "AU_RYTHME" ? "bg-success/10 text-success" : r.cle === "EN_AVANCE" ? "bg-warning/15 text-warning" : "bg-primary/10 text-primary";
 
   return (
@@ -68,27 +74,33 @@ export async function VueEnsembleMarketing({ user, base, titre, description, ove
         </div>
         <div className="relative mx-4 mb-2 mt-7 flex h-3.5 rounded-full bg-muted sm:mx-5" role="img" aria-label={`Payé ${Math.round(pourcent(t.consumed, t.total))} %, engagé ${Math.round(pourcent(t.committed, t.total))} %, disponible ${Math.round(pourcent(Math.max(0, dispo), t.total))} %`}>
           <span className="h-full rounded-l-full bg-primary" style={{ width: largeur(t.consumed) }} />
-          <span className="h-full bg-primary/40" style={{ width: largeur(Math.min(t.committed, Math.max(0, t.total - t.consumed))) }} />
+          <span className="h-full bg-warning" style={{ width: largeur(Math.min(t.committed, Math.max(0, t.total - t.consumed))) }} />
           <span className="absolute -bottom-1 -top-1 w-0.5 bg-foreground" style={{ left: `${ecoule}%` }}>
             <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap text-[11px] text-muted-foreground">{jourCourt(maintenant)}</span>
           </span>
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1.5 px-4 pb-4 pt-1 text-sm sm:px-5">
-          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-primary" />Payé <b className="tabular-nums">{nb(t.consumed)}</b></span>
-          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-primary/40" />Engagé, pas encore payé <b className="tabular-nums">{nb(t.committed)}</b>{(t.enCircuit ?? 0) > 0.5 && <span className="text-muted-foreground">(dont {nb(t.enCircuit ?? 0)} consommés, en paiement)</span>}</span>
+          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-primary" />Payé <b className="tabular-nums">{nb(t.consumed)}</b>{(overview.integration?.historique ?? 0) > 0.5 && <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-medium text-violet-600 dark:text-violet-300">dont {nb(overview.integration?.historique ?? 0)} Historique 2026</span>}</span>
+          <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-warning" />Engagé, pas encore payé <b className="tabular-nums">{nb(t.committed)}</b>{(t.enCircuit ?? 0) > 0.5 && <span className="text-muted-foreground">(dont {nb(t.enCircuit ?? 0)} consommés, en paiement)</span>}</span>
           <span className="inline-flex items-center gap-1.5"><i className="inline-block h-2.5 w-2.5 rounded-sm bg-muted ring-1 ring-border" />Disponible <b className={`tabular-nums ${dispo < 0 ? "text-destructive" : ""}`}>{nb(dispo)}</b></span>
         </div>
       </section>
 
       <TableauMarketing
+        categoriesBrutes={overview.categories.map((c) => ({ id: c.id, name: c.name, parentId: c.parentId, allocated: c.allocated, consumed: c.consumed, committed: c.committed }))}
+        integration={integration}
+        moisCourant={cleMois(maintenant)}
         donnees={{
           enveloppe: rapport.enveloppe, categories: rapport.categories, sansCategorie: rapport.sansCategorie, faits: rapport.faits,
           engagements: rapport.engagements, demandes: rapport.demandes, moisEnveloppe: rapport.moisEnveloppe, n1: rapport.n1,
         }}
         reallocations={rapport.reallocations}
         pctEcoule={ecoule}
-        peutReallouer={canManageEnvelope(user, overview.envelope)}
-        liens={{ depenses: `${base}/depenses?${q}`, reglages: `${base}/reglages?${q}`, demandes: `${base}/ad-pro?${q}`, export: exportBase }}
+        peutReallouer={peutGerer}
+        liens={{
+          depenses: `${base}/depenses?${q}`, reglages: `${base}/reglages?${q}`, demandes: `${base}/ad-pro?${q}`, export: exportBase,
+          integration: lot && peutGerer ? `${base}/integration?${q}` : null,
+        }}
       />
     </div>
   );

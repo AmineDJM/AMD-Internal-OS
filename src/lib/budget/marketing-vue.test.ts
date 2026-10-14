@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
-  CLE_SANS, alertesBudget, disponible, filtresDepuis, libellePeriode, lignesParCategorie, moisEntre, pctPeriodeEcoulee,
+  CLE_SANS, alertesBudget, arbreCategories, cessible, disponible, effetAllocation, filtresDepuis, formuleCumul, idsDeLaCategorie,
+  libellePeriode, lignesParCategorie, moisEntre, partRepartie, pctPeriodeEcoulee, propositionReallocation, resteIntegration, santeCategorie,
   periodesProposees, refusReallocation, roulerCategories, rythme, serieMensuelle, topDemandes, vueFiltree,
   type DonneesMarketing, type Fait,
 } from "./marketing-vue";
@@ -134,5 +135,133 @@ describe("le tableau par catégorie, les périodes et l'adresse", () => {
   it("les filtres d'une adresse sont bornés à l'enveloppe ; une catégorie inconnue est ignorée", () => {
     expect(filtresDepuis(MOIS, { debut: "2025-01", fin: "2027-01", cat: "zz" }, [{ id: "a" }])).toEqual({ debut: "2026-01", fin: "2026-12", cat: null });
     expect(filtresDepuis(MOIS, { debut: "2026-04", fin: "2026-06", cat: "a" }, [{ id: "a" }])).toEqual({ debut: "2026-04", fin: "2026-06", cat: "a" });
+  });
+});
+
+// ───────────────────────────── Maquette « onglets » (10/2026) ─────────────────────────────
+
+const CATS = [
+  { id: "evt", name: "Événements", parentId: null, allocated: 6_422_485, consumed: 100_000, committed: 0 },
+  { id: "sym", name: "Symposium", parentId: "evt", allocated: 2_433_267, consumed: 410_950, committed: 0 },
+  { id: "staff", name: "Staff post-event", parentId: "evt", allocated: 1_550_251, consumed: 975_133.48, committed: 20_000 },
+  { id: "spons", name: "Sponsoring", parentId: null, allocated: 8_100_000, consumed: 7_993_208.5, committed: 50_000 },
+  { id: "form", name: "Formation", parentId: null, allocated: 0, consumed: 350_000, committed: 0 },
+  { id: "vide", name: "Consulting", parentId: null, allocated: 1_800_000, consumed: 0, committed: 0 },
+];
+
+describe("l'arbre des catégories — une catégorie comprend ses sous-catégories", () => {
+  const arbre = arbreCategories(CATS);
+  const evt = arbre.find((n) => n.id === "evt")!;
+  it("cumule payé et engagé des sous-catégories ; l'alloué reste celui de la catégorie", () => {
+    expect(evt.paye).toBeCloseTo(100_000 + 410_950 + 975_133.48, 2);
+    expect(evt.engage).toBe(20_000);
+    expect(evt.alloue).toBe(6_422_485);
+    expect(evt.payePropre).toBe(100_000);
+    expect(evt.sous.map((s) => s.id)).toEqual(["sym", "staff"]);
+    expect(evt.sousAlloue).toBe(2_433_267 + 1_550_251);
+    expect(evt.surRepartie).toBe(false);
+  });
+  it("le total de l'enveloppe est la somme des têtes — jamais compté deux fois", () => {
+    const total = arbre.reduce((a, n) => a + n.paye, 0);
+    expect(total).toBeCloseTo(CATS.reduce((a, c) => a + c.consumed, 0), 2);
+  });
+  it("tri par alloué décroissant, les sous-catégories sous leur catégorie", () => {
+    expect(arbre.map((n) => n.id)).toEqual(["spons", "evt", "vide", "form"]);
+  });
+  it("la santé : « Sans allocation » quand de l'argent est payé sur une allocation à 0", () => {
+    expect(arbre.find((n) => n.id === "form")!.sante).toBe("SANS_ALLOCATION");
+    expect(arbre.find((n) => n.id === "vide")!.sante).toBe("MAITRISE");
+    expect(santeCategorie(0, 0)).toBe("AUCUNE");
+    expect(santeCategorie(100, 85)).toBe("A_SURVEILLER");
+    expect(santeCategorie(100, 100)).toBe("DEPASSE");
+  });
+  it("la formule du cumul : en propre + chaque sous-catégorie = total", () => {
+    const f = formuleCumul(evt);
+    expect(f.propre).toBe(100_000);
+    expect(f.termes.map((t) => t.nom)).toEqual(["Symposium", "Staff post-event"]);
+    expect(f.propre + f.termes.reduce((a, t) => a + t.montant, 0)).toBeCloseTo(f.total, 2);
+  });
+  it("signale des sous-catégories qui répartissent plus que leur catégorie", () => {
+    const a = arbreCategories([
+      { id: "t", name: "T", parentId: null, allocated: 1000, consumed: 0, committed: 0 },
+      { id: "s1", name: "S1", parentId: "t", allocated: 700, consumed: 0, committed: 0 },
+      { id: "s2", name: "S2", parentId: "t", allocated: 400, consumed: 0, committed: 0 },
+    ]);
+    expect(a[0].surRepartie).toBe(true);
+    expect(a[0].cessible).toBe(0);
+  });
+  it("une catégorie et ses descendantes (filtre « catégorie »)", () => {
+    expect([...idsDeLaCategorie("evt", CATS.map((c) => ({ id: c.id, parentId: c.parentId })))].sort()).toEqual(["evt", "staff", "sym"]);
+    expect([...idsDeLaCategorie("sym", CATS.map((c) => ({ id: c.id, parentId: c.parentId })))]).toEqual(["sym"]);
+  });
+});
+
+describe("réallouer — borné à ce qu'une catégorie peut céder", () => {
+  it("cessible = alloué − max(payé + engagé, réparti dans les sous-catégories), jamais négatif", () => {
+    expect(cessible({ alloue: 1000, payeEngage: 300, sousAlloue: 0 })).toBe(700);
+    expect(cessible({ alloue: 1000, payeEngage: 300, sousAlloue: 800 })).toBe(200);
+    expect(cessible({ alloue: 1000, payeEngage: 1200, sousAlloue: 0 })).toBe(0);
+  });
+  it("l'arbre porte la part cessible de chaque catégorie", () => {
+    const a = arbreCategories(CATS);
+    expect(a.find((n) => n.id === "evt")!.cessible).toBeCloseTo(6_422_485 - (2_433_267 + 1_550_251), 2);
+    expect(a.find((n) => n.id === "spons")!.cessible).toBeCloseTo(8_100_000 - 8_043_208.5, 2);
+    expect(a.find((n) => n.id === "form")!.cessible).toBe(0);
+  });
+  it("refuse au-delà du cessible, en nommant la catégorie", () => {
+    const base = { sourceId: "a", cibleId: "b", motif: "Formation ARV non prévue", cible: { envelopeId: "e", parentId: null } };
+    const source = { envelopeId: "e", parentId: null, alloue: 1000, cessible: 200, nom: "Consulting" };
+    expect(refusReallocation({ ...base, montant: 200, source })).toBeNull();
+    expect(refusReallocation({ ...base, montant: 201, source })).toMatch(/« Consulting » ne peut céder que 200 DZD/);
+  });
+  it("propose la source qui peut céder le plus et le montant qui couvre le dépassement", () => {
+    const a = arbreCategories(CATS);
+    const p = propositionReallocation("form", a);
+    expect(p.besoin).toBe(350_000);
+    expect(p.sourceId).toBe("evt");
+    expect(p.montant).toBe(350_000);
+    const petit = propositionReallocation("form", [
+      { id: "form", alloue: 0, paye: 350_000, engage: 0, cessible: 0 },
+      { id: "x", alloue: 100_000, paye: 0, engage: 0, cessible: 100_000 },
+    ]);
+    expect(petit).toEqual({ sourceId: "x", montant: 100_000, besoin: 350_000 });
+    expect(propositionReallocation("form", [{ id: "form", alloue: 0, paye: 1, engage: 0, cessible: 0 }])).toEqual({ besoin: 1 });
+  });
+});
+
+describe("À traiter — enrichi (maquette « onglets »)", () => {
+  const sans = { total: 0, count: 0 };
+  it("une catégorie payée sans allocation se dit, et se réalloue", () => {
+    const a = alertesBudget({ categories: [{ id: "form", nom: "Formation", alloue: 0, paye: 350_000, engage: 0 }], sansCategorie: sans, total: 1_000_000 });
+    expect(a).toHaveLength(1);
+    expect(a[0]).toMatchObject({ geste: "REALLOUER", categorieId: "form", titre: "Formation : payée sans allocation" });
+  });
+  it("les pièces manquantes et les absentes à décider de l'intégration remontent, après les dépassements", () => {
+    const reste = resteIntegration({
+      demandes: [{ attendues: 4, manquantes: 4 }, { attendues: 2, manquantes: 0 }, { attendues: 3, manquantes: 1 }],
+      absentes: [{ decision: null }, { decision: "GARDER" }, { decision: null }],
+    });
+    expect(reste).toEqual({ piecesAttendues: 9, piecesManquantes: 5, demandesIncompletes: 2, aDecider: 2 });
+    const a = alertesBudget({ categories: [{ id: "x", nom: "X", alloue: 10, paye: 20, engage: 0 }], sansCategorie: sans, total: 100, integration: reste });
+    expect(a.map((x) => x.geste)).toEqual(["REALLOUER", "PIECES", "ABSENTES"]);
+    expect(a[1]).toMatchObject({ integration: true, titre: "5 pièces manquantes sur les demandes intégrées" });
+    expect(a[1].detail).toMatch(/^4 jointes sur 9 attendues \(2 demandes\)/);
+    expect(a[2].titre).toBe("2 éléments « absents du fichier » à décider");
+  });
+  it("rien de l'intégration quand tout est joint et décidé", () => {
+    expect(alertesBudget({ categories: [], sansCategorie: sans, total: 0, integration: { piecesAttendues: 3, piecesManquantes: 0, demandesIncompletes: 0, aDecider: 0 } })).toEqual([]);
+  });
+});
+
+describe("Réglages — la part répartie et l'effet d'une allocation", () => {
+  it("part répartie de l'enveloppe", () => {
+    expect(partRepartie(1000, [{ alloue: 600 }, { alloue: 300 }])).toEqual({ reparti: 900, pct: 90, nonReparti: 100, depassement: 0 });
+    expect(partRepartie(1000, [{ alloue: 1200 }]).depassement).toBe(200);
+  });
+  it("une sous-catégorie se mesure à sa catégorie, une tête à l'enveloppe", () => {
+    const categories = [{ id: "t", parentId: null, alloue: 1000 }, { id: "s1", parentId: "t", alloue: 600 }, { id: "u", parentId: null, alloue: 500 }];
+    expect(effetAllocation({ total: 2000, categories, parentId: "t", alloue: 500 })).toEqual({ dans: "CATEGORIE", reparti: 1100, plafond: 1000, depassement: 100 });
+    expect(effetAllocation({ total: 2000, categories, id: "s1", parentId: "t", alloue: 900 })).toMatchObject({ reparti: 900, depassement: 0 });
+    expect(effetAllocation({ total: 2000, categories, id: "u", parentId: null, alloue: 1200 })).toEqual({ dans: "ENVELOPPE", reparti: 2200, plafond: 2000, depassement: 200 });
   });
 });

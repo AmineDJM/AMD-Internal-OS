@@ -35,6 +35,22 @@ intention** — on ne consulte plus son budget en traversant tout ce qui le modi
 > ce qui naît après l'intégration, jamais deux fois une dépense d'une demande intégrée ; ce qui comptait avant sans ligne
 > au fichier se garde ou se sort. → [36-integration-depenses-adpro-2026.md](36-integration-depenses-adpro-2026.md)
 
+> **Budget Marketing — les onglets (14/10/2026, maquette « onglets » validée)** — Vue d'ensemble · Dépenses · Demandes
+> Ad & Pro · Réglages · **Intégration 2026** (onglet réservé au gestionnaire d'une enveloppe 2026, pastille « à décider » ;
+> `lib/budget-marketing/onglets.ts`). **Vue d'ensemble** : « À traiter » remonte aussi une catégorie payée **sans
+> allocation**, les **pièces manquantes** et les éléments **absents du fichier** de l'intégration ; deux barres à 100 %
+> (alloué / payé), un classement par nature, le cumul payé sur son propre graphique ; le tableau « Par catégorie » se
+> **déplie** en sous-catégories (cumul `cumul-categories.ts`, arbre pur `arbreCategories` de `budget/marketing-vue.ts`) et
+> ouvre l'onglet Demandes filtré. **Réallouer** (`reallouerCategorie`) est **borné** : une catégorie ne cède que sa part
+> `cessible` = alloué − max(payé + engagé cumulés, réparti dans ses sous-catégories), lue par `getBudgetOverview` ; seconde
+> confirmation, audit « reallocation ». **Demandes Ad & Pro** : une ligne **par demande** (postes et imputation dessous),
+> tuiles, filtres statut / catégorie (sous-catégories comprises) / origine / recherche **dans l'adresse**
+> (`budget-marketing/demandes-vue.ts`), fiche en panneau (`budget-marketing/fiche-demande.tsx`, lecture
+> `ficheHistoriqueIntegration`, dépôt et rattachement par les actions d'intégration). **Réglages** : cartes dépliables avec
+> la **formule du cumul**, « Sans allocation », alerte de sous-catégories qui répartissent trop, part répartie en tête
+> (`budgets/categories-marketing.tsx`). **Intégration 2026** : tuiles, filtre « pièces manquantes » (`?filtre=manquantes`),
+> fiches en panneau, absentes (`#absentes`), annulation repliée.
+
 La **barre de contexte** (`budget-context-bar.tsx`) ne porte que ce qui change ce qu'on **regarde** : l'enveloppe et
 la période. Une **alerte actionnable** unique remplace l'ancienne section « dépenses non attribuées » dépliée.
 

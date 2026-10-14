@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { canManageEnvelope, type SessionUser } from "@/lib/rbac";
+import { canManageEnvelope, canViewEnvelope, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
@@ -12,7 +12,7 @@ import { IDENTITE_FACTURE_VIDE } from "@/lib/factures/identite";
 import {
   annulerLot, apercuIntegration, blocHistoriqueDe, chargerCandidates, correspondanceCategories, ecrireLot, empreinte,
   enveloppesGerees, lireFichierIntegration, peutJoindrePieces, piecesConnuesDuPlan, proposer,
-  type Apercu, type ChoixDemande, type CorrespondanceCategories, type EnveloppeCandidate, type PropositionDemande,
+  type Apercu, type BlocHistorique, type ChoixDemande, type CorrespondanceCategories, type EnveloppeCandidate, type PropositionDemande,
 } from "@/lib/budget-marketing/integration-serveur";
 import { controleDeLaPiece, piecesAttenduesDe, piecesRattacheesDe, stepKeyDePiece } from "@/lib/budget-marketing/integration-vue";
 import { formatCentimes, type PlanIntegration, type TypeDemandeIntegree } from "@/lib/budget-marketing/integration-2026";
@@ -242,6 +242,8 @@ function revaliderDemande(type: string, id: string) {
   if (chemins[type]) revalidatePath(`${chemins[type]}/${id}`);
   revalidatePath(`/budget-marketing/integration/demande/${type}/${id}`);
   revalidatePath("/budget-marketing/integration");
+  revalidatePath("/budget-marketing/ad-pro");
+  revalidatePath("/budget-marketing");
 }
 
 /**
@@ -360,4 +362,26 @@ export async function relierEcritureIntegration(formData: FormData): Promise<Act
   });
   revaliderDemande(row.demandeType, row.demandeId);
   return { ok: true, message: ecriture ? `Écriture ${ecriture.reference} reliée — le livre de trésorerie n'est pas modifié.` : "Écriture déliée." };
+}
+
+// ─────────────────────────────── 7. La fiche d'une demande, en panneau ───────────────────────────────
+
+/**
+ * LIRE LE BLOC « HISTORIQUE 2026 » d'une demande — pour le panneau latéral des onglets « Demandes Ad & Pro » et
+ * « Intégration 2026 » (maquette « onglets » validée, 10/2026) : postes payés, lignes du fichier, pièces attendues et
+ * manquantes, pièces rattachables. Une LECTURE : la porte est celle de l'enveloppe du lot (la voir), les gestes du
+ * panneau (joindre, rattacher) gardent la leur (`peutJoindrePieces`, rendue dans `peutJoindre`).
+ */
+export async function ficheHistoriqueIntegration(formData: FormData): Promise<{ ok: boolean; error?: string; bloc?: BlocHistorique | null }> {
+  const user = await requireUser();
+  const type = fdStr(formData, "type");
+  const id = fdStr(formData, "id");
+  if (!estType(type) || !id) return { ok: false, error: "Demande introuvable." };
+  const row = await prisma.adProIntegrationDemande.findFirst({
+    where: { demandeType: type, demandeId: id, lot: { annuleLe: null } },
+    select: { lot: { select: { envelope: { select: { domaine: true, accessRoles: true, accessUserIds: true, managerRoles: true, managerUserIds: true } } } } },
+  });
+  if (!row) return { ok: true, bloc: null };
+  if (!canViewEnvelope(user, row.lot.envelope)) return { ok: false, error: "Cette enveloppe ne vous est pas ouverte." };
+  return { ok: true, bloc: await blocHistoriqueDe(user, type, id) };
 }
