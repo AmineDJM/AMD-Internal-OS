@@ -589,7 +589,8 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
   if (peutRevoir && revisable) {
     entrees.push({ cle: "revoir", libelle: "Revoir la décision", icone: <Scale className="h-3.5 w-3.5" />, faire: () => setPanneau("REVOIR_DECISION") });
   }
-  if (!arbitrer && editer && !stock && !bcLegal && item.status === "APPROVED" && !item.expenseOrderId && item.orderStage !== "ISSUED") {
+  const peutDemanderRevision = !arbitrer && editer && !stock && !bcLegal && item.status === "APPROVED" && !item.expenseOrderId && item.orderStage !== "ISSUED";
+  if (peutDemanderRevision) {
     entrees.push({ cle: "revision", libelle: "Demander une révision", icone: <RotateCcw className="h-3.5 w-3.5" />, faire: () => setPanneau("REVISION_DEMANDEE") });
   }
   // DEMANDER UN DEVIS (ou réclamer la facture) À L'ASSISTANTE — la liste canonique et sa garde
@@ -1160,6 +1161,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
                   busy={busy}
                   run={run}
                   onJoindre={() => basculer("DEMANDER_BC")}
+                  onReviser={peutDemanderRevision ? () => setPanneau("REVISION_DEMANDEE") : undefined}
                   repli={<EtatBC item={item} />}
                 />
                 {bcAnnulable && toucheBC && (

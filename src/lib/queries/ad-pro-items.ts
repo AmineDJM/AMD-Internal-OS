@@ -182,6 +182,13 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
   // LA CHAÎNE D'ACHAT DE CHAQUE POSTE (§118.204) — devis, BC, factures — et la demande de BC chez
   // l'assistante. En lot, comme le reste.
   const [piecesParPoste, demandeBcParPoste, devisParPoste] = await Promise.all([piecesDesPostes(itemIds), demandesBCDesPostes(itemIds), devisDesPostes(itemIds)]);
+  // LA MÊME PIÈCE DÉPOSÉE POUR PLUSIEURS VOYAGEURS (`devisMisAPart`) : chaque copie nomme la pièce qu'elle répète, et le
+  // total des devis retenus ne la compte qu'une fois — la même règle que la carte du BC.
+  for (const [itemId, vues] of devisParPoste) {
+    const copieDe = new Map(vues.filter((v) => v.miseAPart?.motif === "COPIE").map((v) => [v.pieceId, v.miseAPart!.de as string]));
+    if (copieDe.size === 0) continue;
+    for (const v of voyageursDe.get(itemId) ?? []) for (const d of v.devis) d.copieDe = copieDe.get(d.id) ?? null;
+  }
   // « MODIFIER LE BC » (Direction, 06/10) : ce que l'éditeur natif reprend d'un BC de la fabrique, ni signé ni annulé. Lu
   // ICI, dans la façade : la lecture d'une pièce émise est du domaine Legal, et le domaine Ad & Pro n'en importe pas.
   const bcsRevisables = [...piecesParPoste.values()].flatMap((p) => p.bcs).filter((b) => !b.annulee && b.etape !== "SIGNE");

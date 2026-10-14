@@ -10,7 +10,7 @@ import type { LigneCommerciale, PartieCommerciale } from "@/lib/artifact/factory
 import { brouillonPerime, lignesEffectives, type BrouillonBc } from "@/lib/bons-de-commande/brouillon";
 import { devisDesPostes, type DevisDePosteVue } from "@/lib/queries/ad-pro-devis-poste";
 import { rattacherPieceAuPoste } from "@/lib/ad-pro/pieces-poste";
-import { lignesDuBon, refusDepassement, type LigneDevisPoste } from "@/lib/ad-pro/devis-poste";
+import { lignesDuBon, refusMontantDesDevis, totalValideDesDevis, type LigneDevisPoste } from "@/lib/ad-pro/devis-poste";
 import { formatDzd } from "@/lib/promo-material/devis";
 import { ITEM_KIND_LABELS } from "@/lib/ad-pro-items";
 import { enSerie } from "@/lib/refs";
@@ -132,16 +132,17 @@ export function lignesDuBCDuDevis(d: DevisDePosteVue, itemId: string) {
   return lignesDuBon(d.entete, lignesPures(d, itemId), itemId);
 }
 
-/** Le montant TTC que les lignes validées de TOUS les devis du poste totalisent — pour le plafond du montant accordé. */
+/**
+ * Le montant TTC que les lignes validées des devis QUI COMPTENT totalisent — pour le plafond du montant accordé. Une copie
+ * de la même pièce, ou une proposition écartée d'un voyageur, n'y entre pas (`devisMisAPart`).
+ */
 export function totalValideDuPoste(devis: readonly DevisDePosteVue[]): number {
-  return devis.filter((d) => !d.annule).reduce((s, d) => s + Math.round(d.totalValideTtc * 100), 0) / 100;
+  return totalValideDesDevis(devis).ttc;
 }
 
-/** Le refus de dépassement, lu par l'action ET par la carte. */
+/** Le refus de dépassement, lu par l'action ET par la carte (`refusMontantDesDevis`, le même calcul). */
 export function refusMontantDuPoste(devis: readonly DevisDePosteVue[], accorde: number | null): string | null {
-  const ht = devis.filter((d) => !d.annule).reduce((s, d) => s + Math.round(d.totalValideHt * 100), 0) / 100;
-  const tvaIndiquee = devis.filter((d) => !d.annule && d.nbValidees > 0).every((d) => d.entete.tvaRate !== null);
-  return refusDepassement(totalValideDuPoste(devis), accorde, ht, tvaIndiquee);
+  return refusMontantDesDevis(devis, accorde);
 }
 
 /**

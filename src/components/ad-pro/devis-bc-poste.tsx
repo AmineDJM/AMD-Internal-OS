@@ -8,9 +8,9 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import type { DevisDePosteVue } from "@/lib/queries/ad-pro-devis-poste";
 import type { BcDePoste } from "@/lib/ad-pro/pieces-poste";
 import { lienFichierEmis } from "@/lib/legal/fichiers-emis";
-import { refusDepassement } from "@/lib/ad-pro/devis-poste";
+import { refusMontantDesDevis } from "@/lib/ad-pro/devis-poste";
 import {
-  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, modifierBcDuPoste,
+  validerLignesDuDevis, enregistrerLignesDuDevis, lireLesLignesDuDevis, genererBonDeCommandePoste, genererEtEnvoyerBcPoste, modifierBcDuPoste,
 } from "@/lib/actions/ad-pro-item-actions";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
@@ -25,7 +25,11 @@ import { ApercuBonDeCommande } from "@/components/ad-pro/apercu-bc-poste";
  *   • `BlocBonDeCommande` — le contenu de la case « Bon de commande » : les BC du poste (un PAR DEVIS quand ils sont
  *     générés), chacun avec son Word et son PDF, et les deux gestes — « Générer » avec un petit CTA, ou « Joindre un
  *     BC existant » (la demande à l'assistante, qui l'uploade). Il ne propose QUE ce que l'action acceptera (§118.83) :
- *     la même règle (`refusGenerationBC`, `refusDepassement`) est lue ici et par l'action.
+ *     la même règle (`refusGenerationBC`, `refusMontantDesDevis`) est lue ici et par l'action. Le geste « Générer le bon de
+ *     commande » est TOUJOURS là dès qu'un devis qui compte a des lignes validées (Direction, 10/2026 : « des fois il n'y a
+ *     pas où générer le BC ») : quand il ne peut pas aboutir, il reste visible, inactif, avec la raison et le geste qui la
+ *     lève (réviser le poste, décocher une ligne) — jamais une case sans geste (§118.83). Une copie de la même pièce, ou
+ *     une proposition écartée d'un voyageur, se lit avec ce qui la met à part et ne compte pas (`devisMisAPart`).
  *   • `PanneauLignesDevis` — les lignes d'UN devis : référence ou désignation, unité, quantité, prix unitaire, total ;
  *     une case « validée » par ligne (« S'il oublie une référence, il peut juste la cocher »), la correction à la main,
  *     et la relecture du fichier. Une ligne lue par Luna est une PROPOSITION : elle ne se valide que complète, et après
@@ -69,6 +73,7 @@ function phraseEtat(d: DevisDePosteVue): { texte: string; ton: "ok" | "attente" 
     case "A_JOUR": return { texte: "BC à jour", ton: "ok" };
     case "FIGE": return { texte: "BC figé — voir ci-dessous", ton: "alerte" };
     case "A_ANNULER": return { texte: "plus aucune ligne validée", ton: "alerte" };
+    case "MIS_A_PART": return { texte: "ne compte pas", ton: "ok" };
     default: return null;
   }
 }
@@ -152,7 +157,7 @@ function FriseBC({ bc }: { bc: BcDePoste }) {
   );
 }
 
-export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutGenerer, peutValider, peutJoindre, peutModifier, busy, run, onJoindre, repli }: {
+export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration, peutGenerer, peutValider, peutJoindre, peutModifier, busy, run, onJoindre, onReviser, repli }: {
   itemId: string;
   bcs: BcDePoste[];
   devis: DevisDePosteVue[];
@@ -168,6 +173,8 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   busy: string | null;
   run: Run;
   onJoindre: () => void;
+  /** « Demander une révision » du poste, quand la personne peut la demander — le geste qui lève un dépassement. */
+  onReviser?: () => void;
   /** Ce que la case montrait avant (demande chez l'assistante, déposé, centre…) quand aucun BC n'est encore rattaché. */
   repli: React.ReactNode;
 }) {
@@ -178,19 +185,29 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
   const avecApercu = aFaireTous.filter((d) => d.brouillon);
   const [apercuOuvert, setApercuOuvert] = React.useState<string | null>(null);
   const apercuDuDevis = apercuOuvert ? avecApercu.find((d) => d.pieceId === apercuOuvert) ?? null : null;
-  const depasse = refusDepassement(
-    vivants.reduce((s, d) => s + Math.round(d.totalValideTtc * 100), 0) / 100, accorde,
-    vivants.reduce((s, d) => s + Math.round(d.totalValideHt * 100), 0) / 100,
-    vivants.filter((d) => d.nbValidees > 0).every((d) => d.entete.tvaRate !== null),
-  );
+  // LE PLAFOND SUR LES DEVIS QUI COMPTENT — une copie de la même pièce, une proposition écartée n'y entrent pas (§118.5 :
+  // le même calcul que l'action, `refusMontantDuPoste`).
+  const depasse = refusMontantDesDevis(vivants, accorde);
   const enCours = busy !== null && busy.startsWith("gen:") && busy.endsWith(`:${itemId}`);
-  const generer = (pieceId: string | null) => {
+  const formulaire = (pieceId: string | null) => {
     const fd = new FormData();
     fd.set("id", itemId);
     if (pieceId) fd.set("pieceId", pieceId);
-    void run(`gen:${pieceId ?? "tous"}:${itemId}`, () => genererBonDeCommandePoste(fd), "Aperçu du bon de commande prêt — à vérifier par le demandeur.");
+    return fd;
+  };
+  /** L'APERÇU (un brouillon, sans numéro) — pour relire et corriger avant de valider. */
+  const apercu = (pieceId: string | null) => {
+    void run(`gen:${pieceId ?? "tous"}:${itemId}`, () => genererBonDeCommandePoste(formulaire(pieceId)), "Aperçu du bon de commande prêt — à vérifier par le demandeur.");
+  };
+  /** EN UN CLIC : le BC numéroté, Word et PDF, aiguillé vers son centre — le demandeur (ou le Super Admin) seulement. */
+  const enUnClic = peutGenerer && peutValider;
+  const generer = (pieceId: string | null) => {
+    if (!enUnClic) { apercu(pieceId); return; }
+    void run(`gen:${pieceId ?? "tous"}:${itemId}`, () => genererEtEnvoyerBcPoste(formulaire(pieceId)), "Bon de commande généré.");
   };
   const ouverte = peutGenerer && refusGeneration === null && !depasse;
+  // POURQUOI LE BOUTON NE PEUT PAS ABOUTIR — dit À CÔTÉ de lui, jamais à sa place (§118.83).
+  const pourquoiPas = refusGeneration ?? depasse;
   const figes = vivants.filter((d) => (d.etat === "FIGE" || d.etat === "A_ANNULER") && d.refus);
 
   return (
@@ -219,12 +236,19 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
           {vivants.filter((d) => d.structure && (d.nbValidees > 0 || d.bc)).map((d) => {
             const e = phraseEtat(d);
             const actionnable = ouverte && (d.etat === "A_GENERER" || d.etat === "A_REGENERER") && !d.brouillon;
+            const aPart = d.miseAPart && d.etat === "MIS_A_PART" ? d.miseAPart.phrase : null;
             return (
               <li key={d.pieceId} className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <span className="min-w-0 flex-1 basis-48 [overflow-wrap:anywhere] sm:truncate" title={d.titre}>
                   <NomDuDevis d={d} /> — {d.nbValidees} ligne{d.nbValidees > 1 ? "s" : ""} validée{d.nbValidees > 1 ? "s" : ""} · <span className="tabular-nums">{d.entete.tvaRate === null ? `${dzd(d.totalValideHt)} · sans TVA (aucune sur le devis)` : `${dzd(d.totalValideTtc)} TTC`}</span>
                 </span>
-                {e && !(actionnable && aFaire.length === 1) && <span className={e.ton === "ok" ? "text-success" : e.ton === "alerte" ? "text-destructive" : "text-warning"}>{e.texte}</span>}
+                {e && !aPart && !(actionnable && aFaire.length === 1) && <span className={e.ton === "ok" ? "text-success" : e.ton === "alerte" ? "text-destructive" : "text-warning"}>{e.texte}</span>}
+                {aPart && <span className="basis-full text-xs text-muted-foreground">{aPart}</span>}
+                {!aPart && d.doublonProbableDe && (
+                  <span className="basis-full text-xs text-warning">
+                    Mêmes lignes et même fournisseur que « {d.doublonProbableDe} » : si c&apos;est la même pièce, retirez cette copie (case « Devis ») — sinon elle se commande en plus.
+                  </span>
+                )}
                 {actionnable && aFaire.length > 1 && (
                   <button type="button" onClick={() => generer(d.pieceId)} disabled={enCours} className="min-h-9 text-primary hover:underline disabled:opacity-50 sm:min-h-0">
                     {d.etat === "A_REGENERER" ? "Régénérer" : "Générer"}
@@ -244,6 +268,7 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       {figes.map((d) => <p key={d.pieceId} className="flex gap-1 text-destructive"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {d.refus}</p>)}
       {depasse && aFaire.length > 0 && <p className="flex gap-1 text-warning"><AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" /> {depasse}</p>}
       {peutGenerer && aFaire.length > 0 && refusGeneration && <p className="text-muted-foreground">{refusGeneration}</p>}
+      {!peutGenerer && aFaire.length > 0 && <p className="text-muted-foreground">Le demandeur génère le bon de commande d&apos;ici, d&apos;après les lignes validées.</p>}
 
       {apercuDuDevis && (
         <ApercuBonDeCommande
@@ -252,19 +277,28 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
         />
       )}
 
-      {(ouverte && aFaire.length > 0) || peutJoindre ? (
+      {(peutGenerer && aFaire.length > 0) || peutJoindre ? (
         <div className="flex flex-wrap items-center gap-2 pt-0.5">
-          {ouverte && aFaire.length === 1 && (
-            <Button size="sm" onClick={() => generer(aFaire[0].pieceId)} disabled={enCours}>
+          {/* LE GESTE EST TOUJOURS LÀ dès qu'il y a quelque chose à générer : inactif, il porte sa raison (title) et la
+              raison est écrite au-dessus ; le geste qui la lève (révision) est à côté. */}
+          {peutGenerer && aFaire.length > 0 && (
+            <Button
+              size="sm" onClick={() => generer(aFaire.length === 1 ? aFaire[0].pieceId : null)} disabled={enCours || !ouverte}
+              title={!ouverte && pourquoiPas ? pourquoiPas : undefined}
+            >
               {enCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              {aFaire[0].etat === "A_REGENERER" ? "Régénérer le BC (aperçu)" : "Générer le BC (aperçu)"}
+              {libelleGeneration(aFaire.length, aFaire.every((d) => d.etat === "A_REGENERER"), enUnClic)}
             </Button>
           )}
-          {ouverte && aFaire.length > 1 && (
-            <Button size="sm" onClick={() => generer(null)} disabled={enCours}>
-              {enCours ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Wand2 className="h-3.5 w-3.5" />}
-              Générer tous les BC ({aFaire.length}) — aperçus
-            </Button>
+          {enUnClic && ouverte && aFaire.length > 0 && (
+            <button type="button" onClick={() => apercu(aFaire.length === 1 ? aFaire[0].pieceId : null)} disabled={enCours} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline disabled:opacity-50 sm:min-h-0">
+              <Eye className="h-3 w-3" /> Voir l&apos;aperçu d&apos;abord
+            </button>
+          )}
+          {peutGenerer && aFaire.length > 0 && depasse && onReviser && (
+            <button type="button" onClick={onReviser} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline sm:min-h-0">
+              Demander une révision du poste
+            </button>
           )}
           {peutJoindre && (
             <button type="button" onClick={onJoindre} className="inline-flex min-h-9 items-center gap-1 text-primary hover:underline sm:min-h-0">
@@ -275,6 +309,13 @@ export function BlocBonDeCommande({ itemId, bcs, devis, accorde, refusGeneration
       ) : null}
     </>
   );
+}
+
+/** Le libellé du geste : un clic qui GÉNÈRE (le demandeur), ou qui prépare l'aperçu (qui le prépare pour lui). */
+function libelleGeneration(n: number, regenerer: boolean, enUnClic: boolean): string {
+  if (!enUnClic) return n > 1 ? `Préparer les BC (${n}) — aperçus` : regenerer ? "Régénérer le BC (aperçu)" : "Préparer le BC (aperçu)";
+  if (n > 1) return `Générer les bons de commande (${n})`;
+  return regenerer ? "Régénérer le bon de commande" : "Générer le bon de commande";
 }
 
 // ───────────────────────── Les lignes d'un devis ─────────────────────────
