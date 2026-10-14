@@ -231,6 +231,15 @@ export function validationRequiseBC(montant: number | null | undefined, seuil: n
   return montant > seuil;
 }
 
+/**
+ * LE SEUIL QUI S'APPLIQUE À UN BC — celui de SON centre (Direction, 10/2026 : « les BC hors Ad & Pro passent par le
+ * centre de validation ; mets-moi un seuil là-bas aussi »). Le centre Ad & Pro règle le sien, le centre de validations
+ * le sien : un BC de promotion et un BC de fournitures ne relèvent pas de la même instance, ni du même montant.
+ */
+export function seuilDuCentre(seuils: { adPro: number; validation: number }, centre: CentreBC): number {
+  return centre === "AD_PRO" ? seuils.adPro : seuils.validation;
+}
+
 /** Le motif écrit quand un BC passe sous le seuil : il dit POURQUOI aucun centre ne le voit. */
 export function motifSousLeSeuil(seuil: number): string {
   return `Sous le seuil de validation des bons de commande (${seuil.toLocaleString("fr-FR")} DZD) : aucun centre n'a à le valider, il passe directement à la signature des Finances.`;

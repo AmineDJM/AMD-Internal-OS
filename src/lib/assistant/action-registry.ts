@@ -1295,6 +1295,11 @@ X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de 
   + "ouvert. Un clic, confirmé, sur la carte de la demande.", [
   "validation-actions:demanderValidationFinaleBC",
 ]);
+X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
+  + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
+  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [
+  "settings-actions:setBcValidationThresholdCentre",
+]);
 X("RESOUMETTRE UNE « AUTRE DEMANDE » REFUSÉE ET PROLONGER UN CONTRAT DE CONSULTING (audit 360°, lot C4a) — la "
   + "resoumission est le geste du DEMANDEUR qui dit ce qui a changé depuis le refus (elle peut corriger la description "
   + "et le montant, que le centre Ad & Pro relit) ; la prolongation engage la société sur un terme plus long et "

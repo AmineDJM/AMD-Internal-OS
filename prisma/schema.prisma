@@ -9024,6 +9024,10 @@ model AppSetting {
   /// l'un gouverne les DEMANDES, l'autre les PIÈCES qui engagent la société. 0 = tout BC passe
   /// par un centre — le comportement d'avant la règle, jusqu'à ce que la Direction fixe le montant.
   bcValidationThreshold         Decimal   @default(0) @db.Decimal(14, 2)
+  /// SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026 : « les BC hors Ad & Pro passent par le centre de
+  /// validation, mets-moi un seuil là-bas aussi »). Celui qui précède ne vaut plus que pour les BC du centre Ad & Pro ;
+  /// celui-ci, réglé depuis le centre de validations, pour les BC qu'il valide. 0 = tout BC y passe.
+  bcValidationThresholdCentre   Decimal   @default(0) @db.Decimal(14, 2)
   // Onglet Regulatory « Enregistrement » (analyseur de dossier CTD) — masqué tant que
   // le Super Admin ne l'a pas débloqué.
   regEnrollmentEnabled          Boolean   @default(false)

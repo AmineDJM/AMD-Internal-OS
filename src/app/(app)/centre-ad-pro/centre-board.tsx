@@ -232,9 +232,9 @@ function SeuilForm({ seuil }: { seuil: number }) {
  * LE SEUIL DES BONS DE COMMANDE (§118.149) — « tout BC supérieur à un montant configuré dans les
  * centres de validations Ad&Pro devra passer par la validation d'un des centres ».
  *
- * Il vaut pour TOUS les bons de commande — ceux d'Ad & Pro, qui passent par ce centre, et les
- * autres, qui passent par le centre de validations : la phrase le dit, sinon on le croirait
- * limité aux BC de promotion. Et la réponse de l'action DIT ce que le changement a déplacé.
+ * Depuis 10/2026, il ne vaut plus que pour les bons de commande NÉS D'AD & PRO : le centre de validations règle le
+ * sien pour les autres (« mets-moi un seuil là-bas aussi »). La phrase le dit. La réponse de l'action DIT ce que le
+ * changement a déplacé.
  */
 function SeuilBCForm({ seuil }: { seuil: number }) {
   const [saving, setSaving] = React.useState(false);
@@ -245,10 +245,10 @@ function SeuilBCForm({ seuil }: { seuil: number }) {
       <CardHeader>
         <CardTitle>Le seuil des bons de commande</CardTitle>
         <CardDescription>
-          Un bon de commande <strong>strictement</strong> au-dessus de ce montant passe par un centre de
-          validation — celui-ci s&apos;il naît d&apos;Ad &amp; Pro, le centre de validations sinon — avant
-          la signature des Finances. En deçà, il passe directement à leur signature ({MENU_BONS_DE_COMMANDE}).
-          Il vaut pour tous les bons de commande de la société.
+          Un bon de commande <strong>né d&apos;Ad &amp; Pro</strong> et <strong>strictement</strong> au-dessus de ce
+          montant passe par ce centre avant la signature des Finances. En deçà, il passe directement à leur signature
+          ({MENU_BONS_DE_COMMANDE}). Les bons de commande hors Ad &amp; Pro ont leur propre seuil, réglé depuis le
+          centre de validations.
         </CardDescription>
       </CardHeader>
       <CardContent>

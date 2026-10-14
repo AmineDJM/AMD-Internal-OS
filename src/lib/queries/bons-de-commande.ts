@@ -95,7 +95,10 @@ export interface FileBCFinances {
   signes: LigneBCFinances[];
   /** BC du circuit qui attendent encore un centre — comptés, pas listés : ils ne sont pas à signer. */
   enValidation: number;
+  /** Seuil du centre Ad & Pro (BC de promotion). */
   seuil: number;
+  /** Seuil du centre de validations (BC hors Ad & Pro). */
+  seuilCentre: number;
   /** Vrai quand la file a été bornée : l'écran le dit au lieu de se croire exhaustif. */
   tronquee: boolean;
 }
@@ -124,8 +127,11 @@ export async function fileBonsDeCommande(user: CurrentUser, opts: { signesRecent
     }),
   ]);
 
-  const seuil = (await getAppSettings()).bcValidationThreshold;
-  const etats = await etatsDesBC([...enVol, ...signesDocs].map((d) => d.id), { seuil });
+  // Chaque BC lit le seuil de SON centre (Ad & Pro ou centre de validations — Direction, 10/2026).
+  const reglages = await getAppSettings();
+  const seuil = reglages.bcValidationThreshold;
+  const seuilCentre = reglages.bcValidationThresholdCentre;
+  const etats = await etatsDesBC([...enVol, ...signesDocs].map((d) => d.id));
   const ligne = (d: (typeof enVol)[number]): LigneBCFinances | null => {
     const e = etats.get(d.id);
     if (!e) return null;
@@ -146,6 +152,7 @@ export async function fileBonsDeCommande(user: CurrentUser, opts: { signesRecent
     signes: signesDocs.map(ligne).filter((l): l is LigneBCFinances => l !== null),
     enValidation: lignesEnVol.filter((l) => l.etape === "A_VALIDER" || l.etape === "A_REVOIR" || l.etape === "SANS_PORTE").length,
     seuil,
+    seuilCentre,
     tronquee: enVol.length >= PLAFOND_FILE,
   };
 }
