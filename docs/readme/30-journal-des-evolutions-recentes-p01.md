@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### ÉQUIPE ADVENTUM : LES FRAIS DE L'ÉQUIPE INTERNE AU BUDGET OPERATIONS & SALES (2026-10-14)
+
+Aucune migration. « Ici le budget à imputer, ce n'est pas Ad & Pro, c'est Operations & Sales. »
+
+- Colonne **Imputation** de la carte « Équipe Adventum » et carte « Imputation des frais » de la mission : catégories du
+  budget Operations & Sales de l'année (enveloppe ouverte d'office), « Frais de déplacement terrain » par défaut, posée
+  dès l'invitation ; plus aucune ligne Ad & Pro proposée. Choix : Direction Marketing, Direction des opérations, Super Admin.
+- **Frais de l'équipe à la clôture** : une ligne de dépense Operations & Sales au lieu d'un poste Ad & Pro.
+- **Budget Operations & Sales** : compte aussi la note de frais de mission (engagée puis consommée) ; Ad & Pro ne voit
+  plus rien de l'équipe interne. Les anciennes imputations / anciens postes Ad & Pro restent lisibles tels quels.
+
 ### PRISES EN CHARGE : LIVRETS DE SÉJOUR EN PDF, SELON LA CHARTE ADVENTUM (2026-10-11)
 
 Aucune migration. Règles : `lib/livret/modele.ts` (pur, testé) — voir « Fiches voyageur » dans la référence des circuits.

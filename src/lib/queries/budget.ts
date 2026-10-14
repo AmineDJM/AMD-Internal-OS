@@ -8,8 +8,10 @@ import { generalMeansConsumption } from "@/lib/queries/budget-general-means";
 import { getAppSettings } from "@/lib/settings";
 import { dansLaPortee, totaliser, type PorteeBudget } from "@/lib/budget/domaines";
 import { masseSalarialeConsumption } from "@/lib/queries/budget-operations";
+import { fraisMissionConsumption } from "@/lib/missions-equipe/imputation-serveur";
 import { datesReellesDesEcritures, engagementsDesCategories } from "@/lib/queries/budget-sources";
 import { dansLaPeriode } from "@/lib/budget/engage";
+import { lienMission } from "@/lib/chemins/espace";
 
 /**
  * LA PORTÉE D'UN ÉCRAN (Budget Marketing, 08/10) : Budgets lit toutes les enveloppes visibles, Budget Marketing les
@@ -80,8 +82,10 @@ export interface UnattributedTx {
  */
 export interface AttributedTx {
   id: string;
-  /** `PAIE` : la paie de la force de vente, en TOTAL par mois (Budget Operations & Sales) — elle se lit, ne se corrige pas. */
-  kind: "FINANCE" | "BUDGET" | "GENERAL_MEANS" | "PAIE";
+  /** `PAIE` : la paie de la force de vente, en TOTAL par mois (Budget Operations & Sales) — elle se lit, ne se corrige pas.
+   *  `MISSION` : la note de frais de mission d'un membre de l'équipe Adventum (Budget Operations & Sales) — lue, jamais
+   *  recopiée ; elle se corrige sur la mission. */
+  kind: "FINANCE" | "BUDGET" | "GENERAL_MEANS" | "PAIE" | "MISSION";
   reference: string;
   date: string;
   label: string;
@@ -265,6 +269,11 @@ export async function getEnvelopesGrandTotal(viewer: SessionUser, opts: OptionsP
   for (const [catId, amount] of paie.byCategory) {
     consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
   }
+  // …et les notes de frais de mission de l'équipe Adventum validées (Operations & Sales seulement, jamais Ad & Pro).
+  const missions = await fraisMissionConsumption(catIds);
+  for (const [catId, amount] of missions.consumed) {
+    consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
+  }
 
   const items: EnvelopeSummaryItem[] = visible.map((e) => {
     const total = toNumber(e.totalAmount);
@@ -417,6 +426,17 @@ export async function getBudgetOverview(
   for (const [catId, amount] of engagements.parCategorie) {
     committedByCat.set(catId, (committedByCat.get(catId) ?? 0) + amount);
   }
+  // LES FRAIS DE L'ÉQUIPE ADVENTUM (Direction, 10/2026 : « ce n'est pas Ad & Pro, c'est Operations & Sales ») : la note
+  // de frais de mission compte dans la catégorie Operations & Sales du membre — engagée en route, consommée une fois
+  // validée par les RH. Seules les catégories d'une enveloppe Operations & Sales la lisent : Ad & Pro ne la voit jamais.
+  // (Le transport et l'hébergement intégrés à la clôture sont des lignes budgétaires, déjà comptées plus haut.)
+  const fraisMission = await fraisMissionConsumption(catIds, from, to);
+  for (const [catId, amount] of fraisMission.consumed) {
+    consumedByCat.set(catId, (consumedByCat.get(catId) ?? 0) + amount);
+  }
+  for (const [catId, amount] of fraisMission.committed) {
+    committedByCat.set(catId, (committedByCat.get(catId) ?? 0) + amount);
+  }
 
   const categories: BudgetCategoryView[] = envelope.categories.map((c) => {
     const allocated = toNumber(c.allocated);
@@ -507,6 +527,7 @@ export async function getBudgetOverview(
     // elle resterait plate pendant que le consommé, lui, monte.
     ...generalMeans.rows.map((r) => ({ date: r.date, amount: r.amount })),
     ...paie.rows.map((r) => ({ date: r.date, amount: r.amount })),
+    ...fraisMission.rows.map((r) => ({ date: dansLaPeriode(r.date, from, to), amount: r.amount })),
   ]);
 
   const attributedTx: AttributedTx[] = [
@@ -534,6 +555,13 @@ export async function getBudgetOverview(
       amount: r.amount, counterparty: null, status: "SETTLED",
       categoryId: r.categoryId, categoryName: catNameById.get(r.categoryId) ?? "—",
       lien: "/budget-operations/masse-salariale",
+    })),
+    // Les notes de frais de mission de l'équipe Adventum : UNE ligne par note, lue sur la mission.
+    ...fraisMission.rows.map((r) => ({
+      id: r.id, kind: "MISSION" as const, reference: "Mission Ad & Pro",
+      date: r.date.toISOString(), label: r.label, amount: r.amount, counterparty: null, status: "SETTLED",
+      categoryId: r.categoryId, categoryName: catNameById.get(r.categoryId) ?? "—",
+      lien: lienMission(r.assignmentId, "frais"),
     })),
   ].sort((a, b) => b.date.localeCompare(a.date));
 

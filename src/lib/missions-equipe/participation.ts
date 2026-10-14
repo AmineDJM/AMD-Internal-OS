@@ -415,9 +415,9 @@ export function resumeBilletEmis(ref: string | null, trajets: readonly DetailTra
 
 // ─────────────────────────────── Le budget ───────────────────────────────
 
-/** L'imputation des frais d'un membre se choisit par la Direction Marketing (ou le Super Admin) — jamais d'office. */
+/** L'imputation des frais d'un membre (budget Operations & Sales) se choisit par la Direction Marketing, la Direction des opérations ou le Super Admin. */
 export function peutChoisirBudgetMission(roles: readonly string[]): boolean {
-  return roles.includes("PRODUCT_MANAGER") || roles.includes("SUPER_ADMIN");
+  return roles.includes("PRODUCT_MANAGER") || roles.includes("OPERATIONS_DIRECTOR") || roles.includes("SUPER_ADMIN");
 }
 
 // ─────────────────────────────── Les notes de frais ───────────────────────────────

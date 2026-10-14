@@ -77,29 +77,50 @@ export const nomEnveloppeAnnuelle = (pole: "OPERATIONS", annee: number): string 
  */
 export async function assurerEnveloppeAnnuelle(pole: "OPERATIONS", user: SessionUser & { id: string }): Promise<string | null> {
   if (!canGovernPoleEnvelope(user, pole, "CREATE")) return null;
-  const maintenant = new Date();
-  const annee = maintenant.getUTCFullYear();
-  const companyId = await companyIdForNew(user.id);
+  const r = await ouvrirEnveloppeAnnuelle(pole, { actorId: user.id, companyId: await companyIdForNew(user.id), date: new Date() });
+  return r.creee ? r.id : null;
+}
+
+/**
+ * L'ENVELOPPE DU PÔLE QUI COUVRE CETTE DATE — trouvée, sinon ouverte d'office (montant 0, catégories du pôle). Sans
+ * contrôle de droit : c'est l'IMPUTATION d'une dépense qui la demande (les frais de l'équipe Adventum sur une opération
+ * Ad & Pro vont au budget Operations & Sales, Direction 10/2026), pas un geste de gestion. Même règle que
+ * `assurerEnveloppeAnnuelle` : une enveloppe du pôle qui couvre déjà la date pour la société (ou pour le groupe) n'est
+ * jamais doublée, et l'ouverture est sérialisée dans le processus.
+ */
+export async function enveloppeDuPolePour(
+  pole: "OPERATIONS",
+  p: { actorId: string; companyId: string | null; date: Date },
+): Promise<{ id: string; creee: boolean }> {
+  return ouvrirEnveloppeAnnuelle(pole, p);
+}
+
+async function ouvrirEnveloppeAnnuelle(
+  pole: "OPERATIONS",
+  { actorId, companyId, date }: { actorId: string; companyId: string | null; date: Date },
+): Promise<{ id: string; creee: boolean }> {
+  const annee = date.getUTCFullYear();
   return enSerie(`enveloppe-annuelle:${pole}:${companyId ?? "groupe"}`, async () => {
     const existe = await prisma.budgetEnvelope.findFirst({
       where: {
-        domaine: pole, periodStart: { lte: maintenant }, periodEnd: { gte: maintenant },
+        domaine: pole, periodStart: { lte: date }, periodEnd: { gte: date },
         OR: [{ companyId }, { companyId: null }],
       },
+      orderBy: [{ isActive: "desc" }, { periodStart: "desc" }],
       select: { id: true },
     });
-    if (existe) return null;
+    if (existe) return { id: existe.id, creee: false };
     const { debut, fin } = bornesAnnee(annee);
     const nom = nomEnveloppeAnnuelle(pole, annee);
     const cree = await prisma.budgetEnvelope.create({
-      data: { name: nom, domaine: pole, modules: [], periodStart: debut, periodEnd: fin, totalAmount: 0, createdById: user.id, companyId },
+      data: { name: nom, domaine: pole, modules: [], periodStart: debut, periodEnd: fin, totalAmount: 0, createdById: actorId, companyId },
       select: { id: true },
     });
     const n = await completerCategoriesDuPole(cree.id, pole);
     await recordAudit({
-      actorId: user.id, action: "CREATE", module: DOMAINES[pole].titre, entityId: cree.id,
+      actorId, action: "CREATE", module: DOMAINES[pole].titre, entityId: cree.id,
       summary: `Enveloppe de l'année « ${nom} » ouverte d'office avec ${n} catégorie(s) (masse salariale d'abord) — montants à saisir`,
     }).catch(() => undefined);
-    return cree.id;
+    return { id: cree.id, creee: true };
   });
 }

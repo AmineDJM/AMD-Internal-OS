@@ -14,8 +14,8 @@ import { refusRetraitOrdreMission, refusAnnulationDemandeRh } from "@/lib/annula
 import { requestHrDocument } from "@/lib/actions/hr-document-actions";
 import { createRequest } from "@/lib/actions/admin-request-actions";
 import { demanderMateriel } from "@/lib/actions/promo-stock-actions";
-import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
 import { MES_MISSIONS, PARENT_TYPES, parentPath, parentMission, rolesDe, organisateursDe } from "@/lib/missions-equipe/serveur";
+import { assurerImputationEquipe, categorieEquipePour, categorieEquipeValide } from "@/lib/missions-equipe/imputation-serveur";
 import {
   refusReponse, peutRelancerInvitation, retraitSouple, refusAjoutEtape, etatOrdreMission, peutDemanderOrdre,
   peutRetirerOrdre, marcheInitiale, refusDecisionN1, noteFraisOuverte, jourIso, objetOrdreMission,
@@ -101,6 +101,9 @@ async function inviter(
       link: lienMission(a.id),
     }).catch(() => undefined);
   }
+  // LES FRAIS DE L'ÉQUIPE VONT AU BUDGET OPERATIONS & SALES (Direction, 10/2026) : l'imputation par défaut est posée dès
+  // l'invitation — enveloppe de l'année ouverte d'office, catégorie « Frais de déplacement terrain » ; la Direction la change.
+  await assurerImputationEquipe(a.id, actor.id, parent.debut);
   await recordAudit({ actorId: actor.id, action: "CREATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Invitation (${role}) sur ${parent.label}` });
   return { ok: true, id: a.id };
 }
@@ -588,6 +591,8 @@ export async function deposerNoteFraisMission(formData: FormData): Promise<Actio
   const r = await requestHrDocument(fd);
   if (!r.ok || !r.id) return r;
   await prisma.hrDocumentRequest.update({ where: { id: r.id }, data: { missionAssignmentId: a.id } });
+  // La note de frais compte au budget Operations & Sales par l'imputation du membre (posée par défaut si elle manque).
+  await assurerImputationEquipe(a.id, user.id, parent.debut);
   if (!a.etapes.includes("NOTE_FRAIS")) await prisma.missionAssignment.update({ where: { id: a.id }, data: { etapes: { push: "NOTE_FRAIS" } } });
   revalider(a.entityType, a.entityId);
   return { ok: true, id: r.id, message: "Note de frais déposée aux RH." };
@@ -596,10 +601,11 @@ export async function deposerNoteFraisMission(formData: FormData): Promise<Actio
 // ─────────────────────────────── La clôture : frais de l'équipe au budget ───────────────────────────────
 
 /**
- * « Frais de l'équipe Adventum » — à la clôture, l'organisateur reporte À LA MAIN le montant exact du
- * transport ou de l'hébergement d'un membre et l'intègre au budget de la demande : un POSTE Ad & Pro
- * (Déplacement / Hôtellerie) est créé par le mécanisme habituel des postes, qui le validera et le
- * rangera dans un budget comme les autres. Rien d'automatique : sans ce geste, rien n'est imputé.
+ * « Frais de l'équipe Adventum » — à la clôture, l'organisateur reporte À LA MAIN le montant exact du transport ou de
+ * l'hébergement d'un membre et l'intègre au BUDGET OPERATIONS & SALES (Direction, 10/2026 : « ici le budget à imputer,
+ * ce n'est pas Ad & Pro, c'est Operations & Sales ») : une ligne de dépense dans la catégorie choisie (à défaut
+ * l'imputation du membre, à défaut « Frais de déplacement terrain » de l'enveloppe de l'année, ouverte d'office). Plus
+ * de poste Ad & Pro : ceux créés avant restent où ils sont. Rien d'automatique : sans ce geste, rien n'est imputé.
  */
 export async function integrerFraisEquipe(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -607,30 +613,46 @@ export async function integrerFraisEquipe(formData: FormData): Promise<ActionRes
   if (!a || a.archivedAt) return { ok: false, error: "Mission introuvable." };
   if (!(await canAccessEntity(user, a.entityType, a.entityId, "UPDATE"))) return { ok: false, error: "Action non autorisée." };
   const etape = fdStr(formData, "etape") === "HEBERGEMENT" ? "HEBERGEMENT" : "TRANSPORT";
-  if (etape === "TRANSPORT" ? a.transportPosteId : a.hebergementPosteId) return { ok: false, error: "Ces frais sont déjà intégrés au budget de la demande." };
+  const deja = etape === "TRANSPORT" ? a.transportPosteId : a.hebergementPosteId;
+  if (deja) {
+    // Une ligne (ou un ancien poste Ad & Pro) supprimée depuis le budget ne bloque plus : les frais se réintègrent.
+    const [ligne, poste] = await Promise.all([
+      prisma.budgetExpenseLine.findUnique({ where: { id: deja }, select: { id: true } }),
+      prisma.adProItem.findUnique({ where: { id: deja }, select: { id: true } }),
+    ]);
+    if (ligne || poste) return { ok: false, error: "Ces frais sont déjà intégrés au budget." };
+  }
   const montant = fdNum(formData, "montant");
   const refus = refusMontantFrais(montant);
-  if (refus) return { ok: false, error: refus };
+  if (refus || montant == null) return { ok: false, error: refus ?? "Montant invalide." };
 
+  const parent = await parentMission(a.entityType, a.entityId);
+  const cible = await categorieEquipePour(a, user.id, parent.debut, fdStr(formData, "budgetCategoryId"));
+  if (!cible.ok) return { ok: false, error: cible.error };
   const personne = await prisma.user.findUnique({ where: { id: a.userId }, select: { name: true } });
   const demande = await prisma.administrativeRequest.findFirst({
     where: { linkedEntityType: "MISSION_ASSIGNMENT", linkedEntityId: a.id, subtype: SOUS_TYPE_SECRETARIAT[etape], deletedAt: null },
     orderBy: { createdAt: "desc" }, select: { reference: true },
   });
-  const fd = new FormData();
-  fd.set("parent", a.entityType);
-  fd.set("parentId", a.entityId);
-  fd.set("kind", etape === "TRANSPORT" ? "TRAVEL" : "ACCOMMODATION");
-  fd.set("label", `${LIBELLE_ETAPE[etape]} — ${personne?.name ?? "membre"} (équipe Adventum)`);
-  fd.set("amountEstimated", String(montant));
-  fd.set("budgetKind", "INCLUDED");
-  fd.set("notes", `Frais de l'équipe Adventum, montant exact saisi à la clôture${demande ? ` — demande ${demande.reference}` : ""}.`);
-  const r = await addAdProItem(undefined, fd);
-  if (!r.ok || !r.id) return r;
-  await prisma.missionAssignment.update({ where: { id: a.id }, data: etape === "TRANSPORT" ? { transportPosteId: r.id } : { hebergementPosteId: r.id } });
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Frais de l'équipe intégrés au budget — ${LIBELLE_ETAPE[etape]} ${personne?.name ?? ""} : ${montant} DZD` });
+  // La dépense se date par la mission (retour, sinon départ) : elle tombe dans l'année de l'enveloppe qui la porte.
+  const date = a.dateRetour ?? a.dateDepart ?? parent.fin ?? parent.debut ?? new Date();
+  const ligne = await prisma.budgetExpenseLine.create({
+    data: {
+      categoryId: cible.id,
+      reference: `${LIBELLE_ETAPE[etape]} — ${personne?.name ?? "membre"} (équipe Adventum) — ${parent.label}`.slice(0, 250),
+      amount: montant,
+      date,
+      notes: `Frais de l'équipe Adventum, montant exact saisi à la clôture${demande ? ` — demande ${demande.reference}` : ""}. Mission : ${lienMission(a.id)}`,
+      createdById: user.id,
+    },
+    select: { id: true },
+  });
+  await prisma.missionAssignment.update({ where: { id: a.id }, data: etape === "TRANSPORT" ? { transportPosteId: ligne.id } : { hebergementPosteId: ligne.id } });
+  await recordAudit({ actorId: user.id, action: "CREATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Frais de l'équipe intégrés au budget ${cible.libelle} — ${LIBELLE_ETAPE[etape]} ${personne?.name ?? ""} : ${montant} DZD` });
   revalider(a.entityType, a.entityId);
-  return { ok: true, id: r.id, message: "Intégré au budget de la demande (nouveau poste)." };
+  revalidatePath("/budget-operations");
+  revalidatePath("/budget-operations/depenses");
+  return { ok: true, id: ligne.id, message: `Intégré au budget ${cible.libelle}.` };
 }
 
 /** Discussion sur l'assignation : la personne assignée et les responsables peuvent échanger. */
@@ -869,28 +891,34 @@ export async function enregistrerHotelMission(formData: FormData): Promise<Actio
   return { ok: true, message: "Confirmation d'hôtel enregistrée." };
 }
 
-/** L'IMPUTATION des frais de mission d'un membre — choisie par la Direction Marketing, jamais d'office. */
+/**
+ * L'IMPUTATION des frais de mission d'un membre — au budget OPERATIONS & SALES (Direction, 10/2026), dans la catégorie
+ * choisie par la Direction Marketing ou la Direction des opérations. Une catégorie Ad & Pro (ou la masse salariale) est
+ * refusée ; « par défaut » remet la catégorie par défaut de l'enveloppe de l'année.
+ */
 export async function choisirBudgetMission(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const a = await chargerAssignation(fdStr(formData, "id"));
   if (!a || a.archivedAt) return { ok: false, error: "Mission introuvable." };
-  if (!peutChoisirBudgetMission(rolesDe(user))) return { ok: false, error: "L'imputation des frais de mission se choisit par la Direction Marketing." };
+  if (!peutChoisirBudgetMission(rolesDe(user))) return { ok: false, error: "L'imputation des frais de mission se choisit par la Direction Marketing ou la Direction des opérations." };
   const budgetCategoryId = fdStr(formData, "budgetCategoryId");
-  let libelle = "retirée";
+  let libelle: string;
   if (budgetCategoryId) {
-    const cat = await prisma.budgetCategoryLine.findUnique({ where: { id: budgetCategoryId }, select: { name: true, envelope: { select: { name: true } } } });
-    if (!cat) return { ok: false, error: "Catégorie budgétaire introuvable." };
-    libelle = `${cat.envelope.name} › ${cat.name}`;
+    const v = await categorieEquipeValide(budgetCategoryId);
+    if (!v.ok) return { ok: false, error: v.error };
+    libelle = v.libelle;
+    await prisma.missionAssignment.update({ where: { id: a.id }, data: { budgetCategoryId, budgetChoisiParId: user.id, budgetChoisiLe: new Date() } });
+  } else {
+    await prisma.missionAssignment.update({ where: { id: a.id }, data: { budgetCategoryId: null, budgetChoisiParId: null, budgetChoisiLe: null } });
+    const parent = await parentMission(a.entityType, a.entityId);
+    const defaut = await assurerImputationEquipe(a.id, user.id, parent.debut);
+    const v = defaut ? await categorieEquipeValide(defaut) : null;
+    libelle = v?.ok ? `${v.libelle} (par défaut)` : "à poser";
   }
-  await prisma.missionAssignment.update({
-    where: { id: a.id },
-    data: budgetCategoryId
-      ? { budgetCategoryId, budgetChoisiParId: user.id, budgetChoisiLe: new Date() }
-      : { budgetCategoryId: null, budgetChoisiParId: null, budgetChoisiLe: null },
-  });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, field: "budgetCategoryId", newValue: budgetCategoryId ?? "", summary: `Imputation des frais de mission : ${libelle}` });
   revalider(a.entityType, a.entityId);
-  return { ok: true, message: budgetCategoryId ? `Imputé à ${libelle}.` : "Imputation retirée." };
+  revalidatePath("/budget-operations");
+  return { ok: true, message: `Imputé à ${libelle}.` };
 }
 
 /** La porte des dépenses : la personne, sa mission ouverte (OM émis), pas encore clôturée. */
@@ -1004,15 +1032,15 @@ export async function cloturerMission(formData: FormData): Promise<ActionResult>
     const lues = lignes.map((l) => ({ montant: toNumber(l.amount), devise: l.currency === "USD" ? "USD" as const : "DZD" as const }));
     const total = totalFrais(lues, taux);
     if (total.totalDzd == null || total.totalDzd <= 0) return { ok: false, error: "Le total des dépenses n'a pas pu être converti en DZD." };
-    const budget = a.budgetCategoryId
-      ? await prisma.budgetCategoryLine.findUnique({ where: { id: a.budgetCategoryId }, select: { name: true, envelope: { select: { name: true } } } })
-      : null;
+    // La note de frais compte au budget Operations & Sales par l'imputation du membre (posée par défaut si elle manque).
+    const imputation = await assurerImputationEquipe(a.id, user.id, parent.debut);
+    const budget = imputation ? await categorieEquipeValide(imputation) : null;
     const details = [
       `Mission — ${parent.label}${a.ville ? ` · ${a.ville}` : ""}${dates(a.dateDepart, a.dateRetour)}`,
       ...lignes.map((l) => `• ${jourIso(l.date)} — ${NATURE_FRAIS_LIBELLE[l.nature as NatureFrais] ?? l.nature}${l.detail ? ` (${l.detail})` : ""} : ${toNumber(l.amount).toLocaleString("fr-FR")} ${l.currency}${l.currency === "USD" && l.amountDzd != null ? ` = ${toNumber(l.amountDzd).toLocaleString("fr-FR")} DZD` : ""}${l.documentId ? ` — justificatif /api/documents/${l.documentId}` : ""}`),
       parent.international ? `Taux : 1 USD = ${taux} DZD (figé sur la demande).` : null,
       `Total : ${total.totalDzd.toLocaleString("fr-FR")} DZD${total.usd > 0 ? ` (dont ${total.usd.toLocaleString("fr-FR")} USD)` : ""}.`,
-      budget ? `Imputation (Direction Marketing) : ${budget.envelope.name} › ${budget.name}.` : "Imputation : à choisir par la Direction Marketing.",
+      budget?.ok ? `Imputation (budget Operations & Sales) : ${budget.libelle}.` : "Imputation : budget Operations & Sales, catégorie à choisir.",
       `Mission : ${lienMission(a.id, "frais")}`,
     ].filter(Boolean).join("\n");
     const manager = await getManagerOf(employee.id).catch(() => null);
