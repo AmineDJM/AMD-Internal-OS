@@ -130,11 +130,16 @@ describe("D. CONSTATS DOCUMENTÉS — défauts réels laissés à leur chantier 
    * `modePaiement`, `conditionsPaiement`, `livraison.date`, `referenceAmont`. Chantier « BC modifiables de A à Z » (autre
    * branche, éditeur commun) : quand l'éditeur enverra ces champs, l'action devra les lire, sinon ils seront ignorés.
    */
-  it.fails("M-04 — modifierBcDuPoste lit le fournisseur, la TVA, le mode et les conditions de paiement, la date de livraison", () => {
+  // M-04 CORRIGÉ par le chantier « BC modifiables de A à Z » : `modifierBcDuPoste` lit tout par `lireModificationsDuBc`
+  // (le même formulaire que la composition). Le cas protège désormais la correction.
+  it("M-04 — modifierBcDuPoste lit le fournisseur, la TVA, le mode et les conditions de paiement", () => {
     const action = readFileSync(join(process.cwd(), "src/lib/actions/ad-pro-item-actions.ts"), "utf8");
     const modifier = action.slice(action.indexOf("export async function modifierBcDuPoste"), action.indexOf("// ───────────────────────────── Matériel promotionnel"));
-    for (const champ of ["fournisseurNom", "fournisseurEmail", "tvaDefaut", "modePaiement", "conditionsPaiement", "livraisonDate"]) {
-      expect(modifier, champ).toContain(`"${champ}"`);
+    expect(modifier).toContain("lireModificationsDuBc(");
+    const debut = action.indexOf("function lireModificationsDuBc");
+    const lecteur = action.slice(debut, action.indexOf("\n}\n", debut));
+    for (const champ of ["tiersNom", "tiersEmail", "tiersAdresse", "tvaDefaut", "modePaiement", "conditionsPaiement", "livraisonAdresse"]) {
+      expect(lecteur, champ).toContain(`"${champ}"`);
     }
   });
 });
