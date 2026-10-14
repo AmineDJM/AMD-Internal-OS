@@ -1,3 +1,4 @@
+import { devisMisAPart, type DevisAComparer } from "@/lib/ad-pro/devis-poste";
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -102,9 +103,20 @@ describe("D. CONSTATS DOCUMENTÉS — défauts réels laissés à leur chantier 
    * déposée une fois par voyageur (cinq copies du même fichier), est comptée cinq fois — 586 250 DZD — et le poste de
    * billetterie se dit « au-delà de l'accordé ». Quand le correctif est fusionné, ce cas PASSE : retirer `.fails`.
    */
-  it.fails("H-07 — cinq copies d'une pro forma de 117 250 DZD ne totalisent pas 586 250 DZD", () => {
-    const copies = [117_250, 117_250, 117_250, 117_250, 117_250];
-    expect(depassementDevisRetenus(copies, 117_250), "une pièce comptée une fois ne dépasse pas l'accordé").toBeNull();
+  // H-07 CORRIGÉ par le chantier « BC en un clic » : la même pièce déposée pour cinq voyageurs ne compte qu'une fois
+  // (`devisMisAPart` — mêmes lignes ET même fichier). `depassementDevisRetenus` ne reçoit que des montants : deux billets
+  // au même prix restent deux commandes, c'est en amont que les copies sont écartées. Banc de flux : `bc-meme-piece-flow`.
+  it("H-07 — cinq copies d'une pro forma de 117 250 DZD ne comptent qu'une fois", () => {
+    const lignes = [{ reference: "Billet Alger → Constantine", quantity: 1, unitPrice: 117_250 }];
+    const copies: DevisAComparer[] = [1, 2, 3, 4, 5].map((i) => ({
+      pieceId: `p${i}`, nom: "Facture pro forma — SPO-2026-001", annule: false, empreintes: ["sha-pro-forma"],
+      reference: "SPO-2026-001", fournisseur: "Genius Travel", lignes, aUnBc: false, nbValidees: 1, voyageur: null,
+    }));
+    const misAPart = devisMisAPart(copies);
+    expect(misAPart.size, "quatre copies écartées").toBe(4);
+    const comptees = copies.filter((d) => !misAPart.has(d.pieceId)).map(() => 117_250);
+    expect(comptees.reduce((a, b) => a + b, 0)).toBe(117_250);
+    expect(depassementDevisRetenus(comptees, 124_750), "sous l'accordé de 124 750 DZD").toBeNull();
   });
 
   /**
