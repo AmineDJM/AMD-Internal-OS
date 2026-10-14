@@ -161,6 +161,7 @@ describe("La réservation et le budget", () => {
   it("l'imputation se choisit par la Direction Marketing (ou le Super Admin), jamais d'office", () => {
     expect(peutChoisirBudgetMission(["PRODUCT_MANAGER"])).toBe(true);
     expect(peutChoisirBudgetMission(["SUPER_ADMIN"])).toBe(true);
+    expect(peutChoisirBudgetMission(["OPERATIONS_DIRECTOR"])).toBe(true); // le budget Operations & Sales est le sien
     expect(peutChoisirBudgetMission(["DIRECTION_ASSISTANT", "DELEGATE"])).toBe(false);
   });
 });

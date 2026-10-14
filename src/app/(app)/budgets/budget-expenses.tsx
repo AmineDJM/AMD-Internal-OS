@@ -197,8 +197,9 @@ export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [
                 {tx.kind === "BUDGET" && <Badge tone="neutral" dot={false}>Budgétaire</Badge>}
                 {tx.kind === "GENERAL_MEANS" && <Badge tone="info" dot={false}>Moyens généraux</Badge>}
                 {tx.kind === "PAIE" && <Badge tone="info" dot={false}>Paie</Badge>}
+                {tx.kind === "MISSION" && <Badge tone="info" dot={false}>Mission</Badge>}
                 <span className="shrink-0 whitespace-nowrap font-semibold tabular-nums">{formatCurrency(tx.amount)}</span>
-                {tx.kind === "GENERAL_MEANS" || tx.kind === "PAIE" ? (
+                {tx.kind === "GENERAL_MEANS" || tx.kind === "PAIE" || tx.kind === "MISSION" ? (
                   // Un achat des moyens généraux se corrige LÀ-BAS, avec son justificatif. Le
                   // modifier depuis le budget donnerait deux endroits pour changer un même
                   // montant — donc, tôt ou tard, deux montants différents. Le lien n'est offert que

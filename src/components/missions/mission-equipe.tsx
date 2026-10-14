@@ -18,6 +18,7 @@ import {
   type Cote, type FicheParticipation, type ChoixHebergement, type NatureFrais, type Etat,
 } from "@/lib/missions-equipe/participation";
 import { peutDemanderOrdre, peutRetirerOrdre, noteFraisOuverte, jourIso } from "@/lib/missions-equipe/etat";
+import { POLE_EQUIPE, imputationHistorique, texteImputation } from "@/lib/missions-equipe/imputation";
 import { MISSION_ROLE } from "@/lib/labels";
 import { formatDate, cn } from "@/lib/utils";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
@@ -46,12 +47,13 @@ const montant = (n: number, devise: string) => `${n.toLocaleString("fr-FR", { ma
  * l'accord trouvé : l'ordre de mission en un clic. Quand il est émis : avant le départ (ordre, billet, hôtel, rôle
  * sur place), après (dépenses, rapport, clôture). Le fil de commentaires reste ouvert d'un bout à l'autre.
  */
-export function MissionEquipe({ detail, vue, peutDeposer, peutBudget, budgetOptions, currentUserId, path }: {
+export function MissionEquipe({ detail, vue, peutDeposer, peutBudget, budgetOptions, imputationDefaut = null, currentUserId, path }: {
   detail: MissionDetailDTO;
   vue: Cote | null;
   peutDeposer: boolean;
   peutBudget: boolean;
   budgetOptions: { id: string; label: string }[];
+  imputationDefaut?: { id: string; label: string } | null;
   currentUserId: string;
   path: string;
 }) {
@@ -117,7 +119,7 @@ export function MissionEquipe({ detail, vue, peutDeposer, peutBudget, budgetOpti
           <div className="min-w-0 space-y-4">
             {p.convenue && <Convenu fiche={p.convenue} international={m.international} versionAccord={detail.versions.find((v) => v.statut === "ACCEPTEE") ?? null} />}
             {(p.convenue || phase !== "PARTICIPATION") && (
-              <Imputation detail={detail} peutBudget={peutBudget} options={budgetOptions} occupe={occupe} executer={executer} />
+              <Imputation detail={detail} peutBudget={peutBudget} options={budgetOptions} defaut={imputationDefaut} occupe={occupe} executer={executer} />
             )}
             <Card id="fil" className="scroll-mt-20">
               <CardHeader className="pb-2">
@@ -401,28 +403,40 @@ function Convenu({ fiche, international, versionAccord }: { fiche: FicheParticip
   );
 }
 
-/** L'IMPUTATION des frais de mission — la Direction Marketing la choisit ; les autres la lisent. */
-function Imputation({ detail, peutBudget, options, occupe, executer }: { detail: MissionDetailDTO; peutBudget: boolean; options: { id: string; label: string }[]; occupe: boolean; executer: Executer }) {
+/**
+ * L'IMPUTATION des frais de mission — au BUDGET OPERATIONS & SALES (Direction, 10/2026 : « ici le budget à imputer, ce
+ * n'est pas Ad & Pro, c'est Operations & Sales »). Catégorie par défaut posée d'office ; la Direction Marketing ou la
+ * Direction des opérations la change ; les autres la lisent. Une ancienne imputation Ad & Pro reste affichée telle quelle.
+ */
+function Imputation({ detail, peutBudget, options, defaut, occupe, executer }: { detail: MissionDetailDTO; peutBudget: boolean; options: { id: string; label: string }[]; defaut: { id: string; label: string } | null; occupe: boolean; executer: Executer }) {
   const m = detail.mission;
+  const historique = imputationHistorique(m.imputation);
+  const valeur = historique ? "__historique__" : m.imputation && !m.imputation.parDefaut ? m.imputation.categoryId : "";
+  // « Par défaut » : celui du membre s'il est posé (son enveloppe, sa société), sinon celui de l'année.
+  const defautDuMembre = m.imputation?.parDefaut && !historique ? { id: m.imputation.categoryId, label: m.imputation.libelle } : defaut;
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center gap-1 text-base">
-          Imputation des frais
-          <InfoBulle align="right">La Direction Marketing choisit la ligne budgétaire qui porte les frais de mission de cette personne. Rien n&apos;est imputé sans son choix.</InfoBulle>
+          Imputation des frais — budget {POLE_EQUIPE}
+          <InfoBulle align="right">Transport, hébergement, ordre de mission et frais de mission de l&apos;équipe Adventum vont au budget {POLE_EQUIPE} de l&apos;année — plus à Ad &amp; Pro, qui porte les invités externes. La catégorie par défaut s&apos;applique tant que la Direction Marketing ou la Direction des opérations n&apos;en choisit pas une autre.</InfoBulle>
         </CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-2">
         {peutBudget ? (
-          <Select aria-label="Ligne budgétaire" defaultValue={m.budgetCategoryId ?? ""} disabled={occupe}
+          <Select key={valeur} aria-label="Catégorie du budget Operations & Sales" defaultValue={valeur} disabled={occupe}
             onChange={(e) => void executer("budget", choisirBudgetMission, { id: m.id, budgetCategoryId: e.target.value })}>
-            <option value="">— À choisir —</option>
-            {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+            {historique && <option value="__historique__" disabled>{texteImputation(m.imputation, null)}</option>}
+            <option value="">{defautDuMembre ? `Par défaut — ${defautDuMembre.label}` : `${POLE_EQUIPE} — par défaut`}</option>
+            {options.filter((o) => o.id !== defautDuMembre?.id).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
           </Select>
-        ) : detail.budgetLibelle ? (
-          <p className="text-sm">{detail.budgetLibelle}</p>
         ) : (
-          <Pastille etat={{ texte: "à choisir — chez la Direction Marketing", ton: "neutral" }} />
+          <p className="text-sm">{texteImputation(m.imputation, defaut?.label ?? null)}</p>
+        )}
+        {historique && (
+          <p className="text-xs text-warning">
+            Imputation choisie avant le changement : elle reste affichée telle quelle. Les nouveaux frais de l&apos;équipe vont au budget {POLE_EQUIPE}.
+          </p>
         )}
       </CardContent>
     </Card>

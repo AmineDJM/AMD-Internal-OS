@@ -11,6 +11,7 @@ import {
   estArbitre, etatParticipation, aQuiLeTour, HEBERGEMENT_LIBELLE, MODE_TRANSPORT_LIBELLE, type FicheParticipation,
 } from "@/lib/missions-equipe/participation";
 import { lienMission } from "@/lib/chemins/espace";
+import { POLE_EQUIPE, imputationHistorique, texteImputation } from "@/lib/missions-equipe/imputation";
 import { MISSION_ROLE } from "@/lib/labels";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,11 +36,14 @@ const transportCourt = (f: FicheParticipation) =>
 /**
  * « ÉQUIPE ADVENTUM » — les personnes de la société sur une demande Ad & Pro (Direction, 10/2026). Une ligne par
  * personne : où en est sa participation (« état — chez qui »), le transport et l'hébergement sur la table (ou convenus),
- * son ordre de mission, et l'imputation de ses frais (choisie par la Direction Marketing). « Inviter à participer »
- * envoie une demande de participation : la personne répond par sa fiche. Les gestes secondaires (relancer, remplacer,
- * retirer) sont dans « ⋯ ». En bas, à la clôture : les frais de l'équipe, intégrés au budget À LA MAIN.
+ * son ordre de mission, et l'imputation de ses frais — au BUDGET OPERATIONS & SALES (Direction, 10/2026 : « ici le
+ * budget à imputer, ce n'est pas Ad & Pro, c'est Operations & Sales »), catégorie par défaut posée d'office, changeable
+ * par la Direction Marketing ou la Direction des opérations ; une ancienne imputation Ad & Pro reste lisible telle quelle.
+ * « Inviter à participer » envoie une demande de participation : la personne répond par sa fiche. Les gestes secondaires
+ * (relancer, remplacer, retirer) sont dans « ⋯ ». En bas, à la clôture : les frais de l'équipe, intégrés À LA MAIN au
+ * budget Operations & Sales.
  */
-export function EquipeAdventum({ entityType, entityId, assignments, personnes, canManage, currentUserId, viewerRoles = [], peutBudget = false, budgetOptions = [] }: {
+export function EquipeAdventum({ entityType, entityId, assignments, personnes, canManage, currentUserId, viewerRoles = [], peutBudget = false, budgetOptions = [], imputationDefaut = null }: {
   entityType: EntityType;
   entityId: string;
   assignments: MissionAssignmentDTO[];
@@ -48,7 +52,9 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
   currentUserId: string;
   viewerRoles?: string[];
   peutBudget?: boolean;
+  /** Les catégories Operations & Sales proposées (la catégorie par défaut d'abord). */
   budgetOptions?: { id: string; label: string }[];
+  imputationDefaut?: { id: string; label: string } | null;
 }) {
   const { enCours, rafraichir } = useRafraichir();
   const [inviter, setInviter] = React.useState(false);
@@ -73,8 +79,8 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
   const dejaLa = assignments.filter((a) => a.response !== "DECLINEE").map((a) => a.userId);
   const confirmes = assignments.filter((a) => a.response === "CONFIRMEE");
   const lignesFrais = confirmes.flatMap((a) => ([
-    a.transport && a.transport.statut !== "CANCELLED" ? { a, etape: "TRANSPORT" as const, demande: a.transport, poste: a.transportPosteId } : null,
-    a.hebergement && a.hebergement.statut !== "CANCELLED" ? { a, etape: "HEBERGEMENT" as const, demande: a.hebergement, poste: a.hebergementPosteId } : null,
+    a.transport && a.transport.statut !== "CANCELLED" ? { a, etape: "TRANSPORT" as const, demande: a.transport, integre: a.fraisIntegres.TRANSPORT } : null,
+    a.hebergement && a.hebergement.statut !== "CANCELLED" ? { a, etape: "HEBERGEMENT" as const, demande: a.hebergement, integre: a.fraisIntegres.HEBERGEMENT } : null,
   ].filter((x): x is NonNullable<typeof x> => x !== null)));
 
   return (
@@ -96,6 +102,14 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
         )}
       </CardHeader>
       <CardContent className="space-y-3">
+        {assignments.length > 0 && (
+          <p className="rounded-lg border border-info/30 bg-info/5 px-3 py-2 text-xs text-muted-foreground">
+            Les frais de l&apos;équipe Adventum (transport, hébergement, ordre de mission, frais de mission) sont imputés au{" "}
+            <span className="font-medium text-foreground">budget {POLE_EQUIPE}</span>
+            {imputationDefaut ? <> — par défaut <span className="font-medium text-foreground">{imputationDefaut.label}</span></> : null}.
+            {" "}Ad &amp; Pro ne porte que les invités externes (professionnels de santé).
+          </p>
+        )}
         {canManage && inviter && (
           <form
             className="space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-3"
@@ -155,7 +169,7 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
                   <th className="whitespace-nowrap px-3 py-2 font-medium">Ordre de mission</th>
                   <th className="whitespace-nowrap px-3 py-2 font-medium">
                     <span className="inline-flex items-center gap-1">Imputation
-                      <InfoBulle align="right">La Direction Marketing choisit la ligne budgétaire des frais de mission de chacun. Rien n&apos;est imputé sans son choix.</InfoBulle>
+                      <InfoBulle align="right">Les frais de chacun vont au budget {POLE_EQUIPE} de l&apos;année (plus à Ad &amp; Pro), dans la catégorie par défaut tant que la Direction Marketing ou la Direction des opérations n&apos;en choisit pas une autre. Une ancienne imputation Ad &amp; Pro reste affichée telle quelle.</InfoBulle>
                     </span>
                   </th>
                   <th className="px-3 py-2"><span className="sr-only">Actions</span></th>
@@ -170,7 +184,10 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
                   const fiche = p.convenue ?? p.courante;
                   const aMoi = vue !== null && aQuiLeTour(p.etape) === vue;
                   const relance = peutRelancerInvitation({ response: a.response, createdAt: a.createdAt, lastNudgeAt: a.lastNudgeAt, archivedAt: a.archivedAt });
-                  const budget = a.budgetCategoryId ? budgetOptions.find((o) => o.id === a.budgetCategoryId)?.label ?? "imputé" : null;
+                  const historique = imputationHistorique(a.imputation);
+                  const valeur = historique ? "__historique__" : a.imputation && !a.imputation.parDefaut ? a.imputation.categoryId : "";
+                  // « Par défaut » : celui du membre s'il est posé (son enveloppe, sa société), sinon celui de l'année.
+                  const defautDuMembre = a.imputation?.parDefaut && !historique ? { id: a.imputation.categoryId, label: a.imputation.libelle } : imputationDefaut;
                   return (
                     <React.Fragment key={a.id}>
                       <tr className="border-t border-border align-middle">
@@ -188,12 +205,16 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
                         <td className="whitespace-nowrap px-3 py-2"><Pastille etat={a.om.etat === "AUCUN" ? null : a.om.libelle} /></td>
                         <td className="whitespace-nowrap px-3 py-2">
                           {peutBudget && a.response !== "DECLINEE" ? (
-                            <Select aria-label={`Imputation — ${a.userName}`} className="h-8 min-w-[160px] text-xs" defaultValue={a.budgetCategoryId ?? ""} disabled={occupe}
+                            <Select key={`${a.id}-${valeur}`} aria-label={`Imputation — ${a.userName}`} className="h-8 min-w-[200px] text-xs" defaultValue={valeur} disabled={occupe}
+                              title={historique ? texteImputation(a.imputation, null) : undefined}
                               onChange={(e) => void executer(`budget-${a.id}`, choisirBudgetMission, avecId(a.id, { budgetCategoryId: e.target.value }))}>
-                              <option value="">— À choisir —</option>
-                              {budgetOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                              {historique && <option value="__historique__" disabled>{texteImputation(a.imputation, null)}</option>}
+                              <option value="">{defautDuMembre ? `Par défaut — ${defautDuMembre.label}` : `${POLE_EQUIPE} — par défaut`}</option>
+                              {budgetOptions.filter((o) => o.id !== defautDuMembre?.id).map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
                             </Select>
-                          ) : budget ?? <span className="text-muted-foreground">—</span>}
+                          ) : a.response === "DECLINEE" && !a.imputation ? <span className="text-muted-foreground">—</span> : (
+                            <span className={historique ? "text-warning" : undefined}>{texteImputation(a.imputation, imputationDefaut?.label ?? null)}</span>
+                          )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2 text-right">
                           <span className="inline-flex items-center gap-1">
@@ -251,7 +272,7 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
 
         {msg && <p className={`text-xs ${msg.ok ? "text-success" : "text-destructive"}`}>{msg.texte}</p>}
 
-        {canManage && lignesFrais.length > 0 && <FraisEquipe lignes={lignesFrais} occupe={occupe} executer={executer} />}
+        {canManage && lignesFrais.length > 0 && <FraisEquipe lignes={lignesFrais} options={budgetOptions} defaut={imputationDefaut} occupe={occupe} executer={executer} />}
       </CardContent>
     </Card>
   );
@@ -259,11 +280,15 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
 
 /**
  * « FRAIS DE L'ÉQUIPE ADVENTUM » — à la clôture (Direction : « laisser une case manuelle pour l'intégration au budget
- * exact »). Fermé par défaut ; chaque ligne porte le montant EXACT saisi à la main et la case « Intégrer au budget de la
- * demande ». Rien d'automatique : une ligne non cochée n'est jamais imputée.
+ * exact »). Fermé par défaut ; chaque ligne porte le montant EXACT saisi à la main, la catégorie du budget Operations &
+ * Sales (celle du membre, sinon la catégorie par défaut) et la case « Intégrer au budget Operations & Sales ». Rien
+ * d'automatique : une ligne non cochée n'est jamais imputée. Des frais intégrés à Ad & Pro avant la règle restent
+ * affichés comme tels.
  */
-function FraisEquipe({ lignes, occupe, executer }: {
-  lignes: { a: MissionAssignmentDTO; etape: "TRANSPORT" | "HEBERGEMENT"; demande: { detail: string | null; etat: Etat; href: string | null }; poste: string | null }[];
+function FraisEquipe({ lignes, options, defaut, occupe, executer }: {
+  lignes: { a: MissionAssignmentDTO; etape: "TRANSPORT" | "HEBERGEMENT"; demande: { detail: string | null; etat: Etat; href: string | null }; integre: "OPERATIONS" | "AD_PRO" | null }[];
+  options: { id: string; label: string }[];
+  defaut: { id: string; label: string } | null;
   occupe: boolean;
   executer: (cle: string, action: (fd: FormData) => Promise<Resultat>, fd: FormData) => Promise<void>;
 }) {
@@ -272,8 +297,8 @@ function FraisEquipe({ lignes, occupe, executer }: {
     <div className="rounded-lg border border-border">
       <button type="button" onClick={() => setOuvert((v) => !v)} aria-expanded={ouvert}
         className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm font-medium hover:bg-secondary/40">
-        <span>Frais de l&apos;équipe Adventum — à la clôture</span>
-        <span className="text-xs text-muted-foreground">{lignes.filter((l) => l.poste).length}/{lignes.length} intégrés</span>
+        <span>Frais de l&apos;équipe Adventum — à la clôture, au budget {POLE_EQUIPE}</span>
+        <span className="text-xs text-muted-foreground">{lignes.filter((l) => l.integre).length}/{lignes.length} intégrés</span>
       </button>
       {ouvert && (
         <div className="overflow-x-auto border-t border-border">
@@ -285,43 +310,55 @@ function FraisEquipe({ lignes, occupe, executer }: {
                 <th className="whitespace-nowrap px-3 py-2 font-medium">Demande</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">Montant exact (DZD)</th>
                 <th className="whitespace-nowrap px-3 py-2 font-medium">
-                  <span className="inline-flex items-center gap-1">Budget
-                    <InfoBulle align="right">Cocher crée un poste « Déplacement » ou « Hôtellerie » sur la demande, au montant saisi : il se valide et se range dans un budget comme les autres postes.</InfoBulle>
+                  <span className="inline-flex items-center gap-1">Budget {POLE_EQUIPE}
+                    <InfoBulle align="right">Cocher écrit une dépense au montant saisi dans la catégorie choisie du budget {POLE_EQUIPE} de l&apos;année (consommé de cette catégorie). Plus de poste Ad &amp; Pro pour l&apos;équipe.</InfoBulle>
                   </span>
                 </th>
               </tr>
             </thead>
             <tbody>
-              {lignes.map((l) => (
-                <tr key={`${l.a.id}-${l.etape}`} className="border-t border-border">
-                  <td className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2">{l.a.userName}</td>
-                  <td className="whitespace-nowrap px-3 py-2">{l.etape === "TRANSPORT" ? "Transport" : "Hébergement"}</td>
-                  <td className="whitespace-nowrap px-3 py-2">
-                    {l.demande.href ? <Link href={l.demande.href} className="text-primary hover:underline">{l.demande.detail ?? "Ouvrir"}</Link> : l.demande.detail}
-                    <span className="ml-2"><Pastille etat={l.demande.etat} /></span>
-                  </td>
-                  {l.poste ? (
-                    <td colSpan={2} className="whitespace-nowrap px-3 py-2"><Badge tone="success" dot={false}>intégré au budget</Badge></td>
-                  ) : (
-                    <td colSpan={2} className="px-3 py-2">
-                      <form className="flex items-center gap-2"
-                        onSubmit={(e) => {
-                          e.preventDefault();
-                          const fd = new FormData(e.currentTarget);
-                          if (fd.get("integrer") !== "on") return;
-                          fd.set("id", l.a.id); fd.set("etape", l.etape);
-                          void executer(`frais-${l.a.id}-${l.etape}`, integrerFraisEquipe, fd);
-                        }}>
-                        <Input name="montant" inputMode="decimal" className="w-32" aria-label="Montant exact (DZD)" required />
-                        <label className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
-                          <input type="checkbox" name="integrer" required /> Intégrer au budget de la demande
-                        </label>
-                        <Button type="submit" size="sm" variant="outline" disabled={occupe}>OK</Button>
-                      </form>
+              {lignes.map((l) => {
+                const choix = l.a.imputation?.pole === "OPERATIONS" && options.some((o) => o.id === l.a.imputation?.categoryId) ? l.a.imputation.categoryId : defaut?.id ?? "";
+                return (
+                  <tr key={`${l.a.id}-${l.etape}`} className="border-t border-border">
+                    <td className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2">{l.a.userName}</td>
+                    <td className="whitespace-nowrap px-3 py-2">{l.etape === "TRANSPORT" ? "Transport" : "Hébergement"}</td>
+                    <td className="whitespace-nowrap px-3 py-2">
+                      {l.demande.href ? <Link href={l.demande.href} className="text-primary hover:underline">{l.demande.detail ?? "Ouvrir"}</Link> : l.demande.detail}
+                      <span className="ml-2"><Pastille etat={l.demande.etat} /></span>
                     </td>
-                  )}
-                </tr>
-              ))}
+                    {l.integre ? (
+                      <td colSpan={2} className="whitespace-nowrap px-3 py-2">
+                        {l.integre === "OPERATIONS"
+                          ? <Badge tone="success" dot={false}>intégré — {POLE_EQUIPE}</Badge>
+                          : <Badge tone="warning" dot={false}>intégré à Ad &amp; Pro (avant le changement)</Badge>}
+                      </td>
+                    ) : (
+                      <td colSpan={2} className="px-3 py-2">
+                        <form className="flex flex-wrap items-center gap-2"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            const fd = new FormData(e.currentTarget);
+                            if (fd.get("integrer") !== "on") return;
+                            fd.set("id", l.a.id); fd.set("etape", l.etape);
+                            void executer(`frais-${l.a.id}-${l.etape}`, integrerFraisEquipe, fd);
+                          }}>
+                          <Input name="montant" inputMode="decimal" className="w-32" aria-label="Montant exact (DZD)" required />
+                          {options.length > 0 && (
+                            <Select name="budgetCategoryId" defaultValue={choix} className="h-9 min-w-[200px] text-xs" aria-label={`Catégorie ${POLE_EQUIPE}`}>
+                              {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                            </Select>
+                          )}
+                          <label className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
+                            <input type="checkbox" name="integrer" required /> Intégrer au budget {POLE_EQUIPE}
+                          </label>
+                          <Button type="submit" size="sm" variant="outline" disabled={occupe}>OK</Button>
+                        </form>
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

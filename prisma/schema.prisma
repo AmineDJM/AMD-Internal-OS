@@ -8734,7 +8734,8 @@ model MissionAssignment {
   /// Retrait SOUPLE : une assignation qui porte des pièces, un fil ou des demandes s'archive.
   archivedAt    DateTime?
   archivedById  String?
-  /// Frais de l'équipe intégrés au budget de la demande à la clôture (poste Ad & Pro créé à la main).
+  /// Frais de l'équipe intégrés au budget à la clôture : depuis 10/2026 l'id d'une ligne `BudgetExpenseLine` du budget
+  /// Operations & Sales ; avant, l'id d'un poste Ad & Pro créé à la main (historique, laissé tel quel).
   transportPosteId   String?
   hebergementPosteId String?
 
@@ -8759,7 +8760,8 @@ model MissionAssignment {
   /// Le sujet de l'assistante de direction qui réserve pour l'équipe (un par demande, partagé par ses membres).
   reservationDossierId String?
   reservationDemandeeLe DateTime?
-  /// L'IMPUTATION des frais de mission — choisie par la Direction Marketing (`BudgetCategoryLine`), jamais d'office.
+  /// L'IMPUTATION des frais de mission (`BudgetCategoryLine`) — au budget Operations & Sales depuis 10/2026 : catégorie par
+  /// défaut posée d'office (`budgetChoisiParId` nul), changeable par la Direction ; une ancienne ligne Ad & Pro reste telle quelle.
   budgetCategoryId  String?
   budgetChoisiParId String?
   budgetChoisiLe    DateTime?

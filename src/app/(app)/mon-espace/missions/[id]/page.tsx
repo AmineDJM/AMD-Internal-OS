@@ -4,7 +4,7 @@ import { ArrowLeft, BookOpen } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
 import { getMissionDetail } from "@/lib/queries/missions";
-import { adProBudgetOptions } from "@/lib/queries/ad-pro-items";
+import { assurerImputationEquipe, imputationsProposees } from "@/lib/missions-equipe/imputation-serveur";
 import { rolesDe } from "@/lib/missions-equipe/serveur";
 import { estArbitre, coteDe, peutDeposerReservation, peutChoisirBudgetMission } from "@/lib/missions-equipe/participation";
 import { CHEMIN_MES_MISSIONS } from "@/lib/chemins/espace";
@@ -23,13 +23,20 @@ export const metadata = { title: "Mission — Mon espace" };
 export default async function MissionEquipePage({ params }: { params: { id: string } }) {
   const user = await requireModule("WORKSPACE");
   if (!(await canAccessEntity(user, "MISSION_ASSIGNMENT", params.id, "VIEW"))) notFound();
-  const detail = await getMissionDetail(params.id);
+  let detail = await getMissionDetail(params.id);
   if (!detail) notFound();
+  // Les frais de l'équipe vont au budget Operations & Sales (Direction, 10/2026) : un membre invité avant la règle reçoit
+  // l'imputation par défaut, une fois ; une ancienne imputation Ad & Pro n'est jamais réécrite.
+  if (!detail.mission.budgetCategoryId && detail.mission.response !== "DECLINEE") {
+    await assurerImputationEquipe(params.id, user.id, detail.mission.dateDepart ? new Date(detail.mission.dateDepart) : null);
+    detail = (await getMissionDetail(params.id)) ?? detail;
+  }
   const roles = rolesDe(user);
   const arbitre = estArbitre({ id: user.id, roles }, detail.mission.organisateurIds);
   const vue = coteDe(user.id, detail.mission.userId, arbitre);
   const peutBudget = peutChoisirBudgetMission(roles);
-  const budgetOptions = peutBudget ? await adProBudgetOptions(user).catch(() => []) : [];
+  const imputation = await imputationsProposees({ date: detail.mission.dateDepart ? new Date(detail.mission.dateDepart) : null, actorId: user.id })
+    .catch(() => ({ options: [], defaut: null }));
   const path = `${CHEMIN_MES_MISSIONS}/${params.id}`;
   // LE LIVRET DE LA DÉLÉGATION (congrès) : le dernier édité par les organisateurs — la porte des documents l'ouvre à l'équipe.
   const livret = await dernierLivretGeneral(detail.mission.entityType, detail.mission.entityId);
@@ -49,7 +56,7 @@ export default async function MissionEquipePage({ params }: { params: { id: stri
       <MissionEquipe
         detail={detail} vue={vue} currentUserId={user.id} path={path}
         peutDeposer={peutDeposerReservation({ id: user.id, roles }, detail.mission.organisateurIds)}
-        peutBudget={peutBudget} budgetOptions={budgetOptions}
+        peutBudget={peutBudget} budgetOptions={imputation.options} imputationDefaut={imputation.defaut}
       />
     </div>
   );
