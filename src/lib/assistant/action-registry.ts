@@ -1264,6 +1264,11 @@ X("PRISES EN CHARGE — PROFESSIONNELS PROPOSÉS ET LEURS PIÈCES (§118.205) : 
   + "dépose un FICHIER devant la fiche de la demande. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
   "care-actions:creerProfilProfessionnel", "care-actions:demanderPiecesPriseEnCharge", "care-actions:deposerPiecePriseEnCharge",
 ]);
+X("PRISES EN CHARGE — PLUSIEURS FICHIERS PAR PIÈCE (Direction, 10/2026) : retirer UN fichier d'une pièce (la page en trop, "
+  + "le scan illisible) ; le dernier retiré, la pièce redevient attendue. Un geste fait DEVANT l'aperçu du fichier, sur une "
+  + "pièce d'identité. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "care-actions:retirerFichierPiecePriseEnCharge",
+]);
 X("PRISES EN CHARGE — FICHES VOYAGEUR (Direction, 10/2026) : enregistrer un poste de la fiche (billet, hôtel, autre poste, "
   + "montant en dollars à l'international), déposer le billet émis ou la confirmation d'hôtel, retenir un devis, demander "
   + "la réservation et le BC à l'assistante de direction, gérer les postes de groupe. Des gestes faits DEVANT la fiche "

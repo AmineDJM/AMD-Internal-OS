@@ -24,6 +24,8 @@ import { canAccessEntity } from "@/lib/entity-access";
 import { creerProfilMedecin } from "@/lib/medical/profil-rapide";
 import { persistUploadedDocument } from "@/lib/documents";
 import { deleteFileByKey } from "@/lib/storage";
+import { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "@/lib/care-pieces-db";
+import { phraseDepot } from "@/lib/care-pieces";
 import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
 
 /**
@@ -477,12 +479,16 @@ export async function demanderPiecesPriseEnCharge(_prev: ActionResult | undefine
  *
  * Une pièce déjà VALIDÉE ou déclarée SANS OBJET ne se remplace pas d'ici : l'état se rouvre d'abord
  * depuis la case. L'écriture de l'état est conditionnelle ; perdue, le fichier déposé est retiré.
+ *
+ * PLUSIEURS FICHIERS (Direction, 10/2026) : recto, verso, pages, visa — `file` peut se répéter, en un
+ * geste ou en plusieurs ; chaque fichier s'ajoute aux autres (`lib/care-pieces`). Le lot est contrôlé
+ * entier AVANT d'écrire (limites des réglages).
  */
 export async function deposerPiecePriseEnCharge(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const cellId = fdStr(formData, "cellId");
   if (!cellId) return { ok: false, error: "Pièce non précisée." };
-  const cell = await prisma.careCell.findUnique({ where: { id: cellId }, select: { id: true, kind: true, label: true, status: true, beneficiaryId: true } });
+  const cell = await prisma.careCell.findUnique({ where: { id: cellId }, select: { id: true, kind: true, label: true, status: true, beneficiaryId: true, documentId: true } });
   if (!cell || cell.kind !== "DOCUMENT") return { ok: false, error: "Pièce introuvable." };
   const found = await scopeOfBeneficiary(cell.beneficiaryId);
   if (!found) return { ok: false, error: "Personne introuvable." };
@@ -490,26 +496,54 @@ export async function deposerPiecePriseEnCharge(_prev: ActionResult | undefined,
   if (!(await canAccessEntity(user, module, found.requestId, "UPLOAD"))) return { ok: false, error: "Vous n'êtes pas autorisé à déposer une pièce sur cette demande." };
   if (cell.status === "SETTLED") return { ok: false, error: `« ${cell.label} » est déjà validée : rouvrez son état avant d'en déposer une autre.` };
   if (cell.status === "WAIVED") return { ok: false, error: `« ${cell.label} » est déclarée sans objet : rouvrez son état avant de la déposer.` };
-  const file = formData.get("file");
-  if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Aucun fichier sélectionné." };
+  const fichiers = formData.getAll("file").filter((v): v is File => v instanceof File);
+  if (fichiers.length === 0) return { ok: false, error: "Aucun fichier sélectionné." };
 
-  const r = await persistUploadedDocument(user.id, {
-    entityType: module, entityId: found.requestId, category: "ID_DOCUMENT", confidentiality: "INTERNAL", stepKey: cell.id, file,
-  });
-  if (!r.ok || !r.documentId) return { ok: false, error: r.error ?? "Le fichier n'a pas pu être enregistré." };
-
-  const pose = await prisma.careCell.updateMany({
-    where: { id: cell.id, status: { in: ["REQUESTED", "PROVIDED"] } },
-    data: { status: "PROVIDED", documentId: r.documentId },
-  });
-  if (pose.count === 0) {
-    const doc = await prisma.document.delete({ where: { id: r.documentId } }).catch(() => null);
-    if (doc?.fileKey) await deleteFileByKey(doc.fileKey).catch(() => undefined);
-    return { ok: false, error: `L'état de « ${cell.label} » vient de changer : rechargez la fiche.` };
-  }
-  await audit(user, found.scope, found.requestId, "UPDATE", `${await nameOf(found.beneficiary)} — « ${cell.label} » reçue.`);
+  const r = await deposerFichiersSurLaPiece(user.id, cell, { entityType: module, entityId: found.requestId }, fichiers);
+  if (!r.ok) return { ok: false, error: r.error };
+  await audit(user, found.scope, found.requestId, "UPDATE",
+    `${await nameOf(found.beneficiary)} — « ${cell.label} » reçue${r.ids.length > 1 ? ` (${r.ids.length} fichiers)` : ""}.`);
   revalidate(found.scope, found.requestId);
-  return { ok: true, id: cell.id, message: `${cell.label} reçue.` };
+  const manques = r.echecs.length > 0 ? ` Non joint : ${r.echecs.join(" ")}` : "";
+  return { ok: true, id: cell.id, message: `${phraseDepot(cell.label, r.ids.length)}${manques}` };
+}
+
+/**
+ * RETIRER UN FICHIER D'UNE PIÈCE (Direction, 10/2026) — la page en trop, le scan illisible. Le dernier
+ * retiré, la pièce redevient attendue : « passeport manquant » revient, sans qu'on le déclare.
+ *
+ * Signature `(id, path?)` : celle que l'aperçu des documents (`DocumentPreview.supprimer`) appelle — son
+ * bouton, sa confirmation et son rafraîchissement sont ceux de tous les documents. Le fichier doit être
+ * celui d'une pièce de CETTE demande (la case désignée par le fichier, sur l'entité de la demande) ; la
+ * porte est celle du dépôt. Une pièce validée ou sans objet ne se touche pas d'ici.
+ */
+export async function retirerFichierPiecePriseEnCharge(documentId: string, _path?: string): Promise<ActionResult> {
+  const user = await requireUser();
+  if (!documentId) return { ok: false, error: "Fichier non précisé." };
+  const doc = await prisma.document.findUnique({ where: { id: documentId }, select: { id: true, name: true, entityType: true, entityId: true, stepKey: true } });
+  if (!doc) return { ok: false, error: "Fichier introuvable." };
+  const cell = await prisma.careCell.findFirst({
+    where: { kind: "DOCUMENT", OR: [{ documentId: doc.id }, ...(doc.stepKey ? [{ id: doc.stepKey }] : [])] },
+    select: { id: true, label: true, status: true, documentId: true, beneficiaryId: true },
+  });
+  if (!cell) return { ok: false, error: "Ce fichier n'est pas celui d'une pièce de prise en charge." };
+  const found = await scopeOfBeneficiary(cell.beneficiaryId);
+  if (!found) return { ok: false, error: "Personne introuvable." };
+  const module = SPEC[found.scope].module;
+  if (doc.entityType !== module || doc.entityId !== found.requestId) return { ok: false, error: "Ce fichier n'appartient pas à cette demande." };
+  if (!(await canAccessEntity(user, module, found.requestId, "UPLOAD"))) return { ok: false, error: "Vous n'êtes pas autorisé à retirer une pièce de cette demande." };
+  if (cell.status === "SETTLED") return { ok: false, error: `« ${cell.label} » est validée : rouvrez son état avant d'en retirer un fichier.` };
+  if (cell.status === "WAIVED") return { ok: false, error: `« ${cell.label} » est déclarée sans objet : rouvrez son état avant d'en retirer un fichier.` };
+
+  const r = await retirerFichierDeLaPiece(cell, doc.id, { entityType: module, entityId: found.requestId });
+  if (!r.ok) return { ok: false, error: r.error };
+  await audit(user, found.scope, found.requestId, "UPDATE",
+    `${await nameOf(found.beneficiary)} — « ${cell.label} » : fichier « ${doc.name} » retiré${r.restants === 0 ? " — pièce de nouveau attendue" : ""}.`);
+  revalidate(found.scope, found.requestId);
+  return {
+    ok: true, id: cell.id,
+    message: r.restants === 0 ? `${cell.label} : plus aucun fichier, la pièce est de nouveau attendue.` : `Fichier retiré (${r.restants} restant${r.restants > 1 ? "s" : ""}).`,
+  };
 }
 
 // ───────────────────────────── Les cases ─────────────────────────────
