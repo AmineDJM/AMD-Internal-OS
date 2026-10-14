@@ -57,9 +57,17 @@ const nextConfig = {
     // memory (used over 8GB) » que la machine de développement ne reproduit jamais.
     // Le pic ne dépendait donc pas du code mais du matériel : on le BORNE.
     //
-    // `cpus` plafonne les workers de collecte/génération de pages. Deux workers gardent
-    // le parallélisme utile en rendant le pic INDÉPENDANT du builder.
-    cpus: 2,
+    // `cpus` plafonne les workers de collecte/génération de pages, rendant le pic
+    // INDÉPENDANT du builder.
+    //
+    // 10/2026 — UN SEUL worker. Le code a grossi : chaque worker de génération charge les
+    // bundles serveur de ses pages et pèse désormais ~1,7 Go (et non plus ~550 Mo). Mesuré
+    // sur un build propre (RENDER=1, tas 3072) : 2 workers → pic 6817 Mo (parent 3094 +
+    // 2×1,7 Go) — plus node_modules et .next dans le même conteneur, la ligne des 8 Go de
+    // Render est franchie ; 1 worker → 5437 Mo. Le dernier déploiement réussi (b24eb0c)
+    // était déjà à 6256 Mo : la marge avait disparu. Coût : la génération des pages (presque
+    // toutes dynamiques, donc rapides) n'est plus parallèle — quelques secondes.
+    cpus: 1,
     // Chaque compilation (serveur, client, edge) tourne dans son propre processus, qui
     // MEURT ensuite : la mémoire retourne à l'OS au lieu de s'accumuler dans un seul tas
     // pour les trois. C'est ce qui plafonne le pic de la phase de compilation.
@@ -86,6 +94,14 @@ const nextConfig = {
     // (routes en flux, jusqu'à la limite Drive configurée).
     serverActions: { bodySizeLimit: "256mb" },
   },
+  // ── PAS DE TRAÇAGE DES FICHIERS (`.nft.json`) ─────────────────────────────────────────
+  //
+  // Next 14 trace, pour chaque page, les fichiers dont elle dépend — DANS le processus
+  // parent, PENDANT la génération des pages : c'est ce qui porte le parent à ~3 Go au pic.
+  // Ces traces ne servent qu'à `output: "standalone"` (copier le strict nécessaire dans une
+  // image). Render lance `next start` sur le dépôt complet, node_modules compris : il ne
+  // les lit jamais. Aucune vérification, aucune fonctionnalité n'en dépend.
+  outputFileTracing: false,
   // ── LE CACHE WEBPACK NE VIT PLUS EN ENTIER DANS LE TAS ─────────────────────────────────
   //
   // En production, Next règle le cache filesystem de webpack sur `maxMemoryGenerations:
