@@ -31,6 +31,7 @@ import type { CurrentUser } from "@/lib/session";
 import { aiguillerBC, retirerPortesEnAttente, porteDuBC, CHEMIN_BC_A_SIGNER, type ResultatAiguillage } from "@/lib/bons-de-commande/aiguillage";
 import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { memeNumero, nettoyerNumero, resumeChangementNumero } from "@/lib/bons-de-commande/numero-reference";
+import { champsDifferents, MENTION_NUMERO_SEUL } from "@/lib/bons-de-commande/numero-seul";
 import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
 import {
   reserveBC, reserveSansPorte, reserveEtapeBC, PHRASE_SIGNATURE_RETIREE,
@@ -322,7 +323,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     where: { id },
     select: {
       kind: true, expenseOrderId: true, counterparty: true, counterpartyIds: true, amount: true, chainFromId: true, promoFacture: { select: { id: true } },
-      custom: true, reference: true, startDate: true, endDate: true, direction: true, paidDate: true, companyId: true,
+      custom: true, reference: true, startDate: true, endDate: true, direction: true, paidDate: true, companyId: true, title: true, notes: true, folderId: true,
     },
   });
   if (!avant) return { ok: false, error: "Document introuvable." };
@@ -410,6 +411,16 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     const refusNumero = await refusNumeroBcDepose({ companyId: avant.companyId, reference: f.reference, exclure: id });
     if (refusNumero) return { ok: false, error: refusNumero };
   }
+  // SEUL LE NUMÉRO CHANGE (Direction, 14/10/2026) — jugé ici en comparant la fiche enregistrée et la saisie : le BC garde son
+  // état (aucun réaiguillage, signature et étapes conservées). Le moindre autre champ, ou un fichier joint : la règle d'avant.
+  const jour = (d: Date | null | undefined) => (d ? d.toISOString().slice(0, 10) : null);
+  const numeroSeul = numeroChange
+    && !formData.getAll("attachment").some((v) => v instanceof File && v.size > 0)
+    && champsDifferents(
+      { title: avant.title, kind: avant.kind, amount: avant.amount == null ? null : Number(avant.amount), startDate: jour(avant.startDate), endDate: jour(avant.endDate), notes: avant.notes, parties: [...avant.counterpartyIds].sort(), folderId: avant.folderId, chainFromId: avant.chainFromId, paidDate: jour(avant.paidDate), direction: avant.direction },
+      { title, kind, amount: f.amount, startDate: jour(startDate), endDate: jour(endDate), notes: f.notes, parties: [...parties.ids].sort(), folderId: f.folderId, chainFromId: f.chainFromId, paidDate: jour(f.paidDate), direction: f.direction },
+      ["title", "kind", "amount", "startDate", "endDate", "notes", "parties", "folderId", "chainFromId", "paidDate", "direction"],
+    ).length === 0;
 
   await prisma.legalDocument.update({
     where: { id },
@@ -436,7 +447,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: id, field: "numero",
       oldValue: avant.reference, newValue: f.reference,
-      summary: `Bon de commande : ${resumeChangementNumero(avant.reference ?? "(sans numéro)", f.reference ?? "(sans numéro)")} par ${user.name?.trim() || "un utilisateur"}`,
+      summary: `Bon de commande : ${resumeChangementNumero(avant.reference ?? "(sans numéro)", f.reference ?? "(sans numéro)")} par ${user.name?.trim() || "un utilisateur"}${numeroSeul ? ` (${MENTION_NUMERO_SEUL})` : ""}`,
     });
     if (f.reference) await inscrireNumeroBcDepose({ companyId: avant.companyId, reference: f.reference, legalDocumentId: id, userId: user.id }).catch(() => undefined);
   }
@@ -450,7 +461,9 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
   // UN BC MODIFIÉ SE RÉAIGUILLE : devenu BC, il reçoit sa porte ; ayant cessé de l'être, il la
   // perd ; montant RELEVÉ après validation ou correction demandée par le centre, il y retourne.
   // `montantAvant` est lu AVANT l'écriture — c'est ce qui permet de savoir qu'il a été relevé.
-  const aiguillage = avant.kind === "PURCHASE_ORDER" || kind === "PURCHASE_ORDER"
+  const aiguillage = numeroSeul
+    ? "Seul le numéro a changé : le bon de commande garde son état — circuit et signature conservés."
+    : avant.kind === "PURCHASE_ORDER" || kind === "PURCHASE_ORDER"
     ? phraseAiguillage(await aiguillerBC(id, {
         acteurId: user.id, modifie: true,
         montantAvant: avant.amount == null ? null : Number(avant.amount),

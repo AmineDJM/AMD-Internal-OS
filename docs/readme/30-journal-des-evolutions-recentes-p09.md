@@ -1,3 +1,19 @@
+### Ad & Pro — rapprochement assisté par Luna ; « Déjà imputé » hors postes (2026-10-14)
+
+« Ce qui a déjà été intégré au budget, dans les demandes Ad & Pro ; chercher bien profond dans tous nos fichiers et les
+faire matcher. » **Onglet Dépenses** : « Déjà imputé » devient « Déjà imputé hors postes Ad & Pro » et ne relit plus les
+postes Historique 2026 (déjà au tableau des postes) — les chiffres ne comptaient qu'une fois, l'affichage le dit
+(`budget-marketing/depenses-autres.ts`, test « chaque dinar consommé apparaît une fois »). **Rapprochement**
+(`/budget-marketing/integration/rapprochement`, gestionnaire de l'enveloppe) : chaque dépense hors poste (écriture,
+ligne budgétaire, ordre) et chaque écriture « à imputer » reçoit des propositions vers les demandes du lot (montant exact /
+1 DZD / somme de plusieurs écritures, fournisseur, mois, libellés, références, pièces lues par Luna), avec score et
+justification ; les fichiers de la plateforme (Legal, Ad & Pro, secrétariat, ordres, Drive, messagerie de la personne) sont
+lus **par tranches** depuis l'écran — une fois par empreinte — et proposés pour les pièces manquantes. Rien sans
+validation ; « certaine » = montant au centime + même fournisseur + référence, une seule cible. Une écriture rattachée ne
+compte plus deux fois (la règle du lot la lit), une pièce rattachée est un lien. « Pas Ad & Pro » (enveloppe plausible,
+rien d'imputé), doublons probables avec renvoi. Migration `20270125100000_rapprochement_adpro`. Détail :
+[36-integration-depenses-adpro-2026.md](36-integration-depenses-adpro-2026.md#le-rapprochement-assisté-par-luna).
+
 ### Budget Marketing : les onglets — Intégration 2026 en onglet, une ligne par demande, cumul des sous-catégories, réallocation bornée (2026-10-14)
 
 Maquette « onglets » validée par la Direction (Dépenses inchangé). **Onglet Intégration 2026** (gestionnaire seulement,

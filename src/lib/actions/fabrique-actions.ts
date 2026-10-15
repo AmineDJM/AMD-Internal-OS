@@ -27,7 +27,7 @@ import { requireUser } from "@/lib/session";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { MODES_PAIEMENT, TYPES_DOCUMENT, type ModePaiement, type TypeDocumentCommercial } from "@/lib/artifact/factory/commercial";
 import {
-  apercuPourEcran, definirProfilDocumentaire, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive, verifierNumeroDeLaPiece,
+  apercuPourEcran, definirProfilDocumentaire, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive, verifierNumeroDeLaPiece, estRevisionDeNumeroSeul,
   type ApercuDocument, type ApercuPiece, type DemandeDocument, type EchecFabrique, type MethodePdf, type ModificationsDocument,
 } from "@/platform/in-process/artifact/factory";
 import type { CoordonneesEmetteur } from "@/lib/artifact/factory/commercial";
@@ -210,8 +210,9 @@ export type { ApercuPiece } from "@/platform/in-process/artifact/factory";
  * LA DÉLÉGATION D'UNE RÉVISION — le BC d'une demande au secrétariat se révise depuis la demande, par son demandeur ou qui la
  * gère, sans droit Legal (Direction, 14/10/2026 ; `secretariat/delegation-bc.ts`). Ailleurs : `{}`, les droits Legal s'appliquent.
  */
-async function emissionDeLaPiece(user: Awaited<ReturnType<typeof requireUser>>, legalDocumentId: string): Promise<{ delegation?: string }> {
-  const delegation = await delegationDuBcDeLaDemande(user, legalDocumentId);
+async function emissionDeLaPiece(user: Awaited<ReturnType<typeof requireUser>>, legalDocumentId: string, modifications: ModificationsDocument): Promise<{ delegation?: string }> {
+  // Un BC SIGNÉ de la demande ne se délègue plus que pour un changement de NUMÉRO SEUL (Direction, 14/10/2026), jugé ici.
+  const delegation = await delegationDuBcDeLaDemande(user, legalDocumentId, { numeroSeul: () => estRevisionDeNumeroSeul(user, legalDocumentId, modifications) });
   return delegation ? { delegation } : {};
 }
 
@@ -230,7 +231,7 @@ export async function previsualiserPieceCommerciale(_prev: ApercuPiece | { ok: f
   const modifications = lireModifications(formData, lignesRevisees, choix);
   const lu = lireDemande(formData, lignes, choix);
   const r: ApercuDocument | EchecFabrique = revisionDe
-    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications }, await emissionDeLaPiece(user, revisionDe))
+    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications }, await emissionDeLaPiece(user, revisionDe, modifications))
     : lu.ok ? await previsualiserDocument(user, lu.demande) : { ok: false, echec: "MISSING_INPUT", motif: lu.error };
   if (!r.ok) return { ok: false, error: r.motif };
   return apercuPourEcran(r, Boolean(revisionDe));
@@ -254,7 +255,7 @@ export async function apercuAvantImpressionPiece(_prev: ApercuImpression | undef
   const modifications = lireModifications(formData, lignesRevisees, choix);
   const lu = lireDemande(formData, lignes, choix);
   const r: ApercuDocument | EchecFabrique = revisionDe
-    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications, avecPdf: true }, await emissionDeLaPiece(user, revisionDe))
+    ? await previsualiserRevision(user, { legalDocumentId: revisionDe, modifications, avecPdf: true }, await emissionDeLaPiece(user, revisionDe, modifications))
     : lu.ok ? await previsualiserDocument(user, lu.demande, { avecPdf: true }) : { ok: false, echec: "MISSING_INPUT", motif: lu.error };
   if (!r.ok) return { ok: false, error: r.motif };
   if (r.bloquants.length > 0) return { ok: false, error: `L'aperçu n'est pas possible : ${r.bloquants.slice(0, 3).join(" ; ")}` };
@@ -418,7 +419,7 @@ export async function reviserPieceCommerciale(_prev: ResultatRevision | undefine
   const r = await reviserDocumentDrive(user, {
     legalDocumentId, modifications, motif: texte(formData, "motif"),
     versionVue: vue !== null && Number.isInteger(vue) ? vue : null, exigerMotif: true,
-  }, await emissionDeLaPiece(user, legalDocumentId));
+  }, await emissionDeLaPiece(user, legalDocumentId, modifications));
   if (!r.ok) return { ok: false, error: r.motif + (r.bloquants?.length ? ` — ${r.bloquants.slice(0, 3).join(" ; ")}` : "") };
   revalidatePath("/legal");
   revalidatePath(`/legal/${legalDocumentId}`);
@@ -426,9 +427,21 @@ export async function reviserPieceCommerciale(_prev: ResultatRevision | undefine
   const libelle = r.type === "DEVIS" ? "Devis" : "Bon de commande";
   return {
     ok: true, id: legalDocumentId, reference: r.reference, version: r.version,
-    message: `${libelle} ${r.reference} révisé : version ${r.version}, ${formaterTtc(r.totaux.totalTtc)} TTC — le Word, le PDF et la fiche disent la même chose.`
-      + (r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""),
+    message: r.numeroSeul
+      ? `${libelle} ${r.reference} : seul le numéro a changé (version ${r.version}, Word et PDF régénérés) — son circuit et ses signatures sont conservés.`
+      : `${libelle} ${r.reference} révisé : version ${r.version}, ${formaterTtc(r.totaux.totalTtc)} TTC — le Word, le PDF et la fiche disent la même chose.`
+        + (r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""),
   };
+}
+
+/**
+ * « MODIFIER LE N° DE RÉFÉRENCE » D'UN BC SIGNÉ (Direction, 14/10/2026) — la même révision que ci-dessus, pour le petit
+ * formulaire du numéro (`components/references/modifier-numero-bc.tsx`) : la pièce renvoyée telle qu'enregistrée, le numéro
+ * changé. Le serveur constate que SEUL le numéro change (et la délégation de la demande ne couvre, signé, que ce cas) : le BC
+ * garde son circuit et sa signature. Rien d'autre ne passe par ici que ce que la révision accepterait.
+ */
+export async function reviserNumeroDuBc(formData: FormData): Promise<ResultatRevision> {
+  return reviserPieceCommerciale(undefined, formData);
 }
 
 export interface ResultatAvoir extends ActionResult {

@@ -16,13 +16,18 @@ import { commandeLaDemande, gereLaDemande } from "@/lib/secretariat/droits";
  * Admin) ou qui gère la demande. `null` : pas de délégation — les droits Legal ordinaires s'appliquent.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export async function delegationDuBcDeLaDemande(user: SessionUser, legalDocumentId: string | null): Promise<string | null> {
+export async function delegationDuBcDeLaDemande(
+  user: SessionUser, legalDocumentId: string | null,
+  /** SIGNÉ, la délégation ne couvre plus qu'un changement de NUMÉRO SEUL (Direction, 14/10/2026) — jugé au serveur par l'appelant. */
+  opts: { numeroSeul?: () => Promise<boolean> } = {},
+): Promise<string | null> {
   if (!legalDocumentId) return null;
   const doc = await prisma.legalDocument.findUnique({
     where: { id: legalDocumentId },
     select: { kind: true, sourceType: true, sourceId: true, signedAt: true, status: true },
   });
-  if (!doc || doc.kind !== "PURCHASE_ORDER" || doc.sourceType !== "ADMIN_REQUEST" || !doc.sourceId || doc.signedAt || doc.status !== "ACTIVE") return null;
+  if (!doc || doc.kind !== "PURCHASE_ORDER" || doc.sourceType !== "ADMIN_REQUEST" || !doc.sourceId || doc.status !== "ACTIVE") return null;
+  if (doc.signedAt && !(opts.numeroSeul && (await opts.numeroSeul()))) return null;
   const req = await prisma.administrativeRequest.findFirst({
     where: { id: doc.sourceId, deletedAt: null },
     select: { reference: true, status: true, requesterId: true, assignedToId: true },

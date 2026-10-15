@@ -6,6 +6,8 @@ import { canManageEnvelopes, canManageEnvelope, canGovernPoleEnvelope, hasGlobal
 import { prisma } from "@/lib/prisma";
 import { getEnvelopes, getBudgetOverview, getEnvelopesGrandTotal, type BudgetOverview } from "@/lib/queries/budget";
 import { depensesPostesMarketing } from "@/lib/queries/budget-marketing-depenses";
+import { horsPostesAdPro, TITRE_DEJA_IMPUTE_HORS_POSTES } from "@/lib/budget-marketing/depenses-autres";
+import { rapprochementDesAImputer } from "@/lib/budget-marketing/rapprochement-serveur";
 import { libelleRattachement, optionsRattachement } from "@/lib/queries/budget-marketing";
 import { getAppSettings } from "@/lib/settings";
 import { getMyCompanies } from "@/lib/company";
@@ -357,12 +359,20 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
   // annulés — puis, dans une seconde section, les autres dépenses de l'enveloppe (à imputer, lignes budgétaires…).
   if (config.portee === "MARKETING" && overview) {
     const { donnees, ecritures } = await depensesPostesMarketing(user, overview);
+    // « Déjà imputé » ne relit pas le tableau des postes (Direction, 14/10/2026) : ni les postes Historique 2026, ni les
+    // écritures réglées par l'ordre d'un poste — seulement les dépenses HORS postes (`budget-marketing/depenses-autres.ts`).
+    // Et « À imputer » ne garde pas les écritures que le Rapprochement a rattachées à une demande (preuve de paiement d'un
+    // poste déjà au budget) ; celles dites « pas Ad & Pro » portent leur étiquette. Rien n'est imputé ici.
+    const rapp = await rapprochementDesAImputer(overview.envelope.id, new Date(overview.period.from), new Date(overview.period.to), overview.envelope.companyId);
+    const horsPostes = horsPostesAdPro(overview.attributed.transactions, ecritures);
     const autres: BudgetOverview = {
       ...overview,
-      attributed: (() => {
-        const tx = overview.attributed.transactions.filter((x) => !(x.kind === "FINANCE" && ecritures.has(x.id)));
-        return { count: tx.length, transactions: tx };
-      })(),
+      unattributed: {
+        total: Math.max(0, overview.unattributed.total - rapp.total),
+        count: Math.max(0, overview.unattributed.count - rapp.nombre),
+        transactions: overview.unattributed.transactions.filter((t) => !rapp.rattachees.has(t.id)),
+      },
+      attributed: { count: horsPostes.length, transactions: horsPostes },
     };
     return (
       <div className="space-y-5">
@@ -376,7 +386,7 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
         <section className="space-y-3" aria-label="Les autres dépenses de l'enveloppe">
           <div>
             <h2 className="text-base font-semibold">Autres dépenses de l&apos;enveloppe</h2>
-            <p className="text-sm text-muted-foreground">Dépenses de trésorerie à imputer, lignes budgétaires et dépenses déjà imputées hors postes Ad &amp; Pro.</p>
+            <p className="text-sm text-muted-foreground">Dépenses de trésorerie à imputer, lignes budgétaires et dépenses déjà imputées hors postes Ad &amp; Pro — les postes, historiques compris, sont dans le tableau ci-dessus.</p>
           </div>
           <BudgetExpenses
             overview={autres}
@@ -384,6 +394,9 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
             canEditLines={canAttribute}
             canDelete={user.role === "SUPER_ADMIN"}
             societes={societes.map((s) => ({ id: s.id, nom: s.shortName || s.name }))}
+            titreImpute={TITRE_DEJA_IMPUTE_HORS_POSTES}
+            marques={rapp.pasAdPro}
+            noteAImputer={rapp.nombre > 0 ? `${rapp.nombre} écriture${rapp.nombre > 1 ? "s" : ""} rattachée${rapp.nombre > 1 ? "s" : ""} à une demande Ad & Pro par le Rapprochement (preuve de paiement d'un poste déjà au budget) : retirée${rapp.nombre > 1 ? "s" : ""} de cette liste.` : null}
           />
         </section>
       </div>

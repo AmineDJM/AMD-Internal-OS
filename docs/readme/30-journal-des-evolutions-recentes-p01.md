@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### BC : CHANGER LE SEUL NUMÉRO NE RELANCE PAS LE CIRCUIT (2026-10-14)
+
+Aucune migration. Décision de la Direction : une révision dont la SEULE différence est le numéro garde l'état du BC — aucun
+réaiguillage, étapes de validation, visas, signature des Finances et envoi au fournisseur conservés. Décidé au serveur en
+comparant l'enregistré et le soumis (PUR `lib/bons-de-commande/numero-seul.ts`, `changementDeNumeroSeul` / `champsDifferents`,
+jamais un drapeau de l'écran) ; la pièce est régénérée TELLE QU'ENREGISTRÉE au nouveau numéro, version marquée « numéro seul »
+(`historique[].numeroSeul`), audit `field = numero`. Unicité, compteur et droits inchangés ; le moindre autre champ → la règle
+d'avant. La signature n'est pas incrustée dans le PDF généré (c'est la copie signée téléversée) : elle est conservée, la copie
+garde l'ancien numéro (dit à l'écran et tracé). Signé, un BC de poste Ad & Pro ou de demande au secrétariat ne se modifie
+plus que par son numéro (« Modifier le n° de référence », `components/references/modifier-numero-bc.tsx`,
+`reviserNumeroDuBc`, `estRevisionDeNumeroSeul`). BC déposés : `updateLegalDocument` (numéro seul = aucun autre champ ni
+fichier). Bancs : `numero-seul.test.ts`, `bc-numero-reference-flow`, `bc-apercu-complet-flow`, `secretariat/devis-bc-flow`,
+`promo-circuit-v2-flow`, `prevalidation-flow` (outil `bons-de-commande/etat-bc-test-outils.ts`).
+
 ### MON ESPACE : L'ONGLET « AUJOURD'HUI » REMPLACE « MON ESPACE » (2026-10-14)
 
 Aucune migration. Décision de la Direction : « Je valide l'onglet Aujourd'hui qui va remplacer l'onglet Mon espace.

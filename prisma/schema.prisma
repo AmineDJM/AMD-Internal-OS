@@ -2809,9 +2809,78 @@ model AdProIntegrationLot {
   demandes  AdProIntegrationDemande[]
   decisions AdProIntegrationDecision[]
   postes    AdProItem[]               @relation("AdProItemHistorique")
+  rapprochements AdProRapprochement[]
 
   @@index([envelopeId])
   @@index([annuleLe])
+}
+
+/// LE RAPPROCHEMENT AD & PRO (Direction, 14/10/2026) — une décision HUMAINE sur une proposition du moteur
+/// (`budget-marketing/rapprochement.ts`) : une DÉPENSE hors poste (écriture FIN-, ligne budgétaire, ordre) rattachée à une
+/// demande / un poste du lot — elle en devient la preuve de paiement et ne compte plus deux fois (règle
+/// `budget/integration-regle.ts`, lue par `queries/budget-integration.ts`) — ou signalée « pas Ad & Pro » ; une PIÈCE de la
+/// plateforme rattachée à une pièce attendue d'une demande (lien, jamais une copie). Rien n'est rattaché sans cette ligne ;
+/// annuler la remplit (`annuleLe`) et défait l'effet — le livre de trésorerie et les ordres ne sont jamais touchés.
+model AdProRapprochement {
+  id                String              @id @default(cuid())
+  lotId             String
+  lot               AdProIntegrationLot @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  /// DEPENSE · PIECE
+  sens              String
+  /// `TX:<écriture>` · `LIGNE:<ligne budgétaire>` · `ORDRE:<ordre>` · `DOC:<document>` · `DRIVE:<nœud>` · `MSG:<pièce jointe>`
+  source            String
+  sourceLibelle     String
+  montant           Decimal?            @db.Decimal(14, 2)
+  /// ACCEPTEE · REFUSEE · PAS_ADPRO
+  decision          String
+  demandeRowId      String?
+  demandeType       String?
+  demandeId         String?
+  posteId           String?
+  /// La pièce attendue couverte (`piecesAttendues[].cle`) — une PIÈCE seulement.
+  pieceCle          String?
+  /// CERTAINE · PROBABLE · POSSIBLE — la certitude de la proposition décidée.
+  certitude         String?
+  score             Int                 @default(0)
+  justification     String              @default("")
+  /// « Pas Ad & Pro » : l'enveloppe plausible proposée (rien n'est imputé).
+  enveloppeSuggeree String?
+  /// Une pièce rattachée : l'entrée posée dans `piecesRattachees` (pour l'annulation).
+  lien              Json?
+  decideParId       String?
+  decideLe          DateTime            @default(now())
+  annuleLe          DateTime?
+  annuleParId       String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  @@index([lotId, sens])
+  @@index([source])
+}
+
+/// CE QUE LUNA A LU D'UNE PIÈCE POUR LE RAPPROCHEMENT — une ligne par EMPREINTE (SHA-256 des octets) : une pièce ne se lit
+/// qu'une fois, quel que soit le nombre d'endroits où elle vit. La lecture elle-même passe par le lecteur de pièces
+/// (`pieces-lues/service.ts`, cache `LecturePiece`) ; ici, le résumé utile au rapprochement. `NON_LUE` : format, taille ou
+/// échec — la pièce se rapproche encore par son nom et ses métadonnées, et n'est pas relue en boucle.
+model AdProRapprochementLecture {
+  id          String   @id @default(cuid())
+  empreinte   String   @unique
+  /// LUE · NON_LUE
+  etat        String
+  raison      String?
+  fournisseur String?
+  montant     Decimal? @db.Decimal(14, 2)
+  /// ISO `AAAA-MM-JJ`.
+  date        String?
+  numero      String?
+  nature      String?
+  references  String[] @default([])
+  motsCles    String[] @default([])
+  lectureId   String?
+  version     Int      @default(1)
+  luParId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 /// UNE DEMANDE AD & PRO TOUCHÉE PAR UN LOT — créée « Historique 2026 » (`mode = CREEE`) ou existante complétée

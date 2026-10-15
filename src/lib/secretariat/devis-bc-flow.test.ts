@@ -17,7 +17,8 @@ import {
   deposerDevisDemande, enregistrerLignesDevisDemande, retenirLignesDevisDemande, genererBonDeCommandeDemande, deposerBonDeCommandeDemande, relancerDemande,
   ouvrirApercuBcDemande, previsualiserApercuBcDemande,
 } from "@/lib/actions/secretariat-devis-actions";
-import { previsualiserPieceCommerciale, reviserPieceCommerciale } from "@/lib/actions/fabrique-actions";
+import { previsualiserPieceCommerciale, reviserNumeroDuBc, reviserPieceCommerciale } from "@/lib/actions/fabrique-actions";
+import { etatCompletDuBC } from "@/lib/bons-de-commande/etat-bc-test-outils";
 import { formulaireDuComposeur } from "@/lib/bons-de-commande/composeur-test-outils";
 import { pieceEmise, valeursComposables } from "@/lib/legal/piece-emise";
 import { decideValidation } from "@/lib/actions/validation-actions";
@@ -294,8 +295,12 @@ suite("Bureau du secrétariat — devis natifs, lignes retenues, BC généré ou
     const nouveau = ancien.replace(/\d+$/, (n) => String(Number(n) + 500).padStart(n.length, "0"));
     const ap = await previsualiserPieceCommerciale(undefined, formulaire(nouveau));
     expect(ap.ok && ap.numeroProchain).toBe(nouveau);
+    expect(ap.ok ? ap.avertissements.join(" ") : "").toMatch(/Seul le numéro change/);
+    const avant = await etatCompletDuBC(bcId);
     const r = await reviserPieceCommerciale(undefined, formulaire(nouveau));
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    // NUMÉRO SEUL : la demande de validation au centre et ses étapes n'ont pas bougé (Direction, 14/10/2026).
+    expect(await etatCompletDuBC(bcId)).toEqual(avant);
     expect((await lire()).reference).toBe(nouveau);
     expect(await prisma.auditLog.findFirst({ where: { entityId: bcId, field: "numero" }, select: { oldValue: true, newValue: true } })).toEqual({ oldValue: ancien, newValue: nouveau });
     // Seulement le numéro : le BC reste où il était dans son circuit.
@@ -335,6 +340,24 @@ suite("Bureau du secrétariat — devis natifs, lignes retenues, BC généré ou
     expect(await notifs("asst", "Bon de commande signé et validé")).toBe(1);
     expect(await notifs("dem", "Bon de commande signé et validé")).toBe(1);
     expect(await prisma.auditLog.count({ where: { entityType: "ADMIN_REQUEST", entityId: demandeId, summary: { contains: "signé et validé" } } })).toBe(1);
+  });
+
+  it("SIGNÉ, SON NUMÉRO SEUL SE MODIFIE DEPUIS LA DEMANDE (Direction, 14/10/2026) : signature, étapes et état conservés ; numéro + autre champ → refusé", async () => {
+    await comme("dem");
+    const doc = await prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true, reference: true } });
+    const v = valeursComposables(doc.custom)!;
+    const ancien = doc.reference!;
+    const champs = (numeroRevise: string) => ({ legalDocumentId: bcId, revisionDe: bcId, versionVue: String(pieceEmise(doc.custom)!.version), motif: "Numéro papier.", numeroRevise, numeroActuel: ancien });
+    const avant = await etatCompletDuBC(bcId);
+    expect(avant.doc.signedAt).not.toBeNull();
+    const autreChamp = await reviserNumeroDuBc(formulaireDuComposeur({ ...v, champs: { ...v.champs, notes: "Autre." } }, champs(`${ancien}-S`)));
+    expect(autreChamp.ok).toBe(false);
+    const r = await reviserNumeroDuBc(formulaireDuComposeur(v, champs(`${ancien}-S`)));
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    expect(r.message).toMatch(/seul le numéro a changé/);
+    expect(await etatCompletDuBC(bcId)).toEqual(avant);
+    expect((await etatDuBC(bcId))?.etape).toBe("SIGNE");
+    expect(await prisma.auditLog.findFirst({ where: { entityId: bcId, field: "numero", newValue: `${ancien}-S` }, select: { oldValue: true } })).toEqual({ oldValue: ancien });
   });
 
   it("le BC signé : « Terminer » passe — facture jointe DANS la même fenêtre, imputation au budget", async () => {

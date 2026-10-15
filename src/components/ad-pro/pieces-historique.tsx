@@ -78,7 +78,7 @@ export function PiecesHistorique({ demandeRowId, pieces, manquantes, rattachable
                 {p.fichiers.map((f) => (
                   <li key={f.id} className="flex items-center gap-1">
                     {f.rattachee && <Link2 className="h-3 w-3 text-muted-foreground" />}
-                    <a href={`/api/documents/${encodeURIComponent(f.id)}`} className="truncate text-primary hover:underline" target="_blank" rel="noreferrer">{f.nom}</a>
+                    <a href={f.href ?? `/api/documents/${encodeURIComponent(f.id)}`} className="truncate text-primary hover:underline" target="_blank" rel="noreferrer">{f.nom}</a>
                     {f.rattachee && <span className="text-muted-foreground">(déjà dans la plateforme — rattachée)</span>}
                   </li>
                 ))}

@@ -50,6 +50,8 @@ import { gereLaDemande, commandeLaDemande } from "@/lib/secretariat/droits";
 import { pieceEmise, valeursComposables, type ValeursComposables } from "@/lib/legal/piece-emise";
 import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { ReviserPieceButton } from "@/components/legal/reviser-piece";
+import { ModifierNumeroBc } from "@/components/references/modifier-numero-bc";
+import { reviserNumeroDuBc } from "@/lib/actions/fabrique-actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -233,6 +235,18 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
       }
     }
   }
+  // SIGNÉ, SEUL SON NUMÉRO SE MODIFIE ENCORE (Direction, 14/10/2026) : « Modifier le n° de référence » — circuit et signature
+  // conservés ; le serveur vérifie que seul le numéro change (`estRevisionDeNumeroSeul`).
+  const bcsSignes = ouverte && (commande || canManage) ? bcVivants.filter((b) => b.etape === "SIGNE" || b.signeLe) : [];
+  const numerosSignes = new Map<string, { numero: string; version: number; valeurs: ValeursComposables }>();
+  if (bcsSignes.length > 0) {
+    const docs = await prisma.legalDocument.findMany({ where: { id: { in: bcsSignes.map((b) => b.id) } }, select: { id: true, custom: true } });
+    for (const d of docs) {
+      const emise = pieceEmise(d.custom);
+      const valeurs = emise ? valeursComposables(d.custom) : null;
+      if (emise && valeurs && emise.type === "BON_DE_COMMANDE") numerosSignes.set(d.id, { numero: emise.numero, version: emise.version, valeurs });
+    }
+  }
   const societeDesBC = societeDesBCId ? await prisma.company.findUnique({ where: { id: societeDesBCId }, select: { id: true, name: true, shortName: true } }) : null;
   const papeterieDesBC = societeDesBC ? await papeterieDeLaSociete(societeDesBC.id) : [];
   const aucuneValidation = req.approvals.length === 0 && centralesHorsPieces.length === 0 && bcVivants.length === 0;
@@ -369,6 +383,15 @@ export default async function RequestDetailPage({ params }: { params: { id: stri
                                     numero={revisions.get(e.piece.id)!.numero} version={revisions.get(e.piece.id)!.version} valeurs={revisions.get(e.piece.id)!.valeurs}
                                     societe={societeDesBC ? { id: societeDesBC.id, label: societeDesBC.shortName || societeDesBC.name } : null}
                                     letterheads={papeterieDesBC}
+                                  />
+                                </li>
+                              )}
+                              {numerosSignes.has(e.piece.id) && (
+                                <li className="list-none border-t-0 pb-2 pl-3 text-xs">
+                                  <ModifierNumeroBc
+                                    legalDocumentId={e.piece.id} signe numero={numerosSignes.get(e.piece.id)!.numero}
+                                    version={numerosSignes.get(e.piece.id)!.version} valeurs={numerosSignes.get(e.piece.id)!.valeurs}
+                                    envoyer={reviserNumeroDuBc}
                                   />
                                 </li>
                               )}

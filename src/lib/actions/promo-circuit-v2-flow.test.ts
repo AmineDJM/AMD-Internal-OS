@@ -30,6 +30,7 @@ import { REFUS_SANS_LIGNE } from "@/lib/promo-material/lignes-demande";
 import { deciderVisaCentreAdPro } from "./ad-pro-centre-actions";
 import { signerBonDeCommande } from "./bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
+import { etatCompletDuBC } from "@/lib/bons-de-commande/etat-bc-test-outils";
 import { decidePayment } from "./payment-centre-actions";
 import { validateursDeLaDemande, peutOuvrirLeDossierPromo } from "@/lib/queries/promo-circuit";
 import { getAdProCreateData } from "@/lib/queries/ad-pro";
@@ -613,8 +614,28 @@ suite("Matériel promotionnel — circuit 2 de bout en bout", () => {
     expect(ok.message).toContain(nouveau);
     expect(await ref(premier.purchaseOrderId!)).toBe(nouveau);
     expect(await prisma.auditLog.findFirst({ where: { entityId: premier.purchaseOrderId!, field: "numero" }, select: { oldValue: true, newValue: true } })).toEqual({ oldValue: ancien, newValue: nouveau });
-    // Remis comme avant : les bancs qui suivent lisent le numéro d'origine.
-    expect((await modifierBonDeCommandePromo(form({ ...base, numeroActuel: nouveau, numeroRevise: ancien }))).ok).toBe(true);
+
+    // NUMÉRO SEUL SUR UN BC SIGNÉ ET ENVOYÉ (Direction, 14/10/2026) : signature, étapes, envoi au fournisseur — tout est gardé.
+    const bcId = premier.purchaseOrderId!;
+    const envoi = () => prisma.promoQuote.findUniqueOrThrow({ where: { id: premier.id }, select: { purchaseOrderSentAt: true } });
+    await prisma.legalDocument.update({ where: { id: bcId }, data: { signedAt: new Date("2026-04-01T10:00:00Z"), signedById: u.fin, signedByName: "Finances" } });
+    await prisma.promoQuote.update({ where: { id: premier.id }, data: { purchaseOrderSentAt: new Date("2026-04-02T10:00:00Z") } });
+    const avant = await etatCompletDuBC(bcId);
+    const seul = await modifierBonDeCommandePromo(form({ ...base, numeroActuel: nouveau, numeroRevise: `${ancien}-C` }));
+    expect(seul.ok, seul.ok ? "" : seul.error).toBe(true);
+    expect(seul.message).toMatch(/seul le numéro a changé/);
+    expect(await etatCompletDuBC(bcId)).toEqual(avant);
+    expect((await envoi()).purchaseOrderSentAt).not.toBeNull();
+    // NUMÉRO + NOTES : la règle d'avant — révision ordinaire (réaiguillée), l'envoi au fournisseur est à refaire.
+    const avec = await modifierBonDeCommandePromo(form({ ...base, numeroActuel: `${ancien}-C`, numeroRevise: ancien, notes: "Livrer au dépôt de Blida" }));
+    expect(avec.ok, avec.ok ? "" : avec.error).toBe(true);
+    expect(avec.message).not.toMatch(/seul le numéro/);
+    expect((await envoi()).purchaseOrderSentAt).toBeNull();
+    const histo = ((await prisma.legalDocument.findUniqueOrThrow({ where: { id: bcId }, select: { custom: true } })).custom as { fabrique: { historique: { numeroSeul?: boolean }[] } }).fabrique.historique;
+    expect(histo.at(-1)?.numeroSeul).toBeUndefined();
+    expect(histo.at(-2)?.numeroSeul).toBe(true);
+    await prisma.legalDocument.update({ where: { id: bcId }, data: { signedAt: null, signedById: null, signedByName: null } });
+    expect(await ref(bcId)).toBe(ancien);
   }, 120_000);
 
   it("LE FICHIER DU BC s'ouvre sous la porte de la PIÈCE : le demandeur et les Finances le lisent, pas un tiers", async () => {

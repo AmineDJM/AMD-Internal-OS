@@ -74,7 +74,7 @@ import { controlerFacture, refusDemandePaiementBC, TOLERANCE_DZD, type ControleF
 import { lireFactureDuPoste } from "@/lib/ad-pro/facture-poste-lecture";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
-import { apercuPourEcran, previsualiserRevision, reviserDocumentDrive, type ApercuPiece, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
+import { apercuPourEcran, estRevisionDeNumeroSeul, previsualiserRevision, reviserDocumentDrive, type ApercuPiece, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
 import {
   lireVoyageur, lireEtapes, nomComplet, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, depassementDevisRetenus, refusRetraitReservation,
   type SaisieVoyageur, type VoyageurLu,
@@ -1719,7 +1719,7 @@ async function payerLesFacturesDuPoste(a: {
  * s'édite, son paiement n'est pas demandé, le BC lui est rattaché et n'est PAS SIGNÉ (un BC signé ne se modifie plus depuis
  * le poste : il se remplace avec les Finances).
  */
-async function bcModifiableDuPoste(user: SessionUser, formData: FormData): Promise<
+async function bcModifiableDuPoste(user: Awaited<ReturnType<typeof requireUser>>, formData: FormData): Promise<
   | { ok: true; item: NonNullable<Awaited<ReturnType<typeof loadItem>>>["item"]; owner: NonNullable<Awaited<ReturnType<typeof loadItem>>>["owner"]; info: { ref: string }; legalDocumentId: string }
   | { ok: false; error: string }
 > {
@@ -1736,7 +1736,11 @@ async function bcModifiableDuPoste(user: SessionUser, formData: FormData): Promi
   if (!info) return { ok: false, error: "Opération introuvable." };
   const lien = await prisma.adProItemPiece.findFirst({ where: { itemId: id, legalDocumentId, nature: "BON_DE_COMMANDE" }, select: { legalDocument: { select: { signedAt: true, reference: true } } } });
   if (!lien) return { ok: false, error: "Ce bon de commande n'est pas rattaché à ce poste." };
-  if (lien.legalDocument.signedAt) return { ok: false, error: `Le bon de commande ${lien.legalDocument.reference ?? ""} est signé : il ne se modifie plus. Voyez avec les Finances pour le remplacer.` };
+  // SIGNÉ, SEUL SON NUMÉRO SE MODIFIE ENCORE (Direction, 14/10/2026) — jugé au serveur en comparant la pièce et la saisie : le
+  // BC garde alors son état et sa signature. Toute autre modification se fait avec les Finances.
+  if (lien.legalDocument.signedAt && !(await estRevisionDeNumeroSeul(user, legalDocumentId, lireModificationsDuBc(formData)))) {
+    return { ok: false, error: `Le bon de commande ${lien.legalDocument.reference ?? ""} est signé : il ne se modifie plus (seul son numéro de référence peut encore changer). Voyez avec les Finances pour le remplacer.` };
+  }
   return { ok: true, item, owner, info, legalDocumentId };
 }
 
@@ -1813,7 +1817,9 @@ export async function modifierBcDuPoste(formData: FormData): Promise<ActionResul
   revalidatePath(CHEMIN_BC_A_SIGNER);
   return {
     ok: true, id: legalDocumentId,
-    message: `Bon de commande ${r.reference} modifié : version ${r.version}, Word et PDF régénérés.${r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""}`,
+    message: r.numeroSeul
+      ? `Bon de commande ${r.reference} : seul le numéro a changé (version ${r.version}, Word et PDF régénérés) — son circuit et sa signature sont conservés.`
+      : `Bon de commande ${r.reference} modifié : version ${r.version}, Word et PDF régénérés.${r.reserveBonDeCommande ? ` ${r.reserveBonDeCommande}` : ""}`,
   };
 }
 
