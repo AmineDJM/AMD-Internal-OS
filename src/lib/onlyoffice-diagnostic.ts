@@ -242,8 +242,25 @@ export function messageErreurReseau(err: ErreurReseau, hote: string, delaiS = 8)
 const ENDORMI = "serveur endormi ou en cours de démarrage (le proxy répond, le Document Server pas encore).";
 const ENDORMI_CORRECTIF = "Patienter une à deux minutes puis relancer ; s'il s'endort (offre gratuite), choisir une offre toujours active.";
 
+/**
+ * L'en-tête `x-render-routing` de Render dit POURQUOI le service ne répond pas. « suspend-by-user » :
+ * le service a été SUSPENDU dans le tableau de bord — il ne se réveillera jamais seul, attendre ne sert
+ * à rien (constaté le 16/10/2026 : le diagnostic disait « endormi » alors qu'il était suspendu).
+ */
+function codeIndisponible(status: number, routage: string | null | undefined): { detail: string; correctif: string } {
+  const r = (routage ?? "").trim().toLowerCase();
+  if (r.startsWith("suspend")) {
+    return {
+      detail: `Code ${status} : le service du Document Server est SUSPENDU dans Render (« ${r} ») — il ne redémarrera pas tout seul.`,
+      correctif: "Render → le service OnlyOffice → « Resume Service » (vérifier aussi la facturation si Render l'a suspendu), puis relancer le test.",
+    };
+  }
+  if (r) return { detail: `Code ${status} : Render ne route pas vers le service (« ${r} »).`, correctif: "Ouvrir le service OnlyOffice dans Render : état, derniers déploiements et journaux." };
+  return { detail: `Code ${status} : ${ENDORMI}`, correctif: ENDORMI_CORRECTIF };
+}
+
 /** `GET {ONLYOFFICE_URL}/healthcheck` : un Document Server en forme répond exactement `true`. */
-export function verdictHealthcheck(status: number, corps: string): PointDiagnostic {
+export function verdictHealthcheck(status: number, corps: string, routage?: string | null): PointDiagnostic {
   const base = { cle: "healthcheck", libelle: "Serveur d'édition (depuis notre serveur)" };
   const c = corps.trim().toLowerCase();
   if (status === 200 && c === "true") return { ...base, etat: "ok", detail: "/healthcheck répond « true »." };
@@ -253,21 +270,21 @@ export function verdictHealthcheck(status: number, corps: string): PointDiagnost
   if (status === 200) {
     return { ...base, etat: "echec", detail: "Répond, mais pas comme un Document Server (page HTML ?) : l'adresse mène à un autre site.", correctif: "Vérifier ONLYOFFICE_URL : la racine du Document Server, rien d'autre." };
   }
-  if (status === 502 || status === 503 || status === 504) return { ...base, etat: "echec", detail: `Code ${status} : ${ENDORMI}`, correctif: ENDORMI_CORRECTIF };
+  if (status === 502 || status === 503 || status === 504) return { ...base, etat: "echec", ...codeIndisponible(status, routage) };
   if (status === 404) return { ...base, etat: "echec", detail: "Code 404 : aucun Document Server à cette adresse.", correctif: "ONLYOFFICE_URL doit être la racine du Document Server." };
   if (status === 401 || status === 403) return { ...base, etat: "echec", detail: `Code ${status} : un proxy filtre l'accès (mot de passe, liste d'adresses IP).`, correctif: "Ouvrir l'accès public au Document Server : il est protégé par son secret JWT." };
   return { ...base, etat: "echec", detail: `Code ${status} inattendu.`, correctif: "Lire les journaux du Document Server et de son proxy." };
 }
 
 /** `GET {ONLYOFFICE_URL}/web-apps/apps/api/documents/api.js` : le script que l'éditeur charge. */
-export function verdictApiJs(status: number, typeContenu: string): PointDiagnostic {
+export function verdictApiJs(status: number, typeContenu: string, routage?: string | null): PointDiagnostic {
   const base = { cle: "api-js", libelle: "Script de l'éditeur api.js (depuis notre serveur)" };
   const t = typeContenu.toLowerCase();
   if (status === 200 && /javascript|ecmascript/.test(t)) return { ...base, etat: "ok", detail: "Code 200, script JavaScript." };
   if (status === 200) {
     return { ...base, etat: "echec", detail: `Code 200, mais « ${typeContenu || "type inconnu"} » au lieu d'un script : page d'erreur ou de connexion d'un proxy.`, correctif: "Vérifier que l'adresse mène bien au Document Server, sans page intermédiaire." };
   }
-  if (status === 502 || status === 503 || status === 504) return { ...base, etat: "echec", detail: `Code ${status} : ${ENDORMI}`, correctif: ENDORMI_CORRECTIF };
+  if (status === 502 || status === 503 || status === 504) return { ...base, etat: "echec", ...codeIndisponible(status, routage) };
   if (status === 404) return { ...base, etat: "echec", detail: `Code 404 : ${CHEMIN_API_JS} introuvable.`, correctif: "ONLYOFFICE_URL doit être la racine du Document Server (sans sous-chemin superflu)." };
   return { ...base, etat: "echec", detail: `Code ${status}.`, correctif: "Lire les journaux du Document Server et de son proxy." };
 }

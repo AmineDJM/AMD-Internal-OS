@@ -23,7 +23,7 @@ import {
 const DELAI_MS = 8_000;
 
 type Sonde =
-  | { ok: true; status: number; type: string; corps: string; location: string | null }
+  | { ok: true; status: number; type: string; corps: string; location: string | null; routage: string | null }
   | { ok: false; erreur: ErreurReseau };
 
 async function sonder(url: string, opts: { lireCorps: boolean; suivre: boolean }): Promise<Sonde> {
@@ -35,7 +35,7 @@ async function sonder(url: string, opts: { lireCorps: boolean; suivre: boolean }
     });
     const corps = opts.lireCorps ? (await r.text()).slice(0, 2_000) : "";
     if (!opts.lireCorps) await r.body?.cancel().catch(() => {});
-    return { ok: true, status: r.status, type: r.headers.get("content-type") ?? "", corps, location: r.headers.get("location") };
+    return { ok: true, status: r.status, type: r.headers.get("content-type") ?? "", corps, location: r.headers.get("location"), routage: r.headers.get("x-render-routing") };
   } catch (e) {
     return { ok: false, erreur: lireErreur(e) };
   }
@@ -79,10 +79,10 @@ export async function testerEditeurOffice(): Promise<RapportEditeurOffice> {
       sonder(`${editeur}/healthcheck`, { lireCorps: true, suivre: true }),
       sonder(apiJs, { lireCorps: false, suivre: true }),
     ]);
-    points.push(sante.ok ? verdictHealthcheck(sante.status, sante.corps)
+    points.push(sante.ok ? verdictHealthcheck(sante.status, sante.corps, sante.routage)
       : pointReseau("healthcheck", "Serveur d'édition (depuis notre serveur)", sante.erreur, editeur));
     if (script.ok) {
-      const p = verdictApiJs(script.status, script.type);
+      const p = verdictApiJs(script.status, script.type, script.routage);
       serveurJoint = p.etat === "ok";
       points.push(p);
     } else {

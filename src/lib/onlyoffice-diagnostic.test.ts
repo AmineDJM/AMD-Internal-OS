@@ -117,6 +117,11 @@ describe("codes HTTP du Document Server", () => {
     }
   });
   it("api.js : 200 + JavaScript, sinon le type reçu est nommé", () => {
+    // Render SUSPENDU (x-render-routing: suspend-by-user) : pas « endormi », il faut le reprendre.
+    expect(verdictHealthcheck(503, "", "suspend-by-user").detail).toMatch(/SUSPENDU/);
+    expect(verdictHealthcheck(503, "", "suspend-by-user").correctif).toMatch(/Resume Service/);
+    expect(verdictApiJs(503, "text/html", "suspend-by-user").detail).toMatch(/SUSPENDU/);
+    expect(verdictHealthcheck(503, "", null).detail).toMatch(/endormi/);
     expect(verdictApiJs(200, "application/javascript; charset=utf-8").etat).toBe("ok");
     const p = verdictApiJs(200, "text/html");
     expect(p.etat).toBe("echec");
