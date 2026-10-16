@@ -21,28 +21,40 @@ export function StoragePanel({ initial }: { initial: SelfTestReport["config"] })
   const [report, setReport] = React.useState<SelfTestReport | null>(null);
   const cfg = report?.config ?? initial;
 
-  // ENVOI DIRECT DEPUIS CE NAVIGATEUR — vérifie la règle CORS du bucket (PUT autorisé, ETag
-  // exposé), sans laquelle les gros fichiers échouent alors que tout « semble » configuré.
+  // ENVOI DIRECT DEPUIS CE NAVIGATEUR — le vrai chemin des gros fichiers : une partie poussée par le
+  // navigateur (règle CORS : PUT autorisé), puis recollée par le serveur à partir des empreintes que
+  // le BUCKET liste. L'ETag lu par le navigateur n'est qu'un secours (Supabase ne l'expose pas).
   const [cors, setCors] = React.useState<{ ok: boolean; texte: string } | null>(null);
   const [corsBusy, setCorsBusy] = React.useState(false);
   const testerCors = async () => {
     setCorsBusy(true); setCors(null);
     try {
       const r = await fetch("/api/admin/storage/cors-test", { method: "POST" });
-      const b = (await r.json()) as { url?: string; key?: string; error?: string };
-      if (!r.ok || !b.url || !b.key) { setCors({ ok: false, texte: b.error ?? "Signature refusée." }); return; }
+      const b = (await r.json()) as { url?: string; key?: string; uploadId?: string; error?: string };
+      if (!r.ok || !b.url || !b.key || !b.uploadId) { setCors({ ok: false, texte: b.error ?? "Signature refusée." }); return; }
+      const corps = new Blob(["test d'envoi direct en plusieurs parties"]);
       let res: Response;
       try {
-        res = await fetch(b.url, { method: "PUT", body: new Blob(["test d'envoi direct"]) });
+        res = await fetch(b.url, { method: "PUT", body: corps });
       } catch {
-        setCors({ ok: false, texte: "Le navigateur n'a pas pu écrire dans le bucket : la règle CORS manque (AllowedOrigins = l'adresse de l'application, AllowedMethods = PUT, ExposeHeaders = ETag). Voir docs/stockage-gros-fichiers.md." });
+        void fetch("/api/admin/storage/cors-test", { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ key: b.key, uploadId: b.uploadId, total: corps.size }) });
+        setCors({ ok: false, texte: "Le navigateur n'a pas pu écrire dans le bucket : la règle CORS manque (AllowedOrigins = l'adresse de l'application, AllowedMethods = PUT). Voir docs/stockage-gros-fichiers.md." });
         return;
       }
       const etag = res.headers.get("ETag");
-      void fetch(`/api/admin/storage/cors-test?key=${encodeURIComponent(b.key)}`, { method: "DELETE" });
+      const fin = await fetch("/api/admin/storage/cors-test", {
+        method: "PATCH", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ key: b.key, uploadId: b.uploadId, total: corps.size, etag: etag ?? undefined }),
+      });
+      const f = (await fin.json().catch(() => ({}))) as { ok?: boolean; empreintes?: string; error?: string };
       if (!res.ok) setCors({ ok: false, texte: `Le bucket a refusé l'envoi (code ${res.status}).` });
-      else if (!etag) setCors({ ok: false, texte: "Envoi accepté, mais l'en-tête ETag n'est pas exposé : ajoutez « ExposeHeaders: ETag » à la règle CORS, sinon les gros fichiers ne peuvent pas être recollés." });
-      else setCors({ ok: true, texte: "Envoi direct depuis ce navigateur : OK (PUT autorisé, ETag lisible). Les gros fichiers partiront directement au bucket." });
+      else if (f.ok && f.empreintes === "bucket") {
+        setCors({ ok: true, texte: `Envoi direct depuis ce navigateur : OK — partie envoyée par le navigateur et recollée par le serveur à partir des empreintes du stockage.${etag ? "" : " L'en-tête ETag n'est pas exposé au navigateur : sans effet, il n'est pas nécessaire."} Les gros fichiers partiront directement au bucket.` });
+      } else if (f.ok) {
+        setCors({ ok: true, texte: "Envoi direct depuis ce navigateur : OK — recollé grâce à l'ETag lu par le navigateur (le stockage ne liste pas les parties). Gardez « ExposeHeaders: ETag » dans la règle CORS." });
+      } else {
+        setCors({ ok: false, texte: `Envoi accepté, mais le recollage a échoué : ${f.error ?? "erreur inconnue"}${etag ? "" : " — le stockage ne liste pas les parties et l'ETag n'est pas exposé au navigateur : ajoutez « ExposeHeaders: ETag » à la règle CORS."}` });
+      }
     } finally { setCorsBusy(false); }
   };
 
