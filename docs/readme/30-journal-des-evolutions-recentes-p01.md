@@ -1,5 +1,21 @@
 ## 🧾 Journal des évolutions récentes
 
+### AD & PRO : LUNA LIT LA DESCRIPTION ET PROPOSE LES POSTES (2026-10-19)
+
+Aucune migration. Maquette « luna-postes » : à la création d'un **événement**, la description passe en tête ; on y colle le
+mail d'organisation et, en quittant le champ, Luna propose l'événement (nom, type, dates, lieu, wilaya, spécialité,
+capacité) et ses **postes** — salle (+ cocktail, pause-café), repas (convives par repas), hôtellerie (une fiche par
+personne : prénom / nom, hôtel, nuits, chambre), billetterie (une fiche par voyageur ; un trajet par sens → aller simple,
+aller-retour ou plusieurs destinations ; créneaux « matin », « 21h00 » en notes) et les pièces annoncées (« PI à
+joindre »). **Rien ne s'écrit** avant « Reprendre » : les champs VIDES se remplissent (marqués), les postes gardés se créent
+après la demande par l'action ordinaire `addAdProItem` (mêmes gardes et fiches). Sans IA (coupée, non configurée), la carte
+n'apparaît pas. Pur : `lib/ad-pro/postes-luna.ts` (schéma strict, consigne, relecture : nom absent de la description
+écarté, nature hors liste écartée, fiche relue par `lireVoyageur` / `lireHebergement`, `versFormulairePoste`) ; serveur :
+`lib/postes-luna-ia.ts` (passerelle `askModelJson`, rôle `worker`, journal `postes_luna`, bascule de l'assistant) ;
+action `actions/ad-pro-postes-luna-actions.ts` ; écran `components/ad-pro/description-luna.tsx`, `events/event-form.tsx`.
+Banc : `postes-luna-ia.test.ts` (modèle simulé à la passerelle : l'Advisory Board de la Direction, une personne, dates en
+toutes lettres, sans billetterie ; abstentions).
+
 ### BC : CHANGER LE SEUL NUMÉRO NE RELANCE PAS LE CIRCUIT (2026-10-14)
 
 Aucune migration. Décision de la Direction : une révision dont la SEULE différence est le numéro garde l'état du BC — aucun

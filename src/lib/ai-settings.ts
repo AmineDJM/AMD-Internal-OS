@@ -66,7 +66,13 @@ export type AiFeature =
    * ce que la fiche RH n'a pas (naissance, poste, date d'embauche) — proposé, jamais écrit ; sans elle, la lecture
    * déterministe du contrat prend le relais (`attestation-travail-luna.ts`). Suit la bascule de l'assistant.
    */
-  | "attestation_travail";
+  | "attestation_travail"
+  /**
+   * LES POSTES D'UNE DEMANDE AD & PRO LUS DANS SA DESCRIPTION (Direction 10/2026) : Luna propose l'événement et ses postes
+   * (salle, repas, hôtellerie, billetterie et leurs fiches) — proposé, jamais écrit ; la personne reprend en un geste
+   * (`postes-luna-ia.ts`). Suit la bascule de l'assistant.
+   */
+  | "postes_luna";
 
 export interface AiSettingsView {
   masterEnabled: boolean;
@@ -119,6 +125,7 @@ const FEATURE_KEY: Record<AiFeature, keyof AiSettingsView> = {
   budget_campagne: "assistantEnabled",
   influence: "fieldReportAiEnabled",
   attestation_travail: "assistantEnabled",
+  postes_luna: "assistantEnabled",
 };
 
 /**
