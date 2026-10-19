@@ -2,10 +2,14 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Loader2, Check, X, RotateCcw, PauseCircle, PlayCircle, Send, Plus, ShieldCheck,
-  MessageSquare, Download, Paperclip, FileQuestion, Gavel, ExternalLink, Info, BellRing, Siren, PencilLine,
+  MessageSquare, Download, Paperclip, FileQuestion, Gavel, ExternalLink, Info, BellRing, Siren, PencilLine, Trash2,
 } from "lucide-react";
+import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
+import { EcartMontantCarte } from "@/components/finance/ecart-montant";
+import { InfoBulle } from "@/components/ui/info-bulle";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
@@ -22,7 +26,7 @@ import { pieceKindOptions, filingNotice } from "@/lib/legal/from-piece";
 import {
   addPaymentPiece, commentPaymentPiece, reviewPaymentPiece, addPaymentComment,
   submitPaymentRequest, decidePaymentRequest, cancelPaymentRequest, updatePaymentRequestDetails,
-  nudgePaymentRequest, corrigerDemandePaiement,
+  nudgePaymentRequest, corrigerDemandePaiement, supprimerDemandePaiement,
 } from "@/lib/actions/payment-request-actions";
 import { requestDocument, askablePeople } from "@/lib/actions/document-request-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
@@ -58,7 +62,7 @@ export interface EventView {
   at: string;
 }
 
-type Runner = (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string; factureConnue?: FactureDejaConnue }>;
+type Runner = (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string; factureConnue?: FactureDejaConnue; ecartMontant?: { montant: number; total: number } }>;
 
 /** Ce que la correction de la demande lit sur la fiche (§118.191). */
 export interface CorrectionView {
@@ -167,7 +171,7 @@ function NudgePanel({ id, onDone }: { id: string; onDone: () => void }) {
 export function PaymentDossier({
   id, reference, status, isRequester, isFinance, pieces, events, people, canApproveNow, approveBlocker, resubmitBlocker,
   entityType, paymentMethodStated, contact, isCompanion = false, orderReference = null, withFinance = false, correction,
-  refusRetrait = null,
+  refusRetrait = null, supprimable = false,
 }: {
   id: string;
   reference: string;
@@ -205,6 +209,11 @@ export function PaymentDossier({
    * que son ordre n'est pas réglé.
    */
   refusRetrait?: string | null;
+  /**
+   * SUPPRIMER DÉFINITIVEMENT (19/10) — offert quand l'action l'accepterait : le demandeur (ou le Super Admin), une demande
+   * retirée ou restée brouillon, aucun paiement sorti (`refusDeSuppression`, `peutSupprimerUneDemandePaiement`).
+   */
+  supprimable?: boolean;
 }) {
   // Rafraîchir SANS laisser rouvrir une fiche périmée (§118.172) : la correction s'ouvre sur un
   // instantané de la demande, et ses gestes restent fermés tant que les données d'après ne sont pas là.
@@ -218,6 +227,12 @@ export function PaymentDossier({
   const [info, setInfo] = React.useState<string | null>(null);
   const [note, setNote] = React.useState("");
   const [message, setMessage] = React.useState("");
+  // LA TRANSMISSION REFUSÉE POUR UN ÉCART AVEC LA FACTURE (`finance/montant-facture.ts`) : les deux chiffres, et la réponse.
+  const [ecart, setEcart] = React.useState<{ montant: number; total: number } | null>(null);
+  const [justification, setJustification] = React.useState("");
+  const [confirme, setConfirme] = React.useState(false);
+  const [suppression, setSuppression] = React.useState(false);
+  const router = useRouter();
 
   const run = async (key: string, fn: Runner, fields: Record<string, string>, files?: Record<string, File>) => {
     setEnVol(key); setErr(null); setInfo(null); setConnue(null);
@@ -226,12 +241,19 @@ export function PaymentDossier({
     for (const [k, f] of Object.entries(files ?? {})) fd.set(k, f);
     const r = await fn(fd);
     setEnVol(null);
-    if (!r.ok) { if (r.factureConnue) setConnue(r.factureConnue); else setErr(r.error ?? "L'opération a échoué."); return false; }
+    if (!r.ok) {
+      if (r.factureConnue) setConnue(r.factureConnue);
+      else if (r.ecartMontant) { setEcart(r.ecartMontant); if (justification.trim()) setErr(r.error ?? null); }
+      else setErr(r.error ?? "L'opération a échoué.");
+      return false;
+    }
     if (r.message) setInfo(r.message);
-    setNote(""); setMessage("");
+    setNote(""); setMessage(""); setEcart(null); setJustification(""); setConfirme(false);
     rafraichir();
     return true;
   };
+  // Le dernier écart de montant dit — tant qu'aucune correction ne l'a suivi : corrigé, il ne se montre plus.
+  const dernierEcart = [...events].reverse().find((e) => e.kind === "ECART_MONTANT" || e.kind === "CORRECTED");
 
   // Le décompte ne lit que les pièces EN VIGUEUR — la même lecture que le bon à payer (§118.191).
   const t = tallyPieces(piecesEnVigueur(pieces));
@@ -257,6 +279,12 @@ export function PaymentDossier({
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" /> {e.message}
         </p>
       ))}
+      {/* L'ÉCART DE MONTANT AVEC LA FACTURE (`finance/montant-facture.ts`) — dit tant qu'aucune correction ne l'a suivi. */}
+      {dernierEcart?.kind === "ECART_MONTANT" && (
+        <p className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-xs text-foreground [overflow-wrap:anywhere]" data-ecart-montant>
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-warning" /> {dernierEcart.message}
+        </p>
+      )}
 
       {/* ───────────── Les pièces, et leur conversation ───────────── */}
       <section className="space-y-3">
@@ -360,6 +388,32 @@ export function PaymentDossier({
         </section>
       )}
 
+      {/* ───────────── SUPPRIMER DÉFINITIVEMENT une demande retirée ou restée brouillon (19/10) ─────────────
+          Par la fenêtre commune : elle lit avant le clic ce qui part avec la demande (son ordre annulé, ses pièces). */}
+      {supprimable && (
+        <section className="surface flex flex-wrap items-center justify-between gap-2 p-3 sm:p-4">
+          <h2 className="flex items-center gap-1.5 text-sm font-semibold">
+            Supprimer la demande
+            <InfoBulle label="Ce que fait la suppression">
+              La demande disparaît de vos listes avec son ordre de dépense annulé, ses pièces et son fil. Le Super Admin peut
+              la restaurer depuis la corbeille. Un paiement déjà sorti l&apos;interdit.
+            </InfoBulle>
+          </h2>
+          <Button variant="outline" className="w-full text-destructive sm:w-auto" disabled={busy !== null} onClick={() => setSuppression(true)}>
+            <Trash2 className="h-4 w-4" /> Supprimer définitivement
+          </Button>
+          <ConfirmationSuppression
+            open={suppression}
+            onClose={() => setSuppression(false)}
+            kind="PAYMENT_REQUEST"
+            id={id}
+            name={reference}
+            executer={supprimerDemandePaiement}
+            onSupprime={(r) => { setSuppression(false); router.push(r.redirect ?? "/validations/paiements"); }}
+          />
+        </section>
+      )}
+
       {/* ───────────── Les gestes ───────────── */}
       {open && !isCompanion && (isRequester || isFinance) && (
         <section className="surface space-y-3 p-3 sm:p-4">
@@ -382,6 +436,23 @@ export function PaymentDossier({
               </Button>
             )}
             {isRequester && resubmitBlocker && <span className="self-center text-xs text-muted-foreground">{resubmitBlocker}</span>}
+            {/* L'ÉCART AVEC LA FACTURE, refusé à la transmission : le montant se corrige (« Corriger la demande »), ou
+                l'écart s'explique et se confirme — et la transmission repart avec. */}
+            {isRequester && ecart && (status === "DRAFT" || status === "CHANGES_REQUESTED") && (
+              <div className="w-full space-y-2">
+                <EcartMontantCarte
+                  ecart={ecart} disabled={busy !== null}
+                  justification={justification} onJustification={setJustification}
+                  confirme={confirme} onConfirme={setConfirme}
+                />
+                <Button
+                  variant="outline" disabled={busy !== null || !justification.trim() || !confirme}
+                  onClick={() => void run("send", submitPaymentRequest, { id, note, ecartJustification: justification, ecartConfirme: confirme ? "1" : "0" })}
+                >
+                  {busy === "send" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Envoyer malgré l&apos;écart
+                </Button>
+              </div>
+            )}
 
             {isFinance && status === "SUBMITTED" && (
               <Button variant="outline" disabled={busy !== null} onClick={() => void run("review", decidePaymentRequest, { id, move: "REVIEW", note })}>
@@ -647,6 +718,9 @@ const EVENT_LABEL: Record<string, string> = {
   NUDGE: "Relance",
   URGENT: "Urgence signalée",
   DOUBLON_POSSIBLE: "Doublon possible",
+  ECART_MONTANT: "Écart avec la facture",
+  ECART_ASSUME: "Écart avec la facture — assumé",
+  MONTANT_NON_LU: "Montant non vérifié",
 };
 
 /** Une pièce, son commentaire, son verdict, et la réponse qu'elle appelle. */

@@ -1,6 +1,7 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
 import { userCan } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
@@ -99,7 +100,7 @@ export const EXECUTIVE_BRIEF_TOOLS: PowerTool[] = [
       const [center, centreOrders, lectureAlertes, events, compta, rh] = await Promise.all([
         getActionCenter(user).catch(() => ({ items: [] as { title: string; subtitle?: string | null; module: string; statusLabel: string; deadline?: string | null; href: string }[] })),
         prisma.expenseOrder.findMany({
-          where: { AND: [entity, { centralStatus: "AWAITING" }] },
+          where: { AND: [entity, { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE }] },
           select: { reference: true, label: true, amount: true, beneficiary: true, createdAt: true },
           orderBy: { createdAt: "asc" }, take: 10,
         }),

@@ -22,6 +22,7 @@ import { restaurerLaCtdDeLaCorbeille } from "@/lib/regulatory/ctd-initiale-corbe
 import { peutSupprimerUneDemandeAdPro } from "@/lib/queries/ad-pro-suppression";
 import { estDemandeAdProSupprimable, REFUS_SUPPRESSION_AD_PRO } from "@/lib/ad-pro/suppression";
 import { peutSupprimerUnRapportTerrain } from "@/lib/queries/field-reports";
+import { peutSupprimerUneDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
 import { corbeillePermise, estDirecteurDesOperations, suppressionPermise } from "@/lib/suppression/delegation";
 
 export type { DeleteResult } from "@/lib/suppression/coeur";
@@ -277,6 +278,8 @@ async function peutSupprimerDepuisSonModule(user: Awaited<ReturnType<typeof requ
   // la MÊME règle que `deleteFieldReport`, sans quoi l'aperçu ne s'ouvrirait pas devant une
   // suppression que l'action accepte (ni ne s'ouvrirait à qui l'action refuse).
   if (kind === "FIELD_REPORT") return peutSupprimerUnRapportTerrain(user, id);
+  // UNE DEMANDE DE PAIEMENT (19/10) : son demandeur — la MÊME règle que `supprimerDemandePaiement`.
+  if (kind === "PAYMENT_REQUEST") return peutSupprimerUneDemandePaiement(user, id);
   // LE DIRECTEUR DES OPÉRATIONS dans ses modules — la MÊME règle que `superAdminDelete` (§118.209).
   if (await peutSupprimerDansSesModules(user, kind, id)) return true;
   const droit = SUPPRIME_PAR_SON_MODULE[kind];

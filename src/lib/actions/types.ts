@@ -15,6 +15,11 @@ export interface ActionResult {
   factureConnue?: FactureDejaConnue;
   /** Un dépôt ACCEPTÉ mais marqué « doublon possible » : l'avertissement à montrer. */
   avertissement?: string;
+  /**
+   * LA DEMANDE DE PAIEMENT REFUSÉE PARCE QUE SON MONTANT N'EST PAS CELUI DE LA FACTURE (`finance/montant-facture.ts`) :
+   * le montant demandé et le TTC lu — l'écran propose de reprendre le second, ou d'expliquer et confirmer l'écart.
+   */
+  ecartMontant?: { montant: number; total: number };
 }
 
 /** Helpers for parsing FormData values inside server actions. */

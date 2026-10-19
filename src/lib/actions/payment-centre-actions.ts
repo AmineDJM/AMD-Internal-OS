@@ -10,7 +10,7 @@ import {
   sitsOnPaymentCentre, applyDecision, applyResubmission, canResubmit, memeBeneficiaire,
   CENTRAL_DECISION_LABEL, CENTRAL_STATUS_LABEL,
   type CentralDecision, type CentralStatus,
-  PAYMENT_CENTRE_REFUSAL,
+  PAYMENT_CENTRE_REFUSAL, refusOrdreFerme,
 } from "@/lib/payments/authorization";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
@@ -122,6 +122,10 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
     select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, status: true, dueDate: true, sourceType: true, sourceId: true },
   });
   if (!order) return { ok: false, error: "Ordre de dépense introuvable." };
+  // UN ORDRE ANNULÉ (demande retirée) OU RÉGLÉ NE SE DÉCIDE PLUS : son autorisation est restée « en attente », jamais
+  // rendue — la lire seule laissait autoriser un paiement que plus personne ne demande (`refusOrdreFerme`).
+  const ferme = refusOrdreFerme(order.status, order.reference);
+  if (ferme) return { ok: false, error: ferme };
   // LE BV D'UN DOSSIER RÉGLEMENTAIRE : la décision se lit sur l'étape « Demande du BV » du dossier
   // (« autorisé — chez les Finances », « refusé — motif ») ; c'est là que le demandeur est renvoyé.
   const dossierBv = order.sourceType === "REGULATORY_PRODUCT" && order.sourceId ? `/regulatory/${order.sourceId}` : null;
@@ -243,9 +247,12 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
 
   const order = await prisma.expenseOrder.findUnique({
     where: { id },
-    select: { id: true, reference: true, label: true, amount: true, centralStatus: true, requestedById: true, companyId: true, sourceType: true },
+    select: { id: true, reference: true, label: true, amount: true, centralStatus: true, requestedById: true, companyId: true, sourceType: true, status: true },
   });
   if (!order) return { ok: false, error: "Ordre de dépense introuvable." };
+  // Répondre au centre sur un ordre annulé le renverrait « en attente » d'une autorisation que plus personne ne demande.
+  const ferme = refusOrdreFerme(order.status, order.reference);
+  if (ferme) return { ok: false, error: ferme };
 
   // Le demandeur, ou quelqu'un du centre agissant pour lui (il arrive qu'on saisisse la réponse
   // reçue par téléphone). Personne d'autre : c'est un argumentaire, il engage son auteur.

@@ -18,7 +18,7 @@ import { entityHref } from "@/lib/entity-href";
 import { existingEntityIds } from "@/lib/entity-exists";
 import { deadlineNatureLabel, deadlineNatureOf } from "@/lib/finance/deadline-nature";
 import { PaymentDossier, type PieceView, type EventView } from "./dossier";
-import { refusDeCorrection, refusDeRetrait } from "@/lib/finance/correction-demande";
+import { refusDeCorrection, refusDeRetrait, refusDeSuppression } from "@/lib/finance/correction-demande";
 import { getMyCompanies } from "@/lib/company";
 import { AskChief } from "@/components/shared/ask-chief";
 import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";
@@ -118,6 +118,7 @@ export default async function PaymentRequestPage({ params }: { params: { id: str
         where: { id: req.expenseOrderId },
         select: {
           reference: true, status: true, centralStatus: true, centralDecidedAt: true, centralDecidedById: true,
+          transactionId: true, paidDate: true,
           centralMessages: {
             where: { decision: { not: null } }, orderBy: { createdAt: "desc" }, take: 1,
             select: { decision: true, body: true, author: { select: { name: true } } },
@@ -292,6 +293,8 @@ export default async function PaymentRequestPage({ params }: { params: { id: str
         orderReference={order?.reference ?? null}
         withFinance={isWithFinance(req.status)}
         refusRetrait={refusDeRetrait({ status: req.status, compagnon: companion, ordre: order ? { status: order.status } : null })}
+        supprimable={(req.requesterId === user.id || user.role === "SUPER_ADMIN")
+          && refusDeSuppression({ status: req.status, compagnon: companion, ordre: order }) === null}
         correction={{
           refus: refusCorrection,
           valeurs: {

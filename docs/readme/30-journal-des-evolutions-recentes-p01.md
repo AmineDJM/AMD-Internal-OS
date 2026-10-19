@@ -1,5 +1,25 @@
 ## 🧾 Journal des évolutions récentes
 
+### DEMANDES DE PAIEMENT : LE MONTANT EST CELUI DE LA FACTURE — RETIRÉE, ELLE QUITTE LE CENTRE ET SE SUPPRIME (2026-10-19)
+
+Aucune migration.
+- **Montant divergent — la cause** : « Demander un paiement » (Demandes de validations) envoyait au centre le montant
+  SAISI, jamais comparé à la facture ; Luna lisait pourtant le TTC au dépôt (garde des doublons) et le jetait. Règle pure
+  `lib/finance/montant-facture.ts` : le montant se confronte au TTC lu des factures EN VIGUEUR (remplacées exclues,
+  plusieurs additionnées, 1 DZD de tolérance). Écart → refus avec les deux chiffres (`ActionResult.ecartMontant`) : on
+  reprend le TTC (« Prendre … DZD »), ou on explique ET coche la confirmation — l'explication est écrite dans l'ordre
+  (`ÉCART ASSUMÉ…`) et au fil (`ECART_ASSUME`). Appliqué à la création, à la transmission d'un brouillon ou d'un dossier
+  renvoyé (`submitPaymentRequest`, lecture gardée `ttcDesFacturesStockees`) ; signalé (`ECART_MONTANT`, bandeau) au dépôt
+  d'une facture de remplacement et à une correction de montant. Facture illisible : rien n'est bloqué, le fil dit
+  « montant non vérifié ». Écran : `components/finance/ecart-montant.tsx`.
+- **Retrait** : l'ordre annulé gardait une autorisation « en attente » — le centre le listait, le comptait et pouvait
+  l'autoriser. `ORDRE_NON_ANNULE` filtre `chargerCentre` et tous les compteurs « en attente du centre » (cliquet
+  `payments/centre-ordres-annules.test.ts`) ; `refusOrdreFerme` garde `decidePayment` et `respondToPaymentCentre`.
+- **Suppression définitive** : `supprimerDemandePaiement` (demandeur ou Super Admin), type `PAYMENT_REQUEST` du registre,
+  EN LOT avec son ordre annulé, restaurable depuis la corbeille, audité. Refus (`refusDeSuppression`) : dossier vivant
+  (le retirer d'abord), compagnon, paiement sorti. Bouton sur la fiche, fenêtre commune `ConfirmationSuppression`.
+- Bancs : `finance/montant-facture.test.ts`, `finance/suppression-demande.test.ts`, `actions/paiement-montant-retrait-flow.test.ts`.
+
 ### BC : CHANGER LE SEUL NUMÉRO NE RELANCE PAS LE CIRCUIT (2026-10-14)
 
 Aucune migration. Décision de la Direction : une révision dont la SEULE différence est le numéro garde l'état du BC — aucun

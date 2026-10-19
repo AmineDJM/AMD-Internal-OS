@@ -4,7 +4,7 @@ import { ficheScopedWhere, getMyCompanies, myCompanyScope, companyLabel } from "
 import { toNumber } from "@/lib/utils";
 import type { SessionUser } from "@/lib/rbac";
 import { poleDe } from "@/lib/lecteurs/consulting";
-import { awaitsCentre, sitsOnPaymentCentre, type CentralStatus } from "@/lib/payments/authorization";
+import { awaitsCentre, sitsOnPaymentCentre, ORDRE_NON_ANNULE, type CentralStatus } from "@/lib/payments/authorization";
 import {
   ENTITE_SANS, SECTIONS_CENTRE, choisirEntite, choisirSection, classerOrdre, origineEffective,
   type SectionCentre,
@@ -147,6 +147,8 @@ export async function chargerCentre(
   const base: Prisma.ExpenseOrderWhereInput = {
     AND: [
       { centralStatus: { not: "NOT_REQUIRED" } },
+      // Une demande retirée annule son ordre : il quitte le centre — liste, compteurs, bilan (`ORDRE_NON_ANNULE`).
+      ORDRE_NON_ANNULE,
       ...(canDecide ? [] : [{ requestedById: user.id }]),
     ],
   };

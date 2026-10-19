@@ -161,6 +161,32 @@ function identiteStockee(
   return completerIdentite(identiteDepuisLecture({ empreintes: [empreinte], texte: lue.texte, entetes: lue.entetes, piece: lue.piece, groupe }), saisieId);
 }
 
+/**
+ * LE TTC LU des factures déjà STOCKÉES (pièces d'une demande de paiement), par document — `null` quand la pièce n'a pas de
+ * lecture gardée. Aucune relecture : Luna a lu la pièce à son dépôt (`verifierFacturesAvantDepot`), la lecture est gardée
+ * par empreinte. Sert à confronter le montant d'une demande à ses factures au moment de la transmettre
+ * (`finance/montant-facture.ts`). Une base indisponible rend des `null` : le montant est alors dit « non vérifié ».
+ */
+export async function ttcDesFacturesStockees(documentIds: readonly string[]): Promise<Map<string, number | null>> {
+  const ids = [...new Set(documentIds.filter(Boolean))];
+  const out = new Map<string, number | null>(ids.map((id) => [id, null]));
+  if (ids.length === 0) return out;
+  try {
+    const docs = await prisma.document.findMany({ where: { id: { in: ids } }, select: { id: true, fileKey: true } });
+    const empreintes = await empreintesDesCles(docs.map((d) => d.fileKey ?? ""));
+    const lectures = await lecturesDesEmpreintes([...empreintes.values()]);
+    if (lectures.size === 0) return out;
+    const groupe = await identifiantsDuGroupe();
+    for (const d of docs) {
+      const empreinte = d.fileKey ? empreintes.get(d.fileKey) ?? null : null;
+      if (empreinte && lectures.has(empreinte)) out.set(d.id, identiteStockee(empreinte, lectures, groupe, null).ttc);
+    }
+  } catch (err) {
+    console.error("[factures] TTC des factures stockées illisible (le montant reste non vérifié)", err);
+  }
+  return out;
+}
+
 const ORDRE_SELECT = { id: true, reference: true, status: true, centralStatus: true, requestedById: true } as const;
 
 /**

@@ -1,6 +1,7 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
 import { userCan } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
 import { toNumber, formatMontant } from "@/lib/utils";
@@ -259,7 +260,7 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
       // par les faits métier, et la FRAÎCHEUR se dit au lieu de laisser croire au temps réel.
       const [payroll, centreAwaiting, validationsPending, tasksLate, regActive, lectureAlertes] = await Promise.all([
         userCan(user, "RH", "VIEW") ? monthlyPayroll() : Promise.resolve(null),
-        prisma.expenseOrder.count({ where: { centralStatus: "AWAITING" } }),
+        prisma.expenseOrder.count({ where: { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE } }),
         prisma.validationRequest.count({ where: { status: "PENDING" } }),
         prisma.task.count({ where: { status: { in: ["TODO", "IN_PROGRESS"] }, dueDate: { lt: new Date() } } }),
         prisma.regulatoryProduct.count({ where: { status: { notIn: [...FINISHED_REG_STATUSES] } } }),

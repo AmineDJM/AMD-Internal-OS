@@ -11,6 +11,7 @@ import { DEADLINE_NATURE_OPTIONS } from "@/lib/finance/deadline-nature";
 import { dossierHint } from "@/lib/finance/payment-dossier";
 import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
 import { FactureDejaConnueCarte } from "@/components/factures/facture-deja-connue";
+import { EcartMontantCarte } from "@/components/finance/ecart-montant";
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
 
 interface PieceDraft { file: File; kind: string; note: string }
@@ -45,10 +46,20 @@ export function NewPaymentButton() {
   const [connue, setConnue] = React.useState<FactureDejaConnue | null>(null);
   const [pieces, setPieces] = React.useState<PieceDraft[]>([]);
   const [methodStated, setMethodStated] = React.useState(false);
+  // LE MONTANT FACE À LA FACTURE (`finance/montant-facture.ts`) : l'écart que l'action a refusé, et sa réponse.
+  const [ecart, setEcart] = React.useState<{ montant: number; total: number } | null>(null);
+  const [justification, setJustification] = React.useState("");
+  const [confirme, setConfirme] = React.useState(false);
   const fileRef = React.useRef<HTMLInputElement>(null);
   const formRef = React.useRef<HTMLFormElement>(null);
 
-  const reset = () => { setPieces([]); setMethodStated(false); setErr(null); setConnue(null); };
+  const reset = () => { setPieces([]); setMethodStated(false); setErr(null); setConnue(null); setEcart(null); setJustification(""); setConfirme(false); };
+
+  const prendreMontantFacture = () => {
+    const champ = formRef.current?.elements.namedItem("amount");
+    if (ecart && champ instanceof HTMLInputElement) champ.value = String(ecart.total);
+    setEcart(null); setJustification(""); setConfirme(false);
+  };
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
@@ -93,7 +104,9 @@ export function NewPaymentButton() {
     const r = await createPaymentRequest(undefined, fd);
     setBusy(false);
     if (!r.ok) {
-      if (r.factureConnue) setConnue(r.factureConnue); else setErr(r.error ?? "La demande n'a pas pu être créée.");
+      if (r.factureConnue) setConnue(r.factureConnue);
+      else if (r.ecartMontant) { setEcart(r.ecartMontant); if (justification.trim()) setErr(r.error ?? null); }
+      else setErr(r.error ?? "La demande n'a pas pu être créée.");
       return;
     }
     setOpen(false); reset();
@@ -254,6 +267,14 @@ export function NewPaymentButton() {
             </p>
           )}
           {connue && <FactureDejaConnueCarte info={connue} />}
+          {ecart && (
+            <EcartMontantCarte
+              ecart={ecart} disabled={busy}
+              justification={justification} onJustification={setJustification}
+              confirme={confirme} onConfirme={setConfirme}
+              onPrendreFacture={prendreMontantFacture}
+            />
+          )}
           {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
 
           <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:flex-wrap sm:justify-end">

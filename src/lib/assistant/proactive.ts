@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
 import type { CurrentUser } from "@/lib/session";
 import { platformScope } from "@/lib/company";
 import { toNumber, formatMontant } from "@/lib/utils";
@@ -45,13 +46,13 @@ export async function detectExecutiveAlerts(user: CurrentUser, now: Date = new D
   ] = await Promise.all([
     // 1) Paiements EN ATTENTE au centre — chaque jour d'attente est un fournisseur qui patiente.
     prisma.expenseOrder.findMany({
-      where: { AND: [entity, { centralStatus: "AWAITING" }] },
+      where: { AND: [entity, { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE }] },
       select: { reference: true, label: true, amount: true, createdAt: true },
       orderBy: { createdAt: "asc" }, take: 15,
     }),
     // 2) Paiements où le centre a demandé une révision / une argumentation… restée sans suite.
     prisma.expenseOrder.findMany({
-      where: { AND: [entity, { centralStatus: { in: ["CHANGES_REQUESTED", "INFO_REQUESTED"] }, updatedAt: { lt: new Date(now.getTime() - 5 * DAY) } }] },
+      where: { AND: [entity, { centralStatus: { in: ["CHANGES_REQUESTED", "INFO_REQUESTED"] }, ...ORDRE_NON_ANNULE, updatedAt: { lt: new Date(now.getTime() - 5 * DAY) } }] },
       select: { reference: true, label: true, centralStatus: true, updatedAt: true },
       orderBy: { updatedAt: "asc" }, take: 10,
     }),
