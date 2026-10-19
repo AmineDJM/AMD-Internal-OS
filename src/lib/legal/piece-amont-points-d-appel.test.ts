@@ -100,7 +100,7 @@ describe("une seule phrase pour la pièce amont absente, et la fiche Legal suit 
       }
     };
     parcourir(path.join(RACINE, "src"));
-    const porteurs = fichiers.filter((f) => readFileSync(f, "utf8").includes(PIECE_AMONT_INTROUVABLE)).map((f) => path.relative(RACINE, f));
+    const porteurs = fichiers.filter((f) => readFileSync(f, "utf8").includes(PIECE_AMONT_INTROUVABLE)).map((f) => path.relative(RACINE, f).replace(/\\/g, "/"));
     expect(porteurs).toEqual(["src/lib/legal/piece-emise.ts"]);
   });
 

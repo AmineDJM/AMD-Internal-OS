@@ -44,7 +44,7 @@ function fichiers(dir: string): string[] {
     const p = join(dir, nom);
     if (statSync(p).isDirectory()) { out.push(...fichiers(p)); continue; }
     if (!/\.(ts|tsx)$/.test(nom) || /\.(test|spec)\.tsx?$/.test(nom)) continue;
-    out.push(p);
+    out.push(p.replace(/\\/g, "/"));
   }
   return out;
 }

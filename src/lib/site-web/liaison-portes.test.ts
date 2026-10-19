@@ -39,7 +39,7 @@ function fichiers(dossier: string, filtre: (f: string) => boolean): string[] {
     for (const nom of readdirSync(d)) {
       const p = join(d, nom);
       if (statSync(p).isDirectory()) parcourir(p);
-      else if (filtre(p)) out.push(relative(RACINE, p));
+      else if (filtre(p.replace(/\\/g, "/"))) out.push(relative(RACINE, p).replace(/\\/g, "/"));
     }
   };
   parcourir(abs);

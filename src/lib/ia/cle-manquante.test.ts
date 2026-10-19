@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { courtIaNonConfiguree, phraseIaNonConfiguree } from "./cle-manquante";
+
+/** Chemin relatif au dépôt, toujours écrit avec `/` (Windows rend des `\`). */
+const rel = (f: string) => relative(process.cwd(), f).replace(/\\/g, "/");
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -51,7 +54,7 @@ describe("le nom de la clé d'IA ne se recopie plus dans un écran", () => {
     // prop ou dans une réponse de route.
     const fautifs = fichiers
       .filter((f) => readFileSync(f, "utf8").includes("ANTHROPIC_API_KEY"))
-      .map((f) => f.replace(process.cwd() + "/", ""));
+      .map(rel);
     expect(
       fautifs,
       `ces écrans gravent un nom de clé que le registre seul connaît — passer par cleModeleRequise() côté serveur, et le recevoir en prop côté client :\n${fautifs.join("\n")}`,
@@ -68,7 +71,7 @@ describe("le nom de la clé d'IA ne se recopie plus dans un écran", () => {
         const src = readFileSync(f, "utf8");
         return src.includes("OPENAI_API_KEY") && !src.includes("sttConfigured");
       })
-      .map((f) => f.replace(process.cwd() + "/", ""));
+      .map(rel);
     expect(
       fautifs,
       `ces écrans nomment OPENAI_API_KEY hors du contexte de transcription — le fournisseur de raisonnement se lit dans le registre :\n${fautifs.join("\n")}`,
@@ -131,7 +134,7 @@ function sources(racines: string[], extension: string): string[] {
   };
   for (const r of racines) marche(join(process.cwd(), r));
   return out
-    .map((f) => f.replace(process.cwd() + "/", ""))
+    .map(rel)
     .filter((f) => !EXCLUS.some((x) => (x.endsWith("/") ? f.startsWith(x) : f === x)));
 }
 

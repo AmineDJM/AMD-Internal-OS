@@ -17,11 +17,26 @@ import { listerZip, lireEntreeZip, sourceTampon } from "@/lib/storage/zip-lecteu
 const collecter = async (it: AsyncIterable<Buffer>): Promise<Buffer> => { const m: Buffer[] = []; for await (const b of it) m.push(b); return Buffer.concat(m); };
 const texte = (n: number, graine = "") => Buffer.from(Array.from({ length: n }, (_, i) => `ligne ${graine} ${i} lot L${i % 977} résultat ${(Math.sin(i) * 100).toFixed(3)}`).join("\n"));
 
+/**
+ * Le premier interpréteur qui RÉPOND. Sous Windows, `python3` est souvent l'alias du Microsoft Store,
+ * qui échoue sans rien exécuter : on passe alors à `python` puis au lanceur `py -3`. Aucun ne répond →
+ * on retombe sur `python3`, et le test échoue comme avant — le troisième lecteur n'est jamais sauté.
+ */
+const PYTHON: [string, string[]] = (() => {
+  const candidats: [string, string[]][] = [["python3", []], ["python", []], ["py", ["-3"]]];
+  for (const [bin, pre] of candidats) {
+    try {
+      if (execFileSync(bin, [...pre, "-c", "import sys; print(sys.version_info[0])"], { stdio: ["ignore", "pipe", "ignore"] }).toString().trim() === "3") return [bin, pre];
+    } catch { /* candidat suivant */ }
+  }
+  return ["python3", []];
+})();
+
 function testerAvecPython(archive: Buffer): string {
   const f = path.join(os.tmpdir(), `amd-zip-${crypto.randomBytes(6).toString("hex")}.zip`);
   fs.writeFileSync(f, archive);
   try {
-    return execFileSync("python3", ["-c", "import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); r=z.testzip(); print('OK' if r is None else 'MAUVAIS:'+r, len(z.namelist()))", f]).toString().trim();
+    return execFileSync(PYTHON[0], [...PYTHON[1], "-c","import zipfile,sys; z=zipfile.ZipFile(sys.argv[1]); r=z.testzip(); print('OK' if r is None else 'MAUVAIS:'+r, len(z.namelist()))", f]).toString().trim();
   } finally { fs.rmSync(f, { force: true }); }
 }
 

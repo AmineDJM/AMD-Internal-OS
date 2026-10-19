@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -97,7 +97,7 @@ function pasGrossier(balise: string): string | null {
 }
 
 describe("un montant recopié d'une pièce se saisit au centime, pas au millier", () => {
-  const fichiers = ecrans().map((f) => ({ f: f.replace(process.cwd() + "/", ""), src: sansCommentaires(readFileSync(f, "utf8")) }));
+  const fichiers = ecrans().map((f) => ({ f: relative(process.cwd(), f).replace(/\\/g, "/"), src: sansCommentaires(readFileSync(f, "utf8")) }));
   const toutes = fichiers.flatMap(({ f, src }) => balises(src).map((b) => ({ f, b })));
   const montants = toutes.filter(({ b }) => estUnMontant(b));
 

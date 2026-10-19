@@ -162,7 +162,7 @@ const lire = (rel: string) =>
 function fichiers(dir: string, filtre: (n: string) => boolean): string[] {
   return readdirSync(dir).flatMap((n) => {
     const p = join(dir, n);
-    return statSync(p).isDirectory() ? fichiers(p, filtre) : filtre(n) ? [p] : [];
+    return statSync(p).isDirectory() ? fichiers(p, filtre) : filtre(n) ? [p.replace(/\\/g, "/")] : [];
   });
 }
 

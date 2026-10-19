@@ -144,7 +144,7 @@ describe("Points d'appel (§118.49)", () => {
     parcourir(racine);
     const appelants = fichiers
       .filter((p) => /\bexecuterAction\s*\(/.test(sansCommentaires(readFileSync(p, "utf8"))))
-      .map((p) => relative(process.cwd(), p))
+      .map((p) => relative(process.cwd(), p).replace(/\\/g, "/"))
       .filter((p) => p !== "src/lib/actions/executer.ts")
       .sort();
     // PLANCHER implicite : si la définition a été renommée, l'op elle-même disparaît de la liste.

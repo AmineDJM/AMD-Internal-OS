@@ -43,7 +43,7 @@ describe("le siège du centre de validations", () => {
     const trouves: string[] = [];
     const parcourir = (d: string) => {
       for (const n of readdirSync(d)) {
-        const p = join(d, n);
+        const p = join(d, n).replace(/\\/g, "/");
         if (statSync(p).isDirectory()) parcourir(p);
         else if (/\.tsx?$/.test(n) && !/\.test\.tsx?$/.test(n) && /centreValidatorFrom\(/.test(sans(p)) && !p.endsWith("validations/centre.ts")) trouves.push(p);
       }

@@ -73,7 +73,7 @@ function fichiers(racine: string): string[] {
     for (const e of readdirSync(d)) {
       const p = join(d, e);
       if (statSync(p).isDirectory()) marcher(p);
-      else if (/\.tsx?$/.test(e)) out.push(p);
+      else if (/\.tsx?$/.test(e)) out.push(p.replace(/\\/g, "/"));
     }
   };
   marcher(racine);

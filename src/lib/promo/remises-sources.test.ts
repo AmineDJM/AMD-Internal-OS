@@ -41,7 +41,7 @@ function fichiers(dir: string, acc: string[] = []): string[] {
 const sansCommentaires = (s: string): string =>
   s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/[^\n]*/g, "$1");
 
-const PRODUCTION = fichiers(SRC).map((f) => ({ rel: relative(process.cwd(), f), code: sansCommentaires(readFileSync(f, "utf8")) }));
+const PRODUCTION = fichiers(SRC).map((f) => ({ rel: relative(process.cwd(), f).replace(/\\/g, "/"), code: sansCommentaires(readFileSync(f, "utf8")) }));
 
 /** Les fichiers qui APPELLENT `nom(` — une définition (`function nom(`) n'est pas un appel. */
 function appelants(nom: string): string[] {

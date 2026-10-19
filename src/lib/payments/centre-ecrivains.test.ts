@@ -43,7 +43,7 @@ function fichiersDeProduction(): string[] {
   return out;
 }
 
-const rel = (p: string) => relative(process.cwd(), p);
+const rel = (p: string) => relative(process.cwd(), p).replace(/\\/g, "/");
 
 /** Le texte des arguments d'un appel, parenthèses équilibrées, à partir de l'index de `(`. */
 function arguments_(src: string, ouvrante: number): string {

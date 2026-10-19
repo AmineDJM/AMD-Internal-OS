@@ -184,7 +184,7 @@ suite("Bons de commande — modifiables de A à Z, et les coordonnées de la soc
         for (const n of readdirSync(d)) {
           const p = join(d, n);
           if (statSync(p).isDirectory()) parcourir(p);
-          else if (/\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n)) fichiers.push(p);
+          else if (/\.(ts|tsx)$/.test(n) && !/\.test\.tsx?$/.test(n)) fichiers.push(p.replace(/\\/g, "/"));
         }
       };
       parcourir("src");

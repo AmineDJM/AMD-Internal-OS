@@ -134,7 +134,7 @@ function fichiersDeProduction(dir = "src"): string[] {
   for (const nom of readdirSync(join(RACINE, dir))) {
     const chemin = join(dir, nom);
     if (statSync(join(RACINE, chemin)).isDirectory()) out.push(...fichiersDeProduction(chemin));
-    else if (/\.(ts|tsx)$/.test(nom) && !/\.(test|spec)\.tsx?$/.test(nom)) out.push(chemin);
+    else if (/\.(ts|tsx)$/.test(nom) && !/\.(test|spec)\.tsx?$/.test(nom)) out.push(chemin.replace(/\\/g, "/"));
   }
   return out;
 }

@@ -242,7 +242,7 @@ describe("le socle de l'horizon reste PUR", () => {
         const p = join(dir, e);
         if (statSync(p).isDirectory()) { parcourir(p); continue; }
         if (!p.endsWith(".ts") || p.endsWith(".test.ts")) continue;
-        if (/(export\s+)?const AGES_CREDIBLES_H\s*[:=]/.test(readFileSync(p, "utf8"))) definitions.push(p);
+        if (/(export\s+)?const AGES_CREDIBLES_H\s*[:=]/.test(readFileSync(p, "utf8"))) definitions.push(p.replace(/\\/g, "/"));
       }
     };
     parcourir("src");
