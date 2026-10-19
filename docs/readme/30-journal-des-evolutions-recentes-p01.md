@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### AGENDA : LES ÉVÉNEMENTS AD & PRO S'Y AFFICHENT, LUS SUR LEUR DEMANDE (2026-10-19)
+
+Aucune migration, aucune copie. Les prises en charge internationales et nationales et les événements (congrès,
+symposiums, tables rondes, staffs, journées…) apparaissent dans `/calendar`, « À venir », l'onglet Aujourd'hui et
+l'agenda d'Adam : intitulé, nature, début → fin, lieu, demandeur, **« Ouvrir la demande »**. L'agenda relit la source à
+chaque affichage (`lib/calendar-ad-pro.ts`, `getAdProEventsAsCalendar`) : date déplacée → l'agenda suit ; demande
+annulée (`status` CANCELLED), refusée ou annulée au circuit (`requestStatus` REJECTED / CANCELLED) ou supprimée → elle
+disparaît. **Portée = celle de la liste « Toutes les demandes »** : module de la nature en lecture, portée de ligne (un
+délégué ne voit que SES congrès ; les événements n'en ont pas, comme leur liste), entité de l'en-tête ; sans matrice de
+droits, rien. Date sans heure = journée entière ; plusieurs jours = une case par jour (`endYmd`, `joursCouverts`) ; un
+congrès en cours reste en tête de « À venir ». Le sponsoring et les « autres demandes » n'ont pas de date : rien à
+placer. Aucune modification depuis l'agenda (ni réponse, ni suppression). Banc : `calendar-ad-pro.test.ts` (jours,
+droits, entité, agenda ⊆ fiche, annulation, suppression, date modifiée).
+
 ### BC : CHANGER LE SEUL NUMÉRO NE RELANCE PAS LE CIRCUIT (2026-10-14)
 
 Aucune migration. Décision de la Direction : une révision dont la SEULE différence est le numéro garde l'état du BC — aucun

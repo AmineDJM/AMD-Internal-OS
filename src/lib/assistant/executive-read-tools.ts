@@ -184,7 +184,8 @@ export const EXECUTIVE_READ_TOOLS: PowerTool[] = [
           titre: e.title, jour: e.ymd, heure: e.timeLabel || "journée entière",
           duree_min: duree, lieu: e.location, organisateur: e.organizerName,
           invites: e.invitees.map((i) => `${i.name} (${i.status})`),
-          visio: e.meetLink, lien: "/calendar",
+          visio: e.meetLink, lien: e.source?.href ?? "/calendar",
+          ...(e.source ? { nature: e.source.label, dernier_jour: e.endYmd ?? e.ymd } : {}),
         };
       });
 
@@ -195,6 +196,9 @@ export const EXECUTIVE_READ_TOOLS: PowerTool[] = [
       let sansDuree = 0;
       const rencontres = new Map<string, number>();
       for (const e of events) {
+        // Un congrès Ad & Pro de trois jours n'est pas soixante-douze heures de réunion, et son
+        // demandeur n'est pas une personne rencontrée : il est détaillé, pas totalisé.
+        if (e.source) continue;
         const debut = new Date(e.startAt);
         const fin = e.endAt ? new Date(e.endAt) : null;
         if (fin && fin > debut) minutes += (fin.getTime() - debut.getTime()) / 60_000;
