@@ -15,6 +15,14 @@ intention** — on ne consulte plus son budget en traversant tout ce qui le modi
 > (`/budget-regulatory`, BV 25 % / 75 % par dossier) et **Budget Operations & Sales** (`/budget-operations`, masse
 > salariale de la force de vente) — lisent les MÊMES enveloppes, bornées à leur `domaine`. Budgets lit et additionne
 > tout, mais une enveloppe de pôle s'y **lit sans se régler**. → [référence](#budgets-des-pôles--marketing-regulatory-operations--sales-0810)
+>
+> **« À imputer » ne vit que dans Budgets (19/10/2026)** — la liste des écritures de trésorerie à ranger (« Tout
+> sélectionner », « Pièces », « Imputer à… ») ne s'affiche que dans `/budgets/depenses`, pour l'enveloppe choisie, avec
+> ses seules catégories. L'onglet Dépenses d'un budget de pôle n'en montre que le compte et un lien « Dans Budgets »
+> (`/budgets/depenses?env=…`, si la personne entre dans Budgets) ; l'alerte des vues d'ensemble de pôle mène au même
+> endroit (`lienAImputerBudgets`, `app/(app)/budgets/vues-budget.tsx`). Le Rapprochement Ad & Pro (écritures rattachées
+> retirées) et les étiquettes « Pas Ad & Pro » / « Force de vente » s'appliquent là, par enveloppe. Banc :
+> `lib/budget/a-imputer-seulement-budgets.test.ts`.
 
 > **Budget Marketing › Dépenses (10/2026, maquette validée)** — « on sépare une dépense engagée d'une dépense payée ».
 > Un poste Ad & Pro dont **tous les BC sont signés** est **À imputer** ; la Direction Marketing l'**impute** à une

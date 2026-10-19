@@ -1,5 +1,15 @@
 ## 🧾 Journal des évolutions récentes
 
+### « À IMPUTER » SEULEMENT DANS BUDGETS, PAR ENVELOPPE (2026-10-19)
+
+Aucune migration. « Ça doit être que dans le module Budgets, par Budget Marketing etc. » La liste des écritures à ranger
+(`BudgetExpenses`) ne s'affiche plus que dans `/budgets/depenses`, pour l'enveloppe choisie et avec ses catégories. Les
+onglets Dépenses de Budget Marketing, Regulatory et Operations & Sales n'en gardent que le compte et un lien « Dans
+Budgets » (`renvoiAImputer`) ; les alertes de leurs vues d'ensemble mènent là (`lienAImputerBudgets`, sans lien si la
+personne n'entre pas dans Budgets — `alerte-a-imputer.tsx`). Le retrait par le Rapprochement Ad & Pro et les étiquettes
+(« Pas Ad & Pro », « Force de vente ») suivent l'enveloppe dans Budgets (`aImputerDeLEnveloppe`). L'imputation elle-même
+(`attributeTransaction`) est inchangée. Banc : `lib/budget/a-imputer-seulement-budgets.test.ts`.
+
 ### BC : CHANGER LE SEUL NUMÉRO NE RELANCE PAS LE CIRCUIT (2026-10-14)
 
 Aucune migration. Décision de la Direction : une révision dont la SEULE différence est le numéro garde l'état du BC — aucun

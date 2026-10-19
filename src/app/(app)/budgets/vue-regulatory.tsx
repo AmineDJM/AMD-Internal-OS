@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { AlertTriangle, ArrowRight, ChevronRight, Download } from "lucide-react";
+import { ChevronRight, Download } from "lucide-react";
 import type { CurrentUser } from "@/lib/session";
 import type { BudgetEnvelopeOption, BudgetOverview } from "@/lib/queries/budget";
 import { vueBvParDossier } from "@/lib/queries/budget-regulatory";
@@ -11,6 +11,7 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import { Badge } from "@/components/ui/badge";
 import { cn, formatCurrency } from "@/lib/utils";
 import { BudgetContextBar } from "./budget-context-bar";
+import { AlerteAImputer } from "./alerte-a-imputer";
 import { ancreCategorieBudget } from "@/lib/chemins/budgets";
 
 /**
@@ -33,10 +34,12 @@ const PASTILLE: Record<Exclude<EtatBvSimple, "AUCUN">, { libelle: string; tone: 
   ENGAGE: { libelle: "Engagé", tone: "info" },
 };
 
-export async function VueEnsembleRegulatory({ user, base, titre, overview, envelopes, tabs, exportHref }: {
+export async function VueEnsembleRegulatory({ user, titre, overview, envelopes, tabs, exportHref, lienAImputer }: {
   user: CurrentUser;
   /** Le chemin du module (`/budget-regulatory`). */
   base: string;
+  /** La liste « À imputer » de cette enveloppe, dans Budgets (`lienAImputerBudgets`) — `null` : l'alerte informe seulement. */
+  lienAImputer: string | null;
   titre: string;
   overview: BudgetOverview;
   envelopes: BudgetEnvelopeOption[];
@@ -70,16 +73,9 @@ export async function VueEnsembleRegulatory({ user, base, titre, overview, envel
       <BudgetContextBar envelopes={envelopes} currentId={overview.envelope.id} from={overview.period.from} to={overview.period.to} />
 
       {overview.unattributed.total > 0 && (
-        <Link
-          href={`${base}/depenses?env=${overview.envelope.id}`}
-          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning/5 px-3 py-2.5 text-sm transition hover:bg-warning/10 sm:px-4"
-        >
-          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-          <span className="min-w-0 flex-1 basis-[14rem]">
-            <strong className="tabular-nums">{formatCurrency(overview.unattributed.total)}</strong> de dépenses ne sont rangées dans aucune catégorie.
-          </span>
-          <span className="inline-flex shrink-0 items-center gap-1 font-medium text-primary">Ranger <ArrowRight className="h-3.5 w-3.5" /></span>
-        </Link>
+        <AlerteAImputer href={lienAImputer} total={overview.unattributed.total} action="Ranger">
+          de dépenses ne sont rangées dans aucune catégorie.
+        </AlerteAImputer>
       )}
 
       <section className="surface min-w-0 space-y-4 p-4 sm:p-5">
