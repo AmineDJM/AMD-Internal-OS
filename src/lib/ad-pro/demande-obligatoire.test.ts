@@ -76,6 +76,7 @@ suite("Une demande de sponsoring INCOMPLÈTE est refusée par le serveur", () =>
     const demandes = await prisma.sponsoringRequest.findMany({ where: { institution: { startsWith: TAG } }, select: { id: true } });
     const ids = demandes.map((d) => d.id);
     if (ids.length) {
+      await prisma.document.deleteMany({ where: { entityType: "SPONSORING", entityId: { in: ids } } }).catch(() => {});
       await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: ids } } } }).catch(() => {});
       await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
       await prisma.sponsoringRequest.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
@@ -134,6 +135,40 @@ suite("Une demande de sponsoring INCOMPLÈTE est refusée par le serveur", () =>
     const r = await createSponsoring(undefined, fd);
     expect(r.ok).toBe(false);
     expect(r.ok === false ? r.error : "").toContain("photo-du-courrier.png");
+  });
+
+  it("un EXCEL se joint en « autres pièces » — mais ne remplace pas la demande du médecin", async () => {
+    const excel = () => new File([new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1])], "participants.xlsx");
+    // Seul, à la place du scan : toujours refusé, la demande du médecin reste un PDF ou un Word.
+    const seul = complet();
+    seul.delete("files");
+    seul.append("files", excel());
+    const refus = await createSponsoring(undefined, seul);
+    expect(refus.ok).toBe(false);
+    expect(refus.ok === false ? refus.error : "").toContain("participants.xlsx");
+
+    // À côté du scan : accepté, et rangé comme pièce justificative.
+    const fd = complet();
+    fd.append("annexes", excel());
+    fd.append("annexes", new File([new Uint8Array([0x41, 0x3b, 0x42])], "liste.csv"));
+    const r = await createSponsoring(undefined, fd);
+    expect(r.ok, r.ok === false ? r.error : "").toBe(true);
+    const docs = await prisma.document.findMany({ where: { entityType: "SPONSORING", entityId: r.ok ? r.id! : "" }, select: { name: true, category: true } });
+    expect(docs).toEqual(expect.arrayContaining([
+      { name: "demande-medecin.pdf", category: "REQUEST_LETTER" },
+      { name: "participants.xlsx", category: "SUPPORTING_DOC" },
+      { name: "liste.csv", category: "SUPPORTING_DOC" },
+    ]));
+  });
+
+  it("un PROGRAMME en « autres pièces » est refusé, et la demande n'est PAS créée", async () => {
+    const avant = await prisma.sponsoringRequest.count({ where: { institution: { startsWith: TAG } } });
+    const fd = complet();
+    fd.append("annexes", new File([new Uint8Array([0x4d, 0x5a, 0x90])], "outil.exe"));
+    const r = await createSponsoring(undefined, fd);
+    expect(r.ok).toBe(false);
+    expect(r.ok === false ? r.error : "").toContain("outil.exe");
+    expect(await prisma.sponsoringRequest.count({ where: { institution: { startsWith: TAG } } })).toBe(avant);
   });
 
   it("COMPLÈTE, elle passe — et la gamme du KAM est celle de sa fiche, PAS celle qu'il a postée", async () => {

@@ -36,6 +36,7 @@ import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { refusFinBCEnRoute } from "@/lib/secretariat/devis-natif";
 import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
+import { attachFiles, validateAttachments } from "@/lib/attach-files";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -141,6 +142,12 @@ export async function createRequest(
     ? (await prisma.user.findMany({ where: { id: { in: participantIds }, isActive: true }, select: { id: true } })).map((u) => u.id)
     : [];
 
+  // LES PIÈCES JOINTES — tout type (Excel, PDF, Word, images, archives…) sauf ce qui s'exécute, et jugées
+  // AVANT de créer : refusées après, la demande existerait déjà et serait recréée au second essai.
+  const pieces = formData.getAll("files").filter((f): f is File => f instanceof File);
+  const piecesRefusees = await validateAttachments(pieces);
+  if (piecesRefusees) return { ok: false, error: `${piecesRefusees} Aucune demande n'a été créée.` };
+
   // LA RÉFÉRENCE SE RECALCULE SOUS COLLISION (§118.175, lot E5) : deux demandes déposées à la même seconde lisaient le
   // même maximum, et la seconde échouait sur une erreur brute — mesuré quand deux bancs déposaient ensemble. Le lot
   // (`createRequestBatch`) portait déjà ce filet ; la création unitaire, non. L'entité se lit UNE fois, hors de l'essai.
@@ -160,14 +167,17 @@ export async function createRequest(
     },
     select: { id: true, reference: true },
   }));
+  const jointes = await attachFiles({
+    files: pieces, entityType: "ADMIN_REQUEST", entityId: created.id, uploadedById: user.id, category: "SUPPORTING_DOC",
+  });
 
   // LE SECRÉTARIAT EST PRÉVENU (audit 360°, I10) : chaque assistante de direction ; celle qui commence le
   // traitement en devient responsable (`startRequestProcessing`).
   await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(() => undefined);
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: created.id, summary: `Demande ${created.reference} — ${title}` });
+  await recordAudit({ actorId: user.id, action: "CREATE", module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: created.id, summary: `Demande ${created.reference} — ${title}${jointes.saved > 0 ? ` (${jointes.saved} pièce(s) jointe(s))` : ""}` });
   revalidatePath("/demandes");
   revalidatePath("/demandes/assistant");
-  return { ok: true, id: created.id };
+  return { ok: true, id: created.id, ...(jointes.error ? { message: `Demande créée. ${jointes.error}` } : {}) };
 }
 
 // ─────────────────────────────── Traitement ───────────────────────────────

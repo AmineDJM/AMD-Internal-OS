@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sponsoringCreateFields, toPeople } from "./create-fields";
+import { sponsoringCreateFields, adProOtherCreateFields, toPeople, CHAMP_PIECES_COMPLEMENTAIRES } from "./create-fields";
 
 const names = (fields: { name: string }[]) => fields.map((f) => f.name);
 const find = (fields: { name: string }[], name: string) => fields.find((f) => f.name === name);
@@ -41,6 +41,16 @@ describe("Le formulaire de sponsoring", () => {
     const piece = find(f, "files");
     expect(piece).toMatchObject({ type: "file", required: true, multiple: true, accept: ".pdf,.doc,.docx" });
     expect((piece as unknown as { hint?: string }).hint).toContain("bureau du secrétariat");
+  });
+
+  it("à côté de la demande du médecin, d'AUTRES pièces de tout type (Excel compris), facultatives", () => {
+    // Ce qui le ferait tomber : un `accept` posé sur ce champ, qui griserait les Excel dans le sélecteur.
+    for (const f of [sponsoringCreateFields({}), adProOtherCreateFields({ companies: [] })]) {
+      const annexes = find(f, CHAMP_PIECES_COMPLEMENTAIRES) as unknown as { type: string; accept?: string; required?: boolean; multiple?: boolean };
+      expect(annexes).toMatchObject({ type: "file", multiple: true });
+      expect(annexes.accept).toBeUndefined();
+      expect(annexes.required).toBeFalsy();
+    }
   });
 
   it("médecins, produits et wilaya sont OBLIGATOIRES — dans le référentiel comme en saisie libre", () => {

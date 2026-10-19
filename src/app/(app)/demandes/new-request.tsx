@@ -59,6 +59,10 @@ export function NewRequestButton({ users, departments, articles = [] }: { users:
               <FieldWrap label="Échéance"><Input name="deadline" type="date" /></FieldWrap>
               <FieldWrap label="Département"><Select name="departmentId" defaultValue=""><option value="">—</option>{departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</Select></FieldWrap>
               <FieldWrap full label="Description"><Textarea name="description" placeholder="Précisez votre besoin…" /></FieldWrap>
+              {/* Tout type (Excel, PDF, Word, images, archives…) : le serveur refuse seul ce qui s'exécute. */}
+              <FieldWrap full label="Pièces jointes">
+                <Input name="files" type="file" multiple aria-label="Pièces jointes" />
+              </FieldWrap>
               {/* La demande va directement à l'assistante de direction ; le demandeur peut y associer des participants. */}
               <FieldWrap full label="Participants">
                 <div className="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-input p-2">
