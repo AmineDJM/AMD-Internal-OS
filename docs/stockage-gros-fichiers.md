@@ -37,7 +37,7 @@ R2 → bucket → *Settings* → *CORS Policy* (S3 : *Permissions* → *CORS*) :
 ]
 ```
 
-`ExposeHeaders: ETag` est obligatoire : c'est lui qui permet de recoller les parties.
+`ExposeHeaders: ETag` sert de **secours** : pour recoller les parties, le serveur relit d'abord leurs empreintes au bucket (`ListParts`). Sur **Supabase Storage**, la règle CORS ne se règle pas et `ETag` n'est pas exposé au navigateur : ce n'est pas bloquant tant que le stockage liste les parties — le bouton « Tester l'envoi direct » le vérifie de bout en bout.
 
 Conseillé : une **règle de cycle de vie** « abandonner les envois en plusieurs parties
 incomplets après 7 jours » (R2 : *Object lifecycle rules* ; S3 : *Lifecycle* →
@@ -62,7 +62,7 @@ que des adresses signées valables quelques heures.
 
 **Administration → Stockage objet** : le badge passe à « Cloudflare R2 » (ou « Amazon S3 »).
 Cliquez **Tester la connexion** (le serveur écrit, relit et efface un petit objet), puis
-**Tester l'envoi direct (navigateur)** (vérifie la règle CORS et l'en-tête ETag).
+**Tester l'envoi direct (navigateur)** : le vrai chemin des gros fichiers — une partie poussée par le navigateur (CORS), puis recollée par le serveur à partir des empreintes du bucket (ETag du navigateur en secours).
 
 ## Réglages facultatifs
 
