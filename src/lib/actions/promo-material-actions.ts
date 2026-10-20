@@ -354,7 +354,13 @@ export async function modifierDateBesoinPromo(formData: FormData): Promise<Actio
   const avant = pm.neededBy ? pm.neededBy.toISOString().slice(0, 10) : null;
   const apres = besoin.date ? besoin.date.toISOString().slice(0, 10) : null;
   if (avant === apres) return { ok: true };
-  await prisma.promoMaterial.update({ where: { id }, data: { neededBy: besoin.date, updatedById: user.id } });
+  // ÉCRITE SUR CE QUI A ÉTÉ LU (§118 — règle de point d'appel) : un dossier annulé, refusé ou terminé entre la lecture et
+  // l'écriture ne change plus de date, et une date déjà changée par un autre ne fait pas mentir l'« avant » de l'audit.
+  const ecrite = await prisma.promoMaterial.updateMany({
+    where: { ...surLaMarcheLue(pm), circuitState: pm.circuitState, neededBy: pm.neededBy },
+    data: { neededBy: besoin.date, updatedById: user.id },
+  });
+  if (ecrite.count === 0) return { ok: false, error: ETAT_CHANGE };
   await audit(user, id, "UPDATE", apres ? `Date de besoin : ${apres}${avant ? ` (avant : ${avant})` : ""}` : `Date de besoin retirée (avant : ${avant})`);
   revalidate(id);
   return { ok: true };

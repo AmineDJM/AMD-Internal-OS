@@ -284,11 +284,13 @@ suite("Bureau du secrétariat — devis natifs, lignes retenues, BC généré ou
     const doc = await lire();
     const v = valeursComposables(doc.custom)!;
     const ancien = doc.reference!;
-    const autre = await prisma.legalDocument.create({ data: { companyId, kind: "PURCHASE_ORDER", title: `${TAG} autre BC`, reference: `${TAG}-BC-PRIS`, counterparty: "x" }, select: { id: true } });
+    const autre = await prisma.legalDocument.create({ data: { companyId, kind: "PURCHASE_ORDER", title: `${TAG} autre BC`, reference: `${TAG}-BC-PRIS-7`, counterparty: "x" }, select: { id: true } });
     const formulaire = (numeroRevise: string) => formulaireDuComposeur(v, {
       legalDocumentId: bcId, revisionDe: bcId, versionVue: String(pieceEmise(doc.custom)!.version), motif: "Numéro de la série papier.", numeroRevise, numeroActuel: ancien,
     });
-    const pris = await reviserPieceCommerciale(undefined, formulaire(`${TAG}-bc-pris`));
+    // Un CHIFFRE fixe : `TAG` (base 36 de l'horodatage) n'en porte pas toujours, et un numéro sans chiffre est refusé AVANT
+    // que son unicité se juge (`refusNumeroLibre`) — le cas passait ou non selon la seconde du passage.
+    const pris = await reviserPieceCommerciale(undefined, formulaire(`${TAG}-bc-pris-7`));
     expect(pris.ok).toBe(false);
     expect(pris.ok ? "" : pris.error).toMatch(/déjà porté/);
     // L'aperçu imprime déjà le nouveau numéro ; la révision l'écrit.

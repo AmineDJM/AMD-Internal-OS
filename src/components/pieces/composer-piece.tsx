@@ -15,6 +15,7 @@ import {
 } from "@/lib/actions/fabrique-actions";
 import { ChampReference } from "@/components/references/champ-reference";
 import { ChampNumeroPiece, type EtatNumeroPiece } from "@/components/references/champ-numero-piece";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 
 /**
  * COMPOSER UNE PIÈCE — le bouton des Finances (et de Legal) : une facture, un bon de commande ou
@@ -180,6 +181,7 @@ export function ComposerPieceButton(props: ComposerPieceProps) {
 
 export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => void }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [type, setType] = React.useState<TypePieceComposable>(props.typeInitial);
   const [societe, setSociete] = React.useState<string>(props.societeParDefaut ?? props.societes[0]?.id ?? "");
   // EN RÉVISION, tout part de la version courante de la pièce (`props.revision.valeurs`) — rien n'est ressaisi. EN APERÇU D'UN
@@ -368,7 +370,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
       // rechercher ». L'émission mène à la fiche, où le PDF est ouvert sous la phrase de succès. Quand la fiche
       // est fermée à la personne (`lien` nul), le panneau reste ouvert sur ses liens — le PDF s'ouvre sous la porte de la pièce.
       if (r.ok && r.lien) router.push(r.lien);
-      else if (r.ok) router.refresh();
+      else if (r.ok) rafraichir();
     });
   };
 
@@ -383,7 +385,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
     startEmission(async () => {
       const r: ResultatRevision = rev.envoyer ? await rev.envoyer(fd) : await reviserPieceCommerciale(undefined, fd);
       setRevisionResultat(r);
-      if (r.ok) router.refresh();
+      if (r.ok) rafraichir();
     });
   };
 
@@ -414,7 +416,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
       const r = await geste(fd);
       setBrResultat(r);
       if (r.ok && fermer) props.onClose();
-      if (r.ok) router.refresh();
+      if (r.ok) rafraichir();
     });
   };
   const retirerBrouillon = () => {
@@ -424,7 +426,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
     startEmission(async () => {
       const r = await retirer();
       setBrResultat(r);
-      if (r.ok) { props.onClose(); router.refresh(); }
+      if (r.ok) { props.onClose(); rafraichir(); }
     });
   };
 
@@ -559,7 +561,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
   return (
     <Sheet
       open
-      onClose={revisionResultat?.ok ? () => { props.onClose(); router.refresh(); } : props.onClose}
+      onClose={revisionResultat?.ok ? () => { props.onClose(); rafraichir(); } : props.onClose}
       title={br ? br.titre : rev ? `Modifier ${lib.article} ${rev.numero}` : lib.bouton}
       description={br
         ? `Aperçu à vérifier — rien n'est numéroté ni envoyé tant que vous n'avez pas validé. Tout se corrige : fournisseur, lignes, dates, paiement, TVA, remises, taxes, livraison, contact, notes, papier, coordonnées de l'émetteur, signataire, mentions.${br.numeroExistant ? ` Le bon de commande ${br.numeroExistant} garde son numéro : la validation en produit la version suivante.` : ""}`
@@ -592,7 +594,7 @@ export function ComposerPieceSheet(props: ComposerPieceProps & { onClose: () => 
           revisionResultat?.ok ? (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-sm text-muted-foreground">Version {revisionResultat.version ?? rev.version + 1} enregistrée.</span>
-              <Button type="button" onClick={() => { props.onClose(); router.refresh(); }}>Fermer</Button>
+              <Button type="button" onClick={() => { props.onClose(); rafraichir(); }}>Fermer</Button>
             </div>
           ) : (
             <div className="flex flex-wrap items-center justify-between gap-2">

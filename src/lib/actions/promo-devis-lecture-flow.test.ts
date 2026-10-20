@@ -60,6 +60,7 @@ import { empreinteDe, VERSION_LECTEUR } from "@/lib/pieces-lues/lecture-fichier"
 import type { LectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
 import type { ActionResult } from "./types";
 import { formatDzd } from "@/lib/promo-material/devis";
+import { ETAPE_DEMANDE_DEVIS } from "@/lib/ad-pro/demande-devis-lettre";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -214,10 +215,27 @@ suite("Matériel promotionnel — le devis lu sur son scan, proposé puis confir
     return id;
   }
   const articleDe = async (id: string) => (await prisma.promoRequestItem.findFirstOrThrow({ where: { promoMaterialId: id } })).id;
-  const pieces = async (id: string) => ({
-    documents: await prisma.document.count({ where: { entityType: "PROMO_MATERIAL", entityId: id } }),
-    binaires: await prisma.storedFile.count({ where: { key: { startsWith: `PROMO_MATERIAL/${id}/` } } }),
-  });
+  /**
+   * Les pièces que le DEVIS a pu écrire (son scan, étape « devis »). La LETTRE de demande de devis n'en est pas : depuis
+   * b4fba1a1 (« Demande de devis en lettre », Direction 07/10, §118.204), la validation de la demande — faite par
+   * `auxDevisDemandes`, AVANT toute lecture — dépose d'elle-même sur le dossier son PDF et son Word (étape
+   * `DEMANDE_DEVIS`, `joindreLettreDeDevis`). C'est voulu ; ce banc, écrit le 04/10, comptait tout le dossier et prenait
+   * ces deux pièces du circuit pour un scan orphelin. On les écarte par leur étape (les binaires par leur clé), sans rien
+   * relâcher : un scan de devis écrit avant une garde, ou par une lecture, se compte toujours ici.
+   */
+  const pieces = async (id: string) => {
+    const lettre = await prisma.document.findMany({
+      where: { entityType: "PROMO_MATERIAL", entityId: id, stepKey: ETAPE_DEMANDE_DEVIS }, select: { fileKey: true },
+    });
+    return {
+      documents: await prisma.document.count({
+        where: { entityType: "PROMO_MATERIAL", entityId: id, OR: [{ stepKey: null }, { stepKey: { not: ETAPE_DEMANDE_DEVIS } }] },
+      }),
+      binaires: await prisma.storedFile.count({
+        where: { key: { startsWith: `PROMO_MATERIAL/${id}/`, notIn: lettre.map((d) => d.fileKey).filter((k): k is string => !!k) } },
+      }),
+    };
+  };
   const confirmationsDe = (lectureId: string) => prisma.lecturePieceConfirmation.findMany({ where: { lectureId }, orderBy: { confirmeeLe: "asc" } });
 
   /** Lire un scan, comme l'assistante en le choisissant dans l'éditeur. */

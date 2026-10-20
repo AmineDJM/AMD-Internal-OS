@@ -260,6 +260,10 @@ suite("la migration du plancher, jouée sur son texte réel", () => {
 // ─────────────── « À partir du prochain BC généré, c'est 037/DG/2026 » : la migration du 10/2026, sur son texte réel ───────────────
 
 const SQL_37 = readFileSync(path.join(process.cwd(), "prisma/migrations/20270117130500_bc_numerotation/migration.sql"), "utf8");
+// Deux instructions (le plancher, puis le compteur) : `migrate deploy` les joue d'un trait, mais `$executeRawUnsafe` part en
+// instruction PRÉPARÉE, qui n'en admet qu'une. Le texte réel est joué instruction par instruction, dans l'ordre, sans retouche.
+// Aucun « ; » n'apparaît dans une chaîne de ce texte : la coupe en fin de ligne est sûre.
+const INSTRUCTIONS_37 = SQL_37.replace(/^\s*--[^\n]*$/gm, "").split(/;\s*(?:\n|$)/).map((s) => s.trim()).filter(Boolean);
 
 async function jouer37(lignes: { id: string; settings: unknown }[], compteurs: { companyId: string; last: number }[], passes: number) {
   const ANNULE = new Error("annulé — le banc ne garde rien");
@@ -271,7 +275,7 @@ async function jouer37(lignes: { id: string; settings: unknown }[], compteurs: {
       await tx.$executeRawUnsafe(`CREATE TEMP TABLE "DocumentSequence" ("id" text PRIMARY KEY, "companyId" text NOT NULL, "kind" text NOT NULL, "year" int NOT NULL, "last" int NOT NULL DEFAULT 0, "updatedAt" timestamptz NOT NULL DEFAULT now(), UNIQUE ("companyId", "kind", "year")) ON COMMIT DROP`);
       for (const l of lignes) await tx.$executeRawUnsafe(`INSERT INTO "CompanyDocumentProfile" (id, "companyId", settings) VALUES ($1, $1, $2::jsonb)`, l.id, l.settings === null ? null : JSON.stringify(l.settings));
       for (const c of compteurs) await tx.$executeRawUnsafe(`INSERT INTO "DocumentSequence" (id, "companyId", kind, year, last) VALUES ($1, $2, 'PURCHASE_ORDER', 2026, $3)`, `seq-${c.companyId}`, c.companyId, c.last);
-      for (let i = 0; i < passes; i++) await tx.$executeRawUnsafe(SQL_37);
+      for (let i = 0; i < passes; i++) for (const instruction of INSTRUCTIONS_37) await tx.$executeRawUnsafe(instruction);
       profilsApres = await tx.$queryRawUnsafe(`SELECT id, settings FROM "CompanyDocumentProfile" ORDER BY id`);
       sequences = await tx.$queryRawUnsafe(`SELECT "companyId", kind, year, last FROM "DocumentSequence" ORDER BY "companyId"`);
       throw ANNULE;
@@ -290,6 +294,12 @@ suite("la migration « prochain BC : 037/DG/2026 », jouée sur son texte réel"
     { id: "c-40", settings: { ...dg, numerotationDepart: { BON_DE_COMMANDE: { "2026": 40 } } } },
     { id: "d-fs", settings: { numerotation: { BON_DE_COMMANDE: "{n:3}/FS/{aa}" } } },
   ];
+
+  it("la prémisse : le texte réel se découpe en ses deux instructions, le plancher puis le compteur", () => {
+    expect(INSTRUCTIONS_37).toHaveLength(2);
+    expect(INSTRUCTIONS_37[0]).toMatch(/^UPDATE "CompanyDocumentProfile"/);
+    expect(INSTRUCTIONS_37[1]).toMatch(/^INSERT INTO "DocumentSequence"[\s\S]*ON CONFLICT/);
+  });
 
   it("le plancher passe à 37 s'il est plus bas (ou absent) et ne recule JAMAIS (40 reste 40) ; une autre série n'est pas touchée", async () => {
     const { profils } = await jouer37(base, [], 1);

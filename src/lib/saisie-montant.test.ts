@@ -122,8 +122,12 @@ describe("un montant recopié d'une pièce se saisit au centime, pas au millier"
   it("les quatre montants réparés se saisissent au centime — et restent des montants pour le détecteur", () => {
     // Le cas qui le ferait tomber : un champ réparé qui perd son nom ou son libellé et sort du
     // détecteur générique — il pourrait alors reprendre un pas au millier sans que rien ne le voie.
-    const attendus: { fichier: string; designe: (b: string) => boolean; quoi: string }[] = [
-      { fichier: "src/components/care/care-panel.tsx", designe: (b) => attribut(b, "name") === "amountDzd", quoi: "montant d'un devis de prise en charge" },
+    // Le devis de prise en charge a quitté `type="number"` pour un champ TEXTE décimal (96b886f1 : le montant se tape
+    // dans la devise du poste, DZD ou USD, et se convertit à l'écran) : sans `type="number"`, le navigateur n'applique
+    // AUCUN pas — rien ne peut refuser 452 300. Ce qui reste à garder : qu'il soit encore vu comme un montant, et qu'il
+    // ne reprenne pas de pas grossier s'il redevenait numérique.
+    const attendus: { fichier: string; designe: (b: string) => boolean; quoi: string; texte?: true }[] = [
+      { fichier: "src/components/care/care-panel.tsx", designe: (b) => attribut(b, "aria-label") === "Montant du devis", quoi: "montant d'un devis de prise en charge", texte: true },
       { fichier: "src/components/ad-pro/items-panel.tsx", designe: (b) => attribut(b, "name") === "amountEstimated", quoi: "montant estimé d'un poste (ajout et correction)" },
       { fichier: "src/components/ad-pro/items-panel.tsx", designe: (b) => (attribut(b, "aria-label") ?? "").startsWith("Montant affecté au poste"), quoi: "montant accordé d'un poste" },
     ];
@@ -132,7 +136,10 @@ describe("un montant recopié d'une pièce se saisit au centime, pas au millier"
       expect(trouves.length, `${a.quoi} : introuvable dans ${a.fichier}`).toBeGreaterThan(0);
       for (const { b } of trouves) {
         expect(estUnMontant(b), `${a.quoi} : le détecteur ne le reconnaît plus comme montant`).toBe(true);
-        expect(attribut(b, "step"), `${a.quoi} : pas attendu au centime`).toBe("0.01");
+        if (a.texte && attribut(b, "type") === null) {
+          expect(attribut(b, "inputMode"), `${a.quoi} : champ texte attendu en saisie décimale`).toBe("decimal");
+          expect(pasGrossier(b), `${a.quoi} : aucun pas au-delà de l'unité`).toBeNull();
+        } else expect(attribut(b, "step"), `${a.quoi} : pas attendu au centime`).toBe("0.01");
       }
     }
     // Ajout ET correction d'un poste : DEUX champs `amountEstimated`, pas un.

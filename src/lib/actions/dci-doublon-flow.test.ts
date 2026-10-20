@@ -69,7 +69,13 @@ suite("Une DCI déjà présente est signalée avant la création", () => {
     return r;
   };
 
+  // CHAQUE DOSSIER EST UN PRODUIT (88c1a130) : créer un dossier inscrit sa molécule au catalogue canonique. Ces produits
+  // portent la DCI du banc ; restés d'un passage précédent, ils feraient dire « existe déjà dans le référentiel » à la DCI
+  // neuve du premier cas. Purgés avant ET après, par leur DCI marquée.
+  const purgerProduitsDuBanc = () => prisma.product.deleteMany({ where: { dci: { startsWith: TAG, mode: "insensitive" } } });
+
   beforeAll(async () => {
+    await purgerProduitsDuBanc();
     const c = await prisma.company.findFirst({ where: { isActive: true }, select: { id: true } });
     companyId = c?.id ?? (await prisma.company.create({
       data: { name: `${TAG} Entité`, shortName: TAG, isActive: true },
@@ -98,6 +104,7 @@ suite("Une DCI déjà présente est signalée avant la création", () => {
       await prisma.regulatoryStep.deleteMany({ where: { productId: { in: crees } } }).catch(() => {});
       await prisma.regulatoryProduct.deleteMany({ where: { id: { in: crees } } }).catch(() => {});
     }
+    await purgerProduitsDuBanc();
     await prisma.notification.deleteMany({ where: { body: { contains: TAG } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: [adminId, assistId] } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});

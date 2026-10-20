@@ -1631,32 +1631,12 @@ async function payerLesFacturesDuPoste(a: {
       return { ok: false, error: `La facture (${a.montantSaisi.toLocaleString("fr-FR")} DZD) dépasse le montant accordé (${a.montantAccorde.toLocaleString("fr-FR")} DZD) : demandez une révision du poste.` };
     }
   }
-  if (a.fichier) {
-    // Jointe à la demande, la facture couvre ce qui attend encore la sienne : tous les BC signés sans facture.
-    const couverts = new Set((avant?.factures ?? []).filter((f) => !f.annulee).flatMap((f) => f.controle?.bcIds ?? []));
-    const bcIds = a.bcIds.length > 0 ? a.bcIds : (avant?.bcs ?? []).filter((b) => b.etape === "SIGNE" && !couverts.has(b.id)).map((b) => b.id);
-    const r = await enSerie(filePoste(id), () => deposerFactureSurPoste({
-      user, poste: { item, owner } as PosteAvecOperation, info, fichier: a.fichier as File, annexes: a.annexes, montantSaisi: a.montantSaisi, reference: a.reference, bcIds,
-    }));
-    if (!r.ok) return r;
-    deposee = `Facture déposée.${phraseAnnexes((a.annexes ?? []).length, r.annexesEchouees)} ${phraseControleFacture(r.controle)}${r.avertissement ? ` ${r.avertissement}` : ""}`;
-  }
-  const pieces = (await piecesDesPostes([id])).get(id);
-  const factures = (pieces?.factures ?? []).filter((f) => !f.annulee);
-  const refus = refusDemandePaiementBC({
-    bcs: (pieces?.bcs ?? []).map((b) => ({ id: b.id, reference: b.reference, signe: b.etape === "SIGNE" })),
-    factures, argumentation: a.argumentation, confirme: a.confirme,
-  });
-  if (refus) return { ok: false, error: deposee ? `${deposee} ${refus}` : refus };
-  const montants = factures.map((f) => f.controle?.montant ?? f.montant);
-  const montant = montants.every((m): m is number => m != null) ? Math.round(montants.reduce((s, m) => s + m * 100, 0)) / 100 : a.montantSaisi;
-  if (montant === null || !(montant > 0)) return { ok: false, error: "Le montant de la facture ne se lit pas : indiquez-le." };
-  if (a.montantAccorde !== null && montant > a.montantAccorde) {
-    return { ok: false, error: `La facture (${montant.toLocaleString("fr-FR")} DZD) dépasse le montant accordé (${a.montantAccorde.toLocaleString("fr-FR")} DZD) : demandez une révision du poste.` };
-  }
-  const ecarts = factures.flatMap((f) => (f.controle && !f.controle.coherente ? f.controle.ecarts : []));
-  const argument = ecarts.length > 0 ? a.argumentation?.trim() ?? null : null;
 
+  // L'ÉTAT D'ABORD, PUIS LA FACTURE (§118.18, §118.187). Le dernier rempart et la prise ne dépendent pas de la facture :
+  // ils se jugent AVANT de la déposer. Régression de a0794039 (06/10, « facture contrôlée avant paiement ») : ce chemin
+  // déposait la facture d'abord — un visa rouvert laissait une facture rattachée à un poste dont le paiement était refusé,
+  // et de deux clics simultanés le perdant était refusé par le dépôt (« a déjà sa facture »), non par la prise, donc pas
+  // entre deux processus. Le chemin du sponsoring direct (`demanderPaiementPoste`) a toujours suivi cet ordre.
   // LE DERNIER REMPART (§118.187) : ce qui part ne dépasse jamais ce que le centre a vu.
   if (item.orderStage === "DIRECTION_OK") {
     const apres = { montant: a.montantAccorde, fournisseur: item.supplier };
@@ -1666,13 +1646,45 @@ async function payerLesFacturesDuPoste(a: {
       return { ok: false, error: `Paiement refusé — ${phrase ?? geste.motif}` };
     }
   }
-  // LA PRISE (§118.187) : un poste à la fois — deux clics ne demandent pas deux paiements.
+  // LA PRISE (§118.187) : un poste à la fois — deux clics ne déposent pas deux factures et ne demandent pas deux paiements.
   const etapeLue = item.orderStage;
   const prise = await prisma.adProItem.updateMany({
     where: { id, expenseOrderId: null, status: "APPROVED", orderStage: etapeLue },
     data: { orderStage: "ISSUED", updatedById: user.id },
   });
   if (prise.count === 0) return { ok: false, error: "Ce poste vient de changer (paiement déjà demandé, ou sa décision a été revue) : rouvrez la fiche." };
+  // Tout refus qui suit RELÂCHE la prise (la facture déposée, elle, reste : elle s'argumente ensuite).
+  const relacher = () => prisma.adProItem.updateMany({ where: { id, expenseOrderId: null, orderStage: "ISSUED" }, data: { orderStage: etapeLue } }).catch(() => undefined);
+  const refuser = async (r: ActionResult): Promise<ActionResult> => { await relacher(); return r; };
+
+  if (a.fichier) {
+    // Jointe à la demande, la facture couvre ce qui attend encore la sienne : tous les BC signés sans facture.
+    const couverts = new Set((avant?.factures ?? []).filter((f) => !f.annulee).flatMap((f) => f.controle?.bcIds ?? []));
+    const bcIds = a.bcIds.length > 0 ? a.bcIds : (avant?.bcs ?? []).filter((b) => b.etape === "SIGNE" && !couverts.has(b.id)).map((b) => b.id);
+    const r = await enSerie(filePoste(id), () => deposerFactureSurPoste({
+      user, poste: { item, owner } as PosteAvecOperation, info, fichier: a.fichier as File, annexes: a.annexes, montantSaisi: a.montantSaisi, reference: a.reference, bcIds,
+    })).catch((err: unknown) => {
+      console.error("[ad-pro-item] dépôt de la facture impossible", err);
+      return { ok: false as const, error: "La facture n'a pas pu être enregistrée." };
+    });
+    if (!r.ok) return refuser(r);
+    deposee = `Facture déposée.${phraseAnnexes((a.annexes ?? []).length, r.annexesEchouees)} ${phraseControleFacture(r.controle)}${r.avertissement ? ` ${r.avertissement}` : ""}`;
+  }
+  const pieces = (await piecesDesPostes([id])).get(id);
+  const factures = (pieces?.factures ?? []).filter((f) => !f.annulee);
+  const refus = refusDemandePaiementBC({
+    bcs: (pieces?.bcs ?? []).map((b) => ({ id: b.id, reference: b.reference, signe: b.etape === "SIGNE" })),
+    factures, argumentation: a.argumentation, confirme: a.confirme,
+  });
+  if (refus) return refuser({ ok: false, error: deposee ? `${deposee} ${refus}` : refus });
+  const montants = factures.map((f) => f.controle?.montant ?? f.montant);
+  const montant = montants.every((m): m is number => m != null) ? Math.round(montants.reduce((s, m) => s + m * 100, 0)) / 100 : a.montantSaisi;
+  if (montant === null || !(montant > 0)) return refuser({ ok: false, error: "Le montant de la facture ne se lit pas : indiquez-le." });
+  if (a.montantAccorde !== null && montant > a.montantAccorde) {
+    return refuser({ ok: false, error: `La facture (${montant.toLocaleString("fr-FR")} DZD) dépasse le montant accordé (${a.montantAccorde.toLocaleString("fr-FR")} DZD) : demandez une révision du poste.` });
+  }
+  const ecarts = factures.flatMap((f) => (f.controle && !f.controle.coherente ? f.controle.ecarts : []));
+  const argument = ecarts.length > 0 ? a.argumentation?.trim() ?? null : null;
   // À QUI PART L'ARGENT (audit Ad & Pro, 14/10) : au fournisseur que les factures NOMMENT (celui du BC signé), pas au texte
   // libre « prestataire » du poste — souvent vide, et alors l'ordre partait au nom de l'OPÉRATION (le congrès « ESMO 2026 »,
   // l'institution d'un sponsoring) alors que la facture était celle de l'hôtel. Un seul fournisseur sur toutes les factures,

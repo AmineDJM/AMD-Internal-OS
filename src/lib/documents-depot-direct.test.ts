@@ -90,7 +90,20 @@ suite("Documents — envoi direct au bucket", () => {
     const stored = await prisma.storedFile.findMany({ where: { key: { in: docs.map((d) => d.fileKey!).filter(Boolean) } }, select: { blobId: true } });
     await prisma.document.deleteMany({ where: { id: { in: docs.map((d) => d.id) } } });
     await prisma.storedFile.deleteMany({ where: { key: { in: docs.map((d) => d.fileKey!).filter(Boolean) } } });
-    await prisma.fileBlob.deleteMany({ where: { id: { in: stored.map((s) => s.blobId) } } });
+    // Un dépôt Regulatory se range AUSSI dans le dossier Drive du produit (383a4ef5), EN ARRIÈRE-PLAN et sur le MÊME blob
+    // (une `FileVersion`, clé étrangère RESTRICT) : le dossier du produit part d'abord — créé au nom de l'acteur du banc —,
+    // et tant qu'un rangement encore en vol retient le blob, on laisse finir puis on recommence.
+    const blobIds = stored.map((s) => s.blobId);
+    for (let essai = 0; ; essai++) {
+      await prisma.driveNode.deleteMany({ where: { OR: [{ ownerId: { in: ids } }, { versions: { some: { blobId: { in: blobIds } } } }] } });
+      try {
+        await prisma.fileBlob.deleteMany({ where: { id: { in: blobIds } } });
+        break;
+      } catch (e) {
+        if (essai >= 20) throw e;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+    }
     await prisma.directUpload.deleteMany({ where: { userId: { in: ids } } });
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => undefined);
     await prisma.regulatoryProduct.deleteMany({ where: { id: { in: [produit, produitEtranger] } } }).catch(() => undefined);

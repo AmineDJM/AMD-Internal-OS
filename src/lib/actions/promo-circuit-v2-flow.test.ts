@@ -15,7 +15,7 @@ import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { canAccessEntity } from "@/lib/entity-access";
 import { canEditCompanyId, getMyCompanies } from "@/lib/company";
-import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
+import { resolveDriveAccess, canViewDrive, canEditDrive } from "@/lib/drive";
 import { createPromoMaterial, submitQuotes, cancelPromoMaterial } from "./promo-material-actions";
 import { validatePromoStep, refusePromoStep, completePromoTrack } from "./promo-circuit-actions";
 import {
@@ -676,12 +676,21 @@ suite("Matériel promotionnel — circuit 2 de bout en bout", () => {
     const modif = await DOMAIN_TOOLS.promo_operation.ops.update_promo_bc.impl.execute(carte.args, cp);
     expect(modif.ok, modif.ok ? "" : modif.error).toBe(true);
     const spec = ((await prisma.legalDocument.findUniqueOrThrow({ where: { id: q1.bc!.id }, select: { custom: true } })).custom as { fabrique: { spec: { livraison?: unknown } } }).fabrique.spec;
-    expect(spec.livraison).toEqual({ adresse: "Siège, Alger", delai: "15 jours" });
+    // `date: null` : la DATE DE LIVRAISON est un champ voulu de la livraison depuis 9ddcc340 (« BC automatiques via
+    // aperçu » — `demandeDuBcPromo` la reprend de l'aperçu, `null` quand l'aperçu n'en pose pas). Ce banc, écrit avant
+    // (4009cb07), ne la connaissait pas, et son échec ne s'est vu qu'une fois le mock de session réparé (15f0eff1).
+    // L'égalité reste stricte : la révision partielle garde aussi cette date telle qu'elle était (§118.152c).
+    expect(spec.livraison).toEqual({ adresse: "Siège, Alger", delai: "15 jours", date: null });
     // La délégation ouvre LA pièce, jamais le Drive de l'émettrice : nommer la pièce q1 pour écrire
     // le fichier d'une AUTRE pièce est refusé par le port, qui vérifie que le fichier est le sien.
     const autreBc = execution.filter((e) => e.bc && e.bc.id !== q1.bc!.id)[0];
     const autreFichier = fichiersEmis((await prisma.legalDocument.findUniqueOrThrow({ where: { id: autreBc.bc!.id }, select: { custom: true } })).custom).docx!;
-    await expect(portsArtefact.documents.ecrireVersion(u.cp, autreFichier, Buffer.from("x"), { mime: "application/octet-stream", resume: "banc", piece: q1.bc!.id }))
+    // L'ACTEUR EST L'ASSISTANTE, plus le demandeur : depuis 9ddcc340 (« BC automatiques via aperçu »), c'est le DEMANDEUR
+    // qui valide l'aperçu, donc émet — les fichiers des deux BC vivent dans SON Drive (prémisse du cas « LE FICHIER DU BC »).
+    // Le demandeur a donc le droit d'écrire l'autre fichier par le Drive lui-même, et le refus ne prouvait plus rien.
+    // L'assistante pilote le dossier sans aucun droit sur ce Drive : c'est elle que la délégation doit arrêter.
+    expect(canEditDrive(await resolveDriveAccess(await actorFor(u.asst), autreFichier)), "PRÉMISSE : sans droit Drive, seule la pièce pourrait ouvrir").toBe(false);
+    await expect(portsArtefact.documents.ecrireVersion(u.asst, autreFichier, Buffer.from("x"), { mime: "application/octet-stream", resume: "banc", piece: q1.bc!.id }))
       .rejects.toThrow(/pas le droit de modifier/);
 
     ACTOR = await actorFor(u.cp);

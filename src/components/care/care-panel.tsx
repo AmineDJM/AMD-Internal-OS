@@ -600,7 +600,7 @@ export function QuoteForm({ scope, requestId, mode, taux, beneficiaries, presele
         <label className="text-xs">Fournisseur<input name="supplier" required placeholder="Agence de voyage, hôtel…" className={CHAMP} /></label>
         <label className="text-xs">Référence<input name="reference" placeholder="Facultatif" className={CHAMP} /></label>
         <label className="text-xs">Montant ({devise ?? "—"})
-          <input inputMode="decimal" required value={montant} onChange={(e) => setMontant(e.target.value)} className={`${CHAMP} tabular-nums`} />
+          <input inputMode="decimal" required aria-label="Montant du devis" value={montant} onChange={(e) => setMontant(e.target.value)} className={`${CHAMP} tabular-nums`} />
           {devise === "USD" && montant && Number.isFinite(n) && <span className="text-[0.6875rem] text-primary">≈ {formatCurrency(versDzd(n, "USD", taux) ?? 0)}</span>}
         </label>
         <label className="text-xs">Devis (PDF)<input name="file" type="file" accept="application/pdf,image/*" className="mt-1 block w-full text-xs" /></label>
