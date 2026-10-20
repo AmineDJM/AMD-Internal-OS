@@ -59,13 +59,10 @@ export async function runIntelligencePulse(): Promise<void> {
   try {
     const bucket = hourBucket();
     // LA PASSE DE L'HEURE SE RÉSERVE D'ABORD (bucket unique) : deux processus ne calculent et ne réconcilient
-    // jamais la même heure en même temps — le second s'arrête ici.
-    try {
-      await prisma.intelligenceSnapshot.create({ data: { bucket } });
-    } catch (e) {
-      if ((e as { code?: string }).code === "P2002") return;
-      throw e;
-    }
+    // jamais la même heure en même temps — le second s'arrête ici. `skipDuplicates` plutôt qu'un P2002
+    // rattrapé : Prisma journalise chaque violation d'unicité en `prisma:error`, à chaque battement.
+    const reserve = await prisma.intelligenceSnapshot.createMany({ data: [{ bucket }], skipDuplicates: true });
+    if (reserve.count === 0) return;
 
     // Calculs réels, tolérants aux pannes (un module en erreur ne bloque pas le reste).
     const [risks, processStats] = await Promise.all([
