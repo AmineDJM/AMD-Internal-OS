@@ -389,7 +389,7 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
               {confirm === "corbeille" ? `Mettre « ${name} » à la corbeille ?` : `Supprimer définitivement « ${name} » ?`}
             </p>
             <p className="text-xs text-muted-foreground">
-              {confirm === "corbeille" ? "Il reste restaurable depuis la Corbeille." : "Cette suppression ne peut pas être annulée."}
+              {confirm === "corbeille" ? "Il reste restaurable depuis la Corbeille." : "Il quitte la corbeille du Drive. Seul le Super Admin pourra encore le restaurer."}
             </p>
             {/* Empilés sur toute la largeur : côte à côte, ils débordaient du menu. */}
             <div className="flex flex-col gap-1.5">

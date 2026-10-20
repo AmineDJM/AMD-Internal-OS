@@ -16,6 +16,10 @@ Aucune migration. Demande de la Direction (« comme Google Drive »), maquette v
   existants Lecture / Éditeur / Aucun accès), Commentaires (pastille), « ⋯ » : informations en tête, Convertir en PDF,
   Nouvelle version, Historique des versions, Télécharger, Renommer, Déplacer, Partager par messagerie, Legal, Courrier,
   **Mettre à la corbeille avec confirmation** (aussi « Supprimer définitivement »). Règles pures : `lib/drive/menu-fichier.ts`.
+- **Toujours récupérable** : « Supprimer définitivement » depuis la corbeille du Drive n'efface plus rien — l'élément
+  (et tout son contenu, versions, partages, commentaires) passe dans **Administration → Corbeille** (type `DRIVE_NODE`
+  du registre, en lot), d'où le Super Admin le restaure dans le Drive ; seule « Détruire » libère les octets.
+  Phrases corrigées à l'écran et dans la carte d'Adam (« irréversible » était devenu faux).
 
 ### BC : CHANGER LE SEUL NUMÉRO NE RELANCE PAS LE CIRCUIT (2026-10-14)
 

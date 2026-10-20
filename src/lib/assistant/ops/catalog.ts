@@ -150,7 +150,7 @@ export const OPS_CATALOG: OpMeta[] = [
     uiLabel: "Supprimer définitivement (Drive)",
     aliases: ["supprime définitivement du drive", "efface le fichier pour de bon"],
     risk: "CRITICAL",
-    summary: "Suppression RÉELLE d'un élément du Drive : fichiers et versions effacés, AUCUN retour possible.",
+    summary: "Retire un élément du Drive (hors corbeille du Drive) : il passe dans la corbeille du Super Admin, restaurable avec ses versions et partages.",
     gate: (u) => userCan(u, "DRIVE", "VIEW"),
     covers: ["drive-actions:deleteNode"],
   },

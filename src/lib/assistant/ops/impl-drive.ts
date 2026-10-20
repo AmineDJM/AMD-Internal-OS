@@ -358,12 +358,14 @@ export const DRIVE_OPS_IMPL: Record<string, OpImpl> = {
         title: `SUPPRIMER DÉFINITIVEMENT « ${node.name} » du Drive`,
         fields: [
           { label: "Élément", value: nodeLabel(node) },
-          { label: "Impact", value: "Fichiers et historique de versions EFFACÉS — aucun retour possible." },
+          // LA PHRASE SUIT LE CODE (10/2026) : l'élément quitte le Drive pour la corbeille du Super Admin, versions et
+          // partages compris, d'où il se restaure. Seule la destruction, chez le Super Admin, efface les fichiers.
+          { label: "Impact", value: "Retiré du Drive — restaurable par le Super Admin (Administration → Corbeille), versions et partages compris." },
         ],
         warnings: [
           `NIVEAU CRITIQUE : la confirmation exige de RESSAISIR « ${node.name} ».`,
-          "Contrairement à la corbeille, cette suppression est IRRÉVERSIBLE.",
-          ...(node.type === "FOLDER" ? ["Tout le contenu du dossier est effacé aussi."] : []),
+          "Plus visible dans le Drive, ni dans sa corbeille : seul le Super Admin pourra le restaurer.",
+          ...(node.type === "FOLDER" ? ["Tout le contenu du dossier part avec lui (et revient avec lui)."] : []),
         ],
         confirmText: node.name,
         args: { id: node.id, name: node.name },

@@ -56,7 +56,8 @@ export type DeletableKind =
   | "PROMO_STOCK_ITEM"
   | "AD_PRO_ITEM"
   | "PCH_TENDER"
-  | "PCH_TENDER_LINE";
+  | "PCH_TENDER_LINE"
+  | "DRIVE_NODE";
 
 export interface KindSpec {
   label: string; // libellé du type (« dossier réglementaire »)
@@ -901,6 +902,51 @@ export const DELETE_REGISTRY: Record<DeletableKind, KindSpec> = {
     },
     async remove(id) {
       await prisma.notification.delete({ where: { id } });
+    },
+  },
+
+  /**
+   * UN ÉLÉMENT DU DRIVE « SUPPRIMÉ DÉFINITIVEMENT » DEPUIS LA CORBEILLE DU DRIVE (Direction, 10/2026 : « quand je
+   * supprime, il doit toujours être récupérable — dans la corbeille du Drive, et, une fois supprimé de celle-ci,
+   * par la corbeille du Super Admin »).
+   *
+   * Un LOT : le fichier (ou le dossier et tout son contenu) part avec ses versions, ses partages, ses commentaires,
+   * son index de recherche — et revient avec eux. Les OCTETS ne sont jamais libérés ici : les versions de la ligne
+   * de corbeille les tiennent (le ramasse-miettes lit les `blobId` des lignes de corbeille), et seule la
+   * destruction réelle (`destroyDeletedRecord`) rend les références. Réservé au Super Admin pour la restauration
+   * (aucun module délégué : `MODULE_DU_TYPE` ne le nomme pas).
+   */
+  DRIVE_NODE: {
+    label: "élément du Drive",
+    module: "Drive",
+    redirect: "/drive",
+    model: "driveNode",
+    entityType: "DRIVE_NODE",
+    searchFields: ["name"],
+    lot: true,
+    async describe(id) {
+      const n = await prisma.driveNode.findUnique({ where: { id }, select: { name: true, type: true } });
+      return n ? (n.type === "FOLDER" ? `Dossier « ${n.name} »` : n.name) : null;
+    },
+    async remove(id) {
+      await prisma.driveNode.delete({ where: { id } });
+    },
+    // RESTAURER, C'EST RETROUVER LE FICHIER DANS LE DRIVE — pas dans la corbeille du Drive où il était au moment
+    // de la suppression : le Super Admin le rend à son propriétaire. Même règle que « Restaurer » du Drive : dans
+    // son dossier s'il est encore là et hors corbeille, sinon à la racine.
+    async restored(id) {
+      const ids: string[] = [];
+      let frontiere = [id];
+      while (frontiere.length) {
+        ids.push(...frontiere);
+        frontiere = (await prisma.driveNode.findMany({ where: { parentId: { in: frontiere } }, select: { id: true } })).map((c) => c.id);
+      }
+      await prisma.driveNode.updateMany({ where: { id: { in: ids } }, data: { isTrashed: false } });
+      const node = await prisma.driveNode.findUnique({ where: { id }, select: { parentId: true } });
+      if (node?.parentId) {
+        const parent = await prisma.driveNode.findUnique({ where: { id: node.parentId }, select: { isTrashed: true } });
+        if (!parent || parent.isTrashed) await prisma.driveNode.update({ where: { id }, data: { parentId: null } });
+      }
     },
   },
 };

@@ -1184,6 +1184,14 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   homonymes) et exécute via `superAdminDelete` (mêmes porte, corbeille, audit).
 - **UI** : `src/app/(app)/admin/corbeille/{page,trash-list}.tsx`, composant bouton
   `src/components/shared/super-admin-delete.tsx` (prop `warning`).
+- **Drive — une suppression reste TOUJOURS récupérable** (10/2026) : « Mettre à la corbeille » → corbeille du Drive
+  (restaurable par l'utilisateur) ; « Supprimer définitivement » depuis celle-ci (`deleteNode`) passe par
+  `supprimerReversible("DRIVE_NODE", …)` — un LOT (sous-dossiers, versions, partages, commentaires, index, sessions
+  Live Office) dans la corbeille du Super Admin, rien n'est effacé et les octets restent tenus. **Restaurer** le rend
+  au Drive (hors corbeille, dans son dossier sinon à la racine — crochet `restored`) ; **Détruire** rend les
+  références des versions (`releaseBlob`). Réservé au Super Admin (`DRIVE_NODE` absent de `MODULE_DU_TYPE`).
+  Banc : `lib/actions/drive-corbeille-flow.test.ts`. L'outil Super Admin de `/admin/bases`
+  (`permanentlyDeleteDriveNode`) reste la destruction directe, assumée.
 
 ### Téléversement — ce qui le rendait lent, et ce qui a été retiré
 
