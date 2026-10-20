@@ -9,7 +9,11 @@ personne : prénom / nom, hôtel, nuits, chambre), billetterie (une fiche par vo
 aller-retour ou plusieurs destinations ; créneaux « matin », « 21h00 » en notes) et les pièces annoncées (« PI à
 joindre »). **Rien ne s'écrit** avant « Reprendre » : les champs VIDES se remplissent (marqués), les postes gardés se créent
 après la demande par l'action ordinaire `addAdProItem` (mêmes gardes et fiches). Sans IA (coupée, non configurée), la carte
-n'apparaît pas. Pur : `lib/ad-pro/postes-luna.ts` (schéma strict, consigne, relecture : nom absent de la description
+n'apparaît pas. L'écran suit la maquette au détail près (2026-10-20) : teinte **Luna** (`--luna`, `luna` dans Tailwind —
+réservée à ce que Luna propose), étiquette « Luna » et fond violet sur chaque champ rempli jusqu'au premier geste
+(`[data-luna]`, `globals.css`), lignes « NOM Prénom », hôtellerie « hôtel · chambre · nuits », billetterie « transport ·
+trajet », convives par repas (« 2 + 9 », champ `repas` du contrat) et **Annuler** après « Reprendre » (vide les champs
+encore marqués, retire les postes, la proposition revient). Pur : `lib/ad-pro/postes-luna.ts` (schéma strict, consigne, relecture : nom absent de la description
 écarté, nature hors liste écartée, fiche relue par `lireVoyageur` / `lireHebergement`, `versFormulairePoste`) ; serveur :
 `lib/postes-luna-ia.ts` (passerelle `askModelJson`, rôle `worker`, journal `postes_luna`, bascule de l'assistant) ;
 action `actions/ad-pro-postes-luna-actions.ts` ; écran `components/ad-pro/description-luna.tsx`, `events/event-form.tsx`.

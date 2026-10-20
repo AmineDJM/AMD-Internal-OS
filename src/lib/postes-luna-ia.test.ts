@@ -41,7 +41,10 @@ let CONFIGUREE = true;
 vi.mock("@/lib/ai", async (orig) => ({ ...(await orig<typeof import("@/lib/ai")>()), aiConfigured: () => CONFIGUREE, cleModeleRequise: () => "OPENAI_API_KEY" }));
 
 import { proposerPostesParModele, aujourdhuiLisible } from "./postes-luna-ia";
-import { lirePropositionModele, versFormulairePoste, type PostePropose } from "@/lib/ad-pro/postes-luna";
+import {
+  badgePieceAttendue, detailDuPoste, lirePropositionModele, nomAffiche, personnesDuPoste, resumeEvenement, resumeHebergement, versFormulairePoste,
+  type PostePropose,
+} from "@/lib/ad-pro/postes-luna";
 import { lireFichesDuFormulaire } from "@/lib/ad-pro/fiches-poste";
 
 const AUJOURDHUI = new Date("2026-10-19T09:00:00.000Z");
@@ -66,7 +69,7 @@ const ev = (o: Record<string, unknown>) => ({
   nom: "", type: "", portee: "", format: "", dateDebut: "", dateFin: "", horaire: "", lieu: "", ville: "", pays: "", specialite: "", capacite: 0, ...o,
 });
 const poste = (o: Record<string, unknown>) => ({
-  nature: "OTHER", libelle: "", detail: "", personnes: 0, hotel: "", ville: "", dateArrivee: "", dateDepart: "", typeChambre: "", beneficiaires: [], piecesAttendues: [], ...o,
+  nature: "OTHER", libelle: "", detail: "", personnes: 0, repas: [], hotel: "", ville: "", dateArrivee: "", dateDepart: "", typeChambre: "", beneficiaires: [], piecesAttendues: [], ...o,
 });
 const trajet = (de: string, vers: string, date: string, creneau = "") => ({ de, vers, date, creneau });
 
@@ -77,7 +80,8 @@ const MODELE_ADVISORY = {
   }),
   postes: [
     poste({ nature: "VENUE", libelle: "Salle de réunion — Hyatt Regency Alger", detail: "05/11/2026, 13h00–19h00, capacité 9 pax ; cocktail de bienvenue + pause-café pour 9 pax", personnes: 9 }),
-    poste({ nature: "DINNER", libelle: "Restauration — Hyatt Regency Alger", detail: "05/11/2026 : déjeuner pour 2 personnes ; dîner à l'hôtel pour 9 pax", personnes: 9 }),
+    poste({ nature: "DINNER", libelle: "Restauration — Hyatt Regency Alger", detail: "05/11/2026 : déjeuner pour 2 personnes ; dîner à l'hôtel pour 9 pax", personnes: 9,
+      repas: [{ libelle: "Déjeuner", convives: 2 }, { libelle: "Dîner à l'hôtel", convives: 9 }] }),
     poste({
       nature: "ACCOMMODATION", libelle: "Hébergement — Hyatt Regency Alger", detail: "Une nuitée en chambre single, nuit du 05 au 06/11/2026", personnes: 2,
       hotel: "Hyatt Regency", ville: "Alger", dateArrivee: "2026-11-05", dateDepart: "2026-11-06", typeChambre: "Single",
@@ -115,7 +119,7 @@ const MODELE_EN_LETTRES = {
       hotel: "El Aurassi", ville: "Alger", dateArrivee: "2027-01-22", dateDepart: "2027-01-24", typeChambre: "Double",
       beneficiaires: [{ prenom: "Karim", nom: "Haddad", transport: "", trajets: [] }],
     }),
-    poste({ nature: "DINNER", libelle: "Déjeuner du staff", detail: "23/01/2027 : déjeuner pour 15 personnes", personnes: 15 }),
+    poste({ nature: "DINNER", libelle: "Déjeuner du staff", detail: "23/01/2027 : déjeuner pour 15 personnes", personnes: 15, repas: [{ libelle: "Déjeuner", convives: 15 }] }),
   ],
   remarques: [],
 };
@@ -124,7 +128,7 @@ const MODELE_SANS_BILLETTERIE = {
   evenement: ev({ nom: "Réunion d'experts — oncologie", type: "ROUND_TABLE", portee: "NATIONAL", format: "PRESENTIAL", dateDebut: "2026-12-03", dateFin: "2026-12-03", horaire: "9h00–13h00", lieu: "Hôtel Méridien", ville: "Oran", pays: "Algérie", specialite: "Oncologie", capacite: 20 }),
   postes: [
     poste({ nature: "VENUE", libelle: "Salle — Méridien Oran", detail: "03/12/2026, 9h00–13h00, 20 personnes, pause-café", personnes: 20 }),
-    poste({ nature: "DINNER", libelle: "Déjeuner — Méridien Oran", detail: "03/12/2026 : déjeuner pour 20 convives", personnes: 20 }),
+    poste({ nature: "DINNER", libelle: "Déjeuner — Méridien Oran", detail: "03/12/2026 : déjeuner pour 20 convives", personnes: 20, repas: [{ libelle: "Déjeuner", convives: 20 }] }),
   ],
   remarques: [],
 };
@@ -227,6 +231,41 @@ describe("Luna — les postes de l'Advisory Board (exemple réel de la Direction
     const b = nature((await propositionDe(ADVISORY)).postes, "TICKETING")!;
     const { fiches } = await relireCommeLeFormulaire(b);
     expect(fiches.ok && fiches.fiches[1]).toMatchObject({ nature: "VOYAGEUR", voyageur: { prenom: "Habiba", nom: "Mehnaoui", trajet: "ALLER_RETOUR", transport: "AVION" } });
+  });
+});
+
+describe("Luna — la carte dit ce que la maquette montre", () => {
+  it("l'en-tête : l'événement, sa date, son lieu sans répéter la ville, sa capacité", async () => {
+    expect(resumeEvenement((await propositionDe(ADVISORY)).evenement)).toBe("Advisory Board — hématologie · 05/11/2026 · Hyatt Regency, Alger · 9 pax");
+  });
+
+  it("une ligne par poste : détail et personnes (convives par repas)", async () => {
+    const { postes } = await propositionDe(ADVISORY);
+    const lignes = postes.map((p) => [detailDuPoste(p), personnesDuPoste(p), badgePieceAttendue(p)]);
+    expect(lignes).toEqual([
+      ["05/11/2026, 13h00–19h00, capacité 9 pax ; cocktail de bienvenue + pause-café pour 9 pax", "9 pax", null],
+      ["05/11/2026 : déjeuner pour 2 personnes ; dîner à l'hôtel pour 9 pax", "2 + 9", null],
+      ["Hyatt Regency, Alger · single · 1 nuit", "2", null],
+      ["Avion · aller-retour", "2", "PI à joindre"],
+    ]);
+  });
+
+  it("une sous-ligne par personne : NOM Prénom, ses nuits ou ses trajets", async () => {
+    const { postes } = await propositionDe(ADVISORY);
+    const h = nature(postes, "ACCOMMODATION")!;
+    expect(h.hebergements.map((x) => [nomAffiche(x), resumeHebergement(x)])).toEqual([
+      ["YAFOUR Nabil", "05/11 → 06/11/2026"], ["ALLOUDA Malika", "05/11 → 06/11/2026"],
+    ]);
+    expect(nature(postes, "TICKETING")!.voyageurs.map((v) => [nomAffiche(v), v.resume])).toEqual([
+      ["YAFOUR Nabil", "Oran → Alger 05/11 matin · Alger → Oran 06/11 matin"],
+      ["MEHNAOUI Habiba", "Annaba → Alger 05/11 matin · Alger → Annaba 05/11 21h00"],
+    ]);
+  });
+
+  it("un seul repas se lit en pax ; l'hôtellerie de deux nuits le dit", async () => {
+    const p = await propositionDe(EN_LETTRES);
+    expect(personnesDuPoste(nature(p.postes, "DINNER")!)).toBe("15 pax");
+    expect(detailDuPoste(nature(p.postes, "ACCOMMODATION")!)).toBe("El Aurassi, Alger · double · 2 nuits");
   });
 });
 

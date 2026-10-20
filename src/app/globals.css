@@ -53,6 +53,13 @@
     --info: 212 84% 48%;
     --info-foreground: 0 0% 100%;
 
+    /* LUNA — la seule teinte hors statuts, et réservée à ce que Luna PROPOSE (maquette
+       « luna-postes », validée par la Direction 10/2026) : la carte de proposition et les
+       champs qu'il a remplis, jusqu'à ce qu'on les touche. Ce qui est violet n'est pas
+       encore une saisie de la personne : c'est ce code qu'il ne faut pas diluer ailleurs. */
+    --luna: 258 60% 56%;
+    --luna-soft: 258 80% 97%;
+
     /* Traits & champs — #E5E9F0. Assez visible pour délimiter, assez discret pour
        qu'une page dense ne devienne pas un quadrillage. */
     --border: 218 27% 92%;
@@ -306,6 +313,19 @@
 
   .focus-ring {
     @apply outline-none ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring;
+  }
+
+  /* UN CHAMP REMPLI PAR LUNA (`description-luna.tsx`) : bordure et fond violets, étiquette « Luna »
+     après le libellé. Le marqueur vit sur le bloc du champ (data-luna) et part au premier geste. */
+  [data-luna="1"] > :is(input, select, textarea) {
+    border-color: hsl(var(--luna));
+    background-color: hsl(var(--luna-soft));
+  }
+  [data-luna="1"] > label::after {
+    content: "Luna";
+    @apply ml-1.5 rounded-full px-1.5 py-px text-[0.65625rem] font-semibold;
+    color: hsl(var(--luna));
+    background-color: hsl(var(--luna-soft));
   }
 }
 

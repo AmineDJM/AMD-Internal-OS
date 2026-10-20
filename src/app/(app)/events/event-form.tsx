@@ -10,7 +10,7 @@ import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS } from "@/lib/labels";
 import { createEvent, updateEvent, deleteEvent } from "@/lib/actions/event-actions";
 import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
-import { DescriptionLuna, remplirChampsVidesEvenement } from "@/components/ad-pro/description-luna";
+import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/components/ad-pro/description-luna";
 import { versFormulairePoste, type PostePropose } from "@/lib/ad-pro/postes-luna";
 import type { EventDetail } from "@/lib/queries/events";
 import { MultiSelectField } from "@/components/shared/create-record-button";
@@ -285,7 +285,7 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
         descriptionEnTete={
           <DescriptionLuna
             onReprendre={(p) => { setPostesLuna(p.postes); return formRef.current ? remplirChampsVidesEvenement(formRef.current, p.evenement) : 0; }}
-            onRetirer={() => setPostesLuna([])}
+            onAnnuler={() => { setPostesLuna([]); if (formRef.current) viderChampsLuna(formRef.current); }}
           />
         }
       />

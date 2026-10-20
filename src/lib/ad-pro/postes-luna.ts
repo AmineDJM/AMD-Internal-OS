@@ -1,6 +1,6 @@
 import type { AdProItemKind, AdProTransport } from "@prisma/client";
 import { ITEM_KIND_LABELS } from "@/lib/ad-pro-items";
-import { lireVoyageur, porteDesVoyageurs, TRANSPORTS, type SaisieVoyageur } from "@/lib/ad-pro/voyageurs";
+import { lireVoyageur, porteDesVoyageurs, TRAJET_LIBELLE, TRANSPORT_LIBELLE, TRANSPORTS, type SaisieVoyageur } from "@/lib/ad-pro/voyageurs";
 import { lireHebergement, porteDesHebergements, type SaisieHebergement } from "@/lib/ad-pro/hebergements";
 import { CHAMP_FICHES, FICHES_MAX, prefixeFiche } from "@/lib/ad-pro/fiches-saisie";
 import { findWilaya } from "@/lib/geo/algeria";
@@ -108,6 +108,8 @@ export interface PostePropose {
   notes: string | null;
   /** Le nombre de personnes servies (convives, pax) — affiché, jamais écrit ailleurs que dans les notes. */
   personnes: number | null;
+  /** Repas et traiteur : chaque repas et ses convives (« déjeuner 2, dîner 9 ») — la capacité de la salle n'en est pas un. */
+  repas: { libelle: string; convives: number | null }[];
   voyageurs: VoyageurPropose[];
   hebergements: HebergementPropose[];
   /** Les pièces annoncées comme « à joindre » pour ce poste (« PI pour la billetterie »). */
@@ -168,12 +170,25 @@ export const SCHEMA_POSTES = {
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["nature", "libelle", "detail", "personnes", "hotel", "ville", "dateArrivee", "dateDepart", "typeChambre", "beneficiaires", "piecesAttendues"],
+          required: ["nature", "libelle", "detail", "personnes", "repas", "hotel", "ville", "dateArrivee", "dateDepart", "typeChambre", "beneficiaires", "piecesAttendues"],
           properties: {
             nature: { type: "string", enum: [...NATURES_PROPOSABLES] },
             libelle: texte("Libellé court du poste (ex. « Salle de réunion — Hyatt Regency Alger »)."),
             detail: texte("Ce que le poste couvre, en une ou deux lignes : dates, horaires, quantités (ex. « 05/11, 13h00–19h00, 9 pax ; cocktail de bienvenue + pause-café 9 pax »)."),
             personnes: { type: "number", description: "Nombre de personnes servies (convives, pax) ; 0 si non dit." },
+            repas: {
+              type: "array",
+              description: "Repas et traiteur seulement : chaque repas avec SES convives, dans l'ordre. Vide pour les autres natures.",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["libelle", "convives"],
+                properties: {
+                  libelle: texte("Le repas (« Déjeuner », « Dîner à l'hôtel », « Pause-café »)."),
+                  convives: { type: "number", description: "Nombre de convives de CE repas ; 0 si non dit." },
+                },
+              },
+            },
             hotel: texte("Hôtellerie seulement : l'hôtel ; vide sinon."),
             ville: texte("Hôtellerie seulement : la ville de l'hôtel ; vide sinon."),
             dateArrivee: jour("Hôtellerie seulement : nuit d'arrivée"),
@@ -224,7 +239,7 @@ export const CONSIGNE_POSTES = [
   "",
   "LES POSTES (une nature par fournisseur) :",
   "- VENUE (location de salle) : la salle, ses horaires, sa capacité, et ce que l'hôtel sert DANS la salle (cocktail de bienvenue, pause-café) — tout dans le détail.",
-  "- DINNER (prise en charge des repas : déjeuner, dîner, au restaurant ou à l'hôtel) : un seul poste pour la restauration, chaque repas dans le détail avec son nombre de convives.",
+  "- DINNER (prise en charge des repas : déjeuner, dîner, au restaurant ou à l'hôtel) : un seul poste pour la restauration, chaque repas dans le détail ET dans `repas` avec SES convives.",
   "- CATERING (traiteur extérieur), TRAVEL (transport sur place), SERVICE (prestation), PRINTING (imprimerie), OTHER : seulement si la description le dit.",
   "- ACCOMMODATION (hôtellerie) : UN poste, les personnes logées en bénéficiaires (prénom et nom SÉPARÉS), l'hôtel, la ville, la nuit d'arrivée et le jour de départ (« une nuitée la nuit du 5 » = arrivée le 5, départ le 6), le type de chambre.",
   "- TICKETING (billetterie) : UN poste, chaque voyageur en bénéficiaire avec UN trajet par SENS (aller, retour) : ville de départ, ville d'arrivée, date, créneau (« matin », « soir », « 21h00 »).",
@@ -389,6 +404,11 @@ export function lirePropositionModele(brut: unknown, description: string): Propo
     const notes = [detail, ...piecesAttendues.map((x) => `Pièce attendue : ${x}.`)].filter(Boolean).join("\n") || null;
     const poste: PostePropose = {
       nature, libelle, notes: notes ? notes.slice(0, NOTES_MAX) : null, personnes: entier(q.personnes),
+      repas: Array.isArray(q.repas)
+        ? (q.repas as unknown[]).filter((x): x is Record<string, unknown> => !!x && typeof x === "object")
+          .map((x) => ({ libelle: chaine(x.libelle, 80) ?? "", convives: entier(x.convives) }))
+          .filter((x) => x.libelle || x.convives).slice(0, 8)
+        : [],
       voyageurs: [], hebergements: [], piecesAttendues,
     };
 
@@ -482,16 +502,80 @@ export function versFormulairePoste(
   return champs;
 }
 
-/** « 2 personnes », « 9 pax » — la colonne Personnes de l'écran. */
+// ───────────────────────────── Les phrases de la carte (maquette « luna-postes ») ─────────────────────────────
+
+/** Une seule valeur si toutes les lignes la partagent, sinon `null` — la ligne du poste ne dit que le commun. */
+function commun<T>(valeurs: readonly T[]): T | null {
+  return valeurs.length > 0 && valeurs.every((v) => v === valeurs[0]) ? valeurs[0]! : null;
+}
+
+const majuscule = (t: string) => (t ? t[0]!.toUpperCase() + t.slice(1) : t);
+
+/** « 9 pax », « 2 + 9 » (un repas, ses convives), « 2 » (fiches) — la colonne Personnes. */
 export function personnesDuPoste(p: PostePropose): string {
   const n = p.voyageurs.length || p.hebergements.length;
   if (n > 0) return `${n}`;
+  const convives = p.repas.map((r) => r.convives).filter((c): c is number => c !== null);
+  if (convives.length > 1) return convives.join(" + ");
+  if (convives.length === 1) return `${convives[0]} pax`;
   return p.personnes ? `${p.personnes} pax` : "—";
 }
 
-/** « 05/11 → 06/11/2026 · Single » — la ligne d'une personne logée. */
+/** « YAFOUR Nabil » — le nom de famille d'abord, en capitales, comme sur un billet. */
+export function nomAffiche(x: { prenom: string | null; nom: string }): string {
+  return [x.nom.toLocaleUpperCase("fr"), x.prenom].filter(Boolean).join(" ");
+}
+
+function nuits(h: HebergementPropose): number | null {
+  if (!h.dateArrivee || !h.dateDepart) return null;
+  const n = Math.round((Date.parse(`${h.dateDepart}T00:00:00Z`) - Date.parse(`${h.dateArrivee}T00:00:00Z`)) / 86_400_000);
+  return n > 0 ? n : null;
+}
+
+/** « 05/11 → 06/11/2026 » — la ligne d'une personne logée. */
 export function resumeHebergement(h: HebergementPropose): string {
   const a = h.dateArrivee ? jjmm(h.dateArrivee) : "arrivée à confirmer";
   const d = h.dateDepart ? `${jjmm(h.dateDepart)}/${h.dateDepart.slice(0, 4)}` : "départ à confirmer";
-  return [`${a} → ${d}`, h.typeChambre].filter(Boolean).join(" · ");
+  return `${a} → ${d}`;
+}
+
+/**
+ * LE DÉTAIL D'UN POSTE, tel que la carte le montre : l'hôtellerie par son hôtel, sa chambre et ses nuits ; la
+ * billetterie par son transport et son trajet ; les autres par ce que Luna a lu (sans la ligne « Pièce attendue »,
+ * que le badge dit déjà), à défaut leur libellé.
+ */
+export function detailDuPoste(p: PostePropose): string {
+  if (p.hebergements.length > 0) {
+    const hs = p.hebergements;
+    const hotel = commun(hs.map((h) => [h.hotel, h.ville].filter(Boolean).join(", ")));
+    const chambre = commun(hs.map((h) => (h.typeChambre ?? "").toLocaleLowerCase("fr")));
+    const n = commun(hs.map(nuits));
+    return [hotel, chambre, n ? `${n} nuit${n > 1 ? "s" : ""}` : null].filter(Boolean).join(" · ") || p.libelle;
+  }
+  if (p.voyageurs.length > 0) {
+    const transport = commun(p.voyageurs.map((v) => v.transport));
+    const trajet = commun(p.voyageurs.map((v) => v.trajet));
+    return [transport ? majuscule(TRANSPORT_LIBELLE[transport]) : null, trajet ? TRAJET_LIBELLE[trajet] : "trajets différents"]
+      .filter(Boolean).join(" · ");
+  }
+  const lu = (p.notes ?? "").split("\n").filter((l) => l && !l.startsWith("Pièce attendue")).join(" ");
+  return lu || p.libelle;
+}
+
+/** Le badge d'une pièce annoncée : « PI à joindre » pour des pièces d'identité, sinon « Pièce à joindre ». */
+export function badgePieceAttendue(p: PostePropose): string | null {
+  if (p.piecesAttendues.length === 0) return null;
+  return /identit|\bPI\b|passeport/i.test(p.piecesAttendues.join(" ")) ? "PI à joindre" : "Pièce à joindre";
+}
+
+/** « Advisory Board — hématologie · 05/11/2026 · Hyatt Regency, Alger · 9 pax » — l'en-tête de la carte. */
+export function resumeEvenement(e: EvenementLu): string {
+  const jour = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : null);
+  const dates = e.dateDebut && e.dateFin && e.dateFin !== e.dateDebut ? `${jour(e.dateDebut)} → ${jour(e.dateFin)}` : jour(e.dateDebut);
+  // « Hyatt Regency Alger » à Alger se lit « Hyatt Regency, Alger » : la ville n'est pas dite deux fois.
+  const lieuSansVille = e.lieu && e.ville && plier(e.lieu).endsWith(` ${plier(e.ville)}`)
+    ? e.lieu.slice(0, e.lieu.length - e.ville.length).replace(/[\s,–-]+$/, "")
+    : e.lieu;
+  const lieu = [lieuSansVille, e.ville].filter(Boolean).join(", ");
+  return [e.nom, dates, lieu || null, e.capacite ? `${e.capacite} pax` : null].filter(Boolean).join(" · ");
 }
