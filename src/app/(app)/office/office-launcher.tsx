@@ -80,7 +80,7 @@ export function OfficeLauncher({
     setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     setOpen(null);
-    if (officeEnabled) router.push(`/drive/${r.id}/edit`);
+    if (officeEnabled) router.push(`/drive/${r.id}`);
     else router.refresh();
   };
 

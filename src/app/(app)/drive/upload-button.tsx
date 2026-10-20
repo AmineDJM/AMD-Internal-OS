@@ -11,6 +11,7 @@ import { useLimitesEnvoi } from "@/components/layout/use-limites-envoi";
 // L'essai « contenu déjà là » et l'import d'arborescence sont PARTAGÉS avec la messagerie (Direction, 06/10).
 import { envoiDrive, envoiArborescenceDrive, preflightDrive as makePreflight } from "@/components/drive/envoi-drive";
 import { cn } from "@/lib/utils";
+import { useNouvelleVersion } from "./nouvelle-version";
 
 type Perm = "none" | "view" | "edit";
 interface UserLite { id: string; name: string }
@@ -31,6 +32,7 @@ export function UploadButton({
   const { enqueue } = useBackgroundUpload();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const limites = useLimitesEnvoi();
+  const envoyerVersion = useNouvelleVersion();
 
   // Mode simple (nouvelle version, ou pas de liste d'utilisateurs) : envoi en arrière-plan.
   const rich = Boolean(users) && !nodeId;
@@ -42,12 +44,7 @@ export function UploadButton({
     // Un fichier vide n'est plus écarté en silence : le gestionnaire d'envois le DIT (constat 13).
     const files = Array.from(list);
     if (nodeId) {
-      enqueue({
-        label: "Nouvelle version",
-        files: [files[0]],
-        ...envoiDrive({ nodeId }, limites),
-        makeRequest: (file) => { const fd = new FormData(); fd.append("file", file); fd.append("nodeId", nodeId); return { url: "/api/drive/upload", formData: fd }; },
-      });
+      envoyerVersion(nodeId, files[0]);
     } else {
       enqueue({
         label: `${files.length} fichier${files.length > 1 ? "s" : ""} (Drive)`,

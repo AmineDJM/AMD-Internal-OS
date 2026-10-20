@@ -19,6 +19,11 @@ export function onlyofficeServerUrl(): string {
   return server();
 }
 
+/** Le script d'intégration de l'éditeur (null : éditeur non configuré) — chargé à l'ouverture, préchargé au survol. */
+export function onlyofficeApiJs(): string | null {
+  return onlyofficeConfigured() ? `${server()}/web-apps/apps/api/documents/api.js` : null;
+}
+
 /** URL publique de l'application, joignable par le Document Server (serveur-à-serveur). */
 export function appBaseUrl(): string {
   return (process.env.APP_URL || process.env.NEXTAUTH_URL || process.env.AUTH_URL || "").replace(/\/+$/, "");

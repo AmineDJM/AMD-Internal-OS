@@ -100,22 +100,44 @@ export async function ensureDriveFolders(
 }
 
 /** Partages actuels d'un nœud (dossier OU fichier) pour le panneau « Gérer l'accès ». */
+/** `withUsers` : joindre les personnes à qui partager (pour qui peut modifier) — le panneau s'ouvre sans rien attendre d'autre. */
 export async function getDriveNodeShares(
   nodeId: string,
-): Promise<{ ok: boolean; error?: string; canEdit?: boolean; shares?: { userId: string; name: string; access: string }[] }> {
+  withUsers?: boolean,
+): Promise<{ ok: boolean; error?: string; canEdit?: boolean; shares?: { userId: string; name: string; access: string }[]; users?: { id: string; name: string }[] }> {
   const user = await enLecture(requireUser);
   const level = await resolveDriveAccess(user, nodeId);
   if (level === "NONE") return { ok: false, error: "Non autorisé." };
-  const node = await prisma.driveNode.findUnique({
-    where: { id: nodeId },
-    select: { shares: { include: { user: { select: { id: true, name: true } } } } },
-  });
+  const canEdit = level === "EDIT";
+  const [node, users] = await Promise.all([
+    prisma.driveNode.findUnique({
+      where: { id: nodeId },
+      select: { shares: { include: { user: { select: { id: true, name: true } } } } },
+    }),
+    withUsers && canEdit
+      ? prisma.user.findMany({ where: { isActive: true, id: { not: user.id } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+      : Promise.resolve(undefined),
+  ]);
   if (!node) return { ok: false, error: "Introuvable." };
   return {
     ok: true,
-    canEdit: level === "EDIT",
+    canEdit,
     shares: node.shares.map((s) => ({ userId: s.userId, name: s.user?.name ?? "—", access: s.access })),
+    users,
   };
+}
+
+/** L'historique des versions d'un fichier — lu à l'ouverture de son panneau, jamais avant. */
+export async function getDriveNodeVersions(
+  nodeId: string,
+): Promise<{ ok: boolean; error?: string; versions?: { id: string; version: number; size: number; createdAt: string }[] }> {
+  const user = await enLecture(requireUser);
+  if ((await resolveDriveAccess(user, nodeId)) === "NONE") return { ok: false, error: "Non autorisé." };
+  const versions = await prisma.fileVersion.findMany({
+    where: { nodeId }, orderBy: { version: "desc" }, take: 50,
+    select: { id: true, version: true, size: true, createdAt: true },
+  });
+  return { ok: true, versions: versions.map((v) => ({ ...v, createdAt: v.createdAt.toISOString() })) };
 }
 
 export async function renameNode(formData: FormData): Promise<ActionResult> {

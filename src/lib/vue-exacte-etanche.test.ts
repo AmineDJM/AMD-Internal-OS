@@ -261,7 +261,8 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
   const LECTURES: Record<string, string[]> = {
     "src/lib/actions/dossier-actions.ts": ["listLinkableDossiers"],
     "src/lib/actions/partage-actions.ts": ["listerDestinatairesPartage"],
-    "src/lib/actions/drive-actions.ts": ["getDriveNodeShares"],
+    "src/lib/actions/drive-actions.ts": ["getDriveNodeShares", "getDriveNodeVersions"],
+    "src/lib/actions/drive-comment-actions.ts": ["listDriveComments"],
     "src/lib/regulatory/intelligence/knowledge/actions.ts": ["loadDossierChatAction"],
     "src/lib/actions/market-actions.ts": ["searchMarketProducts", "marketSuggestions"],
     "src/lib/actions/congress-beneficiary-actions.ts": ["listBeneficiaryRefs"],

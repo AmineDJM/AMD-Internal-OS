@@ -18,6 +18,7 @@ import {
 } from "@/lib/drive/selection";
 import { sortRows, type SortKey, type SortDir } from "@/lib/drive/explorer";
 import { NodeActions } from "./node-actions";
+import { prechargerEditeur } from "@/components/documents/editeur-en-ligne";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
 import { useCleParPersonne } from "@/components/layout/identite-vue";
 
@@ -37,6 +38,12 @@ export interface DriveRow {
   updatedLabel: string;
   canEdit: boolean;
   href: string;
+  /** Partages, commentaires, versions — les icônes de la ligne et l'en-tête du menu « ⋯ ». */
+  counts?: { shares: number; comments: number; versions: number };
+  /** « Convertir en PDF » proposé (format Office, convertisseur, droit de créer). */
+  convertible?: boolean;
+  /** Le fichier s'ouvre dans l'éditeur Office : son script se précharge au survol du nom. */
+  office?: boolean;
 }
 interface MoveTarget { id: string; name: string }
 interface UserLite { id: string; name: string }
@@ -49,7 +56,7 @@ interface DropCategory { id: string; name: string }
  * ses actions (télécharger, renommer, déplacer par menu, gérer l'accès, corbeille).
  */
 export function DriveTable({
-  rows, moveTargets, trash, users, spaceId, categories, folderId = null, ancestorIds = [],
+  rows, moveTargets, trash, users, spaceId, categories, folderId = null, ancestorIds = [], officeApiJs = null,
 }: {
   rows: DriveRow[]; moveTargets: MoveTarget[]; trash: boolean; users?: UserLite[];
   spaceId?: string | null; categories?: DropCategory[];
@@ -57,6 +64,8 @@ export function DriveTable({
   folderId?: string | null;
   /** Ancêtres du dossier affiché : c'est ce qui interdit de coller un dossier dans lui-même. */
   ancestorIds?: string[];
+  /** Script de l'éditeur Office (null : éditeur non configuré) — préchargé au survol d'un fichier Office. */
+  officeApiJs?: string | null;
 }) {
   const router = useRouter();
   // TRI PAR EN-TÊTE, comme dans un explorateur : on clique sur « Taille » pour trouver le gros
@@ -355,7 +364,8 @@ export function DriveTable({
             « Type » répétait l'icône ; « Taille » affichait « — » sur chaque dossier ; « Propriétaire »
             mangeait 11 rem pour un renseignement qu'on consulte de temps en temps — il est passé EN
             TÊTE DU MENU. Restait une colonne « Actions » de six icônes muettes qui débordait sur la
-            date dès qu'un nom était long : un seul bouton ⋮ la remplace.
+            date dès qu'un nom était long : trois icônes la remplacent (10/2026, « comme Google
+            Drive ») — Partage, Commentaires, et « ⋯ » qui porte tout le reste, informations en tête.
             Résultat : le nom dispose de presque toute la largeur, et plus rien ne se chevauche.
 
             POLICE RÉDUITE D'ENVIRON 30 % (0,875 rem → 0,625 rem ; en-têtes 0,75 → 0,5625 rem), avec
@@ -372,9 +382,8 @@ export function DriveTable({
               </TableHead>
               <SortHead k="name" label="Nom" className="w-auto" />
               <SortHead k="updatedAt" label="Modifié le" className="hidden w-36 sm:table-cell" />
-              {/* Un seul bouton : la colonne n'a plus besoin que de sa largeur (plus large au
-                  téléphone, où le bouton ⋮ fait 36 px). */}
-              <TableHead className="w-14 text-right sm:w-10"><span className="sr-only">Actions</span></TableHead>
+              {/* Trois icônes — Partage, Commentaires, ⋯ : 3 × 36 px au téléphone, 3 × 28 px au bureau. */}
+              <TableHead className="w-[7.25rem] text-right sm:w-[5.75rem]"><span className="sr-only">Actions</span></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -425,7 +434,13 @@ export function DriveTable({
                     <div className="flex min-w-0 items-center gap-1.5">
                       {/* La poignée ne sert qu'à la souris : au doigt, elle ne ferait que voler de la place au nom. */}
                       {dndEnabled && n.canEdit && <GripVertical className="hidden h-3 w-3 shrink-0 cursor-grab text-muted-foreground/40 sm:block" aria-hidden />}
-                      <Link href={n.href} draggable={false} title={n.name} className="flex min-w-0 items-center gap-1.5 font-medium hover:underline">
+                      {/* CLIQUER LE NOM, C'EST ÊTRE DANS LE FICHIER — et l'éditeur se prépare dès le survol. */}
+                      <Link
+                        href={n.href} draggable={false} title={n.name}
+                        onMouseEnter={n.office ? () => prechargerEditeur(officeApiJs) : undefined}
+                        onTouchStart={n.office ? () => prechargerEditeur(officeApiJs) : undefined}
+                        className="flex min-w-0 items-center gap-1.5 font-medium hover:underline"
+                      >
                         <FileGlyph name={n.name} isFile={n.isFile} />
                         <span className="truncate">{n.name}</span>
                       </Link>
@@ -440,7 +455,12 @@ export function DriveTable({
                   </TableCell>
                   <TableCell className="hidden whitespace-nowrap text-muted-foreground sm:table-cell">{n.updatedLabel}</TableCell>
                   <TableCell className="text-right">
-                    <NodeActions id={n.id} name={n.name} isFile={n.isFile} canEdit={n.canEdit} owner={n.owner} trash={trash} moveTargets={n.canEdit && !trash ? moveTargets : undefined} users={n.canEdit && !trash ? users : undefined} spaceId={spaceId} />
+                    <NodeActions
+                      id={n.id} name={n.name} isFile={n.isFile} canEdit={n.canEdit} owner={n.owner} trash={trash}
+                      moveTargets={n.canEdit && !trash ? moveTargets : undefined} users={n.canEdit && !trash ? users : undefined} spaceId={spaceId}
+                      infos={{ sizeLabel: n.sizeLabel, typeLabel: n.typeLabel, updatedLabel: n.updatedLabel }}
+                      counts={n.counts} convertible={n.convertible}
+                    />
                   </TableCell>
                 </TableRow>
               );

@@ -95,7 +95,7 @@ export function DriveCanvas({
     setBusy(false);
     if (!r.ok) { setErr(r.error); return; }
     close();
-    if (naming !== "folder" && officeEnabled) router.push(`/drive/${r.id}/edit`);
+    if (naming !== "folder" && officeEnabled) router.push(`/drive/${r.id}`);
     else router.refresh();
   };
 

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
+import { resolveDriveAccess, canViewDrive, type DriveAccessLevel } from "@/lib/drive";
 import { canAccessEntity } from "@/lib/entity-access";
 import { peutLirePasseportDuSujet } from "@/lib/ad-pro/passeport-acces";
 import type { SessionUser } from "@/lib/rbac";
@@ -36,7 +36,14 @@ export const RAISON_EDITEUR: Record<Exclude<SessionEditeur, { ok: true }>["reaso
   "not-openable": "Ce format ne s'ouvre pas dans l'éditeur en ligne.",
 };
 
-export async function sessionEditeur(user: SessionUser & { name?: string }, cible: CibleEditeur): Promise<SessionEditeur> {
+/**
+ * Ce que l'appelant a DÉJÀ lu d'un fichier du Drive (droit résolu, nom, dernière version) : la page qui ouvre
+ * le fichier le lit pour son propre affichage, et le relire ici doublerait les requêtes avant l'éditeur. Les
+ * droits restent jugés ICI — ce sont les mêmes valeurs, juste pas relues.
+ */
+export interface DriveDejaLu { acces: DriveAccessLevel; nom: string; estFichier: boolean; version: number | null }
+
+export async function sessionEditeur(user: SessionUser & { name?: string }, cible: CibleEditeur, dejaLu?: DriveDejaLu): Promise<SessionEditeur> {
   if (!onlyofficeConfigured()) return { ok: false, reason: "not-configured" };
   const base = appBaseUrl();
   if (!base) return { ok: false, reason: "no-base-url" };
@@ -48,11 +55,15 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
   let callbackUrl: string;
 
   if (cible.type === "drive") {
-    const acces = await resolveDriveAccess(user, cible.id);
+    const acces = dejaLu ? dejaLu.acces : await resolveDriveAccess(user, cible.id);
     if (!canViewDrive(acces)) return { ok: false, reason: "denied" };
-    const node = await prisma.driveNode.findUnique({ where: { id: cible.id }, select: { name: true, type: true } });
+    const node = dejaLu
+      ? { name: dejaLu.nom, type: dejaLu.estFichier ? "FILE" : "FOLDER" }
+      : await prisma.driveNode.findUnique({ where: { id: cible.id }, select: { name: true, type: true } });
     if (!node || node.type !== "FILE") return { ok: false, reason: "not-found" };
-    const derniere = await prisma.fileVersion.findFirst({ where: { nodeId: cible.id }, orderBy: { version: "desc" }, select: { version: true, size: true } });
+    const derniere = dejaLu
+      ? (dejaLu.version === null ? null : { version: dejaLu.version })
+      : await prisma.fileVersion.findFirst({ where: { nodeId: cible.id }, orderBy: { version: "desc" }, select: { version: true } });
     if (!derniere) return { ok: false, reason: "not-found" };
     nom = node.name;
     peutModifier = acces === "EDIT";

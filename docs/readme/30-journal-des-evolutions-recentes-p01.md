@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### DRIVE : UN CLIC, ON EST DANS LE FICHIER — PARTAGE · COMMENTAIRES · ⋯ (2026-10-20)
+
+Aucune migration. Demande de la Direction (« comme Google Drive »), maquette validée.
+
+- **Ouverture directe** : `/drive/[id]` n'est plus une page intermédiaire (boutons + panneau d'informations) mais le
+  fichier lui-même (`drive/[id]/fichier-ouvert.tsx`) : éditeur Office plein hauteur (édition / lecture selon le droit),
+  aperçu pour le reste. `/drive/[id]/edit` redirige ; création d'un document → ouverture directe.
+- **Plus rapide** : la page ne lit que le fichier + trois compteurs (`_count` partages / commentaires / versions) et
+  prépare la configuration de l'éditeur côté serveur (`sessionEditeur(…, dejaLu)` ne relit rien ; plus d'appel
+  `/api/onlyoffice/session` après l'affichage) ; squelette instantané (`drive/[id]/loading.tsx`) ; script de l'éditeur
+  préchargé au survol du nom (`prechargerEditeur`). Partages, versions, commentaires : lus à l'ouverture de leur
+  panneau (`getDriveNodeShares(id, withUsers)`, `getDriveNodeVersions`, `listDriveComments`).
+- **Trois icônes** à côté de chaque fichier, dans la liste ET le fichier ouvert (`NodeActions`) : Partage (rôles
+  existants Lecture / Éditeur / Aucun accès), Commentaires (pastille), « ⋯ » : informations en tête, Convertir en PDF,
+  Nouvelle version, Historique des versions, Télécharger, Renommer, Déplacer, Partager par messagerie, Legal, Courrier,
+  **Mettre à la corbeille avec confirmation** (aussi « Supprimer définitivement »). Règles pures : `lib/drive/menu-fichier.ts`.
+
 ### BC : CHANGER LE SEUL NUMÉRO NE RELANCE PAS LE CIRCUIT (2026-10-14)
 
 Aucune migration. Décision de la Direction : une révision dont la SEULE différence est le numéro garde l'état du BC — aucun

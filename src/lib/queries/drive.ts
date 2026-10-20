@@ -16,6 +16,8 @@ export interface DriveNodeRow {
   owner: { name: string } | null;
   /** L'utilisateur courant peut-il modifier CE nœud (renommer / corbeille / déplacer) ? */
   canEdit: boolean;
+  /** Compteurs des icônes de la ligne (Partage, Commentaires) et de l'en-tête du menu « ⋯ ». */
+  counts: { shares: number; comments: number; versions: number };
 }
 
 export interface DriveListing {
@@ -36,6 +38,7 @@ type RawNode = {
   id: string; name: string; type: DriveNodeType; mimeType: string | null; size: number;
   category: string | null; isTrashed: boolean; ownerId: string | null; spaceId: string | null; updatedAt: Date;
   owner: { name: string } | null; shares: { access: string }[];
+  _count?: { shares: number; comments: number; versions: number };
 };
 
 /** Catégories (espaces partagés) que l'utilisateur peut voir — pour les onglets du Drive. */
@@ -89,6 +92,9 @@ function nodeInclude(userId: string) {
   return {
     owner: { select: { name: true } },
     shares: { where: { userId }, select: { access: true } },
+    // Trois COMPTEURS, pas les données : les partages, versions et commentaires eux-mêmes ne se
+    // lisent qu'à l'ouverture de leur panneau — c'est ce qui garde l'ouverture d'un fichier légère.
+    _count: { select: { shares: true, comments: true, versions: true } },
   };
 }
 function nodeArgs(userId: string) {
@@ -111,6 +117,7 @@ function toRow(user: SessionUser, n: RawNode, inheritedEdit: boolean): DriveNode
     id: n.id, name: n.name, type: n.type, mimeType: n.mimeType, size: n.size,
     category: n.category, isTrashed: n.isTrashed, updatedAt: n.updatedAt, owner: n.owner,
     canEdit: rowCanEdit(user, n, inheritedEdit),
+    counts: { shares: n._count?.shares ?? 0, comments: n._count?.comments ?? 0, versions: n._count?.versions ?? 0 },
   };
 }
 
