@@ -180,3 +180,42 @@ export function refusDeRetrait(e: EtatPourRetrait): string | null {
   }
   return null;
 }
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * SUPPRIMER DÉFINITIVEMENT UNE DEMANDE RETIRÉE (Direction, 19/10/2026).
+ *
+ * Retirée, la demande restait dans la liste de son demandeur pour toujours : rien ne l'en ôtait. Elle
+ * se supprime désormais — par la corbeille commune (`supprimerReversible`, restaurable par le Super
+ * Admin), avec son ordre de dépense annulé, ses pièces et son fil.
+ *
+ * Ce qui ne se supprime pas : un dossier encore VIVANT (on le retire d'abord — c'est le retrait qui
+ * annule l'ordre au centre), un dossier COMPAGNON (il part avec la dépense qui l'a fait naître), et
+ * tout dossier dont le paiement est SORTI — l'argent est parti, la demande en est la justification.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export interface EtatPourSuppression {
+  status: string;
+  compagnon: boolean;
+  ordre?: { status: string; reference?: string | null; transactionId?: string | null; paidDate?: Date | string | null } | null;
+}
+
+/** Ce qui se supprime : le brouillon (jamais transmis) et la demande retirée. */
+const SUPPRIMABLES = new Set(["DRAFT", "CANCELLED"]);
+
+/** Pourquoi la demande ne se supprime PAS — `null` si elle se supprime. */
+export function refusDeSuppression(e: EtatPourSuppression): string | null {
+  if (e.compagnon) return "Ce dossier accompagne un ordre de dépense : il disparaît avec la dépense qui l'a fait naître, pas d'ici.";
+  if (e.ordre && (e.ordre.status === "PAID" || e.ordre.transactionId || e.ordre.paidDate)) {
+    return `Le paiement${e.ordre.reference ? ` ${e.ordre.reference}` : ""} est déjà sorti : la demande en est la justification, elle ne se supprime pas.`;
+  }
+  if (!SUPPRIMABLES.has(e.status)) {
+    return e.status === "REJECTED"
+      ? "Cette demande a été refusée par les Finances : elle reste, avec le motif du refus."
+      : "Retirez d'abord la demande : c'est le retrait qui annule son paiement au centre. Elle se supprime ensuite.";
+  }
+  if (e.ordre && e.ordre.status !== "CANCELLED") {
+    return "Son ordre de dépense est encore ouvert au centre de paiement : retirez la demande d'abord.";
+  }
+  return null;
+}

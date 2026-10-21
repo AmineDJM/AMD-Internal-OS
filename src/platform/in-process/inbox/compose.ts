@@ -19,7 +19,7 @@ import { userCan, type SessionUser } from "@/lib/rbac";
 import { getActionCenter, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN } from "@/lib/queries/action-center";
 import { getPendingValidations } from "@/lib/queries/validations";
 import { approbationsEnAttente } from "@/lib/missions/approval/gate";
-import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
+import { sitsOnPaymentCentre, ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
 import { lireConstats } from "@/lib/quality/read";
 import { intelligenceComplete, LIBELLE_GRAVITE as LIBELLE_GRAVITE_SIGNAL, type Signal } from "@/platform/in-process/intelligence";
 import { lireEtatChaud } from "@/lib/fabric/hot-state";
@@ -81,7 +81,7 @@ export async function composerInbox(user: SessionUser): Promise<VueInbox> {
     file("validations", async () => (userCan(user, "VALIDATIONS", "VIEW") ? (await getPendingValidations(user.id)).filter((v) => v.actionable) : [])),
     file("paiements", async () => (sitsOnPaymentCentre(user)
       ? prisma.expenseOrder.findMany({
-        where: { centralStatus: "AWAITING" },
+        where: { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE },
         orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }], take: 40,
         select: { id: true, reference: true, label: true, beneficiary: true, amount: true, dueDate: true, createdAt: true },
       })

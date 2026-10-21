@@ -33,8 +33,14 @@ import { deadlineNatureOf, deadlineNatureLabel } from "@/lib/finance/deadline-na
 import { ENTITY_MODULE } from "@/lib/entity-access";
 import { etatDuPaiement } from "@/lib/finance/relance-paiement";
 import { prevenirQuiALaMain } from "@/lib/payments/relance-destinataires";
-import { verifierFacturesAvantDepot, marquerDoublonPossible, type FichierDepose } from "@/lib/factures/connues";
+import { verifierFacturesAvantDepot, marquerDoublonPossible, ttcDesFacturesStockees, type FichierDepose } from "@/lib/factures/connues";
+import {
+  confronterMontantAuxFactures, refusEcartMontant, noteEcartAssume, phraseEcartMontant, PHRASE_MONTANT_NON_LU,
+  type LectureMontant,
+} from "@/lib/finance/montant-facture";
 import { PAYMENT_URGENCY } from "@/lib/labels";
+import { supprimerReversible } from "@/lib/suppression/coeur";
+import { peutSupprimerUneDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
 
 const PATH = "/validations/paiements";
 
@@ -148,6 +154,23 @@ async function syncStatus(requestId: string, current: string, actorId: string | 
   return next;
 }
 
+/**
+ * LE TTC LU DES FACTURES EN VIGUEUR d'une demande (`finance/montant-facture.ts`) — une facture remplacée ne compte plus.
+ * La pièce qu'on vient de déposer arrive avec sa lecture du dépôt ; les autres avec leur lecture gardée.
+ */
+async function ttcDesFacturesEnVigueur(requestId: string, ajout?: { pieceId: string; ttc: number | null }): Promise<(number | null)[]> {
+  const pieces = await prisma.paymentPiece.findMany({
+    where: { requestId, kind: "INVOICE", replacedBy: { is: null } }, select: { id: true, documentId: true },
+  });
+  const stockes = await ttcDesFacturesStockees(pieces.filter((p) => p.id !== ajout?.pieceId).map((p) => p.documentId));
+  return pieces.map((p) => (ajout && p.id === ajout.pieceId ? ajout.ttc : stockes.get(p.documentId) ?? null));
+}
+
+/** Le refus d'un écart de montant, avec les deux chiffres que l'écran propose de reprendre. */
+function refusDuMontant(lecture: LectureMontant, error: string): ActionResult {
+  return { ok: false, error, ...(lecture.etat === "ECART" ? { ecartMontant: { montant: lecture.montant, total: lecture.total } } : {}) };
+}
+
 // ───────────────────────── Création ─────────────────────────
 
 /**
@@ -243,6 +266,18 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
     const garde = await verifierFacturesAvantDepot(user, facturesJointes, { instances: [] });
     if (!garde.ok) return { ok: false, error: garde.error, factureConnue: garde.factureConnue };
 
+    // LE MONTANT DEMANDÉ EST CELUI DE LA FACTURE (`finance/montant-facture.ts`) — confronté au TTC que Luna vient de lire
+    // pour la garde ci-dessus. Il était le seul champ saisi, jamais comparé : un HT tapé pour un TTC, le chiffre du BC ou
+    // du devis partaient au centre sans un mot. Un écart se corrige, ou s'explique et se confirme. Un brouillon n'engage
+    // rien : il est confronté à sa transmission (`submitPaymentRequest`).
+    const lectureMontant = confronterMontantAuxFactures(amount, facturesJointes.map((_, k) => garde.identites[k]?.ttc ?? null));
+    const justificationEcart = fdStr(formData, "ecartJustification");
+    if (submit) {
+      const refusMontant = refusEcartMontant({ lecture: lectureMontant, justification: justificationEcart, confirme: checked(formData, "ecartConfirme") });
+      if (refusMontant) return refusDuMontant(lectureMontant, refusMontant);
+    }
+    const ecartAssume = submit && lectureMontant.etat === "ECART" && justificationEcart ? noteEcartAssume(lectureMontant, justificationEcart) : null;
+
     // LA SÉRIE PAY EST PARTAGÉE avec le dossier compagnon d'un ordre (`expense-orders.ts`) : une seule
     // file pour une série, sinon chacune ne protège que sa moitié (§118.182).
     const req = await enSerie(SERIE_DEMANDES_PAIEMENT, () => createWithRetry(async () =>
@@ -318,18 +353,21 @@ export async function createPaymentRequest(_prev: ActionResult | undefined, form
         sourceType: "PAYMENT_REQUEST", sourceId: req.id,
         requestedById: user.id, dueDate: dateOf(fdStr(formData, "dueDate")),
         deadlineNature,
-        notes: fdStr(formData, "description"),
+        // L'écart assumé est écrit DANS l'ordre : c'est l'ordre que le centre lit avant d'autoriser.
+        notes: [fdStr(formData, "description"), ecartAssume].filter(Boolean).join(" — ") || null,
       });
       ordreId = order.id;
       await prisma.paymentRequest.update({ where: { id: req.id }, data: { expenseOrderId: order.id } });
     }
     await trace(req.id, user.id, submit ? "SUBMIT" : "COMMENT", submit ? "Demande transmise au centre de paiement." : "Brouillon créé.");
+    if (ecartAssume) await trace(req.id, user.id, "ECART_ASSUME", ecartAssume);
+    if (submit && lectureMontant.etat === "NON_LU") await trace(req.id, null, "MONTANT_NON_LU", PHRASE_MONTANT_NON_LU);
     // LA MARQUE « DOUBLON POSSIBLE » — dans le fil et sur l'ordre : le centre de paiement et les Finances la lisent.
     for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, ordreIds: [ordreId], demandeId: req.id, acteurId: user.id });
     await recordAudit({
       actorId: user.id, action: "CREATE", module: "Demandes de paiement",
       entityType: "PAYMENT_REQUEST", entityId: req.id,
-      summary: `Demande de paiement ${req.reference} — ${payee} · ${amount} DZD`,
+      summary: `Demande de paiement ${req.reference} — ${payee} · ${amount} DZD${ecartAssume ? ` — ${ecartAssume}` : ""}`,
     });
     revalidate(req.id);
     const avertissement = garde.probables.map((p) => p.phrase).join(" ") || undefined;
@@ -414,6 +452,17 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
       await prisma.paymentPiece.update({ where: { id: replacesId }, data: { status: "ACCEPTED", reviewNote: "Remplacée par une nouvelle version." } });
     }
     await trace(requestId, user.id, "PIECE_ADDED", replacesId ? "Pièce remplacée." : "Pièce ajoutée.", piece.id);
+    // UNE FACTURE AJOUTÉE OU REMPLACÉE SE CONFRONTE AU MONTANT DE LA DEMANDE (`finance/montant-facture.ts`) — la pièce
+    // n'est pas refusée (elle est la bonne, c'est souvent le montant qui ne l'est plus), mais l'écart se DIT : dans le fil,
+    // que les Finances lisent, et au déposant, qui corrige le montant. La transmission suivante l'exigera.
+    let ecartSignale: string | null = null;
+    if (estFacture) {
+      const lecture = confronterMontantAuxFactures(toNumber(req.amount), await ttcDesFacturesEnVigueur(requestId, { pieceId: piece.id, ttc: garde.identites[0]?.ttc ?? null }));
+      if (lecture.etat === "ECART") {
+        ecartSignale = `${phraseEcartMontant(lecture)} Corrigez le montant de la demande, ou expliquez l'écart.`;
+        await trace(requestId, user.id, "ECART_MONTANT", ecartSignale, piece.id);
+      }
+    }
     // LE DEMANDEUR GARDE SON DOSSIER (§118.191). Remplacer la dernière pièce en cause faisait repartir
     // le dossier aux Finances de lui-même — au milieu d'une correction : le montant que le renvoi
     // demandait de revoir ne se corrigeait plus, le dossier n'était plus chez lui. Un geste du
@@ -423,7 +472,7 @@ export async function addPaymentPiece(formData: FormData): Promise<ActionResult>
     for (const p of garde.probables) await marquerDoublonPossible({ marque: p.marque, ordreIds: [req.expenseOrderId], demandeId: requestId, acteurId: user.id });
     revalidate(requestId);
     const resteChezLui = parLeDemandeur && req.status === "CHANGES_REQUESTED";
-    const avertissement = garde.probables.map((p) => p.phrase).join(" ") || undefined;
+    const avertissement = [...garde.probables.map((p) => p.phrase), ecartSignale].filter(Boolean).join(" ") || undefined;
     const phrase = resteChezLui
       ? `${replacesId ? "Pièce remplacée" : "Pièce ajoutée"} — renvoyez le dossier aux Finances quand votre correction est complète.`
       : null;
@@ -626,6 +675,16 @@ export async function corrigerDemandePaiement(formData: FormData): Promise<Actio
     if (revision?.ok && revision.revise) {
       await apresRevisionOrdre(revision, { acteurId: user.id, objet: `${req.reference} — ${apres.title ?? req.title}`, raison });
     }
+    // UN MONTANT CORRIGÉ QUI S'ÉCARTE DE LA FACTURE SE DIT (`finance/montant-facture.ts`) — dans le fil, que le centre et les
+    // Finances relisent, et à l'écran. Le motif de la correction, exigé après transmission, en est l'explication.
+    let ecartSignale: string | null = null;
+    if (apres.amount !== undefined) {
+      const lecture = confronterMontantAuxFactures(apres.amount, await ttcDesFacturesEnVigueur(id));
+      if (lecture.etat === "ECART") {
+        ecartSignale = phraseEcartMontant(lecture);
+        await trace(id, user.id, "ECART_MONTANT", note === null ? ecartSignale : `${ecartSignale} Motif : « ${note} ».`);
+      }
+    }
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Demandes de paiement",
       entityType: "PAYMENT_REQUEST", entityId: id, summary: phrase,
@@ -633,13 +692,15 @@ export async function corrigerDemandePaiement(formData: FormData): Promise<Actio
     revalidate(id);
     revalidatePath("/centre-de-paiement");
     const rouvert = revision?.ok && revision.revise && revision.rouvert;
+    const corrigee = rouvert
+      ? "Demande corrigée — le paiement repasse au centre de paiement, qui doit l'autoriser de nouveau."
+      : req.status === "CHANGES_REQUESTED"
+        ? "Demande corrigée — renvoyez-la aux Finances quand votre correction est complète."
+        : "Demande corrigée.";
     return {
       ok: true, id,
-      message: rouvert
-        ? "Demande corrigée — le paiement repasse au centre de paiement, qui doit l'autoriser de nouveau."
-        : req.status === "CHANGES_REQUESTED"
-          ? "Demande corrigée — renvoyez-la aux Finances quand votre correction est complète."
-          : "Demande corrigée.",
+      message: ecartSignale ? `${corrigee} Attention : ${ecartSignale}` : corrigee,
+      ...(ecartSignale ? { avertissement: ecartSignale } : {}),
     };
   } catch (err) {
     console.error("[payment] corrigerDemandePaiement failed", err);
@@ -776,6 +837,17 @@ export async function submitPaymentRequest(formData: FormData): Promise<ActionRe
     const next = nextPaymentStatus(req.status, "SUBMIT");
     if (!next) return { ok: false, error: "Ce dossier n'est pas en attente d'envoi." };
 
+    // LE MONTANT FACE AUX FACTURES EN VIGUEUR (`finance/montant-facture.ts`) — un brouillon n'a jamais été confronté, et un
+    // dossier renvoyé a pu changer de facture ou de montant. Un écart déjà assumé à l'identique ne se redemande pas.
+    const montant = toNumber(req.amount);
+    const lectureMontant = confronterMontantAuxFactures(montant, await ttcDesFacturesEnVigueur(id));
+    const dejaAssume = lectureMontant.etat === "ECART"
+      && (await prisma.paymentRequestEvent.count({ where: { requestId: id, kind: "ECART_ASSUME", message: { contains: phraseEcartMontant(lectureMontant) } } })) > 0;
+    const justificationEcart = fdStr(formData, "ecartJustification");
+    const refusMontant = refusEcartMontant({ lecture: lectureMontant, justification: justificationEcart, confirme: checked(formData, "ecartConfirme"), dejaAssume });
+    if (refusMontant) return refusDuMontant(lectureMontant, refusMontant);
+    const ecartAssume = lectureMontant.etat === "ECART" && !dejaAssume && justificationEcart ? noteEcartAssume(lectureMontant, justificationEcart) : null;
+
     await prisma.paymentRequest.update({ where: { id }, data: { status: next as PaymentRequestStatus, submittedAt: new Date() } });
 
     // LE DOSSIER ENTRE AU CENTRE DE PAIEMENT DÈS LA SOUMISSION, pas au bon à payer.
@@ -798,12 +870,14 @@ export async function submitPaymentRequest(formData: FormData): Promise<ActionRe
         requestedById: req.requesterId,
         dueDate: req.dueDate,
         deadlineNature: req.deadlineNature,
-        notes: fdStr(formData, "note") ?? null,
+        notes: [fdStr(formData, "note"), ecartAssume].filter(Boolean).join(" — ") || null,
       });
       await prisma.paymentRequest.update({ where: { id }, data: { expenseOrderId: order.id } });
     }
 
     await trace(id, user.id, "SUBMIT", fdStr(formData, "note") ?? "Dossier transmis au centre de paiement.");
+    if (ecartAssume) await trace(id, user.id, "ECART_ASSUME", ecartAssume);
+    if (lectureMontant.etat === "NON_LU") await trace(id, null, "MONTANT_NON_LU", PHRASE_MONTANT_NON_LU);
     revalidate(id);
     return { ok: true, id };
   } catch (err) {
@@ -1053,6 +1127,33 @@ export async function cancelPaymentRequest(formData: FormData): Promise<ActionRe
   } catch (err) {
     console.error("[payment] cancelPaymentRequest failed", err);
     return { ok: false, error: "L'opération a échoué." };
+  }
+}
+
+/**
+ * SUPPRIMER DÉFINITIVEMENT SA DEMANDE — retirée ou restée brouillon (Direction, 19/10/2026).
+ *
+ * Par le cœur commun (`supprimerReversible`) : la demande part EN LOT avec son ordre de dépense annulé, ses pièces et
+ * son fil ; elle se restaure depuis la corbeille, et l'audit nomme qui l'a supprimée. Le refus (`refusDeSuppression`,
+ * dans le registre — la même règle pour l'écran, Adam et la corbeille) garde un dossier vivant, un compagnon, et tout
+ * dossier dont le paiement est sorti. Le droit : le demandeur, ou le Super Admin (`peutSupprimerUneDemandePaiement`).
+ */
+export async function supprimerDemandePaiement(formData: FormData): Promise<ActionResult> {
+  try {
+    const user = await requireUser();
+    const id = fdStr(formData, "id");
+    if (!id) return { ok: false, error: "Demande introuvable." };
+    if (!(await peutSupprimerUneDemandePaiement(user, id))) return { ok: false, error: "Seul le demandeur (ou le Super Admin) supprime sa demande." };
+    const req = await prisma.paymentRequest.findUnique({ where: { id }, select: { reference: true, title: true } });
+    if (!req) return { ok: false, error: "Demande introuvable (déjà supprimée ?)." };
+    const r = await supprimerReversible("PAYMENT_REQUEST", id, user.id, `Demande de paiement ${req.reference} — « ${req.title} » supprimée définitivement (restaurable depuis la corbeille)`);
+    if (!r.ok) return { ok: false, error: r.error ?? "Suppression impossible." };
+    revalidate();
+    revalidatePath("/centre-de-paiement");
+    return { ok: true, redirect: PATH, message: `Demande ${req.reference} supprimée — restaurable depuis la corbeille par le Super Admin.` };
+  } catch (err) {
+    console.error("[payment] supprimerDemandePaiement failed", err);
+    return { ok: false, error: "La suppression a échoué." };
   }
 }
 

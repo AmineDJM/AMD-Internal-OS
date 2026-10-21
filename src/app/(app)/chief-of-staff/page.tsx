@@ -3,6 +3,7 @@ import { requireModule } from "@/lib/session";
 import { peutVoirAdam } from "@/platform/in-process/visibilite-adam";
 import { hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
 import { aiConfigured, sttConfigured, cleModeleRequise } from "@/lib/ai";
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";
@@ -100,7 +101,7 @@ export default async function ChiefOfStaffPage({
   const now = new Date();
   const [toDecide, centreAwaiting, commitmentsLate, decisionsToReview, boite] = await Promise.all([
     getActionCenter(user).then((c) => c.items.length).catch(() => 0),
-    prisma.expenseOrder.count({ where: { centralStatus: "AWAITING" } }).catch(() => 0),
+    prisma.expenseOrder.count({ where: { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE } }).catch(() => 0),
     prisma.executiveCommitment.count({ where: { ownerId: user.id, status: "OPEN", dueAt: { lt: now } } }).catch(() => 0),
     prisma.executiveDecision.count({ where: { ownerId: user.id, status: { in: ["PROPOSED", "DECIDED"] }, reviewDate: { lte: now } } }).catch(() => 0),
     // LA BOÎTE DE DÉCISION, composée par le même code que sa page : le nombre affiché ici est

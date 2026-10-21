@@ -33,7 +33,9 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // définitivement, avec l'historique de ses décisions en cascade.
     // 34 → 35 : le lot d'un appel d'offres PCH (vague « restes ») — un seul `delete`, sans corbeille ni
     // journal ; il part en lot avec ses affectations à des BU, et REFUSE quand quelque chose en découle.
-    expect(DELETABLE_KINDS).toHaveLength(35);
+    // 35 → 36 : la demande de paiement (19/10/2026) — retirée, elle restait à vie dans la liste de son demandeur ; elle
+    // part en lot avec son ordre annulé, et REFUSE tant qu'elle est vivante ou que son paiement est sorti.
+    expect(DELETABLE_KINDS).toHaveLength(36);
   });
 
   it("le poste Ad & Pro part EN LOT et ne refuse rien lui-même — c'est le lot qui refuse ce qui a quitté l'ERP", () => {
@@ -67,9 +69,11 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // FIELD_REPORT (§118.204) : un compte rendu qui porte du matériel remis justifie des sorties du stock —
     // la corbeille lit le MÊME refus que l'action (`refusSuppressionRapport`), éprouvé dans
     // `rapport-terrain-remises-flow.test.ts`, avec son témoin (un compte rendu sans remise part toujours).
-    const AVEC_REFUS: readonly string[] = ["CONVERSATION", "NOTIFICATION", "PROMO_CATALOGUE", "PROMO_STOCK_ITEM", "PCH_TENDER_LINE", "FIELD_REPORT", "LEGAL_DOCUMENT"];
+    const AVEC_REFUS: readonly string[] = ["CONVERSATION", "NOTIFICATION", "PROMO_CATALOGUE", "PROMO_STOCK_ITEM", "PCH_TENDER_LINE", "FIELD_REPORT", "LEGAL_DOCUMENT", "PAYMENT_REQUEST"];
     // LEGAL_DOCUMENT (§118.209) : une pièce signée, réglée ou dont une autre découle ne se supprime pas ; le refus
     // vit chez l'écrivain (`refusSuppressionDeLaPiece`), éprouvé dans `legal-suppression-flow`.
+    // PAYMENT_REQUEST (19/10/2026) : une demande vivante, un compagnon, un paiement sorti ne se suppriment pas
+    // (`refusDeSuppression`), éprouvé dans `paiement-montant-retrait-flow`.
     const anciens = DELETABLE_KINDS.filter((k) => !AVEC_REFUS.includes(k));
     // 28 → 29 : l'appel d'offres PCH ne refuse ni ne réserve rien lui-même — c'est le LOT qui
     // refuse une facture réglée ou une pièce signée parmi ses branches (`faitIrreversible`).

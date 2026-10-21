@@ -4,6 +4,7 @@ import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { refusSuppressionRapport } from "@/lib/promo/remises-visite";
 import { refusSuppressionDeLaPiece } from "@/lib/queries/suppression-piece";
+import { refusSuppressionDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
 import { retirerEnAttente } from "@/lib/bons-de-commande/aiguillage";
 import { inventorier } from "@/lib/suppression/lot";
 import { resumeDesLiens } from "@/lib/suppression/branches";
@@ -40,6 +41,7 @@ export type DeletableKind =
   | "SUPPORT_REQUEST"
   | "FINANCE_TRANSACTION"
   | "EXPENSE_ORDER"
+  | "PAYMENT_REQUEST"
   | "SUPPLIER"
   | "MEDICAL_INFO_DECLARATION"
   | "PROMO_MATERIAL"
@@ -486,6 +488,32 @@ export const DELETE_REGISTRY: Record<DeletableKind, KindSpec> = {
     async remove(id) {
       await prisma.expenseOrder.delete({ where: { id } });
     },
+  },
+  /**
+   * UNE DEMANDE DE PAIEMENT RETIRÉE (Direction, 19/10/2026) — elle part EN LOT : son ordre de dépense annulé (sinon une
+   * ligne orpheline au registre des ordres), ses pièces et son fil, et tout revient ensemble à la restauration. Le
+   * refus (`refusDeSuppression`) garde le dossier vivant, le compagnon et tout paiement déjà sorti.
+   */
+  PAYMENT_REQUEST: {
+    label: "demande de paiement",
+    module: "Demandes de paiement",
+    redirect: "/validations/paiements",
+    model: "paymentRequest",
+    entityType: "PAYMENT_REQUEST",
+    searchFields: ["reference", "title"],
+    refuse: (id) => refusSuppressionDemandePaiement(id),
+    async describe(id) {
+      const r = await prisma.paymentRequest.findUnique({ where: { id }, select: { reference: true, title: true } });
+      return r ? `${r.reference} — ${r.title}` : null;
+    },
+    async creatorOf(id) {
+      const r = await prisma.paymentRequest.findUnique({ where: { id }, select: { requesterId: true } });
+      return r?.requesterId ?? null;
+    },
+    async remove(id) {
+      await prisma.paymentRequest.delete({ where: { id } });
+    },
+    lot: true,
   },
   SUPPLIER: {
     label: "fournisseur",

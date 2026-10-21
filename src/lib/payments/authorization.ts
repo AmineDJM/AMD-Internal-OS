@@ -104,6 +104,24 @@ export function visibleToFinance(status: CentralStatus): boolean {
   return status !== "AWAITING" && status !== "CHANGES_REQUESTED" && status !== "INFO_REQUESTED";
 }
 
+/**
+ * UN ORDRE ANNULÉ N'EST PLUS AU CENTRE (Direction, 19/10/2026) — ni listé, ni compté, ni autorisable.
+ *
+ * Retirer sa demande de paiement annule son ordre (`annulerOrdreNonRegle` : `status = CANCELLED`) sans toucher à
+ * l'autorisation, qui reste « en attente » — elle n'a jamais été rendue. Or le centre ne lisait QUE l'autorisation :
+ * la demande retirée y restait listée, comptée dans « en attente », et un siège pouvait encore l'autoriser. Chaque
+ * lecture du centre porte donc ce filtre, et chaque décision cette garde.
+ */
+export const ORDRE_NON_ANNULE = { status: { not: "CANCELLED" as const } };
+
+/** Pourquoi le centre ne décide PAS sur cet ordre — `null` s'il le peut (son état d'exécution, pas son autorisation). */
+export function refusOrdreFerme(status: string, reference?: string | null): string | null {
+  const ref = reference ? ` ${reference}` : "";
+  if (status === "CANCELLED") return `Le paiement${ref} a été annulé (demande retirée ou refusée) : il n'y a plus rien à autoriser.`;
+  if (status === "PAID") return `Le paiement${ref} est déjà réglé : l'argent est parti.`;
+  return null;
+}
+
 /** Le paiement attend-il une action DU CENTRE (par opposition à une action du demandeur) ? */
 export function awaitsCentre(status: CentralStatus): boolean {
   return status === "AWAITING";

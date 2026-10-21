@@ -157,6 +157,15 @@ l'écran ; y siègent le PDG, le Super Admin et les sièges nommés — voir « 
 la séparation des rôles n'est qu'un onglet. L'ancienne adresse `/finances/centre-de-paiement`
 redirige.
 
+**Un ordre ANNULÉ n'est plus au centre (19/10/2026)** : retirer sa demande annule l'ordre (`status = CANCELLED`) sans
+rendre l'autorisation, qui reste « en attente ». Toute lecture du centre et tout compteur « à autoriser » porte donc
+`ORDRE_NON_ANNULE` (`payments/authorization.ts`, cliquet `centre-ordres-annules.test.ts`), et décider ou répondre sur
+un ordre annulé ou réglé est refusé (`refusOrdreFerme`). **Le montant d'une demande de paiement est celui de sa
+facture** : confronté au TTC lu (`finance/montant-facture.ts`) ; un écart se corrige ou s'explique et se confirme, et
+l'explication est écrite dans l'ordre que le centre autorise. Une demande retirée ou brouillon se **supprime
+définitivement** par la corbeille (`supprimerDemandePaiement`, type `PAYMENT_REQUEST`, en lot avec son ordre annulé ;
+refusée si son paiement est sorti).
+
 **La règle** : **tout paiement de la société**, quel que soit le module qui l'a produit — Ad & Pro,
 secrétariat, formations, recrutement, moyens généraux, **BV Regulatory compris** — et **quel que
 soit le montant**, passe par le **centre de paiement** avant d'atteindre les Finances.
