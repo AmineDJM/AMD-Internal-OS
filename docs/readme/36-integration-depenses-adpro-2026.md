@@ -148,7 +148,7 @@ que la personne peut ouvrir.
 décision ACCEPTEE / REFUSEE / PAS_ADPRO, cible, certitude, score, justification, auteur, annulation) : une **dépense**
 acceptée devient la preuve de paiement de la demande / du poste — `construire()` (`queries/budget-integration.ts`) la lit
 en `sourcesReliees` et la règle la juge « payée par un poste historique » ou « remplacée par le fichier » (jamais deux
-fois) ; une écriture « à imputer » rattachée quitte la liste « À imputer » du Budget Marketing (et son total) ; la fiche
+fois) ; une écriture « à imputer » rattachée quitte la liste « À imputer » de l'enveloppe (Budgets › Dépenses, et son total) ; la fiche
 « Historique 2026 » l'affiche en lecture seule. Une **pièce** acceptée rejoint `piecesRattachees` (lien vers le document,
 le fichier du Drive ou la pièce jointe — jamais une copie). Annuler défait l'effet. Index partiels : une dépense n'a qu'un
 destin actif, une pièce se rattache une fois à une demande. Livre de trésorerie et ordres jamais écrits.

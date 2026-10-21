@@ -23,7 +23,7 @@ import type { DecisionRapprochement, SensRapprochement } from "@/lib/budget-mark
  */
 
 function revalider() {
-  for (const p of ["/budget-marketing", "/budget-marketing/integration", "/budget-marketing/integration/rapprochement", "/budget-marketing/depenses", "/budget-marketing/ad-pro", "/budgets"]) revalidatePath(p);
+  for (const p of ["/budget-marketing", "/budget-marketing/integration", "/budget-marketing/integration/rapprochement", "/budget-marketing/depenses", "/budget-marketing/ad-pro", "/budgets", "/budgets/depenses"]) revalidatePath(p);
 }
 
 export async function lireTranchePiecesRapprochement(formData: FormData): Promise<{ ok: boolean; error?: string; progression?: ProgressionLecture & { luesCetteFois: number; erreurs: string[] } }> {

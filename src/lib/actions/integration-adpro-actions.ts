@@ -41,7 +41,7 @@ const TYPES: readonly TypeDemandeIntegree[] = ["SPONSORING", "CONGRESS_NATIONAL"
 const estType = (v: unknown): v is TypeDemandeIntegree => typeof v === "string" && (TYPES as readonly string[]).includes(v);
 
 function revalider() {
-  for (const p of ["/budget-marketing", "/budget-marketing/integration", "/budget-marketing/depenses", "/budget-marketing/ad-pro", "/budgets"]) revalidatePath(p);
+  for (const p of ["/budget-marketing", "/budget-marketing/integration", "/budget-marketing/depenses", "/budget-marketing/ad-pro", "/budgets", "/budgets/depenses"]) revalidatePath(p);
 }
 
 async function fichierDuFormulaire(formData: FormData): Promise<{ nom: string; octets: Uint8Array } | { erreur: string }> {

@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { cumulerSousCategories } from "@/lib/budget/cumul-categories";
-import { ArrowRight, AlertTriangle, Download } from "lucide-react";
+import { ArrowRight, Download } from "lucide-react";
 import type { CurrentUser } from "@/lib/session";
-import { canManageEnvelopes, canManageEnvelope, canGovernPoleEnvelope, hasGlobalView, peutBudgetDuPole } from "@/lib/rbac";
+import { canManageEnvelopes, canManageEnvelope, canGovernPoleEnvelope, hasGlobalView, peutBudgetDuPole, userCan } from "@/lib/rbac";
+import { canOpenModule } from "@/lib/modules-visibility";
 import { prisma } from "@/lib/prisma";
 import { getEnvelopes, getBudgetOverview, getEnvelopesGrandTotal, type BudgetOverview } from "@/lib/queries/budget";
 import { depensesPostesMarketing } from "@/lib/queries/budget-marketing-depenses";
@@ -26,6 +27,7 @@ import { DOMAINES, poleDe, type DomainePole, type PorteeBudget } from "@/lib/bud
 import { ecrituresDeLaForceDeVente } from "@/lib/queries/budget-operations";
 import { BudgetContextBar } from "./budget-context-bar";
 import { BudgetExpenses } from "./budget-expenses";
+import { AlerteAImputer } from "./alerte-a-imputer";
 import { DepensesMarketing } from "./depenses-marketing";
 import { BudgetSettings } from "./budget-settings";
 import { CreateEnvelopeButton } from "./budget-forms";
@@ -125,13 +127,16 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
     );
   }
 
+  // « Les imputer » mène à l'onglet Dépenses de Budgets, le seul où la liste « À imputer » se travaille.
+  const lienAImputer = pole ? await lienAImputerBudgets(user, overview.envelope.id) : `${config.base}/depenses?env=${overview.envelope.id}`;
+
   // BUDGET REGULATORY a sa vue d'ensemble allégée (Direction, 09/10) ; les autres portées gardent celle-ci, inchangée.
   if (pole === "REGULATORY") {
     return (
       <>
         <SurlignerCible ids={[searchParams.cible]} />
         <VueEnsembleRegulatory
-          user={user} base={config.base} titre={config.titre} overview={overview} envelopes={envelopes} tabs={tabs}
+          user={user} base={config.base} titre={config.titre} overview={overview} envelopes={envelopes} tabs={tabs} lienAImputer={lienAImputer}
           exportHref={`/api/budgets/export?env=${overview.envelope.id}&from=${overview.period.from.slice(0, 10)}&to=${overview.period.to.slice(0, 10)}&portee=regulatory`}
         />
       </>
@@ -273,19 +278,11 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
         </dl>
       </section>
 
-      {/* Une seule alerte, actionnable, plutôt qu'une section de liste dépliée. */}
+      {/* Une seule alerte, actionnable, plutôt qu'une section de liste dépliée — l'imputation se fait dans Budgets. */}
       {overview.unattributed.total > 0 && (
-        <Link
-          href={`${config.base}/depenses?env=${overview.envelope.id}`}
-          className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-warning/40 bg-warning/5 px-3 py-3 text-sm transition hover:bg-warning/10 sm:px-4"
-        >
-          <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
-          <span className="min-w-0 flex-1 basis-[14rem]">
-            <strong className="tabular-nums">{formatCurrency(overview.unattributed.total)}</strong> de dépenses ne sont rattachées à aucune catégorie —
-            elles faussent la lecture ci-dessus.
-          </span>
-          <span className="inline-flex shrink-0 items-center gap-1 font-medium text-primary">Les imputer <ArrowRight className="h-3.5 w-3.5" /></span>
-        </Link>
+        <AlerteAImputer href={lienAImputer} total={overview.unattributed.total} action="Les imputer" className="py-3">
+          de dépenses ne sont rattachées à aucune catégorie — elles faussent la lecture ci-dessus.
+        </AlerteAImputer>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
@@ -338,6 +335,39 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
 
 // ───────────────────────────── Dépenses ─────────────────────────────
 
+/**
+ * « À IMPUTER » NE SE TRAVAILLE QUE DANS BUDGETS (Direction, 19/10/2026 : « ça doit être que dans le module Budgets, par
+ * Budget Marketing etc. ») — onglet Dépenses, l'enveloppe choisie, ses catégories dans « Imputer à… ». Un budget de pôle
+ * n'en montre que le compte, avec le lien vers cette enveloppe dans Budgets — ou rien de cliquable si la personne n'y
+ * entre pas. `null` : pas de lien.
+ */
+export async function lienAImputerBudgets(user: CurrentUser, envelopeId: string): Promise<string | null> {
+  if (!userCan(user, "BUDGETS", "VIEW")) return null;
+  const { hiddenModules } = await getAppSettings();
+  if (!canOpenModule("BUDGETS", hiddenModules, { isSuperAdmin: user.role === "SUPER_ADMIN" })) return null;
+  return `/budgets/depenses?env=${envelopeId}`;
+}
+
+/**
+ * La liste « À imputer » d'UNE enveloppe : sans les écritures que le Rapprochement Ad & Pro a rattachées à une demande
+ * (preuve de paiement d'un poste déjà au budget — retirées, et de leur total) ; celles dites « pas Ad & Pro » et, sur une
+ * enveloppe Operations & Sales, ce que la force de vente a demandé portent leur étiquette. Rien n'est imputé ici.
+ */
+async function aImputerDeLEnveloppe(overview: BudgetOverview) {
+  const rapp = await rapprochementDesAImputer(overview.envelope.id, new Date(overview.period.from), new Date(overview.period.to), overview.envelope.companyId);
+  const unattributed: BudgetOverview["unattributed"] = {
+    total: Math.max(0, overview.unattributed.total - rapp.total),
+    count: Math.max(0, overview.unattributed.count - rapp.nombre),
+    transactions: overview.unattributed.transactions.filter((t) => !rapp.rattachees.has(t.id)),
+  };
+  const forceDeVente = poleDe(overview.envelope) === "OPERATIONS"
+    ? await ecrituresDeLaForceDeVente(unattributed.transactions.map((t) => t.id))
+    : new Set<string>();
+  const marques: Record<string, string> = { ...rapp.pasAdPro, ...Object.fromEntries([...forceDeVente].map((id) => [id, "Force de vente"])) };
+  const note = rapp.nombre > 0 ? `${rapp.nombre} écriture${rapp.nombre > 1 ? "s" : ""} rattachée${rapp.nombre > 1 ? "s" : ""} à une demande Ad & Pro par le Rapprochement (preuve de paiement d'un poste déjà au budget) : retirée${rapp.nombre > 1 ? "s" : ""} de cette liste.` : null;
+  return { unattributed, marques, note };
+}
+
 export async function VueDepensesBudget({ user, searchParams, config }: { user: CurrentUser; searchParams: ParamsBudget; config: Config }) {
   const opts = { portee: config.portee };
   const [envelopes, societes] = await Promise.all([getEnvelopes(user, opts), getMyCompanies(user.id)]);
@@ -350,28 +380,22 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
   // Dans Budgets, une enveloppe de pôle se lit : ses lignes budgétaires se tiennent dans le budget de son pôle.
   const poleTenant = config.portee === "TOUT" && overview !== null ? poleDe(overview.envelope) : null;
   const tenueAilleurs = poleTenant !== null;
-  // Budget Operations & Sales : ce que la force de vente a demandé se signale parmi les dépenses à imputer.
-  const marques = config.portee === "OPERATIONS" && overview
-    ? Object.fromEntries([...(await ecrituresDeLaForceDeVente(overview.unattributed.transactions.map((t) => t.id)))].map((id) => [id, "Force de vente"]))
+  const aImputer = overview ? await aImputerDeLEnveloppe(overview) : null;
+  // Hors de Budgets, « À imputer » n'est qu'un compte et un lien (`lienAImputerBudgets`).
+  const renvoiAImputer = config.portee !== "TOUT" && overview && aImputer
+    ? { href: await lienAImputerBudgets(user, overview.envelope.id), total: aImputer.unattributed.total, count: aImputer.unattributed.count }
     : undefined;
 
   // BUDGET MARKETING (maquette validée, 10/2026) : les postes Ad & Pro à BC signé — à imputer, engagés, consommés, payés,
-  // annulés — puis, dans une seconde section, les autres dépenses de l'enveloppe (à imputer, lignes budgétaires…).
-  if (config.portee === "MARKETING" && overview) {
+  // annulés — puis, dans une seconde section, les autres dépenses de l'enveloppe (lignes budgétaires, déjà imputé…).
+  if (config.portee === "MARKETING" && overview && aImputer) {
     const { donnees, ecritures } = await depensesPostesMarketing(user, overview);
     // « Déjà imputé » ne relit pas le tableau des postes (Direction, 14/10/2026) : ni les postes Historique 2026, ni les
     // écritures réglées par l'ordre d'un poste — seulement les dépenses HORS postes (`budget-marketing/depenses-autres.ts`).
-    // Et « À imputer » ne garde pas les écritures que le Rapprochement a rattachées à une demande (preuve de paiement d'un
-    // poste déjà au budget) ; celles dites « pas Ad & Pro » portent leur étiquette. Rien n'est imputé ici.
-    const rapp = await rapprochementDesAImputer(overview.envelope.id, new Date(overview.period.from), new Date(overview.period.to), overview.envelope.companyId);
     const horsPostes = horsPostesAdPro(overview.attributed.transactions, ecritures);
     const autres: BudgetOverview = {
       ...overview,
-      unattributed: {
-        total: Math.max(0, overview.unattributed.total - rapp.total),
-        count: Math.max(0, overview.unattributed.count - rapp.nombre),
-        transactions: overview.unattributed.transactions.filter((t) => !rapp.rattachees.has(t.id)),
-      },
+      unattributed: aImputer.unattributed,
       attributed: { count: horsPostes.length, transactions: horsPostes },
     };
     return (
@@ -386,7 +410,7 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
         <section className="space-y-3" aria-label="Les autres dépenses de l'enveloppe">
           <div>
             <h2 className="text-base font-semibold">Autres dépenses de l&apos;enveloppe</h2>
-            <p className="text-sm text-muted-foreground">Dépenses de trésorerie à imputer, lignes budgétaires et dépenses déjà imputées hors postes Ad &amp; Pro — les postes, historiques compris, sont dans le tableau ci-dessus.</p>
+            <p className="text-sm text-muted-foreground">Lignes budgétaires et dépenses déjà imputées hors postes Ad &amp; Pro — les postes, historiques compris, sont dans le tableau ci-dessus.</p>
           </div>
           <BudgetExpenses
             overview={autres}
@@ -395,8 +419,7 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
             canDelete={user.role === "SUPER_ADMIN"}
             societes={societes.map((s) => ({ id: s.id, nom: s.shortName || s.name }))}
             titreImpute={TITRE_DEJA_IMPUTE_HORS_POSTES}
-            marques={rapp.pasAdPro}
-            noteAImputer={rapp.nombre > 0 ? `${rapp.nombre} écriture${rapp.nombre > 1 ? "s" : ""} rattachée${rapp.nombre > 1 ? "s" : ""} à une demande Ad & Pro par le Rapprochement (preuve de paiement d'un poste déjà au budget) : retirée${rapp.nombre > 1 ? "s" : ""} de cette liste.` : null}
+            renvoiAImputer={renvoiAImputer}
           />
         </section>
       </div>
@@ -416,12 +439,14 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
             {poleTenant && <span className="text-xs text-muted-foreground"><GerePar user={user} domaine={poleTenant} /></span>}
           </div>
           <BudgetExpenses
-            overview={overview}
+            overview={aImputer ? { ...overview, unattributed: aImputer.unattributed } : overview}
             canAttribute={canAttribute}
             canEditLines={canAttribute && !tenueAilleurs}
             canDelete={user.role === "SUPER_ADMIN"}
             societes={societes.map((s) => ({ id: s.id, nom: s.shortName || s.name }))}
-            marques={marques}
+            marques={aImputer?.marques}
+            noteAImputer={aImputer?.note}
+            renvoiAImputer={renvoiAImputer}
           />
         </>
       )}

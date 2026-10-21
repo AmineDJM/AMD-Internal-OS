@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Pencil, Trash2, Inbox, CheckCheck, Paperclip, ExternalLink, Building2 } from "lucide-react";
+import { Pencil, Trash2, Inbox, CheckCheck, Paperclip, ExternalLink, Building2, ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/input";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -19,8 +19,13 @@ import { BarreSuppressionAImputer } from "./suppression-a-imputer";
  * imputées viennent donc EN PREMIER — elles faussent tous les chiffres tant qu'elles
  * traînent — et le reste (l'historique de ce qui est déjà imputé) vient après.
  */
-export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [], canEditLines = canAttribute, marques, titreImpute = "Déjà imputé", noteAImputer }: {
+export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [], canEditLines = canAttribute, marques, titreImpute = "Déjà imputé", noteAImputer, renvoiAImputer }: {
   overview: BudgetOverview;
+  /**
+   * Hors de Budgets (budgets de pôle) : la liste « À imputer » ne s'affiche pas — elle ne se travaille que dans Budgets,
+   * enveloppe par enveloppe (Direction, 19/10/2026). Il n'en reste que le compte, et le lien s'il y en a un.
+   */
+  renvoiAImputer?: { href: string | null; total: number; count: number };
   /** Le titre de la section des dépenses déjà imputées (Budget Marketing : « Déjà imputé hors postes Ad & Pro »). */
   titreImpute?: string;
   /** Une phrase sous « À imputer » (Budget Marketing : les écritures rattachées par le Rapprochement, retirées de la liste). */
@@ -65,7 +70,23 @@ export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [
 
   return (
     <div className="space-y-5">
-      {/* 1. À RANGER — la seule tâche de cet écran. */}
+      {/* 1. À RANGER — dans Budgets seulement ; ailleurs, le compte et le lien. */}
+      {renvoiAImputer ? (
+        renvoiAImputer.count > 0 && (
+          <p className="flex flex-wrap items-center gap-2 text-sm">
+            <Inbox className="h-4 w-4 text-warning" />
+            <span>
+              <strong className="tabular-nums">{renvoiAImputer.count}</strong> dépense{renvoiAImputer.count > 1 ? "s" : ""} à imputer
+              (<span className="tabular-nums">{formatCurrency(renvoiAImputer.total)}</span>)
+            </span>
+            {renvoiAImputer.href && (
+              <Link href={renvoiAImputer.href} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+                Dans Budgets <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            )}
+          </p>
+        )
+      ) : (
       <section className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <Inbox className="h-4 w-4 text-warning" />
@@ -175,6 +196,7 @@ export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [
           </ul>
         )}
       </section>
+      )}
 
       {/* 2. Saisir une dépense purement budgétaire (sans impact trésorerie). */}
       {canEditLines && cats.length > 0 && (
