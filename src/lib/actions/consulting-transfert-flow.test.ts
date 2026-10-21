@@ -197,15 +197,16 @@ suite("Transfert d'un contrat de consulting — Ad & Pro ⇄ RH, le flux réel",
     expect(canReadEntity(od, getEntity("consulting_contract")!)).toBe(true);
 
     // LE MODULE D'UN LOT — la même réponse que la garde, pour l'imputation d'un écran de paiements.
+    // Côté RH, c'est le sous-module « Employés » (équipe, consultants, départements) depuis que « RH » s'est scindé (7dece361).
     const lot = await modulesDesEntites([
       { entityType: "CONSULTING_CONTRACT", entityId: reste.id },
       { entityType: "CONSULTING_CONTRACT", entityId: part.id },
       { entityType: "SPONSORING", entityId: "inconnu" },
     ]);
     expect(lot.get(`CONSULTING_CONTRACT:${reste.id}`)).toBe("CONSULTING");
-    expect(lot.get(`CONSULTING_CONTRACT:${part.id}`)).toBe("RH");
+    expect(lot.get(`CONSULTING_CONTRACT:${part.id}`)).toBe("EMPLOYEES");
     expect(lot.get("SPONSORING:inconnu")).toBe("SPONSORING");
-    expect(await moduleDeLEntite("CONSULTING_CONTRACT", part.id)).toBe("RH");
+    expect(await moduleDeLEntite("CONSULTING_CONTRACT", part.id)).toBe("EMPLOYEES");
   });
 
   it("le PORTEUR qui n'a pas les RH perd ses droits de porteur sur le contrat transféré — et les garde sur l'autre", async () => {

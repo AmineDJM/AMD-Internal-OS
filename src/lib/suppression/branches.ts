@@ -98,6 +98,12 @@ export const REFERENTS: readonly Referent[] = [
     raison: "un e-mail classé sur la demande — le lien part avec elle, l'e-mail reste dans la boîte." },
   { modele: "AdProMedecin", champType: "entityType", champId: "entityId", conduite: "EMPORTEE",
     raison: "un médecin concerné PAR la demande (bénéficiaire, orateur, invité) — le lien part avec elle, le praticien reste à l'annuaire ; resté seul, il gonflerait le cockpit marketing et la fiche du praticien d'une dépense disparue." },
+  { modele: "AdProIntegrationDemande", champType: "demandeType", champId: "demandeId", conduite: "EMPORTEE",
+    raison: "la ligne d'un lot d'intégration Ad & Pro 2026 qui a créé ou complété la demande — restée seule, elle couvrirait encore l'écriture de trésorerie qui l'a payée (comptée nulle part) et proposerait de « rendre » une demande disparue à l'annulation du lot ; elle part avec la demande et revient avec elle. Le lot et son audit restent." },
+  { modele: "AdProRapprochement", champType: "demandeType", champId: "demandeId", conduite: "EMPORTEE",
+    raison: "une dépense ou une pièce rapprochée de la demande (décision humaine) — restée seule, la dépense acceptée cesserait de compter au budget comme preuve d'une demande disparue ; elle part avec la demande et revient avec elle, la décision reste à l'audit." },
+  { modele: "DemandeReservation", champType: "operationType", champId: "operationId", conduite: "EMPORTEE",
+    raison: "la demande de réservation d'une fiche (billet, hôtel) de l'opération — la clé étrangère de sa fiche l'emporte déjà ; le couple dénormalisé dit la même chose, et une demande restaurée la retrouve avec ses fiches." },
 
   // ── COEUR : instantanés par le cœur de la suppression, ligne par ligne ───────────────────
   { modele: "Document", champType: "entityType", champId: "entityId", conduite: "COEUR",
@@ -280,6 +286,9 @@ export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
   AdProVoyageur: ["voyageur", "voyageurs"],
   // Les fiches hôtellerie d'un poste d'hôtellerie (Direction, 06/10) : même sort que les voyageurs.
   AdProHebergement: ["fiche hôtellerie", "fiches hôtellerie"],
+  DemandeReservation: ["demande de réservation", "demandes de réservation"],
+  AdProIntegrationDemande: ["ligne d'intégration Ad & Pro", "lignes d'intégration Ad & Pro"],
+  AdProRapprochement: ["rapprochement Ad & Pro", "rapprochements Ad & Pro"],
   AdProItemPiece: ["pièce de poste", "pièces de poste"],
   AdProVoyageurDevis: ["devis de voyageur", "devis de voyageurs"],
   // Le devis d'un poste lu par Luna (§118.206) : la fiche structurée et ses lignes partent avec la pièce.

@@ -22,6 +22,15 @@ import { actionsForUser } from "@/lib/assistant/action-registry";
  *     exécution best-effort avec reçu par cible.
  */
 
+/**
+ * « RH » EN SOUS-MODULES (7dece361, Direction 06/10) : Employés, Demandes RH et Formations sont des modules à part, et chaque
+ * rôle qui tenait « RH » y a reçu EXACTEMENT ses gestes de « RH » (défauts de `rbac.ts`, accès personnalisés recopiés par la
+ * migration `20270114180000_sous_modules_rh`). Une fixture qui écrit ses droits à la main reçoit la même recopie.
+ */
+function avecSousModulesRh(actions: Action[]): Partial<Record<Module, Action[]>> {
+  return { RH: actions, EMPLOYEES: actions, HR_REQUESTS: actions, TRAINING: actions };
+}
+
 function userWith(perms: Partial<Record<Module, Action[]>>, role: CurrentUser["role"], id: string, name: string): CurrentUser {
   const modules = new Map(
     Object.entries(perms).map(([m, actions]) => [
@@ -397,7 +406,7 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
   });
 
   describe("ops Regulatory — le dossier complet", () => {
-    const regSA = () => userWith({ REGULATORY: ["VIEW", "CREATE", "UPDATE"] }, "SUPER_ADMIN", ownerId, `${TAG} Karim`);
+    const regSA = () => userWith({ REGULATORY: ["VIEW", "CREATE", "UPDATE"], REGULATORY_PIPELINE: ["VIEW", "CREATE", "UPDATE"] }, "SUPER_ADMIN", ownerId, `${TAG} Karim`);
 
     it("create_product : l'ENTITÉ est obligatoire et se résout par nom", async () => {
       const missing = await buildProposal("regulatory_operation", { op: "create_product", dci: `${TAG} AMOXICILLINE` }, regSA());
@@ -477,7 +486,7 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
   });
 
   describe("ops RH — décisions de circuits, fiche employé", () => {
-    const rh = () => userWith({ RH: ["VIEW", "CREATE", "UPDATE", "VALIDATE"] }, "DIRECTION", ownerId, `${TAG} Karim`);
+    const rh = () => userWith(avecSousModulesRh(["VIEW", "CREATE", "UPDATE", "VALIDATE"]), "DIRECTION", ownerId, `${TAG} Karim`);
 
     it("decide_leave : le congé EN ATTENTE de l'employé se propose, le circuit est annoncé", async () => {
       const p = await buildProposal("hr_operation", { op: "decide_leave", decision: "approuve", employee: `${TAG} Samir` }, rh());
@@ -518,7 +527,7 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
     });
 
     it("porte : décider une avance exige RH VALIDATE", async () => {
-      const noValidate = userWith({ RH: ["VIEW"] }, "MEDICAL_DELEGATE", outsiderId, `${TAG} Walid`);
+      const noValidate = userWith(avecSousModulesRh(["VIEW"]), "MEDICAL_DELEGATE", outsiderId, `${TAG} Walid`);
       const p = await buildProposal("hr_operation", { op: "decide_advance", decision: "accorde", employee: `${TAG} Samir` }, noValidate);
       expect("error" in p).toBe(true);
       if ("error" in p) expect(p.error).toMatch(/pas le droit/);
@@ -557,7 +566,7 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
   });
 
   describe("ops Courriers / Legal / Structurel", () => {
-    const clerk = () => userWith({ MAIL_REGISTER: ["VIEW", "CREATE", "UPDATE"], LEGAL: ["VIEW", "CREATE", "UPDATE"], GENERAL_MEANS: ["VIEW", "CREATE"], RH: ["VIEW", "UPDATE"] }, "DIRECTION_ASSISTANT", ownerId, `${TAG} Karim`);
+    const clerk = () => userWith({ MAIL_REGISTER: ["VIEW", "CREATE", "UPDATE"], LEGAL: ["VIEW", "CREATE", "UPDATE"], GENERAL_MEANS: ["VIEW", "CREATE"], ...avecSousModulesRh(["VIEW", "UPDATE"]) }, "DIRECTION_ASSISTANT", ownerId, `${TAG} Karim`);
 
     it("mail edit_entry : FUSION — corriger l'objet ne coûte jamais l'expéditeur", async () => {
       const p = await buildProposal("mail_operation", {

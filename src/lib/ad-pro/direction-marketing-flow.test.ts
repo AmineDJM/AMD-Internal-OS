@@ -80,7 +80,14 @@ suite("la Direction Marketing : la force de vente en lecture, ce qui l'attend, e
     }
     // La seconde directrice voit les contrats RH (un accès posé par la console) : c'est ce qui
     // isole la règle du PÔLE — sans lui, la porte de la fiche la refuserait déjà (§118.111).
-    await prisma.userAccess.create({ data: { userId: u.dm2, module: "RH", canView: true, scope: "ALL" } });
+    // Depuis 7dece361 (Direction, 06/10 : RH en sous-modules), un contrat du pôle RH est gardé par
+    // « Employés » (`MODULE_DU_POLE.RH === "EMPLOYEES"`), et un accès « RH » de la console est recopié
+    // sur EMPLOYEES / HR_REQUESTS / TRAINING par la migration 20270114180000_sous_modules_rh. La
+    // fixture pose donc ce que la console + la migration posent réellement : « RH » seul ne lui
+    // ouvrirait plus la fiche, et la prémisse ne mesurerait plus la règle du pôle.
+    for (const module of ["RH", "EMPLOYEES", "HR_REQUESTS", "TRAINING"]) {
+      await prisma.userAccess.create({ data: { userId: u.dm2, module, canView: true, scope: "ALL" } });
+    }
     // …et la console lui a BLOQUÉ le sponsoring : c'est ce qui éprouve « une demande qu'elle OUVRE ».
     await prisma.userAccess.create({ data: { userId: u.dm2, module: "SPONSORING", canView: false, scope: "ASSIGNED" } });
 

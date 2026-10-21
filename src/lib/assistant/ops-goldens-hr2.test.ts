@@ -17,6 +17,15 @@ import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
  * Plus : congés/avances, demandes RH du dossier, intérim, matrice d'accès (FUSION, SA seul).
  */
 
+/**
+ * « RH » EN SOUS-MODULES (7dece361, Direction 06/10) : Employés, Demandes RH et Formations sont des modules à part, et chaque
+ * rôle qui tenait « RH » y a reçu EXACTEMENT ses gestes de « RH » (défauts de `rbac.ts`, accès personnalisés recopiés par la
+ * migration `20270114180000_sous_modules_rh`). Une fixture qui écrit ses droits à la main reçoit la même recopie.
+ */
+function avecSousModulesRh(actions: Action[]): Partial<Record<Module, Action[]>> {
+  return { RH: actions, EMPLOYEES: actions, HR_REQUESTS: actions, TRAINING: actions };
+}
+
 function userWith(perms: Partial<Record<Module, Action[]>>, role: CurrentUser["role"], id: string, name: string): CurrentUser {
   const modules = new Map(
     Object.entries(perms).map(([m, actions]) => [
@@ -46,7 +55,7 @@ let emp2Id = "";
 let interviewId = "";
 let docId = "";
 
-const rh = () => userWith({ RH: ["VIEW", "CREATE", "UPDATE"] }, "FINANCE_BUDGET_MANAGER", rhId, `${TAG} Lamia`);
+const rh = () => userWith(avecSousModulesRh(["VIEW", "CREATE", "UPDATE"]), "FINANCE_BUDGET_MANAGER", rhId, `${TAG} Lamia`);
 const sa = () => userWith({}, "SUPER_ADMIN", rhId, `${TAG} Lamia`);
 const outsider = () => userWith({ WORKSPACE: ["VIEW"] }, "MEDICAL_DELEGATE", accountId, `${TAG} Farid`);
 

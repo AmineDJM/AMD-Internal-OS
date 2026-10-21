@@ -146,7 +146,11 @@ describe("la fabrique — le titre, le plancher de numérotation, la couleur de 
   it("une révision repeint l'accent d'après la charte d'AUJOURD'HUI — jamais celui, périmé, de la pièce", () => {
     const revision = fabrique.slice(fabrique.indexOf("export async function reviserDocumentDrive"));
     // La révision et son aperçu composent par la MÊME fonction (`specRevisee`) : c'est elle qui repeint.
-    expect(revision.slice(0, revision.indexOf("const regles = verifierSpecCommerciale"))).toContain("const spec = specRevisee(f, m, p.profil)");
+    // Depuis le numéro modifiable (88fc0715, 5d6adbf6), elle compose d'abord SANS numéro, puis pose le numéro jugé. Seule
+    // exception, décidée par la Direction (14/10) : « seul le numéro change » régénère la pièce TELLE QU'ENREGISTRÉE.
+    const avantRegles = revision.slice(0, revision.indexOf("const regles = verifierSpecCommerciale"));
+    expect(avantRegles).toContain("const specSansNumero = specRevisee(f, m, p.profil)");
+    expect(avantRegles).toContain("const spec: SpecDocumentCommercial = numeroSeul ? { ...f.spec, numero } : { ...specSansNumero, numero }");
     const compose = fabrique.slice(fabrique.indexOf("function specRevisee("), fabrique.indexOf("type ProfilCharge"));
     expect(compose).toContain("couleur: p.societe.couleur");
   });

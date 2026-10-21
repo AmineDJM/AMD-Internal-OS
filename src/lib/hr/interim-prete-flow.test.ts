@@ -112,7 +112,10 @@ suite("l'intérim ne prête jamais plus que ce que l'absent détient", () => {
         },
         {
           employeeId: e.g, startDate: jour(-1), endDate: jour(5), days: 5, status: "APPROVED", stage: "DONE",
-          standInId: u.t, standInStatus: "APPROVED", standInModules: ["RH", "FINANCES"],
+          // « RH » s'est scindé (7dece361) : valider un intérim se lit sur « Demandes RH », désactiver une fiche sur
+          // « Employés ». L'absente prête les trois — sans quoi les gestes refuseraient pour défaut de module, et le banc
+          // n'éprouverait plus la garde du PRÊT qu'il est là pour tenir.
+          standInId: u.t, standInStatus: "APPROVED", standInModules: ["RH", "EMPLOYEES", "HR_REQUESTS", "FINANCES"],
         },
       ],
     });
@@ -189,7 +192,7 @@ suite("l'intérim ne prête jamais plus que ce que l'absent détient", () => {
     expect(PERMISSIONS.GENERAL_MANAGER.FINANCES, "PRÉMISSE : l'absent prête les finances").toContain("VIEW");
     const t = await actorFor(u.t);
     expect(t.access.modules.has("FINANCES"), "le blocage de l'administrateur prime sur l'intérim").toBe(false);
-    expect(t.access.interims?.map((i) => i.modules)).toEqual([["RH"]]);
+    expect(t.access.interims?.map((i) => i.modules)).toEqual([["RH", "EMPLOYEES", "HR_REQUESTS"]]);
     expect(estPrete(t, "FINANCES", "VIEW"), "rien n'est prêté de ce qui ne s'ouvre pas").toBe(false);
   });
 
