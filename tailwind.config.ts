@@ -60,6 +60,11 @@ const config: Config = {
           DEFAULT: "hsl(var(--warning))",
           foreground: "hsl(var(--warning-foreground))",
         },
+        // Ce que Luna propose (voir `--luna` dans globals.css) — nulle part ailleurs.
+        luna: {
+          DEFAULT: "hsl(var(--luna))",
+          soft: "hsl(var(--luna-soft))",
+        },
         card: {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",

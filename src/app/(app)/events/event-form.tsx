@@ -9,6 +9,9 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS } from "@/lib/labels";
 import { createEvent, updateEvent, deleteEvent } from "@/lib/actions/event-actions";
+import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
+import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/components/ad-pro/description-luna";
+import { versFormulairePoste, type PostePropose } from "@/lib/ad-pro/postes-luna";
 import type { EventDetail } from "@/lib/queries/events";
 import { MultiSelectField } from "@/components/shared/create-record-button";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
@@ -78,8 +81,13 @@ function Section({ children }: { children: React.ReactNode }) {
   );
 }
 
-function EventFields({ e, responsibles, referentiels = {} }: {
+function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: {
   e?: EventDetail;
+  /**
+   * À LA CRÉATION, la description passe EN TÊTE (maquette « luna-postes ») : on y colle le mail
+   * d'organisation, et Luna en tire le reste du formulaire. À la modification, elle reste en bas.
+   */
+  descriptionEnTete?: React.ReactNode;
   responsibles: { id: string; name: string }[];
   /**
    * NE JAMAIS NOMMER CETTE PROP `ref` : React l'INTERCEPTE sur un composant de fonction, elle
@@ -99,6 +107,7 @@ function EventFields({ e, responsibles, referentiels = {} }: {
   const deduite = referentiels.businessUnitDeduite ?? null;
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4">
+      {descriptionEnTete && <><Section>La demande</Section>{descriptionEnTete}</>}
       <Section>L&apos;événement</Section>
       <W full label="Nom de l'événement"><Input name="name" defaultValue={e?.name} required placeholder="Ex. Symposium Cardiologie 2027" /></W>
       {/* LA GAMME QUI PORTE LA DEMANDE — c'est SON budget Ad&Pro qui est engagé. Quand elle se lit
@@ -212,7 +221,7 @@ function EventFields({ e, responsibles, referentiels = {} }: {
           {responsibles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
         </Select>
       </W>
-      <W full label="Description"><Textarea name="description" defaultValue={e?.description ?? ""} rows={3} required /></W>
+      {!descriptionEnTete && <W full label="Description"><Textarea name="description" defaultValue={e?.description ?? ""} rows={3} required /></W>}
     </div>
   );
 }
@@ -230,13 +239,58 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
   cancelLabel?: string;
 }) {
   const router = useRouter();
+  const formRef = React.useRef<HTMLFormElement>(null);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
+  // LES POSTES REPRIS DE LUNA — créés APRÈS la demande, un par un, par l'action ordinaire d'ajout de
+  // poste (`addAdProItem`) : mêmes gardes, mêmes fiches que l'écran des postes.
+  const [postesLuna, setPostesLuna] = React.useState<PostePropose[]>([]);
+  // Demande créée mais un poste refusé : on ne renvoie pas le formulaire (il créerait une seconde demande).
+  const [cree, setCree] = React.useState<{ id: string; echecs: string[] } | null>(null);
+
+  async function creer(fd: FormData) {
+    setSaving(true); setErr(null);
+    const r: Result = await createEvent(fd);
+    if (!r.ok || !r.id) { setSaving(false); setErr(r.error ?? "Erreur."); return; }
+    const echecs: string[] = [];
+    for (const p of postesLuna) {
+      const f = new FormData();
+      for (const [k, v] of versFormulairePoste(p, "EVENT", r.id)) f.append(k, v);
+      const x = await addAdProItem(undefined, f).catch(() => ({ ok: false as const, error: "réessayez depuis la demande." }));
+      if (!x.ok) echecs.push(`${p.libelle} : ${x.error ?? "refusé."}`);
+    }
+    setSaving(false);
+    if (echecs.length > 0) { setCree({ id: r.id, echecs }); return; }
+    onDone();
+    router.push(`/events/${r.id}`);
+  }
+
+  if (cree) {
+    return (
+      <div className="space-y-4">
+        <p role="status" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
+          Demande créée. {cree.echecs.length} poste{cree.echecs.length > 1 ? "s" : ""} non ajouté{cree.echecs.length > 1 ? "s" : ""} — à ajouter depuis la demande :
+        </p>
+        <ul className="list-disc space-y-1 pl-5 text-sm [overflow-wrap:anywhere]">{cree.echecs.map((x) => <li key={x}>{x}</li>)}</ul>
+        <div className="flex justify-end"><Button type="button" onClick={() => { onDone(); router.push(`/events/${cree.id}`); }}>Ouvrir la demande</Button></div>
+      </div>
+    );
+  }
+
   return (
-    <form action={async (fd) => { setSaving(true); setErr(null); const r: Result = await createEvent(fd); setSaving(false); if (r.ok && r.id) { onDone(); router.push(`/events/${r.id}`); } else setErr(r.error ?? "Erreur."); }} className="space-y-4">
-      <EventFields responsibles={responsibles} referentiels={referentiels} />
+    <form ref={formRef} action={creer} className="space-y-4">
+      <EventFields
+        responsibles={responsibles}
+        referentiels={referentiels}
+        descriptionEnTete={
+          <DescriptionLuna
+            onReprendre={(p) => { setPostesLuna(p.postes); return formRef.current ? remplirChampsVidesEvenement(formRef.current, p.evenement) : 0; }}
+            onAnnuler={() => { setPostesLuna([]); if (formRef.current) viderChampsLuna(formRef.current); }}
+          />
+        }
+      />
       {err && <p className="break-words text-sm text-destructive">{err}</p>}
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">{cancelLabel}</Button><Button type="submit" disabled={saving} className="w-full sm:w-auto">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Créer</Button></div>
+      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">{cancelLabel}</Button><Button type="submit" disabled={saving} className="w-full sm:w-auto">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Créer{postesLuna.length > 0 ? ` avec ${postesLuna.length} poste${postesLuna.length > 1 ? "s" : ""}` : ""}</Button></div>
     </form>
   );
 }

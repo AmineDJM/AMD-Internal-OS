@@ -14,6 +14,7 @@ export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<strin
   "ad-pro-medecins-actions": () => import("./ad-pro-medecins-actions") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-other-actions": () => import("./ad-pro-other-actions") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-pieces-actions": () => import("./ad-pro-pieces-actions") as unknown as Promise<Record<string, unknown>>,
+  "ad-pro-postes-luna-actions": () => import("./ad-pro-postes-luna-actions") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-rattacher-legal": () => import("./ad-pro-rattacher-legal") as unknown as Promise<Record<string, unknown>>,
   "ad-pro-transfer-actions": () => import("./ad-pro-transfer-actions") as unknown as Promise<Record<string, unknown>>,
   "adam-settings-actions": () => import("./adam-settings-actions") as unknown as Promise<Record<string, unknown>>,
