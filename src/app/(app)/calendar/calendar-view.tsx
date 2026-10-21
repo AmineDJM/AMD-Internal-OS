@@ -2,11 +2,12 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Pencil, MapPin, Video, Users, Clock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, Pencil, MapPin, Video, Users, Clock, ExternalLink } from "lucide-react";
 import type { CalendarEventDTO } from "@/lib/calendar";
 import type { GridDay } from "@/lib/calendar-tz";
 import { createCalendarEvent, updateCalendarEvent, deleteCalendarEvent, respondToInvite } from "@/lib/actions/calendar-actions";
-import { utcToAlgiersInput, formatAlgiersDisplay } from "@/lib/calendar-tz";
+import { utcToAlgiersInput, formatPlageAlgiers, joursCouverts } from "@/lib/calendar-tz";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
@@ -44,7 +45,10 @@ export function CalendarView({
 
   const byDay = React.useMemo(() => {
     const m = new Map<string, CalendarEventDTO[]>();
-    for (const e of events) (m.get(e.ymd) ?? m.set(e.ymd, []).get(e.ymd)!).push(e);
+    // Un congrès de trois jours occupe ses trois cases.
+    for (const e of events) {
+      for (const ymd of joursCouverts(e.ymd, e.endYmd)) (m.get(ymd) ?? m.set(ymd, []).get(ymd)!).push(e);
+    }
     return m;
   }, [events]);
   const joursDuMois = grid.filter((g) => g.inMonth && (byDay.get(g.ymd)?.length ?? 0) > 0);
@@ -104,7 +108,7 @@ export function CalendarView({
                       className="flex w-full items-stretch gap-3 px-3 py-2.5 text-left active:bg-secondary/40"
                     >
                       <span className="w-1 shrink-0 rounded-full" style={{ backgroundColor: colorOf(e) }} />
-                      <span className="w-12 shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">{e.timeLabel || "—"}</span>
+                      <span className="w-12 shrink-0 pt-0.5 text-xs tabular-nums text-muted-foreground">{g.ymd === e.ymd ? e.timeLabel || "—" : "suite"}</span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{e.title}</span>
                         {e.location && <span className="block truncate text-xs text-muted-foreground">📍 {e.location}</span>}
@@ -143,7 +147,7 @@ export function CalendarView({
                       >
                         <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: colorOf(e) }} />
                         {/* Au téléphone l'heure s'efface au profit du titre ; elle reste dans la liste et la fiche. */}
-                        <span className="truncate font-medium">{e.timeLabel && <span className="hidden sm:inline">{e.timeLabel} </span>}{e.title}</span>
+                        <span className="truncate font-medium">{e.timeLabel && g.ymd === e.ymd && <span className="hidden sm:inline">{e.timeLabel} </span>}{e.title}</span>
                       </button>
                     ))}
                     {dayEvents.length > 3 && <p className="truncate px-1 text-[0.6875rem] text-muted-foreground">+{dayEvents.length - 3}<span className="hidden sm:inline"> autre·s</span></p>}
@@ -167,7 +171,7 @@ export function CalendarView({
                 <span className="mt-1 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: colorOf(e) }} />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{e.title}</p>
-                  <p className="text-xs text-muted-foreground">{formatAlgiersDisplay(e.startAt, e.allDay)}</p>
+                  <p className="text-xs text-muted-foreground">{formatPlageAlgiers(e.startAt, e.endAt, e.allDay)}</p>
                   {e.location && <p className="truncate text-xs text-muted-foreground">📍 {e.location}</p>}
                 </div>
               </button>
@@ -244,11 +248,28 @@ function EventDetail({ event: e, currentUserId, onEdit, onDone }: { event: Calen
     await deleteCalendarEvent(fd); setBusy(false); router.refresh(); onDone();
   }
 
+  // UNE DEMANDE AD & PRO : lue sur sa fiche, elle s'y modifie — ici, ni réponse ni suppression.
+  if (e.source) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${colorOf(e)}1a`, color: colorOf(e) }}>{e.source.label}</span>
+          <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><Clock className="h-4 w-4" /> {formatPlageAlgiers(e.startAt, e.endAt, e.allDay)}</span>
+        </div>
+        {e.location && <p className="flex items-start gap-1.5 text-sm [overflow-wrap:anywhere]"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /> {e.location}</p>}
+        {e.organizerName !== "—" && <p className="text-xs text-muted-foreground">Demandé par {e.organizerName}{e.organizerId === currentUserId ? " (vous)" : ""}.</p>}
+        <div className="flex justify-end border-t border-border pt-3">
+          <Link href={e.source.href} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm font-medium hover:bg-secondary"><ExternalLink className="h-4 w-4" /> Ouvrir la demande</Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <StatusBadge map={CALENDAR_EVENT_KIND} value={e.kind} dot={false} />
-        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><Clock className="h-4 w-4" /> {formatAlgiersDisplay(e.startAt, e.allDay)}{e.endAt ? ` → ${formatAlgiersDisplay(e.endAt, e.allDay)}` : ""}</span>
+        <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><Clock className="h-4 w-4" /> {formatPlageAlgiers(e.startAt, e.endAt, e.allDay)}</span>
       </div>
       {e.location && <p className="flex items-start gap-1.5 text-sm [overflow-wrap:anywhere]"><MapPin className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" /> {e.location}</p>}
       {e.meetLink && <a href={e.meetLink} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 py-1 text-sm font-medium text-primary hover:underline"><Video className="h-4 w-4" /> Rejoindre la visio</a>}

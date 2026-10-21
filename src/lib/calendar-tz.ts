@@ -48,7 +48,35 @@ export function formatAlgiersDisplay(iso: string, allDay: boolean): string {
   return formatAlgiers(d, { weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
+/** Début → fin d'un événement : « lun. 20 oct. → mer. 22 oct. » pour des journées entières. */
+export function formatPlageAlgiers(startIso: string, endIso: string | null, allDay: boolean): string {
+  if (!endIso) return formatAlgiersDisplay(startIso, allDay);
+  if (allDay) {
+    const jour = (iso: string) => formatAlgiers(new Date(iso), { weekday: "short", day: "2-digit", month: "short" });
+    return algiersYmd(new Date(startIso)) === algiersYmd(new Date(endIso))
+      ? formatAlgiersDisplay(startIso, true)
+      : `${jour(startIso)} → ${jour(endIso)}`;
+  }
+  return `${formatAlgiersDisplay(startIso, false)} → ${formatAlgiersDisplay(endIso, false)}`;
+}
+
 export const algiersTodayYmd = (): string => algiersYmd(new Date());
+
+/**
+ * Les jours civils de `debut` à `fin` inclus (« YYYY-MM-DD ») — un congrès de trois jours occupe
+ * trois cases de la grille. Plafonné : une date de fin saisie avec une année de trop ne doit pas
+ * fabriquer des centaines de cases.
+ */
+export function joursCouverts(debut: string, fin: string | null | undefined, max = 62): string[] {
+  const a = Date.parse(`${debut}T00:00:00Z`);
+  const b = fin ? Date.parse(`${fin}T00:00:00Z`) : a;
+  if (Number.isNaN(a)) return [];
+  const jours: string[] = [];
+  for (let t = a; t <= (Number.isNaN(b) ? a : b) && jours.length < max; t += 86400000) {
+    jours.push(new Date(t).toISOString().slice(0, 10));
+  }
+  return jours.length ? jours : [debut];
+}
 
 export interface GridDay { ymd: string; day: number; inMonth: boolean; isToday: boolean }
 

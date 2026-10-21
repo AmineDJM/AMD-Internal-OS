@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { hasGlobalView } from "@/lib/rbac";
+import { hasGlobalView, type SessionUser } from "@/lib/rbac";
+import { getAdProEventsAsCalendar } from "@/lib/calendar-ad-pro";
 import { notifyUser } from "@/lib/notify";
 import { algiersYmd, algiersTime, formatAlgiers } from "@/lib/calendar-tz";
 import { lienCalendrier } from "@/lib/chemins/espace";
@@ -11,7 +12,8 @@ export {
   utcToAlgiersInput, formatAlgiers, algiersTodayYmd, monthGrid, MONTH_LABELS, type GridDay,
 } from "@/lib/calendar-tz";
 
-export interface SessionLike { id: string; role: UserRole }
+/** `access` présent = session complète : les sources gardées par un module (Ad & Pro) s'y ajoutent. */
+export interface SessionLike { id: string; role: UserRole; access?: SessionUser["access"] }
 
 // ───────────────────────── DTO + requêtes ─────────────────────────
 
@@ -35,6 +37,13 @@ export interface CalendarEventDTO {
   ymd: string; // jour d'Alger du début (placement dans la grille)
   timeLabel: string; // heure d'Alger « HH:mm » (vide si journée entière)
   invitees: CalendarInviteeDTO[];
+  /** Dernier jour d'Alger couvert, quand l'événement dure plusieurs jours (absent : un seul jour). */
+  endYmd?: string;
+  /**
+   * L'événement n'est pas un rendez-vous de l'agenda : il est LU sur sa source (une demande Ad & Pro)
+   * et se modifie là-bas. `label` = la nature affichée, `href` = la fiche de la demande.
+   */
+  source?: { kind: "AD_PRO"; label: string; href: string };
 }
 
 type EventRow = {
@@ -101,32 +110,37 @@ async function getScheduledMeetingsAsEvents(user: SessionLike, from: Date, to: D
     }));
 }
 
-/** Événements visibles dans une fenêtre [from, to) (la grille affichée du mois). */
+/** Événements visibles dans une fenêtre [from, to) (la grille affichée du mois) — rendez-vous,
+ *  réunions planifiées et événements Ad & Pro (lus sur leur demande, `calendar-ad-pro.ts`). */
 export async function getCalendarEvents(user: SessionLike, from: Date, to: Date): Promise<CalendarEventDTO[]> {
-  const [rows, meetings] = await Promise.all([
+  const [rows, meetings, adPro] = await Promise.all([
     prisma.calendarEvent.findMany({
       where: { AND: [scopeWhere(user), { startAt: { gte: from, lt: to } }] },
       include: includeRel,
       orderBy: { startAt: "asc" },
     }),
     getScheduledMeetingsAsEvents(user, from, to),
+    getAdProEventsAsCalendar(user, from, to),
   ]);
-  return [...rows.map((r) => toDTO(r as EventRow, user.id)), ...meetings].sort((a, b) => a.startAt.localeCompare(b.startAt));
+  return [...rows.map((r) => toDTO(r as EventRow, user.id)), ...meetings, ...adPro].sort((a, b) => a.startAt.localeCompare(b.startAt));
 }
 
-/** Prochains événements de l'utilisateur (agenda à droite) — réunions planifiées incluses. */
+/** Prochains événements de l'utilisateur (agenda à droite) — réunions planifiées et Ad & Pro inclus. */
 export async function getUpcomingEvents(user: SessionLike, limit = 8): Promise<CalendarEventDTO[]> {
   const from = new Date(Date.now() - 3600000);
-  const [rows, meetings] = await Promise.all([
+  const horizon = new Date(Date.now() + 1000 * 60 * 60 * 24 * 90);
+  const [rows, meetings, adPro] = await Promise.all([
     prisma.calendarEvent.findMany({
       where: { AND: [scopeWhere(user), { startAt: { gte: from } }] },
       include: includeRel,
       orderBy: { startAt: "asc" },
       take: limit,
     }),
-    getScheduledMeetingsAsEvents(user, from, new Date(Date.now() + 1000 * 60 * 60 * 24 * 90)),
+    getScheduledMeetingsAsEvents(user, from, horizon),
+    // Un congrès commencé hier et qui finit demain est EN COURS : il reste en tête de liste.
+    getAdProEventsAsCalendar(user, from, horizon),
   ]);
-  return [...rows.map((r) => toDTO(r as EventRow, user.id)), ...meetings]
+  return [...rows.map((r) => toDTO(r as EventRow, user.id)), ...meetings, ...adPro]
     .sort((a, b) => a.startAt.localeCompare(b.startAt))
     .slice(0, limit);
 }

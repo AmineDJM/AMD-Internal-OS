@@ -118,7 +118,8 @@ export async function getToday(user: SessionUser): Promise<TodayView> {
     focus,
     next,
     restCount: Math.max(0, ranked.length - 1 - next.length),
-    agenda: agenda.filter((e) => e.ymd === ymd).sort((a, b) => a.startAt.localeCompare(b.startAt)),
+    // Un événement sur plusieurs jours (congrès Ad & Pro) est à l'agenda de CHACUN de ses jours.
+    agenda: agenda.filter((e) => e.ymd <= ymd && (e.endYmd ?? e.ymd) >= ymd).sort((a, b) => a.startAt.localeCompare(b.startAt)),
     counts: {
       total: ranked.length,
       overdue: center.stats.overdue,
