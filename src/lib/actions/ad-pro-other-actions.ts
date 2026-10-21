@@ -16,7 +16,7 @@ import { readMultiField, lireMedecinsDemande } from "@/lib/ad-pro/pickers";
 import { gammeImposee } from "@/lib/ad-pro/business-unit-auto";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
-
+import { attachFiles, validateAttachments } from "@/lib/attach-files";
 const PATH = "/ad-pro/autres";
 
 /**
@@ -69,6 +69,12 @@ export async function createAdProOtherRequest(_prev: ActionResult | undefined, f
       medecins: lireMedecinsDemande(formData.getAll("doctorIds").map(String), fdStr(formData, "doctorHorsAnnuaire"), fdStr(formData, "doctor")),
       produits: readMultiField(formData.getAll("productIds").map(String), fdStr(formData, "product")),
     };
+    // Les pièces jointes (tout type sauf ce qui s'exécute) se jugent AVANT de créer : refusées après,
+    // la demande existerait déjà et serait recréée au second essai.
+    // Nom LITTÉRAL (= `CHAMP_PIECES_COMPLEMENTAIRES`) : le contrat des actions lit les champs dans la source.
+    const pieces = formData.getAll("annexes").filter((f): f is File => f instanceof File);
+    const piecesRefusees = await validateAttachments(pieces);
+    if (piecesRefusees) return { ok: false, error: `${piecesRefusees} Aucune demande n'a été créée.` };
 
     const req = await createWithRetry(async () =>
       prisma.adProOtherRequest.create({
@@ -114,9 +120,12 @@ export async function createAdProOtherRequest(_prev: ActionResult | undefined, f
         body: `${req.reference} — ${title}`, link: `${PATH}/${req.id}`,
       });
     }
-    await audit(user, req.id, "CREATE", `Demande « autre » créée — ${req.reference}`);
+    const jointes = await attachFiles({
+      files: pieces, entityType: "AD_PRO_OTHER", entityId: req.id, uploadedById: user.id, category: "SUPPORTING_DOC",
+    });
+    await audit(user, req.id, "CREATE", `Demande « autre » créée — ${req.reference}${jointes.saved > 0 ? ` (${jointes.saved} pièce(s) jointe(s))` : ""}`);
     revalidate(req.id);
-    return { ok: true, id: req.id };
+    return { ok: true, id: req.id, ...(jointes.error ? { message: `Demande créée. ${jointes.error}` } : {}) };
   } catch (err) {
     console.error("[ad-pro-other] createAdProOtherRequest failed", err);
     return { ok: false, error: "La demande n'a pas pu être créée. Réessayez dans un instant." };

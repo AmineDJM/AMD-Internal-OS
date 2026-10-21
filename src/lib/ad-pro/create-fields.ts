@@ -251,6 +251,17 @@ function referentielFields(opts: { products: readonly ProductRow[]; doctors: rea
   ];
 }
 
+/** Le nom du champ des pièces jointes LIBRES d'une création Ad & Pro — lu par les actions serveur. */
+export const CHAMP_PIECES_COMPLEMENTAIRES = "annexes";
+
+/**
+ * LES PIÈCES JOINTES LIBRES D'UNE CRÉATION — sans `accept` : tout type (Excel compris), le serveur
+ * refusant seul ce qui s'exécute (`validateAttachments`). Facultatives.
+ */
+export function piecesComplementairesField(hint: string, label = "Autres pièces jointes"): FieldDef {
+  return { type: "file", name: CHAMP_PIECES_COMPLEMENTAIRES, label, multiple: true, full: true, hint };
+}
+
 export function sponsoringCreateFields(opts: {
   products?: readonly ProductRow[];
   doctors?: readonly DoctorRow[];
@@ -276,6 +287,10 @@ export function sponsoringCreateFields(opts: {
       hint: "Courrier ou demande du praticien, SCANNÉ (PDF ou Word). Plusieurs fichiers possibles. "
         + "+ Document original obligatoirement au bureau du secrétariat.",
     },
+    // LES AUTRES PIÈCES — un tableau Excel de participants, un programme, un devis (Direction,
+    // 10/2026). Elles ne remplacent pas la demande du médecin, qui reste un scan : elles
+    // l'accompagnent, en tout type sauf ce qui s'exécute (`politique-televersement`).
+    piecesComplementairesField("Excel, programme, devis… Tout type sauf programmes et scripts."),
     ...referentielFields({ products: opts.products ?? [], doctors: opts.doctors ?? [] }),
     ...specialtyField(opts.specialties ?? [], opts.specialtiesHeritees ?? []),
     // TYPE ET IMPORTANCE : un choix EXPLICITE, plus une valeur par défaut.
@@ -427,5 +442,7 @@ export function adProOtherCreateFields(opts: {
     ...medecinsEtProduitsFields({ products: opts.products ?? [], doctors: opts.doctors ?? [], obligatoire: false }),
     { type: "number", name: "amount", label: "Montant estimé (DZD)" },
     { type: "select", name: "companyId", label: "Entité", options: [...opts.companies], placeholder: "— Entité —" },
+    // Les pièces se joignaient seulement depuis la fiche, après coup (Direction, 10/2026).
+    piecesComplementairesField("Excel, devis, courrier… Tout type sauf programmes et scripts.", "Pièces jointes"),
   ];
 }

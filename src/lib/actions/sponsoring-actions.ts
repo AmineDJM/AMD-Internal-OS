@@ -11,8 +11,7 @@ import { businessUnitDuDemandeur } from "@/lib/ad-pro/business-unit-auto";
 import { normalizeCity } from "@/lib/geo/algeria";
 import { buildRef, createWithRetry } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
-import { attachFiles, validateAttachments } from "@/lib/attach-files";
-import { notifyRoles, notifyUser } from "@/lib/notify";
+import { attachFiles, validateAttachments } from "@/lib/attach-files";import { notifyRoles, notifyUser } from "@/lib/notify";
 import { involveThirdParty } from "@/lib/third-party";
 import { reopenInstance } from "@/lib/workflow/engine";
 import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
@@ -165,7 +164,11 @@ export async function createSponsoring(
   // LES PIÈCES SE JUGENT AVANT LA DEMANDE (audit du 04/10, constat 7). Refusées après, elles
   // laissaient la demande créée : la personne corrigeait son fichier, renvoyait, et le sponsoring
   // existait deux fois.
-  const piecesRefusees = await validateAttachments(pieces);
+  // Les AUTRES pièces (un Excel de participants, un programme…) : tout type sauf ce qui s'exécute,
+  // jugées avec la demande du médecin, avant d'écrire quoi que ce soit.
+  // Nom LITTÉRAL (= `CHAMP_PIECES_COMPLEMENTAIRES`) : le contrat des actions lit les champs dans la source.
+  const annexes = formData.getAll("annexes").filter((f): f is File => f instanceof File);
+  const piecesRefusees = await validateAttachments([...pieces, ...annexes]);
   if (piecesRefusees) return { ok: false, error: `${piecesRefusees} Aucune demande n'a été créée.` };
 
   // LA RÉFÉRENCE SE RECALCULE À CHAQUE ESSAI (§118.175). Elle se dérive du MAXIMUM existant :
@@ -265,15 +268,20 @@ export async function createSponsoring(
   const attached = await attachFiles({
     files: pieces, entityType: "SPONSORING", entityId: created.id, uploadedById: user.id, category: "REQUEST_LETTER",
   });
+  const annexesJointes = await attachFiles({
+    files: annexes, entityType: "SPONSORING", entityId: created.id, uploadedById: user.id, category: "SUPPORTING_DOC",
+  });
+  const nbPieces = attached.saved + annexesJointes.saved;
+  const manque = [attached.error, annexesJointes.error].filter(Boolean).join(" ");
 
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Sponsoring", entityType: "SPONSORING", entityId: created.id, summary: `Demande ${created.reference} — ${institution} — sponsoring ${nature === "DIRECT" ? "direct" : "indirect"}, poste créé avec la demande${attached.saved > 0 ? ` (${attached.saved} pièce(s) jointe(s))` : ""}` });
+  await recordAudit({ actorId: user.id, action: "CREATE", module: "Sponsoring", entityType: "SPONSORING", entityId: created.id, summary: `Demande ${created.reference} — ${institution} — sponsoring ${nature === "DIRECT" ? "direct" : "indirect"}, poste créé avec la demande${nbPieces > 0 ? ` (${nbPieces} pièce(s) jointe(s))` : ""}` });
   await notifyAdProCreation(init, created.id, `${created.reference} — ${institution}`);
 
   revalidatePath(PATH);
   // Le tableau « Toutes les demandes » et « Mon espace » lisent aussi la demande qui vient de naître.
   revalidatePath("/ad-pro");
   revalidatePath("/mon-espace");
-  return { ok: true, id: created.id, ...(attached.error ? { message: `Demande créée. ${attached.error}` } : {}) };
+  return { ok: true, id: created.id, ...(manque ? { message: `Demande créée. ${manque}` } : {}) };
 }
 
 /** Notifie l'acteur de l'étape de DÉPART d'un sponsoring, selon le routage à la création. */
