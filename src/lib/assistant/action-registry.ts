@@ -1811,8 +1811,9 @@ X("liste des objets qu'on peut relier (candidats du panneau « Relié à… ») 
 X("plomberie du planning SFE : get-or-create idempotent du cycle mensuel à l'ouverture de l'écran (précédent ensureDriveFolders) — les ops planning_operation l'assurent elles-mêmes à l'exécution", [
   "sales-planning-actions:ensureCycle",
 ]);
-X("plomberie / lecture du Drive (initialisation de dossiers, liste des partages) — pas un geste métier", [
+X("plomberie / lecture du Drive (initialisation de dossiers, liste des partages, versions et commentaires lus à l'ouverture de leur panneau) — pas un geste métier", [
   "drive-actions:ensureDriveFolders", "drive-actions:getDriveNodeShares",
+  "drive-actions:getDriveNodeVersions", "drive-comment-actions:listDriveComments",
 ]);
 X("IDENTITÉ D'ENTREPRISE : l'annuaire décide À QUELLE ADRESSE part un message signé du PDG. Le tenir "
   + "est un geste d'assistante de direction, posé à l'écran avec son audit — pas une capacité conversationnelle. "

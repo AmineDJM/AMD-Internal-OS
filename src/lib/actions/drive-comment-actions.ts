@@ -2,10 +2,39 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
+import { enLecture } from "@/lib/vue-lecture";
 import { prisma } from "@/lib/prisma";
+import { formatDateTime } from "@/lib/utils";
 import { resolveDriveAccess } from "@/lib/drive";
 import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+
+/**
+ * Le fil de commentaires d'un nœud — lu à l'ouverture du panneau « Commentaires », pas avec la page :
+ * ouvrir un fichier ne doit rien attendre qui ne s'affiche pas. Supprimer : l'auteur ou un éditeur
+ * (règle de `deleteDriveComment`, rappelée ici pour n'afficher que la corbeille utilisable).
+ */
+export async function listDriveComments(
+  nodeId: string,
+): Promise<{ ok: boolean; error?: string; comments?: { id: string; author: string; body: string; createdLabel: string; canDelete: boolean }[] }> {
+  const user = await enLecture(requireUser);
+  const level = await resolveDriveAccess(user, nodeId);
+  if (level === "NONE") return { ok: false, error: "Non autorisé." };
+  const rows = await prisma.driveComment.findMany({
+    where: { nodeId }, orderBy: { createdAt: "asc" },
+    select: { id: true, body: true, createdAt: true, authorId: true, author: { select: { name: true } } },
+  });
+  return {
+    ok: true,
+    comments: rows.map((c) => ({
+      id: c.id,
+      author: c.author?.name ?? "—",
+      body: c.body,
+      createdLabel: formatDateTime(c.createdAt),
+      canDelete: c.authorId === user.id || level === "EDIT" || user.role === "SUPER_ADMIN",
+    })),
+  };
+}
 
 /**
  * Poste un commentaire sur un nœud du Drive (fichier ou dossier). Toute personne

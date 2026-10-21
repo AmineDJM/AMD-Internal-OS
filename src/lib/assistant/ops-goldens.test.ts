@@ -264,7 +264,9 @@ suite("ops de domaine & lots — goldens (fixtures partagées)", () => {
     if ("error" in p) return;
     expect(p.level).toBe("CRITICAL");
     expect(p.confirmText).toBe(`${TAG} Rapport ventes.xlsx`);
-    expect(p.warnings.join(" ")).toMatch(/IRRÉVERSIBLE/);
+    // Plus « irréversible » (10/2026) : l'élément part dans la corbeille du Super Admin — la carte le dit.
+    expect(p.warnings.join(" ")).toMatch(/seul le Super Admin pourra le restaurer/);
+    expect(p.warnings.join(" ")).not.toMatch(/IRRÉVERSIBLE/);
   });
 
   it("create_folder : le dossier parent se résout par nom, l'emplacement est montré", async () => {

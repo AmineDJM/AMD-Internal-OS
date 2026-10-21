@@ -14,7 +14,7 @@ export interface DriveCommentItem {
 }
 
 /** Fil de commentaires d'un document du Drive — chaque document a le sien. */
-export function DriveComments({ nodeId, comments }: { nodeId: string; comments: DriveCommentItem[] }) {
+export function DriveComments({ nodeId, comments, onChanged }: { nodeId: string; comments: DriveCommentItem[]; /** Relire le fil après un ajout / une suppression (panneau embarqué). */ onChanged?: () => void }) {
   const router = useRouter();
   const [sending, setSending] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -36,7 +36,7 @@ export function DriveComments({ nodeId, comments }: { nodeId: string; comments: 
                   <span className="text-[0.6875rem] text-muted-foreground">{c.createdLabel}</span>
                   {c.canDelete && (
                     <form
-                      action={async (fd) => { await deleteDriveComment(fd); router.refresh(); }}
+                      action={async (fd) => { await deleteDriveComment(fd); onChanged?.(); router.refresh(); }}
                       className="inline"
                     >
                       <input type="hidden" name="id" value={c.id} />
@@ -59,7 +59,7 @@ export function DriveComments({ nodeId, comments }: { nodeId: string; comments: 
           setSending(true); setError(null);
           const res = await postDriveComment(fd);
           setSending(false);
-          if (res.ok) { formRef.current?.reset(); router.refresh(); }
+          if (res.ok) { formRef.current?.reset(); onChanged?.(); router.refresh(); }
           else setError(res.error ?? "Envoi impossible.");
         }}
         className="space-y-2 border-t border-border pt-3"

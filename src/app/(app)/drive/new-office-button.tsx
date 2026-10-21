@@ -56,7 +56,7 @@ export function NewOfficeButton({
             setSaving(false);
             if (!r.ok) { setErr(r.error); return; }
             setOpen(false);
-            if (officeEnabled) router.push(`/drive/${r.id}/edit`);
+            if (officeEnabled) router.push(`/drive/${r.id}`);
             else router.refresh();
           }}
           className="space-y-4"

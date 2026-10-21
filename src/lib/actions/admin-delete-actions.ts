@@ -231,6 +231,15 @@ export async function destroyDeletedRecord(formData: FormData): Promise<DeleteRe
         if (l.modele === "FieldReportAttachment" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(() => {});
       }
     }
+    // UN ÉLÉMENT DU DRIVE : ses versions tenaient leurs octets jusqu'ici — la suppression depuis la corbeille du
+    // Drive ne les rendait pas, pour qu'il reste restaurable. La destruction réelle rend chaque référence (un
+    // contenu partagé par une copie ailleurs reste, `releaseBlob` compte ses détenteurs).
+    if (rec.kind === "DRIVE_NODE") {
+      const lot = rec.lot as { lignes?: { modele: string; donnees: { blobId?: string | null } }[] } | null;
+      for (const l of lot?.lignes ?? []) {
+        if (l.modele === "FileVersion" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(() => {});
+      }
+    }
   }
 
   await prisma.deletedRecord.update({ where: { id: recId }, data: { purgedAt: new Date() } });

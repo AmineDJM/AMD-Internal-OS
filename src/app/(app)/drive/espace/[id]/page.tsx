@@ -6,7 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { getDriveListing, getDriveSpacesForUser } from "@/lib/queries/drive";
 import { canCreateInSpace } from "@/lib/drive";
 import { fileTypeLabel, explorerSize } from "@/lib/drive/explorer";
-import { onlyofficeConfigured } from "@/lib/onlyoffice";
+import { onlyofficeConfigured, onlyofficeApiJs, onlyofficeEditable, onlyofficeTypeOuvrable } from "@/lib/onlyoffice";
+import { convertConfigured } from "@/lib/office-convert";
+import { userCan } from "@/lib/rbac";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime } from "@/lib/utils";
@@ -72,6 +74,8 @@ export default async function DriveSpacePage({ params, searchParams }: { params:
     spaces.filter((s) => s.id !== spaceId).map(async (s) => ({ id: s.id, name: s.name, ok: await canCreateInSpace(user, s.id) })),
   )).filter((s) => s.ok).map((s) => ({ id: s.id, name: s.name }));
 
+  const peutConvertir = convertConfigured() && userCan(user, "DRIVE", "CREATE");
+  const officeApiJs = onlyofficeApiJs();
   const rows: DriveRow[] = listing.nodes.map((n) => {
     const isFile = n.type === "FILE";
     return {
@@ -87,6 +91,9 @@ export default async function DriveSpacePage({ params, searchParams }: { params:
       updatedLabel: formatDateTime(n.updatedAt),
       canEdit: n.canEdit,
       href: isFile ? `/drive/${n.id}` : `${base}?folder=${n.id}`,
+      counts: n.counts,
+      convertible: isFile && peutConvertir && onlyofficeEditable(n.name),
+      office: isFile && officeApiJs !== null && onlyofficeTypeOuvrable(n.name) !== null,
     };
   });
 
@@ -137,7 +144,7 @@ export default async function DriveSpacePage({ params, searchParams }: { params:
                 description={trash ? "Aucun élément supprimé." : canEditHere ? "Importez des fichiers, ou faites un clic droit ici pour créer un dossier." : "Aucun fichier n'a encore été déposé ici."}
               />
             ) : (
-              <DriveTable rows={rows} moveTargets={moveTargets} trash={trash} users={canEditHere ? users : undefined} spaceId={spaceId} categories={dropCategories} folderId={folderId} ancestorIds={listing.breadcrumb.map((c) => c.id)} />
+              <DriveTable rows={rows} moveTargets={moveTargets} trash={trash} users={canEditHere ? users : undefined} spaceId={spaceId} categories={dropCategories} folderId={folderId} ancestorIds={listing.breadcrumb.map((c) => c.id)} officeApiJs={officeApiJs} />
             )}
           </DriveCanvas>
         </div>

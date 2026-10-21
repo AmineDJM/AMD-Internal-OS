@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Download, Loader2, Pencil, Save, X } from "lucide-react";
 import { DocxView, XlsxView, PptxView } from "./office-viewers";
-import { EditeurEnLigne } from "./editeur-en-ligne";
+import { EditeurEnLigne, type SessionPrete } from "./editeur-en-ligne";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
 import { natureApercu, visionneuseDeSecours, TAILLE_MAX_TEXTE_OCTETS, type NatureApercu } from "@/lib/formats/apercu";
 
@@ -27,7 +27,7 @@ import { natureApercu, visionneuseDeSecours, TAILLE_MAX_TEXTE_OCTETS, type Natur
  * jamais converti en autre chose pour l'afficher.
  */
 export function ApercuUniversel({
-  src, name, mime, telechargement, cible,
+  src, name, mime, telechargement, cible, session, plein,
 }: {
   /** La route qui sert les octets du fichier. */
   src: string;
@@ -37,14 +37,20 @@ export function ApercuUniversel({
   telechargement: string;
   /** Le fichier dans l'éditeur / l'éditeur de texte : Drive ou document. Absent (autre source) : visionneuses du navigateur. */
   cible?: { type: "drive" | "document"; id: string };
+  /** Configuration de l'éditeur déjà préparée par la page (fichier ouvert du Drive) : aucun aller-retour en plus. */
+  session?: SessionPrete;
+  /** Occuper toute la hauteur disponible (fichier ouvert du Drive), au lieu d'un aperçu dans une fenêtre. */
+  plein?: boolean;
 }) {
   const nature = natureApercu(name, mime);
-  return <Rendu nature={nature} src={src} name={name} telechargement={telechargement} cible={cible} />;
+  return <Rendu nature={nature} src={src} name={name} telechargement={telechargement} cible={cible} session={session} plein={plein} />;
 }
 
-function Rendu({ nature, src, name, telechargement, cible }: {
+function Rendu({ nature, src, name, telechargement, cible, session, plein }: {
   nature: NatureApercu; src: string; name: string; telechargement: string; cible?: { type: "drive" | "document"; id: string };
+  session?: SessionPrete; plein?: boolean;
 }) {
+  if (plein && nature === "pdf") return <iframe src={src} title={name} className="h-full w-full border-0 bg-white" />;
   switch (nature) {
     case "image":
       // `dvh` et non `vh` : au téléphone, la barre d'adresse mobile ne mange plus le bas de l'aperçu.
@@ -72,7 +78,7 @@ function Rendu({ nature, src, name, telechargement, cible }: {
         </div>
       );
       return cible
-        ? <EditeurEnLigne type={cible.type} id={cible.id} name={name} secours={secours} />
+        ? <EditeurEnLigne type={cible.type} id={cible.id} name={name} secours={secours} session={session} plein={plein} />
         : (viseuse ?? <SansApercu nom={name} telechargement={telechargement} raison="Ce format s'ouvre dans l'éditeur Office depuis le Drive ou la fiche du document : téléchargez le fichier pour l'ouvrir." />);
     }
     case "texte":

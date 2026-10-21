@@ -3,8 +3,10 @@
 Édition **Word / Excel / PowerPoint** directement dans l'app, **sans dépendance cloud externe** — dans le **Drive**
 comme sur **toutes les pièces jointes des modules**.
 
-- Bouton **« Éditer dans Office »** sur les fichiers éditables (Drive → `/drive/[id]/edit` ; Documents → `/documents/[id]/edit`,
-  **plein écran**, sauvegarde = nouvelle version). Visible uniquement aux personnes ayant le **droit de modifier**.
+- **Drive : cliquer un fichier, c'est être dedans** (`/drive/[id]`, 10/2026) — Word / Excel / PowerPoint dans l'éditeur
+  (édition si droit de modifier, lecture sinon), PDF / image / texte dans leur aperçu ; plus de page intermédiaire
+  (`/drive/[id]/edit` redirige). Barre fine + trois icônes **Partage · Commentaires · ⋯** (comme dans la liste).
+  Documents → `/documents/[id]/edit` (**plein écran**, sauvegarde = nouvelle version).
 - **Chargement plus rapide** et **mode plein écran** de l'éditeur.
 - Aperçu in-app (lecture seule) **et 🖨️ impression** conservés pour PDF / Word / Excel / PowerPoint / images **partout**
   (`src/lib/print-document.ts` : iframe same-origin, repli `window.open`).

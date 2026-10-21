@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { putBlob, releaseBlob, getBlob, retainBlob } from "@/lib/drive-storage";
+import { putBlob, getBlob, retainBlob } from "@/lib/drive-storage";
 import { resolveDriveAccess, effectiveSpaceId, canCreateInSpace, canViewDrive } from "@/lib/drive";
 import { blankOffice, isOfficeKind } from "@/lib/office-templates";
 import { documentName, KIND_LABEL } from "@/lib/office/letterhead";
@@ -17,6 +17,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { creerArborescenceDrive } from "@/lib/drive/arborescence";
+import { supprimerReversible } from "@/lib/suppression/coeur";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -100,22 +101,44 @@ export async function ensureDriveFolders(
 }
 
 /** Partages actuels d'un nœud (dossier OU fichier) pour le panneau « Gérer l'accès ». */
+/** `withUsers` : joindre les personnes à qui partager (pour qui peut modifier) — le panneau s'ouvre sans rien attendre d'autre. */
 export async function getDriveNodeShares(
   nodeId: string,
-): Promise<{ ok: boolean; error?: string; canEdit?: boolean; shares?: { userId: string; name: string; access: string }[] }> {
+  withUsers?: boolean,
+): Promise<{ ok: boolean; error?: string; canEdit?: boolean; shares?: { userId: string; name: string; access: string }[]; users?: { id: string; name: string }[] }> {
   const user = await enLecture(requireUser);
   const level = await resolveDriveAccess(user, nodeId);
   if (level === "NONE") return { ok: false, error: "Non autorisé." };
-  const node = await prisma.driveNode.findUnique({
-    where: { id: nodeId },
-    select: { shares: { include: { user: { select: { id: true, name: true } } } } },
-  });
+  const canEdit = level === "EDIT";
+  const [node, users] = await Promise.all([
+    prisma.driveNode.findUnique({
+      where: { id: nodeId },
+      select: { shares: { include: { user: { select: { id: true, name: true } } } } },
+    }),
+    withUsers && canEdit
+      ? prisma.user.findMany({ where: { isActive: true, id: { not: user.id } }, select: { id: true, name: true }, orderBy: { name: "asc" } })
+      : Promise.resolve(undefined),
+  ]);
   if (!node) return { ok: false, error: "Introuvable." };
   return {
     ok: true,
-    canEdit: level === "EDIT",
+    canEdit,
     shares: node.shares.map((s) => ({ userId: s.userId, name: s.user?.name ?? "—", access: s.access })),
+    users,
   };
+}
+
+/** L'historique des versions d'un fichier — lu à l'ouverture de son panneau, jamais avant. */
+export async function getDriveNodeVersions(
+  nodeId: string,
+): Promise<{ ok: boolean; error?: string; versions?: { id: string; version: number; size: number; createdAt: string }[] }> {
+  const user = await enLecture(requireUser);
+  if ((await resolveDriveAccess(user, nodeId)) === "NONE") return { ok: false, error: "Non autorisé." };
+  const versions = await prisma.fileVersion.findMany({
+    where: { nodeId }, orderBy: { version: "desc" }, take: 50,
+    select: { id: true, version: true, size: true, createdAt: true },
+  });
+  return { ok: true, versions: versions.map((v) => ({ ...v, createdAt: v.createdAt.toISOString() })) };
 }
 
 export async function renameNode(formData: FormData): Promise<ActionResult> {
@@ -202,7 +225,7 @@ export async function restoreNode(formData: FormData): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Permanent delete (file or folder, recursively) — releases all underlying blobs. */
+/** « Supprimer définitivement » depuis la corbeille du Drive — vers la corbeille du Super Admin, restaurable. */
 export async function deleteNode(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
@@ -210,12 +233,12 @@ export async function deleteNode(formData: FormData): Promise<ActionResult> {
   if ((await resolveDriveAccess(user, id)) !== "EDIT") return DENIED;
   const node = await prisma.driveNode.findUnique({ where: { id }, select: { name: true } });
   if (!node) return { ok: false, error: "Élément introuvable." };
-  // Récupère les blobs de TOUT le sous-arbre avant suppression (sinon blobs orphelins).
+  // TOUJOURS RÉCUPÉRABLE (Direction, 10/2026) : quitter la corbeille du Drive, c'est passer dans la corbeille du
+  // Super Admin — un lot (versions, partages, commentaires, sous-dossiers) qu'il restaure tel quel. Les octets
+  // restent tenus par la ligne de corbeille ; seule la destruction réelle, chez le Super Admin, les libère.
   const ids = await collectSubtree(id);
-  const versions = await prisma.fileVersion.findMany({ where: { nodeId: { in: ids } }, select: { blobId: true } });
-  await prisma.driveNode.delete({ where: { id } }); // cascade enfants + versions
-  for (const v of versions) await releaseBlob(v.blobId);
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Drive", entityType: "DRIVE_NODE", entityId: id, summary: `Supprimé « ${node.name} »${ids.length > 1 ? ` (${ids.length} éléments)` : ""}` });
+  const r = await supprimerReversible("DRIVE_NODE", id, user.id, `Supprimé de la corbeille du Drive « ${node.name} »${ids.length > 1 ? ` (${ids.length} éléments)` : ""}`);
+  if (!r.ok) return { ok: false, error: r.error };
   revalidatePath("/drive");
   return { ok: true };
 }

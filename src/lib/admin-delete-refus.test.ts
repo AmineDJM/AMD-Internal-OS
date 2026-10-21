@@ -35,7 +35,9 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // journal ; il part en lot avec ses affectations à des BU, et REFUSE quand quelque chose en découle.
     // 35 → 36 : la demande de paiement (19/10/2026) — retirée, elle restait à vie dans la liste de son demandeur ; elle
     // part en lot avec son ordre annulé, et REFUSE tant qu'elle est vivante ou que son paiement est sorti.
-    expect(DELETABLE_KINDS).toHaveLength(36);
+    // 36 → 37 : un élément du Drive supprimé depuis la corbeille du Drive (10/2026) — il était effacé, octets
+    // compris ; il part désormais en lot (versions, partages, commentaires) dans la corbeille du Super Admin.
+    expect(DELETABLE_KINDS).toHaveLength(37);
   });
 
   it("le poste Ad & Pro part EN LOT et ne refuse rien lui-même — c'est le lot qui refuse ce qui a quitté l'ERP", () => {
@@ -78,7 +80,8 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // 28 → 29 : l'appel d'offres PCH ne refuse ni ne réserve rien lui-même — c'est le LOT qui
     // refuse une facture réglée ou une pièce signée parmi ses branches (`faitIrreversible`).
     // 29 → 30 : le poste d'une demande Ad & Pro (§118.187), pour la même raison.
-    expect(anciens).toHaveLength(28);
+    // 28 → 29 (10/2026) : l'élément du Drive, qui ne refuse ni ne réserve rien — tout ce qui part revient.
+    expect(anciens).toHaveLength(29);
     for (const k of anciens) {
       expect(DELETE_REGISTRY[k].refuse, `${k} ne refusait rien avant ce lot`).toBeUndefined();
       expect(DELETE_REGISTRY[k].reserve, `${k} n'annonçait aucune réserve avant ce lot`).toBeUndefined();

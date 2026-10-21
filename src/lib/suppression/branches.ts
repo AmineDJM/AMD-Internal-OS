@@ -179,6 +179,8 @@ export const ENTITE_DU_MODELE: Readonly<Record<string, EntityType>> = {
   PchOrder: "PCH_ORDER",
   // Un cas de pharmacovigilance (Direction, 06/10) : ses pièces et son échange le suivent.
   PharmacovigilanceCase: "PHARMACOVIGILANCE_CASE",
+  // Un élément du Drive (10/2026) : ses pièces et commentaires polymorphes le suivent, sous-dossiers compris.
+  DriveNode: "DRIVE_NODE",
 };
 
 /**
@@ -368,6 +370,17 @@ export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
   // déjà passé — le stock ne bouge pas quand on supprime un marché.
   Sale: ["vente", "ventes"],
   StockMovement: ["mouvement de stock", "mouvements de stock"],
+  // Un élément du Drive supprimé depuis la corbeille du Drive (10/2026) : tout son contenu part avec lui et revient
+  // avec lui ; les messages, courriers et pièces qui le citaient RESTENT, et retrouvent leur lien à la restauration.
+  DriveNode: ["élément du Drive", "éléments du Drive"],
+  FileVersion: ["version", "versions"],
+  DriveShare: ["partage", "partages"],
+  DriveComment: ["commentaire", "commentaires"],
+  DriveTextIndex: ["index de recherche", "index de recherche"],
+  EntityMention: ["mention", "mentions"],
+  ArtifactSession: ["session d'édition", "sessions d'édition"],
+  ArtifactOperation: ["modification enregistrée", "modifications enregistrées"],
+  MessageAttachment: ["pièce partagée en messagerie", "pièces partagées en messagerie"],
 };
 
 export function libelleDe(modele: string, n: number): string {

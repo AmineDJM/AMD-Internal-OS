@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { getDriveListing, getDriveSpacesForUser } from "@/lib/queries/drive";
 import { canCreateInSpace } from "@/lib/drive";
 import { getAppSettings } from "@/lib/settings";
-import { onlyofficeConfigured } from "@/lib/onlyoffice";
+import { onlyofficeConfigured, onlyofficeApiJs, onlyofficeEditable, onlyofficeTypeOuvrable } from "@/lib/onlyoffice";
+import { convertConfigured } from "@/lib/office-convert";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatDateTime } from "@/lib/utils";
@@ -162,6 +163,8 @@ export default async function DrivePage({ searchParams }: { searchParams: { fold
         })),
       ];
 
+  const peutConvertir = convertConfigured() && userCan(user, "DRIVE", "CREATE");
+  const officeApiJs = onlyofficeApiJs();
   const rows: DriveRow[] = listing.nodes.map((n) => {
     const isFile = n.type === "FILE";
     return {
@@ -177,6 +180,9 @@ export default async function DrivePage({ searchParams }: { searchParams: { fold
       updatedLabel: formatDateTime(n.updatedAt),
       canEdit: n.canEdit,
       href: isFile ? `/drive/${n.id}` : `/drive?folder=${n.id}`,
+      counts: n.counts,
+      convertible: isFile && peutConvertir && onlyofficeEditable(n.name),
+      office: isFile && officeApiJs !== null && onlyofficeTypeOuvrable(n.name) !== null,
     };
   });
 
@@ -230,7 +236,7 @@ export default async function DrivePage({ searchParams }: { searchParams: { fold
             {listing.nodes.length === 0 ? (
               <EmptyState icon="FolderOpen" title={trash ? "Corbeille vide" : "Dossier vide"} description={trash ? "Aucun élément supprimé." : "Importez des fichiers, ou faites un clic droit ici pour créer un dossier."} />
             ) : (
-              <DriveTable rows={rows} moveTargets={moveTargets} trash={trash} users={canCreate ? users : undefined} spaceId={null} categories={dropCategories} folderId={folderId} ancestorIds={listing.breadcrumb.map((c) => c.id)} />
+              <DriveTable rows={rows} moveTargets={moveTargets} trash={trash} users={canCreate ? users : undefined} spaceId={null} categories={dropCategories} folderId={folderId} ancestorIds={listing.breadcrumb.map((c) => c.id)} officeApiJs={officeApiJs} />
             )}
           </DriveCanvas>
         </div>
