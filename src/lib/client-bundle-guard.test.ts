@@ -39,7 +39,7 @@ const NODE_ONLY = /^(node:)?(fs|fs\/promises|zlib|child_process|worker_threads|n
 // `@prisma/client` et `bcryptjs` n'y sont PAS : le premier a un talon navigateur (le build passe,
 // et des écrans l'atteignent déjà par `rbac`/`settings`), le second est du JavaScript pur.
 const NODE_ONLY_PACKAGES = new Set([
-  "web-push", "nodemailer", "imapflow", "mailparser", "sharp", "mupdf", "pdfkit", "pdf-parse", "yauzl",
+  "web-push", "nodemailer", "imapflow", "mailparser", "sharp", "mupdf", "pdfkit", "pdf-parse", "yauzl", "@mastra/core",
 ]);
 const estPaquetNode = (spec: string) => NODE_ONLY_PACKAGES.has(spec) || [...NODE_ONLY_PACKAGES].some((p) => spec.startsWith(`${p}/`));
 

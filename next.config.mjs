@@ -86,7 +86,7 @@ const nextConfig = {
     // `pdfkit` (conversion des fiches de paie Word → PDF) lit ses MÉTRIQUES DE POLICES depuis des
     // fichiers `.afm` livrés dans le paquet. Bundlé, ces fichiers ne suivent pas : la conversion
     // marcherait en développement et échouerait en production — le pire des deux mondes.
-    serverComponentsExternalPackages: ["bcryptjs", "imapflow", "nodemailer", "mailparser", "pdf-parse", "mammoth", "xlsx", "tesseract.js", "mupdf", "sharp", "docxtemplater", "pizzip", "pdfkit"],
+    serverComponentsExternalPackages: ["bcryptjs", "imapflow", "nodemailer", "mailparser", "pdf-parse", "mammoth", "xlsx", "tesseract.js", "mupdf", "sharp", "docxtemplater", "pizzip", "pdfkit", "@mastra/core"],
     // Téléversements via Server Action (documents Regulatory/Congrès/Dossiers…) : Next
     // plafonne le corps à 1 Mo par défaut, ce qui rendait inopérante la limite réglée par
     // l'admin. On lève ce plafond à 256 Mo ; la VRAIE limite reste celle définie par le

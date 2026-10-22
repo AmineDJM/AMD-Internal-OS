@@ -61,6 +61,7 @@
     "seed": "tsx prisma/bootstrap.ts"
   },
   "dependencies": {
+    "@mastra/core": "1.79.0",
     "@prisma/client": "5.22.0",
     "@tesseract.js-data/ara": "^1.0.0",
     "@tesseract.js-data/eng": "^1.0.0",
