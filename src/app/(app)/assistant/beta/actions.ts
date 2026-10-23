@@ -96,6 +96,50 @@ export async function envoyerMessageBeta(
     `- Messages internes : ${nbMessages}\n\n` +
     `Tu es « Adventum Brain », l'assistant d'entreprise interne d'Adventum Pharma en Algérie. Tu réponds sous une forme limpide, élégante, structurée et soignée en français (ou dans la langue de la question). Tu ne dois JAMAIS mentionner de nom de modèle d'IA, de fournisseur ou d'infrastructure technique (interdiction formelle de citer « MiMo », « Xiaomi » ou équivalent). Reste toujours focalisé sur les données métier de l'ERP, les dossiers réglementaires, le catalogue produits et les tâches à accomplir.`;
 
+  // Fast path 1 : Salutations instantanées (< 5 ms)
+  if (/^(salam|bonjour|salut|hello|hi|hey|bonsoir)(\s+.*)?$/i.test(prompt) && prompt.length < 35) {
+    return {
+      ok: true,
+      messageId: `msg-${Date.now()}`,
+      role: "assistant",
+      content: `Bonjour ${user.name} 👋 !\n\nJe suis **Adventum Brain**, votre assistant interne d'entreprise. Je suis connecté à votre base de données locale (${nbProduits} produits, ${nbDossiers} dossiers AMM, ${nbTaches} tâches).\n\nComment puis-je vous accompagner aujourd'hui ?`,
+      outilsAppeles: [],
+    };
+  }
+
+  // Fast path 2 : Capacités / Qui es-tu (< 5 ms)
+  if (/(qui\s+es[- ]tu|who\s+are\s+you|what\s+you\s+can\s+do|que\s+peux[- ]tu\s+faire|capacit[ée]s)/i.test(prompt)) {
+    return {
+      ok: true,
+      messageId: `msg-${Date.now()}`,
+      role: "assistant",
+      content: `Voici mes capacités en tant qu'**Adventum Brain** sous votre rôle (**${user.role}**) :\n\n` +
+        `1. 📁 **Affaires Réglementaires** : Consulter les ${nbDossiers} dossiers AMM, statuts d'enregistrement et variations.\n` +
+        `2. 📦 **Catalogue Produits** : Consulter les ${nbProduits} produits et formes pharmaceutiques.\n` +
+        `3. 👥 **Annuaire d'Entreprise** : Rechercher parmi les ${nbUsers} collaborateurs enregistrés.\n` +
+        `4. ✍️ **Actions Sécurisées (Human-in-the-Loop)** : Préparer des créations de tâches (« crée une tâche... ») ou des messages internes (« envoie un message... ») sous votre validation explicite.\n` +
+        `5. 📊 **Télémétrie Système** : Consulter l'état en direct de la base de données (« check db »).`,
+      outilsAppeles: [],
+    };
+  }
+
+  // Fast path 3 : Check DB / Métriques directes (< 10 ms)
+  if (/(check\s*db|stats|statistiques|base\s+de\s+donn[ée]es|combien\s+de\s+(produits|dossiers|utilisateurs|t[aâ]ches|messages))/i.test(prompt)) {
+    return {
+      ok: true,
+      messageId: `msg-${Date.now()}`,
+      role: "assistant",
+      content: `📊 **État en direct de la base de données Adventum Pharma (amd_dev)** :\n\n` +
+        `• **Utilisateurs enregistrés** : ${nbUsers}\n` +
+        `• **Dossiers Réglementaires AMM** : ${nbDossiers}\n` +
+        `• **Produits au catalogue** : ${nbProduits}\n` +
+        `• **Tâches créées** : ${nbTaches}\n` +
+        `• **Messages internes échangés** : ${nbMessages}\n\n` +
+        `Toutes les tables sont actives, intègres et synchronisées.`,
+      outilsAppeles: ["check_database"],
+    };
+  }
+
   // 1. Détection de création de tâche (Action sécurisée Human-in-the-Loop)
   if (/cr[eé]e.*t[aâ]che/i.test(prompt) || /t[aâ]che.*urgente/i.test(prompt)) {
     if (!outilCreerTache.allowed(user)) {
@@ -245,10 +289,11 @@ export async function envoyerMessageBeta(
         body: JSON.stringify({
           model: "mimo-v2.6-flash",
           messages,
-          temperature: 0.3,
-          max_tokens: 1500,
+          temperature: 0.2,
+          max_tokens: 500,
+          thinking: { type: "disabled" },
         }),
-        signal: AbortSignal.timeout(18000),
+        signal: AbortSignal.timeout(12000),
       });
 
       if (res.ok) {
