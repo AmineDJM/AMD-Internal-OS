@@ -29,7 +29,16 @@ export function adapterOutil(outil: PowerTool, user: CurrentUser) {
   });
 }
 
-/** Les outils offerts à CET utilisateur : ceux dont le droit s'ouvre, jamais les autres. */
-export function outilsPour(outils: PowerTool[], user: CurrentUser) {
-  return Object.fromEntries(outils.filter((o) => o.allowed(user)).map((o) => [o.def.name, adapterOutil(o, user)]));
+/** Les outils offerts à CET utilisateur : ceux dont le droit s'ouvre, restreints si une configuration de rôle l'exige. */
+export function outilsPour(
+  outils: PowerTool[],
+  user: CurrentUser,
+  config?: { allowedTools?: string[] } | null
+) {
+  let filtres = outils.filter((o) => o.allowed(user));
+  if (config?.allowedTools && config.allowedTools.length > 0) {
+    const autorises = new Set(config.allowedTools);
+    filtres = filtres.filter((o) => autorises.has(o.def.name));
+  }
+  return Object.fromEntries(filtres.map((o) => [o.def.name, adapterOutil(o, user)]));
 }

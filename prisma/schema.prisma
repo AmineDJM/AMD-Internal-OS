@@ -1395,6 +1395,8 @@ model User {
   productAssignments         ProductAssignment[]             @relation("ProductAssignmentUser")
   adProGateVisas             AdProGateVisa[]                 @relation("adProGateVisaDecidedBy")
   marketingReferentOf        BusinessUnitMarketingReferent[] @relation("AdProMarketingReferentOf")
+  assistantRoleConfigsUpdated AssistantRoleConfig[]          @relation("AssistantRoleConfigUpdatedBy")
+  assistantRoleConfigAudits   AssistantRoleConfigAudit[]     @relation("AssistantRoleConfigAuditActor")
 
   @@index([role])
   @@index([departmentId])
@@ -9038,6 +9040,37 @@ model LoginAttempt {
 /// Centre de contrôle IA (réglages globaux, Super Admin uniquement). Une seule
 /// ligne (`id = "global"`). Permet d'activer/couper l'IA globalement ou par
 /// fonction sans toucher au code ni aux variables d'environnement.
+/// Configuration personnalisée de l'Assistant IA par rôle métier (Jalon 4 — Décision Q4/Q12).
+/// Le RBAC reste le plafond indépassable. Une valeur absente retombe sur le comportement par défaut.
+model AssistantRoleConfig {
+  role                UserRole                     @id
+  assistantName       String?
+  tone                String?
+  customInstructions  String?                      @db.VarChar(2000)
+  allowedTools        String[]                     @default([])
+  confirmationLevel   String                       @default("CRITIQUE")
+  enforcedModel       String?
+  updatedAt           DateTime                     @updatedAt
+  updatedById         String?
+  updatedBy           User?                        @relation("AssistantRoleConfigUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull)
+  audits              AssistantRoleConfigAudit[]   @relation("RoleConfigAudits")
+}
+
+/// Traçabilité des modifications des configurations de rôle de l'Assistant IA (qui, quand, avant/après).
+model AssistantRoleConfigAudit {
+  id           String              @id @default(cuid())
+  role         UserRole
+  roleConfig   AssistantRoleConfig @relation("RoleConfigAudits", fields: [role], references: [role], onDelete: Cascade)
+  actorId      String
+  actor        User                @relation("AssistantRoleConfigAuditActor", fields: [actorId], references: [id], onDelete: Cascade)
+  previousData Json?
+  newData      Json
+  createdAt    DateTime            @default(now())
+
+  @@index([role, createdAt])
+  @@index([actorId])
+}
+
 model AiSetting {
   id                     String   @id @default("global")
   masterEnabled          Boolean  @default(true) // interrupteur général
