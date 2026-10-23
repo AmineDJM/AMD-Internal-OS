@@ -43,11 +43,10 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
             <Sparkles className="h-6 w-6 text-blue-600 dark:text-blue-400" />
           </div>
           <h3 className="mt-3 text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            Assistant IA — Adventum Pharma
+            Adventum Brain
           </h3>
           <p className="mt-1 max-w-md text-xs text-zinc-600 dark:text-zinc-400">
-            Interrogez les dossiers AMM, vérifiez le catalogue de produits, planifiez des tâches
-            sous validation humaine, ou rédigez des synthèses exécutives.
+            Votre assistant interne intelligent pour le pilotage des opérations, affaires réglementaires et tâches d'entreprise.
           </p>
         </div>
       )}
@@ -123,7 +122,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
             className="flex items-center gap-2 rounded-2xl rounded-tl-xs border border-white/60 bg-white/85 px-4 py-3 text-xs font-medium text-zinc-600 shadow-md backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-900/85 dark:text-zinc-300"
           >
             <Loader2 className="h-3.5 w-3.5 animate-spin text-blue-600 dark:text-blue-400" />
-            <span>MiMo analyse la demande et compile la réponse...</span>
+            <span>Adventum Brain prépare votre réponse...</span>
           </div>
         </div>
       )}

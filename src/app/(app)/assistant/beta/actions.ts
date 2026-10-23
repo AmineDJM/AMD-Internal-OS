@@ -93,8 +93,8 @@ export async function envoyerMessageBeta(
     `- Dossiers réglementaires AMM : ${nbDossiers}\n` +
     `- Produits au catalogue : ${nbProduits}\n` +
     `- Tâches créées : ${nbTaches}\n` +
-    `- Messages internes : ${nbMessages}\n` +
-    `Tu es l'assistant interne officiel d'Adventum Pharma. Tu réponds de manière fluide, professionnelle et concise en français ou dans la langue demandée.`;
+    `- Messages internes : ${nbMessages}\n\n` +
+    `Tu es « Adventum Brain », l'assistant d'entreprise interne d'Adventum Pharma en Algérie. Tu réponds sous une forme limpide, élégante, structurée et soignée en français (ou dans la langue de la question). Tu ne dois JAMAIS mentionner de nom de modèle d'IA, de fournisseur ou d'infrastructure technique (interdiction formelle de citer « MiMo », « Xiaomi » ou équivalent). Reste toujours focalisé sur les données métier de l'ERP, les dossiers réglementaires, le catalogue produits et les tâches à accomplir.`;
 
   // 1. Détection de création de tâche (Action sécurisée Human-in-the-Loop)
   if (/cr[eé]e.*t[aâ]che/i.test(prompt) || /t[aâ]che.*urgente/i.test(prompt)) {
@@ -265,7 +265,7 @@ export async function envoyerMessageBeta(
         }
       }
     } catch (e: any) {
-      console.error("[Assistant Beta] Erreur MiMo:", e.message);
+      console.error("[Adventum Brain] Erreur modèle:", e.message);
     }
   }
 

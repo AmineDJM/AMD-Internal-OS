@@ -3,21 +3,25 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { LuminescentCursor } from "./luminescent-cursor";
-import { KpiGlassStrip, type KpiData } from "./kpi-glass-strip";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
+import type { KpiData } from "./kpi-glass-strip";
 
 export interface AssistantWorkspaceProps {
-  initialKpiData: KpiData;
+  initialKpiData?: KpiData;
+  userName?: string;
+  userRole?: string;
 }
 
-export function AssistantWorkspace({ initialKpiData }: AssistantWorkspaceProps) {
+const INITIAL_GREETING = `Bonjour 👋\n\nBienvenue sur **Adventum Brain**. Je suis votre assistant interne, à votre disposition pour vous accompagner dans vos tâches.\n\nComment puis-je vous aider aujourd'hui ?`;
+
+export function AssistantWorkspace({ initialKpiData, userName, userRole }: AssistantWorkspaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome-1",
       role: "assistant",
-      content: `Salam alaykoum ${initialKpiData.userName} ! Bienvenue sur le nouvel Assistant IA d'Adventum Pharma.\n\nJe suis configuré pour vous assister dans vos opérations quotidiennes (dossiers réglementaires AMM, vérification de catalogue, préparation de tâches sécurisées, ou synthèses d'activité). Comment puis-je vous aider ?`,
+      content: INITIAL_GREETING,
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,40 +84,37 @@ export function AssistantWorkspace({ initialKpiData }: AssistantWorkspaceProps) 
       {
         id: `welcome-${Date.now()}`,
         role: "assistant",
-        content: `Nouvelle conversation initialisée. Que souhaitez-vous accomplir ?`,
+        content: INITIAL_GREETING,
       },
     ]);
   };
 
   return (
-    <div className="relative min-h-[calc(100vh-3.5rem)] w-full overflow-hidden bg-slate-900 select-text">
+    <div className="relative h-full w-full flex-1 overflow-hidden bg-slate-900 select-text flex flex-col">
       {/* 1. Curseur luminescent avec spring physics */}
       <LuminescentCursor />
 
-      {/* 2. Arrière-plan animé Makoto Shinkai haute résolution */}
-      <div className="absolute inset-0 pointer-events-none z-0">
+      {/* 2. Arrière-plan animé Makoto Shinkai haute résolution avec flou accentué de 20% */}
+      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
         <Image
           src="/images/assistant-bg-shinkai.jpg"
           alt="Peaceful Anime Mountain Lake Background"
           fill
           priority
           sizes="100vw"
-          className="object-cover object-center scale-105 transition-transform duration-1000"
+          className="object-cover object-center scale-110 filter blur-[10px] transition-transform duration-1000"
         />
-        {/* Voile atmosphérique pour lisibilité 100% des textes & chiffres */}
-        <div className="absolute inset-0 bg-slate-950/20 backdrop-brightness-[0.92] dark:bg-black/35" />
+        {/* Voile atmosphérique équilibré pour une lisibilité parfaite des cartes de verre */}
+        <div className="absolute inset-0 bg-slate-950/25 backdrop-blur-[2px] dark:bg-black/40" />
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-slate-950/20" />
       </div>
 
-      {/* 3. Conteneur principal ERP & Chat en verre dépoli Apple */}
-      <div className="relative z-10 flex h-[calc(100vh-3.5rem)] w-full flex-col justify-between p-3 sm:p-5">
-        {/* Bandeau KPI supérieur */}
-        <KpiGlassStrip initialData={initialKpiData} />
-
+      {/* 3. Conteneur principal ERP & Chat en verre dépoli Apple (Plein écran & épuré) */}
+      <div className="relative z-10 flex h-full w-full flex-1 flex-col p-2 sm:p-4 lg:p-6 overflow-hidden">
         {/* Espace central de conversation en verre translucide */}
         <div
           data-glass="true"
-          className="relative mx-auto my-3 flex h-full w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/75 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/70"
+          className="relative mx-auto flex h-full w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/75 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/70"
         >
           <ChatMessageList
             messages={messages}
@@ -122,7 +123,7 @@ export function AssistantWorkspace({ initialKpiData }: AssistantWorkspaceProps) 
           />
 
           {/* Barre de commande flottante au bas du chat */}
-          <div className="p-3 pt-0">
+          <div className="p-3 pt-0 sm:p-4 sm:pt-0">
             <CommandPillBar
               onSendMessage={handleSendMessage}
               onReset={handleReset}
