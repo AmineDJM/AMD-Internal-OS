@@ -1926,6 +1926,7 @@ export const NAVIGATION: NavItem[] = [
   // page plein écran avec dictée vocale et lecture de pièces jointes.
   // ADAM (l'assistant ET le chief of staff) n'est visible que du Super Admin (§118.153, `peutVoirAdam`).
   { module: "WORKSPACE", label: "Assistant IA", href: "/assistant", icon: "Sparkles", group: "Pilotage", gate: "adam" },
+  { module: "WORKSPACE", label: "Assistant IA (Beta)", href: "/assistant/beta", icon: "Sparkles", group: "Pilotage", gate: "adam" },
   // LE CENTRE DE MISSIONS — le PARC de ce qu'Adam exécute. Il vit à côté de l'assistant et pas
   // dedans : une mission est un objet de l'ERP (identifiant, propriétaire, étapes, livrables,
   // journal), et la ranger dans la conversation ferait dépendre son écran de l'assistant, ce
