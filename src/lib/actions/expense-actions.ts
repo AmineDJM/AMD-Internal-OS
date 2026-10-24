@@ -200,21 +200,48 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // l'entité, un comptable cloisonné sur sa société ne voyait pas ses propres règlements dans le
   // livre ; sans le compte, le solde de chaque compte ne se calcule pas. Le compte CHOISI au
   // règlement (« payé depuis… ») l'emporte, sinon le principal de l'entité de l'ordre.
-  const tx = await prisma.financeTransaction.create({
-    data: {
-      reference: await nextFinanceRef(), date: new Date(), direction: "OUT",
-      category: order.category, label: order.label, amount: order.amount,
-      // Une remise sort de la banque en LIQUIDE pour la caisse — c'est ce que l'écriture de la
-      // remise disait déjà avant le centre ; tout le reste part par virement.
-      method: remise ? "CASH" : "BANK_TRANSFER", account: "Banque", counterparty: order.beneficiary,
-      status: "SETTLED", budgetCategoryId, createdById: user.id,
-      companyId: order.companyId,
-      treasuryAccountId: await compteDeLEcriture({ compteId: fdStr(formData, "treasuryAccountId"), compte: "Banque", societeId: order.companyId }),
-    },
+  // ── UN ORDRE NE SE RÈGLE QU'UNE FOIS, MÊME À DEUX CLICS OU À DEUX COMPTABLES (audit 2026-10-24) ──
+  //
+  // Le statut était lu en tête, puis l'écriture de trésorerie créée plusieurs `await` plus loin, et
+  // l'ordre passé « payé » par son seul id : deux règlements simultanés franchissaient tous deux la
+  // lecture et posaient DEUX sorties d'argent pour un seul ordre — le solde bancaire et la
+  // consommation du budget comptaient le paiement deux fois.
+  //
+  // L'ordre se RÉSERVE donc d'abord, et le statut se lit et s'écrit dans la même instruction
+  // (§118.151) : seul celui qui fait passer l'ordre de PENDING à PAID — sous l'autorisation du
+  // centre lue plus haut, qui ne doit pas avoir bougé entre-temps — écrit la sortie d'argent, dans
+  // la MÊME transaction : un échec de l'écriture rend l'ordre à « à régler » au lieu de le laisser
+  // payé sans trace. Le perdant de la course ne touche à rien.
+  const reference = await nextFinanceRef();
+  const treasuryAccountId = await compteDeLEcriture({ compteId: fdStr(formData, "treasuryAccountId"), compte: "Banque", societeId: order.companyId });
+  const reglement = await prisma.$transaction(async (tx) => {
+    const reserve = await tx.expenseOrder.updateMany({
+      where: { id, status: "PENDING", centralStatus: order.centralStatus },
+      data: { status: "PAID", paidById: user.id, paidDate: new Date() },
+    });
+    if (reserve.count === 0) return null;
+    const ecriture = await tx.financeTransaction.create({
+      data: {
+        reference, date: new Date(), direction: "OUT",
+        category: order.category, label: order.label, amount: order.amount,
+        // Une remise sort de la banque en LIQUIDE pour la caisse — c'est ce que l'écriture de la
+        // remise disait déjà avant le centre ; tout le reste part par virement.
+        method: remise ? "CASH" : "BANK_TRANSFER", account: "Banque", counterparty: order.beneficiary,
+        status: "SETTLED", budgetCategoryId, createdById: user.id,
+        companyId: order.companyId,
+        treasuryAccountId,
+      },
+    });
+    await tx.expenseOrder.update({ where: { id }, data: { transactionId: ecriture.id } });
+    return ecriture;
   });
-  await prisma.expenseOrder.update({
-    where: { id }, data: { status: "PAID", transactionId: tx.id, paidById: user.id, paidDate: new Date() },
-  });
+  if (!reglement) {
+    // Quelqu'un d'autre a réglé (ou annulé, ou le centre a retiré son accord) pendant ce règlement.
+    const maintenant = await prisma.expenseOrder.findUnique({ where: { id }, select: { status: true } });
+    if (maintenant?.status === "PAID") return { ok: true };
+    return { ok: false, error: "Cet ordre a changé pendant le règlement (annulé, ou son autorisation au centre de paiement a bougé) : rechargez la page — rien n'a été réglé." };
+  }
+  const tx = reglement;
 
   // LE DOSSIER COMPAGNON SUIT L'ORDRE — il n'a pas de vie propre : il décrit un paiement. Le
   // laisser « chez les Finances » sous un virement fait ce matin ferait relancer un dossier soldé.

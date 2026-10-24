@@ -941,8 +941,15 @@ export async function decidePaymentRequest(formData: FormData): Promise<ActionRe
       if (annulation.annule) ordreAnnule = annulation.reference;
     }
 
-    await prisma.paymentRequest.update({
-      where: { id },
+    // LE STATUT SE LIT ET S'ÉCRIT DANS LA MÊME INSTRUCTION (§118.151, audit 2026-10-24). Le geste a été
+    // jugé sur le statut LU plus haut ; deux décisions simultanées (deux comptables, un double clic)
+    // passaient toutes deux — et deux « bon à payer » sur un dossier d'avant l'ordre-à-la-soumission
+    // émettaient DEUX ordres de dépense pour un seul paiement. Seule la décision qui trouve encore
+    // le statut qu'elle a jugé s'écrit ; l'autre ne touche à rien.
+    // (Un refus a déjà annulé l'ordre non réglé ci-dessus : s'il perd la course, l'ordre reste
+    // annulé — aucun argent ne sort, et la personne voit le dossier tel que l'autre l'a tranché.)
+    const ecrit = await prisma.paymentRequest.updateMany({
+      where: { id, status: req.status },
       data: {
         status: next as PaymentRequestStatus,
         holdReason: move === "HOLD" ? note : move === "RESUME" ? null : req.holdReason,
@@ -951,6 +958,9 @@ export async function decidePaymentRequest(formData: FormData): Promise<ActionRe
         decidedAt: move === "APPROVE" || move === "REJECT" ? new Date() : req.decidedAt,
       },
     });
+    if (ecrit.count === 0) {
+      return { ok: false, error: "Ce dossier vient d'être traité par quelqu'un d'autre : rechargez la page pour voir sa décision — la vôtre n'a pas été enregistrée." };
+    }
     await trace(id, user.id, move, note);
 
     // L'ORDRE DE DÉPENSE EXISTE DÉJÀ : il est né à la soumission, et le centre l'a autorisé avant
