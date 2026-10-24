@@ -199,8 +199,8 @@ The numbered rules live in `docs/claude-md/03-*.md` and `08-*.md` (item `N.` = �
 | `npx tsc --noEmit` (full, = `npm run typecheck`) | ❌ **6 errors**, all in test files `src/lib/agent/integration.test.ts` (5) and `src/lib/agent/role-config.test.ts` (1), from commits b455d23/2ef5f3a (Oct 23). The deploy typecheck `tsconfig.build.json` excludes tests, so production builds are not blocked. [V] |
 | `prisma migrate deploy` on an empty DB | ✅ all 462 migrations apply [V] |
 | `prisma migrate diff` DB → schema | 664-line representational drift (see ch. 03 addendum) [V] |
-| `npm test` (full Vitest suite, DB available) | see §7.1 below |
-| `npm run build` (clean) | see §7.1 below |
+| `npm test` (full Vitest suite, DB available) | ❌ 11 / 1,222 files, 12 / 14,393 tests fail — attribution in §7.1 [V] |
+| `npm run build` (clean) | ✅ passes (963 s); no middleware emitted — see §7.1 [V] |
 
 ### 7.1 Test & build results
 
@@ -222,7 +222,9 @@ Caveat: the `5f80e5c` re-run used HEAD's generated Prisma client and database (t
 
 Remember that without a reachable Postgres, 397 DB-backed suites skip silently and `npm test` can look green. [V·agent 10]
 
-**`npm run build`** (clean `.next`): see "Build result" at the end of this file.
+**`npm run build`** (clean `.next`, `rm -rf .next` first): ✅ **passes** in 963 s (256 static pages generated). [V]
+The emitted `.next/server/middleware-manifest.json` is `{"middleware": {}, "sortedMiddleware": []}` — **empirical proof
+that no middleware is compiled** (risk R5). [V]
 
 ---
 
@@ -237,7 +239,7 @@ this analysis).
 | **R2** | High | Security / files | **Stored XSS**: files served `inline` with their stored MIME (`src/lib/http/telechargement.ts:79,107`), SVG mapped to `image/svg+xml` (`drive/mime-nom.ts:16`), CSP has no `script-src` (`next.config.mjs:131-145`) → an uploaded HTML/SVG runs same-origin in the opener's session. | [V·orch] serving side; upload acceptance [V·agent 02] · Task queued | ch. 02 R1 |
 | **R3** | High | AI governance | Commit `fa9b9ab` (Oct 24) removed `peutVoirAdam` from `/assistant` (now `requireModule("WORKSPACE")`); a welcome pop-up sends every user there. The beta's actions only `requireUser()` and post ERP context **directly to `token-plan-ams.xiaomimimo.com`** (`assistant/beta/actions.ts:283`), bypassing the model gateway, kill switches, egress guard (`sortie/garde`) and cost logging; client-supplied history forwarded as-is; beta write executor (`lib/agent/ecritures.ts`) doesn't re-check rights or the emergency stop. Guard tests turn red. | [V·orch] guard removal + direct fetch; rest [V·agent 09] · **Needs a product decision** | ch. 09 |
 | **R4** | Med-High | Finance | **Double settlement race** in `settleExpenseOrder`: check-then-act across several awaits, unconditional `update` by id, no transaction → two SETTLED OUT ledger entries possible. Same shape in `decidePaymentRequest`. | [V·orch] · Task queued | ch. 06, 04 |
-| **R5** | Medium | Security / platform | **Root `middleware.ts` is never compiled** (Next 14.2.35 looks in `src/` only: `node_modules/next/dist/build/index.js:478-488`). The `authorized` whitelist in `src/auth.config.ts` is dead code; protection rests entirely on per-page/route guards. Agent audit of all 129 handlers + 11 non-(app) pages found no unauthenticated business-data route. Moving the middleware into `src/` *as written* would break `/api/v1`, `/invite`, `/api/mail/inbound`, `/api/google/pubsub`, `/api/events/inbound`. | [V·orch] Next source; build manifest check below; audit [V·agent 02] | ch. 02, 10 |
+| **R5** | Medium | Security / platform | **Root `middleware.ts` is never compiled** (Next 14.2.35 looks in `src/` only: `node_modules/next/dist/build/index.js:478-488`). The `authorized` whitelist in `src/auth.config.ts` is dead code; protection rests entirely on per-page/route guards. Agent audit of all 129 handlers + 11 non-(app) pages found no unauthenticated business-data route. Moving the middleware into `src/` *as written* would break `/api/v1`, `/invite`, `/api/mail/inbound`, `/api/google/pubsub`, `/api/events/inbound`. | [V·orch] Next source + empty `middleware-manifest.json` after a clean build; route audit [V·agent 02] | ch. 02, 10 |
 | R6 | Medium | API | `/api/v1/documents/{id}/content` skips the entity access check for ~43 entity types missing from the API registry. | [V·agent 02] | ch. 02 R3 |
 | R7 | Medium | Auth | Demoted Super Admin keeps "Vue exacte" (role read from JWT); `toggleUserActive` doesn't revoke sessions and session checks ignore `isActive`. | [V·agent 02] | ch. 02 R4–R5 |
 | R8 | Medium | HR data | `/rh/[id]` ships full salary data (gross, SS, IBAN, NIN) to anyone with `EMPLOYEES:UPDATE`, while salary visibility elsewhere requires `RH:UPDATE/VALIDATE`. `processHrRequest` checks neither perimeter nor status. | [V·agent 08]; real role configs [U] | ch. 08 |
