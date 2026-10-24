@@ -213,7 +213,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // la MÊME transaction : un échec de l'écriture rend l'ordre à « à régler » au lieu de le laisser
   // payé sans trace. Le perdant de la course ne touche à rien.
   const reference = await nextFinanceRef();
-  const treasuryAccountId = await compteDeLEcriture({ compteId: fdStr(formData, "treasuryAccountId"), compte: "Banque", societeId: order.companyId });
+  const compteDuReglement = await compteDeLEcriture({ compteId: fdStr(formData, "treasuryAccountId"), compte: "Banque", societeId: order.companyId });
   const reglement = await prisma.$transaction(async (tx) => {
     const reserve = await tx.expenseOrder.updateMany({
       where: { id, status: "PENDING", centralStatus: order.centralStatus },
@@ -229,7 +229,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
         method: remise ? "CASH" : "BANK_TRANSFER", account: "Banque", counterparty: order.beneficiary,
         status: "SETTLED", budgetCategoryId, createdById: user.id,
         companyId: order.companyId,
-        treasuryAccountId,
+        treasuryAccountId: compteDuReglement,
       },
     });
     await tx.expenseOrder.update({ where: { id }, data: { transactionId: ecriture.id } });
