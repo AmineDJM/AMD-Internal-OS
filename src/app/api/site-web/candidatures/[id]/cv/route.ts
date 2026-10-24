@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { readFileByKey } from "@/lib/storage";
@@ -33,6 +34,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     return new NextResponse(octets as unknown as BodyInit, {
       headers: {
         "Content-Type": c.cvType ?? "application/octet-stream",
+        // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
+        ...entetesAntiExecution(c.cvType ?? "application/octet-stream"),
         "Content-Disposition": contentDisposition(nom, telecharger ? "attachment" : "inline"),
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",

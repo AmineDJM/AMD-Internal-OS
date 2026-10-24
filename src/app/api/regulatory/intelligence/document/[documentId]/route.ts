@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { getBlob } from "@/lib/drive-storage";
 import { regCan, resolveRegCompanyIdFor } from "@/lib/regulatory/intelligence/access";
@@ -40,6 +41,8 @@ export async function GET(req: NextRequest, { params }: { params: { documentId: 
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": inlineType ?? "application/octet-stream",
+      // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
+      ...entetesAntiExecution(inlineType ?? "application/octet-stream"),
       "Content-Disposition": contentDisposition(filename, wantsInline ? "inline" : "attachment"),
       "Content-Length": String(bytes.length),
       "Cache-Control": "private, no-store",

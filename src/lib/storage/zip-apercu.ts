@@ -1,4 +1,5 @@
 import { fluxEntreeZip, ErreurZip, type EntreeZip, type SourceZip } from "@/lib/storage/zip-lecteur";
+import { dispositionPourBucket } from "@/lib/http/types-actifs";
 import { headObjectSize, presignGetUrl, putObjectStream } from "@/lib/storage/object-storage";
 import { contentDisposition } from "@/lib/http/content-disposition";
 
@@ -120,7 +121,8 @@ export async function apercuDisponible(cle: string, taille: number): Promise<boo
 /** L'adresse signée de l'entrée extraite — le bucket sert les plages ; nom et type sont imposés à la réponse. */
 export function adresseApercu(cle: string, nom: string, type: string, dl: boolean): string | null {
   return presignGetUrl(cle, VALIDITE_APERCU_S, {
-    "response-content-disposition": contentDisposition(nom, dl ? "attachment" : "inline"),
+    // Le bucket ne porte pas de CSP : un type actif (HTML, SVG, XML) s'y télécharge (`lib/http/types-actifs.ts`).
+    "response-content-disposition": contentDisposition(nom, dispositionPourBucket(type, dl ? "attachment" : "inline")),
     "response-content-type": type,
   });
 }

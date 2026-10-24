@@ -1,4 +1,5 @@
 import { Readable } from "stream";
+import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBlob, cleObjetDirect } from "@/lib/drive-storage";
@@ -95,6 +96,8 @@ export async function reponseEntreeZip(source: SourceArchive, entree: EntreeZip,
   const type = typeDe(nom);
   const headers: Record<string, string> = {
     "Content-Type": type,
+    // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
+    ...entetesAntiExecution(type),
     "Content-Disposition": contentDisposition(nom, dl ? "attachment" : "inline"),
     "X-Content-Type-Options": "nosniff",
     "Cache-Control": "private, no-store",

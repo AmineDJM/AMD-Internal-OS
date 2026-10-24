@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getBlob, cleObjetDirect, infoBlob } from "@/lib/drive-storage";
 import { presignGetUrl } from "@/lib/storage/object-storage";
 import { contentDisposition } from "@/lib/http/content-disposition";
+import { dispositionPourBucket } from "@/lib/http/types-actifs";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { collecterPourZip, entreesDeDrive } from "@/lib/drive-zip";
 import { qualiteDeLaRequete, repondreArchive, repondreEstimationArchive, repondreFichier } from "@/lib/http/telechargement";
@@ -66,7 +67,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
         : undefined,
       entetes: { "Cache-Control": "private, no-store" },
       redirection: () => direct
-        ? presignGetUrl(direct, 900, { "response-content-disposition": contentDisposition(node.name, dl ? "attachment" : "inline"), "response-content-type": mime })
+        // Le bucket ne porte pas de CSP : un type actif (HTML, SVG, XML) s'y télécharge (`lib/http/types-actifs.ts`).
+        ? presignGetUrl(direct, 900, { "response-content-disposition": contentDisposition(node.name, dispositionPourBucket(mime, dl ? "attachment" : "inline")), "response-content-type": mime })
         : null,
     },
   );

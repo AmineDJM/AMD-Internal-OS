@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { getMailAccount, getAttachment } from "@/lib/mail";
 import { contentDisposition } from "@/lib/http/content-disposition";
@@ -24,6 +25,8 @@ export async function GET(req: NextRequest) {
     return new NextResponse(att.content as unknown as BodyInit, {
       headers: {
         "Content-Type": att.contentType,
+        // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
+        ...entetesAntiExecution(att.contentType),
         "Content-Disposition": contentDisposition(att.filename, inline ? "inline" : "attachment"),
         // Empêche l'exécution de contenu actif dans l'aperçu.
         "Content-Security-Policy": "sandbox; default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; object-src 'self';",

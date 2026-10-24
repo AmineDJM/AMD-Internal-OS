@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dispositionPourBucket } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
 import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "@/lib/ad-pro/passeport-acces";
@@ -67,7 +68,8 @@ export async function GET(
           : undefined,
         redirection: () => direct
           ? presignGetUrl(direct, 900, {
-            "response-content-disposition": contentDisposition(doc.name, download ? "attachment" : "inline"),
+            // Le bucket ne porte pas de CSP : un type actif (HTML, SVG, XML) s'y télécharge (`lib/http/types-actifs.ts`).
+            "response-content-disposition": contentDisposition(doc.name, dispositionPourBucket(mime, download ? "attachment" : "inline")),
             "response-content-type": mime,
           })
           : null,

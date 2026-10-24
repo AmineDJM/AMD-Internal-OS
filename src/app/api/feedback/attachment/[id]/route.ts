@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
@@ -49,6 +50,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return new NextResponse(new Uint8Array(bytes), {
     headers: {
       "Content-Type": att.mime || "application/octet-stream",
+      // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
+      ...entetesAntiExecution(att.mime || "application/octet-stream"),
       "Content-Disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
       "Content-Length": String(bytes.length),
       "X-Content-Type-Options": "nosniff",

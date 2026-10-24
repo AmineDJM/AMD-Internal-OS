@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { contentDisposition } from "@/lib/http/content-disposition";
+import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { extensionDejaCompressee, lireQualite, type EstimationTelechargement, type Qualite } from "@/lib/compression/politique";
 import { obtenirReduction } from "@/lib/compression/reduction-cache";
 import { ecrireZip, enFluxWeb, ErreurZipLimite, LIMITE_ZIP_OCTETS, type EntreeZip, type NiveauZip } from "@/lib/compression/zip-ecriture";
@@ -78,6 +79,7 @@ export async function repondreFichier(f: FichierServi, o: OptionsPorte): Promise
         headers: {
           "Content-Type": r.mime,
           "Content-Disposition": contentDisposition(r.nom, o.telecharger ? "attachment" : "inline"),
+          ...entetesAntiExecution(r.mime),
           "Content-Length": String(r.octets.length),
           "X-Qualite": "reduite",
           "X-Reduction": encodeURIComponent(r.methode),
@@ -106,6 +108,8 @@ async function servirOriginal(f: FichierServi, o: OptionsPorte, directRedirect: 
     headers: {
       "Content-Type": f.mime,
       "Content-Disposition": contentDisposition(f.nom, o.telecharger ? "attachment" : "inline"),
+      // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
+      ...entetesAntiExecution(f.mime),
       "Content-Length": String(octets.length),
       "X-Qualite": "max",
       // L'empreinte du fichier d'origine : qui reçoit les octets peut vérifier qu'ils sont ceux qui ont été déposés.
