@@ -23,6 +23,7 @@ Ce fichier est volontairement court (il est chargé à chaque session). Le texte
 
 ## Ordre de consultation (économie de tokens)
 
+0. **`docs/knowledge-base/`** (index : `docs/knowledge-base/00-INDEX.md`) = carte d'ARCHITECTE vérifiée contre le code (au 2026-10-24) : synthèse, invariants, registre des risques, et un chapitre par sous-système (house style, flux tracés, rayon d'impact, écarts doc ↔ code). La lire pour situer une modification avant le README.
 1. **`docs/readme/`** (ex-`README.md`, index : `docs/readme/INDEX.md`) = carte FONCTIONNELLE de référence : section « Référence détaillée des circuits & mécanismes transverses » (règles exactes de chaque flux + gardes RBAC + modèles + chemins de fichiers) et « Carte du code — fichiers clés par domaine ». La consulter AVANT toute exploration : la plupart des questions « comment marche X / où est codé X » y sont déjà répondues.
 2. **Graphify** (ci-dessous) = carte STRUCTURELLE (symboles, dépendances) pour localiser précisément avant de lire.
 3. **Lecture de code** ciblée en dernier.
