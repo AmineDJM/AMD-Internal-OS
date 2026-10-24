@@ -1,5 +1,32 @@
 ## 🧾 Journal des évolutions récentes
 
+### SÉCURITÉ : L'ÉDITEUR OFFICE N'ENREGISTRE QUE SIGNÉ, UN FICHIER DÉPOSÉ NE S'EXÉCUTE PLUS, UN PAIEMENT NE SORT QU'UNE FOIS (2026-10-24)
+
+Aucune migration. Trois défauts relevés par l'audit d'architecture (`docs/knowledge-base/01-system-overview.md`, R1 · R2 · R4).
+- **Éditeur Office — lire n'est plus enregistrer** : un seul jeton servait à `document.url` (envoyé au NAVIGATEUR, même en
+  lecture) et au rappel ; le rappel acceptait un corps non signé, téléchargeait `body.url` n'importe où et écrivait sans
+  relire le droit — un lecteur pouvait remplacer le fichier (et faire appeler au serveur l'adresse de son choix).
+  Désormais : jeton de LECTURE (`makeFileReadToken` / `makeDocReadToken`) pour `/api/onlyoffice/file` et les conversions ;
+  jeton d'ENREGISTREMENT (`makeSaveToken`) émis en mode édition seulement, dans `callbackUrl` ; décision pure
+  `lireRappelOnlyoffice` (corps SIGNÉ par le Document Server obligatoire, valeurs lues dans la partie signée, adresse chez
+  le Document Server) ; droit relu au rappel (`peutEnregistrerOnlyoffice` : « modifier » Drive / « téléverser » entité,
+  compte actif). Les jetons d'avant restent lus 24 h au plus (transition, mêmes contrôles). ⚠️ Le Document Server doit
+  tourner avec `JWT_ENABLED=true` et le même secret (c'est la configuration documentée, `docs/ONLYOFFICE_SETUP.md`) :
+  sinon ses enregistrements sont refusés, avec la raison au journal serveur (`[onlyoffice] rappel refusé : …`).
+- **Fichiers déposés — rien ne s'exécute dans l'ERP** : HTML, XHTML, SVG et tout XML étaient servis « en ligne » avec le type
+  déclaré au dépôt, sous une CSP qui ne restreint pas les scripts. Règle pure `lib/http/types-actifs.ts` : un type actif part
+  avec `Content-Security-Policy: … sandbox` + `nosniff` (il s'affiche, sans script ni session) ; vers le bucket (adresse
+  signée, pas de CSP possible) il se télécharge (`dispositionPourBucket`). Appliqué dans la porte `repondreFichier`, dans
+  les dix routes de pièces jointes servies en ligne et aux trois adresses signées vers le bucket ; cliquet : toute nouvelle route « inline » doit passer par la règle.
+  PDF, images, vidéo et Office ne changent pas (le bac à sable bloquerait la visionneuse PDF).
+- **Règlement d'un ordre — une seule sortie d'argent** : `settleExpenseOrder` lisait le statut puis écrivait l'écriture de
+  trésorerie plusieurs `await` plus loin ; deux règlements simultanés posaient DEUX sorties pour un ordre (reproduit en
+  banc). L'ordre se réserve d'abord (`updateMany` PENDING → PAID sous l'autorisation du centre lue, §118.151) et l'écriture
+  naît dans la même transaction ; le perdant ne touche à rien (et reçoit « réglé » si l'autre a réglé).
+  `decidePaymentRequest` écrit de même sous condition du statut jugé : deux « bon à payer » ne créent plus deux ordres.
+- Bancs : `onlyoffice.test.ts`, `onlyoffice-session.test.ts`, `onlyoffice-diagnostic.test.ts` (cliquet du rappel),
+  `http/types-actifs.test.ts`, `actions/reglement-concurrent-flow.test.ts` (rouge sur l'ancien code, vert sur le nouveau).
+
 ### DEMANDES DE PAIEMENT : LE MONTANT EST CELUI DE LA FACTURE — RETIRÉE, ELLE QUITTE LE CENTRE ET SE SUPPRIME (2026-10-19)
 
 Aucune migration.
