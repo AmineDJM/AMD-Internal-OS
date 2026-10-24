@@ -12,7 +12,7 @@ import { blankOffice, isOfficeKind } from "@/lib/office-templates";
 import { documentName, KIND_LABEL } from "@/lib/office/letterhead";
 import { getMyCompanies } from "@/lib/company";
 import { convertConfigured, convertDocument } from "@/lib/office-convert";
-import { makeEditToken, appBaseUrl, onlyofficeEditable, extensionsEditables, fileExt } from "@/lib/onlyoffice";
+import { makeFileReadToken, appBaseUrl, onlyofficeEditable, extensionsEditables, fileExt } from "@/lib/onlyoffice";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
@@ -453,7 +453,7 @@ export async function convertNodeToPdf(formData: FormData): Promise<ActionResult
   if (!version) return { ok: false, error: "Aucun contenu à convertir." };
 
   // URL signée que le Document Server peut télécharger (serveur-à-serveur).
-  const token = makeEditToken(id, user.id, 300);
+  const token = makeFileReadToken(id, user.id, 300);
   const srcUrl = `${appBaseUrl()}/api/onlyoffice/file?token=${token}`;
   let pdf: Buffer;
   try {

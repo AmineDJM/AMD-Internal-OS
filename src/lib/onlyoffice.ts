@@ -120,34 +120,145 @@ export function extensionsEditables(): string[] {
   return Object.keys(EXT_TYPE).sort();
 }
 
-// ───────────────────────── Jeton de session d'édition ─────────────────────────
+// ───────────────────────── Jetons : LIRE n'est pas ENREGISTRER ─────────────────────────
+//
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// UN JETON QUI PERMET DE LIRE NE PERMET PLUS D'ENREGISTRER (audit 2026-10-24).
+//
+// ── LE DÉFAUT ────────────────────────────────────────────────────────────────────────────
+//
+// Un seul jeton par ouverture servait aux deux routes : il était posé dans `document.url`
+// (qui part au NAVIGATEUR dans la configuration de l'éditeur) ET dans `callbackUrl`, que l'on
+// soit en lecture ou en édition. Le rappel, lui, acceptait un corps NON signé dès lors que le
+// jeton était bon, téléchargeait `body.url` quelle qu'en soit l'adresse, et écrivait une
+// nouvelle version sans relire le droit. Une personne qui ne pouvait que LIRE un fichier
+// pouvait donc le remplacer par le contenu de n'importe quelle adresse — et faire appeler au
+// serveur l'adresse de son choix.
+//
+// ── LA RÈGLE ─────────────────────────────────────────────────────────────────────────────
+//
+//   · le jeton de LECTURE (`document.url`, conversions PDF) ne vaut que pour /api/onlyoffice/file ;
+//   · le jeton d'ENREGISTREMENT n'est émis qu'en mode édition, dans `callbackUrl` seulement ;
+//   · le rappel n'est cru que SIGNÉ par le Document Server (le secret JWT est obligatoire pour
+//     que l'éditeur soit actif : un corps non signé ne vient pas de lui), ses valeurs se lisent
+//     dans la partie SIGNÉE, et l'adresse à télécharger doit être celle du Document Server ;
+//   · le droit d'enregistrer est RELU au moment du rappel (`peutEnregistrerOnlyoffice`) : un
+//     droit retiré après l'ouverture ne s'exerce plus.
+//
+// Transition : les jetons émis avant ce changement (`kind: "edit" | "docedit"`) restent lus par
+// les deux routes. Plus aucun n'est émis ; ils expirent d'eux-mêmes (24 h au plus), et un éditeur
+// ouvert pendant le déploiement peut encore enregistrer — sous les mêmes contrôles.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
 
-export interface EditToken {
+/** Jeton de LECTURE d'un fichier du Drive : le Document Server le télécharge, rien de plus. */
+export interface FileReadToken {
   nodeId: string;
   userId: string;
-  kind: "edit";
+  kind: "lecture";
 }
 
-/** Jeton (signé) autorisant le Document Server à lire le fichier et à rappeler la sauvegarde. */
-export function makeEditToken(nodeId: string, userId: string, expiresInSec = 24 * 3600): string {
-  return signJwt({ nodeId, userId, kind: "edit" }, expiresInSec);
+export function makeFileReadToken(nodeId: string, userId: string, expiresInSec = 24 * 3600): string {
+  return signJwt({ nodeId, userId, kind: "lecture" }, expiresInSec);
 }
-export function readEditToken(token: string | null | undefined): EditToken | null {
-  const p = verifyJwt<EditToken>(token);
-  return p && p.kind === "edit" ? p : null;
+export function readFileReadToken(token: string | null | undefined): FileReadToken | null {
+  const p = verifyJwt<{ nodeId?: string; userId?: string; kind?: string }>(token);
+  // `edit` : jeton émis avant la séparation lecture / enregistrement (transition, 24 h au plus).
+  if (!p || (p.kind !== "lecture" && p.kind !== "edit") || !p.nodeId || !p.userId) return null;
+  return { nodeId: p.nodeId, userId: p.userId, kind: "lecture" };
 }
 
-/** Variante pour les **documents** (modèle Document, hors Drive) : pièces des dossiers,
- *  Regulatory, etc. Même mécanisme de jeton signé, discriminé par `kind`. */
-export interface DocEditToken {
+/** Variante pour les **documents** (modèle Document, hors Drive) : pièces des dossiers, Regulatory, etc. */
+export interface DocReadToken {
   docId: string;
   userId: string;
-  kind: "docedit";
+  kind: "doclecture";
 }
-export function makeDocEditToken(docId: string, userId: string, expiresInSec = 24 * 3600): string {
-  return signJwt({ docId, userId, kind: "docedit" }, expiresInSec);
+export function makeDocReadToken(docId: string, userId: string, expiresInSec = 24 * 3600): string {
+  return signJwt({ docId, userId, kind: "doclecture" }, expiresInSec);
 }
-export function readDocEditToken(token: string | null | undefined): DocEditToken | null {
-  const p = verifyJwt<DocEditToken>(token);
-  return p && p.kind === "docedit" ? p : null;
+export function readDocReadToken(token: string | null | undefined): DocReadToken | null {
+  const p = verifyJwt<{ docId?: string; userId?: string; kind?: string }>(token);
+  if (!p || (p.kind !== "doclecture" && p.kind !== "docedit") || !p.docId || !p.userId) return null;
+  return { docId: p.docId, userId: p.userId, kind: "doclecture" };
+}
+
+export type CibleEnregistrement = "drive" | "document";
+
+/** Jeton d'ENREGISTREMENT : émis en mode édition seulement, posé dans `callbackUrl` et nulle part ailleurs. */
+export interface SaveToken {
+  cible: CibleEnregistrement;
+  id: string;
+  userId: string;
+  kind: "enregistrement";
+}
+export function makeSaveToken(cible: CibleEnregistrement, id: string, userId: string, expiresInSec = 24 * 3600): string {
+  return signJwt({ cible, id, userId, kind: "enregistrement" }, expiresInSec);
+}
+export function readSaveToken(token: string | null | undefined): SaveToken | null {
+  const p = verifyJwt<{ cible?: string; id?: string; nodeId?: string; docId?: string; userId?: string; kind?: string }>(token);
+  if (!p || !p.userId) return null;
+  if (p.kind === "enregistrement" && (p.cible === "drive" || p.cible === "document") && p.id) {
+    return { cible: p.cible, id: p.id, userId: p.userId, kind: "enregistrement" };
+  }
+  // Transition : jetons uniques d'avant la séparation (voir l'en-tête de section).
+  if (p.kind === "edit" && p.nodeId) return { cible: "drive", id: p.nodeId, userId: p.userId, kind: "enregistrement" };
+  if (p.kind === "docedit" && p.docId) return { cible: "document", id: p.docId, userId: p.userId, kind: "enregistrement" };
+  return null;
+}
+
+// ───────────────────────── Le rappel d'enregistrement ─────────────────────────
+
+export type RappelOnlyoffice =
+  | { action: "ignorer" }
+  | { action: "enregistrer"; jeton: SaveToken; url: string }
+  | { action: "refuser"; raison: string };
+
+/**
+ * Lit un rappel du Document Server SANS rien écrire ni télécharger : la décision est pure, la route
+ * applique (relecture du droit en base, puis écriture). Statuts 2 (document prêt) et 6 (enregistrement
+ * forcé) seulement — tout autre statut est acquitté sans effet.
+ */
+export function lireRappelOnlyoffice(e: {
+  jeton: string | null;
+  id: string | null;
+  docId: string | null;
+  corps: unknown;
+  autorisation: string | null;
+}): RappelOnlyoffice {
+  const jeton = readSaveToken(e.jeton);
+  if (!jeton) return { action: "refuser", raison: "jeton d'enregistrement absent, expiré ou invalide" };
+  const idDeLAdresse = jeton.cible === "drive" ? e.id : e.docId;
+  if (!idDeLAdresse || idDeLAdresse !== jeton.id) return { action: "refuser", raison: "le jeton ne désigne pas ce fichier" };
+
+  const corps = e.corps && typeof e.corps === "object" ? (e.corps as Record<string, unknown>) : null;
+  if (!corps) return { action: "refuser", raison: "corps illisible" };
+  const signe = (typeof corps.token === "string" && corps.token)
+    || (e.autorisation ?? "").replace(/^Bearer\s+/i, "");
+  if (!signe) {
+    return { action: "refuser", raison: "corps non signé — activez JWT_ENABLED sur le Document Server, avec le même secret que ONLYOFFICE_JWT_SECRET" };
+  }
+  const verifie = verifyJwt<{ payload?: Record<string, unknown> } & Record<string, unknown>>(signe);
+  if (!verifie) return { action: "refuser", raison: "signature du Document Server invalide ou expirée" };
+  // En en-tête, le Document Server enveloppe le corps dans `payload` ; dans le corps, il le signe tel quel.
+  const charge = (verifie.payload && typeof verifie.payload === "object" ? verifie.payload : verifie) as Record<string, unknown>;
+
+  const status = charge.status;
+  if (status !== 2 && status !== 6) return { action: "ignorer" };
+  if (typeof charge.url !== "string") return { action: "refuser", raison: "adresse du document absente" };
+
+  // Le fichier se télécharge chez le Document Server, nulle part ailleurs. On compare l'HÔTE seul : un
+  // mandataire TLS devant le Document Server peut lui faire écrire `http://` pour son adresse publique.
+  let hote: string;
+  let hoteAttendu: string;
+  try {
+    const u = new URL(charge.url);
+    if (u.protocol !== "https:" && u.protocol !== "http:") return { action: "refuser", raison: "adresse du document non HTTP" };
+    hote = u.hostname.toLowerCase();
+    hoteAttendu = new URL(server()).hostname.toLowerCase();
+  } catch {
+    return { action: "refuser", raison: "adresse du document illisible" };
+  }
+  if (hote !== hoteAttendu) return { action: "refuser", raison: `adresse hors du Document Server (${hote})` };
+
+  return { action: "enregistrer", jeton, url: charge.url };
 }

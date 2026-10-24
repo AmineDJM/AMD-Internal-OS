@@ -6,7 +6,7 @@ import { requireUser } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import {
-  onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, fileExt, makeDocEditToken, signJwt,
+  onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, fileExt, makeDocReadToken, makeSaveToken, signJwt,
 } from "@/lib/onlyoffice";
 import { OfficeEditor } from "@/app/(app)/drive/[id]/edit/office-editor";
 import { estDocumentVierge } from "@/lib/onlyoffice-config";
@@ -70,7 +70,10 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
     return <Notice back={backHref}>Ce type de fichier n'est pas éditable dans l'éditeur Office.</Notice>;
   }
 
-  const editToken = makeDocEditToken(params.id, user.id);
+  // LIRE n'est pas ENREGISTRER (`lib/onlyoffice.ts`) : jeton de lecture dans `document.url` (qui part au
+  // navigateur), jeton d'enregistrement dans `callbackUrl` seulement.
+  const readToken = makeDocReadToken(params.id, user.id);
+  const saveToken = makeSaveToken("document", params.id, user.id);
   // `key` change à chaque version → invalide le cache du Document Server après sauvegarde.
   const key = `doc_${params.id}_${doc.version}`;
 
@@ -80,13 +83,13 @@ export default async function DocumentEditPage({ params }: { params: { id: strin
       fileType: fileExt(doc.name),
       key,
       title: doc.name,
-      url: `${base}/api/onlyoffice/file?token=${editToken}`,
+      url: `${base}/api/onlyoffice/file?token=${readToken}`,
       permissions: { edit: true, download: true, print: true },
     },
     editorConfig: {
       mode: "edit",
       lang: "fr",
-      callbackUrl: `${base}/api/onlyoffice/callback?docId=${params.id}&token=${editToken}`,
+      callbackUrl: `${base}/api/onlyoffice/callback?docId=${params.id}&token=${saveToken}`,
       user: { id: user.id, name: user.name },
       customization: { autosave: true, forcesave: true },
     },

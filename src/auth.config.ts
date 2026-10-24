@@ -41,7 +41,7 @@ export const authConfig = {
       // LE DOCUMENT SERVER (OnlyOffice) lit le fichier et rappelle l'enregistrement SERVEUR À
       // SERVEUR, sans session : derrière la connexion, il recevait la page /login et l'éditeur
       // disait « erreur de téléchargement ». Ces deux routes vérifient ELLES-MÊMES le jeton signé
-      // (`readEditToken` / `readDocEditToken`) avant toute lecture. Chemins exacts : `/session`
+      // (`readFileReadToken` / `readDocReadToken` ; `lireRappelOnlyoffice` pour le rappel) avant toute lecture. Chemins exacts : `/session`
       // (qui émet ces jetons) reste derrière la connexion.
       if (nextUrl.pathname === "/api/onlyoffice/file" || nextUrl.pathname === "/api/onlyoffice/callback") return true;
 

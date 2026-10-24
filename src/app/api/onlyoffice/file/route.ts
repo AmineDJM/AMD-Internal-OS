@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 import { readFileByKey } from "@/lib/storage";
-import { onlyofficeConfigured, readEditToken, readDocEditToken } from "@/lib/onlyoffice";
+import { onlyofficeConfigured, readFileReadToken, readDocReadToken } from "@/lib/onlyoffice";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   const token = req.nextUrl.searchParams.get("token");
 
   // Document (pièces des dossiers / Regulatory / etc.)
-  const docTok = readDocEditToken(token);
+  const docTok = readDocReadToken(token);
   if (docTok) {
     const doc = await prisma.document.findUnique({ where: { id: docTok.docId }, select: { name: true, mimeType: true, fileKey: true } });
     if (!doc?.fileKey) return new NextResponse(null, { status: 404 });
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  const payload = readEditToken(token);
+  const payload = readFileReadToken(token);
   if (!payload) return new NextResponse(null, { status: 401 });
 
   const node = await prisma.driveNode.findUnique({

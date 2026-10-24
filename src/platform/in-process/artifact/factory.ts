@@ -44,7 +44,7 @@ import { getBlob } from "@/lib/drive-storage";
 import { recordAudit } from "@/lib/audit";
 import { docxToPdf } from "@/lib/payslip/to-pdf";
 import { convertConfigured, convertDocument } from "@/lib/office-convert";
-import { appBaseUrl, makeEditToken } from "@/lib/onlyoffice";
+import { appBaseUrl, makeFileReadToken } from "@/lib/onlyoffice";
 import { portsArtefact } from "@/platform/in-process/artifact/ports";
 import { construireDocumentCommercial } from "@/lib/artifact/factory/build";
 import { empreinteDocument } from "@/lib/artifact/factory/empreinte";
@@ -583,7 +583,7 @@ const compterPagesPdf = (pdf: Buffer): number => {
 async function pdfDeLaPiece(user: CurrentUser, docx: { nodeId: string; version: number }, octets: Buffer): Promise<{ ok: true; pdf: Buffer; pages: number; methode: MethodePdf } | { ok: false; error: string }> {
   if (convertConfigured()) {
     try {
-      const token = makeEditToken(docx.nodeId, user.id, 300);
+      const token = makeFileReadToken(docx.nodeId, user.id, 300);
       const pdf = await convertDocument({ srcUrl: `${appBaseUrl()}/api/onlyoffice/file?token=${token}`, fromExt: "docx", outputType: "pdf", key: `fabrique_${docx.nodeId}_${docx.version}` });
       if (pdf.length > 0) return { ok: true, pdf, pages: compterPagesPdf(pdf), methode: "editeur" };
     } catch (e) {

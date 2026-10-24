@@ -184,9 +184,20 @@ describe("le Document Server n'a pas de session — ses deux routes sont hors co
   it("chacune vérifie le jeton signé avant de toucher à la base", () => {
     for (const f of ["src/app/api/onlyoffice/file/route.ts", "src/app/api/onlyoffice/callback/route.ts"]) {
       const src = lire(f);
-      const jeton = src.search(/read(Doc)?EditToken\(token\)/);
+      const jeton = src.search(/read(Doc|File)ReadToken\(token\)|lireRappelOnlyoffice\(/);
       expect(jeton, f).toBeGreaterThan(0);
       expect(src.indexOf("prisma."), f).toBeGreaterThan(jeton);
     }
+  });
+  it("le rappel relit le DROIT d'enregistrer avant de télécharger ou d'écrire quoi que ce soit", () => {
+    const src = lire("src/app/api/onlyoffice/callback/route.ts");
+    const decision = src.indexOf("lireRappelOnlyoffice(");
+    const droit = src.indexOf("peutEnregistrerOnlyoffice(userId");
+    expect(decision).toBeGreaterThan(0);
+    expect(droit).toBeGreaterThan(decision);
+    expect(src.indexOf("fetch(")).toBeGreaterThan(droit);
+    expect(src.indexOf("prisma.")).toBeGreaterThan(droit);
+    // Le corps NON signé n'est plus lu nulle part dans la route : seule la décision pure le lit.
+    expect(src).not.toMatch(/body\.url|body\.status/);
   });
 });

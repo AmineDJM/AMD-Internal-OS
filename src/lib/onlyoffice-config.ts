@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveDriveAccess } from "@/lib/drive";
 import type { SessionUser } from "@/lib/rbac";
 import {
-  onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, fileExt, makeEditToken, signJwt,
+  onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, fileExt, makeFileReadToken, makeSaveToken, signJwt,
 } from "@/lib/onlyoffice";
 import { blankOffice } from "@/lib/office-templates";
 
@@ -40,7 +40,10 @@ export async function buildEditorSetup(
   const last = await prisma.fileVersion.findFirst({
     where: { nodeId }, orderBy: { version: "desc" }, select: { version: true },
   });
-  const editToken = makeEditToken(nodeId, user.id);
+  // LIRE n'est pas ENREGISTRER (`lib/onlyoffice.ts`) : `document.url` part au navigateur, il ne porte qu'un
+  // jeton de lecture ; le jeton d'enregistrement ne vit que dans `callbackUrl` (on est en édition ici).
+  const readToken = makeFileReadToken(nodeId, user.id);
+  const saveToken = makeSaveToken("drive", nodeId, user.id);
   // `key` change à chaque version → invalide le cache du Document Server après sauvegarde.
   const key = `${nodeId}_${last?.version ?? 1}`;
 
@@ -50,13 +53,13 @@ export async function buildEditorSetup(
       fileType: fileExt(node.name),
       key,
       title: node.name,
-      url: `${base}/api/onlyoffice/file?token=${editToken}`,
+      url: `${base}/api/onlyoffice/file?token=${readToken}`,
       permissions: { edit: true, download: true, print: true },
     },
     editorConfig: {
       mode: "edit",
       lang: "fr",
-      callbackUrl: `${base}/api/onlyoffice/callback?id=${nodeId}&token=${editToken}`,
+      callbackUrl: `${base}/api/onlyoffice/callback?id=${nodeId}&token=${saveToken}`,
       user: { id: user.id, name: user.name ?? "Utilisateur" },
       // Allègement de l'initialisation : on désactive les sous-systèmes inutiles ici (chat,
       // plugins, aide, page « à propos ») pour un démarrage plus rapide et une surface d'édition

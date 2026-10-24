@@ -2,10 +2,10 @@ import { prisma } from "@/lib/prisma";
 import { resolveDriveAccess, canViewDrive, type DriveAccessLevel } from "@/lib/drive";
 import { canAccessEntity } from "@/lib/entity-access";
 import { peutLirePasseportDuSujet } from "@/lib/ad-pro/passeport-acces";
-import type { SessionUser } from "@/lib/rbac";
+import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, onlyofficeTypeOuvrable, fileExt,
-  makeEditToken, makeDocEditToken, signJwt,
+  makeFileReadToken, makeDocReadToken, makeSaveToken, signJwt, type CibleEnregistrement,
 } from "@/lib/onlyoffice";
 
 /**
@@ -52,7 +52,8 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
   let peutModifier: boolean;
   let key: string;
   let urlFichier: string;
-  let callbackUrl: string;
+  // L'adresse de rappel ne porte un jeton d'ENREGISTREMENT que si l'éditeur s'ouvre en édition (voir plus bas).
+  let rappel: () => string;
 
   if (cible.type === "drive") {
     const acces = dejaLu ? dejaLu.acces : await resolveDriveAccess(user, cible.id);
@@ -69,9 +70,9 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     peutModifier = acces === "EDIT";
     // `key` change à chaque version → le Document Server n'ouvre jamais une copie périmée.
     key = `${cible.id}_${derniere.version}`;
-    const jeton = makeEditToken(cible.id, user.id);
-    urlFichier = `${base}/api/onlyoffice/file?token=${jeton}`;
-    callbackUrl = `${base}/api/onlyoffice/callback?id=${cible.id}&token=${jeton}`;
+    urlFichier = `${base}/api/onlyoffice/file?token=${makeFileReadToken(cible.id, user.id)}`;
+    const nodeId = cible.id;
+    rappel = () => `${base}/api/onlyoffice/callback?id=${nodeId}&token=${makeSaveToken("drive", nodeId, user.id)}`;
   } else {
     const doc = await prisma.document.findUnique({
       where: { id: cible.id },
@@ -86,9 +87,9 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     peutModifier = await canAccessEntity(user, doc.entityType, doc.entityId, "UPLOAD");
     // Version ET taille : un fichier remplacé sans passer par l'éditeur ne doit pas rouvrir l'ancienne copie.
     key = `doc_${doc.id}_${doc.version}_${doc.sizeBytes ?? 0}`;
-    const jeton = makeDocEditToken(doc.id, user.id);
-    urlFichier = `${base}/api/onlyoffice/file?token=${jeton}`;
-    callbackUrl = `${base}/api/onlyoffice/callback?docId=${doc.id}&token=${jeton}`;
+    urlFichier = `${base}/api/onlyoffice/file?token=${makeDocReadToken(doc.id, user.id)}`;
+    const docId = doc.id;
+    rappel = () => `${base}/api/onlyoffice/callback?docId=${docId}&token=${makeSaveToken("document", docId, user.id)}`;
   }
 
   const typeOuvrable = onlyofficeTypeOuvrable(nom);
@@ -108,7 +109,8 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     editorConfig: {
       mode,
       lang: "fr",
-      ...(mode === "edit" ? { callbackUrl } : {}),
+      // En LECTURE, aucun jeton d'enregistrement n'est émis : la configuration part au navigateur.
+      ...(mode === "edit" ? { callbackUrl: rappel() } : {}),
       user: { id: user.id, name: user.name ?? "Utilisateur" },
       customization: {
         autosave: true, forcesave: true, chat: false, plugins: false, help: false, about: false,
@@ -125,4 +127,18 @@ export async function sessionEditeur(user: SessionUser & { name?: string }, cibl
     name: nom,
     mode,
   };
+}
+
+/**
+ * LE DROIT D'ENREGISTRER, RELU AU MOMENT DU RAPPEL — la même règle que celle qui ouvre l'éditeur en
+ * édition (`sessionEditeur`) : « modifier » sur le Drive, « téléverser » sur l'entité du document. Un compte
+ * désactivé n'enregistre plus rien. Lu par `/api/onlyoffice/callback`, qui n'a pas de session.
+ */
+export async function peutEnregistrerOnlyoffice(userId: string, cible: CibleEnregistrement, id: string): Promise<boolean> {
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, role: true, secondaryRole: true, isActive: true } });
+  if (!u || !u.isActive) return false;
+  const user: SessionUser = { id: u.id, role: u.role, secondaryRole: u.secondaryRole, access: await getAccess(u.id, u.role) };
+  if (cible === "drive") return (await resolveDriveAccess(user, id)) === "EDIT";
+  const doc = await prisma.document.findUnique({ where: { id }, select: { entityType: true, entityId: true } });
+  return !!doc && (await canAccessEntity(user, doc.entityType, doc.entityId, "UPLOAD"));
 }
