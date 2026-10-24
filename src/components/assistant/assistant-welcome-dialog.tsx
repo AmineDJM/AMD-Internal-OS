@@ -8,15 +8,21 @@ export function AssistantWelcomeDialog() {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    const seenUpdate = localStorage.getItem("amd_update_assistant_live_v1");
-    if (!seenUpdate) {
-      const timer = setTimeout(() => setIsOpen(true), 400);
+    // Permet de forcer l'affichage avec ?welcome=1 ou si la mise à jour v2 n'a pas encore été vue
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const forcePreview = params?.get("welcome") === "1";
+    const seenUpdate = typeof window !== "undefined" ? localStorage.getItem("amd_update_assistant_live_v2") : null;
+
+    if (forcePreview || !seenUpdate) {
+      const timer = setTimeout(() => setIsOpen(true), 350);
       return () => clearTimeout(timer);
     }
   }, []);
 
   const handleDismiss = () => {
-    localStorage.setItem("amd_update_assistant_live_v1", "true");
+    if (typeof window !== "undefined") {
+      localStorage.setItem("amd_update_assistant_live_v2", "true");
+    }
     setIsOpen(false);
   };
 
