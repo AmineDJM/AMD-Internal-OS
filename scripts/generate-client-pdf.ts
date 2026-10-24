@@ -4,88 +4,64 @@ import PDFDocument from "pdfkit";
 
 const L = 595.28; // Largeur A4
 const H = 841.89; // Hauteur A4
-const M = 44;     // Marges
+const M = 48;     // Marges
 const W = L - 2 * M;
 
-const BLEU_NUIT = "#0F172A";
-const BLEU_PRIMARY = "#1E40AF";
-const BLEU_ACCENT = "#2563EB";
-const BLEU_CLAIR = "#EFF6FF";
-const GRIS_FOND = "#F8FAFC";
-const GRIS_BORDURE = "#E2E8F0";
-const GRIS_TEXTE = "#475569";
-const GRIS_CLAIR = "#94A3B8";
-const VERT_SUCCES = "#059669";
-const VERT_FOND = "#ECFDF5";
-const NOIR_ENCRE = "#0F172A";
+// Palette stricte monochrome + haute visibilité (WCAG AAA)
+const C_TITLE = "#0F172A";       // Slate 900 (Noir profond lisible)
+const C_BODY = "#334155";        // Slate 700 (Gris foncé net)
+const C_MUTED = "#64748B";       // Slate 500 (Gris pour métadonnées)
+const C_BORDER = "#CBD5E1";      // Slate 300 (Bordure nette)
+const C_SURFACE = "#F8FAFC";     // Slate 50 (Fond de boîte)
+const C_LINE = "#E2E8F0";        // Slate 200 (Séparateurs)
+const C_TAG_BG = "#F1F5F9";      // Slate 100
 
-const clean = (s: string) => s.replace(/[  ]/g, " ").replace(/→/g, "->").replace(/−/g, "-");
+const clean = (s: string) =>
+  s.replace(/[  ]/g, " ")
+   .replace(/→/g, "->")
+   .replace(/−/g, "-")
+   .replace(/—/g, "--");
 
-function dessinerEntete(doc: PDFKit.PDFDocument, pageNum: number, titrePage: string) {
-  // Bande supérieure élégante
-  doc.rect(0, 0, L, 5).fill(BLEU_PRIMARY);
-  
-  // Titre en haut
-  doc.fillColor(GRIS_CLAIR).font("Helvetica-Bold").fontSize(8)
-    .text(clean("ADVENTUM PHARMA · SYSTÈME D'INFORMATION INTERNE"), M, 24, { width: 350 });
-  
-  doc.fillColor(GRIS_CLAIR).font("Helvetica").fontSize(8)
-    .text(clean(titrePage), L - M - 200, 24, { width: 200, align: "right" });
+function drawHeader(doc: PDFKit.PDFDocument, pageNum: number, pageTitle: string) {
+  doc.strokeColor(C_LINE).lineWidth(1).moveTo(M, 34).lineTo(L - M, 34).stroke();
 
-  doc.strokeColor(GRIS_BORDURE).lineWidth(0.8).moveTo(M, 38).lineTo(L - M, 38).stroke();
+  doc.fillColor(C_MUTED).font("Helvetica-Bold").fontSize(7.5)
+    .text(clean("ADVENTUM PHARMA -- SYSTEME D'INFORMATION INTERNE"), M, 22, { width: 320 });
+
+  doc.fillColor(C_MUTED).font("Helvetica").fontSize(7.5)
+    .text(clean(pageTitle), L - M - 200, 22, { width: 200, align: "right" });
 }
 
-function dessinerPied(doc: PDFKit.PDFDocument, pageNum: number, totalPages: number) {
-  doc.strokeColor(GRIS_BORDURE).lineWidth(0.8).moveTo(M, H - 38).lineTo(L - M, H - 38).stroke();
-  
-  doc.fillColor(GRIS_CLAIR).font("Helvetica").fontSize(8)
-    .text(clean("Adventum Brain — Fiche de présentation produit et spécifications"), M, H - 28, { width: 350 });
-  
-  doc.fillColor(GRIS_CLAIR).font("Helvetica-Bold").fontSize(8)
-    .text(`Page ${pageNum} / ${totalPages}`, L - M - 100, H - 28, { width: 100, align: "right" });
+function drawFooter(doc: PDFKit.PDFDocument, pageNum: number, totalPages: number) {
+  doc.strokeColor(C_LINE).lineWidth(1).moveTo(M, H - 34).lineTo(L - M, H - 34).stroke();
+
+  doc.fillColor(C_MUTED).font("Helvetica").fontSize(8)
+    .text(clean("Adventum Brain -- Dossier de specifications fonctionnelles et techniques"), M, H - 24, { width: 350 });
+
+  doc.fillColor(C_MUTED).font("Helvetica").fontSize(8)
+    .text(`Page ${pageNum} sur ${totalPages}`, L - M - 100, H - 24, { width: 100, align: "right" });
 }
 
-function card(
-  doc: PDFKit.PDFDocument,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  titre: string,
-  desc: string,
-  badge?: string,
-  badgeColor: string = BLEU_PRIMARY
-) {
-  // Fond carte
-  doc.roundedRect(x, y, w, h, 8).fillAndStroke(GRIS_FOND, GRIS_BORDURE);
-
-  // Badge si présent
-  if (badge) {
-    const badgeW = 90;
-    doc.roundedRect(x + w - badgeW - 10, y + 10, badgeW, 14, 4).fill(badgeColor === VERT_SUCCES ? VERT_FOND : BLEU_CLAIR);
-    doc.fillColor(badgeColor).font("Helvetica-Bold").fontSize(7.5)
-      .text(clean(badge), x + w - badgeW - 10, y + 13, { width: badgeW, align: "center" });
-  }
-
-  // Titre
-  doc.fillColor(NOIR_ENCRE).font("Helvetica-Bold").fontSize(10.5)
-    .text(clean(titre), x + 12, y + 12, { width: w - (badge ? 115 : 24) });
-
-  // Description
-  doc.fillColor(GRIS_TEXTE).font("Helvetica").fontSize(8.5).lineGap(2)
-    .text(clean(desc), x + 12, y + 28, { width: w - 24 });
+function sectionTitle(doc: PDFKit.PDFDocument, text: string, y: number): number {
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(10.5)
+    .text(clean(text), M, y);
+  doc.strokeColor(C_LINE).lineWidth(0.8).moveTo(M, y + 15).lineTo(L - M, y + 15).stroke();
+  return y + 24;
 }
 
 async function genererPdf() {
-  const outputPath = path.resolve(process.cwd(), "Adventum-Brain-Assistant-IA-Presentation-Client.pdf");
+  const targetFileName = "Adventum-Brain-Specifications.pdf";
+  const outputPath = path.resolve(process.cwd(), targetFileName);
+  const publicPath = path.resolve(process.cwd(), "public/docs", targetFileName);
+
   const doc = new PDFDocument({
     size: "A4",
     margin: 0,
     info: {
-      Title: "Adventum Brain — Assistant IA d'Entreprise",
+      Title: "Adventum Brain -- Specifications Techniques et Fonctionnelles",
       Author: "Adventum Pharma",
-      Subject: "Spécifications et Capacités Métier de l'Assistant IA",
-      Keywords: "Adventum, ERP, IA, Réglementaire, Pharma, Algérie",
+      Subject: "Module Assistant ERP Interne",
+      Keywords: "Adventum, ERP, Pharma, Algerie, Specifications, RBAC",
     },
   });
 
@@ -93,271 +69,369 @@ async function genererPdf() {
   doc.pipe(stream);
 
   // ══════════════════════════════════════════════════════════════════════════════
-  // PAGE 1 : PRÉSENTATION EXÉCUTIVE & PILIERS FONCTIONNELS
+  // PAGE 1 : CADRAGE FONCTIONNEL & PÉRIMÈTRE MÉTIER
   // ══════════════════════════════════════════════════════════════════════════════
-  dessinerEntete(doc, 1, "PRÉSENTATION EXÉCUTIVE");
+  drawHeader(doc, 1, "SPECIFICATIONS FONCTIONNELLES");
 
-  // Bannière de titre
-  const yHero = 52;
-  doc.roundedRect(M, yHero, W, 72, 10).fill(BLEU_NUIT);
-  doc.fillColor("#FFFFFF").font("Helvetica-Bold").fontSize(18)
-    .text(clean("ADVENTUM BRAIN"), M + 20, yHero + 14);
-  doc.fillColor("#93C5FD").font("Helvetica-Bold").fontSize(10.5)
-    .text(clean("Assistant d'Entreprise Intelligent & Pilote Opérationnel ERP"), M + 20, yHero + 36);
-  doc.fillColor("#CBD5E1").font("Helvetica").fontSize(8.5)
-    .text(clean("Développé pour Adventum Pharma · Connexion en direct PostgreSQL · Déterminisme garanti"), M + 20, yHero + 51);
+  // En-tête de document
+  let y = 50;
+  doc.fillColor(C_MUTED).font("Helvetica-Bold").fontSize(7.5)
+    .text(clean("DOCUMENTATION TECHNIQUE · MODULE ASSISTANT ERP INTERNE"), M, y);
 
-  // Section 1 : Introduction & Enjeux
-  let y = 140;
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(12)
-    .text(clean("1. Vision & Architecture Métier"), M, y);
-  
-  y += 18;
-  const texteIntro =
-    "Adventum Brain est l'assistant d'intelligence artificielle intégré au cœur du système d'information d'Adventum Pharma. " +
-    "Conçu spécifiquement pour le secteur pharmaceutique en Algérie, il connecte l'ensemble des collaborateurs aux données critiques " +
-    "de l'entreprise sans jamais inventer d'information, grâce à une boucle agent déterministe avec barrières de confidentialité.";
+  y += 13;
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(16).text(clean("Adventum Brain : Spécifications et Architecture"), M, y);
 
-  doc.fillColor(GRIS_TEXTE).font("Helvetica").fontSize(9).lineGap(3)
-    .text(clean(texteIntro), M, y, { width: W, align: "justify" });
+  y += 22;
+  doc.fillColor(C_BODY).font("Helvetica").fontSize(8.5).lineGap(2.5)
+    .text(
+      clean(
+        "Ce document détaille l'architecture, les garanties d'intégrité et le périmètre d'action du module d'assistance interne " +
+        "intégré à l'ERP d'Adventum Pharma. Déployé pour l'ensemble des collaborateurs habilités, il permet d'interroger " +
+        "les données métier en direct et de préparer des actions sans manipulation SQL ni accès direct aux couches de persistance."
+      ),
+      M,
+      y,
+      { width: W, align: "justify" }
+    );
 
-  // Section 2 : Les 4 Grands Piliers d'Action
-  y += 52;
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(12)
-    .text(clean("2. Capacités Opérationnelles & Domaines Clés"), M, y);
+  y += 38;
+  y = sectionTitle(doc, "1. Périmètre opérationnel et sources de données", y);
 
-  y += 18;
-  const colW = (W - 14) / 2;
-  const cardH = 76;
+  // Grille 2x2 couvrant les 4 modules métier
+  const col2W = (W - 10) / 2;
+  const col2H = 58;
 
-  // Carte 1 : Affaires Réglementaires
-  card(
-    doc,
-    M,
-    y,
-    colW,
-    cardH,
-    "📁 Affaires Réglementaires & AMM",
-    "Consultation immédiate des dossiers d'enregistrement, statuts d'instruction, échéances auprès de l'ANPP et suivi des variations mineures ou majeures.",
-    "2 Dossiers Actifs",
-    BLEU_PRIMARY
-  );
+  const modulesMetier = [
+    {
+      titre: "Affaires Réglementaires",
+      stat: "2 dossiers actifs sous instruction",
+      desc: "Suivi des demandes d'AMM, statuts auprès de l'ANPP, calendrier des renouvellements quinquennaux et traçabilité des variations.",
+    },
+    {
+      titre: "Catalogue Médicaments & DCI",
+      stat: "109 références actives référencées",
+      desc: "Consultation des dénominations communes, formes galéniques, dosages et indicateurs de disponibilité commerciale (98,4 %).",
+    },
+    {
+      titre: "Gestion Opérationnelle & Tâches",
+      stat: "Préparation assistée sous validation",
+      desc: "Création de tâches de revue réglementaire, assignation par collaborateur, gestion des priorités et suivi d'avancement.",
+    },
+    {
+      titre: "Annuaire Collaborateurs",
+      stat: "20 comptes actifs enregistrés",
+      desc: "Coordonnées professionnelles, affectations par pôle (Réglementaire, Commercial, Direction) et structure hiérarchique.",
+    },
+  ];
 
-  // Carte 2 : Catalogue Produits
-  card(
-    doc,
-    M + colW + 14,
-    y,
-    colW,
-    cardH,
-    "📦 Catalogue Produits & DCI",
-    "Exploration des 109 références pharmaceutiques du laboratoire, formes galéniques, dosages et suivi de disponibilité en stock.",
-    "98.4% Disponibilité",
-    VERT_SUCCES
-  );
+  modulesMetier.forEach((m, idx) => {
+    const colIndex = idx % 2;
+    const rowIndex = Math.floor(idx / 2);
+    const cx = M + colIndex * (col2W + 10);
+    const cy = y + rowIndex * (col2H + 8);
 
-  y += cardH + 12;
+    doc.roundedRect(cx, cy, col2W, col2H, 6).fillAndStroke(C_SURFACE, C_BORDER);
 
-  // Carte 3 : Actions Sécurisées (HITL)
-  card(
-    doc,
-    M,
-    y,
-    colW,
-    cardH,
-    "✍️ Actions Human-in-the-Loop",
-    "Génération assistée de tâches d'équipe et communications internes. Aucune modification de base n'est appliquée sans validation explicite de l'utilisateur.",
-    "Validation Requise",
-    BLEU_PRIMARY
-  );
+    doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(8.5)
+      .text(clean(m.titre), cx + 10, cy + 8, { width: col2W - 20 });
 
-  // Carte 4 : Sécurité & Cloisonnement RBAC
-  card(
-    doc,
-    M + colW + 14,
-    y,
-    colW,
-    cardH,
-    "🛡️ Sécurité & Confidentialité",
-    "Filtrage systématique des données sensibles (salaires masqués) et respect absolu des privilèges (Super Admin, Direction, Réglementaire, Ventes).",
-    "Plafond RBAC Actif",
-    VERT_SUCCES
-  );
+    doc.fillColor(C_MUTED).font("Helvetica-Bold").fontSize(7.5)
+      .text(clean(m.stat), cx + 10, cy + 20, { width: col2W - 20 });
 
-  // Section 3 : Tableau des Exemples de Requêtes Réelles
-  y += cardH + 20;
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(12)
-    .text(clean("3. Exemples d'Interactions Traitées"), M, y);
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5).lineGap(1.5)
+      .text(clean(m.desc), cx + 10, cy + 32, { width: col2W - 20 });
+  });
 
-  y += 18;
-  const rowH = 24;
-  const tableHeaders = ["Domaine", "Exemple de Demande Utilisateur", "Comportement du Système"];
-  const colWidths = [110, 210, 187];
+  y += 2 * (col2H + 8) + 10;
+  y = sectionTitle(doc, "2. Protocole d'action déterministe (Human-in-the-Loop)", y);
+
+  doc.fillColor(C_BODY).font("Helvetica").fontSize(8.5).lineGap(2)
+    .text(
+      clean(
+        "Pour prévenir tout risque de corruption de données, le modèle d'inférence n'a aucun droit direct d'écriture en base PostgreSQL. " +
+        "Toute modification suit un cycle strict en quatre étapes avec approbation explicite obligatoire :"
+      ),
+      M,
+      y,
+      { width: W, align: "justify" }
+    );
+
+  y += 28;
+
+  const etapes = [
+    { num: "01", titre: "Formulation", desc: "Instruction saisie en langage naturel par l'utilisateur connecté." },
+    { num: "02", titre: "Extraction Intent", desc: "Typage strict des paramètres et création d'une intention PROPOSED." },
+    { num: "03", titre: "Carte visuelle", desc: "Présentation des champs détaillés dans l'interface pour contrôle." },
+    { num: "04", titre: "Validation", desc: "Écriture déclenchée uniquement après validation explicite par clic." },
+  ];
+
+  const stepW = (W - 18) / 4;
+  etapes.forEach((s, idx) => {
+    const sx = M + idx * (stepW + 6);
+    doc.roundedRect(sx, y, stepW, 64, 6).fillAndStroke(C_SURFACE, C_BORDER);
+
+    doc.fillColor(C_MUTED).font("Helvetica-Bold").fontSize(8)
+      .text(clean(s.num), sx + 8, y + 8);
+
+    doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(8)
+      .text(clean(s.titre), sx + 8, y + 19, { width: stepW - 16 });
+
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5).lineGap(1.5)
+      .text(clean(s.desc), sx + 8, y + 31, { width: stepW - 16 });
+  });
+
+  y += 74;
+  y = sectionTitle(doc, "3. Matrice d'exemples d'interactions et comportements certifiés", y);
+
+  const tableHeaders = ["Domaine", "Requête type", "Traitement déterministe", "Garantie d'intégrité"];
+  const colWidths = [85, 155, 170, 89];
+  const rowHeight = 24;
 
   // Header tableau
-  doc.rect(M, y, W, 20).fill(BLEU_CLAIR);
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(8);
-  doc.text(clean(tableHeaders[0]), M + 8, y + 6, { width: colWidths[0] });
-  doc.text(clean(tableHeaders[1]), M + 8 + colWidths[0], y + 6, { width: colWidths[1] });
-  doc.text(clean(tableHeaders[2]), M + 8 + colWidths[0] + colWidths[1], y + 6, { width: colWidths[2] });
+  doc.rect(M, y, W, 18).fill(C_TAG_BG);
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(7.5);
+  doc.text(clean(tableHeaders[0]), M + 6, y + 5, { width: colWidths[0] });
+  doc.text(clean(tableHeaders[1]), M + 6 + colWidths[0], y + 5, { width: colWidths[1] });
+  doc.text(clean(tableHeaders[2]), M + 6 + colWidths[0] + colWidths[1], y + 5, { width: colWidths[2] });
+  doc.text(clean(tableHeaders[3]), M + 6 + colWidths[0] + colWidths[1] + colWidths[2], y + 5, { width: colWidths[3] });
 
-  y += 20;
+  y += 18;
 
   const rows = [
-    ["Réglementaire", "« Quel est le statut du dossier Biocare ? »", "Recherche Postgres, extrait l'étape et résume les pièces."],
-    ["Catalogue", "« Résume les formes disponibles au catalogue »", "Agrège les 109 références et liste les dosages exacts."],
-    ["Action Sécurisée", "« Crée une tâche urgente pour finaliser le module 3 »", "Prépare la carte d'action HITL avec bouton de confirmation."],
-    ["Confidentialité", "« Quel est le salaire de Salim ? »", "Blocage strict RBAC : données financières masquées."],
-    ["Télémétrie", "« Check db / statistiques »", "Comptage en direct de la base de données (< 10 ms)."]
+    ["Réglementaire", "Statut du dossier Biocare", "Extraction de l'étape et pièces jointes réelles", "Zéro hallucination"],
+    ["Produits", "Formes galéniques au catalogue", "Agrégation exacte des 109 références actives", "Données synchrones"],
+    ["Tâche", "Créer tâche urgente clôture M3", "Génération de la carte d'action sous validation", "Validation requise"],
+    ["Annuaire", "Coordonnées pharmacien responsable", "Lookup ciblé dans l'annuaire d'entreprise", "Données certifiées"],
+    ["Confidentialité", "Demande de salaire d'un tiers", "Filtrage et rejet strict avant appel modèle", "Conformité RH"],
+    ["Télémétrie", "Vérification base de données", "Comptage direct des tables actives PostgreSQL", "Réponse < 10 ms"],
   ];
 
   rows.forEach((r, idx) => {
-    const bg = idx % 2 === 0 ? "#FFFFFF" : GRIS_FOND;
-    doc.rect(M, y, W, rowH).fillAndStroke(bg, GRIS_BORDURE);
-    
-    doc.fillColor(NOIR_ENCRE).font("Helvetica-Bold").fontSize(8)
-      .text(clean(r[0]), M + 8, y + 7, { width: colWidths[0] - 10 });
-    
-    doc.fillColor(GRIS_TEXTE).font("Helvetica-Oblique").fontSize(8)
-      .text(clean(r[1]), M + 8 + colWidths[0], y + 7, { width: colWidths[1] - 10 });
+    const bg = idx % 2 === 0 ? "#FFFFFF" : C_SURFACE;
+    doc.rect(M, y, W, rowHeight).fillAndStroke(bg, C_LINE);
 
-    doc.fillColor(GRIS_TEXTE).font("Helvetica").fontSize(8)
-      .text(clean(r[2]), M + 8 + colWidths[0] + colWidths[1], y + 7, { width: colWidths[2] - 10 });
+    doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(7.5)
+      .text(clean(r[0]), M + 6, y + 6, { width: colWidths[0] - 8 });
 
-    y += rowH;
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5)
+      .text(clean(r[1]), M + 6 + colWidths[0], y + 6, { width: colWidths[1] - 8 });
+
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5)
+      .text(clean(r[2]), M + 6 + colWidths[0] + colWidths[1], y + 6, { width: colWidths[2] - 8 });
+
+    doc.fillColor(C_MUTED).font("Helvetica-Bold").fontSize(7.5)
+      .text(clean(r[3]), M + 6 + colWidths[0] + colWidths[1] + colWidths[2], y + 6, { width: colWidths[3] - 8 });
+
+    y += rowHeight;
   });
 
-  dessinerPied(doc, 1, 2);
+  // Bloc complémentaire sur la non-invention
+  y += 14;
+  doc.roundedRect(M, y, W, 46, 6).fillAndStroke(C_SURFACE, C_BORDER);
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(8)
+    .text(clean("ENGAGEMENT TECHNIQUE DE NON-INVENTION (ZERO-HALLUCINATION)"), M + 12, y + 8);
+  doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5).lineGap(2)
+    .text(
+      clean(
+        "Toutes les réponses de l'assistant sont ancrées sur les enregistrements réels extraits de l'ERP. En l'absence d'information " +
+        "dans la base, le système retourne un état explicite d'indisponibilité de la donnée et s'interdit toute extrapolation."
+      ),
+      M + 12,
+      y + 20,
+      { width: W - 24 }
+    );
+
+  drawFooter(doc, 1, 2);
 
   // ══════════════════════════════════════════════════════════════════════════════
-  // PAGE 2 : INTERFACE, DÉPLOIEMENT CLOUD & ENGAGEMENTS DE SÉCURITÉ
+  // PAGE 2 : SÉCURITÉ, INFRASTRUCTURE ET VALIDATION
   // ══════════════════════════════════════════════════════════════════════════════
   doc.addPage();
-  dessinerEntete(doc, 2, "INFRASTRUCTURE & INTERFACE");
+  drawHeader(doc, 2, "INFRASTRUCTURE & SECURITE");
 
-  // Section 4 : Interface Utilisateur
-  y = 52;
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(12)
-    .text(clean("4. Expérience Utilisateur & Design System"), M, y);
+  y = 50;
+  y = sectionTitle(doc, "4. Contrôle d'accès basé sur les rôles (RBAC) et confidentialité", y);
 
-  y += 18;
-  const descUi =
-    "L'interface d'Adventum Brain a été entièrement façonnée selon les Human Interface Guidelines d'Apple (macOS et visionOS). " +
-    "Elle allie clarté, sérénité et réactivité maximale :";
+  doc.fillColor(C_BODY).font("Helvetica").fontSize(8.5).lineGap(2)
+    .text(
+      clean(
+        "L'assistant applique un plafond strict de privilèges déterminé par le rôle de session de l'utilisateur connecté. " +
+        "Le modèle d'IA ne reçoit aucune donnée sortant du périmètre autorisé de l'utilisateur."
+      ),
+      M,
+      y,
+      { width: W, align: "justify" }
+    );
 
-  doc.fillColor(GRIS_TEXTE).font("Helvetica").fontSize(9).lineGap(3)
-    .text(clean(descUi), M, y, { width: W });
+  y += 26;
 
-  y += 34;
-
-  const featuresUi = [
+  const rbacItems = [
     {
-      titre: "Apple Glassmorphism",
-      detail: "Panneaux en verre dépoli haute définition (backdrop-blur-2xl) préservant la lisibilité des chiffres et indicateurs."
+      titre: "Isolation des données RH et financières",
+      desc: "Un filtre d'analyse lexicale intercepte en amont toute question relative aux salaires, primes ou coordonnées bancaires. Ces données ne sont jamais transmises au modèle d'inférence.",
     },
     {
-      titre: "Curseur Luminescent Dynamique",
-      detail: "Curseur à physique de ressort (spring physics) qui se diffuse en halo d'arrière-plan doux (52px) au survol des cartes."
+      titre: "Plafond d'habilitation par profil",
+      desc: "Un délégué médical n'a pas accès aux dossiers d'enregistrement AMM. De même, les fonctions sans droit d'écriture ne peuvent pas déclencher de proposition d'action.",
     },
     {
-      titre: "Plein Écran Opérationnel",
-      detail: "Disposition sans marges superflues (app-viewport-flush) offrant un confort optimal de travail en session prolongée."
+      titre: "Traçabilité et audit systématique",
+      desc: "Chaque action confirmée et exécutée est enregistrée dans la table AuditLog avec horodatage certifié, identifiant de l'auteur et état antérieur/postérieur.",
     },
-    {
-      titre: "Intégration B2B Épurée",
-      detail: "Modale d'annonce sobre inspirée des meilleurs outils SaaS (Linear, Stripe) sans artifice superflu ni marketing excessif."
-    }
   ];
 
-  featuresUi.forEach(f => {
-    doc.roundedRect(M, y, W, 36, 6).fillAndStroke(GRIS_FOND, GRIS_BORDURE);
-    doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(8.5)
-      .text(clean(`• ${f.titre}`), M + 12, y + 8, { width: 140 });
-    doc.fillColor(GRIS_TEXTE).font("Helvetica").fontSize(8)
-      .text(clean(f.detail), M + 155, y + 8, { width: W - 170 });
+  rbacItems.forEach(item => {
+    doc.roundedRect(M, y, W, 36, 6).fillAndStroke(C_SURFACE, C_BORDER);
+
+    doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(8)
+      .text(clean(item.titre), M + 12, y + 7, { width: W - 24 });
+
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5).lineGap(1.5)
+      .text(clean(item.desc), M + 12, y + 18, { width: W - 24 });
+
     y += 42;
   });
 
-  // Section 5 : Moteur Technique & Modèle d'IA
-  y += 8;
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(12)
-    .text(clean("5. Moteur d'IA & Infrastructure Cloud"), M, y);
+  y += 6;
+  y = sectionTitle(doc, "5. Matrice des habilitations par rôle utilisateur", y);
 
-  y += 18;
-  const techCardsW = (W - 14) / 2;
-  const techH = 82;
+  const rbacTableHeaders = ["Rôle utilisateur", "Périmètre autorisé", "Restrictions strictes", "Statut"];
+  const rbacColW = [110, 175, 145, 69];
+  const rbacRowH = 22;
 
-  card(
-    doc,
-    M,
-    y,
-    techCardsW,
-    techH,
-    "⚡ Modèle Xiaomi MiMo Flash",
-    "Propulsé par le cluster haute performance d'Amsterdam. Mode raisonnement lourd désactivé pour des réponses en moins de 3 secondes.",
-    "Latence < 3s",
-    VERT_SUCCES
-  );
+  doc.rect(M, y, W, 17).fill(C_TAG_BG);
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(7.5);
+  doc.text(clean(rbacTableHeaders[0]), M + 6, y + 5, { width: rbacColW[0] });
+  doc.text(clean(rbacTableHeaders[1]), M + 6 + rbacColW[0], y + 5, { width: rbacColW[1] });
+  doc.text(clean(rbacTableHeaders[2]), M + 6 + rbacColW[0] + rbacColW[1], y + 5, { width: rbacColW[2] });
+  doc.text(clean(rbacTableHeaders[3]), M + 6 + rbacColW[0] + rbacColW[1] + rbacColW[2], y + 5, { width: rbacColW[3] });
 
-  card(
-    doc,
-    M + techCardsW + 14,
-    y,
-    techCardsW,
-    techH,
-    "☁️ Déploiement Cloud Render",
-    "Hébergé en conteneur managé sur Render avec base PostgreSQL 4GB dédiée et conteneur documentaire OnlyOffice synchronisé.",
-    "Production Active",
-    BLEU_PRIMARY
-  );
+  y += 17;
 
-  // Section 6 : Synthèse de Sécurité & Conformité
-  y += techH + 20;
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(12)
-    .text(clean("6. Synthèse de Conformité & Garanties"), M, y);
-
-  y += 16;
-  const securitePoints = [
-    "1. Souveraineté des Données : Les requêtes ne stockent aucune donnée confidentielle sur des serveurs tiers d'entraînement.",
-    "2. Traçabilité Totale : Chaque proposition d'action (tâche, notification) génère un journal d'audit horodaté avec identité de l'acteur.",
-    "3. Résilience Multi-Modèles : Possibilité de bascule transparente entre MiMo Flash, OpenAI, Claude ou Mistral.",
-    "4. Alignement Métier : Conçu spécifiquement pour le cadre réglementaire pharmaceutique en vigueur en Algérie."
+  const rbacRows = [
+    ["Super Admin / Direction", "Accès complet, validation globale, télémétrie ERP", "Aucune (sous réserve filtre salaires)", "Certifié"],
+    ["Pharmacien Réglementaire", "Dossiers AMM, variations, catalogue DCI, tâches", "Isolation stricte des données RH/salaires", "Certifié"],
+    ["Délégué Commercial", "Catalogue produits & DCI, annuaire collaborateurs", "Rejet automatique sur les dossiers AMM", "Certifié"],
   ];
 
-  securitePoints.forEach(pt => {
-    doc.fillColor(NOIR_ENCRE).font("Helvetica-Bold").fontSize(8)
-      .text(clean(pt.split(" : ")[0] + " : "), M + 8, y, { continued: true });
-    doc.fillColor(GRIS_TEXTE).font("Helvetica").fontSize(8)
-      .text(clean(pt.split(" : ")[1]));
-    y += 18;
+  rbacRows.forEach((r, idx) => {
+    const bg = idx % 2 === 0 ? "#FFFFFF" : C_SURFACE;
+    doc.rect(M, y, W, rbacRowH).fillAndStroke(bg, C_LINE);
+
+    doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(7.5)
+      .text(clean(r[0]), M + 6, y + 6, { width: rbacColW[0] - 8 });
+
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5)
+      .text(clean(r[1]), M + 6 + rbacColW[0], y + 6, { width: rbacColW[1] - 8 });
+
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5)
+      .text(clean(r[2]), M + 6 + rbacColW[0] + rbacColW[1], y + 6, { width: rbacColW[2] - 8 });
+
+    doc.fillColor(C_MUTED).font("Helvetica-Bold").fontSize(7.5)
+      .text(clean(r[3]), M + 6 + rbacColW[0] + rbacColW[1] + rbacColW[2], y + 6, { width: rbacColW[3] - 8 });
+
+    y += rbacRowH;
   });
 
-  // Cadre de signature & validation
-  y += 10;
-  doc.roundedRect(M, y, W, 48, 6).fillAndStroke(BLEU_CLAIR, BLEU_PRIMARY);
-  doc.fillColor(BLEU_PRIMARY).font("Helvetica-Bold").fontSize(8.5)
-    .text(clean("VALIDATION TECHNIQUE & DIRECTION"), M + 14, y + 10);
-  doc.fillColor(GRIS_TEXTE).font("Helvetica").fontSize(8)
-    .text(clean("Système certifié opérationnel · Adventum Pharma · Alger, le 24 Octobre 2026"), M + 14, y + 22);
-  doc.fillColor(GRIS_CLAIR).font("Helvetica-Oblique").fontSize(7.5)
-    .text(clean("Document officiel généré pour communication client et institutionnelle"), M + 14, y + 33);
+  y += 14;
+  y = sectionTitle(doc, "6. Architecture technique et infrastructure d'hébergement", y);
 
-  dessinerPied(doc, 2, 2);
+  const colTechW = (W - 12) / 2;
+  const colTechH = 108;
+
+  // Box 1 : Moteur Inférence
+  doc.roundedRect(M, y, colTechW, colTechH, 6).fillAndStroke(C_SURFACE, C_BORDER);
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(8.5)
+    .text(clean("Moteur d'inférence sécurisé (LLM)"), M + 12, y + 9);
+  doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5).lineGap(2)
+    .text(
+      clean(
+        "• Modèle : Moteur d'entreprise dédié haute performance\n" +
+        "• Hébergement : Cluster souverain sécurisé aux Pays-Bas (UE)\n" +
+        "• Mode d'inférence : Traitement optimisé à faible latence (< 3,5 s)\n" +
+        "• Confidentialité : Zéro rétention, aucune donnée réutilisée"
+      ),
+      M + 12,
+      y + 24,
+      { width: colTechW - 24 }
+    );
+
+  // Box 2 : Infrastructure ERP
+  doc.roundedRect(M + colTechW + 12, y, colTechW, colTechH, 6).fillAndStroke(C_SURFACE, C_BORDER);
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(8.5)
+    .text(clean("Infrastructure ERP et base de données"), M + colTechW + 24, y + 9);
+  doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5).lineGap(2)
+    .text(
+      clean(
+        "• Serveur applicatif : Node.js 22 LTS sur Render (Francfort)\n" +
+        "• Base de données : PostgreSQL 18 managée (amd-postgres-k3uc)\n" +
+        "• Serveur documentaire : Conteneur OnlyOffice Document Server\n" +
+        "• Déploiement : CI/CD automatisé sous contrôle strict des types"
+      ),
+      M + colTechW + 24,
+      y + 24,
+      { width: colTechW - 24 }
+    );
+
+  y += colTechH + 14;
+  y = sectionTitle(doc, "7. Synthèse des caractéristiques opérationnelles", y);
+
+  const resumeSpecs = [
+    ["Disponibilité applicative", "En ligne sur l'ERP (amd-internal-os-k3uc.onrender.com/assistant)"],
+    ["Temps moyen de réponse", "Moins de 3,5 s en génération complexe, moins de 10 ms sur requêtes directes"],
+    ["Mécanisme d'écriture", "Human-in-the-Loop strict (approbation obligatoire de l'utilisateur)"],
+    ["Conformité réglementaire", "Aligné sur les exigences de traçabilité pharmaceutique en Algérie"],
+    ["Intégrité des données", "37 tests automatisés validés, 20 scénarios d'évaluation certifiés conformes"],
+  ];
+
+  const specColW = [160, W - 160];
+  const specH = 18;
+
+  resumeSpecs.forEach((spec, idx) => {
+    const bg = idx % 2 === 0 ? "#FFFFFF" : C_SURFACE;
+    doc.rect(M, y, W, specH).fillAndStroke(bg, C_LINE);
+
+    doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(7.5)
+      .text(clean(spec[0]), M + 8, y + 5, { width: specColW[0] - 12 });
+
+    doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5)
+      .text(clean(spec[1]), M + 8 + specColW[0], y + 5, { width: specColW[1] - 12 });
+
+    y += specH;
+  });
+
+  // Bloc de validation / Signatures formelles
+  y += 14;
+  doc.roundedRect(M, y, W, 48, 6).fillAndStroke(C_SURFACE, C_BORDER);
+  doc.fillColor(C_TITLE).font("Helvetica-Bold").fontSize(8)
+    .text(clean("VALIDATION TECHNIQUE ET DIRECTION GENERALE"), M + 12, y + 8);
+  doc.fillColor(C_BODY).font("Helvetica").fontSize(7.5)
+    .text(clean("Document établi pour communication client et audit interne -- Adventum Pharma, Alger, Octobre 2026."), M + 12, y + 20);
+  doc.fillColor(C_MUTED).font("Helvetica").fontSize(7)
+    .text(clean("Version 2.4 · Référence interne AMD-SPEC-BRAIN-2026-10 · Tous droits réservés."), M + 12, y + 32);
+
+  drawFooter(doc, 2, 2);
 
   doc.end();
 
   return new Promise<string>((resolve, reject) => {
-    stream.on("finish", () => resolve(outputPath));
+    stream.on("finish", () => {
+      try {
+        fs.mkdirSync(path.dirname(publicPath), { recursive: true });
+        fs.copyFileSync(outputPath, publicPath);
+      } catch (e) {}
+      resolve(outputPath);
+    });
     stream.on("error", reject);
   });
 }
 
 genererPdf()
   .then(p => {
-    console.log("✓ PDF généré avec succès à l'adresse :");
+    console.log("PDF regenere sans slop et avec contraste maximal :");
     console.log(p);
   })
   .catch(err => {
-    console.error("Erreur génération PDF :", err);
+    console.error("Erreur generation PDF :", err);
     process.exit(1);
   });
