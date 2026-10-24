@@ -2,158 +2,135 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { Sparkles, Folder, Package, ShieldCheck, ArrowRight, X, Bot, CheckCircle2 } from "lucide-react";
+import { Sparkles, ArrowRight, X, Bot, Check, Zap, Shield, FileText } from "lucide-react";
 
 export function AssistantWelcomeDialog() {
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
-    // Ne s'affiche qu'à la première connexion (ou si l'utilisateur ne l'a pas encore vu)
-    const seen = localStorage.getItem("amd_brain_welcome_seen");
-    if (!seen) {
-      // Léger délai pour une apparition fluide après le chargement de l'interface
-      const timer = setTimeout(() => setIsOpen(true), 600);
+    // Clé de version de la mise à jour pour ne l'afficher qu'une fois par utilisateur
+    const seenUpdate = localStorage.getItem("amd_update_assistant_live_v1");
+    if (!seenUpdate) {
+      // Déclenchement fluide dès la connexion
+      const timer = setTimeout(() => setIsOpen(true), 500);
       return () => clearTimeout(timer);
     }
   }, []);
 
-  const handleClose = () => {
-    localStorage.setItem("amd_brain_welcome_seen", "true");
+  const handleDismiss = () => {
+    localStorage.setItem("amd_update_assistant_live_v1", "true");
     setIsOpen(false);
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 select-text animate-in fade-in duration-300">
-      {/* Arrière-plan assombri avec flou doux */}
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 select-text animate-in fade-in zoom-in-95 duration-200">
+      {/* Arrière-plan flouté sombre */}
       <div
-        className="fixed inset-0 bg-slate-950/60 backdrop-blur-md transition-opacity"
-        onClick={handleClose}
+        className="fixed inset-0 bg-slate-950/65 backdrop-blur-md transition-opacity"
+        onClick={handleDismiss}
       />
 
-      {/* Boîte de dialogue Apple Glassmorphism */}
-      <div className="relative z-10 w-full max-w-2xl overflow-hidden rounded-3xl border border-white/60 bg-white/90 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl transition-all dark:border-white/10 dark:bg-zinc-950/90 dark:text-zinc-100">
-        {/* Lueur d'ambiance Apple subtle derrière le header */}
-        <div className="absolute -top-24 -left-24 h-56 w-56 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
-        <div className="absolute -top-24 -right-24 h-56 w-56 rounded-full bg-indigo-500/20 blur-3xl pointer-events-none" />
+      {/* Carte modale "Mise à jour Système" en verre dépoli Apple */}
+      <div className="relative z-10 w-full max-w-xl overflow-hidden rounded-3xl border border-white/60 bg-white/95 p-6 sm:p-7 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/95 dark:text-zinc-100">
+        {/* Lueur subtile en arrière-plan */}
+        <div className="absolute -top-20 -left-20 h-48 w-48 rounded-full bg-blue-500/20 blur-3xl pointer-events-none" />
+        <div className="absolute -top-20 -right-20 h-48 w-48 rounded-full bg-emerald-500/15 blur-3xl pointer-events-none" />
 
-        {/* Bouton de fermeture */}
+        {/* Bouton fermeture */}
         <button
-          onClick={handleClose}
+          onClick={handleDismiss}
           className="absolute top-5 right-5 rounded-full p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 transition dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
           title="Fermer"
         >
           <X className="h-5 w-5" />
         </button>
 
-        {/* En-tête avec badge et icône */}
-        <div className="flex items-start gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/25">
+        {/* Badge "Mise à jour en direct" */}
+        <div className="flex items-center gap-2">
+          <span className="relative flex h-2.5 w-2.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-500" />
+          </span>
+          <span className="inline-flex items-center gap-1 text-[11px] font-bold tracking-wide uppercase text-emerald-600 dark:text-emerald-400">
+            Mise à jour Système • En Direct (Live)
+          </span>
+        </div>
+
+        {/* Titre & accroche */}
+        <div className="mt-3 flex items-start gap-3.5">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-emerald-500 text-white shadow-md shadow-blue-500/20">
             <Bot className="h-6 w-6" />
           </div>
           <div>
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-              <Sparkles className="h-3 w-3" />
-              <span>Nouveau sur Adventum Pharma</span>
-            </div>
-            <h2 className="mt-1 text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-              Bienvenue sur Adventum Brain 👋
+            <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+              L'Assistant IA est désormais en ligne !
             </h2>
             <p className="mt-1 text-xs sm:text-sm text-zinc-600 dark:text-zinc-400">
-              Votre assistant d'entreprise intelligent est désormais connecté en direct à votre ERP.
+              Découvrez **Adventum Brain**, votre nouveau copilote interne connecté en direct aux opérations d'Adventum Pharma.
             </p>
           </div>
         </div>
 
-        {/* Grille des 4 super-pouvoirs de l'assistant */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Carte 1 */}
-          <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-3.5 transition hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/60">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">
-                <Folder className="h-4 w-4" />
-              </div>
-              <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Dossiers Réglementaires AMM</span>
-            </div>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Consultez les dossiers d'enregistrement, statuts d'instruction, échéances et variations en temps réel.
-            </p>
+        {/* Contenu de la mise à jour (Points forts) */}
+        <div className="mt-5 space-y-2.5 rounded-2xl border border-zinc-200/70 bg-zinc-50/70 p-3.5 dark:border-zinc-800/80 dark:bg-zinc-900/50">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            Ce que cette mise à jour vous permet de faire :
           </div>
 
-          {/* Carte 2 */}
-          <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-3.5 transition hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/60">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-                <Package className="h-4 w-4" />
+          <div className="space-y-2 text-xs text-zinc-700 dark:text-zinc-300">
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300 mt-0.5">
+                <FileText className="h-3 w-3" />
               </div>
-              <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Catalogue Produits & DCI</span>
+              <div>
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">Interroger les données métier</span> : dossiers réglementaires AMM, fiches produits et disponibilités catalogue en langage naturel.
+              </div>
             </div>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Recherchez instantanément parmi 109 références pharmaceutiques, formes galéniques et dosages.
-            </p>
-          </div>
 
-          {/* Carte 3 */}
-          <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-3.5 transition hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/60">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-100 text-purple-700 dark:bg-purple-900/50 dark:text-purple-300">
-                <CheckCircle2 className="h-4 w-4" />
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/60 dark:text-emerald-300 mt-0.5">
+                <Zap className="h-3 w-3" />
               </div>
-              <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Actions Sécurisées (HITL)</span>
+              <div>
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">Préparer des actions en 1 clic</span> : demandez la création d'une tâche urgente ou un message interne avec cartes de confirmation interactives.
+              </div>
             </div>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Créez des tâches ou diffusez des messages d'équipe : aucune modification n'est faite sans votre confirmation.
-            </p>
-          </div>
 
-          {/* Carte 4 */}
-          <div className="rounded-2xl border border-zinc-200/80 bg-zinc-50/60 p-3.5 transition hover:bg-zinc-50 dark:border-zinc-800/80 dark:bg-zinc-900/40 dark:hover:bg-zinc-900/60">
-            <div className="flex items-center gap-2.5">
-              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                <ShieldCheck className="h-4 w-4" />
+            <div className="flex items-start gap-2.5">
+              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/60 dark:text-purple-300 mt-0.5">
+                <Shield className="h-3 w-3" />
               </div>
-              <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">Sécurité & Confidentialité</span>
+              <div>
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">Sécurité & Confidentialité</span> : filtrage des informations confidentielles et respect strict de vos privilèges d'accès.
+              </div>
             </div>
-            <p className="mt-1.5 text-[11px] leading-relaxed text-zinc-600 dark:text-zinc-400">
-              Filtrage strict des données sensibles (salaires masqués) et respect absolu de vos droits RBAC.
-            </p>
           </div>
         </div>
 
-        {/* Exemples de questions suggérées */}
-        <div className="mt-4 rounded-xl border border-blue-200/60 bg-blue-50/50 p-3 dark:border-blue-900/40 dark:bg-blue-950/20">
-          <div className="text-[11px] font-semibold text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
-            <Sparkles className="h-3 w-3 text-blue-600" />
-            Exemples de questions à lui poser :
-          </div>
-          <div className="mt-1.5 flex flex-wrap gap-1.5 text-[11px] text-zinc-600 dark:text-zinc-300">
-            <span className="rounded-lg bg-white/80 px-2 py-0.5 shadow-2xs border border-zinc-200/50 dark:bg-zinc-900 dark:border-zinc-800">
-              « Quel est le statut du dossier Biocare ? »
-            </span>
-            <span className="rounded-lg bg-white/80 px-2 py-0.5 shadow-2xs border border-zinc-200/50 dark:bg-zinc-900 dark:border-zinc-800">
-              « Crée une tâche urgente pour finaliser le module 3 »
-            </span>
-            <span className="rounded-lg bg-white/80 px-2 py-0.5 shadow-2xs border border-zinc-200/50 dark:bg-zinc-900 dark:border-zinc-800">
-              « Combien de produits sont au catalogue ? »
-            </span>
-          </div>
+        {/* Emplacement dans l'ERP */}
+        <div className="mt-3.5 flex items-center gap-2 rounded-xl border border-blue-200/50 bg-blue-50/50 px-3 py-2 text-[11px] text-blue-800 dark:border-blue-900/30 dark:bg-blue-950/25 dark:text-blue-300">
+          <Sparkles className="h-3.5 w-3.5 shrink-0 text-blue-600 dark:text-blue-400" />
+          <span>
+            Accessible à tout moment depuis le menu latéral gauche : <strong>Pilotage → Assistant IA</strong>.
+          </span>
         </div>
 
         {/* Boutons d'action */}
         <div className="mt-6 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5">
           <button
-            onClick={handleClose}
+            onClick={handleDismiss}
             className="w-full sm:w-auto rounded-xl border border-zinc-300/80 bg-white px-4 py-2 text-xs font-semibold text-zinc-700 shadow-xs transition hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
           >
-            Continuer vers mon espace
+            Compris, continuer
           </button>
           <Link
             href="/assistant"
-            onClick={handleClose}
+            onClick={handleDismiss}
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-5 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 transition hover:bg-blue-500 active:scale-95"
           >
-            Découvrir l'Assistant IA
+            Tester l'Assistant IA en direct
             <ArrowRight className="h-3.5 w-3.5" />
           </Link>
         </div>
