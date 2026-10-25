@@ -3,8 +3,13 @@
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { peutVoirAdam } from "@/platform/in-process/visibilite-adam";
-import { runAssistant, type AssistantActionPayload, type ChatTurn } from "@/lib/assistant";
+import type { AssistantActionPayload } from "@/lib/assistant";
 import { executeAssistantAction } from "@/lib/actions/assistant-actions";
+import { compileContext } from "@/lib/agent/contexte";
+import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
+import { outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { DELAI_MIMO_MS, modelesAssistant } from "@/lib/agent/modele";
+import { repondreAvecSecours } from "@/lib/agent/repondre";
 
 export interface ReponseBetaAction {
   ok: boolean;
@@ -27,9 +32,7 @@ export interface ReponseBetaAction {
 
 /**
  * LE GARDE — celui de l'assistant de production (`peutVoirAdam`).
- *
- * Une action serveur s'appelle sans passer par la page qui l'affiche : le contrôle vit donc ici
- * aussi, pas seulement dans la page.
+ * Une action serveur s'appelle sans passer par la page : le contrôle vit donc ici aussi.
  */
 async function exigerAccesAssistant(): Promise<CurrentUser | null> {
   const user = await requireUser();
@@ -39,28 +42,25 @@ async function exigerAccesAssistant(): Promise<CurrentUser | null> {
 const REFUS = "L'assistant ne vous est pas ouvert.";
 const MAX_TOURS_HISTORIQUE = 12;
 
-/**
- * L'historique vient du navigateur : on n'en garde que des tours `user`/`assistant` en texte,
- * bornés. Un rôle `system` glissé par le client n'atteint jamais le moteur.
- */
-function historiqueSur(historique: unknown): ChatTurn[] {
+type Tour = { role: "user" | "assistant"; content: string };
+
+/** L'historique vient du navigateur : seulement des tours `user`/`assistant` en texte, bornés. */
+function historiqueSur(historique: unknown): Tour[] {
   if (!Array.isArray(historique)) return [];
   return historique
-    .filter((t): t is ChatTurn =>
+    .filter((t): t is Tour =>
       !!t && typeof t === "object"
-      && ((t as ChatTurn).role === "user" || (t as ChatTurn).role === "assistant")
-      && typeof (t as ChatTurn).content === "string"
-      && (t as ChatTurn).content.trim().length > 0)
+      && ((t as Tour).role === "user" || (t as Tour).role === "assistant")
+      && typeof (t as Tour).content === "string"
+      && (t as Tour).content.trim().length > 0)
     .map((t) => ({ role: t.role, content: t.content }))
     .slice(-MAX_TOURS_HISTORIQUE);
 }
 
 /**
- * Valide et exécute une action proposée, sous confirmation humaine.
- *
- * Le payload exécuté est celui STOCKÉ sur l'intention à la proposition — jamais un payload venu
- * du client. `executeAssistantAction` garde l'idempotence, la confirmation forte des actions
- * CRITIQUES et revérifie l'accès.
+ * Valide et exécute une action proposée. Le payload exécuté est celui STOCKÉ sur l'intention,
+ * jamais un payload venu du client ; `executeAssistantAction` garde l'idempotence, la
+ * confirmation forte et revérifie le droit au moment de l'exécution (Q14).
  */
 export async function confirmerActionBeta(intentId: string) {
   const user = await exigerAccesAssistant();
@@ -73,39 +73,53 @@ export async function confirmerActionBeta(intentId: string) {
   return executeAssistantAction(intent.payload as unknown as AssistantActionPayload, intentId);
 }
 
-/**
- * Un message à l'assistant — même moteur que l'assistant de production (`runAssistant` : boucle
- * d'agent, outils sous RBAC, écritures proposées puis confirmées). Le moteur Mastra le remplacera
- * derrière cette même signature (étape R4).
- */
+/** Un message à l'assistant : moteur Mastra, MiMo d'abord, secours du registre (R4). */
 export async function envoyerMessageBeta(
   userPrompt: string,
   _moduleFilter?: string,
   historique: { role: string; content: string }[] = [],
 ): Promise<ReponseBetaAction> {
   const messageId = `msg-${Date.now()}`;
+  const echec = (error: string): ReponseBetaAction => ({ ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error });
+
   const user = await exigerAccesAssistant();
-  if (!user) return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: REFUS };
-  const prompt = (userPrompt ?? "").trim();
-  if (!prompt) return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: "Message vide." };
+  if (!user) return echec(REFUS);
+  const message = (userPrompt ?? "").trim();
+  if (!message) return echec("Message vide.");
 
-  const res = await runAssistant(user, [...historiqueSur(historique), { role: "user", content: prompt }], { origin: "text" });
-  if (!res.configured) {
-    return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: "L'IA n'est pas configurée sur ce serveur." };
-  }
-  if (!res.ok) {
-    return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: res.reply || "L'assistant n'a pas pu répondre." };
+  const modeles = modelesAssistant();
+  if (modeles.length === 0) return echec("L'IA n'est pas configurée sur ce serveur.");
+
+  let instructions: string;
+  let config;
+  try {
+    config = await getRoleConfig(user.role);
+    instructions = (await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt;
+  } catch (e) {
+    // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
+    console.error("[assistant] contexte indisponible", e);
+    return echec("Service momentanément indisponible. Réessayez dans un instant.");
   }
 
-  const proposition = res.proposals?.[0] ?? res.proposal;
-  return {
-    ok: true,
-    messageId,
-    role: "assistant",
-    content: res.reply,
-    outilsAppeles: res.trace ?? [],
-    intent: proposition?.intentId
-      ? { id: proposition.intentId, kind: proposition.kind, title: proposition.title, fields: proposition.fields, status: "PROPOSED" }
-      : null,
-  };
+  const propositions: PropositionPreparee[] = [];
+  try {
+    const r = await repondreAvecSecours({
+      user, message, historique: historiqueSur(historique), instructions,
+      outils: outilsV1(user, propositions), modeles, delaiMs: DELAI_MIMO_MS, config,
+      propositionsFaites: () => propositions.length,
+    });
+    if (r.echecs.length) console.warn("[assistant] modèles abandonnés", r.echecs);
+    const p = propositions[0];
+    return {
+      ok: true,
+      messageId,
+      role: "assistant",
+      content: r.texte,
+      outilsAppeles: r.outilsAppeles,
+      intent: p ? { id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields, status: "PROPOSED" } : null,
+    };
+  } catch (e) {
+    console.error("[assistant] aucun modèle n'a répondu", e);
+    return echec("L'assistant n'a pas pu répondre. Réessayez dans un instant.");
+  }
 }
