@@ -76,6 +76,11 @@ export const MODELES_INTERDITS: Readonly<Record<string, string>> = {
   sfeSettings: "les réglages SFE",
   kpiReviewSetting: "la fréquence de revue des KPI d'une équipe — un réglage que le manager choisit lui-même",
   assistantRule: "les règles enseignées à Adam — une règle est l'attestation d'une PERSONNE",
+  // LA CONFIGURATION DE L'ASSISTANT PAR RÔLE — ses consignes et la liste d'outils qu'il offre à un
+  // rôle : un garde-fou au même titre que `aiSetting`, réservé au Super Admin. Son audit est la
+  // trace de qui l'a changée ; le réécrire effacerait la preuve.
+  assistantRoleConfig: "la configuration de l'assistant par rôle (consignes, outils autorisés)",
+  assistantRoleConfigAudit: "l'historique des modifications de la configuration de l'assistant",
   // LA CLÉ DE LIAISON AU SITE PUBLIC (§118.159) — l'identifiant qui donne le droit d'y publier.
   // Refusée sur le MODÈLE écrit, en plus de la décision EXCLUDED : une action ajoutée demain qui
   // l'écrirait, sous un autre nom, dans un autre fichier, l'est sans que personne y pense.

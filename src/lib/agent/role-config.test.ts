@@ -15,6 +15,7 @@ function creerOutil(nom: string): PowerTool {
       input_schema: { type: "object" },
     } as PowerTool["def"],
     allowed: () => true,
+    label: "Outil de test",
     run: async () => "ok",
   };
 }

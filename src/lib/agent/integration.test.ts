@@ -110,8 +110,8 @@ describe("Intégration Complète de l'Agent IA — Pré-Jalon 6", () => {
         allowedTools: ["regulatory_summary"],
         confirmationLevel: "CRITIQUE",
         enforcedModel: null,
-        createdAt: new Date(),
         updatedAt: new Date(),
+        updatedById: null,
       };
 
       const contexte = await compileContext({
@@ -137,6 +137,7 @@ describe("Intégration Complète de l'Agent IA — Pré-Jalon 6", () => {
           input_schema: { type: "object", properties: { dossierId: { type: "string" } } },
         } as PowerTool["def"],
         allowed: (u) => u.role === "HEAD_OF_REGULATORY",
+        label: "Outil de test",
         run: async () => JSON.stringify({ phase: "Évaluation technique", echeance: "2026-12-01" }),
       };
 
@@ -329,12 +330,14 @@ describe("Intégration Complète de l'Agent IA — Pré-Jalon 6", () => {
       const outilWorkspace: PowerTool = {
         def: { name: "create_task", description: "...", input_schema: { type: "object" } } as PowerTool["def"],
         allowed: (u) => u.access.modules.has("WORKSPACE" as Module),
+        label: "Outil de test",
         run: async () => "ok",
       };
 
       const outilFinance: PowerTool = {
         def: { name: "voir_tresorerie", description: "...", input_schema: { type: "object" } } as PowerTool["def"],
         allowed: (u) => u.access.modules.has("FINANCE" as Module),
+        label: "Outil de test",
         run: async () => "1 000 000 DZD",
       };
 
@@ -347,8 +350,8 @@ describe("Intégration Complète de l'Agent IA — Pré-Jalon 6", () => {
         allowedTools: ["create_task", "voir_tresorerie"],
         confirmationLevel: "CRITIQUE",
         enforcedModel: null,
-        createdAt: new Date(),
         updatedAt: new Date(),
+        updatedById: null,
       };
 
       // Les outils offerts à CET utilisateur ne contiennent QUE create_task, voir_tresorerie est banni par RBAC
