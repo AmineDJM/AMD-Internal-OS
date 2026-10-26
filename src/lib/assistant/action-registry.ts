@@ -1109,6 +1109,12 @@ X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de config
   + "conversation ne peut pas la faire. C'est un écran de dépannage, pas un geste métier.", [
   "onlyoffice-diagnostic-actions:testerEditeurOffice",
 ]);
+X("FINANCES › RÉPONDRE À UNE DEMANDE D'ACTUALISATION DES SOLDES (Direction, 10/2026) : le responsable Finance saisit, "
+  + "compte par compte, le solde du relevé bancaire qu'il a SOUS LES YEUX et sa date — ou « pas encore reçu ». C'est une "
+  + "attestation de ce que dit la banque, qui réancre le compte : elle se donne devant l'écran de la demande "
+  + "(`/finances/actualisation-soldes/[id]`), ouvert par sa notification. Adam est en pause de développement (Super Admin seul).", [
+  "actualisation-soldes-actions:repondreActualisationSoldes",
+]);
 X("INFORMATION MÉDICALE › RELANCER UNE PIÈCE (Direction, 07/10) : une notification à la personne sollicitée, limitée à une "
   + "toutes les quatre heures. Le geste se décide en REGARDANT la fiche du dossier (depuis quand la pièce est attendue, "
   + "dernière relance) ; Adam est en pause de développement (Super Admin seul).", [
@@ -1429,6 +1435,12 @@ X("CORRIGER SA DEMANDE DE PAIEMENT (audit 360°, lot C4c, §118.191) — l'objet
   + "l'autorisation du centre de paiement. Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un "
   + "clic sur /validations/paiements/<id> › « Corriger la demande ».", [
   "payment-request-actions:corrigerDemandePaiement",
+]);
+X("SUPPRIMER DÉFINITIVEMENT SA DEMANDE DE PAIEMENT (Direction, 19/10/2026) — retirée ou restée brouillon, elle part en "
+  + "lot avec son ordre de dépense annulé, ses pièces et son fil, restaurable depuis la corbeille. Le geste du DEMANDEUR (ou "
+  + "du Super Admin), décidé devant la fenêtre qui montre ce qui part avec. Adam est en pause de développement : aucun "
+  + "geste neuf ne lui est ouvert.", [
+  "payment-request-actions:supprimerDemandePaiement",
 ]);
 X("ROUVRIR ET ANNULER UNE DEMANDE AU SECRÉTARIAT (audit 360°, lot C4c, §118.191) — les gestes nommés qui remplacent le "
   + "menu de statut libre : rouvrir une demande TERMINÉE avec son motif, annuler une demande par l'annulation commune (qui "

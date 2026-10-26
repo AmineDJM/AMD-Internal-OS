@@ -3,11 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { FinanceCategory, FinanceMethod, type FinanceDirection, type FinanceStatus, type PayrollStatus, type Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
+import { anyRoleFilter, userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { buildRef, nextRefNumber } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
-import { notifyRoles } from "@/lib/notify";
+import { broadcastNotification } from "@/lib/notify";
+import { entiteParDefaut } from "@/lib/company-defaut";
 import { fdStr, fdNum, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { getMyCompanies, companyScopedWhere } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
@@ -634,7 +635,17 @@ export async function createQuickIncome(
 /**
  * LE SUPER ADMIN DEMANDE une mise à jour du solde de trésorerie. Les Finances le mettent à jour
  * quand elles le veulent ; lui ne saisit pas à leur place — il le demande, et la demande arrive
- * là où elle sera traitée (notification + tâche dans leur file).
+ * là où elle sera traitée.
+ *
+ * ── UNE DEMANDE, PAS UNE SONNERIE (Direction, 10/2026) ──────────────────────────────────────
+ *
+ * La demande porte sur UNE entité (celle ouverte à l'écran, Adventum par défaut) et s'enregistre
+ * (`DemandeActualisationSoldes`) avec une ligne par compte de l'entité, figée à l'ancrage d'alors.
+ * Elle part aux seuls responsables Finance / Budget qui VOIENT l'entité, et leur notification
+ * OUVRE l'écran de réponse (`/finances/actualisation-soldes/[id]`) : ils saisissent le solde du
+ * relevé et sa date compte par compte, ou « pas encore reçu ». Le Super Admin est prévenu en retour
+ * (`repondreActualisationSoldes`). Une demande déjà ouverte pour l'entité n'est pas doublée : le
+ * second clic RELANCE la même.
  *
  * ── POURQUOI LE SEUL SUPER ADMIN ────────────────────────────────────────────────────────────
  *
@@ -652,16 +663,66 @@ export async function requestTreasuryUpdate(formData: FormData): Promise<ActionR
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
   const note = fdStr(formData, "note");
 
-  await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], {
-    type: "GENERIC",
-    title: "Mise à jour du solde de trésorerie demandée",
-    body: note || "L'administration demande l'actualisation des soldes de trésorerie.",
-    link: "/finances/comptabilite",
-  }).catch(() => undefined);
+  // L'ENTITÉ : celle ouverte à l'écran si la personne la voit, sinon l'entité par défaut (Adventum) —
+  // la même règle que la page Banque & paiements (`entiteParDefaut`), sans quoi le bouton demanderait
+  // pour une autre société que celle qu'on regarde.
+  const societes = await getMyCompanies(user.id);
+  const entiteId = entiteParDefaut(societes, fdStr(formData, "entite"));
+  const societe = societes.find((s) => s.id === entiteId) ?? null;
+  const nomEntite = societe ? societe.shortName || societe.name : "sans entité";
+
+  const comptes = await prisma.treasuryAccount.findMany({
+    where: await companyScopedWhere(user.id, entiteId ? { companyId: entiteId } : {}),
+    select: { id: true, openingBalance: true, openingDate: true },
+    orderBy: [{ principal: "desc" }, { name: "asc" }],
+  });
+  if (comptes.length === 0) {
+    return { ok: false, error: `Aucun compte de trésorerie pour ${nomEntite} : ouvrez-en un depuis « Comptes de trésorerie » avant d'en demander le solde.` };
+  }
+
+  // LES DESTINATAIRES : les responsables Finance / Budget (rôle principal ou secondaire) qui VOIENT
+  // l'entité — prévenir un comptable cloisonné sur une autre société l'enverrait vers un écran qui
+  // lui répondrait « introuvable ».
+  const candidats = await prisma.user.findMany({ where: { ...anyRoleFilter(["FINANCE_BUDGET_MANAGER"]), isActive: true }, select: { id: true } });
+  const destinataires: string[] = [];
+  for (const c of candidats) {
+    if (!entiteId || (await getMyCompanies(c.id)).some((s) => s.id === entiteId)) destinataires.push(c.id);
+  }
+  if (destinataires.length === 0) {
+    return { ok: false, error: `Aucun responsable Finance / Budget actif ne voit ${nomEntite} : personne ne pourrait répondre. Attribuez le rôle ou l'entité dans Administration › Utilisateurs.` };
+  }
+
+  // UNE DEMANDE OUVERTE POUR L'ENTITÉ N'EST PAS DOUBLÉE : le second clic la RELANCE.
+  const ouverte = await prisma.demandeActualisationSoldes.findFirst({
+    where: { companyId: entiteId, termineeLe: null },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true },
+  });
+  const demande = ouverte ?? await prisma.demandeActualisationSoldes.create({
+    data: {
+      companyId: entiteId, note, demandeParId: user.id,
+      lignes: { create: comptes.map((c) => ({ compteId: c.id, ancienSolde: c.openingBalance, ancienneDate: c.openingDate })) },
+    },
+    select: { id: true, createdAt: true },
+  });
+  const relance = Boolean(ouverte);
+
+  await broadcastNotification({
+    audience: "USERS",
+    userIds: destinataires,
+    title: `${relance ? "Relance — " : ""}Mise à jour du solde de trésorerie demandée — ${nomEntite}`,
+    body: `${note ? `${note} — ` : ""}${comptes.length} compte(s) à actualiser. Ouvrez pour saisir le solde du relevé et sa date.`,
+    link: `/finances/actualisation-soldes/${demande.id}`,
+  });
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Finances",
-    summary: `Mise à jour du solde de trésorerie demandée${note ? ` — ${note}` : ""}`,
+    summary: `${relance ? "Relance de la demande" : "Mise à jour du solde de trésorerie demandée"} — ${nomEntite}, ${comptes.length} compte(s), ${destinataires.length} responsable(s) Finance prévenu(s)${note ? ` — ${note}` : ""}`,
   });
-  revalidatePath("/finances");
-  return { ok: true };
+  revalidatePath("/finances", "layout");
+  return {
+    ok: true, id: demande.id,
+    message: relance
+      ? `Une demande était déjà en cours pour ${nomEntite} : ${destinataires.length} responsable(s) Finance relancé(s).`
+      : `Demande envoyée à ${destinataires.length} responsable(s) Finance pour ${nomEntite} (${comptes.length} compte(s)).`,
+  };
 }
