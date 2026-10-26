@@ -1,20 +1,29 @@
-import { Metadata } from "next";
-import { requireModule } from "@/lib/session";
-import { AssistantWorkspace } from "@/components/assistant-beta/assistant-workspace";
-
-export const metadata: Metadata = {
-  title: "Adventum Brain — Assistant IA",
-  description: "Assistant interne intelligent sous Human Interface Guidelines et décor serein.",
-};
+import { notFound, redirect } from "next/navigation";
+import { requireUser } from "@/lib/session";
+import { peutVoirAdam } from "@/platform/in-process/visibilite-adam";
 
 export const dynamic = "force-dynamic";
 
-export default async function AssistantPage() {
-  const user = await requireModule("WORKSPACE");
-
-  return (
-    <div className="app-viewport-flush -mx-3 -mt-3 -mb-3 flex flex-col overflow-hidden sm:-mx-4 sm:-mt-6 sm:-mb-6 lg:-mx-8 lg:-mb-8">
-      <AssistantWorkspace userName={user.name} userRole={user.role} />
-    </div>
-  );
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * « ASSISTANT IA » OUVRE LE VRAI MOTEUR (audit 2026-10-24, R3).
+ *
+ * Cette adresse montait l'interface bêta, branchée sur un appel direct à un fournisseur, sans
+ * outils, sans la garde Super Admin (§118.153), avec des réponses rapides inventées. Le moteur de
+ * production — outils de l'ERP gardés par les droits, édition Office, recherche web, voix, blocs
+ * de l'espace de travail, cartes de confirmation — vit sur `/chief-of-staff`, derrière sa garde.
+ * Une seule interface, un seul moteur (§118.5) : l'entrée du menu y mène, la question en cours
+ * (`?q=`, `?ref=`, `?call=`) suit.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export default async function AssistantPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+  const user = await requireUser();
+  if (!peutVoirAdam(user)) notFound();
+  const params = new URLSearchParams();
+  for (const cle of ["q", "ref", "call"] as const) {
+    const v = searchParams?.[cle];
+    if (typeof v === "string" && v) params.set(cle, v.slice(0, 500));
+  }
+  const suite = params.toString();
+  redirect(suite ? `/chief-of-staff?${suite}` : "/chief-of-staff");
 }

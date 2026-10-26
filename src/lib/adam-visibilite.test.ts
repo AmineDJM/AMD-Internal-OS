@@ -63,7 +63,9 @@ describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => 
     const assistant = sansCommentaires(lire("src/app/(app)/assistant/page.tsx"));
     const garde = assistant.indexOf("if (!peutVoirAdam(user)) notFound();");
     expect(garde, "/assistant doit refuser qui ne voit pas Adam").toBeGreaterThan(0);
-    expect(garde, "la garde passe AVANT le brief (payé par un modèle)").toBeLessThan(assistant.indexOf("getDailyBrief("));
+    // `/assistant` ne charge plus de brief : il mène au bureau d'Adam. La garde passe AVANT la redirection —
+    // sinon un compte refusé apprendrait par la redirection où vit l'assistant (audit 2026-10-24, R3).
+    expect(garde, "la garde passe AVANT la redirection").toBeLessThan(assistant.indexOf("redirect("));
     expect(sansCommentaires(lire("src/app/(app)/chief-of-staff/page.tsx"))).toContain("if (!peutVoirAdam(user)) notFound();");
     // Le SEGMENT passe par la porte du PONT (la règle lue en direct coûtait deux franchissements
     // de frontière) : on exige l'APPEL dans le gabarit ET la garde dans la porte — vérifier l'un

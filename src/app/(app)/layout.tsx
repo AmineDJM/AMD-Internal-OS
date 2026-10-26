@@ -22,7 +22,6 @@ import { ChromeMetrics } from "@/components/layout/chrome-metrics";
 import { PushRegister } from "@/components/layout/push-register";
 import { NotificationChime } from "@/components/layout/notification-chime";
 import { NotificationPopup } from "@/components/layout/notification-popup";
-import { AssistantWelcomeDialog } from "@/components/assistant/assistant-welcome-dialog";
 import { UploadProvider } from "@/components/layout/upload-manager";
 import { BackgroundUploadProvider } from "@/components/layout/background-upload";
 import { CallProvider } from "@/components/layout/call-provider";
@@ -174,7 +173,6 @@ export default async function AppLayout({
       {/* Notifications pop-up plein écran (grande fenêtre centrée) diffusées depuis l'Administration. */}
       <NotificationPopup />
       {/* Pop-up de bienvenue découverte Assistant IA (première connexion) */}
-      <AssistantWelcomeDialog />
     </div>
     </CallProvider>
     </BackgroundUploadProvider>
