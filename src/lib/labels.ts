@@ -1797,6 +1797,7 @@ export const MODULE_LABELS: Record<Module, string> = {
   ADMIN_REQUESTS: "Bureau du secrétariat",
   PAYMENT_CENTRE: "Centre de paiement",
   CHIEF_OF_STAFF: "My Chief of Staff",
+  ASSISTANT_IA: "Assistant IA",
   NOTIFICATIONS: "Notifications",
   PROCESS_INTELLIGENCE: "Process Intelligence",
   ADVENTUM_BRAIN: "Adventum Brain",
@@ -1922,10 +1923,9 @@ export const NAVIGATION: NavItem[] = [
   // (onglets). `match` couvre ces routes pour l'état actif de la barre latérale. Les Directives n'en font plus partie (07/10).
   { module: "WORKSPACE", label: "Mon espace", href: "/mon-espace", icon: "LayoutGrid", group: "Pilotage", tabs: WORKSPACE_TABS, match: ["/mon-travail", "/mon-dossier", "/missions", "/pieces"] },
   { module: "WORKSPACE", label: "Agenda", href: "/calendar", icon: "CalendarDays", group: "Pilotage", tabs: AGENDA_TABS, match: ["/meetings"] },
-  // Assistant IA : MODULE À PART ENTIÈRE (l'ancienne bulle flottante a été retirée) —
-  // page plein écran avec dictée vocale et lecture de pièces jointes.
-  // ADAM (l'assistant ET le chief of staff) n'est visible que du Super Admin (§118.153, `peutVoirAdam`).
-  { module: "WORKSPACE", label: "Assistant IA", href: "/assistant", icon: "Sparkles", group: "Pilotage", gate: "adam" },
+  // Assistant IA : MODULE À PART ENTIÈRE (`ASSISTANT_IA`), distinct d'Adam — le Super Admin l'a,
+  // et l'ouvre à qui il veut dans Administration › Accès. L'entrée suit le module, comme les autres.
+  { module: "ASSISTANT_IA", label: "Assistant IA", href: "/assistant", icon: "Sparkles", group: "Pilotage" },
   // LE CENTRE DE MISSIONS — le PARC de ce qu'Adam exécute. Il vit à côté de l'assistant et pas
   // dedans : une mission est un objet de l'ERP (identifiant, propriétaire, étapes, livrables,
   // journal), et la ranger dans la conversation ferait dépendre son écran de l'assistant, ce

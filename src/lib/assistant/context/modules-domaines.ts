@@ -188,6 +188,8 @@ export const SERVICE_DU_MODULE: Record<CleModule, ServiceDuModule> = {
   DIRECTORIES: { domaines: ["DIRECTORY"], mots: ["annuaires", "annuaire des partenaires", "annuaire des medecins", "annuaire des pharmaciens", "annuaire des etablissements", "carnet d adresses"], outils: ["directory_list", "directory_lookup", "search_hospitals"] },
   // Le bureau d'Adam lui-même et ce qu'il porte.
   CHIEF_OF_STAFF: { domaines: ["MISSION"], mots: ["chief of staff", "chef de cabinet"], outils: ["mission_status"] },
+  // L'Assistant IA (/assistant) est un autre produit qu'Adam : aucun outil d'Adam ne le sert.
+  ASSISTANT_IA: { domaines: ["MISSION"], mots: [], outils: [] },
   NOTIFICATIONS: { domaines: ["MISSION"], mots: ["notification", "notifications", "alerte", "alertes"], outils: ["create_notification"] },
   PROCESS_INTELLIGENCE: { domaines: ["DATA", "ADMIN"], mots: ["process intelligence", "goulot", "goulots", "delai de traitement"], outils: ["process_insights"] },
   ADVENTUM_BRAIN: { domaines: ["REGULATORY", "SOURCES"], mots: ["adventum brain", "corpus", "arrete", "arretes", "journal officiel", "texte reglementaire", "textes reglementaires"], outils: ["search_knowledge_corpus", "read_corpus_document", "list_corpus_sources"] },

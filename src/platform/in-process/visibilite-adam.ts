@@ -21,6 +21,9 @@ import { peutVoirAdam } from "@/lib/rbac";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export { peutVoirAdam, REFUS_ADAM } from "@/lib/rbac";
+// L'ASSISTANT IA (/assistant) n'est pas Adam : sa règle est un module ouvert personne par personne.
+// Elle passe par le même pont pour que la page et ses actions ne franchissent pas la frontière.
+export { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 
 export async function exigerAdamVisible() {
   const user = await requireUser();

@@ -49,8 +49,9 @@ export const STAND_IN_LABEL: Record<StandInStatus, string> = {
  *   • `ADMIN`, `ADVENTUM_BRAIN`, `PROCESS_INTELLIGENCE` — la souveraineté du Super Admin (comptes,
  *     rôles, accès, IA) ne se prête pas. Les deux derniers ne sont gardés que par leur module :
  *     prêtés par un Super Admin absent, ils s'ouvraient réellement à son intérimaire ;
- *   • `DRIVE`, `MESSAGING`, `WORKSPACE`, `NOTIFICATIONS` — ce sont les espaces PERSONNELS de
- *     l'absent. Remplacer quelqu'un, ce n'est pas lire son Drive privé ni sa messagerie ;
+ *   • `DRIVE`, `MESSAGING`, `WORKSPACE`, `NOTIFICATIONS`, `ASSISTANT_IA` — ce sont les espaces
+ *     PERSONNELS de l'absent. Remplacer quelqu'un, ce n'est pas lire son Drive privé, sa messagerie
+ *     ni parler à son assistant, qui agit en son nom ;
  *   • `PAYMENT_CENTRE`, `VALIDATION_CENTRE`, `AD_PRO_CENTRE`, `CHIEF_OF_STAFF` — des SIÈGES : un rôle
  *     ou une désignation nominative les donne, pas le module (`sitsOnPaymentCentre`,
  *     `sitsOnValidationCentre`, `siegeAuCentreAdPro`, `peutVoirAdam`). L'intérim ne prête aucun rôle
@@ -60,7 +61,7 @@ export const STAND_IN_LABEL: Record<StandInStatus, string> = {
  */
 const NEVER_DELEGATED: readonly Module[] = [
   "ADMIN", "ADVENTUM_BRAIN", "PROCESS_INTELLIGENCE",
-  "DRIVE", "MESSAGING", "WORKSPACE", "NOTIFICATIONS",
+  "DRIVE", "MESSAGING", "WORKSPACE", "NOTIFICATIONS", "ASSISTANT_IA",
   "PAYMENT_CENTRE", "VALIDATION_CENTRE", "AD_PRO_CENTRE", "CHIEF_OF_STAFF",
   "MY_TEAM", "DIRECTORIES",
 ];

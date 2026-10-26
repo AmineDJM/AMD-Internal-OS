@@ -71,6 +71,11 @@ export const MODULES = [
   // complète d'un dossier, lecture des documents du Drive, bilan d'une personne, rappels
   // planifiés, décisions du centre de paiement.
   "CHIEF_OF_STAFF",
+  // ASSISTANT_IA : l'« Assistant IA » (/assistant, Mastra + MiMo) — PAS Adam. Fermé à tous par
+  // défaut ; le Super Admin l'a (tous les modules), et l'OUVRE à une personne dans Administration ›
+  // Accès comme n'importe quel module. Ouvert, il travaille avec les droits de CETTE personne : ses
+  // outils sont filtrés par son RBAC et s'exécutent en son nom (`lib/agent/outils-v1.ts`).
+  "ASSISTANT_IA",
   "PROCESS_INTELLIGENCE", "ADVENTUM_BRAIN", "ADMIN",
   // SITE_WEB : le site public adventumdz.com — les articles de blog que l'ERP y publie, et l'état
   // de la publication (file d'envoi, journal, réconciliation). Les OFFRES D'EMPLOI, elles, se
@@ -829,6 +834,18 @@ export const REFUS_MISSIONS_ADAM = "Les missions et surveillances d'Adam sont r�
 export function peutVoirAdam(u: UserRole | RoleBearer): boolean {
   return peutPiloterMissionsAdam(u);
 }
+
+/**
+ * L'ASSISTANT IA EST-IL OUVERT À CETTE PERSONNE ? Le module `ASSISTANT_IA` en VUE — le Super Admin
+ * l'a d'office, les autres seulement si l'accès leur est ouvert (Administration › Accès). Un droit
+ * qui ne tiendrait qu'à un intérim ne compte pas : l'assistant parle au nom de son utilisateur.
+ */
+export function peutUtiliserAssistantIA(u: SessionUser): boolean {
+  return userCan(u, "ASSISTANT_IA", "VIEW") && !estPrete(u, "ASSISTANT_IA", "VIEW");
+}
+
+/** Le refus, écrit une fois — page, actions et confirmation disent la même phrase. */
+export const REFUS_ASSISTANT_IA = "L'assistant ne vous est pas ouvert.";
 
 /** Le refus, écrit UNE fois — une action serveur d'Adam appelée hors de son écran dit cette phrase. */
 export const REFUS_ADAM = "Adam est réservé au Super Admin.";

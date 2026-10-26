@@ -1778,6 +1778,9 @@ X("plomberie du Chief lui-même (chat, mémoire, fils) — pas une action métie
   // `performAction`. Ce n'est donc pas une action métier de plus à proposer au Chief — c'est le
   // geste « je confirme tout » de l'utilisateur, exécuté côté serveur au lieu du navigateur.
   "assistant-actions:executeAssistantBundle",
+  // La confirmation de l'ASSISTANT IA (/assistant) : la même porte que `executeAssistantAction`
+  // (intention de CE compte, idempotence, `performAction`), sous la règle de l'Assistant IA.
+  "assistant-actions:confirmerIntentionAssistantIA",
   // LE GESTE DÉTERMINISTE d'un bouton de l'espace de travail (§23). Il n'ouvre AUCUNE capacité
   // nouvelle : il exécute une LECTURE déjà exposée au Chief comme outil, en sautant l'appel au
   // modèle que le serveur n'avait aucune raison de payer — il connaissait l'intention exacte au

@@ -1,9 +1,9 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/session";
+import { requireUser, type CurrentUser } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
-import { userCan, peutVoirAdam, REFUS_ADAM } from "@/lib/rbac";
+import { userCan, peutVoirAdam, REFUS_ADAM, peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
@@ -270,40 +270,65 @@ export async function assistantNudge(prevSignature: string): Promise<NudgeResult
   }
 }
 
+/**
+ * CHEMIN CANONIQUE : l'action vit sous son INTENT (machine d'état serveur). Réclamation
+ * atomique — un retry / double-clic / reconnexion ne relance JAMAIS l'exécution : une
+ * action déjà EXÉCUTÉE renvoie son reçu d'origine. Le payload exécuté est celui STOCKÉ à
+ * la proposition (le serveur est l'autorité, pas le client). `null` : intent introuvable,
+ * ou pas à ce compte. Partagé par Adam et par l'Assistant IA ; chacun garde SA porte avant.
+ */
+async function executerIntention(user: CurrentUser, intentId: string, confirmTyped?: string): Promise<ExecuteResult | null> {
+  // CONFIRMATION FORTE — vérifiée PAR LE SERVEUR : pour une action CRITIQUE, la valeur
+  // ressaisie doit correspondre au confirmText STOCKÉ à la proposition. La carte arme son
+  // bouton avec la même règle, mais l'autorité est ICI : appeler cette action serveur
+  // directement (console, script) sans la bonne ressaisie n'exécute rien. Un intent déjà
+  // EXÉCUTÉ reste idempotent : le reçu d'origine se renvoie sans nouvelle ressaisie.
+  const meta = await prisma.assistantActionIntent.findFirst({
+    where: { id: intentId, userId: user.id },
+    select: { status: true, level: true, confirmText: true },
+  });
+  if (meta && meta.status !== "EXECUTED" && meta.level === "CRITICAL") {
+    if (!meta.confirmText) {
+      return { ok: false, error: "Cette carte CRITIQUE date d'avant le durcissement de la confirmation : redemandez la proposition à l'assistant, puis confirmez en ressaisissant la valeur demandée. Rien n'a été exécuté." };
+    }
+    if (!matchesConfirmText(confirmTyped ?? "", meta.confirmText)) {
+      return { ok: false, error: `Confirmation renforcée : la valeur ressaisie ne correspond pas à « ${meta.confirmText} ». Rien n'a été exécuté.` };
+    }
+  }
+  const guarded = await executeIntentGuarded(user, intentId, async (stored) => {
+    const r = await performAction(user, stored as AssistantActionPayload);
+    if (r.ok && r.revalidate) for (const path of r.revalidate) revalidatePath(path);
+    return r;
+  });
+  return guarded ? { ok: guarded.ok, message: guarded.message, link: guarded.link, error: guarded.error } : null;
+}
+
+/**
+ * LA CONFIRMATION DE L'ASSISTANT IA (/assistant) — sa porte à lui, `peutUtiliserAssistantIA`, et
+ * JAMAIS de payload reçu : seulement une intention que CE compte a préparée. `performAction`
+ * revérifie le droit métier de la personne au moment d'exécuter.
+ */
+export async function confirmerIntentionAssistantIA(intentId: string, confirmTyped?: string): Promise<ExecuteResult> {
+  try {
+    const user = await requireUser();
+    if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
+    if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
+    return (await executerIntention(user, intentId, confirmTyped)) ?? { ok: false, error: "Action introuvable." };
+  } catch (err) {
+    console.error("[assistant] confirmerIntentionAssistantIA failed", err);
+    return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
+  }
+}
+
 export async function executeAssistantAction(payload: AssistantActionPayload, intentId?: string, confirmTyped?: string): Promise<ExecuteResult> {
   try {
     const user = await requireUser();
     // Le chemin SANS intent exécute un payload reçu : c'est la porte la plus large d'Adam.
     if (!peutVoirAdam(user)) return { ok: false, error: REFUS_ADAM };
 
-    // CHEMIN CANONIQUE : l'action vit sous son INTENT (machine d'état serveur). Réclamation
-    // atomique — un retry / double-clic / reconnexion ne relance JAMAIS l'exécution : une
-    // action déjà EXÉCUTÉE renvoie son reçu d'origine. Le payload exécuté est celui STOCKÉ à
-    // la proposition (le serveur est l'autorité, pas le client).
     if (intentId) {
-      // CONFIRMATION FORTE — vérifiée PAR LE SERVEUR : pour une action CRITIQUE, la valeur
-      // ressaisie doit correspondre au confirmText STOCKÉ à la proposition. La carte arme son
-      // bouton avec la même règle, mais l'autorité est ICI : appeler cette action serveur
-      // directement (console, script) sans la bonne ressaisie n'exécute rien. Un intent déjà
-      // EXÉCUTÉ reste idempotent : le reçu d'origine se renvoie sans nouvelle ressaisie.
-      const meta = await prisma.assistantActionIntent.findFirst({
-        where: { id: intentId, userId: user.id },
-        select: { status: true, level: true, confirmText: true },
-      });
-      if (meta && meta.status !== "EXECUTED" && meta.level === "CRITICAL") {
-        if (!meta.confirmText) {
-          return { ok: false, error: "Cette carte CRITIQUE date d'avant le durcissement de la confirmation : redemandez la proposition à l'assistant, puis confirmez en ressaisissant la valeur demandée. Rien n'a été exécuté." };
-        }
-        if (!matchesConfirmText(confirmTyped ?? "", meta.confirmText)) {
-          return { ok: false, error: `Confirmation renforcée : la valeur ressaisie ne correspond pas à « ${meta.confirmText} ». Rien n'a été exécuté.` };
-        }
-      }
-      const guarded = await executeIntentGuarded(user, intentId, async (stored) => {
-        const r = await performAction(user, stored as AssistantActionPayload);
-        if (r.ok && r.revalidate) for (const path of r.revalidate) revalidatePath(path);
-        return r;
-      });
-      if (guarded) return { ok: guarded.ok, message: guarded.message, link: guarded.link, error: guarded.error };
+      const r = await executerIntention(user, intentId, confirmTyped);
+      if (r) return r;
       // Intent introuvable (ou pas à ce compte) → chemin historique ci-dessous, sans reçu.
     }
 

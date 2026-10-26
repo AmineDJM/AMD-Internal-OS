@@ -60,9 +60,12 @@ describe("peutVoirAdam — le rôle PRINCIPAL de Super Admin, et lui seul", () =
 
 describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => {
   it("les deux pages et le SEGMENT du bureau refusent avant tout chargement", () => {
+    // /assistant n'est PAS Adam : c'est l'Assistant IA, ouvert personne par personne (module
+    // `ASSISTANT_IA`). Sa page refuse qui n'a pas le module — et ne lit pas la règle d'Adam.
     const assistant = sansCommentaires(lire("src/app/(app)/assistant/page.tsx"));
-    const garde = assistant.indexOf("if (!peutVoirAdam(user)) notFound();");
-    expect(garde, "/assistant doit refuser qui ne voit pas Adam").toBeGreaterThan(0);
+    const garde = assistant.indexOf("if (!peutUtiliserAssistantIA(user)) notFound();");
+    expect(garde, "/assistant doit refuser qui n'a pas l'Assistant IA").toBeGreaterThan(0);
+    expect(assistant).not.toContain("peutVoirAdam(");
     // Le brief est payé par un modèle : s'il est chargé, c'est APRÈS la garde. L'interface actuelle
     // n'en charge pas — la garde reste exigée, l'ordre n'a alors rien à protéger.
     const brief = assistant.indexOf("getDailyBrief(");
@@ -110,9 +113,12 @@ describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => 
     // appartient déjà à la personne (§118.15), et leur seul écran est déjà fermé. Les fermer
     // aussi retiendrait des données qu'elle ne pourrait plus effacer.
     const REDUCTEURS = new Set(["cancelAssistantAction", "deleteMyAssistantThread", "forgetMyAssistantMemory"]);
+    // La confirmation de l'ASSISTANT IA (autre produit, /assistant) lit SA règle, pas celle d'Adam.
+    const PORTE_ASSISTANT_IA = "confirmerIntentionAssistantIA";
     const corps = corpsExportes(lire("src/lib/actions/assistant-actions.ts"));
     expect(corps.size, "PLANCHER : le découpage doit trouver les actions").toBeGreaterThanOrEqual(10);
-    const sansGarde = [...corps].filter(([, c]) => !c.includes("peutVoirAdam(user)")).map(([n]) => n).sort();
+    expect(corps.get(PORTE_ASSISTANT_IA), "la confirmation de l'Assistant IA lit sa règle").toContain("peutUtiliserAssistantIA(user)");
+    const sansGarde = [...corps].filter(([n, c]) => n !== PORTE_ASSISTANT_IA && !c.includes("peutVoirAdam(user)")).map(([n]) => n).sort();
     expect(sansGarde).toEqual([...REDUCTEURS].sort());
   });
 

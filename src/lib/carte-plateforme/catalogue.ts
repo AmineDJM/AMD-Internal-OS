@@ -852,8 +852,8 @@ export const MODULES_PLATEFORME: readonly ModulePlateforme[] = [
     liens: [{ vers: "admin", pourquoi: "Réglages" }],
   },
   {
-    id: "adam", nom: "Adam (assistant IA)", route: "/assistant", domaine: "systeme", rbac: ["CHIEF_OF_STAFF"],
-    resume: "L'assistant et « My Chief of Staff » : lire, proposer des actions, rédiger. EN PAUSE de développement.",
+    id: "adam", nom: "Adam (chief of staff)", route: "/chief-of-staff", domaine: "systeme", rbac: ["CHIEF_OF_STAFF"],
+    resume: "« My Chief of Staff » : lire, proposer des actions, rédiger. EN PAUSE de développement.",
     pourQui: "Le SEUL Super Admin (rôle principal). Ni la Direction, ni un Super Admin en rôle secondaire.",
     gestes: [
       { label: "Poser une question", qui: "Super Admin", effet: "Réponse limitée à ce que la personne peut lire." },
@@ -861,6 +861,17 @@ export const MODULES_PLATEFORME: readonly ModulePlateforme[] = [
     ],
     regles: ["Désactivé en Vue exacte.", "Aucun mail ne part sans approbation du contenu exact (politique par défaut)."],
     liens: [{ vers: "admin", pourquoi: "Contrôle IA" }],
+  },
+  {
+    id: "assistant-ia", nom: "Assistant IA", route: "/assistant", domaine: "systeme", rbac: ["ASSISTANT_IA"],
+    resume: "L'assistant de conversation (Mastra + MiMo) : lire ce que la personne peut lire, préparer une tâche ou un message.",
+    pourQui: "Le Super Admin, et chaque personne à qui il ouvre le module dans Administration › Accès.",
+    gestes: [
+      { label: "Poser une question", qui: "Toute personne qui a le module", effet: "Ses outils sont ceux de SON rôle et de SES accès ; rémunérations, coordonnées bancaires et pièces d'identité sont masquées avant le modèle." },
+      { label: "Carte de confirmation", qui: "Toute personne qui a le module", effet: "Rien ne s'écrit avant la confirmation ; le droit est revérifié à l'exécution." },
+    ],
+    regles: ["Jamais prêté par un intérim : l'assistant agit au nom de son utilisateur."],
+    liens: [{ vers: "admin", pourquoi: "Accès" }],
   },
 
   // ── EXTERNE ───────────────────────────────────────────────────────────────────────────────

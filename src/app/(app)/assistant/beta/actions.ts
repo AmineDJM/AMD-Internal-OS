@@ -1,10 +1,8 @@
 "use server";
 
 import { requireUser, type CurrentUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
-import { peutVoirAdam } from "@/platform/in-process/visibilite-adam";
-import type { AssistantActionPayload } from "@/lib/assistant";
-import { executeAssistantAction } from "@/lib/actions/assistant-actions";
+import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/platform/in-process/visibilite-adam";
+import { confirmerIntentionAssistantIA } from "@/lib/actions/assistant-actions";
 import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
@@ -31,15 +29,16 @@ export interface ReponseBetaAction {
 }
 
 /**
- * LE GARDE — celui de l'assistant de production (`peutVoirAdam`).
- * Une action serveur s'appelle sans passer par la page : le contrôle vit donc ici aussi.
+ * LE GARDE — le module `ASSISTANT_IA` (`peutUtiliserAssistantIA`) : le Super Admin, et chaque
+ * personne à qui il l'a ouvert. Une action serveur s'appelle sans passer par la page : le
+ * contrôle vit donc ici aussi.
  */
 async function exigerAccesAssistant(): Promise<CurrentUser | null> {
   const user = await requireUser();
-  return peutVoirAdam(user) ? user : null;
+  return peutUtiliserAssistantIA(user) ? user : null;
 }
 
-const REFUS = "L'assistant ne vous est pas ouvert.";
+const REFUS = REFUS_ASSISTANT_IA;
 const MAX_TOURS_HISTORIQUE = 12;
 
 type Tour = { role: "user" | "assistant"; content: string };
@@ -58,19 +57,14 @@ function historiqueSur(historique: unknown): Tour[] {
 }
 
 /**
- * Valide et exécute une action proposée. Le payload exécuté est celui STOCKÉ sur l'intention,
- * jamais un payload venu du client ; `executeAssistantAction` garde l'idempotence, la
- * confirmation forte et revérifie le droit au moment de l'exécution (Q14).
+ * Valide et exécute une action proposée. Seule l'INTENTION est reçue, jamais un payload : celui
+ * qui s'exécute est STOCKÉ sur l'intention de CE compte. `confirmerIntentionAssistantIA` garde
+ * l'idempotence, la confirmation forte et revérifie le droit au moment de l'exécution (Q14).
  */
 export async function confirmerActionBeta(intentId: string) {
   const user = await exigerAccesAssistant();
   if (!user) return { ok: false as const, error: REFUS };
-  const intent = await prisma.assistantActionIntent.findFirst({
-    where: { id: intentId, userId: user.id },
-    select: { payload: true },
-  });
-  if (!intent) return { ok: false as const, error: "Action introuvable." };
-  return executeAssistantAction(intent.payload as unknown as AssistantActionPayload, intentId);
+  return confirmerIntentionAssistantIA(intentId);
 }
 
 /** Un message à l'assistant : moteur Mastra, MiMo d'abord, secours du registre (R4). */
