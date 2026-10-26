@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronDown, ChevronRight, FileText, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Search, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input, Select } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
@@ -13,6 +13,7 @@ import {
   type FiltrePaiement, type FiltresDepenses,
 } from "@/lib/general-means/ecran";
 import { ExpenseRowActions } from "./expense-row-actions";
+import { EVENEMENT_FILTRE_NATURE, type FiltreNatureDetail } from "./par-nature-mois";
 import type { BudgetTarget } from "@/lib/budget/target";
 import type { CatalogArticle } from "./receipt-lines";
 import type { GeneralMeansExpense } from "@/lib/queries/general-means";
@@ -51,12 +52,25 @@ export function ExpenseTable({
   const [bascules, setBascules] = React.useState<Record<string, boolean>>({});
   const [choisieId, setChoisieId] = React.useState<string | null>(null);
 
+  // Les natures du filtre sont celles des ARTICLES : une dépense « café + ramettes » se retrouve sous les deux.
   const natures = React.useMemo(() => {
     const noms = new Set<string>();
     let sans = false;
-    for (const e of expenses) { if (e.nature) noms.add(e.nature); else sans = true; }
+    for (const e of expenses) {
+      for (const p of e.parts.length > 0 ? e.parts : [{ nature: e.nature }]) { if (p.nature) noms.add(p.nature); else sans = true; }
+    }
     return [...[...noms].sort((a, b) => a.localeCompare(b, "fr")), ...(sans ? [SANS_NATURE] : [])];
   }, [expenses]);
+
+  // UN CLIC SUR UNE CATÉGORIE DE « PAR NATURE » filtre cette liste : la catégorie et le mois regardé.
+  React.useEffect(() => {
+    const ecoute = (ev: Event) => {
+      const d = (ev as CustomEvent<FiltreNatureDetail>).detail;
+      if (d) setFiltres((f) => ({ ...f, nature: d.nature, mois: d.mois }));
+    };
+    window.addEventListener(EVENEMENT_FILTRE_NATURE, ecoute);
+    return () => window.removeEventListener(EVENEMENT_FILTRE_NATURE, ecoute);
+  }, []);
 
   const lignes = React.useMemo(() => filtrerDepenses(expenses, filtres), [expenses, filtres]);
   const groupes = React.useMemo(() => grouperParMois(lignes, maintenant), [lignes, maintenant]);
@@ -94,6 +108,15 @@ export function ExpenseTable({
           <option value="">Toutes natures</option>
           {natures.map((n) => <option key={n} value={n}>{n}</option>)}
         </Select>
+        {filtres.mois && (
+          <button
+            type="button" onClick={() => setFiltres((f) => ({ ...f, mois: "" }))}
+            className="inline-flex min-h-9 items-center gap-1 rounded-full border border-border bg-secondary px-2.5 text-xs font-medium hover:bg-secondary/70 sm:min-h-0 sm:py-1"
+            aria-label={`Retirer le filtre ${titreMois(filtres.mois)}`}
+          >
+            {titreMois(filtres.mois)} <X className="h-3.5 w-3.5" />
+          </button>
+        )}
         {/* LE TOTAL DE CE QUI EST AFFICHÉ : un filtre qui ne recalcule rien ne fait que cacher des lignes. */}
         <span className="ml-auto text-xs text-muted-foreground">
           {lignes.length} dépense{lignes.length > 1 ? "s" : ""} · <strong className="tabular-nums text-foreground">{formatCurrency(total)}</strong>

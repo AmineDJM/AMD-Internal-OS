@@ -18,7 +18,7 @@ import {
 } from "@/lib/department-budget";
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { readReceipt, saveReceiptLines } from "@/lib/general-means/expense-lines";
+import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
 import { continuousCash, fundExcluding, fundHandle, canSpendFromFund } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
@@ -430,6 +430,12 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
     if (!room.ok) return { ok: false, error: room.reason ?? "Le fond ne couvre pas ce montant." };
   }
 
+  // LA NATURE DE CHAQUE ARTICLE (Direction, 10/2026) : la nouvelle catégorie proposée par l'IA se crée ici, et un
+  // article resté sans catégorie est rangé — sauf si le ticket entier a reçu la sienne.
+  const lignes = ticket
+    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId })
+    : [];
+
   const created = await prisma.departmentBudgetExpense.create({
     data: {
       departmentId, year, kind, label, amount, budgetCategoryId,
@@ -440,7 +446,7 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
     },
     select: { id: true },
   });
-  if (ticket) await saveReceiptLines(created.id, ticket.lines);
+  if (ticket) await saveReceiptLines(created.id, lignes);
 
   for (const file of files) {
     const key = `DEPARTMENT_EXPENSE/${created.id}/${randomUUID()}__${file.name}`;
@@ -591,6 +597,10 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
   const rawCategory = formData.has("budgetCategoryId")
     ? keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds())
     : before.budgetCategoryId;
+  // Une correction suit la même règle qu'une saisie : nouvelle catégorie créée, article sans catégorie rangé.
+  const lignes = ticket
+    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: label, classer: !rawCategory })
+    : [];
 
   await prisma.$transaction(async (tx) => {
     await tx.departmentBudgetExpense.update({
@@ -602,7 +612,7 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
     if (ticket) {
       await tx.departmentExpenseLine.deleteMany({ where: { expenseId: id } });
       await tx.departmentExpenseLine.createMany({
-        data: ticket.lines.map((l) => ({
+        data: lignes.map((l) => ({
           expenseId: id, articleId: l.articleId, label: l.label,
           quantity: l.quantity, amount: l.amount, budgetCategoryId: l.budgetCategoryId,
         })),

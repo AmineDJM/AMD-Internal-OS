@@ -1630,6 +1630,13 @@ X("LUNA CONSEILLE OÙ RANGER UNE PIÈCE déposée sur une demande Ad & Pro : un 
 X("LUNA PROPOSE LES POSTES D'UNE DEMANDE à partir de sa description (salle, repas, hôtellerie, billetterie et leurs fiches) : une PROPOSITION qui n'écrit rien — la personne la reprend à l'écran, et les postes se créent par l'action ordinaire d'ajout (`addAdProItem`). La carte de confirmation d'Adam n'aurait aucun objet à confirmer. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
   "ad-pro-postes-luna-actions:proposerPostesDepuisDescription",
 ]);
+X("MOYENS GÉNÉRAUX › NATURE DES DÉPENSES (Direction, 10/2026) : l'IA PROPOSE la catégorie de chaque article pendant la saisie "
+  + "(rien ne s'écrit — la personne la voit et la change dans le formulaire), et le Super Admin range d'un clic l'existant "
+  + "resté « Non classé » depuis la carte « Par nature ». Deux gestes d'écran, sans objet à confirmer pour une carte d'Adam. "
+  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "natures-moyens-generaux-actions:proposerNaturesLignes",
+  "natures-moyens-generaux-actions:classerDepensesNonClassees",
+]);
 X("PURGE IRRÉVERSIBLE DE LA FILE DES RÈGLEMENTS. Vider l'historique efface des ordres de dépense en bloc ; le geste n'a pas d'annulation et ne se discute pas — il se décide devant l'écran, en voyant combien de lignes partent. Le rendre appelable par Adam l'exposerait à l'injection : un document lu par une étape pourrait contenir « vide l'historique des règlements ». Les écritures de trésorerie survivent, mais ce n'est pas une raison pour donner la commande à un modèle. Un clic du Super Admin sur /finances/paiements-a-faire.", [
   "expense-actions:purgeSettledExpenseOrders",
 ]);

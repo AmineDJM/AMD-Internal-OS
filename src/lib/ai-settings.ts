@@ -72,7 +72,13 @@ export type AiFeature =
    * (salle, repas, hôtellerie, billetterie et leurs fiches) — proposé, jamais écrit ; la personne reprend en un geste
    * (`postes-luna-ia.ts`). Suit la bascule de l'assistant.
    */
-  | "postes_luna";
+  | "postes_luna"
+  /**
+   * LA NATURE D'UNE DÉPENSE DES MOYENS GÉNÉRAUX (Direction, 10/2026) : l'IA range chaque article d'un ticket dans une
+   * catégorie budgétaire des moyens généraux, ou en nomme une nouvelle ; les mots-clés prennent le relais sans elle
+   * (`natures-depenses-ia.ts`). Suit la bascule de l'assistant.
+   */
+  | "nature_depense";
 
 export interface AiSettingsView {
   masterEnabled: boolean;
@@ -126,6 +132,7 @@ const FEATURE_KEY: Record<AiFeature, keyof AiSettingsView> = {
   influence: "fieldReportAiEnabled",
   attestation_travail: "assistantEnabled",
   postes_luna: "assistantEnabled",
+  nature_depense: "assistantEnabled",
 };
 
 /**

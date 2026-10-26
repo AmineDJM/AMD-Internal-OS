@@ -12,8 +12,9 @@ import { Tuile } from "@/components/shared/tuile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { InfoBulle } from "@/components/ui/info-bulle";
-import { Repartition } from "@/components/charts/repartition";
-import { SANS_NATURE, repartitionParNature, titreMois, totauxDuMois } from "@/lib/general-means/ecran";
+import { moisParDefaut, titreMois, totauxDuMois } from "@/lib/general-means/ecran";
+import { assurerNaturesMoyensGeneraux } from "@/lib/general-means/natures-store";
+import { ParNatureMois } from "./par-nature-mois";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { CashPanel } from "./cash-panel";
 import { ExpensePanel } from "./expense-panel";
@@ -164,13 +165,16 @@ export default async function MoyensGenerauxPage({
 
   // LES CASES BUDGÉTAIRES OUVERTES ICI. Liste volontairement pauvre : des destinations, sans
   // montants ni consommation — classer une dépense ne suppose pas d'accéder au module Budget.
+  // LES NATURES PAR DÉFAUT SONT GARANTIES d'abord (Direction, 10/2026) : l'enveloppe des moyens généraux et ses
+  // catégories existent, sans quoi l'IA n'aurait nulle part où ranger. Une panne ici n'empêche pas d'afficher la page.
+  if (view.canSpend) await assurerNaturesMoyensGeneraux().catch((err) => console.error("[moyens-generaux] natures", err));
   const budgetTargets = view.canSpend ? await generalMeansBudgetTargets() : [];
 
   // MOIS EN COURS, DÉPENSES PAR NATURE : lus sur la liste affichée (les 200 plus récentes — largement assez pour deux mois).
   const maintenant = new Date();
   const mois = totauxDuMois(view.expenses, maintenant);
   const nomDuMois = (ym: string) => titreMois(ym).split(" ")[0].toLowerCase();
-  const natures = repartitionParNature(view.expenses.map((e) => ({ amount: e.amount, nature: e.nature })));
+  const nonClassees = view.expenses.filter((e) => e.parts.some((p) => p.nature === null)).length;
   const fund = view.cash?.fund ?? null;
   const derniereRemise = view.cash?.remittances.find((r) => r.centre === "VERSEE") ?? view.cash?.remittances[0] ?? null;
   const totalAnnee = view.consumed + view.otherConsumed;
@@ -261,23 +265,18 @@ export default async function MoyensGenerauxPage({
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex-row items-center justify-between gap-2 p-4 pb-2">
-            <CardTitle>Par nature · {year}</CardTitle>
-            <InfoBulle label="À propos de la répartition par nature">
-              La nature d&apos;une dépense est la catégorie du budget où son ticket est classé. « {SANS_NATURE} » : pas encore rangée.
-              {view.truncated && <> Calculé sur les {LIST_LIMIT} dépenses les plus récentes.</>}
-            </InfoBulle>
-          </CardHeader>
-          <CardContent className="p-4 pt-2">
-            {natures.length === 0
-              ? <p className="text-sm text-muted-foreground">Aucune dépense cette année.</p>
-              : <Repartition rows={natures} format={formatCurrency} />}
-          </CardContent>
-        </Card>
+        <ParNatureMois
+          depenses={view.expenses.map((e) => ({ date: e.date, parts: e.parts }))}
+          annee={year}
+          moisInitial={moisParDefaut(year, maintenant)}
+          nonClassees={nonClassees}
+          peutRanger={pilote}
+          departmentId={view.department.id}
+          tronque={view.truncated}
+        />
       </div>
 
-      <Card>
+      <Card id="depenses" className="scroll-mt-4">
         <CardHeader className="flex-row items-center justify-between gap-2 p-4 pb-2">
           <CardTitle>Dépenses</CardTitle>
           <InfoBulle label="À propos des dépenses">

@@ -8,7 +8,7 @@ import { nextRechargeDate, type PettyCashStatus } from "@/lib/petty-cash";
 import { continuousCash, remittanceSpent, type ContinuousCash, type CashRemittance } from "@/lib/general-means/continuous-cash";
 import { etatRemise, remiseEnAttente, type EtatRemise } from "@/lib/general-means/remise-centre";
 import { isFullyClassified } from "@/lib/budget/imputation";
-import { natureDeLaDepense } from "@/lib/general-means/ecran";
+import { natureDeLaDepense, partsParNature, type PartDeNature } from "@/lib/general-means/ecran";
 import { getAppSettings } from "@/lib/settings";
 
 /**
@@ -44,6 +44,8 @@ export interface GeneralMeansExpense {
   toClassify: boolean;
   /** LA NATURE de la dépense : le nom de sa catégorie budgétaire (« Café et eau ») — `null` = non classée. */
   nature: string | null;
+  /** La dépense découpée par nature, article par article (`partsParNature`) — ce que « Par nature » additionne. */
+  parts: PartDeNature[];
   createdBy: string;
 }
 
@@ -391,6 +393,7 @@ export async function getGeneralMeans(
       // articles classés, quand le ticket lui-même n'a pas de case.
       toClassify: !isFullyClassified({ amount, budgetCategoryId: e.budgetCategoryId, lines }),
       nature: natureDeLaDepense({ budgetCategoryId: e.budgetCategoryId, lines }, categoryName),
+      parts: partsParNature({ amount, budgetCategoryId: e.budgetCategoryId, lines }, categoryName),
       createdBy: e.createdBy?.name ?? "",
     };
   };
