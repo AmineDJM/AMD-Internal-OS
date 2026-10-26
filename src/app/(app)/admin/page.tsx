@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog,Gauge, Globe2, HardDrive, History, Layers, Library, Mail, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, Trash2, Workflow, ScanSearch, ScrollText } from "lucide-react";
+import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog,Gauge, Globe2, HardDrive, History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, Trash2, Workflow, ScanSearch, ScrollText } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -105,6 +105,10 @@ export default async function AdminPage() {
             </Link>
             <Link href="/admin/adoption">
               <Button variant="outline"><Gauge className="h-4 w-4" /> Adoption</Button>
+            </Link>
+            {/* CARTE DE LA PLATEFORME : modules, gestes, circuits et droits par rôle (lus dans PERMISSIONS) — Super Admin seul. */}
+            <Link href="/admin/carte-plateforme">
+              <Button variant="outline"><MapIcon className="h-4 w-4" /> Carte de la plateforme</Button>
             </Link>
             {/* INTELLIGENCE TERRAIN (Direction, 10/2026) : graphe d'influence (Luna) et ROI Ad & Pro — Super Admin seul. */}
             <Link href="/admin/intelligence-terrain">
