@@ -97,6 +97,72 @@ export function natureDeLaDepense(
   return nom.get(meilleure[0]) ?? null;
 }
 
+/** La part d'une dépense qui revient à une nature (`null` = « Non classé »). */
+export interface PartDeNature { nature: string | null; amount: number }
+
+/**
+ * LA DÉPENSE DÉCOUPÉE PAR NATURE, ARTICLE PAR ARTICLE (Direction, 10/2026) : un ticket « café + ramettes » compte le
+ * café en cuisine et les ramettes en papeterie. Chaque article classé va à sa catégorie ; le reste du ticket (articles
+ * sans catégorie, écart entre le total et les articles) va à la catégorie du ticket, sinon à « Non classé ». La même
+ * règle que `isFullyClassified` côté budget.
+ */
+export function partsParNature(
+  e: { amount: number; budgetCategoryId: string | null; lines: readonly { amount: number; budgetCategoryId: string | null }[] },
+  nom: ReadonlyMap<string, string>,
+): PartDeNature[] {
+  const par = new Map<string | null, number>();
+  const ajouter = (n: string | null, m: number) => { if (m > 0) par.set(n, (par.get(n) ?? 0) + m); };
+  let classe = 0;
+  for (const l of e.lines) {
+    const n = l.budgetCategoryId ? nom.get(l.budgetCategoryId) ?? null : null;
+    if (n) { ajouter(n, l.amount); classe += l.amount; }
+  }
+  const reste = Math.round((e.amount - classe) * 100) / 100;
+  ajouter(e.budgetCategoryId ? nom.get(e.budgetCategoryId) ?? null : null, reste);
+  return [...par.entries()].map(([nature, amount]) => ({ nature, amount: Math.round(amount * 100) / 100 }));
+}
+
+/**
+ * « PAR NATURE » D'UN MOIS : le total de chaque nature sur les dépenses du mois (« AAAA-MM »), la plus lourde d'abord.
+ * Toutes les natures sont gardées — l'écran les veut cliquables une à une, pas repliées dans « Autres ».
+ */
+export function repartitionDuMois(
+  rows: readonly { date: string; parts: readonly PartDeNature[] }[],
+  mois: string,
+): PartNature[] {
+  const par = new Map<string, PartNature>();
+  for (const r of rows) {
+    if (moisCle(r.date) !== mois) continue;
+    for (const p of r.parts) {
+      const label = p.nature ?? SANS_NATURE;
+      const x = par.get(label) ?? { label, total: 0, count: 0 };
+      x.total = Math.round((x.total + p.amount) * 100) / 100;
+      x.count += 1;
+      par.set(label, x);
+    }
+  }
+  return [...par.values()].filter((p) => p.total > 0).sort((a, b) => b.total - a.total);
+}
+
+/** Le mois suivant, « AAAA-MM ». */
+export function moisSuivant(ym: string): string {
+  const m = /^(\d{4})-(\d{2})$/.exec(ym);
+  if (!m) return ym;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]), 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+/**
+ * Le mois montré d'office : le mois en cours quand on regarde l'année en cours, sinon décembre de l'année regardée
+ * (une année passée se lit par sa fin), sinon janvier (une année à venir).
+ */
+export function moisParDefaut(annee: number, maintenant: Date | string): string {
+  const courant = moisCle(maintenant);
+  const a = Number(courant.slice(0, 4));
+  if (annee === a) return courant;
+  return annee < a ? `${annee}-12` : `${annee}-01`;
+}
+
 export interface PartNature { label: string; total: number; count: number }
 
 /** « PAR NATURE » : le total par nature, la plus lourde d'abord ; au-delà de `max`, la queue est repliée dans « Autres ». */
@@ -117,24 +183,37 @@ export function repartitionParNature(rows: readonly { amount: number; nature: st
 }
 
 export type FiltrePaiement = "TOUS" | "CAISSE" | "HORS";
-export interface FiltresDepenses { recherche: string; paiement: FiltrePaiement; /** "" = toutes les natures. */ nature: string }
-export const AUCUN_FILTRE: FiltresDepenses = { recherche: "", paiement: "TOUS", nature: "" };
+export interface FiltresDepenses {
+  recherche: string;
+  paiement: FiltrePaiement;
+  /** "" = toutes les natures. */
+  nature: string;
+  /** « AAAA-MM », "" = tous les mois — posé par un clic sur une nature de « Par nature ». */
+  mois?: string;
+}
+export const AUCUN_FILTRE: FiltresDepenses = { recherche: "", paiement: "TOUS", nature: "", mois: "" };
 
 const sansAccent = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Y a-t-il un filtre posé ? (alors tous les mois concernés s'ouvrent : on cherche, on ne feuillette pas) */
 export function filtreActif(f: FiltresDepenses): boolean {
-  return f.recherche.trim() !== "" || f.paiement !== "TOUS" || f.nature !== "";
+  return f.recherche.trim() !== "" || f.paiement !== "TOUS" || f.nature !== "" || Boolean(f.mois);
 }
 
-export function filtrerDepenses<T extends { label: string; notes: string | null; nature: string | null; fromPettyCash: boolean; lines: readonly { label: string }[] }>(
+/** Les natures d'une dépense : celles de ses parts quand elles sont connues, sinon sa nature principale. */
+function naturesDe(r: { nature: string | null; parts?: readonly PartDeNature[] }): string[] {
+  return r.parts && r.parts.length > 0 ? r.parts.map((p) => p.nature ?? SANS_NATURE) : [r.nature ?? SANS_NATURE];
+}
+
+export function filtrerDepenses<T extends { label: string; notes: string | null; nature: string | null; parts?: readonly PartDeNature[]; date?: string; fromPettyCash: boolean; lines: readonly { label: string }[] }>(
   rows: readonly T[], f: FiltresDepenses,
 ): T[] {
   const mots = sansAccent(f.recherche).split(/\s+/).filter(Boolean);
   return rows.filter((r) => {
     if (f.paiement === "CAISSE" && !r.fromPettyCash) return false;
     if (f.paiement === "HORS" && r.fromPettyCash) return false;
-    if (f.nature !== "" && (r.nature ?? SANS_NATURE) !== f.nature) return false;
+    if (f.nature !== "" && !naturesDe(r).includes(f.nature)) return false;
+    if (f.mois && (!r.date || moisCle(r.date) !== f.mois)) return false;
     if (mots.length === 0) return true;
     const texte = sansAccent([r.label, r.notes ?? "", r.nature ?? "", ...r.lines.map((l) => l.label)].join(" "));
     return mots.every((m) => texte.includes(m));

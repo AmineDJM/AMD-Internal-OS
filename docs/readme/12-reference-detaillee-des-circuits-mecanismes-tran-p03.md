@@ -134,6 +134,20 @@ le budget et le solde de caisse, qui se lisent tous deux sur ces mêmes lignes. 
 catégorie = « Non classé ») ; un clic ouvre la dépense dans un **panneau** latéral (`expense-panel.tsx`), les filtres
 et le menu d'en-tête sont regroupés (`entete-menu.tsx`). Règles pures `lib/general-means/ecran.ts` (+ tests).
 
+**Nature des dépenses rangée par l'IA (10/2026)** : les natures sont des **catégories budgétaires** de l'enveloppe active
+qui couvre `GENERAL_MEANS` — créée au besoin (« Moyens généraux », exercice en cours, montant 0) avec **14 catégories par
+défaut** reconnues par leur `cle` `MG_…` (`lib/general-means/natures.ts`, `natures-store.ts` → `assurerNaturesMoyensGeneraux`,
+appelée à l'affichage). **Saisie** : après une pause de frappe, chaque article non classé à la main part à l'IA
+(`proposerNaturesLignes`, n'écrit rien) ; la catégorie proposée remplit la liste, modifiable ; une **nouvelle** catégorie
+voyage en `nouvelle:Nom` et n'est créée qu'à l'enregistrement (`finaliserNatures`, `expense-lines.ts`, appelée par
+`addDepartmentExpense`, `updateDepartmentExpense`, `spendFromPettyCash` après les contrôles) — un nom proche d'une
+catégorie existante (accents, casse, pluriel) y est ramené. Un article encore sans catégorie à l'enregistrement est rangé
+côté serveur, sauf si le ticket a la sienne. IA coupée / en panne / > 12 s → **mots-clés** (`devinerParMotsCles`) ; jamais
+de blocage. Fonction IA `nature_depense` (bascule de l'assistant, `lib/natures-depenses-ia.ts`). **« Par nature »** montre
+un **mois** (◀ ▶ dans l'année), découpé **article par article** (`partsParNature`, `repartitionDuMois`) ; un clic filtre la
+liste sur la catégorie et le mois. **Super Admin** : « Ranger avec l'IA » range l'existant « Non classé » par lots
+(`classerDepensesNonClassees`, audité).
+
 - **Droit** (`canAmendExpense`) : les mêmes que pour créer — celui qui **tient** le budget, ou
   celui qui **achète** sur son propre département. Obliger à remonter à l'administration pour
   corriger un montant garantit surtout que personne ne corrige, et qu'on vit avec un budget faux.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   AUCUN_FILTRE, SANS_NATURE, filtrerDepenses, filtreActif, grouperParMois, moisCle, moisPrecedent, natureDeLaDepense,
-  partDepensee, repartitionParNature, titreMois, totauxDuMois,
+  partDepensee, repartitionParNature, titreMois, totauxDuMois, partsParNature, repartitionDuMois, moisSuivant, moisParDefaut,
 } from "./ecran";
 
 const dep = (date: string, amount: number, p: Record<string, unknown> = {}) => ({
@@ -109,5 +109,48 @@ describe("partDepensee", () => {
     expect(partDepensee(30_000, 24_000)).toBe(100);
     expect(partDepensee(10, 0)).toBe(0);
     expect(partDepensee(-5, 100)).toBe(0);
+  });
+});
+
+describe("par nature, article par article et par mois (Direction, 10/2026)", () => {
+  const nom = new Map([["cafe", "Café"], ["pap", "Papeterie"], ["tel", "Télécom"]]);
+
+  it("chaque article va à sa catégorie ; le reste du ticket à celle du ticket, sinon « Non classé »", () => {
+    expect(partsParNature({ amount: 1500, budgetCategoryId: null, lines: [
+      { amount: 1000, budgetCategoryId: "cafe" }, { amount: 300, budgetCategoryId: "pap" }, { amount: 200, budgetCategoryId: null },
+    ] }, nom)).toEqual([{ nature: "Café", amount: 1000 }, { nature: "Papeterie", amount: 300 }, { nature: null, amount: 200 }]);
+    expect(partsParNature({ amount: 500, budgetCategoryId: "tel", lines: [{ amount: 500, budgetCategoryId: null }] }, nom))
+      .toEqual([{ nature: "Télécom", amount: 500 }]);
+    expect(partsParNature({ amount: 800, budgetCategoryId: null, lines: [] }, nom)).toEqual([{ nature: null, amount: 800 }]);
+  });
+
+  it("le mois additionne les parts de ses seules dépenses, la plus lourde d'abord", () => {
+    const rows = [
+      { date: "2026-10-03T10:00:00.000Z", parts: [{ nature: "Café", amount: 1000 }, { nature: "Papeterie", amount: 300 }] },
+      { date: "2026-10-20T10:00:00.000Z", parts: [{ nature: "Papeterie", amount: 900 }] },
+      { date: "2026-09-30T10:00:00.000Z", parts: [{ nature: "Café", amount: 5000 }] },
+      { date: "2026-10-21T10:00:00.000Z", parts: [{ nature: null, amount: 50 }] },
+    ];
+    expect(repartitionDuMois(rows, "2026-10")).toEqual([
+      { label: "Papeterie", total: 1200, count: 2 }, { label: "Café", total: 1000, count: 1 }, { label: SANS_NATURE, total: 50, count: 1 },
+    ]);
+    expect(repartitionDuMois(rows, "2026-08")).toEqual([]);
+  });
+
+  it("le mois montré d'office, et le mois suivant", () => {
+    expect(moisParDefaut(2026, "2026-10-26T09:00:00.000Z")).toBe("2026-10");
+    expect(moisParDefaut(2025, "2026-10-26T09:00:00.000Z")).toBe("2025-12");
+    expect(moisParDefaut(2027, "2026-10-26T09:00:00.000Z")).toBe("2027-01");
+    expect(moisSuivant("2026-12")).toBe("2027-01");
+  });
+
+  it("le filtre de nature lit les parts, et le filtre de mois ne garde que ce mois", () => {
+    const rows = [
+      dep("2026-10-03T10:00:00.000Z", 1300, { nature: "Café", parts: [{ nature: "Café", amount: 1000 }, { nature: "Papeterie", amount: 300 }] }),
+      dep("2026-09-03T10:00:00.000Z", 300, { nature: "Papeterie", parts: [{ nature: "Papeterie", amount: 300 }] }),
+    ];
+    expect(filtrerDepenses(rows, { ...AUCUN_FILTRE, nature: "Papeterie" })).toHaveLength(2);
+    expect(filtrerDepenses(rows, { ...AUCUN_FILTRE, nature: "Papeterie", mois: "2026-10" })).toHaveLength(1);
+    expect(filtreActif({ ...AUCUN_FILTRE, mois: "2026-10" })).toBe(true);
   });
 });

@@ -6385,10 +6385,11 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
     if (payload.note) fd.set("note", payload.note);
     const r = await requestTreasuryUpdate(fd);
     if (!r.ok) return { ok: false, error: r.error ?? "La demande d'actualisation a été refusée." };
+    // Sans entité précisée, l'action prend l'entité par défaut (Adventum) ; sa phrase dit laquelle.
     return {
       ok: true,
-      message: "Demande d'actualisation des soldes déclenchée — les responsables Finances sont notifiés.",
-      link: "/finances",
+      message: r.message ?? "Demande d'actualisation des soldes envoyée aux responsables Finance.",
+      link: r.id ? `/finances/actualisation-soldes/${r.id}` : "/finances/paiements-a-faire",
       revalidate: ["/finances"],
     };
   }

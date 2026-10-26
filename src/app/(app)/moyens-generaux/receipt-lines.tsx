@@ -1,11 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/utils";
 import { normalizeLines, receiptTotal, parseAmount, parseQuantity } from "@/lib/general-means/receipt";
+import { proposerNaturesLignes } from "@/lib/actions/natures-moyens-generaux-actions";
 import type { BudgetTarget } from "@/lib/budget/target";
+
+/** « Enveloppe › Catégorie » → « Catégorie » : dans la liste, l'enveloppe se répète à chaque ligne sans rien apprendre. */
+const nomCourt = (label: string): string => label.split(" › ").slice(1).join(" › ") || label;
 
 export interface CatalogArticle {
   id: string;
@@ -20,11 +24,20 @@ interface Row {
   label: string;
   quantity: string;
   amount: string;
-  /** Case budgétaire de CET article — vide = « comme le ticket ». */
+  /** Case budgétaire de CET article — vide = « comme le ticket ». « nouvelle:Nom » = catégorie proposée, créée à l'enregistrement. */
   budgetCategoryId: string;
+  /** La catégorie vient de l'IA (elle se repropose si le libellé change). */
+  auto: boolean;
+  /** La personne a choisi elle-même : l'IA n'y touche plus. */
+  manuel: boolean;
+  /** Le libellé pour lequel l'IA a déjà répondu — pour ne pas redemander la même chose. */
+  suggerePour: string;
 }
 
-const empty = (key: number): Row => ({ key, articleId: "", label: "", quantity: "1", amount: "", budgetCategoryId: "" });
+const empty = (key: number): Row => ({ key, articleId: "", label: "", quantity: "1", amount: "", budgetCategoryId: "", auto: false, manuel: false, suggerePour: "" });
+
+/** Attente après la dernière frappe avant de demander à l'IA : on ne la sollicite pas à chaque lettre. */
+const ATTENTE_MS = 900;
 
 /** Lignes déjà enregistrées, telles qu'on les rouvre pour corriger un ticket. */
 export interface ExistingLine {
@@ -72,10 +85,58 @@ export function ReceiptLines({
           quantity: String(l.quantity),
           amount: String(l.amount),
           budgetCategoryId: l.budgetCategoryId ?? "",
+          // Un article déjà classé l'a été par quelqu'un : l'IA ne le reclasse pas.
+          auto: false,
+          manuel: Boolean(l.budgetCategoryId),
+          suggerePour: "",
         }))
       : [empty(0)],
   );
   const nextKey = React.useRef(initial && initial.length > 0 ? initial.length : 1);
+
+  // ── L'IA PROPOSE LA NATURE DE CHAQUE ARTICLE (Direction, 10/2026) ──────────────────────────
+  // Après une courte pause dans la frappe, les articles nommés que personne n'a classés partent à l'IA ; la catégorie
+  // proposée remplit la liste déroulante, et la personne la change si elle veut. Une nouvelle catégorie apparaît
+  // comme une option de plus (« ✨ Nouvelle : … ») et ne se crée qu'à l'enregistrement.
+  const [nouvelles, setNouvelles] = React.useState<Record<string, string>>({});
+  const [enCours, setEnCours] = React.useState(false);
+  const libelleDe = React.useCallback(
+    (r: Row) => (r.label || (r.articleId ? articles.find((a) => a.id === r.articleId)?.name ?? "" : "")).trim(),
+    [articles],
+  );
+  const aProposer = rows.filter((r) => {
+    const l = libelleDe(r);
+    return budgetTargets.length > 0 && !r.manuel && l.length >= 3 && l !== r.suggerePour;
+  });
+  const signature = aProposer.map((r) => `${r.key}:${libelleDe(r)}`).join("|");
+  React.useEffect(() => {
+    if (!signature) return;
+    let annule = false;
+    const t = window.setTimeout(() => {
+      const cibles = aProposer.map((r) => ({ key: r.key, libelle: libelleDe(r) }));
+      const fd = new FormData();
+      fd.set("libelles", JSON.stringify(cibles.map((c) => c.libelle)));
+      setEnCours(true);
+      void proposerNaturesLignes(fd)
+        .then((res) => {
+          if (annule || !res.ok || !res.propositions) return;
+          const propositions = res.propositions;
+          const ajouts = Object.fromEntries(propositions.filter((p) => p?.nouvelle).map((p) => [p!.valeur, p!.nom]));
+          if (Object.keys(ajouts).length > 0) setNouvelles((n) => ({ ...n, ...ajouts }));
+          setRows((rs) => rs.map((r) => {
+            const k = cibles.findIndex((c) => c.key === r.key);
+            if (k < 0 || r.manuel || libelleDe(r) !== cibles[k].libelle) return r;
+            const p = propositions[k] ?? null;
+            return { ...r, suggerePour: cibles[k].libelle, ...(p ? { budgetCategoryId: p.valeur, auto: true } : {}) };
+          }));
+        })
+        .catch(() => undefined)
+        .finally(() => { if (!annule) setEnCours(false); });
+    }, ATTENTE_MS);
+    return () => { annule = true; window.clearTimeout(t); };
+    // La signature résume ce qui compte (quelles lignes, quels libellés) : relancer sur chaque rendu ferait un appel par frappe.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
 
   const payload = React.useMemo(
     () => normalizeLines(rows.map((r) => ({
@@ -173,19 +234,28 @@ export function ReceiptLines({
               </div>
               {budgetTargets.length > 0 && (
                 <div className="col-span-12 sm:col-span-11 sm:col-start-1">
-                  {/* Classement de CET article. « Comme le ticket » est le défaut : la plupart
-                      des lignes suivent le classement général, seules les exceptions se règlent. */}
+                  {/* LA NATURE DE CET ARTICLE — proposée par l'IA, modifiable. Vide = « comme le ticket » (et, à
+                      l'enregistrement, l'IA range l'article si le ticket n'a pas de catégorie non plus). */}
                   <select
                     value={r.budgetCategoryId}
-                    onChange={(e) => patch(r.key, { budgetCategoryId: e.target.value })}
-                    aria-label={`Classement budgétaire de l'article ${i + 1}`}
-                    className="h-9 w-full rounded-lg border border-border bg-background px-2 text-base text-muted-foreground sm:h-8 sm:text-xs"
+                    onChange={(e) => patch(r.key, { budgetCategoryId: e.target.value, manuel: true, auto: false })}
+                    aria-label={`Nature de l'article ${i + 1}`}
+                    className={`h-9 w-full rounded-lg border bg-background px-2 text-base sm:h-8 sm:text-xs ${r.auto ? "border-primary/40 text-foreground" : "border-border text-muted-foreground"}`}
                   >
-                    <option value="">Budget : comme le ticket</option>
+                    <option value="">Nature : à classer</option>
+                    {Object.entries(nouvelles).map(([valeur, nom]) => (
+                      <option key={valeur} value={valeur}>✨ Nouvelle catégorie : {nom}</option>
+                    ))}
                     {budgetTargets.map((t) => (
-                      <option key={t.id} value={t.id}>{t.isSub ? `   ↳ ${t.label}` : t.label}</option>
+                      <option key={t.id} value={t.id}>{t.isSub ? `   ↳ ${nomCourt(t.label)}` : nomCourt(t.label)}</option>
                     ))}
                   </select>
+                  {r.auto && r.budgetCategoryId && (
+                    <p className="mt-0.5 flex items-center gap-1 text-[0.6875rem] text-primary">
+                      <Sparkles className="h-3 w-3" />
+                      {nouvelles[r.budgetCategoryId] ? "Nouvelle catégorie proposée par l'IA — créée à l'enregistrement" : "Proposé par l'IA — modifiable"}
+                    </p>
+                  )}
                 </div>
               )}
               {article?.estimatedPrice != null && (
@@ -209,6 +279,11 @@ export function ReceiptLines({
         >
           <Plus className="h-3.5 w-3.5" /> Ajouter un article
         </button>
+        {enCours && (
+          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" /> L&apos;IA range les articles…
+          </span>
+        )}
         <p className="text-sm">
           <span className="text-muted-foreground">Total du ticket : </span>
           <strong className="tabular-nums">{formatCurrency(total)}</strong>

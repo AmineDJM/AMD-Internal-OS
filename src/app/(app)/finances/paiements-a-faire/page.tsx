@@ -195,6 +195,15 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   // (chargée plus haut, avec les comptes du règlement)
   const dernierReleve = tresorerie.comptes.reduce<string | null>((max, c) => (max === null || c.jourAncrage > max ? c.jourAncrage : max), null);
 
+  // UNE DEMANDE D'ACTUALISATION ENCORE OUVERTE pour cette entité : elle se DIT en tête, avec le chemin
+  // de la réponse — le comptable qui arrive ici sans passer par la notification la trouve aussi.
+  const demandeOuverte = await prisma.demandeActualisationSoldes.findFirst({
+    where: { companyId: entiteId, termineeLe: null },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, createdAt: true },
+  });
+  const libelleEntite = mesSocietes.find((s) => s.id === entiteId);
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -206,11 +215,23 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
             ouvert plus largement, il devient une sonnerie que personne n'écoute plus.
             La MÊME règle garde l'action serveur (`requestTreasuryUpdate`) et l'opération d'Adam
             (`request_treasury_update`) — un bouton masqué n'est pas un contrôle d'accès. */}
-        {user.role === "SUPER_ADMIN" && <TreasuryUpdateRequestButton />}
+        {user.role === "SUPER_ADMIN" && <TreasuryUpdateRequestButton entiteId={entiteId} entite={libelleEntite ? libelleEntite.shortName || libelleEntite.name : null} />}
         {/* LE SOLDE SE MET À JOUR ICI, là où on le lit : le comptable pose le solde du relevé et sa date,
             et « Solde bancaire » ci-dessous les affiche dès l'enregistrement. */}
         {canSettle && <ComptesTresorerieButton comptes={tresorerie.comptes} entites={companyOptions(mesSocietes)} canUpdate={canSettle} />}
       </PageHeader>
+
+      {demandeOuverte && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+          <span>
+            Actualisation des soldes demandée le{" "}
+            {demandeOuverte.createdAt.toLocaleDateString("fr-FR", { timeZone: "Africa/Algiers" })} — en attente des Finances.
+          </span>
+          <Link href={`/finances/actualisation-soldes/${demandeOuverte.id}`} className="font-medium text-primary hover:underline">
+            {canSettle ? "Saisir les soldes" : "Voir la demande"}
+          </Link>
+        </div>
+      )}
 
       {mesSocietes.length > 1 && (
         <nav aria-label="Entités" className="-mx-1 overflow-x-auto px-1 pb-1">

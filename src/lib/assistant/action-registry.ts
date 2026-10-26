@@ -1109,6 +1109,12 @@ X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de config
   + "conversation ne peut pas la faire. C'est un écran de dépannage, pas un geste métier.", [
   "onlyoffice-diagnostic-actions:testerEditeurOffice",
 ]);
+X("FINANCES › RÉPONDRE À UNE DEMANDE D'ACTUALISATION DES SOLDES (Direction, 10/2026) : le responsable Finance saisit, "
+  + "compte par compte, le solde du relevé bancaire qu'il a SOUS LES YEUX et sa date — ou « pas encore reçu ». C'est une "
+  + "attestation de ce que dit la banque, qui réancre le compte : elle se donne devant l'écran de la demande "
+  + "(`/finances/actualisation-soldes/[id]`), ouvert par sa notification. Adam est en pause de développement (Super Admin seul).", [
+  "actualisation-soldes-actions:repondreActualisationSoldes",
+]);
 X("INFORMATION MÉDICALE › RELANCER UNE PIÈCE (Direction, 07/10) : une notification à la personne sollicitée, limitée à une "
   + "toutes les quatre heures. Le geste se décide en REGARDANT la fiche du dossier (depuis quand la pièce est attendue, "
   + "dernière relance) ; Adam est en pause de développement (Super Admin seul).", [
@@ -1430,6 +1436,12 @@ X("CORRIGER SA DEMANDE DE PAIEMENT (audit 360°, lot C4c, §118.191) — l'objet
   + "clic sur /validations/paiements/<id> › « Corriger la demande ».", [
   "payment-request-actions:corrigerDemandePaiement",
 ]);
+X("SUPPRIMER DÉFINITIVEMENT SA DEMANDE DE PAIEMENT (Direction, 19/10/2026) — retirée ou restée brouillon, elle part en "
+  + "lot avec son ordre de dépense annulé, ses pièces et son fil, restaurable depuis la corbeille. Le geste du DEMANDEUR (ou "
+  + "du Super Admin), décidé devant la fenêtre qui montre ce qui part avec. Adam est en pause de développement : aucun "
+  + "geste neuf ne lui est ouvert.", [
+  "payment-request-actions:supprimerDemandePaiement",
+]);
 X("ROUVRIR ET ANNULER UNE DEMANDE AU SECRÉTARIAT (audit 360°, lot C4c, §118.191) — les gestes nommés qui remplacent le "
   + "menu de statut libre : rouvrir une demande TERMINÉE avec son motif, annuler une demande par l'annulation commune (qui "
   + "retire aussi la validation, l'approbation et le paiement en attente). Ce sont des gestes du SECRÉTARIAT qui disent "
@@ -1617,6 +1629,13 @@ X("LUNA CONSEILLE OÙ RANGER UNE PIÈCE déposée sur une demande Ad & Pro : un 
 ]);
 X("LUNA PROPOSE LES POSTES D'UNE DEMANDE à partir de sa description (salle, repas, hôtellerie, billetterie et leurs fiches) : une PROPOSITION qui n'écrit rien — la personne la reprend à l'écran, et les postes se créent par l'action ordinaire d'ajout (`addAdProItem`). La carte de confirmation d'Adam n'aurait aucun objet à confirmer. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
   "ad-pro-postes-luna-actions:proposerPostesDepuisDescription",
+]);
+X("MOYENS GÉNÉRAUX › NATURE DES DÉPENSES (Direction, 10/2026) : l'IA PROPOSE la catégorie de chaque article pendant la saisie "
+  + "(rien ne s'écrit — la personne la voit et la change dans le formulaire), et le Super Admin range d'un clic l'existant "
+  + "resté « Non classé » depuis la carte « Par nature ». Deux gestes d'écran, sans objet à confirmer pour une carte d'Adam. "
+  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "natures-moyens-generaux-actions:proposerNaturesLignes",
+  "natures-moyens-generaux-actions:classerDepensesNonClassees",
 ]);
 X("PURGE IRRÉVERSIBLE DE LA FILE DES RÈGLEMENTS. Vider l'historique efface des ordres de dépense en bloc ; le geste n'a pas d'annulation et ne se discute pas — il se décide devant l'écran, en voyant combien de lignes partent. Le rendre appelable par Adam l'exposerait à l'injection : un document lu par une étape pourrait contenir « vide l'historique des règlements ». Les écritures de trésorerie survivent, mais ce n'est pas une raison pour donner la commande à un modèle. Un clic du Super Admin sur /finances/paiements-a-faire.", [
   "expense-actions:purgeSettledExpenseOrders",

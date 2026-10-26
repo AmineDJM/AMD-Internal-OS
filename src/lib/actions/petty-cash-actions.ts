@@ -23,7 +23,7 @@ import { ordreDeRemise } from "@/lib/general-means/remettre";
 import { etatRemise, refusConfirmationRemise } from "@/lib/general-means/remise-centre";
 import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
-import { readReceipt, saveReceiptLines } from "@/lib/general-means/expense-lines";
+import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
 
 const PATH = "/moyens-generaux";
@@ -315,6 +315,10 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   // Un achat payé en liquide se classe dans le budget comme les autres : c'est la même dépense,
   // seul le moyen de paiement diffère. La case est revérifiée côté serveur.
   const budgetCategoryId = keepAllowedCategory(fdStr(formData, "budgetCategoryId"), await allowedGeneralMeansCategoryIds());
+  // La nature de chaque article se règle AVANT le verrou : l'appel à l'IA ne doit pas tenir la caisse fermée.
+  const lignes = ticket
+    ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId })
+    : [];
 
   // ── LA DÉPENSE EST ATOMIQUE (audit Assistante de direction, 10/2026) ──────────────────────
   //
@@ -347,7 +351,7 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   });
   if (!ecrite.ok) return { ok: false, error: ecrite.error };
   const created = { id: ecrite.id };
-  if (ticket) await saveReceiptLines(created.id, ticket.lines);
+  if (ticket) await saveReceiptLines(created.id, lignes);
 
   for (const file of files) {
     const key = `DEPARTMENT_EXPENSE/${created.id}/${randomUUID()}__${file.name}`;

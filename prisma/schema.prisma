@@ -1593,6 +1593,7 @@ model Company {
   medicalDoctors          MedicalDoctor[]
   financeTransactions     FinanceTransaction[]
   treasuryAccounts        TreasuryAccount[]
+  demandesActualisationSoldes DemandeActualisationSoldes[]
   payrollWires            PayrollWire[]
   medicalInfoDeclarations MedicalInfoDeclaration[]
   stockSnapshots          StockSnapshot[]
@@ -5775,8 +5776,47 @@ model TreasuryAccount {
   updatedAt      DateTime @updatedAt
 
   transactions FinanceTransaction[]
+  lignesActualisation LigneActualisationSoldes[]
 
   @@index([companyId])
+}
+
+/// DEMANDE D'ACTUALISATION DES SOLDES — le Super Admin la pose pour UNE entité, les responsables
+/// Finance / Budget y répondent compte par compte (nouveau solde de relevé + sa date, ou « pas encore
+/// reçu »). Une ligne par compte de l'entité, figée à la demande avec l'ancrage d'alors : on relit ce
+/// qu'on a demandé, et ce qui a changé. Auteur et répondant en identifiants simples, comme les comptes.
+model DemandeActualisationSoldes {
+  id           String    @id @default(cuid())
+  companyId    String?
+  company      Company?  @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  note         String?
+  demandeParId String
+  createdAt    DateTime  @default(now())
+  /// Posée quand TOUS les comptes sont actualisés ; un « pas encore reçu » laisse la demande ouverte.
+  termineeLe   DateTime?
+
+  lignes LigneActualisationSoldes[]
+
+  @@index([companyId, termineeLe])
+}
+
+model LigneActualisationSoldes {
+  id           String                     @id @default(cuid())
+  demandeId    String
+  demande      DemandeActualisationSoldes @relation(fields: [demandeId], references: [id], onDelete: Cascade)
+  compteId     String
+  compte       TreasuryAccount            @relation(fields: [compteId], references: [id], onDelete: Cascade)
+  /// EN_ATTENTE | ACTUALISE | NON_RECU
+  etat         String                     @default("EN_ATTENTE")
+  ancienSolde  Decimal                    @db.Decimal(14, 2)
+  ancienneDate DateTime
+  nouveauSolde Decimal?                   @db.Decimal(14, 2)
+  nouvelleDate DateTime?
+  traiteParId  String?
+  traiteLe     DateTime?
+
+  @@unique([demandeId, compteId])
+  @@index([compteId])
 }
 
 /// Employee record — shared by RH (dossiers, congés, contrats) and Paie.
