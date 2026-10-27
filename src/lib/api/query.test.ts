@@ -62,4 +62,16 @@ describe("sérialisation", () => {
   it("traverse les objets et les tableaux imbriqués", () => {
     expect(serialize({ a: [{ d: new Date(0) }] })).toEqual({ a: [{ d: "1970-01-01T00:00:00.000Z" }] });
   });
+
+  it("ne rend JAMAIS un secret, une identité civile, une banque ou une paie — à toute profondeur (audit W10)", () => {
+    const employe = {
+      id: "e1", fullName: "Ali B.", iban: "DZ5800799999000123456789", nationalId: "1099", cnasNumber: "77",
+      baseSalary: new Prisma.Decimal("150000"), grossSalary: 1, netToPay: 1, employerCost: 1,
+      user: { id: "u1", name: "Ali", passwordHash: "$2a$10$x", mustChangePassword: false },
+      department: { members: [{ id: "u2", passwordHash: "$2a$", accessTokenEnc: "x", rib: "007" }] },
+    };
+    const out = JSON.stringify(serialize(employe));
+    for (const fuite of ["DZ58", "1099", "150000", "$2a$", "passwordHash", "iban", "rib", "accessTokenEnc", "netToPay"]) expect(out).not.toContain(fuite);
+    expect(serialize(employe)).toMatchObject({ id: "e1", fullName: "Ali B.", user: { id: "u1", name: "Ali", mustChangePassword: false } });
+  });
 });

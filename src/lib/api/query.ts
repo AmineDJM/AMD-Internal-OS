@@ -99,6 +99,24 @@ export function textSearchWhere(def: EntityDef, q: string): Record<string, unkno
  * Les `Decimal` deviennent des NOMBRES (un agent qui compare un montant à un objet
  * `{s,e,d}` se trompe), les dates des chaînes ISO, les `BigInt` des chaînes — JSON n'en a pas.
  */
+/**
+ * CE QUE L'API NE REND JAMAIS, quelle que soit la route, la profondeur ou la portée de l'identité :
+ * secrets de connexion, identité civile, banque, rémunération. Une fiche sans `detailFields` rend
+ * tout le modèle et une relation (`related`) rend ses lignes entières — c'est ainsi que
+ * `employee/:id` rendait IBAN, NIN et salaires, et `user/:id` le `passwordHash` (audit refonte W10,
+ * 27/10). Le filtre vit donc ICI, dans la seule fonction par laquelle toute réponse passe.
+ * Le coffre de la refonte (P5) en sera la source ; d'ici là, la liste est fermée et testée.
+ */
+const CHAMPS_JAMAIS_EXPOSES = new Set([
+  "passwordHash", "passwordEnc", "secret", "token", "publicToken", "qrToken", "keyHash",
+  "iban", "rib", "nationalId", "cnasNumber",
+  "baseSalary", "grossSalary", "netToPay", "employerCost",
+]);
+/** Jetons et mots de passe chiffrés au repos (`accessTokenEnc`, `refreshTokenEnc`…). */
+const CHIFFRE_AU_REPOS = /Enc$/;
+
+export const champJamaisExpose = (cle: string): boolean => CHAMPS_JAMAIS_EXPOSES.has(cle) || CHIFFRE_AU_REPOS.test(cle);
+
 export function serialize(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (value instanceof Date) return value.toISOString();
@@ -109,6 +127,7 @@ export function serialize(value: unknown): unknown {
     if (Buffer.isBuffer(value)) return undefined; // jamais d'octets bruts dans une réponse JSON
     const out: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (champJamaisExpose(k)) continue;
       const s = serialize(v);
       if (s !== undefined) out[k] = s;
     }
