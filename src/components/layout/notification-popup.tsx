@@ -5,6 +5,9 @@ import { Megaphone, ArrowRight, Loader2 } from "lucide-react";
 import { markNotificationRead } from "@/lib/actions/notification-actions";
 import { useScrollLock } from "@/lib/use-scroll-lock";
 
+/** Diffusé à chaque sondage de `/api/notifications/poll` : `{ unread }`, écouté par le carillon. */
+export const EVENEMENT_NON_LUES = "amd:notifications-unread";
+
 interface Popup {
   id: string;
   title: string;
@@ -32,6 +35,8 @@ export function NotificationPopup() {
         const res = await fetch("/api/notifications/poll", { cache: "no-store" });
         if (!res.ok || !alive) return;
         const data = await res.json();
+        // LE SEUL SONDAGE de cette route dans la coque (PERF-04) : le carillon lit le compteur ici.
+        window.dispatchEvent(new CustomEvent(EVENEMENT_NON_LUES, { detail: { unread: Number(data.unread ?? 0) } }));
         const incoming: Popup[] = Array.isArray(data.popups) ? data.popups : [];
         setQueue((cur) => {
           const seen = new Set(cur.map((p) => p.id));

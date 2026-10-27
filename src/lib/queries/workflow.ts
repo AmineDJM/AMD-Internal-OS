@@ -106,7 +106,19 @@ export interface WorkflowView {
 
 /** Une dépense Ad & Pro accordée peut être imputée à n'importe quelle enveloppe
  *  couvrant la famille Ad & Pro — pas seulement le module exact de la demande. */
-const AD_PRO_BUDGET_MODULES = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENTS", "PROMO_MATERIAL"];
+const AD_PRO_BUDGET_MODULES = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENTS", "AD_PRO_OTHER", "PROMO_MATERIAL"];
+
+/**
+ * LE MODULE QUI « TRANCHE » CHAQUE CATÉGORIE — la catégorie n'est un nom de module que par coïncidence
+ * pour les quatre premières ; la demande « autre » (`OTHER`) relève du module `AD_PRO_OTHER`.
+ */
+const MODULE_DE_LA_CATEGORIE: Record<WorkflowCategory, Module> = {
+  SPONSORING: "SPONSORING",
+  CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL",
+  CONGRESS_NATIONAL: "CONGRESS_NATIONAL",
+  EVENTS: "EVENTS",
+  OTHER: "AD_PRO_OTHER",
+};
 
 async function loadOutcome(entityType: EntityType, entityId: string): Promise<WorkflowOutcome> {
   let grantedAmount: number | null = null;
@@ -117,6 +129,9 @@ async function loadOutcome(entityType: EntityType, entityId: string): Promise<Wo
     grantedAmount = r?.amountGranted != null ? toNumber(r.amountGranted) : null;
     orderId = r?.expenseOrderId ?? null;
     tenue = r?.status === "PRE_VALIDATED" ? "PRE_VALIDEE" : r?.status === "CLOSED" && r.closedAt ? "CLOTUREE" : null;
+  } else if (entityType === "AD_PRO_OTHER") {
+    // LA DEMANDE « AUTRE » (27/10/2026) n'a ni montant accordé global ni ordre global : son argent se
+    // décide poste par poste (le panneau des postes et la porte du DG sur le total le disent).
   } else {
     const sel = { finalAmount: true, expenseOrderId: true } as const;
     const r =
@@ -145,7 +160,8 @@ async function synthesizeCreationEvent(
       : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, select: sel })
         : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, select: sel })
           : entityType === "EVENT" ? await prisma.event.findUnique({ where: { id: entityId }, select: sel })
-            : null;
+            : entityType === "AD_PRO_OTHER" ? await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: sel })
+              : null;
   if (!row) return null;
   const requester = requesterId
     ? await prisma.user.findUnique({ where: { id: requesterId }, select: { name: true } }).catch(() => null)
@@ -293,7 +309,7 @@ export async function getWorkflowForEntity(viewer: SessionUser, entityType: Enti
     peutResoumettre: instance.status === "RETURNED"
       && peutResoumettre({ id: viewer.id, vueGlobale: hasGlobalView(viewer) || viewer.role === "SUPER_ADMIN" }, requesterId),
     peutRetirer: (instance.status === "IN_PROGRESS" || instance.status === "RETURNED")
-      && (requesterId === viewer.id || hasGlobalView(viewer) || viewer.role === "SUPER_ADMIN" || userCan(viewer, category as Module, "VALIDATE")),
+      && (requesterId === viewer.id || hasGlobalView(viewer) || viewer.role === "SUPER_ADMIN" || userCan(viewer, MODULE_DE_LA_CATEGORIE[category], "VALIDATE")),
     peutFaireAppel: instance.status === "REJECTED" && entityType !== "SPONSORING"
       && (requesterId === viewer.id || hasGlobalView(viewer) || viewer.role === "SUPER_ADMIN"),
   };
@@ -306,7 +322,8 @@ async function demandeurDeLaDemande(entityType: EntityType, entityId: string): P
       : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, ...sel })
         : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, ...sel })
           : entityType === "EVENT" ? await prisma.event.findUnique({ where: { id: entityId }, ...sel })
-            : null;
+            : entityType === "AD_PRO_OTHER" ? await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, ...sel })
+              : null;
   return ligne?.requesterId ?? null;
 }
 

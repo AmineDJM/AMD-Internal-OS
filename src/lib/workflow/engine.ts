@@ -18,6 +18,7 @@ import { getAppSettings } from "@/lib/settings";
 import { statutDepuisCircuit } from "@/lib/events/statut";
 import { AD_PRO_PARENTS, PARENT_COLONNE, type AdProParent } from "@/lib/ad-pro-items";
 import { issueTerminaleSponsoring } from "./issue-sponsoring";
+import { ecritureAutreDepuisCircuit } from "./autre-statut";
 import { argentEffectif } from "./pouvoirs-argent";
 import { auteursDAvis, etapeDeReprise, peutResoumettre, refusDuRenvoi, statutLegacyALEtape } from "./renvoi";
 import {
@@ -299,6 +300,7 @@ const LEGACY_FIELD: Record<string, "status" | "requestStatus"> = {
   CONGRESS_INTERNATIONAL: "requestStatus",
   CONGRESS_NATIONAL: "requestStatus",
   EVENT: "requestStatus",
+  AD_PRO_OTHER: "status",
 };
 
 function updateEntity(entityType: EntityType, entityId: string, data: Record<string, unknown>) {
@@ -314,6 +316,10 @@ function updateEntity(entityType: EntityType, entityId: string, data: Record<str
       const { updatedById: _omit, ...rest } = data;
       return prisma.event.update({ where: { id: entityId }, data: rest as Prisma.EventUpdateInput });
     }
+    case "AD_PRO_OTHER":
+      // LA DEMANDE « AUTRE » (27/10/2026) n'a ni les statuts ni les colonnes des quatre autres natures :
+      // l'écriture du moteur est TRADUITE (`workflow/autre-statut.ts`), et ce qu'elle n'a pas est abandonné.
+      return prisma.adProOtherRequest.update({ where: { id: entityId }, data: ecritureAutreDepuisCircuit(data) });
     default:
       return Promise.resolve(null);
   }
@@ -352,6 +358,11 @@ async function loadEntity(entityType: EntityType, entityId: string): Promise<Ent
     if (!e) return null;
     return { name: e.name, requesterId: e.requesterId, beneficiary: e.name, label: `Événement — ${e.name}`, legacyStatus: e.requestStatus, estimatedAmount: e.estimatedBudget != null ? toNumber(e.estimatedBudget) : null, createdAt: e.createdAt };
   }
+  if (entityType === "AD_PRO_OTHER") {
+    const o = await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { reference: true, title: true, beneficiary: true, requesterId: true, status: true, amount: true, createdAt: true } });
+    if (!o) return null;
+    return { name: o.title, requesterId: o.requesterId, beneficiary: o.beneficiary ?? o.title, label: `Autre demande ${o.reference} — ${o.title}`, legacyStatus: o.status, estimatedAmount: o.amount != null ? toNumber(o.amount) : null, createdAt: o.createdAt };
+  }
   return null;
 }
 
@@ -363,7 +374,8 @@ function positionFromLegacy(steps: LoadedStep[], legacy: string | null): { curre
   if (!legacy) return { currentSlug: ordered[0]?.slug ?? null, status: "IN_PROGRESS" };
   // `PRE_VALIDATED` (§118.151) : le CIRCUIT est terminé — la tenue est décidée —, la demande vit
   // ensuite par ses postes puis sa clôture, qui ne sont pas des étapes du circuit.
-  if (["APPROVED", "VALIDATED", "PAID", "CLOSED", "COMPLETED", "ACCEPTED", "PRE_VALIDATED"].includes(legacy)) return { currentSlug: null, status: "APPROVED" };
+  // `DONE` : une demande « autre » marquée terminée (27/10/2026) — prévalidée, puis exécutée.
+  if (["APPROVED", "VALIDATED", "PAID", "CLOSED", "COMPLETED", "ACCEPTED", "PRE_VALIDATED", "DONE"].includes(legacy)) return { currentSlug: null, status: "APPROVED" };
   if (["REJECTED", "REFUSED", "CANCELLED"].includes(legacy)) return { currentSlug: null, status: "REJECTED" };
   const match = ordered.find((s) => s.legacyStatus === legacy);
   if (match) return { currentSlug: match.slug, status: "IN_PROGRESS" };
@@ -1121,8 +1133,13 @@ export async function montantADeclarer(entityType: EntityType, entityId: string,
  * montant déclaré EST leur estimation — la même lecture que `postesPortantLaDepense` (§118.5).
  *
  * Seulement tant que la déclaration n'est pas validée et qu'aucun ordre n'en est né — écriture
- * CONDITIONNELLE : une validation passée entre la lecture et l'écriture garde son montant. Sans poste,
- * le montant reste celui que le circuit a fixé : rien à reporter.
+ * CONDITIONNELLE : une validation passée entre la lecture et l'écriture garde son montant.
+ *
+ * SANS POSTE (le dernier refusé ou retiré), le montant redevient celui que le CIRCUIT a fixé
+ * (`montantADeclarer` sur `WorkflowInstance.amount`) — `null` pour une prévalidation, qui n'en fixe pas
+ * (27/10/2026). Le laisser sur la dernière estimation faisait naître, à la validation finale de la
+ * déclaration, un ORDRE GLOBAL du montant de postes refusés : aucun poste n'y portait plus la dépense,
+ * donc rien ne l'empêchait (audit du 27/10/2026, ADPRO-03).
  */
 export async function reporterLesPostesSurLaDeclaration(entityType: EntityType, entityId: string): Promise<void> {
   const decl = await prisma.medicalInfoDeclaration.findUnique({
@@ -1131,10 +1148,21 @@ export async function reporterLesPostesSurLaDeclaration(entityType: EntityType, 
   });
   if (!decl || decl.status === "VALIDATED" || decl.expenseOrderId) return;
   const { nombre, montantEstime } = await postesPortantLaDepense(entityType, entityId);
-  if (nombre === 0) return;
+  let amount: number | null;
+  if (nombre > 0) {
+    amount = montantEstime > 0 ? montantEstime : null;
+  } else {
+    const instance = await prisma.workflowInstance.findUnique({
+      where: { entityType_entityId: { entityType, entityId } }, select: { amount: true },
+    });
+    // Sans circuit (une déclaration saisie à la main), rien ne dit ce qu'elle devrait porter : on n'y touche pas.
+    if (!instance) return;
+    const fixe = instance.amount != null ? toNumber(instance.amount) : 0;
+    amount = fixe > 0 ? fixe : null;
+  }
   await prisma.medicalInfoDeclaration.updateMany({
     where: { id: decl.id, status: { not: "VALIDATED" }, expenseOrderId: null },
-    data: { amount: montantEstime > 0 ? montantEstime : null },
+    data: { amount },
   });
 }
 
@@ -1361,7 +1389,8 @@ async function referentsDeLaDemande(entityType: EntityType, entityId: string): P
     entityType === "SPONSORING" ? await prisma.sponsoringRequest.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
       : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
         : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-          : await prisma.event.findUnique({ where: { id: entityId }, select: { businessUnitId: true } });
+          : entityType === "AD_PRO_OTHER" ? await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
+            : await prisma.event.findUnique({ where: { id: entityId }, select: { businessUnitId: true } });
   if (!ligne?.businessUnitId) return [];
   const lignes = await prisma.businessUnitMarketingReferent.findMany({
     where: { businessUnitId: ligne.businessUnitId, user: { isActive: true } },
@@ -1393,12 +1422,15 @@ async function recordEvent(instanceId: string, step: LoadedStep, action: string,
 }
 
 function entityPath(entityType: EntityType, entityId: string): string {
-  // La table des fiches Ad & Pro vit une fois (`chemins/ad-pro`) ; le circuit ne porte que ces quatre natures.
+  // La table des fiches Ad & Pro vit une fois (`chemins/ad-pro`) ; le circuit ne porte que ces cinq natures.
   return lienDemandeAdPro(entityType in CHEMIN_PARENT_AD_PRO ? (entityType as ParentAdPro) : "EVENT", entityId);
 }
 
 function auditModule(entityType: EntityType): string {
-  return entityType === "SPONSORING" ? "Sponsoring" : entityType === "EVENT" ? "Events" : "Congrès";
+  return entityType === "SPONSORING" ? "Sponsoring"
+    : entityType === "EVENT" ? "Events"
+      : entityType === "AD_PRO_OTHER" ? "Ad & Pro — autres demandes"
+        : "Congrès";
 }
 
 // ───────────────────────────── Révision : resoumettre, rouvrir, relancer, fermer ─────────────────────────────

@@ -33,12 +33,13 @@ import {
 const INTROUVABLE = "Demande introuvable.";
 const FICHIER_INTROUVABLE = "Cette pièce n'appartient pas à cette demande ni à l'un de ses postes.";
 
-type ColonneParent = "sponsoringId" | "congressInternationalId" | "congressNationalId" | "eventId";
+type ColonneParent = "sponsoringId" | "congressInternationalId" | "congressNationalId" | "eventId" | "otherRequestId";
 const COLONNE: Record<NatureDemandeConseil, ColonneParent> = {
   SPONSORING: "sponsoringId",
   CONGRESS_INTERNATIONAL: "congressInternationalId",
   CONGRESS_NATIONAL: "congressNationalId",
   EVENT: "eventId",
+  AD_PRO_OTHER: "otherRequestId",
 };
 
 async function titreDeLaDemande(nature: NatureDemandeConseil, id: string): Promise<string | null> {
@@ -53,6 +54,10 @@ async function titreDeLaDemande(nature: NatureDemandeConseil, id: string): Promi
       return (await prisma.congressNational.findUnique({ where: { id }, select: { name: true } }))?.name ?? null;
     case "EVENT":
       return (await prisma.event.findUnique({ where: { id }, select: { name: true } }))?.name ?? null;
+    case "AD_PRO_OTHER": {
+      const r = await prisma.adProOtherRequest.findUnique({ where: { id }, select: { reference: true, title: true } });
+      return r ? `${r.reference} — ${r.title}` : null;
+    }
   }
 }
 

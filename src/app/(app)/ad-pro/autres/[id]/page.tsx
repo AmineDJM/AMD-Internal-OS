@@ -11,11 +11,8 @@ import { SupprimerDemandeAdPro } from "@/components/ad-pro/supprimer-demande";
 import { peutSupprimerUneDemandeAdPro } from "@/lib/queries/ad-pro-suppression";
 import { BackLink } from "@/components/shared/back-link";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DocumentUpload } from "@/components/documents/document-upload";
 import { AD_PRO_DOC_CATEGORIES, categoriesDuDepotDeLaDemande } from "@/lib/ad-pro/doc-categories";
-import { contextePiecesLiees } from "@/lib/ad-pro/pieces-liees";
-import { LinkedRecords } from "@/components/shared/linked-records";
+import { canAttachToAdPro, attachHint } from "@/lib/ad-pro/attachments";
 import type { DocItem } from "@/components/documents/document-list";
 import { AD_PRO_OTHER_STATUS } from "@/lib/labels";
 import { OtherDecisionPanel } from "./decision-panel";
@@ -24,19 +21,27 @@ import { MedecinsConcernes } from "@/components/ad-pro/medecins-concernes";
 import { AdProEditButton } from "@/components/ad-pro/edit-request-button";
 import { canEditAdProRequest, isAdProDecided } from "@/lib/ad-pro-edit";
 import { adProEditValues } from "@/lib/queries/ad-pro-edit";
+import { WorkflowPanel } from "@/components/workflow/workflow-panel";
+import { getWorkflowForEntity } from "@/lib/queries/workflow";
+import { AdProItemsPanel } from "@/components/ad-pro/items-panel";
+import { CarteDetailsDemande } from "@/components/ad-pro/pieces-jointes-demande";
+import { PiecesLegalDeLaDemande } from "@/components/ad-pro/pieces-legal-demande";
+import { Faits, Fait, Repli, IntertitrePostes } from "@/components/ad-pro/carte-demande";
+import { loadAdProItems, adProBudgetOptions, contexteMaterielStock, contextePostes } from "@/lib/queries/ad-pro-items";
+import { promoMaterialOptions } from "@/lib/actions/ad-pro-item-actions";
+import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
 
 export const dynamic = "force-dynamic";
 
-function Info({ label, value }: { label: string; value: string | null | undefined }) {
-  if (!value) return null;
-  return (
-    <div className="min-w-0">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="font-medium [overflow-wrap:anywhere]">{value}</p>
-    </div>
-  );
-}
-
+/**
+ * LA FICHE D'UNE DEMANDE « AUTRE » — une fiche À POSTES depuis le 27/10/2026 (décision #17).
+ *
+ * Elle suit le circuit commun : la carte « La demande » porte le panneau du circuit (prévalidation par la
+ * route de son créateur, renvoi, resoumission, appel), ses faits, ses pièces générales, puis ses POSTES —
+ * ajoutés après la prévalidation, acceptés par la Direction Marketing, sous la porte du DG sur leur total.
+ * La chaîne d'achat (devis → BC → facture) vit sur chaque poste, comme sur le sponsoring, les prises en
+ * charge et les événements : le bloc « Pièces liées » de la demande disparaît (§118.204).
+ */
 export default async function AdProOtherDetailPage({ params }: { params: { id: string } }) {
   const user = await requireModule("AD_PRO_OTHER");
   const req = await prisma.adProOtherRequest.findUnique({
@@ -45,26 +50,55 @@ export default async function AdProOtherDetailPage({ params }: { params: { id: s
   });
   if (!req) notFound();
 
-  const [documents, people] = await Promise.all([
+  const mine = req.requesterId === user.id || hasGlobalView(user.role);
+  const mayDecide = userCan(user, "AD_PRO_OTHER", "VALIDATE");
+
+  // ── LE CIRCUIT COMMUN (27/10/2026, décision #17) ──────────────────────────────────────────────
+  // La demande se décide par son circuit, puis vit par ses POSTES et la porte du DG sur leur total.
+  // L'instance s'ouvre ici pour une demande née avant la règle, à l'étape que la route de son créateur désigne.
+  const canAllocateItems = hasGlobalView(user) || mayDecide;
+  const [workflow, items, promoOptions, budgetOptions, contexte, materielStock, documents] = await Promise.all([
+    getWorkflowForEntity(user, "AD_PRO_OTHER", req.id, req.requesterId ?? null),
+    loadAdProItems("AD_PRO_OTHER", req.id),
+    promoMaterialOptions(),
+    adProBudgetOptions(user),
+    contextePostes(user, "AD_PRO_OTHER", req.id),
+    contexteMaterielStock(user, "AD_PRO_OTHER", req.id, canAllocateItems),
     prisma.document.findMany({
       where: { entityType: "AD_PRO_OTHER", entityId: req.id },
       include: { uploadedBy: { select: { name: true } } }, orderBy: { createdAt: "desc" },
     }),
-    prisma.user.findMany({
-      where: { id: { in: [req.requesterId, req.decidedById].filter((x): x is string => Boolean(x)) } },
-      select: { id: true, name: true },
-    }),
   ]);
+  // La ligne se RELIT après l'ouverture éventuelle du circuit : une demande de la Direction Marketing est
+  // prévalidée d'office à la naissance de son instance, et sa décision s'écrit à ce moment-là.
+  const ligne = (await prisma.adProOtherRequest.findUnique({
+    where: { id: req.id }, select: { status: true, decidedById: true, decidedAt: true, decisionNote: true },
+  })) ?? req;
+  const statut = ligne.status;
+  const prevalidee = statut === "APPROVED" || statut === "DONE";
+  const open = statut !== "DONE" && statut !== "CANCELLED";
+
+  const people = await prisma.user.findMany({
+    where: { id: { in: [req.requesterId, ligne.decidedById].filter((x): x is string => Boolean(x)) } },
+    select: { id: true, name: true },
+  });
   const names = new Map(people.map((p) => [p.id, p.name]));
 
-  const mine = req.requesterId === user.id || hasGlobalView(user.role);
-  const mayDecide = userCan(user, "AD_PRO_OTHER", "VALIDATE");
-  const open = req.status !== "DONE" && req.status !== "CANCELLED";
-  const canUpload = (userCan(user, "AD_PRO_OTHER", "UPLOAD") || mine) && open;
-  const ctxPieces = await contextePiecesLiees(user, "AD_PRO_OTHER");
+  // LES PIÈCES GÉNÉRALES DE LA DEMANDE — la règle commune d'Ad & Pro (`ad-pro/attachments.ts`).
+  const attacheur = {
+    id: user.id,
+    canUploadModule: userCan(user, "AD_PRO_OTHER", "UPLOAD"),
+    canUpdateModule: userCan(user, "AD_PRO_OTHER", "UPDATE"),
+    canValidateModule: mayDecide,
+    hasGlobalView: hasGlobalView(user),
+  };
+  const dossierAdPro = { requesterId: req.requesterId ?? null, productManagerId: null };
+  const canUploadDocs = open && (canAttachToAdPro(attacheur, dossierAdPro) || mine);
+  const uploadHint = canUploadDocs ? null : open ? attachHint(attacheur, dossierAdPro) : "La demande est close : on n'y joint plus de pièce.";
+
   // CORRIGER LA DEMANDE (audit 360°, rapport 17 R14) — la MÊME règle que les autres natures du pôle :
   // son demandeur et qui tranche tant qu'elle attend sa décision, la vue globale toujours.
-  const demandeDecidee = isAdProDecided("AD_PRO_OTHER", req.status);
+  const demandeDecidee = isAdProDecided("AD_PRO_OTHER", statut);
   const canEditRequest = canEditAdProRequest(
     { id: user.id, hasGlobalView: hasGlobalView(user.role), canManage: mayDecide },
     { requesterId: req.requesterId, decided: demandeDecidee },
@@ -81,75 +115,94 @@ export default async function AdProOtherDetailPage({ params }: { params: { id: s
     <div className="space-y-5">
       <BackLink href="/ad-pro/autres"><ArrowLeft className="h-4 w-4" /> Autres demandes</BackLink>
       <PageHeader title={req.title} description={`Réf. ${req.reference}`}>
-        <StatusBadge map={AD_PRO_OTHER_STATUS} value={req.status} />
+        <StatusBadge map={AD_PRO_OTHER_STATUS} value={statut} />
         {editValues && <AdProEditButton kind="AD_PRO_OTHER" id={req.id} decided={demandeDecidee} values={editValues} />}
         {/* Une nature du pôle qui n'avait AUCUNE suppression (§118.162). */}
         <SupprimerDemandeAdPro kind="AD_PRO_OTHER" id={req.id} name={`${req.reference} — ${req.title}`} enabled={await peutSupprimerUneDemandeAdPro(user, "AD_PRO_OTHER", req.id)} />
       </PageHeader>
 
-      {/* L'ÉTAT DU CENTRE AD & PRO (audit 360°, R07/R10) : en attente, refusée, ou À CORRIGER avec son motif. */}
+      {/* L'ÉTAT DU CENTRE AD & PRO (audit 360°, R07/R10) — pour une demande née avant le 27/10/2026, dont la
+          porte du centre a pu rester posée. Les demandes nouvelles n'en ont plus : le DG valide le total des postes. */}
       <VisaCentreBanniere entityType="AD_PRO_OTHER" entityId={req.id} viewer={user} />
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
-          <Card>
-            <CardHeader><CardTitle>La demande</CardTitle></CardHeader>
-            <CardContent className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3 sm:gap-x-6">
-              <Info label="Pour qui / avec qui" value={req.beneficiary} />
-              <Info label="Montant estimé" value={req.amount != null ? formatCurrency(toNumber(req.amount)) : null} />
-              <Info label="Entité" value={req.company?.name} />
-              <Info label="Demandeur" value={req.requesterId ? names.get(req.requesterId) : null} />
-              <Info label="Décidée par" value={req.decidedById ? names.get(req.decidedById) : null} />
-              <Info label="Décidée le" value={req.decidedAt ? formatDate(req.decidedAt.toISOString()) : null} />
-              {req.description && (
-                <div className="col-span-full">
-                  <p className="text-xs text-muted-foreground">Description</p>
-                  <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{req.description}</p>
-                </div>
-              )}
-              {req.decisionNote && (
-                <div className="col-span-full">
-                  <p className="text-xs text-muted-foreground">Motif de la décision</p>
-                  <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{req.decisionNote}</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      <CarteDetailsDemande
+        titre="La demande"
+        piecesRepliees
+        contentClassName="space-y-3"
+        pieces={{
+          entityType: "AD_PRO_OTHER", entityId: req.id, documents: docItems,
+          peutDeposer: canUploadDocs, motif: uploadHint,
+          categories: categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES),
+          canDelete: userCan(user, "AD_PRO_OTHER", "DELETE") || hasGlobalView(user.role),
+          canRename: canUploadDocs, canEdit: onlyofficeConfigured() && canUploadDocs,
+          path: `/ad-pro/autres/${req.id}`,
+        }}
+        entete={
+          <div className="space-y-4">
+            {/* LE CIRCUIT : prévalidation, avis, renvoi pour correction, resoumission, appel — les mêmes gestes
+                que sur le sponsoring, les prises en charge et les événements. */}
+            {workflow && <WorkflowPanel entityType="AD_PRO_OTHER" entityId={req.id} view={workflow} compact />}
+            <OtherDecisionPanel
+              id={req.id}
+              status={statut}
+              canClose={(mine || mayDecide) && (statut === "APPROVED" || statut === "REFUSED")}
+            />
 
-          {/* LES PIÈCES LIÉES, comme sur les six autres natures du pôle (§118.161) : le bloc
-              générique « Pièces jointes » disparaît au profit de la chaîne devis → bon de commande →
-              facture et des engagements ; les pièces de la demande gardent leur place nommée. */}
-          <LinkedRecords
-            entityType="AD_PRO_OTHER" entityId={req.id} reference={req.reference} canCreate={canUpload}
-            acces={ctxPieces.acces} candidatsLegal={ctxPieces.candidatsLegal} suppression
-            piecesDeLaDemande={{
-              titre: "Pièces de la demande (demande, justificatifs, photos…)",
-              documents: docItems,
-              televerseur: canUpload
-                ? <DocumentUpload entityType="AD_PRO_OTHER" entityId={req.id} categories={categoriesDuDepotDeLaDemande(AD_PRO_DOC_CATEGORIES)} />
-                : undefined,
-              canDelete: userCan(user, "AD_PRO_OTHER", "DELETE") || hasGlobalView(user.role),
-              canRename: canUpload,
-              canEdit: onlyofficeConfigured() && canUpload,
-              path: `/ad-pro/autres/${req.id}`,
-            }}
-          />
-        </div>
+            <Faits>
+              <Fait label="Pour qui / avec qui" valeur={req.beneficiary} />
+              <Fait label="Montant demandé" valeur={req.amount != null ? formatCurrency(toNumber(req.amount)) : null} />
+              <Fait label="Entité" valeur={req.company?.name} />
+              <Fait label="Demandeur" valeur={req.requesterId ? names.get(req.requesterId) : null} />
+              {ligne.decidedById && <Fait label="Décidée par" valeur={names.get(ligne.decidedById)} />}
+              {ligne.decidedAt && <Fait label="Décidée le" valeur={formatDate(ligne.decidedAt.toISOString())} />}
+              {req.product && <Fait label="Produits" valeur={req.product} />}
+              {req.doctor && <Fait label="Médecins" valeur={req.doctor} />}
+              {ligne.decisionNote && <Fait large label="Motif de la décision" valeur={ligne.decisionNote} />}
+            </Faits>
 
-        <OtherDecisionPanel
-          id={req.id}
-          status={req.status}
-          canDecide={mayDecide && req.status === "AWAITING_DECISION"}
-          canClose={(mine || mayDecide) && open && req.status !== "AWAITING_DECISION"}
-          canResubmit={mine && req.status === "REFUSED"}
-          description={req.description ?? ""}
-          amount={req.amount != null ? toNumber(req.amount) : null}
+            {req.description && (
+              <Repli titre="Description">
+                <p className="whitespace-pre-wrap [overflow-wrap:anywhere]">{req.description}</p>
+              </Repli>
+            )}
+          </div>
+        }
+      >
+        {/* LES POSTES (27/10/2026) — ajoutés APRÈS la prévalidation par les parties prenantes, acceptés par la
+            Direction Marketing (montant et budget) ; le DG valide leur TOTAL au-dessus du seuil (carte en tête). */}
+        <IntertitrePostes n={items.length} />
+        {!prevalidee && open && (
+          <p className="text-sm text-muted-foreground">
+            Les postes s&apos;ajoutent après la prévalidation de la Direction Marketing : aucun budget n&apos;est ouvert avant.
+          </p>
+        )}
+        <AdProItemsPanel
+          parent="AD_PRO_OTHER"
+          parentId={req.id}
+          items={items}
+          amountGranted={null}
+          decided={prevalidee}
+          tardif={false}
+          fige={statut === "DONE"}
+          canEdit={userCan(user, "AD_PRO_OTHER", "CREATE") || userCan(user, "AD_PRO_OTHER", "UPDATE") || canAllocateItems}
+          canAllocate={canAllocateItems}
+          promoOptions={promoOptions}
+          budgetOptions={budgetOptions}
+          materiel={materielStock}
+          canIssueOrder={userCan(user, "FINANCES", "UPDATE") || userCan(user, "FINANCES", "VALIDATE")}
+          canViserBC={siegeAuCentreAdPro(user)}
+          contexte={contexte}
+          resume={false}
         />
-      </div>
-          {/* LA SECTION DISCUSSION — le fil CANONIQUE, monté sur les sept natures du pôle. */}
+      </CarteDetailsDemande>
+
+      {/* LES PIÈCES LEGAL RATTACHÉES À LA DEMANDE ELLE-MÊME, hors postes — d'avant les postes, ou qui ne sont pas des achats. */}
+      <PiecesLegalDeLaDemande spectateur={user} entityType="AD_PRO_OTHER" entityId={req.id} />
+
       {/* LES MÉDECINS CONCERNÉS (Direction, 08/10) — choisis dans l'annuaire : le lien que lisent le cockpit marketing et la fiche du praticien. */}
       <MedecinsConcernes user={user} entityType="AD_PRO_OTHER" entityId={req.id} />
+      {/* LA SECTION DISCUSSION — le fil CANONIQUE, monté sur les sept natures du pôle. */}
       <AdProDiscussionCard entityType="AD_PRO_OTHER" entityId={req.id} user={user} />
-</div>
+    </div>
   );
 }

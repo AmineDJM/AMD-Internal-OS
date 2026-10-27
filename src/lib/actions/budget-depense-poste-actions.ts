@@ -15,6 +15,7 @@ import { CHEMIN_PARENT_AD_PRO } from "@/lib/chemins/ad-pro";
 import { DOMAINES } from "@/lib/budget/domaines";
 import { depensesDesPostes } from "@/lib/queries/budget-sources";
 import { refusCategoriePourLaDemande } from "@/lib/ad-pro/categorie-budgetaire-serveur";
+import { refusSiPorteDgFermee } from "@/lib/ad-pro/porte-dg";
 import {
   MOTIF_MAX, refusAnnulation, refusConsommation, refusImputation, type GesteImputation,
 } from "@/lib/budget/depense-poste";
@@ -45,11 +46,12 @@ const MODULE = DOMAINES.MARKETING.titre;
 const REFUS_DROIT = `Réservé à ${DOMAINES.MARKETING.gestionnaire} (${DOMAINES.MARKETING.titre}).`;
 const CHANGE = "Cette dépense vient de changer : rechargez la page.";
 
-function parentDe(p: { sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null }): { parent: AdProParent; id: string } | null {
+function parentDe(p: { sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null; otherRequestId: string | null }): { parent: AdProParent; id: string } | null {
   if (p.sponsoringId) return { parent: "SPONSORING", id: p.sponsoringId };
   if (p.congressNationalId) return { parent: "CONGRESS_NATIONAL", id: p.congressNationalId };
   if (p.congressInternationalId) return { parent: "CONGRESS_INTERNATIONAL", id: p.congressInternationalId };
   if (p.eventId) return { parent: "EVENT", id: p.eventId };
+  if (p.otherRequestId) return { parent: "AD_PRO_OTHER", id: p.otherRequestId };
   return null;
 }
 
@@ -71,6 +73,10 @@ async function operation(o: { parent: AdProParent; id: string }): Promise<{ ref:
     case "EVENT": {
       const r = await prisma.event.findUnique({ where: { id: o.id }, select: { name: true, companyId: true } });
       return r ? { ref: r.name, beneficiaire: r.name, companyId: r.companyId } : null;
+    }
+    case "AD_PRO_OTHER": {
+      const r = await prisma.adProOtherRequest.findUnique({ where: { id: o.id }, select: { reference: true, title: true, beneficiary: true, companyId: true } });
+      return r ? { ref: r.reference, beneficiaire: r.beneficiary ?? r.title, companyId: r.companyId } : null;
     }
   }
 }
@@ -96,7 +102,7 @@ async function lirePoste(id: string) {
     select: {
       id: true, label: true, kind: true, supplier: true, status: true, expenseOrderId: true, amountGranted: true, budgetCategoryId: true,
       orderStage: true, updatedAt: true, depenseImputeeLe: true, depenseAnnuleeLe: true, montantPayeHistorique: true,
-      sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
+      sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
     },
   });
   if (!poste) return null;
@@ -208,6 +214,10 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   const { poste, owner, lue } = lu;
   const actuelle = await categorie(poste.budgetCategoryId);
   if (!actuelle || !canManageEnvelope(user, actuelle.envelope)) return { ok: false, error: REFUS_DROIT };
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : consommer, c'est demander le paiement du poste — la même porte que
+  // `demanderPaiementPoste`. Sans elle, l'onglet « Dépenses » émettait l'ordre d'une demande que le DG n'a pas validée (ADPRO-02).
+  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  if (porteDg) return { ok: false, error: porteDg };
   const montant = fdNum(formData, "montant");
   const refus = refusConsommation({ etat: lue.depense.etat, montant, montantEngage: lue.depense.montantEngage });
   if (refus || montant == null) return { ok: false, error: refus ?? "Indiquez le montant consommé." };

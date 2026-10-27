@@ -448,5 +448,4 @@ export async function chargerPersonnes(): Promise<DirectoryPerson[]> {
     };
   });
 }
-
-
+

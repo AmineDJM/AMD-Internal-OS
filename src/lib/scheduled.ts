@@ -91,6 +91,19 @@ function armHeartbeat(): void {
 }
 armHeartbeat();
 
+/**
+ * CHAQUE BALAYAGE PORTE SON `.catch` (audit performance, PERF-03). Ils tournent EN SÉRIE : une
+ * exception non rattrapée d'un des premiers (rappels de réunion, paie…) remontait au `try` global et
+ * sautait TOUS les suivants — missions durables, file du site public, alertes de stock, Gmail d'Adam —
+ * à chaque battement, tant que la cause durait. `scheduled-isolation.test.ts` le tient.
+ */
+const journal = (etape: string) => (e: unknown) => {
+  console.error(`[scheduled] ${etape} a échoué`, e);
+};
+
+/** Durée d'un passage complet au-delà de laquelle il se signale : il retient le battement et le pool. */
+const PASSAGE_LENT_MS = Math.max(1_000, Number(process.env.SCHEDULER_SLOW_RUN_MS ?? 30_000));
+
 /** Lance les tâches dues, au plus une fois par minute (process-wide). Ne lève jamais. */
 export async function runScheduledJobs(): Promise<void> {
   const now = Date.now();
@@ -98,27 +111,27 @@ export async function runScheduledJobs(): Promise<void> {
   running = true;
   lastRun = now;
   try {
-    await sendDueMeetingReminders();
-    await sendDueReminders();
-    await sendDuePayrollNotifications();
+    await sendDueMeetingReminders().catch(journal("rappels de réunion"));
+    await sendDueReminders().catch(journal("rappels personnels"));
+    await sendDuePayrollNotifications().catch(journal("notifications de paie"));
     await accrueMonthlyLeave().catch((e) => console.error("[scheduled] leave accrual failed", e)); // +2,5 j/mois (idempotent)
     // PRODUIT = DOSSIER (Direction, 08/10) : UNE fois par processus, chaque dossier non verrouillé reçoit
     // son produit — l'existant rejoint la règle des nouveaux. Idempotent ; le bilan part au journal du serveur.
     await assurerProduitsDesDossiersAuDemarrage().catch((e) => console.error("[scheduled] produits des dossiers", e));
     await performAiHealthCheck().catch((e) => console.error("[scheduled] ai health check failed", e)); // test IA 1×/jour + alerte Super Admin
-    await runDueRegulatoryJobs();
+    await runDueRegulatoryJobs().catch(journal("jobs réglementaires"));
     await pruneStaleUploadSessions().catch(() => 0); // nettoyage des sessions d'upload incomplètes
     await purgeClosedSessionParts().catch(() => 0); // filet : octets d'envois clos qu'un redémarrage aurait laissés
     await nettoyerDepotsDirectsPerimes().catch(() => 0); // envois directs au bucket jamais terminés : parties libérées
-    await runAnppWatchIfDue(); // veille ANPP 1×/jour : une ligne directrice ne doit pas changer sans qu'on le sache
-    await pollAiBatches(); // analyses différées (moitié prix) : récupère les lots terminés
+    await runAnppWatchIfDue().catch(journal("veille ANPP")); // veille ANPP 1×/jour : une ligne directrice ne doit pas changer sans qu'on le sache
+    await pollAiBatches().catch(journal("lots IA différés")); // analyses différées (moitié prix) : récupère les lots terminés
     // Rattrapage de l'EXISTANT : les dossiers déjà en base profitent des mêmes règles que les
     // nouveaux — revue de fond jamais livrée, ou pipeline arrêté en chemin. Bornés par passage.
     await expireStaleBatches().catch(() => 0); // lots fantômes : sinon l'écran dit « sous 24 h » à vie
     await catchUpStalledPipelines().catch(() => 0);
     await catchUpMissingAiReviews().catch(() => 0);
     await embedBacklog().catch(() => 0); // vecteurs sémantiques : un paquet par passage, jamais plus
-    await runIntelligencePulse(); // Adventum Pulse : instantané horaire (Brain + Process Intelligence) + alerte proactive
+    await runIntelligencePulse().catch(journal("Adventum Pulse")); // Adventum Pulse : instantané horaire (Brain + Process Intelligence) + alerte proactive
     // LE BRIEFING DU MATIN d'Adventum Brain : une fois par jour, à 7 h (Alger), APRÈS la passe horaire qui vient de
     // réconcilier les risques — il les lit, il ne les recalcule pas.
     await runBrainBriefingIfDue().catch(() => undefined);
@@ -280,6 +293,8 @@ export async function runScheduledJobs(): Promise<void> {
     console.error("[scheduled] run failed", err);
   } finally {
     running = false;
+    const duree = Date.now() - now;
+    if (duree > PASSAGE_LENT_MS) console.warn(`[scheduled] passage lent : ${duree} ms`);
   }
 }
 

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
+import { endpointPushAutorise } from "@/lib/notifications/endpoint-push";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +14,10 @@ export async function POST(req: NextRequest) {
   const p256dh = body?.keys?.p256dh;
   const auth = body?.keys?.auth;
   if (!endpoint || !p256dh || !auth) return NextResponse.json({ error: "Abonnement invalide" }, { status: 400 });
+  // Le serveur POSTera vers cette adresse : seulement un service push de navigateur (`endpoint-push.ts`).
+  if (!endpointPushAutorise(endpoint) || p256dh.length > 512 || auth.length > 256) {
+    return NextResponse.json({ error: "Abonnement invalide" }, { status: 400 });
+  }
 
   const userAgent = req.headers.get("user-agent")?.slice(0, 200) ?? null;
   await prisma.pushSubscription.upsert({

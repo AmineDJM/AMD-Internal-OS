@@ -319,8 +319,9 @@ describe("les fiches Ad & Pro n'ont plus de dépôt générique — et gardent l
    * DEUX FORMES DE FICHE DEPUIS LE 04/10 (§118.204). Les natures qui portent des POSTES (sponsoring,
    * prises en charge, événement) ont perdu le bloc « Pièces liées » : la chaîne d'achat vit SUR CHAQUE
    * POSTE (devis → BC → facture, `AdProItemPiece`), et la demande garde ses pièces générales dans la
-   * carte des détails (« + Pièce jointe », `CarteDetailsDemande`). Les trois autres (matériel
-   * promotionnel, consulting, autre demande) n'ont pas de postes : elles gardent le bloc.
+   * carte des détails (« + Pièce jointe », `CarteDetailsDemande`). La demande « autre » les a rejointes le
+   * 27/10/2026 (décision #17 : même circuit, mêmes postes). Les deux autres (matériel promotionnel,
+   * consulting) n'ont pas de postes : elles gardent le bloc.
    *
    * La partition se LIT dans le code (qui monte le panneau des postes), et une prémisse la confronte
    * aux colonnes du modèle `AdProItem` : écrite à la main, elle ne verrait pas une fiche qui gagne ou
@@ -329,10 +330,10 @@ describe("les fiches Ad & Pro n'ont plus de dépôt générique — et gardent l
   const AVEC_POSTES = () => ECRANS.filter((f) => code(f).includes("<AdProItemsPanel"));
   const SANS_POSTES = () => ECRANS.filter((f) => !code(f).includes("<AdProItemsPanel"));
 
-  it("PRÉMISSE : les fiches à postes sont exactement les quatre parents d'un poste", () => {
-    const attendues = ["/sponsoring", "/congress-international", "/congress-national", "/events"].map((h) => `src/app/(app)${h}/[id]/page.tsx`).sort();
+  it("PRÉMISSE : les fiches à postes sont exactement les cinq parents d'un poste", () => {
+    const attendues = ["/sponsoring", "/congress-international", "/congress-national", "/events", "/ad-pro/autres"].map((h) => `src/app/(app)${h}/[id]/page.tsx`).sort();
     expect(AVEC_POSTES().sort()).toEqual(attendues);
-    expect(SANS_POSTES()).toHaveLength(3);
+    expect(SANS_POSTES()).toHaveLength(2);
   });
 
   it("les fiches À POSTES n'ont plus le bloc « Pièces liées » — la demande garde ses pièces dans la carte des détails", () => {
@@ -391,8 +392,9 @@ describe("les fiches Ad & Pro n'ont plus de dépôt générique — et gardent l
     // secrétariat. Sans lui, un parcours cassé ne trouverait AUCUN montage et ce cas passerait au
     // vert sans rien vérifier (§118.17). 4 → 3 (refonte du bureau, 10/2026) : la fiche d'une demande au
     // secrétariat ne monte plus le bloc — ses pièces sont UNE liste (« Pièces »), lue par le même chargeur
-    // (`chargerPiecesLiees`) AVEC le spectateur, donc sous la même porte pièce par pièce.
-    expect(montages).toBeGreaterThanOrEqual(3);
+    // (`chargerPiecesLiees`) AVEC le spectateur, donc sous la même porte pièce par pièce. 3 → 2 (27/10/2026) :
+    // la demande « autre » porte des postes (décision #17) et a quitté le bloc, comme les quatre autres.
+    expect(montages).toBeGreaterThanOrEqual(2);
   });
 
   it("le dépôt de la DEMANDE ne propose plus devis, BC, facture ni convention — ils ont leur place", () => {

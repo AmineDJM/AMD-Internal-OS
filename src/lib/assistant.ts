@@ -27,7 +27,7 @@ import { consigneCalcul, consignePeriode, consigneProchainGeste, consigneReprese
 import { calibrerTour } from "@/lib/assistant/confidence/tour";
 import type { Calibration } from "@/lib/assistant/confidence/calibrate";
 import { resoudreEntite, resoudreMentions, contexteEntitesResolues } from "@/platform/in-process/fabric/entites";
-import { MailSendPolicy, type AdminRequestType, type CongressRequestStatus, type Priority, type CalendarEventKind, type HrRequestType, type RegulatoryCategory } from "@prisma/client";
+import { MailSendPolicy, type AdminRequestType, type Priority, type CalendarEventKind, type HrRequestType, type RegulatoryCategory } from "@prisma/client";
 import { capabilityDoctrine } from "@/lib/assistant/capability-surface";
 import { resultatListe, resultatVide } from "@/lib/assistant/empty-result";
 import { prisma } from "@/lib/prisma";
@@ -41,6 +41,7 @@ import { createEventForUser, algiersInputToUtc, CALENDAR_KINDS } from "@/lib/cal
 import { createDossierRecord } from "@/lib/dossiers-core";
 import { createSponsoring } from "@/lib/actions/sponsoring-actions";
 import { createEvent } from "@/lib/actions/event-actions";
+import { createCongressRequest } from "@/lib/actions/congress-request-actions";
 import { envoyerMessageDirect } from "@/lib/messaging";
 import { getMailAccount, listMessages, getMessage } from "@/lib/mail";
 import {
@@ -6751,37 +6752,36 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
   }
 
   if (payload?.kind === "create_congress_request") {
+    // L'ACTION DE L'ÉCRAN, et elle seule (audit du 27/10/2026, ADPRO-04) — comme le sponsoring et l'événement plus bas.
+    // Ce chemin écrivait la prise en charge à la main : statut d'entrée figé (« préliminaire » quel que soit le
+    // créateur), ni gamme ni société payeuse, sans date de fin, et SANS circuit — personne de sa route n'était
+    // prévenu (décision #1), seule « la Direction » l'était, pour une étape qui n'existe plus.
     const scope = payload.scope === "INTL" ? "INTL" : "NATIONAL";
     const mod: Module = scope === "INTL" ? "CONGRESS_INTERNATIONAL" : "CONGRESS_NATIONAL";
     if (!userCan(user, mod, "CREATE")) return { ok: false, error: "Vous n'avez pas le droit de créer cette demande de congrès." };
     const name = (payload.name ?? "").trim();
     if (!name) return { ok: false, error: "Nom de l'événement manquant." };
-
-    let invitedDoctorIds: string[] = [];
+    const fd = new FormData();
+    fd.set("type", scope);
+    fd.set("name", name);
+    if (payload.startDate) fd.set(scope === "INTL" ? "startDate" : "date", payload.startDate);
+    if (payload.endDate) fd.set("endDate", payload.endDate);
+    if (payload.city) fd.set("city", payload.city);
+    if (scope === "INTL" && payload.country) fd.set("country", payload.country);
+    if (payload.estimatedBudget != null) fd.set("estimatedBudget", String(payload.estimatedBudget));
+    // Le médecin retrouvé dans le périmètre de la personne devient un professionnel PROPOSÉ (sa fiche est ouverte).
     if (payload.doctorId) {
       const d = await prisma.medicalDoctor.findFirst({ where: { AND: [scopeMedicalDoctors(user), { id: payload.doctorId }] }, select: { id: true } });
-      if (d) invitedDoctorIds = [d.id];
+      if (d) fd.append("invitedDoctorIds", d.id);
     }
-    const common = {
-      name, specialty: payload.specialty?.trim() || null,
-      estimatedBudget: payload.estimatedBudget ?? null,
-      invitedDoctorIds, participantIds: [] as string[],
-      requesterId: user.id, requestStatus: "AWAITING_PRELIMINARY" as CongressRequestStatus, createdById: user.id,
-      companyId: await companyIdForNew(user.id),
-    };
-    const created = scope === "INTL"
-      ? await prisma.congressInternational.create({
-          data: { ...common, country: payload.country?.trim() || null, city: payload.city?.trim() || null, startDate: dateValue(payload.startDate), endDate: dateValue(payload.endDate) },
-          select: { id: true },
-        })
-      : await prisma.congressNational.create({
-          data: { ...common, city: payload.city?.trim() || null, date: dateValue(payload.startDate), eventType: "CONGRESS" },
-          select: { id: true },
-        });
+    const r = await createCongressRequest(undefined, fd);
+    if (!r.ok) return { ok: false, error: r.error ?? "La demande de prise en charge n'a pas pu être créée." };
     const path = scope === "INTL" ? "/congress-international" : "/congress-national";
-    await recordAudit({ actorId: user.id, action: "CREATE", module: "Assistant IA", entityType: scope === "INTL" ? "CONGRESS_INTERNATIONAL" : "CONGRESS_NATIONAL", entityId: created.id, summary: `Demande de congrès « ${name} » créée via l'assistant` });
-    await notifyRoles(["DIRECTION", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title: "Demande de congrès à valider (préliminaire)", body: name, link: `${path}/${created.id}` });
-    return { ok: true, message: `Demande de congrès « ${name} » créée (en attente de validation préliminaire de la Direction).`, link: `${path}/${created.id}`, revalidate: [path] };
+    return {
+      ok: true,
+      message: `Demande de prise en charge « ${name} » créée — elle suit son circuit de validation.${r.message ? ` ${r.message}` : ""}`,
+      link: `${path}/${r.id}`, revalidate: [path],
+    };
   }
 
   if (payload?.kind === "create_hr_request") {

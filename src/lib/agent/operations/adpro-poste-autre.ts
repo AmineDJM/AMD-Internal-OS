@@ -110,7 +110,8 @@ export const AUTRE_CREATION: OperationIA = {
   libelle: "Demande Ad & Pro « autre » préparée",
   description:
     "PRÉPARE une demande Ad & Pro « AUTRE » (hors sponsoring, prise en charge, événement, matériel) : un objet et une description — c'est sur elle "
-    + "que la Direction décide. Exécutée à la confirmation par l'action de l'écran. Elle répond `manque` — pose alors UNE seule question.",
+    + "que son circuit décide (le N+1, le Directeur des opérations, puis la prévalidation de la Direction Marketing). Exécutée à la confirmation par "
+    + "l'action de l'écran. Elle répond `manque` — pose alors UNE seule question.",
   schema: {
     type: "object",
     properties: {
@@ -126,15 +127,20 @@ export const AUTRE_CREATION: OperationIA = {
   async proposer(e, user): Promise<PropositionOperation> {
     const manque = [
       !texte(e, "objet") ? "l'objet de la demande" : null,
-      !texte(e, "description") ? "une description — c'est sur elle que la Direction décidera" : null,
+      !texte(e, "description") ? "une description — c'est sur elle que la décision se prendra" : null,
     ].filter((x): x is string => x !== null);
     if (manque.length) return { manque };
     const pieces = await resoudrePieces(user, liste(e, "pieces"));
     if ("erreur" in pieces) return { erreur: pieces.erreur };
     const montant = nombre(e, "montant");
-    const warnings: string[] = ["La demande part directement à la Direction, qui décide.", await avertissementBudget(user, montant)];
+    // LE CIRCUIT COMMUN (27/10/2026, décision #17) : la route du créateur, puis les postes ; le DG valide le
+    // TOTAL des postes au-dessus du seuil, pas le montant demandé.
+    const warnings: string[] = [
+      "La demande suit le circuit Ad & Pro : son N+1, le Directeur des opérations, puis la prévalidation de la Direction Marketing ; les postes s'ajoutent après.",
+      await avertissementBudget(user, montant),
+    ];
     const seuil = (await getAppSettings()).adProDgThreshold;
-    if (montant != null && porteDgRequise(montant, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera aussi.`);
+    if (montant != null && porteDgRequise(montant, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera le total des postes.`);
     return {
       carte: {
         title: `Demande « autre » — ${texte(e, "objet")}`,
@@ -160,6 +166,6 @@ export const AUTRE_CREATION: OperationIA = {
     for (const f of fichiers) fd.append("annexes", f);
     const r = await createAdProOtherRequest(undefined, fd);
     if (!r.ok) return { ok: false, error: r.error ?? "La demande a été refusée." };
-    return { ok: true, message: r.message ?? "Demande créée : elle part à la Direction.", ...(r.id ? { link: `/ad-pro/autres/${r.id}` } : {}), revalidate: ["/ad-pro"] };
+    return { ok: true, message: r.message ?? "Demande créée : elle part dans son circuit de validation.", ...(r.id ? { link: `/ad-pro/autres/${r.id}` } : {}), revalidate: ["/ad-pro"] };
   },
 };

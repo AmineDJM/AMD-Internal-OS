@@ -3,10 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api/http";
 import { errors } from "@/lib/api/errors";
 import { readFileByKey } from "@/lib/storage";
-import { ENTITIES, canReadEntity } from "@/lib/api/registry/entities";
-import { porteeEntite } from "@/lib/api/registry/portee";
+import { documentLisibleParApi } from "@/lib/api/registry/document-lisible";
 import { contentDisposition } from "@/lib/http/content-disposition";
-import { canAccessEntity } from "@/lib/entity-access";
 
 /**
  * TÉLÉCHARGEMENT CONTRÔLÉ D'UNE PIÈCE.
@@ -25,20 +23,8 @@ export const GET = handle<{ id: string }>(
     if (!doc) throw errors.notFound("Document");
     mark({ entityType: doc.entityType ?? undefined, entityId: doc.entityId ?? undefined });
 
-    // La RÈGLE DE L'ÉCRAN d'abord, pour toute pièce : la portée du registre ne s'appliquait qu'aux
-    // types qu'il connaît (`if (def)`), et une pièce de demande RH, de candidature, de validation…
-    // partait vers n'importe quelle clé `erp.documents.read` (audit sécurité 27/10).
-    if (!doc.entityType || !doc.entityId || !(await canAccessEntity(ctx.user, doc.entityType, doc.entityId, "VIEW"))) {
-      throw errors.notFound("Document");
-    }
-    // Puis, si le porteur est au registre, l'objet DANS LA PORTÉE de l'identité (cloisonnement par entité compris).
-    const def = ENTITIES.find((e) => e.entityType && e.entityType === doc.entityType);
-    if (def) {
-      if (!canReadEntity(ctx.user, def)) throw errors.notFound("Document");
-      const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
-      const owner = await model.findFirst({ where: { AND: [await porteeEntite(ctx.user, def), { id: doc.entityId ?? "" }] }, select: { id: true } });
-      if (!owner) throw errors.notFound("Document");
-    }
+    // Le porteur du document décide — registre API ou, hors registre, la règle de l'écran (`document-lisible.ts`).
+    if (!(await documentLisibleParApi(ctx.user, doc))) throw errors.notFound("Document");
 
     if (!doc.fileKey) throw errors.notFound("Contenu du document");
     const buffer = await readFileByKey(doc.fileKey).catch(() => null);

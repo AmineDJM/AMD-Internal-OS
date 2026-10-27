@@ -1,5 +1,5 @@
 /**
- * OÙ MÈNE UNE NOTIFICATION Ad & Pro — la fiche de la demande (sponsoring, congrès, événement) et,
+ * OÙ MÈNE UNE NOTIFICATION Ad & Pro — la fiche de la demande (sponsoring, congrès, événement, « autre ») et,
  * quand la notification parle d'UN poste, ce poste sur la fiche (ancre `#poste-<id>`).
  *
  * La même table vivait recopiée dans le moteur de circuit, les missions, les postes, la prise en
@@ -9,13 +9,15 @@
  * Module PUR — aucune importation (les types d'entité sont repris en chaînes).
  */
 
-export type ParentAdPro = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENT";
+export type ParentAdPro = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENT" | "AD_PRO_OTHER";
 
 export const CHEMIN_PARENT_AD_PRO: Record<ParentAdPro, string> = {
   SPONSORING: "/sponsoring",
   CONGRESS_NATIONAL: "/congress-national",
   CONGRESS_INTERNATIONAL: "/congress-international",
   EVENT: "/events",
+  // La demande « autre » suit le même circuit depuis le 27/10/2026 (décision #17) : sa fiche est ici.
+  AD_PRO_OTHER: "/ad-pro/autres",
 };
 
 /** La fiche d'une demande Ad & Pro. */

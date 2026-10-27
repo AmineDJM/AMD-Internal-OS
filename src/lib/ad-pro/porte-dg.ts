@@ -116,6 +116,10 @@ async function demandeurEtNom(parent: AdProParent, parentId: string): Promise<{ 
       const r = await prisma.event.findUnique({ where: { id: parentId }, select: { requesterId: true, name: true } });
       return r ? { requesterId: r.requesterId, nom: `Événement — ${r.name}` } : null;
     }
+    case "AD_PRO_OTHER": {
+      const r = await prisma.adProOtherRequest.findUnique({ where: { id: parentId }, select: { requesterId: true, reference: true, title: true } });
+      return r ? { requesterId: r.requesterId, nom: `Autre demande ${r.reference} — ${r.title}` } : null;
+    }
   }
 }
 

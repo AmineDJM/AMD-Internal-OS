@@ -42,7 +42,11 @@ export const POWER_LABELS: Record<WorkflowPower, string> = {
   COMMENT: "Commenter",
 };
 
-export const WORKFLOW_CATEGORIES = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENTS"] as const;
+/**
+ * LES CATÉGORIES DE CIRCUIT — une par nature Ad & Pro à circuit. `OTHER` (la demande « autre ») les a
+ * rejointes le 27/10/2026 : « "autre" suit le même circuit » (décision #17 de la Direction).
+ */
+export const WORKFLOW_CATEGORIES = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENTS", "OTHER"] as const;
 export type WorkflowCategory = (typeof WORKFLOW_CATEGORIES)[number];
 
 export const CATEGORY_LABELS: Record<WorkflowCategory, string> = {
@@ -50,6 +54,7 @@ export const CATEGORY_LABELS: Record<WorkflowCategory, string> = {
   CONGRESS_INTERNATIONAL: "Prise en charge Internationale",
   CONGRESS_NATIONAL: "Prise en charge Nationale",
   EVENTS: "Événements",
+  OTHER: "Autre demande",
 };
 
 /** EntityType de l'entité source portée par chaque catégorie de workflow. */
@@ -58,6 +63,7 @@ export const CATEGORY_ENTITY: Record<WorkflowCategory, EntityType> = {
   CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL",
   CONGRESS_NATIONAL: "CONGRESS_NATIONAL",
   EVENTS: "EVENT",
+  OTHER: "AD_PRO_OTHER",
 };
 
 export const CATEGORY_PATH: Record<WorkflowCategory, string> = {
@@ -65,6 +71,7 @@ export const CATEGORY_PATH: Record<WorkflowCategory, string> = {
   CONGRESS_INTERNATIONAL: "/congress-international",
   CONGRESS_NATIONAL: "/congress-national",
   EVENTS: "/events",
+  OTHER: "/ad-pro/autres",
 };
 
 export function isWorkflowCategory(v: string): v is WorkflowCategory {

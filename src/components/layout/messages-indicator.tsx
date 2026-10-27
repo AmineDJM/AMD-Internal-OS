@@ -152,7 +152,8 @@ export function MessagesIndicator({ initial }: { initial: number }) {
     // timer mais ne le coupe pas) → le son retentit même sur un autre site.
     const fetchCount = async () => {
       try {
-        const res = await fetch("/api/messaging/sync", { cache: "no-store" });
+        // Le total seul : la liste des conversations n'est lue que par le Messenger (PERF-02).
+        const res = await fetch("/api/messaging/sync?portee=badge", { cache: "no-store" });
         if (!res.ok) return;
         const data = await res.json();
         if (!alive) return;

@@ -217,6 +217,19 @@ export const REFUS_FACTURE_EMISE_AU_REGLEMENT =
   "Cette facture a été émise par la société : c'est son client qui la règle. Renseignez sa date de règlement quand le paiement arrive — le centre de paiement n'autorise que des dépenses.";
 
 /**
+ * LA FACTURE D'UN POSTE Ad & Pro SE PAIE PAR SON POSTE (audit du 27/10/2026, ADPRO-01).
+ *
+ * Déposée sur un poste (`deposerFacturePoste`), elle est aussi une pièce du registre Legal — et « Envoyer au
+ * règlement » y ouvrait un SECOND chemin vers le centre de paiement : sans la porte du DG sur le total, sans le
+ * plafond du montant accordé, sans le budget du poste, et sans poser `expenseOrderId` sur le poste — qui pouvait
+ * donc demander son propre paiement ensuite, pour la même facture. La phrase est lue par l'action ET par la fiche.
+ */
+export function refusFactureDePoste(libellePoste: string): string {
+  return `Cette facture appartient au poste « ${libellePoste} » d'une demande Ad & Pro : son paiement se demande depuis le poste `
+    + "(« Demander le paiement »), qui applique la validation du Directeur Général, le montant accordé et le budget du poste.";
+}
+
+/**
  * PEUT-ON ENVOYER CETTE FACTURE AU RÈGLEMENT ?
  *
  * Le refus NOMME ce qui bloque : « envoi impossible » fait rouvrir la fiche trois fois avant de
@@ -246,11 +259,14 @@ export function canSendToSettlement(input: {
   ordreLie?: { status: string; centralStatus: string } | null;
   /** LE SENS DE LA FACTURE (`direction`) : « IN » = émise par la société. Absent : facture reçue, comme avant. */
   direction?: string | null;
+  /** LE POSTE Ad & Pro dont c'est la facture (pièce FACTURE du poste), s'il y en a un : il paie par sa propre porte. */
+  posteAdPro?: { label: string } | null;
 }): SettlementCheck {
   if (input.kind !== "INVOICE") {
     return { ok: false, error: "Seul un document de nature « facture » s'envoie au règlement." };
   }
   if (input.direction === "IN") return { ok: false, error: REFUS_FACTURE_EMISE_AU_REGLEMENT };
+  if (input.posteAdPro) return { ok: false, error: refusFactureDePoste(input.posteAdPro.label) };
   if (input.expenseOrderId && !ordreClos(input.ordreLie)) return { ok: false, error: "Cette facture est déjà partie au règlement." };
   if (input.paidDate) {
     return {

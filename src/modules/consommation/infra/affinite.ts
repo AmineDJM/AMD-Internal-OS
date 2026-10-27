@@ -1,24 +1,10 @@
 import { prisma } from "@/lib/prisma";
-import { calculerAffinites, type ConfigAffinite, type TypePeriode, type LigneAffinite } from "./affinite";
+import { calculerAffinites, lireConfig, type ConfigAffinite, type LigneAffinite } from "../domaine/affinite";
 
 /**
  * L'AFFINITÉ PAR ÉTABLISSEMENT, lue en base : les lignes OK des imports VALIDÉS, la configuration du produit.
  * Sans configuration, pas d'affinité — aucun panier ni aucune période n'est supposé.
  */
-
-export function lireConfig(row: { productId: string; panier: unknown; periode: string; debut: Date | null; fin: Date | null }): ConfigAffinite {
-  const p = (row.panier ?? {}) as { productIds?: unknown; molecules?: unknown };
-  return {
-    productId: row.productId,
-    panier: {
-      productIds: Array.isArray(p.productIds) ? p.productIds.filter((x): x is string => typeof x === "string") : [],
-      molecules: Array.isArray(p.molecules) ? p.molecules.filter((x): x is string => typeof x === "string") : [],
-    },
-    periode: (["MOIS", "ROLLING_3M", "ROLLING_6M", "ROLLING_12M", "PERSONNALISEE"].includes(row.periode) ? row.periode : "ROLLING_12M") as TypePeriode,
-    debut: row.debut?.toISOString().slice(0, 10) ?? null,
-    fin: row.fin?.toISOString().slice(0, 10) ?? null,
-  };
-}
 
 /** Les lignes du marché : celles des imports VALIDÉS — plus, pour un APERÇU, celles d'un import encore en revue. */
 export async function lignesDuMarche(cfg: ConfigAffinite, inclureImportId?: string): Promise<LigneAffinite[]> {

@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { cibleInterne, specificateurs } from "./imports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -172,6 +173,25 @@ const SOCLE = [
    * en lisent les refus. Chemin EXACT, comme `regle`.
    */
   "src/lib/bons-de-commande/prevalidation",
+  /**
+   * LES RÈGLES QUE `rbac.ts` LIT — chemins EXACTS, déclarés le 27/10/2026 quand le scanner a
+   * appris à lire les imports relatifs : `rbac.ts` les importait en `./…`, et l'invariant « le
+   * socle fuit : 0 » ne les voyait pas. Ils ne sont pas « déplacés au socle pour faire baisser un
+   * compteur » : `rbac` en DÉPEND pour répondre à `userCan`, ils sont donc de fait le socle des
+   * droits, et `scanSocle()` les tient désormais à l'obligation de n'importer aucun domaine.
+   *   - `hr/stand-in` et `hr/stand-in-resolve` : les droits délégués d'un absent (n'importent que
+   *     `rbac` et `prisma`) ;
+   *   - `regulatory/pipeline-access`, `regulatory/assignment` : l'accès par étape du pipeline
+   *     Regulatory, zéro import ;
+   *   - `budget/domaines` : les pôles budgétaires, zéro import.
+   * Cible (rapport d'audit 08, ARCH-01) : les ranger sous `src/lib/rbac/` quand `rbac.ts` sera
+   * découpé, et supprimer ces exceptions.
+   */
+  "src/lib/hr/stand-in",
+  "src/lib/hr/stand-in-resolve",
+  "src/lib/regulatory/pipeline-access",
+  "src/lib/regulatory/assignment",
+  "src/lib/budget/domaines",
   /**
    * `chemins/` : les ADRESSES des écrans que plusieurs couches citent (§118.173) — des constantes,
    * zéro import. Le menu (`labels.ts`, au socle) lit l'adresse du stock promotionnel ; les
@@ -348,12 +368,10 @@ export interface DomainReport {
 }
 
 /**
- * Un seul motif pour `import … from` ET `export … from` : la seconde forme crée exactement la
- * même dépendance, et l'avoir oubliée est une vraie faille — c'est ainsi qu'un module « neutre »
- * peut réexporter la moitié d'un domaine sans qu'aucun compteur ne bouge.
+ * Les imports se lisent par `./imports` : `import … from`, `export … from` (une réexportation crée
+ * la même dépendance) et `import("…")`, en `@/` comme en RELATIF — un `./hr/…` écrit au socle
+ * échappait à ce scanner jusqu'au 27/10/2026 (voir `imports-relatifs.test.ts`).
  */
-const STATIC_RE = /(?:^|\n)\s*(?:import|export)\s+(?:type\s+)?(?:[\s\S]*?)\s*from\s*["']([^"']+)["']/g;
-const DYNAMIC_RE = /\bimport\s*\(\s*["']([^"']+)["']\s*\)/g;
 
 function walk(dir: string, out: string[] = []): string[] {
   if (!fs.existsSync(dir)) return out;
@@ -409,17 +427,13 @@ export function scanDomains(root = process.cwd()): DomainReport {
       const fromDomain = domainOf(file);
       const fromSocle = isSocle(file) && !BRIDGE.some((b) => file.startsWith(b));
 
-      const src = fs.readFileSync(file, "utf8");
-      const specs: string[] = [];
-      for (const m of src.matchAll(STATIC_RE)) specs.push(m[1]);
-      for (const m of src.matchAll(DYNAMIC_RE)) specs.push(m[1]);
-
-      for (const spec of specs) {
-        if (!spec.startsWith("@/")) continue;
-        const target = spec.replace("@/", "src/");
+      for (const spec of specificateurs(fs.readFileSync(file, "utf8"))) {
+        const target = cibleInterne(spec, file);
+        if (!target) continue;
 
         // ── L0 : le socle ne connaît ni domaine ni façade. Zéro toléré. ──────────────────
         if (fromSocle) {
+          if (isSocle(target)) continue; // un fichier du socle déclaré par chemin EXACT sous un domaine
           const td = domainOf(target);
           if (td || isFacade(target)) {
             socleLeaks.push({ from: file, to: target, fromDomain: "socle", toDomain: td ?? "façade" });

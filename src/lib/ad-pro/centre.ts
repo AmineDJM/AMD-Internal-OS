@@ -169,10 +169,12 @@ export const FORME_PORTE: Record<AdProKind, FormePorte> = {
   CONGRESS_NATIONAL: "ETAPE_CIRCUIT",
   EVENT: "ETAPE_CIRCUIT",
   PROMO_MATERIAL: "ETAPE_PROMO",
-  // Ces deux-là n'avaient AUCUNE porte avant ce lot : mesuré sur leurs machines à états
-  // (`ConsultingState`, `AdProOtherStatus`), rien n'y consultait le seuil.
+  // Le consulting n'avait AUCUNE porte avant ce lot : mesuré sur sa machine à états (`ConsultingState`),
+  // rien n'y consultait le seuil.
   CONSULTING: "VISA_CENTRE",
-  OTHER: "VISA_CENTRE",
+  // LA DEMANDE « AUTRE » SUIT LE CIRCUIT COMMUN depuis le 27/10/2026 (décision #17) : plus de visa à la
+  // création — prévalidation par le circuit, postes, puis le DG sur le TOTAL (forme `TOTAL_DG`).
+  OTHER: "ETAPE_CIRCUIT",
 };
 
 /** Les natures qui passent par le VISA du centre — dérivé, jamais recopié. */

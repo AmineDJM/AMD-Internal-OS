@@ -110,7 +110,9 @@ describe("le rafraîchissement suivi", () => {
     ];
     for (const e of ecrans) {
       const src = sansCommentaires(readFileSync(join(process.cwd(), e), "utf8"));
-      expect(src, `${e} doit appeler useRafraichir()`).toMatch(/useRafraichir\(\)/);
+      // `useAction()` / `useKeyedAction()` rafraîchissent PAR `useRafraichir` (`use-action.ts`, dans
+      // cette liste) : un écran qui passe par eux suit son rafraîchissement (audit 27/10/2026).
+      expect(src, `${e} doit appeler useRafraichir()`).toMatch(/useRafraichir\(\)|useAction\(\)|useKeyedAction\(\)/);
       expect(src.match(APPEL_NU) ?? [], `${e} rafraîchit encore à nu`).toEqual([]);
     }
     // La feuille des praticiens : le composant PRINCIPAL suit son rafraîchissement ; les deux

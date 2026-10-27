@@ -208,7 +208,8 @@ export async function aiFeatureEnabled(feature: AiFeature): Promise<boolean> {
  * Luna de l'intelligence réglementaire (`callLuna`, `submitBatch`, `lunaEmbed`) et la transcription
  * des médias du Drive (`media/stt.ts`) lisent l'interrupteur depuis le lot D1 (§118.196) ; lire l'état
  * d'un lot déjà déposé reste ouvert, exprès. La sonde de santé (`aiSelfTest`) aussi : son commentaire
- * dit pourquoi.
+ * dit pourquoi. L'Assistant IA (Mastra sur MiMo, `lib/agent/`) le lit dans ses deux seules portes vers le
+ * modèle, `repondreAvecSecours` et `genererTexte` (audit 27/10, cliquet `agent/interrupteur.test.ts`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 

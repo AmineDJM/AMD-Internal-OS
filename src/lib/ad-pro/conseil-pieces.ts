@@ -40,8 +40,8 @@ export type EmplacementPiece =
   | { type: "POSTE"; posteId: string; case: CasePoste };
 
 /** Les natures de demande qui portent des postes. */
-export type NatureDemandeConseil = "SPONSORING" | "CONGRESS_INTERNATIONAL" | "CONGRESS_NATIONAL" | "EVENT";
-export const NATURES_DEMANDE_CONSEIL: readonly NatureDemandeConseil[] = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT"];
+export type NatureDemandeConseil = "SPONSORING" | "CONGRESS_INTERNATIONAL" | "CONGRESS_NATIONAL" | "EVENT" | "AD_PRO_OTHER";
+export const NATURES_DEMANDE_CONSEIL: readonly NatureDemandeConseil[] = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "AD_PRO_OTHER"];
 
 export interface PosteDuContexte {
   id: string;
@@ -101,6 +101,7 @@ export const LIBELLE_NATURE_DEMANDE: Record<NatureDemandeConseil, string> = {
   CONGRESS_INTERNATIONAL: "Prise en charge internationale (congrès)",
   CONGRESS_NATIONAL: "Prise en charge nationale (congrès)",
   EVENT: "Événement",
+  AD_PRO_OTHER: "Autre demande",
 };
 
 const NATURES_POSTE = Object.keys(ITEM_KIND_LABELS) as AdProItemKind[];

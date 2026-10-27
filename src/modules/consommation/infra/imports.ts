@@ -2,8 +2,8 @@ import { createHash } from "crypto";
 import * as XLSX from "xlsx";
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { analyserClasseur, cleBrute, type ChampConso, type Feuilles, type AnalyseFeuille } from "./lecture";
-import { resolveur, cleDoublon, chevauche, type Memoire } from "./resolution";
+import { analyserClasseur, cleBrute, type ChampConso, type Feuilles, type AnalyseFeuille } from "../domaine/lecture";
+import { resolveur, cleDoublon, chevauche, type Memoire } from "../domaine/resolution";
 
 /**
  * CONSUMPTION INTELLIGENCE — le côté BASE du pipeline :

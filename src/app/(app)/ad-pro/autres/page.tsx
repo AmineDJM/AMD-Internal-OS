@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireModule } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
+import { userCan, scopeAdProOther } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { platformScope, getMyCompanies, companyOptions } from "@/lib/company";
 import { toNumber, formatCurrency, formatDate } from "@/lib/utils";
@@ -33,7 +33,8 @@ export default async function AdProOtherPage() {
 
   const [requests, companies, businessUnits] = await Promise.all([
     prisma.adProOtherRequest.findMany({
-      where: await platformScope(user.id),
+      // Le délégué ne voit que SES demandes (portée ASSIGNÉE, 27/10/2026) — la même porte que la fiche.
+      where: { AND: [await platformScope(user.id), scopeAdProOther(user)] },
       orderBy: { createdAt: "desc" },
       include: { company: { select: { name: true } } },
     }),

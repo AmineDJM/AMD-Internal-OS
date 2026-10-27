@@ -119,6 +119,7 @@ export function sourceLink(sourceType: string, sourceId: string): string | null 
     case "CONGRESS_INTERNATIONAL": return `/congress-international/${sourceId}`;
     case "CONGRESS_NATIONAL": return `/congress-national/${sourceId}`;
     case "EVENT": return `/events/${sourceId}`;
+    case "AD_PRO_OTHER": return `/ad-pro/autres/${sourceId}`;
     default: return null;
   }
 }

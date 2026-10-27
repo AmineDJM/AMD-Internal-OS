@@ -8,7 +8,7 @@
 
 - `prisma/schema.prisma` (16,648 lines): **433 models, 206 enums, 7,316 fields**; its conventions, domain grouping, central models, relations and delete rules.
 - `prisma/migrations/` (**462 migration folders** + `migration_lock.toml` = 463 entries): naming, idempotency style, data migrations, schema/SQL drift.
-- `prisma/bootstrap.ts`, `render.yaml` deploy chain (`migrate deploy` → bootstrap → build).
+- `prisma/bootstrap.ts`, `render.yaml` deploy chain (generate → lint/tsc/build → `migrate deploy` → bootstrap, since refonte P0).
 - The runtime client `src/lib/prisma.ts` (singleton, pool sizing, the test/bench DB guard) and how application code uses it: `$transaction`, row locks, raw SQL, reference numbering (`src/lib/refs.ts`, `src/lib/references/registre-serveur.ts`), soft delete / trash (`src/lib/suppression/*`, `src/lib/admin-delete-registry.ts`), company scoping (`src/lib/company.ts`).
 - Test DB setup (`vitest.config.ts`, `vitest.global-setup.ts`).
 - Out of scope: per-module business rules (other KB pages); RBAC semantics beyond the tables (`src/lib/rbac.ts`).
@@ -20,8 +20,8 @@
 - Multi-entity ("multi-société") scoping is by a **nullable `companyId`** on 61 models; reads are composed through `companyScopedWhere` which keeps `companyId = null` rows visible (`src/lib/company.ts:112`). No Postgres RLS. [V]
 - Soft delete is **not** a `deletedAt` convention: deletion is a hard delete preceded by a JSON snapshot into `DeletedRecord` (the *corbeille*, trash), driven by a registry of 37 deletable kinds (`src/lib/admin-delete-registry.ts`, `src/lib/suppression/coeur.ts:36`). [V]
 - Migrations: 49 of the 71 June-2026 ones (incl. `init`) are Prisma-generated, non-idempotent; everything after is hand-written idempotent SQL (`IF NOT EXISTS` in 382 files, `DO $$ … EXCEPTION WHEN duplicate_object` in 142). Names are a **synthetic monotonic clock** that already runs into 2027 (139 folders are "future-dated"). [V]
-- There is **no automated schema.prisma ↔ SQL structural drift check**; only per-feature tests that read a migration file, and a Test-Center check of disk vs `_prisma_migrations` (`src/lib/test-center/migration-cert.ts:27-78`). The DB intentionally holds objects Prisma does not know (98 SQL-only indexes incl. trigram/FTS/partial uniques, legacy tables `SalesTeam`, `MailEntryLink`). [V]
-- `render.yaml:52` runs `prisma migrate deploy` **before** lint/typecheck/build: a failed build leaves the DB migrated under the old code. [V]
+- *(Updated 2026-10-27, refonte P0)* A structural drift check now exists: `src/lib/derive-schema/derive-schema.test.ts` runs `migrate diff` against the local migrated DB and fails on any drift not listed in `src/lib/derive-schema/exceptions.ts` (see `docs/architecture/refonte-p0-outillage.md` §1). Before it: there was **no automated schema.prisma ↔ SQL structural drift check**; only per-feature tests that read a migration file, and a Test-Center check of disk vs `_prisma_migrations` (`src/lib/test-center/migration-cert.ts:27-78`). The DB intentionally holds objects Prisma does not know (98 SQL-only indexes incl. trigram/FTS/partial uniques, legacy tables `SalesTeam`, `MailEntryLink`). [V]
+- *(Fixed 2026-10-27, refonte P0)* `render.yaml` used to run `prisma migrate deploy` **before** lint/typecheck/build (a failed build left the DB migrated under the old code); it now runs `build:render` first, then `migrate deploy` and `db:bootstrap` (`docs/architecture/refonte-p0-outillage.md` §2). [V]
 
 ## 3. Key files
 
@@ -30,7 +30,7 @@
 | `prisma/schema.prisma` | Single schema file; header conventions at L1-10; enums L22-655; sections by `// ─── X ───` banners (see §4.1). |
 | `prisma/migrations/<YYYYMMDDHHMMSS>_<slug>/migration.sql` | 462 hand-applied SQL migrations; `migration_lock.toml` = `postgresql`. |
 | `prisma/bootstrap.ts` | Idempotent creation of the single Super Admin from `ADMIN_EMAIL/ADMIN_PASSWORD/ADMIN_NAME` (L12-34). Also `prisma.seed`. |
-| `render.yaml:52` | Deploy: `npm install && prisma generate && prisma migrate deploy && db:bootstrap && build:render`. |
+| `render.yaml` `buildCommand` | Deploy: `npm install && prisma generate && build:render && prisma migrate deploy && db:bootstrap` (order changed in refonte P0). |
 | `package.json:15-23` | `test` forces local `DATABASE_URL`; `db:deploy` = `prisma migrate deploy`; `db:push`/`db:migrate`/`db:reset` exist but are dangerous here (§8). |
 | `src/lib/prisma.ts` | `PrismaClient` singleton, test/bench DB refusal (L93-122), pool `connection_limit=12` in prod (L144-160). |
 | `vitest.config.ts` / `vitest.global-setup.ts` | DB-backed test suite config; seeds a stable GENERAL_MANAGER "siège" (L22-42). |
@@ -219,6 +219,31 @@ Two coexisting schemes [V]:
 - **Notifications & push** (2): `Notification`, `PushSubscription`
 - **Supplier portal** (2): `Supplier`, `SupplierUser`
 
+### 4.12 Reference data — *référentiels* (data overhaul, phase P1, 2026-10-27)
+
+Added by `prisma/migrations/20270130100000_referentiels/` (additive, idempotent; **tables created empty**, back-fill is P2). Target model: `docs/architecture/refonte-donnees-et-monolithe-modulaire.md` §3; shared contract: `src/lib/enrichissement/types.ts`. +16 models, +14 enums (the 433-model counts above predate them). Users are referenced by **scalar** ids (`creeParId`, `decideeParId`…), no new FK on `User`. Guarded by `src/lib/referentiels/schema-p1.test.ts` (text is additive, replay ×2 on a scratch schema and on the work DB, DB constraints, and a `prisma migrate diff` filtered on this lot's objects must be empty).
+
+| Model | Ref. | Purpose |
+|---|---|---|
+| `Personne` | R1 | One real person (civilité, nom, prénoms, `nomReplie` search key, naissance, nationalité, langues, `photoBlobId`, complétude 0–100, `fusionneeDansId` self-FK — merge is proposed, never automatic). |
+| `PersonneRole` | R1 | Dated role of a person (`RolePersonne`: COLLABORATEUR, PROFESSIONNEL_SANTE, BENEFICIAIRE, VOYAGEUR, CANDIDAT, CONTACT_TIERS, INTERVENANT). Cascade with the person. |
+| `Organisation` | R2 | One real organisation (raison sociale, nom court, `nomReplie`, forme juridique, capital `Decimal(14,2)`, pays, statut, site, `logoBlobId`, complétude, `fusionneeDansId`). |
+| `OrganisationRole` | R2 | Dated role (`RoleOrganisation`: SOCIETE_DU_GROUPE … TRANSPORTEUR, AUTRE); unique (organisation, role). |
+| `OrganisationIdentifiant` | R2 | NIF / NIS / RC / AI / AGREMENT / CODE_PCH; **unique (type, valeurNormalisee)** — the matching key for a third party. |
+| `Affiliation` | R2 | Personne ↔ Organisation (fonction, service, depuis, jusqu'à, principale) — replaces free-text `institution`. |
+| `Adresse` | R3 | Address of a person **or** an organisation (`CHECK num_nonnulls = 1`); `wilayaCode`/`communeCode` are **scalar codes, no FK** (Wilaya/Commune come from another lot); type SIEGE/LIVRAISON/DOMICILE/AUTRE, lat/lng. |
+| `PointDeContact` | R3 | Phone / e-mail / site of a person **or** an organisation (same CHECK); `valeurNormalisee` (E.164, lower-case), principal, vérifié le, source. |
+| `Piece` | R5 | The file once and for all: `blobId` (scalar → `FileBlob.id`), `empreinte` sha256 (indexed), nom, mime, taille, pages, langue, `nature` (string, `NATURES_PIECE`), `confidentiality`, `source` (`SourcePiece`), déposée par / le. |
+| `PieceLien` | R5 | Piece ↔ subject (PERSONNE / ORGANISATION / ENTITE + free `entityType`), with a role; unique (pieceId, sujetType, sujetId, role). |
+| `DonneeSensible` | R6 | Vault entry: titulaire (type, id), `nature` = sensitive attribute key, AES-GCM `valeurChiffree`/`iv`/`tag`, `cleVersion`, `empreinteHmac` (indexed), `derniersCaracteres`, source piece, validity. |
+| `AccesDonneeSensible` | R6 | Who read what, when, for which gesture; survives the entry (`SetNull`, nature + titulaire copied). |
+| `Extraction` | E | One extractor pass on a piece (moteur, local, statut, notes[], durée, `coutUsd`). |
+| `FaitPropose` | E | A fact read on a piece — a proposal (sujetRef, sujetType, sujetId once resolved, rôle, attribut, valeur(s), confiance 0–1, preuve Json, décision). **CHECK: a sensitive fact holds no clear value** (→ `donneeSensibleId`). |
+| `FaitConfirme` | E | What the record holds as true, historised (source PIECE/SAISIE/IMPORT, confirmé par / le, valide du / au, `actif`); same no-clear-value CHECK when `sensible`. |
+| `ConflitDeFait` | E | Disagreement between a confirmed and a proposed fact — a decision queue, never an overwrite. |
+
+**Link columns** (nullable, indexed, FK `ON DELETE SET NULL`): `personneId` on `User`, `Employee`, `MedicalDoctor`, `CareBeneficiary`, `AdProVoyageur`, `AdProHebergement`, `RecruitmentCandidate`, `DirectoryEntry`, `SupplierUser`; `organisationId` on `Company`, `CompanyContact`, `Supplier`, `MedicalInstitution`, `SponsoringRequest`, `CongressNational`, `CongressInternational`; `pieceId` on `Document`, `DriveNode`. CHECK constraints live only in SQL (Prisma ignores them, no drift).
+
 ## 5. Conventions & patterns to follow (house style)
 
 **Changing the schema**
@@ -273,7 +298,7 @@ Secondary flow (official numbering): a BC (`LegalDocument` kind `PURCHASE_ORDER`
 - **Parents of `AdProItem`** (Sponsoring, congresses, Event, Training, PromoMaterial, MedicalInfoDeclaration) cascade-delete the budget lines that carry granted amounts and expense imputation; protected only because those kinds go through the `lot` trash. A direct `prisma.sponsoringRequest.delete` elsewhere would lose them. [V for cascade; U for absence of such direct deletes everywhere]
 - **Multi-entity**: changing `companyScopedWhere` semantics (null rows visible) affects every scoped list (84 graph edges). [V]
 - **Numbering**: `refs.ts` is used by ~40 files; `enSerie` assumes a **single Node process** (`render.yaml` one web service). Scaling to 2+ instances degrades to the 6-try optimistic retry, which was measured insufficient for bursts (refs.ts:47-61). [V]
-- **Migrations ↔ deploy**: `migrate deploy` runs before `next lint`/`tsc`/`next build` in the same Render build (`render.yaml:52`). A lint/type/build failure after a successful migration leaves production running the previous code on the new schema; since migrations are additive this is usually harmless, but a data migration that changes semantics is live before the code that understands it. [V]
+- **Migrations ↔ deploy** *(fixed in refonte P0 — `migrate deploy` now runs after `build:render`; text below describes the former order)*: `migrate deploy` ran before `next lint`/`tsc`/`next build` in the same Render build (`render.yaml:52`). A lint/type/build failure after a successful migration leaves production running the previous code on the new schema; since migrations are additive this is usually harmless, but a data migration that changes semantics is live before the code that understands it. [V]
 
 ## 8. Invariants, gotchas, doctrine rules
 
