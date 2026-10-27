@@ -991,6 +991,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
     where: { id },
     select: {
       id: true, supplier: true, amountDzd: true, status: true, expenseOrderId: true, amount: true, currency: true, retainedAt: true,
+      decidedById: true, decidedAt: true,
       congressNationalId: true, congressInternationalId: true,
       cells: { select: { cellId: true } },
     },
@@ -1042,6 +1043,25 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
   }
 
   const req = await loadRequest(scope, requestId);
+
+  // UN DEVIS N'ÉMET QU'UN ORDRE, MÊME À DEUX CLICS (audit argent 2026-10-27, ARGENT-02). Le garde « déjà engagé »
+  // était lu en tête, l'ordre créé ensuite, et le devis écrit par son seul id : deux acceptations simultanées
+  // passaient toutes deux la lecture et émettaient DEUX ordres au centre de paiement — le second écrasait le
+  // lien du premier, qui restait payable sans que rien ne le rattache plus au devis. Le devis se RÉSERVE donc
+  // d'abord, sur l'état lu (§118.151) : seul le gagnant émet l'ordre ; un échec de l'émission rend la réserve.
+  if (decision === "ACCEPTED") {
+    const reserve = await prisma.careQuote.updateMany({
+      where: { id, expenseOrderId: null, status: quote.status, decidedAt: quote.decidedAt },
+      data: { status: "ACCEPTED", decidedById: user.id, decidedAt: new Date() },
+    });
+    if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
+  }
+  const rendreLaReserve = () => prisma.careQuote.updateMany({
+    where: { id, expenseOrderId: null, status: "ACCEPTED" },
+    data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
+  }).catch(() => undefined);
+
+  let ordreNe = false;
   try {
     if (decision === "ACCEPTED") {
       const amount = toNumber(quote.amountDzd);
@@ -1057,6 +1077,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
         // LE BUDGET EST EN DZD : un devis saisi en dollars entre à son équivalent au taux figé de la demande.
         notes: `Devis couvrant ${cellIds.length} élément(s) de la prise en charge.${quote.currency === "USD" && quote.amount != null ? ` Saisi : ${montantLisible(toNumber(quote.amount), "USD")} (converti au taux de la demande).` : ""}`,
       });
+      ordreNe = true;
       await prisma.$transaction([
         prisma.careQuote.update({
           where: { id },
@@ -1084,6 +1105,9 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
     return { ok: true, id };
   } catch (err) {
     console.error("[care] décision de devis impossible", err);
+    // L'ordre n'est pas né : la réserve se rend. Né mais non rattaché, le devis RESTE réservé — le rendre
+    // laisserait accepter une seconde fois, donc émettre un second ordre.
+    if (decision === "ACCEPTED" && !ordreNe) await rendreLaReserve();
     return { ok: false, error: "La décision n'a pas pu être enregistrée." };
   }
 }
