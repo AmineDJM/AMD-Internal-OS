@@ -8,6 +8,7 @@ import { canEditCompanyId, companyIdForNew } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 import { poleDe } from "@/lib/budget/domaines";
+import { supprimerSousGarde } from "@/lib/budget/suppression-garde";
 
 const NOT_ALLOWED: ActionResult = { ok: false, error: "Gestion des enveloppes réservée au Super Admin (ou à un délégué)." };
 
@@ -127,7 +128,11 @@ export async function deleteEnvelope(formData: FormData): Promise<ActionResult> 
   if (!canManageEnvelopes(user)) return NOT_ALLOWED;
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
-  const env = await prisma.budgetEnvelope.delete({ where: { id } });
+  const env = await prisma.budgetEnvelope.findUnique({ where: { id }, select: { name: true } });
+  if (!env) return { ok: false, error: "Enveloppe introuvable." };
+  // Ses dépenses budgétaires partiraient en cascade : refusé tant qu'il en reste (`budget/suppression-garde.ts`).
+  const fait = await supprimerSousGarde({ envelopeId: id });
+  if (!fait.ok) return fait;
   await recordAudit({ actorId: user.id, action: "DELETE", module: "Budgets", summary: `Enveloppe budgétaire « ${env.name} » supprimée` });
   revalidatePath("/budgets");
   return { ok: true };
@@ -188,8 +193,10 @@ export async function deleteBudgetCategory(formData: FormData): Promise<ActionRe
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const denied = await ensureCanManageCategory(user, id);
   if (denied) return denied;
-  // Les dépenses attribuées repassent en « non attribué » (FK SetNull).
-  await prisma.budgetCategoryLine.delete({ where: { id } });
+  // Les écritures de trésorerie attribuées repassent en « non attribué » (FK SetNull) ; les dépenses
+  // budgétaires, elles, partiraient en cascade : refusé tant qu'il en reste (`budget/suppression-garde.ts`).
+  const fait = await supprimerSousGarde({ categoryId: id });
+  if (!fait.ok) return fait;
   revalidatePath("/budgets");
   return { ok: true };
 }

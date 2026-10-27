@@ -349,7 +349,7 @@ export function CategoryCard({ c, propre, subs, canManage, onEdit, onDelete, onA
 }
 
 export function EnvelopeSheet({ envelope, users, onClose, onDeleted, canDelete }: { envelope: BudgetOverview["envelope"]; users: UserOpt[]; onClose: () => void; onDeleted: () => void; canDelete: boolean }) {
-  const { busy, err, run } = useRun();
+  const { busy, err, setErr, run } = useRun();
   return (
     <Sheet open onClose={onClose} title="Modifier l'enveloppe" width="md">
       <form action={(fd) => { fd.set("id", envelope.id); run(() => updateEnvelope(fd), onClose); }} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -365,7 +365,7 @@ export function EnvelopeSheet({ envelope, users, onClose, onDeleted, canDelete }
         <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="isActive" defaultChecked={envelope.isActive} className="h-4 w-4 rounded border-input" /> Enveloppe active</label>
         {err && <p className="text-sm text-destructive sm:col-span-2">{err}</p>}
         <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
-          {canDelete ? <Button type="button" variant="ghost" className="text-destructive" onClick={() => { if (window.confirm("Supprimer cette enveloppe et ses catégories ?")) { const fd = new FormData(); fd.set("id", envelope.id); deleteEnvelope(fd).then(onDeleted); } }}><Trash2 className="h-4 w-4" /> Supprimer</Button> : <span />}
+          {canDelete ? <Button type="button" variant="ghost" className="text-destructive" onClick={() => { if (window.confirm("Supprimer cette enveloppe et ses catégories ?")) { const fd = new FormData(); fd.set("id", envelope.id); deleteEnvelope(fd).then((r) => { if (r.ok) onDeleted(); else setErr(r.error ?? "Suppression refusée."); }); } }}><Trash2 className="h-4 w-4" /> Supprimer</Button> : <span />}
           <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button></div>
         </div>
       </form>

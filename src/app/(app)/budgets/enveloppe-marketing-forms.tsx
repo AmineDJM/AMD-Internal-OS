@@ -155,7 +155,7 @@ export function EnveloppePoleSheet({ domaine, envelope, options, canDelete, onCl
             <Button
               type="button" variant="ghost" className="text-destructive"
               onClick={() => {
-                if (!window.confirm("Supprimer cette enveloppe et ses catégories ? Les dépenses imputées repasseront « à imputer ».")) return;
+                if (!window.confirm("Supprimer cette enveloppe et ses catégories ? Les écritures imputées repasseront « à imputer » ; une enveloppe qui porte des dépenses budgétaires ne se supprime pas.")) return;
                 const fd = new FormData(); fd.set("id", envelope.id);
                 envoyer(() => deletePoleEnvelope(fd), () => { onClose(); router.push(DOMAINES[domaine].chemin); });
               }}
