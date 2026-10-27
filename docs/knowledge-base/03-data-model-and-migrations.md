@@ -219,6 +219,31 @@ Two coexisting schemes [V]:
 - **Notifications & push** (2): `Notification`, `PushSubscription`
 - **Supplier portal** (2): `Supplier`, `SupplierUser`
 
+### 4.12 Reference data — *référentiels* (data overhaul, phase P1, 2026-10-27)
+
+Added by `prisma/migrations/20270130100000_referentiels/` (additive, idempotent; **tables created empty**, back-fill is P2). Target model: `docs/architecture/refonte-donnees-et-monolithe-modulaire.md` §3; shared contract: `src/lib/enrichissement/types.ts`. +16 models, +14 enums (the 433-model counts above predate them). Users are referenced by **scalar** ids (`creeParId`, `decideeParId`…), no new FK on `User`. Guarded by `src/lib/referentiels/schema-p1.test.ts` (text is additive, replay ×2 on a scratch schema and on the work DB, DB constraints, and a `prisma migrate diff` filtered on this lot's objects must be empty).
+
+| Model | Ref. | Purpose |
+|---|---|---|
+| `Personne` | R1 | One real person (civilité, nom, prénoms, `nomReplie` search key, naissance, nationalité, langues, `photoBlobId`, complétude 0–100, `fusionneeDansId` self-FK — merge is proposed, never automatic). |
+| `PersonneRole` | R1 | Dated role of a person (`RolePersonne`: COLLABORATEUR, PROFESSIONNEL_SANTE, BENEFICIAIRE, VOYAGEUR, CANDIDAT, CONTACT_TIERS, INTERVENANT). Cascade with the person. |
+| `Organisation` | R2 | One real organisation (raison sociale, nom court, `nomReplie`, forme juridique, capital `Decimal(14,2)`, pays, statut, site, `logoBlobId`, complétude, `fusionneeDansId`). |
+| `OrganisationRole` | R2 | Dated role (`RoleOrganisation`: SOCIETE_DU_GROUPE … TRANSPORTEUR, AUTRE); unique (organisation, role). |
+| `OrganisationIdentifiant` | R2 | NIF / NIS / RC / AI / AGREMENT / CODE_PCH; **unique (type, valeurNormalisee)** — the matching key for a third party. |
+| `Affiliation` | R2 | Personne ↔ Organisation (fonction, service, depuis, jusqu'à, principale) — replaces free-text `institution`. |
+| `Adresse` | R3 | Address of a person **or** an organisation (`CHECK num_nonnulls = 1`); `wilayaCode`/`communeCode` are **scalar codes, no FK** (Wilaya/Commune come from another lot); type SIEGE/LIVRAISON/DOMICILE/AUTRE, lat/lng. |
+| `PointDeContact` | R3 | Phone / e-mail / site of a person **or** an organisation (same CHECK); `valeurNormalisee` (E.164, lower-case), principal, vérifié le, source. |
+| `Piece` | R5 | The file once and for all: `blobId` (scalar → `FileBlob.id`), `empreinte` sha256 (indexed), nom, mime, taille, pages, langue, `nature` (string, `NATURES_PIECE`), `confidentiality`, `source` (`SourcePiece`), déposée par / le. |
+| `PieceLien` | R5 | Piece ↔ subject (PERSONNE / ORGANISATION / ENTITE + free `entityType`), with a role; unique (pieceId, sujetType, sujetId, role). |
+| `DonneeSensible` | R6 | Vault entry: titulaire (type, id), `nature` = sensitive attribute key, AES-GCM `valeurChiffree`/`iv`/`tag`, `cleVersion`, `empreinteHmac` (indexed), `derniersCaracteres`, source piece, validity. |
+| `AccesDonneeSensible` | R6 | Who read what, when, for which gesture; survives the entry (`SetNull`, nature + titulaire copied). |
+| `Extraction` | E | One extractor pass on a piece (moteur, local, statut, notes[], durée, `coutUsd`). |
+| `FaitPropose` | E | A fact read on a piece — a proposal (sujetRef, sujetType, sujetId once resolved, rôle, attribut, valeur(s), confiance 0–1, preuve Json, décision). **CHECK: a sensitive fact holds no clear value** (→ `donneeSensibleId`). |
+| `FaitConfirme` | E | What the record holds as true, historised (source PIECE/SAISIE/IMPORT, confirmé par / le, valide du / au, `actif`); same no-clear-value CHECK when `sensible`. |
+| `ConflitDeFait` | E | Disagreement between a confirmed and a proposed fact — a decision queue, never an overwrite. |
+
+**Link columns** (nullable, indexed, FK `ON DELETE SET NULL`): `personneId` on `User`, `Employee`, `MedicalDoctor`, `CareBeneficiary`, `AdProVoyageur`, `AdProHebergement`, `RecruitmentCandidate`, `DirectoryEntry`, `SupplierUser`; `organisationId` on `Company`, `CompanyContact`, `Supplier`, `MedicalInstitution`, `SponsoringRequest`, `CongressNational`, `CongressInternational`; `pieceId` on `Document`, `DriveNode`. CHECK constraints live only in SQL (Prisma ignores them, no drift).
+
 ## 5. Conventions & patterns to follow (house style)
 
 **Changing the schema**

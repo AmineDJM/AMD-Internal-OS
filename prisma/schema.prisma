@@ -1187,6 +1187,9 @@ model FeatureFlag {
 
 model User {
   id            String    @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId    String?
+  personne      Personne? @relation(fields: [personneId], references: [id], onDelete: SetNull)
   email         String    @unique
   name          String
   passwordHash  String
@@ -1467,6 +1470,7 @@ model User {
 
   @@index([role])
   @@index([departmentId])
+  @@index([personneId])
 }
 
 /// RAPPEL personnel « en un clic » posé sur n'importe quel sujet (dossier réglementaire, demande du
@@ -1637,6 +1641,9 @@ model UserCompanyAccess {
 
 model Company {
   id          String   @id @default(cuid())
+  /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  organisationId String?
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
   name        String   @unique // raison sociale (« Adventum Pharma »)
   shortName   String? // libellé court affiché dans les pastilles (« Adventum »)
   color       String? // couleur de la pastille (hex, ex. « #2563eb »)
@@ -1700,6 +1707,7 @@ model Company {
   bdProjects              BdProject[]              @relation("BdProjectCompany")
 
   @@index([isActive])
+  @@index([organisationId])
 }
 
 /// LA CARTE D'IDENTITÉ LÉGALE ET FISCALE D'UNE ENTITÉ.
@@ -2086,6 +2094,9 @@ model RecruitmentInfoRequest {
 /// dire de qui elle parle.
 model RecruitmentCandidate {
   id        String                     @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId String?
+  personne  Personne?                  @relation(fields: [personneId], references: [id], onDelete: SetNull)
   requestId String
   request   RecruitmentRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
   fullName  String
@@ -2118,6 +2129,7 @@ model RecruitmentCandidate {
   updatedAt DateTime @updatedAt
 
   @@index([requestId, status])
+  @@index([personneId])
 }
 
 /// RELANCE DE MISE À JOUR — « où en sont vos dossiers ? », posé par la direction.
@@ -2226,6 +2238,9 @@ model SponsoringRequest {
   businessUnit        BusinessUnit?     @relation("AdProSponsoringRequest", fields: [businessUnitId], references: [id], onDelete: SetNull)
   custom              Json? // admin-defined dynamic fields
   id                  String            @id @default(cuid())
+  /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  organisationId      String?
+  organisation        Organisation?     @relation(fields: [organisationId], references: [id], onDelete: SetNull)
   companyId           String? // entité de rattachement (Adventum / Pharmagène / …)
   company             Company?          @relation(fields: [companyId], references: [id])
   reference           String            @unique
@@ -2286,6 +2301,7 @@ model SponsoringRequest {
   @@index([requesterId])
   @@index([productManagerId])
   @@index([companyId])
+  @@index([organisationId])
 }
 
 /// Nature d'un poste Ad & Pro. `PROMO_MATERIAL` est à part : ce poste ne se traite pas ici,
@@ -2548,6 +2564,9 @@ model AdProItem {
 /// droits et la corbeille sont ceux de toute pièce jointe d'un poste, jamais un second chemin.
 model AdProVoyageur {
   id           String               @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId   String?
+  personne     Personne?            @relation(fields: [personneId], references: [id], onDelete: SetNull)
   itemId       String
   item         AdProItem            @relation(fields: [itemId], references: [id], onDelete: Cascade)
   /// Le NOM de famille. Un voyageur d'avant la séparation porte ici son nom COMPLET (`prenom` vide) :
@@ -2576,6 +2595,7 @@ model AdProVoyageur {
   demandeReservation DemandeReservation?
 
   @@index([itemId])
+  @@index([personneId])
 }
 
 enum AdProTrajet {
@@ -2621,6 +2641,9 @@ model AdProVoyageurDevis {
 /// l'identifiant de la fiche — même chemin que le passeport d'un voyageur.
 model AdProHebergement {
   id          String    @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId  String?
+  personne    Personne? @relation(fields: [personneId], references: [id], onDelete: SetNull)
   itemId      String
   item        AdProItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
   nom         String
@@ -2641,6 +2664,7 @@ model AdProHebergement {
   demandeReservation DemandeReservation?
 
   @@index([itemId])
+  @@index([personneId])
 }
 
 /// L'ÉTAT D'UNE FICHE CHEZ L'ASSISTANTE DE DIRECTION (fiches de voyage, Direction 14/10/2026).
@@ -3698,6 +3722,9 @@ model CongressInternational {
   businessUnit     BusinessUnit?     @relation("AdProCongressInternational", fields: [businessUnitId], references: [id], onDelete: SetNull)
   custom           Json? // admin-defined dynamic fields
   id               String            @id @default(cuid())
+  /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  organisationId   String?
+  organisation     Organisation?     @relation(fields: [organisationId], references: [id], onDelete: SetNull)
   companyId        String? // entité de rattachement (Adventum / Pharmagène / …)
   company          Company?          @relation(fields: [companyId], references: [id])
   name             String
@@ -3770,6 +3797,7 @@ model CongressInternational {
   @@index([requestStatus])
   @@index([requesterId])
   @@index([companyId])
+  @@index([organisationId])
 }
 
 model CongressNational {
@@ -3780,6 +3808,9 @@ model CongressNational {
   businessUnit     BusinessUnit?  @relation("AdProCongressNational", fields: [businessUnitId], references: [id], onDelete: SetNull)
   custom           Json? // admin-defined dynamic fields
   id               String         @id @default(cuid())
+  /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  organisationId   String?
+  organisation     Organisation?  @relation(fields: [organisationId], references: [id], onDelete: SetNull)
   companyId        String? // entité de rattachement (Adventum / Pharmagène / …)
   company          Company?       @relation(fields: [companyId], references: [id])
   name             String
@@ -3843,6 +3874,7 @@ model CongressNational {
   @@index([requestStatus])
   @@index([requesterId])
   @@index([companyId])
+  @@index([organisationId])
 }
 
 // ─────────────────────── Prise en charge : personnes, cases, devis ───────────────────────
@@ -3916,6 +3948,9 @@ enum CareCurrency {
 /// orphelines. Contrainte `CareBeneficiary_one_parent` : exactement un parent.
 model CareBeneficiary {
   id                      String                 @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId              String?
+  personne                Personne?              @relation(fields: [personneId], references: [id], onDelete: SetNull)
   congressNationalId      String?
   congressNational        CongressNational?      @relation(fields: [congressNationalId], references: [id], onDelete: Cascade)
   congressInternationalId String?
@@ -3951,6 +3986,7 @@ model CareBeneficiary {
   @@index([congressNationalId])
   @@index([congressInternationalId])
   @@index([doctorId])
+  @@index([personneId])
 }
 
 /// UNE CASE sur la ligne d'une personne — ce qu'il faut fournir ou acheter POUR ELLE.
@@ -4724,6 +4760,9 @@ model MedicalSpecialty {
 model MedicalDoctor {
   custom                Json? // admin-defined dynamic fields
   id                    String                     @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId            String?
+  personne              Personne?                  @relation(fields: [personneId], references: [id], onDelete: SetNull)
   companyId             String? // entité (Adventum / Pharmagène / …)
   company               Company?                   @relation(fields: [companyId], references: [id])
   name                  String
@@ -4809,6 +4848,7 @@ model MedicalDoctor {
   @@index([region])
   @@index([city])
   @@index([directoryId])
+  @@index([personneId])
 }
 
 /// UN ANNUAIRE DE PRATICIENS — une liste nommée, pas LA liste.
@@ -4889,6 +4929,9 @@ model MedicalDirectoryAccess {
 /// vite qu'une liste fermée ne les prévoit.
 model CompanyContact {
   id          String   @id @default(cuid())
+  /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  organisationId String?
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
   name        String
   /// Nature libre : « Agence de voyage », « Livreur », « Imprimeur », « Agence marketing »…
   kind        String?
@@ -4926,6 +4969,7 @@ model CompanyContact {
   @@index([companyId])
   @@index([isActive])
   @@index([kind])
+  @@index([organisationId])
 }
 
 // Établissement médical (hôpital, clinique, cabinet, pharmacie…) — référentiel structuré.
@@ -4949,6 +4993,9 @@ enum InstitutionSector {
 
 model MedicalInstitution {
   id          String            @id @default(cuid())
+  /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  organisationId String?
+  organisation Organisation?    @relation(fields: [organisationId], references: [id], onDelete: SetNull)
   name        String
   type        InstitutionType   @default(AUTRE)
   sector      InstitutionSector @default(PUBLIC)
@@ -4984,6 +5031,7 @@ model MedicalInstitution {
   @@index([type])
   @@index([wilaya])
   @@index([name])
+  @@index([organisationId])
 }
 
 /// UN SERVICE D'UN ÉTABLISSEMENT — cardiologie, oncologie médicale, pharmacie centrale (§118.172).
@@ -5273,6 +5321,9 @@ model BdProduct {
 
 model Document {
   id              String           @id @default(cuid())
+  /// Référentiel R5 : la Pièce (le fichier une fois pour toutes) que cette ligne montre — nul tant que non reprise (P2).
+  pieceId         String?
+  piece           Piece?           @relation(fields: [pieceId], references: [id], onDelete: SetNull)
   name            String
   category        DocumentCategory @default(OTHER)
   entityType      EntityType
@@ -5294,6 +5345,7 @@ model Document {
   @@index([entityType, entityId])
   @@index([category])
   @@index([uploadedById])
+  @@index([pieceId])
 }
 
 model Comment {
@@ -5935,6 +5987,9 @@ enum HrRequestStatus {
 model Employee {
   custom        Json?
   id            String      @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId    String?
+  personne      Personne?   @relation(fields: [personneId], references: [id], onDelete: SetNull)
   companyId     String? // entité de rattachement (Adventum / Pharmagène / …)
   company       Company?    @relation(fields: [companyId], references: [id])
   fullName      String
@@ -6024,6 +6079,7 @@ model Employee {
   @@index([departmentId])
   @@index([managerId])
   @@index([contractEnd])
+  @@index([personneId])
 }
 
 // Document RH rattaché à un employé (contrat, bulletin PDF, attestation…),
@@ -6429,6 +6485,9 @@ model PaymentCentreMessage {
 model DriveNode {
   custom           Json?
   id               String              @id @default(cuid())
+  /// Référentiel R5 : la Pièce (le fichier une fois pour toutes) que cette ligne montre — nul tant que non reprise (P2).
+  pieceId          String?
+  piece            Piece?              @relation(fields: [pieceId], references: [id], onDelete: SetNull)
   name             String
   type             DriveNodeType
   parentId         String?
@@ -6465,6 +6524,7 @@ model DriveNode {
   @@index([ownerId])
   @@index([isTrashed])
   @@index([spaceId])
+  @@index([pieceId])
 }
 
 /// Catégorie / espace PARTAGÉ du Drive (ex. « Promotion Médicale »), présenté comme un onglet
@@ -7036,6 +7096,9 @@ model ValidationItemDecision {
 
 model Supplier {
   id           String   @id @default(cuid())
+  /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  organisationId String?
+  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
   name         String
   country      String?
   contactEmail String?
@@ -7055,10 +7118,14 @@ model Supplier {
   products RegulatoryProduct[]
 
   @@index([active])
+  @@index([organisationId])
 }
 
 model SupplierUser {
   id           String    @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId   String?
+  personne     Personne? @relation(fields: [personneId], references: [id], onDelete: SetNull)
   supplierId   String
   supplier     Supplier  @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   email        String    @unique
@@ -7071,6 +7138,7 @@ model SupplierUser {
   updatedAt    DateTime  @updatedAt
 
   @@index([supplierId])
+  @@index([personneId])
 }
 
 // ─────────────── PCH — marchés publics (appels d'offres → bons de commande) ───────────────
@@ -14478,6 +14546,9 @@ model MissionEvent {
 /// la personne, avec leur provenance.
 model DirectoryEntry {
   id String @id @default(cuid())
+  /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
+  personneId String?
+  personne Personne? @relation(fields: [personneId], references: [id], onDelete: SetNull)
 
   /// LE SUJET CANONIQUE — au plus un lien par nature. C'est lui la vérité sur le nom, le poste et
   /// le rattachement ; l'entrée ne fait que s'y accrocher.
@@ -14515,6 +14586,7 @@ model DirectoryEntry {
   @@index([displayName])
   @@index([isActive])
   @@index([companyId])
+  @@index([personneId])
 }
 
 /// Le CANAL d'un moyen de contact — ce par quoi le message passe.
@@ -16757,4 +16829,579 @@ model AnalyseWatermark {
   derniereExecution DateTime?
   bilan             Json?
   updatedAt         DateTime  @updatedAt
+}
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+// RÉFÉRENTIELS (refonte des données, palier P1) — `docs/architecture/refonte-donnees-et-monolithe-modulaire.md`
+//
+// Une chose réelle = une ligne, reconnue par ses identifiants, à laquelle tout le reste se rattache.
+// Tables créées VIDES : le remplissage depuis l'existant est le palier P2. Les tables métier restent
+// et gagnent une colonne de LIEN nullable (`personneId`, `organisationId`, `pieceId`), `ON DELETE SET NULL`.
+//   R1 Personnes · R2 Organisations · R3 Adresses et coordonnées (Wilaya/Commune : autre lot) ·
+//   R5 Pièces · R6 Coffre des données sensibles · E Moteur d'enrichissement (faits proposés → confirmés).
+// Les utilisateurs (`creeParId`, `decideeParId`…) sont des identifiants SCALAIRES, comme ailleurs :
+// `User` porte déjà 170 clés étrangères, le référentiel n'en ajoute pas.
+// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+/// R1 — UNE PERSONNE RÉELLE, une seule ligne, quel que soit le module qui la connaît (collaborateur,
+/// médecin, bénéficiaire, voyageur, candidat, contact d'un tiers). Les fiches métier (`User`, `Employee`,
+/// `MedicalDoctor`…) la désignent par `personneId`. Une fusion n'efface rien : la fiche absorbée garde sa
+/// ligne et pointe la survivante par `fusionneeDansId` — proposée, jamais faite d'office.
+model Personne {
+  id                    String                 @id @default(cuid())
+  /// M., Mme, Dr, Pr — telle que présentée ; vocabulaire tenu côté code.
+  civilite              String?
+  nom                   String
+  prenoms               String?
+  /// Nom + prénoms repliés (minuscules, sans accents ni ponctuation) : la clé de recherche et de rapprochement.
+  nomReplie             String
+  naissance             DateTime?              @db.Date
+  /// Code pays ISO 3166-1 alpha-2 (« DZ »).
+  nationalite           String?
+  /// Codes ISO 639-1 (« fr », « ar », « en »).
+  langues               String[]               @default([])
+  /// Photo : `FileBlob.id` (scalaire — le blob reste compté par le Drive).
+  photoBlobId           String?
+  /// 0–100 : part des attributs attendus qui sont renseignés. Calculée, jamais saisie.
+  completude            Int                    @default(0)
+  fusionneeDansId       String?
+  fusionneeDans         Personne?              @relation("PersonneFusion", fields: [fusionneeDansId], references: [id], onDelete: SetNull)
+  fusionnees            Personne[]             @relation("PersonneFusion")
+  creeParId             String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  roles                 PersonneRole[]
+  affiliations          Affiliation[]
+  adresses              Adresse[]
+  pointsDeContact       PointDeContact[]
+  users                 User[]
+  employees             Employee[]
+  medicalDoctors        MedicalDoctor[]
+  careBeneficiaries     CareBeneficiary[]
+  adProVoyageurs        AdProVoyageur[]
+  adProHebergements     AdProHebergement[]
+  recruitmentCandidates RecruitmentCandidate[]
+  directoryEntries      DirectoryEntry[]
+  supplierUsers         SupplierUser[]
+
+  @@index([nomReplie])
+  @@index([fusionneeDansId])
+}
+
+/// Ce qu'une personne EST pour l'entreprise — plusieurs rôles à la fois, chacun daté.
+enum RolePersonne {
+  COLLABORATEUR
+  PROFESSIONNEL_SANTE
+  BENEFICIAIRE
+  VOYAGEUR
+  CANDIDAT
+  CONTACT_TIERS
+  INTERVENANT
+}
+
+/// R1 — Un rôle d'une personne, de `depuis` à `jusquA` (nul = en cours).
+model PersonneRole {
+  id         String       @id @default(cuid())
+  personneId String
+  personne   Personne     @relation(fields: [personneId], references: [id], onDelete: Cascade)
+  role       RolePersonne
+  depuis     DateTime?    @db.Date
+  jusquA     DateTime?    @db.Date
+  creeParId  String?
+  createdAt  DateTime     @default(now())
+
+  @@index([personneId])
+  @@index([role])
+}
+
+/// R2 — UNE ORGANISATION RÉELLE (société du groupe, fournisseur, établissement, société savante, autorité…),
+/// reconnue par ses identifiants (`OrganisationIdentifiant`). `Company`, `Supplier`, `MedicalInstitution`,
+/// `CompanyContact` et les demandes la désignent par `organisationId`. Fusion tracée par `fusionneeDansId`.
+model Organisation {
+  id                     String                    @id @default(cuid())
+  raisonSociale          String
+  nomCourt               String?
+  /// Raison sociale repliée (minuscules, sans accents, sans forme juridique) : recherche et rapprochement.
+  nomReplie              String
+  formeJuridique         String?
+  capital                Decimal?                  @db.Decimal(14, 2)
+  /// Code pays ISO 3166-1 alpha-2.
+  pays                   String                    @default("DZ")
+  /// ACTIVE | CESSEE | INCONNU — vocabulaire tenu côté code.
+  statut                 String                    @default("ACTIVE")
+  siteWeb                String?
+  /// Logo : `FileBlob.id` (scalaire).
+  logoBlobId             String?
+  /// 0–100, calculée.
+  completude             Int                       @default(0)
+  fusionneeDansId        String?
+  fusionneeDans          Organisation?             @relation("OrganisationFusion", fields: [fusionneeDansId], references: [id], onDelete: SetNull)
+  fusionnees             Organisation[]            @relation("OrganisationFusion")
+  creeParId              String?
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  roles                  OrganisationRole[]
+  identifiants           OrganisationIdentifiant[]
+  affiliations           Affiliation[]
+  adresses               Adresse[]
+  pointsDeContact        PointDeContact[]
+  companies              Company[]
+  companyContacts        CompanyContact[]
+  suppliers              Supplier[]
+  medicalInstitutions    MedicalInstitution[]
+  sponsoringRequests     SponsoringRequest[]
+  congressNationals      CongressNational[]
+  congressInternationals CongressInternational[]
+
+  @@index([nomReplie])
+  @@index([fusionneeDansId])
+}
+
+/// Ce qu'une organisation EST pour l'entreprise — plusieurs rôles à la fois.
+enum RoleOrganisation {
+  SOCIETE_DU_GROUPE
+  FOURNISSEUR
+  CLIENT
+  ETABLISSEMENT_SANTE
+  SOCIETE_SAVANTE
+  AUTORITE
+  LABORATOIRE
+  AGENCE
+  BANQUE
+  TRANSPORTEUR
+  AUTRE
+}
+
+/// R2 — Un rôle d'une organisation, daté.
+model OrganisationRole {
+  id             String           @id @default(cuid())
+  organisationId String
+  organisation   Organisation     @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  role           RoleOrganisation
+  depuis         DateTime?        @db.Date
+  jusquA         DateTime?        @db.Date
+  creeParId      String?
+  createdAt      DateTime         @default(now())
+
+  @@unique([organisationId, role])
+  @@index([role])
+}
+
+/// Les identifiants officiels d'une organisation algérienne (et le code de la PCH).
+enum TypeIdentifiantOrganisation {
+  NIF
+  NIS
+  RC
+  AI
+  AGREMENT
+  CODE_PCH
+}
+
+/// R2 — UN IDENTIFIANT OFFICIEL : deux organisations ne partagent jamais (type, valeur normalisée). C'est
+/// la clé de rapprochement d'un tiers (« le NIF lu sur un devis désigne CETTE organisation »).
+model OrganisationIdentifiant {
+  id               String                      @id @default(cuid())
+  organisationId   String
+  organisation     Organisation                @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  type             TypeIdentifiantOrganisation
+  /// Telle que lue ou saisie.
+  valeur           String
+  /// Chiffres et lettres seuls, majuscules : la forme comparée.
+  valeurNormalisee String
+  /// Pièce d'où il a été lu (nul : saisie).
+  pieceId          String?
+  verifieLe        DateTime?
+  creeParId        String?
+  createdAt        DateTime                    @default(now())
+
+  @@unique([type, valeurNormalisee])
+  @@index([organisationId])
+}
+
+/// R2 — PERSONNE ↔ ORGANISATION : remplace les champs texte `institution`. Une personne a au plus une
+/// affiliation `principale` vivante (tenu côté code).
+model Affiliation {
+  id             String       @id @default(cuid())
+  personneId     String
+  personne       Personne     @relation(fields: [personneId], references: [id], onDelete: Cascade)
+  organisationId String
+  organisation   Organisation @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  fonction       String?
+  service        String?
+  depuis         DateTime?    @db.Date
+  jusquA         DateTime?    @db.Date
+  principale     Boolean      @default(false)
+  creeParId      String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([personneId])
+  @@index([organisationId])
+}
+
+enum TypeAdresse {
+  SIEGE
+  LIVRAISON
+  DOMICILE
+  AUTRE
+}
+
+/// R3 — UNE ADRESSE, d'une personne OU d'une organisation (exactement un titulaire, contrainte en base).
+/// `wilayaCode` / `communeCode` sont des codes officiels SCALAIRES : le référentiel Wilaya/Commune est
+/// chargé par un autre lot, la clé étrangère viendra avec lui.
+model Adresse {
+  id             String        @id @default(cuid())
+  personneId     String?
+  personne       Personne?     @relation(fields: [personneId], references: [id], onDelete: Cascade)
+  organisationId String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  type           TypeAdresse   @default(AUTRE)
+  ligne1         String
+  ligne2         String?
+  /// Code wilaya officiel (« 16 » = Alger).
+  wilayaCode     String?
+  /// Code commune officiel.
+  communeCode    String?
+  codePostal     String?
+  /// Code pays ISO 3166-1 alpha-2.
+  pays           String        @default("DZ")
+  lat            Float?
+  lng            Float?
+  principale     Boolean       @default(false)
+  /// Pièce d'où elle a été lue, ou SAISIE / IMPORT.
+  source         String?
+  verifieeLe     DateTime?
+  creeParId      String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([personneId])
+  @@index([organisationId])
+  @@index([wilayaCode, communeCode])
+}
+
+enum TypePointDeContact {
+  TELEPHONE
+  EMAIL
+  SITE
+}
+
+/// R3 — UN MOYEN DE JOINDRE une personne OU une organisation (exactement un titulaire, contrainte en base).
+/// `valeurNormalisee` : E.164 pour un téléphone, minuscules pour un e-mail, hôte pour un site.
+model PointDeContact {
+  id               String             @id @default(cuid())
+  personneId       String?
+  personne         Personne?          @relation(fields: [personneId], references: [id], onDelete: Cascade)
+  organisationId   String?
+  organisation     Organisation?      @relation(fields: [organisationId], references: [id], onDelete: Cascade)
+  type             TypePointDeContact
+  valeur           String
+  valeurNormalisee String
+  libelle          String?
+  principal        Boolean            @default(false)
+  verifieLe        DateTime?
+  /// `Piece.id` d'où il a été lu, ou SAISIE / IMPORT.
+  source           String?
+  creeParId        String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([personneId])
+  @@index([organisationId])
+  @@index([type, valeurNormalisee])
+}
+
+/// D'où une pièce est entrée dans l'ERP.
+enum SourcePiece {
+  DRIVE
+  CONVERSATION
+  EMAIL
+  PORTAIL
+  AD_PRO
+  RH
+  LEGAL
+  AUTRE
+}
+
+/// R5 — LE FICHIER, une fois pour toutes : son contenu (`blobId`, empreinte), sa nature classée et sa
+/// confidentialité. `Document` et `DriveNode` restent le stockage et les vues de l'écran et la désignent par
+/// `pieceId` ; la pièce se rattache à PLUSIEURS sujets par `PieceLien`.
+model Piece {
+  id               String           @id @default(cuid())
+  /// `FileBlob.id` (scalaire — le compte de références du blob reste tenu par le Drive).
+  blobId           String?
+  /// SHA-256 du contenu en clair — la même empreinte que `FileBlob.sha256` et `LecturePiece.empreinte`.
+  empreinte        String
+  nom              String
+  mime             String?
+  taille           Float?
+  pages            Int?
+  /// Code ISO 639-1 de la langue dominante.
+  langue           String?
+  /// Une valeur de `NATURES_PIECE` (`src/lib/enrichissement/types.ts`) ; nulle tant que non classée.
+  nature           String?
+  natureConfiance  Float?
+  confidentiality  Confidentiality  @default(INTERNAL)
+  source           SourcePiece      @default(AUTRE)
+  deposeeParId     String?
+  deposeeLe        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  liens            PieceLien[]
+  extractions      Extraction[]
+  donneesSensibles DonneeSensible[]
+  faitsConfirmes   FaitConfirme[]
+  documents        Document[]
+  driveNodes       DriveNode[]
+
+  @@index([empreinte])
+  @@index([nature])
+  @@index([blobId])
+}
+
+/// À quoi une pièce est rattachée : une PERSONNE, une ORGANISATION ou une ENTITÉ métier (poste, demande…).
+enum TypeSujetPiece {
+  PERSONNE
+  ORGANISATION
+  ENTITE
+}
+
+/// R5 — UNE PIÈCE ↔ UN SUJET, avec un rôle (« passeport de », « devis du », « pièce de »). Le même passeport
+/// est lié à la personne, au poste et à la demande — trois liens, un seul fichier.
+model PieceLien {
+  id         String         @id @default(cuid())
+  pieceId    String
+  piece      Piece          @relation(fields: [pieceId], references: [id], onDelete: Cascade)
+  sujetType  TypeSujetPiece
+  sujetId    String
+  /// Pour une ENTITE : le type métier, libre (« AD_PRO_ITEM », « SPONSORING_REQUEST »…). Nul sinon.
+  entityType String?
+  /// TITULAIRE, EMETTEUR, DESTINATAIRE, JUSTIFICATIF… — vocabulaire tenu côté code.
+  role       String
+  creeParId  String?
+  createdAt  DateTime       @default(now())
+
+  @@unique([pieceId, sujetType, sujetId, role])
+  @@index([sujetType, sujetId])
+}
+
+/// Le titulaire d'une donnée du coffre.
+enum TypeTitulaire {
+  PERSONNE
+  ORGANISATION
+}
+
+/// R6 — LE COFFRE : une donnée sensible (NIN, passeport, RIB/IBAN, salaire), CHIFFRÉE avec une clé dédiée
+/// (AES-256-GCM : `valeurChiffree` + `iv` + `tag`), recherchable par `empreinteHmac` sans être déchiffrée.
+/// Seuls `derniersCaracteres` s'affichent. Lecture réservée : RH (salaires, NIN), Finances (RIB, IBAN), le
+/// titulaire pour les siennes — chaque lecture écrit un `AccesDonneeSensible`. Jamais à un modèle.
+model DonneeSensible {
+  id                 String                @id @default(cuid())
+  titulaireType      TypeTitulaire
+  titulaireId        String
+  /// La clé de l'attribut sensible du catalogue (`personne.nin`, `personne.passeport.numero`, `organisation.rib`…).
+  nature             String
+  valeurChiffree     Bytes
+  iv                 Bytes
+  tag                Bytes
+  /// Version de la clé de chiffrement : permet la rotation sans tout déchiffrer d'un coup.
+  cleVersion         Int                   @default(1)
+  /// HMAC-SHA-256 de la valeur normalisée (clé distincte) : retrouver un doublon sans déchiffrer.
+  empreinteHmac      String
+  derniersCaracteres String?
+  pieceId            String?
+  piece              Piece?                @relation(fields: [pieceId], references: [id], onDelete: SetNull)
+  valideDu           DateTime?             @db.Date
+  valideAu           DateTime?             @db.Date
+  creeParId          String?
+  createdAt          DateTime              @default(now())
+  acces              AccesDonneeSensible[]
+  faitsProposes      FaitPropose[]
+  faitsConfirmes     FaitConfirme[]
+
+  @@index([titulaireType, titulaireId])
+  @@index([empreinteHmac])
+}
+
+/// R6 — QUI A LU QUOI, QUAND, POUR QUEL GESTE. Le journal survit à la donnée : la nature et le titulaire
+/// sont recopiés, la clé passe à nul si la donnée est un jour effacée (accord exprès, palier P5).
+model AccesDonneeSensible {
+  id               String          @id @default(cuid())
+  donneeSensibleId String?
+  donneeSensible   DonneeSensible? @relation(fields: [donneeSensibleId], references: [id], onDelete: SetNull)
+  titulaireType    TypeTitulaire
+  titulaireId      String
+  nature           String
+  userId           String
+  /// LECTURE, COPIE, EXPORT, IMPRESSION… — vocabulaire tenu côté code.
+  geste            String
+  motif            String?
+  createdAt        DateTime        @default(now())
+
+  @@index([donneeSensibleId])
+  @@index([userId, createdAt])
+  @@index([titulaireType, titulaireId])
+}
+
+enum StatutExtraction {
+  EN_COURS
+  TERMINEE
+  ECHOUEE
+}
+
+/// E — UN PASSAGE D'UN EXTRACTEUR SUR UNE PIÈCE (`ResultatExtraction`) : quel moteur, local ou non, ce qu'il
+/// n'a pas pu lire (`notes`, jamais un silence), sa durée et son coût.
+model Extraction {
+  id        String           @id @default(cuid())
+  pieceId   String
+  piece     Piece            @relation(fields: [pieceId], references: [id], onDelete: Cascade)
+  /// La nature retenue pour cette extraction (`NATURES_PIECE`).
+  nature    String?
+  /// « mrz-local/1 », « pieces-lues/3 », « regles-cv/1 »…
+  moteur    String
+  /// Vrai : rien n'est sorti du serveur.
+  local     Boolean
+  statut    StatutExtraction @default(EN_COURS)
+  notes     String[]         @default([])
+  dureeMs   Int?
+  coutUsd   Decimal?         @db.Decimal(12, 6)
+  creeParId String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  faits     FaitPropose[]
+
+  @@index([pieceId])
+  @@index([statut, createdAt])
+}
+
+/// Le type de sujet d'un fait (`TypeSujet` du contrat).
+enum TypeSujetFait {
+  PERSONNE
+  ORGANISATION
+  PRODUIT
+}
+
+/// Le rôle du sujet DANS la pièce (`RoleSujet` du contrat).
+enum RoleSujetFait {
+  TITULAIRE
+  EMETTEUR
+  DESTINATAIRE
+  SIGNATAIRE
+  PARTIE
+  ORGANISATEUR
+  MENTIONNE
+}
+
+/// Le sort d'un fait proposé (`DecisionFait` du contrat, plus l'attente et le rejet humain).
+enum DecisionFaitPropose {
+  EN_ATTENTE
+  CONFIRME_D_OFFICE
+  CONFIRME
+  REJETE
+  CONFLIT
+  COFFRE
+  IGNORE
+}
+
+/// E — UN FAIT LU SUR UNE PIÈCE : une PROPOSITION, jamais une écriture (`FaitExtrait`). `sujetRef` groupe les
+/// faits d'un même sujet de la pièce ; `sujetId` se remplit une fois le sujet résolu. Un fait SENSIBLE ne
+/// garde ni `valeur` ni `valeurNormalisee` (contrainte en base) : sa valeur est au coffre (`donneeSensibleId`).
+model FaitPropose {
+  id               String              @id @default(cuid())
+  extractionId     String
+  extraction       Extraction          @relation(fields: [extractionId], references: [id], onDelete: Cascade)
+  sujetRef         String
+  sujetType        TypeSujetFait
+  sujetId          String?
+  role             RoleSujetFait
+  /// Une clé de `ATTRIBUTS` (« personne.nom », « organisation.nif »).
+  attribut         String
+  valeur           String?
+  valeurNormalisee String?
+  /// 0 à 1.
+  confiance        Float
+  /// `{ page, extrait }` — l'extrait d'un fait sensible est masqué avant écriture.
+  preuve           Json
+  sensible         Boolean             @default(false)
+  donneeSensibleId String?
+  donneeSensible   DonneeSensible?     @relation(fields: [donneeSensibleId], references: [id], onDelete: SetNull)
+  decision         DecisionFaitPropose @default(EN_ATTENTE)
+  raisonDecision   String?
+  decideeParId     String?
+  decideeLe        DateTime?
+  createdAt        DateTime            @default(now())
+  confirmations    FaitConfirme[]
+  conflits         ConflitDeFait[]
+
+  @@index([extractionId])
+  @@index([sujetType, sujetId])
+  @@index([decision, createdAt])
+  @@index([attribut, valeurNormalisee])
+}
+
+/// D'où vient un fait confirmé.
+enum SourceFaitConfirme {
+  PIECE
+  SAISIE
+  IMPORT
+}
+
+/// E — CE QUE LA FICHE TIENT POUR VRAI, avec son historique : chaque valeur garde sa source, qui l'a confirmée
+/// et sa période de validité. Une valeur remplacée passe `actif = false` et prend un `valideAu` — jamais
+/// effacée. Un fait sensible n'a pas de valeur en clair (contrainte en base) : il pointe le coffre.
+model FaitConfirme {
+  id               String             @id @default(cuid())
+  sujetType        TypeSujetFait
+  sujetId          String
+  attribut         String
+  valeur           String?
+  valeurNormalisee String?
+  sensible         Boolean            @default(false)
+  donneeSensibleId String?
+  donneeSensible   DonneeSensible?    @relation(fields: [donneeSensibleId], references: [id], onDelete: SetNull)
+  source           SourceFaitConfirme
+  pieceId          String?
+  piece            Piece?             @relation(fields: [pieceId], references: [id], onDelete: SetNull)
+  faitProposeId    String?
+  faitPropose      FaitPropose?       @relation(fields: [faitProposeId], references: [id], onDelete: SetNull)
+  confirmeParId    String?
+  confirmeLe       DateTime           @default(now())
+  valideDu         DateTime?
+  valideAu         DateTime?
+  actif            Boolean            @default(true)
+  conflits         ConflitDeFait[]
+
+  @@index([sujetType, sujetId, attribut, actif])
+  @@index([attribut, valeurNormalisee])
+  @@index([pieceId])
+}
+
+enum StatutConflitDeFait {
+  OUVERT
+  GARDE_ACTUELLE
+  REMPLACEE
+  ABANDONNE
+}
+
+/// E — UN DÉSACCORD entre ce que la fiche tient (`faitConfirme`) et ce qu'une pièce propose (`faitPropose`) :
+/// jamais un écrasement, une file de décision. Les valeurs sont recopiées pour la lecture (nulles si sensibles).
+model ConflitDeFait {
+  id             String              @id @default(cuid())
+  sujetType      TypeSujetFait
+  sujetId        String
+  attribut       String
+  faitConfirmeId String?
+  faitConfirme   FaitConfirme?       @relation(fields: [faitConfirmeId], references: [id], onDelete: SetNull)
+  faitProposeId  String
+  faitPropose    FaitPropose         @relation(fields: [faitProposeId], references: [id], onDelete: Cascade)
+  valeurActuelle String?
+  valeurProposee String?
+  statut         StatutConflitDeFait @default(OUVERT)
+  resoluParId    String?
+  resoluLe       DateTime?
+  commentaire    String?
+  createdAt      DateTime            @default(now())
+
+  @@index([sujetType, sujetId])
+  @@index([statut, createdAt])
+  @@index([faitProposeId])
+  @@index([faitConfirmeId])
 }
