@@ -811,9 +811,9 @@ export const ADPRO5_OPS_IMPL: Record<string, OpImpl> = {
           ["Bénéficiaire", opStr(input, "person") || null],
           ["Montant", opStr(input, "amount") ? dzd(Number(opStr(input, "amount"))) : null],
         ]),
-        warnings: ["La demande part directement à la DIRECTION (référence automatique)."],
+        warnings: ["La demande suit le circuit Ad & Pro (référence automatique) : son N+1, le Directeur des opérations, puis la prévalidation de la Direction Marketing ; les postes s'ajoutent après."],
         args: { title, description, beneficiary: opStr(input, "person") || null, amount: opStr(input, "amount") || null },
-        successMessage: `Demande « ${title} » créée — à la décision de la Direction.`,
+        successMessage: `Demande « ${title} » créée — elle part dans son circuit de validation.`,
         revalidate: ["/ad-pro"],
       };
     },

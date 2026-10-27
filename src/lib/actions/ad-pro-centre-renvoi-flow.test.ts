@@ -121,6 +121,11 @@ suite("Centre Ad & Pro — renvoyer, resoumettre, réexaminer (flux réel)", () 
     const contrats = (await prisma.consultingContract.findMany({ where: { reference: { startsWith: TAG } }, select: { id: true } })).map((c) => c.id);
     const autres = (await prisma.adProOtherRequest.findMany({ where: { title: { startsWith: TAG } }, select: { id: true } })).map((c) => c.id);
     await prisma.adProGateVisa.deleteMany({ where: { entityId: { in: [...contrats, ...autres, ...docs] } } }).catch(() => {});
+    // Le circuit des demandes « autres » (27/10/2026) : polymorphe, il ne part pas en cascade.
+    const instances = (await prisma.workflowInstance.findMany({ where: { entityType: "AD_PRO_OTHER", entityId: { in: autres } }, select: { id: true } })).map((i) => i.id);
+    await prisma.workflowStepEvent.deleteMany({ where: { instanceId: { in: instances } } }).catch(() => {});
+    await prisma.workflowInstance.deleteMany({ where: { id: { in: instances } } }).catch(() => {});
+    await prisma.medicalInfoDeclaration.deleteMany({ where: { sourceType: "AD_PRO_OTHER", sourceId: { in: autres } } }).catch(() => {});
     const vIds = (await prisma.validationRequest.findMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: { in: docs } }, select: { id: true } })).map((v) => v.id);
     await prisma.validationStep.deleteMany({ where: { requestId: { in: vIds } } }).catch(() => {});
     await prisma.validationRequest.deleteMany({ where: { id: { in: vIds } } }).catch(() => {});
@@ -257,31 +262,30 @@ suite("Centre Ad & Pro — renvoyer, resoumettre, réexaminer (flux réel)", () 
     expect(await montantDuContrat(id), "sans montant saisi, le montant ne bouge pas").toBe(auDessus);
   });
 
-  it("« autre demande », par la VRAIE création : renvoyée, bloquée pour la Direction, resoumise sous le seuil, tranchée", async () => {
-    ACTOR = await actorFor(porteurId, "PRODUCT_MANAGER");
+  /**
+   * LA DEMANDE « AUTRE » A QUITTÉ LE VISA DU CENTRE (Direction, 27/10/2026 — décision #17) : elle suit le
+   * circuit commun, et le DG valide le TOTAL de ses postes, pas le montant demandé. Créée au-dessus du
+   * seuil, elle ne pose donc plus aucune porte ; son circuit naît avec elle. Le circuit lui-même est
+   * éprouvé par `ad-pro/autre-circuit-flow.test.ts`.
+   */
+  it("« autre demande », par la VRAIE création : plus de visa du centre, son circuit naît avec elle", async () => {
+    // La Direction : sa demande entre en circuit chez la Direction Marketing (une demande de la Direction
+    // Marketing elle-même serait prévalidée d'office, et il n'y aurait plus de circuit ouvert à fermer).
+    ACTOR = await actorFor(directionId, "DIRECTION");
     const cree = await createAdProOtherRequest(undefined, form({ title: `${TAG} autre`, description: "Prestation ponctuelle.", amount: String(auDessus) }));
     expect(cree.ok, cree.error).toBe(true);
     const id = cree.id!;
-    expect(await lireVisaAdPro("AD_PRO_OTHER", id)).toBe("PENDING");
-    expect((await decider(saId, "SUPER_ADMIN", "AD_PRO_OTHER", id, "RENVOYER", "Fractionner la prestation.")).ok).toBe(true);
-    ACTOR = await actorFor(directionId, "DIRECTION");
-    const bloquee = await decideAdProOtherRequest(form({ id, approve: "1" }));
-    expect(bloquee.ok).toBe(false);
-    expect(bloquee.error).toMatch(/demande une correction/);
-    const r = await resoumettre(porteurId, "PRODUCT_MANAGER", "AD_PRO_OTHER", id, { note: "Première tranche seulement.", amount: String(enDessous) });
-    expect(r.ok, r.error).toBe(true);
-    expect(await lireVisaAdPro("AD_PRO_OTHER", id)).toBeNull();
-    ACTOR = await actorFor(directionId, "DIRECTION");
-    const d = await decideAdProOtherRequest(form({ id, approve: "1" }));
-    expect(d.ok, d.error).toBe(true);
+    expect(await lireVisaAdPro("AD_PRO_OTHER", id), "aucune porte du centre à la création").toBeNull();
+    const inst = await prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType: "AD_PRO_OTHER", entityId: id } } });
+    expect(inst, "le circuit naît avec la demande").not.toBeNull();
+    expect((await demandesAuCentreAdPro()).some((l) => l.entityId === id && l.forme === "VISA_CENTRE"), "le centre ne la liste pas comme un visa").toBe(false);
 
-    // ANNULÉE pendant qu'elle attend le centre : sa porte est retirée, comme au consulting.
-    ACTOR = await actorFor(porteurId, "PRODUCT_MANAGER");
-    const autre = await createAdProOtherRequest(undefined, form({ title: `${TAG} autre annulée`, description: "Finalement non.", amount: String(auDessus) }));
-    expect(autre.ok, autre.error).toBe(true);
-    expect(await lireVisaAdPro("AD_PRO_OTHER", autre.id!)).toBe("PENDING");
-    expect((await closeAdProOtherRequest(form({ id: autre.id!, cancel: "1", note: "Finalement non." }))).ok).toBe(true);
-    expect(await lireVisaAdPro("AD_PRO_OTHER", autre.id!), "le centre ne trancherait plus qu'une demande morte").toBeNull();
+    // ANNULÉE en cours de circuit : son circuit se ferme — plus personne n'est attendu.
+    expect((await closeAdProOtherRequest(form({ id, cancel: "1", note: "Finalement non." }))).ok).toBe(true);
+    const fermee = await prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType: "AD_PRO_OTHER", entityId: id } } });
+    expect(fermee?.status).toBe("CANCELLED");
+    // Le geste d'avant n'avance plus une demande close.
+    expect((await decideAdProOtherRequest(form({ id, approve: "1" }))).ok).toBe(false);
   });
 
   it("RÉEXAMINER : un siège seulement, motif exigé, un refus seulement — et une demande annulée ne revient pas dans la file", async () => {

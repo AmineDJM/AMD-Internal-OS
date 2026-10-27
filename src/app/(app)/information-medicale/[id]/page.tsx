@@ -11,6 +11,7 @@ import { getDeclaration, canViewDeclaration, sourceLink, dernieresRelancesPieces
 import { decideursInfoMedActifs } from "@/lib/medical-info";
 import { estDecideurInfoMed, chezDecideur } from "@/lib/medical-info/decideur";
 import { peutOuvrirLeDossierPromo } from "@/lib/queries/promo-circuit";
+import { canAccessEntity } from "@/lib/entity-access";
 import { toNumber, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -105,6 +106,8 @@ export default async function DeclarationDetailPage({ params }: { params: { id: 
       canOpenSource = userCan(user, "CONGRESS_NATIONAL", "VIEW") &&
         (await prisma.congressNational.count({ where: { id: decl.sourceId, ...scopeCongressNational(user) } })) > 0;
     else if (decl.sourceType === "EVENT") canOpenSource = userCan(user, "EVENTS", "VIEW");
+    // La demande « autre » (27/10/2026) : la porte de SA fiche.
+    else if (decl.sourceType === "AD_PRO_OTHER") canOpenSource = await canAccessEntity(user, "AD_PRO_OTHER", decl.sourceId, "VIEW");
   }
   const amount = decl.amount != null ? toNumber(decl.amount) : null;
   const pendingCount = decl.requests.filter((r) => r.status === "PENDING").length;

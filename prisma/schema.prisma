@@ -12880,11 +12880,17 @@ model ConsultingTask {
 /// qui n'entre dans aucune nature n'a pas de circuit propre — elle a un décideur.
 enum AdProOtherStatus {
   DRAFT
+  /// En cours de circuit (27/10/2026) : chez le National Sales, le Directeur des opérations ou la
+  /// Direction Marketing — l'étape exacte est celle du `WorkflowInstance` (catégorie `OTHER`).
   AWAITING_DECISION
+  /// PRÉVALIDÉE par la Direction Marketing : les postes se préparent (le DG valide leur total au-dessus du seuil).
   APPROVED
   REFUSED
   DONE
   CANCELLED
+  /// RENVOYÉE POUR CORRECTION : chez son demandeur, qui corrige et RESOUMET ; elle revient alors à
+  /// l'étape qui l'a renvoyée (comme au sponsoring et aux prises en charge).
+  RETURNED
 }
 
 /// LA DEMANDE QUI N'ENTRE DANS AUCUNE CASE.

@@ -319,10 +319,12 @@ export async function loadAdProItems(parent: AdProParent, parentId: string): Pro
  * libre, et rien n'est rattaché à une fiche d'après lui (§118.85).
  */
 async function nomsDeLaDemande(parent: AdProParent, parentId: string): Promise<string[]> {
-  if (parent === "SPONSORING" || parent === "EVENT") {
+  if (parent === "SPONSORING" || parent === "EVENT" || parent === "AD_PRO_OTHER") {
     const r = parent === "SPONSORING"
       ? await prisma.sponsoringRequest.findUnique({ where: { id: parentId }, select: { doctor: true } })
-      : await prisma.event.findUnique({ where: { id: parentId }, select: { doctor: true } });
+      : parent === "AD_PRO_OTHER"
+        ? await prisma.adProOtherRequest.findUnique({ where: { id: parentId }, select: { doctor: true } })
+        : await prisma.event.findUnique({ where: { id: parentId }, select: { doctor: true } });
     return splitMulti(r?.doctor ?? null);
   }
   const colonne = parent === "CONGRESS_NATIONAL" ? "congressNationalId" : "congressInternationalId";
@@ -347,7 +349,8 @@ async function nomsDeLaDemande(parent: AdProParent, parentId: string): Promise<s
  */
 export async function adProBudgetOptions(viewer: SessionUser): Promise<{ id: string; label: string }[]> {
   const opts = await getBudgetCategoryOptions(
-    ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENTS", "PROMO_MATERIAL"],
+    // La demande « autre » porte des postes depuis le 27/10/2026 (décision #17) : une enveloppe qui la couvre est de la famille.
+    ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENTS", "AD_PRO_OTHER", "PROMO_MATERIAL"],
     viewer,
   );
   return opts.map((o) => ({ id: o.id, label: o.label }));
@@ -429,6 +432,7 @@ async function auteurEtSociete(parent: AdProParent, parentId: string): Promise<{
     case "CONGRESS_NATIONAL": return prisma.congressNational.findUnique({ where: { id: parentId }, select });
     case "CONGRESS_INTERNATIONAL": return prisma.congressInternational.findUnique({ where: { id: parentId }, select });
     case "EVENT": return prisma.event.findUnique({ where: { id: parentId }, select });
+    case "AD_PRO_OTHER": return prisma.adProOtherRequest.findUnique({ where: { id: parentId }, select });
   }
 }
 
@@ -519,6 +523,7 @@ const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> 
   CONGRESS_NATIONAL: async (id) => (await prisma.congressNational.findUnique({ where: { id }, select: { requesterId: true } }))?.requesterId ?? null,
   CONGRESS_INTERNATIONAL: async (id) => (await prisma.congressInternational.findUnique({ where: { id }, select: { requesterId: true } }))?.requesterId ?? null,
   EVENT: async (id) => (await prisma.event.findUnique({ where: { id }, select: { requesterId: true } }))?.requesterId ?? null,
+  AD_PRO_OTHER: async (id) => (await prisma.adProOtherRequest.findUnique({ where: { id }, select: { requesterId: true } }))?.requesterId ?? null,
 };
 
 export async function contextePostes(user: SessionUser, parent: AdProParent, parentId: string): Promise<ContextePostes> {

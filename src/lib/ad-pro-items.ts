@@ -14,10 +14,16 @@ import { refusFichesPersonnes } from "@/lib/ad-pro/hebergements";
  * sans quoi la compilation de production échouerait sur un `fs` introuvable.
  */
 
-/** Les opérations Ad & Pro qui portent des postes — les quatre du pôle. */
-export type AdProParent = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENT";
+/**
+ * Les opérations Ad & Pro qui portent des postes — les quatre du pôle, plus la demande « autre »
+ * depuis le 27/10/2026 (elle suit le même circuit : prévalidation, postes, DG sur le total).
+ *
+ * LA VALEUR D'UN PARENT EST SON `EntityType` (`AD_PRO_OTHER`, pas `OTHER`) : le moteur et la porte du
+ * DG comparent et stockent le parent comme un type d'entité (`AdProPorteDg.entityType`).
+ */
+export type AdProParent = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENT" | "AD_PRO_OTHER";
 
-export const AD_PRO_PARENTS: AdProParent[] = ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT"];
+export const AD_PRO_PARENTS: AdProParent[] = ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "AD_PRO_OTHER"];
 
 /**
  * LA COLONNE DE CHAQUE PARENT, et l'ENTITÉ qu'elle désigne.
@@ -27,19 +33,21 @@ export const AD_PRO_PARENTS: AdProParent[] = ["SPONSORING", "CONGRESS_NATIONAL",
  * `trainingId`, est une colonne DORMANTE — recensé, elle n'a AUCUN lecteur dans le dépôt, les
  * postes d'une formation n'existant pas encore.
  */
-export const PARENT_COLONNE: Record<AdProParent, "sponsoringId" | "congressNationalId" | "congressInternationalId" | "eventId"> = {
+export const PARENT_COLONNE: Record<AdProParent, "sponsoringId" | "congressNationalId" | "congressInternationalId" | "eventId" | "otherRequestId"> = {
   SPONSORING: "sponsoringId",
   CONGRESS_NATIONAL: "congressNationalId",
   CONGRESS_INTERNATIONAL: "congressInternationalId",
   EVENT: "eventId",
+  AD_PRO_OTHER: "otherRequestId",
 };
 
 /** Le type d'entité de chaque parent — c'est LUI qui porte les droits, jamais le poste. */
-export const PARENT_ENTITE: Record<AdProParent, "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENT"> = {
+export const PARENT_ENTITE: Record<AdProParent, "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENT" | "AD_PRO_OTHER"> = {
   SPONSORING: "SPONSORING",
   CONGRESS_NATIONAL: "CONGRESS_NATIONAL",
   CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL",
   EVENT: "EVENT",
+  AD_PRO_OTHER: "AD_PRO_OTHER",
 };
 
 /** Les cinq clés étrangères d'un poste, telles qu'elles sortent de la base. */
@@ -48,6 +56,7 @@ export interface ColonnesParent {
   congressNationalId?: string | null;
   congressInternationalId?: string | null;
   eventId?: string | null;
+  otherRequestId?: string | null;
   trainingId?: string | null;
 }
 

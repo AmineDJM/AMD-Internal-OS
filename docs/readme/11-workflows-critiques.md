@@ -41,8 +41,17 @@ PHASE 3 — LE DG VALIDE LE TOTAL (lib/ad-pro/porte-dg.ts)
 > `20270131130500_adpro_circuit_prevalidation` garde `DIRECTION` à côté tant qu'aucun compte actif ne porte ce rôle :
 > l'attribuer au Directeur des opérations, puis retirer `DIRECTION` de l'étape dans Administration › Circuits.
 
-> ⚠️ **Appel** : toute nature refusée (sponsoring, prises en charge, événements) peut faire appel, motif exigé
+> ⚠️ **Appel** : toute nature refusée (sponsoring, prises en charge, événements, « autre ») peut faire appel, motif exigé
 > (`faireAppelAdPro`) → le circuit se rouvre sur l'étape qui a refusé.
+
+> ⚠️ **La demande « autre » (décision #17)** : catégorie de circuit `OTHER` (entité `AD_PRO_OTHER`), née en base comme une
+> COPIE de la définition `EVENTS` (migration `20270131160500_adpro_autre_circuit_definition`, sinon semée par
+> `defaultDefinition`). Son statut court est PROJETÉ par le moteur (`lib/workflow/autre-statut.ts`) : en circuit →
+> `AWAITING_DECISION` (« En cours de validation »), prévalidée → `APPROVED`, refusée → `REFUSED`, renvoyée pour correction →
+> `RETURNED` (« À corriger », valeur ajoutée par `20270131160000_adpro_autre_circuit`) ; la décision s'écrit dans
+> `decidedById/decidedAt/decisionNote`. Plus de visa du centre à la création ; ses postes vivent sur `AdProItem.otherRequestId`.
+> `decideAdProOtherRequest` / `resoumettreAdProOtherRequest` sont ROUTÉS vers le moteur (Adam les appelle encore) ;
+> « Terminée » / « Annuler » (`closeAdProOtherRequest`) restent, et une annulation ferme le circuit.
 
 > ⚠️ **Étape préliminaire réservée au National Sales**, et elle ne concerne QUE les demandes de KAM : lui seul
 > a un superviseur national au-dessus de sa demande. Il ne DÉSIGNE plus personne — Direction Marketing est
@@ -354,9 +363,10 @@ aussi directement depuis RH › Consultants.
 **Autre** (`/ad-pro/autres`, module `AD_PRO_OTHER`) — la case qui manquait. Sans elle, une dépense
 de promotion inhabituelle se déclarait « en sponsoring » faute de mieux, et l'on perdait deux
 choses : la lisibilité du sponsoring, qui se remplissait d'objets qui n'en étaient pas, et la trace
-de la dépense, rangée sous une étiquette fausse. Circuit volontairement court — un demandeur, une
-description **obligatoire** (c'est elle qui portera tout), une décision, un motif ; un refus se **resoumet** en
-disant ce qui a changé (`resoumettreAdProOtherRequest`), et la demande se corrige par la porte commune du pôle.
+de la dépense, rangée sous une étiquette fausse. Une description **obligatoire** (c'est elle qui portera tout) ;
+depuis le **27/10/2026** elle suit le **circuit commun** ci-dessus (prévalidation par la route de son créateur, postes
+acceptés par la Direction Marketing, le DG sur le total) — fiche à postes, panneau du circuit, renvoi / resoumission /
+appel par les gestes communs ; elle se corrige par la porte commune du pôle.
 
 ### Impliquer une tierce personne (sans accès au module)
 

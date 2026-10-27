@@ -63,7 +63,7 @@ Code : `src/lib/seuils/porte-dg-total.ts` (règle pure), `src/lib/ad-pro/porte-d
 | 12 | Appel pour toutes les natures | `faireAppelAdPro` + formulaire dans `WorkflowPanel` |
 | 13, 14, 18, 22 | « Marquer réalisée », actions héritées d'Adam, événements externes, une seule réservation | branche `adpro/nettoyage-evenements` |
 | 15 | DZD reste DZD, 1 USD = 240 DZD | branche `adpro/pec-devis-montants` |
-| 17 | « Autre » suit le même circuit | catégorie de circuit `OTHER`, postes `AdProItem.otherRequestId` |
+| 17 | « Autre » suit le même circuit | catégorie de circuit `OTHER` (copie d'`EVENTS`, migration `20270131160500`), statut projeté par `workflow/autre-statut.ts` (+ `RETURNED`, migration `20270131160000`), postes `AdProItem.otherRequestId`, plus de visa du centre à la création |
 | 23 | Commentaires du schéma | `prisma/schema.prisma` |
 | 25 | Une rallonge repasse par le DG | `etatPorteDg` |
 | 28 | Transfert : route recalculée sur le créateur | `ad-pro-transfer-actions.ts` |

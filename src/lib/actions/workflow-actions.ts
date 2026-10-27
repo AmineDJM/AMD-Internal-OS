@@ -19,7 +19,8 @@ import {
 } from "@/lib/workflow/types";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 
-const WORKFLOW_ENTITIES: EntityType[] = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT"];
+// La demande « autre » (`AD_PRO_OTHER`) suit le même circuit depuis le 27/10/2026 (décision #17).
+const WORKFLOW_ENTITIES: EntityType[] = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "AD_PRO_OTHER"];
 
 // ───────────────────────────── Progression (runtime) ─────────────────────────────
 
@@ -79,13 +80,10 @@ export async function advanceWorkflow(formData: FormData): Promise<ActionResult>
     }
   }
 
-  const base =
-    entityType === "SPONSORING" ? "/sponsoring"
-      : entityType === "CONGRESS_INTERNATIONAL" ? "/congress-international"
-        : entityType === "CONGRESS_NATIONAL" ? "/congress-national"
-          : "/events";
+  const base = CHEMIN[entityType] ?? "/events";
   revalidatePath(`${base}/${entityId}`);
   revalidatePath(base);
+  revalidatePath("/ad-pro");
   revalidatePath("/information-medicale");
   revalidatePath("/finances/paiements-a-faire");
   revalidatePath("/finances");
@@ -96,10 +94,12 @@ export async function advanceWorkflow(formData: FormData): Promise<ActionResult>
 /** Le module de chaque demande à circuit — c'est lui que « trancher » (VALIDATE) désigne. */
 const MODULE_DE: Record<string, Module> = {
   SPONSORING: "SPONSORING", CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL", CONGRESS_NATIONAL: "CONGRESS_NATIONAL", EVENT: "EVENTS",
+  AD_PRO_OTHER: "AD_PRO_OTHER",
 };
 
 const CHEMIN: Record<string, string> = {
   SPONSORING: "/sponsoring", CONGRESS_INTERNATIONAL: "/congress-international", CONGRESS_NATIONAL: "/congress-national", EVENT: "/events",
+  AD_PRO_OTHER: "/ad-pro/autres",
 };
 
 function revaliderLaDemande(entityType: EntityType, entityId: string) {
@@ -177,7 +177,8 @@ async function demandeurDe(entityType: EntityType, entityId: string): Promise<st
     entityType === "SPONSORING" ? await prisma.sponsoringRequest.findUnique({ where: { id: entityId }, ...sel })
       : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, ...sel })
         : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, ...sel })
-          : await prisma.event.findUnique({ where: { id: entityId }, ...sel });
+          : entityType === "AD_PRO_OTHER" ? await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, ...sel })
+            : await prisma.event.findUnique({ where: { id: entityId }, ...sel });
   return ligne?.requesterId ?? null;
 }
 
@@ -233,8 +234,8 @@ function sanitizeStep(raw: unknown, index: number, usedSlugs: Set<string>): Step
 }
 
 /**
- * FAIRE APPEL D'UN REFUS — prise en charge nationale ou internationale, événement (décision #12, Direction
- * 27/10/2026 : « l'appel ne vivait que pour le sponsoring »). Le demandeur — ou la vue globale — conteste
+ * FAIRE APPEL D'UN REFUS — prise en charge nationale ou internationale, événement, demande « autre »
+ * (décisions #12 et #17, Direction 27/10/2026 : « l'appel ne vivait que pour le sponsoring »). Le demandeur — ou la vue globale — conteste
  * le refus définitif, motif exigé : le circuit se rouvre sur l'étape qui a tranché (la Direction Marketing,
  * `reopenInstance`), qui est prévenue ; la demande repasse « en attente de décision ».
  */
@@ -243,14 +244,19 @@ export async function faireAppelAdPro(formData: FormData): Promise<ActionResult>
   const entityType = fdStr(formData, "entityType");
   const entityId = fdStr(formData, "entityId");
   const motif = fdStr(formData, "motif");
-  if (!entityId || (entityType !== "CONGRESS_NATIONAL" && entityType !== "CONGRESS_INTERNATIONAL" && entityType !== "EVENT")) {
+  if (!entityId || (entityType !== "CONGRESS_NATIONAL" && entityType !== "CONGRESS_INTERNATIONAL" && entityType !== "EVENT" && entityType !== "AD_PRO_OTHER")) {
     return { ok: false, error: "Demande non précisée." };
   }
   if (!motif) return { ok: false, error: "Dites pourquoi vous faites appel : le motif est transmis à l'étape qui réexamine." };
   const sel = { select: { requesterId: true, requestStatus: true, name: true } } as const;
-  const ligne = entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, ...sel })
-    : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, ...sel })
-      : await prisma.event.findUnique({ where: { id: entityId }, ...sel });
+  // LA DEMANDE « AUTRE » n'a ni `requestStatus` ni `name` : son statut est l'énumération courte (`REFUSED`
+  // après un refus définitif du circuit), son nom est son objet.
+  const ligne = entityType === "AD_PRO_OTHER"
+    ? await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { requesterId: true, status: true, title: true } })
+      .then((o) => (o ? { requesterId: o.requesterId, requestStatus: o.status === "REFUSED" ? "REJECTED" : o.status, name: o.title } : null))
+    : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, ...sel })
+      : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, ...sel })
+        : await prisma.event.findUnique({ where: { id: entityId }, ...sel });
   if (!ligne) return { ok: false, error: "Demande introuvable." };
   if (ligne.requesterId !== user.id && !hasGlobalView(user) && user.role !== "SUPER_ADMIN") return { ok: false, error: "Seul le demandeur peut faire appel." };
   if (ligne.requestStatus !== "REJECTED") return { ok: false, error: "L'appel n'est possible qu'après un refus définitif." };
@@ -258,7 +264,13 @@ export async function faireAppelAdPro(formData: FormData): Promise<ActionResult>
   const { etape } = await reopenInstance(entityType, entityId, viewer, motif);
   if (!etape) return { ok: false, error: "Le circuit n'a pas pu être rouvert (un appel vient peut-être d'être déposé) : rouvrez la fiche." };
   const data = { requestStatus: "AWAITING_FINAL" as const, rejectionReason: null };
-  if (entityType === "CONGRESS_NATIONAL") await prisma.congressNational.update({ where: { id: entityId }, data });
+  if (entityType === "AD_PRO_OTHER") {
+    // De nouveau EN CIRCUIT ; la décision d'hier quitte la ligne (elle reste au journal du circuit).
+    await prisma.adProOtherRequest.update({
+      where: { id: entityId },
+      data: { status: "AWAITING_DECISION", decidedById: null, decidedAt: null, decisionNote: null, updatedById: user.id },
+    });
+  } else if (entityType === "CONGRESS_NATIONAL") await prisma.congressNational.update({ where: { id: entityId }, data });
   else if (entityType === "CONGRESS_INTERNATIONAL") await prisma.congressInternational.update({ where: { id: entityId }, data });
   else await prisma.event.update({ where: { id: entityId }, data });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Ad & Pro", entityType, entityId, summary: `Appel du demandeur — ${ligne.name} (réexamen : ${etape}) : ${motif}` });

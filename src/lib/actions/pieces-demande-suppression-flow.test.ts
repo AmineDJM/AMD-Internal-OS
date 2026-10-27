@@ -368,8 +368,10 @@ describe("le point d'appel — les écrans montent le geste, et l'action lit la 
     expect(c, "plus de suppression désactivée en dur").not.toMatch(/canDelete=\{false\}/);
   });
 
-  it("« Pièces liées » (consulting, autre demande, matériel) demande le geste ; la fiche d'une demande au secrétariat, non", () => {
-    for (const rel of ["src/app/(app)/consulting/[id]/page.tsx", "src/app/(app)/ad-pro/autres/[id]/page.tsx", "src/app/(app)/promo-material/[id]/page.tsx"]) {
+  // La demande « autre » porte des postes depuis le 27/10/2026 (décision #17) : sa fiche a quitté le bloc « Pièces
+  // liées », comme les quatre autres fiches à postes (`ad-pro/rattacher-legal.test.ts`).
+  it("« Pièces liées » (consulting, matériel) demande le geste ; la fiche d'une demande au secrétariat, non", () => {
+    for (const rel of ["src/app/(app)/consulting/[id]/page.tsx", "src/app/(app)/promo-material/[id]/page.tsx"]) {
       expect(code(rel), rel).toMatch(/<LinkedRecords[\s\S]*?candidatsLegal=\{ctxPieces\.candidatsLegal\} suppression/);
     }
     expect(code("src/app/(app)/demandes/[id]/page.tsx")).not.toMatch(/<LinkedRecords[^>]*suppression/);

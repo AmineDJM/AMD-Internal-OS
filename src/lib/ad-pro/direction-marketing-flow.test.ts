@@ -56,7 +56,9 @@ suite("la Direction Marketing : la force de vente en lecture, ce qui l'attend, e
     await prisma.workflowInstance.deleteMany({ where: { entityType: "SPONSORING", entityId: { in: spos } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: { in: spos } } }).catch(() => {});
     await prisma.consultingContract.deleteMany({ where: { reference: { startsWith: "__dmarb" } } }).catch(() => {});
-    await prisma.adProOtherRequest.deleteMany({ where: { reference: { startsWith: "__dmarb" } } }).catch(() => {});
+    const autres = (await prisma.adProOtherRequest.findMany({ where: { reference: { startsWith: "__dmarb" } }, select: { id: true } })).map((x) => x.id);
+    await prisma.workflowInstance.deleteMany({ where: { entityType: "AD_PRO_OTHER", entityId: { in: autres } } }).catch(() => {});
+    await prisma.adProOtherRequest.deleteMany({ where: { id: { in: autres } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
@@ -113,11 +115,18 @@ suite("la Direction Marketing : la force de vente en lecture, ce qui l'attend, e
     autre = (await prisma.adProOtherRequest.create({
       data: { reference: `${TAG}AUT`, title: `${TAG} autre demande`, status: "AWAITING_DECISION", companyId: societeC },
     })).id;
+    // LA DEMANDE « AUTRE » SUIT LE CIRCUIT COMMUN (27/10/2026, décision #17) : elle attend la Direction
+    // Marketing sur l'étape de son circuit, comme le sponsoring — posée là par le même chemin paresseux.
+    {
+      const inst = await ensureInstance("AD_PRO_OTHER", autre);
+      expect(inst, "l'instance de la demande « autre » naît").not.toBeNull();
+      await prisma.workflowInstance.update({ where: { id: inst!.id }, data: { currentSlug: "marketing", status: "IN_PROGRESS" } });
+    }
     // Les plus anciennes d'abord : on les vieillit, pour qu'aucune demande d'un banc voisin ne
     // passe devant dans une fenêtre bornée — le juge ne doit pas dépendre du voisinage (§118.92).
     await prisma.$executeRaw`UPDATE "ConsultingContract" SET "updatedAt" = '2001-01-01' WHERE reference LIKE ${TAG + "%"}`;
     await prisma.$executeRaw`UPDATE "AdProOtherRequest" SET "updatedAt" = '2001-01-01' WHERE reference LIKE ${TAG + "%"}`;
-    await prisma.$executeRaw`UPDATE "WorkflowInstance" SET "updatedAt" = '2001-01-01' WHERE "entityId" IN (${spo}, ${spoAilleurs}, ${spoAutreEtape})`;
+    await prisma.$executeRaw`UPDATE "WorkflowInstance" SET "updatedAt" = '2001-01-01' WHERE "entityId" IN (${spo}, ${spoAilleurs}, ${spoAutreEtape}, ${autre})`;
 
     const piece = async (cle: string, kind: string, sourceType: string, sourceId: string, companyId: string) => {
       pieces[cle] = (await prisma.legalDocument.create({

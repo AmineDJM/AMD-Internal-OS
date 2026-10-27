@@ -358,9 +358,11 @@ describe("la migration Ad&Pro ne peut pas manquer une catégorie", () => {
 
   it("elle ne filtre sur AUCUNE liste de catégories — un nom à tenir à jour est un nom qu'on oublie", () => {
     // Ce qui le ferait tomber : réintroduire un filtre par catégorie. Toute `WorkflowDefinition`
-    // est un circuit Ad & Pro (`WORKFLOW_CATEGORIES` n'en contient que quatre), donc le filtre
-    // n'apportait rien qu'une occasion de se tromper.
-    expect(WORKFLOW_CATEGORIES.length, "si un cinquième circuit apparaît, cette hypothèse doit être relue").toBe(4);
+    // est un circuit Ad & Pro, donc le filtre n'apportait rien qu'une occasion de se tromper.
+    // RELUE le 27/10/2026 pour le cinquième, `OTHER` (la demande « autre », décision #17) : c'est encore
+    // un circuit Ad & Pro, et il naît comme une COPIE de `EVENTS` déjà migrée
+    // (`20270131160500_adpro_autre_circuit_definition`) — l'hypothèse tient.
+    expect(WORKFLOW_CATEGORIES.length, "si un sixième circuit apparaît, cette hypothèse doit être relue").toBe(5);
     expect(sql, "cibler par catégorie ⇒ une catégorie peut être manquée en silence").not.toMatch(/category"?\s+IN\s*\(/i);
   });
 

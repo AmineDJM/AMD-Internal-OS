@@ -258,6 +258,7 @@ const PARENT_PATH: Record<AdProParent, string> = {
   CONGRESS_NATIONAL: "/congress-national",
   CONGRESS_INTERNATIONAL: "/congress-international",
   EVENT: "/events",
+  AD_PRO_OTHER: "/ad-pro/autres",
 };
 
 export function AdProItemsPanel({
@@ -339,7 +340,7 @@ export function AdProItemsPanel({
       busy={busy}
       run={run}
       parentLink={parentLink}
-      moduleLibelle={`Ad & Pro — ${kindLabel(parent)}`}
+      moduleLibelle={`Ad & Pro — ${kindLabel(parent === "AD_PRO_OTHER" ? "OTHER" : parent)}`}
       porteDg={contexte.porteDg}
     />
   );

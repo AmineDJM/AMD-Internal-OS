@@ -2,35 +2,26 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Check, X, CircleCheckBig, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input, Textarea } from "@/components/ui/input";
-import { decideAdProOtherRequest, closeAdProOtherRequest, resoumettreAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
+import { Loader2, X, CircleCheckBig } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { closeAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 
 /**
- * TRANCHER UNE DEMANDE « AUTRE ».
+ * LA SUITE D'UNE DEMANDE « AUTRE » — la marquer terminée, ou l'annuler.
  *
- * Le circuit est court par construction : valider ou refuser, avec un motif ; puis marquer
- * terminé une fois exécutée. On n'affiche que ce qui a un sens à cet instant — un bouton qui
- * apparaît puis échoue fait douter de tout le reste de l'écran.
+ * Depuis le 27/10/2026 (décision #17), elle se DÉCIDE par le circuit commun : le panneau du circuit
+ * (`WorkflowPanel`) porte la validation, le refus, le renvoi pour correction, la resoumission et
+ * l'appel. Il ne reste ici que ce qui vient APRÈS (ou à côté) : « Terminée » une fois exécutée, ou
+ * l'annulation, motif exigé. On n'affiche que ce qui a un sens à cet instant — un bouton qui apparaît
+ * puis échoue fait douter de tout le reste de l'écran.
  */
-export function OtherDecisionPanel({
-  id, status, canDecide, canClose, canResubmit = false, description = "", amount = null,
-}: {
-  id: string; status: string; canDecide: boolean; canClose: boolean;
-  /** Le demandeur d'une demande REFUSÉE la resoumet (audit 360°, rapport 17 R14). */
-  canResubmit?: boolean;
-  description?: string;
-  amount?: number | null;
-}) {
+export function OtherDecisionPanel({ id, status, canClose }: { id: string; status: string; canClose: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [annonce, setAnnonce] = React.useState<string | null>(null);
-  const [note, setNote] = React.useState("");
   const [motifAnnulation, setMotifAnnulation] = React.useState("");
-  const [correction, setCorrection] = React.useState("");
 
   const run = async (
     key: string,
@@ -43,71 +34,29 @@ export function OtherDecisionPanel({
     const r = await fn(fd);
     setBusy(null);
     if (!r.ok) { setErr(r.error ?? "L'opération a échoué."); return; }
-    setNote(""); setMotifAnnulation(""); setCorrection("");
-    // Ce que le geste a fait AILLEURS (la porte du centre) se DIT — l'écran ne le jette pas (§118.168).
+    setMotifAnnulation("");
     if (r.message) setAnnonce(r.message);
     router.refresh();
   };
 
-  if (!canDecide && !canClose && !canResubmit) return annonce ? <p className="rounded-lg bg-success/10 px-3 py-2 text-sm">{annonce}</p> : null;
+  if (!canClose) return annonce ? <p className="rounded-lg bg-success/10 px-3 py-2 text-sm">{annonce}</p> : null;
 
   return (
     <div className="space-y-4">
-      {canDecide && (
-        <div className="surface space-y-2 p-4">
-          <h3 className="text-sm font-semibold">Décision</h3>
-          {/* Le motif est EXIGÉ pour refuser (audit 360°, rapport 17 R14) : c'est sur lui que le demandeur
-              corrigera, puis resoumettra. L'action le revérifie. */}
-          <Textarea value={note} onChange={(e) => setNote(e.target.value)} aria-label="Motif de la décision" placeholder="Motif — obligatoire pour refuser" rows={3} />
-          <div className="flex gap-2">
-            <BoutonDecisif className="flex-1" disabled={busy !== null} onClick={() => run("ok", decideAdProOtherRequest, { id, approve: "1", note })}>
-              {busy === "ok" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Valider
+      <div className="surface space-y-2 p-4">
+        <h3 className="text-sm font-semibold">Suite</h3>
+        <Input value={motifAnnulation} onChange={(e) => setMotifAnnulation(e.target.value)} aria-label="Motif de l'annulation" placeholder="Motif — obligatoire pour annuler" />
+        <div className="flex flex-wrap gap-2">
+          {status === "APPROVED" && (
+            <BoutonDecisif variant="outline" className="flex-1" disabled={busy !== null} onClick={() => run("done", closeAdProOtherRequest, { id, cancel: "0" })}>
+              {busy === "done" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleCheckBig className="h-4 w-4" />} Terminée
             </BoutonDecisif>
-            <BoutonDecisif variant="outline" className="flex-1 text-destructive" disabled={busy !== null || !note.trim()} onClick={() => run("no", decideAdProOtherRequest, { id, approve: "0", note })}>
-              {busy === "no" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Refuser
-            </BoutonDecisif>
-          </div>
+          )}
+          <BoutonDecisif variant="outline" className="flex-1 text-destructive" disabled={busy !== null || !motifAnnulation.trim()} onClick={() => run("cancel", closeAdProOtherRequest, { id, cancel: "1", note: motifAnnulation })}>
+            {busy === "cancel" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Annuler
+          </BoutonDecisif>
         </div>
-      )}
-
-      {canResubmit && (
-        <form
-          className="surface space-y-2 p-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            const f = new FormData(e.currentTarget);
-            void run("resubmit", resoumettreAdProOtherRequest, {
-              id, note: correction, description: String(f.get("description") ?? ""), amount: String(f.get("amount") ?? ""),
-            });
-          }}
-        >
-          <h3 className="text-sm font-semibold">Resoumettre la demande</h3>
-          <p className="text-xs text-muted-foreground">Dites ce qui a changé depuis le refus ; corrigez la description ou le montant s&apos;il le faut.</p>
-          <Input value={correction} onChange={(e) => setCorrection(e.target.value)} aria-label="Ce qui a changé" placeholder="Ce qui a changé (obligatoire)" />
-          <Textarea name="description" defaultValue={description} aria-label="Description" rows={3} required />
-          <Input name="amount" type="number" inputMode="decimal" min={0} step="any" defaultValue={amount == null ? "" : String(amount)} aria-label="Montant (DZD)" placeholder="Montant (DZD)" />
-          <Button type="submit" className="w-full" disabled={busy !== null || !correction.trim()}>
-            {busy === "resubmit" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />} Resoumettre la demande
-          </Button>
-        </form>
-      )}
-
-      {canClose && (
-        <div className="surface space-y-2 p-4">
-          <h3 className="text-sm font-semibold">Suite</h3>
-          <Input value={motifAnnulation} onChange={(e) => setMotifAnnulation(e.target.value)} aria-label="Motif de l'annulation" placeholder="Motif — obligatoire pour annuler" />
-          <div className="flex flex-wrap gap-2">
-            {status === "APPROVED" && (
-              <BoutonDecisif variant="outline" className="flex-1" disabled={busy !== null} onClick={() => run("done", closeAdProOtherRequest, { id, cancel: "0" })}>
-                {busy === "done" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CircleCheckBig className="h-4 w-4" />} Terminée
-              </BoutonDecisif>
-            )}
-            <BoutonDecisif variant="outline" className="flex-1 text-destructive" disabled={busy !== null || !motifAnnulation.trim()} onClick={() => run("cancel", closeAdProOtherRequest, { id, cancel: "1", note: motifAnnulation })}>
-              {busy === "cancel" ? <Loader2 className="h-4 w-4 animate-spin" /> : <X className="h-4 w-4" />} Annuler
-            </BoutonDecisif>
-          </div>
-        </div>
-      )}
+      </div>
 
       {annonce && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm">{annonce}</p>}
       {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}

@@ -15,7 +15,7 @@ import { moneyEntityOf } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
-import { canEmitOrder, canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PARENT_ENTITE, REFUS_INDIRECT_NON_REPARTI, type AdProParent } from "@/lib/ad-pro-items";
+import { AD_PRO_PARENTS, canEmitOrder, canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PARENT_ENTITE, REFUS_INDIRECT_NON_REPARTI, type AdProParent } from "@/lib/ad-pro-items";
 import {
   PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece, TITRE_BC_A_ETABLIR,
   type NaturePieceSecretariat,
@@ -149,6 +149,8 @@ interface ParentInfo {
    */
   clos: boolean;
   closedByClosure?: boolean;
+  /** La phrase d'une demande close autrement que par clôture ou transfert (une demande « autre » terminée). */
+  closPhrase?: string;
   /**
    * REFUSÉE OU ANNULÉE (audit 360°, R24–R36) : ses postes restaient soumissibles, décidables, et leur
    * bon de commande demandable — le centre aurait visé ce que les Finances n'auraient jamais pu émettre.
@@ -166,13 +168,13 @@ interface ParentInfo {
   indirect?: boolean;
 }
 
-type AdProModule = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENTS";
+type AdProModule = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENTS" | "AD_PRO_OTHER";
 
 interface ParentSpec {
   module: AdProModule;
   path: string;
   /** Colonne de rattachement du poste — une par opération, jamais de colonne polymorphe. */
-  column: "sponsoringId" | "congressNationalId" | "congressInternationalId" | "eventId";
+  column: "sponsoringId" | "congressNationalId" | "congressInternationalId" | "eventId" | "otherRequestId";
   /** Charge ce dont les actions ont besoin, quel que soit le nom des colonnes. */
   load: (id: string) => Promise<ParentInfo | null>;
 }
@@ -271,16 +273,39 @@ const PARENTS: Record<AdProParent, ParentSpec> = {
       return { id: r.id, ref: r.name, beneficiary: r.name, decided, tardif: tardifCongres(decided, r.finalAmount), clos: false, refusee, requesterId: r.requesterId, companyId: r.companyId };
     },
   },
+  // LA DEMANDE « AUTRE » (27/10/2026, décision #17) : même circuit, mêmes postes. Prévalidée (`APPROVED`)
+  // ou terminée (`DONE`), elle est décidée — sans montant global : les postes se préparent, jamais
+  // « tardifs ». Terminée, ses postes sont arrêtés ; refusée ou annulée, ils ne partent plus.
+  AD_PRO_OTHER: {
+    module: "AD_PRO_OTHER",
+    path: "/ad-pro/autres",
+    column: "otherRequestId",
+    load: async (id) => {
+      const r = await prisma.adProOtherRequest.findUnique({
+        where: { id },
+        select: { id: true, reference: true, title: true, beneficiary: true, status: true, requesterId: true, companyId: true },
+      });
+      if (!r) return null;
+      return {
+        id: r.id, ref: r.reference, beneficiary: r.beneficiary ?? r.title,
+        decided: r.status === "APPROVED" || r.status === "DONE", tardif: false,
+        clos: r.status === "DONE",
+        closPhrase: "Cette demande est marquée terminée : ses postes, leurs montants et leurs budgets sont arrêtés.",
+        refusee: r.status === "REFUSED" || r.status === "CANCELLED",
+        requesterId: r.requesterId, companyId: r.companyId,
+      };
+    },
+  },
 };
 
-const isParent = (v: string): v is AdProParent =>
-  v === "SPONSORING" || v === "CONGRESS_NATIONAL" || v === "CONGRESS_INTERNATIONAL" || v === "EVENT";
+const isParent = (v: string): v is AdProParent => (AD_PRO_PARENTS as readonly string[]).includes(v);
 
 interface ParentColumns {
   sponsoringId: string | null;
   congressNationalId: string | null;
   congressInternationalId: string | null;
   eventId: string | null;
+  otherRequestId: string | null;
 }
 
 /** Le parent d'un poste, déduit de la colonne renseignée (la base garantit qu'il y en a une). */
@@ -289,6 +314,7 @@ function parentOf(item: ParentColumns): { parent: AdProParent; id: string } | nu
   if (item.congressNationalId) return { parent: "CONGRESS_NATIONAL", id: item.congressNationalId };
   if (item.congressInternationalId) return { parent: "CONGRESS_INTERNATIONAL", id: item.congressInternationalId };
   if (item.eventId) return { parent: "EVENT", id: item.eventId };
+  if (item.otherRequestId) return { parent: "AD_PRO_OTHER", id: item.otherRequestId };
   return null;
 }
 
@@ -399,6 +425,7 @@ function refusAvantPrevalidation(info: ParentInfo): string | null {
 /** La phrase du refus, pour un appelant qui tient déjà l'opération chargée. */
 function refusPostesClos(info: ParentInfo): string | null {
   if (!info.clos) return null;
+  if (info.closPhrase) return info.closPhrase;
   return info.closedByClosure
     ? "Cette demande est clôturée : ses postes, leurs montants et leurs budgets sont arrêtés. "
       + "Pour corriger, la Direction Marketing la rouvre depuis sa fiche (« Rouvrir la demande »), puis la clôture à nouveau."
@@ -502,7 +529,7 @@ async function loadItem(id: string, user: SessionUser) {
       budgetCategoryId: true, orderStage: true, adminRequestId: true, orderRequestedById: true,
       orderRequestedAt: true, orderDirectionAt: true, orderVisaAmount: true, orderVisaSupplier: true,
       reservationDossierId: true, opsDecidedAt: true, orderNote: true, repartitionId: true,
-      sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
+      sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
       montantPayeHistorique: true,
     },
   });
