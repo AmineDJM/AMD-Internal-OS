@@ -20,6 +20,7 @@ import { gammeImposee } from "@/lib/ad-pro/business-unit-auto";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { deviseDuPoste, lireMode, TAUX_USD_DZD_DEFAUT } from "@/lib/care-fiches";
+import { refusCategoriePourLaDemande, type NatureDemandeAdPro } from "@/lib/ad-pro/categorie-budgetaire-serveur";
 
 // Le **même** circuit de prise en charge sert les prises en charge internationales/nationaux
 // ET les événements (module Events) : on paramètre tout par `type`.
@@ -377,6 +378,9 @@ export async function finalDecision(formData: FormData): Promise<ActionResult> {
   if (budgetCategoryId) {
     const okCat = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
     if (okCat === 0) return { ok: false, error: "La (sous-)catégorie budgétaire choisie est introuvable." };
+    // Elle convient à la demande : sa nature, son exercice, sa Business Unit (point 9, 27/10).
+    const refusCat = await refusCategoriePourLaDemande(budgetCategoryId, entityFor(t) as NatureDemandeAdPro, id);
+    if (refusCat) return { ok: false, error: refusCat };
   }
 
   // Étape « information médicale » : intercalée UNIQUEMENT si un pharmacien responsable

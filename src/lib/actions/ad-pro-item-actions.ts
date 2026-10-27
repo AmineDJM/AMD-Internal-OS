@@ -91,6 +91,7 @@ import { supprimerReversible } from "@/lib/suppression/coeur";
 import { apercuSuppression } from "@/lib/admin-delete-registry";
 import { annulerBcNonSigne, bcEtablisDuPoste, bcVivantsDesPostes, refusAnnulationBcDuPoste, refusBcEtabli } from "@/lib/ad-pro/bc-etablis";
 import { aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
+import { refusCategoriePourLaDemande } from "@/lib/ad-pro/categorie-budgetaire-serveur";
 import {
   droitsValidation, tempsEnAttente, rolesAPrevenir, opsFranchiALaSoumission, libelleTemps,
   type DroitsValidation, type Porteur,
@@ -2070,9 +2071,10 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
     const choisi = fdStr(formData, "budgetCategoryId");
     budgetCategoryId = choisi ?? item.budgetCategoryId;
     if (!budgetCategoryId) return { ok: false, error: "Choisissez le budget qui portera ce poste : la validation de la Direction Marketing le fixe en même temps que le montant." };
+    // LA CATÉGORIE CONVIENT À LA DEMANDE (point 9, 27/10) : sa nature, son exercice, sa Business Unit.
     if (choisi) {
-      const cat = await prisma.budgetCategoryLine.findUnique({ where: { id: choisi }, select: { id: true } });
-      if (!cat) return { ok: false, error: "Catégorie budgétaire introuvable." };
+      const refusCat = await refusCategoriePourLaDemande(choisi, owner.parent, owner.id);
+      if (refusCat) return { ok: false, error: refusCat };
     }
   }
 
@@ -2201,6 +2203,8 @@ export async function setAdProItemBudget(_prev: ActionResult | undefined, formDa
       select: { name: true, envelope: { select: { name: true } } },
     });
     if (!cat) return { ok: false, error: "Catégorie budgétaire introuvable." };
+    const refusCat = await refusCategoriePourLaDemande(budgetCategoryId, owner.parent, owner.id);
+    if (refusCat) return { ok: false, error: refusCat };
     await prisma.adProItem.update({ where: { id }, data: { budgetCategoryId, updatedById: user.id } });
     await audit(user, owner.parent, owner.id, "UPDATE", `Poste « ${item.label} » imputé au budget ${cat.envelope.name} › ${cat.name}.`);
   } else {
