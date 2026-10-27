@@ -570,13 +570,19 @@ export async function updateLeaveRequest(formData: FormData): Promise<ActionResu
   if (!id) return { ok: false, error: "Demande introuvable." };
   const leave = await prisma.leaveRequest.findUnique({ where: { id }, include: { employee: true } });
   if (!leave) return { ok: false, error: "Demande introuvable." };
+  // CORRIGER N'EST PAS S'ACCORDER (audit du 27/10/2026, RH-DOCUMENTS-COMMS-04) : le statut et les jours se
+  // réécrivent ici — sa propre demande se corrige par un autre membre des RH, et dans une société permise.
+  if (leave.employee.userId === user.id) return { ok: false, error: "On ne corrige pas sa propre demande de congé : un autre membre des RH doit le faire." };
+  if (!(await entitePermisePourFiche(user.id, leave.employee.companyId))) return { ok: false, error: "Cette entité ne vous est pas ouverte." };
 
   const startDate = fdDate(formData, "startDate") ?? leave.startDate;
   const endDate = fdDate(formData, "endDate") ?? leave.endDate;
   if (endDate < startDate) return { ok: false, error: "La date de fin précède la date de début." };
-  const type = (fdStr(formData, "type") as LeaveType | null) ?? leave.type;
+  const typeRaw = fdStr(formData, "type");
+  if (typeRaw && !(Object.values(LeaveType) as string[]).includes(typeRaw)) return { ok: false, error: "Type de congé inconnu." };
+  const type = (typeRaw as LeaveType | null) ?? leave.type;
   const days = fdNum(formData, "days") ?? Number(leave.days);
-  if (!(days >= 0)) return { ok: false, error: "Nombre de jours invalide." };
+  if (!Number.isFinite(days) || days < 0) return { ok: false, error: "Nombre de jours invalide." };
   const reason = formData.has("reason") ? fdStr(formData, "reason") : leave.reason;
   const statusRaw = fdStr(formData, "status");
   const status: LeaveStatus = statusRaw && (LEAVE_STATUSES as string[]).includes(statusRaw) ? (statusRaw as LeaveStatus) : leave.status;
@@ -588,9 +594,12 @@ export async function updateLeaveRequest(formData: FormData): Promise<ActionResu
   const balanceDelta = oldDebit - newDebit; // > 0 = on recrédite ; < 0 = on débite davantage
 
   const statusChanged = status !== leave.status;
-  await prisma.leaveRequest.update({
-    where: { id },
-    data: {
+  // Écriture CONDITIONNÉE à l'état lu, solde dans la même transaction : un accord (`decideLeave`) passé entre la
+  // lecture et l'écriture faisait calculer `oldDebit` sur un état périmé — le solde se débitait deux fois.
+  const ecrit = await prisma.$transaction(async (tx) => {
+    const pris = await tx.leaveRequest.updateMany({
+      where: { id, status: leave.status, stage: leave.stage, type: leave.type, days: leave.days },
+      data: {
       type, startDate, endDate, days, reason, status, decisionNote,
       // Décision retracée si elle change : décideur/date (ou remise à zéro si repassée « en attente »).
       // Le RH qui rouvre une demande la remet à SA marche : ce qu'il vient de trancher, il n'a
@@ -602,11 +611,15 @@ export async function updateLeaveRequest(formData: FormData): Promise<ActionResu
             stage: status === "PENDING" ? ("HR" as const) : ("DONE" as const),
           }
         : {}),
-    },
+      },
+    });
+    if (pris.count !== 1) return false;
+    if (balanceDelta !== 0) {
+      await tx.employee.update({ where: { id: leave.employeeId }, data: { leaveBalanceDays: { increment: balanceDelta } } });
+    }
+    return true;
   });
-  if (balanceDelta !== 0) {
-    await prisma.employee.update({ where: { id: leave.employeeId }, data: { leaveBalanceDays: { increment: balanceDelta } } });
-  }
+  if (!ecrit) return { ok: false, error: "La demande a changé entre-temps : rouvrez-la et recommencez." };
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "LEAVE_REQUEST", entityId: id,
     summary: `Congé modifié par RH — ${leave.employee.fullName} (${days} j, ${status})`,

@@ -8,7 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { getLeavesToDecide } from "@/lib/queries/hr";
-import { requestLeave, decideLeave } from "./hr-actions";
+import { requestLeave, decideLeave, updateLeaveRequest } from "./hr-actions";
 import { decideHrLeave, deleteHrRequest } from "./hr-document-actions";
 import { superAdminDelete, restoreDeletedRecord } from "./admin-delete-actions";
 
@@ -343,5 +343,30 @@ suite("Congés — N+1 → RH → DG depuis « Mon espace »", () => {
 
     await prisma.hrDocumentRequest.deleteMany({ where: { id: { in: [r1.id, annulee.id, sienne.id] } } });
     await prisma.employee.update({ where: { id: salarieEmpId }, data: { leaveBalanceDays: avant } });
+  });
+  /**
+   * CORRIGER N'EST PAS S'ACCORDER (audit du 27/10/2026, RH-DOCUMENTS-COMMS-04) : `updateLeaveRequest` réécrit statut
+   * et jours. Un membre des RH ne corrige pas sa propre demande ; un type inventé est refusé proprement.
+   */
+  it("correction RH : jamais sur sa propre demande, type inconnu refusé", async () => {
+    const rhEmp = await prisma.employee.findFirst({ where: { userId: rhUserId } })
+      ?? await prisma.employee.create({ data: { fullName: `${TAG} RH`, userId: rhUserId, isActive: true, leaveBalanceDays: 30 } });
+    const sienne = await prisma.leaveRequest.create({
+      data: { employeeId: rhEmp.id, type: "ANNUAL", startDate: new Date("2026-12-14"), endDate: new Date("2026-12-18"), days: 5, stage: "HR" },
+    });
+    ACTOR = await actorFor(rhUserId, "DIRECTION");
+    const f = new FormData(); f.set("id", sienne.id); f.set("status", "APPROVED");
+    expect((await updateLeaveRequest(f)).ok).toBe(false);
+    expect((await prisma.leaveRequest.findUniqueOrThrow({ where: { id: sienne.id } })).status).toBe("PENDING");
+    expect(Number((await prisma.employee.findUniqueOrThrow({ where: { id: rhEmp.id } })).leaveBalanceDays)).toBe(Number(rhEmp.leaveBalanceDays));
+
+    const autre = await prisma.leaveRequest.create({
+      data: { employeeId: salarieEmpId, type: "ANNUAL", startDate: new Date("2026-12-14"), endDate: new Date("2026-12-15"), days: 2, stage: "HR" },
+    });
+    const g = new FormData(); g.set("id", autre.id); g.set("type", "VACANCES");
+    expect((await updateLeaveRequest(g)).ok).toBe(false);
+    const h = new FormData(); h.set("id", autre.id); h.set("reason", "corrigé");
+    expect((await updateLeaveRequest(h)).ok).toBe(true);
+    await prisma.leaveRequest.deleteMany({ where: { id: { in: [sienne.id, autre.id] } } });
   });
 });
