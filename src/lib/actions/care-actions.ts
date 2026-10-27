@@ -31,6 +31,7 @@ import { phraseDepot } from "@/lib/care-pieces";
 import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE } from "@/lib/care-engagement";
+import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).
@@ -968,6 +969,7 @@ export async function retenirDevisPriseEnCharge(_prev: ActionResult | undefined,
     prisma.careQuote.update({ where: { id }, data: { retainedAt: new Date(), retainedById: user.id } }),
   ]);
   await audit(user, scope, requestId, "UPDATE", `Devis ${quote.supplier} RETENU${rivaux.length ? ` (à la place de ${rivaux.map((r) => r.supplier).join(", ")})` : ""}.`);
+  await signalerPorteDgSiBesoin(SPEC[scope].module, requestId);
   revalidate(scope, requestId);
   return { ok: true, id, message: `Devis ${quote.supplier} retenu${rivaux.length ? " — l'autre proposition est écartée" : ""}. Demandez le BC quand tout est prêt.` };
 }
@@ -988,7 +990,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
   const quote = await prisma.careQuote.findUnique({
     where: { id },
     select: {
-      id: true, supplier: true, amountDzd: true, status: true, expenseOrderId: true, amount: true, currency: true,
+      id: true, supplier: true, amountDzd: true, status: true, expenseOrderId: true, amount: true, currency: true, retainedAt: true,
       congressNationalId: true, congressInternationalId: true,
       cells: { select: { cellId: true } },
     },
@@ -1008,6 +1010,13 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
   if (decision === "ACCEPTED") {
     const refusEngagement = await refusEngagementPriseEnCharge(scope, requestId, cellIds);
     if (refusEngagement) return { ok: false, error: refusEngagement };
+    // LE DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil, aucun ordre sans sa validation. Un devis
+    // accepté sans avoir été retenu n'est pas encore dans le total : il y entre ici.
+    const refusDg = await refusSiPorteDgFermee(SPEC[scope].module, requestId, quote.status === "PENDING" && !quote.retainedAt ? toNumber(quote.amountDzd) : 0);
+    if (refusDg) {
+      await signalerPorteDgSiBesoin(SPEC[scope].module, requestId);
+      return { ok: false, error: refusDg };
+    }
     budgetCategoryId = fdStr(formData, "budgetCategoryId");
     if (!budgetCategoryId) return { ok: false, error: "Choisissez la catégorie budgétaire du devis : l'ordre de dépense qu'il émet l'impute à son enveloppe." };
     const cat = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
@@ -1343,6 +1352,12 @@ export async function demanderBCPriseEnCharge(_prev: ActionResult | undefined, f
   // Pas de BC avant la prévalidation de la demande ni l'accord de chaque personne couverte (27/10/2026).
   const refusEngagement = await refusEngagementPriseEnCharge(scopeRaw, requestId, retenus.flatMap((q) => q.cells.map((c) => c.cellId)));
   if (refusEngagement) return { ok: false, error: refusEngagement };
+  // Ni BC au-dessus du seuil sans la validation du TOTAL par le DG (27/10/2026) — les devis retenus y sont.
+  const refusDg = await refusSiPorteDgFermee(SPEC[scopeRaw].module, requestId);
+  if (refusDg) {
+    await signalerPorteDgSiBesoin(SPEC[scopeRaw].module, requestId);
+    return { ok: false, error: refusDg };
+  }
 
   const fiches = await fichesDeLaDemande(scopeRaw, requestId);
   const nomDe = new Map(fiches.map((f) => [f.id, f.nom]));

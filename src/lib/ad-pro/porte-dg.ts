@@ -15,7 +15,8 @@ import {
  * LA PORTE DU DG SUR LE TOTAL D'UNE DEMANDE — la lecture en base, la décision, le signalement.
  *
  * Règle (Direction, 27/10/2026) : `lib/seuils/porte-dg-total.ts`. Ici, UN seul calcul du total — la
- * somme des postes non refusés (accordé quand il l'est, sinon estimé) —, lu par la carte des postes,
+ * somme des postes non refusés (accordé quand il l'est, sinon estimé), plus les devis de personnes
+ * acceptés ou retenus d'une prise en charge —, lu par la carte des postes, la carte des devis,
  * la fiche, le centre de validation et chaque action qui engagerait de l'argent (bon de commande,
  * visa, paiement). Deux calculs écrits à part finiraient par ne plus compter les mêmes postes, et le
  * symptôme serait un BC émis porte fermée (§118.5).
@@ -37,13 +38,28 @@ export interface LecturePorteDg {
 
 const num = (d: Prisma.Decimal | number | null | undefined): number => (d == null ? 0 : Number(d));
 
-/** LE TOTAL DE LA DEMANDE — la somme de ses postes non refusés (accordé, sinon estimé). */
+/**
+ * LE TOTAL DE LA DEMANDE — la somme de ses postes non refusés (accordé, sinon estimé), et, pour une
+ * prise en charge, de ses DEVIS de personnes qui comptent : acceptés, ou retenus (la proposition
+ * choisie, en attente de BC). Un devis seulement reçu ne compte pas : plusieurs se concurrencent pour
+ * les mêmes cases, les additionner gonflerait le total de propositions qu'on n'engagera jamais.
+ */
 export async function totalDeLaDemande(parent: AdProParent, parentId: string): Promise<number> {
-  const lignes = await prisma.adProItem.findMany({
-    where: { [PARENT_COLONNE[parent]]: parentId, status: { not: "REJECTED" } },
-    select: { amountEstimated: true, amountGranted: true },
-  });
-  return lignes.reduce((t, l) => t + (l.amountGranted != null ? num(l.amountGranted) : num(l.amountEstimated)), 0);
+  const colonneDevis = parent === "CONGRESS_NATIONAL" ? "congressNationalId" : parent === "CONGRESS_INTERNATIONAL" ? "congressInternationalId" : null;
+  const [lignes, devis] = await Promise.all([
+    prisma.adProItem.findMany({
+      where: { [PARENT_COLONNE[parent]]: parentId, status: { not: "REJECTED" } },
+      select: { amountEstimated: true, amountGranted: true },
+    }),
+    colonneDevis
+      ? prisma.careQuote.findMany({
+        where: { [colonneDevis]: parentId, OR: [{ status: "ACCEPTED" }, { status: "PENDING", retainedAt: { not: null } }] },
+        select: { amountDzd: true },
+      })
+      : Promise.resolve([] as { amountDzd: Prisma.Decimal }[]),
+  ]);
+  const postes = lignes.reduce((t, l) => t + (l.amountGranted != null ? num(l.amountGranted) : num(l.amountEstimated)), 0);
+  return postes + devis.reduce((t, d) => t + num(d.amountDzd), 0);
 }
 
 function decisionDe(row: { statut: string | null; montant: Prisma.Decimal | null } | null): DecisionDg | null {
@@ -53,12 +69,14 @@ function decisionDe(row: { statut: string | null; montant: Prisma.Decimal | null
 }
 
 /** OÙ EN EST LA PORTE d'une demande. Une panne de lecture la tient FERMÉE au-dessus du seuil (sens sûr). */
-export async function lirePorteDg(parent: AdProParent, parentId: string, seuilConnu?: number | null): Promise<LecturePorteDg> {
-  const [total, seuil, row] = await Promise.all([
+export async function lirePorteDg(parent: AdProParent, parentId: string, seuilConnu?: number | null, enPlus = 0): Promise<LecturePorteDg> {
+  const [totalActuel, seuil, row] = await Promise.all([
     totalDeLaDemande(parent, parentId),
     seuilConnu !== undefined ? Promise.resolve(seuilConnu) : getAppSettings().then((s) => s.adProDgThreshold).catch(() => null),
     prisma.adProPorteDg.findUnique({ where: { entityType_entityId: { entityType: parent, entityId: parentId } } }),
   ]);
+  // `enPlus` : un engagement qui n'est pas encore dans le total (un devis accepté sans avoir été retenu).
+  const total = totalActuel + enPlus;
   const decision = decisionDe(row);
   const etat = etatPorteDg(total, seuil, decision);
   return {
@@ -71,8 +89,8 @@ export async function lirePorteDg(parent: AdProParent, parentId: string, seuilCo
 }
 
 /** Le refus d'une action qui engagerait de l'argent pour un poste de cette demande — `null` si la porte est ouverte. */
-export async function refusSiPorteDgFermee(parent: AdProParent, parentId: string): Promise<string | null> {
-  return (await lirePorteDg(parent, parentId)).refus;
+export async function refusSiPorteDgFermee(parent: AdProParent, parentId: string, enPlus = 0): Promise<string | null> {
+  return (await lirePorteDg(parent, parentId, undefined, enPlus)).refus;
 }
 
 /** Qui statue sur le total : le Directeur Général (rôle principal ou secondaire), ou le Super Admin. */
