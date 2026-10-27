@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
 import { ShieldCheck, ShieldX, MessageSquare, Coins, Loader2, Send, ChevronDown, ExternalLink, Paperclip, Pill } from "lucide-react";
 import { decidePayment, respondToPaymentCentre } from "@/lib/actions/payment-centre-actions";
 import {
@@ -106,12 +106,16 @@ const TONE: Record<CentralStatus, BadgeTone> = {
 export function CentreBoard({
   orders, canDecide, titre, total, nonAffiches,
 }: { orders: CentreOrder[]; canDecide: boolean; titre: string; total: number; nonAffiches: number }) {
-  const { enCours, rafraichir } = useRafraichir();
+  // LA DÉCISION PASSE PAR `useAction` (audit 27/10/2026, FRONTEND-UX-01) : un appel qui LÈVE
+  // (connexion coupée, redéploiement) remplaçait la page entière par l'écran d'erreur — motif perdu,
+  // sans savoir si la décision était partie ; un appel qui ne revient jamais laissait `busy` à vrai —
+  // bouton qui tourne, feuille impossible à fermer (`onClose` exige `!busy`). Le crochet attrape,
+  // chronomètre, dit de vérifier avant de recommencer, et garde les gestes fermés jusqu'à l'arrivée
+  // des nouvelles données (§118.172) : `busy` couvre aussi le rafraîchissement.
+  const { busy, err, setErr, run } = useAction();
   const [acting, setActing] = React.useState<{ order: CentreOrder; decision: CentralDecision } | null>(null);
   const [replying, setReplying] = React.useState<CentreOrder | null>(null);
   const [open, setOpen] = React.useState<string | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
   // Le motif, CONTRÔLÉ : les motifs rapides (« Non prioritaire »…) s'y écrivent d'un clic, et l'on complète.
   const [motif, setMotif] = React.useState("");
   const ouvrir = (order: CentreOrder, decision: CentralDecision) => { setErr(null); setMotif(""); setActing({ order, decision }); };
@@ -266,10 +270,10 @@ export function CentreBoard({
                           {/* Au téléphone, les deux issues prennent toute la largeur de la carte, côte à côte,
                               à hauteur de pouce : on ne les cherche pas au bout d'une rangée. */}
                           <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto">
-                            <Button size="sm" disabled={enCours} className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "APPROVE")}>
+                            <Button size="sm" disabled={busy} className="h-11 text-sm sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "APPROVE")}>
                               <ShieldCheck className="h-4 w-4" /> Autoriser
                             </Button>
-                            <Button size="sm" variant="outline" disabled={enCours} className="h-11 text-sm text-destructive hover:bg-destructive/10 sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "REFUSE")}>
+                            <Button size="sm" variant="outline" disabled={busy} className="h-11 text-sm text-destructive hover:bg-destructive/10 sm:h-8 sm:text-xs" onClick={() => ouvrir(o, "REFUSE")}>
                               <ShieldX className="h-4 w-4" /> Refuser
                             </Button>
                           </div>
@@ -278,7 +282,7 @@ export function CentreBoard({
 
                       {/* LE DEMANDEUR RÉPOND — c'est ce qui rend les allers-retours possibles. */}
                       {o.isMine && awaitsRequester(o.centralStatus) && (
-                        <Button size="sm" disabled={enCours} onClick={() => { setErr(null); setReplying(o); }}>
+                        <Button size="sm" disabled={busy} onClick={() => { setErr(null); setReplying(o); }}>
                           <Send className="h-4 w-4" /> Répondre et resoumettre
                         </Button>
                       )}
@@ -320,16 +324,13 @@ export function CentreBoard({
         >
           <form
             action={async (fd) => {
-              setBusy(true); setErr(null);
               fd.set("id", acting.order.id);
               fd.set("decision", acting.decision);
               // CE QUE L'ÉCRAN AFFICHAIT (§118.191) : un montant ou un bénéficiaire corrigé pendant la
               // lecture ne s'autorise pas sans avoir été vu — l'action compare et le dit.
               fd.set("montantVu", String(acting.order.amount));
               fd.set("beneficiaireVu", acting.order.beneficiary ?? "");
-              const r = await decidePayment(fd);
-              setBusy(false);
-              if (r.ok) { setActing(null); rafraichir(); } else setErr(r.error ?? "Échec.");
+              await run(() => decidePayment(fd), () => setActing(null));
             }}
             className="space-y-4"
           >
@@ -398,11 +399,8 @@ export function CentreBoard({
         >
           <form
             action={async (fd) => {
-              setBusy(true); setErr(null);
               fd.set("id", replying.id);
-              const r = await respondToPaymentCentre(fd);
-              setBusy(false);
-              if (r.ok) { setReplying(null); rafraichir(); } else setErr(r.error ?? "Échec.");
+              await run(() => respondToPaymentCentre(fd), () => setReplying(null));
             }}
             className="space-y-4"
           >
