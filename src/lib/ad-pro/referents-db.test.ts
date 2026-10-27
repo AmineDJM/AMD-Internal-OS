@@ -39,6 +39,14 @@ async function actorFor(id: string, role: SessionUser["role"]): Promise<CurrentU
 function notifsSurLaDemande(userId: string, demandeId: string): Promise<number> {
   return prisma.notification.count({ where: { userId, link: { contains: demandeId } } });
 }
+/**
+ * « À VOUS D'AGIR » seulement (27/10/2026) : à la création, `ouvrirLeCircuit` prévient AUSSI, pour
+ * information (`GENERIC`), les rôles des étapes suivantes — la Direction Marketing en est. Ce qui dit
+ * qu'une étape est ATTEINTE est la notification `VALIDATION_REQUIRED`.
+ */
+function aAgirSurLaDemande(userId: string, demandeId: string): Promise<number> {
+  return prisma.notification.count({ where: { userId, type: "VALIDATION_REQUIRED", link: { contains: demandeId } } });
+}
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,9 +75,9 @@ suite("Ad & Pro — les référents Direction Marketing d'une gamme", () => {
     // mécanisme (§118.92).
     configId = (await mk("cfg", "MEDICAL_PROMOTION_MANAGER")).id;
     dgId = (await mk("dg", "GENERAL_MANAGER")).id;
-    // LA DIRECTION DES OPÉRATIONS tient l'étape `final`, que la route d'un National Sales
-    // traverse (§118.142) : sans elle, l'étape Direction Marketing n'est jamais atteinte.
-    dirId = (await mk("dir", "DIRECTION")).id;
+    // LE DIRECTEUR DES OPÉRATIONS tient l'étape `final` (27/10/2026 — rôle OPERATIONS_DIRECTOR), que la
+    // route d'un National Sales traverse : sans lui, l'étape Direction Marketing n'est jamais atteinte.
+    dirId = (await mk("dir", "OPERATIONS_DIRECTOR")).id;
     // LE CAS QUI COMPTE LE PLUS, et aucun sabotage ne pouvait le voir sans lui : une personne
     // DÉSIGNÉE puis RÉTROGRADÉE. C'est la situation pour laquelle §118.136 relit le rôle à
     // chaque affichage, et elle a sa propre gamme pour ne dépendre d'aucun cas précédent.
@@ -272,13 +280,12 @@ suite("Ad & Pro — les référents Direction Marketing d'une gamme", () => {
     const id = cree.ok ? cree.id! : "";
     await prisma.notification.deleteMany({ where: { userId: { in: [perduId, temoinId] } } });
 
-    for (const v of [
-      { id: dgId, role: "GENERAL_MANAGER" as const, name: `${TAG}dg` },
-      { id: dirId, role: "DIRECTION" as const, name: `${TAG}dir` },
-    ]) {
-      const av = await advanceWorkflowInstance({ viewer: v, entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK" });
-      expect(av.ok, av.ok === false ? av.error : "").toBe(true);
-    }
+    // LA ROUTE D'UN NATIONAL SALES (27/10/2026) : `final` (Directeur des opérations) → `marketing` — le DG
+    // n'est plus une étape du circuit.
+    const av = await advanceWorkflowInstance({
+      viewer: { id: dirId, role: "OPERATIONS_DIRECTOR", name: `${TAG}dir` }, entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK",
+    });
+    expect(av.ok, av.ok === false ? av.error : "").toBe(true);
     const inst = await prisma.workflowInstance.findUniqueOrThrow({
       where: { entityType_entityId: { entityType: "SPONSORING", entityId: id } },
       select: { currentSlug: true },
@@ -305,10 +312,10 @@ suite("Ad & Pro — les référents Direction Marketing d'une gamme", () => {
      *
      *   · AUCUN rôle de KAM ne peut CRÉER un sponsoring (`SPONSORING:CREATE` appartient au
      *     Super Admin, à la Direction, au DG, au National Sales et à Direction Marketing) : le
-     *     demandeur est donc le National Sales, qui entre sur la porte du DG (§118.142) ;
-     *   · pour que le franchissement ATTEIGNE l'étape Direction Marketing, la porte du DG ne
-     *     doit pas se franchir seule : le montant est donc AU-DESSUS du seuil. En dessous, elle
-     *     se franchit à la création et l'étape est atteinte sans qu'aucune approbation ait lieu.
+     *     demandeur est donc le National Sales, qui entre sur l'étape du Directeur des opérations ;
+     *   · depuis le 27/10/2026, le DG n'est plus une étape du circuit (il valide le TOTAL des postes,
+     *     plus tard) : le montant ne change plus la route — il reste au-dessus de l'ancien seuil pour
+     *     que ce banc dise aussi qu'aucune porte DG ne s'interpose.
      */
     const fd = new FormData();
     fd.set("institution", `${TAG}Association`);
@@ -335,32 +342,30 @@ suite("Ad & Pro — les référents Direction Marketing d'une gamme", () => {
     expect(demande.productManagerId, "un seul référent ⇒ la demande est inscrite à son nom").toBe(dmId);
 
     /*
-     * LA ROUTE D'UN NATIONAL SALES EST `dg` → `final` → `marketing` (§118.142) : il faut DEUX
-     * approbations pour atteindre l'étape de la Direction Marketing. Le mesurer plutôt que le
-     * supposer a d'ailleurs trouvé le vrai défaut du lot : la première version notifiait les
-     * référents à CHAQUE étape atteinte, donc deux fois pour rien avant celle qui les concerne.
+     * LA ROUTE D'UN NATIONAL SALES EST `final` → `marketing` (27/10/2026) : UNE approbation, celle du
+     * Directeur des opérations, pour atteindre l'étape de la Direction Marketing. Le DG est dans le
+     * tamis : il ne valide plus la demande, mais le total de ses postes.
      */
-    await prisma.notification.deleteMany({ where: { userId: { in: [dmId, dm2Id] } } });
-    const avDg = await advanceWorkflowInstance({
-      viewer: { id: dgId, role: "GENERAL_MANAGER", name: `${TAG}dg` },
-      entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK",
-    });
-    expect(avDg.ok, avDg.ok === false ? avDg.error : "").toBe(true);
-
-    // L'ÉTAPE INTERMÉDIAIRE NE CONCERNE PAS LA GAMME : son `notifyRoles` ne nomme pas la
-    // Direction Marketing, donc aucun référent ne doit être dérangé. Sans ce compte à ZÉRO, la
-    // garde d'étape serait désarmée en ayant l'air armée (§118.17) — l'assertion finale serait
-    // vraie par la notification de cette étape-ci.
-    const apresFinal = await prisma.workflowInstance.findUniqueOrThrow({
+    const apresCreation = await prisma.workflowInstance.findUniqueOrThrow({
       where: { entityType_entityId: { entityType: "SPONSORING", entityId: id } },
-      select: { currentSlug: true },
+      select: { currentSlug: true, skippedSlugs: true },
     });
-    expect(apresFinal.currentSlug, "la route du National Sales passe par la Direction des opérations").toBe("final");
-    expect(await notifsSurLaDemande(dmId, id),
-      "l'étape Direction des opérations ne nomme pas le rôle marketing : le référent n'est pas dérangé").toBe(0);
+    expect(apresCreation.currentSlug, "la route du National Sales commence chez le Directeur des opérations").toBe("final");
+    expect(apresCreation.skippedSlugs, "le DG n'est plus une étape du circuit").toContain("dg");
+    expect(await aAgirSurLaDemande(dgId, id), "le DG n'est appelé à agir sur aucune étape de la demande").toBe(0);
+
+    // L'ÉTAPE INTERMÉDIAIRE NE CONCERNE PAS LA GAMME : aucun référent n'est appelé À AGIR avant la sienne.
+    // Sans ce compte à ZÉRO, la garde d'étape serait désarmée en ayant l'air armée (§118.17) — l'assertion
+    // finale serait vraie par la notification de cette étape-ci. La Direction Marketing est seulement
+    // prévenue, pour information, qu'une demande lui parviendra.
+    expect(await aAgirSurLaDemande(dmId, id),
+      "l'étape du Directeur des opérations n'appelle pas le référent à agir").toBe(0);
+    expect(await prisma.notification.count({ where: { userId: dm2Id, type: "GENERIC", link: { contains: id } } }),
+      "la Direction Marketing est prévenue POUR INFORMATION dès la création").toBeGreaterThanOrEqual(1);
+    await prisma.notification.deleteMany({ where: { userId: { in: [dmId, dm2Id] } } });
 
     const av = await advanceWorkflowInstance({
-      viewer: { id: dirId, role: "DIRECTION", name: `${TAG}dir` },
+      viewer: { id: dirId, role: "OPERATIONS_DIRECTOR", name: `${TAG}dir` },
       entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK",
     });
     expect(av.ok, av.ok === false ? av.error : "").toBe(true);
@@ -372,12 +377,12 @@ suite("Ad & Pro — les référents Direction Marketing d'une gamme", () => {
     });
     expect(inst.currentSlug, "le franchissement doit atteindre l'étape Direction Marketing").toBe("marketing");
     // LE RÉFÉRENT, NOMMÉMENT.
-    expect(await notifsSurLaDemande(dmId, id),
+    expect(await aAgirSurLaDemande(dmId, id),
       "le référent de la gamme doit être prévenu nommément").toBeGreaterThanOrEqual(1);
     // ET LE RÔLE : `dm2` n'est PLUS référent (retiré au cas précédent) et porte le rôle — il
     // reçoit donc par le RÔLE. C'est la moitié « recevra ÉGALEMENT » de la décision, et sans ce
     // second compte un remplacement du rôle par les référents passerait inaperçu.
-    expect(await notifsSurLaDemande(dm2Id, id),
+    expect(await aAgirSurLaDemande(dm2Id, id),
       "le rôle Direction Marketing reste prévenu (la direction du département)").toBeGreaterThanOrEqual(1);
   });
 });

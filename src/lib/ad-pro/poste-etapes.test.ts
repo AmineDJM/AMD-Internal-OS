@@ -8,9 +8,11 @@ import { faitsDuPoste, etapesDuPoste, prochainPas, facturePourPayer, LIBELLE_JUS
  * (`ad-pro-postes-flow.test.ts`, `postes-chaine-flow.test.ts`) rejoue chaque geste rendu par la VRAIE
  * action : ici, on tient la CARTE ; là-bas, qu'elle ne propose rien que l'action refuserait.
  *
- * Depuis §118.204 : la validation d'un poste d'argent se fait en DEUX TEMPS (Direction des opérations,
- * puis Direction Marketing qui fixe montant ET budget), le bon de commande passe par l'assistante de
- * direction puis la signature des Finances, et le paiement part de la FACTURE du demandeur.
+ * Depuis le 27/10/2026 : un poste d'argent est accepté en UN SEUL temps, par la Direction Marketing
+ * (montant ET budget) — le Directeur des opérations a déjà validé la DEMANDE en amont et ne revalide
+ * plus chaque poste (§118.204 abandonné). Le bon de commande passe par l'assistante de direction puis
+ * la signature des Finances, le paiement part de la FACTURE du demandeur, et au-dessus du seuil la
+ * PORTE DU DG sur le total de la demande retient tout engagement.
  */
 
 const poste = (p: Partial<FaitsPoste> = {}): FaitsPoste => ({
@@ -51,26 +53,65 @@ describe("le geste suivant d'un poste", () => {
     expect(prochainPas(poste({ amountEstimated: 120_000 }), regard()).attente).toMatch(/demandeur/);
   });
 
-  it("DEUX TEMPS : la Direction des opérations d'abord — la Direction Marketing ne voit rien à faire avant elle", () => {
-    const p = poste({ status: "PENDING", amountEstimated: 120_000 });
-    expect(prochainPas(p, OPERATIONS).geste?.cle).toBe("VALIDER_OPS");
-    // Ce qui ferait tomber la règle : proposer DECIDER à la Direction Marketing avant le premier temps.
-    expect(prochainPas(p, MARKETING)).toEqual({ geste: null, attente: "En attente — chez la Direction des opérations." });
-    expect(prochainPas(p, DEMANDEUR).geste).toBeNull();
-    // `canAllocate` seul ne suffit plus : sans droit sur le temps, rien n'est proposé.
-    expect(prochainPas(p, regard({ canAllocate: true })).geste).toBeNull();
-    expect(prochainPas(p, regard({ ...OPERATIONS, fige: true })).geste).toBeNull();
+  it("UN SEUL TEMPS (27/10/2026) : un poste soumis est chez la Direction Marketing — la Direction des opérations n'a plus de geste", () => {
+    // Un poste resté en attente du premier temps sous l'ancienne règle (`opsDecidedAt` vide) passe lui aussi
+    // directement à la Direction Marketing.
+    for (const opsDecidedAt of [null, "2026-10-01"]) {
+      const p = poste({ status: "PENDING", amountEstimated: 120_000, opsDecidedAt });
+      expect(prochainPas(p, MARKETING).geste).toEqual({ cle: "DECIDER", libelle: "Valider et choisir le budget" });
+      // Ce qui ferait tomber la règle : proposer encore « Valider (Direction des opérations) ».
+      expect(prochainPas(p, OPERATIONS)).toEqual({ geste: null, attente: "En attente — chez la Direction Marketing (montant et budget)." });
+      expect(prochainPas(p, regard({ canAllocate: true, validation: { operations: true, marketing: true } })).geste?.cle).toBe("DECIDER");
+      expect(prochainPas(p, DEMANDEUR).geste).toBeNull();
+      // `canAllocate` seul ne suffit pas : sans droit sur le temps, rien n'est proposé.
+      expect(prochainPas(p, regard({ canAllocate: true })).geste).toBeNull();
+      expect(prochainPas(p, regard({ ...MARKETING, fige: true })).geste).toBeNull();
+    }
   });
 
-  it("DEUX TEMPS : validé par les opérations, la Direction Marketing tranche montant ET budget", () => {
+  it("UN SEUL TEMPS : l'ancien « second temps par la Direction des opérations » ne change plus la phrase — on attend la Direction Marketing", () => {
     const p = poste({ status: "PENDING", amountEstimated: 120_000, opsDecidedAt: "2026-10-01" });
-    expect(prochainPas(p, MARKETING).geste).toEqual({ cle: "DECIDER", libelle: "Valider et choisir le budget" });
-    expect(prochainPas(p, OPERATIONS).attente).toBe("En attente — chez la Direction Marketing (montant et budget).");
-    // Demande de la Direction Marketing : c'est la Direction des opérations qui tient le second temps.
-    const parOps = regard({ secondTempsParOperations: true, validation: { operations: true, marketing: true } });
-    expect(prochainPas(p, parOps).geste?.cle).toBe("DECIDER");
-    expect(prochainPas(p, regard({ secondTempsParOperations: true })).attente).toMatch(/chez la Direction des opérations \(montant et budget\)/);
-    expect(prochainPas(p, regard({ ...MARKETING, fige: true })).geste).toBeNull();
+    expect(prochainPas(p, regard({ secondTempsParOperations: true })).attente).toBe("En attente — chez la Direction Marketing (montant et budget).");
+    expect(prochainPas(p, regard({ secondTempsParOperations: true })).attente).not.toMatch(/Direction des opérations/);
+    // Accordé sans budget (poste d'avant la règle) : c'est la Direction Marketing qui le choisit.
+    expect(prochainPas(poste({ status: "APPROVED", amountGranted: 120_000 }), regard({ secondTempsParOperations: true })).attente)
+      .toBe("La Direction Marketing choisit le budget qui porte ce poste.");
+  });
+
+  it("la frise d'un poste n'a plus d'étape « Direction des opérations » : « Direction Marketing » est EN COURS dès la soumission", () => {
+    const soumis = etapesDuPoste(poste({ status: "PENDING", amountEstimated: 120_000 }));
+    expect(soumis.map((e) => e.cle)).not.toContain("OPERATIONS");
+    expect(soumis.find((e) => e.cle === "MARKETING")?.etat).toBe("EN_COURS");
+    expect(etapesDuPoste(poste({ amountEstimated: 120_000 })).find((e) => e.cle === "MARKETING")?.etat).toBe("A_VENIR");
+    expect(etapesDuPoste(pret()).find((e) => e.cle === "MARKETING")?.etat).toBe("FAIT");
+    expect(etapesDuPoste(pret()).map((e) => e.cle)).toEqual(["CHIFFRE", "MARKETING", "BC", "FACTURE", "PAIEMENT"]);
+  });
+
+  it("LA PORTE DU DG (27/10/2026) : fermée, ni BC ni paiement ne sont proposés et l'attente nomme le Directeur Général", () => {
+    const phrase = "Total de 1 200 000 DZD au-dessus du seuil de 1 000 000 DZD";
+    const ferme = pret({ porteDg: "EN_ATTENTE", porteDgPhrase: phrase });
+    expect(prochainPas(ferme, DEMANDEUR)).toEqual({ geste: null, attente: `En attente — le Directeur Général valide le total de la demande (${phrase}).` });
+    const aRevoir = pret({ porteDg: "A_REVOIR" });
+    expect(prochainPas(aRevoir, DEMANDEUR).geste).toBeNull();
+    expect(prochainPas(aRevoir, DEMANDEUR).attente).toMatch(/^Renvoyée par le Directeur Général/);
+    // Un versement direct non plus ne se paie pas porte fermée.
+    expect(prochainPas(pret({ kind: "ASSOCIATION_SUPPORT", porteDg: "EN_ATTENTE" }), DEMANDEUR).geste).toBeNull();
+    // Le témoin : porte validée ou non requise, le geste revient.
+    expect(prochainPas(pret({ porteDg: "VALIDEE" }), DEMANDEUR).geste?.cle).toBe("DEMANDER_BC");
+    expect(prochainPas(pret({ porteDg: "NON_REQUISE" }), DEMANDEUR).geste?.cle).toBe("DEMANDER_BC");
+    // La porte ne passe pas avant l'accord : un poste soumis reste chez la Direction Marketing.
+    expect(prochainPas(poste({ status: "PENDING", amountEstimated: 5, porteDg: "EN_ATTENTE" }), MARKETING).geste?.cle).toBe("DECIDER");
+  });
+
+  it("LA PORTE DU DG dans la frise : absente quand elle n'est pas requise, puis à venir, en cours, faite ou refusée", () => {
+    expect(etapesDuPoste(pret({ porteDg: "NON_REQUISE" })).map((e) => e.cle)).not.toContain("DG");
+    expect(etapesDuPoste(pret()).map((e) => e.cle)).not.toContain("DG");
+    const dg = (p: FaitsPoste) => etapesDuPoste(p).find((e) => e.cle === "DG");
+    expect(etapesDuPoste(pret({ porteDg: "EN_ATTENTE" })).map((e) => e.cle)).toEqual(["CHIFFRE", "MARKETING", "DG", "BC", "FACTURE", "PAIEMENT"]);
+    expect(dg(pret({ porteDg: "EN_ATTENTE" }))?.etat).toBe("EN_COURS");
+    expect(dg(poste({ status: "PENDING", amountEstimated: 5, porteDg: "EN_ATTENTE" }))?.etat).toBe("A_VENIR");
+    expect(dg(pret({ porteDg: "VALIDEE" }))?.etat).toBe("FAIT");
+    expect(dg(pret({ porteDg: "A_REVOIR" }))?.etat).toBe("REFUSE");
   });
 
   it("accordé d'AVANT la règle : montant, puis budget, puis bon de commande — dans cet ordre", () => {
@@ -182,7 +223,7 @@ describe("le geste suivant d'un poste", () => {
 
   it("un sponsoring DIRECT se paie sur facture, sans BC — et jamais avant que l'opération soit accordée", () => {
     const p = pret({ kind: "ASSOCIATION_SUPPORT", amountGranted: 300_000 });
-    expect(etapesDuPoste(p).map((e) => e.cle)).toEqual(["CHIFFRE", "OPERATIONS", "MARKETING", "FACTURE", "PAIEMENT"]);
+    expect(etapesDuPoste(p).map((e) => e.cle)).toEqual(["CHIFFRE", "MARKETING", "FACTURE", "PAIEMENT"]);
     expect(prochainPas(p, DEMANDEUR).geste?.cle).toBe("DEMANDER_PAIEMENT");
     expect(prochainPas(p, regard({ canEdit: true, operationDecidee: false })).geste).toBeNull();
     // Jamais « demander un BC » sur un versement direct.
@@ -199,11 +240,13 @@ describe("le geste suivant d'un poste", () => {
     expect(etapesDuPoste({ ...emis, factures: 0 }).find((e) => e.cle === "FACTURE")?.etat).not.toBe("FAIT");
   });
 
-  it("la frise dit un refus là où il a eu lieu — au premier ou au second temps", () => {
-    expect(etapesDuPoste(poste({ status: "REJECTED", amountEstimated: 5 })).find((e) => e.cle === "OPERATIONS")?.etat).toBe("REFUSE");
-    const refuseMkt = etapesDuPoste(poste({ status: "REJECTED", amountEstimated: 5, opsDecidedAt: "2026-10-01" }));
-    expect(refuseMkt.find((e) => e.cle === "OPERATIONS")?.etat).toBe("FAIT");
-    expect(refuseMkt.find((e) => e.cle === "MARKETING")?.etat).toBe("REFUSE");
+  it("la frise dit un refus là où il a eu lieu — à l'accord de la Direction Marketing (un seul temps), ou au BC", () => {
+    // Avec ou sans `opsDecidedAt` (un refus d'avant la règle au « premier temps »), le refus se lit au seul accord.
+    for (const opsDecidedAt of [null, "2026-10-01"]) {
+      const refuse = etapesDuPoste(poste({ status: "REJECTED", amountEstimated: 5, opsDecidedAt }));
+      expect(refuse.find((e) => e.cle === "MARKETING")?.etat).toBe("REFUSE");
+      expect(refuse.map((e) => e.cle)).not.toContain("OPERATIONS");
+    }
     expect(etapesDuPoste(pret({ orderStage: "REFUSED" })).find((e) => e.cle === "BC")?.etat).toBe("REFUSE");
   });
 });

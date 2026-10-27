@@ -7,6 +7,7 @@ import { FORME_PORTE, type LigneCentre } from "@/lib/ad-pro/centre";
 import { ITEM_KIND_LABELS } from "@/lib/ad-pro-items";
 import type { SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
+import { totauxEnAttenteDuDg } from "@/lib/ad-pro/porte-dg";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -63,7 +64,7 @@ const PARENT_DU_POSTE = [
 ] as const;
 
 export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
-  const [instances, promos, visas, postes, promosBC] = await Promise.all([
+  const [instances, promos, visas, postes, promosBC, totauxDg] = await Promise.all([
     prisma.workflowInstance.findMany({
       where: { currentSlug: SLUG_DG, status: "IN_PROGRESS" },
       select: { entityType: true, entityId: true, amount: true, createdAt: true, updatedAt: true },
@@ -100,6 +101,8 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
       orderBy: { updatedAt: "asc" },
       take: 300,
     }).catch(() => []),
+    // LES TOTAUX QUI ATTENDENT LE DG (27/10/2026) — la somme des postes d'une demande, au-dessus du seuil.
+    totauxEnAttenteDuDg().catch(() => []),
   ]);
 
   // Le seuil FIGÉ du visa fait foi pour sa ligne ; pour les deux autres formes, c'est le réglage
@@ -205,7 +208,7 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     ...promos.map((r) => r.requesterId), ...contrats.map((r) => r.requesterId),
     ...autres.map((r) => r.requesterId),
     ...postes.map((r) => r.orderRequestedById), ...bcLegaux.map((r) => r.createdById),
-    ...promosBC.map((r) => r.requesterId),
+    ...promosBC.map((r) => r.requesterId), ...totauxDg.map((r) => r.requesterId),
   ].filter((x): x is string => Boolean(x)))];
   const personnes = idsPersonnes.length
     ? await prisma.user.findMany({ where: { id: { in: idsPersonnes } }, select: { id: true, name: true } }).catch(() => [])
@@ -357,6 +360,25 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     });
   }
 
+  // ── LES TOTAUX QUI ATTENDENT LE DG (27/10/2026) — décidés devant le dossier, comme une étape. ──
+  for (const t of totauxDg) {
+    const kind = NATURE_PAR_ENTITE.get(t.entityType);
+    if (!kind) continue;
+    lignes.push({
+      kind,
+      entityType: t.entityType,
+      entityId: t.entityId,
+      reference: null,
+      intitule: t.nom,
+      demandeur: nomDe(t.requesterId),
+      montant: t.total,
+      seuil: t.seuil,
+      forme: "TOTAL_DG",
+      detail: "Le total des postes de la demande dépasse le seuil : aucun bon de commande ni paiement avant la validation du Directeur Général.",
+      depuis: t.depuis.toISOString(),
+      href: lien(kind, t.entityId),
+    });
+  }
   return lignes;
 }
 

@@ -6,57 +6,43 @@
 
 ### Ad & Pro & Événements — circuit de prise en charge
 
-Le **même** circuit sert le **Sponsoring**, les **Congrès internationaux/nationaux** et les **Événements** :
-
-**Le parcours dépend de QUI demande — trois branches décidées par la Direction** (22/09/2026 ; le sponsoring d'un KAM
-précisé le 28/09/2026) **et deux garde-fous d'auto-arbitrage** — on ne tranche jamais sa propre demande
-(`workflow/parcours.ts`) :
+Le **même** circuit sert le **Sponsoring**, les **prises en charge nationales/internationales**, les **Événements**
+et les demandes **« autre »** — circuit de la Direction du **27/10/2026** (décision : `docs/architecture/adpro-circuit-2026-10-27.md`).
+Trois phases : **prévalidation** (le fond + le montant demandé, sans argent), **postes** (la proposition réelle),
+**validation du TOTAL par le DG** à la fin, au-dessus du seuil.
 
 ```
-Demande d'un KAM (délégué médical)
-   → NATIONAL SALES : approuve / refuse                                     ← son superviseur
-   → [porte du DG : au-delà du seuil réglé — franchie seule en dessous]
-   → (SPONSORING seulement) DIRECTION DES OPÉRATIONS : accord               ← décision du 28/09/2026
-   → DIRECTION MARKETING : montant accordé + (sous-)catégorie budgétaire     ← elle TRANCHE
-   → [Information médicale : déclaration du pharmacien (PRIM)]               ← uniquement si applicable
-   → Ordre de dépense (un par poste quand l'opération en a) → centre de paiement → comptable
+PHASE 1 — PRÉVALIDATION (la route dépend de QUI crée : workflow/parcours.ts)
+  Délégué médical (« CAM »/KAM)        → NATIONAL SALES → DIRECTEUR DES OPÉRATIONS → DIRECTION MARKETING
+  National Sales, Manager Promotion     → DIRECTEUR DES OPÉRATIONS → DIRECTION MARKETING
+    médicale, tout autre demandeur
+  Directeur des opérations, DG,         → DIRECTION MARKETING
+    Direction, Super Admin
+  Direction Marketing                   → PRÉVALIDÉE D'OFFICE (tracé au journal du circuit)
+  · la Direction Marketing PRÉVALIDE : ni montant, ni catégorie, ni ordre global ; la déclaration PRIM part ici
+  · sponsoring → « Tenue pré-validée » (PRE_VALIDATED) ; prise en charge / événement / autre → « prévalidée » (APPROVED)
+  · à la création, l'acteur de l'étape reçoit « à vous d'agir », les suivants « pour information » (ouvrirLeCircuit)
 
-Demande du NATIONAL SALES lui-même
-   → [porte du DG]
-   → DIRECTION DES OPÉRATIONS : accord sur l'opération (SANS chiffrer)       ← le filtre au-dessus de lui
-   → DIRECTION MARKETING : montant + catégorie                               ← elle TRANCHE
+PHASE 2 — POSTES (aucun poste, aucun budget avant la prévalidation : refusAvantPrevalidation)
+  ajoutés par la Direction Marketing, le Directeur des opérations, le demandeur, et le National Sales pour ses délégués
+  → UN SEUL ACCORD : la Direction Marketing (montant + sous-catégorie) — une AUTRE personne qu'elle sur sa propre demande
 
-Demande de TOUT AUTRE demandeur
-   → [porte du DG]
-   → DIRECTION MARKETING : montant + catégorie                               ← DIRECT, elle TRANCHE
-
-Demande de la DIRECTION MARKETING elle-même (ou du Manager Promotion médicale)
-   → [porte du DG]
-   → DIRECTION DES OPÉRATIONS : elle TRANCHE                                 ← on n'arbitre pas sa propre demande
-
-Demande de la DIRECTION, du DG, du DIRECTEUR DES OPÉRATIONS ou du SUPER ADMIN
-   → DIRECTION MARKETING : montant + catégorie                               ← DIRECT, sans porte du DG
-
-   → (option, à tous les parcours) tierce personne impliquée via son espace + dossier auto (sans budget)
-   → à chaque étape : approuver, refuser (avant l'étape qui tranche, un refus n'est qu'un avis défavorable),
-     ou RENVOYER au demandeur pour correction — motif exigé ; resoumise, la demande revient à cette étape
+PHASE 3 — LE DG VALIDE LE TOTAL (lib/ad-pro/porte-dg.ts)
+  total = somme des postes de toute la demande (accordé, sinon estimé ; refusés exclus)
+  total > seuil (Réglages › adProDgThreshold) → ni BC, ni visa, ni paiement tant que le DG (ou le Super Admin)
+  n'a pas « validé le total » ; « renvoyer en révision » exige un motif ; une rallonge au-delà rouvre la porte
 ```
 
-> ⚠️ **La porte du DG est ORTHOGONALE aux branches** : franchie automatiquement (et tracée) sous le seuil réglé,
-> elle vaut au-dessus pour tout demandeur — une rallonge d'un million ne se décide pas plus bas parce qu'elle vient
-> d'en haut — **sauf le rang le plus haut** (Direction, DG, Directeur des Opérations, Super Admin, vue globale et
-> rôle secondaire compris : `adProOriginRank` = 3), dont la demande va directement chez Direction Marketing : le DG
-> est à ce rang, il n'y a personne au-dessus. Ce saut ne vaut que pour les quatre circuits configurables ; le visa
-> du consulting et des « autres demandes » et l'étape `REVIEW_DG` du matériel promotionnel ne regardent que le montant.
+> ⚠️ **Le DG n'est plus une étape du circuit** : l'étape `dg` reste dans la définition mais toujours dans le tamis.
+> Il statue sur le TOTAL depuis la fiche (carte « Validation du Directeur Général ») ou le centre Ad & Pro (ligne
+> « Total à valider »). Table `AdProPorteDg` (une ligne par demande : décision, montant validé, dernier total signalé).
 
-> ⚠️ **Le BUDGET appartient à Direction Marketing** (ex-« Chef de produit »), plus à la Direction : montant
-> accordé ET choix de la sous-catégorie budgétaire. La Direction des opérations valide **avant** elle — la demande
-> du National Sales et le sponsoring d'un KAM —, sans chiffrer, et ne **tranche** que la demande de la Direction
-> Marketing elle-même (et du Manager Promotion médicale), qu'on ne fait pas s'arbitrer : elle y fixe alors le montant
-> et la sous-catégorie, que l'étape qui conclut une route coupée HÉRITE des étapes non atteintes (`argentEffectif`,
-> `lib/workflow/pouvoirs-argent.ts` — seulement si elle n'a aucune configuration d'argent à elle) ; le moteur et
-> l'écran lisent la même réponse (`lectureDeLApprobation`). Le sponsoring n'hérite rien : sa route conclut sur une
-> tenue pré-validée, l'argent se fixant à la clôture.
+> ⚠️ **L'étape `final` est tenue par le rôle `OPERATIONS_DIRECTOR`** (Directeur des opérations). La migration
+> `20270131130000_adpro_circuit_prevalidation` garde `DIRECTION` à côté tant qu'aucun compte actif ne porte ce rôle :
+> l'attribuer au Directeur des opérations, puis retirer `DIRECTION` de l'étape dans Administration › Circuits.
+
+> ⚠️ **Appel** : toute nature refusée (sponsoring, prises en charge, événements) peut faire appel, motif exigé
+> (`faireAppelAdPro`) → le circuit se rouvre sur l'étape qui a refusé.
 
 > ⚠️ **Étape préliminaire réservée au National Sales**, et elle ne concerne QUE les demandes de KAM : lui seul
 > a un superviseur national au-dessus de sa demande. Il ne DÉSIGNE plus personne — Direction Marketing est

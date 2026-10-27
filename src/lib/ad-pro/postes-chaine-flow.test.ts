@@ -9,9 +9,16 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
  * processus, la base partagée garde le sien.
  */
 let SEUIL = 500_000;
+/**
+ * LE SEUIL DE LA PORTE DU DG SUR LE TOTAL D'UNE DEMANDE (27/10/2026) est un réglage global lui aussi :
+ * injecté de même. Par défaut HORS D'ATTEINTE — ce banc mesure la chaîne d'un poste, et le congrès de
+ * Sétif accumule des postes de cas en cas. Le cas « LA PORTE DU DG » le descend, sur sa propre demande.
+ */
+const SEUIL_DG_HORS_ATTEINTE = 1_000_000_000_000;
+let SEUIL_DG = SEUIL_DG_HORS_ATTEINTE;
 vi.mock("@/lib/settings", async (importOriginal) => {
   const vrai = await importOriginal<typeof import("@/lib/settings")>();
-  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), bcValidationThreshold: SEUIL }) };
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), bcValidationThreshold: SEUIL, adProDgThreshold: SEUIL_DG }) };
 });
 /**
  * LES ASSISTANTES DE DIRECTION ACTIVES SONT UN FAIT GLOBAL : les bancs voisins en créent et en
@@ -47,6 +54,7 @@ import { ordreAFacture } from "@/lib/finance/facture-ordre";
 import { settleExpenseOrder } from "@/lib/actions/expense-actions";
 import { signauxFinance } from "@/platform/in-process/intelligence";
 import { getActionCenter } from "@/lib/queries/action-center";
+import { statuerSurLeTotal, lirePorteDg } from "@/lib/ad-pro/porte-dg";
 import { persistUploadedDocument } from "@/lib/documents";
 import type { Prisma } from "@prisma/client";
 import { TITRE_BC_A_ETABLIR } from "@/lib/ad-pro/pieces-secretariat";
@@ -79,10 +87,12 @@ const avecFichier = (champs: Record<string, string>, nom = `${TAG}piece.pdf`) =>
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA CHAÎNE D'UN POSTE AD & PRO — par les VRAIS points d'entrée (§118.204).
+ * LA CHAÎNE D'UN POSTE AD & PRO — par les VRAIS points d'entrée (§118.204, règle du 27/10/2026).
  *
- * « Quand c'est la validation, c'est d'abord la Direction des opérations, puis la Direction Marketing,
- * qui sélectionne le budget. À l'émission du bon de commande, la demande va chez l'assistante de
+ * Depuis le 27/10/2026 : « celui qui accepte un poste, c'est la Direction Marketing » — UN SEUL temps
+ * (montant ET budget), les postes ne s'ajoutent qu'après la PRÉVALIDATION de la demande, et au-dessus
+ * du seuil le DG valide le TOTAL de la demande avant tout bon de commande ou paiement. La suite, elle,
+ * ne change pas (Direction, 04/10) : « À l'émission du bon de commande, la demande va chez l'assistante de
  * direction ; quand elle l'uploade, ça revient ici. Dans les postes, la pro forma ou le devis, puis le
  * bon de commande, puis la facture — obligatoirement facture pour demander un paiement. Un sponsoring
  * direct n'a pas de bon de commande » (Direction, 04/10).
@@ -92,15 +102,18 @@ const avecFichier = (champs: Record<string, string>, nom = `${TAG}piece.pdf`) =>
  * poste —, jamais un compte global de la base partagée (§118.92).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, facture, paiement", () => {
-  const u: Record<"kam" | "kam2" | "ops" | "dm" | "gm" | "fin" | "ast1" | "ast2", string> = {
-    kam: "", kam2: "", ops: "", dm: "", gm: "", fin: "", ast1: "", ast2: "",
+suite("Ad & Pro — la chaîne d'un poste : un seul temps, BC par l'assistante, facture, paiement", () => {
+  const u: Record<"kam" | "kam2" | "ops" | "dm" | "dm2" | "gm" | "fin" | "ast1" | "ast2", string> = {
+    kam: "", kam2: "", ops: "", dm: "", dm2: "", gm: "", fin: "", ast1: "", ast2: "",
   };
+  // `dm2` : une SECONDE personne de la Direction Marketing — celle qui accepte les postes d'une demande de `dm`.
   const ROLES = {
-    kam: "MEDICAL_DELEGATE", kam2: "MEDICAL_DELEGATE", ops: "DIRECTION", dm: "PRODUCT_MANAGER",
+    kam: "MEDICAL_DELEGATE", kam2: "MEDICAL_DELEGATE", ops: "DIRECTION", dm: "PRODUCT_MANAGER", dm2: "PRODUCT_MANAGER",
     gm: "GENERAL_MANAGER", fin: "FINANCE_BUDGET_MANAGER", ast1: "DIRECTION_ASSISTANT", ast2: "DIRECTION_ASSISTANT",
   } as const;
   let congres = "", congres2 = "", evtDm = "", evtOps = "", spo = "", catId = "";
+  // Les demandes NON prévalidées et celle de la porte du DG — chacune la sienne (§118.151f).
+  let congresEnCircuit = "", evtSansCircuit = "", congresDg = "";
   const comme = async (qui: keyof typeof ROLES) => { ACTOR = await acteur(u[qui], ROLES[qui]); return ACTOR; };
   const ok = (r: { ok: boolean; error?: string }) => expect(r.ok, r.error ?? "").toBe(true);
 
@@ -109,17 +122,26 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     const comptes = await Promise.all(cles.map((k) =>
       prisma.user.create({ data: { name: `${TAG}${k}`, email: `${RUN}${k}@t.dz`, role: ROLES[k], passwordHash: "x" } })));
     cles.forEach((k, i) => { u[k] = comptes[i].id; });
+    // PRÉVALIDÉES (27/10/2026) : congrès et événements par `requestStatus: APPROVED` (aucun montant écrit), le
+    // sponsoring par PRE_VALIDATED — sans quoi aucun poste ne s'y ajoute.
     const [c1, c2, e1, e2, s1] = await Promise.all([
       prisma.congressNational.create({ data: { name: `${RUN} Congrès de Sétif`, requesterId: u.kam, requestStatus: "APPROVED" }, select: { id: true } }),
       prisma.congressNational.create({ data: { name: `${RUN} Congrès de Tlemcen`, requesterId: u.kam2, requestStatus: "APPROVED" }, select: { id: true } }),
-      prisma.event.create({ data: { name: `${RUN} Journée Marketing`, requesterId: u.dm, status: "VALIDATED", startDate: new Date("2026-12-04") }, select: { id: true } }),
-      prisma.event.create({ data: { name: `${RUN} Journée Opérations`, requesterId: u.ops, status: "VALIDATED", startDate: new Date("2026-12-05") }, select: { id: true } }),
+      prisma.event.create({ data: { name: `${RUN} Journée Marketing`, requesterId: u.dm, status: "VALIDATED", requestStatus: "APPROVED", startDate: new Date("2026-12-04") }, select: { id: true } }),
+      prisma.event.create({ data: { name: `${RUN} Journée Opérations`, requesterId: u.ops, status: "VALIDATED", requestStatus: "APPROVED", startDate: new Date("2026-12-05") }, select: { id: true } }),
       prisma.sponsoringRequest.create({
         data: { reference: `${RUN.slice(-14)}-SPO`, institution: `${RUN} Association cardio`, type: "Congrès", requesterId: u.kam, status: "PRE_VALIDATED" },
         select: { id: true },
       }),
     ]);
     congres = c1.id; congres2 = c2.id; evtDm = e1.id; evtOps = e2.id; spo = s1.id;
+    const [c3, e3, c4] = await Promise.all([
+      prisma.congressNational.create({ data: { name: `${RUN} Congrès de Béjaïa`, requesterId: u.kam, requestStatus: "AWAITING_FINAL" }, select: { id: true } }),
+      // Un événement « organisé » (VALIDATED) mais né HORS circuit : un statut d'organisation ne vaut pas prévalidation.
+      prisma.event.create({ data: { name: `${RUN} Journée hors circuit`, requesterId: u.kam, status: "VALIDATED", startDate: new Date("2026-12-06") }, select: { id: true } }),
+      prisma.congressNational.create({ data: { name: `${RUN} Congrès d'Annaba`, requesterId: u.kam, requestStatus: "APPROVED" }, select: { id: true } }),
+    ]);
+    congresEnCircuit = c3.id; evtSansCircuit = e3.id; congresDg = c4.id;
     const env = await prisma.budgetEnvelope.create({
       data: {
         name: `${RUN}Enveloppe`, modules: ["CONGRESS_NATIONAL", "EVENTS", "SPONSORING"], totalAmount: 50_000_000,
@@ -132,7 +154,7 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
 
   afterAll(async () => {
     const ids = Object.values(u).filter(Boolean);
-    const parents = [congres, congres2, evtDm, evtOps, spo].filter(Boolean);
+    const parents = [congres, congres2, evtDm, evtOps, spo, congresEnCircuit, evtSansCircuit, congresDg].filter(Boolean);
     const postes = (await prisma.adProItem.findMany({
       where: { OR: [{ congressNationalId: { in: parents } }, { eventId: { in: parents } }, { sponsoringId: { in: parents } }] },
       select: { id: true },
@@ -159,8 +181,12 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres.map((o) => o.id) } } }).catch(() => {});
     await prisma.adProItemDecision.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: { in: postes } } }).catch(() => {});
-    await prisma.congressNational.deleteMany({ where: { id: { in: [congres, congres2] } } }).catch(() => {});
-    await prisma.event.deleteMany({ where: { id: { in: [evtDm, evtOps] } } }).catch(() => {});
+    await prisma.adProPorteDg.deleteMany({ where: { entityId: { in: parents } } }).catch(() => {});
+    await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: parents } } } }).catch(() => {});
+    await prisma.workflowInstance.deleteMany({ where: { entityId: { in: parents } } }).catch(() => {});
+    for (const id of parents) await prisma.notification.deleteMany({ where: { link: { contains: id } } }).catch(() => {});
+    await prisma.congressNational.deleteMany({ where: { id: { in: [congres, congres2, congresEnCircuit, congresDg] } } }).catch(() => {});
+    await prisma.event.deleteMany({ where: { id: { in: [evtDm, evtOps, evtSansCircuit] } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spo } }).catch(() => {});
     await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
@@ -178,14 +204,12 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     ok(a);
     return a.id!;
   }
-  /** Le poste soumis, validé en deux temps, accordé AVEC son budget. */
+  /** Le poste soumis, accepté par la Direction Marketing (un seul temps) AVEC son budget. */
   async function posteAccorde(label: string, montant: number, opts: { parent?: Parent; parentId?: string; kind?: string; demandeur?: keyof typeof ROLES } = {}) {
     const demandeur = opts.demandeur ?? "kam";
     const id = await nouveauPoste(demandeur, opts.parent ?? "CONGRESS_NATIONAL", opts.parentId ?? congres, label, montant, opts.kind);
     await comme(demandeur);
     ok(await submitAdProItem(undefined, fd({ id })));
-    await comme("ops");
-    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED" })));
     await comme("dm");
     ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: String(montant), budgetCategoryId: catId })));
     return id;
@@ -245,9 +269,9 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
   }
 
   it("PRÉMISSES : personne n'a la vue globale ; le KAM n'a pas Legal ; chacun voit la demande qu'il tranche", async () => {
-    // EXPRÈS : la Direction des opérations (rôle `DIRECTION`) a la vue globale par son rôle — c'est elle
-    // qui tranche le premier temps. Les gardes de LECTURE et de DROIT de ce banc sont donc éprouvées avec
-    // les autres acteurs, qui ne l'ont pas (§118.104).
+    // EXPRÈS : la Direction des opérations (rôle `DIRECTION`) a la vue globale par son rôle — elle ne tranche
+    // plus aucun poste (27/10/2026), et c'est ce que ce banc vérifie d'elle. Les gardes de LECTURE et de DROIT
+    // sont éprouvées avec les autres acteurs, qui ne l'ont pas (§118.104).
     expect(hasGlobalView(await acteur(u.ops, "DIRECTION"))).toBe(true);
     for (const k of (Object.keys(ROLES) as (keyof typeof ROLES)[]).filter((x) => x !== "ops")) {
       expect(hasGlobalView(await acteur(u[k], ROLES[k])), `${k} : une garde éprouvée avec la vue globale ne peut pas tomber`).toBe(false);
@@ -261,33 +285,49 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     }
   });
 
-  // ── LA VALIDATION EN DEUX TEMPS ─────────────────────────────────────────────────────────
+  // ── AVANT LA PRÉVALIDATION ──────────────────────────────────────────────────────────────
 
-  it("DEUX TEMPS : la Direction Marketing avant les opérations est refusée ; l'accord sans budget aussi — et Mon espace montre à chacun SON temps", async () => {
+  it("AVANT LA PRÉVALIDATION : aucun poste ne s'ajoute ni ne se soumet — congrès encore dans le circuit, événement né hors circuit", async () => {
+    const PHRASE = /^Les postes s'ajoutent après la prévalidation de la Direction Marketing : la demande doit d'abord passer son N\+1, le Directeur des opérations puis la Direction Marketing\./;
+    await comme("kam");
+    for (const [parent, parentId] of [["CONGRESS_NATIONAL", congresEnCircuit], ["EVENT", evtSansCircuit]] as const) {
+      const a = await addAdProItem(undefined, fd({ parent, parentId, kind: "PRINTING", label: `${TAG}Trop tôt`, amountEstimated: "50000" }));
+      expect(a.ok === false ? a.error : "ajouté", parent).toMatch(PHRASE);
+    }
+    // Un brouillon né d'avant (DÉCOR, nommé : un poste d'avant la règle) ne se soumet pas non plus.
+    const herite = await prisma.adProItem.create({
+      data: { congressNationalId: congresEnCircuit, kind: "PRINTING", label: `${TAG}Brouillon d'avant`, amountEstimated: 50_000, createdById: u.kam, updatedById: u.kam },
+    });
+    const s = await submitAdProItem(undefined, fd({ id: herite.id }));
+    expect(s.ok === false ? s.error : "soumis").toMatch(PHRASE);
+    expect((await poste(herite.id)).status, "rien n'est écrit").toBe("DRAFT");
+    expect(await prisma.adProItem.count({ where: { OR: [{ congressNationalId: congresEnCircuit }, { eventId: evtSansCircuit }] } })).toBe(1);
+  });
+
+  // ── LA VALIDATION : UN SEUL TEMPS, LA DIRECTION MARKETING ────────────────────────────────
+
+  it("UN SEUL TEMPS : soumis, le poste va DROIT à la Direction Marketing — la Direction des opérations ne le tranche pas ; l'accord sans budget est refusé", async () => {
     const id = await nouveauPoste("kam", "CONGRESS_NATIONAL", congres, "Affiches", 120_000);
     await comme("kam");
-    ok(await submitAdProItem(undefined, fd({ id })));
+    const s = await submitAdProItem(undefined, fd({ id }));
+    ok(s);
+    expect(s.message).toBe("Poste soumis — en attente de la Direction Marketing (montant et budget).");
+    const soumis = await poste(id);
+    expect(soumis.status).toBe("PENDING");
+    expect(soumis.opsDecidedAt, "l'ancien premier temps est franchi d'office à la soumission").not.toBeNull();
+    expect(soumis.opsDecidedById, "personne ne l'a tranché : c'est la règle qui le franchit").toBeNull();
+    expect(soumis.opsDecisionNote ?? "").toMatch(/^Demande prévalidée/);
     const cle = `poste-${id}`;
-    expect((await file("ops")).some((i) => i.key === cle), "la Direction des opérations voit le poste à valider").toBe(true);
-    expect((await file("dm")).some((i) => i.key === cle), "la Direction Marketing ne voit pas un temps qui n'est pas le sien").toBe(false);
+    expect((await file("dm")).some((i) => i.key === cle), "la Direction Marketing voit le poste à décider").toBe(true);
+    expect((await file("ops")).some((i) => i.key === cle), "la Direction des opérations n'a rien à faire").toBe(false);
 
-    await comme("dm");
-    const tropTot = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "120000", budgetCategoryId: catId }));
-    expect(tropTot.ok === false ? tropTot.error : "accordé").toBe("Ce poste attend d'abord la validation de la Direction des opérations.");
-    expect((await poste(id)).status, "rien n'est écrit sur un refus").toBe("PENDING");
-
+    // La Direction des opérations ne tranche plus un poste — ni accord, ni refus.
     await comme("ops");
-    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", note: "Opération conforme." })));
-    const apresOps = await poste(id);
-    expect(apresOps.status, "le premier temps ne décide pas le poste").toBe("PENDING");
-    expect(apresOps.opsDecidedAt).not.toBeNull();
-    expect(apresOps.opsDecidedById).toBe(u.ops);
-    expect(apresOps.opsDecisionNote).toBe("Opération conforme.");
-    // Les opérations ne tiennent pas le second temps d'une demande d'un KAM.
-    const second = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", budgetCategoryId: catId }));
-    expect(second.ok === false ? second.error : "accordé").toMatch(/attend la décision de la Direction Marketing/);
-    expect((await file("dm")).some((i) => i.key === cle), "c'est AU TOUR de la Direction Marketing").toBe(true);
-    expect((await file("ops")).some((i) => i.key === cle), "la Direction des opérations n'a plus rien à faire").toBe(false);
+    for (const decision of ["APPROVED", "REJECTED"]) {
+      const r = await decideAdProItem(undefined, fd({ id, decision, note: "x", amountGranted: "120000", budgetCategoryId: catId }));
+      expect(r.ok === false ? r.error : "tranché", decision).toBe("Ce poste attend la décision de la Direction Marketing (montant et budget).");
+    }
+    expect((await poste(id)).status, "rien n'est écrit sur un refus").toBe("PENDING");
 
     await comme("dm");
     const sansBudget = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "110000" }));
@@ -301,27 +341,33 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     expect((await file("dm")).some((i) => i.key === cle), "décidé : il quitte la file").toBe(false);
   });
 
-  it("DEUX TEMPS sur une demande DE la Direction Marketing : la Direction des opérations tient les deux, la Direction Marketing aucun", async () => {
+  it("UNE DEMANDE DE LA DIRECTION MARKETING : sa déposante n'accepte pas ses postes — une AUTRE personne de la Direction Marketing, oui ; la Direction des opérations, jamais", async () => {
     const id = await nouveauPoste("dm", "EVENT", evtDm, "Salle", 300_000, "VENUE");
     await comme("dm");
     ok(await submitAdProItem(undefined, fd({ id })));
-    // On n'arbitre pas sa propre demande — à aucun temps.
-    const soiMeme = await decideAdProItem(undefined, fd({ id, decision: "APPROVED" }));
-    expect(soiMeme.ok, "la Direction Marketing ne valide pas sa propre demande").toBe(false);
+    const cle = `poste-${id}`;
+    // On n'accepte pas les postes de sa propre demande — par la PERSONNE (audit Ad & Pro, 14/10).
+    const soiMeme = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "280000", budgetCategoryId: catId }));
+    expect(soiMeme.ok === false ? soiMeme.error : "accordé", "la Direction Marketing n'accepte pas les postes de sa propre demande")
+      .toBe("Ce poste attend la décision de la Direction Marketing (montant et budget).");
+    expect((await file("dm")).some((i) => i.key === cle), "pas dans la file de sa déposante").toBe(false);
+    // L'ancienne règle donnait ce poste à la Direction des opérations : plus maintenant.
     await comme("ops");
-    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED" })));
-    await comme("dm");
-    const second = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", budgetCategoryId: catId }));
-    expect(second.ok === false ? second.error : "accordé").toMatch(/la Direction des opérations \(montant et budget\)/);
-    expect((await file("ops")).some((i) => i.key === `poste-${id}`), "le second temps est dans la file des opérations").toBe(true);
-    await comme("ops");
+    expect((await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "280000", budgetCategoryId: catId }))).ok,
+      "la Direction des opérations ne tranche plus les postes d'une demande de la Direction Marketing").toBe(false);
+    expect((await file("ops")).some((i) => i.key === cle)).toBe(false);
+    expect((await poste(id)).status).toBe("PENDING");
+    // Le TÉMOIN : une autre personne de la Direction Marketing l'a dans sa file, et l'accepte.
+    expect((await file("dm2")).some((i) => i.key === cle), "dans la file d'une AUTRE personne de la Direction Marketing").toBe(true);
+    await comme("dm2");
     ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "280000", budgetCategoryId: catId })));
     const p = await poste(id);
     expect(p.status).toBe("APPROVED");
-    expect(p.decidedById, "c'est la Direction des opérations qui a tranché").toBe(u.ops);
+    expect(Number(p.amountGranted)).toBe(280_000);
+    expect(p.decidedById, "c'est la seconde personne de la Direction Marketing qui a tranché").toBe(u.dm2);
   });
 
-  it("DEUX TEMPS sur une demande DE la Direction des opérations : le premier temps est franchi à la soumission, tracé", async () => {
+  it("UNE DEMANDE DE LA DIRECTION DES OPÉRATIONS : même chemin — soumise, droit à la Direction Marketing, tracé", async () => {
     const id = await nouveauPoste("ops", "EVENT", evtOps, "Traiteur", 90_000, "CATERING");
     await comme("ops");
     const s = await submitAdProItem(undefined, fd({ id }));
@@ -329,13 +375,28 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     expect(s.message).toMatch(/en attente de la Direction Marketing/);
     const p = await poste(id);
     expect(p.opsDecidedAt, "franchi d'office").not.toBeNull();
-    expect(p.opsDecisionNote ?? "").toMatch(/franchi d'office/);
-    // Le premier temps n'existe plus : la Direction des opérations ne le re-valide pas.
+    expect(p.opsDecisionNote ?? "").toMatch(/^Demande prévalidée/);
+    // La Direction des opérations ne tranche pas le poste de sa propre demande — ni d'aucune autre.
     const encore = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", budgetCategoryId: catId }));
-    expect(encore.ok, "la Direction des opérations ne tranche pas le second temps de sa propre demande").toBe(false);
+    expect(encore.ok, "la Direction des opérations ne tranche pas un poste").toBe(false);
     await comme("dm");
     ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", budgetCategoryId: catId })));
     expect((await poste(id)).status).toBe("APPROVED");
+  });
+
+  it("UN POSTE RESTÉ EN ATTENTE DU « PREMIER TEMPS » sous l'ancienne règle passe directement à la Direction Marketing", async () => {
+    // DÉCOR, nommé : un poste soumis avant le 27/10/2026, jamais vu par la Direction des opérations.
+    const herite = await prisma.adProItem.create({
+      data: {
+        congressNationalId: congres, kind: "PRINTING", label: `${TAG}Soumis d'avant`, amountEstimated: 70_000, status: "PENDING",
+        submittedAt: new Date(), opsDecidedAt: null, supplier: "Imprimerie Alpha", createdById: u.kam, updatedById: u.kam,
+      },
+    });
+    expect((await file("dm")).some((i) => i.key === `poste-${herite.id}`), "dans la file de la Direction Marketing").toBe(true);
+    expect((await file("ops")).some((i) => i.key === `poste-${herite.id}`), "plus dans celle des opérations").toBe(false);
+    await comme("dm");
+    ok(await decideAdProItem(undefined, fd({ id: herite.id, decision: "APPROVED", amountGranted: "70000", budgetCategoryId: catId })));
+    expect((await poste(herite.id)).status).toBe("APPROVED");
   });
 
   /**
@@ -343,7 +404,7 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
    * `tempsEnAttente` rend `null` et l'action le traitait comme « revoir une décision prise » — la
    * Direction Marketing seule. Un BROUILLON jamais soumis s'accordait donc directement.
    */
-  it("un BROUILLON ne s'accorde pas : ni soumis, ni validé par les opérations", async () => {
+  it("un BROUILLON ne s'accorde pas : jamais soumis, il n'est chez personne", async () => {
     const id = await nouveauPoste("kam", "CONGRESS_NATIONAL", congres, "Brouillon accordé", 80_000);
     await comme("dm");
     const r = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", budgetCategoryId: catId }));
@@ -351,16 +412,23 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     expect((await poste(id)).status).toBe("DRAFT");
   });
 
-  /** DÉFAUT RÉPARÉ, même cause : un refus de la Direction des OPÉRATIONS se revoit par ELLE, jamais par la Direction Marketing seule. */
-  it("un poste refusé au PREMIER temps ne se ré-accorde pas par la Direction Marketing seule", async () => {
-    const id = await nouveauPoste("kam", "CONGRESS_NATIONAL", congres, "Refus ops", 80_000);
+  /** UN REFUS DE LA DIRECTION MARKETING se revoit par ELLE (un seul temps) — jamais par la Direction des opérations. */
+  it("un poste REFUSÉ par la Direction Marketing se revoit par elle — la Direction des opérations ne le ré-accorde pas", async () => {
+    const id = await nouveauPoste("kam", "CONGRESS_NATIONAL", congres, "Refus marketing", 80_000);
     await comme("kam");
     ok(await submitAdProItem(undefined, fd({ id })));
-    await comme("ops");
-    ok(await decideAdProItem(undefined, fd({ id, decision: "REJECTED", note: "Opération non conforme." })));
     await comme("dm");
+    const sansMotif = await decideAdProItem(undefined, fd({ id, decision: "REJECTED" }));
+    expect(sansMotif.ok === false ? sansMotif.error : "refusé").toMatch(/Indiquez le motif/);
+    ok(await decideAdProItem(undefined, fd({ id, decision: "REJECTED", note: "Hors priorités." })));
+    expect((await poste(id)).status).toBe("REJECTED");
+    await comme("ops");
     const r = await decideAdProItem(undefined, fd({ id, decision: "APPROVED", budgetCategoryId: catId }));
-    expect(r.ok, "la Direction Marketing passe outre le refus des opérations").toBe(false);
+    expect(r.ok === false ? r.error : "accordé", "la Direction des opérations passe outre le refus").toBe("Seule la Direction Marketing (montant et budget) revoit la décision d'un poste.");
+    expect((await poste(id)).status).toBe("REJECTED");
+    await comme("dm");
+    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "80000", budgetCategoryId: catId })));
+    expect((await poste(id)).status, "la Direction Marketing revoit sa propre décision").toBe("APPROVED");
   });
 
   // ── LE BON DE COMMANDE, PAR L'ASSISTANTE ─────────────────────────────────────────────────
@@ -489,6 +557,56 @@ suite("Ad & Pro — la chaîne d'un poste : deux temps, BC par l'assistante, fac
     await comme("fin");
     ok(await signerBonDeCommande(avecCopieSignee(fd({ id: bc }))));
     expect((await etatDuBC(bc))?.etape).toBe("SIGNE");
+  });
+
+  // ── LA PORTE DU DG SUR LE TOTAL DE LA DEMANDE (27/10/2026) ─────────────────────────────────
+
+  it("LA PORTE DU DG : total au-dessus du seuil ⇒ ni BC ni paiement tant que le DG ne l'a pas validé ; une rallonge la referme", async () => {
+    SEUIL_DG = 500_000;
+    try {
+      // Les montants s'écrivent à la française (espace fine insécable) : les phrases se lisent avec `\s`.
+      const a = await posteAccorde("Stand Annaba", 600_000, { parentId: congresDg });
+      expect((await lirePorteDg("CONGRESS_NATIONAL", congresDg)).etat, "600 000 > 500 000 : la porte est fermée").toBe("EN_ATTENTE");
+      await comme("kam");
+      const bcFerme = await requestAdProItemOrder(undefined, fd({ id: a, note: "x", assistantId: u.ast1 }));
+      expect(bcFerme.ok === false ? bcFerme.error : "demandé").toMatch(/^Total de 600\s000 DZD au-dessus du seuil de 500\s000 DZD : la validation du Directeur Général est requise/);
+      expect(bcFerme.ok === false ? bcFerme.error : "").toMatch(/Aucun bon de commande, engagement ni paiement n'est possible d'ici là\.$/);
+      expect((await poste(a)).orderStage, "un refus ne prend pas la marche").toBe("NONE");
+      expect(await demandeBC(a), "aucune demande partie chez l'assistante").toBeNull();
+      const payeFerme = await payer(a, "600000");
+      expect(payeFerme.ok === false ? payeFerme.error : "payé").toMatch(/validation du Directeur Général est requise/);
+      // LE DG A ÉTÉ PRÉVENU — une fois, par le lien de la demande.
+      expect(await prisma.notification.count({ where: { userId: u.gm, title: { contains: "total à valider" }, link: { contains: congresDg } } })).toBe(1);
+
+      // Ni le demandeur ni la Direction Marketing ne statuent sur le total.
+      for (const k of ["kam", "dm"] as const) {
+        const r = await statuerSurLeTotal({ user: { id: u[k], role: ROLES[k] }, parent: "CONGRESS_NATIONAL", parentId: congresDg, decision: "VALIDEE", totalVu: 600_000, note: null });
+        expect(r.ok === false ? r.error : "validé", k).toMatch(/^Seul le Directeur Général/);
+      }
+      const gm = { id: u.gm, name: `${TAG}gm`, role: ROLES.gm };
+      ok(await statuerSurLeTotal({ user: gm, parent: "CONGRESS_NATIONAL", parentId: congresDg, decision: "VALIDEE", totalVu: 600_000, note: null }));
+      expect((await lirePorteDg("CONGRESS_NATIONAL", congresDg)).etat).toBe("VALIDEE");
+      await comme("kam");
+      ok(await requestAdProItemOrder(undefined, fd({ id: a, note: "Stand 18 m²", assistantId: u.ast1 })));
+      expect((await demandeBC(a))?.askedToId).toBe(u.ast1);
+
+      // UNE RALLONGE ROUVRE LA PORTE : un second poste porte le total à 700 000, au-delà des 600 000 validés.
+      const b = await posteAccorde("Hôtesses Annaba", 100_000, { parentId: congresDg });
+      const porte = await lirePorteDg("CONGRESS_NATIONAL", congresDg);
+      expect(porte.etat).toBe("EN_ATTENTE");
+      expect(porte.phrase ?? "").toMatch(/au-delà des 600\s000 DZD validés par le Directeur Général/);
+      await comme("kam");
+      const bcB = await requestAdProItemOrder(undefined, fd({ id: b, note: "x", assistantId: u.ast1 }));
+      expect(bcB.ok === false ? bcB.error : "demandé").toMatch(/de nouveau requise/);
+      // Le DG statue sur le total LU : un total qu'il n'a pas vu ne se valide pas.
+      const perime = await statuerSurLeTotal({ user: gm, parent: "CONGRESS_NATIONAL", parentId: congresDg, decision: "VALIDEE", totalVu: 600_000, note: null });
+      expect(perime.ok === false ? perime.error : "validé").toMatch(/^Le total vient de changer/);
+      ok(await statuerSurLeTotal({ user: gm, parent: "CONGRESS_NATIONAL", parentId: congresDg, decision: "VALIDEE", totalVu: 700_000, note: null }));
+      await comme("kam");
+      ok(await requestAdProItemOrder(undefined, fd({ id: b, note: "x", assistantId: u.ast1 })));
+    } finally {
+      SEUIL_DG = SEUIL_DG_HORS_ATTEINTE;
+    }
   });
 
   // ── LES DEVIS ─────────────────────────────────────────────────────────────────────────────

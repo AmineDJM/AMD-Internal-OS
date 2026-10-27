@@ -97,6 +97,11 @@ export interface WorkflowView {
   peutResoumettre: boolean;
   /** Le spectateur peut-il retirer la demande non tranchée ? (le demandeur, qui tranche, la vue globale) */
   peutRetirer: boolean;
+  /**
+   * FAIRE APPEL D'UN REFUS (décision #12, 27/10/2026) — prise en charge et événement (le sponsoring a son
+   * propre appel) : le demandeur, ou la vue globale, une fois le refus définitif rendu.
+   */
+  peutFaireAppel: boolean;
 }
 
 /** Une dépense Ad & Pro accordée peut être imputée à n'importe quelle enveloppe
@@ -289,6 +294,8 @@ export async function getWorkflowForEntity(viewer: SessionUser, entityType: Enti
       && peutResoumettre({ id: viewer.id, vueGlobale: hasGlobalView(viewer) || viewer.role === "SUPER_ADMIN" }, requesterId),
     peutRetirer: (instance.status === "IN_PROGRESS" || instance.status === "RETURNED")
       && (requesterId === viewer.id || hasGlobalView(viewer) || viewer.role === "SUPER_ADMIN" || userCan(viewer, category as Module, "VALIDATE")),
+    peutFaireAppel: instance.status === "REJECTED" && entityType !== "SPONSORING"
+      && (requesterId === viewer.id || hasGlobalView(viewer) || viewer.role === "SUPER_ADMIN"),
   };
 }
 

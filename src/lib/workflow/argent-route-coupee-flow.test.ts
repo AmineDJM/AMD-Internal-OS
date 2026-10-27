@@ -20,24 +20,30 @@ import { createEvent, submitEventForApproval } from "@/lib/actions/event-actions
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA ROUTE COUPÉE DU RANG 2 — la Direction des opérations conclut, et fixe le budget qu'elle tranche.
+ * LA ROUTE DU RANG 2 DEPUIS LE 27/10/2026 — plus de route coupée, plus d'argent sur la demande.
  *
- *   pm    Direction Marketing (rôle PRODUCT_MANAGER, SANS vue globale) : demandeur de rang 2
- *   mpm   Manager Promotion médicale (rang 2, sans vue globale) : l'autre demandeur de rang 2
- *   kam   délégué médical : le TÉMOIN, dont la demande est tranchée par Direction Marketing
+ *   pm    Direction Marketing (rôle PRODUCT_MANAGER, SANS vue globale) : sa demande est
+ *         prévalidée D'OFFICE à la naissance de l'instance ; elle prévalide celle des autres
+ *   mpm   Manager Promotion médicale (rang 2, sans vue globale) : il n'est PAS la Direction
+ *         Marketing — sa demande passe par le Directeur des opérations, puis la prévalidation
+ *   kam   délégué médical : le TÉMOIN — National Sales, Directeur des opérations, prévalidation
  *   ns    National Sales : le préliminaire du KAM
- *   gm    Directeur Général : la porte des grosses dépenses
- *   dir   Direction des opérations : l'étape `final`, qui TRANCHE la demande d'un rang 2
+ *   gm    Directeur Général : il n'est plus une étape — il valide le TOTAL des postes, à la fin
+ *   od    Directeur des opérations : l'étape `final`, qui ne fixe aucun argent
  *
- * MESURÉ AVANT LA RÉPARATION, par ces mêmes portes (création, écran de l'étape, `advanceWorkflow`) :
- * 12 demandes de rang 2 sur 12 — congrès international, national, événement ; Direction Marketing et
- * Manager Promotion médicale ; sous et au-dessus du seuil — sortaient APPROUVÉES sans budget accordé,
- * sans ordre de dépense ni déclaration, et l'écran ne proposait ni montant ni catégorie. Le même
- * dossier déposé par un KAM émettait son ordre de dépense 6 fois sur 6.
+ * L'HISTOIRE DE CE BANC. Avant le 27/10/2026, la demande d'un rang 2 s'arrêtait chez la Direction
+ * des opérations, qui héritait des pouvoirs d'argent de la Direction Marketing (§118.197g) : 12
+ * demandes sur 12 sortaient approuvées sans budget avant cette réparation. La règle du 27/10/2026
+ * retire l'argent de la demande ENTIÈRE : la Direction Marketing PRÉVALIDE (le fond et le montant
+ * demandé), les postes portent la dépense, et le DG valide leur total au-dessus du seuil. Ce banc
+ * prouve donc l'inverse de ce qu'il prouvait : AUCUNE étape du circuit par défaut ne fixe un
+ * montant, n'exige une catégorie ni n'émet d'ordre global — et un circuit REMODELÉ à la main, où
+ * la prévalidation fixe encore l'argent, garde le comportement d'avant (l'héritage reste éprouvé).
  *
- * Les demandes naissent par les vraies actions de création ; leur circuit est une COPIE PRIVÉE de la
- * colonne vertébrale par défaut (même raison que `renvoi-flow.test.ts` : un banc voisin réécrit le
- * circuit partagé le temps d'un cas). Les montants se lisent contre le seuil RÉEL des réglages.
+ * Les demandes naissent par les vraies actions de création (qui ouvrent le circuit,
+ * `ouvrirLeCircuit`) ; leur circuit est ensuite une COPIE PRIVÉE de la colonne vertébrale par défaut
+ * (même raison que `renvoi-flow.test.ts` : un banc voisin réécrit le circuit partagé le temps d'un
+ * cas). Les montants se lisent contre le seuil RÉEL des réglages.
  *
  * L'émission se juge « une déclaration OU un ordre de dépense » : `emitFinancials` choisit la
  * déclaration dès qu'un pharmacien est actif, et un banc voisin (`medical-info-circuits.test.ts`) en
@@ -53,7 +59,7 @@ const TAG = `__argcoupe${Date.now()}__`;
 const ids: Record<string, string> = {};
 const ROLES: Record<string, UserRole> = {
   pm: "PRODUCT_MANAGER", mpm: "MEDICAL_PROMOTION_MANAGER", kam: "MEDICAL_DELEGATE",
-  ns: "NATIONAL_SALES", gm: "GENERAL_MANAGER", dir: "DIRECTION",
+  ns: "NATIONAL_SALES", gm: "GENERAL_MANAGER", od: "OPERATIONS_DIRECTOR",
 };
 let catId = "";
 let SEUIL = 1_000_000;
@@ -148,7 +154,7 @@ async function constat(entityType: ET, id: string) {
   return { inst, ligne, ordres, declarations };
 }
 
-suite("Route coupée — l'étape qui conclut la demande d'un rang 2 fixe le montant et la catégorie", () => {
+suite("La route du rang 2 (27/10/2026) — la Direction Marketing prévalide, aucune étape ne fixe l'argent de la demande", () => {
   beforeAll(async () => {
     const crees = await Promise.all(Object.entries(ROLES).map(([qui, role]) =>
       prisma.user.create({ data: { name: `${TAG}${qui}`, email: `${TAG}${qui}@t.dz`, role, passwordHash: "x" } })));
@@ -188,157 +194,205 @@ suite("Route coupée — l'étape qui conclut la demande d'un rang 2 fixe le mon
     await prisma.user.deleteMany({ where: { id: { in: Object.values(ids) } } }).catch(() => {});
   });
 
-  it("PRÉMISSES : deux demandeurs de rang 2 sans vue globale, et une définition où la Direction des opérations ne fixe RIEN", async () => {
+  it("PRÉMISSES : deux demandeurs de rang 2 sans vue globale, et une définition où AUCUNE étape ne fixe d'argent", async () => {
     expect(hasGlobalView({ role: "PRODUCT_MANAGER" }), "Direction Marketing n'a pas la vue globale").toBe(false);
     expect(hasGlobalView({ role: "MEDICAL_PROMOTION_MANAGER" }), "le Manager Promotion médicale non plus").toBe(false);
     expect(SEUIL, "le seuil du DG se lit dans les réglages").toBeGreaterThan(0);
-    // SANS CETTE PRÉMISSE, LE BANC NE MESURERAIT RIEN : si la définition donnait déjà le montant à la
-    // Direction des opérations, l'héritage ne jouerait pas, et chaque cas passerait sans lui.
+    // SANS CETTE PRÉMISSE, LE BANC NE MESURERAIT RIEN : une étape qui fixerait encore l'argent
+    // ferait passer les cas « sans montant » pour la mauvaise raison.
     const def = await prisma.workflowDefinition.findUniqueOrThrow({ where: { id: await circuit("CONGRESS_INTERNATIONAL") }, include: { steps: true } });
-    const final = def.steps.find((s) => s.slug === "final")!;
-    expect([final.requireAmount, final.requireCategory, final.powers.includes("SET_AMOUNT"), final.powers.includes("SET_CATEGORY")]).toEqual([false, false, false, false]);
-    const marketing = def.steps.find((s) => s.slug === "marketing")!;
-    expect([marketing.requireAmount, marketing.requireCategory]).toEqual([true, true]);
+    for (const st of def.steps) {
+      expect([st.requireAmount, st.requireCategory, st.powers.includes("SET_AMOUNT"), st.powers.includes("SET_CATEGORY"), st.emitExpenseOrder], st.slug)
+        .toEqual([false, false, false, false, false]);
+    }
+    expect(def.steps.find((s) => s.slug === "final")!.actorRoles, "l'étape `final` est celle du Directeur des opérations").toEqual(["OPERATIONS_DIRECTOR"]);
+    expect(def.steps.find((s) => s.slug === "marketing")!.emitDeclaration, "la déclaration part à la prévalidation").toBe(true);
   });
 
   for (const nature of ["INTL", "NATIONAL", "EVENT"] as const) {
-    for (const qui of ["pm", "mpm"] as const) {
-      it(`${LIBELLE[nature]} déposé par ${qui === "pm" ? "Direction Marketing" : "le Manager Promotion médicale"} : la Direction des opérations tranche ET fixe le budget — accordé, dépense engagée`, async () => {
-        const entityType = ENTITE[nature];
-        const id = await deposer(nature, qui, Math.round(SEUIL / 2));
-        const avant = await instanceDe(entityType, id);
-        expect(avant.finalSlug, "PRÉMISSE : sa route s'arrête chez la Direction des opérations").toBe("final");
-        expect(avant.currentSlug, "PRÉMISSE : la porte du DG est franchie sous le seuil").toBe("final");
+    it(`${LIBELLE[nature]} déposé par Direction Marketing : prévalidé D'OFFICE à la création — aucun montant, aucun ordre global`, async () => {
+      // Ce qui le ferait tomber : l'ancienne route coupée (la Direction des opérations tranchait à
+      // sa place, montant et catégorie compris) — ou une demande qui attendrait que la Direction
+      // Marketing se prévalide elle-même.
+      const entityType = ENTITE[nature];
+      const id = await deposer(nature, "pm", Math.round(SEUIL / 2));
+      const { inst, ligne, ordres } = await constat(entityType, id);
+      expect(inst.status, "prévalidée dès la naissance").toBe("APPROVED");
+      expect(inst.finalSlug, "plus de borne").toBeNull();
+      expect(inst.skippedSlugs).toEqual(["preliminary", "dg", "final"]);
+      expect(ligne.requestStatus).toBe("APPROVED");
+      expect(ligne.finalAmount, "aucun montant accordé : l'argent se décide poste par poste").toBeNull();
+      expect(ordres.length, "aucun ordre GLOBAL").toBe(0);
+      const ev = await prisma.workflowStepEvent.findFirst({ where: { instanceId: inst.id, stepSlug: "marketing", action: "APPROVE" } });
+      expect(ev?.actorId, "au nom de sa créatrice").toBe(ids.pm);
+      expect(ev?.note).toMatch(/^Prévalidée d'office/);
+      if (nature === "EVENT") {
+        const ev2 = await prisma.event.findUniqueOrThrow({ where: { id }, select: { status: true } });
+        expect(ev2.status, "l'état de vie suit le circuit").toBe("VALIDATED");
+      }
+    });
 
-        // UN ACCORD SANS MONTANT N'EST PLUS UN ACCORD : c'est exactement ce qui sortait avant, en silence.
-        const sansMontant = await approuver("dir", entityType, id, { budgetCategoryId: catId });
-        expect(sansMontant.ok, "sans montant, la Direction des opérations ne tranche plus").toBe(false);
-        expect(sansMontant.ok ? "" : sansMontant.error).toMatch(/montant est obligatoire/);
-        const sansCategorie = await approuver("dir", entityType, id, { amount: Math.round(SEUIL / 3) });
-        expect(sansCategorie.ok, "sans catégorie non plus").toBe(false);
-        expect(sansCategorie.ok ? "" : sansCategorie.error).toMatch(/catégorie budgétaire est obligatoire/);
-        expect((await instanceDe(entityType, id)).status, "les deux refus n'ont rien fait avancer").toBe("IN_PROGRESS");
-        expect(await prisma.expenseOrder.count({ where: { sourceId: id } }), "et rien n'a été engagé").toBe(0);
+    it(`${LIBELLE[nature]} déposé par le Manager Promotion médicale : Directeur des opérations, puis prévalidation — sans montant ni ordre global`, async () => {
+      // Le Manager Promotion médicale est de rang 2 mais n'est PAS la Direction Marketing : rien ne
+      // le prévalide d'office. Ce qui le ferait tomber : la prévalidation d'office étendue au rang 2
+      // entier — ou l'ancienne route coupée, qui exigeait un montant au Directeur des opérations.
+      const entityType = ENTITE[nature];
+      const id = await deposer(nature, "mpm", Math.round(SEUIL / 2));
+      const avant = await instanceDe(entityType, id);
+      expect(avant.finalSlug, "PRÉMISSE : plus de borne").toBeNull();
+      expect(avant.currentSlug, "PRÉMISSE : son N+1, le Directeur des opérations").toBe("final");
+      expect(avant.skippedSlugs).toEqual(["preliminary", "dg"]);
 
-        const accorde = Math.round(SEUIL / 3);
-        const r = await approuver("dir", entityType, id, { amount: accorde, budgetCategoryId: catId });
-        expect(r.ok, r.ok ? "" : r.error).toBe(true);
-        const { inst, ligne, ordres, declarations } = await constat(entityType, id);
-        expect(inst.status).toBe("APPROVED");
-        expect(ligne.requestStatus).toBe("APPROVED");
-        expect(Number(ligne.finalAmount), "le budget accordé est celui que la Direction des opérations a fixé").toBe(accorde);
-        expect(inst.budgetCategoryId, "et la catégorie qu'elle a choisie").toBe(catId);
-        expect(ordres.length + declarations.length, "la dépense est ENGAGÉE — un ordre, ou une déclaration à l'information médicale").toBe(1);
-        const piece = ordres[0] ?? declarations[0]!;
-        expect(Number(piece.amount)).toBe(accorde);
-        expect(piece.budgetCategoryId).toBe(catId);
-      });
-    }
+      const tropTot = await approuver("pm", entityType, id);
+      expect(tropTot.ok, "la Direction Marketing attend son tour").toBe(false);
+      const od = await approuver("od", entityType, id);
+      expect(od.ok, od.ok ? "" : od.error).toBe(true);
+      expect((await instanceDe(entityType, id)).currentSlug).toBe("marketing");
+      expect(await prisma.expenseOrder.count({ where: { sourceId: id } }), "rien n'est engagé avant la prévalidation").toBe(0);
+
+      const r = await approuver("pm", entityType, id);
+      expect(r.ok, r.ok ? "" : r.error).toBe(true);
+      const { inst, ligne, ordres } = await constat(entityType, id);
+      expect(inst.status).toBe("APPROVED");
+      expect(ligne.requestStatus).toBe("APPROVED");
+      expect(ligne.finalAmount, "aucun montant écrit").toBeNull();
+      expect(ordres.length, "aucun ordre GLOBAL : les postes portent la dépense").toBe(0);
+      expect(await prisma.medicalInfoDeclaration.count({ where: { sourceId: id } }), "la déclaration d'information médicale part").toBe(1);
+    });
   }
 
-  it("AU-DESSUS DU SEUIL, le DG valide sans chiffrer — seule l'étape qui CONCLUT hérite des pouvoirs d'argent", async () => {
-    const id = await deposer("INTL", "pm", Math.round(SEUIL * 1.5));
-    expect((await instanceDe("CONGRESS_INTERNATIONAL", id)).currentSlug, "PRÉMISSE : au-dessus du seuil, la porte du DG reste ouverte").toBe("dg");
-    // Ce qui le ferait tomber : hériter à une étape qui NE conclut PAS — le DG se verrait exiger un
-    // montant qu'il n'a pas à fixer, et la demande resterait à sa porte.
+  it("AU-DESSUS DU SEUIL, le DG n'est PLUS une étape : la demande va au Directeur des opérations, quel que soit le montant", async () => {
+    // Ce qui le ferait tomber : la porte du DG laissée sur la route — un DG qui validerait la
+    // DEMANDE alors que la règle lui donne le TOTAL de ses postes, à la fin.
+    const id = await deposer("INTL", "mpm", Math.round(SEUIL * 1.5));
+    const inst = await instanceDe("CONGRESS_INTERNATIONAL", id);
+    expect(inst.currentSlug, "la porte du DG est dans le tamis").toBe("final");
     const porte = await approuver("gm", "CONGRESS_INTERNATIONAL", id);
-    expect(porte.ok, porte.ok ? "" : porte.error).toBe(true);
-    const montant = Math.round(SEUIL * 1.2);
-    const r = await approuver("dir", "CONGRESS_INTERNATIONAL", id, { amount: montant, budgetCategoryId: catId });
-    expect(r.ok, r.ok ? "" : r.error).toBe(true);
-    const { ligne, ordres, declarations } = await constat("CONGRESS_INTERNATIONAL", id);
-    expect(Number(ligne.finalAmount)).toBe(montant);
-    expect(ordres.length + declarations.length).toBe(1);
+    expect(porte.ok, "le DG n'a rien à valider ici").toBe(false);
+    expect(await prisma.workflowStepEvent.count({ where: { instanceId: inst.id, stepSlug: "dg" } }), "rien n'est tracé sur la porte du DG").toBe(0);
   });
 
-  it("LE TÉMOIN : le même congrès déposé par un KAM — Direction Marketing tranche avec SES pouvoirs, rien n'est hérité", async () => {
+  it("LE TÉMOIN : le même congrès déposé par un KAM — National Sales, Directeur des opérations, prévalidation ; rien n'est hérité", async () => {
     const id = await deposer("INTL", "kam", Math.round(SEUIL / 2));
     expect((await approuver("ns", "CONGRESS_INTERNATIONAL", id)).ok).toBe(true);
+    expect((await instanceDe("CONGRESS_INTERNATIONAL", id)).currentSlug, "le second filtre du délégué").toBe("final");
+    expect((await approuver("od", "CONGRESS_INTERNATIONAL", id)).ok).toBe(true);
     const inst = await instanceDe("CONGRESS_INTERNATIONAL", id);
     expect(inst.currentSlug).toBe("marketing");
     const def = await prisma.workflowDefinition.findUniqueOrThrow({ where: { id: inst.definitionId }, include: { steps: true } });
     const marketing = def.steps.find((s) => s.slug === "marketing")!;
-    expect(lectureDeLApprobation(def, marketing, inst.finalSlug, inst.skippedSlugs).etape, "l'étape qui tranche porte déjà l'argent : elle reste ELLE-MÊME").toBe(marketing);
-    const r = await approuver("pm", "CONGRESS_INTERNATIONAL", id, { amount: 250_000, budgetCategoryId: catId });
+    expect(lectureDeLApprobation(def, marketing, inst.finalSlug, inst.skippedSlugs).etape, "rien à hériter de la porte du DG : l'étape reste ELLE-MÊME").toBe(marketing);
+    const r = await approuver("pm", "CONGRESS_INTERNATIONAL", id);
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
-    const { ligne, ordres, declarations } = await constat("CONGRESS_INTERNATIONAL", id);
-    expect(Number(ligne.finalAmount)).toBe(250_000);
-    expect(ordres.length + declarations.length).toBe(1);
+    const { ligne, ordres } = await constat("CONGRESS_INTERNATIONAL", id);
+    expect(ligne.requestStatus).toBe("APPROVED");
+    expect(ligne.finalAmount).toBeNull();
+    expect(ordres.length).toBe(0);
   });
 
-  it("UNE ÉTAPE CONFIGURÉE À LA MAIN garde sa configuration : la Direction des opérations « fixe un montant » sans l'exiger — rien n'y est ajouté", async () => {
-    // Le Super Admin a donné à la Direction des opérations le pouvoir de fixer un montant, sans
-    // l'exiger ni la catégorie. C'est SA décision pour cette étape : l'héritage n'y fusionne pas les
-    // exigences de Direction Marketing (§118.16). Ce qui le ferait tomber : fusionner au lieu de
-    // s'abstenir — l'approbation sans montant serait refusée.
-    const retouche = await circuit("CONGRESS_INTERNATIONAL", (s) => (s.slug === "final" ? { ...s, powers: [...s.powers, "SET_AMOUNT"] } : s));
-    const id = await deposer("INTL", "pm", Math.round(SEUIL / 2), retouche);
-    const r = await approuver("dir", "CONGRESS_INTERNATIONAL", id);
+  it("UN CIRCUIT REMODELÉ où la prévalidation fixe encore l'argent garde son comportement d'avant : montant et catégorie exigés, demande ACCORDÉE, dépense engagée", async () => {
+    // « Un circuit dont l'étape qui conclut fixe encore un montant (remodelé à la main) garde son
+    // comportement d'avant » (engine.ts). C'est la décision du Super Admin pour CE circuit.
+    const retouche = await circuit("CONGRESS_INTERNATIONAL", (s) => (s.slug === "marketing"
+      ? { ...s, powers: ["APPROVE", "REJECT", "SET_AMOUNT", "SET_CATEGORY", "COMMENT"], requireAmount: true, requireCategory: true, emitExpenseOrder: true }
+      : s));
+    const id = await deposer("INTL", "mpm", Math.round(SEUIL / 2), retouche);
+    expect((await approuver("od", "CONGRESS_INTERNATIONAL", id)).ok).toBe(true);
+    const sansMontant = await approuver("pm", "CONGRESS_INTERNATIONAL", id, { budgetCategoryId: catId });
+    expect(sansMontant.ok, "l'argent se fixe ici, donc il s'exige ici").toBe(false);
+    expect(sansMontant.ok ? "" : sansMontant.error).toMatch(/montant est obligatoire/);
+    const sansCategorie = await approuver("pm", "CONGRESS_INTERNATIONAL", id, { amount: Math.round(SEUIL / 3) });
+    expect(sansCategorie.ok ? "" : sansCategorie.error).toMatch(/catégorie budgétaire est obligatoire/);
+    const accorde = Math.round(SEUIL / 3);
+    const r = await approuver("pm", "CONGRESS_INTERNATIONAL", id, { amount: accorde, budgetCategoryId: catId });
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
-    expect((await instanceDe("CONGRESS_INTERNATIONAL", id)).status).toBe("APPROVED");
+    const { inst, ligne, ordres, declarations } = await constat("CONGRESS_INTERNATIONAL", id);
+    expect(inst.status).toBe("APPROVED");
+    expect(Number(ligne.finalAmount), "le budget accordé est celui que la Direction Marketing a fixé").toBe(accorde);
+    expect(inst.budgetCategoryId).toBe(catId);
+    expect(ordres.length + declarations.length, "la dépense est ENGAGÉE — un ordre, ou une déclaration à l'information médicale").toBe(1);
+    const piece = ordres[0] ?? declarations[0]!;
+    expect(Number(piece.amount)).toBe(accorde);
   });
 
-  it("LE SPONSORING EN EST EXEMPT : sa décision pré-valide la TENUE sans argent — rien à hériter, la tenue reste pré-validée", async () => {
-    // Le sponsoring d'un rang 2 conclut chez la Direction des opérations comme les trois autres
-    // natures ; mais l'étape qu'elle remplace ne fixe aucun argent (§118.151). Ce qui le ferait
-    // tomber : exiger un montant ici — l'argent d'un sponsoring se fixe à la clôture, poste par poste.
-    const init = adProInit({ role: "PRODUCT_MANAGER" }, "SPONSORING", null);
-    const spo = await prisma.sponsoringRequest.create({
-      data: { reference: `${TAG}SPO`, institution: `${TAG}Société savante`, type: "Association", requesterId: ids.pm!, status: init.status as "PRELIMINARY_APPROVED", amountRequested: Math.round(SEUIL / 2) },
-    });
-    const inst = await lier("SPONSORING", spo.id);
-    expect(inst.currentSlug, "PRÉMISSE : la route s'arrête chez la Direction des opérations").toBe("final");
-    const r = await approuver("dir", "SPONSORING", spo.id);
+  it("LE SPONSORING : la Direction Marketing pré-valide la TENUE — d'office pour sa propre demande, après le Directeur des opérations pour le Manager Promotion médicale", async () => {
+    // Ce qui le ferait tomber : exiger un montant ici — l'argent d'un sponsoring se fixe poste par
+    // poste, puis à la clôture (§118.151).
+    const creer = async (qui: "pm" | "mpm", ref: string) => {
+      const role = ROLES[qui]!;
+      const init = adProInit({ role }, "SPONSORING", null);
+      return prisma.sponsoringRequest.create({
+        data: { reference: `${TAG}${ref}`, institution: `${TAG}Société ${ref}`, type: "Association", requesterId: ids[qui]!, status: init.status as "PRELIMINARY_APPROVED", amountRequested: Math.round(SEUIL / 2) },
+      });
+    };
+    const spoPm = await creer("pm", "SPO-DM");
+    const instPm = await lier("SPONSORING", spoPm.id);
+    expect(instPm.status, "prévalidée d'office").toBe("APPROVED");
+    const lignePm = await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id: spoPm.id } });
+    expect(lignePm.status).toBe("PRE_VALIDATED");
+    expect(lignePm.amountGranted, "aucun montant accordé avant la clôture").toBeNull();
+
+    const spoMpm = await creer("mpm", "SPO-MPM");
+    const instMpm = await lier("SPONSORING", spoMpm.id);
+    expect(instMpm.currentSlug, "PRÉMISSE : le Directeur des opérations d'abord").toBe("final");
+    expect((await approuver("od", "SPONSORING", spoMpm.id)).ok).toBe(true);
+    const r = await approuver("pm", "SPONSORING", spoMpm.id);
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
-    const ligne = await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id: spo.id } });
+    const ligne = await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id: spoMpm.id } });
     expect(ligne.status).toBe("PRE_VALIDATED");
-    expect(ligne.amountGranted, "aucun montant accordé avant la clôture").toBeNull();
+    expect(ligne.amountGranted).toBeNull();
+    const notif = await prisma.notification.findFirst({ where: { userId: ids.mpm!, link: { contains: spoMpm.id } }, orderBy: { createdAt: "desc" } });
+    expect(notif?.title, "le demandeur lit ce qui l'attend — les postes").toMatch(/prévalidée : les postes se préparent/);
   });
 
-  it("…SAUF si le Super Admin a laissé l'argent à Direction Marketing : l'étape qui conclut l'hérite et ACCORDE, comme celle qu'elle remplace", async () => {
+  it("…SAUF si le Super Admin a laissé l'argent à Direction Marketing : l'étape ACCORDE, comme avant", async () => {
     // Un circuit de sponsoring REMODELÉ, où la décision fixe encore l'argent (l'ancienne règle) :
-    // `issueTerminaleSponsoring` lit la configuration — et c'est l'étape TELLE QU'ELLE DÉCIDE qu'il
-    // faut lui donner, sinon la tenue serait « pré-validée » alors qu'un montant vient d'être exigé.
+    // `issueTerminaleSponsoring` lit la configuration de l'étape TELLE QU'ELLE DÉCIDE.
     const retouche = await circuit("SPONSORING", (s) => (s.slug === "marketing"
       ? { ...s, powers: ["APPROVE", "REJECT", "SET_AMOUNT", "SET_CATEGORY", "COMMENT"], requireAmount: true, requireCategory: true, emitExpenseOrder: true }
       : s));
-    const init = adProInit({ role: "PRODUCT_MANAGER" }, "SPONSORING", null);
+    const init = adProInit({ role: "MEDICAL_PROMOTION_MANAGER" }, "SPONSORING", null);
     const spo = await prisma.sponsoringRequest.create({
-      data: { reference: `${TAG}SPO2`, institution: `${TAG}Société remodelée`, type: "Association", requesterId: ids.pm!, status: init.status as "PRELIMINARY_APPROVED", amountRequested: Math.round(SEUIL / 2) },
+      data: { reference: `${TAG}SPO2`, institution: `${TAG}Société remodelée`, type: "Association", requesterId: ids.mpm!, status: init.status as "PRELIMINARY_APPROVED", amountRequested: Math.round(SEUIL / 2) },
     });
     await lier("SPONSORING", spo.id, retouche);
-    const sansMontant = await approuver("dir", "SPONSORING", spo.id, { budgetCategoryId: catId });
+    expect((await approuver("od", "SPONSORING", spo.id)).ok).toBe(true);
+    const sansMontant = await approuver("pm", "SPONSORING", spo.id, { budgetCategoryId: catId });
     expect(sansMontant.ok, "l'argent se fixe ici, donc il s'exige ici").toBe(false);
     const montant = Math.round(SEUIL / 4);
-    const r = await approuver("dir", "SPONSORING", spo.id, { amount: montant, budgetCategoryId: catId });
+    const r = await approuver("pm", "SPONSORING", spo.id, { amount: montant, budgetCategoryId: catId });
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
     const ligne = await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id: spo.id } });
     expect(ligne.status, "l'étape fixe l'argent : elle accorde").toBe("APPROVED");
     expect(Number(ligne.amountGranted)).toBe(montant);
-    const notif = await prisma.notification.findFirst({ where: { userId: ids.pm!, link: { contains: spo.id } }, orderBy: { createdAt: "desc" } });
+    const notif = await prisma.notification.findFirst({ where: { userId: ids.mpm!, link: { contains: spo.id } }, orderBy: { createdAt: "desc" } });
     expect(notif?.title, "le demandeur lit un accord, pas une tenue pré-validée").toMatch(/pris en charge/);
   });
 
-  it("L'ÉCRAN de la Direction des opérations OFFRE le montant et la catégorie — et l'écran du DG, qui ne conclut pas, ne les offre pas", async () => {
-    // Un champ exigé que le panneau ne montre pas serait un bouton offert puis refusé (§118.83) :
-    // l'écran lit la MÊME réponse que le moteur (`lectureDeLApprobation`).
+  it("L'ÉCRAN n'OFFRE ni montant ni catégorie — ni au Directeur des opérations, ni à la prévalidation ; le DG n'a aucune action", async () => {
+    // Un champ offert que le moteur ignorerait serait un mensonge d'écran ; un champ exigé que le
+    // panneau ne montre pas, un bouton offert puis refusé (§118.83). L'écran lit la MÊME réponse que
+    // le moteur (`lectureDeLApprobation`).
     const id = await deposer("NATIONAL", "mpm", Math.round(SEUIL * 1.5));
     const vueDg = (await getWorkflowForEntity(await actorFor("gm"), "CONGRESS_NATIONAL", id, null))!;
-    expect(vueDg.action?.slug, "PRÉMISSE : la demande est à la porte du DG").toBe("dg");
-    expect([vueDg.action?.requireAmount, vueDg.action?.powers.includes("SET_AMOUNT")], "le DG ne fixe pas le budget").toEqual([false, false]);
-    expect((await approuver("gm", "CONGRESS_NATIONAL", id)).ok).toBe(true);
+    expect(vueDg.action ?? null, "le DG n'a rien à faire sur la demande").toBeNull();
 
-    const vue = (await getWorkflowForEntity(await actorFor("dir"), "CONGRESS_NATIONAL", id, null))!;
-    expect(vue.action?.slug, "PRÉMISSE : la Direction des opérations a la main").toBe("final");
-    expect(vue.action?.requireAmount, "le montant est demandé, et obligatoire").toBe(true);
-    expect(vue.action?.requireCategory, "la catégorie aussi").toBe(true);
-    expect(vue.action?.powers).toEqual(expect.arrayContaining(["SET_AMOUNT", "SET_CATEGORY"]));
-    expect(vue.budgetCategories.map((c) => c.id), "et ses catégories sont proposées").toContain(catId);
+    const vueOd = (await getWorkflowForEntity(await actorFor("od"), "CONGRESS_NATIONAL", id, null))!;
+    expect(vueOd.action?.slug, "PRÉMISSE : le Directeur des opérations a la main").toBe("final");
+    expect([vueOd.action?.requireAmount, vueOd.action?.powers.includes("SET_AMOUNT")]).toEqual([false, false]);
+    expect((await approuver("od", "CONGRESS_NATIONAL", id)).ok).toBe(true);
 
-    // L'écran joué tel qu'il se présente : il offre les champs, on les remplit, la dépense part.
-    const r = await approuver("dir", "CONGRESS_NATIONAL", id, { amount: Math.round(SEUIL * 1.1), budgetCategoryId: catId });
+    const vue = (await getWorkflowForEntity(await actorFor("pm"), "CONGRESS_NATIONAL", id, null))!;
+    expect(vue.action?.slug, "PRÉMISSE : la Direction Marketing a la main").toBe("marketing");
+    expect(vue.action?.requireAmount, "aucun montant à la prévalidation").toBe(false);
+    expect(vue.action?.requireCategory, "aucune catégorie non plus").toBe(false);
+    expect(vue.action?.powers).not.toEqual(expect.arrayContaining(["SET_AMOUNT"]));
+    expect(vue.action?.powers).not.toEqual(expect.arrayContaining(["SET_CATEGORY"]));
+
+    // L'écran joué tel qu'il se présente : on approuve, rien n'est engagé.
+    const r = await approuver("pm", "CONGRESS_NATIONAL", id);
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
-    const { ordres, declarations } = await constat("CONGRESS_NATIONAL", id);
-    expect(ordres.length + declarations.length).toBe(1);
+    const { ordres } = await constat("CONGRESS_NATIONAL", id);
+    expect(ordres.length).toBe(0);
   });
 });

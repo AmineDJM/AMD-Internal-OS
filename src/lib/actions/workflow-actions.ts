@@ -7,7 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { ROLE_LABELS } from "@/lib/labels";
-import { advanceWorkflowInstance, resubmitWorkflowInstance, retirerDemande } from "@/lib/workflow/engine";
+import { advanceWorkflowInstance, reopenInstance, resubmitWorkflowInstance, retirerDemande } from "@/lib/workflow/engine";
+import { lienDemandeAdPro } from "@/lib/chemins/ad-pro";
 import { canAccessEntity } from "@/lib/entity-access";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { DELETE_REGISTRY, isDeletableKind } from "@/lib/admin-delete-registry";
@@ -229,6 +230,40 @@ function sanitizeStep(raw: unknown, index: number, usedSlugs: Set<string>): Step
     confidential: r.confidential === true,
     legacyStatus: typeof r.legacyStatus === "string" && r.legacyStatus.trim() ? r.legacyStatus.trim() : null,
   };
+}
+
+/**
+ * FAIRE APPEL D'UN REFUS — prise en charge nationale ou internationale, événement (décision #12, Direction
+ * 27/10/2026 : « l'appel ne vivait que pour le sponsoring »). Le demandeur — ou la vue globale — conteste
+ * le refus définitif, motif exigé : le circuit se rouvre sur l'étape qui a tranché (la Direction Marketing,
+ * `reopenInstance`), qui est prévenue ; la demande repasse « en attente de décision ».
+ */
+export async function faireAppelAdPro(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const entityType = fdStr(formData, "entityType");
+  const entityId = fdStr(formData, "entityId");
+  const motif = fdStr(formData, "motif");
+  if (!entityId || (entityType !== "CONGRESS_NATIONAL" && entityType !== "CONGRESS_INTERNATIONAL" && entityType !== "EVENT")) {
+    return { ok: false, error: "Demande non précisée." };
+  }
+  if (!motif) return { ok: false, error: "Dites pourquoi vous faites appel : le motif est transmis à l'étape qui réexamine." };
+  const sel = { select: { requesterId: true, requestStatus: true, name: true } } as const;
+  const ligne = entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, ...sel })
+    : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, ...sel })
+      : await prisma.event.findUnique({ where: { id: entityId }, ...sel });
+  if (!ligne) return { ok: false, error: "Demande introuvable." };
+  if (ligne.requesterId !== user.id && !hasGlobalView(user) && user.role !== "SUPER_ADMIN") return { ok: false, error: "Seul le demandeur peut faire appel." };
+  if (ligne.requestStatus !== "REJECTED") return { ok: false, error: "L'appel n'est possible qu'après un refus définitif." };
+  const viewer = { id: user.id, role: user.role, secondaryRole: user.secondaryRole ?? null, name: user.name };
+  const { etape } = await reopenInstance(entityType, entityId, viewer, motif);
+  if (!etape) return { ok: false, error: "Le circuit n'a pas pu être rouvert (un appel vient peut-être d'être déposé) : rouvrez la fiche." };
+  const data = { requestStatus: "AWAITING_FINAL" as const, rejectionReason: null };
+  if (entityType === "CONGRESS_NATIONAL") await prisma.congressNational.update({ where: { id: entityId }, data });
+  else if (entityType === "CONGRESS_INTERNATIONAL") await prisma.congressInternational.update({ where: { id: entityId }, data });
+  else await prisma.event.update({ where: { id: entityId }, data });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Ad & Pro", entityType, entityId, summary: `Appel du demandeur — ${ligne.name} (réexamen : ${etape}) : ${motif}` });
+  revalidatePath(lienDemandeAdPro(entityType, entityId));
+  return { ok: true, message: `Appel envoyé — « ${etape} » réexamine la demande.` };
 }
 
 /**

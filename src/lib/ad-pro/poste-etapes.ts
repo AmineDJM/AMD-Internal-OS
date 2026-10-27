@@ -4,6 +4,7 @@ import type { DroitsValidation } from "@/lib/ad-pro/validation-poste";
 // Seul import de valeur : un module PUR, sûr pour le navigateur — la règle des fiches par personne
 // tient en un endroit, lu par l'action et par la carte (Direction, 06/10).
 import { refusFichesPersonnes } from "@/lib/ad-pro/hebergements";
+import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -33,7 +34,7 @@ import { refusFichesPersonnes } from "@/lib/ad-pro/hebergements";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export type CleEtape = "CHIFFRE" | "OPERATIONS" | "MARKETING" | "BC" | "FACTURE" | "PAIEMENT";
+export type CleEtape = "CHIFFRE" | "OPERATIONS" | "MARKETING" | "DG" | "BC" | "FACTURE" | "PAIEMENT";
 export type EtatEtape = "FAIT" | "EN_COURS" | "A_VENIR" | "REFUSE";
 
 export interface Etape {
@@ -68,8 +69,16 @@ export interface FaitsPoste {
    * `DIRECTION_OK` qu'un BC visé — et la phrase ne doit pas dire « validé » à sa place.
    */
   orderSansCentre?: boolean;
-  /** Le premier temps de la validation (Direction des opérations), §118.204. */
+  /** Le premier temps de la validation (Direction des opérations), §118.204 — n'est plus attendu depuis le 27/10/2026. */
   opsDecidedAt?: string | null;
+  /**
+   * LA PORTE DU DG SUR LE TOTAL DE LA DEMANDE (27/10/2026) — la même pour tous les postes d'une demande.
+   * `EN_ATTENTE` / `A_REVOIR` : aucun bon de commande ni paiement. Absent : non lue (aucun blocage dit ici,
+   * l'action serveur garde la porte de toute façon).
+   */
+  porteDg?: EtatPorteDg;
+  /** La phrase de la porte quand elle bloque (« total 1 100 000 DZD au-dessus du seuil de 1 000 000 DZD »). */
+  porteDgPhrase?: string | null;
   /** La demande de pièce « bon de commande » envoyée à l'assistante, §118.204. */
   demandeBC?: EtatDemandeBC;
   /** L'étape du bon de commande du poste au registre Legal (signature des Finances), ou `null`. */
@@ -245,28 +254,29 @@ export const bcSigne = (p: FaitsPoste) => p.bc === "SIGNE";
 export function etapesDuPoste(p: FaitsPoste): Etape[] {
   if (p.kind === "STOCK_MATERIAL") return [];
   const accorde = p.status === "APPROVED";
-  const opsFait = Boolean(p.opsDecidedAt) || accorde;
   const paye = p.expenseOrderStatus === "PAID";
   const sansBC = VERSEMENT_SANS_BC.includes(p.kind);
   const factures = p.factures ?? 0;
   const justificatifPose = (p.devis ?? 0) > 0 || factures > 0;
   const etapes: Etape[] = [
     { cle: "CHIFFRE", libelle: "Chiffré", etat: chiffre(p) ? "FAIT" : "EN_COURS" },
-    {
-      cle: "OPERATIONS", libelle: "Direction des opérations",
-      etat: opsFait ? "FAIT"
-        : p.status === "REJECTED" ? "REFUSE"
-        : p.status === "PENDING" ? "EN_COURS"
-        : "A_VENIR",
-    },
+    // UN SEUL ACCORD, celui de la Direction Marketing (27/10/2026) : le Directeur des opérations a déjà
+    // validé la DEMANDE en amont ; il ne revalide plus chaque poste.
     {
       cle: "MARKETING", libelle: "Direction Marketing · budget",
       etat: accorde && p.budgetCategoryId ? "FAIT"
-        : p.status === "REJECTED" && p.opsDecidedAt ? "REFUSE"
-        : (p.status === "PENDING" && p.opsDecidedAt) || accorde ? "EN_COURS"
+        : p.status === "REJECTED" ? "REFUSE"
+        : p.status === "PENDING" || accorde ? "EN_COURS"
         : "A_VENIR",
     },
   ];
+  // LA PORTE DU DG SUR LE TOTAL DE LA DEMANDE (27/10/2026) — dans la frise dès qu'elle est requise.
+  if (p.porteDg && p.porteDg !== "NON_REQUISE") {
+    etapes.push({
+      cle: "DG", libelle: "Directeur Général · total",
+      etat: p.porteDg === "VALIDEE" ? "FAIT" : p.porteDg === "A_REVOIR" ? "REFUSE" : accorde ? "EN_COURS" : "A_VENIR",
+    });
+  }
   // Un versement sans BC qui en a quand même un (poste d'avant cette règle) MONTRE son BC : taire une
   // étape qui a eu lieu ferait mentir la frise.
   if (!sansBC || p.orderStage !== "NONE" || p.bc) {
@@ -318,7 +328,7 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
   const editer = r.canEdit && !r.fige;
   const arbitrer = r.canAllocate && !r.fige;
   const droits = r.validation ?? { operations: false, marketing: false };
-  const qui2 = r.secondTempsParOperations ? "la Direction des opérations" : "la Direction Marketing";
+  const qui2 = "la Direction Marketing";
 
   // LE MATÉRIEL DU STOCK (§118.167) suit un ACCORD unique — soumettre, décider —, mais pas la suite
   // de l'argent : ni budget, ni bon de commande, ni paiement. Une fois accordé, son bloc le confirme.
@@ -362,13 +372,8 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
     return { geste: { cle: "SOUMETTRE", libelle: p.status === "DRAFT" ? "Soumettre pour validation" : "Resoumettre pour validation" }, attente: null };
   }
 
-  // ── LA VALIDATION EN DEUX TEMPS (§118.204) ─────────────────────────────────────────────
+  // ── L'ACCORD DE LA DIRECTION MARKETING (27/10/2026 : un seul temps) ─────────────────────
   if (p.status === "PENDING") {
-    if (!p.opsDecidedAt) {
-      return droits.operations && !r.fige
-        ? { geste: { cle: "VALIDER_OPS", libelle: "Valider (Direction des opérations)" }, attente: null }
-        : { geste: null, attente: "En attente — chez la Direction des opérations." };
-    }
     return droits.marketing && !r.fige
       ? { geste: { cle: "DECIDER", libelle: "Valider et choisir le budget" }, attente: null }
       : { geste: null, attente: `En attente — chez ${qui2} (montant et budget).` };
@@ -390,6 +395,16 @@ export function prochainPas(p: FaitsPoste, r: RegardPoste): ProchainPas {
     return droits.marketing && !r.fige
       ? { geste: { cle: "BUDGET", libelle: "Choisir le budget" }, attente: null }
       : { geste: null, attente: `${capitale(qui2)} choisit le budget qui porte ce poste.` };
+  }
+  // ── LA PORTE DU DG : le total de la demande dépasse le seuil et n'est pas (ou plus) validé ──
+  // Ni bon de commande, ni paiement, ni engagement tant qu'elle est fermée (27/10/2026).
+  if (p.porteDg === "EN_ATTENTE" || p.porteDg === "A_REVOIR") {
+    return {
+      geste: null,
+      attente: p.porteDg === "A_REVOIR"
+        ? `Renvoyée par le Directeur Général : les postes de la demande sont à revoir${p.porteDgPhrase ? ` (${p.porteDgPhrase})` : ""}.`
+        : `En attente — le Directeur Général valide le total de la demande${p.porteDgPhrase ? ` (${p.porteDgPhrase})` : ""}.`,
+    };
   }
   const direct = VERSEMENT_SANS_BC.includes(p.kind);
   const payer: ProchainPas = r.canEdit

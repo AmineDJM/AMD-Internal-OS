@@ -197,6 +197,8 @@ const READ: Action[] = ["VIEW", "EXPORT"];
 const READ_VALIDATE: Action[] = ["VIEW", "EXPORT", "VALIDATE"];
 const CONTRIBUTE: Action[] = ["VIEW", "CREATE", "UPDATE", "UPLOAD", "EXPORT"];
 const MANAGE: Action[] = ["VIEW", "CREATE", "UPDATE", "DELETE", "VALIDATE", "EXPORT", "UPLOAD"];
+/** Le Directeur des opérations dans le circuit Ad & Pro (27/10/2026) : tout MANAGE sauf retirer. */
+const AD_PRO_OPERATIONS: Action[] = ["VIEW", "CREATE", "UPDATE", "VALIDATE", "EXPORT", "UPLOAD"];
 // Personal workspace ("Mon espace"): every user manages their own tasks &
 // self-service leave requests, so this baseline is granted to all roles.
 const WORKSPACE_USER: Action[] = ["VIEW", "CREATE", "UPDATE", "EXPORT"];
@@ -358,6 +360,12 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // Les BONS DE COMMANDE (§118.176) : il lisait les Finances, donc il voyait la file — il la voit
     // encore, sans signer.
     PURCHASE_ORDERS: BC_LECTEUR,
+    // LE CIRCUIT Ad & Pro (Direction, 27/10/2026) : le Directeur des opérations est le N+1 de tout demandeur hors
+    // délégué médical, et le second filtre après le National Sales — il valide (VALIDATE), lit toutes les demandes
+    // (portée ALL : absent de la carte `assigned`), et ajoute des postes en partie prenante (CREATE / UPDATE / UPLOAD).
+    // Pas de DELETE : retirer une demande reste au demandeur et au Super Admin.
+    SPONSORING: AD_PRO_OPERATIONS, CONGRESS_NATIONAL: AD_PRO_OPERATIONS, CONGRESS_INTERNATIONAL: AD_PRO_OPERATIONS,
+    EVENTS: AD_PRO_OPERATIONS, AD_PRO_OTHER: AD_PRO_OPERATIONS,
   },
   HEAD_OF_REGULATORY: {
     WORKSPACE: WORKSPACE_USER, FEEDBACK: FEEDBACK_USER, MESSAGING: MESSAGING_USER, VALIDATIONS: VALIDATION_USER, DRIVE: DRIVE_USER, ADMIN_REQUESTS: REQUEST_USER, REGULATORY: MANAGE, DOCUMENTS: CONTRIBUTE, BUDGETS: READ, DIRECTIVES: DIRECTIVES_USER, SUPPORT: SUPPORT_USER, DOSSIERS: DOSSIERS_USER, NOTIFICATIONS: ["VIEW"],

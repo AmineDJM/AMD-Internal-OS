@@ -10,9 +10,15 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
  * l'INJECTE dans son propre processus, et la base partagée garde son réglage.
  */
 let SEUIL = 500_000;
+/**
+ * LA PORTE DU DG SUR LE TOTAL DE LA DEMANDE (27/10/2026) lit un autre réglage global, injecté de même et
+ * mis HORS D'ATTEINTE : l'événement de ce banc accumule des postes de 600 000 de cas en cas, et ce banc
+ * mesure la révision d'un poste, pas la porte (`porte-dg-flow.test.ts` et `postes-chaine-flow.test.ts` la tiennent).
+ */
+const SEUIL_DG = 1_000_000_000_000;
 vi.mock("@/lib/settings", async (importOriginal) => {
   const vrai = await importOriginal<typeof import("@/lib/settings")>();
-  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), bcValidationThreshold: SEUIL }) };
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), bcValidationThreshold: SEUIL, adProDgThreshold: SEUIL_DG }) };
 });
 
 import { prisma } from "@/lib/prisma";
@@ -62,22 +68,23 @@ const fd = (champs: Record<string, string>) => {
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, retrait", () => {
-  let kamId = "", pmId = "", gmId = "", saId = "", astId = "", opsId = "", finId = "", eventId = "", catId = "";
+  let kamId = "", pmId = "", gmId = "", saId = "", astId = "", finId = "", eventId = "", catId = "";
   const postes: string[] = [];
 
   beforeAll(async () => {
     const mk = (n: string, role: SessionUser["role"]) =>
       prisma.user.create({ data: { name: `${TAG}${n}`, email: `${RUN}${n}@t.dz`, role, passwordHash: "x" } });
-    // §118.204 : la Direction des opérations tient le PREMIER temps de la validation ; l'assistante
-    // établit le BC ; un gestionnaire budgétaire des Finances le SIGNE (pas un Super Admin, §118.104).
-    const [kam, pm, gm, sa, ast, ops, fin] = await Promise.all([
+    // 27/10/2026 : la Direction Marketing accepte seule les postes (un seul temps) ; l'assistante établit le
+    // BC ; un gestionnaire budgétaire des Finances le SIGNE (pas un Super Admin, §118.104).
+    const [kam, pm, gm, sa, ast, fin] = await Promise.all([
       mk("kam", "MEDICAL_DELEGATE"), mk("pm", "PRODUCT_MANAGER"), mk("gm", "GENERAL_MANAGER"), mk("sa", "SUPER_ADMIN"), mk("ast", "DIRECTION_ASSISTANT"),
-      mk("ops", "DIRECTION"), mk("fin", "FINANCE_BUDGET_MANAGER"),
+      mk("fin", "FINANCE_BUDGET_MANAGER"),
     ]);
-    kamId = kam.id; pmId = pm.id; gmId = gm.id; saId = sa.id; astId = ast.id; opsId = ops.id; finId = fin.id;
-    // UN ÉVÉNEMENT SANS CIRCUIT DE FINANCEMENT, validé : ses postes ne dépendent d'aucune décision absente.
+    kamId = kam.id; pmId = pm.id; gmId = gm.id; saId = sa.id; astId = ast.id; finId = fin.id;
+    // UN ÉVÉNEMENT PRÉVALIDÉ (requestStatus APPROVED, aucun montant écrit) : depuis le 27/10/2026, un
+    // événement né hors circuit n'a ni poste ni paiement.
     eventId = (await prisma.event.create({
-      data: { name: `${TAG}Journée cardiologie`, requesterId: kamId, status: "VALIDATED", startDate: new Date("2026-12-04") },
+      data: { name: `${TAG}Journée cardiologie`, requesterId: kamId, status: "VALIDATED", requestStatus: "APPROVED", startDate: new Date("2026-12-04") },
       select: { id: true },
     })).id;
     const env = await prisma.budgetEnvelope.create({
@@ -88,7 +95,7 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
   });
 
   afterAll(async () => {
-    const comptes = [kamId, pmId, gmId, saId, astId, opsId, finId].filter(Boolean);
+    const comptes = [kamId, pmId, gmId, saId, astId, finId].filter(Boolean);
     const tousPostes = await prisma.adProItem.findMany({ where: { OR: [{ eventId }, { id: { in: postes } }] }, select: { id: true } }).catch(() => []);
     const idsPostes = [...new Set([...postes, ...tousPostes.map((p) => p.id)])];
     await prisma.notification.deleteMany({ where: { userId: { in: comptes } } }).catch(() => {});
@@ -121,21 +128,20 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
     await prisma.$disconnect().catch(() => {});
   });
 
-  const comme = async (qui: "kam" | "pm" | "gm" | "sa" | "ops" | "ast" | "fin") => {
+  const comme = async (qui: "kam" | "pm" | "gm" | "sa" | "ast" | "fin") => {
     ACTOR = qui === "kam" ? await acteur(kamId, "MEDICAL_DELEGATE")
       : qui === "pm" ? await acteur(pmId, "PRODUCT_MANAGER")
         : qui === "gm" ? await acteur(gmId, "GENERAL_MANAGER")
-          : qui === "ops" ? await acteur(opsId, "DIRECTION")
-            : qui === "ast" ? await acteur(astId, "DIRECTION_ASSISTANT")
-              : qui === "fin" ? await acteur(finId, "FINANCE_BUDGET_MANAGER")
-                : await acteur(saId, "SUPER_ADMIN");
+          : qui === "ast" ? await acteur(astId, "DIRECTION_ASSISTANT")
+            : qui === "fin" ? await acteur(finId, "FINANCE_BUDGET_MANAGER")
+              : await acteur(saId, "SUPER_ADMIN");
   };
   const pdf = (nom: string) => new File([new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]), `${nom}-${Date.now()}-${Math.random()}`], nom, { type: "application/pdf" });
   const ok = (r: { ok: boolean; error?: string }) => expect(r.ok, r.error ?? "").toBe(true);
 
   /**
-   * Un poste ACCORDÉ et imputé, par les gestes de l'écran (§118.204) : décrit, soumis, validé par la
-   * Direction des opérations, puis accordé par la Direction Marketing qui choisit le budget.
+   * Un poste ACCORDÉ et imputé, par les gestes de l'écran (règle du 27/10/2026) : décrit, soumis, puis
+   * accepté par la Direction Marketing — un seul temps — qui fixe le montant et choisit le budget.
    */
   async function posteAccorde(label: string, montant: number, fournisseur = "Imprimerie Alpha", kind = "PRINTING"): Promise<string> {
     await comme("kam");
@@ -144,8 +150,6 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
     const id = a.id!;
     postes.push(id);
     ok(await submitAdProItem(undefined, fd({ id })));
-    await comme("ops");
-    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED" })));
     await comme("pm");
     ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: String(montant), budgetCategoryId: catId })));
     return id;

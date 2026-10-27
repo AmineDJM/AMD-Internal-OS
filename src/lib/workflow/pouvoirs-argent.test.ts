@@ -55,34 +55,35 @@ describe("argentEffectif — ce que l'étape qui conclut décide de l'argent", (
   });
 });
 
-describe("Sur le circuit PAR DÉFAUT, seule la route du rang 2 hérite — et jamais pour le sponsoring", () => {
+describe("Sur le circuit PAR DÉFAUT, aucune route n'hérite — la Direction Marketing prévalide, toujours (27/10/2026)", () => {
   const config = (s: StepInput): ConfigArgent => ({ powers: s.powers, requireAmount: s.requireAmount ?? false, requireCategory: s.requireCategory ?? false });
 
-  it("chaque catégorie × chaque demandeur : l'étape qui conclut ne change que pour le rang 2, hors sponsoring", () => {
-    // Le garde-fou STRUCTUREL du lot : un défaut de la règle qui ferait hériter une autre route — un
-    // KAM, un National Sales, la Direction — ajouterait une exigence à une étape qui tranche déjà
-    // avec ses propres pouvoirs, ou à une étape qui n'a rien à trancher.
+  it("chaque catégorie × chaque demandeur : la route conclut sur la prévalidation, et rien n'y est hérité", () => {
+    // Le garde-fou STRUCTUREL de la règle du 27/10/2026 : plus aucune étape de la graine ne fixe
+    // d'argent (les postes portent la dépense). Ce qui le ferait tomber : une route coupée qui
+    // ferait hériter un montant à l'étape qui conclut — l'argent se déciderait de nouveau sur la
+    // demande entière, avant les postes et sans la porte du DG sur le total.
     const demandeurs = [
-      { nom: "KAM", rang: 0, kam: true }, { nom: "ordinaire", rang: 0, kam: false },
-      { nom: "National Sales", rang: 1, kam: false }, { nom: "Direction Marketing", rang: 2, kam: false },
-      { nom: "Direction", rang: 3, kam: false },
+      { nom: "délégué (KAM)", rang: 0, kam: true, directionMarketing: false },
+      { nom: "ordinaire", rang: 0, kam: false, directionMarketing: false },
+      { nom: "National Sales", rang: 1, kam: false, directionMarketing: false },
+      { nom: "Manager Promotion médicale", rang: 2, kam: false, directionMarketing: false },
+      { nom: "Direction Marketing", rang: 2, kam: false, directionMarketing: true },
+      { nom: "Direction", rang: 3, kam: false, directionMarketing: false },
     ];
     for (const categorie of WORKFLOW_CATEGORIES) {
       const steps = defaultDefinition(categorie).steps;
       const slugs = steps.map((s) => s.slug);
+      for (const etape of steps) expect(porteUnPouvoirDArgent(config(etape)), `${categorie} · ${etape.slug}`).toBe(false);
       for (const d of demandeurs) {
-        const p = parcoursAdPro({ rang: d.rang, kam: d.kam, categorie });
+        const p = parcoursAdPro({ rang: d.rang, kam: d.kam, directionMarketing: d.directionMarketing, categorie });
         const hors = etapesNonAtteintes(slugs, p.decision, p.ignorees);
         const route = slugs.filter((s) => !hors.includes(s));
         const conclut = steps.find((s) => s.slug === route[route.length - 1])!;
+        expect(conclut.slug, `${categorie} · ${d.nom}`).toBe("marketing");
         const avant = config(conclut);
         const apres = argentEffectif(avant, true, hors.map((slug) => config(steps.find((s) => s.slug === slug)!)));
-        const herite = apres !== avant;
-        expect(herite, `${categorie} · ${d.nom} (conclut sur « ${conclut.slug} »)`).toBe(d.rang === 2 && categorie !== "SPONSORING");
-        if (herite) {
-          expect(conclut.slug).toBe("final");
-          expect([apres.requireAmount, apres.requireCategory], `${categorie} · ${d.nom}`).toEqual([true, true]);
-        }
+        expect(apres, `${categorie} · ${d.nom} : rien n'est hérité`).toBe(avant);
       }
     }
   });

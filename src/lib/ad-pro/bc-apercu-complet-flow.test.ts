@@ -144,11 +144,12 @@ suite("Poste Ad & Pro — l'aperçu du BC est obligatoire, et tout s'y corrige",
     const s = await createSponsoring(undefined, f);
     if (!s.ok) throw new Error(s.error);
     spoId = s.id!;
-    await prisma.sponsoringRequest.update({ where: { id: spoId }, data: { companyId } });
+    // DÉCOR : la tenue est PRÉVALIDÉE par la Direction Marketing (27/10/2026) — aucun poste ne s'ajoute avant.
+    await prisma.sponsoringRequest.update({ where: { id: spoId }, data: { companyId, status: "PRE_VALIDATED" } });
     const add = await addAdProItem(undefined, fd({ parent: "SPONSORING", parentId: spoId, label: `${TAG}Salle et pauses`, kind: "VENUE", amountEstimated: "400000", supplier: "Hôtel Le Méridien" }));
     if (!add.ok) throw new Error(add.error);
     posteId = add.id!;
-    // DÉCOR : les deux temps de validation ont accordé 400 000 DZD (TTC) et choisi la ligne budgétaire.
+    // DÉCOR : la Direction Marketing a accepté le poste (un seul temps, 27/10/2026) — 400 000 DZD (TTC), ligne budgétaire choisie.
     await prisma.adProItem.update({ where: { id: posteId }, data: { status: "APPROVED", amountGranted: 400_000, budgetCategoryId: catId, opsDecidedAt: new Date() } });
     const d = fd({ id: posteId });
     d.append("attachment", fichier("devis-hotel"));

@@ -165,13 +165,14 @@ suite("Billetterie — la même pro forma pour plusieurs voyageurs : comptée un
     const s = await createSponsoring(undefined, f);
     if (!s.ok) throw new Error(s.error);
     spoId = s.id!;
-    await prisma.sponsoringRequest.update({ where: { id: spoId }, data: { companyId } });
+    // DÉCOR : la tenue est PRÉVALIDÉE par la Direction Marketing (27/10/2026) — aucun poste ne s'ajoute avant.
+    await prisma.sponsoringRequest.update({ where: { id: spoId }, data: { companyId, status: "PRE_VALIDATED" } });
     const add = await addAdProItem(undefined, fd({
       parent: "SPONSORING", parentId: spoId, label: `${TAG}Prise en charge de la billetterie`, kind: "TICKETING", amountEstimated: "124750", supplier: "Genius Travel",
     }));
     if (!add.ok) throw new Error(add.error);
     posteId = add.id!;
-    // DÉCOR : les deux temps de validation ont accordé 124 750 DZD et choisi la ligne budgétaire.
+    // DÉCOR : la Direction Marketing a accepté le poste (un seul temps, 27/10/2026) — 124 750 DZD, ligne budgétaire choisie.
     await prisma.adProItem.update({ where: { id: posteId }, data: { status: "APPROVED", amountGranted: 124_750, budgetCategoryId: catId, opsDecidedAt: new Date() } });
     for (const nom of ["Dr Amel Haddad", "Dr Yacine Ouali", "Dr Karim Benali", "Dr Lina Saadi"]) {
       const v = await ajouterVoyageur(undefined, fd({ itemId: posteId, nom }));

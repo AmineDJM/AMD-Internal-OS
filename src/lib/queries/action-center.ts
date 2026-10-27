@@ -339,7 +339,9 @@ export async function getActionCenter(user: SessionUser) {
         const hors = p.budgetKind === "ADDITIONAL" ? "hors budget" : p.addedAfterDecision ? "ajouté après la décision" : null;
         items.push({
           key: `poste-${p.id}`, objet: `AD_PRO_ITEM:${p.id}`, title: p.label,
-          subtitle: [hors, p.opsDecidedAt ? `validé par la Direction des opérations — montant et budget à décider${montant}` : `poste à valider${montant}`].filter(Boolean).join(" · "),
+          // UN SEUL TEMPS (27/10/2026) : `opsDecidedAt` est posé d'office à la soumission — il ne dit plus qu'une
+          // Direction des opérations a validé le poste. La ligne dit ce qui reste à faire, chez la Direction Marketing.
+          subtitle: [hors, `poste à accepter — montant et budget à décider${montant}`].filter(Boolean).join(" · "),
           module: "Ad & Pro", href: `${parent.path}/${parentId}`, kind: "validation", priority: null, deadline: null,
           depuis: (p.submittedAt ?? p.createdAt).toISOString(), owner: "", statusLabel: "À décider", statusTone: "warning",
           montant: p.amountEstimated != null ? toNumber(p.amountEstimated) : null,

@@ -62,7 +62,8 @@ suite("Pièces jointes multiples — fils, passeports, fiches saisies avec le po
     PM = await acteur(pmId, "PRODUCT_MANAGER");
     expect(hasGlobalView(ETRANGER) || hasGlobalView(PM)).toBe(false);
     spoId = (await prisma.sponsoringRequest.create({
-      data: { reference: `${RUN}SPO`, institution: `${TAG}Asso`, type: "Congrès", requesterId: dirId }, select: { id: true },
+      // PRÉVALIDÉE (27/10/2026) : aucun poste ne s'ajoute avant la prévalidation de la Direction Marketing.
+      data: { reference: `${RUN}SPO`, institution: `${TAG}Asso`, type: "Congrès", requesterId: dirId, status: "PRE_VALIDATED" }, select: { id: true },
     })).id;
     docId = (await prisma.medicalDoctor.create({ data: { name: `${TAG}Dr Annuaire` } })).id;
     ACTOR = PM;
@@ -79,6 +80,12 @@ suite("Pièces jointes multiples — fils, passeports, fiches saisies avec le po
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.sponsoringRequest.deleteMany({ where: { id: spoId } }).catch(() => {});
+    // Le circuit s'ouvre à la création (27/10/2026) : la demande de la Direction Marketing naît prévalidée d'office,
+    // son instance et sa déclaration d'information médicale avec elle.
+    const decls = (await prisma.medicalInfoDeclaration.findMany({ where: { sourceId: { in: ids } }, select: { id: true } }).catch(() => [])).map((d) => d.id);
+    await prisma.medicalInfoDeclaration.deleteMany({ where: { id: { in: decls } } }).catch(() => {});
+    await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: ids } } } }).catch(() => {});
+    await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.congressInternational.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
     await prisma.medicalDoctor.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});

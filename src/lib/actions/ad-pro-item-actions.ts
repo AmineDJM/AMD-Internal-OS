@@ -24,6 +24,7 @@ import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
 import { montantDeLaDemande } from "@/lib/ad-pro/montant-demande";
 import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
 import { siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO } from "@/lib/ad-pro/centre";
+import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
 import { getAppSettings } from "@/lib/settings";
 import { validationRequiseBC, motifSousLeSeuil } from "@/lib/bons-de-commande/regle";
 import { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE } from "@/lib/ad-pro/marche-bc";
@@ -187,6 +188,14 @@ interface ParentSpec {
 const CONGRESS_DECIDED = ["APPROVED", "COMPLETED"];
 /** Une demande de congrès ou d'événement refusée ou annulée : ses postes ne partent plus. */
 const CONGRESS_FERME = ["REJECTED", "CANCELLED"];
+/**
+ * UN POSTE EST « TARDIF » SEULEMENT APRÈS UNE DÉCISION SUR L'ARGENT (27/10/2026). La prévalidation d'un
+ * congrès ou d'un événement (requestStatus APPROVED) n'écrit plus de montant : comme un sponsoring
+ * PRÉ-VALIDÉ, c'est le moment même où les postes se préparent — les marquer « ajoutés après la décision »
+ * (et prévenir à chaque ligne) serait faux. Une demande d'avant la règle, accordée AVEC son montant
+ * (`finalAmount`), garde le marquage.
+ */
+const tardifCongres = (decided: boolean, finalAmount: unknown) => decided && finalAmount != null;
 
 const PARENTS: Record<AdProParent, ParentSpec> = {
   SPONSORING: {
@@ -215,13 +224,13 @@ const PARENTS: Record<AdProParent, ParentSpec> = {
     load: async (id) => {
       const r = await prisma.congressNational.findUnique({
         where: { id },
-        select: { id: true, name: true, hostInstitution: true, requestStatus: true, requesterId: true, companyId: true },
+        select: { id: true, name: true, hostInstitution: true, requestStatus: true, requesterId: true, companyId: true, finalAmount: true },
       });
       // Le congrès n'a pas de référence : son nom est ce qui l'identifie sur une pièce.
       if (!r) return null;
       const decided = CONGRESS_DECIDED.includes(r.requestStatus);
       return {
-        id: r.id, ref: r.name, beneficiary: r.hostInstitution ?? r.name, decided, tardif: decided, clos: false,
+        id: r.id, ref: r.name, beneficiary: r.hostInstitution ?? r.name, decided, tardif: tardifCongres(decided, r.finalAmount), clos: false,
         refusee: CONGRESS_FERME.includes(r.requestStatus), requesterId: r.requesterId, companyId: r.companyId,
       };
     },
@@ -233,12 +242,12 @@ const PARENTS: Record<AdProParent, ParentSpec> = {
     load: async (id) => {
       const r = await prisma.congressInternational.findUnique({
         where: { id },
-        select: { id: true, name: true, requestStatus: true, requesterId: true, companyId: true },
+        select: { id: true, name: true, requestStatus: true, requesterId: true, companyId: true, finalAmount: true },
       });
       if (!r) return null;
       const decided = CONGRESS_DECIDED.includes(r.requestStatus);
       return {
-        id: r.id, ref: r.name, beneficiary: r.name, decided, tardif: decided, clos: false,
+        id: r.id, ref: r.name, beneficiary: r.name, decided, tardif: tardifCongres(decided, r.finalAmount), clos: false,
         refusee: CONGRESS_FERME.includes(r.requestStatus), requesterId: r.requesterId, companyId: r.companyId,
       };
     },
@@ -250,14 +259,15 @@ const PARENTS: Record<AdProParent, ParentSpec> = {
     load: async (id) => {
       const r = await prisma.event.findUnique({
         where: { id },
-        select: { id: true, name: true, requestStatus: true, requesterId: true, status: true, companyId: true },
+        select: { id: true, name: true, requestStatus: true, requesterId: true, status: true, companyId: true, finalAmount: true },
       });
       if (!r) return null;
-      // Un événement peut être organisé SANS circuit de financement (requestStatus null) : il est
-      // alors piloté directement, donc ses postes ne sont pas bloqués par une décision absente.
-      const decided = r.requestStatus == null ? r.status !== "DRAFT" && r.status !== "CANCELLED" : CONGRESS_DECIDED.includes(r.requestStatus);
+      // UN ÉVÉNEMENT PASSE PAR LE CIRCUIT COMME LES AUTRES (27/10/2026 — décision #19) : ce sont des
+      // événements EXTERNES, pas organisés par nous. Sans prévalidation (requestStatus null : né hors
+      // circuit), ses postes ne sont ni décidés ni payables — un statut d'organisation ne vaut pas accord.
+      const decided = r.requestStatus != null && CONGRESS_DECIDED.includes(r.requestStatus);
       const refusee = r.requestStatus == null ? r.status === "CANCELLED" : CONGRESS_FERME.includes(r.requestStatus);
-      return { id: r.id, ref: r.name, beneficiary: r.name, decided, tardif: decided, clos: false, refusee, requesterId: r.requesterId, companyId: r.companyId };
+      return { id: r.id, ref: r.name, beneficiary: r.name, decided, tardif: tardifCongres(decided, r.finalAmount), clos: false, refusee, requesterId: r.requesterId, companyId: r.companyId };
     },
   },
 };
@@ -375,6 +385,16 @@ function refusDemandeFermee(info: ParentInfo): string | null {
     : null;
 }
 
+/**
+ * AUCUN POSTE NE S'AJOUTE NI NE SE SOUMET AVANT LA PRÉVALIDATION (Direction, 27/10/2026 — décision #11) :
+ * la demande doit avoir traversé son N+1, le Directeur des opérations et la Direction Marketing.
+ */
+function refusAvantPrevalidation(info: ParentInfo): string | null {
+  if (info.decided || info.clos) return null;
+  return "Les postes s'ajoutent après la prévalidation de la Direction Marketing : la demande doit d'abord passer son N+1, "
+    + "le Directeur des opérations puis la Direction Marketing. Aucun budget n'est ouvert avant.";
+}
+
 /** La phrase du refus, pour un appelant qui tient déjà l'opération chargée. */
 function refusPostesClos(info: ParentInfo): string | null {
   if (!info.clos) return null;
@@ -421,10 +441,12 @@ async function reprojeterMontantDemande(parent: AdProParent, parentId: string): 
         amountGranted: p.amountGranted != null ? toNumber(p.amountGranted) : null,
       })),
     );
-    if (total == null) return;
     // Le champ diffère selon l'opération — sponsoring et congrès/événements n'ont pas nommé la
     // même colonne. Une seule écriture, décidée ici, pour qu'elles ne puissent pas diverger.
-    if (parent === "SPONSORING") {
+    if (total == null) {
+      // Aucun montant de circuit (une prévalidation n'en fixe pas, 27/10/2026) : rien à reprojeter.
+      // Pas de `return` : la déclaration et la porte du DG, plus bas, suivent les postes quand même.
+    } else if (parent === "SPONSORING") {
       await prisma.sponsoringRequest.update({ where: { id: parentId }, data: { amountGranted: total } });
     } else if (parent === "CONGRESS_NATIONAL") {
       await prisma.congressNational.update({ where: { id: parentId }, data: { finalAmount: total } });
@@ -440,6 +462,8 @@ async function reprojeterMontantDemande(parent: AdProParent, parentId: string): 
   // de ce qu'ils portent, tant qu'elle n'est pas validée et qu'aucun ordre n'en est né.
   await reporterLesPostesSurLaDeclaration(parent, parentId)
     .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
+  // LE TOTAL A PU FRANCHIR LE SEUIL (27/10/2026) : le DG est prévenu, une fois par nouveau total.
+  await signalerPorteDgSiBesoin(parent, parentId);
 }
 
 /**
@@ -725,6 +749,10 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
   if (!info || !(await demandeVisible(user, parentRaw, parentId))) return { ok: false, error: "Opération introuvable." };
   const clos = refusPostesClos(info);
   if (clos) return { ok: false, error: clos };
+  // AUCUN POSTE AVANT LA PRÉVALIDATION (Direction, 27/10/2026 — décision #11) : « tant qu'on n'a pas la
+  // prévalidation de la Direction Marketing, aucun budget ne peut être ouvert, rien ».
+  const avant = refusAvantPrevalidation(info);
+  if (avant) return { ok: false, error: avant };
 
   const kind = (fdStr(formData, "kind") ?? "OTHER") as AdProItemKind;
   if (!(kind in ITEM_KIND_LABELS)) return { ok: false, error: "Nature de poste inconnue." };
@@ -753,6 +781,7 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
       }));
       await audit(user, parentRaw, parentId, "CREATE",
         `Sponsoring indirect « ${label} » réparti en ${lue.lignes.length} poste(s) — ${resumeRepartition(lue.lignes)} — total ${lue.total.toLocaleString("fr-FR")} DZD${info.tardif ? " — APRÈS la décision définitive" : ""}.`);
+      await signalerPorteDgSiBesoin(parentRaw, parentId);
       revalidate(parentRaw, parentId);
       return { ok: true, id: ids[0], message: `Sponsoring indirect réparti en ${lue.lignes.length} poste(s) : ${resumeRepartition(lue.lignes)} — total ${lue.total.toLocaleString("fr-FR")} DZD.` };
     } catch (err) {
@@ -818,6 +847,9 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
     // Le poste ajouté change l'estimation que porte la déclaration d'information médicale (§118.191).
     await reporterLesPostesSurLaDeclaration(parentRaw, parentId)
       .catch((err) => console.error("[ad-pro] montant de la déclaration non reporté (non bloquant)", err));
+    // UN POSTE AJOUTÉ CHANGE LE TOTAL (27/10/2026) : s'il franchit le seuil — ou dépasse ce que le DG a
+    // validé —, la porte se ferme ; le DG est prévenu de ce nouveau total, comme pour tout changement de montant.
+    await signalerPorteDgSiBesoin(parentRaw, parentId);
     revalidate(parentRaw, parentId);
     return { ok: true, id: created.id, ...(detailFiches ? { message: `Poste ajouté${detailFiches}.` } : {}) };
   } catch (err) {
@@ -1290,6 +1322,9 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
   if (!found) return { ok: false, error: "Poste introuvable." };
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
+  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  if (porteDg) return { ok: false, error: porteDg };
   if (!canEditItems(user, owner.parent) && !canAllocate(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "une facture");
   if (refusStock) return { ok: false, error: refusStock };
@@ -1912,6 +1947,8 @@ export async function submitAdProItem(_prev: ActionResult | undefined, formData:
   if (clos) return { ok: false, error: clos };
 
   const info = await PARENTS[owner.parent].load(owner.id);
+  const avant = info ? refusAvantPrevalidation(info) : null;
+  if (avant) return { ok: false, error: avant };
   const check = canSubmitItem({
     status: item.status,
     amountEstimated: item.amountEstimated != null ? toNumber(item.amountEstimated) : null,
@@ -1942,10 +1979,9 @@ export async function submitAdProItem(_prev: ActionResult | undefined, formData:
     return { ok: true, id };
   }
 
-  // LA VALIDATION EN DEUX TEMPS (§118.204). Chaque soumission repart du PREMIER temps : un accord ne
-  // couvre que ce qu'il a vu, et un poste resoumis après un refus ou une révision a changé. Sauf quand
-  // la demande vient de la Direction des opérations — on ne lui fait pas valider sa propre demande :
-  // le premier temps est franchi d'office, et la trace le dit.
+  // UN SEUL ACCORD, CELUI DE LA DIRECTION MARKETING (27/10/2026). Le Directeur des opérations a déjà
+  // validé la DEMANDE avant sa prévalidation : son ancien « premier temps » est franchi d'office à la
+  // soumission, et la trace le dit.
   const demandeur = await demandeurDe(info?.requesterId);
   const opsDOffice = opsFranchiALaSoumission(demandeur);
   const maintenant = new Date();
@@ -1955,7 +1991,7 @@ export async function submitAdProItem(_prev: ActionResult | undefined, formData:
       status: "PENDING", submittedAt: maintenant, decisionNote: null, updatedById: user.id,
       opsDecidedAt: opsDOffice ? maintenant : null,
       opsDecidedById: null,
-      opsDecisionNote: opsDOffice ? "Demande de la Direction des opérations : premier temps franchi d'office." : null,
+      opsDecisionNote: opsDOffice ? "Demande prévalidée (N+1, Directeur des opérations, Direction Marketing) : la Direction Marketing accepte le poste." : null,
     },
   });
   await recordDecision(id, "PENDING", note, amount != null ? toNumber(amount) : null, user.id);
@@ -1982,28 +2018,19 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
   if (!found) return { ok: false, error: "Poste introuvable." };
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
-  // QUI TRANCHE (§118.204). Un poste d'ARGENT se valide en deux temps — la Direction des opérations,
-  // puis la Direction Marketing, qui fixe le montant et choisit le budget. Le matériel du stock garde
-  // sa décision unique (il n'engage pas d'argent, §118.167).
+  // QUI TRANCHE (27/10/2026) : un poste d'ARGENT est accepté par la Direction Marketing, qui fixe le
+  // montant et choisit le budget — un seul temps. Le matériel du stock garde sa décision unique (il
+  // n'engage pas d'argent, §118.167).
   const argent = item.kind !== "STOCK_MATERIAL";
   const droits = argent ? await peutTrancherSur(user, owner) : null;
   const temps = argent ? tempsEnAttente(item) : null;
-  // REVOIR UNE DÉCISION n'est pas décider à la place du circuit (§118.204). Un poste jamais soumis (ou
-  // rendu au demandeur) ne s'accorde pas : il n'a vu aucun des deux temps. Un poste REFUSÉ par la
-  // Direction des opérations au premier temps se revoit par ELLE — l'accorder de la Direction Marketing
-  // sauterait le premier temps.
-  const opsRevoit = argent && temps === null && item.status === "REJECTED" && !item.opsDecidedAt;
   // Refuser un brouillon reste possible (une demande refusée fait le ménage de ses postes) : seul
-  // l'ACCORD exige les deux temps.
+  // l'ACCORD exige une soumission.
   if (argent && temps === null && decision === "APPROVED" && (item.status === "DRAFT" || item.status === "REVISION")) {
     return { ok: false, error: "Ce poste n'est pas soumis à la validation : le demandeur le soumet d'abord." };
   }
   if (!argent) {
     if (!canAllocate(user, owner.parent)) return { ok: false, error: "Seule la Direction décide d'un poste." };
-  } else if (temps === "OPERATIONS") {
-    if (!droits!.operations) return { ok: false, error: "Ce poste attend d'abord la validation de la Direction des opérations." };
-  } else if (opsRevoit) {
-    if (!droits!.operations) return { ok: false, error: "Ce poste a été refusé par la Direction des opérations : c'est elle qui revoit sa décision." };
   } else if (!droits!.marketing) {
     return {
       ok: false,
@@ -2039,31 +2066,7 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
   if (granted != null && granted < 0) return { ok: false, error: "Un montant ne peut pas être négatif." };
   const status = decision as AdProItemStatus;
 
-  // ── PREMIER TEMPS ACCORDÉ (§118.204) : le statut ne bouge pas, le fait se pose sur le poste, et la
-  // Direction Marketing est prévenue. CONDITIONNELLE : deux validations croisées n'en posent qu'une.
-  if (argent && (temps === "OPERATIONS" || opsRevoit) && status === "APPROVED") {
-    const pose = await prisma.adProItem.updateMany({
-      where: { id, status: opsRevoit ? "REJECTED" : "PENDING", opsDecidedAt: null },
-      data: {
-        ...(opsRevoit ? { status: "PENDING" as const, decidedAt: null, decidedById: null, decisionNote: null } : {}),
-        opsDecidedAt: new Date(), opsDecidedById: user.id, opsDecisionNote: note, updatedById: user.id,
-      },
-    });
-    if (pose.count === 0) return { ok: false, error: "Ce poste vient de changer (déjà validé, ou sa décision a été prise) : rouvrez la fiche." };
-    const montantVu = item.amountEstimated != null ? toNumber(item.amountEstimated) : null;
-    await recordDecision(id, "PENDING", `Validé par la Direction des opérations${note ? ` — ${note}` : ""}`, montantVu, user.id);
-    const info = await PARENTS[owner.parent].load(owner.id);
-    await prevenirLeTemps(
-      "MARKETING", droits!.demandeur, "Poste validé par la Direction des opérations — à décider",
-      `${info?.ref ?? "Opération"} — ${ITEM_KIND_LABELS[item.kind]} « ${item.label} »${montantVu != null ? ` (${montantVu.toLocaleString("fr-FR")} DZD)` : ""} : montant et budget à fixer.`,
-      lienPosteAdPro(owner.parent, owner.id, item.id),
-    );
-    await audit(user, owner.parent, owner.id, "UPDATE", `Poste « ${item.label} » validé par la Direction des opérations${note ? ` — ${note}` : ""}.`);
-    revalidate(owner.parent, owner.id);
-    return { ok: true, id, message: `Validé — transmis à ${libelleTemps("MARKETING", droits!.demandeur)}.` };
-  }
-
-  // ── SECOND TEMPS ACCORDÉ : le BUDGET est exigé (« elle sélectionne le budget »). Le choisir plus
+  // ── ACCORD DE LA DIRECTION MARKETING : le BUDGET est exigé (« elle sélectionne le budget »). Le choisir plus
   // tard était un geste à part qu'on oubliait : le poste restait accordé et impayable.
   let budgetCategoryId: string | null = item.budgetCategoryId;
   if (argent && status === "APPROVED") {
@@ -2104,7 +2107,7 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
     // la lecture et l'écriture (§118.204). Revoir une décision prise ne lit, lui, aucun temps.
     where: {
       id, expenseOrderId: null, orderStage: { not: "ISSUED" },
-      ...(temps ? { status: "PENDING" as const, opsDecidedAt: temps === "MARKETING" ? { not: null } : null } : {}),
+      ...(temps ? { status: "PENDING" as const } : {}),
     },
     data: {
       status,
@@ -2447,6 +2450,9 @@ export async function requestAdProItemOrder(_prev: ActionResult | undefined, for
   if (!found) return { ok: false, error: "Poste introuvable." };
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
+  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  if (porteDg) return { ok: false, error: porteDg };
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un bon de commande");
   if (refusStock) return { ok: false, error: refusStock };
@@ -2543,6 +2549,9 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
   if (!found) return { ok: false, error: "Poste introuvable." };
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
+  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  if (porteDg) return { ok: false, error: porteDg };
   if (!siegeAuCentreAdPro(user)) return { ok: false, error: REFUS_BC_CENTRE_AD_PRO };
   if (item.orderStage !== "REQUESTED") return { ok: false, error: "Aucune demande d'émission en attente sur ce poste." };
 
@@ -4179,6 +4188,9 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
   if (!found) return { ok: false, error: "Poste introuvable." };
   if (found.historique) return { ok: false, error: REFUS_HISTORIQUE };
   const { item, owner } = found;
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : au-dessus du seuil et sans sa validation, rien ne s'engage.
+  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  if (porteDg) return { ok: false, error: porteDg };
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   const refusStock = refusArgentSurPosteStock(item.kind, "un bon de commande");
   if (refusStock) return { ok: false, error: refusStock };

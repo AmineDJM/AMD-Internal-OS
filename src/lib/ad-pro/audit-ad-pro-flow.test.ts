@@ -105,14 +105,14 @@ const modele = (o: { lignes: ReturnType<typeof lm>[]; tvaDefaut?: string; ht?: s
  * Plusieurs devis déposés d'un geste et TOUS transformés en lignes ; une TVA inventée par le modèle qui n'entre ni dans
  * le devis ni dans le BC ; une ligne doublée qui ne se valide pas d'office ; un BC généré sans TVA quand le papier n'en
  * porte pas ; une facture à plusieurs pièces ; un ordre de dépense au nom du FOURNISSEUR ; un paiement refusé par le
- * centre, puis annulé ailleurs, qui se DIT et se LIBÈRE ; « on n'arbitre pas sa propre demande ».
+ * centre, puis annulé ailleurs, qui se DIT et se LIBÈRE ; « on n'accepte pas les postes de sa propre demande ».
  *
  * Aucun acteur n'a la vue globale (§118.104) ; chaque cas nomme son acteur (§118.151f) ; les juges comptent par le lien
  * causal (les pièces de CE poste), jamais un compte global.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("Audit Ad & Pro — devis multiples lus en natif, TVA jamais inventée, factures multi-pièces, paiement qui dit la vérité", () => {
-  const ROLES = { kam: "MEDICAL_DELEGATE", ops: "DIRECTION", dm: "PRODUCT_MANAGER", fin: "FINANCE_BUDGET_MANAGER", dual: "DIRECTION" } as const;
+  const ROLES = { kam: "MEDICAL_DELEGATE", ops: "OPERATIONS_DIRECTOR", dm: "PRODUCT_MANAGER", fin: "FINANCE_BUDGET_MANAGER", dual: "DIRECTION" } as const;
   const u: Record<keyof typeof ROLES, string> = { kam: "", ops: "", dm: "", fin: "", dual: "" };
   let companyId = "", congres = "", congresDual = "", catId = "";
   const comme = async (qui: keyof typeof ROLES) => {
@@ -217,13 +217,15 @@ suite("Audit Ad & Pro — devis multiples lus en natif, TVA jamais inventée, fa
     await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   }, 120_000);
 
-  /** Un poste soumis, validé en deux temps, accordé avec son budget — SANS prestataire saisi (le cas fréquent). */
+  /**
+   * Un poste soumis, accepté en UN temps par la Direction Marketing avec son budget (27/10/2026) — SANS prestataire saisi
+   * (le cas fréquent). Le congrès est prévalidé (`requestStatus` APPROVED) : sans quoi aucun poste ne s'ajoute.
+   */
   async function posteAccorde(label: string, montant: number, parentId = congres) {
     await comme("kam");
     const a = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId, kind: "PRINTING", label: `${TAG}${label}`, amountEstimated: String(montant) }));
     ok(a);
     ok(await submitAdProItem(undefined, fd({ id: a.id! })));
-    await comme("ops"); ok(await decideAdProItem(undefined, fd({ id: a.id!, decision: "APPROVED" })));
     await comme("dm"); ok(await decideAdProItem(undefined, fd({ id: a.id!, decision: "APPROVED", amountGranted: String(montant), budgetCategoryId: catId })));
     return a.id!;
   }
@@ -431,17 +433,22 @@ suite("Audit Ad & Pro — devis multiples lus en natif, TVA jamais inventée, fa
     expect(ordre.notes ?? "", "l'écart assumé et son argument sont écrits dans l'ordre").toMatch(/ÉCART ASSUMÉ/);
   }, 180_000);
 
-  it("ON N'ARBITRE PAS SA PROPRE DEMANDE : la personne Direction des opérations ET Direction Marketing ne tranche pas son poste — une autre Direction des opérations, oui", async () => {
+  it("ON N'ACCEPTE PAS LES POSTES DE SA PROPRE DEMANDE : la personne Direction ET Direction Marketing n'accepte pas son poste — le Directeur des opérations non plus (un seul temps) ; une AUTRE Direction Marketing, oui", async () => {
     await comme("dual");
     const a = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: congresDual, kind: "PRINTING", label: `${TAG}Affiches`, amountEstimated: "200000" }));
     ok(a);
     const soumis = await submitAdProItem(undefined, fd({ id: a.id! }));
     ok(soumis);
-    expect(soumis.message, "sa demande vient de la Direction des opérations : le premier temps est franchi d'office").toMatch(/en attente de la Direction des opérations \(montant et budget\)/);
+    expect(soumis.message, "un seul temps (27/10/2026) : la Direction Marketing, montant et budget").toMatch(/en attente de la Direction Marketing \(montant et budget\)/);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: a.id! } })).opsDecidedAt, "l'ancien premier temps est franchi d'office, et tracé").not.toBeNull();
     expect(refus(await decideAdProItem(undefined, fd({ id: a.id!, decision: "APPROVED", amountGranted: "200000", budgetCategoryId: catId }))))
-      .toMatch(/attend la décision de la Direction des opérations/);
+      .toMatch(/attend la décision de la Direction Marketing/);
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: a.id! } })).status).toBe("PENDING");
     await comme("ops");
+    expect(refus(await decideAdProItem(undefined, fd({ id: a.id!, decision: "APPROVED", amountGranted: "200000", budgetCategoryId: catId }))),
+      "le Directeur des opérations a validé la DEMANDE ; il ne tranche plus ses postes").toMatch(/attend la décision de la Direction Marketing/);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: a.id! } })).status).toBe("PENDING");
+    await comme("dm");
     ok(await decideAdProItem(undefined, fd({ id: a.id!, decision: "APPROVED", amountGranted: "200000", budgetCategoryId: catId })));
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: a.id! } })).status).toBe("APPROVED");
   });

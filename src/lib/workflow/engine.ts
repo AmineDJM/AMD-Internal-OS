@@ -12,7 +12,7 @@ import { createExpenseOrder } from "@/lib/expense-orders";
 import { toNumber } from "@/lib/utils";
 import { CHEMIN_PARENT_AD_PRO, lienDemandeAdPro, type ParentAdPro } from "@/lib/chemins/ad-pro";
 import { defaultDefinition } from "./defaults";
-import { estDecisionnaire, etapesNonAtteintes, estIgnoree, parcoursEffectif, seuilFranchissement } from "./parcours";
+import { estDecisionnaire, etapesNonAtteintes, estIgnoree, parcoursEffectif, seuilFranchissement, SLUG_MARKETING } from "./parcours";
 import { adProOriginRank } from "./origin";
 import { getAppSettings } from "@/lib/settings";
 import { statutDepuisCircuit } from "@/lib/events/statut";
@@ -376,6 +376,17 @@ function positionFromLegacy(steps: LoadedStep[], legacy: string | null): { curre
   return { currentSlug: ordered[0]?.slug ?? null, status: "IN_PROGRESS" };
 }
 
+/**
+ * LA PREMIÈRE ÉTAPE RÉELLEMENT TRAVERSÉE à partir d'un slug : si le statut legacy désigne une étape du
+ * tamis (la porte du DG, hors circuit depuis le 27/10/2026), on avance jusqu'à la suivante qui ne l'est pas.
+ */
+function premiereEtapeTraversee(def: LoadedDefinition, slug: string | null, ignorees: readonly string[]): string | null {
+  if (!slug || !ignorees.includes(slug)) return slug;
+  const ordonnees = orderedSteps(def);
+  const depuis = ordonnees.findIndex((st) => st.slug === slug);
+  return ordonnees.slice(depuis + 1).find((st) => !ignorees.includes(st.slug))?.slug ?? slug;
+}
+
 /** Crée l'instance si absente (idempotent), positionnée d'après le statut legacy courant. */
 export async function ensureInstance(entityType: EntityType, entityId: string): Promise<LoadedInstance | null> {
   const category = entityToCategory(entityType);
@@ -409,9 +420,14 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
     : null;
   const finalSlug = parcours?.decision ?? null;
   const skippedSlugs = parcours ? [...parcours.ignorees] : [];
+  // L'ÉTAPE DE POSE NE PEUT PAS ÊTRE HORS DU PARCOURS (27/10/2026). Le statut legacy d'entrée
+  // (« préliminaire faite ») désigne la PREMIÈRE étape qui le porte — la porte du DG, qui n'est plus
+  // sur la route : la demande s'y serait posée devant un DG qui n'a rien à valider. On avance donc
+  // jusqu'à la première étape réellement traversée.
+  const pose = status === "IN_PROGRESS" ? premiereEtapeTraversee(def, currentSlug, skippedSlugs) : currentSlug;
   try {
     const created = await prisma.workflowInstance.create({
-      data: { definitionId: def.id, entityType, entityId, category, currentSlug, status, finalSlug, skippedSlugs },
+      data: { definitionId: def.id, entityType, entityId, category, currentSlug: pose, status, finalSlug, skippedSlugs },
     });
     // LA PREMIÈRE LIGNE DE L'HISTORIQUE : QUI a demandé, et QUAND.
     //
@@ -452,21 +468,38 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
     // illisible. Sans demandeur connu, on ne franchit rien — un montant qu'on ne sait pas
     // rattacher ne doit pas ouvrir une porte de contrôle.
     // ═══════════════════════════════════════════════════════════════════════════════════════
-    if (summary?.requesterId && currentSlug) {
-      const depart = stepBySlug(def, currentSlug);
+    // PRÉVALIDÉE D'OFFICE (27/10/2026) : la demande de la Direction Marketing n'attend personne. L'étape
+    // de prévalidation est franchie maintenant, AU NOM de sa créatrice, par le même geste que l'écran
+    // (déclaration, statut, notifications compris) — et le journal dit pourquoi.
+    if (parcours?.dOffice && summary?.requesterId && status === "IN_PROGRESS" && pose === SLUG_MARKETING) {
+      const creatrice = await prisma.user
+        .findUnique({ where: { id: summary.requesterId }, select: { name: true, role: true, secondaryRole: true } })
+        .catch(() => null);
+      if (creatrice) {
+        const r = await advanceWorkflowInstance({
+          viewer: { id: summary.requesterId, role: creatrice.role, secondaryRole: creatrice.secondaryRole, name: creatrice.name },
+          entityType, entityId, action: "APPROVE",
+          note: "Prévalidée d'office — demande de la Direction Marketing (règle du 27/10/2026).",
+        }).catch((e) => ({ ok: false as const, error: String(e) }));
+        if (!r.ok) console.error("[workflow] prévalidation d'office non appliquée", entityType, entityId, r.error);
+      }
+      return prisma.workflowInstance.findUnique({ where: { id: created.id } });
+    }
+    if (summary?.requesterId && pose) {
+      const depart = stepBySlug(def, pose);
       const montant = summary.estimatedAmount ?? 0;
       if (depart && montant > 0) {
         const demandeur = await prisma.user
           .findUnique({ where: { id: summary.requesterId }, select: { name: true, role: true, secondaryRole: true } })
           .catch(() => null);
         if (demandeur) {
-          const pose = await settleAutoSkips(
+          const repos = await settleAutoSkips(
             entityType, entityId, def, created.id, montant, summary.requesterId, depart,
             { id: summary.requesterId, role: demandeur.role, secondaryRole: demandeur.secondaryRole, name: demandeur.name },
             finalSlug, skippedSlugs,
           );
-          if (pose && pose.slug !== currentSlug) {
-            const avance = await prisma.workflowInstance.update({ where: { id: created.id }, data: { currentSlug: pose.slug } });
+          if (repos && repos.slug !== pose) {
+            const avance = await prisma.workflowInstance.update({ where: { id: created.id }, data: { currentSlug: repos.slug } });
             return avance;
           }
         }
@@ -855,7 +888,12 @@ async function appliquerLeGeste(ctx: ContexteGeste): Promise<AdvanceResult> {
   // du sponsoring ne fixe aucun argent, donc rien n'est hérité et la tenue reste pré-validée. Sur
   // un circuit dont le Super Admin a laissé l'argent à Direction Marketing, l'étape qui conclut une
   // route coupée hérite ce pouvoir — et ACCORDE, exactement comme l'étape dont elle tient la place.
-  const argentDecideApres = entityType === "SPONSORING" && conclut && issueTerminaleSponsoring(etape) === "PRE_VALIDATED";
+  //
+  // DEPUIS LE 27/10/2026, C'EST LA RÈGLE DE TOUTES LES NATURES : la Direction Marketing PRÉVALIDE (le
+  // fond de la demande et le montant demandé), puis l'argent se décide poste par poste, et le DG valide
+  // le total au-dessus du seuil (`ad-pro/porte-dg.ts`). Un circuit dont l'étape qui conclut fixe encore
+  // un montant (remodelé à la main) garde son comportement d'avant.
+  const argentDecideApres = conclut && issueTerminaleSponsoring(etape) === "PRE_VALIDATED";
   const amount = input.amount ?? null;
   const budgetCategoryId = input.budgetCategoryId?.trim() || null;
   const assigneeId = input.assigneeId?.trim() || null;
@@ -937,7 +975,7 @@ async function appliquerLeGeste(ctx: ContexteGeste): Promise<AdvanceResult> {
     // « Pris en charge » annoncerait un financement : une tenue PRÉ-VALIDÉE n'en accorde aucun
     // encore. Le demandeur doit lire ce qui l'attend — les postes, puis la clôture (§118.151).
     const titreFin = argentDecideApres
-      ? `${CATEGORY_LABELS[category]} — tenue pré-validée : les postes se préparent`
+      ? `${CATEGORY_LABELS[category]} — prévalidée : les postes se préparent`
       : `${CATEGORY_LABELS[category]} — pris en charge`;
     await notifyUser({ userId: summary.requesterId, type: "GENERIC", title: titreFin, body: summary.name, link: entityPath(entityType, entityId) });
   }
@@ -1288,9 +1326,12 @@ async function prevenirEtapeAtteinte(
   etape: LoadedStep,
   msg: { title: string; body: string; link: string },
   requesterId: string | null,
+  // « À vous d'agir » par défaut ; « pour information » quand le circuit s'ouvre et annonce la
+  // demande aux acteurs des étapes suivantes (décision #1, 27/10/2026) — mêmes destinataires.
+  type: "VALIDATION_REQUIRED" | "GENERIC" = "VALIDATION_REQUIRED",
 ): Promise<void> {
   const roles = (etape.notifyRoles as UserRole[]).filter(Boolean);
-  if (roles.length) await notifyRoles(roles, { type: "VALIDATION_REQUIRED", ...msg });
+  if (roles.length) await notifyRoles(roles, { type, ...msg });
   // LES RÉFÉRENTS DE LA GAMME s'AJOUTENT au rôle — et seulement là où l'étape NOMME ce rôle.
   // La décision est pure (`laGammeEstConcernee`) : l'écrire ici en lisant le slug ferait une
   // seconde vérité, fausse au premier circuit remanié (§118.5, §118.73).
@@ -1298,7 +1339,7 @@ async function prevenirEtapeAtteinte(
   try {
     const referents = await referentsDeLaDemande(entityType, entityId);
     for (const userId of aPrevenirPourLaGamme({ referents, demandeurId: requesterId })) {
-      await notifyUser({ userId, type: "VALIDATION_REQUIRED", ...msg });
+      await notifyUser({ userId, type, ...msg });
     }
   } catch (err) {
     console.error("[workflow] notification des référents Direction Marketing impossible", err);
@@ -1693,7 +1734,7 @@ export async function relancerCycle(input: {
     const summary = await loadEntity(entityType, entityId);
     if (!def || !summary) return { ok: false, error: "Demande introuvable." };
     const { currentSlug } = positionFromLegacy(orderedSteps(def), summary.legacyStatus);
-    const depart = stepBySlug(def, currentSlug);
+    const depart = stepBySlug(def, premiereEtapeTraversee(def, currentSlug, instance.skippedSlugs ?? []));
     if (!depart) return { ok: false, error: "Le circuit n'a pas d'étape d'entrée pour cette demande." };
     const pris = await prisma.workflowInstance.updateMany({
       where: { id: instance.id, status: { in: ["REJECTED", "CANCELLED"] } },
@@ -1754,5 +1795,57 @@ export async function reopenInstance(entityType: EntityType, entityId: string, v
     return { etape: decision.title, rolesPrevenus: viewer ? [...(decision.notifyRoles ?? [])] : [] };
   } finally {
     await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(() => undefined);
+  }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * OUVRIR LE CIRCUIT À LA CRÉATION — et prévenir CHAQUE acteur (décision #1, Direction 27/10/2026).
+ *
+ * « À la création, ça doit notifier tous les acteurs concernés, puis chaque personne à son tour. »
+ * L'instance naissait paresseusement, à la première ouverture de la fiche : personne n'était prévenu
+ * par le circuit, et les actions de création prévenaient des rôles écrits à la main (la Direction pour
+ * une demande que le Directeur des opérations devait voir). Désormais :
+ *   • l'instance naît avec la demande (son parcours est figé à cet instant, comme avant) ;
+ *   • l'acteur de l'étape où elle se pose reçoit « à vous d'agir » ;
+ *   • les acteurs des étapes SUIVANTES de SON parcours sont prévenus pour information ;
+ *   • chacun recevra ensuite « à vous d'agir » quand son tour viendra (`prevenirEtapeAtteinte`).
+ * Une demande prévalidée d'office n'a plus personne à attendre : son créateur a déjà été notifié par
+ * le geste qui l'a prévalidée. Ne lève jamais : la demande est créée, quoi qu'il arrive ici.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export async function ouvrirLeCircuit(entityType: EntityType, entityId: string): Promise<void> {
+  try {
+    const category = entityToCategory(entityType);
+    if (!category) return;
+    const avant = await prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType, entityId } }, select: { id: true } });
+    const inst = await ensureInstance(entityType, entityId);
+    if (!inst || avant || inst.status !== "IN_PROGRESS") return;
+    const [def, summary] = await Promise.all([chargerDefinition(inst), loadEntity(entityType, entityId)]);
+    if (!def || !summary) return;
+    const courante = stepBySlug(def, inst.currentSlug);
+    if (!courante) return;
+    const link = entityPath(entityType, entityId);
+    await prevenirLaPose(entityType, entityId, inst, courante, summary.requesterId, `${CATEGORY_LABELS[category]} — ${courante.title} : à vous d'agir`, summary.name);
+    // LES ÉTAPES SUIVANTES DE CE PARCOURS (le tamis gelé exclu), pour information — par le même
+    // point unique, pour que les référents de la gamme l'apprennent aussi quand le marketing est sur la route.
+    const ignorees = inst.skippedSlugs ?? [];
+    const route = orderedSteps(def).filter((s) => !ignorees.includes(s.slug));
+    const ici = route.findIndex((s) => s.slug === courante.slug);
+    const dejaPrevenus = new Set<string>(courante.notifyRoles);
+    const roles = new Set<UserRole>();
+    for (const s of route.slice(ici + 1)) {
+      for (const r of s.notifyRoles) if (!dejaPrevenus.has(r) && r !== "SUPER_ADMIN") roles.add(r as UserRole);
+    }
+    const suivante = route[ici + 1];
+    if (roles.size && suivante) {
+      await prevenirEtapeAtteinte(entityType, entityId, { ...suivante, notifyRoles: [...roles] }, {
+        title: `${CATEGORY_LABELS[category]} — nouvelle demande (pour information)`,
+        body: `${summary.name} — elle vous parviendra après « ${courante.title} ».`,
+        link,
+      }, summary.requesterId, "GENERIC");
+    }
+  } catch (e) {
+    console.error("[workflow] ouverture du circuit à la création (non bloquant)", entityType, entityId, e);
   }
 }

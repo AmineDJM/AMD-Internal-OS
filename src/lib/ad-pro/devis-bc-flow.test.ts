@@ -6,11 +6,16 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAuNomDeLaVue: async () => ACTOR}));
-/** LE SEUIL DES BONS DE COMMANDE EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'INJECTE dans son processus. */
+/**
+ * LE SEUIL DES BONS DE COMMANDE EST UN RÉGLAGE GLOBAL (§118.132) : le banc l'INJECTE dans son processus. Le seuil de la
+ * PORTE DU DG sur le total d'une demande (27/10/2026) aussi — à sa valeur ordinaire, 1 000 000 DZD — : un réglage changé
+ * par un autre banc au même instant ne doit pas ouvrir ni fermer la porte de celui-ci.
+ */
 const SEUIL = 500_000;
+const SEUIL_DG = 1_000_000;
 vi.mock("@/lib/settings", async (importOriginal) => {
   const vrai = await importOriginal<typeof import("@/lib/settings")>();
-  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), bcValidationThreshold: SEUIL }) };
+  return { ...vrai, getAppSettings: async () => ({ ...(await vrai.getAppSettings()), bcValidationThreshold: SEUIL, adProDgThreshold: SEUIL_DG }) };
 });
 /** Les assistantes actives sont un fait GLOBAL : le banc restreint la vraie lecture à SES comptes (voisinage fermé). */
 let ASSISTANTES: string[] | null = null;
@@ -66,6 +71,7 @@ import { loadAdProItems } from "@/lib/queries/ad-pro-items";
 import { piecesDesPostes } from "@/lib/ad-pro/pieces-poste";
 import { prochainPas, faitsDuPoste, type RegardPoste } from "@/lib/ad-pro/poste-etapes";
 import { refusGenerationBC } from "@/lib/ad-pro/devis-poste";
+import { lirePorteDg, statuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
 import { fichiersEmis } from "@/lib/legal/fichiers-emis";
 
 let dbOk = false;
@@ -151,6 +157,7 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     companyId = c.id;
     // Le demandeur est SALARIÉ de la société (c'est ce qui la nomme pour sa demande), sans le droit de l'engager.
     await prisma.employee.create({ data: { fullName: `${TAG} kam`, userId: u.kam, companyId } });
+    await prisma.employee.create({ data: { fullName: `${TAG} kam2`, userId: u.kam2, companyId } });
     await prisma.companyLegalIdentity.create({
       data: {
         companyId, legalName: `${TAG} Pharma SARL`, legalForm: "SARL", shareCapital: "10 000 000 DZD", rcNumber: "16/00-1234567B21", nif: "001916012345678",
@@ -202,6 +209,9 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     await prisma.legalDocument.deleteMany({ where: { id: { in: docs } } }).catch(() => {});
     await prisma.adProItemDecision.deleteMany({ where: { itemId: { in: postes } } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { id: { in: postes } } }).catch(() => {});
+    await prisma.adProPorteDg.deleteMany({ where: { entityId: { in: parents } } }).catch(() => {});
+    await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: parents } } } }).catch(() => {});
+    await prisma.workflowInstance.deleteMany({ where: { entityId: { in: parents } } }).catch(() => {});
     await prisma.congressNational.deleteMany({ where: { id: { in: parents } } }).catch(() => {});
     await prisma.budgetCategoryLine.deleteMany({ where: { name: { startsWith: TAG } } }).catch(() => {});
     await prisma.budgetEnvelope.deleteMany({ where: { name: { startsWith: RUN } } }).catch(() => {});
@@ -222,17 +232,30 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
 
   // ── LES GESTES DU DÉCOR, par les vraies actions ─────────────────────────────────────────
 
+  /**
+   * LE DG VALIDE LE TOTAL de la demande quand il dépasse le seuil (27/10/2026) — par le vrai geste, sur le total qu'il
+   * lit. Ce banc mesure les devis et les BC, pas la porte (éprouvée au § 8) : chaque poste ajouté au congrès change son
+   * total, et le DG le revalide aussitôt — une hausse au-delà du total validé rouvre la porte.
+   */
+  async function dgValideLeTotal(parentId = congres) {
+    const p = await lirePorteDg("CONGRESS_NATIONAL", parentId);
+    if (p.etat !== "EN_ATTENTE" && p.etat !== "A_REVOIR") return;
+    ok(await statuerSurLeTotal({
+      user: { id: u.gm, name: `${TAG}gm`, role: "GENERAL_MANAGER" }, parent: "CONGRESS_NATIONAL", parentId,
+      decision: "VALIDEE", totalVu: p.total, note: null,
+    }));
+  }
   async function nouveauPoste(label: string, montant: number, fournisseur = "Imprimerie Alpha", parentId = congres) {
     await comme("kam");
     const a = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId, kind: "PRINTING", label: `${TAG}${label}`, amountEstimated: String(montant), supplier: fournisseur }));
     ok(a);
+    await dgValideLeTotal(parentId);
     return a.id!;
   }
-  /** Le poste soumis, validé en deux temps, accordé AVEC son budget. */
+  /** Le poste soumis, accepté en UN temps par la Direction Marketing AVEC son budget (27/10/2026). */
   async function posteAccorde(label: string, montant: number, fournisseur = "Imprimerie Alpha") {
     const id = await nouveauPoste(label, montant, fournisseur);
     await comme("kam"); ok(await submitAdProItem(undefined, fd({ id })));
-    await comme("ops"); ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED" })));
     await comme("dm"); ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: String(montant), budgetCategoryId: catId })));
     return id;
   }
@@ -757,6 +780,77 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     expect(vivants).toHaveLength(1);
     expect(vivants[0].id).not.toBe(premier.id);
     expect(designations(vivants[0].custom)).toEqual(["Tampons"]);
+  }, 180_000);
+
+  // ═════════════ 8. LA PORTE DU DG SUR LE TOTAL DE LA DEMANDE (27/10/2026) ═════════════
+
+  it("AU-DESSUS DU SEUIL, RIEN NE S'ENGAGE tant que le DG n'a pas validé le TOTAL : ni BC généré, ni BC demandé, ni paiement — puis le BC part ; une rallonge rouvre la porte", async () => {
+    // Le congrès de Tlemcen, prévalidé (requestStatus APPROVED), à son délégué : un stand de 1 200 000 DZD, au-dessus des
+    // 1 000 000 du seuil — le seuil vaut pour la SOMME des postes de la demande, pas par poste.
+    ACTOR = await acteur(u.kam2, "MEDICAL_DELEGATE");
+    const add = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: congres2, kind: "PRINTING", label: `${TAG}Stand de Tlemcen`, amountEstimated: "1200000", supplier: "Imprimerie Alpha" }));
+    ok(add);
+    const ps = add.id!;
+    ok(await submitAdProItem(undefined, fd({ id: ps })));
+    await comme("dm");
+    ok(await decideAdProItem(undefined, fd({ id: ps, decision: "APPROVED", amountGranted: "1200000", budgetCategoryId: catId })));
+    const fermee = await lirePorteDg("CONGRESS_NATIONAL", congres2);
+    expect(fermee).toMatchObject({ etat: "EN_ATTENTE", total: 1_200_000, seuil: SEUIL_DG });
+    // Le DG est prévenu, une fois pour ce total.
+    expect(Number((await prisma.adProPorteDg.findUniqueOrThrow({ where: { entityType_entityId: { entityType: "CONGRESS_NATIONAL", entityId: congres2 } } })).signaleMontant)).toBe(1_200_000);
+    ACTOR = await acteur(u.kam2, "MEDICAL_DELEGATE");
+    const f = fd({ id: ps, reference: `${TAG}DV-DG`, fournisseur: "Imprimerie Alpha" });
+    f.append("attachment", pdf(`${TAG}DV-DG.pdf`));
+    const dep = await ajouterDevisPoste(undefined, f);
+    ok(dep);
+    ok(await enregistrerLignesDuDevis(formLignes(ps, dep.id!, [{ ref: "Stand modulaire", unite: "u", qte: "1", prix: "1000000" }], { tvaRate: "19" })));
+    const lignes = (await prisma.adProDevisLigne.findMany({ where: { devis: { legalDocumentId: dep.id! } }, select: { id: true } })).map((l) => l.id);
+    ok(await validerLignesDuDevis(formValider(ps, dep.id!, lignes)));
+
+    // PORTE FERMÉE : chaque geste qui engagerait de l'argent est refusé, avec la même phrase.
+    const generer = refus(await genererBonDeCommandePoste(fd({ id: ps })));
+    expect(generer).toMatch(/au-dessus du seuil de .* la validation du Directeur Général est requise/);
+    expect(generer).toMatch(/Aucun bon de commande, engagement ni paiement n'est possible d'ici là/);
+    expect(refus(await requestAdProItemOrder(undefined, fd({ id: ps, note: "BC à émettre." })))).toBe(generer);
+    const paiement = fd({ id: ps, montant: "1190000", reference: `${TAG}FA-DG`, argumentation: "Banc.", confirme: "1" });
+    paiement.append("attachment", pdf(`${TAG}fa-dg.pdf`));
+    expect(refus(await demanderPaiementPoste(undefined, paiement))).toBe(generer);
+    expect(await bcsDe(dep.id!)).toHaveLength(0);
+    expect((await poste(ps)).orderStage).toBe("NONE");
+    // La CARTE dit la même attente (elle lit la porte de la demande, comme l'action).
+    const row = await ligneP(congres2, ps);
+    const pas = prochainPas({ ...faitsDuPoste(row), porteDg: fermee.etat, porteDgPhrase: fermee.phrase }, REGARD_DEMANDEUR);
+    expect(pas.geste).toBeNull();
+    expect(pas.attente).toMatch(/En attente — le Directeur Général valide le total de la demande/);
+
+    // QUI STATUE : le DG (ou le Super Admin) — pas le demandeur ; un renvoi exige son motif ; le total vu doit être le total lu.
+    const kam2 = { id: u.kam2, name: `${TAG}kam2`, role: "MEDICAL_DELEGATE" };
+    const gm = { id: u.gm, name: `${TAG}gm`, role: "GENERAL_MANAGER" };
+    expect(refus(await statuerSurLeTotal({ user: kam2, parent: "CONGRESS_NATIONAL", parentId: congres2, decision: "VALIDEE", totalVu: 1_200_000, note: null })))
+      .toMatch(/Seul le Directeur Général/);
+    expect(refus(await statuerSurLeTotal({ user: gm, parent: "CONGRESS_NATIONAL", parentId: congres2, decision: "A_REVOIR", totalVu: 1_200_000, note: "  " })))
+      .toMatch(/Dites ce qu'il faut revoir/);
+    expect(refus(await statuerSurLeTotal({ user: gm, parent: "CONGRESS_NATIONAL", parentId: congres2, decision: "VALIDEE", totalVu: 1_100_000, note: null })))
+      .toMatch(/Le total vient de changer/);
+    expect((await lirePorteDg("CONGRESS_NATIONAL", congres2)).etat, "aucun de ces refus n'ouvre la porte").toBe("EN_ATTENTE");
+    ok(await statuerSurLeTotal({ user: gm, parent: "CONGRESS_NATIONAL", parentId: congres2, decision: "VALIDEE", totalVu: 1_200_000, note: null }));
+    expect((await lirePorteDg("CONGRESS_NATIONAL", congres2)).etat).toBe("VALIDEE");
+
+    // PORTE OUVERTE : le BC se génère (au-dessus du seuil des BC, le centre Ad & Pro vise ensuite).
+    ACTOR = await acteur(u.kam2, "MEDICAL_DELEGATE");
+    ok(await genererEtValider(fd({ id: ps })));
+    const [bc] = await bcsDe(dep.id!);
+    expect(Number(bc.amount)).toBe(1_190_000);
+    expect((await poste(ps)).orderStage).toBe("REQUESTED");
+
+    // UNE RALLONGE ROUVRE LA PORTE : un poste de plus porte le total au-delà de ce que le DG a validé.
+    ok(await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: congres2, kind: "PRINTING", label: `${TAG}Rallonge`, amountEstimated: "50000", supplier: "Imprimerie Alpha" })));
+    const rouverte = await lirePorteDg("CONGRESS_NATIONAL", congres2);
+    expect(rouverte).toMatchObject({ etat: "EN_ATTENTE", total: 1_250_000 });
+    await comme("gm");
+    expect(refus(await approveAdProItemOrder(undefined, fd({ id: ps, decision: "APPROVE", montantVu: "1200000", prestataireVu: "Imprimerie Alpha" }))))
+      .toMatch(/au-delà des .* validés par le Directeur Général : sa validation est de nouveau requise/);
+    expect((await poste(ps)).orderStage, "le visa n'est pas posé porte fermée").toBe("REQUESTED");
   }, 180_000);
 
   it("LES BC D'UN POSTE ONT DES POINTS D'APPEL : la carte lit la règle de l'action, le CTA appelle l'action, la porte du BC lit le visa du poste", () => {

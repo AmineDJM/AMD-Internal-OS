@@ -1,4 +1,6 @@
 import { ETAPE_DEMANDE_DEVIS } from "@/lib/ad-pro/demande-devis-lettre";
+import { lirePorteDg, peutStatuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
+import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { getBudgetCategoryOptions } from "@/lib/queries/budget";
@@ -23,7 +25,7 @@ import { piecesDesPostes, demandesBCDesPostes, assistantesDeDirection } from "@/
 import { peutValiderLeBrouillon } from "@/lib/bons-de-commande/brouillon";
 import { pieceEmise, specRevisable, valeursComposables } from "@/lib/legal/piece-emise";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
-import { droitsValidation, estDirectionMarketingPoste, type DroitsValidation } from "@/lib/ad-pro/validation-poste";
+import { droitsValidation, type DroitsValidation } from "@/lib/ad-pro/validation-poste";
 import { envoisDesFiches } from "@/lib/queries/reservations-fiches";
 
 /**
@@ -505,6 +507,11 @@ export interface ContextePostes {
   secondTempsParOperations: boolean;
   /** Valider l'aperçu du bon de commande et l'envoyer aux Finances : le demandeur de la demande, ou le Super Admin (`peutValiderLeBrouillon`). */
   peutValiderBc: boolean;
+  /**
+   * LA PORTE DU DG SUR LE TOTAL DE LA DEMANDE (27/10/2026) — la même pour tous ses postes, et ce que la
+   * personne qui regarde peut en faire (le DG ou le Super Admin statuent).
+   */
+  porteDg: { etat: EtatPorteDg; phrase: string | null; total: number; seuil: number | null; note: string | null; peutStatuer: boolean };
 }
 
 const DEMANDEUR_DE: Record<AdProParent, (id: string) => Promise<string | null>> = {
@@ -518,11 +525,17 @@ export async function contextePostes(user: SessionUser, parent: AdProParent, par
   const requesterId = await DEMANDEUR_DE[parent](parentId);
   const demandeur = requesterId ? await prisma.user.findUnique({ where: { id: requesterId }, select: { id: true, role: true, secondaryRole: true } }) : null;
   const moi = await prisma.user.findUnique({ where: { id: user.id }, select: { id: true, role: true, secondaryRole: true } });
+  const porte = await lirePorteDg(parent, parentId);
   return {
     validation: droitsValidation(moi ?? { id: user.id, role: user.role }, demandeur),
     assistantes: await assistantesDeDirection(),
     userId: user.id,
-    secondTempsParOperations: estDirectionMarketingPoste(demandeur),
+    // La règle du 27/10/2026 n'a plus de second temps chez le Directeur des opérations.
+    secondTempsParOperations: false,
     peutValiderBc: peutValiderLeBrouillon({ userId: user.id, role: user.role, demandeurId: requesterId }),
+    porteDg: {
+      etat: porte.etat, phrase: porte.phrase, total: porte.total, seuil: porte.seuil, note: porte.note,
+      peutStatuer: peutStatuerSurLeTotal(moi ?? { role: user.role }),
+    },
   };
 }

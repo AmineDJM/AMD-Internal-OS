@@ -30,10 +30,14 @@ const fd = (c: Record<string, string>) => { const f = new FormData(); for (const
  * Rapporté par elle : un billet d'avion ajouté hors budget au « Congrès de Batna » est resté bloqué
  * à son niveau, faute de notification — la liste écrite à la main ne la nommait que sur le sponsoring.
  * Le juge compte par le LIEN CAUSAL (la notification mène à CE congrès), jamais par le voisinage.
+ *
+ * Depuis le 27/10/2026 : les postes ne s'ajoutent qu'APRÈS la prévalidation (requestStatus APPROVED,
+ * sans montant), et UN SEUL temps les accepte — la Direction Marketing. La Direction des opérations
+ * (le Directeur des opérations a déjà validé la DEMANDE) n'est plus sollicitée poste par poste.
  */
 suite("Postes Ad & Pro — ceux qui décident sont prévenus (validation et lecture)", () => {
   const u: Record<string, string> = {};
-  let congres = "";
+  let congres = "", brouillon = "";
   const recues = (type: "GENERIC" | "VALIDATION_REQUIRED", qui: "dm" | "ops" = "dm") => prisma.notification.count({
     where: { userId: u[qui], type, link: { contains: congres }, createdAt: { gte: DEBUT } },
   });
@@ -45,9 +49,12 @@ suite("Postes Ad & Pro — ceux qui décident sont prévenus (validation et lect
     };
     await mk("kam", "MEDICAL_DELEGATE");
     await mk("dm", "PRODUCT_MANAGER");
-    // LA DIRECTION DES OPÉRATIONS tient le PREMIER temps de la validation (§118.204).
+    // LA DIRECTION DES OPÉRATIONS ne tient plus de temps sur les postes (27/10/2026) : le témoin qu'on ne la dérange pas.
     await mk("ops", "DIRECTION");
-    congres = (await prisma.congressNational.create({ data: { name: `${RUN} Congrès de Batna`, requesterId: u.kam } })).id;
+    // PRÉVALIDÉ (N+1, Directeur des opérations, Direction Marketing) : les postes peuvent s'ajouter. Aucun montant écrit.
+    congres = (await prisma.congressNational.create({ data: { name: `${RUN} Congrès de Batna`, requesterId: u.kam, requestStatus: "APPROVED" } })).id;
+    // Encore dans le circuit : aucun poste ne s'y ajoute.
+    brouillon = (await prisma.congressNational.create({ data: { name: `${RUN} Congrès de Sétif`, requesterId: u.kam } })).id;
   });
   afterAll(nettoyer);
 
@@ -63,11 +70,23 @@ suite("Postes Ad & Pro — ceux qui décident sont prévenus (validation et lect
     expect(userCan(await acteur(u.dm, "PRODUCT_MANAGER"), "CONGRESS_NATIONAL", "VALIDATE")).toBe(true);
   });
 
-  it("un poste inclus, avant la décision, ne dérange personne (témoin)", async () => {
+  it("AVANT LA PRÉVALIDATION, aucun poste ne s'ajoute — et personne n'est dérangé", async () => {
+    ACTOR = await acteur(u.kam, "MEDICAL_DELEGATE");
+    const r = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: brouillon, label: `${RUN} Stand`, kind: "OTHER", amountEstimated: "30000", budgetKind: "ADDITIONAL" }));
+    expect(r.ok).toBe(false);
+    expect(r.ok ? "" : r.error).toMatch(/^Les postes s'ajoutent après la prévalidation de la Direction Marketing/);
+    expect(await prisma.adProItem.count({ where: { congressNationalId: brouillon } })).toBe(0);
+    expect(await prisma.notification.count({ where: { userId: { in: [u.dm, u.ops] }, link: { contains: brouillon }, createdAt: { gte: DEBUT } } })).toBe(0);
+  });
+
+  it("un poste inclus, après la prévalidation, ne dérange personne (témoin) — il n'est pas « ajouté après la décision »", async () => {
     ACTOR = await acteur(u.kam, "MEDICAL_DELEGATE");
     const r = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: congres, label: `${RUN} Stand`, kind: "OTHER", amountEstimated: "30000" }));
     expect(r.ok, JSON.stringify(r)).toBe(true);
     expect(await recues("GENERIC")).toBe(0);
+    expect(await recues("GENERIC", "ops")).toBe(0);
+    // La prévalidation n'écrit aucun montant : préparer ses postes est l'étape même, pas un ajout tardif.
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: r.ok ? r.id! : "" } })).addedAfterDecision).toBe(false);
   });
 
   it("un poste HORS BUDGET est dit en lecture, et sa soumission demande la validation", async () => {
@@ -79,23 +98,27 @@ suite("Postes Ad & Pro — ceux qui décident sont prévenus (validation et lect
     await prisma.adProVoyageur.create({ data: { itemId: r.ok ? r.id! : "", nom: "Haddad", prenom: "Amel" } });
     const s = await submitAdProItem(undefined, fd({ id: r.ok ? r.id! : "" }));
     expect(s.ok, JSON.stringify(s)).toBe(true);
-    // DEUX TEMPS (§118.204) : la soumission demande la validation à la Direction des opérations — la
-    // Direction Marketing n'est pas encore sollicitée (elle sait le poste ajouté, en lecture).
-    expect(await recues("VALIDATION_REQUIRED", "ops"), "la Direction des opérations est sollicitée").toBe(1);
-    expect(await recues("VALIDATION_REQUIRED"), "la Direction Marketing pas encore").toBe(0);
+    // UN SEUL TEMPS (27/10/2026) : la soumission va DROIT à la Direction Marketing — la Direction des
+    // opérations n'est pas sollicitée.
+    expect(await recues("VALIDATION_REQUIRED"), "la Direction Marketing est sollicitée").toBe(1);
+    expect(await recues("VALIDATION_REQUIRED", "ops"), "la Direction des opérations ne l'est plus").toBe(0);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: r.ok ? r.id! : "" } })).opsDecidedAt, "l'ancien premier temps est franchi d'office, tracé").not.toBeNull();
     const cle = `poste-${r.ok ? r.id! : ""}`;
     const file = async (k: "dm" | "ops" | "kam", role: SessionUser["role"]) =>
       (await getActionCenter(await acteur(u[k], role) as unknown as SessionUser)).items;
-    expect((await file("ops", "DIRECTION")).find((i) => i.key === cle)?.href, "la Direction des opérations voit le poste à valider").toBe(`/congress-national/${congres}`);
-    expect((await file("dm", "PRODUCT_MANAGER")).some((i) => i.key === cle), "la Direction Marketing ne voit pas un temps qui n'est pas le sien").toBe(false);
+    const ligne = (await file("dm", "PRODUCT_MANAGER")).find((i) => i.key === cle);
+    expect(ligne?.href, "la Direction Marketing voit le poste à décider").toBe(`/congress-national/${congres}`);
+    // La ligne ne prétend pas qu'une Direction des opérations l'a validé : `opsDecidedAt` est posé d'office.
+    expect(ligne?.subtitle).toMatch(/^hors budget · poste à accepter — montant et budget à décider/);
+    expect(ligne?.subtitle).not.toMatch(/Direction des opérations/);
+    expect((await file("ops", "DIRECTION")).some((i) => i.key === cle), "la Direction des opérations n'a rien à faire").toBe(false);
     expect((await file("kam", "MEDICAL_DELEGATE")).some((i) => i.key === cle), "le demandeur ne le décide pas").toBe(false);
 
-    // Le premier temps validé : c'est AU TOUR de la Direction Marketing — prévenue, et sa file le porte.
+    // La Direction des opérations ne tranche pas un poste : son geste est refusé, et rien ne bouge.
     ACTOR = await acteur(u.ops, "DIRECTION");
     const v = await decideAdProItem(undefined, fd({ id: r.ok ? r.id! : "", decision: "APPROVED" }));
-    expect(v.ok, JSON.stringify(v)).toBe(true);
-    expect(await recues("VALIDATION_REQUIRED"), "la Direction Marketing est sollicitée").toBe(1);
-    expect((await file("dm", "PRODUCT_MANAGER")).find((i) => i.key === cle)?.href, "la Direction Marketing voit le poste à décider").toBe(`/congress-national/${congres}`);
-    expect((await file("ops", "DIRECTION")).some((i) => i.key === cle), "la Direction des opérations n'a plus rien à faire").toBe(false);
+    expect(v.ok).toBe(false);
+    expect(v.ok ? "" : v.error).toBe("Ce poste attend la décision de la Direction Marketing (montant et budget).");
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: r.ok ? r.id! : "" } })).status).toBe("PENDING");
   });
 });

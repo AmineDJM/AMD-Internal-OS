@@ -84,15 +84,24 @@ describe("C. ON N'ARBITRE PAS SA PROPRE DEMANDE — par la personne, pas seuleme
     expect(droitsValidation(dual, dual)).toEqual({ operations: false, marketing: false });
   });
 
-  it("la même personne tranche la demande d'un AUTRE ; une autre Direction des opérations tranche la sienne ; le Super Admin supplée", () => {
+  it("la même personne accepte les postes de la demande d'un AUTRE ; une AUTRE Direction Marketing accepte les siens ; le Super Admin supplée", () => {
     const autre = { id: "u2", role: "PRODUCT_MANAGER" };
-    expect(peutTenir("MARKETING", dual, autre), "demande d'une autre personne de la Direction Marketing : la Direction des opérations tranche").toBe(true);
-    expect(peutTenir("MARKETING", { id: "u3", role: "DIRECTION" }, dual)).toBe(true);
+    expect(peutTenir("MARKETING", dual, autre), "elle porte la Direction Marketing : elle accepte les postes d'une autre demande").toBe(true);
+    expect(peutTenir("MARKETING", { id: "u4", role: "PRODUCT_MANAGER" }, dual), "une autre personne de la Direction Marketing accepte ses postes").toBe(true);
     expect(peutTenir("MARKETING", { id: "u1", role: "SUPER_ADMIN" }, { ...dual, id: "u1" })).toBe(true);
   });
 
-  it("sans identifiant (appelant d'avant), la règle par rôle est inchangée", () => {
-    expect(peutTenir("MARKETING", { role: "DIRECTION" }, { role: "PRODUCT_MANAGER" })).toBe(true);
+  it("UN SEUL TEMPS (27/10/2026) : le Directeur des opérations ne tranche plus les postes, même d'une demande de la Direction Marketing", () => {
+    // L'ancienne règle (§118.204) donnait le second temps à la Direction des opérations sur une demande de la Direction
+    // Marketing ; il n'y a plus qu'un accord, celui de la Direction Marketing — par une autre personne qu'elle.
+    expect(peutTenir("MARKETING", { id: "u3", role: "DIRECTION" }, dual)).toBe(false);
+    expect(peutTenir("MARKETING", { id: "u3", role: "OPERATIONS_DIRECTOR" }, dual)).toBe(false);
+    expect(opsFranchiALaSoumission({ id: "u5", role: "MEDICAL_DELEGATE" }), "l'ancien premier temps est franchi d'office à chaque soumission").toBe(true);
+  });
+
+  it("sans identifiant (appelant d'avant), la règle par rôle : seule la Direction Marketing accepte", () => {
+    expect(peutTenir("MARKETING", { role: "PRODUCT_MANAGER" }, { role: "PRODUCT_MANAGER" })).toBe(true);
+    expect(peutTenir("MARKETING", { role: "DIRECTION" }, { role: "PRODUCT_MANAGER" })).toBe(false);
     expect(peutTenir("OPERATIONS", { role: "PRODUCT_MANAGER" }, null)).toBe(false);
   });
 });

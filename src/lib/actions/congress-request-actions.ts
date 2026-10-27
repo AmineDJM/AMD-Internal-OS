@@ -14,6 +14,7 @@ import { createExpenseOrder } from "@/lib/expense-orders";
 import { reviserOrdreNonRegle, apresRevisionOrdre } from "@/lib/payments/revision-ordre";
 import { involveThirdParty } from "@/lib/third-party";
 import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
+import { ouvrirLeCircuit } from "@/lib/workflow/engine";
 import { retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
 import { referentAInscrire } from "@/lib/ad-pro/referent-de-la-gamme";
 import { gammeImposee } from "@/lib/ad-pro/business-unit-auto";
@@ -233,18 +234,8 @@ export async function createCongressRequest(
   });
 
   await recordAudit({ actorId: user.id, action: "CREATE", module: ML(t), entityType: entityFor(t), entityId: created.id, summary: `Prise en charge « ${name} »${attached.saved > 0 ? ` (${attached.saved} pièce(s) jointe(s))` : ""}` });
-  // Notifie l'acteur de l'étape de DÉPART selon le routage à la création :
-  //  · délégué → National Sales (approbation préliminaire + choix du référent Direction Marketing) ;
-  //  · National Sales ayant désigné → la Direction Marketing (analyse) ;
-  //  · Direction Marketing / Direction / Super Admin → la Direction (validation définitive).
-  const link = `${pathFor(t)}/${created.id}`;
-  if (init.stage === "ANALYSIS" && init.productManagerId) {
-    await notifyUser({ userId: init.productManagerId, type: "ASSIGNMENT", title: `${NOUN(t)} à analyser`, body: name, link });
-  } else if (init.stage === "FINAL") {
-    await notifyRoles(["DIRECTION", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title: `${NOUN(t)} — validation définitive`, body: name, link });
-  } else {
-    await notifyRoles(["NATIONAL_SALES", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title: "Demande de congrès — à attribuer (National Sales)", body: name, link });
-  }
+  // LE CIRCUIT NAÎT AVEC LA DEMANDE et prévient chaque acteur de SON parcours (décision #1, 27/10/2026).
+  await ouvrirLeCircuit(entityFor(t), created.id);
   revalidatePath(pathFor(t));
   // Le tableau « Toutes les demandes » et « Mon espace » lisent aussi la demande qui vient de naître.
   revalidatePath("/ad-pro");

@@ -69,8 +69,9 @@ async function sousBarriere<T>(ids: string[], gestes: () => Promise<T>[], attend
  * l'agence pour chacun, la proposition retenue, puis le BC du poste d'après elle.
  *
  * L'acteur est le demandeur, un National Sales SANS vue globale (§118.104). Le DÉCOR pose l'état que
- * les deux temps de validation auraient fixé (poste accordé, montant, budget) : ce banc éprouve la
- * suite, pas la validation — qui a ses propres bancs.
+ * la prévalidation de la demande puis l'accord de la Direction Marketing auraient fixé (tenue
+ * prévalidée, poste accordé, montant, budget) : ce banc éprouve la suite, pas la validation — qui a
+ * ses propres bancs.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("Billetterie — trajet, transport, devis par voyageur, BC", () => {
@@ -104,10 +105,12 @@ suite("Billetterie — trajet, transport, devis par voyageur, BC", () => {
     const s = await createSponsoring(undefined, f);
     if (!s.ok) throw new Error(s.error);
     spoId = s.id!;
+    // DÉCOR : la tenue est PRÉVALIDÉE par la Direction Marketing (27/10/2026) — aucun poste ne s'ajoute avant.
+    await prisma.sponsoringRequest.update({ where: { id: spoId }, data: { status: "PRE_VALIDATED" } });
     const add = await addAdProItem(undefined, fd({ parent: "SPONSORING", parentId: spoId, label: `${TAG}Billets Paris`, kind: "TICKETING", amountEstimated: "100000" }));
     if (!add.ok) throw new Error(add.error);
     posteId = add.id!;
-    // DÉCOR : les deux temps de validation ont accordé 100 000 DZD et choisi le budget.
+    // DÉCOR : la Direction Marketing a accepté le poste (un seul temps, 27/10/2026) — 100 000 DZD, budget choisi.
     await prisma.adProItem.update({
       where: { id: posteId },
       data: { status: "APPROVED", amountGranted: 100_000, budgetCategoryId: catId, opsDecidedAt: new Date() },

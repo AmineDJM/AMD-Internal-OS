@@ -60,6 +60,8 @@ import { BlocBonDeCommande, PanneauLignesDevis } from "./devis-bc-poste";
 import { DeposerFactureBC, DemandePaiementBC, ControleDeFacture, bcsSansFacture, PaiementDemande } from "./facture-paiement-bc";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { ancrePoste } from "@/lib/chemins/ad-pro";
+import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
+import { CartePorteDg } from "./porte-dg-carte";
 
 export type { LigneStockVue, ContexteMaterielStock, ArticleMagasinVue } from "./materiel-stock";
 export type { VoyageurVue } from "./voyageurs-bloc";
@@ -224,6 +226,8 @@ export interface ContexteDesPostes {
   secondTempsParOperations: boolean;
   /** Valider l'aperçu du BC et l'envoyer aux Finances : le demandeur de la demande, ou le Super Admin. */
   peutValiderBc: boolean;
+  /** La porte du DG sur le total de la demande (27/10/2026) — calculée au serveur (`contextePostes`). */
+  porteDg?: { etat: EtatPorteDg; phrase: string | null; total: number; seuil: number | null; note: string | null; peutStatuer: boolean };
 }
 
 type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText: string) => Promise<void>;
@@ -336,11 +340,14 @@ export function AdProItemsPanel({
       run={run}
       parentLink={parentLink}
       moduleLibelle={`Ad & Pro — ${kindLabel(parent)}`}
+      porteDg={contexte.porteDg}
     />
   );
 
   return (
     <div className="space-y-4">
+      {/* ── La porte du DG sur le total (27/10/2026) : visible dès qu'elle est requise. ── */}
+      {contexte.porteDg && <CartePorteDg parent={parent} parentId={parentId} porte={contexte.porteDg} />}
       {/* ── La ventilation, avant la liste : c'est la question qu'on se pose en arrivant. ── */}
       {resume && <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
         <Figure
@@ -506,7 +513,7 @@ function titreDuPoste(item: ItemRow): { titre: string; nature: string | null } {
  * Tout le reste (modifier, révision, demandes au secrétariat, fichiers joints, historique, retirer)
  * vit dans le menu « ⋯ » : rien ne disparaît, rien ne crie.
  */
-function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budgetOptions, promoOptions, materiel, busy, run, parentLink, moduleLibelle }: {
+function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budgetOptions, promoOptions, materiel, busy, run, parentLink, moduleLibelle, porteDg }: {
   item: ItemRow;
   parent: AdProParent;
   parentId: string;
@@ -521,6 +528,7 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
   parentLink: string;
   /** Le module que lira le validateur d'une validation demandée depuis ce poste. */
   moduleLibelle: string;
+  porteDg?: ContexteDesPostes["porteDg"];
 }) {
   const [panneau, setPanneau] = React.useState<Panneau | null>(null);
   const [naturePiece, setNaturePiece] = React.useState<NaturePieceSecretariat>("DEVIS");
@@ -543,7 +551,8 @@ function PosteCarte({ item, parent, parentId, regard, freres, assistantes, budge
   const editer = regard.canEdit && !regard.fige;
   const arbitrer = regard.canAllocate && !regard.fige;
   const droits = regard.validation ?? { operations: false, marketing: false };
-  const faits = faitsDuPoste(item);
+  // LA PORTE DU DG (27/10/2026) : la même pour tous les postes de la demande — la carte la lit, l'action la garde.
+  const faits = { ...faitsDuPoste(item), porteDg: porteDg?.etat, porteDgPhrase: porteDg?.phrase ?? null };
   const pas = prochainPas(faits, regard);
   const etapes = etapesDuPoste(faits);
   const { titre, nature } = titreDuPoste(item);

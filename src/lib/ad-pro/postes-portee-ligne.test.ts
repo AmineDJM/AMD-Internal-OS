@@ -54,7 +54,7 @@ const fd = (champs: Record<string, string>) => {
  */
 suite("Postes Ad & Pro — un geste sur un poste exige de VOIR sa demande", () => {
   const u: Record<string, string> = {};
-  let congres = "", poste = "", voyageur = "", sponsoring = "", posteSponsoring = "";
+  let congres = "", brouillon = "", poste = "", voyageur = "", sponsoring = "", posteSponsoring = "";
 
   beforeAll(async () => {
     await nettoyer();
@@ -65,7 +65,10 @@ suite("Postes Ad & Pro — un geste sur un poste exige de VOIR sa demande", () =
     await mk("kamB", "MEDICAL_DELEGATE");
     await mk("ns", "NATIONAL_SALES");
 
-    congres = (await prisma.congressNational.create({ data: { name: `${RUN} Journées d'Oran`, requesterId: u.kamA } })).id;
+    // PRÉVALIDÉ (27/10/2026) : sans quoi aucun poste ne s'y ajoute, et le refus ne dirait plus rien de la portée.
+    congres = (await prisma.congressNational.create({ data: { name: `${RUN} Journées d'Oran`, requesterId: u.kamA, requestStatus: "APPROVED" } })).id;
+    // Le même auteur, une demande encore dans le circuit.
+    brouillon = (await prisma.congressNational.create({ data: { name: `${RUN} Journées de Tlemcen`, requesterId: u.kamA } })).id;
     poste = (await prisma.adProItem.create({
       data: { congressNationalId: congres, kind: "TICKETING", label: `${RUN} Billets Oran`, amountEstimated: 50_000, createdById: u.kamA, updatedById: u.kamA },
     })).id;
@@ -148,6 +151,15 @@ suite("Postes Ad & Pro — un geste sur un poste exige de VOIR sa demande", () =
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: poste } })).label).toBe(`${RUN} Billets Oran (aller-retour)`);
     const nouveau = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: congres, label: `${RUN} Hôtel`, kind: "ACCOMMODATION" }));
     expect(nouveau.ok, nouveau.error).toBe(true);
+  }, 60_000);
+
+  it("l'AUTEUR non plus n'ajoute aucun poste AVANT la prévalidation de sa demande (27/10/2026) — et le refus le dit", async () => {
+    ACTOR = await acteur(u.kamA, "MEDICAL_DELEGATE");
+    const r = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: brouillon, label: `${RUN} Hôtel`, kind: "ACCOMMODATION" }));
+    expect(r.ok).toBe(false);
+    // Pas « introuvable » : il voit sa demande ; c'est la prévalidation qui manque.
+    expect(r.error).toMatch(/^Les postes s'ajoutent après la prévalidation de la Direction Marketing/);
+    expect(await prisma.adProItem.count({ where: { congressNationalId: brouillon } })).toBe(0);
   }, 60_000);
 
   it("le SPONSORING n'a pas de portée de ligne : celui qui a le module agit sur le poste d'un autre, comme avant", async () => {

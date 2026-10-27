@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { createSponsoring } from "@/lib/actions/sponsoring-actions";
+import { advanceWorkflowInstance } from "@/lib/workflow/engine";
 import {
   addAdProItem, repartirPoste, submitAdProItem, decideAdProItem, requestAdProItemOrder,
   ajouterVoyageur, modifierVoyageur, retirerVoyageur, demanderReservation, retirerReservation,
@@ -130,6 +131,9 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     const postes = await prisma.adProItem.findMany({ where: { sponsoringId: { in: ids } }, select: { id: true } }).catch(() => []);
     await prisma.document.deleteMany({ where: { entityId: { in: postes.map((p) => p.id) } } }).catch(() => {});
     await prisma.documentRequest.deleteMany({ where: { entityType: "AD_PRO_ITEM", entityId: { in: postes.map((p) => p.id) } } }).catch(() => {});
+    // LA PORTE DU DG (27/10/2026) : sa ligne par demande, et le signalement parti au DG / Super Admin de la base partagée.
+    await prisma.adProPorteDg.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
+    for (const id of ids) await prisma.notification.deleteMany({ where: { link: { contains: id } } }).catch(() => {});
     await prisma.workflowStepEvent.deleteMany({ where: { instance: { entityId: { in: ids } } } }).catch(() => {});
     await prisma.workflowInstance.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { entityId: { in: ids } } }).catch(() => {});
@@ -144,6 +148,21 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     await prisma.userAccess.deleteMany({ where: { user: { email: { startsWith: RUN } } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: RUN } } }).catch(() => {});
   }, 60_000);
+
+  /**
+   * LA PRÉVALIDATION PAR LE VRAI CIRCUIT (27/10/2026) : une demande du National Sales passe le Directeur des
+   * opérations, puis la Direction Marketing — et seulement alors ses postes s'ajoutent et se soumettent.
+   */
+  async function prevalider(id: string) {
+    for (const v of [
+      { id: odId, role: "OPERATIONS_DIRECTOR" as const, name: `${TAG}od` },
+      { id: pmChefId, role: "PRODUCT_MANAGER" as const, name: `${TAG}pmchef` },
+    ]) {
+      const av = await advanceWorkflowInstance({ viewer: v, entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK" });
+      expect(av.ok, av.ok === false ? av.error : "").toBe(true);
+    }
+    expect((await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id } })).status, "la prévalidation conclut PRE_VALIDATED").toBe("PRE_VALIDATED");
+  }
 
   /** Les lignes du chargeur de l'écran, et la ligne d'un poste. */
   async function ligne(parentId: string, id: string) {
@@ -235,26 +254,41 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
 
   // ── LE SPONSORING INDIRECT, RÉPARTI PAR NATURE ────────────────────────────────────────
 
-  it("INDIRECT non réparti : il ne se soumet pas, ne s'accorde pas, et le seul geste offert est « Répartir par nature »", async () => {
+  it("AVANT LA PRÉVALIDATION (27/10/2026) : aucun poste ne s'ajoute ni ne se soumet — le poste né avec la demande reste un brouillon", async () => {
     const postes = await prisma.adProItem.findMany({ where: { sponsoringId: spoA } });
     expect(postes, "la demande naît avec son poste").toHaveLength(1);
-    expect(postes[0].kind).toBe("INDIRECT_SUPPORT");
+    expect(postes[0].status, "le poste auto-créé reste un brouillon").toBe("DRAFT");
     posteOrigine = postes[0].id;
+    ACTOR = await acteur(nsId, "NATIONAL_SALES");
+    const ajout = await addAdProItem(undefined, fd({ parent: "SPONSORING", parentId: spoA, label: `${TAG}Trop tôt`, kind: "PRINTING", amountEstimated: "10000" }));
+    expect(ajout.ok === false ? ajout.error : "ajouté").toMatch(/^Les postes s'ajoutent après la prévalidation de la Direction Marketing/);
+    const sub = await submitAdProItem(undefined, fd({ id: posteOrigine }));
+    expect(sub.ok === false ? sub.error : "soumis").toMatch(/^Les postes s'ajoutent après la prévalidation de la Direction Marketing/);
+    expect(await prisma.adProItem.count({ where: { sponsoringId: spoA } }), "rien n'est écrit").toBe(1);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteOrigine } })).status).toBe("DRAFT");
+  });
+
+  it("INDIRECT non réparti : il ne se soumet pas, ne s'accorde pas, et le seul geste offert est « Répartir par nature »", async () => {
+    await prevalider(spoA);
+    const postes = await prisma.adProItem.findMany({ where: { sponsoringId: spoA } });
+    expect(postes).toHaveLength(1);
+    expect(postes[0].kind).toBe("INDIRECT_SUPPORT");
+    expect(postes[0].id).toBe(posteOrigine);
 
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     const sub = await submitAdProItem(undefined, fd({ id: posteOrigine }));
     expect(sub.ok === false ? sub.error : "soumis").toBe(REFUS_INDIRECT_NON_REPARTI);
-    // Ni la Direction des opérations ni la Direction Marketing ne l'accordent (§118.204) — l'action
-    // refuse AVANT d'écrire, donc le statut n'a pas bougé.
+    // Ni la Direction des opérations ni la Direction Marketing ne l'accordent — l'action refuse AVANT
+    // d'écrire, donc le statut n'a pas bougé.
     for (const [id, role] of [[dirId, "DIRECTION"], [pmChefId, "PRODUCT_MANAGER"]] as const) {
       ACTOR = await acteur(id, role);
       const dec = await decideAdProItem(undefined, fd({ id: posteOrigine, decision: "APPROVED", budgetCategoryId: catId }));
       expect(dec.ok, `${role} ne doit pas accorder un sponsoring indirect non réparti`).toBe(false);
     }
     expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: posteOrigine } })).status).toBe("DRAFT");
-    // LE CAS RÉEL où la garde de la répartition est seule à parler : un sponsoring indirect d'AVANT,
-    // en attente du second temps (la migration de §118.204 réputé fait le premier temps des postes
-    // déjà soumis). DÉCOR, nommé : c'est cet état hérité qu'on éprouve, pas son histoire.
+    // LE CAS RÉEL où la garde de la répartition est seule à parler : un sponsoring indirect d'AVANT, SOUMIS
+    // (en attente de la Direction Marketing, seul temps depuis le 27/10/2026). DÉCOR, nommé : c'est cet état
+    // hérité qu'on éprouve, pas son histoire.
     const herite = await prisma.adProItem.create({ data: {
       sponsoringId: spoA, kind: "INDIRECT_SUPPORT", label: `${TAG}Indirect hérité`, status: "PENDING",
       amountEstimated: 100_000, opsDecidedAt: new Date(), position: 49,
@@ -324,7 +358,9 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect(sans.ok).toBe(false);
     const avec = await addAdProItem(undefined, fd({
       parent: "SPONSORING", parentId: spoA, label: `${TAG}Prise en charge`, kind: "INDIRECT_SUPPORT",
-      repartition: JSON.stringify([{ kind: "TICKETING", montant: 150000, precision: "", payeA: "" }]),
+      // 50 000 : le total de la demande reste SOUS le seuil du DG — la chaîne plus bas mesure les gestes, pas la porte
+      // (`porte-dg-flow.test.ts` la tient).
+      repartition: JSON.stringify([{ kind: "TICKETING", montant: 50000, precision: "", payeA: "" }]),
     }));
     expect(avec.ok, avec.ok === false ? avec.error : "").toBe(true);
     const cree = await prisma.adProItem.findUniqueOrThrow({ where: { id: avec.ok ? avec.id! : "" } });
@@ -383,7 +419,8 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
      */
     const rejouer: Record<CleGeste, (() => Promise<{ ok: boolean; error?: string }>) | null> = {
       SOUMETTRE: async () => { ACTOR = await acteur(nsId, "NATIONAL_SALES"); return submitAdProItem(undefined, fd({ id: hotellerie })); },
-      VALIDER_OPS: async () => { ACTOR = await acteur(dirId, "DIRECTION"); return decideAdProItem(undefined, fd({ id: hotellerie, decision: "APPROVED" })); },
+      // UN SEUL TEMPS (27/10/2026) : la Direction des opérations n'a plus de geste sur un poste — jamais proposé.
+      VALIDER_OPS: null,
       DECIDER: async () => {
         ACTOR = await acteur(pmChefId, "PRODUCT_MANAGER");
         return decideAdProItem(undefined, fd({ id: hotellerie, decision: "APPROVED", amountGranted: "450000", budgetCategoryId: catId }));
@@ -405,21 +442,33 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
       await regardDe(dirId, "DIRECTION", REGARD_DIRECTION),
       await regardDe(pmChefId, "PRODUCT_MANAGER", REGARD_DIRECTION),
     ];
+    // Comme la carte : les faits du poste PLUS la porte du DG de la demande (`items-panel.tsx`).
+    const faitsEcran = async () => {
+      const porte = (await contextePostes(await acteur(nsId, "NATIONAL_SALES"), "SPONSORING", spoA)).porteDg;
+      return { ...faitsDuPoste(await ligne(spoA, hotellerie)), porteDg: porte.etat, porteDgPhrase: porte.phrase };
+    };
     const suivis: CleGeste[] = [];
     for (let tour = 0; tour < 8; tour += 1) {
-      const faits = faitsDuPoste(await ligne(spoA, hotellerie));
+      const faits = await faitsEcran();
       const geste = regards.map((r) => prochainPas(faits, r).geste?.cle ?? null).find(Boolean) ?? null;
       if (!geste || !rejouer[geste]) break;
       const r = await rejouer[geste]!();
       expect(r.ok, `le geste « ${geste} » est proposé et l'action le refuse : ${r.error ?? ""}`).toBe(true);
       suivis.push(geste);
+      if (geste === "SOUMETTRE") {
+        // Soumis : droit chez la Direction Marketing — l'ancien premier temps est franchi d'office, tracé.
+        expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: hotellerie } })).opsDecidedAt, "premier temps franchi d'office").not.toBeNull();
+        expect(prochainPas(await faitsEcran(), regards[1]), "la Direction des opérations n'a rien à faire").toEqual({ geste: null, attente: "En attente — chez la Direction Marketing (montant et budget)." });
+      }
     }
-    expect(suivis).toEqual(["SOUMETTRE", "VALIDER_OPS", "DECIDER", "DEMANDER_BC"]);
+    // UN SEUL TEMPS : soumettre, la Direction Marketing décide (montant et budget), puis le BC.
+    expect(suivis).toEqual(["SOUMETTRE", "DECIDER", "DEMANDER_BC"]);
+    expect((await faitsEcran()).porteDg, "prémisse : le total de la demande reste sous le seuil du DG").toBe("NON_REQUISE");
     // Le BC est demandé : au centre (au-dessus du seuil), et chez l'assistante. L'écran DIT qui on
     // attend — jamais un geste du demandeur.
     const row = await ligne(spoA, hotellerie);
     expect(["REQUESTED", "DIRECTION_OK"]).toContain(row.orderStage);
-    expect(row.budgetCategoryId, "le budget est choisi AU second temps, pas dans un geste à part").toBe(catId);
+    expect(row.budgetCategoryId, "le budget est choisi À L'ACCORD, pas dans un geste à part").toBe(catId);
     expect(row.demandeBC?.etat).toBe("CHEZ_ASSISTANTE");
     const fin = prochainPas(faitsDuPoste(row), REGARD_DEMANDEUR);
     expect(fin.geste).toBeNull();
@@ -431,6 +480,7 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
   // ── LA BILLETTERIE : SES VOYAGEURS, ET LA RÉSERVATION ─────────────────────────────────
 
   it("VOYAGEURS : seul un poste « billetterie » en porte, un NOM suffit, et une date fausse est refusée", async () => {
+    await prevalider(spoB);
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     associationB = (await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId: spoB } })).id;
     const ailleurs = await ajouterVoyageur(undefined, fd({ itemId: associationB, nom: "Dr Amel Haddad" }));
@@ -609,8 +659,12 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
   it("UN POSTE REFUSÉ ne se réserve pas", async () => {
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     expect((await submitAdProItem(undefined, fd({ id: billetterie }))).ok).toBe(true);
+    // La Direction des opérations ne tranche plus un poste (27/10/2026) : c'est la Direction Marketing qui refuse.
     ACTOR = await acteur(dirId, "DIRECTION");
-    expect((await decideAdProItem(undefined, fd({ id: billetterie, decision: "REJECTED", note: "Pas de billets cette année" }))).ok).toBe(true);
+    expect((await decideAdProItem(undefined, fd({ id: billetterie, decision: "REJECTED", note: "Pas de billets cette année" }))).ok).toBe(false);
+    ACTOR = await acteur(pmChefId, "PRODUCT_MANAGER");
+    const refus = await decideAdProItem(undefined, fd({ id: billetterie, decision: "REJECTED", note: "Pas de billets cette année" }));
+    expect(refus.ok, refus.ok === false ? refus.error : "").toBe(true);
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     const r = await demanderReservation(fd({ id: billetterie }));
     expect(r.ok === false ? r.error : "réservé").toMatch(/refusé par la Direction/);
@@ -637,11 +691,10 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect(await canAccessEntity(ns, "SPONSORING", spoB, "VIEW")).toBe(true);
     expect(await peutSupprimerUneDemandeAdPro(ns, "SPONSORING", spoB), "l'auteur range, il ne supprime pas").toBe(false);
     expect(await peutSupprimerUneDemandeAdPro(kam, "SPONSORING", spoB)).toBe(false);
-    // Le Directeur des Opérations passe la RÈGLE, mais il n'a pas le module Sponsoring : c'est alors
-    // la LIGNE qui décide — on ne supprime pas ce qu'on ne voit pas. Si un jour il le reçoit, la
-    // prémisse tombe ici, en le disant, au lieu que le cas cesse en silence de garder la ligne.
-    expect(await canAccessEntity(od, "SPONSORING", spoB, "VIEW"), "prémisse : il ne voit pas les sponsorings").toBe(false);
-    expect(await peutSupprimerUneDemandeAdPro(od, "SPONSORING", spoB)).toBe(false);
+    // Le Directeur des Opérations passe la RÈGLE, et depuis le 27/10/2026 il VOIT les sponsorings (il tient l'étape
+    // `final` du circuit, portée ALL) : la ligne ne l'arrête plus, il supprime.
+    expect(await canAccessEntity(od, "SPONSORING", spoB, "VIEW"), "prémisse : il voit les sponsorings").toBe(true);
+    expect(await peutSupprimerUneDemandeAdPro(od, "SPONSORING", spoB)).toBe(true);
   });
 
   it("UNE SEULE PORTE : l'aperçu s'ouvre exactement pour qui l'action accepte", async () => {

@@ -119,7 +119,11 @@ export const REFUS_BC_CENTRE_AD_PRO =
   + "Générale ou le Super Admin (décision de la Direction, 09/2026).";
 
 /** Par quelle porte une nature Ad & Pro passe-t-elle au-dessus du seuil ? */
-export type FormePorte = "ETAPE_CIRCUIT" | "ETAPE_PROMO" | "VISA_CENTRE";
+/**
+ * `TOTAL_DG` (Direction, 27/10/2026) : le TOTAL des postes d'une demande dépasse le seuil et attend la
+ * validation du DG (`ad-pro/porte-dg.ts`). Comme une étape de circuit, il se décide DEVANT LE DOSSIER.
+ */
+export type FormePorte = "ETAPE_CIRCUIT" | "ETAPE_PROMO" | "VISA_CENTRE" | "TOTAL_DG";
 
 /**
  * LES BONS DE COMMANDE AU CENTRE (§118.148) — un axe DISTINCT des portes de demande.

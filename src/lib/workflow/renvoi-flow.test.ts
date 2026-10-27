@@ -30,12 +30,15 @@ import { transferAdProRequest } from "@/lib/actions/ad-pro-transfer-actions";
  *   kam    délégué médical : il demande (congrès, événement, sponsoring), corrige, resoumet, retire
  *   autre  un second délégué : ni demandeur, ni validateur — il ne peut rien sur la demande d'un collègue
  *   ns     National Sales : l'étape préliminaire d'un KAM
- *   dg     Directeur Général : la porte des grosses dépenses, franchie sous le seuil
- *   pm     Direction Marketing : l'étape qui TRANCHE une demande de KAM
+ *   od     Directeur des opérations : le second filtre d'un KAM (étape `final`)
+ *   dg     Directeur Général : il n'est plus une étape du circuit (27/10/2026) — il valide le total
+ *          des postes, à la fin
+ *   pm     Direction Marketing : la prévalidation, l'étape qui CONCLUT une demande de KAM
  *   dir    Direction : la vue globale (transfert)
  *
- * Le parcours d'un congrès de KAM : préliminaire (NS) → porte du DG → Direction Marketing. Les
- * montants sont lus contre le seuil RÉEL des réglages, jamais une constante recopiée ici.
+ * Le parcours d'un congrès de KAM (règle du 27/10/2026) : préliminaire (NS) → Directeur des
+ * opérations → Direction Marketing. Les montants sont lus contre le seuil RÉEL des réglages, jamais
+ * une constante recopiée ici.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -97,20 +100,46 @@ async function circuitDuBanc(category: "CONGRESS_INTERNATIONAL" | "EVENTS" | "SP
 const CATEGORIE: Record<string, "CONGRESS_INTERNATIONAL" | "EVENTS" | "SPONSORING" | "CONGRESS_NATIONAL"> = {
   CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL", EVENT: "EVENTS", SPONSORING: "SPONSORING", CONGRESS_NATIONAL: "CONGRESS_NATIONAL",
 };
+/**
+ * UN CIRCUIT PRIVÉ RETOUCHÉ — la colonne vertébrale par défaut, une étape réglée « à la main » comme
+ * le Super Admin a le droit de le faire (un seuil sur une étape, un rôle de plus à prévenir).
+ */
+let retouches = 0;
+async function circuitRetouche(
+  category: "CONGRESS_INTERNATIONAL" | "EVENTS" | "SPONSORING" | "CONGRESS_NATIONAL",
+  retouche: (s: ReturnType<typeof defaultDefinition>["steps"][number]) => ReturnType<typeof defaultDefinition>["steps"][number],
+): Promise<string> {
+  const d = defaultDefinition(category);
+  const def = await prisma.workflowDefinition.create({
+    data: { category: `${TAG}${category}-retouche${++retouches}`, name: `${TAG}${d.name}`, steps: { create: d.steps.map(retouche).map(stepCreate) } },
+  });
+  return def.id;
+}
+
 /** `ensureInstance`, puis la demande est liée au circuit privé du banc. */
-async function ensureInstance(entityType: "CONGRESS_INTERNATIONAL" | "EVENT" | "SPONSORING", entityId: string) {
+async function ensureInstance(entityType: "CONGRESS_INTERNATIONAL" | "EVENT" | "SPONSORING", entityId: string, definitionId?: string) {
   const inst = await ensureInstanceDuMoteur(entityType, entityId);
   if (!inst) return inst;
-  return prisma.workflowInstance.update({ where: { id: inst.id }, data: { definitionId: await circuitDuBanc(CATEGORIE[entityType]!) } });
+  return prisma.workflowInstance.update({ where: { id: inst.id }, data: { definitionId: definitionId ?? await circuitDuBanc(CATEGORIE[entityType]!) } });
 }
 
 let SEUIL = 1_000_000;
-async function nouveauCongres(nom: string, budget: number): Promise<string> {
+async function nouveauCongres(nom: string, budget: number, definitionId?: string): Promise<string> {
   const c = await prisma.congressInternational.create({
     data: { name: `${TAG}${nom}`, requestStatus: "AWAITING_PRELIMINARY", requesterId: ids.kam!, estimatedBudget: budget },
   });
-  await ensureInstance("CONGRESS_INTERNATIONAL", c.id);
+  await ensureInstance("CONGRESS_INTERNATIONAL", c.id, definitionId);
   return c.id;
+}
+
+/**
+ * LA PORTE FRANCHIE PAR LE MONTANT (R15) N'EXISTE PLUS SUR LE CIRCUIT PAR DÉFAUT : la porte du DG est
+ * hors de toute route depuis le 27/10/2026. La règle de réouverture vit pourtant toujours — pour toute
+ * étape franchie par un seuil. Ce circuit la remet sous les yeux du banc : un Super Admin a réglé un
+ * seuil sur l'étape du Directeur des opérations (« à partir de ce montant, il regarde »).
+ */
+async function circuitSeuilSurDirecteurDesOperations(): Promise<string> {
+  return circuitRetouche("CONGRESS_INTERNATIONAL", (st) => (st.slug === "final" ? { ...st, autoSkipMaxAmount: SEUIL } : st));
 }
 
 /**
@@ -145,7 +174,7 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
       prisma.user.create({ data: { name: `${TAG}${nom}`, email: `${TAG}${nom}@t.dz`, role, passwordHash: "x" } });
     const quiQuoi: [string, UserRole][] = [
       ["kam", "MEDICAL_DELEGATE"], ["autre", "MEDICAL_DELEGATE"], ["ns", "NATIONAL_SALES"],
-      ["dg", "GENERAL_MANAGER"], ["pm", "PRODUCT_MANAGER"], ["dir", "DIRECTION"],
+      ["od", "OPERATIONS_DIRECTOR"], ["dg", "GENERAL_MANAGER"], ["pm", "PRODUCT_MANAGER"], ["dir", "DIRECTION"],
     ];
     const crees = await Promise.all(quiQuoi.map(([n, r]) => faire(n, r)));
     quiQuoi.forEach(([n, r], i) => { ids[n] = crees[i]!.id; roles[n] = r; });
@@ -172,12 +201,12 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("PRÉMISSES : un seuil réel, et le parcours d'un congrès de KAM (préliminaire → DG → Direction Marketing)", async () => {
+  it("PRÉMISSES : un seuil réel, et le parcours d'un congrès de KAM (préliminaire → Directeur des opérations → Direction Marketing)", async () => {
     expect(SEUIL, "le seuil du DG se lit dans les réglages").toBeGreaterThan(0);
     const id = await nouveauCongres("Prémisses", Math.round(SEUIL / 2));
     const inst = await instanceDe("CONGRESS_INTERNATIONAL", id);
     expect(inst.currentSlug, "un KAM entre par son superviseur national").toBe("preliminary");
-    expect(inst.skippedSlugs, "la Direction des opérations n'est pas sur la route d'un KAM").toEqual(["final"]);
+    expect(inst.skippedSlugs, "seule la porte du DG est hors de sa route").toEqual(["dg"]);
     ids.congresPremisses = id;
   });
 
@@ -270,20 +299,46 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
     expect((await evenementsDe("CONGRESS_INTERNATIONAL", c)).filter((e) => e.action === "RESUBMIT").length).toBe(1);
   });
 
+  it("SUR LE CIRCUIT PAR DÉFAUT, LA PORTE DU DG NE SE ROUVRE PLUS — la correction au-dessus du seuil reprend chez qui l'a renvoyée", async () => {
+    // La porte du DG n'est plus sur la route (27/10/2026) : le DG validera le TOTAL des postes, à la
+    // fin. Ce qui le ferait tomber : `etapeDeReprise` qui oublierait le tamis — la demande corrigée
+    // reprendrait devant un DG qui n'a plus rien à valider à cet endroit.
+    const c = await nouveauCongres("Porte hors route", Math.round(SEUIL / 2));
+    expect((await advanceWorkflowInstance({ viewer: viewer("ns"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "APPROVE", note: "ok NS" })).ok).toBe(true);
+    expect((await advanceWorkflowInstance({ viewer: viewer("od"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "APPROVE", note: "ok OD" })).ok).toBe(true);
+    expect((await advanceWorkflowInstance({ viewer: viewer("pm"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "RETURN", note: "Le budget est sous-estimé" })).ok).toBe(true);
+    await comme("kam");
+    expect((await updateAdProRequest(fd({ kind: "CONGRESS_INTERNATIONAL", id: c, estimatedBudget: String(SEUIL * 2) }))).ok).toBe(true);
+    expect((await resoumettreDemande(fd({ entityType: "CONGRESS_INTERNATIONAL", entityId: c, note: "Budget réévalué" }))).ok).toBe(true);
+    const inst = await instanceDe("CONGRESS_INTERNATIONAL", c);
+    expect(inst.currentSlug, "elle revient à la Direction Marketing, qui l'a renvoyée").toBe("marketing");
+    const resub = (await evenementsDe("CONGRESS_INTERNATIONAL", c)).filter((e) => e.action === "RESUBMIT");
+    expect(resub.at(-1)?.note, "aucune porte rouverte").toBe("Budget réévalué");
+    expect((await evenementsDe("CONGRESS_INTERNATIONAL", c)).some((e) => e.stepSlug === "dg"), "rien ne se passe sur la porte du DG").toBe(false);
+    expect((await advanceWorkflowInstance({ viewer: viewer("dg"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "APPROVE", note: "OK DG" })).ok, "le DG n'a pas la main sur la demande").toBe(false);
+    // Modifiée APRÈS les avis : rien ne se rouvre, mais ceux qui ont donné un avis l'apprennent.
+    const r = await updateAdProRequest(fd({ kind: "CONGRESS_INTERNATIONAL", id: c, estimatedBudget: String(SEUIL * 3) }));
+    expect(r.ok).toBe(true);
+    expect(r.ok ? r.message ?? "" : "").not.toMatch(/la demande y retourne/);
+    expect((await instanceDe("CONGRESS_INTERNATIONAL", c)).currentSlug).toBe("marketing");
+  });
+
   let c2 = "";
-  it("LA PORTE DU DG SE ROUVRE quand la correction fait passer le montant au-dessus du seuil (R15)", async () => {
-    c2 = await nouveauCongres("Porte", Math.round(SEUIL / 2));
+  it("UNE PORTE FRANCHIE PAR LE MONTANT SE ROUVRE quand la correction le fait passer au-dessus de son seuil (R15)", async () => {
+    // Le seuil réglé à la main sur l'étape du Directeur des opérations : la seule porte qu'un
+    // montant puisse encore franchir sur la route d'un KAM.
+    c2 = await nouveauCongres("Porte", Math.round(SEUIL / 2), await circuitSeuilSurDirecteurDesOperations());
     expect((await advanceWorkflowInstance({ viewer: viewer("ns"), entityType: "CONGRESS_INTERNATIONAL", entityId: c2, action: "APPROVE", note: "ok NS" })).ok).toBe(true);
     let inst = await instanceDe("CONGRESS_INTERNATIONAL", c2);
-    expect(inst.currentSlug, "PRÉMISSE : la porte du DG a été franchie par le montant").toBe("marketing");
-    expect((await evenementsDe("CONGRESS_INTERNATIONAL", c2)).some((e) => e.action === "AUTO_SKIP" && e.stepSlug === "dg")).toBe(true);
+    expect(inst.currentSlug, "PRÉMISSE : l'étape du Directeur des opérations a été franchie par le montant").toBe("marketing");
+    expect((await evenementsDe("CONGRESS_INTERNATIONAL", c2)).some((e) => e.action === "AUTO_SKIP" && e.stepSlug === "final")).toBe(true);
     expect((await advanceWorkflowInstance({ viewer: viewer("pm"), entityType: "CONGRESS_INTERNATIONAL", entityId: c2, action: "RETURN", note: "Le budget est sous-estimé" })).ok).toBe(true);
     await comme("kam");
     expect((await updateAdProRequest(fd({ kind: "CONGRESS_INTERNATIONAL", id: c2, estimatedBudget: String(SEUIL * 2) }))).ok).toBe(true);
     const r = await resoumettreDemande(fd({ entityType: "CONGRESS_INTERNATIONAL", entityId: c2, note: "Budget réévalué" }));
     expect(r.ok).toBe(true);
     inst = await instanceDe("CONGRESS_INTERNATIONAL", c2);
-    expect(inst.currentSlug, "la demande reprend à la porte du DG, pas chez la Direction Marketing").toBe("dg");
+    expect(inst.currentSlug, "la demande reprend chez le Directeur des opérations, pas chez la Direction Marketing").toBe("final");
     expect((await prisma.congressInternational.findUniqueOrThrow({ where: { id: c2 } })).requestStatus).toBe("PRELIMINARY_APPROVED");
     const resub = (await evenementsDe("CONGRESS_INTERNATIONAL", c2)).filter((e) => e.action === "RESUBMIT");
     expect(resub.at(-1)?.note).toMatch(/ne franchit plus/);
@@ -291,7 +346,7 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
   });
 
   it("MONTANT REDESCENDU sous le seuil : la porte rouverte se franchit seule à la resoumission", async () => {
-    expect((await advanceWorkflowInstance({ viewer: viewer("dg"), entityType: "CONGRESS_INTERNATIONAL", entityId: c2, action: "RETURN", note: "Ramenez le budget sous le seuil" })).ok).toBe(true);
+    expect((await advanceWorkflowInstance({ viewer: viewer("od"), entityType: "CONGRESS_INTERNATIONAL", entityId: c2, action: "RETURN", note: "Ramenez le budget sous le seuil" })).ok).toBe(true);
     await comme("kam");
     expect((await updateAdProRequest(fd({ kind: "CONGRESS_INTERNATIONAL", id: c2, estimatedBudget: String(Math.round(SEUIL / 3)) }))).ok).toBe(true);
     expect((await resoumettreDemande(fd({ entityType: "CONGRESS_INTERNATIONAL", entityId: c2 }))).ok).toBe(true);
@@ -303,9 +358,9 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
     const r = await updateAdProRequest(fd({ kind: "CONGRESS_INTERNATIONAL", id: c2, estimatedBudget: String(SEUIL * 3) }));
     expect(r.ok).toBe(true);
     expect(r.ok ? r.message ?? "" : "").toMatch(/la demande y retourne/);
-    expect((await instanceDe("CONGRESS_INTERNATIONAL", c2)).currentSlug).toBe("dg");
+    expect((await instanceDe("CONGRESS_INTERNATIONAL", c2)).currentSlug).toBe("final");
     expect((await evenementsDe("CONGRESS_INTERNATIONAL", c2)).some((e) => e.action === "REOPEN")).toBe(true);
-    for (const qui of ["ns", "pm", "dg"]) {
+    for (const qui of ["ns", "pm", "od"]) {
       expect((await notifsDe(qui, "modifiée après votre avis")).length, `${qui} a donné un avis : il l'apprend`).toBeGreaterThan(0);
     }
   });
@@ -421,16 +476,21 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
     expect(direction.map((n) => n.title), "la Direction est informée de l'appel, comme avant le lot").toEqual(["Sponsoring — appel du demandeur"]);
   });
 
-  it("UN APPEL TRANCHÉ PAR LA DIRECTION ne la prévient qu'UNE fois — l'information ne double pas l'étape", async () => {
+  it("UN APPEL DONT L'ÉTAPE PRÉVIENT DÉJÀ LA DIRECTION ne la prévient qu'UNE fois — l'information ne double pas l'étape", async () => {
+    // Avant le 27/10/2026, la demande de la Direction Marketing était tranchée par l'étape de la
+    // Direction, qui la prévenait déjà. Plus aucune étape de la graine ne prévient la Direction : le
+    // cas se monte sur un circuit où le Super Admin l'a ajoutée aux prévenus de l'étape qui tranche.
+    // Ce qui le ferait tomber : l'information de l'appel envoyée sans regarder `rolesPrevenus`.
+    const def = await circuitRetouche("SPONSORING", (st) => (st.slug === "marketing" ? { ...st, notifyRoles: [...(st.notifyRoles ?? []), "DIRECTION"] } : st));
     const spo = await prisma.sponsoringRequest.create({
-      data: { reference: `${TAG}SPO2`, institution: `${TAG}Association DM`, type: "Congrès", requesterId: ids.pm!, status: "REFUSED", amountRequested: Math.round(SEUIL / 2) },
+      data: { reference: `${TAG}SPO2`, institution: `${TAG}Association appel`, type: "Congrès", requesterId: ids.kam!, status: "REFUSED", amountRequested: Math.round(SEUIL / 2) },
     });
-    const inst0 = await ensureInstance("SPONSORING", spo.id);
-    expect(inst0?.finalSlug, "PRÉMISSE : la demande de la Direction Marketing est tranchée par la Direction des opérations").toBe("final");
-    await comme("pm");
+    const inst0 = await ensureInstance("SPONSORING", spo.id, def);
+    expect(inst0?.finalSlug, "PRÉMISSE : plus de borne — l'étape qui a tranché est la dernière de sa route").toBeNull();
+    await comme("kam");
     const r = await sponsoringAppeal(fd({ id: spo.id, reason: "Budget revu" }));
     expect(r.ok).toBe(true);
-    expect((await instanceDe("SPONSORING", spo.id)).currentSlug).toBe("final");
+    expect((await instanceDe("SPONSORING", spo.id)).currentSlug).toBe("marketing");
     const direction = await prisma.notification.findMany({ where: { userId: ids.dir!, link: { contains: spo.id } } });
     expect(direction.length, "une notification — l'étape qui tranche —, pas une seconde « information »").toBe(1);
     expect(direction[0]?.title).toMatch(/appel à réexaminer/);
@@ -446,6 +506,7 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
     expect((await submitEventForApproval(fd({ id: ev.id }))).ok, "son créateur le soumet").toBe(true);
     await ensureInstance("EVENT", ev.id);
     expect((await advanceWorkflowInstance({ viewer: viewer("ns"), entityType: "EVENT", entityId: ev.id, action: "APPROVE", note: "ok" })).ok).toBe(true);
+    expect((await advanceWorkflowInstance({ viewer: viewer("od"), entityType: "EVENT", entityId: ev.id, action: "APPROVE", note: "ok" })).ok, "le second filtre du délégué").toBe(true);
     expect((await advanceWorkflowInstance({ viewer: viewer("pm"), entityType: "EVENT", entityId: ev.id, action: "REJECT", note: "Hors stratégie cette année" })).ok).toBe(true);
     expect((await prisma.event.findUniqueOrThrow({ where: { id: ev.id } })).requestStatus).toBe("REJECTED");
     const vueRefus = (await getWorkflowForEntity(await actorFor("kam"), "EVENT", ev.id, ids.kam!))!;
@@ -513,7 +574,8 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
     const c = await nouveauCongres("Prise rendue", Math.round(SEUIL / 2));
     expect((await advanceWorkflowInstance({ viewer: viewer("ns"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "APPROVE", note: "ok" })).ok).toBe(true);
     expect((await instanceDe("CONGRESS_INTERNATIONAL", c)).claimedAt, "rendue après un accord").toBeNull();
-    // Le saut de l'étape qui tranche est refusé APRÈS la prise : le refus doit la rendre aussi.
+    expect((await advanceWorkflowInstance({ viewer: viewer("od"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "APPROVE", note: "ok" })).ok).toBe(true);
+    // Le saut de l'étape qui conclut est refusé APRÈS la prise : le refus doit la rendre aussi.
     const saut = await advanceWorkflowInstance({ viewer: viewer("pm"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "SKIP", note: "on saute" });
     expect(saut.ok ? "" : saut.error, "PRÉMISSE : un refus prononcé sous la prise").toMatch(/ne peut pas être sautée/);
     expect((await instanceDe("CONGRESS_INTERNATIONAL", c)).claimedAt, "rendue après un refus").toBeNull();
@@ -569,9 +631,9 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
   });
 
   it("UNE SUITE D'ÉCRITURE ATTEND SON TOUR — la modification rouvre sa porte une fois le geste en cours terminé", async () => {
-    const c = await nouveauCongres("Prise modification", Math.round(SEUIL / 2));
+    const c = await nouveauCongres("Prise modification", Math.round(SEUIL / 2), await circuitSeuilSurDirecteurDesOperations());
     expect((await advanceWorkflowInstance({ viewer: viewer("ns"), entityType: "CONGRESS_INTERNATIONAL", entityId: c, action: "APPROVE", note: "ok NS" })).ok).toBe(true);
-    expect((await instanceDe("CONGRESS_INTERNATIONAL", c)).currentSlug, "PRÉMISSE : porte du DG franchie sous le seuil").toBe("marketing");
+    expect((await instanceDe("CONGRESS_INTERNATIONAL", c)).currentSlug, "PRÉMISSE : l'étape du Directeur des opérations franchie sous son seuil").toBe("marketing");
     const inst = await instanceDe("CONGRESS_INTERNATIONAL", c);
     await prisma.workflowInstance.update({ where: { id: inst.id }, data: { claimedAt: new Date() } });
     const relache = new Promise<void>((r) => setTimeout(() => {
@@ -581,7 +643,7 @@ suite("Renvoyer pour correction, resoumettre, retirer, faire appel, relancer —
     const r = await updateAdProRequest(fd({ kind: "CONGRESS_INTERNATIONAL", id: c, estimatedBudget: String(SEUIL * 2) }));
     await relache;
     expect(r.ok).toBe(true);
-    expect((await instanceDe("CONGRESS_INTERNATIONAL", c)).currentSlug, "la porte s'est rouverte après l'attente").toBe("dg");
+    expect((await instanceDe("CONGRESS_INTERNATIONAL", c)).currentSlug, "la porte s'est rouverte après l'attente").toBe("final");
   });
 
   it("UN TRANSFERT ATTEND LA FIN D'UN GESTE EN COURS pour fermer le circuit de la source", async () => {

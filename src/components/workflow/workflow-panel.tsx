@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Check, X, Loader2, MessageSquare, ArrowRight, SkipForward, Undo2, Send, Ban } from "lucide-react";
 import type { EntityType } from "@prisma/client";
-import { advanceWorkflow, resoumettreDemande, retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
+import { advanceWorkflow, faireAppelAdPro, resoumettreDemande, retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
 import type { WorkflowView, WorkflowEventView, WorkflowStepView } from "@/lib/queries/workflow";
 import { SCOPE_LABELS } from "@/lib/workflow/types";
 import { ROLE_LABELS, EXPENSE_ORDER_STATUS } from "@/lib/labels";
@@ -305,6 +305,7 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
         </div>
       )}
       {view.peutResoumettre && <ResubmitForm entityType={entityType} entityId={entityId} />}
+      {view.peutFaireAppel && <AppealForm entityType={entityType} entityId={entityId} />}
     </>
   );
 
@@ -545,6 +546,38 @@ function ResubmitForm({ entityType, entityId }: { entityType: EntityType; entity
       {err && <p className="text-xs text-destructive">{err}</p>}
       <Button size="sm" className="w-full sm:w-auto" disabled={pending} onClick={envoyer}>
         {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Resoumettre la demande
+      </Button>
+    </div>
+  );
+}
+
+/**
+ * FAIRE APPEL D'UN REFUS (décision #12, 27/10/2026) — motif obligatoire, transmis à l'étape qui réexamine.
+ */
+function AppealForm({ entityType, entityId }: { entityType: EntityType; entityId: string }) {
+  const { enCours, rafraichir } = useRafraichir();
+  const [pendingAction, start] = React.useTransition();
+  const pending = pendingAction || enCours;
+  const [motif, setMotif] = React.useState("");
+  const [err, setErr] = React.useState<string | null>(null);
+  const envoyer = () => start(async () => {
+    setErr(null);
+    const fd = new FormData();
+    fd.set("entityType", entityType);
+    fd.set("entityId", entityId);
+    fd.set("motif", motif.trim());
+    const r = await faireAppelAdPro(fd);
+    if (!r.ok) { setErr(r.error ?? "Appel impossible."); return; }
+    setMotif("");
+    rafraichir();
+  });
+  return (
+    <div className="space-y-2 rounded-lg border border-border bg-secondary/30 p-3">
+      <Label>Faire appel du refus</Label>
+      <Textarea value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Pourquoi la demande doit être réexaminée (obligatoire)…" className="min-h-[56px]" />
+      {err && <p className="text-xs text-destructive">{err}</p>}
+      <Button size="sm" className="w-full sm:w-auto" disabled={pending || !motif.trim()} onClick={envoyer}>
+        {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Faire appel
       </Button>
     </div>
   );

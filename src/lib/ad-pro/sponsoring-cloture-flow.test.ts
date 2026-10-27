@@ -73,18 +73,18 @@ function formulaire(institution: string, nature: "DIRECT" | "INDIRECT"): FormDat
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("Sponsoring — pré-validation de la tenue, postes, validation finale et clôture", () => {
-  let demandeurId = "", dmId = "", dm2Id = "", dgId = "", dirId = "", saId = "";
+  let demandeurId = "", dmId = "", dm2Id = "", odId = "", dirId = "", saId = "";
   let catId = "";
   let spoId = "", postAutoId = "", standId = "", heritId = "";
 
   beforeAll(async () => {
     const mk = (n: string, role: SessionUser["role"]) =>
       prisma.user.create({ data: { name: `${TAG}${n}`, email: `${TAG}${n}@t.dz`, role, passwordHash: "x" } });
-    const [dem, dm, dm2, dg, dir, sa] = await Promise.all([
+    const [dem, dm, dm2, od, dir, sa] = await Promise.all([
       mk("dem", "DIRECTION_ASSISTANT"), mk("dm", "PRODUCT_MANAGER"), mk("dm2", "PRODUCT_MANAGER"),
-      mk("dg", "GENERAL_MANAGER"), mk("dir", "DIRECTION"), mk("sa", "SUPER_ADMIN"),
+      mk("od", "OPERATIONS_DIRECTOR"), mk("dir", "DIRECTION"), mk("sa", "SUPER_ADMIN"),
     ]);
-    demandeurId = dem.id; dmId = dm.id; dm2Id = dm2.id; dgId = dg.id; dirId = dir.id; saId = sa.id;
+    demandeurId = dem.id; dmId = dm.id; dm2Id = dm2.id; odId = od.id; dirId = dir.id; saId = sa.id;
     // LE DROIT DE CRÉER, et lui seul : sans lui l'action refuse avant de lire un champ, et le banc
     // mesurerait la porte au lieu de la procédure.
     await prisma.userAccess.create({ data: { userId: dem.id, module: "SPONSORING", canView: true, canCreate: true } });
@@ -124,13 +124,16 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  /** Conduit le circuit jusqu'à l'étape `slug` — la porte du DG se franchit seule sous le seuil. */
+  /**
+   * Conduit le circuit jusqu'à l'étape `slug` — le Directeur des opérations valide l'étape `final`
+   * (27/10/2026 : le DG n'est plus une étape du circuit, il valide le TOTAL des postes à la fin).
+   */
   async function jusqua(id: string, slug: string) {
     for (let tour = 0; tour < 4; tour += 1) {
       const inst = await ensureInstance("SPONSORING", id);
       if (!inst || inst.currentSlug === slug || inst.status !== "IN_PROGRESS") return inst;
-      if (inst.currentSlug === "dg") {
-        const r = await advanceWorkflowInstance({ viewer: { id: dgId, role: "GENERAL_MANAGER", name: `${TAG}dg` }, entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK DG" });
+      if (inst.currentSlug === "final") {
+        const r = await advanceWorkflowInstance({ viewer: { id: odId, role: "OPERATIONS_DIRECTOR", name: `${TAG}od` }, entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK Directeur des opérations" });
         expect(r.ok, r.ok === false ? r.error : "").toBe(true);
       } else break;
     }
@@ -147,6 +150,25 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect(postes[0]).toMatchObject({ kind: "ASSOCIATION_SUPPORT", status: "DRAFT", addedAfterDecision: false });
     expect(Number(postes[0].amountEstimated)).toBe(90_000);
     postAutoId = postes[0].id;
+  });
+
+  it("AVANT la prévalidation : la route passe par le Directeur des opérations, et aucun poste ne s'ajoute ni ne se soumet", async () => {
+    // RÈGLE DU 27/10/2026 : un demandeur hors délégué passe par le Directeur des opérations, puis la Direction
+    // Marketing prévalide ; le DG n'est plus une étape (toujours dans le tamis).
+    const inst = await prisma.workflowInstance.findUniqueOrThrow({ where: { entityType_entityId: { entityType: "SPONSORING", entityId: spoId } } });
+    expect(inst.currentSlug, "le circuit s'ouvre à la création, chez le Directeur des opérations").toBe("final");
+    expect(inst.skippedSlugs).toContain("dg");
+    expect(inst.finalSlug, "plus de borne : la Direction Marketing conclut").toBeNull();
+    // Aucun budget n'est ouvert avant la prévalidation : ni ajout, ni soumission (le poste né avec la demande reste un brouillon).
+    ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
+    const ajout = await addAdProItem(undefined, fd({ parent: "SPONSORING", parentId: spoId, label: `${TAG}Trop tôt`, kind: "STAND", amountEstimated: "1000" }));
+    expect(ajout.ok).toBe(false);
+    expect(ajout.ok === false ? ajout.error : "").toMatch(/après la prévalidation de la Direction Marketing/);
+    const soumis = await submitAdProItem(undefined, fd({ id: postAutoId }));
+    expect(soumis.ok).toBe(false);
+    expect(soumis.ok === false ? soumis.error : "").toMatch(/après la prévalidation de la Direction Marketing/);
+    expect(await prisma.adProItem.count({ where: { sponsoringId: spoId } })).toBe(1);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: postAutoId } })).status).toBe("DRAFT");
   });
 
   it("PRÉ-VALIDATION : la Direction Marketing décide la TENUE — aucun montant accordé, aucun ordre global", async () => {
@@ -173,7 +195,7 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect(await prisma.expenseOrder.count({ where: { sourceType: "SPONSORING", sourceId: spoId } })).toBe(0);
     // Le demandeur lit ce qui l'attend — les postes — et non « pris en charge ».
     const notes = await prisma.notification.findMany({ where: { userId: demandeurId }, select: { title: true } });
-    expect(notes.map((n) => n.title).join(" | ")).toMatch(/tenue pré-validée : les postes se préparent/);
+    expect(notes.map((n) => n.title).join(" | ")).toMatch(/prévalidée : les postes se préparent/);
     expect(notes.map((n) => n.title).join(" | ")).not.toMatch(/pris en charge/);
     // Le PANNEAU du circuit dit l'étape suivante réelle — les postes —, pas « information médicale /
     // Finances », qui était la suite d'un accord à montant global.
@@ -237,17 +259,20 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect(e).toContain(`${TAG}Stand`);
   });
 
-  it("chaque poste se valide en DEUX TEMPS — la Direction des opérations, puis la Direction Marketing qui choisit le budget", async () => {
-    // §118.204 : soumis par le demandeur, validé par la Direction des opérations, accordé par la
-    // Direction Marketing AVEC son budget. L'accord sans budget n'existe plus.
+  it("chaque poste est accepté en UN SEUL TEMPS — la Direction Marketing, qui choisit le budget", async () => {
+    // RÈGLE DU 27/10/2026 : soumis par le demandeur, accepté par la Direction Marketing AVEC son budget. Le Directeur des
+    // opérations a validé la DEMANDE en amont ; il ne revalide plus chaque poste (l'ancien premier temps est franchi
+    // d'office à la soumission, et tracé). L'accord sans budget n'existe toujours pas.
     ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
     for (const id of [postAutoId, standId]) expect((await submitAdProItem(undefined, fd({ id }))).ok).toBe(true);
-    ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
-    const tropTot = await decideAdProItem(undefined, fd({ id: postAutoId, decision: "APPROVED", amountGranted: "80000", budgetCategoryId: catId }));
-    expect(tropTot.ok === false ? tropTot.error : "accordé", "la Direction Marketing avant les opérations").toMatch(/attend d'abord la validation de la Direction des opérations/);
-    ACTOR = await actorFor(dirId, "DIRECTION");
-    expect((await decideAdProItem(undefined, fd({ id: postAutoId, decision: "APPROVED" }))).ok).toBe(true);
-    expect((await decideAdProItem(undefined, fd({ id: standId, decision: "APPROVED" }))).ok).toBe(true);
+    const soumis = await prisma.adProItem.findUniqueOrThrow({ where: { id: postAutoId } });
+    expect(soumis.status).toBe("PENDING");
+    expect(soumis.opsDecidedAt, "l'ancien premier temps est franchi d'office à la soumission").not.toBeNull();
+    for (const [id, role] of [[odId, "OPERATIONS_DIRECTOR"], [dirId, "DIRECTION"]] as const) {
+      ACTOR = await actorFor(id, role);
+      const pasLui = await decideAdProItem(undefined, fd({ id: postAutoId, decision: "APPROVED", amountGranted: "80000", budgetCategoryId: catId }));
+      expect(pasLui.ok === false ? pasLui.error : "accordé", `${role} n'accepte plus un poste`).toMatch(/attend la décision de la Direction Marketing/);
+    }
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
     const sansBudget = await decideAdProItem(undefined, fd({ id: postAutoId, decision: "APPROVED", amountGranted: "80000" }));
     expect(sansBudget.ok === false ? sansBudget.error : "accordé").toMatch(/Choisissez le budget/);
@@ -259,7 +284,7 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect(await montantADeclarer("SPONSORING", spoId, 0)).toBe(80_000);
   });
 
-  it("un poste accordé SANS budget (d'avant la validation en deux temps) bloque encore la clôture", async () => {
+  it("un poste accordé SANS budget (d'avant l'accord avec budget) bloque encore la clôture", async () => {
     // DÉCOR, nommé : un poste accordé avant §118.204, sans budget — la migration ne touche pas aux
     // postes accordés, et l'écran les garde à « Choisir le budget ». C'est cet état hérité qu'on éprouve.
     heritId = (await prisma.adProItem.create({ data: {
@@ -385,11 +410,11 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     // rouge quel que soit l'entrelacement ; sabotée, elle le rend rouge dès que les deux lectures
     // précèdent la première écriture, ce qui est le cas ordinaire.
     const traiteur = await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId: spoId, label: `${TAG}Traiteur` } });
-    // Le traiteur se SOUMET puis se refuse au premier temps (§118.204) — la vraie voie, pas un refus
-    // posé sur un brouillon.
+    // Le traiteur se SOUMET puis la Direction Marketing le refuse (un seul temps, 27/10/2026) — la vraie voie, pas un
+    // refus posé sur un brouillon.
     ACTOR = await actorFor(demandeurId, "DIRECTION_ASSISTANT");
     expect((await submitAdProItem(undefined, fd({ id: traiteur.id }))).ok).toBe(true);
-    ACTOR = await actorFor(dirId, "DIRECTION");
+    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
     expect((await decideAdProItem(undefined, fd({ id: traiteur.id, decision: "REJECTED", note: "Hors budget" }))).ok).toBe(true);
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
     const avant = await prisma.auditLog.count({ where: { entityId: spoId, action: "VALIDATE" } });
@@ -401,26 +426,27 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect((await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id: spoId } })).status).toBe("CLOSED");
   });
 
-  it("une demande de la Direction Marketing ELLE-MÊME : la Direction pré-valide, et c'est elle qui clôture", async () => {
-    // La route d'une demande de la Direction Marketing s'arrête à la Direction des opérations
-    // (§118.142) : c'est elle qui décide la tenue, donc elle qui clôture. Ni l'auteur, ni un
-    // collègue de la même direction.
+  it("une demande de la Direction Marketing ELLE-MÊME : prévalidée d'office ; une AUTRE personne de la Direction Marketing accepte ses postes et clôture", async () => {
+    // RÈGLE DU 27/10/2026 : la demande de la Direction Marketing est prévalidée D'OFFICE à la naissance de son instance,
+    // au nom de sa créatrice, et le journal le dit. Plus de borne à la Direction des opérations : la clôture, comme
+    // l'accord des postes, revient à la Direction Marketing — jamais à l'auteur, ni à la Direction.
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
     const cree = await createSponsoring(undefined, formulaire(`${TAG}Société de pneumologie`, "INDIRECT"));
     expect(cree.ok, cree.ok === false ? cree.error : "").toBe(true);
     const id = cree.ok ? cree.id! : "";
-    const inst = await jusqua(id, "final");
-    expect(inst?.currentSlug, "la prémisse : la route s'arrête chez la Direction des opérations").toBe("final");
-    expect(inst?.finalSlug).toBe("final");
-    const av = await advanceWorkflowInstance({ viewer: { id: dirId, role: "DIRECTION", name: `${TAG}dir` }, entityType: "SPONSORING", entityId: id, action: "APPROVE", note: "OK" });
-    expect(av.ok, av.ok === false ? av.error : "").toBe(true);
+    const inst = await prisma.workflowInstance.findUniqueOrThrow({ where: { entityType_entityId: { entityType: "SPONSORING", entityId: id } } });
+    expect(inst.status, "la prémisse : prévalidée d'office dès la création").toBe("APPROVED");
+    expect(inst.finalSlug).toBeNull();
+    const trace = await prisma.workflowStepEvent.findFirst({ where: { instanceId: inst.id, stepSlug: "marketing", action: "APPROVE" } });
+    expect(trace?.note).toMatch(/Prévalidée d'office/);
+    expect(trace?.actorId, "au nom de sa créatrice").toBe(dmId);
     expect((await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id } })).status).toBe("PRE_VALIDATED");
 
     const poste = await prisma.adProItem.findFirstOrThrow({ where: { sponsoringId: id } });
     expect(poste.kind).toBe("INDIRECT_SUPPORT");
     // UN SPONSORING INDIRECT NE S'ACCORDE PAS D'UN SEUL TENANT (§118.175) : il se répartit d'abord
     // par nature, et chaque nature se décide, se commande et se paie à part.
-    ACTOR = await actorFor(dirId, "DIRECTION");
+    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
     const tenant = await decideAdProItem(undefined, fd({ id: poste.id, decision: "APPROVED" }));
     expect(tenant.ok, "un sponsoring indirect non réparti ne s'accorde pas").toBe(false);
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
@@ -434,25 +460,26 @@ suite("Sponsoring — pré-validation de la tenue, postes, validation finale et 
     expect(rep.ok, rep.ok === false ? rep.error : "").toBe(true);
     const natures = await prisma.adProItem.findMany({ where: { sponsoringId: id }, orderBy: { position: "asc" } });
     expect(natures.map((n) => n.kind)).toEqual(["PRINTING", "ACCOMMODATION"]);
-    // DEUX TEMPS, ET C'EST LA DIRECTION DES OPÉRATIONS QUI TIENT LE SECOND (§118.204) : la demande vient
-    // de la Direction Marketing, qui n'arbitre pas sa propre demande.
+    // UN SEUL TEMPS, CELUI DE LA DIRECTION MARKETING — par une AUTRE personne que l'auteur (audit Ad & Pro, 14/10).
     for (const n of natures) expect((await submitAdProItem(undefined, fd({ id: n.id }))).ok).toBe(true);
-    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
-    const collegueMkt = await decideAdProItem(undefined, fd({ id: natures[0].id, decision: "APPROVED" }));
-    expect(collegueMkt.ok, "la Direction Marketing ne valide aucun temps d'une demande de la Direction Marketing").toBe(false);
+    const auteur = await decideAdProItem(undefined, fd({ id: natures[0].id, decision: "APPROVED", amountGranted: "40000", budgetCategoryId: catId }));
+    expect(auteur.ok, "l'auteur n'accepte pas les postes de sa propre demande").toBe(false);
     ACTOR = await actorFor(dirId, "DIRECTION");
+    const direction = await decideAdProItem(undefined, fd({ id: natures[0].id, decision: "APPROVED", amountGranted: "40000", budgetCategoryId: catId }));
+    expect(direction.ok, "la Direction ne tient plus le second temps d'une demande de la Direction Marketing").toBe(false);
+    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
     for (const n of natures) {
-      expect((await decideAdProItem(undefined, fd({ id: n.id, decision: "APPROVED" }))).ok).toBe(true);
-      expect((await decideAdProItem(undefined, fd({ id: n.id, decision: "APPROVED", budgetCategoryId: catId }))).ok).toBe(true);
+      const r = await decideAdProItem(undefined, fd({ id: n.id, decision: "APPROVED", budgetCategoryId: catId }));
+      expect(r.ok, r.ok === false ? r.error : "").toBe(true);
     }
 
     ACTOR = await actorFor(dmId, "PRODUCT_MANAGER");
     expect((await cloturerSponsoring(fd({ id }))).ok, "l'auteur ne se clôture pas").toBe(false);
-    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
-    const collegue = await cloturerSponsoring(fd({ id }));
-    expect(collegue.ok, "un collègue de la même direction n'a pas pré-validé cette tenue").toBe(false);
-    expect(collegue.ok === false ? collegue.error : "").toMatch(/la Direction \(la demande vient de la Direction Marketing/);
     ACTOR = await actorFor(dirId, "DIRECTION");
+    const dir = await cloturerSponsoring(fd({ id }));
+    expect(dir.ok, "la Direction ne clôture plus : c'est la Direction Marketing qui a prévalidé").toBe(false);
+    expect(dir.ok === false ? dir.error : "").toMatch(/reviennent à la Direction Marketing/);
+    ACTOR = await actorFor(dm2Id, "PRODUCT_MANAGER");
     const r = await cloturerSponsoring(fd({ id }));
     expect(r.ok, r.ok === false ? r.error : "").toBe(true);
     expect(Number((await prisma.sponsoringRequest.findUniqueOrThrow({ where: { id } })).amountGranted), "la somme des natures accordées : 40 000 + 50 000").toBe(90_000);

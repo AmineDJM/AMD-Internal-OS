@@ -41,7 +41,10 @@ describe("le MOTEUR — ce qu'une étape qui conclut décide, et ce qu'elle déc
     // coupée hérite des pouvoirs d'argent des étapes non atteintes), et la projection reçoit LA MÊME : lire
     // l'issue sur l'étape brute ici et sur l'étape effective là ferait diverger la décision et ce qu'elle projette.
     expect(moteur).toMatch(/etape\s*\}\s*=\s*lectureDeLApprobation\(/);
-    expect(moteur).toMatch(/argentDecideApres\s*=\s*entityType\s*===\s*"SPONSORING"\s*&&\s*conclut\s*&&\s*issueTerminaleSponsoring\(\s*etape\s*\)\s*===\s*"PRE_VALIDATED"/);
+    // 27/10/2026 : la prévalidation vaut pour TOUTES les natures (sponsoring, PEC, événement) — l'issue se lit sur
+    // l'étape seule, plus sur la nature de la demande.
+    expect(moteur).toMatch(/argentDecideApres\s*=\s*conclut\s*&&\s*issueTerminaleSponsoring\(\s*etape\s*\)\s*===\s*"PRE_VALIDATED"/);
+    expect(moteur).not.toMatch(/argentDecideApres\s*=\s*entityType\s*===\s*"SPONSORING"/);
     expect(moteur).toMatch(/await\s+projectApprove\(\s*entityType\s*,\s*entityId\s*,\s*etape\s*,/);
     expect(corps(moteur, "projectApprove")).toMatch(/issueTerminaleSponsoring\(\s*step\s*\)/);
   });

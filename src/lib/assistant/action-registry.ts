@@ -1184,6 +1184,13 @@ X("RESOUMETTRE ET RETIRER UNE DEMANDE AD & PRO (§118.186, audit R02/R24) : deux
   + "Adam est en pause de développement (Super Admin seul) : un clic sur la fiche de la demande, panneau du circuit.", [
   "workflow-actions:resoumettreDemande", "workflow-actions:retirerDemandeAdPro",
 ]);
+X("CIRCUIT AD & PRO DU 27/10/2026 — la VALIDATION DU TOTAL par le Directeur Général (au-dessus du seuil, sur la "
+  + "somme des postes de toute la demande) et l'APPEL d'une prise en charge ou d'un événement refusé. L'un ouvre la "
+  + "porte de l'argent engagé (bons de commande, paiements), l'autre relance un circuit clos, motif à l'appui : deux "
+  + "décisions qu'une personne prend devant la fiche. Adam est en pause de développement : aucun geste neuf ne lui est "
+  + "ouvert. Un clic sur la fiche de la demande (carte « Validation du Directeur Général », panneau du circuit).", [
+  "porte-dg-actions:statuerTotalDg", "workflow-actions:faireAppelAdPro",
+]);
 X("RÉVISER UN POSTE AD & PRO APRÈS COUP (§118.187, audit R05/R06/R12) — RETIRER ou MODIFIER la demande de bon de "
   + "commande tant qu'aucun ordre n'est parti, ANNULER un ordre émis non réglé pour le réémettre, DEMANDER une révision "
   + "d'un poste accordé. Chacun touche à de l'argent engagé (le visa du centre, l'ordre transmis aux Finances) et exige un "

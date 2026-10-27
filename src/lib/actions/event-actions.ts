@@ -17,7 +17,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyRoles, notifyUser } from "@/lib/notify";
 import { statutManuelOuRien, estStatutDuCircuit } from "@/lib/events/statut";
 import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
-import { relancerCycle } from "@/lib/workflow/engine";
+import { ouvrirLeCircuit, relancerCycle } from "@/lib/workflow/engine";
 import { referentAInscrire } from "@/lib/ad-pro/referent-de-la-gamme";
 import { gammeImposee, businessUnitDuDemandeur } from "@/lib/ad-pro/business-unit-auto";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -394,14 +394,8 @@ export async function submitEventForApproval(formData: FormData): Promise<Action
   }
   await ecrireLaDemande();
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Events", entityType: "EVENT", entityId: id, summary: `Demande de prise en charge — ${ev.name}` });
-  const link = `/events/${id}`;
-  if (init.stage === "ANALYSIS" && init.productManagerId) {
-    await notifyUser({ userId: init.productManagerId, type: "ASSIGNMENT", title: "Événement à analyser", body: ev.name, link });
-  } else if (init.stage === "FINAL") {
-    await notifyRoles(["DIRECTION", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title: "Événement — validation définitive", body: ev.name, link });
-  } else {
-    await notifyRoles(["NATIONAL_SALES", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title: "Événement — à attribuer (National Sales)", body: ev.name, link });
-  }
+  // LE CIRCUIT NAÎT AVEC LA DEMANDE et prévient chaque acteur de SON parcours (décision #1, 27/10/2026).
+  await ouvrirLeCircuit("EVENT", id);
   revalidatePath(`/events/${id}`);
   revalidatePath("/events");
   return { ok: true };

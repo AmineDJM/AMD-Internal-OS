@@ -34,6 +34,7 @@ import { ancreLigneCentre } from "@/lib/chemins/ad-pro";
 
 const LIBELLE_FORME: Record<FormePorte | FormeBC, string> = {
   ETAPE_CIRCUIT: "Étape du circuit",
+  TOTAL_DG: "Total de la demande (DG)",
   ETAPE_PROMO: "Circuit matériel promotionnel",
   VISA_CENTRE: "Visa du centre",
   BC_POSTE: "Bon de commande d'un poste",

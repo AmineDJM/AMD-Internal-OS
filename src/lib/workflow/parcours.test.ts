@@ -2,10 +2,11 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  dgRequis, estDecisionnaire, estIgnoree, estKam, etapesNonAtteintes, parcoursAdPro, parcoursEffectif,
+  dgRequis, estDecisionnaire, estDirectionMarketing, estIgnoree, estKam, etapesNonAtteintes, parcoursAdPro, parcoursEffectif,
   seuilFranchissement,
   SLUG_DG, SLUG_DIRECTION, SLUG_MARKETING, SLUG_PRELIMINAIRE,
 } from "./parcours";
+import { defaultDefinition } from "./defaults";
 import { WORKFLOW_CATEGORIES } from "./types";
 
 /** LA COLONNE VERTÉBRALE, DANS L'ORDRE — Direction des opérations AVANT Direction Marketing. */
@@ -20,92 +21,125 @@ const SPINE = [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION, SLUG_MARKETING];
 const C = "CONGRESS_NATIONAL" as const;
 
 /**
- * LES TROIS BRANCHES Ad & Pro. Chaque cas nomme la situation qui le ferait tomber — une assertion
- * dont on ne sait pas nommer ce cas n'est pas une assertion (§118.17).
+ * LE CIRCUIT DE PRÉVALIDATION (décision de la Direction du 27/10/2026). Chaque cas nomme la
+ * situation qui le ferait tomber — une assertion dont on ne sait pas nommer ce cas n'est pas une
+ * assertion (§118.17).
+ *
+ *     délégué (KAM)        → National Sales → Directeur des opérations → Direction Marketing
+ *     tout autre demandeur →                  Directeur des opérations → Direction Marketing
+ *     rang 3               →                                              Direction Marketing
+ *     Direction Marketing  → prévalidée d'office
+ *
+ * La porte du DG est TOUJOURS dans le tamis : le DG valide le total des postes, à la fin.
  */
 describe("le parcours d'une demande Ad & Pro dépend de qui la pose", () => {
-  it("un KAM : son superviseur national filtre, et LUI SEUL", () => {
-    // Ce qui le ferait tomber : laisser `final` sur sa route, comme avant le 22/09/2026. La
-    // Direction des opérations validerait une demande que la Direction a voulu lui épargner, et
-    // le demandeur attendrait un guichet de plus.
+  it("un délégué (le KAM) : son National Sales, PUIS le Directeur des opérations, puis Direction Marketing", () => {
+    // Ce qui le ferait tomber : garder la règle du 22/09 (« le national sales ne valide QUE si
+    // c'est un KAM », `final` sautée) — le délégué éviterait le second filtre que la Direction
+    // vient d'exiger pour TOUTES les natures.
     expect(parcoursAdPro({ rang: 0, kam: true, categorie: C }))
-      .toEqual({ entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [SLUG_DIRECTION] });
+      .toEqual({ entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [SLUG_DG], dOffice: false });
   });
 
-  it("le SPONSORING d'un KAM : le National Sales PUIS la Direction des opérations (décision du 28/09/2026)", () => {
-    // « Une fois validée par le national sales ET le directeur des opérations, la direction
-    // marketing pré-valide ou refuse la tenue. » Ce qui le ferait tomber : garder la règle du
-    // 22/09 pour le sponsoring — la Direction des opérations sautée alors qu'elle vient d'être
-    // demandée, et la tenue pré-validée sans le second filtre.
-    expect(parcoursAdPro({ rang: 0, kam: true, categorie: "SPONSORING" }))
-      .toEqual({ entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [] });
-  });
-
-  it("…et le sponsoring SEUL : les congrès et les événements d'un KAM gardent le National Sales seul", () => {
-    // Ce qui le ferait tomber : appliquer la décision à toutes les natures. Elle a été prise pour
-    // le sponsoring ; l'étendre serait une empreinte plus large que la demande (§118.16).
-    for (const categorie of WORKFLOW_CATEGORIES.filter((c) => c !== "SPONSORING")) {
+  it("le sponsoring d'un délégué suit la MÊME route que ses congrès et ses événements", () => {
+    // « Pareil pour les prises en charge, les événements et les autres » (27/10/2026). Ce qui le
+    // ferait tomber : garder l'exception du 28/09 réservée au sponsoring — un congrès de délégué
+    // échapperait au Directeur des opérations.
+    for (const categorie of WORKFLOW_CATEGORIES) {
       expect(parcoursAdPro({ rang: 0, kam: true, categorie }), categorie)
-        .toEqual({ entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [SLUG_DIRECTION] });
+        .toEqual({ entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [SLUG_DG], dOffice: false });
     }
   });
 
-  it("la nature ne change QUE la branche du KAM : toutes les autres sont identiques d'une nature à l'autre", () => {
-    // Ce qui le ferait tomber : une règle de sponsoring écrite pour tout demandeur — un chef de
-    // service verrait sa demande de sponsoring partir chez la Direction des opérations, qu'aucune
-    // décision ne lui a imposée. Le rang ≥ 1 l'emporte sur le métier : un KAM qui porte aussi un
-    // rang supérieur suit la branche de son rang, quelle que soit la nature.
+  it("LA NATURE NE CHANGE PLUS RIEN : chaque branche est identique d'une nature à l'autre", () => {
+    // Ce qui le ferait tomber : une règle de nature réintroduite pour une seule branche — un
+    // demandeur verrait sa route changer selon ce qu'il demande, sans décision qui le dise.
     for (const rang of [0, 1, 2, 3]) {
       for (const kam of [true, false]) {
-        if (rang === 0 && kam) continue;
-        const reference = parcoursAdPro({ rang, kam, categorie: C });
-        for (const categorie of WORKFLOW_CATEGORIES) {
-          expect(parcoursAdPro({ rang, kam, categorie }), `${categorie} rang ${rang} kam=${kam}`).toEqual(reference);
+        for (const directionMarketing of [true, false]) {
+          const reference = parcoursAdPro({ rang, kam, directionMarketing, categorie: C });
+          for (const categorie of WORKFLOW_CATEGORIES) {
+            expect(parcoursAdPro({ rang, kam, directionMarketing, categorie }), `${categorie} rang ${rang} kam=${kam} dm=${directionMarketing}`)
+              .toEqual(reference);
+          }
         }
       }
     }
   });
 
-  it("le National Sales lui-même : la Direction des opérations, pas son propre préliminaire", () => {
+  it("le National Sales lui-même : le Directeur des opérations, pas son propre préliminaire", () => {
     // Ce qui le ferait tomber : garder `preliminary`. Il s'approuverait lui-même — une
     // validation qui ne mesure rien. Ou retirer `final` : plus aucun filtre au-dessus de lui.
     expect(parcoursAdPro({ rang: 1, kam: true, categorie: C }))
-      .toEqual({ entree: SLUG_DG, decision: null, ignorees: [SLUG_PRELIMINAIRE] });
+      .toEqual({ entree: SLUG_DIRECTION, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG], dOffice: false });
   });
 
-  it("tout autre demandeur : DIRECT chez Direction Marketing, aucun filtre hiérarchique", () => {
-    // Ce qui le ferait tomber : garder `final`. Un chef de service verrait sa demande partir
-    // chez la Direction des opérations, que la Direction a explicitement retirée de sa route.
+  it("tout autre demandeur : le Directeur des opérations (son N+1), puis Direction Marketing", () => {
+    // Ce qui le ferait tomber : l'ancien « direct chez Direction Marketing ». Un chef de service
+    // échapperait au N+1 que la Direction impose désormais à tout demandeur hors délégué.
     expect(parcoursAdPro({ rang: 0, kam: false, categorie: C }))
-      .toEqual({ entree: SLUG_DG, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DIRECTION] });
+      .toEqual({ entree: SLUG_DIRECTION, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG], dOffice: false });
   });
 
-  it("Direction Marketing ne TRANCHE pas sa propre demande — la Direction le fait à sa place", () => {
-    // Ce qui le ferait tomber : `decision: null`. La demande de Direction Marketing reviendrait à
-    // Direction Marketing, c'est-à-dire à elle-même.
-    expect(parcoursAdPro({ rang: 2, kam: false, categorie: C }))
-      .toEqual({ entree: SLUG_DG, decision: SLUG_DIRECTION, ignorees: [SLUG_PRELIMINAIRE] });
+  it("le Manager Promotion médicale (rang 2, PAS Direction Marketing) suit la route de tout autre demandeur", () => {
+    // Ce qui le ferait tomber : prévalider d'office tout le rang 2. Le Manager Promotion médicale
+    // n'est pas la Direction Marketing : sa demande passe par le Directeur des opérations, puis
+    // la Direction Marketing la prévalide.
+    expect(parcoursAdPro({ rang: 2, kam: false, directionMarketing: false, categorie: C }))
+      .toEqual({ entree: SLUG_DIRECTION, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG], dOffice: false });
   });
 
-  it("la porte du DG reste DEVANT Direction Marketing quand c'est elle qui demande", () => {
-    // Une rallonge d'un million ne se décide pas plus bas parce qu'elle vient d'en haut :
-    // l'entrée est la porte du DG, pas l'étape de la Direction.
-    expect(parcoursAdPro({ rang: 2, kam: false, categorie: C }).entree).toBe(SLUG_DG);
+  it("Direction Marketing : sa propre étape, prévalidée D'OFFICE — personne d'autre ne la filtre", () => {
+    // Ce qui le ferait tomber : l'ancienne borne (la Direction des opérations tranchait à sa
+    // place, montant compris). La demande de la Direction Marketing n'attend plus personne :
+    // elle entre sur sa propre étape et le moteur la franchit à la naissance (`dOffice`).
+    expect(parcoursAdPro({ rang: 2, kam: false, directionMarketing: true, categorie: C }))
+      .toEqual({ entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION], dOffice: true });
   });
 
-  it("la Direction, le DG, le Super Admin : il ne reste que la décision de Direction Marketing", () => {
-    // Tout ce qui précède est soit leur propre accord, soit une porte dont ils sont la clé.
-    expect(parcoursAdPro({ rang: 3, kam: false, categorie: C }))
-      .toEqual({ entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION] });
+  it("un délégué qui porte AUSSI la Direction Marketing suit la branche de son rang — prévalidée d'office", () => {
+    // Le rang l'emporte sur le métier (§118.142), Direction Marketing comprise.
+    expect(parcoursAdPro({ rang: 2, kam: true, directionMarketing: true, categorie: C }))
+      .toEqual({ entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION], dOffice: true });
   });
 
-  it("LE RANG L'EMPORTE SUR LE MÉTIER — le cas qui a dicté la forme de ce module", () => {
-    // Un délégué médical qui porte AUSSI Direction Marketing est un KAM au sens du texte, mais
-    // sa demande ne peut pas être tranchée par lui-même. Une sortie décidée sur le seul fait
-    // « c'est un KAM » l'aurait laissée revenir à son propre bureau.
-    expect(parcoursAdPro({ rang: 2, kam: true, categorie: C }))
-      .toEqual({ entree: SLUG_DG, decision: SLUG_DIRECTION, ignorees: [SLUG_PRELIMINAIRE] });
+  it("la Direction, le DG, le Directeur des opérations, le Super Admin : Direction Marketing SEULE", () => {
+    // Tout ce qui précède est soit leur propre accord, soit une porte qui n'est plus sur la route.
+    // Et la prévalidation d'office ne vaut QUE pour la Direction Marketing : un rang 3 qui
+    // porterait aussi la casquette attend la prévalidation comme les autres.
+    for (const directionMarketing of [false, true]) {
+      expect(parcoursAdPro({ rang: 3, kam: false, directionMarketing, categorie: C }), `dm=${directionMarketing}`)
+        .toEqual({ entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION], dOffice: false });
+    }
+  });
+
+  it("LE RANG L'EMPORTE SUR LE MÉTIER — un délégué qui porte un rang plus haut suit la branche de son rang", () => {
+    // Seul le délégué de rang 0 passe par le National Sales. Ce qui le ferait tomber : décider sur
+    // le seul fait « c'est un KAM » — un délégué qui porte aussi le National Sales attendrait son
+    // propre accord.
+    expect(parcoursAdPro({ rang: 1, kam: true, categorie: C }).entree).toBe(SLUG_DIRECTION);
+    expect(parcoursAdPro({ rang: 2, kam: true, directionMarketing: false, categorie: C }).entree).toBe(SLUG_DIRECTION);
     expect(parcoursAdPro({ rang: 3, kam: true, categorie: C }).entree).toBe(SLUG_MARKETING);
+  });
+
+  it("LA PORTE DU DG N'EST PLUS SUR AUCUNE ROUTE, et plus aucune route n'a de borne", () => {
+    // Le DG valide le TOTAL des postes, à la fin (`ad-pro/porte-dg.ts`). Ce qui le ferait tomber :
+    // une branche qui laisserait `dg` hors du tamis — la demande s'y poserait devant un DG qui
+    // n'a plus rien à valider à cet endroit.
+    for (const categorie of WORKFLOW_CATEGORIES) {
+      for (const rang of [0, 1, 2, 3, 4]) {
+        for (const kam of [true, false]) {
+          for (const directionMarketing of [true, false]) {
+            const p = parcoursAdPro({ rang, kam, directionMarketing, categorie });
+            const cas = `${categorie} rang ${rang} kam=${kam} dm=${directionMarketing}`;
+            expect(p.ignorees, cas).toContain(SLUG_DG);
+            expect(p.entree, cas).not.toBe(SLUG_DG);
+            expect(p.decision, cas).toBeNull();
+            expect(p.ignorees, `${cas} : Direction Marketing prévalide TOUJOURS`).not.toContain(SLUG_MARKETING);
+          }
+        }
+      }
+    }
   });
 
   it("LA PROPRIÉTÉ QUI A REMPLACÉ LA CONTIGUÏTÉ : l'entrée n'est JAMAIS ignorée", () => {
@@ -118,12 +152,14 @@ describe("le parcours d'une demande Ad & Pro dépend de qui la pose", () => {
     for (const categorie of WORKFLOW_CATEGORIES) {
       for (const rang of [0, 1, 2, 3, 4]) {
         for (const kam of [true, false]) {
-          const p = parcoursAdPro({ rang, kam, categorie });
-          expect(p.ignorees, `${categorie} rang ${rang} kam=${kam} : l'entrée ${p.entree} est sautée par son propre parcours`)
-            .not.toContain(p.entree);
-          if (p.decision !== null) {
-            expect(p.ignorees, `${categorie} rang ${rang} kam=${kam} : la borne ${p.decision} est sautée par son propre parcours`)
-              .not.toContain(p.decision);
+          for (const directionMarketing of [true, false]) {
+            const p = parcoursAdPro({ rang, kam, directionMarketing, categorie });
+            expect(p.ignorees, `${categorie} rang ${rang} kam=${kam} dm=${directionMarketing} : l'entrée ${p.entree} est sautée par son propre parcours`)
+              .not.toContain(p.entree);
+            if (p.decision !== null) {
+              expect(p.ignorees, `${categorie} rang ${rang} kam=${kam} : la borne ${p.decision} est sautée par son propre parcours`)
+                .not.toContain(p.decision);
+            }
           }
         }
       }
@@ -136,8 +172,10 @@ describe("le parcours d'une demande Ad & Pro dépend de qui la pose", () => {
     for (const categorie of WORKFLOW_CATEGORIES) {
       for (const rang of [0, 1, 2, 3]) {
         for (const kam of [true, false]) {
-          for (const slug of parcoursAdPro({ rang, kam, categorie }).ignorees) {
-            expect(SPINE, `${categorie} rang ${rang} kam=${kam}`).toContain(slug);
+          for (const directionMarketing of [true, false]) {
+            for (const slug of parcoursAdPro({ rang, kam, directionMarketing, categorie }).ignorees) {
+              expect(SPINE, `${categorie} rang ${rang} kam=${kam} dm=${directionMarketing}`).toContain(slug);
+            }
           }
         }
       }
@@ -149,6 +187,13 @@ describe("le parcours d'une demande Ad & Pro dépend de qui la pose", () => {
     expect(estKam({ role: "SALES_USER", secondaryRole: "MEDICAL_DELEGATE" })).toBe(true);
     expect(estKam({ role: "NATIONAL_SALES" }), "le National Sales fait le même métier mais c'est LUI le superviseur").toBe(false);
     expect(estKam(null)).toBe(false);
+  });
+
+  it("la Direction Marketing se lit aussi au rôle SECONDAIRE — et le Manager Promotion médicale n'en est pas", () => {
+    expect(estDirectionMarketing({ role: "PRODUCT_MANAGER" })).toBe(true);
+    expect(estDirectionMarketing({ role: "SALES_USER", secondaryRole: "PRODUCT_MANAGER" })).toBe(true);
+    expect(estDirectionMarketing({ role: "MEDICAL_PROMOTION_MANAGER" })).toBe(false);
+    expect(estDirectionMarketing(null)).toBe(false);
   });
 });
 
@@ -193,11 +238,13 @@ describe("le seuil de franchissement", () => {
 });
 
 describe("le parcours EFFECTIF — les deux faits, filtrés contre la définition réelle", () => {
-  it("il NOMME la borne et le tamis quand la définition les porte", () => {
+  it("il NOMME le tamis (et la prévalidation d'office) quand la définition porte les étapes", () => {
     expect(parcoursEffectif({ role: "PRODUCT_MANAGER" }, SPINE, 2, C))
-      .toEqual({ entree: SLUG_DG, decision: SLUG_DIRECTION, ignorees: [SLUG_PRELIMINAIRE] });
+      .toEqual({ entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION], dOffice: true });
+    expect(parcoursEffectif({ role: "MEDICAL_PROMOTION_MANAGER" }, SPINE, 2, C))
+      .toEqual({ entree: SLUG_DIRECTION, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG], dOffice: false });
     expect(parcoursEffectif({ role: "MEDICAL_DELEGATE" }, SPINE, 0, C))
-      .toEqual({ entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [SLUG_DIRECTION] });
+      .toEqual({ entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [SLUG_DG], dOffice: false });
   });
 
   it("un circuit REMODELÉ qui n'a plus ces étapes retombe sur la chaîne ENTIÈRE", () => {
@@ -205,16 +252,21 @@ describe("le parcours EFFECTIF — les deux faits, filtrés contre la définitio
     // Ce qui le ferait tomber : garder le tamis non filtré. Une étape absente aujourd'hui, mais
     // AJOUTÉE demain par un Super Admin, serait sautée en silence — sa décision défaite sans une
     // ligne pour le dire, alors qu'une validation de trop se voit et se franchit (§118.27).
+    // (Le drapeau d'office reste dit ; le moteur ne l'applique que sur une instance réellement
+    // posée sur l'étape `marketing`.)
     expect(parcoursEffectif({ role: "PRODUCT_MANAGER" }, ["etape-a", "etape-b"], 2, C))
-      .toEqual({ entree: SLUG_DG, decision: null, ignorees: [] });
-    expect(parcoursEffectif({ role: "PRODUCT_MANAGER" }, [], 2, C))
-      .toEqual({ entree: SLUG_DG, decision: null, ignorees: [] });
+      .toEqual({ entree: SLUG_MARKETING, decision: null, ignorees: [], dOffice: true });
+    expect(parcoursEffectif({ role: "FINANCE_MANAGER" }, [], 0, C))
+      .toEqual({ entree: SLUG_DIRECTION, decision: null, ignorees: [], dOffice: false });
   });
 
   it("un circuit PARTIEL ne garde que ce qu'il porte vraiment", () => {
-    // Un circuit sans porte du DG : le tamis d'un demandeur ordinaire ne doit nommer que `final`.
+    // Un circuit sans préliminaire : le tamis d'un demandeur ordinaire ne nomme que la porte du DG ;
+    // sans porte du DG non plus, il est vide.
+    expect(parcoursEffectif({ role: "FINANCE_MANAGER" }, [SLUG_DG, SLUG_DIRECTION, SLUG_MARKETING], 0, C).ignorees)
+      .toEqual([SLUG_DG]);
     expect(parcoursEffectif({ role: "FINANCE_MANAGER" }, [SLUG_DIRECTION, SLUG_MARKETING], 0, C).ignorees)
-      .toEqual([SLUG_DIRECTION]);
+      .toEqual([]);
   });
 
   it("un demandeur INCONNU : `estKam` rend faux, donc le parcours d'un demandeur ordinaire", () => {
@@ -244,10 +296,12 @@ describe("les étapes non atteintes — la queue coupée ET le tamis", () => {
   });
 
   it("elle nomme AUSSI les étapes sautées au MILIEU — le cas que la queue seule ratait", () => {
-    // LE CAS QUI COMPTE, et c'est celui d'un KAM : AUCUNE borne (Direction Marketing est la
-    // dernière étape) et pourtant `final` sautée. Ce qui le ferait tomber : revenir à la queue
-    // seule. Un Super Admin qui aurait posé l'ordre de dépense sur l'étape de la Direction
-    // verrait l'émission se perdre — budget accordé, rien d'engagé, aucune étape en échec.
+    // LE CAS QUI COMPTE, et c'est celui de TOUTE demande depuis le 27/10/2026 : AUCUNE borne
+    // (Direction Marketing est la dernière étape) et pourtant des étapes sautées au milieu (la
+    // porte du DG, et `final` pour un rang 3). Ce qui le ferait tomber : revenir à la queue seule.
+    // Un Super Admin qui aurait posé une émission sur une étape sautée la verrait se perdre —
+    // décision prise, rien d'émis, aucune étape en échec.
+    expect(etapesNonAtteintes(SPINE, null, [SLUG_DG])).toEqual([SLUG_DG]);
     expect(etapesNonAtteintes(SPINE, null, [SLUG_DIRECTION])).toEqual([SLUG_DIRECTION]);
     expect(etapesNonAtteintes(SPINE, null, [SLUG_PRELIMINAIRE, SLUG_DIRECTION]))
       .toEqual([SLUG_PRELIMINAIRE, SLUG_DIRECTION]);
@@ -416,11 +470,12 @@ describe("la migration Ad&Pro — l'ordre s'inverse, Direction Marketing tranche
 
   it("la graine et la migration racontent LE MÊME circuit", () => {
     // Deux vérités sur l'ordre des étapes divergeraient : un déploiement neuf n'aurait pas le
-    // même circuit qu'un déploiement migré, et personne ne s'en apercevrait (§118.5).
-    const graine = fs.readFileSync(path.join(process.cwd(), "src/lib/workflow/defaults.ts"), "utf8");
-    const ordreGraine = ["SLUG_PRELIMINAIRE", "SLUG_DG", "SLUG_DIRECTION", "SLUG_MARKETING"]
-      .map((c) => graine.indexOf(`slug: ${c},`));
-    expect(ordreGraine.every((i) => i > 0), "les quatre étapes sont semées").toBe(true);
-    expect([...ordreGraine].sort((a, b) => a - b), "dans cet ordre").toEqual(ordreGraine);
+    // même circuit qu'un déploiement migré, et personne ne s'en apercevrait (§118.5). On lit
+    // l'ordre SEMÉ (la graine elle-même), pas la position d'un texte dans son fichier source :
+    // depuis le 27/10/2026, les étapes `final` et `marketing` sont des constantes nommées.
+    for (const categorie of WORKFLOW_CATEGORIES) {
+      expect(defaultDefinition(categorie).steps.map((s) => s.slug), categorie)
+        .toEqual([SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION, SLUG_MARKETING]);
+    }
   });
 });

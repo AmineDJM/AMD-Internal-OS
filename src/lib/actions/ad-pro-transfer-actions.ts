@@ -9,7 +9,9 @@ import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { fermerInstance } from "@/lib/workflow/engine";
+import { fermerInstance, ouvrirLeCircuit } from "@/lib/workflow/engine";
+import { adProInit } from "@/lib/workflow/origin";
+import type { CongressRequestStatus, SponsoringStatus } from "@prisma/client";
 
 /**
  * TRANSFÉRER UNE DEMANDE D'UN MODULE AD & PRO VERS UN AUTRE.
@@ -53,6 +55,9 @@ const PATHS: Record<AdProKind, string> = {
 };
 
 const isKind = (v: string): v is AdProKind => v in LABELS;
+
+/** La catégorie de circuit de chaque module — celle dont la route se lit pour la demande transférée. */
+const CATEGORIE_DU_MODULE = { SPONSORING: "SPONSORING", CONGRESS_NATIONAL: "CONGRESS_NATIONAL", CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL" } as const;
 
 /** Ce qu'on sait d'une demande, quel que soit son module — le socle commun du transfert. */
 interface Common {
@@ -128,6 +133,12 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
   // La note d'origine est portée par la NOUVELLE demande : en la lisant, on doit comprendre
   // d'où elle vient sans avoir à fouiller le journal d'audit.
   const origin = `Transférée depuis ${fromLabel}.${src.comments ? ` — ${src.comments}` : ""}`;
+  // LA ROUTE DU NOUVEAU MODULE SE LIT SUR LE CRÉATEUR (décision #28, 27/10/2026) : une demande transférée
+  // repart au début de SA prévalidation — celle de son demandeur —, pas à l'étape préliminaire par défaut.
+  const createur = src.requesterId
+    ? await prisma.user.findUnique({ where: { id: src.requesterId }, select: { role: true, secondaryRole: true } })
+    : null;
+  const init = createur ? adProInit(createur, CATEGORIE_DU_MODULE[kind]) : null;
 
   if (kind === "SPONSORING") {
     const year = new Date().getFullYear();
@@ -143,6 +154,7 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
         type: "À qualifier (transfert)",
         specialty: src.specialty,
         amountRequested: src.estimatedBudget ?? undefined,
+        ...(init ? { status: init.status as SponsoringStatus } : {}),
         requesterId: src.requesterId,
         productManagerId: src.productManagerId,
         comments: origin,
@@ -160,6 +172,7 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
       data: {
         name: src.title, hostInstitution: src.institution, specialty: src.specialty,
         estimatedBudget: src.estimatedBudget ?? undefined,
+        ...(init ? { requestStatus: init.status as CongressRequestStatus } : {}),
         requesterId: src.requesterId, productManagerId: src.productManagerId,
         finalNote: origin, createdById: actorId, companyId: src.companyId,
       },
@@ -172,6 +185,7 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
     data: {
       name: src.title, specialty: src.specialty,
       estimatedBudget: src.estimatedBudget ?? undefined,
+      ...(init ? { requestStatus: init.status as CongressRequestStatus } : {}),
       requesterId: src.requesterId, productManagerId: src.productManagerId,
       finalNote: origin, createdById: actorId, companyId: src.companyId,
     },
@@ -240,6 +254,8 @@ export async function transferAdProRequest(_prev: ActionResult | undefined, form
     }).catch(() => false);
 
     await closeSource(fromRaw, sourceId, toRaw, targetId);
+    // Le circuit de la demande reçue naît maintenant, sur la route de son créateur, et prévient ses acteurs.
+    await ouvrirLeCircuit(toRaw, targetId);
 
     for (const entry of [
       { entityId: sourceId, entityType: fromRaw, summary: `Demande transférée vers ${LABELS[toRaw]} (${PATHS[toRaw]}/${targetId}) — ${moved.count} pièce(s) déplacée(s).` },

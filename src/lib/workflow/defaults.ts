@@ -29,6 +29,32 @@ import {
  * réglage (§118.5).
  */
 
+/**
+ * LA PORTE DU DG N'EST PLUS UNE ÉTAPE DU CIRCUIT (27/10/2026) : le DG valide le TOTAL des postes, à la
+ * fin, au-dessus du seuil (`ad-pro/porte-dg.ts`). L'étape reste dans la définition — des demandes
+ * nées avant la règle peuvent y être posées et doivent pouvoir en sortir —, mais aucune demande
+ * nouvelle ne la traverse (`parcoursAdPro` la met toujours dans le tamis).
+ */
+export const DESCRIPTION_DG_HORS_CIRCUIT =
+  "Hors circuit depuis le 27/10/2026 : le Directeur Général ne valide plus la demande ici, mais le total de ses "
+  + "postes, à la fin, quand il dépasse le seuil réglé en Administration › Réglages. Seules des demandes nées "
+  + "avant cette règle peuvent encore attendre à cette étape.";
+
+/** L'étape du Directeur des opérations — le N+1 de tout demandeur hors délégué, le second filtre du délégué. */
+export const ETAPE_DIRECTEUR_OPERATIONS: StepInput = {
+  slug: SLUG_DIRECTION,
+  title: "Validation (Directeur des opérations)",
+  description:
+    "Le Directeur des opérations valide la demande : il est le N+1 de tout demandeur hors délégué médical, et le "
+    + "second filtre après le National Sales pour un délégué. Il ne fixe aucun montant — la Direction Marketing "
+    + "prévalide ensuite, puis l'argent se décide poste par poste.",
+  actorScope: "ROLE",
+  actorRoles: ["OPERATIONS_DIRECTOR"],
+  powers: ["APPROVE", "REJECT", "COMMENT"],
+  notifyRoles: ["OPERATIONS_DIRECTOR", "SUPER_ADMIN"],
+  legacyStatus: "PRELIMINARY_APPROVED",
+};
+
 /** Les quatre étapes « colonne vertébrale » communes aux 4 catégories. */
 function defaultSpine(): StepInput[] {
   return [
@@ -49,13 +75,7 @@ function defaultSpine(): StepInput[] {
     {
       slug: SLUG_DG,
       title: "Validation du Directeur Général",
-      description:
-        // LE CHIFFRE NE S'ÉCRIT PAS ICI : il vit dans les réglages, et le recopier dans une
-        // description figerait la valeur du jour du semis dans un texte que personne ne penserait
-        // à corriger — une seconde vérité, en prose (§118.5, §118.116).
-        "Au-delà du seuil réglé en Administration › Réglages, le Directeur Général valide en plus. "
-        + "En dessous, l'étape est franchie automatiquement et tracée — personne n'a rien à faire. "
-        + "Un « Seuil DZD » écrit sur cette étape l'emporte pour ce circuit.",
+      description: DESCRIPTION_DG_HORS_CIRCUIT,
       actorScope: "ROLE",
       actorRoles: ["GENERAL_MANAGER"],
       powers: ["APPROVE", "REJECT", "COMMENT"],
@@ -73,43 +93,12 @@ function defaultSpine(): StepInput[] {
     // c'est la phrase que lit le Super Admin qui règle le circuit. Le même texte est posé en base par
     // `20270104091000_description_etape_final`, là où l'ancien est resté mot pour mot (un test exige
     // que les deux restent identiques : deux sources de la même étape feraient deux circuits).
-    {
-      slug: SLUG_DIRECTION,
-      title: "Validation (Direction des opérations)",
-      description:
-        "La Direction des opérations donne son accord sur l'opération ; d'ordinaire, Direction Marketing tranche "
-        + "ensuite, et le montant comme la sous-catégorie budgétaire se décident chez elle. Sur la demande d'un "
-        + "membre de Direction Marketing ou du Manager Promotion médicale, qui ne tranchent pas leur propre demande, "
-        + "cette étape conclut : elle prend alors la décision de Direction Marketing — montant accordé et "
-        + "sous-catégorie budgétaire compris quand le circuit les exige — et lance ce qui en découle.",
-      actorScope: "GLOBAL_VIEW",
-      actorRoles: ["DIRECTION"],
-      powers: ["APPROVE", "REJECT", "COMMENT"],
-      notifyRoles: ["DIRECTION", "SUPER_ADMIN"],
-      legacyStatus: "PRELIMINARY_APPROVED",
-    },
-    {
-      slug: SLUG_MARKETING,
-      title: "Décision et budget (Direction Marketing)",
-      description:
-        "Direction Marketing TRANCHE : montant accordé + (sous-)catégorie budgétaire obligatoires. "
-        + "Sa décision est définitive et lance l'information médicale (PRIM) puis l'ordre de dépense.",
-      // UNE DIRECTION, PAS UNE PERSONNE DÉSIGNÉE. Une portée `ASSIGNEE` laisserait une demande
-      // que personne ne peut faire avancer, morte à son étape décisive et sans une seule ligne
-      // d'échec.
-      actorScope: "ROLE",
-      actorRoles: [ROLE_DIRECTION_MARKETING],
-      powers: ["APPROVE", "REJECT", "SET_AMOUNT", "SET_CATEGORY", "COMMENT"],
-      requireAmount: true,
-      requireCategory: true,
-      notifyRoles: [ROLE_DIRECTION_MARKETING, "SUPER_ADMIN"],
-      // PLUS CONFIDENTIEL : cette étape ne rend plus un AVIS en attente d'une décision d'en
-      // haut, elle EST la décision. Un budget accordé se lit par celui à qui on l'accorde.
-      confidential: false,
-      emitDeclaration: true,
-      emitExpenseOrder: true,
-      legacyStatus: "AWAITING_FINAL",
-    },
+    // LE DIRECTEUR DES OPÉRATIONS — le rôle `OPERATIONS_DIRECTOR`, et lui (Direction, 27/10/2026 : « il
+    // faut que ce soit lui, l'Operations Director »). Il était tenu jusqu'ici par le rôle `DIRECTION`.
+    // Les mêmes valeurs sont écrites en base par `20270131130000_adpro_circuit_prevalidation`.
+    ETAPE_DIRECTEUR_OPERATIONS,
+    // LA PRÉVALIDATION DE LA DIRECTION MARKETING — la dernière étape, celle qui conclut (27/10/2026).
+    ETAPE_PREVALIDATION,
   ];
 }
 
@@ -142,6 +131,41 @@ export const ETAPE_PRE_VALIDATION_SPONSORING: StepInput = {
   description:
     "La Direction Marketing pré-valide ou refuse la TENUE de l'événement. Pré-validée, la demande passe aux postes "
     + "(devis, BC, factures), puis à la validation finale qui range chaque poste dans un budget et clôture la demande.",
+  actorScope: "ROLE",
+  actorRoles: [ROLE_DIRECTION_MARKETING],
+  powers: ["APPROVE", "REJECT", "COMMENT"],
+  requireAmount: false,
+  requireCategory: false,
+  notifyRoles: [ROLE_DIRECTION_MARKETING, "SUPER_ADMIN"],
+  confidential: false,
+  emitDeclaration: true,
+  emitExpenseOrder: false,
+  legacyStatus: "AWAITING_FINAL",
+};
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE CIRCUIT DU 27/10/2026 — PRÉVALIDATION, POSTES, PUIS LE DG SUR LE TOTAL, pour toutes les natures.
+ *
+ * « Tant qu'on n'a pas la prévalidation de la Direction Marketing, aucun budget ne peut être ouvert.
+ * Ce qui est prévalidé, c'est le fond — une journée nationale, une prise en charge — et le montant.
+ * Ensuite les postes sont ajoutés par les parties prenantes ; le DG valide le TOTAL, à la fin, et
+ * seulement au-dessus du seuil, qui vaut pour toute la demande » (Direction, 27/10/2026).
+ *
+ * La règle du sponsoring (§118.151) devient donc celle des quatre natures : l'étape de la Direction
+ * Marketing ne fixe plus ni montant ni catégorie, n'émet plus d'ordre global — les postes portent la
+ * dépense —, mais la déclaration d'information médicale part toujours ici (l'événement se déclare
+ * avant d'avoir lieu). Le sponsoring garde son titre et sa description (« la tenue ») : ils sont
+ * écrits en base par `20261129090000_sponsoring_pre_validation_postes_cloture`.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export const ETAPE_PREVALIDATION: StepInput = {
+  slug: SLUG_MARKETING,
+  title: "Prévalidation (Direction Marketing)",
+  description:
+    "La Direction Marketing prévalide le fond de la demande et le montant demandé — aucun budget n'est ouvert avant. "
+    + "Prévalidée, la demande passe aux postes, ajoutés par les parties prenantes et acceptés par la Direction Marketing "
+    + "(montant et budget) ; le Directeur Général valide le total à la fin s'il dépasse le seuil.",
   actorScope: "ROLE",
   actorRoles: [ROLE_DIRECTION_MARKETING],
   powers: ["APPROVE", "REJECT", "COMMENT"],

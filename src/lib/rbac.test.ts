@@ -382,9 +382,16 @@ describe("Directeur des Opérations — un rôle À PART, pas une Direction au r
 
   it("n'est pas une vue globale, et n'a pas les pouvoirs du Directeur Général", () => {
     expect(hasGlobalView("OPERATIONS_DIRECTOR")).toBe(false);
-    // Les circuits Ad & Pro (sponsoring, congrès, événements) ne sont pas les siens.
-    for (const m of ["SPONSORING", "CONGRESS_INTERNATIONAL", "EVENTS"] as Module[]) {
-      expect(can("OPERATIONS_DIRECTOR", m, "VIEW"), m).toBe(false);
+    expect(can("OPERATIONS_DIRECTOR", "ADMIN", "UPDATE")).toBe(false);
+  });
+
+  it("tient l'étape « Directeur des opérations » des circuits Ad & Pro (Direction, 27/10/2026)", () => {
+    // Toute demande qui ne vient pas d'un délégué lui arrive d'abord ; celle d'un délégué, après
+    // le National Sales. Il valide, et ajoute des postes — sans tenir le budget ni le centre de paiement.
+    for (const m of ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENTS", "AD_PRO_OTHER"] as Module[]) {
+      expect(can("OPERATIONS_DIRECTOR", m, "VIEW"), m).toBe(true);
+      expect(can("OPERATIONS_DIRECTOR", m, "VALIDATE"), m).toBe(true);
+      expect(can("OPERATIONS_DIRECTOR", m, "DELETE"), m).toBe(false);
     }
   });
 });

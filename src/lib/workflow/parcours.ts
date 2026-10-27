@@ -2,38 +2,29 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LE PARCOURS D'UNE DEMANDE Ad & Pro — module PUR (sa seule dépendance est le SOCLE).
  *
- * ── CE QUE LA DIRECTION A TRANCHÉ (22/09/2026) — ELLE REVIENT SUR LE LOT PRÉCÉDENT ────
+ * ── LA RÈGLE EN VIGUEUR : DÉCISION DE LA DIRECTION DU 27/10/2026 ─────────────────────────
  *
- * « Le national sales ne valide QUE si c'est un KAM qui a fait la demande ; si c'est LUI-MÊME,
- * ça passe par le Directeur des opérations ; et si c'est quelqu'un d'AUTRE, ça part DIRECT chez
- * la Direction Marketing. » Plus : « on n'a pas besoin d'un référent Direction Marketing, ça va
- * direct chez le directeur/directrice du département marketing. »
+ * « Peu importe le créateur, la demande passe d'abord par son N+1 — le National Sales si c'est un
+ * délégué (le KAM, c'est le délégué), sinon le Directeur des opérations, toujours —, puis la
+ * Direction Marketing, qui prévalide. Le DG valide uniquement à la fin, le total, et seulement s'il
+ * dépasse le seuil. Si c'est le DG qui crée, la Direction Marketing prévalide, et puis voilà ; pareil
+ * pour le Super Admin. Pareil pour les prises en charge, les événements et les autres. » Telles que
+ * `parcoursAdPro` les rend :
  *
- * TROIS BRANCHES DANS LA PHRASE, et ce qui les distingue est UN SEUL filtre avant la décision —
- * celui qui se trouve juste au-dessus du demandeur. Le code en porte davantage ; les voici dans
- * l'ordre de la colonne vertébrale (préliminaire → porte du DG → Direction des opérations →
- * Direction Marketing), telles que `parcoursAdPro` les rend :
+ *     délégué (KAM)        →  National Sales  →  Directeur des opérations  →  DIRECTION MARKETING
+ *     tout autre demandeur →                     Directeur des opérations  →  DIRECTION MARKETING
+ *     Dir. des opérations, DG, Direction, Super Admin  →                         DIRECTION MARKETING
+ *     Direction Marketing  →  prévalidée d'office
  *
- *     KAM               →  National Sales  →  (porte du DG)                             →  DIRECTION MARKETING
- *     KAM (sponsoring)  →  National Sales  →  (porte du DG)  →  Direction des opérations  →  DIRECTION MARKETING
- *     National Sales    →                     (porte du DG)  →  Direction des opérations  →  DIRECTION MARKETING
- *     tout autre        →                     (porte du DG)                             →  DIRECTION MARKETING
- *     Direction Mkt (2) →                     (porte du DG)  →  DIRECTION DES OPÉRATIONS, qui tranche
- *     Direction, DG… (3)→                                                                   DIRECTION MARKETING
+ * La porte du DG n'est plus une étape : elle est toujours dans le TAMIS, et le DG statue sur le
+ * TOTAL des postes (`lib/seuils/porte-dg-total.ts`, `ad-pro/porte-dg.ts`).
  *
- * Les deux dernières ne sont pas dans la phrase : ce sont les garde-fous d'auto-arbitrage (rang 2 :
- * Direction Marketing et le Manager Promotion médicale ; rang 3 : Direction, DG, Directeur des
- * opérations, Super Admin) — personne ne tranche sa propre demande. Le sponsoring d'un KAM est la
- * décision du 28/09/2026, prise pour cette nature seule (§118.156).
+ * ── LES RÈGLES QUI ONT PRÉCÉDÉ (22/09 et 28/09/2026), pour lire les instances nées avant ─────
  *
- * La porte du DG est ORTHOGONALE à ces branches : franchie automatiquement sous le seuil réglé,
- * elle vaut pour toute demande dont l'auteur est EN DESSOUS du DG — une rallonge d'un million ne
- * se décide pas plus bas parce qu'elle vient de Direction Marketing. Seul le rang 3 ne la traverse
- * pas : le DG en fait partie.
- *
- * Sur la route du rang 2, la Direction des opérations CONCLUT : elle hérite alors, à l'exécution,
- * l'émission ET les pouvoirs d'argent de l'étape qu'elle remplace (`pouvoirs-argent.ts`) — sans quoi
- * la demande sortait approuvée sans budget, sans ordre de dépense ni déclaration.
+ * Une instance garde le parcours FIGÉ à sa naissance (`finalSlug`, `skippedSlugs`) : celles nées sous
+ * l'ancienne règle (KAM → National Sales seul ; « tout autre → direct Direction Marketing » ; la porte
+ * du DG franchie sous le seuil ; la demande de la Direction Marketing tranchée par la Direction des
+ * opérations) terminent leur chemin tel qu'il leur avait été promis.
  *
  * ── LA PROPRIÉTÉ QUI PORTAIT TOUT LE RESTE EST TOMBÉE, ET C'EST LE FAIT DU JOUR ─────────
  *
@@ -56,16 +47,13 @@
  * aurait vu son ordre de dépense disparaître — l'argent accordé, rien d'engagé, aucune étape en
  * échec. `etapesNonAtteintes` couvre donc les deux : la queue ET le tamis.
  *
- * ── « DIRECTION DES OPÉRATIONS » EST LE RÔLE `DIRECTION` — LECTURE CONFIRMÉE DEUX FOIS ──
+ * ── LE DIRECTEUR DES OPÉRATIONS EST LE RÔLE `OPERATIONS_DIRECTOR` (27/10/2026) ──────────
  *
- * Cette lecture était une déduction au premier lot ; la Direction a répondu « transforme
- * Direction en Direction des opérations », donc c'est bien ce rôle. Et elle vient de le
- * confirmer une seconde fois en l'employant pour désigner CELUI QUI VALIDE au-dessus du
- * National Sales — c'est-à-dire exactement l'étape `final`, dont le titre est « Validation
- * (Direction des opérations) ». Le rôle `OPERATIONS_DIRECTOR` n'a toujours AUCUN module
- * Ad & Pro : le choisir exigerait de lui en ouvrir, une décision de PERMISSION qui appartient à
- * la Direction (§118.86). Le geste, si elle change d'avis, reste d'ajouter `OPERATIONS_DIRECTOR`
- * aux `actorRoles` de l'étape `final` ET de lui accorder les modules du pôle.
+ * L'étape `final` était tenue par le rôle `DIRECTION` (lecture de 09/2026). La Direction l'a tranché :
+ * « il faut que ce soit lui, l'Operations Director ». La graine (`ETAPE_DIRECTEUR_OPERATIONS`) et la
+ * migration `20270131130000_adpro_circuit_prevalidation` le posent ; tant qu'aucun compte actif ne
+ * porte ce rôle, la migration laisse `DIRECTION` à ses côtés pour qu'aucune demande ne reste sans
+ * validateur. Le rôle reçoit les modules du pôle Ad & Pro (`rbac.ts`, `AD_PRO_OPERATIONS`).
  *
  * ── POURQUOI CE MODULE EXISTE, ET POURQUOI IL EST PUR ───────────────────────────────────
  *
@@ -88,10 +76,10 @@
  * donc au socle, à côté de `designation.ts` et `joignabilite.ts`, et ce module la réexporte pour
  * que ses appelants n'aient pas à savoir d'où elle vient.
  */
-import { estKam, ROLE_DIRECTION_MARKETING, ROLE_KAM, type RolesPersonne } from "@/lib/personnes/roles-vente";
+import { estDirectionMarketing, estKam, ROLE_DIRECTION_MARKETING, ROLE_KAM, type RolesPersonne } from "@/lib/personnes/roles-vente";
 import type { WorkflowCategory } from "./types";
 
-export { ROLE_KAM, ROLE_DIRECTION_MARKETING, estKam };
+export { ROLE_KAM, ROLE_DIRECTION_MARKETING, estKam, estDirectionMarketing };
 export type DemandeurParcours = RolesPersonne;
 
 /** Les slugs de la colonne vertébrale Ad & Pro, DANS L'ORDRE où on les traverse. */
@@ -132,65 +120,70 @@ export interface Parcours {
    * ce qu'elle ne comprend pas est désactivée dans la semaine (§118.16).
    */
   ignorees: readonly string[];
+  /**
+   * PRÉVALIDÉE D'OFFICE (27/10) : la demande de la Direction Marketing n'attend personne — l'étape de
+   * prévalidation est franchie à la naissance, au nom de sa créatrice, et le journal le dit.
+   */
+  dOffice?: boolean;
 }
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES TROIS BRANCHES — et les deux garde-fous d'auto-arbitrage qui s'y ajoutent.
+ * LE CIRCUIT DE PRÉVALIDATION — décision de la Direction du 27/10/2026, pour TOUTES les natures à
+ * circuit (sponsoring, PEC nationale et internationale, événement, « autre »).
  *
- * On ne fait JAMAIS arbitrer à quelqu'un sa propre demande : c'est ce qui explique les deux
- * branches qui ne sont pas dans la phrase de la Direction (rang 2 et rang ≥ 3). Sans elles, le
- * directeur du département marketing validerait son propre budget, ce qui ne mesure rien.
+ * « Peu importe le créateur, la demande passe d'abord par son N+1 — le National Sales si c'est un
+ * délégué (le KAM, c'est le délégué), sinon le Directeur des opérations, toujours —, puis la
+ * Direction Marketing, qui PRÉVALIDE. » Le DG n'est PAS sur cette route : il valide à la FIN, le
+ * TOTAL des postes de la demande, et seulement au-dessus du seuil (`ad-pro/porte-dg.ts`).
+ *
+ *     Délégué médical (KAM) →  National Sales  →  Directeur des opérations  →  Direction Marketing
+ *     National Sales        →                     Directeur des opérations  →  Direction Marketing
+ *     tout autre demandeur  →                     Directeur des opérations  →  Direction Marketing
+ *       (Manager Promotion médicale compris)
+ *     Directeur des opérations, DG, Direction, Super Admin  →                  Direction Marketing
+ *     Direction Marketing   →  prévalidée D'OFFICE (personne ne prévalide sa propre demande, et
+ *                              personne au-dessus d'elle n'a à le faire — dit au journal)
+ *
+ * La porte du DG (`dg`) est donc TOUJOURS dans le tamis : l'étape peut encore exister dans une
+ * définition en base, elle n'est plus traversée par une demande née après la règle. Une instance
+ * née AVANT garde la chaîne qui lui avait été promise (son tamis est gelé à la naissance).
+ *
+ * Il n'y a plus de borne : la Direction Marketing est la dernière étape et c'est elle qui conclut.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 export function parcoursAdPro(args: {
-  /** Rang dans la hiérarchie d'approbation : 0 demandeur ordinaire · 1 National Sales · 2 Direction Marketing · 3 Direction. */
+  /** Rang dans la hiérarchie d'approbation : 0 demandeur ordinaire · 1 National Sales · 2 Direction Marketing / Manager Promotion médicale · 3 Direction, DG, Directeur des opérations, Super Admin. */
   rang: number;
-  /** Le demandeur exerce-t-il comme KAM (délégué médical) ? */
+  /** Le demandeur exerce-t-il comme délégué médical (le KAM) ? */
   kam: boolean;
+  /** Le demandeur EST-il la Direction Marketing (rôle principal ou secondaire) ? Sa demande est prévalidée d'office. */
+  directionMarketing?: boolean;
   /**
-   * LA NATURE DE LA DEMANDE — OBLIGATOIRE, jamais un défaut. Elle ne change qu'UNE branche (le
-   * sponsoring d'un KAM, décision du 28/09/2026) ; une valeur par défaut réintroduirait le mauvais
-   * parcours, en silence, chez le prochain appelant qui l'oublierait (§118.127b).
+   * LA NATURE DE LA DEMANDE — OBLIGATOIRE. Elle ne change plus la route (27/10 : « pareil pour les
+   * prises en charge, les événements et les autres »), mais un appelant qui l'omettrait se tromperait
+   * en silence le jour où une nature reprendrait une règle à elle (§118.127b).
    */
   categorie: WorkflowCategory;
 }): Parcours {
-  // LA DIRECTION, LE DG, LE DIRECTEUR DES OPÉRATIONS, LE SUPER ADMIN — personne au-dessus d'eux.
-  // Leur demande n'a ni préliminaire, ni porte du DG (le DG est à ce rang), ni validation de la
-  // Direction des opérations (c'est eux) : il ne reste que la décision de Direction Marketing.
+  const tamisCommun = [SLUG_DG];
+  // LA DIRECTION, LE DG, LE DIRECTEUR DES OPÉRATIONS, LE SUPER ADMIN : personne au-dessus d'eux dans la
+  // ligne — leur demande va directement à la prévalidation de la Direction Marketing.
   if (args.rang >= 3) {
-    return { entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DG, SLUG_DIRECTION] };
+    return { entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, ...tamisCommun, SLUG_DIRECTION], dOffice: false };
   }
-  // DIRECTION MARKETING elle-même : elle ne tranche pas sa propre demande, donc la Direction des
-  // opérations tranche à sa place et la chaîne s'arrête là. La porte du DG reste devant — une
-  // rallonge d'un million ne se décide pas plus bas parce qu'elle vient d'en haut.
-  if (args.rang === 2) {
-    return { entree: SLUG_DG, decision: SLUG_DIRECTION, ignorees: [SLUG_PRELIMINAIRE] };
+  // LA DIRECTION MARKETING ELLE-MÊME : prévalidée d'office. Le rang l'emporte sur le métier (§118.142) :
+  // quiconque porte la Direction Marketing (rang 2), même délégué par ailleurs, suit la branche de ce rang.
+  if (args.rang === 2 && args.directionMarketing) {
+    return { entree: SLUG_MARKETING, decision: null, ignorees: [SLUG_PRELIMINAIRE, ...tamisCommun, SLUG_DIRECTION], dOffice: true };
   }
-  // LE NATIONAL SALES : « si c'est lui-même, ça passe par le directeur des opérations ». Son
-  // propre préliminaire n'a pas d'objet ; le filtre au-dessus de lui est l'étape `final`.
-  if (args.rang === 1) {
-    return { entree: SLUG_DG, decision: null, ignorees: [SLUG_PRELIMINAIRE] };
+  // LE DÉLÉGUÉ MÉDICAL (le KAM) de rang 0 : son National Sales, puis le Directeur des opérations.
+  if (args.rang === 0 && args.kam) {
+    return { entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [...tamisCommun], dOffice: false };
   }
-  // LE KAM : son superviseur national filtre — et LUI SEUL. La Direction des opérations n'est pas
-  // sur sa route : « le national sales ne valide QUE si c'est un KAM ». C'est cette branche qui
-  // rend le parcours non contigu, et donc le tamis nécessaire.
-  if (args.kam) {
-    // LE SPONSORING D'UN KAM — décision de la Direction du 28/09/2026 : « une fois validée par le
-    // national sales ET le directeur des opérations, la direction marketing pré-valide ou refuse
-    // la tenue ». Les deux filtres, dans cet ordre, puis Direction Marketing — et pour le
-    // SPONSORING SEUL : la décision a été prise pour cette nature. L'étendre aux congrès et aux
-    // événements serait une empreinte plus large que la demande (§118.16) ; la règle du 22/09
-    // (« le national sales ne valide QUE si c'est un KAM ») reste celle des trois autres.
-    if (args.categorie === "SPONSORING") {
-      return { entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [] };
-    }
-    return { entree: SLUG_PRELIMINAIRE, decision: null, ignorees: [SLUG_DIRECTION] };
-  }
-  // TOUT AUTRE DEMANDEUR : « ça part direct chez la direction marketing ». Aucun filtre
-  // hiérarchique — ni superviseur national, ni Direction des opérations. Reste la porte du DG,
-  // franchie automatiquement sous le seuil, donc invisible pour la grande majorité des demandes.
-  return { entree: SLUG_DG, decision: null, ignorees: [SLUG_PRELIMINAIRE, SLUG_DIRECTION] };
+  // TOUT AUTRE DEMANDEUR — National Sales, Manager Promotion médicale, demandeur ordinaire : le
+  // Directeur des opérations, puis la Direction Marketing.
+  return { entree: SLUG_DIRECTION, decision: null, ignorees: [SLUG_PRELIMINAIRE, ...tamisCommun], dOffice: false };
 }
 
 /**
@@ -216,12 +209,13 @@ export function parcoursEffectif(
   rang: number,
   categorie: WorkflowCategory,
 ): Parcours {
-  const brut = parcoursAdPro({ rang, kam: estKam(demandeur), categorie });
+  const brut = parcoursAdPro({ rang, kam: estKam(demandeur), directionMarketing: estDirectionMarketing(demandeur), categorie });
   const connus = new Set(slugsDeLaDefinition);
   return {
     entree: brut.entree,
     decision: brut.decision !== null && connus.has(brut.decision) ? brut.decision : null,
     ignorees: brut.ignorees.filter((slug) => connus.has(slug)),
+    dOffice: brut.dOffice === true,
   };
 }
 

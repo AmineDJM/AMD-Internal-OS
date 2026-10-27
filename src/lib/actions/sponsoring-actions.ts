@@ -13,7 +13,7 @@ import { buildRef, createWithRetry } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";import { notifyRoles, notifyUser } from "@/lib/notify";
 import { involveThirdParty } from "@/lib/third-party";
-import { reopenInstance } from "@/lib/workflow/engine";
+import { ouvrirLeCircuit, reopenInstance } from "@/lib/workflow/engine";
 import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
 import { referentAInscrire } from "@/lib/ad-pro/referent-de-la-gamme";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
@@ -275,27 +275,14 @@ export async function createSponsoring(
   const manque = [attached.error, annexesJointes.error].filter(Boolean).join(" ");
 
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Sponsoring", entityType: "SPONSORING", entityId: created.id, summary: `Demande ${created.reference} — ${institution} — sponsoring ${nature === "DIRECT" ? "direct" : "indirect"}, poste créé avec la demande${nbPieces > 0 ? ` (${nbPieces} pièce(s) jointe(s))` : ""}` });
-  await notifyAdProCreation(init, created.id, `${created.reference} — ${institution}`);
+  // LE CIRCUIT NAÎT AVEC LA DEMANDE et prévient chaque acteur de SON parcours (décision #1, 27/10/2026).
+  await ouvrirLeCircuit("SPONSORING", created.id);
 
   revalidatePath(PATH);
   // Le tableau « Toutes les demandes » et « Mon espace » lisent aussi la demande qui vient de naître.
   revalidatePath("/ad-pro");
   revalidatePath("/mon-espace");
   return { ok: true, id: created.id, ...(manque ? { message: `Demande créée. ${manque}` } : {}) };
-}
-
-/** Notifie l'acteur de l'étape de DÉPART d'un sponsoring, selon le routage à la création. */
-async function notifyAdProCreation(init: ReturnType<typeof adProInit>, id: string, body: string) {
-  const link = `${PATH}/${id}`;
-  if (init.stage === "ANALYSIS" && init.productManagerId) {
-    await notifyUser({ userId: init.productManagerId, type: "ASSIGNMENT", title: "Sponsoring à analyser", body, link });
-    return;
-  }
-  if (init.stage === "FINAL") {
-    await notifyRoles(["DIRECTION", "SUPER_ADMIN"], { type: "SPONSORING_VALIDATION", title: "Sponsoring — validation définitive", body, link });
-    return;
-  }
-  await notifyRoles(["NATIONAL_SALES", "SUPER_ADMIN"], { type: "SPONSORING_VALIDATION", title: "Sponsoring — à attribuer (National Sales)", body, link });
 }
 
 // ───────────────────────── Validation finale et clôture (§118.151) ─────────────────────────

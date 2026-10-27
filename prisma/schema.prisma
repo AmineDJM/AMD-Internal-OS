@@ -960,6 +960,35 @@ model AssistantRoutineRun {
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// LA PORTE DU DG SUR LE TOTAL D'UNE DEMANDE Ad & Pro (Direction, 27/10/2026) — une ligne par demande.
+///
+/// Le DG ne valide plus une étape du circuit : il valide, à la fin, le TOTAL des postes de la demande
+/// quand il dépasse le seuil (règle pure : `lib/seuils/porte-dg-total.ts`, lecture : `lib/ad-pro/porte-dg.ts`).
+/// Tant que la porte est fermée, aucun bon de commande, engagement ni paiement. Une rallonge au-delà
+/// du total validé la rouvre. L'historique des décisions vit au journal du circuit (WorkflowStepEvent
+/// « DG_TOTAL ») et à l'audit.
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+model AdProPorteDg {
+  id         String     @id @default(cuid())
+  entityType EntityType
+  entityId   String
+  /// Dernière décision : « VALIDEE » ou « A_REVOIR » — null tant que le DG n'a pas statué.
+  statut     String?
+  /// Le total sur lequel il a statué.
+  montant    Decimal?   @db.Decimal(14, 2)
+  note       String?
+  decideParId String?
+  decideLe   DateTime?
+  /// Le dernier total pour lequel le DG a été PRÉVENU — on ne le relance pas pour le même total.
+  signaleMontant Decimal? @db.Decimal(14, 2)
+  signaleLe      DateTime?
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+
+  @@unique([entityType, entityId])
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
 /// LE FIL DE L'ASSISTANT IA — UNE conversation par personne, GARDÉE (Direction, 27/10 : « je ne veux
 /// pas qu'à chaque fois que je sors de l'assistant ça efface tout »). Jouée sur le serveur, message
 /// après message (`src/lib/agent/fil/service.ts`) : quitter l'écran n'interrompt rien, la réponse est
@@ -2309,9 +2338,11 @@ model SponsoringRequest {
   closedById          String?
   closingNote         String?
 
-  // Circuit de validation (calqué sur les congrès) — préliminaire (Direction) →
-  // analyse chef de produit (avis + budget proposé, CONFIDENTIELS vis-à-vis du délégué)
-  // → décision définitive (Direction : budget final + commentaire) → appel possible.
+  // Circuit de validation (règle du 27/10/2026, `lib/workflow/parcours.ts`) — PRÉVALIDATION :
+  // N+1 (National Sales pour un délégué, sinon le Directeur des opérations) → Directeur des opérations
+  // → Direction Marketing, qui prévalide la tenue (statut PRE_VALIDATED). Puis les POSTES, acceptés par la
+  // Direction Marketing ; le DG valide le TOTAL au-dessus du seuil (`AdProPorteDg`) ; appel possible.
+  // Les colonnes productManager* et final* sont celles des circuits antérieurs (historique conservé).
   preliminaryById      String?
   preliminaryAt        DateTime?
   preliminaryNote      String? // note interne de pré-validation (non visible par le délégué)
@@ -2415,9 +2446,9 @@ enum AdProItemOrderStage {
 /// l'événement vivait sans aucun lien.
 ///
 /// ⚠️ Un poste n'est PAS une demande : il ne déclenche aucun circuit de validation propre.
-/// L'opération garde son circuit unique (National Sales → chef de produit → Direction) et les
-/// postes en sont la ventilation. Multiplier les circuits triplerait la bureaucratie que le
-/// moteur cherche justement à réduire.
+/// L'opération garde son circuit unique (prévalidation : N+1 → Directeur des opérations → Direction
+/// Marketing, règle du 27/10/2026) et les postes en sont la ventilation : chacun est ACCEPTÉ par la
+/// Direction Marketing (montant + budget), et le DG valide le TOTAL au-dessus du seuil (`AdProPorteDg`).
 ///
 /// **Deux clés étrangères plutôt qu'un couple (type, id)** : une colonne polymorphe ne peut
 /// pas porter de contrainte, donc supprimer un congrès laisserait ses postes orphelins. Ici la
@@ -2437,6 +2468,10 @@ model AdProItem {
   congressInternational   CongressInternational? @relation(fields: [congressInternationalId], references: [id], onDelete: Cascade)
   eventId                 String?
   event                   Event?                 @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  /// LES DEMANDES « AUTRE » PORTENT AUSSI DES POSTES (Direction, 27/10/2026 : « les demandes autres suivent
+  /// le même circuit ») : prévalidation, postes acceptés par la Direction Marketing, DG sur le total.
+  otherRequestId          String?
+  otherRequest            AdProOtherRequest?     @relation(fields: [otherRequestId], references: [id], onDelete: Cascade)
   /// Cinquième porteur de postes : une FORMATION organisée par les RH (location de salle,
   /// traiteur, intervenant…), validés un par un par la direction — exactement comme les
   /// postes d'un sponsoring.
@@ -2581,6 +2616,7 @@ model AdProItem {
   @@index([congressNationalId])
   @@index([congressInternationalId])
   @@index([eventId])
+  @@index([otherRequestId])
   @@index([promoMaterialId])
   @@index([status])
   @@index([repartitionId])
@@ -8973,10 +9009,10 @@ model Event {
   responsible     User?         @relation("EventResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
   participantIds  String[]      @default([]) // participants Adventum (users)
 
-  // ─── Demande de prise en charge (workflow identique aux congrès) ───
-  // requestStatus = null → événement organisé directement (sans circuit de financement).
-  // Renseigné quand l'événement est soumis pour prise en charge : National Sales
-  // (préliminaire + chef de produit) → analyse chef de produit → Direction (définitif) → PRIM.
+  // ─── Demande de prise en charge (circuit identique aux congrès, règle du 27/10/2026) ───
+  // Événements pharma/scientifiques EXTERNES. requestStatus = null → né hors circuit : ni poste ni paiement
+  // tant qu'il n'est pas prévalidé. Soumis : N+1 → Directeur des opérations → Direction Marketing (prévalidation,
+  // requestStatus APPROVED), puis postes, puis le DG sur le total au-dessus du seuil (`AdProPorteDg`).
   requesterId          String?
   requestStatus        CongressRequestStatus?
   productManagerId     String?
@@ -12910,6 +12946,9 @@ model AdProOtherRequest {
   updatedById String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+
+  /// Les postes de la demande (27/10/2026) — ajoutés après sa prévalidation.
+  items AdProItem[]
 
   @@index([status])
   @@index([requesterId])
