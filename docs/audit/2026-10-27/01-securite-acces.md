@@ -38,7 +38,7 @@ Préfixe `SECURITE-ACCES-` abrégé en `SA-`.
 | SA-01 | HAUTE | sécurité (XSS) | `/api/onlyoffice/file` sert en ligne avec le type déclaré au dépôt | S | CORRIGÉ `c7a4fc0` |
 | SA-02 | HAUTE | sécurité (fuite) | API v1 : contenu d'une pièce sans contrôle si son porteur n'est pas au registre | S | CORRIGÉ `bca3bd3` |
 | SA-03 | HAUTE | sécurité (fuite) | API v1 : `?q=` écrase la portée par ligne (`{OR}` étalé sur `{OR}`) | S | CORRIGÉ `89917d9` |
-| SA-04 | HAUTE | sécurité (fuite) | API v1 : notifications et tâches de toute l'entreprise | S | CORRIGÉ `aa4d695` |
+| SA-04 | HAUTE | sécurité (fuite) | API v1 : notifications et tâches de toute l'entreprise | S | CORRIGÉ `aa4d695` + `98a584b` |
 | SA-05 | HAUTE | données sensibles | API v1 : paie exposée par `related` (bulletins) et `history` (ancien/nouveau salaire) | S | CORRIGÉ `e2177b4` |
 | SA-06 | HAUTE | intégrité / fraude | RH : on tranchait sa propre avance, note de frais, congé ; on réécrivait son congé décidé | S | CORRIGÉ `5fd642a` |
 | SA-07 | HAUTE | auth / sessions | Compte désactivé toujours connecté ; Super Admin rétrogradé garde la Vue exacte ; Adam visualisable | S | CORRIGÉ `4a81141` |
@@ -87,7 +87,7 @@ Préfixe `SECURITE-ACCES-` abrégé en `SA-`.
   visite de tous les délégués (idem `sale`, `doctor`, `admin_request`, `/search`).
 - **Correctif** : `{ AND: [portée, filtres, recherche] }` dans les 5 routes v1. Test : `src/app/api/v1/portee-recherche.test.ts`.
 
-### SA-04 — API v1 : notifications et tâches de tout le monde (HAUTE) — CORRIGÉ `aa4d695`
+### SA-04 — API v1 : notifications et tâches de tout le monde (HAUTE) — CORRIGÉ `aa4d695`, `98a584b` (clause tâche déplacée dans `portee.ts` : le socle ne connaît pas les domaines)
 - **Preuve** : `src/lib/api/registry/entities.ts` — `notification` et `task` en `scope: moduleOnly`, alors que tous les
   rôles ont `NOTIFICATIONS` et `WORKSPACE`.
 - **Scénario** : `GET /api/v1/entities/notification?limit=500` → titres, corps et liens des notifications de toute
