@@ -34,6 +34,16 @@ function typecheckSepare(phase) {
 const nextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // ── PAS D'OPTIMISEUR D'IMAGES (`/_next/image`) ───────────────────────────────────────
+  //
+  // Next 14 n'est plus corrigé : les failles de l'optimiseur publiées depuis 14.2.35 (déni de
+  // service, exécution de code à distance via SVG/AVIF — `npm audit`) ne le sont que dans 15.5.x.
+  // Ce point d'entrée est PUBLIC (aucune session demandée) et fait décoder des images par sharp
+  // pour n'importe qui. L'application ne s'en sert que pour UNE image décorative (fond flouté de
+  // l'assistant, recompressée à 125 Ko) : `unoptimized` fait répondre 404 au point d'entrée
+  // (`next/dist/server/next-server.js`, `imagesConfig.unoptimized`) et sert le fichier tel quel.
+  // À rouvrir seulement après la montée de version de Next (audit 27/10, INFRA-04).
+  images: { unoptimized: true },
   eslint: {
     // PAS un contournement : le lint tourne en PHASE SÉPARÉE et BLOQUANTE du build de
     // déploiement (`npm run build:render` → `next lint && next build`). Le faire tourner une
