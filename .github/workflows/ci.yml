@@ -86,8 +86,9 @@ jobs:
   tests:
     name: Vitest ${{ matrix.shard }}/4 (Postgres 16)
     runs-on: ubuntu-latest
-    # MESURÉ (27/10, 4 cœurs) : la suite complète (~1 220 fichiers) dépasse l'heure d'un seul tenant.
-    # Quatre tranches parallèles, chacune avec SON Postgres (les décors ne se marchent pas dessus).
+    # MESURÉ (27/10) : la suite complète (1 270 fichiers, 14 745 tests) prend 12 min 30 sur 4 cœurs,
+    # environ le double sur un runner privé à 2 vCPU. Quatre tranches parallèles, chacune avec SON
+    # Postgres (les décors ne se marchent pas dessus), ramènent le retour à quelques minutes.
     strategy:
       fail-fast: false
       matrix:
