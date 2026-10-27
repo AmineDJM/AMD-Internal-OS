@@ -5,6 +5,10 @@ import type { CurrentUser } from "@/lib/session";
 import { outilsPour } from "@/lib/agent/outils";
 import type { ModeleConfig } from "@/lib/agent/modele";
 
+// L'UI générative (R5) se lit au même endroit que le tour : l'action de l'écran n'a qu'une porte
+// vers le moteur — un import de plus depuis `app/(app)/assistant/` serait un franchissement de plus.
+export { composantsEnBlocs, lireReponseModele } from "@/lib/agent/ui/composants";
+
 /**
  * UN TOUR DE L'ASSISTANT — avec délai, et secours si plusieurs modèles sont configurés (aujourd'hui : MiMo seul).
  *

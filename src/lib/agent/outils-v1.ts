@@ -5,6 +5,9 @@ import { REGULATORY_READ_TOOLS } from "@/lib/assistant/regulatory-read";
 import { assistantToolsFor, buildProposal, executeReadTool, type ProposedAction } from "@/lib/assistant";
 import { persistActionIntents } from "@/lib/assistant/action-intents";
 import { censurerObjet, censurerTexte } from "@/lib/agent/filtre-confidentialite";
+import { defaultDefinition } from "@/lib/workflow/defaults";
+import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
+import { ROLE_LABELS } from "@/lib/labels";
 
 /**
  * LES OUTILS DE LA V1 — tous EXISTANTS, aucun réécrit (Q7, Q20).
@@ -19,8 +22,16 @@ import { censurerObjet, censurerTexte } from "@/lib/agent/filtre-confidentialite
  * une rémunération, une coordonnée bancaire ni une pièce d'identité.
  */
 const LECTURES_POWER = new Set(["directory_lookup", "directory_list", "regulatory_portfolio", "regulatory_workload", "regulatory_knowledge"]);
-const LECTURES_MOTEUR = new Set(["list_my_tasks", "search_products"]);
+const LECTURES_MOTEUR = new Set(["list_my_tasks", "search_products", "read_workflow"]);
 const ECRITURES = new Set(["create_task", "send_message"]);
+/** Ce que l'utilisateur lit sous la réponse (« sources consultées ») — jamais un nom d'outil. */
+const LIBELLES: Record<string, string> = {
+  list_my_tasks: "Tâches consultées",
+  read_workflow: "Circuit consulté",
+  search_products: "Catalogue consulté",
+  create_task: "Tâche préparée",
+  send_message: "Message préparé",
+};
 
 /** Le résultat d'un outil, censuré avant de partir au modèle. JSON gardé JSON quand il l'était. */
 export function censurerSortie(sortie: string): string {
@@ -32,10 +43,52 @@ export function censurerSortie(sortie: string): string {
   }
 }
 
-const filtre = (outil: PowerTool): PowerTool => ({
+/**
+ * Censure, et CONSIGNE ce que le modèle a lu : le garde-fou de l'UI générative (`ui/composants.ts`)
+ * n'accepte un chiffre ou une ligne d'un composant que s'il figure dans ces sorties.
+ */
+const filtre = (outil: PowerTool, journal?: string[]): PowerTool => ({
   ...outil,
-  run: async (entree, user) => censurerSortie(await outil.run(entree, user)),
+  run: async (entree, user) => {
+    const sortie = censurerSortie(await outil.run(entree, user));
+    journal?.push(sortie);
+    return sortie;
+  },
 });
+
+/**
+ * LE CIRCUIT, LISIBLE. `read_workflow` (la même lecture qu'Adam, les mêmes droits) rend un circuit
+ * PERSONNALISÉ étape par étape — mais, quand rien n'est personnalisé, seulement la phrase « circuit
+ * par défaut ». Mesuré : sans étapes, le modèle a INVENTÉ un circuit (« analyse réglementaire,
+ * validation budgétaire, comité… »). On complète donc par la définition par défaut CANONIQUE
+ * (`defaultDefinition`, celle que le moteur sème), et on ne garde que ce qu'une explication lit :
+ * l'ordre, le titre, qui agit, ce que l'étape fait.
+ */
+export function circuitLisible(sortie: string): string {
+  let o: Record<string, unknown>;
+  try { o = JSON.parse(sortie) as Record<string, unknown>; } catch { return sortie; }
+  const cat = String(o.categorie ?? "") as WorkflowCategory;
+  const etapes = Array.isArray(o.etapes)
+    ? (o.etapes as Record<string, unknown>[]).map((e) => ({
+      titre: e.title, qui: e.actorRoles, facultative: e.optional === true || undefined,
+      franchieSousSeuilDZD: e.autoSkipMaxAmount ?? undefined,
+    }))
+    : (WORKFLOW_CATEGORIES as readonly string[]).includes(cat)
+      ? defaultDefinition(cat).steps.map((e) => ({
+        titre: e.title,
+        qui: e.actorRoles.map((r) => ROLE_LABELS[r as keyof typeof ROLE_LABELS] ?? r),
+        role: e.description ?? undefined,
+        facultative: e.optional === true || undefined,
+      }))
+      : [];
+  return JSON.stringify({
+    circuit: o.libelle ?? o.categorie,
+    personnalise: Array.isArray(o.etapes),
+    actif: o.actif,
+    etapes,
+    note: "Chaque demande suit cette colonne selon son parcours (rôle du demandeur, seuil de montant) : une étape peut être franchie automatiquement.",
+  });
+}
 
 export interface PropositionPreparee {
   intentId: string;
@@ -46,7 +99,7 @@ export interface PropositionPreparee {
  * Les outils de CET utilisateur, pour CE tour. `propositions` recueille les intentions créées
  * pendant le tour : la réponse les rend à l'interface pour afficher la carte de confirmation.
  */
-export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[]): PowerTool[] {
+export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[], journal?: string[]): PowerTool[] {
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
   const defs = assistantToolsFor(user);
   const defParNom = new Map(defs.map((d) => [d.name, d]));
@@ -56,7 +109,15 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[])
   const lecturesMoteur: PowerTool[] = [...LECTURES_MOTEUR].flatMap((nom) => {
     const def = defParNom.get(nom);
     if (!def) return [];
-    return [{ def, allowed: (u) => u.id === user.id, label: def.name, run: (entree, u) => executeReadTool(nom, entree, u) }];
+    if (nom === "read_workflow") {
+      return [{
+        def: { ...def, description: "Lit le CIRCUIT DE VALIDATION d'une catégorie Ad & Pro (SPONSORING, CONGRESS_INTERNATIONAL, CONGRESS_NATIONAL, EVENTS) : étapes dans l'ordre et qui agit. À appeler AVANT d'expliquer un circuit — n'en décris jamais un de mémoire." },
+        allowed: (u) => u.id === user.id,
+        label: LIBELLES[nom] ?? def.name,
+        run: async (entree, u) => circuitLisible(await executeReadTool(nom, entree, u)),
+      }];
+    }
+    return [{ def, allowed: (u) => u.id === user.id, label: LIBELLES[nom] ?? def.name, run: (entree, u) => executeReadTool(nom, entree, u) }];
   });
 
   const ecritures: PowerTool[] = [...ECRITURES].flatMap((nom) => {
@@ -65,7 +126,7 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[])
     return [{
       def,
       allowed: (u) => u.id === user.id,
-      label: def.name,
+      label: LIBELLES[nom] ?? def.name,
       run: async (entree, u) => {
         const p = await buildProposal(nom, entree, u);
         if ("error" in p) return JSON.stringify({ statut: "REFUS", raison: p.error });
@@ -82,5 +143,5 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[])
     }];
   });
 
-  return [...lecturesPower, ...lecturesMoteur, ...ecritures].map(filtre);
+  return [...lecturesPower, ...lecturesMoteur, ...ecritures].map((o) => filtre(o, journal));
 }

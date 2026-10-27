@@ -7,13 +7,16 @@ import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { DELAI_MIMO_MS, modelesAssistant } from "@/lib/agent/modele";
-import { repondreAvecSecours } from "@/lib/agent/repondre";
+import { composantsEnBlocs, lireReponseModele, repondreAvecSecours } from "@/lib/agent/repondre";
+import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
 export interface ReponseBetaAction {
   ok: boolean;
   messageId: string;
   role: "assistant";
   content: string;
+  /** L'UI générative (R5) : les composants choisis par le modèle, PROUVÉS par les outils du tour. */
+  blocs?: WorkspaceBlock[];
   outilsAppeles: string[];
   intent?: {
     id: string;
@@ -96,20 +99,28 @@ export async function envoyerMessageBeta(
   }
 
   const propositions: PropositionPreparee[] = [];
+  const sorties: string[] = [];
+  const outils = outilsV1(user, propositions, sorties);
+  const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({
       user, message, historique: historiqueSur(historique), instructions,
-      outils: outilsV1(user, propositions), modeles, delaiMs: DELAI_MIMO_MS, config,
+      outils, modeles, delaiMs: DELAI_MIMO_MS, config,
       propositionsFaites: () => propositions.length,
     });
     if (r.echecs.length) console.warn("[assistant] modèles abandonnés", r.echecs);
+    // R5 : le modèle a choisi ses composants ; seuls ceux que les outils du tour prouvent restent.
+    const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
+    if (ui.retires.length) console.warn("[assistant] composants retirés", ui.retires);
     const p = propositions[0];
     return {
       ok: true,
       messageId,
       role: "assistant",
-      content: r.texte,
-      outilsAppeles: r.outilsAppeles,
+      content: ui.message || "Je n'ai pas de réponse à afficher.",
+      blocs: ui.blocs,
+      // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
+      outilsAppeles: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))],
       intent: p ? { id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields, status: "PROPOSED" } : null,
     };
   } catch (e) {

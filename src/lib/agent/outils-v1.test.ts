@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import { censurerSortie, outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { censurerSortie, circuitLisible, outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
 
 /**
  * LES OUTILS V1 SUR LA VRAIE BASE DE TEST (Q17) — sans Prisma simulé.
@@ -37,7 +37,7 @@ describe("outils V1", () => {
   it("offre au Super Admin les lectures et les deux écritures de la V1, rien d'autre", () => {
     const noms = outilsV1(auteur, []).map((o) => o.def.name).sort();
     expect(noms).toEqual([
-      "create_task", "directory_list", "directory_lookup", "list_my_tasks",
+      "create_task", "directory_list", "directory_lookup", "list_my_tasks", "read_workflow",
       "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload", "search_products", "send_message",
     ]);
   });
@@ -58,6 +58,27 @@ describe("outils V1", () => {
     const sortie = JSON.parse(await outil("send_message", props).run({ recipientName: `${TAG}Personne-Inexistante`, body: "x" }, auteur));
     expect(sortie.statut).toBe("REFUS");
     expect(props).toHaveLength(0);
+  });
+});
+
+describe("circuitLisible — un circuit expliqué se LIT, jamais de mémoire", () => {
+  it("non personnalisé : les étapes viennent de la définition par défaut du moteur, rôles en clair", () => {
+    const c = JSON.parse(circuitLisible(JSON.stringify({ categorie: "SPONSORING", libelle: "Sponsoring", actif: true, etapes: "Circuit PAR DÉFAUT …" })));
+    expect(c.personnalise).toBe(false);
+    expect(c.etapes.length).toBeGreaterThanOrEqual(3);
+    expect(c.etapes[0].titre).toMatch(/National Sales/);
+    expect(c.etapes.map((e: { titre: string }) => e.titre).join(" ")).toMatch(/Direction Marketing/);
+    expect(c.etapes[0].qui.join(" ")).not.toMatch(/^[A-Z_]+$/);
+  });
+
+  it("personnalisé : les étapes enregistrées, sans les dictionnaires d'administration", () => {
+    const c = JSON.parse(circuitLisible(JSON.stringify({ categorie: "EVENTS", libelle: "Événements", actif: true, etapes: [{ title: "Visa du chef", actorRoles: ["Direction"], optional: false }], dictionnaires: { x: 1 } })));
+    expect(c).toMatchObject({ personnalise: true, etapes: [{ titre: "Visa du chef", qui: ["Direction"] }] });
+    expect(JSON.stringify(c)).not.toMatch(/dictionnaires/);
+  });
+
+  it("une catégorie inconnue : le message du moteur passe tel quel", () => {
+    expect(circuitLisible("Catégorie inconnue.")).toBe("Catégorie inconnue.");
   });
 });
 

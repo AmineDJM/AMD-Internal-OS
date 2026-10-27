@@ -1,126 +1,119 @@
 "use client";
 
-import React, { useState, useRef } from "react";
-import { Send, SlidersHorizontal, Folder, CheckSquare, Users, RotateCcw } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { ArrowUp, RotateCcw } from "lucide-react";
 
 export interface CommandPillBarProps {
-  onSendMessage: (message: string, moduleFilter?: string) => void;
+  onSendMessage: (message: string) => void;
   onReset?: () => void;
   isLoading: boolean;
+  /** Les suggestions ne s'affichent que sur une conversation vide : ensuite, elles gênent. */
+  showSuggestions?: boolean;
+  /** Les gestes à gauche du champ (pièces jointes, vocal) — posés par l'écran. */
+  leading?: React.ReactNode;
+  /** Ce qui se pose au-dessus du champ (pièces jointes en attente). */
+  above?: React.ReactNode;
+  /** Envoi possible sans texte (une pièce jointe seule). */
+  canSendEmpty?: boolean;
 }
 
-export function CommandPillBar({ onSendMessage, onReset, isLoading }: CommandPillBarProps) {
+/**
+ * LE CHAMP DE SAISIE — pensé pour le pouce d'abord.
+ *
+ * Un champ qui grandit avec le texte (jusqu'à six lignes), en 16 px sur téléphone (iOS zoome sur
+ * un champ plus petit), un bouton d'envoi de 40 px. Entrée envoie sur ordinateur ; sur écran
+ * tactile, Entrée va à la ligne et le bouton envoie — comme dans les messageries.
+ *
+ * Les anciens filtres de module sont retirés : le serveur ne les lisait pas, ils ne filtraient rien.
+ */
+const SUGGESTIONS = [
+  "Quelles sont mes tâches en cours ?",
+  "Explique-moi le circuit d'une demande de sponsoring",
+  "Prépare une tâche pour demain",
+];
+
+export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggestions = false, leading, above, canSendEmpty = false }: CommandPillBarProps) {
   const [input, setInput] = useState("");
-  const [selectedModule, setSelectedModule] = useState<string>("TOUS");
-  const inputRef = useRef<HTMLInputElement>(null);
+  const zone = useRef<HTMLTextAreaElement>(null);
 
-  const modules = [
-    { id: "TOUS", label: "Tous", icon: SlidersHorizontal },
-    { id: "REGULATORY", label: "Réglementaire", icon: Folder },
-    { id: "WORKSPACE", label: "Tâches", icon: CheckSquare },
-    { id: "DIRECTORIES", label: "Annuaire", icon: Users },
-  ];
+  // Le champ grandit avec le texte, puis défile au-delà de six lignes.
+  useEffect(() => {
+    const el = zone.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [input]);
 
-  const suggestions = [
-    "Quel est le statut du dossier d'enregistrement Biocare ?",
-    "Crée une tâche urgente pour finaliser le module 3",
-    "Qui sont les collaborateurs de l'équipe ?",
-    "Combien de produits sont au catalogue ?",
-  ];
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const envoyer = () => {
     const texte = input.trim();
-    if (!texte || isLoading) return;
-    onSendMessage(texte, selectedModule === "TOUS" ? undefined : selectedModule);
+    if (isLoading || (!texte && !canSendEmpty)) return;
+    onSendMessage(texte);
     setInput("");
   };
 
-  const handleSuggestionClick = (sug: string) => {
-    if (isLoading) return;
-    onSendMessage(sug, selectedModule === "TOUS" ? undefined : selectedModule);
+  const surTouche = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+    const tactile = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
+    if (tactile) return;
+    e.preventDefault();
+    envoyer();
   };
 
   return (
     <div className="relative z-20 mx-auto w-full max-w-4xl space-y-2">
-      {/* Suggestions sobres */}
-      <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-        <span className="text-[11px] font-medium text-slate-500 pl-1 shrink-0 dark:text-zinc-400">
-          Suggestions :
-        </span>
-        {suggestions.map((sug, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => handleSuggestionClick(sug)}
-            disabled={isLoading}
-            className="shrink-0 rounded-lg border border-slate-200/90 bg-white/90 px-2.5 py-1 text-xs font-medium text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          >
-            {sug}
-          </button>
-        ))}
-      </div>
+      {showSuggestions && (
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-0.5 no-scrollbar">
+          {SUGGESTIONS.map((sug) => (
+            <button
+              key={sug}
+              type="button"
+              onClick={() => !isLoading && onSendMessage(sug)}
+              disabled={isLoading}
+              className="shrink-0 rounded-full border border-slate-200/90 bg-white/90 px-3 py-1.5 text-[13px] font-medium text-slate-700 shadow-2xs transition hover:bg-slate-50 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-900/90 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            >
+              {sug}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {/* Barre de commande sobre */}
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(e) => { e.preventDefault(); envoyer(); }}
         data-glass="true"
-        className="flex flex-col gap-2 rounded-2xl border border-slate-200/90 bg-white/95 p-2 shadow-xl backdrop-blur-2xl transition-all dark:border-zinc-800 dark:bg-zinc-950/95"
+        className="rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/95"
       >
-        {/* Filtres de modules */}
-        <div className="flex items-center justify-between gap-1 px-2 pt-1 border-b border-slate-100 pb-2 dark:border-zinc-800">
-          <div className="flex items-center gap-1">
-            {modules.map((m) => {
-              const Icon = m.icon;
-              const isActive = selectedModule === m.id;
-              return (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => setSelectedModule(m.id)}
-                  className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                    isActive
-                      ? "bg-slate-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                      : "text-slate-600 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  }`}
-                >
-                  <Icon className="h-3.5 w-3.5" />
-                  {m.label}
-                </button>
-              );
-            })}
-          </div>
-
+        {above}
+        <div className="flex items-end gap-1">
+          {leading}
+          <textarea
+            ref={zone}
+            rows={1}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={surTouche}
+            disabled={isLoading}
+            placeholder="Écrivez votre demande…"
+            aria-label="Votre message"
+            className="max-h-40 min-h-10 flex-1 resize-none bg-transparent px-2 py-2 text-base leading-6 text-slate-900 placeholder:text-slate-400 focus:outline-none sm:text-sm dark:text-zinc-100 dark:placeholder:text-zinc-500"
+          />
           {onReset && (
             <button
               type="button"
               onClick={onReset}
               title="Nouvelle conversation"
-              className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              aria-label="Nouvelle conversation"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
             >
-              <RotateCcw className="h-3 w-3" /> Réinitialiser
+              <RotateCcw className="h-4 w-4" />
             </button>
           )}
-        </div>
-
-        {/* Ligne d'entrée de texte */}
-        <div className="flex items-center gap-2 px-2 pb-0.5">
-          <input
-            ref={inputRef}
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            disabled={isLoading}
-            placeholder="Interroger les dossiers, vérifier un produit ou préparer une tâche..."
-            className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none dark:text-zinc-100 dark:placeholder:text-zinc-500"
-          />
-
           <button
             type="submit"
-            disabled={isLoading || !input.trim()}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-2xs transition hover:bg-slate-800 disabled:opacity-30 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            disabled={isLoading || (!input.trim() && !canSendEmpty)}
+            aria-label="Envoyer"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-2xs transition hover:bg-slate-800 disabled:opacity-30 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >
-            <Send className="h-3.5 w-3.5" />
+            <ArrowUp className="h-4 w-4" />
           </button>
         </div>
       </form>

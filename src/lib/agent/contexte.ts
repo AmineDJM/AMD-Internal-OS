@@ -3,6 +3,7 @@ import { userCan, MODULES, type Module } from "@/lib/rbac";
 import { MODULE_LABELS, ROLE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
+import { CONSIGNE_COMPOSANTS } from "@/lib/agent/ui/composants";
 
 /**
  * COUCHE DE CONTEXTE (Q9, Q11, Q14, Q17, C10).
@@ -97,7 +98,7 @@ async function chargerMessagesConversation(
 /**
  * LES RÈGLES DE RÉPONSE — tirées du prompt « Generative UI » fourni (C10,
  * `docs/assistant/prompt-systeme-ui-generative.md`), en français. La sortie structurée en
- * composants viendra à l'étape R5 ; d'ici là, le texte naturel.
+ * composants (R5) suit, dans sa propre section : `CONSIGNE_COMPOSANTS`.
  */
 const REGLES = [
   "Zéro invention : un fait, une personne, un produit, un statut ou un chiffre que tes outils ou ce contexte ne donnent pas, tu dis que tu ne l'as pas.",
@@ -157,6 +158,7 @@ export async function compileContext({
   }
 
   sections.push(`### RÈGLES FONDAMENTALES\n${REGLES.map((r, i) => `${i + 1}. ${r}`).join("\n")}`);
+  sections.push(`### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`);
 
   const systemPrompt = sections.join("\n\n");
   const tokensSys = estimerTokens(systemPrompt);

@@ -14,19 +14,23 @@ export interface AssistantWorkspaceProps {
   userRole?: string;
 }
 
-const INITIAL_GREETING = `Bonjour 👋\n\nBienvenue sur **Adventum Brain**. Je suis votre assistant interne, à votre disposition pour vous accompagner dans vos tâches.\n\nComment puis-je vous aider aujourd'hui ?`;
+/** L'accueil, au prénom de la personne : l'assistant travaille pour ELLE, avec SES droits. */
+function accueil(userName?: string): string {
+  const prenom = (userName ?? "").trim().split(/\s+/)[0];
+  return `Bonjour${prenom ? ` ${prenom}` : ""} 👋\n\nJe suis votre assistant interne. Je lis ce que vos accès vous permettent de voir, et je prépare tâches et messages — rien ne part sans votre confirmation.\n\nComment puis-je vous aider ?`;
+}
 
-export function AssistantWorkspace({ initialKpiData, userName, userRole }: AssistantWorkspaceProps) {
+export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome-1",
       role: "assistant",
-      content: INITIAL_GREETING,
+      content: accueil(userName),
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleSendMessage = async (text: string, moduleFilter?: string) => {
+  const handleSendMessage = async (text: string) => {
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
       role: "user",
@@ -43,13 +47,14 @@ export function AssistantWorkspace({ initialKpiData, userName, userRole }: Assis
         content: m.content,
       }));
 
-      const res = await envoyerMessageBeta(text, moduleFilter, historiqueFormat);
+      const res = await envoyerMessageBeta(text, undefined, historiqueFormat);
 
       if (res.ok) {
         const assistantMsg: ChatMessage = {
           id: res.messageId,
           role: "assistant",
           content: res.content,
+          blocs: res.blocs,
           outilsAppeles: res.outilsAppeles,
           intent: res.intent || null,
           createdAt: new Date().toISOString(),
@@ -63,11 +68,11 @@ export function AssistantWorkspace({ initialKpiData, userName, userRole }: Assis
         };
         setMessages((prev) => [...prev, errorMsg]);
       }
-    } catch (e: any) {
+    } catch {
       const errorMsg: ChatMessage = {
         id: `err-${Date.now()}`,
         role: "assistant",
-        content: `Erreur de communication : ${e.message}`,
+        content: "La connexion a été interrompue. Réessayez dans un instant.",
       };
       setMessages((prev) => [...prev, errorMsg]);
     } finally {
@@ -84,7 +89,7 @@ export function AssistantWorkspace({ initialKpiData, userName, userRole }: Assis
       {
         id: `welcome-${Date.now()}`,
         role: "assistant",
-        content: INITIAL_GREETING,
+        content: accueil(userName),
       },
     ]);
   };
@@ -109,12 +114,11 @@ export function AssistantWorkspace({ initialKpiData, userName, userRole }: Assis
         <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 via-transparent to-slate-950/20" />
       </div>
 
-      {/* 3. Conteneur principal ERP & Chat en verre dépoli Apple (Plein écran & épuré) */}
-      <div className="relative z-10 flex h-full w-full flex-1 flex-col p-2 sm:p-4 lg:p-6 overflow-hidden">
-        {/* Espace central de conversation en verre translucide */}
+      {/* 3. Conteneur principal — plein écran sur téléphone (chaque pixel compte), verre dépoli au-delà. */}
+      <div className="relative z-10 flex h-full w-full flex-1 flex-col overflow-hidden sm:p-4 lg:p-6">
         <div
           data-glass="true"
-          className="relative mx-auto flex h-full w-full max-w-5xl flex-1 flex-col overflow-hidden rounded-3xl border border-white/60 bg-white/75 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-zinc-950/70"
+          className="relative mx-auto flex h-full w-full max-w-5xl flex-1 flex-col overflow-hidden bg-white/80 backdrop-blur-2xl sm:rounded-3xl sm:border sm:border-white/60 sm:bg-white/75 sm:shadow-2xl dark:bg-zinc-950/75 sm:dark:border-white/10 sm:dark:bg-zinc-950/70"
         >
           <ChatMessageList
             messages={messages}
@@ -122,12 +126,13 @@ export function AssistantWorkspace({ initialKpiData, userName, userRole }: Assis
             onConfirmIntent={handleConfirmIntent}
           />
 
-          {/* Barre de commande flottante au bas du chat */}
-          <div className="p-3 pt-0 sm:p-4 sm:pt-0">
+          {/* Barre de saisie — au-dessus de la barre système du téléphone (zone sûre). */}
+          <div className="px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 sm:p-4 sm:pt-0">
             <CommandPillBar
               onSendMessage={handleSendMessage}
               onReset={handleReset}
               isLoading={isLoading}
+              showSuggestions={messages.length <= 1}
             />
           </div>
         </div>
