@@ -56,7 +56,8 @@ describe("runScheduledJobs — le cliquet de forme", () => {
     const src = readFileSync("src/lib/scheduled.ts", "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     const debut = src.indexOf("export async function runScheduledJobs");
     const corps = src.slice(src.indexOf("try {", debut) + 5, src.indexOf("} catch (err)", debut));
-    const nus = corps.split(";").map((x) => x.trim()).filter((x) => /^await\b/.test(x) && !/\.catch\(/.test(x));
-    expect(nus, "un balayage sans .catch saute tous les suivants s'il lève").toEqual([]);
+    // `etape(nom, travail)` (`scheduler/etape.ts`) isole le balayage lui-même : il attrape, nomme et journalise.
+    const nus = corps.split(";").map((x) => x.trim()).filter((x) => /^await\b/.test(x) && !/\.catch\(/.test(x) && !/^await etape\(/.test(x));
+    expect(nus, "un balayage sans .catch ni etape(...) saute tous les suivants s'il lève").toEqual([]);
   });
 });
