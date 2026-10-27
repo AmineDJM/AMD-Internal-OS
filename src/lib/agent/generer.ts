@@ -16,8 +16,11 @@ export function remplacerModelesPourTests(m: ModeleTour[] | null): void {
   modelesDeTest = m;
 }
 
+/** Les modèles de l'assistant — ou le faux modèle d'un test. */
+export const modelesEffectifs = (): ModeleTour[] => modelesDeTest ?? modelesAssistant();
+
 export async function genererTexte(consigne: string, texte: string, delaiMs = 60_000): Promise<{ ok: true; texte: string } | { ok: false; raison: string }> {
-  const modeles: ModeleTour[] = modelesDeTest ?? modelesAssistant();
+  const modeles = modelesEffectifs();
   if (!modeles.length) return { ok: false, raison: "L'assistant n'a pas de modèle configuré." };
   let raison = "aucune réponse";
   for (const m of modeles) {

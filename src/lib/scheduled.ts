@@ -122,6 +122,11 @@ export async function runScheduledJobs(): Promise<void> {
     // LE BRIEFING DU MATIN d'Adventum Brain : une fois par jour, à 7 h (Alger), APRÈS la passe horaire qui vient de
     // réconcilier les risques — il les lit, il ne les recalcule pas.
     await runBrainBriefingIfDue().catch(() => undefined);
+    // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
+    // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
+    await import("@/lib/agent/routines/service")
+      .then((m) => m.executerRoutinesDues())
+      .catch((e) => console.error("[scheduled] routines de l'assistant", e));
     // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
     // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
     await runPettyCashRechargeReminders().catch(() => 0);

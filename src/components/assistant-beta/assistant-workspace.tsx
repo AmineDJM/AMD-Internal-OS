@@ -1,13 +1,15 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Image from "next/image";
 import { LuminescentCursor } from "./luminescent-cursor";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
+import { RoutinesPanel } from "./routines-panel";
 import { BoutonJoindre, PiecesEnAttente, televerser, type PieceJointe } from "./pieces-jointes";
-import { Brain } from "lucide-react";
+import { AlarmClock, Brain } from "lucide-react";
+import { listerMesRoutines } from "@/lib/actions/assistant-ia-actions";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
 
@@ -33,6 +35,17 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [memoireOuverte, setMemoireOuverte] = useState(false);
+  const [routinesOuvertes, setRoutinesOuvertes] = useState(false);
+  const [routineInitiale, setRoutineInitiale] = useState<string | null>(null);
+  const [nonLus, setNonLus] = useState(0);
+  const majNonLus = useCallback((n: number) => setNonLus(n), []);
+
+  // Une notification de routine mène ici (« ?routine=… ») : le panneau s'ouvre sur son dernier passage.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("routine");
+    if (id) { setRoutineInitiale(id); setRoutinesOuvertes(true); }
+    void listerMesRoutines().then((r) => { if (r.ok) setNonLus(r.nonLus); }).catch(() => undefined);
+  }, []);
   const [pieces, setPieces] = useState<PieceJointe[]>([]);
   const envoiEnCours = pieces.some((p) => p.etat === "envoi");
 
@@ -174,6 +187,16 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
                 >
                   <Brain className="h-4 w-4" />
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setRoutinesOuvertes(true)}
+                  aria-label={nonLus ? `Mes routines (${nonLus} non lu${nonLus > 1 ? "s" : ""})` : "Mes routines"}
+                  title="Mes routines"
+                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  <AlarmClock className="h-4 w-4" />
+                  {nonLus > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-violet-600" />}
+                </button>
                 </>
               }
             />
@@ -181,6 +204,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
         </div>
       </div>
       <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
+      <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
     </div>
   );
 }

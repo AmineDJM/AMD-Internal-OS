@@ -13,6 +13,7 @@ import { BC_DEPUIS_DEVIS } from "./bc-depuis-devis";
 import { VOYAGEUR_PASSEPORT } from "./voyageur-passeport";
 import { TRADUCTION } from "./traduction";
 import { FORMULAIRE_PDF } from "./formulaire-pdf";
+import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "./types";
 
 export type { ChargeOperationIA } from "./types";
@@ -23,6 +24,7 @@ export const OPERATIONS_IA: OperationIA[] = [
   BON_DE_COMMANDE, BC_DEPUIS_DEVIS, VOYAGEUR_PASSEPORT,
   RELANCE, DEPOT_PIECE, RENDEZ_VOUS, REPONSE_MESSAGE,
   DOCUMENT_MODELE, TRADUCTION, FORMULAIRE_PDF,
+  PROGRAMMER_ROUTINE, GERER_ROUTINE,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));

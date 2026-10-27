@@ -893,6 +893,72 @@ model AssistantMemoryItem {
   @@index([userId, type])
 }
 
+/// UNE ROUTINE DE L'ASSISTANT IA — « fais-moi un briefing du marché pharmaceutique en Algérie chaque
+/// dimanche à 8 h ». Programmée PAR la personne (jamais de l'initiative de l'assistant), confirmée sur
+/// une carte, exécutée sous SES droits revérifiés à chaque passage, en LECTURE seule : une routine lit
+/// et rapporte, elle n'écrit rien dans l'ERP. Heures en heure d'Alger (UTC+1, sans heure d'été).
+model AssistantRoutine {
+  id                String    @id @default(cuid())
+  userId            String
+  user              User      @relation("AssistantRoutines", fields: [userId], references: [id], onDelete: Cascade)
+  /// Le nom lu dans la liste — « Briefing marché pharma DZ ».
+  titre             String
+  /// La demande, réécrite comme si la personne la tapait (« Fais un briefing… »).
+  consigne          String
+  /// ONCE | DAILY | WEEKLY | MONTHLY
+  frequence         String
+  /// Toutes les N périodes (1 = chaque jour / chaque semaine / chaque mois).
+  intervalle        Int       @default(1)
+  /// WEEKLY : jours de la semaine (0 = dimanche) ; vide sinon.
+  jours             Int[]     @default([])
+  /// MONTHLY : 1-31, ou -1 pour le dernier jour du mois.
+  jourDuMois        Int?
+  heure             Int
+  minute            Int       @default(0)
+  /// ONCE : l'instant unique ; sinon l'ancre des intervalles (première semaine / premier mois).
+  debutLe           DateTime  @default(now())
+  finLe             DateTime?
+  maxExecutions     Int?
+  /// ACTIVE | PAUSED | ENDED
+  statut            String    @default("ACTIVE")
+  prochaineLe       DateTime?
+  /// Verrou de passage : une instance la prend, les autres passent leur chemin.
+  priseLe           DateTime?
+  executions        Int       @default(0)
+  echecsConsecutifs Int       @default(0)
+  derniereLe        DateTime?
+  /// L'état gardé d'un passage à l'autre — le dernier rapport, pour ne pas répéter ce qui a été dit.
+  etat              Json?
+  notifier          Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  passages          AssistantRoutineRun[]
+
+  @@index([statut, prochaineLe])
+  @@index([userId, statut])
+}
+
+/// UN PASSAGE D'UNE ROUTINE — son rapport, ou la raison de son échec. Jamais un échec muet.
+model AssistantRoutineRun {
+  id            String           @id @default(cuid())
+  routineId     String
+  routine       AssistantRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+  debutLe       DateTime         @default(now())
+  finLe         DateTime?
+  /// SUCCES | RIEN_DE_NOUVEAU | ECHEC | IGNOREE
+  statut        String
+  /// PLANIFIE | MANUEL
+  declenchement String           @default("PLANIFIE")
+  contenu       String?
+  blocs         Json?
+  erreur        String?
+  outils        Json?
+  luLe          DateTime?
+  ms            Int?
+
+  @@index([routineId, debutLe])
+}
+
 /// LE REGISTRE DES DÉCISIONS EXÉCUTIVES — « on choisit le fournisseur B » mérite d'être retrouvable
 /// six mois plus tard avec son contexte, ses options, son attendu… et son RÉSULTAT RÉEL.
 /// Enregistrer une décision n'exécute JAMAIS ses conséquences. Une bonne décision peut produire
@@ -1373,6 +1439,7 @@ model User {
   assistantRemindersTargeted AssistantReminder[]             @relation("AssistantReminderTarget")
   scheduledWorkflows         ScheduledWorkflow[]             @relation("ScheduledWorkflowOwner")
   assistantMemoryItems       AssistantMemoryItem[]           @relation("AssistantMemoryItems")
+  assistantRoutines          AssistantRoutine[]              @relation("AssistantRoutines")
   executiveDecisions         ExecutiveDecision[]             @relation("ExecutiveDecisions")
   executiveObjectives        ExecutiveObjective[]            @relation("ExecutiveObjectives")
   executiveCommitments       ExecutiveCommitment[]           @relation("ExecutiveCommitments")

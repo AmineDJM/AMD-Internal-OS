@@ -62,3 +62,51 @@ export async function effacerToutMaMemoire() {
   if (!p.ok) return p;
   return { ok: true as const, effaces: await toutEffacerMemoire(p.user.id) };
 }
+
+// ─────────────────────────────── Les routines ───────────────────────────────
+//
+// Les gestes de la personne sur SES routines, depuis l'onglet « Routines » : les voir, lire un
+// passage (il passe « lu »), mettre en pause, reprendre, supprimer, exécuter maintenant. La
+// création passe par la conversation et sa carte. Identité de la session, jamais d'un paramètre.
+
+export async function listerMesRoutines() {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  const { listerRoutines, passagesNonLus } = await import("@/lib/agent/routines/service");
+  return { ok: true as const, routines: await listerRoutines(p.user.id), nonLus: await passagesNonLus(p.user.id) };
+}
+
+export async function lireMonPassage(runId: string) {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  if (typeof runId !== "string" || !runId) return { ok: false as const, erreur: "Passage introuvable." };
+  const { lirePassage } = await import("@/lib/agent/routines/service");
+  const passage = await lirePassage(p.user.id, runId);
+  return passage ? { ok: true as const, passage: JSON.parse(JSON.stringify(passage)) as typeof passage } : { ok: false as const, erreur: "Passage introuvable." };
+}
+
+export async function basculerMaRoutine(id: string, statut: "ACTIVE" | "PAUSED") {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (typeof id !== "string" || !id || (statut !== "ACTIVE" && statut !== "PAUSED")) return { ok: false as const, erreur: "Routine introuvable." };
+  const { changerStatut } = await import("@/lib/agent/routines/service");
+  const r = await changerStatut(p.user.id, id, statut);
+  return r.ok ? { ok: true as const } : { ok: false as const, erreur: r.erreur };
+}
+
+export async function supprimerMaRoutine(id: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (typeof id !== "string" || !id) return { ok: false as const, erreur: "Routine introuvable." };
+  const { supprimerRoutine } = await import("@/lib/agent/routines/service");
+  return (await supprimerRoutine(p.user.id, id)) ? { ok: true as const } : { ok: false as const, erreur: "Routine introuvable." };
+}
+
+export async function executerMaRoutine(id: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (typeof id !== "string" || !id) return { ok: false as const, erreur: "Routine introuvable." };
+  const { executerMaintenant } = await import("@/lib/agent/routines/service");
+  const r = await executerMaintenant(p.user.id, id);
+  return r.ok ? { ok: true as const, statut: r.statut, runId: r.runId } : { ok: false as const, erreur: r.erreur };
+}

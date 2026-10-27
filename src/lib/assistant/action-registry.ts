@@ -1794,6 +1794,10 @@ X("MÉMOIRE PERSONNELLE de l'Assistant IA — les gestes de la personne sur SA m
   "assistant-ia-actions:listerMaMemoire", "assistant-ia-actions:retenirMemoire", "assistant-ia-actions:corrigerMemoire",
   "assistant-ia-actions:effacerElementMemoire", "assistant-ia-actions:effacerToutMaMemoire",
 ]);
+X("ROUTINES PERSONNELLES de l'Assistant IA — les gestes de la personne sur SES routines (voir, lire un passage, pause, reprise, suppression, exécution immédiate). Identité prise de la session, jamais d'un paramètre ; une routine ne lit qu'avec les droits de sa propriétaire et n'écrit rien : ce n'est pas une action métier à proposer.", [
+  "assistant-ia-actions:listerMesRoutines", "assistant-ia-actions:lireMonPassage", "assistant-ia-actions:basculerMaRoutine",
+  "assistant-ia-actions:supprimerMaRoutine", "assistant-ia-actions:executerMaRoutine",
+]);
 X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
   "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",
   "budget-scope-actions:rememberBudgetEnvelope", "supplier-actions:updateSupplierView",
