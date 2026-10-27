@@ -8,6 +8,7 @@ import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, liste, nombre, texte, type OperationIA, type PropositionOperation } from "./types";
 import { lireMedecins, replier, valeurCommune } from "./annuaire-medical";
 import { dateIso } from "./adpro-prise-en-charge";
+import { avertissementBudget } from "./budget";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -120,6 +121,7 @@ export const EVENEMENT_CREATION: OperationIA = {
     const seuil = (await getAppSettings()).adProDgThreshold;
     if (porteDgRequise(budget, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera aussi.`);
     if (lus.inconnus.length) warnings.push(`Hors annuaire médical (saisis tels quels) : ${lus.inconnus.join(", ")}.`);
+    warnings.push(await avertissementBudget(user, budget));
     warnings.push("Créé puis soumis au circuit de validation dans la foulée.");
 
     return {

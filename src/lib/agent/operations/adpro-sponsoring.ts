@@ -8,6 +8,7 @@ import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, liste, nombre, texte, type OperationIA, type PropositionOperation } from "./types";
 import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
 import { lireMedecins, replier, valeurCommune } from "./annuaire-medical";
+import { avertissementBudget } from "./budget";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -133,6 +134,7 @@ export const SPONSORING_CREATION: OperationIA = {
     if (porteDgRequise(montantSuggere, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera aussi.`);
     if (inconnus.length) warnings.push(`Hors annuaire médical (saisis tels quels) : ${inconnus.join(", ")}.`);
     if (prerempli.length) warnings.push(`Pré-rempli depuis l'annuaire médical : ${prerempli.join(", ")} — vérifiez.`);
+    warnings.push(await avertissementBudget(user, montantSuggere));
     warnings.push("Le sponsoring devient le premier POSTE de la demande ; les autres postes s'ajoutent après la pré-validation de la tenue. Le budget est accordé ensuite par la Direction.");
     warnings.push("L'original de la demande du médecin doit être déposé au bureau du secrétariat.");
 

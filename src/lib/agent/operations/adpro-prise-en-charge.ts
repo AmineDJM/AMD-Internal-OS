@@ -8,6 +8,7 @@ import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, liste, nombre, texte, type OperationIA, type PropositionOperation } from "./types";
 import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
 import { lireMedecins, replier } from "./annuaire-medical";
+import { avertissementBudget } from "./budget";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -128,6 +129,7 @@ export const PRISE_EN_CHARGE_CREATION: OperationIA = {
     if (proches.length) warnings.push(`Doublon possible : ${proches.map((x) => `« ${x.name} » créée le ${x.createdAt.toLocaleDateString("fr-FR")}`).join(" ; ")} — même événement, moins d'un an.`);
     const seuil = (await getAppSettings()).adProDgThreshold;
     if (budget != null && porteDgRequise(budget, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera aussi.`);
+    warnings.push(await avertissementBudget(user, budget));
     const exigees = piecesAttendues(perimetre === "INTL" ? "INTERNATIONAL" : "NATIONAL").map((x) => x.label.toLowerCase());
     if (beneficiaires.length) warnings.push(`Pièces exigées de chaque bénéficiaire, à déposer sur sa fiche après la création : ${exigees.join(", ")}.`);
     else warnings.push("Aucun bénéficiaire proposé : vous les ajouterez sur la demande, fiche par fiche.");

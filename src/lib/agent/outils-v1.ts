@@ -10,6 +10,7 @@ import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types
 import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "@/lib/agent/memoire-ui";
 import { outilsOperations, type PropositionCarte } from "@/lib/agent/operations";
+import { lecturesQuotidien } from "@/lib/agent/lectures";
 
 /**
  * LES OUTILS DE LA V1 — tous EXISTANTS, aucun réécrit (Q7, Q20).
@@ -178,6 +179,6 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
     }];
   });
 
-  return [...lecturesPower, ...lecturesMoteur, ...ecritures, ...outilsOperations(user, propositions), outilMemoire(user, memoires)]
+  return [...lecturesPower, ...lecturesMoteur, ...lecturesQuotidien(user, propositions), ...ecritures, ...outilsOperations(user, propositions), outilMemoire(user, memoires)]
     .map((o) => filtre(o, journal));
 }

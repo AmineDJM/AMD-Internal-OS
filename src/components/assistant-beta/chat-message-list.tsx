@@ -29,6 +29,8 @@ export interface ChatMessage {
     fields?: { label: string; value: string }[];
     warnings?: string[];
     confirmText?: string;
+    /** Le libellé du bouton quand « Confirmer » ne dit pas le geste. */
+    libelleBouton?: string;
     status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
     resultLink?: string;
     resultMessage?: string;
@@ -123,6 +125,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                       fields={m.intent.fields}
                       warnings={m.intent.warnings}
                       confirmText={m.intent.confirmText}
+                      libelleBouton={m.intent.libelleBouton}
                       initialStatus={m.intent.status}
                       resultLink={m.intent.resultLink}
                       resultMessage={m.intent.resultMessage}

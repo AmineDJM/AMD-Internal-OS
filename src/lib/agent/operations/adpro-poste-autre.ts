@@ -10,6 +10,7 @@ import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
 import { liste } from "./types";
 import { replier } from "./annuaire-medical";
 import { trouverDemande } from "./demandes-visibles";
+import { avertissementBudget } from "./budget";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -71,6 +72,7 @@ export const POSTE_AJOUT: OperationIA = {
     const warnings: string[] = [];
     const seuil = (await getAppSettings()).adProDgThreshold;
     if (montant != null && porteDgRequise(montant, seuil)) warnings.push(`Ce poste dépasse à lui seul le seuil de ${dzd(seuil)} du Directeur Général.`);
+    warnings.push(await avertissementBudget(user, montant));
     if (e.rallonge === true) warnings.push("RALLONGE : ce poste s'ajoute EN PLUS du budget accordé — il sera arbitré à part.");
     warnings.push("L'action de l'écran vérifie que la demande accepte des postes (après la pré-validation de la tenue, demande non close).");
     return {
@@ -130,7 +132,7 @@ export const AUTRE_CREATION: OperationIA = {
     const pieces = await resoudrePieces(user, liste(e, "pieces"));
     if ("erreur" in pieces) return { erreur: pieces.erreur };
     const montant = nombre(e, "montant");
-    const warnings: string[] = ["La demande part directement à la Direction, qui décide."];
+    const warnings: string[] = ["La demande part directement à la Direction, qui décide.", await avertissementBudget(user, montant)];
     const seuil = (await getAppSettings()).adProDgThreshold;
     if (montant != null && porteDgRequise(montant, seuil)) warnings.push(`Au-delà du seuil de ${dzd(seuil)} : le Directeur Général validera aussi.`);
     return {

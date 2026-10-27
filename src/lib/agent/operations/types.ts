@@ -30,6 +30,8 @@ export interface CarteOperation {
   warnings: string[];
   level?: "SENSITIVE" | "CRITICAL";
   confirmText?: string;
+  /** Le libellé du bouton quand « Confirmer » ne dit pas le geste (« Créer la demande de validation »). */
+  libelleBouton?: string;
 }
 
 export type PropositionOperation =

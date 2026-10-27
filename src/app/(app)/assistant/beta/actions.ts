@@ -29,6 +29,8 @@ export interface ReponseBetaAction {
     warnings?: string[];
     /** CRITIQUE : la valeur à ressaisir pour armer la confirmation (vérifiée par le serveur). */
     confirmText?: string;
+    /** Le libellé du bouton quand « Confirmer » ne dit pas le geste. */
+    libelleBouton?: string;
     fields?: { label: string; value: string }[];
     status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
     resultLink?: string;
@@ -139,6 +141,7 @@ export async function envoyerMessageBeta(
         id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields,
         ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
         ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
+        ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
         status: "PROPOSED",
       } : null,
     };

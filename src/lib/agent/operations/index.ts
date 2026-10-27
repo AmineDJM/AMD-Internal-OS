@@ -6,6 +6,8 @@ import { PRISE_EN_CHARGE_CREATION } from "./adpro-prise-en-charge";
 import { EVENEMENT_CREATION } from "./adpro-evenement";
 import { MATERIEL_PROMO_CREATION } from "./adpro-materiel-promo";
 import { AUTRE_CREATION, POSTE_AJOUT } from "./adpro-poste-autre";
+import { BON_DE_COMMANDE } from "./bon-de-commande";
+import { DEPOT_PIECE, RELANCE, RENDEZ_VOUS, REPONSE_MESSAGE } from "./quotidien";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "./types";
 
 export type { ChargeOperationIA } from "./types";
@@ -13,6 +15,8 @@ export type { ChargeOperationIA } from "./types";
 /** LE REGISTRE — chaque geste que l'Assistant IA sait préparer. */
 export const OPERATIONS_IA: OperationIA[] = [
   SPONSORING_CREATION, PRISE_EN_CHARGE_CREATION, EVENEMENT_CREATION, MATERIEL_PROMO_CREATION, AUTRE_CREATION, POSTE_AJOUT,
+  BON_DE_COMMANDE,
+  RELANCE, DEPOT_PIECE, RENDEZ_VOUS, REPONSE_MESSAGE,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));
@@ -27,6 +31,7 @@ export interface PropositionCarte {
     warnings?: string[];
     level?: "SENSITIVE" | "CRITICAL";
     confirmText?: string;
+    libelleBouton?: string;
     payload?: unknown;
   };
 }

@@ -13,6 +13,8 @@ export interface ActionIntentCardProps {
   warnings?: string[];
   /** CRITIQUE : la valeur à ressaisir pour armer le bouton (le serveur la revérifie). */
   confirmText?: string;
+  /** Le libellé du bouton quand « Confirmer » ne dit pas le geste. */
+  libelleBouton?: string;
   initialStatus?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
   resultLink?: string;
   resultMessage?: string;
@@ -27,6 +29,7 @@ export function ActionConfirmationCard({
   fields = [],
   warnings = [],
   confirmText,
+  libelleBouton,
   initialStatus = "PROPOSED",
   resultLink,
   resultMessage,
@@ -153,7 +156,7 @@ export function ActionConfirmationCard({
                 </>
               ) : (
                 <>
-                  <Check className="h-3.5 w-3.5" /> Confirmer
+                  <Check className="h-3.5 w-3.5" /> {libelleBouton ?? "Confirmer"}
                 </>
               )}
             </button>
