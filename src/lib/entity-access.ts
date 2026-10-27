@@ -388,7 +388,7 @@ export async function accesAuxPiecesLegalDetaille(
       where: { legalDocumentId: { in: uniques } },
       select: {
         legalDocumentId: true,
-        item: { select: { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true } },
+        item: { select: { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, trainingId: true } },
       },
     });
     if (liens.length > 0) {
@@ -608,7 +608,7 @@ export async function canAccessEntity(
   if (entityType === "AD_PRO_ITEM") {
     const poste = await prisma.adProItem.findUnique({
       where: { id: entityId },
-      select: { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true },
+      select: { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, trainingId: true },
     });
     if (!poste) return false;
     const parent = parentDuPoste(poste);

@@ -72,11 +72,13 @@ const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
 
 const CHEMIN: Record<string, string> = {
   SPONSORING: "/sponsoring", CONGRESS_NATIONAL: "/congress-national", CONGRESS_INTERNATIONAL: "/congress-international", EVENT: "/events",
+  AD_PRO_OTHER: "/ad-pro/autres",
 };
 
 /** Le MODULE de droits de chaque opération (pour `userCan`). */
-export const MODULE_OPERATION: Record<string, "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENTS"> = {
+export const MODULE_OPERATION: Record<string, "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "EVENTS" | "AD_PRO_OTHER"> = {
   SPONSORING: "SPONSORING", CONGRESS_NATIONAL: "CONGRESS_NATIONAL", CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL", EVENT: "EVENTS",
+  AD_PRO_OTHER: "AD_PRO_OTHER",
 };
 
 export const cheminOperation = (type: string, id: string) => `${CHEMIN[type] ?? "/"}/${id}`;
@@ -84,23 +86,25 @@ export const cheminOperation = (type: string, id: string) => `${CHEMIN[type] ?? 
 /** Les opérations, en lot — une requête par famille, jamais une par fiche. */
 async function operations(ids: { type: EntityType; id: string }[]): Promise<Map<string, OperationDeFiche & { sujetPriseEnCharge: string | null }>> {
   const par = (t: string) => [...new Set(ids.filter((x) => x.type === t).map((x) => x.id))];
-  const [spo, cn, ci, ev] = await Promise.all([
+  const [spo, cn, ci, ev, aut] = await Promise.all([
     par("SPONSORING").length ? prisma.sponsoringRequest.findMany({ where: { id: { in: par("SPONSORING") } }, select: { id: true, reference: true, institution: true, companyId: true, requesterId: true } }) : [],
     par("CONGRESS_NATIONAL").length ? prisma.congressNational.findMany({ where: { id: { in: par("CONGRESS_NATIONAL") } }, select: { id: true, name: true, companyId: true, requesterId: true, careReservationDossierId: true } }) : [],
     par("CONGRESS_INTERNATIONAL").length ? prisma.congressInternational.findMany({ where: { id: { in: par("CONGRESS_INTERNATIONAL") } }, select: { id: true, name: true, companyId: true, requesterId: true, careReservationDossierId: true } }) : [],
     par("EVENT").length ? prisma.event.findMany({ where: { id: { in: par("EVENT") } }, select: { id: true, name: true, companyId: true, requesterId: true } }) : [],
+    par("AD_PRO_OTHER").length ? prisma.adProOtherRequest.findMany({ where: { id: { in: par("AD_PRO_OTHER") } }, select: { id: true, reference: true, title: true, companyId: true, requesterId: true } }) : [],
   ]);
   const m = new Map<string, OperationDeFiche & { sujetPriseEnCharge: string | null }>();
   for (const r of spo) m.set(`SPONSORING:${r.id}`, { type: "SPONSORING", id: r.id, ref: `${r.reference} · ${r.institution}`, companyId: r.companyId, requesterId: r.requesterId, chemin: cheminOperation("SPONSORING", r.id), sujetPriseEnCharge: null });
   for (const r of cn) m.set(`CONGRESS_NATIONAL:${r.id}`, { type: "CONGRESS_NATIONAL", id: r.id, ref: r.name, companyId: r.companyId, requesterId: r.requesterId, chemin: cheminOperation("CONGRESS_NATIONAL", r.id), sujetPriseEnCharge: r.careReservationDossierId });
   for (const r of ci) m.set(`CONGRESS_INTERNATIONAL:${r.id}`, { type: "CONGRESS_INTERNATIONAL", id: r.id, ref: r.name, companyId: r.companyId, requesterId: r.requesterId, chemin: cheminOperation("CONGRESS_INTERNATIONAL", r.id), sujetPriseEnCharge: r.careReservationDossierId });
   for (const r of ev) m.set(`EVENT:${r.id}`, { type: "EVENT", id: r.id, ref: r.name, companyId: r.companyId, requesterId: r.requesterId, chemin: cheminOperation("EVENT", r.id), sujetPriseEnCharge: null });
+  for (const r of aut) m.set(`AD_PRO_OTHER:${r.id}`, { type: "AD_PRO_OTHER", id: r.id, ref: `${r.reference} · ${r.title}`, companyId: r.companyId, requesterId: r.requesterId, chemin: cheminOperation("AD_PRO_OTHER", r.id), sujetPriseEnCharge: null });
   return m;
 }
 
 const POSTE_SELECT = {
   id: true, label: true, status: true, amountGranted: true, supplier: true, reservationDossierId: true,
-  sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
+  sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
 } as const;
 type PosteLu = Prisma.AdProItemGetPayload<{ select: typeof POSTE_SELECT }>;
 
@@ -109,6 +113,7 @@ function operationDuPoste(p: PosteLu): { type: EntityType; id: string } | null {
   if (p.congressNationalId) return { type: "CONGRESS_NATIONAL", id: p.congressNationalId };
   if (p.congressInternationalId) return { type: "CONGRESS_INTERNATIONAL", id: p.congressInternationalId };
   if (p.eventId) return { type: "EVENT", id: p.eventId };
+  if (p.otherRequestId) return { type: "AD_PRO_OTHER", id: p.otherRequestId };
   return null;
 }
 

@@ -115,6 +115,14 @@ export async function resolveWorkflowRequest(category: WorkflowCategory, rawQuer
       where: { name: { contains: query, mode: "insensitive" } }, select: { id: true, name: true }, take: 6,
     });
     rows = found.map((r) => ({ id: r.id, display: r.name }));
+  } else if (category === "OTHER") {
+    // LA DEMANDE « AUTRE » (27/10/2026) : sa référence (AUT-…) ou son objet.
+    const found = await prisma.adProOtherRequest.findMany({
+      where: { OR: [{ reference: { contains: query, mode: "insensitive" } }, { title: { contains: query, mode: "insensitive" } }] },
+      select: { id: true, reference: true, title: true },
+      take: 6,
+    });
+    rows = found.map((r) => ({ id: r.id, display: `${r.reference} — ${r.title}` }));
   } else {
     const found = await prisma.event.findMany({
       where: { name: { contains: query, mode: "insensitive" } }, select: { id: true, name: true }, take: 6,
@@ -167,5 +175,6 @@ export function resolveWorkflowCategory(raw: string): WorkflowCategory | null {
   if (folded.includes("international")) return "CONGRESS_INTERNATIONAL";
   if (folded.includes("national")) return "CONGRESS_NATIONAL";
   if (folded.includes("evenement") || folded.includes("event")) return "EVENTS";
+  if (folded.includes("autre")) return "OTHER";
   return null;
 }

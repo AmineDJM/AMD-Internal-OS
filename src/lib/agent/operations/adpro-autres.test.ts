@@ -81,7 +81,7 @@ suite("Assistant IA — les autres natures Ad & Pro", () => {
     expect(await prisma.promoMaterial.count({ where: { title: `${TAG}Campagne hiver` } })).toBe(1);
   });
 
-  it("demande « autre » : objet + description, part à la Direction", async () => {
+  it("demande « autre » : objet + description, part dans son circuit", async () => {
     const p = await AUTRE_CREATION.proposer({ objet: `${TAG}Abonnement revue`, description: "Abonnement annuel à une revue médicale.", montant: 120_000 }, admin);
     if (!("carte" in p)) throw new Error(JSON.stringify(p));
     ACTOR = admin;

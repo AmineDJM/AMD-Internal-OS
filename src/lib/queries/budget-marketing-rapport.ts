@@ -50,20 +50,22 @@ export interface LigneDepense {
   montant: number;
 }
 
-const TYPES_DEMANDE = ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "TRAINING", "PROMO_MATERIAL", "MEDICAL_INFO_DECLARATION"] as const;
+const TYPES_DEMANDE = ["SPONSORING", "CONGRESS_NATIONAL", "CONGRESS_INTERNATIONAL", "EVENT", "AD_PRO_OTHER", "TRAINING", "PROMO_MATERIAL", "MEDICAL_INFO_DECLARATION"] as const;
 type TypeDemande = (typeof TYPES_DEMANDE)[number];
 const estTypeDemande = (t: EntityType | string | null | undefined): t is TypeDemande => t != null && (TYPES_DEMANDE as readonly string[]).includes(t);
 const cleDemande = (t: TypeDemande, id: string) => `${t}:${id}`;
 
 const LIBELLE_TYPE: Record<TypeDemande, string> = {
   SPONSORING: "Sponsoring", CONGRESS_NATIONAL: "Prise en charge nationale", CONGRESS_INTERNATIONAL: "Prise en charge internationale",
-  EVENT: "Événement", TRAINING: "Formation",
+  EVENT: "Événement", AD_PRO_OTHER: "Autre demande", TRAINING: "Formation",
   PROMO_MATERIAL: "Matériel promotionnel", MEDICAL_INFO_DECLARATION: "Information médicale",
 };
 
 /** Le parent d'un poste Ad & Pro, en clé de demande. */
 export function demandeDuPoste(p: {
   sponsoringId: string | null; congressNationalId: string | null; congressInternationalId: string | null; eventId: string | null; trainingId: string | null;
+  /** La demande « autre » (27/10/2026, décision #17). Facultative : les lectures d'avant ne la sélectionnent pas. */
+  otherRequestId?: string | null;
   /** Les deux porteurs des seuls postes HISTORIQUES (intégration Ad & Pro 2026). */
   promoMaterialParentId?: string | null; declarationInfoMedId?: string | null;
 }): string | null {
@@ -71,26 +73,28 @@ export function demandeDuPoste(p: {
   if (p.congressNationalId) return cleDemande("CONGRESS_NATIONAL", p.congressNationalId);
   if (p.congressInternationalId) return cleDemande("CONGRESS_INTERNATIONAL", p.congressInternationalId);
   if (p.eventId) return cleDemande("EVENT", p.eventId);
+  if (p.otherRequestId) return cleDemande("AD_PRO_OTHER", p.otherRequestId);
   if (p.trainingId) return cleDemande("TRAINING", p.trainingId);
   if (p.promoMaterialParentId) return cleDemande("PROMO_MATERIAL", p.promoMaterialParentId);
   if (p.declarationInfoMedId) return cleDemande("MEDICAL_INFO_DECLARATION", p.declarationInfoMedId);
   return null;
 }
 
-const SELECT_PARENT = { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, trainingId: true, promoMaterialParentId: true, declarationInfoMedId: true } as const;
+const SELECT_PARENT = { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, trainingId: true, promoMaterialParentId: true, declarationInfoMedId: true } as const;
 
 /** Les libellés et liens des demandes, lus en lot. */
 export async function libellesDesDemandes(cles: Iterable<string>): Promise<Record<string, DemandeRef>> {
-  const par: Record<TypeDemande, string[]> = { SPONSORING: [], CONGRESS_NATIONAL: [], CONGRESS_INTERNATIONAL: [], EVENT: [], TRAINING: [], PROMO_MATERIAL: [], MEDICAL_INFO_DECLARATION: [] };
+  const par: Record<TypeDemande, string[]> = { SPONSORING: [], CONGRESS_NATIONAL: [], CONGRESS_INTERNATIONAL: [], EVENT: [], AD_PRO_OTHER: [], TRAINING: [], PROMO_MATERIAL: [], MEDICAL_INFO_DECLARATION: [] };
   for (const c of new Set(cles)) {
     const [t, id] = c.split(":");
     if (estTypeDemande(t) && id) par[t].push(id);
   }
-  const [sp, cn, ci, ev, tr, pm, dim] = await Promise.all([
+  const [sp, cn, ci, ev, aut, tr, pm, dim] = await Promise.all([
     par.SPONSORING.length ? prisma.sponsoringRequest.findMany({ where: { id: { in: par.SPONSORING } }, select: { id: true, reference: true, institution: true } }) : [],
     par.CONGRESS_NATIONAL.length ? prisma.congressNational.findMany({ where: { id: { in: par.CONGRESS_NATIONAL } }, select: { id: true, name: true } }) : [],
     par.CONGRESS_INTERNATIONAL.length ? prisma.congressInternational.findMany({ where: { id: { in: par.CONGRESS_INTERNATIONAL } }, select: { id: true, name: true } }) : [],
     par.EVENT.length ? prisma.event.findMany({ where: { id: { in: par.EVENT } }, select: { id: true, name: true } }) : [],
+    par.AD_PRO_OTHER.length ? prisma.adProOtherRequest.findMany({ where: { id: { in: par.AD_PRO_OTHER } }, select: { id: true, reference: true, title: true } }) : [],
     par.TRAINING.length ? prisma.training.findMany({ where: { id: { in: par.TRAINING } }, select: { id: true, title: true } }) : [],
     par.PROMO_MATERIAL.length ? prisma.promoMaterial.findMany({ where: { id: { in: par.PROMO_MATERIAL } }, select: { id: true, reference: true, title: true } }) : [],
     par.MEDICAL_INFO_DECLARATION.length ? prisma.medicalInfoDeclaration.findMany({ where: { id: { in: par.MEDICAL_INFO_DECLARATION } }, select: { id: true, reference: true, label: true } }) : [],
@@ -100,6 +104,7 @@ export async function libellesDesDemandes(cles: Iterable<string>): Promise<Recor
   for (const c of cn) out[cleDemande("CONGRESS_NATIONAL", c.id)] = { cle: cleDemande("CONGRESS_NATIONAL", c.id), libelle: c.name, href: `/congress-national/${c.id}`, type: LIBELLE_TYPE.CONGRESS_NATIONAL };
   for (const c of ci) out[cleDemande("CONGRESS_INTERNATIONAL", c.id)] = { cle: cleDemande("CONGRESS_INTERNATIONAL", c.id), libelle: c.name, href: `/congress-international/${c.id}`, type: LIBELLE_TYPE.CONGRESS_INTERNATIONAL };
   for (const e of ev) out[cleDemande("EVENT", e.id)] = { cle: cleDemande("EVENT", e.id), libelle: e.name, href: `/events/${e.id}`, type: LIBELLE_TYPE.EVENT };
+  for (const o of aut) out[cleDemande("AD_PRO_OTHER", o.id)] = { cle: cleDemande("AD_PRO_OTHER", o.id), libelle: `${o.reference} — ${o.title}`, href: `/ad-pro/autres/${o.id}`, type: LIBELLE_TYPE.AD_PRO_OTHER };
   for (const t of tr) out[cleDemande("TRAINING", t.id)] = { cle: cleDemande("TRAINING", t.id), libelle: t.title, href: lienDemande("TRAINING", t.id), type: LIBELLE_TYPE.TRAINING };
   for (const m of pm) out[cleDemande("PROMO_MATERIAL", m.id)] = { cle: cleDemande("PROMO_MATERIAL", m.id), libelle: `${m.reference} — ${m.title}`, href: `/promo-material/${m.id}`, type: LIBELLE_TYPE.PROMO_MATERIAL };
   for (const d of dim) out[cleDemande("MEDICAL_INFO_DECLARATION", d.id)] = { cle: cleDemande("MEDICAL_INFO_DECLARATION", d.id), libelle: `${d.reference} — ${d.label}`, href: `/information-medicale/${d.id}`, type: LIBELLE_TYPE.MEDICAL_INFO_DECLARATION };

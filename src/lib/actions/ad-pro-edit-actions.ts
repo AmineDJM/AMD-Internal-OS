@@ -41,8 +41,9 @@ interface Target {
   listeDe?: (row: Record<string, unknown>) => string;
   /**
    * Le statut où la demande ATTEND encore sa décision et où sa porte au centre Ad & Pro suit le montant
-   * (audit 360°, lot C4a) — pour les deux natures dont le visa EST la porte. Les cinq autres portent une
-   * étape de circuit : `apresModificationDeLaDemande` s'en charge.
+   * (audit 360°, lot C4a) — pour la nature dont le visa EST la porte (le consulting). Les autres portent un
+   * circuit : `apresModificationDeLaDemande` s'en charge — la demande « autre » comprise depuis le
+   * 27/10/2026 (décision #17).
    */
   attendLeCentre?: (row: Record<string, unknown>) => boolean;
   path: string;
@@ -112,7 +113,8 @@ const TARGETS: Record<AdProKind, Target> = {
     module: "AD_PRO_OTHER",
     path: "/ad-pro/autres",
     statusField: "status",
-    attendLeCentre: (row) => row.status === "AWAITING_DECISION",
+    // PLUS DE VISA DU CENTRE (27/10/2026) : la demande « autre » suit le circuit commun, et le DG valide le
+    // TOTAL de ses postes au-dessus du seuil (`ad-pro/porte-dg.ts`), pas le montant demandé.
     load: (id) => prisma.adProOtherRequest.findUnique({ where: { id } }) as Promise<Record<string, unknown> | null>,
     save: (id, data) => prisma.adProOtherRequest.update({ where: { id }, data }),
   },
@@ -220,8 +222,8 @@ export async function updateAdProRequest(formData: FormData): Promise<ActionResu
   // nouveau montant dépasse se rouvre. Le matériel promotionnel a son propre circuit : il n'est pas
   // concerné. Un échec ici ne défait pas la modification, déjà écrite et tracée.
   let porteRouverte: string | null = null;
-  // LE VISA DU CENTRE SUIT LE MONTANT (audit 360°, lot C4a) — consulting et « autres demandes » : leur
-  // porte est un visa, pas une étape. Corrigé sous le seuil, la porte en attente se retire ; au-dessus
+  // LE VISA DU CENTRE SUIT LE MONTANT (audit 360°, lot C4a) — le consulting : sa porte est un visa, pas
+  // une étape. Corrigé sous le seuil, la porte en attente se retire ; au-dessus
   // de ce qu'une autorisation couvrait, elle se rouvre ; un refus du centre reste (réexamen).
   let phraseCentre: string | null = null;
   if (target.attendLeCentre && "amount" in data && target.attendLeCentre(before)) {
@@ -236,7 +238,7 @@ export async function updateAdProRequest(formData: FormData): Promise<ActionResu
       });
     }
   }
-  if (kind !== "PROMO_MATERIAL" && kind !== "CONSULTING_CONTRACT" && kind !== "AD_PRO_OTHER") {
+  if (kind !== "PROMO_MATERIAL" && kind !== "CONSULTING_CONTRACT") {
     porteRouverte = (await apresModificationDeLaDemande({
       viewer: { id: user.id, role: user.role, secondaryRole: user.secondaryRole ?? null, name: user.name },
       entityType: kind, entityId: id, changes,

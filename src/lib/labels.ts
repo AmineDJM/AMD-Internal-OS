@@ -1256,14 +1256,19 @@ export const CONSULTING_BILLING: Record<string, string> = {
 export const CONSULTING_BILLING_OPTIONS: { value: string; label: string }[] =
   Object.entries(CONSULTING_BILLING).map(([value, label]) => ({ value, label }));
 
-/** DEMANDE « AUTRE » — circuit court : il n'y a pas de parcours propre, il y a un décideur. */
+/**
+ * DEMANDE « AUTRE » — elle suit le circuit commun depuis le 27/10/2026 (décision #17) : « en cours de
+ * validation » jusqu'à la prévalidation de la Direction Marketing (l'étape exacte est sur le panneau du
+ * circuit), puis « prévalidée » — les postes se préparent —, puis terminée.
+ */
 export const AD_PRO_OTHER_STATUS: Record<string, Display> = {
   DRAFT: { label: "Brouillon", tone: "neutral" },
-  AWAITING_DECISION: { label: "En attente de décision", tone: "warning" },
-  APPROVED: { label: "Validée", tone: "info" },
+  AWAITING_DECISION: { label: "En cours de validation", tone: "warning" },
+  APPROVED: { label: "Prévalidée", tone: "info" },
   REFUSED: { label: "Refusée", tone: "danger" },
   DONE: { label: "Terminée", tone: "success" },
   CANCELLED: { label: "Annulée", tone: "danger" },
+  RETURNED: { label: "À corriger", tone: "warning" },
 };
 
 /** Ordre de l'ANCIEN circuit (quinze étapes) — ne sert plus qu'aux dossiers d'avant la réforme. */

@@ -61,6 +61,8 @@ const PARENT_DU_POSTE = [
   ["congressNationalId", "CONGRESS_NATIONAL"],
   ["congressInternationalId", "CONGRESS_INTERNATIONAL"],
   ["eventId", "EVENT"],
+  // La demande « autre » porte des postes depuis le 27/10/2026 (décision #17).
+  ["otherRequestId", "AD_PRO_OTHER"],
 ] as const;
 
 export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
@@ -89,7 +91,7 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
       select: {
         id: true, kind: true, label: true, supplier: true, amountGranted: true, orderNote: true,
         orderRequestedAt: true, orderRequestedById: true, updatedAt: true,
-        sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true,
+        sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true,
       },
       orderBy: { updatedAt: "asc" },
       take: 300,
@@ -148,7 +150,7 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
       if (id) opsDesPostes.set(type, [...(opsDesPostes.get(type) ?? []), id]);
     }
   }
-  const [sponsPostes, intlPostes, natioPostes, evtsPostes] = await Promise.all([
+  const [sponsPostes, intlPostes, natioPostes, evtsPostes, autresPostes] = await Promise.all([
     opsDesPostes.get("SPONSORING")?.length
       ? prisma.sponsoringRequest.findMany({ where: { id: { in: opsDesPostes.get("SPONSORING")! } }, select: { id: true, reference: true, institution: true } }).catch(() => [])
       : [],
@@ -161,12 +163,16 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     opsDesPostes.get("EVENT")?.length
       ? prisma.event.findMany({ where: { id: { in: opsDesPostes.get("EVENT")! } }, select: { id: true, name: true } }).catch(() => [])
       : [],
+    opsDesPostes.get("AD_PRO_OTHER")?.length
+      ? prisma.adProOtherRequest.findMany({ where: { id: { in: opsDesPostes.get("AD_PRO_OTHER")! } }, select: { id: true, reference: true, title: true } }).catch(() => [])
+      : [],
   ]);
   const OPERATION = new Map<string, string>();
   for (const r of sponsPostes) OPERATION.set(`SPONSORING:${r.id}`, intitule(r.reference, r.institution, "Sponsoring"));
   for (const r of intlPostes) OPERATION.set(`CONGRESS_INTERNATIONAL:${r.id}`, r.name);
   for (const r of natioPostes) OPERATION.set(`CONGRESS_NATIONAL:${r.id}`, r.name);
   for (const r of evtsPostes) OPERATION.set(`EVENT:${r.id}`, r.name);
+  for (const r of autresPostes) OPERATION.set(`AD_PRO_OTHER:${r.id}`, intitule(r.reference, r.title, "Autre demande"));
 
   // Les BC du registre Legal nés d'Ad & Pro, dont le visa attend.
   const idsBCLegal = visas.filter((v) => v.entityType === "LEGAL_DOCUMENT").map((v) => v.entityId);

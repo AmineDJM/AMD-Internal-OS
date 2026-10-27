@@ -67,10 +67,10 @@ describe("la forme de porte de CHAQUE nature du pôle", () => {
   });
 
   it("les natures à VISA sont DÉRIVÉES de la table, jamais recopiées", () => {
-    // La NATURE s'appelle « OTHER » ; « AD_PRO_OTHER » est son TYPE D'ENTITÉ. Les deux se
-    // ressemblent assez pour qu'on écrive l'un en pensant l'autre — §118.107 l'a déjà payé sur
-    // EVENTS/EVENT, et ce banc l'a repayé ici.
-    expect(NATURES_A_VISA.slice().sort()).toEqual(["CONSULTING", "OTHER"]);
+    // La demande « autre » (nature `OTHER`) a QUITTÉ le visa le 27/10/2026 (décision #17) : elle suit le
+    // circuit commun, et le DG valide le total de ses postes. Seul le consulting garde le visa.
+    expect(NATURES_A_VISA.slice().sort()).toEqual(["CONSULTING"]);
+    expect(FORME_PORTE.OTHER).toBe("ETAPE_CIRCUIT");
     for (const n of NATURES_A_VISA) expect(FORME_PORTE[n]).toBe("VISA_CENTRE");
   });
 });
@@ -179,10 +179,9 @@ describe("ce que le centre affiche en tête", () => {
 describe("les points d'appel de la garde de visa", () => {
   const lire = (f: string) => readFileSync(f, "utf8");
 
-  it("les DEUX natures à visa appellent `blocageCentreAdPro` dans leur chemin de DÉCISION", () => {
+  it("la nature à visa appelle `blocageCentreAdPro` dans son chemin de DÉCISION", () => {
     const attendus: [string, string, string][] = [
       ["CONSULTING", "src/lib/actions/consulting-actions.ts", "decideConsultingContract"],
-      ["OTHER", "src/lib/actions/ad-pro-other-actions.ts", "decideAdProOtherRequest"],
     ];
     // Le lot et le registre canonique doivent rester d'accord : une TROISIÈME nature à visa
     // ajoutée demain fait tomber ce test au lieu de partir sans garde (§118.17).
@@ -202,9 +201,12 @@ describe("les points d'appel de la garde de visa", () => {
     }
   });
 
-  it("les DEUX natures POSENT le visa sur leur chemin d'entrée au circuit", () => {
+  it("la nature à visa POSE le visa sur son chemin d'entrée ; la demande « autre » ouvre le circuit", () => {
     expect(lire("src/lib/actions/consulting-actions.ts")).toMatch(/poserVisaAdPro\s*\(/);
-    expect(lire("src/lib/actions/ad-pro-other-actions.ts")).toMatch(/poserVisaAdPro\s*\(/);
+    // 27/10/2026 (décision #17) : plus de visa à la création d'une « autre » — le circuit naît avec elle.
+    const autre = lire("src/lib/actions/ad-pro-other-actions.ts");
+    expect(autre).not.toMatch(/poserVisaAdPro\s*\(/);
+    expect(autre).toMatch(/ouvrirLeCircuit\(\s*"AD_PRO_OTHER"/);
   });
 
   /**

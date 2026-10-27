@@ -49,7 +49,6 @@ const POINTS: Point[] = [
   ["src/app/(app)/consulting/[id]/actions-panel.tsx", "decideConsultingContract", 3],
   ["src/app/(app)/consulting/[id]/actions-panel.tsx", "closeConsultingContract", 2],
   ["src/app/(app)/consulting/[id]/actions-panel.tsx", "prolongerConsultingContract", 1],
-  ["src/app/(app)/ad-pro/autres/[id]/decision-panel.tsx", "decideAdProOtherRequest", 2],
   ["src/app/(app)/ad-pro/autres/[id]/decision-panel.tsx", "closeAdProOtherRequest", 2],
   // Congés, formations, avances, intérim, recrutement, dossier RH, paie
   ["src/components/hr/leave-approvals.tsx", 'decide("APPROVED")', 1],
