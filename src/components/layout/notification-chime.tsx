@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
+import { EVENEMENT_NON_LUES } from "@/components/layout/notification-popup";
 
 /**
  * Sonnerie de notification (rappels « Me rappeler », invitations, etc.) — sonde le nombre de
  * notifications non lues et, dès qu'il **augmente**, joue un petit **carillon sympa et pro** (arpège
  * doux, différent du « ding » de la messagerie) et, si l'app n'est pas au premier plan et que les
- * notifications sont autorisées, affiche une notification bureau. Sondage même en arrière-plan.
+ * notifications sont autorisées, affiche une notification bureau. Le compteur vient du sondage de
+ * `NotificationPopup` (événement `EVENEMENT_NON_LUES`), même en arrière-plan.
  */
 let ctx: AudioContext | null = null;
 let unlocked = false;
@@ -69,22 +71,17 @@ export function NotificationChime({ initial }: { initial: number }) {
     return () => ["pointerdown", "keydown", "touchstart"].forEach((e) => window.removeEventListener(e, onGesture));
   }, []);
 
+  // PAS DE SONDAGE PROPRE (audit performance, PERF-04) : la fenêtre pop-up sonde déjà
+  // `/api/notifications/poll` et diffuse le compteur. Deux sondages de la même route, à 15 s et
+  // 20 s, doublaient le coût — chaque appel résout la session et tous les droits.
   React.useEffect(() => {
-    let alive = true;
-    const tick = async () => {
-      try {
-        const res = await fetch("/api/notifications/poll", { cache: "no-store" });
-        if (!res.ok || !alive) return;
-        const data = await res.json();
-        const unread = Number(data.unread ?? 0);
-        if (unread > prev.current) { playChime(); desktop(); }
-        prev.current = unread;
-      } catch { /* réseau : prochain tick */ }
+    const onUnread = (e: Event) => {
+      const unread = Number((e as CustomEvent<{ unread?: number }>).detail?.unread ?? 0);
+      if (unread > prev.current) { playChime(); desktop(); }
+      prev.current = unread;
     };
-    const t = setInterval(tick, 20000);
-    const onVis = () => { if (document.visibilityState === "visible") tick(); };
-    document.addEventListener("visibilitychange", onVis);
-    return () => { alive = false; clearInterval(t); document.removeEventListener("visibilitychange", onVis); };
+    window.addEventListener(EVENEMENT_NON_LUES, onUnread);
+    return () => window.removeEventListener(EVENEMENT_NON_LUES, onUnread);
   }, []);
 
   return null;
