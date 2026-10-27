@@ -1,0 +1,139 @@
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+# CI — la porte que chaque commit doit franchir AVANT que Render ne le déploie.
+#
+# Jusqu'ici, la seule barrière était la discipline locale (CLAUDE.md : typecheck → build → test
+# → lint) et le build de Render lui-même — qui échoue APRÈS avoir déjà appliqué les migrations
+# (voir refonte/p0-outillage) et sans que personne ne soit prévenu. Ce pipeline rejoue la même
+# séquence, à chaque push et chaque PR, sur une machine neuve (pas de cache `.next` trompeur) et
+# contre un Postgres neuf (les 460+ migrations rejouées depuis zéro, ce qu'aucun poste ne fait).
+#
+# Trois jobs PARALLÈLES, chacun dans son propre conteneur — même raison que build:render : lint,
+# typecheck et compilation additionnés dans un seul processus dépassent la mémoire.
+#   verifier : migrations sur base vide · contrat des actions · typecheck · lint
+#   tests    : Vitest complet en 4 tranches, chacune contre son Postgres 16 (les suites DB tournent)
+#   build    : `npm run build:render` à froid — la commande exacte du déploiement
+#
+# Rien ici ne sort : aucune clé de fournisseur, ADAM_SORTIE_INTERDITE=1, base locale au runner.
+# Audit 27/10/2026 — docs/audit/2026-10-27/10-infra-ci-observabilite.md (INFRA-01).
+# ═══════════════════════════════════════════════════════════════════════════════════════════
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**", "refonte/**", "audit/**"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Même URL que le défaut de `npm test` : le garde de prisma.ts exige un hôte local.
+  DATABASE_URL: postgresql://amd:amd@localhost:5432/amd_internal_os
+  TEST_DATABASE_URL: postgresql://amd:amd@localhost:5432/amd_internal_os
+  AUTH_SECRET: ci-secret-non-utilise-en-production-0123456789abcdef
+  ADAM_SORTIE_INTERDITE: "1"
+  NEXT_TELEMETRY_DISABLED: "1"
+  CI: "true"
+
+jobs:
+  verifier:
+    name: Migrations · contrat · typecheck · lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: amd
+          POSTGRES_PASSWORD: amd
+          POSTGRES_DB: amd_internal_os
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U amd" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      # Les migrations, rejouées sur une base VIDE : un SQL non idempotent ou mal ordonné échoue
+      # ici et non pendant le déploiement.
+      - run: npx prisma migrate deploy
+      # La dérive schéma ↔ base (558 lignes de `prisma migrate diff` au 27/10) est tenue par le
+      # test-cliquet de refonte/p0-outillage (src/lib/derive-schema/), qui tourne dans `tests`.
+      - run: npm run db:bootstrap
+      # Contrat des server actions : le fichier généré est-il celui du code ?
+      - name: Contrat des actions à jour
+        run: |
+          npm run actions:contrat
+          git diff --exit-code -- src/lib/actions/
+      # Les deux typechecks : complet (tests, scripts, e2e) et celui du build de production.
+      - run: npm run typecheck
+        env: { NODE_OPTIONS: --max-old-space-size=6144 }
+      - run: npx tsc --noEmit -p tsconfig.build.json
+        env: { NODE_OPTIONS: --max-old-space-size=6144 }
+      # Render lance `next lint` AVANT le build (build:render) : une erreur bloque le déploiement.
+      - run: npx next lint
+        env: { NODE_OPTIONS: --max-old-space-size=3072 }
+
+  tests:
+    name: Vitest ${{ matrix.shard }}/4 (Postgres 16)
+    runs-on: ubuntu-latest
+    # MESURÉ (27/10, 4 cœurs) : la suite complète (~1 220 fichiers) dépasse l'heure d'un seul tenant.
+    # Quatre tranches parallèles, chacune avec SON Postgres (les décors ne se marchent pas dessus).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    timeout-minutes: 60
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: amd
+          POSTGRES_PASSWORD: amd
+          POSTGRES_DB: amd_internal_os
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U amd" --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      # `reachability.test.ts` appelle le binaire `rg`.
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      # Sans base, 400 fichiers de tests se SAUTENT en silence (`dbOk ? describe : describe.skip`) :
+      # on prouve qu'elle répond avant de lancer la suite.
+      - name: La base répond (sinon les suites DB se sauteraient)
+        run: echo "SELECT 1" | npx prisma db execute --stdin --url "$DATABASE_URL"
+      - run: npm test -- --shard=${{ matrix.shard }}/4
+        env: { NODE_OPTIONS: --max-old-space-size=4096 }
+
+  build:
+    name: Build de production (build:render, à froid)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      # Pas de cache `.next` restauré, volontairement : CLAUDE.md — un build à cache chaud peut
+      # rater l'erreur « Can't resolve 'fs' » que Render, parti d'un dossier vide, verra.
+      # `next build` n'ouvre aucune connexion à la base (mesuré, refonte P0) : pas de service ici.
+      - run: npm run build:render
