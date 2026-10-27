@@ -15,7 +15,10 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { sendLegalInvoiceToSettlement } from "@/lib/actions/legal-actions";
 import { consommerDepensePoste, imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
+import { addAdProItem, submitAdProItem, decideAdProItem } from "@/lib/actions/ad-pro-item-actions";
+import { validateDeclarationByDirection } from "@/lib/actions/medical-info-actions";
 import { statuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
+import { ensureInstance } from "@/lib/workflow/engine";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -173,5 +176,32 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     const ok = await consommerDepensePoste(fd({ id: poste.id, montant: "2500000" }));
     expect(ok.ok, ok.error).toBe(true);
     expect(await prisma.expenseOrder.count({ where: { sourceId: eventId } })).toBe(1);
+  });
+
+  // ─── ADPRO-03 ─────────────────────────────────────────────────────────────────────────────
+  it("ADPRO-03 — la déclaration suit les postes jusqu'à zéro : aucun ordre GLOBAL sur une estimation de postes refusés", async () => {
+    const parent = await congresPrevalide("Congrès de Batna");
+    // Son circuit, conclu à la prévalidation SANS montant (27/10) : `WorkflowInstance.amount` reste vide.
+    expect((await ensureInstance("CONGRESS_NATIONAL", parent))?.amount ?? null).toBeNull();
+    // La déclaration née à la prévalidation, SANS montant (la prévalidation n'en fixe pas, 27/10).
+    const decl = await prisma.medicalInfoDeclaration.create({
+      data: { reference: `${RUN}DIM`, sourceType: "CONGRESS_NATIONAL", sourceId: parent, label: `${TAG}Congrès de Batna`, requesterId: u.kam, status: "AWAITING_DIRECTION" },
+    });
+    await comme("kam");
+    const a = await addAdProItem(undefined, fd({ parent: "CONGRESS_NATIONAL", parentId: parent, kind: "PRINTING", label: `${TAG}Kakémonos`, amountEstimated: "1500000", supplier: "Imprimerie Alpha" }));
+    expect(a.ok, a.error).toBe(true);
+    expect(Number((await prisma.medicalInfoDeclaration.findUniqueOrThrow({ where: { id: decl.id } })).amount)).toBe(1_500_000);
+    const s = await submitAdProItem(undefined, fd({ id: a.id! }));
+    expect(s.ok, s.error).toBe(true);
+    await comme("dm");
+    const refus = await decideAdProItem(undefined, fd({ id: a.id!, decision: "REJECTED", note: "Hors budget de la gamme." }));
+    expect(refus.ok, refus.error).toBe(true);
+
+    // Plus aucun poste ne porte la dépense : la déclaration revient à ce que le circuit a fixé — rien.
+    expect((await prisma.medicalInfoDeclaration.findUniqueOrThrow({ where: { id: decl.id } })).amount).toBeNull();
+    await comme("sa");
+    const v = await validateDeclarationByDirection(fd({ id: decl.id }));
+    expect(v.ok, v.error).toBe(true);
+    expect(await prisma.expenseOrder.count({ where: { sourceType: "CONGRESS_NATIONAL", sourceId: parent } })).toBe(0);
   });
 });
