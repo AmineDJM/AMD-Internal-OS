@@ -224,3 +224,17 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `routines/calendrier.ts` · `passage.ts` · `service.ts` · `operations/routines.ts` | Les routines : calendrier en heure d'Alger, passage en lecture seule (vérifier puis comparer), prise atomique, traces et notifications. |
 | `memoire.ts` · `memoire-ui.ts` · `filtre-confidentialite.ts` · `generer.ts` · `recherche-web.ts` | Mémoire personnelle, filtre (et masque réversible), appel de rédaction sans outil, recherche web à question censurée. |
 | `src/lib/actions/assistant-ia-actions.ts` | Les gestes de la personne sur SA mémoire et SES routines (identité de la session, jamais d'un paramètre). |
+
+### Référentiel des Personnes (R1) — `src/lib/referentiels/personnes/` (refonte, lot V2-B)
+
+| Fichier | Rôle |
+|---|---|
+| `sources.ts` | Les neuf tables où vit une personne : rôle, identité lue (aucune colonne sensible), racine (lien ERP sûr), identifiant déterministe. Pur. |
+| `rattachement.ts` | LE geste « relier une ligne à sa Personne », partagé par la reprise et la double écriture ; à blanc pour l'aperçu. |
+| `reprise.ts`, `reprise-doublons.ts`, `../reprises/` | Les reprises (contrat commun `Reprise`, registre `reprises/index.ts`, journal = audit « Refonte des données »). |
+| `fiches-doublons.ts`, `paires.ts` | Les fiches comparées par le moteur `referentiels/doublons.ts` (aussi pour `scripts/refonte/inventaire-doublons.ts`) et leur réduction en paires de Personnes. |
+| `fusion.ts` | Fusionner / écarter / défaire — gestes du Super Admin (`actions/personnes-actions.ts`). |
+| `double-ecriture.ts` | `relierALaPersonne` dans la transaction des écrivains, derrière `AppSetting.refontePersonnesDoubleEcriture`. |
+| `fiche.ts`, `visibilite.ts` | La fiche 360° `/personnes/[id]` : chaque ligne derrière la porte de son écran d'origine. |
+| `app/(app)/admin/refonte-donnees/` | L'écran unique des reprises (Super Admin). |
+| `app/(app)/personnes/` | La fiche 360° et `doublons/` (trancher). |

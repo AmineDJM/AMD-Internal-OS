@@ -135,6 +135,8 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
           <p className="text-muted-foreground">
             {employee.position || "Poste non défini"}{employee.department ? ` · ${employee.department}` : ""}
           </p>
+          {/* La fiche Personne 360° (refonte des données) : ses autres rôles, derrière leurs propres portes. */}
+          {employee.personneId && <Link href={`/personnes/${employee.personneId}`} className="text-sm text-primary underline">Fiche Personne</Link>}
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:flex-col sm:items-end">
           {employee.isActive ? <Badge tone="success" dot={false}>Actif</Badge> : <Badge tone="danger" dot={false}>Inactif</Badge>}

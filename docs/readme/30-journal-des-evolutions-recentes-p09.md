@@ -203,3 +203,23 @@ Décision de la Direction validée sur l'artefact « Circuits Ad & Pro » v3 —
   `20270131150000_adpro_autre_postes`.
 - ⚠️ **À faire par l'administration** : attribuer le rôle `OPERATIONS_DIRECTOR` au Directeur des opérations, puis retirer
   `DIRECTION` de l'étape « Validation (Directeur des opérations) » dans Administration › Circuits.
+
+---
+
+### Refonte des données, vague 2 — lot V2-B « Personnes » (27/10/2026)
+
+Cadre : `docs/architecture/refonte-vague-2.md`. Rien ne tourne au déploiement ; tout est additif et réversible.
+
+- **Reprise R1** (`src/lib/referentiels/personnes/`) : une reprise par table (`User`, `Employee`, `MedicalDoctor`,
+  `CareBeneficiary`, `AdProVoyageur`, `AdProHebergement`, `RecruitmentCandidate`, `DirectoryEntry`, `SupplierUser`). Seuls
+  les liens que l'ERP porte déjà rapprochent d'office (compte ↔ salarié ↔ candidat embauché, praticien ↔ bénéficiaire tiré
+  de l'annuaire) ; identifiant de Personne déterministe ; rejouable. Aucune donnée sensible recopiée.
+- **Doublons PROPOSÉS** (reprise `personnes-doublons`, table `DoublonPersonne`), tranchés par le Super Admin dans
+  **Personnes › Doublons** (`/personnes/doublons`) : fusionner (tracé `fusionneeDansId`, réversible), écarter, défaire.
+- **Double écriture** derrière l'interrupteur `AppSetting.refontePersonnesDoubleEcriture` (éteint) : 12 écrivains de
+  création relient la Personne dans leur transaction.
+- **Fiche Personne 360°** `/personnes/[id]` (lien depuis `/praticiens/[id]` et `/rh/[id]`) : chaque ligne derrière la porte
+  de son écran d'origine ; 404 pour qui ne voit la personne nulle part.
+- **Écran commun** `Administration › Refonte des données` (`/admin/refonte-donnees`) : une carte par reprise (aperçu à
+  blanc, un lot, tout exécuter, journal), interrupteur de la double écriture.
+- Migration : `20270131170000_personnes_reprise`.

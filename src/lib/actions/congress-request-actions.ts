@@ -22,6 +22,7 @@ import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { deviseDuPoste, lireMode, TAUX_USD_DZD_DEFAUT } from "@/lib/care-fiches";
 import { refusCategoriePourLaDemande, type NatureDemandeAdPro } from "@/lib/ad-pro/categorie-budgetaire-serveur";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 // Le **même** circuit de prise en charge sert les prises en charge internationales/nationaux
 // ET les événements (module Events) : on paramètre tout par `type`.
@@ -223,6 +224,8 @@ export async function createCongressRequest(
             { beneficiaryId: b.id, kind: "SERVICE", serviceKind: "HOTEL", label: "Hôtellerie", city: ville, currency: deviseDuPoste(t === "INTL" ? "INTERNATIONAL" : "NATIONAL", "HOTEL"), requestedById: user.id, position: 2 },
           ],
         });
+        // DOUBLE ÉCRITURE (refonte, lot V2-B) : le bénéficiaire rejoint la Personne de son praticien.
+        await relierALaPersonne(tx, "CareBeneficiary", b.id, user.id);
       }
     });
   }

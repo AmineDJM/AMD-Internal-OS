@@ -50,46 +50,21 @@ async function main() {
   if (lectureSeule[0]?.transaction_read_only !== "on") throw new Error("La session n'est pas en lecture seule : arrêt.");
 
   const { proposerDoublonsOrganisations, proposerDoublonsPersonnes, regrouper } = await import("@/lib/referentiels/doublons");
-  const { nomComplet } = await import("@/lib/referentiels/normalisation");
   const iExemples = process.argv.indexOf("--exemples");
   const nExemples = iExemples > 0 ? Number(process.argv[iExemples + 1]) || 8 : 8;
 
   // ── LES PERSONNES ───────────────────────────────────────────────────────────────────────────
-  const [docteurs, beneficiaires, voyageurs, hebergements, employes, users, annuaire, contacts, fournisseurs] = await Promise.all([
-    prisma.medicalDoctor.findMany({ select: { id: true, name: true, firstName: true, lastName: true, phone: true, email: true, wilaya: true, city: true, institution: true, institutionId: true } }),
-    prisma.careBeneficiary.findMany({ select: { id: true, firstName: true, lastName: true, institution: true, doctorId: true } }),
-    prisma.adProVoyageur.findMany({ select: { id: true, nom: true, prenom: true } }),
-    prisma.adProHebergement.findMany({ select: { id: true, nom: true, prenom: true } }),
-    prisma.employee.findMany({ select: { id: true, fullName: true, email: true, phone: true, birthDate: true, nationalId: true, userId: true } }),
-    prisma.user.findMany({ select: { id: true, name: true, email: true, phone: true } }),
-    prisma.directoryEntry.findMany({ select: { id: true, displayName: true, userId: true, employeeId: true, contactId: true, endpoints: { select: { channel: true, value: true } } } }),
+  // Les neuf tables de personnes : le MÊME chargeur que la reprise qui propose les doublons
+  // (`referentiels/personnes/fiches-doublons.ts`) — l'inventaire mesure ce que la reprise proposera.
+  const { chargerFichesPersonnes } = await import("@/lib/referentiels/personnes/fiches-doublons");
+  const [fichesPersonnes, contacts, fournisseurs] = await Promise.all([
+    chargerFichesPersonnes(prisma),
     prisma.companyContact.findMany({ select: { id: true, name: true, contactName: true, phone: true, phoneAlt: true, email: true, wilaya: true, city: true, nif: true, rc: true } }),
     prisma.supplier.findMany({ select: { id: true, name: true, contactName: true, contactEmail: true, phone: true, city: true } }),
   ]);
 
   const personnes: FichePersonne[] = [
-    ...docteurs.map((d) => ({
-      ref: `MedicalDoctor:${d.id}`, nom: nomComplet({ complet: d.name, nom: d.lastName, prenom: d.firstName }),
-      emails: [d.email], telephones: [d.phone], wilaya: d.wilaya ?? d.city, etablissement: d.institution, etablissementId: d.institutionId,
-    })),
-    // Un bénéficiaire tiré de l'annuaire EST le médecin : l'ERP les relie déjà.
-    ...beneficiaires.map((b) => ({
-      ref: `CareBeneficiary:${b.id}`, nom: nomComplet({ nom: b.lastName, prenom: b.firstName }), etablissement: b.institution,
-      liens: b.doctorId ? [`MedicalDoctor:${b.doctorId}`] : [],
-    })),
-    ...voyageurs.map((v) => ({ ref: `AdProVoyageur:${v.id}`, nom: nomComplet({ nom: v.nom, prenom: v.prenom }) })),
-    ...hebergements.map((h) => ({ ref: `AdProHebergement:${h.id}`, nom: nomComplet({ nom: h.nom, prenom: h.prenom }) })),
-    ...employes.map((e) => ({
-      ref: `Employee:${e.id}`, nom: e.fullName, emails: [e.email], telephones: [e.phone], naissance: e.birthDate, nin: e.nationalId,
-      liens: e.userId ? [`User:${e.userId}`] : [],
-    })),
-    ...users.map((u) => ({ ref: `User:${u.id}`, nom: u.name, emails: [u.email], telephones: [u.phone] })),
-    ...annuaire.map((d) => ({
-      ref: `DirectoryEntry:${d.id}`, nom: d.displayName,
-      emails: d.endpoints.filter((x) => x.channel === "EMAIL").map((x) => x.value),
-      telephones: d.endpoints.filter((x) => x.channel !== "EMAIL").map((x) => x.value),
-      liens: [d.userId && `User:${d.userId}`, d.employeeId && `Employee:${d.employeeId}`].filter((x): x is string => !!x),
-    })),
+    ...fichesPersonnes.map((f) => f.fiche),
     // La personne de contact d'un tiers : son e-mail est souvent le sien, son téléphone souvent celui du tiers.
     ...contacts.filter((c) => c.contactName?.trim()).map((c) => ({
       ref: `CompanyContact.contactName:${c.id}`, nom: c.contactName!, emails: [c.email], telephones: [c.phone, c.phoneAlt], wilaya: c.wilaya ?? c.city,

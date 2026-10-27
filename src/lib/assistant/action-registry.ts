@@ -2133,6 +2133,15 @@ X("LA CAMPAGNE BUDGÉTAIRE (Budgets 2027, Direction 10/2026) — préparer le bu
   "budget-campagne-actions:autoriserRevisionProposition",
   "budget-campagne-actions:rouvrirRectificatif",
 ]);
+X("LA REFONTE DES DONNÉES, lot V2-B « Personnes » (vague 2, 10/2026) — lancer une reprise (aperçu à blanc, puis lot par "
+  + "lot), allumer ou éteindre la double écriture, trancher un doublon de personnes (fusionner, écarter, défaire). Gestes du "
+  + "SUPER ADMIN qui conduit la migration, décidés en REGARDANT l'aperçu chiffré, le journal et les deux fiches côte à côte "
+  + "(`/admin/refonte-donnees`, `/personnes/doublons`). Une fusion n'est jamais un geste d'assistant : le système propose, "
+  + "une personne tranche.", [
+  "refonte-reprise-actions:apercuReprise", "refonte-reprise-actions:executerReprise",
+  "personnes-actions:fusionnerDoublonPersonne", "personnes-actions:ecarterDoublonPersonne",
+  "personnes-actions:defaireFusionPersonne", "personnes-actions:basculerDoubleEcriturePersonnes",
+]);
 X("LE CONTRÔLE DE COHÉRENCE DE L'ORGANIGRAMME (Direction, 10/2026) — aligner un compte sur sa fiche, rattacher une BU, "
   + "désigner un responsable, appliquer le superviseur proposé : des corrections de STRUCTURE que le Super Admin prend devant "
   + "la liste de ce qui contredit l'organigramme, comme le réarrangement de l'organigramme lui-même. Adam est en pause de "

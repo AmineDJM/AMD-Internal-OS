@@ -25,6 +25,7 @@ import { compteSuitLaFiche } from "@/lib/hr/depart";
 import { chargerSalairesPartis } from "@/lib/hr/salaires-partis";
 import { decisionRattachement } from "@/lib/hr/rattachement-paie";
 import { alignerSurLaFiche } from "@/lib/org/source-unique";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 // LA FRONTIÈRE — l'ERP annonce ses faits ; il ne sait pas qui les écoute, et c'est le principe.
 import { emit } from "@/platform/events";
 
@@ -58,28 +59,34 @@ export async function createEmployee(
   const dept = await resolveDepartmentFields(formData);
   let created;
   try {
-    created = await prisma.employee.create({
-      data: {
-        fullName,
-        position: fdStr(formData, "position"),
-        ...(dept ?? {}),
-        email: fdStr(formData, "email"),
-        phone: fdStr(formData, "phone"),
-        iban: fdStr(formData, "iban"),
-        baseSalary: fdNum(formData, "baseSalary") ?? 0,
-        hireDate: fdDate(formData, "hireDate"),
-        contractType: castContract(fdStr(formData, "contractType")),
-        contractStart: fdDate(formData, "contractStart"),
-        contractEnd: fdDate(formData, "contractEnd"),
-        leaveBalanceDays: fdNum(formData, "leaveBalanceDays") ?? 30,
-        birthDate: fdDate(formData, "birthDate"),
-        nationalId: fdStr(formData, "nationalId"),
-        cnasNumber: fdStr(formData, "cnasNumber"),
-        address: fdStr(formData, "address"),
-        userId: fdStr(formData, "userId"),
-        managerId: fdStr(formData, "managerId"),
-        companyId: companyIdSaisi,
-      },
+    // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne naît ou est reliée dans la même transaction, si l'interrupteur
+    // est allumé — sinon la création est exactement celle d'avant.
+    created = await prisma.$transaction(async (tx) => {
+      const e = await tx.employee.create({
+        data: {
+          fullName,
+          position: fdStr(formData, "position"),
+          ...(dept ?? {}),
+          email: fdStr(formData, "email"),
+          phone: fdStr(formData, "phone"),
+          iban: fdStr(formData, "iban"),
+          baseSalary: fdNum(formData, "baseSalary") ?? 0,
+          hireDate: fdDate(formData, "hireDate"),
+          contractType: castContract(fdStr(formData, "contractType")),
+          contractStart: fdDate(formData, "contractStart"),
+          contractEnd: fdDate(formData, "contractEnd"),
+          leaveBalanceDays: fdNum(formData, "leaveBalanceDays") ?? 30,
+          birthDate: fdDate(formData, "birthDate"),
+          nationalId: fdStr(formData, "nationalId"),
+          cnasNumber: fdStr(formData, "cnasNumber"),
+          address: fdStr(formData, "address"),
+          userId: fdStr(formData, "userId"),
+          managerId: fdStr(formData, "managerId"),
+          companyId: companyIdSaisi,
+        },
+      });
+      await relierALaPersonne(tx, "Employee", e.id, user.id);
+      return e;
     });
   } catch {
     return { ok: false, error: "Création impossible : ce compte applicatif est déjà lié à un employé." };

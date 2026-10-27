@@ -7,6 +7,7 @@ import { deleteFileByKey } from "@/lib/storage";
 import { lireVoyageur, porteDesVoyageurs, type VoyageurLu } from "@/lib/ad-pro/voyageurs";
 import { lireHebergement, porteDesHebergements, type HebergementLu } from "@/lib/ad-pro/hebergements";
 import { CHAMP_FICHES, prefixesRecus, refusDeFiche, FICHES_MAX } from "@/lib/ad-pro/fiches-saisie";
+import { relierLesPersonnes } from "@/lib/referentiels/personnes/double-ecriture";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -115,6 +116,9 @@ export async function creerPosteEtFiches(
         ? (await tx.adProVoyageur.create({ data: { ...base, ...donneesVoyageur(f.voyageur) }, select: { id: true } })).id
         : (await tx.adProHebergement.create({ data: { ...base, ...f.hebergement }, select: { id: true } })).id);
     }
+    // DOUBLE ÉCRITURE (refonte, lot V2-B) : chaque voyageur, chaque client d'hôtel devient une Personne, derrière son interrupteur.
+    await relierLesPersonnes(tx, "AdProVoyageur", ids.filter((_, i) => fiches[i].nature === "VOYAGEUR"), userId);
+    await relierLesPersonnes(tx, "AdProHebergement", ids.filter((_, i) => fiches[i].nature !== "VOYAGEUR"), userId);
     return { itemId: item.id, ficheIds: ids };
   });
 

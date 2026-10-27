@@ -14,6 +14,7 @@ import { getMyCompanies, companyScopedWhere } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
 import { compteDeLEcriture, comptesTresorerie } from "@/lib/finance/comptes";
 import { resoudreCompte } from "@/lib/finance/tresorerie";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
 
@@ -529,12 +530,17 @@ export async function createEmployee(
   if (!userCan(user, "FINANCES", "CREATE")) return { ok: false, error: "Non autorisé." };
   const fullName = fdStr(formData, "fullName");
   if (!fullName) return { ok: false, error: "Le nom est obligatoire." };
-  const created = await prisma.employee.create({
-    data: {
-      fullName, position: fdStr(formData, "position"), department: fdStr(formData, "department"),
-      email: fdStr(formData, "email"), phone: fdStr(formData, "phone"), iban: fdStr(formData, "iban"),
-      baseSalary: fdNum(formData, "baseSalary") ?? 0, hireDate: fdDate(formData, "hireDate"),
-    },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const created = await prisma.$transaction(async (tx) => {
+    const e = await tx.employee.create({
+      data: {
+        fullName, position: fdStr(formData, "position"), department: fdStr(formData, "department"),
+        email: fdStr(formData, "email"), phone: fdStr(formData, "phone"), iban: fdStr(formData, "iban"),
+        baseSalary: fdNum(formData, "baseSalary") ?? 0, hireDate: fdDate(formData, "hireDate"),
+      },
+    });
+    await relierALaPersonne(tx, "Employee", e.id, user.id);
+    return e;
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Finances", entityType: "EMPLOYEE", entityId: created.id, summary: `Employé « ${fullName} »` });
   revalidatePath("/finances");

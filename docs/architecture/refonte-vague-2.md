@@ -30,3 +30,26 @@
 | **V2-D Lieux et coordonnées** | `Wilaya` chargée (69) ; rattachement des colonnes texte `wilaya`/`city` par `lieux/normaliser.ts` (colonnes `wilayaCode` nullables) ; `Adresse` et `PointDeContact` repris des fiches ; communes : table vide tant qu'aucune source officielle complète n'est chargée. | « Par wilaya » se compte sans nettoyage manuel. |
 | **V2-E Coffre en double lecture** | Copier `Employee.iban`, `Employee.nationalId`, `CompanyContact.rib`, `CompanyLegalIdentity.rib/iban`, salaires vers `DonneeSensible` (chiffré, HMAC, 4 derniers) ; les écrans et exports lisent par le coffre avec `AccesDonneeSensible` ; écriture double. Le clair RESTE (P5 = accord). | Qui a lu l'IBAN de qui, quand, pour quel geste. |
 | **V2-F Worker séparé** | Point d'entrée `worker` (même code) pour `runScheduledJobs`, l'enrichissement et les routines ; service Render `worker` ; le web ne porte plus le battement. Interrupteur pour revenir au battement web. | Une extraction lourde ne ralentit plus une page. |
+
+## État du lot V2-B « Personnes » (27/10/2026, branche `refonte/v2-personnes`)
+
+**Livré** — code `src/lib/referentiels/personnes/`, contrat commun `src/lib/referentiels/reprises/`, écrans
+`/admin/refonte-donnees`, `/personnes/[id]`, `/personnes/doublons`, migration `20270131170000_personnes_reprise`.
+Carte détaillée : `docs/knowledge-base/03-data-model-and-migrations.md` §4.13.
+
+**Activer en production (Super Admin)**, après déploiement :
+1. `Administration › Refonte des données` : « Aperçu à blanc » de chaque reprise « Personnes — … », dans l'ordre affiché
+   (comptes, salariés, praticiens, bénéficiaires, voyageurs, hébergements, candidats, annuaire, portail) ; lire les chiffres.
+2. « Tout exécuter » sur chacune, dans le même ordre (lots de 200, s'arrête à la première erreur ; rejouable).
+3. « Personnes — doublons proposés » : aperçu, puis exécution ; trancher dans `Personnes › Doublons`.
+4. Allumer la **double écriture des Personnes** (même écran). L'éteindre suffit pour revenir en arrière.
+
+**Reste** : les écrivains d'IMPORT (`importDirectorySheet`, imports de segmentation), `creerProfilMedecin`,
+`redeemInvite`/`createAccountWithInvite` et les candidatures du site public ne font pas encore la double écriture (la
+reprise rejouée les rattrape) ; les mises à jour d'identité (nom corrigé) ne remontent pas à la Personne (lot V2-A,
+décision des faits) ; le coffre (`DonneeSensible`), les faits (`FaitPropose`/`FaitConfirme`) ne suivent pas encore une
+fusion ; la fiche n'a ni recherche ni liste des Personnes.
+
+**Décisions attendues** : qui tranche une fusion (aujourd'hui : Super Admin seul ; proposition « responsable du module +
+Super Admin ») ; faut-il ouvrir la fiche Personne aux porteurs de l'annuaire interne pour les collègues (aujourd'hui oui,
+comme l'annuaire) ; un hébergement est-il un rôle VOYAGEUR (choix actuel) ou BENEFICIAIRE.

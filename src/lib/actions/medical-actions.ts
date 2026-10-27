@@ -17,6 +17,7 @@ import { sousVerrous } from "@/lib/promo/stock-ecriture";
 import { dejaDansLaVisite, ecrireRemises, lireMaterielRemis, motifDeRemise, phraseMateriel, RefusRemise, toucheLeStock, verrousDuRapport } from "@/lib/promo/remises-visite";
 import { fenetreRapport, gestesPossibles, refusVisiteHorsDelai, retraitInterditApresRevision, type StatutPlan } from "@/lib/sfe/tournee";
 import { produitsDeLaBu, refusProduitsHorsBu } from "@/lib/sfe/produits-bu";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 const SECTORS: MedicalSector[] = ["HOSPITAL", "LIBERAL", "BOTH"];
 const TITLES: DoctorTitle[] = [
@@ -556,31 +557,36 @@ export async function createDoctor(
   const wilaya = parseWilaya(fdStr(formData, "wilaya"));
   if (!wilaya.ok) return { ok: false, error: wilaya.error };
 
-  const created = await prisma.medicalDoctor.create({
-    data: {
-      name,
-      title: parseTitle(fdStr(formData, "title")),
-      specialtyId: specialite.specialtyId,
-      specialty: specialite.specialty,
-      sector: parseSector(fdStr(formData, "sector")),
-      institutionId,
-      institution: iName ?? fdStr(formData, "institution"),
-      wilaya: wilaya.value,
-      region: fdStr(formData, "region"),
-      phone: fdStr(formData, "phone"),
-      email: fdStr(formData, "email"),
-      influence: parseSegment(fdStr(formData, "influence")),
-      potential: parseSegment(fdStr(formData, "potential")),
-      affinity: parseSegment(fdStr(formData, "affinity")),
-      // Champs hérités tenus cohérents avec l'échelle 5 niveaux.
-      influenceLevel: segToInfluence[parseSegment(fdStr(formData, "influence"))],
-      prescriptionPotential: segToPriority[parseSegment(fdStr(formData, "potential"))],
-      targetProducts: fdStr(formData, "targetProducts"),
-      comments: fdStr(formData, "comments"),
-      delegateId,
-      companyId: fdStr(formData, "companyId") || null,
-      createdById: user.id,
-    },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const created = await prisma.$transaction(async (tx) => {
+    const d = await tx.medicalDoctor.create({
+      data: {
+        name,
+        title: parseTitle(fdStr(formData, "title")),
+        specialtyId: specialite.specialtyId,
+        specialty: specialite.specialty,
+        sector: parseSector(fdStr(formData, "sector")),
+        institutionId,
+        institution: iName ?? fdStr(formData, "institution"),
+        wilaya: wilaya.value,
+        region: fdStr(formData, "region"),
+        phone: fdStr(formData, "phone"),
+        email: fdStr(formData, "email"),
+        influence: parseSegment(fdStr(formData, "influence")),
+        potential: parseSegment(fdStr(formData, "potential")),
+        affinity: parseSegment(fdStr(formData, "affinity")),
+        // Champs hérités tenus cohérents avec l'échelle 5 niveaux.
+        influenceLevel: segToInfluence[parseSegment(fdStr(formData, "influence"))],
+        prescriptionPotential: segToPriority[parseSegment(fdStr(formData, "potential"))],
+        targetProducts: fdStr(formData, "targetProducts"),
+        comments: fdStr(formData, "comments"),
+        delegateId,
+        companyId: fdStr(formData, "companyId") || null,
+        createdById: user.id,
+      },
+    });
+    await relierALaPersonne(tx, "MedicalDoctor", d.id, user.id);
+    return d;
   });
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Promotion médicale",

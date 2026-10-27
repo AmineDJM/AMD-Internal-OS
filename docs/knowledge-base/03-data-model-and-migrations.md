@@ -244,6 +244,27 @@ Added by `prisma/migrations/20270130100000_referentiels/` (additive, idempotent;
 
 **Link columns** (nullable, indexed, FK `ON DELETE SET NULL`): `personneId` on `User`, `Employee`, `MedicalDoctor`, `CareBeneficiary`, `AdProVoyageur`, `AdProHebergement`, `RecruitmentCandidate`, `DirectoryEntry`, `SupplierUser`; `organisationId` on `Company`, `CompanyContact`, `Supplier`, `MedicalInstitution`, `SponsoringRequest`, `CongressNational`, `CongressInternational`; `pieceId` on `Document`, `DriveNode`. CHECK constraints live only in SQL (Prisma ignores them, no drift).
 
+### 4.13 R1 *Personnes* in service — reprise, double write, 360° card (wave 2, lot V2-B, 2026-10-27)
+
+Migration `20270131170000_personnes_reprise` (additive, idempotent): `AppSetting.refontePersonnesDoubleEcriture` (switch,
+default **off**) and `DoublonPersonne` (proposed duplicate between two `Personne`, unique (A, B) with `CHECK A < B`,
+`statut` PROPOSE / FUSIONNE / ECARTE, `deplacees[]` = source rows moved by a merge, so it can be undone).
+Code: `src/lib/referentiels/personnes/` — verified by `personnes.test.ts` (real DB) + three pure test files.
+
+| File | Role |
+|---|---|
+| `sources.ts` (pure) | The 9 source tables: role given (`ROLE_DE_LA_SOURCE`), identity read (`SELECTION` — **no sensitive column**), *racine* = the FK the ERP already carries (Employee→User, CareBeneficiary→MedicalDoctor, RecruitmentCandidate→Employee, DirectoryEntry→User/Employee), deterministic id `per_` + sha256(racine ref). |
+| `rattachement.ts` | **The single gesture** used by both the reprise and the double write: climb the racine chain, reuse its Personne or create the deterministic one (`createMany skipDuplicates`), follow `fusionneeDansId`, complete empty fields only, ensure one active role per kind, link the whole chain (`updateMany … personneId: null`). `aBlanc` = dry run. |
+| `reprise.ts` / `reprises/personnes.ts` | One `Reprise` per table (`personnes-users`, `-employes`, `-medecins`, `-beneficiaires`, `-voyageurs`, `-hebergements`, `-candidats`, `-annuaire`, `-portail-fournisseurs`): cursor on id, one transaction per row, errors named. |
+| `fiches-doublons.ts` → `paires.ts` (pure) → `reprise-doublons.ts` | Same loader as `scripts/refonte/inventaire-doublons.ts`; engine `referentiels/doublons.ts`; proposals mapped to Personne pairs, best kept; reprise `personnes-doublons` writes them **PROPOSE** (never merged). |
+| `fusion.ts` | Human gestures: merge (rows, affiliations, addresses, contact points, PERSONNE piece links move; roles and empty fields copied; absorbed keeps `fusionneeDansId`), dismiss, undo. Actions: `personnes-actions.ts` (Super Admin, audited). |
+| `double-ecriture.ts` | `relierALaPersonne(tx, source, id, by)` — called **inside the writer's transaction** by `createEmployee` (HR and Finance), `onboardRecruitment`, `addRecruitmentCandidate`, `createDoctor`, `addDirectoryDoctor`, `addCareBeneficiary`, `createCongressRequest`, `ajouterVoyageur`, `ajouterHebergement`, `creerPosteEtFiches`, `createUser`, `createSupplierUser`. No-op while the switch is off. |
+| `fiche.ts` + `visibilite.ts` (pure) | `/personnes/[id]`: each source row behind **its own screen's gate** (ADMIN or active-in-directory; `/rh/[id]` gate or directory; `praticienVisible`; `canAccessEntity` on congress / AD_PRO_ITEM / RECRUITMENT_CANDIDATE; SupplierUser = SA). No visible row ⇒ 404. Roles shown only if a visible row brings them; birth date only through the HR gate; pieces only if one ENTITE link opens. No NIN/IBAN/salary loaded. |
+
+Shared wave-2 contract (other lots plug in the same way): `src/lib/referentiels/reprises/{types,index,journal}.ts`,
+action `src/lib/actions/refonte-reprise-actions.ts` (`apercuReprise`, `executerReprise` — Super Admin, audited, journal =
+`AuditLog` with module « Refonte des données » and `field` = reprise key), screen `/admin/refonte-donnees`.
+
 ## 5. Conventions & patterns to follow (house style)
 
 **Changing the schema**

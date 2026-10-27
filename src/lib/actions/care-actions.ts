@@ -32,6 +32,7 @@ import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE } from "@/lib/care-engagement";
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).
@@ -279,6 +280,8 @@ export async function addCareBeneficiary(_prev: ActionResult | undefined, formDa
         select: { id: true, doctorId: true, firstName: true, lastName: true },
       });
       await ouvrirFiche(tx, scopeRaw, b.id, req.city ?? null, user.id);
+      // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne (celle du praticien, s'il vient de l'annuaire), derrière son interrupteur.
+      await relierALaPersonne(tx, "CareBeneficiary", b.id, user.id);
       return b;
     });
 
