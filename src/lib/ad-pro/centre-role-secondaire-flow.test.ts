@@ -56,7 +56,7 @@ suite("centre de validation Ad & Pro — le DG en rôle secondaire vise un BC", 
     kamId = kam.id; pmId = pm.id; opsId = ops.id; astId = ast.id; dgSecondId = dg2.id;
     const annee = new Date().getUTCFullYear();
     eventId = (await prisma.event.create({
-      data: { name: `${TAG}Journée`, requesterId: kamId, status: "VALIDATED", startDate: new Date(`${annee}-12-04`) }, select: { id: true },
+      data: { name: `${TAG}Journée`, requesterId: kamId, status: "VALIDATED", requestStatus: "APPROVED", startDate: new Date(`${annee}-12-04`) }, select: { id: true },
     })).id;
     const env = await prisma.budgetEnvelope.create({
       data: { name: `${RUN}Enveloppe`, modules: ["EVENTS"], totalAmount: 10_000_000, periodStart: new Date(`${annee}-01-01`), periodEnd: new Date(`${annee}-12-31`) },
@@ -90,8 +90,7 @@ suite("centre de validation Ad & Pro — le DG en rôle secondaire vise un BC", 
     ok(a);
     const id = a.id!;
     ok(await submitAdProItem(undefined, fd({ id })));
-    ACTOR = await acteur(opsId);
-    ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED" })));
+    // UN SEUL TEMPS depuis le 27/10/2026 : la Direction Marketing accepte le poste.
     ACTOR = await acteur(pmId);
     ok(await decideAdProItem(undefined, fd({ id, decision: "APPROVED", amountGranted: "250000", budgetCategoryId: catId })));
     ACTOR = await acteur(kamId);

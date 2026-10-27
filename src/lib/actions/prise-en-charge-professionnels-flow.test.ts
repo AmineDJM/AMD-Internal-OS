@@ -178,13 +178,18 @@ suite("Prise en charge — professionnels proposés et pièces par personne", ()
   });
 
   it("CORRIGER : la fin ne précède pas le début, et les champs retirés ne s'écrivent plus", async () => {
-    ACTOR = PM;
-    await prisma.congressNational.update({ where: { id: natId }, data: { presentDelegates: "Ancienne saisie", specialty: "Cardiologie" } });
-    const envers = await updateAdProRequest(fdOf({ kind: "CONGRESS_NATIONAL", id: natId, endDate: "2026-11-01" }));
+    // La demande du DÉLÉGUÉ, encore dans son circuit (celle de la Direction Marketing est prévalidée
+    // d'office depuis le 27/10/2026 : décidée, elle ne se corrige plus que par la Direction).
+    ACTOR = DELEGUE;
+    const cree = await createCongressRequest(undefined, fdOf({ type: "NATIONAL", name: `${TAG}NatDel`, date: "2026-11-10", endDate: "2026-11-11" }));
+    expect(cree.ok, cree.ok ? "" : cree.error).toBe(true);
+    const id = cree.ok ? cree.id! : "";
+    await prisma.congressNational.update({ where: { id }, data: { presentDelegates: "Ancienne saisie", specialty: "Cardiologie" } });
+    const envers = await updateAdProRequest(fdOf({ kind: "CONGRESS_NATIONAL", id, endDate: "2026-11-01" }));
     expect(envers.ok === false && envers.error).toBe("La date de fin ne peut pas précéder la date de début.");
-    const r = await updateAdProRequest(fdOf({ kind: "CONGRESS_NATIONAL", id: natId, endDate: "2026-11-12", presentDelegates: "", specialty: "" }));
+    const r = await updateAdProRequest(fdOf({ kind: "CONGRESS_NATIONAL", id, endDate: "2026-11-12", presentDelegates: "", specialty: "" }));
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
-    const c = await prisma.congressNational.findUniqueOrThrow({ where: { id: natId } });
+    const c = await prisma.congressNational.findUniqueOrThrow({ where: { id } });
     // Ce que le formulaire ne porte plus ne s'écrit plus — et un champ retiré n'EFFACE pas la valeur d'avant.
     expect([c.presentDelegates, c.specialty, c.endDate?.toISOString().slice(0, 10)]).toEqual(["Ancienne saisie", "Cardiologie", "2026-11-12"]);
   });

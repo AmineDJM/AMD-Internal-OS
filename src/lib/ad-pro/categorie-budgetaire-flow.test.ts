@@ -51,10 +51,10 @@ suite("Ad & Pro — la catégorie budgétaire doit convenir à la nature, à l'e
     buA = (await prisma.businessUnit.create({ data: { name: `${RUN}Cardiologie` } })).id;
     buB = (await prisma.businessUnit.create({ data: { name: `${RUN}Oncologie` } })).id;
     eventId = (await prisma.event.create({
-      data: { name: `${TAG}Journée cardiologie`, requesterId: kamId, status: "VALIDATED", startDate: new Date(`${annee}-12-04`), businessUnitId: buA },
+      data: { name: `${TAG}Journée cardiologie`, requesterId: kamId, status: "VALIDATED", requestStatus: "APPROVED", startDate: new Date(`${annee}-12-04`), businessUnitId: buA },
       select: { id: true },
     })).id;
-    congresId = (await prisma.congressNational.create({ data: { name: `${TAG}Congrès national`, requesterId: kamId, businessUnitId: buA }, select: { id: true } })).id;
+    congresId = (await prisma.congressNational.create({ data: { name: `${TAG}Congrès national`, requesterId: kamId, requestStatus: "APPROVED", businessUnitId: buA }, select: { id: true } })).id;
 
     const enveloppe = async (nom: string, debut: string, fin: string, businessUnitId: string | null = null) => (await prisma.budgetEnvelope.create({
       data: {
@@ -97,8 +97,7 @@ suite("Ad & Pro — la catégorie budgétaire doit convenir à la nature, à l'e
     const a = await addAdProItem(undefined, fd({ parent: "EVENT", parentId: eventId, kind: "PRINTING", label: `${TAG}${label}`, amountEstimated: "300000", supplier: "Imprimerie Alpha" }));
     ok(a);
     ok(await submitAdProItem(undefined, fd({ id: a.id! })));
-    ACTOR = await acteur(opsId, "DIRECTION");
-    ok(await decideAdProItem(undefined, fd({ id: a.id!, decision: "APPROVED" })));
+    // UN SEUL TEMPS depuis le 27/10/2026 : soumis, le poste attend la Direction Marketing.
     ACTOR = await acteur(pmId, "PRODUCT_MANAGER");
     return a.id!;
   }

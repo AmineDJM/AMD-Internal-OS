@@ -156,15 +156,17 @@ suite("Ad & Pro — lignes de devis validées → un BC par devis, régénérabl
     const c = await prisma.company.create({ data: { name: `${RUN} Pharma`, shortName: RUN.slice(-12), color: "#1B7F79" } });
     companyId = c.id;
     // Le demandeur est SALARIÉ de la société (c'est ce qui la nomme pour sa demande), sans le droit de l'engager.
-    await prisma.employee.create({ data: { fullName: `${TAG} kam`, userId: u.kam, companyId } });
-    await prisma.employee.create({ data: { fullName: `${TAG} kam2`, userId: u.kam2, companyId } });
-    await prisma.companyLegalIdentity.create({
-      data: {
-        companyId, legalName: `${TAG} Pharma SARL`, legalForm: "SARL", shareCapital: "10 000 000 DZD", rcNumber: "16/00-1234567B21", nif: "001916012345678",
-        nis: "001916012345690", taxArticle: "16012345678", headOffice: "12 rue des Frères Bouadou, Alger", phone: "+213 21 00 00 00", email: "contact@t.dz",
-        bankName: "BNA", bankAgency: "Hydra", rib: "001 00123 0123456789 45", managerName: "Direction", managerTitle: "Gérant",
-      },
-    });
+    await Promise.all([
+      prisma.employee.create({ data: { fullName: `${TAG} kam`, userId: u.kam, companyId } }),
+      prisma.employee.create({ data: { fullName: `${TAG} kam2`, userId: u.kam2, companyId } }),
+      prisma.companyLegalIdentity.create({
+        data: {
+          companyId, legalName: `${TAG} Pharma SARL`, legalForm: "SARL", shareCapital: "10 000 000 DZD", rcNumber: "16/00-1234567B21", nif: "001916012345678",
+          nis: "001916012345690", taxArticle: "16012345678", headOffice: "12 rue des Frères Bouadou, Alger", phone: "+213 21 00 00 00", email: "contact@t.dz",
+          bankName: "BNA", bankAgency: "Hydra", rib: "001 00123 0123456789 45", managerName: "Direction", managerTitle: "Gérant",
+        },
+      }),
+    ]);
     const [c1, c2, env, four] = await Promise.all([
       prisma.congressNational.create({ data: { name: `${RUN} Congrès de Sétif`, requesterId: u.kam, requestStatus: "APPROVED" }, select: { id: true } }),
       prisma.congressNational.create({ data: { name: `${RUN} Congrès de Tlemcen`, requesterId: u.kam2, requestStatus: "APPROVED" }, select: { id: true } }),
