@@ -19,7 +19,7 @@ import { getBlob } from "@/lib/drive-storage";
 import { HR_REQUEST_TYPE, HR_REQUEST_STATUS } from "@/lib/labels";
 import { HR_APPROVAL_TYPES, hrNature } from "@/lib/hr-request-flow";
 import {
-  createLeaveRequest, attachLeaveFiles, revalidateLeaveViews, leaveDaysBetween,
+  createLeaveRequest, attachLeaveFiles, revalidateLeaveViews,
   hrTypeIsLeave, HR_TYPE_TO_LEAVE,
 } from "@/lib/hr/leave-core";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -147,10 +147,9 @@ async function createLeaveFromHrForm(
   if (!end) return { ok: false, error: "Indiquez la date de fin du congé." };
   if (end < start) return { ok: false, error: "La date de fin précède la date de début." };
 
-  const days = fdNum(formData, "periodDays") ?? leaveDaysBetween(start, end);
   const created = await createLeaveRequest(actorId, employee, {
     type: HR_TYPE_TO_LEAVE[type] ?? "OTHER",
-    startDate: start, endDate: end, days,
+    startDate: start, endDate: end,
     reason: fdStr(formData, "details"),
   });
 

@@ -285,4 +285,28 @@ suite("Congés — N+1 → RH → DG depuis « Mon espace »", () => {
     expect((await superAdminDelete(del3)).ok).toBe(true);
     expect(await solde()).toBe(avant);
   });
+  /**
+   * LE NOMBRE DE JOURS NE VIENT PAS DU NAVIGATEUR (audit du 27/10/2026, RH-DOCUMENTS-COMMS-02) : `days` est un
+   * champ caché du formulaire ; l'accord débite ce nombre du solde. Un `days=-15` recréditait 15 jours.
+   */
+  it("les jours sont recalculés par le serveur — un champ « days » forgé ne pilote pas le solde", async () => {
+    ACTOR = await actorFor(salarieUserId, "MEDICAL_DELEGATE");
+    const ids: string[] = [];
+    for (const forge of ["-15", "1", "Infinity"]) {
+      const fd = new FormData();
+      fd.set("type", "ANNUAL");
+      fd.set("startDate", "2026-11-02");
+      fd.set("endDate", "2026-11-21"); // 20 jours calendaires
+      fd.set("days", forge);
+      const r = await requestLeave(undefined, fd);
+      expect(r.ok).toBe(true);
+      ids.push(r.id!);
+      expect(Number((await prisma.leaveRequest.findUniqueOrThrow({ where: { id: r.id! } })).days)).toBe(20);
+    }
+    // Un type inventé est refusé proprement (et non une erreur Prisma).
+    const bad = new FormData();
+    bad.set("type", "VACANCES"); bad.set("startDate", "2026-11-02"); bad.set("endDate", "2026-11-03");
+    expect((await requestLeave(undefined, bad)).ok).toBe(false);
+    await prisma.leaveRequest.deleteMany({ where: { id: { in: ids } } });
+  });
 });

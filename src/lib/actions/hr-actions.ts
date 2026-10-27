@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import type { ContractType, LeaveType, LeaveStatus, UserRole } from "@prisma/client";
+import { LeaveType } from "@prisma/client";
+import type { ContractType, LeaveStatus, UserRole } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan, rolesWithModule } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -27,13 +28,6 @@ import { decisionRattachement } from "@/lib/hr/rattachement-paie";
 import { alignerSurLaFiche } from "@/lib/org/source-unique";
 // LA FRONTIÈRE — l'ERP annonce ses faits ; il ne sait pas qui les écoute, et c'est le principe.
 import { emit } from "@/platform/events";
-
-/** Inclusive calendar-day count between two dates (min 1). */
-function daysBetween(start: Date, end: Date): number {
-  const ms = end.getTime() - start.getTime();
-  if (Number.isNaN(ms) || ms < 0) return 1;
-  return Math.floor(ms / 86_400_000) + 1;
-}
 
 function castContract(v: string | null): ContractType | null {
   return v ? (v as ContractType) : null;
@@ -342,12 +336,13 @@ export async function requestLeave(
   const endDate = fdDate(formData, "endDate");
   if (!startDate || !endDate) return { ok: false, error: "Dates de début et de fin obligatoires." };
   if (endDate < startDate) return { ok: false, error: "La date de fin précède la date de début." };
-
-  const days = fdNum(formData, "days") ?? daysBetween(startDate, endDate);
+  const typeRaw = fdStr(formData, "type") ?? "ANNUAL";
+  if (!(Object.values(LeaveType) as string[]).includes(typeRaw)) return { ok: false, error: "Type de congé inconnu." };
+  const leaveType = typeRaw as LeaveType;
 
   const created = await createLeaveRequest(user.id, employee, {
-    type: (fdStr(formData, "type") as LeaveType) ?? "ANNUAL",
-    startDate, endDate, days,
+    type: leaveType,
+    startDate, endDate,
     reason: fdStr(formData, "reason"),
     // La FICHE de demande (cf. `lib/hr/leave-sheet.ts`) : le téléphone où joindre la personne
     // — pré-rempli depuis sa fiche employé mais modifiable — et l'intérimaire qu'elle choisit.
