@@ -17,7 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import {
   breakdown, canRemoveItem, budgetKindLocked, plannedGaps,
-  ITEM_KINDS, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, ITEM_BUDGET_KIND_LABELS, LIBELLE_BC_SOUS_LE_SEUIL,
+  ITEM_KINDS, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, ITEM_BUDGET_KIND_LABELS, LIBELLE_BC_SOUS_LE_SEUIL, LIBELLE_ORDRE_EMIS,
   type AdProParent,
 } from "@/lib/ad-pro-items";
 import {
@@ -1383,7 +1383,7 @@ function EtatBC({ item }: { item: ItemRow }) {
     REQUESTED: "Au centre de validation Ad & Pro",
     DIRECTION_OK: "Validé — à établir par l'assistante",
     REFUSED: "Refusé par le centre — à redemander",
-    ISSUED: "Émis",
+    ISSUED: LIBELLE_ORDRE_EMIS,
   };
   return <><p className="text-muted-foreground">{phrase[item.orderStage] ?? (item.status === "APPROVED" ? "À demander" : "Après l'accord.")}</p>{note}</>;
 }

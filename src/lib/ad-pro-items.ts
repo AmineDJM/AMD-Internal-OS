@@ -134,12 +134,17 @@ export const ITEM_BUDGET_KIND_LABELS: Record<AdProItemBudgetKind, string> = {
   ADDITIONAL: "Budget supplémentaire",
 };
 
+/** Le libellé de l'étape `ISSUED` d'un poste — partout le même (badge, colonne « BC » de la carte). */
+export const LIBELLE_ORDRE_EMIS = "Paiement demandé (ordre émis)";
+
 export const ITEM_ORDER_STAGE_LABELS: Record<AdProItemOrderStage, { label: string; tone: "neutral" | "info" | "warning" | "success" | "danger" }> = {
   NONE: { label: "Aucun bon de commande", tone: "neutral" },
   // `DIRECTION_OK` garde son nom de colonne ; depuis §118.148 c'est le CENTRE qui le pose.
   REQUESTED: { label: "BC demandé — au centre de validation Ad & Pro", tone: "info" },
   DIRECTION_OK: { label: "BC validé par le centre — en attente des Finances", tone: "warning" },
-  ISSUED: { label: "Bon de commande émis", tone: "success" },
+  // ISSUED est posé à la DEMANDE DE PAIEMENT (l'ordre de dépense naît), pas à l'émission du BC (point 10, 27/10) :
+  // l'émission du BC se lit sur la pièce elle-même, par son numéro et sa signature.
+  ISSUED: { label: LIBELLE_ORDRE_EMIS, tone: "success" },
   REFUSED: { label: "BC refusé par le centre", tone: "danger" },
 };
 
