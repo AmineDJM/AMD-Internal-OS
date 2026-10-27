@@ -5,6 +5,8 @@ import Image from "next/image";
 import { LuminescentCursor } from "./luminescent-cursor";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
+import { MemoirePanel } from "./memoire-panel";
+import { Brain } from "lucide-react";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
 
@@ -29,6 +31,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     },
   ]);
   const [isLoading, setIsLoading] = useState(false);
+  const [memoireOuverte, setMemoireOuverte] = useState(false);
 
   const handleSendMessage = async (text: string) => {
     const userMsg: ChatMessage = {
@@ -55,6 +58,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
           role: "assistant",
           content: res.content,
           blocs: res.blocs,
+          memoireProposee: res.memoireProposee ?? null,
           outilsAppeles: res.outilsAppeles,
           intent: res.intent || null,
           createdAt: new Date().toISOString(),
@@ -133,10 +137,22 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               onReset={handleReset}
               isLoading={isLoading}
               showSuggestions={messages.length <= 1}
+              leading={
+                <button
+                  type="button"
+                  onClick={() => setMemoireOuverte(true)}
+                  aria-label="Ma mémoire"
+                  title="Ma mémoire"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  <Brain className="h-4 w-4" />
+                </button>
+              }
             />
           </div>
         </div>
       </div>
+      <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
     </div>
   );
 }

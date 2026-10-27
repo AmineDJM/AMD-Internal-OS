@@ -8,6 +8,7 @@ import { censurerObjet, censurerTexte } from "@/lib/agent/filtre-confidentialite
 import { defaultDefinition } from "@/lib/workflow/defaults";
 import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
 import { ROLE_LABELS } from "@/lib/labels";
+import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "@/lib/agent/memoire-ui";
 
 /**
  * LES OUTILS DE LA V1 — tous EXISTANTS, aucun réécrit (Q7, Q20).
@@ -90,6 +91,8 @@ export function circuitLisible(sortie: string): string {
   });
 }
 
+export type { MemoireProposee } from "@/lib/agent/memoire-ui";
+
 export interface PropositionPreparee {
   intentId: string;
   proposition: ProposedAction;
@@ -99,7 +102,40 @@ export interface PropositionPreparee {
  * Les outils de CET utilisateur, pour CE tour. `propositions` recueille les intentions créées
  * pendant le tour : la réponse les rend à l'interface pour afficher la carte de confirmation.
  */
-export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[], journal?: string[]): PowerTool[] {
+/**
+ * RETENIR — l'outil ne retient RIEN : il PROPOSE. La personne confirme d'un geste (carte « Retenir »),
+ * et c'est son action serveur qui écrit, dans SA mémoire (`assistant-ia-actions.ts`).
+ */
+function outilMemoire(user: CurrentUser, memoires?: MemoireProposee[]): PowerTool {
+  return {
+    def: {
+      name: "proposer_memoire",
+      description:
+        "PROPOSE de retenir durablement un fait sur l'utilisateur lui-même (sa société, ses produits, son service, une préférence, une habitude, un raccourci). "
+        + "À appeler seulement quand il le demande (« retiens que… ») ou quand c'est manifestement durable. Rien n'est retenu avant SA confirmation : "
+        + "ne dis jamais « c'est retenu ». Jamais de rémunération, de coordonnée bancaire ni de numéro de pièce d'identité.",
+      input_schema: {
+        type: "object",
+        properties: {
+          contenu: { type: "string", description: "Le fait, en une phrase à la première personne de l'utilisateur (« Ma société est Pharmagène »)." },
+          sorte: { type: "string", enum: [...SORTES_MEMOIRE] },
+        },
+        required: ["contenu"],
+      },
+    },
+    allowed: (u) => u.id === user.id,
+    label: "Mémoire proposée",
+    run: async (entree) => {
+      const contenu = typeof entree.contenu === "string" ? entree.contenu.replace(/\s+/g, " ").trim().slice(0, MEMOIRE_MAX_CARACTERES) : "";
+      if (!contenu) return JSON.stringify({ statut: "REFUS", raison: "Rien à retenir." });
+      if (censurerTexte(contenu).censure) return JSON.stringify({ statut: "REFUS", raison: "Donnée sensible : elle ne se retient pas." });
+      memoires?.push({ contenu, sorte: estSorteMemoire(entree.sorte) ? entree.sorte : "USER_PREFERENCE" });
+      return JSON.stringify({ statut: "EN_ATTENTE_DE_CONFIRMATION", consigne: "Une carte « Retenir » est affichée : rien n'est retenu avant le geste de l'utilisateur." });
+    },
+  };
+}
+
+export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[]): PowerTool[] {
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
   const defs = assistantToolsFor(user);
   const defParNom = new Map(defs.map((d) => [d.name, d]));
@@ -143,5 +179,5 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
     }];
   });
 
-  return [...lecturesPower, ...lecturesMoteur, ...ecritures].map((o) => filtre(o, journal));
+  return [...lecturesPower, ...lecturesMoteur, ...ecritures, outilMemoire(user, memoires)].map((o) => filtre(o, journal));
 }

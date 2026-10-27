@@ -4,6 +4,7 @@ import { MODULE_LABELS, ROLE_LABELS } from "@/lib/labels";
 import { prisma } from "@/lib/prisma";
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { CONSIGNE_COMPOSANTS } from "@/lib/agent/ui/composants";
+import { memoirePourContexte } from "@/lib/agent/memoire";
 
 /**
  * COUCHE DE CONTEXTE (Q9, Q11, Q14, Q17, C10).
@@ -64,15 +65,8 @@ function adresseSure(pathname?: string): string | null {
   return /^\/[\w\-/[\]().]*$/.test(p) ? p.slice(0, 200) : null;
 }
 
-async function chargerMemoireUtilisateur(userId: string): Promise<string[]> {
-  const items = await prisma.assistantMemoryItem.findMany({
-    where: { userId, active: true },
-    select: { content: true },
-    orderBy: { updatedAt: "desc" },
-    take: 5,
-  });
-  return items.map((i) => i.content);
-}
+/** La mémoire personnelle (`memoire.ts`) : ce que la personne a confirmé, à elle seule. */
+const chargerMemoireUtilisateur = (userId: string) => memoirePourContexte(userId);
 
 async function chargerMessagesConversation(
   userId: string,
@@ -106,6 +100,7 @@ const REGLES = [
   "Actions : tu ne modifies jamais rien toi-même. Une demande d'action (tâche, message) est préparée par l'outil, puis confirmée par l'utilisateur. Tu ne prétends jamais qu'une action est faite si l'application ne l'a pas exécutée.",
   "Concision : réponds clairement et brièvement, sans répéter la question. Texte simple pour une question simple.",
   "Tu ne produis jamais de HTML, de JSX ni de code exécutable.",
+  "Mémoire : « retiens que… », « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
 ];
 
 export async function compileContext({

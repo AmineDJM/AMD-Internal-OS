@@ -5,7 +5,7 @@ import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/platform/in-proce
 import { confirmerIntentionAssistantIA } from "@/lib/actions/assistant-actions";
 import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
-import { outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { DELAI_MIMO_MS, modelesAssistant } from "@/lib/agent/modele";
 import { composantsEnBlocs, lireReponseModele, repondreAvecSecours } from "@/lib/agent/repondre";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
@@ -17,6 +17,8 @@ export interface ReponseBetaAction {
   content: string;
   /** L'UI générative (R5) : les composants choisis par le modèle, PROUVÉS par les outils du tour. */
   blocs?: WorkspaceBlock[];
+  /** Une mémoire PROPOSÉE : rien n'est retenu avant le geste « Retenir » de la personne. */
+  memoireProposee?: MemoireProposee | null;
   outilsAppeles: string[];
   intent?: {
     id: string;
@@ -100,7 +102,8 @@ export async function envoyerMessageBeta(
 
   const propositions: PropositionPreparee[] = [];
   const sorties: string[] = [];
-  const outils = outilsV1(user, propositions, sorties);
+  const memoires: MemoireProposee[] = [];
+  const outils = outilsV1(user, propositions, sorties, memoires);
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({
@@ -119,6 +122,7 @@ export async function envoyerMessageBeta(
       role: "assistant",
       content: ui.message || "Je n'ai pas de réponse à afficher.",
       blocs: ui.blocs,
+      memoireProposee: memoires[0] ?? null,
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))],
       intent: p ? { id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields, status: "PROPOSED" } : null,

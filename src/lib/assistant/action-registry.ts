@@ -1790,6 +1790,10 @@ X("plomberie du Chief lui-même (chat, mémoire, fils) — pas une action métie
   "assistant-actions:deleteMyAssistantThread", "assistant-actions:refreshMyBrief",
   "assistant-actions:forgetMyAssistantMemory",
 ]);
+X("MÉMOIRE PERSONNELLE de l'Assistant IA — les gestes de la personne sur SA mémoire (voir, retenir après confirmation, corriger, effacer). Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable : ce n'est pas une action métier à proposer.", [
+  "assistant-ia-actions:listerMaMemoire", "assistant-ia-actions:retenirMemoire", "assistant-ia-actions:corrigerMemoire",
+  "assistant-ia-actions:effacerElementMemoire", "assistant-ia-actions:effacerToutMaMemoire",
+]);
 X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
   "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",
   "budget-scope-actions:rememberBudgetEnvelope", "supplier-actions:updateSupplierView",

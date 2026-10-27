@@ -4,6 +4,8 @@ import React, { useRef, useEffect } from "react";
 import { User, Loader2, Wrench } from "lucide-react";
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
+import { MemoireProposeeCard } from "./memoire-proposee-card";
+import type { MemoireProposee } from "@/lib/agent/memoire-ui";
 import { WorkspaceBlocks } from "@/components/chief/workspace/blocks";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
@@ -13,6 +15,8 @@ export interface ChatMessage {
   content: string;
   /** L'UI générative (R5) : composants prouvés par les outils du tour, dessinés par `WorkspaceBlocks`. */
   blocs?: WorkspaceBlock[];
+  /** Une mémoire PROPOSÉE par l'assistant — retenue seulement au geste de la personne. */
+  memoireProposee?: MemoireProposee | null;
   outilsAppeles?: string[];
   intent?: {
     id: string;
@@ -92,6 +96,11 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                 {m.blocs && m.blocs.length > 0 && (
                   <div className="mt-3 min-w-0">
                     <WorkspaceBlocks composition={{ source: "assistant-ia", blocks: m.blocs }} />
+                  </div>
+                )}
+                {m.memoireProposee && (
+                  <div className="mt-3">
+                    <MemoireProposeeCard memoire={m.memoireProposee} />
                   </div>
                 )}
                 {m.intent && (

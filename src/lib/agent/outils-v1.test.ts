@@ -37,7 +37,7 @@ describe("outils V1", () => {
   it("offre au Super Admin les lectures et les deux écritures de la V1, rien d'autre", () => {
     const noms = outilsV1(auteur, []).map((o) => o.def.name).sort();
     expect(noms).toEqual([
-      "create_task", "directory_list", "directory_lookup", "list_my_tasks", "read_workflow",
+      "create_task", "directory_list", "directory_lookup", "list_my_tasks", "proposer_memoire", "read_workflow",
       "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload", "search_products", "send_message",
     ]);
   });
