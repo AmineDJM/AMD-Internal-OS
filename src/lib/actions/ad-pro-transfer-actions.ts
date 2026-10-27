@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { buildRef } from "@/lib/refs";
+import { buildRef, enSerie } from "@/lib/refs";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
@@ -96,6 +96,7 @@ async function readSource(kind: AdProKind, id: string): Promise<Common | null> {
       where: { sponsoringId: id, OR: [{ expenseOrderId: { not: null } }, { orderStage: { in: ["REQUESTED", "DIRECTION_OK", "ISSUED"] } }] },
     });
     const engagement = r.expenseOrderId ? ENGAGE_PAR_ORDRE
+      : r.status === "CLOSED" ? "Cette demande est close (ou déjà transférée) : elle ne se transfère plus."
       : r.status === "PRE_VALIDATED" || r.closedAt != null
         ? "La tenue de cet événement a été pré-validée et ses postes se préparent : la demande ne se transfère plus. "
           + "Pour l'arrêter, refusez ses postes puis clôturez-la."
@@ -116,7 +117,7 @@ async function readSource(kind: AdProKind, id: string): Promise<Common | null> {
       title: r.name, institution: r.hostInstitution, specialty: r.specialty,
       estimatedBudget: r.estimatedBudget != null ? toNumber(r.estimatedBudget) : null,
       requesterId: r.requesterId, productManagerId: r.productManagerId, comments: r.finalNote,
-      companyId: r.companyId, engagement: r.expenseOrderId ? ENGAGE_PAR_ORDRE : null,
+      companyId: r.companyId, engagement: await engagementPriseEnCharge(kind, id, r),
     };
   }
   const r = await prisma.congressInternational.findUnique({ where: { id } });
@@ -125,8 +126,32 @@ async function readSource(kind: AdProKind, id: string): Promise<Common | null> {
     title: r.name, institution: null, specialty: r.specialty,
     estimatedBudget: r.estimatedBudget != null ? toNumber(r.estimatedBudget) : null,
     requesterId: r.requesterId, productManagerId: r.productManagerId, comments: r.finalNote,
-    companyId: r.companyId, engagement: r.expenseOrderId ? ENGAGE_PAR_ORDRE : null,
+    companyId: r.companyId, engagement: await engagementPriseEnCharge(kind, id, r),
   };
+}
+
+/**
+ * CE QUI RETIENT UNE PRISE EN CHARGE (audit du 27/10/2026, ADPRO-05). Depuis le circuit du 27/10, l'argent d'une prise
+ * en charge ne passe plus par un ordre GLOBAL (`expenseOrderId` de la demande) mais par ses POSTES et ses DEVIS de
+ * personnes : seul l'ordre global était lu, et une prise en charge dont un BC était demandé ou un devis payé se
+ * transférait — ses postes et ses ordres restaient accrochés à une demande annulée, en silence. La règle est celle du
+ * sponsoring (plus haut) ; s'y ajoute la demande DÉJÀ partie : la transférer une seconde fois en ferait deux.
+ */
+async function engagementPriseEnCharge(
+  kind: "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL", id: string, r: { expenseOrderId: string | null; requestStatus: string },
+): Promise<string | null> {
+  if (r.expenseOrderId) return ENGAGE_PAR_ORDRE;
+  if (r.requestStatus === "CANCELLED") return "Cette demande est annulée (ou déjà transférée) : elle ne se transfère plus.";
+  const colonne = COLONNE_POSTE[kind];
+  const [postesEngages, devisPayes] = await Promise.all([
+    prisma.adProItem.count({
+      where: { [colonne]: id, OR: [{ expenseOrderId: { not: null } }, { orderStage: { in: ["REQUESTED", "DIRECTION_OK", "ISSUED"] } }] },
+    }),
+    prisma.careQuote.count({ where: { [colonne]: id, expenseOrderId: { not: null } } }),
+  ]);
+  if (postesEngages > 0) return `${postesEngages} poste(s) de cette demande engagent déjà la dépense (bon de commande ou ordre) : elle ne peut plus être transférée.`;
+  if (devisPayes > 0) return `${devisPayes} devis de cette prise en charge ont déjà un ordre de dépense : elle ne peut plus être transférée.`;
+  return null;
 }
 
 async function createTarget(kind: AdProKind, src: Common, actorId: string, fromLabel: string): Promise<string> {
@@ -217,74 +242,77 @@ export async function transferAdProRequest(_prev: ActionResult | undefined, form
   const sourceId = fdStr(formData, "sourceId");
   if (!isKind(fromRaw) || !isKind(toRaw) || !sourceId) return { ok: false, error: "Transfert mal formé." };
   if (fromRaw === toRaw) return { ok: false, error: "La demande est déjà dans ce module." };
-
-  const src = await readSource(fromRaw, sourceId);
-  if (!src) return { ok: false, error: "Demande introuvable." };
-  if (src.engagement) return { ok: false, error: src.engagement };
-  // DU MATÉRIEL DU STOCK RÉSERVÉ (§118.167) : la demande d'origine se ferme, ses postes y restent —
-  // et avec eux du matériel sorti du magasin que plus personne ne confirmerait. Pour toute nature
-  // de demande : un congrès accordé porte des postes de stock aussi bien qu'un sponsoring.
-  const reservees = await prisma.adProStockLine.count({
-    where: { statut: "RESERVEE", item: { [COLONNE_POSTE[fromRaw]]: sourceId } },
-  });
-  if (reservees > 0) {
-    return {
-      ok: false,
-      error: `${reservees} article(s) du stock sont réservés pour cette demande : confirmez d'abord ce qui a été remis (0 si rien) — le reste revient au magasin —, puis transférez-la.`,
-    };
-  }
-
-  try {
-    const targetId = await createTarget(toRaw, src, user.id, `${LABELS[fromRaw]} (${src.title})`);
-
-    // Les pièces suivent : elles sont l'essentiel du travail déjà fait.
-    const moved = await prisma.document.updateMany({
-      where: { entityType: fromRaw, entityId: sourceId },
-      data: { entityType: toRaw, entityId: targetId },
+  // UN TRANSFERT À LA FOIS PAR DEMANDE (ADPRO-05) : deux clics lisaient tous deux la source ouverte et créaient deux
+  // demandes cibles. La file sérialise dans le processus ; la source relue sous elle refuse la seconde (déjà annulée).
+  return enSerie(`ad-pro-transfert:${fromRaw}:${sourceId}`, async (): Promise<ActionResult> => {
+    const src = await readSource(fromRaw, sourceId);
+    if (!src) return { ok: false, error: "Demande introuvable." };
+    if (src.engagement) return { ok: false, error: src.engagement };
+    // DU MATÉRIEL DU STOCK RÉSERVÉ (§118.167) : la demande d'origine se ferme, ses postes y restent —
+    // et avec eux du matériel sorti du magasin que plus personne ne confirmerait. Pour toute nature
+    // de demande : un congrès accordé porte des postes de stock aussi bien qu'un sponsoring.
+    const reservees = await prisma.adProStockLine.count({
+      where: { statut: "RESERVEE", item: { [COLONNE_POSTE[fromRaw]]: sourceId } },
     });
-
-    // Le circuit de validation de la source est clos : ses étapes n'ont plus d'objet, et le
-    // laisser ouvert ferait apparaître la demande dans les files d'attente de ses acteurs. Par la
-    // porte du moteur (`fermerInstance`) : elle ferme aussi une demande À CORRIGER, que l'écriture
-    // d'ici — « en cours » seulement — laissait ouverte chez son demandeur (§118.186), et elle
-    // laisse la raison au journal du circuit.
-    await fermerInstance({
-      viewer: { id: user.id, role: user.role, secondaryRole: user.secondaryRole ?? null, name: user.name },
-      entityType: fromRaw, entityId: sourceId, motif: `Transférée vers ${LABELS[toRaw]}`,
-    }).catch(() => false);
-
-    await closeSource(fromRaw, sourceId, toRaw, targetId);
-    // Le circuit de la demande reçue naît maintenant, sur la route de son créateur, et prévient ses acteurs.
-    await ouvrirLeCircuit(toRaw, targetId);
-
-    for (const entry of [
-      { entityId: sourceId, entityType: fromRaw, summary: `Demande transférée vers ${LABELS[toRaw]} (${PATHS[toRaw]}/${targetId}) — ${moved.count} pièce(s) déplacée(s).` },
-      { entityId: targetId, entityType: toRaw, summary: `Demande reçue par transfert depuis ${LABELS[fromRaw]} — le circuit de validation repart de son début.` },
-    ]) {
-      await recordAudit({
-        actorId: user.id, action: "UPDATE", module: LABELS[entry.entityType as AdProKind],
-        entityType: entry.entityType as never, entityId: entry.entityId, summary: entry.summary,
-      }).catch(() => undefined);
+    if (reservees > 0) {
+      return {
+        ok: false,
+        error: `${reservees} article(s) du stock sont réservés pour cette demande : confirmez d'abord ce qui a été remis (0 si rien) — le reste revient au magasin —, puis transférez-la.`,
+      };
     }
 
-    if (src.requesterId) {
-      await notifyUser({
-        userId: src.requesterId, type: "GENERIC",
-        title: "Votre demande a été transférée",
-        body: `« ${src.title} » a été déplacée vers ${LABELS[toRaw]}. Le circuit de validation y repart du début.`,
-        link: `${PATHS[toRaw]}/${targetId}`,
-      }).catch(() => undefined);
-    }
+    try {
+      const targetId = await createTarget(toRaw, src, user.id, `${LABELS[fromRaw]} (${src.title})`);
 
-    revalidatePath(PATHS[fromRaw]);
-    revalidatePath(`${PATHS[fromRaw]}/${sourceId}`);
-    revalidatePath(PATHS[toRaw]);
-    return {
-      ok: true, id: targetId,
-      message: `Transférée vers ${LABELS[toRaw]}${moved.count > 0 ? ` avec ${moved.count} pièce(s)` : ""}. Le circuit y repart du début.`,
-    };
-  } catch (err) {
-    console.error("[ad-pro] transfert impossible", err);
-    return { ok: false, error: "Le transfert n'a pas pu être effectué." };
-  }
+      // Les pièces suivent : elles sont l'essentiel du travail déjà fait.
+      const moved = await prisma.document.updateMany({
+        where: { entityType: fromRaw, entityId: sourceId },
+        data: { entityType: toRaw, entityId: targetId },
+      });
+
+      // Le circuit de validation de la source est clos : ses étapes n'ont plus d'objet, et le
+      // laisser ouvert ferait apparaître la demande dans les files d'attente de ses acteurs. Par la
+      // porte du moteur (`fermerInstance`) : elle ferme aussi une demande À CORRIGER, que l'écriture
+      // d'ici — « en cours » seulement — laissait ouverte chez son demandeur (§118.186), et elle
+      // laisse la raison au journal du circuit.
+      await fermerInstance({
+        viewer: { id: user.id, role: user.role, secondaryRole: user.secondaryRole ?? null, name: user.name },
+        entityType: fromRaw, entityId: sourceId, motif: `Transférée vers ${LABELS[toRaw]}`,
+      }).catch(() => false);
+
+      await closeSource(fromRaw, sourceId, toRaw, targetId);
+      // Le circuit de la demande reçue naît maintenant, sur la route de son créateur, et prévient ses acteurs.
+      await ouvrirLeCircuit(toRaw, targetId);
+
+      for (const entry of [
+        { entityId: sourceId, entityType: fromRaw, summary: `Demande transférée vers ${LABELS[toRaw]} (${PATHS[toRaw]}/${targetId}) — ${moved.count} pièce(s) déplacée(s).` },
+        { entityId: targetId, entityType: toRaw, summary: `Demande reçue par transfert depuis ${LABELS[fromRaw]} — le circuit de validation repart de son début.` },
+      ]) {
+        await recordAudit({
+          actorId: user.id, action: "UPDATE", module: LABELS[entry.entityType as AdProKind],
+          entityType: entry.entityType as never, entityId: entry.entityId, summary: entry.summary,
+        }).catch(() => undefined);
+      }
+
+      if (src.requesterId) {
+        await notifyUser({
+          userId: src.requesterId, type: "GENERIC",
+          title: "Votre demande a été transférée",
+          body: `« ${src.title} » a été déplacée vers ${LABELS[toRaw]}. Le circuit de validation y repart du début.`,
+          link: `${PATHS[toRaw]}/${targetId}`,
+        }).catch(() => undefined);
+      }
+
+      revalidatePath(PATHS[fromRaw]);
+      revalidatePath(`${PATHS[fromRaw]}/${sourceId}`);
+      revalidatePath(PATHS[toRaw]);
+      return {
+        ok: true, id: targetId,
+        message: `Transférée vers ${LABELS[toRaw]}${moved.count > 0 ? ` avec ${moved.count} pièce(s)` : ""}. Le circuit y repart du début.`,
+      };
+    } catch (err) {
+      console.error("[ad-pro] transfert impossible", err);
+      return { ok: false, error: "Le transfert n'a pas pu être effectué." };
+    }
+  });
 }

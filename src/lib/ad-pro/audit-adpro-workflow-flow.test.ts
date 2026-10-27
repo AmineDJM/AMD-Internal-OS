@@ -17,6 +17,7 @@ import { sendLegalInvoiceToSettlement } from "@/lib/actions/legal-actions";
 import { consommerDepensePoste, imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
 import { addAdProItem, submitAdProItem, decideAdProItem } from "@/lib/actions/ad-pro-item-actions";
 import { validateDeclarationByDirection } from "@/lib/actions/medical-info-actions";
+import { transferAdProRequest } from "@/lib/actions/ad-pro-transfer-actions";
 import { statuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
 import { ensureInstance } from "@/lib/workflow/engine";
 import { performAction } from "@/lib/assistant";
@@ -230,5 +231,27 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     const inst = await prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType: "CONGRESS_NATIONAL", entityId: cree.id } } });
     expect(inst?.status).toBe("IN_PROGRESS");
     expect(inst?.currentSlug).toBe("preliminary");
+  });
+
+  // ─── ADPRO-05 ─────────────────────────────────────────────────────────────────────────────
+  it("ADPRO-05 — une prise en charge dont un poste engage déjà la dépense ne se transfère pas ; une demande déjà transférée non plus", async () => {
+    const engage = await congresPrevalide("Congrès de Tlemcen");
+    await prisma.adProItem.create({
+      data: { congressNationalId: engage, kind: "PRINTING", label: `${TAG}Affiches`, status: "APPROVED", amountGranted: 400_000, orderStage: "REQUESTED" },
+    });
+    await comme("dir");
+    const r = await transferAdProRequest(undefined, fd({ from: "CONGRESS_NATIONAL", to: "SPONSORING", sourceId: engage }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/poste/);
+    expect((await prisma.congressNational.findUniqueOrThrow({ where: { id: engage } })).requestStatus).toBe("APPROVED");
+
+    // Une demande libre se transfère UNE fois : la seconde tentative (double clic, onglet resté ouvert) est refusée.
+    const libre = (await prisma.congressNational.create({ data: { name: `${RUN} Congrès libre`, requesterId: u.kam, requestStatus: "AWAITING_PRELIMINARY" } })).id;
+    congres.push(libre);
+    const t1 = await transferAdProRequest(undefined, fd({ from: "CONGRESS_NATIONAL", to: "CONGRESS_INTERNATIONAL", sourceId: libre }));
+    expect(t1.ok, t1.error).toBe(true);
+    const t2 = await transferAdProRequest(undefined, fd({ from: "CONGRESS_NATIONAL", to: "CONGRESS_INTERNATIONAL", sourceId: libre }));
+    expect(t2.ok).toBe(false);
+    expect(await prisma.congressInternational.count({ where: { requesterId: u.kam, name: `${RUN} Congrès libre` } })).toBe(1);
   });
 });
