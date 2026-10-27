@@ -1,9 +1,10 @@
 import type { Prisma } from "@prisma/client";
 import {
   userCan, scopeRegulatory, scopeSales, scopeMedicalDoctors, scopeMedicalVisits,
-  scopeAdminRequests, scopeMedicalInfo, type SessionUser, type Module,
+  scopeAdminRequests, scopeMedicalInfo, hasGlobalView, type SessionUser, type Module,
 } from "@/lib/rbac";
 import { polesLisibles } from "@/lib/lecteurs/consulting";
+import { clauseTachesVisibles } from "@/lib/tasks/request-flow";
 
 /**
  * REGISTRE DES OBJETS MÉTIER exposés par l'API.
@@ -411,7 +412,9 @@ export const ENTITIES: EntityDef[] = [
     module: "WORKSPACE",
     label: "Tâche",
     description: "Tâche assignée à une personne, éventuellement rattachée à un projet ou à un objet métier.",
-    scope: moduleOnly,
+    // Le CERCLE de la tâche (assigné, demandeur, participants, lecteurs), la même clause que la
+    // recherche globale et la fiche (`canSee`) — le module WORKSPACE, que tout le monde a, ne suffit pas.
+    scope: (user) => clauseTachesVisibles(user.id, hasGlobalView(user.role)),
     listFields: ["id", "title", "status", "priority", "assignedToId", "createdById", "dueDate", "module", "relatedEntityType", "relatedEntityId", "createdAt"],
     searchFields: ["title", "description"],
     statusField: "status",
@@ -458,7 +461,8 @@ export const ENTITIES: EntityDef[] = [
     module: "NOTIFICATIONS",
     label: "Notification",
     description: "Alerte adressée à une personne (assignation, validation attendue, échéance).",
-    scope: moduleOnly,
+    // Une notification n'est lue que par son destinataire — jamais par « qui a le module ».
+    scope: (user) => ({ userId: user.id }),
     listFields: ["id", "userId", "type", "title", "body", "link", "isRead", "createdAt"],
     searchFields: ["title", "body"],
     orderBy: { createdAt: "desc" },
