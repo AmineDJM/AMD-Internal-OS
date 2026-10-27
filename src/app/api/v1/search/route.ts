@@ -43,7 +43,8 @@ export const GET = handle(
     const perEntity = Math.max(1, Math.floor(page.limit / Math.max(1, targets.length)));
     const groups = await Promise.all(targets.map(async (def) => {
       const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
-      const where = { ...(await porteeEntite(ctx.user, def)), ...textSearchWhere(def, q), ...dateWhere };
+      // `AND` : la recherche (`{ OR }`) ne doit jamais écraser la portée (`{ OR }` elle aussi).
+      const where = { AND: [await porteeEntite(ctx.user, def), textSearchWhere(def, q), dateWhere] };
       const [rows, total] = await Promise.all([
         model.findMany({ where, take: perEntity, orderBy: def.orderBy ?? { id: "desc" } }).catch(() => []),
         model.count({ where }).catch(() => 0),

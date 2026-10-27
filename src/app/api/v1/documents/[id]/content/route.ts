@@ -29,7 +29,7 @@ export const GET = handle<{ id: string }>(
     if (def) {
       if (!canReadEntity(ctx.user, def)) throw errors.notFound("Document");
       const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
-      const owner = await model.findFirst({ where: { id: doc.entityId ?? "", ...(await porteeEntite(ctx.user, def)) }, select: { id: true } });
+      const owner = await model.findFirst({ where: { AND: [await porteeEntite(ctx.user, def), { id: doc.entityId ?? "" }] }, select: { id: true } });
       if (!owner) throw errors.notFound("Document");
     }
 

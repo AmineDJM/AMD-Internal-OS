@@ -28,7 +28,7 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
     mark({ operationId: `get_${def.name}_${params.aspect.replace("-", "_")}`, entityType: def.entityType ?? def.model, entityId: params.id });
 
     const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
-    const record = await model.findFirst({ where: { id: params.id, ...(await porteeEntite(ctx.user, def)) } });
+    const record = await model.findFirst({ where: { AND: [await porteeEntite(ctx.user, def), { id: params.id }] } });
     if (!record) throw errors.notFound(def.label);
 
     const page = parsePage(req.nextUrl.searchParams);

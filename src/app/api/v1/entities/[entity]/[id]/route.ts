@@ -21,7 +21,7 @@ export const GET = handle<{ entity: string; id: string }>(
 
     const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
     const row = await model.findFirst({
-      where: { id: params.id, ...(await porteeEntite(ctx.user, def)) },
+      where: { AND: [await porteeEntite(ctx.user, def), { id: params.id }] },
       select: selectOf(def.detailFields),
     });
     if (!row) throw errors.notFound(def.label);
