@@ -2402,7 +2402,7 @@ enum AdProItemOrderStage {
   NONE
   REQUESTED // demande d'émission déposée
   DIRECTION_OK // visa Direction obtenu — en attente des Finances
-  ISSUED // Finances : ordre de dépense émis
+  ISSUED // paiement demandé : ordre de dépense émis (libellé « Paiement demandé (ordre émis) »)
   REFUSED
 }
 
@@ -3157,6 +3157,8 @@ model BudgetCategoryLine {
   transactions     FinanceTransaction[]
   expenseLines     BudgetExpenseLine[]
   adProItems       AdProItem[]
+  /// Les dossiers de matériel promotionnel imputés ici (point 21, 27/10).
+  promoMaterials   PromoMaterial[]           @relation("PromoMaterialBudget")
   /// Dépenses des moyens généraux imputées ici — le ticket entier, puis article par article.
   deptExpenses     DepartmentBudgetExpense[] @relation("DeptExpenseBudget")
   deptExpenseLines DepartmentExpenseLine[]   @relation("DeptExpenseLineBudget")
@@ -7668,6 +7670,12 @@ model PromoMaterial {
   /// répartir : « combien la gamme oncologie a-t-elle dépensé ? » n'avait pas de réponse.
   businessUnitId String?
   businessUnit   BusinessUnit?       @relation("AdProPromoMaterial", fields: [businessUnitId], references: [id], onDelete: SetNull)
+  /// LE BUDGET DU DOSSIER (Direction, 27/10 — point 21) : la (sous-)catégorie que la Direction Marketing lui impute.
+  /// Ses BC signés y comptent en ENGAGÉ, ses ordres fournisseur en CONSOMMÉ (`queries/budget-sources.ts`).
+  budgetCategoryId  String?
+  budgetCategory    BudgetCategoryLine? @relation("PromoMaterialBudget", fields: [budgetCategoryId], references: [id], onDelete: SetNull)
+  budgetImputeLe    DateTime?
+  budgetImputeParId String?
   id             String              @id @default(cuid())
   reference      String              @unique // MP-2026-001
   title          String
@@ -7763,6 +7771,7 @@ model PromoMaterial {
   @@index([status])
   @@index([requesterId])
   @@index([assistantId])
+  @@index([budgetCategoryId])
 }
 
 /// UN DEVIS REÇU, RETRANSCRIT (§118.152) — le tableau interne de l'entreprise, par fournisseur.
