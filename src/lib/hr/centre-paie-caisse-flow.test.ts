@@ -177,7 +177,11 @@ suite("Paie et caisse d'avance par le centre de paiement", () => {
     it("LA SOMME EST OBLIGATOIRE ET LISIBLE ; l'entité doit être la vôtre ; la catégorie aussi", async () => {
       expect((await saisir(empA1, "100000")).ok).toBe(true);
       expect((await saisir(empA2, "110000")).ok).toBe(true);
-      expect((await saisir(empB1, "90000")).ok).toBe(true);
+      // Le salaire de B est saisi par la RH de B : celle de ce banc ne voit que A, et la porte de la fiche le lui
+      // refuse désormais (audit sécurité 27/10, SECURITE-ACCES-09). Il sert ici de témoin « autre entité ».
+      ACTOR = await rh();
+      expect((await saisir(empB1, "90000")).ok, "la RH de A ne saisit pas la paie d'un salarié de B").toBe(false);
+      await prisma.payrollEntry.create({ data: { employeeId: empB1, year: YEAR, month: MONTH, gross: 150_000, employerCost: 150_000, net: 90_000, status: "PAID", paidDate: new Date() } });
 
       const sans = await envoyer({});
       expect(sans.ok).toBe(false);
