@@ -41,6 +41,27 @@ type RawNode = {
   _count?: { shares: number; comments: number; versions: number };
 };
 
+/** La catégorie d'un nœud est-elle visible pour cette personne ? (`null` = Drive personnel : non.) */
+export async function voitLaCategorie(user: SessionUser, spaceId: string | null): Promise<boolean> {
+  if (!spaceId) return false;
+  const s = await prisma.driveSpace.findUnique({ where: { id: spaceId } });
+  return !!s && !s.isArchived && canViewDriveSpace(user, s);
+}
+
+/**
+ * LE FIL D'ARIANE QU'ON PEUT SUIVRE — un dossier partagé s'ouvre au milieu de l'arborescence d'un
+ * autre (« Messagerie / Conversation / Envoi du… » de l'expéditeur) : afficher ces parents, c'était
+ * montrer des noms de dossiers privés et des liens qui menaient à un refus. Le fil commence au
+ * premier dossier OUVERT à la personne (le droit descend : tout ce qui est en dessous l'est aussi).
+ */
+async function filAccessible(user: SessionUser, fil: { id: string; name: string }[]): Promise<{ id: string; name: string }[]> {
+  if (user.role === "SUPER_ADMIN") return fil;
+  for (let i = 0; i < fil.length - 1; i++) {
+    if ((await resolveDriveAccess(user, fil[i].id)) !== "NONE") return fil.slice(i);
+  }
+  return fil.slice(-1);
+}
+
 /** Catégories (espaces partagés) que l'utilisateur peut voir — pour les onglets du Drive. */
 export async function getDriveSpacesForUser(user: SessionUser): Promise<DriveSpaceTab[]> {
   const spaces = await prisma.driveSpace.findMany({ where: { isArchived: false }, orderBy: { name: "asc" } });
@@ -160,9 +181,11 @@ export async function getDriveListing(
     if (!folder || folder.isTrashed) return null; // pas de navigation dans un dossier corbeillé
     // Garde-fou : un dossier consulté via l'onglet d'une catégorie doit appartenir à CETTE catégorie
     // (et un dossier personnel ne se consulte pas via un onglet de catégorie, et inversement).
-    if ((folder.spaceId ?? null) !== (spaceId ?? null)) return null;
+    // Seule exception : le dossier d'une catégorie qu'on ne voit pas, mais qui nous a été PARTAGÉ
+    // (nommément ou joint à un message) — il n'a pas d'onglet chez nous, il s'ouvre dans « Drive ».
+    if ((folder.spaceId ?? null) !== (spaceId ?? null) && !(spaceId === null && !(await voitLaCategorie(user, folder.spaceId)))) return null;
     const nodes = (await prisma.driveNode.findMany({ where: { parentId: folderId, isTrashed: false }, ...nodeArgs(user.id) })) as RawNode[];
-    const breadcrumb = await driveBreadcrumb(folderId);
+    const breadcrumb = await filAccessible(user, await driveBreadcrumb(folderId));
     return { folder: { id: folder.id, name: folder.name }, breadcrumb, nodes: nodes.map((n) => toRow(user, n, level === "EDIT")), level, trash: false, space };
   }
 

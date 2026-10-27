@@ -158,7 +158,7 @@ suite("Assistant IA — documents au-delà de l'édition", () => {
     expect(JSON.stringify(faux.promptsRecus)).not.toContain("00799999000123456789");
     const node = await prisma.driveNode.findFirstOrThrow({ where: { name: `${TAG}contrat (EN).docx` } });
     const v = await prisma.fileVersion.findFirstOrThrow({ where: { nodeId: node.id } });
-    const xml = new PizZip(await getBlob(v.blobId)).file("word/document.xml")!.asText();
+    const xml = new PizZip((await getBlob(v.blobId))!).file("word/document.xml")!.asText();
     expect(xml).toContain("Subject: service agreement");
     expect(xml).toContain("Paid to RIB 00799999000123456789 within 30 days.");
     expect(xml).toContain("<w:pStyle w:val=\"Title\"/>");
@@ -175,7 +175,7 @@ suite("Assistant IA — documents au-delà de l'édition", () => {
     expect(r.ok, r.error).toBe(true);
     const node = await prisma.driveNode.findFirstOrThrow({ where: { name: `${TAG}mot (AR).docx` } });
     const v = await prisma.fileVersion.findFirstOrThrow({ where: { nodeId: node.id } });
-    const xml = new PizZip(await getBlob(v.blobId)).file("word/document.xml")!.asText();
+    const xml = new PizZip((await getBlob(v.blobId))!).file("word/document.xml")!.asText();
     expect(xml).toContain("مرحبا بالجميع");
     expect(xml).toContain("<w:bidi/>");
     expect(xml).toContain("<w:rtl/>");

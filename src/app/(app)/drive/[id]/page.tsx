@@ -3,6 +3,7 @@ import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { resolveDriveAccess } from "@/lib/drive";
+import { voitLaCategorie } from "@/lib/queries/drive";
 import { fileTypeLabel, explorerSize } from "@/lib/drive/explorer";
 import { dossierDuFichier } from "@/lib/drive/menu-fichier";
 import { onlyofficeConfigured, onlyofficeEditable, onlyofficeTypeOuvrable } from "@/lib/onlyoffice";
@@ -42,7 +43,8 @@ export default async function DriveFilePage({ params }: { params: { id: string }
     },
   });
   if (!node) notFound();
-  if (node.type === "FOLDER") redirect(node.spaceId ? `/drive/espace/${node.spaceId}?folder=${node.id}` : `/drive?folder=${node.id}`);
+  // Un dossier d'une catégorie qu'on ne voit pas (partagé, ou joint à un message) s'ouvre dans « Drive ».
+  if (node.type === "FOLDER") redirect(node.spaceId && (await voitLaCategorie(user, node.spaceId)) ? `/drive/espace/${node.spaceId}?folder=${node.id}` : `/drive?folder=${node.id}`);
 
   const canEdit = level === "EDIT";
   const ouvrable = onlyofficeConfigured() && onlyofficeTypeOuvrable(node.name) !== null;

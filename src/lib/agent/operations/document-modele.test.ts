@@ -59,7 +59,7 @@ suite("Assistant IA — document depuis un modèle", () => {
     expect(r.message).toMatch(/papier en-tête/);
     const node = await prisma.driveNode.findFirstOrThrow({ where: { name: { contains: `${TAG}Confirmation` } } });
     const v = await prisma.fileVersion.findFirstOrThrow({ where: { nodeId: node.id } });
-    const xml = new PizZip(await getBlob(v.blobId)).file("word/document.xml")!.asText();
+    const xml = new PizZip((await getBlob(v.blobId))!).file("word/document.xml")!.asText();
     expect(xml).toContain("Nous confirmons notre participation");
     expect(xml).toContain("Objet : ");
   });

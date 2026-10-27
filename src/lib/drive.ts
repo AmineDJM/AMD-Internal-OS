@@ -42,7 +42,29 @@ export async function resolveDriveAccess(user: SessionUser, nodeId: string): Pro
     }
     currentId = node.parentId;
   }
+  if (best === "NONE" && seen.size > 0 && (await partageParMessagerie(user.id, [...seen]))) best = "VIEW";
   return best;
+}
+
+/**
+ * LU DANS UNE CONVERSATION DONT ON EST MEMBRE — le fichier (ou un dossier parent) y a été joint.
+ *
+ * L'envoi accorde un partage nominatif aux membres PRÉSENTS (`grantDriveRefAccess`) ; quiconque
+ * entrait ensuite — ajouté à un groupe, canal rejoint, retour après départ — voyait la pièce dans
+ * le fil et recevait un refus en l'ouvrant (Direction, 27/10). Le droit se lit donc aussi ici, au
+ * moment de l'ouverture : membre actif d'une conversation où un message non retiré joint ce nœud.
+ * Quitter la conversation, ou retirer le message, referme cette porte. La référence elle-même a été
+ * validée contre les droits de l'expéditeur à l'envoi (`parseDriveRefs`) : c'est son geste de partage.
+ */
+async function partageParMessagerie(userId: string, nodeIds: string[]): Promise<boolean> {
+  const piece = await prisma.messageAttachment.findFirst({
+    where: {
+      driveNodeId: { in: nodeIds },
+      message: { deletedAt: null, conversation: { members: { some: { userId, leftAt: null } } } },
+    },
+    select: { id: true },
+  });
+  return piece !== null;
 }
 
 export const canEditDrive = (level: DriveAccessLevel) => level === "EDIT";

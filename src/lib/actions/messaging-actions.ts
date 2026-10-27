@@ -216,6 +216,42 @@ async function grantDriveRefAccess(refs: readonly ParsedDriveRef[], memberIds: r
   }
 }
 
+/**
+ * LES PIÈCES DU DRIVE DÉJÀ JOINTES AU FIL, ouvertes à qui y ENTRE (ajouté à un groupe, canal rejoint,
+ * retour après départ). L'envoi n'accorde la lecture qu'aux membres présents : sans ce rattrapage, le
+ * nouveau venu voyait les pièces et ne pouvait rien en ouvrir (Direction, 27/10). Même règle que
+ * `grantDriveRefAccess` (jamais un `VIEW` par-dessus un droit existant, ni à l'expéditeur, ni au
+ * propriétaire) ; `resolveDriveAccess` lit aussi ce droit à l'ouverture — ce partage-ci range en plus
+ * les pièces dans « son » Drive et ouvre la porte du module.
+ */
+async function accorderPiecesDuFil(conversationId: string, userIds: readonly string[]): Promise<void> {
+  if (userIds.length === 0) return;
+  const pieces = await prisma.messageAttachment.findMany({
+    where: { driveNodeId: { not: null }, message: { conversationId, deletedAt: null }, driveNode: { isTrashed: false } },
+    select: { driveNodeId: true, message: { select: { senderId: true } }, driveNode: { select: { ownerId: true } } },
+    orderBy: { createdAt: "desc" },
+    take: 2000,
+  });
+  if (pieces.length === 0) return;
+  const nodeIds = [...new Set(pieces.map((p) => p.driveNodeId!))];
+  const existants = await prisma.driveShare.findMany({
+    where: { nodeId: { in: nodeIds }, userId: { in: [...userIds] } },
+    select: { nodeId: true, userId: true },
+  });
+  const deja = new Set(existants.map((e) => `${e.nodeId}:${e.userId}`));
+  const lignes = new Map<string, { nodeId: string; userId: string; access: "VIEW" }>();
+  for (const p of pieces) {
+    const nodeId = p.driveNodeId!;
+    const cibles = recipientsToGrant(userIds, {
+      senderId: p.message.senderId ?? "",
+      ownerId: p.driveNode?.ownerId ?? null,
+      alreadyShared: userIds.filter((u) => deja.has(`${nodeId}:${u}`)),
+    });
+    for (const userId of cibles) lignes.set(`${nodeId}:${userId}`, { nodeId, userId, access: "VIEW" });
+  }
+  if (lignes.size > 0) await prisma.driveShare.createMany({ data: [...lignes.values()], skipDuplicates: true });
+}
+
 /** Référence à un objet de l'OS partagé dans un message (validée contre EntityType). */
 function parseRef(formData: FormData): { type: EntityType; id: string; label: string | null } | null {
   const type = fdStr(formData, "refType");
@@ -699,6 +735,7 @@ export async function addMembers(formData: FormData): Promise<ActionResult> {
     }
   }
   if (added.length) {
+    await accorderPiecesDuFil(conversationId, added);
     const names = await prisma.user.findMany({ where: { id: { in: added } }, select: { name: true } });
     await systemMessage(conversationId, `${user.name} a ajouté ${names.map((n) => n.name).join(", ")}.`);
   }
@@ -777,6 +814,7 @@ export async function joinChannel(formData: FormData): Promise<ActionResult> {
   if (existing && !existing.leftAt) return { ok: true, id: conversationId };
   if (existing) await prisma.conversationMember.update({ where: { id: existing.id }, data: { leftAt: null, role: "MEMBER" } });
   else await prisma.conversationMember.create({ data: { conversationId, userId: user.id, role: "MEMBER" } });
+  await accorderPiecesDuFil(conversationId, [user.id]);
   await systemMessage(conversationId, `${user.name} a rejoint le canal.`);
   revalidatePath("/messages");
   return { ok: true, id: conversationId };
