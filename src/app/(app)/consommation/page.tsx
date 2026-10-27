@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { requireModule } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { userCan } from "@/lib/rbac";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TeleverserConsommation } from "./televerser";
+import { listerImports } from "@/modules/consommation/api";
+import { TeleverserConsommation } from "@/modules/consommation/ecrans/televerser";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Consumption Intelligence — AMD Internal OS" };
@@ -22,12 +22,7 @@ const STATUT: Record<string, { label: string; tone: "warning" | "success" | "neu
 export default async function ConsommationPage() {
   const user = await requireModule("CONSUMPTION");
   const peutImporter = userCan(user, "CONSUMPTION", "UPLOAD");
-  const imports = await prisma.consommationImport.findMany({
-    orderBy: { createdAt: "desc" }, take: 100,
-    select: { id: true, nomFichier: true, statut: true, createdAt: true, valideLe: true, _count: { select: { lignes: true } } },
-  });
-  const parStatut = await prisma.consommationLigne.groupBy({ by: ["importId", "statut"], where: { importId: { in: imports.map((i) => i.id) } }, _count: { _all: true } });
-  const compte = (id: string, s: string) => parStatut.find((x) => x.importId === id && x.statut === s)?._count._all ?? 0;
+  const imports = await listerImports();
   return (
     <div className="space-y-5">
       <PageHeader title="Consumption Intelligence" description="Les fichiers de consommation des établissements, rendus fiables et traçables — et l'affinité qu'on en tire.">
@@ -71,9 +66,9 @@ export default async function ConsommationPage() {
                 <TableCell data-sans-etiquette className="!justify-start sm:py-2"><Link href={`/consommation/${i.id}`} className="min-w-0 py-1 font-medium text-primary [overflow-wrap:anywhere] hover:underline">{i.nomFichier}</Link></TableCell>
                 <TableCell className="sm:py-2"><Badge tone={STATUT[i.statut]?.tone ?? "neutral"}>{STATUT[i.statut]?.label ?? i.statut}</Badge></TableCell>
                 <TableCell className="sm:py-2">{i._count.lignes}</TableCell>
-                <TableCell className="sm:py-2">{compte(i.id, "OK")}</TableCell>
-                <TableCell className="sm:py-2">{compte(i.id, "A_REVOIR")}</TableCell>
-                <TableCell className="sm:py-2">{compte(i.id, "DOUBLON")}</TableCell>
+                <TableCell className="sm:py-2">{i.sures}</TableCell>
+                <TableCell className="sm:py-2">{i.aRevoir}</TableCell>
+                <TableCell className="sm:py-2">{i.doublons}</TableCell>
                 <TableCell className="sm:py-2">{i.createdAt.toLocaleDateString("fr-FR")}</TableCell>
               </TableRow>
             ))}

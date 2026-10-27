@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { cibleInterne } from "./imports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -304,9 +305,8 @@ export function scanBoundary(root = process.cwd()): BoundaryReport {
 
       for (const spec of specs) {
         // `@prisma/client` est la dépendance la plus profonde à l'ERP : le schéma lui-même.
-        const target = spec === "@prisma/client" ? "@prisma/client"
-          : spec.startsWith("@/") ? spec.replace("@/", "src/")
-            : null;
+        // `@/…` ET relatif (`../finance/x`) : voir `imports.ts` — un `./` ne contourne pas le cliquet.
+        const target = spec === "@prisma/client" ? "@prisma/client" : cibleInterne(spec, file);
         if (!target) continue;
         if (target !== "@prisma/client" && (isAdam(target) || isAdam(`${target}/`))) continue;
         if (NEUTRAL.has(target)) continue;

@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { requireModule } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { userCan } from "@/lib/rbac";
 import { PageHeader } from "@/components/shared/page-header";
-import { calculerAffinites, PERIODE_LABELS } from "@/lib/consommation/affinite";
-import { lireConfig, lignesDuMarche } from "@/lib/consommation/affinite-service";
+import { calculerAffinites, lireConfig, lignesDuMarche, produitsEtConfigsAffinite, nomsEtablissements, PERIODE_LABELS } from "@/modules/consommation/api";
 import { pct } from "@/lib/segmentation/regles";
-import { ConfigAffiniteForm } from "./config-form";
+import { ConfigAffiniteForm } from "@/modules/consommation/ecrans/config-affinite";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -20,17 +18,12 @@ export const metadata = { title: "Affinité par établissement — AMD Internal 
 export default async function AffinitePage({ searchParams }: { searchParams?: { p?: string } }) {
   const user = await requireModule("CONSUMPTION");
   const peutRegler = userCan(user, "CONSUMPTION", "VALIDATE");
-  const [produits, configs] = await Promise.all([
-    prisma.product.findMany({ where: { isActive: true }, select: { id: true, canonicalName: true, dci: true }, orderBy: { canonicalName: "asc" } }),
-    prisma.affiniteConfig.findMany({ select: { productId: true, panier: true, periode: true, debut: true, fin: true } }),
-  ]);
+  const { produits, configs } = await produitsEtConfigsAffinite();
   const choisi = produits.find((p) => p.id === searchParams?.p) ?? produits.find((p) => configs.some((c) => c.productId === p.id)) ?? produits[0] ?? null;
   const row = choisi ? configs.find((c) => c.productId === choisi.id) : undefined;
   const cfg = row ? lireConfig(row) : null;
   const resultat = cfg ? calculerAffinites(await lignesDuMarche(cfg), cfg) : null;
-  const noms = resultat?.parEtablissement.length
-    ? new Map((await prisma.medicalInstitution.findMany({ where: { id: { in: resultat.parEtablissement.map((a) => a.institutionId) } }, select: { id: true, name: true } })).map((n) => [n.id, n.name]))
-    : new Map<string, string>();
+  const noms = await nomsEtablissements(resultat?.parEtablissement.map((a) => a.institutionId) ?? []);
 
   return (
     <div className="space-y-5">

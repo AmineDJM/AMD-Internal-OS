@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
-import { importerConsommation, confirmerCorrespondance, ignorerLigne, validerImport, annulerImport, type ResultatAnalyse } from "@/lib/consommation/service";
+import { importerConsommation, confirmerCorrespondance, ignorerLigne, validerImport, annulerImport, type ResultatAnalyse } from "@/modules/consommation/api";
 
 /**
  * CONSUMPTION INTELLIGENCE — les gestes : importer (analyse, rien ne compte encore), confirmer une correspondance

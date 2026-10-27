@@ -4,9 +4,9 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import type { GroupeARevoir } from "../domaine/revue";
 import { confirmerCorrespondanceConso, validerImportConso, annulerImportConso } from "@/lib/actions/consommation-actions";
 
-export interface GroupeARevoir { nature: "ETABLISSEMENT" | "PRODUIT"; brut: string; lignes: number; proposition: { id: string; nom: string; pourquoi: string } | null }
 
 /**
  * TRANCHER CE QUI N'EST PAS SÛR — une décision par valeur brute (« R400 » est ce produit, « CHU ORAN » est cet
