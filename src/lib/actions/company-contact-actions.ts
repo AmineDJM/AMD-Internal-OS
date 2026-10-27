@@ -7,6 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { getMyCompanies, companyIdForNew } from "@/lib/company";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
+import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
+import { champsNonSaisis } from "@/lib/coffre/champs";
 
 /**
  * L'ANNUAIRE DE L'ENTREPRISE — les contacts externes, tenus au même endroit pour tout le monde.
@@ -72,6 +74,8 @@ export async function createCompanyContact(_prev: ActionResult | undefined, form
     data: { ...data, companyId, createdById: user.id, updatedById: user.id },
     select: { id: true },
   });
+  // LE COFFRE (refonte V2-E) : le RIB copié chiffré — derrière l'interrupteur, jamais bloquant.
+  await doubleEcrireCoffre("CompanyContact", created.id, { rib: data.rib }, user.id);
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Moyens généraux",
     summary: `Contact « ${data.name} »${data.kind ? ` (${data.kind})` : ""} ajouté à l'annuaire d'entreprise`,
@@ -94,8 +98,10 @@ export async function updateCompanyContact(formData: FormData): Promise<ActionRe
     return { ok: false, error: "Ce contact n'est pas dans votre périmètre." };
   }
 
-  const data = readContact(formData);
+  const data: Partial<ReturnType<typeof readContact>> & { name: string } = readContact(formData);
   if (!data.name) return { ok: false, error: "Le nom du contact est obligatoire." };
+  // ÉCRIRE SANS LIRE (refonte V2-E) : un RIB que l'écran ne montrait que masqué revient masqué — il reste en place.
+  for (const champ of champsNonSaisis("CompanyContact", formData)) delete data[champ as keyof typeof data];
 
   const companyRaw = formData.get("companyId");
   if (companyRaw != null && !(await companyAllowed(user.id, String(companyRaw) || null))) {
@@ -113,6 +119,7 @@ export async function updateCompanyContact(formData: FormData): Promise<ActionRe
       updatedById: user.id,
     },
   });
+  if ("rib" in data) await doubleEcrireCoffre("CompanyContact", id, { rib: data.rib }, user.id);
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Moyens généraux",
     summary: `Contact « ${existing.name}${data.name !== existing.name ? ` → ${data.name}` : ""} » corrigé`,

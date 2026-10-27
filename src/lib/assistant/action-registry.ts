@@ -1116,6 +1116,11 @@ X("INTELLIGENCE TERRAIN (console d'administration, Direction 10/2026 : « visibl
   + "les yeux. Réservé au SUPER ADMIN, non délégable — chaque action relit le rôle ; aucune ouverture conversationnelle.", [
   "intelligence-terrain-actions:relancerAnalyseInfluence", "intelligence-terrain-actions:deciderLienInfluence",
 ]);
+X("REFONTE DES DONNÉES › REPRISES ET COFFRE (Administration, Super Admin seul) : aperçu à blanc et exécution par lots des "
+  + "reprises de la vague 2, interrupteurs de double écriture / double lecture du coffre des données sensibles. Un modèle d'IA "
+  + "n'a JAMAIS accès au coffre (décision de la Direction) : ni ses données, ni ses interrupteurs ; chaque action relit le rôle.", [
+  "refonte-reprise-actions:apercuReprise", "refonte-reprise-actions:executerReprise", "coffre-actions:basculerCoffre",
+]);
 X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de configuration — variables, adresses, réponse du "
   + "Document Server. Une moitié du test se joue DANS LE NAVIGATEUR de l'administrateur (chargement d'api.js) : une "
   + "conversation ne peut pas la faire. C'est un écran de dépannage, pas un geste métier.", [

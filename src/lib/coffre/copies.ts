@@ -48,6 +48,8 @@ export interface EntreeCopie {
 export interface DependancesCopie {
   cles?: () => ClesCoffre;
   horloge?: () => Date;
+  /** Aperçu : les issues sont calculées, rien n'est écrit. */
+  aBlanc?: boolean;
 }
 
 /** Ce que la copie lit et écrit — `prisma` ou le client d'une transaction (`tx`). */
@@ -72,7 +74,7 @@ export async function copierAuCoffre(client: ClientCopie, e: EntreeCopie, dep: D
       select: { id: true, nature: true, empreinteHmac: true, cleId: true, titulaireId: true },
     });
     const retirer = async () => {
-      if (courante) await client.donneeSensible.update({ where: { id: courante.id }, data: { remplaceeLe: maintenant } });
+      if (courante && !dep.aBlanc) await client.donneeSensible.update({ where: { id: courante.id }, data: { remplaceeLe: maintenant } });
     };
     const k = classerValeur(c, e.valeurs[c.champ]);
 
@@ -90,7 +92,7 @@ export async function copierAuCoffre(client: ClientCopie, e: EntreeCopie, dep: D
     const emp = empreinte(cles, k.nature, k.valeur);
     if (courante && courante.empreinteHmac === emp && courante.nature === k.nature && courante.cleId === cles.id) {
       if (titulaire.titulaireId && courante.titulaireId !== titulaire.titulaireId) {
-        await client.donneeSensible.update({ where: { id: courante.id }, data: titulaire });
+        if (!dep.aBlanc) await client.donneeSensible.update({ where: { id: courante.id }, data: titulaire });
         resultats.push({ champ: c.champ, issue: "LIEE" });
       } else {
         resultats.push({ champ: c.champ, issue: "INCHANGEE" });
@@ -100,7 +102,7 @@ export async function copierAuCoffre(client: ClientCopie, e: EntreeCopie, dep: D
 
     await retirer();
     const id = crypto.randomUUID();
-    await client.donneeSensible.create({
+    if (!dep.aBlanc) await client.donneeSensible.create({
       data: {
         id,
         ...titulaire,

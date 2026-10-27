@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CHAMPS_SENSIBLES, champSensible, classerValeur, estUnMasque, masqueDepuisClair } from "./champs";
+import { CHAMPS_SENSIBLES, champSensible, champsNonSaisis, classerValeur, estUnMasque, masqueDepuisClair, masquerSensibles } from "./champs";
 import { cleRib, NATURES_COFFRE } from "./natures";
 
 const base = "007999990001234567";
@@ -44,5 +44,18 @@ describe("le catalogue des colonnes sensibles", () => {
     expect(estUnMasque("•••• 1234")).toBe(true);
     expect(estUnMasque(RIB)).toBe(false);
     expect(estUnMasque(null)).toBe(false);
+  });
+});
+
+describe("écrire sans lire", () => {
+  it("un champ absent ou renvoyé masqué n'est pas une saisie", () => {
+    const fd = new FormData();
+    fd.set("iban", "•••• 7891"); fd.set("nationalId", "109990001234567890"); fd.set("baseSalary", "185000");
+    expect(champsNonSaisis("Employee", fd)).toEqual(["iban", "grossSalary", "netToPay", "employerCost"]);
+  });
+
+  it("masquerSensibles ne laisse passer aucune valeur sensible, et garde le reste", () => {
+    const m = masquerSensibles("Employee", { fullName: "Amina", iban: IBAN, nationalId: "109990001234567890", baseSalary: "185000", netToPay: null });
+    expect(m).toEqual({ fullName: "Amina", iban: "•••• 7891", nationalId: "•••• 7890", baseSalary: "•••••• DZD", netToPay: null });
   });
 });

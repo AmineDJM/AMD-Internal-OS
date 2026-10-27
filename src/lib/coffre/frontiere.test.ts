@@ -20,8 +20,12 @@ import { describe, expect, it } from "vitest";
 const SRC = path.join(process.cwd(), "src");
 const COFFRE = path.join(SRC, "lib", "coffre") + path.sep;
 const PURS = new Set(["natures.ts", "politique.ts", "champs.ts"].map((f) => path.join(COFFRE, f)));
-/** Le chemin d'écriture : chiffre, n'importe jamais `dechiffrement.ts`. */
-const ECRITURE = new Set([...PURS, ...["cle.ts", "chiffrement.ts", "copies.ts", "ecriture.ts", "depot.ts"].map((f) => path.join(COFFRE, f))]);
+/**
+ * Ce qui ne déchiffre pas : le chemin d'écriture (chiffre) et le contrôle d'accès (`acces.ts` : politique,
+ * journal, empreinte — la valeur rendue est celle de la colonne que l'action a déjà). Aucun n'importe
+ * `dechiffrement.ts`, `lecture.ts` ni `service.ts`.
+ */
+const SANS_DECHIFFREMENT = new Set([...PURS, ...["cle.ts", "chiffrement.ts", "copies.ts", "ecriture.ts", "depot.ts", "acces.ts", "lecteur.ts"].map((f) => path.join(COFFRE, f))]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -94,22 +98,22 @@ describe("Frontière du coffre", () => {
     }
   });
 
-  it("l'assistant et les agents n'atteignent que le chemin d'écriture du coffre, jamais ce qui déchiffre", () => {
+  it("l'assistant et les agents n'atteignent du coffre que ce qui ne déchiffre pas, même par une action serveur", () => {
     const ia = tous.filter((f) => {
       const r = rel(f).split(path.sep).join("/");
       return r.startsWith("src/lib/agent/") || r.startsWith("src/lib/assistant/") || r === "src/lib/assistant.ts"
         || r.startsWith("src/components/assistant-beta/") || r.startsWith("src/app/(app)/assistant/");
     });
     expect(ia.length).toBeGreaterThan(0);
-    const fautifs = ia.map((f) => cheminVersCoffre(f, ECRITURE, true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));
+    const fautifs = ia.map((f) => cheminVersCoffre(f, SANS_DECHIFFREMENT, true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));
     expect(fautifs).toEqual([]);
   });
 
-  it("le chemin d'écriture n'importe jamais le déchiffrement", () => {
-    for (const f of ECRITURE) {
+  it("l'écriture et le contrôle d'accès n'importent jamais le déchiffrement", () => {
+    for (const f of SANS_DECHIFFREMENT) {
       for (const spec of importsOf(f)) {
         const cible = resolve(spec, f);
-        if (cible?.startsWith(COFFRE)) expect(ECRITURE.has(cible), `${rel(f)} importe « ${spec} »`).toBe(true);
+        if (cible?.startsWith(COFFRE)) expect(SANS_DECHIFFREMENT.has(cible), `${rel(f)} importe « ${spec} »`).toBe(true);
       }
     }
   });

@@ -25,6 +25,8 @@ import { compteSuitLaFiche } from "@/lib/hr/depart";
 import { chargerSalairesPartis } from "@/lib/hr/salaires-partis";
 import { decisionRattachement } from "@/lib/hr/rattachement-paie";
 import { alignerSurLaFiche } from "@/lib/org/source-unique";
+import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
+import { champsNonSaisis } from "@/lib/coffre/champs";
 // LA FRONTIÈRE — l'ERP annonce ses faits ; il ne sait pas qui les écoute, et c'est le principe.
 import { emit } from "@/platform/events";
 
@@ -88,6 +90,8 @@ export async function createEmployee(
   // Le compte applicatif lié hérite du département (permissions, périmètres, notifications).
   // L'organigramme est la seule source : le compte suit la fiche (`org/source-unique.ts`), sans saisie à part.
   if (created.userId) await alignerSurLaFiche(created.id);
+  // LE COFFRE (refonte V2-E) : IBAN, NIN et salaire copiés chiffrés — derrière l'interrupteur, jamais bloquant.
+  await doubleEcrireCoffre("Employee", created.id, created, user.id);
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Ressources humaines",
     entityType: "EMPLOYEE", entityId: created.id, summary: `Employé « ${fullName} »${created.department ? ` — ${created.department}` : ""}`,
@@ -197,6 +201,12 @@ export async function updateEmployee(formData: FormData): Promise<ActionResult> 
     isActive: fdBool(formData, "isActive"),
   };
 
+  // ÉCRIRE SANS LIRE (refonte V2-E) : une donnée sensible que l'écran ne montrait que masquée revient masquée
+  // (ou ne revient pas) — elle reste en place, au lieu d'être vidée ou remise à zéro.
+  for (const champ of champsNonSaisis("Employee", formData)) {
+    (data as Record<string, unknown>)[champ] = (before as Record<string, unknown>)[champ];
+  }
+
   let after;
   try {
     after = await prisma.employee.update({ where: { id }, data });
@@ -208,6 +218,7 @@ export async function updateEmployee(formData: FormData): Promise<ActionResult> 
   if (after.userId !== before.userId || after.departmentId !== before.departmentId) {
     await alignerSurLaFiche(id, before.userId);
   }
+  await doubleEcrireCoffre("Employee", id, after, user.id);
   await recordFieldChanges(
     { actorId: user.id, module: "Ressources humaines", entityType: "EMPLOYEE", entityId: id, summary: `Fiche de ${after.fullName}` },
     before as unknown as Record<string, unknown>,

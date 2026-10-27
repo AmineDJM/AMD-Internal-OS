@@ -49,6 +49,11 @@ export interface EmployeeFormValues {
   managerId: string;
   userId: string;
   isActive: boolean;
+  /**
+   * LE COFFRE (refonte V2-E) : les données sensibles que la politique ne vous ouvre pas, par leur masque.
+   * Le champ est alors affiché en lecture seule et n'est PAS envoyé : l'action garde la valeur en place.
+   */
+  masques?: Partial<Record<"iban" | "nationalId" | "baseSalary" | "grossSalary" | "netToPay" | "employerCost", string>>;
 }
 
 interface Props {
@@ -64,10 +69,20 @@ interface Props {
 
 // Clavier adapté au téléphone : pavé décimal pour les montants, numérique pour les identifiants.
 // `autoComplete="off"` sur les données d'un TIERS : le navigateur proposerait sinon celles de l'utilisateur.
-function TextInput({ name, label, type = "text", defaultValue, full, required, inputMode, autoComplete }: {
+function TextInput({ name, label, type = "text", defaultValue, full, required, inputMode, autoComplete, masque }: {
   name: string; label: string; type?: string; defaultValue?: string; full?: boolean; required?: boolean;
   inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"]; autoComplete?: string;
+  /** Donnée du coffre non ouverte à cette personne : le masque, en lecture seule, sans `name` (rien n'est envoyé). */
+  masque?: string;
 }) {
+  if (masque) {
+    return (
+      <div className={full ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
+        <Label htmlFor={name}>{label}</Label>
+        <Input id={name} value={masque} readOnly disabled title="Donnée sensible : lue par les RH (salaires, NIN) ou les Finances (RIB / IBAN). Elle reste inchangée à l'enregistrement." />
+      </div>
+    );
+  }
   return (
     <div className={full ? "space-y-1.5 sm:col-span-2" : "space-y-1.5"}>
       <Label htmlFor={name}>{label}{required && <span className="ml-0.5 text-destructive">*</span>}</Label>
@@ -168,17 +183,17 @@ export function EmployeeForm({ employee, managerOptions, departmentOptions, user
 
           {/* Rémunération (bulletin). Côté salarié : brut, Ret SS 35 % et TFP restent invisibles. */}
           <p className="mt-1 text-xs sm:col-span-2 font-semibold uppercase tracking-wide text-muted-foreground">Rémunération (bulletin de paie)</p>
-          <TextInput name="baseSalary" label="Salaire de base (DZD)" type="number" defaultValue={v.baseSalary} />
-          <TextInput name="grossSalary" label="Salaire brut (confidentiel)" type="number" defaultValue={v.grossSalary} />
+          <TextInput name="baseSalary" label="Salaire de base (DZD)" type="number" defaultValue={v.baseSalary} masque={employee.masques?.baseSalary} />
+          <TextInput name="grossSalary" label="Salaire brut (confidentiel)" type="number" defaultValue={v.grossSalary} masque={employee.masques?.grossSalary} />
           {/* CE QUE LE SALARIÉ COÛTE VRAIMENT — brut + charges patronales. C'est ce montant, et
               non le brut, qui fait la masse salariale et qu'on impute au budget. */}
-          <TextInput name="employerCost" label="Coût employeur (confidentiel)" type="number" defaultValue={v.employerCost} />
+          <TextInput name="employerCost" label="Coût employeur (confidentiel)" type="number" defaultValue={v.employerCost} masque={employee.masques?.employerCost} />
           <TextInput name="retSS9" label="Ret. SS 9 %" type="number" defaultValue={v.retSS9} />
           <TextInput name="retSS35" label="Ret. SS 35 % (confidentiel)" type="number" defaultValue={v.retSS35} />
           <TextInput name="tfp" label="TFP — taxe formation prof. (confidentiel)" type="number" defaultValue={v.tfp} />
           <TextInput name="retIrg" label="Ret. IRG" type="number" defaultValue={v.retIrg} />
           <TextInput name="expenseRefund" label="Remb. frais" type="number" defaultValue={v.expenseRefund} />
-          <TextInput name="netToPay" label="Net à payer" type="number" defaultValue={v.netToPay} />
+          <TextInput name="netToPay" label="Net à payer" type="number" defaultValue={v.netToPay} masque={employee.masques?.netToPay} />
           <TextInput name="hireDate" label="Date d'embauche" type="date" defaultValue={v.hireDate} />
           <TextInput name="contractStart" label="Début de contrat" type="date" defaultValue={v.contractStart} />
           <TextInput name="contractEnd" label="Fin de contrat" type="date" defaultValue={v.contractEnd} />
@@ -198,8 +213,8 @@ export function EmployeeForm({ employee, managerOptions, departmentOptions, user
           {/* Clavier e-mail SANS la validation du navigateur : une adresse déjà mal saisie en base bloquerait tout l'enregistrement. */}
           <TextInput name="email" label="Email" inputMode="email" defaultValue={v.email} autoComplete="off" />
           <TextInput name="phone" label="Téléphone" type="tel" defaultValue={v.phone} autoComplete="off" />
-          <TextInput name="iban" label="RIB / IBAN" defaultValue={v.iban} autoComplete="off" />
-          <TextInput name="nationalId" label="NIN" defaultValue={v.nationalId} inputMode="numeric" autoComplete="off" />
+          <TextInput name="iban" label="RIB / IBAN" defaultValue={v.iban} autoComplete="off" masque={employee.masques?.iban} />
+          <TextInput name="nationalId" label="NIN" defaultValue={v.nationalId} inputMode="numeric" autoComplete="off" masque={employee.masques?.nationalId} />
           <TextInput name="cnasNumber" label="N° CNAS" defaultValue={v.cnasNumber} inputMode="numeric" autoComplete="off" />
           <TextInput name="address" label="Adresse" defaultValue={v.address} full autoComplete="off" />
           <SelectInput name="managerId" label="Manager (N+1)" defaultValue={v.managerId} options={managerOptions} />

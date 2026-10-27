@@ -106,3 +106,22 @@ export function masqueDepuisClair(c: ChampSensible, brut: unknown): string | nul
 export function estUnMasque(saisie: unknown): boolean {
   return typeof saisie === "string" && saisie.includes("•");
 }
+
+/**
+ * Les colonnes sensibles qu'un formulaire n'a pas réellement saisies : absentes, ou renvoyées sous leur
+ * masque (l'écran ne les montrait que masquées). L'écrivain les GARDE en place au lieu de les vider —
+ * on peut ainsi écrire une fiche sans en lire les données sensibles.
+ */
+export function champsNonSaisis(modele: ModeleSensible, form: { has(k: string): boolean; get(k: string): unknown }): string[] {
+  return champsDe(modele).filter((c) => !form.has(c.champ) || estUnMasque(form.get(c.champ))).map((c) => c.champ);
+}
+
+/**
+ * Une fiche dont les colonnes sensibles sont remplacées par leur masque — ce qu'on peut confier à un
+ * modèle d'IA ou rejouer dans un formulaire (le masque rejoué garde la valeur en place).
+ */
+export function masquerSensibles<T extends Record<string, unknown>>(modele: ModeleSensible, fiche: T): T {
+  const out: Record<string, unknown> = { ...fiche };
+  for (const c of champsDe(modele)) if (c.champ in out) out[c.champ] = masqueDepuisClair(c, out[c.champ]);
+  return out as T;
+}

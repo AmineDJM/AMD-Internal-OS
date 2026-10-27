@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { masquerSensibles } from "@/platform/in-process/capacites";
 import type { EntityType } from "@prisma/client";
 import { updateCompany, setCompanyScope } from "@/lib/actions/company-actions";
 import { updateCompanyContact, deleteCompanyContact } from "@/lib/actions/company-contact-actions";
@@ -197,7 +198,8 @@ export const ORG7D_OPS_IMPL: Record<string, OpImpl> = {
         kind: pick("kind", row.kind), contactName: pick("contactName", row.contactName),
         phone: pick("phone", row.phone), phoneAlt: row.phoneAlt ?? "", email: pick("email", row.email),
         website: pick("website", row.website), address: pick("address", row.address), city: pick("city", row.city),
-        wilaya: pick("wilaya", row.wilaya), rc: row.rc ?? "", nif: row.nif ?? "", rib: row.rib ?? "",
+        // Le RIB part MASQUÉ (refonte V2-E) : rejoué, le masque garde la valeur en place.
+        wilaya: pick("wilaya", row.wilaya), rc: row.rc ?? "", nif: row.nif ?? "", rib: masquerSensibles("CompanyContact", { rib: row.rib }).rib ?? "",
         notes: pick("notes", row.notes),
       };
       const activeRaw = opStr(input, "active");

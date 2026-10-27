@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
 import { synchroniserOffreDeLaDemande } from "@/lib/site-web/contenus";
 import type { ContractType } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -876,6 +877,8 @@ export async function onboardRecruitment(formData: FormData): Promise<ActionResu
         data: { stage: "CLOSED", closedAt: new Date(), closingNote: `${hired.fullName} recruté — fiche employé créée.` },
       });
       if (close.count === 0) throw new EtatChange();
+      // LE COFFRE (refonte V2-E), dans la MÊME transaction : la fiche et la copie de son salaire vivent ensemble.
+      await doubleEcrireCoffre("Employee", cree.id, { baseSalary: req.salaryMin ?? 0 }, user.id, tx);
       return cree;
     });
   } catch (e) {

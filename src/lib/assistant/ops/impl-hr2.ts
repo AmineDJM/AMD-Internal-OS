@@ -13,6 +13,7 @@ import { proposeStandIn, decideStandIn } from "@/lib/actions/stand-in-actions";
 import { saveAccessMatrix, updateUserProfile, revokeAllSessions, requestOnboarding } from "@/lib/actions/access-actions";
 import { MODULES, type Module } from "@/lib/rbac";
 import type { OpImpl, OpProposalDraft, OpExecuteResult } from "./types";
+import { masquerSensibles } from "@/platform/in-process/capacites";
 import { opStr } from "./types";
 import { runFd, runFd2, toFd, dzd, fieldsOf, resolveOne, isoDate } from "./helpers";
 
@@ -84,7 +85,10 @@ type EmployeeRow = NonNullable<Awaited<ReturnType<typeof prisma.employee.findUni
  */
 function employeeArgs(e: EmployeeRow): Record<string, string | null> {
   const dec = (v: Prisma.Decimal | number | null): string | null => (v === null ? null : String(toNumber(v)));
-  return {
+  // LE COFFRE (refonte V2-E) : IBAN, NIN et salaires partent MASQUÉS — ni la carte ni le modèle ne les lisent.
+  // Rejoué dans `updateEmployee`, un masque garde la valeur en place (`champsNonSaisis`) ; seule une valeur
+  // que la personne vient de dicter remplace la colonne.
+  return masquerSensibles("Employee", {
     id: e.id,
     fullName: e.fullName,
     position: e.position,
@@ -104,7 +108,7 @@ function employeeArgs(e: EmployeeRow): Record<string, string | null> {
     isActive: e.isActive ? "1" : null,
     // Garde de fraîcheur : consommée par l'EXÉCUTION de l'op, retirée avant l'action canonique.
     expectedUpdatedAt: e.updatedAt.toISOString(),
-  };
+  });
 }
 
 /** Exécution commune des deux PATCH : fraîcheur vérifiée, puis l'action canonique rejoue tout. */
@@ -270,7 +274,7 @@ export const HR2_OPS_IMPL: Record<string, OpImpl> = {
 
       const args = employeeArgs(before);
       const changes: { label: string; value: string }[] = [];
-      const money = (v: string | null) => (v === null || v === "" ? "—" : dzd(Number(v)));
+      const money = (v: string | null) => (v === null || v === "" ? "—" : v.includes("•") ? v : dzd(Number(v)));
       const apply = (key: string, label: string, next: number | null) => {
         if (next === null) return;
         if ((args[key] ?? "") !== String(next)) changes.push({ label, value: `${money(args[key])} → ${money(String(next))}` });

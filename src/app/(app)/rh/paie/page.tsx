@@ -19,6 +19,7 @@ import { instantDuCentreDePaie } from "@/lib/hr/paie-centre";
 import { getMyCompanies, myCompanyWhere } from "@/lib/company";
 import { getRhData } from "@/lib/queries/hr";
 import { AdvanceApprovals, type AdvanceRow } from "../advance-approvals";
+import { lireSensiblesPour } from "@/lib/coffre/lecture";
 
 export const dynamic = "force-dynamic";
 
@@ -189,21 +190,30 @@ export default async function PaiePage({ searchParams }: { searchParams: { year?
       };
     })
     .sort((a, b) => b.cout - a.cout || a.nom.localeCompare(b.nom, "fr"));
+  // LE COFFRE (refonte V2-E) : les salaires de fiche qui préremplissent l'envoi, lus par la politique et journalisés.
+  const salaires = await lireSensiblesPour(user, {
+    modele: "Employee", champs: ["baseSalary", "grossSalary", "netToPay", "employerCost"], geste: "Paie — préremplissage des salaires",
+    lignes: employees.map((e) => ({ id: e.id, clair: e })),
+  });
+  const salaire = (id: string, champ: "baseSalary" | "grossSalary" | "netToPay" | "employerCost"): number | null => {
+    const v = salaires.get(id)?.[champ]?.valeur;
+    return v ? Number(v) : null;
+  };
   const rows: PayrollRow[] = employees.map((emp) => ({
     employeeId: emp.id,
     name: emp.fullName,
     poste: emp.position ?? null,
     companyId: emp.companyId ?? null,
     // Pré-remplissage : brut depuis le salaire brut de la fiche (à défaut le salaire de base), net depuis le net à payer.
-    defaultGross: emp.grossSalary != null ? toNumber(emp.grossSalary) : emp.baseSalary != null ? toNumber(emp.baseSalary) : null,
+    defaultGross: salaire(emp.id, "grossSalary") ?? salaire(emp.id, "baseSalary"),
     // Ordre : le coût employeur de la fiche, à défaut le brut, à défaut le salaire de base — et
     // JAMAIS 0, qui se validerait sans qu'on le relise et amputerait la masse d'un salaire.
     defaultEmployerCost: defaultEmployerCost({
-      employerCost: emp.employerCost != null ? toNumber(emp.employerCost) : null,
-      grossSalary: emp.grossSalary != null ? toNumber(emp.grossSalary) : null,
-      baseSalary: emp.baseSalary != null ? toNumber(emp.baseSalary) : null,
+      employerCost: salaire(emp.id, "employerCost"),
+      grossSalary: salaire(emp.id, "grossSalary"),
+      baseSalary: salaire(emp.id, "baseSalary"),
     }),
-    defaultNet: emp.netToPay != null ? toNumber(emp.netToPay) : emp.baseSalary != null ? toNumber(emp.baseSalary) : null,
+    defaultNet: salaire(emp.id, "netToPay") ?? salaire(emp.id, "baseSalary"),
     months: Array.from({ length: 12 }, (_, i): PayrollCell => {
       const e = byKey.get(`${emp.id}:${i + 1}`);
       if (!e || e.status !== "PAID") return { state: "UNPAID" as const, amount: null, net: null, employerCost: null, entryId: e?.id ?? null, payslip: null };
