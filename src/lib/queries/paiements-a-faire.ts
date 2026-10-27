@@ -15,7 +15,8 @@ import { CENTRAL_STATUS_LABEL, visibleToFinance, type CentralStatus } from "@/li
  * c'est-à-dire les plus en retard.
  *
  * La file OUVERTE n'a donc pas de borne : un paiement dû ne disparaît jamais d'un écran parce que
- * d'autres ont été créés après lui. Seul l'historique (réglés, annulés) est borné.
+ * d'autres ont été créés après lui. Seul l'historique (réglés, annulés) est borné, et il n'affiche pas
+ * ce que le Super Admin en a retiré (`historiqueMasqueLe`, voir `purgeSettledExpenseOrders`).
  */
 export const HISTORIQUE_MAX = 300;
 
@@ -33,7 +34,7 @@ export async function chargerOrdresDesFinances(portee: Prisma.ExpenseOrderWhereI
       include: AVEC_DEMANDEUR,
     }),
     prisma.expenseOrder.findMany({
-      where: { AND: [portee, visibles, { status: { in: ["PAID", "CANCELLED"] } }] },
+      where: { AND: [portee, visibles, { status: { in: ["PAID", "CANCELLED"] }, historiqueMasqueLe: null }] },
       orderBy: { createdAt: "desc" },
       include: AVEC_DEMANDEUR,
       take: HISTORIQUE_MAX,

@@ -6482,6 +6482,10 @@ model ExpenseOrder {
   pettyCashAllotment    PettyCashAllotment?    @relation("PettyCashAllotmentOrder")
   /// Le virement de paie que cet ordre porte (§118.176) — nul pour tout autre ordre.
   payrollWire           PayrollWire?
+  /// RETIRÉ DE L'HISTORIQUE de « Banque & paiements » par le Super Admin — un MASQUE d'écran, jamais
+  /// une suppression : un ordre réglé est le fait que lisent le budget (payé / engagé d'un poste), les
+  /// gardes anti-doublon (BV, poste, facture) et la paie. Voir `purgeSettledExpenseOrders`.
+  historiqueMasqueLe    DateTime?
   createdAt             DateTime               @default(now())
   updatedAt             DateTime               @updatedAt
 
