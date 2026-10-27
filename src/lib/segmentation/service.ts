@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { lireFeuilles } from "./feuilles";
 import type { DoctorTitle, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { indexerEtablissements, cleDEtablissement } from "@/lib/annuaires/rattachement";
 import { indexerSpecialites } from "@/lib/annuaires/specialites";
 import { composeDoctorName } from "@/lib/medical/directory-grid";
@@ -427,7 +428,9 @@ export async function appliquerImport(
     reglesV1 = lu.regles;
   }
 
-  return prisma.$transaction(async (tx) => {
+  // LES FICHES TOUCHÉES, pour la double écriture des lieux (refonte V2-D), faite APRÈS la transaction.
+  const lieux = { medecins: [] as string[], etablissements: [] as string[] };
+  const resultat = await prisma.$transaction(async (tx) => {
     const imp = await tx.segmentationImport.create({
       data: { strategieId, nomFichier, empreinte: apercu.empreinte, taille: buffer.length, feuille: apercu.feuille, rapport: apercu as unknown as Prisma.InputJsonValue, auteurId },
       select: { id: true },
@@ -437,6 +440,7 @@ export async function appliquerImport(
     for (const nom of apercu.etablissementsACreer) {
       const zone = lecture.lignes.find((l) => l.etablissement === nom)?.zone ?? null;
       const e = await tx.medicalInstitution.create({ data: { name: nom, type: typeDEtablissement(nom), region: zone, createdById: auteurId, notes: `Créé par l'import de segmentation « ${nomFichier} ».` }, select: { id: true } });
+      lieux.etablissements.push(e.id);
       etabCree.set(cleDEtablissement(nom), e.id);
     }
     const specCree = new Map<string, string>();
@@ -478,6 +482,7 @@ export async function appliquerImport(
         doctorId = d.id;
         crees++;
       }
+      lieux.medecins.push(doctorId);
       // La « Région » qui nomme un secteur de la BU y range la fiche ; une région inconnue garde le secteur déjà posé.
       const secteurId = prep.secteurDeRegion(l.zone);
       await tx.segmentationFiche.upsert({
@@ -505,6 +510,9 @@ export async function appliquerImport(
     }
     return { ok: true as const, importId: imp.id, crees, misAJour, observations, etablissementsCrees: etabCree.size, specialitesCreees: specCree.size, reglePubliee };
   }, { timeout: 120_000, maxWait: 20_000 });
+  await reposerWilayaCode("MedicalInstitution", lieux.etablissements);
+  await reposerWilayaCode("MedicalDoctor", lieux.medecins);
+  return resultat;
 }
 
 /**

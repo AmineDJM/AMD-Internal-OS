@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { peutAnnuaire } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { recordAudit } from "@/lib/audit";
 import { getMyCompanies, companyIdForNew } from "@/lib/company";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
@@ -72,6 +73,7 @@ export async function createCompanyContact(_prev: ActionResult | undefined, form
     data: { ...data, companyId, createdById: user.id, updatedById: user.id },
     select: { id: true },
   });
+  await reposerWilayaCode("CompanyContact", created.id); // double écriture des lieux (refonte V2-D)
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Moyens généraux",
     summary: `Contact « ${data.name} »${data.kind ? ` (${data.kind})` : ""} ajouté à l'annuaire d'entreprise`,
@@ -113,6 +115,7 @@ export async function updateCompanyContact(formData: FormData): Promise<ActionRe
       updatedById: user.id,
     },
   });
+  await reposerWilayaCode("CompanyContact", id); // double écriture des lieux (refonte V2-D)
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Moyens généraux",
     summary: `Contact « ${existing.name}${data.name !== existing.name ? ` → ${data.name}` : ""} » corrigé`,

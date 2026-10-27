@@ -20,6 +20,7 @@ import {
 } from "@/lib/regulatory/structural-fields";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { projetsBdVisibles } from "@/lib/queries/bd";
 import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
@@ -250,6 +251,7 @@ export async function createRegulatorySupplier(formData: FormData): Promise<Acti
     },
     select: { id: true },
   });
+  await reposerWilayaCode("Supplier", created.id); // double écriture des lieux (refonte V2-D)
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Regulatory", entityType: "SUPPLIER", entityId: created.id, summary: `Fournisseur « ${name} »` });
   revalidatePath("/regulatory");
   return { ok: true, id: created.id };

@@ -231,7 +231,7 @@ Added by `prisma/migrations/20270130100000_referentiels/` (additive, idempotent;
 | `OrganisationRole` | R2 | Dated role (`RoleOrganisation`: SOCIETE_DU_GROUPE … TRANSPORTEUR, AUTRE); unique (organisation, role). |
 | `OrganisationIdentifiant` | R2 | NIF / NIS / RC / AI / AGREMENT / CODE_PCH; **unique (type, valeurNormalisee)** — the matching key for a third party. |
 | `Affiliation` | R2 | Personne ↔ Organisation (fonction, service, depuis, jusqu'à, principale) — replaces free-text `institution`. |
-| `Adresse` | R3 | Address of a person **or** an organisation (`CHECK num_nonnulls = 1`); `wilayaCode`/`communeCode` are **scalar codes, no FK** (Wilaya/Commune come from another lot); type SIEGE/LIVRAISON/DOMICILE/AUTRE, lat/lng. |
+| `Adresse` | R3 | Address of a person **or** an organisation (`CHECK num_nonnulls = 1`); type SIEGE/LIVRAISON/DOMICILE/AUTRE, lat/lng. *(Updated 2026-10-27, V2-D)* `wilayaCode` → `Wilaya` and `communeCode` → `Commune` are now real FKs (`ON DELETE SET NULL`, migration `20270131170000_lieux_wilaya_code`); `Commune` is empty, so no address can cite a commune. |
 | `PointDeContact` | R3 | Phone / e-mail / site of a person **or** an organisation (same CHECK); `valeurNormalisee` (E.164, lower-case), principal, vérifié le, source. |
 | `Piece` | R5 | The file once and for all: `blobId` (scalar → `FileBlob.id`), `empreinte` sha256 (indexed), nom, mime, taille, pages, langue, `nature` (string, `NATURES_PIECE`), `confidentiality`, `source` (`SourcePiece`), déposée par / le. |
 | `PieceLien` | R5 | Piece ↔ subject (PERSONNE / ORGANISATION / ENTITE + free `entityType`), with a role; unique (pieceId, sujetType, sujetId, role). |
@@ -243,6 +243,13 @@ Added by `prisma/migrations/20270130100000_referentiels/` (additive, idempotent;
 | `ConflitDeFait` | E | Disagreement between a confirmed and a proposed fact — a decision queue, never an overwrite. |
 
 **Link columns** (nullable, indexed, FK `ON DELETE SET NULL`): `personneId` on `User`, `Employee`, `MedicalDoctor`, `CareBeneficiary`, `AdProVoyageur`, `AdProHebergement`, `RecruitmentCandidate`, `DirectoryEntry`, `SupplierUser`; `organisationId` on `Company`, `CompanyContact`, `Supplier`, `MedicalInstitution`, `SponsoringRequest`, `CongressNational`, `CongressInternational`; `pieceId` on `Document`, `DriveNode`. CHECK constraints live only in SQL (Prisma ignores them, no drift).
+
+### 4.13 Places and contact details — V2-D (2026-10-27)
+
+- `wilayaCode TEXT NULL` + FK → `Wilaya(code)` `ON DELETE SET NULL` + index on `MedicalDoctor`, `MedicalInstitution`, `CompanyContact`, `Supplier`, `SalesSector` (relation field `wilayaRef`; the free-text columns stay and remain the input). `AppSetting.lieuxDoubleEcriture BOOLEAN NOT NULL DEFAULT TRUE`. Migration `20270131170000_lieux_wilaya_code` (additive, idempotent, replayed twice).
+- Invariant: `wilayaCode` is always `rattacherFiche(model, text columns)` (`src/lib/lieux/rattachement.ts`) — written by the `lieux-wilaya` back-fill and by `reposerWilayaCode` after every writer (guard `src/lib/lieux/double-ecriture-garde.test.ts`). Written with raw SQL on constant identifiers so `updatedAt` is not bumped.
+- `Adresse` / `PointDeContact` back-fills use deterministic ids (`adr_` / `pdc_` + 24 hex of SHA-256 of titulaire + kind + normalised value) and `createMany … skipDuplicates`: replayable, one row per real thing, only for records that already carry `personneId` / `organisationId`.
+- Not attached (deliberately): `Employee` / `CareBeneficiary` (no place columns), `StockCountRequestHospital.wilaya` (frozen copy), event places (`Event`, `CongressNational`, `SponsoringRequest.city`…). See `docs/architecture/refonte-v2-lieux.md`.
 
 ## 5. Conventions & patterns to follow (house style)
 
