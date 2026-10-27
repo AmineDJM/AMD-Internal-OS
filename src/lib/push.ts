@@ -1,6 +1,7 @@
 import webpush from "web-push";
 import { prisma } from "./prisma";
 import { sortieAutorisee } from "@/lib/sortie/garde";
+import { endpointPushAutorise } from "@/lib/notifications/endpoint-push";
 
 /**
  * Notifications **push** (Web Push / PWA) — serveur uniquement.
@@ -108,6 +109,8 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
     await Promise.all(
       subs.map(async (s) => {
         try {
+          // Abonnement enregistré avant la règle d'adresse : jamais de POST hors des services push.
+          if (!endpointPushAutorise(s.endpoint)) return;
           await webpush.sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, data);
         } catch (e) {
           // 404 / 410 = abonnement expiré → on le supprime.
