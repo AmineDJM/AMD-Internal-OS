@@ -11,7 +11,7 @@ import { ComptesTresorerieButton } from "../comptes-tresorerie";
 import { toNumber, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
-import { visibleToFinance, type CentralStatus } from "@/lib/payments/authorization";
+import { chargerOrdresDesFinances } from "@/lib/queries/paiements-a-faire";
 import { settlementState, sortForSettlement } from "@/lib/finance/settlement";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { marquesDesOrdres } from "@/lib/factures/connues";
@@ -79,12 +79,9 @@ export default async function PaiementsAFairePage({ searchParams }: { searchPara
   // pas `X`. Un ordre qu'on n'a pas su rattacher disparaissait de la file du décaissement pour
   // tout comptable cloisonné sur une société — et un paiement invisible n'est pas un paiement
   // classé, c'est un paiement qu'on ne fera jamais.
-  const orders = (await prisma.expenseOrder.findMany({
-    where: await companyScopedWhere(user.id, entiteId ? { companyId: entiteId } : {}),
-    orderBy: { createdAt: "desc" },
-    include: { requestedBy: { select: { name: true } } },
-    take: 300,
-  })).filter((o) => visibleToFinance(o.centralStatus as CentralStatus));
+  // LA FILE À RÉGLER EST ENTIÈRE, l'historique seul est borné (`chargerOrdresDesFinances`) : une fenêtre
+  // commune faisait sortir de « à régler » les paiements autorisés les plus anciens.
+  const orders = await chargerOrdresDesFinances(await companyScopedWhere(user.id, entiteId ? { companyId: entiteId } : {}));
 
   // La facture de chaque ordre — par la MÊME règle que le règlement (`finance/facture-ordre.ts`,
   // §118.185) : la colonne disait « facture jointe » là où le règlement refusait, et inversement.
