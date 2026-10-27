@@ -23,8 +23,8 @@ services:
     runtime: node
     plan: free
     healthCheckPath: /login
-    # Build installs deps, applies migrations, creates the Super Admin (idempotent),
-    # then LINTS (phase séparée, bloquante) and builds Next.js. Lint et typecheck vivent
+    # Build installs deps, generates the client, LINTS (phase séparée, bloquante), typechecks and
+    # builds Next.js, THEN applies migrations and creates the Super Admin (idempotent). Lint et typecheck vivent
     # dans DEUX processus : additionnés dans le même heap ils dépassaient la limite Node
     # par défaut (~2 Go) → OOM pendant « Linting and checking validity of types ».
     #
@@ -49,7 +49,17 @@ services:
     # processus du build (npm, prisma generate, bootstrap) en les autorisant à gonfler, ET au
     # runtime `next start` où une grande laisse V8 sur une petite instance provoque l'OOM
     # inverse. Les plafonds vivent ICI, phase par phase, dans build:render (3072 Mo).
-    buildCommand: npm install && npx prisma generate && npx prisma migrate deploy && npm run db:bootstrap && npm run build:render
+    #
+    # ORDRE (refonte P0, docs/architecture/refonte-p0-outillage.md §2) : TOUT ce qui peut échouer
+    # sans toucher la base passe AVANT `migrate deploy`. Avant, les migrations partaient en premier :
+    # un lint, un typecheck ou une compilation en échec laissaient la production servir l'ANCIEN
+    # code sur la base DÉJÀ migrée. `next build` n'ouvre aucune connexion (mesuré : build complet
+    # réussi avec une DATABASE_URL injoignable ; seules /login et /_not-found sont statiques) — il
+    # n'a donc pas besoin des migrations. `prisma generate` reste en tête : tsc et next build
+    # compilent contre le client généré. Le bootstrap lit des tables : il suit les migrations.
+    # ⚠️ Si le tableau de bord Render porte sa propre commande (§118.208), elle remplace celle-ci :
+    # y recopier cette ligne à l'identique.
+    buildCommand: npm install && npx prisma generate && npm run build:render && npx prisma migrate deploy && npm run db:bootstrap
     startCommand: npx next start -p $PORT
     envVars:
       - key: DATABASE_URL

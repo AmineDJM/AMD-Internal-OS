@@ -95,9 +95,10 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 - Blueprint provisions `amd-postgres` (free) and `amd-internal-os` (node runtime, free plan,
   `healthCheckPath: /login`) — `render.yaml:15-25` [V].
 - `buildCommand` (`render.yaml:52`) [V]:
-  `npm install && npx prisma generate && npx prisma migrate deploy && npm run db:bootstrap && npm run build:render`.
-  Migrations are applied **during the build**, before the new code serves traffic; a failing
-  migration fails the deploy.
+  `npm install && npx prisma generate && npm run build:render && npx prisma migrate deploy && npm run db:bootstrap`
+  (order changed 2026-10-27, refonte P0 — `docs/architecture/refonte-p0-outillage.md` §2: lint, tsc and
+  `next build` run **before** any DB write; `next build` was measured to need no DB). Migrations are
+  still applied **during the build**, before the new code serves traffic; a failing migration fails the deploy.
 - `startCommand: npx next start -p $PORT` (`render.yaml:53`) [V]. Full repo + `node_modules` on
   disk, which is why file tracing (`.nft.json`) is disabled (`next.config.mjs:104`) [V].
 - Env in the Blueprint (`render.yaml:54-111`) [V]: `DATABASE_URL` from DB, `AUTH_SECRET`
@@ -493,9 +494,8 @@ build (lint if `build:render` is really used, separate tsc, compilation) as the 
 
 1. Push to the tracked branch → Render runs the build command (Blueprint: `render.yaml:52`; or the
    dashboard override, §118.208).
-2. `npm install` (`.npmrc` legacy peers) → `prisma generate` → `prisma migrate deploy` (applies
-   every un-applied folder in lexical order) → `db:bootstrap` (no-op if admin exists).
-3. `build:render`: `next lint` (fails on any ESLint error, e.g. unknown rule in a directive) →
+2. `npm install` (`.npmrc` legacy peers) → `prisma generate`.
+3. `build:render` (before any DB write since refonte P0; then `prisma migrate deploy` → `db:bootstrap`): `next lint` (fails on any ESLint error, e.g. unknown rule in a directive) →
    `tsc -p tsconfig.build.json` → `next build` with `TYPECHECK_SEPARE=1`.
    If instead a bare `npx next build` runs: `next.config.mjs` detects `RENDER`, runs the separate
    tsc itself, caps heaps at 3 GB; **lint does not run** (`ignoreDuringBuilds`).
