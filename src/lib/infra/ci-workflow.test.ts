@@ -52,3 +52,14 @@ describe(".github/workflows/ci.yml — la porte avant le déploiement", () => {
     expect(render).toMatch(new RegExp(`key: NODE_VERSION\\s+value: "${nvmrc}"`));
   });
 });
+
+describe("package.json — les portes locales tiennent dans leur tas", () => {
+  // Mesuré (27/10, Node 22) : `tsc --noEmit` NU meurt en ~18 s (« Ineffective mark-compacts near
+  // heap limit ») — la porte que CLAUDE.md demande avant chaque commit ne pouvait pas passer.
+  const scripts = (JSON.parse(readFileSync(join(__dirname, "..", "..", "..", "package.json"), "utf8")) as {
+    scripts: Record<string, string>;
+  }).scripts;
+  it("typecheck fixe son plafond de tas", () => {
+    expect(scripts.typecheck).toMatch(/--max-old-space-size=\d{4,}/);
+  });
+});
