@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { chargerCles, type ClesCoffre } from "./cle";
-import { chiffrer, dechiffrer, empreinte, ErreurDechiffrement } from "./chiffrement";
+import { chiffrer, empreinte, ErreurDechiffrement } from "./chiffrement";
+import { dechiffrer } from "./dechiffrement";
 import { refTitulaire, type DepotCoffre, type ResumeDonneeSensible } from "./depot";
 import { derniersCaracteres, masque, normaliser, type NatureCoffre } from "./natures";
 import { peutLire, type DecisionLecture, type LecteurCoffre, type MotifAccord, type TitulaireCoffre } from "./politique";

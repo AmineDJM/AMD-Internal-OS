@@ -8,8 +8,10 @@ import { describe, expect, it } from "vitest";
  * 1. Aucun composant `"use client"` n'atteint le coffre, même indirectement : il chiffre avec
  *    `node:crypto`, que le garde général (`client-bundle-guard.test.ts`) ne liste pas, et ses clés
  *    n'ont rien à faire dans un navigateur. Seuls `natures.ts` et `politique.ts`, purs, sont permis.
- * 2. L'assistant et les agents n'atteignent AUCUN module du coffre : un modèle d'IA ne le lit pas,
- *    et le code qui lui prépare un contexte ne doit même pas pouvoir l'importer.
+ * 2. L'assistant et les agents n'atteignent que le chemin d'ÉCRITURE du coffre (V2-E : la double
+ *    écriture vit dans des actions qu'ils peuvent appeler) — jamais le déchiffrement, le service de
+ *    lecture ni la double lecture : un modèle d'IA ne lit pas le coffre, et le code qui lui prépare un
+ *    contexte ne peut même pas importer ce qui déchiffre.
  *
  * Même marche que le garde général (imports statiques, dynamiques ; arrêt aux modules
  * `"use server"` pour les composants client, puisque Next les remplace par un appel distant).
@@ -17,7 +19,9 @@ import { describe, expect, it } from "vitest";
 
 const SRC = path.join(process.cwd(), "src");
 const COFFRE = path.join(SRC, "lib", "coffre") + path.sep;
-const PURS = new Set([path.join(COFFRE, "natures.ts"), path.join(COFFRE, "politique.ts")]);
+const PURS = new Set(["natures.ts", "politique.ts", "champs.ts"].map((f) => path.join(COFFRE, f)));
+/** Le chemin d'écriture : chiffre, n'importe jamais `dechiffrement.ts`. */
+const ECRITURE = new Set([...PURS, ...["cle.ts", "chiffrement.ts", "copies.ts", "ecriture.ts", "depot.ts"].map((f) => path.join(COFFRE, f))]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -84,20 +88,30 @@ describe("Frontière du coffre", () => {
     expect(fautifs).toEqual([]);
   });
 
-  it("natures.ts et politique.ts restent purs (aucun import hors d'eux-mêmes)", () => {
+  it("natures.ts, politique.ts et champs.ts restent purs (aucun import hors d'eux-mêmes)", () => {
     for (const f of PURS) {
       for (const spec of importsOf(f)) expect(PURS.has(resolve(spec, f) ?? ""), `${rel(f)} importe « ${spec} »`).toBe(true);
     }
   });
 
-  it("l'assistant et les agents n'atteignent aucun module du coffre, pas même par une action serveur", () => {
+  it("l'assistant et les agents n'atteignent que le chemin d'écriture du coffre, jamais ce qui déchiffre", () => {
     const ia = tous.filter((f) => {
       const r = rel(f).split(path.sep).join("/");
-      return r.startsWith("src/lib/agent/") || r.startsWith("src/components/assistant-beta/") || r.startsWith("src/app/(app)/assistant/");
+      return r.startsWith("src/lib/agent/") || r.startsWith("src/lib/assistant/") || r === "src/lib/assistant.ts"
+        || r.startsWith("src/components/assistant-beta/") || r.startsWith("src/app/(app)/assistant/");
     });
     expect(ia.length).toBeGreaterThan(0);
-    const fautifs = ia.map((f) => cheminVersCoffre(f, new Set(), true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));
+    const fautifs = ia.map((f) => cheminVersCoffre(f, ECRITURE, true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));
     expect(fautifs).toEqual([]);
+  });
+
+  it("le chemin d'écriture n'importe jamais le déchiffrement", () => {
+    for (const f of ECRITURE) {
+      for (const spec of importsOf(f)) {
+        const cible = resolve(spec, f);
+        if (cible?.startsWith(COFFRE)) expect(ECRITURE.has(cible), `${rel(f)} importe « ${spec} »`).toBe(true);
+      }
+    }
   });
 
   it("le garde détecte bien un import du coffre (le test n'est pas vide)", () => {

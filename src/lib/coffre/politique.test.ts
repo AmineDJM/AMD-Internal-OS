@@ -68,3 +68,21 @@ describe("peutLire — décisions de la Direction", () => {
     if (!f.autorise) expect(f.raison).toMatch(/Finances/);
   });
 });
+
+describe("peutLire — une pièce officielle (V2-E)", () => {
+  it("imprime le RIB / l'IBAN d'une ORGANISATION au nom de qui la génère, sans droit Finances", () => {
+    for (const n of FIN) expect(peutLire(u(), n, fournisseur, "PIECE_OFFICIELLE")).toEqual({ autorise: true, motif: "PIECE_OFFICIELLE" });
+    for (const n of FIN) expect(peutLire(u(), n, fournisseur).autorise).toBe(false);
+  });
+
+  it("n'ouvre JAMAIS une donnée d'une personne, ni rien à un modèle d'IA", () => {
+    for (const n of NATURES_COFFRE) {
+      expect(peutLire(u(), n, sansCompte, "PIECE_OFFICIELLE").autorise).toBe(false);
+      expect(peutLire({ genre: "IA", nom: "assistant" }, n, fournisseur, "PIECE_OFFICIELLE")).toMatchObject({ autorise: false, motif: "MODELE_IA" });
+    }
+  });
+
+  it("un titulaire sans fiche Personne (salarié pas encore repris) reste lisible par son propre compte", () => {
+    expect(peutLire(u({ userId: "u-amina" }), "SALAIRE", { genre: "PERSONNE", userId: "u-amina" })).toEqual({ autorise: true, motif: "TITULAIRE" });
+  });
+});

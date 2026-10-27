@@ -5,6 +5,10 @@ import type { NatureCoffre } from "./natures";
 /**
  * CHIFFREMENT DU COFFRE — AES-256-GCM, IV aléatoire de 12 octets par valeur.
  *
+ * Ce module CHIFFRE et ne déchiffre pas : le déchiffrement vit seul dans `dechiffrement.ts`, que le
+ * chemin d'écriture (double écriture appelée par des actions que l'assistant peut atteindre) n'importe
+ * jamais — `frontiere.test.ts` le prouve.
+ *
  * Format du chiffré (texte, stockable dans une colonne `TEXT`) :
  *   `c1.<id de clé>.<base64url(iv ‖ tag ‖ chiffré)>`
  * L'identifiant de clé permet de dire « chiffré avec une autre clé » plutôt qu'une erreur opaque,
@@ -23,9 +27,9 @@ export class ErreurDechiffrement extends Error {
   }
 }
 
-const VERSION = "c1";
+export const VERSION = "c1";
 
-function aad(nature: NatureCoffre, donneeId: string): Buffer {
+export function aad(nature: NatureCoffre, donneeId: string): Buffer {
   return Buffer.from(`${VERSION}\u0000${nature}\u0000${donneeId}`, "utf8");
 }
 
@@ -38,22 +42,6 @@ export function chiffrer(cles: ClesCoffre, nature: NatureCoffre, donneeId: strin
   return `${VERSION}.${cles.id}.${Buffer.concat([iv, tag, corps]).toString("base64url")}`;
 }
 
-export function dechiffrer(cles: ClesCoffre, nature: NatureCoffre, donneeId: string, chiffre: string): string {
-  const [version, id, charge, ...reste] = chiffre.split(".");
-  if (version !== VERSION || !id || !charge || reste.length) throw new ErreurDechiffrement("Chiffré du coffre mal formé.");
-  if (id !== cles.id) throw new ErreurDechiffrement("Donnée chiffrée avec une autre clé du coffre : illisible avec la clé actuelle.");
-  const brut = Buffer.from(charge, "base64url");
-  if (brut.length < 12 + 16) throw new ErreurDechiffrement("Chiffré du coffre tronqué.");
-  const decipher = crypto.createDecipheriv("aes-256-gcm", cles.chiffrement, brut.subarray(0, 12));
-  decipher.setAAD(aad(nature, donneeId));
-  decipher.setAuthTag(brut.subarray(12, 28));
-  try {
-    return Buffer.concat([decipher.update(brut.subarray(28)), decipher.final()]).toString("utf8");
-  } catch {
-    throw new ErreurDechiffrement("Chiffré du coffre altéré, ou relu sous une autre nature ou une autre donnée.");
-  }
-}
-
 /**
  * EMPREINTE DE RECHERCHE — HMAC-SHA256 (sous-clé dédiée) de la nature et de la valeur NORMALISÉE.
  * Stable : la même valeur donne toujours la même empreinte sous la même clé, ce qui permet de
@@ -62,4 +50,25 @@ export function dechiffrer(cles: ClesCoffre, nature: NatureCoffre, donneeId: str
  */
 export function empreinte(cles: ClesCoffre, nature: NatureCoffre, normalisee: string): string {
   return crypto.createHmac("sha256", cles.empreinte).update(`${nature}\u0000${normalisee}`, "utf8").digest("hex");
+}
+
+/**
+ * LE CHIFFRÉ EN COLONNES — la table `DonneeSensible` range séparément le corps, l'IV, l'étiquette GCM,
+ * la version du format et l'identifiant de clé. `decomposer` (ici) et `recomposer` (`dechiffrement.ts`)
+ * passent d'une forme à l'autre sans rien déchiffrer : `recomposer(decomposer(c)) === c`.
+ */
+export interface ColonnesChiffre {
+  valeurChiffree: Buffer;
+  iv: Buffer;
+  tag: Buffer;
+  cleVersion: number;
+  cleId: string;
+}
+
+export function decomposer(chiffre: string): ColonnesChiffre {
+  const [version, id, charge, ...reste] = chiffre.split(".");
+  if (version !== VERSION || !id || !charge || reste.length) throw new ErreurDechiffrement("Chiffré du coffre mal formé.");
+  const brut = Buffer.from(charge, "base64url");
+  if (brut.length < 12 + 16) throw new ErreurDechiffrement("Chiffré du coffre tronqué.");
+  return { iv: brut.subarray(0, 12), tag: brut.subarray(12, 28), valeurChiffree: brut.subarray(28), cleVersion: 1, cleId: id };
 }

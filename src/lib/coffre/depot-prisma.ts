@@ -1,53 +1,59 @@
+import { decomposer } from "./chiffrement";
+import { recomposer } from "./dechiffrement";
 import type { AccesDonneeSensibleJournal, DepotCoffre, DonneeSensibleStockee, RefTitulaire, ResumeDonneeSensible } from "./depot";
 import { estNatureCoffre, type NatureCoffre } from "./natures";
 
 /**
- * LE DÉPÔT PRISMA DU COFFRE — écrit contre les tables PRÉVUES `DonneeSensible` et
- * `AccesDonneeSensible` (refonte des données, R6), qui n'existent pas encore dans le schéma.
+ * LE DÉPÔT PRISMA DU COFFRE — écrit contre les tables `DonneeSensible` et `AccesDonneeSensible`
+ * (migrations `20270130100000_referentiels` et `20270131170000_coffre_double_lecture`).
  *
- * Il ne reçoit donc pas `prisma` lui-même mais un client DÉCRIT par sa forme (`ClientPrismaCoffre`) :
- * le module compile aujourd'hui, et le jour où les tables existent, `creerDepotPrisma(prisma)` type
- * directement. Rien ne l'appelle encore.
+ * Il reçoit un client DÉCRIT par sa forme (`ClientPrismaCoffre`) : `prisma` y entre tel quel, et un
+ * client en mémoire suffit aux bancs. Le chiffré du service (`c1.<clé>.<…>`) est rangé en colonnes
+ * (`valeurChiffree`, `iv`, `tag`, `cleVersion`, `cleId`) par `decomposer`, relu par `recomposer`.
  *
- * Colonnes attendues (noms Prisma) :
- *   DonneeSensible        id, titulairePersonneId?, titulaireOrganisationId?, nature, valeurChiffree,
- *                         empreinte, derniers4?, pieceSourceId?, valideDu?, valideAu?, deposeParId?,
- *                         createdAt — index (nature, empreinte) ; exactement un des deux titulaires.
- *   AccesDonneeSensible   id, donneeId, lecteurGenre, lecteurId?, lecteurNom?, geste, autorise,
- *                         motif, createdAt — index (donneeId, createdAt).
+ * Ce dépôt sert les dépôts « par titulaire » (moteur d'enrichissement, V2-A). Les copies de colonnes
+ * historiques (V2-E) passent par `copies.ts`, qui sait d'où vient la valeur ; seules les copies
+ * COURANTES (`remplaceeLe` nul) sont cherchées.
  */
 
 export interface LigneDonneeSensible {
   id: string;
-  titulairePersonneId: string | null;
-  titulaireOrganisationId: string | null;
+  titulaireType: "PERSONNE" | "ORGANISATION" | null;
+  titulaireId: string | null;
   nature: string;
-  valeurChiffree: string;
-  empreinte: string;
-  derniers4: string | null;
-  pieceSourceId: string | null;
+  valeurChiffree: Uint8Array;
+  iv: Uint8Array;
+  tag: Uint8Array;
+  cleVersion: number;
+  cleId: string | null;
+  empreinteHmac: string;
+  derniersCaracteres: string | null;
+  pieceId: string | null;
   valideDu: Date | null;
   valideAu: Date | null;
-  deposeParId: string | null;
+  creeParId: string | null;
   createdAt: Date;
 }
 
 export interface LigneAccesDonneeSensible {
-  donneeId: string;
-  lecteurGenre: string;
-  lecteurId: string | null;
+  donneeSensibleId: string | null;
+  titulaireType: "PERSONNE" | "ORGANISATION" | null;
+  titulaireId: string | null;
+  nature: string;
+  userId: string | null;
   lecteurNom: string | null;
   geste: string;
   autorise: boolean;
-  motif: string;
+  motif: string | null;
   createdAt: Date;
 }
 
 type FiltreDonnee = {
   nature: string;
-  empreinte: string;
-  titulairePersonneId?: string;
-  titulaireOrganisationId?: string;
+  empreinteHmac: string;
+  remplaceeLe: null;
+  titulaireType?: "PERSONNE" | "ORGANISATION";
+  titulaireId?: string;
 };
 
 export interface TransactionCoffre {
@@ -65,23 +71,29 @@ export interface ClientPrismaCoffre extends TransactionCoffre {
   $transaction<T>(fn: (tx: TransactionCoffre) => Promise<T>): Promise<T>;
 }
 
+function titulaireDe(l: Pick<LigneDonneeSensible, "id" | "titulaireType" | "titulaireId">): RefTitulaire {
+  if (l.titulaireType === "PERSONNE" && l.titulaireId) return { genre: "PERSONNE", personneId: l.titulaireId };
+  if (l.titulaireType === "ORGANISATION" && l.titulaireId) return { genre: "ORGANISATION", organisationId: l.titulaireId };
+  throw new Error(`Donnée du coffre ${l.id} : sans titulaire (copie d'une colonne, lue par copies.ts).`);
+}
+
+function colonnesTitulaire(t: RefTitulaire): Pick<LigneDonneeSensible, "titulaireType" | "titulaireId"> {
+  return t.genre === "PERSONNE" ? { titulaireType: "PERSONNE", titulaireId: t.personneId } : { titulaireType: "ORGANISATION", titulaireId: t.organisationId };
+}
+
 function versStockee(l: LigneDonneeSensible): DonneeSensibleStockee {
   if (!estNatureCoffre(l.nature)) throw new Error(`Nature inconnue au coffre : ${l.nature}`);
-  let titulaire: RefTitulaire;
-  if (l.titulairePersonneId && !l.titulaireOrganisationId) titulaire = { genre: "PERSONNE", personneId: l.titulairePersonneId };
-  else if (l.titulaireOrganisationId && !l.titulairePersonneId) titulaire = { genre: "ORGANISATION", organisationId: l.titulaireOrganisationId };
-  else throw new Error(`Donnée du coffre ${l.id} : exactement un titulaire attendu.`);
   return {
     id: l.id,
-    titulaire,
+    titulaire: titulaireDe(l),
     nature: l.nature,
-    valeurChiffree: l.valeurChiffree,
-    empreinte: l.empreinte,
-    derniers4: l.derniers4,
-    pieceSourceId: l.pieceSourceId,
+    valeurChiffree: recomposer(l),
+    empreinte: l.empreinteHmac,
+    derniers4: l.derniersCaracteres,
+    pieceSourceId: l.pieceId,
     valideDu: l.valideDu,
     valideAu: l.valideAu,
-    deposeParId: l.deposeParId,
+    deposeParId: l.creeParId,
     deposeLe: l.createdAt,
   };
 }
@@ -89,25 +101,25 @@ function versStockee(l: LigneDonneeSensible): DonneeSensibleStockee {
 function versLigne(d: DonneeSensibleStockee): LigneDonneeSensible {
   return {
     id: d.id,
-    titulairePersonneId: d.titulaire.genre === "PERSONNE" ? d.titulaire.personneId : null,
-    titulaireOrganisationId: d.titulaire.genre === "ORGANISATION" ? d.titulaire.organisationId : null,
+    ...colonnesTitulaire(d.titulaire),
     nature: d.nature,
-    valeurChiffree: d.valeurChiffree,
-    empreinte: d.empreinte,
-    derniers4: d.derniers4,
-    pieceSourceId: d.pieceSourceId,
+    ...decomposer(d.valeurChiffree),
+    empreinteHmac: d.empreinte,
+    derniersCaracteres: d.derniers4,
+    pieceId: d.pieceSourceId,
     valideDu: d.valideDu,
     valideAu: d.valideAu,
-    deposeParId: d.deposeParId,
+    creeParId: d.deposeParId,
     createdAt: d.deposeLe,
   };
 }
 
-function versLigneAcces(a: AccesDonneeSensibleJournal): LigneAccesDonneeSensible {
+function versLigneAcces(a: AccesDonneeSensibleJournal, d: DonneeSensibleStockee): LigneAccesDonneeSensible {
   return {
-    donneeId: a.donneeId,
-    lecteurGenre: a.lecteurGenre,
-    lecteurId: a.lecteurId,
+    donneeSensibleId: a.donneeId,
+    ...colonnesTitulaire(d.titulaire),
+    nature: d.nature,
+    userId: a.lecteurId,
     lecteurNom: a.lecteurNom,
     geste: a.geste,
     autorise: a.autorise,
@@ -128,17 +140,16 @@ export function creerDepotPrisma(client: ClientPrismaCoffre): DepotCoffre {
         if (!ligne) return null;
         const donnee = versStockee(ligne);
         const acces = await decider(donnee);
-        await tx.accesDonneeSensible.create({ data: versLigneAcces(acces) });
+        await tx.accesDonneeSensible.create({ data: versLigneAcces(acces, donnee) });
         return { donnee, acces };
       });
     },
 
     async chercherParEmpreinte(nature: NatureCoffre, empreinte: string, titulaire?: RefTitulaire): Promise<ResumeDonneeSensible[]> {
-      const where: FiltreDonnee = { nature, empreinte };
-      if (titulaire?.genre === "PERSONNE") where.titulairePersonneId = titulaire.personneId;
-      if (titulaire?.genre === "ORGANISATION") where.titulaireOrganisationId = titulaire.organisationId;
+      const where: FiltreDonnee = { nature, empreinteHmac: empreinte, remplaceeLe: null };
+      if (titulaire) Object.assign(where, colonnesTitulaire(titulaire));
       const lignes = await client.donneeSensible.findMany({ where, orderBy: { createdAt: "asc" } });
-      return lignes.map((l) => {
+      return lignes.filter((l) => l.titulaireId).map((l) => {
         const { valeurChiffree: _chiffre, ...resume } = versStockee(l);
         void _chiffre;
         return resume;
