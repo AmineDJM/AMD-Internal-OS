@@ -14,6 +14,8 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { sendLegalInvoiceToSettlement } from "@/lib/actions/legal-actions";
+import { consommerDepensePoste, imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
+import { statuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -139,5 +141,37 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     expect(r.error).toMatch(/poste/);
     expect(await prisma.expenseOrder.count({ where: { sourceType: "LEGAL_DOCUMENT", sourceId: facture.id } })).toBe(0);
     expect((await prisma.legalDocument.findUniqueOrThrow({ where: { id: facture.id } })).expenseOrderId).toBeNull();
+  });
+
+  // ─── ADPRO-02 ─────────────────────────────────────────────────────────────────────────────
+  it("ADPRO-02 — « Consommer » (Budget Marketing) n'émet pas d'ordre tant que le DG n'a pas validé le total", async () => {
+    const eventId = (await prisma.event.create({ data: { name: `${RUN} Journées d'Oran`, requesterId: u.kam, requestStatus: "APPROVED" } })).id;
+    events.push(eventId);
+    const poste = await prisma.adProItem.create({
+      data: { eventId, kind: "STAND", status: "APPROVED", label: `${TAG}Stand`, amountGranted: 3_000_000, supplier: "Expo Events DZ" },
+    });
+    const bc = await prisma.legalDocument.create({
+      data: { title: `${TAG}BC stand`, kind: "PURCHASE_ORDER", reference: `${RUN}BC`, amount: 3_000_000, counterparty: "Expo Events DZ", signedAt: new Date() },
+    });
+    docs.push(bc.id);
+    await prisma.adProItemPiece.create({ data: { itemId: poste.id, legalDocumentId: bc.id, nature: "BON_DE_COMMANDE" } });
+    await comme("dm");
+    const imp = await imputerDepensePoste(fd({ id: poste.id, categorieId: catId }));
+    expect(imp.ok, imp.error).toBe(true);
+
+    // Porte FERMÉE (3 000 000 > seuil, aucune décision) : rien ne part au centre de paiement.
+    const refuse = await consommerDepensePoste(fd({ id: poste.id, montant: "2500000" }));
+    expect(refuse.ok).toBe(false);
+    expect(refuse.error).toMatch(/Directeur Général/);
+    expect(await prisma.expenseOrder.count({ where: { sourceId: eventId } })).toBe(0);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: poste.id } })).orderStage).not.toBe("ISSUED");
+
+    // Le DG valide le total : la consommation passe, un ordre et un seul.
+    const v = await statuerSurLeTotal({ user: { id: u.gm, name: "gm", role: "GENERAL_MANAGER" }, parent: "EVENT", parentId: eventId, decision: "VALIDEE", totalVu: 3_000_000, note: null });
+    expect(v.ok).toBe(true);
+    await comme("dm");
+    const ok = await consommerDepensePoste(fd({ id: poste.id, montant: "2500000" }));
+    expect(ok.ok, ok.error).toBe(true);
+    expect(await prisma.expenseOrder.count({ where: { sourceId: eventId } })).toBe(1);
   });
 });

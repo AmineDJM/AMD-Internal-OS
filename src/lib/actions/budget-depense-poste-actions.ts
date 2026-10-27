@@ -15,6 +15,7 @@ import { CHEMIN_PARENT_AD_PRO } from "@/lib/chemins/ad-pro";
 import { DOMAINES } from "@/lib/budget/domaines";
 import { depensesDesPostes } from "@/lib/queries/budget-sources";
 import { refusCategoriePourLaDemande } from "@/lib/ad-pro/categorie-budgetaire-serveur";
+import { refusSiPorteDgFermee } from "@/lib/ad-pro/porte-dg";
 import {
   MOTIF_MAX, refusAnnulation, refusConsommation, refusImputation, type GesteImputation,
 } from "@/lib/budget/depense-poste";
@@ -208,6 +209,10 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   const { poste, owner, lue } = lu;
   const actuelle = await categorie(poste.budgetCategoryId);
   if (!actuelle || !canManageEnvelope(user, actuelle.envelope)) return { ok: false, error: REFUS_DROIT };
+  // LA PORTE DU DG SUR LE TOTAL (27/10/2026) : consommer, c'est demander le paiement du poste — la même porte que
+  // `demanderPaiementPoste`. Sans elle, l'onglet « Dépenses » émettait l'ordre d'une demande que le DG n'a pas validée (ADPRO-02).
+  const porteDg = await refusSiPorteDgFermee(owner.parent, owner.id);
+  if (porteDg) return { ok: false, error: porteDg };
   const montant = fdNum(formData, "montant");
   const refus = refusConsommation({ etat: lue.depense.etat, montant, montantEngage: lue.depense.montantEngage });
   if (refus || montant == null) return { ok: false, error: refus ?? "Indiquez le montant consommé." };
