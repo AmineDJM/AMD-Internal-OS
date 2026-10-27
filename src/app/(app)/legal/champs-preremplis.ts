@@ -1,5 +1,6 @@
 import type { FieldDef, MarqueDeChamp } from "@/components/shared/create-record-button";
 import type { ChampPrerempli, PrerempliDocumentLegal } from "@/lib/pieces-lues/prerempli-document-legal";
+import { LIBELLES_FACTURE } from "./legal-fields";
 
 /**
  * LES CHAMPS DE « NOUVEAU DOCUMENT », REMPLIS DEPUIS LA PIÈCE LUE — module PUR, sans import de valeur.
@@ -29,6 +30,12 @@ export function champsPreremplis(
   const out: FieldDef[] = [];
   const garde = (name: string): string | undefined => { const g = gardes[name]; return typeof g === "string" ? g : undefined; };
   const lue = (name: string): string | undefined => (p && CHAMPS_LUS.includes(name) ? p.valeurs[name as ChampPrerempli] : undefined);
+  // LA PIÈCE LUE EST UNE FACTURE (et la personne n'a pas changé la nature) : ses champs prennent les libellés d'une facture.
+  const facture = (garde("kind") ?? lue("kind")) === "INVOICE";
+  const libelle = (name: string, actuel: string): string =>
+    facture && name in LIBELLES_FACTURE ? LIBELLES_FACTURE[name as keyof typeof LIBELLES_FACTURE] : actuel;
+  const aCreer = p?.partie.aCreer;
+  const lueACreer = Boolean(aCreer && (aCreer.nom || aCreer.nif || aCreer.rc));
 
   for (const f of base) {
     switch (f.type) {
@@ -41,7 +48,8 @@ export function champsPreremplis(
       case "parties": {
         const g = gardes[f.name];
         const ids = Array.isArray(g) ? g : p?.partie.retenue ? [p.partie.retenue] : f.defaultValue ?? [];
-        const propose = p && !Array.isArray(g) && !p.partie.retenue && (p.partie.candidats.length > 0 || p.partie.aCreer?.nom)
+        // Un NIF ou un RC lu suffit à préremplir le contact : un nom imprimé sans étiquette ne se lit pas toujours.
+        const propose = p && !Array.isArray(g) && !p.partie.retenue && (p.partie.candidats.length > 0 || lueACreer)
           ? { candidats: p.partie.candidats, phrase: p.partie.phrase, contact: p.partie.aCreer }
           : undefined;
         out.push({ ...f, defaultValue: ids, propose });
@@ -73,7 +81,7 @@ export function champsPreremplis(
       }
       default: {
         const v = garde(f.name) ?? lue(f.name);
-        out.push(v !== undefined ? { ...f, defaultValue: v } : f);
+        out.push({ ...f, label: libelle(f.name, f.label), ...(v !== undefined ? { defaultValue: v } : {}) });
         // Le menu « Fait suite à » n'existe que s'il a des pièces à proposer ; le BC cité par la facture lui en donne une.
         if (f.name === "notes" && p?.bcSuivi && !base.some((x) => x.type !== "hidden" && x.name === "chainFromId")) {
           out.push({

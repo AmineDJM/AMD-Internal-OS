@@ -81,3 +81,18 @@ describe("champsPreremplis — le formulaire Legal rempli depuis sa pièce", () 
     expect(champ(champsPreremplis(BASE, null, {}, false), "readerId").required).toBeFalsy();
   });
 });
+
+describe("champsPreremplis — ce que la lecture de la vraie pièce a appris (essai en local, 27/10)", () => {
+  it("une pièce lue comme facture prend les libellés d'une facture", () => {
+    const fs = champsPreremplis(BASE, prerempli(), {}, false);
+    expect(champ(fs, "startDate").label).toBe("Date d’émission");
+    expect(champ(fs, "reference").label).toBe("N° de facture");
+    // Changée par la personne, la nature décide des libellés.
+    expect(champ(champsPreremplis(BASE, prerempli(), { kind: "CONTRACT" }, false), "startDate").label).toBe("Date de début (facultative)");
+  });
+
+  it("un NIF lu sans nom suffit à proposer la création du contact", () => {
+    const p = prerempli({ partie: { statut: "AUCUN", retenue: null, candidats: [], phrase: "Partie absente", aCreer: { nom: null, nif: "000916012345678", rc: null, adresse: null } } });
+    expect(champ(champsPreremplis(BASE, p, {}, false), "counterpartyIds").propose).toMatchObject({ contact: { nif: "000916012345678" } });
+  });
+});

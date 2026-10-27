@@ -147,6 +147,14 @@ describe("repererEntetes — l'en-tête et les totaux, lus par des règles et pr
     expect(longues.rc.map((x) => x.valeur)).toEqual(["99B0123456"]);
     expect(longues.nif).toEqual([expect.objectContaining({ valeur: null, raison: expect.stringMatching(/15 à 20 chiffres/) })]);
   });
+
+  it("une virgule ferme l'identifiant, elle ne le cache pas — les parties d'un contrat citées en ligne", () => {
+    const r = repererEntetes("Et : ClimTech SARL, NIF 001616098765432, RC 16/00-0987654B21, ci-après « le Prestataire ».");
+    expect(r.nif.map((x) => x.valeur)).toEqual(["001616098765432"]);
+    expect(r.rc.map((x) => x.valeur)).toEqual(["16000987654B21"]);
+    // Ce qui suit la virgule n'est jamais pris pour la suite de l'identifiant.
+    expect(repererEntetes("NIF 001616098765432; 77").nif.map((x) => x.valeur)).toEqual(["001616098765432"]);
+  });
 });
 
 describe("dateLue — une date imprimée, en ISO", () => {

@@ -413,10 +413,14 @@ function valeurIdentifiant(champ: ChampId, segment: string): { valeur: string | 
   const s = segment.replace(/^\s*(?:n\s*[°º]|n[o°º](?![A-Za-z])|num(?:ero)?(?![A-Za-z]))?\.?\s*[:.=-]?\s*/i, "");
   const jetons = s.split(/\s+/).filter(Boolean);
   const pris: string[] = [];
-  for (const j of jetons) {
+  for (const brutJeton of jetons) {
+    // UNE PONCTUATION FERME L'IDENTIFIANT, elle ne le cache pas : « NIF 001616098765432, RC … » — la forme d'un contrat
+    // qui cite ses parties en ligne — portait un NIF que la virgule rendait illisible.
+    const j = brutJeton.replace(/[,;]+$/, "");
     const chiffre = /\d/.test(j);
-    if (champ === "RC" ? chiffre || (/^[A-Za-z]$/.test(j) && pris.length > 0) : /^[\d.]+$/.test(j)) pris.push(j);
+    if (j && (champ === "RC" ? chiffre || (/^[A-Za-z]$/.test(j) && pris.length > 0) : /^[\d.]+$/.test(j))) pris.push(j);
     else break;
+    if (j !== brutJeton) break;
   }
   const brut = pris.join(" ");
   if (!brut) return null;

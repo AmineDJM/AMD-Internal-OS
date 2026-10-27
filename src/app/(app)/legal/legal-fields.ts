@@ -18,6 +18,17 @@ import { LIBELLE_CHAMP_DU_FICHIER } from "@/lib/legal/piece-emise";
  * libellés le disent (« facture »), et le serveur les ignore sur toute autre nature — un bail ne
  * portera jamais de sens de l'argent, même si quelqu'un remplit le champ.
  */
+/**
+ * LES LIBELLÉS QUE PREND UNE FACTURE — lus ici par `legalFields`, et par la saisie préremplie (`champs-preremplis.ts`)
+ * quand la pièce lue se révèle une facture alors que le formulaire s'est ouvert en « document » (§118.5 : une source).
+ */
+export const LIBELLES_FACTURE = {
+  title: "Objet de la facture",
+  reference: "N° de facture",
+  startDate: "Date d’émission",
+  endDate: "Échéance de règlement",
+} as const;
+
 export function legalFields(
   values: Partial<Record<string, string>> = {},
   mode: "create" | "edit" = "edit",
@@ -62,10 +73,10 @@ export function legalFields(
   return [
     {
       type: "text", name: "title",
-      label: facture ? "Objet de la facture" : "Titre exact du document",
+      label: facture ? LIBELLES_FACTURE.title : "Titre exact du document",
       required: true, full: true, defaultValue: v("title"),
     },
-    { type: "text", name: "reference", label: facture ? "N° de facture" : "Référence / n°", defaultValue: v("reference") },
+    { type: "text", name: "reference", label: facture ? LIBELLES_FACTURE.reference : "Référence / n°", defaultValue: v("reference") },
     ...(invoiceOnly
       ? ([{ type: "hidden", name: "kind", value: "INVOICE" }] as FieldDef[])
       : ([{ type: "select", name: "kind", label: "Nature", options: optionsFromMap(LEGAL_DOC_KIND), defaultValue: v("kind") ?? "CONTRACT" }] as FieldDef[])),
@@ -81,8 +92,8 @@ export function legalFields(
         ? `Partie enregistrée en texte : « ${v("counterparty")} ». Choisissez-la dans l\u2019annuaire pour qu\u2019on puisse la joindre.`
         : "Choisissez-la dans l\u2019annuaire de l\u2019entreprise. Absente ? « Créer un contact » l\u2019y ajoute sans quitter cette saisie.",
     },
-    { type: "date", name: "startDate", label: facture ? "Date d’émission" : "Date de début (facultative)", defaultValue: v("startDate") },
-    { type: "date", name: "endDate", label: facture ? "Échéance de règlement" : "Date de fin — vide = sans échéance", defaultValue: v("endDate") },
+    { type: "date", name: "startDate", label: facture ? LIBELLES_FACTURE.startDate : "Date de début (facultative)", defaultValue: v("startDate") },
+    { type: "date", name: "endDate", label: facture ? LIBELLES_FACTURE.endDate : "Date de fin — vide = sans échéance", defaultValue: v("endDate") },
     { type: "number", name: "amount", label: "Montant (DZD)", defaultValue: v("amount") },
     // LE SENS DE L'ARGENT — jamais deviné du nom de la partie en face : selon la facture, la
     // même société est celle qu'on paie ou celle qui nous paie, et une écriture posée à

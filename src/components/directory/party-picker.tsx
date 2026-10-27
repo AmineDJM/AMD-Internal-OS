@@ -156,9 +156,10 @@ export function PartyPicker({
                 C&apos;est « {c.nom} »
               </Button>
             ))}
-            {propose.candidats.length === 0 && propose.contact?.nom && creationPermise && (
+            {propose.candidats.length === 0 && propose.contact && (propose.contact.nom || propose.contact.nif || propose.contact.rc) && creationPermise && (
               <Button type="button" size="sm" onClick={() => setCreation(true)}>
-                <Plus className="h-4 w-4" /> Créer « {propose.contact.nom} »
+                <Plus className="h-4 w-4" />
+                {propose.contact.nom ? <>Créer « {propose.contact.nom} »</> : <>Créer le contact ({propose.contact.nif ? `NIF ${propose.contact.nif}` : `RC ${propose.contact.rc}`} lu)</>}
               </Button>
             )}
           </div>
