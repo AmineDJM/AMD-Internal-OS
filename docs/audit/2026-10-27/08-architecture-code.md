@@ -425,7 +425,7 @@ mesurées par sa propre liste exacte, sans fausser le compteur de traversées hi
   → seuls `boundary.test.ts` (430 > 425) et `domains.test.ts` (71 > 68) échouent, **préexistants et inchangés**.
 - `npx next lint` : ✔ aucune erreur (75 s). `tsc --noEmit` (tas 6 Go) : 0 erreur (271 s).
 - `npm run actions:contrat` : `contrat.genere.json` régénéré **identique** (1 166 actions).
-- `rm -rf .next && npm run build` : exigé par `CLAUDE.md` après déplacement de composants client.
+- `rm -rf .next && npm run build` (tas 6 Go) : ✓ compilé, 639 s ; `/consommation`, `/consommation/[id]`, `/consommation/affinite` générées.
 
 ---
 
