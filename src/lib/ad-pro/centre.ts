@@ -87,12 +87,17 @@ export { porteDgRequise, motifPorteDg };
  * dépenses de promotion de la société. La règle pure a le dernier mot, comme au centre de
  * validations et au centre de paiement.
  *
- * Le rôle PRINCIPAL et lui seul : une casquette secondaire se prête (voir tout se prête), mais
- * trancher une dépense au-delà du seuil de la maison ne se prête pas — c'est le raisonnement
- * de `peutPiloterMissionsAdam` (§118.136), et il vaut ici pour la même raison.
+ * Le rôle PRINCIPAL OU SECONDAIRE (Direction, 27/10 — point 26). Le rôle secondaire est une
+ * attribution du Super Admin, nommée sur le compte (`User.secondaryRole`), pas un prêt : un DG
+ * qui porte sa casquette en second (son rôle principal étant, par exemple, celui de la Direction
+ * Marketing) restait dehors, et les BC nés d'Ad & Pro n'avaient plus personne pour les viser.
+ * L'INTÉRIM, lui, ne prête toujours aucun rôle (`hr/stand-in.ts`, §118.185) : ce siège ne se
+ * délègue pas.
  */
-export function siegeAuCentreAdPro(user: { role: string }): boolean {
-  return user.role === "SUPER_ADMIN" || user.role === "GENERAL_MANAGER";
+const ROLES_CENTRE_AD_PRO: readonly string[] = ["SUPER_ADMIN", "GENERAL_MANAGER"];
+
+export function siegeAuCentreAdPro(user: { role: string; secondaryRole?: string | null }): boolean {
+  return ROLES_CENTRE_AD_PRO.includes(user.role) || (user.secondaryRole != null && ROLES_CENTRE_AD_PRO.includes(user.secondaryRole));
 }
 
 /**
