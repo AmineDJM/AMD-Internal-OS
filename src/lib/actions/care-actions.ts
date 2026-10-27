@@ -17,7 +17,7 @@ import {
   casesDeLaCategorie, detailsStockes, deviseDuDevis, deviseDuPoste, etapesDuBillet, etapesStockees, fichePrete,
   lireDetailsTrajets, peutTeleverserBillet, hotelPrerempli, libelleNouveauPoste,
   lignesReservationFiche, lireMontant, lirePosteSaisi, manquesPourReserverFiche, montantLisible, personneVivante,
-  tauxDeLaDemande, typePoste, versDzd, DECISION_LIBELLE, type CellRow,
+  tauxDeLaDemande, typePoste, versDzd, DECISION_LIBELLE, TAUX_USD_DZD_DEFAUT, type CellRow,
 } from "@/lib/care-fiches";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -29,6 +29,7 @@ import { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "@/lib/care-p
 import { phraseDepot } from "@/lib/care-pieces";
 import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
+import { demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE } from "@/lib/care-engagement";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).
@@ -864,10 +865,23 @@ export async function createCareQuote(_prev: ActionResult | undefined, formData:
     select: { id: true, serviceKind: true },
   });
   if (couvertes.length !== cellIds.length) return { ok: false, error: "Certains éléments n'appartiennent pas à cette demande." };
+  // RIEN NE S'ENGAGE AVANT LA PRÉVALIDATION ET L'ACCORD (27/10/2026) : pas de devis sur une demande non
+  // prévalidée, ni sur une personne qui n'est pas « Accordée » (`care-engagement.ts`).
+  const refusEngagement = await refusEngagementPriseEnCharge(scopeRaw, requestId, cellIds);
+  if (refusEngagement) return { ok: false, error: refusEngagement };
 
-  const devise = saisi ? deviseDuDevis(scopeRaw, couvertes.map((c) => c.serviceKind)) : ({ ok: true, devise: "DZD" } as const);
+  // LA DEVISE DE SAISIE : celle des postes couverts, sauf si l'appelant la DIT (`devise`) — l'assistante de
+  // direction qui joint le devis d'une agence en dinars ne doit pas le voir relu en dollars (×240).
+  const deviseBrute = fdStr(formData, "devise");
+  if (deviseBrute && deviseBrute !== "DZD" && deviseBrute !== "USD") return { ok: false, error: "Devise inconnue (DZD ou USD)." };
+  const deviseDite: "DZD" | "USD" | null = deviseBrute === "DZD" || deviseBrute === "USD" ? deviseBrute : null;
+  const devise = deviseDite && saisi
+    ? ({ ok: true, devise: deviseDite } as const)
+    : saisi ? deviseDuDevis(scopeRaw, couvertes.map((c) => c.serviceKind)) : ({ ok: true, devise: "DZD" } as const);
   if (!devise.ok) return { ok: false, error: devise.error };
-  const amountDzd = versDzd(montant, devise.devise, tauxDe(scopeRaw, req));
+  // Un montant DIT en dollars se convertit au taux figé de la demande — 240 au national, qui n'en porte pas.
+  const taux = tauxDe(scopeRaw, req) ?? (deviseDite === "USD" ? TAUX_USD_DZD_DEFAUT : null);
+  const amountDzd = versDzd(montant, devise.devise, taux);
   if (amountDzd == null) return { ok: false, error: "Le taux de conversion de cette demande est inconnu : le devis en dollars ne peut pas être converti." };
   const natures = new Set(couvertes.map((c) => c.serviceKind));
   const serviceKind = categorie ?? (natures.size === 1 ? [...natures][0] ?? null : null);
@@ -993,6 +1007,18 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
 
   const cellIds = quote.cells.map((c) => c.cellId);
 
+  // ACCEPTER ENGAGE LA DÉPENSE (27/10/2026) : la demande prévalidée, chaque personne couverte accordée, et une
+  // catégorie budgétaire — l'ordre né du devis la porte, il n'échappe plus aux enveloppes.
+  let budgetCategoryId: string | null = null;
+  if (decision === "ACCEPTED") {
+    const refusEngagement = await refusEngagementPriseEnCharge(scope, requestId, cellIds);
+    if (refusEngagement) return { ok: false, error: refusEngagement };
+    budgetCategoryId = fdStr(formData, "budgetCategoryId");
+    if (!budgetCategoryId) return { ok: false, error: "Choisissez la catégorie budgétaire du devis : l'ordre de dépense qu'il émet l'impute à son enveloppe." };
+    const cat = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
+    if (cat === 0) return { ok: false, error: "La catégorie budgétaire choisie est introuvable." };
+  }
+
   if (decision === "ACCEPTED") {
     const others = await prisma.careQuote.findMany({
       where: { ...parentWhere(scope, requestId), id: { not: id } },
@@ -1023,6 +1049,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
         sourceType: SPEC[scope].module,
         sourceId: requestId,
         requestedById: user.id,
+        budgetCategoryId,
         // LE BUDGET EST EN DZD : un devis saisi en dollars entre à son équivalent au taux figé de la demande.
         notes: `Devis couvrant ${cellIds.length} élément(s) de la prise en charge.${quote.currency === "USD" && quote.amount != null ? ` Saisi : ${montantLisible(toNumber(quote.amount), "USD")} (converti au taux de la demande).` : ""}`,
       });
@@ -1071,7 +1098,7 @@ export async function requestCareQuotes(_prev: ActionResult | undefined, formDat
 
   const req = await loadRequest(scopeRaw, requestId);
   if (!req) return { ok: false, error: "Demande introuvable." };
-  if (!DECIDED.includes(req.requestStatus)) return { ok: false, error: "La Direction n'a pas encore validé l'événement." };
+  if (!(await demandePrevalidee(scopeRaw, requestId))) return { ok: false, error: REFUS_NON_PREVALIDEE };
 
   const toQuote = await prisma.careCell.count({
     where: { beneficiary: { ...parentWhere(scopeRaw, requestId), status: "APPROVED" }, kind: "SERVICE", status: "REQUESTED" },
@@ -1310,10 +1337,13 @@ export async function demanderBCPriseEnCharge(_prev: ActionResult | undefined, f
   const voulus = formData.getAll("quoteIds").map(String).filter(Boolean);
   const retenus = await prisma.careQuote.findMany({
     where: { ...parentWhere(scopeRaw, requestId), status: "PENDING", retainedAt: { not: null }, bcRequestedAt: null, ...(voulus.length ? { id: { in: voulus } } : {}) },
-    select: { id: true, supplier: true, reference: true, amount: true, currency: true, amountDzd: true, cells: { select: { cell: { select: { label: true, beneficiaryId: true } } } } },
+    select: { id: true, supplier: true, reference: true, amount: true, currency: true, amountDzd: true, cells: { select: { cellId: true, cell: { select: { label: true, beneficiaryId: true } } } } },
     orderBy: { createdAt: "asc" },
   });
   if (retenus.length === 0) return { ok: false, error: "Retenez d'abord un devis : le bon de commande s'établit d'après les propositions retenues." };
+  // Pas de BC avant la prévalidation de la demande ni l'accord de chaque personne couverte (27/10/2026).
+  const refusEngagement = await refusEngagementPriseEnCharge(scopeRaw, requestId, retenus.flatMap((q) => q.cells.map((c) => c.cellId)));
+  if (refusEngagement) return { ok: false, error: refusEngagement };
 
   const fiches = await fichesDeLaDemande(scopeRaw, requestId);
   const nomDe = new Map(fiches.map((f) => [f.id, f.nom]));

@@ -54,6 +54,8 @@ interface Props {
   promoOptions?: { id: string; reference: string; title: string }[];
   /** L'état de chaque billet / hôtel chez l'assistante de direction (`EnvoiVue`, par case) — chaque fiche s'envoie seule (14/10). */
   envois?: Record<string, EnvoiVue>;
+  /** Les catégories budgétaires (enveloppe › catégorie) : accepter un devis en exige une, que porte son ordre de dépense. */
+  budgetOptions?: { id: string; label: string }[];
 }
 
 const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
@@ -68,7 +70,7 @@ const fd = (o: Record<string, string>) => { const f = new FormData(); for (const
  */
 export function CarePanel({
   scope, requestId, beneficiaries, quotes, groupPostes, reglages, enveloppe, directory, eventApproved, canEdit, canDecide, peutTeleverser, promoOptions = [],
-  envois = {},
+  envois = {}, budgetOptions = [],
 }: Props) {
   const { enCours, rafraichir } = useRafraichir();
   const [action, setAction] = React.useState<string | null>(null);
@@ -77,6 +79,7 @@ export function CarePanel({
   const [adding, setAdding] = React.useState(false);
   const [quoting, setQuoting] = React.useState<{ cellIds: string[] } | null>(null);
   const [ficheId, setFicheId] = React.useState<string | null>(null);
+  const [budgetDuDevis, setBudgetDuDevis] = React.useState<Record<string, string>>({});
   const lock = React.useRef(false);
   const devisRef = React.useRef<HTMLElement>(null);
 
@@ -319,9 +322,20 @@ export function CarePanel({
                       {q.retained ? "Ne plus retenir" : "Retenir"}
                     </Button>
                   )}
+                  {canDecide && q.status === "PENDING" && (
+                    <select
+                      value={budgetDuDevis[q.id] ?? ""}
+                      onChange={(e) => setBudgetDuDevis((m) => ({ ...m, [q.id]: e.target.value }))}
+                      aria-label="Catégorie budgétaire du devis"
+                      className="min-w-0 max-w-full rounded-lg border border-border bg-background px-2 py-1.5 text-base outline-none focus:border-primary/60 sm:text-xs"
+                    >
+                      <option value="">Catégorie budgétaire (obligatoire pour accepter)…</option>
+                      {budgetOptions.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                    </select>
+                  )}
                   {canDecide && q.status === "PENDING" && (["ACCEPTED", "REJECTED"] as const).map((d) => (
-                    <Button key={d} size="sm" variant={d === "ACCEPTED" ? "primary" : "outline"} disabled={busy !== null}
-                      onClick={() => void run(`q:${q.id}`, () => decideCareQuote(undefined, fd({ id: q.id, decision: d })), d === "ACCEPTED" ? "Devis accepté — ordre de dépense émis." : "Devis refusé.")}>
+                    <Button key={d} size="sm" variant={d === "ACCEPTED" ? "primary" : "outline"} disabled={busy !== null || (d === "ACCEPTED" && !budgetDuDevis[q.id])}
+                      onClick={() => void run(`q:${q.id}`, () => decideCareQuote(undefined, fd(d === "ACCEPTED" ? { id: q.id, decision: d, budgetCategoryId: budgetDuDevis[q.id] ?? "" } : { id: q.id, decision: d })), d === "ACCEPTED" ? "Devis accepté — ordre de dépense émis." : "Devis refusé.")}>
                       {busy === `q:${q.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                       {d === "ACCEPTED" ? "Accepter" : "Refuser"}
                     </Button>

@@ -13,6 +13,7 @@ import { persistUploadedDocument } from "@/lib/documents";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { submitDocumentRequest } from "@/lib/actions/document-request-actions";
 import { createCareQuote } from "@/lib/actions/care-actions";
+import { montantLisible, TAUX_USD_DZD_DEFAUT } from "@/lib/care-fiches";
 import {
   chargerFiche, chargerFiches, cleFiche, colonneFiche, ficheDeLaDemande, MODULE_OPERATION, type FicheReservation,
 } from "@/lib/reservation-fiche/fiches";
@@ -453,6 +454,14 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
   const fournisseur = fdStr(formData, "fournisseur");
   const montant = fdNum(formData, "montant");
   if (montant !== null && !(montant > 0)) return { ok: false, error: "Le montant du devis doit être positif." };
+  // LA DEVISE DE SAISIE (27/10/2026) : un montant saisi en DZD reste en DZD ; seul un montant DIT en USD se
+  // convertit, une seule fois, au taux figé (1 USD = 240 DZD). Sans elle, le devis était relu dans la devise du
+  // poste — des dinars lus comme des dollars, ×240.
+  const deviseBrute = fdStr(formData, "devise") ?? "DZD";
+  if (deviseBrute !== "DZD" && deviseBrute !== "USD") return { ok: false, error: "Devise inconnue (DZD ou USD)." };
+  const devise: "DZD" | "USD" = deviseBrute;
+  const montantDit = montant === null ? null
+    : devise === "USD" ? `${montantLisible(montant, "USD")} (= ${montantLisible(Math.round(montant * TAUX_USD_DZD_DEFAUT * 100) / 100)})` : montantLisible(montant);
   const refusFichier = await validateAttachments(fichiers);
   if (refusFichier) return { ok: false, error: refusFichier };
 
@@ -464,6 +473,7 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
     fd.set("requestId", f.operation.id);
     fd.set("supplier", fournisseur);
     fd.set("amount", String(montant));
+    fd.set("devise", devise);
     fd.append("cellIds", f.id);
     fd.set("file", fichiers[0]!);
     fd.set("note", `Devis de l'agence pour ${NATURE_LIBELLE[f.nature].toLowerCase()} · ${f.nom}, joint par l'assistante de direction.`);
@@ -476,7 +486,7 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
     const note = [
       `Devis de l'agence pour ${NATURE_LIBELLE[f.nature].toLowerCase()} · ${f.nom}.`,
       fournisseur ? `Agence : ${fournisseur}.` : null,
-      montant !== null ? `Montant : ${montant.toLocaleString("fr-FR")} DZD.` : null,
+      montantDit ? `Montant : ${montantDit}.` : null,
     ].filter(Boolean).join(" ");
     const req = await createWithRetry(async () => prisma.documentRequest.create({
       data: {
@@ -508,7 +518,7 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
     data: { etat: "DEVIS_RECU", devisRecuLe: new Date(), devisRef, priseParId: d.priseParId ?? user.id, priseLe: d.priseLe ?? new Date() },
   });
   await assurerMembre(d.dossierId, user.id);
-  const phrase = `Devis de l'agence joint — ${NATURE_LIBELLE[f.nature]} · ${f.nom}${fournisseur ? ` (${fournisseur})` : ""}${montant !== null ? ` — ${montant.toLocaleString("fr-FR")} DZD` : ""}.`;
+  const phrase = `Devis de l'agence joint — ${NATURE_LIBELLE[f.nature]} · ${f.nom}${fournisseur ? ` (${fournisseur})` : ""}${montantDit ? ` — ${montantDit}` : ""}.`;
   await noterAuFil(d.dossierId, user.id, phrase);
   await prevenir([d.demandeurId], {
     title: "Devis de l'agence reçu", body: f.source === "CARE_CELL" ? `${phrase} Retenez-le pour demander le BC.` : `${phrase} Acceptez-le pour qu'il rejoigne le poste.`,
