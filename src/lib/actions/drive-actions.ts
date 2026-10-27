@@ -175,12 +175,23 @@ export async function moveNode(formData: FormData): Promise<ActionResult> {
       const n: { parentId: string | null } | null = await prisma.driveNode.findUnique({ where: { id: cur }, select: { parentId: true } });
       cur = n?.parentId ?? null;
     }
-    const t = await prisma.driveNode.findUnique({ where: { id: targetId }, select: { spaceId: true } });
-    targetSpaceId = t?.spaceId ?? null;
+    // UNE CIBLE EST UN DOSSIER VIVANT (audit du 27/10/2026, RH-DOCUMENTS-COMMS-06) : rangé sous un FICHIER ou sous un
+    // dossier à la corbeille, l'élément n'apparaissait plus dans aucune liste — ni dans la corbeille.
+    const t = await prisma.driveNode.findUnique({ where: { id: targetId }, select: { spaceId: true, type: true, isTrashed: true } });
+    if (!t || t.type !== "FOLDER" || t.isTrashed) return { ok: false, error: "La destination doit être un dossier (hors corbeille)." };
+    targetSpaceId = t.spaceId ?? null;
   } else {
     // Déplacement à la racine d'une catégorie : gestionnaire requis (racine personnelle : libre).
     if (contextSpaceId && !(await canCreateInSpace(user, contextSpaceId))) return DENIED;
     targetSpaceId = contextSpaceId;
+  }
+
+  // SORTIR D'UNE CATÉGORIE se décide comme y entrer : gestionnaire de la catégorie d'origine. Un simple partage EDIT
+  // vidait la catégorie vers une racine personnelle (`spaceId` fourni par le client), et ses gestionnaires
+  // perdaient l'accès (audit du 27/10/2026, RH-DOCUMENTS-COMMS-06).
+  const source = await prisma.driveNode.findUnique({ where: { id }, select: { spaceId: true } });
+  if (source?.spaceId && source.spaceId !== targetSpaceId && !(await canCreateInSpace(user, source.spaceId))) {
+    return { ok: false, error: "Seul un gestionnaire de la catégorie peut en sortir cet élément." };
   }
 
   // Maintient l'invariant « tout le sous-arbre porte le spaceId de sa catégorie » : le sous-arbre
