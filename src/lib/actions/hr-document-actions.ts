@@ -68,8 +68,15 @@ async function applyAnnualLeaveBalance(
 ): Promise<number> {
   const pd = req.periodDays ? Number(req.periodDays) : 0;
   if (req.type !== "ANNUAL_LEAVE" || req.balanceAppliedAt || !(pd > 0)) return 0;
-  await prisma.employee.update({ where: { id: req.employeeId }, data: { leaveBalanceDays: { decrement: pd } } });
-  await prisma.hrDocumentRequest.update({ where: { id: req.id }, data: { balanceAppliedAt: new Date() } });
+  // Le verrou se PREND avant de débiter, dans la même transaction : deux accords simultanés lisaient tous deux
+  // `balanceAppliedAt = null` et débitaient deux fois (audit du 27/10/2026, RH-DOCUMENTS-COMMS-03).
+  const debite = await prisma.$transaction(async (tx) => {
+    const pris = await tx.hrDocumentRequest.updateMany({ where: { id: req.id, balanceAppliedAt: null }, data: { balanceAppliedAt: new Date() } });
+    if (pris.count !== 1) return false;
+    await tx.employee.update({ where: { id: req.employeeId }, data: { leaveBalanceDays: { decrement: pd } } });
+    return true;
+  });
+  if (!debite) return 0;
   await recordAudit({ actorId, action: "UPDATE", module: "RH", summary: `Congé annuel accordé — ${employeeName} (−${pd} j de solde)` });
   return pd;
 }
@@ -580,6 +587,24 @@ export async function genererAttestationDeTravail(formData: FormData): Promise<A
   return { ok: true, id: requestId, message: r.message };
 }
 
+/**
+ * UNE DÉCISION RH NE SE PREND QU'UNE FOIS, ET JAMAIS SUR SA PROPRE DEMANDE (audit du 27/10/2026, RH-DOCUMENTS-COMMS-03).
+ * `decideExpenseReport` / `decideHrLeave` écrivaient sans relire l'état : une note ANNULÉE par le salarié se
+ * validait, un REFUS après un ACCORD laissait le solde débité, deux clics croisés s'appliquaient l'un après
+ * l'autre ; un membre des RH validait sa propre note de frais ; une note de frais de mission encore chez le N+1
+ * (ou refusée par lui) se tranchait aux RH. La prise est atomique (`updateMany` conditionné à l'état ouvert).
+ */
+const ETATS_RH_OUVERTS: HrRequestStatus[] = ["PENDING", "IN_PROGRESS"];
+
+function refusDecisionRh(
+  user: { id: string },
+  req: { status: HrRequestStatus; managerGate: Parameters<typeof refusTraitementRh>[0]; employee: { userId: string | null } },
+): string | null {
+  if (!ETATS_RH_OUVERTS.includes(req.status)) return "Cette demande a déjà été tranchée (ou annulée).";
+  if (req.employee.userId === user.id) return "On ne décide pas de sa propre demande : un autre membre des RH doit la trancher.";
+  return refusTraitementRh(req.managerGate);
+}
+
 export async function processHrRequest(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "HR_REQUESTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
@@ -642,10 +667,13 @@ export async function decideExpenseReport(formData: FormData): Promise<ActionRes
     return { ok: false, error: "Traitement impossible : le bureau du secrétariat n'a pas encore accusé réception des originaux." };
   }
 
+  const refus = refusDecisionRh(user, req);
+  if (refus) return { ok: false, error: refus };
+
   const approvedMonth = decision === "APPROVE" ? req.expenseMonth : decision === "APPROVE_NEXT" ? nextMonthYm(req.expenseMonth) : null;
   const note = fdStr(formData, "hrNote");
-  await prisma.hrDocumentRequest.update({
-    where: { id },
+  const pris = await prisma.hrDocumentRequest.updateMany({
+    where: { id, status: { in: ETATS_RH_OUVERTS } },
     data: {
       status: decision === "REJECT" ? "REJECTED" : "READY",
       approvedMonth,
@@ -653,6 +681,7 @@ export async function decideExpenseReport(formData: FormData): Promise<ActionRes
       ...(note ? { hrNote: note } : {}),
     },
   });
+  if (pris.count !== 1) return { ok: false, error: "Cette demande a déjà été tranchée (ou annulée)." };
 
   const body = decision === "REJECT"
     ? `Votre note de frais (${formatMonth(req.expenseMonth)}) a été refusée.`
@@ -686,12 +715,16 @@ export async function decideHrLeave(formData: FormData): Promise<ActionResult> {
   if (!req) return { ok: false, error: "Demande introuvable." };
   if (hrNature(req.type) !== "APPROVAL") return { ok: false, error: "Cette demande ne relève pas d'une décision d'accord." };
 
+  const refus = refusDecisionRh(user, req);
+  if (refus) return { ok: false, error: refus };
+
   const approved = decision === "APPROVE";
   const note = fdStr(formData, "hrNote");
-  await prisma.hrDocumentRequest.update({
-    where: { id },
+  const pris = await prisma.hrDocumentRequest.updateMany({
+    where: { id, status: { in: ETATS_RH_OUVERTS } },
     data: { status: approved ? "APPROVED" : "REJECTED", handledById: user.id, ...(note ? { hrNote: note } : {}) },
   });
+  if (pris.count !== 1) return { ok: false, error: "Cette demande a déjà été tranchée (ou annulée)." };
   await marquerDemandeRhTraitee(id); // brique KPI « demandes traitées »
 
   // Congé annuel accordé : débit du solde (idempotent). Autres congés/absences : pas de solde.

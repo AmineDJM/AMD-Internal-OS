@@ -309,4 +309,39 @@ suite("Congés — N+1 → RH → DG depuis « Mon espace »", () => {
     expect((await requestLeave(undefined, bad)).ok).toBe(false);
     await prisma.leaveRequest.deleteMany({ where: { id: { in: ids } } });
   });
+  /**
+   * UNE DÉCISION RH NE SE PREND QU'UNE FOIS, JAMAIS SUR SA PROPRE DEMANDE (audit du 27/10/2026, RH-DOCUMENTS-COMMS-03).
+   */
+  it("décision RH : un refus après accord est refusé (solde débité une seule fois), une demande annulée ne se valide pas, ni sa propre demande", async () => {
+    const solde = async () => Number((await prisma.employee.findUniqueOrThrow({ where: { id: salarieEmpId } })).leaveBalanceDays);
+    const avant = await solde();
+    const mk = (status: "PENDING" | "CANCELLED", employeeId = salarieEmpId) => prisma.hrDocumentRequest.create({
+      data: {
+        employeeId, type: "ANNUAL_LEAVE", status,
+        periodStart: new Date("2026-12-07T00:00:00Z"), periodEnd: new Date("2026-12-09T00:00:00Z"), periodDays: 3,
+      },
+    });
+    const decide = (id: string, decision: string) => { const f = new FormData(); f.set("id", id); f.set("decision", decision); return decideHrLeave(f); };
+    ACTOR = await actorFor(rhUserId, "DIRECTION");
+
+    const r1 = await mk("PENDING");
+    expect((await decide(r1.id, "APPROVE")).ok).toBe(true);
+    expect(await solde()).toBe(avant - 3);
+    const encore = await decide(r1.id, "REJECT");
+    expect(encore.ok).toBe(false);
+    expect((await prisma.hrDocumentRequest.findUniqueOrThrow({ where: { id: r1.id } })).status).toBe("APPROVED");
+    expect(await decide(r1.id, "APPROVE")).toMatchObject({ ok: false });
+    expect(await solde()).toBe(avant - 3);
+
+    const annulee = await mk("CANCELLED");
+    expect((await decide(annulee.id, "APPROVE")).ok).toBe(false);
+    expect((await prisma.hrDocumentRequest.findUniqueOrThrow({ where: { id: annulee.id } })).status).toBe("CANCELLED");
+
+    const rhEmp = await prisma.employee.create({ data: { fullName: `${TAG} RH`, userId: rhUserId, isActive: true } });
+    const sienne = await mk("PENDING", rhEmp.id);
+    expect((await decide(sienne.id, "APPROVE")).ok).toBe(false);
+
+    await prisma.hrDocumentRequest.deleteMany({ where: { id: { in: [r1.id, annulee.id, sienne.id] } } });
+    await prisma.employee.update({ where: { id: salarieEmpId }, data: { leaveBalanceDays: avant } });
+  });
 });
