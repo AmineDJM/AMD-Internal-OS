@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { HrRequestType, HrRequestStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
+import { refusDecisionSurSoi } from "@/lib/hr/decision-sur-soi";
 import { userCan, hasGlobalView, rolesWithModule } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { releaseBlob } from "@/lib/drive-storage";
@@ -636,6 +637,8 @@ export async function decideExpenseReport(formData: FormData): Promise<ActionRes
   if (!id || !decision || !["APPROVE", "APPROVE_NEXT", "REJECT"].includes(decision)) return { ok: false, error: "Décision invalide." };
   const req = await prisma.hrDocumentRequest.findUnique({ where: { id }, include: { employee: { select: { userId: true, fullName: true } } } });
   if (!req || req.type !== "EXPENSE_REPORT") return { ok: false, error: "Note de frais introuvable." };
+  const surSoi = refusDecisionSurSoi(req.employee.userId, user.id);
+  if (surSoi) return { ok: false, error: surSoi };
   if (!req.expenseMonth || !YM.test(req.expenseMonth)) return { ok: false, error: "Cette note de frais n'a pas de mois renseigné." };
   // Verrou : pas de traitement tant que le bureau du secrétariat n'a pas accusé
   // réception des documents ORIGINAUX (l'accusé est visible dans la demande).
@@ -686,6 +689,8 @@ export async function decideHrLeave(formData: FormData): Promise<ActionResult> {
   const req = await prisma.hrDocumentRequest.findUnique({ where: { id }, include: { employee: { select: { userId: true, fullName: true } } } });
   if (!req) return { ok: false, error: "Demande introuvable." };
   if (hrNature(req.type) !== "APPROVAL") return { ok: false, error: "Cette demande ne relève pas d'une décision d'accord." };
+  const surSoi = refusDecisionSurSoi(req.employee.userId, user.id);
+  if (surSoi) return { ok: false, error: surSoi };
 
   const approved = decision === "APPROVE";
   const note = fdStr(formData, "hrNote");

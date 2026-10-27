@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { userCan, rolesWithModule } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit, recordFieldChanges } from "@/lib/audit";
+import { refusDecisionSurSoi } from "@/lib/hr/decision-sur-soi";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { askClaude, aiConfigured, cleModeleRequise } from "@/lib/ai";
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
@@ -575,6 +576,8 @@ export async function updateLeaveRequest(formData: FormData): Promise<ActionResu
   if (!id) return { ok: false, error: "Demande introuvable." };
   const leave = await prisma.leaveRequest.findUnique({ where: { id }, include: { employee: true } });
   if (!leave) return { ok: false, error: "Demande introuvable." };
+  const surSoi = refusDecisionSurSoi(leave.employee.userId, user.id);
+  if (surSoi) return { ok: false, error: surSoi };
 
   const startDate = fdDate(formData, "startDate") ?? leave.startDate;
   const endDate = fdDate(formData, "endDate") ?? leave.endDate;
@@ -667,6 +670,8 @@ export async function decideAdvance(formData: FormData): Promise<ActionResult> {
   const adv = await prisma.salaryAdvance.findUnique({ where: { id }, include: { employee: true } });
   if (!adv) return { ok: false, error: "Demande introuvable." };
   if (adv.status !== "PENDING") return { ok: false, error: "Cette demande a déjà été traitée." };
+  const surSoi = refusDecisionSurSoi(adv.employee.userId, user.id);
+  if (surSoi) return { ok: false, error: surSoi };
 
   // UN GESTE À LA FOIS : la décision ne s'écrit que sur une avance ENCORE en attente — un retrait par
   // le salarié (décision du 04/10) ou une décision croisée l'emportent, sans ordre de dépense en double.
