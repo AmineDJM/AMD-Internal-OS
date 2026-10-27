@@ -19,6 +19,7 @@ import { addAdProItem, submitAdProItem, decideAdProItem } from "@/lib/actions/ad
 import { validateDeclarationByDirection } from "@/lib/actions/medical-info-actions";
 import { statuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
 import { ensureInstance } from "@/lib/workflow/engine";
+import { performAction } from "@/lib/assistant";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -203,5 +204,31 @@ suite("Audit Ad & Pro — les règles du circuit tenues hors de l'écran du post
     const v = await validateDeclarationByDirection(fd({ id: decl.id }));
     expect(v.ok, v.error).toBe(true);
     expect(await prisma.expenseOrder.count({ where: { sourceType: "CONGRESS_NATIONAL", sourceId: parent } })).toBe(0);
+  });
+
+  // ─── ADPRO-04 ─────────────────────────────────────────────────────────────────────────────
+  it("ADPRO-04 — la prise en charge créée par Adam naît comme à l'écran : dates exigées, circuit ouvert sur la route du créateur", async () => {
+    const kam = await comme("kam");
+    const sansFin = await performAction(kam, {
+      kind: "create_congress_request", scope: "NATIONAL", name: `${RUN} Journée Adam sans fin`,
+      specialty: null, city: "Oran", country: null, startDate: "2026-12-10", endDate: null, estimatedBudget: 800_000,
+      doctorId: null, doctorName: null, note: null,
+    } as Parameters<typeof performAction>[1]);
+    expect(sansFin.ok).toBe(false);
+    expect(await prisma.congressNational.count({ where: { name: `${RUN} Journée Adam sans fin` } })).toBe(0);
+
+    const r = await performAction(kam, {
+      kind: "create_congress_request", scope: "NATIONAL", name: `${RUN} Journée Adam`,
+      specialty: null, city: "Oran", country: null, startDate: "2026-12-10", endDate: "2026-12-11", estimatedBudget: 800_000,
+      doctorId: null, doctorName: null, note: null,
+    } as Parameters<typeof performAction>[1]);
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    const cree = await prisma.congressNational.findFirstOrThrow({ where: { name: `${RUN} Journée Adam` } });
+    congres.push(cree.id);
+    expect(cree.endDate).not.toBeNull();
+    // LE CIRCUIT EST NÉ AVEC LA DEMANDE (décision #1) : un délégué entre chez son National Sales.
+    const inst = await prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType: "CONGRESS_NATIONAL", entityId: cree.id } } });
+    expect(inst?.status).toBe("IN_PROGRESS");
+    expect(inst?.currentSlug).toBe("preliminary");
   });
 });
