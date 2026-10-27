@@ -15,7 +15,8 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 });
 
 import { prisma } from "@/lib/prisma";
-import { getAccess, type SessionUser } from "@/lib/rbac";
+import { getAccess, scopeAdProOther, type SessionUser } from "@/lib/rbac";
+import { canAccessEntity } from "@/lib/entity-access";
 import {
   createAdProOtherRequest, decideAdProOtherRequest, resoumettreAdProOtherRequest, closeAdProOtherRequest,
 } from "@/lib/actions/ad-pro-other-actions";
@@ -86,7 +87,7 @@ describe("demande « autre » — la traduction des écritures du moteur (pure)"
  */
 suite("Ad & Pro — la demande « autre » suit le circuit commun (27/10/2026)", () => {
   const ROLES = {
-    kam: "MEDICAL_DELEGATE", ns: "NATIONAL_SALES", ops: "OPERATIONS_DIRECTOR", dm: "PRODUCT_MANAGER",
+    kam: "MEDICAL_DELEGATE", kam2: "MEDICAL_DELEGATE", ns: "NATIONAL_SALES", ops: "OPERATIONS_DIRECTOR", dm: "PRODUCT_MANAGER",
     gm: "GENERAL_MANAGER", dir: "DIRECTION",
   } as const;
   type Qui = keyof typeof ROLES;
@@ -123,11 +124,7 @@ suite("Ad & Pro — la demande « autre » suit le circuit commun (27/10/2026)",
       data: { name: `${TAG}${k}`, email: `${RUN}${k}@t.dz`, role: ROLES[k], passwordHash: "x" },
     })));
     cles.forEach((k, i) => { u[k] = comptes[i].id; });
-    // LE DÉLÉGUÉ n'a pas le module « autres demandes » par sa matrice : le Super Admin le lui ouvre par un accès
-    // personnalisé (la console). C'est ce qui rend sa route — National Sales d'abord — observable.
-    await prisma.userAccess.create({
-      data: { userId: u.kam, module: "AD_PRO_OTHER", canView: true, canCreate: true, canUpdate: true, canUpload: true, scope: "ALL" },
-    });
+    // LE DÉLÉGUÉ a le module « autres demandes » par sa matrice depuis le 27/10/2026 (portée : ses demandes).
     const env = await prisma.budgetEnvelope.create({
       data: { name: `${RUN}Enveloppe`, modules: ["AD_PRO_OTHER"], totalAmount: 50_000_000, periodStart: new Date("2026-01-01"), periodEnd: new Date("2026-12-31") },
       select: { id: true },
@@ -175,6 +172,12 @@ suite("Ad & Pro — la demande « autre » suit le circuit commun (27/10/2026)",
     }
     // Plus de visa du centre à la création (le DG valide le total des postes, pas le montant demandé).
     expect(await prisma.adProGateVisa.count({ where: { entityType: "AD_PRO_OTHER", entityId: parKam } })).toBe(0);
+
+    // SA demande, pas celle des autres : un autre délégué ne l'ouvre pas, ni ne la voit dans sa liste.
+    const autreKam = await acteur("kam2");
+    expect(await canAccessEntity(autreKam, "AD_PRO_OTHER", parKam, "VIEW"), "un autre délégué n'ouvre pas la demande").toBe(false);
+    expect(await prisma.adProOtherRequest.count({ where: { AND: [{ id: parKam }, scopeAdProOther(autreKam)] } })).toBe(0);
+    expect(await canAccessEntity(await acteur("kam"), "AD_PRO_OTHER", parKam, "VIEW"), "le demandeur ouvre la sienne").toBe(true);
 
     // Hors de son étape, personne n'avance la demande.
     expect((await agir("dm", parKam, "APPROVE")).ok, "la Direction Marketing n'agit pas avant son tour").toBe(false);

@@ -406,6 +406,10 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // raisonnement que le matériel promotionnel (§118.153) : CONTRIBUTE (il demande, il ne tranche
     // rien) et portée ASSIGNÉE (`scopeSponsoring`) — il ne voit que SES demandes.
     SPONSORING: CONTRIBUTE,
+    // SA DEMANDE « AUTRE » (Direction, 27/10/2026 : « les demandes autres suivent le même circuit ») —
+    // le délégué la dépose comme son sponsoring, en portée ASSIGNÉE (`scopeAdProOther`) : il ne voit que
+    // les siennes. Elle passe ensuite par son National Sales, le Directeur des opérations, la Direction Marketing.
+    AD_PRO_OTHER: CONTRIBUTE,
     // LE RELEVÉ DES STOCKS HOSPITALIERS (§118.185 — audit 360°, I5). L'écran a été conçu pour lui
     // (§118.134 : les hôpitaux de SES secteurs, les produits de SA BU) et le rôle n'avait pas le
     // module — le banc le lui donnait à la main. La portée se calcule sur les faits (secteur, BU,
@@ -1127,6 +1131,8 @@ export function defaultScope(role: UserRole, module: Module): AccessScope {
     // Sponsoring (audit 360°, I4) : le délégué DEMANDE et ne voit que ses demandes ; le National
     // Sales, absent, les voit toutes — c'est lui qui en instruit l'étape préliminaire.
     SPONSORING: ["MEDICAL_DELEGATE"],
+    // « Autre » (27/10/2026) : même règle que le sponsoring — le délégué ne voit que ses demandes.
+    AD_PRO_OTHER: ["MEDICAL_DELEGATE"],
     // Segmentation Studio : le KAM ne voit et ne renseigne que SON panel (secteur ∪ rattachement).
     SEGMENTATION: ["MEDICAL_DELEGATE"],
   };
@@ -2064,6 +2070,14 @@ export function scopeSponsoring(user: SessionUser): Prisma.SponsoringRequestWher
   if (!m) return { id: "__none__" };
   if (m.scope === "ALL") return {};
   return { OR: [{ requesterId: user.id }, { productManagerId: user.id }] };
+}
+
+/** Demandes « autre » Ad & Pro : portée ALL voit tout ; sinon ses demandes (le délégué, 27/10/2026). */
+export function scopeAdProOther(user: SessionUser): Prisma.AdProOtherRequestWhereInput {
+  const m = user.access.modules.get("AD_PRO_OTHER");
+  if (!m) return { id: "__none__" };
+  if (m.scope === "ALL") return {};
+  return { requesterId: user.id };
 }
 
 /** Projets BD (Projet → Gamme → Produit) : scope ALL voit tout ; sinon le

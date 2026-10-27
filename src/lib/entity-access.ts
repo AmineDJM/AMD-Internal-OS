@@ -27,7 +27,7 @@ import { accesAuCasPv } from "@/lib/pharmacovigilance/acces";
 import { accesAuReleveStockPch } from "@/lib/queries/stock-pch";
 import {
   userCan, hasGlobalView, isTopManagement, scopeMedicalDoctors, scopeMedicalVisits, scopeSales, scopeBusinessDevelopment, scopeSupport, scopeDossiers, type Action, type Module, type SessionUser,
-  annuaireOuvertParConsole, scopeCongressIntl, scopeCongressNational, scopePromoMaterial, scopeSponsoring,
+  annuaireOuvertParConsole, scopeCongressIntl, scopeCongressNational, scopePromoMaterial, scopeSponsoring, scopeAdProOther,
   moduleDuDossierRegulatory, hasRole,
 } from "@/lib/rbac";
 import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
@@ -141,6 +141,10 @@ async function isRequestOwner(user: SessionUser, entityType: EntityType, entityI
   }
   if (entityType === "EVENT") {
     const r = await prisma.event.findUnique({ where: { id: entityId }, select: { requesterId: true } });
+    return r?.requesterId === user.id;
+  }
+  if (entityType === "AD_PRO_OTHER") {
+    const r = await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { requesterId: true } });
     return r?.requesterId === user.id;
   }
   return false;
@@ -281,6 +285,9 @@ async function dansLaPorteeAdPro(user: SessionUser, entityType: EntityType, enti
     // reçu pour déposer la sienne lui ouvrait, par identifiant, celles de tous ses collègues.
     case "SPONSORING":
       return (await prisma.sponsoringRequest.count({ where: { AND: [{ id: entityId }, scopeSponsoring(user)] } })) > 0;
+    // « Autre » (27/10/2026) : la même porte que le sponsoring — le délégué n'ouvre que SES demandes.
+    case "AD_PRO_OTHER":
+      return (await prisma.adProOtherRequest.count({ where: { AND: [{ id: entityId }, scopeAdProOther(user)] } })) > 0;
     default:
       return true;
   }
@@ -713,7 +720,7 @@ export async function canAccessEntity(
   // n'a pas le droit UPLOAD du module.
   if (
     (action === "VIEW" || action === "UPLOAD") &&
-    (entityType === "SPONSORING" || entityType === "CONGRESS_INTERNATIONAL" || entityType === "CONGRESS_NATIONAL" || entityType === "EVENT") &&
+    (entityType === "SPONSORING" || entityType === "CONGRESS_INTERNATIONAL" || entityType === "CONGRESS_NATIONAL" || entityType === "EVENT" || entityType === "AD_PRO_OTHER") &&
     (await isRequestOwner(user, entityType, entityId))
   ) {
     return true;
@@ -1039,6 +1046,7 @@ export async function canAccessEntity(
     case "CONGRESS_NATIONAL":
     case "PROMO_MATERIAL":
     case "SPONSORING":
+    case "AD_PRO_OTHER":
       // Sans ces cas, le `default` ci-dessous ouvrait tout dossier à qui avait le module.
       return dansLaPorteeAdPro(user, entityType, entityId);
     case "RECRUITMENT_CANDIDATE": {
