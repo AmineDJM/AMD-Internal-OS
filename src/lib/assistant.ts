@@ -1560,7 +1560,7 @@ const WRITE_TOOLS: ClaudeToolDef[] = [
   {
     name: "create_event_request",
     description:
-      "PROPOSE la création d'un ÉVÉNEMENT (congrès/séminaire/webinar organisé par l'entreprise). N'exécute rien : confirmation requise. Réservé aux utilisateurs ayant le module Events.",
+      "PROPOSE la création d'un ÉVÉNEMENT EXTERNE (staff, webinaire, congrès, journée — organisé par un tiers, pas par l'entreprise). N'exécute rien : confirmation requise. Réservé aux utilisateurs ayant le module Events.",
     input_schema: {
       type: "object",
       properties: {

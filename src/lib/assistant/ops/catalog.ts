@@ -2971,7 +2971,7 @@ export const OPS_CATALOG: OpMeta[] = [
   {
     tool: "event_operation", op: "update_event", module: "Events",
     uiLabel: "Modifier l'événement",
-    aliases: ["modifie l'événement", "change la date de l'événement", "ouvre les inscriptions de l'événement"],
+    aliases: ["modifie l'événement", "change la date de l'événement", "marque l'événement terminé"],
     risk: "NORMAL",
     summary: "Modifie la fiche d'un événement — l'action REMPLACE la fiche entière (type, statut, dates, responsable) : TOUT l'existant est relu et rejoué, seuls les champs demandés changent.",
     gate: (u) => userCan(u, "EVENTS", "UPDATE"),
@@ -3009,7 +3009,7 @@ export const OPS_CATALOG: OpMeta[] = [
     uiLabel: "Statut d'un participant",
     aliases: ["marque le participant présent", "confirme l'inscription de", "le participant a annulé"],
     risk: "NORMAL",
-    summary: "Change le statut d'un participant (inscrit / confirmé / liste d'attente / refusé / présent / absent / annulé) — « présent » horodate le check-in.",
+    summary: "Change le statut d'un participant (inscrit / confirmé / refusé / présent / absent / annulé) — « présent » horodate le check-in. Pas de liste d'attente : l'événement est externe.",
     gate: (u) => userCan(u, "EVENTS", "UPDATE"),
     covers: ["event-actions:setRegistrationStatus"],
   },
@@ -3069,43 +3069,9 @@ export const OPS_CATALOG: OpMeta[] = [
   },
 
   // ───────────────────────────── AD & PRO — circuit congrès / événements ─────────────────────────────
-  {
-    tool: "adpro_operation", op: "decide_congress_preliminary", module: "Congrès",
-    uiLabel: "Décision préliminaire congrès (National Sales)",
-    aliases: ["valide le congrès en préliminaire", "attribue le référent Direction Marketing du congrès"],
-    risk: "SENSITIVE",
-    summary: "Approuve (et désigne le référent Direction Marketing) ou refuse une demande de congrès / d'événement à l'étape préliminaire — National Sales.",
-    gate: (u) => u.role === "NATIONAL_SALES" || isSA(u),
-    covers: ["congress-request-actions:preliminaryDecision"],
-  },
-  {
-    tool: "adpro_operation", op: "analyze_congress", module: "Congrès",
-    uiLabel: "Analyse Direction Marketing (congrès)",
-    aliases: ["rends l'analyse du congrès", "avis Direction Marketing sur la prise en charge"],
-    risk: "SENSITIVE",
-    summary: "Rend l'analyse de la Direction Marketing sur un congrès / événement : approuve (budget FACULTATIF — la Direction tranche) ou refuse (motif obligatoire).",
-    gate: () => true,
-    gateNote: "référent Direction Marketing assigné, ou vue globale (revérifié par l'action)",
-    covers: ["congress-request-actions:submitProductAnalysis"],
-  },
-  {
-    tool: "adpro_operation", op: "decide_congress_final", module: "Congrès",
-    uiLabel: "Validation définitive congrès (Direction)",
-    aliases: ["valide définitivement le congrès", "accorde la prise en charge avec le montant"],
-    risk: "CRITICAL",
-    summary: "VALIDE définitivement (montant obligatoire — information médicale si pharmacien configuré, sinon ordre de dépense direct) ou REFUSE — Direction seule.",
-    gate: hasGlobalView,
-    covers: ["congress-request-actions:finalDecision"],
-  },
-  {
-    tool: "adpro_operation", op: "update_congress_budget", module: "Congrès",
-    uiLabel: "Modifier le budget accordé",
-    aliases: ["change le budget accordé du congrès", "modifie le montant validé de l'événement"],
-    risk: "CRITICAL",
-    summary: "Modifie le montant accordé APRÈS validation définitive — répercuté sur la déclaration PRIM (si pas validée) et l'ordre de dépense (s'il n'est pas réglé), Finances prévenues.",
-    gate: hasGlobalView,
-    covers: ["congress-request-actions:updateGrantedBudget"],
-  },
+  // Les anciennes décisions HORS circuit (préliminaire, analyse, décision définitive, budget accordé
+  // global) ont disparu (Direction, 27/10) : le circuit d'un congrès / événement se conduit par
+  // `advance_workflow`, comme à l'écran.
   {
     tool: "adpro_operation", op: "cancel_congress_request", module: "Congrès",
     uiLabel: "Retirer la demande",
@@ -3556,6 +3522,16 @@ export const OPS_CATALOG: OpMeta[] = [
     summary: "Transmet la prise en charge aux Finances — BLOQUÉ par l'action tant qu'une personne approuvée a une pièce ou prestation manquante (l'état de préparation dit quoi).",
     gate: (u) => hasGlobalView(u) || userCan(u, "CONGRESS_NATIONAL", "CREATE") || userCan(u, "CONGRESS_NATIONAL", "UPDATE") || userCan(u, "CONGRESS_INTERNATIONAL", "CREATE") || userCan(u, "CONGRESS_INTERNATIONAL", "UPDATE"),
     covers: ["care-actions:sendCareToFinance"],
+  },
+  {
+    tool: "care_operation", op: "mark_care_completed", module: "Congrès → Prises en charge",
+    uiLabel: "Marquer réalisée",
+    aliases: ["marque la prise en charge réalisée", "la prise en charge est réalisée", "l'événement de la prise en charge a eu lieu"],
+    risk: "SENSITIVE",
+    summary: "Marque une prise en charge RÉALISÉE (statut « Réalisé ») — le demandeur ou la Direction Marketing, sur une demande validée et DÉJÀ transmise aux Finances (refusé avant).",
+    gate: () => true,
+    gateNote: "le demandeur ou la Direction Marketing (revérifié par l'action)",
+    covers: ["care-actions:marquerPriseEnChargeRealisee"],
   },
   {
     tool: "care_operation", op: "link_care_promo", module: "Congrès → Prises en charge",

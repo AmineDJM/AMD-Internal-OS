@@ -219,7 +219,7 @@ export default async function EventDetailPage({ params }: { params: { id: string
               <Fait label="Spécialité" valeur={e.specialty} />
               <Fait label="Produits" valeur={e.products} />
               {e.doctor && <Fait label="Médecins" valeur={e.doctor} />}
-              <Fait label="Capacité" valeur={e.capacity ? String(e.capacity) : "Illimitée"} />
+              <Fait label="Organisateur" valeur={e.organizer} />
               <Fait label="Responsable" valeur={e.responsibleName} />
               {e.meetingLink && (
                 <Fait

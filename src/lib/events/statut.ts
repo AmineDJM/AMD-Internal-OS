@@ -37,12 +37,13 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** Les états de VIE d'un événement — ceux que le formulaire « Modifier » peut écrire. */
+/**
+ * Les états de VIE d'un événement — ceux que le formulaire « Modifier » peut écrire. « En préparation »,
+ * « Inscriptions ouvertes » et « Complet » n'y sont plus (Direction, 27/10) : les événements Ad & Pro sont
+ * EXTERNES, nous ne les organisons pas (`events/externe.ts`). Les valeurs restent dans l'énumération.
+ */
 export const STATUTS_MANUELS = [
   "DRAFT",
-  "PREPARATION",
-  "REGISTRATION_OPEN",
-  "FULL",
   "COMPLETED",
   "CANCELLED",
 ] as const;

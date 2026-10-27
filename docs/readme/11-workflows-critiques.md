@@ -38,7 +38,7 @@ PHASE 3 — LE DG VALIDE LE TOTAL (lib/ad-pro/porte-dg.ts)
 > « Total à valider »). Table `AdProPorteDg` (une ligne par demande : décision, montant validé, dernier total signalé).
 
 > ⚠️ **L'étape `final` est tenue par le rôle `OPERATIONS_DIRECTOR`** (Directeur des opérations). La migration
-> `20270131130000_adpro_circuit_prevalidation` garde `DIRECTION` à côté tant qu'aucun compte actif ne porte ce rôle :
+> `20270131130500_adpro_circuit_prevalidation` garde `DIRECTION` à côté tant qu'aucun compte actif ne porte ce rôle :
 > l'attribuer au Directeur des opérations, puis retirer `DIRECTION` de l'étape dans Administration › Circuits.
 
 > ⚠️ **Appel** : toute nature refusée (sponsoring, prises en charge, événements) peut faire appel, motif exigé

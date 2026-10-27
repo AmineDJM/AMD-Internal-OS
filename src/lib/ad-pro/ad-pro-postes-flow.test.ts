@@ -20,6 +20,7 @@ import { peutSupprimerUneDemandeAdPro } from "@/lib/queries/ad-pro-suppression";
 import { loadAdProItems, contextePostes } from "@/lib/queries/ad-pro-items";
 import { getInvolvementThreads } from "@/lib/queries/involvement";
 import { persistUploadedDocument } from "@/lib/documents";
+import { createDossierRecord } from "@/lib/dossiers-core";
 import { REFUS_INDIRECT_NON_REPARTI } from "@/lib/ad-pro-items";
 import { REFUS_SUPPRESSION_AD_PRO } from "@/lib/ad-pro/suppression";
 import { MULTI_SEP } from "@/lib/ad-pro/pickers";
@@ -530,34 +531,22 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect(row.nomsSuggeres).toContain("Dr Yacine Ouali");
   });
 
-  it("RÉSERVATION : un sujet pour l'assistante de direction, lié à la DEMANDE, qui dit ce qui manque", async () => {
+  it("RÉSERVATION EN BLOC FERMÉE (Direction, 27/10) : le geste refuse et renvoie à la fiche — aucun sujet n'est ouvert", async () => {
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
+    const avant = await prisma.dossier.count({ where: { sourceType: "SPONSORING", sourceId: spoB } });
     const r = await demanderReservation(fd({ id: billetterie }));
-    expect(r.ok, r.ok === false ? r.error : "").toBe(true);
-    sujetId = r.ok ? r.id! : "";
-    const sujet = await prisma.dossier.findUniqueOrThrow({ where: { id: sujetId } });
-    expect(sujet.category).toBe("Billets");
-    expect(sujet.priority).toBe("HIGH");
-    expect(sujet.sourceType).toBe("SPONSORING");
-    expect(sujet.sourceId).toBe(spoB);
-    expect(sujet.title).toMatch(/^Réservation billets — /);
-    // PLUSIEURS ASSISTANTES : toutes participantes, AUCUNE responsable désignée — en choisir une
-    // serait choisir à la place d'un humain (§118.34). Ce banc en crée deux : la règle a donc
-    // TOUJOURS une décision à prendre ici, quoi que fassent les bancs voisins.
-    expect(sujet.assignedToId, "aucune assistante n'est désignée à la place d'un humain").toBeNull();
-    expect(sujet.participantIds).toEqual(expect.arrayContaining([asstId, asst2Id]));
-    expect(sujet.createdById).toBe(nsId);
-    // Ce qu'elle lit : chaque voyageur, ce qu'on sait, ce qui MANQUE, et l'état du poste.
-    const d = sujet.description ?? "";
-    expect(d).toContain("Dr Amel Haddad — trajet à confirmer — aller à confirmer, retour à confirmer (manque : date de départ, trajet, mode de transport, passeport)");
-    expect(d).toContain("Dr Yacine Ouali — Alger → Paris — aller 03/11/2026, retour 07/11/2026 — passeport joint (manque : mode de transport) — Vol du matin");
-    expect(d).toMatch(/Poste pas encore accordé/);
-    expect(d, "le visa d'Amel est un lien de plus, pas son passeport").toContain(`Dr Amel Haddad — ${TAG}visa-haddad.pdf — /api/documents/`);
-    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: billetterie } })).reservationDossierId).toBe(sujetId);
-    // PRÉVENUE — le lien CAUSAL, pas un compte global (§118.92).
-    expect(await prisma.notification.count({ where: { userId: asstId, link: `/dossiers/${sujetId}` } })).toBe(1);
-    expect(await prisma.notification.count({ where: { userId: asst2Id, link: `/dossiers/${sujetId}` } })).toBe(1);
-    // Et le sujet REMONTE en bas de la fiche de la demande, par le lecteur de l'écran.
+    expect(r.ok === false ? r.error : "réservé").toMatch(/fiche par fiche/);
+    expect(await prisma.dossier.count({ where: { sourceType: "SPONSORING", sourceId: spoB } }), "rien n'est écrit").toBe(avant);
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: billetterie } })).reservationDossierId).toBeNull();
+
+    // UN SUJET DE RÉSERVATION EXISTANT (un envoi d'avant, ou le fil des fiches) reste le fil du poste : on l'y
+    // pose tel que la base le porte, et il REMONTE en bas de la fiche de la demande, par le lecteur de l'écran.
+    const sujet = await createDossierRecord({
+      title: `Réservation billets — ${RUN} · Billets`, description: "Envoi d'avant la fermeture.", category: "Billets", priority: "HIGH",
+      assignedToId: null, participantIds: [asstId, asst2Id], sourceType: "SPONSORING", sourceId: spoB, companyId: null,
+    }, nsId);
+    sujetId = sujet.id;
+    await prisma.adProItem.update({ where: { id: billetterie }, data: { reservationDossierId: sujetId } });
     const fil = (await getInvolvementThreads("SPONSORING", spoB)).find((f) => f.dossierId === sujetId);
     expect(fil, "le sujet de réservation sur la fiche de la demande").toBeDefined();
     expect(fil!.members.map((m) => m.id), "l'assistante peut y écrire").toContain(asstId);
@@ -583,18 +572,6 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect(await prisma.dossierMessage.count({ where: { dossierId: sujetId } })).toBe(msgs.length);
   });
 
-  it("UNE SECONDE DEMANDE écrit dans le MÊME sujet — deux sujets pour les mêmes billets se contrediraient", async () => {
-    ACTOR = await acteur(nsId, "NATIONAL_SALES");
-    const avant = await prisma.dossier.count({ where: { sourceType: "SPONSORING", sourceId: spoB } });
-    const r = await demanderReservation(fd({ id: billetterie }));
-    expect(r.ok, r.ok === false ? r.error : "").toBe(true);
-    expect(r.ok ? r.id : "").toBe(sujetId);
-    expect(await prisma.dossier.count({ where: { sourceType: "SPONSORING", sourceId: spoB } })).toBe(avant);
-    const dernier = await prisma.dossierMessage.findFirstOrThrow({ where: { dossierId: sujetId }, orderBy: { createdAt: "desc" } });
-    expect(dernier.body).toMatch(/^Demande de réservation mise à jour\./);
-    expect(dernier.body, "la liste À JOUR : la date décalée").toContain("aller 04/11/2026");
-  });
-
   it("RETIRER un voyageur le dit dans le sujet — et son passeport RESTE parmi les pièces du poste", async () => {
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     const r = await retirerVoyageur(fd({ id: yacine }));
@@ -605,55 +582,12 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect(dernier.body).toContain("voyageur retiré : Dr Yacine Ouali.");
   });
 
-  it("RETIRER LA DEMANDE DE RÉSERVATION (constat 37) : motif exigé, le sujet se clôt, l'assistante le lit — et une nouvelle demande rouvre un sujet", async () => {
+  it("RETIRER LA RÉSERVATION EN BLOC est fermé aussi : le sujet reste vivant, le poste le garde (une fiche se retire elle-même)", async () => {
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
-    const sansMotif = await retirerReservation(fd({ id: billetterie }));
-    expect(sansMotif.ok === false ? sansMotif.error : "retiré").toMatch(/Dites pourquoi/);
-    expect((await prisma.dossier.findUniqueOrThrow({ where: { id: sujetId } })).status, "un refus ne touche à rien").not.toBe("ARCHIVED");
-    const avis = await prisma.notification.count({ where: { userId: asstId, link: `/dossiers/${sujetId}` } });
     const r = await retirerReservation(fd({ id: billetterie, motif: "Le congrès passe en visio." }));
-    expect(r.ok, r.ok === false ? r.error : "").toBe(true);
-    expect((await prisma.dossier.findUniqueOrThrow({ where: { id: sujetId } })).status, "le sujet est clos").toBe("ARCHIVED");
-    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: billetterie } })).reservationDossierId, "le poste lâche son sujet").toBeNull();
-    const dernier = await prisma.dossierMessage.findFirstOrThrow({ where: { dossierId: sujetId }, orderBy: { createdAt: "desc" } });
-    expect(dernier.body).toMatch(/Demande de réservation RETIRÉE .* Le congrès passe en visio\./);
-    expect(await prisma.notification.count({ where: { userId: asstId, link: `/dossiers/${sujetId}` } }), "l'assistante est prévenue par le sujet").toBe(avis + 1);
-    expect(await prisma.adProVoyageur.count({ where: { itemId: billetterie } }), "les voyageurs restent").toBeGreaterThan(0);
-    const encore = await retirerReservation(fd({ id: billetterie, motif: "x" }));
-    expect(encore.ok === false ? encore.error : "retiré").toMatch(/Aucune demande de réservation/);
-    // Une NOUVELLE demande ouvre un nouveau sujet — l'ancien, clos, ne se rouvre pas en silence.
-    const nouvelle = await demanderReservation(fd({ id: billetterie }));
-    expect(nouvelle.ok, nouvelle.ok === false ? nouvelle.error : "").toBe(true);
-    expect(nouvelle.ok ? nouvelle.id : sujetId).not.toBe(sujetId);
-    sujetId = nouvelle.ok ? nouvelle.id! : sujetId;
-  });
-
-  it("RETIRER LA RÉSERVATION : traitée (sujet clos) elle ne se retire plus — AVANT le motif ; et une clôture pendant le retrait gagne (course forcée)", async () => {
-    ACTOR = await acteur(nsId, "NATIONAL_SALES");
-    // LA COURSE : l'assistante clôt le sujet pendant que le retrait attend sa ligne.
-    let geste!: Promise<Awaited<ReturnType<typeof retirerReservation>>>;
-    await prisma.$transaction(async (tx) => {
-      await tx.$queryRaw`SELECT id FROM "Dossier" WHERE id = ${sujetId} FOR UPDATE`;
-      geste = retirerReservation(fd({ id: billetterie, motif: "Course." }));
-      geste.catch(() => undefined);
-      const debut = Date.now();
-      for (;;) {
-        await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
-        const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
-          SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND pg_backend_pid() = ANY(pg_blocking_pids(pid))`;
-        if (n >= 1) break;
-        if (Date.now() - debut > 15_000) throw new Error("le retrait n'a pas atteint la barrière");
-        await new Promise((res) => setTimeout(res, 25));
-      }
-      await tx.dossier.update({ where: { id: sujetId }, data: { status: "DONE" } });
-    }, { timeout: 30_000 });
-    const r = await geste;
-    expect(r.ok === false ? r.error : "retiré").toMatch(/vient de changer/);
-    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: billetterie } })).reservationDossierId, "tout ou rien : le poste garde son sujet").toBe(sujetId);
-    expect((await prisma.dossier.findUniqueOrThrow({ where: { id: sujetId } })).status).toBe("DONE");
-    // Désormais TRAITÉE : le refus vient avant le motif, et le nomme.
-    const traitee = await retirerReservation(fd({ id: billetterie }));
-    expect(traitee.ok === false ? traitee.error : "retiré").toMatch(/La réservation est traitée/);
+    expect(r.ok === false ? r.error : "retiré").toMatch(/fiche par fiche/);
+    expect((await prisma.dossier.findUniqueOrThrow({ where: { id: sujetId } })).status).not.toBe("ARCHIVED");
+    expect((await prisma.adProItem.findUniqueOrThrow({ where: { id: billetterie } })).reservationDossierId).toBe(sujetId);
   });
 
   it("UN POSTE REFUSÉ ne se réserve pas", async () => {
@@ -667,7 +601,7 @@ suite("Ad & Pro — postes simplifiés : répartition, gestes, voyageurs, suppre
     expect(refus.ok, refus.ok === false ? refus.error : "").toBe(true);
     ACTOR = await acteur(nsId, "NATIONAL_SALES");
     const r = await demanderReservation(fd({ id: billetterie }));
-    expect(r.ok === false ? r.error : "réservé").toMatch(/refusé par la Direction/);
+    expect(r.ok, "un poste refusé ne se réserve pas — et l'envoi en bloc n'existe plus").toBe(false);
   });
 
   // ── LA SUPPRESSION D'UNE DEMANDE AD & PRO ─────────────────────────────────────────────

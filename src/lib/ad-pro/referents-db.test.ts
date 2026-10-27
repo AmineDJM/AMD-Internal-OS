@@ -187,7 +187,7 @@ suite("Ad & Pro — les référents Direction Marketing d'une gamme", () => {
     const fdE = new FormData();
     fdE.set("name", `${TAG}Journée Neuro`);
     fdE.set("businessUnitId", g3.id);
-    fdE.set("type", "Congrès");
+    fdE.set("type", "CONGRESS");
     fdE.set("specialty", "Neurologie");
     fdE.set("city", "Constantine");
     fdE.set("estimatedBudget", "300000");

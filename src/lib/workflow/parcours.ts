@@ -51,7 +51,7 @@
  *
  * L'étape `final` était tenue par le rôle `DIRECTION` (lecture de 09/2026). La Direction l'a tranché :
  * « il faut que ce soit lui, l'Operations Director ». La graine (`ETAPE_DIRECTEUR_OPERATIONS`) et la
- * migration `20270131130000_adpro_circuit_prevalidation` le posent ; tant qu'aucun compte actif ne
+ * migration `20270131130500_adpro_circuit_prevalidation` le posent ; tant qu'aucun compte actif ne
  * porte ce rôle, la migration laisse `DIRECTION` à ses côtés pour qu'aucune demande ne reste sans
  * validateur. Le rôle reçoit les modules du pôle Ad & Pro (`rbac.ts`, `AD_PRO_OPERATIONS`).
  *

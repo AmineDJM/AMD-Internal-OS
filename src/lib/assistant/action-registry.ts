@@ -858,8 +858,6 @@ G("circuit matériel promo (devis→BAT→paiement, étapes après création)", 
 G("sponsoring / congrès / prises en charge (décisions et étapes après création)", [
   "sponsoring-actions:requestThirdPartyInput", "sponsoring-actions:sponsoringAppeal",
   "sponsoring-actions:cloturerSponsoring", "sponsoring-actions:rouvrirSponsoring",
-  "congress-request-actions:preliminaryDecision", "congress-request-actions:submitProductAnalysis",
-  "congress-request-actions:finalDecision", "congress-request-actions:updateGrantedBudget",
   "congress-request-actions:requestThirdPartyInput", "congress-request-actions:cancelCongressRequest",
   "congress-beneficiary-actions:addCongressBeneficiary",
   "congress-beneficiary-actions:removeCongressBeneficiary", "congress-beneficiary-actions:requestBeneficiaryIds",
@@ -1089,6 +1087,20 @@ X("SEGMENTATION STUDIO (Direction, 06/10) : stratégie, classement des produits,
   // Le classeur de la Direction importé « en une fois » : un fichier, une BU, un aperçu lu à l'écran avant d'importer.
   "segmentation-actions:apercuImportClasseurDirection", "segmentation-actions:importerClasseurDirection",
 ]);
+X("CONGRÈS / ÉVÉNEMENT — ANCIENNES DÉCISIONS HORS CIRCUIT (Direction, 27/10) : préliminaire, analyse Direction Marketing, "
+  + "validation définitive et budget accordé global écrivaient `requestStatus` et le montant SANS le moteur de circuit. "
+  + "Aucun écran ne les propose plus ; Adam passe par les mêmes gestes que l'écran (`advance_workflow`, puis les postes). "
+  + "Elles ne sont pas un geste d'assistant.", [
+  "congress-request-actions:preliminaryDecision", "congress-request-actions:submitProductAnalysis",
+  "congress-request-actions:finalDecision", "congress-request-actions:updateGrantedBudget",
+]);
+X("L'ANCIENNE RÉSERVATION EN BLOC, FERMÉE (Direction, 27/10) : demander / retirer la réservation de tous les voyageurs "
+  + "d'un poste, ou de toutes les fiches d'une prise en charge, en un sujet. La Direction garde la RÉSERVATION PAR FICHE "
+  + "(`reservation-fiche-actions`) : ces gestes refusent et n'écrivent plus rien, leurs envois passés ont été repris en "
+  + "fiches. Aucun geste à offrir.", [
+  "ad-pro-item-actions:demanderReservation", "ad-pro-item-actions:retirerReservation",
+  "care-actions:demanderReservationPriseEnCharge",
+]);
 X("PIÈCES DEMANDÉES › CONFIER LE BC D'UN POSTE À UNE AUTRE ASSISTANTE (audit Assistante de direction, 10/2026) : le geste se "
   + "décide en REGARDANT le fil de la pièce (`/pieces/[id]`) — qui la tient, depuis quand, si elle est déposée — et ne vise "
   + "qu'une assistante de direction ACTIVE, proposée par l'écran. Adam est en pause de développement (Super Admin seul).", [
@@ -1204,7 +1216,7 @@ X("ANNULER SA DEMANDE TANT QU'ELLE N'EST PAS EXÉCUTÉE (audit du 04/10, constat
   + "devis d'un dossier de matériel promotionnel (le dossier recule à l'étape d'avant), retirer la demande de réservation "
   + "des billets d'un poste (son sujet se clôt). Deux gestes du DEMANDEUR, motif à l'appui, qu'une assistante lira. Adam est "
   + "en pause de développement : aucun geste neuf ne lui est ouvert. Un clic sur la fiche du dossier, ou sur la carte du poste.", [
-  "promo-devis-actions:retirerDemandeDevisPromo", "ad-pro-item-actions:retirerReservation",
+  "promo-devis-actions:retirerDemandeDevisPromo",
 ]);
 X("LES PIÈCES D'ACHAT D'UN POSTE (§118.204) — déposer un devis ou une facture pro forma (commun à plusieurs postes), "
   + "le retirer d'un poste où il a été mal placé, et déposer la FACTURE qui demande le paiement. Chacun dépose un "
@@ -1303,7 +1315,7 @@ X("PRISES EN CHARGE — FICHES VOYAGEUR (Direction, 10/2026) : enregistrer un po
   + "(fichiers, horaires, choix d'une proposition), ou qui ouvrent un sujet chez l'assistante. Adam est en pause de "
   + "développement : aucun geste neuf ne lui est ouvert.", [
   "care-actions:modifierPosteFiche", "care-actions:enregistrerBilletEmis", "care-actions:retenirDevisPriseEnCharge",
-  "care-actions:demanderReservationPriseEnCharge", "care-actions:demanderBCPriseEnCharge",
+  "care-actions:demanderBCPriseEnCharge",
   "care-actions:ajouterPosteGroupe", "care-actions:modifierPosteGroupe", "care-actions:retirerPosteGroupe",
 ]);
 X("LES FICHES DE VOYAGE CHEZ L'ASSISTANTE DE DIRECTION (Direction, 14/10/2026) — côté demandeur : envoyer UNE fiche "
@@ -1575,7 +1587,7 @@ X("LES POSTES D'UNE DEMANDE AD & PRO, SIMPLIFIÉS (§118.175) — RÉPARTIR un s
   + "la réservation engage le travail d'une personne. Adam est en pause de développement : aucun geste neuf ne lui est "
   + "ouvert. Un clic sur la fiche de la demande, carte du poste (« Répartir par nature », bloc « Voyageurs »).", [
   "ad-pro-item-actions:repartirPoste", "ad-pro-item-actions:ajouterVoyageur", "ad-pro-item-actions:modifierVoyageur",
-  "ad-pro-item-actions:retirerVoyageur", "ad-pro-item-actions:demanderReservation",
+  "ad-pro-item-actions:retirerVoyageur",
 ]);
 X("SUPPRIMER UNE SÉLECTION D'ÉCRITURES « À IMPUTER » (§118.176) — le geste du Super Admin sur la liste des Budgets, "
   + "« une ou plusieurs ». Adam supprime déjà une écriture par `delete_record`, qui passe par le même cœur réversible ; une "

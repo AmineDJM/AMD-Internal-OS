@@ -21,9 +21,9 @@ import { avertissementBudget } from "./budget";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+// UN ÉVÉNEMENT EXTERNE (Direction, 27/10) : les cinq types de l'écran (`events/externe.ts`), et qui l'organise.
 const TYPES: Record<string, string> = {
-  congres: "CONGRESS", seminaire: "SEMINAR", "table ronde": "ROUND_TABLE", staff: "HOSPITAL_STAFF", symposium: "SYMPOSIUM",
-  webinaire: "WEBINAR", formation: "TRAINING", "journee scientifique": "SCIENTIFIC_DAY", autre: "OTHER",
+  congres: "CONGRESS", staff: "HOSPITAL_STAFF", webinaire: "WEBINAR", journee: "SCIENTIFIC_DAY", "journee scientifique": "SCIENTIFIC_DAY", autre: "OTHER",
 };
 const LIBELLE_TYPE: Record<string, string> = {
   CONGRESS: "Congrès", SEMINAR: "Séminaire", ROUND_TABLE: "Table ronde", HOSPITAL_STAFF: "Staff hospitalier", SYMPOSIUM: "Symposium",
@@ -54,7 +54,8 @@ export const EVENEMENT_CREATION: OperationIA = {
     type: "object",
     properties: {
       nom: { type: "string" },
-      type: { type: "string", description: "congrès, séminaire, table ronde, staff, symposium, webinaire, formation, journée scientifique, autre." },
+      type: { type: "string", description: "staff, webinaire, congrès, journée, autre." },
+      organisateur: { type: "string", description: "Qui organise l'événement (société savante, hôpital, laboratoire…) — il est externe." },
       portee: { type: "string", enum: ["national", "international"] },
       format: { type: "string", enum: ["présentiel", "en ligne", "hybride"] },
       debut: { type: "string", description: "AAAA-MM-JJ" },
@@ -68,7 +69,6 @@ export const EVENEMENT_CREATION: OperationIA = {
       budgetEstime: { type: "number", description: "Budget estimé en DZD (> 0)." },
       responsable: { type: "string", description: "Responsable interne : « moi » ou un nom." },
       description: { type: "string" },
-      capacite: { type: "number" },
     },
   },
   ouverte: (u) => userCan(u, "EVENTS", "CREATE"),
@@ -90,7 +90,7 @@ export const EVENEMENT_CREATION: OperationIA = {
 
     const manque = [
       !texte(e, "nom") ? "le nom de l'événement" : null,
-      !type ? "le type (congrès, séminaire, table ronde, staff, symposium, webinaire, formation, journée scientifique, autre)" : null,
+      !type ? "le type (staff, webinaire, congrès, journée, autre)" : null,
       !portee ? "la portée : nationale ou internationale" : null,
       !format ? "le format : présentiel, en ligne ou hybride" : null,
       !debut ? "la date de début" : null,
@@ -129,6 +129,7 @@ export const EVENEMENT_CREATION: OperationIA = {
         title: `Événement — ${texte(e, "nom")}`,
         fields: champs([
           ["Type", LIBELLE_TYPE[type!]],
+          ["Organisateur", texte(e, "organisateur") || null],
           ["Portée · format", `${portee === "NATIONAL" ? "Nationale" : "Internationale"} · ${LIBELLE_FORMAT[format!]}`],
           ["Dates", `${debut} → ${fin}`],
           ["Lieu", `${texte(e, "lieu")}, ${texte(e, "ville")} (${texte(e, "pays")})`],
@@ -145,14 +146,14 @@ export const EVENEMENT_CREATION: OperationIA = {
         location: texte(e, "lieu"), city: texte(e, "ville"), country: texte(e, "pays"), specialty: specialite,
         medecinsAnnuaire: JSON.stringify(lus.connus.map((m) => m.nom)), medecinsHorsAnnuaire: lus.inconnus.join("\n") || null,
         produits: JSON.stringify(produits), estimatedBudget: String(budget), responsibleId: r.id,
-        description: texte(e, "description"), capacity: nombre(e, "capacite") != null ? String(nombre(e, "capacite")) : null,
+        description: texte(e, "description"), organizer: texte(e, "organisateur") || null,
       },
     };
   },
 
   async executer(a) {
     const fd = new FormData();
-    for (const cle of ["name", "type", "scope", "format", "startDate", "endDate", "location", "city", "country", "specialty", "estimatedBudget", "responsibleId", "description", "capacity"]) {
+    for (const cle of ["name", "type", "scope", "format", "startDate", "endDate", "location", "city", "country", "specialty", "estimatedBudget", "responsibleId", "description", "organizer"]) {
       if (a[cle]) fd.set(cle, a[cle]!);
     }
     const lire = (v: string | null) => { try { return JSON.parse(v ?? "[]") as string[]; } catch { return []; } };

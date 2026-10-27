@@ -7,7 +7,6 @@ import {
   requestThirdPartyInput as sponsoringThirdParty,
 } from "@/lib/actions/sponsoring-actions";
 import {
-  preliminaryDecision, submitProductAnalysis, finalDecision, updateGrantedBudget,
   cancelCongressRequest, requestThirdPartyInput as congressThirdParty,
 } from "@/lib/actions/congress-request-actions";
 import {
@@ -69,13 +68,14 @@ const EVENT_TYPE_FR: [string, string][] = [
 ];
 const EVENT_SCOPE_FR: [string, string][] = [["NATIONAL", "National"], ["INTERNATIONAL", "International"]];
 const EVENT_FORMAT_FR: [string, string][] = [["PRESENTIAL", "Présentiel"], ["WEBINAR", "Webinaire (en ligne)"], ["HYBRID", "Hybride"]];
+// LES ÉVÉNEMENTS SONT EXTERNES (Direction, 27/10) : ni « En préparation », ni « Inscriptions ouvertes », ni « Complet »,
+// ni liste d'attente — Adam ne les propose plus, comme l'écran (`events/externe.ts`). Les valeurs restent en base.
 const EVENT_STATUS_FR: [string, string][] = [
   ["DRAFT", "Brouillon"], ["AWAITING_VALIDATION", "En attente de validation"], ["VALIDATED", "Validé"],
-  ["PREPARATION", "En préparation"], ["REGISTRATION_OPEN", "Inscriptions ouvertes"], ["FULL", "Complet"],
   ["COMPLETED", "Terminé"], ["CANCELLED", "Annulé"],
 ];
 const REG_STATUS_FR: [string, string][] = [
-  ["REGISTERED", "Inscrit"], ["CONFIRMED", "Confirmé"], ["PENDING", "Liste d'attente"],
+  ["REGISTERED", "Inscrit"], ["CONFIRMED", "Confirmé"],
   ["REJECTED", "Refusé"], ["PRESENT", "Présent"], ["ABSENT", "Absent"], ["CANCELLED", "Annulé"],
 ];
 const REG_ROLE_FR: [string, string][] = [
@@ -136,13 +136,12 @@ export const EVENT_OPS_IMPL: Record<string, OpImpl> = {
       const description = pick("notes", e.description, "description");
       const startDate = isoDate(opStr(input, "startDate")) ? (changes.push("début"), isoDate(opStr(input, "startDate"))) : day(e.startDate);
       const endDate = isoDate(opStr(input, "endDate")) ? (changes.push("fin"), isoDate(opStr(input, "endDate"))) : day(e.endDate);
-      const capacity = opStr(input, "quantity") ? (changes.push("capacité"), opStr(input, "quantity")) : (e.capacity != null ? String(e.capacity) : null);
       const budget = opStr(input, "amount") ? (changes.push("budget estimé"), opStr(input, "amount")) : numStr(e.estimatedBudget);
       if (type && type !== e.type) changes.push("type");
       if (scope && scope !== e.scope) changes.push("portée");
       if (format && format !== e.format) changes.push("format");
       if (status && status !== e.status) changes.push(`statut → ${EVENT_STATUS_FR.find(([c]) => c === status)?.[1] ?? status}`);
-      if (changes.length === 0) return { error: "Rien à changer : donnez newName, eventType, scope, format, status, startDate, endDate, location, city, country, specialty, products, quantity (capacité), amount (budget) ou notes." };
+      if (changes.length === 0) return { error: "Rien à changer : donnez newName, eventType, scope, format, status, startDate, endDate, location, city, country, specialty, products, amount (budget) ou notes." };
       return {
         title: `Modifier l'événement « ${e.name} »`,
         fields: [
@@ -155,7 +154,7 @@ export const EVENT_OPS_IMPL: Record<string, OpImpl> = {
           type: (type as string | null) ?? e.type, scope: (scope as string | null) ?? e.scope,
           format: (format as string | null) ?? e.format, status: (status as string | null) ?? e.status,
           startDate, endDate, location, city, country, specialty, products, description,
-          capacity, estimatedBudget: budget, meetingLink: e.meetingLink, responsibleId: e.responsibleId,
+          estimatedBudget: budget, meetingLink: e.meetingLink, responsibleId: e.responsibleId,
         },
         successMessage: `Événement « ${name} » mis à jour (${changes.join(", ")}).`,
         link: `/events/${hit.id}`, revalidate: ["/events"],
@@ -257,7 +256,7 @@ export const EVENT_OPS_IMPL: Record<string, OpImpl> = {
       const reg = await resolveRegistration(hit.id, hit.name, opStr(input, "person"));
       if ("error" in reg) return reg;
       const status = enumIn(opStr(input, "status"), REG_STATUS_FR);
-      if (!status) return { error: "Précisez le statut (champ « status ») : inscrit, confirmé, liste d'attente, refusé, présent, absent, annulé." };
+      if (!status) return { error: "Précisez le statut (champ « status ») : inscrit, confirmé, refusé, présent, absent, annulé." };
       if (typeof status === "object") return status;
       return {
         title: `${reg.name} → ${REG_STATUS_FR.find(([c]) => c === status)?.[1] ?? status} (${hit.name})`,
@@ -462,107 +461,11 @@ export const ADPRO5_OPS_IMPL: Record<string, OpImpl> = {
     },
   },
 
-  decide_congress_preliminary: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const target = await resolveCongressTarget(opStr(input, "kind"), opStr(input, "target") || opStr(input, "reference"));
-      if ("error" in target) return target;
-      const decision = decisionOf(opStr(input, "decision"));
-      if (!decision) return { error: "Précisez la décision (champ « decision ») : approuver ou refuser." };
-      if (decision === "REJECT" && !opStr(input, "note")) return { error: "Le motif de refus est obligatoire (champ « note »)." };
-      let pmId: string | null = null; let pmName: string | null = null;
-      if (decision === "APPROVE") {
-        const pm = await resolvePerson(opStr(input, "person"), "le référent Direction Marketing (champ « person »)");
-        if ("error" in pm) return pm;
-        pmId = pm.id; pmName = pm.name;
-      }
-      return {
-        title: `${decision === "APPROVE" ? "Valider (préliminaire)" : "REFUSER"} — ${target.label}`,
-        fields: fieldsOf([
-          ["Demande", target.label], ["Référent Direction Marketing", pmName], ["Motif / note", opStr(input, "note") || null],
-        ]),
-        warnings: ["Approbation préliminaire réservée au National Sales."],
-        args: { id: target.entityId, type: target.congressType, decision, productManagerId: pmId, note: opStr(input, "note") || null },
-        successMessage: `${target.label} : ${decision === "APPROVE" ? `validé (préliminaire) — analyse confiée à ${pmName}` : "refusé"}.`,
-        revalidate: ["/events"],
-      };
-    },
-    execute: (args) => runFd(preliminaryDecision, args, "La décision préliminaire a été refusée.", { revalidate: ["/events"] }),
-  },
-
-  analyze_congress: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const target = await resolveCongressTarget(opStr(input, "kind"), opStr(input, "target") || opStr(input, "reference"));
-      if ("error" in target) return target;
-      const reject = decisionOf(opStr(input, "decision")) === "REJECT";
-      const notes = opStr(input, "note") || opStr(input, "message");
-      if (reject && !notes) return { error: "Indiquez le motif du refus (champ « note »)." };
-      return {
-        title: `Analyse Direction Marketing — ${target.label}${reject ? " (REFUS)" : ""}`,
-        fields: fieldsOf([
-          ["Demande", target.label],
-          ["Avis", notes || null],
-          ["Budget proposé", !reject && opStr(input, "amount") ? dzd(Number(opStr(input, "amount"))) : null],
-        ]),
-        warnings: reject ? [] : ["Le budget proposé est FACULTATIF — la Direction tranchera le montant."],
-        args: {
-          id: target.entityId, type: target.congressType, decision: reject ? "REJECT" : "APPROVE",
-          productManagerNotes: notes || null, productManagerBudget: reject ? null : (opStr(input, "amount") || null),
-          note: notes || null,
-        },
-        successMessage: reject ? `${target.label} refusé par la Direction Marketing.` : `Analyse de ${target.label} transmise à la Direction.`,
-        revalidate: ["/events"],
-      };
-    },
-    execute: (args) => runFd(submitProductAnalysis, args, "L'analyse a été refusée.", { revalidate: ["/events"] }),
-  },
-
-  decide_congress_final: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const target = await resolveCongressTarget(opStr(input, "kind"), opStr(input, "target") || opStr(input, "reference"));
-      if ("error" in target) return target;
-      const decision = decisionOf(opStr(input, "decision"));
-      if (!decision) return { error: "Précisez la décision (champ « decision ») : accorder ou refuser." };
-      const amount = opStr(input, "amount");
-      if (decision === "APPROVE" && !amount) return { error: "Le montant accordé est obligatoire (champ « amount », DZD)." };
-      if (decision === "REJECT" && !opStr(input, "note")) return { error: "Le motif de refus est obligatoire (champ « note »)." };
-      return {
-        title: `${decision === "APPROVE" ? "VALIDER définitivement" : "REFUSER"} — ${target.label}`,
-        fields: fieldsOf([
-          ["Demande", target.label],
-          ["Montant accordé", decision === "APPROVE" && amount ? dzd(Number(amount)) : null],
-          ["Motif / note", opStr(input, "note") || null],
-        ]),
-        warnings: decision === "APPROVE"
-          ? ["Décision de la DIRECTION — déclenche l'information médicale (si pharmacien configuré) ou l'ordre de dépense direct."]
-          : [],
-        args: { id: target.entityId, type: target.congressType, decision, finalAmount: decision === "APPROVE" ? amount : null, note: opStr(input, "note") || null },
-        successMessage: `${target.label} : ${decision === "APPROVE" ? `validé (${dzd(Number(amount))})` : "refusé (définitif)"}.`,
-        revalidate: ["/events"],
-      };
-    },
-    execute: (args) => runFd(finalDecision, args, "La décision définitive a été refusée.", { revalidate: ["/events"] }),
-  },
-
-  update_congress_budget: {
-    async propose(input): Promise<OpProposalDraft | { error: string }> {
-      const target = await resolveCongressTarget(opStr(input, "kind"), opStr(input, "target") || opStr(input, "reference"));
-      if ("error" in target) return target;
-      const amount = opStr(input, "amount");
-      if (!amount || Number(amount) <= 0) return { error: "Précisez le nouveau montant accordé (champ « amount », DZD)." };
-      return {
-        title: `Modifier le budget accordé — ${target.label}`,
-        fields: [
-          { label: "Demande", value: target.label },
-          { label: "Nouveau montant", value: dzd(Number(amount)) },
-        ],
-        warnings: ["Répercuté sur la déclaration d'information médicale (si pas validée) ET l'ordre de dépense (s'il n'est pas réglé) — les Finances sont prévenues."],
-        args: { id: target.entityId, type: target.congressType, finalAmount: amount },
-        successMessage: `Budget de ${target.label} porté à ${dzd(Number(amount))}.`,
-        revalidate: ["/events"],
-      };
-    },
-    execute: (args) => runFd(updateGrantedBudget, args, "La modification du budget a été refusée.", { revalidate: ["/events"] }),
-  },
+  // LES ANCIENNES DÉCISIONS CONGRÈS / ÉVÉNEMENT HORS CIRCUIT ONT DISPARU (Direction, 27/10).
+  // `decide_congress_preliminary`, `analyze_congress`, `decide_congress_final` et
+  // `update_congress_budget` écrivaient `requestStatus` (et le montant accordé) sans le moteur :
+  // l'écran ne les propose plus. Adam passe par les MÊMES gestes que l'écran — `advance_workflow`
+  // pour le circuit, les postes pour le montant.
 
   cancel_congress_request: {
     async propose(input): Promise<OpProposalDraft | { error: string }> {

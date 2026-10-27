@@ -109,12 +109,12 @@ describe("la MIGRATION écrit sur l'étape déjà en base EXACTEMENT ce que la g
 
 describe("la MIGRATION du 27/10/2026 écrit sur l'étape `marketing` des PEC et événements EXACTEMENT la graine de prévalidation", () => {
   /*
-   * Même garde que ci-dessus, pour `20270131130000_adpro_circuit_prevalidation` : la graine ne
+   * Même garde que ci-dessus, pour `20270131130500_adpro_circuit_prevalidation` : la graine ne
    * sème que là où rien n'existe, c'est la migration qui fait passer la production à la règle.
    * On lit l'instruction qui vise `marketing`, commentaires retirés (§118.79d).
    */
   const sql = fs.readFileSync(
-    path.join(process.cwd(), "prisma/migrations/20270131130000_adpro_circuit_prevalidation/migration.sql"),
+    path.join(process.cwd(), "prisma/migrations/20270131130500_adpro_circuit_prevalidation/migration.sql"),
     "utf8",
   ).replace(/--[^\n]*/g, "");
   // On découpe sur le `;` qui FINIT une ligne : la description en contient un en son milieu.

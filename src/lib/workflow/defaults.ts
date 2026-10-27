@@ -95,7 +95,7 @@ function defaultSpine(): StepInput[] {
     // que les deux restent identiques : deux sources de la même étape feraient deux circuits).
     // LE DIRECTEUR DES OPÉRATIONS — le rôle `OPERATIONS_DIRECTOR`, et lui (Direction, 27/10/2026 : « il
     // faut que ce soit lui, l'Operations Director »). Il était tenu jusqu'ici par le rôle `DIRECTION`.
-    // Les mêmes valeurs sont écrites en base par `20270131130000_adpro_circuit_prevalidation`.
+    // Les mêmes valeurs sont écrites en base par `20270131130500_adpro_circuit_prevalidation`.
     ETAPE_DIRECTEUR_OPERATIONS,
     // LA PRÉVALIDATION DE LA DIRECTION MARKETING — la dernière étape, celle qui conclut (27/10/2026).
     ETAPE_PREVALIDATION,

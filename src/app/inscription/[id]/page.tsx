@@ -1,9 +1,8 @@
 import { notFound } from "next/navigation";
-import { CalendarDays, MapPin, Users } from "lucide-react";
+import { CalendarDays, MapPin } from "lucide-react";
 import { getPublicEvent } from "@/lib/queries/events";
 import { EVENT_TYPE, EVENT_FORMAT } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
-import { PublicRegistrationForm } from "./public-registration-form";
 
 export const dynamic = "force-dynamic";
 
@@ -26,19 +25,15 @@ export default async function InscriptionPage({ params }: { params: { id: string
             <div className="mt-3 flex flex-wrap gap-4 text-sm opacity-90">
               {event.startDate && <span className="inline-flex items-center gap-1.5"><CalendarDays className="h-4 w-4" /> {formatDate(event.startDate)}{event.endDate ? ` → ${formatDate(event.endDate)}` : ""}</span>}
               {(event.location || event.city) && <span className="inline-flex items-center gap-1.5"><MapPin className="h-4 w-4" /> {[event.location, event.city, event.country].filter(Boolean).join(", ")}</span>}
-              {event.spotsLeft !== null && <span className="inline-flex items-center gap-1.5"><Users className="h-4 w-4" /> {event.spotsLeft} place{event.spotsLeft > 1 ? "s" : ""} restante{event.spotsLeft > 1 ? "s" : ""}</span>}
             </div>
           </div>
 
           <div className="p-6">
             {event.description && <p className="mb-5 whitespace-pre-wrap text-sm text-muted-foreground">{event.description}</p>}
-            {event.open ? (
-              <PublicRegistrationForm eventId={event.id} />
-            ) : (
-              <div className="rounded-lg bg-secondary px-4 py-6 text-center text-sm text-muted-foreground">
-                Les inscriptions à cet événement ne sont pas ouvertes pour le moment.
-              </div>
-            )}
+            {/* ÉVÉNEMENTS EXTERNES (Direction, 27/10) : l'inscription se fait chez l'organisateur. */}
+            <div className="rounded-lg bg-secondary px-4 py-6 text-center text-sm text-muted-foreground">
+              Les inscriptions à cet événement se font auprès de son organisateur.
+            </div>
           </div>
         </div>
         <p className="mt-4 text-center text-[0.6875rem] text-muted-foreground">© {new Date().getFullYear()} Adventum Pharma</p>

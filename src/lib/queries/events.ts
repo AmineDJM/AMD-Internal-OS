@@ -67,6 +67,8 @@ export interface EventDetail {
   /** LA GAMME qui porte la demande — c'est SON budget Ad&Pro qui est engagé. */
   businessUnitId: string | null;
   description: string | null;
+  /** QUI ORGANISE l'événement — il est externe (Direction, 27/10). */
+  organizer: string | null;
   capacity: number | null;
   estimatedBudget: number | null;
   meetingLink: string | null;
@@ -169,7 +171,7 @@ export async function getEventDetail(id: string): Promise<EventDetail | null> {
     startDate: e.startDate?.toISOString() ?? null, endDate: e.endDate?.toISOString() ?? null,
     location: e.location, city: e.city, country: e.country, specialty: e.specialty, products: e.products,
     doctor: e.doctor, businessUnitId: e.businessUnitId,
-    description: e.description, capacity: e.capacity, estimatedBudget: e.estimatedBudget ? toNumber(e.estimatedBudget) : null,
+    description: e.description, organizer: e.organizer, capacity: e.capacity, estimatedBudget: e.estimatedBudget ? toNumber(e.estimatedBudget) : null,
     meetingLink: e.meetingLink, responsibleId: e.responsibleId, responsibleName: e.responsible?.name ?? null,
     requestStatus: e.requestStatus, requesterId: e.requesterId, createdById: e.createdById ?? null, requesterName: nameOf(e.requesterId),
     productManagerId: e.productManagerId, productManagerName: nameOf(e.productManagerId),
@@ -208,16 +210,16 @@ export async function getPublicEvent(id: string): Promise<PublicEvent | null> {
     where: { id },
     select: {
       id: true, name: true, type: true, scope: true, format: true, status: true,
-      startDate: true, endDate: true, location: true, city: true, country: true, description: true, capacity: true,
-      registrations: { where: { status: { in: ACTIVE } }, select: { id: true } },
+      startDate: true, endDate: true, location: true, city: true, country: true, description: true,
     },
   });
   if (!e) return null;
   return {
     id: e.id, name: e.name, type: e.type, scope: e.scope, format: e.format, status: e.status,
-    open: e.status === "REGISTRATION_OPEN",
+    // ÉVÉNEMENTS EXTERNES (Direction, 27/10) : on s'y inscrit chez l'organisateur — jamais ici.
+    open: false,
     startDate: e.startDate?.toISOString() ?? null, endDate: e.endDate?.toISOString() ?? null,
     location: e.location, city: e.city, country: e.country, description: e.description,
-    spotsLeft: e.capacity !== null ? Math.max(0, e.capacity - e.registrations.length) : null,
+    spotsLeft: null,
   };
 }

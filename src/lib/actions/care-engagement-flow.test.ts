@@ -79,7 +79,9 @@ suite("Prise en charge — rien ne s'engage avant la prévalidation et l'accord 
     DA = await actorFor(daId, "DIRECTION_ASSISTANT");
 
     // Une demande nationale EN CIRCUIT : son instance naît « en cours » (création paresseuse du moteur).
-    natId = (await prisma.congressNational.create({ data: { name: `${TAG}Nat`, requestStatus: "AWAITING_PRELIMINARY", requesterId: demId }, select: { id: true } })).id;
+    // Posée par l'assistante (demandeur ordinaire → Directeur des opérations) : celle de la Direction
+    // Marketing serait prévalidée d'office à la naissance de l'instance (27/10/2026).
+    natId = (await prisma.congressNational.create({ data: { name: `${TAG}Nat`, requestStatus: "AWAITING_PRELIMINARY", requesterId: daId }, select: { id: true } })).id;
     const inst = await ensureInstance("CONGRESS_NATIONAL", natId);
     expect(inst, "le moteur ouvre l'instance du circuit").toBeTruthy();
     instanceId = (await prisma.workflowInstance.findUniqueOrThrow({ where: { entityType_entityId: { entityType: "CONGRESS_NATIONAL", entityId: natId } }, select: { id: true } })).id;

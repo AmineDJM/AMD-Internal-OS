@@ -12,7 +12,7 @@
  *     c'est le seul niveau qui corrige un dossier tranché en assumant ce que cela veut dire — la
  *     même règle que la correction d'une demande (`ad-pro-edit.ts`).
  *   • QUI TRANCHE les événements (VALIDATE) modifie tout AVANT la décision ; APRÈS, seulement
- *     l'organisation (lien de connexion, capacité, responsable, description, état). Ce qui a
+ *     l'organisation (organisateur, lien de connexion, responsable, description, état). Ce qui a
  *     FONDÉ l'accord — nom, dates, lieu, médecins, produits, budget… — est figé : figer aussi
  *     l'organisation empêcherait d'ajouter le lien d'un webinaire déjà financé, un refus à tort
  *     plus coûteux que le défaut (§118.27).
@@ -71,7 +71,7 @@ function normaliser(v: unknown): string | number | null {
 export const CHAMPS_ORGANISATION: Readonly<Record<string, string>> = {
   status: "état",
   description: "description",
-  capacity: "capacité",
+  organizer: "organisateur",
   meetingLink: "lien de connexion",
   responsibleId: "responsable",
 };

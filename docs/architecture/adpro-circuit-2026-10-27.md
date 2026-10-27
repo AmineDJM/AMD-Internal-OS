@@ -24,7 +24,7 @@
 - **Aucun poste, aucun budget, aucun engagement avant cette prévalidation.**
 
 Code : `src/lib/workflow/parcours.ts` (`parcoursAdPro`), `origin.ts`, `defaults.ts`, `engine.ts`
-(`ensureInstance`, `ouvrirLeCircuit`), migration `20270131130000_adpro_circuit_prevalidation`.
+(`ensureInstance`, `ouvrirLeCircuit`), migration `20270131130500_adpro_circuit_prevalidation`.
 
 ### 2. Postes — ajoutés par les parties prenantes, acceptés par la Direction Marketing
 

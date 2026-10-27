@@ -24,7 +24,7 @@ import { WORKFLOW_CATEGORIES } from "./types";
  *
  * DEPUIS LE 27/10/2026, l'étape est celle du DIRECTEUR DES OPÉRATIONS (rôle OPERATIONS_DIRECTOR) et
  * ne conclut plus aucune route : la graine a changé de texte, et c'est la migration
- * `20270131130000_adpro_circuit_prevalidation` qui le pose en base. La migration de §118.197g reste
+ * `20270131130500_adpro_circuit_prevalidation` qui le pose en base. La migration de §118.197g reste
  * éprouvée sur SON texte (on ne réécrit pas une migration jouée) ; la graine, elle, se compare à la
  * nouvelle.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -44,7 +44,7 @@ function texteDeLaMigration(): string {
 }
 
 const SQL_PREVALIDATION = readFileSync(
-  path.join(process.cwd(), "prisma/migrations/20270131130000_adpro_circuit_prevalidation/migration.sql"), "utf8",
+  path.join(process.cwd(), "prisma/migrations/20270131130500_adpro_circuit_prevalidation/migration.sql"), "utf8",
 );
 
 /** L'instruction de la nouvelle migration qui vise l'étape `final` (commentaires retirés). */
