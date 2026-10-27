@@ -77,14 +77,15 @@ describe("Ce que les Finances reçoivent", () => {
 });
 
 describe("Qui siège au centre", () => {
-  it("le PDG et le Super Admin, chacun suffisant", () => {
+  it("le PDG, le Directeur Général et le Super Admin, chacun suffisant (point 24, 27/10)", () => {
     expect(sitsOnPaymentCentre({ role: "DIRECTION" })).toBe(true);
+    expect(sitsOnPaymentCentre({ role: "GENERAL_MANAGER" })).toBe(true);
     expect(sitsOnPaymentCentre({ role: "SUPER_ADMIN" })).toBe(true);
   });
 
-  it("aucun autre RÔLE — pas même le Directeur Général ni les Finances", () => {
+  it("aucun autre RÔLE — ni le Directeur des opérations ni les Finances", () => {
     // Élargir le centre à la direction opérationnelle recréerait le circuit qu'il remplace.
-    for (const role of ["GENERAL_MANAGER", "OPERATIONS_DIRECTOR", "FINANCE_BUDGET_MANAGER", "DIRECTION_ASSISTANT", "VIEWER"]) {
+    for (const role of ["OPERATIONS_DIRECTOR", "FINANCE_BUDGET_MANAGER", "DIRECTION_ASSISTANT", "VIEWER"]) {
       expect(sitsOnPaymentCentre({ role }), role).toBe(false);
     }
   });

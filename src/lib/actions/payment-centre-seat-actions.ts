@@ -75,10 +75,11 @@ export async function grantPaymentCentreSeat(formData: FormData): Promise<Action
     // autoriser des paiements — exactement l'auto-escalade que `policy/guard.ts` interdit à la
     // compilation. La refuser ici ferme aussi le chemin qui passe par un humain qui clique.
     if (cible.isSystem) return { ok: false, error: "Le compte système ne siège pas au centre de paiement : autoriser un décaissement est un geste de personne." };
-    // Le PDG et le Super Admin y siègent DÉJÀ par leur rôle. Créer un siège en double laisserait
+    // Le PDG, le DG et le Super Admin y siègent DÉJÀ par leur rôle. Créer un siège en double laisserait
     // croire, le jour où on le retire, qu'on leur a retiré l'accès — alors que rien ne bougerait.
-    if (cible.role === "SUPER_ADMIN" || cible.role === "DIRECTION") {
-      return { ok: false, error: `${cible.name} siège déjà au centre de paiement par son rôle (${cible.role === "SUPER_ADMIN" ? "Super Admin" : "Direction"}) — un siège nommé n'ajouterait rien.` };
+    if (cible.role === "SUPER_ADMIN" || cible.role === "DIRECTION" || cible.role === "GENERAL_MANAGER") {
+      const libelle = cible.role === "SUPER_ADMIN" ? "Super Admin" : cible.role === "GENERAL_MANAGER" ? "Directeur Général" : "Direction";
+      return { ok: false, error: `${cible.name} siège déjà au centre de paiement par son rôle (${libelle}) — un siège nommé n'ajouterait rien.` };
     }
 
     const deja = await prisma.paymentCentreSeat.findUnique({ where: { userId }, select: { id: true } });

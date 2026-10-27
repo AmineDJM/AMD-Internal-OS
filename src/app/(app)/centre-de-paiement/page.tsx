@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Centre de paiement — AMD Internal OS" };
 
 /**
- * LE CENTRE DE PAIEMENT — le PDG et le Super Admin autorisent, la comptabilité exécute.
+ * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
  *
  * AUCUN décaissement ne quitte les Finances sans passer par ici, quel que soit son montant —
  * « Concernant les paiements, c'est clair, tous passent par le centre de paiements » (Direction,

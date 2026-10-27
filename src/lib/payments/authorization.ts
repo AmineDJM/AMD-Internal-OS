@@ -2,7 +2,7 @@
  * LE CENTRE DE PAIEMENT — la règle unique qui décide si un décaissement peut partir.
  *
  * Le principe : AUCUN paiement de la société ne quitte les Finances sans être passé par le centre,
- * tenu par le PDG et le Super Admin. **Sans exception, et quel que soit le montant.**
+ * tenu par le PDG, le Directeur Général et le Super Admin. **Sans exception, et quel que soit le montant.**
  *
  * ── POURQUOI LE SEUIL A DISPARU ────────────────────────────────────────────────────────────────
  *
@@ -137,9 +137,10 @@ export function awaitsRequester(status: CentralStatus): boolean {
  *
  * ── LE CERCLE PAR DÉFAUT N'A PAS BOUGÉ ───────────────────────────────────────────────────────
  *
- * Le PDG (`DIRECTION`) et le Super Admin. Le Directeur Général n'y est toujours PAS : le centre
- * existe pour que le sommet de l'entreprise voie passer chaque engagement important, et l'ouvrir
- * en bloc à la direction opérationnelle reviendrait à recréer le circuit qu'il remplace.
+ * Le PDG (`DIRECTION`), le Directeur Général (`GENERAL_MANAGER`, depuis le 27/10 : le centre est
+ * celui de la « Direction Générale ») et le Super Admin. Le centre existe pour que le sommet de
+ * l'entreprise voie passer chaque engagement important — il ne s'ouvre pas au-delà, en bloc, à la
+ * direction opérationnelle : ce serait recréer le circuit qu'il remplace.
  *
  * ── CE QUI S'AJOUTE : LE SIÈGE NOMMÉ ─────────────────────────────────────────────────────────
  *
@@ -165,9 +166,15 @@ export interface PaymentCentreMember {
   access?: { paymentCentreSeat?: boolean };
 }
 
+/**
+ * LES RÔLES QUI SIÈGENT AU CENTRE (Direction, 27/10 — point 24) : le centre « Direction Générale » accueille le
+ * Directeur Général (`GENERAL_MANAGER`) et le Super Admin ; le PDG (`DIRECTION`) y reste. Les mêmes rôles sont
+ * prévenus quand un paiement attend le centre — un siège qu'on ne prévient pas ne siège qu'à moitié.
+ */
+export const ROLES_CENTRE_DE_PAIEMENT = ["DIRECTION", "GENERAL_MANAGER", "SUPER_ADMIN"] as const;
+
 export function sitsOnPaymentCentre(user: PaymentCentreMember): boolean {
-  return user.role === "SUPER_ADMIN"
-    || user.role === "DIRECTION"
+  return (ROLES_CENTRE_DE_PAIEMENT as readonly string[]).includes(user.role)
     || user.access?.paymentCentreSeat === true;
 }
 
@@ -179,7 +186,7 @@ export function sitsOnPaymentCentre(user: PaymentCentreMember): boolean {
  * trois copies d'un message faux se corrigent rarement toutes les trois. La formulation vit ici.
  */
 export const PAYMENT_CENTRE_REFUSAL =
-  "Vous ne siégez pas au centre de paiement. Y siègent le PDG, le Super Admin, et les personnes "
+  "Vous ne siégez pas au centre de paiement. Y siègent le PDG, le Directeur Général, le Super Admin, et les personnes "
   + "qui y ont été nommément désignées — un Super Admin peut vous y désigner depuis Administration → Accès.";
 
 /**

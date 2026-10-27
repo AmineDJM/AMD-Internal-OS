@@ -10,7 +10,7 @@ import {
   sitsOnPaymentCentre, applyDecision, applyResubmission, canResubmit, memeBeneficiaire,
   CENTRAL_DECISION_LABEL, CENTRAL_STATUS_LABEL,
   type CentralDecision, type CentralStatus,
-  PAYMENT_CENTRE_REFUSAL, refusOrdreFerme,
+  PAYMENT_CENTRE_REFUSAL, refusOrdreFerme, ROLES_CENTRE_DE_PAIEMENT,
 } from "@/lib/payments/authorization";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
@@ -18,7 +18,7 @@ import { ENTITE_SANS, slugSectionDeLOrdre } from "@/lib/payments/sections-centre
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
 
 /**
- * LE CENTRE DE PAIEMENT — le PDG et le Super Admin autorisent, la comptabilité exécute.
+ * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
  *
  * DEUX ISSUES : autoriser ou refuser (décision de la Direction, 02/09/2026 — voir `isDecision`).
  * Ce texte en annonçait quatre, et l'en-tête de l'écran promettait encore « une révision du
@@ -276,7 +276,7 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
     actorId: user.id, action: "UPDATE", module: "Finances", entityType: "EXPENSE_ORDER", entityId: id,
     summary: `Centre de paiement — réponse du demandeur : ${order.reference} « ${order.label} »`,
   });
-  await notifyRoles(["DIRECTION", "SUPER_ADMIN"], {
+  await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], {
     type: "VALIDATION_REQUIRED",
     title: "Réponse reçue — autorisation à reprendre",
     body: `${order.reference} — ${order.label} (${Number(order.amount).toLocaleString("fr-FR")} DZD)`,

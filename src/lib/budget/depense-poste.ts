@@ -28,7 +28,7 @@
  * Mesuré dans le code, ce n'est pas le circuit de l'argent :
  *   • le seuil Ad & Pro (`porteDgRequise`, `seuils/ad-pro.ts`) garde la DEMANDE (étape `dg` du circuit, centre de
  *     validation Ad & Pro) et le visa du BC — il a déjà joué quand le poste arrive ici, BC signés ;
- *   • le PAIEMENT, lui, passe TOUJOURS par le centre de paiement (§118.176, « guichet unique ») — tenu par le PDG et le
+ *   • le PAIEMENT, lui, passe TOUJOURS par le centre de paiement (§118.176, « guichet unique ») — tenu par le PDG, le DG et le
  *     Super Admin, sans seuil ni exemption (`payments/authorization.ts`) — puis par les Finances, qui règlent.
  * « Consommer » emprunte donc le chemin de paiement d'un poste (un ordre de dépense via `createExpenseOrder`, né
  * `AWAITING` au centre de paiement) et l'étape se nomme par l'endroit où l'ordre attend VRAIMENT :
