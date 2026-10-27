@@ -134,9 +134,12 @@ Key architectural decisions and their reasons (from code comments / doctrine):
    marks PAID (`src/lib/expense-orders.ts:269`, `src/lib/actions/expense-actions.ts:71`). [V·orch]
 2. **Every BC** (purchase order) goes through a validation centre; BCs and invoices are `LegalDocument` rows
    (`kind = PURCHASE_ORDER | INVOICE`) — there is no Invoice/PO table. [V·agent 03/06]
-3. **Ad & Pro routing** is decided by the requester's rank (`parcoursAdPro`, `workflow/parcours.ts:146`); DG gate above
-   `adProDgThreshold` (default 1,000,000 DZD; 0 disables; unknown amount opens it). Sponsoring is pre-validated as an
-   event, then money is decided per line item (Direction des opérations → Direction Marketing). [V·agent 06]
+3. **Ad & Pro routing** (circuit of 27/10/2026, `docs/architecture/adpro-circuit-2026-10-27.md`) is decided by the
+   requester's rank (`parcoursAdPro`, `workflow/parcours.ts`): prévalidation without money (délégué → National Sales →
+   Operations Director → Direction Marketing; Direction Marketing's own = d'office), then postes accepted by Direction
+   Marketing only, then the **DG validates the TOTAL** (postes + retained/accepted PEC quotes) strictly above
+   `adProDgThreshold` — no BC/visa/payment/quote acceptance before (`lib/ad-pro/porte-dg.ts`, table `AdProPorteDg`).
+   The `dg` workflow step is always sieved out. [V·orch 27/10]
 4. **Manager tree** has one source: `resolveManager` (`src/lib/hr/reporting-line.ts`); `directReportsOf`/`subtreeOf` are its
    inverse and route leave, Mon équipe, KPIs, promo stock. [V·agent 08]
 5. **Retired modules** stay retired via `rbac.getAccess`; a test keeps them retired. [V·agent 07]

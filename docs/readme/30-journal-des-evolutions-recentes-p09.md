@@ -177,3 +177,29 @@ session, recevait `/login` ; ils sont exemptés (chemins exacts, jeton signé v�
   `src/lib/agent/routines/` (calendrier, passage, service), balayage dans `runScheduledJobs`, onglet « Routines ».
 - **Recherche web** (`web_research` de l'ERP) ouverte à l'assistant, question censurée.
 - Décision : `docs/assistant/decisions/0008-agent-qui-agit-memoire-documents-routines.md`.
+
+---
+
+### Ad & Pro — le circuit du 27/10/2026 : prévalidation, postes, le DG sur le TOTAL
+
+Décision de la Direction validée sur l'artefact « Circuits Ad & Pro » v3 — détail et table des 29 décisions :
+`docs/architecture/adpro-circuit-2026-10-27.md` ; vue d'ensemble : [workflows critiques](11-workflows-critiques.md).
+
+- **Prévalidation** (sponsoring, prises en charge, événements, « autre ») : délégué → National Sales → Directeur des
+  opérations (`OPERATIONS_DIRECTOR`) → Direction Marketing ; tout autre demandeur → Directeur des opérations → Direction
+  Marketing ; rang 3 → Direction Marketing ; Direction Marketing → prévalidée d'office. L'étape marketing ne fixe ni montant
+  ni catégorie. Le DG n'est plus une étape. À la création, tous les acteurs sont prévenus (`ouvrirLeCircuit`).
+- **Postes** : aucun avant la prévalidation ; un seul accord, la Direction Marketing (une autre personne sur sa demande).
+- **Porte du DG sur le total** (`AdProPorteDg`, `lib/ad-pro/porte-dg.ts`) : somme des postes non refusés + devis de
+  personnes retenus/acceptés d'une prise en charge ; au-dessus du seuil, ni BC, ni visa, ni paiement, ni acceptation de
+  devis sans « Valider le total » (DG, rôle principal ou secondaire, ou Super Admin) ; une rallonge rouvre la porte.
+- **Appel** pour toute nature refusée (`faireAppelAdPro`) ; **transfert** recalculé sur le créateur.
+- **Lots fusionnés** : devis/BC/ordre de PEC gardés (personnes « Accordées », catégorie sur l'ordre, DZD reste DZD,
+  USD × 240) ; « Marquer réalisée » et réservation par fiche seule ; événements externes (plus de capacité, liste d'attente,
+  inscription publique ; type + organisateur) ; catégorie budgétaire vérifiée (nature, exercice, BU) ; libellé « Paiement
+  demandé (ordre émis) » ; matériel promotionnel imputé au budget ; DG au centre de paiement ; rôle secondaire au centre Ad & Pro.
+- **Migrations** (additives) : `20270131110000_materiel_promo_budget`, `20270131120000_reservation_par_fiche_seule`,
+  `20270131130000_evenement_organisateur`, `20270131130500_adpro_circuit_prevalidation`, `20270131140000_adpro_porte_dg_total`,
+  `20270131150000_adpro_autre_postes`.
+- ⚠️ **À faire par l'administration** : attribuer le rôle `OPERATIONS_DIRECTOR` au Directeur des opérations, puis retirer
+  `DIRECTION` de l'étape « Validation (Directeur des opérations) » dans Administration › Circuits.

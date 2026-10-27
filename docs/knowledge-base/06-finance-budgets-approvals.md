@@ -146,6 +146,15 @@ are final [V]. Promo material: v1/v2 circuits in `promo-material/circuit.ts` (v2
 Directeur des Opérations, or Direction Marketing; quotes; REVIEW_REQUESTER; REVIEW_MANAGER unless requester is
 Direction Marketing; REVIEW_DG iff `porteDgRequise`; IN_EXECUTION; COMPLETED) [V `circuit.ts:10-30, 177-190`].
 
+> **⚠️ Superseded on 27/10/2026 for routing and the DG gate** — see `docs/architecture/adpro-circuit-2026-10-27.md`.
+> The DG no longer sits on the route (`dg` always in the sieve); the `final` step is held by `OPERATIONS_DIRECTOR`
+> (DIRECTION kept as fallback by migration `20270131130500` until an active account holds the role); `marketing` only
+> prévalidates (no amount/category/global order; sponsoring → `PRE_VALIDATED`, others → `APPROVED`); Direction
+> Marketing's own request is prévalidée d'office in `ensureInstance`; `ouvrirLeCircuit` notifies every actor at
+> creation. Money is decided per poste (single acceptance by Direction Marketing, `ad-pro/validation-poste.ts`) and
+> gated by the DG decision on the request TOTAL (`ad-pro/porte-dg.ts`, pure rule `seuils/porte-dg-total.ts`,
+> table `AdProPorteDg`). The text below describes the engine mechanics, still valid; its route table is historical.
+
 ### 4.4 The workflow engine (4 configurable circuits)
 
 **Seed** (`defaults.ts:33`): `preliminary` (ROLE `NATIONAL_SALES`) → `dg` (ROLE `GENERAL_MANAGER`, no own threshold:
