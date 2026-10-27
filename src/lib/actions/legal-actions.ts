@@ -182,6 +182,11 @@ export async function createLegalDocument(
   if (!datation.ok) return { ok: false, error: datation.error };
 
   if (!title) return { ok: false, error: "Le titre exact du document est obligatoire." };
+  // LE SENS QUE LA PIÈCE NE PROUVE PAS SE CHOISIT (saisie préremplie depuis sa pièce, `prerempli-document-legal.ts`) :
+  // aucun défaut — « reçue » posé d'office sur une facture qu'on a émise est une écriture à l'envers.
+  if (f.kind === "INVOICE" && fdStr(formData, "sensExige") === "1" && !fdStr(formData, "direction")) {
+    return { ok: false, error: "Choisissez le sens de l'argent : la pièce ne permet pas de dire qui a émis cette facture." };
+  }
   const dates = validateDates(f.startDate, f.endDate);
   if (!dates.ok) return { ok: false, error: dates.error };
   const chainErr = await checkChainFrom(f.chainFromId);

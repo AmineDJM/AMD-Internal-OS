@@ -192,7 +192,7 @@ export interface OptionAmont { value: string; label: string }
 export const AMONT_HORS_PERIMETRE = `Pièce amont actuelle (${HORS_PERIMETRE})`;
 
 /** Le libellé d'une pièce amont dans un menu — un seul, pour la fiche Legal et pour le compositeur. */
-const libelleAmont = (r: { kind: string; reference: string | null; title: string }): string =>
+export const libelleAmont = (r: { kind: string; reference: string | null; title: string }): string =>
   `${natureLegale(r.kind)} — ${r.reference ? `${r.reference} · ` : ""}${r.title}`;
 
 /**

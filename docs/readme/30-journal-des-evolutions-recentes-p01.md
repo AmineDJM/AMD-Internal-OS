@@ -1,5 +1,31 @@
 ## 🧾 Journal des évolutions récentes
 
+### LEGAL : « NOUVEAU DOCUMENT » ET « NOUVELLE FACTURE » SE REMPLISSENT DEPUIS LA PIÈCE (2026-10-27)
+
+Migration `20270129100000_synthese_legale` (deux colonnes nullables sur `LecturePiece`). On dépose d'abord le fichier (ou
+on le désigne dans le Drive) ; il est lu, et le formulaire s'ouvre avec ce que la pièce DIT — chaque champ rempli en
+violet (`--luna`) avec sa preuve au survol, le reste vide ; touché, un champ redevient celui de la personne. Le fichier
+lu est déjà joint. Enregistrer reste le seul geste qui écrit (`createLegalDocument`, toutes ses gardes).
+- **Trois sources, dites champ par champ** (`pieces-lues/prerempli-document-legal.ts`, pur) : les RÈGLES (`entetes.ts` :
+  n°, date d'une pièce commerciale, NIF/RC, totaux — la ligne en preuve), LUNA (nature d'un contrat, titre, prise
+  d'effet, résumé — la phrase en preuve), le CALCUL (fin tirée d'une durée lue, « calculée »). Le montant vient des
+  règles seules ; des totaux en désaccord le laissent vide et le disent.
+- **Luna lit un document légal** par `synthetiserDocumentLegal` (`lecture-pieces-ia.ts`, même bascule « lecture des
+  pièces », mêmes portes) avec son schéma (`pieces-lues/synthese-legale.ts`) — gardée sur la lecture, une fois par
+  empreinte. Service `pieces-lues/document-legal.ts`, action `actions/legal-lecture-actions.ts`.
+- **Décisions Direction (27/10)** : lecture coupée → lecture locale quand même ; la pièce d'abord, « Saisir sans
+  fichier » en recours ; un fichier du Drive se lit aussi ; « Document confidentiel » se coche AVANT la lecture (rien ne
+  part, lecteurs exigés) ; plusieurs fichiers → le premier est lu, « Lire plutôt celle-ci » ; changer de pièce ne
+  remplace que les champs non touchés ; partie retenue CERTAINE seulement (sinon proposée, ou « Créer un contact »
+  prérempli du NIF/RC lus) ; sens d'une facture posé seulement si le NIF de l'émetteur le prouve, sinon à choisir
+  (`sensExige`, refus serveur) ; le BC cité par une facture remplit « Fait suite à » quand un seul porte ce numéro ;
+  Notes = résumé + « À surveiller » (préavis, reconduction, pénalités).
+- Écran : `app/(app)/legal/nouveau-document-legal.tsx`, `champs-preremplis.ts` ; `RecordForm` gagne `marques`,
+  `fichiersInitiaux`, `drivesInitiaux`, `entete` ; `PartyPicker` gagne `propose`. Formats lus : `pieces-lues/formats.ts`
+  (pur, réexporté par le service).
+- Bancs : `pieces-lues/synthese-legale.test.ts`, `pieces-lues/prerempli-document-legal.test.ts`,
+  `app/(app)/legal/champs-preremplis.test.ts`.
+
 ### SÉCURITÉ : L'ÉDITEUR OFFICE N'ENREGISTRE QUE SIGNÉ, UN FICHIER DÉPOSÉ NE S'EXÉCUTE PLUS, UN PAIEMENT NE SORT QU'UNE FOIS (2026-10-24)
 
 Aucune migration. Trois défauts relevés par l'audit d'architecture (`docs/knowledge-base/01-system-overview.md`, R1 · R2 · R4).

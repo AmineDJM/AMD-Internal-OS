@@ -8,8 +8,8 @@ import { Plus, Loader2, AlertCircle, Wand2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
-import { DrivePickerField } from "@/components/drive/drive-picker";
-import { PartyPicker } from "@/components/directory/party-picker";
+import { DrivePickerField, type DrivePickerValue } from "@/components/drive/drive-picker";
+import { PartyPicker, type PartiesProposees } from "@/components/directory/party-picker";
 import type { PartyOption, PartyArity } from "@/lib/contacts/parties";
 import type { ActionResult } from "@/lib/actions/types";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,17 @@ export interface AnalyzePrefill {
   accept?: string; // types de fichiers acceptés
   disabled?: boolean; // IA indisponible
   disabledHint?: string; // message si désactivé
+}
+
+/**
+ * UN CHAMP REMPLI DEPUIS LA PIÈCE — d'où vient sa valeur et ce qui la prouve (la ligne du document,
+ * la phrase, ou le calcul). Le champ reste VIOLET (`--luna`) tant que la personne ne l'a pas touché :
+ * ce qui est violet n'est pas encore une saisie de la personne. Touché, il redevient le sien.
+ */
+export interface MarqueDeChamp {
+  source: "REGLES" | "LUNA" | "CALCUL";
+  preuve: string;
+  ou: string | null;
 }
 
 export type FieldDef =
@@ -120,6 +131,8 @@ export type FieldDef =
       required?: boolean;
       placeholder?: string;
       hint?: string; full?: boolean;
+      /** Ce que la lecture d'une pièce propose — un contact à confirmer, ou à créer avec ce qui a été lu. */
+      propose?: PartiesProposees;
     };
 
 /**
@@ -160,6 +173,49 @@ interface RecordFormProps {
   onCancel: () => void;
   cancelLabel?: string;
   submitLabel?: string;
+  /** Les champs remplis depuis une pièce, et leur preuve (`MarqueDeChamp`). */
+  marques?: Partial<Record<string, MarqueDeChamp>>;
+  /** Les fichiers déjà choisis (la pièce lue), posés dans leur champ fichier : on ne téléverse pas deux fois. */
+  fichiersInitiaux?: Partial<Record<string, File[]>>;
+  /** Le fichier du Drive déjà désigné (la pièce lue), posé dans son champ. */
+  drivesInitiaux?: Partial<Record<string, DrivePickerValue>>;
+  /** Ce qui s'affiche au-dessus des champs (la phrase de la lecture). */
+  entete?: React.ReactNode;
+  formRef?: React.Ref<HTMLFormElement>;
+  /** Un champ vient d'être touché par la personne. */
+  onTouched?: (name: string) => void;
+}
+
+/** Poser des fichiers dans un `<input type="file">` — le navigateur l'admet par un `DataTransfer`. */
+function poserFichiers(input: HTMLInputElement, fichiers: readonly File[]): void {
+  try {
+    const dt = new DataTransfer();
+    for (const f of fichiers) dt.items.add(f);
+    input.files = dt.files;
+  } catch {
+    // Un navigateur qui le refuse : le champ reste vide, la personne rejoint le fichier elle-même.
+  }
+}
+
+const LIBELLE_MARQUE: Record<MarqueDeChamp["source"], string> = {
+  REGLES: "lu dans le document", LUNA: "lu par Luna", CALCUL: "calculée",
+};
+
+/** La pastille d'un champ rempli depuis la pièce : survolée, elle dit sa preuve ; cliquée, elle l'affiche. */
+function PastilleMarque({ marque, ouverte, onToggle }: { marque: MarqueDeChamp; ouverte: boolean; onToggle: () => void }) {
+  const titre = `${marque.preuve}${marque.ou ? ` (${marque.ou})` : ""}`;
+  return (
+    <button
+      type="button" onClick={onToggle} title={titre} aria-expanded={ouverte}
+      aria-label={`${LIBELLE_MARQUE[marque.source]} — voir d'où vient cette valeur`}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-1.5 text-[11px] font-medium leading-[18px]",
+        marque.source === "CALCUL" ? "border-primary/20 bg-primary/5 text-primary" : "border-luna/30 text-luna",
+      )}
+    >
+      <Sparkles className="h-3 w-3" /> {LIBELLE_MARQUE[marque.source]}
+    </button>
+  );
 }
 
 /**
@@ -312,8 +368,28 @@ export function RecordForm({
   onCancel,
   cancelLabel = "Annuler",
   submitLabel = "Enregistrer",
+  marques,
+  fichiersInitiaux,
+  drivesInitiaux,
+  entete,
+  formRef,
+  onTouched,
 }: RecordFormProps) {
   const router = useRouter();
+  // LES CHAMPS TOUCHÉS : un champ rempli depuis la pièce perd son violet dès que la personne y met la main.
+  const [touches, setTouches] = React.useState<ReadonlySet<string>>(() => new Set());
+  const [preuveOuverte, setPreuveOuverte] = React.useState<string | null>(null);
+  const toucher = React.useCallback((name: string) => {
+    setTouches((prev) => (prev.has(name) ? prev : new Set(prev).add(name)));
+    onTouched?.(name);
+  }, [onTouched]);
+  const champsFichier = React.useRef<Record<string, HTMLInputElement | null>>({});
+  React.useEffect(() => {
+    for (const [name, fichiers] of Object.entries(fichiersInitiaux ?? {})) {
+      const input = champsFichier.current[name];
+      if (input && fichiers?.length) poserFichiers(input, fichiers);
+    }
+  }, [fichiersInitiaux]);
   // L'appelant passe le plus souvent une lambda : on garde la dernière version dans une référence
   // pour que l'effet de succès ne se redéclenche pas au gré des rendus du parent.
   const done = React.useRef(onDone);
@@ -450,7 +526,9 @@ export function RecordForm({
           {analyzeMsg && <p className={cn("text-xs", analyzeMsg.ok ? "text-success" : "text-destructive")}>{analyzeMsg.text}</p>}
         </div>
       )}
+      {entete}
       <form
+        ref={formRef}
         action={(fd) => {
           if (lock.current) return;
           lock.current = true;
@@ -461,26 +539,51 @@ export function RecordForm({
         className="space-y-4"
       >
         <div key={prefillVersion} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {fields.map((field) => (field.type === "hidden" ? (
-            <input key={field.name} type="hidden" name={field.name} value={field.value} />
-          ) : (
+          {fields.map((field) => {
+            if (field.type === "hidden") return <input key={field.name} type="hidden" name={field.name} value={field.value} />;
+            const marque = marques?.[field.name];
+            const violet = Boolean(marque) && !touches.has(field.name);
+            return (
             <div
               key={field.name}
-              className={cn("space-y-1.5", (field.full || field.type === "textarea") && "sm:col-span-2")}
+              onChange={marque || onTouched ? () => toucher(field.name) : undefined}
+              className={cn(
+                "space-y-1.5", (field.full || field.type === "textarea") && "sm:col-span-2",
+                marque && "rounded-lg p-2 ring-1 ring-transparent transition-colors",
+                violet && "bg-luna-soft ring-luna/25",
+              )}
             >
-              {field.type !== "checkbox" && field.type !== "drivepicker" && (
-                <Label htmlFor={field.name}>
-                  {field.label}
-                  {"required" in field && field.required && (
-                    <span className="ml-0.5 text-destructive">*</span>
-                  )}
-                </Label>
+              {field.type !== "checkbox" && field.type !== "drivepicker" && (() => {
+                const libelle = (
+                  <Label htmlFor={field.name}>
+                    {field.label}
+                    {"required" in field && field.required && (
+                      <span className="ml-0.5 text-destructive">*</span>
+                    )}
+                  </Label>
+                );
+                if (!marque) return libelle;
+                return (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {libelle}
+                    {touches.has(field.name)
+                      ? <span className="text-[11px] text-muted-foreground">modifié par vous</span>
+                      : <PastilleMarque marque={marque} ouverte={preuveOuverte === field.name} onToggle={() => setPreuveOuverte((o) => (o === field.name ? null : field.name))} />}
+                  </div>
+                );
+              })()}
+              {marque && preuveOuverte === field.name && !touches.has(field.name) && (
+                <p className="rounded-md bg-background px-2 py-1.5 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{marque.source === "LUNA" ? "Proposé par Luna" : marque.source === "CALCUL" ? "Calculé" : "Lu par les règles"}{marque.ou ? ` · ${marque.ou}` : ""} — </span>
+                  {marque.preuve}
+                </p>
               )}
               {field.type === "drivepicker" ? (
-                <DrivePickerField name={field.name} label={field.label} hint={field.hint} />
+                <DrivePickerField name={field.name} label={field.label} hint={field.hint} defaultValue={drivesInitiaux?.[field.name] ?? null} />
               ) : field.type === "file" ? (
                 <>
                   <input
+                    ref={(el) => { champsFichier.current[field.name] = el; }}
                     id={field.name}
                     type="file"
                     name={field.name}
@@ -518,10 +621,14 @@ export function RecordForm({
                 <MultiSelectField field={field} />
               ) : field.type === "parties" ? (
                 <>
-                  <PartyPicker
-                    name={field.name} options={field.options} defaultValue={field.defaultValue}
-                    arity={field.arity} canCreate={field.canCreate} placeholder={field.placeholder}
-                  />
+                  {/* Un sélecteur de boutons n'émet pas de « change » : c'est le clic qui dit qu'on y a mis la main. */}
+                  <div onClickCapture={marque || onTouched ? () => toucher(field.name) : undefined}>
+                    <PartyPicker
+                      name={field.name} options={field.options} defaultValue={field.defaultValue}
+                      arity={field.arity} canCreate={field.canCreate} placeholder={field.placeholder}
+                      propose={field.propose}
+                    />
+                  </div>
                   {field.hint && <p className="text-xs text-muted-foreground">{field.hint}</p>}
                 </>
               ) : (
@@ -541,7 +648,8 @@ export function RecordForm({
                 </>
               )}
             </div>
-          )))}
+            );
+          })}
         </div>
 
         {state?.error && (

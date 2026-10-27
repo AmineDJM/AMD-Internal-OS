@@ -6,6 +6,7 @@ import { listPartyOptions } from "@/lib/queries/company-contacts";
 import { BUDGET_CARACTERES, decouperPourLecture } from "@/lib/pch/extraction";
 import { CARACTERES_MIN, disponibiliteLecturePieces, phraseCoupeDuTexte, structurerParModele } from "@/lib/lecture-pieces-ia";
 import { lireFichierUneFois, type LectureDePiece } from "@/lib/pieces-lues/lecture-fichier";
+import { FORMATS_LUS, PAGES_MAX, TAILLE_MAX_OCTETS } from "@/lib/pieces-lues/formats";
 import { moteurLuna } from "@/lib/pieces-lues/moteur-luna";
 import { moteurParDefaut } from "@/lib/regulatory/intelligence/extract/texte-ou-ocr";
 import { repererEntetes, type EntetesReperes } from "@/lib/pieces-lues/entetes";
@@ -75,15 +76,8 @@ import {
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** Les formats lus : ceux qui portent un texte natif, et ceux que l'OCR de ce serveur sait lire. */
-export const FORMATS_LUS = ["pdf", "png", "jpg", "jpeg", "webp", "tif", "tiff", "docx", "xlsx", "xls"] as const;
-/**
- * Au-delà, une pièce n'est pas lue — une limite OPÉRATIONNELLE (§118.2) : l'OCR tourne sur ce serveur,
- * dans l'action qui attend sa réponse, et un scan de cette taille n'est plus une pièce commerciale.
- */
-export const TAILLE_MAX_OCTETS = 15 * 1024 * 1024;
-/** L'OCR ne lit pas au-delà de dix pages (décision 2) — et le dit, pages lues sur pages totales. */
-export const PAGES_MAX = 10;
+// Formats, taille et pages lus : un module PUR (`formats.ts`), que le sélecteur de fichier d'un écran lit aussi.
+export { FORMATS_LUS, TAILLE_MAX_OCTETS, PAGES_MAX } from "@/lib/pieces-lues/formats";
 /** Un nom de fichier se montre ; borné, il ne devient pas un second document. */
 const NOM_MAX = 200;
 

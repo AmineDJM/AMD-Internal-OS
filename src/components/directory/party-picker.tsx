@@ -41,9 +41,31 @@ import { cn } from "@/lib/utils";
  * Ce sélecteur vit DANS le formulaire de la pièce, et un formulaire dans un formulaire est
  * invalide — le navigateur envoie alors n'importe quoi. On monte donc le `FormData` à la main et
  * l'on appelle l'action serveur directement : mêmes champs, même contrôle des droits au serveur.
+ *
+ * ── CE QUE LA LECTURE D'UNE PIÈCE PROPOSE (`propose`) ────────────────────────────────────────
+ *
+ * Une pièce lue nomme parfois sa partie sans la prouver : un contact au nom proche se PROPOSE, en
+ * violet, et rien n'est choisi tant que la personne n'a pas cliqué. Absente de l'annuaire, « Créer
+ * un contact » s'ouvre prérempli de ce qui a été lu — nom, NIF, RC, adresse —, jamais créé d'office.
  */
+export interface ContactPropose {
+  nom: string | null;
+  nif: string | null;
+  rc: string | null;
+  adresse: string | null;
+}
+
+export interface PartiesProposees {
+  /** Les contacts que la lecture désigne sans les prouver — aucun n'est choisi d'office. */
+  candidats: { id: string; nom: string }[];
+  /** Ce que la lecture en dit à la personne. */
+  phrase: string;
+  /** Ce qui a été lu, pour « Créer un contact ». */
+  contact: ContactPropose | null;
+}
+
 export function PartyPicker({
-  name, options, defaultValue = [], arity = "many", canCreate = false, placeholder,
+  name, options, defaultValue = [], arity = "many", canCreate = false, placeholder, propose,
 }: {
   /** Le nom du champ : le serveur lit `formData.getAll(name)`. */
   name: string;
@@ -58,6 +80,7 @@ export function PartyPicker({
   /** Peut-on créer un contact d'ici ? C'est le droit d'écriture de l'annuaire, calculé au serveur. */
   canCreate?: boolean;
   placeholder?: string;
+  propose?: PartiesProposees;
 }) {
   const [connus, setConnus] = React.useState<PartyOption[]>(options ?? []);
   const [creationPermise, setCreationPermise] = React.useState(canCreate);
@@ -124,6 +147,24 @@ export function PartyPicker({
         </ul>
       )}
 
+      {propose && ids.length === 0 && (propose.candidats.length > 0 || propose.contact) && (
+        <div className="space-y-1.5 rounded-lg border border-dashed border-luna/40 bg-luna-soft px-2.5 py-2 text-xs">
+          <p className="text-muted-foreground">{propose.phrase}</p>
+          <div className="flex flex-wrap items-center gap-1.5">
+            {propose.candidats.filter((c) => connus.some((o) => o.id === c.id)).map((c) => (
+              <Button key={c.id} type="button" size="sm" variant="outline" onClick={() => ajouter(c.id)}>
+                C&apos;est « {c.nom} »
+              </Button>
+            ))}
+            {propose.candidats.length === 0 && propose.contact?.nom && creationPermise && (
+              <Button type="button" size="sm" onClick={() => setCreation(true)}>
+                <Plus className="h-4 w-4" /> Créer « {propose.contact.nom} »
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-0 flex-1 basis-56">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -181,7 +222,8 @@ export function PartyPicker({
             ajouter(p.id);
             setCreation(false);
           }}
-          nomPropose={q}
+          nomPropose={q || propose?.contact?.nom || ""}
+          lu={q ? null : propose?.contact ?? null}
         />
       )}
     </div>
@@ -222,12 +264,18 @@ function FicheContact({ p }: { p: PartyOption }) {
  * réécrirait le nom à la main.
  */
 function CreerContact({
-  onClose, onCreated, nomPropose,
-}: { onClose: () => void; onCreated: (p: PartyOption) => void; nomPropose: string }) {
+  onClose, onCreated, nomPropose, lu,
+}: {
+  onClose: () => void; onCreated: (p: PartyOption) => void; nomPropose: string;
+  /** Ce que la lecture d'une pièce a lu de cette partie — proposé, modifiable, jamais créé d'office. */
+  lu?: ContactPropose | null;
+}) {
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [v, setV] = React.useState({
     name: nomPropose, kind: "", contactName: "", email: "", phone: "", city: "",
+    // Vides, ils ne s'envoient pas pour rien : l'action lit un champ vide comme absent (`fdStr`).
+    nif: lu?.nif ?? "", rc: lu?.rc ?? "", address: lu?.adresse ?? "",
   });
   const set = (k: keyof typeof v) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setV((prev) => ({ ...prev, [k]: e.target.value }));
@@ -267,6 +315,16 @@ function CreerContact({
           <Champ id="pp-email" label="E-mail" value={v.email} onChange={set("email")} type="email" />
           <Champ id="pp-phone" label="Téléphone" value={v.phone} onChange={set("phone")} type="tel" />
         </div>
+        {lu && (
+          <div className="grid grid-cols-1 gap-3 rounded-lg bg-luna-soft p-2.5 sm:grid-cols-2">
+            <p className="text-xs text-muted-foreground sm:col-span-2">Lu sur la pièce — vérifiez avant de créer.</p>
+            <Champ id="pp-nif" label="NIF" value={v.nif} onChange={set("nif")} />
+            <Champ id="pp-rc" label="RC" value={v.rc} onChange={set("rc")} />
+            <div className="sm:col-span-2">
+              <Champ id="pp-address" label="Adresse" value={v.address} onChange={set("address")} />
+            </div>
+          </div>
+        )}
         {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
         <div className="flex flex-wrap justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Annuler</Button>
