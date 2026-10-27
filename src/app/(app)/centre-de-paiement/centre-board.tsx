@@ -107,8 +107,9 @@ export function CentreBoard({
   orders, canDecide, titre, total, nonAffiches,
 }: { orders: CentreOrder[]; canDecide: boolean; titre: string; total: number; nonAffiches: number }) {
   // LA DÉCISION PASSE PAR `useAction` (audit 27/10/2026, FRONTEND-UX-01) : un appel qui LÈVE
-  // (connexion coupée, redéploiement) ou qui ne revient jamais laissait `busy` à vrai pour toujours —
-  // le bouton tournait et la feuille ne se fermait plus (`onClose` exige `!busy`). Le crochet attrape,
+  // (connexion coupée, redéploiement) remplaçait la page entière par l'écran d'erreur — motif perdu,
+  // sans savoir si la décision était partie ; un appel qui ne revient jamais laissait `busy` à vrai —
+  // bouton qui tourne, feuille impossible à fermer (`onClose` exige `!busy`). Le crochet attrape,
   // chronomètre, dit de vérifier avant de recommencer, et garde les gestes fermés jusqu'à l'arrivée
   // des nouvelles données (§118.172) : `busy` couvre aussi le rafraîchissement.
   const { busy, err, setErr, run } = useAction();

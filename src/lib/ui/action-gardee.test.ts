@@ -14,8 +14,13 @@ import { join, relative } from "node:path";
  *
  * Une action serveur LÈVE côté navigateur dans des cas ordinaires : connexion coupée (un délégué
  * en 4G), redéploiement Render pendant la saisie (« Failed to find Server Action »), erreur
- * Prisma non attrapée. `busy` reste alors vrai pour toujours : le bouton tourne, aucun message,
- * et — au centre de paiement — la feuille ne se ferme même plus (`onClose={() => !busy && …}`).
+ * Prisma non attrapée. Mesuré au navigateur (connexion coupée simulée) :
+ *   - appelée depuis un `onClick`, la levée laisse `busy` à vrai pour toujours — le bouton
+ *     tourne, aucun message (capture `docs/audit/2026-10-27/captures/action-onclick-bloquee.png`) ;
+ *   - appelée depuis un `<form action>`, elle remonte à la limite d'erreur : la page ENTIÈRE est
+ *     remplacée par « Cette page n'a pas pu s'afficher », la saisie est perdue
+ *     (`action-non-gardee-bloquee.png`).
+ * Une requête qui ne revient jamais, elle, fige `busy` dans les deux cas.
  *
  * L'audit a mesuré le patron dans 318 points d'appel. Deux règles :
  *   1. les écrans de décision corrigés par l'audit n'en portent plus — vérifié à leur fichier ;
