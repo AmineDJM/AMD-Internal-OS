@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { getMyCompanies, companyLabel } from "@/lib/company";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
-import { CreateRecordButton } from "@/components/shared/create-record-button";
+import { NouveauDocumentLegal } from "./nouveau-document-legal";
 import { toNumber } from "@/lib/utils";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
 import { effectiveStatus, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
@@ -220,10 +220,12 @@ export default async function LegalPage({ searchParams }: { searchParams?: { ech
             amont={composition.amont}
           />
         )}
+        {/* LA PIÈCE D'ABORD : le formulaire s'ouvre rempli de ce qu'elle dit (`nouveau-document-legal.tsx`). */}
         {canCreate && (
-          <CreateRecordButton
+          <NouveauDocumentLegal
+            facture={nature === "INVOICE" || facturesSeules}
             label={nature === "INVOICE" ? "Nouvelle facture" : "Nouveau document"}
-            title={nature === "INVOICE" ? "Enregistrer une facture" : "Déclarer un document légal"} width="lg"
+            title={nature === "INVOICE" ? "Enregistrer une facture" : "Déclarer un document légal"}
             description={nature === "INVOICE"
               ? "Une facture est un document légal de nature « facture » : elle se range avec les devis et les bons de commande dont elle découle. Renseigner la date de règlement suffit à la déclarer réglée."
               : "Un document peut n'avoir aucune date : laissez les dates vides, il ne se périmera jamais et ne déclenchera aucun rappel."}

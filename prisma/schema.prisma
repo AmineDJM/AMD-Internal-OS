@@ -15787,6 +15787,10 @@ model LecturePiece {
   /// Les lignes lues par le modèle, RELUES par `pieces-lues/structure.ts` — `null` tant qu'aucun modèle n'a lu.
   structure        Json?
   structureePar    String?
+  /// Ce que le modèle a lu d'un DOCUMENT LÉGAL (nature, titre, dates, résumé), RELU par `pieces-lues/synthese-legale.ts`
+  /// — `null` tant qu'aucun modèle ne l'a lu comme pièce Legal. Une fois par empreinte : la première fait foi.
+  syntheseLegale   Json?
+  synthesePar      String?
   /// Pourquoi il n'y a pas de lignes : DESACTIVEE, IA_COUPEE, NON_CONFIGUREE, CONFIDENTIELLE, OCR_ECHOUE, TEXTE_ILLISIBLE.
   raisonSansLignes String?
   creeParId        String?
