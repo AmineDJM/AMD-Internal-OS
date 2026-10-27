@@ -1,6 +1,7 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { persistActionIntents } from "@/lib/assistant/action-intents";
+import { getAppSettings } from "@/lib/settings";
 import { SPONSORING_CREATION } from "./adpro-sponsoring";
 import { PRISE_EN_CHARGE_CREATION } from "./adpro-prise-en-charge";
 import { EVENEMENT_CREATION } from "./adpro-evenement";
@@ -45,6 +46,19 @@ export interface PropositionCarte {
 }
 
 /**
+ * UNE CARTE PAR TOUR. L'écran (et le fil gardé) ne montre que LA carte du tour (`propositions[0]`) :
+ * une seconde intention, préparée dans le même tour (« relance Karim et prends rendez-vous avec le
+ * Dr X »), restait PROPOSÉE en base, invisible et jamais confirmable, pendant que le modèle disait
+ * « deux cartes sont affichées ». Le second geste est donc refusé AVANT d'être préparé, et le dit :
+ * il se préparera au tour suivant, une fois la première carte tranchée.
+ */
+export const REFUS_SECONDE_CARTE = JSON.stringify({
+  statut: "REFUS",
+  raison: "Une carte attend déjà la confirmation de l'utilisateur dans ce tour : une seule action se prépare à la fois.",
+  consigne: "Ne prépare rien d'autre maintenant. Résume la carte affichée, puis dis que l'autre demande sera préparée dès que celle-ci sera confirmée ou écartée.",
+});
+
+/**
  * Les opérations offertes à CETTE personne, en outils. Une opération que son rôle ne permet pas
  * n'est pas même offerte ; celle qui l'est revérifie tout à l'exécution (action métier).
  */
@@ -54,6 +68,7 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
     allowed: (u: CurrentUser) => u.id === user.id && o.ouverte(u),
     label: o.libelle,
     run: async (entree: Record<string, unknown>, u: CurrentUser) => {
+      if (propositions.length > 0) return REFUS_SECONDE_CARTE;
       const p = await o.proposer(entree ?? {}, u);
       if ("manque" in p) {
         return JSON.stringify({
@@ -86,10 +101,19 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
  * EXÉCUTER une intention de l'Assistant IA confirmée — appelé SEULEMENT par la confirmation de
  * l'Assistant IA (`confirmerIntentionAssistantIA`), sous la réclamation atomique de l'intention.
  */
+export const REFUS_ARRET_URGENCE =
+  "Les actions de l'assistant sont DÉSACTIVÉES (arrêt d'urgence, réglé par le Super Admin) : rien n'a été exécuté. Les lectures et analyses restent disponibles.";
+
 export async function executerOperationIA(user: CurrentUser, charge: unknown): Promise<ResultatOperation> {
   if (!estChargeOperationIA(charge)) return { ok: false, error: "Action inconnue." };
   const o = PAR_NOM.get(charge.op);
   if (!o) return { ok: false, error: "Cette action n'existe plus." };
+  // L'ARRÊT D'URGENCE (`aiExternalActionsDisabled`) vaut pour TOUTE action confirmée de l'IA, pas
+  // seulement celles d'Adam (`performAction`) : chaque opération de ce registre change une donnée
+  // métier ou prévient quelqu'un (demande, BC, message, rendez-vous, relance, dépôt, routine).
+  // Même lecture que `performAction` — un réglage illisible ne bloque pas plus qu'il ne bloque Adam.
+  const reglages = await getAppSettings().catch(() => null);
+  if (reglages?.aiExternalActionsDisabled) return { ok: false, error: REFUS_ARRET_URGENCE };
   if (!o.ouverte(user)) return { ok: false, error: "Vous n'avez plus le droit de faire ce geste." };
   try {
     return await o.executer(charge.args ?? {}, user);

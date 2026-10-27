@@ -4,7 +4,7 @@ import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { DELAI_MIMO_MS } from "@/lib/agent/modele";
 import { modelesEffectifs } from "@/lib/agent/generer";
-import { composantsEnBlocs, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
+import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
 /**
@@ -108,6 +108,7 @@ export async function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<Re
       } : null,
     };
   } catch (e) {
+    if (e instanceof IaCoupee) return { ok: false, error: e.message, message };
     console.error("[assistant] aucun modèle n'a répondu", e);
     return { ok: false, error: "L'assistant n'a pas pu répondre. Réessayez dans un instant.", message };
   }

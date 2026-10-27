@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
-import type { PropositionCarte } from "@/lib/agent/operations";
+import { REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -93,6 +93,7 @@ export function lecturesQuotidien(user: CurrentUser, propositions: PropositionCa
       run: async (entree) => {
         const reprendre = typeof entree.reprendre === "string" ? entree.reprendre.trim() : "";
         if (reprendre) {
+          if (propositions.length > 0) return REFUS_SECONDE_CARTE;
           const i = await prisma.assistantActionIntent.findFirst({
             where: { id: reprendre, userId: user.id, status: "PROPOSED" },
             select: { id: true, kind: true, title: true, summary: true, payload: true, level: true, confirmText: true },

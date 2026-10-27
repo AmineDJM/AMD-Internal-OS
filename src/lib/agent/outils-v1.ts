@@ -9,7 +9,7 @@ import { defaultDefinition } from "@/lib/workflow/defaults";
 import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
 import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "@/lib/agent/memoire-ui";
-import { outilsOperations, type PropositionCarte } from "@/lib/agent/operations";
+import { outilsOperations, REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
 import { lecturesQuotidien } from "@/lib/agent/lectures";
 import { lecturesDocuments } from "@/lib/agent/operations/documents-lus";
 import { lectureFormulaire } from "@/lib/agent/operations/formulaire-pdf";
@@ -168,6 +168,7 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
       allowed: (u) => u.id === user.id,
       label: LIBELLES[nom] ?? def.name,
       run: async (entree, u) => {
+        if (propositions.length > 0) return REFUS_SECONDE_CARTE;
         const p = await buildProposal(nom, entree, u);
         if ("error" in p) return JSON.stringify({ statut: "REFUS", raison: p.error });
         const [intentId] = await persistActionIntents(u.id, [p], "text");
