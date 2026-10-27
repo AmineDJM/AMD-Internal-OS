@@ -13,6 +13,12 @@ describe("lireReponseModele — l'enveloppe { message, components }, lue avec in
     expect(lireReponseModele('Voici : {"message":"B"}').message).toBe("B");
   });
 
+  it("plusieurs objets collés (une étape chacun) : seul le DERNIER est la réponse (mesuré)", () => {
+    const colle = '{"message":"Quels médecins ?","components":[]}{"message":"Quels produits ?","components":[]}{"message":"Lesquels, précisément ?","components":[]}';
+    expect(lireReponseModele(colle).message).toBe("Lesquels, précisément ?");
+    expect(lireReponseModele('{"message":"a {b} \\" c"}').message).toBe('a {b} " c');
+  });
+
   it("un texte libre reste un message — on ne jette jamais une réponse", () => {
     expect(lireReponseModele("Il est 15 h.")).toEqual({ message: "Il est 15 h.", composants: [] });
     expect(lireReponseModele('{"pas":"de message"}').message).toBe('{"pas":"de message"}');

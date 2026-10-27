@@ -9,10 +9,14 @@ export interface ActionIntentCardProps {
   title: string;
   summary?: string;
   fields?: { label: string; value: string }[];
+  /** Ce que la personne doit savoir AVANT de confirmer (doublon, seuil, pièce, budget). */
+  warnings?: string[];
+  /** CRITIQUE : la valeur à ressaisir pour armer le bouton (le serveur la revérifie). */
+  confirmText?: string;
   initialStatus?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
   resultLink?: string;
   resultMessage?: string;
-  onConfirm: (intentId: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
+  onConfirm: (intentId: string, confirmTyped?: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
 }
 
 export function ActionConfirmationCard({
@@ -21,6 +25,8 @@ export function ActionConfirmationCard({
   title,
   summary,
   fields = [],
+  warnings = [],
+  confirmText,
   initialStatus = "PROPOSED",
   resultLink,
   resultMessage,
@@ -31,12 +37,14 @@ export function ActionConfirmationCard({
   const [message, setMessage] = useState(resultMessage || "");
   const [link, setLink] = useState(resultLink || "");
   const [error, setError] = useState<string | null>(null);
+  const [ressaisie, setRessaisie] = useState("");
+  const arme = !confirmText || ressaisie.trim().toLowerCase() === confirmText.trim().toLowerCase();
 
   const handleConfirm = async () => {
     setIsPending(true);
     setError(null);
     try {
-      const res = await onConfirm(intentId);
+      const res = await onConfirm(intentId, confirmText ? ressaisie : undefined);
       if (res.ok) {
         setStatus("EXECUTED");
         setMessage(res.message || "Action exécutée avec succès.");
@@ -44,8 +52,8 @@ export function ActionConfirmationCard({
       } else {
         setError(res.error || "Impossible d'exécuter l'action.");
       }
-    } catch (e: any) {
-      setError(e.message || "Erreur de communication.");
+    } catch {
+      setError("La connexion a été interrompue. Réessayez dans un instant.");
     } finally {
       setIsPending(false);
     }
@@ -71,7 +79,7 @@ export function ActionConfirmationCard({
           </span>
         </div>
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-          {kind === "create_task" ? "Tâche" : kind === "send_message" ? "Message Interne" : kind}
+          {kind === "create_task" ? "Tâche" : kind === "send_message" ? "Message interne" : "À confirmer"}
         </span>
       </div>
 
@@ -95,6 +103,25 @@ export function ActionConfirmationCard({
         </div>
       )}
 
+      {/* À SAVOIR AVANT DE CONFIRMER — doublon possible, seuil, pièce, budget. */}
+      {warnings.length > 0 && status === "PROPOSED" && (
+        <ul className="mt-3 space-y-1.5 rounded-xl border border-amber-200 bg-amber-50/80 p-2.5 text-xs text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          {warnings.map((w, i) => <li key={i} className="flex gap-1.5"><span aria-hidden>•</span><span className="[overflow-wrap:anywhere]">{w}</span></li>)}
+        </ul>
+      )}
+
+      {/* CONFIRMATION FORTE : la valeur se ressaisit, le serveur la revérifie. */}
+      {confirmText && status === "PROPOSED" && (
+        <label className="mt-3 block text-xs text-zinc-700 dark:text-zinc-300">
+          Pour confirmer, ressaisissez <strong>{confirmText}</strong>
+          <input
+            value={ressaisie}
+            onChange={(e) => setRessaisie(e.target.value)}
+            className="mt-1 h-10 w-full rounded-lg border border-zinc-300 bg-white px-2 text-base sm:text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          />
+        </label>
+      )}
+
       {/* Message d'erreur s'il y a lieu */}
       {error && (
         <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-xs font-medium text-destructive">
@@ -110,15 +137,15 @@ export function ActionConfirmationCard({
               type="button"
               onClick={handleCancel}
               disabled={isPending}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-zinc-200/80 bg-white/50 px-3 text-xs font-medium text-zinc-600 hover:bg-zinc-100/60 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300"
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-zinc-200/80 bg-white/50 px-3 text-xs font-medium text-zinc-600 hover:bg-zinc-100/60 dark:border-zinc-700 dark:bg-zinc-800/50 dark:text-zinc-300"
             >
               <X className="h-3.5 w-3.5" /> Ignorer
             </button>
             <button
               type="button"
               onClick={handleConfirm}
-              disabled={isPending}
-              className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50"
+              disabled={isPending || !arme}
+              className="inline-flex h-10 items-center gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50"
             >
               {isPending ? (
                 <>
@@ -126,7 +153,7 @@ export function ActionConfirmationCard({
                 </>
               ) : (
                 <>
-                  <Check className="h-3.5 w-3.5" /> Confirmer & Exécuter
+                  <Check className="h-3.5 w-3.5" /> Confirmer
                 </>
               )}
             </button>

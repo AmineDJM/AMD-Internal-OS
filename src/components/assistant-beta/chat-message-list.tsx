@@ -5,6 +5,7 @@ import { User, Loader2, Wrench } from "lucide-react";
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
+import { PiecesDuMessage } from "./pieces-jointes";
 import type { MemoireProposee } from "@/lib/agent/memoire-ui";
 import { WorkspaceBlocks } from "@/components/chief/workspace/blocks";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
@@ -15,6 +16,8 @@ export interface ChatMessage {
   content: string;
   /** L'UI générative (R5) : composants prouvés par les outils du tour, dessinés par `WorkspaceBlocks`. */
   blocs?: WorkspaceBlock[];
+  /** Les pièces jointes d'un message de la personne (dans son Drive). */
+  pieces?: { id: string; nom: string }[];
   /** Une mémoire PROPOSÉE par l'assistant — retenue seulement au geste de la personne. */
   memoireProposee?: MemoireProposee | null;
   outilsAppeles?: string[];
@@ -24,6 +27,8 @@ export interface ChatMessage {
     title: string;
     summary?: string;
     fields?: { label: string; value: string }[];
+    warnings?: string[];
+    confirmText?: string;
     status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
     resultLink?: string;
     resultMessage?: string;
@@ -34,7 +39,7 @@ export interface ChatMessage {
 export interface ChatMessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
-  onConfirmIntent: (intentId: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
+  onConfirmIntent: (intentId: string, confirmTyped?: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
 }
 
 export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMessageListProps) {
@@ -65,8 +70,13 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
         if (isUser) {
           return (
             <div key={m.id} className="flex items-start justify-end gap-3">
-              <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tr-md bg-slate-900 px-3.5 py-2.5 text-[15px] leading-relaxed text-white shadow-xs [overflow-wrap:anywhere] sm:max-w-[75%] sm:text-[14px] dark:bg-zinc-100 dark:text-zinc-900">
-                {m.content}
+              <div className="flex max-w-[85%] flex-col items-end gap-1.5 sm:max-w-[75%]">
+                {m.content && (
+                  <div className="whitespace-pre-wrap rounded-2xl rounded-tr-md bg-slate-900 px-3.5 py-2.5 text-[15px] leading-relaxed text-white shadow-xs [overflow-wrap:anywhere] sm:text-[14px] dark:bg-zinc-100 dark:text-zinc-900">
+                    {m.content}
+                  </div>
+                )}
+                {m.pieces && m.pieces.length > 0 && <PiecesDuMessage pieces={m.pieces} />}
               </div>
               <div className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-2xs sm:flex dark:bg-zinc-100 dark:text-zinc-900">
                 <User className="h-3.5 w-3.5" />
@@ -111,6 +121,8 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                       title={m.intent.title}
                       summary={m.intent.summary}
                       fields={m.intent.fields}
+                      warnings={m.intent.warnings}
+                      confirmText={m.intent.confirmText}
                       initialStatus={m.intent.status}
                       resultLink={m.intent.resultLink}
                       resultMessage={m.intent.resultMessage}

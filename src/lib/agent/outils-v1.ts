@@ -2,13 +2,14 @@ import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { DIRECTORY_TOOLS } from "@/lib/assistant/directory-tools";
 import { REGULATORY_READ_TOOLS } from "@/lib/assistant/regulatory-read";
-import { assistantToolsFor, buildProposal, executeReadTool, type ProposedAction } from "@/lib/assistant";
+import { assistantToolsFor, buildProposal, executeReadTool } from "@/lib/assistant";
 import { persistActionIntents } from "@/lib/assistant/action-intents";
 import { censurerObjet, censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { defaultDefinition } from "@/lib/workflow/defaults";
 import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
 import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "@/lib/agent/memoire-ui";
+import { outilsOperations, type PropositionCarte } from "@/lib/agent/operations";
 
 /**
  * LES OUTILS DE LA V1 — tous EXISTANTS, aucun réécrit (Q7, Q20).
@@ -93,10 +94,8 @@ export function circuitLisible(sortie: string): string {
 
 export type { MemoireProposee } from "@/lib/agent/memoire-ui";
 
-export interface PropositionPreparee {
-  intentId: string;
-  proposition: ProposedAction;
-}
+/** Une carte de confirmation préparée pendant le tour (écriture V1 ou opération de l'Assistant IA). */
+export type PropositionPreparee = PropositionCarte;
 
 /**
  * Les outils de CET utilisateur, pour CE tour. `propositions` recueille les intentions créées
@@ -168,7 +167,7 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
         if ("error" in p) return JSON.stringify({ statut: "REFUS", raison: p.error });
         const [intentId] = await persistActionIntents(u.id, [p], "text");
         if (!intentId) return JSON.stringify({ statut: "ECHEC", raison: "La proposition n'a pas pu être enregistrée." });
-        propositions.push({ intentId, proposition: { ...p, intentId } });
+        propositions.push({ intentId, proposition: p });
         return JSON.stringify({
           statut: "EN_ATTENTE_DE_CONFIRMATION",
           titre: p.title,
@@ -179,5 +178,6 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
     }];
   });
 
-  return [...lecturesPower, ...lecturesMoteur, ...ecritures, outilMemoire(user, memoires)].map((o) => filtre(o, journal));
+  return [...lecturesPower, ...lecturesMoteur, ...ecritures, ...outilsOperations(user, propositions), outilMemoire(user, memoires)]
+    .map((o) => filtre(o, journal));
 }

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { censurerSortie, circuitLisible, outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { OPERATIONS_IA } from "@/lib/agent/operations";
 
 /**
  * LES OUTILS V1 SUR LA VRAIE BASE DE TEST (Q17) — sans Prisma simulé.
@@ -36,10 +37,13 @@ const outil = (nom: string, props: PropositionPreparee[]) => {
 describe("outils V1", () => {
   it("offre au Super Admin les lectures et les deux écritures de la V1, rien d'autre", () => {
     const noms = outilsV1(auteur, []).map((o) => o.def.name).sort();
+    // Les lectures et écritures V1, la mémoire proposée, et les opérations de l'Assistant IA (le
+    // Super Admin les a toutes ; chacune revérifie à l'exécution par l'action de l'écran).
     expect(noms).toEqual([
       "create_task", "directory_list", "directory_lookup", "list_my_tasks", "proposer_memoire", "read_workflow",
       "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload", "search_products", "send_message",
-    ]);
+      ...OPERATIONS_IA.map((o) => o.nom),
+    ].sort());
   });
 
   it("send_message prépare une intention SANS envoyer, destinataire résolu par son nom", async () => {

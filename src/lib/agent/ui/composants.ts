@@ -52,9 +52,32 @@ export interface ReponseLue {
  * ```json, ou précédé d'une phrase) donne `message` + `components` ; tout le reste est lu comme
  * un simple message. On ne jette jamais une réponse parce que son enveloppe est imparfaite.
  */
+/**
+ * Les objets JSON de PREMIER NIVEAU d'un texte, dans l'ordre (chaînes et échappements respectés).
+ * Mesuré : le moteur concatène le texte de chaque étape d'un tour — trois `{"message":…}` collés,
+ * dont seul le DERNIER est la réponse ; les premiers sont des brouillons d'étapes intermédiaires.
+ */
+function objetsDePremierNiveau(t: string): string[] {
+  const out: string[] = [];
+  let prof = 0, debut = -1, chaine = false, echappe = false;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (chaine) {
+      if (echappe) echappe = false;
+      else if (c === "\\") echappe = true;
+      else if (c === '"') chaine = false;
+      continue;
+    }
+    if (c === '"') chaine = true;
+    else if (c === "{") { if (prof === 0) debut = i; prof++; }
+    else if (c === "}" && prof > 0) { prof--; if (prof === 0 && debut >= 0) { out.push(t.slice(debut, i + 1)); debut = -1; } }
+  }
+  return out;
+}
+
 export function lireReponseModele(texte: string): ReponseLue {
   const brut = (texte ?? "").trim();
-  const candidats = [brut];
+  const candidats = [...objetsDePremierNiveau(brut).reverse(), brut];
   const cloture = brut.match(/```(?:json)?\s*([\s\S]*?)```/);
   if (cloture?.[1]) candidats.push(cloture[1].trim());
   const debut = brut.indexOf("{");

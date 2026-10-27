@@ -7,7 +7,7 @@ import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { DELAI_MIMO_MS, modelesAssistant } from "@/lib/agent/modele";
-import { composantsEnBlocs, lireReponseModele, repondreAvecSecours } from "@/lib/agent/repondre";
+import { composantsEnBlocs, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
 export interface ReponseBetaAction {
@@ -25,6 +25,10 @@ export interface ReponseBetaAction {
     kind: string;
     title: string;
     summary?: string;
+    /** Ce que la personne doit savoir AVANT de confirmer (doublon, seuil, pièce, budget). */
+    warnings?: string[];
+    /** CRITIQUE : la valeur à ressaisir pour armer la confirmation (vérifiée par le serveur). */
+    confirmText?: string;
     fields?: { label: string; value: string }[];
     status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
     resultLink?: string;
@@ -66,10 +70,10 @@ function historiqueSur(historique: unknown): Tour[] {
  * qui s'exécute est STOCKÉ sur l'intention de CE compte. `confirmerIntentionAssistantIA` garde
  * l'idempotence, la confirmation forte et revérifie le droit au moment de l'exécution (Q14).
  */
-export async function confirmerActionBeta(intentId: string) {
+export async function confirmerActionBeta(intentId: string, confirmTyped?: string) {
   const user = await exigerAccesAssistant();
   if (!user) return { ok: false as const, error: REFUS };
-  return confirmerIntentionAssistantIA(intentId);
+  return confirmerIntentionAssistantIA(intentId, confirmTyped);
 }
 
 /** Un message à l'assistant : moteur Mastra, MiMo d'abord, secours du registre (R4). */
@@ -77,14 +81,20 @@ export async function envoyerMessageBeta(
   userPrompt: string,
   _moduleFilter?: string,
   historique: { role: string; content: string }[] = [],
+  piecesJointes: { id: string; nom?: string }[] = [],
 ): Promise<ReponseBetaAction> {
   const messageId = `msg-${Date.now()}`;
   const echec = (error: string): ReponseBetaAction => ({ ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error });
 
   const user = await exigerAccesAssistant();
   if (!user) return echec(REFUS);
-  const message = (userPrompt ?? "").trim();
-  if (!message) return echec("Message vide.");
+  // LES PIÈCES DU MESSAGE : revérifiées, puis dites par leur nom et leur identifiant — jamais lues ici.
+  const pieces = await piecesDuMessage(user, piecesJointes);
+  const texteSaisi = (userPrompt ?? "").trim();
+  if (!texteSaisi && !pieces.length) return echec("Message vide.");
+  const message = pieces.length
+    ? `${texteSaisi || "(pièces jointes sans texte)"}\n\n[Pièces jointes à ce message — à joindre aux demandes par leur identifiant : ${pieces.map((p) => `« ${p.nom} » (identifiant ${p.id})`).join(" ; ")}]`
+    : texteSaisi;
 
   const modeles = modelesAssistant();
   if (modeles.length === 0) return echec("L'IA n'est pas configurée sur ce serveur.");
@@ -125,7 +135,12 @@ export async function envoyerMessageBeta(
       memoireProposee: memoires[0] ?? null,
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))],
-      intent: p ? { id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields, status: "PROPOSED" } : null,
+      intent: p ? {
+        id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields,
+        ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
+        ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
+        status: "PROPOSED",
+      } : null,
     };
   } catch (e) {
     console.error("[assistant] aucun modèle n'a répondu", e);

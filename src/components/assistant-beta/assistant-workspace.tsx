@@ -6,6 +6,7 @@ import { LuminescentCursor } from "./luminescent-cursor";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
+import { BoutonJoindre, PiecesEnAttente, televerser, type PieceJointe } from "./pieces-jointes";
 import { Brain } from "lucide-react";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
@@ -19,7 +20,7 @@ export interface AssistantWorkspaceProps {
 /** L'accueil, au prénom de la personne : l'assistant travaille pour ELLE, avec SES droits. */
 function accueil(userName?: string): string {
   const prenom = (userName ?? "").trim().split(/\s+/)[0];
-  return `Bonjour${prenom ? ` ${prenom}` : ""} 👋\n\nJe suis votre assistant interne. Je lis ce que vos accès vous permettent de voir, et je prépare tâches et messages — rien ne part sans votre confirmation.\n\nComment puis-je vous aider ?`;
+  return `Bonjour${prenom ? ` ${prenom}` : ""} 👋\n\nJe suis votre assistant interne. Je lis ce que vos accès vous permettent de voir, et je prépare vos demandes (sponsoring, prise en charge, événement, matériel promotionnel…), tâches et messages — rien ne part sans votre confirmation.\n\nComment puis-je vous aider ?`;
 }
 
 export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
@@ -32,25 +33,46 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   ]);
   const [isLoading, setIsLoading] = useState(false);
   const [memoireOuverte, setMemoireOuverte] = useState(false);
+  const [pieces, setPieces] = useState<PieceJointe[]>([]);
+  const envoiEnCours = pieces.some((p) => p.etat === "envoi");
+
+  /** Chaque fichier part dans le Drive de la personne ; seul son identifiant revient. */
+  const joindre = (fichiers: File[]) => {
+    for (const f of fichiers) {
+      const cle = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      setPieces((prev) => [...prev, { cle, nom: f.name, etat: "envoi" }]);
+      void televerser(f).then((r) => setPieces((prev) => prev.map((p) => (p.cle !== cle ? p
+        : "id" in r ? { ...p, id: r.id, etat: "prete" } : { ...p, etat: "erreur", erreur: r.erreur }))));
+    }
+  };
+
+  /** Le texte vu par le modèle aux tours suivants porte les identifiants des pièces (revérifiés côté serveur). */
+  const pourHistorique = (m: ChatMessage) => (m.pieces?.length
+    ? `${m.content}\n[Pièces jointes : ${m.pieces.map((p) => `« ${p.nom} » (identifiant ${p.id})`).join(" ; ")}]`
+    : m.content);
 
   const handleSendMessage = async (text: string) => {
+    const pretes = pieces.filter((p): p is PieceJointe & { id: string } => p.etat === "prete" && !!p.id);
+    if (!text.trim() && !pretes.length) return;
     const userMsg: ChatMessage = {
       id: `usr-${Date.now()}`,
       role: "user",
       content: text,
+      pieces: pretes.map((p) => ({ id: p.id, nom: p.nom })),
       createdAt: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, userMsg]);
+    setPieces([]);
     setIsLoading(true);
 
     try {
       const historiqueFormat = messages.map((m) => ({
         role: m.role,
-        content: m.content,
+        content: pourHistorique(m),
       }));
 
-      const res = await envoyerMessageBeta(text, undefined, historiqueFormat);
+      const res = await envoyerMessageBeta(text, undefined, historiqueFormat, pretes.map((p) => ({ id: p.id, nom: p.nom })));
 
       if (res.ok) {
         const assistantMsg: ChatMessage = {
@@ -84,8 +106,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     }
   };
 
-  const handleConfirmIntent = async (intentId: string) => {
-    return confirmerActionBeta(intentId);
+  const handleConfirmIntent = async (intentId: string, confirmTyped?: string) => {
+    return confirmerActionBeta(intentId, confirmTyped);
   };
 
   const handleReset = () => {
@@ -136,8 +158,13 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               onSendMessage={handleSendMessage}
               onReset={handleReset}
               isLoading={isLoading}
-              showSuggestions={messages.length <= 1}
+              showSuggestions={messages.length <= 1 && !pieces.length}
+              canSendEmpty={pieces.some((p) => p.etat === "prete")}
+              sendBlocked={envoiEnCours}
+              above={<PiecesEnAttente pieces={pieces} onRetirer={(cle) => setPieces((prev) => prev.filter((p) => p.cle !== cle))} />}
               leading={
+                <>
+                <BoutonJoindre onFichiers={joindre} desactive={isLoading} />
                 <button
                   type="button"
                   onClick={() => setMemoireOuverte(true)}
@@ -147,6 +174,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
                 >
                   <Brain className="h-4 w-4" />
                 </button>
+                </>
               }
             />
           </div>

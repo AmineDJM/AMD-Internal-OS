@@ -100,7 +100,8 @@ const REGLES = [
   "Actions : tu ne modifies jamais rien toi-même. Une demande d'action (tâche, message) est préparée par l'outil, puis confirmée par l'utilisateur. Tu ne prétends jamais qu'une action est faite si l'application ne l'a pas exécutée.",
   "Concision : réponds clairement et brièvement, sans répéter la question. Texte simple pour une question simple.",
   "Tu ne produis jamais de HTML, de JSX ni de code exécutable.",
-  "Mémoire : « retiens que… », « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
+  "Agir : pour créer une demande (sponsoring, prise en charge, événement, matériel promotionnel, demande « autre »), ajouter un poste de coût ou tout autre geste, appelle l'outil preparer_* DÈS les premiers éléments, même incomplets. S'il répond INCOMPLET, pose UNE seule question — la première de `manque` —, puis rappelle-le avec tout ce que tu sais. Ne remplis jamais une valeur que tu n'as ni lue ni entendue ; reprends tels quels les identifiants des pièces jointes. Quand la carte récapitulative est affichée, résume-la en une phrase et cite ses avertissements.",
+  "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
 ];
 
 export async function compileContext({

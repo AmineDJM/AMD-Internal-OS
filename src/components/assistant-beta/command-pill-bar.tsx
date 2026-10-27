@@ -15,6 +15,8 @@ export interface CommandPillBarProps {
   above?: React.ReactNode;
   /** Envoi possible sans texte (une pièce jointe seule). */
   canSendEmpty?: boolean;
+  /** Envoi suspendu (une pièce jointe est encore en cours d'envoi) — le champ reste utilisable. */
+  sendBlocked?: boolean;
 }
 
 /**
@@ -32,7 +34,7 @@ const SUGGESTIONS = [
   "Prépare une tâche pour demain",
 ];
 
-export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggestions = false, leading, above, canSendEmpty = false }: CommandPillBarProps) {
+export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggestions = false, leading, above, canSendEmpty = false, sendBlocked = false }: CommandPillBarProps) {
   const [input, setInput] = useState("");
   const zone = useRef<HTMLTextAreaElement>(null);
 
@@ -46,7 +48,7 @@ export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggesti
 
   const envoyer = () => {
     const texte = input.trim();
-    if (isLoading || (!texte && !canSendEmpty)) return;
+    if (isLoading || sendBlocked || (!texte && !canSendEmpty)) return;
     onSendMessage(texte);
     setInput("");
   };
@@ -109,7 +111,7 @@ export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggesti
           )}
           <button
             type="submit"
-            disabled={isLoading || (!input.trim() && !canSendEmpty)}
+            disabled={isLoading || sendBlocked || (!input.trim() && !canSendEmpty)}
             aria-label="Envoyer"
             className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-2xs transition hover:bg-slate-800 disabled:opacity-30 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
           >

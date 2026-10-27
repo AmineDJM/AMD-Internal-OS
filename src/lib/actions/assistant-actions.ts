@@ -36,6 +36,8 @@ import { consignerProvenance } from "@/platform/in-process/fabric/provenance";
 import { composeWorkspace } from "@/lib/assistant/workspace/compose";
 import { directIntent, intentArgs, intentPhrase } from "@/lib/assistant/workspace/direct-intents";
 import type { WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
+import { executerOperationIA } from "@/lib/agent/operations";
+import { estChargeOperationIA } from "@/lib/agent/operations/types";
 
 const MAX_ATTACHMENTS = 6;
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 Mo par pièce jointe
@@ -277,7 +279,10 @@ export async function assistantNudge(prevSignature: string): Promise<NudgeResult
  * la proposition (le serveur est l'autorité, pas le client). `null` : intent introuvable,
  * ou pas à ce compte. Partagé par Adam et par l'Assistant IA ; chacun garde SA porte avant.
  */
-async function executerIntention(user: CurrentUser, intentId: string, confirmTyped?: string): Promise<ExecuteResult | null> {
+async function executerIntention(
+  user: CurrentUser, intentId: string, confirmTyped?: string,
+  executeur: (stored: unknown) => Promise<ExecuteResult & { revalidate?: string[] }> = (stored) => performAction(user, stored as AssistantActionPayload),
+): Promise<ExecuteResult | null> {
   // CONFIRMATION FORTE — vérifiée PAR LE SERVEUR : pour une action CRITIQUE, la valeur
   // ressaisie doit correspondre au confirmText STOCKÉ à la proposition. La carte arme son
   // bouton avec la même règle, mais l'autorité est ICI : appeler cette action serveur
@@ -296,7 +301,7 @@ async function executerIntention(user: CurrentUser, intentId: string, confirmTyp
     }
   }
   const guarded = await executeIntentGuarded(user, intentId, async (stored) => {
-    const r = await performAction(user, stored as AssistantActionPayload);
+    const r = await executeur(stored);
     if (r.ok && r.revalidate) for (const path of r.revalidate) revalidatePath(path);
     return r;
   });
@@ -313,7 +318,10 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
     const user = await requireUser();
     if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
     if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
-    return (await executerIntention(user, intentId, confirmTyped)) ?? { ok: false, error: "Action introuvable." };
+    // Les opérations de l'Assistant IA s'exécutent par SON registre ; les écritures V1 partagées
+    // (tâche, message) par `performAction`. Jamais l'inverse : Adam n'exécute pas un geste de l'IA.
+    const executeur = (stored: unknown) => (estChargeOperationIA(stored) ? executerOperationIA(user, stored) : performAction(user, stored as AssistantActionPayload));
+    return (await executerIntention(user, intentId, confirmTyped, executeur)) ?? { ok: false, error: "Action introuvable." };
   } catch (err) {
     console.error("[assistant] confirmerIntentionAssistantIA failed", err);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
