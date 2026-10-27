@@ -1,6 +1,7 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { persistActionIntents } from "@/lib/assistant/action-intents";
+import { getAppSettings } from "@/lib/settings";
 import { SPONSORING_CREATION } from "./adpro-sponsoring";
 import { PRISE_EN_CHARGE_CREATION } from "./adpro-prise-en-charge";
 import { EVENEMENT_CREATION } from "./adpro-evenement";
@@ -86,10 +87,19 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
  * EXÉCUTER une intention de l'Assistant IA confirmée — appelé SEULEMENT par la confirmation de
  * l'Assistant IA (`confirmerIntentionAssistantIA`), sous la réclamation atomique de l'intention.
  */
+export const REFUS_ARRET_URGENCE =
+  "Les actions de l'assistant sont DÉSACTIVÉES (arrêt d'urgence, réglé par le Super Admin) : rien n'a été exécuté. Les lectures et analyses restent disponibles.";
+
 export async function executerOperationIA(user: CurrentUser, charge: unknown): Promise<ResultatOperation> {
   if (!estChargeOperationIA(charge)) return { ok: false, error: "Action inconnue." };
   const o = PAR_NOM.get(charge.op);
   if (!o) return { ok: false, error: "Cette action n'existe plus." };
+  // L'ARRÊT D'URGENCE (`aiExternalActionsDisabled`) vaut pour TOUTE action confirmée de l'IA, pas
+  // seulement celles d'Adam (`performAction`) : chaque opération de ce registre change une donnée
+  // métier ou prévient quelqu'un (demande, BC, message, rendez-vous, relance, dépôt, routine).
+  // Même lecture que `performAction` — un réglage illisible ne bloque pas plus qu'il ne bloque Adam.
+  const reglages = await getAppSettings().catch(() => null);
+  if (reglages?.aiExternalActionsDisabled) return { ok: false, error: REFUS_ARRET_URGENCE };
   if (!o.ouverte(user)) return { ok: false, error: "Vous n'avez plus le droit de faire ce geste." };
   try {
     return await o.executer(charge.args ?? {}, user);
