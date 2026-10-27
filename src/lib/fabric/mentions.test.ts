@@ -236,7 +236,7 @@ suite("fabric/mentions — entités canoniques & liens persistés", () => {
    */
   it("SABOTAGE — balayerMentions est appelé par le battement (scheduled.ts), pas seulement par ses tests", () => {
     const src = readFileSync("src/lib/scheduled.ts", "utf8");
-    expect(src).toMatch(/balayerMentions\(\)/);
+    expect(src).toMatch(/etape\("balayerMentions", balayerMentions\)/);
     expect(src).toContain('from "@/lib/fabric"');
   });
 });
