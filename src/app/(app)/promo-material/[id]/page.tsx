@@ -73,6 +73,9 @@ import { libelleArticleStock } from "@/lib/promo/stock";
 import { BackLink } from "@/components/shared/back-link";
 import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
 import { etatDeLOrdre, LIBELLE_ETAT_REGLEMENT } from "@/lib/payments/reglement";
+import { BudgetPromoCard } from "./budget-promo";
+import { peutImputerMaterielPromo } from "@/lib/promo-material/budget";
+import { getBudgetCategoryOptions } from "@/lib/queries/budget";
 
 export const dynamic = "force-dynamic";
 
@@ -428,6 +431,15 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
   // ═══════════════════════ CIRCUIT 2 — LA FICHE DE LA MAQUETTE VALIDÉE (Direction, 10/2026) ═══════════════════════
   if (v2 && circuitState) {
     const bu = pm.businessUnitId ? await prisma.businessUnit.findUnique({ where: { id: pm.businessUnitId }, select: { name: true } }) : null;
+    // LE BUDGET DU DOSSIER (point 21) : la Direction Marketing l'impute, les autres le lisent.
+    const peutImputer = peutImputerMaterielPromo(user) && pm.status !== "CANCELLED" && circuitState !== "REFUSED";
+    const [budgetActuel, optionsBudget] = await Promise.all([
+      pm.budgetCategoryId
+        ? prisma.budgetCategoryLine.findUnique({ where: { id: pm.budgetCategoryId }, select: { name: true, parent: { select: { name: true } }, envelope: { select: { name: true } } } })
+        : Promise.resolve(null),
+      peutImputer ? getBudgetCategoryOptions("PROMO_MATERIAL", user) : Promise.resolve(null),
+    ]);
+    const libelleBudget = budgetActuel ? `${budgetActuel.envelope.name} › ${budgetActuel.parent ? `${budgetActuel.parent.name} › ` : ""}${budgetActuel.name}` : null;
     const dateCourte = (d: Date) => d.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
     const bcs: BcFaits[] = retenues.map((e) => ({
       quoteId: e.quoteId, fournisseur: e.fournisseur, reference: e.bc?.reference ?? null,
@@ -514,6 +526,11 @@ export default async function PromoMaterialDetailPage({ params }: { params: { id
           manques={canTranscribe ? manquesDeRetranscription(devis) : []}
           chantiersOuverts={PROMO_TRACKS.filter((t) => !tracksDone.includes(t))}
         />
+
+        {(libelleBudget || peutImputer) && (
+          <BudgetPromoCard promoMaterialId={pm.id} actuelle={libelleBudget} peutImputer={peutImputer}
+            options={optionsBudget ? optionsBudget.map((o) => ({ id: o.id, label: o.label })) : null} />
+        )}
 
         {/* LES ARTICLES DEMANDÉS — le fil conducteur : prestations couvertes ou non, fournisseur et coût retenus. */}
         <PromoArticlesCard

@@ -14,6 +14,7 @@ import { rattacherPieceAuPoste } from "@/lib/ad-pro/pieces-poste";
 import { CHEMIN_PARENT_AD_PRO } from "@/lib/chemins/ad-pro";
 import { DOMAINES } from "@/lib/budget/domaines";
 import { depensesDesPostes } from "@/lib/queries/budget-sources";
+import { refusCategoriePourLaDemande } from "@/lib/ad-pro/categorie-budgetaire-serveur";
 import {
   MOTIF_MAX, refusAnnulation, refusConsommation, refusImputation, type GesteImputation,
 } from "@/lib/budget/depense-poste";
@@ -139,6 +140,9 @@ async function imputation(formData: FormData, geste: GesteImputation): Promise<A
     actuelleId: poste.budgetCategoryId,
   });
   if (refus || !cible) return { ok: false, error: refus ?? "Catégorie introuvable." };
+  // La catégorie convient à la demande du poste : sa nature, son exercice, sa Business Unit (point 9, 27/10).
+  const refusCat = await refusCategoriePourLaDemande(cible.id, owner.parent, owner.id);
+  if (refusCat) return { ok: false, error: refusCat };
 
   const maintenant = new Date();
   const ordres = lue.ordres.filter((o) => o.statut !== "CANCELLED");

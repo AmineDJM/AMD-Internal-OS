@@ -6,6 +6,8 @@ import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { STATUTS_ORDRE_ENGAGES, dateDeLaDepense, ordreEngage } from "@/lib/budget/engage";
 import { depenseDuPoste, ordreEnCircuit, type DepensePoste, type FaitsDepensePoste } from "@/lib/budget/depense-poste";
 import { contextesDesCategories, jugerEngagements } from "@/lib/queries/budget-integration";
+import { depensesDesDossiersPromo } from "@/lib/queries/promo-budget";
+import { ordreEnCircuitPromo } from "@/lib/promo-material/budget";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -16,6 +18,8 @@ import { contextesDesCategories, jugerEngagements } from "@/lib/queries/budget-i
  *   • chaque poste Ad & Pro ACCORDÉ rangé dans la catégorie, selon l'état de SA DÉPENSE (`depenseDuPoste`, Direction
  *     10/2026) : engagé = la somme de ses BC signés une fois la Direction Marketing l'a IMPUTÉ ; consommé en circuit =
  *     ses ordres émis non réglés ; rien tant qu'il est « à imputer », rien une fois annulé ;
+ *   • chaque dossier de MATÉRIEL PROMOTIONNEL imputé par la Direction Marketing (point 21, 27/10) : ses BC signés en
+ *     engagé (moins ce que ses ordres paient déjà), ses ordres fournisseur non réglés en circuit (`promo-material/budget.ts`) ;
  *   • chaque ORDRE DE DÉPENSE émis non réglé qui n'appartient à aucun poste : sa catégorie posée, sinon celle où son
  *     règlement l'imputera (l'attribution automatique du règlement, `auto-category.ts`) ;
  * les remises de caisse d'avance et les virements de paie, qui ne sont pas des dépenses d'une enveloppe, en sont exclus.
@@ -188,6 +192,25 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
       if (ordreEnCircuit(o.statut)) ajouter({ categoryId: cat, montant: o.montant, posteId: p.id, sourceType: null, sourceId: null, nature: "EN_CIRCUIT", ordreId: o.id });
     }
     ajouter({ categoryId: cat, montant: lue.depense.engage, posteId: p.id, sourceType: null, sourceId: null, nature: "ENGAGE" });
+  }
+
+  // ── 1 bis. Le matériel promotionnel imputé (point 21, 27/10) : ses BC signés en ENGAGÉ, ses ordres fournisseur
+  // en circuit — sur la catégorie du DOSSIER, quelle que soit celle (ou l'absence de celle) que porte l'ordre. Ses
+  // ordres sont rattachés : l'étape suivante ne les recompte pas, ni par leur catégorie ni par l'attribution auto.
+  const promos = await prisma.promoMaterial.findMany({
+    where: { budgetCategoryId: { in: [...catIds] } },
+    select: { id: true, budgetCategoryId: true, paymentOrderId: true, settlementOrderId: true },
+  });
+  const depensesPromo = await depensesDesDossiersPromo(promos);
+  for (const pm of promos) {
+    const lue = depensesPromo.get(pm.id);
+    const cat = pm.budgetCategoryId;
+    if (!lue || !cat) continue;
+    for (const o of lue.ordres) {
+      rattaches.add(o.id);
+      if (ordreEnCircuitPromo(o.statut)) ajouter({ categoryId: cat, montant: o.montant, posteId: null, sourceType: "PROMO_MATERIAL", sourceId: pm.id, nature: "EN_CIRCUIT", ordreId: o.id });
+    }
+    ajouter({ categoryId: cat, montant: lue.engage, posteId: null, sourceType: "PROMO_MATERIAL", sourceId: pm.id, nature: "ENGAGE" });
   }
 
   // ── 2. Les ordres émis hors poste ───────────────────────────────────────────────────────────────────────

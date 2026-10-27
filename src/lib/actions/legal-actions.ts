@@ -33,6 +33,7 @@ import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { memeNumero, nettoyerNumero, resumeChangementNumero } from "@/lib/bons-de-commande/numero-reference";
 import { champsDifferents, MENTION_NUMERO_SEUL } from "@/lib/bons-de-commande/numero-seul";
 import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
+import { budgetPromoDeLaPiece } from "@/lib/queries/promo-budget";
 import {
   reserveBC, reserveSansPorte, reserveEtapeBC, PHRASE_SIGNATURE_RETIREE,
   LIBELLE_CENTRE_BC, LIBELLE_ETAT_BC, CHEMIN_CENTRE_BC,
@@ -891,7 +892,7 @@ export async function sendLegalInvoiceToSettlement(formData: FormData): Promise<
       where: { id },
       select: {
         id: true, title: true, reference: true, kind: true, amount: true, counterparty: true,
-        endDate: true, expenseOrderId: true, paidDate: true, direction: true,
+        endDate: true, expenseOrderId: true, paidDate: true, direction: true, sourceType: true, sourceId: true, chainFromId: true,
         chainFrom: { select: { id: true, kind: true, reference: true } },
       },
     });
@@ -928,6 +929,8 @@ export async function sendLegalInvoiceToSettlement(formData: FormData): Promise<
       sourceId: doc.id,
       requestedById: user.id,
       dueDate: doc.endDate,
+      // La facture d'un matériel promotionnel imputé porte son budget (point 21) — par cette porte comme par le dossier.
+      budgetCategoryId: await budgetPromoDeLaPiece(doc),
     });
     await prisma.legalDocument.update({ where: { id }, data: { expenseOrderId: order.id, updatedById: user.id } });
     await recordAudit({

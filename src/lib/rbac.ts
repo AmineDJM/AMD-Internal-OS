@@ -270,8 +270,8 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // Le stock promotionnel (§118.164) : la Direction des opérations a la vue globale ET la gestion
     // du matériel de ses équipes. La règle (`promo/stock-acces.ts`) dit lesquelles.
     PROMO_STOCK: CONTRIBUTE,
-    // Le CENTRE DE PAIEMENT : le PDG y siège avec le Super Admin — et personne d'autre,
-    // pas même le Directeur Général (règle sitsOnPaymentCentre, lib/payments/authorization.ts).
+    // Le CENTRE DE PAIEMENT : le PDG y siège avec le Directeur Général et le Super Admin
+    // (règle sitsOnPaymentCentre, lib/payments/authorization.ts).
     PAYMENT_CENTRE: MANAGE,
     // « My Chief of Staff » — l'interface exécutive, même cercle que le centre de paiement.
     CHIEF_OF_STAFF: MANAGE,
@@ -317,6 +317,9 @@ export const PERMISSIONS: Record<UserRole, RoleMatrix> = {
     // Général y arbitre les demandes au-dessus du seuil et RÈGLE ce seuil. Le siège réel est la
     // règle pure `siegeAuCentreAdPro` : le module ouvre la porte, la règle dit qui s'assied.
     AD_PRO_CENTRE: MANAGE,
+    // LE CENTRE DE PAIEMENT « Direction Générale » (Direction, 27/10) : le DG y siège avec le PDG et le
+    // Super Admin — la règle `sitsOnPaymentCentre` (lib/payments/authorization.ts) dit qui s'assied.
+    PAYMENT_CENTRE: MANAGE,
     NOTIFICATIONS: ["VIEW"],
     // Le SITE PUBLIC (§118.158) — tous les pouvoirs métier, la communication de l'entreprise comprise.
     SITE_WEB: MANAGE,

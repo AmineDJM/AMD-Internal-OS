@@ -1355,6 +1355,12 @@ X("BUDGET MARKETING — LA DÉPENSE D'UN POSTE AD & PRO (onglet « Dépenses »,
   "budget-depense-poste-actions:consommerDepensePoste",
   "budget-depense-poste-actions:annulerDepensePoste",
 ]);
+X("BUDGET MARKETING — IMPUTER UN MATÉRIEL PROMOTIONNEL (Direction, 27/10 — point 21) : la Direction Marketing choisit la "
+  + "catégorie du Budget Marketing qui porte le dossier ; ses BC signés y comptent en engagé, ses ordres fournisseur en "
+  + "consommé, et les ordres déjà nés suivent. Le geste engage le budget et passe par une seconde confirmation à l'écran. "
+  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
+  "promo-budget-actions:imputerBudgetMaterielPromo",
+]);
 X("DEMANDER LA VALIDATION FINALE D'UN BON DE COMMANDE PRÉ-VALIDÉ (Demandes de validations, 10/2026) — le geste du "
   + "DEMANDEUR une fois que tous ses validateurs ont accepté : la retenue du BC tombe et l'aiguillage ordinaire l'adresse "
   + "à son centre de validation, puis à la signature. Adam est en pause de développement : aucun geste neuf ne lui est "

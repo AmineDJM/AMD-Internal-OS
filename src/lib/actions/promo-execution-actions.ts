@@ -79,13 +79,15 @@ const chemin = (id: string) => `${PATH}/${id}`;
 type Dossier = {
   id: string; reference: string; title: string; status: string; circuitVersion: number; circuitState: string | null;
   requesterId: string | null; companyId: string | null;
+  /** Le budget imputé par la Direction Marketing (point 21) : l'ordre fournisseur le porte, son règlement aussi. */
+  budgetCategoryId: string | null;
 };
 
 async function chargerDossier(id: string | null): Promise<Dossier | null> {
   if (!id) return null;
   return prisma.promoMaterial.findUnique({
     where: { id },
-    select: { id: true, reference: true, title: true, status: true, circuitVersion: true, circuitState: true, requesterId: true, companyId: true },
+    select: { id: true, reference: true, title: true, status: true, circuitVersion: true, circuitState: true, requesterId: true, companyId: true, budgetCategoryId: true },
   });
 }
 
@@ -1030,6 +1032,7 @@ export async function demanderPaiementFacturePromo(formData: FormData): Promise<
       sourceId: facture.id,
       requestedById: user.id,
       dueDate: facture.endDate,
+      budgetCategoryId: pm.budgetCategoryId,
     });
     await prisma.legalDocument.update({ where: { id: facture.id }, data: { expenseOrderId: ordre.id, updatedById: user.id } });
     // LA DEMANDE À L'INFORMATION MÉDICALE part avec le paiement. Si elle échoue, le paiement, lui,

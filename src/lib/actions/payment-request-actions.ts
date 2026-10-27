@@ -41,6 +41,7 @@ import {
 import { PAYMENT_URGENCY } from "@/lib/labels";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { peutSupprimerUneDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
+import { ROLES_CENTRE_DE_PAIEMENT } from "@/lib/payments/authorization";
 
 const PATH = "/validations/paiements";
 
@@ -136,7 +137,7 @@ async function alertFinance(req: { id: string; reference: string; title: string;
   const body = `${req.reference} — ${req.title}`;
   const link = `${PATH}/${req.id}`;
   if (req.recipientId) await notifyUser({ userId: req.recipientId, type: "VALIDATION_REQUIRED", title, body, link });
-  await notifyRoles(["DIRECTION", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title, body, link });
+  await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], { type: "VALIDATION_REQUIRED", title, body, link });
 }
 
 /** Recalcule l'état d'après les verdicts, et le trace s'il change. */
@@ -1078,7 +1079,7 @@ export async function nudgePaymentRequest(formData: FormData): Promise<ActionRes
       etat: etatDuPaiement({ ordre, demande: req }), title, body: message, dossierId: id,
       recipientId: req.recipientId, demandeurId: req.requesterId, acteurId: user.id,
     });
-    if (kind === "URGENT") await notifyRoles(["DIRECTION", "SUPER_ADMIN"], { type: "VALIDATION_REQUIRED", title, body: message, link: `${PATH}/${id}` });
+    if (kind === "URGENT") await notifyRoles([...ROLES_CENTRE_DE_PAIEMENT], { type: "VALIDATION_REQUIRED", title, body: message, link: `${PATH}/${id}` });
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Demandes de paiement",
       entityType: "PAYMENT_REQUEST", entityId: id, summary: message,

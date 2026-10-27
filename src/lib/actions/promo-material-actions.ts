@@ -36,6 +36,7 @@ import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { deleteFileByKey } from "@/lib/storage";
+import { businessUnitDuDemandeur } from "@/lib/ad-pro/business-unit-auto";
 
 const PATH = "/promo-material";
 
@@ -271,6 +272,10 @@ export async function createPromoMaterial(_prev: ActionResult | undefined, formD
     const validation = figes.validateur.kind !== "AUCUNE";
     const circuitState = initialStep({ ctx: { version: 2, validationDemande: validation, demandeurEstDirectionMarketing: figes.demandeurEstCheffe, montant: null, seuilDg: null } });
     const managerId = await promoManagerOf(user.id);
+    // LA GAMME DU DEMANDEUR, quand elle se lit à coup sûr (KAM, superviseur d'une seule gamme) — enfin écrite (point
+    // 21, 27/10) : c'est elle qui borne les catégories budgétaires que la Direction Marketing pourra imputer. Le
+    // formulaire ne la demande pas (décision du 01/10) ; on ne la devine pas quand elle ne se lit pas.
+    const businessUnitId = (await businessUnitDuDemandeur(user))?.id ?? null;
 
     const pm = await createWithRetry(async () => prisma.promoMaterial.create({
       data: {
@@ -279,6 +284,7 @@ export async function createPromoMaterial(_prev: ActionResult | undefined, formD
         description,
         neededBy: besoin.date,
         companyId: companyId || null,
+        businessUnitId,
         status: "PROSPECTION_REQUESTED",
         circuitState,
         circuitVersion: 2,
@@ -613,6 +619,7 @@ export async function initiatePayment(formData: FormData): Promise<ActionResult>
     const order = await createExpenseOrder({
       label: `Matériel promotionnel — ${pm.title}${pm.chosenAgency ? ` (${pm.chosenAgency})` : ""}`,
       amount, category: "FOURNISSEUR", beneficiary: pm.chosenAgency, sourceType: "PROMO_MATERIAL", sourceId: pm.id, requestedById: user.id,
+      budgetCategoryId: pm.budgetCategoryId,
     });
 
     const ecrite = await prisma.promoMaterial.updateMany({
@@ -821,6 +828,7 @@ export async function settle(formData: FormData): Promise<ActionResult> {
       const order = await createExpenseOrder({
         label: `Règlement matériel promotionnel — ${pm.title}${pm.chosenAgency ? ` (${pm.chosenAgency})` : ""}`,
         amount, category: "FOURNISSEUR", beneficiary: pm.chosenAgency, sourceType: "PROMO_MATERIAL", sourceId: pm.id, requestedById: user.id,
+        budgetCategoryId: pm.budgetCategoryId,
       });
       const lie = await prisma.promoMaterial.updateMany({
         where: { ...surLaMarcheLue(pm), settlementOrderId: null },

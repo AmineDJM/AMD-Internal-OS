@@ -35,6 +35,14 @@ describe("qui siège au centre de validation Ad & Pro", () => {
     }
   });
 
+  it("le DG et le Super Admin y siègent aussi par leur rôle SECONDAIRE (point 26, 27/10)", () => {
+    expect(siegeAuCentreAdPro({ role: "PRODUCT_MANAGER", secondaryRole: "GENERAL_MANAGER" })).toBe(true);
+    expect(siegeAuCentreAdPro({ role: "DIRECTION", secondaryRole: "SUPER_ADMIN" })).toBe(true);
+    // Un rôle secondaire quelconque n'ouvre rien.
+    expect(siegeAuCentreAdPro({ role: "PRODUCT_MANAGER", secondaryRole: "DIRECTION" })).toBe(false);
+    expect(siegeAuCentreAdPro({ role: "PRODUCT_MANAGER", secondaryRole: null })).toBe(false);
+  });
+
   it("le refus NOMME qui décide — un refus sans remède fait payer un aller-retour", () => {
     expect(REFUS_CENTRE_AD_PRO).toMatch(/Direction Générale/);
     expect(REFUS_CENTRE_AD_PRO).toMatch(/Super Admin/);
