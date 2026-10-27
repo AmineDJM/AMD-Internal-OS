@@ -332,11 +332,13 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
 
 describe("chaque route d'API résout l'identité par la session partagée", () => {
   // Routes SANS session d'utilisateur : clés d'API (v1), webhooks signés, jetons publics, OnlyOffice (JWT), ou
-  // télémétrie du VRAI poste (activité, rejeu, capture d'écran : c'est l'administrateur qui est devant l'écran).
+  // télémétrie du VRAI poste (activité, rejeu, capture d'écran : c'est l'administrateur qui est devant l'écran), ou
+  // la sonde de santé de l'hébergeur (`SELECT 1`, ne lit aucune identité).
   const SANS_SESSION = [
     /api[\\/]auth[\\/]/, /api[\\/]v1[\\/]/, /api[\\/]site-web[\\/]v1[\\/]/, /api[\\/]events[\\/]inbound[\\/]/, /api[\\/]events[\\/]qr[\\/]/,
     /api[\\/]google[\\/]pubsub[\\/]/, /api[\\/]mail[\\/]inbound[\\/]/, /api[\\/]onlyoffice[\\/]/, /api[\\/]push[\\/]key[\\/]/,
     /api[\\/]activity[\\/]/, /api[\\/]replay[\\/]/, /api[\\/]security[\\/]screenshot-attempt[\\/]/,
+    /api[\\/]health[\\/]/,
   ];
   it("aucune route ne lit l'identité ailleurs que dans `@/lib/session` (hors routes sans session, nommées)", () => {
     const fautes = fichiers("src/app/api", (n) => n === "route.ts")

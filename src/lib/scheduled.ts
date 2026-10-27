@@ -40,6 +40,7 @@ import { balayerSurveillances } from "@/platform/in-process/missions/watch";
 import { vieillirMemoire } from "@/platform/in-process/missions/memory";
 import { relancerEngagements } from "@/platform/in-process/missions/commitments";
 import { assurerProduitsDesDossiersAuDemarrage } from "@/lib/products/canonique";
+import { etape } from "@/lib/scheduler/etape";
 
 /**
  * Tâches périodiques **sans cron externe** : déclenchées (au plus une fois par minute,
@@ -111,100 +112,96 @@ export async function runScheduledJobs(): Promise<void> {
   running = true;
   lastRun = now;
   try {
-    await sendDueMeetingReminders().catch(journal("rappels de réunion"));
-    await sendDueReminders().catch(journal("rappels personnels"));
-    await sendDuePayrollNotifications().catch(journal("notifications de paie"));
-    await accrueMonthlyLeave().catch((e) => console.error("[scheduled] leave accrual failed", e)); // +2,5 j/mois (idempotent)
+    await etape("sendDueMeetingReminders", sendDueMeetingReminders);
+    await etape("sendDueReminders", sendDueReminders);
+    await etape("sendDuePayrollNotifications", sendDuePayrollNotifications);
+    await etape("accrueMonthlyLeave", accrueMonthlyLeave); // +2,5 j/mois (idempotent)
     // PRODUIT = DOSSIER (Direction, 08/10) : UNE fois par processus, chaque dossier non verrouillé reçoit
     // son produit — l'existant rejoint la règle des nouveaux. Idempotent ; le bilan part au journal du serveur.
-    await assurerProduitsDesDossiersAuDemarrage().catch((e) => console.error("[scheduled] produits des dossiers", e));
-    await performAiHealthCheck().catch((e) => console.error("[scheduled] ai health check failed", e)); // test IA 1×/jour + alerte Super Admin
-    await runDueRegulatoryJobs().catch(journal("jobs réglementaires"));
-    await pruneStaleUploadSessions().catch(() => 0); // nettoyage des sessions d'upload incomplètes
-    await purgeClosedSessionParts().catch(() => 0); // filet : octets d'envois clos qu'un redémarrage aurait laissés
-    await nettoyerDepotsDirectsPerimes().catch(() => 0); // envois directs au bucket jamais terminés : parties libérées
-    await runAnppWatchIfDue().catch(journal("veille ANPP")); // veille ANPP 1×/jour : une ligne directrice ne doit pas changer sans qu'on le sache
-    await pollAiBatches().catch(journal("lots IA différés")); // analyses différées (moitié prix) : récupère les lots terminés
+    await etape("assurerProduitsDesDossiersAuDemarrage", assurerProduitsDesDossiersAuDemarrage);
+    await etape("performAiHealthCheck", performAiHealthCheck); // test IA 1×/jour + alerte Super Admin
+    await etape("runDueRegulatoryJobs", runDueRegulatoryJobs);
+    await etape("pruneStaleUploadSessions", pruneStaleUploadSessions); // nettoyage des sessions d'upload incomplètes
+    await etape("purgeClosedSessionParts", purgeClosedSessionParts); // filet : octets d'envois clos qu'un redémarrage aurait laissés
+    await etape("nettoyerDepotsDirectsPerimes", nettoyerDepotsDirectsPerimes); // envois directs au bucket jamais terminés : parties libérées
+    await etape("runAnppWatchIfDue", runAnppWatchIfDue); // veille ANPP 1×/jour : une ligne directrice ne doit pas changer sans qu'on le sache
+    await etape("pollAiBatches", pollAiBatches); // analyses différées (moitié prix) : récupère les lots terminés
     // Rattrapage de l'EXISTANT : les dossiers déjà en base profitent des mêmes règles que les
     // nouveaux — revue de fond jamais livrée, ou pipeline arrêté en chemin. Bornés par passage.
-    await expireStaleBatches().catch(() => 0); // lots fantômes : sinon l'écran dit « sous 24 h » à vie
-    await catchUpStalledPipelines().catch(() => 0);
-    await catchUpMissingAiReviews().catch(() => 0);
-    await embedBacklog().catch(() => 0); // vecteurs sémantiques : un paquet par passage, jamais plus
-    await runIntelligencePulse().catch(journal("Adventum Pulse")); // Adventum Pulse : instantané horaire (Brain + Process Intelligence) + alerte proactive
+    await etape("expireStaleBatches", expireStaleBatches); // lots fantômes : sinon l'écran dit « sous 24 h » à vie
+    await etape("catchUpStalledPipelines", catchUpStalledPipelines);
+    await etape("catchUpMissingAiReviews", catchUpMissingAiReviews);
+    await etape("embedBacklog", embedBacklog); // vecteurs sémantiques : un paquet par passage, jamais plus
+    await etape("runIntelligencePulse", runIntelligencePulse); // Adventum Pulse : instantané horaire (Brain + Process Intelligence) + alerte proactive
     // LE BRIEFING DU MATIN d'Adventum Brain : une fois par jour, à 7 h (Alger), APRÈS la passe horaire qui vient de
     // réconcilier les risques — il les lit, il ne les recalcule pas.
-    await runBrainBriefingIfDue().catch(() => undefined);
+    await etape("runBrainBriefingIfDue", runBrainBriefingIfDue);
     // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
     // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
-    await import("@/lib/agent/routines/service")
-      .then((m) => m.executerRoutinesDues())
-      .catch((e) => console.error("[scheduled] routines de l'assistant", e));
+    await etape("executerRoutinesDues", () => import("@/lib/agent/routines/service").then((m) => m.executerRoutinesDues()));
     // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
-    await import("@/lib/agent/fil/service")
-      .then((m) => m.reprendreLesFils())
-      .catch((e) => console.error("[scheduled] fil de l'assistant", e));
+    await etape("reprendreLesFils", () => import("@/lib/agent/fil/service").then((m) => m.reprendreLesFils()));
     // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
     // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
-    await runPettyCashRechargeReminders().catch(() => 0);
+    await etape("runPettyCashRechargeReminders", runPettyCashRechargeReminders);
     // Échéances des engagements (contrats, BC, assurances, baux) : aligne le statut d'un terme
     // passé, et prévient À L'ENTRÉE dans une zone d'urgence (90 j, 30 j, dépassement) — pas tous
     // les jours, sinon la personne coupe les notifications et rate la vraie.
-    await runLegalExpirySweep().catch(() => undefined);
+    await etape("runLegalExpirySweep", runLegalExpirySweep);
     // RÉCURRENCES DE DEMANDE D'ÉTAT DE STOCK : le directeur des opérations pose une fois « le 1er
     // de chaque mois, Karim relève ses trois hôpitaux », et la demande repart seule. Elle est ICI
     // et non dans le registre des planifications, dont l'en-tête interdit toute écriture avec
     // raison (`mutates: false`) : là-bas la clé est choisie par un humain ou proposée par un
     // modèle, ici l'effet est écrit en revue de code et ne varie pas.
-    await declencherRecurrencesStock().catch((e) => console.error("[scheduled] stock recurrences failed", e));
+    await etape("declencherRecurrencesStock", declencherRecurrencesStock);
     // STOCK PROMOTIONNEL (§118.164) : une dotation n'entre chez le délégué qu'à SA confirmation.
     // Au troisième jour sans confirmation, une relance — une seule — part vers celui qui doit
     // confirmer. Ici pour la même raison que les récurrences : c'est un EFFET écrit en revue de code.
-    await relancerReceptionsStock().catch((e) => console.error("[scheduled] relance des réceptions de stock", e));
+    await etape("relancerReceptionsStock", relancerReceptionsStock);
     // STOCK PROMOTIONNEL, ÉTAPE 5 (§118.168) : les comptages récurrents que le directeur des
     // opérations a posés (autorité de l'auteur RELUE à chaque déclenchement, jamais de rattrapage),
     // puis les alertes — une fois l'heure, à l'ENTRÉE dans un état (seuil, rupture, péremption à
     // trente jours, lot périmé en main, envoi non confirmé, comptage en retard), une notification
     // par personne. Ici pour la même raison : ce sont des EFFETS écrits en revue de code.
-    await declencherComptagesRecurrents().catch((e) => console.error("[scheduled] comptages récurrents du stock", e));
-    await alerterStock().catch((e) => console.error("[scheduled] alertes du stock promotionnel", e));
+    await etape("declencherComptagesRecurrents", declencherComptagesRecurrents);
+    await etape("alerterStock", alerterStock);
     // Échéances de DÉPÔT des marchés PCH : responsable + équipe prévenus à J-7, J-2 et au
     // dépassement — le rappel se tait dès que la soumission est déposée.
-    await runPchDeadlineSweep().catch(() => undefined);
+    await etape("runPchDeadlineSweep", runPchDeadlineSweep);
     // FORCE DE VENTE : alertes de supervision (silence, retard à mi-mois, couverture, KAM non
     // armé) — une par type et par mois, jamais une par nuit —, instantané mensuel de chaque KAM
     // (le mois clos ne se recalcule plus) et revue au passage du mois.
-    await runSfeFieldSweep().catch(() => undefined);
+    await etape("runSfeFieldSweep", runSfeFieldSweep);
     // KPI & BILANS (KPI sans code, Direction 08/10 : « bilan en continu ») : une fois par jour, la période courante de
     // chacun est recalculée et mise en cache — le calcul à la demande reste là entre deux passages.
-    await rafraichirKpiSiDu().catch((e) => console.error("[scheduled] rafraîchissement des KPI", e));
+    await etape("rafraichirKpiSiDu", rafraichirKpiSiDu);
     // INTELLIGENCE TERRAIN (console d'administration, Super Admin seul) : une fois par jour, les liens structurels et les
     // scores d'influence se recalculent, et Luna lit les rapports NOUVEAUX depuis le filigrane (liens PROPOSÉS, jamais appliqués).
-    await analyserInfluenceSiDu().catch((e) => console.error("[scheduled] graphe d'influence", e));
+    await etape("analyserInfluenceSiDu", analyserInfluenceSiDu);
     // Rappels du Chief of Staff : « rappelle-moi mardi à 10 h », « tous les dimanches relance
     // Regulatory » — pop-up au propriétaire, relance du rôle cible s'il y en a un.
-    await runAssistantReminders().catch(() => undefined);
+    await etape("runAssistantReminders", runAssistantReminders);
     // Ingestion Drive : un paquet de fichiers indexés (texte + classification) par passage —
     // un document mal nommé jamais ouvert devient trouvable par son CONTENU. L'ACL se
     // revérifie à la recherche, nœud par nœud. Débrayage : ASSISTANT_DRIVE_INGESTION=off.
-    await runDriveIngestionSweep().catch(() => undefined);
+    await etape("runDriveIngestionSweep", runDriveIngestionSweep);
     // Mentions d'entités (fabric F4) : le RATTRAPAGE des fichiers indexés AVANT que
     // l'extraction existe. Les nouveaux fichiers sont extraits à l'ingestion même ; ce
     // balayage borné vide le reste-à-faire (`mentionsAt: null`), un lot par passage.
-    await balayerMentions().catch(() => undefined);
+    await etape("balayerMentions", balayerMentions);
     // États chauds (fabric F5) : les signaux exécutifs des dirigeants RÉCEMMENT ACTIFS se
     // recalculent ici, en avance — la question « qu'est-ce qui cloche ? » trouve un état
     // déjà payé, avec son instant de calcul et son coût mesurés.
-    await rechaufferAlertes().catch(() => undefined);
+    await etape("rechaufferAlertes", rechaufferAlertes);
     // QUALITÉ DES DONNÉES (mandat 4 §23) : les règles LÉGÈRES (doublons de factures, montants
     // contradictoires, statuts de paiement impossibles, comptes actifs de salariés partis) toutes
     // les heures ; le balayage COMPLET la nuit. Les corrections SÛRES s'appliquent seules et se
     // journalisent ; le reste attend une personne — dans la boîte de décision et l'écran d'admin.
-    await balayageQualiteSiDu().catch((e) => console.error("[scheduled] qualité des données", e));
+    await etape("balayageQualiteSiDu", balayageQualiteSiDu);
     // INTELLIGENCE LEGAL (mandat 4 §27) : les clauses des engagements actifs dont le texte indexé a
     // changé sont relues une fois par jour et mises en réserve dans `custom.intelligence` — les
     // lectures du jour (Adam, boîte de décision) trouvent des clauses déjà lues au lieu de les relire.
-    await mettreEnCacheClausesSiDu().catch((e) => console.error("[scheduled] réserve des clauses", e));
+    await etape("mettreEnCacheClausesSiDu", mettreEnCacheClausesSiDu);
     // SITE PUBLIC ADVENTUM (§118.158) : la file d'envoi des offres d'emploi et des articles, puis
     // la réconciliation quotidienne (`GET /jobs`, `GET /posts`). Ici et non dans le registre des
     // planifications, pour la raison des récurrences de stock : ce sont des EFFETS (des requêtes
@@ -216,11 +213,11 @@ export async function runScheduledJobs(): Promise<void> {
     // réconciliation se débraye par SITE_WEB_RECONCILIATION=off.
     // LA LIAISON D'ABORD (§118.159) : une clé en attente que le site vient de reconnaître est promue
     // ici, et la file qui suit part aussitôt avec elle. Puis la santé du site, une fois l'heure.
-    await entretenirLiaisonSiteWeb().catch((e) => console.error("[scheduled] liaison du site web", e));
-    await viderFileSiteWeb().catch((e) => console.error("[scheduled] file du site web", e));
-    await rapprocherSiteSiDu().catch((e) => console.error("[scheduled] rapprochement du site web", e));
+    await etape("entretenirLiaisonSiteWeb", entretenirLiaisonSiteWeb);
+    await etape("viderFileSiteWeb", viderFileSiteWeb);
+    await etape("rapprocherSiteSiDu", rapprocherSiteSiDu);
     // AUDIENCE DU SITE (Direction, 07/10) : les événements de plus de 13 mois s'effacent, une fois par jour.
-    await purgerAudienceSiDu().catch((e) => console.error("[scheduled] purge de l'audience du site", e));
+    await etape("purgerAudienceSiDu", purgerAudienceSiDu);
 
     // LA COUCHE DE CONNAISSANCE — elle avance à son rythme, derrière tout le reste.
     //
@@ -228,17 +225,17 @@ export async function runScheduledJobs(): Promise<void> {
     // prix du service rendu à ceux qui utilisent l'ERP serait un mauvais échange. Si un passage
     // ne finit pas son lot, le suivant reprend là où il en était — rien n'est perdu, et
     // personne n'attend.
-    await refreshEntityIndex().catch(() => undefined);
-    await enqueueBacklogs().catch(() => undefined);
+    await etape("refreshEntityIndex", refreshEntityIndex);
+    await etape("enqueueBacklogs", enqueueBacklogs);
     // Les documents restés muets repassent doucement : un parseur qui s'améliore doit pouvoir
     // rattraper ce qu'il n'avait pas su lire, sinon la correction n'atteint jamais l'existant.
-    await enqueueStalled(5).catch(() => 0);
+    await etape("enqueueStalled", () => enqueueStalled(5));
     // LES PLANIFICATIONS DE L'UTILISATEUR (§9). Le catalogue est enregistré ici, une fois, plutôt
     // qu'en effet de bord d'import : sinon il dépendrait de l'ordre des imports, donc différerait
     // entre le test, le développement et la production.
-    registerBuiltinWorkflows();
-    await runScheduledWorkflows().catch(() => undefined);
-    await runKnowledgeSweep().catch(() => undefined);
+    await etape("registerBuiltinWorkflows", registerBuiltinWorkflows);
+    await etape("runScheduledWorkflows", runScheduledWorkflows);
+    await etape("runKnowledgeSweep", runKnowledgeSweep);
     // LE BATTEMENT D'ADAM — sans navigateur ouvert, sans que le PDG demande quoi que ce soit.
     // Trois gestes : garder l'oreille (renouveler la veille Gmail AVANT expiration), rattraper
     // ce qui est arrivé (histoire incrémentale), et se rattraper soi-même (réconciliation
@@ -246,7 +243,7 @@ export async function runScheduledJobs(): Promise<void> {
     // le push Pub/Sub est rapide mais fragile, et un message perdu est un SILENCE, pas une
     // erreur — personne ne s'en apercevrait. Sans connexion Google, c'est un no-op.
     // Débrayages : suspension du traitement entrant (réglages), ou connexion en pause.
-    await runAdamInboxSweep().catch((e) => console.error("[scheduled] balayage ADAM echoue", e));
+    await etape("runAdamInboxSweep", runAdamInboxSweep);
 
     // LES MISSIONS DURABLES — le seul balayage de cette liste qui produise des EFFETS.
     //
@@ -259,12 +256,12 @@ export async function runScheduledJobs(): Promise<void> {
     // C'est CE balayage qui tient la promesse « la mission continue même si vous fermez
     // l'application ». Sans lui, elle s'arrêterait à la fin de la requête qui l'a lancée.
     // Débrayage : MISSIONS_SWEEP=off.
-    await balayerMissions().catch((e) => console.error("[scheduled] balayage des missions échoué", e));
+    await etape("balayerMissions", balayerMissions);
 
     // LES SURVEILLANCES DURABLES — « surveille ce dossier et préviens-moi seulement s'il y a un
     // problème ». Relues à leur cadence et dès qu'un fait les touche (le registre avance leur
     // prochain contrôle) ; seul un changement de signature parle. Même débrayage que les missions.
-    await balayerSurveillances().catch((e) => console.error("[scheduled] balayage des surveillances échoué", e));
+    await etape("balayerSurveillances", balayerSurveillances);
 
     // LE VIEILLISSEMENT DE LA MÉMOIRE — le seul des deux mouvements de la mémoire épisodique
     // qui n'ait pas de conversation pour le déclencher.
@@ -276,7 +273,7 @@ export async function runScheduledJobs(): Promise<void> {
     //
     // Sans clé de fournisseur, c'est un no-op immédiat : on ne compresse pas un souvenir sans
     // savoir ce qu'il contient, et il n'existe pas de repli déterministe honnête.
-    await vieillirMemoire().catch((e) => console.error("[scheduled] vieillissement mémoire échoué", e));
+    await etape("vieillirMemoire", vieillirMemoire);
 
     // LES PROMESSES NON TENUES — l'exact inverse du chemin qui marchait déjà.
     //
@@ -287,7 +284,7 @@ export async function runScheduledJobs(): Promise<void> {
     //
     // Rien n'est envoyé À LA PERSONNE QUI A PROMIS : on prévient celle qui attend. Écrire à un
     // tiers depuis un battement serait une communication sortante que personne n'a relue.
-    await relancerEngagements().catch((e) => console.error("[scheduled] relances d'engagements échouées", e));
+    await etape("relancerEngagements", relancerEngagements);
 
   } catch (err) {
     console.error("[scheduled] run failed", err);

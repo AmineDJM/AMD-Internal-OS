@@ -84,8 +84,8 @@ describe("Le battement porte la file et la réconciliation", () => {
   it("runScheduledJobs vide la file du site et lance le rapprochement quand il est dû", () => {
     expect(debut).toBeGreaterThan(-1);
     expect(SCHEDULED).toMatch(/import\s*\{\s*viderFile as viderFileSiteWeb\s*\}\s*from\s*"@\/lib\/site-web\/file"/);
-    expect(corps).toMatch(/await\s+viderFileSiteWeb\(\)/);
-    expect(corps).toMatch(/await\s+rapprocherSiteSiDu\(\)/);
+    expect(corps).toMatch(/await\s+etape\("viderFileSiteWeb",\s*viderFileSiteWeb\)/);
+    expect(corps).toMatch(/await\s+etape\("rapprocherSiteSiDu",\s*rapprocherSiteSiDu\)/);
   });
 });
 

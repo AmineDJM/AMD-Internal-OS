@@ -114,7 +114,7 @@ describe("mise en service ADAM — couche par couche, tout est BRANCHÉ", () => 
     const scheduled = read("lib/scheduled.ts");
     expect(scheduled).toContain("runAdamInboxSweep");
     // Et il est appelé, pas seulement importé.
-    expect(scheduled).toMatch(/await runAdamInboxSweep\(/);
+    expect(scheduled).toMatch(/await etape\("runAdamInboxSweep", runAdamInboxSweep\)/);
   });
 
   it("les trois filets de reprise existent : histoire, liste récente, réconciliation", () => {
