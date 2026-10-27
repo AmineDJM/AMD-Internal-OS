@@ -85,6 +85,11 @@ export const MODELES_INTERDITS: Readonly<Record<string, string>> = {
   // Refusée sur le MODÈLE écrit, en plus de la décision EXCLUDED : une action ajoutée demain qui
   // l'écrirait, sous un autre nom, dans un autre fichier, l'est sans que personne y pense.
   siteWebCle: "la clé de liaison au site public — l'identifiant qui donne le droit d'y publier",
+  // LE COFFRE DES DONNÉES SENSIBLES (refonte P1, R6) — NIN, passeport, RIB, salaire, chiffrés, et le
+  // journal de qui les a lus. L'assistant et les modèles n'y ont jamais accès ; réécrire le journal
+  // effacerait la preuve d'une lecture.
+  donneeSensible: "le coffre des données sensibles (NIN, passeport, RIB, salaire)",
+  accesDonneeSensible: "le journal des lectures du coffre des données sensibles",
 };
 
 /**
@@ -98,6 +103,8 @@ export const MODELES_NON_SENSIBLES: Readonly<Record<string, string>> = {
   RegulatoryUploadSession: "un lot de dépôt de fichiers Regulatory, aucun droit",
   SessionEvent: "la trace d'un événement de session — un journal qu'on lit, pas une porte",
   CalendarInvite: "une invitation à une RÉUNION, pas à un compte",
+  PersonneRole: "ce qu'une personne EST pour l'entreprise (médecin, voyageur, candidat) — une qualité de la fiche, aucun droit",
+  OrganisationRole: "ce qu'une organisation EST pour l'entreprise (fournisseur, client) — une qualité de la fiche, aucun droit",
 };
 
 /**
