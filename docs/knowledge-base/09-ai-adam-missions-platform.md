@@ -18,8 +18,14 @@ Covered:
 - **Adam** (the conversational agent, a.k.a. "Assistant IA" / "My Chief of Staff"): `src/lib/assistant.ts` (7.3k lines),
   `src/lib/assistant/**` (~62k non-test lines, 118 test files), `src/lib/actions/assistant-actions.ts`,
   `src/app/api/assistant/**`, `src/app/(app)/chief-of-staff/**`, `src/components/chief/**`.
-- **New "Adventum Brain" beta assistant** (Mastra-based, added 2026-10-23/24): `src/lib/agent/**`,
-  `src/app/(app)/assistant/**`, `src/components/assistant-beta/**`.
+- **Assistant IA** (`/assistant`, "Adventum Brain" engine — Mastra on MiMo; NOT Adam): `src/lib/agent/**`,
+  `src/app/(app)/assistant/**`, `src/components/assistant-beta/**`, `src/lib/actions/assistant-ia-actions.ts`.
+  Opened per person (RBAC module `ASSISTANT_IA`). Writes = `OPERATIONS_IA` registry (`src/lib/agent/operations/`):
+  `proposer` → card (`persistActionIntents`, kind `assistant_ia_op`) → `confirmerIntentionAssistantIA` →
+  `executerOperationIA` (re-checks `ouverte`) → the SCREEN's server action. Personal memory (`AssistantMemoryItem`),
+  documents (`documents-lus.ts`, `mrz.ts`, `traduction.ts`, `formulaire-pdf.ts`, `bc-depuis-devis.ts`), user-scheduled
+  read-only routines (`src/lib/agent/routines/`, tables `AssistantRoutine`/`AssistantRoutineRun`, swept from
+  `runScheduledJobs`). Decision records: `docs/assistant/decisions/0001`–`0008`.
 - **Mission Runtime** (durable multi-step autonomous missions): `src/lib/missions/**` (~25k lines),
   `src/platform/in-process/missions/**`, `src/lib/interrupteurs/missions.ts`.
 - **`src/platform`**: contract, event bus, domain map, boundary ratchet, the in-process bridge (~22k non-test lines).
@@ -89,7 +95,7 @@ pipeline internals, Live Office (§104).
 | `src/lib/sortie/garde.ts` | Egress guard for tests/benches (mail, push, calendar, external writes) |
 | `src/lib/prisma.ts:66-120` | DB guard: tests need local DB, benches need local DB named `*bench*` |
 | `src/lib/evals/{cibles,registre}.ts`, `scripts/bench/*` | Eval targets (§33 mandates) and live/offline benches |
-| `src/lib/agent/*`, `src/app/(app)/assistant/beta/actions.ts` | NEW Mastra beta ("Adventum Brain"), fake model + Xiaomi MiMo direct call |
+| `src/lib/agent/*`, `src/app/(app)/assistant/beta/actions.ts` | Assistant IA (Mastra on MiMo): context, V1 tools, `operations/` registry, memory, documents, `routines/`; fake model for tests (`testing/modele-factice.ts`) |
 
 ## 4. How it works
 

@@ -210,3 +210,17 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
   source, date, lignée, `ModelCallLog` inchangé, une seule ligne consignée), suite live
   (« d'où tu tiens ça ? » après une vraie question : zéro appel, < 4 s), défi `defi-provenance`.
 
+
+### L'Assistant IA (`/assistant`) — `src/lib/agent/` (moteur Mastra sur MiMo, distinct d'Adam)
+
+| Fichier | Rôle |
+|---|---|
+| `contexte.ts` | Le contexte compilé (qui parle, ses droits, sa mémoire, ses consignes de rôle) et les RÈGLES du prompt (agir, documents, routines, web, mémoire). |
+| `outils-v1.ts` · `lectures.ts` | Les outils offerts à la personne : lectures V1, `mes_*`, documents, `mes_routines`, `web_research`, écritures V1, opérations ; chaque sortie passe `censurerSortie`. |
+| `operations/index.ts` · `types.ts` | Le registre `OPERATIONS_IA` : `proposer` (carte ou `manque`) / `executer` (action de l'écran) ; `executerOperationIA` revérifie le droit. |
+| `operations/adpro-*.ts` · `bon-de-commande.ts` · `quotidien.ts` · `budget.ts` | Ad & Pro de bout en bout, BC + « Créer la demande de validation », relance / dépôt / rendez-vous / réponse, contrôle de budget sans chiffre pour qui n'a pas « Budgets ». |
+| `operations/demandes-visibles.ts` · `pieces.ts` · `annuaire-medical.ts` | Ce que la personne voit : demandes (portées), pièces (Drive, droits revérifiés), médecins. |
+| `operations/documents-lus.ts` · `devis-lu.ts` · `bc-depuis-devis.ts` · `mrz.ts` · `voyageur-passeport.ts` · `traduction.ts` · `formulaire-pdf.ts` · `document-modele.ts` | Les documents ; portes avant le modèle (identité et paie refusées, RIB/IBAN/NIN masqués). |
+| `routines/calendrier.ts` · `passage.ts` · `service.ts` · `operations/routines.ts` | Les routines : calendrier en heure d'Alger, passage en lecture seule (vérifier puis comparer), prise atomique, traces et notifications. |
+| `memoire.ts` · `memoire-ui.ts` · `filtre-confidentialite.ts` · `generer.ts` · `recherche-web.ts` | Mémoire personnelle, filtre (et masque réversible), appel de rédaction sans outil, recherche web à question censurée. |
+| `src/lib/actions/assistant-ia-actions.ts` | Les gestes de la personne sur SA mémoire et SES routines (identité de la session, jamais d'un paramètre). |

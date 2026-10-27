@@ -341,6 +341,8 @@ Columns: model · domain (this KB's grouping) · number of fields (scalars + rel
 | `AssistantRoleConfig` | AI: Adam assistant, missions & knowledge | 11 | 9045 | FR: « Centre de contrôle IA (réglages globaux, Super Admin uniquement). » |
 | `AssistantRoleConfigAudit` | AI: Adam assistant, missions & knowledge | 8 | 9060 | FR: « Traçabilité des modifications des configurations de rôle de l'Assistant IA (qui, quand, avant/après). » |
 | `AiSetting` | AI: Adam assistant, missions & knowledge | 13 | 9074 | Singleton AI settings (id "global") |
+| `AssistantRoutine` | AI: Assistant IA | 25 | — | FR: « Une routine de l'Assistant IA — programmée par la personne, exécutée sous ses droits relus, en lecture seule. » (migration `20270128100000_assistant_routines`) |
+| `AssistantRoutineRun` | AI: Assistant IA | 12 | — | FR: « Un passage d'une routine — son rapport, ou la raison de son échec. Jamais un échec muet. » |
 | `AiHealthCheck` | AI: Adam assistant, missions & knowledge | 8 | 9473 | FR: « Sonde QUOTIDIENNE de l'API IA (chatbot & fonctions IA). » |
 | `AiUsageLog` | AI: Adam assistant, missions & knowledge | 25 | 9504 | FR: « Journal d'usage de l'IA — alimente le tableau de bord du Centre de contrôle (volume, taux de succès, » |
 | `ModelCallLog` | AI: Adam assistant, missions & knowledge | 20 | 9551 | FR: « `AiUsageLog` dit ce qu'un TOUR a coûté ; cette table dit à QUEL modèle, dans quel RÔLE, pour quelle  » |

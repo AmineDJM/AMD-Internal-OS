@@ -159,3 +159,21 @@ session, recevait `/login` ; ils sont exemptés (chemins exacts, jeton signé v�
   `lib/ad-pro/fiches-saisie.ts`) avec « + Ajouter une fiche ». `addAdProItem` lit toutes les fiches et contrôle leurs pièces AVANT
   d'écrire (`lireFichesDuFormulaire`), crée le poste et ses fiches en une transaction, puis les pièces ; un échec défait tout
   (`creerPosteEtFiches`, `lib/ad-pro/fiches-poste.ts`). Banc : `ad-pro/pieces-multiples-flow.test.ts`.
+
+---
+
+### Assistant IA (`/assistant`) — l'agent qui agit, la mémoire, les documents, les routines (2026-10-27)
+
+- **Ouvert par personne** (module `ASSISTANT_IA`), Super Admin par défaut ; l'assistant s'adapte à la personne et
+  n'a que ce qu'elle voit. Limites prouvées par un test chacune, sur une assistante de direction (`limites.test.ts`).
+- **Agir** : registre `src/lib/agent/operations/` — chaque geste = carte confirmée puis action de l'écran (jamais
+  d'écriture directe). Ad & Pro (sponsoring, prise en charge, événement créé et soumis, matériel promo, « autre »,
+  poste de coût), BC (+ depuis un devis), relance, dépôt, rendez-vous, réponse, document, traduction, formulaire PDF,
+  voyageur depuis un passeport, routines.
+- **Mémoire personnelle** : `AssistantMemoryItem`, panneau « Ma mémoire ».
+- **Documents** : `documents-lus.ts` (portes : identité et paie refusées, RIB/IBAN/NIN masqués), `mrz.ts`, `traduction.ts`,
+  `formulaire-pdf.ts`, `devis-lu.ts` + `bc-depuis-devis.ts`, `document-modele.ts`.
+- **Routines** : tables `AssistantRoutine` / `AssistantRoutineRun` (migration `20270128100000_assistant_routines`),
+  `src/lib/agent/routines/` (calendrier, passage, service), balayage dans `runScheduledJobs`, onglet « Routines ».
+- **Recherche web** (`web_research` de l'ERP) ouverte à l'assistant, question censurée.
+- Décision : `docs/assistant/decisions/0008-agent-qui-agit-memoire-documents-routines.md`.
