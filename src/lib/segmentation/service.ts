@@ -17,7 +17,7 @@ import { secteurDuPraticien, type SecteurBu } from "./secteurs";
 export { secteurDuPraticien, type SecteurBu };
 import { clausePanelDuKam } from "@/lib/rbac";
 import { segmenterPraticien, derniere, effaceDeSource, type ContexteSegmentation, type FaitsPraticien, type ResultatPraticien } from "./moteur";
-import { affinitesEtablissements } from "@/lib/consommation/affinite-service";
+import { affinitesEtablissements } from "@/modules/consommation/api";
 
 /**
  * SEGMENTATION STUDIO — le côté BASE : charger une stratégie et ses faits, préparer puis appliquer

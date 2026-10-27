@@ -353,7 +353,7 @@ function deleguesDuCorps(
  */
 export function importsProjet(source: string): Record<string, string> {
   const table: Record<string, string> = {};
-  const re = /import\s*\{([^}]*)\}\s*from\s*"(@\/(?:lib|platform)\/[^"]+)"/g;
+  const re = /import\s*\{([^}]*)\}\s*from\s*"(@\/(?:lib|platform|modules)\/[^"]+)"/g;
   for (const m of sansCommentaires(source).matchAll(re)) {
     for (const brut of m[1]!.split(",")) {
       const t = brut.trim();

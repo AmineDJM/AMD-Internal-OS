@@ -4,6 +4,7 @@ import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { outilsPour } from "@/lib/agent/outils";
 import type { ModeleConfig } from "@/lib/agent/modele";
+import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 
 // L'UI générative (R5) se lit au même endroit que le tour : l'action de l'écran n'a qu'une porte
 // vers le moteur — un import de plus depuis `app/(app)/assistant/` serait un franchissement de plus.
@@ -76,7 +77,18 @@ export type ModeleTour = ModeleConfig | { modelId: string; provider?: string };
 
 const nomDe = (m: ModeleTour) => ("providerId" in m ? `${m.providerId}/${m.modelId}` : `${m.provider ?? "modele"}/${m.modelId}`);
 
+/**
+ * L'INTERRUPTEUR GÉNÉRAL (Administration › Contrôle de l'IA), lu LÀ OÙ LES APPELS PASSENT : les deux
+ * seules portes de l'Assistant IA vers MiMo sont `repondreAvecSecours` (conversation, fil, routines)
+ * et `genererTexte` (résumés, traductions). Coupé, aucun appel ne part — la conversation, le fil en
+ * arrière-plan et les routines le disent avec la phrase du refus, au lieu d'envoyer quand même.
+ */
+export class IaCoupee extends Error {
+  constructor() { super(REFUS_IA_COUPEE); this.name = "IaCoupee"; }
+}
+
 export async function repondreAvecSecours(t: TourAssistant): Promise<ResultatTour> {
+  if (await interrupteurIaCoupe()) throw new IaCoupee();
   const echecs: ResultatTour["echecs"] = [];
   for (const m of t.modeles) {
     const agent = new Agent({

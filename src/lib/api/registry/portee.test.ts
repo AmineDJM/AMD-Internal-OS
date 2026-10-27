@@ -23,7 +23,8 @@ const ROUTES_GENERIQUES = [
   "src/app/api/v1/entities/[entity]/[id]/route.ts",
   "src/app/api/v1/entities/[entity]/[id]/[aspect]/route.ts",
   "src/app/api/v1/search/route.ts",
-  "src/app/api/v1/documents/[id]/content/route.ts",
+  // La route de contenu délègue à ce module (règle unique, testée dans `document-lisible.test.ts`).
+  "src/lib/api/registry/document-lisible.ts",
 ];
 
 describe("architecture — la portée composée est posée AU POINT D'APPEL", () => {

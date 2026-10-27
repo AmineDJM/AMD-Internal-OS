@@ -86,3 +86,18 @@ export function calculerAffinites(lignes: readonly LigneAffinite[], cfg: ConfigA
   }
   return { fenetre: f, parEtablissement: out.sort((a, b) => b.valeur - a.valeur) };
 }
+
+/** La configuration d'affinité telle qu'elle est rangée en base (`AffiniteConfig`), relue en valeurs sûres. */
+export function lireConfig(row: { productId: string; panier: unknown; periode: string; debut: Date | null; fin: Date | null }): ConfigAffinite {
+  const p = (row.panier ?? {}) as { productIds?: unknown; molecules?: unknown };
+  return {
+    productId: row.productId,
+    panier: {
+      productIds: Array.isArray(p.productIds) ? p.productIds.filter((x): x is string => typeof x === "string") : [],
+      molecules: Array.isArray(p.molecules) ? p.molecules.filter((x): x is string => typeof x === "string") : [],
+    },
+    periode: (["MOIS", "ROLLING_3M", "ROLLING_6M", "ROLLING_12M", "PERSONNALISEE"].includes(row.periode) ? row.periode : "ROLLING_12M") as TypePeriode,
+    debut: row.debut?.toISOString().slice(0, 10) ?? null,
+    fin: row.fin?.toISOString().slice(0, 10) ?? null,
+  };
+}

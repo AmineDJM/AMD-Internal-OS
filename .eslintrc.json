@@ -3,6 +3,27 @@
   "rules": {
     "@next/next/no-assign-module-variable": "off",
     "react/no-unescaped-entities": "off",
-    "@typescript-eslint/no-explicit-any": "off"
-  }
+    "@typescript-eslint/no-explicit-any": "off",
+    "no-restricted-imports": ["error", {
+      "patterns": [{
+        "group": ["@/modules/*/domaine", "@/modules/*/domaine/*", "@/modules/*/infra", "@/modules/*/infra/*", "**/modules/*/domaine/*", "**/modules/*/infra/*"],
+        "message": "Un module s'importe par sa porte : @/modules/<module>/api (voir src/modules/frontieres.test.ts et docs/audit/2026-10-27/08-architecture-code.md)."
+      }]
+    }]
+  },
+  "overrides": [{
+    "files": ["src/modules/*/domaine/**"],
+    "rules": {
+      "no-restricted-imports": ["error", {
+        "paths": [
+          { "name": "@/lib/prisma", "message": "domaine/ est pur : la base se lit dans infra/." },
+          { "name": "xlsx", "message": "domaine/ est pur : les fichiers se lisent dans infra/." }
+        ],
+        "patterns": [
+          { "group": ["next/*", "react", "node:*", "../infra/*", "../ecrans/*", "../api"], "message": "domaine/ est pur : ni Next, ni React, ni Node, ni infra/, ni écrans." },
+          { "group": ["@/modules/*/domaine", "@/modules/*/domaine/*", "@/modules/*/infra", "@/modules/*/infra/*", "**/modules/*/domaine/*", "**/modules/*/infra/*"], "message": "Un module s'importe par sa porte : @/modules/<module>/api." }
+        ]
+      }]
+    }
+  }]
 }

@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { Prisma } from "@prisma/client";
 import { contratsDuFichier, importsProjet, type ContratAction, type TableEnums, type TableRelations } from "./contrat";
 
@@ -79,15 +79,31 @@ function sourcesImportees(source: string, cache: Map<string, string>): Record<st
   for (const spec of new Set(Object.values(importsProjet(source)))) {
     const deja = cache.get(spec);
     if (deja !== undefined) { if (deja) out[spec] = deja; continue; }
-    const rel = spec.replace(/^@\//, "");
-    let texte = "";
-    for (const chemin of [join(RACINE_SRC, `${rel}.ts`), join(RACINE_SRC, rel, "index.ts")]) {
-      try { texte = readFileSync(chemin, "utf8"); break; } catch { /* module suivant */ }
-    }
+    const texte = lireAvecReexports(join(RACINE_SRC, spec.replace(/^@\//, "")));
     cache.set(spec, texte);
     if (texte) out[spec] = texte;
   }
   return out;
+}
+
+/**
+ * Le source d'un module, PLUS celui des fichiers qu'il réexporte en relatif (`export { … } from "./infra/x"`).
+ *
+ * La porte d'un module (`src/modules/<m>/api.ts`, audit 08) ne contient que des réexportations : sans les suivre, une
+ * action qui appelle `importerConsommation` par la porte serait décrite comme n'écrivant rien de plus que son journal.
+ * Un seul niveau, et seulement en relatif : c'est la forme exacte d'une porte, rien de plus n'est deviné.
+ */
+function lireAvecReexports(base: string): string {
+  for (const chemin of [`${base}.ts`, join(base, "index.ts")]) {
+    let texte: string;
+    try { texte = readFileSync(chemin, "utf8"); } catch { continue; }
+    const suivis: string[] = [];
+    for (const m of texte.matchAll(/export\s*\{[^}]*\}\s*from\s*"(\.{1,2}\/[^"]+)"/g)) {
+      try { suivis.push(readFileSync(`${join(dirname(chemin), m[1]!)}.ts`, "utf8")); } catch { /* réexport introuvable : ignoré */ }
+    }
+    return [texte, ...suivis].join("\n");
+  }
+  return "";
 }
 
 /** Tous les contrats de l'ERP, dérivés de la source à l'instant où on appelle. */

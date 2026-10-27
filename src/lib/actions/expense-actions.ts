@@ -215,8 +215,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   const reference = await nextFinanceRef();
   const compteDuReglement = await compteDeLEcriture({ compteId: fdStr(formData, "treasuryAccountId"), compte: "Banque", societeId: order.companyId });
   const reglement = await prisma.$transaction(async (tx) => {
+    // LE MONTANT ET LE BÉNÉFICIAIRE LUS sont dans la condition (audit argent 2026-10-27, ARGENT-04) : une
+    // révision À LA BAISSE garde l'autorisation (`statutApresNouveauMontant`) — sans eux, le livre recevait
+    // l'ANCIEN montant d'un ordre qui en dit désormais un autre.
     const reserve = await tx.expenseOrder.updateMany({
-      where: { id, status: "PENDING", centralStatus: order.centralStatus },
+      where: { id, status: "PENDING", centralStatus: order.centralStatus, amount: order.amount, beneficiary: order.beneficiary },
       data: { status: "PAID", paidById: user.id, paidDate: new Date() },
     });
     if (reserve.count === 0) return null;
@@ -239,7 +242,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     // Quelqu'un d'autre a réglé (ou annulé, ou le centre a retiré son accord) pendant ce règlement.
     const maintenant = await prisma.expenseOrder.findUnique({ where: { id }, select: { status: true } });
     if (maintenant?.status === "PAID") return { ok: true };
-    return { ok: false, error: "Cet ordre a changé pendant le règlement (annulé, ou son autorisation au centre de paiement a bougé) : rechargez la page — rien n'a été réglé." };
+    return { ok: false, error: "Cet ordre a changé pendant le règlement (annulé, montant ou bénéficiaire révisé, ou son autorisation au centre de paiement a bougé) : rechargez la page — rien n'a été réglé." };
   }
   const tx = reglement;
 
@@ -347,43 +350,40 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
 }
 
 /**
- * PURGER L'HISTORIQUE DES RÈGLEMENTS — réglés et annulés, et eux seuls.
+ * VIDER L'HISTORIQUE DES RÈGLEMENTS — réglés et annulés, et eux seuls, RETIRÉS DE L'ÉCRAN.
  *
  * L'écran « Banque & paiements » accumulait sous la file du jour un historique qui ne servait plus
  * qu'à faire défiler. Le Super Admin peut le vider.
  *
- * CE QUI N'EST PAS TOUCHÉ, et c'est ce qui rend le geste sûr : les ÉCRITURES DE TRÉSORERIE
- * (`FinanceTransaction`) restent — c'est là que vit la trace de l'argent sorti, dans le livre
- * comptable —, ainsi que le journal d'audit. On efface la FILE, pas la comptabilité. Le fil
- * d'autorisation du centre de paiement part avec son ordre : il ne dit rien sans lui.
+ * ── UN MASQUE, JAMAIS UNE SUPPRESSION (audit argent 2026-10-27, ARGENT-01) ─────────────────────
  *
- * Un ordre EN COURS (à régler, révision demandée) n'est jamais touché : purger ne doit pas
+ * Le geste SUPPRIMAIT les ordres (et leurs dossiers compagnons). Or un ordre réglé n'est pas qu'une
+ * ligne de file : c'est le FAIT que lisent le payé et l'engagé d'un poste (`depenseDuPoste` — sans
+ * son ordre PAYÉ, un poste imputé redevenait « Engagé » : engagé fantôme, et une seconde consommation
+ * possible, donc un second paiement), la garde « un BV de cette nature à la fois » (`requestBV`), le
+ * virement de paie, la remise de caisse, le fil d'autorisation du centre. On pose donc une date de
+ * masquage, que seul l'historique de l'écran lit (`chargerOrdresDesFinances`) ; tout le reste continue
+ * de voir l'ordre. Les écritures de trésorerie et le journal d'audit n'ont jamais été touchés.
+ *
+ * Un ordre EN COURS (à régler, révision demandée) n'est jamais touché : vider l'historique ne doit pas
  * pouvoir faire disparaître un paiement qui attend.
  */
 export async function purgeSettledExpenseOrders(): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
 
-  const cibles = await prisma.expenseOrder.findMany({
-    where: { status: { in: ["PAID", "CANCELLED"] } },
-    select: { id: true },
+  const masque = await prisma.expenseOrder.updateMany({
+    where: { status: { in: ["PAID", "CANCELLED"] }, historiqueMasqueLe: null },
+    data: { historiqueMasqueLe: new Date() },
   });
-  if (cibles.length === 0) return { ok: false, error: "L'historique est déjà vide." };
-
-  // LE DOSSIER COMPAGNON PART AVEC SON ORDRE. Il ne décrit que lui : sans l'ordre, il montre un
-  // paiement qui n'existe plus, avec des pièces rattachées à rien. Les dossiers NATIFS restent —
-  // ce sont des demandes que quelqu'un a déposées, elles ont une vie propre et leur propre écran.
-  await prisma.paymentRequest.deleteMany({
-    where: { origin: "EXPENSE_ORDER", expenseOrderId: { in: cibles.map((o) => o.id) } },
-  });
-  await prisma.expenseOrder.deleteMany({ where: { id: { in: cibles.map((o) => o.id) } } });
+  if (masque.count === 0) return { ok: false, error: "L'historique est déjà vide." };
   await recordAudit({
-    actorId: user.id, action: "DELETE", module: "Finances",
-    summary: `Historique des règlements purgé — ${cibles.length} ordre(s) réglé(s) ou annulé(s). Les écritures de trésorerie sont conservées.`,
+    actorId: user.id, action: "UPDATE", module: "Finances",
+    summary: `Historique des règlements vidé — ${masque.count} ordre(s) réglé(s) ou annulé(s) retiré(s) de l'écran. Les ordres, leurs écritures de trésorerie et leurs dossiers sont conservés.`,
   });
   revalidatePath("/finances/paiements-a-faire");
   revalidatePath("/finances");
-  return { ok: true, message: `${cibles.length} ordre(s) retiré(s) de l'historique. Les écritures de trésorerie sont conservées.` };
+  return { ok: true, message: `${masque.count} ordre(s) retiré(s) de l'historique. Les ordres et les écritures de trésorerie sont conservés.` };
 }
 
 /** Le comptable demande la facture au demandeur (dépense événementielle sans facture). */

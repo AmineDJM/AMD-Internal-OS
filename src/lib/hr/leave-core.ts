@@ -70,13 +70,17 @@ export async function createLeaveRequest(
   actorId: string,
   employee: { id: string; fullName: string; userId: string | null },
   input: {
-    type: LeaveType; startDate: Date; endDate: Date; days: number; reason: string | null;
+    type: LeaveType; startDate: Date; endDate: Date; reason: string | null;
     /** Où joindre la personne pendant son absence (fiche de demande). */
     phone?: string | null;
     /** Intérimaire désigné DÈS la demande — les RH le valideront comme d'habitude. */
     standInId?: string | null;
   },
 ): Promise<{ id: string; stage: "MANAGER" | "HR" }> {
+  // LE NOMBRE DE JOURS SE CALCULE ICI, jamais reçu du navigateur : c'est lui que l'accord débite du solde.
+  // Un champ caché `days=1` pour vingt jours posés ne débitait qu'un jour ; `days=-15` en recréditait quinze
+  // (audit du 27/10/2026, RH-DOCUMENTS-COMMS-02). Les deux portes (Mon espace, Mon dossier RH) passent ici.
+  const days = leaveDaysBetween(input.startDate, input.endDate);
   const manager = await getManagerOf(employee.id).catch(() => null);
   const managerUserId = manager?.userId ?? null;
   const stage = managerUserId ? "MANAGER" : "HR";
@@ -87,7 +91,7 @@ export async function createLeaveRequest(
       type: input.type,
       startDate: input.startDate,
       endDate: input.endDate,
-      days: input.days,
+      days,
       reason: input.reason,
       phone: input.phone ?? null,
       createdById: actorId,
@@ -102,7 +106,7 @@ export async function createLeaveRequest(
   await recordAudit({
     actorId, action: "CREATE", module: "Ressources humaines",
     entityType: "LEAVE_REQUEST", entityId: created.id,
-    summary: `Demande de congé — ${employee.fullName} (${input.days} j)`,
+    summary: `Demande de congé — ${employee.fullName} (${days} j)`,
   });
 
   const period = `${input.startDate.toLocaleDateString("fr-FR")} → ${input.endDate.toLocaleDateString("fr-FR")}`;
@@ -110,12 +114,12 @@ export async function createLeaveRequest(
     await notifyUser({
       userId: managerUserId, type: "GENERIC", title: "Congé à valider (votre équipe)",
       // « Mon équipe » ne signe rien : la signature vit dans « Mon espace » (`LIEN_CONGES_A_SIGNER`).
-      body: `${employee.fullName} — ${period} (${input.days} j).`, link: LIEN_CONGES_A_SIGNER,
+      body: `${employee.fullName} — ${period} (${days} j).`, link: LIEN_CONGES_A_SIGNER,
     });
   } else {
     await notifyRoles(stageNotifyRoles("HR") as UserRole[], {
       type: "GENERIC", title: "Congé à valider",
-      body: `${employee.fullName} — ${period} (${input.days} j).`, link: LIEN_CONGES_A_SIGNER,
+      body: `${employee.fullName} — ${period} (${days} j).`, link: LIEN_CONGES_A_SIGNER,
     });
   }
   return { id: created.id, stage };

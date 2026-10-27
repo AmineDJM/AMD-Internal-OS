@@ -908,9 +908,11 @@ export async function sendLegalInvoiceToSettlement(formData: FormData): Promise<
       : null;
     // LE MÊME DINAR NE SORT PAS DEUX FOIS : une facture déjà soldée en direct n'a plus rien à
     // envoyer au centre de paiement. La règle est un module pur, partagé avec l'écriture directe.
+    // LA FACTURE D'UN POSTE Ad & Pro se paie par son poste, jamais d'ici (ADPRO-01).
+    const lienPoste = await prisma.adProItemPiece.findFirst({ where: { legalDocumentId: doc.id, nature: "FACTURE" }, select: { item: { select: { label: true } } } });
     const envoi = canSendToSettlement({
       kind: doc.kind, amount: amount || null, paidDate: doc.paidDate, expenseOrderId: doc.expenseOrderId,
-      bc: bcAmont, ordreLie, direction: doc.direction, status: doc.status,
+      bc: bcAmont, ordreLie, direction: doc.direction, status: doc.status, posteAdPro: lienPoste?.item ?? null,
     });
     if (!envoi.ok) return { ok: false, error: envoi.error };
     // Un ordre REFUSÉ reste « en attente » côté statut : on le ferme avant d'en ouvrir un second, pour

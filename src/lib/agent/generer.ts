@@ -1,6 +1,7 @@
 import { Agent } from "@mastra/core/agent";
 import { modelesAssistant } from "@/lib/agent/modele";
 import type { ModeleTour } from "@/lib/agent/repondre";
+import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 
 /**
  * UN APPEL DE RÉDACTION SANS OUTIL — pour les travaux de documents qui dépassent un tour :
@@ -22,6 +23,8 @@ export const modelesEffectifs = (): ModeleTour[] => modelesDeTest ?? modelesAssi
 export async function genererTexte(consigne: string, texte: string, delaiMs = 60_000): Promise<{ ok: true; texte: string } | { ok: false; raison: string }> {
   const modeles = modelesEffectifs();
   if (!modeles.length) return { ok: false, raison: "L'assistant n'a pas de modèle configuré." };
+  // L'interrupteur général — lu ici comme dans `repondreAvecSecours` : l'autre porte vers le modèle.
+  if (await interrupteurIaCoupe()) return { ok: false, raison: REFUS_IA_COUPEE };
   let raison = "aucune réponse";
   for (const m of modeles) {
     try {

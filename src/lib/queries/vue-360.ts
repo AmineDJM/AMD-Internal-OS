@@ -5,8 +5,7 @@ import { clausePraticiensVisibles } from "@/lib/queries/annuaires";
 import { chargerStrategie, chargerPanel } from "@/lib/segmentation/service";
 import { synthese } from "@/lib/segmentation/moteur";
 import type { EtatProduit } from "@/lib/segmentation/regles";
-import { calculerAffinites } from "@/lib/consommation/affinite";
-import { lireConfig, lignesDuMarche } from "@/lib/consommation/affinite-service";
+import { calculerAffinites, lireConfig, lignesDuMarche } from "@/modules/consommation/api";
 
 /**
  * LES VUES 360° (cahier des charges §11-13) — un objet, tout ce que l'entreprise en sait, sans rien ressaisir :

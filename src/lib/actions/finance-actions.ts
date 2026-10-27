@@ -76,12 +76,30 @@ export async function createTransaction(
   return { ok: true, id: created.id };
 }
 
+/**
+ * L'ÉCRITURE D'UN RÈGLEMENT NE SE RÉÉCRIT PAS (audit argent 2026-10-27, ARGENT-05).
+ *
+ * `settleExpenseOrder` pose UNE écriture par ordre réglé, et l'ordre la pointe (`transactionId`). La
+ * supprimer, en changer le montant, le sens ou le statut laissait l'ordre « payé » avec une trésorerie et
+ * une consommation budgétaire qui ne le comptent plus (ou plus pour la même somme) — et aucune trace sur
+ * l'ordre. Le livre se corrige par une écriture de CORRECTION (contre-passation), jamais en effaçant le
+ * règlement. Libellé, notes, date, compte et pièce restent modifiables : ils ne changent aucun total.
+ */
+async function reglementPorte(id: string): Promise<string | null> {
+  const ordre = await prisma.expenseOrder.findFirst({ where: { transactionId: id }, select: { reference: true } });
+  return ordre?.reference ?? null;
+}
+const refusReglement = (reference: string, geste: string) =>
+  `Cette écriture est le règlement de l'ordre ${reference} : ${geste} ferait mentir la trésorerie et le budget, l'ordre restant payé. Passez une écriture de correction (contre-passation) à la place.`;
+
 export async function updateTransactionStatus(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   const status = fdStr(formData, "status") as FinanceStatus;
   if (!id || !status) return { ok: false, error: "Paramètres manquants." };
+  const regle = await reglementPorte(id);
+  if (regle && status !== "SETTLED") return { ok: false, error: refusReglement(regle, "changer son statut") };
   await prisma.financeTransaction.update({ where: { id }, data: { status } });
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Finances", entityType: "FINANCE_TRANSACTION",
@@ -107,6 +125,14 @@ export async function updateTransaction(formData: FormData): Promise<ActionResul
   const category = (fdStr(formData, "category") as FinanceCategory) ?? "AUTRE";
   const direction = (fdStr(formData, "direction") as FinanceDirection) ??
     (IN_CATEGORIES.includes(category) ? "IN" : "OUT");
+  const regle = await reglementPorte(id);
+  if (regle) {
+    const avant = await prisma.financeTransaction.findUnique({ where: { id }, select: { amount: true, direction: true, status: true } });
+    const statut = (fdStr(formData, "status") as FinanceStatus) ?? "SETTLED";
+    if (avant && (Number(avant.amount) !== Math.abs(amount) || avant.direction !== direction || statut !== avant.status)) {
+      return { ok: false, error: refusReglement(regle, "en changer le montant, le sens ou le statut") };
+    }
+  }
 
   await prisma.financeTransaction.update({
     where: { id },
@@ -143,6 +169,8 @@ export async function deleteTransaction(formData: FormData): Promise<ActionResul
   if (!id) return { ok: false, error: "Identifiant manquant." };
   const tx = await prisma.financeTransaction.findUnique({ where: { id }, select: { reference: true, label: true } });
   if (!tx) return { ok: false, error: "Écriture introuvable." };
+  const regle = await reglementPorte(id);
+  if (regle) return { ok: false, error: refusReglement(regle, "la supprimer") };
   // Un bulletin de paie réglé peut pointer cette écriture : on délie proprement (repasse en non réglé).
   await prisma.payrollEntry.updateMany({ where: { transactionId: id }, data: { transactionId: null, status: "VALIDATED", paidDate: null } }).catch(() => {});
   await prisma.financeTransaction.delete({ where: { id } });
