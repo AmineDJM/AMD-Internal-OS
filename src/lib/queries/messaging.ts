@@ -306,6 +306,44 @@ export async function getTotalUnread(selfId: string): Promise<number> {
   return rows[0] ? Number(rows[0].unread) : 0;
 }
 
+interface DernierMessage {
+  body: string;
+  kind: string;
+  createdAt: Date;
+  senderId: string | null;
+  senderName: string | null;
+  hasAttachment: boolean;
+}
+
+/**
+ * Le DERNIER MESSAGE NON SUPPRIMÉ de chaque conversation — une ligne par conversation, lue par l'index
+ * `(conversationId, createdAt)`. Un message supprimé ne s'aperçoit plus nulle part, pas même dans l'aperçu
+ * de la liste (Direction, 06/10 : « Vous : Hahahahaha » après suppression).
+ *
+ * En SQL et non en `include: { messages: { take: 1 } }` : sous une LISTE de parents, Prisma 5 n'émet
+ * pas ce `take` — il rapatrie tout l'historique de chaque conversation, corps compris, et coupe en
+ * mémoire (audit performance PERF-01, `messaging-sync-perf.test.ts`). Or cette lecture sert le polling
+ * de 12 s de chaque onglet ouvert.
+ */
+async function derniersMessages(conversationIds: string[]): Promise<Map<string, DernierMessage>> {
+  if (conversationIds.length === 0) return new Map();
+  const rows = await prisma.$queryRaw<(DernierMessage & { conversationId: string })[]>`
+    SELECT c.id AS "conversationId", l.body, l.kind::text AS kind, l."createdAt", l."senderId",
+           u.name AS "senderName",
+           EXISTS (SELECT 1 FROM "MessageAttachment" a WHERE a."messageId" = l.id) AS "hasAttachment"
+    FROM unnest(${conversationIds}::text[]) AS c(id)
+    CROSS JOIN LATERAL (
+      SELECT m.id, m.body, m.kind, m."createdAt", m."senderId"
+      FROM "Message" m
+      WHERE m."conversationId" = c.id AND m."deletedAt" IS NULL
+      ORDER BY m."createdAt" DESC
+      LIMIT 1
+    ) l
+    LEFT JOIN "User" u ON u.id = l."senderId"
+  `;
+  return new Map(rows.map(({ conversationId, ...r }) => [conversationId, r]));
+}
+
 /** Liste des conversations de l'utilisateur, triée (épinglées puis récentes). */
 export async function getConversationSummaries(selfId: string): Promise<ConversationSummaryDTO[]> {
   const [memberships, unread] = await Promise.all([
@@ -315,25 +353,18 @@ export async function getConversationSummaries(selfId: string): Promise<Conversa
         conversation: {
           include: {
             members: { where: { leftAt: null }, include: { user: { select: messagingUserSelect } } },
-            // LE DERNIER MESSAGE NON SUPPRIMÉ : un message supprimé ne s'aperçoit plus nulle part, pas même dans
-            // l'aperçu de la liste des conversations (Direction, 06/10 : « Vous : Hahahahaha » après suppression).
-            messages: {
-              where: { deletedAt: null },
-              take: 1,
-              orderBy: { createdAt: "desc" },
-              include: { sender: { select: { id: true, name: true } }, attachments: { select: { id: true }, take: 1 } },
-            },
           },
         },
       },
     }),
     unreadByConversation(selfId),
   ]);
+  const derniers = await derniersMessages(memberships.map((m) => m.conversationId));
 
   const summaries = memberships.map((mem) => {
     const c = mem.conversation;
     const d = describe(c, c.members, selfId);
-    const last = c.messages[0];
+    const last = derniers.get(c.id);
     return {
       id: c.id,
       type: c.type,
@@ -352,9 +383,9 @@ export async function getConversationSummaries(selfId: string): Promise<Conversa
       presence: d.presence,
       unread: unread.get(c.id) ?? 0,
       lastMessageAt: (last?.createdAt ?? c.lastMessageAt).toISOString(),
-      lastMessagePreview: last ? preview(last.body, last.kind, last.attachments.length > 0) : "",
-      lastSenderName: last?.sender?.name ?? null,
-      lastSenderIsSelf: last?.sender?.id === selfId,
+      lastMessagePreview: last ? preview(last.body, last.kind, last.hasAttachment) : "",
+      lastSenderName: last?.senderName ?? null,
+      lastSenderIsSelf: last != null && last.senderId === selfId,
     } satisfies ConversationSummaryDTO;
   });
 
