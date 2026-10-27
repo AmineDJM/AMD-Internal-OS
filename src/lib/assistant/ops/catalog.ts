@@ -3069,43 +3069,9 @@ export const OPS_CATALOG: OpMeta[] = [
   },
 
   // ───────────────────────────── AD & PRO — circuit congrès / événements ─────────────────────────────
-  {
-    tool: "adpro_operation", op: "decide_congress_preliminary", module: "Congrès",
-    uiLabel: "Décision préliminaire congrès (National Sales)",
-    aliases: ["valide le congrès en préliminaire", "attribue le référent Direction Marketing du congrès"],
-    risk: "SENSITIVE",
-    summary: "Approuve (et désigne le référent Direction Marketing) ou refuse une demande de congrès / d'événement à l'étape préliminaire — National Sales.",
-    gate: (u) => u.role === "NATIONAL_SALES" || isSA(u),
-    covers: ["congress-request-actions:preliminaryDecision"],
-  },
-  {
-    tool: "adpro_operation", op: "analyze_congress", module: "Congrès",
-    uiLabel: "Analyse Direction Marketing (congrès)",
-    aliases: ["rends l'analyse du congrès", "avis Direction Marketing sur la prise en charge"],
-    risk: "SENSITIVE",
-    summary: "Rend l'analyse de la Direction Marketing sur un congrès / événement : approuve (budget FACULTATIF — la Direction tranche) ou refuse (motif obligatoire).",
-    gate: () => true,
-    gateNote: "référent Direction Marketing assigné, ou vue globale (revérifié par l'action)",
-    covers: ["congress-request-actions:submitProductAnalysis"],
-  },
-  {
-    tool: "adpro_operation", op: "decide_congress_final", module: "Congrès",
-    uiLabel: "Validation définitive congrès (Direction)",
-    aliases: ["valide définitivement le congrès", "accorde la prise en charge avec le montant"],
-    risk: "CRITICAL",
-    summary: "VALIDE définitivement (montant obligatoire — information médicale si pharmacien configuré, sinon ordre de dépense direct) ou REFUSE — Direction seule.",
-    gate: hasGlobalView,
-    covers: ["congress-request-actions:finalDecision"],
-  },
-  {
-    tool: "adpro_operation", op: "update_congress_budget", module: "Congrès",
-    uiLabel: "Modifier le budget accordé",
-    aliases: ["change le budget accordé du congrès", "modifie le montant validé de l'événement"],
-    risk: "CRITICAL",
-    summary: "Modifie le montant accordé APRÈS validation définitive — répercuté sur la déclaration PRIM (si pas validée) et l'ordre de dépense (s'il n'est pas réglé), Finances prévenues.",
-    gate: hasGlobalView,
-    covers: ["congress-request-actions:updateGrantedBudget"],
-  },
+  // Les anciennes décisions HORS circuit (préliminaire, analyse, décision définitive, budget accordé
+  // global) ont disparu (Direction, 27/10) : le circuit d'un congrès / événement se conduit par
+  // `advance_workflow`, comme à l'écran.
   {
     tool: "adpro_operation", op: "cancel_congress_request", module: "Congrès",
     uiLabel: "Retirer la demande",

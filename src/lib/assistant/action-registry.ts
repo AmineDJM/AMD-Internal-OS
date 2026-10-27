@@ -858,8 +858,6 @@ G("circuit matériel promo (devis→BAT→paiement, étapes après création)", 
 G("sponsoring / congrès / prises en charge (décisions et étapes après création)", [
   "sponsoring-actions:requestThirdPartyInput", "sponsoring-actions:sponsoringAppeal",
   "sponsoring-actions:cloturerSponsoring", "sponsoring-actions:rouvrirSponsoring",
-  "congress-request-actions:preliminaryDecision", "congress-request-actions:submitProductAnalysis",
-  "congress-request-actions:finalDecision", "congress-request-actions:updateGrantedBudget",
   "congress-request-actions:requestThirdPartyInput", "congress-request-actions:cancelCongressRequest",
   "congress-beneficiary-actions:addCongressBeneficiary",
   "congress-beneficiary-actions:removeCongressBeneficiary", "congress-beneficiary-actions:requestBeneficiaryIds",
@@ -1088,6 +1086,13 @@ X("SEGMENTATION STUDIO (Direction, 06/10) : stratégie, classement des produits,
   "segmentation-actions:chercherPraticiensHorsPanel",
   // Le classeur de la Direction importé « en une fois » : un fichier, une BU, un aperçu lu à l'écran avant d'importer.
   "segmentation-actions:apercuImportClasseurDirection", "segmentation-actions:importerClasseurDirection",
+]);
+X("CONGRÈS / ÉVÉNEMENT — ANCIENNES DÉCISIONS HORS CIRCUIT (Direction, 27/10) : préliminaire, analyse Direction Marketing, "
+  + "validation définitive et budget accordé global écrivaient `requestStatus` et le montant SANS le moteur de circuit. "
+  + "Aucun écran ne les propose plus ; Adam passe par les mêmes gestes que l'écran (`advance_workflow`, puis les postes). "
+  + "Elles ne sont pas un geste d'assistant.", [
+  "congress-request-actions:preliminaryDecision", "congress-request-actions:submitProductAnalysis",
+  "congress-request-actions:finalDecision", "congress-request-actions:updateGrantedBudget",
 ]);
 X("PIÈCES DEMANDÉES › CONFIER LE BC D'UN POSTE À UNE AUTRE ASSISTANTE (audit Assistante de direction, 10/2026) : le geste se "
   + "décide en REGARDANT le fil de la pièce (`/pieces/[id]`) — qui la tient, depuis quand, si elle est déposée — et ne vise "
