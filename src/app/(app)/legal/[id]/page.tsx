@@ -40,7 +40,7 @@ import { EntityLinks } from "@/components/shared/entity-links";
 import { linksOf, linkedViews } from "@/lib/links/store";
 import { porteDuBC, origineDuBC, centreVouluDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { blocageParLeBC, reserveEtapeBC } from "@/lib/bons-de-commande/regle";
-import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement } from "@/lib/finances/settlement";
+import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement, refusFactureDePoste } from "@/lib/finances/settlement";
 import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
 import { sitsOnValidationCentre } from "@/lib/validations/centre";
 import { BonDeCommandeGate } from "./bc-gate";
@@ -283,8 +283,13 @@ export default async function LegalDocumentPage({ params, searchParams }: { para
     : null;
   // Une facture ÉMISE par la société se règle par son client : la fiche dit pourquoi le bouton n'est pas là, avec la
   // phrase même du refus de l'action (§118.195).
+  const posteDeLaFacture = doc.kind === "INVOICE"
+    ? await prisma.adProItemPiece.findFirst({ where: { legalDocumentId: doc.id, nature: "FACTURE" }, select: { item: { select: { label: true } } } })
+    : null;
   const settleBlocked = doc.kind === "INVOICE" && doc.direction === "IN"
     ? REFUS_FACTURE_EMISE_AU_REGLEMENT
+    : posteDeLaFacture
+      ? refusFactureDePoste(posteDeLaFacture.item.label)
     : bcAmont?.kind === "PURCHASE_ORDER"
       ? blocageParLeBC(await porteDuBC(bcAmont.id), bcAmont.reference)
       : null;
