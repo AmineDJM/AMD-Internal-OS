@@ -68,8 +68,16 @@ async function applyAnnualLeaveBalance(
 ): Promise<number> {
   const pd = req.periodDays ? Number(req.periodDays) : 0;
   if (req.type !== "ANNUAL_LEAVE" || req.balanceAppliedAt || !(pd > 0)) return 0;
-  await prisma.employee.update({ where: { id: req.employeeId }, data: { leaveBalanceDays: { decrement: pd } } });
-  await prisma.hrDocumentRequest.update({ where: { id: req.id }, data: { balanceAppliedAt: new Date() } });
+  // LE VERROU SE PREND AVANT LE DÉBIT, DANS LA MÊME INSTRUCTION QUE SA LECTURE (§118.151, audit données 2026-10-27) :
+  // lu en JS puis posé après le débit, il laissait deux « Accorder » simultanés débiter tous deux le solde
+  // (20 j retirés pour un congé de 10). Seul celui qui fait passer `balanceAppliedAt` de vide à daté débite.
+  const debite = await prisma.$transaction(async (tx) => {
+    const pris = await tx.hrDocumentRequest.updateMany({ where: { id: req.id, balanceAppliedAt: null }, data: { balanceAppliedAt: new Date() } });
+    if (pris.count === 0) return false;
+    await tx.employee.update({ where: { id: req.employeeId }, data: { leaveBalanceDays: { decrement: pd } } });
+    return true;
+  });
+  if (!debite) return 0;
   await recordAudit({ actorId, action: "UPDATE", module: "RH", summary: `Congé annuel accordé — ${employeeName} (−${pd} j de solde)` });
   return pd;
 }

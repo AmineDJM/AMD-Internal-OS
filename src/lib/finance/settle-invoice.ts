@@ -40,6 +40,9 @@ import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
  * Idempotent dans les deux sens : ré-enregistrer une facture déjà réglée ne double pas son
  * écriture, et dé-marquer un règlement retire la sienne plutôt que de la laisser traîner.
  */
+/** Le règlement a été écrit par un geste concurrent : rien à faire. */
+class DejaReglee extends Error {}
+
 export async function syncInvoiceSettlement(documentId: string, actorId: string): Promise<void> {
   const doc = await prisma.legalDocument.findUnique({
     where: { id: documentId },
@@ -88,27 +91,47 @@ export async function syncInvoiceSettlement(documentId: string, actorId: string)
   })).map((r) => r.reference);
 
   const direction = invoiceDirection(doc.direction);
-  const tx = await prisma.financeTransaction.create({
-    data: {
-      reference: buildRef("FIN", year, refs),
-      date: doc.paidDate ?? new Date(),
-      direction,
-      category: "AUTRE",
-      label: invoiceSettlementLabel(doc),
-      amount,
-      method: "BANK_TRANSFER",
-      account: "Banque",
-      // La contrepartie, c'est L'AUTRE — celle des deux parties qui n'est pas nous.
-      counterparty: doc.counterparty,
-      status: "SETTLED",
-      companyId: doc.companyId,
-      // Le compte d'où part (ou où arrive) le règlement, figé à l'écriture (§118.176).
-      treasuryAccountId: await compteDeLEcriture({ compte: "Banque", societeId: doc.companyId }),
-      createdById: actorId,
-    },
-    select: { id: true },
-  });
-  await prisma.legalDocument.update({ where: { id: doc.id }, data: { settlementTxId: tx.id } });
+  const compteDuReglement = await compteDeLEcriture({ compte: "Banque", societeId: doc.companyId });
+  // UNE FACTURE NE SE RÈGLE QU'UNE FOIS, MÊME À DEUX CLICS OU DEUX ONGLETS (audit données 2026-10-27).
+  // L'écriture et le lien naissent dans la même transaction, et le lien ne se pose que sur une facture
+  // ENCORE sans écriture (§118.151) : le perdant de la course voit son écriture annulée avec lui, au lieu
+  // de laisser au livre une seconde sortie d'argent orpheline.
+  let tx: { id: string };
+  try {
+    tx = await prisma.$transaction(async (t) => {
+      const ecriture = await t.financeTransaction.create({
+        data: {
+          reference: buildRef("FIN", year, refs),
+          date: doc.paidDate ?? new Date(),
+          direction,
+          category: "AUTRE",
+          label: invoiceSettlementLabel(doc),
+          amount,
+          method: "BANK_TRANSFER",
+          account: "Banque",
+          // La contrepartie, c'est L'AUTRE — celle des deux parties qui n'est pas nous.
+          counterparty: doc.counterparty,
+          status: "SETTLED",
+          companyId: doc.companyId,
+          // Le compte d'où part (ou où arrive) le règlement, figé à l'écriture (§118.176).
+          treasuryAccountId: compteDuReglement,
+          createdById: actorId,
+        },
+        select: { id: true },
+      });
+      const lien = await t.legalDocument.updateMany({ where: { id: doc.id, settlementTxId: null }, data: { settlementTxId: ecriture.id } });
+      if (lien.count === 0) throw new DejaReglee();
+      return ecriture;
+    });
+  } catch (e) {
+    if (e instanceof DejaReglee) return;
+    // Deux règlements à la même milliseconde se disputent aussi la référence : si l'autre a gagné, c'est réglé.
+    if ((e as { code?: string }).code === "P2002") {
+      const apres = await prisma.legalDocument.findUnique({ where: { id: doc.id }, select: { settlementTxId: true } });
+      if (apres?.settlementTxId) return;
+    }
+    throw e;
+  }
   await recordAudit({
     actorId, action: "CREATE", module: "Finances", entityType: "FINANCE_TRANSACTION", entityId: tx.id,
     summary: `${direction === "OUT" ? "Décaissement" : "Encaissement"} ${amount.toLocaleString("fr-FR")} DZD — « ${doc.title} » (facture réglée)`,

@@ -13,6 +13,7 @@ import { completerCategoriesDuPole as completer } from "@/lib/budget/enveloppes-
 import { CLE_DE_LA_NATURE, natureDuLibelle, type NatureBv } from "@/lib/budget-regulatory/bv";
 import { arbreCategories, refusReallocation } from "@/lib/budget/marketing-vue";
 import { getBudgetOverview } from "@/lib/queries/budget";
+import { supprimerSousGarde } from "@/lib/budget/suppression-garde";
 
 /**
  * LES BUDGETS DES PÔLES — les gestes de chaque pôle sur SES enveloppes (Direction, 08/10).
@@ -123,8 +124,10 @@ export async function deletePoleEnvelope(formData: FormData): Promise<ActionResu
   if (!env) return { ok: false, error: "Enveloppe introuvable." };
   const pole = poleDe(env);
   if (!pole || !canGovernPoleEnvelope(user, pole, "DELETE", env)) return pole ? refus(pole) : { ok: false, error: "Enveloppe générale : elle se retire dans Budgets." };
-  // Les dépenses imputées repassent en « à imputer » (clé étrangère SetNull) ; les catégories partent avec l'enveloppe.
-  await prisma.budgetEnvelope.delete({ where: { id } });
+  // Les écritures imputées repassent en « à imputer » (clé étrangère SetNull) ; les catégories partent avec
+  // l'enveloppe — refusé tant qu'une dépense budgétaire vit dessous (`budget/suppression-garde.ts`).
+  const fait = await supprimerSousGarde({ envelopeId: id });
+  if (!fait.ok) return fait;
   await recordAudit({ actorId: user.id, action: "DELETE", module: DOMAINES[pole].titre, entityId: id, summary: `Enveloppe ${DOMAINES[pole].court} « ${env.name} » supprimée` });
   revalider(pole);
   return { ok: true };

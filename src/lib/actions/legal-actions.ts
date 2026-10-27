@@ -892,7 +892,7 @@ export async function sendLegalInvoiceToSettlement(formData: FormData): Promise<
       where: { id },
       select: {
         id: true, title: true, reference: true, kind: true, amount: true, counterparty: true,
-        endDate: true, expenseOrderId: true, paidDate: true, direction: true, sourceType: true, sourceId: true, chainFromId: true,
+        endDate: true, expenseOrderId: true, paidDate: true, direction: true, sourceType: true, sourceId: true, chainFromId: true, status: true,
         chainFrom: { select: { id: true, kind: true, reference: true } },
       },
     });
@@ -910,7 +910,7 @@ export async function sendLegalInvoiceToSettlement(formData: FormData): Promise<
     // envoyer au centre de paiement. La règle est un module pur, partagé avec l'écriture directe.
     const envoi = canSendToSettlement({
       kind: doc.kind, amount: amount || null, paidDate: doc.paidDate, expenseOrderId: doc.expenseOrderId,
-      bc: bcAmont, ordreLie, direction: doc.direction,
+      bc: bcAmont, ordreLie, direction: doc.direction, status: doc.status,
     });
     if (!envoi.ok) return { ok: false, error: envoi.error };
     // Un ordre REFUSÉ reste « en attente » côté statut : on le ferme avant d'en ouvrir un second, pour

@@ -849,7 +849,15 @@ export async function submitPaymentRequest(formData: FormData): Promise<ActionRe
     if (refusMontant) return refusDuMontant(lectureMontant, refusMontant);
     const ecartAssume = lectureMontant.etat === "ECART" && !dejaAssume && justificationEcart ? noteEcartAssume(lectureMontant, justificationEcart) : null;
 
-    await prisma.paymentRequest.update({ where: { id }, data: { status: next as PaymentRequestStatus, submittedAt: new Date() } });
+    // UNE TRANSMISSION À LA FOIS (§118.151, audit données 2026-10-27) : le statut se lit et s'écrit dans la même
+    // instruction. Deux clics franchissaient tous deux la lecture et ouvraient DEUX ordres au centre pour une
+    // seule facture, le second écrasant le lien du premier — un ordre orphelin, autorisable et payable.
+    // Le perdant ne touche à rien : l'ordre n'est créé que par celui qui a fait passer le dossier.
+    const pris = await prisma.paymentRequest.updateMany({
+      where: { id, status: req.status, expenseOrderId: req.expenseOrderId },
+      data: { status: next as PaymentRequestStatus, submittedAt: new Date() },
+    });
+    if (pris.count === 0) return { ok: false, error: "Ce dossier vient d'être transmis ou modifié — rechargez la page." };
 
     // LE DOSSIER ENTRE AU CENTRE DE PAIEMENT DÈS LA SOUMISSION, pas au bon à payer.
     //

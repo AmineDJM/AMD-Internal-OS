@@ -150,6 +150,13 @@ describe("canSendToSettlement — l'autre bout du même verrou", () => {
     expect(canSendToSettlement(base).ok).toBe(true);
   });
 
+  it("une facture ANNULÉE ne part pas au paiement — la fiche Legal l'envoyait sans lire le statut (audit données 2026-10-27)", () => {
+    const r = canSendToSettlement({ ...base, status: "CANCELLED" });
+    expect(r.ok).toBe(false);
+    expect(r.ok === false && r.error).toMatch(/annulée/);
+    expect(canSendToSettlement({ ...base, status: "ACTIVE" }).ok).toBe(true);
+  });
+
   it("un contrat ne s'envoie pas au règlement", () => {
     const r = canSendToSettlement({ ...base, kind: "CONTRACT" });
     expect(r.ok).toBe(false);

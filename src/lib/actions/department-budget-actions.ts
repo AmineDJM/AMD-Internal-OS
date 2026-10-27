@@ -436,16 +436,30 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
     ? await finaliserNatures(ticket.lines, { userId: user.id, objet: fdStr(formData, "label"), classer: !budgetCategoryId })
     : [];
 
-  const created = await prisma.departmentBudgetExpense.create({
-    data: {
-      departmentId, year, kind, label, amount, budgetCategoryId,
-      notes: fdStr(formData, "notes"),
-      adminRequestId: fdStr(formData, "adminRequestId"),
-      pettyCashId: src.pettyCashId,
-      createdById: user.id,
-    },
-    select: { id: true },
+  // LA SECONDE PORTE DE LA CAISSE EST ATOMIQUE AUSSI (audit données 2026-10-27) : le contrôle ci-dessus lit le
+  // fond hors transaction — deux saisies « payée sur la caisse » simultanées le franchissaient toutes deux et la
+  // caisse finissait en négatif, exactement le défaut fermé dans `spendFromPettyCash`. Même remède, même verrou :
+  // le département `FOR UPDATE`, le fond relu dessous, la dépense écrite dans la même transaction.
+  const ecrite = await prisma.$transaction(async (tx) => {
+    if (src.pettyCashId) {
+      await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${departmentId} FOR UPDATE`;
+      const encore = canSpendFromFund(continuousCash(await openRemittances(departmentId, tx)), amount);
+      if (!encore.ok) return { ok: false as const, error: encore.reason ?? "Le fond ne couvre pas ce montant." };
+    }
+    const depense = await tx.departmentBudgetExpense.create({
+      data: {
+        departmentId, year, kind, label, amount, budgetCategoryId,
+        notes: fdStr(formData, "notes"),
+        adminRequestId: fdStr(formData, "adminRequestId"),
+        pettyCashId: src.pettyCashId,
+        createdById: user.id,
+      },
+      select: { id: true },
+    });
+    return { ok: true as const, id: depense.id };
   });
+  if (!ecrite.ok) return { ok: false, error: ecrite.error };
+  const created = { id: ecrite.id };
   if (ticket) await saveReceiptLines(created.id, lignes);
 
   for (const file of files) {

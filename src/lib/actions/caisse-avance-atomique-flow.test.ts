@@ -14,6 +14,7 @@ import { deleteFileByKey } from "@/lib/storage";
 import { allotPettyCash, confirmPettyCashReceipt, decidePettyCashTopUp, requestPettyCashTopUp, spendFromPettyCash } from "./petty-cash-actions";
 import { decidePayment } from "./payment-centre-actions";
 import { settleExpenseOrder } from "./expense-actions";
+import { addDepartmentExpense } from "./department-budget-actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -120,6 +121,18 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const f = await fond();
     expect([f.spent, f.remaining]).toEqual([60_000, 40_000]);
     expect(await prisma.departmentBudgetExpense.count({ where: { departmentId: deptId } })).toBe(1);
+  });
+
+  it("(a′) LA SECONDE PORTE — une dépense « payée sur la caisse » saisie par Budget du département relit aussi le fond sous verrou (audit données 2026-10-27)", async () => {
+    // Il reste 40 000 après (a). `addDepartmentExpense` contrôlait le fond HORS transaction : deux saisies
+    // simultanées de 30 000 passaient toutes deux et la caisse finissait à −20 000.
+    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
+    const champs = (n: number) => form({ departmentId: deptId, kind: "OPERATING", label: `${TAG} porte2 ${n}`, amount: "30000", year: "2026", paymentSource: "CASH" }, [pdf()]);
+    const [r1, r2] = await Promise.all([addDepartmentExpense(champs(1)), addDepartmentExpense(champs(2))]);
+    expect([r1, r2].filter((r) => r.ok).length, "une seule dépense passe").toBe(1);
+    expect([r1, r2].find((r) => !r.ok)?.error).toMatch(/Il ne reste que 10000 DZD dans la caisse/);
+    const f = await fond();
+    expect([f.spent, f.remaining]).toEqual([90_000, 10_000]);
   });
 
   it("(b) LA RALLONGE est annoncée à qui la TRANCHE (les RH, par leur droit) — pas à qui ne le peut pas, ni à la demandeuse", async () => {

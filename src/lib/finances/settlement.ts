@@ -246,10 +246,17 @@ export function canSendToSettlement(input: {
   ordreLie?: { status: string; centralStatus: string } | null;
   /** LE SENS DE LA FACTURE (`direction`) : « IN » = émise par la société. Absent : facture reçue, comme avant. */
   direction?: string | null;
+  /**
+   * LE STATUT DE LA PIÈCE (audit données 2026-10-27). Une facture ANNULÉE ne part pas au paiement : la fiche
+   * Legal l'envoyait quand même (rien ne lisait le statut), et un ordre payable naissait d'une pièce annulée.
+   * Le dossier promotionnel l'excluait déjà à la lecture ; la règle commune le dit maintenant pour tous.
+   */
+  status?: string | null;
 }): SettlementCheck {
   if (input.kind !== "INVOICE") {
     return { ok: false, error: "Seul un document de nature « facture » s'envoie au règlement." };
   }
+  if (input.status === "CANCELLED") return { ok: false, error: "Cette facture est annulée : elle ne part pas au paiement. Rétablissez-la d'abord si elle est due." };
   if (input.direction === "IN") return { ok: false, error: REFUS_FACTURE_EMISE_AU_REGLEMENT };
   if (input.expenseOrderId && !ordreClos(input.ordreLie)) return { ok: false, error: "Cette facture est déjà partie au règlement." };
   if (input.paidDate) {
