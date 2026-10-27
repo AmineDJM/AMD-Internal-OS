@@ -40,13 +40,24 @@ import { balayerSurveillances } from "@/platform/in-process/missions/watch";
 import { vieillirMemoire } from "@/platform/in-process/missions/memory";
 import { relancerEngagements } from "@/platform/in-process/missions/commitments";
 import { assurerProduitsDesDossiersAuDemarrage } from "@/lib/products/canonique";
+import { executerPassage, type BilanPassage, type ContexteExecution, type TachePlanifiee } from "@/lib/taches-de-fond/executer";
+import { identiteDuProcessus } from "@/lib/taches-de-fond/bail";
+import { battementWebArme, executeurAutorise, executeurDuProcessus, lireModeTachesDeFond } from "@/lib/taches-de-fond/mode";
+import { traiterFileEnrichissement } from "@/lib/taches-de-fond/enrichissement";
 
 /**
- * Tâches périodiques **sans cron externe** : déclenchées (au plus une fois par minute,
- * grâce à un verrou de débounce) depuis un point chaud déjà sollicité régulièrement par
- * les clients connectés (le polling de la messagerie). Tant qu'au moins un utilisateur est
- * actif, ces tâches tournent ; les rappels arrivent en cloche **et en push** (donc même
- * sur le téléphone d'un destinataire hors-ligne). Zéro configuration côté hébergeur.
+ * Tâches périodiques **sans cron externe**. Deux exécutants possibles, choisis par l'interrupteur
+ * `TACHES_DE_FOND` (`taches-de-fond/mode.ts`) :
+ *
+ *  - le processus WEB (défaut) : battement autonome ci-dessous, plus un réveil débouncé depuis les
+ *    points chauds déjà sollicités par les clients connectés (polling de la messagerie, barre de
+ *    progression d'une analyse) ;
+ *  - le WORKER (`npm run worker`, refonte V2-F) : le même passage, dans un processus à lui — une
+ *    extraction lourde ne ralentit plus une page.
+ *
+ * Dans les deux cas le passage est la table `TACHES_PLANIFIEES`, et chaque tâche se prend par un
+ * BAIL en base (`taches-de-fond/bail.ts`) : un seul exécutant la tient, même quand les deux battent.
+ * Les rappels arrivent en cloche **et en push** (donc même sur le téléphone d'un destinataire hors-ligne).
  */
 
 const DEBOUNCE_MS = 60_000;
@@ -54,7 +65,7 @@ let lastRun = 0;
 let running = false;
 
 /**
- * BATTEMENT AUTONOME — l'analyse ne s'arrête plus quand l'utilisateur quitte l'application.
+ * BATTEMENT AUTONOME DU WEB — l'analyse ne s'arrête plus quand l'utilisateur quitte l'application.
  *
  * Ces tâches n'étaient déclenchées que par les requêtes des clients connectés (polling de la
  * messagerie, écran de progression). C'était un choix « zéro configuration côté hébergeur », mais
@@ -67,221 +78,256 @@ let running = false;
  * (L'armement au démarrage via `instrumentation.ts` serait plus direct, mais ce fichier est aussi
  * compilé pour le runtime Edge, où la chaîne serveur — IMAP, agents HTTP — ne se résout pas.)
  *
- * Le verrou de débounce ci-dessus reste seul juge : un battement qui tombe pendant qu'un passage
- * déclenché par un clic travaille encore ne fait rien. `unref()` garantit que le minuteur
- * n'empêche jamais un arrêt propre du processus lors d'un déploiement.
+ * Le verrou de débounce ci-dessus reste seul juge DANS le processus : un battement qui tombe pendant
+ * qu'un passage déclenché par un clic travaille encore ne fait rien. ENTRE processus, c'est le bail
+ * de chaque tâche. `unref()` garantit que le minuteur n'empêche jamais un arrêt propre du processus
+ * lors d'un déploiement.
+ *
+ * Il ne s'arme que dans le processus web, et seulement si l'interrupteur le lui confie
+ * (`TACHES_DE_FOND=web` ou `les-deux`) : le worker importe ce module sans jamais l'armer.
  *
  * ⚠️ Un hébergeur qui met l'instance en veille faute de trafic suspend aussi ce battement : le
  * travail reprend au réveil (rien n'est perdu — les jobs vivent en base), mais il ne progresse pas
- * pendant la veille. C'est le seul cas où l'analyse marque une pause sans personne connecté.
+ * pendant la veille. C'est le cas que le service worker ferme : il ne dort pas.
  */
-const TICK_MS = Math.max(15_000, Number(process.env.SCHEDULER_TICK_MS ?? 60_000));
+export const TICK_MS = Math.max(15_000, Number(process.env.SCHEDULER_TICK_MS ?? 60_000));
 
 function armHeartbeat(): void {
-  if (process.env.SCHEDULER_DISABLED === "1") return; // soupape, sans redéploiement de code
-  // Jamais pendant les TESTS (chaque fichier importerait ce module et lancerait le planificateur
-  // complet sur la base de test), ni pendant la COMPILATION (le build importe les modules serveur
-  // pour pré-rendre les pages : il n'a aucune tâche de fond à exécuter).
-  if (process.env.VITEST || process.env.NODE_ENV === "test") return;
-  if (process.env.NEXT_PHASE === "phase-production-build") return;
+  if (!battementWebArme()) return;
   const timer = setInterval(() => {
     void runScheduledJobs().catch((e) => console.error("[scheduler] battement échoué", e));
   }, TICK_MS);
   timer.unref?.();
 }
-armHeartbeat();
 
-/** Lance les tâches dues, au plus une fois par minute (process-wide). Ne lève jamais. */
+/**
+ * L'identité de CE processus dans les baux — calculée au premier passage, pas au chargement : le
+ * worker déclare son rôle avant d'importer ce module, mais rien n'oblige un import futur à suivre.
+ */
+let detenteur: string | null = null;
+function identite(): string {
+  return (detenteur ??= identiteDuProcessus(executeurDuProcessus()));
+}
+
+/**
+ * Réveil depuis le WEB : lance les tâches dues, au plus une fois par minute (process-wide).
+ * Ne fait rien quand l'interrupteur confie le battement au worker seul. Ne lève jamais.
+ */
 export async function runScheduledJobs(): Promise<void> {
+  if (executeurDuProcessus() !== "web") return;
+  if (!executeurAutorise(lireModeTachesDeFond(), "web")) return;
   const now = Date.now();
   if (running || now - lastRun < DEBOUNCE_MS) return;
   running = true;
   lastRun = now;
   try {
-    await sendDueMeetingReminders();
-    await sendDueReminders();
-    await sendDuePayrollNotifications();
-    await accrueMonthlyLeave().catch((e) => console.error("[scheduled] leave accrual failed", e)); // +2,5 j/mois (idempotent)
-    // PRODUIT = DOSSIER (Direction, 08/10) : UNE fois par processus, chaque dossier non verrouillé reçoit
-    // son produit — l'existant rejoint la règle des nouveaux. Idempotent ; le bilan part au journal du serveur.
-    await assurerProduitsDesDossiersAuDemarrage().catch((e) => console.error("[scheduled] produits des dossiers", e));
-    await performAiHealthCheck().catch((e) => console.error("[scheduled] ai health check failed", e)); // test IA 1×/jour + alerte Super Admin
-    await runDueRegulatoryJobs();
-    await pruneStaleUploadSessions().catch(() => 0); // nettoyage des sessions d'upload incomplètes
-    await purgeClosedSessionParts().catch(() => 0); // filet : octets d'envois clos qu'un redémarrage aurait laissés
-    await nettoyerDepotsDirectsPerimes().catch(() => 0); // envois directs au bucket jamais terminés : parties libérées
-    await runAnppWatchIfDue(); // veille ANPP 1×/jour : une ligne directrice ne doit pas changer sans qu'on le sache
-    await pollAiBatches(); // analyses différées (moitié prix) : récupère les lots terminés
-    // Rattrapage de l'EXISTANT : les dossiers déjà en base profitent des mêmes règles que les
-    // nouveaux — revue de fond jamais livrée, ou pipeline arrêté en chemin. Bornés par passage.
-    await expireStaleBatches().catch(() => 0); // lots fantômes : sinon l'écran dit « sous 24 h » à vie
-    await catchUpStalledPipelines().catch(() => 0);
-    await catchUpMissingAiReviews().catch(() => 0);
-    await embedBacklog().catch(() => 0); // vecteurs sémantiques : un paquet par passage, jamais plus
-    await runIntelligencePulse(); // Adventum Pulse : instantané horaire (Brain + Process Intelligence) + alerte proactive
-    // LE BRIEFING DU MATIN d'Adventum Brain : une fois par jour, à 7 h (Alger), APRÈS la passe horaire qui vient de
-    // réconcilier les risques — il les lit, il ne les recalcule pas.
-    await runBrainBriefingIfDue().catch(() => undefined);
-    // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
-    // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
-    await import("@/lib/agent/routines/service")
-      .then((m) => m.executerRoutinesDues())
-      .catch((e) => console.error("[scheduled] routines de l'assistant", e));
-    // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
-    await import("@/lib/agent/fil/service")
-      .then((m) => m.reprendreLesFils())
-      .catch((e) => console.error("[scheduled] fil de l'assistant", e));
-    // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
-    // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
-    await runPettyCashRechargeReminders().catch(() => 0);
-    // Échéances des engagements (contrats, BC, assurances, baux) : aligne le statut d'un terme
-    // passé, et prévient À L'ENTRÉE dans une zone d'urgence (90 j, 30 j, dépassement) — pas tous
-    // les jours, sinon la personne coupe les notifications et rate la vraie.
-    await runLegalExpirySweep().catch(() => undefined);
-    // RÉCURRENCES DE DEMANDE D'ÉTAT DE STOCK : le directeur des opérations pose une fois « le 1er
-    // de chaque mois, Karim relève ses trois hôpitaux », et la demande repart seule. Elle est ICI
-    // et non dans le registre des planifications, dont l'en-tête interdit toute écriture avec
-    // raison (`mutates: false`) : là-bas la clé est choisie par un humain ou proposée par un
-    // modèle, ici l'effet est écrit en revue de code et ne varie pas.
-    await declencherRecurrencesStock().catch((e) => console.error("[scheduled] stock recurrences failed", e));
-    // STOCK PROMOTIONNEL (§118.164) : une dotation n'entre chez le délégué qu'à SA confirmation.
-    // Au troisième jour sans confirmation, une relance — une seule — part vers celui qui doit
-    // confirmer. Ici pour la même raison que les récurrences : c'est un EFFET écrit en revue de code.
-    await relancerReceptionsStock().catch((e) => console.error("[scheduled] relance des réceptions de stock", e));
-    // STOCK PROMOTIONNEL, ÉTAPE 5 (§118.168) : les comptages récurrents que le directeur des
-    // opérations a posés (autorité de l'auteur RELUE à chaque déclenchement, jamais de rattrapage),
-    // puis les alertes — une fois l'heure, à l'ENTRÉE dans un état (seuil, rupture, péremption à
-    // trente jours, lot périmé en main, envoi non confirmé, comptage en retard), une notification
-    // par personne. Ici pour la même raison : ce sont des EFFETS écrits en revue de code.
-    await declencherComptagesRecurrents().catch((e) => console.error("[scheduled] comptages récurrents du stock", e));
-    await alerterStock().catch((e) => console.error("[scheduled] alertes du stock promotionnel", e));
-    // Échéances de DÉPÔT des marchés PCH : responsable + équipe prévenus à J-7, J-2 et au
-    // dépassement — le rappel se tait dès que la soumission est déposée.
-    await runPchDeadlineSweep().catch(() => undefined);
-    // FORCE DE VENTE : alertes de supervision (silence, retard à mi-mois, couverture, KAM non
-    // armé) — une par type et par mois, jamais une par nuit —, instantané mensuel de chaque KAM
-    // (le mois clos ne se recalcule plus) et revue au passage du mois.
-    await runSfeFieldSweep().catch(() => undefined);
-    // KPI & BILANS (KPI sans code, Direction 08/10 : « bilan en continu ») : une fois par jour, la période courante de
-    // chacun est recalculée et mise en cache — le calcul à la demande reste là entre deux passages.
-    await rafraichirKpiSiDu().catch((e) => console.error("[scheduled] rafraîchissement des KPI", e));
-    // INTELLIGENCE TERRAIN (console d'administration, Super Admin seul) : une fois par jour, les liens structurels et les
-    // scores d'influence se recalculent, et Luna lit les rapports NOUVEAUX depuis le filigrane (liens PROPOSÉS, jamais appliqués).
-    await analyserInfluenceSiDu().catch((e) => console.error("[scheduled] graphe d'influence", e));
-    // Rappels du Chief of Staff : « rappelle-moi mardi à 10 h », « tous les dimanches relance
-    // Regulatory » — pop-up au propriétaire, relance du rôle cible s'il y en a un.
-    await runAssistantReminders().catch(() => undefined);
-    // Ingestion Drive : un paquet de fichiers indexés (texte + classification) par passage —
-    // un document mal nommé jamais ouvert devient trouvable par son CONTENU. L'ACL se
-    // revérifie à la recherche, nœud par nœud. Débrayage : ASSISTANT_DRIVE_INGESTION=off.
-    await runDriveIngestionSweep().catch(() => undefined);
-    // Mentions d'entités (fabric F4) : le RATTRAPAGE des fichiers indexés AVANT que
-    // l'extraction existe. Les nouveaux fichiers sont extraits à l'ingestion même ; ce
-    // balayage borné vide le reste-à-faire (`mentionsAt: null`), un lot par passage.
-    await balayerMentions().catch(() => undefined);
-    // États chauds (fabric F5) : les signaux exécutifs des dirigeants RÉCEMMENT ACTIFS se
-    // recalculent ici, en avance — la question « qu'est-ce qui cloche ? » trouve un état
-    // déjà payé, avec son instant de calcul et son coût mesurés.
-    await rechaufferAlertes().catch(() => undefined);
-    // QUALITÉ DES DONNÉES (mandat 4 §23) : les règles LÉGÈRES (doublons de factures, montants
-    // contradictoires, statuts de paiement impossibles, comptes actifs de salariés partis) toutes
-    // les heures ; le balayage COMPLET la nuit. Les corrections SÛRES s'appliquent seules et se
-    // journalisent ; le reste attend une personne — dans la boîte de décision et l'écran d'admin.
-    await balayageQualiteSiDu().catch((e) => console.error("[scheduled] qualité des données", e));
-    // INTELLIGENCE LEGAL (mandat 4 §27) : les clauses des engagements actifs dont le texte indexé a
-    // changé sont relues une fois par jour et mises en réserve dans `custom.intelligence` — les
-    // lectures du jour (Adam, boîte de décision) trouvent des clauses déjà lues au lieu de les relire.
-    await mettreEnCacheClausesSiDu().catch((e) => console.error("[scheduled] réserve des clauses", e));
-    // SITE PUBLIC ADVENTUM (§118.158) : la file d'envoi des offres d'emploi et des articles, puis
-    // la réconciliation quotidienne (`GET /jobs`, `GET /posts`). Ici et non dans le registre des
-    // planifications, pour la raison des récurrences de stock : ce sont des EFFETS (des requêtes
-    // qui publient sur un site public), écrits en revue de code, que le registre interdit à juste
-    // titre (`mutates: false`). La file est le FILET : les délais courts du contrat (1 s, 5 s,
-    // 30 s) sont tenus par un minuteur du processus, et c'est ce passage-ci qui reprend tout ce
-    // qui est dû après un redémarrage. Les deux se taisent tant que le site n'est pas relié (clé
-    // générée par l'ERP et reconnue par le site — §118.159 —, ou ADVENTUM_API_KEY en repli), et la
-    // réconciliation se débraye par SITE_WEB_RECONCILIATION=off.
-    // LA LIAISON D'ABORD (§118.159) : une clé en attente que le site vient de reconnaître est promue
-    // ici, et la file qui suit part aussitôt avec elle. Puis la santé du site, une fois l'heure.
-    await entretenirLiaisonSiteWeb().catch((e) => console.error("[scheduled] liaison du site web", e));
-    await viderFileSiteWeb().catch((e) => console.error("[scheduled] file du site web", e));
-    await rapprocherSiteSiDu().catch((e) => console.error("[scheduled] rapprochement du site web", e));
-    // AUDIENCE DU SITE (Direction, 07/10) : les événements de plus de 13 mois s'effacent, une fois par jour.
-    await purgerAudienceSiDu().catch((e) => console.error("[scheduled] purge de l'audience du site", e));
-
-    // LA COUCHE DE CONNAISSANCE — elle avance à son rythme, derrière tout le reste.
-    //
-    // Placée APRÈS les balayages existants et volontairement modeste : indexer plus vite au
-    // prix du service rendu à ceux qui utilisent l'ERP serait un mauvais échange. Si un passage
-    // ne finit pas son lot, le suivant reprend là où il en était — rien n'est perdu, et
-    // personne n'attend.
-    await refreshEntityIndex().catch(() => undefined);
-    await enqueueBacklogs().catch(() => undefined);
-    // Les documents restés muets repassent doucement : un parseur qui s'améliore doit pouvoir
-    // rattraper ce qu'il n'avait pas su lire, sinon la correction n'atteint jamais l'existant.
-    await enqueueStalled(5).catch(() => 0);
-    // LES PLANIFICATIONS DE L'UTILISATEUR (§9). Le catalogue est enregistré ici, une fois, plutôt
-    // qu'en effet de bord d'import : sinon il dépendrait de l'ordre des imports, donc différerait
-    // entre le test, le développement et la production.
-    registerBuiltinWorkflows();
-    await runScheduledWorkflows().catch(() => undefined);
-    await runKnowledgeSweep().catch(() => undefined);
-    // LE BATTEMENT D'ADAM — sans navigateur ouvert, sans que le PDG demande quoi que ce soit.
-    // Trois gestes : garder l'oreille (renouveler la veille Gmail AVANT expiration), rattraper
-    // ce qui est arrivé (histoire incrémentale), et se rattraper soi-même (réconciliation
-    // complète toutes les 30 min). C'est ce qui rend « qu'est-ce que j'ai raté ? » possible :
-    // le push Pub/Sub est rapide mais fragile, et un message perdu est un SILENCE, pas une
-    // erreur — personne ne s'en apercevrait. Sans connexion Google, c'est un no-op.
-    // Débrayages : suspension du traitement entrant (réglages), ou connexion en pause.
-    await runAdamInboxSweep().catch((e) => console.error("[scheduled] balayage ADAM echoue", e));
-
-    // LES MISSIONS DURABLES — le seul balayage de cette liste qui produise des EFFETS.
-    //
-    // Il est ici, et non parmi les traitements planifiés, parce que ceux-ci déclarent
-    // `mutates: false` en toutes lettres : y ranger l'avancement d'une mission ferait du
-    // planificateur un contournement de la politique d'approbation. Ici, chaque effet passe par
-    // le chemin canonique — RBAC, intent, reçu, idempotence — et une mission qui attend un
-    // accord n'avance pas d'un pouce tant que personne n'a cliqué.
-    //
-    // C'est CE balayage qui tient la promesse « la mission continue même si vous fermez
-    // l'application ». Sans lui, elle s'arrêterait à la fin de la requête qui l'a lancée.
-    // Débrayage : MISSIONS_SWEEP=off.
-    await balayerMissions().catch((e) => console.error("[scheduled] balayage des missions échoué", e));
-
-    // LES SURVEILLANCES DURABLES — « surveille ce dossier et préviens-moi seulement s'il y a un
-    // problème ». Relues à leur cadence et dès qu'un fait les touche (le registre avance leur
-    // prochain contrôle) ; seul un changement de signature parle. Même débrayage que les missions.
-    await balayerSurveillances().catch((e) => console.error("[scheduled] balayage des surveillances échoué", e));
-
-    // LE VIEILLISSEMENT DE LA MÉMOIRE — le seul des deux mouvements de la mémoire épisodique
-    // qui n'ait pas de conversation pour le déclencher.
-    //
-    // Le DÉCOUPAGE se fait après un échange, quand la matière est fraîche. La DESCENTE de
-    // fidélité, elle, dépend du CALENDRIER : un compte silencieux depuis six mois doit voir ses
-    // souvenirs se réduire aux faits, sans quoi la compression ne profiterait qu'à ceux qui
-    // parlent — c'est-à-dire à ceux dont la mémoire est déjà fraîche et légère.
-    //
-    // Sans clé de fournisseur, c'est un no-op immédiat : on ne compresse pas un souvenir sans
-    // savoir ce qu'il contient, et il n'existe pas de repli déterministe honnête.
-    await vieillirMemoire().catch((e) => console.error("[scheduled] vieillissement mémoire échoué", e));
-
-    // LES PROMESSES NON TENUES — l'exact inverse du chemin qui marchait déjà.
-    //
-    // Un engagement se satisfait tout seul quand le fait arrive : `satisfaireEngagements` est
-    // appelée par le registre d'événements. Mais quand le fait N'ARRIVE PAS, personne ne
-    // repassait : la promesse restait ouverte en silence, et c'est précisément le cas où l'on
-    // attend quelque chose d'un assistant.
-    //
-    // Rien n'est envoyé À LA PERSONNE QUI A PROMIS : on prévient celle qui attend. Écrire à un
-    // tiers depuis un battement serait une communication sortante que personne n'a relue.
-    await relancerEngagements().catch((e) => console.error("[scheduled] relances d'engagements échouées", e));
-
+    await executerTachesPlanifiees({ detenteur: identite(), executeur: "web" });
   } catch (err) {
     console.error("[scheduled] run failed", err);
   } finally {
     running = false;
   }
 }
+
+/** Un passage complet de la table — le point d'entrée commun au web et au worker. */
+export function executerTachesPlanifiees(ctx: ContexteExecution): Promise<BilanPassage> {
+  return executerPassage(TACHES_PLANIFIEES, ctx);
+}
+
+/** L'identité que ce processus écrit dans les baux (le worker la journalise au démarrage). */
+export function identiteDesBaux(): string {
+  return identite();
+}
+
+/**
+ * LA TABLE DES TÂCHES — l'ordre est celui du passage, et il compte (le briefing du matin lit ce que
+ * le Pulse vient d'écrire ; la file du site web part avec la clé que la liaison vient de promouvoir).
+ *
+ * Une tâche par ligne : chacune a SON bail, SA durée mesurée, SON issue au Diagnostic. Une tâche
+ * qui lève est comptée en échec et le passage continue. Pour ajouter une tâche : une ligne ici,
+ * idempotente (elle peut tourner à chaque passage, et sur n'importe quel exécutant).
+ */
+export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
+  { cle: "rappels.reunions", executer: sendDueMeetingReminders },
+  { cle: "rappels.personnels", executer: sendDueReminders },
+  { cle: "rh.paie-notifiee", executer: sendDuePayrollNotifications },
+  { cle: "rh.conges-acquis", executer: accrueMonthlyLeave }, // +2,5 j/mois (idempotent)
+  // PRODUIT = DOSSIER (Direction, 08/10) : UNE fois par processus, chaque dossier non verrouillé reçoit
+  // son produit — l'existant rejoint la règle des nouveaux. Idempotent ; le bilan part au journal du serveur.
+  { cle: "produits.dossiers", executer: assurerProduitsDesDossiersAuDemarrage },
+  { cle: "ia.sante", executer: performAiHealthCheck }, // test IA 1×/jour + alerte Super Admin
+  { cle: "regulatory.jobs", executer: () => runDueRegulatoryJobs() },
+  { cle: "regulatory.sessions-upload", executer: pruneStaleUploadSessions }, // sessions d'upload incomplètes
+  { cle: "regulatory.parties-closes", executer: purgeClosedSessionParts }, // filet : octets d'envois clos qu'un redémarrage aurait laissés
+  { cle: "drive.depots-directs", executer: nettoyerDepotsDirectsPerimes }, // envois directs au bucket jamais terminés : parties libérées
+  { cle: "regulatory.veille-anpp", executer: runAnppWatchIfDue }, // 1×/jour : une ligne directrice ne doit pas changer sans qu'on le sache
+  { cle: "regulatory.lots-ia", executer: pollAiBatches }, // analyses différées (moitié prix) : récupère les lots terminés
+  // Rattrapage de l'EXISTANT : les dossiers déjà en base profitent des mêmes règles que les
+  // nouveaux — revue de fond jamais livrée, ou pipeline arrêté en chemin. Bornés par passage.
+  { cle: "regulatory.lots-fantomes", executer: expireStaleBatches }, // sinon l'écran dit « sous 24 h » à vie
+  { cle: "regulatory.pipelines-arretes", executer: catchUpStalledPipelines },
+  { cle: "regulatory.revues-manquantes", executer: catchUpMissingAiReviews },
+  { cle: "regulatory.vecteurs", executer: embedBacklog }, // vecteurs sémantiques : un paquet par passage, jamais plus
+  // Adventum Pulse : instantané horaire (Brain + Process Intelligence) + alerte proactive.
+  { cle: "adventum.pulse", executer: runIntelligencePulse },
+  // LE BRIEFING DU MATIN d'Adventum Brain : une fois par jour, à 7 h (Alger), APRÈS la passe horaire qui vient de
+  // réconcilier les risques — il les lit, il ne les recalcule pas.
+  { cle: "adventum.briefing", executer: runBrainBriefingIfDue },
+  // LA FILE D'ENRICHISSEMENT (lot V2-A) : la place est prise, le corps est livré par V2-A
+  // (`taches-de-fond/enrichissement.ts`). D'ici là, la tâche se déclare « ignorée ».
+  { cle: "enrichissement.file", executer: traiterFileEnrichissement },
+  // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
+  // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
+  { cle: "assistant.routines", executer: async () => (await import("@/lib/agent/routines/service")).executerRoutinesDues() },
+  // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
+  { cle: "assistant.fils", executer: async () => (await import("@/lib/agent/fil/service")).reprendreLesFils() },
+  // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
+  // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
+  { cle: "finance.caisse-avance", executer: runPettyCashRechargeReminders },
+  // Échéances des engagements (contrats, BC, assurances, baux) : aligne le statut d'un terme
+  // passé, et prévient À L'ENTRÉE dans une zone d'urgence (90 j, 30 j, dépassement) — pas tous
+  // les jours, sinon la personne coupe les notifications et rate la vraie.
+  { cle: "legal.echeances", executer: runLegalExpirySweep },
+  // RÉCURRENCES DE DEMANDE D'ÉTAT DE STOCK : le directeur des opérations pose une fois « le 1er
+  // de chaque mois, Karim relève ses trois hôpitaux », et la demande repart seule. Elle est ICI
+  // et non dans le registre des planifications, dont l'en-tête interdit toute écriture avec
+  // raison (`mutates: false`) : là-bas la clé est choisie par un humain ou proposée par un
+  // modèle, ici l'effet est écrit en revue de code et ne varie pas.
+  { cle: "stocks.recurrences", executer: declencherRecurrencesStock },
+  // STOCK PROMOTIONNEL (§118.164) : une dotation n'entre chez le délégué qu'à SA confirmation.
+  // Au troisième jour sans confirmation, une relance — une seule — part vers celui qui doit
+  // confirmer. Ici pour la même raison que les récurrences : c'est un EFFET écrit en revue de code.
+  { cle: "stocks.relance-receptions", executer: relancerReceptionsStock },
+  // STOCK PROMOTIONNEL, ÉTAPE 5 (§118.168) : les comptages récurrents que le directeur des
+  // opérations a posés (autorité de l'auteur RELUE à chaque déclenchement, jamais de rattrapage),
+  // puis les alertes — une fois l'heure, à l'ENTRÉE dans un état (seuil, rupture, péremption à
+  // trente jours, lot périmé en main, envoi non confirmé, comptage en retard), une notification
+  // par personne. Ici pour la même raison : ce sont des EFFETS écrits en revue de code.
+  { cle: "stocks.comptages-recurrents", executer: declencherComptagesRecurrents },
+  { cle: "stocks.alertes", executer: alerterStock },
+  // Échéances de DÉPÔT des marchés PCH : responsable + équipe prévenus à J-7, J-2 et au
+  // dépassement — le rappel se tait dès que la soumission est déposée.
+  { cle: "pch.echeances", executer: runPchDeadlineSweep },
+  // FORCE DE VENTE : alertes de supervision (silence, retard à mi-mois, couverture, KAM non
+  // armé) — une par type et par mois, jamais une par nuit —, instantané mensuel de chaque KAM
+  // (le mois clos ne se recalcule plus) et revue au passage du mois.
+  { cle: "sfe.terrain", executer: runSfeFieldSweep },
+  // KPI & BILANS (KPI sans code, Direction 08/10 : « bilan en continu ») : une fois par jour, la période courante de
+  // chacun est recalculée et mise en cache — le calcul à la demande reste là entre deux passages.
+  { cle: "kpi.rafraichissement", executer: rafraichirKpiSiDu },
+  // INTELLIGENCE TERRAIN (console d'administration, Super Admin seul) : une fois par jour, les liens structurels et les
+  // scores d'influence se recalculent, et Luna lit les rapports NOUVEAUX depuis le filigrane (liens PROPOSÉS, jamais appliqués).
+  { cle: "terrain.influence", executer: analyserInfluenceSiDu },
+  // Rappels du Chief of Staff : « rappelle-moi mardi à 10 h », « tous les dimanches relance
+  // Regulatory » — pop-up au propriétaire, relance du rôle cible s'il y en a un.
+  { cle: "assistant.rappels", executer: runAssistantReminders },
+  // Ingestion Drive : un paquet de fichiers indexés (texte + classification) par passage —
+  // un document mal nommé jamais ouvert devient trouvable par son CONTENU. L'ACL se
+  // revérifie à la recherche, nœud par nœud. Débrayage : ASSISTANT_DRIVE_INGESTION=off.
+  { cle: "assistant.ingestion-drive", executer: runDriveIngestionSweep },
+  // Mentions d'entités (fabric F4) : le RATTRAPAGE des fichiers indexés AVANT que
+  // l'extraction existe. Les nouveaux fichiers sont extraits à l'ingestion même ; ce
+  // balayage borné vide le reste-à-faire (`mentionsAt: null`), un lot par passage.
+  { cle: "fabric.mentions", executer: balayerMentions },
+  // États chauds (fabric F5) : les signaux exécutifs des dirigeants RÉCEMMENT ACTIFS se
+  // recalculent ici, en avance — la question « qu'est-ce qui cloche ? » trouve un état
+  // déjà payé, avec son instant de calcul et son coût mesurés.
+  { cle: "assistant.alertes-chaudes", executer: rechaufferAlertes },
+  // QUALITÉ DES DONNÉES (mandat 4 §23) : les règles LÉGÈRES (doublons de factures, montants
+  // contradictoires, statuts de paiement impossibles, comptes actifs de salariés partis) toutes
+  // les heures ; le balayage COMPLET la nuit. Les corrections SÛRES s'appliquent seules et se
+  // journalisent ; le reste attend une personne — dans la boîte de décision et l'écran d'admin.
+  { cle: "qualite.balayage", executer: balayageQualiteSiDu },
+  // INTELLIGENCE LEGAL (mandat 4 §27) : les clauses des engagements actifs dont le texte indexé a
+  // changé sont relues une fois par jour et mises en réserve dans `custom.intelligence` — les
+  // lectures du jour (Adam, boîte de décision) trouvent des clauses déjà lues au lieu de les relire.
+  { cle: "legal.clauses", executer: mettreEnCacheClausesSiDu },
+  // SITE PUBLIC ADVENTUM (§118.158) : la file d'envoi des offres d'emploi et des articles, puis
+  // la réconciliation quotidienne (`GET /jobs`, `GET /posts`). Ici et non dans le registre des
+  // planifications, pour la raison des récurrences de stock : ce sont des EFFETS (des requêtes
+  // qui publient sur un site public), écrits en revue de code, que le registre interdit à juste
+  // titre (`mutates: false`). La file est le FILET : les délais courts du contrat (1 s, 5 s,
+  // 30 s) sont tenus par un minuteur du processus, et c'est ce passage-ci qui reprend tout ce
+  // qui est dû après un redémarrage. Les deux se taisent tant que le site n'est pas relié (clé
+  // générée par l'ERP et reconnue par le site — §118.159 —, ou ADVENTUM_API_KEY en repli), et la
+  // réconciliation se débraye par SITE_WEB_RECONCILIATION=off.
+  // LA LIAISON D'ABORD (§118.159) : une clé en attente que le site vient de reconnaître est promue
+  // ici, et la file qui suit part aussitôt avec elle. Puis la santé du site, une fois l'heure.
+  { cle: "site-web.liaison", executer: entretenirLiaisonSiteWeb },
+  { cle: "site-web.file", executer: viderFileSiteWeb },
+  { cle: "site-web.rapprochement", executer: rapprocherSiteSiDu },
+  // AUDIENCE DU SITE (Direction, 07/10) : les événements de plus de 13 mois s'effacent, une fois par jour.
+  { cle: "site-web.purge-audience", executer: purgerAudienceSiDu },
+
+  // LA COUCHE DE CONNAISSANCE — elle avance à son rythme, derrière tout le reste.
+  //
+  // Placée APRÈS les balayages existants et volontairement modeste : indexer plus vite au
+  // prix du service rendu à ceux qui utilisent l'ERP serait un mauvais échange. Si un passage
+  // ne finit pas son lot, le suivant reprend là où il en était — rien n'est perdu, et
+  // personne n'attend.
+  { cle: "connaissance.index-entites", executer: refreshEntityIndex },
+  { cle: "connaissance.reste-a-faire", executer: enqueueBacklogs },
+  // Les documents restés muets repassent doucement : un parseur qui s'améliore doit pouvoir
+  // rattraper ce qu'il n'avait pas su lire, sinon la correction n'atteint jamais l'existant.
+  { cle: "connaissance.documents-muets", executer: () => enqueueStalled(5) },
+  // LES PLANIFICATIONS DE L'UTILISATEUR (§9). Le catalogue est enregistré ici, une fois, plutôt
+  // qu'en effet de bord d'import : sinon il dépendrait de l'ordre des imports, donc différerait
+  // entre le test, le développement et la production.
+  { cle: "planifications.utilisateur", executer: async () => { registerBuiltinWorkflows(); await runScheduledWorkflows(); } },
+  { cle: "connaissance.balayage", executer: runKnowledgeSweep },
+  // LE BATTEMENT D'ADAM — sans navigateur ouvert, sans que le PDG demande quoi que ce soit.
+  // Trois gestes : garder l'oreille (renouveler la veille Gmail AVANT expiration), rattraper
+  // ce qui est arrivé (histoire incrémentale), et se rattraper soi-même (réconciliation
+  // complète toutes les 30 min). C'est ce qui rend « qu'est-ce que j'ai raté ? » possible :
+  // le push Pub/Sub est rapide mais fragile, et un message perdu est un SILENCE, pas une
+  // erreur — personne ne s'en apercevrait. Sans connexion Google, c'est un no-op.
+  // Débrayages : suspension du traitement entrant (réglages), ou connexion en pause.
+  { cle: "adam.boite-gmail", executer: () => runAdamInboxSweep() },
+
+  // LES MISSIONS DURABLES — le seul balayage de cette liste qui produise des EFFETS.
+  //
+  // Il est ici, et non parmi les traitements planifiés, parce que ceux-ci déclarent
+  // `mutates: false` en toutes lettres : y ranger l'avancement d'une mission ferait du
+  // planificateur un contournement de la politique d'approbation. Ici, chaque effet passe par
+  // le chemin canonique — RBAC, intent, reçu, idempotence — et une mission qui attend un
+  // accord n'avance pas d'un pouce tant que personne n'a cliqué.
+  //
+  // C'est CE balayage qui tient la promesse « la mission continue même si vous fermez
+  // l'application ». Sans lui, elle s'arrêterait à la fin de la requête qui l'a lancée.
+  // Débrayage : MISSIONS_SWEEP=off. (Chaque mission a en plus son PROPRE bail, `missions/runtime/bail.ts`.)
+  { cle: "missions.balayage", executer: () => balayerMissions() },
+
+  // LES SURVEILLANCES DURABLES — « surveille ce dossier et préviens-moi seulement s'il y a un
+  // problème ». Relues à leur cadence et dès qu'un fait les touche (le registre avance leur
+  // prochain contrôle) ; seul un changement de signature parle. Même débrayage que les missions.
+  { cle: "missions.surveillances", executer: () => balayerSurveillances() },
+
+  // LE VIEILLISSEMENT DE LA MÉMOIRE — le seul des deux mouvements de la mémoire épisodique
+  // qui n'ait pas de conversation pour le déclencher.
+  //
+  // Le DÉCOUPAGE se fait après un échange, quand la matière est fraîche. La DESCENTE de
+  // fidélité, elle, dépend du CALENDRIER : un compte silencieux depuis six mois doit voir ses
+  // souvenirs se réduire aux faits, sans quoi la compression ne profiterait qu'à ceux qui
+  // parlent — c'est-à-dire à ceux dont la mémoire est déjà fraîche et légère.
+  //
+  // Sans clé de fournisseur, c'est un no-op immédiat : on ne compresse pas un souvenir sans
+  // savoir ce qu'il contient, et il n'existe pas de repli déterministe honnête.
+  { cle: "missions.memoire", executer: () => vieillirMemoire() },
+
+  // LES PROMESSES NON TENUES — l'exact inverse du chemin qui marchait déjà.
+  //
+  // Un engagement se satisfait tout seul quand le fait arrive : `satisfaireEngagements` est
+  // appelée par le registre d'événements. Mais quand le fait N'ARRIVE PAS, personne ne
+  // repassait : la promesse restait ouverte en silence, et c'est précisément le cas où l'on
+  // attend quelque chose d'un assistant.
+  //
+  // Rien n'est envoyé À LA PERSONNE QUI A PROMIS : on prévient celle qui attend. Écrire à un
+  // tiers depuis un battement serait une communication sortante que personne n'a relue.
+  { cle: "missions.engagements", executer: () => relancerEngagements() },
+];
+
+// Armé APRÈS la table : un battement ne doit jamais trouver `TACHES_PLANIFIEES` non initialisée.
+armHeartbeat();
 
 /** Année-mois « YYYY-MM » à l'heure d'Alger (UTC+1, sans changement d'heure). */
 export function algiersYm(at: number = Date.now()): string {

@@ -119,3 +119,83 @@ services:
       # Facultatif : signature HMAC-SHA256 du corps (même valeur que ERP_WEBHOOK_SECRET côté site).
       - key: ADVENTUM_WEBHOOK_SECRET
         sync: false
+
+  # ───────────────────────────────────────────────────────────────────────────────────────────
+  # WORKER DES TÂCHES DE FOND (refonte V2-F) — PRÊT, NON ACTIVÉ.
+  #
+  # Même dépôt, même build, autre point d'entrée : `npm run worker` exécute la table des tâches de
+  # `src/lib/scheduled.ts` (rappels, paie notifiée, jobs réglementaires, routines et fil de
+  # l'Assistant, missions, boîte Gmail d'Adam, site public…), chaque tâche sous un BAIL en base
+  # (table `TacheDeFond`) : un seul exécutant la tient, même si le web bat encore.
+  #
+  # Le bloc est en COMMENTAIRE à dessein : décommenté, la prochaine synchronisation du Blueprint
+  # CRÉERAIT le service (payant : Render n'a pas d'offre gratuite pour un Background Worker). Tant
+  # qu'il n'existe pas, TACHES_DE_FOND vaut `web` (défaut) et la production ne change en rien.
+  #
+  # ACTIVATION (procédure complète : docs/readme/24-deploiement-render.md, « Worker séparé ») :
+  #   1. Décommenter le bloc ci-dessous, pousser, Render → Blueprint → Sync (ou créer à la main un
+  #      « Background Worker » sur ce dépôt avec les mêmes commandes).
+  #   2. Le worker démarre en `les-deux` ; poser AUSSI TACHES_DE_FOND=les-deux sur le web.
+  #   3. Vérifier GET /api/health/worker (ou Administration › Diagnostic › Tâches de fond) : des
+  #      tâches passent avec l'exécutant « worker ».
+  #   4. Poser TACHES_DE_FOND=worker sur le web, PUIS sur le worker. Le web ne bat plus.
+  #   Retour arrière : TACHES_DE_FOND=web sur le web (le worker se met en attente dès qu'il lit
+  #   `web` à son redémarrage ; on peut aussi suspendre le service).
+  #
+  # ⚠️ VARIABLES : le worker exécute le MÊME code que le web, il lui faut les MÊMES variables —
+  # AUTH_SECRET identique (il chiffre et déchiffre le coffre et les secrets de connexion), les clés
+  # VAPID (push), S3, ADVENTUM_*, les clés des fournisseurs d'IA, Google/Microsoft, SMTP. Celles du
+  # Blueprint sont reprises ci-dessous ; celles posées à la main sur le web se recopient (ou mieux :
+  # un Environment Group partagé par les deux services). APP_URL est OBLIGATOIRE ici : Render ne
+  # donne RENDER_EXTERNAL_URL qu'aux services web, et les liens des notifications en dépendent.
+  # Contrôle : Shell du worker → `npm run adam:doctor`.
+  #
+  # - type: worker
+  #   name: amd-worker
+  #   runtime: node
+  #   plan: starter
+  #   # Même dépôt, même installation, même client Prisma — mais NI compilation Next (le worker ne
+  #   # sert aucune page : `tsx` exécute le code source) NI migration : seul le build du web migre,
+  #   # APRÈS son lint, son typecheck et sa compilation (refonte P0). Le worker démarré attend que la
+  #   # base porte les migrations de son commit (`src/lib/taches-de-fond/migrations.ts`) avant son
+  #   # premier passage — il ne fait jamais tourner un code plus récent que le schéma.
+  #   buildCommand: npm install && npx prisma generate
+  #   startCommand: npm run worker
+  #   envVars:
+  #     - key: TACHES_DE_FOND
+  #       value: les-deux
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: amd-postgres
+  #         property: connectionString
+  #     - key: AUTH_SECRET
+  #       fromService:
+  #         type: web
+  #         name: amd-internal-os
+  #         envVarKey: AUTH_SECRET
+  #     - key: APP_URL
+  #       sync: false # l'URL publique du web, ex. https://amd-internal-os.onrender.com
+  #     - key: NODE_VERSION
+  #       value: "22"
+  #     - key: S3_ENDPOINT
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
+  #     - key: S3_BUCKET
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_BUCKET }
+  #     - key: S3_ACCESS_KEY_ID
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_ACCESS_KEY_ID }
+  #     - key: S3_SECRET_ACCESS_KEY
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_SECRET_ACCESS_KEY }
+  #     - key: S3_REGION
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_REGION }
+  #     - key: VAPID_PUBLIC_KEY
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PUBLIC_KEY }
+  #     - key: VAPID_PRIVATE_KEY
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PRIVATE_KEY }
+  #     - key: VAPID_SUBJECT
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_SUBJECT }
+  #     - key: ADVENTUM_BASE_URL
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_BASE_URL }
+  #     - key: ADVENTUM_API_KEY
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_API_KEY }
+  #     - key: ADVENTUM_WEBHOOK_SECRET
+  #       fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_WEBHOOK_SECRET }

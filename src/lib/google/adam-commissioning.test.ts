@@ -113,8 +113,8 @@ describe("mise en service ADAM — couche par couche, tout est BRANCHÉ", () => 
   it("le battement d'ADAM est BRANCHÉ dans le planificateur", () => {
     const scheduled = read("lib/scheduled.ts");
     expect(scheduled).toContain("runAdamInboxSweep");
-    // Et il est appelé, pas seulement importé.
-    expect(scheduled).toMatch(/await runAdamInboxSweep\(/);
+    // Et il est appelé, pas seulement importé : une ligne de la table des tâches (V2-F).
+    expect(scheduled).toMatch(/executer:\s*\(\)\s*=>\s*runAdamInboxSweep\(/);
   });
 
   it("les trois filets de reprise existent : histoire, liste récente, réconciliation", () => {

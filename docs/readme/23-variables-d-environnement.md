@@ -11,6 +11,8 @@
 | `OPENAI_API_KEY` | ⬜ | Active la **transcription vocale** (Whisper). |
 | `MAX_UPLOAD_MB` | ⬜ | Taille max d'upload par défaut (réglable aussi en base depuis l'admin). |
 | `APP_URL` | ⬜* | URL **publique** de l'app — requise pour le callback OnlyOffice, et écrite dans le bloc de liaison du site (`ERP_BASE_URL`) : c'est par elle que les candidatures du site arrivent (à défaut, l'adresse par laquelle le Super Admin a ouvert l'écran, puis celle de Render). |
+| `TACHES_DE_FOND` | ⬜ | **Qui porte les tâches de fond** (refonte V2-F) : `web` (défaut) · `worker` (service `npm run worker` seul) · `les-deux` (bascule ; un bail par tâche en base). Lu par chaque service. Procédure : [24-deploiement-render.md](24-deploiement-render.md). |
+| `SCHEDULER_DISABLED` · `SCHEDULER_TICK_MS` | ⬜ | Soupape (`1` = aucun battement, web ni worker) · période du battement en ms (défaut 60000, min 15000). |
 | `ONLYOFFICE_URL` | ⬜* | URL **publique** du Document Server OnlyOffice. |
 | `ONLYOFFICE_JWT_SECRET` | ⬜* | Secret JWT **identique** à celui du Document Server. |
 | `MAIL_ENCRYPTION_KEY` | ⬜ | Clé dédiée au chiffrement des mots de passe e-mail (sinon retombe sur `AUTH_SECRET`). |

@@ -37,6 +37,8 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
   `GET /api/messaging/sync` poll by a logged-in browser — and runs ~48 sequential, idempotent,
   DB-gated sweeps (meeting reminders at T-30 min, reminders, payroll, regulatory jobs, site-web
   queue + daily reconciliation, durable missions, Gmail sweep…).
+  **Since V2-F** the sweeps are a task table with a per-task DB lease, runnable by the web (default) or by a
+  separate `npm run worker` process (`TACHES_DE_FOND=web|worker|les-deux`) — see §4.5.
 - **Tests**: 1,222 `*.test.ts` files (~14,260 `it/test` calls). ~457 import Prisma; 397 use the
   `dbOk ? describe : describe.skip` idiom (skip silently without Postgres). `src/lib/prisma.ts`
   **throws at import** if a test/bench process points at a non-local DB (§118.90). ~66 test files
@@ -69,7 +71,10 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 | `vitest.global-setup.ts` | Upserts a permanent "Siège DG" test user (createdAt 2000-01-01) so validation-centre routing is deterministic (§118.148). |
 | `src/lib/prisma.ts` | Prisma singleton; **local-DB guard** for tests/benches (`refusDeBase`, line 93-122); production pool `connection_limit=12`. |
 | `src/lib/sortie/garde.ts` | Outbound "kill switch": refuses push/mail/site-web transport in tests, Playwright, benches or when `ADAM_SORTIE_INTERDITE=1`. |
-| `src/lib/scheduled.ts` | The in-process scheduler: heartbeat + `runScheduledJobs()` orchestration of all periodic sweeps. |
+| `src/lib/scheduled.ts` | The scheduler: web heartbeat + `runScheduledJobs()` (web wake-up) + the task table `TACHES_PLANIFIEES` (one entry per sweep) run by `executerTachesPlanifiees()` — shared by web and worker (V2-F). |
+| `src/lib/taches-de-fond/` | V2-F: switch `mode.ts` (`TACHES_DE_FOND`, pure), per-task DB lease `bail.ts` (table `TacheDeFond`), runner `executer.ts` (lease, renewal, duration, outcome, JSON log), worker loop `worker.ts`, migration wait `migrations.ts`, health `sante.ts`, V2-A slot `enrichissement.ts`. |
+| `scripts/worker.ts` | `npm run worker` entry point (tsx): declares the process as worker, SIGTERM/SIGINT → clean stop (25 s grace), runs the same task table. |
+| `src/app/api/health/worker/route.ts` | Background-task health: 200 if a task started < 5 min ago, else 503; holder/error detail for Super Admin only. |
 | `src/lib/scheduler/runner.ts` | User-defined *workflow* schedules (atomic claim, `WORKFLOW_SCHEDULER=off`). |
 | `src/app/api/messaging/sync/route.ts` | The hot route (polled every 12 s by each client) that imports `scheduled.ts` and kicks `runScheduledJobs()`. |
 | `playwright.config.ts` / `playwright.live.config.ts` | E2E on :3100 (no AI) / live bench on :3101 (real provider, local DB enforced). |
@@ -176,8 +181,40 @@ Exported as a **phase function** (`next.config.mjs:191-196`) [V]:
 
 ### 4.5 Background / scheduled work
 
-There is **no `instrumentation.ts`, no `/api/cron` route, no external cron, no worker dyno** [V:
-`ls src` and `ls src/app/api`]. Everything periodic goes through `src/lib/scheduled.ts`:
+> **Updated 2026-10-27 (refonte V2-F, worker séparé)** [V: code of this lot]. Two possible executors, chosen by
+> `TACHES_DE_FOND` (`src/lib/taches-de-fond/mode.ts`, pure): `web` (default — unchanged production behaviour),
+> `worker` (only `npm run worker` runs the tasks; the web heartbeat is not armed and `runScheduledJobs()` is a no-op),
+> `les-deux` (both run; per-task lease decides). Unknown value → `web` (never silence). Both executors run the SAME
+> table `TACHES_PLANIFIEES` (`scheduled.ts`) through `executerPassage` (`taches-de-fond/executer.ts`):
+> - **Per-task lease** in table `TacheDeFond` (`bail.ts`): atomic `updateMany` claim when (no lease OR lease expired
+>   OR own) AND last start ≥ `INTERVALLE_MIN_MS` (45 s) ago. Lease `BAIL_TACHE_MS` = 120 s, renewed every 40 s while
+>   the task runs, released with outcome (`OK`/`ECHEC`/`IGNOREE`), duration, message, counters. Expired lease = dead
+>   process → retaken (crash recovery). Not an advisory lock: Prisma pools connections, a session lock would be taken
+>   and released on different connections. Proven by `taches-de-fond/bail.test.ts` (2 and 8 concurrent claimants →
+>   1 run; two concurrent passes share the table).
+> - **Failure isolation**: a throwing task is counted `ECHEC` and the pass continues (before V2-F five steps without
+>   `.catch` aborted the whole pass; ~20 swallowed errors silently).
+> - **Worker** (`scripts/worker.ts` → `taches-de-fond/worker.ts`): declares itself before importing `scheduled.ts`
+>   (otherwise the module-load web heartbeat would arm), waits until `_prisma_migrations` contains every migration of
+>   its checkout (`migrations.ts` — only the web build migrates, P0 order), one pass at start then every `TICK_MS`
+>   start-to-start, SIGTERM → stop between tasks, 25 s grace then exit 1 (lease expires by itself). Under `web` mode or
+>   `SCHEDULER_DISABLED=1` it idles (no restart loop).
+> - **Logs**: JSON lines `{"source":"taches-de-fond", "evenement": …}` — `passage.fin` (per-task `durees`),
+>   `tache.echec`, `tache.lente` (≥ 2 s), `tache.bail-perdu`, `worker.*`.
+> - **Health**: `/api/health/worker` and the "Tâches de fond" card of Admin › Diagnostic (`lireSanteTachesDeFond`).
+> - **Render**: commented `amd-worker` block in `render.yaml` (paid plan, build `npm install && npx prisma generate`,
+>   start `npm run worker`, same env incl. identical `AUTH_SECRET` and explicit `APP_URL`). Activation procedure:
+>   `docs/readme/24-deploiement-render.md`.
+> - **V2-A hook**: task `enrichissement.file` → `taches-de-fond/enrichissement.ts`, returns `ignoree(...)` until V2-A
+>   replaces its body with `traiterLaFile({ max: LOT_FILE_ENRICHISSEMENT })`.
+>
+> The description below (written 2026-10-24) remains accurate for the `web` mode, except: the heartbeat lives in
+> `armHeartbeat()` gated by `battementWebArme()`; the list of steps is now the table, with stable keys
+> (`rappels.reunions`, `missions.balayage`…); the in-process `running`/debounce flag only prevents a process from
+> overlapping itself — cross-process exclusivity is the lease.
+
+There is **no `instrumentation.ts`, no `/api/cron` route, no external cron** [V:
+`ls src` and `ls src/app/api`]; a worker entry point exists since V2-F but is opt-in. Everything periodic goes through `src/lib/scheduled.ts`:
 
 - **Heartbeat** (`scheduled.ts:78-92`) [V]: `TICK_MS = max(15 s, SCHEDULER_TICK_MS ?? 60 s)`;
   `armHeartbeat()` runs at module load; skipped when `SCHEDULER_DISABLED=1`, under Vitest /
@@ -319,7 +356,7 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 
 **Kill switches / feature flags / scheduler**
 
-`SCHEDULER_DISABLED=1`, `SCHEDULER_TICK_MS`, `WORKFLOW_SCHEDULER=off`, `MISSIONS_SWEEP=off`,
+`TACHES_DE_FOND=web|worker|les-deux` (V2-F, default `web`), `SCHEDULER_DISABLED=1`, `SCHEDULER_TICK_MS`, `WORKFLOW_SCHEDULER=off`, `MISSIONS_SWEEP=off`,
 `KNOWLEDGE_INGESTION=off` (`knowledge/worker.ts:52`), `ASSISTANT_DRIVE_INGESTION=off`,
 `DATA_QUALITY_DISABLED=1`, `INTELLIGENCE_CACHE_DISABLED=1`, `CHIEF_ROUTER_DISABLED`,
 `CHIEF_ROUTER_CANARY`, `ADAM_CIBLE_DESIGNEE_DISABLED`, `ADAM_EMPREINTE_MUTATION_DISABLED`,

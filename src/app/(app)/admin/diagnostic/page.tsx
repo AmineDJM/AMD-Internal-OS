@@ -8,7 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Icon } from "@/components/ui/icon";
 import { cn } from "@/lib/utils";
 import { runDiagnostic, type Severity, type Finding } from "@/lib/platform-audit/engine";
+import { lireSanteTachesDeFond } from "@/lib/taches-de-fond/sante";
 import { PlatformIdeas } from "./diagnostic-client";
+import { TachesDeFondCard } from "./taches-de-fond";
 
 export const metadata = { title: "Diagnostic — AMD Internal OS" };
 export const dynamic = "force-dynamic";
@@ -30,7 +32,7 @@ export default async function DiagnosticPage() {
   const admin = await requireModule("ADMIN", "UPDATE");
   if (admin.role !== "SUPER_ADMIN") redirect("/admin");
 
-  const d = await runDiagnostic();
+  const [d, sante] = await Promise.all([runDiagnostic(), lireSanteTachesDeFond({ detail: true })]);
   const bySev = (s: Severity) => d.findings.filter((f) => f.severity === s);
   const crit = bySev("critical"), warn = bySev("warning"), info = bySev("info");
 
@@ -73,6 +75,9 @@ export default async function DiagnosticPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Battement des tâches de fond (V2-F) : web ou worker, dernier passage, durée, issue */}
+      <TachesDeFondCard sante={sante} />
 
       {/* Idées IA (bouton) */}
       <PlatformIdeas hasFindings={d.findings.length > 0} />
