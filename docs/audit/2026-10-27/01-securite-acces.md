@@ -191,6 +191,15 @@ Préfixe `SECURITE-ACCES-` abrégé en `SA-`.
 - **SA-20** : `lib/api/http.ts:63-92` — inclure l'opération dans `requestHash` ; réserver la clé par `create` avant d'exécuter.
 - **SA-21** : `lib/sandbox/sql.ts:119-122` — retirer `Employee` des tables autorisées ou passer par une vue sans colonnes sensibles.
 
+### Recoupements avec les autres audits du 27/10 (fusion de la base `2562b38`)
+- **SA-02** : la base a corrigé le même défaut en parallèle (`api/registry/document-lisible.ts`). La fusion garde
+  sa fonction, composée en `AND` comme SA-03 l'exige (elle étalait encore la portée).
+- **SA-06** : l'audit RH-DOCUMENTS-COMMS-03/04 a posé sa propre garde « sur soi » (et d'entité) sur
+  `decideExpenseReport`, `decideHrLeave` et `updateLeaveRequest` ; la fusion la retient et retire le doublon.
+  `decideAdvance` (avance sur salaire → ordre de dépense) n'était couvert que par SA-06 : il garde `refusDecisionSurSoi`.
+- **SA-10** : la base a ajouté un verrou de règlement (`reglementPorte`) aux mêmes écritures ; les deux s'appliquent
+  (porte d'entité d'abord).
+
 ### Re-vérification des risques de la base de connaissances (02 §8.3)
 
 | KB | Statut au 27/10 |
