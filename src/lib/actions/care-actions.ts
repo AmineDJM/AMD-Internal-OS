@@ -10,15 +10,16 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import {
-  beneficiaryName, careProgress, defaultCells, financeReadiness, quoteConflicts, piecesADemander, piecesDuProfessionnel,
+  beneficiaryName, careProgress, defaultCells, financeReadiness, quoteConflicts, piecesADemander,
   OPINION_LABELS, SERVICE_KIND_LABELS,
 } from "@/lib/care";
 import {
-  casesDeLaCategorie, detailsStockes, deviseDuDevis, deviseDuPoste, etapesDuBillet, etapesStockees, fichePrete,
+  casesDeLaCategorie, detailsStockes, deviseDuDevis, deviseDuPoste, etapesDuBillet, etapesStockees,
   lireDetailsTrajets, peutTeleverserBillet, hotelPrerempli, libelleNouveauPoste,
-  lignesReservationFiche, lireMontant, lirePosteSaisi, manquesPourReserverFiche, montantLisible, personneVivante,
-  tauxDeLaDemande, typePoste, versDzd, DECISION_LIBELLE, type CellRow,
+  lireMontant, lirePosteSaisi, montantLisible,
+  tauxDeLaDemande, typePoste, versDzd, peutMarquerRealisee, DECISION_LIBELLE, type CellRow,
 } from "@/lib/care-fiches";
+import { envoiAuxFinances, ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME } from "@/lib/care-realisation";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";
 import { peutSaisirLesDevis } from "@/lib/care-devis-acces";
@@ -139,12 +140,6 @@ function versCellRow(c: CellFicheDb): CellRow {
     issuedDocumentId: c.issuedDocumentId, bookingRef: c.bookingRef, timeStart: c.timeStart, address: c.address,
   };
   return { ...base, legDetails: detailsStockes(c.legDetails, c.serviceKind === "TICKET" ? etapesDuBillet(base).length : 0) };
-}
-
-/** A-t-on le passeport de cette personne ? La pièce attendue « Passeport », reçue. */
-function passeportRecu(scope: Scope, cells: CellRow[]): { recu: boolean; documentId: string | null } {
-  const p = piecesDuProfessionnel(scope, cells).find((x) => x.label === "Passeport");
-  return { recu: p?.etat === "RECUE", documentId: p?.documentId ?? null };
 }
 
 /**
@@ -1156,9 +1151,54 @@ export async function sendCareToFinance(_prev: ActionResult | undefined, formDat
     }).catch(() => undefined);
   }
 
-  await audit(user, scopeRaw, requestId, "UPDATE", "Dossier complet transmis aux Finances.");
+  // LA TRACE QU'ON RELIT : « Marquer réalisée » ne s'ouvre qu'après cet envoi (`envoiAuxFinances`).
+  await recordAudit({
+    actorId: user.id, module: SPEC[scopeRaw].module, entityType: SPEC[scopeRaw].module, entityId: requestId,
+    action: "UPDATE", field: ENVOI_FINANCES_CHAMP, summary: ENVOI_FINANCES_RESUME,
+  }).catch(() => undefined);
   revalidate(scopeRaw, requestId);
   return { ok: true, message: "Les Finances sont prévenues — le dossier est complet." };
+}
+
+/**
+ * MARQUER LA PRISE EN CHARGE « RÉALISÉE » (Direction, 27/10) — pose `COMPLETED`, jusque-là posé par l'import
+ * seulement. Le demandeur ou la Direction Marketing (`peutMarquerRealisee`), sur une demande validée ET déjà
+ * transmise aux Finances : avant, l'événement n'est pas soldé et « Réalisé » mentirait. Trace d'audit.
+ */
+export async function marquerPriseEnChargeRealisee(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const scopeRaw = fdStr(formData, "scope") ?? "";
+  const requestId = fdStr(formData, "requestId");
+  if (!isScope(scopeRaw) || !requestId) return { ok: false, error: "Demande non précisée." };
+  const req = await loadRequest(scopeRaw, requestId);
+  if (!req) return { ok: false, error: "Demande introuvable." };
+  if (!peutMarquerRealisee({ id: user.id, roles: rolesDe(user) }, { requesterId: req.requesterId })) {
+    return { ok: false, error: "Seuls le demandeur ou la Direction Marketing marquent une prise en charge réalisée." };
+  }
+  // LA DIRECTION MARKETING, PAR SA FICHE : elle marque les demandes qu'elle voit — pas un identifiant deviné.
+  const sansFiche = req.requesterId === user.id || hasRole(user, "SUPER_ADMIN");
+  if (!sansFiche && !(await canAccessEntity(user, SPEC[scopeRaw].module, requestId, "VIEW"))) return { ok: false, error: "Demande introuvable." };
+  if (req.requestStatus === "COMPLETED") return { ok: false, error: "Cette prise en charge est déjà marquée réalisée." };
+  if (req.requestStatus !== "APPROVED") return { ok: false, error: "Seule une prise en charge validée se marque réalisée." };
+  if (!(await envoiAuxFinances(scopeRaw, requestId))) {
+    return { ok: false, error: "Transmettez d'abord le dossier aux Finances : une prise en charge se marque réalisée après cet envoi." };
+  }
+
+  const data = { requestStatus: "COMPLETED" as const, status: "COMPLETED" as const, updatedById: user.id };
+  // Écriture CONDITIONNELLE : deux clics simultanés ne posent pas deux fois la même fin.
+  const n = scopeRaw === "NATIONAL"
+    ? await prisma.congressNational.updateMany({ where: { id: requestId, requestStatus: "APPROVED" }, data })
+    : await prisma.congressInternational.updateMany({ where: { id: requestId, requestStatus: "APPROVED" }, data });
+  if (n.count === 0) return { ok: false, error: "La demande a changé entre-temps — rechargez la page." };
+
+  await recordAudit({
+    actorId: user.id, module: SPEC[scopeRaw].module, entityType: SPEC[scopeRaw].module, entityId: requestId,
+    action: "UPDATE", field: "requestStatus", oldValue: "APPROVED", newValue: "COMPLETED",
+    summary: `Prise en charge « ${req.name} » marquée réalisée.`,
+  });
+  revalidate(scopeRaw, requestId);
+  revalidatePath("/ad-pro");
+  return { ok: true, message: "Prise en charge marquée réalisée." };
 }
 
 /** L'annuaire, pour le sélecteur de personnes. */
@@ -1232,10 +1272,10 @@ async function fichesDeLaDemande(scope: Scope, requestId: string) {
 }
 
 /**
- * DEMANDER LA RÉSERVATION — le circuit du sponsoring (`demanderReservation`) : un SUJET pour l'assistante de
- * direction, avec, pour chaque fiche PRÊTE, son billet (comme un voyageur) et son hôtel (comme une fiche
- * hôtellerie), et le lien de son passeport. Les fiches incomplètes sont nommées avec ce qui leur manque :
- * l'assistante sait ce qu'elle attend. Redemander écrit dans le MÊME sujet, la liste à jour.
+ * DEMANDER LA RÉSERVATION EN BLOC — FERMÉ (Direction, 27/10). La réservation d'une prise en charge se fait FICHE
+ * PAR FICHE (`DemandeReservation`, `reservation-fiche-actions.ts`) : chaque billet ou hôtel part seul et a son état.
+ * Ce geste n'écrit plus rien et le dit ; les envois en bloc déjà faits ont été repris en fiches (migration
+ * `20270131120000_reservation_par_fiche_seule`).
  */
 export async function demanderReservationPriseEnCharge(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -1244,50 +1284,9 @@ export async function demanderReservationPriseEnCharge(_prev: ActionResult | und
   if (!isScope(scopeRaw) || !requestId) return { ok: false, error: "Demande non précisée." };
   if (!canEdit(user, scopeRaw)) return { ok: false, error: "Non autorisé." };
   if (!(await canAccessEntity(user, SPEC[scopeRaw].module, requestId, "UPDATE"))) return { ok: false, error: "Demande introuvable." };
-  const req = await loadRequest(scopeRaw, requestId);
-  if (!req) return { ok: false, error: "Demande introuvable." };
-
-  const fiches = (await fichesDeLaDemande(scopeRaw, requestId)).filter((f) => personneVivante(f.status));
-  if (fiches.length === 0) return { ok: false, error: "Ajoutez d'abord un professionnel : la réservation se fait fiche par fiche." };
-  const pretes: string[] = [];
-  const passeports: string[] = [];
-  const incompletes: string[] = [];
-  for (const f of fiches) {
-    const p = passeportRecu(scopeRaw, f.cells);
-    if (fichePrete(scopeRaw, f.nom, f.cells, p.recu)) {
-      pretes.push(`${f.nom} (${DECISION_LIBELLE[f.status]}) :`, ...lignesReservationFiche(scopeRaw, f.nom, f.cells, p.recu).map((l) => `  ${l}`));
-      if (p.documentId) passeports.push(`• ${f.nom} — passeport — /api/documents/${p.documentId}`);
-    } else {
-      incompletes.push(`• ${f.nom} — manque : ${manquesPourReserverFiche(scopeRaw, f.nom, f.cells, p.recu).join(", ")}`);
-    }
-  }
-  if (pretes.length === 0) {
-    return { ok: false, error: `Aucune fiche n'est prête pour réserver. ${incompletes.join(" ")}` };
-  }
-  const nbPretes = fiches.length - incompletes.length;
-  const etat = DECIDED.includes(req.requestStatus)
-    ? "Prise en charge VALIDÉE par la Direction — vous pouvez réserver les personnes accordées."
-    : "Prise en charge pas encore validée — préparez les devis ; ne réservez qu'après l'accord.";
-  const corps = [
-    etat,
-    `Fiches prêtes (${nbPretes}/${fiches.length}) :`,
-    ...pretes,
-    ...(passeports.length ? ["Passeports :", ...passeports] : []),
-    ...(incompletes.length ? ["Pas encore prêtes :", ...incompletes] : []),
-    `Billets émis et confirmations d'hôtel à déposer (e-billet, voucher, références, horaires) : ${SPEC[scopeRaw].path}/${requestId}/billets`,
-    `Fiche de la demande : ${SPEC[scopeRaw].path}/${requestId}`,
-  ].join("\n");
-
-  const sujet = await ecrireAAssistante(scopeRaw, req, user, "Demande de réservation.", corps);
-  if (!sujet.ok) return { ok: false, error: sujet.error };
-  await audit(user, scopeRaw, requestId, "UPDATE", `Réservation demandée pour ${nbPretes} fiche(s) — sujet ${sujet.reference}.`);
-  revalidate(scopeRaw, requestId);
-  revalidatePath("/dossiers");
   return {
-    ok: true, id: sujet.id,
-    message: sujet.nouveau
-      ? `Demande de réservation envoyée (${nbPretes} fiche(s)) — sujet ${sujet.reference} ouvert pour l'assistante de direction.`
-      : `Demande de réservation mise à jour (${nbPretes} fiche(s)) dans le sujet ${sujet.reference} — l'assistante de direction est prévenue.`,
+    ok: false,
+    error: "La réservation se demande désormais fiche par fiche : envoyez chaque billet ou hôtel à l'assistante depuis la fiche voyageur (« Envoyer », ou « Envoyer les fiches prêtes »).",
   };
 }
 

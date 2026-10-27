@@ -3524,6 +3524,16 @@ export const OPS_CATALOG: OpMeta[] = [
     covers: ["care-actions:sendCareToFinance"],
   },
   {
+    tool: "care_operation", op: "mark_care_completed", module: "Congrès → Prises en charge",
+    uiLabel: "Marquer réalisée",
+    aliases: ["marque la prise en charge réalisée", "la prise en charge est réalisée", "l'événement de la prise en charge a eu lieu"],
+    risk: "SENSITIVE",
+    summary: "Marque une prise en charge RÉALISÉE (statut « Réalisé ») — le demandeur ou la Direction Marketing, sur une demande validée et DÉJÀ transmise aux Finances (refusé avant).",
+    gate: () => true,
+    gateNote: "le demandeur ou la Direction Marketing (revérifié par l'action)",
+    covers: ["care-actions:marquerPriseEnChargeRealisee"],
+  },
+  {
     tool: "care_operation", op: "link_care_promo", module: "Congrès → Prises en charge",
     uiLabel: "Rattacher une case au matériel promotionnel",
     aliases: ["rattache la case au dossier de matériel promo", "lie le besoin au matériel promotionnel"],

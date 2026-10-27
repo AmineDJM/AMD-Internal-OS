@@ -6,7 +6,7 @@ import { lienPosteAdPro, lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import { revalidatePath } from "next/cache";
 import type { AdProItemKind, AdProItemOrderStage, AdProItemStatus, AdProItemBudgetKind, UserRole } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, anyRoleFilter, rolesWithModule, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, rolesWithModule, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { reporterLesPostesSurLaDeclaration } from "@/lib/workflow/engine";
@@ -15,7 +15,7 @@ import { moneyEntityOf } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
-import { canEmitOrder, canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PARENT_ENTITE, ITEM_STATUS_LABELS, REFUS_INDIRECT_NON_REPARTI, type AdProParent } from "@/lib/ad-pro-items";
+import { canEmitOrder, canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PARENT_ENTITE, REFUS_INDIRECT_NON_REPARTI, type AdProParent } from "@/lib/ad-pro-items";
 import {
   PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece, TITRE_BC_A_ETABLIR,
   type NaturePieceSecretariat,
@@ -76,13 +76,13 @@ import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factur
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
 import { apercuPourEcran, estRevisionDeNumeroSeul, previsualiserRevision, reviserDocumentDrive, type ApercuPiece, type ModificationsDocument } from "@/platform/in-process/artifact/factory";
 import {
-  lireVoyageur, lireEtapes, nomComplet, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, depassementDevisRetenus, refusRetraitReservation,
+  lireVoyageur, lireEtapes, nomComplet, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, depassementDevisRetenus,
   type SaisieVoyageur, type VoyageurLu,
 } from "@/lib/ad-pro/voyageurs";
 import {
   lireHebergement, changementsHebergement, porteDesHebergements, refusChangementNatureFiches, type SaisieHebergement, type HebergementLu,
 } from "@/lib/ad-pro/hebergements";
-import { cloreSujetVivant, createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
+import { ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire, type EtatBcPoste, type GesteVisaPoste } from "@/lib/ad-pro/bc-poste";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
@@ -3407,19 +3407,18 @@ export async function retirerHebergement(formData: FormData): Promise<ActionResu
   return { ok: true, message: "Fiche hôtellerie retirée." };
 }
 
+/** L'ANCIEN ENVOI EN BLOC EST FERMÉ (Direction, 27/10) : la réservation se fait FICHE PAR FICHE (`DemandeReservation`). */
+const REFUS_RESERVATION_EN_BLOC =
+  "La réservation se demande désormais fiche par fiche : envoyez chaque billet ou hôtel à l'assistante depuis sa fiche (« Envoyer », ou « Envoyer les fiches prêtes »).";
+
 /**
- * DEMANDER LA RÉSERVATION des billets d'un poste — « les demandes de réservation vont à
- * l'assistante de direction et ouvrent un sujet ».
+ * DEMANDER LA RÉSERVATION des billets d'un poste — L'ANCIEN ENVOI EN BLOC, FERMÉ (Direction, 27/10).
  *
- * Le sujet est le lieu de l'échange (« l'Ibis est complet, je prends le Sofitel ? ») : il naît lié
- * à la DEMANDE, donc il remonte en bas de sa fiche, à l'endroit où le demandeur le suit. Une
- * seconde demande sur le même poste écrit dans le MÊME sujet, avec la liste à jour : deux sujets
- * pour les mêmes billets se contrediraient.
- *
- * Pas de garde sur l'accord du poste : pour obtenir un devis, l'agence a besoin des noms et des
- * dates. Mais la phrase DIT où en est le poste — réserver un billet que la Direction n'a pas
- * accordé engagerait la société sur une dépense que personne n'a décidée. Un poste REFUSÉ, lui,
- * ne se réserve pas.
+ * Deux mécanismes coexistaient : ce sujet unique qui listait tous les voyageurs, et la RÉSERVATION PAR FICHE
+ * (`DemandeReservation`, `reservation-fiche-actions.ts`), où chaque billet ou hôtel a son état. La Direction
+ * garde la fiche : ce geste n'écrit plus rien et le dit. Les envois en bloc déjà faits ont été repris en fiches
+ * (migration `20270131120000_reservation_par_fiche_seule`). Les gardes restent AVANT le refus : on ne dit
+ * pas à un inconnu qu'un poste existe.
  */
 export async function demanderReservation(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -3431,85 +3430,13 @@ export async function demanderReservation(formData: FormData): Promise<ActionRes
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (!porteDesVoyageurs(item.kind)) return { ok: false, error: "Seul un poste « billetterie » se réserve." };
-  if (item.status === "REJECTED") return { ok: false, error: "Ce poste a été refusé par la Direction : on ne réserve pas de billets pour lui." };
-
-  const voyageurs = await prisma.adProVoyageur.findMany({ where: { itemId: id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }] });
-  if (voyageurs.length === 0) return { ok: false, error: "Ajoutez au moins un voyageur (son nom suffit) avant de demander la réservation." };
-  const piecesPasseport = await prisma.document.findMany({
-    where: { entityType: "AD_PRO_ITEM", entityId: id, stepKey: { in: voyageurs.map((v) => v.id) } },
-    select: { id: true, stepKey: true, category: true, name: true },
-    orderBy: { createdAt: "asc" },
-  });
-  // Le PASSEPORT est la pièce d'identité du voyageur ; ses autres documents (visa, assurance…) se listent à part.
-  const passeports = new Set(piecesPasseport.filter((d) => String(d.category) === "ID_DOCUMENT").map((d) => d.stepKey));
-  const lignes = voyageurs.map((v) => ligneVoyageur({ ...voyageurLu(v), passeport: passeports.has(v.id) }));
-  // LE PASSEPORT, PAS SEULEMENT SA MENTION (audit 360°, I10) : « passeport joint » sans lien obligeait
-  // l'assistante à le chercher là où elle n'entre pas. Le lien s'ouvre aux personnes du sujet
-  // (`peutLirePasseportDuSujet`), et à elles seules parmi celles qui n'ont pas l'opération.
-  const nomDuVoyageur = new Map(voyageurs.map((v) => [v.id, nomComplet(v)]));
-  const liensPasseport = piecesPasseport.map((d) => `• ${nomDuVoyageur.get(d.stepKey ?? "") ?? "voyageur"} — ${String(d.category) === "ID_DOCUMENT" ? "passeport" : d.name} — /api/documents/${d.id}`);
-
-  const info = await PARENTS[owner.parent].load(owner.id);
-  if (!info) return { ok: false, error: "Opération introuvable." };
-  const etat = item.status === "APPROVED"
-    ? "Poste ACCORDÉ par la Direction — vous pouvez réserver."
-    : `Poste pas encore accordé (${ITEM_STATUS_LABELS[item.status].label.toLowerCase()}) — préparez le devis ; ne réservez qu'après l'accord.`;
-  const corps = [
-    `Demande ${info.ref} — poste « ${item.label} ».`,
-    etat,
-    `Voyageurs (${voyageurs.length}) :`,
-    ...lignes,
-    ...(liensPasseport.length ? ["Passeports :", ...liensPasseport] : []),
-    `Fiche de l'opération (demandeur) : ${PARENTS[owner.parent].path}/${owner.id}`,
-  ].join("\n");
-
-  const poste = await prisma.adProItem.findUnique({ where: { id }, select: { reservationDossierId: true } });
-  if (poste?.reservationDossierId && await ecrireDansLeSujet({ dossierId: poste.reservationDossierId, authorId: user.id, body: `Demande de réservation mise à jour.\n${corps}` })) {
-    await audit(user, owner.parent, owner.id, "UPDATE", `Réservation du poste « ${item.label} » redemandée (${voyageurs.length} voyageur(s)).`);
-    revalidate(owner.parent, owner.id);
-    return { ok: true, id: poste.reservationDossierId, message: "Demande de réservation mise à jour dans le sujet ouvert — l'assistante de direction est prévenue." };
-  }
-
-  // L'ASSISTANTE DE DIRECTION : une seule active ⇒ elle en est responsable ; plusieurs ⇒ toutes
-  // participantes, sans responsable désignée — en choisir une serait choisir à la place d'un
-  // humain (§118.34). Aucune ⇒ la demande n'a personne à qui partir, et on le dit.
-  const assistantes = await prisma.user.findMany({
-    where: { isActive: true, ...anyRoleFilter(["DIRECTION_ASSISTANT"]) },
-    select: { id: true }, orderBy: { createdAt: "asc" },
-  });
-  if (assistantes.length === 0) {
-    return { ok: false, error: "Aucune assistante de direction active : la demande de réservation n'a personne à qui partir (Administration › Comptes)." };
-  }
-  const seule = assistantes.length === 1 ? assistantes[0]!.id : null;
-  const sujet = await createDossierRecord({
-    title: `Réservation billets — ${info.ref} · ${item.label}`,
-    description: corps,
-    category: "Billets",
-    priority: "HIGH",
-    assignedToId: seule,
-    participantIds: [...(seule ? [] : assistantes.map((a) => a.id)), ...(info.requesterId ? [info.requesterId] : [])],
-    sourceType: PARENT_ENTITE[owner.parent],
-    sourceId: owner.id,
-    companyId: info.companyId ?? null,
-  }, user.id);
-  await prisma.adProItem.update({ where: { id }, data: { reservationDossierId: sujet.id, updatedById: user.id } });
-  await audit(user, owner.parent, owner.id, "UPDATE", `Réservation du poste « ${item.label} » demandée — sujet ${sujet.reference} (${voyageurs.length} voyageur(s)).`);
-  revalidate(owner.parent, owner.id);
-  revalidatePath("/dossiers");
-  return { ok: true, id: sujet.id, message: `Demande de réservation envoyée — sujet ${sujet.reference} ouvert pour l'assistante de direction.` };
+  return { ok: false, error: REFUS_RESERVATION_EN_BLOC };
 }
 
 /**
- * RETIRER LA DEMANDE DE RÉSERVATION des billets d'un poste (audit du 04/10, constat 37) — « on annule
- * sa demande tant que l'autre ne l'a pas exécutée ». Rien ne la retirait : le sujet restait ouvert chez
- * l'assistante, qui pouvait réserver des billets dont plus personne ne voulait. Exécutée quand le sujet
- * est clos ou que le BC des billets est demandé (`refusRetraitReservation`, la règle de la carte) ; tout
- * ce qui refuse passe AVANT le motif (§118.18).
- *
- * TOUT OU RIEN, SOUS CONDITION : le sujet n'est clos que s'il est encore vivant, et le poste ne lâche
- * son sujet que s'il le porte encore et qu'aucun BC n'a été demandé entre-temps. Le motif s'écrit DANS
- * le sujet — l'assistante (et chaque participant) est prévenue par lui. Les voyageurs restent : une
- * nouvelle demande ouvrira un nouveau sujet avec la liste à jour.
+ * RETIRER LA DEMANDE DE RÉSERVATION EN BLOC d'un poste — FERMÉ avec l'envoi en bloc (Direction, 27/10). Une fiche
+ * envoyée se retire elle-même (`retirerFiche`) ; clore ici le sujet du poste couperait le fil des fiches qui
+ * y écrivent.
  */
 export async function retirerReservation(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -3521,35 +3448,7 @@ export async function retirerReservation(formData: FormData): Promise<ActionResu
   const { item, owner } = found;
   if (!canEditItems(user, owner.parent)) return { ok: false, error: "Non autorisé." };
   if (!porteDesVoyageurs(item.kind)) return { ok: false, error: "Seul un poste « billetterie » se réserve." };
-  const poste = await prisma.adProItem.findUnique({ where: { id }, select: { reservationDossierId: true, orderStage: true } });
-  const sujet = poste?.reservationDossierId
-    ? await prisma.dossier.findUnique({ where: { id: poste.reservationDossierId }, select: { id: true, reference: true, status: true } })
-    : null;
-  const refus = refusRetraitReservation({ sujet: sujet ? String(sujet.status) : null, orderStage: String(poste?.orderStage ?? "NONE") });
-  if (refus || !sujet) return { ok: false, error: refus ?? "Aucune demande de réservation n'est en cours pour ce poste." };
-  const motif = fdStr(formData, "motif");
-  if (!motif) return { ok: false, error: "Dites pourquoi vous retirez la demande de réservation : c'est ce que lira l'assistante de direction." };
-
-  const changee = "La réservation vient de changer (traitée, ou un bon de commande demandé) : rouvrez la fiche.";
-  try {
-    await prisma.$transaction(async (tx) => {
-      if (!(await cloreSujetVivant(tx, sujet.id))) throw new RefusPoste(changee);
-      const lache = await tx.adProItem.updateMany({
-        where: { id, reservationDossierId: sujet.id, orderStage: { in: ["NONE", "REFUSED"] } },
-        data: { reservationDossierId: null, updatedById: user.id },
-      });
-      if (lache.count === 0) throw new RefusPoste(changee);
-    });
-  } catch (e) {
-    if (e instanceof RefusPoste) return { ok: false, error: e.message };
-    throw e;
-  }
-  await ecrireDansLeSujet({ dossierId: sujet.id, authorId: user.id, body: `Demande de réservation RETIRÉE — « ${item.label} » : ${motif}. Ne réservez pas ces billets ; le sujet est clos.` });
-  await audit(user, owner.parent, owner.id, "UPDATE", `Réservation du poste « ${item.label} » retirée — sujet ${sujet.reference} clos : ${motif}`);
-  revalidate(owner.parent, owner.id);
-  revalidatePath("/dossiers");
-  revalidatePath(`/dossiers/${sujet.id}`);
-  return { ok: true, id, message: `Demande de réservation retirée — le sujet ${sujet.reference} est clos, l'assistante de direction est prévenue. Les voyageurs restent sur le poste.` };
+  return { ok: false, error: "La réservation se suit désormais fiche par fiche : retirez chaque fiche envoyée depuis la fiche elle-même (« Retirer »)." };
 }
 
 // ───────────────────── Billetterie : le devis de chaque voyageur, puis le BC (§118.205) ─────────────────────

@@ -22,7 +22,7 @@ import {
   addCareBeneficiary, createCareQuote, decideCareQuote, requestCareQuotes, sendCareToFinance,
   demanderPiecesPriseEnCharge, deposerPiecePriseEnCharge, setCareCellStatus,
   demanderBCPriseEnCharge, ajouterPosteGroupe, modifierPosteGroupe, retirerPosteGroupe,
-  retenirDevisPriseEnCharge,
+  retenirDevisPriseEnCharge, marquerPriseEnChargeRealisee,
 } from "@/lib/actions/care-actions";
 import { listBeneficiaryRefs } from "@/lib/actions/congress-beneficiary-actions";
 import { filtrerAnnuaire, PLAFOND_MENU } from "@/components/care/filtrer-annuaire";
@@ -54,6 +54,11 @@ interface Props {
   promoOptions?: { id: string; reference: string; title: string }[];
   /** L'état de chaque billet / hôtel chez l'assistante de direction (`EnvoiVue`, par case) — chaque fiche s'envoie seule (14/10). */
   envois?: Record<string, EnvoiVue>;
+  /**
+   * « Marquer réalisée » (Direction, 27/10) : la demande est-elle partie aux Finances (`envoyee`), déjà réalisée, et
+   * ce lecteur peut-il la marquer (`peutMarquer`, le demandeur ou la Direction Marketing) ? L'action revérifie tout.
+   */
+  realisation?: { envoyee: boolean; realisee: boolean; peutMarquer: boolean };
 }
 
 const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
@@ -68,7 +73,7 @@ const fd = (o: Record<string, string>) => { const f = new FormData(); for (const
  */
 export function CarePanel({
   scope, requestId, beneficiaries, quotes, groupPostes, reglages, enveloppe, directory, eventApproved, canEdit, canDecide, peutTeleverser, promoOptions = [],
-  envois = {},
+  envois = {}, realisation,
 }: Props) {
   const { enCours, rafraichir } = useRafraichir();
   const [action, setAction] = React.useState<string | null>(null);
@@ -352,6 +357,22 @@ export function CarePanel({
           <Button size="sm" disabled={!readiness.ready || busy !== null}
             onClick={() => void run("fin", () => sendCareToFinance(undefined, fd({ scope, requestId })))}>
             {busy === "fin" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Transmettre aux Finances
+          </Button>
+        </section>
+      )}
+
+      {/* ── Réalisée : après l'envoi aux Finances, le demandeur ou la Direction Marketing clôt la prise en charge. ── */}
+      {realisation?.realisee && (
+        <p className="flex items-center gap-2 rounded-xl bg-success/10 px-3 py-2 text-sm text-success">
+          <CheckCircle2 className="h-4 w-4 shrink-0" /> Prise en charge réalisée.
+        </p>
+      )}
+      {realisation && !realisation.realisee && realisation.envoyee && realisation.peutMarquer && (
+        <section className="space-y-2 border-t border-border pt-4">
+          <p className="text-xs text-muted-foreground">Le dossier est parti aux Finances. Une fois l&apos;événement passé, marquez la prise en charge réalisée.</p>
+          <Button size="sm" variant="outline" disabled={busy !== null}
+            onClick={() => void run("realisee", () => marquerPriseEnChargeRealisee(undefined, fd({ scope, requestId })))}>
+            {busy === "realisee" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Marquer réalisée
           </Button>
         </section>
       )}

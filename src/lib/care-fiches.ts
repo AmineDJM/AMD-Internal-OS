@@ -418,6 +418,17 @@ export function peutTeleverserBillet(
   return u.roles.some((r) => r === "DIRECTION_ASSISTANT" || r === "PRODUCT_MANAGER" || r === "SUPER_ADMIN");
 }
 
+/**
+ * MARQUER UNE PRISE EN CHARGE « RÉALISÉE » (Direction, 27/10) — le demandeur ou la Direction Marketing (et le Super
+ * Admin). Le geste ne s'ouvre qu'APRÈS l'envoi aux Finances : c'est l'action serveur qui le revérifie.
+ */
+export function peutMarquerRealisee(
+  u: { id: string; roles: readonly string[] }, demande: { requesterId: string | null },
+): boolean {
+  if (demande.requesterId && demande.requesterId === u.id) return true;
+  return u.roles.some((r) => r === "PRODUCT_MANAGER" || r === "SUPER_ADMIN");
+}
+
 // ───────────────────────────── La saisie d'un poste ─────────────────────────────
 
 export interface SaisiePoste {

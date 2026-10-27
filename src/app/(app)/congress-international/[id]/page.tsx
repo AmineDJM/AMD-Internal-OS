@@ -22,7 +22,8 @@ import { CarePanel } from "@/components/care/care-panel";
 import { getCareDossier } from "@/lib/queries/care";
 import { careDirectoryOptions, carePromoOptions } from "@/lib/actions/care-actions";
 import { BoutonLivret } from "@/components/care/bouton-livret";
-import { peutTeleverserBillet, resumeDesFiches } from "@/lib/care-fiches";
+import { peutMarquerRealisee, peutTeleverserBillet, resumeDesFiches } from "@/lib/care-fiches";
+import { envoiAuxFinances } from "@/lib/care-realisation";
 import { AdProTransferButton } from "@/components/ad-pro/transfer-button";
 import { AdProEditButton } from "@/components/ad-pro/edit-request-button";
 import { canEditAdProRequest, isAdProDecided } from "@/lib/ad-pro-edit";
@@ -102,6 +103,16 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
     { requesterId: detail.requesterId },
   );
 
+  // « Marquer réalisée » (Direction, 27/10) : après l'envoi aux Finances, le demandeur ou la Direction Marketing.
+  const realisation = {
+    envoyee: Boolean(await envoiAuxFinances("INTERNATIONAL", detail.id)),
+    realisee: detail.requestStatus === "COMPLETED",
+    peutMarquer: peutMarquerRealisee(
+      { id: user.id, roles: [user.role, user.secondaryRole].filter((r): r is NonNullable<typeof r> => Boolean(r)) },
+      { requesterId: detail.requesterId },
+    ),
+  };
+
   // Corriger la demande : le demandeur tant qu'elle n'est pas tranchée, la Direction toujours.
   const requestDecided = isAdProDecided("CONGRESS_INTERNATIONAL", detail.requestStatus);
   const canEditRequest = canEditAdProRequest(
@@ -165,6 +176,7 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
             canEdit={canEditCare}
             canDecide={canDecideCare}
             peutTeleverser={peutTeleverser}
+            realisation={realisation}
           />
         }
         couverture={
