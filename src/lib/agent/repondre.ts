@@ -31,6 +31,37 @@ export interface TourAssistant {
   /** Nombre de propositions d'écriture déjà faites pendant le tour (lu après un échec). */
   propositionsFaites: () => number;
   maxEtapes?: number;
+  /** EN FLUX : le texte brut lu jusqu'ici, à chaque morceau — le premier mot s'affiche sans attendre la fin. */
+  surTexte?: (brut: string) => void;
+  /** EN FLUX : un outil appelé (nom technique), au moment de l'appel. */
+  surOutil?: (nom: string) => void;
+}
+
+type Resultat = { text?: string; finishReason?: string; error?: unknown; steps?: { toolCalls?: unknown[] }[] };
+
+/**
+ * LE TOUR EN FLUX — même agent, même boucle d'outils, mais lu morceau par morceau : le texte et les
+ * appels d'outils sont rendus à mesure (`surTexte`, `surOutil`), puis le résultat final est le même
+ * que `generate` (texte, étapes, raison de fin, erreur).
+ */
+async function enFlux(agent: Agent, messages: Parameters<Agent["generate"]>[0], t: TourAssistant): Promise<Resultat> {
+  const s = await agent.stream(messages, { maxSteps: t.maxEtapes ?? 8, abortSignal: AbortSignal.timeout(t.delaiMs) });
+  let brut = "";
+  const lecteur = s.fullStream.getReader();
+  for (;;) {
+    const { done, value } = await lecteur.read();
+    if (done) break;
+    const c = value as { type?: string; payload?: { text?: string; toolName?: string } };
+    if (c.type === "text-delta" && c.payload?.text) {
+      brut += c.payload.text;
+      t.surTexte?.(brut);
+    } else if (c.type === "tool-call" && c.payload?.toolName) {
+      t.surOutil?.(c.payload.toolName);
+      // Un nouveau pas commence après l'outil : le texte d'avant (« je regarde… ») n'est pas la réponse.
+      brut = "";
+    }
+  }
+  return { text: await s.text, finishReason: await s.finishReason, error: s.error, steps: (await s.steps) as Resultat["steps"] };
 }
 
 export interface ResultatTour {
@@ -60,17 +91,19 @@ export async function repondreAvecSecours(t: TourAssistant): Promise<ResultatTou
       const messages = [...t.historique, { role: "user" as const, content: t.message }].map((h) =>
         h.role === "user" ? { role: "user" as const, content: h.content } : { role: "assistant" as const, content: h.content },
       );
-      const r = await agent.generate(messages, {
-        // MESURÉ sur MiMo : « mes dossiers en cours » a enchaîné 5 appels d'outils et épuisé 5 étapes
-        // sans rédiger. 8 laisse la place de lire puis de répondre.
-        maxSteps: t.maxEtapes ?? 8,
-        abortSignal: AbortSignal.timeout(t.delaiMs),
-      });
+      const r: Resultat = t.surTexte || t.surOutil
+        ? await enFlux(agent, messages, t)
+        : await agent.generate(messages, {
+          // MESURÉ sur MiMo : « mes dossiers en cours » a enchaîné 5 appels d'outils et épuisé 5 étapes
+          // sans rédiger. 8 laisse la place de lire puis de répondre.
+          maxSteps: t.maxEtapes ?? 8,
+          abortSignal: AbortSignal.timeout(t.delaiMs),
+        });
       // MESURÉ : Mastra ne LÈVE PAS sur un délai dépassé (`finishReason: "aborted"`, texte vide) ni
       // sur une panne survenue après un outil — il rend un résultat. Sans ce contrôle, une panne de
       // MiMo s'afficherait comme une réponse vide au lieu d'un échec dit.
-      const fin = (r as { finishReason?: string }).finishReason;
-      const erreur = (r as { error?: unknown }).error;
+      const fin = r.finishReason;
+      const erreur = r.error;
       if (fin === "aborted") throw new Error(`délai dépassé (${t.delaiMs} ms)`);
       if (fin === "error" || erreur) throw new Error(erreur instanceof Error ? erreur.message : String(erreur ?? "erreur du modèle"));
       // Des outils lus mais aucune phrase rédigée : un échec à dire, jamais une bulle vide.

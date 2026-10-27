@@ -127,6 +127,10 @@ export async function runScheduledJobs(): Promise<void> {
     await import("@/lib/agent/routines/service")
       .then((m) => m.executerRoutinesDues())
       .catch((e) => console.error("[scheduled] routines de l'assistant", e));
+    // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
+    await import("@/lib/agent/fil/service")
+      .then((m) => m.reprendreLesFils())
+      .catch((e) => console.error("[scheduled] fil de l'assistant", e));
     // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
     // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
     await runPettyCashRechargeReminders().catch(() => 0);

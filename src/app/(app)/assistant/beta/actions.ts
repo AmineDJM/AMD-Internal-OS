@@ -3,11 +3,8 @@
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/platform/in-process/visibilite-adam";
 import { confirmerIntentionAssistantIA } from "@/lib/actions/assistant-actions";
-import { compileContext } from "@/lib/agent/contexte";
-import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
-import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
-import { DELAI_MIMO_MS, modelesAssistant } from "@/lib/agent/modele";
-import { composantsEnBlocs, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
+import type { MemoireProposee } from "@/lib/agent/outils-v1";
+import { jouerTour } from "@/lib/agent/fil/tour";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
 export interface ReponseBetaAction {
@@ -78,7 +75,11 @@ export async function confirmerActionBeta(intentId: string, confirmTyped?: strin
   return confirmerIntentionAssistantIA(intentId, confirmTyped);
 }
 
-/** Un message à l'assistant : moteur Mastra, MiMo d'abord, secours du registre (R4). */
+/**
+ * Un message à l'assistant, joué DANS la requête et sans rien garder — l'écran ne s'en sert plus qu'en
+ * « Vue exacte » (le fil gardé, `agent/fil/service.ts`, joue tout le reste en arrière-plan). La règle
+ * du tour est la même des deux côtés : `jouerTour`.
+ */
 export async function envoyerMessageBeta(
   userPrompt: string,
   _moduleFilter?: string,
@@ -86,67 +87,12 @@ export async function envoyerMessageBeta(
   piecesJointes: { id: string; nom?: string }[] = [],
 ): Promise<ReponseBetaAction> {
   const messageId = `msg-${Date.now()}`;
-  const echec = (error: string): ReponseBetaAction => ({ ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error });
-
   const user = await exigerAccesAssistant();
-  if (!user) return echec(REFUS);
-  // LES PIÈCES DU MESSAGE : revérifiées, puis dites par leur nom et leur identifiant — jamais lues ici.
-  const pieces = await piecesDuMessage(user, piecesJointes);
-  const texteSaisi = (userPrompt ?? "").trim();
-  if (!texteSaisi && !pieces.length) return echec("Message vide.");
-  const message = pieces.length
-    ? `${texteSaisi || "(pièces jointes sans texte)"}\n\n[Pièces jointes à ce message — à joindre aux demandes par leur identifiant : ${pieces.map((p) => `« ${p.nom} » (identifiant ${p.id})`).join(" ; ")}]`
-    : texteSaisi;
-
-  const modeles = modelesAssistant();
-  if (modeles.length === 0) return echec("L'IA n'est pas configurée sur ce serveur.");
-
-  let instructions: string;
-  let config;
-  try {
-    config = await getRoleConfig(user.role);
-    instructions = (await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt;
-  } catch (e) {
-    // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
-    console.error("[assistant] contexte indisponible", e);
-    return echec("Service momentanément indisponible. Réessayez dans un instant.");
-  }
-
-  const propositions: PropositionPreparee[] = [];
-  const sorties: string[] = [];
-  const memoires: MemoireProposee[] = [];
-  const outils = outilsV1(user, propositions, sorties, memoires);
-  const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
-  try {
-    const r = await repondreAvecSecours({
-      user, message, historique: historiqueSur(historique), instructions,
-      outils, modeles, delaiMs: DELAI_MIMO_MS, config,
-      propositionsFaites: () => propositions.length,
-    });
-    if (r.echecs.length) console.warn("[assistant] modèles abandonnés", r.echecs);
-    // R5 : le modèle a choisi ses composants ; seuls ceux que les outils du tour prouvent restent.
-    const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
-    if (ui.retires.length) console.warn("[assistant] composants retirés", ui.retires);
-    const p = propositions[0];
-    return {
-      ok: true,
-      messageId,
-      role: "assistant",
-      content: ui.message || "Je n'ai pas de réponse à afficher.",
-      blocs: ui.blocs,
-      memoireProposee: memoires[0] ?? null,
-      // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
-      outilsAppeles: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))],
-      intent: p ? {
-        id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields,
-        ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
-        ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
-        ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
-        status: "PROPOSED",
-      } : null,
-    };
-  } catch (e) {
-    console.error("[assistant] aucun modèle n'a répondu", e);
-    return echec("L'assistant n'a pas pu répondre. Réessayez dans un instant.");
-  }
+  if (!user) return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: REFUS };
+  const r = await jouerTour(user, { texte: userPrompt, pieces: piecesJointes, historique: historiqueSur(historique) });
+  if (!r.ok) return { ok: false, messageId, role: "assistant", content: "", outilsAppeles: [], error: r.error };
+  return {
+    ok: true, messageId, role: "assistant", content: r.content, blocs: r.blocs,
+    memoireProposee: r.memoireProposee, outilsAppeles: r.outilsAppeles, intent: r.intent,
+  };
 }

@@ -959,6 +959,57 @@ model AssistantRoutineRun {
   @@index([routineId, debutLe])
 }
 
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// LE FIL DE L'ASSISTANT IA — UNE conversation par personne, GARDÉE (Direction, 27/10 : « je ne veux
+/// pas qu'à chaque fois que je sors de l'assistant ça efface tout »). Jouée sur le serveur, message
+/// après message (`src/lib/agent/fil/service.ts`) : quitter l'écran n'interrompt rien, la réponse est
+/// notifiée. Distinct d'`AssistantThread` (le fil d'Adam, le Chief of Staff).
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+model AssistantIaFil {
+  id           String            @id @default(cuid())
+  userId       String            @unique
+  user         User              @relation("AssistantIaFil", fields: [userId], references: [id], onDelete: Cascade)
+  /// Dernière lecture du fil par l'écran : au-delà de 6 s, une réponse prête se NOTIFIE.
+  consulteLe   DateTime?
+  /// « Nouvelle conversation » : les tours plus anciens restent en base mais ne font plus le contexte.
+  depuisLe     DateTime          @default(now())
+  /// Prise du fil : un seul passage joue ses messages à la fois (reprise si elle est perdue).
+  traitementLe DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  tours        AssistantIaTour[]
+}
+
+/// UN TOUR DU FIL — un message de la personne (EN_ATTENTE → EN_COURS → TRAITE | ECHEC) ou une réponse
+/// (EN_COURS pendant qu'elle s'écrit → TERMINE | ECHEC). `userId` redondant : filtrer sans jointure.
+model AssistantIaTour {
+  id              String         @id @default(cuid())
+  filId           String
+  fil             AssistantIaFil @relation(fields: [filId], references: [id], onDelete: Cascade)
+  userId          String
+  /// « user » | « assistant »
+  role            String
+  contenu         String         @default("") @db.Text
+  etat            String
+  pieces          Json?
+  blocs           Json?
+  intent          Json?
+  memoireProposee Json?
+  outils          String[]       @default([])
+  /// Les étapes du tour (« Annuaire consulté »), dites PENDANT qu'il travaille.
+  etapes          String[]       @default([])
+  /// La réponse : l'identifiant du message auquel elle répond.
+  repondA         String?
+  erreur          String?
+  ms              Int?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@index([filId, createdAt])
+  @@index([etat, createdAt])
+  @@index([userId])
+}
+
 /// LE REGISTRE DES DÉCISIONS EXÉCUTIVES — « on choisit le fournisseur B » mérite d'être retrouvable
 /// six mois plus tard avec son contexte, ses options, son attendu… et son RÉSULTAT RÉEL.
 /// Enregistrer une décision n'exécute JAMAIS ses conséquences. Une bonne décision peut produire
@@ -1440,6 +1491,7 @@ model User {
   scheduledWorkflows         ScheduledWorkflow[]             @relation("ScheduledWorkflowOwner")
   assistantMemoryItems       AssistantMemoryItem[]           @relation("AssistantMemoryItems")
   assistantRoutines          AssistantRoutine[]              @relation("AssistantRoutines")
+  assistantIaFil             AssistantIaFil?                 @relation("AssistantIaFil")
   executiveDecisions         ExecutiveDecision[]             @relation("ExecutiveDecisions")
   executiveObjectives        ExecutiveObjective[]            @relation("ExecutiveObjectives")
   executiveCommitments       ExecutiveCommitment[]           @relation("ExecutiveCommitments")

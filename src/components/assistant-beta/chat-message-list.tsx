@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
-import { User, Loader2, Wrench } from "lucide-react";
+import { User, Loader2, Wrench, Clock } from "lucide-react";
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
@@ -21,6 +21,11 @@ export interface ChatMessage {
   /** Une mémoire PROPOSÉE par l'assistant — retenue seulement au geste de la personne. */
   memoireProposee?: MemoireProposee | null;
   outilsAppeles?: string[];
+  /**
+   * Le fil gardé (27/10) : « attente » = message en file (répondu après les précédents) ;
+   * « redaction » = réponse qui s'écrit sous les yeux ; « echec » = tour qui n'a pas abouti.
+   */
+  etat?: "attente" | "redaction" | "echec";
   intent?: {
     id: string;
     kind: string;
@@ -79,6 +84,11 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                   </div>
                 )}
                 {m.pieces && m.pieces.length > 0 && <PiecesDuMessage pieces={m.pieces} />}
+                {m.etat === "attente" && (
+                  <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-zinc-400">
+                    <Clock className="h-3 w-3" /> En file — traité après le message précédent
+                  </span>
+                )}
               </div>
               <div className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-slate-900 text-white shadow-2xs sm:flex dark:bg-zinc-100 dark:text-zinc-900">
                 <User className="h-3.5 w-3.5" />
@@ -103,7 +113,14 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                 data-glass="true"
                 className="w-full rounded-2xl rounded-tl-md border border-slate-200/90 bg-white/95 px-3.5 py-3 text-[15px] leading-relaxed text-slate-800 shadow-2xs backdrop-blur-2xl sm:px-4 sm:text-[14px] dark:border-zinc-800 dark:bg-zinc-900/95 dark:text-zinc-100"
               >
-                <MarkdownMessage texte={m.content} />
+                {m.etat === "redaction" && (
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-slate-500 dark:text-zinc-400">
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    {m.content ? "Rédaction…" : m.outilsAppeles?.length ? "Je consulte vos données…" : "Je réfléchis…"}
+                  </div>
+                )}
+                {m.content && <MarkdownMessage texte={m.content} />}
+                {m.etat === "echec" && !m.content && <p className="text-sm text-red-600 dark:text-red-400">La demande n&apos;a pas abouti.</p>}
                 {/* L'UI GÉNÉRATIVE : les composants que le serveur a prouvés, sous le texte. */}
                 {m.blocs && m.blocs.length > 0 && (
                   <div className="mt-3 min-w-0">

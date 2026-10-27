@@ -1624,6 +1624,9 @@ X("LIRE LE SCAN D'UN DEVIS DE MATÉRIEL PROMOTIONNEL (lot D2-E) PROPOSE ce que l
 X("LIRE LA FACTURE D'UN BON DE COMMANDE PROMOTIONNEL (lot D2-F) PROPOSE les lignes facturées rapprochées des lignes du BC, la référence et le total imprimé, et n'écrit RIEN : le dépôt reste un geste d'écran (`deposerFacturePromo`), chaque ligne lue cochée « vérifiée » devant le papier avant d'être enregistrée. Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un clic sur /promo-material/<id>, dans « Déposer la facture ».", [
   "promo-execution-actions:lireFacturePromo",
 ]);
+X("LIRE LA PIÈCE D'UN NOUVEAU DOCUMENT LEGAL (ou d'une nouvelle facture) PROPOSE ce que le formulaire « Nouveau document » / « Nouvelle facture » montrera, et n'écrit RIEN : la déclaration reste un geste d'écran, champ par champ vérifié devant la pièce. La lecture sert cette saisie et n'a pas d'autre objet ; Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un clic sur /legal, dans « Nouveau document » ou « Nouvelle facture ».", [
+  "legal-lecture-actions:lireDocumentLegalPourSaisie",
+]);
 X("LUNA CONSEILLE OÙ RANGER UNE PIÈCE déposée sur une demande Ad & Pro : un avis CONSULTATIF, qui n'écrit rien et ne déplace aucune pièce — la carte de confirmation d'Adam n'aurait aucun objet à confirmer. Le conseil se lit à l'écran, sous la pièce qu'on vient de déposer ; c'est la personne qui range. Adam est en pause de développement : aucun geste neuf ne lui est ouvert.", [
   "ad-pro-conseil-actions:conseillerPiece",
 ]);
@@ -1797,6 +1800,9 @@ X("MÉMOIRE PERSONNELLE de l'Assistant IA — les gestes de la personne sur SA m
 X("ROUTINES PERSONNELLES de l'Assistant IA — les gestes de la personne sur SES routines (voir, lire un passage, pause, reprise, suppression, exécution immédiate). Identité prise de la session, jamais d'un paramètre ; une routine ne lit qu'avec les droits de sa propriétaire et n'écrit rien : ce n'est pas une action métier à proposer.", [
   "assistant-ia-actions:listerMesRoutines", "assistant-ia-actions:lireMonPassage", "assistant-ia-actions:basculerMaRoutine",
   "assistant-ia-actions:supprimerMaRoutine", "assistant-ia-actions:executerMaRoutine",
+]);
+X("FIL GARDÉ de l'Assistant IA — écrire à l'assistant (le message rejoint la file de SA conversation) et repartir d'une nouvelle conversation. C'est l'écran de l'assistant lui-même, pas une action métier : chaque écriture que l'assistant prépare reste une carte à confirmer.", [
+  "assistant-ia-actions:envoyerAuFil", "assistant-ia-actions:repartirDeZero",
 ]);
 X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
   "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",
