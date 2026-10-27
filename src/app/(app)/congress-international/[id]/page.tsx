@@ -165,6 +165,7 @@ export default async function CongressIntlDetailPage({ params }: { params: { id:
             canEdit={canEditCare}
             canDecide={canDecideCare}
             peutTeleverser={peutTeleverser}
+            budgetOptions={budgetOptions}
           />
         }
         couverture={

@@ -317,9 +317,16 @@ function PanneauFiche({ l, fil, busy, run }: { l: LigneFiche; fil: BureauAdProDa
             Le devis suit le circuit devis du poste : {l.source === "CARE_CELL" ? "il rejoint les devis de la prise en charge, le demandeur le retient." : "il part au demandeur par la demande de pièce du poste ; accepté, il rejoint le poste."}
           </p>
           <label className="block text-xs">Fichier du devis<input name="attachment" type="file" required className={CHAMP} /></label>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
             <label className="block text-xs">Agence<input name="fournisseur" required={l.source === "CARE_CELL"} className={CHAMP} /></label>
-            <label className="block text-xs">Montant (DZD)<input name="montant" type="number" min="0" step="0.01" inputMode="decimal" required={l.source === "CARE_CELL"} className={CHAMP} /></label>
+            <label className="block text-xs">Montant<input name="montant" type="number" min="0" step="0.01" inputMode="decimal" required={l.source === "CARE_CELL"} className={CHAMP} /></label>
+            {/* La devise DITE : un montant en DZD reste en DZD ; en USD, il est converti une fois (1 USD = 240 DZD). */}
+            <label className="block text-xs">Devise
+              <select name="devise" defaultValue="DZD" className={CHAMP}>
+                <option value="DZD">DZD</option>
+                <option value="USD">USD</option>
+              </select>
+            </label>
           </div>
           <Button size="sm" type="submit" disabled={busy !== null}>{busy === k("devis") ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />} Joindre</Button>
         </form>

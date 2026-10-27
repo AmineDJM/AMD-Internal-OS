@@ -362,7 +362,7 @@ export const CARE_OPS_IMPL: Record<string, OpImpl> = {
         warnings: decision === "ACCEPTED"
           ? ["D'UN BLOC (le fournisseur a chiffré un ensemble) — crée l'ORDRE DE DÉPENSE ; une case déjà couverte par un devis accepté fait REFUSER (anti double paiement)."]
           : ["Les cases couvertes repassent « demandées » : il faut un autre devis."],
-        args: { id: pick.id, decision, note: opStr(input, "note") || null },
+        args: { id: pick.id, decision, note: opStr(input, "note") || null, budgetCategoryId: opStr(input, "budgetCategoryId") || null },
         successMessage: `Devis ${pick.supplier} ${decision === "ACCEPTED" ? "ACCEPTÉ (ordre de dépense émis)" : "refusé"}.`,
         revalidate: ["/congress-national", "/congress-international", "/finances/paiements-a-faire"],
       };

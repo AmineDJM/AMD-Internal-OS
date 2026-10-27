@@ -165,6 +165,7 @@ export default async function CongressNatDetailPage({ params }: { params: { id: 
             canEdit={canEditCare}
             canDecide={canAllocate}
             peutTeleverser={peutTeleverser}
+            budgetOptions={budgetOptions}
           />
         }
         couverture={
