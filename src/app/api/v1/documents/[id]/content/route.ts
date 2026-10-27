@@ -6,6 +6,7 @@ import { readFileByKey } from "@/lib/storage";
 import { ENTITIES, canReadEntity } from "@/lib/api/registry/entities";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { contentDisposition } from "@/lib/http/content-disposition";
+import { canAccessEntity } from "@/lib/entity-access";
 
 /**
  * TÉLÉCHARGEMENT CONTRÔLÉ D'UNE PIÈCE.
@@ -24,7 +25,13 @@ export const GET = handle<{ id: string }>(
     if (!doc) throw errors.notFound("Document");
     mark({ entityType: doc.entityType ?? undefined, entityId: doc.entityId ?? undefined });
 
-    // Le porteur du document décide : on retrouve l'objet DANS LA PORTÉE de l'identité.
+    // La RÈGLE DE L'ÉCRAN d'abord, pour toute pièce : la portée du registre ne s'appliquait qu'aux
+    // types qu'il connaît (`if (def)`), et une pièce de demande RH, de candidature, de validation…
+    // partait vers n'importe quelle clé `erp.documents.read` (audit sécurité 27/10).
+    if (!doc.entityType || !doc.entityId || !(await canAccessEntity(ctx.user, doc.entityType, doc.entityId, "VIEW"))) {
+      throw errors.notFound("Document");
+    }
+    // Puis, si le porteur est au registre, l'objet DANS LA PORTÉE de l'identité (cloisonnement par entité compris).
     const def = ENTITIES.find((e) => e.entityType && e.entityType === doc.entityType);
     if (def) {
       if (!canReadEntity(ctx.user, def)) throw errors.notFound("Document");
