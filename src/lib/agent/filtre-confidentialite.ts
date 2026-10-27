@@ -115,6 +115,32 @@ export function censurerTexte(texte: string): ResultatCensureTexte {
 }
 
 /**
+ * MASQUE RÉVERSIBLE — pour un texte que le modèle doit TRANSFORMER (traduire) sans le voir en entier :
+ * chaque valeur sensible devient un jeton « ⟦S1⟧ » que le modèle recopie tel quel, et que
+ * `restaurer` remet à sa place dans le résultat. La valeur ne quitte jamais le serveur.
+ */
+export function masquerSensible(texte: string): { texte: string; valeurs: string[] } {
+  const valeurs: string[] = [];
+  let modifie = texte ?? "";
+  for (const { regex } of MOTIFS_TEXTUELS) {
+    regex.lastIndex = 0;
+    modifie = modifie.replace(regex, (m) => {
+      valeurs.push(m);
+      return `⟦S${valeurs.length}⟧`;
+    });
+  }
+  return { texte: modifie, valeurs };
+}
+
+/** Remet les valeurs masquées ; un jeton que le modèle aurait perdu reste perdu (jamais deviné), un jeton inventé est retiré. */
+export function restaurerSensible(texte: string, valeurs: readonly string[]): string {
+  // Les jetons peuvent s'imbriquer (une valeur masquée contient un jeton antérieur) : on dénoue jusqu'au point fixe.
+  let t = texte;
+  for (let i = 0; i < 4 && /⟦S\d+⟧/.test(t); i++) t = t.replace(/⟦S(\d+)⟧/g, (_, n: string) => valeurs[Number(n) - 1] ?? "");
+  return t;
+}
+
+/**
  * Censure récursivement un objet ou tableau structuré avant injection dans le contexte.
  */
 export function censurerObjet<T>(donnees: T): { resultat: T; censure: boolean } {

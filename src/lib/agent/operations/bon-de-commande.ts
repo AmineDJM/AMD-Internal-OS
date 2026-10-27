@@ -33,7 +33,7 @@ async function nomSociete(id: string | null): Promise<string | null> {
   return c ? c.shortName || c.name : null;
 }
 
-async function validateur(user: CurrentUser, nom: string): Promise<{ id: string; nom: string } | { manque: string }> {
+export async function validateur(user: CurrentUser, nom: string): Promise<{ id: string; nom: string } | { manque: string }> {
   if (!nom) return { manque: "qui doit valider ce bon de commande (le validateur principal)" };
   const t = await prisma.user.findMany({ where: { isActive: true, id: { not: user.id }, name: { contains: nom, mode: "insensitive" } }, select: { id: true, name: true }, take: 5 });
   const exact = t.filter((u) => replier(u.name) === replier(nom));

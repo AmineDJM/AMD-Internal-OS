@@ -40,7 +40,7 @@ describe("outils V1", () => {
     // Les lectures et écritures V1, la mémoire proposée, et les opérations de l'Assistant IA (le
     // Super Admin les a toutes ; chacune revérifie à l'exécution par l'action de l'écran).
     expect(noms).toEqual([
-      "create_task", "directory_list", "directory_lookup", "list_my_tasks", "mes_brouillons", "mes_conversations", "mes_demandes_en_attente",
+      "comparer_versions", "create_task", "directory_list", "directory_lookup", "lire_devis_facture", "lire_document", "lire_formulaire_pdf", "list_my_tasks", "mes_brouillons", "mes_conversations", "mes_demandes_en_attente",
       "proposer_memoire", "read_workflow",
       "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload", "search_products", "send_message",
       ...OPERATIONS_IA.map((o) => o.nom),

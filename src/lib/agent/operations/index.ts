@@ -8,6 +8,11 @@ import { MATERIEL_PROMO_CREATION } from "./adpro-materiel-promo";
 import { AUTRE_CREATION, POSTE_AJOUT } from "./adpro-poste-autre";
 import { BON_DE_COMMANDE } from "./bon-de-commande";
 import { DEPOT_PIECE, RELANCE, RENDEZ_VOUS, REPONSE_MESSAGE } from "./quotidien";
+import { DOCUMENT_MODELE } from "./document-modele";
+import { BC_DEPUIS_DEVIS } from "./bc-depuis-devis";
+import { VOYAGEUR_PASSEPORT } from "./voyageur-passeport";
+import { TRADUCTION } from "./traduction";
+import { FORMULAIRE_PDF } from "./formulaire-pdf";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "./types";
 
 export type { ChargeOperationIA } from "./types";
@@ -15,8 +20,9 @@ export type { ChargeOperationIA } from "./types";
 /** LE REGISTRE — chaque geste que l'Assistant IA sait préparer. */
 export const OPERATIONS_IA: OperationIA[] = [
   SPONSORING_CREATION, PRISE_EN_CHARGE_CREATION, EVENEMENT_CREATION, MATERIEL_PROMO_CREATION, AUTRE_CREATION, POSTE_AJOUT,
-  BON_DE_COMMANDE,
+  BON_DE_COMMANDE, BC_DEPUIS_DEVIS, VOYAGEUR_PASSEPORT,
   RELANCE, DEPOT_PIECE, RENDEZ_VOUS, REPONSE_MESSAGE,
+  DOCUMENT_MODELE, TRADUCTION, FORMULAIRE_PDF,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));
