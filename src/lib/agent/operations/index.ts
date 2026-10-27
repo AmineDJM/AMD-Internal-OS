@@ -46,6 +46,19 @@ export interface PropositionCarte {
 }
 
 /**
+ * UNE CARTE PAR TOUR. L'écran (et le fil gardé) ne montre que LA carte du tour (`propositions[0]`) :
+ * une seconde intention, préparée dans le même tour (« relance Karim et prends rendez-vous avec le
+ * Dr X »), restait PROPOSÉE en base, invisible et jamais confirmable, pendant que le modèle disait
+ * « deux cartes sont affichées ». Le second geste est donc refusé AVANT d'être préparé, et le dit :
+ * il se préparera au tour suivant, une fois la première carte tranchée.
+ */
+export const REFUS_SECONDE_CARTE = JSON.stringify({
+  statut: "REFUS",
+  raison: "Une carte attend déjà la confirmation de l'utilisateur dans ce tour : une seule action se prépare à la fois.",
+  consigne: "Ne prépare rien d'autre maintenant. Résume la carte affichée, puis dis que l'autre demande sera préparée dès que celle-ci sera confirmée ou écartée.",
+});
+
+/**
  * Les opérations offertes à CETTE personne, en outils. Une opération que son rôle ne permet pas
  * n'est pas même offerte ; celle qui l'est revérifie tout à l'exécution (action métier).
  */
@@ -55,6 +68,7 @@ export function outilsOperations(user: CurrentUser, propositions: PropositionCar
     allowed: (u: CurrentUser) => u.id === user.id && o.ouverte(u),
     label: o.libelle,
     run: async (entree: Record<string, unknown>, u: CurrentUser) => {
+      if (propositions.length > 0) return REFUS_SECONDE_CARTE;
       const p = await o.proposer(entree ?? {}, u);
       if ("manque" in p) {
         return JSON.stringify({
