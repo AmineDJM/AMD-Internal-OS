@@ -215,8 +215,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   const reference = await nextFinanceRef();
   const compteDuReglement = await compteDeLEcriture({ compteId: fdStr(formData, "treasuryAccountId"), compte: "Banque", societeId: order.companyId });
   const reglement = await prisma.$transaction(async (tx) => {
+    // LE MONTANT ET LE BÉNÉFICIAIRE LUS sont dans la condition (audit argent 2026-10-27, ARGENT-04) : une
+    // révision À LA BAISSE garde l'autorisation (`statutApresNouveauMontant`) — sans eux, le livre recevait
+    // l'ANCIEN montant d'un ordre qui en dit désormais un autre.
     const reserve = await tx.expenseOrder.updateMany({
-      where: { id, status: "PENDING", centralStatus: order.centralStatus },
+      where: { id, status: "PENDING", centralStatus: order.centralStatus, amount: order.amount, beneficiary: order.beneficiary },
       data: { status: "PAID", paidById: user.id, paidDate: new Date() },
     });
     if (reserve.count === 0) return null;
@@ -239,7 +242,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     // Quelqu'un d'autre a réglé (ou annulé, ou le centre a retiré son accord) pendant ce règlement.
     const maintenant = await prisma.expenseOrder.findUnique({ where: { id }, select: { status: true } });
     if (maintenant?.status === "PAID") return { ok: true };
-    return { ok: false, error: "Cet ordre a changé pendant le règlement (annulé, ou son autorisation au centre de paiement a bougé) : rechargez la page — rien n'a été réglé." };
+    return { ok: false, error: "Cet ordre a changé pendant le règlement (annulé, montant ou bénéficiaire révisé, ou son autorisation au centre de paiement a bougé) : rechargez la page — rien n'a été réglé." };
   }
   const tx = reglement;
 
