@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { decideAdProOtherRequest, closeAdProOtherRequest, resoumettreAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * TRANCHER UNE DEMANDE « AUTRE ».
@@ -40,8 +41,19 @@ export function OtherDecisionPanel({
     setBusy(key); setErr(null); setAnnonce(null);
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, v);
-    const r = await fn(fd);
-    setBusy(null);
+    // UN APPEL QUI LÈVE (connexion coupée, redéploiement) ne fige plus le panneau (audit 27/10/2026,
+    // FRONTEND-UX-01) : sans cette garde, `busy` restait posé et les quatre gestes tournaient pour
+    // toujours, sans un mot. Le message dit de vérifier avant de recommencer — jamais « réessayez ».
+    let r: { ok: boolean; error?: string; message?: string };
+    try {
+      r = await fn(fd);
+    } catch (e) {
+      console.error("[ad-pro autres] l'action serveur a levé", e);
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(null);
+    }
     if (!r.ok) { setErr(r.error ?? "L'opération a échoué."); return; }
     setNote(""); setMotifAnnulation(""); setCorrection("");
     // Ce que le geste a fait AILLEURS (la porte du centre) se DIT — l'écran ne le jette pas (§118.168).
