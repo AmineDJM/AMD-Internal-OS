@@ -2971,7 +2971,7 @@ export const OPS_CATALOG: OpMeta[] = [
   {
     tool: "event_operation", op: "update_event", module: "Events",
     uiLabel: "Modifier l'événement",
-    aliases: ["modifie l'événement", "change la date de l'événement", "ouvre les inscriptions de l'événement"],
+    aliases: ["modifie l'événement", "change la date de l'événement", "marque l'événement terminé"],
     risk: "NORMAL",
     summary: "Modifie la fiche d'un événement — l'action REMPLACE la fiche entière (type, statut, dates, responsable) : TOUT l'existant est relu et rejoué, seuls les champs demandés changent.",
     gate: (u) => userCan(u, "EVENTS", "UPDATE"),
@@ -3009,7 +3009,7 @@ export const OPS_CATALOG: OpMeta[] = [
     uiLabel: "Statut d'un participant",
     aliases: ["marque le participant présent", "confirme l'inscription de", "le participant a annulé"],
     risk: "NORMAL",
-    summary: "Change le statut d'un participant (inscrit / confirmé / liste d'attente / refusé / présent / absent / annulé) — « présent » horodate le check-in.",
+    summary: "Change le statut d'un participant (inscrit / confirmé / refusé / présent / absent / annulé) — « présent » horodate le check-in. Pas de liste d'attente : l'événement est externe.",
     gate: (u) => userCan(u, "EVENTS", "UPDATE"),
     covers: ["event-actions:setRegistrationStatus"],
   },

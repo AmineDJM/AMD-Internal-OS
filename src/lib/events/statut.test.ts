@@ -28,12 +28,13 @@ describe("l'état d'un événement : ce qui se tape, et ce qui se décide", () =
   });
 
   it("les états de VIE restent saisissables — sinon on aurait remplacé un défaut par un blocage", () => {
-    // Ce qui le ferait tomber : tout refuser. Un événement ne pourrait plus ouvrir ses
-    // inscriptions, se déclarer complet ni se clore — un refus à tort, plus coûteux que le
-    // défaut corrigé (§118.27).
+    // Ce qui le ferait tomber : tout refuser. Un événement ne pourrait plus se clore ni s'annuler —
+    // un refus à tort, plus coûteux que le défaut corrigé (§118.27).
     for (const v of STATUTS_MANUELS) expect(statutManuelOuRien(v), v).toBe(v);
-    expect(STATUTS_MANUELS).toContain("REGISTRATION_OPEN");
+    expect(STATUTS_MANUELS).toContain("COMPLETED");
     expect(STATUTS_MANUELS).toContain("CANCELLED");
+    // ÉVÉNEMENTS EXTERNES (Direction, 27/10) : les états d'ORGANISATION ne se saisissent plus.
+    for (const v of ["PREPARATION", "REGISTRATION_OPEN", "FULL"]) expect(statutManuelOuRien(v), v).toBeNull();
   });
 
   it("les deux vocabulaires ne se recoupent JAMAIS", () => {
@@ -88,7 +89,8 @@ describe("les deux moitiés ont leur appelant de production", () => {
     expect(src).toMatch(/from "@\/lib\/events\/statut"/);
     // Deux appels : `createEvent` et `updateEvent`. Un seul laisserait une porte ouverte à côté
     // d'une porte gardée (§118.71).
-    expect([...src.matchAll(/statutSaisi\(formData\)/g)].length, "createEvent ET updateEvent").toBe(2);
+    // (`updateEvent` passe l'état actuel : un ancien état d'organisation renvoyé tel quel ne s'écrit pas.)
+    expect([...src.matchAll(/statutSaisi\(formData(, avant\.status)?\)/g)].length, "createEvent ET updateEvent").toBe(2);
     // Et plus AUCUNE lecture brute du champ dans un `data:` d'écriture.
     expect(src, "le statut ne se lit plus directement depuis le formulaire").not.toMatch(
       /status: inEnum\(EventStatus, fdStr\(formData, "status"\)/,

@@ -630,7 +630,7 @@ export const DOMAIN_TOOLS: Record<string, DomainToolSpec> = {
           eventType: { type: "string", description: "update_event : congrès, séminaire, table ronde, staff hospitalier, symposium, webinaire, formation, journée scientifique, autre." },
           scope: { type: "string", description: "update_event : national / international." },
           format: { type: "string", description: "update_event : présentiel / webinaire / hybride." },
-          status: { type: "string", description: "Événement : brouillon, en attente de validation, validé, en préparation, inscriptions ouvertes, complet, terminé, annulé. Participant : inscrit, confirmé, liste d'attente, refusé, présent, absent, annulé." },
+          status: { type: "string", description: "Événement : brouillon, terminé, annulé (les états du circuit suivent la décision). Participant : inscrit, confirmé, refusé, présent, absent, annulé." },
           startDate: { type: "string", description: "update_event : date de début (AAAA-MM-JJ)." },
           endDate: { type: "string", description: "update_event : date de fin (AAAA-MM-JJ)." },
           location: { type: "string", description: "update_event : lieu." },

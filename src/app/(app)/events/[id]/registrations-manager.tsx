@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2, Trash2, QrCode, Check, Search, Copy, Download, Link2, UserPlus } from "lucide-react";
+import { Loader2, Trash2, QrCode, Check, Search, Download, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
@@ -11,17 +11,23 @@ import { cn } from "@/lib/utils";
 import { PARTICIPANT_ROLE, REGISTRATION_STATUS } from "@/lib/labels";
 import { addRegistration, setRegistrationStatus, deleteRegistration } from "@/lib/actions/event-actions";
 import type { RegistrationDTO } from "@/lib/queries/events";
+import { estStatutInscriptionRetire } from "@/lib/events/externe";
+
+/**
+ * LES STATUTS PROPOSÉS — sans la liste d'attente (Direction, 27/10) : un événement externe n'a pas de capacité à tenir.
+ * Une inscription qui la porte déjà la garde (et l'affiche) ; on ne la propose plus.
+ */
+const statutsProposes = (actuel?: string) =>
+  Object.entries(REGISTRATION_STATUS).filter(([v]) => !estStatutInscriptionRetire(v) || v === actuel);
 
 export function RegistrationsManager({ eventId, registrations, canManage }: { eventId: string; registrations: RegistrationDTO[]; canManage: boolean }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [qrToken, setQrToken] = React.useState<string | null>(null);
-  const [copied, setCopied] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
-  const publicLink = typeof window !== "undefined" ? `${window.location.origin}/inscription/${eventId}` : "";
   const list = registrations.filter((r) =>
     !q || `${r.fullName} ${r.specialty ?? ""} ${r.institution ?? ""} ${r.email ?? ""}`.toLowerCase().includes(q.toLowerCase()),
   );
@@ -30,16 +36,11 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
     const fd = new FormData(); fd.set("id", id); fd.set("status", status);
     setRegistrationStatus(fd).then(() => router.refresh());
   };
-  const copyLink = async () => { try { await navigator.clipboard.writeText(publicLink); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* */ } };
 
   return (
     <div className="space-y-3">
-      {/* Lien d'inscription + actions */}
-      <div className="surface flex flex-wrap items-center gap-2 p-3">
-        <Link2 className="h-4 w-4 shrink-0 text-primary" />
-        <code className="min-w-0 flex-1 truncate rounded bg-secondary px-2 py-1 text-xs">{publicLink}</code>
-        <Button variant="outline" size="sm" onClick={copyLink}>{copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />} Copier le lien</Button>
-        <a href={`/inscription/${eventId}`} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-1 py-2 text-xs text-primary hover:underline sm:py-0">Ouvrir le formulaire</a>
+      {/* Actions — plus de lien d'inscription publique : l'événement est externe, on s'y inscrit chez l'organisateur. */}
+      <div className="surface flex flex-wrap items-center justify-end gap-2 p-3">
         <a href={`/api/events/${eventId}/export`} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-2 text-xs font-medium hover:bg-secondary sm:py-1.5"><Download className="h-4 w-4" /> Export Excel</a>
         {canManage && <Button size="sm" onClick={() => { setErr(null); setAdding(true); }}><UserPlus className="h-4 w-4" /> Ajouter</Button>}
       </div>
@@ -52,7 +53,7 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
       </div>
 
       {list.length === 0 ? (
-        <p className="surface p-4 text-sm text-muted-foreground">Aucun inscrit. Partagez le lien d'inscription ou ajoutez des participants.</p>
+        <p className="surface p-4 text-sm text-muted-foreground">Aucun participant. Ajoutez ceux de l'équipe ou les praticiens qui y assistent.</p>
       ) : (
         <div className="surface divide-y divide-border">
           {list.map((r) => (
@@ -67,7 +68,7 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
                 <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
                   {r.status !== "PRESENT" && <Button size="sm" variant="outline" onClick={() => setStatus(r.id, "PRESENT")} className="flex-1 sm:flex-none"><Check className="h-4 w-4 text-success" /> Présent</Button>}
                   <Select value={r.status} onChange={(e) => setStatus(r.id, e.target.value)} className="h-9 w-32 text-xs sm:h-8" aria-label="Statut de l'inscription">
-                    {Object.entries(REGISTRATION_STATUS).map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}
+                    {statutsProposes(r.status).map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}
                   </Select>
                   <button onClick={() => setQrToken(r.qrToken)} title="QR code" aria-label="QR code" className="rounded p-2.5 text-muted-foreground hover:bg-secondary hover:text-foreground sm:p-1.5"><QrCode className="h-4 w-4" /></button>
                   <button onClick={() => { if (window.confirm("Supprimer cet inscrit ?")) { const fd = new FormData(); fd.set("id", r.id); deleteRegistration(fd).then(() => router.refresh()); } }} aria-label="Supprimer cet inscrit" className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5"><Trash2 className="h-4 w-4" /></button>
@@ -95,7 +96,7 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
           <div className="space-y-1.5"><Label>Prénom</Label><Input name="firstName" required /></div>
           <div className="space-y-1.5"><Label>Nom</Label><Input name="lastName" required /></div>
           <div className="space-y-1.5"><Label>Rôle</Label><Select name="role" defaultValue="DOCTOR">{Object.entries(PARTICIPANT_ROLE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></div>
-          <div className="space-y-1.5"><Label>Statut</Label><Select name="status" defaultValue="CONFIRMED">{Object.entries(REGISTRATION_STATUS).map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}</Select></div>
+          <div className="space-y-1.5"><Label>Statut</Label><Select name="status" defaultValue="CONFIRMED">{statutsProposes().map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}</Select></div>
           <div className="space-y-1.5"><Label>Spécialité</Label><Input name="specialty" /></div>
           <div className="space-y-1.5"><Label>Établissement</Label><Input name="institution" /></div>
           <div className="space-y-1.5"><Label>Ville</Label><Input name="city" /></div>

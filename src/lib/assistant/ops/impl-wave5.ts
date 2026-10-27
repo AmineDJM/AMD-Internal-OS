@@ -68,13 +68,14 @@ const EVENT_TYPE_FR: [string, string][] = [
 ];
 const EVENT_SCOPE_FR: [string, string][] = [["NATIONAL", "National"], ["INTERNATIONAL", "International"]];
 const EVENT_FORMAT_FR: [string, string][] = [["PRESENTIAL", "Présentiel"], ["WEBINAR", "Webinaire (en ligne)"], ["HYBRID", "Hybride"]];
+// LES ÉVÉNEMENTS SONT EXTERNES (Direction, 27/10) : ni « En préparation », ni « Inscriptions ouvertes », ni « Complet »,
+// ni liste d'attente — Adam ne les propose plus, comme l'écran (`events/externe.ts`). Les valeurs restent en base.
 const EVENT_STATUS_FR: [string, string][] = [
   ["DRAFT", "Brouillon"], ["AWAITING_VALIDATION", "En attente de validation"], ["VALIDATED", "Validé"],
-  ["PREPARATION", "En préparation"], ["REGISTRATION_OPEN", "Inscriptions ouvertes"], ["FULL", "Complet"],
   ["COMPLETED", "Terminé"], ["CANCELLED", "Annulé"],
 ];
 const REG_STATUS_FR: [string, string][] = [
-  ["REGISTERED", "Inscrit"], ["CONFIRMED", "Confirmé"], ["PENDING", "Liste d'attente"],
+  ["REGISTERED", "Inscrit"], ["CONFIRMED", "Confirmé"],
   ["REJECTED", "Refusé"], ["PRESENT", "Présent"], ["ABSENT", "Absent"], ["CANCELLED", "Annulé"],
 ];
 const REG_ROLE_FR: [string, string][] = [
@@ -135,13 +136,12 @@ export const EVENT_OPS_IMPL: Record<string, OpImpl> = {
       const description = pick("notes", e.description, "description");
       const startDate = isoDate(opStr(input, "startDate")) ? (changes.push("début"), isoDate(opStr(input, "startDate"))) : day(e.startDate);
       const endDate = isoDate(opStr(input, "endDate")) ? (changes.push("fin"), isoDate(opStr(input, "endDate"))) : day(e.endDate);
-      const capacity = opStr(input, "quantity") ? (changes.push("capacité"), opStr(input, "quantity")) : (e.capacity != null ? String(e.capacity) : null);
       const budget = opStr(input, "amount") ? (changes.push("budget estimé"), opStr(input, "amount")) : numStr(e.estimatedBudget);
       if (type && type !== e.type) changes.push("type");
       if (scope && scope !== e.scope) changes.push("portée");
       if (format && format !== e.format) changes.push("format");
       if (status && status !== e.status) changes.push(`statut → ${EVENT_STATUS_FR.find(([c]) => c === status)?.[1] ?? status}`);
-      if (changes.length === 0) return { error: "Rien à changer : donnez newName, eventType, scope, format, status, startDate, endDate, location, city, country, specialty, products, quantity (capacité), amount (budget) ou notes." };
+      if (changes.length === 0) return { error: "Rien à changer : donnez newName, eventType, scope, format, status, startDate, endDate, location, city, country, specialty, products, amount (budget) ou notes." };
       return {
         title: `Modifier l'événement « ${e.name} »`,
         fields: [
@@ -154,7 +154,7 @@ export const EVENT_OPS_IMPL: Record<string, OpImpl> = {
           type: (type as string | null) ?? e.type, scope: (scope as string | null) ?? e.scope,
           format: (format as string | null) ?? e.format, status: (status as string | null) ?? e.status,
           startDate, endDate, location, city, country, specialty, products, description,
-          capacity, estimatedBudget: budget, meetingLink: e.meetingLink, responsibleId: e.responsibleId,
+          estimatedBudget: budget, meetingLink: e.meetingLink, responsibleId: e.responsibleId,
         },
         successMessage: `Événement « ${name} » mis à jour (${changes.join(", ")}).`,
         link: `/events/${hit.id}`, revalidate: ["/events"],
@@ -256,7 +256,7 @@ export const EVENT_OPS_IMPL: Record<string, OpImpl> = {
       const reg = await resolveRegistration(hit.id, hit.name, opStr(input, "person"));
       if ("error" in reg) return reg;
       const status = enumIn(opStr(input, "status"), REG_STATUS_FR);
-      if (!status) return { error: "Précisez le statut (champ « status ») : inscrit, confirmé, liste d'attente, refusé, présent, absent, annulé." };
+      if (!status) return { error: "Précisez le statut (champ « status ») : inscrit, confirmé, refusé, présent, absent, annulé." };
       if (typeof status === "object") return status;
       return {
         title: `${reg.name} → ${REG_STATUS_FR.find(([c]) => c === status)?.[1] ?? status} (${hit.name})`,

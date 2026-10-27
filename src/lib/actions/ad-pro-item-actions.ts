@@ -253,9 +253,12 @@ const PARENTS: Record<AdProParent, ParentSpec> = {
         select: { id: true, name: true, requestStatus: true, requesterId: true, status: true, companyId: true },
       });
       if (!r) return null;
-      // Un événement peut être organisé SANS circuit de financement (requestStatus null) : il est
-      // alors piloté directement, donc ses postes ne sont pas bloqués par une décision absente.
-      const decided = r.requestStatus == null ? r.status !== "DRAFT" && r.status !== "CANCELLED" : CONGRESS_DECIDED.includes(r.requestStatus);
+      // SANS CIRCUIT (requestStatus null), un événement n'est plus « décidé » par son état d'ORGANISATION
+      // (Direction, 27/10) : nous n'organisons pas les événements Ad & Pro, ils sont externes — « En préparation »,
+      // « Inscriptions ouvertes » ou « Complet » ne décident rien. Seul un verdict déjà acquis le reste
+      // (« Validé », « Terminé », écrits avant que le circuit ne gouverne l'état). La garde « prévalidé avant
+      // tout poste » relève du circuit.
+      const decided = r.requestStatus == null ? r.status === "VALIDATED" || r.status === "COMPLETED" : CONGRESS_DECIDED.includes(r.requestStatus);
       const refusee = r.requestStatus == null ? r.status === "CANCELLED" : CONGRESS_FERME.includes(r.requestStatus);
       return { id: r.id, ref: r.name, beneficiary: r.name, decided, tardif: decided, clos: false, refusee, requesterId: r.requesterId, companyId: r.companyId };
     },

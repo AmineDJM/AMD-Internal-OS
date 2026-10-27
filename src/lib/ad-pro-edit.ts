@@ -186,6 +186,8 @@ export const EDITABLE_FIELDS: Record<AdProKind, readonly EditableField[]> = {
   EVENT: [
     { key: "name", label: "Nom de l'événement", type: "text", requis: "Le nom de l'événement est obligatoire." },
     { key: "type", label: "Type", type: "select", options: mapOptions(EVENT_TYPE) },
+    // QUI ORGANISE — un événement Ad & Pro est externe (Direction, 27/10).
+    { key: "organizer", label: "Organisateur", type: "text" },
     { key: "format", label: "Format", type: "select", options: mapOptions(EVENT_FORMAT) },
     { key: "location", label: "Lieu", type: "text" },
     { key: "city", label: "Ville", type: "text" },

@@ -145,20 +145,24 @@ suite("ops vague 5a — Events, circuits Ad&Pro, postes, Consulting", () => {
 
 
   describe("Events — FUSION de la fiche, inscriptions", () => {
-    it("update_event : changer le SEUL statut rejoue type, format, lieu, capacité et budget (les enums-pièges compris)", async () => {
+    it("update_event : changer le SEUL statut rejoue type, format, lieu et budget — l'ancien état d'organisation n'est plus proposé", async () => {
       const p = await buildProposal("event_operation", {
-        op: "update_event", target: "Journée HTA", status: "complet",
+        op: "update_event", target: "Journée HTA", status: "terminé",
       }, sa());
       expect("error" in p).toBe(false);
       if ("error" in p) return;
       const a = domainArgs(p);
       expect(a.id).toBe(eventId);
-      expect(a.status).toBe("FULL");
+      expect(a.status).toBe("COMPLETED");
       expect(a.type).toBe("SCIENTIFIC_DAY");
       expect(a.format).toBe("PRESENTIAL");
       expect(a.location).toBe("Hôtel El Aurassi");
-      expect(a.capacity).toBe("120");
+      // ÉVÉNEMENTS EXTERNES (Direction, 27/10) : la capacité ne se rejoue plus.
+      expect(a.capacity).toBeUndefined();
       expect(a.estimatedBudget).toBe("900000");
+      // « Complet » n'est plus un état qu'Adam propose.
+      const complet = await buildProposal("event_operation", { op: "update_event", target: "Journée HTA", status: "complet" }, sa());
+      expect("error" in complet).toBe(true);
     });
 
     it("delete_event : CRITIQUE — confirmText = nom, inscriptions emportées comptées", async () => {

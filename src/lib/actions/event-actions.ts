@@ -16,6 +16,10 @@ import { moneyEntityOf } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
 import { notifyRoles, notifyUser } from "@/lib/notify";
 import { statutManuelOuRien, estStatutDuCircuit } from "@/lib/events/statut";
+import {
+  estStatutInscriptionRetire, estStatutOrganisation, estTypeExterne, REFUS_INSCRIPTION_PUBLIQUE, REFUS_LISTE_ATTENTE, REFUS_ORGANISATION,
+  TYPES_EVENEMENT_EXTERNE,
+} from "@/lib/events/externe";
 import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
 import { relancerCycle } from "@/lib/workflow/engine";
 import { referentAInscrire } from "@/lib/ad-pro/referent-de-la-gamme";
@@ -38,7 +42,7 @@ const inEnum = <T extends Record<string, string>>(e: T, v: string | null, fallba
  * `null` (aucun statut envoyé) n'est PAS une erreur : c'est « ne touche pas au champ ». Un
  * formulaire qui ne porte pas la case ne doit pas remettre un événement en brouillon.
  */
-function statutSaisi(formData: FormData): { ok: true; statut: string | null } | { ok: false; error: string } {
+function statutSaisi(formData: FormData, actuel: string | null = null): { ok: true; statut: string | null } | { ok: false; error: string } {
   const brut = fdStr(formData, "status");
   // `=== null` ET PAS `!brut`, et ce n'est pas de la coquetterie : la dérivation de contrats
   // (`actions/contrat.ts`) déduit « champ OBLIGATOIRE » d'une garde `if (!v)` dans le corps, et
@@ -47,6 +51,9 @@ function statutSaisi(formData: FormData): { ok: true; statut: string | null } | 
   // et `updateEvent`, donc `validerEntree` aurait refusé une création d'événement sans statut —
   // une action DÉCRITE et INAPPELABLE, le défaut exact de §118.87c.
   if (brut === null) return { ok: true, statut: null };
+  // LES ÉTATS D'ORGANISATION (Direction, 27/10) : les événements sont EXTERNES, on ne les écrit plus.
+  // Un formulaire qui RENVOIE l'état qu'un ancien événement porte déjà ne l'écrit pas : il n'y touche pas.
+  if (estStatutOrganisation(brut)) return brut === actuel ? { ok: true, statut: null } : { ok: false, error: REFUS_ORGANISATION };
   if (estStatutDuCircuit(brut)) {
     return {
       ok: false,
@@ -139,6 +146,10 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
   if (manquants.length > 0) {
     return { ok: false, error: `Demande incomplète — il manque : ${manquants.join(", ")}.` };
   }
+  // LE TYPE D'UN ÉVÉNEMENT EXTERNE (Direction, 27/10) : staff, webinaire, congrès, journée, autre.
+  if (!estTypeExterne(fdStr(formData, "type"))) {
+    return { ok: false, error: `Type d'événement inconnu — choisissez : ${TYPES_EVENEMENT_EXTERNE.map(([, l]) => l.toLowerCase()).join(", ")}.` };
+  }
   const saisi = statutSaisi(formData);
   if (!saisi.ok) return saisi;
   const created = await prisma.event.create({
@@ -169,7 +180,8 @@ export async function createEvent(formData: FormData): Promise<ActionResult> {
       doctor: couple.medecins,
       products: couple.produits,
       description: fdStr(formData, "description"),
-      capacity: fdNum(formData, "capacity") ? Math.round(fdNum(formData, "capacity")!) : null,
+      // QUI ORGANISE — l'événement est externe (Direction, 27/10). Ni capacité ni liste d'attente : on ne les tient plus.
+      organizer: fdStr(formData, "organizer"),
       estimatedBudget: fdNum(formData, "estimatedBudget"),
       meetingLink: fdStr(formData, "meetingLink"),
       responsibleId: fdStr(formData, "responsibleId"),
@@ -216,8 +228,13 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
   if (manquants.length > 0) {
     return { ok: false, error: `Demande incomplète — il manque : ${manquants.join(", ")}.` };
   }
-  const saisi = statutSaisi(formData);
+  const saisi = statutSaisi(formData, avant.status);
   if (!saisi.ok) return saisi;
+  // UN TYPE HORS DE LA LISTE EXTERNE ne s'écrit plus — sauf celui que l'événement porte déjà (rejoué tel quel).
+  const typeSaisi = fdStr(formData, "type");
+  if (typeSaisi !== avant.type && !estTypeExterne(typeSaisi)) {
+    return { ok: false, error: `Type d'événement inconnu — choisissez : ${TYPES_EVENEMENT_EXTERNE.map(([, l]) => l.toLowerCase()).join(", ")}.` };
+  }
   // LA GAMME NE SE CHANGE PAS PAR QUELQU'UN DONT LA GAMME EST DÉDUITE : le champ ne lui est plus
   // proposé, et une valeur postée est une valeur forgée (ne pas y toucher = `undefined`).
   const gammeDeLEditeur = await businessUnitDuDemandeur(user);
@@ -239,7 +256,8 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
     doctor: couple.medecins,
     products: couple.produits,
     description: fdStr(formData, "description"),
-    capacity: fdNum(formData, "capacity") ? Math.round(fdNum(formData, "capacity")!) : null,
+    // L'ORGANISATEUR : un formulaire qui ne le porte pas (Adam rejoue la fiche) n'y touche pas. La capacité ne s'écrit plus.
+    organizer: formData.has("organizer") ? fdStr(formData, "organizer") : undefined,
     estimatedBudget: fdNum(formData, "estimatedBudget"),
     meetingLink: fdStr(formData, "meetingLink"),
     responsibleId: fdStr(formData, "responsibleId"),
@@ -251,7 +269,7 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
     if (figes.length > 0) {
       return {
         ok: false,
-        error: `La prise en charge est décidée : ${figes.join(", ")} ne se modifie${figes.length > 1 ? "nt" : ""} plus qu'avec la Direction. L'organisation (lien, capacité, responsable, description, état) reste modifiable.`,
+        error: `La prise en charge est décidée : ${figes.join(", ")} ne se modifie${figes.length > 1 ? "nt" : ""} plus qu'avec la Direction. L'organisation (organisateur, lien, responsable, description, état) reste modifiable.`,
       };
     }
   }
@@ -409,39 +427,13 @@ export async function submitEventForApproval(formData: FormData): Promise<Action
 
 // ─────────────────────────── Inscriptions ───────────────────────────
 
-/** Comptage des places occupées (hors annulés/refusés). */
-async function takenSeats(eventId: string): Promise<number> {
-  return prisma.eventRegistration.count({
-    where: { eventId, status: { in: ["REGISTERED", "CONFIRMED", "PRESENT", "PENDING"] } },
-  });
-}
-
-/** Inscription publique (formulaire partageable, sans compte). */
+/**
+ * INSCRIPTION PUBLIQUE — FERMÉE (Direction, 27/10). Les événements Ad & Pro sont EXTERNES : on s'y inscrit chez
+ * l'organisateur. Le formulaire partageable et sa liste d'attente n'ont plus d'objet ; l'action refuse et le dit.
+ */
 export async function publicRegister(formData: FormData): Promise<ActionResult> {
-  const eventId = fdStr(formData, "eventId");
-  const firstName = fdStr(formData, "firstName");
-  const lastName = fdStr(formData, "lastName");
-  if (!eventId || !firstName || !lastName) return { ok: false, error: "Nom et prénom obligatoires." };
-  const event = await prisma.event.findUnique({ where: { id: eventId }, select: { status: true, capacity: true } });
-  if (!event) return { ok: false, error: "Événement introuvable." };
-  if (event.status !== "REGISTRATION_OPEN") return { ok: false, error: "Les inscriptions ne sont pas ouvertes." };
-
-  // Liste d'attente si capacité atteinte.
-  let status: RegistrationStatus = "REGISTERED";
-  if (event.capacity && (await takenSeats(eventId)) >= event.capacity) status = "PENDING";
-
-  const reg = await prisma.eventRegistration.create({
-    data: {
-      eventId, firstName, lastName,
-      specialty: fdStr(formData, "specialty"), institution: fdStr(formData, "institution"),
-      city: fdStr(formData, "city"), email: fdStr(formData, "email"), phone: fdStr(formData, "phone"),
-      role: inEnum(ParticipantRole, fdStr(formData, "role"), "DOCTOR"),
-      comment: fdStr(formData, "comment"), status, source: "public",
-    },
-    select: { id: true, qrToken: true },
-  });
-  revalidatePath(`/events/${eventId}`);
-  return { ok: true, id: reg.qrToken };
+  if (!fdStr(formData, "eventId")) return { ok: false, error: "Événement introuvable." };
+  return { ok: false, error: REFUS_INSCRIPTION_PUBLIQUE };
 }
 
 /** Ajout d'un participant en interne (staff). */
@@ -452,6 +444,7 @@ export async function addRegistration(formData: FormData): Promise<ActionResult>
   const firstName = fdStr(formData, "firstName");
   const lastName = fdStr(formData, "lastName");
   if (!eventId || !firstName || !lastName) return { ok: false, error: "Nom et prénom obligatoires." };
+  if (estStatutInscriptionRetire(fdStr(formData, "status"))) return { ok: false, error: REFUS_LISTE_ATTENTE };
   await prisma.eventRegistration.create({
     data: {
       eventId, firstName, lastName,
@@ -472,6 +465,7 @@ export async function setRegistrationStatus(formData: FormData): Promise<ActionR
   const id = fdStr(formData, "id");
   const status = fdStr(formData, "status");
   if (!id || !status) return { ok: false, error: "Paramètres manquants." };
+  if (estStatutInscriptionRetire(status)) return { ok: false, error: REFUS_LISTE_ATTENTE };
   const reg = await prisma.eventRegistration.update({
     where: { id },
     data: {

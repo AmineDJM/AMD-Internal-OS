@@ -8966,7 +8966,11 @@ model Event {
   /// la lisent tous comme tel. Porter deux conventions dans le même pôle les ferait diverger.
   doctor          String?
   description     String?
+  /// PLUS ÉCRITE (Direction, 27/10) : les événements Ad & Pro sont externes — ni capacité ni liste d'attente.
+  /// La colonne reste pour l'historique.
   capacity        Int?
+  /// QUI ORGANISE l'événement (société savante, hôpital, laboratoire…) — un événement Ad & Pro est EXTERNE.
+  organizer       String?
   estimatedBudget Decimal?      @db.Decimal(14, 2)
   meetingLink     String? // lien Meet / Zoom / Teams (manuel)
   responsibleId   String?

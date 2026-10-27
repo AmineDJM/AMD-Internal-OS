@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS } from "@/lib/labels";
+import { TYPES_EVENEMENT_EXTERNE, estTypeExterne } from "@/lib/events/externe";
+import { STATUTS_MANUELS } from "@/lib/events/statut";
 import { createEvent, updateEvent, deleteEvent } from "@/lib/actions/event-actions";
 import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
 import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/components/ad-pro/description-luna";
@@ -125,11 +127,17 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
       {/* TYPE, PORTÉE, FORMAT : un choix EXPLICITE, plus une valeur pré-remplie. C'est sur eux que
           l'arbitrage se fait, et une valeur par défaut EST une décision prise à la place du
           demandeur (§118.108). À la MODIFICATION la valeur existe, donc le repère ne gêne pas. */}
+      {/* UN ÉVÉNEMENT EXTERNE (Direction, 27/10) : staff, webinaire, congrès, journée, autre — et QUI l'organise.
+          Un ancien événement d'un autre type le garde (proposé tel quel), on ne le propose plus aux nouveaux. */}
       <W label="Type">
         <Select name="type" defaultValue={e?.type ?? ""} required>
           <option value="">— Choisir le type —</option>
-          {Object.entries(EVENT_TYPE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          {TYPES_EVENEMENT_EXTERNE.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+          {e && !estTypeExterne(e.type) && <option value={e.type}>{EVENT_TYPE[e.type] ?? e.type}</option>}
         </Select>
+      </W>
+      <W label="Organisateur">
+        <Input name="organizer" defaultValue={e?.organizer ?? ""} required={!e} placeholder="Ex. Société algérienne de cardiologie, CHU Mustapha…" />
       </W>
       <W label="Portée">
         <Select name="scope" defaultValue={e?.scope ?? ""} required>
@@ -147,7 +155,15 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
           prise en charge le gouverne (§118.138 : deux vérités sur l'état, la plus flatteuse
           gagnait). À la création il n'y a rien à corriger — l'événement naît en brouillon. */}
       {e && !e.requestStatus && (
-        <W label="Statut"><Select name="status" defaultValue={e.status}>{Object.entries(EVENT_STATUS).map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}</Select></W>
+        <W label="Statut">
+          {/* Les états de VIE seulement — ni « En préparation », ni « Inscriptions ouvertes », ni « Complet » : nous
+              n'organisons pas l'événement. Un ancien état reste affiché tel quel ; le renvoyer ne l'écrit pas. */}
+          <Select name="status" defaultValue={e.status}>
+            {Object.entries(EVENT_STATUS)
+              .filter(([v]) => (STATUTS_MANUELS as readonly string[]).includes(v) || v === e.status)
+              .map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}
+          </Select>
+        </W>
       )}
       <Section>Dates et lieu</Section>
       <W label="Début"><Input type="date" name="startDate" defaultValue={d10(e?.startDate ?? null)} required /></W>
@@ -172,7 +188,6 @@ function EventFields({ e, responsibles, referentiels = {}, descriptionEnTete }: 
       ) : (
         <W label="Spécialité"><Input name="specialty" defaultValue={e?.specialty ?? ""} required placeholder="Le référentiel est vide : saisissez-la." /></W>
       )}
-      <W label="Capacité max."><Input type="number" inputMode="numeric" name="capacity" defaultValue={e?.capacity ?? ""} /></W>
       {/* LE BUDGET EST OBLIGATOIRE, et c'est ce qui ferme la plainte du DG (voir l'en-tête). */}
       <W label="Budget estimé (DZD)">
         <Input type="number" step="any" min="0" inputMode="decimal" name="estimatedBudget" defaultValue={e?.estimatedBudget ?? ""} required />
