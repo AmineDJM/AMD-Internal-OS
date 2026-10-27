@@ -4,7 +4,7 @@ import { handle } from "@/lib/api/http";
 import { errors } from "@/lib/api/errors";
 import { getEntity, canReadEntity } from "@/lib/api/registry/entities";
 import { porteeEntite } from "@/lib/api/registry/portee";
-import { parsePage, serialize, listResult } from "@/lib/api/query";
+import { champJamaisExpose, parsePage, serialize, listResult } from "@/lib/api/query";
 import { workflowOf, availableActionsFor } from "@/lib/api/workflow";
 
 /**
@@ -51,7 +51,10 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
             select: { id: true, operationId: true, ok: true, status: true, correlationId: true, createdAt: true, client: { select: { name: true } } },
           }),
         ]);
-        return { humanActions: audit.map(serialize), agentCalls: calls.map(serialize) };
+        // Un changement de salaire est journalisé avec ses deux valeurs : le champ se dit, les valeurs
+        // d'un champ jamais exposé ne se disent pas (sinon l'historique rendait ce que la fiche cache).
+        const masque = (e: (typeof audit)[number]) => (e.field && champJamaisExpose(e.field) ? { ...e, oldValue: null, newValue: null } : e);
+        return { humanActions: audit.map(masque).map(serialize), agentCalls: calls.map(serialize) };
       }
 
       case "comments": {
