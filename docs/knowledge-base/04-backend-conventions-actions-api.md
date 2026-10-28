@@ -315,6 +315,7 @@ Auth modes:
 | Code | Meaning |
 |---|---|
 | **S** | `getCurrentUser()` from `@/lib/session`, `401` if null |
+| **S-L** | `identiteDuSondage()` from `@/lib/session-legere` — shell polls only (no access matrix; same revocation & Vue exacte) |
 | **S-W** | `getCurrentUserPourEcrire()`, required for writing handlers by `session-vue-exacte.test.ts:120` |
 | **S+R** | session plus `userCan(...)`, `403` if refused |
 | **K** | `/api/v1` bearer API key via `handle()` |
@@ -354,8 +355,8 @@ Auth modes:
 | `marque/[companyId]/logo` (1) | GET | S | Company logo. |
 | `medical/{annuaire/export, coaching/export, coaching/[id]/export, plan-de-tournee/[id]/pdf}` (4) | GET | S+R | Medical exports and PDFs. |
 | `meetings/{[id]/recording, message-attachment/[id]}` (2) | POST/GET | S-W+R / S | Recording upload, attachments. |
-| `messaging/{attachment/[id], bookmarks, conversation, messages, sync, typing, upload}` (7) | GET/POST | S(+R) / S-W+R | Internal chat. |
-| `notifications/poll` (1) | GET | S | Notification polling. |
+| `messaging/{attachment/[id], bookmarks, conversation, messages, sync, typing, upload}` (7) | GET/POST | S(+R) / S-W+R | Internal chat. `sync` (shell badge poll) uses S-L + `peutVoirLaMessagerie` (PERF-06). |
+| `notifications/poll` (1) | GET | S-L | Notification polling — light poll identity `identiteDuSondage` (PERF-06). |
 | `onlyoffice/{file, callback}` (2) | GET/POST | T (`readEditToken`/`readDocEditToken`), middleware-exempt | OnlyOffice server-to-server. |
 | `onlyoffice/session` (1) | GET | S | Issues the edit token. |
 | `pch/export`, `planning/export`, `segmentation/export`, `stocks/demandes/[id]/export`, `ventes-pch/fichier/[id]` (5) | GET | S(+R) | Exports and files. |

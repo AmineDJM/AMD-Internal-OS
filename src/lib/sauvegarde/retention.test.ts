@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+// Module ESM pur du workflow de sauvegarde : ses types sont inférés (`allowJs`).
 import { clesAPurger, dateDeCle, POLITIQUE } from "../../../scripts/sauvegarde/retention.mjs";
 
 /**

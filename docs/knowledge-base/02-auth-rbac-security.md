@@ -149,6 +149,17 @@ Public whitelist (`src/auth.config.ts`, *dead* — kept as the documented intent
 
 ### 4.3 Revocable sessions & live identity — `src/lib/session.ts`
 
+> **Update 2026-10-28 (V3-C, PERF-06/10).** The revocation read and the Vue exacte resolution moved to
+> `src/lib/session-compte.ts` (`lireSessionRevocable` — `UserSession` ⋈ `User` in **one** raw query;
+> `vueDemandee` — the `vueHonoree` rule), shared by `build()` and by the **light poll identity**
+> `src/lib/session-legere.ts` (`identiteDuSondage`: same revocation, inactive account refused, live role, same Vue
+> exacte, no cache; `peutVoirLaMessagerie`: attributed access via `accesAttribue`, exact fallback to `getAccess`).
+> Used only by the shell polls (`/api/messaging/sync`, `/api/notifications/poll`) — ratchet in
+> `notifications-sondage-unique.test.ts`; equivalence bench `session-legere.test.ts`. `requireUser`/`getCurrentUser`
+> are memoised per RSC render (`buildDuRendu`, React `cache`); outside a render nothing is memoised. Without a `sid`,
+> `identiteDuSondage` also refuses an inactive account (stricter than `build()`, see the line below). Line numbers
+> below predate this split.
+
 `build(session, opts)` (`:112-202`) is the single resolver:
 
 1. If `session.user.sid` present, read `UserSession{revokedAt, expiresAt}`; missing/revoked/expired ⇒ `null` ⇒ guards redirect to `/login` (`:117-123`) [V]. `lastSeenAt` touched at most 1×/min (`shouldTouch`) (`:126-130`) [V].
