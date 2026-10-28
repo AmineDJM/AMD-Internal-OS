@@ -66,8 +66,10 @@ suite("reprise R2 — organisations", () => {
       data: { name: `${TAG} Groupe`, legalIdentity: { create: { legalName: `${TAG} Groupe SPA`, nif: "000199912345678", rcNumber: "16/00-9912345 B 01" } } },
     });
     ids.societe = societe.id;
-    const [a, b, g] = await Promise.all([
-      prisma.companyContact.create({ data: { name: `${TAG} Imprimerie du Centre SARL`, kind: "Imprimeur", nif: "0991 2345 6789 012", rib: RIB, wilaya: "Blida" } }),
+    // A AVANT B, pas en parallèle : la reprise parcourt les fiches par identifiant, et c'est la PREMIÈRE qui porte le
+    // NIF. Créées ensemble, l'ordre des deux identifiants n'était pas garanti (rouge sous la charge de la suite complète).
+    const a = await prisma.companyContact.create({ data: { name: `${TAG} Imprimerie du Centre SARL`, kind: "Imprimeur", nif: "0991 2345 6789 012", rib: RIB, wilaya: "Blida" } });
+    const [b, g] = await Promise.all([
       prisma.companyContact.create({ data: { name: `${TAG} Imprimerie Centre`, kind: "Imprimeur", nif: "099123456789012", wilaya: "Blida" } }),
       // Le NIF de la société du GROUPE recopié sur un tiers : il ne le désigne pas.
       prisma.companyContact.create({ data: { name: `${TAG} Transports Atlas`, kind: "Livreur", nif: "000199912345678" } }),
