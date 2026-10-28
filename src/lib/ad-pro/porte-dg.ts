@@ -9,6 +9,7 @@ import { lienDemandeAdPro, lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import {
   etatPorteDg, phrasePorteDg, refusPorteDg, type DecisionDg, type EtatPorteDg,
 } from "@/lib/seuils/porte-dg-total";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -72,7 +73,7 @@ function decisionDe(row: { statut: string | null; montant: Prisma.Decimal | null
 export async function lirePorteDg(parent: AdProParent, parentId: string, seuilConnu?: number | null, enPlus = 0): Promise<LecturePorteDg> {
   const [totalActuel, seuil, row] = await Promise.all([
     totalDeLaDemande(parent, parentId),
-    seuilConnu !== undefined ? Promise.resolve(seuilConnu) : getAppSettings().then((s) => s.adProDgThreshold).catch(() => null),
+    seuilConnu !== undefined ? Promise.resolve(seuilConnu) : getAppSettings().then((s) => s.adProDgThreshold).catch(sansBloquer("porte-dg.lirePorteDg.getAppSettings", null)),
     prisma.adProPorteDg.findUnique({ where: { entityType_entityId: { entityType: parent, entityId: parentId } } }),
   ]);
   // `enPlus` : un engagement qui n'est pas encore dans le total (un devis accepté sans avoir été retenu).
@@ -202,8 +203,8 @@ export async function statuerSurLeTotal(input: {
   const titre = decision === "VALIDEE" ? "Ad & Pro — total validé par le DG : les bons de commande peuvent partir" : "Ad & Pro — total renvoyé en révision par le DG";
   const corps = `${d?.nom ?? "Demande"} — ${libelle}${note ? ` : ${note}` : "."}`.slice(0, 280);
   const lien = lienDemandeAdPro(parent, parentId);
-  if (d?.requesterId) await notifyUser({ userId: d.requesterId, type: "GENERIC", title: titre, body: corps, link: lien }).catch(() => undefined);
-  await notifyRoles(["PRODUCT_MANAGER", "OPERATIONS_DIRECTOR"], { type: "GENERIC", title: titre, body: corps, link: lien }).catch(() => undefined);
+  if (d?.requesterId) await notifyUser({ userId: d.requesterId, type: "GENERIC", title: titre, body: corps, link: lien }).catch(sansBloquer("porte-dg.statuerSurLeTotal.notifyUser"));
+  await notifyRoles(["PRODUCT_MANAGER", "OPERATIONS_DIRECTOR"], { type: "GENERIC", title: titre, body: corps, link: lien }).catch(sansBloquer("porte-dg.statuerSurLeTotal.notifyRoles"));
   return { ok: true, message: `${libelle}.` };
 }
 
@@ -221,7 +222,7 @@ export async function totauxEnAttenteDuDg(): Promise<{
     orderBy: { signaleLe: "asc" },
     take: 300,
   });
-  const seuil = await getAppSettings().then((s) => s.adProDgThreshold).catch(() => null);
+  const seuil = await getAppSettings().then((s) => s.adProDgThreshold).catch(sansBloquer("porte-dg.totauxEnAttenteDuDg.getAppSettings", null));
   const out: Awaited<ReturnType<typeof totauxEnAttenteDuDg>> = [];
   for (const r of rows) {
     const parent = r.entityType as AdProParent;

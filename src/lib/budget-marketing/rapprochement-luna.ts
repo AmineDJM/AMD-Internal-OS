@@ -3,6 +3,7 @@ import { proposerLecture, FORMATS_LUS, TAILLE_MAX_OCTETS } from "@/lib/pieces-lu
 import { texteDeLaLecture } from "@/lib/pieces-lues/lecture-fichier";
 import { identiteDepuisLecture } from "@/lib/factures/identite";
 import { extraireReferences, motsSignificatifs, type LuDePiece } from "@/lib/budget-marketing/rapprochement";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -46,7 +47,7 @@ export async function lirePieceParLuna(userId: string, octets: Buffer, nomFichie
   const r = await proposerLecture({ user: { id: userId }, octets, nomFichier, contexte: { cible: "LEGAL_DOCUMENT", sortieCloudPermise, annuaireVisible: [], groupe } });
   if (!r.ok) return { ok: false, raison: r.error.slice(0, 300) };
   const p = r.proposition;
-  const texte = await texteDeLaLecture(p.lectureId).catch(() => null);
+  const texte = await texteDeLaLecture(p.lectureId).catch(sansBloquer("rapprochement-luna.lirePieceParLuna.texteDeLaLecture", null));
   const identite = identiteDepuisLecture({ empreintes: [p.empreinte], texte, entetes: p.entetes, piece: p.piece, groupe });
   const debut = (texte ?? "").slice(0, 6000);
   return {

@@ -4,6 +4,7 @@ import { getAppSettings } from "@/lib/settings";
 import { toNumber } from "@/lib/utils";
 import { porteDgRequise } from "@/lib/seuils/ad-pro";
 import { type EtatVisa, visaAutoriseAAvancer, motifBlocageVisa } from "./centre";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -20,7 +21,7 @@ import { type EtatVisa, visaAutoriseAAvancer, motifBlocageVisa } from "./centre"
 
 /** Le seuil en vigueur. Une lecture qui échoue rend `null` — donc AUCUNE porte, jamais un blocage. */
 export async function seuilAdProEnVigueur(): Promise<number | null> {
-  const s = await getAppSettings().catch(() => null);
+  const s = await getAppSettings().catch(sansBloquer("visa.seuilAdProEnVigueur.getAppSettings", null));
   const v = s?.adProDgThreshold;
   return typeof v === "number" && v > 0 ? v : null;
 }
@@ -177,7 +178,7 @@ export async function lireVisaAdPro(
 ): Promise<EtatVisa | null> {
   const v = await prisma.adProGateVisa
     .findUnique({ where: { entityType_entityId: { entityType, entityId } }, select: { status: true } })
-    .catch(() => null);
+    .catch(sansBloquer("visa.lireVisaAdPro.adProGateVisa", null));
   if (!v) return null;
   return lireEtatVisa(v.status);
 }
@@ -197,7 +198,7 @@ export async function lireVisaDetail(
       where: { entityType_entityId: { entityType, entityId } },
       select: { status: true, note: true, decidedAt: true, decidedBy: { select: { name: true } } },
     })
-    .catch(() => null);
+    .catch(sansBloquer("visa.lireVisaDetail.adProGateVisa", null));
   if (!v) return null;
   return { etat: lireEtatVisa(v.status), note: v.note, decidedAt: v.decidedAt, decideur: v.decidedBy?.name ?? null };
 }
@@ -209,9 +210,9 @@ export async function lireVisaDetail(
  */
 export async function montantPourLeVisa(entityType: EntityType, entityId: string): Promise<number | null> {
   const brut = entityType === "CONSULTING_CONTRACT"
-    ? (await prisma.consultingContract.findUnique({ where: { id: entityId }, select: { amount: true } }).catch(() => null))?.amount
+    ? (await prisma.consultingContract.findUnique({ where: { id: entityId }, select: { amount: true } }).catch(sansBloquer("visa.montantPourLeVisa.consultingContract", null)))?.amount
     : entityType === "AD_PRO_OTHER"
-      ? (await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { amount: true } }).catch(() => null))?.amount
+      ? (await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { amount: true } }).catch(sansBloquer("visa.montantPourLeVisa.adProOtherRequest", null)))?.amount
       : null;
   return brut == null ? null : toNumber(brut);
 }

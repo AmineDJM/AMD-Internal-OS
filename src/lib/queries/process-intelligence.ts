@@ -9,6 +9,7 @@ import {
   analyzeCircuit, median, responseTimesByActor, segmentsOf, DAY_MS,
   type CircuitStats, type EventKind, type MiningCase, type MiningEvent,
 } from "@/lib/process/mining";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * PROCESS INTELLIGENCE — les LECTURES (refonte 07/10). Le calcul est dans `lib/process/mining.ts` (pur, testé) ;
@@ -332,7 +333,7 @@ export async function chargerCircuits(since: Date): Promise<Map<string, Source>>
 
 /** Les délais cibles par circuit → (étape → jours). */
 export async function chargerSla(): Promise<Map<string, Map<string, number>>> {
-  const rows = await prisma.processStepSla.findMany({ select: { circuit: true, stepKey: true, targetDays: true } }).catch(() => []);
+  const rows = await prisma.processStepSla.findMany({ select: { circuit: true, stepKey: true, targetDays: true } }).catch(sansBloquer("process-intelligence.chargerSla.processStepSla", []));
   const out = new Map<string, Map<string, number>>();
   for (const r of rows) {
     const m = out.get(r.circuit) ?? new Map<string, number>();
@@ -343,7 +344,7 @@ export async function chargerSla(): Promise<Map<string, Map<string, number>>> {
 }
 
 async function stuckDaysSetting(): Promise<number> {
-  const r = await prisma.riskSetting.findUnique({ where: { id: "global" }, select: { processStuckDays: true } }).catch(() => null);
+  const r = await prisma.riskSetting.findUnique({ where: { id: "global" }, select: { processStuckDays: true } }).catch(sansBloquer("process-intelligence.stuckDaysSetting.riskSetting", null));
   return r?.processStuckDays ?? STUCK_DAYS_DEFAULT;
 }
 
@@ -406,7 +407,7 @@ export async function getPeopleView(periode: Periode, now: Date = new Date()): P
     prisma.validationStep.groupBy({ by: ["validatorId"], where: { status: "PENDING" }, _count: { _all: true } }),
     prisma.recruitmentApproval.groupBy({ by: ["approverId"], where: { status: "PENDING" }, _count: { _all: true } }),
     prisma.task.groupBy({ by: ["assignedToId"], where: { status: { in: ["TODO", "IN_PROGRESS"] }, dueDate: { lt: now } }, _count: { _all: true } }),
-    chargerCircuits(since).catch(() => new Map<string, Source>()),
+    chargerCircuits(since).catch(sansBloquer("process-intelligence.getPeopleView.chargerCircuits", new Map<string, Source>())),
   ]);
 
   // Réponses aux validations : de l'arrivée RÉELLE chez le valideur (après le niveau précédent) à sa décision.
@@ -474,7 +475,7 @@ export async function getPlatformView(periode: Periode, now: Date = new Date()):
       WHERE "type" = 'PAGE_VIEW' AND "createdAt" >= ${since}
       GROUP BY "module"
       ORDER BY vues DESC
-      LIMIT 60`.catch(() => []),
+      LIMIT 60`.catch(sansBloquer("process-intelligence.getPlatformView", [])),
     prisma.$queryRaw<{ id: string; nom: string; statut: string; passages: bigint; echecs: bigint; mediane: number | null; dernier: Date | null; erreur: string | null }[]>`
       SELECT w."id", w."name" AS nom, w."status" AS statut, COUNT(r."id") AS passages,
              SUM(CASE WHEN r."status" = 'FAILED' THEN 1 ELSE 0 END) AS echecs,
@@ -484,7 +485,7 @@ export async function getPlatformView(periode: Periode, now: Date = new Date()):
       FROM "ScheduledWorkflow" w
       LEFT JOIN "WorkflowRun" r ON r."workflowId" = w."id" AND r."startedAt" >= ${since}
       GROUP BY w."id", w."name", w."status"
-      ORDER BY echecs DESC, passages DESC`.catch(() => []),
+      ORDER BY echecs DESC, passages DESC`.catch(sansBloquer("process-intelligence.getPlatformView", [])),
     prisma.$queryRaw<{ feature: string; appels: bigint; erreurs: bigint; latence: number | null; cout: Prisma.Decimal | null; sanstarif: bigint }[]>`
       SELECT "feature", COUNT(*) AS appels, SUM(CASE WHEN "ok" THEN 0 ELSE 1 END) AS erreurs,
              percentile_cont(0.5) WITHIN GROUP (ORDER BY "latencyMs") AS latence,
@@ -492,9 +493,9 @@ export async function getPlatformView(periode: Periode, now: Date = new Date()):
       FROM "AiUsageLog"
       WHERE "createdAt" >= ${since}
       GROUP BY "feature"
-      ORDER BY appels DESC`.catch(() => []),
+      ORDER BY appels DESC`.catch(sansBloquer("process-intelligence.getPlatformView", [])),
     prisma.$queryRaw<{ feature: string | null; cout: Prisma.Decimal | null }[]>`
-      SELECT "feature", SUM("costUsd") AS cout FROM "ModelCallLog" WHERE "at" >= ${since} GROUP BY "feature"`.catch(() => []),
+      SELECT "feature", SUM("costUsd") AS cout FROM "ModelCallLog" WHERE "at" >= ${since} GROUP BY "feature"`.catch(sansBloquer("process-intelligence.getPlatformView", [])),
   ]);
 
   const coutParAppels = new Map(coutsAppels.map((c) => [c.feature ?? "", c.cout === null ? null : Number(c.cout)]));

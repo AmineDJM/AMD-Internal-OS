@@ -14,6 +14,7 @@ import { lignes } from "@/lib/site-web/contrat";
 import { publicationsDe } from "@/lib/site-web/etat";
 import { adresseDuSite } from "@/lib/site-web/config";
 import { enregistrerOffre } from "@/lib/actions/offres-emploi-actions";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -78,7 +79,7 @@ async function contenuDuPost(id: string): Promise<ContenuPostLinkedIn | null> {
   // carrières. Sans offre, aucun lien — on n'invente pas l'adresse d'une page qui n'existe pas.
   let lien: string | null = null;
   if (o) {
-    const pubs = await publicationsDe("JOB", [o.id]).catch(() => null);
+    const pubs = await publicationsDe("JOB", [o.id]).catch(sansBloquer("recrutement-diffusion-actions.contenuDuPost.publicationsDe", null));
     const site = adresseDuSite();
     lien = pubs?.get(o.id)?.urlPublique ?? (site.ok ? `${site.racine}/carrieres` : null);
   }

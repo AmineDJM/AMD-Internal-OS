@@ -3,6 +3,7 @@ import { toNumber } from "@/lib/utils";
 import { getAppSettings } from "@/lib/settings";
 import { portesDesBC, notifierSignatairesBCASigner, origineDuBC, centreVouluDuBC } from "./aiguillage";
 import { etapeBC, validationRequiseBC, seuilDuCentre, type EtapeBC, type PorteBC } from "./regle";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -108,7 +109,7 @@ export async function etatDuBC(id: string, opts: { seuil?: number } = {}): Promi
  * temps, ou déjà signé, ne doit prévenir personne. Rend vrai quand la notification est partie.
  */
 export async function signalerSiASigner(docId: string): Promise<boolean> {
-  const etat = await etatDuBC(docId).catch(() => null);
+  const etat = await etatDuBC(docId).catch(sansBloquer("etat.signalerSiASigner.etatDuBC", null));
   if (!etat || etat.annule || etat.etape !== "A_SIGNER") return false;
   await notifierSignatairesBCASigner({
     id: etat.id, reference: etat.reference, title: etat.title, counterparty: etat.counterparty,

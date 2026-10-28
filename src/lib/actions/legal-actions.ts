@@ -38,6 +38,7 @@ import {
   reserveBC, reserveSansPorte, reserveEtapeBC, PHRASE_SIGNATURE_RETIREE,
   LIBELLE_CENTRE_BC, LIBELLE_ETAT_BC, CHEMIN_CENTRE_BC,
 } from "@/lib/bons-de-commande/regle";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES ENGAGEMENTS DE LA SOCIÉTÉ — écriture.
@@ -268,7 +269,7 @@ export async function createLegalDocument(
     select: { id: true },
   });
   // Un numéro NNN/DG/AAAA d'une société au registre y entre : le compteur commun ne repassera jamais en dessous.
-  if (f.kind === "PURCHASE_ORDER" && f.reference) await inscrireNumeroBcDepose({ companyId, reference: f.reference, legalDocumentId: created.id, userId: user.id }).catch(() => undefined);
+  if (f.kind === "PURCHASE_ORDER" && f.reference) await inscrireNumeroBcDepose({ companyId, reference: f.reference, legalDocumentId: created.id, userId: user.id }).catch(sansBloquer("legal-actions.createLegalDocument.inscrireNumeroBcDepose"));
   // LES LECTEURS DÉSIGNÉS. Aucun nom = document visible de tout le module (le cas d'une police
   // d'assurance courante). Un ou plusieurs noms = personne d'autre ne le voit, ni dans la liste
   // ni par son lien — le déposant gardant sa propre porte, on le retire de la liste.
@@ -455,7 +456,7 @@ export async function updateLegalDocument(formData: FormData): Promise<ActionRes
       oldValue: avant.reference, newValue: f.reference,
       summary: `Bon de commande : ${resumeChangementNumero(avant.reference ?? "(sans numéro)", f.reference ?? "(sans numéro)")} par ${user.name?.trim() || "un utilisateur"}${numeroSeul ? ` (${MENTION_NUMERO_SEUL})` : ""}`,
     });
-    if (f.reference) await inscrireNumeroBcDepose({ companyId: avant.companyId, reference: f.reference, legalDocumentId: id, userId: user.id }).catch(() => undefined);
+    if (f.reference) await inscrireNumeroBcDepose({ companyId: avant.companyId, reference: f.reference, legalDocumentId: id, userId: user.id }).catch(sansBloquer("legal-actions.updateLegalDocument.inscrireNumeroBcDepose"));
   }
   // Une date de règlement posée ou retirée depuis le formulaire ORDINAIRE fait bouger l'argent
   // exactement comme depuis la ligne du tableau : c'est le même document, donc la même règle.
