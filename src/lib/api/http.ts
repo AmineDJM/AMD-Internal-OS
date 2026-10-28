@@ -45,7 +45,7 @@ function hashBody(raw: string): string {
 export function handle<P = Record<string, string>>(
   options: HandleOptions,
   fn: (args: HandlerArgs<P>) => Promise<unknown>,
-): (req: NextRequest, ctx: { params: P }) => Promise<NextResponse> {
+): (req: NextRequest, ctx: { params: Promise<P> }) => Promise<NextResponse> {
   return async (req, routeCtx) => {
     const started = Date.now();
     const correlationId = req.headers.get("X-Correlation-Id") ?? randomUUID();
@@ -74,7 +74,8 @@ export function handle<P = Record<string, string>>(
         }
       }
 
-      const data = await fn({ req, ctx, params: routeCtx.params, mark: (i) => Object.assign(marks, i) });
+      // Next 15 : les paramètres de route arrivent en PROMESSE (l'accès synchrone n'est qu'une compatibilité dépréciée).
+      const data = await fn({ req, ctx, params: await routeCtx.params, mark: (i) => Object.assign(marks, i) });
 
       // Une réponse BINAIRE (téléchargement) sort du cadre JSON : elle est rendue telle quelle,
       // après la même authentification, les mêmes portées et la même journalisation.
