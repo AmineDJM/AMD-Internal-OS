@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -47,8 +49,9 @@ function datesDAjout(): Map<string, number> | null {
   for (const ligne of sortie.split("\n")) {
     if (ligne.startsWith("@")) { t = Number(ligne.slice(1)); continue; }
     const m = /^prisma\/migrations\/(\d{14}_[^/]+)\/migration\.sql$/.exec(ligne);
-    // Le journal va du plus récent au plus ancien : la dernière date lue est celle de l'ajout.
-    if (m) dates.set(m[1], t);
+    // Le journal va du plus récent au plus ancien : la dernière date lue est celle de l'ajout. Une migration
+    // renommée ou retirée reste dans l'historique : seules celles encore sur disque sont jugées.
+    if (m && existsSync(join("prisma/migrations", m[1], "migration.sql"))) dates.set(m[1], t);
   }
   return dates;
 }
