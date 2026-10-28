@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { BrainCircuit, KeyRound, CheckCircle2, XCircle, Activity, Mic, HeartPulse } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -46,7 +47,10 @@ const FEATURE_LABEL: Record<AiFeature, string> = {
   postes_luna: "Luna — postes d'une demande Ad & Pro (lecture de la description)",
   nature_depense: "Luna — nature des dépenses des moyens généraux",
 };
-const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, string>)[f] ?? f;
+// Les fonctions journalisées SANS bascule à elles (`AiFeatureJournalisee`) — l'Assistant IA est tenu par
+// l'interrupteur général et ses plafonds (écran Consommation IA), pas par une bascule de cette page.
+const LIBELLE_JOURNAL: Record<string, string> = { assistant_ia: "Assistant IA (MiMo)" };
+const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, string>)[f] ?? LIBELLE_JOURNAL[f] ?? f;
 
 export default async function AiControlCenterPage() {
   const user = await requireModule("ADMIN", "UPDATE");
@@ -137,7 +141,10 @@ export default async function AiControlCenterPage() {
         <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary/10 text-primary"><BrainCircuit className="h-6 w-6" /></span>
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Centre de contrôle IA</h1>
-          <p className="text-sm text-muted-foreground">Activez ou coupez l'IA par fonction, et suivez son usage. Réservé au Super Admin.</p>
+          <p className="text-sm text-muted-foreground">
+            Activez ou coupez l'IA par fonction, et suivez son usage. Réservé au Super Admin.{" "}
+            <Link href="/admin/ai/consommation" className="underline">Consommation IA de l'Assistant IA — plafonds par personne</Link>
+          </p>
         </div>
       </div>
 

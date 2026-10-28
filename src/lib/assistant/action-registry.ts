@@ -1015,6 +1015,7 @@ G("cockpit Adventum (seuils de risque) & maintenance profonde de la base", [
   "database-admin-actions:purgeOrphanStorage", "database-admin-actions:permanentlyDeleteDriveNode",
   "database-admin-actions:permanentlyDeleteDocument",
   "ai-settings-actions:updateAiSettings", "feature-actions:setFeatureStage",
+  "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa",
 ]);
 
 // ── LA MAIN HUMAINE SUR UNE MISSION D'EXÉCUTION (§33-40) ─────────────────────────────────
