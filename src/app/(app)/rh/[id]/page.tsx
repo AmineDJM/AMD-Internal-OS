@@ -24,7 +24,7 @@ import { SuperAdminDeleteButton } from "@/components/shared/super-admin-delete";
 import { seesWholeGroup } from "@/lib/company-access";
 import { CompanyAccessCard, type CompanyAccessRow } from "./company-access-card";
 import { BackLink } from "@/components/shared/back-link";
-import { lireSensiblesPour } from "@/lib/coffre/lecture";
+import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
 
 const d10 = (x: Date | null | undefined) => (x ? x.toISOString().slice(0, 10) : "");
 

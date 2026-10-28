@@ -5,8 +5,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { ActionResult } from "@/lib/actions/types";
-import { MODULE_JOURNAL_REPRISES } from "@/lib/referentiels/reprises/journal";
-import { RefusFusion, defaireFusion, ecarterDoublon, fusionnerPersonnes } from "@/lib/referentiels/personnes/fusion";
+import { MODULE_JOURNAL_REPRISES, RefusFusionPersonne, annulerFusionPersonnes, ecarterDoublon, fusionnerPersonnes } from "@/modules/referentiels/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -28,7 +27,7 @@ async function superAdmin() {
 }
 
 const refus = (e: unknown): ActionResult => {
-  if (e instanceof RefusFusion) return { ok: false, error: e.message };
+  if (e instanceof RefusFusionPersonne) return { ok: false, error: e.message };
   throw e;
 };
 
@@ -65,7 +64,7 @@ export async function defaireFusionPersonne(doublonId: string): Promise<ActionRe
   const user = await superAdmin();
   if (!user) return { ok: false, error: "Réservé au Super Admin." };
   try {
-    const r = await prisma.$transaction((tx) => defaireFusion(tx, { doublonId, parId: user.id }));
+    const r = await prisma.$transaction((tx) => annulerFusionPersonnes(tx, { doublonId, parId: user.id }));
     await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REPRISES, field: "personnes-fusion", newValue: doublonId, summary: `Fusion de personnes défaite (${doublonId}) : ${r.revenues} fiche(s) revenue(s).` });
     PATHS.forEach((p) => revalidatePath(p));
     return { ok: true, message: "Fusion défaite." };

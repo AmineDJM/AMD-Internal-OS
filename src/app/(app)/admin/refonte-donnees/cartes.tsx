@@ -5,7 +5,7 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { apercuReprise, executerReprise } from "@/lib/actions/refonte-reprise-actions";
 import { reglerDoubleEcritureOrganisations } from "@/lib/actions/organisation-actions";
-import type { BilanReprise } from "@/lib/referentiels/reprises/types";
+import type { BilanReprise } from "@/modules/referentiels/partage";
 import { Button } from "@/components/ui/button";
 
 /**

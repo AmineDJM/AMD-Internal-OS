@@ -75,7 +75,7 @@ import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { refusRevisionAval, refusPieceAmont, phrasePieceAmontNonRattachee, PIECE_AMONT_INTROUVABLE } from "@/lib/legal/piece-emise";
 import { refusPlafondAvoir, resteACrediter } from "@/lib/lecteurs/avoir";
 import { reserveDeLAiguillage, type PorteBC } from "@/lib/bons-de-commande/regle";
-import { controlerRibDePiece } from "@/lib/coffre/acces";
+import { controlerRibDePiece } from "@/modules/coffre/api";
 
 /** Les causes d'échec que le runtime de missions sait classer (`capability-failure.ts`). */
 type Echec = "NOT_FOUND" | "MISSING_PERMISSION" | "MISSING_INPUT" | "CAPABILITY_FAILURE";

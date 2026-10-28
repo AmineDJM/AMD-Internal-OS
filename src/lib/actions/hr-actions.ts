@@ -27,9 +27,9 @@ import { compteSuitLaFiche } from "@/lib/hr/depart";
 import { chargerSalairesPartis } from "@/lib/hr/salaires-partis";
 import { decisionRattachement } from "@/lib/hr/rattachement-paie";
 import { alignerSurLaFiche } from "@/lib/org/source-unique";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
-import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
-import { champsNonSaisis } from "@/lib/coffre/champs";
+import { relierALaPersonne } from "@/modules/referentiels/api";
+import { doubleEcrireCoffre } from "@/modules/coffre/api";
+import { champsNonSaisis } from "@/modules/coffre/partage";
 // LA FRONTIÈRE — l'ERP annonce ses faits ; il ne sait pas qui les écoute, et c'est le principe.
 import { emit } from "@/platform/events";
 

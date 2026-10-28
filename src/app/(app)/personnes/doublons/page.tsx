@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
-import { LIBELLE_ROLE } from "@/lib/referentiels/personnes/sources";
+import { LIBELLE_ROLE } from "@/modules/referentiels/api";
 import { GesteDoublon } from "./geste-doublon";
 
 export const dynamic = "force-dynamic";

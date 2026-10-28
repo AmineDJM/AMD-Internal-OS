@@ -1,7 +1,7 @@
 import { Prisma, type TacheEnrichissement, type TypeSujetFait } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getBlob, sha256 } from "@/lib/drive-storage";
-import type { ClesCoffre } from "@/lib/coffre/cle";
+import type { ClesCoffre } from "@/modules/coffre/api";
 import { porteDuCoffre, type PorteCoffre } from "./porte-coffre";
 import { lireFichierUneFois } from "@/lib/pieces-lues/lecture-fichier";
 import { FORMATS_LUS, PAGES_MAX } from "@/lib/pieces-lues/formats";

@@ -1,5 +1,5 @@
 import { MapPin } from "lucide-react";
-import type { ParWilaya } from "@/lib/lieux/par-wilaya";
+import type { ParWilaya } from "@/modules/lieux/partage";
 
 /**
  * LES ÉTABLISSEMENTS ACTIFS PAR WILAYA — lus sur `wilayaCode` (refonte V2-D), pas sur le texte : « Alger »,

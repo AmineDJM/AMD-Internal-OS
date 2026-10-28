@@ -19,7 +19,7 @@ import { enSerie } from "@/lib/refs";
 import { specialitesDemandees, ecrireSpecialitesBu, resumeSpecialitesBu } from "@/lib/sfe/specialites-bu";
 import { estBuHospitaliere, nomDuTerritoire } from "@/lib/sfe/territoire-kam";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 
 const MODULE = "SALES_PLANNING" as const;
 /**

@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
+import { doubleEcrireCoffre } from "@/modules/coffre/api";
 import { FinanceCategory, FinanceMethod, type FinanceDirection, type FinanceStatus, type PayrollStatus, type Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { anyRoleFilter, userCan } from "@/lib/rbac";
@@ -15,7 +15,7 @@ import { getMyCompanies, companyScopedWhere, entitePermisePourFiche } from "@/li
 import { toNumber } from "@/lib/utils";
 import { compteDeLEcriture, comptesTresorerie } from "@/lib/finance/comptes";
 import { resoudreCompte } from "@/lib/finance/tresorerie";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 
 const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
 

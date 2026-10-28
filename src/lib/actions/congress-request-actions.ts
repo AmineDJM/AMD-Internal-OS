@@ -22,7 +22,7 @@ import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { deviseDuPoste, lireMode, TAUX_USD_DZD_DEFAUT } from "@/lib/care-fiches";
 import { refusCategoriePourLaDemande, type NatureDemandeAdPro } from "@/lib/ad-pro/categorie-budgetaire-serveur";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 
 // Le **même** circuit de prise en charge sert les prises en charge internationales/nationaux
 // ET les événements (module Events) : on paramètre tout par `type`.

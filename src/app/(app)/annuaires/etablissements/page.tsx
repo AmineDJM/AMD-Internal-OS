@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { EtablissementsTable } from "./etablissements-table";
 import { EnTeteAnnuaires } from "../en-tete";
 import { EtablissementsParWilaya } from "./par-wilaya";
-import { regrouperParWilaya } from "@/lib/lieux/par-wilaya";
+import { regrouperParWilaya } from "@/modules/lieux/partage";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Annuaires — Établissements — AMD Internal OS" };

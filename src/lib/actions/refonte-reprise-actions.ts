@@ -3,9 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { recordAudit } from "@/lib/audit";
-import { trouverReprise } from "@/lib/referentiels/reprises";
-import { MODULE_JOURNAL_REFONTE } from "@/lib/referentiels/reprises/journal";
-import type { BilanReprise } from "@/lib/referentiels/reprises/types";
+import { trouverReprise, MODULE_JOURNAL_REFONTE } from "@/modules/referentiels/api";
+import type { BilanReprise } from "@/modules/referentiels/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

@@ -5,8 +5,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { defaireFusion, ecarter, fusionner, RefusFusion } from "@/lib/referentiels/organisations/fusion";
-import { MODULE_JOURNAL_REFONTE } from "@/lib/referentiels/reprises/journal";
+import { annulerFusionOrganisation, ecarter, fusionner, RefusFusionOrganisation, MODULE_JOURNAL_REFONTE } from "@/modules/referentiels/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -35,7 +34,7 @@ function revalider(...ids: string[]) {
 }
 
 const refus = (e: unknown): ActionResult => {
-  if (e instanceof RefusFusion) return { ok: false, error: e.message };
+  if (e instanceof RefusFusionOrganisation) return { ok: false, error: e.message };
   throw e;
 };
 
@@ -83,7 +82,7 @@ export async function defaireFusionOrganisation(fd: FormData): Promise<ActionRes
   const organisationId = fdStr(fd, "organisationId");
   if (!organisationId) return { ok: false, error: "Organisation manquante." };
   try {
-    const o = await defaireFusion(organisationId);
+    const o = await annulerFusionOrganisation(organisationId);
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REFONTE, field: "fusion-organisation",
       oldValue: o.survivanteId, newValue: null, summary: `Fusion défaite : « ${o.raisonSociale} » redevient une fiche à part`,

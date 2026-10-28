@@ -97,7 +97,7 @@ import {
   droitsValidation, tempsEnAttente, rolesAPrevenir, opsFranchiALaSoumission, libelleTemps,
   type DroitsValidation, type Porteur,
 } from "@/lib/ad-pro/validation-poste";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 
 /**
  * POSTES D'UNE OPÉRATION AD & PRO — actions serveur, pour les QUATRE opérations du pôle :

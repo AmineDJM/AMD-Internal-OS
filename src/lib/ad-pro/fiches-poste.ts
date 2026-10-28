@@ -7,7 +7,7 @@ import { deleteFileByKey } from "@/lib/storage";
 import { lireVoyageur, porteDesVoyageurs, type VoyageurLu } from "@/lib/ad-pro/voyageurs";
 import { lireHebergement, porteDesHebergements, type HebergementLu } from "@/lib/ad-pro/hebergements";
 import { CHAMP_FICHES, prefixesRecus, refusDeFiche, FICHES_MAX } from "@/lib/ad-pro/fiches-saisie";
-import { relierLesPersonnes } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierLesPersonnes } from "@/modules/referentiels/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { peutAnnuaire } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { recordAudit } from "@/lib/audit";
-import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
+import { doubleEcrireOrganisation } from "@/modules/referentiels/api";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
 
 /**

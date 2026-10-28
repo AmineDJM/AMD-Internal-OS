@@ -32,7 +32,7 @@ import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE } from "@/lib/care-engagement";
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).

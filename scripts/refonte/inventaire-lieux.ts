@@ -2,13 +2,13 @@
  * REFONTE R3 — INVENTAIRE DES LIEUX SAISIS À LA MAIN, en lecture seule.
  *
  * Pour chaque colonne libre qui porte un lieu (`wilaya`, `city`, `region`, `ville`…), la distribution des valeurs
- * et le taux de reconnaissance par `src/lib/lieux/normaliser.ts` : ce qu'on rattacherait d'office à une wilaya, ce
+ * et le taux de reconnaissance par `src/modules/lieux/domaine/normaliser.ts` : ce qu'on rattacherait d'office à une wilaya, ce
  * qui resterait à trancher, et pourquoi. Rien n'est écrit — on mesure avant de migrer.
  *
  *   DATABASE_URL=postgresql://amd:amd@localhost:5432/amd_internal_os npx tsx scripts/refonte/inventaire-lieux.ts [--json] [--top 15]
  */
 import { prisma } from "../../src/lib/prisma";
-import { normaliserWilaya, type RaisonRejet } from "../../src/lib/lieux/normaliser";
+import { normaliserWilaya, type RaisonRejet } from "../../src/modules/lieux/partage";
 
 /** Les colonnes inventoriées — identifiants constants (jamais une saisie), seuls interpolés dans le SQL. */
 const COLONNES: { table: string; colonne: string; tableau?: true }[] = [
