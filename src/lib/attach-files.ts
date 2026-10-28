@@ -7,6 +7,7 @@ import { mirrorDocumentsToDrive, type MirrorFile } from "@/lib/drive/document-mi
 import { notifyUser } from "@/lib/notify";
 import { entityHref } from "@/lib/entity-href";
 import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * JOINDRE DES FICHIERS À UN OBJET, DÈS SA CRÉATION.
@@ -104,7 +105,7 @@ export async function attachFiles(input: {
         select: { id: true },
       }));
     } catch (err) {
-      await deleteFileByKey(key).catch(() => undefined);
+      await deleteFileByKey(key).catch(sansBloquer("attach-files.attachFiles.deleteFileByKey"));
       echecs.push(`« ${file.name} » : fiche impossible à créer (${err instanceof Error ? err.message : "erreur"}).`);
       continue;
     }
@@ -134,6 +135,6 @@ export async function attachFiles(input: {
   await notifyUser({
     userId: input.uploadedById, type: "GENERIC", title: "Pièce jointe non enregistrée", body: error,
     link: entityHref(input.entityType, input.entityId) ?? undefined,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("attach-files.attachFiles.notifyUser"));
   return { saved, error };
 }

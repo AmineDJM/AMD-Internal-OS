@@ -6,6 +6,7 @@ import {
   BRIEFING_SCHEMA, briefingDeRegles, briefingDu, jourAlger, lireReponseModele, promptBriefing, refsDe,
   type BriefRisk, type BriefingContent,
 } from "@/lib/adventum/briefing";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE BRIEFING DU MATIN D'ADVENTUM BRAIN — génération et mémoire (refonte 07/10).
@@ -60,7 +61,7 @@ async function rediger(risks: BriefRisk[], since: { resolved: number; created: n
   const model = lunaModel();
   const minuterie = new Promise<null>((ok) => setTimeout(() => ok(null), DELAI_MODELE_MS));
   const res = await Promise.race([
-    callLuna<unknown>({ system, user, jsonSchema: { name: "briefing_matin", schema: BRIEFING_SCHEMA }, maxOutputTokens: 2500 }).catch(() => null),
+    callLuna<unknown>({ system, user, jsonSchema: { name: "briefing_matin", schema: BRIEFING_SCHEMA }, maxOutputTokens: 2500 }).catch(sansBloquer("brain-briefing.rediger.callLuna", null)),
     minuterie,
   ]);
   const latencyMs = Date.now() - t0;

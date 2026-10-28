@@ -11,6 +11,7 @@ import { PaymentCentreSeats, type SeatCandidate, type SeatHolder } from "./payme
 import { getAppSettings } from "@/lib/settings";
 import { BackLink } from "@/components/shared/back-link";
 import { formatDate } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +62,7 @@ export default async function AccessByModulePage() {
   // à l'application le fait entrer ici sans qu'on y touche.
   // LES MODULES HORS SERVICE entrent dans la feuille : un module masqué prime sur tous les
   // droits, et l'écran qui règle les droits est le seul endroit où l'on a besoin de le savoir.
-  const settings = await getAppSettings().catch(() => null);
+  const settings = await getAppSettings().catch(sansBloquer("access-page.AccessByModulePage.getAppSettings", null));
   const hiddenModules = settings?.hiddenModules ?? [];
 
   // LES ACCÈS AU PIPELINE, sur la ligne de la personne. Ce n'est pas un droit du module

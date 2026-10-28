@@ -7,6 +7,7 @@ import { transcribeAudio } from "@/lib/ai";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { getAppSettings } from "@/lib/settings";
 import { canManageMeeting } from "@/lib/meetings";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Remplace un enregistrement précédent éventuel (on libère l'ancien blob).
   const previous = meeting.audioBlobId;
   await prisma.meeting.update({ where: { id: meeting.id }, data: { audioBlobId: blobId } });
-  if (previous && previous !== blobId) await releaseBlob(previous).catch(() => {});
+  if (previous && previous !== blobId) await releaseBlob(previous).catch(sansBloquer("recording-route.POST.releaseBlob"));
 
   if (!(await aiFeatureEnabled("voice"))) {
     return NextResponse.json({ configured: true, error: "La transcription vocale est désactivée dans le Centre de contrôle IA." });

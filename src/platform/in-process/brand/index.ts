@@ -21,6 +21,7 @@ import { peutGererDirectionArtistique } from "@/lib/direction-artistique/droits"
 import type { CurrentUser } from "@/lib/session";
 import { resoudreSociete, type EchecFabrique } from "@/platform/in-process/artifact/factory";
 import { charteDe, lireMarque, mentionsDe, resumerMarque, validerMarque, type Charte, type Marque } from "@/lib/brand/model";
+import { sansBloquer } from "@/lib/journal";
 
 export { charteDe, lireMarque, mentionsDe, resumerMarque, signatairePour, validerMarque, MARQUE_VIDE, POLICES_SURES, TYPES_PIECE, LIBELLE_TYPE_PIECE, type Charte, type Marque, type TypePiece } from "@/lib/brand/model";
 
@@ -136,7 +137,7 @@ export async function definirLogo(
 /** LES OCTETS DU LOGO — pour la fabrique (en-tête d'une pièce sans papier) et l'aperçu de l'écran. */
 export async function logoOctets(marque: Marque): Promise<{ png: boolean; octets: Buffer; largeurCm: number } | null> {
   if (!marque.logo) return null;
-  const octets = await getBlob(marque.logo.blobId).catch(() => null);
+  const octets = await getBlob(marque.logo.blobId).catch(sansBloquer("brand.logoOctets.getBlob", null));
   if (!octets || octets.length === 0) return null;
   return { png: marque.logo.mime === "image/png", octets: Buffer.from(octets), largeurCm: marque.logo.largeurCm };
 }

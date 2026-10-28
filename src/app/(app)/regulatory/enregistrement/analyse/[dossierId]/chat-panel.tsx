@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2, Send, Paperclip, FileDown, X, MessageSquarePlus } from "lucide-react";
 import { askDossierAgentAction, loadDossierChatAction, resetDossierChatAction } from "@/lib/regulatory/intelligence/knowledge/actions";
 import type { ThreadMessageView } from "@/lib/regulatory/intelligence/knowledge/dossier-thread";
+import { sansBloquer } from "@/lib/journal";
 
 /** Même forme que les messages persistés côté serveur — le fil recharge à l'identique. */
 type Msg = ThreadMessageView;
@@ -44,7 +45,7 @@ export function DossierChatPanel({ dossierId, configured, canView }: { dossierId
     fd.set("dossierId", dossierId);
     loadDossierChatAction(fd)
       .then((r) => { if (alive && r.ok) setMessages(r.messages); })
-      .catch(() => { /* fil indisponible → on démarre vide, la conversation reste possible */ })
+      .catch(sansBloquer("chat-panel.DossierChatPanel.loadDossierChatAction"))
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, [dossierId, canView]);

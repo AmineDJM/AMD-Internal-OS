@@ -17,6 +17,7 @@ import { RowGrants } from "./row-grants";
 import { getAppSettings } from "@/lib/settings";
 import { ProfileForm, ResetPasswordForm, ActiveToggle, RevokeAllButton, RequestOnboardingButton } from "./user-admin-forms";
 import { BackLink } from "@/components/shared/back-link";
+import { sansBloquer } from "@/lib/journal";
 
 const MODULE_LABEL: Record<string, string> = MODULE_LABELS;
 
@@ -59,7 +60,7 @@ export default async function AdminUserPage({ params }: { params: { id: string }
 
   // Modules HORS SERVICE : un module masqué prime sur tous les droits réglés ici — le dire
   // évite de chercher pourquoi un accès accordé « ne marche pas ».
-  const { hiddenModules } = await getAppSettings().catch(() => ({ hiddenModules: [] as string[] }));
+  const { hiddenModules } = await getAppSettings().catch(sansBloquer("id-page.AdminUserPage.getAppSettings", { hiddenModules: [] as string[] }));
   const hors = new Set(hiddenModules);
   const overrideMap = new Map(target.access.map((a) => [a.module, a]));
   const matrixRows: ModuleAccessRow[] = MODULES.map((module) => {

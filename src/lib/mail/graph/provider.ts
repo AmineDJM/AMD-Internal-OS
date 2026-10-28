@@ -6,6 +6,7 @@ import { MailError } from "../provider";
 import { graphJson, graphBinary } from "./client";
 import { toFolder, toSummary, toMessage, skipToken, deltaToken, isRemoved } from "./map";
 import { exigerSortieAutorisee } from "@/lib/sortie/garde";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * MICROSOFT GRAPH, DERRIÈRE LE CONTRAT.
@@ -94,7 +95,7 @@ export class MicrosoftGraphMailProvider implements MailProvider {
         accessToken: this.token,
         path: `/me/mailFolders/${path}`,
         query: { $select: "id" },
-      }).catch(() => null);
+      }).catch(sansBloquer("provider.resolveId.graphJson", null));
       return String(f?.id ?? "");
     };
 
@@ -148,7 +149,7 @@ export class MicrosoftGraphMailProvider implements MailProvider {
         accessToken: this.token,
         path: `/me/messages/${encodeURIComponent(id)}/attachments`,
         query: { $select: "id,name,contentType,size,isInline" },
-      }).catch(() => ({ value: [] as Raw[] })), // un message sans pièce jointe ne doit pas échouer
+      }).catch(sansBloquer("provider.getMessage.graphJson", { value: [] as Raw[] })), // un message sans pièce jointe ne doit pas échouer
     ]);
     return toMessage(msg, atts.value ?? []);
   }

@@ -16,6 +16,7 @@ import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { ENTITE_SANS, slugSectionDeLOrdre } from "@/lib/payments/sections-centre";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
@@ -214,7 +215,7 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   }
   if (order.requestedById) {
     // Le demandeur ne siège pas au centre : il va sur SON dossier (la demande qui porte l'ordre).
-    const dossier = dossierBv ?? await dossierHrefByOrder([id]).then((m) => m.get(id)).catch(() => undefined);
+    const dossier = dossierBv ?? await dossierHrefByOrder([id]).then((m) => m.get(id)).catch(sansBloquer("payment-centre-actions.decidePayment.dossierHrefByOrder"));
     await notifyUser({
       userId: order.requestedById,
       type: next === "APPROVED" ? "GENERIC" : "VALIDATION_REQUIRED",

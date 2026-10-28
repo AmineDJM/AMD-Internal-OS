@@ -28,6 +28,7 @@ import {
   type StepInput,
   type WorkflowCategory,
 } from "./types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Moteur de workflow configurable (Ad & Pro). Une **définition** (par catégorie)
@@ -255,7 +256,7 @@ async function settleAutoSkips(
   // LE SEUIL GLOBAL, lu UNE fois pour tout l'enchaînement (mis en cache par requête). Illisible
   // (base indisponible) ⇒ `null` ⇒ aucune porte du DG franchie automatiquement : sous l'incertitude
   // on garde la validation de plus, jamais de moins.
-  const seuilDgGlobal = await getAppSettings().then((s) => s.adProDgThreshold).catch(() => null);
+  const seuilDgGlobal = await getAppSettings().then((s) => s.adProDgThreshold).catch(sansBloquer("workflow-engine.settleAutoSkips.getAppSettings", null));
   // Rôle du demandeur — chargé paresseusement (uniquement si une étape « auto-accord si autorité » l'exige).
   let reqRole: { role: UserRole; secondaryRole: UserRole | null } | null | undefined = undefined;
   const requesterHoldsAuthority = async (step: LoadedStep): Promise<boolean> => {
@@ -422,7 +423,7 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
   const demandeur = summary?.requesterId
     ? await prisma.user
         .findUnique({ where: { id: summary.requesterId }, select: { role: true, secondaryRole: true } })
-        .catch(() => null)
+        .catch(sansBloquer("workflow-engine.ensureInstance.user", null))
     : null;
   //
   // LES DEUX FAITS SE LISENT D'UN SEUL APPEL. Ils viennent de la même branche : en tirer un sans
@@ -450,7 +451,7 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
     if (summary?.requesterId) {
       const requester = await prisma.user
         .findUnique({ where: { id: summary.requesterId }, select: { name: true } })
-        .catch(() => null);
+        .catch(sansBloquer("workflow-engine.ensureInstance.user", null));
       await prisma.workflowStepEvent
         .create({
           data: {
@@ -486,7 +487,7 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
     if (parcours?.dOffice && summary?.requesterId && status === "IN_PROGRESS" && pose === SLUG_MARKETING) {
       const creatrice = await prisma.user
         .findUnique({ where: { id: summary.requesterId }, select: { name: true, role: true, secondaryRole: true } })
-        .catch(() => null);
+        .catch(sansBloquer("workflow-engine.ensureInstance.user", null));
       if (creatrice) {
         const r = await advanceWorkflowInstance({
           viewer: { id: summary.requesterId, role: creatrice.role, secondaryRole: creatrice.secondaryRole, name: creatrice.name },
@@ -503,7 +504,7 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
       if (depart && montant > 0) {
         const demandeur = await prisma.user
           .findUnique({ where: { id: summary.requesterId }, select: { name: true, role: true, secondaryRole: true } })
-          .catch(() => null);
+          .catch(sansBloquer("workflow-engine.ensureInstance.user", null));
         if (demandeur) {
           const repos = await settleAutoSkips(
             entityType, entityId, def, created.id, montant, summary.requesterId, depart,
@@ -703,7 +704,7 @@ export async function advanceWorkflowInstance(input: AdvanceInput): Promise<Adva
   try {
     return await appliquerLeGeste({ input, action, viewer, entityType, entityId, category, instance, def, step, summary, note, borne, ignorees });
   } finally {
-    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(() => undefined);
+    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(sansBloquer("workflow-engine.advanceWorkflowInstance.workflowInstance"));
   }
 }
 
@@ -1501,7 +1502,7 @@ export async function resubmitWorkflowInstance(input: { viewer: Viewer; entityTy
     const note = input.note?.trim() || null;
 
     const montant = toNumber(instance.amount) || (summary.estimatedAmount ?? 0);
-    const seuilDgGlobal = await getAppSettings().then((st) => st.adProDgThreshold).catch(() => null);
+    const seuilDgGlobal = await getAppSettings().then((st) => st.adProDgThreshold).catch(sansBloquer("workflow-engine.resubmitWorkflowInstance.getAppSettings", null));
     const reprise = etapeDeReprise(orderedSteps(def), retour, await franchiesParMontant(instance.id), (e) => autoSkipEligible(e, montant, seuilDgGlobal), ignorees);
 
     const pris = await prisma.workflowInstance.updateMany({
@@ -1538,7 +1539,7 @@ export async function resubmitWorkflowInstance(input: { viewer: Viewer; entityTy
     });
     return { ok: true, category, etape: pose.title };
   } finally {
-    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(() => undefined);
+    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(sansBloquer("workflow-engine.resubmitWorkflowInstance.workflowInstance"));
   }
 }
 
@@ -1578,7 +1579,7 @@ export async function apresModificationDeLaDemande(input: { viewer: Viewer; enti
     const link = entityPath(entityType, entityId);
 
     const montant = toNumber(instance.amount) || (summary.estimatedAmount ?? 0);
-    const seuilDgGlobal = await getAppSettings().then((st) => st.adProDgThreshold).catch(() => null);
+    const seuilDgGlobal = await getAppSettings().then((st) => st.adProDgThreshold).catch(sansBloquer("workflow-engine.apresModificationDeLaDemande.getAppSettings", null));
     const reprise = etapeDeReprise(orderedSteps(def), courante, await franchiesParMontant(instance.id), (e) => autoSkipEligible(e, montant, seuilDgGlobal), ignorees);
 
     let porteRouverte: string | null = null;
@@ -1612,7 +1613,7 @@ export async function apresModificationDeLaDemande(input: { viewer: Viewer; enti
     }
     return { porteRouverte };
   } finally {
-    await prisma.workflowInstance.updateMany(argsRendre(lu.id, prise)).catch(() => undefined);
+    await prisma.workflowInstance.updateMany(argsRendre(lu.id, prise)).catch(sansBloquer("workflow-engine.apresModificationDeLaDemande.workflowInstance"));
   }
 }
 
@@ -1639,7 +1640,7 @@ export async function fermerInstance(input: { viewer: Viewer; entityType: Entity
     await prisma.workflowStepEvent.create(evenementDeCloture(instance.id, etape, input.viewer, input.motif));
     return true;
   } finally {
-    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(() => undefined);
+    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(sansBloquer("workflow-engine.fermerInstance.workflowInstance"));
   }
 }
 
@@ -1727,7 +1728,7 @@ export async function retirerDemande(input: {
     if (!supprime.ok) return { ok: false, error: supprime.error ?? "La demande n'a pas pu être supprimée." };
     return { ok: true, category, etape: "", redirect: supprime.redirect };
   } finally {
-    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(() => undefined);
+    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(sansBloquer("workflow-engine.retirerDemande.workflowInstance"));
   }
 }
 
@@ -1782,7 +1783,7 @@ export async function relancerCycle(input: {
     await prevenirLaPose(entityType, entityId, instance, pose, summary.requesterId, `${CATEGORY_LABELS[category]} — ${pose.title} (nouvelle demande après refus)`, `${summary.name} — ${input.note}`);
     return { ok: true, category, etape: pose.title };
   } finally {
-    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(() => undefined);
+    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(sansBloquer("workflow-engine.relancerCycle.workflowInstance"));
   }
 }
 
@@ -1826,7 +1827,7 @@ export async function reopenInstance(entityType: EntityType, entityId: string, v
     // (la Direction, pour un appel) ne les prévient pas une seconde fois.
     return { etape: decision.title, rolesPrevenus: viewer ? [...(decision.notifyRoles ?? [])] : [] };
   } finally {
-    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(() => undefined);
+    await prisma.workflowInstance.updateMany(argsRendre(instance.id, prise)).catch(sansBloquer("workflow-engine.reopenInstance.workflowInstance"));
   }
 }
 

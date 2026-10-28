@@ -3,6 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 import { avancement, type Critere, type Jalon, type Objectif, type Risque } from "@/lib/objectif/modele";
 import { estimer, type Estimation } from "@/lib/objectif/probabilite";
 import { auditer, chemins, propager, raconterChemin, type Lien } from "@/lib/objectif/causal";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -178,7 +179,7 @@ export async function etatObjectif(user: CurrentUser, id: string): Promise<EtatO
   await prisma.executiveObjective.update({
     where: { id: l.id },
     data: { lastProbability: e.probabilite, lastFactors: e.facteurs as never, lastAssessedAt: maintenant },
-  }).catch(() => {});
+  }).catch(sansBloquer("objectif.etatObjectif.executiveObjective"));
 
   const liens = liensDe(l);
   return { objectif: o, estimation: e, avancement: avancement(o, maintenant), causal: { audit: auditer(liens), liens } };

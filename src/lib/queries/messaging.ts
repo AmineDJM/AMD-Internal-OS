@@ -306,7 +306,7 @@ export async function getTotalUnread(selfId: string): Promise<number> {
   return rows[0] ? Number(rows[0].unread) : 0;
 }
 
-interface DernierMessage {
+export interface DernierMessage {
   body: string;
   kind: string;
   createdAt: Date;
@@ -326,7 +326,17 @@ interface DernierMessage {
  * de 12 s de chaque onglet ouvert.
  */
 async function derniersMessages(conversationIds: string[]): Promise<Map<string, DernierMessage>> {
-  if (conversationIds.length === 0) return new Map();
+  const parConversation = await derniersMessagesParConversation(conversationIds, 1);
+  return new Map([...parConversation].map(([id, messages]) => [id, messages[0]]));
+}
+
+/**
+ * Les `n` DERNIERS MESSAGES NON SUPPRIMÉS de chaque conversation, du plus récent au plus ancien — la forme
+ * générale de `derniersMessages`, pour la même raison (un `take` imbriqué sous une liste n'est pas un
+ * `LIMIT` : audit performance PERF-01, PERF-08). Une conversation sans message est absente de la carte.
+ */
+export async function derniersMessagesParConversation(conversationIds: string[], n: number): Promise<Map<string, DernierMessage[]>> {
+  if (conversationIds.length === 0 || n < 1) return new Map();
   const rows = await prisma.$queryRaw<(DernierMessage & { conversationId: string })[]>`
     SELECT c.id AS "conversationId", l.body, l.kind::text AS kind, l."createdAt", l."senderId",
            u.name AS "senderName",
@@ -337,11 +347,18 @@ async function derniersMessages(conversationIds: string[]): Promise<Map<string, 
       FROM "Message" m
       WHERE m."conversationId" = c.id AND m."deletedAt" IS NULL
       ORDER BY m."createdAt" DESC
-      LIMIT 1
+      LIMIT ${Math.floor(n)}
     ) l
     LEFT JOIN "User" u ON u.id = l."senderId"
+    ORDER BY c.id, l."createdAt" DESC
   `;
-  return new Map(rows.map(({ conversationId, ...r }) => [conversationId, r]));
+  const parConversation = new Map<string, DernierMessage[]>();
+  for (const { conversationId, ...r } of rows) {
+    const liste = parConversation.get(conversationId) ?? [];
+    liste.push(r);
+    parConversation.set(conversationId, liste);
+  }
+  return parConversation;
 }
 
 /** Liste des conversations de l'utilisateur, triée (épinglées puis récentes). */

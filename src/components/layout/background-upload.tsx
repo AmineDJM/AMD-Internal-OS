@@ -6,6 +6,7 @@ import { UploadCloud, Loader2, CheckCircle2, AlertCircle, X, ChevronDown, Ban } 
 import {
   envoyerParties, EnvoiAnnule, Debitmetre, debitLisible, resteLisible, type PlanClient,
 } from "@/lib/storage/envoi-direct-client";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * GESTIONNAIRE D'ENVOIS GÉNÉRIQUE, GLOBAL — n'importe quel téléversement de la plateforme
@@ -363,7 +364,7 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
     // Les envois directs : les parties en vol sont coupées, et celles déjà reçues par le bucket
     // sont LIBÉRÉES — un envoi annulé à 80 % ne doit pas rester payé et invisible.
     controllers.current.get(jobId)?.abort();
-    for (const [sessionId, d] of directSessions.current.get(jobId) ?? []) void d.abandonner(sessionId).catch(() => undefined);
+    for (const [sessionId, d] of directSessions.current.get(jobId) ?? []) void d.abandonner(sessionId).catch(sansBloquer("background-upload.BackgroundUploadProvider.abandonner"));
     directSessions.current.delete(jobId);
     setJobs((js) => js.map((j) => (j.id === jobId
       ? { ...j, phase: "cancelled", files: j.files.map((f) => (f.status === "done" || f.status === "error" ? f : { ...f, status: "cancelled" as FileStatus, progress: 0 })) }

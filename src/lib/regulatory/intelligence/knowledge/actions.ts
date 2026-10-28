@@ -11,6 +11,7 @@ import { appendThreadMessage, clearThread, loadThread, loadThreadMemory, type At
 import { extractText } from "../extract/extract-text";
 import { canOcr, ocrDocument } from "../ocr/ocr-engine";
 import { askReserves } from "../reserves/chat";
+import { sansBloquer } from "@/lib/journal";
 
 /** Historique conversationnel transmis par le client (borné, texte pur — jamais une consigne). */
 function parseHistory(raw: string): ChatTurn[] {
@@ -89,7 +90,7 @@ export async function askDossierAgentAction(formData: FormData): Promise<Dossier
   if (!version) return fail("Aucune version de dossier.");
 
   // Mémoire du fil AVANT d'y écrire le nouveau message (sinon le tour courant s'y verrait en double).
-  const memory = await loadThreadMemory(dossierId, user.id).catch(() => ({ history: [] as ChatTurn[], priorAttachments: [] as AgentAttachment[] }));
+  const memory = await loadThreadMemory(dossierId, user.id).catch(sansBloquer("knowledge-actions.askDossierAgentAction.loadThreadMemory", { history: [] as ChatTurn[], priorAttachments: [] as AgentAttachment[] }));
 
   // PIÈCES JOINTES : 3 max, 20 Mo chacune — extraites tout de suite, OCR réel si scan. Une pièce
   // qui résiste (scan vide, format hostile, dépassement) est marquée ILLISIBLE avec son motif et

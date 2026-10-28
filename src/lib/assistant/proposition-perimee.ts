@@ -110,6 +110,20 @@ export function propositionsPerimees(
   return [...morts];
 }
 
+/**
+ * LA NATURE QUI SE COMPARE — et pas toujours le `kind` brut.
+ *
+ * Tous les gestes de l\'Assistant IA partagent UN `kind` (`assistant_ia_op`) : comparés sur lui seul, une
+ * relance et un rendez-vous sur le même dossier (« SP-0142 Karim ») se « remplaceraient ». Leur vraie
+ * nature est l\'opération qu\'ils portent (`payload.op`) — c\'est elle que `remplace` doit voir
+ * (audit 27/10, IA-ASSISTANT-10).
+ */
+export function natureComparable(kind: string, payload: unknown): string {
+  if (kind !== "assistant_ia_op") return kind;
+  const op = (payload as { op?: unknown } | null)?.op;
+  return typeof op === "string" && op ? `${kind}:${op}` : kind;
+}
+
 /** L\'échappatoire d\'exploitation, comme pour les autres règles d\'écriture (§2 : la limite porte sa raison). */
 export function retraitDesPerimeesDesactive(env: NodeJS.ProcessEnv = process.env): boolean {
   return env.ADAM_PERIMEES_DISABLED === "1";

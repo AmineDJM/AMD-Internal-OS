@@ -251,4 +251,17 @@ IBAN, la personne = les siennes, une pièce officielle imprime le RIB d'une orga
 renvoyée par un formulaire reste en place : on écrit une fiche sans en lire les données sensibles. Deux interrupteurs
 fermés par défaut (`coffreEcriture`, `coffreLecture`) ; variable `COFFRE_KEY` à poser. Migration additive
 `20270131170000_coffre_double_lecture`. Détail, activation et procédure P5 : `docs/architecture/refonte-v2e-coffre.md`.
+### Fiabilité V3-E — plus d'erreur avalée sans trace (2026-10-28)
 
+Audit 27/10, INFRA-07 : **1 211** `.catch(() => valeur)` taisaient leur erreur — une base en panne se lisait « rien à
+faire » dans le centre de validation du DG. **Journal unique** `src/lib/journal.ts` (une ligne JSON par événement, anti-
+avalanche : la même erreur n'est réécrite qu'une fois par minute avec le nombre de répétitions tues) et deux `catch`
+nommés : `sansBloquer("nom", repli)` (panne tolérée — journalisée, comptée) et `attendu("raison", repli)` (rejet normal).
+Le parc est converti : **1 211 → 12** (2 exceptions serveur motivées, 10 écrans client qui affichent déjà l'échec) ; le
+comportement non bloquant est **inchangé** partout. Le journal des tâches de fond passe par le même journal. **Alertes** :
+chaque processus verse ses compteurs dans `IncidentRepete` (UPSERT additif) ; la tâche `observabilite.incidents` envoie
+au Super Admin **une** notification agrégée quand un événement échoue 5 fois dans l'heure, puis se tait 6 h ; carte
+**Erreurs rattrapées** au Diagnostic. **Sonde** `/api/health` : 503 si la base ne répond pas **ou** si une migration du
+dépôt manque en base ; `etat: "degrade"` (200) sur erreurs répétées. `render.yaml` : `healthCheckPath: /api/health`,
+`npm ci` ; `engines.node = 22.x` ; `src/app/global-error.tsx` en français. Cliquet `journal-catch-muets.test.ts`.
+Migration additive `20270205100000_incidents_repetes`.

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { estKam, estNationalSales, type RolesPersonne } from "@/lib/personnes/roles-vente";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -58,7 +59,7 @@ export async function businessUnitDuDemandeur(user: DemandeurBu): Promise<BuDedu
         where: { repId: user.id },
         select: { businessUnit: { select: { id: true, name: true, isActive: true } } },
       })
-      .catch(() => null);
+      .catch(sansBloquer("business-unit-auto.businessUnitDuDemandeur.salesRepProfile", null));
     const bu = fiche?.businessUnit;
     if (bu && bu.isActive) {
       return { id: bu.id, name: bu.name, raison: `Votre gamme — rattachement de votre fiche force de vente.` };
@@ -71,7 +72,7 @@ export async function businessUnitDuDemandeur(user: DemandeurBu): Promise<BuDedu
     // ouverture de formulaire.
     const supervisees = await prisma.businessUnit
       .findMany({ where: { supervisorId: user.id, isActive: true }, select: { id: true, name: true }, take: 2 })
-      .catch(() => [] as { id: string; name: string }[]);
+      .catch(sansBloquer("business-unit-auto.businessUnitDuDemandeur.businessUnit", [] as { id: string; name: string }[]));
     if (supervisees.length === 1) {
       const bu = supervisees[0]!;
       return { id: bu.id, name: bu.name, raison: `Gamme dont vous êtes le superviseur national.` };

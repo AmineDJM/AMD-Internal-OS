@@ -9,6 +9,7 @@ import { getAccess } from "@/lib/rbac";
 import { remplacerModelesPourTests } from "@/lib/agent/generer";
 import { modeleFactice } from "@/lib/agent/testing/modele-factice";
 import { deposerMessage, ETAT, lireFil, nouvelleConversation, reprendreLesFils, traiterFil } from "@/lib/agent/fil/service";
+import { effacerJournalDe } from "@/lib/agent/testing/journal";
 
 /**
  * LE FIL GARDÉ DE L'ASSISTANT IA — rien ne s'efface en quittant l'écran ; deux messages d'affilée
@@ -40,6 +41,7 @@ suite("Assistant IA — le fil gardé, joué en arrière-plan", () => {
   afterEach(() => remplacerModelesPourTests(null));
   afterAll(async () => {
     const ids = [assistante?.id, sansAcces?.id].filter(Boolean) as string[];
+    await effacerJournalDe(ids);
     await prisma.assistantIaFil.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});

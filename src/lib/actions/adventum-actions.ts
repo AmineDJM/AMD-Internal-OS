@@ -19,6 +19,7 @@ import type { AutopilotPayload, RiskAction } from "@/lib/adventum/risks";
 import type { HistoryEntry } from "@/lib/adventum/lifecycle-rules";
 import { THRESHOLD_FIELDS, DEFAULT_THRESHOLDS } from "@/lib/adventum/risk-settings";
 import { fdDate, fdNum, fdStr, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 const DENIED: ActionResult = { ok: false, error: "Réservé au Super Admin." };
 const PAGE = "/adventum-brain";
@@ -197,7 +198,7 @@ export async function askBrain(question: string): Promise<BrainAnswer> {
   if (!(await aiFeatureEnabled("brain"))) return vide("Adventum Brain (IA) est désactivé dans le Centre de contrôle IA.");
 
   // 1. Les documents — le Super Admin voit tout ; l'identité entre quand même dans la clé de cache.
-  const docs = await retrieve({ question: q, force: true, limit: 5, scopeKey: user.id }, async (items) => new Set(items.map((i) => i.itemId))).catch(() => null);
+  const docs = await retrieve({ question: q, force: true, limit: 5, scopeKey: user.id }, async (items) => new Set(items.map((i) => i.itemId))).catch(sansBloquer("adventum-actions.askBrain.retrieve", null));
   const items = docs?.hits.length
     ? await prisma.knowledgeItem.findMany({ where: { id: { in: docs.hits.map((h) => h.itemId) } }, select: { id: true, sourceType: true, sourceId: true, title: true } })
     : [];

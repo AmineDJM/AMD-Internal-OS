@@ -17,6 +17,7 @@ import { createDirect } from "@/lib/actions/messaging-actions";
 import { createTask } from "@/lib/actions/task-actions";
 import { lienRapportsDeDelegue } from "@/lib/chemins/rapports-terrain";
 import { Avatar, jourCourt, jourLong, statutDuJour } from "./equipe-commun";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE PANNEAU D'UNE PERSONNE — ouvert d'un clic sur son nom, n'importe où dans Mon Équipe. Ce qui est déjà calculé pour
@@ -51,7 +52,7 @@ function Contenu({ l, droits }: { l: LigneEquipe; droits: { messagerie: boolean;
     let vivant = true;
     teamMemberKpis(l.employeeId)
       .then((r) => { if (vivant && r.ok) setKpis(r.kpis); })
-      .catch(() => null)
+      .catch(sansBloquer("fiche-personne.Contenu.teamMemberKpis", null))
       .finally(() => { if (vivant) setChargement(false); });
     return () => { vivant = false; };
   }, [l.employeeId]);
@@ -61,7 +62,7 @@ function Contenu({ l, droits }: { l: LigneEquipe; droits: { messagerie: boolean;
     setEcrireBusy(true); setMsg(null);
     const fd = new FormData();
     fd.set("userId", l.userId);
-    const r = await createDirect(fd).catch(() => null);
+    const r = await createDirect(fd).catch(sansBloquer("fiche-personne.ecrire.createDirect", null));
     setEcrireBusy(false);
     if (r?.ok && r.id) router.push(`/messages?c=${r.id}`);
     else setMsg({ ok: false, texte: r?.error ?? "La conversation n'a pas pu s'ouvrir." });
@@ -75,7 +76,7 @@ function Contenu({ l, droits }: { l: LigneEquipe; droits: { messagerie: boolean;
     fd.set("title", titre.trim());
     fd.set("assignedToId", l.userId);
     if (echeance) fd.set("dueDate", echeance);
-    const r = await createTask(undefined, fd).catch(() => null);
+    const r = await createTask(undefined, fd).catch(sansBloquer("fiche-personne.assigner.createTask", null));
     setTacheBusy(false);
     if (r?.ok) {
       setMsg({ ok: true, texte: r.message ?? "Tâche envoyée — elle attend son acceptation." });

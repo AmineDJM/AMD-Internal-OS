@@ -7,6 +7,7 @@ import type { PlanClient } from "@/lib/storage/envoi-direct-client";
 import { refusTeleversement } from "@/lib/files/politique-televersement";
 import { refusSansStockageObjet } from "@/lib/storage/phrases-stockage";
 import { LIMITE_FICHIER_MO } from "@/lib/storage/limites-blob";
+import { sansBloquer } from "@/lib/journal";
 
 /** Où va le document : les mêmes champs que le chemin habituel. */
 export interface CibleDocumentClient {
@@ -20,7 +21,7 @@ export interface CibleDocumentClient {
 }
 
 async function json<T>(res: Response): Promise<T> {
-  const body = (await res.json().catch(() => ({}))) as T & { error?: string };
+  const body = (await res.json().catch(sansBloquer("envoi-document.json.json", {}))) as T & { error?: string };
   if (!res.ok) throw new Error(body.error ?? `Le serveur a répondu ${res.status}.`);
   return body;
 }
@@ -63,10 +64,10 @@ export function envoiDocument(
         finaliser: async (id, etags) => {
           // Les empreintes reçues par le navigateur : la finalisation s'en sert si le stockage ne liste pas ses parties.
           const res = await fetch(`/api/documents/upload/direct/${id}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ etags: etags ?? {} }) });
-          const b = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string; reprendre?: boolean };
+          const b = (await res.json().catch(sansBloquer("envoi-document.finaliser.json", {}))) as { ok?: boolean; error?: string; reprendre?: boolean };
           return res.ok && b.ok ? { ok: true as const } : { ok: false as const, error: b.error ?? `Finalisation refusée (${res.status}).`, reprendre: b.reprendre };
         },
-        abandonner: async (id) => { await fetch(`/api/documents/upload/direct/${id}`, { method: "DELETE" }).catch(() => undefined); },
+        abandonner: async (id) => { await fetch(`/api/documents/upload/direct/${id}`, { method: "DELETE" }).catch(sansBloquer("envoi-document.abandonner.fetch")); },
       };
     },
   };

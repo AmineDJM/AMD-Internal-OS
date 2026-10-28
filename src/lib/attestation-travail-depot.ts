@@ -15,6 +15,7 @@ import {
   nomAttestation, refusAttestation, remplirAttestationDeTravail, societeImprimee,
   type ChampsAttestation, type Civilite, type ProvenanceChamp,
 } from "@/lib/hr/attestation-travail/modele";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -148,16 +149,16 @@ export async function preparerAttestationTravail(
   } else if (manquants.length === 0) {
     lecture.note = "Préremplie depuis la fiche RH — le contrat n'a pas eu besoin d'être lu.";
   } else {
-    const octets = await getBlob(contratDoc.blobId).catch(() => null);
+    const octets = await getBlob(contratDoc.blobId).catch(sansBloquer("attestation-travail-depot.preparerAttestationTravail.getBlob", null));
     lecture = octets
       ? await (opts.lireContrat ?? lireContratPourAttestation)({ octets, nomFichier: contratDoc.name, manquants, userId: acteurId })
-          .catch(() => ({ lu: {}, parLuna: [], note: "Le contrat n'a pas pu être lu : complétez les champs vides." }))
+          .catch(sansBloquer("attestation-travail-depot.preparerAttestationTravail", { lu: {}, parLuna: [], note: "Le contrat n'a pas pu être lu : complétez les champs vides." }))
       : { lu: {}, parLuna: [], note: "Le fichier du contrat est introuvable : complétez les champs vides." };
   }
 
   const [referenceExistante, registre, signataires, versions] = await Promise.all([
     referenceDejaAttribuee(requestId),
-    etatDuRegistre(companyId).catch((): ReferenceProchaine => ({ ok: false, error: "Le registre n'a pas pu être lu." })),
+    etatDuRegistre(companyId).catch(sansBloquer("attestation-travail-depot.preparerAttestationTravail.etatDuRegistre", { ok: false as const, error: "Le registre n'a pas pu être lu." })),
     signatairesPossibles(),
     versionsGenerees(requestId),
   ]);
@@ -226,7 +227,7 @@ export async function genererEtRemettreAttestation(
   const version = (await versionsGenerees(requestId)) + 1;
   const nom = nomAttestation(champs.reference, champs.salarie, version);
   // LE PDF EST LA PIÈCE REMISE (comme l'ordre de mission) ; sans PDF, c'est le Word — et la phrase le dit.
-  const pdf = await docxToPdf(docx).catch(() => ({ ok: false as const, error: "conversion impossible" }));
+  const pdf = await docxToPdf(docx).catch(sansBloquer("attestation-travail-depot.genererEtRemettreAttestation.docxToPdf", { ok: false as const, error: "conversion impossible" }));
   const w = await putBlob(docx);
   const p = pdf.ok ? await putBlob(pdf.pdf) : null;
 
@@ -264,7 +265,7 @@ export async function genererEtRemettreAttestation(
       title: version > 1 ? "Nouvelle version de votre attestation de travail" : "Votre attestation de travail est prête",
       body: champs.reference ? `Réf. ${champs.reference}` : "Attestation de travail",
       link: `/mon-dossier#demande-rh-${requestId}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("attestation-travail-depot.genererEtRemettreAttestation.notifyUser"));
   }
   await recordAudit({
     actorId: acteurId, action: "CREATE", module: "RH", entityType: "HR_REQUEST", entityId: requestId,

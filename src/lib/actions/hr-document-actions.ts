@@ -39,6 +39,7 @@ import { estEtatRhTraite, marquerDemandeRhTraitee } from "@/lib/hr-demande-trait
 import { genererEtRemettreAttestation, preparerAttestationTravail, type PreparationAttestation } from "@/lib/attestation-travail-depot";
 import type { Civilite } from "@/lib/hr/attestation-travail/regles";
 import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
+import { sansBloquer } from "@/lib/journal";
 
 const REQUEST_TYPES: HrRequestType[] = ["WORK_CERTIFICATE", "CNAS_CERTIFICATE", "SALARY_STATEMENT", "DOMICILIATION", "LEAVE_CERTIFICATE", "LEAVE_TITLE", "MISSION_ORDER", "EXPENSE_REPORT", "EXCEPTIONAL_EXIT", "SICK_LEAVE", "ANNUAL_LEAVE", "UNPAID_LEAVE", "SPECIAL_LEAVE", "MATERNITY_LEAVE", "HR_INTERVIEW", "OTHER"];
 const REQUEST_STATUSES: HrRequestStatus[] = ["PENDING", "IN_PROGRESS", "READY", "DELIVERED", "REJECTED"];
@@ -909,9 +910,9 @@ export async function annulerDemandeRh(formData: FormData): Promise<ActionResult
   const libelle = HR_REQUEST_TYPE[req.type] ?? req.type;
   const corps = `${req.employee.fullName} a annulé sa demande « ${libelle} »${motif ? ` — ${motif}` : ""}. Il n'y a plus rien à préparer.`;
   if (req.handledById && req.handledById !== user.id) {
-    await notifyUser({ userId: req.handledById, type: "GENERIC", title: "Demande RH annulée", body: corps, link: "/rh/demandes" }).catch(() => undefined);
+    await notifyUser({ userId: req.handledById, type: "GENERIC", title: "Demande RH annulée", body: corps, link: "/rh/demandes" }).catch(sansBloquer("hr-document-actions.annulerDemandeRh.notifyUser"));
   }
-  await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Demande RH annulée", body: corps, link: "/rh/demandes" }).catch(() => undefined);
+  await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Demande RH annulée", body: corps, link: "/rh/demandes" }).catch(sansBloquer("hr-document-actions.annulerDemandeRh.notifyRoles"));
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "RH", entityType: "HR_REQUEST", entityId: id,
     field: "status", oldValue: req.status, newValue: "CANCELLED",

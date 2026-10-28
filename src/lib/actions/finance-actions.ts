@@ -16,6 +16,7 @@ import { toNumber } from "@/lib/utils";
 import { compteDeLEcriture, comptesTresorerie } from "@/lib/finance/comptes";
 import { resoudreCompte } from "@/lib/finance/tresorerie";
 import { relierALaPersonne } from "@/modules/referentiels/api";
+import { sansBloquer } from "@/lib/journal";
 
 const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
 
@@ -190,7 +191,7 @@ export async function deleteTransaction(formData: FormData): Promise<ActionResul
   const regle = await reglementPorte(id);
   if (regle) return { ok: false, error: refusReglement(regle, "la supprimer") };
   // Un bulletin de paie réglé peut pointer cette écriture : on délie proprement (repasse en non réglé).
-  await prisma.payrollEntry.updateMany({ where: { transactionId: id }, data: { transactionId: null, status: "VALIDATED", paidDate: null } }).catch(() => {});
+  await prisma.payrollEntry.updateMany({ where: { transactionId: id }, data: { transactionId: null, status: "VALIDATED", paidDate: null } }).catch(sansBloquer("finance-actions.deleteTransaction.payrollEntry"));
   await prisma.financeTransaction.delete({ where: { id } });
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Finances", entityType: "FINANCE_TRANSACTION",

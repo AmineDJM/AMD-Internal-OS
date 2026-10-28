@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-// @ts-expect-error — module ESM pur du workflow de sauvegarde, sans déclaration de types.
+// Module ESM pur du workflow de sauvegarde : ses types sont inférés (`allowJs`).
 import { clesAPurger, dateDeCle, POLITIQUE } from "../../../scripts/sauvegarde/retention.mjs";
 
 /**

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseCsvLine, detectSeparator, findHeaderRow, tableFromGrid, parseCsv, chunksFromTables, tablesToText } from "./sheet";
+import { parseCsvLine, detectSeparator, findHeaderRow, tableFromGrid, parseCsv, chunksFromTables, tablesToText, parseWorkbook, MAX_SHEET_ROWS } from "./sheet";
 
 /**
  * §6 — UN TABLEAU SE LIT COMME UN TABLEAU.
@@ -116,5 +116,28 @@ describe("ce que la couche indexe", () => {
     // Sans cela, chercher « devise » ne trouverait pas un fichier dont aucune CELLULE ne
     // contient ce mot mais dont une colonne s'appelle ainsi.
     expect(tablesToText([table])).toContain("colonnes : Produit, Prix, Devise");
+  });
+});
+
+describe("classeur XLSX — on n'analyse que ce qui sert (audit performance PERF-07)", () => {
+  it("une feuille plus longue que le plafond : les premières lignes gardées, le total RÉEL compté", async () => {
+    const XLSX = await import("xlsx");
+    const lignes = [["Titre du rapport"], [], ["Produit", "Wilaya", "Qté"]];
+    for (let i = 0; i < MAX_SHEET_ROWS + 500; i += 1) lignes.push([`P${i}`, `W${i % 58}`, String(i)]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lignes), "Ventes");
+    const [t] = await parseWorkbook(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer);
+    expect(t.headers).toEqual(["Produit", "Wilaya", "Qté"]);
+    expect(t.rows).toHaveLength(MAX_SHEET_ROWS);
+    expect(t.rows[0]).toEqual({ Produit: "P0", Wilaya: "W0", "Qté": "0" });
+    expect(t.totalRows).toBe(MAX_SHEET_ROWS + 500);
+  });
+
+  it("une feuille courte : lue en entier, total exact", async () => {
+    const XLSX = await import("xlsx");
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["A", "B"], ["1", "x"], ["2", "y"]]), "F");
+    const [t] = await parseWorkbook(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer);
+    expect(t.totalRows).toBe(2);
   });
 });

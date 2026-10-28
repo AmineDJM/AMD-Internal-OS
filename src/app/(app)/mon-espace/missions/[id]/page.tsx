@@ -10,6 +10,7 @@ import { estArbitre, coteDe, peutDeposerReservation, peutChoisirBudgetMission } 
 import { CHEMIN_MES_MISSIONS } from "@/lib/chemins/espace";
 import { MissionEquipe } from "@/components/missions/mission-equipe";
 import { dernierLivretGeneral } from "@/lib/livret/serveur";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Mission — Mon espace" };
@@ -36,7 +37,7 @@ export default async function MissionEquipePage({ params }: { params: { id: stri
   const vue = coteDe(user.id, detail.mission.userId, arbitre);
   const peutBudget = peutChoisirBudgetMission(roles);
   const imputation = await imputationsProposees({ date: detail.mission.dateDepart ? new Date(detail.mission.dateDepart) : null, actorId: user.id })
-    .catch(() => ({ options: [], defaut: null }));
+    .catch(sansBloquer("id-page.MissionEquipePage.imputationsProposees", { options: [], defaut: null }));
   const path = `${CHEMIN_MES_MISSIONS}/${params.id}`;
   // LE LIVRET DE LA DÉLÉGATION (congrès) : le dernier édité par les organisateurs — la porte des documents l'ouvre à l'équipe.
   const livret = await dernierLivretGeneral(detail.mission.entityType, detail.mission.entityId);

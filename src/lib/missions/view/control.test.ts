@@ -25,10 +25,17 @@ const suite = dbOk ? describe : describe.skip;
 const TAG = `__centre__${Date.now()}`;
 const creees: string[] = [];
 
-async function proprietaire(): Promise<string> {
-  const u = await prisma.user.findFirst({ select: { id: true } });
-  if (!u) throw new Error("aucun utilisateur en base");
-  return u.id;
+/**
+ * LE PROPRIÉTAIRE DU BANC, À LUI. Emprunter « le premier utilisateur venu » rendait le banc instable
+ * sous la suite complète : un autre fichier, en parallèle, supprime ses propres comptes — dont celui
+ * qu'on venait d'emprunter (clé étrangère `Mission_ownerId_fkey` violée, aucun défaut du produit).
+ */
+let proprietaireDuBanc: Promise<string> | null = null;
+function proprietaire(): Promise<string> {
+  proprietaireDuBanc ??= prisma.user
+    .create({ data: { name: TAG, email: `${TAG}@t.dz`, passwordHash: "x" }, select: { id: true } })
+    .then((u) => u.id);
+  return proprietaireDuBanc;
 }
 
 async function mission(
@@ -67,6 +74,8 @@ async function etape(
 suite("le parc de missions", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: `${TAG}@t.dz` } }).catch(() => {});
+    proprietaireDuBanc = null;
   });
 
   it("compte les étapes RÉELLES : un modèle d'éventail ne vaut pas un, ce sont ses filles qui comptent", async () => {
@@ -214,6 +223,8 @@ suite("le parc de missions", () => {
 suite("le journal et les attentes", () => {
   afterAll(async () => {
     if (creees.length > 0) await prisma.mission.deleteMany({ where: { id: { in: creees } } }).catch(() => {});
+    await prisma.user.deleteMany({ where: { email: `${TAG}@t.dz` } }).catch(() => {});
+    proprietaireDuBanc = null;
   });
 
   it("le journal ÉCARTE la comptabilité du moteur et DIT combien", async () => {

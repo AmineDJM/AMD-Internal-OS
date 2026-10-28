@@ -20,6 +20,7 @@ import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import {
   type BadgeTone, FINANCE_CATEGORY, ENTITY_TYPE_LABELS, TASK_STATUS, ADMIN_REQUEST_STATUS, REGULATORY_STATUS, EXPENSE_ORDER_STATUS, CONGRESS_REQUEST_STATUS, MEDICAL_INFO_STATUS, PROMO_MATERIAL_STATUS, DIRECTIVE_STATUS, SUPPORT_STATUS, DOSSIER_STATUS,
 } from "@/lib/labels";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Les préfixes d'identité que relisent les consommateurs du centre : l'outil de file d'Adam écarte les
@@ -419,12 +420,12 @@ export async function getActionCenter(user: SessionUser) {
       where: MARCHE_N1_MISSIONS(user.id),
       select: { id: true, type: true, createdAt: true, details: true, employee: { select: { fullName: true } } },
       orderBy: { createdAt: "asc" }, take: 30,
-    }).catch(() => []),
+    }).catch(sansBloquer("action-center.getActionCenter.hrDocumentRequest", [])),
     prisma.missionAssignment.findMany({
       where: { userId: user.id, archivedAt: null, response: "INVITEE" },
       select: { id: true, createdAt: true, dateDepart: true },
       orderBy: { createdAt: "asc" }, take: 30,
-    }).catch(() => []),
+    }).catch(sansBloquer("action-center.getActionCenter.missionAssignment", [])),
   ]);
   for (const o of omAValider) {
     items.push({
@@ -743,7 +744,7 @@ export async function getActionCenter(user: SessionUser) {
         where: { status: "AWAITING_VALIDATION", pole: "AD_PRO", OR: [{ validatorId: null }, { validatorId: user.id }] },
         select: { id: true, reference: true, title: true },
         orderBy: { updatedAt: "asc" }, take: FENETRE,
-      }).catch(() => []);
+      }).catch(sansBloquer("action-center.getActionCenter.consultingContract", []));
       // Non datés : aucun champ ne dit quand un contrat est entré en validation (07-05 — on ne l'invente pas).
       await lister(contrats, "CONSULTING_CONTRACT", (c) => ({
         key: `arb-cons-${c.id}`, objet: `CONSULTING_CONTRACT:${c.id}`, title: c.title, subtitle: `Consulting · ${c.reference}`, module: "Ad & Pro",

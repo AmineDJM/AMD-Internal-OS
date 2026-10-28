@@ -98,6 +98,7 @@ import {
   type DroitsValidation, type Porteur,
 } from "@/lib/ad-pro/validation-poste";
 import { relierALaPersonne } from "@/modules/referentiels/api";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * POSTES D'UNE OPÉRATION AD & PRO — actions serveur, pour les QUATRE opérations du pôle :
@@ -374,13 +375,13 @@ async function prevenirLeTemps(
   temps: "OPERATIONS" | "MARKETING", demandeur: Porteur | null, titre: string, corps: string, lien: string,
 ): Promise<void> {
   const roles = [...new Set([...rolesAPrevenir(temps, demandeur), "SUPER_ADMIN"])] as UserRole[];
-  await notifyRoles(roles, { type: "VALIDATION_REQUIRED", title: titre, body: corps, link: lien }).catch(() => undefined);
+  await notifyRoles(roles, { type: "VALIDATION_REQUIRED", title: titre, body: corps, link: lien }).catch(sansBloquer("ad-pro-item-actions.prevenirLeTemps.notifyRoles"));
 }
 
 async function audit(user: SessionUser, parent: AdProParent, id: string, action: "CREATE" | "UPDATE" | "DELETE", detail: string) {
   await recordAudit({
     actorId: user.id, module: PARENTS[parent].module, entityType: parent, entityId: id, action, summary: detail,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("ad-pro-item-actions.audit.recordAudit"));
 }
 
 /**
@@ -613,11 +614,11 @@ async function appliquerGesteVisa(
     if (r.count === 0) return null;
     await notifyRoles(SIEGES_CENTRE, {
       type: "VALIDATION_REQUIRED", title: "Bon de commande à revoir", body: `${cible} — ${geste.motif}`, link: lienLigneCentreAdPro(item.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.appliquerGesteVisa.notifyRoles"));
     // Les Finances avaient reçu « à émettre » : sans ce message, l'ordre partirait sous l'ancien visa.
     await notifyRoles(FINANCES_BC, {
       type: "GENERIC", title: "Bon de commande renvoyé au centre — ne pas l'émettre", body: `${cible} — ${geste.motif}`, link: lien,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.appliquerGesteVisa.notifyRoles"));
     await audit(ctx.user, ctx.owner.parent, ctx.owner.id, "UPDATE", `Visa du bon de commande ROUVERT pour « ${item.label} » — ${geste.motif}`);
     revalidatePath("/centre-ad-pro");
     return `Le visa du bon de commande est rouvert : ${geste.motif} Le centre de validation Ad & Pro le revoit.`;
@@ -634,7 +635,7 @@ async function appliquerGesteVisa(
   if (r.count === 0) return null;
   await notifyRoles(FINANCES_BC, {
     type: "VALIDATION_REQUIRED", title: "Bon de commande sous le seuil — à émettre", body: cible, link: lien,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("ad-pro-item-actions.appliquerGesteVisa.notifyRoles"));
   await audit(ctx.user, ctx.owner.parent, ctx.owner.id, "UPDATE", `Bon de commande de « ${item.label} » passé sous le seuil — ${geste.motif}`);
   revalidatePath("/centre-ad-pro");
   return geste.motif;
@@ -657,7 +658,7 @@ async function cloreDemandesSecretariat(
   // un BC pour un poste refusé ou une demande retirée. Elle est prévenue, motif à l'appui.
   const pieces = await annulerDemandesPiecesDuPoste(itemId, portee === "BC_A_ETABLIR" ? "BC" : "TOUTES");
   for (const p of pieces) {
-    await notifyUser({ userId: p.askedToId, type: "GENERIC", title: "Demande de pièce annulée", body: motif, link: `/pieces/${p.id}` }).catch(() => undefined);
+    await notifyUser({ userId: p.askedToId, type: "GENERIC", title: "Demande de pièce annulée", body: motif, link: `/pieces/${p.id}` }).catch(sansBloquer("ad-pro-item-actions.cloreDemandesSecretariat.notifyUser"));
   }
   if (pieces.length > 0) revalidatePath("/pieces");
   return closes + pieces.length;
@@ -872,7 +873,7 @@ export async function addAdProItem(_prev: ActionResult | undefined, formData: Fo
         title: budgetKind === "ADDITIONAL" ? "Poste hors budget ajouté" : "Poste ajouté après la décision",
         body: `${info.ref} — ${ITEM_KIND_LABELS[kind]} « ${label} »${amountEstimated != null ? ` (${amountEstimated.toLocaleString("fr-FR")} DZD)` : ""} — pour information ; la validation vous parviendra à sa soumission.`,
         link: lienPosteAdPro(parentRaw, parentId, created.id),
-      }).catch(() => undefined);
+      }).catch(sansBloquer("ad-pro-item-actions.addAdProItem.notifyRoles"));
     }
     // Le poste ajouté change l'estimation que porte la déclaration d'information médicale (§118.191).
     await reporterLesPostesSurLaDeclaration(parentRaw, parentId)
@@ -1101,7 +1102,7 @@ export async function deleteAdProItem(_prev: ActionResult | undefined, formData:
   if (raccourci) await prisma.adProItem.update({ where: { id }, data: { adminRequestId: null } });
   const r = await supprimerReversible("AD_PRO_ITEM", id, user.id,
     `Poste « ${item.label} » retiré${item.promoMaterialId ? " (le matériel promotionnel rattaché est conservé)" : ""}.`);
-  if (!r.ok && raccourci) await prisma.adProItem.updateMany({ where: { id }, data: { adminRequestId: raccourci } }).catch(() => undefined);
+  if (!r.ok && raccourci) await prisma.adProItem.updateMany({ where: { id }, data: { adminRequestId: raccourci } }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.adProItem"));
   if (!r.ok) {
     return {
       ok: false,
@@ -1130,11 +1131,11 @@ export async function deleteAdProItem(_prev: ActionResult | undefined, formData:
     await notifyUser({
       userId: d.askedToId, type: "GENERIC", title: "Demande de pièce retirée avec son poste",
       body: `${d.reference} — ${d.label} : le poste « ${item.label} » a été retiré (restaurable depuis la corbeille).`, link: "/pieces",
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.notifyUser"));
   }
   if (piecesOuvertes.length > 0) revalidatePath("/pieces");
   if (item.reservationDossierId) {
-    await ecrireDansLeSujet({ dossierId: item.reservationDossierId, authorId: user.id, body: `${item.label} — poste retiré : la réservation n'a plus d'objet.` }).catch(() => false);
+    await ecrireDansLeSujet({ dossierId: item.reservationDossierId, authorId: user.id, body: `${item.label} — poste retiré : la réservation n'a plus d'objet.` }).catch(sansBloquer("ad-pro-item-actions.deleteAdProItem.ecrireDansLeSujet", false));
   }
   // Une rallonge accordée qu'on retire doit QUITTER le montant de la demande : sinon la fiche
   // porterait pour toujours un budget accordé à un poste qui n'existe plus.
@@ -1275,7 +1276,7 @@ export async function ajouterDevisPoste(_prev: ActionResult | undefined, formDat
       // plusieurs postes se répartit à la main — on ne devine pas à quel poste va chaque ligne. Un DOUTE du contrôle
       // des totaux (TTC imprimé que les lignes ne font pas, TVA non imprimée…) laisse les lignes à valider à la main.
       if (ing.ok && charges.length === 1 && ing.doutes.length === 0) {
-        const nb = await validerAutomatiquementLesLignesLues(user.id, charges[0].item.id, doc.id).catch(() => 0);
+        const nb = await validerAutomatiquementLesLignesLues(user.id, charges[0].item.id, doc.id).catch(sansBloquer("ad-pro-item-actions.ajouterDevisPoste.validerAutomatiquementLesLignesLues", 0));
         if (nb > 0) lecture = `Devis lu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.`;
       }
       if (!unParFichier && lot.length > 1) {
@@ -1525,8 +1526,8 @@ export async function demanderPaiementPoste(_prev: ActionResult | undefined, for
   } catch (err) {
     console.error("[ad-pro-item] demande de paiement impossible", err);
     if (!ordreNe) {
-      await prisma.adProItem.updateMany({ where: { id, expenseOrderId: null, orderStage: "ISSUED" }, data: { orderStage: etapeLue } }).catch(() => undefined);
-      if (piecesCreees.length > 0) await prisma.legalDocument.updateMany({ where: { id: { in: piecesCreees } }, data: { status: "CANCELLED" } }).catch(() => undefined);
+      await prisma.adProItem.updateMany({ where: { id, expenseOrderId: null, orderStage: "ISSUED" }, data: { orderStage: etapeLue } }).catch(sansBloquer("ad-pro-item-actions.demanderPaiementPoste.adProItem"));
+      if (piecesCreees.length > 0) await prisma.legalDocument.updateMany({ where: { id: { in: piecesCreees } }, data: { status: "CANCELLED" } }).catch(sansBloquer("ad-pro-item-actions.demanderPaiementPoste.legalDocument"));
     }
     return { ok: false, error: "La demande de paiement n'a pas pu être enregistrée." };
   }
@@ -1602,7 +1603,7 @@ async function deposerFactureSurPoste(a: {
     entityType: "LEGAL_DOCUMENT", entityId: facture.id, category: "INVOICE", confidentiality: "INTERNAL", stepKey: null, file: a.fichier, buffer: octets,
   }).catch((e) => ({ ok: false as const, error: e instanceof Error ? e.message : "Dépôt impossible.", documentId: undefined }));
   if (!depot.ok) {
-    await prisma.legalDocument.update({ where: { id: facture.id }, data: { status: "CANCELLED" } }).catch(() => undefined);
+    await prisma.legalDocument.update({ where: { id: facture.id }, data: { status: "CANCELLED" } }).catch(sansBloquer("ad-pro-item-actions.deposerFactureSurPoste.legalDocument"));
     return { ok: false, error: `La facture n'a pas pu être enregistrée (${depot.error ?? "erreur"}).` };
   }
   // LES ANNEXES : chacune sur la MÊME pièce du registre, après la facture (qui reste la première : c'est elle qu'on ouvre).
@@ -1610,7 +1611,7 @@ async function deposerFactureSurPoste(a: {
   for (const f of annexes) {
     const r = await persistUploadedDocument(a.user.id, {
       entityType: "LEGAL_DOCUMENT", entityId: facture.id, category: "INVOICE", confidentiality: "INTERNAL", stepKey: null, file: f,
-    }).catch(() => ({ ok: false as const }));
+    }).catch(sansBloquer("ad-pro-item-actions.deposerFactureSurPoste.persistUploadedDocument", { ok: false as const }));
     if (!r.ok) annexesEchouees.push(f.name);
   }
   await rattacherPieceAuPoste({ itemId: item.id, legalDocumentId: facture.id, nature: "FACTURE", acteurId: a.user.id });
@@ -1719,7 +1720,7 @@ async function payerLesFacturesDuPoste(a: {
   });
   if (prise.count === 0) return { ok: false, error: "Ce poste vient de changer (paiement déjà demandé, ou sa décision a été revue) : rouvrez la fiche." };
   // Tout refus qui suit RELÂCHE la prise (la facture déposée, elle, reste : elle s'argumente ensuite).
-  const relacher = () => prisma.adProItem.updateMany({ where: { id, expenseOrderId: null, orderStage: "ISSUED" }, data: { orderStage: etapeLue } }).catch(() => undefined);
+  const relacher = () => prisma.adProItem.updateMany({ where: { id, expenseOrderId: null, orderStage: "ISSUED" }, data: { orderStage: etapeLue } }).catch(sansBloquer("ad-pro-item-actions.relacher.adProItem"));
   const refuser = async (r: ActionResult): Promise<ActionResult> => { await relacher(); return r; };
 
   if (a.fichier) {
@@ -1786,7 +1787,7 @@ async function payerLesFacturesDuPoste(a: {
     };
   } catch (err) {
     console.error("[ad-pro-item] demande de paiement impossible", err);
-    if (!ordreNe) await prisma.adProItem.updateMany({ where: { id, expenseOrderId: null, orderStage: "ISSUED" }, data: { orderStage: etapeLue } }).catch(() => undefined);
+    if (!ordreNe) await prisma.adProItem.updateMany({ where: { id, expenseOrderId: null, orderStage: "ISSUED" }, data: { orderStage: etapeLue } }).catch(sansBloquer("ad-pro-item-actions.payerLesFacturesDuPoste.adProItem"));
     return { ok: false, error: "La demande de paiement n'a pas pu être enregistrée." };
   }
 }
@@ -1957,7 +1958,7 @@ export async function promoMaterialOptions(): Promise<{ id: string; reference: s
 async function recordDecision(itemId: string, decision: AdProItemStatus, note: string | null, amount: number | null, byId: string) {
   await prisma.adProItemDecision.create({
     data: { itemId, decision, note, amount, byId },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("ad-pro-item-actions.recordDecision.adProItemDecision"));
 }
 
 /**
@@ -2003,7 +2004,7 @@ export async function submitAdProItem(_prev: ActionResult | undefined, formData:
       data: { status: "PENDING", submittedAt: new Date(), decisionNote: null, updatedById: user.id },
     });
     await recordDecision(id, "PENDING", note, amount != null ? toNumber(amount) : null, user.id);
-    await notifyRoles(valideursDuPoste(owner.parent), { type: "VALIDATION_REQUIRED", title: "Poste à valider", body: corps, link: lien }).catch(() => undefined);
+    await notifyRoles(valideursDuPoste(owner.parent), { type: "VALIDATION_REQUIRED", title: "Poste à valider", body: corps, link: lien }).catch(sansBloquer("ad-pro-item-actions.submitAdProItem.notifyRoles"));
     await audit(user, owner.parent, owner.id, "UPDATE", `Poste « ${item.label} » soumis à la Direction.`);
     revalidate(owner.parent, owner.id);
     return { ok: true, id };
@@ -2200,7 +2201,7 @@ export async function decideAdProItem(_prev: ActionResult | undefined, formData:
       title: `Poste ${label}`,
       body: `${info.ref} — « ${item.label} »${note ? ` : ${note}` : ""}`,
       link: lienPosteAdPro(owner.parent, owner.id, item.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.decideAdProItem.notifyUser"));
   }
   await audit(user, owner.parent, owner.id, "UPDATE", `Poste « ${item.label} » ${label}${note ? ` — ${note}` : ""}${quitteLAccord && bcEnCours ? " — demande de bon de commande retirée" : ""}.`);
   revalidate(owner.parent, owner.id);
@@ -2343,14 +2344,14 @@ export async function demanderPieceSecretariat(_prev: ActionResult | undefined, 
       await deposerLettreDevis(user, [{ entityType: "AD_PRO_ITEM", entityId: item.id }, { entityType: "ADMIN_REQUEST", entityId: request.id }], {
         titre: item.label, brief: null, reference: info.ref, societeId: info.companyId ?? null,
         articles: [{ designation: `${ITEM_KIND_LABELS[item.kind]} — ${item.label}`, quantite: null, unite: null, prestations: [], precision: note ?? null, produits: [] }],
-      }).catch(() => null);
+      }).catch(sansBloquer("ad-pro-item-actions.demanderPieceSecretariat.deposerLettreDevis", null));
     }
     await notifyRoles(["DIRECTION_ASSISTANT", "SUPER_ADMIN"], {
       type: "ASSIGNMENT",
       title: `Demande de ${spec.libelle.toLowerCase()}`,
       body: `${request.reference} — ${item.label} (${info.ref})`,
       link: `/demandes/${request.id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.demanderPieceSecretariat.notifyRoles"));
     await audit(user, owner.parent, owner.id, "UPDATE", `Demande de ${spec.libelle.toLowerCase()} ${request.reference} ouverte pour le poste « ${item.label} ».`);
     revalidate(owner.parent, owner.id);
     revalidatePath("/demandes");
@@ -2459,7 +2460,7 @@ async function envoyerDemandeBC(i: {
     title: d.creee ? "Bon de commande à établir" : "Demande de bon de commande modifiée",
     body: `${i.ref} — « ${i.item.label} »${i.note ? ` : « ${i.note.slice(0, 160)} »` : ""}`,
     link: `/pieces/${d.id}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("ad-pro-item-actions.envoyerDemandeBC.notifyUser"));
   revalidatePath("/pieces");
   return d.id;
 }
@@ -2539,7 +2540,7 @@ export async function requestAdProItemOrder(_prev: ActionResult | undefined, for
   const posee = await prisma.adProItem.updateMany({ where, data });
   if (posee.count === 0) return { ok: false, error: REFUS_MARCHE_PRISE };
   if (!sousLeSeuil) {
-    await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], notificationDuCentreBC({ id: item.id, ref: demande.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(() => undefined);
+    await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], notificationDuCentreBC({ id: item.id, ref: demande.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(sansBloquer("ad-pro-item-actions.requestAdProItemOrder.notifyRoles"));
   }
   await envoyerDemandeBC({ item, owner, ref: demande.ref, montant: montantAccorde, assistante, demandeurId: user.id, note });
   await audit(user, owner.parent, owner.id, "UPDATE", sousLeSeuil
@@ -2628,7 +2629,7 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
       await notifyUser({
         userId: item.orderRequestedById, type: "VALIDATION_REQUIRED",
         title: "Bon de commande refusé par le centre Ad & Pro", body: `${cible} — ${note}`, link: lien,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.notifyUser"));
     }
     revalidate(owner.parent, owner.id);
     revalidatePath("/centre-ad-pro");
@@ -2651,12 +2652,12 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
     title: "Bon de commande validé — à émettre",
     body: cible,
     link: lien,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.notifyRoles"));
   if (item.orderRequestedById) {
     await notifyUser({
       userId: item.orderRequestedById, type: "GENERIC",
       title: "Bon de commande validé par le centre Ad & Pro", body: `${cible} — transmis aux Finances.`, link: lien,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.notifyUser"));
   }
   await audit(user, owner.parent, owner.id, "UPDATE", `Bon de commande validé par le centre de validation Ad & Pro pour « ${item.label} » — transmis aux Finances.`);
   // LA PIÈCE EXISTE PEUT-ÊTRE DÉJÀ (§118.149) : l'assistante l'a établie pendant que le centre
@@ -2666,9 +2667,9 @@ export async function approveAdProItemOrder(_prev: ActionResult | undefined, for
   const piecesDuPoste = await prisma.adProItemPiece.findMany({
     where: { itemId: id, nature: "BON_DE_COMMANDE" },
     select: { legalDocumentId: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.adProItemPiece", []));
   for (const p of piecesDuPoste) {
-    if (p.legalDocumentId) await signalerSiASigner(p.legalDocumentId).catch(() => false);
+    if (p.legalDocumentId) await signalerSiASigner(p.legalDocumentId).catch(sansBloquer("ad-pro-item-actions.approveAdProItemOrder.signalerSiASigner", false));
   }
   revalidate(owner.parent, owner.id);
   revalidatePath("/centre-ad-pro");
@@ -2747,7 +2748,7 @@ export async function retirerDemandeBC(_prev: ActionResult | undefined, formData
       actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: bc.id,
       field: "status", newValue: "CANCELLED", summary: `Bon de commande ${bc.nom} annulé avec la demande du poste « ${item.label} » — ${motif}`,
     });
-    await aiguillerBC(bc.id, { acteurId: user.id }).catch(() => undefined);
+    await aiguillerBC(bc.id, { acteurId: user.id }).catch(sansBloquer("ad-pro-item-actions.retirerDemandeBC.aiguillerBC"));
   }
   if (bcs.length > 0) { revalidatePath("/legal"); revalidatePath(CHEMIN_BC_A_SIGNER); }
 
@@ -2758,7 +2759,7 @@ export async function retirerDemandeBC(_prev: ActionResult | undefined, formData
     await notifyRoles(FINANCES_BC, {
       type: "GENERIC", title: "Bon de commande retiré — ne pas l'émettre",
       body: `${info?.ref ?? ""} — « ${item.label} » : ${motif}`, link: lienPosteAdPro(owner.parent, owner.id, item.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.retirerDemandeBC.notifyRoles"));
   }
   // LE DEMANDEUR, quand c'est quelqu'un d'autre qui annule (qui tranche) : c'est sa demande qui s'arrête.
   if (item.orderRequestedById && item.orderRequestedById !== user.id) {
@@ -2766,7 +2767,7 @@ export async function retirerDemandeBC(_prev: ActionResult | undefined, formData
       userId: item.orderRequestedById, type: "GENERIC", title: "Demande de bon de commande annulée",
       body: `${info?.ref ?? ""} — « ${item.label} »${annules.length ? ` (BC ${annules.join(", ")} annulé)` : ""} : ${motif}`,
       link: lienPosteAdPro(owner.parent, owner.id, item.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.retirerDemandeBC.notifyUser"));
   }
   await audit(user, owner.parent, owner.id, "UPDATE", `Demande de bon de commande ANNULÉE pour le poste « ${item.label} »${annules.length ? ` — BC ${annules.join(", ")} annulé au registre` : ""} — ${motif}`);
   revalidate(owner.parent, owner.id);
@@ -2866,7 +2867,7 @@ export async function annulerOrdrePoste(_prev: ActionResult | undefined, formDat
       userId: prevenir, type: "GENERIC", title: "Ordre de dépense annulé",
       body: `${info?.ref ?? ""} — « ${item.label} »${annulation.reference ? ` (${annulation.reference})` : ""} : ${motif}`,
       link: lienPosteAdPro(owner.parent, owner.id, item.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-item-actions.annulerOrdrePoste.notifyUser"));
   }
   await audit(user, owner.parent, owner.id, "UPDATE",
     `Ordre de dépense ${annulation.reference ?? ""} ANNULÉ pour le poste « ${item.label} » — ${motif} (réémission possible).`);
@@ -3150,7 +3151,7 @@ export async function confirmerMaterielStock(formData: FormData): Promise<Action
         userId: g, type: "GENERIC", title: "Matériel revenu d'un événement",
         body: `${info.ref} — ${revenu.toLocaleString("fr-FR")} unité(s) reviennent au magasin.`,
         link: lienStockPromo("magasin"),
-      }).catch(() => undefined);
+      }).catch(sansBloquer("ad-pro-item-actions.confirmerMaterielStock.notifyUser"));
     }
   }
   const resume = [...decisions].map(([id, c]) => {
@@ -3549,7 +3550,7 @@ export async function ajouterDevisVoyageur(_prev: ActionResult | undefined, form
       return { ok: true, id: deja.legalDocumentId, message: `Cette pièce est déjà déposée pour ${nomComplet(v)} (« ${deja.nom} ») : rien n'a été ajouté.` };
     }
     if (!deja.voyageur) {
-      const lie = await prisma.adProVoyageurDevis.create({ data: { voyageurId, pieceId: deja.itemPieceId, createdById: user.id }, select: { id: true } }).catch(() => null);
+      const lie = await prisma.adProVoyageurDevis.create({ data: { voyageurId, pieceId: deja.itemPieceId, createdById: user.id }, select: { id: true } }).catch(sansBloquer("ad-pro-item-actions.ajouterDevisVoyageur.adProVoyageurDevis", null));
       if (lie) {
         await audit(user, owner.parent, owner.id, "UPDATE", `Devis « ${deja.nom} » du poste « ${item.label} » rattaché au voyageur « ${nomComplet(v)} » (même fichier, non dupliqué).`);
         revalidate(owner.parent, owner.id);
@@ -3568,7 +3569,7 @@ export async function ajouterDevisVoyageur(_prev: ActionResult | undefined, form
     where: { itemId_legalDocumentId: { itemId: item.id, legalDocumentId: depose.id } }, select: { id: true },
   });
   const lie = piece
-    ? await prisma.adProVoyageurDevis.create({ data: { voyageurId, pieceId: piece.id, createdById: user.id }, select: { id: true } }).catch(() => null)
+    ? await prisma.adProVoyageurDevis.create({ data: { voyageurId, pieceId: piece.id, createdById: user.id }, select: { id: true } }).catch(sansBloquer("ad-pro-item-actions.ajouterDevisVoyageur.adProVoyageurDevis", null))
     : null;
   revalidate(owner.parent, owner.id);
   if (!lie) {
@@ -4066,7 +4067,7 @@ export async function lireLesLignesDuDevis(formData: FormData): Promise<ActionRe
       select: { name: true, fileKey: true, confidentiality: true },
     });
     if (!fichier?.fileKey) return { ok: false, error: "Ce devis n'a pas de fichier à lire : joignez-le d'abord." };
-    const octets = await readFileByKey(fichier.fileKey).catch(() => null);
+    const octets = await readFileByKey(fichier.fileKey).catch(sansBloquer("ad-pro-item-actions.lireLesLignesDuDevis.readFileByKey", null));
     if (!octets) return { ok: false, error: "Le fichier de ce devis est introuvable dans le stockage." };
     const ing = await ingererDevisDuPoste({
       userId: user.id, legalDocumentId: pieceId, octets, nomFichier: fichier.name, remplacer: true,
@@ -4075,7 +4076,7 @@ export async function lireLesLignesDuDevis(formData: FormData): Promise<ActionRe
     if (!ing.ok) return { ok: false, error: ing.raison };
     await audit(user, owner.parent, owner.id, "UPDATE", `Devis « ${devis.reference ?? devis.titre} » du poste « ${item.label} » relu : ${ing.nbLignes} ligne${ing.nbLignes > 1 ? "s" : ""} proposée${ing.nbLignes > 1 ? "s" : ""}.`);
     // Un doute du contrôle des totaux (TTC imprimé que les lignes ne font pas, TVA non imprimée…) : rien d'office.
-    const nb = ing.doutes.length === 0 ? await validerAutomatiquementLesLignesLues(user.id, id, pieceId).catch(() => 0) : 0;
+    const nb = ing.doutes.length === 0 ? await validerAutomatiquementLesLignesLues(user.id, id, pieceId).catch(sansBloquer("ad-pro-item-actions.lireLesLignesDuDevis.validerAutomatiquementLesLignesLues", 0)) : 0;
     revalidate(owner.parent, owner.id);
     return { ok: true, id, message: nb > 0 ? `Devis relu : ${nb} ligne${nb > 1 ? "s" : ""} validée${nb > 1 ? "s" : ""} automatiquement.` : phraseDeLecture(ing) };
   });
@@ -4235,7 +4236,7 @@ async function traiterLeBCDuPoste(formData: FormData, mode: "APERCU" | "VALIDER"
       const posee = await prisma.adProItem.updateMany({ where: prise.where, data: prise.data });
       if (posee.count === 0) return { ok: false, error: REFUS_MARCHE_PRISE };
       if (!prise.sousLeSeuil) {
-        await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], notificationDuCentreBC({ id: item.id, ref: info.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(() => undefined);
+        await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], notificationDuCentreBC({ id: item.id, ref: info.ref, label: item.label, montantAccorde: montantAccorde as number })).catch(sansBloquer("ad-pro-item-actions.traiterLeBCDuPoste.notifyRoles"));
       }
       marche = { sousLeSeuil: prise.sousLeSeuil, seuilBC: prise.seuilBC };
     }

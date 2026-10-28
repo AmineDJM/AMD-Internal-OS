@@ -11,6 +11,7 @@ import {
   entityToCategory, WORKFLOW_CATEGORIES, CATEGORY_LABELS,
   type ActorScope, type WorkflowCategory, type WorkflowPower,
 } from "@/lib/workflow/types";
+import { sansBloquer } from "@/lib/journal";
 
 export interface WorkflowStepView {
   slug: string;
@@ -164,7 +165,7 @@ async function synthesizeCreationEvent(
               : null;
   if (!row) return null;
   const requester = requesterId
-    ? await prisma.user.findUnique({ where: { id: requesterId }, select: { name: true } }).catch(() => null)
+    ? await prisma.user.findUnique({ where: { id: requesterId }, select: { name: true } }).catch(sansBloquer("workflow.synthesizeCreationEvent.user", null))
     : null;
   return {
     stepSlug: "__created__", stepTitle: "Demande créée", action: "CREATE",

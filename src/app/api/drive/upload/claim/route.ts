@@ -7,6 +7,7 @@ import { resolveDriveAccess, effectiveSpaceId, canCreateInSpace, canViewDrive } 
 import { quotaVerdict } from "@/lib/drive/quota";
 import { userUsageBytes, physicalUsageBytes } from "@/lib/drive/usage";
 import { recordAudit } from "@/lib/audit";
+import { attendu } from "@/lib/journal";
 
 /**
  * TÉLÉVERSEMENT INSTANTANÉ — quand le contenu est DÉJÀ là, on n'envoie pas les octets.
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (user.mustChangePassword) return NextResponse.json({ error: "Mot de passe à changer." }, { status: 403 });
 
-  const body = (await req.json().catch(() => null)) as {
+  const body = (await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", null))) as {
     sha256?: string; name?: string; size?: number;
     parentId?: string | null; spaceId?: string | null; category?: string | null;
     viewers?: string[]; editors?: string[];

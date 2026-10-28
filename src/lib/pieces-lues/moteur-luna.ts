@@ -1,6 +1,7 @@
 import { callLuna, lunaConfigured, lunaModel } from "@/lib/openai-luna";
 import { rasterizePdf } from "@/lib/regulatory/intelligence/ocr/ocr-engine";
 import type { MoteurOcr } from "@/lib/regulatory/intelligence/extract/texte-ou-ocr";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * C'EST LUNA QUI LIT UN SCAN, PAS UN OCR (§118.200, décision du dirigeant).
@@ -53,7 +54,7 @@ export function moteurLuna(repli: MoteurOcr | undefined, deps: { appeler?: typeo
       const confiance = CONFIANCE[res.data.lisibilite] ?? 50;
       return { text: res.data.texte, meanConfidence: confiance, needsReview: confiance < 70, pageCount: total, pagesLues: images.length, moteur: `luna:${lunaModel()}` };
     };
-    const lu = await essai().catch(() => null);
+    const lu = await essai().catch(sansBloquer("moteur-luna.moteurLuna.essai", null));
     if (lu) return lu;
     if (!repli) throw new Error("Lecture Luna indisponible et aucun moteur local.");
     return repli(args);

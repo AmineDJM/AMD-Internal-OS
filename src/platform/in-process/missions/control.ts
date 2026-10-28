@@ -5,6 +5,7 @@ import { approbationsEnAttente, decider } from "@/lib/missions/approval/gate";
 import { annuler, mettreEnPause, reprendre } from "@/lib/missions/runtime/control";
 import { ECRAN_REGLAGES_ADAM, suspendreMissions } from "@/lib/interrupteurs/missions";
 import { avancerMission, replanifierMission } from "@/platform/in-process/missions/runtime";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -55,7 +56,7 @@ export async function reprendreMissionAgent(
 ): Promise<GesteMission> {
   const r = await reprendre(missionId, user.id);
   if (!r.ok) return { fait: false, statut: r.vers, message: r.message };
-  await avancerMission(user, missionId, { maxTours: 25 }).catch(() => undefined);
+  await avancerMission(user, missionId, { maxTours: 25 }).catch(sansBloquer("control.reprendreMissionAgent.avancerMission"));
   return { fait: true, statut: "RUNNING", message: r.message };
 }
 
@@ -87,7 +88,7 @@ export async function suspendreToutesLesMissions(
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Chief of Staff",
       summary: `Missions d'Adam SUSPENDUES depuis la conversation (interrupteur global)${motif ? ` — ${motif}` : ""}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("control.suspendreToutesLesMissions.recordAudit"));
   }
   return {
     fait: true, statut: null,
@@ -144,7 +145,7 @@ export async function replanifierAgent(
 ): Promise<GesteMission> {
   const r = await replanifierMission(user, missionId);
   if (!r.replanifie) return { fait: false, statut: null, message: r.raison };
-  await avancerMission(user, missionId, { maxTours: 25 }).catch(() => undefined);
+  await avancerMission(user, missionId, { maxTours: 25 }).catch(sansBloquer("control.replanifierAgent.avancerMission"));
   return { fait: true, statut: null, message: r.raison };
 }
 

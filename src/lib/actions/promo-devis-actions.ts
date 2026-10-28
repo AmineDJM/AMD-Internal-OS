@@ -33,6 +33,7 @@ import { natureDeLaCategorie } from "@/lib/ad-pro/doc-categories";
 import { refusDeRangement } from "@/lib/promo-material/rangement";
 import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { etatRetraitDemandeDevis, ramenerSiPlusDeDemandeDevis } from "@/lib/promo-material/retrait-devis";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES DEVIS DU MATÉRIEL PROMOTIONNEL — demande, retranscription, choix des lignes (§118.152).
@@ -127,7 +128,7 @@ async function retirerScanOrphelin(userId: string, pmId: string, documentId: str
     await recordAudit({
       actorId: userId, action: "DELETE", module: "Matériel promotionnel", entityType: "PROMO_MATERIAL", entityId: pmId,
       summary: `Document « ${doc.name} » retiré : le devis qu'il accompagnait n'a pas été enregistré`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("promo-devis-actions.retirerScanOrphelin.recordAudit"));
     return true;
   } catch (err) {
     console.error("[devis promo] scan orphelin non retiré", documentId, err);
@@ -143,7 +144,7 @@ async function retirerScanOrphelin(userId: string, pmId: string, documentId: str
 async function octetsDuScan(pmId: string, documentId: string): Promise<Buffer | null> {
   const doc = await prisma.document.findFirst({ where: { id: documentId, entityType: "PROMO_MATERIAL", entityId: pmId }, select: { fileKey: true } });
   if (!doc?.fileKey) return null;
-  return readFileByKey(doc.fileKey).catch(() => null);
+  return readFileByKey(doc.fileKey).catch(sansBloquer("promo-devis-actions.octetsDuScan.readFileByKey", null));
 }
 
 // ───────────────────────── 1. Le demandeur demande les devis ─────────────────────────
@@ -201,7 +202,7 @@ export async function demanderDevisPromo(formData: FormData): Promise<ActionResu
   if (!r.ok) return { ok: false, error: r.error };
   if (r.assistantId) await notifyUser({ userId: r.assistantId, ...r.avis });
   else await notifyRoles(["DIRECTION_ASSISTANT"], r.avis);
-  const lettre = await joindreLettreDeDevis(user, pm.id, r.demande.id).catch(() => null);
+  const lettre = await joindreLettreDeDevis(user, pm.id, r.demande.id).catch(sansBloquer("promo-devis-actions.demanderDevisPromo.joindreLettreDeDevis", null));
   return { ok: true, id: r.demande.id, message: `Demande de devis envoyée au secrétariat (${r.demande.reference}).${lettre?.ok ? ` ${phraseDepotLettre(lettre)}` : ""}` };
 }
 
@@ -757,11 +758,11 @@ export async function redemanderDevisPromo(formData: FormData): Promise<ActionRe
     data: { circuitState: "QUOTE_REQUESTED", adminRequestId: ouverte.demande.id, updatedById: user.id },
   });
   if (bascule.count === 0) {
-    await prisma.administrativeRequest.delete({ where: { id: ouverte.demande.id } }).catch(() => {});
+    await prisma.administrativeRequest.delete({ where: { id: ouverte.demande.id } }).catch(sansBloquer("promo-devis-actions.redemanderDevisPromo.administrativeRequest"));
     return { ok: false, error: "Ce dossier vient de changer d'étape — rechargez la fiche." };
   }
   await ecrireAuFil({ entityType: "PROMO_MATERIAL", entityId: pm.id, authorId: user.id, body: `Nouveaux devis demandés (${ouverte.demande.reference}) : ${note}` });
-  await joindreLettreDeDevis(user, pm.id, ouverte.demande.id).catch(() => null);
+  await joindreLettreDeDevis(user, pm.id, ouverte.demande.id).catch(sansBloquer("promo-devis-actions.redemanderDevisPromo.joindreLettreDeDevis", null));
   const avis = { type: "ASSIGNMENT" as const, title: "Matériel promotionnel — nouveaux devis à demander et à retranscrire", body: `${pm.reference} — ${note.slice(0, 200)}`, link: chemin(pm.id) };
   if (pm.assistantId) await notifyUser({ userId: pm.assistantId, ...avis });
   else await notifyRoles(["DIRECTION_ASSISTANT"], avis);

@@ -321,6 +321,7 @@ Auth modes:
 | Code | Meaning |
 |---|---|
 | **S** | `getCurrentUser()` from `@/lib/session`, `401` if null |
+| **S-L** | `identiteDuSondage()` from `@/lib/session-legere` — shell polls only (no access matrix; same revocation & Vue exacte) |
 | **S-W** | `getCurrentUserPourEcrire()`, required for writing handlers by `session-vue-exacte.test.ts:120` |
 | **S+R** | session plus `userCan(...)`, `403` if refused |
 | **K** | `/api/v1` bearer API key via `handle()` |
@@ -360,8 +361,8 @@ Auth modes:
 | `marque/[companyId]/logo` (1) | GET | S | Company logo. |
 | `medical/{annuaire/export, coaching/export, coaching/[id]/export, plan-de-tournee/[id]/pdf}` (4) | GET | S+R | Medical exports and PDFs. |
 | `meetings/{[id]/recording, message-attachment/[id]}` (2) | POST/GET | S-W+R / S | Recording upload, attachments. |
-| `messaging/{attachment/[id], bookmarks, conversation, messages, sync, typing, upload}` (7) | GET/POST | S(+R) / S-W+R | Internal chat. |
-| `notifications/poll` (1) | GET | S | Notification polling. |
+| `messaging/{attachment/[id], bookmarks, conversation, messages, sync, typing, upload}` (7) | GET/POST | S(+R) / S-W+R | Internal chat. `sync` (shell badge poll) uses S-L + `peutVoirLaMessagerie` (PERF-06). |
+| `notifications/poll` (1) | GET | S-L | Notification polling — light poll identity `identiteDuSondage` (PERF-06). |
 | `onlyoffice/{file, callback}` (2) | GET/POST | T (`readEditToken`/`readDocEditToken`), middleware-exempt | OnlyOffice server-to-server. |
 | `onlyoffice/session` (1) | GET | S | Issues the edit token. |
 | `pch/export`, `planning/export`, `segmentation/export`, `stocks/demandes/[id]/export`, `ventes-pch/fichier/[id]` (5) | GET | S(+R) | Exports and files. |
@@ -485,9 +486,14 @@ Session-route conventions:
    (`STATUSES.includes(status)`), never trusted. [V]
 6. **Money.** Read with `toNumber`; write with `new Prisma.Decimal(n)`; compare and validate in
    pure modules (`finance/*`). [V]
-7. **Client calls.** Prefer `CreateRecordButton` (create dialogs) or `useAction` / `useKeyedAction`.
+7. **Tolerated failures are named, never silent** (lot V3-E, 2026-10-28). No `.catch(() => [])`: use
+   `.catch(sansBloquer("domain.what-failed", fallback))` (logged as one JSON line, counted, alerts the
+   Super Admin past 5/hour) or `.catch(attendu("reason", fallback))` for an expected rejection (client
+   body, optional file, best-effort close). Both from `src/lib/journal.ts` (pure, client-safe). Ratchet:
+   `src/lib/journal-catch-muets.test.ts` — server side zero outside named exceptions. [V]
+8. **Client calls.** Prefer `CreateRecordButton` (create dialogs) or `useAction` / `useKeyedAction`.
    Never write `await action(); setBusy(false)` without a try/catch. [V]
-8. **Tooling.**
+9. **Tooling.**
    - `tsconfig.json`: `strict: true`, `moduleResolution: bundler`, alias `@/* → src/*`.
    - `tsconfig.build.json` extends it with `incremental:false` and **excludes `*.test.ts(x)` and
      `*.spec.ts(x)`**. It is the typecheck used on Render (`next.config.mjs:19-31`, 5 GB heap).
@@ -496,13 +502,13 @@ Session-route conventions:
      `no-assign-module-variable` turned off.
    - `next build` skips ESLint (`eslint.ignoreDuringBuilds: true`); `build:render` runs
      `next lint` first, so lint errors block deploy (§118.155). [V]
-9. **Tests** are colocated as `*.test.ts`; Vitest only includes `src/**/*.test.ts` (no `.tsx`
+10. **Tests** are colocated as `*.test.ts`; Vitest only includes `src/**/*.test.ts` (no `.tsx`
    tests exist). There are 1,222 test files.
    - Integration tests hit a real Postgres. They mock `next/cache` and `@/lib/session`
      (`support-flow.test.ts:4-6`) and become `describe.skip` when the DB is unreachable (`:13-15`).
    - "Cliquet" (ratchet) tests read the source and enforce structure: action parity,
      client-bundle guard, session-only identity in routes, site-web gate order.
-10. **Migrations** are hand-written idempotent SQL (`CREATE TABLE IF NOT EXISTS …`) in
+11. **Migrations** are hand-written idempotent SQL (`CREATE TABLE IF NOT EXISTS …`) in
     `prisma/migrations/<YYYYMMDDHHMMSS>_<slug>/migration.sql` (463 folders). Recent folders are
     dated 2027-01-xx, ahead of the calendar, so they sort after older ones. Applied with
     `db:deploy`. [V]

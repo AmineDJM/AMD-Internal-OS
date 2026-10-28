@@ -4,6 +4,7 @@ import { resolveGoogleConfig, GOOGLE_SCOPES } from "./config";
 import { computeMissingScopes, mergeGrantedScopes, normalizeScopes } from "./scopes";
 import { refreshTokens, revokeToken, type GoogleTokenSet } from "./oauth";
 import { GoogleApiError } from "./client";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA CONNEXION GOOGLE D'ADAM — et l'isolation, garantie par construction.
@@ -188,5 +189,5 @@ export async function getActiveGoogleConnection(userId: string): Promise<ActiveG
 
 /** Note la dernière synchronisation réussie — l'écran doit pouvoir dire « à jour il y a 2 min ». */
 export async function touchGoogleSync(connectionId: string): Promise<void> {
-  await prisma.googleConnection.update({ where: { id: connectionId }, data: { lastSyncAt: new Date() } }).catch(() => undefined);
+  await prisma.googleConnection.update({ where: { id: connectionId }, data: { lastSyncAt: new Date() } }).catch(sansBloquer("connection.touchGoogleSync.googleConnection"));
 }

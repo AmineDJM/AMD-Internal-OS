@@ -15,6 +15,7 @@ import { experienceForSection } from "../training/for-section";
 import { budgetState } from "./ledger";
 import { regAudit } from "../audit";
 import { enrichVersionFindings } from "../findings/enrich";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ANALYSE DIFFÉRÉE — la voie à MOITIÉ PRIX.
@@ -226,7 +227,7 @@ async function pollOne(b: { id: string; externalId: string }): Promise<void> {
     try {
       const st = await getBatchStatus(b.externalId);
       if (!st.ok) {
-        await prisma.regulatoryAiBatch.update({ where: { id: b.id }, data: { error: st.error ?? "État indisponible." } }).catch(() => {});
+        await prisma.regulatoryAiBatch.update({ where: { id: b.id }, data: { error: st.error ?? "État indisponible." } }).catch(sansBloquer("batch-runner.pollOne.regulatoryAiBatch"));
         return;
       }
       await prisma.regulatoryAiBatch.update({
@@ -293,7 +294,7 @@ export async function processCompletedBatch(batchId: string): Promise<number> {
       if (anchor === undefined) {
         const ext = await prisma.regulatoryExtraction
           .findUnique({ where: { documentId: ref.documentId }, select: { content: true, pageMap: true } })
-          .catch(() => null);
+          .catch(sansBloquer("batch-runner.processCompletedBatch.regulatoryExtraction", null));
         anchor = ext && Array.isArray(ext.pageMap) ? { content: ext.content, pageMap: ext.pageMap as number[] } : null;
         anchorCache.set(ref.documentId, anchor);
       }
@@ -359,14 +360,14 @@ export async function processCompletedBatch(batchId: string): Promise<number> {
     // enrichissait sans contexte — plus faible sans raison.
     // `productId` est un scalaire sans relation Prisma : résolution en deux temps, comme partout.
     const productId = batch.dossierId
-      ? (await prisma.regulatoryDossier.findUnique({ where: { id: batch.dossierId }, select: { productId: true } }).catch(() => null))?.productId ?? null
+      ? (await prisma.regulatoryDossier.findUnique({ where: { id: batch.dossierId }, select: { productId: true } }).catch(sansBloquer("batch-runner.processCompletedBatch.regulatoryDossier", null)))?.productId ?? null
       : null;
     const product = productId
-      ? await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { dci: true, partnerLab: true } }).catch(() => null)
+      ? await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { dci: true, partnerLab: true } }).catch(sansBloquer("batch-runner.processCompletedBatch.regulatoryProduct", null))
       : null;
     await enrichVersionFindings(batch.dossierVersionId, {
       dci: product?.dci ?? null, supplier: product?.partnerLab ?? null,
-    }).catch(() => 0);
+    }).catch(sansBloquer("batch-runner.processCompletedBatch.enrichVersionFindings", 0));
 
     // Le point d'arrivée n'est pas « un lot est traité » mais « LA VERSION est traitée » : sur
     // quatre lots, trois notifications de fin seraient trois fausses bonnes nouvelles.
@@ -396,7 +397,7 @@ export async function processCompletedBatch(batchId: string): Promise<number> {
     });
 
     // Là où le balayage a trouvé du CRITIQUE, l'agent spécialiste repasse — même en différé.
-    await escalateCriticalSections(batch.dossierVersionId, { companyId: batch.companyId, dossierId: batch.dossierId }).catch(() => 0);
+    await escalateCriticalSections(batch.dossierVersionId, { companyId: batch.companyId, dossierId: batch.dossierId }).catch(sansBloquer("batch-runner.processCompletedBatch.escalateCriticalSections", 0));
 
     const link = batch.dossierId ? `/regulatory/enregistrement/analyse/${batch.dossierId}` : "/regulatory/enregistrement/analyse";
     if (batch.createdById) {
@@ -405,17 +406,17 @@ export async function processCompletedBatch(batchId: string): Promise<number> {
         title: "Analyse différée terminée",
         body: `${totalFindings} constat(s) à relire.`,
         link,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("batch-runner.processCompletedBatch.notifyUser"));
     } else {
       // Analyse lancée PAR LE PIPELINE (personne au clavier) : les superviseurs Regulatory sont
       // prévenus — sinon une analyse terminée la nuit n'était vue que par hasard.
-      const roles = (await getAppSettings().catch(() => null))?.regulatorySupervisorRoles ?? [];
+      const roles = (await getAppSettings().catch(sansBloquer("batch-runner.processCompletedBatch.getAppSettings", null)))?.regulatorySupervisorRoles ?? [];
       await notifyRoles([...new Set([...roles, "SUPER_ADMIN"])] as never, {
         type: "GENERIC",
         title: "Analyse CTD terminée",
         body: `${totalFindings} constat(s) à relire (analyse différée).`,
         link,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("batch-runner.processCompletedBatch.notifyRoles"));
     }
 
     return kept.length;
@@ -423,7 +424,7 @@ export async function processCompletedBatch(batchId: string): Promise<number> {
     console.error("[ctd-batch] traitement des résultats impossible", batchId, e);
     await prisma.regulatoryAiBatch
       .update({ where: { id: batchId }, data: { error: "Traitement des résultats impossible." } })
-      .catch(() => {});
+      .catch(sansBloquer("batch-runner.processCompletedBatch.regulatoryAiBatch"));
     return 0;
   }
 }

@@ -1,19 +1,16 @@
 import { cache } from "react";
-import { cookies } from "next/headers";
-import { actionAsyncStorage } from "next/dist/client/components/action-async-storage.external";
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import type { UserRole } from "@prisma/client";
 import { auth } from "@/auth";
-import { prisma } from "./prisma";
 import { getAccess, userCan, type Action, type EffectiveAccess, type Module } from "./rbac";
 import { firstAccessibleHref } from "./labels";
-import { shouldTouch } from "./touch-throttle";
 import { getAppSettings } from "./settings";
 import { canOpenModule } from "./modules-visibility";
 import { IMPERSONATE_COOKIE } from "./vue-exacte";
 import { vueHonoree } from "./vue-exacte-ui";
 import { lectureDeclaree } from "./vue-lecture";
+import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDeSession } from "./session-compte";
 
 /**
  * Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. Défini dans
@@ -42,155 +39,42 @@ export interface CurrentUser {
   visualise?: { id: string; name: string };
 }
 
-/**
- * UNE ACTION SERVEUR S'EXÉCUTE-T-ELLE EN CE MOMENT ? La question n'est pas « cette requête porte-t-elle
- * l'en-tête `Next-Action` ? » : c'est ce qu'on lisait (§118.184), et c'était faux de deux façons.
- *
- *   · Une action qui `redirect()` ne renvoie pas une redirection : Next rend la page cible DANS la
- *     réponse de l'action, en rejouant les en-têtes de la requête — `Next-Action` compris. La page
- *     d'arrivée de « Voir comme cet utilisateur » se rendait donc comme celle du Super Admin, sans
- *     bandeau ; seul un rechargement (une vraie requête GET) montrait la vue. Même défaut après toute
- *     action qui revalide la page affichée : l'écran retombait sur l'administrateur jusqu'au prochain
- *     rechargement. Mesuré contre le build de production (`e2e/vue-exacte.spec.ts`).
- *   · L'en-tête dit « cette requête VIENT d'une action », pas « le code qui tourne est celui de
- *     l'action » : le rendu de la page qui suit l'action est un RENDU, il LIT.
- *
- * Next marque l'exécution de l'action dans un stockage asynchrone (`actionAsyncStorage`, `isAction`) :
- * c'est le fait que `cookies().set` et `redirect` lisent eux-mêmes. ⚠️ Pas « d'elle seule » : le rendu
- * qui suit une action qui revalide y tourne aussi — d'où `rendreEnCours` ci-dessous (Direction, 06/10).
- * Une route d'API qui écrit le DIT en appelant `getCurrentUserPourEcrire` (un cliquet l'exige de chaque
- * gestionnaire POST/PUT/PATCH/DELETE). Hors requête (banc, battement), personne n'usurpe rien.
- */
-function actionServeurEnCours(): boolean {
-  try {
-    return actionAsyncStorage.getStore()?.isAction === true;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * UN RENDU DE COMPOSANTS SERVEUR EST-IL EN COURS ? — la moitié manquante de la règle ci-dessus.
- *
- * « Le problème d'interface quand je vois à la place d'un user refait surface » (Direction, 06/10). LU dans
- * Next 14.2 (`server/app-render/action-handler.js`) : `generateFlight` — le rendu de la page qui SUIT une
- * action qui revalide — s'exécute DANS `actionAsyncStorage.run({ isAction: true })`. Tout ce rendu (la coque :
- * nom en haut, menu, pastilles, bandeau ; et la page) se faisait donc au nom de l'ADMINISTRATEUR, au milieu
- * de l'écran de la personne visualisée : le chevauchement, après chaque geste.
- *
- * React dit, lui, si l'on rend : `cache` ne mémorise QUE pendant un rendu de composants serveur (documenté ;
- * hors rendu — corps d'une action, route d'API — chaque appel recalcule). Deux appels qui rendent le même
- * objet = un rendu en cours. Hors de Next (bancs : React 18 sans `cache`), aucun rendu.
- */
-const sondeDeRendu: (() => object) | null =
-  typeof cache === "function" ? (cache as <T extends () => object>(f: T) => T)(() => ({})) : null;
-function rendreEnCours(): boolean {
-  if (!sondeDeRendu) return false;
-  try {
-    return sondeDeRendu() === sondeDeRendu();
-  } catch {
-    return false;
-  }
-}
-
-/** Le cookie de la vue, ou `undefined` hors requête (banc, battement : personne ne visualise rien). */
-function cookieDeVue(): string | undefined {
-  try {
-    return cookies().get(IMPERSONATE_COOKIE)?.value;
-  } catch {
-    return undefined;
-  }
-}
-
-interface OptionsDeSession {
-  /** Route d'API qui écrit : au nom du Super Admin (§118.184). */
-  ecriture?: boolean;
-  /** Création d'une demande : au nom de la personne visualisée (Direction, 06/10). */
-  auNomDeLaVue?: boolean;
-}
-
 async function build(session: Session | null, opts: OptionsDeSession = {}): Promise<CurrentUser | null> {
   if (!session?.user) return null;
 
-  // Validate the revocable session: reject revoked/expired tokens so the admin
-  // can force-logout a user (or a single device) from the console.
-  //
-  // Le COMPTE se relit avec la session, dans la même requête (audit sécurité 27/10, SECURITE-ACCES-07) :
-  //   • un compte DÉSACTIVÉ n'a plus de session — `toggleUserActive` (Adam) ne révoquait rien, et l'ancien
-  //     salarié restait connecté jusqu'à 30 jours ;
-  //   • le rôle qui ouvre la « Vue exacte » est le rôle EN BASE, pas celui que le JWT a figé au login — un
-  //     Super Admin rétrogradé gardait sinon la vue (lire l'OS comme n'importe qui) jusqu'à expiration.
+  // La session révocable et le compte EN BASE (révocation, compte désactivé, rôle réel) puis la « Vue
+  // exacte » : les deux règles vivent dans `session-compte.ts`, partagées avec l'identité légère des
+  // sondages de la coque (`session-legere.ts`) — un sondage ne voit jamais ce qu'une page refuserait.
   const sid = session.user.sid;
-  let compte: { isActive: boolean; role: UserRole } | null | undefined;
+  let compte: CompteDeSession | null | undefined;
   if (sid) {
-    const us = await prisma.userSession.findUnique({
-      where: { id: sid },
-      select: { revokedAt: true, expiresAt: true, user: { select: { isActive: true, role: true } } },
-    });
-    if (!us || us.revokedAt || us.expiresAt < new Date()) return null;
-    compte = us.user;
+    const lue = await lireSessionRevocable(sid);
+    if (!lue) return null;
+    compte = lue.compte;
     if (compte && !compte.isActive) return null;
-    // `lastSeenAt` = « dernier clic » : granularité à la minute suffit. On throttle donc
-    // l'UPDATE (au plus 1×/min par session) au lieu d'écrire à CHAQUE requête (WAL/disque).
-    if (shouldTouch(`sess:${sid}`, 60_000)) {
-      prisma.userSession
-        .update({ where: { id: sid }, data: { lastSeenAt: new Date() } })
-        .catch(() => undefined);
-    }
   }
 
-  // « Vue exacte » : un Super Admin peut visualiser l'OS exactement comme un autre
-  // utilisateur. Le cookie n'est honoré QUE si la session réelle est Super Admin —
-  // un cookie forgé par un non-admin est donc sans effet.
-  //
-  // C'est une VUE, pas une usurpation (§118.184, audit 360° S8). Le bandeau promettait « vos actions
-  // seront enregistrées au nom de l'administrateur », et chaque action partait pourtant AU NOM de la
-  // personne visualisée : une décision, un envoi, un dépôt s'écrivaient sous son nom au journal et
-  // dans les notifications. Une requête qui ÉCRIT ignore donc la vue : elle part au nom du Super
-  // Admin, avec ses droits — ce que le bandeau dit.
-  //
   // EXCEPTION VOULUE (Direction, 06/10) : la CRÉATION D'UNE DEMANDE sous « Vue exacte » se fait au nom de
   // la personne visualisée (`opts.auNomDeLaVue`, via `requireUserAuNomDeLaVue`), pour que le Super Admin
-  // teste son parcours de bout en bout : la fiche se crée à son nom, avec ses droits et sa gamme, et
-  // s'ouvre dans cette même vue. Réservé au Super Admin RÉEL (la condition ci-dessous) ; la requête
-  // garde `impersonatedBy` pour que l'on sache qui a testé.
-  //
-  // QUI EST À L'ÉCRAN (Direction, 06/10 — « pas de chevauchement possible ») : la règle tient dans
-  // `vueHonoree` (vue-exacte-ui.ts). Tout ce qui s'AFFICHE voit la vue — y compris le rendu qui suit une
-  // action et les actions qui ne font que lire (`enLecture(requireUser)`) ; seul le CORPS d'une écriture part
-  // au nom du Super Admin, qui garde alors `visualise` : un geste réservé à « soi » (Adam) sait le refuser.
+  // teste son parcours de bout en bout. Le CORPS de toute autre écriture part au nom du Super Admin, qui
+  // garde alors `visualise` : un geste réservé à « soi » (Adam) sait le refuser.
   let visualise: CurrentUser["visualise"];
-  const roleReel = compte?.role ?? session.user.role;
-  const targetId = roleReel === "SUPER_ADMIN" ? cookieDeVue() : undefined;
-  if (targetId && targetId !== session.user.id) {
-    const target = await prisma.user.findUnique({
-      where: { id: targetId },
-      select: { id: true, name: true, email: true, role: true, isActive: true },
-    });
-    if (target && target.isActive) {
-      const honoree = vueHonoree({
-        ecriture: !!opts.ecriture,
-        auNomDeLaVue: !!opts.auNomDeLaVue,
-        lecture: lectureDeclaree(),
-        actionServeur: actionServeurEnCours(),
-        rendu: rendreEnCours(),
-      });
-      if (!honoree) visualise = { id: target.id, name: target.name };
-      else {
-        const targetAccess = await getAccess(target.id, target.role);
-        return {
-          id: target.id,
-          name: target.name,
-          email: target.email,
-          role: target.role,
-          secondaryRole: targetAccess.secondaryRole,
-          access: targetAccess,
-          sid,
-          mustChangePassword: false,
-          impersonatedBy: { id: session.user.id, name: session.user.name ?? "Administrateur" },
-        };
-      }
-    }
+  const vue = await vueDemandee(compte?.role ?? session.user.role, session.user.id, opts);
+  if (vue && !vue.honoree) visualise = { id: vue.cible.id, name: vue.cible.name };
+  else if (vue) {
+    const target = vue.cible;
+    const targetAccess = await getAccess(target.id, target.role);
+    return {
+      id: target.id,
+      name: target.name,
+      email: target.email,
+      role: target.role,
+      secondaryRole: targetAccess.secondaryRole,
+      access: targetAccess,
+      sid,
+      mustChangePassword: false,
+      impersonatedBy: { id: session.user.id, name: session.user.name ?? "Administrateur" },
+    };
   }
 
   const access = await getAccess(session.user.id, session.user.role);
@@ -211,9 +95,21 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
   };
 }
 
+/**
+ * L'utilisateur À L'ÉCRAN, calculé UNE fois par rendu (audit performance PERF-10). La coque
+ * (`requireUser`), la page (`requireModule` → `requireUser`) et leurs composants le demandent chacun :
+ * sans mémoire, chaque appel relisait la session révocable et la cible de la Vue exacte.
+ *
+ * Exact par construction : `cache` ne mémorise QUE pendant un rendu de composants serveur — c'est le
+ * critère même de `rendreEnCours` — et pendant un rendu la vue est toujours honorée pour une lecture
+ * (`vueHonoree`). Hors rendu (corps d'une action, route d'API), chaque appel recalcule, comme avant.
+ */
+const buildDuRendu: () => Promise<CurrentUser | null> =
+  typeof cache === "function" ? cache(async () => build(await auth())) : async () => build(await auth());
+
 /** Returns the signed-in user (with resolved access) or redirects to /login. */
 export async function requireUser(): Promise<CurrentUser> {
-  const user = await build(await auth());
+  const user = await buildDuRendu();
   if (!user) redirect("/login");
   return user;
 }
@@ -268,7 +164,7 @@ export async function requireModule(
 
 /** Non-redirecting variant for layouts / optional checks. */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  return build(await auth());
+  return buildDuRendu();
 }
 
 /**

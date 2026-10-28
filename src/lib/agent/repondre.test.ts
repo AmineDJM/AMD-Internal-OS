@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterAll, describe, expect, it, vi } from "vitest";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { repondreAvecSecours } from "@/lib/agent/repondre";
 import { modeleFactice } from "@/lib/agent/testing/modele-factice";
+import { effacerJournalDe } from "@/lib/agent/testing/journal";
 
 const user = { id: "u-test", role: "SUPER_ADMIN" } as unknown as CurrentUser;
 const USAGE = { inputTokens: 1, outputTokens: 1, totalTokens: 2 };
@@ -53,6 +54,9 @@ function modeleQuiEchoueApresOutil(nomOutil: string, outilExecute: () => boolean
 
 const base = { user, historique: [], instructions: "Test.", delaiMs: 5_000 };
 
+
+// Le journal de consommation que les tours du banc ont écrit (lot V3-D).
+afterAll(() => effacerJournalDe(["u-test"]));
 describe("repondreAvecSecours", () => {
   it("rend le texte et les outils appelés", async () => {
     const lire = outil("lire", vi.fn(async () => "{\"ok\":true}"));

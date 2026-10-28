@@ -1,6 +1,7 @@
 import { CHEMIN_STOCK_PROMO } from "@/lib/chemins/stock-promo";
 import { CHEMIN_RAPPORTS_TERRAIN } from "@/lib/chemins/rapports-terrain";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * CE QUI N'APPARTIENT ENCORE À AUCUNE ENTITÉ.
@@ -58,7 +59,7 @@ const TABLES: { label: string; model: string; href: string | null; count: () => 
 
 /** L'inventaire, tables vides écartées : on ne montre que ce qu'il reste à faire. */
 export async function getUnattachedInventory(): Promise<{ groups: UnattachedGroup[]; total: number }> {
-  const counts = await Promise.all(TABLES.map(async (t) => ({ ...t, count: await t.count().catch(() => 0) })));
+  const counts = await Promise.all(TABLES.map(async (t) => ({ ...t, count: await t.count().catch(sansBloquer("unattached.getUnattachedInventory.count", 0)) })));
   const groups = counts
     .filter((c) => c.count > 0)
     .map(({ label, model, count, href }) => ({ label, model, count, href }))

@@ -16,6 +16,7 @@ import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
 import { CHEMIN_TACHES, lienTache, vueTachePour } from "@/lib/chemins/espace";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * CRÉER UNE TÂCHE — et le destinataire décide de ce que ce geste veut dire.
@@ -153,7 +154,7 @@ export async function deleteTask(formData: FormData): Promise<ActionResult> {
     prisma.task.delete({ where: { id } }),
   ]);
   const { deleteFileByKey } = await import("@/lib/storage");
-  for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
+  for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("task-actions.deleteTask.deleteFileByKey"));
 
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Espace de travail", entityType: "TASK",
@@ -282,7 +283,7 @@ export async function respondTaskRequest(formData: FormData): Promise<ActionResu
         body: accept ? task.title : `${task.title} — ${declineSummary(reason)}`,
         link: lienTache(id, "demandees"),
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.respondTaskRequest.notification"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -325,7 +326,7 @@ export async function submitTaskWork(formData: FormData): Promise<ActionResult> 
         title: again ? "Travail mis à jour" : "Travail terminé",
         body: task.title, link: lienTache(id, "demandees"),
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.submitTaskWork.notification"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -408,7 +409,7 @@ export async function relanceTaskRequest(formData: FormData): Promise<ActionResu
         // rappelle.
         popup: true,
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.relanceTaskRequest.notification"));
   }
 
   // La relance s'écrit DANS la tâche. Un rappel qui part par message vit ailleurs que ce
@@ -418,7 +419,7 @@ export async function relanceTaskRequest(formData: FormData): Promise<ActionResu
       taskId: id, authorId: user.id,
       body: rang <= 1 ? "Relance — cette demande attend toujours." : `Relance (${rang}ᵉ) — cette demande attend toujours.`,
     },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("task-actions.relanceTaskRequest.taskComment"));
 
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -462,7 +463,7 @@ export async function annulerDemandeTache(formData: FormData): Promise<ActionRes
 
   await prisma.taskComment.create({
     data: { taskId: id, authorId: user.id, body: motif ? `Demande annulée par son demandeur — ${motif}` : "Demande annulée par son demandeur." },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("task-actions.annulerDemandeTache.taskComment"));
   if (task.assignedToId) {
     await prisma.notification.create({
       data: {
@@ -471,7 +472,7 @@ export async function annulerDemandeTache(formData: FormData): Promise<ActionRes
         body: `${user.name} a annulé « ${task.title} »${motif ? ` — ${motif}` : ""}. Vous n'avez plus à la traiter.`,
         link: lienTache(id),
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("task-actions.annulerDemandeTache.notification"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
@@ -520,7 +521,7 @@ export async function reattribuerDemandeTache(formData: FormData): Promise<Actio
   const ancien = task.assignedTo?.name ?? null;
   await prisma.taskComment.create({
     data: { taskId: id, authorId: user.id, body: `Demande réattribuée à ${nouveau.name}${ancien ? ` (auparavant : ${ancien})` : ""}.` },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("task-actions.reattribuerDemandeTache.taskComment"));
   const lignes = [
     { userId: nouveau.id, type: "ASSIGNMENT" as const, title: "Demande de tâche", body: task.title, link: lienTache(id), popup: true },
     // L'ancien destinataire ne voit plus la tâche : on le mène à SES tâches, pas à une fiche fermée.

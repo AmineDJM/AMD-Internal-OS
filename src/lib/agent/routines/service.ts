@@ -5,6 +5,7 @@ import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { proprietaire } from "@/platform/in-process/missions/proprietaire";
 import { decrireCalendrier, prochaineExecution, type Calendrier, type Frequence } from "./calendrier";
 import { passageDeRoutine } from "./passage";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -146,7 +147,7 @@ const lien = (id: string) => `/assistant?routine=${id}`;
 
 async function notifier(r: AssistantRoutine, titre: string, corps: string, toujours = false): Promise<void> {
   if (!r.notifier && !toujours) return;
-  await notifyUser({ userId: r.userId, type: "GENERIC", title: titre, body: corps.slice(0, 280), link: lien(r.id) }).catch(() => undefined);
+  await notifyUser({ userId: r.userId, type: "GENERIC", title: titre, body: corps.slice(0, 280), link: lien(r.id) }).catch(sansBloquer("routines-service.notifier.notifyUser"));
 }
 
 /**
@@ -201,7 +202,7 @@ export async function jouerRoutine(r: AssistantRoutine, declenchement: "PLANIFIE
   }).catch((e) => console.error("[routines] mise à jour", r.id, e));
   // L'historique se borne ici, pas dans un balayage à part : une routine quotidienne ferait sinon des milliers de lignes.
   const anciens = await prisma.assistantRoutineRun.findMany({ where: { routineId: r.id }, orderBy: { debutLe: "desc" }, skip: PASSAGES_GARDES, select: { id: true } });
-  if (anciens.length) await prisma.assistantRoutineRun.deleteMany({ where: { id: { in: anciens.map((a) => a.id) } } }).catch(() => undefined);
+  if (anciens.length) await prisma.assistantRoutineRun.deleteMany({ where: { id: { in: anciens.map((a) => a.id) } } }).catch(sansBloquer("routines-service.jouerRoutine.assistantRoutineRun"));
 
   if (statut === "SUCCES") await notifier(r, `Routine « ${r.titre} » : rapport prêt`, contenu!.replace(/[#*_`>]/g, "").trim());
   else if (statut === "RIEN_DE_NOUVEAU") await notifier(r, `Routine « ${r.titre} » : rien de nouveau`, "Le passage a eu lieu ; rien n'a changé depuis le précédent rapport.");

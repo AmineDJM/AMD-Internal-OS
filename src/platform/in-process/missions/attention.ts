@@ -39,6 +39,7 @@ import { reglesEnVigueurPour } from "@/platform/in-process/teach/store";
 import { connecteursMessagerie, executerOutilDynamique } from "@/platform/in-process/skills";
 import { outilDeCanal, type CanalMessagerie } from "@/lib/skills/plugins";
 import { proprietaire } from "@/platform/in-process/missions/proprietaire";
+import { sansBloquer } from "@/lib/journal";
 
 export type { IssueEnvoi };
 export type IssueConnecteur = "envoye" | "echec" | "non-configure" | "sans-destinataire";
@@ -91,10 +92,10 @@ async function envoyerParSkill(canal: CanalMessagerie, ownerId: string, texte: s
   if (!user) return "echec";
   let dest = destinataire;
   if (!dest && (canal === "whatsapp" || canal === "sms")) {
-    dest = (await prisma.user.findUnique({ where: { id: ownerId }, select: { phone: true } }).catch(() => null))?.phone?.trim() || null;
+    dest = (await prisma.user.findUnique({ where: { id: ownerId }, select: { phone: true } }).catch(sansBloquer("missions-attention.envoyerParSkill.user", null)))?.phone?.trim() || null;
   }
   if (!dest && canal !== "teams") return "sans-destinataire";
-  const sortie = await executerOutilDynamique(outilDeCanal(canal), { destinataire: dest ?? "", texte, confirmer: true }, user).catch(() => null);
+  const sortie = await executerOutilDynamique(outilDeCanal(canal), { destinataire: dest ?? "", texte, confirmer: true }, user).catch(sansBloquer("missions-attention.envoyerParSkill.executerOutilDynamique", null));
   if (!sortie) return "non-configure";
   try {
     const j = JSON.parse(sortie) as { ok?: unknown; limite?: unknown };
@@ -108,7 +109,7 @@ async function envoyerParSkill(canal: CanalMessagerie, ownerId: string, texte: s
 /** Les préférences de la personne : ses règles enseignées (canal, silence) et ses connecteurs réellement branchés. */
 export async function preferencesDe(ownerId: string, maintenant: Date): Promise<PreferencesPersonne> {
   const out: PreferencesPersonne = { canalPrefere: null, destinataire: null, adressesDeContact: [], heuresSilence: null, heure: heureLocale(maintenant), connecteurs: [], confidentiel: false, regles: [] };
-  const regles = await reglesEnVigueurPour(ownerId).catch(() => null);
+  const regles = await reglesEnVigueurPour(ownerId).catch(sansBloquer("missions-attention.preferencesDe.reglesEnVigueurPour", null));
   for (const r of regles?.resolution.enVigueur ?? []) {
     const cle = r.params && typeof r.params.cle === "string" ? r.params.cle : null;
     if (cle === "canalPrefere") {
@@ -128,14 +129,14 @@ export async function preferencesDe(ownerId: string, maintenant: Date): Promise<
   }
   if (out.canalPrefere && out.canalPrefere !== "email" && out.canalPrefere !== "notification") {
     const user = await proprietaire(ownerId);
-    out.connecteurs = user ? await connecteursMessagerie(user).catch(() => []) : [];
+    out.connecteurs = user ? await connecteursMessagerie(user).catch(sansBloquer("missions-attention.preferencesDe.connecteursMessagerie", [])) : [];
   }
   return out;
 }
 
 /** Une mission est CONFIDENTIELLE quand une de ses étapes touche à une capacité HR_SENSITIVE (paie, contrat, santé). */
 async function missionConfidentielle(missionId: string): Promise<boolean> {
-  const steps = await prisma.missionStep.findMany({ where: { missionId, capability: { not: null } }, select: { capability: true } }).catch(() => []);
+  const steps = await prisma.missionStep.findMany({ where: { missionId, capability: { not: null } }, select: { capability: true } }).catch(sansBloquer("missions-attention.missionConfidentielle.missionStep", []));
   return steps.some((s) => s.capability && capabilityMeta(s.capability).effect === "HR_SENSITIVE");
 }
 
@@ -145,7 +146,7 @@ async function dernierSignal(missionId: string, cle: string): Promise<Date | nul
     where: { missionId, kind: "NOTIFIED", detail: { path: ["cle"], equals: cle } },
     orderBy: { at: "desc" },
     select: { at: true },
-  }).catch(() => null);
+  }).catch(sansBloquer("missions-attention.dernierSignal.missionEvent", null));
   return e?.at ?? null;
 }
 
@@ -157,7 +158,7 @@ async function signauxDuJour(ownerId: string, depuis: Date): Promise<number> {
       mission: { ownerId },
       OR: [{ detail: { path: ["niveau"], equals: "INFO" } }, { detail: { path: ["niveau"], equals: "ATTENTION" } }, { detail: { path: ["niveau"], equals: "ARBITRAGE" } }],
     },
-  }).catch(() => 0);
+  }).catch(sansBloquer("missions-attention.signauxDuJour.missionEvent", 0));
 }
 
 export function porteAttentionPour(deps: DependancesAttention = {}): PorteAttention {
@@ -183,12 +184,12 @@ export function porteAttentionPour(deps: DependancesAttention = {}): PorteAttent
         if (n >= PLAFOND_QUOTIDIEN) niveau = "JOURNAL";
       }
       // ── LES PRÉFÉRENCES ET LA CONFIDENTIALITÉ : ce qui corrige la table du niveau ─────
-      const prefs = niveau === "JOURNAL" ? null : await preferences(signal.ownerId, maintenant).catch(() => null);
+      const prefs = niveau === "JOURNAL" ? null : await preferences(signal.ownerId, maintenant).catch(sansBloquer("missions-attention.signaler.preferences", null));
       const confidentiel = signal.confidentiel ?? (niveau === "JOURNAL" ? false : await missionConfidentielle(signal.missionId));
       const canaux = canauxPour(niveau, { ...(prefs ?? {}), confidentiel });
       // Le moteur ne connaît pas le titre affiché ; le pont le relit.
       const titreMission = signal.titre
-        || (await prisma.mission.findUnique({ where: { id: signal.missionId }, select: { title: true } }).catch(() => null))?.title
+        || (await prisma.mission.findUnique({ where: { id: signal.missionId }, select: { title: true } }).catch(sansBloquer("missions-attention.signaler.mission", null)))?.title
         || "Mission";
       const { titre, corps } = composerMessage({ ...signal, titre: titreMission });
       const lien = `/missions/${signal.missionId}`;
@@ -220,7 +221,7 @@ export function porteAttentionPour(deps: DependancesAttention = {}): PorteAttent
       if (canaux.connecteur) {
         const canal = canaux.connecteur as CanalMessagerie;
         const texte = canaux.corpsNeutre ? corpsExterne : `[Adam] ${titre}\n${corps}\nOuvrir : ${lien}`;
-        const issue = await envoyerConnecteur(canal, signal.ownerId, texte, prefs?.destinataire ?? null).catch((): IssueConnecteur => "echec");
+        const issue = await envoyerConnecteur(canal, signal.ownerId, texte, prefs?.destinataire ?? null).catch(sansBloquer("missions-attention.signaler.envoyerConnecteur", "echec" as const));
         connecteur = { canal, issue };
         if (issue === "envoye") livres.push(canal);
       }

@@ -38,6 +38,7 @@ import { directIntent, intentArgs, intentPhrase } from "@/lib/assistant/workspac
 import type { WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
 import { executerOperationIA } from "@/lib/agent/operations";
 import { estChargeOperationIA } from "@/lib/agent/operations/types";
+import { sansBloquer } from "@/lib/journal";
 
 const MAX_ATTACHMENTS = 6;
 const MAX_UPLOAD_BYTES = 20 * 1024 * 1024; // 20 Mo par pièce jointe
@@ -198,7 +199,7 @@ export async function assistantChat(
     // Mémoire personnelle (derrière le drapeau de version) : identité, rattachement,
     // hiérarchie et ce que l'assistant a retenu de CETTE personne.
     const memoryOn = await featureEnabled(FEATURES.ASSISTANT_MEMORY.key, user.id);
-    const personal = memoryOn ? await personalContext(user.id).catch(() => null) : await contexteReglesSeules(user.id);
+    const personal = memoryOn ? await personalContext(user.id).catch(sansBloquer("assistant-actions.assistantChat.personalContext", null)) : await contexteReglesSeules(user.id);
 
     const t0 = Date.now();
     const res = await runAssistant(user, turns, { personalContext: personal });

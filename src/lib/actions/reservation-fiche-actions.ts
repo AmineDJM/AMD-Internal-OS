@@ -25,6 +25,7 @@ import {
   refusGeste, refusRelance, NATURE_LIBELLE, REFUS_AVANT_ACCORD,
   type EtatDemande, type SourceFiche,
 } from "@/lib/reservation-fiche/etat";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -71,7 +72,7 @@ async function auditer(user: SessionUser, f: FicheReservation, summary: string) 
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: MODULE_OPERATION[f.operation.type] ?? f.operation.type,
     entityType: f.operation.type, entityId: f.operation.id, summary,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("reservation-fiche-actions.auditer.recordAudit"));
 }
 
 /** Une demande et sa fiche, lues ensemble. */
@@ -501,7 +502,7 @@ export async function joindreDevisAgence(formData: FormData): Promise<ActionResu
         entityType: "DOCUMENT_REQUEST", entityId: req.id, category: "QUOTE", confidentiality: "INTERNAL", stepKey: null, file,
       });
       if (!r.ok) {
-        await prisma.documentRequest.update({ where: { id: req.id }, data: { status: "CANCELLED", closedAt: new Date() } }).catch(() => undefined);
+        await prisma.documentRequest.update({ where: { id: req.id }, data: { status: "CANCELLED", closedAt: new Date() } }).catch(sansBloquer("reservation-fiche-actions.joindreDevisAgence.documentRequest"));
         return { ok: false, error: `${file.name} : ${r.error ?? "dépôt impossible"}` };
       }
     }

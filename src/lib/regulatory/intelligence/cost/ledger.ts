@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { callLuna, lunaModel, type LunaCallInput, type LunaResult, type LunaUsage } from "@/lib/openai-luna";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE REGISTRE DES COÛTS — « combien coûte ce dossier, et à cause de quoi ? »
@@ -114,7 +115,7 @@ export async function trackedLuna<T = unknown>(ctx: CallContext, input: LunaCall
       await prisma.regulatoryAiCache.update({
         where: { id: hit.id },
         data: { hits: { increment: 1 }, lastHitAt: new Date() },
-      }).catch(() => {});
+      }).catch(sansBloquer("cost-ledger.trackedLuna.regulatoryAiCache"));
       await record(ctx, { model, usage: ZERO_USAGE, ok: true, cacheKey: key, fromCache: true, latencyMs: 0 });
       let data: T | undefined;
       if (input.jsonSchema) { try { data = JSON.parse(hit.payload) as T; } catch { /* payload non JSON */ } }
@@ -149,7 +150,7 @@ export async function trackedLuna<T = unknown>(ctx: CallContext, input: LunaCall
   if (res.ok && res.text) {
     await prisma.regulatoryAiCache.create({
       data: { cacheKey: key, step: ctx.step, model, payload: res.text },
-    }).catch(() => { /* concurrence : une autre requête a déjà écrit la même clé */ });
+    }).catch(sansBloquer("cost-ledger.trackedLuna.regulatoryAiCache"));
   }
 
   return { ...res, cached: false };
@@ -245,7 +246,7 @@ export async function dossierCost(dossierId: string): Promise<DossierCost> {
     const docs = await prisma.regulatoryDocument.findMany({
       where: { id: { in: docIds } },
       select: { id: true, originalFilename: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("cost-ledger.dossierCost.regulatoryDocument", []));
     const names = new Map(docs.map((d) => [d.id, d.originalFilename]));
     for (const row of byDocument) row.label = names.get(row.key) ?? row.key;
   }
@@ -329,7 +330,7 @@ export async function regulatoryAiSpend(companyId?: string | null): Promise<Regu
     ? await prisma.regulatoryDossier.findMany({
         where: { id: { in: ids } },
         select: { id: true, reference: true, title: true, status: true, aiBudgetUsd: true },
-      }).catch(() => [])
+      }).catch(sansBloquer("cost-ledger.regulatoryAiSpend.regulatoryDossier", []))
     : [];
   const meta = new Map(dossiers.map((d) => [d.id, d]));
   const byDossier: DossierCostRow[] = byDossierRaw

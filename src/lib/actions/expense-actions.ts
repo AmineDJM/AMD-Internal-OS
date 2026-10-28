@@ -27,13 +27,14 @@ import { validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { ordresBvAvecQuittance, deposerQuittanceBv, cocherPaiementBv } from "@/lib/regulatory/bv-reglement";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * OÙ ENVOYER LE DEMANDEUR D'UN ORDRE — le dossier qui l'a émis (sa demande, ses pièces), qu'il peut
  * ouvrir ; à défaut seulement, la ligne de l'ordre dans « Paiements à faire ».
  */
 async function lienDuDossierDeLOrdre(orderId: string): Promise<string> {
-  const dossier = await dossierHrefByOrder([orderId]).then((m) => m.get(orderId)).catch(() => undefined);
+  const dossier = await dossierHrefByOrder([orderId]).then((m) => m.get(orderId)).catch(sansBloquer("expense-actions.lienDuDossierDeLOrdre.dossierHrefByOrder"));
   return dossier ?? lienOrdreAPayer(orderId);
 }
 
@@ -261,11 +262,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     await prisma.sponsoringRequest.updateMany({
       where: { id: order.sourceId, status: { in: [...STATUTS_SOLDES_PAR_UN_REGLEMENT] as SponsoringStatus[] } },
       data: { status: "PAID" },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("expense-actions.settleExpenseOrder.sponsoringRequest"));
   } else if (order.sourceType === "SALARY_ADVANCE" && order.sourceId) {
     await prisma.salaryAdvance.update({
       where: { id: order.sourceId }, data: { status: "PAID", paidDate: new Date(), transactionId: tx.id },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("expense-actions.settleExpenseOrder.salaryAdvance"));
   } else if (order.sourceType === "ADMIN_REQUEST" && order.sourceId) {
     // UNE DEMANDE TERMINÉE OU ANNULÉE NE REVIENT PAS « EN COURS » parce que son paiement part (lot E5) : la règle
     // de `decideApproval` et de `decideValidation` (§118.187) ne valait pas pour le règlement de l'ordre qu'elles
@@ -273,11 +274,11 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     await prisma.administrativeRequest.updateMany({
       where: { id: order.sourceId, deletedAt: null, status: { notIn: ["DONE", "CANCELLED"] } },
       data: { status: "IN_PROGRESS" },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("expense-actions.settleExpenseOrder.administrativeRequest"));
   } else if (order.sourceType === "LEGAL_DOCUMENT" && order.sourceId) {
     // LA FACTURE D'UN BC DE MATÉRIEL PROMOTIONNEL EST RÉGLÉE : c'est souvent la dernière pièce du dossier — il se clôt
     // seul quand chaque BC est reçu, facturé, payé et visé (maquette validée, 10/2026). Ne lève jamais.
-    const promoId = await dossierPromoDeLaFacture(order.sourceId).catch(() => null);
+    const promoId = await dossierPromoDeLaFacture(order.sourceId).catch(sansBloquer("expense-actions.settleExpenseOrder.dossierPromoDeLaFacture", null));
     if (promoId && (await cloreLeDossierPromoSiSolde(promoId, user.id))) revalidatePath(`/promo-material/${promoId}`);
   } else if (natureBv && order.sourceId) {
     // LE BV DU DOSSIER EST PAYÉ : l'étape « Paiement du BV » se coche (idempotent), et le niveau de
@@ -324,7 +325,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   if (order.sourceType === "PAYMENT_REQUEST" && order.sourceId) {
     const req = await prisma.paymentRequest
       .findUnique({ where: { id: order.sourceId }, select: { entityType: true, entityId: true, reference: true } })
-      .catch(() => null);
+      .catch(sansBloquer("expense-actions.settleExpenseOrder.paymentRequest", null));
     if (req?.entityType === "MEDICAL_INFO_DECLARATION" && req.entityId) {
       await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], {
         type: "ASSIGNMENT",

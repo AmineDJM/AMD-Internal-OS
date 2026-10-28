@@ -3,6 +3,7 @@ import { recordHash, clip } from "../text";
 import { chunkText } from "../chunk";
 import { renumber } from "../chunk";
 import type { IngestInput } from "../ingest";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -48,7 +49,7 @@ export async function draftFromEmail(recordId: string): Promise<IngestInput | nu
         senderCompanyId: true, threadId: true, hasAttachments: true, importance: true,
       },
     })
-    .catch(() => null);
+    .catch(sansBloquer("email.draftFromEmail.emailRecord", null));
   if (!m) return null;
 
   const subject = (m.subject ?? "").trim();

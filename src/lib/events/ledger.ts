@@ -4,6 +4,7 @@ import { EXPECTED_EVENTS, matchEvent, type BusinessEventLike, type TaskLike } fr
 import { reveillerMissions } from "@/lib/missions/events/router";
 import { satisfaireEngagements } from "@/lib/missions/commitments/satisfy";
 import { invaliderEtatsChauds } from "@/lib/fabric";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -155,7 +156,7 @@ export async function recordEvent(input: RecordEventInput): Promise<string | nul
       // ne peuvent plus être servis tels quels. On MARQUE — le prochain lecteur ou le battement
       // paie le recalcul —, et l'invalidation ne touche que les lignes pas encore marquées :
       // idempotente, une requête indexée, jamais bloquante.
-      invaliderEtatsChauds("alertes-executives").catch(() => undefined),
+      invaliderEtatsChauds("alertes-executives").catch(sansBloquer("events-ledger.recordEvent.invaliderEtatsChauds")),
     ];
     await Promise.allSettled(consequences);
 

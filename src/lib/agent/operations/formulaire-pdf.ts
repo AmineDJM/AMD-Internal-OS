@@ -6,6 +6,7 @@ import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { champs, texte, type OperationIA, type PropositionOperation } from "./types";
 import { fichiersDepuisDrive, resoudrePiece, type PieceResolue } from "./pieces";
 import { replier } from "./annuaire-medical";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -123,7 +124,7 @@ export function lectureFormulaire(user: CurrentUser): PowerTool {
     run: async (e) => {
       const p = await lePdf(user, typeof e.fichier === "string" ? e.fichier : "");
       if ("erreur" in p) return JSON.stringify({ statut: "REFUS", raison: p.erreur });
-      const c = await champsDuFormulaire(p.octets).catch(() => null);
+      const c = await champsDuFormulaire(p.octets).catch(sansBloquer("formulaire-pdf.run.champsDuFormulaire", null));
       if (!c) return JSON.stringify({ statut: "REFUS", raison: "Ce PDF n'a pas pu être ouvert." });
       if (!c.length) return JSON.stringify({ statut: "REFUS", raison: "Ce PDF n'a pas de champs à remplir (formulaire non interactif)." });
       return censurerTexte(JSON.stringify({ fichier: p.piece.nom, champs: c.map(({ valeur, ...x }) => ({ ...x, valeur: valeur ?? undefined })) })).texte;
@@ -151,7 +152,7 @@ export const FORMULAIRE_PDF: OperationIA = {
     if (!texte(e, "fichier")) return { manque: ["le formulaire PDF à remplir"] };
     const p = await lePdf(user, texte(e, "fichier"));
     if ("erreur" in p) return { erreur: p.erreur };
-    const c = await champsDuFormulaire(p.octets).catch(() => null);
+    const c = await champsDuFormulaire(p.octets).catch(sansBloquer("formulaire-pdf.proposer.champsDuFormulaire", null));
     if (!c?.length) return { erreur: "Ce PDF n'a pas de champs à remplir (formulaire non interactif)." };
     const brutes = e.valeurs && typeof e.valeurs === "object" ? (e.valeurs as Record<string, unknown>) : {};
     const parNom = new Map(c.map((x) => [replier(x.nom), x]));

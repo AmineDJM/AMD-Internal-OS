@@ -64,8 +64,11 @@ describe("annuaire des personnes : ajouter, modifier, retirer", () => {
 
 describe("messagerie : un message supprimé ne s'aperçoit plus", () => {
   it("l'aperçu de la liste des conversations ignore les messages supprimés, et se relit après une suppression", () => {
-    // Lu en SQL depuis l'audit performance (PERF-01) : un seul message par conversation, jamais un supprimé.
-    expect(code("src/lib/queries/messaging.ts")).toMatch(/m\."deletedAt" IS NULL\s*ORDER BY m\."createdAt" DESC\s*LIMIT 1/);
+    // Lu en SQL depuis l'audit performance (PERF-01) : les N derniers par conversation (N = 1 pour l'aperçu,
+    // PERF-08), jamais un supprimé.
+    const messagerie = code("src/lib/queries/messaging.ts");
+    expect(messagerie).toMatch(/m\."deletedAt" IS NULL\s*ORDER BY m\."createdAt" DESC\s*LIMIT \$\{Math\.floor\(n\)\}/);
+    expect(messagerie).toMatch(/derniersMessagesParConversation\(conversationIds, 1\)/);
     expect(code("src/app/(app)/messages/messenger.tsx")).toContain("deleteMessage(f).then(() => { pollThread(); refreshSync(); });");
   });
 });

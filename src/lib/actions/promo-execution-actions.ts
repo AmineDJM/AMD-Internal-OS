@@ -45,6 +45,7 @@ import { notifyUser } from "@/lib/notify";
 import { familleAValidite, familleQuantifiee } from "@/lib/promo/catalogue";
 import { libelleArticleStock, lireDateJour, parseQuantity } from "@/lib/promo/stock";
 import { annulerMouvementEcrit, entrerLot, sousVerrou, trouverOuCreerArticle } from "@/lib/promo/stock-ecriture";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'EXÉCUTION DU MATÉRIEL PROMOTIONNEL — bons de commande, factures, paiements, visas (§118.152).
@@ -643,7 +644,7 @@ export async function deposerFacturePromo(formData: FormData): Promise<ActionRes
     });
     if (!piece.ok) {
       // Une facture sans son fichier ne se contrôle pas : on ne la garde pas (son détail part avec elle).
-      await prisma.legalDocument.delete({ where: { id: facture.id } }).catch(() => undefined);
+      await prisma.legalDocument.delete({ where: { id: facture.id } }).catch(sansBloquer("promo-execution-actions.deposerFacturePromo.legalDocument"));
       return { ok: false, error: `Fichier « ${file.name} » : ${piece.error ?? "téléversement impossible"}` };
     }
     const ecarts = ecartsAuBC(v.lignes, lignesBC);
@@ -1047,7 +1048,7 @@ export async function demanderPaiementFacturePromo(formData: FormData): Promise<
       amount: null,
       requesterId: pm.requesterId,
       declarationKind: formalite,
-    }).catch(() => null);
+    }).catch(sansBloquer("promo-execution-actions.demanderPaiementFacturePromo.createMedicalInfoDeclaration", null));
     await audit(user, pm.id, `Paiement demandé — facture ${facture.reference ?? ""} (${formatDzd(montant)}${partiel ? ", part reçue" : ""}, ordre ${ordre.reference})${renoncer.length ? ` ; ${renoncer.length} ligne(s) non livrée(s) — renoncement confirmé, elles ne se paieront pas` : ""} ; ${declaration ? `${LIBELLE_FORMALITE[formalite]} ${declaration.reference} adressée à l'information médicale` : `${LIBELLE_FORMALITE[formalite]} NON adressée (échec) — à rattraper`}`);
     revalidatePath(chemin(pm.id));
     revalidatePath("/information-medicale");

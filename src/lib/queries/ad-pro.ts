@@ -8,6 +8,7 @@ import { adProState, sortAdPro, type AdProKind, type AdProRequest } from "@/lib/
 import { natureDesigneMedecins, natureDesigneMedecinsEtProduits, type AdProCreateData } from "@/lib/ad-pro/create-fields";
 import { optionsDesArticlesDemandes } from "@/lib/queries/promo-achats";
 import { etatAdProDuDossier } from "@/lib/promo-material/statut";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA LISTE UNIFIÉE DES DEMANDES AD & PRO.
@@ -36,25 +37,25 @@ export async function getAdProRequests(user: SessionUser): Promise<AdProRequest[
             id: true, reference: true, institution: true, doctor: true, type: true,
             status: true, createdAt: true, amountRequested: true, requesterId: true,
           },
-        }).catch(() => [])
+        }).catch(sansBloquer("ad-pro.getAdProRequests.sponsoringRequest", []))
       : [],
     can("CONGRESS_INTERNATIONAL")
       ? prisma.congressInternational.findMany({
           where: { AND: [scope, scopeCongressIntl(user)] }, orderBy: { createdAt: "desc" }, take: LIMIT,
           select: { id: true, name: true, status: true, createdAt: true, estimatedBudget: true, requesterId: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("ad-pro.getAdProRequests.congressInternational", []))
       : [],
     can("CONGRESS_NATIONAL")
       ? prisma.congressNational.findMany({
           where: { AND: [scope, scopeCongressNational(user)] }, orderBy: { createdAt: "desc" }, take: LIMIT,
           select: { id: true, name: true, status: true, createdAt: true, estimatedBudget: true, requesterId: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("ad-pro.getAdProRequests.congressNational", []))
       : [],
     can("EVENTS")
       ? prisma.event.findMany({
           where: scope, orderBy: { createdAt: "desc" }, take: LIMIT,
           select: { id: true, name: true, status: true, createdAt: true, estimatedBudget: true, location: true, requesterId: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("ad-pro.getAdProRequests.event", []))
       : [],
     can("PROMO_MATERIAL")
       ? prisma.promoMaterial.findMany({
@@ -63,7 +64,7 @@ export async function getAdProRequests(user: SessionUser): Promise<AdProRequest[
           // module — la liste unifiée ne doit pas lui montrer ceux des autres.
           where: { AND: [scope, scopePromoMaterial(user)] }, orderBy: { createdAt: "desc" }, take: LIMIT,
           select: { id: true, reference: true, title: true, status: true, circuitState: true, circuitVersion: true, returnedAt: true, createdAt: true, chosenAmount: true, amount: true, chosenAgency: true, requesterId: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("ad-pro.getAdProRequests.promoMaterial", []))
       : [],
     can("CONSULTING")
       ? prisma.consultingContract.findMany({
@@ -71,13 +72,13 @@ export async function getAdProRequests(user: SessionUser): Promise<AdProRequest[
           // promotion, et cette liste ne doit pas le rendre à qui n'a que la promotion (§118.150).
           where: { AND: [scope, { pole: "AD_PRO" }] }, orderBy: { createdAt: "desc" }, take: LIMIT,
           select: { id: true, reference: true, title: true, counterparty: true, status: true, returnedAt: true, createdAt: true, amount: true, requesterId: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("ad-pro.getAdProRequests.consultingContract", []))
       : [],
     can("AD_PRO_OTHER")
       ? prisma.adProOtherRequest.findMany({
           where: { AND: [scope, scopeAdProOther(user)] }, orderBy: { createdAt: "desc" }, take: LIMIT,
           select: { id: true, reference: true, title: true, beneficiary: true, status: true, createdAt: true, amount: true, requesterId: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("ad-pro.getAdProRequests.adProOtherRequest", []))
       : [],
   ]);
 

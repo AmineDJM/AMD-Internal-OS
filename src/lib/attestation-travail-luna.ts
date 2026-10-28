@@ -7,6 +7,7 @@ import { moteurParDefaut } from "@/lib/regulatory/intelligence/extract/texte-ou-
 import {
   lireContratDeterministe, lireReponseLuna, type LuDansLeContrat, CHAMPS_DU_CONTRAT,
 } from "@/lib/hr/attestation-travail/regles";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -168,7 +169,7 @@ export async function lireContratPourAttestation(e: EntreeLectureContrat, deps: 
     latencyMs: Date.now() - t0, errorCode, llmCalls: 1,
     inputTokens: r?.usage.inputTokens ?? null, outputTokens: r?.usage.outputTokens ?? null,
     cachedInputTokens: r?.usage.cachedInputTokens ?? null, costUsd: r?.usage.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("attestation-travail-luna.lireContratPourAttestation.journaliser"));
 
   if (errorCode !== null || Object.keys(luna).length === 0) {
     return {

@@ -9,6 +9,7 @@ import {
 import type { BadgeTone } from "@/lib/labels";
 import { TITRE_BC_A_ETABLIR } from "@/lib/ad-pro/pieces-secretariat";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -191,7 +192,7 @@ async function travauxAdPro(user: SessionUser): Promise<TravailAdPro[]> {
       orderBy: { createdAt: "asc" }, take: 100,
     }),
     // LE MATÉRIEL PROMOTIONNEL dont c'est son tour de retranscrire les devis (circuit 2).
-    dossiersPromoAMonTour(user).then((l) => l.filter((d) => d.tour === "GESTE" && d.etat === "QUOTE_REQUESTED")).catch(() => []),
+    dossiersPromoAMonTour(user).then((l) => l.filter((d) => d.tour === "GESTE" && d.etat === "QUOTE_REQUESTED")).catch(sansBloquer("reservations-fiches.travauxAdPro.dossiersPromoAMonTour", [])),
   ]);
   const postes = piecesBc.length
     ? new Map((await prisma.adProItem.findMany({ where: { id: { in: piecesBc.map((p) => p.entityId) } }, select: { id: true, label: true } })).map((p) => [p.id, p.label]))

@@ -6,6 +6,7 @@ import { getMyMissions, ordresMissionAValider, articlesDemandables } from "@/lib
 import { faitsStock } from "@/lib/queries/promo-stock";
 import { peutDemander } from "@/lib/promo/stock-acces";
 import { MesMissions } from "@/components/missions/mes-missions";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Mes missions — Mon espace" };
@@ -21,10 +22,10 @@ export default async function MesMissionsPage() {
     getMyMissions(user.id),
     ordresMissionAValider(user.id),
     ongletsEspace(user),
-    faitsStock(user).catch(() => null),
+    faitsStock(user).catch(sansBloquer("missions-page.MesMissionsPage.faitsStock", null)),
   ]);
   const besoinArticles = missions.some((m) => m.response === "CONFIRMEE");
-  const articles = besoinArticles && faits && peutDemander(faits) ? await articlesDemandables(user.id).catch(() => []) : [];
+  const articles = besoinArticles && faits && peutDemander(faits) ? await articlesDemandables(user.id).catch(sansBloquer("missions-page.MesMissionsPage.articlesDemandables", [])) : [];
   const aVenir = missions.filter((m) => m.response === "CONFIRMEE").length;
   const invitations = missions.filter((m) => m.response === "INVITEE").length;
 

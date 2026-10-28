@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { lireSanteTachesDeFond } from "@/lib/taches-de-fond/sante";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,7 @@ export const dynamic = "force-dynamic";
  * route n'arme aucun battement et ne charge pas la chaîne des tâches.
  */
 export async function GET() {
-  const user = await getCurrentUser().catch(() => null);
+  const user = await getCurrentUser().catch(sansBloquer("worker-route.GET.getCurrentUser", null));
   try {
     const sante = await lireSanteTachesDeFond({ detail: user?.role === "SUPER_ADMIN" });
     return NextResponse.json(sante, {

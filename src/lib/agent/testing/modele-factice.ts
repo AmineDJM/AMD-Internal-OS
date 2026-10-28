@@ -17,7 +17,9 @@ export type TourScenario =
 type Usage = { inputTokens: number; outputTokens: number; totalTokens: number };
 const USAGE: Usage = { inputTokens: 10, outputTokens: 5, totalTokens: 15 };
 
-export function modeleFactice(scenario: TourScenario[]) {
+/** `usage` : les jetons rendus à CHAQUE appel — un banc de plafond en pose de plus lourds. */
+export function modeleFactice(scenario: TourScenario[], usage: { inputTokens: number; outputTokens: number } = USAGE) {
+  const u: Usage = { ...usage, totalTokens: usage.inputTokens + usage.outputTokens };
   let tour = 0;
   const promptsRecus: unknown[] = [];
   let compteurAppels = 0;
@@ -42,7 +44,7 @@ export function modeleFactice(scenario: TourScenario[]) {
     async doGenerate(options: { prompt: unknown }) {
       promptsRecus.push(options.prompt);
       const t = prochain();
-      return { content: contenu(t), finishReason: fin(t), usage: USAGE, warnings: [] };
+      return { content: contenu(t), finishReason: fin(t), usage: u, warnings: [] };
     },
     async doStream(options: { prompt: unknown }) {
       promptsRecus.push(options.prompt);
@@ -54,7 +56,7 @@ export function modeleFactice(scenario: TourScenario[]) {
         const [appel] = contenu(t);
         parts.push(appel);
       }
-      parts.push({ type: "finish", finishReason: fin(t), usage: USAGE });
+      parts.push({ type: "finish", finishReason: fin(t), usage: u });
       return {
         stream: new ReadableStream({
           start(c) {

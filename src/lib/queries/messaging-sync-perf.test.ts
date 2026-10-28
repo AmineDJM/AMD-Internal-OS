@@ -29,7 +29,7 @@ vi.mock("@/lib/prisma", async (importOriginal) => ({
   prisma: client,
 }));
 
-const { getConversationSummaries, getSync } = await import("@/lib/queries/messaging");
+const { getConversationSummaries, getSync, derniersMessagesParConversation } = await import("@/lib/queries/messaging");
 
 let dbOk = false;
 try { await client.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -96,5 +96,13 @@ suite("getConversationSummaries — un message par conversation, jamais l'histor
     // Non-lus : les 31 messages « autre » non supprimés de A (aucune lecture enregistrée).
     expect(a.unread).toBe(31);
     expect((await getSync(moi)).totalUnread).toBe(31);
+  });
+
+  it("les N derniers (Adam « Conversations consultées », PERF-08) : bornés en SQL, du plus récent au plus ancien", async () => {
+    requetes.length = 0;
+    const derniers = await derniersMessagesParConversation([convA, convB], 3);
+    expect(requetes.every((q) => /\bLIMIT\b/i.test(q))).toBe(true);
+    expect(derniers.get(convA)!.map((m) => m.body)).toEqual(["le vrai dernier", "ancien 59", "ancien 58"]);
+    expect(derniers.get(convB)!.map((m) => m.hasAttachment)).toEqual([true]);
   });
 });

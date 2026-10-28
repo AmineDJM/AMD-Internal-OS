@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { FindingInput } from "../types";
 import { STATE_MACHINES } from "./registry";
 import { declaredTransitionKeys, type StateMachine } from "./types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Explorateur de machines à états (§29). Confronte les machines DÉCLARÉES aux données RÉELLES :
@@ -59,7 +60,7 @@ async function exploreOne(m: StateMachine, observed: Set<string>): Promise<{ rep
 
   if (del) {
     for (const s of m.states) {
-      const n = await del.count({ where: { [m.statusField]: s } }).catch(() => 0);
+      const n = await del.count({ where: { [m.statusField]: s } }).catch(sansBloquer("explorer.exploreOne.count", 0));
       if (n > 0) { distribution[s] = n; liveCount += n; }
     }
   }
@@ -70,7 +71,7 @@ async function exploreOne(m: StateMachine, observed: Set<string>): Promise<{ rep
   if (del && m.coupling) {
     const rows = await del
       .findMany({ select: { id: true, [m.statusField]: true, [m.coupling.field]: true }, take: 5000 })
-      .catch(() => [] as Record<string, unknown>[]);
+      .catch(sansBloquer("explorer.exploreOne.findMany", [] as Record<string, unknown>[]));
     for (const r of rows) {
       const row = { status: r[m.statusField], [m.coupling.field]: r[m.coupling.field] };
       if (!m.coupling.holds(row)) {

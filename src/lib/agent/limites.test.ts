@@ -8,6 +8,7 @@ import { compileContext } from "@/lib/agent/contexte";
 import { outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { repondreAvecSecours } from "@/lib/agent/repondre";
 import { modeleFactice } from "@/lib/agent/testing/modele-factice";
+import { effacerJournalDe } from "@/lib/agent/testing/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -65,6 +66,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  await effacerJournalDe([assistante?.id]);
   await prisma.assistantActionIntent.deleteMany({ where: { userId: assistante?.id } }).catch(() => {});
   await prisma.assistantMemoryItem.deleteMany({ where: { content: { startsWith: TAG } } }).catch(() => {});
   await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => {});

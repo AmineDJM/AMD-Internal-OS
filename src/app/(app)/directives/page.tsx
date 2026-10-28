@@ -17,6 +17,7 @@ import { createDirective } from "@/lib/actions/directive-actions";
 import { DIRECTIVE_STATUS, PRIORITY, ROLE_LABELS } from "@/lib/labels";
 import { canIssueDirective } from "@/lib/directives/access";
 import { AUDIENCE_LABELS, canPublishDirectives, describeAudience } from "@/lib/directives/audience";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +31,7 @@ const PUBLICATION_TONE = {
 
 export default async function DirectivesPage() {
   const user = await requireModule("DIRECTIVES");
-  const settings = await getAppSettings().catch(() => null);
+  const settings = await getAppSettings().catch(sansBloquer("directives-page.DirectivesPage.getAppSettings", null));
   const access = {
     directiveReaderRoles: settings?.directiveReaderRoles ?? [],
     directiveReaderUserIds: settings?.directiveReaderUserIds ?? [],

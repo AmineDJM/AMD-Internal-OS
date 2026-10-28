@@ -11,6 +11,7 @@ import { prioriserMission } from "@/platform/in-process/missions/control";
 import { appliquerModification, prevoirModification } from "@/platform/in-process/missions/modifier";
 import { GENRES_MODIFICATION, type EmpreinteModification, type GenreModification } from "@/lib/missions/horizon/modification";
 import { approuver, candidats, modeleFaisantAutorite, LIBELLE_TYPE, type TypeModele } from "@/lib/missions/templates/registry";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -405,7 +406,7 @@ async function relancer(
   } catch (e) {
     console.error("[missions] relance immédiate impossible (le battement reprendra)", e);
   }
-  const vue = await vueMission(missionId, user.id).catch(() => null);
+  const vue = await vueMission(missionId, user.id).catch(sansBloquer("mission-runtime-actions.relancer.vueMission", null));
   return vue?.statut ?? null;
 }
 

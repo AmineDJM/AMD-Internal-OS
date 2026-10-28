@@ -6,6 +6,7 @@ import { auth, signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { effacerVueExacte } from "@/lib/vue-exacte";
+import { sansBloquer } from "@/lib/journal";
 
 /** Server action used by the login form. Returns an error string on failure. */
 export async function authenticate(
@@ -39,7 +40,7 @@ export async function doSignOut() {
   if (sid) {
     await prisma.userSession
       .update({ where: { id: sid }, data: { revokedAt: new Date() } })
-      .catch(() => undefined);
+      .catch(sansBloquer("auth-actions.doSignOut.userSession"));
   }
   // Se déconnecter termine aussi la vue : elle ne ressurgit pas à la connexion suivante.
   try { effacerVueExacte(); } catch { /* hors requête */ }

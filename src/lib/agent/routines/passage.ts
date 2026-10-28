@@ -3,6 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { composantsEnBlocs, lireReponseModele, repondreAvecSecours } from "@/lib/agent/repondre";
+import { auNomDe, PlafondIaAtteint } from "@/lib/agent/consommation";
 import { genererTexte, modelesEffectifs } from "@/lib/agent/generer";
 import { dateLongue, FUSEAU } from "./calendrier";
 
@@ -82,7 +83,14 @@ export interface DemandePassage {
   now: Date;
 }
 
-export async function passageDeRoutine(user: CurrentUser, d: DemandePassage): Promise<{ ok: true; contenu: string; blocs: unknown[]; outils: string[] } | { ok: false; raison: string }> {
+type IssuePassage = { ok: true; contenu: string; blocs: unknown[]; outils: string[] } | { ok: false; raison: string };
+
+/** Le passage — et la comparaison qu'il demande ensuite — sont imputés à la personne (journal, plafonds). */
+export function passageDeRoutine(user: CurrentUser, d: DemandePassage): Promise<IssuePassage> {
+  return auNomDe(user.id, () => passageAuNomDe(user, d));
+}
+
+async function passageAuNomDe(user: CurrentUser, d: DemandePassage): Promise<IssuePassage> {
   const modeles = modelesEffectifs();
   if (!modeles.length) return { ok: false, raison: "L'IA n'est pas configurée sur ce serveur." };
   let instructions: string;
@@ -105,7 +113,7 @@ export async function passageDeRoutine(user: CurrentUser, d: DemandePassage): Pr
   try {
     const r = await repondreAvecSecours({
       user, message, historique: [], instructions, outils, modeles, delaiMs: 150_000, config,
-      propositionsFaites: () => 0, maxEtapes: 10,
+      propositionsFaites: () => 0, maxEtapes: 10, origine: "routine",
     });
     const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
     const contenu = ui.message?.trim();
@@ -119,6 +127,8 @@ export async function passageDeRoutine(user: CurrentUser, d: DemandePassage): Pr
     const texte = `${corps}${sourcesEnFin(sorties)}`;
     return { ok: true, contenu: texte, blocs: ui.blocs, outils: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))] };
   } catch (e) {
+    // Le plafond du jour se dit tel quel : la phrase nomme déjà son remède.
+    if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message };
     return { ok: false, raison: `Le modèle n'a pas répondu (${e instanceof Error ? e.message : String(e)}).` };
   }
 }

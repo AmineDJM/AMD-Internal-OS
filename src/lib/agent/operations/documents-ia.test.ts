@@ -19,6 +19,7 @@ import { VOYAGEUR_PASSEPORT } from "@/lib/agent/operations/voyageur-passeport";
 import { TRADUCTION } from "@/lib/agent/operations/traduction";
 import { champsDuFormulaire, FORMULAIRE_PDF, lectureFormulaire } from "@/lib/agent/operations/formulaire-pdf";
 import { chiffreDeControle } from "@/lib/agent/operations/mrz";
+import { effacerJournalDe } from "@/lib/agent/testing/journal";
 
 /**
  * L'ASSISTANT IA — LES DOCUMENTS AU-DELÀ DE L'ÉDITION : passeport saisi sans que le modèle le voie,
@@ -90,6 +91,7 @@ suite("Assistant IA — documents au-delà de l'édition", () => {
   afterEach(() => remplacerModelesPourTests(null));
 
   afterAll(async () => {
+    await effacerJournalDe([admin?.id]);
     await prisma.document.deleteMany({ where: { entityType: "AD_PRO_ITEM", entityId: posteId } }).catch(() => {});
     await prisma.adProVoyageur.deleteMany({ where: { itemId: posteId } }).catch(() => {});
     await prisma.adProItem.deleteMany({ where: { sponsoringId: spoId } }).catch(() => {});

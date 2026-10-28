@@ -14,6 +14,7 @@ import {
 import { detailsStockes, personneVivante, type DetailTrajet } from "@/lib/care-fiches";
 import { fraisIntegres, imputationsDe } from "@/lib/missions-equipe/imputation-serveur";
 import type { ImputationEquipe } from "@/lib/missions-equipe/imputation";
+import { sansBloquer } from "@/lib/journal";
 
 export interface MissionCommentDTO {
   id: string; author: string; authorId: string | null; body: string; createdAt: string; editedAt: string | null;
@@ -365,7 +366,7 @@ export async function getMissionDetail(id: string): Promise<MissionDetailDTO | n
       select: { id: true, name: true },
     })).map((u) => [u.id, u.name]),
   );
-  const accompagnes = await professionnelsDeLaDemande(row.entityType, row.entityId).catch(() => [] as string[]);
+  const accompagnes = await professionnelsDeLaDemande(row.entityType, row.entityId).catch(sansBloquer("missions.getMissionDetail.professionnelsDeLaDemande", [] as string[]));
   return {
     mission,
     versions: versions.map((v) => {

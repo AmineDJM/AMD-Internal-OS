@@ -9,6 +9,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { formatCurrency } from "@/lib/utils";
 import { rattacherSalariesAEntite } from "@/lib/actions/payroll-hr-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { sansBloquer } from "@/lib/journal";
 
 export interface SalarieSansEntite {
   id: string;
@@ -48,7 +49,7 @@ export function RattacherSansEntite({
     const fd = new FormData();
     fd.set("companyId", companyId);
     for (const id of ids) fd.append("employeeIds", id);
-    const r = await rattacherSalariesAEntite(fd).catch(() => ({ ok: false as const, error: "Le rattachement n'a pas abouti — réessayez.", message: undefined }));
+    const r = await rattacherSalariesAEntite(fd).catch(sansBloquer("rattacher-sans-entite.rattacher.rattacherSalariesAEntite", { ok: false as const, error: "Le rattachement n'a pas abouti — réessayez.", message: undefined }));
     setBusy(null);
     setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Rattaché.") : (r.error ?? "Rattachement refusé.") });
     if (r.ok) rafraichir();

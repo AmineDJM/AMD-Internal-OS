@@ -33,6 +33,7 @@ import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
 import { demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE } from "@/lib/care-engagement";
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
 import { relierALaPersonne } from "@/modules/referentiels/api";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).
@@ -81,7 +82,7 @@ function canDecide(user: SessionUser, scope: Scope): boolean {
 async function audit(user: SessionUser, scope: Scope, id: string, action: "CREATE" | "UPDATE" | "DELETE", detail: string) {
   await recordAudit({
     actorId: user.id, module: SPEC[scope].module, entityType: SPEC[scope].module, entityId: id, action, summary: detail,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("care-actions.audit.recordAudit"));
 }
 
 /** Ce qu'on lit d'une demande, quel que soit son périmètre. */
@@ -467,7 +468,7 @@ export async function demanderPiecesPriseEnCharge(_prev: ActionResult | undefine
       userId: req.requesterId, type: "ASSIGNMENT", title: "Pièces demandées — prise en charge",
       body: `${req.name} — ${bilan.cases} pièce(s) à joindre pour ${bilan.concernees} professionnel(s).`,
       link: `${SPEC[scopeRaw].path}/${requestId}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("care-actions.demanderPiecesPriseEnCharge.notifyUser"));
   }
   await audit(user, scopeRaw, requestId, "UPDATE", `Pièces demandées : ${bilan.cases} pour ${bilan.concernees} professionnel(s).`);
   revalidate(scopeRaw, requestId);
@@ -923,8 +924,8 @@ export async function createCareQuote(_prev: ActionResult | undefined, formData:
   } catch (err) {
     console.error("[care] enregistrement du devis impossible", err);
     if (documentId) {
-      const doc = await prisma.document.delete({ where: { id: documentId } }).catch(() => null);
-      if (doc?.fileKey) await deleteFileByKey(doc.fileKey).catch(() => undefined);
+      const doc = await prisma.document.delete({ where: { id: documentId } }).catch(sansBloquer("care-actions.createCareQuote.document", null));
+      if (doc?.fileKey) await deleteFileByKey(doc.fileKey).catch(sansBloquer("care-actions.createCareQuote.deleteFileByKey"));
     }
     return { ok: false, error: "Le devis n'a pas pu être enregistré." };
   }
@@ -1062,7 +1063,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
   const rendreLaReserve = () => prisma.careQuote.updateMany({
     where: { id, expenseOrderId: null, status: "ACCEPTED" },
     data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("care-actions.rendreLaReserve.careQuote"));
 
   let ordreNe = false;
   try {
@@ -1149,7 +1150,7 @@ export async function requestCareQuotes(_prev: ActionResult | undefined, formDat
     title: "Devis à obtenir — prise en charge",
     body: `${req.name} : ${toQuote} élément(s) à chiffrer.`,
     link: lienDevis,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("care-actions.requestCareQuotes.notifyRoles"));
 
   await audit(user, scopeRaw, requestId, "UPDATE", `Secrétariat sollicité pour ${toQuote} devis — sujet ${sujet.reference}.`);
   revalidate(scopeRaw, requestId);
@@ -1204,21 +1205,21 @@ export async function sendCareToFinance(_prev: ActionResult | undefined, formDat
     title: "Prise en charge à régler",
     body: `${req.name} — dossier complet, ${rows.filter((r) => r.status === "APPROVED").length} personne(s) prise(s) en charge.`,
     link: "/finances/paiements-a-faire",
-  }).catch(() => undefined);
+  }).catch(sansBloquer("care-actions.sendCareToFinance.notifyRoles"));
   if (req.requesterId) {
     await notifyUser({
       userId: req.requesterId, type: "GENERIC",
       title: "Prise en charge transmise aux Finances",
       body: `${req.name} — le dossier est complet.`,
       link: `${SPEC[scopeRaw].path}/${requestId}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("care-actions.sendCareToFinance.notifyUser"));
   }
 
   // LA TRACE QU'ON RELIT : « Marquer réalisée » ne s'ouvre qu'après cet envoi (`envoiAuxFinances`).
   await recordAudit({
     actorId: user.id, module: SPEC[scopeRaw].module, entityType: SPEC[scopeRaw].module, entityId: requestId,
     action: "UPDATE", field: ENVOI_FINANCES_CHAMP, summary: ENVOI_FINANCES_RESUME,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("care-actions.sendCareToFinance.recordAudit"));
   revalidate(scopeRaw, requestId);
   return { ok: true, message: "Les Finances sont prévenues — le dossier est complet." };
 }
@@ -1414,7 +1415,7 @@ export async function demanderBCPriseEnCharge(_prev: ActionResult | undefined, f
     title: "Prise en charge — devis retenus à accepter",
     body: `${req.name} — ${marques.count} devis retenu(s), BC demandé à l'assistante de direction.`,
     link: `${SPEC[scopeRaw].path}/${requestId}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("care-actions.demanderBCPriseEnCharge.notifyRoles"));
   await audit(user, scopeRaw, requestId, "UPDATE", `BC demandé pour ${marques.count} devis retenu(s) — sujet ${sujet.reference}.`);
   revalidate(scopeRaw, requestId);
   revalidatePath("/dossiers");

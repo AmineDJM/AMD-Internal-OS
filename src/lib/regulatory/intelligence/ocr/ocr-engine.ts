@@ -8,6 +8,7 @@ import { mistralOcrConfigured, mistralOcrDocument, mistralOcrEligible } from "./
 import { applyAiRescue, type RescueContext } from "./vision-ocr";
 // L'interrupteur général de l'IA (« Contrôle de l'IA ») — voir `ocrDocument`.
 import { interrupteurIaCoupe } from "@/lib/ai-settings";
+import { attendu } from "@/lib/journal";
 
 /**
  * MOTEUR OCR (G13) — deux moteurs, contrat commun (`OcrResult`) :
@@ -267,7 +268,7 @@ async function ocrWithTesseract(input: { ext: string; buffer: Buffer; langs?: st
       await recognizeOne(input.buffer, 0);
     }
   } finally {
-    await worker.terminate().catch(() => undefined);
+    await worker.terminate().catch(attendu("fermeture au mieux : la ressource est abandonnée de toute façon"));
   }
 
   // « Tronqué » ne veut dire qu'une chose : des pages n'ont pas été lues. Qu'elles aient été

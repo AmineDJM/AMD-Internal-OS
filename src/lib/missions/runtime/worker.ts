@@ -6,6 +6,7 @@ import type { StepContext, StepOutcome } from "@/lib/missions/runtime/engine";
 import { rolePourEtape, type MissionModelRole, type ReasoningRequirement } from "@/lib/missions/model/roles";
 import { estimerJetons } from "@/lib/missions/memory/budget";
 import { SCHEMA_WORKER_MINIMAL } from "@/lib/missions/runtime/sorties";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -399,7 +400,7 @@ export async function executerWorker(ctx: StepContext, deps: WorkerDeps): Promis
     await prisma.missionWorkerRun.update({
       where: { id: run.id },
       data: { status: "TIMEOUT", error: `dépassement de ${spec.timeoutMs} ms`, endedAt: new Date() },
-    }).catch(() => {});
+    }).catch(sansBloquer("runtime-worker.executerWorker.missionWorkerRun"));
     return {
       status: "FAILED",
       error: `le worker n'a pas répondu en ${Math.round(spec.timeoutMs / 1000)} s`,
@@ -420,7 +421,7 @@ export async function executerWorker(ctx: StepContext, deps: WorkerDeps): Promis
         costUsd: res.usage?.costUsd ?? null,
         endedAt: new Date(),
       },
-    }).catch(() => {});
+    }).catch(sansBloquer("runtime-worker.executerWorker.missionWorkerRun"));
     return {
       status: "FAILED",
       error: res.error ?? "le worker n'a rien rendu de conforme au schéma demandé",
@@ -440,7 +441,7 @@ export async function executerWorker(ctx: StepContext, deps: WorkerDeps): Promis
       costUsd: res.usage?.costUsd ?? null,
       endedAt: new Date(),
     },
-  }).catch(() => {});
+  }).catch(sansBloquer("runtime-worker.executerWorker.missionWorkerRun"));
 
   return { status: "DONE", result: res.data, receipt: run.id };
 }

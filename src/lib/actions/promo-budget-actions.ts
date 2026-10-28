@@ -10,6 +10,7 @@ import { peutImputerMaterielPromo, refusImputationPromo, REFUS_IMPUTATION_PROMO 
 import { depensesDesDossiersPromo } from "@/lib/queries/promo-budget";
 import { DOMAINES } from "@/lib/budget/domaines";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * IMPUTER UN MATÉRIEL PROMOTIONNEL À UN BUDGET (Direction, 27/10 — point 21).
@@ -78,7 +79,7 @@ export async function imputerBudgetMaterielPromo(_prev: ActionResult | undefined
     actorId: user.id, action: "UPDATE", module: "Matériel promotionnel", entityType: "PROMO_MATERIAL", entityId: id,
     field: "budgetCategoryId", oldValue: pm.budgetCategoryId, newValue: cible.id,
     summary: `${pm.reference} imputé au budget « ${nom} »${ordres.length ? ` (${ordres.length} ordre${ordres.length > 1 ? "s" : ""} fournisseur suivent)` : ""}.`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("promo-budget-actions.imputerBudgetMaterielPromo.recordAudit"));
   revalidatePath(`/promo-material/${id}`);
   revalidatePath(DOMAINES.MARKETING.chemin);
   revalidatePath("/budgets");

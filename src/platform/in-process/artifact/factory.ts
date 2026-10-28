@@ -76,6 +76,7 @@ import { refusRevisionAval, refusPieceAmont, phrasePieceAmontNonRattachee, PIECE
 import { refusPlafondAvoir, resteACrediter } from "@/lib/lecteurs/avoir";
 import { reserveDeLAiguillage, type PorteBC } from "@/lib/bons-de-commande/regle";
 import { controlerRibDePiece } from "@/modules/coffre/api";
+import { sansBloquer } from "@/lib/journal";
 
 /** Les causes d'échec que le runtime de missions sait classer (`capability-failure.ts`). */
 type Echec = "NOT_FOUND" | "MISSING_PERMISSION" | "MISSING_INPUT" | "CAPABILITY_FAILURE";
@@ -304,7 +305,7 @@ export async function profilDocumentaire(user: CurrentUser, societe?: string | n
   // récente des deux volontés, et elle porte le nom de qui l'a dite. Chaque application est
   // rendue (`reglesAppliquees`) : la pièce dit d'où viennent ses réglages.
   const reglesAppliquees: ProfilDocumentaire["reglesAppliquees"] = [];
-  const standards = await standardsDocumentaires(user.id, s.id).catch(() => new Map<string, { valeur: unknown; regle: { id: string } }>());
+  const standards = await standardsDocumentaires(user.id, s.id).catch(sansBloquer("factory.profilDocumentaire.standardsDocumentaires", new Map<string, { valeur: unknown; regle: { id: string } }>()));
   const appliquer = (cle: string, f: (v: unknown) => string | null) => {
     const st = standards.get(cle);
     if (!st) return;
@@ -340,7 +341,7 @@ export async function profilDocumentaire(user: CurrentUser, societe?: string | n
   const charte = charteDe(marque);
   let logo: Habillage["logo"] = null;
   if (marque.logo && !(papierOctets && papierOctets.length > 0)) {
-    const octets = await getBlob(marque.logo.blobId).catch(() => null);
+    const octets = await getBlob(marque.logo.blobId).catch(sansBloquer("factory.profilDocumentaire.getBlob", null));
     if (octets && octets.length > 0) logo = { octets: Buffer.from(octets), png: marque.logo.mime === "image/png", largeurCm: marque.logo.largeurCm };
   }
   const partie: PartieCommerciale = {
@@ -1670,8 +1671,8 @@ export async function reviserDocumentDrive(
     }
     if (renum.change) {
       // Les fichiers du Drive portent le numéro dans leur nom : ils le suivent (au mieux — le registre fait foi).
-      await prisma.driveNode.update({ where: { id: doc.driveNodeId }, data: { name: nomFichier(numero, spec.tiers.nom, "docx") } }).catch(() => undefined);
-      if (pdf) await prisma.driveNode.update({ where: { id: pdf.nodeId }, data: { name: nomFichier(numero, spec.tiers.nom, "pdf") } }).catch(() => undefined);
+      await prisma.driveNode.update({ where: { id: doc.driveNodeId }, data: { name: nomFichier(numero, spec.tiers.nom, "docx") } }).catch(sansBloquer("factory.reviserDocumentDrive.driveNode"));
+      if (pdf) await prisma.driveNode.update({ where: { id: pdf.nodeId }, data: { name: nomFichier(numero, spec.tiers.nom, "pdf") } }).catch(sansBloquer("factory.reviserDocumentDrive.driveNode"));
       // TRACÉ : ancien → nouveau, qui, quand — une ligne du journal à part, lisible sans ouvrir la version.
       await recordAudit({
         actorId: user.id, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id, field: "numero", oldValue: f.numero, newValue: numero,

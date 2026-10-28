@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { agentsForSections } from "./registry";
 import { runAgentOnVersion } from "./orchestrator";
 import { regAudit } from "../audit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ESCALADE ÉCO → QUALITÉ : là où le balayage a trouvé du CRITIQUE, l'agent SPÉCIALISTE repasse.
@@ -67,7 +68,7 @@ export async function escalateCriticalSections(
         companyId: ctx.companyId, actorId: "system", dossierId: ctx.dossierId, dossierVersionId: versionId,
         action: "AGENTS_ESCALATED",
         detail: `Escalade automatique : ${ran} agent(s) spécialiste(s) passé(s) sur les sections critiques (${sections.slice(0, 6).join(", ")}). Constats PROJET — revue humaine requise.`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("escalate.escalateCriticalSections.regAudit"));
     }
     return ran;
   } catch (e) {

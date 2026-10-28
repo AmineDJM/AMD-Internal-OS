@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { lunaEmbed } from "@/lib/openai-luna";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RECHERCHE SÉMANTIQUE SUR LE CORPUS — le complément que le lexical ne fournira jamais.
@@ -127,7 +128,7 @@ export async function embedBacklog(batch = 96): Promise<number> {
       const vecs = await lunaEmbed(sections.map((s) => `${s.heading ?? ""}\n${s.text}`.trim()));
       if (vecs) {
         for (let i = 0; i < sections.length; i++) {
-          await prisma.regulatorySourceSection.update({ where: { id: sections[i].id }, data: { embedding: vecs[i] } }).catch(() => undefined);
+          await prisma.regulatorySourceSection.update({ where: { id: sections[i].id }, data: { embedding: vecs[i] } }).catch(sansBloquer("semantic.embedBacklog.regulatorySourceSection"));
         }
         done += sections.length;
       }
@@ -142,7 +143,7 @@ export async function embedBacklog(batch = 96): Promise<number> {
       const vecs = await lunaEmbed(reserves.map((r) => `${r.ctdSection ?? ""} ${r.verbatim}`.trim()));
       if (vecs) {
         for (let i = 0; i < reserves.length; i++) {
-          await prisma.anppReserve.update({ where: { id: reserves[i].id }, data: { embedding: vecs[i] } }).catch(() => undefined);
+          await prisma.anppReserve.update({ where: { id: reserves[i].id }, data: { embedding: vecs[i] } }).catch(sansBloquer("semantic.embedBacklog.anppReserve"));
         }
         done += reserves.length;
       }
@@ -158,7 +159,7 @@ export async function embedBacklog(batch = 96): Promise<number> {
       const vecs = await lunaEmbed(caseDocs.map((c) => `${c.ctdSection ?? ""} ${c.filename}\n${c.text}`.trim()));
       if (vecs) {
         for (let i = 0; i < caseDocs.length; i++) {
-          await prisma.regulatoryCaseDoc.update({ where: { id: caseDocs[i].id }, data: { embedding: vecs[i] } }).catch(() => undefined);
+          await prisma.regulatoryCaseDoc.update({ where: { id: caseDocs[i].id }, data: { embedding: vecs[i] } }).catch(sansBloquer("semantic.embedBacklog.regulatoryCaseDoc"));
         }
         done += caseDocs.length;
       }

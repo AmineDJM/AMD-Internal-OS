@@ -6,6 +6,7 @@ import { readFileByKey, saveFile } from "@/lib/storage";
 import { recordAudit } from "@/lib/audit";
 import { estUnTexteEditable, texteAEnregistrer } from "@/lib/texte-fichier";
 import { TAILLE_MAX_TEXTE_OCTETS } from "@/lib/formats/apercu";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 const SANS_CACHE = { "Cache-Control": "no-store" };
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   let corps: { texte?: unknown; version?: unknown };
   try { corps = await req.json(); } catch { return NextResponse.json({ error: "Requête illisible." }, { status: 400, headers: SANS_CACHE }); }
   // Un fichier TRONQUÉ à l'affichage (plus d'1 Mo) n'est JAMAIS réécrit : on écraserait la fin qu'on n'a pas montrée.
-  const tailleActuelle = (await readFileByKey(doc.fileKey).catch(() => null))?.length ?? 0;
+  const tailleActuelle = (await readFileByKey(doc.fileKey).catch(sansBloquer("enregistrer-route.POST.readFileByKey", null)))?.length ?? 0;
   const verifie = texteAEnregistrer(corps.texte, tailleActuelle > TAILLE_MAX_TEXTE_OCTETS);
   if (!verifie.ok) return NextResponse.json({ error: verifie.error }, { status: 400, headers: SANS_CACHE });
 
