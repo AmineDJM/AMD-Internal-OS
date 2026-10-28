@@ -13,7 +13,7 @@ import { reprisePointsDeContact } from "./points-de-contact";
 import { REPRISES, trouverReprise } from ".";
 import type { Reprise } from "../../domaine/reprises/types";
 import { reposerWilayaCode } from "@/modules/lieux/api";
-import { apercuReprise, executerReprise } from "@/lib/actions/refonte-reprise-actions";
+import { apercuReprise, executerReprise } from "../../actions-reprises";
 import { reglerDoubleEcritureLieux } from "@/lib/actions/lieux-actions";
 import { creerFournisseurAnnuaire, modifierFournisseurAnnuaire } from "@/lib/actions/fournisseurs-annuaire-actions";
 

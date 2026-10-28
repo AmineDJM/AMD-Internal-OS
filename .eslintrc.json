@@ -36,7 +36,10 @@
               "@/lib/referentiels",
               "@/lib/referentiels/*",
               "@/lib/actions/coffre-actions",
-            "@/lib/actions/consommation-actions"
+            "@/lib/actions/consommation-actions",
+            "@/lib/actions/organisation-actions",
+            "@/lib/actions/personnes-actions",
+            "@/lib/actions/refonte-reprise-actions"
             ],
             "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
           }
@@ -75,7 +78,10 @@
                   "@/lib/referentiels",
                   "@/lib/referentiels/*",
                   "@/lib/actions/coffre-actions",
-            "@/lib/actions/consommation-actions"
+            "@/lib/actions/consommation-actions",
+            "@/lib/actions/organisation-actions",
+            "@/lib/actions/personnes-actions",
+            "@/lib/actions/refonte-reprise-actions"
                 ],
                 "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }
@@ -154,7 +160,10 @@
                   "@/lib/referentiels",
                   "@/lib/referentiels/*",
                   "@/lib/actions/coffre-actions",
-            "@/lib/actions/consommation-actions"
+            "@/lib/actions/consommation-actions",
+            "@/lib/actions/organisation-actions",
+            "@/lib/actions/personnes-actions",
+            "@/lib/actions/refonte-reprise-actions"
                 ],
                 "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }

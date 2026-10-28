@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { basculerDoubleEcriturePersonnes } from "@/lib/actions/personnes-actions";
+import { basculerDoubleEcriturePersonnes } from "@/modules/referentiels/actions-personnes";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 

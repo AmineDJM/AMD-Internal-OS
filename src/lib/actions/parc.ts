@@ -14,11 +14,12 @@ import { join } from "node:path";
  *
  * La clé est désormais un NOM, déclaré ici, indépendant du chemin :
  *   - un fichier de `src/lib/actions/` garde sa clé implicite (son nom sans `.ts`) ;
- *   - un fichier rangé dans un module est déclaré dans `ACTIONS_DES_MODULES` avec sa clé
+ *   - un fichier rangé dans un module (`actions.ts`, ou `actions-<cas>.ts` s'il en a plusieurs) est
+ *     déclaré dans `ACTIONS_DES_MODULES` avec sa clé
  *     HISTORIQUE — déménager une action ne change donc aucune clé, aucune ligne du registre de
  *     parité, aucune trace d'audit : seul l'aiguillage généré pointe le nouveau chemin.
  *
- * `contrat.test.ts` tient la règle : tout `src/modules/<m>/actions.ts` est déclaré ici, toute
+ * `contrat.test.ts` tient la règle : tout fichier d'actions d'un module est déclaré ici, toute
  * entrée d'ici existe sur le disque, et aucune clé n'est portée par deux fichiers.
  *
  * Lu par les tests et les scripts seulement (il lit le disque) — jamais par du code d'exécution.
@@ -29,6 +30,9 @@ import { join } from "node:path";
 export const ACTIONS_DES_MODULES: Readonly<Record<string, string>> = {
   "coffre-actions": "src/modules/coffre/actions.ts",
   "consommation-actions": "src/modules/consommation/actions.ts",
+  "organisation-actions": "src/modules/referentiels/actions-organisations.ts",
+  "personnes-actions": "src/modules/referentiels/actions-personnes.ts",
+  "refonte-reprise-actions": "src/modules/referentiels/actions-reprises.ts",
 };
 
 /** Ce qui vit dans `src/lib/actions/` sans être un fichier d'actions : le contrat lui-même, les types. */
@@ -58,13 +62,18 @@ export function parcDesActions(racine = process.cwd()): FichierDActions[] {
   return [...communs, ...ranges].sort((a, b) => a.cle.localeCompare(b.cle));
 }
 
-/** Les fichiers `actions.ts` présents dans `src/modules/` — chacun DOIT être déclaré dans `ACTIONS_DES_MODULES`. */
+/**
+ * Les fichiers d'actions présents à la racine des modules (`actions.ts`, ou `actions-<cas>.ts` quand un module
+ * en a plusieurs — chacun garde sa clé) : chacun DOIT être déclaré dans `ACTIONS_DES_MODULES`.
+ */
 export function actionsDesModulesSurLeDisque(racine = process.cwd()): string[] {
   const modules = join(racine, "src", "modules");
   if (!existsSync(modules)) return [];
   return readdirSync(modules, { withFileTypes: true })
-    .filter((e) => e.isDirectory() && existsSync(join(modules, e.name, "actions.ts")))
-    .map((e) => `src/modules/${e.name}/actions.ts`)
+    .filter((e) => e.isDirectory())
+    .flatMap((e) => readdirSync(join(modules, e.name))
+      .filter((f) => /^actions(-[a-z-]+)?\.ts$/.test(f))
+      .map((f) => `src/modules/${e.name}/${f}`))
     .sort();
 }
 

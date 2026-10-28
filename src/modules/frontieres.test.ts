@@ -14,7 +14,8 @@ import { CARTE, SOCLE_METIER } from "./carte";
  *   api-*.ts      une porte serveur SPÉCIALISÉE quand une partie du module ne doit pas être
  *                 atteinte par tous (le coffre : `api.ts` n'écrit que, `api-lecture.ts` déchiffre) ;
  *   partage.ts    la porte PURE, importable partout (navigateur, autres `domaine/`) ;
- *   actions.ts    les actions serveur (`"use server"`), déclarées dans `src/lib/actions/parc.ts` ;
+ *   actions.ts    les actions serveur (`"use server"`), déclarées dans `src/lib/actions/parc.ts` —
+ *                 `actions-<cas>.ts` quand le module en a plusieurs fichiers (chacun garde sa clé) ;
  *   domaine/      règles PURES : ni Prisma, ni Next, ni Node, ni React, ni `infra/`, ni `ecrans/` ;
  *   infra/        la base et les fichiers, réexportés par les portes ;
  *   ecrans/       composants React du module, importés par les pages de `src/app/` seulement.
@@ -81,7 +82,7 @@ const ACTIONS = "src/lib/actions/";
 /** Ce qu'un `domaine/` ne peut pas importer en VALEUR. */
 const INTERDITS_DOMAINE = /^(@prisma\/client|next(\/|$)|react(\/|$)|react-dom|node:|fs$|path$|crypto$|xlsx$)/;
 /** Les fichiers permis à la racine d'un module (hors tests et README). */
-const PORTE = /^(api|api-[a-z-]+|partage|actions)$/;
+const PORTE = /^(api|api-[a-z-]+|partage|actions|actions-[a-z-]+)$/;
 const DOSSIERS = new Set(["domaine", "infra", "ecrans"]);
 
 const RACINE = process.cwd();
@@ -130,7 +131,7 @@ describe("modules — la structure de chaque module", () => {
         if (!PORTE.test(e.name.replace(/\.tsx?$/, ""))) intrus.push(`src/modules/${m}/${e.name}`);
       }
     }
-    expect(intrus, "une porte s'appelle api.ts, api-<facette>.ts, partage.ts ou actions.ts ; le reste va dans domaine/, infra/ ou ecrans/").toEqual([]);
+    expect(intrus, "une porte s'appelle api.ts, api-<facette>.ts, partage.ts, actions.ts ou actions-<cas>.ts ; le reste va dans domaine/, infra/ ou ecrans/").toEqual([]);
   });
 
   it("chaque module figure dans la carte (`carte.ts`), et la carte ne nomme que des modules qui existent", () => {

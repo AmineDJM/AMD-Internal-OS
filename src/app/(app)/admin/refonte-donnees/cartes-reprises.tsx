@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Eye, Loader2, Play } from "lucide-react";
-import { apercuReprise, executerReprise } from "@/lib/actions/refonte-reprise-actions";
+import { apercuReprise, executerReprise } from "@/modules/referentiels/actions-reprises";
 import type { BilanReprise } from "@/modules/referentiels/partage";
 import { Button } from "@/components/ui/button";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
