@@ -5,10 +5,10 @@ import { AlertCircle, Clock, Loader2, Lock, Pencil, Unlock } from "lucide-react"
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExpenseClaimFields } from "./expense-claim-form";
-import { canEditExpenseClaim, expenseEditLabel, type ExpenseEditState } from "@/lib/hr/expense-claim";
-import { updateExpenseClaim } from "@/lib/actions/hr-document-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { canEditExpenseClaim, expenseEditLabel, type ExpenseEditState } from "@/modules/rh/partage";
+import { updateExpenseClaim } from "@/modules/rh/actions-documents";
 
 /**
  * CORRIGER SA NOTE DE FRAIS — pendant quinze minutes, ou après si les RH ont rouvert.

@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import { Pencil, Loader2 } from "lucide-react";
-import { updateLeaveRequest } from "@/lib/actions/hr-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { updateLeaveRequest } from "@/modules/rh/actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";

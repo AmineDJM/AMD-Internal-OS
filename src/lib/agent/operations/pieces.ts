@@ -67,9 +67,10 @@ export const idsDe = (json: string | null | undefined): string[] => {
 };
 
 /**
- * LES PIÈCES JOINTES D'UN MESSAGE de la conversation — revérifiées (la personne les VOIT), puis
- * dites au modèle par leur NOM et leur IDENTIFIANT, jamais par leur contenu : il s'en sert pour les
- * joindre à une demande. Une pièce invisible est écartée en silence (elle ne vient pas d'elle).
+ * LES PIÈCES JOINTES D'UN MESSAGE de la conversation — revérifiées (la personne les VOIT) ; le tour
+ * les LIT ensuite (`agent/lecture/pieces.ts`, décision 0011 : coffre refusé, contenu filtré, borné et
+ * encadré) et les nomme par leur identifiant pour les joindre à une demande. Une pièce invisible est
+ * écartée en silence (elle ne vient pas d'elle).
  */
 export async function piecesDuMessage(user: CurrentUser, brutes: unknown): Promise<PieceResolue[]> {
   if (!Array.isArray(brutes)) return [];

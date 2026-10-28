@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Loader2, Check, X, MessageSquare, MoreHorizontal } from "lucide-react";
-import { decideLeave } from "@/lib/actions/hr-actions";
+import { decideLeave } from "@/modules/rh/actions";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LEAVE_TYPE } from "@/lib/labels";
-import { type LeaveStage } from "@/lib/leave-workflow";
+import { type LeaveStage } from "@/modules/rh/partage";
 import { formatDate, cn, initials } from "@/lib/utils";
 import { depuisLisible } from "@/lib/calendar-tz";
 import { LeaveEditButton } from "./leave-edit";

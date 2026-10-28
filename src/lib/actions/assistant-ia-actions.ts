@@ -140,3 +140,12 @@ export async function repartirDeZero() {
   const { nouvelleConversation } = await import("@/lib/agent/fil/service");
   return nouvelleConversation(p.user.id);
 }
+
+/** L'option « réponse vocale » : chaque réponse de l'assistant est aussi dite à voix haute (fichier audio du Drive). */
+export async function reglerMaReponseVocale(active: boolean) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  const { reglerReponseVocale } = await import("@/lib/agent/fil/service");
+  await reglerReponseVocale(p.user.id, active === true);
+  return { ok: true as const, active: active === true };
+}

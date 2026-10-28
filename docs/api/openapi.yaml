@@ -14,7 +14,7 @@
   "contact": 
     "name": "Adventum Pharma — Administration AMD Internal OS"
 "servers": 
-  -     "url": "https://amd-internal-os.onrender.com"
+  -     "url": "https://amd-internal-os-k3uc.onrender.com"
     "description": "Production"
 "paths": 
   "/api/v1/meta/modules": 

@@ -15,7 +15,7 @@ import { CHAMPS_SENSIBLES, MODELES_SENSIBLES } from "./domaine/champs";
  */
 
 const EXCEPTIONS: Record<string, string> = {
-  "src/lib/actions/payroll-hr-actions.ts":
+  "src/modules/rh/actions-paie.ts":
     "Écrit `PayrollEntry.employerCost` (le coût d'un bulletin, pas la fiche) ; sur `Employee`, seulement `companyId`.",
 };
 
@@ -47,7 +47,7 @@ describe("Garde des écrivains du coffre", () => {
 
   it("trouve les écrivains connus (le banc n'est pas vide)", () => {
     expect(ecrivains.map((e) => e.fichier)).toEqual(expect.arrayContaining([
-      "src/lib/actions/hr-actions.ts", "src/lib/actions/company-contact-actions.ts", "src/lib/actions/company-identity-actions.ts",
+      "src/modules/rh/actions.ts", "src/lib/actions/company-contact-actions.ts", "src/lib/actions/company-identity-actions.ts",
     ]));
   });
 

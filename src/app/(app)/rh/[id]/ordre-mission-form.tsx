@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { genererOrdreDeMission, referenceOrdreDeMission } from "@/lib/actions/hr-document-actions";
-import { MODES_TRANSPORT_MISSION, VALEURS_DU_MODELE } from "@/lib/hr/ordre-mission/constantes";
+import { genererOrdreDeMission, referenceOrdreDeMission } from "@/modules/rh/actions-documents";
+import { MODES_TRANSPORT_MISSION, VALEURS_DU_MODELE } from "@/modules/rh/partage";
 import { ChampReference } from "@/components/references/champ-reference";
 
 /**

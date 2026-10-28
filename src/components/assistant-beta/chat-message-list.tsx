@@ -1,11 +1,13 @@
 "use client";
 
 import React, { useRef, useEffect } from "react";
-import { User, Loader2, Wrench, Clock } from "lucide-react";
+import { User, Loader2, Wrench, Clock, Mic, AlertTriangle } from "lucide-react";
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
 import { PiecesDuMessage } from "./pieces-jointes";
+import { BulleVocale } from "./bulle-vocale";
+import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "@/lib/agent/lecture/regles";
 import type { MemoireProposee } from "@/lib/agent/memoire-ui";
 import { WorkspaceBlocks } from "@/components/chief/workspace/blocks";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
@@ -18,6 +20,12 @@ export interface ChatMessage {
   blocs?: WorkspaceBlock[];
   /** Les pièces jointes d'un message de la personne (dans son Drive). */
   pieces?: { id: string; nom: string }[];
+  /** Ce que la lecture de chaque pièce a donné (lue, partielle, refusée…) — dit sous la pièce. */
+  lectures?: LecturePiece[] | null;
+  /** Un message VOCAL : le lecteur, la durée, la transcription dessous. `local` : l'enregistrement pas encore envoyé. */
+  vocal?: (Omit<VocalDuTour, "id"> & { id: string | null; local?: string | null }) | null;
+  /** La réponse VOCALE de l'assistant (option « réponse vocale »). */
+  audio?: AudioDuTour | null;
   /** Une mémoire PROPOSÉE par l'assistant — retenue seulement au geste de la personne. */
   memoireProposee?: MemoireProposee | null;
   outilsAppeles?: string[];
@@ -78,12 +86,32 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
           return (
             <div key={m.id} className="flex items-start justify-end gap-3">
               <div className="flex max-w-[85%] flex-col items-end gap-1.5 sm:max-w-[75%]">
+                {m.vocal && (
+                  <div className="flex max-w-full flex-col gap-1.5 rounded-2xl rounded-tr-md bg-slate-900 px-3 py-2.5 text-white shadow-xs dark:bg-zinc-100 dark:text-zinc-900">
+                    <BulleVocale id={m.vocal.id} local={m.vocal.local ?? null} dureeS={m.vocal.dureeS} sombre libelle="votre message vocal" />
+                    {m.vocal.etat === "TRANSCRIT" && m.vocal.transcription && (
+                      <p className="whitespace-pre-wrap border-t border-white/15 pt-1.5 text-[13px] leading-snug text-white/85 [overflow-wrap:anywhere] dark:border-zinc-900/15 dark:text-zinc-700">
+                        {m.vocal.transcription}
+                      </p>
+                    )}
+                    {m.vocal.etat === "TRANSCRIPTION" && (
+                      <span className="flex items-center gap-1 text-[11px] text-white/70 dark:text-zinc-600">
+                        {m.vocal.id ? <><Loader2 className="h-3 w-3 animate-spin" /> Transcription…</> : <><Mic className="h-3 w-3" /> Envoi du vocal…</>}
+                      </span>
+                    )}
+                    {m.vocal.etat === "ECHEC" && (
+                      <span className="flex items-start gap-1 text-[11px] text-amber-200 dark:text-amber-700">
+                        <AlertTriangle className="mt-px h-3 w-3 shrink-0" /> {m.vocal.erreur ?? "Transcription impossible."}
+                      </span>
+                    )}
+                  </div>
+                )}
                 {m.content && (
                   <div className="whitespace-pre-wrap rounded-2xl rounded-tr-md bg-slate-900 px-3.5 py-2.5 text-[15px] leading-relaxed text-white shadow-xs [overflow-wrap:anywhere] sm:text-[14px] dark:bg-zinc-100 dark:text-zinc-900">
                     {m.content}
                   </div>
                 )}
-                {m.pieces && m.pieces.length > 0 && <PiecesDuMessage pieces={m.pieces} />}
+                {m.pieces && m.pieces.length > 0 && <PiecesDuMessage pieces={m.pieces} lectures={m.lectures} />}
                 {m.etat === "attente" && (
                   <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-zinc-400">
                     <Clock className="h-3 w-3" /> En file — traité après le message précédent
@@ -119,6 +147,14 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                     {m.content ? "Rédaction…" : m.outilsAppeles?.length ? "Je consulte vos données…" : "Je réfléchis…"}
                   </div>
                 )}
+                {m.audio && (m.audio.id ? (
+                  <div className="mb-2 flex flex-col gap-1">
+                    <BulleVocale id={m.audio.id} dureeS={m.audio.dureeS} libelle="la réponse vocale" />
+                    {m.audio.coupe && <span className="text-[11px] text-slate-500 dark:text-zinc-400">{PHRASE_VOCAL_COUPE}</span>}
+                  </div>
+                ) : m.audio.erreur ? (
+                  <p className="mb-2 flex items-start gap-1 text-[11px] text-amber-700 dark:text-amber-400"><AlertTriangle className="mt-px h-3 w-3 shrink-0" /> Réponse vocale indisponible : {m.audio.erreur}</p>
+                ) : null)}
                 {m.content && <MarkdownMessage texte={m.content} />}
                 {m.etat === "echec" && !m.content && <p className="text-sm text-red-600 dark:text-red-400">La demande n&apos;a pas abouti.</p>}
                 {/* L'UI GÉNÉRATIVE : les composants que le serveur a prouvés, sous le texte. */}

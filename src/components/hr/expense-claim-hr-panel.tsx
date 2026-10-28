@@ -5,10 +5,10 @@ import { AlertCircle, Check, FileQuestion, Loader2, Lock, Unlock } from "lucide-
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
-import { askHrRequestPiece, setExpenseClaimEditUnlocked } from "@/lib/actions/hr-document-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { EXPENSE_EDIT_MINUTES } from "@/lib/hr/expense-claim";
+import { askHrRequestPiece, setExpenseClaimEditUnlocked } from "@/modules/rh/actions-documents";
+import { EXPENSE_EDIT_MINUTES } from "@/modules/rh/partage";
 
 /**
  * CE QUE LES RH FONT SUR UNE NOTE DE FRAIS — sans la réécrire.

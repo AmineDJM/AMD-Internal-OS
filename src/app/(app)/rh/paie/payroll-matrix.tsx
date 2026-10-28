@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Loader2, Check, Undo2, Paperclip } from "lucide-react";
-import { markSalaryPaid, unmarkSalaryPaid, updatePayrollEntry } from "@/lib/actions/payroll-hr-actions";
+import { markSalaryPaid, unmarkSalaryPaid, updatePayrollEntry } from "@/modules/rh/actions-paie";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select } from "@/components/ui/input";

@@ -11,9 +11,8 @@ import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { deleteFileByKey } from "@/lib/storage";
-import { allotPettyCash, confirmPettyCashReceipt, decidePettyCashTopUp, requestPettyCashTopUp, spendFromPettyCash } from "./petty-cash-actions";
+import { allotPettyCash, decidePettyCashTopUp, requestPettyCashTopUp, spendFromPettyCash } from "./petty-cash-actions";
 import { decidePayment } from "./payment-centre-actions";
-import { settleExpenseOrder } from "./expense-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
 
 /**
@@ -70,12 +69,9 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
+    // Autorisée par le centre, la remise est versée et EN MAIN (règle du 28/10/2026).
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
-    const regle = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));
-    expect(regle.ok, regle.error).toBe(true);
-    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
-    const recu = await confirmPettyCashReceipt(form({ id: ligne.id }));
-    expect(recu.ok, recu.error).toBe(true);
+    expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ligne.id } })).status).toBe("RECEIVED");
   }, 60_000);
 
   afterAll(async () => {

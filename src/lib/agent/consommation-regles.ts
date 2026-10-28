@@ -7,7 +7,7 @@
  * ── POURQUOI DES JETONS, ET PAS DES DOLLARS ──────────────────────────────────────────────
  *
  * Le plafond se compte en JETONS (entrée + sortie), pas en coût : le tarif de MiMo n'est pas inscrit
- * dans le code (il se pose dans l'environnement, `MIMO_PRICE_IN` / `MIMO_PRICE_OUT`), et un plafond
+ * dans le code (il se pose dans l'environnement, `ASSISTANT_IA_PRICE_IN` / `ASSISTANT_IA_PRICE_OUT`), et un plafond
  * qui ne tiendrait plus le jour où le tarif manque ne serait pas un plafond. Le coût, lui, est
  * ESTIMÉ et affiché quand le tarif est connu — « inconnu » sinon, jamais zéro.
  *

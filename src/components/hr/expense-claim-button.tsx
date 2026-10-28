@@ -4,11 +4,11 @@ import * as React from "react";
 import { AlertCircle, Loader2, ReceiptText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import { requestHrDocument } from "@/lib/actions/hr-document-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { requestHrDocument } from "@/modules/rh/actions-documents";
 import { ExpenseClaimFields } from "./expense-claim-form";
-import { EXPENSE_EDIT_MINUTES } from "@/lib/hr/expense-claim";
+import { EXPENSE_EDIT_MINUTES } from "@/modules/rh/partage";
 
 /**
  * AJOUTER UNE NOTE DE FRAIS — depuis son espace, avec le reçu qu'on a dans la main.

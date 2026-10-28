@@ -2,7 +2,7 @@ import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { prisma } from "@/lib/prisma";
 import { myCompanyScope } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
-import { entryCost } from "@/lib/hr/payroll-cost";
+import { entryCost } from "@/modules/rh/partage";
 import {
   mergeGrants, canViewDepartmentBudget, editableKindsOn, EMPTY_GRANT,
   type DeptBudgetViewRow, type DeptBudgetGrant, type BudgetSetter, type GrantSubject, type DeptBudgetKind,

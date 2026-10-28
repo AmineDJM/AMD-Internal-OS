@@ -183,7 +183,7 @@ services:
           name: amd-internal-os
           envVarKey: AUTH_SECRET
       - key: APP_URL
-        sync: false # l'URL publique du web, ex. https://amd-internal-os.onrender.com
+        sync: false # l'URL publique du web, ex. https://amd-internal-os-k3uc.onrender.com
       - key: NODE_VERSION
         value: "22"
       - key: S3_ENDPOINT

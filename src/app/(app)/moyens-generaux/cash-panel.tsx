@@ -134,7 +134,7 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
               <span className="min-w-0 flex-1">
                 <strong>{formatCurrency(r.amount)}</strong> demandés le {formatDate(r.remittedAt)}
                 {r.holder ? ` pour ${r.holder}` : ""} — {ETAT_REMISE_LABEL[r.centre].label.toLowerCase()}.
-                Ils rejoindront le fond une fois versés.
+                Ils s&apos;ajouteront au fond dès que le centre les autorise.
               </span>
               <Badge tone="warning" dot={false}>{ETAT_REMISE_LABEL[r.centre].label}</Badge>
             </div>
@@ -221,15 +221,15 @@ export function CashPanel({ view, people }: { view: GeneralMeansView; people: { 
             e.preventDefault();
             const fd = new FormData(e.currentTarget);
             fd.set("departmentId", view.department.id);
-            void run("allot", () => allotPettyCash(fd), "Remise envoyée au centre de paiement — elle rejoindra le fond une fois autorisée et versée.");
+            void run("allot", () => allotPettyCash(fd), "Remise envoyée au centre de paiement — elle s'ajoutera au fond dès qu'il l'autorise.");
           }}
           className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3"
         >
           <p className="flex items-center gap-1 text-sm font-medium">
             Remettre une somme en caisse
             <InfoBulle label="À propos de la remise" align="left">
-              La remise part d&apos;abord au centre de paiement : une fois autorisée et versée par les Finances, elle s&apos;ajoute au fond en cours
-              et garde sa date — rien n&apos;est clos. La personne qui la reçoit confirme ensuite l&apos;avoir reçue.
+              La remise part d&apos;abord au centre de paiement : dès qu&apos;il l&apos;autorise, elle s&apos;ajoute au fond en cours
+              et garde sa date — rien n&apos;est clos, et il n&apos;y a pas de réception à confirmer.
             </InfoBulle>
           </p>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">

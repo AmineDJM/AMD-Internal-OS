@@ -19,6 +19,45 @@ autrefois muets s'affichent désormais. Cliquets abaissés au chiffre mesuré : 
 **0**, `prompt(` 6 → **0**, repli « Échec. / Erreur. / Action impossible. » 259 → **0** (`src/lib/ui/dialogues-natifs.test.ts`),
 appels d'action non gardés 315 → **0** (`action-gardee.test.ts`), `router.refresh()` nus 326 → **1**, le crochet lui-même
 (`rafraichir.test.ts`). Carte : [KB 05 § 4.2, 4.7](../knowledge-base/05-frontend-ui-ux.md).
+### ASSISTANT IA : VOCAUX « COMME WHATSAPP » ET LECTURE DE TOUTE PIÈCE JOINTE (2026-10-28)
+
+- **Messages vocaux** (Direction) : sur `/assistant`, maintenir le micro enregistre (minuterie, onde), relâcher envoie, glisser à
+  gauche annule, glisser vers le haut ou un appui bref verrouille. Le vocal est un **message du fil** : fichier du Drive personnel
+  (« Assistant IA — vocaux »), transcrit en arrière-plan, la transcription **sous le lecteur** ; l'assistant répond à son contenu.
+- **Réponse vocale** (option ⋯ › « Réponses vocales ») : la réponse texte est aussi lue à voix haute (synthèse OpenAI, fichier du
+  Drive, 1 500 caractères au plus — la coupe dite).
+- **L'assistant LIT les pièces** au lieu de les nommer : Word, Excel, PowerPoint, CSV, texte, PDF (texte, ou **scan par vision**,
+  6 pages), **images par vision** (photo de facture, capture, tableau photographié), audio, **vidéo** (piste transcrite + 4 images
+  clés si `ffmpeg`). Coffre refusé avant tout envoi (nature locale, pièce confidentielle, nom évocateur, OCR local qui reconnaît une
+  pièce d'identité ou une fiche de paie), données sensibles masquées, contenu encadré comme non fiable, **chaque limite dite sous la
+  pièce** (lue, partielle, refusée, illisible). Transcription, vision et synthèse comptées dans les plafonds et le journal.
+- **Filtre de confidentialité** : un IBAN imprimé par groupes de quatre est désormais masqué (il passait en clair).
+  Décision [0011](../assistant/decisions/0011-vocaux-et-lecture-de-toute-piece.md).
+
+### MODULE RH — LE MÉTIER RH RANGÉ DANS `src/modules/rh/` (lot V4, 2026-10-28)
+
+- **Aucun changement de comportement** : congés, paie, avances, notes de frais, demandes et documents RH, attestation
+  de travail, ordre de mission et lectures des écrans déménagent (`git mv`) dans `src/modules/rh/` (`domaine/` pur,
+  `infra/`, `ecrans/`), derrière deux portes : `partage.ts` (pur, navigateur compris) et `api.ts` (serveur).
+- **Les actions gardent leur clé** (`hr-actions`, `hr-document-actions`, `payroll-hr-actions`, `stand-in-actions`,
+  `conge-discussion-actions` — `src/lib/actions/parc.ts`) : `contrat.genere.json` identique octet pour octet.
+- **La paie passe toujours par le centre de paiement** (Finances, `lib/expense-orders`) — lien déclaré en dette nommée,
+  cible `@/modules/finances/api`. Les données sensibles restent écrites par le coffre et déchiffrées par les seules pages RH.
+- Restent au socle des droits (lus par `rbac.ts` et le coffre) : `lib/hr/stand-in`, `stand-in-resolve`, `confidentialite`.
+  Les anciens chemins sont des adresses de réexpédition (`tsconfig.json`). Mesures : rapport 08, « Suite — lot V4 ».
+
+### ASSISTANT IA SUR OPENAI, CAISSE D'AVANCE CRÉDITÉE À L'AUTORISATION, BUILD RENDER SOUS 8 GO (2026-10-28)
+
+- **Assistant IA → OpenAI `gpt-6.1-terra`** (Direction) : il utilise la clé `OPENAI_API_KEY` déjà en service, par l'API
+  Responses (décision [0010](../assistant/decisions/0010-assistant-sur-openai.md)). Sans clé, il dit la variable exacte à poser.
+- **Le circuit expliqué par l'assistant** ne récite plus « Validation du DG » comme une étape : le DG valide le TOTAL à la fin,
+  au-dessus du seuil ; la réponse dit les branches réelles (`parcoursAdPro`) et ce qui suit la prévalidation.
+- **Caisse d'avance** (Direction) : une remise ou une rallonge autorisée par le **centre de paiement** entre **directement**
+  dans la caisse des moyens généraux — ordre réglé, sortie en liquide non classée, remise en main — sans passer par
+  « Banque & paiements » ni par une confirmation de réception. Un seul écrivain : `src/lib/finance/verser-remise.ts`.
+- **Build Render** : plus de cache webpack persistant au build de production (`next.config.mjs`) — le worker serveur de
+  Next 15 mourait en OOM et le conteneur dépassait 8 Go ; mesuré : pic 4985 Mo (contre 5532 et OOM), `.next` 315 Mo.
+
 ### V3-G : LE MONOLITHE MODULAIRE DEVIENT EXÉCUTABLE — LIEUX, COFFRE ET RÉFÉRENTIELS DANS `src/modules/` (2026-10-28)
 
 Aucun écran ne change, aucune donnée n'est touchée, aucune migration. La structure cible du rapport d'audit 08 est

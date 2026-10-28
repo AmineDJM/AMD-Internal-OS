@@ -3,7 +3,7 @@ import type { AssistantRoleConfig } from "@prisma/client";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { outilsPour } from "@/lib/agent/outils";
-import type { ModeleConfig } from "@/lib/agent/modele";
+import { pourMastra, type ModeleConfig } from "@/lib/agent/modele";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, sousBudget, type Budget, type OrigineAppel } from "@/lib/agent/consommation";
 
@@ -136,7 +136,7 @@ async function boucle(t: TourAssistant, budget: Budget): Promise<ResultatTour> {
       id: "assistant",
       name: t.config?.assistantName ?? "Assistant",
       instructions: t.instructions,
-      model: m as ConstructorParameters<typeof Agent>[0]["model"],
+      model: pourMastra(m) as ConstructorParameters<typeof Agent>[0]["model"],
       tools: outilsPour(t.outils, t.user, t.config),
     });
     const arret = new AbortController();

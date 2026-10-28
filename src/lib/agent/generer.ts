@@ -1,8 +1,8 @@
 import { Agent } from "@mastra/core/agent";
-import { modelesAssistant } from "@/lib/agent/modele";
+import { modelesAssistant, pourMastra } from "@/lib/agent/modele";
 import { fournisseurDe, type ModeleTour } from "@/lib/agent/repondre";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
-import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, porteurCourant, type Budget } from "@/lib/agent/consommation";
+import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, porteurCourant, type Budget, type OrigineAppel } from "@/lib/agent/consommation";
 
 /**
  * UN APPEL DE RÉDACTION SANS OUTIL — pour les travaux de documents qui dépassent un tour :
@@ -16,7 +16,24 @@ import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, porteur
  * ce tour (un résumé de 14 parties ne contourne pas le plafond du tour) ; appelé hors tour (une
  * opération confirmée, la comparaison d'une routine), il ouvre son propre budget au nom de la
  * personne portée par l'exécution (`auNomDe`).
+ *
+ * LA VISION passe par ici aussi (décision 0011) : `images` joint des images au texte (photo de facture,
+ * page scannée, image clé d'une vidéo) — le même modèle, la même garde, le même budget, le journal sous
+ * le rôle « vision ». Une troisième porte vers le modèle aurait été une troisième chose à garder.
  */
+export interface ImageJointe {
+  octets: Buffer;
+  mime: string;
+  /** « page 3 sur 9 », « image clé à 0:42 » — dit au modèle pour qu'il situe ce qu'il lit. */
+  legende?: string;
+}
+
+export interface OptionsGeneration {
+  images?: ImageJointe[];
+  /** La colonne `role` du journal quand l'appel ouvre son propre budget (« redaction » par défaut). */
+  origine?: Extract<OrigineAppel, "redaction" | "vision">;
+}
+
 let modelesDeTest: ModeleTour[] | null = null;
 
 export function remplacerModelesPourTests(m: ModeleTour[] | null): void {
@@ -26,7 +43,7 @@ export function remplacerModelesPourTests(m: ModeleTour[] | null): void {
 /** Les modèles de l'assistant — ou le faux modèle d'un test. */
 export const modelesEffectifs = (): ModeleTour[] => modelesDeTest ?? modelesAssistant();
 
-export async function genererTexte(consigne: string, texte: string, delaiMs = 60_000): Promise<{ ok: true; texte: string } | { ok: false; raison: string }> {
+export async function genererTexte(consigne: string, texte: string, delaiMs = 60_000, opts: OptionsGeneration = {}): Promise<{ ok: true; texte: string } | { ok: false; raison: string }> {
   const modeles = modelesEffectifs();
   if (!modeles.length) return { ok: false, raison: "L'assistant n'a pas de modèle configuré." };
   // L'interrupteur général — lu ici comme dans `repondreAvecSecours` : l'autre porte vers le modèle.
@@ -40,7 +57,7 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
     if (budget.depasse) return { ok: false, raison: budget.refus() };
   } else {
     try {
-      budget = await ouvrirBudget({ userId: porteur?.userId ?? null, origine: "redaction", conversation: porteur?.conversation });
+      budget = await ouvrirBudget({ userId: porteur?.userId ?? null, origine: opts.origine ?? "redaction", conversation: porteur?.conversation });
       proprietaire = true;
     } catch (e) {
       if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message };
@@ -53,9 +70,18 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
   try {
     for (const m of modeles) {
       try {
-        const agent = new Agent({ id: "redaction", name: "Rédaction", instructions: consigne, model: m as ConstructorParameters<typeof Agent>[0]["model"] });
+        const agent = new Agent({ id: "redaction", name: "Rédaction", instructions: consigne, model: pourMastra(m) as ConstructorParameters<typeof Agent>[0]["model"] });
         const t0 = Date.now();
-        const r = await agent.generate([{ role: "user" as const, content: texte }], { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs) });
+        const contenu = opts.images?.length
+          ? [
+            { type: "text" as const, text: texte },
+            ...opts.images.flatMap((im, i) => [
+              { type: "text" as const, text: im.legende ? `Image ${i + 1} — ${im.legende} :` : `Image ${i + 1} :` },
+              { type: "image" as const, image: `data:${im.mime};base64,${im.octets.toString("base64")}`, mimeType: im.mime },
+            ]),
+          ]
+          : texte;
+        const r = await agent.generate([{ role: "user" as const, content: contenu }] as never, { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs) });
         budget.enregistrer(appelDepuisEtape(fournisseurDe(m), (r as { usage?: unknown }).usage, Date.now() - t0));
         const fin = (r as { finishReason?: string }).finishReason;
         if (fin === "aborted") throw new Error(`délai dépassé (${delaiMs} ms)`);

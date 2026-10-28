@@ -6,12 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { ChampReference } from "@/components/references/champ-reference";
-import { genererAttestationDeTravail, preparerAttestationDeTravail } from "@/lib/actions/hr-document-actions";
+import { genererAttestationDeTravail, preparerAttestationDeTravail } from "@/modules/rh/actions-documents";
 // Le module de RÈGLES, sans aucun import : le formulaire ne tire ni le modèle Word (jszip) ni le serveur.
 import {
   CIVILITES, LIBELLE_PROVENANCE, phraseNaissance, accords, dateLongueFr, dateCourteFr,
   type ChampsAttestation, type ProvenanceChamp,
-} from "@/lib/hr/attestation-travail/regles";
+} from "@/modules/rh/partage";
 import { cn } from "@/lib/utils";
 import { sansBloquer } from "@/lib/journal";
 
