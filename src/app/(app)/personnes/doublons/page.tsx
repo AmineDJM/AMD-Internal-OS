@@ -55,7 +55,7 @@ export default async function DoublonsPersonnesPage() {
               <Badge tone={TON[d.niveau] ?? "neutral"}>{d.niveau}</Badge>
               <span className="text-xs text-muted-foreground">score {d.score}</span>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[d.personneA, d.personneB].map((p) => (
                 <div key={p.id} className="min-w-0 rounded-lg border border-border p-2 text-sm [overflow-wrap:anywhere]">
                   <Link href={`/personnes/${p.id}`} className="font-medium text-primary hover:underline">{[p.civilite, p.prenoms, p.nom].filter(Boolean).join(" ")}</Link>

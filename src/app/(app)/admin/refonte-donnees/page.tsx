@@ -52,7 +52,7 @@ export default async function RefonteDonneesPage() {
         <InterrupteurDoubleEcriture actif={reglages?.refontePersonnesDoubleEcriture === true} />
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {REPRISES.map((r) => (
           <CarteReprise key={r.cle} cle={r.cle} titre={r.titre} description={r.description} journal={journalDe(r.cle)} />
         ))}
