@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Loader2, Check, X } from "lucide-react";
-import { decideAdvance } from "@/lib/actions/hr-actions";
+import { decideAdvance } from "@/modules/rh/actions";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { InfoBulle } from "@/components/ui/info-bulle";

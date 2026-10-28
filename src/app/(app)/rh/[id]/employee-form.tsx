@@ -4,7 +4,7 @@ import { phraseIaNonConfiguree, courtIaNonConfiguree } from "@/lib/ia/cle-manqua
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Check, Wand2, Sparkles } from "lucide-react";
-import { updateEmployee, analyzeEmployeeContract } from "@/lib/actions/hr-actions";
+import { updateEmployee, analyzeEmployeeContract } from "@/modules/rh/actions";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
 import { CONTRACT_TYPE } from "@/lib/labels";

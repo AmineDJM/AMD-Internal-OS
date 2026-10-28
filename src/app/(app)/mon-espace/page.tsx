@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { getMyWorkspace } from "@/lib/queries/hr";
+import { getMyWorkspace, discussionsDesConges } from "@/modules/rh/api";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { ongletsEspace } from "@/lib/queries/mes-taches";
 import { trierConges } from "@/lib/queries/mes-decisions";
@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import { listMyReminders } from "@/lib/queries/reminders";
 import { MyReminders } from "@/components/reminders/my-reminders";
 import { LeaveApprovals } from "@/components/hr/leave-approvals";
-import { discussionsDesConges } from "@/lib/queries/conges-discussion";
 import { MyAdvances, type AdvanceItem } from "./my-advances";
 import { MyPortfolioCard } from "@/components/planning/my-portfolio-card";
 import { getMyPortfolio } from "@/lib/queries/portfolio";

@@ -247,7 +247,7 @@ function markdown(map: ErpMap): string {
   for (const f of map.workflowFiles) L.push(`- \`${f}\``);
   L.push("");
   L.push("Voir aussi `src/lib/approval-chain.ts` (chaîne à trois étages Manager → RH → Direction),");
-  L.push("`src/lib/regulatory-workflow.ts` (17 étapes + processus ANPP) et `src/lib/hr/leave-core.ts`.");
+  L.push("`src/lib/regulatory-workflow.ts` (17 étapes + processus ANPP) et `src/modules/rh/infra/leave-core.ts`.");
   L.push("");
   return L.join("\n");
 }

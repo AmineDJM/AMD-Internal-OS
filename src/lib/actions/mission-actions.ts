@@ -11,7 +11,7 @@ import { rolesWithModule } from "@/lib/rbac";
 import { getManagerOf, getManagementChain } from "@/lib/departments";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { refusRetraitOrdreMission, refusAnnulationDemandeRh } from "@/lib/annulations/regles";
-import { requestHrDocument } from "@/lib/actions/hr-document-actions";
+import { requestHrDocument } from "@/modules/rh/actions-documents";
 import { createRequest } from "@/lib/actions/admin-request-actions";
 import { demanderMateriel } from "@/lib/actions/promo-stock-actions";
 import { MES_MISSIONS, PARENT_TYPES, parentPath, parentMission, rolesDe, organisateursDe } from "@/lib/missions-equipe/serveur";

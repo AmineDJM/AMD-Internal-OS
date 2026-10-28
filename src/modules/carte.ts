@@ -26,6 +26,8 @@ export const CARTE = {
   // ── Métiers ────────────────────────────────────────────────────────────────────────────────
   /** Consumption Intelligence : imports de ventes, résolution, affinité (module pilote). */
   consommation: [],
+  /** RH : congés, paie (par le centre de paiement), avances, notes de frais, documents RH, organisation. */
+  rh: ["coffre", "referentiels"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

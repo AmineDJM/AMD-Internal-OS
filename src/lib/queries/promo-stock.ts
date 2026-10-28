@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { loadReportingLine } from "@/lib/departments";
-import { subtreeOf, flattenTree } from "@/lib/hr/team-tree";
+import { subtreeOf, flattenTree } from "@/modules/rh/partage";
 import { userCan, moduleScope, rolesWithModule, anyRoleFilter, getAccess, type SessionUser } from "@/lib/rbac";
 import { suppressionPermise } from "@/lib/suppression/delegation";
 import { companyScopedWhere, getMyCompanies, companyOptions } from "@/lib/company";

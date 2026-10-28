@@ -8,7 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
-import { decideHrLeave } from "./hr-document-actions";
+import { decideHrLeave } from "@/modules/rh/actions-documents";
 
 /**
  * UN CONGÉ ANNUEL ACCORDÉ À DEUX CLICS NE DÉBITE LE SOLDE QU'UNE FOIS (audit données 2026-10-27).

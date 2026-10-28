@@ -96,7 +96,7 @@ This chapter covers the "nervous system" of the ERP: the mechanisms that every b
 - **Writers that bypass `notifyUser`** [V]. They write to the bell but **send no push** (no `sendPushToUser` call in the file):
   - `src/lib/tasks/create-core.ts:72`
   - `src/lib/actions/task-actions.ts:240,278,322`
-  - `src/lib/actions/hr-actions.ts:679` (salary-advance decision)
+  - `src/modules/rh/actions.ts:679` (salary-advance decision)
   - `src/lib/actions/directive-actions.ts`
   - Only `src/lib/directives/recipients.ts` also pushes.
 - **Push** (`src/lib/push.ts:92-122`) [V]:
@@ -157,7 +157,7 @@ This chapter covers the "nervous system" of the ERP: the mechanisms that every b
 - `emit()` (`platform/events.ts:76-97`) only accepts the 17 `DOMAIN_EVENTS` types and never throws.
 - **Adoption is minimal** [V]: only 3 of the 17 types are emitted in production:
   - `regulatory.owner-changed` (`regulatory-actions.ts:825`)
-  - `hr.employee-added` (`hr-actions.ts:98`)
+  - `hr.employee-added` (`modules/rh/actions.ts:98`)
   - `mail.sent` (`comms/outbound.ts:515`)
 - The only subscriber is `assistant/platform/change-feed.ts:78`. Treat the bus as an Adam-cache accelerator, not as business plumbing.
 
@@ -167,7 +167,7 @@ This chapter covers the "nervous system" of the ERP: the mechanisms that every b
   - Writes one `ActivityLog` row with `type: "PAGE_VIEW"` and `module` = **the first URL segment**.
   - Adds device, OS and browser, IP, and country/city from the `UserSession`; GPS coordinates take precedence when the browser consented.
   - Fails silently with HTTP 204.
-- **Sessions** are `UserSession` rows (`revokedAt`, `expiresAt`). They are revoked in `access-actions.ts:232,305,329,365`, `auth-actions.ts:76` and `hr/depart.ts:52` [V].
+- **Sessions** are `UserSession` rows (`revokedAt`, `expiresAt`). They are revoked in `access-actions.ts:232,305,329,365`, `auth-actions.ts:76` and `modules/rh/infra/depart.ts:52` [V].
 - **Adoption** (`src/lib/adoption.ts`) [V]:
   - 30-day window. 8 weights (`DEFAULT_ADOPTION_SETTINGS`, `:76-82`): regularity, time, breadth, diversity, durable work, interaction, recency, cycle.
   - Overridable through the `AdoptionSetting` row (`:112-127`). Super Admins are excluded (`:226`).

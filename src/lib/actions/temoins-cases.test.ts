@@ -119,7 +119,9 @@ const litParFdCase = (src: string, nom: string) =>
 
 function modulesActions(src: string): string[] {
   const mods = new Set<string>();
-  for (const m of sansCommentaires(src).matchAll(/from\s+["']@\/lib\/actions\/([\w-]+)["']/g)) mods.add(m[1]);
+  for (const m of sansCommentaires(src).matchAll(/from\s+["']@\/lib\/actions\/([\w-]+)["']/g)) mods.add(`lib/actions/${m[1]}`);
+  // Les actions rangées dans un module (`@/modules/rh/actions-documents`) : même lecture, autre racine.
+  for (const m of sansCommentaires(src).matchAll(/from\s+["']@\/(modules\/[\w-]+\/actions(?:-[\w-]+)?)["']/g)) mods.add(m[1]);
   return [...mods].sort();
 }
 
@@ -195,7 +197,7 @@ describe("chaque case à témoin est lue par `fdCase` dans les actions de son fo
         continue;
       }
       const sources = mods
-        .map((m) => join(SRC, "lib", "actions", `${m}.ts`))
+        .map((m) => join(SRC, `${m}.ts`))
         .filter((p) => existsSync(p))
         .map((p) => ({ p, src: readFileSync(p, "utf8") }));
       for (const nom of noms) {

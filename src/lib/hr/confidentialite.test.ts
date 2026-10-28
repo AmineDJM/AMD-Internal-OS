@@ -11,7 +11,7 @@ vi.mock("@/lib/drive-storage", () => ({ getBlob: async () => Buffer.from("PDF") 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { voitLesSalaires, natureDeLAbsence, voitLeTypeDesAbsences } from "@/lib/hr/confidentialite";
-import { getRhData } from "@/lib/queries/hr";
+import { getRhData } from "@/modules/rh/api";
 import { GET as telechargerPieceRh } from "@/app/api/rh/document/[id]/route";
 
 /**

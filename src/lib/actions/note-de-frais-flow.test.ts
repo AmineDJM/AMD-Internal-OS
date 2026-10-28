@@ -8,10 +8,10 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { getMyHrDossier } from "@/lib/queries/hr-documents";
+import { getMyHrDossier } from "@/modules/rh/api";
 import {
   requestHrDocument, updateExpenseClaim, setExpenseClaimEditUnlocked, askHrRequestPiece,
-} from "./hr-document-actions";
+} from "@/modules/rh/actions-documents";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

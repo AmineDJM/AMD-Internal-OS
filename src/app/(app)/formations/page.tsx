@@ -2,7 +2,7 @@ import { GraduationCap } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView, isTopManagement } from "@/lib/rbac";
 import { loadReportingLine } from "@/lib/departments";
-import { managementChainOf } from "@/lib/hr/reporting-line";
+import { managementChainOf } from "@/modules/rh/partage";
 import { canDecideChain, type ChainStage } from "@/lib/approval-chain";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { prisma } from "@/lib/prisma";
