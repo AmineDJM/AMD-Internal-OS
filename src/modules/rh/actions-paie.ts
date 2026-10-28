@@ -17,8 +17,8 @@ import { getBudgetCategoryOptions } from "@/lib/queries/budget";
 import {
   entryCost, etatVirement, etatSalaire, virementCouvre, moisDeLEntite, lireSommeAVirer, libelleVirementPaie,
   noteVirementPaie, moisDeLaPaie, deMois, ETAT_VIREMENT_LABEL, SOMME_A_VIRER_MANQUANTE, saisiAvantLeCentre,
-  type VirementDuMois, instantDuCentreDePaie, chargerSalairesPartis, decisionRattachement, phraseRattachement,
-  type SalaireParti, validateAmounts, resolvedGross, amendImpact, canAmend,
+  type VirementDuMois, instantDuCentreDePaie, chargerSalairesPartis, decisionRattachement,
+  phraseRattachement, validateAmounts, resolvedGross, amendImpact, canAmend,
 } from "@/modules/rh/api";
 import { docxToPdf, isConvertibleWord, pdfFileName } from "@/lib/payslip/to-pdf";
 import { MIME_DOCX } from "@/lib/artifact/adapters/docx/adapter";

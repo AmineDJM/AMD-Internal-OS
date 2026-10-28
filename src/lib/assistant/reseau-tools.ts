@@ -18,7 +18,12 @@ import type { PowerTool } from "@/lib/assistant/power-tools";
 import { blocTableau } from "@/lib/assistant/sandbox-tools";
 import { construireViz } from "@/lib/assistant/workspace/viz-block";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
-import { type Graphe, type Lieu, auMoment, autour, barycentre, centralites, cheminsMultiples, choisirSites, communautes, composantes, cycles, densites, distanceKm, enveloppe, estTemporel, implantationOptimale, lieuxErp, nom, pointsDeRupture, portee, reseauErp, sommaire, territoires, tournee, AVERTISSEMENT_CHEF_LIEU, coordonneesDe } from "@/platform/in-process/reseau";
+import {
+  type Graphe, type Lieu, auMoment, autour, barycentre, centralites, cheminsMultiples, choisirSites,
+  communautes, composantes, cycles, densites, distanceKm, enveloppe, estTemporel, implantationOptimale,
+  lieuxErp, nom, pointsDeRupture, portee, reseauErp, sommaire, territoires, tournee, AVERTISSEMENT_CHEF_LIEU,
+  coordonneesDe,
+} from "@/platform/in-process/reseau";
 import { arrondi } from "@/platform/in-process/calcul";
 
 type Acteur = Parameters<PowerTool["run"]>[1];

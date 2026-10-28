@@ -3,7 +3,10 @@ import { prisma } from "@/lib/prisma";
 import type { DocItem } from "@/components/documents/document-list";
 import { companyScopedWhere } from "@/lib/company";
 import { familleQuantifiee, type PromoFamille } from "@/lib/promo/catalogue";
-import { etatOrdreMission, libelleOrdreMission, etatDemandeSecretariat, etatDemandeMateriel, etatNoteFrais, SOUS_TYPE_SECRETARIAT, type EtatOM, type Etat, type HrStatut, type GateN1 } from "@/lib/missions-equipe/etat";
+import {
+  etatOrdreMission, libelleOrdreMission, etatDemandeSecretariat, etatDemandeMateriel, etatNoteFrais,
+  SOUS_TYPE_SECRETARIAT, type EtatOM, type Etat, type HrStatut, type GateN1,
+} from "@/lib/missions-equipe/etat";
 import {
   etapeParticipation, ficheStockee, tauxMission, versionLite, TRAJETS_BILLET,
   type EtapeParticipation, type FicheParticipation, type VersionLite,

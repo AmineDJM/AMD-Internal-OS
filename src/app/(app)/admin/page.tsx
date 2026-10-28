@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog, Gauge, Globe2, HardDrive, History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, LockKeyhole, Trash2, Workflow, ScanSearch, ScrollText } from "lucide-react";
+import {
+  Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog, Gauge, Globe2, HardDrive,
+  History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket,
+  Settings2, ShieldCheck, LockKeyhole, Trash2, Workflow, ScanSearch, ScrollText,
+} from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";

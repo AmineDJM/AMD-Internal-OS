@@ -13,7 +13,12 @@ import {
   beneficiaryName, careProgress, defaultCells, financeReadiness, quoteConflicts, piecesADemander,
   OPINION_LABELS, SERVICE_KIND_LABELS,
 } from "@/lib/care";
-import { casesDeLaCategorie, detailsStockes, deviseDuDevis, deviseDuPoste, etapesDuBillet, etapesStockees, lireDetailsTrajets, peutTeleverserBillet, hotelPrerempli, libelleNouveauPoste, lireMontant, lirePosteSaisi, montantLisible, tauxDeLaDemande, typePoste, versDzd, peutMarquerRealisee, TAUX_USD_DZD_DEFAUT, type CellRow } from "@/lib/care-fiches";
+import {
+  casesDeLaCategorie, detailsStockes, deviseDuDevis, deviseDuPoste, etapesDuBillet, etapesStockees,
+  lireDetailsTrajets, peutTeleverserBillet, hotelPrerempli, libelleNouveauPoste, lireMontant, lirePosteSaisi,
+  montantLisible, tauxDeLaDemande, typePoste, versDzd, peutMarquerRealisee, TAUX_USD_DZD_DEFAUT,
+  type CellRow,
+} from "@/lib/care-fiches";
 import { envoiAuxFinances, ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME } from "@/lib/care-realisation";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";

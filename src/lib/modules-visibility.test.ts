@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { NEVER_HIDDEN, isHideable, normalizeHidden, visibleModules, canOpenModule, hiddenNotice, hiddenSummary, RETIRED_MODULES, isRetired } from "./modules-visibility";
+import {
+  NEVER_HIDDEN, isHideable, normalizeHidden, visibleModules, canOpenModule, hiddenNotice, hiddenSummary,
+  RETIRED_MODULES, isRetired,
+} from "./modules-visibility";
 import { MODULES, type Module } from "./rbac";
 
 describe("isHideable — la console d'administration ne se masque jamais", () => {

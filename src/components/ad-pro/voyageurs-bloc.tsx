@@ -14,7 +14,10 @@ import {
 } from "@/lib/actions/ad-pro-item-actions";
 import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
-import { manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom, ETAPES_MAX, TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, type EtapeTrajet } from "@/lib/ad-pro/voyageurs";
+import {
+  manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom,
+  ETAPES_MAX, TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, type EtapeTrajet,
+} from "@/lib/ad-pro/voyageurs";
 import { montantDzd } from "@/lib/utils";
 
 /** Un devis ou une pro forma déposé pour un voyageur (§118.205) — une pièce du poste, au registre Legal. */

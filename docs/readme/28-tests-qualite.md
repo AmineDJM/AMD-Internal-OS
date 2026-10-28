@@ -32,6 +32,11 @@ npm run typecheck && npm run build && npm test && npx next lint
   ses portes, sa carte (`carte.ts`) est sans cycle, aucun ancien chemin n'est importé ; six plafonds de couverture qui
   ne peuvent que baisser (`src/platform/couverture.test.ts`). Un nouveau test de structure lit le code par
   `lireSource()` / `sourceDuSymbole()` (`src/platform/source.ts`), jamais par un chemin figé.
+- **Code mort et doublons** (`npm run qualite:mort`, `npm run qualite:doublons`, en CI) : knip exige zéro fichier,
+  export, type ou dépendance inutilisé ; jscpd tient les clones de `src/` sous plafond. Cliquets dans
+  `src/platform/qualite-code.test.ts` (plafonds dans `qualite-code.ts`, jamais relevés). Un export qu'on n'utilise plus
+  se supprime avec sa déclaration ; une fonction recopiée se fusionne vers celle qui existe (`lib/utils.ts` pour les
+  petites normalisations pures : `plier`, `arrondirAuCentime`, `arrondirAuMillieme`, `montantDzd`).
 
 > Les tests d'intégration **skippent proprement** si aucune base n'est disponible (CI verte) et **s'exécutent
 > tous** dès que Postgres est présent — on retombe alors sur le référentiel **2 491 passés / 23 skip**.

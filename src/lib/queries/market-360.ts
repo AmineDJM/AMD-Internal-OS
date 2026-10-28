@@ -2,7 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { linksOfMany } from "@/lib/links/store";
 import { invoiceSettlementState } from "@/lib/labels";
 import { toNumber } from "@/lib/utils";
-import { deriverNiveau, etapeCourante, quantitesContractuelles, restantACommander, unitesAttribuees, uniteSoumises, valeurAttribuee, valeurContractuelleCourante, valeurSoumise, type LigneContractuelleFaits, type NiveauMarche } from "@/lib/pch/market-math";
+import {
+  deriverNiveau, etapeCourante, quantitesContractuelles, restantACommander, unitesAttribuees, uniteSoumises,
+  valeurAttribuee, valeurContractuelleCourante, valeurSoumise, type LigneContractuelleFaits,
+  type NiveauMarche,
+} from "@/lib/pch/market-math";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

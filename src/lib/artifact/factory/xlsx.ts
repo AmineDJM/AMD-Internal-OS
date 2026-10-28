@@ -1,7 +1,10 @@
 import ExcelJS from "exceljs";
 import { figerEtVerifierClasseur } from "@/lib/artifact/sheets/build";
 import { a1DeCoord } from "@/lib/artifact/sheets/refs";
-import { ACCENT_MAISON, LIBELLE_MODE, LIBELLE_TYPE, ajouterJours, arrondirCentimes, calculerTotaux, estPieceFiscale, formaterDateFr, verifierSpecCommerciale, type PartieCommerciale, type SpecDocumentCommercial } from "@/lib/artifact/factory/commercial";
+import {
+  ACCENT_MAISON, LIBELLE_MODE, LIBELLE_TYPE, ajouterJours, arrondirCentimes, calculerTotaux, estPieceFiscale,
+  formaterDateFr, verifierSpecCommerciale, type PartieCommerciale, type SpecDocumentCommercial,
+} from "@/lib/artifact/factory/commercial";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

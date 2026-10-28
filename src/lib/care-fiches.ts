@@ -2,7 +2,10 @@ import type {
   AdProTrajet, AdProTransport, CareBeneficiaryStatus, CareCellKind, CareCellStatus, CareCurrency, CareMode,
   CareOpinion, CareQuoteStatus, CareServiceKind,
 } from "@prisma/client";
-import { lireVoyageur, manquesPourReserver, prochainGesteVoyageur, lireEtapes, jourLisible, TRAJET_LIBELLE, TRANSPORT_LIBELLE, type EtapeTrajet, type VoyageurPourReservation } from "@/lib/ad-pro/voyageurs";
+import {
+  lireVoyageur, manquesPourReserver, prochainGesteVoyageur, lireEtapes, jourLisible, TRAJET_LIBELLE,
+  TRANSPORT_LIBELLE, type EtapeTrajet, type VoyageurPourReservation,
+} from "@/lib/ad-pro/voyageurs";
 import { lireHebergement, nuitsDe } from "@/lib/ad-pro/hebergements";
 import { arrondirAuCentime } from "@/lib/utils";
 

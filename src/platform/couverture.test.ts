@@ -27,13 +27,13 @@ import { mesurerCouverture } from "./couverture";
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 756,
+  horsCarte: 755,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
-  routesPrisma: 53,
+  routesPrisma: 52,
   /** Imports `src/components/` → `src/app/` : un composant partagé ne dépend pas d'une page. */
-  composantsVersApp: 12,
+  composantsVersApp: 10,
   /** Imports du kit d'interface du socle (`components/ui`, `components/shared`) vers un métier. */
   kitVersMetier: 6,
   /**

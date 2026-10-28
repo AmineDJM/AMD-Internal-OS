@@ -93,7 +93,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 | `public/sw.js`, `public/manifest.webmanifest` | PWA: push + notificationclick only (no fetch/offline caching). |
 | `src/lib/client-bundle-guard.test.ts` | Walks import graph from every `"use client"` file; fails on reach to `fs`/`net`/Node-only packages. |
 | `src/lib/lint-directives.test.ts` | Fails if an `eslint-disable` names a rule that the computed ESLint config doesn't load (§118.155). |
-| `src/platform/boundary.test.ts`, `domains.test.ts`, `reachability.test.ts`, `decors-de-test.test.ts` | Architecture ratchets (debt ceilings, cycles, orphan modules, fixture round-trip budget). |
+| `src/platform/boundary.test.ts`, `domains.test.ts`, `qualite-code.test.ts`, `decors-de-test.test.ts` | Architecture ratchets (debt ceilings, cycles, dead code and duplicates via knip/jscpd, fixture round-trip budget). |
 
 ---
 
@@ -408,7 +408,7 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 | `src/platform/domains.test.ts` | Architecture test: zero cycles / layer inversions; `CROSSING_CEILING = 68`, `PROVIDER_CEILING = 42` (`:68-69`). |
 | `src/modules/frontieres.test.ts` *(extended 2026-10-28, V3-G)* | Modules (`src/modules/<m>/`) are entered only through their doors (`api.ts`, `api-*.ts`, `partage.ts`, `actions.ts`; `ecrans/` from `src/app/` only); `domaine/` pure (type-only `@prisma/client` allowed); module→module edges ⊆ `src/modules/carte.ts`, acyclic, no dead permission; nobody imports an old path (`tsconfig.json` exact `paths` = forwarding addresses, `src/platform/demenagements.ts`); exact inherited-debt list. ESLint `no-restricted-imports` mirrors rules 1/2/5. |
 | `src/platform/couverture.test.ts` *(added 2026-10-28, V3-G)* | Six ceilings that can only go down (`src/platform/couverture.ts`): `src/lib` files in no layer 768, pages importing Prisma 126, routes 53, `components → app` 12, UI kit → business 6, tests reading source by path 128. `npm run test:architecture` runs all architecture guards in ~35 s. |
-| `src/platform/reachability.test.ts` | No module in `src/lib/missions`, `src/lib/artifact` is test-only or orphaned (§53); uses the `rg` binary. |
+| `src/platform/qualite-code.test.ts` | Dead code (knip, whole repo: zero unused file/export/type/dependency; test-only production files ⊆ a named list) and duplicate blocks (jscpd ceilings). Replaced `reachability.test.ts` (lot V4, 2026-10-28). |
 | `src/platform/decors-de-test.test.ts` | Fixture cost measured in sequential DB round-trips: `PLAFOND_ATTENTES = 47`, notable ≥ 6 (`:49-52`). |
 | `src/lib/actions/contrat.test.ts` | Generated action contract is up to date (`npm run actions:contrat`), unreadable actions ≤ 24, designable ≥ 500. |
 | `src/lib/assistant/action-parity.test.ts`, `capability-audit.test.ts` | Every server action is classified in the Chief/Adam action registry. |
@@ -652,7 +652,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 10. **Ratchet drift**: `boundary.test.ts` `DEBT_CEILING` is 425 today vs 424 in
     `audit/baseline/03-ratchets.txt`, and `domains.test.ts` `CROSSING_CEILING` 68 vs 69 — the
     boundary budget went **up** once despite "only goes down" [V].
-11. **`reachability.test.ts` has no floor** on files scanned and swallows `rg` failures
+11. *(Resolved, lot V4 2026-10-28 — test replaced by knip in `qualite-code.test.ts`.)* **`reachability.test.ts` had no floor** on files scanned and swallows `rg` failures
     (`execFileSync("rg", …)` in a `try { } catch { return []; }`): without the `rg` binary it passes
     vacuously — the exact anti-pattern §118.17 names [V].
 12. **E2E seed has no local-DB guard** (`e2e/global-setup.ts:58`, `global-teardown.ts:6` build a raw

@@ -10,7 +10,11 @@ import { notifyUser, notifyRoles } from "@/lib/notify";
 import { lienDemandeBudgetDepartement } from "@/lib/chemins/budgets";
 import { saveFile, deleteFileByKey } from "@/lib/storage";
 import { validateAttachments } from "@/lib/attach-files";
-import { canEditDepartmentBudget, canManageDepartmentBudgetAccess, canRequestDepartmentBudget, canDecideDepartmentBudgetRequest, mergeGrants, normalizeAmount, normalizeYear, DEPT_BUDGET_LABEL, DEPT_BUDGET_KINDS, type DeptBudgetKind, type BudgetSetter, type DeptBudgetGrant, type GrantSubject } from "@/lib/department-budget";
+import {
+  canEditDepartmentBudget, canManageDepartmentBudgetAccess, canRequestDepartmentBudget,
+  canDecideDepartmentBudgetRequest, mergeGrants, normalizeAmount, normalizeYear, DEPT_BUDGET_LABEL,
+  DEPT_BUDGET_KINDS, type DeptBudgetKind, type BudgetSetter, type DeptBudgetGrant, type GrantSubject,
+} from "@/lib/department-budget";
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";

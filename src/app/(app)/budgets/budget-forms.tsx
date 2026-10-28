@@ -17,7 +17,10 @@ import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { formatCurrency } from "@/lib/utils";
-import { createEnvelope, updateEnvelope, deleteEnvelope, setBudgetTotal, createBudgetCategory, updateBudgetCategory, addBudgetExpense, updateBudgetExpense } from "@/lib/actions/budget-envelope-actions";
+import {
+  createEnvelope, updateEnvelope, deleteEnvelope, setBudgetTotal, createBudgetCategory, updateBudgetCategory,
+  addBudgetExpense, updateBudgetExpense,
+} from "@/lib/actions/budget-envelope-actions";
 import type { BudgetOverview, BudgetCategoryView, BudgetHealth, AttributedTx } from "@/lib/queries/budget";
 import { ROLE_LABELS } from "@/lib/labels";
 import { effetAllocation } from "@/lib/budget/marketing-vue";
