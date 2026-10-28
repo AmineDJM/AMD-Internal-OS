@@ -16,11 +16,18 @@ import { mesurerCouverture } from "./couverture";
  * Mesures au 28/10/2026 (lot V3-G, migration des référentiels vers `src/modules/`) :
  *   hors carte 828 → 766 · pages Prisma 129 → 126 · routes Prisma 53 · composants → app 12 ·
  *   kit d'interface → métier 6 · tests qui lisent le source par chemin 128.
+ *
+ * Point de départ RECALÉ à la fusion de la base `bf7a907` (lots V3-C/D/E), et seulement là : ces lots ont
+ * ajouté 9 fichiers hors carte (`lib/agent/consommation*.ts`, `contenu-non-fiable.ts`, `testing/journal.ts`,
+ * `actions/assistant-ia-consommation-actions.ts`, `journal.ts`, `incidents-repetes.ts`,
+ * `migrations-appliquees.ts`) avant que ce cliquet existe dans la base — et en ont retiré un (`agent/agent.ts`).
+ * `journal` et `migrations-appliquees` ont été rangés au socle ; reste 768. Désormais, chaque fichier neuf hors
+ * carte se range avant fusion.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 766,
+  horsCarte: 768,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */

@@ -108,6 +108,12 @@ const ADAM_DOMAIN = "adam";
 const SOCLE = [
   "src/lib/prisma", "src/lib/session", "src/lib/rbac", "src/lib/utils", "src/lib/labels",
   "src/lib/crypto/", "src/lib/ai-text", "src/lib/name-match", "src/platform/",
+  /**
+   * `journal` : le journal unique et les `catch` nommés (`sansBloquer`, `attendu` — lot V3-E), zéro
+   * import ; `migrations-appliquees` : la sonde de santé compare `prisma/migrations/` à la base (prisma
+   * + journal). De l'infrastructure lue partout, qui ne lit aucun métier.
+   */
+  "src/lib/journal", "src/lib/migrations-appliquees",
   "src/lib/api/registry/entities",
   "src/lib/storage/",
   "src/lib/mutations/",

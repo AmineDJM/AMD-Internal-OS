@@ -74,7 +74,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
 /** Le socle : ce qu'un module a le droit de lire sans que ce soit une dette. */
 const SOCLE = [
   "src/lib/prisma", "src/lib/session", "src/lib/rbac", "src/lib/utils", "src/lib/labels", "src/lib/audit",
-  "src/lib/settings", "src/lib/annuaires/", "src/lib/chemins/", "src/components/ui/", "src/components/shared/",
+  "src/lib/settings", "src/lib/journal", "src/lib/annuaires/", "src/lib/chemins/", "src/components/ui/", "src/components/shared/",
   "src/platform/imports",
 ];
 /** Les actions serveur de `src/lib/actions/` : un écran de module peut les appeler (Next les remplace par un appel distant). */

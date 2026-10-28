@@ -16,7 +16,7 @@ désormais **tenue par les outils** et trois modules du socle métier y vivent. 
   `actions-<cas>.ts`) sous leur clé historique ; contrat régénéré **identique** (1 184 actions).
 - **Adresses de réexpédition** : chaque ancien chemin (`@/lib/coffre/cle`…) est une entrée exacte de `tsconfig.json`
   `paths`, pour les branches ouvertes en parallèle ; aucun fichier relais (git suit les déplacements).
-- **Nouveaux cliquets** (`src/platform/couverture.test.ts`) : fichiers de `src/lib/` hors carte 828 → 766, pages qui
+- **Nouveaux cliquets** (`src/platform/couverture.test.ts`) : fichiers de `src/lib/` hors carte 828 → 766 (768 après fusion des lots V3-C/D/E, qui en ont ajouté), pages qui
   importent Prisma 129 → 126 (les écrans de revue des doublons lisent par `@/modules/referentiels/api`), routes Prisma
   53, composants → `src/app` 12, kit d'interface → métier 6, tests qui lisent le source par chemin 128.
 - `npm run test:architecture` : frontières, carte, couverture, contrat, garde client — 40 fichiers en ~35 s.
