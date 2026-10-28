@@ -240,3 +240,16 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `src/lib/referentiels/reprises/` | Contrat commun des reprises + `rattrapage-pieces.ts` |
 | `src/lib/actions/enrichissement-actions.ts` · `refonte-reprise-actions.ts` | Gestes (Super Admin, responsable du fait) |
 | `src/app/(app)/admin/refonte-donnees/` · `src/app/(app)/a-confirmer/` | Écrans |
+### Référentiel des Personnes (R1) — `src/lib/referentiels/personnes/` (refonte, lot V2-B)
+
+| Fichier | Rôle |
+|---|---|
+| `sources.ts` | Les neuf tables où vit une personne : rôle, identité lue (aucune colonne sensible), racine (lien ERP sûr), identifiant déterministe. Pur. |
+| `rattachement.ts` | LE geste « relier une ligne à sa Personne », partagé par la reprise et la double écriture ; à blanc pour l'aperçu. |
+| `reprise.ts`, `reprise-doublons.ts`, `../reprises/` | Les reprises (contrat commun `Reprise`, registre `reprises/index.ts`, journal = audit « Refonte des données »). |
+| `fiches-doublons.ts`, `paires.ts` | Les fiches comparées par le moteur `referentiels/doublons.ts` (aussi pour `scripts/refonte/inventaire-doublons.ts`) et leur réduction en paires de Personnes. |
+| `fusion.ts` | Fusionner / écarter / défaire — gestes du Super Admin (`actions/personnes-actions.ts`). |
+| `double-ecriture.ts` | `relierALaPersonne` dans la transaction des écrivains, derrière `AppSetting.refontePersonnesDoubleEcriture`. |
+| `fiche.ts`, `visibilite.ts` | La fiche 360° `/personnes/[id]` : chaque ligne derrière la porte de son écran d'origine. |
+| `app/(app)/admin/refonte-donnees/` | L'écran unique des reprises (Super Admin). |
+| `app/(app)/personnes/` | La fiche 360° et `doublons/` (trancher). |

@@ -11,6 +11,7 @@ import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { recordAudit } from "@/lib/audit";
 import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { fdStr, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 const EXTERNAL_STATUSES: ExternalRegulatoryStatus[] = [
   "IN_PREPARATION", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "APPROVED", "ON_HOLD", "CLOSED",
@@ -89,8 +90,13 @@ export async function createSupplierUser(
   const existing = await prisma.supplierUser.findUnique({ where: { email }, select: { id: true } });
   if (existing) return { ok: false, error: "Un compte existe déjà avec cet email." };
 
-  const created = await prisma.supplierUser.create({
-    data: { supplierId, name, email, passwordHash: await bcrypt.hash(password, 10), createdById: user.id },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const created = await prisma.$transaction(async (tx) => {
+    const ligne = await tx.supplierUser.create({
+      data: { supplierId, name, email, passwordHash: await bcrypt.hash(password, 10), createdById: user.id },
+    });
+    await relierALaPersonne(tx, "SupplierUser", ligne.id, user.id);
+    return ligne;
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Portail fournisseur", entityType: "SUPPLIER", entityId: supplierId, summary: `Compte portail ${email}` });
   revalidatePath("/admin/suppliers");

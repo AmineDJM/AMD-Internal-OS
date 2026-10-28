@@ -9770,6 +9770,11 @@ model AppSetting {
   /// n'est mis en file ni traité. Ouvert et refermé par le Super Admin depuis Administration › Refonte des
   /// données ; refermé, la file garde ce qu'elle a et reprend à la réouverture.
   enrichissementActif           Boolean   @default(false)
+  /// REFONTE DES DONNÉES, lot V2-B : la DOUBLE ÉCRITURE des Personnes. Vrai = les écrivains de création
+  /// (salarié, praticien, bénéficiaire de prise en charge, voyageur…) créent ou relient la `Personne` dans
+  /// la même transaction (`referentiels/personnes/double-ecriture.ts`). Éteint par défaut ; le Super Admin
+  /// l'allume après la reprise, et l'éteint pour revenir en arrière.
+  refontePersonnesDoubleEcriture Boolean   @default(false)
   updatedAt                     DateTime  @updatedAt
   updatedById                   String?
   /// REFONTE V2-D — DOUBLE ÉCRITURE DES LIEUX. Vrai = chaque saisie d'une wilaya / ville sur une fiche (praticien,
@@ -17033,6 +17038,8 @@ model Personne {
   recruitmentCandidates RecruitmentCandidate[]
   directoryEntries      DirectoryEntry[]
   supplierUsers         SupplierUser[]
+  doublonsCommeA        DoublonPersonne[]      @relation("DoublonPersonneA")
+  doublonsCommeB        DoublonPersonne[]      @relation("DoublonPersonneB")
 
   @@index([nomReplie])
   @@index([fusionneeDansId])
@@ -17047,6 +17054,36 @@ enum RolePersonne {
   CANDIDAT
   CONTACT_TIERS
   INTERVENANT
+}
+
+/// R1 — Deux Personnes qui se ressemblent : un doublon PROPOSÉ (`referentiels/doublons.ts`), jamais fusionné
+/// d'office. Une personne tranche : FUSIONNE (l'une absorbe l'autre, `Personne.fusionneeDansId`, les lignes
+/// déplacées sont gardées dans `deplacees` pour le défaire) ou ECARTE (la paire ne revient plus). A < B.
+model DoublonPersonne {
+  id          String    @id @default(cuid())
+  personneAId String
+  personneA   Personne  @relation("DoublonPersonneA", fields: [personneAId], references: [id], onDelete: Cascade)
+  personneBId String
+  personneB   Personne  @relation("DoublonPersonneB", fields: [personneBId], references: [id], onDelete: Cascade)
+  /// CERTAIN | PROBABLE | POSSIBLE
+  niveau      String
+  score       Int       @default(0)
+  raisons     String[]  @default([])
+  reserves    String[]  @default([])
+  /// PROPOSE | FUSIONNE | ECARTE
+  statut      String    @default("PROPOSE")
+  /// La Personne gardée par la fusion.
+  gardeeId    String?
+  /// Les lignes (« Employee:ck… ») déplacées vers la Personne gardée — de quoi défaire la fusion.
+  deplacees   String[]  @default([])
+  decideParId String?
+  decideLe    DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([personneAId, personneBId])
+  @@index([statut, niveau])
+  @@index([personneBId])
 }
 
 /// R1 — Un rôle d'une personne, de `depuis` à `jusquA` (nul = en cours).

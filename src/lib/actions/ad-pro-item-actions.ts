@@ -97,6 +97,7 @@ import {
   droitsValidation, tempsEnAttente, rolesAPrevenir, opsFranchiALaSoumission, libelleTemps,
   type DroitsValidation, type Porteur,
 } from "@/lib/ad-pro/validation-poste";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 /**
  * POSTES D'UNE OPÉRATION AD & PRO — actions serveur, pour les QUATRE opérations du pôle :
@@ -3227,9 +3228,14 @@ export async function ajouterVoyageur(_prev: ActionResult | undefined, formData:
   });
   if (!lu.ok) return { ok: false, error: lu.error };
   const last = await prisma.adProVoyageur.findFirst({ where: { itemId }, orderBy: { position: "desc" }, select: { position: true } });
-  const cree = await prisma.adProVoyageur.create({
-    data: { itemId, ...donneesVoyageur(lu.voyageur), position: (last?.position ?? 0) + 1, createdById: user.id, updatedById: user.id },
-    select: { id: true },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const cree = await prisma.$transaction(async (tx) => {
+    const ligne = await tx.adProVoyageur.create({
+      data: { itemId, ...donneesVoyageur(lu.voyageur), position: (last?.position ?? 0) + 1, createdById: user.id, updatedById: user.id },
+      select: { id: true },
+    });
+    await relierALaPersonne(tx, "AdProVoyageur", ligne.id, user.id);
+    return ligne;
   });
   // LE PASSEPORT ET LES AUTRES DOCUMENTS, JOINTS DÈS LA CRÉATION (Direction, 06/10) — rangés comme ceux qu'on joint
   // ensuite : des documents du poste, à l'étape du voyageur (`stepKey`), le passeport en pièce d'identité.
@@ -3364,9 +3370,14 @@ export async function ajouterHebergement(_prev: ActionResult | undefined, formDa
   });
   if (!lu.ok) return { ok: false, error: lu.error };
   const last = await prisma.adProHebergement.findFirst({ where: { itemId }, orderBy: { position: "desc" }, select: { position: true } });
-  const cree = await prisma.adProHebergement.create({
-    data: { itemId, ...lu.hebergement, position: (last?.position ?? 0) + 1, createdById: user.id, updatedById: user.id },
-    select: { id: true },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const cree = await prisma.$transaction(async (tx) => {
+    const ligne = await tx.adProHebergement.create({
+      data: { itemId, ...lu.hebergement, position: (last?.position ?? 0) + 1, createdById: user.id, updatedById: user.id },
+      select: { id: true },
+    });
+    await relierALaPersonne(tx, "AdProHebergement", ligne.id, user.id);
+    return ligne;
   });
   const pieces: { file: File; category: "ID_DOCUMENT" | "SUPPORTING_DOC" }[] = [
     ...formData.getAll("pieceIdentite").filter((v): v is File => v instanceof File && v.size > 0).map((file) => ({ file, category: "ID_DOCUMENT" as const })),

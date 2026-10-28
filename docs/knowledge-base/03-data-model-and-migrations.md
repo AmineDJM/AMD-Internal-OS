@@ -263,6 +263,26 @@ Migration `20270131170000_organisations_reprise` (additive, idempotent): table `
 - **Dual write** (`double-ecriture.ts`) after `createSupplier`, `creerFournisseurAnnuaire`, `createRegulatorySupplier`, `createCompanyContact`, `createInstitution`: same code path as the back-fill, gated by the switch, **non-blocking and outside the writer's transaction** (a Postgres error aborts the whole transaction, so "non-blocking inside" would be false).
 - **360° sheet** `/organisations/[id]` (`referentiels/organisations/fiche.ts`, read only): each block behind its origin screen's gate (Legal/Admin for group companies, annuaires Partenaires(-publics) + `companyScopedWhere`, Fournisseurs, Établissements, `perimetreLegal` for LegalDocument via `counterpartyIds`, `clauseSponsorings/Congres…Visibles` for requests); the sheet itself is `notFound` unless one block is visible. A merged organisation redirects to its survivor, which aggregates both. No RIB/IBAN (bench asserts it).
 - Benches: `referentiels/organisations/candidats.test.ts` (pure), `referentiels/reprises/lots.test.ts` (pure), `referentiels/organisations/reprise.test.ts` (local DB: preview = execution, replay ×2 creates nothing, shared NIF proposes, group NIF ignored, texts, affiliations, merge/unmerge, gates, no RIB, switch).
+### 4.13 R1 *Personnes* in service — reprise, double write, 360° card (wave 2, lot V2-B, 2026-10-27)
+
+Migration `20270131170000_personnes_reprise` (additive, idempotent): `AppSetting.refontePersonnesDoubleEcriture` (switch,
+default **off**) and `DoublonPersonne` (proposed duplicate between two `Personne`, unique (A, B) with `CHECK A < B`,
+`statut` PROPOSE / FUSIONNE / ECARTE, `deplacees[]` = source rows moved by a merge, so it can be undone).
+Code: `src/lib/referentiels/personnes/` — verified by `personnes.test.ts` (real DB) + three pure test files.
+
+| File | Role |
+|---|---|
+| `sources.ts` (pure) | The 9 source tables: role given (`ROLE_DE_LA_SOURCE`), identity read (`SELECTION` — **no sensitive column**), *racine* = the FK the ERP already carries (Employee→User, CareBeneficiary→MedicalDoctor, RecruitmentCandidate→Employee, DirectoryEntry→User/Employee), deterministic id `per_` + sha256(racine ref). |
+| `rattachement.ts` | **The single gesture** used by both the reprise and the double write: climb the racine chain, reuse its Personne or create the deterministic one (`createMany skipDuplicates`), follow `fusionneeDansId`, complete empty fields only, ensure one active role per kind, link the whole chain (`updateMany … personneId: null`). `aBlanc` = dry run. |
+| `reprise.ts` / `reprises/personnes.ts` | One `Reprise` per table (`personnes-users`, `-employes`, `-medecins`, `-beneficiaires`, `-voyageurs`, `-hebergements`, `-candidats`, `-annuaire`, `-portail-fournisseurs`): cursor on id, one transaction per row, errors named. |
+| `fiches-doublons.ts` → `paires.ts` (pure) → `reprise-doublons.ts` | Same loader as `scripts/refonte/inventaire-doublons.ts`; engine `referentiels/doublons.ts`; proposals mapped to Personne pairs, best kept; reprise `personnes-doublons` writes them **PROPOSE** (never merged). |
+| `fusion.ts` | Human gestures: merge (rows, affiliations, addresses, contact points, PERSONNE piece links move; roles and empty fields copied; absorbed keeps `fusionneeDansId`), dismiss, undo. Actions: `personnes-actions.ts` (Super Admin, audited). |
+| `double-ecriture.ts` | `relierALaPersonne(tx, source, id, by)` — called **inside the writer's transaction** by `createEmployee` (HR and Finance), `onboardRecruitment`, `addRecruitmentCandidate`, `createDoctor`, `addDirectoryDoctor`, `addCareBeneficiary`, `createCongressRequest`, `ajouterVoyageur`, `ajouterHebergement`, `creerPosteEtFiches`, `createUser`, `createSupplierUser`. No-op while the switch is off. |
+| `fiche.ts` + `visibilite.ts` (pure) | `/personnes/[id]`: each source row behind **its own screen's gate** (ADMIN or active-in-directory; `/rh/[id]` gate or directory; `praticienVisible`; `canAccessEntity` on congress / AD_PRO_ITEM / RECRUITMENT_CANDIDATE; SupplierUser = SA). No visible row ⇒ 404. Roles shown only if a visible row brings them; birth date only through the HR gate; pieces only if one ENTITE link opens. No NIN/IBAN/salary loaded. |
+
+Shared wave-2 contract (other lots plug in the same way): `src/lib/referentiels/reprises/{types,index,journal}.ts`,
+action `src/lib/actions/refonte-reprise-actions.ts` (`apercuReprise`, `executerReprise` — Super Admin, audited, journal =
+`AuditLog` with module « Refonte des données » and `field` = reprise key), screen `/admin/refonte-donnees`.
 
 ## 5. Conventions & patterns to follow (house style)
 

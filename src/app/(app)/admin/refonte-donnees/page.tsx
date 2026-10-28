@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GestesReprise, InterrupteurDoubleEcriture } from "./cartes";
 import { etatFile } from "@/lib/enrichissement/lectures";
 import { PanneauEnrichissement } from "./panneau-enrichissement";
+import { InterrupteurDoubleEcriturePersonnes } from "./interrupteur-double-ecriture";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Refonte des données — Administration" };
@@ -29,13 +30,16 @@ const dateFr = (d: Date) => new Intl.DateTimeFormat("fr-FR", {
 export default async function RefonteDonneesPage() {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");
-  const [journaux, doubleEcriture, doublonsEnAttente, etat] = await Promise.all([
+  const [journaux, doubleEcriture, doublonsEnAttente, etat, reglages, personnes, doublonsPersonnes] = await Promise.all([
     Promise.all(REPRISES.map((r) => lireJournal(r.cle))),
     doubleEcritureOrganisationsOuverte(),
     prisma.propositionDoublonOrganisation.count({
       where: { statut: "PROPOSEE", organisationA: { fusionneeDansId: null }, organisationB: { fusionneeDansId: null } },
     }),
     etatFile(),
+    prisma.appSetting.findUnique({ where: { id: "global" }, select: { refontePersonnesDoubleEcriture: true } }),
+    prisma.personne.count({ where: { fusionneeDansId: null } }),
+    prisma.doublonPersonne.count({ where: { statut: "PROPOSE" } }),
   ]);
 
   return (
@@ -48,6 +52,17 @@ export default async function RefonteDonneesPage() {
       </PageHeader>
 
       <PanneauEnrichissement etat={etat} />
+
+      <Card>
+        <CardHeader><CardTitle>Personnes — double écriture et doublons</CardTitle></CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p>
+            {personnes} Personne(s) ·{" "}
+            <Link href="/personnes/doublons" className="font-medium text-primary hover:underline">{doublonsPersonnes} doublon(s) à trancher</Link>
+          </p>
+          <InterrupteurDoubleEcriturePersonnes actif={reglages?.refontePersonnesDoubleEcriture === true} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Organisations — double écriture et doublons</CardTitle></CardHeader>

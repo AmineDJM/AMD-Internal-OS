@@ -23,6 +23,7 @@ import {
   nettoyerIds, refusDesignationDuSommet, suiveursAPrevenir,
   type ChainStep, type RecruitmentContract, type RecruitmentStage,
 } from "@/lib/recruitment/request-flow";
+import { relierALaPersonne, relierCommeLaLigne } from "@/lib/referentiels/personnes/double-ecriture";
 
 /** Les valeurs multiples d'un champ (`followerIds`) — lu par nom littéral, comme les autres champs. */
 const fdList = (formData: FormData, key: string): string[] => formData.getAll(key).map((v) => String(v)).filter(Boolean);
@@ -627,14 +628,19 @@ export async function addRecruitmentCandidate(
     return { ok: false, error: "Les CV se déposent une fois le poste ouvert par les RH." };
   }
 
-  const candidate = await prisma.recruitmentCandidate.create({
-    data: {
-      requestId: id, fullName,
-      email: fdStr(formData, "email"), phone: fdStr(formData, "phone"),
-      source: fdStr(formData, "source"), notes: fdStr(formData, "notes"),
-      addedById: user.id,
-    },
-    select: { id: true },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const candidate = await prisma.$transaction(async (tx) => {
+    const ligne = await tx.recruitmentCandidate.create({
+      data: {
+        requestId: id, fullName,
+        email: fdStr(formData, "email"), phone: fdStr(formData, "phone"),
+        source: fdStr(formData, "source"), notes: fdStr(formData, "notes"),
+        addedById: user.id,
+      },
+      select: { id: true },
+    });
+    await relierALaPersonne(tx, "RecruitmentCandidate", ligne.id, user.id);
+    return ligne;
   });
   const files = await attachFormFiles(user.id, "RECRUITMENT_CANDIDATE", candidate.id, formData);
 
@@ -876,6 +882,8 @@ export async function onboardRecruitment(formData: FormData): Promise<ActionResu
         data: { stage: "CLOSED", closedAt: new Date(), closingNote: `${hired.fullName} recruté — fiche employé créée.` },
       });
       if (close.count === 0) throw new EtatChange();
+      // DOUBLE ÉCRITURE (refonte, lot V2-B) : la fiche salarié rejoint la Personne de la candidature — une seule personne.
+      await relierCommeLaLigne(tx, "Employee", cree.id, { source: "RecruitmentCandidate", id: hired.id }, user.id);
       return cree;
     });
   } catch (e) {

@@ -27,6 +27,7 @@ import {
   type HeaderProposal, type TargetColumn, type ColumnKind,
 } from "@/lib/medical/directory-mapping";
 import type { ActionResult } from "@/lib/actions/types";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 /**
  * IMPORT D'UN ANNUAIRE — n'importe quel fichier, restructuré à notre format.
@@ -865,15 +866,20 @@ export async function addDirectoryDoctor(input: {
   const delegateId = user.role === "MEDICAL_DELEGATE" ? user.id : null;
   const companyId = await companyIdForNew(user.id);
 
-  const created = await prisma.medicalDoctor.create({
-    data: {
-      name, lastName: lastName || null, firstName: firstName || null,
-      specialty: specialite.specialty, specialtyId: specialite.specialtyId, wilaya: wilaya.value, delegateId, companyId, directoryId,
-      institutionId, institution, serviceId,
-      ...(title && title.ok && title.value ? { title: title.value as never } : {}),
-      createdById: user.id, updatedById: user.id,
-    },
-    select: { id: true },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const created = await prisma.$transaction(async (tx) => {
+    const ligne = await tx.medicalDoctor.create({
+      data: {
+        name, lastName: lastName || null, firstName: firstName || null,
+        specialty: specialite.specialty, specialtyId: specialite.specialtyId, wilaya: wilaya.value, delegateId, companyId, directoryId,
+        institutionId, institution, serviceId,
+        ...(title && title.ok && title.value ? { title: title.value as never } : {}),
+        createdById: user.id, updatedById: user.id,
+      },
+      select: { id: true },
+    });
+    await relierALaPersonne(tx, "MedicalDoctor", ligne.id, user.id);
+    return ligne;
   });
   // Établissement déduit de la wilaya et de la spécialité, service = spécialité (Direction, 06/10).
   await completerRattachement([created.id], user.id);

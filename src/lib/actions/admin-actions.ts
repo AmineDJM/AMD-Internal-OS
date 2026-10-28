@@ -11,6 +11,7 @@ import { recordAudit } from "@/lib/audit";
 import { ROLE_LABELS } from "@/lib/labels";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { REFUS_COMPTE_SYSTEME } from "@/lib/missions/agent/account";
+import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#0891b2", "#059669", "#d97706", "#dc2626", "#db2777"];
 
@@ -36,20 +37,25 @@ export async function createUser(
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) return { ok: false, error: "Un utilisateur avec cet email existe déjà." };
 
-  const created = await prisma.user.create({
-    data: {
-      email,
-      name,
-      passwordHash: await bcrypt.hash(password, 10),
-      role,
-      title: fdStr(formData, "title"),
-      region: fdStr(formData, "region"),
-      avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
-      // New accounts must set their own password on first login, then go
-      // through the guided onboarding (workspace tour + mailbox + profil).
-      mustChangePassword: true,
-      mustOnboard: true,
-    },
+  // DOUBLE ÉCRITURE (refonte, lot V2-B) : la Personne dans la même transaction, derrière son interrupteur.
+  const created = await prisma.$transaction(async (tx) => {
+    const ligne = await tx.user.create({
+      data: {
+        email,
+        name,
+        passwordHash: await bcrypt.hash(password, 10),
+        role,
+        title: fdStr(formData, "title"),
+        region: fdStr(formData, "region"),
+        avatarColor: AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)],
+        // New accounts must set their own password on first login, then go
+        // through the guided onboarding (workspace tour + mailbox + profil).
+        mustChangePassword: true,
+        mustOnboard: true,
+      },
+    });
+    await relierALaPersonne(tx, "User", ligne.id, admin.id);
+    return ligne;
   });
   await recordAudit({
     actorId: admin.id, action: "CREATE", module: "Administration",
