@@ -15,7 +15,8 @@ const SANS_CACHE = { "Cache-Control": "no-store" };
  * ENREGISTRER un document texte — nouvelle version, comparée à celle que la personne a lue (409 si quelqu'un a modifié
  * entre-temps : on ne l'écrase pas en silence). Droit : celui de l'éditeur Office (téléverser sur l'entité).
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401, headers: SANS_CACHE });
   const doc = await prisma.document.findUnique({ where: { id: params.id } });

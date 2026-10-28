@@ -21,7 +21,8 @@ export const metadata = { title: "Mission — Mon espace" };
  * La même page pour la personne invitée et pour qui tranche côté Adventum ; une mission qu'on ne peut pas voir
  * rend la même page qu'une mission inexistante.
  */
-export default async function MissionEquipePage({ params }: { params: { id: string } }) {
+export default async function MissionEquipePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("WORKSPACE");
   if (!(await canAccessEntity(user, "MISSION_ASSIGNMENT", params.id, "VIEW"))) notFound();
   let detail = await getMissionDetail(params.id);

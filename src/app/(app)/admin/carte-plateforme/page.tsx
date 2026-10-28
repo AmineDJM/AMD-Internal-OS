@@ -27,7 +27,8 @@ const un = (p: Params | undefined, k: string): string | null => {
   return s && s.trim() ? s.trim() : null;
 };
 
-export default async function CartePlateformePage({ searchParams }: { searchParams?: Params }) {
+export default async function CartePlateformePage(props: { searchParams?: Promise<Params> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   // RÉSERVÉ AU SUPER ADMINISTRATEUR — aucun droit de module ne l'ouvre à un autre rôle.
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");

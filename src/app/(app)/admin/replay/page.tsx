@@ -29,7 +29,8 @@ const SESSIONS_SHOWN = 40;
  * RÉSERVÉ AU SUPER ADMIN. Pas au PDG, pas aux RH : c'est un outil de diagnostic technique, et
  * l'élargir en ferait un outil de surveillance.
  */
-export default async function ReplayPage({ searchParams }: { searchParams?: { session?: string } }) {
+export default async function ReplayPage(props: { searchParams?: Promise<{ session?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") notFound();
 

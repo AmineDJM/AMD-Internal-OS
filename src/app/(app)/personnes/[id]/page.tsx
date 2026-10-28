@@ -4,8 +4,7 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
-import { LIBELLE_PRISE_EN_CHARGE, lireFichePersonne } from "@/lib/referentiels/personnes/fiche";
-import { LIBELLE_ROLE, LIBELLE_SOURCE } from "@/lib/referentiels/personnes/sources";
+import { LIBELLE_PRISE_EN_CHARGE, lireFichePersonne, LIBELLE_ROLE, LIBELLE_SOURCE } from "@/modules/referentiels/api";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Personne — AMD Internal OS" };
@@ -15,7 +14,8 @@ export const metadata = { title: "Personne — AMD Internal OS" };
  * dont l'écran d'origine s'ouvrirait à la même personne (`referentiels/personnes/fiche.ts`) ; une Personne
  * qu'on ne voit nulle part ailleurs n'existe pas ici (404). Aucune donnée sensible : elles sont au coffre.
  */
-export default async function FichePersonnePage({ params }: { params: { id: string } }) {
+export default async function FichePersonnePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const lecture = await lireFichePersonne(user, params.id);
   if (lecture.etat === "FUSIONNEE") redirect(`/personnes/${lecture.versId}`);

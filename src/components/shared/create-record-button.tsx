@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useAutoOpen } from "./use-auto-open";
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Plus, Loader2, AlertCircle, Wand2, Sparkles } from "lucide-react";
@@ -406,7 +406,7 @@ export function RecordForm({
    *
    * ── LE DÉFAUT QU'ON CORRIGE ───────────────────────────────────────────────────────────────
    *
-   * `useFormState` ne met l'état à jour QUE si l'action RETOURNE. Si elle LÈVE — erreur Prisma,
+   * `useActionState` ne met l'état à jour QUE si l'action RETOURNE. Si elle LÈVE — erreur Prisma,
    * stockage injoignable, déploiement en cours, connexion coupée — aucun état n'arrive : l'effet
    * de succès comme celui d'erreur restent muets, `submitting` reste vrai, et le bouton tourne
    * pour toujours SANS AUCUN MESSAGE. C'est exactement le symptôme rapporté (« ça tourne tourne
@@ -437,7 +437,7 @@ export function RecordForm({
     },
     [],
   );
-  const [state, formAction] = useFormState<ActionResult | undefined, FormData>(guarded, undefined);
+  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(guarded, undefined);
 
   // Pré-remplissage IA : valeurs extraites + compteur pour re-monter (reset) les champs.
   const [prefill, setPrefill] = React.useState<Record<string, string>>({});

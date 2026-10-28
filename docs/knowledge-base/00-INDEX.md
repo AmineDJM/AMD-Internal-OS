@@ -34,6 +34,12 @@ with file:line, not re-checked · **[V·orch]** re-checked by the orchestrator �
 | 10 | [Infra, build, deploy & testing](10-infra-build-deploy-testing.md) | Render, build memory, ~200 env vars, in-process scheduler, test architecture & ratchets, **safe-change checklist** |
 | 11 | [Cross-cutting mechanisms & coupling](11-cross-cutting-and-coupling.md) | Audit→fact→consequences spine, notifications, trash, search, action centre, fan-in coupling map, **impact playbook** |
 
+## Modules (since 2026-10-28)
+
+Code migrated to the modular monolith lives in `src/modules/<module>/` and is entered only through its doors — see
+**[`docs/architecture/MODULES.md`](../architecture/MODULES.md)** (map, doors, rules, step-by-step migration guide)
+before touching `lieux`, `coffre`, `referentiels` or `consommation`.
+
 ## Keeping it current
 
 - After a large functional batch, update the affected chapter(s) **together with** the README and the Graphify refresh

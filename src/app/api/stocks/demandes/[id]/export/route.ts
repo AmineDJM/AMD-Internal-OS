@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
  * EXPORT D'UNE DEMANDE DE STOCKS — une ligne par case (établissement × produit), lisible par un
  * tableur français (point-virgule, marque UTF-8). Même garde que le suivi : qui pilote.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user || !userCan(user, "STOCKS", "VIEW") || !peutPiloterDemandesStocks(user)) return new NextResponse(null, { status: 403 });
   const d = await chargerDemandeStocks(params.id);

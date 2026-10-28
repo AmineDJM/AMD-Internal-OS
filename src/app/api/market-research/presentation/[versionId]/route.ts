@@ -8,7 +8,8 @@ import { recordAudit } from "@/lib/audit";
 import { contentDisposition } from "@/lib/http/content-disposition";
 
 /** Télécharge le .pptx d'une version de présentation — (re)construit à la demande depuis l'analyse stockée. */
-export async function GET(_req: NextRequest, { params }: { params: { versionId: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ versionId: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!userCan(user, "BUSINESS_DEVELOPMENT", "VIEW")) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });

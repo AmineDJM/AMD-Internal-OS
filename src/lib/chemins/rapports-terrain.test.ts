@@ -39,7 +39,7 @@ describe("les anciennes adresses mènent au même écran", () => {
     const { default: Liste } = await import("@/app/(app)/field-reports/page");
     expect(await destination(() => Liste())).toBe(CHEMIN_RAPPORTS_TERRAIN);
     const { default: Fiche } = await import("@/app/(app)/field-reports/[id]/page");
-    expect(await destination(() => Fiche({ params: { id: "abc123" } }))).toBe(`${CHEMIN_RAPPORTS_TERRAIN}/abc123`);
+    expect(await destination(() => Fiche({ params: Promise.resolve({ id: "abc123" }) }))).toBe(`${CHEMIN_RAPPORTS_TERRAIN}/abc123`);
     const { default: Apercu } = await import("@/app/(app)/field-reports/overview/page");
     expect(await destination(() => Apercu())).toBe(CHEMIN_APERCU_RAPPORTS);
   });
@@ -50,7 +50,7 @@ describe("les anciennes adresses mènent au même écran", () => {
     const { default: Nouveau } = await import("@/app/(app)/field-reports/pharmacovigilance/nouveau/page");
     expect(await destination(() => Nouveau())).toBe(`${CHEMIN_PV_KAM}/nouveau`);
     const { default: Cas } = await import("@/app/(app)/field-reports/pharmacovigilance/[id]/page");
-    expect(await destination(() => Cas({ params: { id: "cas1" } }))).toBe(`${CHEMIN_PV_KAM}/cas1`);
+    expect(await destination(() => Cas({ params: Promise.resolve({ id: "cas1" }) }))).toBe(`${CHEMIN_PV_KAM}/cas1`);
   });
 
   it("les destinations existent — une escale vers une page absente serait un 404 de plus", () => {

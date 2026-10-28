@@ -27,7 +27,8 @@ export const dynamic = "force-dynamic";
  * Administration : deux pages qui chargeraient la même feuille chacune de leur côté finiraient
  * par montrer deux annuaires (§118.5).
  */
-export default async function AnnuairePage({ searchParams }: { searchParams?: { annuaire?: string } }) {
+export default async function AnnuairePage(props: { searchParams?: Promise<{ annuaire?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MEDICAL");
   const canImport = userCan(user, "MEDICAL", "CREATE");
   const canEdit = userCan(user, "MEDICAL", "UPDATE");

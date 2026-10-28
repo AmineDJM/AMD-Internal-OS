@@ -24,7 +24,8 @@ export const metadata = { title: "Actualisation des soldes — AMD Internal OS" 
  * réponse. Qui voit les Finances voit l'écran ; seul qui peut les MODIFIER saisit — la même porte que
  * « Corriger l'ancrage ». Un compte d'une entité qu'on ne voit pas rend la demande introuvable.
  */
-export default async function ActualisationSoldesPage({ params }: { params: { id: string } }) {
+export default async function ActualisationSoldesPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("FINANCES");
   const demande = await prisma.demandeActualisationSoldes.findUnique({
     where: { id: params.id },

@@ -10,7 +10,8 @@ export const dynamic = "force-dynamic";
 const SANS_CACHE = { "Cache-Control": "no-store" };
 
 /** LIRE un document texte (JSON : texte, version, tronqué, modifiable). Mêmes droits que le téléchargement. */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401, headers: SANS_CACHE });
   const doc = await prisma.document.findUnique({ where: { id: params.id } });

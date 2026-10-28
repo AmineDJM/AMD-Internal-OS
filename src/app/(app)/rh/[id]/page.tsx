@@ -24,11 +24,12 @@ import { SuperAdminDeleteButton } from "@/components/shared/super-admin-delete";
 import { seesWholeGroup } from "@/lib/company-access";
 import { CompanyAccessCard, type CompanyAccessRow } from "./company-access-card";
 import { BackLink } from "@/components/shared/back-link";
-import { lireSensiblesPour } from "@/lib/coffre/lecture";
+import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
 
 const d10 = (x: Date | null | undefined) => (x ? x.toISOString().slice(0, 10) : "");
 
-export default async function EmployeeDetailPage({ params }: { params: { id: string } }) {
+export default async function EmployeeDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("EMPLOYEES");
   const canUpdate = userCan(user, "EMPLOYEES", "UPDATE");
 

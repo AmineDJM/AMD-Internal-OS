@@ -6,7 +6,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { getMyCompanies, companyLabel } from "@/lib/company";
 import { IDENTITY_SECTIONS, identityFieldKeys } from "@/lib/legal/identity";
 import { IdentityBoard, type IdentityCompany } from "./identity-board";
-import { lireSensiblesPour } from "@/lib/coffre/lecture";
+import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
 import type { DocItem } from "@/components/documents/document-list";
 
 export const dynamic = "force-dynamic";
@@ -23,7 +23,8 @@ export const dynamic = "force-dynamic";
  * numéros sont ce par quoi elle s'engage. On choisit l'entité, on lit, on copie — le champ
  * seul ou le bloc entier.
  */
-export default async function LegalIdentitiesPage({ searchParams }: { searchParams?: { entite?: string } }) {
+export default async function LegalIdentitiesPage(props: { searchParams?: Promise<{ entite?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("LEGAL");
   const canEdit = userCan(user, "LEGAL", "UPDATE");
 

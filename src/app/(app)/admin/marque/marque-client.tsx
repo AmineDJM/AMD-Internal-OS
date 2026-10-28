@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useFormState, useFormStatus } from "react-dom";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { deposerLogo, enregistrerMarque, type ResultatMarque } from "@/lib/actions/brand-actions";
 import { POLICES_SURES, TYPES_PIECE, LIBELLE_TYPE_PIECE, type Marque } from "@/lib/brand/model";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ const Champ = ({ id, label, defaut, type = "text", placeholder, nom }: { id: str
 
 export function FormulaireMarque({ companyId, marque }: { companyId: string; marque: Marque }) {
   const { rafraichir } = useRafraichir();
-  const [etat, agir] = useFormState<ResultatMarque | undefined, FormData>(async (prev, fd) => {
+  const [etat, agir] = useActionState<ResultatMarque | undefined, FormData>(async (prev, fd) => {
     const r = await enregistrerMarque(prev, fd);
     if (r.ok) rafraichir();
     return r;
@@ -99,7 +100,7 @@ export function FormulaireMarque({ companyId, marque }: { companyId: string; mar
 
 export function FormulaireLogo({ companyId, logo }: { companyId: string; logo: { nom: string; taille: number; largeurCm: number } | null }) {
   const { rafraichir } = useRafraichir();
-  const [etat, agir] = useFormState<ActionResult | undefined, FormData>(async (prev, fd) => {
+  const [etat, agir] = useActionState<ActionResult | undefined, FormData>(async (prev, fd) => {
     const r = await deposerLogo(prev, fd);
     if (r.ok) rafraichir();
     return r;

@@ -35,7 +35,7 @@ export default async function OrganigrammePage() {
   // pas une autorisation) et laisse passer les personnes NON RATTACHÉES — un employé sans
   // entité doit apparaître quelque part, sinon il n'apparaît nulle part.
   const scope = await platformScope(user.id);
-  const activeCompanyId = getCompanyScope();
+  const activeCompanyId = await getCompanyScope();
   const companies = await getMyCompanies(user.id);
   const activeCompany = activeCompanyId ? companies.find((c) => c.id === activeCompanyId) : null;
   const scopeLabel = activeCompany ? companyLabel(activeCompany) : "Toutes les entités";

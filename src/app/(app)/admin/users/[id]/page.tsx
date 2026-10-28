@@ -35,7 +35,8 @@ const SHEET = new Map(
   ).map((spec) => [spec.value, spec]),
 );
 
-export default async function AdminUserPage({ params }: { params: { id: string } }) {
+export default async function AdminUserPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const admin = await requireModule("ADMIN", "UPDATE");
 
   const target = await prisma.user.findUnique({

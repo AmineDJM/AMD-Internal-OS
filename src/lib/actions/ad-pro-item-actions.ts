@@ -97,7 +97,7 @@ import {
   droitsValidation, tempsEnAttente, rolesAPrevenir, opsFranchiALaSoumission, libelleTemps,
   type DroitsValidation, type Porteur,
 } from "@/lib/ad-pro/validation-poste";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
 
 /**

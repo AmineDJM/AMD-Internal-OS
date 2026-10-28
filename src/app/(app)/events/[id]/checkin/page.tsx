@@ -6,7 +6,11 @@ import { CheckinConfirm } from "./checkin-confirm";
 
 export const dynamic = "force-dynamic";
 
-export default async function CheckinPage({ params, searchParams }: { params: { id: string }; searchParams: { token?: string } }) {
+export default async function CheckinPage(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ token?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   await requireModule("EVENTS", "UPDATE");
   const token = searchParams.token ?? null;
   const reg = token

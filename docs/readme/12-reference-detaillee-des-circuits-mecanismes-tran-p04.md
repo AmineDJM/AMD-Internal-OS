@@ -461,7 +461,7 @@ entité) sont éligibles. Supprimer une gamme **ne supprime aucun produit** (`SE
 
 **Le principe** : le texte saisi (`wilaya`, `city`, `wilayaPivot`, `region`, `country`) reste la saisie ; la colonne
 `wilayaCode` (FK → `Wilaya`, 69 wilayas de la loi n° 26-06) en est la **lecture**, posée par une seule règle,
-`rattacherFiche` (`lib/lieux/rattachement.ts`) : la colonne wilaya prime ; la ville, puis la région, ne parlent que si
+`rattacherFiche` (`modules/lieux/domaine/rattachement.ts`) : la colonne wilaya prime ; la ville, puis la région, ne parlent que si
 elle est vide ou illisible ; deux wilayas ou un numéro contredit → **nul et listé** ; un pays qui n'est pas l'Algérie →
 pas de wilaya. Le code suit le texte : un texte devenu ambigu remet le code à nul. Cinq fiches :
 `MedicalDoctor`, `MedicalInstitution`, `CompanyContact`, `Supplier`, `SalesSector`.
@@ -469,11 +469,11 @@ pas de wilaya. Le code suit le texte : un texte devenu ambigu remet le code à n
 **Double écriture** : chaque écrivain de ces fiches appelle `reposerWilayaCode(modele, ids)` après son écriture — relit
 la fiche entière (une cellule modifiée seule laisse les autres colonnes parler), pose le code, **n'échoue jamais**
 l'action (erreur journalisée, la reprise rattrape). Interrupteur `AppSetting.lieuxDoubleEcriture` (allumé par défaut),
-réglé sur l'écran de la refonte. Garde : `lib/lieux/double-ecriture-garde.test.ts` (un écrivain sans l'appel, ou une
+réglé sur l'écran de la refonte. Garde : `modules/lieux/double-ecriture-garde.test.ts` (un écrivain sans l'appel, ou une
 exception qui nomme une colonne de lieu, fait échouer `npm test`).
 
 **Reprises** (Administration › Refonte des données, `/admin/refonte-donnees`, **Super Admin seul**) — contrat commun
-`lib/referentiels/reprises/types.ts` : aperçu à blanc, puis lots de 500 au curseur `"<Table>:<id>"`, chaque geste à
+`modules/referentiels/domaine/reprises/types.ts` : aperçu à blanc, puis lots de 500 au curseur `"<Table>:<id>"`, chaque geste à
 l'`AuditLog` (module « Refonte des données », champ = clé, curseur en `newValue` : l'écran reprend où l'on s'était
 arrêté). Aucune ne tourne au déploiement.
 
@@ -528,7 +528,7 @@ file, rien n'est traité.
 - **« À confirmer »** (`/a-confirmer`) — les faits proposés et conflits des pièces que la personne a déposées (le Super
   Admin voit tout) : confirmer (écrit la fiche, l'ancienne valeur reste dans l'historique), rejeter, trancher.
 - **Rattrapage** — reprise « Rattrapage des pièces existantes » (documents de module déjà en base), par lots, depuis le
-  même écran (contrat commun des reprises : `lib/referentiels/reprises/`).
+  même écran (contrat commun des reprises : `modules/referentiels/infra/reprises/`).
 - **Ce qui est copié** (`coffre/champs.ts`) : `Employee.iban` (IBAN ou RIB, validé par sa clé), `nationalId` (NIN), les
   quatre salaires ; `CompanyContact.rib` ; `CompanyLegalIdentity.rib`, `iban`. La colonne reste la vérité jusqu'à P5.
 - **Écriture** (`coffre/ecriture.ts` → `copies.ts`), interrupteur `AppSetting.coffreEcriture` : après chaque écriture de la

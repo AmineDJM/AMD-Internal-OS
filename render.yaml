@@ -52,7 +52,7 @@ services:
     # ⚠️ NE PAS poser NODE_OPTIONS dans le dashboard Render : il s'appliquerait à TOUS les
     # processus du build (npm, prisma generate, bootstrap) en les autorisant à gonfler, ET au
     # runtime `next start` où une grande laisse V8 sur une petite instance provoque l'OOM
-    # inverse. Les plafonds vivent ICI, phase par phase, dans build:render (3072 Mo).
+    # inverse. Les plafonds vivent ICI, phase par phase, dans build:render (lint 3072 Mo, compilation 3584 Mo depuis Next 15 — next.config.mjs, `TAS_DU_BUILD_MO`).
     #
     # ORDRE (refonte P0, docs/architecture/refonte-p0-outillage.md §2) : TOUT ce qui peut échouer
     # sans toucher la base passe AVANT `migrate deploy`. Avant, les migrations partaient en premier :

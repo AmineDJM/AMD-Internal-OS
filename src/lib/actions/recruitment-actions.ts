@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
+import { doubleEcrireCoffre } from "@/modules/coffre/api";
 import { synchroniserOffreDeLaDemande } from "@/lib/site-web/contenus";
 import type { ContractType } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -24,7 +24,7 @@ import {
   nettoyerIds, refusDesignationDuSommet, suiveursAPrevenir,
   type ChainStep, type RecruitmentContract, type RecruitmentStage,
 } from "@/lib/recruitment/request-flow";
-import { relierALaPersonne, relierCommeLaLigne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne, relierCommeLaLigne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
 
 /** Les valeurs multiples d'un champ (`followerIds`) — lu par nom littéral, comme les autres champs. */

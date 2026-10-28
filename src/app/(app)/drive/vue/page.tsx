@@ -20,7 +20,8 @@ const MAX_OPEN = 8;
  * coup ne doit rien montrer de plus qu'en les ouvrant un par un. Ce qui n'est pas visible est
  * silencieusement écarté — annoncer « 3 documents refusés » apprendrait déjà quelque chose.
  */
-export default async function DriveMultiViewPage({ searchParams }: { searchParams: { ids?: string } }) {
+export default async function DriveMultiViewPage(props: { searchParams: Promise<{ ids?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("DRIVE");
   const ids = (searchParams.ids ?? "").split(",").map((s) => s.trim()).filter(Boolean).slice(0, MAX_OPEN);
 

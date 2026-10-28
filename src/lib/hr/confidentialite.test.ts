@@ -140,7 +140,7 @@ suite("RH — qui voit la paie, et jusqu'où", () => {
 
   const telecharger = async (acteurCourant: SessionUser, id: string) => {
     ACTEUR = acteurCourant;
-    return (await telechargerPieceRh(new NextRequest(`http://x/api/rh/document/${id}`), { params: { id } })).status;
+    return (await telechargerPieceRh(new NextRequest(`http://x/api/rh/document/${id}`), { params: Promise.resolve({ id }) })).status;
   };
 
   it("un BULLETIN : la lecture seule ne le télécharge plus ; le gestionnaire de SA société, si ; l'autre société, non", async () => {

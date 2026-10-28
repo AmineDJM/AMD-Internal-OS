@@ -25,7 +25,8 @@ const FILTRES: FiltreDemandes[] = ["a-traiter", "en-cours", "pretes"];
  * filtres (À traiter, En cours, Prêtes) ; une LIGNE par demande, un geste (« Traiter »), le traitement dans un panneau
  * sous la ligne ; puis la TABLE des congés à trancher, chacun avec sa discussion.
  */
-export default async function DemandesRhPage({ searchParams }: { searchParams?: { filtre?: string; demande?: string } }) {
+export default async function DemandesRhPage(props: { searchParams?: Promise<{ filtre?: string; demande?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("HR_REQUESTS");
   const peutTrancherConges = userCan(user, "HR_REQUESTS", "VALIDATE");
   const filtre: FiltreDemandes = FILTRES.includes(searchParams?.filtre as FiltreDemandes) ? (searchParams!.filtre as FiltreDemandes) : "a-traiter";

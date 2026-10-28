@@ -31,7 +31,10 @@ import { canManageLetterheads } from "@/lib/office/letterhead";
 import { Stamp } from "lucide-react";
 
 
-export default async function DrivePage({ searchParams }: { searchParams: { folder?: string; trash?: string; view?: string; q?: string } }) {
+export default async function DrivePage(
+  props: { searchParams: Promise<{ folder?: string; trash?: string; view?: string; q?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("DRIVE");
   const folderId = searchParams.folder ?? null;
   const trash = searchParams.trash === "1";

@@ -47,7 +47,8 @@ const MAIL_DOC_CATEGORIES = [
  * Les pièces passent par la table `Document` commune : même stockage, même contrôle d'accès,
  * même réplication dans le Drive de celui qui importe, et même journalisation que partout.
  */
-export default async function MailEntryPage({ params }: { params: { id: string } }) {
+export default async function MailEntryPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("MAIL_REGISTER");
 
   // LE CLOISONNEMENT S'APPLIQUE ICI AUSSI — deviner un identifiant ne doit pas ouvrir le

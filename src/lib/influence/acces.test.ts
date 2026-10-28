@@ -47,8 +47,8 @@ describe("Intelligence terrain — Super Administrateur seul", () => {
     it(`la page renvoie ${role} sans rien lire (les deux onglets)`, async () => {
       ACTOR = acteur(role);
       const { default: Page } = await import("@/app/(app)/admin/intelligence-terrain/page");
-      expect(await destination(() => Page({ searchParams: { onglet: "influence" } }))).toBe("/dashboard?denied=ADMIN");
-      expect(await destination(() => Page({ searchParams: { onglet: "roi" } }))).toBe("/dashboard?denied=ADMIN");
+      expect(await destination(() => Page({ searchParams: Promise.resolve({ onglet: "influence" }) }))).toBe("/dashboard?denied=ADMIN");
+      expect(await destination(() => Page({ searchParams: Promise.resolve({ onglet: "roi" }) }))).toBe("/dashboard?denied=ADMIN");
     });
 
     it(`les actions refusent ${role} (403) sans rien écrire`, async () => {
@@ -65,7 +65,7 @@ describe("Intelligence terrain — Super Administrateur seul", () => {
   it("le Super Admin passe la garde (la lecture est alors appelée)", async () => {
     ACTOR = acteur("SUPER_ADMIN");
     const { default: Page } = await import("@/app/(app)/admin/intelligence-terrain/page");
-    await expect(Page({ searchParams: { onglet: "influence" } })).rejects.toThrow("vueInfluence appelé");
-    await expect(Page({ searchParams: { onglet: "roi" } })).rejects.toThrow("vueRoi appelé");
+    await expect(Page({ searchParams: Promise.resolve({ onglet: "influence" }) })).rejects.toThrow("vueInfluence appelé");
+    await expect(Page({ searchParams: Promise.resolve({ onglet: "roi" }) })).rejects.toThrow("vueRoi appelé");
   });
 });

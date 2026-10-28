@@ -47,8 +47,8 @@ letters H/A–D/NA…): chapter **07 §4.1** and `docs/readme/04-glossaire-metie
 | Tests | 1,222 `*.test.ts` files (~14.3k cases; 457 DB-backed) · 40 Playwright specs · 1 live spec | [V] count ; [V·agent 10] |
 | Doctrine | §118.1 → §118.215 numbered engineering rules, cited ~3,000 times in `src/` | [V] `grep -oh '§118\.[0-9]+'` |
 
-Stack (`package.json`) [V]: Next.js **14.2.35** (App Router, RSC, Server Actions) · React 18.3 · TypeScript 5.6 strict ·
-Prisma **5.22** / PostgreSQL · next-auth **5.0.0-beta.22** (Credentials + JWT + DB-revocable sessions) · Tailwind 3.4 ·
+Stack (`package.json`) [V]: Next.js **15.5.28** (App Router, RSC, Server Actions; async `params`/`searchParams`/`cookies()`/`headers()` — V3-A, 2026-10-28) · React 19.2 · TypeScript 5.6 strict ·
+Prisma **5.22** / PostgreSQL · next-auth **5.0.0-beta.32** (Credentials + JWT + DB-revocable sessions) · Tailwind 3.4 ·
 lucide-react · Recharts (marginal) · `@mastra/core` 1.79 (new agent, Oct 2026) · file tooling (mammoth, xlsx, exceljs,
 jszip, pdfkit, mupdf, pdf-parse, tesseract.js, sharp, docxtemplater, pptxgenjs) · mail (imapflow, nodemailer, mailparser) ·
 web-push · qrcode · zod (used in only 7 files). Node 22 on Render.
@@ -61,7 +61,7 @@ web-push · qrcode · zod (used in only 7 files). Node 22 on Render.
  Browser (French UI, polling every 3.5–20 s, Web Audio chimes, service worker = push only)
    │  RSC HTML + Server Action POSTs + fetch to /api/*
    ▼
- Next.js 14 app (single Render web service, Node 22)   ── NO effective middleware (see R5)
+ Next.js 15 app (single Render web service, Node 22)   ── NO effective middleware (see R5)
    ├─ src/app/(app)/layout.tsx  → requireUser() + must-change-password / onboarding redirects  ← the real outer gate
    │    └─ 283 pages: requireModule("X") (lists) | requireUser + canAccessEntity + notFound() (details)
    ├─ src/app/(auth) login · (portal) supplier portal (own cookie auth) · public: inscription, meet, invite
@@ -110,7 +110,7 @@ Key architectural decisions and their reasons (from code comments / doctrine):
    (row-scoped with `scope*` helpers / `companyScopedWhere`) → pass plain props (ISO strings, numbers — `Decimal`
    converted with `Number()`/`toNumber`) to client components. [V·agent 04]
 2. **Client component** (`"use client"`, 566 files) calls a server action through `CreateRecordButton`
-   (`useFormState`) or the `useAction` / `useKeyedAction` / `useRafraichir` hooks (catch, 45 s timeout, keep buttons
+   (`useActionState`) or the `useAction` / `useKeyedAction` / `useRafraichir` hooks (catch, 45 s timeout, keep buttons
    locked until fresh data is visible — §118.172). Destructive buttons use `BoutonDecisif` (double-click within 5 s)
    instead of `window.confirm`. No toast library: inline French messages. [V·agent 05]
 3. **Server action** `src/lib/actions/<module>-actions.ts`: `requireUser()` → `userCan(user, MODULE, ACTION)` and/or
@@ -242,7 +242,7 @@ request on the same branch (see `docs/readme/30-journal-des-evolutions-recentes-
 | **R2** | High | Security / files | **Stored XSS**: files served `inline` with their stored MIME (`src/lib/http/telechargement.ts:79,107`), SVG mapped to `image/svg+xml` (`drive/mime-nom.ts:16`), CSP has no `script-src` (`next.config.mjs:131-145`) → an uploaded HTML/SVG runs same-origin in the opener's session. | [V·orch] · ✅ **Fixed 2026-10-24**: `lib/http/types-actifs.ts` (sandbox CSP + nosniff for active types; forced download on presigned bucket URLs), applied to `repondreFichier` and every inline route, ratchet test | ch. 02 R1 |
 | **R3** | High | AI governance | Commit `fa9b9ab` (Oct 24) removed `peutVoirAdam` from `/assistant` (now `requireModule("WORKSPACE")`); a welcome pop-up sends every user there. The beta's actions only `requireUser()` and post ERP context **directly to `token-plan-ams.xiaomimimo.com`** (`assistant/beta/actions.ts:283`), bypassing the model gateway, kill switches, egress guard (`sortie/garde`) and cost logging; client-supplied history forwarded as-is; beta write executor (`lib/agent/ecritures.ts`) doesn't re-check rights or the emergency stop. Guard tests turn red. | [V·orch] guard removal + direct fetch; rest [V·agent 09] · **Needs a product decision** | ch. 09 |
 | **R4** | Med-High | Finance | **Double settlement race** in `settleExpenseOrder`: check-then-act across several awaits, unconditional `update` by id, no transaction → two SETTLED OUT ledger entries possible. Same shape in `decidePaymentRequest`. | [V·orch] race reproduced in a test on the old code · ✅ **Fixed 2026-10-24**: atomic claim + ledger write in one transaction; `decidePaymentRequest` conditional write (`actions/reglement-concurrent-flow.test.ts`) | ch. 06, 04 |
-| **R5** | Medium | Security / platform | **Root `middleware.ts` is never compiled** (Next 14.2.35 looks in `src/` only: `node_modules/next/dist/build/index.js:478-488`). The `authorized` whitelist in `src/auth.config.ts` is dead code; protection rests entirely on per-page/route guards. Agent audit of all 129 handlers + 11 non-(app) pages found no unauthenticated business-data route. Moving the middleware into `src/` *as written* would break `/api/v1`, `/invite`, `/api/mail/inbound`, `/api/google/pubsub`, `/api/events/inbound`. | [V·orch] Next source + empty `middleware-manifest.json` after a clean build; route audit [V·agent 02] | ch. 02, 10 |
+| **R5** | Medium | Security / platform | **Root `middleware.ts` is never compiled** (Next 14.2.35 and 15.5.28 look in `src/` only: `node_modules/next/dist/build/index.js:548` on 15.5.28). The `authorized` whitelist in `src/auth.config.ts` is dead code; protection rests entirely on per-page/route guards. Agent audit of all 129 handlers + 11 non-(app) pages found no unauthenticated business-data route. Moving the middleware into `src/` *as written* would break `/api/v1`, `/invite`, `/api/mail/inbound`, `/api/google/pubsub`, `/api/events/inbound`. | [V·orch] Next source + empty `middleware-manifest.json` after a clean build; route audit [V·agent 02] | ch. 02, 10 |
 | R6 | Medium | API | `/api/v1/documents/{id}/content` skips the entity access check for ~43 entity types missing from the API registry. | [V·agent 02] | ch. 02 R3 |
 | R7 | Medium | Auth | Demoted Super Admin keeps "Vue exacte" (role read from JWT); `toggleUserActive` doesn't revoke sessions and session checks ignore `isActive`. | [V·agent 02] | ch. 02 R4–R5 |
 | R8 | Medium | HR data | `/rh/[id]` ships full salary data (gross, SS, IBAN, NIN) to anyone with `EMPLOYEES:UPDATE`, while salary visibility elsewhere requires `RH:UPDATE/VALIDATE`. `processHrRequest` checks neither perimeter nor status. | [V·agent 08]; real role configs [U] | ch. 08 |

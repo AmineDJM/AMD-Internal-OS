@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2, AlertCircle } from "lucide-react";
 import { createRegulatoryProduct, type ActionResult } from "@/lib/actions/regulatory-actions";
@@ -33,7 +33,7 @@ export function NewProductButton({ users, suppliers, companies, lockOnCreate = f
   const router = useRouter();
   const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
-  const [state, formAction] = useFormState<ActionResult | undefined, FormData>(
+  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
     createRegulatoryProduct,
     undefined,
   );

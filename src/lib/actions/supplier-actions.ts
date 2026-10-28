@@ -7,11 +7,10 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { recordAudit } from "@/lib/audit";
-import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
+import { doubleEcrireOrganisation, relierALaPersonne } from "@/modules/referentiels/api";
 import { fdStr, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 const EXTERNAL_STATUSES: ExternalRegulatoryStatus[] = [
   "IN_PREPARATION", "SUBMITTED", "UNDER_REVIEW", "INFO_REQUESTED", "APPROVED", "ON_HOLD", "CLOSED",

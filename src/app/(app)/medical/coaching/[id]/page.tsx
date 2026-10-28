@@ -24,7 +24,11 @@ export const metadata = { title: "Fiche de coaching — AMD Internal OS" };
  * inexistante : dire « elle existe mais vous n'y avez pas accès » apprendrait à un collègue
  * qu'une évaluation a été écrite sur quelqu'un.
  */
-export default async function FicheCoachingPage({ params, searchParams }: { params: { id: string }; searchParams?: { modifier?: string } }) {
+export default async function FicheCoachingPage(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ modifier?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireModule("MEDICAL");
   const l = await lecteurCoaching(user);
   const fiche = await chargerFicheVisible(l, params.id);

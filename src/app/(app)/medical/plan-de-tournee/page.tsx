@@ -45,7 +45,8 @@ export const metadata = { title: "Plan de tournée — AMD Internal OS" };
  * décision que personne ne sait devoir prendre (§118.50). La liste « à décider » est donc là,
  * chargée sur `reviewerId` / `escalatedToId` — les deux colonnes que l'action écrit.
  */
-export default async function PlanDeTourneePage({ searchParams }: { searchParams?: { plan?: string } }) {
+export default async function PlanDeTourneePage(props: { searchParams?: Promise<{ plan?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MEDICAL");
   // LE RÉGLAGE VIENT DU LECTEUR UNIQUE — le même que l'action qui ouvre un plan et que le
   // tableau de bord de la Direction (§118.5).

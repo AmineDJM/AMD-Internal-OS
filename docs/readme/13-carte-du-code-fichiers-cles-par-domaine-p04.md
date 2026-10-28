@@ -239,20 +239,22 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `src/lib/enrichissement/extraction.ts` | Pur : l'extracteur de chaque nature |
 | `src/lib/enrichissement/sujets.ts` · `fiches.ts` | À qui se rapportent les faits (pur) · lectures des fiches, Personne d'un porteur |
 | `src/lib/enrichissement/confirmation.ts` · `a-confirmer.ts` | Confirmer / rejeter / trancher (transaction) · qui tranche, colonnes de fiche (pur) |
-| `src/lib/enrichissement/porte-coffre.ts` · `src/lib/coffre/depot-referentiel.ts` | Écriture seule au coffre · dépôt du coffre sur les tables R6 réelles |
+| `src/lib/enrichissement/porte-coffre.ts` · `src/modules/coffre/infra/depot-referentiel.ts` | Écriture seule au coffre · dépôt du coffre sur les tables R6 réelles |
 | `src/lib/enrichissement/lectures.ts` | État de la file, file « À confirmer » |
-| `src/lib/referentiels/reprises/` | Contrat commun des reprises + `rattrapage-pieces.ts` |
-| `src/lib/actions/enrichissement-actions.ts` · `refonte-reprise-actions.ts` | Gestes (Super Admin, responsable du fait) |
+| `src/modules/referentiels/infra/reprises/` | Contrat commun des reprises + `rattrapage-pieces.ts` |
+| `src/lib/actions/enrichissement-actions.ts` · `src/modules/referentiels/actions-reprises.ts` | Gestes (Super Admin, responsable du fait) |
 | `src/app/(app)/admin/refonte-donnees/` · `src/app/(app)/a-confirmer/` | Écrans |
-### Référentiel des Personnes (R1) — `src/lib/referentiels/personnes/` (refonte, lot V2-B)
+### Référentiel des Personnes (R1) — `src/modules/referentiels/infra/personnes/` (refonte, lot V2-B)
+
+Module `referentiels` (`src/modules/referentiels/`, lot V3-G) : on l'importe par `@/modules/referentiels/api` (serveur) ou `/partage` (pur) — voir `docs/architecture/MODULES.md`.
 
 | Fichier | Rôle |
 |---|---|
 | `sources.ts` | Les neuf tables où vit une personne : rôle, identité lue (aucune colonne sensible), racine (lien ERP sûr), identifiant déterministe. Pur. |
 | `rattachement.ts` | LE geste « relier une ligne à sa Personne », partagé par la reprise et la double écriture ; à blanc pour l'aperçu. |
 | `reprise.ts`, `reprise-doublons.ts`, `../reprises/` | Les reprises (contrat commun `Reprise`, registre `reprises/index.ts`, journal = audit « Refonte des données »). |
-| `fiches-doublons.ts`, `paires.ts` | Les fiches comparées par le moteur `referentiels/doublons.ts` (aussi pour `scripts/refonte/inventaire-doublons.ts`) et leur réduction en paires de Personnes. |
-| `fusion.ts` | Fusionner / écarter / défaire — gestes du Super Admin (`actions/personnes-actions.ts`). |
+| `fiches-doublons.ts`, `../../domaine/personnes/paires.ts` | Les fiches comparées par le moteur `domaine/doublons.ts` (aussi pour `scripts/refonte/inventaire-doublons.ts`) et leur réduction en paires de Personnes. |
+| `fusion.ts` | Fusionner / écarter / défaire — gestes du Super Admin (`../../actions-personnes.ts`, clé `personnes-actions`). |
 | `double-ecriture.ts` | `relierALaPersonne` dans la transaction des écrivains, derrière `AppSetting.refontePersonnesDoubleEcriture`. |
 | `fiche.ts`, `visibilite.ts` | La fiche 360° `/personnes/[id]` : chaque ligne derrière la porte de son écran d'origine. |
 | `app/(app)/admin/refonte-donnees/` | L'écran unique des reprises (Super Admin). |
@@ -261,11 +263,12 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 
 | Fichier | Rôle |
 |---|---|
-| `src/lib/coffre/champs.ts` | Catalogue PUR des colonnes sensibles copiées, classement, masque, « écrire sans lire ». |
-| `src/lib/coffre/copies.ts` · `ecriture.ts` | Chemin d'écriture (copie chiffrée, remplacement daté) et double écriture derrière l'interrupteur. |
-| `src/lib/coffre/acces.ts` · `lecture.ts` · `dechiffrement.ts` | Contrôle d'accès + journal (sans déchiffrer), lecture des écrans (déchiffre), le seul module qui déchiffre. |
-| `src/lib/coffre/couverture.ts` · `journal.ts` | Couverture colonne par colonne ; journal des accès filtrable. |
-| `src/lib/referentiels/reprises/{types,index,coffre}.ts` | Contrat commun des reprises ; reprise « coffre ». |
-| `src/lib/actions/refonte-reprise-actions.ts` · `coffre-actions.ts` | Aperçu / lot (Super Admin, audités) ; interrupteurs. |
+| `src/modules/coffre/{partage,api,api-lecture}.ts` | Les trois portes : pure (navigateur), écriture (ne déchiffre jamais — celle des actions), lecture (déchiffre — écrans RH/Legal/admin). Guide : `docs/architecture/MODULES.md`. |
+| `src/modules/coffre/domaine/champs.ts` | Catalogue PUR des colonnes sensibles copiées, classement, masque, « écrire sans lire ». |
+| `src/modules/coffre/infra/copies.ts` · `ecriture.ts` | Chemin d'écriture (copie chiffrée, remplacement daté) et double écriture derrière l'interrupteur. |
+| `src/modules/coffre/infra/acces.ts` · `lecture.ts` · `dechiffrement.ts` | Contrôle d'accès + journal (sans déchiffrer), lecture des écrans (déchiffre), le seul module qui déchiffre. |
+| `src/modules/coffre/infra/couverture.ts` · `journal.ts` | Couverture colonne par colonne ; journal des accès filtrable. |
+| `src/modules/referentiels/domaine/reprises/types.ts` · `infra/reprises/{index,coffre}.ts` | Contrat commun des reprises ; reprise « coffre ». |
+| `src/modules/referentiels/actions-reprises.ts` · `src/modules/coffre/actions.ts` (clés `refonte-reprise-actions`, `coffre-actions`) | Aperçu / lot (Super Admin, audités) ; interrupteurs. |
 | `src/app/(app)/admin/refonte-donnees/` · `admin/acces-donnees-sensibles/` | Écrans Super Admin. |
 

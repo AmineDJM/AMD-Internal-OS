@@ -49,7 +49,8 @@ function Info({ label, value }: { label: string; value: string | null | undefine
  * seulement ce qui a un sens à cet instant du cycle de vie. Un bouton qui apparaît puis échoue
  * fait douter de tout le reste de l'écran.
  */
-export default async function ConsultingContractPage({ params }: { params: { id: string } }) {
+export default async function ConsultingContractPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // LA PORTE EST CELLE DU PÔLE DU CONTRAT (§118.150), pas « Consulting » en dur : un contrat passé
   // aux RH n'est plus lisible par la promotion — sa rémunération comprise — et il doit l'être
   // par les RH qui le suivent. Sans le module de son pôle, le contrat n'existe pas pour cette

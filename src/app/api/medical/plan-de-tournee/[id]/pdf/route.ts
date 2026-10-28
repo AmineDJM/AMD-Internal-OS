@@ -23,7 +23,8 @@ export const dynamic = "force-dynamic";
  * et qui remplace l'un d'eux) — un PDF n'ouvre pas plus que l'écran. Et seulement pour un plan VALIDÉ au moins une fois :
  * un brouillon n'est pas un engagement qu'on imprime.
  */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!userCan(user, "MEDICAL", "VIEW")) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });

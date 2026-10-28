@@ -36,7 +36,7 @@ async function acteur(id: string, role: SessionUser["role"]): Promise<CurrentUse
 }
 const fdOf = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
 const pdf = (nom: string, contenu = nom) => new File([Buffer.from(`%PDF-1.4 ${contenu} ${RUN}`)], nom, { type: "application/pdf" });
-const ouvrir = (id: string) => lireDocument(new NextRequest(`http://localhost/api/documents/${id}`), { params: { id } });
+const ouvrir = (id: string) => lireDocument(new NextRequest(`http://localhost/api/documents/${id}`), { params: Promise.resolve({ id }) });
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

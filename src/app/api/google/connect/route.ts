@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
   if (!cfg) return back("erreur=non-configure");
 
   const { verifier, challenge } = makePkce();
-  cookies().set(PKCE_COOKIE, verifier, {
+  (await cookies()).set(PKCE_COOKIE, verifier, {
     httpOnly: true,
     secure: true,
     sameSite: "lax",

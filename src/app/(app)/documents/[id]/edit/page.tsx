@@ -40,7 +40,8 @@ function Notice({ children, back }: { children: React.ReactNode; back: string })
   );
 }
 
-export default async function DocumentEditPage({ params }: { params: { id: string } }) {
+export default async function DocumentEditPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
 
   const doc = await prisma.document.findUnique({

@@ -35,6 +35,9 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
             >
               Réessayer
             </button>
+            {/* Un VRAI rechargement, pas une navigation du routeur client : c'est la racine qui a cassé,
+                le routeur qu'elle portait n'est plus digne de confiance. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/" style={{ padding: "0.5rem 1rem", borderRadius: "0.5rem", border: "1px solid #cbd5e1", color: "#0f172a", textDecoration: "none" }}>
               Revenir à l&apos;accueil
             </a>

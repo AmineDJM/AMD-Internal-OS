@@ -261,7 +261,7 @@ suite("Bons de commande — module à part, accès donnés par le Super Admin", 
     ACTOR = await actorFor(signataireNommeId, "VIEWER");
     const { default: LegalPage } = await import("@/app/(app)/legal/page");
     let vers: string | null = null;
-    try { await LegalPage({ searchParams: {} }); } catch (e) { if (e instanceof Redirection) vers = e.vers; else throw e; }
+    try { await LegalPage({ searchParams: Promise.resolve({}) }); } catch (e) { if (e instanceof Redirection) vers = e.vers; else throw e; }
     expect(vers).toBe(CHEMIN_BONS_DE_COMMANDE);
   });
 });

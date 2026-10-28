@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { scopeMedicalDoctors, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { companyScopedWhere, getMyCompanies, companyLabel } from "@/lib/company";
 import { getAppSettings } from "@/lib/settings";
-import { champSensible, masqueDepuisClair } from "@/lib/coffre/champs";
+import { champSensible, masqueDepuisClair } from "@/modules/coffre/partage";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
 import { cleCellule } from "@/lib/grille/couleurs";
 import { ligneAnnuaire, type AnnuaireRow, type CustomColumnVue } from "@/lib/medical/directory-grid";

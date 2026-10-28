@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
  * dominant, une jauge, un camembert, une courbe, des barres. L'écran est partagé avec Budget
  * Marketing (`vues-budget.tsx`) : ici, toutes les enveloppes visibles, marketing comprises.
  */
-export default async function BudgetsPage({ searchParams }: { searchParams: ParamsBudget }) {
-  const user = await requireModule("BUDGETS");
-  return <VueEnsembleBudget user={user} searchParams={searchParams} config={CONFIG_BUDGETS} />;
+export default async function BudgetsPage(props: { searchParams: Promise<ParamsBudget> }) {
+ const searchParams = await props.searchParams;
+ const user = await requireModule("BUDGETS");
+ return <VueEnsembleBudget user={user} searchParams={searchParams} config={CONFIG_BUDGETS} />;
 }

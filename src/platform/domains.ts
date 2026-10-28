@@ -108,6 +108,12 @@ const ADAM_DOMAIN = "adam";
 const SOCLE = [
   "src/lib/prisma", "src/lib/session", "src/lib/rbac", "src/lib/utils", "src/lib/labels",
   "src/lib/crypto/", "src/lib/ai-text", "src/lib/name-match", "src/platform/",
+  /**
+   * `journal` : le journal unique et les `catch` nommés (`sansBloquer`, `attendu` — lot V3-E), zéro
+   * import ; `migrations-appliquees` : la sonde de santé compare `prisma/migrations/` à la base (prisma
+   * + journal). De l'infrastructure lue partout, qui ne lit aucun métier.
+   */
+  "src/lib/journal", "src/lib/migrations-appliquees",
   "src/lib/api/registry/entities",
   "src/lib/storage/",
   "src/lib/mutations/",
@@ -398,6 +404,23 @@ const inList = (f: string, list: string[]): boolean =>
 const isSocle = (t: string): boolean => inList(t, SOCLE);
 const isFacade = (t: string): boolean => inList(t, FACADES);
 const isProvider = (t: string): boolean => PROVIDERS.some((s) => t === s || t.startsWith(`${s}/`));
+
+/** La couche d'un fichier de `src/lib/` ou `src/platform/` — `null` s'il n'est dans AUCUNE (hors carte). */
+export type Couche = "socle" | "façade" | "pont" | "fournisseur" | `domaine:${string}`;
+
+/**
+ * Où un fichier vit sur la carte. Un fichier `null` n'est mesuré par aucun cliquet : c'est ce
+ * que compte `couverture.test.ts` (rapport d'audit 08, ARCH-02), et ce compte ne peut que baisser —
+ * en rangeant le fichier dans un domaine, au socle, ou dans un module `src/modules/<m>/`.
+ */
+export function coucheDe(file: string): Couche | null {
+  if (BRIDGE.some((b) => file.startsWith(b))) return "pont";
+  if (isSocle(file)) return "socle";
+  if (isFacade(file)) return "façade";
+  if (isProvider(file.replace(/\.tsx?$/, ""))) return "fournisseur";
+  const d = domainOf(file);
+  return d ? `domaine:${d}` : null;
+}
 
 /**
  * SCANNE LES DÉPENDANCES ENTRE COUCHES.

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 /**
- * Garde de configuration : l'optimiseur d'images de Next 14 (`/_next/image`) est un point
- * d'entrée PUBLIC dont les failles publiées ne sont plus corrigées sur la branche 14 (audit
- * 27/10, INFRA-04). Il reste fermé tant que Next n'est pas monté de version.
+ * Garde de configuration : l'optimiseur d'images de Next (`/_next/image`) est un point d'entrée
+ * PUBLIC. Fermé sous Next 14, dont les failles publiées n'étaient plus corrigées (audit 27/10,
+ * INFRA-04) ; Next 15.5.28 les corrige (INFRA-03), mais l'application ne s'en sert que pour une
+ * image décorative : la surface reste fermée tant qu'un écran n'en a pas réellement besoin.
  */
 describe("next.config.mjs — surface publique", () => {
   it("l'optimiseur d'images est désactivé (le point d'entrée répond 404)", async () => {

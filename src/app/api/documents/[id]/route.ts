@@ -17,10 +17,8 @@ import { qualiteDeLaRequete, repondreFichier } from "@/lib/http/telechargement";
  * `?qualite=max|reduite|estimer` — voir `@/lib/http/telechargement` (la porte unique). Les DROITS
  * sont ceux d'avant et ne dépendent pas de la qualité : la version réduite n'ouvre rien de plus.
  */
-export async function GET(
-  req: NextRequest,
-  { params }: { params: { id: string } },
-) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
 

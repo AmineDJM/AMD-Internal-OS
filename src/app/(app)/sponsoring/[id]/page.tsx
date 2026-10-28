@@ -53,7 +53,8 @@ import { ClosurePanel } from "./closure-panel";
 // demandeur, pour la Direction et pour le Super Admin en Vue exacte (voir `lib/vue-exacte.ts`).
 export const dynamic = "force-dynamic";
 
-export default async function SponsoringDetailPage({ params }: { params: { id: string } }) {
+export default async function SponsoringDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("SPONSORING");
   // LA PORTÉE PAR LIGNE (§118.185, I4) : un délégué n'ouvre que SES demandes — la même phrase
   // qu'une demande inexistante, pour ne pas confirmer qu'un identifiant deviné existe.

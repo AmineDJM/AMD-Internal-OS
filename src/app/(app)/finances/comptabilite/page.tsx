@@ -35,11 +35,12 @@ export const dynamic = "force-dynamic";
  * du travail de comptable, il est donc ICI, au-dessus du livre qu'il conduit à corriger. Le
  * reloger était le seul moyen de ne pas perdre une capacité qu'aucun autre écran ne portait.
  */
-export default async function ComptabilitePage({
-  searchParams,
-}: {
-  searchParams?: { periode?: string; du?: string; au?: string };
-}) {
+export default async function ComptabilitePage(
+  props: {
+    searchParams?: Promise<{ periode?: string; du?: string; au?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("FINANCES");
   // LA PÉRIODE DU RÉSULTAT MENSUEL — lue dans l'adresse, côté serveur : un lien la partage, un
   // rechargement la garde. Illisible, elle retombe sur 6 mois en le disant (`lirePeriode`).

@@ -31,7 +31,7 @@ export async function GET() {
   }
 
   const { verifier, challenge } = makePkce();
-  cookies().set(PKCE_COOKIE, verifier, {
+  (await cookies()).set(PKCE_COOKIE, verifier, {
     httpOnly: true, secure: true, sameSite: "lax", path: "/api/mail/ms", maxAge: 600,
   });
 

@@ -42,9 +42,9 @@ export async function GET(req: NextRequest) {
   const stateUser = verifyState(state);
   if (!code || !stateUser || stateUser !== user.id) return back("erreur=state");
 
-  const verifier = cookies().get(PKCE_COOKIE)?.value;
+  const verifier = (await cookies()).get(PKCE_COOKIE)?.value;
   if (!verifier) return back("erreur=state");
-  cookies().delete(PKCE_COOKIE);
+  (await cookies()).delete(PKCE_COOKIE);
 
   const cfg = resolveGoogleConfig(env);
   if (!cfg) return back("erreur=non-configure");

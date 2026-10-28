@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2 } from "lucide-react";
-import { basculerCoffre } from "@/lib/actions/coffre-actions";
+import { basculerCoffre } from "@/modules/coffre/actions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 

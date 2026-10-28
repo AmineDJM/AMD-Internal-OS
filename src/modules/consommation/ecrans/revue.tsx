@@ -6,7 +6,7 @@ import { Select } from "@/components/ui/input";
 import { useAction } from "@/components/shared/use-action";
 import { Retour } from "@/components/ui/retour";
 import type { GroupeARevoir } from "../domaine/revue";
-import { confirmerCorrespondanceConso, validerImportConso, annulerImportConso } from "@/lib/actions/consommation-actions";
+import { confirmerCorrespondanceConso, validerImportConso, annulerImportConso } from "../actions";
 
 
 /**

@@ -10,7 +10,8 @@ import { managesReports } from "@/lib/queries/field-reports";
 export const dynamic = "force-dynamic";
 
 /** Pièce jointe d'un rapport terrain : photo, carte de visite, programme, PDF… */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   // Garde sur le module RAPPORTS TERRAIN (et non « Promotion médicale ») depuis leur séparation.
   if (!user || !userCan(user, "FIELD_REPORTS", "VIEW")) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });

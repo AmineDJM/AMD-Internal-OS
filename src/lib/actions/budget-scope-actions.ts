@@ -21,5 +21,5 @@ export async function rememberBudgetEnvelope(envelopeId: string): Promise<void> 
   if (!envelopeId) return;
   const exists = await prisma.budgetEnvelope.count({ where: { id: envelopeId } }).catch(sansBloquer("budget-scope-actions.rememberBudgetEnvelope.budgetEnvelope", 0));
   if (!exists) return;
-  cookies().set(BUDGET_COOKIE, envelopeId, { path: "/", maxAge: MAX_AGE, sameSite: "lax", httpOnly: true });
+  (await cookies()).set(BUDGET_COOKIE, envelopeId, { path: "/", maxAge: MAX_AGE, sameSite: "lax", httpOnly: true });
 }

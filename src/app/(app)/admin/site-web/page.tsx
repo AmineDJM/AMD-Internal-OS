@@ -55,7 +55,7 @@ export default async function AdminSiteWebPage() {
   const { config, blocage, compteurs, dernier } = integ;
   // L'adresse de l'ERP est celle par laquelle il est RÉELLEMENT arrivé sur cet écran : c'est elle
   // que le site devra appeler pour livrer les candidatures, et d'où il chargera la mesure d'audience.
-  const h = headers();
+  const h = await headers();
   const erp = origineDeLERP(process.env, {
     hote: h.get("x-forwarded-host") ?? h.get("host"),
     proto: h.get("x-forwarded-proto"),

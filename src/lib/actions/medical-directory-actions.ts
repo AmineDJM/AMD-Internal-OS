@@ -17,7 +17,7 @@ import { cleDeService } from "@/lib/annuaires/services";
 import { ecritureDeSpecialite, indexerSpecialites, lienDeSpecialiteValide } from "@/lib/annuaires/specialites";
 import { unresolvedHint } from "@/lib/medical/wilaya";
 import { inferWilayas } from "@/lib/medical/wilaya-ai";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import {
   isAnnuaireField, validateAnnuaireValue, composeDoctorName, type AnnuaireField,
 } from "@/lib/medical/directory-grid";
@@ -27,7 +27,7 @@ import {
   type HeaderProposal, type TargetColumn, type ColumnKind,
 } from "@/lib/medical/directory-mapping";
 import type { ActionResult } from "@/lib/actions/types";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 
 /**
  * IMPORT D'UN ANNUAIRE — n'importe quel fichier, restructuré à notre format.

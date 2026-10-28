@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
  * requises et faites dans le cycle ouvert, le pourquoi), son potentiel historisé, ses visites. En tête, la carte
  * simple du KAM : qui il est pour nous, ce qu'il faut faire ce cycle.
  */
-export default async function Praticien360Page({ params }: { params: { id: string } }) {
+export default async function Praticien360Page(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   if (!(await praticienVisible(user, params.id))) notFound();
   const d = await prisma.medicalDoctor.findUnique({

@@ -55,15 +55,18 @@ suite("API v1 — fiche employé : aucune donnée de paie", () => {
     await prisma.user.deleteMany({ where: { id: userId } }).catch(() => undefined);
   }, 60_000);
 
+  /** Le montant comme NOMBRE (`11111`, `"11111.00"`), pas comme suite de chiffres au milieu d'un identifiant aléatoire. */
+  const nombre = (montant: string) => new RegExp(`(?<![0-9A-Za-z])${montant}(?:\\.[0-9]+)?(?![0-9A-Za-z])`);
+
   it("related : les bulletins sont listés sans aucun montant", async () => {
     const json = await facette("related");
-    for (const montant of ["987654", "876543", "11111", "22222"]) expect(json).not.toContain(montant);
+    for (const montant of ["987654", "876543", "11111", "22222"]) expect(json).not.toMatch(nombre(montant));
   });
 
   it("history : le changement de salaire est dit, ses valeurs non", async () => {
     const json = await facette("history");
     expect(json).toContain("baseSalary");
-    expect(json).not.toContain("654321");
-    expect(json).not.toContain("123456");
+    expect(json).not.toMatch(nombre("654321"));
+    expect(json).not.toMatch(nombre("123456"));
   });
 });

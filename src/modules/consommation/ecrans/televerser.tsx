@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Retour } from "@/components/ui/retour";
 import { useAction } from "@/components/shared/use-action";
-import { importerFichierConsommation } from "@/lib/actions/consommation-actions";
+import { importerFichierConsommation } from "../actions";
 
 /** Importer un fichier : il est lu sur le serveur, puis ouvert en REVUE — rien ne compte avant la validation. */
 export function TeleverserConsommation() {

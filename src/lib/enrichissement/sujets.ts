@@ -16,7 +16,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { NatureCoffre } from "@/lib/coffre/natures";
+import type { NatureCoffre } from "@/modules/coffre/partage";
 import type { ResolutionSujet } from "./decision";
 import type { NaturePiece, RoleSujet } from "./types";
 

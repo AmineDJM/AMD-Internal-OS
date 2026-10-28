@@ -5,7 +5,8 @@ import { FicheCasPv } from "@/app/(app)/regulatory/pharmacovigilance/fiche-cas";
 export const dynamic = "force-dynamic";
 
 /** La fiche d'un cas, côté KAM — sous Promotion médicale › Rapports (Direction, 07/10). La règle de lecture est dans la fiche. */
-export default async function CasPvKamPage({ params }: { params: { id: string } }) {
+export default async function CasPvKamPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   return (
     <FicheCasPv

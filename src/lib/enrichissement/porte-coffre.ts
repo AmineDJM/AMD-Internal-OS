@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
-import { chargerCles, creerServiceCoffre, empreinte, normaliser, type ClesCoffre, type EntreeDepot, type NatureCoffre, type ResultatDepot } from "@/lib/coffre";
-import { creerDepotReferentiel } from "@/lib/coffre/depot-referentiel";
+import { chargerCles, empreinte, type ClesCoffre } from "@/modules/coffre/api";
+import { creerServiceCoffre, type EntreeDepot, type ResultatDepot, creerDepotReferentiel } from "@/modules/coffre/api-lecture";
+import { normaliser, type NatureCoffre } from "@/modules/coffre/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -12,7 +13,7 @@ import { creerDepotReferentiel } from "@/lib/coffre/depot-referentiel";
  * que ce soit. Tout son usage du coffre passe par ici, et seulement ces deux gestes : déposer ne
  * révèle rien que l'appelant ne tienne déjà, une empreinte HMAC ne se renverse pas.
  *
- * C'est pourquoi `src/lib/coffre/frontiere.test.ts` reconnaît ce module comme une PORTE D'ÉCRITURE :
+ * C'est pourquoi `src/modules/coffre/frontiere.test.ts` reconnaît ce module comme une PORTE D'ÉCRITURE :
  * le graphe d'imports de l'ERP étant presque entièrement connexe (le battement et l'aiguillage des
  * actions rejoignent l'assistant), le test arrête la remontée ici — et vérifie, en échange, que ce
  * fichier n'appelle ni `lire`, ni `chercher`, ni `dechiffrer`. Ajouter une lecture ici casserait le test.

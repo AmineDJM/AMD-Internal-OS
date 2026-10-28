@@ -61,7 +61,8 @@ const SEVERITY_META: Record<RegFindingSeverity, { label: string; cls: string; Ic
   INFO: { label: "Info", cls: "border-border bg-muted/40 text-muted-foreground", Icon: Info },
 };
 
-export default async function DossierDetailPage({ params }: { params: { dossierId: string } }) {
+export default async function DossierDetailPage(props: { params: Promise<{ dossierId: string }> }) {
+  const params = await props.params;
   const user = await requireModule("REGULATORY");
   if (!regCan(user, "regulatory.workspace.view")) notFound();
 

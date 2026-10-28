@@ -18,7 +18,11 @@ export const metadata = { title: "Fiche de coaching — impression" };
  * polices standard les perdrait. La règle de lecture est la même que l'écran : une fiche
  * invisible est une page introuvable.
  */
-export default async function ImpressionFicheCoaching({ params, searchParams }: { params: { id: string }; searchParams?: { auto?: string } }) {
+export default async function ImpressionFicheCoaching(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ auto?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   // LA MÊME PORTE que l'écran (module masqué compris) : l'impression n'est pas une porte à côté.
   const user = await requireModule("MEDICAL");
   const l = await lecteurCoaching(user);

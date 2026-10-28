@@ -11,7 +11,8 @@ import { Messenger } from "./messenger";
 
 export const dynamic = "force-dynamic";
 
-export default async function MessagesPage({ searchParams }: { searchParams: { c?: string } }) {
+export default async function MessagesPage(props: { searchParams: Promise<{ c?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MESSAGING");
 
   const [me, conversations, directory, channels] = await Promise.all([

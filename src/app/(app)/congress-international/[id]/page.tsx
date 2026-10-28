@@ -47,7 +47,8 @@ import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
 // demandeur, pour la Direction et pour le Super Admin en Vue exacte (voir `lib/vue-exacte.ts`).
 export const dynamic = "force-dynamic";
 
-export default async function CongressIntlDetailPage({ params }: { params: { id: string } }) {
+export default async function CongressIntlDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("CONGRESS_INTERNATIONAL");
   const detail = await getCongressDetail("INTL", user, params.id);
   if (!detail) notFound();

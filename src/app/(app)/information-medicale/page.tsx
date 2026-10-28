@@ -29,7 +29,7 @@ export default async function MedicalInfoPage() {
   ]);
   // CE QUE LE FILTRE D'ENTITÉ CACHE, dit au lieu d'être subi : sans ce chiffre, on voit des
   // déclarations dans « Mon espace » et pas dans son module, et rien ne relie les deux faits.
-  const scopeId = getCompanyScope();
+  const scopeId = await getCompanyScope();
   const masques = hiddenByScopeMessage({
     ...portee,
     companyLabel: scopeId ? (myCompanies.find((c) => c.id === scopeId)?.name ?? null) : null,

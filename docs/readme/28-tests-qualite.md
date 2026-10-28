@@ -28,6 +28,11 @@ Mesuré : `callOpenAi` rend `ok: true` par le chemin du produit, et `bench:inten
 npm run typecheck && npm run build && npm test && npx next lint
 ```
 
+- **Cliquets d'architecture** (`npm run test:architecture`, ~35 s) : un module (`src/modules/<m>/`) ne s'ouvre que par
+  ses portes, sa carte (`carte.ts`) est sans cycle, aucun ancien chemin n'est importé ; six plafonds de couverture qui
+  ne peuvent que baisser (`src/platform/couverture.test.ts`). Un nouveau test de structure lit le code par
+  `lireSource()` / `sourceDuSymbole()` (`src/platform/source.ts`), jamais par un chemin figé.
+
 > Les tests d'intégration **skippent proprement** si aucune base n'est disponible (CI verte) et **s'exécutent
 > tous** dès que Postgres est présent — on retombe alors sur le référentiel **2 491 passés / 23 skip**.
 
