@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { companyIdForNew } from "@/lib/company";
 import { attachFiles } from "@/lib/attach-files";
 import { readMultiField, lireMedecinsDemande, nextConsultingStatus, isContractEditable } from "@/modules/ad-pro/partage";
@@ -57,10 +57,10 @@ function owns(user: SessionUser, c: { requesterId: string | null; createdById: s
 
 async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.consultingContract.findMany({
-    where: { reference: { startsWith: `CONS-${year}-` } }, select: { reference: true },
+  return referenceDeSerie({
+    modele: "ConsultingContract", prefixe: "CONS", annee: year,
+    existantes: async () => (await prisma.consultingContract.findMany({ where: { reference: { startsWith: `CONS-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("CONS", year, refs.map((r) => r.reference));
 }
 
 function revalidate(id?: string) {

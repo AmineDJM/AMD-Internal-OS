@@ -33,6 +33,11 @@ describe("l'engagé d'un poste — promis, pas payé, jamais compté deux fois",
     expect(ordreEngage("CANCELLED")).toBe(false);
     expect(ordreEngage(null)).toBe(false);
   });
+  it("un ordre refusé par le centre n'engage plus rien — il ne paiera jamais (ARGENT-07)", () => {
+    expect(ordreEngage("PENDING", "REFUSED")).toBe(false);
+    expect(ordreEngage("PENDING", "AWAITING")).toBe(true);
+    expect(ordreEngage("PENDING", "APPROVED")).toBe(true);
+  });
 });
 
 describe("la date d'une dépense — la courbe ne saute plus au mois de la saisie", () => {

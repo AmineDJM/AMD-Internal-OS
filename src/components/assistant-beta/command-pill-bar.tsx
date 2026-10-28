@@ -17,6 +17,11 @@ export interface CommandPillBarProps {
   canSendEmpty?: boolean;
   /** Envoi suspendu (une pièce jointe est encore en cours d'envoi) — le champ reste utilisable. */
   sendBlocked?: boolean;
+  /**
+   * Le micro des messages vocaux — à la place du bouton d'envoi tant que le champ est vide, comme
+   * dans une messagerie. Il se pose par-dessus la barre pendant l'enregistrement (minuterie, onde).
+   */
+  vocal?: React.ReactNode;
 }
 
 /**
@@ -34,7 +39,7 @@ const SUGGESTIONS = [
   "Prépare une tâche pour demain",
 ];
 
-export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggestions = false, leading, above, canSendEmpty = false, sendBlocked = false }: CommandPillBarProps) {
+export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggestions = false, leading, above, canSendEmpty = false, sendBlocked = false, vocal }: CommandPillBarProps) {
   const [input, setInput] = useState("");
   const zone = useRef<HTMLTextAreaElement>(null);
 
@@ -82,7 +87,7 @@ export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggesti
       <form
         onSubmit={(e) => { e.preventDefault(); envoyer(); }}
         data-glass="true"
-        className="rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/95"
+        className="relative rounded-2xl border border-slate-200/90 bg-white/95 p-1.5 shadow-xl backdrop-blur-2xl dark:border-zinc-800 dark:bg-zinc-950/95"
       >
         {above}
         <div className="flex items-end gap-1">
@@ -109,14 +114,17 @@ export function CommandPillBar({ onSendMessage, onReset, isLoading, showSuggesti
               <RotateCcw className="h-4 w-4" />
             </button>
           )}
-          <button
-            type="submit"
-            disabled={isLoading || sendBlocked || (!input.trim() && !canSendEmpty)}
-            aria-label="Envoyer"
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-2xs transition hover:bg-slate-800 disabled:opacity-30 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-          >
-            <ArrowUp className="h-4 w-4" />
-          </button>
+          {(!vocal || input.trim() || canSendEmpty) && (
+            <button
+              type="submit"
+              disabled={isLoading || sendBlocked || (!input.trim() && !canSendEmpty)}
+              aria-label="Envoyer"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-900 text-white shadow-2xs transition hover:bg-slate-800 disabled:opacity-30 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+            >
+              <ArrowUp className="h-4 w-4" />
+            </button>
+          )}
+          {vocal && !input.trim() && vocal}
         </div>
       </form>
     </div>

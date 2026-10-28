@@ -147,7 +147,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/infra/requetes/postes.ts → src/lib/queries/budget",
     // L'intérim des décideurs : cible = `@/modules/rh/api` (lot RH en cours).
     "src/modules/ad-pro/infra/prise-en-charge/devis-acces.ts → src/lib/hr/stand-in-resolve",
-    // Les droits par enregistrement, les liens d'entité, la visibilité des listes, les intervenants : lectures transverses du registre.
+    // Les droits par enregistrement (lecture et porte d'écriture), les liens d'entité, la visibilité des listes, les intervenants : transverses au registre.
     "src/modules/ad-pro/actions-autres.ts → src/lib/entity-access",
     "src/modules/ad-pro/actions-congres-beneficiaires.ts → src/lib/vue-lecture",
     "src/modules/ad-pro/actions-congres.ts → src/lib/third-party",
@@ -157,6 +157,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/actions-edition.ts → src/lib/entity-access",
     "src/modules/ad-pro/actions-edition.ts → src/lib/lecteurs/consulting",
     "src/modules/ad-pro/actions-evenements.ts → src/lib/entity-access",
+    "src/modules/ad-pro/actions-evenements.ts → src/lib/queries/porte-ecriture",
     "src/modules/ad-pro/actions-medecins.ts → src/lib/entity-access",
     "src/modules/ad-pro/actions-medecins.ts → src/lib/vue-lecture",
     "src/modules/ad-pro/actions-pieces.ts → src/lib/entity-href",
@@ -176,6 +177,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/infra/postes/commun.ts → src/lib/entity-access",
     "src/modules/ad-pro/infra/prise-en-charge/devis-acces.ts → src/lib/entity-access",
     "src/modules/ad-pro/infra/requetes/centre.ts → src/lib/entity-access",
+    "src/modules/ad-pro/infra/requetes/congres.ts → src/lib/acces/compose",
     "src/modules/ad-pro/infra/requetes/congres.ts → src/lib/queries/visibilite-listes",
     "src/modules/ad-pro/infra/requetes/evenements.ts → src/lib/queries/visibilite-listes",
     "src/modules/ad-pro/infra/requetes/suppression.ts → src/lib/entity-access",

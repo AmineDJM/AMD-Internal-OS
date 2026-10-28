@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { recordAudit } from "@/lib/audit";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { validateAttachments } from "@/lib/attach-files";
 import { persistUploadedDocument } from "@/lib/documents";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
@@ -428,8 +428,10 @@ export async function deposerBillet(formData: FormData): Promise<ActionResult> {
 
 async function prochaineReferencePiece(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await prisma.documentRequest.findMany({ where: { reference: { startsWith: `PIE-${year}-` } }, select: { reference: true } });
-  return buildRef("PIE", year, rows.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "DocumentRequest", prefixe: "PIE", annee: year,
+    existantes: async () => (await prisma.documentRequest.findMany({ where: { reference: { startsWith: `PIE-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /**

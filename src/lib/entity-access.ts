@@ -147,9 +147,9 @@ async function isRequestOwner(user: SessionUser, entityType: EntityType, entityI
   return false;
 }
 
-/** Les cinq natures de dossier du module Ad&Pro. */
+/** Les natures de dossier du module Ad&Pro — « Autre » comprise (SA-14 : absente, elle échappait au contrôle de société). */
 const AD_PRO_TYPES: EntityType[] = [
-  "SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "PROMO_MATERIAL",
+  "SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "PROMO_MATERIAL", "AD_PRO_OTHER",
 ];
 
 /**
@@ -215,6 +215,7 @@ async function adProStakeholders(
       case "EVENT": return prisma.event.findUnique({ where: { id: entityId }, ...sel });
       case "PROMO_MATERIAL":
         return prisma.promoMaterial.findUnique({ where: { id: entityId }, select: { requesterId: true, assistantId: true, companyId: true, ...bu } });
+      case "AD_PRO_OTHER": return prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { requesterId: true, companyId: true, ...bu } });
       default: return null;
     }
   })();
@@ -942,41 +943,16 @@ export async function canAccessEntity(
       });
       return Boolean(found);
     }
-    case "VISIT": {
-      const found = await prisma.medicalVisit.findFirst({
-        where: { id: entityId, ...scopeMedicalVisits(user) },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "SALE": {
-      const found = await prisma.sale.findFirst({
-        where: { id: entityId, ...scopeSales(user) },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "BD_OPPORTUNITY": {
-      const found = await prisma.businessDevelopmentOpportunity.findFirst({
-        where: { id: entityId, ...scopeBusinessDevelopment(user) },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "SUPPORT_REQUEST": {
-      const found = await prisma.supportRequest.findFirst({
-        where: { id: entityId, ...scopeSupport(user) },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "DOSSIER": {
-      const found = await prisma.dossier.findFirst({
-        where: { id: entityId, ...scopeDossiers(user) },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
+    case "VISIT":
+      return Boolean(await prisma.medicalVisit.findFirst({ where: { AND: [{ id: entityId }, scopeMedicalVisits(user)] }, select: { id: true } }));
+    case "SALE":
+      return Boolean(await prisma.sale.findFirst({ where: { AND: [{ id: entityId }, scopeSales(user)] }, select: { id: true } }));
+    case "BD_OPPORTUNITY":
+      return Boolean(await prisma.businessDevelopmentOpportunity.findFirst({ where: { AND: [{ id: entityId }, scopeBusinessDevelopment(user)] }, select: { id: true } }));
+    case "SUPPORT_REQUEST":
+      return Boolean(await prisma.supportRequest.findFirst({ where: { AND: [{ id: entityId }, scopeSupport(user)] }, select: { id: true } }));
+    case "DOSSIER":
+      return Boolean(await prisma.dossier.findFirst({ where: { AND: [{ id: entityId }, scopeDossiers(user)] }, select: { id: true } }));
     case "PCH_TENDER": {
       // LA CLAUSE DE LA FICHE (§118.184 — audit 360°, S11) : ce type tombait dans le `default` — le droit
       // de module suffisait, et les pièces d'un marché d'une autre société se lisaient, se joignaient et
@@ -1053,6 +1029,10 @@ export async function canAccessEntity(
         select: { requestId: true },
       });
       return c ? Boolean(await recruitmentViewer(user, c.requestId)) : false;
+    }
+    case "CONSULTING_CONTRACT": { // LA SOCIÉTÉ DU CONTRAT (SA-14) : le `default` l'ouvrait, rémunération comprise, toutes sociétés confondues.
+      const c = await prisma.consultingContract.findUnique({ where: { id: entityId }, select: { companyId: true } });
+      return c ? entitePermisePourFiche(user.id, c.companyId) : false;
     }
     case "BUSINESS_UNIT":
     case "TOUR_PLAN":

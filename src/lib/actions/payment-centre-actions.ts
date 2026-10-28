@@ -16,6 +16,9 @@ import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { ENTITE_SANS, slugSectionDeLOrdre } from "@/lib/payments/sections-centre";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
+import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
+import { refusSeparationDesTaches } from "@/lib/payments/separation";
+import { getAppSettings } from "@/lib/settings";
 import { sansBloquer } from "@/lib/journal";
 import { verserLaRemise } from "@/lib/finance/verser-remise";
 
@@ -59,6 +62,7 @@ async function suitesDuRefus(orderId: string, motif: string): Promise<void> {
     });
     if (!remise || remise.status !== "ALLOTTED") return;
     const raison = `Refusée par le centre de paiement : ${motif}`;
+    // porte d'écriture : appelé par `decidePayment` seul, après la porte de l'ordre — la remise de CET ordre.
     await prisma.pettyCashAllotment.updateMany({
       where: { id: remise.id, status: "ALLOTTED" },
       data: { status: "CLOSED", note: remise.note ? `${remise.note} — ${raison}` : raison },
@@ -119,11 +123,20 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: "Dites pourquoi : sans motif, le demandeur ne peut que deviner." };
   }
 
+  // LA SOCIÉTÉ DE L'ORDRE (audit 27/10, ARGENT-08) : un siège ne tranche que dans les sociétés qu'il voit — la
+  // même portée que la file du centre. Le siège tient lieu de droit de module (il n'a pas forcément Finances).
+  const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "VALIDATE", { droitDuModule: false });
+  if (!porte.ok) return porte;
   const order = await prisma.expenseOrder.findUnique({
     where: { id },
-    select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, status: true, dueDate: true, sourceType: true, sourceId: true },
+    select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, centralDecidedById: true, status: true, dueDate: true, sourceType: true, sourceId: true },
   });
   if (!order) return { ok: false, error: "Ordre de dépense introuvable." };
+  // QUI DEMANDE N'AUTORISE PAS (audit 27/10, ARGENT-06) — refuser son propre paiement reste permis.
+  if (decision === "APPROVE") {
+    const separation = refusSeparationDesTaches("AUTORISER", order, user.id, (await getAppSettings()).separationTachesPaiement);
+    if (separation) return { ok: false, error: separation };
+  }
   // UN ORDRE ANNULÉ (demande retirée) OU RÉGLÉ NE SE DÉCIDE PLUS : son autorisation est restée « en attente », jamais
   // rendue — la lire seule laissait autoriser un paiement que plus personne ne demande (`refusOrdreFerme`).
   const ferme = refusOrdreFerme(order.status, order.reference);
@@ -274,6 +287,11 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
   if (!isRequester && !sitsOnPaymentCentre(user)) {
     return { ok: false, error: "Seul le demandeur peut répondre à cette demande." };
   }
+  // Un siège qui répond pour le demandeur le fait dans une société qu'il voit (ARGENT-08).
+  if (!isRequester) {
+    const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "UPDATE", { droitDuModule: false });
+    if (!porte.ok) return porte;
+  }
   if (!canResubmit(order.centralStatus as CentralStatus)) {
     return { ok: false, error: "Ce paiement n'attend pas de réponse de votre part." };
   }
@@ -281,10 +299,19 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
   const next = applyResubmission(order.centralStatus as CentralStatus);
   if (!next) return { ok: false, error: "Ce paiement n'attend pas de réponse de votre part." };
 
-  await prisma.$transaction([
-    prisma.expenseOrder.update({ where: { id }, data: { centralStatus: next } }),
-    prisma.paymentCentreMessage.create({ data: { orderId: id, body, authorId: user.id } }),
-  ]);
+  // SUR CE QUI A ÉTÉ LU (audit 27/10, DONNEES-09) : écrite par le seul identifiant, la réponse remettait « en
+  // attente » un ordre qu'un siège venait de refuser ou d'autoriser à la même seconde — le refus revivait,
+  // l'autorisation disparaissait. Perdue, rien n'est écrit, pas même le message.
+  const repondu = await prisma.$transaction(async (tx) => {
+    const ecrit = await tx.expenseOrder.updateMany({
+      where: { id, centralStatus: order.centralStatus, status: order.status },
+      data: { centralStatus: next },
+    });
+    if (ecrit.count === 0) return false;
+    await tx.paymentCentreMessage.create({ data: { orderId: id, body, authorId: user.id } });
+    return true;
+  });
+  if (!repondu) return { ok: false, error: "Ce paiement vient de changer (décidé par le centre ou annulé) : rouvrez-le avant de répondre." };
 
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Finances", entityType: "EXPENSE_ORDER", entityId: id,

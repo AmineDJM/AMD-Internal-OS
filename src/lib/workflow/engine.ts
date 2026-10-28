@@ -1,8 +1,8 @@
-import type { EntityType, Prisma, UserRole, WorkflowInstance, WorkflowStep } from "@prisma/client";
+import { Prisma, type EntityType, type UserRole, type WorkflowInstance, type WorkflowStep } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyRoles, notifyUser } from "@/lib/notify";
 import {
-  aPrevenirPourLaGamme, laGammeEstConcernee, porteLeRoleQuiTranche, type ReferentMarketing,
+  aPrevenirPourLaGamme, laGammeEstConcernee,
 } from "@/lib/personnes/referents-gamme";
 import { recordAudit } from "@/lib/audit";
 import { hasGlobalView, hasRole } from "@/lib/rbac";
@@ -20,6 +20,8 @@ import { issueTerminaleSponsoring } from "./issue-sponsoring";
 import { ecritureAutreDepuisCircuit } from "./autre-statut";
 import { argentEffectif } from "./pouvoirs-argent";
 import { auteursDAvis, etapeDeReprise, peutResoumettre, refusDuRenvoi, statutLegacyALEtape } from "./renvoi";
+import { horsDeSaGamme, rolesAPrevenir, superviseurQuiTientLEtape, ROLE_LIE_A_LA_GAMME } from "./etape-gamme";
+import { referentsDeLaDemande, superviseurDeLaGamme } from "./gamme-lue";
 import {
   CATEGORY_LABELS,
   entityToCategory,
@@ -437,10 +439,24 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
   // sur la route : la demande s'y serait posée devant un DG qui n'a rien à valider. On avance donc
   // jusqu'à la première étape réellement traversée.
   const pose = status === "IN_PROGRESS" ? premiereEtapeTraversee(def, currentSlug, skippedSlugs) : currentSlug;
+  // SEULE LA COURSE SE RATTRAPE (audit 27/10/2026, ADPRO-11). Un `catch {}` couvrait la création ET
+  // toute la suite : une vraie panne devenait « Impossible d'initialiser le circuit » sans trace, ou
+  // rendait l'instance d'un autre geste comme la sienne. Un doublon (P2002 — un autre geste vient de
+  // la créer) rend l'existante ; toute autre erreur de création remonte.
+  let created: LoadedInstance;
   try {
-    const created = await prisma.workflowInstance.create({
+    created = await prisma.workflowInstance.create({
       data: { definitionId: def.id, entityType, entityId, category, currentSlug: pose, status, finalSlug, skippedSlugs },
     });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType, entityId } } });
+    }
+    throw e;
+  }
+  // LA SUITE (journal, prévalidation d'office, franchissements) ne défait pas l'instance posée : une
+  // panne y est JOURNALISÉE et l'instance relue par SON identifiant — jamais celle d'un autre.
+  try {
     // LA PREMIÈRE LIGNE DE L'HISTORIQUE : QUI a demandé, et QUAND.
     //
     // L'historique ne commençait qu'à la première validation : on lisait « approuvé par X à
@@ -518,8 +534,9 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
       }
     }
     return created;
-  } catch {
-    return prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType, entityId } } });
+  } catch (e) {
+    console.error("[workflow] ouverture du circuit : suite en échec", entityType, entityId, e);
+    return prisma.workflowInstance.findUnique({ where: { id: created.id } });
   }
 }
 
@@ -553,8 +570,14 @@ export async function canActOnStep(viewer: Viewer, step: LoadedStep, instance: L
       return Boolean(mgr && mgr.userId === viewer.id);
     }
     case "ROLE":
-    default:
-      return step.actorRoles.some((r) => hasRole(viewer, r as UserRole));
+    default: {
+      if (!step.actorRoles.some((r) => hasRole(viewer, r as UserRole))) return false;
+      // L'étape du National Sales revient au superviseur de la gamme du dossier (ADPRO-06) — lu
+      // seulement quand l'étape nomme ce rôle.
+      if (!step.actorRoles.includes(ROLE_LIE_A_LA_GAMME)) return true;
+      const superviseur = await superviseurDeLaGamme(instance.entityType, instance.entityId);
+      return !horsDeSaGamme(step.actorRoles, { id: viewer.id, role: viewer.role, secondaryRole: viewer.secondaryRole ?? null }, superviseur);
+    }
   }
 }
 
@@ -1359,7 +1382,13 @@ async function prevenirEtapeAtteinte(
   type: "VALIDATION_REQUIRED" | "GENERIC" = "VALIDATION_REQUIRED",
 ): Promise<void> {
   const roles = (etape.notifyRoles as UserRole[]).filter(Boolean);
-  if (roles.length) await notifyRoles(roles, { type, ...msg });
+  // LE NATIONAL SALES DE LA GAMME, nommément, au lieu de tout le rôle (ADPRO-06) : les autres
+  // National Sales ne peuvent ni ouvrir ni trancher ce dossier — l'alerte leur était un bruit.
+  const superviseur = roles.includes(ROLE_LIE_A_LA_GAMME as UserRole) ? await superviseurDeLaGamme(entityType, entityId).catch(sansBloquer("engine.superviseurDeLaGamme", null)) : null;
+  const aPrevenir = rolesAPrevenir(roles, superviseur);
+  if (aPrevenir.length) await notifyRoles(aPrevenir, { type, ...msg });
+  const tenant = superviseurQuiTientLEtape(roles, superviseur);
+  if (tenant) await notifyUser({ userId: tenant.id, type, ...msg }).catch((err) => console.error("[workflow] notification du National Sales de la gamme impossible", err));
   // LES RÉFÉRENTS DE LA GAMME s'AJOUTENT au rôle — et seulement là où l'étape NOMME ce rôle.
   // La décision est pure (`laGammeEstConcernee`) : l'écrire ici en lisant le slug ferait une
   // seconde vérité, fausse au premier circuit remanié (§118.5, §118.73).
@@ -1372,35 +1401,6 @@ async function prevenirEtapeAtteinte(
   } catch (err) {
     console.error("[workflow] notification des référents Direction Marketing impossible", err);
   }
-}
-
-/**
- * LES RÉFÉRENTS DE LA GAMME QUE PORTE CETTE DEMANDE.
- *
- * La gamme vit sur la LIGNE de la demande (`businessUnitId`), pas sur l'instance de circuit : le
- * moteur est générique, et y recopier la gamme ferait une seconde vérité qui prendrait du retard
- * au premier rattachement corrigé (§118.5). On la lit donc là où elle est.
- *
- * Le rôle est relu EN MÊME TEMPS : une désignation ne garantit pas que la personne porte encore
- * le rôle, et prévenir quelqu'un qui ne peut plus trancher est une attente sans pouvoir.
- */
-async function referentsDeLaDemande(entityType: EntityType, entityId: string): Promise<ReferentMarketing[]> {
-  const ligne =
-    entityType === "SPONSORING" ? await prisma.sponsoringRequest.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-      : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-        : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-          : entityType === "AD_PRO_OTHER" ? await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-            : await prisma.event.findUnique({ where: { id: entityId }, select: { businessUnitId: true } });
-  if (!ligne?.businessUnitId) return [];
-  const lignes = await prisma.businessUnitMarketingReferent.findMany({
-    where: { businessUnitId: ligne.businessUnitId, user: { isActive: true } },
-    select: { userId: true, user: { select: { name: true, role: true, secondaryRole: true } } },
-  });
-  return lignes.map((r) => ({
-    userId: r.userId,
-    name: r.user.name,
-    porteLeRole: porteLeRoleQuiTranche(r.user),
-  }));
 }
 
 async function notifyStepManager(step: LoadedStep, requesterId: string | null, title: string, body: string, link: string): Promise<void> {

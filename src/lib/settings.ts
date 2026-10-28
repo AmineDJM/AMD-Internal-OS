@@ -105,6 +105,11 @@ export interface AppSettings {
   coffreEcriture: boolean;
   /** LE COFFRE EN DOUBLE LECTURE — écrans, exports et pièces lisent par le coffre (politique + journal d'accès). */
   coffreLecture: boolean;
+  /**
+   * LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06) — vrai par défaut : qui demande un
+   * paiement ne l'autorise pas, qui le demande ou l'autorise ne le règle pas. Seul le Super Admin la suspend.
+   */
+  separationTachesPaiement: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -148,6 +153,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   // FERMÉS : le coffre ne s'ouvre que par le geste du Super Admin, après la reprise (V2-E).
   coffreEcriture: false,
   coffreLecture: false,
+  // OUVERTE : le contrôle le plus prudent tient tant que le Super Admin ne l'a pas suspendu.
+  separationTachesPaiement: true,
 };
 
 export const getAppSettings = perRequest(async (): Promise<AppSettings> => {
@@ -187,6 +194,8 @@ export const getAppSettings = perRequest(async (): Promise<AppSettings> => {
       generalMeansDepartmentId: row.generalMeansDepartmentId ?? null,
       coffreEcriture: row.coffreEcriture === true,
       coffreLecture: row.coffreLecture === true,
+      // Tout sauf un `false` explicite garde le contrôle : l'absence de colonne ne l'éteint pas.
+      separationTachesPaiement: row.separationTachesPaiement !== false,
     };
   } catch {
     return DEFAULT_APP_SETTINGS;

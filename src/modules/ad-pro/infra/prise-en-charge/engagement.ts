@@ -1,6 +1,7 @@
-import type { CareBeneficiaryStatus } from "@prisma/client";
+import type { CareBeneficiaryStatus, CareQuoteStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { beneficiaryName } from "../../domaine/prise-en-charge/regles";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -75,4 +76,36 @@ export async function refusEngagementPriseEnCharge(scope: Scope, requestId: stri
     status: p.status,
     nom: beneficiaryName({ ...p, doctorName: p.doctorId ? nomMedecin.get(p.doctorId) ?? null : null }),
   })));
+}
+
+/**
+ * DEUX DEVIS DIFFÉRENTS SUR LES MÊMES CASES, ACCEPTÉS À LA MÊME MINUTE (audit 2026-10-27, DONNEES-08). La garde
+ * `quoteConflicts` lit les autres devis en mémoire : le PDG accepte A pendant que le DG accepte B, chacun voit
+ * l'autre encore « en attente », et les mêmes billets partaient payés deux fois. Les CASES se prennent donc
+ * aussi, sous verrou et dans un ordre fixe (deux preneurs ne peuvent pas s'entre-bloquer) : seul le devis qui
+ * les trouve toutes libres les marque à son nom ; l'autre rend sa réserve et le dit.
+ */
+export async function prendreLesCasesDuDevis(quoteId: string, cellIds: string[]): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
+    const lues = await tx.$queryRaw<{ id: string; quoteId: string | null }[]>`
+      SELECT id, "quoteId" FROM "CareCell" WHERE id = ANY(${cellIds}::text[]) ORDER BY id FOR UPDATE`;
+    if (lues.length !== cellIds.length || lues.some((c) => c.quoteId !== null && c.quoteId !== quoteId)) return false;
+    await tx.careCell.updateMany({ where: { id: { in: cellIds } }, data: { quoteId } });
+    return true;
+  });
+}
+
+/**
+ * RENDRE LA RÉSERVE d'un devis accepté qui n'a pas abouti (cases prises par un rival, ordre non émis) : ses seules
+ * cases, et le devis revient à l'état lu. L'appelant (`decideCareQuote`) a vérifié qu'il tranche (`canDecide`).
+ */
+export async function rendreLaReserveDuDevis(
+  quoteId: string, cellIds: string[],
+  avant: { status: CareQuoteStatus; decidedById: string | null; decidedAt: Date | null },
+): Promise<void> {
+  await prisma.careCell.updateMany({ where: { id: { in: cellIds }, quoteId, expenseOrderId: null }, data: { quoteId: null } }).catch(sansBloquer("care-engagement.rendreLaReserve.careCell"));
+  await prisma.careQuote.updateMany({
+    where: { id: quoteId, expenseOrderId: null, status: "ACCEPTED" },
+    data: { status: avant.status, decidedById: avant.decidedById, decidedAt: avant.decidedAt },
+  }).catch(sansBloquer("care-engagement.rendreLaReserve.careQuote"));
 }

@@ -64,14 +64,14 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > | Fichiers de production d'Ad & Pro éparpillés dans `src/lib/` (règles, lectures, actions) | 83 (dont 16 fichiers d'actions) | **0** — 121 fichiers dans le module |
 > | Imports PROFONDS vers ces fichiers depuis le reste du dépôt (production) | 186 (82 fichiers) | **0** — 110 imports de porte (`api`/`partage`) depuis 81 fichiers |
 > | Fichiers > 1 000 lignes du métier (ARCH-04) | 3 (`ad-pro-item-actions` 4 409, `items-panel` 2 149, `care-actions` 1 556) | **0** (le plus long : 965) |
-> | Fichiers de `src/lib/` dans aucune couche (`couverture.test.ts`) | 756 (après le module `rh`) | **724** |
+> | Fichiers de `src/lib/` dans aucune couche (`couverture.test.ts`) | 754 (après le module `rh` et la décision 0011) | **722** |
 > | Imports du kit d'interface vers un métier | 6 | **2** (les pièces liées sortent du kit vers `components/pieces/`) |
 > | Tests hors modules qui lisent le source par chemin | 125 (après le module `rh`) | **109** (la plupart ont suivi leur sujet dans le module) |
 > | Contrat des actions (`contrat.genere.json`, 1 185 actions) | — | **identique octet pour octet** |
 >
 > Une clé d'action peut désormais être portée par plusieurs morceaux d'un fichier découpé (`parc.ts`) : la clé
 > `ad-pro-item-actions` vit en six fichiers, `care-actions` en deux, sans qu'aucun identifiant ne change. La dette
-> restante (251 imports du module vers `src/lib/`, surtout bons de commande, circuit, stock promotionnel, argent) est
+> restante (255 imports du module vers `src/lib/`, surtout bons de commande, circuit, stock promotionnel, argent) est
 > nommée dans `DETTE_HERITEE` (`src/modules/frontieres.test.ts`). Le stock et le dossier de matériel promotionnel
 > (`lib/promo*`) sont le prochain lot du pôle.
 

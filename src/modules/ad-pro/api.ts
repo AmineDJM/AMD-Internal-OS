@@ -39,7 +39,7 @@ export { annulerDemandesPiecesDuPoste, assistantesDeDirection, demanderBcAAssist
 export { refusSiPorteDgFermee, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande } from "./infra/porte-dg";
 export { proposerPostesParModele, type ResultatPostes } from "./infra/postes-luna-ia";
 export { peutSaisirLesDevis } from "./infra/prise-en-charge/devis-acces";
-export { demandePrevalidee, REFUS_NON_PREVALIDEE, refusEngagementPriseEnCharge } from "./infra/prise-en-charge/engagement";
+export { demandePrevalidee, prendreLesCasesDuDevis, REFUS_NON_PREVALIDEE, refusEngagementPriseEnCharge, rendreLaReserveDuDevis } from "./infra/prise-en-charge/engagement";
 export { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "./infra/prise-en-charge/pieces-db";
 export { ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, envoiAuxFinances } from "./infra/prise-en-charge/realisation";
 export { referentAInscrire } from "./infra/referent-de-la-gamme";

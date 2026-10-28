@@ -141,7 +141,7 @@ export async function searchDrive(user: SessionUser, query: string): Promise<Dri
     scope = inside.length > 0 ? { OR: [visibility, { parentId: { in: inside } }] } : visibility;
   }
 
-  const base: Prisma.DriveNodeWhereInput = { isTrashed: false, ...scope };
+  const base: Prisma.DriveNodeWhereInput = { AND: [{ isTrashed: false }, scope] };
 
   const [exact, scan] = await Promise.all([
     prisma.driveNode.findMany({

@@ -23,11 +23,16 @@ import { mesurerCouverture } from "./couverture";
  * `migrations-appliquees.ts`) avant que ce cliquet existe dans la base — et en ont retiré un (`agent/agent.ts`).
  * `journal` et `migrations-appliquees` ont été rangés au socle ; reste 768. Désormais, chaque fichier neuf hors
  * carte se range avant fusion.
+ *
+ * −2 (28/10/2026, décision 0011 — vocaux et lecture des pièces de l'Assistant IA ; 756 → 754 après le module
+ * `rh`) : deux fichiers
+ * serveur neufs (`agent/lecture/pieces.ts`, `voix.ts`), et cinq fichiers PURS de l'Assistant IA, zéro import,
+ * rangés au socle (`lecture/regles`, `consommation-regles`, `contenu-non-fiable`, `memoire-ui`, `fil/partiel`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 724,
+  horsCarte: 722,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */

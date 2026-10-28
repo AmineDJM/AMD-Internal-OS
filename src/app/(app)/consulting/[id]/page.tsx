@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser, requireModule } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
+import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { toNumber, formatCurrency, formatDate } from "@/lib/utils";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
@@ -59,6 +60,9 @@ export default async function ConsultingContractPage(props: { params: Promise<{ 
   if (!tete || !userCan(user, moduleDuContrat, "VIEW")) notFound();
   // Les gardes d'écran habituelles du module — mot de passe à changer, module masqué.
   await requireModule(moduleDuContrat);
+  // LA SOCIÉTÉ DU CONTRAT (audit 27/10, SA-14) : la liste est filtrée par entité, la fiche l'est aussi — la même
+  // porte que ses pièces (`canAccessEntity`). Hors d'elle, le contrat n'existe pas pour cette personne.
+  if (!(await canAccessEntity(user, "CONSULTING_CONTRACT", params.id, "VIEW"))) notFound();
 
   const contract = await prisma.consultingContract.findUnique({
     where: { id: params.id },

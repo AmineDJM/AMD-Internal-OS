@@ -7,7 +7,7 @@ import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { retirerVisaEnAttente, ecrireAuFil, gammeImposee } from "@/modules/ad-pro/api";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { companyIdForNew } from "@/lib/company";
 import { readMultiField, lireMedecinsDemande } from "@/modules/ad-pro/partage";
 import { statutAutreDepuisCircuit } from "@/lib/workflow/autre-statut";
@@ -42,10 +42,10 @@ const PATH = "/ad-pro/autres";
 
 async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.adProOtherRequest.findMany({
-    where: { reference: { startsWith: `AUT-${year}-` } }, select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdProOtherRequest", prefixe: "AUT", annee: year,
+    existantes: async () => (await prisma.adProOtherRequest.findMany({ where: { reference: { startsWith: `AUT-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("AUT", year, refs.map((r) => r.reference));
 }
 
 function revalidate(id?: string) {

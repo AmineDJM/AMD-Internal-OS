@@ -10,7 +10,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { careProgress, defaultCells, financeReadiness, quoteConflicts, OPINION_LABELS, SERVICE_KIND_LABELS, casesDeLaCategorie, deviseDuDevis, deviseDuPoste, hotelPrerempli, libelleNouveauPoste, lireMontant, montantLisible, typePoste, versDzd, peutMarquerRealisee, TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
-import { envoiAuxFinances, ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, peutSaisirLesDevis, demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE, refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/modules/ad-pro/api";
+import { envoiAuxFinances, ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, peutSaisirLesDevis, demandePrevalidee, prendreLesCasesDuDevis, refusEngagementPriseEnCharge, rendreLaReserveDuDevis, REFUS_NON_PREVALIDEE, refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/modules/ad-pro/api";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";
 import { creerProfilMedecin } from "@/lib/medical/profil-rapide";
@@ -580,10 +580,9 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
     });
     if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
   }
-  const rendreLaReserve = () => prisma.careQuote.updateMany({
-    where: { id, expenseOrderId: null, status: "ACCEPTED" },
-    data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
-  }).catch(sansBloquer("care-actions.rendreLaReserve.careQuote"));
+  const rendreLaReserve = () => rendreLaReserveDuDevis(id, cellIds, quote);
+  // DEVIS RIVAUX SUR LES MÊMES CASES (DONNEES-08) : seul le devis qui les trouve toutes libres les prend, sous verrou.
+  if (decision === "ACCEPTED" && !(await prendreLesCasesDuDevis(id, cellIds))) { await rendreLaReserve(); return { ok: false, error: "Un autre devis couvrant les mêmes éléments vient d'être accepté : rechargez la page." }; }
 
   let ordreNe = false;
   try {

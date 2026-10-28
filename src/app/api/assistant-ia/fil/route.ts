@@ -21,9 +21,11 @@ export async function GET() {
   return NextResponse.json({
     vueExacte: false,
     enCours: fil.enCours,
+    reponseVocale: fil.reponseVocale,
     tours: fil.tours.map((t) => ({
       id: t.id, role: t.role, contenu: t.contenu, etat: t.etat, pieces: t.pieces, blocs: t.blocs, intent: t.intent,
       memoireProposee: t.memoireProposee, outils: t.outils, etapes: t.etapes, createdAt: t.createdAt.toISOString(),
+      vocal: t.vocal, lecture: t.lecture, audio: t.audio,
     })),
   }, { headers: { "Cache-Control": "no-store" } });
 }

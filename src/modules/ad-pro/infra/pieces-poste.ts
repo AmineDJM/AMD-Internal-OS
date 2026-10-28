@@ -1,7 +1,7 @@
 import type { AdProPieceNature, LegalDocKind } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { moneyEntityOf } from "@/lib/company";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import type { EtapeBC } from "@/lib/bons-de-commande/regle";
@@ -265,8 +265,10 @@ export async function assistantesDeDirection(): Promise<{ id: string; name: stri
 
 async function prochaineReferencePiece(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await prisma.documentRequest.findMany({ where: { reference: { startsWith: `PIE-${year}-` } }, select: { reference: true } });
-  return buildRef("PIE", year, rows.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "DocumentRequest", prefixe: "PIE", annee: year,
+    existantes: async () => (await prisma.documentRequest.findMany({ where: { reference: { startsWith: `PIE-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /**

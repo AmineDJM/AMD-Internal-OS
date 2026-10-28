@@ -27,7 +27,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `coffre` | socle métier | `api.ts` (écriture), `api-lecture.ts` (déchiffre), `partage.ts`, `actions.ts` | — | `referentiels`, actions RH/Finances/Legal, enrichissement, pont d'Adam | **migré** (V3-G) |
 | `referentiels` | socle métier | `api.ts`, `partage.ts`, `actions-{personnes,organisations,reprises}.ts` | `lieux`, `coffre` | ~20 fichiers d'actions, enrichissement, pages `/personnes`, `/organisations`, `/admin/refonte-donnees` | **migré** (V3-G) |
 | `consommation` | métier | `api.ts`, `actions.ts` | — | segmentation, vue 360° | **pilote** (audit 08), actions rangées au lot V3-G |
-| `ad-pro` | métier | `api.ts`, `partage.ts`, `actions-*.ts` (16 clés, dont `ad-pro-item-actions` en six morceaux), `ecrans/` | `referentiels` | pages `/sponsoring`, `/congress-*`, `/events`, `/ad-pro`, `/centre-ad-pro`, `/budget-marketing`, `/promo-material` ; Adam ; consulting, secrétariat, bons de commande | **migré** (V4) — dette : 251 imports vers `src/lib/` |
+| `ad-pro` | métier | `api.ts`, `partage.ts`, `actions-*.ts` (16 clés, dont `ad-pro-item-actions` en six morceaux), `ecrans/` | `referentiels` | pages `/sponsoring`, `/congress-*`, `/events`, `/ad-pro`, `/centre-ad-pro`, `/budget-marketing`, `/promo-material` ; Adam ; consulting, secrétariat, bons de commande | **migré** (V4) — dette : 255 imports vers `src/lib/` |
 | `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 
 ```
@@ -110,7 +110,7 @@ le test voit ce qu'ESLint ne voit pas (imports relatifs qui sortent du module, g
 
 | Mesure | Avant V3-G | Après V3-G | Après V4 (`rh` puis `ad-pro`) |
 |---|---|---|---|
-| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | 768 (fusion V3-C/D/E) | **724** (756 après `rh`) |
+| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | 768 (fusion V3-C/D/E) | **722** (756 après `rh`, 754 après la décision 0011 de l'Assistant IA) |
 | Pages / layouts qui importent `@/lib/prisma` | 129 | **126** | 126 |
 | Routes qui importent `@/lib/prisma` | 53 | 53 | 53 |
 | Imports `src/components/` (et `ecrans/` des modules) → `src/app/` (inversion) | 12 | 12 | 12 |

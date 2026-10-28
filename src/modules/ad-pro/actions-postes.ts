@@ -11,7 +11,7 @@ import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { canSubmitItem, canRequestPurchaseOrder, canRemoveItem, budgetKindLocked, ITEM_KINDS, ITEM_KIND_LABELS, PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece, TITRE_BC_A_ETABLIR, type NaturePieceSecretariat, siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO, lireRepartition, ecrireRepartition, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, nomComplet, porteDesVoyageurs, refusChangementNatureFiches, gesteVisaPoste, memePrestataire, opsFranchiALaSoumission, libelleTemps } from "@/modules/ad-pro/partage";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin, lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE, assistantesDeDirection, demandesBCDesPostes, creerPosteEtFiches, lireFichesDuFormulaire, bcEtablisDuPoste, refusCategoriePourLaDemande } from "@/modules/ad-pro/api";
 import { getAppSettings } from "@/lib/settings";
@@ -592,11 +592,10 @@ export async function setAdProItemBudget(_prev: ActionResult | undefined, formDa
 /** Référence d'une demande administrative — même forme que le module (DEM-année-n). */
 async function nextAdminRequestRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `DEM-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "DEM", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `DEM-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("DEM", year, rows.map((r) => r.reference));
 }
 
 /**

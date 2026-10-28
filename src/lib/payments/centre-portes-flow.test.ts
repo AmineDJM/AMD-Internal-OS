@@ -286,7 +286,7 @@ suite("les portes du centre, par leurs vrais points d'entrée", () => {
     expect(sansRien.ok).toBe(false);
     expect(sansRien.ok ? "" : sansRien.error).toMatch(/Aucun règlement n'est rattaché/);
 
-    const ordre = await createExpenseOrder({ label: `${TAG}kakémonos`, amount: 90_000, category: "AUTRE", sourceType: "PROMO_MATERIAL", sourceId: dossier.id, requestedById: saId });
+    const ordre = await createExpenseOrder({ label: `${TAG}kakémonos`, amount: 90_000, category: "AUTRE", sourceType: "PROMO_MATERIAL", sourceId: dossier.id, requestedById: autreId });
     const enAttente = await clore();
     expect(enAttente.ok).toBe(false);
     expect(enAttente.ok ? "" : enAttente.error).toContain(ordre.reference);

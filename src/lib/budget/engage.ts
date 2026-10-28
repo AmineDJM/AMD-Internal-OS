@@ -20,8 +20,14 @@
 /** Statuts d'un ordre de dépense qui engagent encore de l'argent (émis, pas réglé, pas annulé). */
 export const STATUTS_ORDRE_ENGAGES = ["PENDING", "REVISION_REQUESTED"] as const;
 
-export function ordreEngage(statut: string | null | undefined): boolean {
-  return statut != null && (STATUTS_ORDRE_ENGAGES as readonly string[]).includes(statut);
+/**
+ * UN ORDRE ENGAGE-T-IL ENCORE DE L'ARGENT ? Émis, pas réglé, pas annulé — ET PAS REFUSÉ PAR LE CENTRE (audit 27/10,
+ * ARGENT-07). Un refus du centre laisse l'ordre `PENDING` (seule son autorisation change) : lu sur le seul statut, un
+ * ordre de 300 000 refusé « hors budget » restait engagé sur sa catégorie jusqu'à ce que quelqu'un annule la source,
+ * et l'enveloppe paraissait pleine. Un ordre refusé ne paiera jamais (`ordreClos`, `finances/settlement.ts`).
+ */
+export function ordreEngage(statut: string | null | undefined, centralStatus?: string | null): boolean {
+  return statut != null && (STATUTS_ORDRE_ENGAGES as readonly string[]).includes(statut) && centralStatus !== "REFUSED";
 }
 
 /** Ce qu'on sait de l'argent d'un poste accordé. */

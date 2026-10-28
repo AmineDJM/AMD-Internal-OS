@@ -37,12 +37,12 @@ Correctifs commités : **5** (ADPRO-01 à 05), chacun avec un banc qui échoue a
 | ADPRO-03 | CRITIQUE | Intégrité financière | Ordre global émis sur l'estimation de postes refusés (déclaration périmée) | S | CORRIGÉ `64628ce` |
 | ADPRO-04 | HAUTE | Correction / cohérence | Adam crée une prise en charge à la main : ni circuit, ni gamme, ni date de fin | S | CORRIGÉ `59caaba` |
 | ADPRO-05 | HAUTE | Intégrité des données | Transfert d'une PEC dont les postes engagent la dépense ; double transfert | S | CORRIGÉ `f5ed0ac` |
-| ADPRO-06 | HAUTE | Sécurité (RBAC ligne) | `advanceWorkflow` sans porte de ligne ; l'étape « National Sales » ouverte à tout le rôle | M | PROPOSÉ |
-| ADPRO-07 | MOYENNE | Performance | `totauxEnAttenteDuDg` : N+1 (jusqu'à 300 × 5 requêtes) sur le centre de validation | S | PROPOSÉ |
-| ADPRO-08 | MOYENNE | Intégrité des données | Références de déclaration réutilisées après suppression → restauration impossible | S | PROPOSÉ |
-| ADPRO-09 | MOYENNE | Robustesse | Transfert non transactionnel (cible créée, source restée ouverte en cas d'échec) | M | PROPOSÉ |
+| ADPRO-06 | HAUTE | Sécurité (RBAC ligne) | `advanceWorkflow` sans porte de ligne ; l'étape « National Sales » ouverte à tout le rôle | M | CORRIGÉ `fbc2a2e` |
+| ADPRO-07 | MOYENNE | Performance | `totauxEnAttenteDuDg` : N+1 (jusqu'à 300 × 5 requêtes) sur le centre de validation | S | CORRIGÉ `de9dafb` |
+| ADPRO-08 | MOYENNE | Intégrité des données | Références de déclaration réutilisées après suppression → restauration impossible | S | CORRIGÉ `937e11f` |
+| ADPRO-09 | MOYENNE | Robustesse | Transfert non transactionnel (cible créée, source restée ouverte en cas d'échec) | M | CORRIGÉ `5903d71` |
 | ADPRO-10 | MOYENNE | Maintenabilité | `ad-pro-item-actions.ts` : 4 370 lignes, 47 actions, 7 familles, 789 lignes de commentaire | L | PROPOSÉ (§3) |
-| ADPRO-11 | MOYENNE | Robustesse | `ensureInstance` avale toute erreur (`catch {}`) et rend l'instance d'un autre | S | PROPOSÉ |
+| ADPRO-11 | MOYENNE | Robustesse | `ensureInstance` avale toute erreur (`catch {}`) et rend l'instance d'un autre | S | CORRIGÉ `ad8cfdb` |
 | ADPRO-12 | BASSE | UX | Le centre ne peut pas **refuser** un BC tant que la porte du DG est fermée | S | PROPOSÉ |
 | ADPRO-13 | BASSE | Concurrence | `signalerPorteDgSiBesoin` lit puis écrit : deux gestes simultanés = deux alertes DG | S | PROPOSÉ |
 | ADPRO-14 | BASSE | Doc ↔ code | La doc du 27/10 annonce la catégorie de circuit `OTHER` (décision #17) — absente du code | S | À TRANSMETTRE |
@@ -131,7 +131,7 @@ Correctifs commités : **5** (ADPRO-01 à 05), chacun avec un banc qui échoue a
   source étant relue sous la file. Le contrat dérivé de l'action est inchangé (corps gardé dans l'action).
 - **Test** : ADPRO-05. **Reste** : ADPRO-09 (atomicité entre processus).
 
-### ADPRO-06 — Le moteur ne vérifie pas que l'acteur voit la demande (HAUTE, PROPOSÉ)
+### ADPRO-06 — Le moteur ne vérifie pas que l'acteur voit la demande (HAUTE, CORRIGÉ `fbc2a2e`)
 
 - **Preuve** : `src/lib/actions/workflow-actions.ts:27-63` — `advanceWorkflow` appelle `advanceWorkflowInstance`
   sans `canAccessEntity(... "VIEW")`, alors que `resoumettreDemande` (`:123`) et `retirerDemandeAdPro` (`:153`) le
@@ -150,7 +150,7 @@ Correctifs commités : **5** (ADPRO-01 à 05), chacun avec un banc qui échoue a
   d'abord prouver, par un banc par rôle × étape, qu'aucun acteur légitime (Directeur des opérations multi-sociétés,
   superviseur de gamme hors société) n'est bloqué. **Effort** : M.
 
-### ADPRO-07 — Centre de validation : N+1 sur les totaux en attente du DG (MOYENNE, PROPOSÉ)
+### ADPRO-07 — Centre de validation : N+1 sur les totaux en attente du DG (MOYENNE, CORRIGÉ `de9dafb`)
 
 - **Preuve** : `src/lib/ad-pro/porte-dg.ts:222-229` — pour chacune des 300 lignes signalées : `lirePorteDg`
   (3 requêtes, dont 2 `findMany`) + `demandeurEtNom` (1) → jusqu'à **~1 500 requêtes** séquentielles à chaque
@@ -159,7 +159,7 @@ Correctifs commités : **5** (ADPRO-01 à 05), chacun avec un banc qui échoue a
   `adProPorteDg.findMany`, demandeurs par `findMany in`), puis appliquer `etatPorteDg` en mémoire ; remettre
   `signaleMontant` à `null` quand le DG statue. **Effort** : S.
 
-### ADPRO-08 — Référence de déclaration réutilisée → restauration impossible (MOYENNE, PROPOSÉ)
+### ADPRO-08 — Référence de déclaration réutilisée → restauration impossible (MOYENNE, CORRIGÉ `937e11f`)
 
 - **Preuve** : `src/lib/medical-info.ts:27-31` — `nextDeclarationRef` = max + 1 des références **vivantes** ; une
   déclaration mise à la corbeille libère sa référence. Le banc pré-existant
@@ -172,7 +172,7 @@ Correctifs commités : **5** (ADPRO-01 à 05), chacun avec un banc qui échoue a
 - **Correctif** : référence tirée d'une séquence (ou max sur vivantes **et** corbeille), avec `createWithRetry`
   comme les autres numérotations. **Effort** : S. (Domaine Information médicale : à arbitrer avec son auditeur.)
 
-### ADPRO-09 — Transfert non transactionnel (MOYENNE, PROPOSÉ)
+### ADPRO-09 — Transfert non transactionnel (MOYENNE, CORRIGÉ `5903d71`)
 
 - **Preuve** : `ad-pro-transfer-actions.ts` — `createTarget` → `document.updateMany` → `fermerInstance` →
   `closeSource` → `ouvrirLeCircuit`, cinq écritures hors transaction ; `fermerInstance(...).catch(() => false)`.
@@ -182,7 +182,7 @@ Correctifs commités : **5** (ADPRO-01 à 05), chacun avec un banc qui échoue a
   → état « TRANSFERT_EN_COURS » ou `transferredToId`), puis le reste dans une `$transaction` ; `ouvrirLeCircuit`
   après commit. **Effort** : M.
 
-### ADPRO-10 — `ad-pro-item-actions.ts` : un module-monde (MOYENNE, PROPOSÉ)
+### ADPRO-10 — `ad-pro-item-actions.ts` : un module-monde (MOYENNE, PROPOSÉ — hors lot V3-F : découpage du module Ad & Pro, feuille de route n° 10)
 
 - **Preuve** : 4 370 lignes, **47 actions exportées**, 38 importeurs, 25 entrées dans `action-registry.ts`,
   789 lignes de commentaires ; 7 familles sans lien (postes, décision, devis/pièces, paiement/facture, BC, stock,
@@ -192,7 +192,7 @@ Correctifs commités : **5** (ADPRO-01 à 05), chacun avec un banc qui échoue a
   **oubliée** dans les 2 portes d'argent situées ailleurs (ADPRO-01, 02). La règle n'a pas de point d'entrée unique.
 - **Correctif** : §3.
 
-### ADPRO-11 — `ensureInstance` avale toute erreur (MOYENNE, PROPOSÉ)
+### ADPRO-11 — `ensureInstance` avale toute erreur (MOYENNE, CORRIGÉ `ad8cfdb`)
 
 - **Preuve** : `engine.ts:509` — `} catch { return prisma.workflowInstance.findUnique(...) }` couvre la création,
   la ligne d'historique, la **prévalidation d'office** et les franchissements. Une panne de `settleAutoSkips` rend
