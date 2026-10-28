@@ -9,7 +9,7 @@ Le module était **une page à sept sections** : on y trouvait tout, sauf vite. 
 | **Congés** | `/rh/conges` | L'état de l'équipe **maintenant** + l'historique des décisions. |
 | **Départements** | `/rh/departements` | La structure (hiérarchie, responsables, rattachements). |
 
-**Sur le fond** — `lib/queries/hr-pulse.ts` (`getHrPulse`) répond à ce que le module ignorait :
+**Sur le fond** — `modules/rh/infra/requetes/hr-pulse.ts` (`getHrPulse`) répond à ce que le module ignorait :
 
 - **qui est absent aujourd'hui** (nombre sur l'effectif, motif, date de retour) — LA question
   quotidienne d'un service RH ;
@@ -174,7 +174,7 @@ vérifie le droit **par nature** (`canSetDepartmentBudget`).
 - **Les deux colonnes sont CÔTE À CÔTE**, et une case non modifiable est **affichée en lecture** (cadenas) plutôt
   que masquée : c'est la seule façon de voir ce que coûte réellement un département. Ce qui est réservé, c'est
   l'écriture, pas la lecture. Qui règle quoi est **écrit à l'écran**, pas seulement appliqué en silence.
-- **La masse salariale RÉELLE est calculée depuis la paie** de l'exercice (**coût employeur** de chaque ligne, repli brut + primes − retenues sur les mois d'avant ce champ — `hr/payroll-cost.ts`),
+- **La masse salariale RÉELLE est calculée depuis la paie** de l'exercice (**coût employeur** de chaque ligne, repli brut + primes − retenues sur les mois d'avant ce champ — `modules/rh/domaine/payroll-cost.ts`),
   jamais saisie — un montant ressaisi dirait ce qu'on espère, pas ce qui se passe.
 - **Le fonctionnement n'a volontairement PAS de colonne de consommation** : aucune dépense n'est aujourd'hui
   imputée à un département, et un chiffre inventé ressemblerait à une mesure sans en être une. La page le dit.
@@ -255,7 +255,7 @@ Marketing aura développées » ; puis « un Budget Regulatory » (« Regulatory
   d'une BU ; sinon sous la Direction commerciale → « hors BU » ; **depuis le 09/10**, un salarié de la **Direction des
   opérations** (ou au rôle directeur des opérations) entre aussi, sous « Direction des opérations » ; personne d'autre. Budget de l'année (catégorie
   `MASSE_SALARIALE_FDV`, sous-catégories par BU — `businessUnitId`) face à la paie réelle (coût de
-  `lib/hr/payroll-cost.ts`), BU par BU, mois par mois — **des totaux** : le détail par personne seulement pour qui voit
+  `modules/rh/domaine/payroll-cost.ts`), BU par BU, mois par mois — **des totaux** : le détail par personne seulement pour qui voit
   les salaires (`voitLesSalaires`), une équipe d'une personne regroupée (`EFFECTIF_MINIMUM` = 2). Catégories d'office
   hors Ad & Pro : véhicules & carburant, déplacements terrain, téléphonie, logistique, formations commerciales.
 - **Migrations** : `20270116090000_budget_marketing` (colonne `domaine` ; marque MARKETING les enveloppes qui ne
@@ -302,7 +302,7 @@ Sociétés → départements (responsable, adjoint) → personnes (poste, N+1) s
 d'une personne se règle sur sa **fiche salarié** (`Employee.departmentId`) ; le libellé texte (`Employee.department`) et
 le département du compte (`User.departmentId`) en **dérivent** et ne se saisissent plus : chaque geste qui change un
 rattachement passe par `lib/org/source-unique.ts` (`alignerSurLaFiche`, `alignerLibellesDuDepartement` — appelés par
-`hr-actions.ts`, `department-actions.ts`, `org-coherence-actions.ts`). La migration `20270118100000_campagne_budgetaire`
+`modules/rh/actions.ts`, `department-actions.ts`, `org-coherence-actions.ts`). La migration `20270118100000_campagne_budgetaire`
 rattrape l'existant (une fiche sans département reprend celui du compte ; libellés et comptes alignés).
 **Contrôle de cohérence** (Super Admin, panneau sur `/organigramme`, `coherence-panel.tsx`) — règle pure
 `lib/org/coherence.ts` (+ `coherence.test.ts`), lecture `coherence-donnees.ts` : comptes divergents, libellés périmés,

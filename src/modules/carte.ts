@@ -31,6 +31,8 @@ export const CARTE = {
    * centre de validation, clôture. Relie les personnes qu'il crée au référentiel (double écriture).
    */
   "ad-pro": ["referentiels"],
+  /** RH : congés, paie (par le centre de paiement), avances, notes de frais, documents RH, organisation. */
+  rh: ["coffre", "referentiels"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketingPoste } from "@/modules/ad-pro/partage";
 import { canAccessEntity } from "@/lib/entity-access";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
-import { getLeavesToDecide } from "@/lib/queries/hr";
+import { getLeavesToDecide } from "@/modules/rh/api";
 import { dedoublonner, trierConges, PREFIXE_CONGE, PREFIXE_DEMANDE_ADMIN, PREFIXE_RESTE } from "@/lib/queries/mes-decisions";
 import { clausePlansADecider } from "@/lib/sfe/tournee";
 import { userCan, hasGlobalView, hasRole, scopeRegulatory, scopeDirectives, type SessionUser } from "@/lib/rbac";

@@ -33,8 +33,8 @@
      **se consomme** à la première correction, porte son auteur (`editUnlockedById`) et **prévient le demandeur** ;
      elle ne rouvre JAMAIS une note tranchée (READY / DELIVERED / APPROVED / REJECTED) — on ne réécrit pas ce sur
      quoi quelqu'un s'est prononcé. Pour une simple explication, le fil de la demande suffit et notifie déjà.
-- **Fichiers** : `src/lib/hr/expense-claim.ts` (règle pure : fenêtre, réouverture, montant — 12 tests),
-  `src/lib/actions/hr-document-actions.ts` (toutes les actions), `src/components/hr/expense-claim-form.tsx` (les
+- **Fichiers** : `src/modules/rh/domaine/expense-claim.ts` (règle pure : fenêtre, réouverture, montant — 12 tests),
+  `src/modules/rh/actions-documents.ts` (toutes les actions), `src/components/hr/expense-claim-form.tsx` (les
   champs, partagés par les deux portes de dépôt et par la correction), `expense-claim-button.tsx`,
   `expense-claim-edit.tsx`, `expense-claim-hr-panel.tsx`, `src/app/(app)/rh/[id]/hr-dossier.tsx` (UI RH),
   `src/app/(app)/demandes/expense-ack.tsx` (accusé secrétariat), helpers mois `formatMonth`/`nextMonthYm` dans
@@ -46,8 +46,8 @@
   l'autre partie **accepte** ou **contre-propose** (chaque proposition remplace la précédente, dates passées
   refusées). À l'acceptation (`confirmHrMeeting`) : statut READY + **rendez-vous créé au calendrier des deux**
   (organisateur = côté RH, via `createEventForUser`). Champs `meetingAt`, `meetingProposedById`, `meetingConfirmedAt`.
-- **Fichiers** : actions dans `hr-document-actions.ts` (`proposeHrMeeting`/`confirmHrMeeting`), composant partagé
-  `src/components/shared/hr-meeting-controls.tsx` (utilisé côté employé ET côté RH).
+- **Fichiers** : actions dans `modules/rh/actions-documents.ts` (`proposeHrMeeting`/`confirmHrMeeting`), composant partagé
+  `src/modules/rh/ecrans/hr-meeting-controls.tsx` (utilisé côté employé ET côté RH).
 
 ### Paie RH (matrice mensuelle → centre de paiement, §118.176)
 
@@ -66,7 +66,7 @@
   envoi refusé libère ses salaires.
 - **Au règlement** de l'ordre (`settleExpenseOrder`) : **une seule écriture** SALAIRE, de la somme déclarée, et le FAIT
   du virement posé sur lui (`paidAt`, qui survit à la purge des règlements) ; la masse salariale est actualisée
-  (`lib/hr/paie-centre.ts`).
+  (`modules/rh/infra/paie-centre.ts`).
 - **Notification différée** : `sendDuePayrollNotifications()` (`scheduled.ts`) annonce « Votre salaire a été versé »
   24 h au plus tôt après la saisie **et une fois le virement réglé** (`clauseSalairesVersesANotifier`).
 - **La paie d'AVANT le centre** : avant le 01/10, « marquer payé » voulait dire **versé**. Un salaire marqué payé avant
@@ -75,8 +75,8 @@
 - **Éléments de salaire** sur `Employee` : `baseSalary`, `retSS9`, `retSS35`, `tfp`, `retIrg`, `expenseRefund`,
   `netToPay`, `grossSalary`. **Confidentialité** : le salarié ne voit JAMAIS `grossSalary`, `retSS35`, `tfp`
   (exclus de la requête `getMyHrDossier`, pas seulement masqués).
-- **Fichiers** : `src/lib/actions/payroll-hr-actions.ts`, `src/lib/hr/virement-paie.ts` (règles PURES),
-  `src/lib/hr/paie-centre.ts`, `src/app/(app)/rh/paie/{page,payroll-matrix,virements-paie}.tsx`. Le « transfert au
+- **Fichiers** : `src/modules/rh/actions-paie.ts`, `src/modules/rh/domaine/virement-paie.ts` (règles PURES),
+  `src/modules/rh/infra/paie-centre.ts`, `src/app/(app)/rh/paie/{page,payroll-matrix,virements-paie}.tsx`. Le « transfert au
   budget » (une écriture par salarié, hors du centre) et le « régler la paie » d'un bulletin côté Finances
   (`payPayroll`) **n'existent plus** : ils sortaient l'argent du livre sans le centre.
 
@@ -183,7 +183,7 @@
   médicale à la **validation du PRIM**. Une seule fois par demande (`archivedNodeId`), best-effort (n'échoue
   jamais le traitement), lien « Dossier traité » affiché sur la demande RH archivée.
 - **Fichiers** : `src/lib/archive.ts` (`archiveProcessedRequest` — testé sur base réelle dans `archive.test.ts`),
-  appels dans `hr-document-actions.ts`, `admin-request-actions.ts`, `medical-info-actions.ts`.
+  appels dans `modules/rh/actions-documents.ts`, `admin-request-actions.ts`, `medical-info-actions.ts`.
 
 ### Courriers — dossiers de classement, et autant de pièces qu'il en faut
 
@@ -951,7 +951,7 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   préremplit, champ par champ et avec sa PROVENANCE : la fiche RH d'abord (nom, poste, naissance, date d'embauche =
   `hireDate` ?? `contractStart`, champs personnalisés « lieu de naissance » / « civilité »), puis ce qui a été lu dans le
   **contrat de travail** versé au dossier (`EmployeeDocument` `CONTRACT` le plus récent) — par **Luna**
-  (`lib/attestation-travail-luna.ts`, fonction IA `attestation_travail` qui suit la bascule de l'assistant ; interrupteur
+  (`modules/rh/infra/attestation-travail-luna.ts`, fonction IA `attestation_travail` qui suit la bascule de l'assistant ; interrupteur
   général, clé, appel borné, JSON relu strictement, journal) ou, IA fermée/en panne, par la **lecture déterministe**
   (`lireContratDeterministe` : « né(e) le … à … », « en qualité de … », « à compter du … ») — puis l'identité légale de la
   société (dénomination + forme ; signataire du profil documentaire, sinon représentant légal), puis les défauts (« Fait à

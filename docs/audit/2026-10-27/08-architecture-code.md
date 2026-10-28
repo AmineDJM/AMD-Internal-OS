@@ -64,9 +64,9 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > | Fichiers de production d'Ad & Pro éparpillés dans `src/lib/` (règles, lectures, actions) | 83 (dont 16 fichiers d'actions) | **0** — 121 fichiers dans le module |
 > | Imports PROFONDS vers ces fichiers depuis le reste du dépôt (production) | 186 (82 fichiers) | **0** — 110 imports de porte (`api`/`partage`) depuis 81 fichiers |
 > | Fichiers > 1 000 lignes du métier (ARCH-04) | 3 (`ad-pro-item-actions` 4 409, `items-panel` 2 149, `care-actions` 1 556) | **0** (le plus long : 965) |
-> | Fichiers de `src/lib/` dans aucune couche (`couverture.test.ts`) | 768 | **736** |
+> | Fichiers de `src/lib/` dans aucune couche (`couverture.test.ts`) | 756 (après le module `rh`) | **724** |
 > | Imports du kit d'interface vers un métier | 6 | **2** (les pièces liées sortent du kit vers `components/pieces/`) |
-> | Tests hors modules qui lisent le source par chemin | 128 | **112** (la plupart ont suivi leur sujet dans le module) |
+> | Tests hors modules qui lisent le source par chemin | 125 (après le module `rh`) | **109** (la plupart ont suivi leur sujet dans le module) |
 > | Contrat des actions (`contrat.genere.json`, 1 185 actions) | — | **identique octet pour octet** |
 >
 > Une clé d'action peut désormais être portée par plusieurs morceaux d'un fichier découpé (`parc.ts`) : la clé
@@ -74,6 +74,21 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > restante (251 imports du module vers `src/lib/`, surtout bons de commande, circuit, stock promotionnel, argent) est
 > nommée dans `DETTE_HERITEE` (`src/modules/frontieres.test.ts`). Le stock et le dossier de matériel promotionnel
 > (`lib/promo*`) sont le prochain lot du pôle.
+
+> **Suite — lot V4, module `rh` (28/10/2026, branche `v4/module-rh`).** Le métier RH vit dans `src/modules/rh/`
+> (congés, paie, avances, notes de frais, documents RH, organisation) ; recette §3.5 suivie à la lettre (`git mv`,
+> portes, adresses de réexpédition, clés d'action historiques). Mesures avant → après :
+>
+> | Mesure | Avant | Après |
+> |---|---|---|
+> | Fichiers du métier hors module (`lib/hr/`, `lib/*hr*`, `lib/queries/hr*`, `lib/actions/{hr,payroll,stand-in,conge}-*`) | 46 sources + 25 tests | 3 sources + 4 tests (socle des droits : `stand-in`, `stand-in-resolve`, `confidentialite`) |
+> | Plus gros fichier du métier | 1 013 lignes (`hr-document-actions.ts`) | 948 (`actions-documents.ts`) — aucun > 1 000 |
+> | Importeurs externes du métier | 70 fichiers par 28 chemins `@/lib/hr/*` + 46 chemins d'actions | 68 fichiers par 3 portes (`partage` 32, `api` 25 dont les actions du module) + 5 fichiers d'actions + 2 écrans |
+> | `contrat.genere.json` (1 185 actions) | — | **identique octet pour octet** ; seul `aiguillage.genere.ts` change (5 lignes) |
+> | `horsCarte` (`couverture.test.ts`) | 768 | **756** |
+> | `testsDeTexte` | 128 | **125** |
+> | Dette héritée `rh` (`DETTE_HERITEE`) | — | 71 arêtes nommées, 7 familles (centre de paiement → `finances`, missions → `adpro`, socle des droits, organisation, services transverses, lecture IA, gardes) |
+> | Imports du kit `components/shared` vers un métier | 6 | 6 (les deux écrans RH de `shared/` sont devenus `rh/ecrans/`) |
 
 ### ARCH-01 — Les cliquets ignorent les imports relatifs · HAUTE · **CORRIGÉ** (`f4a70c7`)
 

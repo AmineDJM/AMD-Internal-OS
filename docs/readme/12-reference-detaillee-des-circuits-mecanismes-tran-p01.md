@@ -1216,7 +1216,7 @@ crée pas un droit, elle en prête un, et un remplaçant ne détruit pas.
 lendemain du congé ; un module retiré n'y entre par aucune porte implicite) et **se disent** : un **bandeau
 d'intérim** dans la coque (`components/layout/interim-banner.tsx`, lu sur `access.interims` — aucune lecture de plus)
 nomme qui l'on remplace, jusqu'à quand et les modules prêtés ; un droit prêté ne s'accorde pas à son tour
-(`estPrete` : ouvrir l'accès d'un tiers à une entité, fermer un compte — `lib/hr/depart.ts` —, désigner ou valider
+(`estPrete` : ouvrir l'accès d'un tiers à une entité, fermer un compte — `modules/rh/infra/depart.ts` —, désigner ou valider
 un intérim) ; `decideValidation` accepte l'intérimaire sur les étapes du validateur absent
 (`droitSurLEtape` : le validateur, le Super Admin ou l'intérim — jamais sur sa propre demande ; le jugement des
 pièces lit la même règle), les portes qui nomment une PERSONNE (N+1 d'un congé ou d'une formation, validateur d'un
@@ -1225,7 +1225,7 @@ achat, réviseur et N+2 d'un plan de tournée) reconnaissent l'intérimaire par 
 décision a été prise au titre d'un intérim. Les étapes adressées à un RÔLE ne se délèguent pas (décision).
 
 **Fichiers** : `lib/hr/stand-in.ts` (+ 36 tests) · `lib/hr/stand-in-resolve.ts` ·
-`lib/actions/stand-in-actions.ts` · `components/hr/stand-in-panel.tsx` · `components/layout/interim-banner.tsx` ·
+`modules/rh/actions-interim.ts` · `components/hr/stand-in-panel.tsx` · `components/layout/interim-banner.tsx` ·
 sections de `/rh/conges` et `/mon-dossier` ; banc de bout en bout `lib/hr/interim-prete-flow.test.ts`.
 
 ### Moteur de workflow dynamique (Ad & Pro — 4 catégories)
@@ -1304,7 +1304,7 @@ Le circuit Sponsoring / Prise en charge internationale / Prise en charge nationa
 
 ### RH — pré-remplissage IA du contrat + congés (acquisition & consommation)
 
-- **Contrat → fiche employé (IA)** : `analyzeEmployeeContract` (`src/lib/actions/hr-actions.ts`, gate `RH:CREATE`)
+- **Contrat → fiche employé (IA)** : `analyzeEmployeeContract` (`src/modules/rh/actions.ts`, gate `RH:CREATE`)
   fait **OCR Mistral** (`ocrDocument`, fr/en/ar) puis **Claude** pour renvoyer un objet de champs (nom, poste,
   type de contrat ∈ CDI/CDD/INTERIM/STAGE/FREELANCE/OTHER, dates ISO, salaire, NIN, CNAS…). **Ne persiste rien** :
   les valeurs pré-remplissent le formulaire (prop `analyze` de `CreateRecordButton`, re-montage des champs par

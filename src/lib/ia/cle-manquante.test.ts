@@ -100,8 +100,9 @@ describe("le nom de la clé d'IA ne se recopie plus dans un écran", () => {
  */
 const NOM_EN_DUR = "ANTHROPIC_API_KEY";
 
-/** Les deux racines où vivent les refus qu'une personne lit : les actions et les routes. */
-const RACINES_SERVEUR = ["src/lib/actions", "src/app"];
+/** Les racines où vivent les refus qu'une personne lit : les actions (celles de `src/lib/actions/` et celles rangées
+ * dans les modules) et les routes. */
+const RACINES_SERVEUR = ["src/lib/actions", "src/modules", "src/app"];
 
 /**
  * CE QUI N'EST PAS UNE RECOPIE, et pourquoi la règle ne le juge pas.
@@ -223,7 +224,7 @@ describe("l'analyse d'un contrat de travail se nomme pareil partout où elle se 
     // CV qui n'existe pas ici. Le geste se nomme UNE fois, à l'identique, aux trois endroits où il
     // se refuse : la création d'un salarié, sa fiche, et l'action elle-même.
     const geste = "l'analyse automatique d'un contrat de travail";
-    for (const f of ["src/app/(app)/rh/equipe/page.tsx", "src/app/(app)/rh/[id]/employee-form.tsx", "src/lib/actions/hr-actions.ts"]) {
+    for (const f of ["src/app/(app)/rh/equipe/page.tsx", "src/app/(app)/rh/[id]/employee-form.tsx", "src/modules/rh/actions.ts"]) {
       const src = readFileSync(join(process.cwd(), f), "utf8");
       expect(src.includes(`"${geste}"`), `${f} : le refus doit nommer « ${geste} »`).toBe(true);
       expect(src.includes("l'analyse automatique d'un CV"), `${f} : nomme encore une analyse de CV`).toBe(false);
