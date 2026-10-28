@@ -4,6 +4,7 @@ import {
   scopeAdminRequests, scopeMedicalInfo, type SessionUser, type Module,
 } from "@/lib/rbac";
 import { polesLisibles } from "@/lib/lecteurs/consulting";
+import { hasScope, type Scope } from "@/lib/api/scopes";
 
 /**
  * REGISTRE DES OBJETS MÉTIER exposés par l'API.
@@ -60,6 +61,13 @@ export interface EntityDef {
   orderBy?: Record<string, "asc" | "desc">;
   /** L'objet porte-t-il un circuit de validation exposé par `/workflow` ? */
   workflow?: "regulatory" | "adpro" | "leave" | "validation" | null;
+  /**
+   * LA PORTÉE D'API QUE L'OBJET EXIGE EN PLUS de la lecture (audit 27/10, SA-15). Les comptes et le journal d'audit
+   * sont des objets d'administration : le droit `ADMIN:VIEW` de la personne au nom de qui l'agent agit ne suffit pas,
+   * le CLIENT doit aussi porter `erp.admin` — sans quoi une clé `erp.read` listait comptes et journal. Lue par toutes
+   * les routes de lecture (`porteeManquante`).
+   */
+  porteeRequise?: Scope;
 }
 
 /** Portée « le module suffit » : l'objet n'a pas de filtre par ligne, seul le droit compte. */
@@ -438,6 +446,7 @@ export const ENTITIES: EntityDef[] = [
     label: "Compte utilisateur",
     description: "Compte de connexion, son rôle et ses droits. Objet d'administration : l'exposer demande la portée `erp.admin`.",
     scope: moduleOnly,
+    porteeRequise: "erp.admin",
     listFields: ["id", "name", "email", "role", "secondaryRole", "isActive", "departmentId", "title", "lastLoginAt", "createdAt"],
     searchFields: ["name", "email"],
     entityType: "USER",
@@ -448,8 +457,9 @@ export const ENTITIES: EntityDef[] = [
     model: "AuditLog",
     module: "ADMIN",
     label: "Entrée du journal d'audit",
-    description: "Trace d'une action humaine dans l'ERP : qui, quoi, sur quel objet, quand.",
+    description: "Trace d'une action humaine dans l'ERP : qui, quoi, sur quel objet, quand. Objet d'administration : l'exposer demande la portée `erp.admin`.",
     scope: moduleOnly,
+    porteeRequise: "erp.admin",
     listFields: ["id", "actorId", "action", "module", "entityType", "entityId", "field", "oldValue", "newValue", "summary", "createdAt"],
     searchFields: ["summary"],
     orderBy: { createdAt: "desc" },
@@ -480,10 +490,15 @@ export function entityNames(): string[] {
 
 /**
  * L'utilisateur peut-il lire cet objet ? La question est posée au RBAC de l'ERP, pas à l'API.
- * Un objet d'administration exige en plus la portée `erp.admin` côté route.
+ * Un objet d'administration exige en plus une portée du CLIENT (`porteeManquante`) côté route.
  */
 export function canReadEntity(user: SessionUser, def: EntityDef): boolean {
   return [def.module, ...(def.lisiblePar ?? [])].some((m) => userCan(user, m, "VIEW"));
+}
+
+/** La portée d'API que l'objet exige et que le client ne porte pas — `null` quand rien ne manque (SA-15). */
+export function porteeManquante(def: EntityDef, portees: readonly string[]): Scope | null {
+  return def.porteeRequise && !hasScope(portees, def.porteeRequise) ? def.porteeRequise : null;
 }
 
 /** Filtre Prisma correspondant à la portée de l'utilisateur sur cet objet. */

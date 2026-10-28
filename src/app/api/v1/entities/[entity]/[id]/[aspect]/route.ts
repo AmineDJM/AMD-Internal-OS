@@ -2,7 +2,7 @@ import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api/http";
 import { errors } from "@/lib/api/errors";
-import { getEntity, canReadEntity } from "@/lib/api/registry/entities";
+import { getEntity, canReadEntity, porteeManquante } from "@/lib/api/registry/entities";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { champJamaisExpose, parsePage, serialize, listResult } from "@/lib/api/query";
 import { workflowOf, availableActionsFor } from "@/lib/api/workflow";
@@ -25,6 +25,8 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
       throw errors.validation(`Facette inconnue « ${params.aspect} ». Attendu : ${[...ASPECTS].join(", ")}.`);
     }
     if (!canReadEntity(ctx.user, def)) throw errors.forbidden(`Le module ${def.module} n'est pas accessible à cette identité.`);
+    const manque = porteeManquante(def, ctx.client.scopes);
+    if (manque) throw errors.missingScope([manque], ctx.client.scopes);
     mark({ operationId: `get_${def.name}_${params.aspect.replace("-", "_")}`, entityType: def.entityType ?? def.model, entityId: params.id });
 
     const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
