@@ -54,7 +54,7 @@ Out of scope: business circuits themselves (validations, payments) except where 
 | `src/lib/site-web/entrant.ts`, `src/app/api/site-web/v1/**` | Public website → ERP: Bearer key + `X-Adventum-Signature` HMAC; audience beacon gated by Origin. |
 | `src/lib/onlyoffice.ts`, `src/app/api/onlyoffice/{file,callback,session}/route.ts` | Edit tokens (HS256 with `ONLYOFFICE_JWT_SECRET`), file fetch + save callback. |
 | `src/lib/nav-access.ts`, `src/lib/labels.ts` (`NAVIGATION`), `src/lib/navigation.ts`, `src/lib/modules-visibility.ts`, `src/lib/modules-retired.ts` | Sidebar visibility (not authorization), hidden/retired modules. |
-| `src/lib/payments/authorization.ts`, `src/lib/validations/centre.ts`, `src/lib/actions/payment-centre-seat-actions.ts` | Seat predicates (`sitsOnPaymentCentre`, `sitsOnValidationCentre`) and seat grant/revoke. |
+| `src/modules/finances/domaine/authorization.ts`, `src/lib/validations/centre.ts`, `src/modules/finances/actions-sieges.ts` | Seat predicates (`sitsOnPaymentCentre`, `sitsOnValidationCentre`) and seat grant/revoke. |
 | `src/lib/crypto/secret-box.ts`, `src/lib/drive-storage.ts`, `src/lib/mail.ts` | AES-256-GCM at rest; keys derived from env (`AUTH_SECRET` fallback). |
 | `next.config.mjs` | Security headers + minimal CSP; `serverActions.bodySizeLimit: "256mb"`. |
 | `src/lib/audit.ts` | `recordAudit` (best-effort `AuditLog` + business-event fan-out), `recordFieldChanges`. |

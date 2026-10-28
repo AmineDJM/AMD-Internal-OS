@@ -15,7 +15,7 @@ import { archiveProcessedRequest } from "@/lib/archive";
 import { ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS } from "@/lib/labels";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder, ficheAFacture, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
 import { buildRef, createWithRetry } from "@/lib/refs";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -31,8 +31,6 @@ import { ramenerSiPlusDeDemandeDevis } from "@/lib/promo-material/retrait-devis"
 import { refusDuStatutManuel, refusDeReouverture } from "@/lib/secretariat/statut-manuel";
 import { estDecisionDApprobation, refusSansMotif, interditSurSaPropreDemande, LIBELLE_DECISION, peutTrancherApprobation, refusValidateursPieceChiffree } from "@/lib/secretariat/decision-approbation";
 import { refusFinApresDecision, refusFinDevisPromo } from "@/lib/secretariat/traitement";
-import { ficheAFacture } from "@/lib/finance/facture-ordre";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { refusFinBCEnRoute } from "@/lib/secretariat/devis-natif";
 import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";

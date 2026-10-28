@@ -65,7 +65,7 @@ import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { devisDesPostes } from "@/lib/queries/ad-pro-devis-poste";
 import { loadAdProItems } from "@/lib/queries/ad-pro-items";
 import { faitsDuPoste, prochainPas, type RegardPoste } from "@/lib/ad-pro/poste-etapes";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { annulerOrdreNonRegle } from "@/modules/finances/api";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

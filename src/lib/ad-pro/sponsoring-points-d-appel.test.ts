@@ -87,7 +87,7 @@ describe("la VALIDATION d'une déclaration n'ajoute pas d'ordre global là où l
 
 describe("le RÈGLEMENT d'un ordre ne solde qu'un accord GLOBAL", () => {
   it("la projection « payée » d'un sponsoring est CONDITIONNELLE à son statut, lu dans la même instruction", () => {
-    const src = code("src/lib/actions/expense-actions.ts");
+    const src = code("src/modules/finances/actions-depenses.ts");
     expect(src).toMatch(/sponsoringRequest\.updateMany\(\{\s*where:\s*\{\s*id:\s*order\.sourceId\s*,\s*status:\s*\{\s*in:\s*\[\.\.\.STATUTS_SOLDES_PAR_UN_REGLEMENT\]/);
     // Aucune autre écriture du statut « payé » d'un sponsoring ne contourne la garde.
     const inconditionnelles = [...src.matchAll(/sponsoringRequest\.update\(\s*\{[\s\S]{0,200}?status:\s*"PAID"/g)];

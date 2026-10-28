@@ -6,7 +6,7 @@ import { ShieldCheck, Loader2, UserPlus, X, AlertCircle, Info } from "lucide-rea
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { grantPaymentCentreSeat, revokePaymentCentreSeat } from "@/lib/actions/payment-centre-seat-actions";
+import { grantPaymentCentreSeat, revokePaymentCentreSeat } from "@/modules/finances/actions-sieges";
 
 export interface SeatHolder {
   userId: string;

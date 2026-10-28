@@ -12,7 +12,7 @@ import { etatDuPaiement, phrasePaiementBloque } from "@/lib/ad-pro/poste-etapes"
 import { deposerFacturePoste, demanderPaiementPoste } from "@/lib/actions/ad-pro-item-actions";
 import { FactureDejaConnueCarte, RelancerPaiement } from "@/components/factures/facture-deja-connue";
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
-import { etatDuPaiement as etatPourRelance, relancable } from "@/lib/finance/relance-paiement";
+import { etatDuPaiement as etatPourRelance, relancable } from "@/modules/finances/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

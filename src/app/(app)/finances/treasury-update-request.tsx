@@ -6,7 +6,7 @@ import { Loader2, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/input";
-import { requestTreasuryUpdate } from "@/lib/actions/finance-actions";
+import { requestTreasuryUpdate } from "@/modules/finances/actions-tresorerie";
 
 /**
  * L'ADMINISTRATION DEMANDE l'actualisation des soldes de trésorerie.

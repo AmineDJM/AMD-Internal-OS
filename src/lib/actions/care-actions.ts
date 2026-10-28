@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import {
   beneficiaryName, careProgress, defaultCells, financeReadiness, quoteConflicts, piecesADemander,
   OPINION_LABELS, SERVICE_KIND_LABELS,

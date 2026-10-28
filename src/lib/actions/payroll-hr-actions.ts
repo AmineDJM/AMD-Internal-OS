@@ -11,7 +11,7 @@ import { recordAudit } from "@/lib/audit";
 import { enSerie } from "@/lib/refs";
 import { formatMonth } from "@/lib/utils";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { getMyCompanies, entitePermisePourFiche } from "@/lib/company";
 import { getBudgetCategoryOptions } from "@/lib/queries/budget";
 import { entryCost } from "@/lib/hr/payroll-cost";

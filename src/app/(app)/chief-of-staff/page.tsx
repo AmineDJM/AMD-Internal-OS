@@ -3,7 +3,7 @@ import { requireModule } from "@/lib/session";
 import { peutVoirAdam } from "@/platform/in-process/visibilite-adam";
 import { hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
+import { ORDRE_NON_ANNULE } from "@/modules/finances/partage";
 import { aiConfigured, sttConfigured, cleModeleRequise } from "@/lib/ai";
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";

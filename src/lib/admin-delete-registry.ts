@@ -4,7 +4,7 @@ import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { refusSuppressionRapport } from "@/lib/promo/remises-visite";
 import { refusSuppressionDeLaPiece } from "@/lib/queries/suppression-piece";
-import { refusSuppressionDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
+import { refusSuppressionDemandePaiement } from "@/modules/finances/api";
 import { retirerEnAttente } from "@/lib/bons-de-commande/aiguillage";
 import { inventorier } from "@/lib/suppression/lot";
 import { resumeDesLiens } from "@/lib/suppression/branches";

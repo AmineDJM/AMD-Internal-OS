@@ -4,11 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { useAction } from "@/components/shared/use-action";
 import { ShieldCheck, ShieldX, MessageSquare, Coins, Loader2, Send, ChevronDown, ExternalLink, Paperclip, Pill } from "lucide-react";
-import { decidePayment, respondToPaymentCentre } from "@/lib/actions/payment-centre-actions";
+import { decidePayment, respondToPaymentCentre } from "@/modules/finances/actions-centre";
 import {
   CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, MOTIFS_REFUS_RAPIDES, awaitsCentre, awaitsRequester,
-  type CentralStatus, type CentralDecision,
-} from "@/lib/payments/authorization";
+  type CentralStatus, type CentralDecision, deadlineNatureLabel, deadlineNatureOf,
+} from "@/modules/finances/partage";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -16,7 +16,6 @@ import { Badge } from "@/components/ui/badge";
 import type { BadgeTone } from "@/lib/labels";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
-import { deadlineNatureLabel, deadlineNatureOf } from "@/lib/finance/deadline-nature";
 import { ItemAskPanel } from "@/components/ad-pro/item-ask-panel";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 

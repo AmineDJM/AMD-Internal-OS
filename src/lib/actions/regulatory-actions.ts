@@ -28,7 +28,7 @@ import { doubleEcrireOrganisation } from "@/modules/referentiels/api";
 import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { phraseProduitDuDossier } from "@/lib/products/produit-du-dossier";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { categorieBvPourOrdre } from "@/lib/queries/budget-regulatory";
 import { natureDuLibelle } from "@/lib/budget-regulatory/bv";
 import { bloqueUneNouvelleDemande, etatDeLOrdreBv, ETAT_BV } from "@/lib/regulatory/bv-circuit";

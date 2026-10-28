@@ -31,7 +31,7 @@ import { deciderVisaCentreAdPro } from "./ad-pro-centre-actions";
 import { signerBonDeCommande } from "./bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
 import { etatCompletDuBC } from "@/lib/bons-de-commande/etat-bc-test-outils";
-import { decidePayment } from "./payment-centre-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
 import { validateursDeLaDemande, peutOuvrirLeDossierPromo } from "@/lib/queries/promo-circuit";
 import { getAdProCreateData } from "@/lib/queries/ad-pro";
 import { executionDuDossier } from "@/lib/queries/promo-execution";

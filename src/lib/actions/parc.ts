@@ -28,11 +28,18 @@ import { join } from "node:path";
 
 /** Les fichiers d'actions rangés dans un module : clé historique → chemin depuis la racine du dépôt. */
 export const ACTIONS_DES_MODULES: Readonly<Record<string, string>> = {
+  "actualisation-soldes-actions": "src/modules/finances/actions-soldes.ts",
   "coffre-actions": "src/modules/coffre/actions.ts",
   "consommation-actions": "src/modules/consommation/actions.ts",
+  "expense-actions": "src/modules/finances/actions-depenses.ts",
+  "finance-actions": "src/modules/finances/actions-tresorerie.ts",
   "organisation-actions": "src/modules/referentiels/actions-organisations.ts",
+  "payment-centre-actions": "src/modules/finances/actions-centre.ts",
+  "payment-centre-seat-actions": "src/modules/finances/actions-sieges.ts",
+  "payment-request-actions": "src/modules/finances/actions-demandes.ts",
   "personnes-actions": "src/modules/referentiels/actions-personnes.ts",
   "refonte-reprise-actions": "src/modules/referentiels/actions-reprises.ts",
+  "relance-paiement-actions": "src/modules/finances/actions-relances.ts",
 };
 
 /** Ce qui vit dans `src/lib/actions/` sans être un fichier d'actions : le contrat lui-même, les types. */

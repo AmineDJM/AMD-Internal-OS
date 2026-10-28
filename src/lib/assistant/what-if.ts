@@ -1,11 +1,11 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
+import { ORDRE_NON_ANNULE } from "@/modules/finances/partage";
 import { userCan } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
 import { toNumber, formatMontant } from "@/lib/utils";
-import { getComptaData } from "@/lib/queries/compta";
+import { getComptaData } from "@/modules/finances/api";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { alertesExecutivesChaudes, fraicheurDeLecture } from "@/lib/assistant/hot-alerts";
 import type { ExecutiveAlert } from "@/lib/assistant/proactive";

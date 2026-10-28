@@ -13,7 +13,7 @@ import { openRemittances } from "@/lib/queries/general-means";
 import { deleteFileByKey } from "@/lib/storage";
 import { allotPettyCash, spendFromPettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
-import { decidePayment } from "./payment-centre-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

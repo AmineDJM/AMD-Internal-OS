@@ -7,7 +7,7 @@ import { entityHref } from "@/lib/entity-href";
 import { canViewDrive, resolveDriveAccess } from "@/lib/drive";
 import { getBlob } from "@/lib/drive-storage";
 import { recordAudit } from "@/lib/audit";
-import { clauseAImputer } from "@/lib/finance/a-imputer";
+import { clauseAImputer } from "@/modules/finances/api";
 import { engagementsBruts } from "@/lib/queries/budget-sources";
 import {
   SELECT_PARENTS_POSTE, cleDemandeDuPoste, consommationIntegree, contexteDeLEnveloppe, jugerEngagements, originesDesOrdres,

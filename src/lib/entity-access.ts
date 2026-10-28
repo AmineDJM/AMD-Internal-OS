@@ -30,7 +30,7 @@ import {
   annuaireOuvertParConsole, scopeCongressIntl, scopeCongressNational, scopePromoMaterial, scopeSponsoring, scopeAdProOther,
   moduleDuDossierRegulatory, hasRole,
 } from "@/lib/rbac";
-import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
+import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 
 /** Maps a polymorphic entity type to its owning module. */
 export const ENTITY_MODULE: Record<EntityType, Module> = {

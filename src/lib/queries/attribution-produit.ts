@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { attribuer, type Attribution, type PosteDepense } from "@/lib/finance/attribution-produit";
+import { attribuer, type Attribution, type PosteDepense } from "@/modules/finances/partage";
 
 /**
  * L'ATTRIBUTION DES COÛTS D'UN PRODUIT pour une année — lue en base (façade : elle traverse Ad&Pro, BU et produits).

@@ -20,14 +20,14 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { ordresAvecFacture } from "@/lib/finance/facture-ordre";
+import { ordresAvecFacture } from "@/modules/finances/api";
 import { userCan, type SessionUser } from "@/lib/rbac";
 import { companyScopedWhere } from "@/lib/company";
 import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { expiryLevel, type LegalStatus } from "@/lib/legal/lifecycle";
 import { amountDrift } from "@/lib/legal/chain";
 import { comparerClauses, extraireClauses, obligationsDe, risquesDe, LIBELLE_CLAUSE, type Clause } from "@/lib/legal/clauses";
-import { echeancesPaiement, justificatifsManquants, signauxBudget, type EnveloppeLue } from "@/lib/finance/intelligence";
+import { echeancesPaiement, justificatifsManquants, signauxBudget, type EnveloppeLue } from "@/modules/finances/partage";
 import { getBudgetOverview, getEnvelopes } from "@/lib/queries/budget";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
 import { submissionReadiness } from "@/lib/regulatory/intelligence/lifecycle";

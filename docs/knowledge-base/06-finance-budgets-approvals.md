@@ -2,6 +2,11 @@
 
 > Knowledge-base chapter. Written from the code at HEAD `11a281d` (2026-10-24). French identifiers are kept verbatim
 > with a gloss on first use. Tags: **[V]** = read in code (file:line cited), **[U]** = inferred / not exhaustively checked.
+>
+> **Moved 2026-10-28 (lot V4).** Expense orders, the payment centre, payment requests, settlement and treasury now live
+> in the module `src/modules/finances/` (doors `api.ts` / `partage.ts` / `actions-*.ts`; see its `README.md`). The
+> paths below were rewritten to the new files; `file:line` references predate the move and may be off by a few lines.
+> Budgets (`src/lib/budget*`) did not move. Same rules, same action keys (`expense-actions:settleExpenseOrder`…).
 
 ---
 
@@ -31,10 +36,10 @@ registry internals, promo-material execution chantiers.
 ## 2. Summary
 
 1. Every outgoing payment is an `ExpenseOrder` created by **one** writer, `createExpenseOrder`
-   (`src/lib/expense-orders.ts:269`), which always sets `centralStatus = "AWAITING"` [V]. 21 call sites feed it.
+   (`src/modules/finances/infra/expense-orders.ts:269`), which always sets `centralStatus = "AWAITING"` [V]. 21 call sites feed it.
 2. The **payment centre** (PDG = role `DIRECTION`, `SUPER_ADMIN`, named `PaymentCentreSeat`s) authorises or refuses
    (`decidePayment`), and **Finances** pays (`settleExpenseOrder`), which is the only place `PAID` is written and is
-   gated by `canDisburse` (`src/lib/payments/authorization.ts:94`) [V]. A source-reading ratchet test enforces both.
+   gated by `canDisburse` (`src/modules/finances/domaine/authorization.ts:94`) [V]. A source-reading ratchet test enforces both.
 3. Ad & Pro requests are routed by **who asks** (`parcoursAdPro`, `src/lib/workflow/parcours.ts:146`), with a DG gate
    above `AppSetting.adProDgThreshold` (default 1,000,000 DZD) that auto-skips below it [V].
 4. Sponsoring is "tenue d'abord, argent à la fin": the circuit only **pre-validates the event**; money is decided per
@@ -50,19 +55,19 @@ registry internals, promo-material execution chantiers.
 
 | Path | Role |
 |---|---|
-| `src/lib/expense-orders.ts` | `createExpenseOrder` — sole ExpenseOrder writer; entity resolution (`COMPANY_OF_SOURCE`), companion dossier, centre notification |
-| `src/lib/payments/authorization.ts` | PURE centre rules: `initialCentralStatus`, `canDisburse`, `visibleToFinance`, `applyDecision`, `statutApresNouveauMontant/Revision`, `sitsOnPaymentCentre` |
-| `src/lib/actions/payment-centre-actions.ts` | `decidePayment` (APPROVE/REFUSE), `respondToPaymentCentre` (legacy states) |
-| `src/lib/actions/expense-actions.ts` | `settleExpenseOrder` (disbursement + ledger entry + source sync), `deferExpenseOrder`, `resumeExpenseOrder`, `requestInvoice`, `purgeSettledExpenseOrders` |
-| `src/lib/payments/revision-ordre.ts` | `reviserOrdreNonRegle` — the single order-amount/beneficiary reviser (reopens authorisation on increase) |
-| `src/lib/payments/annulation.ts` | `annulerOrdreNonRegle` — conditional cancel of an unpaid order when its source goes away |
-| `src/lib/payments/sections-centre.ts` | Centre layout: entity tabs + Regulatory / Sales & Marketing / Autres sections |
-| `src/lib/queries/centre-paiement.ts` | `chargerCentre` (entity-scoped via `ficheScopedWhere`) |
-| `src/lib/finances/settlement.ts` | `PAYMENT_PATHS` registry (AUTORISE / ENREGISTRE / HORS_CENTRE), `canSendToSettlement` |
-| `src/lib/finance/settle-budget.ts` | PURE `budgetGate` — classify before paying |
-| `src/lib/finance/tresorerie.ts` + `src/lib/queries/finance.ts` | Anchored treasury balances, `disponible()` (§118.176), `chargerTresorerie` |
-| `src/lib/finance/payment-request.ts` | PURE PaymentRequest state machine (`MOVES`) |
-| `src/lib/actions/payment-request-actions.ts` | create/submit/decide/correct/cancel payment requests (order created at submission) |
+| `src/modules/finances/infra/expense-orders.ts` | `createExpenseOrder` — sole ExpenseOrder writer; entity resolution (`COMPANY_OF_SOURCE`), companion dossier, centre notification |
+| `src/modules/finances/domaine/authorization.ts` | PURE centre rules: `initialCentralStatus`, `canDisburse`, `visibleToFinance`, `applyDecision`, `statutApresNouveauMontant/Revision`, `sitsOnPaymentCentre` |
+| `src/modules/finances/actions-centre.ts` | `decidePayment` (APPROVE/REFUSE), `respondToPaymentCentre` (legacy states) |
+| `src/modules/finances/actions-depenses.ts` | `settleExpenseOrder` (disbursement + ledger entry + source sync), `deferExpenseOrder`, `resumeExpenseOrder`, `requestInvoice`, `purgeSettledExpenseOrders` |
+| `src/modules/finances/infra/revision-ordre.ts` | `reviserOrdreNonRegle` — the single order-amount/beneficiary reviser (reopens authorisation on increase) |
+| `src/modules/finances/infra/annulation.ts` | `annulerOrdreNonRegle` — conditional cancel of an unpaid order when its source goes away |
+| `src/modules/finances/domaine/sections-centre.ts` | Centre layout: entity tabs + Regulatory / Sales & Marketing / Autres sections |
+| `src/modules/finances/infra/requetes/centre-paiement.ts` | `chargerCentre` (entity-scoped via `ficheScopedWhere`) |
+| `src/modules/finances/domaine/chemins-paiement.ts` | `PAYMENT_PATHS` registry (AUTORISE / ENREGISTRE / HORS_CENTRE), `canSendToSettlement` |
+| `src/modules/finances/domaine/settle-budget.ts` | PURE `budgetGate` — classify before paying |
+| `src/modules/finances/domaine/tresorerie.ts` + `src/modules/finances/infra/requetes/finance.ts` | Anchored treasury balances, `disponible()` (§118.176), `chargerTresorerie` |
+| `src/modules/finances/domaine/payment-request.ts` | PURE PaymentRequest state machine (`MOVES`) |
+| `src/modules/finances/actions-demandes.ts` | create/submit/decide/correct/cancel payment requests (order created at submission) |
 | `src/lib/workflow/engine.ts` | Workflow engine: `ensureInstance`, `canActOnStep`, `advanceWorkflowInstance`, `emitFinancials`, resubmit/withdraw/reopen |
 | `src/lib/workflow/parcours.ts` | PURE routing table (entry, `finalSlug` bound, `skippedSlugs` sieve) |
 | `src/lib/workflow/origin.ts` | `adProOriginRank`, `adProInit` (legacy start status) |

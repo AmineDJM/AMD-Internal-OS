@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { cibleInterne, specificateurs } from "@/platform/imports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -27,14 +28,14 @@ import { join, relative } from "node:path";
 /** La dette mesurée le 02/10/2026 : des créations numérotées sans filet, à reprendre une à une. */
 const DETTE = new Set([
   "src/lib/actions/directive-actions.ts",
-  "src/lib/actions/finance-actions.ts",
+  "src/modules/finances/actions-tresorerie.ts",
   "src/lib/actions/logistics-actions.ts",
   "src/lib/actions/pch-actions.ts",
   "src/lib/actions/support-actions.ts",
   "src/lib/medical-info.ts",
   // Deux AIDES de la série FIN : le filet appartient à leurs appelants, qui n'en ont pas.
-  "src/lib/finance/next-ref.ts", // expense-actions, petty-cash-actions
-  "src/lib/finance/settle-invoice.ts", // invoice-actions, legal-actions
+  "src/modules/finances/infra/next-ref.ts", // expense-actions, petty-cash-actions
+  "src/modules/finances/infra/settle-invoice.ts", // invoice-actions, legal-actions
 ]);
 
 function fichiersDeProduction(dir = "src"): string[] {
@@ -87,8 +88,13 @@ function etat() {
     if (FILET.test(code)) continue;
     const specificateur = rel.replace(/^src\//, "@/").replace(/\.tsx?$/, "");
     const aides = aidesExportees(code).filter((a) => NUMEROTE.test(a.corps)).map((a) => a.nom);
+    // L'importeur se reconnaît par la CIBLE de ses imports, relatifs compris (`./infra/demandes` depuis un fichier
+    // d'actions du même module) : un cliquet qu'un `./` suffit à contourner ne mesure rien (ARCH-01).
+    const cible = rel.replace(/\.tsx?$/, "");
+    const importe = (autre: string, c: string) => c.includes(`"${specificateur}"`)
+      || specificateurs(c).some((sp) => cibleInterne(sp, autre) === cible);
     const appelants = [...sources].filter(([autre, c]) =>
-      autre !== rel && c.includes(`"${specificateur}"`) && aides.some((n) => new RegExp(`\\b${n}\\b`).test(c)));
+      autre !== rel && importe(autre, c) && aides.some((n) => new RegExp(`\\b${n}\\b`).test(c)));
     if (appelants.length > 0 && appelants.every(([, c]) => FILET.test(c))) continue;
     sansFilet.push(rel);
     appelantsNus.set(rel, appelants.filter(([, c]) => !FILET.test(c)).map(([a]) => a));
@@ -130,12 +136,12 @@ describe("Cliquet — une référence numérotée porte son filet", () => {
       return code.slice(Math.max(0, i - 160), i);
     };
     for (const [modele, serie] of [["expenseOrder", "SERIE_ORDRES"], ["paymentRequest", "SERIE_DEMANDES_PAIEMENT"]] as const) {
-      const avant = avantLaCreation("src/lib/expense-orders.ts", modele);
+      const avant = avantLaCreation("src/modules/finances/infra/expense-orders.ts", modele);
       expect(avant, `${modele} : la création doit être DANS l'essai — la référence se recalcule à chaque tentative`).toMatch(/createWithRetry\(\s*async\s*\(\)\s*=>\s*$/);
       expect(avant, `${modele} : et dans la file de SA série`).toMatch(new RegExp(`enSerie\\(\\s*${serie}\\s*,\\s*\\(\\)\\s*=>\\s*createWithRetry\\(`));
     }
     // LA SÉRIE PAY A DEUX CRÉATEURS : une file chacun n'en protégerait que la moitié.
-    expect(avantLaCreation("src/lib/actions/payment-request-actions.ts", "paymentRequest"), "la demande de paiement partage la file PAY")
+    expect(avantLaCreation("src/modules/finances/actions-demandes.ts", "paymentRequest"), "la demande de paiement partage la file PAY")
       .toMatch(/enSerie\(\s*SERIE_DEMANDES_PAIEMENT\s*,\s*\(\)\s*=>\s*createWithRetry\(/);
   });
 

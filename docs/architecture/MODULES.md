@@ -3,7 +3,7 @@
 > Référence d'architecture : [`docs/audit/2026-10-27/08-architecture-code.md`](../audit/2026-10-27/08-architecture-code.md)
 > (§3) et [`refonte-donnees-et-monolithe-modulaire.md`](refonte-donnees-et-monolithe-modulaire.md) §5.
 > Ce document est le **mode d'emploi** : un développeur qui arrive doit pouvoir migrer un module seul en le suivant.
-> État au 28/10/2026 (lot V3-G).
+> État au 28/10/2026 (lot V3-G ; lot V4 : `finances`).
 
 ---
 
@@ -27,6 +27,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `coffre` | socle métier | `api.ts` (écriture), `api-lecture.ts` (déchiffre), `partage.ts`, `actions.ts` | — | `referentiels`, actions RH/Finances/Legal, enrichissement, pont d'Adam | **migré** (V3-G) |
 | `referentiels` | socle métier | `api.ts`, `partage.ts`, `actions-{personnes,organisations,reprises}.ts` | `lieux`, `coffre` | ~20 fichiers d'actions, enrichissement, pages `/personnes`, `/organisations`, `/admin/refonte-donnees` | **migré** (V3-G) |
 | `consommation` | métier | `api.ts`, `actions.ts` | — | segmentation, vue 360° | **pilote** (audit 08), actions rangées au lot V3-G |
+| `finances` | métier | `api.ts`, `partage.ts`, `actions-{centre,demandes,depenses,relances,sieges,soldes,tresorerie}.ts` | `referentiels`, `coffre` | tout métier qui émet un ordre de dépense (Ad & Pro, RH, Legal, Regulatory, moyens généraux…), pages `/finances`, `/centre-de-paiement`, `/validations/paiements` | **migré** (V4) — ex-`lib/{finance,finances,payments}/`, fusionnés |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐
@@ -41,7 +42,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 ```
 
 **Prochains candidats** (ordre du rapport 08, §3.5) : `produits` et `annuaires` (ils effacent la dette héritée de
-`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `adpro`, `finances`, `rh` après ; Adam en dernier.
+`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `adpro`, `rh` après (`finances` : fait, lot V4) ; Adam en dernier.
 
 ---
 
@@ -114,6 +115,9 @@ le test voit ce qu'ESLint ne voit pas (imports relatifs qui sortent du module, g
 | Imports `src/components/` → `src/app/` (inversion) | 12 | 12 |
 | Imports du kit d'interface (`components/ui`, `shared`) vers un métier | 6 | 6 |
 | Tests qui lisent le source par un chemin `src/…` | 128 | 128 |
+
+Après le lot V4 (`finances`) : hors carte **760**, kit d'interface → métier **5**, tests qui lisent le source par
+chemin **122** (les gardes du métier sont rangés dans le module, hors de cette mesure).
 
 Un chiffre qui baisse grâce à vous : **abaissez le plafond au chiffre mesuré** dans le même commit.
 
@@ -262,3 +266,6 @@ et `npm run graphify:refresh` en fin de lot.
 | Un composant client importe `api.ts` → `fs`/`node:crypto` dans le navigateur | Il importe `partage.ts` ; `client-bundle-guard.test.ts` le rappelle |
 | Un test lit l'ancien chemin d'un fichier | `lireSource()` (suit les adresses) ou, mieux, un test de comportement |
 | Le contrat d'une action perd ses faits d'écriture | L'action importe `@/modules/<m>/api`, et `api.ts` réexporte directement depuis `./infra/x` |
+| Deux fichiers fusionnés exportent le même nom (`canResubmit` du centre et du dossier, lot V4) | La porte renomme l'un (`canResubmitAuCentre`) ; l'action l'importe `as canResubmit` : ses `gardes` au contrat ne bougent pas |
+| Un fichier d'actions dépasse 1 000 lignes, et ses clés ne se découpent pas | Ses aides PRIVÉES vont en `infra/` (importées en relatif : le scanner ne suit que `@/`, comme quand elles étaient locales), ses calculs purs en `domaine/` ; `actions:contrat` identique |
+| Le kit d'interface (`components/shared/`) importait une règle du métier | Règle 4 : le socle n'importe aucun module — la règle passe par la lecture de la carte (`daterLeReglementPour`, `queries/chaine-des-pieces.ts`) |

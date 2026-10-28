@@ -16,6 +16,8 @@ import { mesurerCouverture } from "./couverture";
  * Mesures au 28/10/2026 (lot V3-G, migration des référentiels vers `src/modules/`) :
  *   hors carte 828 → 766 · pages Prisma 129 → 126 · routes Prisma 53 · composants → app 12 ·
  *   kit d'interface → métier 6 · tests qui lisent le source par chemin 128.
+ * Lot V4 (28/10/2026, migration des Finances vers `src/modules/finances/`) : hors carte 768 → 760 ·
+ *   kit d'interface → métier 6 → 5 · tests qui lisent le source par chemin 128 → 122.
  *
  * Point de départ RECALÉ à la fusion de la base `bf7a907` (lots V3-C/D/E), et seulement là : ces lots ont
  * ajouté 9 fichiers hors carte (`lib/agent/consommation*.ts`, `contenu-non-fiable.ts`, `testing/journal.ts`,
@@ -27,7 +29,7 @@ import { mesurerCouverture } from "./couverture";
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 768,
+  horsCarte: 760,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
@@ -35,13 +37,13 @@ const PLAFONDS = {
   /** Imports `src/components/` → `src/app/` : un composant partagé ne dépend pas d'une page. */
   composantsVersApp: 12,
   /** Imports du kit d'interface du socle (`components/ui`, `components/shared`) vers un métier. */
-  kitVersMetier: 6,
+  kitVersMetier: 5,
   /**
    * Tests (hors `src/platform/` et `src/modules/`) qui lisent le source par un chemin `src/…` : ils
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 128,
+  testsDeTexte: 122,
 } as const;
 
 const mesure = mesurerCouverture();

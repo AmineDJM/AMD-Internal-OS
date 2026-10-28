@@ -99,7 +99,7 @@ import { findPeople as findDirectoryPeople } from "@/lib/directory/resolve";
 import { decideAddress, askWhichAddress } from "@/lib/directory/rank";
 import { gmailTransport } from "@/lib/google/gmail/transport";
 import { markMissionAsked } from "@/lib/comms/missions";
-import { requestTreasuryUpdate } from "@/lib/actions/finance-actions";
+import { requestTreasuryUpdate } from "@/modules/finances/actions-tresorerie";
 import { upsertCustomFieldDef, deleteCustomFieldDef } from "@/lib/actions/custom-field-actions";
 import { readWorkflowState, resolveWorkflowRequest, resolveWorkflowCategory } from "@/lib/assistant/workflow-admin";
 import { CUSTOM_ENTITY_TYPES } from "@/lib/custom-fields";
@@ -136,8 +136,8 @@ import { toNumber, formatMontant } from "@/lib/utils";
 import {
   sitsOnPaymentCentre, applyDecision, CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL,
   PAYMENT_CENTRE_REFUSAL, type CentralStatus,
-} from "@/lib/payments/authorization";
-import { decidePayment } from "@/lib/actions/payment-centre-actions";
+} from "@/modules/finances/partage";
+import { decidePayment } from "@/modules/finances/actions-centre";
 import type { CurrentUser } from "@/lib/session";
 import {
   ROLE_LABELS, TASK_STATUS, PRIORITY, ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS,

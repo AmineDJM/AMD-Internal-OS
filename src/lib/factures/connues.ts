@@ -18,7 +18,7 @@ import {
   phraseDeBlocage, phraseDoublonPossible, phraseMarque,
   type CibleRelance, type FactureDejaConnue, type MarqueDoublonPossible,
 } from "@/lib/factures/blocage-vue";
-import { etatDuPaiement, relancable, type EtatPaiement } from "@/lib/finance/relance-paiement";
+import { etatDuPaiement, relancable, type EtatPaiement } from "@/modules/finances/partage";
 import { signerJetonRelance } from "@/lib/factures/jeton-relance";
 import { sansBloquer } from "@/lib/journal";
 

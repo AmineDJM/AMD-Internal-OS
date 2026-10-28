@@ -8,7 +8,7 @@ import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { getDeclaration, canViewDeclaration, dernieresRelancesPieces, RELANCE_PIECE_CHAMP, REFUS_FINAL_CHAMP } from "@/lib/queries/medical-info";
@@ -17,7 +17,7 @@ import { archiveProcessedRequest } from "@/lib/archive";
 import { formatAlgiers } from "@/lib/calendar-tz";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationPieceInfoMed } from "@/lib/annulations/regles";
-import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
+import { createPaymentRequest } from "@/modules/finances/actions-demandes";
 import { circuitOfDeclaration, isOpenableDeclarationKind, DECLARATION_KIND_LABEL, ordreGlobalALaValidation } from "@/lib/medical-info/circuits";
 import {
   canRequestDecision, canValidateEvent, declareStage, declareStageLabel, isDeclareIntent,
@@ -27,7 +27,6 @@ import {
   canDeliverSlip, canEditSlips, canRequestSlipPayment, canRequestSlipsValidation,
   slipStage, slipSansPaiementVivant, PRISE_DU_BON, SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
 } from "@/lib/medical-info/slips";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
 import { nextDeclarationRef, decideursInfoMedActifs, pharmacienAssigne } from "@/lib/medical-info";

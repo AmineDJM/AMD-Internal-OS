@@ -12,11 +12,11 @@ import {
   addAdProItem, decideAdProItem, setAdProItemBudget, updateAdProItem, demanderPaiementPoste,
   deleteAdProItem, submitAdProItem, repartirPoste,
 } from "@/lib/actions/ad-pro-item-actions";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { transferAdProRequest } from "@/lib/actions/ad-pro-transfer-actions";
 import { validateDeclarationByDirection } from "@/lib/actions/medical-info-actions";
 import { advanceWorkflowInstance, ensureInstance, montantADeclarer } from "@/lib/workflow/engine";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { createMedicalInfoDeclaration } from "@/lib/medical-info";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
 

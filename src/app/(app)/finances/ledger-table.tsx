@@ -10,8 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { FINANCE_CATEGORY, FINANCE_METHOD, FINANCE_STATUS, FINANCE_DIRECTION } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { updateTransaction, deleteTransaction } from "@/lib/actions/finance-actions";
-import type { LedgerRow } from "@/lib/queries/finance";
+import { updateTransaction, deleteTransaction } from "@/modules/finances/actions-tresorerie";
+import type { LedgerRow } from "@/modules/finances/api";
 
 type Result = { ok: boolean; error?: string };
 

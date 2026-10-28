@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Trash2 } from "lucide-react";
-import { purgeSettledExpenseOrders } from "@/lib/actions/expense-actions";
+import { purgeSettledExpenseOrders } from "@/modules/finances/actions-depenses";
 import { Button } from "@/components/ui/button";
 
 /**

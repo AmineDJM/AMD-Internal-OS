@@ -3,18 +3,18 @@ import { toNumber } from "@/lib/utils";
 import {
   allotPettyCash, confirmPettyCashReceipt, closePettyCash, requestPettyCashTopUp, setPettyCashPlan,
 } from "@/lib/actions/petty-cash-actions";
-import { requestInvoice, deferExpenseOrder, resumeExpenseOrder } from "@/lib/actions/expense-actions";
+import { requestInvoice, deferExpenseOrder, resumeExpenseOrder } from "@/modules/finances/actions-depenses";
 import {
   createPaymentRequest, submitPaymentRequest, decidePaymentRequest, cancelPaymentRequest,
   addPaymentComment, commentPaymentPiece, reviewPaymentPiece,
   updatePaymentRequestDetails,
-} from "@/lib/actions/payment-request-actions";
-import { updateTransaction, deleteTransaction, deleteTreasuryAccount, createPayroll } from "@/lib/actions/finance-actions";
+} from "@/modules/finances/actions-demandes";
+import { updateTransaction, deleteTransaction, deleteTreasuryAccount, createPayroll } from "@/modules/finances/actions-tresorerie";
 import { updateInvoice, deleteInvoice } from "@/lib/actions/invoice-actions";
 import { markSalaryPaid, unmarkSalaryPaid } from "@/lib/actions/payroll-hr-actions";
 import { createBudget } from "@/lib/actions/budget-actions";
-import { respondToPaymentCentre } from "@/lib/actions/payment-centre-actions";
-import type { PaymentMove } from "@/lib/finance/payment-request";
+import { respondToPaymentCentre } from "@/modules/finances/actions-centre";
+import type { PaymentMove } from "@/modules/finances/partage";
 import type { OpImpl, OpProposalDraft } from "./types";
 import { opStr } from "./types";
 import { runFd, runFd2, dzd, fieldsOf, resolveOne, monthOf, isoDate } from "./helpers";

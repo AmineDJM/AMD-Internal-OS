@@ -131,7 +131,7 @@ Key architectural decisions and their reasons (from code comments / doctrine):
 ## 5. Cross-system invariants you must not break
 
 1. **Every payment** goes through the payment centre; only `createExpenseOrder` creates and only `settleExpenseOrder`
-   marks PAID (`src/lib/expense-orders.ts:269`, `src/lib/actions/expense-actions.ts:71`). [V·orch]
+   marks PAID (`src/modules/finances/infra/expense-orders.ts:269`, `src/modules/finances/actions-depenses.ts:71`). [V·orch]
 2. **Every BC** (purchase order) goes through a validation centre; BCs and invoices are `LegalDocument` rows
    (`kind = PURCHASE_ORDER | INVOICE`) — there is no Invoice/PO table. [V·agent 03/06]
 3. **Ad & Pro routing** (circuit of 27/10/2026, `docs/architecture/adpro-circuit-2026-10-27.md`) is decided by the

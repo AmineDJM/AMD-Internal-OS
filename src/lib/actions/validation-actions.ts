@@ -18,8 +18,7 @@ import { createValidationFromRules, createDirectValidation, notifyValidator, joi
 import { issueDeLaDecision, motifExige, MOTIF_EXIGE, repriseApresCorrection, resoumissionSurPlace, cheminsDeLObjetLie, unSeulSuffit, type DecisionEtape } from "@/lib/validations/decision";
 import { lireCircuit } from "@/lib/validations/lecture-circuit";
 import { refusDuRetraitValidation, retraitEfface, validateursSollicites } from "@/lib/validations/retrait";
-import { createExpenseOrder } from "@/lib/expense-orders";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { actsForUser } from "@/lib/hr/stand-in-resolve";
 import { toNumber } from "@/lib/utils";
 import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";

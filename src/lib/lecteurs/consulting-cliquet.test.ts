@@ -80,7 +80,7 @@ describe("les lecteurs de contrats de consulting (§118.150)", () => {
     // Un consultant passé aux RH se paie sur une enveloppe RH : l'écran propose et l'action
     // classe. Deux lectures différentes feraient proposer une catégorie que l'action ne retient
     // pas (§118.5). On cherche le POINT D'APPEL, pas le corps (§118.49).
-    const action = sansCommentaires(fs.readFileSync("src/lib/actions/expense-actions.ts", "utf8"));
+    const action = sansCommentaires(fs.readFileSync("src/modules/finances/actions-depenses.ts", "utf8"));
     expect(action).toMatch(/moduleDeLEntite\(\s*order\.sourceType\s*,\s*order\.sourceId\s*\)/);
     const ecran = sansCommentaires(fs.readFileSync("src/app/(app)/finances/paiements-a-faire/page.tsx", "utf8"));
     expect(ecran).toMatch(/modulesDesEntites\(/);

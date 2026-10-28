@@ -13,7 +13,7 @@ import {
   initiatePayment, confirmPayment, submitMaterial, directionReview, confirmConformity, startBat,
   submitFinalMaterial, recordInvoice, settle,
 } from "./promo-material-actions";
-import { decidePayment } from "./payment-centre-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

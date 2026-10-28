@@ -91,7 +91,7 @@ describe("Points d'appel — l'action, les écrans, la liste, la fin d'un achat"
     const fin = corps(action, "export async function finishRequest");
     expect(fin).toMatch(/await ficheAFacture\(\{ entityType: "ADMIN_REQUEST", entityId: id \}\)/);
     expect(fin).not.toMatch(/category: "INVOICE"/);
-    expect(sans("src/lib/finance/facture-ordre.ts")).toMatch(/fichesAvecFacture\(sources\)/);
+    expect(sans("src/modules/finances/infra/facture-ordre.ts")).toMatch(/fichesAvecFacture\(sources\)/);
   });
 
   it("LA FICHE dit qui a tranché, et n'offre pas les boutons sur sa propre demande", () => {
@@ -130,7 +130,7 @@ describe("Points d'appel — l'action, les écrans, la liste, la fin d'un achat"
   });
 
   it("LE RÈGLEMENT ne ressuscite pas une demande terminée ou annulée (E5-4)", () => {
-    const reglement = sans("src/lib/actions/expense-actions.ts");
+    const reglement = sans("src/modules/finances/actions-depenses.ts");
     const branche = reglement.slice(reglement.indexOf(`order.sourceType === "ADMIN_REQUEST"`), reglement.indexOf(`order.sourceType === "PAYROLL"`));
     expect(branche).toMatch(/administrativeRequest\.updateMany\(\{\s*where: \{ id: order\.sourceId, deletedAt: null, status: \{ notIn: \["DONE", "CANCELLED"\] \} \}/);
   });

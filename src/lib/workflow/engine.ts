@@ -8,7 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { hasGlobalView, hasRole } from "@/lib/rbac";
 import { createMedicalInfoDeclaration, pharmacienAssigne } from "@/lib/medical-info";
 import { isManagerOfUser, getManagerOfUser } from "@/lib/departments";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { toNumber } from "@/lib/utils";
 import { CHEMIN_PARENT_AD_PRO, lienDemandeAdPro, type ParentAdPro } from "@/lib/chemins/ad-pro";
 import { defaultDefinition } from "./defaults";

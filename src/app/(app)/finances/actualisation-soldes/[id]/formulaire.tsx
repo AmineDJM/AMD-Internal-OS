@@ -7,8 +7,8 @@ import { Input, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { cn } from "@/lib/utils";
-import { repondreActualisationSoldes } from "@/lib/actions/actualisation-soldes-actions";
-import { LIBELLE_ETAT_LIGNE, lireReponse, type EtatLigne, type SaisieLigne } from "@/lib/finance/actualisation-soldes";
+import { repondreActualisationSoldes } from "@/modules/finances/actions-soldes";
+import { LIBELLE_ETAT_LIGNE, lireReponse, type EtatLigne, type SaisieLigne } from "@/modules/finances/partage";
 
 export interface LigneEcran {
   id: string;

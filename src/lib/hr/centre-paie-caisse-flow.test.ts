@@ -10,12 +10,11 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { envoyerPaieAuCentre, markSalaryPaid, unmarkSalaryPaid, updatePayrollEntry } from "@/lib/actions/payroll-hr-actions";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash } from "@/lib/actions/petty-cash-actions";
-import { decidePayment } from "@/lib/actions/payment-centre-actions";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { clauseSalairesVersesANotifier, etatVirement, etatSalaire, saisiAvantLeCentre, SOMME_A_VIRER_MANQUANTE } from "@/lib/hr/virement-paie";
 import { instantDuCentreDePaie } from "@/lib/hr/paie-centre";
-import { ORDRES_AUTORISES_NON_REGLES } from "@/lib/queries/finance";
-import { clauseAImputer } from "@/lib/finance/a-imputer";
+import { ORDRES_AUTORISES_NON_REGLES, clauseAImputer } from "@/modules/finances/api";
 import { etatRemise } from "@/lib/general-means/remise-centre";
 import { getGeneralMeans, openRemittances } from "@/lib/queries/general-means";
 
