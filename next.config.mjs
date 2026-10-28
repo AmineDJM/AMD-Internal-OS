@@ -144,8 +144,19 @@ const nextConfig = {
   // ouvre jamais, et Next tolère son absence (`buildTraceContext` facultatif dans
   // `webpack-build/impl.js` et `collect-build-traces.js`). Le retirer rend exactement le
   // comportement de Next 14 : aucune vérification, aucune fonctionnalité en moins.
+  // ── PAS DE CACHE WEBPACK PERSISTANT AU BUILD DE PRODUCTION (10/2026, Next 15) ────────────────
+  //
+  // Le cache disque ne sert qu'à accélérer le build SUIVANT ; il se paie DEUX fois dans le même
+  // conteneur de 8 Go : sa sérialisation en fin de compilation gonfle le tas du worker serveur, et
+  // il pèse sur le disque (2099 Mo sur 2414 Mo de `.next`). Mesuré (build propre, RENDER=1, tas 3584,
+  // après l'intégration des lots V3) : avec cache → worker serveur en OOM (SIGABRT), pic 5532 Mo ;
+  // sans → build OK, pic 4985 Mo, `.next` 315 Mo. Le conteneur passe de > 8 Go à ~7,1 Go
+  // (processus + node_modules 1,3 Go + cache npm 0,5 Go + .next). Coût : chaque déploiement
+  // compile à froid — ce qui était déjà le cas qui échouait. `CACHE_WEBPACK_BUILD=1` le rétablit.
   webpack: (config, { isServer, dev }) => {
-    if (config.cache && config.cache.type === "filesystem") {
+    if (!dev && process.env.CACHE_WEBPACK_BUILD !== "1") {
+      config.cache = false;
+    } else if (config.cache && config.cache.type === "filesystem") {
       config.cache.maxMemoryGenerations = 1;
       if (process.env.RENDER) config.cache.compression = "gzip";
     }
