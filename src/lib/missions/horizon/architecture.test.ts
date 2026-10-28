@@ -22,6 +22,11 @@ describe("le plafond GLOBAL de replans n'existe plus (§118.42)", () => {
      */
     const fichiers = [
       "src/platform/in-process/missions/runtime.ts",
+      "src/platform/in-process/missions/runtime/assemblage.ts",
+      "src/platform/in-process/missions/runtime/lancement.ts",
+      "src/platform/in-process/missions/runtime/arriere-plan.ts",
+      "src/platform/in-process/missions/runtime/avancement.ts",
+      "src/platform/in-process/missions/runtime/replanification.ts",
       "src/lib/missions/events/router.ts",
       "src/platform/in-process/missions/horizon.ts",
     ];

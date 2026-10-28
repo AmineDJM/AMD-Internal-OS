@@ -251,7 +251,8 @@ describe("§118.136 — les POINTS D'APPEL : la garde est là où l'on décide, 
   });
 
   it("le moteur : les deux lanceurs et le filet des lancements perdus", () => {
-    const rt = lire("platform/in-process/missions/runtime.ts");
+    // `runtime.ts` est découpé : le lancement puis l'arrière-plan, dans l'ordre d'origine.
+    const rt = lire("platform/in-process/missions/runtime/lancement.ts") + "\n" + lire("platform/in-process/missions/runtime/arriere-plan.ts");
     const lancer = rt.slice(rt.indexOf("export function lancerMission("), rt.indexOf("export function lancerMission(") + 2500);
     expect(lancer.indexOf("peutPiloterMissionsAdam(user)")).toBeGreaterThan(0);
     expect(lancer.indexOf("peutPiloterMissionsAdam(user)")).toBeLessThan(lancer.indexOf('withTurn("background"'));
