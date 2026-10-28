@@ -6,7 +6,7 @@ import { actionFailureMessage, ACTION_TIMEOUT_MS } from "@/lib/action-outcome";
 import { useRafraichir } from "./use-rafraichir";
 import { useConfirmer } from "@/components/ui/dialogue";
 import type { DemandeConfirmation } from "@/components/ui/dialogue-regle";
-import { useRetours } from "@/components/ui/retour";
+import { useRetours } from "@/components/ui/retours-porteur";
 
 /**
  * Quand l'action refuse sans dire pourquoi : on dit au moins qu'elle a REFUSÉ (donc rien n'est parti),

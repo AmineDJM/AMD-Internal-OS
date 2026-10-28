@@ -41,7 +41,7 @@ function sansCommentaires(src: string): string {
 }
 
 /** Les replis des primitives (aucun porteur monté) — les SEULS appels natifs permis. */
-const PRIMITIVES = new Set(["src/components/ui/dialogue.tsx", "src/components/ui/retour.tsx"]);
+const PRIMITIVES = new Set(["src/components/ui/dialogue.tsx", "src/components/ui/retours-porteur.tsx"]);
 
 /** `confirm(` nu ou `window.confirm(` — pas `useConfirmer(`, pas `x.confirm(`. */
 export const MOTIFS = {

@@ -3,8 +3,9 @@ import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { decouperTexte, focusInitial, peutConfirmer, preparerDialogue, verbeDuBouton } from "./dialogue-regle";
 import { AVIS_MAX, dureeDuRetour, empiler, roleDuRetour } from "./retour-regle";
-import { DialogueConfirmation } from "./dialogue";
-import { Retour, RetoursProvider } from "./retour";
+import { DialogueConfirmation } from "./dialogue-fenetre";
+import { Retour } from "./retour";
+import { RetoursProvider } from "./retours-porteur";
 
 /**
  * LES PRIMITIVES UI DE V3-B — le dialogue de confirmation et le retour d'un geste.

@@ -169,7 +169,12 @@ export const NEUTRAL = new Set([
   // suivent comme ceux de l'ERP. Les compter ici aurait obligé Adam à garder les boîtes du navigateur
   // ou à recopier les primitives — deux façons de les voir diverger.
   "src/components/ui/dialogue",
+  "src/components/ui/dialogue-fenetre",
   "src/components/ui/retour",
+  "src/components/ui/retours-porteur",
+  "src/components/ui/retours-pile",
+  "src/components/ui/retour-style",
+  "src/components/ui/differe",
   "src/lib/action-outcome",
   "src/components/shared/use-rafraichir",
   // … et ce dont elles sont faites, vérifié par le même portillon (`boundary.test.ts`) : le bouton du kit
