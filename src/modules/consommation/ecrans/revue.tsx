@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 import type { GroupeARevoir } from "../domaine/revue";
 import { confirmerCorrespondanceConso, validerImportConso, annulerImportConso } from "@/lib/actions/consommation-actions";
 
@@ -19,21 +19,11 @@ export function Revue({ importId, statut, groupes, etablissements, produits, peu
   etablissements: { id: string; nom: string }[]; produits: { id: string; nom: string }[];
   peutRevoir: boolean; peutValider: boolean; aRevoir: number; sures: number;
 }) {
-  const { enCours, rafraichir } = useRafraichir();
-  const [erreur, setErreur] = React.useState<string | null>(null);
-  const [envoi, setEnvoi] = React.useState(false);
+  // `useAction` attrape la levée, coupe à 45 s et rafraîchit (suivi) après un succès.
+  const { busy: occupe, err: erreur, run } = useAction();
   async function agir(f: () => Promise<{ ok: true } | { ok: false; error: string }>) {
-    setEnvoi(true); setErreur(null);
-    try {
-      const r = await f();
-      if (!r.ok) setErreur(r.error); else rafraichir();
-    } catch {
-      setErreur(actionFailureMessage("THROWN"));
-    } finally {
-      setEnvoi(false);
-    }
+    await run(f);
   }
-  const occupe = envoi || enCours;
   return (
     <div className="space-y-3">
       {statut === "EN_REVUE" && groupes.length > 0 && (
@@ -43,7 +33,7 @@ export function Revue({ importId, statut, groupes, etablissements, produits, peu
           <p className="text-xs text-muted-foreground">Une correspondance confirmée s&apos;applique à toutes les lignes qui portent cette valeur, et sera proposée aux prochains fichiers.</p>
         </section>
       )}
-      {erreur && <p className="text-sm text-destructive">{erreur}</p>}
+      <Retour ton="erreur">{erreur}</Retour>
       {statut === "EN_REVUE" && peutValider && (
         <div className="flex flex-wrap items-center gap-3">
           <Button disabled={occupe || sures === 0} onClick={() => agir(() => validerImportConso(importId))}>Valider : {sures} ligne(s) comptent</Button>
