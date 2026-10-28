@@ -43,7 +43,8 @@ describe.skipIf(!dbOk)("le dépôt du coffre sur DonneeSensible / AccesDonneeSen
     expect(lu).toMatchObject({ ok: true, valeur: "198765432" });
     const refus = await coffre.lire({ lecteur: { genre: "IA", nom: "modele" }, id: ligne.id, geste: "résumé" });
     expect(refus.ok).toBe(false);
-    const journal = await prisma.accesDonneeSensible.findMany({ where: { titulaireId }, orderBy: { createdAt: "asc" } });
-    expect(journal.map((j) => [j.userId, j.motif?.split(":")[0]])).toEqual([["u-sa", "ACCORDE"], ["ia:modele", "REFUSE"]]);
+    // Comparées sans ordre : deux lignes du journal écrites coup sur coup peuvent porter le même `createdAt`.
+    const journal = await prisma.accesDonneeSensible.findMany({ where: { titulaireId } });
+    expect(journal.map((j) => [j.userId, j.motif?.split(":")[0]]).sort()).toEqual([["ia:modele", "REFUSE"], ["u-sa", "ACCORDE"]]);
   });
 });

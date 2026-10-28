@@ -61,8 +61,10 @@ suite("Coffre — copies et double lecture (base locale)", () => {
       iban: "CREEE", nationalId: "CREEE", baseSalary: "CREEE", grossSalary: "VIDE", netToPay: "VIDE", employerCost: "VIDE",
     });
     const lignes = await copies(employeId);
-    expect(lignes.map((l) => [l.origineChamp, l.nature, l.derniersCaracteres])).toEqual([
-      ["iban", "IBAN", "7891"], ["nationalId", "NIN", "7890"], ["baseSalary", "SALAIRE", null],
+    // Triées par champ, pas par `createdAt` : les trois copies naissent dans la même milliseconde, et l'ordre
+    // de deux horodatages égaux n'est pas défini — le banc échouait une fois sur dix sous la charge.
+    expect(lignes.map((l) => [l.origineChamp, l.nature, l.derniersCaracteres]).sort((a, b) => String(a[0]).localeCompare(String(b[0])))).toEqual([
+      ["baseSalary", "SALAIRE", null], ["iban", "IBAN", "7891"], ["nationalId", "NIN", "7890"],
     ]);
     const tout = JSON.stringify(lignes.map((l) => ({ ...l, valeurChiffree: Buffer.from(l.valeurChiffree).toString("latin1") })));
     for (const clair of [IBAN, NIN, "185000"]) expect(tout).not.toContain(clair);
@@ -142,9 +144,10 @@ suite("Coffre — copies et double lecture (base locale)", () => {
     const lire = (usage: "CONSULTATION" | "PIECE_OFFICIELLE") => lireSensibles({ lecteur: qui, modele: "CompanyContact", geste: "Bon de commande — impression", usage, lignes: [{ id: contactId, clair: { rib: RIB } }], champs: ["rib"] }, { ...dep, lectureActive: true });
     expect((await lire("CONSULTATION")).get(contactId)!.rib).toEqual({ valeur: null, masque: `•••• ${RIB.slice(-4)}`, lu: false });
     expect((await lire("PIECE_OFFICIELLE")).get(contactId)!.rib).toMatchObject({ valeur: RIB, lu: true });
-    const j = await prisma.accesDonneeSensible.findMany({ where: { origineId: contactId }, orderBy: { createdAt: "asc" } });
-    expect(j.map((x) => [x.autorise, x.motif])).toEqual([[false, "HORS_PERIMETRE"], [true, "PIECE_OFFICIELLE"]]);
-    expect(j[1].donneeSensibleId).toBeNull(); // jamais copié : lu sur la colonne, journalisé quand même
+    // Comparées sans ordre : deux lignes du journal écrites coup sur coup peuvent porter le même `createdAt`.
+    const j = await prisma.accesDonneeSensible.findMany({ where: { origineId: contactId } });
+    expect(j.map((x) => [x.autorise, x.motif]).sort()).toEqual([[false, "HORS_PERIMETRE"], [true, "PIECE_OFFICIELLE"]]);
+    expect(j.find((x) => x.motif === "PIECE_OFFICIELLE")!.donneeSensibleId).toBeNull(); // jamais copié : lu sur la colonne, journalisé quand même
   });
 
   it("un modèle d'IA ne lit rien, même pour une pièce officielle — et son refus est journalisé à son nom", async () => {
