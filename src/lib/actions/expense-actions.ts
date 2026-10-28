@@ -6,6 +6,7 @@ import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
 import { ENTITY_MODULE, moduleDeLEntite } from "@/lib/entity-access";
 import { ouvrirPourEcrire } from "@/lib/acces/objet";
+import { refusSeparationDesTaches } from "@/lib/payments/separation";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
 import { ordreAFacture } from "@/lib/finance/facture-ordre";
@@ -81,6 +82,10 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   if (!order) return { ok: false, error: "Ordre introuvable." };
   if (order.status === "PAID") return { ok: true };
   if (order.status !== "PENDING") return { ok: false, error: "Cet ordre a été annulé." };
+
+  // QUI DEMANDE OU AUTORISE NE RÈGLE PAS (audit 27/10, ARGENT-06) — réglage du Super Admin, actif par défaut.
+  const separation = refusSeparationDesTaches("REGLER", order, user.id, (await getAppSettings()).separationTachesPaiement);
+  if (separation) return { ok: false, error: separation };
 
   // LE VERROU DU CENTRE DE PAIEMENT — la dernière porte avant que l'argent sorte.
   //

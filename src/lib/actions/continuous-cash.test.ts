@@ -56,14 +56,18 @@ const withFile = (fields: Record<string, string>): FormData => {
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("Caisse d'avance continue", () => {
-  let adminId = "", holderId = "", deptId = "";
+  // TROIS MAINS pour l'argent (séparation des tâches, ARGENT-06) : l'administrateur remet, le PDG autorise au
+  // centre, la comptabilité règle — un même compte ne fait pas les trois.
+  let adminId = "", holderId = "", deptId = "", pdgId = "", comptableId = "";
 
   beforeAll(async () => {
-    const [admin, holder] = await Promise.all([
+    const [admin, holder, pdg, comptable] = await Promise.all([
       prisma.user.create({ data: { name: `${TAG}admin`, email: `${TAG}admin@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}assistante`, email: `${TAG}holder@t.dz`, role: "DIRECTION_ASSISTANT", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "DIRECTION", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}comptable`, email: `${TAG}cpt@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" } }),
     ]);
-    adminId = admin.id; holderId = holder.id;
+    adminId = admin.id; holderId = holder.id; pdgId = pdg.id; comptableId = comptable.id;
     const dept = await prisma.department.create({ data: { name: `${TAG} Direction générale`, code: `${TAG}DG` } });
     deptId = dept.id;
     // L'assistante achète au quotidien : c'est son module.
@@ -87,6 +91,7 @@ suite("Caisse d'avance continue", () => {
     await prisma.expenseOrder.deleteMany({ where: { id: { in: ordres } } }).catch(() => {});
     await prisma.financeTransaction.deleteMany({ where: { id: { in: ecritures } } }).catch(() => {});
     await prisma.pettyCashPlan.deleteMany({ where: { departmentId: deptId } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: [pdgId, comptableId] } } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: [adminId, holderId] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
@@ -102,13 +107,15 @@ suite("Caisse d'avance continue", () => {
    * boutons. Sans ce passage, la détentrice ne peut rien confirmer : la somme n'est pas partie.
    */
   const verserTout = async () => {
-    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
+    const [pdg, comptable] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER")]);
     const attente = await prisma.pettyCashAllotment.findMany({
       where: { departmentId: deptId, status: "ALLOTTED", transactionId: null, expenseOrderId: { not: null } },
       select: { expenseOrderId: true },
     });
     for (const r of attente) {
+      ACTOR = pdg;
       expect((await decidePayment(form({ id: r.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
+      ACTOR = comptable;
       const regle = await settleExpenseOrder(form({ id: r.expenseOrderId! }));
       expect(regle.ok, regle.error).toBe(true);
     }

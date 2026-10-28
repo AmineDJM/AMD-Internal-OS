@@ -17,6 +17,8 @@ import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { ENTITE_SANS, slugSectionDeLOrdre } from "@/lib/payments/sections-centre";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
 import { ouvrirPourEcrire } from "@/lib/acces/objet";
+import { refusSeparationDesTaches } from "@/lib/payments/separation";
+import { getAppSettings } from "@/lib/settings";
 
 /**
  * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
@@ -125,9 +127,14 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   if (!porte.ok) return porte;
   const order = await prisma.expenseOrder.findUnique({
     where: { id },
-    select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, status: true, dueDate: true, sourceType: true, sourceId: true },
+    select: { id: true, reference: true, label: true, amount: true, beneficiary: true, centralStatus: true, requestedById: true, centralDecidedById: true, status: true, dueDate: true, sourceType: true, sourceId: true },
   });
   if (!order) return { ok: false, error: "Ordre de dépense introuvable." };
+  // QUI DEMANDE N'AUTORISE PAS (audit 27/10, ARGENT-06) — refuser son propre paiement reste permis.
+  if (decision === "APPROVE") {
+    const separation = refusSeparationDesTaches("AUTORISER", order, user.id, (await getAppSettings()).separationTachesPaiement);
+    if (separation) return { ok: false, error: separation };
+  }
   // UN ORDRE ANNULÉ (demande retirée) OU RÉGLÉ NE SE DÉCIDE PLUS : son autorisation est restée « en attente », jamais
   // rendue — la lire seule laissait autoriser un paiement que plus personne ne demande (`refusOrdreFerme`).
   const ferme = refusOrdreFerme(order.status, order.reference);

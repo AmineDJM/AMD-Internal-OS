@@ -7,6 +7,8 @@ import type { CurrentUser } from "@/lib/session";
  *
  *   SA-11 / ARGENT-08 — un comptable cloisonné sur Alpha ne règle, ne reporte, ne relance pas un ordre de Beta ;
  *                       un siège du centre limité à Alpha n'autorise pas un ordre de Beta.
+ *   ARGENT-06         — qui a demandé un paiement ne l'autorise pas ; qui l'a demandé ou autorisé ne le règle
+ *                       pas — tant que le Super Admin n'a pas suspendu le réglage.
  *
  * Banc multi-société (modèle `fiche-rh-entite-ecriture.test.ts`) : un témoin prouve chaque fois que l'acteur a
  * bien le droit du module — c'est l'OBJET qui lui est refusé, pas le geste.
@@ -22,6 +24,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "./expense-actions";
 import { decidePayment } from "./payment-centre-actions";
+import { REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION } from "@/lib/payments/separation";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -37,9 +40,16 @@ const ordre = async (companyId: string, data: Record<string, unknown> = {}) =>
     data: { reference: `${TAG}-${++n}`, label: `${TAG} ordre ${n}`, amount: 1000, beneficiary: "SARL Atlas", status: "PENDING", centralStatus: "APPROVED", companyId, budgetCategoryId: ids.cat, ...data },
     select: { id: true },
   })).id;
+const separation = (active: boolean) => prisma.appSetting.upsert({
+  where: { id: "global" }, create: { id: "global", separationTachesPaiement: active }, update: { separationTachesPaiement: active },
+});
 
-suite("Argent : la porte de l'ordre", () => {
+suite("Argent : la porte de l'ordre, la séparation des tâches", () => {
+  let separationAvant = true;
+
   beforeAll(async () => {
+    separationAvant = (await prisma.appSetting.findUnique({ where: { id: "global" }, select: { separationTachesPaiement: true } }))?.separationTachesPaiement ?? true;
+    await separation(true);
     [ids.A, ids.B] = (await Promise.all(["Alpha", "Beta"].map((nom) => prisma.company.create({ data: { name: `${TAG}${nom}` } })))).map((c) => c.id);
     // Un ordre se règle sur SA catégorie budgétaire (`budgetGate`) : on la pose, le banc juge la porte, pas le budget.
     ids.env = (await prisma.budgetEnvelope.create({ data: { name: `${TAG}Env`, modules: ["FINANCES"], periodStart: new Date("2020-01-01"), periodEnd: new Date("2099-12-31"), totalAmount: 1_000_000 } })).id;
@@ -58,6 +68,7 @@ suite("Argent : la porte de l'ordre", () => {
 
   afterAll(async () => {
     ACTEUR = null;
+    await separation(separationAvant);
     const tx = (await prisma.expenseOrder.findMany({ where: { reference: { startsWith: TAG } }, select: { transactionId: true } })).map((o) => o.transactionId).filter((x): x is string => Boolean(x));
     await prisma.paymentCentreMessage.deleteMany({ where: { order: { reference: { startsWith: TAG } } } }).catch(() => {});
     await prisma.expenseOrder.deleteMany({ where: { reference: { startsWith: TAG } } }).catch(() => {});
@@ -99,5 +110,37 @@ suite("Argent : la porte de l'ordre", () => {
     const a = await ordre(ids.A, { centralStatus: "AWAITING" });
     const r = await decidePayment(fd({ id: a, decision: "APPROVE" }));
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
+  });
+
+  it("ARGENT-06 : le siège n'autorise pas sa propre demande — il peut la refuser", async () => {
+    ACTEUR = acteurs.siege;
+    const a = await ordre(ids.A, { centralStatus: "AWAITING", requestedById: ids.siege });
+    const r = await decidePayment(fd({ id: a, decision: "APPROVE" }));
+    expect(r).toEqual({ ok: false, error: REFUS_AUTORISER_SA_DEMANDE });
+    const refus = await decidePayment(fd({ id: a, decision: "REFUSE", body: "Je retire ma demande." }));
+    expect(refus.ok, refus.ok ? "" : refus.error).toBe(true);
+  });
+
+  it("ARGENT-06 : le comptable ne règle ni ce qu'il a demandé, ni ce qu'il a autorisé", async () => {
+    ACTEUR = acteurs.cpt;
+    const demande = await ordre(ids.A, { requestedById: ids.cpt });
+    expect(await settleExpenseOrder(fd({ id: demande }))).toEqual({ ok: false, error: REFUS_REGLER_SA_DEMANDE });
+    const autorise = await ordre(ids.A, { centralDecidedById: ids.cpt });
+    expect(await settleExpenseOrder(fd({ id: autorise }))).toEqual({ ok: false, error: REFUS_REGLER_SON_AUTORISATION });
+    expect(await prisma.expenseOrder.count({ where: { id: { in: [demande, autorise] }, status: "PAID" } })).toBe(0);
+  });
+
+  it("ARGENT-06 : suspendue par le Super Admin, la séparation ne bloque plus", async () => {
+    await separation(false);
+    try {
+      ACTEUR = acteurs.siege;
+      const a = await ordre(ids.A, { centralStatus: "AWAITING", requestedById: ids.siege });
+      expect((await decidePayment(fd({ id: a, decision: "APPROVE" }))).ok).toBe(true);
+      ACTEUR = acteurs.cpt;
+      const b = await ordre(ids.A, { requestedById: ids.cpt });
+      expect((await settleExpenseOrder(fd({ id: b }))).ok).toBe(true);
+    } finally {
+      await separation(true);
+    }
   });
 });

@@ -49,14 +49,15 @@ const form = (fields: Record<string, string>, fichiers: File[] = []): FormData =
 const pdf = (nom = "ticket.pdf") => new File([new Uint8Array([1, 2, 3])], nom, { type: "application/pdf" });
 
 suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche", () => {
-  let adminId = "", holderId = "", rhId = "", horsId = "", deptId = "";
+  let adminId = "", holderId = "", rhId = "", horsId = "", deptId = "", pdgId = "", comptableId = "";
 
   const fond = async () => continuousCash(await openRemittances(deptId));
 
   beforeAll(async () => {
     const mk = (n: string, role: UserRole) => prisma.user.create({ data: { name: `${TAG}${n}`, email: `${TAG}${n}@t.dz`, role, passwordHash: "x" } });
-    const [admin, holder, rh, hors] = await Promise.all([mk("admin", "SUPER_ADMIN"), mk("assistante", "DIRECTION_ASSISTANT"), mk("rh", "COORDINATOR"), mk("hors", "COORDINATOR")]);
-    adminId = admin.id; holderId = holder.id; rhId = rh.id; horsId = hors.id;
+    // Séparation des tâches (ARGENT-06) : l'administrateur remet, le PDG autorise, la comptabilité règle.
+    const [admin, holder, rh, hors, pdg, cpt] = await Promise.all([mk("admin", "SUPER_ADMIN"), mk("assistante", "DIRECTION_ASSISTANT"), mk("rh", "COORDINATOR"), mk("hors", "COORDINATOR"), mk("pdg", "DIRECTION"), mk("cpt", "FINANCE_BUDGET_MANAGER")]);
+    adminId = admin.id; holderId = holder.id; rhId = rh.id; horsId = hors.id; pdgId = pdg.id; comptableId = cpt.id;
     deptId = (await prisma.department.create({ data: { name: `${TAG} Moyens généraux`, code: `${TAG}MG` } })).id;
     await prisma.userAccess.createMany({
       data: [
@@ -70,7 +71,9 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
+    ACTOR = await actorFor(pdgId, "DIRECTION");
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
+    ACTOR = await actorFor(comptableId, "FINANCE_BUDGET_MANAGER");
     const regle = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));
     expect(regle.ok, regle.error).toBe(true);
     ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
@@ -96,7 +99,7 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     await prisma.userAccess.deleteMany({ where: { userId: { in: [adminId, holderId, rhId, horsId] } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { user: { email: { startsWith: TAG } } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { createdAt: { gte: DEBUT }, OR: [{ title: { contains: TAG } }, { body: { contains: TAG } }] } }).catch(() => {});
-    await prisma.auditLog.deleteMany({ where: { actorId: { in: [adminId, holderId, rhId, horsId] } } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: [adminId, holderId, rhId, horsId, pdgId, comptableId] } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
     ACTOR = null;

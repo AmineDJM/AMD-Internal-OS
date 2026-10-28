@@ -2031,6 +2031,11 @@ X("L'ENTRETIEN DE L'INTÉGRATION AU SITE (§118.158) — relancer un envoi, vér
   "site-web-actions:rapprocherSiteMaintenant",
   "site-web-actions:leverBlocageSite",
 ]);
+X("LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06) — la suspendre désarme le contrôle qui "
+  + "empêche un même compte de demander, autoriser et régler un paiement : §118.6 interdit structurellement à un agent "
+  + "de lever un garde-fou. C'est un geste de gouvernance du Super Admin, journalisé, sur /admin/settings.", [
+  "settings-actions:setSeparationTachesPaiement",
+]);
 X("RELANCER LA BOÎTE MORTE DE LA COUCHE DE CONNAISSANCE remet en file des travaux qui APPELLENT DES MODÈLES "
   + "facturés (vecteurs, lectures visuelles) et que la file avait abandonnés : c'est une décision d'exploitation, prise "
   + "devant l'écran qui montre chaque cause, ses exemples et son caractère temporaire ou non. Offerte à Adam, une "

@@ -58,18 +58,21 @@ const pdf = (nom = "facture.pdf") => new File([new Uint8Array([1, 2, 3])], nom, 
 const exe = () => new File([new Uint8Array([77, 90, 0])], "facture.exe", { type: "application/octet-stream" });
 
 suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () => {
-  let adminId = "", holderId = "", deptId = "";
+  let adminId = "", holderId = "", deptId = "", pdgId = "", comptableId = "";
 
   const fond = async () => continuousCash(await openRemittances(deptId));
   const depenses = (label: string) => prisma.departmentBudgetExpense.findMany({ where: { departmentId: deptId, label }, select: { id: true, amount: true, pettyCashId: true } });
   const pieces = (ids: string[]) => prisma.document.count({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: { in: ids } } });
 
   beforeAll(async () => {
-    const [admin, holder] = await Promise.all([
+    const [admin, holder, pdg, cpt] = await Promise.all([
       prisma.user.create({ data: { name: `${TAG}admin`, email: `${TAG}admin@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}assistante`, email: `${TAG}holder@t.dz`, role: "DIRECTION_ASSISTANT", passwordHash: "x" } }),
+      // Séparation des tâches (ARGENT-06) : le PDG autorise, la comptabilité règle.
+      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "DIRECTION", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}cpt`, email: `${TAG}cpt@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" } }),
     ]);
-    adminId = admin.id; holderId = holder.id;
+    adminId = admin.id; holderId = holder.id; pdgId = pdg.id; comptableId = cpt.id;
     deptId = (await prisma.department.create({ data: { name: `${TAG} Moyens généraux`, code: `${TAG}MG` } })).id;
     // L'assistante achète au quotidien : c'est son module, sur le département dont elle tient la caisse.
     await prisma.userAccess.create({
@@ -82,7 +85,9 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
     const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
+    ACTOR = await actorFor(pdgId, "DIRECTION");
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
+    ACTOR = await actorFor(comptableId, "FINANCE_BUDGET_MANAGER");
     const regle = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));
     expect(regle.ok, regle.error).toBe(true);
     ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
@@ -113,6 +118,7 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
     // lieu d'un parcours de la table entière.
     await prisma.notification.deleteMany({ where: { createdAt: { gte: DEBUT }, OR: [{ title: { contains: TAG } }, { body: { contains: TAG } }] } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: [pdgId, comptableId] } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
