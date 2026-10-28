@@ -105,8 +105,9 @@ export interface DepensePoste {
 const positif = (n: number | null | undefined): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
 const arrondi = (n: number): number => Math.round(n * 100) / 100;
 
-export function ordreEnCircuit(statut: string | null | undefined): boolean {
-  return statut != null && (STATUTS_EN_CIRCUIT as readonly string[]).includes(statut);
+/** En circuit : émis, pas réglé, pas annulé — et pas refusé par le centre (ARGENT-07 : un refus ne paiera jamais). */
+export function ordreEnCircuit(statut: string | null | undefined, centralStatus?: string | null): boolean {
+  return statut != null && (STATUTS_EN_CIRCUIT as readonly string[]).includes(statut) && centralStatus !== "REFUSED";
 }
 
 /** Les BC qui comptent : vivants (non annulés). */
@@ -147,14 +148,18 @@ export function depenseDuPoste(f: FaitsDepensePoste): DepensePoste {
   const montantEngage = montantEngageDuPoste(f.bcs, f.montantAccorde);
   const vivants = f.ordres.filter((o) => o.statut !== "CANCELLED");
   const paye = arrondi(vivants.filter((o) => o.statut === "PAID").reduce((a, o) => a + positif(o.montant), 0));
-  const attente = vivants.filter((o) => ordreEnCircuit(o.statut));
+  const attente = vivants.filter((o) => ordreEnCircuit(o.statut, o.centralStatus));
+  // REFUSÉ PAR LE CENTRE (ARGENT-07) : l'ordre reste visible — la dépense se dit « refusée au centre de paiement » —
+  // mais il ne pèse plus : ni en circuit, ni consommé. Il ne paiera jamais.
+  const refuses = vivants.filter((o) => o.statut !== "PAID" && o.centralStatus === "REFUSED");
   const enCircuit = arrondi(attente.reduce((a, o) => a + positif(o.montant), 0));
   const base = { montantEngage, engage: 0, enCircuit, paye, consomme: arrondi(paye + enCircuit) };
 
   // L'argent est parti : l'ordre fait foi, quelle que soit l'imputation (un poste payé par sa fiche reste payé).
   if (vivants.length > 0) {
-    if (attente.length === 0) return { ...base, etat: "PAYEE", lieu: null };
-    return { ...base, etat: "CONSOMMEE", lieu: lieuDeLOrdre(attente[0]) };
+    if (attente.length > 0) return { ...base, etat: "CONSOMMEE", lieu: lieuDeLOrdre(attente[0]) };
+    if (refuses.length > 0 && paye === 0) return { ...base, etat: "CONSOMMEE", lieu: "REFUSEE" };
+    return { ...base, etat: "PAYEE", lieu: null };
   }
   if (f.annuleeLe) return { ...base, etat: "ANNULEE", lieu: null };
   if (f.imputeeLe) return { ...base, etat: "ENGAGEE", lieu: null, engage: montantEngage };

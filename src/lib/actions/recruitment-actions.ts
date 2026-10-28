@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { userCan, rolesWithModule, isTopManagement } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { companyIdForNew } from "@/lib/company";
 import { getManagementChain } from "@/lib/departments";
 import { attachFormFiles } from "@/lib/documents";
@@ -151,12 +151,11 @@ export async function createRecruitmentRequest(
   const departmentId = fdStr(formData, "departmentId");
   const year = new Date().getFullYear();
   const created = await createWithRetry(async () => {
-    const refs = await prisma.recruitmentRequest.findMany({
-      where: { reference: { startsWith: `REC-${year}-` } }, select: { reference: true },
-    });
+    const reference = await referenceDeSerie({ modele: "RecruitmentRequest", prefixe: "REC", annee: year,
+      existantes: async () => (await prisma.recruitmentRequest.findMany({ where: { reference: { startsWith: `REC-${year}-` } }, select: { reference: true } })).map((r) => r.reference) });
     return prisma.recruitmentRequest.create({
       data: {
-        reference: buildRef("REC", year, refs.map((r) => r.reference)),
+        reference,
         companyId: await companyIdForNew(user.id),
         departmentId,
         requesterId: user.id,

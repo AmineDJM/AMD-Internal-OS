@@ -13,7 +13,7 @@ import { CHEMIN_FORMATIONS, lienFormation } from "@/lib/chemins/formations";
 import { getAppSettings } from "@/lib/settings";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { companyIdForNew } from "@/lib/company";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { getManagerOfUser, getManagementChain } from "@/lib/departments";
 import {
   canDecideChain, applyChainDecision, chainNotifyRoles, CHAIN_STAGE_LABELS, type ChainStage,
@@ -54,11 +54,10 @@ async function revalidateTraining(id?: string): Promise<void> {
  */
 async function nextTrainingRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const existing = await prisma.training.findMany({
-    where: { reference: { startsWith: `FORM-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "Training", prefixe: "FORM", annee: year,
+    existantes: async () => (await prisma.training.findMany({ where: { reference: { startsWith: `FORM-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("FORM", year, existing.map((r) => r.reference));
 }
 
 /** Verse les pièces (devis, programme, convention) sur la formation. */

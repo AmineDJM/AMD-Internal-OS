@@ -45,14 +45,14 @@ Préfixe `SECURITE-ACCES-` abrégé en `SA-`.
 | SA-08 | HAUTE | sécurité (contournement) | Annuaire de praticiens fermé : levée de la restriction par qui n'y est pas | S | CORRIGÉ `7b88150` |
 | SA-09 | HAUTE | multi-société | Dossier RH et paie d'une autre société modifiables par identifiant | S | CORRIGÉ `cdca0f9` |
 | SA-10 | HAUTE | multi-société | Livre comptable d'une autre société modifiable/supprimable ; création au nom d'une autre | S | CORRIGÉ `727e1df` |
-| SA-11 | HAUTE | multi-société | Ordres de dépense : `settle/defer/resumeExpenseOrder` sans porte d'entité | S | PROPOSÉ |
-| SA-12 | MOYENNE | sécurité (XSS) | Aperçu Word/Excel : HTML de mammoth / `sheet_to_html` injecté sans assainissement | S | PROPOSÉ |
-| SA-13 | MOYENNE | multi-société | Événements : inscriptions et suppression sans `canAccessEntity` sur l'événement | S | PROPOSÉ |
-| SA-14 | MOYENNE | multi-société | Fiches `/consulting/[id]` et `/ad-pro/autres/[id]` sans porte d'entité ; types absents de `AD_PRO_TYPES` | S | PROPOSÉ |
-| SA-15 | MOYENNE | API | Portée `erp.admin` jamais exigée (`user`, `audit_log`) | S | PROPOSÉ |
-| SA-16 | MOYENNE | multi-société | Rapports terrain (`canEdit`) et dossiers Legal/Courrier sans porte d'entité en écriture | S | PROPOSÉ |
-| SA-17 | MOYENNE | auth | Portail fournisseur sans verrouillage ; `changePassword` sans limite d'essais | S | PROPOSÉ (déjà R6/R14) |
-| SA-18 | BASSE | droits | Un administrateur délégué s'attribue un siège au centre de paiement | S | PROPOSÉ (déjà R7) |
+| SA-11 | HAUTE | multi-société | Ordres de dépense : `settle/defer/resumeExpenseOrder` sans porte d'entité | S | CORRIGÉ `9a1f97c` |
+| SA-12 | MOYENNE | sécurité (XSS) | Aperçu Word/Excel : HTML de mammoth / `sheet_to_html` injecté sans assainissement | S | CORRIGÉ `86250dd` |
+| SA-13 | MOYENNE | multi-société | Événements : inscriptions et suppression sans `canAccessEntity` sur l'événement | S | CORRIGÉ `c94ec0d` |
+| SA-14 | MOYENNE | multi-société | Fiches `/consulting/[id]` et `/ad-pro/autres/[id]` sans porte d'entité ; types absents de `AD_PRO_TYPES` | S | CORRIGÉ `2cf2591` |
+| SA-15 | MOYENNE | API | Portée `erp.admin` jamais exigée (`user`, `audit_log`) | S | CORRIGÉ `ddb3847` |
+| SA-16 | MOYENNE | multi-société | Rapports terrain (`canEdit`) et dossiers Legal/Courrier sans porte d'entité en écriture | S | CORRIGÉ `fd09f5a` |
+| SA-17 | MOYENNE | auth | Portail fournisseur sans verrouillage ; `changePassword` sans limite d'essais | S | CORRIGÉ `d331835` |
+| SA-18 | BASSE | droits | Un administrateur délégué s'attribue un siège au centre de paiement | S | CORRIGÉ `bc4840f` |
 | SA-19 | BASSE | sécurité | Exports `"use server"` sans garde : `runPettyCashRechargeReminders`, `nextRechargeFor`, `ensureCycle` | S | PROPOSÉ (déjà R10) |
 | SA-20 | BASSE | API | Idempotence : vérifier-puis-agir, clé indépendante de l'opération | S | PROPOSÉ |
 | SA-21 | BASSE | données sensibles | Bac à SQL : masquage par nom de colonne de sortie (`SELECT iban AS x`) | M | PROPOSÉ |
@@ -148,41 +148,41 @@ Préfixe `SECURITE-ACCES-` abrégé en `SA-`.
 - **Correctif** : `ecritureVisible()` (porte de la fiche) et `entiteOuverte` à la création. Test :
   `src/lib/finance/ecriture-entite-ecriture.test.ts`.
 
-### SA-11 — Ordres de dépense sans porte d'entité (HAUTE) — PROPOSÉ
+### SA-11 — Ordres de dépense sans porte d'entité (HAUTE) — CORRIGÉ `9a1f97c`
 - **Preuve** : `expense-actions.ts:71` `settleExpenseOrder`, `:437` `deferExpenseOrder`, `:486` `resumeExpenseOrder` :
   `userCan(FINANCES, UPDATE)` puis écriture par id. Le centre de paiement liste avec `ficheScopedWhere`.
 - **Correctif** : même `entitePermisePourFiche(user.id, order.companyId)` que SA-10. Non fait ici : ces fonctions
   sont au cœur du circuit d'argent (§118.176) et méritent leur propre banc multi-société.
 
-### SA-12 — Aperçu Office : HTML non assaini (MOYENNE) — PROPOSÉ
+### SA-12 — Aperçu Office : HTML non assaini (MOYENNE) — CORRIGÉ `86250dd`
 - **Preuve** : `src/components/documents/office-viewers.tsx:49,60,78,98` — `mammoth.convertToHtml` et
   `XLSX.utils.sheet_to_html` → `dangerouslySetInnerHTML`, sans assainisseur (mammoth le documente) ; pas de `script-src`.
 - **Scénario** : un `.docx` porte un lien `javascript:` ; un collègue l'ouvre en aperçu et clique.
 - **Correctif** : DOMPurify (`ALLOWED_URI_REGEXP` http/https/mailto) avant injection, ou rendu dans un `<iframe sandbox>`.
 
-### SA-13 — Événements (MOYENNE) — PROPOSÉ
+### SA-13 — Événements (MOYENNE) — CORRIGÉ `c94ec0d`
 - **Preuve** : `event-actions.ts:434` `addRegistration`, `:456` `setRegistrationStatus`, `:488` `deleteRegistration`,
   `:298` `deleteEvent` — `userCan(EVENTS, …)` seul ; `updateEvent` (`:214`) applique `canAccessEntity`.
 - **Correctif** : résoudre `eventId` et exiger `canAccessEntity(user, "EVENT", eventId, "UPDATE"|"DELETE")`.
 
-### SA-14 — Fiches consulting / Ad & Pro « autres » d'une autre société (MOYENNE) — PROPOSÉ
+### SA-14 — Fiches consulting / Ad & Pro « autres » d'une autre société (MOYENNE) — CORRIGÉ `2cf2591`
 - **Preuve** : `src/app/(app)/consulting/[id]/page.tsx:59-70` et `ad-pro/autres/[id]/page.tsx:41-45` :
   `findUnique({ where: { id } })` après `requireModule`, listes filtrées par entité. `AD_PRO_TYPES`
   (`entity-access.ts:150`) n'inclut ni `AD_PRO_OTHER` ni `CONSULTING_CONTRACT` → leurs pièces aussi.
 - **Correctif** : `ficheScopedWhere` dans les deux pages ; ajouter les deux types au contrôle d'entité de `canAccessEntity`.
 
-### SA-15 — `erp.admin` jamais exigé (MOYENNE) — PROPOSÉ
+### SA-15 — `erp.admin` jamais exigé (MOYENNE) — CORRIGÉ `ddb3847`
 - **Preuve** : `grep erp.admin src` ne trouve que `scopes.ts` et des commentaires ; `entities.ts:437` dit « l'exposer
   demande la portée `erp.admin` ». Une clé `erp.read` au nom d'un détenteur d'`ADMIN:VIEW` liste comptes et journal d'audit.
 - **Correctif** : champ `porteeRequise?: Scope` sur `EntityDef` (`"erp.admin"` pour `user`/`audit_log`), lu par les
   4 routes de lecture via `requireScopes`.
 
-### SA-16 — Rapports terrain, dossiers Legal/Courrier (MOYENNE) — PROPOSÉ
+### SA-16 — Rapports terrain, dossiers Legal/Courrier (MOYENNE) — CORRIGÉ `fd09f5a`
 - **Preuve** : `field-report-actions.ts:32` `canEdit` (managers : `FIELD_REPORTS:VIEW` suffit, toute société) ;
   `legal-folder-actions.ts:62,108`, `mail-folder-actions.ts:63,106` (création vérifie l'entité, modification/suppression non).
 - **Correctif** : `entitePermisePourFiche` / `companyAllowed` sur l'objet relu.
 
-### SA-17 à SA-21 (BASSE/MOYENNE, déjà connus ou mineurs) — PROPOSÉ
+### SA-17 à SA-21 (BASSE/MOYENNE, déjà connus ou mineurs) — SA-17 CORRIGÉ `d331835`, SA-18 CORRIGÉ `bc4840f` ; SA-19 à SA-21 PROPOSÉ (BASSE)
 - **SA-17** (R6/R14) : `supplierLogin` (`supplier-portal-actions.ts:10-27`) sans `checkLockout`/`recordFailure` ;
   `changePassword` (`auth-actions.ts:51`) sans limite et sur `auth()` brut. Réutiliser `login-throttle.ts` avec une clé
   `portail:<email>` / `mdp:<userId>`.

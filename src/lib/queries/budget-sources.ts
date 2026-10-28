@@ -189,7 +189,7 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
     for (const o of lue.ordres) rattaches.add(o.id);
     if (!cat || !dansLEnveloppe.has(cat)) continue;
     for (const o of lue.ordres) {
-      if (ordreEnCircuit(o.statut)) ajouter({ categoryId: cat, montant: o.montant, posteId: p.id, sourceType: null, sourceId: null, nature: "EN_CIRCUIT", ordreId: o.id });
+      if (ordreEnCircuit(o.statut, o.centralStatus)) ajouter({ categoryId: cat, montant: o.montant, posteId: p.id, sourceType: null, sourceId: null, nature: "EN_CIRCUIT", ordreId: o.id });
     }
     ajouter({ categoryId: cat, montant: lue.depense.engage, posteId: p.id, sourceType: null, sourceId: null, nature: "ENGAGE" });
   }
@@ -208,7 +208,7 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
     if (!lue || !cat) continue;
     for (const o of lue.ordres) {
       rattaches.add(o.id);
-      if (ordreEnCircuitPromo(o.statut)) ajouter({ categoryId: cat, montant: o.montant, posteId: null, sourceType: "PROMO_MATERIAL", sourceId: pm.id, nature: "EN_CIRCUIT", ordreId: o.id });
+      if (ordreEnCircuitPromo(o.statut, o.centralStatus)) ajouter({ categoryId: cat, montant: o.montant, posteId: null, sourceType: "PROMO_MATERIAL", sourceId: pm.id, nature: "EN_CIRCUIT", ordreId: o.id });
     }
     ajouter({ categoryId: cat, montant: lue.engage, posteId: null, sourceType: "PROMO_MATERIAL", sourceId: pm.id, nature: "ENGAGE" });
   }
@@ -217,12 +217,12 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
   const ordres = await prisma.expenseOrder.findMany({
     where: {
       OR: [
-        { status: { in: ENGAGES }, budgetCategoryId: { in: [...catIds] } },
-        { status: { in: ENGAGES }, budgetCategoryId: null, sourceType: { not: null }, createdAt: { lte: periodEnd } },
+        { status: { in: ENGAGES }, centralStatus: { not: "REFUSED" }, budgetCategoryId: { in: [...catIds] } },
+        { status: { in: ENGAGES }, centralStatus: { not: "REFUSED" }, budgetCategoryId: null, sourceType: { not: null }, createdAt: { lte: periodEnd } },
       ],
     },
     select: {
-      id: true, status: true, amount: true, budgetCategoryId: true, sourceType: true, sourceId: true,
+      id: true, status: true, centralStatus: true, amount: true, budgetCategoryId: true, sourceType: true, sourceId: true,
       pettyCashAllotment: { select: { id: true } }, payrollWire: { select: { id: true } },
     },
   });
@@ -231,7 +231,7 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
     ? await prisma.adProItem.findMany({ where: { expenseOrderId: { in: ordres.map((o) => o.id) }, status: "APPROVED", budgetCategoryId: { not: null } }, select: { expenseOrderId: true } })
     : [];
   for (const a of autresPostes) if (a.expenseOrderId) rattaches.add(a.expenseOrderId);
-  const sansCategorie = ordres.filter((o) => !rattaches.has(o.id) && ordreEngage(o.status) && !o.budgetCategoryId && !o.pettyCashAllotment && !o.payrollWire);
+  const sansCategorie = ordres.filter((o) => !rattaches.has(o.id) && ordreEngage(o.status, o.centralStatus) && !o.budgetCategoryId && !o.pettyCashAllotment && !o.payrollWire);
   let auto: ((m: string | null) => string | null) | null = null;
   if (sansCategorie.length) {
     const [envelopes, categories] = await Promise.all([
@@ -241,7 +241,7 @@ export async function engagementsBruts(catIds: readonly string[], periodEnd: Dat
     auto = (m) => pickAutoCategory(m, envelopes, categories);
   }
   for (const o of ordres) {
-    if (rattaches.has(o.id) || !ordreEngage(o.status) || o.pettyCashAllotment || o.payrollWire) continue;
+    if (rattaches.has(o.id) || !ordreEngage(o.status, o.centralStatus) || o.pettyCashAllotment || o.payrollWire) continue;
     const cat = o.budgetCategoryId ?? (auto && o.sourceType ? auto(ENTITY_MODULE[o.sourceType] ?? null) : null);
     if (!cat || !dansLEnveloppe.has(cat)) continue;
     ajouter({ categoryId: cat, montant: toNumber(o.amount), posteId: null, sourceType: o.sourceType, sourceId: o.sourceId, nature: "EN_CIRCUIT", ordreId: o.id });

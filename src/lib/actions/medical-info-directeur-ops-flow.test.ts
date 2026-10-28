@@ -6,8 +6,11 @@ let ACTOR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuNomDeLaVue: async () => ACTOR, getCurrentUser: async () => ACTOR, getCurrentUserPourEcrire: async () => ACTOR }));
 // L'ABSENCE DE TOUT DIRECTEUR ne se fabrique pas dans une base partagée (d'autres bancs en créent le temps
 // de leur passage) : quand le banc le demande, la lecture des décideurs voit « aucun directeur » — la règle
-// pure (`decideursInfoMed`) et la lecture réelle des Super Admins restent celles du produit.
+// pure (`decideursInfoMed`) reste celle du produit. Les Super Admins lus sont ceux DU BANC : un Super Admin
+// d'un banc voisin, supprimé entre la lecture et l'écriture de l'étape, faisait tomber la clé étrangère
+// sous charge (instabilité mesurée le 28/10/2026).
 let SANS_DIRECTEUR = false;
+let SUPER_ADMINS_DU_BANC: string[] = [];
 vi.mock("@/lib/medical-info", async (importOriginal) => {
   const reel = await importOriginal<typeof import("@/lib/medical-info")>();
   const { decideursInfoMed } = await import("@/lib/medical-info/decideur");
@@ -16,7 +19,7 @@ vi.mock("@/lib/medical-info", async (importOriginal) => {
     ...reel,
     decideursInfoMedActifs: async (requesterId: string | null) => {
       if (!SANS_DIRECTEUR) return reel.decideursInfoMedActifs(requesterId);
-      const sas = await db.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true }, orderBy: { createdAt: "asc" } });
+      const sas = await db.user.findMany({ where: { id: { in: SUPER_ADMINS_DU_BANC }, role: "SUPER_ADMIN", isActive: true }, select: { id: true }, orderBy: { createdAt: "asc" } });
       return decideursInfoMed({ directeurs: [], superAdmins: sas.map((u) => u.id), requesterId });
     },
   };
@@ -89,10 +92,11 @@ suite("Information médicale — le Directeur des Opérations tranche ce que le 
   beforeAll(async () => {
     const mk = (n: string, role: SessionUser["role"]) =>
       prisma.user.create({ data: { name: `${TAG}${n}`, email: `${TAG}${n}@t.dz`, role, passwordHash: "x" } });
-    const [prim, a, b, dir, dg] = await Promise.all([
+    const [prim, a, b, dir, dg, sa] = await Promise.all([
       mk("prim", "MEDICAL_INFO_PHARMACIST"), mk("od1", "OPERATIONS_DIRECTOR"), mk("od2", "OPERATIONS_DIRECTOR"),
-      mk("dir", "DIRECTION"), mk("dg", "GENERAL_MANAGER"),
+      mk("dir", "DIRECTION"), mk("dg", "GENERAL_MANAGER"), mk("sa", "SUPER_ADMIN"),
     ]);
+    SUPER_ADMINS_DU_BANC = [sa.id];
     primId = prim.id; od1 = a.id; od2 = b.id; dirId = dir.id; dgId = dg.id;
     spoId = (await prisma.sponsoringRequest.create({
       data: { reference: `${TAG}SPO`, institution: `${TAG}Hôpital`, type: "Congrès", status: "APPROVED", amountGranted: 40000 },

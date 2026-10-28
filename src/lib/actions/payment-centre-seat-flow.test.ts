@@ -159,4 +159,27 @@ suite("Siège nommé au centre de paiement", () => {
     expect(r.ok).toBe(false);
     expect(r.error).toMatch(/désactivé/i);
   });
+
+  it("un administrateur DÉLÉGUÉ ne se désigne pas lui-même, et ne retire pas son siège (SA-18)", async () => {
+    const delegue = await prisma.user.create({
+      data: { name: `${TAG}delegue`, email: `${TAG}delegue@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" },
+    });
+    const acteur = await actorFor(delegue.id, "FINANCE_BUDGET_MANAGER");
+    // Le module Administration délégué : il gère les comptes des autres.
+    acteur.access.modules.set("ADMIN", { actions: new Set(["VIEW", "UPDATE"]), scope: "ALL" });
+    ACTOR = acteur;
+
+    const r = await grantPaymentCentreSeat(form({ userId: delegue.id, note: "Je m'accorde le centre." }));
+    expect(r.ok).toBe(false);
+    expect(r.error).toMatch(/propres droits/);
+    expect(await prisma.paymentCentreSeat.count({ where: { userId: delegue.id } })).toBe(0);
+
+    // Posé par le Super Admin, le siège ne se retire pas non plus par l'intéressé.
+    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
+    expect((await grantPaymentCentreSeat(form({ userId: delegue.id, note: "Intérim du PDG." }))).ok).toBe(true);
+    ACTOR = acteur;
+    const retrait = await revokePaymentCentreSeat(form({ userId: delegue.id }));
+    expect(retrait.ok).toBe(false);
+    expect(await prisma.paymentCentreSeat.count({ where: { userId: delegue.id } })).toBe(1);
+  });
 });

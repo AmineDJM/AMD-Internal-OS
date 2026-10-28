@@ -3,7 +3,7 @@ import * as XLSX from "xlsx";
 import type { AdProItemKind, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { canManageEnvelope, type SessionUser } from "@/lib/rbac";
 import { getBudgetOverview } from "@/lib/queries/budget";
 import { engagementsBruts } from "@/lib/queries/budget-sources";
@@ -368,14 +368,19 @@ const COLONNE_PARENT: Record<TypeDemandeIntegree, string> = {
 };
 export const colonneParent = (t: TypeDemandeIntegree) => COLONNE_PARENT[t];
 
+const MODELE_DU_PREFIXE = { SPO: "SponsoringRequest", FORM: "Training", MP: "PromoMaterial", DIM: "MedicalInfoDeclaration" } as const;
+
 async function prochaineRef(tx: Prisma.TransactionClient, prefixe: "SPO" | "FORM" | "MP" | "DIM"): Promise<string> {
   const debut = `${prefixe}-${ANNEE_INTEGRATION}-`;
   const where = { reference: { startsWith: debut } };
-  const refs = prefixe === "SPO" ? await tx.sponsoringRequest.findMany({ where, select: { reference: true } })
-    : prefixe === "FORM" ? await tx.training.findMany({ where, select: { reference: true } })
-      : prefixe === "MP" ? await tx.promoMaterial.findMany({ where, select: { reference: true } })
-        : await tx.medicalInfoDeclaration.findMany({ where, select: { reference: true } });
-  return buildRef(prefixe, ANNEE_INTEGRATION, refs.map((r) => r.reference));
+  // La MÊME série que les créations ordinaires (`SponsoringRequest:SPO-2026`…) : le compteur est partagé (DONNEES-12).
+  return referenceDeSerie({
+    modele: MODELE_DU_PREFIXE[prefixe], prefixe, annee: ANNEE_INTEGRATION, client: tx,
+    existantes: async () => (prefixe === "SPO" ? await tx.sponsoringRequest.findMany({ where, select: { reference: true } })
+      : prefixe === "FORM" ? await tx.training.findMany({ where, select: { reference: true } })
+        : prefixe === "MP" ? await tx.promoMaterial.findMany({ where, select: { reference: true } })
+          : await tx.medicalInfoDeclaration.findMany({ where, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /** Crée la demande historique d'une ligne (aucun circuit : statuts terminaux, aucune validation, aucun ordre). */

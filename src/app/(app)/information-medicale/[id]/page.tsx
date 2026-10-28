@@ -102,10 +102,10 @@ export default async function DeclarationDetailPage(props: { params: Promise<{ i
         (await prisma.sponsoringRequest.count({ where: { AND: [{ id: decl.sourceId }, scopeSponsoring(user)] } })) > 0;
     else if (decl.sourceType === "CONGRESS_INTERNATIONAL")
       canOpenSource = userCan(user, "CONGRESS_INTERNATIONAL", "VIEW") &&
-        (await prisma.congressInternational.count({ where: { id: decl.sourceId, ...scopeCongressIntl(user) } })) > 0;
+        (await prisma.congressInternational.count({ where: { AND: [{ id: decl.sourceId }, scopeCongressIntl(user)] } })) > 0;
     else if (decl.sourceType === "CONGRESS_NATIONAL")
       canOpenSource = userCan(user, "CONGRESS_NATIONAL", "VIEW") &&
-        (await prisma.congressNational.count({ where: { id: decl.sourceId, ...scopeCongressNational(user) } })) > 0;
+        (await prisma.congressNational.count({ where: { AND: [{ id: decl.sourceId }, scopeCongressNational(user)] } })) > 0;
     else if (decl.sourceType === "EVENT") canOpenSource = userCan(user, "EVENTS", "VIEW");
     // La demande « autre » (27/10/2026) : la porte de SA fiche.
     else if (decl.sourceType === "AD_PRO_OTHER") canOpenSource = await canAccessEntity(user, "AD_PRO_OTHER", decl.sourceId, "VIEW");

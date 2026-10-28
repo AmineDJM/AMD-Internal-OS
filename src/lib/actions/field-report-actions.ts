@@ -1,5 +1,6 @@
 "use server";
 
+import { ouvrirPourEcrire, type PorteEcriture } from "@/lib/queries/porte-ecriture";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
@@ -29,10 +30,18 @@ function managesReports(user: CurrentUser): boolean {
   return hasGlobalView(user) || user.role === "MEDICAL_PROMOTION_MANAGER" || user.role === "PRODUCT_MANAGER";
 }
 
-async function canEdit(user: CurrentUser, reportId: string): Promise<boolean> {
-  if (managesReports(user)) return userCan(user, "FIELD_REPORTS", "VIEW");
-  const r = await prisma.fieldReport.findUnique({ where: { id: reportId }, select: { delegateId: true } });
-  return Boolean(r && r.delegateId === user.id);
+/**
+ * LA PORTE D'UN RAPPORT : son auteur, ou qui gère les rapports — DANS LES SOCIÉTÉS QU'IL VOIT (audit 27/10, SA-16).
+ * Le droit de lire le module suffisait au manager, toutes sociétés confondues : il réécrivait, validait ou
+ * rouvrait le compte rendu d'une société voisine par son identifiant.
+ */
+async function porteDuRapport(user: CurrentUser, reportId: string): Promise<PorteEcriture> {
+  if (managesReports(user)) {
+    if (!userCan(user, "FIELD_REPORTS", "VIEW")) return { ok: false, error: "Non autorisé." };
+    return ouvrirPourEcrire(user, "FIELD_REPORT", reportId, "UPDATE", { droitDuModule: false });
+  }
+  const r = await prisma.fieldReport.findUnique({ where: { id: reportId }, select: { delegateId: true, companyId: true } });
+  return r && r.delegateId === user.id ? { ok: true, companyId: r.companyId } : { ok: false, error: "Non autorisé." };
 }
 
 export async function createFieldReport(): Promise<ActionResult> {
@@ -52,7 +61,7 @@ export async function updateFieldReport(formData: FormData): Promise<ActionResul
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Rapport introuvable." };
-  if (!(await canEdit(user, id))) return { ok: false, error: "Non autorisé." };
+  if (!(await porteDuRapport(user, id)).ok) return { ok: false, error: "Non autorisé." };
 
   const summary = fdStr(formData, "summary");
   const doctorIds = parseIds(formData, "doctorIds");
@@ -86,7 +95,7 @@ export async function analyzeFieldReportAction(
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, configured: true, error: "Rapport introuvable." };
-  if (!(await canEdit(user, id))) return { ok: false, configured: true, error: "Non autorisé." };
+  if (!(await porteDuRapport(user, id)).ok) return { ok: false, configured: true, error: "Non autorisé." };
   // Transcription depuis le formulaire (la plus à jour) ou, à défaut, la base.
   let transcript = fdStr(formData, "transcript");
   if (!transcript) {
@@ -161,7 +170,7 @@ export async function submitFieldReport(formData: FormData): Promise<ActionResul
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Rapport introuvable." };
-  if (!(await canEdit(user, id))) return { ok: false, error: "Non autorisé." };
+  if (!(await porteDuRapport(user, id)).ok) return { ok: false, error: "Non autorisé." };
 
   const summary = fdStr(formData, "summary");
   if (!summary) return { ok: false, error: "Dictez ou saisissez d'abord votre compte rendu." };
@@ -271,7 +280,7 @@ export async function validateFieldReport(formData: FormData): Promise<ActionRes
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Rapport introuvable." };
-  if (!(await canEdit(user, id))) return { ok: false, error: "Non autorisé." };
+  if (!(await porteDuRapport(user, id)).ok) return { ok: false, error: "Non autorisé." };
   await prisma.fieldReport.update({ where: { id }, data: { status: "VALIDATED", validatedAt: new Date() } });
   await recordAudit({ actorId: user.id, action: "VALIDATE", module: "Rapports terrain", summary: "Rapport de visite validé" });
   revalidatePath(lienRapportTerrain(id));
@@ -283,7 +292,7 @@ export async function reopenFieldReport(formData: FormData): Promise<ActionResul
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Rapport introuvable." };
-  if (!(await canEdit(user, id))) return { ok: false, error: "Non autorisé." };
+  if (!(await porteDuRapport(user, id)).ok) return { ok: false, error: "Non autorisé." };
   await prisma.fieldReport.update({ where: { id }, data: { status: "DRAFT", validatedAt: null } });
   revalidatePath(lienRapportTerrain(id));
   return { ok: true };
@@ -338,7 +347,7 @@ export async function deleteFieldReportAttachment(formData: FormData): Promise<A
   if (!id) return { ok: false, error: "Pièce jointe introuvable." };
   const att = await prisma.fieldReportAttachment.findUnique({ where: { id }, select: { blobId: true, reportId: true } });
   if (!att) return { ok: false, error: "Pièce jointe introuvable." };
-  if (!(await canEdit(user, att.reportId))) return { ok: false, error: "Non autorisé." };
+  if (!(await porteDuRapport(user, att.reportId)).ok) return { ok: false, error: "Non autorisé." };
   await prisma.fieldReportAttachment.delete({ where: { id } });
   await releaseBlob(att.blobId);
   revalidatePath(lienRapportTerrain(att.reportId));

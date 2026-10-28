@@ -355,10 +355,10 @@ async function handleExtract(job: RegulatoryJob): Promise<void> {
   }
 
   // Progression + décision de reprise / fin.
-  const scope = { dossierVersionId: versionId, securityStatus: { in: ["SAFE" as const, "SUSPICIOUS" as const] } };
+  const documentsSurs = { dossierVersionId: versionId, securityStatus: { in: ["SAFE" as const, "SUSPICIOUS" as const] } };
   const [total, remaining] = await Promise.all([
-    prisma.regulatoryDocument.count({ where: scope }),
-    prisma.regulatoryDocument.count({ where: { ...scope, extractionStatus: "PENDING", blobId: { not: null } } }),
+    prisma.regulatoryDocument.count({ where: documentsSurs }),
+    prisma.regulatoryDocument.count({ where: { ...documentsSurs, extractionStatus: "PENDING", blobId: { not: null } } }),
   ]);
   const progress = total > 0 ? Math.round(((total - remaining) / total) * 100) : 100;
 

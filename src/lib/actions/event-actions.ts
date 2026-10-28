@@ -8,6 +8,7 @@ import type { CongressRequestStatus } from "@prisma/client";
 import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, anyRoleFilter, hasGlobalView } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
+import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { isAdProDecided } from "@/lib/ad-pro-edit";
 import { porteeModificationEvenement, champsModifies, CHAMPS_ORGANISATION } from "@/lib/events/modification";
 import { prisma } from "@/lib/prisma";
@@ -297,9 +298,10 @@ export async function updateEvent(formData: FormData): Promise<ActionResult> {
  */
 export async function deleteEvent(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "EVENTS", "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
+  const porte = await ouvrirPourEcrire(user, "EVENT", id, "DELETE");
+  if (!porte.ok) return porte;
   const nom = (await prisma.event.findUnique({ where: { id }, select: { name: true } }))?.name ?? id;
   const r = await supprimerReversible("EVENT", id, user.id, `Suppression d'un événement — « ${nom} » (restaurable depuis la corbeille)`);
   if (!r.ok) return { ok: false, error: r.error ?? "Suppression impossible." };
@@ -433,11 +435,13 @@ export async function publicRegister(formData: FormData): Promise<ActionResult> 
 /** Ajout d'un participant en interne (staff). */
 export async function addRegistration(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "EVENTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const eventId = fdStr(formData, "eventId");
   const firstName = fdStr(formData, "firstName");
   const lastName = fdStr(formData, "lastName");
   if (!eventId || !firstName || !lastName) return { ok: false, error: "Nom et prénom obligatoires." };
+  // LA PORTE DE L'ÉVÉNEMENT (audit 27/10, SA-13) : le droit du module ET la fiche — société, parties prenantes.
+  const porte = await ouvrirPourEcrire(user, "EVENT", eventId, "UPDATE");
+  if (!porte.ok) return porte;
   if (estStatutInscriptionRetire(fdStr(formData, "status"))) return { ok: false, error: REFUS_LISTE_ATTENTE };
   await prisma.eventRegistration.create({
     data: {
@@ -455,10 +459,11 @@ export async function addRegistration(formData: FormData): Promise<ActionResult>
 
 export async function setRegistrationStatus(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "EVENTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   const status = fdStr(formData, "status");
   if (!id || !status) return { ok: false, error: "Paramètres manquants." };
+  const porte = await ouvrirPourEcrire(user, "EVENT_REGISTRATION", id, "UPDATE");
+  if (!porte.ok) return porte;
   if (estStatutInscriptionRetire(status)) return { ok: false, error: REFUS_LISTE_ATTENTE };
   const reg = await prisma.eventRegistration.update({
     where: { id },
@@ -480,6 +485,8 @@ export async function checkInByToken(formData: FormData): Promise<ActionResult> 
   if (!token) return { ok: false, error: "Jeton manquant." };
   const reg = await prisma.eventRegistration.findUnique({ where: { qrToken: token }, select: { id: true, eventId: true } });
   if (!reg) return { ok: false, error: "Participant introuvable." };
+  const porte = await ouvrirPourEcrire(user, "EVENT_REGISTRATION", reg.id, "UPDATE");
+  if (!porte.ok) return porte;
   await prisma.eventRegistration.update({ where: { id: reg.id }, data: { status: "PRESENT", checkedInAt: new Date() } });
   revalidatePath(`/events/${reg.eventId}`);
   return { ok: true, id: reg.eventId };
@@ -487,9 +494,10 @@ export async function checkInByToken(formData: FormData): Promise<ActionResult> 
 
 export async function deleteRegistration(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "EVENTS", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
+  const porte = await ouvrirPourEcrire(user, "EVENT_REGISTRATION", id, "UPDATE");
+  if (!porte.ok) return porte;
   const reg = await prisma.eventRegistration.delete({ where: { id }, select: { eventId: true } });
   revalidatePath(`/events/${reg.eventId}`);
   return { ok: true };

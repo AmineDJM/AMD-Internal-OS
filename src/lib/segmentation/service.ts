@@ -131,7 +131,7 @@ export async function chargerFaits(strategieId: string, portee: Prisma.MedicalDo
   const p1 = strat?.produits[0]?.productId ?? null;
   const secteurs = strat ? await chargerSecteurs(strat.businessUnitId) : [];
   const fiches = await prisma.segmentationFiche.findMany({
-    where: { strategieId, retireeLe: null, doctor: { archivedAt: null, ...portee } },
+    where: { strategieId, retireeLe: null, doctor: { AND: [{ archivedAt: null }, portee] } },
     select: {
       id: true, statut: true, zone: true, secteurId: true,
       doctor: {

@@ -41,10 +41,10 @@ un même compte `DIRECTION` peut demander, autoriser et régler (ARGENT-06).
 | ARGENT-02 | HAUTE | Correction (concurrence) | `decideCareQuote` : deux acceptations simultanées → deux ordres de dépense | S | CORRIGÉ `5225fe3` |
 | ARGENT-03 | HAUTE | Correction | « Banque & paiements » ne lit que les 300 ordres les plus récents, tous états : un paiement autorisé ancien disparaît de la file | S | CORRIGÉ `ffc1564` |
 | ARGENT-05 | HAUTE | Intégrité des données | L'écriture d'un règlement se supprime / change de montant, de sens ou de statut | S | CORRIGÉ `7e49470` |
-| ARGENT-06 | HAUTE | Sécurité (séparation des tâches) | Un même compte peut demander, autoriser au centre et régler | M | PROPOSÉ |
+| ARGENT-06 | HAUTE | Sécurité (séparation des tâches) | Un même compte peut demander, autoriser au centre et régler | M | APPLIQUÉ `990a6df` (réglage actif par défaut) — décision de Direction à confirmer |
 | ARGENT-04 | MOYENNE | Correction (concurrence) | Le règlement n'épingle pas le montant lu : une révision à la baisse pendant le règlement inscrit l'ancien montant au livre | S | CORRIGÉ `082965b` |
-| ARGENT-07 | MOYENNE | Intégrité (budget) | Un ordre REFUSÉ par le centre reste « engagé » / « en circuit » au budget | S | PROPOSÉ |
-| ARGENT-08 | MOYENNE | Sécurité (cloisonnement) | Les gestes d'argent (centre, règlement, livre) ne revérifient pas l'entité de l'ordre / de l'écriture | M | PROPOSÉ |
+| ARGENT-07 | MOYENNE | Intégrité (budget) | Un ordre REFUSÉ par le centre reste « engagé » / « en circuit » au budget | S | CORRIGÉ `833f498` |
+| ARGENT-08 | MOYENNE | Sécurité (cloisonnement) | Les gestes d'argent (centre, règlement, livre) ne revérifient pas l'entité de l'ordre / de l'écriture | M | CORRIGÉ `9a1f97c` |
 | ARGENT-09 | BASSE | Robustesse | L'écrivain unique `createExpenseOrder` n'impose ni montant fini > 0 ni arrondi au centime | S | PROPOSÉ |
 | ARGENT-10 | BASSE | Maintenabilité | Anciennes décisions congrès hors circuit (`finalDecision`…) : exportées, mortes, écritures d'argent non conditionnelles | S | PROPOSÉ |
 
@@ -124,7 +124,7 @@ Livrable complémentaire (pas un constat) : **test d'invariant global** `src/lib
   écriture de règlement, avec renvoi à une contre-passation ; libellé, date, compte, notes restent modifiables. Banc
   `ecriture-reglement-flow.test.ts` (témoin : une écriture libre se corrige et se supprime).
 
-### ARGENT-06 — Aucune séparation des tâches n'est contrôlée (HAUTE) — PROPOSÉ
+### ARGENT-06 — Aucune séparation des tâches n'est contrôlée (HAUTE) — APPLIQUÉ `990a6df`, décision de Direction à confirmer
 
 - **Preuve** : `decidePayment` (`payment-centre-actions.ts:104-133`) lit `requestedById` mais ne le compare pas à
   l'acteur ; `settleExpenseOrder` (`expense-actions.ts:71-73`) ne lit ni `requestedById` ni `centralDecidedById` ;
@@ -146,7 +146,7 @@ Livrable complémentaire (pas un constat) : **test d'invariant global** `src/lib
   appelé dans `decidePayment` et `settleExpenseOrder` ; exception explicite et auditée quand un seul siège est actif.
   Décision Direction requise (PDG seul siège ?) — c'est pourquoi il n'est pas appliqué ici.
 
-### ARGENT-07 — Un ordre refusé par le centre reste « engagé » (MOYENNE) — PROPOSÉ
+### ARGENT-07 — Un ordre refusé par le centre reste « engagé » (MOYENNE) — CORRIGÉ `833f498`
 
 - **Preuve** : `STATUTS_ORDRE_ENGAGES = ["PENDING", "REVISION_REQUESTED"]` (`budget/engage.ts`) et
   `STATUTS_EN_CIRCUIT` (`budget/depense-poste.ts:60`) ne lisent que `status` ; un refus du centre laisse
@@ -158,7 +158,7 @@ Livrable complémentaire (pas un constat) : **test d'invariant global** `src/lib
   `centralStatus: { not: "REFUSED" }` dans les deux requêtes de `budget-sources.ts` ; `depenseDuPoste` traite un
   ordre refusé comme `vivants` mais hors `attente`. Un test-cliquet : tout prédicat d'engagement passe par `ordreClos`.
 
-### ARGENT-08 — Les gestes d'argent ne revérifient pas l'entité (MOYENNE) — PROPOSÉ
+### ARGENT-08 — Les gestes d'argent ne revérifient pas l'entité (MOYENNE) — CORRIGÉ `9a1f97c`
 
 - **Preuve** : `decidePayment`, `settleExpenseOrder`, `deferExpenseOrder`, `updateTransaction`, `deleteTransaction`
   lisent l'objet par son seul `id` ; seul l'écran est filtré (`chargerCentre` → `ficheScopedWhere`,
