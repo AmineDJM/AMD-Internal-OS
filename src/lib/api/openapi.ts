@@ -39,7 +39,7 @@ const PAGE_PARAMS: Json[] = [
   { name: "offset", in: "query", schema: { type: "integer", minimum: 0, default: 0 }, description: "Décalage pour la page suivante." },
 ];
 
-export function buildOpenApi(baseUrl = "https://amd-internal-os.onrender.com"): Json {
+export function buildOpenApi(baseUrl = "https://amd-internal-os-k3uc.onrender.com"): Json {
   const paths: Json = {};
 
   paths["/api/v1/meta/modules"] = {

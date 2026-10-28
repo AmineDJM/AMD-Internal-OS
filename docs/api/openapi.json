@@ -10,7 +10,7 @@
   },
   "servers": [
     {
-      "url": "https://amd-internal-os.onrender.com",
+      "url": "https://amd-internal-os-k3uc.onrender.com",
       "description": "Production"
     }
   ],
