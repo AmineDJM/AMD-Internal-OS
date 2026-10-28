@@ -1060,6 +1060,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
     if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
   }
   const rendreLaReserve = async () => {
+    // porte d'écriture : `canDecide` en tête (la Direction tranche toutes sociétés) — les seules cases de CE devis.
     await prisma.careCell.updateMany({ where: { id: { in: cellIds }, quoteId: id, expenseOrderId: null }, data: { quoteId: null } }).catch(() => undefined);
     await prisma.careQuote.updateMany({
       where: { id, expenseOrderId: null, status: "ACCEPTED" },

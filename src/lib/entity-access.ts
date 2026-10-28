@@ -150,9 +150,13 @@ async function isRequestOwner(user: SessionUser, entityType: EntityType, entityI
   return false;
 }
 
-/** Les cinq natures de dossier du module Ad&Pro. */
+/**
+ * Les natures de dossier du module Ad&Pro. La demande « Autre » (27/10/2026) y est entrée avec l'audit sécurité
+ * (SA-14) : absente, elle tombait hors du contrôle de société — sa fiche et ses pièces s'ouvraient, par identifiant,
+ * à qui avait le module dans n'importe quelle société.
+ */
 const AD_PRO_TYPES: EntityType[] = [
-  "SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "PROMO_MATERIAL",
+  "SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "PROMO_MATERIAL", "AD_PRO_OTHER",
 ];
 
 /**
@@ -218,6 +222,8 @@ async function adProStakeholders(
       case "EVENT": return prisma.event.findUnique({ where: { id: entityId }, ...sel });
       case "PROMO_MATERIAL":
         return prisma.promoMaterial.findUnique({ where: { id: entityId }, select: { requesterId: true, assistantId: true, companyId: true, ...bu } });
+      case "AD_PRO_OTHER":
+        return prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { requesterId: true, companyId: true, ...bu } });
       default: return null;
     }
   })();
@@ -1056,6 +1062,13 @@ export async function canAccessEntity(
         select: { requestId: true },
       });
       return c ? Boolean(await recruitmentViewer(user, c.requestId)) : false;
+    }
+    case "CONSULTING_CONTRACT": {
+      // LA SOCIÉTÉ DU CONTRAT (audit 27/10, SA-14) — le module de son PÔLE est déjà lu plus haut (§118.150) ; sans ce
+      // cas, le `default` ouvrait le contrat (rémunération comprise) et ses pièces à qui avait le module, toutes
+      // sociétés confondues. La règle d'une fiche ouverte par son lien : toutes les sociétés auxquelles on a droit.
+      const c = await prisma.consultingContract.findUnique({ where: { id: entityId }, select: { companyId: true } });
+      return c ? entitePermisePourFiche(user.id, c.companyId) : false;
     }
     case "BUSINESS_UNIT":
     case "TOUR_PLAN":
