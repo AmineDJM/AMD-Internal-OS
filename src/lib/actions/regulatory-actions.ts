@@ -1,23 +1,17 @@
 "use server";
 
 import { randomUUID } from "crypto";
-import { effectiveTherapeuticSegments } from "@/lib/labels";
 import { revalidatePath } from "next/cache";
-import type { Priority, ProductChannel, ProductType, RegulatoryCategory, RegulatoryStatus, StepStatus, ManufacturingStatus, VariationStatus } from "@prisma/client";
+import type {
+  Priority, ProductType, RegulatoryCategory, RegulatoryStatus, StepStatus, ManufacturingStatus, VariationStatus,
+} from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
-import { userCan, isRegulatorySupervisor, holdsRegulatoryLock, seesLockedRegulatory, getAccess, type SessionUser } from "@/lib/rbac";
-import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
-import {
-  dciKey, duplicateNotice, needsAccessRequest,
-  type DciDuplicate,
-} from "@/lib/regulatory/dci-duplicate";
+import { userCan, holdsRegulatoryLock } from "@/lib/rbac";
+import { duplicateNotice, needsAccessRequest } from "@/lib/regulatory/dci-duplicate";
 import { assignmentNotice, assignmentWarning } from "@/lib/regulatory/assignment";
-import {
-  canSetStructural, structuralChanges, structuralRefusal, structuralNotice, STRUCTURAL_LABELS,
-  type StructuralChange,
-} from "@/lib/regulatory/structural-fields";
+import { canSetStructural } from "@/lib/regulatory/structural-fields";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { reposerWilayaCode } from "@/modules/lieux/api";
@@ -31,19 +25,27 @@ import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { categorieBvPourOrdre } from "@/lib/queries/budget-regulatory";
 import { natureDuLibelle } from "@/lib/budget-regulatory/bv";
-import { bloqueUneNouvelleDemande, etatDeLOrdreBv, ETAT_BV } from "@/lib/regulatory/bv-circuit";
-import { saveFile, validateUpload } from "@/lib/storage";
-import { getAppSettings } from "@/lib/settings";
-import { REGULATORY_STEP_ORDER, LOCAL_MANUFACTURING_VARIATIONS, VARIATION_TARGETS, MANUFACTURING_STATUS } from "@/lib/labels";
+import { bloqueUneNouvelleDemande } from "@/lib/regulatory/bv-circuit";
+import { saveFile } from "@/lib/storage";
+import { REGULATORY_STEP_ORDER, LOCAL_MANUFACTURING_VARIATIONS, VARIATION_TARGETS } from "@/lib/labels";
 import {
-  isRegStepKey, isRegStepState, isRegChecklistKey, isRegPresubOutcome,
-  REG_STEPS, REG_CHECKLIST, REG_PRESUB_OUTCOME, PRESUB_ANSWER_STEP,
-  REG_STATUS_MILESTONE, completeStepsThrough, BV_REQUEST_STEPS,
+  isRegStepKey, isRegStepState, isRegChecklistKey, isRegPresubOutcome, REG_STEPS, REG_CHECKLIST, BV_REQUEST_STEPS,
   type RegWorkflowState, type RegChecklistState,
 } from "@/lib/regulatory-workflow";
 import { creerDossierDriveProduit, synchroniserDossierDrive } from "@/lib/regulatory-drive-dossier";
 import { emit } from "@/platform/events";
 import { syncStatusFromWorkflow, regSupervisorRoles } from "@/lib/regulatory/sync-status";
+import {
+  dciDuplicatesFor, ensureRegSupervisor, existantsDeLaMolecule, normalizeDci, parseProductChannel, upperMolecules,
+} from "@/lib/actions/internes/regulatory/dossier";
+import {
+  annoncerLaFabrication, chargeNomme, guardStructural, notifyCarrierOfStructural, voitLesVerrouilles,
+} from "@/lib/actions/internes/regulatory/structurel";
+import {
+  avancerJusquAuJalon, avisDePresoumission, emettreSousVerrou, etapeMiseAJour, refusBvDejaDemande, refusDesPieces,
+  segmentsAdmis, synchroniserLesDossiersDrive,
+} from "@/lib/actions/internes/regulatory/processus";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/regulatory/{dossier,structurel,processus}` — les actions restent ici (leur clé de contrat).
 
 export interface ActionResult {
   ok: boolean;
@@ -58,58 +60,6 @@ export interface ActionResult {
 function str(formData: FormData, key: string): string | null {
   const v = formData.get(key);
   return v ? String(v) : null;
-}
-
-/** Canal produit (Ville / Hôpital / les deux). undefined si absent → laisse la valeur en place. */
-function parseProductChannel(v: string | null): ProductChannel | undefined {
-  return v === "RETAIL" || v === "HOSPITAL" || v === "BOTH" ? v : undefined;
-}
-
-/** Uniformise la casse des DCI : MAJUSCULES, espaces normalisés autour des « + ». */
-function normalizeDci(value: string): string {
-  return value.trim().toUpperCase().replace(/\s*\+\s*/g, " + ").replace(/\s+/g, " ");
-}
-const upperMolecules = (list: string[]): string[] => list.map((m) => m.trim().toUpperCase()).filter(Boolean);
-
-/** L'utilisateur courant est-il superviseur Regulatory (fixe priorité/dates, demande des MàJ) ? */
-async function ensureRegSupervisor(user: Awaited<ReturnType<typeof requireUser>>): Promise<boolean> {
-  const settings = await getAppSettings();
-  return isRegulatorySupervisor(user, settings.regulatorySupervisorRoles);
-}
-
-/**
- * LES DOSSIERS QUI PORTENT DÉJÀ CETTE DCI — ceux qu'on peut nommer, et ceux qu'on compte.
- *
- * Deux lectures, et la différence entre elles EST le renseignement :
- *
- *   • sans portée, pour SAVOIR qu'un homonyme existe. Aucun nom n'en sort — seulement des
- *     identifiants qui servent à filtrer la seconde requête, puis un décompte ;
- *   • avec `regulatoryVisibleWhere`, la clause UNIQUE que l'écran Regulatory applique déjà
- *     (verrou du pipeline, portée par ligne, cloisonnement par entité, gamme), pour savoir
- *     lesquels cette personne a le droit de VOIR — ceux-là seulement seront nommés.
- *
- * Reprendre la clause de l'écran plutôt que d'en réécrire une ici n'est pas de l'élégance : une
- * seconde clause dériverait au premier droit ajouté, et c'est ce jour-là qu'un avertissement
- * nommerait un dossier confidentiel.
- *
- * La comparaison se fait en mémoire parce qu'elle ne s'exprime PAS en SQL : « A + B » et
- * « B + A » sont la même association, et un `equals` les manquerait — précisément le doublon
- * qu'on cherche.
- */
-async function dciDuplicatesFor(user: SessionUser, dci: string): Promise<DciDuplicate> {
-  const cle = dciKey(dci);
-  if (!cle) return { visible: [], hidden: 0 };
-
-  const tous = await prisma.regulatoryProduct.findMany({ select: { id: true, dci: true } });
-  const ids = tous.filter((p) => dciKey(p.dci) === cle).map((p) => p.id);
-  if (ids.length === 0) return { visible: [], hidden: 0 };
-
-  const visible = await prisma.regulatoryProduct.findMany({
-    where: { AND: [await regulatoryVisibleWhere(user), { id: { in: ids } }] },
-    select: { id: true, reference: true, brandName: true, dosage: true, pharmaceuticalForm: true },
-    orderBy: { reference: "asc" },
-  });
-  return { visible, hidden: ids.length - visible.length };
 }
 
 /**
@@ -138,27 +88,7 @@ export async function checkDciDuplicate(dci: string): Promise<{ notice: string |
   }
   const propre = normalizeDci(dci ?? "");
   if (propre.length < 3) return { notice: null, canRequestAccess: false, existants: [] };
-  const doublons = await dciDuplicatesFor(user, propre);
-  // CE QUI EXISTE DÉJÀ, PROPOSÉ (Direction, 06/10) : les dossiers VISIBLES de cette molécule (on les ouvre), et les
-  // produits du référentiel canonique qui la portent (on part de l'un d'eux, ou l'on crée un nouveau produit).
-  const cle = dciKey(propre);
-  const produits = (await prisma.product.findMany({
-    where: { isActive: true, dci: { contains: propre.split(" + ")[0], mode: "insensitive" } },
-    select: { id: true, code: true, canonicalName: true, dci: true, dosage: true, dosageUnit: true, form: true, packaging: true },
-    take: 40,
-  })).filter((p) => dciKey(p.dci) === cle);
-  const existants: ExistantDeLaMolecule[] = [
-    ...doublons.visible.map((d) => ({
-      nature: "DOSSIER" as const, id: d.id, libelle: `${d.reference}${d.brandName ? ` — ${d.brandName}` : ""}`,
-      detail: [d.dosage, d.pharmaceuticalForm].filter(Boolean).join(" · ") || "dossier existant",
-    })),
-    ...produits.map((p) => ({
-      nature: "PRODUIT" as const, id: p.id, libelle: p.canonicalName, detail: [p.code, p.dosage ? `${p.dosage} ${p.dosageUnit ?? ""}`.trim() : null, p.form, p.packaging].filter(Boolean).join(" · "),
-      identite: { dosage: p.dosage, dosageUnit: p.dosageUnit, form: p.form, packaging: p.packaging, brandName: null },
-    })),
-  ];
-  const notice = duplicateNotice(propre, doublons) ?? (produits.length ? `« ${propre} » existe déjà dans le référentiel produits (${produits.length} produit${produits.length > 1 ? "s" : ""}).` : null);
-  return { notice, canRequestAccess: needsAccessRequest(doublons), existants };
+  return existantsDeLaMolecule(user, propre);
 }
 
 /**
@@ -449,64 +379,6 @@ export async function createRegulatoryProduct(
  * uniformisée en MAJUSCULES. Le statut/priorité ont leur propre action dédiée mais
  * sont aussi acceptés ici pour une édition complète depuis la fiche.
  */
-/**
- * LES TROIS CHAMPS STRUCTURELS — comparés, refusés à qui n'y a pas droit, et ANNONCÉS.
- *
- * Un même verrou sert quatre écrans (la fiche, les deux menus du tableau, la promotion par
- * variation). Le poser une fois évite qu'une correction ne s'applique qu'à trois d'entre eux.
- *
- * Rend les changements RETENUS (vides si l'on n'a pas le droit) et le refus à afficher. Le refus
- * est une réserve, pas une erreur : le reste de la fiche s'enregistre. Perdre un formulaire de
- * trente champs parce qu'une liste déroulante a bougé serait une punition, pas une protection.
- */
-async function guardStructural(
-  user: { id: string; role: string },
-  before: { manufacturingStatus: string | null; responsibleId: string | null; companyId: string | null },
-  after: Partial<{ manufacturingStatus: string | null; responsibleId: string | null; companyId: string | null }>,
-): Promise<{ changes: StructuralChange[]; refusal: string | null }> {
-  // Les valeurs s'affichent LISIBLES : un identifiant `cmxyz…` dans une notification n'apprend
-  // rien à qui la reçoit.
-  const ids = [after.responsibleId, before.responsibleId].filter(Boolean) as string[];
-  const companyIds = [after.companyId, before.companyId].filter(Boolean) as string[];
-  const [people, companies] = await Promise.all([
-    ids.length ? prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [],
-    companyIds.length ? prisma.company.findMany({ where: { id: { in: companyIds } }, select: { id: true, name: true, shortName: true } }) : [],
-  ]);
-  const display = (field: string, value: string | null): string => {
-    if (!value) return "—";
-    if (field === "manufacturingStatus") return MANUFACTURING_STATUS[value] ?? value;
-    if (field === "responsibleId") return people.find((p) => p.id === value)?.name ?? "—";
-    const c = companies.find((x) => x.id === value);
-    return c ? c.shortName || c.name : "—";
-  };
-
-  const changes = structuralChanges(before, after, display as never);
-  if (changes.length === 0) return { changes: [], refusal: null };
-  if (!canSetStructural(user)) return { changes: [], refusal: structuralRefusal(changes) };
-  return { changes, refusal: null };
-}
-
-/**
- * PRÉVENIR LE CHARGÉ DU DOSSIER qu'un champ structurel a bougé.
- *
- * C'est lui qui répondra à l'agence sur le statut de fabrication : l'apprendre trois semaines
- * plus tard, en rouvrant la fiche par hasard, n'est pas acceptable. On ne se notifie pas
- * soi-même — le Super Admin sait ce qu'il vient de faire.
- */
-async function notifyCarrierOfStructural(
-  productId: string,
-  carrierId: string | null,
-  actorId: string,
-  reference: string,
-  dci: string,
-  changes: readonly StructuralChange[],
-): Promise<void> {
-  if (!carrierId || carrierId === actorId) return;
-  const notice = structuralNotice(reference, dci, changes);
-  if (!notice) return;
-  await notifyUser({ userId: carrierId, type: "ASSIGNMENT", ...notice, link: `/regulatory/${productId}` });
-}
-
 export async function updateRegulatoryProduct(
   _prev: ActionResult | undefined,
   formData: FormData,
@@ -748,12 +620,7 @@ export async function unlockAllRegulatory(): Promise<ActionResult> {
   });
   if (res.count === 0) return { ok: true };
   // Entrés au suivi : chacun reçoit son dossier Drive, l'un après l'autre, en arrière-plan.
-  void (async () => {
-    for (const p of ouverts) {
-      await synchroniserDossierDrive(p.id, user.id)
-        .catch((e) => console.error("[drive regulatory] dossier Drive non synchronisé (non bloquant)", { id: p.id }, e));
-    }
-  })();
+  void synchroniserLesDossiersDrive(ouverts, user.id);
   // Entrés au catalogue : chaque dossier ouvert EST un produit (Direction, 08/10).
   for (const p of ouverts) {
     await ensureProduitDuDossier(p.id, { acteurId: user.id })
@@ -815,9 +682,7 @@ export async function setRegulatoryResponsible(formData: FormData): Promise<Acti
     },
   });
 
-  const target = responsibleId
-    ? await prisma.user.findUnique({ where: { id: responsibleId }, select: { name: true, role: true, secondaryRole: true } })
-    : null;
+  const target = await chargeNomme(responsibleId);
   const named = responsibleId ? target?.name ?? "—" : null;
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Regulatory", entityType: "REGULATORY_PRODUCT",
@@ -838,12 +703,7 @@ export async function setRegulatoryResponsible(formData: FormData): Promise<Acti
   // personne, que le dossier n'apparaîtra qu'à l'ouverture du cadenas ; et à celui qui vient de
   // le confier, la même chose, tout de suite.
   // Les DEUX clés du pipeline (Direction, 08/10) : la confidence ET le module « Pipeline réglementaire » de la console.
-  const seesLocked = target
-    ? seesLockedRegulatory({
-        id: responsibleId as string, role: target.role, secondaryRole: target.secondaryRole,
-        access: await getAccess(responsibleId as string, target.role),
-      })
-    : false;
+  const seesLocked = await voitLesVerrouilles(responsibleId, target);
 
   if (responsibleId && responsibleId !== user.id) {
     const notice = assignmentNotice({
@@ -982,13 +842,7 @@ export async function updateRegulatoryStatus(formData: FormData): Promise<Action
    * suivra tout seul, par la seule route qui existe désormais.
    */
   const asked = str(formData, "status") as RegulatoryStatus | null;
-  const milestone = asked && asked !== before.status ? REG_STATUS_MILESTONE[asked] : undefined;
-  let wf = (before.workflow as RegWorkflowState | null) ?? {};
-  let autoSteps = 0;
-  if (milestone) {
-    const sync = completeStepsThrough(wf, milestone);
-    if (sync.changed > 0) { wf = sync.state; autoSteps = sync.changed; }
-  }
+  const { wf, autoSteps } = avancerJusquAuJalon(before, asked);
 
   await prisma.regulatoryProduct.update({
     where: { id },
@@ -1048,14 +902,7 @@ export async function setRegulatoryStepState(formData: FormData): Promise<Action
   const product = await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { workflow: true, status: true, reference: true } });
   if (!product) return { ok: false, error: "Dossier introuvable." };
 
-  const wf = { ...((product.workflow as RegWorkflowState | null) ?? {}) };
-  const date = str(formData, "date");
-  const note = str(formData, "note");
-  wf[stepKey] = {
-    status,
-    date: date && date.trim() ? date.trim() : (status === "DONE" ? new Date().toISOString().slice(0, 10) : wf[stepKey]?.date),
-    note: note !== null ? (note.trim() || undefined) : wf[stepKey]?.note,
-  };
+  const wf = etapeMiseAJour(product.workflow, stepKey, status, str(formData, "date"), str(formData, "note"));
 
   await prisma.regulatoryProduct.update({ where: { id: productId }, data: { workflow: wf as unknown as Prisma.InputJsonValue } });
   const stepLabel = REG_STEPS.find((s) => s.key === stepKey)?.label ?? stepKey;
@@ -1081,15 +928,7 @@ export async function setRegulatoryPresubOutcome(formData: FormData): Promise<Ac
   const product = await prisma.regulatoryProduct.findUnique({ where: { id: productId }, select: { workflow: true, status: true, reference: true } });
   if (!product) return { ok: false, error: "Dossier introuvable." };
 
-  const wf = { ...((product.workflow as RegWorkflowState | null) ?? {}) };
-  const mapped = REG_PRESUB_OUTCOME[outcome];
-  const note = str(formData, "note");
-  wf[PRESUB_ANSWER_STEP] = {
-    status: mapped.status,
-    outcome,
-    date: mapped.status === "DONE" ? new Date().toISOString().slice(0, 10) : wf[PRESUB_ANSWER_STEP]?.date,
-    note: note !== null ? (note.trim() || undefined) : wf[PRESUB_ANSWER_STEP]?.note,
-  };
+  const { wf, mapped } = avisDePresoumission(product.workflow, outcome, str(formData, "note"));
 
   await prisma.regulatoryProduct.update({ where: { id: productId }, data: { workflow: wf as unknown as Prisma.InputJsonValue } });
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Regulatory", entityType: "REGULATORY_PRODUCT", entityId: productId, field: "workflow", newValue: outcome, summary: `Présoumission → ${mapped.label}` });
@@ -1150,13 +989,8 @@ export async function requestBV(formData: FormData): Promise<ActionResult> {
   // ordre au centre de paiement — sans pièce, et qu'une seconde tentative doublait.
   const files = [...formData.getAll("files"), formData.get("file")]
     .filter((f): f is File => f instanceof File && f.size > 0);
-  if (files.length > 0) {
-    const maxMb = (await getAppSettings()).maxUploadMb;
-    for (const file of files) {
-      const err = validateUpload(file.name, file.size, maxMb);
-      if (err) return { ok: false, error: err };
-    }
-  }
+  const refusPiece = await refusDesPieces(files);
+  if (refusPiece) return { ok: false, error: refusPiece };
 
   // L'ORDRE NAÎT EN ATTENTE DU CENTRE DE PAIEMENT (`initialCentralStatus`, aucune exemption de
   // module) ; les Finances ne le voient qu'une fois autorisé. Son entité est celle du DOSSIER.
@@ -1183,24 +1017,8 @@ export async function requestBV(formData: FormData): Promise<ActionResult> {
   // la main — redemander un BV refusé est le geste prévu (`bloqueUneNouvelleDemande`).
   let order: Awaited<ReturnType<typeof emettre>>;
   if (nature) {
-    const issue = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('bv-demande'), hashtext(${`${productId}:${nature}`}))`;
-      const existants = await tx.expenseOrder.findMany({
-        where: { sourceType: "REGULATORY_PRODUCT", sourceId: productId, status: { not: "CANCELLED" } },
-        select: { reference: true, label: true, status: true, centralStatus: true },
-        orderBy: { createdAt: "desc" },
-      });
-      const vivant = existants.find((o) => natureDuLibelle(o.label) === nature && bloqueUneNouvelleDemande(o));
-      if (vivant) return { deja: vivant, cree: null };
-      return { deja: null, cree: await emettre() };
-    }, { maxWait: 10_000, timeout: 30_000 });
-    if (issue.deja) {
-      const etat = etatDeLOrdreBv(issue.deja) ?? "DEMANDE";
-      return {
-        ok: false,
-        error: `Le ${bvType} de ce dossier est déjà demandé (${issue.deja.reference} — ${ETAT_BV[etat].label.toLowerCase()}, ${ETAT_BV[etat].detail}). Une seconde demande ferait payer deux fois le même bon ; on ne redemande qu'un BV refusé par le centre de paiement.`,
-      };
-    }
+    const issue = await emettreSousVerrou(productId, nature, emettre);
+    if (issue.deja) return { ok: false, error: refusBvDejaDemande(bvType, issue.deja) };
     if (!issue.cree) return { ok: false, error: "La demande n'a pas pu être émise : réessayez." };
     order = issue.cree;
   } else {
@@ -1349,17 +1167,7 @@ export async function setVariationStatus(formData: FormData): Promise<ActionResu
     });
     // MÊME CHANGEMENT, MÊME ANNONCE. Que le statut bouge par la fiche ou par une variation
     // obtenue, c'est la même décision industrielle : le chargé du dossier l'apprend.
-    if (product && product.manufacturingStatus !== variation.toStatus) {
-      await notifyCarrierOfStructural(
-        variation.productId, product.responsibleId, user.id, product.reference, product.dci,
-        [{
-          field: "manufacturingStatus",
-          label: STRUCTURAL_LABELS.manufacturingStatus,
-          from: MANUFACTURING_STATUS[product.manufacturingStatus] ?? product.manufacturingStatus,
-          to: MANUFACTURING_STATUS[variation.toStatus] ?? variation.toStatus,
-        }],
-      );
-    }
+    if (product && product.manufacturingStatus !== variation.toStatus) await annoncerLaFabrication(variation, product, user.id);
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Regulatory", entityType: "REGULATORY_PRODUCT", entityId: variation.productId, summary: `Variation → ${variation.toStatus} : ${status}` });
   revalidatePath(`/regulatory/${variation.productId}`);
@@ -1426,13 +1234,7 @@ export async function setRegulatoryClassification(formData: FormData): Promise<A
     // vient chercher. La liste effective est celle réglée par l'administrateur (sinon la liste
     // par défaut) ; un segment DÉJÀ posé sur la fiche reste accepté même s'il a depuis quitté le
     // référentiel — sinon on ne pourrait plus le retirer.
-    const settings = await getAppSettings();
-    const allowed = new Set([
-      ...effectiveTherapeuticSegments(settings.regulatoryTherapeuticSegments),
-      ...(before.therapeuticSegments ?? []),
-    ]);
-    const picked = formData.getAll("segments").map(String).filter((v) => allowed.has(v));
-    data.therapeuticSegments = [...new Set(picked)];
+    data.therapeuticSegments = await segmentsAdmis(before.therapeuticSegments, formData.getAll("segments"));
   }
 
   // LE PROJET BD — une ÉTIQUETTE de classement, comme les segments : elle n'ouvre ni ne ferme
