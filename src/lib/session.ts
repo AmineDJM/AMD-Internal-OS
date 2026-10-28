@@ -114,13 +114,22 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
 
   // Validate the revocable session: reject revoked/expired tokens so the admin
   // can force-logout a user (or a single device) from the console.
+  //
+  // Le COMPTE se relit avec la session, dans la même requête (audit sécurité 27/10, SECURITE-ACCES-07) :
+  //   • un compte DÉSACTIVÉ n'a plus de session — `toggleUserActive` (Adam) ne révoquait rien, et l'ancien
+  //     salarié restait connecté jusqu'à 30 jours ;
+  //   • le rôle qui ouvre la « Vue exacte » est le rôle EN BASE, pas celui que le JWT a figé au login — un
+  //     Super Admin rétrogradé gardait sinon la vue (lire l'OS comme n'importe qui) jusqu'à expiration.
   const sid = session.user.sid;
+  let compte: { isActive: boolean; role: UserRole } | null | undefined;
   if (sid) {
     const us = await prisma.userSession.findUnique({
       where: { id: sid },
-      select: { revokedAt: true, expiresAt: true },
+      select: { revokedAt: true, expiresAt: true, user: { select: { isActive: true, role: true } } },
     });
     if (!us || us.revokedAt || us.expiresAt < new Date()) return null;
+    compte = us.user;
+    if (compte && !compte.isActive) return null;
     // `lastSeenAt` = « dernier clic » : granularité à la minute suffit. On throttle donc
     // l'UPDATE (au plus 1×/min par session) au lieu d'écrire à CHAQUE requête (WAL/disque).
     if (shouldTouch(`sess:${sid}`, 60_000)) {
@@ -151,7 +160,8 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
   // action et les actions qui ne font que lire (`enLecture(requireUser)`) ; seul le CORPS d'une écriture part
   // au nom du Super Admin, qui garde alors `visualise` : un geste réservé à « soi » (Adam) sait le refuser.
   let visualise: CurrentUser["visualise"];
-  const targetId = session.user.role === "SUPER_ADMIN" ? cookieDeVue() : undefined;
+  const roleReel = compte?.role ?? session.user.role;
+  const targetId = roleReel === "SUPER_ADMIN" ? cookieDeVue() : undefined;
   if (targetId && targetId !== session.user.id) {
     const target = await prisma.user.findUnique({
       where: { id: targetId },

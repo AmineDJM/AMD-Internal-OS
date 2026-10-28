@@ -26,10 +26,14 @@ export const GET = handle<{ entity: string }>(
     const sp = req.nextUrl.searchParams;
     const page = parsePage(sp);
     const allowed = new Set([...def.listFields, ...def.searchFields, ...(def.statusField ? [def.statusField] : [])]);
+    // `AND`, jamais l'étalement : la portée « mes lignes » est un `{ OR }`, la recherche aussi —
+    // étalées, la seconde écrasait la première et `?q=` rendait les lignes de tout le monde.
     const where = {
-      ...(await porteeEntite(ctx.user, def)),
-      ...parseFilters(sp, allowed, RESERVED),
-      ...textSearchWhere(def, sp.get("q") ?? ""),
+      AND: [
+        await porteeEntite(ctx.user, def),
+        parseFilters(sp, allowed, RESERVED),
+        textSearchWhere(def, sp.get("q") ?? ""),
+      ],
     };
     const orderBy = parseSort(sp.get("sort"), def, allowed);
 

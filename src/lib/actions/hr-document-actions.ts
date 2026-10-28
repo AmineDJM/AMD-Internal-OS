@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { HrRequestType, HrRequestStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
+import { entitePermisePourFiche } from "@/lib/company";
 import { userCan, hasGlobalView, rolesWithModule } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { releaseBlob } from "@/lib/drive-storage";
@@ -962,8 +963,9 @@ export async function deleteEmployeeDocument(formData: FormData): Promise<Action
   if (!userCan(user, "EMPLOYEES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Document introuvable." };
-  const doc = await prisma.employeeDocument.findUnique({ where: { id }, select: { blobId: true, employeeId: true, name: true } });
-  if (!doc) return { ok: false, error: "Document introuvable." };
+  const doc = await prisma.employeeDocument.findUnique({ where: { id }, select: { blobId: true, employeeId: true, name: true, employee: { select: { companyId: true } } } });
+  // LA PORTE DE LA FICHE (`/rh/[id]`, `updateEmployee`) : la pièce d'une société qu'on ne voit pas reste introuvable (audit 27/10).
+  if (!doc || !(await entitePermisePourFiche(user.id, doc.employee.companyId))) return { ok: false, error: "Document introuvable." };
   await prisma.employeeDocument.delete({ where: { id } });
   await releaseBlob(doc.blobId);
   await recordAudit({ actorId: user.id, action: "DELETE", module: "RH", entityType: "EMPLOYEE", entityId: doc.employeeId, summary: `Document RH « ${doc.name} » supprimé` });
@@ -991,9 +993,10 @@ export async function setEmployeeDocumentVisibility(formData: FormData): Promise
 
   const doc = await prisma.employeeDocument.findUnique({
     where: { id },
-    select: { employeeId: true, name: true, visibleToEmployee: true, employee: { select: { fullName: true } } },
+    select: { employeeId: true, name: true, visibleToEmployee: true, employee: { select: { fullName: true, companyId: true } } },
   });
-  if (!doc) return { ok: false, error: "Document introuvable." };
+  // LA PORTE DE LA FICHE (`/rh/[id]`, `updateEmployee`) : la pièce d'une société qu'on ne voit pas reste introuvable (audit 27/10).
+  if (!doc || !(await entitePermisePourFiche(user.id, doc.employee.companyId))) return { ok: false, error: "Document introuvable." };
   if (doc.visibleToEmployee === visible) return { ok: true };
 
   await prisma.employeeDocument.update({ where: { id }, data: { visibleToEmployee: visible } });

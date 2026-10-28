@@ -43,7 +43,7 @@ export type { EtablissementOption };
  * les sortait. Trouvé en branchant l'accès par annuaire sur cette route (§118.147) — une porte
  * gardée à côté d'une porte ouverte, et c'est la même chose qui passait (§118.71).
  */
-function ouvreAnnuaireNomme(user: SessionUser) {
+export function ouvreAnnuaireNomme(user: SessionUser) {
   const privileged = user.role === "SUPER_ADMIN" || hasGlobalView(user.role);
   return (d: { createdById: string | null; access: { userId: string }[] }) =>
     privileged || d.access.length === 0 || d.createdById === user.id || d.access.some((a) => a.userId === user.id);

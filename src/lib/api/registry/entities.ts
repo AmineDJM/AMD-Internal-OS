@@ -411,6 +411,8 @@ export const ENTITIES: EntityDef[] = [
     module: "WORKSPACE",
     label: "Tâche",
     description: "Tâche assignée à une personne, éventuellement rattachée à un projet ou à un objet métier.",
+    // Le CERCLE de la tâche — le module WORKSPACE, que tout le monde a, ne suffit pas. La clause est
+    // celle du domaine `tasks` : posée par `portee.ts` (une façade), le socle ne connaît pas les domaines.
     scope: moduleOnly,
     listFields: ["id", "title", "status", "priority", "assignedToId", "createdById", "dueDate", "module", "relatedEntityType", "relatedEntityId", "createdAt"],
     searchFields: ["title", "description"],
@@ -458,7 +460,8 @@ export const ENTITIES: EntityDef[] = [
     module: "NOTIFICATIONS",
     label: "Notification",
     description: "Alerte adressée à une personne (assignation, validation attendue, échéance).",
-    scope: moduleOnly,
+    // Une notification n'est lue que par son destinataire — jamais par « qui a le module ».
+    scope: (user) => ({ userId: user.id }),
     listFields: ["id", "userId", "type", "title", "body", "link", "isRead", "createdAt"],
     searchFields: ["title", "body"],
     orderBy: { createdAt: "desc" },

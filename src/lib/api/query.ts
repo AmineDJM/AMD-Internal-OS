@@ -111,6 +111,12 @@ const CHAMPS_JAMAIS_EXPOSES = new Set([
   "passwordHash", "passwordEnc", "secret", "token", "publicToken", "qrToken", "keyHash",
   "iban", "rib", "nationalId", "cnasNumber",
   "baseSalary", "grossSalary", "netToPay", "employerCost",
+  // La paie au-delà du salaire de base (audit sécurité 27/10) : les retenues de la fiche suffisaient à
+  // recalculer le salaire, et `employee/:id/related` rendait les bulletins (`payrolls`) mois par mois.
+  // Noms vérifiés uniques aux modèles de paie dans `schema.prisma`.
+  "retIrg", "retSS9", "retSS35", "tfp", "expenseRefund",
+  "gross", "net", "bonuses", "deductions",
+  "birthDate",
 ]);
 /** Jetons et mots de passe chiffrés au repos (`accessTokenEnc`, `refreshTokenEnc`…). */
 const CHIFFRE_AU_REPOS = /Enc$/;

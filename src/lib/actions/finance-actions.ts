@@ -10,12 +10,24 @@ import { recordAudit } from "@/lib/audit";
 import { broadcastNotification } from "@/lib/notify";
 import { entiteParDefaut } from "@/lib/company-defaut";
 import { fdStr, fdNum, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
-import { getMyCompanies, companyScopedWhere } from "@/lib/company";
+import { getMyCompanies, companyScopedWhere, entitePermisePourFiche } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
 import { compteDeLEcriture, comptesTresorerie } from "@/lib/finance/comptes";
 import { resoudreCompte } from "@/lib/finance/tresorerie";
 
 const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
+
+/**
+ * L'ÉCRITURE, SEULEMENT SI LA LISTE LA MONTRE À CETTE PERSONNE (audit sécurité 27/10, SECURITE-ACCES-10).
+ * Le livre `/finances` est filtré par entité (`clauseEcrituresVisibles`) ; les écritures, non : un financier
+ * d'Alpha modifiait, soldait ou supprimait une écriture de Beta par son identifiant. La porte est celle d'une
+ * FICHE (`entitePermisePourFiche`) : toutes les entités ouvertes à la personne, pas la seule du sélecteur.
+ * Non exporté : dans un fichier `"use server"`, un export devient une action appelable.
+ */
+async function ecritureVisible(userId: string, id: string): Promise<{ reference: string; label: string } | null> {
+  const tx = await prisma.financeTransaction.findUnique({ where: { id }, select: { reference: true, label: true, companyId: true } });
+  return tx && (await entitePermisePourFiche(userId, tx.companyId)) ? tx : null;
+}
 
 async function nextRef(prefix: string): Promise<string> {
   const year = new Date().getFullYear();
@@ -34,6 +46,8 @@ export async function createTransaction(
   const amount = fdNum(formData, "amount");
   const category = (fdStr(formData, "category") as FinanceCategory) ?? "AUTRE";
   if (!label || amount === null) return { ok: false, error: "Libellé et montant obligatoires." };
+  // L'entité vient du formulaire : elle doit être l'une des siennes, comme pour un compte de trésorerie.
+  if (!(await entiteOuverte(user.id, fdStr(formData, "companyId") || null))) return { ok: false, error: "Entité introuvable ou hors de votre périmètre." };
 
   const direction = (fdStr(formData, "direction") as FinanceDirection) ??
     (IN_CATEGORIES.includes(category) ? "IN" : "OUT");
@@ -98,6 +112,7 @@ export async function updateTransactionStatus(formData: FormData): Promise<Actio
   const id = fdStr(formData, "id");
   const status = fdStr(formData, "status") as FinanceStatus;
   if (!id || !status) return { ok: false, error: "Paramètres manquants." };
+  if (!(await ecritureVisible(user.id, id))) return { ok: false, error: "Écriture introuvable." };
   const regle = await reglementPorte(id);
   if (regle && status !== "SETTLED") return { ok: false, error: refusReglement(regle, "changer son statut") };
   await prisma.financeTransaction.update({ where: { id }, data: { status } });
@@ -122,6 +137,7 @@ export async function updateTransaction(formData: FormData): Promise<ActionResul
   const amount = fdNum(formData, "amount");
   if (!id) return { ok: false, error: "Identifiant manquant." };
   if (!label || amount === null) return { ok: false, error: "Libellé et montant obligatoires." };
+  if (!(await ecritureVisible(user.id, id))) return { ok: false, error: "Écriture introuvable." };
   const category = (fdStr(formData, "category") as FinanceCategory) ?? "AUTRE";
   const direction = (fdStr(formData, "direction") as FinanceDirection) ??
     (IN_CATEGORIES.includes(category) ? "IN" : "OUT");
@@ -167,7 +183,7 @@ export async function deleteTransaction(formData: FormData): Promise<ActionResul
   if (!userCan(user, "FINANCES", "DELETE")) return { ok: false, error: "Suppression non autorisée." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
-  const tx = await prisma.financeTransaction.findUnique({ where: { id }, select: { reference: true, label: true } });
+  const tx = await ecritureVisible(user.id, id);
   if (!tx) return { ok: false, error: "Écriture introuvable." };
   const regle = await reglementPorte(id);
   if (regle) return { ok: false, error: refusReglement(regle, "la supprimer") };

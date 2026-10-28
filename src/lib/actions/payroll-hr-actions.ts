@@ -121,8 +121,9 @@ export async function markSalaryPaid(formData: FormData): Promise<ActionResult> 
   const invalidAmounts = validateAmounts({ employerCost, net, gross });
   if (invalidAmounts) return { ok: false, error: invalidAmounts };
 
-  const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { fullName: true } });
-  if (!employee) return { ok: false, error: "Employé introuvable." };
+  const employee = await prisma.employee.findUnique({ where: { id: employeeId }, select: { fullName: true, companyId: true } });
+  // LA PORTE DE LA FICHE (`/rh/[id]`, `updateEmployee`) : la pièce d'une société qu'on ne voit pas reste introuvable (audit 27/10).
+  if (!employee || !(await entitePermisePourFiche(user.id, employee.companyId))) return { ok: false, error: "Employé introuvable." };
 
   const existing = await prisma.payrollEntry.findUnique({ where: { employeeId_year_month: { employeeId, year, month } } });
   if (existing?.status === "PAID") return { ok: false, error: "Ce mois est déjà marqué payé pour cet employé." };
@@ -176,11 +177,12 @@ export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult
   const entry = await prisma.payrollEntry.findUnique({
     where: { id },
     include: {
-      employee: { select: { fullName: true } },
+      employee: { select: { fullName: true, companyId: true } },
       payrollWire: { select: { paidAt: true, expenseOrder: { select: { reference: true, status: true, centralStatus: true } } } },
     },
   });
-  if (!entry || entry.status !== "PAID") return { ok: false, error: "Ligne introuvable." };
+  // LA PORTE DE LA FICHE (`/rh/[id]`, `updateEmployee`) : la ligne d'une société qu'on ne voit pas reste introuvable (audit 27/10).
+  if (!entry || entry.status !== "PAID" || !(await entitePermisePourFiche(user.id, entry.employee.companyId))) return { ok: false, error: "Ligne introuvable." };
   if (entry.budgetTransferredAt) return { ok: false, error: "Déjà transférée dans le budget : annulation impossible ici." };
   // UN SALAIRE ENVOYÉ AU CENTRE NE S'ANNULE PLUS (§118.176) : il fait partie de la somme que le
   // centre autorise — ou que les Finances ont virée. L'annuler laisserait cette somme décrire une
@@ -476,11 +478,12 @@ export async function updatePayrollEntry(formData: FormData): Promise<ActionResu
   const entry = await prisma.payrollEntry.findUnique({
     where: { id },
     include: {
-      employee: { select: { fullName: true } },
+      employee: { select: { fullName: true, companyId: true } },
       payrollWire: { select: { paidAt: true, expenseOrder: { select: { reference: true, status: true, centralStatus: true } } } },
     },
   });
-  if (!entry) return { ok: false, error: "Ligne introuvable." };
+  // LA PORTE DE LA FICHE (`/rh/[id]`, `updateEmployee`) : la pièce d'une société qu'on ne voit pas reste introuvable (audit 27/10).
+  if (!entry || !(await entitePermisePourFiche(user.id, entry.employee.companyId))) return { ok: false, error: "Ligne introuvable." };
   const allowed = canAmend(entry);
   if (!allowed.ok) return { ok: false, error: allowed.error };
 

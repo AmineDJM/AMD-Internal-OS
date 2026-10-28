@@ -23,7 +23,7 @@ export async function documentLisibleParApi(
   if (def) {
     if (!canReadEntity(user, def)) return false;
     const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];
-    const owner = await model.findFirst({ where: { id: doc.entityId, ...(await porteeEntite(user, def)) }, select: { id: true } });
+    const owner = await model.findFirst({ where: { AND: [await porteeEntite(user, def), { id: doc.entityId }] }, select: { id: true } });
     return Boolean(owner);
   }
   return canAccessEntity(user, doc.entityType as EntityType, doc.entityId, "VIEW");
