@@ -23,6 +23,7 @@ import { resumeDesLiens } from "@/lib/suppression/branches";
 
 /** Types d'enregistrements que le Super Admin peut supprimer définitivement. */
 export type DeletableKind =
+  | "PCH_ORDER"
   | "REGULATORY_PRODUCT"
   | "SPONSORING"
   | "EVENT"
@@ -715,6 +716,32 @@ export const DELETE_REGISTRY: Record<DeletableKind, KindSpec> = {
     },
     async remove(id) {
       await prisma.pchTender.delete({ where: { id } });
+    },
+  },
+  PCH_ORDER: {
+    label: "bon de commande de marché",
+    module: "PCH",
+    redirect: "/pch",
+    model: "pchOrder",
+    entityType: "PCH_ORDER",
+    // UNE COMMANDE LIVRÉE NE SE SUPPRIME PAS (audit 27/10, DONNEES-15) : ses bons de livraison justifient des entrées
+    // en stock — la supprimer détachait les mouvements de stock de leur livraison et perdait les réserves de
+    // réception. On corrige une commande livrée, on ne l'efface pas.
+    refuse: async (id) => {
+      const livrees = await prisma.pchDelivery.count({ where: { orderId: id, deliveredAt: { not: null } } });
+      return livrees > 0
+        ? `Ce bon de commande porte ${livrees} livraison(s) réceptionnée(s) : il ne se supprime pas — ses bons de livraison justifient des entrées en stock. Corrigez-le plutôt.`
+        : null;
+    },
+    // UN LOT : ses lignes et ses livraisons attendues (cascade) partent dans la même entrée de corbeille, et
+    // reviennent avec lui. Elle partait d'un seul `delete`, sans corbeille ni journal.
+    lot: true,
+    async describe(id) {
+      const r = await prisma.pchOrder.findUnique({ where: { id }, select: { reference: true, tender: { select: { reference: true } } } });
+      return r ? `${r.reference ?? "Bon de commande"} — marché ${r.tender.reference}` : null;
+    },
+    async remove(id) {
+      await prisma.pchOrder.delete({ where: { id } });
     },
   },
   PCH_TENDER_LINE: {

@@ -275,9 +275,12 @@ export async function deleteOrder(formData: FormData): Promise<ActionResult> {
   if (!userCan(user, "PCH", "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
-  const order = await prisma.pchOrder.findUnique({ where: { id }, select: { tenderId: true } });
+  const order = await prisma.pchOrder.findUnique({ where: { id }, select: { tenderId: true, reference: true } });
   if (!order || !(await peutAgirSurLeMarche(user, order.tenderId, "DELETE"))) return { ok: false, error: "Bon de commande introuvable." };
-  await prisma.pchOrder.delete({ where: { id } });
+  // PAR LE CŒUR RÉVERSIBLE (audit 27/10, DONNEES-15) : refusé s'il a été livré ; sinon à la corbeille avec ses lignes
+  // et ses livraisons attendues, tracé. Le `delete` d'avant effaçait tout, sans journal ni retour.
+  const r = await supprimerReversible("PCH_ORDER", id, user.id, `Suppression d'un bon de commande de marché — ${order.reference ?? id} (restaurable depuis la corbeille)`);
+  if (!r.ok) return { ok: false, error: r.error ?? "Suppression impossible." };
   revalidatePath(`/pch/${order.tenderId}`);
-  return { ok: true };
+  return { ok: true, message: "Bon de commande supprimé — restaurable depuis la corbeille." };
 }
