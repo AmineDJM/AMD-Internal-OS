@@ -204,7 +204,7 @@ function VueCarte(props: {
   setCircuitSurCarte: (id: string | null) => void;
   recherche: string;
   setRecherche: (s: string) => void;
-  panneauRef: RefObject<HTMLDivElement>;
+  panneauRef: RefObject<HTMLDivElement | null>;
 }) {
   const { acces, roles, moduleId, setModuleId, ouvrirModule, ouvrirCircuit, circuitSurCarte, setCircuitSurCarte, recherche, setRecherche, panneauRef } = props;
   const zoneRef = useRef<HTMLDivElement>(null);
