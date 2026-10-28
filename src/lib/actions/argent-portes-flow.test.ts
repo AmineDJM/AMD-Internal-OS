@@ -23,8 +23,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUse
 // L'ENTRELACEMENT, rendu déterministe (DONNEES-09) : quand un siège répond pour le demandeur, la porte de l'ordre
 // est franchie APRÈS la lecture et AVANT l'écriture — c'est là qu'un autre siège tranche.
 let pendantLaReponse: (() => Promise<unknown>) | null = null;
-vi.mock("@/lib/acces/objet", async (importOriginal) => {
-  const vrai = await importOriginal<typeof import("@/lib/acces/objet")>();
+vi.mock("@/lib/entity-access", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/entity-access")>();
   return {
     ...vrai,
     ouvrirPourEcrire: async (...args: Parameters<typeof vrai.ouvrirPourEcrire>) => {

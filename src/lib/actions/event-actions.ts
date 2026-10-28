@@ -1,6 +1,5 @@
 "use server";
 
-import { ouvrirPourEcrire } from "@/lib/acces/objet";
 import { revalidatePath } from "next/cache";
 import {
   EventType, EventScope, EventFormat, EventStatus, ParticipantRole, RegistrationStatus,
@@ -8,7 +7,7 @@ import {
 import type { CongressRequestStatus } from "@prisma/client";
 import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, anyRoleFilter, hasGlobalView } from "@/lib/rbac";
-import { canAccessEntity } from "@/lib/entity-access";
+import { canAccessEntity, ouvrirPourEcrire } from "@/lib/entity-access";
 import { isAdProDecided } from "@/lib/ad-pro-edit";
 import { porteeModificationEvenement, champsModifies, CHAMPS_ORGANISATION } from "@/lib/events/modification";
 import { prisma } from "@/lib/prisma";

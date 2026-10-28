@@ -14,7 +14,7 @@ import { join, relative } from "node:path";
  * Ce cliquet lit chaque fichier `"use server"` et, dans chaque fonction, chaque
  * `prisma.<modèle>.(update|delete|updateMany|deleteMany)({ where: { id`. L'écriture est GARDÉE si,
  * plus haut dans la même fonction, on trouve l'une des portes de la maison :
- *   - `ouvrirPourEcrire(…)` (`src/lib/acces/objet.ts`) — LA porte, à préférer ;
+ *   - `ouvrirPourEcrire(…)` (`src/lib/entity-access.ts`) — LA porte, à préférer ;
  *   - une porte locale NOMMÉE `porte…(` (`porteDuRapport`) qui rend une `PorteEcriture` ;
  *   - `canAccessEntity(…)`, `entitePermisePourFiche(…)`, `predicatEntitePermise(…)` ;
  *   - une clause de portée (`scope…(`, `ficheScopedWhere(`, `companyScopedWhere(`, `clause…Visible…(`) ;

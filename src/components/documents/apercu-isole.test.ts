@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { sourceDuSymbole } from "@/platform/source";
 import { CSP_APERCU, SANDBOX_APERCU, documentApercuIsole } from "./apercu-isole";
 
 describe("aperçu Office isolé (SA-12)", () => {
@@ -18,7 +17,7 @@ describe("aperçu Office isolé (SA-12)", () => {
   });
 
   it("aucun aperçu Office n'injecte plus le HTML converti dans la page", () => {
-    const src = readFileSync(join(process.cwd(), "src/components/documents/office-viewers.tsx"), "utf8");
+    const src = sourceDuSymbole("DocxView");
     expect(src).not.toContain("dangerouslySetInnerHTML");
     expect(src).toContain("sandbox={SANDBOX_APERCU}");
   });

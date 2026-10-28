@@ -1,6 +1,6 @@
 "use server";
 
-import { ouvrirPourEcrire } from "@/lib/acces/objet";
+import { ouvrirPourEcrire } from "@/lib/entity-access";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";

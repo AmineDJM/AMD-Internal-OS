@@ -12,7 +12,7 @@ import { broadcastNotification } from "@/lib/notify";
 import { entiteParDefaut } from "@/lib/company-defaut";
 import { fdStr, fdNum, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { getMyCompanies, companyScopedWhere } from "@/lib/company";
-import { ouvrirPourEcrire } from "@/lib/acces/objet";
+import { ouvrirPourEcrire } from "@/lib/entity-access";
 import { toNumber } from "@/lib/utils";
 import { compteDeLEcriture, comptesTresorerie } from "@/lib/finance/comptes";
 import { resoudreCompte } from "@/lib/finance/tresorerie";

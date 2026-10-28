@@ -1,6 +1,6 @@
 "use server";
 
-import { ouvrirPourEcrire, type PorteEcriture } from "@/lib/acces/objet";
+import { ouvrirPourEcrire, type PorteEcriture } from "@/lib/entity-access";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";

@@ -16,7 +16,7 @@ import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { ENTITE_SANS, slugSectionDeLOrdre } from "@/lib/payments/sections-centre";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
-import { ouvrirPourEcrire } from "@/lib/acces/objet";
+import { ouvrirPourEcrire } from "@/lib/entity-access";
 import { refusSeparationDesTaches } from "@/lib/payments/separation";
 import { getAppSettings } from "@/lib/settings";
 import { sansBloquer } from "@/lib/journal";
