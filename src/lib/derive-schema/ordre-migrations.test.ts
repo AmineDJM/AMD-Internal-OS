@@ -30,6 +30,8 @@ const ECARTS_CONNUS = new Set([
   "20270131170000_lieux_wilaya_code",
   "20270131170000_organisations_reprise",
   "20270131170000_personnes_reprise",
+  // Intégrée par la base (lot V3-D) après `20270205100000_incidents_repetes`, déjà déployée : la renommer la rejouerait.
+  "20270202090000_assistant_ia_exploitation",
 ]);
 
 /** La date du commit qui a AJOUTÉ chaque migration (le plus ancien), ou `null` sans git. */
