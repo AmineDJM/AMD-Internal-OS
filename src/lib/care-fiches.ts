@@ -4,6 +4,7 @@ import type {
 } from "@prisma/client";
 import { lireVoyageur, manquesPourReserver, prochainGesteVoyageur, lireEtapes, jourLisible, TRAJET_LIBELLE, TRANSPORT_LIBELLE, type EtapeTrajet, type VoyageurPourReservation } from "@/lib/ad-pro/voyageurs";
 import { lireHebergement, nuitsDe } from "@/lib/ad-pro/hebergements";
+import { arrondirAuCentime } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -73,14 +74,12 @@ export function tauxDeLaDemande(scope: Perimetre, stocke: number | null | undefi
   return typeof stocke === "number" && Number.isFinite(stocke) && stocke > 0 ? stocke : TAUX_USD_DZD_DEFAUT;
 }
 
-const centimes = (n: number) => Math.round(n * 100) / 100;
-
 /** L'équivalent DZD d'un montant saisi — `null` pour un montant en dollars sans taux (jamais deviné). */
 export function versDzd(montant: number | null, devise: CareCurrency, taux: number | null): number | null {
   if (montant == null || !Number.isFinite(montant)) return null;
-  if (devise === "DZD") return centimes(montant);
+  if (devise === "DZD") return arrondirAuCentime(montant);
   if (taux == null || !Number.isFinite(taux) || taux <= 0) return null;
-  return centimes(montant * taux);
+  return arrondirAuCentime(montant * taux);
 }
 
 export function montantLisible(montant: number, devise: CareCurrency = "DZD"): string {
@@ -579,7 +578,7 @@ export function montantPosteGroupe(
 ): number | null {
   if (poste.status === "WAIVED") return 0;
   if (poste.unitAmountDzd == null) return null;
-  return centimes(poste.unitAmountDzd * personnesDuPosteGroupe(poste, personnes).length);
+  return arrondirAuCentime(poste.unitAmountDzd * personnesDuPosteGroupe(poste, personnes).length);
 }
 
 // ───────────────────────────── Estimé et totaux ─────────────────────────────
@@ -656,9 +655,9 @@ export function estimations(input: {
     for (const p of personnesDuPosteGroupe(g, input.personnes)) parPersonne.set(p.id, (parPersonne.get(p.id) ?? 0) + (g.unitAmountDzd ?? 0));
   }
 
-  for (const [k, v] of parPersonne) parPersonne.set(k, centimes(v));
-  for (const [k, v] of parCase) parCase.set(k, centimes(v));
-  return { parPersonne, parCase, total: centimes(devisTotal + saisis + groupe), devis: centimes(devisTotal), saisis: centimes(saisis), groupe: centimes(groupe) };
+  for (const [k, v] of parPersonne) parPersonne.set(k, arrondirAuCentime(v));
+  for (const [k, v] of parCase) parCase.set(k, arrondirAuCentime(v));
+  return { parPersonne, parCase, total: arrondirAuCentime(devisTotal + saisis + groupe), devis: arrondirAuCentime(devisTotal), saisis: arrondirAuCentime(saisis), groupe: arrondirAuCentime(groupe) };
 }
 
 /** LE TOTAL FACE À L'ENVELOPPE — la phrase du dépassement, ou `null`. Un dépassement se DIT, il ne bloque rien. */

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { toNumber } from "@/lib/utils";
+import { toNumber, montantDzd } from "@/lib/utils";
 import {
   renewLegalDocument, cancelLegalDocument, setLegalReaders, sendLegalInvoiceToSettlement, adresserBCAuCentre,
 } from "@/lib/actions/legal-actions";
@@ -24,7 +24,6 @@ import { addAdProComment, legalReaderWhere } from "@/platform/in-process/capacit
 
 interface LegalHit { id: string; title: string; reference: string | null; kind: string; status: string; amount: number | null; endDate: Date | null }
 
-const dzd = (n: number): string => `${n.toLocaleString("fr-FR")} DZD`;
 const day = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : "sans échéance");
 
 /**
@@ -172,7 +171,7 @@ export const LEGAL_OPS_IMPL: Record<string, OpImpl> = {
         title: `Rattacher « ${doc.title} » à ${fiche.label}`,
         fields: fieldsOf([
           ["Document", `${doc.reference ? `${doc.reference} — ` : ""}${doc.title}`],
-          ["Montant", doc.amount === null ? "—" : dzd(doc.amount)],
+          ["Montant", doc.amount === null ? "—" : montantDzd(doc.amount)],
           ["Fiche", `${fiche.label} (${fiche.libelle})`],
         ]),
         warnings: [
@@ -368,10 +367,10 @@ export const LEGAL_OPS_IMPL: Record<string, OpImpl> = {
         return { error: `La facture « ${doc.title} » n'a pas de montant renseigné — le renseigner sur la fiche avant l'envoi au règlement.` };
       }
       return {
-        title: `Envoyer la facture « ${doc.title} » au règlement (${dzd(doc.amount)})`,
+        title: `Envoyer la facture « ${doc.title} » au règlement (${montantDzd(doc.amount)})`,
         fields: [
           { label: "Facture", value: `${doc.reference ? `${doc.reference} — ` : ""}${doc.title}` },
-          { label: "Montant", value: dzd(doc.amount) },
+          { label: "Montant", value: montantDzd(doc.amount) },
         ],
         warnings: ["Un ORDRE DE DÉPENSE est créé dans le circuit Finances / Centre de paiement — rien n'est décaissé ici. Une facture déjà partie au règlement est refusée."],
         args: { id: doc.id, label: doc.title },
@@ -406,7 +405,7 @@ export const LEGAL_OPS_IMPL: Record<string, OpImpl> = {
         title: `Adresser le bon de commande « ${doc.title} » à son centre de validation`,
         fields: [
           { label: "Bon de commande", value: `${doc.reference ? `${doc.reference} — ` : ""}${doc.title}` },
-          { label: "Montant", value: doc.amount != null && doc.amount > 0 ? dzd(doc.amount) : "non renseigné" },
+          { label: "Montant", value: doc.amount != null && doc.amount > 0 ? montantDzd(doc.amount) : "non renseigné" },
         ],
         warnings: [
           "Le centre dépend de l'ORIGINE du bon de commande : centre de validation Ad & Pro s'il vient d'une demande Ad & Pro, centre de validations sinon.",

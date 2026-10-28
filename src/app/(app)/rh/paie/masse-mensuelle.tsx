@@ -1,4 +1,5 @@
 import type { MasseMensuelle } from "@/lib/hr/payroll-mass";
+import { arrondirAuCentime } from "@/lib/utils";
 
 /**
  * LA MASSE SALARIALE, ENTITÉ PAR ENTITÉ ET MOIS PAR MOIS — « pour chaque entité avoir la masse
@@ -18,8 +19,6 @@ export interface ColonneMasse {
 /** Valeur du filtre d'entité pour les salariés rattachés à aucune entité. */
 export const FILTRE_SANS_ENTITE = "__sans-entite";
 
-const arrondi = (n: number) => Math.round(n * 100) / 100;
-
 /**
  * La masse du filtre : une entité, les « sans entité », ou toutes (`""`) — la somme des colonnes,
  * au centime près.
@@ -29,14 +28,14 @@ export function masseDuFiltre(colonnes: readonly ColonneMasse[], filtre: string)
     filtre === "" ? true : filtre === FILTRE_SANS_ENTITE ? c.companyId === null : c.companyId === filtre
   ));
   const mois = Array.from({ length: 12 }, (_, i) => ({
-    cost: arrondi(retenues.reduce((a, c) => a + (c.masse.mois[i]?.cost ?? 0), 0)),
-    net: arrondi(retenues.reduce((a, c) => a + (c.masse.mois[i]?.net ?? 0), 0)),
+    cost: arrondirAuCentime(retenues.reduce((a, c) => a + (c.masse.mois[i]?.cost ?? 0), 0)),
+    net: arrondirAuCentime(retenues.reduce((a, c) => a + (c.masse.mois[i]?.net ?? 0), 0)),
   }));
   return {
     mois,
     total: {
-      cost: arrondi(retenues.reduce((a, c) => a + c.masse.total.cost, 0)),
-      net: arrondi(retenues.reduce((a, c) => a + c.masse.total.net, 0)),
+      cost: arrondirAuCentime(retenues.reduce((a, c) => a + c.masse.total.cost, 0)),
+      net: arrondirAuCentime(retenues.reduce((a, c) => a + c.masse.total.net, 0)),
     },
   };
 }

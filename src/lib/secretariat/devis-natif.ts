@@ -1,4 +1,5 @@
 import type { EtapeBC } from "@/lib/bons-de-commande/regle";
+import { arrondirAuCentime } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -173,12 +174,10 @@ export function refusEditionDevis(d: DevisNatif | null, bcsActifs: ReadonlySet<s
 
 // ─────────────────────────── Les totaux ───────────────────────────
 
-const arrondi = (n: number): number => Math.round(n * 100) / 100;
-
 export function totauxDesLignes(lignes: readonly Pick<LigneDevisNatif, "quantite" | "prixUnitaire" | "tva">[]): { ht: number; tva: number; ttc: number } {
   let ht = 0; let tva = 0;
   for (const l of lignes) { const h = l.quantite * l.prixUnitaire; ht += h; tva += h * (l.tva / 100); }
-  return { ht: arrondi(ht), tva: arrondi(tva), ttc: arrondi(ht + tva) };
+  return { ht: arrondirAuCentime(ht), tva: arrondirAuCentime(tva), ttc: arrondirAuCentime(ht + tva) };
 }
 
 // ─────────────────────────── La retenue par le demandeur ───────────────────────────

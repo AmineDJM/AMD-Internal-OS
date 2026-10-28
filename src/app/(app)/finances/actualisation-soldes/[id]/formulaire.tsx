@@ -6,7 +6,7 @@ import { Check, Loader2 } from "lucide-react";
 import { Input, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
-import { cn } from "@/lib/utils";
+import { cn, montantDzd } from "@/lib/utils";
 import { repondreActualisationSoldes } from "@/lib/actions/actualisation-soldes-actions";
 import { LIBELLE_ETAT_LIGNE, lireReponse, type EtatLigne, type SaisieLigne } from "@/lib/finance/actualisation-soldes";
 
@@ -26,7 +26,6 @@ export interface LigneEcran {
   traiteLe: string | null;
 }
 
-const dzd = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
 const jourFr = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
 /** « 2 271 953,50 » → 2271953.5 ; vide → null. */
@@ -101,16 +100,16 @@ export function FormulaireActualisation({ demandeId, lignes, peutRepondre, aujou
               <dl className="mt-3 grid grid-cols-1 gap-2 text-sm sm:grid-cols-3">
                 <div className="rounded-lg bg-secondary/50 px-3 py-2">
                   <dt className="text-xs text-muted-foreground">Relevé au moment de la demande</dt>
-                  <dd className="font-medium tabular-nums">{dzd(l.ancrageDemande.solde)} <span className="text-xs font-normal text-muted-foreground">au {jourFr(l.ancrageDemande.jour)}</span></dd>
+                  <dd className="font-medium tabular-nums">{montantDzd(l.ancrageDemande.solde)} <span className="text-xs font-normal text-muted-foreground">au {jourFr(l.ancrageDemande.jour)}</span></dd>
                 </div>
                 <div className="rounded-lg bg-secondary/50 px-3 py-2">
                   <dt className="text-xs text-muted-foreground">Solde affiché aujourd&apos;hui</dt>
-                  <dd className="font-medium tabular-nums">{l.soldeActuel === null ? "—" : dzd(l.soldeActuel)}</dd>
+                  <dd className="font-medium tabular-nums">{l.soldeActuel === null ? "—" : montantDzd(l.soldeActuel)}</dd>
                 </div>
                 <div className="rounded-lg bg-secondary/50 px-3 py-2">
                   <dt className="text-xs text-muted-foreground">Nouveau relevé</dt>
                   <dd className="font-medium tabular-nums">
-                    {l.nouveau ? <>{dzd(l.nouveau.solde)} <span className="text-xs font-normal text-muted-foreground">au {jourFr(l.nouveau.jour)}</span></> : "—"}
+                    {l.nouveau ? <>{montantDzd(l.nouveau.solde)} <span className="text-xs font-normal text-muted-foreground">au {jourFr(l.nouveau.jour)}</span></> : "—"}
                   </dd>
                 </div>
               </dl>

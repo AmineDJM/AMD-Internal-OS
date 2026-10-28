@@ -2,7 +2,7 @@ import { ETAPE_DEMANDE_DEVIS } from "@/lib/ad-pro/demande-devis-lettre";
 import { lirePorteDg, peutStatuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
 import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
 import { prisma } from "@/lib/prisma";
-import { toNumber } from "@/lib/utils";
+import { toNumber, arrondirAuMillieme } from "@/lib/utils";
 import { getBudgetCategoryOptions } from "@/lib/queries/budget";
 import type { SessionUser } from "@/lib/rbac";
 import type { ItemRow } from "@/components/ad-pro/items-panel";
@@ -358,7 +358,6 @@ export async function adProBudgetOptions(viewer: SessionUser): Promise<{ id: str
 
 // ─────────────────────────── Le matériel du stock d'un poste (§118.167) ───────────────────────────
 
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
 
 /** Les lignes de matériel de ces postes, rangées par poste — une requête pour tous. */
@@ -474,7 +473,7 @@ export async function contexteMaterielStock(
   for (const x of positifs) {
     // LA MÊME LECTURE QUE LA RÉSERVATION : un lot périmé ne se réserve pas (`allouer`).
     if (etatValidite(validite.get(x.lotId) ?? null, maintenant) === "PERIME") continue;
-    distribuable.set(x.itemId, r3((distribuable.get(x.itemId) ?? 0) + num(x._sum.delta)));
+    distribuable.set(x.itemId, arrondirAuMillieme((distribuable.get(x.itemId) ?? 0) + num(x._sum.delta)));
   }
   const magasin = quantifies
     .map((a) => ({

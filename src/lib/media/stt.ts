@@ -27,6 +27,7 @@ export { estMedia, estVideo } from "./formats";
 import { MIMES_MEDIA, extensionDe } from "./formats";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "../ai-settings";
 import { attendu } from "@/lib/journal";
+import { cleOpenAI, urlOpenAI } from "../models/openai-acces";
 
 export interface OptionsStt {
   /** `fr` par défaut ; `auto` laisse le moteur détecter. */
@@ -50,7 +51,7 @@ export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: 
   // des médias du Drive ne passe pas par `lib/ai.ts`, donc l'interrupteur se lit ICI, avant la clé (§118.196).
   if (await interrupteurIaCoupe()) return { ok: false, configured: true, erreur: REFUS_IA_COUPEE };
   const env = opts.env ?? process.env;
-  const key = env.OPENAI_API_KEY;
+  const key = cleOpenAI(env);
   if (!key) return { ok: false, configured: false, erreur: "Clé OPENAI_API_KEY non configurée : la transcription est indisponible." };
   const ext = extensionDe(nom);
   const mime = MIMES_MEDIA[ext];
@@ -58,7 +59,6 @@ export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: 
   if (buffer.length > TAILLE_MAX_STT) {
     return { ok: false, configured: true, limite: "RESSOURCE", erreur: `Fichier de ${(buffer.length / 1048576).toFixed(1)} Mo : le moteur accepte ${TAILLE_MAX_STT / 1048576} Mo au plus, et ce serveur n'a pas ffmpeg pour découper — compresser ou découper le média avant de le déposer.` };
   }
-  const base = (env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
   const modele = (opts.modele ?? env.STT_MODEL ?? "whisper-1").trim();
   const horodate = !SANS_SEGMENTS.test(modele);
   const f = opts.fetchImpl ?? fetch;
@@ -74,7 +74,7 @@ export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: 
       if (opts.indice?.trim()) form.append("prompt", opts.indice.trim().slice(0, 800));
       form.append("response_format", horodate ? "verbose_json" : "json");
       if (horodate) form.append("timestamp_granularities[]", "segment");
-      const res = await f(`${base}/audio/transcriptions`, { method: "POST", headers: { authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(DELAI_STT_MS) });
+      const res = await f(urlOpenAI("/audio/transcriptions", env), { method: "POST", headers: { authorization: `Bearer ${key}` }, body: form, signal: AbortSignal.timeout(DELAI_STT_MS) });
       if (res.ok) {
         const data = (await res.json()) as { text?: string; language?: string; duration?: number; segments?: unknown };
         const fournis = horodate ? normaliserSegments(data.segments) : [];

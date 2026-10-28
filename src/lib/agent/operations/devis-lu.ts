@@ -2,6 +2,7 @@ import { annuaireDeLecture, proposerLecture, type PropositionDeLecture } from "@
 import { lectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
 import type { CurrentUser } from "@/lib/session";
 import { fichiersDepuisDrive, resoudrePiece, type PieceResolue } from "./pieces";
+import { arrondirAuCentime } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -51,8 +52,6 @@ export interface DevisLu {
   emetteur: PropositionDeLecture["emetteur"];
 }
 
-const arrondi = (n: number) => Math.round(n * 100) / 100;
-
 export async function lireDevis(user: CurrentUser, ref: string): Promise<DevisLu | { erreur: string }> {
   const piece = await resoudrePiece(user, ref);
   if ("erreur" in piece) return piece;
@@ -92,7 +91,7 @@ export async function lireDevis(user: CurrentUser, ref: string): Promise<DevisLu
     tvaPct: pre.tvaRate,
     taxe: pre.extraTaxRate != null && pre.extraTaxLabel ? { libelle: pre.extraTaxLabel, pct: pre.extraTaxRate } : null,
     totalHtImprime: pre.announcedTotal,
-    totalHtLignes: chiffrees.length === lignes.length && lignes.length ? arrondi(chiffrees.reduce((s, x) => s + x.quantite! * x.prixUnitaire!, 0)) : null,
+    totalHtLignes: chiffrees.length === lignes.length && lignes.length ? arrondirAuCentime(chiffrees.reduce((s, x) => s + x.quantite! * x.prixUnitaire!, 0)) : null,
     doutes: l.controle ? [...l.controle.ecarts, ...l.controle.manques, ...l.controle.desaccords] : [],
     reserves: pre.reserves,
     note: l.noteMethode,

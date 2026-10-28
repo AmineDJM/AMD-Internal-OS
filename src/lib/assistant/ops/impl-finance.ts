@@ -6,7 +6,7 @@ import { settleExpenseOrder } from "@/lib/actions/expense-actions";
 import { createInvoice, setInvoicePaid, setInvoiceOrder } from "@/lib/actions/invoice-actions";
 import { decidePettyCashTopUp } from "@/lib/actions/petty-cash-actions";
 import { decideDepartmentBudgetRequest } from "@/lib/actions/department-budget-actions";
-import { toNumber } from "@/lib/utils";
+import { toNumber, montantDzd } from "@/lib/utils";
 import { invoiceSettlementState } from "@/lib/labels";
 import type { OpImpl, OpProposalDraft } from "./types";
 import { opStr } from "./types";
@@ -18,8 +18,6 @@ import { opStr } from "./types";
  * les verrous de fond (Centre de paiement, facture obligatoire, portes RH/Budgets) restent
  * ceux des actions — jamais recodés.
  */
-
-const dzd = (n: number): string => `${n.toLocaleString("fr-FR")} DZD`;
 
 /** Montant humain : « 1 500 000 », « 1500000,50 » — jamais deviné, refusé si illisible. */
 function opAmount(input: Record<string, unknown>, key: string): number | null {
@@ -115,7 +113,7 @@ async function resolveTransaction(raw: string): Promise<TxHit | { error: string 
   const exact = hits.filter((h) => h.reference.toLowerCase() === q.toLowerCase());
   if (exact.length === 1) return exact[0];
   if (hits.length === 1) return hits[0];
-  return { error: `Plusieurs écritures correspondent à « ${q} » : ${hits.map((h) => `${h.reference} — ${h.label} (${dzd(h.amount)})`).join(" ; ")} — donner la référence exacte.` };
+  return { error: `Plusieurs écritures correspondent à « ${q} » : ${hits.map((h) => `${h.reference} — ${h.label} (${montantDzd(h.amount)})`).join(" ; ")} — donner la référence exacte.` };
 }
 
 interface OrderHit { id: string; reference: string; label: string; amount: number; beneficiary: string | null; status: string }
@@ -141,7 +139,7 @@ async function resolveExpenseOrder(raw: string, statuses: string[]): Promise<Ord
   const exact = hits.filter((h) => h.reference.toLowerCase() === q.toLowerCase());
   if (exact.length === 1) return exact[0];
   if (hits.length === 1) return hits[0];
-  return { error: `Plusieurs ordres correspondent à « ${q} » : ${hits.map((h) => `${h.reference} — ${h.label} (${dzd(h.amount)})`).join(" ; ")} — donner la référence exacte.` };
+  return { error: `Plusieurs ordres correspondent à « ${q} » : ${hits.map((h) => `${h.reference} — ${h.label} (${montantDzd(h.amount)})`).join(" ; ")} — donner la référence exacte.` };
 }
 
 interface InvoiceHit { id: string; title: string; number: string | null; amount: number | null; status: string }
@@ -167,7 +165,7 @@ async function resolveInvoice(raw: string): Promise<InvoiceHit | { error: string
   const exact = hits.filter((h) => (h.number ?? "").toLowerCase() === q.toLowerCase());
   if (exact.length === 1) return exact[0];
   if (hits.length === 1) return hits[0];
-  return { error: `Plusieurs factures correspondent à « ${q} » : ${hits.map((h) => `${h.number ? `${h.number} — ` : ""}${h.title}${h.amount !== null ? ` (${dzd(h.amount)})` : ""}`).join(" ; ")} — préciser.` };
+  return { error: `Plusieurs factures correspondent à « ${q} » : ${hits.map((h) => `${h.number ? `${h.number} — ` : ""}${h.title}${h.amount !== null ? ` (${montantDzd(h.amount)})` : ""}`).join(" ; ")} — préciser.` };
 }
 
 /**
@@ -216,11 +214,11 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       const counterparty = opStr(input, "counterparty");
       const notes = opStr(input, "notes");
       return {
-        title: `${direction === "IN" ? "Encaissement" : "Décaissement"} — ${label} (${dzd(amount)})`,
+        title: `${direction === "IN" ? "Encaissement" : "Décaissement"} — ${label} (${montantDzd(amount)})`,
         fields: [
           { label: "Sens", value: direction === "IN" ? "Encaissement (entrée)" : "Décaissement (sortie)" },
           { label: "Libellé", value: label },
-          { label: "Montant", value: dzd(amount) },
+          { label: "Montant", value: montantDzd(amount) },
           { label: "Catégorie", value: CATEGORY_FR[category] },
           { label: "Statut", value: TX_STATUS_FR[status] },
           ...(date ? [{ label: "Date", value: date }] : []),
@@ -228,7 +226,7 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
         ],
         warnings: status === "SETTLED" ? ["Écriture RÉALISÉE : elle impacte la trésorerie dès la confirmation."] : [],
         args: { label, amount: String(amount), category, direction, status, method, date, counterparty, notes },
-        successMessage: `Écriture « ${label} » (${dzd(amount)}) enregistrée.`,
+        successMessage: `Écriture « ${label} » (${montantDzd(amount)}) enregistrée.`,
         link: "/finances",
         revalidate: ["/finances"],
       };
@@ -253,16 +251,16 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       const client = opStr(input, "counterparty");
       const date = iso(opStr(input, "date"));
       return {
-        title: `Encaissement simple — ${label} (${dzd(amount)})`,
+        title: `Encaissement simple — ${label} (${montantDzd(amount)})`,
         fields: [
           { label: "Libellé", value: label },
-          { label: "Montant", value: dzd(amount) },
+          { label: "Montant", value: montantDzd(amount) },
           ...(client ? [{ label: "Client", value: client }] : []),
           ...(date ? [{ label: "Date", value: date }] : []),
         ],
         warnings: ["Recette RÉALISÉE : elle impacte la trésorerie dès la confirmation."],
         args: { label, amount: String(amount), client, date },
-        successMessage: `Encaissement « ${label} » (${dzd(amount)}) enregistré.`,
+        successMessage: `Encaissement « ${label} » (${montantDzd(amount)}) enregistré.`,
         link: "/finances",
         revalidate: ["/finances"],
       };
@@ -289,7 +287,7 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       return {
         title: `Écriture ${tx.reference} → ${TX_STATUS_FR[status]}`,
         fields: [
-          { label: "Écriture", value: `${tx.reference} — ${tx.label} (${dzd(tx.amount)})` },
+          { label: "Écriture", value: `${tx.reference} — ${tx.label} (${montantDzd(tx.amount)})` },
           { label: "Statut", value: `${TX_STATUS_FR[tx.status] ?? tx.status} → ${TX_STATUS_FR[status]}` },
         ],
         warnings: status === "SETTLED"
@@ -321,15 +319,15 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       // L'ANCRAGE EXIGE SA DATE (§118.176) : un solde sans jour ne dit pas quelles écritures il contient.
       if (!date) return { error: "Donnez la date du relevé (champ « date ») : le solde s'entend en fin de cette journée." };
       return {
-        title: `Ouvrir le compte « ${name} », ancré à ${dzd(amount)} au ${date}`,
+        title: `Ouvrir le compte « ${name} », ancré à ${montantDzd(amount)} au ${date}`,
         fields: [
           { label: "Compte", value: name },
-          { label: "Solde du relevé", value: dzd(amount) },
+          { label: "Solde du relevé", value: montantDzd(amount) },
           { label: "Date du relevé", value: date },
         ],
         warnings: ["Refusé si le compte existe déjà : un ancrage existant se corrige depuis l'écran, avec un motif."],
         args: { name, amount: String(amount), date, notes: opStr(input, "notes") },
-        successMessage: `Compte « ${name} » ouvert, ancré à ${dzd(amount)}.`,
+        successMessage: `Compte « ${name} » ouvert, ancré à ${montantDzd(amount)}.`,
         link: "/finances",
         revalidate: ["/finances"],
       };
@@ -351,10 +349,10 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       const order = await resolveExpenseOrder(opStr(input, "reference") || opStr(input, "label"), ["PENDING"]);
       if ("error" in order) return order;
       return {
-        title: `Régler l'ordre ${order.reference} — ${dzd(order.amount)}`,
+        title: `Régler l'ordre ${order.reference} — ${montantDzd(order.amount)}`,
         fields: [
           { label: "Ordre", value: `${order.reference} — ${order.label}` },
-          { label: "Montant", value: dzd(order.amount) },
+          { label: "Montant", value: montantDzd(order.amount) },
           ...(order.beneficiary ? [{ label: "Bénéficiaire", value: order.beneficiary }] : []),
         ],
         warnings: [
@@ -399,7 +397,7 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
           { label: "Sens", value: received ? "REÇUE — la société paie" : "ÉMISE — la société encaisse" },
           ...(bon ? [{ label: "Rattachée au bon", value: bon.label }] : []),
           ...(number ? [{ label: "Numéro", value: number }] : []),
-          ...(amount !== null ? [{ label: "Montant", value: dzd(amount) }] : []),
+          ...(amount !== null ? [{ label: "Montant", value: montantDzd(amount) }] : []),
           ...(issueDate ? [{ label: "Émise le", value: issueDate }] : []),
           ...(dueDate ? [{ label: "Échéance", value: dueDate }] : []),
         ],
@@ -446,7 +444,7 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
           ? `Détacher la facture « ${inv.title} » de son bon de commande`
           : `Rattacher la facture « ${inv.title} » à un bon de commande`,
         fields: [
-          { label: "Facture", value: `${inv.number ? `${inv.number} — ` : ""}${inv.title}${inv.amount !== null ? ` (${dzd(inv.amount)})` : ""}` },
+          { label: "Facture", value: `${inv.number ? `${inv.number} — ` : ""}${inv.title}${inv.amount !== null ? ` (${montantDzd(inv.amount)})` : ""}` },
           { label: "Bon de commande", value: detach ? "— détachée —" : (bon as { label: string }).label },
         ],
         args: { id: inv.id, orderId: detach ? null : (bon as { id: string }).id, title: inv.title },
@@ -476,7 +474,7 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       return {
         title: unpay ? `Repasser la facture « ${inv.title} » impayée` : `Marquer la facture « ${inv.title} » payée`,
         fields: [
-          { label: "Facture", value: `${inv.number ? `${inv.number} — ` : ""}${inv.title}${inv.amount !== null ? ` (${dzd(inv.amount)})` : ""}` },
+          { label: "Facture", value: `${inv.number ? `${inv.number} — ` : ""}${inv.title}${inv.amount !== null ? ` (${montantDzd(inv.amount)})` : ""}` },
           { label: "Paiement", value: unpay ? "retiré (impayée)" : `payée le ${paidDate}` },
         ],
         args: { id: inv.id, paidDate, title: inv.title },
@@ -508,7 +506,7 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       });
       if (rows.length === 0) return { error: `Aucune demande de rallonge EN ATTENTE${q ? ` pour « ${q} »` : ""}.` };
       if (rows.length > 1) {
-        return { error: `Plusieurs rallonges en attente : ${rows.map((r) => `${r.allotment.department.name} (${dzd(toNumber(r.amountRequested))}, ${r.allotment.period})`).join(" ; ")} — préciser le département.` };
+        return { error: `Plusieurs rallonges en attente : ${rows.map((r) => `${r.allotment.department.name} (${montantDzd(toNumber(r.amountRequested))}, ${r.allotment.period})`).join(" ; ")} — préciser le département.` };
       }
       const req = rows[0];
       const asked = toNumber(req.amountRequested);
@@ -518,13 +516,13 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
         title: `${decision === "APPROVED" ? "Accorder" : "Refuser"} la rallonge de caisse — ${req.allotment.department.name}`,
         fields: [
           { label: "Caisse", value: `${req.allotment.department.name} · ${req.allotment.period}` },
-          { label: "Montant demandé", value: dzd(asked) },
-          { label: "Décision", value: decision === "APPROVED" ? `Accordée — ${dzd(granted)}` : "Refusée" },
+          { label: "Montant demandé", value: montantDzd(asked) },
+          { label: "Décision", value: decision === "APPROVED" ? `Accordée — ${montantDzd(granted)}` : "Refusée" },
         ],
         warnings: decision === "APPROVED" ? ["Le fonds du mois est augmenté d'autant ; le titulaire est notifié."] : ["Le titulaire est notifié du refus."],
         args: { id: req.id, decision, amountGranted: decision === "APPROVED" ? String(granted) : null, note: opStr(input, "note") },
         successMessage: decision === "APPROVED"
-          ? `Rallonge accordée (${dzd(granted)}) — ${req.allotment.department.name}.`
+          ? `Rallonge accordée (${montantDzd(granted)}) — ${req.allotment.department.name}.`
           : `Rallonge refusée — ${req.allotment.department.name}.`,
         link: "/budgets",
         revalidate: ["/budgets"],
@@ -558,14 +556,14 @@ export const FINANCE_OPS_IMPL: Record<string, OpImpl> = {
       });
       if (rows.length === 0) return { error: `Aucune demande de budget de département EN ATTENTE${q ? ` pour « ${q} »` : ""}.` };
       if (rows.length > 1) {
-        return { error: `Plusieurs demandes en attente : ${rows.map((r) => `${r.department.name} (${dzd(toNumber(r.amount))}, ${r.year})`).join(" ; ")} — préciser le département.` };
+        return { error: `Plusieurs demandes en attente : ${rows.map((r) => `${r.department.name} (${montantDzd(toNumber(r.amount))}, ${r.year})`).join(" ; ")} — préciser le département.` };
       }
       const req = rows[0];
       return {
         title: `${decision === "APPROVED" ? "Approuver" : "Refuser"} la demande de budget — ${req.department.name}`,
         fields: [
           { label: "Département", value: `${req.department.name} (${req.year})` },
-          { label: "Montant demandé", value: dzd(toNumber(req.amount)) },
+          { label: "Montant demandé", value: montantDzd(toNumber(req.amount)) },
           ...(req.reason ? [{ label: "Motif", value: req.reason }] : []),
           { label: "Décision", value: decision === "APPROVED" ? "Approuvée" : "Refusée" },
         ],

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/openai-luna";
-import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
+import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/openai-luna";
+import { logAiUsage } from "@/lib/ai-settings";
 import { wrapUntrusted } from "@/lib/comms/untrusted";
 import { CONSIGNE_VOIX, SCHEMA_VOIX, lireReponseVoix, regrouperParMotsCles, type RapportTerrain, type VoixTerrain } from "@/lib/voix-terrain/pur";
 import { sansBloquer } from "@/lib/journal";
@@ -22,16 +22,6 @@ import { sansBloquer } from "@/lib/journal";
 const FONCTION = "voix_terrain" as const;
 const DELAI_MS = 20_000;
 const MAX_RAPPORTS_LUNA = 120;
-
-async function porteOuverte(): Promise<boolean> {
-  try {
-    if (await interrupteurIaCoupe()) return false;
-    if (!(await aiFeatureEnabled(FONCTION))) return false;
-    return lunaConfigured();
-  } catch {
-    return false;
-  }
-}
 
 async function lireCache(cle: string): Promise<VoixTerrain | null> {
   try {
@@ -101,7 +91,7 @@ export async function voixDuTerrain(input: {
   if (input.rapports.length === 0) return vide;
   const cache = await lireCache(cle);
   if (cache) return cache;
-  const parLuna = (await porteOuverte()) ? await classerParLuna(input.rapports, input.jours, maintenant, input.userId) : null;
+  const parLuna = (await portesLunaOuvertes(FONCTION)) ? await classerParLuna(input.rapports, input.jours, maintenant, input.userId) : null;
   const v = parLuna ?? regrouperParMotsCles(input.rapports, input.jours, maintenant);
   await ecrireCache(cle, jour, v);
   return v;

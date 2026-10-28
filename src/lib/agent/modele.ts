@@ -8,6 +8,7 @@
  * de répondre avec un autre fournisseur. La clé n'est lue qu'ici, jamais écrite dans le code.
  */
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
+import { cleOpenAI } from "@/lib/models/openai-acces";
 
 /** Le modèle par défaut ; `ASSISTANT_IA_MODEL` le change sans redéploiement de code. */
 export const MODELE_ASSISTANT_DEFAUT = "gpt-6.1-terra";
@@ -23,7 +24,7 @@ export interface ModeleConfig {
 
 /** Le modèle OpenAI de l'assistant — `null` tant que `OPENAI_API_KEY` n'est pas posée. */
 export function modeleOpenAi(env: NodeJS.ProcessEnv = process.env): ModeleConfig | null {
-  const apiKey = (env.OPENAI_API_KEY ?? "").trim();
+  const apiKey = cleOpenAI(env);
   if (!apiKey) return null;
   return { providerId: "openai", modelId: env.ASSISTANT_IA_MODEL?.trim() || MODELE_ASSISTANT_DEFAUT, apiKey };
 }

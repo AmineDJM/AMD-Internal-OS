@@ -1,3 +1,4 @@
+import { arrondirAuCentime } from "@/lib/utils";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * BUDGET MARKETING — LA DÉPENSE D'UN POSTE AD & PRO : À IMPUTER → ENGAGÉE → CONSOMMÉE → PAYÉE (ou ANNULÉE).
@@ -103,7 +104,6 @@ export interface DepensePoste {
 }
 
 const positif = (n: number | null | undefined): number => (typeof n === "number" && Number.isFinite(n) && n > 0 ? n : 0);
-const arrondi = (n: number): number => Math.round(n * 100) / 100;
 
 export function ordreEnCircuit(statut: string | null | undefined): boolean {
   return statut != null && (STATUTS_EN_CIRCUIT as readonly string[]).includes(statut);
@@ -129,7 +129,7 @@ export function montantEngageDuPoste(bcs: readonly BcDeLaDepense[], montantAccor
   const signes = v.filter((b) => b.signe);
   if (signes.length === 0) return 0;
   if (signes.every((b) => b.montant == null)) return positif(montantAccorde);
-  return arrondi(signes.reduce((a, b) => a + positif(b.montant), 0));
+  return arrondirAuCentime(signes.reduce((a, b) => a + positif(b.montant), 0));
 }
 
 export function lieuDeLOrdre(o: Pick<OrdreDeLaDepense, "centralStatus">): LieuConsommation {
@@ -146,10 +146,10 @@ export function lieuDeLOrdre(o: Pick<OrdreDeLaDepense, "centralStatus">): LieuCo
 export function depenseDuPoste(f: FaitsDepensePoste): DepensePoste {
   const montantEngage = montantEngageDuPoste(f.bcs, f.montantAccorde);
   const vivants = f.ordres.filter((o) => o.statut !== "CANCELLED");
-  const paye = arrondi(vivants.filter((o) => o.statut === "PAID").reduce((a, o) => a + positif(o.montant), 0));
+  const paye = arrondirAuCentime(vivants.filter((o) => o.statut === "PAID").reduce((a, o) => a + positif(o.montant), 0));
   const attente = vivants.filter((o) => ordreEnCircuit(o.statut));
-  const enCircuit = arrondi(attente.reduce((a, o) => a + positif(o.montant), 0));
-  const base = { montantEngage, engage: 0, enCircuit, paye, consomme: arrondi(paye + enCircuit) };
+  const enCircuit = arrondirAuCentime(attente.reduce((a, o) => a + positif(o.montant), 0));
+  const base = { montantEngage, engage: 0, enCircuit, paye, consomme: arrondirAuCentime(paye + enCircuit) };
 
   // L'argent est parti : l'ordre fait foi, quelle que soit l'imputation (un poste payé par sa fiche reste payé).
   if (vivants.length > 0) {
@@ -285,7 +285,7 @@ export interface Tuiles {
  */
 export function tuilesDepenses(t: { total: number; paye: number; nonPaye: number; enCircuit: number }): Tuiles {
   const enCircuit = Math.min(positif(t.enCircuit), positif(t.nonPaye));
-  const engage = arrondi(positif(t.nonPaye) - enCircuit);
-  const consomme = arrondi(positif(t.paye) + enCircuit);
-  return { budget: t.total, engage, consomme, paye: positif(t.paye), disponible: arrondi(t.total - engage - consomme) };
+  const engage = arrondirAuCentime(positif(t.nonPaye) - enCircuit);
+  const consomme = arrondirAuCentime(positif(t.paye) + enCircuit);
+  return { budget: t.total, engage, consomme, paye: positif(t.paye), disponible: arrondirAuCentime(t.total - engage - consomme) };
 }

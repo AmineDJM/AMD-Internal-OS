@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { HR_REQUEST_TYPE, LEAVE_TYPE } from "@/lib/labels";
-import { toNumber } from "@/lib/utils";
+import { toNumber, montantDzd } from "@/lib/utils";
 import {
   decideLeave, cancelLeave, decideAdvance, setEmployeeActive,
 } from "@/lib/actions/hr-actions";
@@ -17,7 +17,6 @@ import { opStr } from "./types";
  * ici on résout la cible et on montre où elle en est — l'autorité se vérifie à l'exécution.
  */
 
-const dzd = (n: number): string => `${n.toLocaleString("fr-FR")} DZD`;
 const day = (d: Date | null): string => (d ? d.toISOString().slice(0, 10) : "—");
 
 const decisionOf = (raw: string): "APPROVED" | "REJECTED" | null => {
@@ -140,14 +139,14 @@ export const HR_OPS_IMPL: Record<string, OpImpl> = {
       });
       if (rows.length === 0) return { error: `Aucune avance sur salaire EN ATTENTE${q ? ` pour « ${q} »` : ""}.` };
       if (rows.length > 1) {
-        return { error: `Plusieurs avances en attente : ${rows.map((r) => `${r.employee.fullName} (${dzd(toNumber(r.amount))})`).join(" ; ")} — préciser l'employé.` };
+        return { error: `Plusieurs avances en attente : ${rows.map((r) => `${r.employee.fullName} (${montantDzd(toNumber(r.amount))})`).join(" ; ")} — préciser l'employé.` };
       }
       const adv = rows[0];
       return {
-        title: `${decision === "APPROVED" ? "Accorder" : "Refuser"} l'avance de ${adv.employee.fullName} (${dzd(toNumber(adv.amount))})`,
+        title: `${decision === "APPROVED" ? "Accorder" : "Refuser"} l'avance de ${adv.employee.fullName} (${montantDzd(toNumber(adv.amount))})`,
         fields: [
           { label: "Employé", value: adv.employee.fullName },
-          { label: "Montant", value: dzd(toNumber(adv.amount)) },
+          { label: "Montant", value: montantDzd(toNumber(adv.amount)) },
           ...(adv.reason ? [{ label: "Motif", value: adv.reason }] : []),
           { label: "Décision", value: decision === "APPROVED" ? "Accordée" : "Refusée" },
         ],

@@ -1,3 +1,4 @@
+import { arrondirAuMillieme } from "@/lib/utils";
 /**
  * LE STOCK DE MATÉRIEL PROMOTIONNEL — ce qu'on a, et pourquoi on l'a.
  *
@@ -64,8 +65,6 @@ export const MOVEMENT_LABEL: Record<MovementKind, string> = {
  * renvoyée. Une annulation n'annule pas une annulation non plus : on refait la saisie.
  */
 export const KINDS_ANNULABLES: readonly MovementKind[] = ["RECEIPT", "OPENING", "LOSS", "CORRECTION"];
-
-const round3 = (n: number): number => Math.round(n * 1000) / 1000;
 
 /**
  * Une quantité saisie à la main : virgule française, espaces, champ vide.
@@ -232,13 +231,13 @@ export function allouer(
 ): Allocation {
   // Une quantité NÉGATIVE est refusée, pas retournée : `Math.abs` ferait sortir 5 unités sur une
   // demande de « −5 », c'est-à-dire l'inverse de ce qu'un appelant égaré a écrit.
-  const q = round3(quantite);
+  const q = arrondirAuMillieme(quantite);
   if (!(q > 0)) return { ok: false, raison: "Indiquez une quantité supérieure à zéro.", disponible: 0, bloqueParPeremption: 0 };
   const positifs = lots.filter((l) => l.solde > 0);
   const perimes = positifs.filter((l) => etatValidite(l.valableJusquau, opts.maintenant) === "PERIME");
   const utilisables = (opts.inclurePerimes ? positifs : positifs.filter((l) => !perimes.includes(l))).slice().sort(ordreDeSortie);
-  const disponible = round3(utilisables.reduce((a, l) => a + l.solde, 0));
-  const bloqueParPeremption = opts.inclurePerimes ? 0 : round3(perimes.reduce((a, l) => a + l.solde, 0));
+  const disponible = arrondirAuMillieme(utilisables.reduce((a, l) => a + l.solde, 0));
+  const bloqueParPeremption = opts.inclurePerimes ? 0 : arrondirAuMillieme(perimes.reduce((a, l) => a + l.solde, 0));
   if (q > disponible) {
     const reste = disponible <= 0 ? "Il ne reste rien de distribuable" : `Il ne reste que ${disponible} de distribuable`;
     const peremption = bloqueParPeremption > 0
@@ -250,9 +249,9 @@ export function allouer(
   let reste = q;
   for (const l of utilisables) {
     if (reste <= 0) break;
-    const prise = round3(Math.min(l.solde, reste));
+    const prise = arrondirAuMillieme(Math.min(l.solde, reste));
     tranches.push({ lotId: l.lotId, quantite: prise });
-    reste = round3(reste - prise);
+    reste = arrondirAuMillieme(reste - prise);
   }
   return { ok: true, tranches };
 }
@@ -267,15 +266,15 @@ export function allouer(
  */
 export function repartirReception(parties: readonly Tranche[], recue: number):
   { recues: Tranche[]; manquantes: Tranche[] } {
-  let reste = round3(Math.max(0, recue));
+  let reste = arrondirAuMillieme(Math.max(0, recue));
   const recues: Tranche[] = [];
   const manquantes: Tranche[] = [];
   for (const t of parties) {
-    const prise = round3(Math.min(t.quantite, reste));
+    const prise = arrondirAuMillieme(Math.min(t.quantite, reste));
     if (prise > 0) recues.push({ lotId: t.lotId, quantite: prise });
-    const manque = round3(t.quantite - prise);
+    const manque = arrondirAuMillieme(t.quantite - prise);
     if (manque > 0) manquantes.push({ lotId: t.lotId, quantite: manque });
-    reste = round3(reste - prise);
+    reste = arrondirAuMillieme(reste - prise);
   }
   return { recues, manquantes };
 }

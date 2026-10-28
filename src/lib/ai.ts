@@ -57,6 +57,7 @@ import { sanitizeForModel } from "./ai-text";
 // L'interrupteur général de l'écran « Contrôle de l'IA » — lu ici, AVANT tout appel (voir `IA_COUPEE`).
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "./ai-settings";
 import { attendu } from "@/lib/journal";
+import { cleOpenAI, urlOpenAI } from "./models/openai-acces";
 export { sanitizeForModel };
 
 export interface AiTextResult {
@@ -311,7 +312,7 @@ export async function callClaudeStream(
 // ─────────────────────────── Speech-to-text (Whisper / OpenAI) ───────────────────────────
 
 export function sttConfigured(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY);
+  return Boolean(cleOpenAI());
 }
 
 export interface TranscriptionResult {
@@ -328,9 +329,8 @@ export async function transcribeAudio(buffer: Buffer, filename: string, mime: st
   // Les trois routes qui appellent cette fonction lisent déjà leur bascule ; la porte d'ici tient
   // pour celle qu'on ajoutera demain sans y penser.
   if (await interrupteurIaCoupe()) return { ...IA_COUPEE };
-  const key = process.env.OPENAI_API_KEY;
+  const key = cleOpenAI();
   if (!key) return { ok: false, configured: false, error: "Clé OPENAI_API_KEY non configurée." };
-  const base = process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1";
   const model = process.env.STT_MODEL ?? "whisper-1";
 
   const MAX_ATTEMPTS = 4;
@@ -341,7 +341,7 @@ export async function transcribeAudio(buffer: Buffer, filename: string, mime: st
       form.append("file", new Blob([buffer], { type: mime || "audio/webm" }), filename || "audio.webm");
       form.append("model", model);
       form.append("language", "fr");
-      const res = await fetch(`${base.replace(/\/$/, "")}/audio/transcriptions`, {
+      const res = await fetch(urlOpenAI("/audio/transcriptions"), {
         method: "POST",
         headers: { authorization: `Bearer ${key}` },
         body: form,
