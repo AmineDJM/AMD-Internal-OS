@@ -38,7 +38,7 @@ import { classerExclusionsAttestations } from "./action-registry/exclusions-atte
  * classement (`natifs-couverts`, `trous`, `exclusions-*`), appelés ici dans l'ordre d'origine.
  */
 
-export type { ActionRisk, NativeAction } from "./action-registry/types";
+export type { NativeAction } from "./action-registry/types";
 
 /**
  * Les OPS DE DOMAINE (`ops/catalog.ts`) entrent dans le MÊME registre : mêmes alias, même
@@ -194,7 +194,7 @@ export function actionsForUser(user: CurrentUser, moduleQuery?: string): NativeA
 
 // ───────────────────────── Inventaire exhaustif & classification ─────────────────────────
 
-export type { ParityStatus, ActionClassification } from "./action-registry/classement";
+export type { ActionClassification } from "./action-registry/classement";
 
 // Les blocs s'exécutent dans l'ordre : un bloc postérieur écrase un antérieur.
 classerNatifsEtCouverts();

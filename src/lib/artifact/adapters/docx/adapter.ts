@@ -26,5 +26,4 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export { niveauDeTitre } from "@/lib/artifact/adapters/docx/adapter/lecture";
 export { MIME_DOCX, adaptateurDocx } from "@/lib/artifact/adapters/docx/adapter/document";

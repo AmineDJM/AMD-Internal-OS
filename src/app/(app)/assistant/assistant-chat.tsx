@@ -8,7 +8,4 @@
  * `drive-picker`, et `erp` (ses emprunts à l'ERP, en un point). Ce fichier n'est plus que la PORTE.
  */
 
-export { type ActionState, cleanReply } from "./assistant-chat/modele";
-export { LinkifiedText } from "./assistant-chat/texte-lie";
 export { AssistantChat } from "./assistant-chat/conversation";
-export { ActionCard } from "./assistant-chat/carte-action";

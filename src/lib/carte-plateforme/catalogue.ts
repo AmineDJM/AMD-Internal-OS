@@ -21,11 +21,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export {
-  TYPES_ACTEUR,
-  type CleDomaine, type Domaine, type TypeActeur, type Geste, type Lien, type ModulePlateforme,
-  type EtapeCircuit, type Circuit, type Mecanisme,
-} from "./catalogue/types";
+export { TYPES_ACTEUR, type CleDomaine, type TypeActeur, type ModulePlateforme } from "./catalogue/types";
 export { DOMAINES } from "./catalogue/domaines";
 export { MODULES_PLATEFORME } from "./catalogue/modules";
 export { CIRCUITS } from "./catalogue/circuits";

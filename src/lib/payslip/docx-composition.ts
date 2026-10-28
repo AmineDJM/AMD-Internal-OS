@@ -29,6 +29,4 @@
  */
 
 export { type PoliceRendu, type Mesureur, type Trace, type PageComposee, numeroDePage } from "./docx-composition/contrats";
-export type { LigneComposee } from "./docx-composition/lignes";
-export type { BoiteFixe } from "./docx-composition/flux";
 export { composerDocument } from "./docx-composition/document";

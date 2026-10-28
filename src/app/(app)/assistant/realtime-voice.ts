@@ -53,6 +53,5 @@
  * et la lecture des événements). Ce fichier n'est plus que la PORTE qui les réexporte.
  */
 
-export { type VoiceCallState, type VoiceSessionGrant, type VoiceToolUi, type VoiceProviderCallbacks, type VoiceRealtimeProvider, type RealtimeUsage, type VoiceUsageTotals, usageVide, cumulerUsage } from "./realtime-voice/contrats";
-export { SdpRejection } from "./realtime-voice/refus-sdp";
+export { type VoiceCallState, type VoiceSessionGrant, type VoiceToolUi, usageVide, cumulerUsage } from "./realtime-voice/contrats";
 export { OpenAIGptRealtime21Provider } from "./realtime-voice/fournisseur";

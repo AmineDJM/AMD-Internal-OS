@@ -33,6 +33,6 @@
  * conteneurs, bandes) et `document` (sections, `lireDocx`). Ce fichier n'est plus que la PORTE.
  */
 
-export type { Bordure, ProprietesTexte, Tabulation, ProprietesParagraphe, Rognage, ElementGraphique, ImageDocx, Inline, PositionAncre, Ancre, Etiquette, Paragraphe, Cellule, Rangee, Tableau, Bloc, Bande, Section, DocumentDocx } from "./docx-lecture/modele";
-export { romain, formaterNombre } from "./docx-lecture/listes";
+export type { Bordure, ProprietesTexte, Tabulation, Rognage, ElementGraphique, ImageDocx, PositionAncre, Ancre, Etiquette, Paragraphe, Cellule, Tableau, Bloc, Bande, Section, DocumentDocx } from "./docx-lecture/modele";
+export { formaterNombre } from "./docx-lecture/listes";
 export { lireDocx } from "./docx-lecture/document";

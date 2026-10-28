@@ -59,16 +59,11 @@ import {
 } from "./contrat/lecture-champs";
 import { decouperParametres, lireArguments, lireObjetUnique, lireUnParametre } from "./contrat/arguments";
 
-export type {
-  ChampAction, ContratAction, PorteLue, SourceAction, TableEnums, TableRelations, TypeChamp,
-} from "./contrat/types";
-export { decouperActions, fonctionsLocales, sansCommentaires } from "./contrat/decoupage";
-export { nomsDuFormulaire, rangDuFormulaire } from "./contrat/formulaire";
-export { faitsEcritureImportes, importsProjet } from "./contrat/ecritures";
-export {
-  HELPERS_PARTAGES, constantesDuFichier, enumsLocaux, helpersDuFichier, lecteursLocaux,
-} from "./contrat/lecture-champs";
-export { lireArguments, lireObjetUnique, type LectureArguments } from "./contrat/arguments";
+export type { ChampAction, ContratAction, SourceAction, TableEnums, TableRelations, TypeChamp } from "./contrat/types";
+export { decouperActions, sansCommentaires } from "./contrat/decoupage";
+export { importsProjet } from "./contrat/ecritures";
+export { HELPERS_PARTAGES, helpersDuFichier } from "./contrat/lecture-champs";
+export { lireArguments } from "./contrat/arguments";
 
 /**
  * LE CONTRAT D'UNE ACTION.

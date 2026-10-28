@@ -32,4 +32,3 @@
  */
 
 export { AnnuaireGrid } from "./annuaire-grid/feuille";
-export type { CustomColumnVue } from "@/lib/medical/directory-grid";

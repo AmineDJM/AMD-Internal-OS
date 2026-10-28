@@ -40,7 +40,7 @@ import { projectPose, projectReject } from "./engine/projections";
 import { notifyStepManager, prevenirEtapeAtteinte, prevenirLaPose } from "./engine/notifications";
 import type { ResultatRevision } from "./engine/cycle";
 
-export { stepCreate, getDefinition, orderedSteps, stepBySlug, nextStepAfter, lectureDeLApprobation, canActOnStep, type LoadedStep, type LoadedInstance, type LoadedDefinition } from "./engine/definitions";
+export { stepCreate, getDefinition, orderedSteps, stepBySlug, lectureDeLApprobation, canActOnStep, type LoadedInstance } from "./engine/definitions";
 export type { AdvanceInput } from "./engine/gestes";
 export { postesPortantLaDepense, montantADeclarer, reporterLesPostesSurLaDeclaration } from "./engine/montants";
 export { apresModificationDeLaDemande, fermerInstance, reopenInstance } from "./engine/cycle";

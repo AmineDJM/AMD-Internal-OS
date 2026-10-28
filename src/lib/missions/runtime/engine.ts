@@ -47,7 +47,7 @@ import { conclure, synchroniserEtat } from "@/lib/missions/runtime/engine/conclu
 
 export { BAIL_MS, type StepContext, type StepOutcome, type StepHandlers, type EngineDeps, type TickResult } from "@/lib/missions/runtime/engine/contrat";
 export { dependanceSatisfaite } from "@/lib/missions/runtime/engine/ordonnancement";
-export { bilanDe, conclure } from "@/lib/missions/runtime/engine/conclusion";
+export { conclure } from "@/lib/missions/runtime/engine/conclusion";
 
 /**
  * FAIT AVANCER LA MISSION AUTANT QU'ELLE PEUT AVANCER MAINTENANT.

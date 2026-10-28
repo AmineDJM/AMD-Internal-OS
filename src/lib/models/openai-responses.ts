@@ -39,6 +39,6 @@
  * non streamé et la mémoire des coupures réseau), `flux.ts` (l'accumulateur et l'appel en flux).
  */
 
-export { toResponsesInput, PLANCHER_SORTIE_RESPONSES, buildResponsesBody, budgetEpuise, safetyIdentifierFor, fromResponsesOutput, lireRecherchesWeb, stopOfResponse } from "./openai-responses/format";
+export { toResponsesInput, PLANCHER_SORTIE_RESPONSES, buildResponsesBody, budgetEpuise, safetyIdentifierFor, fromResponsesOutput, stopOfResponse } from "./openai-responses/format";
 export { oublierCoupures, callOpenAiResponses } from "./openai-responses/appel";
 export { ResponsesStreamAssembler, streamOpenAiResponses } from "./openai-responses/flux";

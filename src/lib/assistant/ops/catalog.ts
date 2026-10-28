@@ -39,7 +39,7 @@ import { OPS_FICHIERS } from "./catalogue/fichiers";
  * recompose `OPS_CATALOG` dans l'ordre d'origine et garde l'index et les aides.
  */
 
-export type { OpRisk, OpMeta } from "./catalogue/types";
+export type { OpMeta } from "./catalogue/types";
 
 export const OPS_CATALOG: OpMeta[] = [
   ...OPS_SOCLE,

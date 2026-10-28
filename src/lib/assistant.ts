@@ -26,16 +26,12 @@
 
 import "@/platform/in-process/telemetry/usage-sink";
 
-export {
-  type ChatTurn, type AssistantActionPayload, type AssistantActionKind, ACTION_POLICY,
-  payloadRequiresStrongConfirm, type ProposedAction, type AssistantMetrics, type AssistantResult,
-} from "./assistant/coeur/contrat-actions";
+export { type ChatTurn, type AssistantActionPayload, ACTION_POLICY, payloadRequiresStrongConfirm, type ProposedAction, type AssistantResult } from "./assistant/coeur/contrat-actions";
 export { RESOLVER_WRITE_NAMES, assistantToolsFor } from "./assistant/outils/catalogue-ecriture";
 export { assistantIdentityContext, buildChiefOfStaffContext } from "./assistant/coeur/prompt";
 export { executeReadTool } from "./assistant/outils/lecture";
 export { buildProposal } from "./assistant/propositions/construire";
-export { outilsCreesParmi } from "./assistant/boucle/commun";
 export { type AssistantStreamEvent, extractSources, resolveSpokenMailApproval } from "./assistant/boucle/sources";
 export type { ExecuteResult } from "./assistant/actions-confirmees/aides";
 export { performAction } from "./assistant/actions-confirmees/executer";
-export { type AssistantRunOptions, runAssistant, runAssistantStream } from "./assistant/boucle/entree";
+export { runAssistant, runAssistantStream } from "./assistant/boucle/entree";

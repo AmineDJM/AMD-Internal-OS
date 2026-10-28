@@ -10,7 +10,7 @@
  */
 
 export { REG4_OPS_IMPL } from "./impl/vague4/reglementaire";
-export { type TenderHit, resolveTender, tenderLabel, resolvePchOrder, PCH_OPS_IMPL } from "./impl/vague4/pch";
+export { resolveTender, tenderLabel, resolvePchOrder, PCH_OPS_IMPL } from "./impl/vague4/pch";
 export { STOCK4_OPS_IMPL } from "./impl/vague4/stocks";
 export { SALES_OPS_IMPL } from "./impl/vague4/ventes";
 export { LOGISTICS_OPS_IMPL } from "./impl/vague4/logistique";
