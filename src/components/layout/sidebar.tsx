@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Icon } from "@/components/ui/icon";
+import { IconeCoque } from "@/components/ui/icone-coque";
 import { cn } from "@/lib/utils";
 import type { NavItem } from "@/lib/labels";
 import { groupIntoPoles, itemsOfGroup, poleOfPath, OPEN_POLES_KEY, type NavPoleKey, pastillesDesEntrees, modulesComptes, modulesPropres } from "@/lib/navigation";
@@ -114,7 +114,7 @@ export function Sidebar({ items, messagingUnread = 0, moduleBadges = {} }: Sideb
     );
     const contenuLibelle = (
       <>
-        <Icon name={item.icon} className="h-4 w-4 shrink-0" />
+        <IconeCoque name={item.icon} className="h-4 w-4 shrink-0" />
         <span className="truncate">{item.label}</span>
         {item.href === "/messages"
           ? <MessagesNavBadge initial={messagingUnread} />
@@ -142,7 +142,7 @@ export function Sidebar({ items, messagingUnread = 0, moduleBadges = {} }: Sideb
               aria-label={opened ? `Replier ${item.label}` : `Déplier ${item.label}`}
               className="rounded-lg px-2 text-sidebar-muted transition-colors hover:bg-sidebar-active/60 hover:text-white"
             >
-              <Icon name="ChevronDown" className={cn("h-3.5 w-3.5 transition-transform", opened ? "" : "-rotate-90")} />
+              <IconeCoque name="ChevronDown" className={cn("h-3.5 w-3.5 transition-transform", opened ? "" : "-rotate-90")} />
             </button>
           )}
         </div>
@@ -209,10 +209,10 @@ export function Sidebar({ items, messagingUnread = 0, moduleBadges = {} }: Sideb
                         anyActive ? "text-white" : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-white",
                       )}
                     >
-                      <Icon name={pole.icon} className="h-4 w-4 shrink-0" />
+                      <IconeCoque name={pole.icon} className="h-4 w-4 shrink-0" />
                       <span className="truncate">{pole.label}</span>
                       {badge > 0 && !opened && <NavBadge count={badge} />}
-                      <Icon
+                      <IconeCoque
                         name="ChevronDown"
                         className={cn("ml-auto h-3.5 w-3.5 shrink-0 transition-transform", opened ? "" : "-rotate-90")}
                       />
