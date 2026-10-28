@@ -7,9 +7,6 @@ import { getAccess, userCan, type Action, type EffectiveAccess, type Module } fr
 import { firstAccessibleHref } from "./labels";
 import { getAppSettings } from "./settings";
 import { canOpenModule } from "./modules-visibility";
-import { IMPERSONATE_COOKIE } from "./vue-exacte";
-import { vueHonoree } from "./vue-exacte-ui";
-import { lectureDeclaree } from "./vue-lecture";
 import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDeSession } from "./session-compte";
 
 /**
@@ -17,7 +14,6 @@ import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDe
  * `vue-exacte.ts` (qui sait aussi refuser une création sous la vue) et réexporté ici : les actions de
  * création le lisent sans importer la session, que les bancs remplacent entièrement.
  */
-export { IMPERSONATE_COOKIE };
 
 export interface CurrentUser {
   id: string;

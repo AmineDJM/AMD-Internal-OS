@@ -19,7 +19,7 @@ import { MIME_DOCX } from "@/lib/artifact/factory/word";
 import { aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
 import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { refusPieceAmont, phrasePieceAmontNonRattachee, PIECE_AMONT_INTROUVABLE } from "@/lib/legal/piece-emise";
-import { refusPlafondAvoir, resteACrediter } from "@/lib/lecteurs/avoir";
+import { refusPlafondAvoir, netDeLaFacture } from "@/lib/lecteurs/avoir";
 import type { PorteBC } from "@/lib/bons-de-commande/regle";
 import { controlerRibDePiece } from "@/modules/coffre/api";
 import { echec, type EchecFabrique, type Habillage, manquesDIdentite, profilDocumentaire, type ProfilDocumentaire } from "./profil";
@@ -179,7 +179,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
   }
   const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null, type });
   if (!p.ok) return p;
-  const { profil, papierOctets, habillage } = p;
+  const { profil, habillage } = p;
   if (!opts.delegation && !(await canEditCompanyId(user.id, profil.societe.id))) return echec("MISSING_PERMISSION", `Vous voyez ${profil.societe.nom} sans pouvoir l'engager : la pièce ne peut pas être émise en son nom.`);
 
   // L'AVOIR SE LIT SUR SA FACTURE (§118.195) : client, numéro et date d'origine viennent du lien, pas de la demande.
@@ -261,7 +261,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
   // reste refusait « entièrement créditée » la resoumission d'un avoir TOTAL au lieu de rendre la pièce — et empêchait
   // pour toujours de reprendre une émission interrompue, dont la ligne restait comptée sans fichier (§118.195).
   if (facture) {
-    const refus = refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, resteACrediter(facture.ttc, await montantsDesAvoirsActifs(facture.id)));
+    const refus = refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, netDeLaFacture(facture.ttc, await montantsDesAvoirsActifs(facture.id)));
     if (refus) return echec("MISSING_INPUT", refus);
   }
 
@@ -294,7 +294,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
     // compter ses avoirs et d'écrire celui-ci — entre deux processus aussi.
     if (facture) {
       await tx.$queryRaw`SELECT 1 FROM "LegalDocument" WHERE id = ${facture.id} FOR UPDATE`;
-      const refus = refusPlafondAvoir(facture.numero, totaux.totalTtc, resteACrediter(facture.ttc, await montantsDesAvoirsActifs(facture.id, tx)));
+      const refus = refusPlafondAvoir(facture.numero, totaux.totalTtc, netDeLaFacture(facture.ttc, await montantsDesAvoirsActifs(facture.id, tx)));
       if (refus) throw new PlafondAvoirDepasse(refus);
     }
     let numero: string;

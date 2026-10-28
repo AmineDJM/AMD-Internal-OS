@@ -49,7 +49,7 @@ suite("API v1 — la recherche plein texte reste dans la portée de l'identité"
   }, 60_000);
 
   it("la portée « mes visites » s'applique d'abord (sans recherche)", async () => {
-    const r = await listGET(appel(`/api/v1/entities/medical_visit`), { params: { entity: "medical_visit" } });
+    const r = await listGET(appel(`/api/v1/entities/medical_visit`), { params: Promise.resolve({ entity: "medical_visit" }) });
     const body = await r.json();
     expect(r.status).toBe(200);
     const ids = (body.data.items as { id: string }[]).map((v) => v.id);
@@ -58,14 +58,14 @@ suite("API v1 — la recherche plein texte reste dans la portée de l'identité"
   });
 
   it("`?q=` ne rend pas la visite d'un collègue (liste)", async () => {
-    const r = await listGET(appel(`/api/v1/entities/medical_visit?q=${TAG}`), { params: { entity: "medical_visit" } });
+    const r = await listGET(appel(`/api/v1/entities/medical_visit?q=${TAG}`), { params: Promise.resolve({ entity: "medical_visit" }) });
     const body = await r.json();
     expect(r.status).toBe(200);
     expect((body.data.items as { id: string }[]).map((v) => v.id)).toEqual([maVisite]);
   });
 
   it("`/search?q=` ne rend pas la visite d'un collègue", async () => {
-    const r = await searchGET(appel(`/api/v1/search?q=${TAG}&entities=medical_visit`), { params: {} });
+    const r = await searchGET(appel(`/api/v1/search?q=${TAG}&entities=medical_visit`), { params: Promise.resolve({}) });
     const body = await r.json();
     expect(r.status).toBe(200);
     const groupe = (body.data.results as { entity: string; items: { id: string }[] }[]).find((g) => g.entity === "medical_visit");

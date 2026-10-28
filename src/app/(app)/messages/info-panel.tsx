@@ -7,9 +7,9 @@ import {
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Input, Textarea, Label, Select } from "@/components/ui/input";
+import { Input, Textarea, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { ROLE_LABELS, CONV_NOTIFY_LEVEL, CONV_MEMBER_ROLE } from "@/lib/labels";
+import { ROLE_LABELS, CONV_NOTIFY_LEVEL } from "@/lib/labels";
 import type { ConversationDetailDTO, DirectoryUserDTO } from "@/lib/queries/messaging";
 import {
   togglePinConversation, toggleMute, setNotifyLevel, updateConversation,

@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/openai-luna";
-import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
+import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/openai-luna";
+import { logAiUsage } from "@/lib/ai-settings";
 import {
   CONSIGNE_ESSENTIEL, SCHEMA_ESSENTIEL, faitsPourLuna, lireReponseEssentiel, essentielDeterministe, empreinteFaits,
   type Fait360, type Essentiel360,
@@ -25,16 +25,6 @@ import { sansBloquer } from "@/lib/journal";
 
 const FONCTION = "produit_360" as const;
 const DELAI_MS = 15_000;
-
-async function porteOuverte(): Promise<boolean> {
-  try {
-    if (await interrupteurIaCoupe()) return false;
-    if (!(await aiFeatureEnabled(FONCTION))) return false;
-    return lunaConfigured();
-  } catch {
-    return false;
-  }
-}
 
 async function lireCache(cle: string): Promise<Essentiel360 | null> {
   try {
@@ -91,7 +81,7 @@ export async function essentielDuProduit(input: { productId: string; faits: read
   const cle = `produit360|${input.productId}|${empreinteFaits(input.faits)}|${jour}`;
   const cache = await lireCache(cle);
   if (cache) return cache;
-  const parLuna = (await porteOuverte()) ? await demanderALuna(input.faits, input.userId) : null;
+  const parLuna = (await portesLunaOuvertes(FONCTION)) ? await demanderALuna(input.faits, input.userId) : null;
   const v: Essentiel360 = { points: parLuna ?? essentielDeterministe(input.faits), parLuna: Boolean(parLuna), calculeLe: maintenant.toISOString() };
   await ecrireCache(cle, jour, v);
   return v;

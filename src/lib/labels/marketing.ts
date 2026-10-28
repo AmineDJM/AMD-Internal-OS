@@ -58,32 +58,6 @@ export const SPONSORING_TYPES: string[] = [
   "Autre",
 ];
 
-export const BUDGET_CATEGORY: Record<string, string> = {
-  REGULATORY: "Regulatory",
-  SPONSORING: "Sponsoring",
-  CONGRESS_INTERNATIONAL: "Prises en charge Internationales",
-  CONGRESS_NATIONAL: "Prises en charge Nationales",
-  MEDICAL_PROMOTION: "Promotion médicale",
-  LOGISTICS: "Logistique",
-  BUSINESS_DEVELOPMENT: "Business Development",
-  MARKETING: "Marketing",
-};
-
-export const BUDGET_STATUS: Record<string, Display> = {
-  ON_TRACK: { label: "Maîtrisé", tone: "success" },
-  AT_RISK: { label: "À surveiller", tone: "warning" },
-  OVER_BUDGET: { label: "Dépassé", tone: "danger" },
-  CLOSED: { label: "Clôturé", tone: "neutral" },
-};
-
-export const CONGRESS_STATUS: Record<string, Display> = {
-  CONSIDERED: { label: "Envisagé", tone: "neutral" },
-  VALIDATED: { label: "Validé", tone: "info" },
-  ORGANIZED: { label: "Organisé", tone: "info" },
-  COMPLETED: { label: "Terminé", tone: "success" },
-  CANCELLED: { label: "Annulé", tone: "danger" },
-};
-
 export const CONGRESS_REQUEST_STATUS: Record<string, Display> = {
   AWAITING_PRELIMINARY: { label: "Attente National Sales", tone: "warning" },
   // LES DEUX LIBELLÉS DU MILIEU SUIVENT LE CIRCUIT D'AUJOURD'HUI, comme ceux du sponsoring (§118.151,
@@ -159,13 +133,6 @@ export const FIELD_REPORT_STATUS: Record<string, Display> = {
   DRAFT: { label: "Brouillon", tone: "warning" },
   VALIDATED: { label: "Validé", tone: "success" },
   ARCHIVED: { label: "Archivé", tone: "neutral" },
-};
-
-export const VISIT_STATUS: Record<string, Display> = {
-  PLANNED: { label: "Prévu", tone: "info" },
-  COMPLETED: { label: "Réalisé", tone: "success" },
-  CANCELLED: { label: "Annulé", tone: "danger" },
-  POSTPONED: { label: "Reporté", tone: "warning" },
 };
 
 export const INFLUENCE_LEVEL: Record<string, Display> = {
@@ -304,13 +271,6 @@ export const AD_PRO_OTHER_STATUS: Record<string, Display> = {
   RETURNED: { label: "À corriger", tone: "warning" },
 };
 
-/** Ordre de l'ANCIEN circuit (quinze étapes) — ne sert plus qu'aux dossiers d'avant la réforme. */
-export const PROMO_MATERIAL_FLOW: string[] = [
-  "PROSPECTION_REQUESTED", "QUOTES_UPLOADED", "AGENCY_CHOSEN", "BC_FINANCE_REVIEW", "BC_VALIDATED",
-  "BC_SENT", "PAYMENT_INITIATED", "PAYMENT_DONE", "MATERIAL_PRODUCED", "CONFORMITY_REVIEW",
-  "VISA_OBTAINED", "BAT_PRINTING", "FINAL_MATERIAL", "INVOICED", "SETTLED",
-];
-
 /** Nature du matériel promotionnel (enum MaterialType) — libellés + ordre du menu. */
 export const MATERIAL_TYPE: Record<string, string> = {
   PRESENTOIRE: "Présentoir",
@@ -333,11 +293,6 @@ export const MATERIAL_TYPE: Record<string, string> = {
   CLE_USB: "Clé USB",
   AUTRES: "Autres",
 };
-
-/** Options `{ value, label }` du menu « type de matériel » (dans l'ordre métier). */
-export const MATERIAL_TYPE_OPTIONS: { value: string; label: string }[] = Object.entries(MATERIAL_TYPE).map(
-  ([value, label]) => ({ value, label }),
-);
 
 export const MEDICAL_INFO_STATUS: Record<string, Display> = {
   AWAITING_REVIEW: { label: "À déclarer", tone: "warning" },

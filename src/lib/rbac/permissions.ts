@@ -6,7 +6,7 @@
 
 import type { UserRole } from "@prisma/client";
 import { MODULES, type Action, type Module } from "./modules";
-import { ALL, READ, READ_VALIDATE, CONTRIBUTE, MANAGE, AD_PRO_OPERATIONS, WORKSPACE_USER, DRIVE_USER, REQUEST_USER, VALIDATION_USER, FEEDBACK_USER, MESSAGING_USER, DIRECTIVES_USER, SUPPORT_USER, DOSSIERS_USER, GENERAL_MEANS_USER, BC_SIGNATAIRE, BC_LECTEUR, type RoleMatrix } from "./gestes";
+import { ALL, READ, CONTRIBUTE, MANAGE, AD_PRO_OPERATIONS, WORKSPACE_USER, DRIVE_USER, REQUEST_USER, VALIDATION_USER, FEEDBACK_USER, MESSAGING_USER, DIRECTIVES_USER, SUPPORT_USER, DOSSIERS_USER, GENERAL_MEANS_USER, BC_SIGNATAIRE, BC_LECTEUR, type RoleMatrix } from "./gestes";
 
 /** Role defaults. A missing module entry means no baseline access. */
 export const PERMISSIONS: Record<UserRole, RoleMatrix> = {

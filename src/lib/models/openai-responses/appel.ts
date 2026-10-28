@@ -5,9 +5,10 @@
 import { providerErrorMessage, isRetryableStatus } from "../errors";
 import { noterEnTetes, noter429, noterSucces } from "../throttle";
 import { budgetDeSecours, BUDGET_POLICY } from "../budget";
-import { type ModelBinding, type ModelCallOptions, type ModelReply, type ModelTurn, emptyUsage } from "../contract";
+import { type ModelBinding, type ModelCallOptions, type ModelReply, type ModelTurn, reponseEnEchec, reponseSansCle } from "../contract";
+import { cleOpenAI, urlOpenAI } from "../openai-acces";
 import { attendu } from "@/lib/journal";
-import { budgetEpuise, buildResponsesBody, fromResponsesOutput, lireRecherchesWeb, type RespPayload, sansCle, stopOfResponse, urlDe } from "./format";
+import { budgetEpuise, buildResponsesBody, fromResponsesOutput, lireRecherchesWeb, type RespPayload, stopOfResponse } from "./format";
 import { journaliserBudget, usageDe } from "./usage";
 import { streamOpenAiResponses } from "./flux";
 
@@ -86,8 +87,8 @@ export async function callOpenAiResponses(
   opts: ModelCallOptions = {},
 ): Promise<ModelReply> {
   const started = Date.now();
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
-  if (!key) return sansCle(binding);
+  const key = cleOpenAI();
+  if (!key) return reponseSansCle(binding, "openai", "OPENAI_API_KEY");
 
   // Ce chemin a DÉJÀ coupé sur ce modèle : inutile de repayer le silence pour le redécouvrir.
   if (cheminCoupeRecemment(binding.model)) return viaFlux(binding, turns, opts);
@@ -100,7 +101,7 @@ export async function callOpenAiResponses(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch(urlDe(), {
+      const res = await fetch(urlOpenAI("/responses"), {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -234,12 +235,5 @@ export async function callOpenAiResponses(
     await new Promise((r) => setTimeout(r, 600 * attempt));
   }
 
-  return {
-    ok: false,
-    configured: true,
-    stop: "error",
-    blocks: [],
-    usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-    error: lastError,
-  };
+  return reponseEnEchec(binding, "openai", started, lastError);
 }

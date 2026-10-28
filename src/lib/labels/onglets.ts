@@ -34,12 +34,6 @@ export interface NavTab {
    */
   regle?: "specialites" | "marche-cockpit" | "argent-cockpit";
 }
-
-// (L'« Espace comptable » a été fusionné dans la page Finances : plus d'onglets.)
-export const CONGRESS_TABS: NavTab[] = [
-  { module: "CONGRESS_INTERNATIONAL", label: "Internationaux", href: "/congress-international" },
-  { module: "CONGRESS_NATIONAL", label: "Nationaux", href: "/congress-national" },
-];
 /**
  * L'ESPACE PERSONNEL — UN SEUL ENDROIT.
  *
@@ -156,9 +150,7 @@ export const EMPLOYES_TABS: NavTab[] = [
 export const DEMANDES_RH_TABS: NavTab[] = [
   { module: "HR_REQUESTS", label: "Demandes", href: "/rh/demandes" },
   { module: "HR_REQUESTS", label: "Congés et absences", href: "/rh/conges" },
-];
-/** Compatibilité : les écrans RH d'avant le découpage. */
-export const HR_TABS: NavTab[] = [...EMPLOYES_TABS, ...DEMANDES_RH_TABS];// « Ad & Pro » : sponsoring + congrès (international/national) + événements +
+];// « Ad & Pro » : sponsoring + congrès (international/national) + événements +
 // matériel promotionnel, sous un seul module. Le matériel promotionnel a été
 // déplacé ici depuis « Promotion médicale » (sa fonctionnalité est inchangée).
 /**

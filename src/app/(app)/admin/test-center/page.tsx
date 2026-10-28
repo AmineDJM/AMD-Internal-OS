@@ -53,7 +53,7 @@ export default async function TestCenterPage() {
   const admin = await requireModule("ADMIN", "UPDATE");
   if (admin.role !== "SUPER_ADMIN") redirect("/admin");
 
-  const { runs, interrupted, last, lastFindings, lastArtifacts } = await getTestCenterDashboard();
+  const { runs, interrupted, last, lastFindings } = await getTestCenterDashboard();
 
   return (
     <div className="space-y-5">

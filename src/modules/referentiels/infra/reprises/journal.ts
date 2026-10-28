@@ -6,8 +6,6 @@ import { prisma } from "@/lib/prisma";
  * la Direction relit, avec l'auteur et l'heure.
  */
 export const MODULE_JOURNAL_REFONTE = "Refonte des données";
-/** Le même module, sous le nom qu'emploient les gestes des Personnes (fusion, double écriture). */
-export const MODULE_JOURNAL_REPRISES = MODULE_JOURNAL_REFONTE;
 
 export interface EntreeJournal {
   le: Date;

@@ -44,16 +44,9 @@ export type Certitude = "CERTAIN" | "PROBABLE" | "PERIME" | "HYPOTHESE" | "MANQU
 export type Conduite = "AGIR" | "VERIFIER" | "RELIRE" | "CHERCHER" | "DEMANDER" | "ARBITRER";
 export type Enjeu = "FAIBLE" | "NORMAL" | "ELEVE";
 
-export const CERTITUDES: readonly Certitude[] = ["CERTAIN", "PROBABLE", "PERIME", "HYPOTHESE", "MANQUANT", "CONTRADICTION"];
 export const CONDUITE_PAR_CERTITUDE: Record<Certitude, Conduite> = { CERTAIN: "AGIR", PROBABLE: "VERIFIER", PERIME: "RELIRE", HYPOTHESE: "CHERCHER", MANQUANT: "DEMANDER", CONTRADICTION: "ARBITRER" };
 export const LIBELLE_CERTITUDE: Record<Certitude, string> = { CERTAIN: "certain", PROBABLE: "probable", PERIME: "périmé", HYPOTHESE: "hypothèse", MANQUANT: "manquant", CONTRADICTION: "contradiction" };
 export const LIBELLE_CONDUITE: Record<Conduite, string> = { AGIR: "agir", VERIFIER: "vérifier avant d'agir", RELIRE: "relire la source avant d'agir", CHERCHER: "chercher encore", DEMANDER: "demander à la personne", ARBITRER: "arbitrer la contradiction" };
-/** Le même état, dans les autres vocabulaires de la maison : l'étiquette de réponse, l'échelle des missions. */
-export const EQUIVALENCES: Record<Certitude, { reponse: string; mission: string }> = {
-  CERTAIN: { reponse: "FAIT VÉRIFIÉ", mission: "TROUVÉ" }, PROBABLE: { reponse: "FAIT DÉRIVÉ", mission: "DÉDUIT" },
-  PERIME: { reponse: "FAIT DATÉ, À RELIRE", mission: "DÉDUIT" }, HYPOTHESE: { reponse: "ESTIMATION / HYPOTHÈSE", mission: "CANDIDAT" },
-  MANQUANT: { reponse: "INCONNU", mission: "INCONNU" }, CONTRADICTION: { reponse: "INCOHÉRENCE À SIGNALER", mission: "—" },
-};
 
 /** Ce qu'un fait doit dire pour être calibré — la forme de `FaitSource` (F8), sans dépendre d'elle. */
 export interface FaitCalibrable {
@@ -214,14 +207,6 @@ export function perimesDe(faits: readonly FaitCalibrable[], maintenant: Date = n
   }
   return out.sort((a, b) => b.ageH - a.ageH);
 }
-
-/**
- * L'ORDRE DES ÉTATS, du plus fort au plus faible. PÉRIMÉ passe APRÈS probable et AVANT
- * hypothèse : une copie datée reste une lecture d'une vraie source, là où une hypothèse est la
- * mémoire d'un modèle. Le rang commande `plusFaible`, donc ce que gouverne le maillon faible.
- */
-const RANG: Record<Certitude, number> = { CERTAIN: 0, PROBABLE: 1, PERIME: 2, HYPOTHESE: 3, MANQUANT: 4, CONTRADICTION: 5 };
-export const plusFaible = (a: Certitude, b: Certitude): Certitude => (RANG[a] >= RANG[b] ? a : b);
 
 /**
  * CALIBRER un lot de faits — pour un tour, un rapport de spécialiste, une étape de mission.

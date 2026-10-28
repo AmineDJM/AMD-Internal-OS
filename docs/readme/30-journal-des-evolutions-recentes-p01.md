@@ -31,6 +31,20 @@ structuré, que n'importe quel développeur comprenne »).
 - **Filtre de confidentialité** : un IBAN imprimé par groupes de quatre est désormais masqué (il passait en clair).
   Décision [0011](../assistant/decisions/0011-vocaux-et-lecture-de-toute-piece.md).
 
+### CODE MORT ET DOUBLONS — MESURÉS PAR KNIP ET JSCPD, TENUS PAR LA CI (lot V4, 2026-10-28)
+
+- **Zéro code mort, mesuré par un outil** : knip (`knip.json`, entrées App Router, actions, ponts in-process, scripts,
+  prisma, tests) passe de 29 fichiers / 312 exports / 115 types / 7 dépendances inutilisés à **0**. 41 fichiers de
+  production supprimés (29 orphelins, 12 fonctionnalités jamais branchées) avec leurs tests ; −11 474 lignes au total.
+  `date-fns` et `docxtemplater` désinstallés, `fflate` déclaré. Deux fichiers atteints par les seuls tests restent,
+  nommés avec leur raison (`src/platform/qualite-code.ts`).
+- **Doublons fusionnés** (jscpd : 1 506 → 1 473 clones) : `OPENAI_BASE_URL` lue à un seul endroit
+  (`models/openai-acces.ts`, accepte `…` et `…/v1` — la transcription et la passerelle attendaient l'inverse l'une de
+  l'autre) ; réponses d'échec des fournisseurs ; porte Luna ; `state`/PKCE OAuth ; `plier`, `arrondirAuCentime`,
+  `arrondirAuMillieme`, `montantDzd` (`lib/utils.ts`).
+- **Garde** : `npm run qualite:mort`, `npm run qualite:doublons` (CI, job `verifier`) et `src/platform/qualite-code.test.ts`
+  (cliquets décroissants). Détail et mesures : rapport 08, ARCH-06.
+
 ### MODULE RH — LE MÉTIER RH RANGÉ DANS `src/modules/rh/` (lot V4, 2026-10-28)
 
 - **Aucun changement de comportement** : congés, paie, avances, notes de frais, demandes et documents RH, attestation

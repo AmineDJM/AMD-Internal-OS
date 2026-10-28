@@ -9,6 +9,8 @@
 | `npm run lint` | ESLint (next lint) |
 | `npm run test` | Tests Vitest |
 | `npm run test:architecture` | **Les cliquets d'architecture seuls** (~35 s) : frontières et carte des modules (`src/modules/`), couverture (`src/platform/couverture.test.ts`), domaines, frontière Adam ↔ ERP, contrat des actions, garde du bundle client. À lancer après tout déplacement de fichier — guide : `docs/architecture/MODULES.md`. |
+| `npm run qualite:mort` | **Code mort** (knip, `knip.json`) : fichiers, exports, types, dépendances inutilisés — zéro exigé ; liste les fichiers que seuls des tests atteignent (exceptions nommées dans `src/platform/qualite-code.ts`). ~20 s, en CI. |
+| `npm run qualite:doublons` | **Doublons** (jscpd, `.jscpd.json`) : clones de `src/` hors tests, sous plafond ; affiche les plus longs. ~3 s, en CI. |
 | `npm run db:deploy` | Applique les migrations (prod) |
 | `npm run db:migrate` | Migration de développement |
 | `npm run db:bootstrap` | Crée le Super Admin initial |

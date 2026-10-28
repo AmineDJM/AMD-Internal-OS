@@ -22,11 +22,6 @@ export const LIBELLE_RELATION: Record<TypeRelation, string> = {
   DECIDE: "décide pour",
 };
 
-export const SOURCES_RELATION = ["STRUCTURE", "LUNA", "SAISIE"] as const;
-export type SourceRelation = (typeof SOURCES_RELATION)[number];
-export const STATUTS_RELATION = ["PROPOSEE", "CONFIRMEE", "REJETEE"] as const;
-export type StatutRelation = (typeof STATUTS_RELATION)[number];
-
 export function estTypeLuna(v: unknown): v is (typeof TYPES_LUNA)[number] {
   return typeof v === "string" && (TYPES_LUNA as readonly string[]).includes(v);
 }

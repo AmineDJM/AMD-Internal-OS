@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { mergePortfolio, type Portfolio, type PortfolioProduct } from "@/lib/sales-portfolio";
-import { sansBloquer } from "@/lib/journal";
 
 /**
  * LECTURE DU PORTEFEUILLE — ce qu'une personne porte réellement ce cycle.
@@ -112,23 +111,4 @@ export async function getMyPortfolio(userId: string): Promise<Portfolio> {
     console.error("[portfolio] lecture impossible", e);
     return EMPTY;
   }
-}
-
-/**
- * Les produits proposables dans un formulaire (rapport terrain, demande de support, Ad & Pro).
- *
- * La Direction et le Super Admin voient tout le catalogue : ils arbitrent pour l'ensemble et
- * restreindre leur choix n'aurait aucun sens. Les autres ne voient que leur portefeuille — c'est
- * la traduction concrète de « les produits qui lui sont attribués ».
- */
-export async function selectableProducts(userId: string, seesAll: boolean): Promise<{ id: string; name: string; channel: string }[]> {
-  if (seesAll) {
-    const all = await prisma.promoProduct.findMany({
-      where: { isActive: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-      select: { id: true, name: true, channel: true },
-    }).catch(sansBloquer("portfolio.selectableProducts.promoProduct", []));
-    return all.map((p) => ({ ...p, channel: String(p.channel) }));
-  }
-  const mine = await getMyPortfolio(userId);
-  return mine.products.map((p) => ({ id: p.productId, name: p.name, channel: String(p.channel) }));
 }

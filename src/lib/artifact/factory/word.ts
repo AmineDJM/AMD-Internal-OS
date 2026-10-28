@@ -134,8 +134,6 @@ export function paragraphe(texte: string | Fragment[], o: OptionsParagraphe = {}
 /** Un paragraphe vide — l'espace entre deux blocs, et le paragraphe que Word exige après un tableau. */
 export const vide = (apresPt = 0): string => `<w:p>${apresPt ? `<w:pPr><w:spacing w:after="${Math.round(apresPt * 20)}"/></w:pPr>` : ""}</w:p>`;
 
-export const sautDePage = (): string => `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
-
 function normaliserCellule(c: Cellule): { contenu: Fragment[]; alignement?: Alignement; gras?: boolean; fusion?: number; fond?: string; couleur?: string } {
   if (typeof c === "string") return { contenu: [{ texte: c }] };
   if (Array.isArray(c)) return { contenu: c };

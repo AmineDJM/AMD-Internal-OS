@@ -1,21 +1,3 @@
-/**
- * LE SCORE D'INFLUENCE D'UN PRATICIEN (0–100) — Intelligence terrain, console d'administration (Super Admin seul).
- *
- * Un score EXPLICABLE : chaque point vient d'une raison écrite, et l'écran montre la liste. Rien n'est deviné : une donnée
- * absente (pas de volume PCH, pas de lien) ne rapporte rien, elle ne retire rien non plus.
- *
- *   • rôle dans la hiérarchie du service : dirige le service (chef, décideur du besoin annuel, statut Décideur) +30,
- *     sinon grade hospitalo-universitaire (Pr, MCA) +15 ;
- *   • orateur sur 12 mois : +10 par intervention, plafond 20 ;
- *   • cité par d'autres médecins : lien confirmé = poids 1, lien proposé par Luna = confiance × 0,5 ; 6 points par poids,
- *     plafond 25 ;
- *   • volume de l'établissement (boîtes distribuées par les DR sur 12 mois) : paliers, plafond 15 ;
- *   • taille du réseau (praticiens reliés, liens non rejetés) : +2 par praticien, plafond 10.
- *
- * Module PUR, zéro import : la console, les tests et l'analyse planifiée lisent la même règle.
- */
-
-export const STATUTS_INFLUENCE = ["DECIDEUR", "INFLUENCEUR", "REFERENT", "PRESCRIPTEUR"] as const;
 
 export interface EntreeScore {
   /** Titre / grade de la fiche (`DoctorTitle`). */

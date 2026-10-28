@@ -4,10 +4,10 @@
  * LES PRATICIENS — les éditeurs de cellule (texte, choix) et le motif d'une lettre forcée.
  */
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn, plier } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import type { Lettre } from "@/lib/segmentation/regles";
-import { type Deplacement, type Choix, plie, libelleLettre, champ } from "./modele";
+import { type Deplacement, type Choix, libelleLettre, champ } from "./modele";
 import { Flottant } from "./flottant";
 
 // ─────────────────────────────── Les éditeurs ───────────────────────────────
@@ -54,8 +54,8 @@ export function EditeurChoix({ options, courant, recherche, selectionner, onVali
   const [ancre, setAncre] = React.useState<HTMLInputElement | null>(null);
   const fait = React.useRef(false);
   const filtrees = React.useMemo(() => {
-    const mots = plie(q).split(/\s+/).filter(Boolean);
-    const r = mots.length ? options.filter((o) => { const t = plie(`${o.libelle} ${o.detail ?? ""}`); return mots.every((m) => t.includes(m)); }) : options;
+    const mots = plier(q).split(/\s+/).filter(Boolean);
+    const r = mots.length ? options.filter((o) => { const t = plier(`${o.libelle} ${o.detail ?? ""}`); return mots.every((m) => t.includes(m)); }) : options;
     return mots.length ? r.slice(0, 150) : r;
   }, [options, q]);
   const [iBrut, setI] = React.useState(() => (recherche ? 0 : Math.max(0, options.findIndex((o) => o.valeur === courant))));

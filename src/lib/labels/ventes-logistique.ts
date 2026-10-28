@@ -74,9 +74,3 @@ export const PCH_ORDER_STATUS: Record<string, Display> = {
   PAID: { label: "Payé", tone: "success" },
   CANCELLED: { label: "Annulé", tone: "danger" },
 };
-
-export const STOCK_DIRECTION: Record<string, Display> = {
-  IN: { label: "Entrée", tone: "success" },
-  OUT: { label: "Sortie", tone: "danger" },
-  ADJUST: { label: "Ajustement", tone: "neutral" },
-};

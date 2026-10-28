@@ -1,6 +1,6 @@
 "use client";
 
-import { phraseIaNonConfiguree, courtIaNonConfiguree } from "@/lib/ia/cle-manquante";
+import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Presentation, Sparkles, Loader2, Download, Trash2, RefreshCw, ChevronDown, ChevronRight, Info } from "lucide-react";

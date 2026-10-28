@@ -20,7 +20,7 @@ import { hasGlobalView } from "@/lib/rbac";
 import { peutGererDirectionArtistique } from "@/lib/direction-artistique/droits";
 import type { CurrentUser } from "@/lib/session";
 import { resoudreSociete, type EchecFabrique } from "@/platform/in-process/artifact/factory";
-import { charteDe, lireMarque, mentionsDe, resumerMarque, validerMarque, type Charte, type Marque } from "@/lib/brand/model";
+import { charteDe, lireMarque, resumerMarque, validerMarque, type Charte, type Marque } from "@/lib/brand/model";
 import { sansBloquer } from "@/lib/journal";
 
 export { charteDe, lireMarque, mentionsDe, resumerMarque, signatairePour, validerMarque, MARQUE_VIDE, POLICES_SURES, TYPES_PIECE, LIBELLE_TYPE_PIECE, type Charte, type Marque, type TypePiece } from "@/lib/brand/model";

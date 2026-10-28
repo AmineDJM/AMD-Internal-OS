@@ -50,4 +50,3 @@ export const FACT_CATALOG: FactDef[] = [
 
 const BY_KEY = new Map(FACT_CATALOG.map((f) => [f.key, f]));
 export const factLabel = (key: string) => BY_KEY.get(key)?.label ?? key;
-export const factGroup = (key: string) => BY_KEY.get(key)?.group ?? "Identité";

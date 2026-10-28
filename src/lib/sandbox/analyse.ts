@@ -304,4 +304,3 @@ export function scenario(lignes: readonly Ligne[], variations: readonly { colonn
 export const OPERATIONS = {
   decrire, regrouper, croiser, filtrer, trier, serie, moyenneMobile, croissance, cumul, tendance, rang, anomalies, cohortes, scenario, mediane, percentile,
 } as const;
-export type NomOperation = keyof typeof OPERATIONS;

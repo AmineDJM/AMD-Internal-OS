@@ -4,7 +4,7 @@ import { dechiffrer, recomposer } from "./dechiffrement";
 import { lecteurDepuisSession } from "./lecteur";
 import { controlerLecture, type DemandeLecture, type DependancesLecture, type Lecture } from "./acces";
 
-export type { ChampLu, DemandeLecture, DependancesLecture, LigneALire, Lecture } from "./acces";
+export type { DemandeLecture, DependancesLecture, Lecture } from "./acces";
 
 /**
  * LA DOUBLE LECTURE DU COFFRE (refonte V2-E) — ce que lisent les ÉCRANS (pages serveur, jamais

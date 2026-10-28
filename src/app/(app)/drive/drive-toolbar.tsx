@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { MoreHorizontal, Trash2, Maximize2, MoveHorizontal, Settings2 } from "lucide-react";
+import { MoreHorizontal, Trash2, Maximize2, MoveHorizontal } from "lucide-react";
 import { setFocusMode } from "@/components/layout/focus-mode";
 import { Sheet } from "@/components/ui/sheet";
 
@@ -163,6 +163,3 @@ export function DriveToolbar({
     </div>
   );
 }
-
-/** Icône neutre pour les écrans qui veulent afficher « réglages » sans importer lucide. */
-export const SettingsIcon = Settings2;

@@ -8,7 +8,7 @@ import { indexerSpecialites } from "@/lib/annuaires/specialites";
 import { composeDoctorName } from "@/lib/medical/directory-grid";
 import { titleFrom } from "@/lib/medical/directory-sheet";
 import { ADVENTUM_COMPANY_ID } from "@/lib/company-defaut";
-import { lireClasseur, proposerRegles, type Feuilles, type LectureClasseur, type PropositionRegles } from "./lecture-classeur";
+import { lireClasseur, proposerRegles, type LectureClasseur, type PropositionRegles } from "./lecture-classeur";
 import { rapprocher, typeDEtablissement, type Rapprochement } from "./rapprochement";
 import { lireRegles, STATUTS, type InOut, type Regles, type Statut } from "./regles";
 import { inOutDe, pivotDuSecteur, wilayaDuPraticien } from "./in-out";

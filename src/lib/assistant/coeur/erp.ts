@@ -40,14 +40,13 @@ export {
   DELETE_REGISTRY, DELETABLE_KINDS, apercuSuppression, isDeletableKind, type DeletableKind,
 } from "@/lib/admin-delete-registry";
 export { getCommunicationPolicy, setMailSendPolicy, parseMailPolicyPhrase, POLICY_LABEL, POLICY_HELP } from "@/lib/comms/policy";
-export { approveOutboundIntent, sendOutboundIntent, createOutboundIntent } from "@/lib/comms/outbound";
+export { createOutboundIntent } from "@/lib/comms/outbound";
 export { resolveOutboundIdentity, isIdentity, formatIdentity } from "@/lib/comms/identity";
 export { classifyReply } from "@/lib/comms/confirmation";
 export { approveAndExecuteIntent, solePendingMailIntent, type MailExecutionResult } from "@/lib/comms/approve-execute";
 export { findPeople } from "@/lib/directory/resolve";
 export { decideAddress, askWhichAddress } from "@/lib/directory/rank";
 export { gmailTransport } from "@/lib/google/gmail/transport";
-export { markMissionAsked } from "@/lib/comms/missions";
 export { requestTreasuryUpdate } from "@/lib/actions/finance-actions";
 export { upsertCustomFieldDef, deleteCustomFieldDef } from "@/lib/actions/custom-field-actions";
 export { CUSTOM_ENTITY_TYPES } from "@/lib/custom-fields";
@@ -55,7 +54,6 @@ export { canSetStructural } from "@/lib/regulatory/structural-fields";
 export { isRegStepKey, isRegStepState, isRegPresubOutcome, REG_STEPS, PRESUB_ANSWER_STEP } from "@/lib/regulatory-workflow";
 export { createInstitution, updateInstitution } from "@/lib/actions/medical-actions";
 export { createStockHospital, createStockAnnex } from "@/lib/actions/stock-snapshot-actions";
-export { shortlistTools, DISCOVERY_TOOL } from "@/lib/assistant/context/tool-shortlist";
 export {
   sitsOnPaymentCentre, applyDecision, CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, PAYMENT_CENTRE_REFUSAL,
   type CentralStatus,

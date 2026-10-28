@@ -1,20 +1,3 @@
-/**
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LES FICHIERS D'UNE PIÈCE DE PRISE EN CHARGE — module PUR, zéro import (le navigateur le lit).
- *
- * « L'upload du passeport doit accepter PLUSIEURS pièces jointes (recto/verso, plusieurs pages,
- * visa…) » (Direction, 10/2026). Une case PIÈCE (`CareCell` de nature DOCUMENT) porte UN fichier
- * principal (`documentId`, ce que lisent le livret et la réservation) ; ses fichiers sont TOUS les
- * `Document` de la demande que la case désigne (`stepKey` = la case) — le dépôt les a toujours
- * rangés ainsi, aucune migration.
- *
- * La règle : une pièce est REÇUE dès qu'elle a au moins un fichier, et de nouveau ATTENDUE quand
- * le dernier est retiré. Le fichier principal reste celui qu'il était tant qu'il existe ; sinon,
- * le plus ancien des fichiers restants prend sa place.
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- */
-
-export interface FichierPiece { id: string; name: string; hasFile: boolean }
 
 /** Les fichiers d'une case PIÈCE, parmi les documents de la demande : ceux qu'elle désigne, et son principal. */
 export function fichiersDeLaCase<T extends { id: string; stepKey: string | null }>(

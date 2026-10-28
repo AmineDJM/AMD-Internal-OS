@@ -312,20 +312,6 @@ export const AUDIT_ACTION: Record<string, Display> = {
   REFUSE: { label: "Refus", tone: "danger" },
 };
 
-// ─────────────── Messagerie interne ───────────────
-
-export const CONVERSATION_TYPE: Record<string, Display> = {
-  DIRECT: { label: "Message direct", tone: "info" },
-  GROUP: { label: "Groupe", tone: "purple" },
-  CHANNEL: { label: "Canal", tone: "neutral" },
-};
-
-export const CONV_MEMBER_ROLE: Record<string, string> = {
-  OWNER: "Propriétaire",
-  ADMIN: "Administrateur",
-  MEMBER: "Membre",
-};
-
 export const CONV_NOTIFY_LEVEL: Record<string, string> = {
   ALL: "Tous les messages",
   MENTIONS: "Mentions uniquement",

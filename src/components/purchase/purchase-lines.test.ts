@@ -75,7 +75,5 @@ describe("les points d'appel (§118.49)", () => {
     const carte = readFileSync("src/app/(app)/demandes/approvals/page.tsx", "utf8");
     expect(carte).toMatch(/<PurchaseLines lines=\{lireLignesDAchat\(a\.request\.fields\)\} compact \/>/);
     expect(readFileSync("src/lib/queries/admin-requests.ts", "utf8")).toMatch(/request: \{ select: \{[^}]*fields: true/);
-    // « Mes demandes » lit le même lecteur : deux lectures du même JSON finiraient par diverger.
-    expect(readFileSync("src/components/purchase/purchase-section.tsx", "utf8")).toMatch(/lireLignesDAchat\(fields\)/);
   });
 });

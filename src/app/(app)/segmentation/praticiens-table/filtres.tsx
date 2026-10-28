@@ -4,9 +4,9 @@
  * LES PRATICIENS — le filtre d'une colonne (liste, texte, plage).
  */
 import * as React from "react";
-import { cn } from "@/lib/utils";
+import { cn, plier } from "@/lib/utils";
 import { valeursDuFiltre, basculerValeur, retirerFiltre, type Colonne, type EtatTableau, type LigneTri, type FiltreListe } from "@/lib/segmentation/tableau-praticiens";
-import { FILTRE_DE, estTexte, LIBELLES, champ, estPlage, fmt, libelleFiltre, plie } from "./modele";
+import { FILTRE_DE, estTexte, LIBELLES, champ, estPlage, fmt, libelleFiltre } from "./modele";
 
 // ─────────────────────────────── Le filtre d'une colonne ───────────────────────────────
 
@@ -53,8 +53,8 @@ function ListeFiltre({ f, etat, setEtat, lignes }: { f: FiltreListe; etat: EtatT
   const [q, setQ] = React.useState("");
   const valeurs = React.useMemo(() => valeursDuFiltre(lignes, f, (l) => libelleFiltre(f, l)), [lignes, f]);
   const choisis = etat.listes[f] ?? [];
-  const mots = plie(q).trim();
-  const montrees = mots ? valeurs.filter((v) => plie(v.libelle).includes(mots)) : valeurs;
+  const mots = plier(q).trim();
+  const montrees = mots ? valeurs.filter((v) => plier(v.libelle).includes(mots)) : valeurs;
   return (
     <div className="text-sm">
       {valeurs.length > 8 && (

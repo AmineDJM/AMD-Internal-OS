@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { entetesAntiExecution } from "@/lib/http/types-actifs";
+import { servirPiece } from "@/lib/http/servir-piece";
 import { getCurrentUser } from "@/lib/session";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { entitePermisePourFiche } from "@/lib/company";
@@ -32,17 +32,5 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
   const bytes = await getBlob(doc.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });
-
-  const dl = req.nextUrl.searchParams.get("dl") === "1";
-  const filename = encodeURIComponent(doc.name);
-  return new NextResponse(new Uint8Array(bytes), {
-    headers: {
-      "Content-Type": doc.mime || "application/octet-stream",
-      // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
-      ...entetesAntiExecution(doc.mime || "application/octet-stream"),
-      "Content-Disposition": `${dl ? "attachment" : "inline"}; filename*=UTF-8''${filename}`,
-      "Content-Length": String(bytes.length),
-      "Cache-Control": "private, no-store",
-    },
-  });
+  return servirPiece(req, { octets: bytes, nom: doc.name, mime: doc.mime }, { disposition: "en-ligne", bacASable: false });
 }

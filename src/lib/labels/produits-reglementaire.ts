@@ -82,15 +82,6 @@ export const SUPPLY_UNIT: Record<string, string> = {
   KG: "Kg",
 };
 
-export const PRODUCT_TYPE: Record<string, string> = {
-  IMPORTED: "Importé",
-  LOCALLY_MANUFACTURED: "Fabriqué localement",
-  TOLL_MANUFACTURING: "Façonnage",
-  BIOSIMILAR: "Biosimilaire",
-  GENERIC: "Générique",
-  ORIGINATOR: "Princeps",
-};
-
 export const REGULATORY_STATUS: Record<string, Display> = {
   PRE_SUBMISSION: { label: "Pré-soumission", tone: "neutral" },
   IN_PREPARATION: { label: "Préparation dossier", tone: "info" },
@@ -112,14 +103,6 @@ export const EXTERNAL_REGULATORY_STATUS: Record<string, Display> = {
   APPROVED: { label: "Enregistrement obtenu", tone: "success" },
   ON_HOLD: { label: "En attente", tone: "neutral" },
   CLOSED: { label: "Clôturé", tone: "neutral" },
-};
-
-export const STEP_STATUS: Record<string, Display> = {
-  NOT_STARTED: { label: "Non commencé", tone: "neutral" },
-  IN_PROGRESS: { label: "En cours", tone: "info" },
-  DONE: { label: "Terminé", tone: "success" },
-  BLOCKED: { label: "Bloqué", tone: "danger" },
-  LATE: { label: "En retard", tone: "warning" },
 };
 
 export const REGULATORY_STEP_TYPE: Record<string, string> = {
@@ -199,34 +182,6 @@ export const PRODUCT_CHANNEL: Record<string, Display> = {
   BOTH: { label: "Ville + Hôpital", tone: "neutral" },
 };
 
-/**
- * LE CYCLE DE VIE D'UN PRODUIT CANONIQUE (§118.178) — distinct du statut réglementaire d'un
- * dossier : « enregistré » se DÉDUIT des dossiers (une décision obtenue), « commercialisé » et
- * « arrêté » sont des décisions humaines qu'aucun statut de dossier ne contredit.
- */
-export const PRODUCT_LIFECYCLE: Record<string, Display> = {
-  STUDY: { label: "À l'étude", tone: "neutral" },
-  REGISTERED: { label: "Enregistré", tone: "success" },
-  MARKETED: { label: "Commercialisé", tone: "info" },
-  DISCONTINUED: { label: "Arrêté", tone: "warning" },
-};
-
-// Demandes de l'information médicale (PRIM) → Regulatory.
-export const REG_REQUEST_STATUS: Record<string, Display> = {
-  OPEN: { label: "Ouverte", tone: "info" },
-  IN_PROGRESS: { label: "En cours", tone: "warning" },
-  ANSWERED: { label: "Répondue", tone: "success" },
-  CLOSED: { label: "Clôturée", tone: "neutral" },
-};
-
-export const REG_REQUEST_CATEGORY: Record<string, string> = {
-  QUESTION: "Question réglementaire",
-  DOCUMENT: "Demande de document",
-  STATUS_UPDATE: "Point statut d'enregistrement",
-  VARIATION: "Variation / modification",
-  OTHER: "Autre",
-};
-
 export const BD_TYPE: Record<string, string> = {
   GENERIC: "Générique",
   BIOSIMILAR: "Biosimilaire",
@@ -264,14 +219,6 @@ export const BD_SOURCING: Record<string, string> = {
   MANUFACTURED: "Fabriqué",
   IMPORTED: "Importé",
   TO_STUDY: "À étudier",
-};
-
-/** Variation d'enregistrement (Regulatory) : passage en fabrication locale. */
-export const MANUFACTURING_VARIATION: Record<string, string> = {
-  NONE: "Aucune variation",
-  SECONDARY_PACKAGING: "Packaging secondaire (fabrication locale)",
-  PRIMARY_PACKAGING: "Packaging primaire (fabrication locale)",
-  FULL_PROCESS: "Full process (fabrication locale)",
 };
 /** Variations impliquant une fabrication locale → le fabricant devient obligatoire. */
 export const LOCAL_MANUFACTURING_VARIATIONS = ["SECONDARY_PACKAGING", "PRIMARY_PACKAGING", "FULL_PROCESS"];

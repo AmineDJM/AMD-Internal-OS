@@ -102,11 +102,6 @@ async function capabilities(): Promise<{ unaccent: boolean; trgm: boolean }> {
   return sqlCaps;
 }
 
-/** Réinitialise la sonde (tests uniquement). */
-export function resetSearchCapabilitiesProbe(): void {
-  sqlCaps = null;
-}
-
 /**
  * Identifiants candidats d'une table, au-delà du LIKE strict : `unaccent` neutralise les
  * accents CÔTÉ BASE, et `pg_trgm` rattrape les fautes de frappe (similarité de trigrammes).

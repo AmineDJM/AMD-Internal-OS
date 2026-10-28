@@ -1,0 +1,20 @@
+{
+  "path": [
+    "src"
+  ],
+  "format": [
+    "typescript",
+    "tsx"
+  ],
+  "ignore": [
+    "**/*.test.ts",
+    "**/*.genere.ts",
+    "**/*.genere.json",
+    "**/node_modules/**"
+  ],
+  "reporters": [
+    "console"
+  ],
+  "silent": true,
+  "gitignore": true
+}

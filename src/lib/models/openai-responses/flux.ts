@@ -4,9 +4,10 @@
  */
 import { providerErrorMessage } from "../errors";
 import { noterEnTetes, noter429, noterSucces } from "../throttle";
-import { type ModelBinding, type ModelBlock, type ModelCallOptions, type ModelReply, type ModelTurn, emptyUsage } from "../contract";
+import { type ModelBinding, type ModelBlock, type ModelCallOptions, type ModelReply, type ModelTurn, reponseEnEchec, reponseSansCle } from "../contract";
+import { cleOpenAI, urlOpenAI } from "../openai-acces";
 import { attendu } from "@/lib/journal";
-import { buildResponsesBody, fromResponsesOutput, lireRecherchesWeb, parseArgs, type RespFunctionCall, type RespOutputItem, type RespPayload, type RespUsage, type RespWebSearchCall, sansCle, stopOfResponse, urlDe } from "./format";
+import { buildResponsesBody, fromResponsesOutput, lireRecherchesWeb, parseArgs, type RespFunctionCall, type RespOutputItem, type RespPayload, type RespUsage, type RespWebSearchCall, stopOfResponse } from "./format";
 import { journaliserBudget, usageDe } from "./usage";
 
 // ─────────────────────────────── Le flux ───────────────────────────────
@@ -125,8 +126,8 @@ export async function streamOpenAiResponses(
   onText: (chunk: string) => void,
 ): Promise<ModelReply> {
   const started = Date.now();
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
-  if (!key) return sansCle(binding);
+  const key = cleOpenAI();
+  if (!key) return reponseSansCle(binding, "openai", "OPENAI_API_KEY");
 
   const body = { ...buildResponsesBody(binding, turns, opts), stream: true };
   const asm = new ResponsesStreamAssembler();
@@ -134,7 +135,7 @@ export async function streamOpenAiResponses(
   let sortieFinale: RespOutputItem[] | undefined;
 
   try {
-    const res = await fetch(urlDe(), {
+    const res = await fetch(urlOpenAI("/responses"), {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -149,14 +150,7 @@ export async function streamOpenAiResponses(
     if (!res.ok || !res.body) {
       const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] openai responses stream error", binding.role, res.status, raw.slice(0, 300));
-      return {
-        ok: false,
-        configured: true,
-        stop: "error",
-        blocks: [],
-        usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-        error: providerErrorMessage(res.status, raw),
-      };
+      return reponseEnEchec(binding, "openai", started, providerErrorMessage(res.status, raw));
     }
 
     const reader = res.body.getReader();
@@ -231,13 +225,6 @@ export async function streamOpenAiResponses(
       };
     }
     console.error("[models] openai responses stream failed", binding.role, err);
-    return {
-      ok: false,
-      configured: true,
-      stop: "error",
-      blocks: [],
-      usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-      error: "Appel au modèle impossible (réseau ou délai dépassé).",
-    };
+    return reponseEnEchec(binding, "openai", started, "Appel au modèle impossible (réseau ou délai dépassé).");
   }
 }

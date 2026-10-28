@@ -201,36 +201,6 @@ export const CTD_RULES = [
   "Renouvellement : version consolidée en 2 modules (Module 1 administratif + Module 2 résumés) reprenant toutes les modifications depuis la décision ; l'ANPP peut exiger les 5 modules.",
 ] as const;
 
-/** Champs du formulaire officiel de pré-soumission (modèle arrêté 3 oct. 2021). */
-export const PRESUBMISSION_FORM = {
-  product: [
-    "Dénomination commerciale", "Dénomination commune internationale (DCI)", "Forme pharmaceutique", "Dosage",
-    "Composition qualitative et quantitative en substance(s) active(s) et excipient(s)",
-    "Voie d'administration (IM, IV, orale…)", "Type de conditionnement et présentation",
-    "Classe pharmaco-thérapeutique", "Indications thérapeutiques", "Code ATC (anatomique thérapeutique et chimique)",
-    "Prix cession sortie d'usine (PCSU)", "Prix Free On Board (FOB)", "Proposition de prix public algérien (PPA)",
-  ],
-  establishment: [
-    "Nom et adresse de l'établissement pharmaceutique demandeur",
-    "Numéro et date de l'agrément de l'établissement",
-    "Nom et prénom du pharmacien directeur technique",
-    "Numéro et date de la décision d'exercice du pharmacien directeur technique",
-  ],
-  positioning: [
-    "Fabrication locale (matières premières / produits intermédiaires / conditionnement primaire / conditionnement secondaire)",
-    "Importation (n° et date AMM, titulaire AMM et pays d'origine, commercialisation dans le pays d'origine, enregistrement dans un pays tiers, type d'autorité réglementaire du pays tiers : stricte ou reconnue par l'ANPP)",
-  ],
-  requestType: [
-    "Nouvelle(s) substance(s) active(s)", "Extension de forme pharmaceutique", "Nouvelle association",
-    "Extension de dosage", "Nouvelle présentation", "Spécialité générique", "Biothérapeutique similaire",
-  ],
-  interests: [
-    "Intérêt thérapeutique : joindre une note d'intérêt thérapeutique si le produit est HORS nomenclature nationale.",
-    "Intérêt économique — fabrication locale : PCSU, taux d'intégration.",
-    "Intérêt économique — importation : prix public pays d'origine + autres pays, statut/taux de remboursement, coût journalier, coût de la cure.",
-  ],
-} as const;
-
 /** Modifications post-enregistrement (arrêté 3 oct. 2021). */
 export const MODIFICATION_CATEGORIES = [
   { key: "MINEURE", label: "Modification mineure", def: "Répercussions minimales ou nulles sur la qualité, la sécurité ou l'efficacité.", delay: "Éléments + rapport soumis à la commission sous 30 jours (à compter de la recevabilité). Notification dans les 12 mois suivant la mise en œuvre (immédiate si surveillance continue requise)." },

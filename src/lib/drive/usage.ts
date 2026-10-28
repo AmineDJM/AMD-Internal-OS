@@ -35,11 +35,6 @@ export function addPhysicalUsage(bytes: number): void {
   physicalCache.patch((v) => v + bytes);
 }
 
-/** Oublie la mesure (après une purge de blobs orphelins, par exemple). */
-export function forgetPhysicalUsage(): void {
-  physicalCache.invalidate();
-}
-
 /**
  * Octets détenus par une personne — NON mis en cache, volontairement : c'est le plafond qui
  * refuse un envoi, et refuser à tort sur une valeur périmée serait incompréhensible. Il porte un

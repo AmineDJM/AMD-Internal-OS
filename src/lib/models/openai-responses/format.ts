@@ -8,7 +8,7 @@ import { createHash } from "node:crypto";
 import { capTools } from "../openai";
 import { supportsParam, supportsWebSearch, type ParamName } from "../capabilities";
 import { outputBudget } from "../budget";
-import { type ModelBinding, type ModelBlock, type ModelCallOptions, type ModelReply, type ModelStop, type ModelTurn, emptyUsage } from "../contract";
+import { type ModelBinding, type ModelBlock, type ModelCallOptions, type ModelReply, type ModelStop, type ModelTurn } from "../contract";
 
 // ─────────────────────────────── Les formes du fournisseur ───────────────────────────────
 
@@ -407,18 +407,3 @@ export function stopOfResponse(payload: RespPayload, hasCalls: boolean): ModelSt
 
 // ─────────────────────────────── L'appel ───────────────────────────────
 
-export function urlDe(): string {
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
-  return `${base}/v1/responses`;
-}
-
-export function sansCle(binding: ModelBinding): ModelReply {
-  return {
-    ok: false,
-    configured: false,
-    stop: "error",
-    blocks: [],
-    usage: emptyUsage(binding.role, binding.model, "openai"),
-    error: "Clé OPENAI_API_KEY non configurée.",
-  };
-}

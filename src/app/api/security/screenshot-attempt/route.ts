@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
 import { clientIp, parseDevice } from "@/lib/device";
 import { recordAudit } from "@/lib/audit";
 import { notifyRoles } from "@/lib/notify";

@@ -72,7 +72,6 @@ export const COLS_TEXTE: readonly Colonne[] = ["nom", "prenom", "q1", "q2"];
 
 export const fmt = (n: number | null) => (n === null ? "" : String(n).replace(".", ","));
 export const libelleLettre = (l: Lettre | null) => (l === null ? "—" : l === "NC" ? "non ciblé" : l);
-export const plie = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const gradeAffiche = (v: LignePraticien) => (v.titre === "AUTRE" && v.gradeBrut ? v.gradeBrut : v.grade);
 
 /** La ligne effective : celle du serveur, plus ce que la personne vient d'écrire (la lettre se recalcule à l'écran). */

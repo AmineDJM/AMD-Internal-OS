@@ -5,12 +5,10 @@
  * chaque import par fichier ; les morceaux importent d'ici plutôt que de répéter ces imports.
  */
 export type { CurrentUser } from "@/lib/session";
-export { hasGlobalView } from "@/lib/rbac";
-export { MissionStatus } from "@prisma/client";
 export { getActiveGoogleConnection, getGoogleStatus } from "@/lib/google/connection";
-export { searchMessages, getThread } from "@/lib/google/gmail/messages";
+export { getThread } from "@/lib/google/gmail/messages";
 export {
-  recordMissionEvent, activeMissions, MISSION_STATUS_LABEL, createMission, missionSnapshot, setMissionExtracted,
+  activeMissions, MISSION_STATUS_LABEL, createMission, missionSnapshot, setMissionExtracted,
   nudgeCandidates,
 } from "@/lib/comms/missions";
 export { prisma } from "@/lib/prisma";

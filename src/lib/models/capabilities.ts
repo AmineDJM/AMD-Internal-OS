@@ -46,14 +46,14 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { ReasoningEffort, Verbosity } from "./contract";
+import type { ReasoningEffort } from "./contract";
 
 /** Les portes. Le temps réel a la sienne et ne partage aucun constructeur avec les deux autres. */
 export type WireProtocol = "responses" | "chat_completions" | "realtime";
 
 // Les deux vocabulaires viennent du CONTRAT — une seule définition, sinon les listes divergent
 // et l'une des deux finit par autoriser ce que l'autre refuse.
-export type { ReasoningEffort, Verbosity };
+export type { ReasoningEffort };
 
 /**
  * TOUS LES PARAMÈTRES QUE NOTRE CONSTRUCTEUR SAIT ÉMETTRE.

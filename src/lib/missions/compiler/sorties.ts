@@ -1,4 +1,4 @@
-import { cheminPlausible, direForme, type Forme } from "@/lib/missions/registry/formes";
+import { cheminPlausible, type Forme } from "@/lib/missions/registry/formes";
 import { CHAMPS_JONCTION, SCHEMA_WORKER_MINIMAL } from "@/lib/missions/runtime/sorties";
 
 /**
@@ -200,9 +200,4 @@ export function direRefus(cle: string, ref: string, r: RefusChemin): string {
     : "Cette étape ne rend aucun champ lisible.";
   return `« {{${ref}}} » lit « ${r.champ} » sur l'étape « ${cle} », qui ne le rend pas. ${liste}`
     + (r.raison ? ` (${r.raison}.)` : "");
-}
-
-/** La forme d'une capacité, dite au planificateur. `null` quand elle n'a jamais été observée. */
-export function direSortieCapacite(f: Forme | null): string | null {
-  return f ? direForme(f) : null;
 }

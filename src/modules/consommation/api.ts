@@ -28,5 +28,4 @@ export { listerImports, lireImport, lignesDeLImport, groupesDeLImport, referenti
 export { lignesDuMarche, affinitesEtablissements } from "./infra/affinite";
 
 // ── Règles pures utiles aux autres modules ──────────────────────────────────────────────────
-export { calculerAffinites, lireConfig, PERIODE_LABELS, type ConfigAffinite, type TypePeriode } from "./domaine/affinite";
-export type { GroupeARevoir } from "./domaine/revue";
+export { calculerAffinites, lireConfig, PERIODE_LABELS } from "./domaine/affinite";

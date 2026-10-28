@@ -25,7 +25,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { CommandeArtefact, VueArtefact } from "@/platform/in-process/artifact/view-types";
+import type { CommandeArtefact } from "@/platform/in-process/artifact/view-types";
 import { SCHEMA_COMMANDE } from "@/platform/in-process/artifact/view-types";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import { peutEmettrePieces } from "@/platform/in-process/artifact/factory-access";

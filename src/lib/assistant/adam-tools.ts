@@ -1,8 +1,4 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import {
-  type CurrentUser, hasGlobalView, MissionStatus, getActiveGoogleConnection, searchMessages, recordMissionEvent,
-} from "./adam-tools/dependances";
-import { sansBloquer } from "@/lib/journal";
 import { OUTILS_GMAIL } from "./adam-tools/gmail";
 import { OUTILS_MISSIONS } from "./adam-tools/missions";
 import { OUTILS_AGENDA_DRIVE } from "./adam-tools/agenda-drive";
@@ -37,31 +33,3 @@ export const ADAM_TOOLS: PowerTool[] = [
   ...OUTILS_BUREAUTIQUE_CONTACTS,
 ];
 
-/**
- * Recherche Gmail EN DIRECT (au-delà de ce qui est ingéré) — utilisée par la recherche fédérée
- * quand l'index local ne rend rien. Bornée, tolérante : une panne Google ne casse pas la
- * recherche du Chief.
- */
-export async function liveGmailSearch(user: CurrentUser, query: string, limit = 8): Promise<{ subject: string; from: string; date: string; snippet: string }[]> {
-  if (!hasGlobalView(user)) return [];
-  try {
-    const conn = await getActiveGoogleConnection(user.id);
-    if (!conn) return [];
-    const messages = await searchMessages(conn.accessToken, { q: query, maxResults: limit });
-    return messages.map((m) => ({
-      subject: m.subject,
-      from: m.from.address,
-      date: m.sentAt?.toISOString() ?? "",
-      snippet: m.snippet.slice(0, 200),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-/** Journalise un geste de mission depuis l'extérieur du moteur (envoi approuvé, relance). */
-export async function noteMissionActivity(missionId: string, summary: string): Promise<void> {
-  await recordMissionEvent(missionId, "NOTE", summary).catch(sansBloquer("adam-tools.noteMissionActivity.recordMissionEvent"));
-}
-
-export const ADAM_MISSION_STATUSES = MissionStatus;

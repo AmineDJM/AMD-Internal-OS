@@ -43,11 +43,6 @@ export function peutBudgetDuPole(user: SessionUser, pole: DomainePole, action: A
   return user.access?.modules?.get(DOMAINES[pole].module)?.actions.has(action) ?? false;
 }
 
-/** Le droit du module Budget Marketing (`peutBudgetDuPole` pour le pôle Marketing). */
-export function peutBudgetMarketing(user: SessionUser, action: Action): boolean {
-  return peutBudgetDuPole(user, "MARKETING", action);
-}
-
 /** L'enveloppe est tenue par un pôle, et la personne porte le geste demandé sur le module de budget de CE pôle. */
 function droitDuPole(user: SessionUser, env: EnvelopeAccessBearer, action: Action): boolean {
   const pole = poleDe(env);

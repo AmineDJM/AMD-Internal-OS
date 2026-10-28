@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES LIMITES DITES JUSTE (mandat 5 §34) — pur, sans import.
@@ -21,8 +22,6 @@
 
 export type NatureLimite = "PERMISSION" | "RESSOURCE" | "DONNEE" | "CAPACITE";
 export type VerdictImpossibilite = "RAS" | "REDECOUVRIR" | "ACCEPTER";
-
-const plier = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Le modèle DIT qu'il ne peut pas — sans nuance de droit ou de donnée. */
 const REFUS_CAPACITE = [

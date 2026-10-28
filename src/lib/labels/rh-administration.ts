@@ -129,13 +129,6 @@ export const MISSION_ROLE: Record<string, Display> = {
   DELEGATE_REFERENCE: { label: "Délégué de référence", tone: "purple" },
 };
 
-/** Statut de l'ordre de mission d'une assignation. */
-export const MISSION_ORDER_STATUS: Record<string, Display> = {
-  NONE: { label: "Sans ordre de mission", tone: "neutral" },
-  REQUESTED: { label: "Ordre demandé", tone: "warning" },
-  ISSUED: { label: "Ordre de mission émis", tone: "success" },
-};
-
 /** Types d'événements du calendrier (avec couleur de pastille par défaut). */
 export const CALENDAR_EVENT_KIND: Record<string, Display & { color: string }> = {
   APPOINTMENT: { label: "Rendez-vous", tone: "info", color: "#2563eb" },

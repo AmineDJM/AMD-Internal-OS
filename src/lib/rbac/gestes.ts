@@ -7,7 +7,6 @@ import { ACTIONS, type Action, type Module } from "./modules";
 
 export const ALL: Action[] = [...ACTIONS];
 export const READ: Action[] = ["VIEW", "EXPORT"];
-export const READ_VALIDATE: Action[] = ["VIEW", "EXPORT", "VALIDATE"];
 export const CONTRIBUTE: Action[] = ["VIEW", "CREATE", "UPDATE", "UPLOAD", "EXPORT"];
 export const MANAGE: Action[] = ["VIEW", "CREATE", "UPDATE", "DELETE", "VALIDATE", "EXPORT", "UPLOAD"];
 /** Le Directeur des opérations dans le circuit Ad & Pro (27/10/2026) : tout MANAGE sauf retirer. */

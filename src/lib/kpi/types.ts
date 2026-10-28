@@ -1,6 +1,6 @@
 import type { FrequenceRevue, NatureKpi, SensKpi, UniteKpi } from "./briques";
 import type { Couleur } from "./score";
-import type { DefinitionKpi, NiveauGrille } from "./definition";
+import type { NiveauGrille } from "./definition";
 
 /**
  * LES FORMES QUE LES ÉCRANS REÇOIVENT — types seuls, aucun import de valeur : un composant client peut les lire
@@ -122,12 +122,6 @@ export interface LigneDetail {
   libelle: string;
   etat: string | null;
   compte: boolean;
-}
-
-/** Une proposition de définition, telle que le créateur l'affiche (validée par `validerDefinition`). */
-export interface PropositionKpi {
-  def: DefinitionKpi;
-  explication: string | null;
 }
 
 export interface ApercuKpi {

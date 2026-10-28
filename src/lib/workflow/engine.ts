@@ -815,7 +815,7 @@ export async function retirerDemande(input: {
   viewer: Viewer; entityType: EntityType; entityId: string; motif: string;
   supprimer: (nom: string) => Promise<{ ok: boolean; error?: string; redirect?: string }>;
 }): Promise<ResultatRevision & { redirect?: string }> {
-  const { viewer, entityType, entityId } = input;
+  const { entityType, entityId } = input;
   const category = entityToCategory(entityType);
   if (!category) return { ok: false, error: "Catégorie de workflow inconnue." };
   const motif = input.motif.trim();

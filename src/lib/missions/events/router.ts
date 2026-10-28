@@ -415,7 +415,6 @@ export async function rattraperFaitAnterieur(opts: {
   clesEcritures: readonly string[];
   maintenant?: Date;
 }): Promise<{ complete: boolean; reglees: number[]; fait: FaitObserve | null }> {
-  const maintenant = opts.maintenant ?? new Date();
   const reglees = [...opts.dejaReglees];
   const types = [...new Set(decomposer(opts.attente).branches.map((b) => b.event).filter((e): e is string => Boolean(e)))];
   if (types.length === 0) return { complete: false, reglees, fait: null };

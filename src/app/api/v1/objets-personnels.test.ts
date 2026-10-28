@@ -26,7 +26,7 @@ let cle = "";
 const lister = async (entite: string) => {
   const r = await listGET(
     new NextRequest(`http://localhost/api/v1/entities/${entite}?q=${TAG}`, { headers: { authorization: `Bearer ${cle}` } }),
-    { params: { entity: entite } },
+    { params: Promise.resolve({ entity: entite }) },
   );
   expect(r.status).toBe(200);
   return ((await r.json()).data.items as { title: string }[]).map((i) => i.title).sort();

@@ -11,7 +11,7 @@ import { construireDocumentCommercial } from "@/lib/artifact/factory/build";
 import { formaterNumero, NATURE_LEGALE, TYPES_DOCUMENT, verifierSpecCommerciale, departDe, prochaineSequence, type SpecDocumentCommercial, type TotauxCommerciaux } from "@/lib/artifact/factory/commercial";
 import { prevoirReference } from "@/lib/references/registre-serveur";
 import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
-import { refusPlafondAvoir, resteACrediter } from "@/lib/lecteurs/avoir";
+import { refusPlafondAvoir, netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { controlerRibDePiece } from "@/modules/coffre/api";
 import { echec, type EchecFabrique, manquesDIdentite, profilDocumentaire } from "./profil";
 import { coordonneesParDefaut, type DemandeDocument, specDepuisDemande } from "./demande";
@@ -112,7 +112,7 @@ export async function previsualiserDocument(
   const regles = verifierSpecCommerciale(spec);
   if (regles.bloquants.length > 0) return { ...commun, totaux: null, bloquants: [...regles.bloquants, ...motifAmont], avertissements: [...regles.avertissements, ...manquesDIdentite(profil)], peutEmettre: false };
   const essai = await construireDocumentCommercial(spec, habillage);
-  const plafond = facture && essai.totaux ? refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, resteACrediter(facture.ttc, facture.avoirs)) : null;
+  const plafond = facture && essai.totaux ? refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, netDeLaFacture(facture.ttc, facture.avoirs)) : null;
   const bloquants = [...essai.verification.bloquants, ...(plafond ? [plafond] : []), ...motifAmont];
   // L'APERÇU AVANT IMPRESSION : le MÊME fichier que l'émission composerait, rendu en PDF par le serveur — jamais écrit.
   const rendu = opts.avecPdf && essai.verification.ok ? await docxToPdf(essai.octets) : null;
