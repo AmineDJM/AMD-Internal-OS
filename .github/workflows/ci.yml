@@ -9,7 +9,7 @@
 #
 # Trois jobs PARALLÈLES, chacun dans son propre conteneur — même raison que build:render : lint,
 # typecheck et compilation additionnés dans un seul processus dépassent la mémoire.
-#   verifier : migrations sur base vide · contrat des actions · typecheck · lint
+#   verifier : migrations sur base vide · contrat des actions · typecheck · lint · npm audit (prod)
 #   tests    : Vitest complet en 4 tranches, chacune contre son Postgres 16 (les suites DB tournent)
 #   build    : `npm run build:render` à froid — la commande exacte du déploiement
 #
@@ -82,6 +82,12 @@ jobs:
       # Render lance `next lint` AVANT le build (build:render) : une erreur bloque le déploiement.
       - run: npx next lint
         env: { NODE_OPTIONS: --max-old-space-size=3072 }
+      # Dépendances de PRODUCTION : aucun avis critique ni haut (audit 27/10, INFRA-03 — fermé par la
+      # montée Next 15 / next-auth beta.32 / xlsx CDN, lot V3-A). Bloquant : un nouvel avis se traite
+      # (montée, `overrides` dans package.json) avant de déployer. Les outils de test (--omit=dev)
+      # ne partent jamais en production.
+      - name: npm audit (production, critique/haut)
+        run: npm audit --omit=dev --audit-level=high
 
   tests:
     name: Vitest ${{ matrix.shard }}/4 (Postgres 16)
