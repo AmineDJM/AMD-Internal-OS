@@ -39,7 +39,6 @@ const HERITES: Readonly<Record<string, number>> = {
   "src/lib/actions/admin-request-actions.ts": 1260,
   "src/lib/actions/care-actions.ts": 1556,
   "src/lib/actions/contrat.ts": 1403,
-  "src/lib/actions/hr-document-actions.ts": 1013,
   "src/lib/actions/legal-actions.ts": 1033,
   "src/lib/actions/medical-info-actions.ts": 1148,
   "src/lib/actions/mission-actions.ts": 1081,
