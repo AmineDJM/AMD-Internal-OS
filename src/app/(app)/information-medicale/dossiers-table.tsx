@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input, Select } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, plier } from "@/lib/utils";
 
 /** Une ligne du registre, déjà lue côté serveur — la pastille, le produit, le délai. */
 export interface LigneDossier {
@@ -33,8 +33,6 @@ const DELAI_CLASSE: Record<LigneDossier["delai"], string> = {
   retard: "font-semibold text-destructive",
 };
 
-const plie = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
 export function DossiersTable({ lignes }: { lignes: LigneDossier[] }) {
   const router = useRouter();
   const [q, setQ] = React.useState("");
@@ -43,12 +41,12 @@ export function DossiersTable({ lignes }: { lignes: LigneDossier[] }) {
 
   const nbValides = lignes.filter((l) => l.valide).length;
   const visibles = React.useMemo(() => {
-    const cle = plie(q.trim());
+    const cle = plier(q.trim());
     return lignes.filter((l) => {
       if (!archives && l.valide) return false;
       if (circuit && l.circuit !== circuit) return false;
       if (!cle) return true;
-      return plie(`${l.reference} ${l.label} ${l.produit?.nom ?? ""} ${l.nature}`).includes(cle);
+      return plier(`${l.reference} ${l.label} ${l.produit?.nom ?? ""} ${l.nature}`).includes(cle);
     });
   }, [lignes, q, circuit, archives]);
 

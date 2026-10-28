@@ -63,11 +63,6 @@ export async function getCompanyScope(): Promise<string | null> {
   }
 }
 
-/** Filtre Prisma `{ companyId }` pour une portée ; `{}` si « toutes les entités ». */
-export function companyWhere(scope: string | null): { companyId?: string } {
-  return scope ? { companyId: scope } : {};
-}
-
 /**
  * LE FILTRE D'ENTITÉ DES ÉCRANS DE MODULE — la portée du sélecteur, VALIDÉE contre les droits.
  *

@@ -5,7 +5,7 @@ import { enLecture } from "@/lib/vue-lecture";
 import { prisma } from "@/lib/prisma";
 import { aiConfigured } from "@/lib/ai";
 import { regCan, resolveRegCompanyIdFor } from "../access";
-import { askDossier, type ChatTurn, type DossierChatResult } from "./dossier-chat";
+import { type ChatTurn, type DossierChatResult } from "./dossier-chat";
 import { runDossierAgent, type AgentAttachment, type DossierAgentResult, type UnreadableAttachment } from "./dossier-agent";
 import { appendThreadMessage, clearThread, loadThread, loadThreadMemory, type AttachmentRecord, type ThreadMessageView } from "./dossier-thread";
 import { extractText } from "../extract/extract-text";
@@ -25,34 +25,6 @@ function parseHistory(raw: string): ChatTurn[] {
   } catch {
     return [];
   }
-}
-
-/**
- * Action du CHATBOT DE DOSSIER — question/réponse ancrée dans le dossier réel, avec sources.
- * Vérifie le rôle (voir les documents) ET l'appartenance du dossier au périmètre de l'organisation,
- * puis interroge la dernière version. L'IA n'est appelée que si configurée (sinon sources seules).
- */
-export async function askDossierAction(formData: FormData): Promise<DossierChatResult> {
-  const fail = (error: string): DossierChatResult => ({ ok: false, configured: aiConfigured(), answer: "", citations: [], error });
-  const user = await requireUser();
-  if (!regCan(user, "regulatory.document.view") && user.role !== "SUPER_ADMIN") return fail("Non autorisé.");
-
-  const dossierId = String(formData.get("dossierId") ?? "").trim();
-  const question = String(formData.get("question") ?? "").trim();
-  if (!dossierId || !question) return fail("Paramètres manquants.");
-
-  const companyId = await resolveRegCompanyIdFor(user.id);
-  if (!companyId) return fail("Module non activé.");
-
-  const version = await prisma.regulatoryDossierVersion.findFirst({
-    where: { dossierId, dossier: { companyId } },
-    orderBy: { versionNo: "desc" },
-    select: { id: true },
-  });
-  if (!version) return fail("Aucune version de dossier.");
-
-  const history = parseHistory(String(formData.get("history") ?? ""));
-  return askDossier(version.id, question, undefined, history);
 }
 
 /**

@@ -42,7 +42,7 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 | ARCH-03 | HAUTE | maintenabilité | 190 actions dans un dossier, contrat indexé par nom de fichier → on ne peut pas ranger une action dans son module | M | **CORRIGÉ** V3-G : `src/lib/actions/parc.ts` |
 | ARCH-04 | MOYENNE | maintenabilité | 14 fichiers > 1 500 lignes, sans cliquet de taille (`assistant.ts` : 7 310 l., 94 imports) | L | PROPOSÉ |
 | ARCH-05 | MOYENNE | maintenabilité / tests | 101 tests lisent le source par chemin (290 lectures) : tout déplacement casse, du code mort est « testé » | M | **PARTIEL** V3-G : adresses de réexpédition, `platform/source.ts`, cliquet (128) |
-| ARCH-06 | MOYENNE | maintenabilité | 53 fichiers / 7 918 lignes injoignables depuis toute entrée ; garde d'atteignabilité limitée à 2 dossiers | S | PROPOSÉ |
+| ARCH-06 | MOYENNE | maintenabilité | 53 fichiers / 7 918 lignes injoignables depuis toute entrée ; garde d'atteignabilité limitée à 2 dossiers | S | **CORRIGÉ** (lot V4, `v4/code-mort-doublons`) |
 | ARCH-07 | MOYENNE | outillage | ≥ 15 analyseurs d'imports réécrits à la main, couvertures divergentes (cause racine d'ARCH-01) | S | PARTIEL `f4a70c7` |
 | ARCH-08 | BASSE | maintenabilité / lisibilité | Nommage : un métier, plusieurs dossiers et deux langues (`finance/`+`finances/`, `hr/`+route `/rh`, `promo*`/`ad-pro*`…) | M | **PARTIEL** V4 : `finance/`+`finances/`+`payments/` → `modules/finances/` |
 | ARCH-09 | HAUTE | outillage | `npm run typecheck` (commande de CLAUDE.md) plante en mémoire ; ESLint sans aucune règle d'import | S | PARTIEL (règle modules) |
@@ -188,7 +188,7 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
   vraies règles de structure, par une règle ESLint ou un test basé sur le graphe d'imports (`platform/imports.ts`).
   (3) Un test de texte qui pointe un fichier injoignable est supprimé avec le fichier.
 
-### ARCH-06 — Code mort · MOYENNE · PROPOSÉ
+### ARCH-06 — Code mort · MOYENNE · **CORRIGÉ** (lot V4 « code mort et doublons »)
 
 - **Preuve.** Graphe d'imports complet (statiques, dynamiques, `require`, `vi.mock`, relatifs et `@/`) depuis toutes les
   entrées réelles (pages, layouts, routes, `middleware.ts`, `auth*.ts`, `scripts/`, `prisma/`) : **53 fichiers de
@@ -206,6 +206,43 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 - **Correctif proposé (S).** Supprimer les 24 orphelins après une passe de revue (une PR, les tests de texte associés
   avec) ; pour les 29 « tests seuls », brancher ou supprimer. Étendre `reachability.test.ts` à **tout** `src/` avec le
   graphe de `platform/imports.ts` et une liste d'exceptions motivées (bancs, fakes).
+- **Correctif appliqué (lot V4, 28/10/2026).** Deux outils standard remplacent les relevés à la main, configurés pour ce
+  dépôt et tenus par la CI :
+  - **knip 6.41** (`knip.json`) : entrées = pages / layouts / routes de l'App Router, `middleware.ts`, `auth*.ts`, les
+    fichiers d'actions (`src/lib/actions/*-actions.ts`, `src/modules/*/actions*.ts` — l'aiguillage les importe par
+    spécificateur littéral), les ponts `src/platform/in-process/**`, `scripts/`, `prisma/`, tests et e2e. Les paquets
+    chargés par chemin à l'exécution (`@tesseract.js-data/*`, résolus par `require.resolve` dans `ocr/lang-data.ts`)
+    sont déclarés. Passe normale (tests compris) **et** passe `--production` (les fichiers que seuls des tests atteignent).
+  - **jscpd 5.4** (`.jscpd.json`) : blocs dupliqués de `src/` hors tests, réglages par défaut (50 jetons, 5 lignes).
+
+  | Mesure (outil) | AVANT (`7158849`) | APRÈS |
+  |---|---|---|
+  | Fichiers inutilisés (knip) | 29 | **0** |
+  | Fichiers de production atteints par les seuls tests (knip `--production`, outillage de test déclaré exclu) | 29 | **2**, nommés avec leur raison (`scheduler/manage.ts`, `coffre/infra/depot-prisma.ts`) |
+  | Exports inutilisés (knip) | 312 | **0** |
+  | Types exportés inutilisés (knip) | 115 | **0** |
+  | Dépendances npm inutilisées / non déclarées (knip) | 5 / 2 | **0 / 0** (`date-fns`, `docxtemplater` désinstallés ; `fflate` déclaré ; `@tesseract.js-data/*`, `@types/mailparser` motivés) |
+  | Exports en double (alias) (knip) | 3 | **0** (`resteACrediter` → `netDeLaFacture`, `MODULE_JOURNAL_REPRISES` → `MODULE_JOURNAL_REFONTE`) |
+  | Déclarations locales jamais lues (`tsc --noUnusedLocals`) | 216 | **25**, toutes des variables de décor dans des tests |
+  | Clones (jscpd) | 1 506 | **1 473** |
+  | Lignes dupliquées (jscpd) | 13 719 (2,20 %) | **13 326** (2,17 %) |
+
+  Supprimé : 41 fichiers de production (5 943 lignes : les 29 orphelins et 12 fonctionnalités jamais branchées — autorité
+  de paiement Ad & Pro, trois modules vocaux, `working-set`, `workstreams`, `docx-blocks`, `legal-custom`,
+  `attribution-produit`, `lifecycle/impact`, `supplier/draft`) avec leurs 11 tests ; au total −11 474 / +1 525 lignes.
+  Les tests de texte qui pointaient un fichier supprimé ont perdu l'assertion correspondante (ARCH-05, point 3) ;
+  `to-pdf.test.ts` relit désormais le `.docx` par le lecteur réellement utilisé (`lireDocx`).
+  Doublons réels fusionnés (une seule fonction chacun) : l'accès OpenAI (`models/openai-acces.ts` : `OPENAI_BASE_URL`
+  relue dans 5 fichiers sous **deux conventions incompatibles** — avec ou sans `/v1` —, la clé rognée partagée avec
+  l'agent Mastra) ; les réponses « clé absente » / « appel en échec » des trois fournisseurs (`models/contract.ts`) ; la
+  porte d'un appel Luna (`portesLunaOuvertes`, 4 copies) ; la signature `state`/PKCE OAuth Google ↔ Microsoft
+  (`lib/oauth-state.ts`) ; `plier` (20 copies), `arrondirAuCentime` (10), `arrondirAuMillieme` (10), `montantDzd` (12)
+  dans `lib/utils.ts` (pur, client compris). Hors périmètre volontaire : Finances, paie/RH, `assistant.ts`, `rbac.ts`,
+  `labels.ts`, `ops/catalog.ts` (exports morts seuls), et les gros clones intra-fichier d'`assistant.ts` (session dédiée).
+- **La garde.** `npm run qualite:mort` (knip : zéro problème ; le code atteint par les seuls tests ⊆ la liste nommée) et
+  `npm run qualite:doublons` (jscpd sous plafond) — étapes du job `verifier` de `.github/workflows/ci.yml` ; mêmes
+  mesures en cliquets dans `src/platform/qualite-code.test.ts` (plafonds dans `qualite-code.ts`, jamais relevés).
+  `reachability.test.ts` (deux dossiers, par `rg`) est retiré : la passe `--production` couvre tout le dépôt.
 
 ### ARCH-07 — Analyseurs d'imports multiples · MOYENNE · PARTIEL (`f4a70c7`)
 
@@ -454,7 +491,7 @@ mesurées par sa propre liste exacte, sans fausser le compteur de traversées hi
 | Aucun fichier de `src/lib/` hors carte (ni domaine, ni socle, ni façade) | cliquet `HORS_CARTE` (730 → 0) | à faire |
 | Une page ou une route n'importe pas Prisma | cliquet (128 pages / 52 routes → 0) | à faire |
 | Taille : ≤ 800 lignes par fichier ; les 14 géants ne grossissent pas | `taille-fichiers.test.ts` (plafond par fichier) | à faire |
-| Aucun code injoignable | `reachability.test.ts` étendu à tout `src/` (graphe de `imports.ts`) | à faire |
+| Aucun code injoignable | knip (passe normale + `--production`) sur tout le dépôt, `src/platform/qualite-code.test.ts` + `npm run qualite:mort` en CI | **fait** (lot V4) |
 | Pas de nouveau test qui lit le source par chemin hors `src/platform/` | cliquet sur le compte (101) | à faire |
 | `npm run typecheck` passe sur une machine standard | tas explicite dans le script | à faire |
 | Un test d'intégration pose lui-même l'état qu'il suppose ; une base par travailleur | revue + `VITEST_POOL_ID` | à faire |

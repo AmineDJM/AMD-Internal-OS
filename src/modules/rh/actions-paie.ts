@@ -14,7 +14,7 @@ import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { createExpenseOrder, instantDuCentreDePaie } from "@/modules/finances/api";
 import { getMyCompanies, entitePermisePourFiche } from "@/lib/company";
 import { getBudgetCategoryOptions } from "@/lib/queries/budget";
-import { chargerSalairesPartis, decisionRattachement, phraseRattachement, type SalaireParti, validateAmounts, resolvedGross, amendImpact, canAmend } from "@/modules/rh/api";
+import { chargerSalairesPartis, decisionRattachement, phraseRattachement, validateAmounts, resolvedGross, amendImpact, canAmend } from "@/modules/rh/api";
 import { entryCost, etatVirement, etatSalaire, virementCouvre, moisDeLEntite, lireSommeAVirer, libelleVirementPaie, noteVirementPaie, moisDeLaPaie, deMois, ETAT_VIREMENT_LABEL, SOMME_A_VIRER_MANQUANTE, saisiAvantLeCentre, type VirementDuMois } from "@/modules/finances/partage";
 import { docxToPdf, isConvertibleWord, pdfFileName } from "@/lib/payslip/to-pdf";
 import { MIME_DOCX } from "@/lib/artifact/adapters/docx/adapter";

@@ -1,5 +1,5 @@
-import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/openai-luna";
-import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
+import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/openai-luna";
+import { logAiUsage } from "@/lib/ai-settings";
 import { ecartPct, montantCourt, resumeDiff, LIBELLE_SOURCE, type DiffVersions, type SourceLigne } from "@/lib/budget-campagne/regles";
 import { sansBloquer } from "@/lib/journal";
 
@@ -18,16 +18,6 @@ import { sansBloquer } from "@/lib/journal";
 
 const FONCTION = "budget_campagne" as const;
 const DELAI_MS = 15_000;
-
-async function porteOuverte(): Promise<boolean> {
-  try {
-    if (await interrupteurIaCoupe()) return false;
-    if (!(await aiFeatureEnabled(FONCTION))) return false;
-    return lunaConfigured();
-  } catch {
-    return false;
-  }
-}
 
 const SCHEMA = {
   name: "budget_campagne_texte",
@@ -80,7 +70,7 @@ export function justificationDeRepli(e: EntreeJustification): string {
 /** Un brouillon de justification — Luna si elle répond, le repli sinon. Ne lève jamais. */
 export async function brouillonJustification(e: EntreeJustification, userId: string | null): Promise<{ texte: string; parLuna: boolean }> {
   const repli = justificationDeRepli(e);
-  if (!(await porteOuverte())) return { texte: repli, parLuna: false };
+  if (!(await portesLunaOuvertes(FONCTION))) return { texte: repli, parLuna: false };
   const system = "Tu aides le responsable d'un pôle à justifier une ligne de son budget annuel (entreprise pharmaceutique, Algérie, DZD). "
     + "Rédige UNE ou DEUX phrases sobres, en français, à partir UNIQUEMENT des faits donnés. N'invente aucun chiffre, aucun fait. "
     + "Réponds en JSON {\"texte\": \"...\"}.";
@@ -93,7 +83,7 @@ export async function brouillonJustification(e: EntreeJustification, userId: str
 export async function resumerVersions(vAvant: number, vApres: number, diff: DiffVersions, userId: string | null): Promise<{ texte: string; parLuna: boolean }> {
   const exact = resumeDiff(vAvant, vApres, diff);
   const rien = diff.modifiees.length + diff.ajoutees.length + diff.retirees.length === 0;
-  if (rien || !(await porteOuverte())) return { texte: exact, parLuna: false };
+  if (rien || !(await portesLunaOuvertes(FONCTION))) return { texte: exact, parLuna: false };
   const system = "Tu résumes en une phrase courte, en français, ce qui a changé entre deux versions d'un budget. "
     + "Garde EXACTEMENT chaque montant tel qu'écrit. Réponds en JSON {\"texte\": \"...\"}.";
   const t = await appeler(system, exact, userId);

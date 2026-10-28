@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES PRÉ-LECTURES — le code lit AVANT que le modèle ne demande.
@@ -58,8 +59,6 @@ const MOTS_VIDES = new Set([
   "semaine", "aujourd", "hui", "demain", "hier", "matin", "soir", "jour", "jours", "mois", "annee", "cette",
   "promis", "promesse", "bloque", "bloquer", "retard", "manque", "reste", "attention", "necessitent", "besoin",
 ]);
-
-const plier = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Les mots qui portent l'identité de la question — ce qu'on peut effectivement chercher. */
 export function motsSignificatifs(question: string, max = 6): string[] {

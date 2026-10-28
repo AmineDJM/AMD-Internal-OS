@@ -19,11 +19,6 @@ import { sansBloquer } from "@/lib/journal";
 
 const UPLOAD_DIR = path.join(process.cwd(), "uploads");
 
-export function isRemoteStorage() {
-  // Le stockage est désormais la base (durable) ; plus de dépendance disque/S3.
-  return true;
-}
-
 /**
  * Écrit (ou remplace) le contenu d'une clé — durable, chiffré, en base. Rend le blob et l'EMPREINTE
  * (SHA-256 du contenu) : l'identité de la pièce pour l'enrichissement (`enrichissement/signalement.ts`).

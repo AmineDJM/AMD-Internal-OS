@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { jourAlger, compteParDefaut, resoudreCompte, type CompteTresorerie } from "../domaine/tresorerie";
+import { jourAlger, resoudreCompte, type CompteTresorerie } from "../domaine/tresorerie";
 
 /**
  * LES COMPTES DE TRÉSORERIE, LUS POUR LA RÈGLE (§118.176) — le domaine Finances.
@@ -42,9 +42,4 @@ export async function compteDeLEcriture(input: { compteId?: string | null; compt
 /** Tous les comptes, sous la forme que lit la règle — pour un écrivain qui en résout plusieurs (import). */
 export async function comptesTresorerie(): Promise<CompteTresorerie[]> {
   return (await lireComptes()).map(versCompte);
-}
-
-/** Le compte par défaut d'une entité, parmi tous — pour pré-sélectionner « payé depuis ». */
-export async function compteParDefautDe(societeId: string | null): Promise<string | null> {
-  return compteParDefaut((await lireComptes()).map(versCompte), societeId);
 }

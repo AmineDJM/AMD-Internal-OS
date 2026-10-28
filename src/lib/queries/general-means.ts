@@ -2,7 +2,7 @@ import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
-import { mergeGrants, canViewDepartmentBudget, editableKindsOn, EMPTY_GRANT, type DeptBudgetGrant, type BudgetSetter, type DeptBudgetKind } from "@/lib/department-budget";
+import { mergeGrants, canViewDepartmentBudget, editableKindsOn, type DeptBudgetGrant, type BudgetSetter, type DeptBudgetKind } from "@/lib/department-budget";
 import { headedDepartmentIds } from "@/lib/queries/department-budget";
 import { nextRechargeDate, type PettyCashStatus } from "@/lib/petty-cash";
 import { continuousCash, remittanceSpent, type ContinuousCash, type CashRemittance } from "@/lib/general-means/continuous-cash";

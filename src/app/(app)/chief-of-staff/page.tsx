@@ -10,7 +10,6 @@ import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/vo
 import { featureEnabled, FEATURES } from "@/lib/features";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { ensurePrimaryThread, getThreadMessages } from "@/lib/assistant-memory";
-import { inProcessPlatform, principalOf } from "@/platform/in-process/adapter";
 import { composerInbox } from "@/platform/in-process/inbox/compose";
 import { aTrancher } from "@/lib/assistant/inbox/model";
 import { ChiefWorkspace } from "@/components/chief/chief-workspace";

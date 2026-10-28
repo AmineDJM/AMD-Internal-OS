@@ -107,13 +107,6 @@ describe("Points d'appel — l'action, les écrans, la liste, la fin d'un achat"
     expect(liste).toMatch(/AND: \[\{ status: "PENDING" \}, pasLaSienne\]/);
   });
 
-  it("« MES DEMANDES D'ACHAT » lit la parole du décideur, jamais l'estimation du catalogue", () => {
-    const section = sans("src/components/purchase/purchase-section.tsx");
-    expect(section).toMatch(/phraseDeDecision\(stage,/);
-    expect(section).not.toMatch(/\.comment\b/);
-    expect(section).toMatch(/decidedById !== approval\.validatorId/);
-  });
-
   it("LE JOURNAL ne retombe plus sur `comment` quand le geste n'a pas de note", () => {
     const journal = sans("src/lib/general-means/purchase-journal.ts");
     expect(journal).toMatch(/note: input\.note \?\? null,/);

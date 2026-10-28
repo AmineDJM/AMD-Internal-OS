@@ -12,7 +12,7 @@ export type CustomValues = Record<string, unknown>;
 
 // La lecture des valeurs FILE est PURE et partagée avec les composants client — elle vit dans
 // `custom-field-values.ts` (aucun import) et se RÉEXPORTE ici pour le code serveur.
-export { fileCustomValue, type FileFieldValue } from "./custom-field-values";
+export { fileCustomValue } from "./custom-field-values";
 import { fileCustomValue } from "./custom-field-values";
 
 export function getFieldDefs(entityType: EntityType) {

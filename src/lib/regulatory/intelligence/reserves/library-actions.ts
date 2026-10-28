@@ -6,8 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { regCan, resolveRegCompanyIdFor } from "../access";
 import { regAudit } from "../audit";
 import { ingestReserveDocument } from "./library-ingest";
-import { findSimilarReserves, bestHistoricalResponse, reserveRisk, reserveStats, proposeRules, ruleConfidence } from "./library";
-import type { AnppReserveStatus } from "@prisma/client";
+import { findSimilarReserves, reserveRisk, proposeRules } from "./library";
 
 /**
  * BIBLIOTHÈQUE DES RÉSERVES ANPP — actions serveur.
@@ -128,65 +127,6 @@ export async function importReserveText(formData: FormData): Promise<ImportResul
   }
 }
 
-// ───────────────────────────── Correction & suivi ─────────────────────────────
-
-const STATUSES = new Set(["OPEN", "ANSWERED", "ACCEPTED", "REITERATED", "CLOSED"]);
-
-/**
- * Corrige une réserve et suit son issue.
- *
- * Le passage en ACCEPTED ou REITERATED est le moment le plus important de tout ce module :
- * c'est LUI qui transforme un historique en apprentissage. Une réponse acceptée devient un
- * exemple à réutiliser ; une réponse réitérée devient un contre-exemple.
- */
-export async function updateReserve(formData: FormData): Promise<Result> {
-  try {
-    const g = await guard();
-    if (!g.ok) return g;
-    const id = str(formData, "id");
-    if (!id) return { ok: false, error: "Réserve introuvable." };
-
-    const existing = await prisma.anppReserve.findFirst({
-      where: { id, batch: { companyId: g.companyId } },
-      select: { id: true, status: true },
-    });
-    if (!existing) return { ok: false, error: "Réserve introuvable." };
-
-    const statusRaw = str(formData, "status");
-    const status = statusRaw && STATUSES.has(statusRaw) ? (statusRaw as AnppReserveStatus) : undefined;
-    const response = str(formData, "response");
-
-    await prisma.anppReserve.update({
-      where: { id },
-      data: {
-        ...(status ? { status } : {}),
-        ...(response !== null ? { response, responseAt: new Date() } : {}),
-        productName: str(formData, "productName") ?? undefined,
-        dci: str(formData, "dci") ?? undefined,
-        supplier: str(formData, "supplier") ?? undefined,
-        ctdModule: str(formData, "ctdModule") ?? undefined,
-        ctdSection: str(formData, "ctdSection") ?? undefined,
-        outcomeNote: str(formData, "outcomeNote") ?? undefined,
-        ...(status === "CLOSED" || status === "ACCEPTED" ? { closedAt: new Date() } : {}),
-        // Une correction humaine vaut vérification : la fiche cesse d'être une simple extraction.
-        verifiedById: g.userId,
-        verifiedAt: new Date(),
-      },
-    });
-
-    await regAudit({
-      companyId: g.companyId, actorId: g.userId,
-      action: "RESERVE_LIBRARY_UPDATE",
-      detail: `Réserve mise à jour${status ? ` → ${status}` : ""}.`,
-    });
-    revalidatePath("/regulatory/reserves");
-    return { ok: true };
-  } catch (err) {
-    console.error("[reserves] mise à jour impossible", err);
-    return { ok: false, error: "Mise à jour impossible." };
-  }
-}
-
 // ───────────────────────────── Consultation ─────────────────────────────
 
 /** Réserves similaires à un texte — les précédents, avec leur preuve. */
@@ -196,25 +136,11 @@ export async function similarReserves(text: string, filters?: { ctdModule?: stri
   return findSimilarReserves(text, filters ?? {});
 }
 
-/** Meilleure réponse historique (acceptée) et contre-exemple (réitérée). */
-export async function historicalResponse(text: string, filters?: { dci?: string; supplier?: string }) {
-  const g = await guard();
-  if (!g.ok) return { accepted: null, rejected: null };
-  return bestHistoricalResponse(text, filters ?? {});
-}
-
 /** Probabilité qu'une réserve de ce type revienne — une INDICATION, jamais une prédiction. */
 export async function riskOfReserve(text: string, filters?: { ctdModule?: string; dci?: string; supplier?: string }) {
   const g = await guard();
   if (!g.ok) return null;
   return reserveRisk(text, filters ?? {});
-}
-
-/** Tableau de bord : récurrences, statistiques par fournisseur / produit / module / catégorie. */
-export async function libraryStats() {
-  const g = await guard();
-  if (!g.ok) return null;
-  return reserveStats();
 }
 
 // ───────────────────────────── Règles dérivées ─────────────────────────────
@@ -267,48 +193,4 @@ export async function refreshDerivedRules(): Promise<Result & { proposed?: numbe
     console.error("[reserves] proposition de règles impossible", err);
     return { ok: false, error: "Proposition de règles impossible." };
   }
-}
-
-/**
- * LA frontière : c'est ici — et nulle part ailleurs — qu'une règle dérivée devient opposable.
- * Exige un humain autorisé, trace qui a décidé, et conserve les règles rejetées pour ne pas
- * les reproposer sans fin.
- */
-export async function validateDerivedRule(formData: FormData): Promise<Result> {
-  try {
-    const g = await guard();
-    if (!g.ok) return g;
-    const id = str(formData, "id");
-    const decision = str(formData, "decision"); // VALIDATED | REJECTED
-    if (!id || (decision !== "VALIDATED" && decision !== "REJECTED")) return { ok: false, error: "Décision invalide." };
-
-    const rule = await prisma.anppDerivedRule.findUnique({ where: { id }, select: { title: true } });
-    if (!rule) return { ok: false, error: "Règle introuvable." };
-
-    await prisma.anppDerivedRule.update({
-      where: { id },
-      data: {
-        status: decision,
-        reviewNote: str(formData, "note"),
-        reviewedById: g.userId,
-        reviewedAt: new Date(),
-      },
-    });
-
-    await regAudit({
-      companyId: g.companyId, actorId: g.userId,
-      action: decision === "VALIDATED" ? "RESERVE_RULE_VALIDATED" : "RESERVE_RULE_REJECTED",
-      detail: `Règle dérivée « ${rule.title} » ${decision === "VALIDATED" ? "VALIDÉE — elle devient opposable" : "rejetée"}.`,
-    });
-    revalidatePath("/regulatory/reserves");
-    return { ok: true, message: decision === "VALIDATED" ? "Règle validée : elle s'applique désormais aux analyses." : "Règle écartée." };
-  } catch (err) {
-    console.error("[reserves] validation de règle impossible", err);
-    return { ok: false, error: "Validation impossible." };
-  }
-}
-
-/** Recalcule la confiance d'une règle (fonction pure exposée pour l'écran d'administration). */
-export async function derivedRuleConfidence(occurrences: number, reiterated: number, products: number): Promise<number> {
-  return ruleConfidence(occurrences, reiterated, products);
 }

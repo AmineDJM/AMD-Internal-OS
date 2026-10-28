@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
-import { userCan, hasGlobalView, isTopManagement, type SessionUser } from "@/lib/rbac";
+import { userCan, isTopManagement, type SessionUser } from "@/lib/rbac";
 import { canDecideLeave, type LeaveStage } from "../../domaine/leave-workflow";
 import { arriveeALaMarche } from "@/lib/approval-chain";
 import { buildLeaveSheet } from "../../domaine/leave-sheet";

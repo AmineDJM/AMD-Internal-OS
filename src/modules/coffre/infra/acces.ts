@@ -153,15 +153,6 @@ export async function controlerLecture(d: DemandeLecture, dep: DependancesLectur
   return { lecture, copiesAJour, cles };
 }
 
-/** Politique + journal, la valeur de la colonne — pour une pièce générée par une action (jamais de déchiffrement). */
-export async function lireSensiblesSansDechiffrer(d: DemandeLecture, dep?: DependancesLecture): Promise<Lecture> {
-  return (await controlerLecture(d, dep)).lecture;
-}
-
-export function lireSensiblesSansDechiffrerPour(user: SessionUser, d: Omit<DemandeLecture, "lecteur">, dep?: DependancesLecture): Promise<Lecture> {
-  return lireSensiblesSansDechiffrer({ ...d, lecteur: lecteurDepuisSession(user) }, dep);
-}
-
 /**
  * LE RIB IMPRIMÉ SUR UNE PIÈCE (bon de commande, devis, facture, ordre de virement) — contrôlé au GOULOT de la
  * fabrique, qui connaît la personne mais pas l'origine de la valeur (elle arrive dans la demande). Le coffre la

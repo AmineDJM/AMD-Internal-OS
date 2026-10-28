@@ -77,11 +77,3 @@ export function measure(text: string): TokenEstimate {
 export function measureToolDefs(defs: unknown[]): TokenEstimate {
   return measure(JSON.stringify(defs ?? []));
 }
-
-/** Somme de plusieurs blocs — l'ordre n'a pas d'importance, seule la masse compte. */
-export function sumEstimates(parts: TokenEstimate[]): TokenEstimate {
-  return parts.reduce<TokenEstimate>(
-    (acc, p) => ({ chars: acc.chars + p.chars, tokens: acc.tokens + p.tokens }),
-    { chars: 0, tokens: 0 },
-  );
-}

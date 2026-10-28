@@ -41,7 +41,7 @@ suite("API v1 — department/related : la projection des membres", () => {
   it("les membres sont listés, sans adresse ni téléphone", async () => {
     const r = await aspectGET(
       new NextRequest(`http://localhost/api/v1/entities/department/${ids.dept}/related`, { headers: { authorization: `Bearer ${cle}` } }),
-      { params: { entity: "department", id: ids.dept, aspect: "related" } },
+      { params: Promise.resolve({ entity: "department", id: ids.dept, aspect: "related" }) },
     );
     expect(r.status).toBe(200);
     const json = JSON.stringify((await r.json()).data);

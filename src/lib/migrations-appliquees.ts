@@ -46,8 +46,3 @@ export async function verifierMigrations(racine = process.cwd()): Promise<EtatMi
   aJour = { etat: "a-jour", appliquees: dossiers.length };
   return aJour;
 }
-
-/** Pour les tests : oublier le « à jour » mémorisé. */
-export function oublierEtatMigrations(): void {
-  aJour = null;
-}

@@ -91,8 +91,6 @@ export const NOEUDS_MAX = 20_000;
 export const VARIABLES_MAX = 500;
 export const CONTRAINTES_MAX = 500;
 
-const EPS = 1e-9;
-
 interface Standard {
   /** Matrice A (m × n) augmentée des variables d'écart et artificielles. */
   A: Float64Array[];

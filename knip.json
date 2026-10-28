@@ -1,0 +1,56 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/auth.ts!",
+    "src/auth.config.ts!",
+    "src/app/**/{page,layout,template,loading,error,not-found,global-error,default,route,opengraph-image,icon,sitemap,robots,manifest}.{ts,tsx}!",
+    "src/lib/actions/*-actions.ts!",
+    "src/modules/*/actions*.ts!",
+    "src/platform/in-process/**/*.ts!",
+    "scripts/**/*.{ts,mjs,cjs,js}!",
+    "prisma/*.ts!",
+    "e2e/**/*.ts",
+    "e2e-live/**/*.ts",
+    "src/**/*.test.ts"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}!",
+    "scripts/**/*.{ts,mjs,cjs,js}!",
+    "prisma/*.ts!",
+    "e2e/**/*.ts",
+    "e2e-live/**/*.ts",
+    "*.ts",
+    "!src/lib/agent/testing/**!",
+    "!src/lib/artifact/runtime/fakes.ts!",
+    "!src/lib/assistant/context/bench.ts!",
+    "!src/lib/assistant/context/holdout-corpus.ts!",
+    "!src/lib/bons-de-commande/*-test-outils.ts!",
+    "!src/lib/budget-marketing/integration-fixture.ts!",
+    "!src/lib/derive-schema/**!",
+    "!src/modules/finances/domaine/invariants-argent.ts!",
+    "!src/modules/carte.ts!",
+    "!src/platform/{couverture,demenagements,domains,source}.ts!"
+  ],
+  "ignore": [],
+  "ignoreExportsUsedInFile": true,
+  "playwright": {
+    "config": [
+      "playwright.config.ts"
+    ],
+    "entry": [
+      "e2e/**/*.spec.ts",
+      "e2e-live/**/*.spec.ts"
+    ]
+  },
+  "ignoreDependencies": [
+    "@tesseract.js-data/ara",
+    "@tesseract.js-data/eng",
+    "@tesseract.js-data/fra",
+    "@types/mailparser",
+    "postcss-load-config",
+    "jscpd"
+  ],
+  "ignoreBinaries": [
+    "rg"
+  ]
+}

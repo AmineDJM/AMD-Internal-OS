@@ -14,9 +14,11 @@ import {
   type ModelStop,
   type ModelTurn,
   costOf,
-  emptyUsage,
+  reponseEnEchec,
+  reponseSansCle,
 } from "./contract";
 import { attendu } from "@/lib/journal";
+import { cleOpenAI, urlOpenAI } from "./openai-acces";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -451,22 +453,6 @@ export function stopOfResponse(payload: RespPayload, hasCalls: boolean): ModelSt
 
 // ─────────────────────────────── L'appel ───────────────────────────────
 
-function urlDe(): string {
-  const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com").replace(/\/$/, "");
-  return `${base}/v1/responses`;
-}
-
-function sansCle(binding: ModelBinding): ModelReply {
-  return {
-    ok: false,
-    configured: false,
-    stop: "error",
-    blocks: [],
-    usage: emptyUsage(binding.role, binding.model, "openai"),
-    error: "Clé OPENAI_API_KEY non configurée.",
-  };
-}
-
 /**
  * L'USAGE D'UN APPEL — avec, désormais, DE QUOI JUGER LE BUDGET.
  *
@@ -620,8 +606,8 @@ export async function callOpenAiResponses(
   opts: ModelCallOptions = {},
 ): Promise<ModelReply> {
   const started = Date.now();
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
-  if (!key) return sansCle(binding);
+  const key = cleOpenAI();
+  if (!key) return reponseSansCle(binding, "openai", "OPENAI_API_KEY");
 
   // Ce chemin a DÉJÀ coupé sur ce modèle : inutile de repayer le silence pour le redécouvrir.
   if (cheminCoupeRecemment(binding.model)) return viaFlux(binding, turns, opts);
@@ -634,7 +620,7 @@ export async function callOpenAiResponses(
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
-      const res = await fetch(urlDe(), {
+      const res = await fetch(urlOpenAI("/responses"), {
         method: "POST",
         headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
         body: JSON.stringify(body),
@@ -768,14 +754,7 @@ export async function callOpenAiResponses(
     await new Promise((r) => setTimeout(r, 600 * attempt));
   }
 
-  return {
-    ok: false,
-    configured: true,
-    stop: "error",
-    blocks: [],
-    usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-    error: lastError,
-  };
+  return reponseEnEchec(binding, "openai", started, lastError);
 }
 
 // ─────────────────────────────── Le flux ───────────────────────────────
@@ -894,8 +873,8 @@ export async function streamOpenAiResponses(
   onText: (chunk: string) => void,
 ): Promise<ModelReply> {
   const started = Date.now();
-  const key = (process.env.OPENAI_API_KEY ?? "").trim();
-  if (!key) return sansCle(binding);
+  const key = cleOpenAI();
+  if (!key) return reponseSansCle(binding, "openai", "OPENAI_API_KEY");
 
   const body = { ...buildResponsesBody(binding, turns, opts), stream: true };
   const asm = new ResponsesStreamAssembler();
@@ -903,7 +882,7 @@ export async function streamOpenAiResponses(
   let sortieFinale: RespOutputItem[] | undefined;
 
   try {
-    const res = await fetch(urlDe(), {
+    const res = await fetch(urlOpenAI("/responses"), {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
       body: JSON.stringify(body),
@@ -918,14 +897,7 @@ export async function streamOpenAiResponses(
     if (!res.ok || !res.body) {
       const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] openai responses stream error", binding.role, res.status, raw.slice(0, 300));
-      return {
-        ok: false,
-        configured: true,
-        stop: "error",
-        blocks: [],
-        usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-        error: providerErrorMessage(res.status, raw),
-      };
+      return reponseEnEchec(binding, "openai", started, providerErrorMessage(res.status, raw));
     }
 
     const reader = res.body.getReader();
@@ -1000,13 +972,6 @@ export async function streamOpenAiResponses(
       };
     }
     console.error("[models] openai responses stream failed", binding.role, err);
-    return {
-      ok: false,
-      configured: true,
-      stop: "error",
-      blocks: [],
-      usage: { ...emptyUsage(binding.role, binding.model, "openai"), ms: Date.now() - started },
-      error: "Appel au modèle impossible (réseau ou délai dépassé).",
-    };
+    return reponseEnEchec(binding, "openai", started, "Appel au modèle impossible (réseau ou délai dépassé).");
   }
 }

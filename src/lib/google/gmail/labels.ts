@@ -47,17 +47,10 @@ async function modify(accessToken: string, messageId: string, add: string[], rem
 }
 
 export const addLabels = (accessToken: string, messageId: string, labelIds: string[]) => modify(accessToken, messageId, labelIds, []);
-export const removeLabels = (accessToken: string, messageId: string, labelIds: string[]) => modify(accessToken, messageId, [], labelIds);
 export const markRead = (accessToken: string, messageId: string) => modify(accessToken, messageId, [], ["UNREAD"]);
-export const markUnread = (accessToken: string, messageId: string) => modify(accessToken, messageId, ["UNREAD"], []);
 /** Archiver = retirer de la boîte de réception. Le message n'est ni supprimé ni caché. */
 export const archiveMessage = (accessToken: string, messageId: string) => modify(accessToken, messageId, [], ["INBOX"]);
-export const unarchiveMessage = (accessToken: string, messageId: string) => modify(accessToken, messageId, ["INBOX"], []);
 
 export async function trashMessage(accessToken: string, messageId: string): Promise<void> {
   await googleJson({ method: "POST", url: `${GMAIL_BASE}/${USER}/messages/${encodeURIComponent(messageId)}/trash`, accessToken });
-}
-
-export async function untrashMessage(accessToken: string, messageId: string): Promise<void> {
-  await googleJson({ method: "POST", url: `${GMAIL_BASE}/${USER}/messages/${encodeURIComponent(messageId)}/untrash`, accessToken });
 }

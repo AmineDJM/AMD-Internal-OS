@@ -28,7 +28,6 @@ import { CallProvider } from "@/components/layout/call-provider";
 import { realtimeVoiceConfigured, canUseRealtimeVoice } from "@/lib/assistant/voice-realtime";
 import { getTotalUnread } from "@/lib/queries/messaging";
 import { getAdoptionBadge } from "@/lib/adoption";
-import { aiConfigured, sttConfigured } from "@/lib/ai";
 import { getMyCompanies, myCompanyScope } from "@/lib/company";
 import { isTestUser } from "@/lib/features";
 import { prisma } from "@/lib/prisma";

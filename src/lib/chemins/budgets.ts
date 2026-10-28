@@ -13,7 +13,6 @@ export const CHEMIN_BUDGETS_DEPARTEMENTS = "/budgets/departements";
 
 export const ancreDemandeBudget = (id: string): string => `demande-budget-${id}`;
 export const ancreCategorieBudget = (id: string): string => `categorie-budget-${id}`;
-export const ancreDepenseBudget = (id: string): string => `depense-budget-${id}`;
 
 export function lienDemandeBudgetDepartement(requestId?: string | null, year?: number | null): string {
   const q: string[] = [];

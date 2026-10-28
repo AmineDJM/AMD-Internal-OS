@@ -20,7 +20,7 @@
  *      liste blanche ne se trompe pas quand un champ nouveau apparaît dans le modèle.
  */
 
-import { SPONSORING_TYPES, PRIORITY, NATIONAL_EVENT_TYPE, EVENT_TYPE, EVENT_FORMAT, CONSULTING_BILLING_OPTIONS } from "@/lib/labels";
+import { SPONSORING_TYPES, NATIONAL_EVENT_TYPE, EVENT_TYPE, EVENT_FORMAT, CONSULTING_BILLING_OPTIONS } from "@/lib/labels";
 import { etatAdProDuDossier } from "@/lib/promo-material/statut";
 import { MODE_LIBELLE } from "@/lib/care-fiches";
 

@@ -52,7 +52,7 @@ suite("API v1 — contenu d'une pièce hors registre", () => {
   it("une demande RH d'autrui : introuvable, pas téléchargée", async () => {
     const r = await GET(
       new NextRequest(`http://localhost/api/v1/documents/${docId}/content`, { headers: { authorization: `Bearer ${apiKey}` } }),
-      { params: { id: docId } },
+      { params: Promise.resolve({ id: docId }) },
     );
     expect(r.status).toBe(404);
   });

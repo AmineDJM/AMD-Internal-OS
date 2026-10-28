@@ -12,8 +12,7 @@
 
 import type { Kind } from "@/lib/teach/model";
 import { niveauDepuisTexte, parleDuBriefDeReunion } from "@/lib/meetings/niveau";
-
-const plier = (s: string): string => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+import { plier } from "@/lib/utils";
 
 interface Indice { kind: Kind; motif: RegExp; poids: number; libelle: string }
 

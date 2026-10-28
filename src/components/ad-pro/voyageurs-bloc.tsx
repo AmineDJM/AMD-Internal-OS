@@ -15,9 +15,10 @@ import {
 import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 import {
-  manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom, ETAPES_MAX,
-  TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, TRAJETS, type EtapeTrajet,
+  manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom,
+  ETAPES_MAX, TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, type EtapeTrajet,
 } from "@/lib/ad-pro/voyageurs";
+import { montantDzd } from "@/lib/utils";
 
 /** Un devis ou une pro forma déposé pour un voyageur (§118.205) — une pièce du poste, au registre Legal. */
 export interface DevisVoyageurVue {
@@ -59,7 +60,6 @@ export interface VoyageurVue {
 type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText: string) => Promise<void>;
 
 const jour = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00.000Z`) : null);
-const dzd = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
 
 /**
  * LES VOYAGEURS D'UN POSTE « BILLETTERIE » (§118.175, §118.205).
@@ -161,7 +161,7 @@ export function BlocVoyageurs({
                   ) : <span className="text-warning">passeport manquant</span>}
                   {retenu && (
                     <span className="inline-flex items-center gap-0.5 text-success">
-                      <FileCheck2 className="h-3 w-3" /> devis retenu{retenu.montant != null ? ` (${dzd(retenu.montant)})` : ""}
+                      <FileCheck2 className="h-3 w-3" /> devis retenu{retenu.montant != null ? ` (${montantDzd(retenu.montant)})` : ""}
                     </span>
                   )}
                   {peutEditer && (
@@ -293,7 +293,7 @@ export function BlocVoyageurs({
                         {d.fichier
                           ? <DocumentPreview id={d.fichier.id} name={d.reference ?? d.titre} hasFile={d.fichier.hasFile} />
                           : <span className="min-w-0 [overflow-wrap:anywhere]">{d.reference ?? d.titre}</span>}
-                        {d.montant != null && <span>{dzd(d.montant)}</span>}
+                        {d.montant != null && <span>{montantDzd(d.montant)}</span>}
                         {d.annule ? <span>annulé</span> : d.retenu ? <span className="text-success">retenu</span> : retenu ? <span>écarté</span> : null}
                         {peutEditer && !d.annule && !d.retenu && (mode === "CHOIX") && (
                           <Button

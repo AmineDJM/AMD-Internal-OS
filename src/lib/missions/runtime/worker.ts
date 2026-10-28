@@ -4,7 +4,6 @@ import type { Reasoner } from "@/lib/missions/ports";
 import type { EtatEtape, EtatMission } from "@/lib/missions/runtime/store";
 import type { StepContext, StepOutcome } from "@/lib/missions/runtime/engine";
 import { rolePourEtape, type MissionModelRole, type ReasoningRequirement } from "@/lib/missions/model/roles";
-import { estimerJetons } from "@/lib/missions/memory/budget";
 import { SCHEMA_WORKER_MINIMAL } from "@/lib/missions/runtime/sorties";
 import { sansBloquer } from "@/lib/journal";
 
@@ -300,30 +299,6 @@ export function composerPromptWorker(spec: WorkerSpecification): { partage: stri
   ].filter(Boolean).join("\n");
 
   return { partage, specifique };
-}
-
-/**
- * L'ÉCONOMIE RÉELLE DE LA COMPOSITION (§8) — mesurée, jamais affirmée.
- *
- * Ce que coûterait la version naïve (contexte partagé recopié dans chaque appel) moins ce que
- * coûte la version composée. Sur un éventail de trente-trois, c'est trente-deux fois le
- * contexte partagé.
- */
-export function mesurerEconomie(partage: string, nombreWorkers: number): {
-  partageJetons: number;
-  naifJetons: number;
-  composeJetons: number;
-  economieJetons: number;
-} {
-  const partageJetons = estimerJetons(partage);
-  const naif = partageJetons * Math.max(1, nombreWorkers);
-  const compose = partageJetons;
-  return {
-    partageJetons,
-    naifJetons: naif,
-    composeJetons: compose,
-    economieJetons: Math.max(0, naif - compose),
-  };
 }
 
 export interface WorkerDeps {

@@ -63,14 +63,3 @@ export function cibleInterne(spec: string, depuis: string): string | null {
   }
   return null;
 }
-
-/**
- * Le FICHIER qu'une cible désigne (`src/lib/rbac` → `src/lib/rbac.ts`, un dossier → son `index.ts`),
- * ou `null` s'il n'existe pas. `existe` est injecté pour rester testable sans disque.
- */
-export function fichierDeCible(cible: string, existe: (chemin: string) => boolean): string | null {
-  for (const c of [`${cible}.ts`, `${cible}.tsx`, `${cible}/index.ts`, `${cible}/index.tsx`, cible]) {
-    if (/\.(ts|tsx|json)$/.test(c) && existe(c)) return c;
-  }
-  return null;
-}

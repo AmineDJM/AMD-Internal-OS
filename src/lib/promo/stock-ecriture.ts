@@ -6,6 +6,7 @@ import {
   type LotDisponible, type MovementKind, type Tranche,
 } from "@/lib/promo/stock";
 import { repartirRetour } from "@/lib/promo/reservations";
+import { arrondirAuMillieme } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -46,7 +47,6 @@ export interface ArticleVerrouille {
 }
 
 const zero = (v: Prisma.Decimal | number | null | undefined): number => (v == null ? 0 : Number(v));
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 
 /**
  * EXÉCUTER SOUS LE VERROU DE L'ARTICLE. Le délai est large (quinze secondes) parce qu'une
@@ -107,14 +107,14 @@ export async function lotsDe(tx: Tx, itemId: string, holderId: string | null): P
   const parId = new Map(lots.map((l) => [l.id, l]));
   return sommes.flatMap((s) => {
     const l = parId.get(s.lotId);
-    return l ? [{ lotId: l.id, numero: l.numero, solde: r3(zero(s._sum.delta)), valableJusquau: l.valableJusquau, recuLe: l.recuLe }] : [];
+    return l ? [{ lotId: l.id, numero: l.numero, solde: arrondirAuMillieme(zero(s._sum.delta)), valableJusquau: l.valableJusquau, recuLe: l.recuLe }] : [];
   });
 }
 
 /** Le solde d'un détenteur, tous lots confondus. */
 export async function soldeDe(tx: Tx, itemId: string, holderId: string | null): Promise<number> {
   const s = await tx.promoStockMovement.aggregate({ where: { itemId, holderId }, _sum: { delta: true } });
-  return r3(zero(s._sum.delta));
+  return arrondirAuMillieme(zero(s._sum.delta));
 }
 
 async function prochainNumeroDeLot(tx: Tx, itemId: string): Promise<number> {
@@ -153,7 +153,7 @@ export async function entrerLot(tx: Tx, itemId: string, e: EntreeLot): Promise<{
   });
   await tx.promoStockMovement.create({
     data: {
-      itemId, lotId: lot.id, holderId: e.holderId, kind: e.kind, delta: r3(e.quantite),
+      itemId, lotId: lot.id, holderId: e.holderId, kind: e.kind, delta: arrondirAuMillieme(e.quantite),
       reason: e.motif ?? null, occurredAt: e.recuLe ?? new Date(), createdById: e.auteurId,
       comptageId: e.comptageId ?? null,
     },
@@ -208,7 +208,7 @@ export async function corrigerAuCompte(tx: Tx, itemId: string, c: {
   comptageId?: string | null;
 }): Promise<{ ok: true; avant: number; apres: number } | { ok: false; refus: string }> {
   const avant = await soldeDe(tx, itemId, c.holderId);
-  const delta = r3(c.compte - avant);
+  const delta = arrondirAuMillieme(c.compte - avant);
   if (delta === 0) return { ok: false, refus: `Le solde enregistré est déjà ${avant} : rien à corriger.` };
   const comptageId = c.comptageId ?? null;
   if (delta < 0) {
@@ -223,11 +223,11 @@ export async function corrigerAuCompte(tx: Tx, itemId: string, c: {
   const negatifs = (await lotsDe(tx, itemId, c.holderId)).filter((l) => l.solde < 0);
   for (const l of negatifs) {
     if (reste <= 0) break;
-    const comble = r3(Math.min(-l.solde, reste));
+    const comble = arrondirAuMillieme(Math.min(-l.solde, reste));
     await tx.promoStockMovement.create({
       data: { itemId, lotId: l.lotId, holderId: c.holderId, kind: "CORRECTION", delta: comble, reason: c.motif, createdById: c.auteurId, comptageId },
     });
-    reste = r3(reste - comble);
+    reste = arrondirAuMillieme(reste - comble);
   }
   if (reste > 0) {
     await entrerLot(tx, itemId, {
@@ -258,7 +258,7 @@ export async function fairePartir(tx: Tx, itemId: string, t: {
   if (!a.ok) return { ok: false, refus: a.raison };
   const transfert = await tx.promoStockTransfer.create({
     data: {
-      itemId, nature: t.nature, deId: t.deId, versId: t.versId, quantite: r3(t.quantite),
+      itemId, nature: t.nature, deId: t.deId, versId: t.versId, quantite: arrondirAuMillieme(t.quantite),
       note: t.note, initiateurId: t.initiateurId, demandeId: t.demandeId ?? null,
     },
     select: { id: true },
@@ -281,7 +281,7 @@ async function tranchesParties(tx: Tx, transfertId: string): Promise<Tranche[]> 
     select: { lotId: true, delta: true, lot: { select: { valableJusquau: true, recuLe: true, numero: true } } },
   });
   return departs
-    .map((d) => ({ lotId: d.lotId, quantite: r3(-zero(d.delta)), lot: d.lot }))
+    .map((d) => ({ lotId: d.lotId, quantite: arrondirAuMillieme(-zero(d.delta)), lot: d.lot }))
     .sort((a, b) => {
       const ea = a.lot.valableJusquau?.getTime() ?? Number.POSITIVE_INFINITY;
       const eb = b.lot.valableJusquau?.getTime() ?? Number.POSITIVE_INFINITY;
@@ -315,8 +315,8 @@ export async function confirmerArrivee(tx: Tx, transfertId: string, c: {
       },
     });
   }
-  const recue = r3(recues.reduce((a, t) => a + t.quantite, 0));
-  const manquante = r3(manquantes.reduce((a, t) => a + t.quantite, 0));
+  const recue = arrondirAuMillieme(recues.reduce((a, t) => a + t.quantite, 0));
+  const manquante = arrondirAuMillieme(manquantes.reduce((a, t) => a + t.quantite, 0));
   await tx.promoStockTransfer.update({
     where: { id: transfertId },
     data: { statut: "RECU", quantiteRecue: recue, decideParId: c.auteurId, decideLe: new Date(), noteDecision: c.note },
@@ -397,14 +397,14 @@ export async function reprendreRemisesDeLaVisite(tx: Tx, ancre: AncreRemise, ite
   });
   let reprise = 0;
   for (const m of actives) {
-    const inverse = r3(-zero(m.delta));
+    const inverse = arrondirAuMillieme(-zero(m.delta));
     await tx.promoStockMovement.create({
       data: {
         itemId, lotId: m.lotId, holderId: m.holderId, kind: "REVERSAL", delta: inverse,
         annuleId: m.id, ...ancre, doctorId: m.doctorId, reason: motif, createdById: auteurId,
       },
     });
-    reprise = r3(reprise + inverse);
+    reprise = arrondirAuMillieme(reprise + inverse);
   }
   return reprise;
 }
@@ -457,7 +457,7 @@ export async function rendreAuMagasin(tx: Tx, itemId: string, r: {
   const parLot = new Map<string, { quantite: number; lot: { valableJusquau: Date | null; recuLe: Date; numero: number } }>();
   for (const m of ms) {
     const e = parLot.get(m.lotId) ?? { quantite: 0, lot: m.lot };
-    e.quantite = r3(e.quantite - zero(m.delta));
+    e.quantite = arrondirAuMillieme(e.quantite - zero(m.delta));
     parLot.set(m.lotId, e);
   }
   const tranches = [...parLot].filter(([, e]) => e.quantite > 0)
@@ -470,7 +470,7 @@ export async function rendreAuMagasin(tx: Tx, itemId: string, r: {
         adProLineId: r.ligneId, reason: r.motif, createdById: r.auteurId,
       },
     });
-    rendu = r3(rendu + t.quantite);
+    rendu = arrondirAuMillieme(rendu + t.quantite);
   }
   return rendu;
 }
@@ -506,7 +506,7 @@ export async function annulerMouvementEcrit(tx: Tx, mouvementId: string, auteurI
             : "Ce mouvement ne s'annule pas : refaites la saisie juste.",
     };
   }
-  const inverse = r3(-zero(m.delta));
+  const inverse = arrondirAuMillieme(-zero(m.delta));
   if (inverse < 0) {
     const lots = await lotsDe(tx, m.itemId, m.holderId);
     const solde = lots.find((l) => l.lotId === m.lotId)?.solde ?? 0;

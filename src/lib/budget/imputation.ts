@@ -1,3 +1,4 @@
+import { arrondirAuCentime } from "@/lib/utils";
 /**
  * OÙ TOMBE CHAQUE DINAR D'UN TICKET DE CAISSE.
  *
@@ -23,7 +24,6 @@
  */
 
 /** Deux décimales : un ticket ne se compte pas au millième de dinar. */
-const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 export interface ImputableLine {
   /** Catégorie budgétaire de CET article — `null` = pas classé individuellement. */
@@ -53,7 +53,7 @@ export interface Imputation {
  * faudrait ré-additionner à l'affichage.
  */
 export function imputationsOf(expense: ImputableExpense): Imputation[] {
-  const total = round2(Math.max(0, Number.isFinite(expense.amount) ? expense.amount : 0));
+  const total = arrondirAuCentime(Math.max(0, Number.isFinite(expense.amount) ? expense.amount : 0));
   const byCategory = new Map<string, number>();
   // Ce qu'il reste À RÉPARTIR. Le détail ne peut pas dépasser le justificatif : si une saisie
   // incohérente (correction en cours) donne des articles plus lourds que le ticket, on s'arrête
@@ -66,19 +66,19 @@ export function imputationsOf(expense: ImputableExpense): Imputation[] {
     if (!catId) continue;
     const amount = Number.isFinite(line.amount) ? line.amount : 0;
     if (amount <= 0) continue;
-    const take = round2(Math.min(amount, left));
-    byCategory.set(catId, round2((byCategory.get(catId) ?? 0) + take));
-    left = round2(left - take);
+    const take = arrondirAuCentime(Math.min(amount, left));
+    byCategory.set(catId, arrondirAuCentime((byCategory.get(catId) ?? 0) + take));
+    left = arrondirAuCentime(left - take);
   }
 
-  const rest = round2(Math.max(0, left));
+  const rest = arrondirAuCentime(Math.max(0, left));
 
   const out: Imputation[] = [...byCategory.entries()].map(([categoryId, amount]) => ({ categoryId, amount }));
   if (rest > 0) {
     const restCategory = expense.budgetCategoryId ?? null;
     if (restCategory) {
       const existing = out.find((i) => i.categoryId === restCategory);
-      if (existing) existing.amount = round2(existing.amount + rest);
+      if (existing) existing.amount = arrondirAuCentime(existing.amount + rest);
       else out.push({ categoryId: restCategory, amount: rest });
     } else {
       out.push({ categoryId: null, amount: rest });
@@ -98,7 +98,7 @@ export function consumptionByCategory(expenses: readonly ImputableExpense[]): Ma
   for (const e of expenses) {
     for (const imp of imputationsOf(e)) {
       if (!imp.categoryId) continue;
-      out.set(imp.categoryId, round2((out.get(imp.categoryId) ?? 0) + imp.amount));
+      out.set(imp.categoryId, arrondirAuCentime((out.get(imp.categoryId) ?? 0) + imp.amount));
     }
   }
   return out;
@@ -112,7 +112,7 @@ export function unclassifiedTotal(expenses: readonly ImputableExpense[]): number
   let sum = 0;
   for (const e of expenses) {
     for (const imp of imputationsOf(e)) {
-      if (imp.categoryId === null) sum = round2(sum + imp.amount);
+      if (imp.categoryId === null) sum = arrondirAuCentime(sum + imp.amount);
     }
   }
   return sum;

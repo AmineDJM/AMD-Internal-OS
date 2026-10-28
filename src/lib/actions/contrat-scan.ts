@@ -12,7 +12,6 @@ import { contratsDuFichier, importsProjet, type ContratAction, type TableEnums, 
  * jamais. Ici on assume `fs` et Prisma, et on ne sert que le générateur et son cliquet.
  */
 
-export const DOSSIER_ACTIONS = join(process.cwd(), "src", "lib", "actions");
 /** La racine sur laquelle `@/` se résout — la même que celle du `tsconfig`. */
 const RACINE_SRC = join(process.cwd(), "src");
 

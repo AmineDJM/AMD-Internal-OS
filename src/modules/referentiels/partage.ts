@@ -17,7 +17,6 @@ export {
 } from "./domaine/doublons";
 
 // ── L'ordre de revue des doublons (niveau, puis score) ───────────────────────────────────────
-export { ordreDeRevue, RANG_NIVEAU } from "./domaine/revue";
 
 // ── Libellés des organisations ───────────────────────────────────────────────────────────────
 export {
@@ -25,4 +24,4 @@ export {
 } from "./domaine/organisations/libelles";
 
 // ── Le bilan d'une reprise (lu par les cartes de l'écran d'administration) ───────────────────
-export type { BilanReprise, Reprise } from "./domaine/reprises/types";
+export type { BilanReprise } from "./domaine/reprises/types";

@@ -6,6 +6,26 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/** Plie un texte pour le comparer : sans accents, en minuscules (« Élodie » → « elodie »). */
+export function plier(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+}
+
+/** Arrondi au centime (deux décimales) — un montant en DZD. */
+export function arrondirAuCentime(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+/** Arrondi au millième (trois décimales) — une quantité fractionnaire de stock. */
+export function arrondirAuMillieme(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
+/** « 12 500 DZD » : le nombre tel quel, séparateurs français, suivi de la devise. */
+export function montantDzd(n: number): string {
+  return `${n.toLocaleString("fr-FR")} DZD`;
+}
+
 /** Format a number as a currency amount (default DZD, the local pharma market). */
 export function formatCurrency(
   value: number | string | null | undefined,
@@ -118,10 +138,4 @@ export function toNumber(value: unknown): number {
   if (typeof value === "number") return value;
   const n = Number(value.toString());
   return Number.isNaN(n) ? 0 : n;
-}
-
-/** Percentage with clamping, used by progress bars. */
-export function percent(part: number, whole: number): number {
-  if (!whole) return 0;
-  return Math.min(100, Math.max(0, Math.round((part / whole) * 100)));
 }

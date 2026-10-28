@@ -26,6 +26,21 @@ async function allFolders(): Promise<FolderLite[]> {
   return prisma.mailEntryFolder.findMany({ select: { id: true, name: true, parentId: true, companyId: true } });
 }
 
+/**
+ * LE DOSSIER VISÉ PAR LE FORMULAIRE, PORTE D'ÉCRITURE FRANCHIE (audit 27/10, SA-16) : le droit du module ET la
+ * société du dossier — la création la vérifiait déjà. Renommer et supprimer passent par elle.
+ */
+async function porteDuDossier(formData: FormData, action: "UPDATE" | "DELETE") {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false as const, error: "Dossier introuvable." };
+  const porte = await ouvrirPourEcrire(user, "MAIL_FOLDER", id, action);
+  if (!porte.ok) return porte;
+  const existing = await prisma.mailEntryFolder.findUnique({ where: { id }, select: { name: true } });
+  if (!existing) return { ok: false as const, error: "Dossier introuvable." };
+  return { ok: true as const, user, id, existing };
+}
+
 /** L'entité demandée est-elle dans le périmètre ? On ne classe pas dans une société qu'on ne voit pas. */
 async function companyAllowed(userId: string, companyId: string | null): Promise<boolean> {
   if (!companyId) return true;
@@ -62,14 +77,9 @@ export async function createMailFolder(_prev: ActionResult | undefined, formData
 
 /** Renomme un dossier, ou le déplace sous un autre. */
 export async function updateMailFolder(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Dossier introuvable." };
-  // LA PORTE DU DOSSIER (audit 27/10, SA-16) : le droit du module ET sa société — la création la vérifiait déjà.
-  const porte = await ouvrirPourEcrire(user, "MAIL_FOLDER", id, "UPDATE");
-  if (!porte.ok) return porte;
-  const existing = await prisma.mailEntryFolder.findUnique({ where: { id }, select: { name: true } });
-  if (!existing) return { ok: false, error: "Dossier introuvable." };
+  const dossier = await porteDuDossier(formData, "UPDATE");
+  if (!dossier.ok) return dossier;
+  const { user, id, existing } = dossier;
 
   const parentRaw = formData.get("parentId");
   const nextParent = parentRaw != null ? (String(parentRaw) || null) : undefined;
@@ -107,14 +117,9 @@ export async function updateMailFolder(formData: FormData): Promise<ActionResult
  * `ON DELETE SET NULL` qui le garantit, pas une précaution d'écran.
  */
 export async function deleteMailFolder(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Dossier introuvable." };
-  // LA PORTE DU DOSSIER (audit 27/10, SA-16) : le droit du module ET sa société — la création la vérifiait déjà.
-  const porte = await ouvrirPourEcrire(user, "MAIL_FOLDER", id, "DELETE");
-  if (!porte.ok) return porte;
-  const existing = await prisma.mailEntryFolder.findUnique({ where: { id }, select: { name: true } });
-  if (!existing) return { ok: false, error: "Dossier introuvable." };
+  const dossier = await porteDuDossier(formData, "DELETE");
+  if (!dossier.ok) return dossier;
+  const { user, id, existing } = dossier;
 
   await prisma.mailEntryFolder.delete({ where: { id } });
   await recordAudit({

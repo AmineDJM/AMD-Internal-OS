@@ -3,9 +3,9 @@ import { linksOfMany } from "@/lib/links/store";
 import { invoiceSettlementState } from "@/lib/labels";
 import { toNumber } from "@/lib/utils";
 import {
-  deriverNiveau, etapeCourante, quantitesContractuelles, restantACommander, restantALivrer,
-  unitesAttribuees, uniteSoumises, valeurAttribuee, valeurContractuelleCourante, valeurSoumise,
-  type LigneContractuelleFaits, type NiveauMarche,
+  deriverNiveau, etapeCourante, quantitesContractuelles, restantACommander, unitesAttribuees, uniteSoumises,
+  valeurAttribuee, valeurContractuelleCourante, valeurSoumise, type LigneContractuelleFaits,
+  type NiveauMarche,
 } from "@/lib/pch/market-math";
 
 /**
@@ -529,11 +529,4 @@ export async function loadProductMarkets(productId: string): Promise<ProductMark
       restantACommander: restantACommander(contractuel, commande),
     };
   });
-}
-
-/** Le restant à livrer d'un bon — exposé pour l'écran BC (réutilise la règle pure). */
-export function resteALivrerDuBon(bon: Market360["bons"][number]): number {
-  const commande = bon.lignes.reduce((s, l) => s + l.quantityUnits, 0);
-  const livre = bon.lignes.reduce((s, l) => s + l.quantiteLivree, 0);
-  return restantALivrer(commande, livre);
 }

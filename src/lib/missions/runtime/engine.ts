@@ -15,7 +15,7 @@ import {
 } from "@/lib/missions/runtime/store";
 import { lireInterrupteurMissions, type LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import {
-  diagnostiquerReferences, entreeIteration, identiteIteration, injecterSorties, lire, referencesDe,
+  diagnostiquerReferences, entreeIteration, identiteIteration, injecterSorties, referencesDe,
   type DiagnosticReference, type SortieAmont,
 } from "@/lib/missions/runtime/interpolate";
 import { expliquer, resoudreCollection } from "@/lib/missions/runtime/collection";

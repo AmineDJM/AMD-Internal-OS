@@ -19,7 +19,6 @@ export {
   estEtatLigne, etatDemande, type EtatLigne, LIBELLE_ETAT_DEMANDE, LIBELLE_ETAT_LIGNE, lireReponse,
   phraseBilan, type SaisieLigne,
 } from "./domaine/actualisation-soldes";
-export { attribuer, type Attribution, type PosteDepense } from "./domaine/attribution-produit";
 export {
   applyDecision, applyResubmission, awaitsCentre, awaitsRequester, blockedReason, canDisburse,
   canResubmit as canResubmitAuCentre,
@@ -48,13 +47,13 @@ export {
 export { auditLedger, auditSummary } from "./domaine/ledger-audit";
 export { checkMoneyEntity, groupByEntity, resolveMoneyEntity, unassignedWarning } from "./domaine/money-entity";
 export {
-  confronterMontantAuxFactures, type LectureMontant, LIBELLE_CONFIRMATION_ECART, noteEcartAssume,
+  confronterMontantAuxFactures, LIBELLE_CONFIRMATION_ECART, noteEcartAssume,
   PHRASE_MONTANT_NON_LU, phraseEcartMontant, refusEcartMontant,
 } from "./domaine/montant-facture";
 export { canSubmitDossier, dossierHint, isBonDeVersement } from "./domaine/payment-dossier";
 export {
   canApprove, canResubmit, deadlineLabel, isClosed, isOverdue, isWithFinance, needsReplacement,
-  nextPaymentStatus, type PaymentMove, piecesEnVigueur, refusDeRemplacement, sortByPriority, statusFromPieces,
+  nextPaymentStatus, type PaymentMove, piecesEnVigueur, refusDeRemplacement, sortByPriority,
   tallyPieces,
 } from "./domaine/payment-request";
 export {
@@ -70,7 +69,7 @@ export {
   slugSectionDeLOrdre,
 } from "./domaine/sections-centre";
 export {
-  type GesteDArgent, REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION,
+  REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION,
   refusSeparationDesTaches,
 } from "./domaine/separation";
 export { BUDGET_CLASSIFY_PROMPT, budgetGate, needsBudgetChoice } from "./domaine/settle-budget";

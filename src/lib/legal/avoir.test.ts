@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { entierementCreditee, netDeLaFacture, refusPlafondAvoir, resteACrediter } from "@/lib/lecteurs/avoir";
+import { entierementCreditee, netDeLaFacture, refusPlafondAvoir } from "@/lib/lecteurs/avoir";
 import { invoiceTally } from "@/lib/legal/invoices";
 import { initialLegalListState, visibleLegalRows, type LegalListRow } from "@/lib/legal/list-view";
 import { canSendToSettlement, REFUS_FACTURE_EMISE_AU_REGLEMENT } from "@/modules/finances/partage";
@@ -34,11 +34,6 @@ describe("ce qui reste à créditer, et le net de la facture — au centime", ()
 
   it("n'est jamais négatif — des avoirs plus lourds que la facture ne font pas devoir de l'argent à la facture", () => {
     expect(netDeLaFacture(100, [60, 60])).toBe(0);
-  });
-
-  it("le reste à créditer EST le net : une seule lecture, lue des deux côtés", () => {
-    // Deux fonctions qui s'accordent aujourd'hui divergeraient au premier ajustement (§118.140) : c'est la même.
-    expect(resteACrediter).toBe(netDeLaFacture);
   });
 });
 

@@ -36,7 +36,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 
-import { capaciteDuCorpus, engendrer, type MissionGeneree, type Monde } from "@/lib/evals/autonomie/corpus";
+import { capaciteDuCorpus, engendrer, type Monde } from "@/lib/evals/autonomie/corpus";
 import {
   PART_INEXPLOITABLE_TOLEREE, SENS_CAUSE, comparer, juger, scoreAutonomie,
   type Observation, type Profondeur, type ScoreAutonomie, type Verdict,
@@ -117,7 +117,6 @@ async function main(): Promise<void> {
   const { chargerEtat } = await import("@/lib/missions/runtime/store");
   const { viderTampon } = await import("@/platform/in-process/telemetry/usage-sink");
   const { VERITES } = await import("./seed-adam-bench");
-  const { fichesDe } = await import("@/platform/in-process/registre");
   type CurrentUser = import("@/lib/session").CurrentUser;
 
   const mode = (process.env.AUTONOMY_MODE === "complet" ? "COMPLET" : "PLAN") as Profondeur;

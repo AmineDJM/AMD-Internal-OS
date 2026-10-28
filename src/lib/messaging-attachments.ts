@@ -23,12 +23,6 @@ import { extensionDe, natureApercu } from "@/lib/formats/apercu";
 /** Au-delà, ce n'est plus un message : c'est un envoi de fichiers déguisé. */
 export const MAX_ATTACHMENTS = 10;
 
-export interface DriveRefInput {
-  id: string;
-  name: string;
-  isFolder: boolean;
-}
-
 /**
  * Ce que le destinataire lit à la place du nom brut.
  *

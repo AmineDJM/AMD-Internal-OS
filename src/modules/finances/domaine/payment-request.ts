@@ -30,8 +30,6 @@ export type PaymentState =
   | "DRAFT" | "SUBMITTED" | "UNDER_REVIEW" | "ON_HOLD"
   | "CHANGES_REQUESTED" | "APPROVED" | "REJECTED" | "CANCELLED";
 
-export type PieceState = "PENDING" | "ACCEPTED" | "CHANGES_REQUESTED" | "REJECTED";
-
 export type PaymentMove =
   /** Le demandeur envoie son dossier aux Finances. */
   | "SUBMIT"

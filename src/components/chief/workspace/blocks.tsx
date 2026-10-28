@@ -2,14 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import {
-  Eye, Mail, CheckSquare, Pencil, ScanLine, Send, CircleAlert, CalendarClock, BellRing, Check,
-  Phone, MessageCircle,
-} from "lucide-react";
-import type {
-  WorkspaceAction, WorkspaceActionIcon, WorkspaceBlock, WorkspaceComposition, WorkspaceDoc,
-  WorkspaceEndpoint, WorkspaceField, WorkspaceGauge, WorkspacePerson, WorkspaceStep,
-} from "@/lib/assistant/workspace/protocol";
+import { Mail, Pencil, Check, Phone, MessageCircle } from "lucide-react";
+import type { WorkspaceBlock, WorkspaceComposition, WorkspaceDoc, WorkspaceEndpoint, WorkspaceField, WorkspaceGauge, WorkspacePerson, WorkspaceStep } from "@/lib/assistant/workspace/protocol";
 // La feuille voyage AVEC le composant : les blocs s'affichent aussi dans la page Assistant de
 // l'ERP, qui ne charge pas `chief.css`. Elle porte ses propres valeurs de repli.
 // L'ENCLOS ANTI-INJECTION EST POUR LE MODÈLE, PAS POUR L'ŒIL : le déballeur vit dans le
@@ -154,27 +148,6 @@ function Endpoint({ e, ligne = false }: { e: WorkspaceEndpoint; ligne?: boolean 
       {e.fiabilite ? <span className="chief-endpoint-source">{e.fiabilite}</span> : null}
       {copied ? <span className="chief-endpoint-copied">copié</span> : null}
     </button>
-  );
-}
-
-function PersonLines({ p, hideName = false }: { p: WorkspacePerson; hideName?: boolean }) {
-  const sub = [p.poste, p.departement, p.entite].filter(Boolean).join(" · ");
-  return (
-    <div className="chief-person">
-      <div className="chief-person-id">
-        {/* Sur une fiche unique, le titre du bloc EST déjà le nom : le répéter juste en dessous
-            occupe une ligne pour ne rien apprendre. */}
-        {hideName ? null : <span className="chief-person-name">{p.nom}</span>}
-        {sub ? <span className="chief-person-role">{sub}</span> : null}
-      </div>
-      {p.coordonnees.length > 0 ? (
-        <div className="chief-endpoints">
-          {p.coordonnees.map((e, i) => <Endpoint key={`${e.valeur}-${i}`} e={e} />)}
-        </div>
-      ) : (
-        <p className="chief-block-empty">Aucune coordonnée enregistrée.</p>
-      )}
-    </div>
   );
 }
 

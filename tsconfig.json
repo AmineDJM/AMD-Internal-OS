@@ -50,7 +50,6 @@
       "@/lib/expense-orders": ["./src/modules/finances/infra/expense-orders"],
       "@/lib/finance/a-imputer": ["./src/modules/finances/infra/a-imputer"],
       "@/lib/finance/actualisation-soldes": ["./src/modules/finances/domaine/actualisation-soldes"],
-      "@/lib/finance/attribution-produit": ["./src/modules/finances/domaine/attribution-produit"],
       "@/lib/finance/compagnon-regle": ["./src/modules/finances/infra/compagnon-regle"],
       "@/lib/finance/comptes": ["./src/modules/finances/infra/comptes"],
       "@/lib/finance/correction-demande": ["./src/modules/finances/domaine/correction-demande"],

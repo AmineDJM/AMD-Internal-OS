@@ -349,3 +349,27 @@ export function emptyUsage(role: ModelRole, model: string, provider: ModelProvid
     attempts: 0,
   };
 }
+
+/** La clé du fournisseur n'est pas posée : l'appel n'est pas parti (`configured: false`). */
+export function reponseSansCle(binding: ModelBinding, provider: ModelProvider, cle: string): ModelReply {
+  return {
+    ok: false,
+    configured: false,
+    stop: "error",
+    blocks: [],
+    usage: emptyUsage(binding.role, binding.model, provider),
+    error: `Clé ${cle} non configurée.`,
+  };
+}
+
+/** L'appel est parti et n'a rien rendu : aucun bloc, l'usage à zéro sauf la durée, et la raison. */
+export function reponseEnEchec(binding: ModelBinding, provider: ModelProvider, started: number, error: string): ModelReply {
+  return {
+    ok: false,
+    configured: true,
+    stop: "error",
+    blocks: [],
+    usage: { ...emptyUsage(binding.role, binding.model, provider), ms: Date.now() - started },
+    error,
+  };
+}

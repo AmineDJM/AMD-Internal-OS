@@ -1,5 +1,5 @@
 import { routeQuery, type QueryRoute, type RouterContext } from "./router";
-import { shortlistNames, ALWAYS_ON } from "./tool-shortlist";
+import { shortlistNames } from "./tool-shortlist";
 import { BUDGETS } from "./budget";
 
 /**
@@ -166,7 +166,6 @@ export function shadowLogLine(v: ShadowVerdict, utteranceLength: number): Record
 }
 
 /** Le socle, réexporté : les tests de couverture s'y réfèrent. */
-export { ALWAYS_ON };
 
 /**
  * LE POINT D'ENTRÉE DEPUIS LA BOUCLE RÉELLE — et son unique promesse : NE RIEN CHANGER.

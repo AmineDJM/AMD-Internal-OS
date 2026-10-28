@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api/http";
 import { errors } from "@/lib/api/errors";
-import { getEntity, canReadEntity, porteeManquante } from "@/lib/api/registry/entities";
+import { getEntity } from "@/lib/api/registry/entities";
+import { exigerLectureEntite } from "@/lib/api/acces-entite";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { serialize, selectOf } from "@/lib/api/query";
 
@@ -16,9 +17,7 @@ export const GET = handle<{ entity: string; id: string }>(
   async ({ ctx, params, mark }) => {
     const def = getEntity(params.entity);
     if (!def) throw errors.notFound("Objet");
-    if (!canReadEntity(ctx.user, def)) throw errors.forbidden(`Le module ${def.module} n'est pas accessible à cette identité.`);
-    const manque = porteeManquante(def, ctx.client.scopes);
-    if (manque) throw errors.missingScope([manque], ctx.client.scopes);
+    exigerLectureEntite(ctx, def);
     mark({ operationId: `get_${def.name}`, entityType: def.entityType ?? def.model, entityId: params.id });
 
     const model = (prisma as any)[def.model.charAt(0).toLowerCase() + def.model.slice(1)];

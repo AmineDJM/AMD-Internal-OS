@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OpenAIGptRealtime21Provider, type VoiceToolUi } from "@/app/(app)/assistant/realtime-voice";
+import { OpenAIGptRealtime21Provider } from "@/app/(app)/assistant/realtime-voice";
 import { BARGE_IN_SUSTAIN_MS } from "@/lib/assistant/voice-tuning";
 
 /**

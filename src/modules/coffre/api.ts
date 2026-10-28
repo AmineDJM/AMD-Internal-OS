@@ -21,12 +21,11 @@ export * from "./partage";
 export { chargerCles, clesDepuisMaitresse, ErreurCleCoffre, type ClesCoffre } from "./infra/cle";
 
 // ── Chiffrer, empreinte (sans déchiffrer) ────────────────────────────────────────────────────
-export { chiffrer, decomposer, empreinte, ErreurDechiffrement } from "./infra/chiffrement";
+export { empreinte } from "./infra/chiffrement";
 
 // ── Commandes : la double écriture ───────────────────────────────────────────────────────────
-export { doubleEcrireCoffre, titulaireDeLOrigine } from "./infra/ecriture";
+export { doubleEcrireCoffre } from "./infra/ecriture";
 export { copierAuCoffre, type ResultatCopie } from "./infra/copies";
 
 // ── Contrôle d'accès (politique + journal, sur la valeur que l'appelant a déjà) ──────────────
-export { controlerRibDePiece, controlerLecture, lireSensiblesSansDechiffrer, lireSensiblesSansDechiffrerPour } from "./infra/acces";
-export { lecteurDepuisSession } from "./infra/lecteur";
+export { controlerRibDePiece } from "./infra/acces";

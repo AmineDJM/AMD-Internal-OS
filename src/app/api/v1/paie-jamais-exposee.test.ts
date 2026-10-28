@@ -27,7 +27,7 @@ let cle = "";
 const facette = async (aspect: string) => {
   const r = await aspectGET(
     new NextRequest(`http://localhost/api/v1/entities/employee/${employeId}/${aspect}`, { headers: { authorization: `Bearer ${cle}` } }),
-    { params: { entity: "employee", id: employeId, aspect } },
+    { params: Promise.resolve({ entity: "employee", id: employeId, aspect }) },
   );
   expect(r.status).toBe(200);
   return JSON.stringify((await r.json()).data);
