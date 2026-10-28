@@ -33,7 +33,7 @@ import { getMyCompanies, myCompanyScope } from "@/lib/company";
 import { isTestUser } from "@/lib/features";
 import { prisma } from "@/lib/prisma";
 import { APP_SCROLL_ID } from "@/lib/use-scroll-lock";
-import { NavDepthTracker } from "@/components/shared/back-link";
+import { NavDepthTracker } from "@/components/shared/nav-depth-tracker";
 import { NavProgress } from "@/components/layout/nav-progress";
 import { PrimitivesUI } from "@/components/ui/primitives-ui";
 import { sansBloquer } from "@/lib/journal";
