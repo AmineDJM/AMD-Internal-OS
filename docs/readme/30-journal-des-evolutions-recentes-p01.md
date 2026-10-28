@@ -1,5 +1,14 @@
 ## 🧾 Journal des évolutions récentes
 
+### REFONTE DES DONNÉES, LOT V2-A : LE DÉPÔT NOURRIT LES FICHES (2026-10-27)
+
+Migration `20270131170000_enrichissement_file` (table `TacheEnrichissement`, colonne `AppSetting.enrichissementActif`
+fausse par défaut). Les trois goulots de dépôt émettent `PIECE_DEPOSEE` et mettent la pièce en file ; le battement la
+lit EN LOCAL, la classe, en extrait les faits, les rattache à la Personne de la fiche où elle est déposée (ou à
+l'Organisation de son NIF), confirme d'office ce qui peut l'être, range au coffre ce qui est sensible, et laisse le reste
+à l'écran « À confirmer ». Rien n'est actif avant que le Super Admin ouvre l'interrupteur (Administration › Refonte des
+données), qui porte aussi la reprise « Rattrapage des pièces existantes ». Détail : référence des circuits, p04.
+
 ### LEGAL : « NOUVEAU DOCUMENT » ET « NOUVELLE FACTURE » SE REMPLISSENT DEPUIS LA PIÈCE (2026-10-27)
 
 Migration `20270129100000_synthese_legale` (deux colonnes nullables sur `LecturePiece`). On dépose d'abord le fichier (ou

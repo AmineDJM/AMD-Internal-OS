@@ -175,6 +175,14 @@ export async function runScheduledJobs(): Promise<void> {
     // un document mal nommé jamais ouvert devient trouvable par son CONTENU. L'ACL se
     // revérifie à la recherche, nœud par nœud. Débrayage : ASSISTANT_DRIVE_INGESTION=off.
     await runDriveIngestionSweep().catch(() => undefined);
+    // L'ENRICHISSEMENT DES FICHES PAR LES PIÈCES DÉPOSÉES (refonte, lot V2-A) : la file des dépôts, un lot
+    // plafonné par passage — lecture LOCALE, classement, extraction, faits proposés, coffre. Interrupteur
+    // `enrichissementActif` (Administration › Refonte des données), fermé par défaut : ne fait alors rien.
+    // Chargé à l'appel (la chaîne de lecture ne pèse que si elle sert) ; le worker séparé (V2-F) appellera
+    // la même `traiterLaFile`.
+    await import("@/lib/enrichissement/traitement")
+      .then((m) => m.traiterLaFile())
+      .catch((e) => console.error("[scheduled] enrichissement des fiches", e));
     // Mentions d'entités (fabric F4) : le RATTRAPAGE des fichiers indexés AVANT que
     // l'extraction existe. Les nouveaux fichiers sont extraits à l'ingestion même ; ce
     // balayage borné vide le reste-à-faire (`mentionsAt: null`), un lot par passage.

@@ -468,3 +468,31 @@ entité) sont éligibles. Supprimer une gamme **ne supprime aucun produit** (`SE
 
 ---
 
+
+### Refonte des données — le dépôt nourrit les fiches (lot V2-A, 27/10/2026)
+
+**Interrupteur** `AppSetting.enrichissementActif`, **fermé par défaut** ; ouvert / fermé par le Super Admin depuis
+Administration › **Refonte des données** (`/admin/refonte-donnees`, audité). Fermé : rien n'est émis, rien n'est mis en
+file, rien n'est traité.
+
+- **Dépôt** — les trois goulots (`persistUploadedDocument` et `inscrireDocumentDirect` dans `lib/documents.ts`,
+  `attachFiles`, `enregistrerFichierDrive`) appellent `lib/enrichissement/signalement.ts` APRÈS l'écriture acquise : fait
+  `PIECE_DEPOSEE` au registre (inscrit au catalogue des faits) et une ligne `TacheEnrichissement` par (empreinte,
+  rattachement), clé unique — redéposer le même fichier au même endroit ne crée rien. `saveFile` rend `{ blobId, sha256 }`.
+  Pièce d'identité, RH, congés, paie : confidentielle pour le registre et la file (nom réduit à l'extension).
+- **Passage** — `traiterLaFile({ max })` (`lib/enrichissement/traitement.ts`), au battement `runScheduledJobs` (10 tâches
+  au plus) et au bouton « Traiter la file maintenant » ; prise atomique, reprise d'un verrou périmé, réessais espacés,
+  `ECHEC` au 5ᵉ essai (bouton « Relancer les échecs »). Pièce trop lourde (> 15 Mo) ou sans lecteur : `IGNOREE`, dit.
+- **Rien ne quitte le serveur** — texte lu en local (`cloud: false`, une fois par empreinte), classement par règles,
+  extracteurs par règles, devis/factures par la lecture des pièces en mode confidentiel (aucun modèle approché).
+- **Sujet** — la personne de la fiche où la pièce est déposée (voyageur ou fiche hôtellerie à l'étape `stepKey` d'un
+  poste, salarié, candidat), contrôlée par l'empreinte des identifiants au coffre ; jamais un rattachement sur le nom seul.
+  Une fiche porteuse sans Personne en reçoit une, faite de SA saisie. Une organisation se retrouve par NIF / NIS / RC / AI.
+- **Décision** (`enrichissement/decision.ts`) — confirmé d'office (coordonnées lues sur une pièce qui en fait foi,
+  confiance ≥ 0,9), à confirmer, conflit (jamais d'écrasement), ou **coffre** pour les numéros de pièce d'identité, NIN,
+  RIB/IBAN, salaire (porte d'écriture seule `enrichissement/porte-coffre.ts`). Un passeport déposé sur un poste propose
+  nom / prénoms / nationalité sur la Personne du voyageur et range le numéro au coffre.
+- **« À confirmer »** (`/a-confirmer`) — les faits proposés et conflits des pièces que la personne a déposées (le Super
+  Admin voit tout) : confirmer (écrit la fiche, l'ancienne valeur reste dans l'historique), rejeter, trancher.
+- **Rattrapage** — reprise « Rattrapage des pièces existantes » (documents de module déjà en base), par lots, depuis le
+  même écran (contrat commun des reprises : `lib/referentiels/reprises/`).

@@ -2,6 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { ABONNEMENT_PIECE_DEPOSEE, emettrePieceDeposee, lireChargePieceDeposee, TYPE_PIECE_DEPOSEE } from "./evenements";
 import { correlationPiece, type PieceDeposeeInput } from "./depot";
+import { estTypeConnu } from "@/lib/events/catalogue";
 
 /**
  * `PIECE_DEPOSEE` BOUT EN BOUT — avec la vraie base : un dépôt inscrit un fait, le même dépôt
@@ -62,9 +63,10 @@ suite("emettrePieceDeposee — le registre d'événements", () => {
   });
 });
 
-describe("l'abonnement prévu", () => {
-  it("est décrit et NON branché", () => {
+describe("l'abonnement", () => {
+  it("est branché par la file persistante, au catalogue des faits", () => {
     expect(ABONNEMENT_PIECE_DEPOSEE.type).toBe(TYPE_PIECE_DEPOSEE);
-    expect(ABONNEMENT_PIECE_DEPOSEE.branche).toBe(false);
+    expect(ABONNEMENT_PIECE_DEPOSEE.branche).toBe(true);
+    expect(estTypeConnu(TYPE_PIECE_DEPOSEE)).toBe(true);
   });
 });

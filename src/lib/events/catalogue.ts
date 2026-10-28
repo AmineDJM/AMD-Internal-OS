@@ -25,6 +25,7 @@ export interface TypeFait {
 
 export const CATALOGUE: readonly TypeFait[] = [
   // ── L'ERP (l'audit devient un fait — `events/from-audit.ts`) ──
+  { type: "PIECE_DEPOSEE", libelle: "Pièce déposée (enrichissement)", sourceDomain: "ENRICHISSEMENT", sources: ["erp", "drive"], entites: ["DRIVE_NODE", "AD_PRO_ITEM", "EMPLOYEE", "LEGAL_DOCUMENT", "RECRUITMENT_CANDIDATE"], description: "Une pièce est entrée dans l'ERP par un goulot de dépôt : son empreinte, son blob et ses rattachements — jamais son contenu. Elle part en file d'enrichissement des fiches." },
   { type: "DOCUMENT_UPLOADED", libelle: "Pièce déposée", sourceDomain: "DRIVE", sources: ["erp", "drive"], entites: ["DRIVE_NODE", "LEGAL_DOCUMENT", "CONSULTING_CONTRACT"], description: "Une pièce a été déposée dans le Drive ou sur un dossier." },
   { type: "VALIDATION_REQUIRED", libelle: "Validation demandée", sourceDomain: "VALIDATIONS", sources: ["erp"], entites: ["VALIDATION_REQUEST"], description: "Un circuit de validation attend une décision." },
   { type: "VALIDATION_APPROVED", libelle: "Validation accordée", sourceDomain: "VALIDATIONS", sources: ["erp"], entites: ["VALIDATION_REQUEST", "EXPENSE_ORDER", "PAYMENT_REQUEST"], description: "Une demande a été validée." },

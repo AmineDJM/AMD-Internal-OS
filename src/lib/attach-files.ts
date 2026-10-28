@@ -6,6 +6,7 @@ import { getAppSettings } from "@/lib/settings";
 import { mirrorDocumentsToDrive, type MirrorFile } from "@/lib/drive/document-mirror";
 import { notifyUser } from "@/lib/notify";
 import { entityHref } from "@/lib/entity-href";
+import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
 
 /**
  * JOINDRE DES FICHIERS À UN OBJET, DÈS SA CRÉATION.
@@ -77,15 +78,17 @@ export async function attachFiles(input: {
   for (const file of files) {
     const key = `${input.entityType}/${input.entityId}/${randomUUID()}__${file.name}`;
     const content = Buffer.from(await file.arrayBuffer());
+    let ecrit: { blobId: string; sha256: string };
     try {
-      await saveFile(key, content);
+      ecrit = await saveFile(key, content);
     } catch (err) {
       console.error("[attach] écriture du fichier impossible — aucune fiche créée", key, err);
       echecs.push(`« ${file.name} » n'a pas pu être enregistré (${err instanceof Error ? err.message : "stockage indisponible"}).`);
       continue;
     }
+    let documentId: string;
     try {
-      await prisma.document.create({
+      ({ id: documentId } = await prisma.document.create({
         data: {
           name: file.name,
           category: input.category ?? "OTHER",
@@ -98,7 +101,8 @@ export async function attachFiles(input: {
           confidentiality: "INTERNAL",
           uploadedById: input.uploadedById,
         },
-      });
+        select: { id: true },
+      }));
     } catch (err) {
       await deleteFileByKey(key).catch(() => undefined);
       echecs.push(`« ${file.name} » : fiche impossible à créer (${err instanceof Error ? err.message : "erreur"}).`);
@@ -106,6 +110,11 @@ export async function attachFiles(input: {
     }
     toMirror.push({ name: file.name, data: content, mime: file.type || null });
     saved++;
+    // La pièce nourrit les fiches (refonte, lot V2-A) — interrupteur fermé : rien ; ne lève jamais.
+    await signalerDocumentDepose({
+      documentId, entityType: input.entityType, entityId: input.entityId, category: input.category ?? "OTHER", confidentiality: "INTERNAL",
+      blobId: ecrit.blobId, sha256: ecrit.sha256, nom: file.name, mime: file.type || null, taille: file.size, deposeParId: input.uploadedById,
+    });
   }
 
   // Une pièce jointe à une demande est un fichier comme un autre : elle doit se retrouver dans le

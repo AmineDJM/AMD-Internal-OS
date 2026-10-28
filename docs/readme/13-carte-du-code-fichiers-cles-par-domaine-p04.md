@@ -224,3 +224,19 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `routines/calendrier.ts` · `passage.ts` · `service.ts` · `operations/routines.ts` | Les routines : calendrier en heure d'Alger, passage en lecture seule (vérifier puis comparer), prise atomique, traces et notifications. |
 | `memoire.ts` · `memoire-ui.ts` · `filtre-confidentialite.ts` · `generer.ts` · `recherche-web.ts` | Mémoire personnelle, filtre (et masque réversible), appel de rédaction sans outil, recherche web à question censurée. |
 | `src/lib/actions/assistant-ia-actions.ts` | Les gestes de la personne sur SA mémoire et SES routines (identité de la session, jamais d'un paramètre). |
+
+### Refonte des données — enrichissement des fiches (lot V2-A)
+
+| Fichier | Rôle |
+|---|---|
+| `src/lib/enrichissement/signalement.ts` | Interrupteur, `PIECE_DEPOSEE` + mise en file, appelés par les goulots |
+| `src/lib/enrichissement/file.ts` | Pur : clés, identifiants dérivés, reprise après échec, source / confidentialité d'un dépôt |
+| `src/lib/enrichissement/traitement.ts` | `traiterLaFile` / `traiterTache` : pièce, lecture locale, classement, extraction, sujets, décisions |
+| `src/lib/enrichissement/extraction.ts` | Pur : l'extracteur de chaque nature |
+| `src/lib/enrichissement/sujets.ts` · `fiches.ts` | À qui se rapportent les faits (pur) · lectures des fiches, Personne d'un porteur |
+| `src/lib/enrichissement/confirmation.ts` · `a-confirmer.ts` | Confirmer / rejeter / trancher (transaction) · qui tranche, colonnes de fiche (pur) |
+| `src/lib/enrichissement/porte-coffre.ts` · `src/lib/coffre/depot-referentiel.ts` | Écriture seule au coffre · dépôt du coffre sur les tables R6 réelles |
+| `src/lib/enrichissement/lectures.ts` | État de la file, file « À confirmer » |
+| `src/lib/referentiels/reprises/` | Contrat commun des reprises + `rattrapage-pieces.ts` |
+| `src/lib/actions/enrichissement-actions.ts` · `refonte-reprise-actions.ts` | Gestes (Super Admin, responsable du fait) |
+| `src/app/(app)/admin/refonte-donnees/` · `src/app/(app)/a-confirmer/` | Écrans |

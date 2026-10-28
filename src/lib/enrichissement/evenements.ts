@@ -30,11 +30,13 @@ export {
  * reste donc idempotent de son côté (il retrouve la `Piece` par empreinte) — l'idempotence ici
  * évite le bruit, elle ne remplace pas celle de l'écrivain.
  *
- * ── PAS ENCORE BRANCHÉ ──────────────────────────────────────────────────────────────────────
+ * ── BRANCHÉ AUX GOULOTS (lot V2-A) ──────────────────────────────────────────────────────────
  *
- * Aucun écran ni aucune action ne l'appelle encore (lot ultérieur, voir l'inventaire
- * `docs/architecture/refonte-p4-points-de-depot.md`), et aucun abonné n'écoute : l'abonnement est
- * DÉCRIT ci-dessous (`ABONNEMENT_PIECE_DEPOSEE`), pas installé.
+ * Les goulots de dépôt (`persistUploadedDocument`, `inscrireDocumentDirect`, `attachFiles`,
+ * `enregistrerFichierDrive` — voir `docs/architecture/refonte-p4-points-de-depot.md` §2) l'appellent
+ * par `signalement.ts`, qui pose aussi la tâche de la file persistante (`TacheEnrichissement`) ; le
+ * passage `traitement.ts` est le consommateur (`ABONNEMENT_PIECE_DEPOSEE`). Interrupteur
+ * `AppSetting.enrichissementActif`, fermé par défaut : ni fait ni file tant qu'il l'est.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -92,12 +94,12 @@ export async function emettrePieceDeposee(input: PieceDeposeeInput): Promise<Res
 }
 
 /**
- * L'ABONNEMENT PRÉVU — décrit, NON BRANCHÉ.
+ * L'ABONNEMENT — branché par une FILE PERSISTANTE (outbox), pas par `recordEvent`.
  *
- * Le jour du branchement, `recordEvent` (ou le futur worker, §5.4) appellera le consommateur pour
- * chaque `PIECE_DEPOSEE` : il crée ou retrouve la `Piece` par empreinte, écrit les `PieceLien`
- * des rattachements nouveaux, puis met la pièce en file de CLASSEMENT (étape 2). Hors requête
- * de la personne : l'extraction est lourde et ne doit jamais retarder un téléversement.
+ * Le goulot pose la tâche à côté du fait (`signalement.ts`) ; le passage (`traitement.ts`,
+ * `traiterLaFile`), au battement aujourd'hui, au worker demain (V2-F), crée ou retrouve la `Piece`
+ * par empreinte, écrit le `PieceLien`, classe, extrait et décide. Hors requête de la personne :
+ * l'extraction est lourde et ne doit jamais retarder un téléversement.
  */
 export const ABONNEMENT_PIECE_DEPOSEE = {
   type: TYPE_PIECE_DEPOSEE,
@@ -109,5 +111,5 @@ export const ABONNEMENT_PIECE_DEPOSEE = {
   idempotence: "empreinte+rattachement",
   /** Une pièce `CONFIDENTIAL`, ou d'une nature de `NATURES_LOCALES`, ne se lit que sur ce serveur. */
   localSeulementSi: ["CONFIDENTIAL"] as const,
-  branche: false,
+  branche: true,
 } as const;

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog,Gauge, Globe2, HardDrive, History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, Trash2, Workflow, ScanSearch, ScrollText } from "lucide-react";
+import { Palette, Activity, Bot, Building2, Coins, Columns3, Database, Factory, FileCog,Gauge, Globe2, HardDrive, History, Layers, Library, Mail, Map as MapIcon, MessageSquare, MessagesSquare, Network, Radar, Rocket, Settings2, ShieldCheck, Trash2, Workflow, ScanSearch, DatabaseZap, ScrollText } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
@@ -79,6 +79,9 @@ export default async function AdminPage() {
             </Link>
             <Link href="/admin/qualite">
               <Button variant="outline"><ScanSearch className="h-4 w-4" /> Qualité des données</Button>
+            </Link>
+            <Link href="/admin/refonte-donnees">
+              <Button variant="outline"><DatabaseZap className="h-4 w-4" /> Refonte des données</Button>
             </Link>
             <Link href="/admin/marque">
               <Button variant="outline"><Palette className="h-4 w-4" /> Marque & modèles</Button>

@@ -9738,6 +9738,10 @@ model AppSetting {
   /// L'identifiant de DÉMARRAGE du site : il change quand le site redémarre (déploiement, mise en
   /// veille du plan gratuit, qui efface ce qu'il a reçu). L'ERP rapproche alors aussitôt.
   siteBootId                    String?
+  /// L'ENRICHISSEMENT DES FICHES PAR LES PIÈCES DÉPOSÉES (refonte, lot V2-A). Faux par défaut : aucun dépôt
+  /// n'est mis en file ni traité. Ouvert et refermé par le Super Admin depuis Administration › Refonte des
+  /// données ; refermé, la file garde ce qu'elle a et reprend à la réouverture.
+  enrichissementActif           Boolean   @default(false)
   updatedAt                     DateTime  @updatedAt
   updatedById                   String?
 }
@@ -17514,6 +17518,53 @@ model ConflitDeFait {
   @@index([statut, createdAt])
   @@index([faitProposeId])
   @@index([faitConfirmeId])
+}
+
+enum StatutTacheEnrichissement {
+  A_FAIRE
+  EN_COURS
+  FAITE
+  ECHEC
+  IGNOREE
+}
+
+/// E — LA FILE PERSISTANTE DE L'ENRICHISSEMENT (outbox). Une ligne par (empreinte, rattachement) — `cle`,
+/// la clé d'idempotence de `PIECE_DEPOSEE` (`empreinte|TYPE:id|rôle`) : un même fichier redéposé au même
+/// endroit ne crée rien, déposé ailleurs crée un lien de plus. Posée au dépôt (`signalerDepot`), prise par
+/// `traiterLaFile` (verrou `verrouilleLe`, reprise après échec à `prochainEssaiLe`, plafond par passage).
+/// Un dépôt direct au bucket entre SANS empreinte (`cle` = `direct:<blobId>|…`) : elle se calcule au passage.
+/// Jamais de contenu ici : le blob, son nom (réduit à l'extension s'il est confidentiel), sa source.
+model TacheEnrichissement {
+  id               String                    @id @default(cuid())
+  cle              String                    @unique
+  /// SHA-256 du contenu ; nul tant qu'un dépôt direct n'a pas été relu.
+  empreinte        String?
+  blobId           String
+  nomFichier       String
+  mime             String
+  taille           Float
+  /// Une valeur de `SOURCES_DEPOT` (`src/lib/enrichissement/depot.ts`).
+  source           String
+  confidentiality  Confidentiality           @default(INTERNAL)
+  rattachementType String
+  rattachementId   String
+  role             String
+  deposeParId      String?
+  deposeLe         DateTime                  @default(now())
+  statut           StatutTacheEnrichissement @default(A_FAIRE)
+  tentatives       Int                       @default(0)
+  prochainEssaiLe  DateTime                  @default(now())
+  verrouilleLe     DateTime?
+  derniereErreur   String?
+  pieceId          String?
+  /// Ce que le passage a produit (nature, faits proposés, confirmés, conflits, coffre) — des comptes, jamais des valeurs.
+  bilan            Json?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @default(now()) @updatedAt
+
+  @@index([statut, prochainEssaiLe])
+  @@index([empreinte])
+  @@index([pieceId])
 }
 
 /// R3 — LIEUX DE RÉFÉRENCE (refonte des données). LE DÉCOUPAGE ADMINISTRATIF OFFICIEL, chargé par migration

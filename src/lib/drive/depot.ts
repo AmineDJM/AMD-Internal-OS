@@ -3,6 +3,7 @@ import { userCan } from "@/lib/rbac";
 import { resolveDriveAccess, effectiveSpaceId, canCreateInSpace } from "@/lib/drive";
 import { recordAudit } from "@/lib/audit";
 import type { SessionUser } from "@/lib/rbac";
+import { signalerFichierDrive } from "@/lib/enrichissement/signalement";
 
 /**
  * DÉPOSER UN FICHIER DANS LE DRIVE — la porte et l'écriture, une seule fois pour les deux chemins.
@@ -54,9 +55,16 @@ export async function refusDepotDrive(user: SessionUser, cible: CibleDepot): Pro
 export async function enregistrerFichierDrive(
   user: SessionUser,
   cible: CibleDepot,
-  fichier: { blobId: string; size: number; mimeType: string; name: string },
+  fichier: {
+    blobId: string; size: number; mimeType: string; name: string;
+    /** L'empreinte du contenu quand l'appelant l'a (`putBlob().sha256`) ; sinon relue sur le blob. */
+    sha256?: string | null;
+  },
 ): Promise<{ id: string; version?: number }> {
   const { blobId, size, mimeType, name } = fichier;
+  // La pièce nourrit les fiches (refonte, lot V2-A), une fois le fichier inscrit — interrupteur fermé : rien.
+  const signaler = (nodeId: string, version: number | null) =>
+    signalerFichierDrive({ nodeId, version, blobId, sha256: fichier.sha256 ?? null, nom: name, mime: mimeType, taille: size, deposeParId: user.id });
   if (cible.nodeId) {
     const nodeId = cible.nodeId;
     const last = await prisma.fileVersion.findFirst({ where: { nodeId }, orderBy: { version: "desc" }, select: { version: true } });
@@ -64,6 +72,7 @@ export async function enregistrerFichierDrive(
     await prisma.fileVersion.create({ data: { nodeId, blobId, version, size, mimeType, createdById: user.id } });
     await prisma.driveNode.update({ where: { id: nodeId }, data: { size, mimeType } });
     await recordAudit({ actorId: user.id, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: nodeId, summary: `Nouvelle version (v${version})` });
+    await signaler(nodeId, version);
     return { id: nodeId, version };
   }
 
@@ -94,5 +103,6 @@ export async function enregistrerFichierDrive(
   }
 
   await recordAudit({ actorId: user.id, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: node.id, summary: `Fichier « ${name} »${category ? ` · ${category}` : ""}${ids.length ? ` · partagé (${ids.length})` : ""}` });
+  await signaler(node.id, null);
   return { id: node.id };
 }

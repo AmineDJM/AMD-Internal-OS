@@ -23,9 +23,13 @@ export function isRemoteStorage() {
   return true;
 }
 
-/** Écrit (ou remplace) le contenu d'une clé — durable, chiffré, en base. */
-export async function saveFile(key: string, buffer: Buffer): Promise<void> {
-  const { blobId, size } = await putBlob(buffer);
+/**
+ * Écrit (ou remplace) le contenu d'une clé — durable, chiffré, en base. Rend le blob et l'EMPREINTE
+ * (SHA-256 du contenu) : l'identité de la pièce pour l'enrichissement (`enrichissement/signalement.ts`).
+ * Les appelants d'avant, qui n'attendaient rien, n'ont rien à changer.
+ */
+export async function saveFile(key: string, buffer: Buffer): Promise<{ blobId: string; sha256: string }> {
+  const { blobId, size, sha256 } = await putBlob(buffer);
   const previous = await prisma.storedFile.findUnique({ where: { key }, select: { blobId: true } });
   await prisma.storedFile.upsert({
     where: { key },
@@ -34,6 +38,7 @@ export async function saveFile(key: string, buffer: Buffer): Promise<void> {
   });
   // Si la clé pointait sur un autre blob, on libère l'ancien (ref-count).
   if (previous && previous.blobId !== blobId) await releaseBlob(previous.blobId);
+  return { blobId, sha256 };
 }
 
 export async function readFileByKey(key: string): Promise<Buffer> {
