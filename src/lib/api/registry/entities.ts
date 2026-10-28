@@ -4,7 +4,6 @@ import {
   scopeAdminRequests, scopeMedicalInfo, type SessionUser, type Module,
 } from "@/lib/rbac";
 import { polesLisibles } from "@/lib/lecteurs/consulting";
-import { hasScope, type Scope } from "@/lib/api/scopes";
 
 /**
  * REGISTRE DES OBJETS MÉTIER exposés par l'API.
@@ -71,9 +70,10 @@ export interface EntityDef {
    * LA PORTÉE D'API QUE L'OBJET EXIGE EN PLUS de la lecture (audit 27/10, SA-15). Les comptes et le journal d'audit
    * sont des objets d'administration : le droit `ADMIN:VIEW` de la personne au nom de qui l'agent agit ne suffit pas,
    * le CLIENT doit aussi porter `erp.admin` — sans quoi une clé `erp.read` listait comptes et journal. Lue par toutes
-   * les routes de lecture (`porteeManquante`).
+   * les routes de lecture (`porteeManquante`). Le littéral, et non le type `Scope` : le registre est au socle, il
+   * n'importe pas la façade `api/scopes` (cliquet `platform/domains.test.ts`).
    */
-  porteeRequise?: Scope;
+  porteeRequise?: "erp.admin";
 }
 
 /** Portée « le module suffit » : l'objet n'a pas de filtre par ligne, seul le droit compte. */
@@ -505,8 +505,8 @@ export function canReadEntity(user: SessionUser, def: EntityDef): boolean {
 }
 
 /** La portée d'API que l'objet exige et que le client ne porte pas — `null` quand rien ne manque (SA-15). */
-export function porteeManquante(def: EntityDef, portees: readonly string[]): Scope | null {
-  return def.porteeRequise && !hasScope(portees, def.porteeRequise) ? def.porteeRequise : null;
+export function porteeManquante(def: EntityDef, portees: readonly string[]): string | null {
+  return def.porteeRequise && !portees.includes(def.porteeRequise) ? def.porteeRequise : null;
 }
 
 /** Filtre Prisma correspondant à la portée de l'utilisateur sur cet objet. */
