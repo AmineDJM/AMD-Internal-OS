@@ -10,6 +10,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { scannerContrats } from "../src/lib/actions/contrat-scan";
+import { parcDesActions } from "../src/lib/actions/parc";
 
 const contrats = scannerContrats();
 const illisibles = contrats.filter((c) => c.illisible);
@@ -36,7 +37,7 @@ writeFileSync(
 );
 
 const chargeur = `// ⚠️  Module de CHARGEMENT — les données vivent dans \`contrat.genere.json\`, produit par
-// \`npm run actions:contrat\` depuis la SOURCE de src/lib/actions/. Le cliquet
+// \`npm run actions:contrat\` depuis la SOURCE du parc (src/lib/actions/ et\n// les actions.ts des modules, voir parc.ts). Le cliquet
 // \`contrat.test.ts\` redérive et compare : toute dérive échoue.
 //
 // Pourquoi du JSON et non du TypeScript : 715 littéraux d'objet en \`.ts\` faisaient BLOQUER
@@ -62,7 +63,10 @@ writeFileSync(join(process.cwd(), "src", "lib", "actions", "contrat.genere.ts"),
  * fonctions paresseuses à spécificateurs littéraux garde les deux propriétés : l'empaqueteur
  * voit chaque chemin, et rien n'est chargé tant qu'on n'appelle pas.
  */
-const fichiers = [...new Set(contrats.map((c) => c.fichier))].sort();
+const presents = new Set(contrats.map((c) => c.fichier));
+// La CLÉ d'un fichier (`parc.ts`), pas son chemin : une action rangée dans un module garde sa clé,
+// et seul son spécificateur change (`@/modules/<m>/actions`).
+const fichiers = parcDesActions().filter((f) => presents.has(f.cle));
 const aiguillage = `// ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir \`npm run actions:contrat\`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
@@ -70,7 +74,7 @@ const aiguillage = `// ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. 
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
 
 export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<string, unknown>>>> = {
-${fichiers.map((f) => `  ${JSON.stringify(f)}: () => import(${JSON.stringify("./" + f)}) as unknown as Promise<Record<string, unknown>>,`).join("\n")}
+${fichiers.map((f) => `  ${JSON.stringify(f.cle)}: () => import(${JSON.stringify(f.specificateur)}) as unknown as Promise<Record<string, unknown>>,`).join("\n")}
 };
 `;
 writeFileSync(join(process.cwd(), "src", "lib", "actions", "aiguillage.genere.ts"), aiguillage, "utf8");
