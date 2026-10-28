@@ -159,7 +159,9 @@ suite("RH — qui voit la paie, et jusqu'où", () => {
     // Reste à garder : la même règle décide de la colonne « Salaire de base », et le salaire masqué n'est pas SÉRIALISÉ.
     const equipe = readFileSync("src/app/(app)/rh/equipe/page.tsx", "utf8");
     expect(equipe).toMatch(/const canSeeSalary = voitLesSalaires\(user\)/);
-    expect(equipe).toMatch(/baseSalary: canSeeSalary \? toNumber\(e\.baseSalary\) : null/);
+    // Le salaire n'est lu (par le coffre, refonte V2-E) que si la colonne est montrée ; sinon rien n'est lu ni sérialisé.
+    expect(equipe).toMatch(/const salaires = canSeeSalary\s*\? await lireSensiblesPour\(/);
+    expect(equipe).toMatch(/baseSalary: salaires\?\.get\(e\.id\)\?\.baseSalary\.lu \? Number\(/);
     expect(equipe).toMatch(/<TeamDirectory rows=\{rows\} canSeeSalary=\{canSeeSalary\}/);
     expect(equipe, "aucune masse salariale ne doit réapparaître hors de la règle").not.toMatch(/masseSalariale|byCompany/);
     const annuaire = readFileSync("src/app/(app)/rh/team-directory.tsx", "utf8");

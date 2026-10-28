@@ -13,21 +13,21 @@ export function InterrupteursCoffre({ ecriture, lecture }: { ecriture: boolean; 
   const [occupe, setOccupe] = React.useState<string | null>(null);
   const [erreur, setErreur] = React.useState<string | null>(null);
 
-  async function basculer(interrupteur: "coffreEcriture" | "coffreLecture", actif: boolean) {
-    setOccupe(interrupteur); setErreur(null);
-    const r = await basculerCoffre(interrupteur, actif);
+  async function basculer(bascule: "coffreEcriture" | "coffreLecture", actif: boolean) {
+    setOccupe(bascule); setErreur(null);
+    const r = await basculerCoffre(bascule, actif);
     setOccupe(null);
     if (!r.ok) setErreur(r.error ?? "Échec."); else router.refresh();
   }
 
-  const ligne = (interrupteur: "coffreEcriture" | "coffreLecture", libelle: string, aide: string, actif: boolean) => (
+  const ligne = (bascule: "coffreEcriture" | "coffreLecture", libelle: string, aide: string, actif: boolean) => (
     <div className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0">
         <p className="font-medium">{libelle} <Badge tone={actif ? "success" : "neutral"}>{actif ? "Ouverte" : "Fermée"}</Badge></p>
         <p className="text-xs text-muted-foreground">{aide}</p>
       </div>
-      <Button size="sm" variant={actif ? "outline" : "primary"} disabled={occupe !== null} onClick={() => basculer(interrupteur, !actif)}>
-        {occupe === interrupteur && <Loader2 className="h-4 w-4 animate-spin" />} {actif ? "Fermer" : "Ouvrir"}
+      <Button size="sm" variant={actif ? "outline" : "primary"} disabled={occupe !== null} onClick={() => basculer(bascule, !actif)}>
+        {occupe === bascule && <Loader2 className="h-4 w-4 animate-spin" />} {actif ? "Fermer" : "Ouvrir"}
       </Button>
     </div>
   );

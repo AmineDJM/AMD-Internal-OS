@@ -22,10 +22,10 @@ import type { ActionResult } from "@/lib/actions/types";
 
 const CHEMINS = ["/admin/refonte-donnees", "/admin/acces-donnees-sensibles"];
 
-export async function basculerCoffre(interrupteur: "coffreEcriture" | "coffreLecture", actif: boolean): Promise<ActionResult> {
+export async function basculerCoffre(bascule: "coffreEcriture" | "coffreLecture", actif: boolean): Promise<ActionResult> {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
-  if (interrupteur !== "coffreEcriture" && interrupteur !== "coffreLecture") return { ok: false, error: "Interrupteur inconnu." };
+  if (bascule !== "coffreEcriture" && bascule !== "coffreLecture") return { ok: false, error: "Interrupteur inconnu." };
 
   if (actif) {
     try {
@@ -34,16 +34,16 @@ export async function basculerCoffre(interrupteur: "coffreEcriture" | "coffreLec
       if (e instanceof ErreurCleCoffre) return { ok: false, error: e.message };
       throw e;
     }
-    if (interrupteur === "coffreLecture" && !(await getAppSettings()).coffreEcriture) {
+    if (bascule === "coffreLecture" && !(await getAppSettings()).coffreEcriture) {
       return { ok: false, error: "Ouvrir d'abord la double écriture, puis rejouer la reprise « coffre » jusqu'au bout." };
     }
   }
-  const data = interrupteur === "coffreEcriture" && !actif ? { coffreEcriture: false, coffreLecture: false } : { [interrupteur]: actif };
+  const data = bascule === "coffreEcriture" && !actif ? { coffreEcriture: false, coffreLecture: false } : { [bascule]: actif };
   await prisma.appSetting.upsert({ where: { id: "global" }, create: { id: "global", ...data, updatedById: user.id }, update: { ...data, updatedById: user.id } });
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Refonte des données", field: interrupteur,
+    actorId: user.id, action: "UPDATE", module: "Refonte des données", field: bascule,
     newValue: String(actif),
-    summary: `Coffre — ${interrupteur === "coffreEcriture" ? "double écriture" : "double lecture"} ${actif ? "OUVERTE" : "FERMÉE"}${data.coffreLecture === false && interrupteur === "coffreEcriture" ? " (et la double lecture avec)" : ""}`,
+    summary: `Coffre — ${bascule === "coffreEcriture" ? "double écriture" : "double lecture"} ${actif ? "OUVERTE" : "FERMÉE"}${data.coffreLecture === false && bascule === "coffreEcriture" ? " (et la double lecture avec)" : ""}`,
   });
   for (const c of CHEMINS) revalidatePath(c);
   return { ok: true, message: `Interrupteur ${actif ? "ouvert" : "fermé"}.` };
