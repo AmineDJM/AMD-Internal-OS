@@ -4,7 +4,7 @@
  * LA CONVERSATION — un tour d'Adam (l'objet, son geste, la synthèse) et l'avatar.
  */
 import { Sparkles, Bot, CheckCircle2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "./erp";
 import type { AssistantActionPayload } from "@/lib/assistant";
 import { TurnWorkspaceView } from "@/components/chief/workspace/turn-workspace";
 import { composeTurn, isWorkspaceTurn } from "@/lib/assistant/workspace/turn";

@@ -6,7 +6,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { Sparkles, Loader2, CheckCircle2, AlertTriangle, ArrowRight, X, ShieldAlert } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "./erp";
 import type { ProposedAction } from "@/lib/assistant";
 import { matchesConfirmText } from "@/lib/assistant/confirm";
 import type { ActionState } from "./modele";

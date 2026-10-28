@@ -6,8 +6,7 @@
  */
 import * as React from "react";
 import { Send, Loader2, KeyRound, X, Paperclip, FolderOpen, FileText, Mic, Square, History, Plus, Phone } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { assistantChat, assistantDirectIntent, executeAssistantAction, executeAssistantBundle, cancelAssistantAction, myAssistantThreads, myAssistantThread, deleteMyAssistantThread, forgetMyAssistantMemory } from "@/lib/actions/assistant-actions";
+import { Button, assistantChat, assistantDirectIntent, executeAssistantAction, executeAssistantBundle, cancelAssistantAction, myAssistantThreads, myAssistantThread, deleteMyAssistantThread, forgetMyAssistantMemory } from "./erp";
 import type { AssistantActionPayload, ChatTurn, AssistantResult } from "@/lib/assistant";
 import type { WorkspaceActionIntent, WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
 import { WorkspaceAskProvider } from "@/components/chief/workspace/blocks";

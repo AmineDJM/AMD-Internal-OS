@@ -5,7 +5,7 @@
  */
 import * as React from "react";
 import { Loader2, Search, X, FolderOpen, FileText } from "lucide-react";
-import { listAssistantFiles } from "@/lib/actions/assistant-actions";
+import { listAssistantFiles } from "./erp";
 import type { AssistantFileOption } from "@/lib/assistant-attachments";
 
 /** Sélecteur de fichiers du Drive personnel : on référence un fichier existant (aucun
