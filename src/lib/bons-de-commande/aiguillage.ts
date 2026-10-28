@@ -17,6 +17,7 @@ import {
   LIBELLE_CENTRE_BC,
   type CentreBC, type EtapeBC, type PorteBC,
 } from "./regle";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'écran où un BC « à signer » attend — les notifications y mènent. Le module « Bons de commande »
@@ -92,23 +93,23 @@ const SAUTS_MAX = 6;
 async function suivant(m: MaillonOrigine): Promise<MaillonOrigine | null> {
   switch (m.type) {
     case "DOCUMENT_REQUEST": {
-      const r = await prisma.documentRequest.findUnique({ where: { id: m.id }, select: { entityType: true, entityId: true } }).catch(() => null);
+      const r = await prisma.documentRequest.findUnique({ where: { id: m.id }, select: { entityType: true, entityId: true } }).catch(sansBloquer("aiguillage.suivant.documentRequest", null));
       return r ? { type: r.entityType, id: r.entityId } : null;
     }
     case "EXPENSE_ORDER": {
-      const o = await prisma.expenseOrder.findUnique({ where: { id: m.id }, select: { sourceType: true, sourceId: true } }).catch(() => null);
+      const o = await prisma.expenseOrder.findUnique({ where: { id: m.id }, select: { sourceType: true, sourceId: true } }).catch(sansBloquer("aiguillage.suivant.expenseOrder", null));
       return o?.sourceType && o.sourceId ? { type: o.sourceType, id: o.sourceId } : null;
     }
     case "PAYMENT_REQUEST": {
-      const p = await prisma.paymentRequest.findUnique({ where: { id: m.id }, select: { entityType: true, entityId: true } }).catch(() => null);
+      const p = await prisma.paymentRequest.findUnique({ where: { id: m.id }, select: { entityType: true, entityId: true } }).catch(sansBloquer("aiguillage.suivant.paymentRequest", null));
       return p?.entityType && p.entityId ? { type: p.entityType, id: p.entityId } : null;
     }
     case "ADMIN_REQUEST": {
-      const a = await prisma.administrativeRequest.findUnique({ where: { id: m.id }, select: { linkedEntityType: true, linkedEntityId: true } }).catch(() => null);
+      const a = await prisma.administrativeRequest.findUnique({ where: { id: m.id }, select: { linkedEntityType: true, linkedEntityId: true } }).catch(sansBloquer("aiguillage.suivant.administrativeRequest", null));
       return a?.linkedEntityType && a.linkedEntityId ? { type: a.linkedEntityType, id: a.linkedEntityId } : null;
     }
     case "LEGAL_DOCUMENT": {
-      const d = await prisma.legalDocument.findUnique({ where: { id: m.id }, select: { sourceType: true, sourceId: true } }).catch(() => null);
+      const d = await prisma.legalDocument.findUnique({ where: { id: m.id }, select: { sourceType: true, sourceId: true } }).catch(sansBloquer("aiguillage.suivant.legalDocument", null));
       return d?.sourceType && d.sourceId ? { type: d.sourceType, id: d.sourceId } : null;
     }
     default:
@@ -131,7 +132,7 @@ export async function origineDuBC(doc: {
   for (let i = 0; !depart && amontId && i < 3; i += 1) {
     const amont = await prisma.legalDocument.findUnique({
       where: { id: amontId }, select: { sourceType: true, sourceId: true, chainFromId: true },
-    }).catch(() => null);
+    }).catch(sansBloquer("aiguillage.origineDuBC.legalDocument", null));
     if (!amont) break;
     depart = amont.sourceType && amont.sourceId ? { type: amont.sourceType, id: amont.sourceId } : null;
     amontId = amont.chainFromId;
@@ -171,7 +172,7 @@ export async function centreVouluDuBC(origine: OrigineBC): Promise<CentreBC> {
   if (contrats.length > 0) {
     const lignes = await prisma.consultingContract
       .findMany({ where: { id: { in: contrats } }, select: { id: true, pole: true } })
-      .catch(() => []);
+      .catch(sansBloquer("aiguillage.centreVouluDuBC.consultingContract", []));
     for (const l of lignes) if (poleDe(l.pole) !== "AD_PRO") horsAdPro.add(l.id);
   }
   return centreDeLOrigine(
@@ -201,7 +202,7 @@ export async function portesDesBC(docIds: readonly string[]): Promise<Map<string
   const docs = await prisma.legalDocument.findMany({
     where: { id: { in: ids }, kind: "PURCHASE_ORDER" },
     select: { id: true, sourceType: true, sourceId: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("aiguillage.portesDesBC.legalDocument", []));
   if (docs.length === 0) return res;
   const bcIds = docs.map((d) => d.id);
 
@@ -213,7 +214,7 @@ export async function portesDesBC(docIds: readonly string[]): Promise<Map<string
     const postes = await prisma.adProItem.findMany({
       where: { id: { in: [...new Set(parPoste.map((d) => d.sourceId!))] } },
       select: { id: true, orderStage: true, orderDecisionNote: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("aiguillage.portesDesBC.adProItem", []));
     const posteParId = new Map(postes.map((p) => [p.id, p]));
     for (const d of parPoste) {
       const poste = posteParId.get(d.sourceId!);
@@ -228,12 +229,12 @@ export async function portesDesBC(docIds: readonly string[]): Promise<Map<string
     const demandes = await prisma.documentRequest.findMany({
       where: { id: { in: parDemande.map((d) => d.sourceId!) }, entityType: "AD_PRO_ITEM" },
       select: { id: true, entityId: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("aiguillage.portesDesBC.documentRequest", []));
     const postes = demandes.length
       ? await prisma.adProItem.findMany({
           where: { id: { in: demandes.map((d) => d.entityId) } },
           select: { id: true, orderStage: true, orderDecisionNote: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("aiguillage.portesDesBC.adProItem", []))
       : [];
     const posteDe = new Map(demandes.map((d) => [d.id, postes.find((p) => p.id === d.entityId) ?? null]));
     for (const d of parDemande) {
@@ -250,7 +251,7 @@ export async function portesDesBC(docIds: readonly string[]): Promise<Map<string
     prisma.adProGateVisa.findMany({
       where: { entityType: "LEGAL_DOCUMENT", entityId: { in: restants } },
       select: { entityId: true, status: true, note: true, updatedAt: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("aiguillage.portesDesBC.adProGateVisa", [])),
     prisma.validationRequest.findMany({
       where: { entityType: "LEGAL_DOCUMENT", entityId: { in: restants }, objectType: OBJET_BC, status: { not: "CANCELLED" } },
       select: {
@@ -258,7 +259,7 @@ export async function portesDesBC(docIds: readonly string[]): Promise<Map<string
         steps: { where: { reason: { not: null } }, select: { reason: true }, orderBy: { decidedAt: "desc" }, take: 1 },
       },
       orderBy: { updatedAt: "desc" },
-    }).catch(() => []),
+    }).catch(sansBloquer("aiguillage.portesDesBC.validationRequest", [])),
   ]);
 
   const candidates = new Map<string, { quand: number; porte: PorteBC }>();
@@ -304,11 +305,11 @@ const montantLisible = (m: number | null) => (m != null && m > 0 ? `${m.toLocale
 /** Retire ce qui ATTEND encore — une décision prise, elle, ne s'efface jamais. */
 export async function retirerEnAttente(docId: string): Promise<number> {
   const [visas, validations] = await Promise.all([
-    prisma.adProGateVisa.deleteMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: docId, status: "PENDING" } }).catch(() => ({ count: 0 })),
+    prisma.adProGateVisa.deleteMany({ where: { entityType: "LEGAL_DOCUMENT", entityId: docId, status: "PENDING" } }).catch(sansBloquer("aiguillage.retirerEnAttente.adProGateVisa", { count: 0 })),
     prisma.validationRequest.updateMany({
       where: { entityType: "LEGAL_DOCUMENT", entityId: docId, objectType: OBJET_BC, status: "PENDING" },
       data: { status: "CANCELLED", decidedAt: new Date() },
-    }).catch(() => ({ count: 0 })),
+    }).catch(sansBloquer("aiguillage.retirerEnAttente.validationRequest", { count: 0 })),
   ]);
   return visas.count + validations.count;
 }
@@ -325,7 +326,7 @@ export async function retirerPortesEnAttente(docId: string, acteurId: string): P
     await recordAudit({
       actorId: acteurId, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: docId,
       summary: "Bon de commande supprimé — sa validation en attente est retirée du centre.",
-    }).catch(() => undefined);
+    }).catch(sansBloquer("aiguillage.retirerPortesEnAttente.recordAudit"));
   }
   return n;
 }
@@ -355,7 +356,7 @@ async function poser(doc: DocBC, centre: CentreBC, acteurId: string, motif: stri
       body: `${titre} (${montantLisible(montant)})${motif ? ` — ${motif}` : ""}`,
       // La ligne du BC dans le centre (`?ligne=<pièce Legal>`) : la notification arrive sur LUI.
       link: lienLigneCentreAdPro(doc.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("aiguillage.poser.notifyRoles"));
     return true;
   }
 
@@ -441,7 +442,7 @@ export async function notifierSignatairesBCASigner(doc: DocBC): Promise<void> {
     body: `${intitule(doc)} (${montantLisible(montantDe(doc))})`,
     // La ligne du BC dans la file (`?bc=<pièce Legal>`) : on arrive sur celui qu'on doit signer.
     link: lienBonDeCommande(doc.id),
-  }).catch(() => undefined);
+  }).catch(sansBloquer("aiguillage.notifierSignatairesBCASigner.notifierSignatairesBC"));
 }
 
 /**
@@ -513,7 +514,7 @@ export async function aiguillerBC(
           summary: doc.status === "CANCELLED"
             ? "Bon de commande annulé — sa validation en attente est retirée du centre."
             : "La pièce n'est plus un bon de commande — sa validation en attente est retirée du centre.",
-        }).catch(() => undefined);
+        }).catch(sansBloquer("aiguillage.aiguillerBC.recordAudit"));
       }
       return { porte: null, geste: retires > 0 ? "RETIREE" : null };
     }
@@ -549,7 +550,7 @@ export async function aiguillerBC(
           actorId: opts.acteurId, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id,
           field: "signedAt", oldValue: doc.signedAt!.toISOString(), newValue: null,
           summary: "Bon de commande : la date de signature reprise d'une autre nature de pièce ne vaut pas signature des Finances — retirée.",
-        }).catch(() => undefined);
+        }).catch(sansBloquer("aiguillage.aiguillerBC.recordAudit"));
         signeALEntree = null;
       }
     }
@@ -570,7 +571,7 @@ export async function aiguillerBC(
         summary: montantModifie
           ? `Signature des Finances retirée : montant modifié après signature (${montantLisible(montantAvant)} → ${montantLisible(montant)}).`
           : "Signature des Finances retirée : le bon de commande a été révisé après signature (fournisseur ou pièce).",
-      }).catch(() => undefined);
+      }).catch(sansBloquer("aiguillage.aiguillerBC.recordAudit"));
       signe = false;
       signatureRetiree = true;
     }
@@ -589,7 +590,7 @@ export async function aiguillerBC(
       await recordAudit({
         actorId: opts.acteurId, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id,
         summary: "Bon de commande corrigé après son renvoi par un signataire — il revient à la signature.",
-      }).catch(() => undefined);
+      }).catch(sansBloquer("aiguillage.aiguillerBC.recordAudit"));
       renvoye = false;
     }
 
@@ -627,7 +628,7 @@ export async function aiguillerBC(
         await recordAudit({
           actorId: opts.acteurId, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id,
           summary: `Bon de commande — ${geste.motif}${retires > 0 ? " Sa validation en attente est retirée du centre." : ""}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("aiguillage.aiguillerBC.recordAudit"));
         return conclure(null, "SOUS_SEUIL");
       }
 
@@ -653,7 +654,7 @@ export async function aiguillerBC(
         await recordAudit({
           actorId: opts.acteurId, action: "UPDATE", module: "Legal", entityType: "LEGAL_DOCUMENT", entityId: doc.id,
           summary: `Bon de commande ${verbe} ${LIBELLE_CENTRE_BC[centreVoulu]}${motif ? ` — ${motif}` : ""}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("aiguillage.aiguillerBC.recordAudit"));
         return conclure(
           { centre: centreVoulu, etat: "EN_ATTENTE", source: "DOCUMENT", note: motif },
           geste.geste === "TRANSFERER" ? "TRANSFEREE" : geste.geste === "ROUVRIR" ? "ROUVERTE" : "POSEE",
@@ -802,7 +803,7 @@ export async function reaiguillerSurChangementDeSeuil(ancien: number, nouveau: n
       body: `Le seuil de validation des bons de commande (${LIBELLE_CENTRE_BC[centre]}) est passé à ${nouveau.toLocaleString("fr-FR")} DZD : `
         + `${bilan.versLaSignature === 1 ? "un BC qui attendait un centre passe" : `${bilan.versLaSignature} BC qui attendaient un centre passent`} directement à votre signature.`,
       link: CHEMIN_BC_A_SIGNER,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("aiguillage.reaiguillerSurChangementDeSeuil.notifierSignatairesBC"));
   }
   return bilan;
 }

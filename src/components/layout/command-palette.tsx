@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Search, Loader2, CornerDownLeft } from "lucide-react";
-import { Icon } from "@/components/ui/icon";
+import { IconeCoque } from "@/components/ui/icone-coque";
 import type { NavItem } from "@/lib/labels";
 
 interface SearchResult { id: string; group: string; title: string; subtitle: string; href: string; icon: string }
@@ -140,7 +140,7 @@ export function CommandPalette({ navItems }: { navItems: NavItem[] }) {
                       onClick={() => go(item)}
                       className={`flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm ${i === active ? "bg-secondary" : "hover:bg-secondary/60"}`}
                     >
-                      <Icon name={item.icon} className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <IconeCoque name={item.icon} className="h-4 w-4 shrink-0 text-muted-foreground" />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate font-medium">{item.kind === "nav" ? item.label : item.title}</span>
                         {item.kind === "result" && item.subtitle && <span className="block truncate text-xs text-muted-foreground">{item.subtitle}</span>}

@@ -4,6 +4,7 @@ import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { mailDiagnostic } from "@/lib/mail";
 import { recordAudit } from "@/lib/audit";
+import { attendu } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   const user = await getCurrentUserPourEcrire();
   if (!user || !userCan(user, "ADMIN", "VIEW")) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
 
-  const body = (await req.json().catch(() => ({}))) as { userId?: string };
+  const body = (await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", {}))) as { userId?: string };
   const userId = body?.userId ? String(body.userId) : user.id;
 
   const account = await prisma.mailAccount.findUnique({ where: { userId } });

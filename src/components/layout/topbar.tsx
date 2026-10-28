@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell, Menu, Search, X } from "lucide-react";
-import { Icon } from "@/components/ui/icon";
+import { IconeCoque } from "@/components/ui/icone-coque";
 import { UserMenu } from "@/components/layout/user-menu";
 import { MessagesIndicator } from "@/components/layout/messages-indicator";
 import { CompanySwitcher } from "@/components/layout/company-switcher";
@@ -164,9 +164,9 @@ export function Topbar({ navItems, user, unreadCount, canMessage, messagingUnrea
                             aria-expanded={opened}
                             className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-semibold text-sidebar-muted hover:bg-white/5"
                           >
-                            <Icon name={pole.icon} className="h-4 w-4 shrink-0" />
+                            <IconeCoque name={pole.icon} className="h-4 w-4 shrink-0" />
                             <span className="min-w-0 flex-1 truncate text-left">{pole.label}</span>
-                            <Icon name="ChevronDown" className={cn("h-3.5 w-3.5 shrink-0 transition-transform", opened ? "" : "-rotate-90")} />
+                            <IconeCoque name="ChevronDown" className={cn("h-3.5 w-3.5 shrink-0 transition-transform", opened ? "" : "-rotate-90")} />
                           </button>
                           {opened && (
                             <ul className="mt-0.5 space-y-0.5">
@@ -201,7 +201,7 @@ function DrawerItem({ item, pathname, nested = false }: { item: NavItem; pathnam
     <li>
       {enGroupe ? (
         <p className={cn("flex items-center gap-2.5 py-2.5 text-sm font-medium text-sidebar-muted", nested ? "pl-9 pr-3" : "px-3")}>
-          <Icon name={item.icon} className="h-4 w-4 shrink-0" />
+          <IconeCoque name={item.icon} className="h-4 w-4 shrink-0" />
           <span className="truncate">{item.label}</span>
         </p>
       ) : (
@@ -213,7 +213,7 @@ function DrawerItem({ item, pathname, nested = false }: { item: NavItem; pathnam
           active ? "bg-white/10 text-white" : "text-sidebar-muted hover:bg-white/5",
         )}
       >
-        <Icon name={item.icon} className="h-4 w-4 shrink-0" />
+        <IconeCoque name={item.icon} className="h-4 w-4 shrink-0" />
         <span className="truncate">{item.label}</span>
       </Link>
       )}
@@ -232,7 +232,7 @@ function DrawerItem({ item, pathname, nested = false }: { item: NavItem; pathnam
                     : "text-sidebar-muted hover:bg-white/5",
                 )}
               >
-                <Icon name={c.icon} className="h-3.5 w-3.5 shrink-0" />
+                <IconeCoque name={c.icon} className="h-3.5 w-3.5 shrink-0" />
                 <span className="truncate">{c.label}</span>
               </Link>
             </li>

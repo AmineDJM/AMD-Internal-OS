@@ -1,5 +1,6 @@
 import type { OcrResult, OcrPage } from "./ocr-engine";
 import { openPdf, type PdfSource } from "./pdf-split";
+import { attendu } from "@/lib/journal";
 
 /**
  * MOTEUR OCR CLOUD — Mistral OCR (`mistral-ocr-latest`).
@@ -171,7 +172,7 @@ async function postOcr(apiKey: string, body: string): Promise<unknown> {
         signal: controller.signal,
       });
       if (res.ok) return (await res.json()) as unknown;
-      const detail = await res.text().catch(() => "");
+      const detail = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       const err = new Error(`Mistral OCR ${res.status} : ${detail.slice(0, 300)}`);
       // 4xx (hors 429) = erreur de requête → échec immédiat, inutile de réessayer.
       if (res.status !== 429 && res.status < 500) throw err;

@@ -10,6 +10,7 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import { formatCurrency } from "@/lib/utils";
 import { SANS_NATURE, moisPrecedent, moisSuivant, repartitionDuMois, titreMois, type PartDeNature } from "@/lib/general-means/ecran";
 import { classerDepensesNonClassees } from "@/lib/actions/natures-moyens-generaux-actions";
+import { journal } from "@/lib/journal";
 
 /** L'événement par lequel la carte demande à la liste des dépenses de se filtrer (même page, deux composants). */
 export const EVENEMENT_FILTRE_NATURE = "moyens-generaux:filtre-nature";
@@ -62,7 +63,7 @@ export function ParNatureMois({
       setBusy(false);
       setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Rangé." : r.error ?? "Les dépenses n'ont pas été rangées." });
       if (r.ok) rafraichir();
-    }).catch(() => {
+    }).catch((e: unknown) => { journal.erreur("par-nature-mois.classerDepensesNonClassees", {}, e);
       setBusy(false);
       setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });

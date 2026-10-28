@@ -24,6 +24,7 @@ import { entreeDroits } from "@/lib/budget-campagne/requetes";
 import { calculerPrefill } from "@/lib/budget-campagne/prefill";
 import { ouvrirEnveloppeDeLaProposition } from "@/lib/budget-campagne/enveloppes";
 import { brouillonJustification, resumerVersions } from "@/lib/budget-campagne-luna";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -69,7 +70,7 @@ async function contexte(user: CurrentUser, proposalId: string) {
 
 async function prevenir(userIds: readonly string[], title: string, body: string, link: string, sauf?: string): Promise<void> {
   for (const userId of [...new Set(userIds)].filter((id) => id && id !== sauf)) {
-    await notifyUser({ userId, type: "VALIDATION_REQUIRED", title, body, link }).catch(() => undefined);
+    await notifyUser({ userId, type: "VALIDATION_REQUIRED", title, body, link }).catch(sansBloquer("budget-campagne-actions.prevenir.notifyUser"));
   }
 }
 

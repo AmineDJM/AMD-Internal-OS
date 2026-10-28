@@ -2,6 +2,7 @@ import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { deleteFileByKey } from "@/lib/storage";
 import { clePieceMessage } from "@/lib/fil-pieces";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES PIÈCES JOINTES D'UN MESSAGE DE FIL SUPPRIMÉ (`lib/fil-pieces`) — elles partent avec lui.
@@ -20,6 +21,6 @@ export async function supprimerPiecesDuMessage(m: { id: string; entityType: Enti
   });
   if (pieces.length === 0) return 0;
   await prisma.document.deleteMany({ where: { id: { in: pieces.map((p) => p.id) } } });
-  for (const p of pieces) if (p.fileKey) await deleteFileByKey(p.fileKey).catch(() => undefined);
+  for (const p of pieces) if (p.fileKey) await deleteFileByKey(p.fileKey).catch(sansBloquer("fil-pieces-db.supprimerPiecesDuMessage.deleteFileByKey"));
   return pieces.length;
 }

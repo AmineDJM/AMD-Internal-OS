@@ -24,6 +24,7 @@ import { estDemandeAdProSupprimable, REFUS_SUPPRESSION_AD_PRO } from "@/lib/ad-p
 import { peutSupprimerUnRapportTerrain } from "@/lib/queries/field-reports";
 import { peutSupprimerUneDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
 import { corbeillePermise, estDirecteurDesOperations, suppressionPermise } from "@/lib/suppression/delegation";
+import { sansBloquer } from "@/lib/journal";
 
 export type { DeleteResult } from "@/lib/suppression/coeur";
 
@@ -217,18 +218,18 @@ export async function destroyDeletedRecord(formData: FormData): Promise<DeleteRe
   if (!rec.restoredAt) {
     const docs = (rec.documents as { fileKey?: string | null }[] | null) ?? [];
     for (const d of docs) {
-      if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
+      if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.deleteFileByKey"));
     }
     // Cas particulier : audio d'un rapport terrain (blob chiffré du Drive).
     const audioBlobId = (rec.payload as { audioBlobId?: string | null } | null)?.audioBlobId;
-    if (rec.kind === "FIELD_REPORT" && audioBlobId) await releaseBlob(audioBlobId).catch(() => {});
+    if (rec.kind === "FIELD_REPORT" && audioBlobId) await releaseBlob(audioBlobId).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.releaseBlob"));
     // Les PIÈCES JOINTES d'un rapport terrain (§118.212) voyagent dans le lot, et leurs fichiers
     // restent au stockage tant que l'entrée existe : la destruction réelle les libère — comme
     // l'ancien geste « supprimer » le faisait d'emblée, sans corbeille.
     if (rec.kind === "FIELD_REPORT") {
       const lot = rec.lot as { lignes?: { modele: string; donnees: { blobId?: string | null } }[] } | null;
       for (const l of lot?.lignes ?? []) {
-        if (l.modele === "FieldReportAttachment" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(() => {});
+        if (l.modele === "FieldReportAttachment" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.releaseBlob"));
       }
     }
     // UN ÉLÉMENT DU DRIVE : ses versions tenaient leurs octets jusqu'ici — la suppression depuis la corbeille du
@@ -237,7 +238,7 @@ export async function destroyDeletedRecord(formData: FormData): Promise<DeleteRe
     if (rec.kind === "DRIVE_NODE") {
       const lot = rec.lot as { lignes?: { modele: string; donnees: { blobId?: string | null } }[] } | null;
       for (const l of lot?.lignes ?? []) {
-        if (l.modele === "FileVersion" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(() => {});
+        if (l.modele === "FileVersion" && l.donnees.blobId) await releaseBlob(l.donnees.blobId).catch(sansBloquer("admin-delete-actions.destroyDeletedRecord.releaseBlob"));
       }
     }
   }

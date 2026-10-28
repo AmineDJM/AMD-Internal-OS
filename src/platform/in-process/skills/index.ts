@@ -20,6 +20,7 @@ import type { Attente, SchemaSortie } from "@/lib/sandbox/porte";
 import { executerJs, executerPython, passerLaPorte, sonderPython } from "@/platform/in-process/sandbox";
 import { reglesEnVigueurPour, sujetDe, type RegleVue } from "@/platform/in-process/teach/store";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -219,7 +220,7 @@ async function chargerPour(user: CurrentUser): Promise<CachePersonne> {
     ajouter(v.manifest, "plugin", {});
   }
 
-  const sujet = await sujetDe(user.id).catch(() => null);
+  const sujet = await sujetDe(user.id).catch(sansBloquer("skills.chargerPour.sujetDe", null));
   const maintenant = new Date();
   const rows = await prisma.adamSkill.findMany({
     where: {
@@ -230,14 +231,14 @@ async function chargerPour(user: CurrentUser): Promise<CachePersonne> {
       ],
     },
     orderBy: { updatedAt: "desc" },
-  }).catch(() => [] as SkillRow[]);
+  }).catch(sansBloquer("skills.chargerPour.adamSkill", [] as SkillRow[]));
   for (const r of rows) {
     if (r.status === "TEMP" && r.expiresAt && r.expiresAt < maintenant) continue;
     const m = manifestDeSkill(r);
     if (m) ajouter(m, "adam", { skillId: r.id, ownerId: r.ownerId, statut: r.status, expiresAt: r.expiresAt, usageCount: r.usageCount });
   }
 
-  const regles = await reglesEnVigueurPour(user.id).catch(() => null);
+  const regles = await reglesEnVigueurPour(user.id).catch(sansBloquer("skills.chargerPour.reglesEnVigueurPour", null));
   for (const r of regles?.toutes ?? []) {
     if (r.kind !== "WORKFLOW" || r.status !== "ACTIVE") continue;
     const m = manifestDePlaybook(r);
@@ -262,8 +263,8 @@ async function chargerPour(user: CurrentUser): Promise<CachePersonne> {
  */
 async function empreinte(userId: string): Promise<string> {
   const [r, k] = await Promise.all([
-    prisma.adamRule.aggregate({ where: { status: "ACTIVE", kind: "WORKFLOW", OR: [{ subjectUserId: userId }, { scope: { in: ["COMPANY", "GROUP"] } }] }, _count: { _all: true }, _max: { updatedAt: true } }).catch(() => null),
-    prisma.adamSkill.aggregate({ where: { status: { in: ["TEMP", "PROMOTED"] }, OR: [{ ownerId: userId }, { scope: { in: ["COMPANY", "GROUP"] } }] }, _count: { _all: true }, _max: { updatedAt: true } }).catch(() => null),
+    prisma.adamRule.aggregate({ where: { status: "ACTIVE", kind: "WORKFLOW", OR: [{ subjectUserId: userId }, { scope: { in: ["COMPANY", "GROUP"] } }] }, _count: { _all: true }, _max: { updatedAt: true } }).catch(sansBloquer("skills.empreinte.adamRule", null)),
+    prisma.adamSkill.aggregate({ where: { status: { in: ["TEMP", "PROMOTED"] }, OR: [{ ownerId: userId }, { scope: { in: ["COMPANY", "GROUP"] } }] }, _count: { _all: true }, _max: { updatedAt: true } }).catch(sansBloquer("skills.empreinte.adamSkill", null)),
   ]);
   return `${r?._count._all ?? 0}|${r?._max.updatedAt?.getTime() ?? 0}|${k?._count._all ?? 0}|${k?._max.updatedAt?.getTime() ?? 0}`;
 }
@@ -517,10 +518,10 @@ export async function executer(s: SkillCharge, input: Json, user: CurrentUser, o
     // compteur qui dit 0 après un usage est un petit faux succès de comptabilité ; une ligne à
     // écrire coûte quelques millisecondes. L'échec de l'écriture, lui, ne fait toujours pas
     // échouer l'outil.
-    await prisma.adamSkill.update({ where: { id: s.skillId }, data: { usageCount: { increment: 1 }, lastUsedAt: new Date() } }).catch(() => undefined);
+    await prisma.adamSkill.update({ where: { id: s.skillId }, data: { usageCount: { increment: 1 }, lastUsedAt: new Date() } }).catch(sansBloquer("skills.executer.adamSkill"));
   }
   if (exigeConfirmation(m)) {
-    await recordAudit({ actorId: user.id, action: "EXPORT", module: "ASSISTANT", entityId: s.nom, summary: `Skill « ${m.titre} » (${m.plugin}, ${m.effect}) ${sortie.ok ? "exécuté" : "en échec"} sur accord de la personne.` }).catch(() => undefined);
+    await recordAudit({ actorId: user.id, action: "EXPORT", module: "ASSISTANT", entityId: s.nom, summary: `Skill « ${m.titre} » (${m.plugin}, ${m.effect}) ${sortie.ok ? "exécuté" : "en échec"} sur accord de la personne.` }).catch(sansBloquer("skills.executer.recordAudit"));
   }
   /**
    * LE CONTRAT DÉCLARÉ, CONFRONTÉ À CE QUI SORT (§118.20 appliqué aux capacités qu'on n'a PAS
@@ -613,7 +614,7 @@ export async function creerMicroSkill(user: CurrentUser, d: DemandeSkill, proven
     ? await prisma.adamSkill.update({ where: { id: existant.id }, data: { ...data, version: { increment: 1 } } })
     : await prisma.adamSkill.create({ data: { ...data, ownerId: user.id, slug } });
   CACHE.delete(user.id);
-  await recordAudit({ actorId: user.id, action: existant ? "UPDATE" : "CREATE", module: "ASSISTANT", entityId: row.id, summary: `Micro-outil « ${row.title} » (${nom}, v${row.version}) ${existant ? "révisé" : "créé"} — porte ${porte.testsPasses}/${porte.testsTotal}.` }).catch(() => undefined);
+  await recordAudit({ actorId: user.id, action: existant ? "UPDATE" : "CREATE", module: "ASSISTANT", entityId: row.id, summary: `Micro-outil « ${row.title} » (${nom}, v${row.version}) ${existant ? "révisé" : "créé"} — porte ${porte.testsPasses}/${porte.testsTotal}.` }).catch(sansBloquer("skills.creerMicroSkill.recordAudit"));
   /**
    * ── LA SORTIE NOMME LE GESTE SUIVANT (§118.19) ──────────────────────────────────────────
    *
@@ -674,7 +675,7 @@ export async function promouvoirSkill(user: CurrentUser, d: { nom: string; scope
     data: { status: "PROMOTED", scope, companyId: scope === "COMPANY" ? sujet.companyIds[0] : null, departmentId: scope === "GROUP" ? sujet.departmentIds[0] : null, expiresAt: null, promotedById: user.id, promotedAt: new Date() },
   });
   CACHE.clear();
-  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "ASSISTANT", entityId: row.id, summary: `Micro-outil « ${row.title} » promu (${scope}) par ${user.name}.` }).catch(() => undefined);
+  await recordAudit({ actorId: user.id, action: "VALIDATE", module: "ASSISTANT", entityId: row.id, summary: `Micro-outil « ${row.title} » promu (${scope}) par ${user.name}.` }).catch(sansBloquer("skills.promouvoirSkill.recordAudit"));
   return { ok: true, outil: nomOutil({ id: row.slug, plugin: "adam" }), scope, visiblePour: scope === "PERSON" ? "vous seul" : scope === "GROUP" ? "votre département" : "toute la société" };
 }
 
@@ -683,7 +684,7 @@ export async function supprimerSkill(user: CurrentUser, d: { nom: string }): Pro
   if ("erreur" in t) return { ok: false, motif: t.erreur };
   const row = await prisma.adamSkill.update({ where: { id: t.row.id }, data: { status: "DROPPED" } });
   CACHE.clear();
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "ASSISTANT", entityId: row.id, summary: `Micro-outil « ${row.title} » jeté par ${user.name}.` }).catch(() => undefined);
+  await recordAudit({ actorId: user.id, action: "DELETE", module: "ASSISTANT", entityId: row.id, summary: `Micro-outil « ${row.title} » jeté par ${user.name}.` }).catch(sansBloquer("skills.supprimerSkill.recordAudit"));
   return { ok: true, outil: nomOutil({ id: row.slug, plugin: "adam" }) };
 }
 

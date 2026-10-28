@@ -15,6 +15,7 @@ import { alertesExecutivesChaudes, fraicheurDeLecture } from "@/lib/assistant/ho
 import { buildSimpleDocx, type SimplePara } from "@/lib/regulatory/intelligence/docgen/build-docx";
 import { depositBufferToDrive } from "@/lib/assistant/exports";
 import { chainOf, type ChainDoc } from "@/lib/legal/chain";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE PILOTAGE PROACTIF — trois gestes :
@@ -98,16 +99,16 @@ export const EXECUTIVE_BRIEF_TOOLS: PowerTool[] = [
     run: async (_input, user) => {
       const entity = await platformScope(user.id);
       const [center, centreOrders, lectureAlertes, events, compta, rh] = await Promise.all([
-        getActionCenter(user).catch(() => ({ items: [] as { title: string; subtitle?: string | null; module: string; statusLabel: string; deadline?: string | null; href: string }[] })),
+        getActionCenter(user).catch(sansBloquer("executive-brief-tools.run.getActionCenter", { items: [] as { title: string; subtitle?: string | null; module: string; statusLabel: string; deadline?: string | null; href: string }[] })),
         prisma.expenseOrder.findMany({
           where: { AND: [entity, { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE }] },
           select: { reference: true, label: true, amount: true, beneficiary: true, createdAt: true },
           orderBy: { createdAt: "asc" }, take: 10,
         }),
-        alertesExecutivesChaudes(user).catch(() => null),
-        getUpcomingEvents(user, 5).catch(() => []),
-        userCan(user, "FINANCES", "VIEW") ? getComptaData(user.id).catch(() => null) : Promise.resolve(null),
-        userCan(user, "RH", "VIEW") ? getRhData(user.id).catch(() => null) : Promise.resolve(null),
+        alertesExecutivesChaudes(user).catch(sansBloquer("executive-brief-tools.run.alertesExecutivesChaudes", null)),
+        getUpcomingEvents(user, 5).catch(sansBloquer("executive-brief-tools.run.getUpcomingEvents", [])),
+        userCan(user, "FINANCES", "VIEW") ? getComptaData(user.id).catch(sansBloquer("executive-brief-tools.run.getComptaData", null)) : Promise.resolve(null),
+        userCan(user, "RH", "VIEW") ? getRhData(user.id).catch(sansBloquer("executive-brief-tools.run.getRhData", null)) : Promise.resolve(null),
       ]);
 
       const centreTotal = centreOrders.reduce((s, o) => s + toNumber(o.amount), 0);
@@ -326,7 +327,7 @@ export const EXECUTIVE_BRIEF_TOOLS: PowerTool[] = [
       await recordAudit({
         actorId: user.id, action: "CREATE", module: "Assistant IA",
         summary: `Rapport consolidé « ${subject} » généré via le Chief of Staff → Drive / ${filename}`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("executive-brief-tools.run.recordAudit"));
       return repondre({
         fichier: filename,
         dossier: subject,

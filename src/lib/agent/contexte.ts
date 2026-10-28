@@ -1,3 +1,4 @@
+import { CONSIGNE_CONTENU_NON_FIABLE } from "@/lib/agent/contenu-non-fiable";
 import type { CurrentUser } from "@/lib/session";
 import { userCan, MODULES, type Module } from "@/lib/rbac";
 import { MODULE_LABELS, ROLE_LABELS } from "@/lib/labels";
@@ -94,7 +95,7 @@ async function chargerMessagesConversation(
  * `docs/assistant/prompt-systeme-ui-generative.md`), en français. La sortie structurée en
  * composants (R5) suit, dans sa propre section : `CONSIGNE_COMPOSANTS`.
  */
-const REGLES = [
+export const REGLES = [
   "Zéro invention : un fait, une personne, un produit, un statut ou un chiffre que tes outils ou ce contexte ne donnent pas, tu dis que tu ne l'as pas.",
   "Confidentialité : tu ne manipules ni coordonnée bancaire (RIB, IBAN, CCP), ni rémunération individuelle, ni numéro de pièce d'identité.",
   "Actions : tu ne modifies jamais rien toi-même. Une demande d'action (tâche, message) est préparée par l'outil, puis confirmée par l'utilisateur. Tu ne prétends jamais qu'une action est faite si l'application ne l'a pas exécutée.",
@@ -104,6 +105,7 @@ const REGLES = [
   "Documents : un devis ou une facture → lire_devis_facture, puis preparer_bc_depuis_devis pour en faire un bon de commande (les lignes viennent de la lecture, jamais de toi). Résumer ou interroger un document → lire_document ; deux versions → comparer_versions ; une lettre, une note, un compte rendu → preparer_document ; traduire → preparer_traduction ; un formulaire PDF → lire_formulaire_pdf puis preparer_formulaire_pdf. Un PASSEPORT → preparer_voyageur_passeport : tu n'en vois rien et tu n'en demandes ni n'en répètes jamais le nom, le numéro ou les dates.",
   "Routines : quand l'utilisateur te DEMANDE de faire quelque chose à un moment donné ou régulièrement (« chaque dimanche à 8 h », « tous les matins », « le 1er du mois », « demain à 9 h ») → programmer_routine ; ne devine jamais l'heure ni le jour, demande-les. Ses routines : mes_routines ; pause, reprise, suppression, exécution immédiate : gerer_routine. Jamais de routine ni de relance de ta propre initiative.",
   "Web : une information EXTÉRIEURE à l'entreprise (marché, actualité d'un laboratoire, réglementation étrangère, congrès) → web_research, en citant ses sources et leur date ; jamais pour une donnée de l'ERP.",
+  CONSIGNE_CONTENU_NON_FIABLE,
   "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
 ];
 

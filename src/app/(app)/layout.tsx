@@ -35,6 +35,7 @@ import { prisma } from "@/lib/prisma";
 import { APP_SCROLL_ID } from "@/lib/use-scroll-lock";
 import { NavDepthTracker } from "@/components/shared/back-link";
 import { NavProgress } from "@/components/layout/nav-progress";
+import { sansBloquer } from "@/lib/journal";
 
 export default async function AppLayout({
   children,
@@ -43,37 +44,35 @@ export default async function AppLayout({
 }) {
   const user = await requireUser();
   if (user.mustChangePassword) redirect("/change-password");
-  // Onboarding guidé : lecture à chaud (BDD) plutôt que via le JWT — la fin du
-  // parcours prend effet immédiatement, sans forcer une reconnexion.
-  if (!user.impersonatedBy) {
-    const flags = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { mustOnboard: true },
-    });
-    if (flags?.mustOnboard) redirect("/onboarding");
-  }
-  // CE QUE CETTE PERSONNE A LE DROIT D'OUVRIR — droits de module, masquages d'administration,
-  // gardes supplémentaires et onglets, résolus ensemble dans `lib/nav-access`. Le calcul vivait
-  // ici ; il a été sorti pour que le bureau d'Adam, qui n'a PAS cette coque, puisse offrir la
-  // même liste sans la recopier — deux copies auraient divergé à la première garde ajoutée.
-  const navItems = await navigationFor(user);
   const canMessage = userCan(user, "MESSAGING", "VIEW");
-  const [unreadCount, messagingUnread, adoption, companies, unreadNotifs] = await Promise.all([
+  // UN SEUL ALLER-RETOUR pour tout ce que la coque lit (audit performance PERF-10) : ces lectures ne
+  // dépendent que de `user` — les attendre l'une après l'autre coûtait six allers-retours par rendu,
+  // y compris celui qui suit chaque action serveur qui revalide.
+  const [flags, navItems, unreadCount, messagingUnread, adoption, companies, unreadNotifs, companyScope, testMode] = await Promise.all([
+    // Onboarding guidé : lecture à chaud (BDD) plutôt que via le JWT — la fin du
+    // parcours prend effet immédiatement, sans forcer une reconnexion.
+    user.impersonatedBy ? null : prisma.user.findUnique({ where: { id: user.id }, select: { mustOnboard: true } }),
+    // CE QUE CETTE PERSONNE A LE DROIT D'OUVRIR — droits de module, masquages d'administration,
+    // gardes supplémentaires et onglets, résolus ensemble dans `lib/nav-access`. Le calcul vivait
+    // ici ; il a été sorti pour que le bureau d'Adam, qui n'a PAS cette coque, puisse offrir la
+    // même liste sans la recopier — deux copies auraient divergé à la première garde ajoutée.
+    navigationFor(user),
     prisma.notification.count({ where: { userId: user.id, isRead: false } }),
     canMessage ? getTotalUnread(user.id) : Promise.resolve(0),
     // Pastille « score d'adoption » de l'utilisateur courant (snapshot mis en cache).
-    getAdoptionBadge(user.id, user.role).catch(() => null),
+    getAdoptionBadge(user.id, user.role).catch(sansBloquer("(app)-layout.AppLayout.getAdoptionBadge", null)),
     // Entités du sélecteur : SEULEMENT celles auxquelles cette personne a droit. Proposer
     // toutes les sociétés du groupe reviendrait à laisser basculer vers les dossiers d'une
     // entité qui ne la regarde pas.
-    getMyCompanies(user.id).catch(() => []),
+    getMyCompanies(user.id).catch(sansBloquer("(app)-layout.AppLayout.getMyCompanies", [])),
     // Notifications non lues (leur lien) → badge par module dans le menu.
     prisma.notification.findMany({ where: { userId: user.id, isRead: false, link: { not: null } }, select: { link: true }, take: 500 }),
+    // Portée VALIDÉE contre les droits : le cookie est une demande, pas une autorisation.
+    myCompanyScope(user.id),
+    // Mode test : la personne voit des nouveautés non encore validées en production.
+    isTestUser(user.id).catch(sansBloquer("(app)-layout.AppLayout.isTestUser", false)),
   ]);
-  // Portée VALIDÉE contre les droits : le cookie est une demande, pas une autorisation.
-  const companyScope = await myCompanyScope(user.id);
-  // Mode test : la personne voit des nouveautés non encore validées en production.
-  const testMode = await isTestUser(user.id).catch(() => false);
+  if (flags?.mustOnboard) redirect("/onboarding");
   // Compte les notifications non lues par MODULE (routées via leur lien) → badges de menu.
   const moduleBadges: Record<string, number> = {};
   for (const n of unreadNotifs) {

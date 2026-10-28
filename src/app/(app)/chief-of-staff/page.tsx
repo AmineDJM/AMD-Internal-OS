@@ -18,6 +18,7 @@ import { BlockPreviewPlanche } from "@/components/chief/workspace/preview-planch
 // La feuille de style d'Adam était importée par le layout `(chief)`. Ce layout n'existe plus —
 // Adam est un MODULE — donc elle est importée là où elle sert : sa page.
 import "../../chief.css";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Adam — Chief of Staff" };
@@ -76,7 +77,7 @@ export default async function ChiefOfStaffPage({
 
   // LE FIL PRINCIPAL : une conversation CONTINUE par personne — elle s'ouvre d'office au lieu
   // de repartir de « chat n°47 ».
-  const primaryThreadId = memoryEnabled ? await ensurePrimaryThread(user.id).catch(() => null) : null;
+  const primaryThreadId = memoryEnabled ? await ensurePrimaryThread(user.id).catch(sansBloquer("chief-of-staff-page.ChiefOfStaffPage.ensurePrimaryThread", null)) : null;
   /**
    * LES DERNIERS TOURS, RENDUS ICI — le retour n'est plus un rechargement.
    *
@@ -92,7 +93,7 @@ export default async function ChiefOfStaffPage({
     // par l'historique et par `recall_conversation`, qui existent pour ça.
     // `avecWorkspace` : c'est ICI qu'on rend un écran, donc ici qu'on paie la colonne — la voix,
     // qui ne lit que le texte, ne la sélectionne pas.
-    ? await getThreadMessages(user.id, primaryThreadId, 40, { avecWorkspace: true }).catch(() => null)
+    ? await getThreadMessages(user.id, primaryThreadId, 40, { avecWorkspace: true }).catch(sansBloquer("chief-of-staff-page.ChiefOfStaffPage.getThreadMessages", null))
     : null;
 
   // CE QUI ATTEND UNE DÉCISION. Quatre compteurs bon marché ; le détail vit dans les outils.
@@ -100,13 +101,13 @@ export default async function ChiefOfStaffPage({
   // sort pas du bureau d'Adam pour savoir ce qu'Adam sait déjà.
   const now = new Date();
   const [toDecide, centreAwaiting, commitmentsLate, decisionsToReview, boite] = await Promise.all([
-    getActionCenter(user).then((c) => c.items.length).catch(() => 0),
-    prisma.expenseOrder.count({ where: { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE } }).catch(() => 0),
-    prisma.executiveCommitment.count({ where: { ownerId: user.id, status: "OPEN", dueAt: { lt: now } } }).catch(() => 0),
-    prisma.executiveDecision.count({ where: { ownerId: user.id, status: { in: ["PROPOSED", "DECIDED"] }, reviewDate: { lte: now } } }).catch(() => 0),
+    getActionCenter(user).then((c) => c.items.length).catch(sansBloquer("chief-of-staff-page.ChiefOfStaffPage.getActionCenter", 0)),
+    prisma.expenseOrder.count({ where: { centralStatus: "AWAITING", ...ORDRE_NON_ANNULE } }).catch(sansBloquer("chief-of-staff-page.ChiefOfStaffPage.expenseOrder", 0)),
+    prisma.executiveCommitment.count({ where: { ownerId: user.id, status: "OPEN", dueAt: { lt: now } } }).catch(sansBloquer("chief-of-staff-page.ChiefOfStaffPage.executiveCommitment", 0)),
+    prisma.executiveDecision.count({ where: { ownerId: user.id, status: { in: ["PROPOSED", "DECIDED"] }, reviewDate: { lte: now } } }).catch(sansBloquer("chief-of-staff-page.ChiefOfStaffPage.executiveDecision", 0)),
     // LA BOÎTE DE DÉCISION, composée par le même code que sa page : le nombre affiché ici est
     // exactement le nombre de cartes qui attendent un geste là-bas (§21) — pas une seconde formule.
-    composerInbox(user).then((v) => aTrancher(v.compte)).catch(() => 0),
+    composerInbox(user).then((v) => aTrancher(v.compte)).catch(sansBloquer("chief-of-staff-page.ChiefOfStaffPage.composerInbox", 0)),
   ]);
   const inbox = { count: boite, href: "/chief-of-staff/inbox" };
 

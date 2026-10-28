@@ -25,6 +25,7 @@ import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationRallonge } from "@/lib/annulations/regles";
 import { readReceipt, saveReceiptLines, finaliserNatures } from "@/lib/general-means/expense-lines";
 import { allowedGeneralMeansCategoryIds, keepAllowedCategory } from "@/lib/general-means/budget-targets";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/moyens-generaux";
 
@@ -148,7 +149,7 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
     ordre = await createExpenseOrder(ordreDeRemise({ departement: department, periode: periodLabel(period), amount, holderName, createdById: user.id, nature: "REMISE" }));
   } catch (e) {
     // RIEN N'EST PARTI : une remise sans ordre ne serait ni autorisable ni confirmable.
-    await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(() => undefined);
+    await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(sansBloquer("petty-cash-actions.allotPettyCash.pettyCashAllotment"));
     console.error("[petty-cash] ordre de la remise non créé", e);
     return { ok: false, error: "La remise n'a pas pu partir au centre de paiement — rien n'a été enregistré, réessayez." };
   }
@@ -537,7 +538,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
         }));
         await prisma.pettyCashAllotment.update({ where: { id: remise.id }, data: { expenseOrderId: ordre.id } });
       } catch (e) {
-        await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(() => undefined);
+        await prisma.pettyCashAllotment.delete({ where: { id: remise.id } }).catch(sansBloquer("petty-cash-actions.decidePettyCashTopUp.pettyCashAllotment"));
         console.error("[petty-cash] ordre de la rallonge non créé", e);
         ordre = null;
       }
@@ -632,7 +633,7 @@ export async function runPettyCashRechargeReminders(now = new Date()): Promise<n
   const { shouldRemindRecharge } = await import("@/lib/petty-cash");
   const plans = await prisma.pettyCashPlan
     .findMany({ where: { isActive: true }, include: { department: { select: { name: true } } } })
-    .catch(() => []);
+    .catch(sansBloquer("petty-cash-actions.runPettyCashRechargeReminders.pettyCashPlan", []));
   let sent = 0;
   for (const plan of plans) {
     const r = shouldRemindRecharge(

@@ -26,6 +26,15 @@ Covered:
   documents (`documents-lus.ts`, `mrz.ts`, `traduction.ts`, `formulaire-pdf.ts`, `bc-depuis-devis.ts`), user-scheduled
   read-only routines (`src/lib/agent/routines/`, tables `AssistantRoutine`/`AssistantRoutineRun`, swept from
   `runScheduledJobs`). Decision records: `docs/assistant/decisions/0001`–`0008`.
+  **Operations (lot V3-D, 2026-10-28)**: the only two model doors (`repondre.ts`, `generer.ts`) read the master switch,
+  then open a **budget** (`consommation.ts`): per-step usage from Mastra `onStepFinish` → one `ModelCallLog` row per
+  call (feature `assistant_ia`, `role` = origin conversation/fil/routine/redaction, `threadId` = fil id) + one
+  `AiUsageLog` row per turn. Caps from `AssistantIaReglage` (Super Admin, `/admin/ai/consommation`): steps/turn,
+  tokens/turn, tokens/person/day (Algiers day) → `PlafondIaAtteint`, abort before the next call, one Super Admin
+  notice per person/day (`AssistantIaPlafondAtteint` unique key). Identity/budget travel via `AsyncLocalStorage`
+  (`auNomDe`, `sousBudget`), so a summary launched by a tool counts in its turn. Third-party tool outputs are framed
+  (`contenu-non-fiable.ts`). Ratchets: `consommation.test.ts` (every `new Agent(` file opens+closes a budget; no prod
+  caller of `remplacerReglagesPourTests`), `contenu-non-fiable.test.ts` (tool names evoking documents/messages/web are classified).
 - **Mission Runtime** (durable multi-step autonomous missions): `src/lib/missions/**` (~25k lines),
   `src/platform/in-process/missions/**`, `src/lib/interrupteurs/missions.ts`.
 - **`src/platform`**: contract, event bus, domain map, boundary ratchet, the in-process bridge (~22k non-test lines).
@@ -357,12 +366,18 @@ With >1 instance: duplicated heartbeats (missions protected by DB leases; other 
 
 **Can AI be disabled cleanly?** Runtime: yes — unset keys (`configured:false` everywhere), `masterEnabled=false` (all `lib/ai.ts` doors + features),
 `missionsPaused`/`MISSIONS_SWEEP=off`, `aiExternalActionsDisabled`, and Adam is already hidden from non-Super-Admins. Residual: the gateway-direct
-callers rely on their own toggles; the beta `/assistant` MiMo path reads **no** switch. Code removal: **no** — deleting `src/lib/assistant/`,
+callers rely on their own toggles; the `/assistant` MiMo path reads the master switch and the emergency stop (audit 27/10) and is
+capped per turn and per person/day (V3-D). Code removal: **no** — deleting `src/lib/assistant/`,
 `src/lib/models/`, `src/platform/in-process/` (the boundary doc's claim) would break the 41 ERP importers above, notably the audit→ledger chain
 and the scheduler; the Mission Runtime (`src/lib/missions`) itself only depends on ports and would survive.
 
 **What breaks if X changes**:
 - `AiSetting` columns → admin screen, `getAiSettings`, Adam op replay (ratchet).
+- `AssistantIaReglage` columns → `consommation-regles.ts` (defaults/bounds, pure, shared with the client form),
+  `consommation.ts`, `fil/tour.ts` (IA-09/IA-10 switches), `action-intents.ts` (`expirationCartesHeures`, read via Prisma
+  so the intent layer never imports `lib/agent`).
+- `ModelCallLog` rows with feature `assistant_ia` → daily cap (`jetonsDuJour`) AND the Consommation IA screen: deleting
+  them resets people's daily budget.
 - `AssistantActionIntent` schema/status strings → Adam cards, missions runner, beta `lib/agent/ecritures.ts`, idempotency.
 - `rbac.ts` `peutVoirAdam`/`peutPiloterMissionsAdam` → ~19 files + mission pause semantics (owners lose rights → all their missions PAUSE).
 - `faitDepuisAudit` whitelist → which ERP writes wake missions/watches/reminders.

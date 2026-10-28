@@ -22,6 +22,7 @@ import { hasGlobalView, userCan, type Module, type SessionUser } from "@/lib/rba
 import { type Arete, type Graphe, type Noeud, construire } from "@/lib/graphe/modele";
 import { type Lieu } from "@/lib/geo/distance";
 import { AVERTISSEMENT_CHEF_LIEU, coordonneesDe } from "@/lib/geo/algeria";
+import { sansBloquer } from "@/lib/journal";
 
 export { type Arete, type Graphe, type Noeud, auMoment, construire, degre, estTemporel, filtrerRelations, nom, sommaire, valideA, voisins, NOEUDS_MAX } from "@/lib/graphe/modele";
 export { type Chemin, type Etape, cheminsMultiples, composantes, cycles, plusCourtChemin, pointsDeRupture, portee, PROFONDEUR_MAX } from "@/lib/graphe/chemins";
@@ -205,7 +206,7 @@ async function completerLibelles(noeuds: Map<string, Noeud>): Promise<void> {
   };
   const ids = (t: string) => (parType.get(t) ?? []).slice(0, 500);
   if (ids("COMPANY").length) poser("COMPANY", await prisma.company.findMany({ where: { id: { in: ids("COMPANY") } }, select: { id: true, name: true } }));
-  if (ids("SUPPLIER").length) poser("SUPPLIER", await prisma.supplier.findMany({ where: { id: { in: ids("SUPPLIER") } }, select: { id: true, name: true } }).catch(() => []));
+  if (ids("SUPPLIER").length) poser("SUPPLIER", await prisma.supplier.findMany({ where: { id: { in: ids("SUPPLIER") } }, select: { id: true, name: true } }).catch(sansBloquer("reseau.completerLibelles.supplier", [])));
 }
 
 export type SourceLieux = "medecins" | "institutions" | "contacts";

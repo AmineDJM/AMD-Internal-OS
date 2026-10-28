@@ -11,6 +11,7 @@ import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { mirrorRegulatoryUpload } from "@/lib/regulatory-drive-mirror";
 import { cheminSur, refusDepotCtd } from "@/lib/regulatory/ctd-initiale";
 import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Chemin de dossier SÛR : jamais de « .. », jamais de chemin absolu, séparateur « / », borné.
@@ -120,7 +121,7 @@ export async function persistUploadedDocument(
   } catch (err) {
     console.error("[upload] document.create failed", { name: file.name, entityType, entityId }, err);
     // Le fichier écrit n'a pas de fiche : on le rend, sinon il reste payé et invisible.
-    await deleteFileByKey(key).catch(() => undefined);
+    await deleteFileByKey(key).catch(sansBloquer("documents.persistUploadedDocument.deleteFileByKey"));
     const msg = err instanceof Error ? err.message : String(err);
     return { ok: false, error: `Enregistrement impossible : ${msg}` };
   }
@@ -192,7 +193,7 @@ export async function inscrireDocumentDirect(
       summary: `Document « ${folder ? `${folder}/` : ""}${name} » téléversé (envoi direct)`,
     }).catch((e) => console.error("[upload direct] audit failed (non-bloquant)", e));
     // L'empreinte d'un envoi direct n'est pas calculée (`direct:…`) : la file la calculera avant d'émettre.
-    const blob = await prisma.fileBlob.findUnique({ where: { id: input.blobId }, select: { sha256: true } }).catch(() => null);
+    const blob = await prisma.fileBlob.findUnique({ where: { id: input.blobId }, select: { sha256: true } }).catch(sansBloquer("documents.inscrireDocumentDirect.fileBlob", null));
     if (blob) {
       await signalerDocumentDepose({
         documentId: created.id, entityType, entityId, category: input.category, confidentiality: input.confidentiality, blobId: input.blobId,
@@ -208,7 +209,7 @@ export async function inscrireDocumentDirect(
     return { documentId: created.id };
   } catch (e) {
     // Pas de correspondance sans fiche : la ligne `StoredFile` part, le blob reste à l'appelant.
-    await prisma.storedFile.delete({ where: { key } }).catch(() => undefined);
+    await prisma.storedFile.delete({ where: { key } }).catch(sansBloquer("documents.inscrireDocumentDirect.storedFile"));
     throw e;
   }
 }

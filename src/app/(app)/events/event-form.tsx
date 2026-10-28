@@ -26,6 +26,7 @@ import {
   availableProductOptions, doctorOptions, specialtyOptions, splitMulti, repartirMedecins, CHAMPS_MEDECINS,
   type DoctorRow, type ProductRow, type SpecialtyRow,
 } from "@/lib/ad-pro/pickers";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -282,7 +283,7 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
     for (const p of postesLuna) {
       const f = new FormData();
       for (const [k, v] of versFormulairePoste(p, "EVENT", r.id)) f.append(k, v);
-      const x = await addAdProItem(undefined, f).catch(() => ({ ok: false as const, error: "réessayez depuis la demande." }));
+      const x = await addAdProItem(undefined, f).catch(sansBloquer("event-form.creer.addAdProItem", { ok: false as const, error: "réessayez depuis la demande." }));
       if (!x.ok) echecs.push(`${p.libelle} : ${x.error ?? "refusé."}`);
     }
     setSaving(false);

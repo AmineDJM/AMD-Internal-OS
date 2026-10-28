@@ -16,6 +16,7 @@ import { Table } from "@/components/ui/table";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import type { ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 export interface RegulatoryRow {
   id: string;
@@ -388,7 +389,7 @@ export function RegulatoryTable({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Export impossible.");
+      if (!res.ok) throw new Error((await res.json().catch(sansBloquer("regulatory-table.exportXlsx.json", {}))).error ?? "Export impossible.");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

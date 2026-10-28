@@ -37,6 +37,7 @@ import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { deleteFileByKey } from "@/lib/storage";
 import { businessUnitDuDemandeur } from "@/lib/ad-pro/business-unit-auto";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/promo-material";
 
@@ -155,7 +156,7 @@ async function retirerPieces(userId: string, pmId: string, pieces: PieceDeposee[
       await recordAudit({
         actorId: userId, action: "DELETE", module: "Matériel promotionnel", entityType: "PROMO_MATERIAL", entityId: pmId,
         summary: `Document « ${doc.name} » retiré : ${pourquoi}`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("promo-material-actions.retirerPieces.recordAudit"));
     } catch (err) {
       console.error("[promo] pièce orpheline non retirée", p.documentId, err);
       tout = false;
@@ -327,7 +328,7 @@ export async function createPromoMaterial(_prev: ActionResult | undefined, formD
       if (envoi.ok) {
         if (envoi.assistantId) await notifyUser({ userId: envoi.assistantId, ...envoi.avis });
         else await notifyRoles(["DIRECTION_ASSISTANT"], envoi.avis);
-        const lettre = await joindreLettreDeDevis(user, pm.id, envoi.demande.id).catch(() => null);
+        const lettre = await joindreLettreDeDevis(user, pm.id, envoi.demande.id).catch(sansBloquer("promo-material-actions.createPromoMaterial.joindreLettreDeDevis", null));
         suite = ` Demande de devis envoyée au secrétariat (${envoi.demande.reference}).${lettre?.ok ? ` ${phraseDepotLettre(lettre)}` : ""}`;
       } else {
         suite = ` La demande de devis n'est pas partie : ${envoi.error} Envoyez-la depuis « Articles demandés ».`;

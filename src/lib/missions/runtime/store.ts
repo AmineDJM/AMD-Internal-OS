@@ -5,6 +5,7 @@ import type { CompiledMission, CompiledStep, StepSpec } from "@/lib/missions/com
 import { MissionState, StepState, assertTransition } from "@/lib/missions/runtime/state";
 import { lireRecu, type ExecutionReceipt } from "@/lib/missions/runtime/receipt";
 import { criteresQuiSurvivent } from "@/lib/missions/goal/rules";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -192,7 +193,7 @@ export async function materialiser(
    * qui la vérifiait non — elle est reconstruite par le compilateur pour le plan courant.
    */
   const ligne = opts.missionId
-    ? await prisma.mission.findUnique({ where: { id: opts.missionId }, select: { acceptance: true } }).catch(() => null)
+    ? await prisma.mission.findUnique({ where: { id: opts.missionId }, select: { acceptance: true } }).catch(sansBloquer("runtime-store.materialiser.mission", null))
     : null;
   const anciens: string[] = Array.isArray(ligne?.acceptance)
     ? (ligne.acceptance as unknown[]).filter((x): x is string => typeof x === "string")

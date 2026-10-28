@@ -33,6 +33,7 @@ import { lireDetailsTrajets } from "@/lib/care-fiches";
 import { persistUploadedDocument } from "@/lib/documents";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import { toNumber } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -99,7 +100,7 @@ async function inviter(
       title: role === "DELEGATE_REFERENCE" ? "Demande de participation — délégué de référence" : "Demande de participation — accompagnant",
       body: `${parent.label}${ville ? ` · ${ville}` : ""}${dates(dateDepart, dateRetour)} — par ${actor.name}. Remplissez votre fiche ou déclinez.`,
       link: lienMission(a.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.inviter.notifyUser"));
   }
   // LES FRAIS DE L'ÉQUIPE VONT AU BUDGET OPERATIONS & SALES (Direction, 10/2026) : l'imputation par défaut est posée dès
   // l'invitation — enveloppe de l'année ouverte d'office, catégorie « Frais de déplacement terrain » ; la Direction la change.
@@ -160,7 +161,7 @@ export async function repondreMission(formData: FormData): Promise<ActionResult>
       title: decision === "CONFIRMER" ? "Mission confirmée" : "Mission déclinée",
       body: decision === "CONFIRMER" ? `${user.name} — ${parent.label}` : `${user.name} — ${parent.label} : « ${motif} ». Remplacez-le depuis la demande.`,
       link: parentPath(a.entityType, a.entityId),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.repondreMission.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id,
@@ -187,7 +188,7 @@ export async function relancerMission(formData: FormData): Promise<ActionResult>
     title: rang <= 1 ? "Relance — invitation à une mission" : `Relance (${rang}ᵉ) — invitation à une mission`,
     body: `${parent.label} — ${user.name} attend votre fiche de participation.`, link: lienMission(a.id),
     push: { requireInteraction: true },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("mission-actions.relancerMission.notifyUser"));
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, field: "relance", newValue: String(rang), summary: `Relance ${rang} — ${parent.label}` });
   revalider(a.entityType, a.entityId);
   return { ok: true, message: "Relance envoyée." };
@@ -218,7 +219,7 @@ async function retirer(a: { id: string; userId: string; entityType: EntityType; 
   }
   const parent = await parentMission(a.entityType, a.entityId);
   if (a.userId !== actor.id) {
-    await notifyUser({ userId: a.userId, type: "GENERIC", title: "Mission retirée", body: `${parent.label} — ${motif}`, link: MES_MISSIONS }).catch(() => undefined);
+    await notifyUser({ userId: a.userId, type: "GENERIC", title: "Mission retirée", body: `${parent.label} — ${motif}`, link: MES_MISSIONS }).catch(sansBloquer("mission-actions.retirer.notifyUser"));
   }
   await recordAudit({ actorId: actor.id, action: souple ? "UPDATE" : "DELETE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Mission retirée (${souple ? "archivée" : "effacée"}) — ${parent.label}` });
   return souple ? "archivee" : "effacee";
@@ -322,7 +323,7 @@ export async function requestMissionOrder(formData: FormData): Promise<ActionRes
 
   const employee = await prisma.employee.findUnique({ where: { userId: user.id }, select: { id: true, fullName: true } });
   if (!employee) return { ok: false, error: "Aucun dossier RH n'est lié à votre compte : les RH ne peuvent pas établir l'ordre. Contactez-les." };
-  const manager = await getManagerOf(employee.id).catch(() => null);
+  const manager = await getManagerOf(employee.id).catch(sansBloquer("mission-actions.requestMissionOrder.getManagerOf", null));
   const marche = marcheInitiale(manager?.userId ?? null, user.id);
 
   const parent = await parentMission(a.entityType, a.entityId);
@@ -356,9 +357,9 @@ export async function requestMissionOrder(formData: FormData): Promise<ActionRes
   await prisma.missionAssignment.update({ where: { id: a.id }, data: { orderStatus: "REQUESTED", requestedAt: new Date() } });
 
   if (marche.gate === "PENDING" && manager?.userId) {
-    await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Ordre de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label}${dates(depart, retour)}`, link: LIEN_MISSIONS_A_VALIDER }).catch(() => undefined);
+    await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Ordre de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label}${dates(depart, retour)}`, link: LIEN_MISSIONS_A_VALIDER }).catch(sansBloquer("mission-actions.requestMissionOrder.notifyUser"));
   } else {
-    await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Ordre de mission à établir", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${created.id}` }).catch(() => undefined);
+    await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Ordre de mission à établir", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${created.id}` }).catch(sansBloquer("mission-actions.requestMissionOrder.notifyRoles"));
   }
   await recordAudit({ actorId: user.id, action: "CREATE", module: "RH", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Ordre de mission demandé — ${parent.label}${marche.gate ? " (N+1 puis RH)" : " (directement aux RH)"}` });
   revalider(a.entityType, a.entityId);
@@ -385,7 +386,7 @@ export async function retirerDemandeOrdreMission(formData: FormData): Promise<Ac
     const pris = await prisma.hrDocumentRequest.updateMany({ where: { id: req.id, status: { in: ["PENDING", "IN_PROGRESS"] } }, data: { status: "CANCELLED", hrNote: "Retirée par le salarié depuis « Mes missions »." } });
     if (pris.count === 0) return { ok: false, error: "L'ordre de mission vient d'être traité — rechargez la page." };
     if (req.managerGate === "PENDING" && req.managerUserId) {
-      await notifyUser({ userId: req.managerUserId, type: "GENERIC", title: "Ordre de mission retiré", body: `${user.name} a retiré sa demande : plus rien à valider.`, link: MES_MISSIONS }).catch(() => undefined);
+      await notifyUser({ userId: req.managerUserId, type: "GENERIC", title: "Ordre de mission retiré", body: `${user.name} a retiré sa demande : plus rien à valider.`, link: MES_MISSIONS }).catch(sansBloquer("mission-actions.retirerDemandeOrdreMission.notifyUser"));
     }
   } else {
     const refus = refusRetraitOrdreMission(a.orderStatus);
@@ -418,7 +419,7 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
   if (!req) return { ok: false, error: "Demande introuvable." };
   let estN1 = req.managerUserId === user.id;
   if (!estN1) {
-    const chaine = await getManagementChain(req.employeeId).catch(() => []);
+    const chaine = await getManagementChain(req.employeeId).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.getManagementChain", []));
     estN1 = chaine.some((m) => m.userId === user.id) && req.employee.userId !== user.id;
   }
   const decision = fdStr(formData, "decision") === "REFUSER" ? "REFUSER" : "VALIDER";
@@ -452,13 +453,13 @@ export async function deciderOrdreMissionN1(formData: FormData): Promise<ActionR
       title: `${quoi} ${decision === "VALIDER" ? "validé(e)" : "refusé(e)"} par votre N+1`,
       body: decision === "VALIDER" ? "Elle part aux RH." : noteFrais ? `Motif : ${motif} — corrigez vos dépenses et clôturez de nouveau.` : `Motif : ${motif}`,
       link: req.missionAssignmentId ? lienMission(req.missionAssignmentId, noteFrais ? "frais" : undefined) : MES_MISSIONS,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.notifyUser"));
   }
   if (decision === "VALIDER") {
     await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), {
       type: "GENERIC", title: noteFrais ? "Note de frais de mission à traiter" : "Ordre de mission à établir",
       body: `${req.employee.fullName} — validé par le N+1`, link: `/rh/demandes?demande=${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("mission-actions.deciderOrdreMissionN1.notifyRoles"));
   }
   await recordAudit({
     actorId: user.id, action: decision === "VALIDER" ? "VALIDATE" : "REFUSE", module: "RH", entityType: "EMPLOYEE", entityId: req.employeeId,
@@ -671,7 +672,7 @@ export async function addMissionComment(formData: FormData): Promise<ActionResul
     const destinataires = new Set([a.userId, ...organisateursDe(a, parent)]);
     destinataires.delete(user.id);
     for (const d of destinataires) {
-      await notifyUser({ userId: d, type: "GENERIC", title: `Commentaire — ${parent.label}`, body: `${user.name} : ${body.slice(0, 120)}`, link: lienMission(id, "fil") }).catch(() => undefined);
+      await notifyUser({ userId: d, type: "GENERIC", title: `Commentaire — ${parent.label}`, body: `${user.name} : ${body.slice(0, 120)}`, link: lienMission(id, "fil") }).catch(sansBloquer("mission-actions.addMissionComment.notifyUser"));
     }
     revalider(a.entityType, a.entityId);
   }
@@ -711,7 +712,7 @@ async function prevenirAutreCote(a: Assignation, cote: Cote, acteurId: string, o
   const cibles = cote === "PERSONNE" ? organisateurs : [a.userId];
   for (const c of new Set(cibles)) {
     if (c === acteurId) continue;
-    await notifyUser({ userId: c, type: "ASSIGNMENT", title: titre, body: corps, link: lienMission(a.id, ancre) }).catch(() => undefined);
+    await notifyUser({ userId: c, type: "ASSIGNMENT", title: titre, body: corps, link: lienMission(a.id, ancre) }).catch(sansBloquer("mission-actions.prevenirAutreCote.notifyUser"));
   }
 }
 
@@ -856,7 +857,7 @@ export async function enregistrerBilletMission(formData: FormData): Promise<Acti
     },
   });
   if (a.userId !== user.id && piece.id) {
-    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre billet est émis", body: parent.label, link: lienMission(a.id, "reservation") }).catch(() => undefined);
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre billet est émis", body: parent.label, link: lienMission(a.id, "reservation") }).catch(sansBloquer("mission-actions.enregistrerBilletMission.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Billet émis ${piece.id ? "déposé" : "mis à jour"}${billetReference ? ` (PNR ${billetReference})` : ""} — ${parent.label}` });
   revalider(a.entityType, a.entityId);
@@ -884,7 +885,7 @@ export async function enregistrerHotelMission(formData: FormData): Promise<Actio
     },
   });
   if (a.userId !== user.id && (piece.id || hotelConfirmation)) {
-    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre hôtel est confirmé", body: `${parent.label}${hotelNom ? ` — ${hotelNom}` : ""}`, link: lienMission(a.id, "reservation") }).catch(() => undefined);
+    await notifyUser({ userId: a.userId, type: "ASSIGNMENT", title: "Votre hôtel est confirmé", body: `${parent.label}${hotelNom ? ` — ${hotelNom}` : ""}`, link: lienMission(a.id, "reservation") }).catch(sansBloquer("mission-actions.enregistrerHotelMission.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Confirmation d'hôtel ${piece.id ? "déposée" : "mise à jour"}${hotelConfirmation ? ` (n° ${hotelConfirmation})` : ""} — ${parent.label}` });
   revalider(a.entityType, a.entityId);
@@ -1043,7 +1044,7 @@ export async function cloturerMission(formData: FormData): Promise<ActionResult>
       budget?.ok ? `Imputation (budget Operations & Sales) : ${budget.libelle}.` : "Imputation : budget Operations & Sales, catégorie à choisir.",
       `Mission : ${lienMission(a.id, "frais")}`,
     ].filter(Boolean).join("\n");
-    const manager = await getManagerOf(employee.id).catch(() => null);
+    const manager = await getManagerOf(employee.id).catch(sansBloquer("mission-actions.cloturerMission.getManagerOf", null));
     const marche = marcheInitiale(manager?.userId ?? null, user.id);
     const retour = jourIso(a.dateRetour ?? parent.fin) || null;
     const cree = await prisma.hrDocumentRequest.create({
@@ -1056,10 +1057,10 @@ export async function cloturerMission(formData: FormData): Promise<ActionResult>
     });
     noteFraisRequestId = cree.id;
     if (marche.gate === "PENDING" && manager?.userId) {
-      await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Note de frais de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label} : ${total.totalDzd.toLocaleString("fr-FR")} DZD`, link: LIEN_MISSIONS_A_VALIDER }).catch(() => undefined);
+      await notifyUser({ userId: manager.userId, type: "GENERIC", title: "Note de frais de mission à valider (votre équipe)", body: `${employee.fullName} — ${parent.label} : ${total.totalDzd.toLocaleString("fr-FR")} DZD`, link: LIEN_MISSIONS_A_VALIDER }).catch(sansBloquer("mission-actions.cloturerMission.notifyUser"));
       message = "Mission clôturée : la note de frais part à votre N+1 puis aux RH, le rapport à l'organisateur.";
     } else {
-      await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Note de frais de mission à traiter", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${cree.id}` }).catch(() => undefined);
+      await notifyRoles(rolesWithModule("HR_REQUESTS", "UPDATE"), { type: "GENERIC", title: "Note de frais de mission à traiter", body: `${employee.fullName} — ${parent.label}`, link: `/rh/demandes?demande=${cree.id}` }).catch(sansBloquer("mission-actions.cloturerMission.notifyRoles"));
       message = "Mission clôturée : la note de frais part aux RH (aucun N+1 rattaché), le rapport à l'organisateur.";
     }
   }
@@ -1070,7 +1071,7 @@ export async function cloturerMission(formData: FormData): Promise<ActionResult>
   if (pris.count === 0) return { ok: false, error: "La mission vient d'être clôturée — rechargez la page." };
   for (const o of new Set(organisateursDe(a, parent))) {
     if (o === user.id) continue;
-    await notifyUser({ userId: o, type: "GENERIC", title: `Rapport de mission — ${user.name}`, body: `${parent.label}${rapportRedige(rapport) ? ` : ${(rapport.deroule ?? "").slice(0, 100)}` : ""}`, link: lienMission(a.id, "rapport") }).catch(() => undefined);
+    await notifyUser({ userId: o, type: "GENERIC", title: `Rapport de mission — ${user.name}`, body: `${parent.label}${rapportRedige(rapport) ? ` : ${(rapport.deroule ?? "").slice(0, 100)}` : ""}`, link: lienMission(a.id, "rapport") }).catch(sansBloquer("mission-actions.cloturerMission.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, summary: `Mission clôturée — ${parent.label}${noteFraisRequestId ? " (note de frais au circuit N+1 / RH)" : " (sans dépense)"}` });
   revalider(a.entityType, a.entityId);

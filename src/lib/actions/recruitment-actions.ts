@@ -25,6 +25,7 @@ import {
   type ChainStep, type RecruitmentContract, type RecruitmentStage,
 } from "@/lib/recruitment/request-flow";
 import { relierALaPersonne, relierCommeLaLigne } from "@/lib/referentiels/personnes/double-ecriture";
+import { sansBloquer } from "@/lib/journal";
 
 /** Les valeurs multiples d'un champ (`followerIds`) — lu par nom littéral, comme les autres champs. */
 const fdList = (formData: FormData, key: string): string[] => formData.getAll(key).map((v) => String(v)).filter(Boolean);
@@ -44,7 +45,7 @@ async function prevenirLeSuivi(
   });
   if (!r) return;
   for (const userId of suiveursAPrevenir(r.futureManagerId, r.followers.map((f) => f.userId), sauf)) {
-    await notifyUser({ userId, type: "GENERIC", title: n.title, body: n.body, link: `/recrutement/${id}` }).catch(() => undefined);
+    await notifyUser({ userId, type: "GENERIC", title: n.title, body: n.body, link: `/recrutement/${id}` }).catch(sansBloquer("recruitment-actions.prevenirLeSuivi.notifyUser"));
   }
 }
 
@@ -293,20 +294,20 @@ export async function decideRecruitmentStep(formData: FormData): Promise<ActionR
     throw e;
   }
   if (decision === "REJECTED") {
-    await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Refusée à la marche ${target.order} — ${reason}` }).catch(() => undefined);
+    await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Refusée à la marche ${target.order} — ${reason}` }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.ecrireAuFil"));
   }
   const phraseSuivi = designe
     ? `N+1 de la future recrue : ${nomsDesignes.get(futureManagerId ?? "") ?? "—"} · Suivi : ${followerIds.map((f) => nomsDesignes.get(f) ?? "—").join(", ")}`
     : null;
   if (designe && futureManagerId) {
-    await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Validée par ${user.name} — ${phraseSuivi}` }).catch(() => undefined);
+    await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Validée par ${user.name} — ${phraseSuivi}` }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.ecrireAuFil"));
     if (futureManagerId !== user.id) {
       await notifyUser({
         userId: futureManagerId, type: "GENERIC",
         title: "Vous serez le N+1 d'une future recrue",
         body: `${req.reference} — ${req.position} : la direction générale vous a désigné N+1 du poste.`,
         link: `/recrutement/${id}`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.notifyUser"));
     }
     for (const f of followerIds) {
       if (f === user.id || f === futureManagerId) continue;
@@ -315,7 +316,7 @@ export async function decideRecruitmentStep(formData: FormData): Promise<ActionR
         title: "Recrutement à suivre",
         body: `${req.reference} — ${req.position} : la direction générale vous a confié le suivi de ce recrutement.`,
         link: `/recrutement/${id}`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.notifyUser"));
     }
   }
   // L'offre publiée sur le site suit l'étape du poste (§118.158) : ouverte, elle est en ligne ;
@@ -403,10 +404,10 @@ export async function cancelRecruitmentRequest(formData: FormData): Promise<Acti
   const prevenus = prevenusAuRetrait(req.stage, req.approvals, user.id);
   const corps = `${req.reference} — ${req.position} : retirée par son demandeur${motif ? ` (${motif})` : ""}. Il n'y a plus rien à traiter.`;
   for (const approverId of prevenus.approbateurs) {
-    await notifyUser({ userId: approverId, type: "GENERIC", title: "Demande de recrutement retirée", body: corps, link: `/recrutement/${id}` }).catch(() => undefined);
+    await notifyUser({ userId: approverId, type: "GENERIC", title: "Demande de recrutement retirée", body: corps, link: `/recrutement/${id}` }).catch(sansBloquer("recruitment-actions.cancelRecruitmentRequest.notifyUser"));
   }
   if (prevenus.rh) {
-    await notifyRoles(rolesWithModule("RH", "UPDATE"), { type: "GENERIC", title: "Demande de recrutement retirée", body: corps, link: `/recrutement/${id}` }).catch(() => undefined);
+    await notifyRoles(rolesWithModule("RH", "UPDATE"), { type: "GENERIC", title: "Demande de recrutement retirée", body: corps, link: `/recrutement/${id}` }).catch(sansBloquer("recruitment-actions.cancelRecruitmentRequest.notifyRoles"));
   }
   await prevenirLeSuivi(id, { title: "Demande de recrutement retirée", body: corps }, [user.id, ...prevenus.approbateurs]);
   await recordAudit({
@@ -588,7 +589,7 @@ export async function closeRecruitmentRequest(formData: FormData): Promise<Actio
     data: { stage: reject ? "REJECTED" : "CLOSED", closingNote: note, closedAt: new Date() },
   });
   if (fermee.count === 0) return { ok: false, error: DEJA_CHANGE };
-  await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `${reject ? "Refusée par les RH" : "Clôturée sans suite"} — ${note}` }).catch(() => undefined);
+  await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `${reject ? "Refusée par les RH" : "Clôturée sans suite"} — ${note}` }).catch(sansBloquer("recruitment-actions.closeRecruitmentRequest.ecrireAuFil"));
   // L'offre publiée sur le site suit l'étape du poste (§118.158) : ouverte, elle est en ligne ;
   // pourvue, close, refusée ou annulée, elle repasse en brouillon — tout de suite.
   await synchroniserOffreDeLaDemande(id, user.id);
@@ -955,7 +956,7 @@ export async function renvoyerDemandeRecrutement(formData: FormData): Promise<Ac
   // L'offre publiée sur le site suit l'étape du poste (§118.158) : ouverte, elle est en ligne ;
   // pourvue, close, refusée ou annulée, elle repasse en brouillon — tout de suite.
   await synchroniserOffreDeLaDemande(id, user.id);
-  await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Renvoyée pour correction (${STAGE_LABEL[req.stage as RecruitmentStage]}) — ${motif}` }).catch(() => undefined);
+  await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Renvoyée pour correction (${STAGE_LABEL[req.stage as RecruitmentStage]}) — ${motif}` }).catch(sansBloquer("recruitment-actions.renvoyerDemandeRecrutement.ecrireAuFil"));
   await notifyUser({
     userId: req.requesterId, type: "GENERIC",
     title: "Demande de recrutement à corriger",
@@ -1055,7 +1056,7 @@ export async function resoumettreDemandeRecrutement(formData: FormData): Promise
   await ecrireAuFil({
     entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id,
     body: `Corrigée et renvoyée — ${changements}${repart ? ` · la chaîne repart de sa première marche : ${materiels.join(", ")}` : ""}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("recruitment-actions.resoumettreDemandeRecrutement.ecrireAuFil"));
 
   // On prévient CELUI QUI ATTEND, et seulement lui.
   const titre = repart ? "Demande de recrutement à valider de nouveau" : "Demande de recrutement corrigée";
@@ -1148,7 +1149,7 @@ export async function rouvrirDemandeRecrutement(formData: FormData): Promise<Act
   await ecrireAuFil({
     entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id,
     body: `Rouverte — ${motif}${req.closingNote ? ` · la décision précédente : « ${req.closingNote} »` : ""}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("recruitment-actions.rouvrirDemandeRecrutement.ecrireAuFil"));
   const corps = `${req.reference} — ${req.position} · ${motif}`;
   const lien = `/recrutement/${id}`;
   if (ou.vers === "CHAIN" && ou.marche !== null) {
@@ -1228,7 +1229,7 @@ export async function annulerEmbaucheRecrutement(formData: FormData): Promise<Ac
   // L'offre publiée sur le site suit l'étape du poste (§118.158) : ouverte, elle est en ligne ;
   // pourvue, close, refusée ou annulée, elle repasse en brouillon — tout de suite.
   await synchroniserOffreDeLaDemande(id, user.id);
-  await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Embauche de ${recrute.fullName} annulée — ${motif}` }).catch(() => undefined);
+  await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Embauche de ${recrute.fullName} annulée — ${motif}` }).catch(sansBloquer("recruitment-actions.annulerEmbaucheRecrutement.ecrireAuFil"));
   const corps = `${req.reference} — ${recrute.fullName} · ${motif}`;
   const lien = `/recrutement/${id}`;
   if (req.requesterId !== user.id) {
@@ -1268,7 +1269,7 @@ export async function commenterDemandeRecrutement(formData: FormData): Promise<A
   await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: texte });
   const corps = `${req.reference} — ${user.name} : ${texte.length > 140 ? `${texte.slice(0, 139)}…` : texte}`;
   if (req.requesterId !== user.id) {
-    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Nouveau message sur votre demande de recrutement", body: corps, link: `/recrutement/${id}` }).catch(() => undefined);
+    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Nouveau message sur votre demande de recrutement", body: corps, link: `/recrutement/${id}` }).catch(sansBloquer("recruitment-actions.commenterDemandeRecrutement.notifyUser"));
   }
   await prevenirLeSuivi(id, { title: "Nouveau message sur un recrutement que vous suivez", body: corps }, [user.id, req.requesterId]);
   revalidatePath(`/recrutement/${id}`);

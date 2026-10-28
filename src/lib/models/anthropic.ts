@@ -11,6 +11,7 @@ import {
   costOf,
   emptyUsage,
 } from "./contract";
+import { attendu } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -193,7 +194,7 @@ export async function callAnthropic(
         };
       }
 
-      const body = await res.text().catch(() => "");
+      const body = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] anthropic error", binding.role, res.status, body.slice(0, 300));
       lastError = providerErrorMessage(res.status, body);
       if (!isRetryableStatus(res.status) || attempt === MAX_ATTEMPTS) break;
@@ -274,7 +275,7 @@ export async function streamAnthropic(
     });
 
     if (!res.ok || !res.body) {
-      const body = await res.text().catch(() => "");
+      const body = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] anthropic stream error", binding.role, res.status, body.slice(0, 300));
       return finish(false, providerErrorMessage(res.status, body));
     }

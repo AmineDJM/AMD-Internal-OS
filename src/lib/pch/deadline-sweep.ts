@@ -3,6 +3,7 @@ import { notifyUser } from "@/lib/notify";
 import { anyRoleFilter, rolesWithModule } from "@/lib/rbac";
 import { doitRappelerDepot, type ZoneDepot } from "@/lib/pch/market-math";
 import { predicatEntitePermise } from "@/lib/company";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE BALAYAGE DES ÉCHÉANCES DE DÉPÔT (§53) — même doctrine que le balayage Legal : la règle
@@ -98,7 +99,7 @@ export async function runPchDeadlineSweep(now: Date = new Date()): Promise<PchDe
           title: message.title,
           body: t.title ? `${message.body} (${t.title})` : message.body,
           link: `/pch/${t.id}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("deadline-sweep.runPchDeadlineSweep.notifyUser"));
         out.notified++;
       }
     }

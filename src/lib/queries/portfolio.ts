@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { mergePortfolio, type Portfolio, type PortfolioProduct } from "@/lib/sales-portfolio";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LECTURE DU PORTEFEUILLE — ce qu'une personne porte réellement ce cycle.
@@ -125,7 +126,7 @@ export async function selectableProducts(userId: string, seesAll: boolean): Prom
     const all = await prisma.promoProduct.findMany({
       where: { isActive: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
       select: { id: true, name: true, channel: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("portfolio.selectableProducts.promoProduct", []));
     return all.map((p) => ({ ...p, channel: String(p.channel) }));
   }
   const mine = await getMyPortfolio(userId);

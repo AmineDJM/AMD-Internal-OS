@@ -1,6 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { getCurrentUser } from "@/lib/session";
-import { userCan } from "@/lib/rbac";
+import { identiteDuSondage, peutVoirLaMessagerie } from "@/lib/session-legere";
 import { touchPresence } from "@/lib/messaging";
 import { getSync, getTotalUnread } from "@/lib/queries/messaging";
 import { runScheduledJobs } from "@/lib/scheduled";
@@ -14,11 +13,14 @@ export const dynamic = "force-dynamic";
  * total — une requête de comptage, sans la liste des conversations, leurs membres ni leurs aperçus
  * que seul le Messenger affiche (audit performance PERF-02). Même total que `getSync` : non-lus
  * hors conversations en sourdine.
+ *
+ * L'identité est celle des SONDAGES (`session-legere.ts`, PERF-06) : jeton + session révocable + Vue
+ * exacte, sans la matrice complète des droits — 2 requêtes au lieu de 11 par appel.
  */
 export async function GET(req: NextRequest) {
-  const user = await getCurrentUser();
+  const user = await identiteDuSondage();
   if (!user || user.mustChangePassword) return NextResponse.json({ conversations: [], totalUnread: 0 }, { status: 200 });
-  if (!userCan(user, "MESSAGING", "VIEW")) return NextResponse.json({ conversations: [], totalUnread: 0 }, { status: 200 });
+  if (!(await peutVoirLaMessagerie(user))) return NextResponse.json({ conversations: [], totalUnread: 0 }, { status: 200 });
 
   // Tâches périodiques (rappels de réunion…) — débouncées à 1×/min, sans cron externe.
   void runScheduledJobs();

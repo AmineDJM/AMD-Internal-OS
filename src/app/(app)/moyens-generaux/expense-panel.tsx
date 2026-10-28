@@ -15,6 +15,7 @@ import { BudgetTargetField } from "./budget-target-field";
 import { SOURCE_LABEL, SOURCE_HINT, defaultSource, type PaymentSource } from "@/lib/general-means/payment-source";
 import { cn } from "@/lib/utils";
 import type { BudgetTarget } from "@/lib/budget/target";
+import { journal } from "@/lib/journal";
 
 /**
  * AJOUTER UN ACHAT — UN SEUL BOUTON, la question du paiement à l'intérieur.
@@ -89,7 +90,7 @@ export function ExpensePanel({
                   : (r.error ?? "La dépense n'a pas été enregistrée."),
               });
               if (r.ok) { setOpen(false); setTotal(0); rafraichir(); }
-            }).catch(() => {
+            }).catch((e: unknown) => { journal.erreur("expense-panel.addDepartmentExpense", {}, e);
               setBusy(false);
               setMsg({ ok: false, text: actionFailureMessage("THROWN") });
             });

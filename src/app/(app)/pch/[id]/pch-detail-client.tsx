@@ -19,6 +19,7 @@ import { formatCurrency, formatDate, formatNumber } from "@/lib/utils";
 import type { PchTenderDTO, PchOrderDTO } from "@/lib/queries/pch";
 import type { Market360 } from "@/lib/queries/market-360";
 import { OrderExecution } from "./order-execution";
+import { journal } from "@/lib/journal";
 
 type Action = (fd: FormData) => Promise<{ ok: boolean; error?: string }>;
 
@@ -89,7 +90,7 @@ export function EditTenderButton({ tender, canDelete, users = [], businessUnits 
           {err && <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="h-4 w-4" /> {err}</div>}
           <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
             {canDelete ? (
-              <Button type="button" variant="ghost" className="w-full text-destructive sm:w-auto" onClick={async () => { if (await confirmer("Supprimer cet appel d'offres ? Il part à la corbeille avec ses lots, ses bons de commande et leurs livraisons — le Super Admin peut tout restaurer.")) { const fd = new FormData(); fd.set("id", t.id); deleteTender(fd).then((r) => { if (r.ok) router.push("/pch"); else retours.erreur(r.error ?? "L'appel d'offres n'a pas été supprimé."); }).catch(() => retours.erreur(actionFailureMessage("THROWN"))); } }}>
+              <Button type="button" variant="ghost" className="w-full text-destructive sm:w-auto" onClick={async () => { if (await confirmer("Supprimer cet appel d'offres ? Il part à la corbeille avec ses lots, ses bons de commande et leurs livraisons — le Super Admin peut tout restaurer.")) { const fd = new FormData(); fd.set("id", t.id); deleteTender(fd).then((r) => { if (r.ok) router.push("/pch"); else retours.erreur(r.error ?? "L'appel d'offres n'a pas été supprimé."); }).catch((e: unknown) => { journal.erreur("pch-detail-client.deleteTender", {}, e); retours.erreur(actionFailureMessage("THROWN")); }); } }}>
                 <Trash2 className="h-4 w-4" /> Supprimer
               </Button>
             ) : <span className="hidden sm:block" />}

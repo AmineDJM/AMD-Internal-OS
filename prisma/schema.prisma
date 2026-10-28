@@ -869,6 +869,8 @@ model AssistantActionIntent {
   @@index([userId, proposedAt])
   @@index([userId, status])
   @@index([missionId])
+  /// Le balayage des intentions en plan (IA-ASSISTANT-07) : par état et par âge, toutes personnes confondues.
+  @@index([status, proposedAt])
 }
 
 model AssistantMemoryItem {
@@ -1031,6 +1033,9 @@ model AssistantIaTour {
   repondA         String?
   erreur          String?
   ms              Int?
+  /// Combien de fois ce message a été PRIS pour être joué (IA-ASSISTANT-06) : au-delà de 3, il
+  /// échoue et le fil passe au suivant — un tour qui lève n'est plus rejoué à chaque battement.
+  essais          Int            @default(0)
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -9390,6 +9395,40 @@ model AiSetting {
   updatedById            String?
 }
 
+/// LES BORNES DE L'ASSISTANT IA (lot V3-D, audit 27/10 rapport 06) — UNE ligne (`id = "global"`),
+/// réglée par le Super Admin (Administration › Consommation IA). Sans ligne : les défauts ci-dessous,
+/// les mêmes que dans `agent/consommation-regles.ts`. Lue par `agent/consommation.ts`.
+model AssistantIaReglage {
+  id                     String   @id @default("global")
+  /// Jetons (entrée + sortie) par personne et par jour, heure d'Alger. Atteint : refus dit, avis au Super Admin.
+  plafondJetonsJour      Int      @default(600000)
+  /// Jetons d'UN tour (toutes ses étapes, résumés de documents compris) : au-delà, le tour s'arrête et le dit.
+  plafondJetonsTour      Int      @default(150000)
+  /// Étapes (appels du modèle) d'un tour, au plus — plafonne aussi les tours en arrière-plan (24 avant).
+  etapesMaxTour          Int      @default(12)
+  /// Décision IA-ASSISTANT-09 : le message saisi et l'historique passent le filtre de confidentialité.
+  censurerSaisie         Boolean  @default(true)
+  /// Décision IA-ASSISTANT-10 : une carte dont la personne vient de reparler est retirée avant le tour.
+  retirerCartesCaduques  Boolean  @default(true)
+  /// IA-ASSISTANT-07 : une carte non confirmée expire après ce délai (heures).
+  expirationCartesHeures Int      @default(24)
+  updatedAt              DateTime @default(now()) @updatedAt
+  updatedById            String?
+}
+
+/// LE PLAFOND DU JOUR FRANCHI — une ligne par personne et par jour : la clé unique fait qu'un seul
+/// avis part au Super Admin, même quand deux tours le franchissent en même temps.
+model AssistantIaPlafondAtteint {
+  id        String   @id @default(cuid())
+  userId    String
+  jour      DateTime @db.Date
+  jetons    Int
+  plafond   Int
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jour])
+}
+
 /// Seuils de déclenchement du Risk Radar (Adventum Brain), ajustables par le
 /// Super Admin. Une seule ligne (`id = "global"`). Les détecteurs lisent ces
 /// valeurs ; en l'absence de ligne, des valeurs par défaut s'appliquent.
@@ -9900,6 +9939,7 @@ model ModelCallLog {
   @@index([threadId])
   @@index([model, at])
   @@index([turnId])
+  @@index([feature, userId, at])
 }
 
 /// LE TOUR DE PAROLE VOCAL, MESURÉ — un enregistrement PAR TOUR, pas par session.
@@ -17771,6 +17811,29 @@ model TacheDeFond {
   executions      Int                @default(0)
   echecs          Int                @default(0)
   updatedAt       DateTime           @updatedAt
+}
+
+/// LES INCIDENTS RÉPÉTÉS (lot V3-E « Fiabilité ») — une ligne par événement du journal unique
+/// (`src/lib/journal.ts`) qui a échoué au moins une fois. Chaque processus y verse ses compteurs à
+/// chaque passage des tâches de fond ; la tâche `observabilite.incidents` prévient le Super Admin
+/// quand un événement dépasse le seuil dans la fenêtre — UNE notification agrégée, puis le silence
+/// jusqu'au rappel. Diagnostic (Super Admin) seulement : le message est tronqué, jamais une pile.
+model IncidentRepete {
+  /// Nom de l'événement (`centre-adpro.visas`, `tache.echec:rappels.reunions`).
+  evenement      String    @id
+  /// Cumul depuis la première erreur connue.
+  total          Int       @default(0)
+  /// Début de la fenêtre courante ; une fenêtre échue repart de zéro au versement suivant.
+  fenetreDebut   DateTime  @default(now())
+  compteFenetre  Int       @default(0)
+  premierA       DateTime  @default(now())
+  dernierA       DateTime  @default(now())
+  dernierMessage String?
+  /// Dernière alerte envoyée au Super Admin pour cet événement (null : jamais).
+  notifieA       DateTime?
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([dernierA])
 }
 
 enum StatutTacheDeFond {

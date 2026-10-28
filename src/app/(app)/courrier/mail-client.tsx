@@ -16,6 +16,7 @@ import { useAction } from "@/components/shared/use-action";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { sendMailAction, disconnectMailbox, updateMailSignature } from "@/lib/actions/mail-actions";
 import { listLinkableDossiers, linkEmailToDossier } from "@/lib/actions/dossier-actions";
+import { sansBloquer } from "@/lib/journal";
 
 interface Folder { path: string; name: string; role: string; unseen: number; total: number }
 interface Envelope { uid: number; subject: string; from: string; fromAddr: string; date: string | null; seen: boolean }
@@ -79,8 +80,8 @@ export function MailClient({ email, signature: initialSignature }: { email: stri
     const next = !fullscreen;
     setFullscreen(next);
     try {
-      if (next) { const p = document.documentElement.requestFullscreen?.(); if (p) p.catch(() => {}); }
-      else if (document.fullscreenElement) { const p = document.exitFullscreen?.(); if (p) p.catch(() => {}); }
+      if (next) { const p = document.documentElement.requestFullscreen?.(); if (p) p.catch(sansBloquer("mail-client.toggleFullscreen")); }
+      else if (document.fullscreenElement) { const p = document.exitFullscreen?.(); if (p) p.catch(sansBloquer("mail-client.toggleFullscreen")); }
     } catch { /* API plein écran indisponible : la superposition suffit */ }
   }
   React.useEffect(() => {
@@ -517,7 +518,7 @@ function Composer({ email, initial, onClose }: { email: string; initial: { to: s
     fetch("/api/mail/contacts", { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : { contacts: [] }))
       .then((d) => { if (alive) setContacts(d.contacts ?? []); })
-      .catch(() => {});
+      .catch(sansBloquer("mail-client.Composer.fetch"));
     return () => { alive = false; };
   }, []);
 

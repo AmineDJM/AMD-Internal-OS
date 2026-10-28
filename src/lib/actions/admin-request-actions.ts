@@ -37,6 +37,7 @@ import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { refusFinBCEnRoute } from "@/lib/secretariat/devis-natif";
 import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
+import { sansBloquer } from "@/lib/journal";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -173,7 +174,7 @@ export async function createRequest(
 
   // LE SECRÉTARIAT EST PRÉVENU (audit 360°, I10) : chaque assistante de direction ; celle qui commence le
   // traitement en devient responsable (`startRequestProcessing`).
-  await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(() => undefined);
+  await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(sansBloquer("admin-request-actions.createRequest.notifyRoles"));
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Demandes administratives", entityType: "ADMIN_REQUEST", entityId: created.id, summary: `Demande ${created.reference} — ${title}${jointes.saved > 0 ? ` (${jointes.saved} pièce(s) jointe(s))` : ""}` });
   revalidatePath("/demandes");
   revalidatePath("/demandes/assistant");
@@ -219,7 +220,7 @@ export async function updateRequestStatus(formData: FormData): Promise<ActionRes
   // Le motif d'un blocage va au FIL de la demande — par l'écrivain du fil, hors du corps de l'action :
   // deux écritures en ligne feraient renoncer la dérivation des contrats à dire ce que `id` désigne.
   if (status === "BLOCKED") {
-    await ecrireAuFil({ entityType: "ADMIN_REQUEST", entityId: id, authorId: user.id, body: phrase }).catch(() => undefined);
+    await ecrireAuFil({ entityType: "ADMIN_REQUEST", entityId: id, authorId: user.id, body: phrase }).catch(sansBloquer("admin-request-actions.updateRequestStatus.ecrireAuFil"));
   }
   if (req.requesterId && req.requesterId !== user.id) {
     await notifyUser({
@@ -255,7 +256,7 @@ export async function rouvrirDemande(formData: FormData): Promise<ActionResult> 
 
   const r = await prisma.administrativeRequest.updateMany({ where: { id, status: "DONE", deletedAt: null }, data: { status: "IN_PROGRESS", completedAt: null } });
   if (r.count === 0) return { ok: false, error: "Cette demande vient de changer : rouvrez-la pour voir où elle en est." };
-  await ecrireAuFil({ entityType: "ADMIN_REQUEST", entityId: id, authorId: user.id, body: `Demande rouverte — ${motif}` }).catch(() => undefined);
+  await ecrireAuFil({ entityType: "ADMIN_REQUEST", entityId: id, authorId: user.id, body: `Demande rouverte — ${motif}` }).catch(sansBloquer("admin-request-actions.rouvrirDemande.ecrireAuFil"));
   if (req.requesterId && req.requesterId !== user.id) {
     await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande rouverte", body: `${req.reference} — ${motif}`, link: `/demandes/${id}` });
   }
@@ -376,7 +377,7 @@ export async function requestApproval(formData: FormData): Promise<ActionResult>
       await notifyUser({
         userId: p.validatorId, type: "GENERIC", title: "Validation retirée",
         body: `${req.reference} — redemandée à ${nouveau?.name ?? "une autre personne"}`, link: "/demandes/approvals",
-      }).catch(() => undefined);
+      }).catch(sansBloquer("admin-request-actions.requestApproval.notifyUser"));
     }
   }
   await notifyUser({ userId: validatorId, type: "VALIDATION_REQUIRED", title: "Validation demandée", body: `${req.reference}${amount ? ` — ${amount.toLocaleString("fr-FR")} DZD` : ""}`, link: `/demandes/${requestId}` });
@@ -507,7 +508,7 @@ export async function decideApproval(formData: FormData): Promise<ActionResult> 
   // UNE DEMANDE VALIDÉE SANS RESPONSABLE REVIENT AU SECRÉTARIAT (audit 360°, I10) : le N+1 disait
   // oui, et personne au bureau ne l'apprenait — l'achat attendait qu'on tombe dessus.
   if (decision === "APPROVED" && !req.assignedToId) {
-    await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Demande validée — à traiter", body: `${req.reference} — ${req.title}`, link: `/demandes/${req.id}` }).catch(() => undefined);
+    await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Demande validée — à traiter", body: `${req.reference} — ${req.title}`, link: `/demandes/${req.id}` }).catch(sansBloquer("admin-request-actions.decideApproval.notifyRoles"));
   }
   await recordAudit({
     actorId: user.id,
@@ -733,7 +734,7 @@ async function resoumettreApresModification(requestId: string, reference: string
   await notifyUser({
     userId: derniere.validatorId, type: "VALIDATION_REQUIRED", title: "Demande corrigée — à revalider",
     body: `${reference} — ${quoi}`, link: `/demandes/${requestId}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("admin-request-actions.resoumettreApresModification.notifyUser"));
   await recordAudit({
     actorId: auteurId, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: requestId,
     summary: `Demande ${reference} corrigée et resoumise à ${derniere.validator?.name ?? "son validateur"}`,
@@ -893,7 +894,7 @@ export async function startRequestProcessing(formData: FormData): Promise<Action
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, field: "status", newValue: "IN_PROGRESS", summary: req.assignedToId ? "Traitement démarré" : "Traitement démarré — responsable : la personne qui l'a commencé" });
   // LE DEMANDEUR LIT « EN COURS — chez l'assistante de direction » (Direction, 10/2026).
   if (req.requesterId && req.requesterId !== user.id) {
-    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande en cours", body: `${req.reference} — en cours, chez l'assistante de direction`, link: `/demandes/${id}` }).catch(() => undefined);
+    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande en cours", body: `${req.reference} — en cours, chez l'assistante de direction`, link: `/demandes/${id}` }).catch(sansBloquer("admin-request-actions.startRequestProcessing.notifyUser"));
   }
   revalidatePath(`/demandes/${id}`);
   revalidatePath("/demandes");
@@ -1113,7 +1114,7 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
 
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id, field: "status", newValue: "DONE", summary: "Fin du traitement" });
   if (req.requesterId && req.requesterId !== user.id) {
-    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande traitée", body: `${req.reference} — ${req.title}`, link: `/demandes/${id}` }).catch(() => undefined);
+    await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Demande traitée", body: `${req.reference} — ${req.title}`, link: `/demandes/${id}` }).catch(sansBloquer("admin-request-actions.finishRequest.notifyUser"));
   }
   // L'ARCHIVE DANS LE DRIVE (« Dossier traité ») — elle n'était faite que par le menu libre, c'est-à-dire
   // par le seul chemin qui contournait les gardes de cette fin (§118.191, audit R12). Une fois, jamais

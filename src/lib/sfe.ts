@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Force de vente & prévisions (SFE) — valeurs par défaut **100% configurables** (SfeSettings)
@@ -32,7 +33,7 @@ export interface SfeConfig {
 
 /** Paramètres SFE effectifs (base fusionnée avec les valeurs par défaut). */
 export async function getSfeConfig(): Promise<SfeConfig> {
-  const row = await prisma.sfeSettings.findUnique({ where: { id: "global" } }).catch(() => null);
+  const row = await prisma.sfeSettings.findUnique({ where: { id: "global" } }).catch(sansBloquer("sfe.getSfeConfig.sfeSettings", null));
   const pw = (row?.positionWeights as Record<string, number> | null) ?? null;
   const cap = (row?.capacity as Partial<SfeConfig["capacity"]> | null) ?? null;
   const freq = (row?.frequencyByTier as Record<string, number> | null) ?? null;
@@ -142,7 +143,7 @@ export async function resolveRepScope(user: SessionUser): Promise<RepScope> {
     const repIds = Array.from(new Set([...members.map((m) => m.repId), user.id]));
     return { mode: "team", canConfigure: false, isSupervisor: true, buIds, repIds };
   }
-  const profil = await prisma.salesRepProfile.findUnique({ where: { repId: user.id }, select: { id: true } }).catch(() => null);
+  const profil = await prisma.salesRepProfile.findUnique({ where: { repId: user.id }, select: { id: true } }).catch(sansBloquer("sfe.resolveRepScope.salesRepProfile", null));
   if (estLecteurDePilotage(user, !!profil, userCan(user, "SALES_PLANNING", "VIEW"))) {
     return { mode: "all", canConfigure: false, isSupervisor: false, lectureSeule: true, buIds: [], repIds: null };
   }

@@ -54,6 +54,7 @@ import {
   BARGE_IN_SUSTAIN_MS, DELIVERY_WATCHDOG_TICK_MS, DELIVERY_WATCHDOG_GRACE_MS,
 } from "@/lib/assistant/voice-tuning";
 import { parseRetryAfter, isRateLimitStatus } from "@/lib/assistant/voice-cooldown";
+import { sansBloquer } from "@/lib/journal";
 
 export type VoiceCallState =
   | "IDLE" | "CONNECTING" | "LISTENING" | "USER_SPEAKING" | "THINKING"
@@ -387,7 +388,7 @@ export class OpenAIGptRealtime21Provider implements VoiceRealtimeProvider {
     this.audioEl.autoplay = true;
     pc.ontrack = (e) => {
       if (this.audioEl) this.audioEl.srcObject = e.streams[0];
-      void this.audioEl?.play().catch(() => undefined); // iOS/Safari : play() après geste utilisateur
+      void this.audioEl?.play().catch(sansBloquer("realtime-voice.connect.play")); // iOS/Safari : play() après geste utilisateur
     };
     pc.onconnectionstatechange = () => {
       this.opts.callbacks.onConnectionChange?.(pc.connectionState);
@@ -421,7 +422,7 @@ export class OpenAIGptRealtime21Provider implements VoiceRealtimeProvider {
       // son quota par minute, deux incidents qui ne se traitent pas pareil. Et surtout, le
       // serveur DIT combien de temps attendre dans `Retry-After` : on l'ignorait pour
       // reconnecter aussitôt, ce qui est exactement la mauvaise réponse à « ralentis ».
-      const body = await res.text().catch(() => "");
+      const body = await res.text().catch(sansBloquer("realtime-voice.connect.text", ""));
       const err = new SdpRejection(res.status, body, res.headers.get("retry-after"));
       throw err;
     }

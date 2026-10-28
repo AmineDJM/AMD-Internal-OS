@@ -32,6 +32,7 @@ import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
 import { champsNonSaisis } from "@/lib/coffre/champs";
 // LA FRONTIÈRE — l'ERP annonce ses faits ; il ne sait pas qui les écoute, et c'est le principe.
 import { emit } from "@/platform/events";
+import { sansBloquer } from "@/lib/journal";
 
 function castContract(v: string | null): ContractType | null {
   return v ? (v as ContractType) : null;
@@ -556,14 +557,14 @@ export async function cancelLeave(formData: FormData): Promise<ActionResult> {
     if (leave.stage === "MANAGER" && leave.managerId) {
       const chef = await prisma.employee.findUnique({ where: { id: leave.managerId }, select: { userId: true } });
       if (chef?.userId && chef.userId !== user.id) {
-        await notifyUser({ userId: chef.userId, type: "GENERIC", title: "Demande de congé annulée", body: periodeAnnulee, link: LIEN_CONGES_A_SIGNER }).catch(() => undefined);
+        await notifyUser({ userId: chef.userId, type: "GENERIC", title: "Demande de congé annulée", body: periodeAnnulee, link: LIEN_CONGES_A_SIGNER }).catch(sansBloquer("hr-actions.cancelLeave.notifyUser"));
       }
     } else {
       const roles = stageNotifyRoles(leave.stage as LeaveStage) as UserRole[];
-      if (roles.length) await notifyRoles(roles, { type: "GENERIC", title: "Demande de congé annulée", body: periodeAnnulee, link: LIEN_CONGES_A_SIGNER }).catch(() => undefined);
+      if (roles.length) await notifyRoles(roles, { type: "GENERIC", title: "Demande de congé annulée", body: periodeAnnulee, link: LIEN_CONGES_A_SIGNER }).catch(sansBloquer("hr-actions.cancelLeave.notifyRoles"));
     }
   } else if (!isOwner && leave.employee.userId) {
-    await notifyUser({ userId: leave.employee.userId, type: "GENERIC", title: "Demande de congé annulée", body: periodeAnnulee, link: LIEN_MES_CONGES }).catch(() => undefined);
+    await notifyUser({ userId: leave.employee.userId, type: "GENERIC", title: "Demande de congé annulée", body: periodeAnnulee, link: LIEN_MES_CONGES }).catch(sansBloquer("hr-actions.cancelLeave.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "LEAVE_REQUEST",
@@ -712,7 +713,7 @@ export async function decideAdvance(formData: FormData): Promise<ActionResult> {
         body: `Votre demande d'avance sur salaire a été ${decision === "APPROVED" ? "approuvée" : "refusée"}.`,
         link: LIEN_MES_AVANCES,
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("hr-actions.decideAdvance.notification"));
   }
 
   // Approval → emit an ordre de dépense for the comptable (who settles it).
@@ -757,9 +758,9 @@ export async function cancelAdvance(formData: FormData): Promise<ActionResult> {
   // le salarié quand ce sont les RH.
   const corpsAvance = `${adv.employee.fullName} — avance de ${Number(adv.amount)} DZD : demande annulée${isOwner ? " par le salarié" : " par les RH"}.`;
   if (isOwner) {
-    await notifyRoles(rolesWithModule("RH", "VALIDATE"), { type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: CHEMIN_PAIE_RH }).catch(() => undefined);
+    await notifyRoles(rolesWithModule("RH", "VALIDATE"), { type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: CHEMIN_PAIE_RH }).catch(sansBloquer("hr-actions.cancelAdvance.notifyRoles"));
   } else if (adv.employee.userId) {
-    await notifyUser({ userId: adv.employee.userId, type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: LIEN_MES_AVANCES }).catch(() => undefined);
+    await notifyUser({ userId: adv.employee.userId, type: "GENERIC", title: "Avance sur salaire annulée", body: corpsAvance, link: LIEN_MES_AVANCES }).catch(sansBloquer("hr-actions.cancelAdvance.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "SALARY_ADVANCE",

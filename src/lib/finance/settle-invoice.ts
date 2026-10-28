@@ -6,6 +6,7 @@ import { settlementAction, invoiceDirection, invoiceSettlementLabel } from "@/li
 import { compteDeLEcriture } from "@/lib/finance/comptes";
 import { netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'ÉCRITURE FINANCIÈRE D'UNE FACTURE SAISIE COMME DÉJÀ RÉGLÉE.
@@ -66,7 +67,7 @@ export async function syncInvoiceSettlement(documentId: string, actorId: string)
     // On délie AVANT de supprimer : si la suppression échoue, la facture ne pointe plus vers une
     // écriture fantôme — mieux vaut une écriture orpheline, visible, qu'un lien mort.
     await prisma.legalDocument.update({ where: { id: doc.id }, data: { settlementTxId: null } });
-    await prisma.financeTransaction.delete({ where: { id: txId } }).catch(() => undefined);
+    await prisma.financeTransaction.delete({ where: { id: txId } }).catch(sansBloquer("settle-invoice.syncInvoiceSettlement.financeTransaction"));
     await recordAudit({
       actorId, action: "UPDATE", module: "Finances", entityType: "FINANCE_TRANSACTION", entityId: txId,
       summary: `Règlement annulé — écriture retirée pour « ${doc.title} »`,

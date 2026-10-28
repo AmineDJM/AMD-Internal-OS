@@ -13,6 +13,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * CHOISIR UNE PARTIE DANS L'ANNUAIRE DE L'ENTREPRISE — et pouvoir l'y créer sans partir.
@@ -97,7 +98,7 @@ export function PartyPicker({
         setConnus(d.parties ?? []);
         setCreationPermise(Boolean(d.canCreate));
       })
-      .catch(() => undefined)
+      .catch(sansBloquer("party-picker.PartyPicker.fetch"))
       .finally(() => { if (vivant) setChargement(false); });
     return () => { vivant = false; };
   }, [options]);

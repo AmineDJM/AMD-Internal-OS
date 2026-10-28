@@ -66,6 +66,7 @@ import { demanderApprobation, reouvrirSiChange } from "@/lib/missions/approval/g
 import { porteAttentionPour } from "@/platform/in-process/missions/attention";
 import { withTurn, setTurnContext } from "@/lib/models/telemetry";
 import { assembler, avancerMission, titreDe, type LancementOptions } from "@/platform/in-process/missions/runtime";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * À PARTIR DE COMBIEN DE JALONS L'HORIZON A UN SENS.
@@ -104,10 +105,10 @@ export async function ouvrirHorizon(
   opts: { missionId?: string; titre?: string; reasoner?: Reasoner; sansEnquete?: boolean } = {},
 ): Promise<ResultatHorizon> {
   const cerveau = opts.reasoner ?? raisonneur;
-  const situation = opts.sansEnquete ? null : await enqueter(user, objectif).catch(() => null);
+  const situation = opts.sansEnquete ? null : await enqueter(user, objectif).catch(sansBloquer("horizon.ouvrirHorizon.enqueter", null));
   const politiques = await import("@/platform/in-process/teach/store")
     .then((m) => m.politiquesPourMission(user.id))
-    .catch(() => [] as string[]);
+    .catch(sansBloquer("horizon.ouvrirHorizon", [] as string[]));
 
   const decoupage = await decouperEnJalons(objectif, cerveau, {
     contexte: {
@@ -431,7 +432,7 @@ async function compilerJalon(
   const perimees = await entreesAVerifier(mission.id);
   const politiques = await import("@/platform/in-process/teach/store")
     .then((m) => m.politiquesPourMission(user.id))
-    .catch(() => [] as string[]);
+    .catch(sansBloquer("horizon.compilerJalon", [] as string[]));
 
   const contexte: ContextePlanification = {
     aujourdhui: new Date().toLocaleDateString("fr-FR"),
@@ -598,14 +599,14 @@ async function compilerJalon(
         kind: "PLAN_CHANGED", missionId: mission.id, ownerId: mission.ownerId, titre: mission.title,
         raison: `Jalon ${jalon.ordre} : ${rouvert.stepKeys.length} étape(s) ne sont pas couvertes par votre accord précédent.`,
         stepKey: rouvert.stepKeys.join("+").slice(0, 120),
-      }).catch(() => undefined);
+      }).catch(sansBloquer("horizon.compilerJalon.signaler"));
     } else {
       const id = await demanderApprobation(mission.id, p, mission.ownerId, mission.title);
       await porteAttentionPour().signaler({
         kind: "APPROVAL_REQUIRED", missionId: mission.id, ownerId: mission.ownerId, titre: mission.title,
         raison: p.resume, niveauApprobation: p.niveau, stepKey: `jalon-${jalon.ordre}`,
         planVersion: apres?.planVersion ?? 1,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("horizon.compilerJalon.signaler"));
       void id;
     }
   }
@@ -627,7 +628,7 @@ async function compilerJalon(
  * survole. On garde les plus vieilles — `aRegarder` les rend déjà triées.
  */
 async function entreesAVerifier(missionId: string): Promise<string[]> {
-  const entrees = await lireEntrees(missionId).catch(() => []);
+  const entrees = await lireEntrees(missionId).catch(sansBloquer("horizon.entreesAVerifier.lireEntrees", []));
   if (entrees.length === 0) return [];
   return aRegarder(entrees, new Date())
     .slice(0, 5)

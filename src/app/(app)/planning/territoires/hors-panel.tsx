@@ -8,6 +8,7 @@ import { affecterAuDelegue } from "@/lib/actions/force-de-vente-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { LettreBadge } from "@/app/(app)/segmentation/lettre-badge";
 import type { Lettre } from "@/lib/segmentation/regles";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES CIBLES HORS PANEL D'UN SECTEUR — le nombre ouvre la liste ; chaque ligne s'affecte en un clic au délégué du
@@ -35,7 +36,7 @@ export function HorsPanel({ secteur, delegue, cibles, peutAffecter }: {
     const fd = new FormData();
     fd.set("repId", delegue.id);
     for (const id of ids) fd.append("doctorId", id);
-    const r = await affecterAuDelegue(fd).catch(() => null);
+    const r = await affecterAuDelegue(fd).catch(sansBloquer("hors-panel.affecter.affecterAuDelegue", null));
     setBusy(null);
     if (!r?.ok) { setMsg({ ok: false, texte: r?.error ?? "Affectation impossible." }); return; }
     setMsg({ ok: true, texte: r.message ?? "Affecté." });

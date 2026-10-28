@@ -28,6 +28,7 @@ import { hasGlobalView, type SessionUser } from "@/lib/rbac";
 export const aVueGlobale = (user: SessionUser): boolean => hasGlobalView(user);
 import type { Ligne } from "@/lib/sandbox/analyse";
 import type { ResultatSql } from "@/lib/sandbox/sql";
+import { sansBloquer } from "@/lib/journal";
 
 export const LIGNES_DRIVE_MAX = 50_000;
 const COLONNES_MAX = 60;
@@ -121,7 +122,7 @@ export async function lireLignesDrive(user: SessionUser, ref: string, opts: { fe
   const max = Math.min(Math.max(opts.max ?? LIGNES_DRIVE_MAX, 1), LIGNES_DRIVE_MAX);
   const r = (ref ?? "").trim();
   if (!r) return { ok: false, erreur: "aucun fichier désigné" };
-  let node = await prisma.driveNode.findUnique({ where: { id: r }, select: { id: true, name: true, type: true, isTrashed: true, mimeType: true } }).catch(() => null);
+  let node = await prisma.driveNode.findUnique({ where: { id: r }, select: { id: true, name: true, type: true, isTrashed: true, mimeType: true } }).catch(sansBloquer("sandbox.lireLignesDrive.driveNode", null));
   if (!node) {
     const parNom = await prisma.driveNode.findMany({
       where: { type: "FILE", isTrashed: false, name: { contains: r, mode: "insensitive" } },
@@ -138,7 +139,7 @@ export async function lireLignesDrive(user: SessionUser, ref: string, opts: { fe
   if (!canViewDrive(await resolveDriveAccess(user, node.id))) return { ok: false, erreur: "ce fichier ne vous est pas ouvert dans le Drive" };
   const version = await prisma.fileVersion.findFirst({ where: { nodeId: node.id }, orderBy: { version: "desc" }, select: { blobId: true } });
   if (!version) return { ok: false, erreur: "ce fichier n'a aucune version lisible" };
-  const octets = await getBlob(version.blobId).catch(() => null);
+  const octets = await getBlob(version.blobId).catch(sansBloquer("sandbox.lireLignesDrive.getBlob", null));
   if (!octets) return { ok: false, erreur: "le contenu du fichier n'a pas pu être lu" };
   const ext = extDe(node.name);
   if (["csv", "tsv", "txt"].includes(ext)) {
@@ -170,5 +171,5 @@ export async function journaliserSql(user: SessionUser, requete: string, res: Re
   await recordAudit({
     actorId: user.id, action: "EXPORT", module: "ASSISTANT",
     summary: `Bac à sable SQL (lecture seule, ${res.isolation ?? "refusé"}) · ${res.ok ? `${res.lignes.length} ligne(s)${res.tronque ? " (tronqué)" : ""} · ${res.relations.join(", ")}` : `refus : ${res.erreur}`} · ${requete.replace(/\s+/g, " ").slice(0, 160)}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("sandbox.journaliserSql.recordAudit"));
 }

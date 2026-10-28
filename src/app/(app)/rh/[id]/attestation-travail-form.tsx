@@ -13,6 +13,7 @@ import {
   type ChampsAttestation, type ProvenanceChamp,
 } from "@/lib/hr/attestation-travail/regles";
 import { cn } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
 
 type Preparation = Extract<Awaited<ReturnType<typeof preparerAttestationDeTravail>>, { ok: true }>;
 
@@ -42,7 +43,7 @@ export function AttestationTravailForm({ requestId, details, dejaGeneree = false
   const ouvrir = async () => {
     setOuvert(true); setChargement(true); setMsg(null);
     const fd = new FormData(); fd.set("requestId", requestId);
-    const r = await preparerAttestationDeTravail(fd).catch(() => ({ ok: false as const, error: "Le préremplissage a échoué." }));
+    const r = await preparerAttestationDeTravail(fd).catch(sansBloquer("attestation-travail-form.ouvrir.preparerAttestationDeTravail", { ok: false as const, error: "Le préremplissage a échoué." }));
     setChargement(false);
     if (!r.ok) { setMsg({ ok: false, texte: r.error }); return; }
     setPrep(r);
@@ -131,7 +132,7 @@ export function AttestationTravailForm({ requestId, details, dejaGeneree = false
         const fd = new FormData(e.currentTarget);
         fd.set("requestId", requestId);
         setBusy(true); setMsg(null);
-        const r = await genererAttestationDeTravail(fd).catch(() => ({ ok: false as const, error: "La génération a échoué.", message: undefined }));
+        const r = await genererAttestationDeTravail(fd).catch(sansBloquer("attestation-travail-form.AttestationTravailForm.genererAttestationDeTravail", { ok: false as const, error: "La génération a échoué.", message: undefined }));
         setBusy(false);
         setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Attestation générée.") : (r.error ?? "L'attestation n'a pas été générée.") });
         if (r.ok) { setOuvert(false); rafraichir(); }

@@ -31,6 +31,7 @@ import { useScrollLock } from "@/lib/use-scroll-lock";
 import { useConfirmer } from "@/components/ui/dialogue";
 import { useRetours } from "@/components/ui/retour";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { sansBloquer } from "@/lib/journal";
 
 /** Pièce jointe en attente d'envoi : fichier local (upload) ou fichier du Drive (référence). */
 type PendingAttach =
@@ -765,7 +766,7 @@ export function AssistantChat({
   const cancel = (msgId: number, index: number, intentId?: string) => {
     patchAction(msgId, index, { state: "cancelled" });
     // L'état CANONIQUE serveur suit : « annulée — jamais exécutée » restera vrai partout.
-    if (intentId) void cancelAssistantAction(intentId).catch(() => {});
+    if (intentId) void cancelAssistantAction(intentId).catch(sansBloquer("assistant-chat.cancel.cancelAssistantAction"));
   };
 
   /**

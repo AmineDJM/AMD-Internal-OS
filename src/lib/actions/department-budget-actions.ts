@@ -24,6 +24,7 @@ import { continuousCash, fundExcluding, fundHandle, canSpendFromFund } from "@/l
 import { openRemittances } from "@/lib/queries/general-means";
 import { resolveSource, sourceOf, sourceChange } from "@/lib/general-means/payment-source";
 import { toNumber } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/budgets/departements";
 
@@ -284,7 +285,7 @@ export async function annulerDemandeBudgetDepartement(formData: FormData): Promi
   await notifyRoles(["SUPER_ADMIN", "DIRECTION"], {
     type: "GENERIC", title: "Demande de budget retirée",
     body: `${libelle} — retirée par ${user.name}, il n'y a plus rien à trancher.`, link: lienDemandeBudgetDepartement(id, req.year),
-  }).catch(() => undefined);
+  }).catch(sansBloquer("department-budget-actions.annulerDemandeBudgetDepartement.notifyRoles"));
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: req.departmentId,
     field: "status", oldValue: "PENDING", newValue: "CANCELLED",
@@ -676,7 +677,7 @@ export async function deleteDepartmentExpense(formData: FormData): Promise<Actio
   // Le blob d'abord, la ligne ensuite : l'inverse laisserait un document sans fichier si le
   // stockage refuse, et un document illisible est pire qu'un document absent.
   for (const d of docs) {
-    if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => {});
+    if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("department-budget-actions.deleteDepartmentExpense.deleteFileByKey"));
   }
   await prisma.document.deleteMany({ where: { entityType: "DEPARTMENT_EXPENSE", entityId: id } });
   // Les lignes du ticket tombent en cascade avec la dépense (contrainte de clé étrangère).

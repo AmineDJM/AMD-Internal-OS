@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { sansBloquer } from "@/lib/journal";
 
 export interface GeoInfo {
   country?: string;
@@ -48,7 +49,7 @@ export function enrichSessionGeo(sessionId: string, ip: string | null): void {
           where: { id: sessionId },
           data: { country: geo.country, city: geo.city },
         })
-        .catch(() => undefined);
+        .catch(sansBloquer("geo.enrichSessionGeo.userSession"));
     }
   });
 }

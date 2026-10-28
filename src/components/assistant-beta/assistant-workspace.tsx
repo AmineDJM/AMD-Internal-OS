@@ -14,6 +14,7 @@ import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/b
 import type { KpiData } from "./kpi-glass-strip";
 import { useConfirmer } from "@/components/ui/dialogue";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { sansBloquer } from "@/lib/journal";
 
 export interface AssistantWorkspaceProps {
   initialKpiData?: KpiData;
@@ -71,7 +72,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("routine");
     if (id) { setRoutineInitiale(id); setRoutinesOuvertes(true); }
-    void listerMesRoutines().then((r) => { if (r.ok) setNonLus(r.nonLus); }).catch(() => undefined);
+    void listerMesRoutines().then((r) => { if (r.ok) setNonLus(r.nonLus); }).catch(sansBloquer("assistant-workspace.AssistantWorkspace.listerMesRoutines"));
   }, []);
   const [pieces, setPieces] = useState<PieceJointe[]>([]);
   const envoiEnCours = pieces.some((p) => p.etat === "envoi");

@@ -26,6 +26,7 @@ import { costOf } from "@/lib/models/contract";
 import { bindingFor } from "@/lib/models/registry";
 import { ingestMessage } from "@/lib/google/gmail/ingest";
 import { sealSecret } from "@/lib/crypto/secret-box";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -167,7 +168,7 @@ const controle = (dependsOn: string[]): EtapeLibre => ({
 async function conduire(acteur: CurrentUser, missionId: string, cerveau: Reasoner, tours = 12): Promise<string> {
   let precedent = "";
   for (let i = 0; i < tours; i++) {
-    await avancerMission(acteur, missionId, { reasoner: cerveau, lectureSeule: true, maxTours: 25 }).catch(() => null);
+    await avancerMission(acteur, missionId, { reasoner: cerveau, lectureSeule: true, maxTours: 25 }).catch(sansBloquer("acceptance.conduire.avancerMission", null));
     const m = await prisma.mission.findUnique({
       where: { id: missionId },
       select: { status: true, steps: { select: { key: true, status: true } } },
@@ -933,7 +934,7 @@ export async function executerAcceptance(
       const proposees = ((journal?.detail ?? {}) as Record<string, unknown>).formesProposees;
       attendre(typeof proposees === "number" && proposees >= 1,
         "le journal CREATED ne compte pas les formes proposées — l'influence n'est pas auditable");
-      await prisma.missionPlanPattern.delete({ where: { signature: ligne.signature } }).catch(() => undefined);
+      await prisma.missionPlanPattern.delete({ where: { signature: ligne.signature } }).catch(sansBloquer("acceptance.executerAcceptance.missionPlanPattern"));
       return {
         mesures: { reussites: ligne.succes, statutForme: "VALIDATED", formesProposeesA4e: proposees },
         preuve: "3 missions réelles → forme VALIDATED en base ; la 4ᵉ planification reçoit l'indication (« indication SEULEMENT », jamais une autorité) et le journal CREATED en compte la proposition.",
@@ -1215,22 +1216,22 @@ export async function executerAcceptance(
       const ids = missions.map((m) => m.id);
       if (ids.length > 0) {
         const where = { missionId: { in: ids } };
-        await prisma.missionPlanPattern.deleteMany({ where: { dernierMissionId: { in: ids } } }).catch(() => {});
-        await prisma.missionWorkerRun.deleteMany({ where }).catch(() => {});
-        await prisma.missionEvent.deleteMany({ where }).catch(() => {});
-        await prisma.missionApproval.deleteMany({ where }).catch(() => {});
-        await prisma.missionArtifact.deleteMany({ where }).catch(() => {});
-        await prisma.missionParticipant.deleteMany({ where }).catch(() => {});
-        await prisma.missionStep.deleteMany({ where }).catch(() => {});
-        await prisma.mission.deleteMany({ where: { id: { in: ids } } }).catch(() => {});
+        await prisma.missionPlanPattern.deleteMany({ where: { dernierMissionId: { in: ids } } }).catch(sansBloquer("acceptance.executerAcceptance.missionPlanPattern"));
+        await prisma.missionWorkerRun.deleteMany({ where }).catch(sansBloquer("acceptance.executerAcceptance.missionWorkerRun"));
+        await prisma.missionEvent.deleteMany({ where }).catch(sansBloquer("acceptance.executerAcceptance.missionEvent"));
+        await prisma.missionApproval.deleteMany({ where }).catch(sansBloquer("acceptance.executerAcceptance.missionApproval"));
+        await prisma.missionArtifact.deleteMany({ where }).catch(sansBloquer("acceptance.executerAcceptance.missionArtifact"));
+        await prisma.missionParticipant.deleteMany({ where }).catch(sansBloquer("acceptance.executerAcceptance.missionParticipant"));
+        await prisma.missionStep.deleteMany({ where }).catch(sansBloquer("acceptance.executerAcceptance.missionStep"));
+        await prisma.mission.deleteMany({ where: { id: { in: ids } } }).catch(sansBloquer("acceptance.executerAcceptance.mission"));
       }
-      await prisma.employee.deleteMany({ where: { department: `DEP-${TAG}` } }).catch(() => {});
-      await prisma.assistantReminder.deleteMany({ where: { userId: compte.id } }).catch(() => {});
-      await prisma.notification.deleteMany({ where: { userId: compte.id } }).catch(() => {});
-      await prisma.businessEvent.deleteMany({ where: { payload: { path: ["marqueur"], equals: TAG } } }).catch(() => {});
+      await prisma.employee.deleteMany({ where: { department: `DEP-${TAG}` } }).catch(sansBloquer("acceptance.executerAcceptance.employee"));
+      await prisma.assistantReminder.deleteMany({ where: { userId: compte.id } }).catch(sansBloquer("acceptance.executerAcceptance.assistantReminder"));
+      await prisma.notification.deleteMany({ where: { userId: compte.id } }).catch(sansBloquer("acceptance.executerAcceptance.notification"));
+      await prisma.businessEvent.deleteMany({ where: { payload: { path: ["marqueur"], equals: TAG } } }).catch(sansBloquer("acceptance.executerAcceptance.businessEvent"));
       // Les utilisateurs du banc — l'acteur ET la boîte Gmail : les cascades emportent la
       // connexion, les enregistrements de courrier et leurs pièces.
-      await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
+      await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(sansBloquer("acceptance.executerAcceptance.user"));
     } catch {
       // Le nettoyage est défensif : un reliquat taggé vaut mieux qu'un run qui échoue à la fin.
     }

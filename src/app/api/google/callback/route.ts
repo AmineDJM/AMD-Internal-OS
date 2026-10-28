@@ -7,6 +7,7 @@ import { resolveGoogleConfig, isExpectedAccount, GOOGLE_USERINFO_URL } from "@/l
 import { exchangeCode, verifyState, readIdTokenClaims, revokeToken, GoogleAuthError } from "@/lib/google/oauth";
 import { saveGoogleConnection } from "@/lib/google/connection";
 import { ensureWatch } from "@/lib/google/gmail/reconcile";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +59,7 @@ export async function GET(req: NextRequest) {
     let displayName = claims.name;
     if (!address) {
       const res = await fetch(GOOGLE_USERINFO_URL, { headers: { authorization: `Bearer ${tokens.accessToken}` } });
-      const me = (await res.json().catch(() => ({}))) as { email?: string; name?: string; sub?: string };
+      const me = (await res.json().catch(sansBloquer("callback-route.GET.json", {}))) as { email?: string; name?: string; sub?: string };
       address = me.email?.toLowerCase() ?? null;
       displayName = me.name ?? null;
     }
@@ -88,7 +89,7 @@ export async function GET(req: NextRequest) {
 
     // La veille s'arme tout de suite : un Adam connecté mais sourd n'a aucun intérêt.
     const conn = await import("@/lib/google/gmail/reconcile").then((m) => m.adamConnection());
-    if (conn) await ensureWatch(conn.id, { force: true }).catch(() => undefined);
+    if (conn) await ensureWatch(conn.id, { force: true }).catch(sansBloquer("callback-route.GET.ensureWatch"));
 
     return back("connecte=1");
   } catch (err) {

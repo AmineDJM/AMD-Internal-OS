@@ -1,5 +1,6 @@
 import { reduire, type ResultatReduction } from "./reduction";
 import { profilReduction } from "./politique";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA MÉMOIRE DES RÉDUCTIONS — pour qu'un fichier regardé dans le menu puis téléchargé ne soit pas
@@ -93,7 +94,7 @@ export async function obtenirReduction(d: DemandeReduction, opts: { avecOctets: 
   })();
   if (cle) {
     enVol.set(cle, travail);
-    travail.finally(() => enVol.delete(cle)).catch(() => undefined);
+    travail.finally(() => enVol.delete(cle)).catch(sansBloquer("reduction-cache.obtenirReduction"));
   }
   return travail;
 }

@@ -3,6 +3,7 @@ import { normaliserMoyen, type ExtractedBy, type IngestStage } from "./contract"
 import { enqueue } from "./queue";
 import { modeleDisponible } from "./disponibilite";
 import { regrouperEchecs, type GroupeMort, type TravailMort } from "./boite-morte";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -75,7 +76,7 @@ export async function reparerEtapesEnEchec(limit = REPARATIONS_PAR_PASSAGE, item
     });
     const u = await prisma.knowledgeItem
       .updateMany({ where: { id: r.id, stage: "FAILED" }, data: { stage } })
-      .catch(() => ({ count: 0 }));
+      .catch(sansBloquer("rattrapage.reparerEtapesEnEchec.knowledgeItem", { count: 0 }));
     n += u.count;
   }
   return n;
@@ -182,7 +183,7 @@ export async function etatVectorisation(): Promise<EtatVectorisation> {
   const rows = await prisma.$queryRaw<{ n: bigint; car: bigint | null }[]>`
     SELECT count(*)::bigint AS n, sum(length(c.text))::bigint AS car
     FROM "KnowledgeChunk" c JOIN "KnowledgeItem" i ON i.id = c."itemId"
-    WHERE c.embedding IS NULL AND i."isCurrent" = true`.catch(() => [{ n: BigInt(0), car: BigInt(0) }]);
+    WHERE c.embedding IS NULL AND i."isCurrent" = true`.catch(sansBloquer("rattrapage.etatVectorisation", [{ n: BigInt(0), car: BigInt(0) }]));
   const r = rows[0] ?? { n: BigInt(0), car: BigInt(0) };
   return { restants: Number(r.n), coutEstimeUsd: coutVectorisationUsd(Number(r.car ?? 0)) };
 }
@@ -248,7 +249,7 @@ export async function chargerBoiteMorte(limit = BOITE_MORTE_LUE): Promise<BoiteM
     .filter((s) => s.type === "drive_file" && s.id)
     .map((s) => s.id as string);
   const nodes = nodeIds.length
-    ? await prisma.driveNode.findMany({ where: { id: { in: nodeIds } }, select: { id: true, name: true } }).catch(() => [])
+    ? await prisma.driveNode.findMany({ where: { id: { in: nodeIds } }, select: { id: true, name: true } }).catch(sansBloquer("rattrapage.chargerBoiteMorte.driveNode", []))
     : [];
   const nomNoeud = new Map(nodes.map((n) => [n.id, n.name]));
 

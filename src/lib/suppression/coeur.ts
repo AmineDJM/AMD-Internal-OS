@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { DELETE_REGISTRY, deleteDelegateOf, modeleDuRegistre, refusDuLot, type DeletableKind } from "@/lib/admin-delete-registry";
 import { dejaPresents, instantaneTete, inventorier, restaurerLot, supprimerLot, type InstantaneLot } from "./lot";
+import { sansBloquer } from "@/lib/journal";
 
 export { apercuSuppression, type ApercuSuppression } from "@/lib/admin-delete-registry";
 
@@ -71,8 +72,8 @@ export async function supprimerReversible(kind: DeletableKind, id: string, actor
     console.error("[softDelete] échec suppression", kind, id, err);
     // Remet les documents/commentaires retirés à l'étape 2 (la ligne principale existe encore).
     if (spec.entityType) {
-      if (docsSnapshot.length) await prisma.document.createMany({ data: docsSnapshot as never[] }).catch(() => {});
-      if (commentsSnapshot.length) await prisma.comment.createMany({ data: commentsSnapshot as never[] }).catch(() => {});
+      if (docsSnapshot.length) await prisma.document.createMany({ data: docsSnapshot as never[] }).catch(sansBloquer("suppression-coeur.supprimerReversible.document"));
+      if (commentsSnapshot.length) await prisma.comment.createMany({ data: commentsSnapshot as never[] }).catch(sansBloquer("suppression-coeur.supprimerReversible.comment"));
     }
     return { ok: false, error: "Suppression impossible (des éléments liés bloquent). Détachez-les puis réessayez." };
   }

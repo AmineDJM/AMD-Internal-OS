@@ -20,6 +20,51 @@ autrefois muets s'affichent désormais. Cliquets abaissés au chiffre mesuré : 
 appels d'action non gardés 315 → **0** (`action-gardee.test.ts`), `router.refresh()` nus 326 → **1**, le crochet lui-même
 (`rafraichir.test.ts`). Carte : [KB 05 § 4.2, 4.7](../knowledge-base/05-frontend-ui-ux.md).
 
+### V3-D — L'ASSISTANT IA EN EXPLOITATION : CHAQUE APPEL COMPTÉ, CHAQUE TOUR BORNÉ (2026-10-28)
+
+Audit 27/10, rapport 06 (IA-ASSISTANT-03, -06, -07, -08, -09, -10, -12, -13 et l'injection par documents). **Journal** :
+les deux seules portes de l'Assistant IA vers MiMo (`repondreAvecSecours`, `genererTexte`) ouvrent un budget, comptent
+chaque étape de Mastra (`onStepFinish`) et écrivent une ligne `ModelCallLog` par appel (personne, conversation, modèle,
+jetons, durée, coût estimé) et une `AiUsageLog` par tour (`src/lib/agent/consommation.ts`). **Plafonds** (table
+`AssistantIaReglage`, réglage Super Admin, défauts 12 étapes / 150 000 jetons par tour / 600 000 par personne et par
+jour, heure d'Alger) : refus clair qui nomme le remède, avis au Super Admin une fois par jour (`AssistantIaPlafondAtteint`).
+**Écran** `/admin/ai/consommation` : par personne, par jour, par modèle, plafonds atteints, réglages. **Injection** :
+sorties d'outils à contenu tiers encadrées et désamorcées (`contenu-non-fiable.ts`, cliquet sur les noms d'outils).
+**Robustesse** : trois essais par message du fil (`AssistantIaTour.essais`), balayage `assistant.intentions` (action
+interrompue → échec dit, carte non confirmée → `EXPIRED` après 24 h, refus aussi au clic), cartes caduques retirées avant
+le tour et comparées sur `payload.op`. `agent.ts` (sans appelant) supprimé ; clé MiMo lue sous `MIMO_API_KEY` seul ;
+fournisseur réel dans le journal d'Adam. Migration `20270202090000_assistant_ia_exploitation`. Bancs au faux modèle :
+`consommation.test.ts`, `exploitation.test.ts`, `contenu-non-fiable.test.ts`.
+
+### V3-C PERFORMANCE : SONDAGES LÉGERS, ICÔNES À L'UNITÉ, LECTURES EN PARALLÈLE (2026-10-28)
+
+Suite du rapport d'audit [07 — performance](../audit/2026-10-27/07-performance-runtime.md), mesurée avant/après.
+- **Session légère des sondages (PERF-06)** — `src/lib/session-legere.ts` : `identiteDuSondage()` (jeton + session
+  révocable + compte actif + rôle en base + « Vue exacte », **sans** la matrice des droits) et `peutVoirLaMessagerie()`
+  (accès attribué, repli exact sur `getAccess`). `/api/messaging/sync` et `/api/notifications/poll` l'utilisent :
+  **13 → 2** et **14 → 3** requêtes SQL par appel. La révocation et la vue sont écrites une fois dans
+  `src/lib/session-compte.ts`, lues aussi par `session.ts` (session révocable en **une** requête jointe au lieu de deux).
+  Cliquet : une route sondée par la coque lit `identiteDuSondage` (`notifications-sondage-unique.test.ts`).
+- **Icônes de la coque à l'unité (PERF-05)** — `src/components/ui/icones-coque.ts` (imports nommés) +
+  `IconeCoque` ; le jeu complet de Lucide n'est plus chargé que pour un nom absent (chargement différé). Cliquet
+  `icones-coque.test.ts`. Mesure : `node scripts/mesure-bundle.mjs` après un build propre.
+- **Lectures indépendantes en un aller-retour (PERF-10, PERF-11)** — coque `(app)/layout.tsx`, utilisateur à l'écran
+  calculé une fois par rendu (`cache`), `finances/paiements-a-faire`, `marketing-cockpit`.
+- **`take` imbriqué (PERF-08)** — Adam « Conversations consultées » borné en SQL (`derniersMessagesParConversation`) ;
+  cliquet `src/lib/prisma-take-imbrique.test.ts` (plafond 33, décroissant).
+- **Classeurs (PERF-07, part sûre)** — l'ingestion n'analyse que les lignes indexées (`sheetRows`) : 2,7 s → 0,16 s
+  de gel sur 100 000 lignes.
+Aucune migration : les index des chemins mesurés sont en place (`EXPLAIN`).
+
+| Mesure (avant → après) | Avant | Après |
+|---|---|---|
+| SQL par appel, badge messagerie (banc journalisé) | 13 | 2 |
+| SQL par appel, `/api/notifications/poll` | 14 | 3 |
+| SQL / min / onglet, sondages de la coque | ~121 | ~22 |
+| Temps médian d'un sondage (serveur de prod local) | 18–19 ms | 10–12 ms |
+| JS de la coque (gzip, toutes les pages) | 315,4 kB | 166,1 kB |
+| Médiane du First Load JS par page | 324,5 kB | 176,4 kB |
+| Gel d'ingestion d'un classeur de 100 000 lignes | 2,7 s | 0,16 s |
 ### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
 
 Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par

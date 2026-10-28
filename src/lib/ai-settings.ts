@@ -253,9 +253,18 @@ export function remplacerLecteurInterrupteurIaPourTests(lecteur: LecteurInterrup
   lecteurInterrupteurIa = lecteur ?? iaCoupeeGlobalement;
 }
 
+/**
+ * LES FONCTIONS JOURNALISÉES SANS BASCULE À ELLES — l'Assistant IA (MiMo, `lib/agent/`) n'a pas de
+ * bascule dans `AiSetting` : il est tenu par l'interrupteur GÉNÉRAL et par ses propres plafonds
+ * (`AssistantIaReglage`, écran Consommation IA). Le lui donner dans `AiFeature` aurait promis une
+ * bascule que rien ne lit (§118.17).
+ */
+export type AiFeatureJournalisee = AiFeature | "assistant_ia";
+
 export interface AiUsageInput {
-  feature: AiFeature;
-  provider?: "anthropic" | "openai";
+  feature: AiFeatureJournalisee;
+  /** Le fournisseur RÉELLEMENT appelé (`anthropic`, `openai`, `mimo`…) — jamais un nom gravé. */
+  provider?: string;
   model?: string | null;
   userId?: string | null;
   ok: boolean;

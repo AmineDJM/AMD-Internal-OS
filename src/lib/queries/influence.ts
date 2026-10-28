@@ -5,6 +5,7 @@ import { CLE_EXECUTION, chargerContexteInfluence, type BilanAnalyse } from "@/li
 import { chefsDuService, libelleCourt, type TypeRelation } from "@/lib/influence/relations";
 import { ordreDEntree, suggererInfluenceur, type EtapeEntree, type Raison } from "@/lib/influence/score";
 import { partsDeNosLotsEtablissement, type VuePartsLots } from "@/lib/queries/parts-lots";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE GRAPHE D'INFLUENCE — la lecture de la console (Super Admin seul). Les scores et les liens sont ceux que l'analyse a
@@ -135,7 +136,7 @@ export async function vueInfluence(opts: { etabId?: string | null; serviceId?: s
   const detailId = opts.medecinId && medDe.has(opts.medecinId) ? opts.medecinId : null;
   const idsLettres = [...new Set([...idsServices, ...relations.flatMap((r) => [r.fromDoctorId, r.toDoctorId]), ...top.map((t) => t.doctorId), ...(detailId ? [detailId] : [])])];
   const [entrees, fiches, besoins] = await Promise.all([
-    lettresDesPraticiens(idsLettres).catch(() => new Map()),
+    lettresDesPraticiens(idsLettres).catch(sansBloquer("influence.vueInfluence.lettresDesPraticiens", new Map())),
     prisma.segmentationFiche.findMany({ where: { doctorId: { in: top.map((t) => t.doctorId) }, retireeLe: null }, orderBy: { createdAt: "asc" }, select: { doctorId: true, strategieId: true } }),
     produit && etabId ? prisma.besoinAnnuelService.findMany({ where: { productId: produit.id, institutionId: etabId }, orderBy: { annee: "desc" }, select: { serviceId: true, annee: true, quantite: true } }) : Promise.resolve([]),
   ]);
@@ -222,7 +223,7 @@ export async function vueInfluence(opts: { etabId?: string | null; serviceId?: s
   }
 
   // LA PART DE NOS LOTS de l'établissement montré (niveau le plus fin des fichiers de la PCH : pas de volume par service).
-  const partsLots = etabId ? await partsDeNosLotsEtablissement(etabId, produit?.id ?? null).catch(() => null) : null;
+  const partsLots = etabId ? await partsDeNosLotsEtablissement(etabId, produit?.id ?? null).catch(sansBloquer("influence.vueInfluence.partsDeNosLotsEtablissement", null)) : null;
 
   return {
     analyse: { le: execution?.derniereExecution ?? null, bilan: (execution?.bilan as unknown as BilanAnalyse | null) ?? null },

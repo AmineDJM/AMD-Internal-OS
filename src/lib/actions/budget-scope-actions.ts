@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { BUDGET_COOKIE } from "@/lib/budget-scope";
+import { sansBloquer } from "@/lib/journal";
 
 const MAX_AGE = 60 * 60 * 24 * 180;
 
@@ -18,7 +19,7 @@ const MAX_AGE = 60 * 60 * 24 * 180;
 export async function rememberBudgetEnvelope(envelopeId: string): Promise<void> {
   await requireUser();
   if (!envelopeId) return;
-  const exists = await prisma.budgetEnvelope.count({ where: { id: envelopeId } }).catch(() => 0);
+  const exists = await prisma.budgetEnvelope.count({ where: { id: envelopeId } }).catch(sansBloquer("budget-scope-actions.rememberBudgetEnvelope.budgetEnvelope", 0));
   if (!exists) return;
   cookies().set(BUDGET_COOKIE, envelopeId, { path: "/", maxAge: MAX_AGE, sameSite: "lax", httpOnly: true });
 }

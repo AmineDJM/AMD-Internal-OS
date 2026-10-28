@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { aiConfigured } from "@/lib/ai";
 import { regAudit } from "../audit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RATTRAPAGE DES DOSSIERS DÉJÀ EN PLACE — pour que les améliorations profitent aussi à ce qui
@@ -109,7 +110,7 @@ export async function expireStaleBatches(): Promise<number> {
       await regAudit({
         actorId: "system", action: "AI_BATCH_EXPIRED",
         detail: `${r.count} lot(s) d'analyse différée clos automatiquement : jamais revenus du fournisseur. Les versions concernées seront rattrapées en analyse immédiate.`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("catchup.expireStaleBatches.regAudit"));
     }
     return r.count;
   } catch (e) {
@@ -153,7 +154,7 @@ export async function catchUpMissingAiReviews(limit = AI_CATCHUP_PER_TICK): Prom
         where: { dossierVersionId: { in: [...counts.keys()] }, type: "AI_REVIEW", status: "FAILED" },
         select: { dossierVersionId: true },
         distinct: ["dossierVersionId"],
-      }).catch(() => [] as { dossierVersionId: string | null }[]);
+      }).catch(sansBloquer("catchup.catchUpMissingAiReviews.regulatoryJob", [] as { dossierVersionId: string | null }[]));
       const failed = new Set(failedAgain.map((j) => j.dossierVersionId).filter((x): x is string => !!x));
       for (const [versionId, count] of counts) {
         const deserves = failed.has(versionId) && count < MAX_AI_CATCHUPS_AFTER_FAILURE;
@@ -216,7 +217,7 @@ export async function catchUpStalledPipelines(limit = STALL_CATCHUP_PER_TICK): P
       by: ["dossierVersionId"],
       where: { action: "PIPELINE_RESUMED", dossierVersionId: { not: null } },
       _count: { _all: true },
-    }).catch(() => [] as { dossierVersionId: string | null; _count: { _all: number } }[]);
+    }).catch(sansBloquer("catchup.catchUpStalledPipelines.regulatoryAuditLog", [] as { dossierVersionId: string | null; _count: { _all: number } }[]));
     const exhausted = resumed.filter((r) => r._count._all >= MAX_PIPELINE_RESUMES).map((r) => r.dossierVersionId!).filter(Boolean);
 
     const versions = await prisma.regulatoryDossierVersion.findMany({

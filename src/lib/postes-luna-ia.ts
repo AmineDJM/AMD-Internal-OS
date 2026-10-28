@@ -6,6 +6,7 @@ import { wrapUntrusted } from "@/lib/comms/untrusted";
 import {
   CONSIGNE_POSTES, DESCRIPTION_MAX, DESCRIPTION_MIN, lirePropositionModele, propositionVide, SCHEMA_POSTES, type RaisonPostes, type ResultatPostes,
 } from "@/lib/ad-pro/postes-luna";
+import { sansBloquer } from "@/lib/journal";
 
 export type { RaisonPostes, ResultatPostes };
 
@@ -123,7 +124,7 @@ export async function proposerPostesParModele(e: EntreePostes, deps: Dependances
     cachedInputTokens: usage?.cachedInputTokens ?? null,
     reasoningTokens: usage?.reasoningTokens ?? null,
     costUsd: usage?.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("postes-luna-ia.proposerPostesParModele.journaliser"));
 
   if (proposition) return propositionVide(proposition) ? refus("RIEN", "Rien à proposer.") : { ok: true, proposition };
   if (reply && !reply.ok && !reply.configured) return refus("NON_CONFIGUREE", "IA non configurée.");

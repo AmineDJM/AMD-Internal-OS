@@ -5,6 +5,7 @@ import { computeMissingScopes } from "./scopes";
 import { getCommunicationPolicy } from "@/lib/comms/policy";
 import { lireInterrupteurMissions } from "@/lib/interrupteurs/missions";
 import { WATCH_RENEW_BEFORE_MS } from "./gmail/watch";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'ÉTAT DE SANTÉ D'ADAM — ce qu'il faut voir pour savoir s'il est vraiment vivant.
@@ -95,7 +96,7 @@ export async function adamHealth(now: Date = new Date()): Promise<AdamHealth> {
     orderBy: { createdAt: "asc" },
   });
 
-  const policy = await getCommunicationPolicy().catch(() => null);
+  const policy = await getCommunicationPolicy().catch(sansBloquer("health.adamHealth.getCommunicationPolicy", null));
 
   // Une seule salve : ces compteurs s'affichent ensemble, ils doivent décrire le même instant.
   const [awaitingApproval, approvedNotSent, failed24h, sent24h, last24h, missionRows] = await Promise.all([
@@ -166,10 +167,10 @@ export async function adamHealth(now: Date = new Date()): Promise<AdamHealth> {
   if (policy?.inboundPaused) issues.push("Coupe-circuit : traitement de la boîte suspendu (volontaire).");
   if (policy?.outboundPaused) issues.push("Coupe-circuit : envoi de courriel suspendu (volontaire).");
   // L'INTERRUPTEUR GLOBAL DES MISSIONS (§118.132) — même famille : une décision, pas une panne.
-  const missionsSuspendues = await lireInterrupteurMissions().catch(() => null);
+  const missionsSuspendues = await lireInterrupteurMissions().catch(sansBloquer("health.adamHealth.lireInterrupteurMissions", null));
   if (missionsSuspendues?.suspendues) issues.push("Coupe-circuit : toutes les missions d'Adam sont suspendues (volontaire).");
   const poseur = missionsSuspendues?.parId
-    ? await prisma.user.findUnique({ where: { id: missionsSuspendues.parId }, select: { name: true } }).catch(() => null)
+    ? await prisma.user.findUnique({ where: { id: missionsSuspendues.parId }, select: { name: true } }).catch(sansBloquer("health.adamHealth.user", null))
     : null;
 
   return {

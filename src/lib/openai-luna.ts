@@ -39,6 +39,7 @@ import { sanitizeForModel } from "./ai-text";
 import { mentionsUnsupportedTemperature, providerErrorMessage } from "./models/errors";
 // L'interrupteur général de « Contrôle de l'IA » : lu AVANT tout envoi de données (voir `callLuna`).
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "./ai-settings";
+import { attendu } from "@/lib/journal";
 
 // Tarifs officiels (30 juillet 2026), en dollars par MILLION de jetons.
 const PRICE_INPUT_PER_M = 0.2;
@@ -246,7 +247,7 @@ export async function callLuna<T = unknown>(input: LunaCallInput): Promise<LunaR
         return { ok: true, configured: true, text, data: parsed, usage };
       }
 
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[luna] erreur API", res.status, raw.slice(0, 300));
       lastError = providerErrorMessage(res.status, raw);
 

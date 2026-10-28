@@ -8,7 +8,8 @@ import { pipelineAccessFor } from "./regulatory/pipeline-access";
 import { carrierAccess } from "./regulatory/assignment";
 import { NAVIGATION, NAV_LEGACY_LABELS } from "./labels"; // labels n'importe de rbac QUE le type `Module` → aucun cycle runtime
 import { lireSections, peutAnnuaire as regleAnnuaire, ouvertParSection, type AnnuaireAccordable, type FaitsAnnuaire, type GesteAnnuaire } from "./annuaires/acces"; // module PUR, zéro import → aucun cycle
-import { DOMAINES, poleDe, type DomainePole } from "./budget/domaines"; // module PUR, zéro import → aucun cycle
+import { DOMAINES, poleDe, type DomainePole } from "./budget/domaines";
+import { sansBloquer } from "@/lib/journal"; // module PUR, zéro import → aucun cycle
 
 // `cache` is a React Server Components API; fall back to identity outside an
 // RSC render (e.g. unit tests) so the module loads everywhere.
@@ -1391,7 +1392,7 @@ export const getAccess = perRequest(
       prisma.department.count({ where: { OR: [{ head: { userId } }, { deputy: { userId } }] } }),
       // Remplace-t-il quelqu'un en congé aujourd'hui ? La délégation est bornée par les droits
       // de l'absent et s'éteint d'elle-même à la fin du congé — voir `lib/hr/stand-in.ts`.
-      activeStandInsFor(userId).catch(() => []),
+      activeStandInsFor(userId).catch(sansBloquer("rbac.activeStandInsFor", [])),
       // Les accès au PIPELINE (dossiers verrouillés) sont un réglage d'instance, pas un rôle :
       // le Super Admin décide qui voit le portefeuille à l'étude et qui tient le cadenas.
       // `getAppSettings` est lui-même mis en cache par requête et retombe sur ses valeurs par
@@ -1401,7 +1402,7 @@ export const getAccess = perRequest(
       // par le Super Admin : elle n'ouvre que le centre, et rien d'autre. On la résout ici parce
       // que `sitsOnPaymentCentre` est synchrone et appelée depuis l'écran, l'action, l'assistant
       // et la recherche — lui donner une lecture de base rendrait toute la chaîne asynchrone.
-      prisma.paymentCentreSeat.count({ where: { userId } }).catch(() => 0),
+      prisma.paymentCentreSeat.count({ where: { userId } }).catch(sansBloquer("rbac.paymentCentreSeat", 0)),
     ]);
 
     // Rôle principal résolu EN DIRECT depuis la base : le JWT fige le rôle au login, donc
@@ -1640,7 +1641,7 @@ export const getAccess = perRequest(
           },
           select: { id: true },
         })
-        .catch(() => null);
+        .catch(sansBloquer("rbac.regulatoryProduct", null));
       const grant = carrierAccess({
         carries: Boolean(carried),
         blocked: blockedModules.has("REGULATORY"),
@@ -1666,7 +1667,7 @@ export const getAccess = perRequest(
           },
           select: { id: true },
         })
-        .catch(() => null);
+        .catch(sansBloquer("rbac.regulatoryProduct", null));
       const grant = carrierAccess({
         carries: Boolean(carriedLocked),
         blocked: blockedModules.has("REGULATORY_PIPELINE"),
@@ -1694,7 +1695,7 @@ export const getAccess = perRequest(
           },
           select: { id: true },
         })
-        .catch(() => null);
+        .catch(sansBloquer("rbac.budgetEnvelope", null));
       if (shared) grantImplicit("BUDGETS", ["VIEW", "EXPORT"], null);
     }
 
@@ -1721,8 +1722,8 @@ export const getAccess = perRequest(
             },
             select: { id: true },
           })
-          .catch(() => null),
-        prisma.driveShare.findFirst({ where: { userId }, select: { id: true } }).catch(() => null),
+          .catch(sansBloquer("rbac.driveSpace", null)),
+        prisma.driveShare.findFirst({ where: { userId }, select: { id: true } }).catch(sansBloquer("rbac.driveShare", null)),
       ]);
       if (space || share) grantImplicit("DRIVE", ["VIEW"], null);
     }

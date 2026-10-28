@@ -22,6 +22,7 @@ import { formatCurrency } from "@/lib/utils";
 import { DepartmentAccessSheet } from "./access-sheet";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
 import { ancreDemandeBudget } from "@/lib/chemins/budgets";
+import { journal } from "@/lib/journal";
 
 /**
  * Le tableau des budgets départementaux.
@@ -364,7 +365,7 @@ function RequestForm({ departmentId, path, year, onDone, onError }: {
         void requestDepartmentBudget(fd).then((r) => {
           setBusy(false);
           if (r.ok) { onDone(); rafraichir(); } else onError(r.error ?? "La demande de dotation n'a pas été envoyée.");
-        }).catch(() => { setBusy(false); onError(actionFailureMessage("THROWN")); });
+        }).catch((e: unknown) => { journal.erreur("department-budget-table.requestDepartmentBudget", {}, e); setBusy(false); onError(actionFailureMessage("THROWN")); });
       }}
       className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3"
     >
@@ -423,7 +424,7 @@ function ExpenseForm({ departmentId, path, year, onDone, onError }: {
         void addDepartmentExpense(fd).then((r) => {
           setBusy(false);
           if (r.ok) { onDone(); rafraichir(); } else onError(r.error ?? "La dépense n'a pas été imputée.");
-        }).catch(() => { setBusy(false); onError(actionFailureMessage("THROWN")); });
+        }).catch((e: unknown) => { journal.erreur("department-budget-table.addDepartmentExpense", {}, e); setBusy(false); onError(actionFailureMessage("THROWN")); });
       }}
       className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3"
     >
@@ -477,7 +478,7 @@ function RequestList({ requests, canDecide, onError }: {
     void decideDepartmentBudgetRequest(fd).then((r) => {
       setBusy(null);
       if (r.ok) rafraichir(); else onError(r.error ?? "La décision n'a pas été enregistrée.");
-    }).catch(() => { setBusy(null); onError(actionFailureMessage("THROWN")); });
+    }).catch((e: unknown) => { journal.erreur("department-budget-table.decideDepartmentBudgetRequest", {}, e); setBusy(null); onError(actionFailureMessage("THROWN")); });
   };
 
   // RETIRER SA DEMANDE (décision du 04/10) — tant que l'administration ne l'a pas tranchée.
@@ -489,7 +490,7 @@ function RequestList({ requests, canDecide, onError }: {
     void annulerDemandeBudgetDepartement(fd).then((r) => {
       setBusy(null);
       if (r.ok) rafraichir(); else onError(r.error ?? "La demande n'a pas été retirée.");
-    }).catch(() => { setBusy(null); onError(actionFailureMessage("THROWN")); });
+    }).catch((e: unknown) => { journal.erreur("department-budget-table.annulerDemandeBudgetDepartement", {}, e); setBusy(null); onError(actionFailureMessage("THROWN")); });
   };
 
   return (

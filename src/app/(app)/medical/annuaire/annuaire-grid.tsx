@@ -35,6 +35,7 @@ import { actionFailureMessage } from "@/lib/action-outcome";
 import { ImportMappingSheet } from "./import-mapping-sheet";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { EntreeMenu, MenuPlus } from "../menu-plus";
+import { journal } from "@/lib/journal";
 
 /**
  * L'ANNUAIRE COMME UN VRAI TABLEUR — sélection, couleurs, colonnes sur mesure, édition en place.
@@ -678,7 +679,7 @@ export function AnnuaireGrid({
       setRattachement(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
-    }).catch(() => {
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.rattacherEtablissementsParNom", {}, e);
       setRattachement(false);
       setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
@@ -701,7 +702,7 @@ export function AnnuaireGrid({
       setRattachementSpecialites(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
-    }).catch(() => {
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.rattacherSpecialitesParNom", {}, e);
       setRattachementSpecialites(false);
       setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
@@ -729,7 +730,7 @@ export function AnnuaireGrid({
       setRattachementAuto(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
-    }).catch(() => {
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.rattacherAutomatiquement", {}, e);
       setRattachementAuto(false);
       setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
@@ -967,7 +968,7 @@ export function AnnuaireGrid({
                     setDeleting(false);
                     setMsg({ ok: r.ok, text: r.ok ? (r.message ?? (archives ? "Restauré." : "Archivé.")) : (r.error ?? (archives ? "Restauration impossible." : "Archivage impossible.")) });
                     if (r.ok) { setSelected(new Set()); rafraichir(); }
-                  }).catch(() => {
+                  }).catch((e: unknown) => { journal.erreur("annuaire-grid.archiverOuRestaurer", {}, e);
                     setDeleting(false);
                     setMsg({ ok: false, text: actionFailureMessage("THROWN") });
                   });
@@ -1036,7 +1037,7 @@ function AddDoctorRow({
       setBusy(false);
       if (r.ok) { reset(); setOpen(false); rafraichir(); }
       else setErr(r.error ?? "Ajout impossible.");
-    }).catch(() => {
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.addDirectoryDoctor", {}, e);
       setBusy(false);
       setErr(actionFailureMessage("THROWN"));
     });
@@ -1104,7 +1105,7 @@ function GestionColonnes({ directoryId, colonnes, onDone }: { directoryId: strin
       setBusy(false);
       if (r.ok) { setLabel(""); setOptions(""); setKind("TEXT"); onDone(); }
       else setErr(r.error ?? "Ajout impossible.");
-    }).catch(() => {
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.createDirectoryColumn", {}, e);
       setBusy(false);
       setErr(actionFailureMessage("THROWN"));
     });
@@ -1118,7 +1119,7 @@ function GestionColonnes({ directoryId, colonnes, onDone }: { directoryId: strin
     void deleteDirectoryColumn(fd).then((r) => {
       setBusy(false);
       if (r.ok) onDone(); else setErr(r.error ?? "Suppression impossible.");
-    }).catch(() => {
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.deleteDirectoryColumn", {}, e);
       setBusy(false);
       setErr(actionFailureMessage("THROWN"));
     });

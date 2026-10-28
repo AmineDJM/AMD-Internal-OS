@@ -26,6 +26,7 @@ export const DELAI_STT_MS = 120_000;
 export { MIMES_MEDIA, EXTENSIONS_VIDEO, extensionDe, estMedia, estVideo } from "./formats";
 import { MIMES_MEDIA, extensionDe } from "./formats";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "../ai-settings";
+import { attendu } from "@/lib/journal";
 
 export interface OptionsStt {
   /** `fr` par défaut ; `auto` laisse le moteur détecter. */
@@ -83,7 +84,7 @@ export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: 
         const segments = fournis.length ? fournis : texte ? [{ debut: 0, fin: dureeS ?? 0, texte, locuteur: null }] : [];
         return { ok: true, texte, langue: typeof data.language === "string" ? data.language : null, dureeS, segments, modele, ms: Date.now() - t0, horodate: fournis.length > 0 };
       }
-      const corps = await res.text().catch(() => "");
+      const corps = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       if (res.status === 429) {
         const quota = /quota|billing|insufficient/i.test(corps);
         derniere = quota ? "Transcription indisponible : quota du fournisseur épuisé." : "Limite de débit du fournisseur atteinte : réessayer dans un instant.";

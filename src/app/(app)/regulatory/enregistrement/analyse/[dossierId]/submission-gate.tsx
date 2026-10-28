@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Retour } from "@/components/ui/retour";
 import { useKeyedAction } from "@/components/shared/use-action";
 import { submitDossier, reanalyseDossier } from "@/lib/regulatory/intelligence/actions";
+import { sansBloquer } from "@/lib/journal";
 
 interface Props {
   dossierId: string;
@@ -34,7 +35,7 @@ export function SubmissionGate({ dossierId, status, openBlockers, canPrepare, ca
     fd.set("dossierId", dossierId);
     await run("reanalyse", async () => {
       const r = await reanalyseDossier(fd);
-      if (r.ok) await fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(() => undefined);
+      if (r.ok) await fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("submission-gate.reanalyse.fetch"));
       return r;
     });
   }

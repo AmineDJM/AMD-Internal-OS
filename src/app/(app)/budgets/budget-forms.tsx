@@ -26,6 +26,7 @@ import {
 import type { BudgetOverview, BudgetEnvelopeOption, BudgetCategoryView, BudgetHealth, EnvelopesGrandTotal, AttributedTx } from "@/lib/queries/budget";
 import { ROLE_LABELS } from "@/lib/labels";
 import { effetAllocation } from "@/lib/budget/marketing-vue";
+import { journal } from "@/lib/journal";
 
 interface BudgetTotalInfo { mode: "FIXED" | "FLEXIBLE"; value: number; fixed: number }
 type UserOpt = { id: string; name: string };
@@ -368,7 +369,7 @@ export function EnvelopeSheet({ envelope, users, onClose, onDeleted, canDelete }
         <label className="flex items-center gap-2 text-sm sm:col-span-2"><input type="checkbox" name="isActive" defaultChecked={envelope.isActive} className="h-4 w-4 rounded border-input" /> Enveloppe active</label>
         {err && <p className="text-sm text-destructive sm:col-span-2">{err}</p>}
         <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:items-center sm:justify-between">
-          {canDelete ? <Button type="button" variant="ghost" className="text-destructive" onClick={async () => { if (await confirmer("Supprimer cette enveloppe et ses catégories ?")) { const fd = new FormData(); fd.set("id", envelope.id); deleteEnvelope(fd).then((r) => { if (r.ok) onDeleted(); else setErr(r.error ?? "Suppression refusée."); }).catch(() => setErr(actionFailureMessage("THROWN"))); } }}><Trash2 className="h-4 w-4" /> Supprimer</Button> : <span />}
+          {canDelete ? <Button type="button" variant="ghost" className="text-destructive" onClick={async () => { if (await confirmer("Supprimer cette enveloppe et ses catégories ?")) { const fd = new FormData(); fd.set("id", envelope.id); deleteEnvelope(fd).then((r) => { if (r.ok) onDeleted(); else setErr(r.error ?? "Suppression refusée."); }).catch((e: unknown) => { journal.erreur("budget-forms.deleteEnvelope", {}, e); setErr(actionFailureMessage("THROWN")); }); } }}><Trash2 className="h-4 w-4" /> Supprimer</Button> : <span />}
           <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={onClose}>Annuler</Button><Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button></div>
         </div>
       </form>

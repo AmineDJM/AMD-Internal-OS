@@ -7,6 +7,7 @@ import {
   CONSIGNE_NATURES, LIGNES_MAX_PAR_APPEL, SCHEMA_NATURES, devinerParMotsCles, lireClassement, promptNatures,
   type CategorieConnue, type PropositionNature,
 } from "@/lib/general-means/natures";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -124,7 +125,7 @@ async function appelerLeModele(e: EntreeNatures, libelles: string[], deps: Depen
     cachedInputTokens: usage?.cachedInputTokens ?? null,
     reasoningTokens: usage?.reasoningTokens ?? null,
     costUsd: usage?.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("natures-depenses-ia.appelerLeModele.journaliser"));
 
   return lues;
 }
