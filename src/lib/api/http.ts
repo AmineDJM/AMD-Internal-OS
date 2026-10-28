@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { authenticate, requireScopes, type ApiContext } from "./auth";
 import { ApiError, errors } from "./errors";
 import type { Scope } from "./scopes";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE PASSAGE OBLIGÉ DE TOUT APPEL D'API.
@@ -90,7 +91,7 @@ export function handle<P = Record<string, string>>(
         // après échec, alors que c'est précisément le cas où l'agent doit pouvoir recommencer.
         await prisma.apiIdempotencyKey.create({
           data: { clientId: ctx.client.id, key: idemKey, requestHash, status, response: body as object },
-        }).catch(() => {});
+        }).catch(sansBloquer("api-http.handle.apiIdempotencyKey"));
       }
 
       await log(ctx, req, options, marks, status, true, null, Date.now() - started, correlationId);

@@ -42,6 +42,7 @@ import { vueDuModele, type VueArtefact } from "@/lib/artifact/render/view";
 import { comparer, type Comparaison } from "@/lib/artifact/versions/diff";
 import type { PortsArtefact } from "@/lib/artifact/ports";
 import { mesurer, type Chrono } from "@/lib/artifact/observability/timing";
+import { sansBloquer } from "@/lib/journal";
 
 // ─────────────────────────── Le magasin de sessions ───────────────────────────
 
@@ -288,7 +289,7 @@ async function resoudreRessources(
   for (const ref of refs) {
     // 1. L'IDENTIFIANT D'ABORD. Exact, sans ambiguïté possible — et c'est ce que rend
     //    `artifact.inspect` quand la personne a déjà désigné le fichier.
-    let fiche = await ctx.ports.documents.decrire(ctx.acteur.id, ref).catch(() => null);
+    let fiche = await ctx.ports.documents.decrire(ctx.acteur.id, ref).catch(sansBloquer("runtime-engine.resoudreRessources.decrire", null));
 
     /**
      * 2. LE NOM ENSUITE. Une personne dit « le logo Adventum », pas un cuid. On cherche donc
@@ -300,7 +301,7 @@ async function resoudreRessources(
      *    que §104.7 interdit. On rend les candidats, la personne tranche.
      */
     if (!fiche) {
-      const trouves = await ctx.ports.documents.chercher(ctx.acteur.id, ref, 5).catch(() => []);
+      const trouves = await ctx.ports.documents.chercher(ctx.acteur.id, ref, 5).catch(sansBloquer("runtime-engine.resoudreRessources.chercher", []));
       if (trouves.length === 1) fiche = trouves[0];
       else if (trouves.length > 1) {
         res.ambigues.set(ref, trouves.map((f) => ({ id: f.nodeId, libelle: f.nom })));
@@ -309,7 +310,7 @@ async function resoudreRessources(
     }
     if (!fiche) continue;
 
-    const octets = await ctx.ports.documents.lire(ctx.acteur.id, fiche.nodeId, fiche.version).catch(() => null);
+    const octets = await ctx.ports.documents.lire(ctx.acteur.id, fiche.nodeId, fiche.version).catch(sansBloquer("runtime-engine.resoudreRessources.lire", null));
     if (!octets) continue;
     res.trouvees.set(ref, { octets, nom: fiche.nom });
   }

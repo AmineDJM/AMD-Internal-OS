@@ -25,6 +25,7 @@ import { decisionRattachement, phraseRattachement, type SalaireParti } from "@/l
 import { validateAmounts, resolvedGross, amendImpact, canAmend } from "@/lib/hr/payroll-amend";
 import { docxToPdf, isConvertibleWord, pdfFileName } from "@/lib/payslip/to-pdf";
 import { MIME_DOCX } from "@/lib/artifact/adapters/docx/adapter";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/rh/paie";
 /** Marge avant de notifier l'employé (en cas d'erreur de saisie, les RH peuvent annuler). */
@@ -86,7 +87,7 @@ async function deposerFicheDePaie(
       const pdf = await creer(pdfFileName(file.name), conv.pdf, "application/pdf", true);
       // La source, gardée et NON visible du salarié : deux bulletins pour le même mois lui
       // feraient deviner lequel fait foi.
-      await creer(`${file.name} (source Word)`, octets, file.type || MIME_DOCX, false).catch(() => null);
+      await creer(`${file.name} (source Word)`, octets, file.type || MIME_DOCX, false).catch(sansBloquer("payroll-hr-actions.deposerFicheDePaie.creer", null));
       return { id: pdf.id };
     }
     // Conversion impossible : on garde le Word plutôt que de bloquer la paie.
@@ -200,8 +201,8 @@ export async function unmarkSalaryPaid(formData: FormData): Promise<ActionResult
 
   if (entry.payslipDocumentId) {
     const doc = await prisma.employeeDocument.findUnique({ where: { id: entry.payslipDocumentId }, select: { blobId: true } });
-    await prisma.employeeDocument.delete({ where: { id: entry.payslipDocumentId } }).catch(() => {});
-    if (doc) await releaseBlob(doc.blobId).catch(() => {});
+    await prisma.employeeDocument.delete({ where: { id: entry.payslipDocumentId } }).catch(sansBloquer("payroll-hr-actions.unmarkSalaryPaid.employeeDocument"));
+    if (doc) await releaseBlob(doc.blobId).catch(sansBloquer("payroll-hr-actions.unmarkSalaryPaid.releaseBlob"));
   }
   await prisma.payrollEntry.update({
     where: { id },
@@ -336,7 +337,7 @@ export async function envoyerPaieAuCentre(formData: FormData): Promise<ActionRes
     } catch (e) {
       // RIEN N'EST PARTI : on ne laisse pas un virement sans ordre, qui se lirait « annulé » sans
       // que personne ait rien décidé.
-      await prisma.payrollWire.delete({ where: { id: wire.id } }).catch(() => undefined);
+      await prisma.payrollWire.delete({ where: { id: wire.id } }).catch(sansBloquer("payroll-hr-actions.envoyerPaieAuCentre.payrollWire"));
       console.error("[paie] envoi au centre de paiement non abouti", e);
       return { ok: false, error: "L'envoi au centre de paiement n'a pas abouti — rien n'est parti, réessayez." };
     }
@@ -506,8 +507,8 @@ export async function updatePayrollEntry(formData: FormData): Promise<ActionResu
     const fresh = depot;
     if (entry.payslipDocumentId) {
       const old = await prisma.employeeDocument.findUnique({ where: { id: entry.payslipDocumentId }, select: { blobId: true } });
-      await prisma.employeeDocument.delete({ where: { id: entry.payslipDocumentId } }).catch(() => {});
-      if (old) await releaseBlob(old.blobId).catch(() => {});
+      await prisma.employeeDocument.delete({ where: { id: entry.payslipDocumentId } }).catch(sansBloquer("payroll-hr-actions.updatePayrollEntry.employeeDocument"));
+      if (old) await releaseBlob(old.blobId).catch(sansBloquer("payroll-hr-actions.updatePayrollEntry.releaseBlob"));
     }
     payslipDocumentId = fresh.id;
   }
@@ -534,7 +535,7 @@ export async function updatePayrollEntry(formData: FormData): Promise<ActionResu
         }),
         label: `Salaire ${ym(entry.year, entry.month)} — ${entry.employee.fullName} (coût employeur, corrigé)`,
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("payroll-hr-actions.updatePayrollEntry.financeTransaction"));
   }
 
   await recordAudit({

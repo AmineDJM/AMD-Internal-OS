@@ -8,6 +8,7 @@ import { peutSupprimerLeRapport, viewsAllReports } from "@/lib/queries/field-rep
 import { clauseCasPvVisibles, signaleDesCasPv, voitTousLesCasPv } from "@/lib/pharmacovigilance/acces";
 import { STATUT_PV, estStatutPv } from "@/lib/pharmacovigilance/regles";
 import { lienCasPvKam, lienRapportTerrain } from "@/lib/chemins/rapports-terrain";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA LISTE DES RAPPORTS TERRAIN — l'onglet « Rapports » de la Promotion médicale (Direction, 07/10).
@@ -258,7 +259,7 @@ export async function chargerListeRapports(user: SessionUser, filtres: FiltresRa
   // Seulement pour qui voit les rapports de tous — pour les autres, le filtre est ignoré (la liste reste la leur).
   const menuDelegues = optionsDelegues.map((u) => ({ id: u.id, nom: u.name }));
   if (toutVoir && filtres.delegue && !menuDelegues.some((d) => d.id === filtres.delegue)) {
-    const choisi = await prisma.user.findUnique({ where: { id: filtres.delegue }, select: { id: true, name: true } }).catch(() => null);
+    const choisi = await prisma.user.findUnique({ where: { id: filtres.delegue }, select: { id: true, name: true } }).catch(sansBloquer("rapports-terrain-liste.chargerListeRapports.user", null));
     if (choisi) menuDelegues.push({ id: choisi.id, nom: choisi.name });
   }
 

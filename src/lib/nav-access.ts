@@ -9,6 +9,7 @@ import { managesAnyone } from "@/lib/hr/reporting-line";
 import { prisma } from "@/lib/prisma";
 import { estDirecteurDesOperations } from "@/lib/suppression/delegation";
 import { voitTousLesCasPv } from "@/lib/pharmacovigilance/acces";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * CE QU'UNE PERSONNE A LE DROIT D'OUVRIR — la réponse, une fois, pour tous les écrans.
@@ -61,7 +62,7 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
   // restent FERMÉES au lieu de faire échouer l'écran entier : on perd une entrée de menu, pas
   // l'application. `getAppSettings` est mis en cache par requête — l'appeler ici ne coûte rien
   // aux écrans qui l'ont déjà lu.
-  const settings = await getAppSettings().catch(() => null);
+  const settings = await getAppSettings().catch(sansBloquer("nav-access.navigationFor.getAppSettings", null));
 
   // MODULES MASQUÉS — retirés du menu pour tout le monde, sauf du Super Admin, qui doit pouvoir
   // vérifier ce qu'il vient d'éteindre et le rallumer. Le masquage n'est pas un droit : c'est un
@@ -77,7 +78,7 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     new Set(NAVIGATION.flatMap((n) => (n.tabs ?? []).map((t) => t.feature).filter((f): f is string => !!f))),
   );
   const featureOn = new Map<string, boolean>(
-    await Promise.all(tabFeatures.map(async (f) => [f, await featureEnabled(f, user.id).catch(() => false)] as const)),
+    await Promise.all(tabFeatures.map(async (f) => [f, await featureEnabled(f, user.id).catch(sansBloquer("nav-access.navigationFor.featureEnabled", false))] as const)),
   );
   const tabVisible = (t: { module: string; feature?: string }) =>
     modules.includes(t.module as (typeof modules)[number]) && (!t.feature || featureOn.get(t.feature) === true);

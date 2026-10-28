@@ -9,6 +9,7 @@ import { findMissionForInbound, recordMissionReply } from "@/lib/comms/missions"
 import { getCommunicationPolicy } from "@/lib/comms/policy";
 import { getActiveGoogleConnection, touchGoogleSync } from "../connection";
 import { getMessage, getAttachmentBytes, type GmailMessage } from "./messages";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * CE QUI SE PASSE QUAND UN MESSAGE ARRIVE — le pipeline d'entrée d'Adam.
@@ -236,7 +237,7 @@ export async function ingestMessage(
 
   if (msg.attachments.length > 0) {
     await prisma.emailAttachmentRecord.deleteMany({ where: { emailRecordId: record.id } });
-    await ingestAttachments(active.accessToken, msg, record.id).catch(() => ({ extractedCount: 0 }));
+    await ingestAttachments(active.accessToken, msg, record.id).catch(sansBloquer("ingest.ingestMessage.ingestAttachments", { extractedCount: 0 }));
   }
 
   if (mission && !outgoing) {
@@ -246,7 +247,7 @@ export async function ingestMessage(
       senderUserId: sender.userId,
       note: cleanBody.slice(0, 1500),
       emailRecordId: record.id,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ingest.ingestMessage.recordMissionReply"));
   }
 
   /**
@@ -285,7 +286,7 @@ export async function ingestMessage(
       // qui suit ce fil n'est pas forcément celle, RUNTIME, qui attend cette réponse pour
       // continuer. Cadrer ici empêcherait l'une de se réveiller parce que l'autre existe.
       missionId: null,
-    }).catch(() => null);
+    }).catch(sansBloquer("ingest.ingestMessage.recordEvent", null));
   }
 
   let surfaced = false;
@@ -300,7 +301,7 @@ export async function ingestMessage(
         title: `Courriel : ${who}`,
         body: `${msg.subject || "(sans objet)"} — ${why}`,
         link: "/chief-of-staff",
-      }).catch(() => undefined);
+      }).catch(sansBloquer("ingest.ingestMessage.notifyUser"));
       await prisma.emailRecord.update({ where: { id: record.id }, data: { surfacedAt: new Date() } });
       surfaced = true;
     }

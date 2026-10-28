@@ -78,6 +78,7 @@ import { acteurDe, catalogueDe } from "@/platform/in-process/missions/catalog";
 import { raisonneur } from "@/platform/in-process/missions/reasoner";
 import { avancerMission, lancerMission, replanifierMission } from "@/platform/in-process/missions/runtime";
 import { RaisonneurInstrumente, cascade, rendreCascade, type Cascade } from "@/platform/in-process/missions/provider-waterfall";
+import { sansBloquer } from "@/lib/journal";
 
 /** Le plafond d'effet. Au-delà, la mission n'est PAS exécutée. */
 export const PLAFOND: Effect = "ANALYZE";
@@ -181,21 +182,21 @@ export async function preconditionAbsence(jeton: string): Promise<Precondition> 
       source: "RegulatoryProduct (dci / nom commercial / référence)",
       compte: await prisma.regulatoryProduct.count({
         where: { OR: [{ dci: contient }, { brandName: contient }, { reference: contient }] },
-      }).catch(() => -1),
+      }).catch(sansBloquer("provider-smoke.preconditionAbsence.regulatoryProduct", -1)),
     },
     {
       source: "RegulatoryDossier (titre / référence)",
       compte: await prisma.regulatoryDossier.count({
         where: { OR: [{ title: contient }, { reference: contient }] },
-      }).catch(() => -1),
+      }).catch(sansBloquer("provider-smoke.preconditionAbsence.regulatoryDossier", -1)),
     },
     {
       source: "DriveNode (nom de fichier ou de dossier)",
-      compte: await prisma.driveNode.count({ where: { name: contient, isTrashed: false } }).catch(() => -1),
+      compte: await prisma.driveNode.count({ where: { name: contient, isTrashed: false } }).catch(sansBloquer("provider-smoke.preconditionAbsence.driveNode", -1)),
     },
     {
       source: "Document (pièce jointe)",
-      compte: await prisma.document.count({ where: { name: contient } }).catch(() => -1),
+      compte: await prisma.document.count({ where: { name: contient } }).catch(sansBloquer("provider-smoke.preconditionAbsence.document", -1)),
     },
   ];
 
@@ -339,10 +340,10 @@ export async function scenarios(jeton: string = jetonUnique()): Promise<Scenario
   // est vrai quel que soit N, y compris zéro — et à zéro le scénario devient B, honnêtement.
   const enCours = await prisma.regulatoryDossier.count({
     where: { status: { notIn: ["ARCHIVED", "ERROR"] } },
-  }).catch(() => 0);
+  }).catch(sansBloquer("provider-smoke.scenarios.regulatoryDossier", 0));
   const taches = await prisma.task.count({
     where: { status: { in: ["TODO", "IN_PROGRESS"] } },
-  }).catch(() => 0);
+  }).catch(sansBloquer("provider-smoke.scenarios.task", 0));
 
   if (enCours > 0) {
     out.push({
@@ -556,7 +557,7 @@ async function menerAEtatStable(
   let signaturePrecedente = "";
 
   for (let i = 0; i < toursMax; i++) {
-    await avancerMission(user, missionId, { lectureSeule: true, reasoner: instrument, maxTours: 6 }).catch(() => null);
+    await avancerMission(user, missionId, { lectureSeule: true, reasoner: instrument, maxTours: 6 }).catch(sansBloquer("provider-smoke.menerAEtatStable.avancerMission", null));
     tours += 1;
 
     const m = await prisma.mission.findUnique({
@@ -567,7 +568,7 @@ async function menerAEtatStable(
 
     const etapes = await prisma.missionStep.groupBy({
       by: ["status"], where: { missionId }, _count: { _all: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("provider-smoke.menerAEtatStable.missionStep", []));
     const signature = `${m.status}|${m.planVersion}|${etapes.map((e) => `${e.status}:${e._count._all}`).sort().join(",")}`;
 
     if (ETATS_STABLES.has(m.status)) {
@@ -577,7 +578,7 @@ async function menerAEtatStable(
     if (ETATS_REPLANIFIABLES.has(m.status)) {
       // LE MÉCANISME CANONIQUE. Il porte lui-même son plafond (`PLANS_MAX`) et sa règle de
       // réouverture d'accord ; on ne le double pas.
-      const r = await replanifierMission(user, missionId, { lectureSeule: true, reasoner: instrument }).catch(() => null);
+      const r = await replanifierMission(user, missionId, { lectureSeule: true, reasoner: instrument }).catch(sansBloquer("provider-smoke.menerAEtatStable.replanifierMission", null));
       if (r?.replanifie) { replans += 1; signaturePrecedente = ""; continue; }
       return {
         statut: m.status, stable: true,
@@ -731,7 +732,7 @@ export async function jouer(
 
   const parStatut = await prisma.missionStep.groupBy({
     by: ["status"], where: { missionId: r.missionId }, _count: { _all: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("provider-smoke.jouer.missionStep", []));
   const compte = (s: string) => parStatut.find((x) => x.status === s)?._count._all ?? 0;
   r.etapesTerminees = compte("DONE");
   r.etapesEnEchec = compte("FAILED");
@@ -762,7 +763,7 @@ export async function jouer(
   const etapesExecutees = await prisma.missionStep.findMany({
     where: { missionId: r.missionId },
     select: { capability: true, nodeType: true, status: true, receiptData: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("provider-smoke.jouer.missionStep", []));
   r.effetMaxExecute = effetExecute(etapesExecutees);
 
   const apres = await recenserArtefacts(user.id);
@@ -784,7 +785,7 @@ export async function jouer(
   // ── LE RECOURS, LU DANS LE JOURNAL — jamais supposé ────────────────────────────────────
   r.recoursObserves = await prisma.missionEvent.count({
     where: { missionId: r.missionId, kind: "STEP_RECOVERY" },
-  }).catch(() => 0);
+  }).catch(sansBloquer("provider-smoke.jouer.missionEvent", 0));
 
   const etat = await prisma.mission.findUnique({
     where: { id: r.missionId },
@@ -836,7 +837,7 @@ export async function arreterMissionsDeDiagnostic(
   for (const id of ids) {
     if (!id) continue;
     const r = await annuler(id, ownerId,
-      "diagnostic terminé — mission de banc arrêtée pour ne pas être reprise par le battement").catch(() => null);
+      "diagnostic terminé — mission de banc arrêtée pour ne pas être reprise par le battement").catch(sansBloquer("provider-smoke.arreterMissionsDeDiagnostic.annuler", null));
     if (r?.ok && r.vers === "CANCELLED" && r.depuis !== "CANCELLED") n += 1;
   }
   return n;

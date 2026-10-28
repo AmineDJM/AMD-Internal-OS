@@ -7,6 +7,7 @@ import {
   backoffMs,
 } from "./contract";
 import { REPORTS_MAX, delaiReportMs } from "./panne";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -159,7 +160,7 @@ export async function claimNext(kinds?: JobKind[]): Promise<ClaimedJob | null> {
 export async function completeJob(id: string): Promise<void> {
   await prisma.knowledgeJob
     .update({ where: { id }, data: { status: "DONE", finishedAt: new Date(), lastError: null } })
-    .catch(() => undefined);
+    .catch(sansBloquer("queue.completeJob.knowledgeJob"));
 }
 
 /**
@@ -173,7 +174,7 @@ export async function completeJob(id: string): Promise<void> {
 export async function failJob(id: string, error: string): Promise<"retry" | "dead"> {
   const job = await prisma.knowledgeJob
     .findUnique({ where: { id }, select: { attempts: true, maxAttempts: true } })
-    .catch(() => null);
+    .catch(sansBloquer("queue.failJob.knowledgeJob", null));
   if (!job) return "dead";
 
   const exhausted = job.attempts >= job.maxAttempts;
@@ -184,7 +185,7 @@ export async function failJob(id: string, error: string): Promise<"retry" | "dea
         ? { status: "DEAD", finishedAt: new Date(), lastError: error.slice(0, 500) }
         : { status: "QUEUED", runAfter: new Date(Date.now() + backoffMs(job.attempts)), lastError: error.slice(0, 500) },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("queue.failJob.knowledgeJob"));
   return exhausted ? "dead" : "retry";
 }
 
@@ -203,7 +204,7 @@ export async function failJob(id: string, error: string): Promise<"retry" | "dea
 export async function reporterJob(id: string, motif: string): Promise<"reporte" | "dead"> {
   const job = await prisma.knowledgeJob
     .findUnique({ where: { id }, select: { attempts: true, payload: true } })
-    .catch(() => null);
+    .catch(sansBloquer("queue.reporterJob.knowledgeJob", null));
   if (!job) return "dead";
   const payload = (job.payload && typeof job.payload === "object" && !Array.isArray(job.payload)
     ? (job.payload as Record<string, unknown>)
@@ -220,7 +221,7 @@ export async function reporterJob(id: string, motif: string): Promise<"reporte" 
           lastError: `Panne persistante après ${reports} reports : ${motif}`.slice(0, 500),
         },
       })
-      .catch(() => undefined);
+      .catch(sansBloquer("queue.reporterJob.knowledgeJob"));
     return "dead";
   }
 
@@ -235,7 +236,7 @@ export async function reporterJob(id: string, motif: string): Promise<"reporte" 
         payload: { ...payload, _reports: reports + 1 } as object,
       },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("queue.reporterJob.knowledgeJob"));
   return "reporte";
 }
 
@@ -253,7 +254,7 @@ export async function requeueStale(): Promise<number> {
       where: { status: "RUNNING", claimedAt: { lt: cutoff } },
       data: { status: "QUEUED", runAfter: new Date(), lastError: "Reprise après interruption du worker." },
     })
-    .catch(() => ({ count: 0 }));
+    .catch(sansBloquer("queue.requeueStale.knowledgeJob", { count: 0 }));
   return r.count;
 }
 

@@ -16,6 +16,7 @@ import {
   costOf,
   emptyUsage,
 } from "./contract";
+import { attendu } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -717,7 +718,7 @@ export async function callOpenAiResponses(
         };
       }
 
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       lastError = providerErrorMessage(res.status, raw);
 
       // ── AUCUN RATTRAPAGE DE PARAMÈTRE ICI, ET C'EST LE POINT DE TOUT LE CHANTIER ────────
@@ -915,7 +916,7 @@ export async function streamOpenAiResponses(
     if (res.ok) noterSucces();
 
     if (!res.ok || !res.body) {
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] openai responses stream error", binding.role, res.status, raw.slice(0, 300));
       return {
         ok: false,

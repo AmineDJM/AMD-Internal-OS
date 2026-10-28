@@ -23,6 +23,7 @@ import { recordModelCall } from "@/lib/models/telemetry";
 import { BUDGETS, PLAFOND_SUPERIEUR_ABSOLU, confianceDe, methodeDe, planifier, rapport, type Budget, type Decision, type EtatPage, type Exigence, type Palier } from "@/lib/media/paliers";
 import { portsArtefact } from "@/platform/in-process/artifact/ports";
 import { resoudrePdf } from "@/platform/in-process/artifact/documents";
+import { sansBloquer } from "@/lib/journal";
 
 export interface PageParPaliers {
   n: number;
@@ -102,7 +103,7 @@ export async function lireDocumentParPaliers(
 
   const question = demande.question?.trim() || null;
   if (question) {
-    const c = await chercherDansPdf(octets, question, { max: 60 }).catch(() => null);
+    const c = await chercherDansPdf(octets, question, { max: 60 }).catch(sansBloquer("lecture.lireDocumentParPaliers.chercherDansPdf", null));
     const visees = new Set(c?.pagesTouchees ?? []);
     for (const e of etats) if (visees.has(e.n)) e.visee = true;
   }
@@ -158,13 +159,13 @@ export async function lireDocumentParPaliers(
         if (!lunaConfigured()) {
           for (const n of nsVision) { const e = parEtat.get(n); if (e) e.vision = { lisibilite: "mauvaise", caracteres: 0 }; extras.set(n, { ...(extras.get(n) ?? {}), alertes: ["lecture visuelle indisponible : modèle rapide non configuré"] }); }
         } else {
-          const images = await imagesDesPages(octets, nsVision, 1.5).catch(() => new Map<number, Buffer>());
+          const images = await imagesDesPages(octets, nsVision, 1.5).catch(sansBloquer("lecture.lireDocumentParPaliers.imagesDesPages", new Map<number, Buffer>()));
           for (const n of nsVision) {
             const e = parEtat.get(n); const png = images.get(n);
             if (!e) continue;
             if (!png) { e.vision = { lisibilite: "mauvaise", caracteres: 0 }; continue; }
             const t0 = Date.now();
-            const res = await callLuna<LecturePage>({ system: SYSTEME_VISION, user: consigneVision(n, r.fiche.nom, textes.get(n) || null, question), images: [{ buffer: png, mime: "image/png" }], jsonSchema: VISION_SCHEMA as unknown as { name: string; schema: Record<string, unknown> }, maxOutputTokens: 3_000, temperature: 0 }).catch(() => null);
+            const res = await callLuna<LecturePage>({ system: SYSTEME_VISION, user: consigneVision(n, r.fiche.nom, textes.get(n) || null, question), images: [{ buffer: png, mime: "image/png" }], jsonSchema: VISION_SCHEMA as unknown as { name: string; schema: Record<string, unknown> }, maxOutputTokens: 3_000, temperature: 0 }).catch(sansBloquer("lecture.lireDocumentParPaliers.callLuna", null));
             if (res) { recordModelCall({ role: "bulk", model: lunaModel(), provider: "openai", inputTokens: res.usage.inputTokens, outputTokens: res.usage.outputTokens, cachedInputTokens: res.usage.cachedInputTokens, costUsd: res.usage.costUsd, ms: Date.now() - t0, attempts: 1 }); coutUsd += res.usage.costUsd; }
             const lu = res?.ok && res.data && typeof res.data.texte === "string" ? res.data : null;
             const texte = lu ? [lu.texte.trim(), lu.chiffres.length ? `Chiffres lus : ${lu.chiffres.map((c) => `${c.libelle} = ${c.valeur}`).join(" ; ")}` : ""].filter(Boolean).join("\n") : "";
@@ -180,12 +181,12 @@ export async function lireDocumentParPaliers(
       const nsSup = par("VISION_SUPERIEURE");
       if (nsSup.length) {
         consomme.VISION_SUPERIEURE += nsSup.length;
-        const images = await imagesDesPages(octets, nsSup, 2).catch(() => new Map<number, Buffer>());
+        const images = await imagesDesPages(octets, nsSup, 2).catch(sansBloquer("lecture.lireDocumentParPaliers.imagesDesPages", new Map<number, Buffer>()));
         for (const n of nsSup) {
           const e = parEtat.get(n); const png = images.get(n);
           if (!e) continue;
           if (!png) { e.superieure = { caracteres: 0 }; continue; }
-          const res = await askModelJsonAvecImages<LecturePage>("orchestrator", `${SYSTEME_VISION}\n\n${consigneVision(n, r.fiche.nom, textes.get(n) || null, question)}`, [{ mime: "image/png", data: png.toString("base64") }], VISION_SCHEMA as unknown as { name: string; schema: Record<string, unknown> }, { maxOutputTokens: 4_000 }).catch(() => null);
+          const res = await askModelJsonAvecImages<LecturePage>("orchestrator", `${SYSTEME_VISION}\n\n${consigneVision(n, r.fiche.nom, textes.get(n) || null, question)}`, [{ mime: "image/png", data: png.toString("base64") }], VISION_SCHEMA as unknown as { name: string; schema: Record<string, unknown> }, { maxOutputTokens: 4_000 }).catch(sansBloquer("lecture.lireDocumentParPaliers.askModelJsonAvecImages", null));
           if (res?.reply.usage?.costUsd) coutUsd += res.reply.usage.costUsd;
           const lu = res?.data && typeof res.data.texte === "string" ? res.data : null;
           const texte = lu ? [lu.texte.trim(), lu.chiffres.length ? `Chiffres lus : ${lu.chiffres.map((c) => `${c.libelle} = ${c.valeur}`).join(" ; ")}` : ""].filter(Boolean).join("\n") : "";

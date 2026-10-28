@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { FindingInput } from "../types";
 import { STATE_MACHINES } from "../state-machines/registry";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Cohérence multi-oracles (§30). Un même fait, vu par plusieurs sous-systèmes, doit concorder.
@@ -31,11 +32,11 @@ async function statusSumConsistency(): Promise<{ checks: OracleCheck[]; findings
   for (const m of STATE_MACHINES) {
     const del = delegate(m.model);
     if (!del) { checks.push({ id: `ORA-SUM-${m.id}`, label: m.label, oracles: ["énumération", "total"], agree: true, detail: "modèle indisponible", skipped: true }); continue; }
-    const total = await del.count({}).catch(() => -1);
+    const total = await del.count({}).catch(sansBloquer("consistency.statusSumConsistency.count", -1));
     if (total < 0) { checks.push({ id: `ORA-SUM-${m.id}`, label: m.label, oracles: ["énumération", "total"], agree: true, detail: "comptage impossible", skipped: true }); continue; }
     let sum = 0, countError = false;
     for (const s of m.states) {
-      const n = await del.count({ where: { [m.statusField]: s } }).catch(() => null); // null = état hors-enum (déclaration à corriger, PAS une anomalie donnée)
+      const n = await del.count({ where: { [m.statusField]: s } }).catch(sansBloquer("consistency.statusSumConsistency.count", null)); // null = état hors-enum (déclaration à corriger, PAS une anomalie donnée)
       if (n === null) { countError = true; break; }
       sum += n;
     }
@@ -67,11 +68,11 @@ async function expenseLinkConsistency(): Promise<{ checks: OracleCheck[]; findin
   for (const model of models) {
     const del = delegate(model);
     if (!del) continue;
-    const rows = await del.findMany({ select: { expenseOrderId: true }, distinct: ["expenseOrderId"], take: 10000 }).catch(() => null);
+    const rows = await del.findMany({ select: { expenseOrderId: true }, distinct: ["expenseOrderId"], take: 10000 }).catch(sansBloquer("consistency.expenseLinkConsistency.findMany", null));
     if (!rows) continue;
     const ids = [...new Set(rows.map((r) => r.expenseOrderId).filter(Boolean) as string[])];
     if (ids.length === 0) continue;
-    const existing = await eo.count({ where: { id: { in: ids } } }).catch(() => ids.length);
+    const existing = await eo.count({ where: { id: { in: ids } } }).catch(sansBloquer("consistency.expenseLinkConsistency.expenseOrder", ids.length));
     totalRefs += ids.length;
     totalMissing += ids.length - existing;
   }
@@ -93,9 +94,9 @@ async function expenseLinkConsistency(): Promise<{ checks: OracleCheck[]; findin
 async function auditCoverageConsistency(): Promise<{ checks: OracleCheck[]; findings: FindingInput[] }> {
   const vr = delegate("validationRequest");
   if (!vr) return { checks: [], findings: [] };
-  const decided = await vr.count({ where: { NOT: { decidedAt: null } } }).catch(() => -1);
+  const decided = await vr.count({ where: { NOT: { decidedAt: null } } }).catch(sansBloquer("consistency.auditCoverageConsistency.count", -1));
   if (decided < 0) return { checks: [], findings: [] };
-  const audited = await prisma.auditLog.count({ where: { field: "status", newValue: { in: ["APPROVED", "REJECTED"] }, module: { contains: "alidation" } } }).catch(() => -1);
+  const audited = await prisma.auditLog.count({ where: { field: "status", newValue: { in: ["APPROVED", "REJECTED"] }, module: { contains: "alidation" } } }).catch(sansBloquer("consistency.auditCoverageConsistency.auditLog", -1));
   const checks: OracleCheck[] = [];
   const findings: FindingInput[] = [];
   if (audited < 0) return { checks, findings };

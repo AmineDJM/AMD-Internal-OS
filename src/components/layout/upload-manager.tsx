@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { isRetryableHttpStatus, backoffMs } from "@/lib/regulatory/intelligence/upload/retry";
 import { rememberUpload, forgetUpload, listPendingUploads } from "@/lib/regulatory/intelligence/upload/pending-store";
 import { envoyerParties, EnvoiAnnule, debitLisible, resteLisible, type PlanClient } from "@/lib/storage/envoi-direct-client";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * GESTIONNAIRE D'ENVOIS GLOBAL — l'upload d'un dossier CTD tourne EN ARRIÈRE-PLAN : monté dans la
@@ -90,7 +91,7 @@ function putPartXhr(
 }
 
 async function readJsonSafe<T extends { ok?: boolean; error?: string; retryable?: boolean }>(res: Response): Promise<T> {
-  const text = await res.text().catch(() => "");
+  const text = await res.text().catch(sansBloquer("upload-manager.readJsonSafe.text", ""));
   if (!text) {
     return { ok: false, error: res.ok ? "Réponse vide du serveur — nouvelle tentative…" : `Serveur momentanément indisponible (code ${res.status}) — nouvelle tentative…`, retryable: true } as T;
   }
@@ -263,7 +264,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
               console.info(`[upload] ${(file.size / 1048576).toFixed(0)} Mo en ${seconds.toFixed(1)} s — ${(file.size / 1048576 / Math.max(seconds, 0.001)).toFixed(1)} Mo/s`);
               patch(dossierId, { phase: "done", summary: data.summary ?? null });
               void forgetUpload(dossierId);
-              fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(() => undefined).finally(() => router.refresh());
+              fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => router.refresh());
               router.refresh();
               return;
             }
@@ -297,7 +298,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         if (!data.ok) throw new Error(data.error ?? "Finalisation refusée.");
         patch(dossierId, { phase: "done", summary: data.summary ?? null });
         void forgetUpload(dossierId); // terminé : plus rien à reprendre
-        fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(() => undefined).finally(() => router.refresh());
+        fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => router.refresh());
         router.refresh();
         return;
       }
@@ -363,7 +364,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       if (!data.ok) throw new Error(data.error ?? "Finalisation refusée.");
       patch(dossierId, { phase: "done", summary: data.summary ?? null });
       void forgetUpload(dossierId); // terminé : plus rien à reprendre
-      fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(() => undefined).finally(() => router.refresh());
+      fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => router.refresh());
       router.refresh();
     } catch (e) {
       // Annulé À LA DEMANDE : ce n'est pas une panne, et surtout ce n'est pas « relancez pour
@@ -397,7 +398,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     // serveur, et son échec ne doit pas ré-afficher l'envoi comme s'il continuait (le ménage de
     // fond ramassera la session restée incomplète).
     if (sessionId) {
-      void fetch(`/api/regulatory/intelligence/upload/session/${sessionId}`, { method: "DELETE" }).catch(() => undefined);
+      void fetch(`/api/regulatory/intelligence/upload/session/${sessionId}`, { method: "DELETE" }).catch(sansBloquer("upload-manager.UploadProvider.fetch"));
     }
   }, [patch]);
 

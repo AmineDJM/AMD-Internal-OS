@@ -25,6 +25,7 @@ import {
 import { proposerCibles, proposerDefinitions, proposerNiveau, redigerCommentaire } from "@/lib/kpi-luna";
 import type { ApercuKpi, BilanKpi, LigneDetail } from "@/lib/kpi/types";
 import type { HorsBriques } from "@/lib/kpi/luna-pur";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -352,7 +353,7 @@ export async function declarerKpi(formData: FormData): Promise<ActionResult> {
   }
   if (!piece) return { ok: false, error: "Joignez la pièce qui le prouve (attestation, programme…)." };
   const cree = await prisma.kpiDeclaration.create({ data: { definitionId: d.id, userId: user.id, periode: f.cle, libelle: libelle.slice(0, 200), valeur, ...piece } });
-  const n1 =await getManagerOfUser(user.id).catch(() => null);
+  const n1 =await getManagerOfUser(user.id).catch(sansBloquer("kpi-actions.declarerKpi.getManagerOfUser", null));
   if (n1?.userId) {
     await notifyUser({ userId: n1.userId, type: "GENERIC", title: "Déclaration à valider", body: `${user.name} — ${d.def.nom} : ${libelle.slice(0, 80)}`, link: lienKpiEquipe(f.cle) });
   }

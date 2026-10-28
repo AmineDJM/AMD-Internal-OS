@@ -89,6 +89,14 @@ const isBridge = (f: string) => BRIDGE_PATHS.some((p) => f.startsWith(p));
 export const NEUTRAL = new Set([
   "src/lib/utils",
   "src/lib/labels",
+  // `journal` (lot V3-E « Fiabilité ») écrit une ligne JSON et rend le repli d'un `catch` NOMMÉ
+  // (`sansBloquer`, `attendu`). Zéro import, sans base, sans règle métier — son seul état est un
+  // compteur d'erreurs par nom d'événement, en mémoire du processus. Il est ici parce que la règle
+  // « un `catch` ne tait pas son erreur » vaut des DEUX côtés : Adam et l'ERP avalaient chacun
+  // leurs pannes en silence ; le ranger d'un côté forcerait l'autre à écrire un second journal,
+  // au format qui divergerait — et la remontée au Super Admin ne verrait que la moitié des pannes.
+  // Le versement en base et l'alerte vivent à côté (`incidents-repetes.ts`) : eux ne sont PAS neutres.
+  "src/lib/journal",
   // `ai-text` est un ASSAINISSEUR de trois expressions régulières, sans état, sans base et sans
   // règle métier — sa propre en-tête dit qu'il est « à part, SANS dépendance » précisément pour
   // que les deux fournisseurs puissent l'utiliser sans se tirer l'un l'autre. Il satisfait le

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { PERMISSIONS, MODULES } from "@/lib/rbac";
 import { redact } from "../redact";
 import type { BusinessInvariant, InvariantResult } from "./types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Registre des invariants métier (§28). Chaque invariant est PROUVABLE sur les données réelles.
@@ -27,7 +28,7 @@ async function checkRows(
 ): Promise<Omit<InvariantResult, "id">> {
   const del = delegate(model);
   if (!del) return { ok: true, checked: 0, violations: 0, sample: [], skipped: true, note: `modèle « ${model} » indisponible` };
-  const rows = await del.findMany({ select, take: 20000 }).catch(() => null);
+  const rows = await del.findMany({ select, take: 20000 }).catch(sansBloquer("invariants-registry.checkRows.findMany", null));
   if (!rows) return { ok: true, checked: 0, violations: 0, sample: [], skipped: true, note: `lecture « ${model} » impossible` };
   let violations = 0;
   const sample: unknown[] = [];
@@ -45,11 +46,11 @@ async function checkReference(
   if (!child || !parent) return { ok: true, checked: 0, violations: 0, sample: [], skipped: true, note: "modèle indisponible" };
   // Pas de filtre `NOT null` (invalide sur une FK requise) : on récupère les valeurs distinctes puis
   // on écarte les null côté JS — fonctionne pour une FK optionnelle comme pour une FK obligatoire.
-  const rows = await child.findMany({ select: { [fkField]: true }, distinct: [fkField], take: 10000 }).catch(() => null);
+  const rows = await child.findMany({ select: { [fkField]: true }, distinct: [fkField], take: 10000 }).catch(sansBloquer("invariants-registry.checkReference.findMany", null));
   if (!rows) return { ok: true, checked: 0, violations: 0, sample: [], skipped: true, note: "lecture impossible" };
   const ids = [...new Set(rows.map((r) => r[fkField]).filter(Boolean) as string[])];
   if (ids.length === 0) return { ok: true, checked: 0, violations: 0, sample: [] };
-  const existing = await parent.count({ where: { id: { in: ids } } }).catch(() => -1);
+  const existing = await parent.count({ where: { id: { in: ids } } }).catch(sansBloquer("invariants-registry.checkReference.count", -1));
   if (existing < 0) return { ok: true, checked: ids.length, violations: 0, sample: [], skipped: true, note: "comptage impossible" };
   const missing = ids.length - existing;
   return { ok: missing === 0, checked: ids.length, violations: missing, sample: missing > 0 ? [`${missing} ${fkField} orphelin(s)`] : [] };

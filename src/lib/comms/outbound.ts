@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { getCommunicationPolicy, decideSend, type SendDecision } from "./policy";
 import { authorizeIdentity, isIdentity } from "./identity";
 import { emit } from "@/platform/events";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'INTENTION D'ENVOI — le SEUL chemin par lequel un message peut quitter l'entreprise.
@@ -259,7 +260,7 @@ async function supersedeOlderDrafts(fresh: OutboundMailIntent): Promise<void> {
       createdAt: { lte: fresh.createdAt, gte: new Date(fresh.createdAt.getTime() - SUPERSEDE_WINDOW_MS) },
     },
     select: { id: true, recipients: true, events: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("outbound.supersedeOlderDrafts.outboundMailIntent", []));
 
   // La comparaison porte sur l'ENSEMBLE des destinataires, pas sur le premier : écrire à
   // « Amine » puis à « Amine + Khaled » n'est pas la même décision.
@@ -279,7 +280,7 @@ async function supersedeOlderDrafts(fresh: OutboundMailIntent): Promise<void> {
           note: `remplacé par une version plus récente (${fresh.id})`,
         }) as never,
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("outbound.supersedeOlderDrafts.outboundMailIntent"));
   }
 }
 

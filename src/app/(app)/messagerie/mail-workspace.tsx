@@ -14,6 +14,7 @@ import type { MailFolder, MailSummary, MailMessage } from "@/lib/mail/provider";
 import {
   sendMessage, setMessageRead, moveMessage, deleteMessage, saveAttachmentToDrive,
 } from "@/lib/actions/microsoft-mail-actions";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA MESSAGERIE — trois volets, comme toutes les messageries du monde.
@@ -67,7 +68,7 @@ export function MailWorkspace({ address, signature }: Props) {
   const call = React.useCallback(async (params: Record<string, string>) => {
     const qs = new URLSearchParams(params).toString();
     const res = await fetch(`/api/mail/ms/data?${qs}`);
-    const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    const json = (await res.json().catch(sansBloquer("mail-workspace.MailWorkspace.json", {}))) as Record<string, unknown>;
     if (!res.ok) throw new Error(String(json.error ?? "La messagerie n'a pas pu répondre."));
     return json;
   }, []);

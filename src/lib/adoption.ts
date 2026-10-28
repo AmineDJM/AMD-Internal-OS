@@ -23,6 +23,7 @@ import { prisma } from "./prisma";
 import { PERMISSIONS } from "./rbac";
 import { Prisma } from "@prisma/client";
 import type { UserRole } from "@prisma/client";
+import { sansBloquer } from "@/lib/journal";
 
 const WINDOW_DAYS = 30;
 /** Durée de fraîcheur du score mis en cache (pastille de la barre du haut). */
@@ -361,7 +362,7 @@ export async function captureAdoptionSnapshots(scores: AdoptionScore[]): Promise
           update: { score: s.score, activeDays: s.activeDays, components: s.components as unknown as Prisma.InputJsonValue },
           create: { userId: s.userId, day, score: s.score, activeDays: s.activeDays, components: s.components as unknown as Prisma.InputJsonValue },
         })
-        .catch(() => {}),
+        .catch(sansBloquer("adoption.captureAdoptionSnapshots.adoptionSnapshot")),
     ),
   );
 }
@@ -488,7 +489,7 @@ export async function getAdoptionBadge(userId: string, role: UserRole): Promise<
   try {
     const metrics = await gatherUserMetrics(userId);
     const s = buildScore({ id: userId, name: u.name, email: u.email, role, isActive: u.isActive }, metrics, settings);
-    await prisma.user.update({ where: { id: userId }, data: { adoptionScore: s.score, adoptionScoreAt: new Date() } }).catch(() => {});
+    await prisma.user.update({ where: { id: userId }, data: { adoptionScore: s.score, adoptionScoreAt: new Date() } }).catch(sansBloquer("adoption.getAdoptionBadge.user"));
     // Historise l'instantané du jour (l'historique se construit même sans visite admin).
     await captureAdoptionSnapshots([s]);
     return { score: s.score, tone: s.tone, label: s.label };

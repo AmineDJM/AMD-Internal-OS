@@ -25,6 +25,7 @@ import { toNumber } from "@/lib/utils";
 import { fdStr, fdNum, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity, lecteurDeLaDemandeDeValidation } from "@/lib/entity-access";
 import { lienEtapeAValider } from "@/lib/chemins/validations";
+import { sansBloquer } from "@/lib/journal";
 
 const ROLES: UserRole[] = [
   "SUPER_ADMIN", "DIRECTION", "HEAD_OF_REGULATORY", "REGULATORY_ASSISTANT", "HEAD_OF_SALES",
@@ -256,7 +257,7 @@ async function creerPrevalidationBC(
   if (!retenu.ok) {
     // Une demande qui ne retient pas son BC le laisserait partir au centre pendant qu'on recueille des avis : on la
     // ferme aussitôt, en disant pourquoi.
-    await prisma.validationRequest.update({ where: { id: res.requestId }, data: { status: "CANCELLED", decidedAt: new Date() } }).catch(() => undefined);
+    await prisma.validationRequest.update({ where: { id: res.requestId }, data: { status: "CANCELLED", decidedAt: new Date() } }).catch(sansBloquer("validation-actions.creerPrevalidationBC.validationRequest"));
     return { ok: false, error: retenu.error };
   }
   if (files.length) await joindrePiecesValidation(res.requestId, files, user.id);
@@ -555,7 +556,7 @@ export async function decideValidation(formData: FormData): Promise<ActionResult
   // prévenues, sans quoi la file « à signer » se remplirait en silence. Relu, jamais supposé :
   // un BC annulé ou déjà signé entre-temps ne prévient personne.
   if (newStatus === "APPROVED" && req.entityType === "LEGAL_DOCUMENT" && req.objectType === OBJET_BC && req.entityId) {
-    await signalerSiASigner(req.entityId).catch(() => undefined);
+    await signalerSiASigner(req.entityId).catch(sansBloquer("validation-actions.decideValidation.signalerSiASigner"));
     revalidatePath(CHEMIN_BC_A_SIGNER);
     revalidatePath(`/legal/${req.entityId}`);
   }
@@ -680,7 +681,7 @@ export async function clearValidationItem(formData: FormData): Promise<ActionRes
  */
 async function rendreLeBCAuCircuit(req: { id: string; reference: string; objectType: string | null; entityId: string | null }, acteurId: string): Promise<void> {
   if (req.objectType !== OBJET_PREVALIDATION_BC || !req.entityId) return;
-  await libererPrevalidation(req.entityId, req.id, acteurId, `pré-validation ${req.reference} retirée — le bon de commande retourne au circuit ordinaire.`).catch(() => undefined);
+  await libererPrevalidation(req.entityId, req.id, acteurId, `pré-validation ${req.reference} retirée — le bon de commande retourne au circuit ordinaire.`).catch(sansBloquer("validation-actions.rendreLeBCAuCircuit.libererPrevalidation"));
 }
 
 export async function deleteMyValidationRequest(formData: FormData): Promise<ActionResult> {
@@ -717,7 +718,7 @@ export async function deleteMyValidationRequest(formData: FormData): Promise<Act
     await rendreLeBCAuCircuit(req, user.id);
     if (req.status === "PENDING") {
       for (const v of validateursSollicites(req, user.id)) {
-        await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur, il n'y a plus rien à trancher.`, link: `/validations/${id}` }).catch(() => undefined);
+        await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur, il n'y a plus rien à trancher.`, link: `/validations/${id}` }).catch(sansBloquer("validation-actions.deleteMyValidationRequest.notifyUser"));
       }
     }
     await recordAudit({
@@ -738,7 +739,7 @@ export async function deleteMyValidationRequest(formData: FormData): Promise<Act
   if (efface.count === 0) return { ok: false, error: "Cette demande vient de changer : rouvrez-la pour voir où elle en est." };
   await rendreLeBCAuCircuit(req, user.id);
   for (const v of validateursSollicites(req, user.id)) {
-    await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur.`, link: "/validations" }).catch(() => undefined);
+    await notifyUser({ userId: v, type: "GENERIC", title: "Validation retirée", body: `${req.reference} — ${req.title} : retirée par son demandeur.`, link: "/validations" }).catch(sansBloquer("validation-actions.deleteMyValidationRequest.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Validations",
@@ -838,7 +839,7 @@ export async function resoumettreValidation(formData: FormData): Promise<ActionR
       title: "Demande resoumise après correction",
       body: `${req.reference} — ${req.title} (version ${version}). Ce qui a été corrigé : « ${note} ».`,
       link: lienEtapeAValider(e.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("validation-actions.resoumettreValidation.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Validations", entityType: "VALIDATION_REQUEST", entityId: id,
@@ -911,7 +912,7 @@ export async function commenterValidation(formData: FormData): Promise<ActionRes
   await prisma.comment.create({ data: { entityType: "VALIDATION_REQUEST", entityId: id, body: body.trim(), authorId: user.id } });
   for (const uid of suiveursDe(d)) {
     if (uid !== user.id) {
-      await notifyUser({ userId: uid, type: "GENERIC", title: `Nouveau message — ${d.reference}`, body: body.trim().slice(0, 120), link: `/validations/${id}` }).catch(() => undefined);
+      await notifyUser({ userId: uid, type: "GENERIC", title: `Nouveau message — ${d.reference}`, body: body.trim().slice(0, 120), link: `/validations/${id}` }).catch(sansBloquer("validation-actions.commenterValidation.notifyUser"));
     }
   }
   revalidatePath(`/validations/${id}`);
@@ -943,7 +944,7 @@ export async function ajouterParticipantsValidation(formData: FormData): Promise
   // LA TRACE dans le fil : qui a été ajouté, par qui.
   await prisma.comment.create({ data: { entityType: "VALIDATION_REQUEST", entityId: id, body: `A ajouté à la discussion : ${noms}.`, authorId: user.id } });
   for (const u of actifs) {
-    await notifyUser({ userId: u.id, type: "GENERIC", title: `Ajouté à une demande de validation`, body: `${d.reference} — ${d.title}`, link: `/validations/${id}` }).catch(() => undefined);
+    await notifyUser({ userId: u.id, type: "GENERIC", title: `Ajouté à une demande de validation`, body: `${d.reference} — ${d.title}`, link: `/validations/${id}` }).catch(sansBloquer("validation-actions.ajouterParticipantsValidation.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Validations", entityType: "VALIDATION_REQUEST", entityId: id, summary: `Participants ajoutés à ${d.reference} : ${noms}` });
   revalidatePath(`/validations/${id}`);

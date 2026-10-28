@@ -7,6 +7,7 @@ import type { CapabilityCall, CapabilityOutcome, CapabilityRunner } from "@/lib/
 import { estAutonome } from "@/lib/missions/registry/capability-meta";
 import { journaliser } from "@/lib/missions/runtime/store";
 import { ERROR_KINDS, type ErrorKind } from "@/lib/missions/recovery/strategy";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -210,7 +211,7 @@ export class ExecutantReel implements CapabilityRunner {
     const marque = await prisma.missionEvent.findFirst({
       where: { missionId: call.missionId, kind: "AUTONOMOUS_EFFECT", detail: { path: ["idempotencyKey"], equals: call.idempotencyKey } },
       select: { detail: true },
-    }).catch(() => null);
+    }).catch(sansBloquer("missions-runner.dejaProduit.missionEvent", null));
     if (!marque) return null;
     const d = (marque.detail ?? {}) as { output?: unknown };
     return { ok: true, deduplicated: true, output: d.output ?? { rejoue: true } };
@@ -220,7 +221,7 @@ export class ExecutantReel implements CapabilityRunner {
     const texte = typeof output === "string" ? output.slice(0, 2_000) : output;
     await journaliser(call.missionId, "AUTONOMOUS_EFFECT",
       `Écriture autonome « ${call.capability} » produite (étape ${call.stepKey}).`,
-      { stepKey: call.stepKey, capability: call.capability, idempotencyKey: call.idempotencyKey, output: texte as never }).catch(() => undefined);
+      { stepKey: call.stepKey, capability: call.capability, idempotencyKey: call.idempotencyKey, output: texte as never }).catch(sansBloquer("missions-runner.marquerProduit.journaliser"));
   }
 
   // ── LECTURE ────────────────────────────────────────────────────────────────────────

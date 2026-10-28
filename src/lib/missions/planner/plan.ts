@@ -23,6 +23,7 @@ import { estimerJetons } from "@/lib/missions/memory/budget";
 import { budgetsDe, trier, type Profil } from "@/lib/missions/planner/triage";
 import { cheminDirect } from "@/lib/missions/planner/direct";
 import { direExigences, exigencesDe } from "@/lib/missions/planner/primitives";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -657,7 +658,7 @@ export async function planifier(
   // quand même (le préchauffage n'a pas besoin d'être observé pour avoir eu lieu).
   const debutSpeculation = Date.now();
   const speculation = opts.speculation
-    ? opts.speculation(objectif).catch(() => [] as { libelle: string; ms: number }[])
+    ? opts.speculation(objectif).catch(sansBloquer("plan.planifier.speculation", [] as { libelle: string; ms: number }[]))
     : null;
 
   const res = await reasoner.reason<PlanBrut>({

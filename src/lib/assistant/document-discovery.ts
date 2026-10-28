@@ -12,6 +12,7 @@ import { foldText } from "@/lib/assistant/memory-context";
 import { driveSemanticCandidates } from "@/lib/assistant/semantic-drive";
 import { classifyDocument, DOC_KIND_LABEL, type DocKind } from "@/platform/doc-kind";
 import { chercherContenu, enregistrerMentions, resoudreEntitesDe, documentsLies, loteurNoeudsDrive, type Loteur } from "@/lib/fabric";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * DÉCOUVERTE DOCUMENTAIRE EN DRIVE « SALE » — retrouver un document que son NOM ne trahit pas.
@@ -73,7 +74,7 @@ export async function indexDriveNodeText(nodeId: string, versionId: string, text
     // LES MENTIONS D'ENTITÉS S'EXTRAIENT ICI (fabric F4) — au même moment que la
     // classification, pour la même raison : le travail se paie quand l'information ENTRE,
     // plus jamais à la question. Meilleur-effort, comme le reste de l'indexation.
-    await enregistrerMentions(nodeId, fold).catch(() => undefined);
+    await enregistrerMentions(nodeId, fold).catch(sansBloquer("document-discovery.indexDriveNodeText.enregistrerMentions"));
   } catch (err) {
     console.error("[assistant] indexDriveNodeText failed", err);
   }
@@ -165,13 +166,13 @@ async function nodeText(nodeId: string): Promise<NodeText | null> {
    * quel texte : la parole est transcrite UNE fois, puis relue. C'est strictement moins cher
    * qu'avant, où chaque lecture la refaisait sans rien garder.
    */
-  const media = await texteDeMedia(nodeId, node.name).catch(() => null);
+  const media = await texteDeMedia(nodeId, node.name).catch(sansBloquer("document-discovery.nodeText.texteDeMedia", null));
   if (media) {
     await indexDriveNodeText(nodeId, version.id, media.text, media.note, node.name);
     return { name: node.name, text: media.text, note: media.note, fromIndex: false };
   }
 
-  const bytes = await getBlob(version.blobId).catch(() => null);
+  const bytes = await getBlob(version.blobId).catch(sansBloquer("document-discovery.nodeText.getBlob", null));
   if (!bytes) return { name: node.name, text: null, note: "contenu indisponible", fromIndex: false };
   const t = await extractAttachmentText(node.name, bytes);
   // On indexe MÊME l'échec (texte vide) : inutile de re-tenter un scan illisible à chaque fois.
@@ -235,9 +236,9 @@ async function texteDeMedia(nodeId: string, nom: string): Promise<{ text: string
  * Renvoie true si un index existe à l'issue de l'appel (même un index « illisible »).
  */
 export async function ensureNodeIndexed(nodeId: string): Promise<boolean> {
-  const t = await nodeText(nodeId).catch(() => null);
+  const t = await nodeText(nodeId).catch(sansBloquer("document-discovery.ensureNodeIndexed.nodeText", null));
   if (!t) return false;
-  const row = await prisma.driveTextIndex.findUnique({ where: { nodeId }, select: { id: true } }).catch(() => null);
+  const row = await prisma.driveTextIndex.findUnique({ where: { nodeId }, select: { id: true } }).catch(sansBloquer("document-discovery.ensureNodeIndexed.driveTextIndex", null));
   if (row) return true;
   // Le contenu n'a pas pu être lu (blob indisponible, trop volumineux, pas de version) : un
   // index-témoin garde la RAISON — l'ingestion ne re-tente pas le même nœud à chaque passage.
@@ -323,7 +324,7 @@ export const DOCUMENT_DISCOVERY_TOOLS: PowerTool[] = [
       //    La requête entière, puis chaque terme séparément : un fichier « BENALI_scan.pdf »
       //    doit sortir même si « contrat » n'est pas dans son nom.
       const metaQueries = [query, ...tokens.filter((t) => !foldText(query).startsWith(t))].slice(0, 4);
-      const metaResults = await Promise.all(metaQueries.map((q) => searchDrive(user, q).catch(() => ({ rows: [], truncated: false }))));
+      const metaResults = await Promise.all(metaQueries.map((q) => searchDrive(user, q).catch(sansBloquer("document-discovery.run.searchDrive", { rows: [], truncated: false }))));
       for (const out of metaResults) {
         for (const r of out.rows.slice(0, 15)) {
           const prev = findings.get(r.id);
@@ -613,7 +614,7 @@ export const KNOWLEDGE_TOOLS: PowerTool[] = [
       // ligne du contrat exprime mieux.
       const res = await inProcessPlatform
         .query(principalOf(user), { kind: "document.search", question, limit: 5 })
-        .catch(() => null);
+        .catch(sansBloquer("document-discovery.run.query", null));
       const r = res?.kind === "document.search" ? res : null;
 
       if (!r) {

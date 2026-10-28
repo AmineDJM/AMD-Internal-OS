@@ -442,6 +442,30 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 
 ### 4.10 Observability
 
+> **Updated 2026-10-28 (lot V3-E « Fiabilité »)** [V: code of this lot]. The bullets below that describe
+> `/login` as health check, plain logging and no `global-error.tsx` are superseded:
+> - **Single structured journal** `src/lib/journal.ts` (zero imports → client-safe, NEUTRAL in
+>   `platform/boundary-scan.ts`): one JSON line `{ts, niveau, evenement, …contexte, erreur, repetitions}`;
+>   anti-avalanche (same event + same message rewritten once per 60 s, the next line carries the count of
+>   silenced repeats); every `erreur` is **counted** per event in process memory. `taches-de-fond/journal.ts`
+>   delegates to it (counting key `tache.echec:<clé>`).
+> - **Named catches** replace silent `.catch(() => x)`: `sansBloquer("event", repli)` (tolerated failure:
+>   logged + counted) and `attendu("raison", repli)` (expected rejection: client body, optional file,
+>   best-effort close — nothing logged). Measured 1 211 silent catches → 12 (2 motivated server exceptions,
+>   10 client screens that already show the failure). Ratchet: `src/lib/journal-catch-muets.test.ts`
+>   (server = 0 outside named exceptions; client ceiling 10, can only go down).
+> - **Repeated errors → Super Admin**: `src/lib/incidents-repetes.ts`. `verserCompteurs()` runs at the start
+>   of EVERY pass in EVERY process (outside leases — web and worker each own their memory), atomic UPSERT into
+>   `IncidentRepete` (window 1 h, reopened when stale; on DB failure the batch is restored in memory). Task
+>   `observabilite.incidents` (leased) sends ONE aggregated `notifyRoles(["SUPER_ADMIN"])` for events ≥ 5 in
+>   the window, then 6 h of silence per event. Diagnostic card "Erreurs rattrapées"
+>   (`admin/diagnostic/incidents.tsx`). Migration `20270205100000_incidents_repetes`.
+> - **Health**: `src/app/api/health/route.ts` — 503 on DB unreachable (3 s) **or** on migrations missing
+>   (`src/lib/migrations-appliquees.ts`: `prisma/migrations/*` dirs vs finished, non-rolled-back rows of
+>   `_prisma_migrations`; "up to date" memoised per process; unreadable folder → `inconnu`, not blocking);
+>   200 with `etat: "degrade"` + counts (no event names) when this process has repeated errors (15 min).
+>   `render.yaml` now `healthCheckPath: /api/health` and `npm ci`; `package.json` `engines.node = 22.x`.
+> - **`src/app/global-error.tsx`**: French root error boundary (inline styles, `digest`, logs via the journal).
 - **Logging**: plain `console.*` (≈452 `console.error`, 33 `warn`, 48 `log/info` in non-test `src/`),
   consumed by Render's log stream; scheduler steps log with `[scheduled]` / `[scheduler]` prefixes
   [V]. No structured logger, no log levels config.
@@ -732,7 +756,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 - [V] Test/bench DB guard and pool (`prisma.ts:93-177`); outbound kill switch (`garde.ts:118-139`).
 - [V] Test counts, `dbOk` idiom counts, guard tests listed and their ceilings.
 - [V] Next 14.2.35 / 15.5.28 middleware lookup rule; root `middleware.ts`; no `src/middleware.ts`.
-- [V] No CI configuration; no APM; no `global-error.tsx`; health check on `/login`.
+- [V] No APM. (CI, `global-error.tsx` and the `/api/health` health check exist since the 27/10 audit and lot V3-E — §4.10.)
 - [U] Which build command the Render dashboard currently runs and which branch it tracks.
 - [U] Whether `build:measure` fails at its 4,200 MB default today (not run, per instructions).
 - [U] That every "…SiDu" job is DB-gated (three checked).

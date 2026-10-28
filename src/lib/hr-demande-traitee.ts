@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE MOMENT OÙ LES RH ONT TRAITÉ UNE DEMANDE — posé UNE fois, jamais écrasé.
@@ -16,5 +17,5 @@ export const estEtatRhTraite = (statut: string): boolean => (ETATS_RH_TRAITES as
 
 /** Date la demande si elle ne l'est pas encore. Ne lève jamais : un KPI ne doit pas faire échouer un traitement. */
 export async function marquerDemandeRhTraitee(id: string, quand: Date = new Date()): Promise<void> {
-  await prisma.hrDocumentRequest.updateMany({ where: { id, handledAt: null }, data: { handledAt: quand } }).catch(() => undefined);
+  await prisma.hrDocumentRequest.updateMany({ where: { id, handledAt: null }, data: { handledAt: quand } }).catch(sansBloquer("hr-demande-traitee.marquerDemandeRhTraitee.hrDocumentRequest"));
 }

@@ -7,6 +7,7 @@ import {
   MIN_CANDIDATE_SCORE,
   isDecisive,
 } from "./contract";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -198,7 +199,7 @@ export async function entityForRecord(refType: string, refId: string): Promise<E
       where: { refType, refId, isActive: true },
       select: { id: true, kind: true, canonicalName: true, refType: true, refId: true, companyId: true },
     })
-    .catch(() => null);
+    .catch(sansBloquer("resolve.entityForRecord.knowledgeEntity", null));
   if (!e) return null;
   return {
     entityId: e.id, kind: e.kind as EntityKind, canonicalName: e.canonicalName,

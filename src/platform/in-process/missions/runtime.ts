@@ -34,6 +34,7 @@ import { depotDrive } from "@/platform/in-process/missions/sink";
 import { registreRecoursDe } from "@/platform/in-process/missions/recovery-registry";
 import { enqueter, resumerSituation } from "@/platform/in-process/missions/situation";
 import { porteAttentionPour } from "@/platform/in-process/missions/attention";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -309,7 +310,7 @@ export function lancerMission(
      */
     const interrupteur = await (opts.interrupteur ?? lireInterrupteurMissions)();
     if (interrupteur.suspendues) return { ok: false, error: phraseSuspension(interrupteur) };
-    await prechargerCapacitesDynamiques(user).catch(() => 0);
+    await prechargerCapacitesDynamiques(user).catch(sansBloquer("missions-runtime.lancerMission.prechargerCapacitesDynamiques", 0));
     await assurerFormes();
     const parJalons = await tenterHorizon(user, objectif, opts);
     if (parJalons) return parJalons;
@@ -416,7 +417,7 @@ async function lancerMissionInterne(
   // LES FORMES ÉPROUVÉES (§64) — une indication murmurée au planner, chargée ICI parce que
   // c'est le côté qui possède la base. Une liste vide est la réponse normale d'un système jeune.
   const formesValidees = opts.contexte?.formesValidees
-    ?? await import("@/lib/missions/planner/patterns").then((m) => m.indicesDeFormes()).catch(() => []);
+    ?? await import("@/lib/missions/planner/patterns").then((m) => m.indicesDeFormes()).catch(sansBloquer("missions-runtime.lancerMissionInterne", []));
   // ── L'ENQUÊTE AVANT LE PLAN ─────────────────────────────────────────────────────────────
   //
   // Le code établit la situation (entités reconnues, fiches, changements, documents, engagements)
@@ -425,7 +426,7 @@ async function lancerMissionInterne(
   // part alors comme avant, et le journal le dit.
   const situation = opts.sansEnquete || opts.contexte?.situation
     ? opts.contexte?.situation ?? null
-    : await enqueter(user, objectif).catch(() => null);
+    : await enqueter(user, objectif).catch(sansBloquer("missions-runtime.lancerMissionInterne.enqueter", null));
   // ── LES RÈGLES ENSEIGNÉES (Teach Adam, §119) ────────────────────────────────────────
   //
   // Ce que la personne et sa société ont appris à Adam entre DANS le contexte du planificateur
@@ -433,7 +434,7 @@ async function lancerMissionInterne(
   // accumulé : la même règle ne s'y répète pas d'un plan à l'autre.
   const politiquesEnseignees = await import("@/platform/in-process/teach/store")
     .then((m) => m.politiquesPourMission(user.id))
-    .catch(() => [] as string[]);
+    .catch(sansBloquer("missions-runtime.lancerMissionInterne", [] as string[]));
   const contexte: ContextePlanification = {
     aujourdhui: new Date().toLocaleDateString("fr-FR"),
     ...opts.contexte,
@@ -466,7 +467,7 @@ async function lancerMissionInterne(
           where: { isActive: true, name: { contains: nom, mode: "insensitive" } },
           select: { id: true },
           take: 3,
-        }).catch(() => []);
+        }).catch(sansBloquer("missions-runtime.speculation.user", []));
         return { libelle: `annuaire:${nom}`, ms: Date.now() - t0 };
       }));
       return [{ libelle: `total:${noms.length} noms`, ms: Date.now() - debut }, ...lectures];
@@ -684,7 +685,7 @@ async function lancerMissionInterne(
     await porteAttentionPour().signaler({
       kind: "APPROVAL_REQUIRED", missionId, ownerId: user.id, titre, raison: p.resume,
       niveauApprobation: p.niveau, stepKey: "accord", planVersion: 1,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("missions-runtime.lancerMissionInterne.signaler"));
   }
 
   let etapes = mission.steps.length;
@@ -837,7 +838,7 @@ export async function finaliserLancementDifere(
     await prisma.mission.update({
       where: { id: missionId },
       data: { status: "FAILED" },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("missions-runtime.finaliserLancementDifere.mission"));
     await journaliser(missionId, "PLANNING_FAILED",
       `La planification en arrière-plan a échoué : ${r.error}`, {});
     return { finalise: false, raison: r.error };
@@ -895,7 +896,7 @@ export async function rattraperLancementsPerdus(
       where: { missionId: talon.id, kind: "PLANNING_RETRY" },
     });
     if (reprises >= 2) {
-      await prisma.mission.update({ where: { id: talon.id }, data: { status: "FAILED" } }).catch(() => undefined);
+      await prisma.mission.update({ where: { id: talon.id }, data: { status: "FAILED" } }).catch(sansBloquer("missions-runtime.rattraperLancementsPerdus.mission"));
       await journaliser(talon.id, "PLANNING_FAILED",
         "Trois lancements ont été tentés sans qu'aucun n'aboutisse — la mission est close, le motif est au journal.", {});
       continue;
@@ -927,7 +928,7 @@ export function avancerMission(
 ) {
   return withTurn("background", async () => {
     setTurnContext({ userId: user.id, missionId, feature: "mission" });
-    await prechargerCapacitesDynamiques(user).catch(() => 0);
+    await prechargerCapacitesDynamiques(user).catch(sansBloquer("missions-runtime.avancerMission.prechargerCapacitesDynamiques", 0));
     await assurerFormes();
     return avancerMissionInterne(user, missionId, opts);
   });
@@ -963,15 +964,15 @@ async function avancerMissionInterne(
       where: { missionId, status: "WAITING", nodeType: "WAIT_INPUT" },
       select: { key: true, title: true, waitFor: true },
       orderBy: { updatedAt: "desc" },
-    }).catch(() => null);
+    }).catch(sansBloquer("missions-runtime.avancerMissionInterne.missionStep", null));
     if (q) {
       const ask = (q.waitFor as { ask?: unknown } | null)?.ask;
-      const m = await prisma.mission.findUnique({ where: { id: missionId }, select: { title: true, planVersion: true } }).catch(() => null);
+      const m = await prisma.mission.findUnique({ where: { id: missionId }, select: { title: true, planVersion: true } }).catch(sansBloquer("missions-runtime.avancerMissionInterne.mission", null));
       await porteAttentionPour().signaler({
         kind: "QUESTION", missionId, ownerId: user.id, titre: m?.title ?? "",
         raison: typeof ask === "string" && ask.trim() ? ask : `« ${q.title} » attend un élément de votre part.`,
         decision: "répondre depuis l'écran de la mission", stepKey: q.key, planVersion: m?.planVersion ?? null,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("missions-runtime.avancerMissionInterne.signaler"));
     }
   }
   return res;
@@ -1030,7 +1031,7 @@ export function replanifierMission(
 ): Promise<ResultatReplanification> {
   return withTurn("background", async () => {
     setTurnContext({ userId: user.id, missionId, feature: "mission" });
-    await prechargerCapacitesDynamiques(user).catch(() => 0);
+    await prechargerCapacitesDynamiques(user).catch(sansBloquer("missions-runtime.replanifierMission.prechargerCapacitesDynamiques", 0));
     await assurerFormes();
     return replanifierMissionInterne(user, missionId, opts);
   });
@@ -1046,10 +1047,10 @@ export function replanifierMission(
  */
 async function pourquoiLeJugeARefuse(missionId: string): Promise<string[]> {
   const [mission, refus] = await Promise.all([
-    prisma.mission.findUnique({ where: { id: missionId }, select: { goalVerdict: true, goalSatisfied: true } }).catch(() => null),
+    prisma.mission.findUnique({ where: { id: missionId }, select: { goalVerdict: true, goalSatisfied: true } }).catch(sansBloquer("missions-runtime.pourquoiLeJugeARefuse.mission", null)),
     prisma.missionEvent.findFirst({
       where: { missionId, kind: "GOAL_UNSATISFIED" }, orderBy: { at: "desc" }, select: { detail: true },
-    }).catch(() => null),
+    }).catch(sansBloquer("missions-runtime.pourquoiLeJugeARefuse.missionEvent", null)),
   ]);
   const lignes: string[] = [];
   if (mission && mission.goalSatisfied === false && mission.goalVerdict) {
@@ -1099,7 +1100,7 @@ async function replanifierMissionInterne(
   const porteEtat = peutReplanifierMission(m, null);
   if (!porteEtat.autorise) {
     if (porteEtat.motif === "PLAFOND") {
-      await prisma.mission.update({ where: { id: missionId }, data: { replanBloque: true } }).catch(() => undefined);
+      await prisma.mission.update({ where: { id: missionId }, data: { replanBloque: true } }).catch(sansBloquer("missions-runtime.replanifierMissionInterne.mission"));
       await journaliser(missionId, "REPLAN_BLOCKED",
         `${porteEtat.phrase} La mission ne sera plus reprise tant qu'une information neuve n'arrivera pas `
         + `— une réponse, un événement, une consigne, ou une modification demandée depuis l'écran.`,
@@ -1158,7 +1159,7 @@ async function replanifierMissionInterne(
       if (porteRefus.motif === "REPETITION") {
         await prisma.mission.update({
           where: { id: missionId }, data: { replanBloque: true, replanRefus: refus },
-        }).catch(() => undefined);
+        }).catch(sansBloquer("missions-runtime.replanifierMissionInterne.mission"));
         await journaliser(missionId, "REPLAN_BLOCKED",
           `${porteRefus.phrase} La mission ne sera plus reprise tant qu'une information neuve n'arrivera pas `
           + `— une réponse, un événement, une consigne, ou une modification demandée depuis l'écran.`,
@@ -1186,14 +1187,14 @@ async function replanifierMissionInterne(
       where: { missionId, kind: "GOAL_UNSATISFIED" },
       orderBy: { at: "desc" },
       select: { detail: true },
-    }).catch(() => null);
+    }).catch(sansBloquer("missions-runtime.replanifierMissionInterne.missionEvent", null));
     const detail = dernierRefus?.detail as Record<string, unknown> | null | undefined;
     if (detail && "recoursSuggere" in detail && detail.recoursSuggere === null) {
       // ET LA PORTE S'ÉCRIT : sans `replanBloque`, la mission restait candidate du battement et
       // cette même ligne se réécrivait à chaque passage, pour toujours (§118.132).
       await prisma.mission.update({
         where: { id: missionId }, data: { replanBloque: true, replanRefus: REFUS_JUGE },
-      }).catch(() => undefined);
+      }).catch(sansBloquer("missions-runtime.replanifierMissionInterne.mission"));
       await journaliser(missionId, "REPLAN_SKIPPED",
         "Replanification refusée SANS appel de modèle : toutes les étapes sont abouties et le "
         + "juge n'a suggéré aucun recours — un plan nouveau redécouvrirait la même impasse. La "
@@ -1217,7 +1218,7 @@ async function replanifierMissionInterne(
   const contexteReplan = {
     aujourdhui: new Date().toLocaleDateString("fr-FR"),
     demandeur: demandeurDe(user),
-    politiques: await import("@/platform/in-process/teach/store").then((m) => m.politiquesPourMission(user.id)).catch(() => [] as string[]),
+    politiques: await import("@/platform/in-process/teach/store").then((m) => m.politiquesPourMission(user.id)).catch(sansBloquer("missions-runtime.replanifierMissionInterne", [] as string[])),
     // CE QUI EST DÉJÀ FAIT : le planificateur doit repartir de là, pas de zéro. Lui cacher
     // l'acquis le ferait renvoyer trente-et-un messages déjà partis — l'idempotence les
     // arrêterait, mais au prix d'un plan illisible et d'un travail inutile.
@@ -1318,7 +1319,7 @@ async function replanifierMissionInterne(
       await prisma.mission.update({
         where: { id: missionId },
         data: { replanRefus: signature, replanBloque: repetition },
-      }).catch(() => undefined);
+      }).catch(sansBloquer("missions-runtime.replanifierMissionInterne.mission"));
       await journaliser(missionId, repetition ? "REPLAN_BLOCKED" : "REPLAN_SKIPPED",
         repetition
           ? `Le compilateur oppose deux fois le même refus (${signature}) : le planificateur n'a rien `
@@ -1347,7 +1348,7 @@ async function replanifierMissionInterne(
    */
   await prisma.mission.update({
     where: { id: missionId }, data: { replanRefus: refus, replanBloque: false },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("missions-runtime.replanifierMissionInterne.mission"));
   await materialiser(c.mission, {
     ownerId: user.id,
     title: m.title,
@@ -1364,7 +1365,7 @@ async function replanifierMissionInterne(
       kind: "PLAN_CHANGED", missionId, ownerId: user.id, titre: m.title,
       raison: `${rouvert.stepKeys.length} étape(s) ne sont pas couvertes par votre accord précédent.`,
       stepKey: rouvert.stepKeys.join("+").slice(0, 120),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("missions-runtime.replanifierMissionInterne.signaler"));
   }
 
   const apres = await prisma.mission.findUnique({

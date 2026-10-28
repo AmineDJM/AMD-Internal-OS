@@ -26,6 +26,7 @@ import { resultatListe, resultatVide } from "@/lib/assistant/empty-result";
 import { fichierALire, fichiersDe } from "@/lib/assistant/artifact-ref";
 import { invoiceSettlementState, INVOICE_SETTLEMENT } from "@/lib/labels";
 import { libelleEtape } from "@/platform/in-process/promo";
+import { sansBloquer } from "@/lib/journal";
 
 /** Le pictogramme d'un document, déduit du nom — le protocole n'en connaît que cinq. */
 function docKindFromName(name: string): "pdf" | "image" | "feuille" | "texte" | "autre" {
@@ -333,7 +334,7 @@ export const EXECUTIVE_TOOLS: PowerTool[] = [
         if (!doc?.fileKey) {
           return resultatIndisponible("MISSING_DOCUMENT", "Pièce introuvable ou sans fichier.", { documentId });
         }
-        const bytes = await readFileByKey(doc.fileKey).catch(() => null);
+        const bytes = await readFileByKey(doc.fileKey).catch(sansBloquer("executive-tools.run.readFileByKey", null));
         if (!bytes) {
           return resultatIndisponible("CAPABILITY_FAILURE", "Le fichier de cette pièce est indisponible.", { documentId, nom: doc.name });
         }

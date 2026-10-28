@@ -3,6 +3,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { canReadEntity, type EntityDef } from "@/lib/api/registry/entities";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { entiteDuModele } from "./modele-entite";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -120,7 +121,7 @@ async function lireUne(user: SessionUser, def: EntityDef, id: string): Promise<R
   const select = Object.fromEntries([...new Set(["id", ...champs])].map((c) => [c, true as const]));
 
   const portee = await porteeEntite(user, def);
-  const ligne = await model.findFirst({ where: { AND: [portee, { id }] }, select }).catch(() => null);
+  const ligne = await model.findFirst({ where: { AND: [portee, { id }] }, select }).catch(sansBloquer("relire.lireUne.findFirst", null));
   if (!ligne) return null;
 
   return {

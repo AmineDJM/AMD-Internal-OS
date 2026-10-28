@@ -13,6 +13,7 @@ import {
 } from "@/lib/promo-material/validateurs";
 import { totauxDeLaSelection, type DevisLu } from "@/lib/promo-material/devis";
 import { tourDe, type ContexteCircuit, type PromoState, type TourPromo, type VersionCircuit } from "@/lib/promo-material/circuit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE CHARGEUR DU CIRCUIT DU MATÉRIEL PROMOTIONNEL (§118.152) — ce que la règle pure ne peut pas lire.
@@ -239,7 +240,7 @@ export async function contexteDuDossier(pm: {
   chosenAmount: unknown; amount: unknown;
 }): Promise<ContexteCircuit> {
   const version: VersionCircuit = pm.circuitVersion === 2 ? 2 : 1;
-  const reglages = await getAppSettings().catch(() => null);
+  const reglages = await getAppSettings().catch(sansBloquer("promo-circuit.contexteDuDossier.getAppSettings", null));
   const seuilDg = reglages?.adProDgThreshold ?? null;
   if (version === 2) {
     const [figes, devis] = await Promise.all([
@@ -258,7 +259,7 @@ export async function contexteDuDossier(pm: {
     };
   }
   const demandeur = pm.requesterId
-    ? await prisma.user.findUnique({ where: { id: pm.requesterId }, select: { role: true, secondaryRole: true } }).catch(() => null)
+    ? await prisma.user.findUnique({ where: { id: pm.requesterId }, select: { role: true, secondaryRole: true } }).catch(sansBloquer("promo-circuit.contexteDuDossier.user", null))
     : null;
   const montant = pm.chosenAmount != null ? Number(pm.chosenAmount) : pm.amount != null ? Number(pm.amount) : null;
   return {

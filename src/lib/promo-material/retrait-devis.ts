@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -80,7 +81,7 @@ export async function ramenerSiPlusDeDemandeDevis(
     await notifyUser({
       userId: r.requesterId, type: "GENERIC", title: "Demande de devis retirée",
       body: `${r.reference} — le dossier revient ${libelle} : ${motif}`, link: `/promo-material/${promoMaterialId}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("retrait-devis.ramenerSiPlusDeDemandeDevis.notifyUser"));
   }
   return { ramene: true, etape: r.etape };
 }

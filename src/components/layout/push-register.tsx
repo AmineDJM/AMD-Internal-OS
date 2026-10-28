@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Bell, BellRing, Loader2, Check } from "lucide-react";
+import { sansBloquer } from "@/lib/journal";
 
 // Convertit la clé publique VAPID (base64url) en Uint8Array pour PushManager.
 function urlB64ToUint8Array(base64: string): Uint8Array {
@@ -42,9 +43,9 @@ function supported(): boolean {
 export function PushRegister() {
   React.useEffect(() => {
     if (!supported()) return;
-    navigator.serviceWorker.register("/sw.js").catch(() => {});
+    navigator.serviceWorker.register("/sw.js").catch(sansBloquer("push-register.PushRegister.register"));
     if (Notification.permission !== "granted") return;
-    getKey().then((k) => { if (k?.enabled && k.publicKey) subscribe(k.publicKey).catch(() => {}); });
+    getKey().then((k) => { if (k?.enabled && k.publicKey) subscribe(k.publicKey).catch(sansBloquer("push-register.PushRegister.subscribe")); });
   }, []);
   return null;
 }
@@ -75,7 +76,7 @@ export function EnablePushButton() {
       // Web Push (navigateur fermé) uniquement si le serveur a des clés VAPID ; sinon les
       // notifications bureau locales (onglet ouvert) fonctionnent déjà avec la permission.
       const k = key.current ?? (await getKey());
-      if (k?.enabled && k.publicKey) await subscribe(k.publicKey).catch(() => {});
+      if (k?.enabled && k.publicKey) await subscribe(k.publicKey).catch(sansBloquer("push-register.enable.subscribe"));
       setState("on");
     } catch { setState("idle"); }
   }

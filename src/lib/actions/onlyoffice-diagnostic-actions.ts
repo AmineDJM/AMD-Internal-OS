@@ -8,6 +8,7 @@ import {
   urlApplication, verdictApiJs, verdictHealthcheck, verdictRouteApplication,
   type ErreurReseau, type PointDiagnostic, type RapportEditeurOffice,
 } from "@/lib/onlyoffice-diagnostic";
+import { attendu } from "@/lib/journal";
 
 /**
  * TESTER L'ÉDITEUR OFFICE — Super Admin uniquement (Administration, à côté du test du stockage).
@@ -34,7 +35,7 @@ async function sonder(url: string, opts: { lireCorps: boolean; suivre: boolean }
       signal: AbortSignal.timeout(DELAI_MS),
     });
     const corps = opts.lireCorps ? (await r.text()).slice(0, 2_000) : "";
-    if (!opts.lireCorps) await r.body?.cancel().catch(() => {});
+    if (!opts.lireCorps) await r.body?.cancel().catch(attendu("fermeture au mieux : le flux est abandonné de toute façon"));
     return { ok: true, status: r.status, type: r.headers.get("content-type") ?? "", corps, location: r.headers.get("location"), routage: r.headers.get("x-render-routing") };
   } catch (e) {
     return { ok: false, erreur: lireErreur(e) };

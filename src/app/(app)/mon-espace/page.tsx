@@ -22,6 +22,7 @@ import type { Fragment, Semaine, Tuile } from "@/lib/espace/aujourdhui";
 import { FileAFaire } from "./file-a-faire";
 import { RappelRapide } from "./rappel-rapide";
 import { EquipeEncart } from "./equipe-encart";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * « AUJOURD'HUI » — L'ONGLET PRINCIPAL DE L'ESPACE (Direction, 14/10/2026 : « Je valide l'onglet
@@ -43,7 +44,7 @@ export default async function MonEspacePage() {
   const [reminders, manager] = await Promise.all([
     listMyReminders(user.id),
     // Le responsable hiérarchique — nommé dans le formulaire de formation : il ne se choisit pas.
-    getManagerOfUser(user.id).catch(() => null),
+    getManagerOfUser(user.id).catch(sansBloquer("mon-espace-page.MonEspacePage.getManagerOfUser", null)),
   ]);
   const reminderRows = reminders.map((r) => ({ ...r, remindAt: r.remindAt.toISOString(), sentAt: r.sentAt ? r.sentAt.toISOString() : null }));
 

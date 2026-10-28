@@ -5,7 +5,21 @@ applique les migrations et crée le Super Admin (aucune donnée de démo).
 
 1. [dashboard.render.com](https://dashboard.render.com) → **New + → Blueprint**, connecter ce dépôt.
 2. Renseigner `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` (`DATABASE_URL` et `AUTH_SECRET` gérés automatiquement).
-3. **Apply** → Render exécute `npm install && prisma generate && npm run build:render && prisma migrate deploy && db:bootstrap` — lint, typecheck et build AVANT toute écriture en base (refonte P0, [`docs/architecture/refonte-p0-outillage.md`](../architecture/refonte-p0-outillage.md) §2).
+3. **Apply** → Render exécute `npm ci && prisma generate && npm run build:render && prisma migrate deploy && db:bootstrap` — lint, typecheck et build AVANT toute écriture en base (refonte P0, [`docs/architecture/refonte-p0-outillage.md`](../architecture/refonte-p0-outillage.md) §2).
+
+### Sonde de santé et fiabilité (lot V3-E, 2026-10-28)
+
+- **`healthCheckPath: /api/health`** (au lieu de `/login`, page statique qui répondait 200 base perdue). La sonde rend
+  **503** si Postgres ne répond pas en 3 s (`base: "injoignable"`) **ou** s'il manque une migration du dépôt en base
+  (`migrations: "en-retard"`, nombre seulement) : un tableau de bord qui aurait perdu `prisma migrate deploy` fait
+  échouer le déploiement au lieu de servir du code sur un schéma en retard. Elle rend aussi `etat: "sain" | "degrade"` et
+  des **nombres** d'erreurs répétées du processus (15 dernières minutes) — **200 quand même** : redémarrer ne répare pas
+  une requête qui échoue. ⚠️ Le tableau de bord prime (§118.208) : *Settings → Health Check Path* = `/api/health`.
+- **`npm ci`** au lieu de `npm install` : le build installe exactement `package-lock.json` (comme la CI) ; `package.json`
+  déclare `"engines": { "node": "22.x" }` (= `NODE_VERSION` de Render = `.nvmrc`).
+- **Erreurs répétées → Super Admin** : la tâche `observabilite.incidents` envoie une notification **agrégée** quand un
+  événement du journal échoue 5 fois dans l'heure (puis silence 6 h) ; détail dans **Administration › Diagnostic ›
+  Erreurs rattrapées**. Mécanisme : [32-conventions-contribution.md](32-conventions-contribution.md).
 
 > **Conflit de dépendances résolu** : l'ERP utilise `nodemailer@10`, en conflit avec le peer optionnel
 > `nodemailer@^7 || ^8` de `next-auth` (fournisseur e-mail inutilisé : connexion par identifiants). Le fichier

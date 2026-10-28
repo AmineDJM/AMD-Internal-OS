@@ -10,6 +10,7 @@ import { getActionCenter } from "@/lib/queries/action-center";
 import { alertesExecutivesChaudes, fraicheurDeLecture } from "@/lib/assistant/hot-alerts";
 import type { ExecutiveAlert } from "@/lib/assistant/proactive";
 import { FINISHED_REG_STATUSES } from "@/lib/regulatory/stage";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * SIMULATION, ÉTAT DE L'ENTREPRISE, ATTENTION DU PDG — trois lectures de pilotage.
@@ -264,10 +265,10 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
         prisma.validationRequest.count({ where: { status: "PENDING" } }),
         prisma.task.count({ where: { status: { in: ["TODO", "IN_PROGRESS"] }, dueDate: { lt: new Date() } } }),
         prisma.regulatoryProduct.count({ where: { status: { notIn: [...FINISHED_REG_STATUSES] } } }),
-        alertesExecutivesChaudes(user).catch(() => null),
+        alertesExecutivesChaudes(user).catch(sansBloquer("what-if.run.alertesExecutivesChaudes", null)),
       ]);
       const alerts: ExecutiveAlert[] = lectureAlertes?.valeur ?? [];
-      const compta = userCan(user, "FINANCES", "VIEW") ? await getComptaData(user.id).catch(() => null) : null;
+      const compta = userCan(user, "FINANCES", "VIEW") ? await getComptaData(user.id).catch(sansBloquer("what-if.run.getComptaData", null)) : null;
       const critical = alerts.filter((a) => a.criticite === "CRITICAL");
       const important = alerts.filter((a) => a.criticite === "IMPORTANT");
 
@@ -314,7 +315,7 @@ export const WHAT_IF_TOOLS: PowerTool[] = [
     run: async (_input, user) => {
       const [center, lectureAlertes, overdueCommitments] = await Promise.all([
         getActionCenter(user),
-        alertesExecutivesChaudes(user).catch(() => null),
+        alertesExecutivesChaudes(user).catch(sansBloquer("what-if.run.alertesExecutivesChaudes", null)),
         prisma.executiveCommitment.count({ where: { ownerId: user.id, status: "OPEN", dueAt: { lt: new Date() } } }),
       ]);
       const alerts: ExecutiveAlert[] = lectureAlertes?.valeur ?? [];

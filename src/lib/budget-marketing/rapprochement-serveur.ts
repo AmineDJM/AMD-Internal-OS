@@ -25,6 +25,7 @@ import {
   type DecisionRapprochement, type DemandeCible, type DepenseARapprocher, type DoublonProbable, type ElementDoublon,
   type IndiceHorsAdPro, type LuDePiece, type NatureDepense, type PieceARapprocher, type Proposition, type SensRapprochement,
 } from "@/lib/budget-marketing/rapprochement";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -380,8 +381,8 @@ async function peutVoirPiece(user: SessionUser, c: Pick<CandidatPiece, "source" 
   const deja = cache.get(k);
   if (deja !== undefined) return deja;
   let ok = false;
-  if (c.source.startsWith("DOC:") && c.entityType && c.entityId) ok = await canAccessEntity(user, c.entityType as never, c.entityId, "VIEW").catch(() => false);
-  else if (c.source.startsWith("DRIVE:")) ok = canViewDrive(await resolveDriveAccess(user, c.source.slice(6)).catch(() => "NONE" as const));
+  if (c.source.startsWith("DOC:") && c.entityType && c.entityId) ok = await canAccessEntity(user, c.entityType as never, c.entityId, "VIEW").catch(sansBloquer("rapprochement-serveur.peutVoirPiece.canAccessEntity", false));
+  else if (c.source.startsWith("DRIVE:")) ok = canViewDrive(await resolveDriveAccess(user, c.source.slice(6)).catch(sansBloquer("rapprochement-serveur.peutVoirPiece.resolveDriveAccess", "NONE" as const)));
   // La messagerie : la liste ne porte déjà que les conversations dont la personne est membre.
   else if (c.source.startsWith("MSG:")) ok = true;
   cache.set(k, ok);
@@ -443,7 +444,7 @@ export async function lireTranche(
       luesCetteFois++;
     } catch (e) {
       erreurs.push(`${c.nom} : ${e instanceof Error ? e.message.slice(0, 160) : "lecture impossible"}`);
-      await garder({ etat: "NON_LUE", raison: "la lecture a échoué" }).catch(() => undefined);
+      await garder({ etat: "NON_LUE", raison: "la lecture a échoué" }).catch(sansBloquer("rapprochement-serveur.lireTranche.garder"));
     }
   }
   lectures = await lecturesGardees(candidats.map((c) => c.empreinte));

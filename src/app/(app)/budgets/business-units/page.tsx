@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { visibleTabs } from "@/lib/nav-tabs";
 import { BUDGET_TABS } from "@/lib/labels";
 import { buBudgetView, consumptionPct, buBudgetNotice, type BuBudgetLine } from "@/lib/sfe/bu-department";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -71,7 +72,7 @@ export default async function BusinessUnitBudgetsPage(props: { searchParams: Pro
       by: ["businessUnitId"],
       where: { businessUnitId: { in: bus.map((b) => b.id) } },
       _sum: { amount: true },
-    }).catch(() => [] as { businessUnitId: string | null; _sum: { amount: unknown } }[]),
+    }).catch(sansBloquer("business-units-page.BusinessUnitBudgetsPage.promoMaterial", [] as { businessUnitId: string | null; _sum: { amount: unknown } }[])),
   ]);
 
   const enveloppeParDep = new Map(enveloppes.map((e) => [e.departmentId, toNumber(e._sum.amount ?? 0)]));

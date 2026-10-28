@@ -3,6 +3,7 @@ import type { CurrentUser } from "@/lib/session";
 import { type Module, userCan } from "@/lib/rbac";
 import { recordFieldChanges } from "@/lib/audit";
 import { composer, conclure, type Changement, type CompteRendu, type EtatActuel, type PlanAnnulation } from "@/lib/annulation/plan";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -239,7 +240,7 @@ export async function appliquerAnnulation(
         { [g.champ]: g.valeurAttendue },
         { [g.champ]: g.valeurCible },
         [g.champ],
-      ).catch(() => {});
+      ).catch(sansBloquer("annulation.appliquerAnnulation.recordFieldChanges"));
     } catch (e) {
       echoues.push({ changementId: g.changementId, pourquoi: e instanceof Error ? e.message.slice(0, 160) : "écriture refusée" });
     }

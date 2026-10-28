@@ -9,6 +9,7 @@ import { isDirectOn } from "@/lib/assistant/capability-surface";
 import { canUseRealtimeVoice, capToolOutput, DELEGATE_TOOL_NAME } from "@/lib/assistant/voice-realtime";
 import { delegationLooksReflexive } from "@/lib/assistant/triage";
 import { withTurn, markComplexity, markPreview, markFinal, logTurn, setTurnContext } from "@/lib/models/telemetry";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -68,12 +69,12 @@ export async function POST(req: Request) {
 
       // L'orchestrateur reçoit le MÊME fil que le texte : les derniers échanges + la demande.
       const threadId = typeof body.threadId === "string" ? body.threadId : null;
-      const recent = threadId ? await getThreadMessages(user.id, threadId, 12).catch(() => null) : null;
+      const recent = threadId ? await getThreadMessages(user.id, threadId, 12).catch(sansBloquer("tool-route.POST.getThreadMessages", null)) : null;
       const history: ChatTurn[] = [
         ...(recent ?? []).map((m) => ({ role: m.role, content: m.content })),
         { role: "user" as const, content: request },
       ];
-      const personal = await personalContext(user.id).catch(() => null);
+      const personal = await personalContext(user.id).catch(sansBloquer("tool-route.POST.personalContext", null));
       const result = await runAssistant(user, history, { personalContext: personal, origin: "voice", turnContext: { ...(threadId ? { threadId } : {}), feature: "assistant" } });
       // LA PROVENANCE DU TOUR (F8) — la voix consigne comme le texte : « d'où tu tiens ça ? » vaut à l'oral.
       if (result.provenance) await consignerProvenance({ userId: user.id, threadId, question: request, faits: result.provenance });

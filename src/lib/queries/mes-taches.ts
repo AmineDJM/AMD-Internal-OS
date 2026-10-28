@@ -18,6 +18,7 @@ import type { ModuleTab } from "@/components/shared/module-tabs";
 import type { TaskCommentItem } from "@/app/(app)/mon-espace/taches/[id]/comments";
 import type { DocItem } from "@/components/documents/document-list";
 import { invitationsMissionAAccepter, ordresMissionAValider, MARCHE_N1_MISSIONS, type InvitationMissionDTO, type OrdreAValiderDTO } from "@/lib/queries/missions";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'ONGLET « TÂCHES » DE MON ESPACE — la lecture (Direction, 07/10).
@@ -226,12 +227,12 @@ export async function compteTachesQuiMAttendent(userId: string): Promise<number>
 export async function ongletsEspace(user: SessionUser, compte?: number): Promise<ModuleTab[]> {
   const [tabs, n, missions] = await Promise.all([
     visibleTabs(user, WORKSPACE_TABS),
-    compte ?? compteTachesQuiMAttendent(user.id).catch(() => 0),
+    compte ?? compteTachesQuiMAttendent(user.id).catch(sansBloquer("mes-taches.ongletsEspace.compteTachesQuiMAttendent", 0)),
     // « Mes missions » compte ce qui attend un geste : mes invitations et les ordres de mission à valider (N+1).
     Promise.all([
       prisma.missionAssignment.count({ where: { userId: user.id, archivedAt: null, response: "INVITEE" } }),
       prisma.hrDocumentRequest.count({ where: MARCHE_N1_MISSIONS(user.id) }),
-    ]).then(([a, b]) => a + b).catch(() => 0),
+    ]).then(([a, b]) => a + b).catch(sansBloquer("mes-taches.ongletsEspace.missionAssignment", 0)),
   ]);
   return tabs.map((t) => (t.href === ONGLET_TACHES_HREF ? { ...t, compte: n } : t.href === "/mon-espace/missions" && missions > 0 ? { ...t, compte: missions } : t));
 }
@@ -275,8 +276,8 @@ export async function lireOngletTaches(user: SessionUser, vue: VueTaches, page =
     }),
     prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
     // Une lecture manquée des missions ne doit pas vider l'onglet des tâches : elles restent sur « Mes missions ».
-    invitationsMissionAAccepter(me).catch(() => [] as InvitationMissionDTO[]),
-    ordresMissionAValider(me).catch(() => [] as OrdreAValiderDTO[]),
+    invitationsMissionAAccepter(me).catch(sansBloquer("mes-taches.lireOngletTaches.invitationsMissionAAccepter", [] as InvitationMissionDTO[])),
+    ordresMissionAValider(me).catch(sansBloquer("mes-taches.lireOngletTaches.ordresMissionAValider", [] as OrdreAValiderDTO[])),
   ]);
   const aAccepterMissions: LigneMissionAAccepter[] = [
     ...ordresN1.map((ordre): LigneMissionAAccepter => ({ type: "ORDRE_MISSION_N1", cle: `om-${ordre.requestId}`, ordre })),

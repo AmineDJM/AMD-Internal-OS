@@ -56,6 +56,7 @@ import {
 import { sanitizeForModel } from "./ai-text";
 // L'interrupteur général de l'écran « Contrôle de l'IA » — lu ici, AVANT tout appel (voir `IA_COUPEE`).
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "./ai-settings";
+import { attendu } from "@/lib/journal";
 export { sanitizeForModel };
 
 export interface AiTextResult {
@@ -350,7 +351,7 @@ export async function transcribeAudio(buffer: Buffer, filename: string, mime: st
         const data = (await res.json()) as { text?: string };
         return { ok: true, configured: true, text: (data.text ?? "").trim() };
       }
-      const body = await res.text().catch(() => "");
+      const body = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[ai] whisper error", res.status, body.slice(0, 400));
       if (res.status === 429) {
         // 429 = limite de débit OU quota/crédit épuisé. On réessaie les limites

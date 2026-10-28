@@ -5,6 +5,7 @@ import { getAppSettings } from "@/lib/settings";
 import { validateAttachments } from "@/lib/attach-files";
 import { persistUploadedDocument } from "@/lib/documents";
 import { etatApresRetrait, principalApresDepot } from "@/lib/care-pieces";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -58,8 +59,8 @@ export async function deposerFichiersSurLaPiece(
   if (pose.count === 0) {
     // L'état a changé entre-temps (validée, sans objet) : les fichiers ne restent pas orphelins.
     const docs = await prisma.document.findMany({ where: { id: { in: ids } }, select: { fileKey: true } });
-    await prisma.document.deleteMany({ where: { id: { in: ids } } }).catch(() => undefined);
-    for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => undefined);
+    await prisma.document.deleteMany({ where: { id: { in: ids } } }).catch(sansBloquer("care-pieces-db.deposerFichiersSurLaPiece.document"));
+    for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("care-pieces-db.deposerFichiersSurLaPiece.deleteFileByKey"));
     return { ok: false, error: `L'état de « ${cell.label} » vient de changer : rechargez la fiche.` };
   }
   return { ok: true, ids, echecs };
@@ -95,6 +96,6 @@ export async function retirerFichierDeLaPiece(
     if (e instanceof EtatChange) return { ok: false, error: `L'état de « ${cell.label} » vient de changer : rechargez la fiche.` };
     throw e;
   }
-  if (fileKey) await deleteFileByKey(fileKey).catch(() => undefined);
+  if (fileKey) await deleteFileByKey(fileKey).catch(sansBloquer("care-pieces-db.retirerFichierDeLaPiece.deleteFileByKey"));
   return { ok: true, restants };
 }

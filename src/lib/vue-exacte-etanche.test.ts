@@ -346,7 +346,9 @@ describe("chaque route d'API résout l'identité par la session partagée", () =
   it("aucune route ne lit l'identité ailleurs que dans `@/lib/session` (hors routes sans session, nommées)", () => {
     const fautes = fichiers("src/app/api", (n) => n === "route.ts")
       .filter((f) => !SANS_SESSION.some((r) => r.test(f)))
-      .filter((f) => !readFileSync(f, "utf8").includes('"@/lib/session"'));
+      // `@/lib/session-legere` (sondages de la coque, PERF-06) applique la MÊME vue (`vueDemandee`,
+      // session-compte.ts) — vérifié par `session-vue-exacte.test.ts` et `session-legere.test.ts`.
+      .filter((f) => !/"@\/lib\/session(-legere)?"/.test(readFileSync(f, "utf8")));
     expect(fautes).toEqual([]);
   });
   it("les routes de télémétrie qui lisent `auth()` directement restent celles nommées", () => {

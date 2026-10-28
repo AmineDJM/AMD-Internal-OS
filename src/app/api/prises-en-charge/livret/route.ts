@@ -5,6 +5,7 @@ import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { peutTeleverserBillet } from "@/lib/care-fiches";
 import { genererLivret, type PerimetreLivret } from "@/lib/livret/serveur";
+import { attendu } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const user = await getCurrentUserPourEcrire();
   if (!user) return texte("Session expirée : reconnectez-vous.", 401);
-  const form = await req.formData().catch(() => null);
+  const form = await req.formData().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", null));
   const scopeBrut = String(form?.get("scope") ?? "");
   const id = String(form?.get("id") ?? "").trim();
   const personne = String(form?.get("personne") ?? "").trim() || null;

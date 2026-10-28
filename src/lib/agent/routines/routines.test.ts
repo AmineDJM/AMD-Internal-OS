@@ -12,6 +12,7 @@ import { executerOperationIA } from "@/lib/agent/operations";
 import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "@/lib/agent/operations/routines";
 import { outilsDeRoutine, sourcesEnFin } from "@/lib/agent/routines/passage";
 import { changerStatut, executerRoutinesDues, supprimerRoutine } from "@/lib/agent/routines/service";
+import { effacerJournalDe } from "@/lib/agent/testing/journal";
 
 /**
  * LES ROUTINES DE L'ASSISTANT IA — programmées par la personne, jamais devinées ; jouées sous ses
@@ -43,6 +44,7 @@ suite("Assistant IA — routines programmées", () => {
   afterEach(() => remplacerModelesPourTests(null));
   afterAll(async () => {
     const ids = [assistante?.id, autre?.id].filter(Boolean) as string[];
+    await effacerJournalDe(ids);
     await prisma.assistantRoutine.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.notification.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});

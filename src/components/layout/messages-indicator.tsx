@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MessagesSquare } from "lucide-react";
+import { sansBloquer } from "@/lib/journal";
 
 // ─── Son de notification (généré à la volée, sans fichier audio) ───
 let audioCtx: AudioContext | null = null;
@@ -25,7 +26,7 @@ function getCtx(): AudioContext | null {
 function unlockAudio() {
   const ctx = getCtx();
   if (!ctx) return;
-  ctx.resume().catch(() => {});
+  ctx.resume().catch(sansBloquer("messages-indicator.unlockAudio.resume"));
   try {
     const buf = ctx.createBuffer(1, 1, 22050);
     const src = ctx.createBufferSource();
@@ -74,7 +75,7 @@ function playPing() {
   try {
     const ctx = getCtx();
     if (!ctx) return;
-    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+    if (ctx.state === "suspended") ctx.resume().catch(sansBloquer("messages-indicator.playPing.resume"));
     const now = ctx.currentTime;
     const gain = ctx.createGain();
     gain.gain.setValueAtTime(0.0001, now);

@@ -25,6 +25,7 @@ import {
   etatsActuels, proposerClassement, recenser, trouverDoublons,
 } from "@/platform/in-process/fichiers";
 import { arrondi } from "@/platform/in-process/calcul";
+import { sansBloquer } from "@/lib/journal";
 
 type Acteur = Parameters<PowerTool["run"]>[1];
 
@@ -147,7 +148,7 @@ export const FICHIERS_TOOLS: PowerTool[] = [
         // Le CONTENU est lu pour les fichiers texte : c'est lui qui fait la différence entre
         // « classé par ce que le fichier dit » et « classé par ce que son nom laisse croire ».
         for (const f of r.fichiers.slice(0, 300)) {
-          const contenu = await apercuTexte(user, f.id).catch(() => "");
+          const contenu = await apercuTexte(user, f.id).catch(sansBloquer("fichiers-tools.run.apercuTexte", ""));
           propositions.push(proposerClassement(f, contenu));
         }
         const classables = propositions.filter((p) => p.categorie !== "INCONNU");
@@ -318,7 +319,7 @@ export const FICHIERS_TOOLS: PowerTool[] = [
       let source = "texte fourni dans la conversation";
       let brut: string = contenu;
       if (!contenu && drive) {
-        const texte = await apercuTexte(user, drive).catch(() => "");
+        const texte = await apercuTexte(user, drive).catch(sansBloquer("fichiers-tools.run.apercuTexte", ""));
         if (!texte) return JSON.stringify({ ok: false, erreur: "Fichier du Drive illisible en texte : soit il ne vous est pas ouvert, soit ce n'est pas un format tabulaire texte (CSV, TSV, TXT, JSON). Pour un classeur XLSX, passer par run_analysis avec « drive »." });
         brut = texte; source = `fichier ${drive} du Drive (début du contenu)`;
       }
