@@ -18,6 +18,10 @@ const COLONNE_DE_LIEU = /\b(wilaya|city|wilayaPivot|region|country)\b/;
 
 /** Les écrivains qui ne touchent aucun lieu — chacun avec ce qu'il écrit. */
 const EXCEPTIONS: Record<string, { raison: string; litLeLieu?: true }> = {
+  "src/lib/referentiels/organisations/fiches.ts": {
+    raison: "ne pose que `organisationId` sur la fiche (lien au référentiel R2) ; LIT le pays d'un fournisseur sans l'écrire",
+    litLeLieu: true,
+  },
   "src/lib/actions/force-de-vente-actions.ts": { raison: "affecte un praticien à un délégué (delegateId)" },
   "src/lib/actions/medical-directory-crud-actions.ts": { raison: "déplace des fiches d'un annuaire à l'autre (directoryId)" },
   "src/lib/actions/tour-visit-actions.ts": { raison: "date de dernière visite (lastVisit)" },

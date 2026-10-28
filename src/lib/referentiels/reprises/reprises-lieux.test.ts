@@ -92,7 +92,11 @@ suite("reprises V2-D — lieux et coordonnées", () => {
   });
 
   it("le registre suit le contrat : clés uniques, l'ordre de lancement", () => {
-    expect(REPRISES.map((r) => r.cle)).toEqual(["lieux-wilaya", "adresses", "points-de-contact"]);
+    const cles = REPRISES.map((r) => r.cle);
+    expect(new Set(cles).size, "clés uniques").toBe(cles.length);
+    // Les lieux après les organisations (adresses et coordonnées s'y rattachent), dans leur ordre propre.
+    expect(cles.filter((c) => ["lieux-wilaya", "adresses", "points-de-contact"].includes(c))).toEqual(["lieux-wilaya", "adresses", "points-de-contact"]);
+    expect(cles.indexOf("organisations")).toBeLessThan(cles.indexOf("adresses"));
     expect(trouverReprise("adresses")).toBe(repriseAdresses);
     expect(trouverReprise("inconnue")).toBeNull();
   });
@@ -197,11 +201,12 @@ suite("reprises V2-D — lieux et coordonnées", () => {
     ACTEUR = await actorFor(ids.admin, "SUPER_ADMIN");
     expect((await executerReprise("inconnue", null)).ok).toBe(false);
     const ap = await apercuReprise("lieux-wilaya");
-    expect(ap.ok && ap.bilan!.lues).toBeGreaterThan(0);
+    expect(ap.ok && ap.bilan.lues).toBeGreaterThan(0);
     const lot = await executerReprise("lieux-wilaya", null);
     expect(lot.ok).toBe(true);
     const journal = await prisma.auditLog.findMany({ where: { actorId: ids.admin, module: "Refonte des données", field: "lieux-wilaya" }, orderBy: { createdAt: "asc" } });
-    expect(journal.map((j) => j.action)).toEqual(["EXPORT", "IMPORT"]);
-    expect(journal[1].newValue).toBe(lot.bilan!.suite ?? null);
+    // Le journal garde UNE ligne par lot exécuté (l'aperçu n'écrit rien), son bilan en JSON avec le curseur suivant.
+    expect(journal.map((j) => j.action)).toEqual(["IMPORT"]);
+    expect(lot.ok && (JSON.parse(journal[0].newValue ?? "{}") as { suite?: string | null }).suite).toBe(lot.ok ? lot.bilan.suite ?? undefined : false);
   });
 });
