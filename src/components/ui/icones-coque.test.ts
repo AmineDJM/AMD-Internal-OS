@@ -24,7 +24,7 @@ import { iconeParNom } from "./icon";
 const RACINE = process.cwd();
 const COQUE = join(RACINE, "src/components/layout");
 /** Les fichiers qui donnent un nom d'icône à la coque : menu, pôles, Office, résultats de recherche. */
-const SOURCES_DE_NOMS = ["src/lib/labels.ts", "src/lib/navigation.ts", "src/lib/office/apps.ts", "src/lib/queries/search.ts"];
+const SOURCES_DE_NOMS = ["src/lib/labels/navigation.ts", "src/lib/labels/onglets.ts", "src/lib/navigation.ts", "src/lib/office/apps.ts", "src/lib/queries/search.ts"];
 const sansCommentaires = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`])\/\/.*$/gm, "$1");
 const composantsDeLaCoque = readdirSync(COQUE).filter((f) => f.endsWith(".tsx"));
 

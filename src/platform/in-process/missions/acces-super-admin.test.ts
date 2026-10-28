@@ -205,7 +205,7 @@ suite("§118.136 — l'autorité relue : ce qui tournait pour quelqu'un qui perd
 
 describe("§118.136 — les POINTS D'APPEL : la garde est là où l'on décide, pas seulement où on l'a écrite", () => {
   it("le menu : l'entrée du Centre porte la garde `adamMissions`, résolue sur le prédicat", () => {
-    const labels = lire("lib/labels.ts");
+    const labels = lire("lib/labels/navigation.ts");
     const ligne = labels.split("\n").find((l) => l.includes('href: "/centre-de-missions"') && l.includes("module:"));
     expect(ligne, "l'entrée de navigation du Centre de missions").toBeDefined();
     expect(ligne).toContain('gate: "adamMissions"');

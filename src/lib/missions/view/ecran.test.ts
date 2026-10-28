@@ -36,7 +36,7 @@ describe("l'écran existe et on peut y arriver", () => {
   });
 
   it("le menu porte une entrée vers le centre — sans quoi l'écran n'existe que pour qui connaît l'URL", () => {
-    const nav = lire("lib/labels.ts");
+    const nav = lire("lib/labels/navigation.ts");
     expect(nav).toContain('href: "/centre-de-missions"');
   });
 
