@@ -31,19 +31,11 @@ const PLAFOND = 1_000;
 const HERITES: Readonly<Record<string, number>> = {
   "src/components/ad-pro/items-panel.tsx": 2149,
   "src/lib/actions/ad-pro-item-actions.ts": 4409,
-  "src/lib/actions/admin-request-actions.ts": 1260,
-  "src/lib/actions/care-actions.ts": 1556,
-  "src/lib/actions/contrat.ts": 1403,
+  "src/lib/actions/care-actions.ts": 1297,
   "src/lib/actions/hr-document-actions.ts": 1013,
-  "src/lib/actions/legal-actions.ts": 1033,
-  "src/lib/actions/medical-info-actions.ts": 1148,
-  "src/lib/actions/mission-actions.ts": 1081,
   "src/lib/actions/payment-request-actions.ts": 1197,
-  "src/lib/actions/promo-execution-actions.ts": 1108,
-  "src/lib/actions/recruitment-actions.ts": 1277,
-  "src/lib/actions/regulatory-actions.ts": 1465,
-  "src/lib/actions/sales-planning-actions.ts": 1178,
-  "src/lib/assistant.ts": 7314,
+  "src/lib/actions/recruitment-actions.ts": 1095,
+  "src/lib/actions/regulatory-actions.ts": 1267,
 };
 
 function fichiersDeProduction(dir: string, out: string[] = []): string[] {
