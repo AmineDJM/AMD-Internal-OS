@@ -15,6 +15,7 @@ import { lecturesDocuments } from "@/lib/agent/operations/documents-lus";
 import { lectureFormulaire } from "@/lib/agent/operations/formulaire-pdf";
 import { lectureRoutines } from "@/lib/agent/operations/routines";
 import { rechercheWeb } from "@/lib/agent/recherche-web";
+import { sortiePourModele } from "@/lib/agent/contenu-non-fiable";
 
 /**
  * LES OUTILS DE LA V1 — tous EXISTANTS, aucun réécrit (Q7, Q20).
@@ -54,12 +55,17 @@ export function censurerSortie(sortie: string): string {
  * Censure, et CONSIGNE ce que le modèle a lu : le garde-fou de l'UI générative (`ui/composants.ts`)
  * n'accepte un chiffre ou une ligne d'un composant que s'il figure dans ces sorties.
  */
+/**
+ * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : censurée (confidentialité), puis ENCADRÉE si elle porte un
+ * contenu écrit par un tiers (`contenu-non-fiable.ts` — un document ne donne pas d'ordres). Le journal
+ * du tour garde la sortie censurée SANS cadre : c'est elle que l'UI générative confronte aux faits.
+ */
 const filtre = (outil: PowerTool, journal?: string[]): PowerTool => ({
   ...outil,
   run: async (entree, user) => {
     const sortie = censurerSortie(await outil.run(entree, user));
     journal?.push(sortie);
-    return sortie;
+    return sortiePourModele(outil.def.name, sortie);
   },
 });
 

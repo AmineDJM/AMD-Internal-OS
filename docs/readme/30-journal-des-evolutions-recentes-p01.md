@@ -1,5 +1,21 @@
 ## 🧾 Journal des évolutions récentes
 
+### V3-D — L'ASSISTANT IA EN EXPLOITATION : CHAQUE APPEL COMPTÉ, CHAQUE TOUR BORNÉ (2026-10-28)
+
+Audit 27/10, rapport 06 (IA-ASSISTANT-03, -06, -07, -08, -09, -10, -12, -13 et l'injection par documents). **Journal** :
+les deux seules portes de l'Assistant IA vers MiMo (`repondreAvecSecours`, `genererTexte`) ouvrent un budget, comptent
+chaque étape de Mastra (`onStepFinish`) et écrivent une ligne `ModelCallLog` par appel (personne, conversation, modèle,
+jetons, durée, coût estimé) et une `AiUsageLog` par tour (`src/lib/agent/consommation.ts`). **Plafonds** (table
+`AssistantIaReglage`, réglage Super Admin, défauts 12 étapes / 150 000 jetons par tour / 600 000 par personne et par
+jour, heure d'Alger) : refus clair qui nomme le remède, avis au Super Admin une fois par jour (`AssistantIaPlafondAtteint`).
+**Écran** `/admin/ai/consommation` : par personne, par jour, par modèle, plafonds atteints, réglages. **Injection** :
+sorties d'outils à contenu tiers encadrées et désamorcées (`contenu-non-fiable.ts`, cliquet sur les noms d'outils).
+**Robustesse** : trois essais par message du fil (`AssistantIaTour.essais`), balayage `assistant.intentions` (action
+interrompue → échec dit, carte non confirmée → `EXPIRED` après 24 h, refus aussi au clic), cartes caduques retirées avant
+le tour et comparées sur `payload.op`. `agent.ts` (sans appelant) supprimé ; clé MiMo lue sous `MIMO_API_KEY` seul ;
+fournisseur réel dans le journal d'Adam. Migration `20270202090000_assistant_ia_exploitation`. Bancs au faux modèle :
+`consommation.test.ts`, `exploitation.test.ts`, `contenu-non-fiable.test.ts`.
+
 ### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
 
 Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par

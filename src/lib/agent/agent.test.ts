@@ -1,10 +1,26 @@
 import { describe, expect, it, vi } from "vitest";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
-import { creerAgent, repondre } from "@/lib/agent/agent";
+import { Agent } from "@mastra/core/agent";
 import { adapterOutil, outilsPour } from "@/lib/agent/outils";
 import { zodDepuisSchemaJson } from "@/lib/agent/schema";
 import { modeleFactice } from "@/lib/agent/testing/modele-factice";
+
+/**
+ * L'AGENT DU BANC — construit comme dans la porte de production (`repondreAvecSecours`) : outils filtrés
+ * par le droit de l'utilisateur (`outilsPour`), boucle de Mastra pour de bon. L'ancien `agent.ts`
+ * (`creerAgent`, `repondre`) n'avait que ce banc pour appelant (IA-ASSISTANT-08) : il est supprimé, et
+ * ce qu'il servait à éprouver — l'adaptateur et le RBAC dans la vraie boucle — l'est ici.
+ */
+function creerAgent({ user, modele, outils }: { user: CurrentUser; modele: unknown; outils: PowerTool[] }) {
+  return new Agent({ id: "banc", name: "Banc", instructions: "Banc.", model: modele as never, tools: outilsPour(outils, user) });
+}
+
+async function repondre(agent: Agent, message: string): Promise<{ texte: string; outilsAppeles: string[] }> {
+  const r = await agent.generate(message, { maxSteps: 5 });
+  const appels = (r.steps ?? []).flatMap((e) => (e.toolCalls ?? []).map((c) => (c as { payload?: { toolName?: string } }).payload?.toolName ?? ""));
+  return { texte: r.text, outilsAppeles: appels.filter(Boolean) };
+}
 
 const utilisateur = (role: string) => ({ id: `u-${role}`, role }) as unknown as CurrentUser;
 

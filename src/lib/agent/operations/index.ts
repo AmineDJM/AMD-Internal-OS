@@ -2,6 +2,7 @@ import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { persistActionIntents } from "@/lib/assistant/action-intents";
 import { getAppSettings } from "@/lib/settings";
+import { auNomDe } from "@/lib/agent/consommation";
 import { SPONSORING_CREATION } from "./adpro-sponsoring";
 import { PRISE_EN_CHARGE_CREATION } from "./adpro-prise-en-charge";
 import { EVENEMENT_CREATION } from "./adpro-evenement";
@@ -117,7 +118,8 @@ export async function executerOperationIA(user: CurrentUser, charge: unknown): P
   if (reglages?.aiExternalActionsDisabled) return { ok: false, error: REFUS_ARRET_URGENCE };
   if (!o.ouverte(user)) return { ok: false, error: "Vous n'avez plus le droit de faire ce geste." };
   try {
-    return await o.executer(charge.args ?? {}, user);
+    // Une opération qui rédige (traduction, document) appelle le modèle : imputé à la personne qui confirme.
+    return await auNomDe(user.id, () => o.executer(charge.args ?? {}, user));
   } catch (e) {
     console.error("[assistant-ia] exécution", charge.op, e);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };

@@ -1,6 +1,7 @@
 import { requireUser } from "@/lib/session";
 import { userCan, peutVoirAdam } from "@/lib/rbac";
 import { aiModel } from "@/lib/ai";
+import { bindingFor } from "@/lib/models/registry";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { featureEnabled, FEATURES } from "@/lib/features";
 import { personalContext, contexteReglesSeules } from "@/lib/assistant-memory";
@@ -86,7 +87,9 @@ export async function POST(req: Request) {
           feature: "assistant", userId: user.id,
           // LE MODÈLE RÉELLEMENT SERVI, pas un nom de configuration : le premier appel du tour.
           model: tour?.llmCalls ? (Object.entries(tour.callsByRole).find(([, n]) => n > 0)?.[0] ?? aiModel()) : aiModel(),
-          provider: "openai",
+          // LE FOURNISSEUR RÉELLEMENT SERVI (IA-ASSISTANT-12) : sous ADAM_MODEL_PROVIDER=anthropic, « openai »
+          // gravé ici attribuait le coût au mauvais fournisseur.
+          provider: bindingFor("worker").provider,
           ok: result.ok, latencyMs: Date.now() - t0, errorCode: result.ok ? null : result.error ?? "error",
           // Le détail de la boucle : ressenti (1er mot), tours, outils, erreurs, temps outils.
           ttftMs: result.metrics?.ttftMs ?? null,

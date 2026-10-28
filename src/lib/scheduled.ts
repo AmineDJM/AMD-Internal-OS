@@ -189,6 +189,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   { cle: "assistant.routines", executer: async () => (await import("@/lib/agent/routines/service")).executerRoutinesDues() },
   // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
   { cle: "assistant.fils", executer: async () => (await import("@/lib/agent/fil/service")).reprendreLesFils() },
+  // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT
+  // (jamais rejouée) ; une carte jamais confirmée expire (délai réglé par le Super Admin, 24 h par défaut).
+  { cle: "assistant.intentions", executer: async () => (await import("@/lib/assistant/action-intents")).balayerIntentions() },
   // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
   // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
   { cle: "finance.caisse-avance", executer: runPettyCashRechargeReminders },
