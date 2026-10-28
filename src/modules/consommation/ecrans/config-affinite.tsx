@@ -4,7 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { enregistrerAffiniteConfig } from "@/lib/actions/consommation-actions";
+import { enregistrerAffiniteConfig } from "../actions";
 
 const PERIODES = [
   ["MOIS", "Dernier mois disponible"], ["ROLLING_3M", "3 mois glissants"], ["ROLLING_6M", "6 mois glissants"],

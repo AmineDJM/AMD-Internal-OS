@@ -18,6 +18,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@/lib/actions/coffre-actions": ["./src/modules/coffre/actions"],
+      "@/lib/actions/consommation-actions": ["./src/modules/consommation/actions"],
       "@/lib/coffre": ["./src/modules/coffre/api-lecture"],
       "@/lib/coffre/acces": ["./src/modules/coffre/infra/acces"],
       "@/lib/coffre/champs": ["./src/modules/coffre/domaine/champs"],

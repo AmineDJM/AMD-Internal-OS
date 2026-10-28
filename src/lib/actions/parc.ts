@@ -28,6 +28,7 @@ import { join } from "node:path";
 /** Les fichiers d'actions rangés dans un module : clé historique → chemin depuis la racine du dépôt. */
 export const ACTIONS_DES_MODULES: Readonly<Record<string, string>> = {
   "coffre-actions": "src/modules/coffre/actions.ts",
+  "consommation-actions": "src/modules/consommation/actions.ts",
 };
 
 /** Ce qui vit dans `src/lib/actions/` sans être un fichier d'actions : le contrat lui-même, les types. */

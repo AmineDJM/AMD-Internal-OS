@@ -11,9 +11,8 @@
  * lit `../domaine/*` (pur) et appelle les actions serveur.
  *
  * Tables possédées : `ConsommationImport`, `ConsommationLigne`, `ConsommationMemoire`,
- * `AffiniteConfig`. Actions serveur : `src/lib/actions/consommation-actions.ts` (elles restent
- * dans le dossier commun tant que le contrat des actions est indexé par nom de fichier — voir le
- * rapport d'audit 08, ARCH-03).
+ * `AffiniteConfig`. Actions serveur : `./actions.ts` (clé `consommation-actions`, déclarée dans
+ * `src/lib/actions/parc.ts`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
