@@ -32,7 +32,7 @@ const REPAREES: { fichier: string; capacites: string[] }[] = [
   { fichier: "src/lib/assistant/three-sixty.ts", capacites: ["person_report", "product_360", "supplier_360"] },
   { fichier: "src/lib/assistant/executive-brief-tools.ts", capacites: ["create_report"] },
   { fichier: "src/lib/assistant/regulatory-read.ts", capacites: ["regulatory_workload"] },
-  { fichier: "src/lib/assistant/executive-tools.ts", capacites: ["inspect_record"] },
+  { fichier: "src/lib/assistant/executive-tools/inspect-record.ts", capacites: ["inspect_record"] },
 ];
 
 /**
@@ -84,7 +84,7 @@ describe("§118.20 — la forme d'une sortie ne dépend jamais de la donnée", (
      * dépendait de la donnée, et le contrôle de flux tenait à une chaîne que n'importe quelle
      * reformulation aurait cassée en silence.
      */
-    const src = fs.readFileSync("src/lib/assistant/executive-tools.ts", "utf8");
+    const src = fs.readFileSync("src/lib/assistant/executive-tools/inspect-record.ts", "utf8");
     expect(src).not.toMatch(/\.startsWith\(AUCUN\)/);
     expect(src, "`inspecter` doit DIRE s'il a trouvé").toMatch(/Promise<\{ trouve: boolean; charge: string \}>/);
   });
