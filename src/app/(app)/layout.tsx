@@ -35,6 +35,7 @@ import { prisma } from "@/lib/prisma";
 import { APP_SCROLL_ID } from "@/lib/use-scroll-lock";
 import { NavDepthTracker } from "@/components/shared/back-link";
 import { NavProgress } from "@/components/layout/nav-progress";
+import { PrimitivesUI } from "@/components/ui/primitives-ui";
 import { sansBloquer } from "@/lib/journal";
 
 export default async function AppLayout({
@@ -89,6 +90,10 @@ export default async function AppLayout({
   const marqueVue = (await cookies()).get(MARQUE_VUE_COOKIE)?.value ?? "";
 
   return (
+    // Dialogue de confirmation et avis de retour (`components/ui/primitives-ui.tsx`) — montés ICI et non
+    // à la racine : la coque les embarque déjà (sélecteur d'entité, `useAction`), et la racine est une
+    // autre entrée de build qui les aurait recopiés une seconde fois dans le JS de chaque page.
+    <PrimitivesUI>
     <IdentiteProvider id={user.id} vue={Boolean(user.impersonatedBy)}>
     <GardeIdentite marque={marqueVue} />
     <UploadProvider>
@@ -176,5 +181,6 @@ export default async function AppLayout({
     </BackgroundUploadProvider>
     </UploadProvider>
     </IdentiteProvider>
+    </PrimitivesUI>
   );
 }

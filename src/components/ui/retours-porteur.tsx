@@ -23,7 +23,7 @@ export interface Retours {
 const ContexteRetours = React.createContext<Retours | null>(null);
 
 /**
- * Le porteur des avis flottants — monté UNE fois, à la racine (`PrimitivesUI`).
+ * Le porteur des avis flottants — monté UNE fois, dans la coque (`PrimitivesUI`).
  *
  * Les deux régions `aria-live` existent DÈS le premier rendu, vides : un lecteur d'écran n'annonce que
  * ce qui change DANS une région qu'il connaît déjà — une région créée en même temps que son message

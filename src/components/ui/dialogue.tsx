@@ -42,7 +42,7 @@ type Ouvrir = (demande: string | DemandeConfirmation) => Promise<Reponse>;
 const ContexteDialogue = React.createContext<Ouvrir | null>(null);
 
 /**
- * Le porteur des dialogues — monté UNE fois, à la racine (`app/layout.tsx`, via `PrimitivesUI`).
+ * Le porteur des dialogues — monté UNE fois, dans la coque (`app/(app)/layout.tsx` et le portail, via `PrimitivesUI`).
  * Les demandes arrivent en file : une seconde demande pendant qu'une fenêtre est ouverte attend son tour.
  * La fenêtre (`dialogue-fenetre.tsx`) se télécharge au premier moment libre, hors de la coque ; si elle
  * n'a pas pu venir (réseau coupé), la demande passe par la boîte du navigateur — jamais un geste sans

@@ -1,8 +1,7 @@
 import * as React from "react";
-import { attendu } from "@/lib/journal";
 
 /**
- * UN MODULE D'INTERFACE CHARGÉ APRÈS LA PAGE — pour les porteurs montés à la racine (`PrimitivesUI`).
+ * UN MODULE D'INTERFACE CHARGÉ APRÈS LA PAGE — pour les porteurs montés une fois pour toute la coque (`PrimitivesUI`).
  *
  * La fenêtre de confirmation et la pile d'avis ne servent qu'au premier geste : les embarquer dans la
  * coque ferait payer leur poids à chaque page (plafond `scripts/mesure-bundle.mjs`). Le module est donc
@@ -26,7 +25,13 @@ export function useModuleDiffere<M>(importer: () => Promise<M>): { module: M | n
   }, []);
 
   React.useEffect(() => {
-    const avance = () => { charger().catch(attendu("hors ligne : le porteur garde son repli, nouvel essai au premier besoin")); };
+    const avance = async () => {
+      try {
+        await charger();
+      } catch {
+        // Hors ligne : le porteur garde son repli, nouvel essai au premier besoin.
+      }
+    };
     if (typeof window.requestIdleCallback === "function") {
       const id = window.requestIdleCallback(avance, { timeout: 4000 });
       return () => window.cancelIdleCallback(id);
