@@ -1,5 +1,17 @@
 ## 🧾 Journal des évolutions récentes
 
+### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
+
+Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par
+tâche, chacune sous un **bail en base** (table `TacheDeFond`, `src/lib/taches-de-fond/bail.ts`) — un seul exécutant la
+tient, même si deux processus battent ; un bail expiré (processus tué) se reprend. Une tâche qui lève est comptée en
+échec et **le passage continue** (cinq étapes sans filet faisaient sauter tout le reste). Nouveau point d'entrée
+**`npm run worker`** (`scripts/worker.ts`) : même passage, arrêt propre sur SIGTERM, attente des migrations de son
+commit, journal JSON. Interrupteur **`TACHES_DE_FOND=web|worker|les-deux`**, défaut `web` : rien ne change en production
+tant que le service n'est pas créé (bloc commenté dans `render.yaml`). Santé : `/api/health/worker` et Diagnostic ›
+Tâches de fond. Place prévue pour la file d'enrichissement V2-A (`enrichissement.file`, « ignorée » d'ici là).
+Migration `20270201100000_taches_de_fond`. Procédure d'activation : [24-deploiement-render.md](24-deploiement-render.md).
+
 ### LEGAL : « NOUVEAU DOCUMENT » ET « NOUVELLE FACTURE » SE REMPLISSENT DEPUIS LA PIÈCE (2026-10-27)
 
 Migration `20270129100000_synthese_legale` (deux colonnes nullables sur `LecturePiece`). On dépose d'abord le fichier (ou

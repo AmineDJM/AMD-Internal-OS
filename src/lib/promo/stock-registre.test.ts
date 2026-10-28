@@ -85,13 +85,13 @@ describe("le registre du stock promotionnel", () => {
 
   it("la relance des réceptions a son POINT D'APPEL dans le battement (§118.49)", () => {
     const battement = PRODUCTION.find((f) => f.rel === "src/lib/scheduled.ts")!;
-    expect(battement.src).toMatch(/await etape\("relancerReceptionsStock", relancerReceptionsStock\)/);
+    expect(battement.src).toMatch(/executer:\s*relancerReceptionsStock\b/); // table des tâches (V2-F)
   });
 
   it("les comptages réguliers et les alertes ont leur POINT D'APPEL dans le battement (§118.49, §118.168)", () => {
     const battement = PRODUCTION.find((f) => f.rel === "src/lib/scheduled.ts")!;
-    expect(battement.src, "sans cet appel, une récurrence planifiée ne part jamais").toMatch(/await etape\("declencherComptagesRecurrents", declencherComptagesRecurrents\)/);
-    expect(battement.src, "sans cet appel, aucune alerte ne part — le tableau de bord les montrerait, personne ne les recevrait").toMatch(/await etape\("alerterStock", alerterStock\)/);
+    expect(battement.src, "sans cet appel, une récurrence planifiée ne part jamais").toMatch(/executer:\s*declencherComptagesRecurrents\b/);
+    expect(battement.src, "sans cet appel, aucune alerte ne part — le tableau de bord les montrerait, personne ne les recevrait").toMatch(/executer:\s*alerterStock\b/);
   });
 
   it("un comptage corrige par l'écrivain, sous le verrou de TOUS ses articles, et se PREND avant toute correction (§118.168)", () => {

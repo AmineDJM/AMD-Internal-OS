@@ -78,14 +78,15 @@ describe("Recrutement → offre du site", () => {
 
 describe("Le battement porte la file et la réconciliation", () => {
   const SCHEDULED = sansCommentaires(readFileSync(join(process.cwd(), "src/lib/scheduled.ts"), "utf8"));
-  const debut = SCHEDULED.indexOf("export async function runScheduledJobs");
-  const corps = SCHEDULED.slice(debut, SCHEDULED.indexOf("\nexport ", debut + 10) === -1 ? undefined : SCHEDULED.indexOf("\nexport ", debut + 10));
+  // Depuis V2-F, le passage est la table `TACHES_PLANIFIEES` (web et worker l'exécutent tous deux).
+  const debut = SCHEDULED.indexOf("export const TACHES_PLANIFIEES");
+  const corps = SCHEDULED.slice(debut, SCHEDULED.indexOf("\n];", debut));
 
-  it("runScheduledJobs vide la file du site et lance le rapprochement quand il est dû", () => {
+  it("le passage planifié vide la file du site et lance le rapprochement quand il est dû", () => {
     expect(debut).toBeGreaterThan(-1);
     expect(SCHEDULED).toMatch(/import\s*\{\s*viderFile as viderFileSiteWeb\s*\}\s*from\s*"@\/lib\/site-web\/file"/);
-    expect(corps).toMatch(/await\s+etape\("viderFileSiteWeb",\s*viderFileSiteWeb\)/);
-    expect(corps).toMatch(/await\s+etape\("rapprocherSiteSiDu",\s*rapprocherSiteSiDu\)/);
+    expect(corps).toMatch(/executer:\s*viderFileSiteWeb\b/);
+    expect(corps).toMatch(/executer:\s*rapprocherSiteSiDu\b/);
   });
 });
 

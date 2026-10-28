@@ -17559,3 +17559,37 @@ model Commune {
 
   @@index([wilayaCode])
 }
+
+/// Où en est une TÂCHE DE FOND (lot V2-F) — une ligne par tâche de `TACHES_PLANIFIEES` (`src/lib/scheduled.ts`).
+///
+/// Deux rôles dans la même ligne. Le BAIL : un seul exécutant (processus web ou worker) tient la tâche à la fois ;
+/// un bail non renouvelé (`bailJusqua` dépassé) appartient à un processus mort et se reprend — c'est la reprise
+/// après plantage. Le SIGNAL DE SANTÉ : dernier passage, durée, issue, lus par `/api/health/worker` et le
+/// Diagnostic. La ligne naît au premier passage de la tâche ; la règle vit dans `src/lib/taches-de-fond/bail.ts`.
+model TacheDeFond {
+  /// Clé stable de la tâche (« rappels.reunions », « missions.balayage »).
+  cle             String             @id
+  /// Identité du processus qui tient le bail (`<executeur>@<hôte>#<pid>-<aléa>`) ; nulle quand personne ne la tient.
+  detenteur       String?
+  /// « web » ou « worker » : quel point d'entrée a fait le dernier passage.
+  executeur       String?
+  /// Fin du bail. Dépassée sans renouvellement : le détenteur est mort, la tâche se reprend.
+  bailJusqua      DateTime?
+  dernierDebutA   DateTime?
+  dernierFinA     DateTime?
+  derniereDureeMs Int?
+  dernierStatut   StatutTacheDeFond?
+  /// Message du dernier passage : l'erreur tronquée (ECHEC) ou la raison (IGNOREE). Jamais exposé hors Super Admin.
+  dernierMessage  String?
+  executions      Int                @default(0)
+  echecs          Int                @default(0)
+  updatedAt       DateTime           @updatedAt
+}
+
+enum StatutTacheDeFond {
+  EN_COURS
+  OK
+  ECHEC
+  /// La tâche a déclaré n'avoir rien à faire pour une raison durable (débrayée, pas encore livrée).
+  IGNOREE
+}
