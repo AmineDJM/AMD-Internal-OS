@@ -16,6 +16,9 @@ export {
   type FicheOrganisation, type FichePersonne, type NiveauDoublon, type PropositionDoublon, type ResultatLot,
 } from "./domaine/doublons";
 
+// ── L'ordre de revue des doublons (niveau, puis score) ───────────────────────────────────────
+export { ordreDeRevue, RANG_NIVEAU } from "./domaine/revue";
+
 // ── Libellés des organisations ───────────────────────────────────────────────────────────────
 export {
   LIBELLE_DEMANDE, LIBELLE_IDENTIFIANT, LIBELLE_ORIGINE_AFFILIATION, LIBELLE_ROLE_ORGANISATION, LIBELLE_SOURCE_FICHE,

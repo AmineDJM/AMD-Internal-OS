@@ -33,4 +33,7 @@ export { lireJournal, MODULE_JOURNAL_REFONTE, MODULE_JOURNAL_REPRISES, type Entr
 export { LIBELLE_PRISE_EN_CHARGE, lireFichePersonne, type LectureFiche } from "./infra/personnes/fiche";
 export { chargerFicheOrganisation } from "./infra/organisations/fiche";
 export { chargerFichesPersonnes, type FicheChargee } from "./infra/personnes/fiches-doublons";
+
+// ── Requêtes : ce que montrent les écrans de revue (une page ne lit pas Prisma) ──────────────
+export { doublonsOrganisationsARevoir, doublonsPersonnesARevoir, etatDuReferentiel } from "./infra/requetes";
 export { LIBELLE_ROLE, LIBELLE_SOURCE, type SourcePersonne } from "./infra/personnes/sources";
