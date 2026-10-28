@@ -62,7 +62,7 @@ export default async function OrganisationPage({ params }: { params: { id: strin
         </p>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Bloc titre="Identifiants" vide={fiche.identifiants.length === 0}>
           <dl className="grid grid-cols-[auto,1fr] gap-x-4 gap-y-1">
             {fiche.identifiants.map((i) => (

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { apercuReprise, executerReprise } from "@/lib/actions/refonte-reprise-actions";
 import { reglerDoubleEcritureOrganisations } from "@/lib/actions/organisation-actions";
 import type { BilanReprise } from "@/lib/referentiels/reprises/types";
@@ -40,8 +41,9 @@ const cumuler = (a: BilanReprise, b: BilanReprise): BilanReprise => ({
 });
 
 export function GestesReprise({ cle, suiteInitiale }: { cle: string; suiteInitiale: string | null }) {
-  const router = useRouter();
-  const [pending, setPending] = React.useState(false);
+  const { enCours, rafraichir } = useRafraichir();
+  const [occupe, setPending] = React.useState(false);
+  const pending = occupe || enCours;
   const [apercu, setApercu] = React.useState<BilanReprise | null>(null);
   const [cumul, setCumul] = React.useState<BilanReprise | null>(null);
   const [suite, setSuite] = React.useState<string | null>(suiteInitiale);
@@ -50,27 +52,38 @@ export function GestesReprise({ cle, suiteInitiale }: { cle: string; suiteInitia
 
   const voir = async () => {
     setPending(true); setMessage(null);
-    const r = await apercuReprise(cle);
-    setPending(false);
-    if (r.ok) setApercu(r.bilan);
-    else setMessage(r.error);
+    try {
+      const r = await apercuReprise(cle);
+      if (r.ok) setApercu(r.bilan);
+      else setMessage(r.error);
+    } catch {
+      setMessage(actionFailureMessage("THROWN"));
+    } finally {
+      setPending(false);
+    }
   };
 
   const lancer = async (jusquAuBout: boolean) => {
     setPending(true); setMessage(null); arreter.current = false;
     let curseur = suite;
     let total: BilanReprise | null = null;
-    do {
-      const r = await executerReprise(cle, curseur);
-      if (!r.ok) { setMessage(r.error); break; }
-      total = total ? cumuler(total, r.bilan) : r.bilan;
-      setCumul(total);
-      curseur = r.bilan.suite ?? null;
-      setSuite(curseur);
-    } while (jusquAuBout && curseur && !arreter.current);
-    setPending(false);
-    if (!curseur) setMessage("Reprise terminée : relancer ne refera rien de ce qui est fait.");
-    router.refresh();
+    try {
+      do {
+        const r = await executerReprise(cle, curseur);
+        if (!r.ok) { setMessage(r.error); break; }
+        total = total ? cumuler(total, r.bilan) : r.bilan;
+        setCumul(total);
+        curseur = r.bilan.suite ?? null;
+        setSuite(curseur);
+      } while (jusquAuBout && curseur && !arreter.current);
+      if (!curseur) setMessage("Reprise terminée : relancer ne refera rien de ce qui est fait.");
+    } catch {
+      // Le lot a pu aboutir côté serveur : le journal le dira après le rafraîchissement.
+      setMessage(actionFailureMessage("THROWN"));
+    } finally {
+      setPending(false);
+      rafraichir();
+    }
   };
 
   return (
@@ -92,19 +105,27 @@ export function GestesReprise({ cle, suiteInitiale }: { cle: string; suiteInitia
 }
 
 export function InterrupteurDoubleEcriture({ ouvert }: { ouvert: boolean }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { enCours, rafraichir } = useRafraichir();
+  const [busy, setBusy] = React.useState(false);
+  const pending = busy || enCours;
   const [message, setMessage] = React.useState<string | null>(null);
-  const basculer = () => start(async () => {
+  const basculer = async () => {
+    setBusy(true);
     const fd = new FormData();
     fd.set("actif", ouvert ? "0" : "1");
-    const r = await reglerDoubleEcritureOrganisations(fd);
-    setMessage(r.ok ? null : r.error ?? "Refusé.");
-    if (r.ok) router.refresh();
-  });
+    try {
+      const r = await reglerDoubleEcritureOrganisations(fd);
+      setMessage(r.ok ? null : r.error ?? "Refusé.");
+      if (r.ok) rafraichir();
+    } catch {
+      setMessage(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant={ouvert ? "outline" : "primary"} disabled={pending} onClick={basculer} data-testid="refonte-double-ecriture">
+      <Button size="sm" variant={ouvert ? "outline" : "primary"} disabled={pending} onClick={() => void basculer()} data-testid="refonte-double-ecriture">
         {ouvert ? "Fermer la double écriture" : "Ouvrir la double écriture"}
       </Button>
       {message && <span className="text-xs text-destructive">{message}</span>}

@@ -67,7 +67,7 @@ export default async function DoublonsOrganisationsPage() {
                   <Badge tone={TON[p.niveau] ?? "neutral"}>{p.niveau.toLowerCase()}</Badge>
                   <span className="text-xs text-muted-foreground">score {p.score}</span>
                 </div>
-                <div className="grid gap-3 sm:grid-cols-2">{decrire(p.organisationA)}{decrire(p.organisationB)}</div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{decrire(p.organisationA)}{decrire(p.organisationB)}</div>
                 <ul className="list-disc pl-5 text-xs">
                   {p.raisons.map((r, i) => <li key={`r${i}`}>{r}</li>)}
                   {p.reserves.map((r, i) => <li key={`s${i}`} className="text-muted-foreground">{r}</li>)}
