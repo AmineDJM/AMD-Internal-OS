@@ -182,6 +182,12 @@ export default async function SupportPage() {
   `contrat.genere.ts` (+ `.json`), `generique.ts`, `executer.ts`, `aiguillage.genere.ts`.
 - They export 1,147 `async function`s; the generated contract lists 1,145, of which 1,041 write.
 - 114 colocated `*.test.ts` files.
+- **The action key is a declared name, not a path** *(added 2026-10-28, lot V3-G)* [V]: `src/lib/actions/parc.ts`
+  lists the park — every file of `src/lib/actions/` under its implicit key (file name) **plus** the `actions.ts`
+  of modules declared in `ACTIONS_DES_MODULES` under their **historical** key (`"coffre-actions":
+  "src/modules/coffre/actions.ts"`). `contrat-scan.ts`, `scripts/actions-contrat.ts`, `action-parity.test.ts` and
+  `capability-audit.test.ts` read the park; `contrat.test.ts` (« PARC DES ACTIONS ») fails on an undeclared module
+  `actions.ts`, a missing file or a duplicated key. Moving an action file changes only `aiguillage.genere.ts`.
 - About 20 more `"use server"` modules live elsewhere:
   - `src/lib/regulatory/intelligence/**/actions.ts` (14);
   - `src/platform/in-process/{inbox,quality,artifact}/actions.ts`;
@@ -721,6 +727,11 @@ conditional on the status that was read (see §8). [V]
   `actionFailureMessage` (see §8). It is minor and the wording is close. [V]
 
 ## 10. Recipe: adding a new module or feature (from observed patterns)
+
+> **New business code goes into a module** *(2026-10-28, lot V3-G)*: `src/modules/<module>/{api.ts, partage.ts,
+> actions.ts, domaine/, infra/, ecrans/}` — doors, rules, map and the step-by-step "migrate a module" guide in
+> [`docs/architecture/MODULES.md`](../architecture/MODULES.md). The steps below remain valid for what still lives in
+> `src/lib/`.
 
 1. **Schema.** Add the model, enums and any new `EntityType` / `AuditAction` value to
    `prisma/schema.prisma`. Write a hand-written idempotent SQL migration in

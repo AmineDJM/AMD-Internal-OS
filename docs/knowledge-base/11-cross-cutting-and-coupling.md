@@ -386,6 +386,15 @@ Graphify god nodes (graph at `c78d1eb4`) [V, graph]:
 - `audit.ts` statically imports `events/ledger.ts`, which imports `missions/events/router`, `missions/commitments/satisfy`, `@/lib/fabric` and `tasks/evidence`.
 - So each of the 236 files that import `audit` pulls the mission runtime into its module graph. This is acceptable for servers, and it is why ledger loads `reminders` and `watch/router` dynamically.
 
+### 7.1b Modules (`src/modules/`) *(added 2026-10-28, lot V3-G)* [V]
+
+The modular monolith is enforced, not only proposed: `lieux`, `coffre`, `referentiels` (business foundation) and
+`consommation` (pilot) live under `src/modules/<m>/` and are imported only through their doors. Edges are declared in
+`src/modules/carte.ts` (`referentiels → lieux, coffre`; nothing else). Blast radius of a change inside a module = its
+door's importers (listed in each module `README.md`). The vault has two server doors so that the assistant, which
+reaches server actions, can never reach decryption (`src/modules/coffre/frontiere.test.ts`). Map, rules and migration
+guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
+
 ### 7.2 Cycles and god-files
 
 - **Strongly connected components of static value imports** across `src/` (in-memory Tarjan over a regex-parsed graph; type-only imports excluded) [V]:

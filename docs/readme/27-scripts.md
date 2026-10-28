@@ -8,6 +8,7 @@
 | `npm run typecheck` | Vérification TypeScript (`tsc --noEmit`) |
 | `npm run lint` | ESLint (next lint) |
 | `npm run test` | Tests Vitest |
+| `npm run test:architecture` | **Les cliquets d'architecture seuls** (~35 s) : frontières et carte des modules (`src/modules/`), couverture (`src/platform/couverture.test.ts`), domaines, frontière Adam ↔ ERP, contrat des actions, garde du bundle client. À lancer après tout déplacement de fichier — guide : `docs/architecture/MODULES.md`. |
 | `npm run db:deploy` | Applique les migrations (prod) |
 | `npm run db:migrate` | Migration de développement |
 | `npm run db:bootstrap` | Crée le Super Admin initial |

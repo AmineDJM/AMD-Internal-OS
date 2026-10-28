@@ -37,6 +37,14 @@ src/                                  # ~434 fichiers TS/TSX (hors tests) · 40 
     └── bootstrap.ts       # Super Admin initial (idempotent, aucune donnée de démo)
 ```
 
+### Monolithe modulaire — `src/modules/` (depuis le lot V3-G, 2026-10-28)
+
+Les métiers quittent progressivement `src/lib/` pour un dossier chacun, `src/modules/<module>/` : `api.ts` (porte
+serveur), `partage.ts` (porte pure), `actions.ts`, `domaine/` (règles pures), `infra/` (base, fichiers), `ecrans/`.
+Hors d'un module on n'importe que ses portes — tenu par ESLint et `src/modules/frontieres.test.ts`. Modules migrés :
+`lieux`, `coffre`, `referentiels` (socle métier), `consommation` (pilote). Carte (`src/modules/carte.ts`), règles et
+guide pas à pas « migrer un module » : [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
+
 > 🐍 Un prototype historique **Streamlit + SQLite** subsiste dans [`streamlit_app/`](streamlit_app/) — l'édition
 > **Next.js + PostgreSQL** (ce dossier racine) est **le** produit de référence.
 
