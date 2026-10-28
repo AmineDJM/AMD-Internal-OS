@@ -84,7 +84,7 @@
     "mupdf": "^1.28.0",
     "next": "15.5.28",
     "next-auth": "5.0.0-beta.32",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^10.2.1",
     "pdf-parse": "^1.1.1",
     "pdfkit": "^0.20.2",
     "pizzip": "^3.2.0",
@@ -99,7 +99,7 @@
     "web-push": "^3.6.7",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz",
     "yauzl": "^3.4.0",
-    "zod": "3.25.76"
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
@@ -113,12 +113,16 @@
     "autoprefixer": "10.4.20",
     "eslint": "8.57.1",
     "eslint-config-next": "15.5.28",
-    "postcss": "8.4.47",
+    "postcss": "8.5.32",
     "prisma": "5.22.0",
     "tailwindcss": "3.4.13",
-    "tsx": "4.19.1",
+    "tsx": "4.23.15",
     "typescript": "5.6.2",
     "undici": "^6.28.1",
-    "vitest": "2.1.2"
+    "vitest": "2.1.9"
+  },
+  "overrides": {
+    "postcss": "$postcss",
+    "image-size": "2.0.4"
   }
 }
