@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, LifeBuoy, MessageSquare, Inbox } from "lucide-react";
+import { ArrowRight, LifeBuoy, MessageSquare } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getSupportRequests } from "@/lib/queries/support";

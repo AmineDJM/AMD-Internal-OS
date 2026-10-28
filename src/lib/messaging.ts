@@ -6,8 +6,8 @@ import { emettreMessageRecu } from "./events/messaging-events";
 import { sansBloquer } from "@/lib/journal";
 
 // LA PART PURE vit dans `messaging-ui.ts` (importable par le navigateur) ; le serveur la retrouve ici.
-export { presenceOf, PRESENCE_LABEL, CHAT_STATUSES, CHAT_STATUS_LABEL, normalizeChatStatus, preview, peutGererLaConversation, peutRetirerUnMessage } from "./messaging-ui";
-export type { Presence, ChatStatus, RoleConversation } from "./messaging-ui";
+export { presenceOf, CHAT_STATUS_LABEL, normalizeChatStatus, preview, peutGererLaConversation, peutRetirerUnMessage } from "./messaging-ui";
+export type { Presence, ChatStatus } from "./messaging-ui";
 
 /**
  * Cœur de la messagerie interne — règles d'accès & présence. MODULE SERVEUR : il lit la base

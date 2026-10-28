@@ -9,8 +9,8 @@ import { sansBloquer } from "@/lib/journal";
 
 // Réexport des helpers purs (fuseau d'Alger) pour les consommateurs serveur.
 export {
-  ALGIERS_TZ, CALENDAR_KINDS, algiersYmd, algiersTime, algiersInputToUtc,
-  utcToAlgiersInput, formatAlgiers, algiersTodayYmd, monthGrid, MONTH_LABELS, type GridDay,
+  CALENDAR_KINDS, algiersTime, algiersInputToUtc,
+  algiersTodayYmd, monthGrid,
 } from "@/lib/calendar-tz";
 
 /** `access` présent = session complète : les sources gardées par un module (Ad & Pro) s'y ajoutent. */
@@ -144,15 +144,6 @@ export async function getUpcomingEvents(user: SessionLike, limit = 8): Promise<C
   return [...rows.map((r) => toDTO(r as EventRow, user.id)), ...meetings, ...adPro]
     .sort((a, b) => a.startAt.localeCompare(b.startAt))
     .slice(0, limit);
-}
-
-/** Un événement (si l'utilisateur y a accès). */
-export async function getCalendarEvent(user: SessionLike, id: string): Promise<CalendarEventDTO | null> {
-  const e = await prisma.calendarEvent.findFirst({
-    where: { AND: [{ id }, scopeWhere(user)] },
-    include: includeRel,
-  });
-  return e ? toDTO(e as EventRow, user.id) : null;
 }
 
 export interface NewCalendarEvent {

@@ -38,11 +38,6 @@ async function fetchJwks(): Promise<Jwk[]> {
   return cache.keys;
 }
 
-/** Vide le cache des clés — utile aux tests et à une rotation forcée. */
-export function resetJwksCache(): void {
-  cache = null;
-}
-
 export interface PubSubClaims {
   iss: string;
   aud: string;

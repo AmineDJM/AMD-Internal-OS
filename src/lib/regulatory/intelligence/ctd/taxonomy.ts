@@ -16,14 +16,6 @@ export interface CtdSection {
   algeria?: boolean; // spécifique ANPP / Module 1 Algérie
 }
 
-export const CTD_MODULE_TITLES: Record<CtdModule, string> = {
-  M1: "Module 1 — Administratif & informations régionales (Algérie/ANPP)",
-  M2: "Module 2 — Résumés (Overviews & Summaries)",
-  M3: "Module 3 — Qualité",
-  M4: "Module 4 — Rapports d'études non cliniques",
-  M5: "Module 5 — Rapports d'études cliniques",
-};
-
 export const CTD_SECTIONS: CtdSection[] = [
   // ── Module 1 (Algérie / ANPP) ──
   { code: "1.0", module: "M1", title: "Lettre d'accompagnement", aliases: ["1.0"], keywords: ["lettre d'accompagnement", "cover letter", "courrier de soumission", "lettre de demande"], algeria: true },

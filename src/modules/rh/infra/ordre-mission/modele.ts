@@ -35,7 +35,7 @@ export interface ChampsOrdreMission {
   signataireFonction: string;
 }
 
-export { VALEURS_DU_MODELE, MODES_TRANSPORT_MISSION } from "../../domaine/ordre-mission/constantes";
+export { VALEURS_DU_MODELE } from "../../domaine/ordre-mission/constantes";
 
 const MARQUEURS = [
   "DATE_EMISSION", "REFERENCE", "ENTREPRISE", "ADRESSE", "COLLABORATEUR", "FONCTION", "OBJET", "DESTINATION",

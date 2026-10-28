@@ -31,7 +31,6 @@ import { sansBloquer } from "@/lib/journal";
  * `FileBlob` dont l'IV est VIDE les désigne ; `getBlob` et le téléchargement le savent.
  */
 
-export { MAX_SANS_STOCKAGE_OBJET_MO } from "@/lib/storage/phrases-stockage";
 
 /** Une session non terminée depuis ce délai est abandonnée (ses parties sont libérées). */
 const SESSION_PERIMEE_MS = 7 * 24 * 3600_000;

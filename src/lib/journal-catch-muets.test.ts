@@ -59,9 +59,10 @@ const EXCEPTIONS_SERVEUR: Record<string, { n: number; raison: string }> = {
 
 /**
  * Mesuré à la fin du lot V3-E : 10 `catch` muets dans les composants client, tous convertis en un
- * état visible à l'écran (message d'erreur, liste vide annoncée). Il ne peut que baisser.
+ * état visible à l'écran (message d'erreur, liste vide annoncée). Il ne peut que baisser — 9 après le lot V4
+ * « code mort » (un composant client orphelin supprimé).
  */
-const PLAFOND_CLIENT = 10;
+const PLAFOND_CLIENT = 9;
 
 describe("les `catch` muets", () => {
   const parc = fichiers(SRC).map((f) => {

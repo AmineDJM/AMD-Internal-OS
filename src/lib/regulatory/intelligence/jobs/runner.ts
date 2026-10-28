@@ -21,7 +21,7 @@ import { experienceForSection } from "../training/for-section";
 import { readFigures, FORM_DEFECT_LABEL, FORM_DEFECT_SEVERITY } from "../vision/read-figures";
 import { lunaConfigured } from "@/lib/openai-luna";
 import { submitVersionReviewBatch } from "../cost/batch-runner";
-import { splitTextIntoChunks, splitTextIntoChunksWithOffsets, chunkPageSpan } from "../agents/chunk-text";
+import { splitTextIntoChunksWithOffsets, chunkPageSpan } from "../agents/chunk-text";
 import { pageSpanOfSlice, anchorEvidence } from "../extract/pages";
 import { sectionByCode } from "../ctd/taxonomy";
 import { aiConfigured, cleModeleRequise } from "@/lib/ai";

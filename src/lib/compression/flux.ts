@@ -73,12 +73,6 @@ export async function decider(plain: Buffer): Promise<DecisionCompression> {
   return { compresse: true, codec: CODEC_BROTLI, octets };
 }
 
-/** Compresse un tampon (null = à stocker brut). Raccourci de `decider` pour les appelants qui n'ont pas besoin de la raison. */
-export async function compresserSiUtile(plain: Buffer): Promise<{ codec: Codec; octets: Buffer } | null> {
-  const d = await decider(plain);
-  return d.compresse ? { codec: d.codec, octets: d.octets } : null;
-}
-
 /**
  * Décompresse. Un codec INCONNU lève : rendre les octets stockés tels quels ferait servir du
  * brotli pour un PDF — un fichier illisible, annoncé « téléchargé ». La taille attendue borne la

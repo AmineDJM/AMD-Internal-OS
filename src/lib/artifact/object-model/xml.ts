@@ -257,10 +257,6 @@ export function setAttr(node: XmlNode, name: string, value: string): void {
   markDirty(node);
 }
 
-export function removeAttr(node: XmlNode, name: string): void {
-  if (node.attrs.delete(name)) markDirty(node);
-}
-
 export function attr(node: XmlNode, name: string): string | null {
   const v = node.attrs.get(name);
   return v === undefined ? null : unescapeXml(v);

@@ -17,11 +17,11 @@ import { algiersInputToUtc, formatAlgiers } from "@/lib/calendar-tz";
 import { formatMonth, nextMonthYm } from "@/lib/utils";
 import { HR_REQUEST_TYPE, HR_REQUEST_STATUS } from "@/lib/labels";
 import {
-  HR_APPROVAL_TYPES, hrNature, createLeaveRequest, attachLeaveFiles, revalidateLeaveViews, hrTypeIsLeave,
-  HR_TYPE_TO_LEAVE, visibilityLabel, canEditExpenseClaim, expenseAmountError, expenseEditDeadline,
-  expenseEditLabel, genererEtRemettreOrdreDeMission, societeDeLOrdreDeMission, estEtatRhTraite,
-  marquerDemandeRhTraitee, archiveHrRequestIfDone, genererEtRemettreAttestation, preparerAttestationTravail, type PreparationAttestation,
-  type Civilite,
+  hrNature, createLeaveRequest, attachLeaveFiles, revalidateLeaveViews, hrTypeIsLeave, HR_TYPE_TO_LEAVE,
+  visibilityLabel, canEditExpenseClaim, expenseAmountError, expenseEditDeadline, expenseEditLabel,
+  genererEtRemettreOrdreDeMission, societeDeLOrdreDeMission, estEtatRhTraite, marquerDemandeRhTraitee,
+  archiveHrRequestIfDone, genererEtRemettreAttestation, preparerAttestationTravail,
+  type PreparationAttestation, type Civilite,
 } from "@/modules/rh/api";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationDemandeRh, STATUTS_RH_ANNULABLES } from "@/lib/annulations/regles";

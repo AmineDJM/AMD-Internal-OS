@@ -21,7 +21,6 @@ export type Palier = (typeof PALIERS)[number];
 
 /** `rapide` : jamais le modèle supérieur ; `auto` : le supérieur pour les pages visées et illisibles ; `precis` : le supérieur dès qu'un doute reste, sous plafond. */
 export type Exigence = "rapide" | "auto" | "precis";
-export const EXIGENCES: readonly Exigence[] = ["rapide", "auto", "precis"];
 
 export interface EtatPage {
   n: number;

@@ -3,7 +3,7 @@
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { BD_STATUS, BD_TYPE, PRIORITY } from "@/lib/labels";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export interface BDRow {
   id: string;

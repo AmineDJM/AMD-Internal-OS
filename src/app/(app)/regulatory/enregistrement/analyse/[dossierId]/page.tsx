@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
-  ArrowLeft, Download, FileText, ShieldCheck, ShieldAlert, ShieldX, Layers, History, Eye,
-  CheckCircle2, XCircle, AlertTriangle, Info, ListChecks, Gauge, Bot, GitCompare, MailWarning, FlaskConical, Factory, MessagesSquare, Library, Coins,
+  ArrowLeft, Download, FileText, ShieldCheck, ShieldAlert, ShieldX, Layers, History, Eye, CheckCircle2,
+  XCircle, AlertTriangle, Info, ListChecks, Gauge, Bot, GitCompare, MailWarning, FlaskConical,
+  MessagesSquare, Library,
 } from "lucide-react";
 import type { RegFindingSeverity } from "@prisma/client";
 import { requireModule } from "@/lib/session";
@@ -733,7 +734,6 @@ type ReserveMap = Awaited<ReturnType<typeof reservesByIds>>;
 function FindingEvidence({ finding: f, reserves, docNames }: { finding: FindingRow; reserves: ReserveMap; docNames: Map<string, string> }) {
   const quality = findingQuality(f);
   const linked = f.similarReserveIds.map((id) => reserves.get(id)).filter((r): r is NonNullable<typeof r> => Boolean(r));
-  const docName = f.documentId ? docNames.get(f.documentId) ?? null : null;
   // La preuve : l'extrait EXACT quand il existe (IA ancrée), sinon la preuve du moteur de
   // règles (`evidence` — ex. le comptage de caractères arabes). Même repli que le rapport .docx.
   const quote = f.excerpt ?? f.evidence;

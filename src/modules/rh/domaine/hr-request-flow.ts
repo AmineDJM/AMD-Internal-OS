@@ -15,9 +15,6 @@ export const HR_APPROVAL_TYPES: HrRequestType[] = [
 /** Statuts du flux DOCUMENTAIRE (préparer → prête → remise). */
 export const HR_DOCUMENT_STATUSES: HrRequestStatus[] = ["PENDING", "IN_PROGRESS", "READY", "DELIVERED", "REJECTED"];
 
-/** Statuts terminaux (demande traitée → archivage « Dossier traité »). */
-export const HR_DONE_STATUSES: HrRequestStatus[] = ["READY", "DELIVERED", "APPROVED", "REJECTED"];
-
 /** La catégorie du document RH déposé en réponse à une demande (« Joindre le document & marquer prêt »). */
 export const CATEGORIE_DU_DEPOT: Record<string, string> = {
   WORK_CERTIFICATE: "WORK_CERTIFICATE",

@@ -185,8 +185,3 @@ export function resoudre<T extends Designable>(
 
   return { etat: "ABSENT", motif: `il faut dire ${a.quel} ${quoi}` };
 }
-
-/** Message court à redire à la personne quand la résolution n'a pas abouti. */
-export function motifResolution<T>(r: Resolution<T>): string {
-  return r.etat === "TROUVE" ? "" : r.motif;
-}

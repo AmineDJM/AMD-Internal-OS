@@ -69,12 +69,6 @@ export async function grilleCourante(): Promise<VersionGrille> {
   return { id: "", version: 0, grille: GRILLE_PAR_DEFAUT, note: null, createdAt: new Date(0), auteur: null };
 }
 
-/** Une version précise (celle d'une fiche). `null` si elle ne se lit plus. */
-export async function versionDeGrille(id: string): Promise<VersionGrille | null> {
-  const r = await prisma.coachingGrid.findUnique({ where: { id }, select: SELECT_VERSION });
-  return r ? versVersion(r) : null;
-}
-
 /** L'historique des versions, de la plus récente à la plus ancienne — avec leur nombre de fiches. */
 export async function historiqueDesGrilles(): Promise<(VersionGrille & { fiches: number })[]> {
   const rows = await prisma.coachingGrid.findMany({

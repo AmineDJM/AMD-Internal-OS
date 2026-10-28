@@ -4,7 +4,6 @@ import { createSponsoring } from "@/lib/actions/sponsoring-actions";
 import { getAppSettings } from "@/lib/settings";
 import { porteDgRequise } from "@/lib/seuils/ad-pro";
 import { PRIORITY, SPONSORING_NATURE, SPONSORING_TYPES } from "@/lib/labels";
-import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, liste, nombre, texte, type OperationIA, type PropositionOperation } from "./types";
 import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
 import { lireMedecins, replier, valeurCommune } from "./annuaire-medical";

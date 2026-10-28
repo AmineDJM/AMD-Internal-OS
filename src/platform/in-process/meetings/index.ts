@@ -28,6 +28,7 @@ import { resoudreEntitesDe } from "@/lib/fabric";
 import { auMoins, CONTENU_PAR_NIVEAU, LIBELLE_NIVEAU, niveauDepuisRegles, niveauParDefaut, NIVEAUX, type NiveauReunion } from "@/lib/meetings/niveau";
 import type { Signal } from "@/lib/utils/signaux";
 import { sansBloquer } from "@/lib/journal";
+import { plier } from "@/lib/utils";
 
 export { auMoins, CONTENU_PAR_NIVEAU, LIBELLE_NIVEAU, NIVEAUX, RANG_NIVEAU, type NiveauReunion } from "@/lib/meetings/niveau";
 
@@ -40,8 +41,6 @@ const frDate = (d: Date | null | undefined): string | null => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${p(alg.getUTCDate())}/${p(alg.getUTCMonth() + 1)}/${alg.getUTCFullYear()} ${p(alg.getUTCHours())}:${p(alg.getUTCMinutes())}`;
 };
-
-const plier = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Les mots SIGNIFIANTS d'un titre (≥ 4 lettres, hors mots vides) — pour retrouver la réunion précédente du même sujet. */
 function motsDe(titre: string): string[] {

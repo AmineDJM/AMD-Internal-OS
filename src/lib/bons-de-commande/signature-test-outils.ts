@@ -15,9 +15,3 @@ export function avecCopieSignee(fd: FormData, signataire = "Directeur général"
   if (!fd.has("copieSignee")) fd.set("copieSignee", new File([PNG_1PX], "bc-signe.png", { type: "image/png" }));
   return fd;
 }
-
-export function avecArgumentation(fd: FormData): FormData {
-  if (!fd.has("argumentation")) fd.set("argumentation", "Écart connu et accepté (banc).");
-  if (!fd.has("confirme")) fd.set("confirme", "1");
-  return fd;
-}

@@ -9,6 +9,7 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { etatDeLOrdreBv, ETAT_BV } from "@/lib/regulatory/bv-circuit";
+import { montantDzd } from "@/lib/utils";
 
 export interface BvItem {
   id: string;
@@ -32,7 +33,6 @@ function etatLu(b: BvItem): { label: string; tone: "warning" | "success" | "dang
   return e ? { label: `${ETAT_BV[e].label} — ${ETAT_BV[e].detail}`, tone: ETAT_BV[e].tone } : { label: "Annulé", tone: "neutral" };
 }
 
-const fmtDZD = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("fr-FR") : null);
 
 /**
@@ -171,7 +171,7 @@ export function BvRequests({ items }: { items: BvItem[] }) {
           <div className="min-w-0">
             <p className="truncate font-medium">{b.label}</p>
             <p className="text-xs text-muted-foreground">
-              <span className="font-mono">{b.reference}</span> · {fmtDZD(b.amount)}
+              <span className="font-mono">{b.reference}</span> · {montantDzd(b.amount)}
               {b.dueDate && <> · échéance {fmtDate(b.dueDate)}</>}
               {b.paidDate && <> · réglé le {fmtDate(b.paidDate)}</>}
             </p>

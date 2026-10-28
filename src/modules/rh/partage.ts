@@ -18,10 +18,10 @@ export { defaultEmployerCost, entryCost } from "./domaine/payroll-cost";
 export { type LigneMasseMensuelle, type MasseMensuelle, masseMensuelleParEntite } from "./domaine/payroll-mass";
 export { amendImpact, canAmend, resolvedGross, validateAmounts } from "./domaine/payroll-amend";
 export { clauseSalairesVersesANotifier, deMois, ETAT_VIREMENT_LABEL, etatSalaire, type EtatSalaire, etatVirement, libelleVirementPaie, lireSommeAVirer, moisDeLaPaie, moisDeLEntite, type MoisDeLEntite, noteVirementPaie, saisiAvantLeCentre, SOMME_A_VIRER_MANQUANTE, virementCouvre, type VirementDuMois } from "./domaine/virement-paie";
-export { decisionRattachement, phraseRattachement, type SalaireParti } from "./domaine/rattachement-paie";
+export { decisionRattachement, phraseRattachement } from "./domaine/rattachement-paie";
 
 // ── Demandes et documents RH, notes de frais, attestation de travail, ordre de mission
-export { CATEGORIE_DU_DEPOT, HR_APPROVAL_TYPES, HR_DOCUMENT_STATUSES, hrNature, type HrNature } from "./domaine/hr-request-flow";
+export { CATEGORIE_DU_DEPOT, HR_DOCUMENT_STATUSES, hrNature, type HrNature } from "./domaine/hr-request-flow";
 export { defaultVisibleToEmployee, resolveVisibility, shouldMirrorToDrive, visibilityLabel } from "./domaine/document-visibility";
 export { canEditExpenseClaim, EXPENSE_EDIT_MINUTES, expenseAmountError, expenseEditDeadline, expenseEditLabel, type ExpenseEditState } from "./domaine/expense-claim";
 export { accords, type ChampsAttestation, type Civilite, CIVILITES, dateCourteFr, dateLongueFr, LIBELLE_PROVENANCE, phraseNaissance, type ProvenanceChamp } from "./domaine/attestation-travail/regles";

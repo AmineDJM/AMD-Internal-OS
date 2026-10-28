@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * LE NIVEAU D'INTELLIGENCE DE RÉUNION (mandat 4 §32) — pur, sans import.
  *
@@ -22,8 +23,6 @@ export const CONTENU_PAR_NIVEAU: Record<NiveauReunion, readonly string[]> = {
   STANDARD: ["contexte de la réunion", "ordre du jour", "tâches ouvertes entre vous et chaque participant", "notes de la dernière réunion", "décisions récentes liées", "actions issues de la dernière réunion et leur sort", "responsables et échéances", "engagements suivis"],
   CHIEF_OF_STAFF: ["contexte de la réunion", "ordre du jour", "tâches ouvertes entre vous et chaque participant", "notes de la dernière réunion", "décisions récentes liées", "actions issues de la dernière réunion et leur sort", "responsables et échéances", "engagements suivis", "historique des réunions", "personnes (fonction, département)", "dossiers concernés", "décisions à obtenir", "risques calculés", "contradictions à trancher", "questions ouvertes", "suivi jusqu'à la réunion suivante"],
 };
-
-const plier = (s: string): string => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /** Le niveau lu dans une phrase — `null` quand la phrase n'en nomme aucun clairement. */
 export function niveauDepuisTexte(texte: string): NiveauReunion | null {

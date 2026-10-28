@@ -18,7 +18,7 @@ import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
 import { referentAInscrire } from "@/lib/ad-pro/referent-de-la-gamme";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { ITEM_KIND_LABELS } from "@/lib/ad-pro-items";
-import { toNumber } from "@/lib/utils";
+import { toNumber, montantDzd } from "@/lib/utils";
 import { porteLeRoleQuiTranche } from "@/lib/personnes/referents-gamme";
 import { bilanCloture, peutCloturer, quiCloture, refusCloture, type QuiCloture } from "@/lib/ad-pro/cloture-sponsoring";
 import { postesPourCloture } from "@/lib/queries/ad-pro-items";
@@ -49,8 +49,6 @@ const POSTE_DE_LA_NATURE: Record<SponsoringNature, AdProItemKind> = {
   INDIRECT: "INDIRECT_SUPPORT",
 };
 const NATURES_SPONSORING = Object.keys(POSTE_DE_LA_NATURE) as SponsoringNature[];
-
-const dzd = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
 
 /** Approbation préliminaire Ad & Pro : **réservée au National Sales** (la demande
  *  émane d'un délégué). Il approuve/refuse et désigne le référent Direction Marketing — la
@@ -251,7 +249,7 @@ export async function createSponsoring(
         create: {
           kind: POSTE_DE_LA_NATURE[nature!],
           label: `${ITEM_KIND_LABELS[POSTE_DE_LA_NATURE[nature!]]} — ${institution}`,
-          notes: `Sponsoring demandé par le médecin : ${dzd(demandeParLeMedecin!)} · suggéré par le délégué : ${dzd(suggereParLeDelegue!)}.`,
+          notes: `Sponsoring demandé par le médecin : ${montantDzd(demandeParLeMedecin!)} · suggéré par le délégué : ${montantDzd(suggereParLeDelegue!)}.`,
           supplier: nature === "DIRECT" ? institution : null,
           amountEstimated: suggereParLeDelegue,
           budgetKind: "INCLUDED",

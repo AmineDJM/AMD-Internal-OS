@@ -68,11 +68,6 @@ export async function resolveRecipientIds(d: {
   }
 }
 
-/** Combien de personnes la portée touche — affiché AVANT l'envoi, et sur la directive. */
-export async function countRecipients(d: Parameters<typeof resolveRecipientIds>[0]): Promise<number> {
-  return (await resolveRecipientIds(d)).length;
-}
-
 /**
  * ENVOYER (ou RENVOYER) une directive à sa portée.
  *

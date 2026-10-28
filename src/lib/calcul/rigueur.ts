@@ -85,8 +85,6 @@ export function arrondiLisible(x: number): number {
   return arrondi(x, Math.max(0, 3 - ordre - 1));
 }
 
-export const pourcent = (x: number, decimales = 1): string => `${arrondi(x * 100, decimales)} %`;
-
 /** Une matrice de corrélation lisible depuis une liste de paires (symétrique, diagonale 1). */
 export function matriceDepuisPaires(noms: readonly string[], paires: readonly { a: string; b: string; rho: number }[]): number[][] {
   const n = noms.length;
@@ -98,8 +96,6 @@ export function matriceDepuisPaires(noms: readonly string[], paires: readonly { 
   }
   return m;
 }
-
-export function estNombreFini(x: unknown): x is number { return typeof x === "number" && Number.isFinite(x); }
 
 /** Tri ascendant sans muter l'entrée. */
 export const trie = (xs: readonly number[]): number[] => [...xs].sort((a, b) => a - b);

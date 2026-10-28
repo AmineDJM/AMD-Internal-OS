@@ -262,11 +262,6 @@ async function resolveInvoiceFull(raw: string) {
   return { error: `Plusieurs factures correspondent à « ${q} » : ${rows.map((r) => `${r.reference ? `${r.reference} — ` : ""}${r.title}`).join(" ; ")} — préciser.` } as const;
 }
 
-const resolveBudgetCategoryLine = (raw: string) =>
-  resolveOne(raw, "la catégorie budgétaire (champ « category »)",
-    (q) => prisma.budgetCategoryLine.findMany({ where: { name: { contains: q, mode: "insensitive" } }, select: { id: true, name: true, envelope: { select: { name: true } } }, take: 6 }),
-    (c) => `${c.name} (${c.envelope.name})`);
-
 // ── Normalisations FR → énumérations (liste blanche, jamais du texte libre). ──
 
 const MOVE_STEPS: [RegExp, PaymentMove, string][] = [

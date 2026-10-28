@@ -26,7 +26,7 @@ import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
 import { siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO } from "@/lib/ad-pro/centre";
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
 import { getAppSettings } from "@/lib/settings";
-import { validationRequiseBC, motifSousLeSeuil } from "@/lib/bons-de-commande/regle";
+import { motifSousLeSeuil } from "@/lib/bons-de-commande/regle";
 import { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE } from "@/lib/ad-pro/marche-bc";
 import { signalerSiASigner } from "@/lib/bons-de-commande/etat";
 import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
@@ -71,7 +71,7 @@ import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { attachFormFiles, persistUploadedDocument } from "@/lib/documents";
 import { saisieEffective, type ReferenceProchaine } from "@/lib/references/registre";
 import { etatDuRegistre } from "@/lib/references/registre-serveur";
-import { controlerFacture, refusDemandePaiementBC, TOLERANCE_DZD, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
+import { controlerFacture, refusDemandePaiementBC, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
 import { lireFactureDuPoste } from "@/lib/ad-pro/facture-poste-lecture";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
@@ -80,9 +80,7 @@ import {
   lireVoyageur, lireEtapes, nomComplet, ligneVoyageur, changementsVoyageur, porteDesVoyageurs, depassementDevisRetenus,
   type SaisieVoyageur, type VoyageurLu,
 } from "@/lib/ad-pro/voyageurs";
-import {
-  lireHebergement, changementsHebergement, porteDesHebergements, refusChangementNatureFiches, type SaisieHebergement, type HebergementLu,
-} from "@/lib/ad-pro/hebergements";
+import { lireHebergement, changementsHebergement, porteDesHebergements, refusChangementNatureFiches, type HebergementLu } from "@/lib/ad-pro/hebergements";
 import { ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire, type EtatBcPoste, type GesteVisaPoste } from "@/lib/ad-pro/bc-poste";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";

@@ -26,6 +26,7 @@
  */
 import type { Cas, ContexteDefi } from "./adam-live-bench";
 import { NON_TROUVE } from "./adam-live-bench";
+import { cleOpenAI, urlOpenAI } from "@/lib/models/openai-acces";
 
 const NOM_CONTRAT = "Contrat Consulting Mouffok.docx";
 const NOM_NOTE = "Note fournisseur Kwality — révision tarifaire.txt";
@@ -1034,10 +1035,9 @@ Article 16 — Droit applicable. Le présent contrat est régi par le droit fran
     neDoitPas: [/je ne peux pas/i, /pas d'outil/i, /pas pr[ée]vu/i],
     avant: async (ctx) => {
       // UNE VRAIE VOIX : le moteur de synthèse du fournisseur fabrique l'audio ; le moteur de parole le relira. Rien de simulé.
-      const key = process.env.OPENAI_API_KEY; if (!key) throw new Error("OPENAI_API_KEY absent : pas de voix de synthèse pour le défi médias");
-      const base = (process.env.OPENAI_BASE_URL ?? "https://api.openai.com/v1").replace(/\/$/, "");
+      const key = cleOpenAI(); if (!key) throw new Error("OPENAI_API_KEY absent : pas de voix de synthèse pour le défi médias");
       const texte = "Bonjour à tous, on commence par le point réglementaire. Le dossier Trastuzex est complet, il part à l'agence lundi. Il reste la traduction arabe de la notice. Passons maintenant au budget marketing. Le budget marketing deux mille vingt-sept doit baisser de dix pour cent. Je propose de couper le congrès de Marseille et de garder celui d'Alger. Très bien, décision prise : on garde Alger et on coupe Marseille. Dernier point, le recrutement du délégué de Constantine. Yassine, tu envoies la fiche de poste à la direction des ressources humaines avant vendredi.";
-      const res = await fetch(`${base}/audio/speech`, { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ model: process.env.TTS_MODEL ?? "tts-1", voice: "onyx", input: texte, response_format: "mp3", speed: 1.05 }), signal: AbortSignal.timeout(90_000) });
+      const res = await fetch(urlOpenAI("/audio/speech"), { method: "POST", headers: { authorization: `Bearer ${key}`, "content-type": "application/json" }, body: JSON.stringify({ model: process.env.TTS_MODEL ?? "tts-1", voice: "onyx", input: texte, response_format: "mp3", speed: 1.05 }), signal: AbortSignal.timeout(90_000) });
       if (!res.ok) throw new Error(`voix de synthèse indisponible (HTTP ${res.status}) : ${(await res.text().catch(() => "")).slice(0, 200)}`);
       const octets = Buffer.from(await res.arrayBuffer());
       const existants = await ctx.prisma.driveNode.findMany({ where: { ownerId: ctx.pdg.id, name: { startsWith: "Réunion budget 2027 (banc)" } }, select: { id: true } });

@@ -92,23 +92,6 @@ export async function driveSemanticCandidates(
 }
 
 /**
- * Vectorise un TEXTE d'index au moment de l'indexation — jamais bloquant, jamais obligatoire.
- * Rend true si un vecteur a été écrit.
- */
-export async function embedDriveIndexEntry(nodeId: string, text: string, embed: EmbedFn = (t) => lunaEmbed(t)): Promise<boolean> {
-  try {
-    const body = (text ?? "").slice(0, 4_000).trim();
-    if (!body) return false;
-    const [vec] = (await embed([body])) ?? [];
-    if (!vec) return false;
-    await prisma.driveTextIndex.update({ where: { nodeId }, data: { embedding: vec } });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/**
  * RATTRAPAGE BORNÉ : vectorise un paquet d'entrées d'index sans vecteur — appelé par
  * l'ingestion planifiée (un paquet par passage, jamais plus).
  */

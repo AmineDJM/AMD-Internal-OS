@@ -4,7 +4,6 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Undo2, Flame, Paperclip } from "lucide-react";
 import { restoreDeletedRecord, destroyDeletedRecord } from "@/lib/actions/admin-delete-actions";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";

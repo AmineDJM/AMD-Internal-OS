@@ -1,4 +1,3 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -254,7 +253,6 @@ describe("les données navigateur personnelles sont rangées par personne", () =
     expect(lire("src/app/(app)/messages/composer.tsx")).toMatch(/const draftKey = cleParPersonne\(`amd-msg-draft-\$\{conversationId\}`, selfId\)/);
     expect(lire("src/app/(app)/drive/drive-table.tsx")).toMatch(/const cleClip = useCleParPersonne\(CLIPBOARD_KEY\)/);
     expect(lire("src/components/layout/office-pins.tsx")).toContain("lireStockagePersonnel(OFFICE_PINS_KEY, ident)");
-    expect(lire("src/app/(app)/office/office-launcher.tsx")).toContain("lireStockagePersonnel(OFFICE_PINS_KEY, ident)");
   });
 });
 

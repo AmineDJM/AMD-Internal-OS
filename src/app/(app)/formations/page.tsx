@@ -56,7 +56,6 @@ export default async function FormationsPage(props: { searchParams: Promise<{ fo
   // sur l'organigramme réel (`managementChainOf`), et le sommet par `isTopManagement`, DG compris.
   const { employees, departments: organigramme } = await loadReportingLine();
   const employeDuCompte = new Map(employees.filter((e) => e.userId).map((e) => [e.userId as string, e.id]));
-  const monEmploye = employeDuCompte.get(user.id) ?? null;
   // LES FICHES AU NOM DESQUELLES JE TRANCHE : la mienne, et celle de chaque absent que je remplace
   // (I18) — la même lecture que l'action (`deciderFor`), sans quoi le bouton manquerait à qui l'a.
   const auNom = await auNomDeQui(user.id);

@@ -6,10 +6,9 @@ import {
   submitAttachmentValidation, cancelAttachmentValidation,
 } from "@/lib/actions/admin-request-actions";
 import { createPurchaseRequest, withdrawPurchaseRequest } from "@/lib/actions/purchase-request-actions";
-import { ADMIN_REQUEST_TYPE } from "@/lib/labels";
 import type { OpImpl, OpProposalDraft } from "./types";
 import { opStr } from "./types";
-import { runFd, runFd2, fieldsOf, isoDate, dzd } from "./helpers";
+import { runFd, fieldsOf, isoDate, dzd } from "./helpers";
 import { matchLabel, fold } from "./impl-regulatory";
 
 /**
@@ -30,7 +29,6 @@ const MISSION_STATUS_FR: [string, string][] = [
   ["NEW", "Nouvelle"], ["ACCEPTED", "Acceptée"], ["EN_ROUTE", "En route"],
   ["DONE", "Terminée"], ["PROBLEM", "Problème"], ["CANCELLED", "Annulée"],
 ];
-const REQUEST_TYPE_PAIRS: [string, string][] = Object.entries(ADMIN_REQUEST_TYPE as Record<string, string>);
 
 async function wave7User(raw: string): Promise<{ id: string; name: string } | { error: string }> {
   const q = raw.trim();

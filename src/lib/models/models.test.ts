@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
-import { costOf, emptyUsage, textOf, toolCallsOf, type ModelBlock } from "./contract";
+import { costOf, emptyUsage, textOf, toolCallsOf } from "./contract";
 import { bindingFor, activeProvider, DEFAULT_MODELS, DEFAULT_REASONING } from "./registry";
 import { parseToolArgs, stopOf, toOpenAiMessages, toBlocks, buildBody, StreamAssembler } from "./openai";
 import { toAnthropicMessages, fromAnthropicBlocks, stopOfAnthropic, buildAnthropicBody } from "./anthropic";

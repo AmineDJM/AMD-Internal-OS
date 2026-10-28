@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { ActionResult } from "@/lib/actions/types";
-import { MODULE_JOURNAL_REPRISES, RefusFusionPersonne, annulerFusionPersonnes, ecarterDoublon, fusionnerPersonnes } from "@/modules/referentiels/api";
+import { MODULE_JOURNAL_REFONTE, RefusFusionPersonne, annulerFusionPersonnes, ecarterDoublon, fusionnerPersonnes } from "@/modules/referentiels/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -37,7 +37,7 @@ export async function fusionnerDoublonPersonne(doublonId: string, gardeeId: stri
   try {
     const r = await prisma.$transaction((tx) => fusionnerPersonnes(tx, { doublonId, gardeeId, parId: user.id }));
     await recordAudit({
-      actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REPRISES, field: "personnes-fusion", oldValue: r.absorbeeId, newValue: gardeeId,
+      actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REFONTE, field: "personnes-fusion", oldValue: r.absorbeeId, newValue: gardeeId,
       summary: `Personnes fusionnées : ${r.absorbeeId} → ${gardeeId} (${r.deplacees.length} fiche(s) déplacée(s) : ${r.deplacees.join(", ") || "aucune"})`,
     });
     PATHS.forEach((p) => revalidatePath(p));
@@ -52,7 +52,7 @@ export async function ecarterDoublonPersonne(doublonId: string): Promise<ActionR
   if (!user) return { ok: false, error: "Réservé au Super Admin." };
   try {
     await ecarterDoublon(prisma, { doublonId, parId: user.id });
-    await recordAudit({ actorId: user.id, action: "REFUSE", module: MODULE_JOURNAL_REPRISES, field: "personnes-fusion", newValue: doublonId, summary: `Doublon de personnes écarté (${doublonId}) : ce ne sont pas les mêmes.` });
+    await recordAudit({ actorId: user.id, action: "REFUSE", module: MODULE_JOURNAL_REFONTE, field: "personnes-fusion", newValue: doublonId, summary: `Doublon de personnes écarté (${doublonId}) : ce ne sont pas les mêmes.` });
     PATHS.forEach((p) => revalidatePath(p));
     return { ok: true, message: "Proposition écartée." };
   } catch (e) {
@@ -65,7 +65,7 @@ export async function defaireFusionPersonne(doublonId: string): Promise<ActionRe
   if (!user) return { ok: false, error: "Réservé au Super Admin." };
   try {
     const r = await prisma.$transaction((tx) => annulerFusionPersonnes(tx, { doublonId, parId: user.id }));
-    await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REPRISES, field: "personnes-fusion", newValue: doublonId, summary: `Fusion de personnes défaite (${doublonId}) : ${r.revenues} fiche(s) revenue(s).` });
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REFONTE, field: "personnes-fusion", newValue: doublonId, summary: `Fusion de personnes défaite (${doublonId}) : ${r.revenues} fiche(s) revenue(s).` });
     PATHS.forEach((p) => revalidatePath(p));
     return { ok: true, message: "Fusion défaite." };
   } catch (e) {
@@ -82,7 +82,7 @@ export async function basculerDoubleEcriturePersonnes(actif: boolean): Promise<A
     update: { refontePersonnesDoubleEcriture: actif, updatedById: user.id },
   });
   await recordAudit({
-    actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REPRISES, field: "personnes-double-ecriture", oldValue: String(!actif), newValue: String(actif),
+    actorId: user.id, action: "UPDATE", module: MODULE_JOURNAL_REFONTE, field: "personnes-double-ecriture", oldValue: String(!actif), newValue: String(actif),
     summary: `Double écriture des Personnes ${actif ? "ALLUMÉE" : "éteinte"}.`,
   });
   revalidatePath("/admin/refonte-donnees");

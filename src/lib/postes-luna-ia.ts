@@ -8,7 +8,7 @@ import {
 } from "@/lib/ad-pro/postes-luna";
 import { sansBloquer } from "@/lib/journal";
 
-export type { RaisonPostes, ResultatPostes };
+export type { ResultatPostes };
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

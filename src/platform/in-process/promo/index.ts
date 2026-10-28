@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
 import { peutOuvrirLeDossierPromo, devisDuDossier, devisLu } from "@/lib/queries/promo-circuit";
-import { executionDuDossier, type ExecutionDevis, type FactureLue } from "@/lib/queries/promo-execution";
+import { type ExecutionDevis, type FactureLue } from "@/lib/queries/promo-execution";
 import { libelleEtape, type PromoState } from "@/lib/promo-material/circuit";
 import { totauxDeLaSelection, type DevisLu } from "@/lib/promo-material/devis";
 

@@ -4,7 +4,6 @@ import { createWriteStream } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import JSZip from "jszip";
-import { prisma } from "@/lib/prisma";
 import { putBlob, releaseBlob } from "@/lib/drive-storage";
 import { inspectZipFile } from "@/lib/regulatory/intelligence/ingest/zip-inspector";
 

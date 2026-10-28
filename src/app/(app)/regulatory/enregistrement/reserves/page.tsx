@@ -1,5 +1,4 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { ArrowLeft, Library, AlertTriangle, TrendingUp, Lock } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { canSeeRegEnrollment } from "@/lib/org-chart-access";

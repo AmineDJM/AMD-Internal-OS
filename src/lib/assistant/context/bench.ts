@@ -115,39 +115,3 @@ export function runRouterBench(corpus: GoldenCase[] = GOLDEN_CORPUS): BenchRepor
     },
   };
 }
-
-/** Le rapport, tel qu'on le lit dans un terminal ou qu'on le colle dans un compte rendu. */
-export function formatBench(report: BenchReport): string {
-  const pct = (n: number) => `${(n * 100).toFixed(1)} %`;
-  // « 0,0 % sur le verbatim » quand il n'y a AUCUN verbatim est un chiffre inventé : sur un
-  // corpus vide, il n'y a pas de score, il n'y a rien à dire.
-  const sub = (n: number, of: number) => (of === 0 ? "—" : `${pct(n)} (${of})`);
-  const lines: string[] = [
-    `BANC DE ROUTAGE — ${report.cases} demandes`,
-    `  dont ${report.provenance.transcript} verbatim du PDG, ${report.provenance.composed} construites`,
-    "",
-    `Justesse de route     : ${pct(report.routeAccuracy)}`,
-    `  · sur le verbatim   : ${sub(report.transcriptRouteAccuracy, report.provenance.transcript)}`,
-    `  · sur le construit  : ${sub(report.composedRouteAccuracy, report.provenance.composed)}`,
-    `Justesse de domaine   : ${pct(report.domainAccuracy)}`,
-    `Confusions lire/agir  : ${report.dangerousMisroutes.length}`,
-    "",
-    "DISTRIBUTION EFFECTIVE (§28 — mesurée, pas forcée) :",
-    ...ROUTES.map((r) => `  ${r.padEnd(19)} ${String(report.distribution[r]).padStart(3)}  ${pct(report.distributionShare[r])}`),
-  ];
-
-  if (Object.keys(report.confusion).length > 0) {
-    lines.push("", "CONFUSIONS (attendu → obtenu) :");
-    for (const [k, v] of Object.entries(report.confusion).sort((a, b) => b[1] - a[1])) {
-      lines.push(`  ${k} : ${v}`);
-    }
-  }
-  if (report.failures.length > 0) {
-    lines.push("", "ÉCHECS :");
-    for (const f of report.failures) {
-      lines.push(`  [${f.id}] « ${f.utterance} »`);
-      lines.push(`      attendu ${f.expectedRoute}, obtenu ${f.actualRoute} — ${f.reason}`);
-    }
-  }
-  return lines.join("\n");
-}

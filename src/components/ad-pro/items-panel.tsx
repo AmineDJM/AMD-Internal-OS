@@ -63,7 +63,7 @@ import { ancrePoste } from "@/lib/chemins/ad-pro";
 import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
 import { CartePorteDg } from "./porte-dg-carte";
 
-export type { LigneStockVue, ContexteMaterielStock, ArticleMagasinVue } from "./materiel-stock";
+export type { LigneStockVue } from "./materiel-stock";
 export type { VoyageurVue } from "./voyageurs-bloc";
 export type { HebergementVue } from "./hebergements-bloc";
 

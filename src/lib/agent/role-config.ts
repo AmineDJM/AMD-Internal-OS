@@ -47,22 +47,6 @@ export async function getRoleConfig(role: UserRole): Promise<AssistantRoleConfig
 }
 
 /**
- * Récupère toutes les configurations existantes indexées par rôle.
- */
-export async function getAllRoleConfigs(): Promise<Record<string, AssistantRoleConfig>> {
-  try {
-    const configs = await prisma.assistantRoleConfig.findMany();
-    const map: Record<string, AssistantRoleConfig> = {};
-    for (const c of configs) {
-      map[c.role] = c;
-    }
-    return map;
-  } catch {
-    return {};
-  }
-}
-
-/**
  * Sauvegarde ou met à jour la configuration d'un rôle avec traçabilité complète.
  */
 export async function sauvegarderRoleConfig(
