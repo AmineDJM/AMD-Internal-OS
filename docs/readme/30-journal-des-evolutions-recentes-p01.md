@@ -3,7 +3,10 @@
 ### REFONTE V3-B : PRIMITIVES UI — DIALOGUE ET RETOUR ACCESSIBLES, UN SEUL CROCHET D'ACTION, PARC MIGRÉ (2026-10-28)
 
 Suite de l'audit 09 (FRONTEND-UX-01 et -05). Deux primitives dans `src/components/ui/`, montées une fois dans
-`app/layout.tsx` (`PrimitivesUI`) :
+la coque `app/(app)/layout.tsx` et le portail (`PrimitivesUI`) — pas à la racine, autre entrée de build qui les
+aurait recopiées dans le JS de chaque page. La fenêtre et le dessin des avis se téléchargent au premier moment
+libre (`differe.ts`) ; la palette ⌘K et la fenêtre d'annonce suivent la même voie, pour tenir le plafond de la
+coque sans le relever :
 - **Dialogue de confirmation** (`dialogue.tsx`, règle pure `dialogue-regle.ts`) : `useConfirmer()` remplace
   `window.confirm`, `useSaisir()` remplace `window.prompt`. `role="alertdialog"`, focus piégé et rendu, Échap qui ne
   ferme que la fenêtre (pas la feuille dessous), bouton au verbe du geste (« Supprimer »), « Retour » focalisé sur un
