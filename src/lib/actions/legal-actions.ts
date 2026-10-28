@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { refusMaillonAmont, REFUS_CHAINE_FACTURE_PROMO } from "@/lib/legal/chaine";
+import { REFUS_CHAINE_FACTURE_PROMO } from "@/lib/legal/chaine";
 import { refusPieceARanger, rangerPiece } from "@/lib/legal/adoption";
 import type { EntityType, LegalDocKind, LegalDocStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -10,7 +10,9 @@ import { prisma } from "@/lib/prisma";
 import { resolveParties, findPartyByName } from "@/lib/queries/company-contacts";
 import { recordAudit } from "@/lib/audit";
 import { companyIdForNew } from "@/lib/company";
-import { canRenew, canCancel, canRestore, statutRetabli, validateDates, proposeRenewalDates } from "@/lib/legal/lifecycle";
+import {
+  canRenew, canCancel, canRestore, statutRetabli, validateDates, proposeRenewalDates,
+} from "@/lib/legal/lifecycle";
 import { canAccessEntity } from "@/lib/entity-access";
 import { lecteursDeLaSuite } from "@/lib/lecteurs/legal";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -23,22 +25,23 @@ import { PHRASE_PREVALIDATION } from "@/lib/bons-de-commande/prevalidation";
 import { libererPrevalidation, retenueOrpheline } from "@/lib/bons-de-commande/retenue-bc";
 import { legalWriteAllowed } from "@/lib/legal/invoices";
 import { syncInvoiceSettlement } from "@/lib/finance/settle-invoice";
-import { invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement, dateDeReglementAEcrire } from "@/lib/finances/settlement";
+import {
+  invoiceDirection, canSendToSettlement, canMarkPaidDirectly, cleEnvoiAuReglement, dateDeReglementAEcrire,
+} from "@/lib/finances/settlement";
 import { enSerie } from "@/lib/refs";
 import { champsDuFichierChanges, pieceEmise, refusChampsDuFichier } from "@/lib/legal/piece-emise";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
-import type { CurrentUser } from "@/lib/session";
-import { aiguillerBC, retirerPortesEnAttente, porteDuBC, CHEMIN_BC_A_SIGNER, type ResultatAiguillage } from "@/lib/bons-de-commande/aiguillage";
+import { aiguillerBC, retirerPortesEnAttente, porteDuBC, CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { memeNumero, nettoyerNumero, resumeChangementNumero } from "@/lib/bons-de-commande/numero-reference";
 import { champsDifferents, MENTION_NUMERO_SEUL } from "@/lib/bons-de-commande/numero-seul";
 import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
 import { budgetPromoDeLaPiece } from "@/lib/queries/promo-budget";
-import {
-  reserveBC, reserveSansPorte, reserveEtapeBC, PHRASE_SIGNATURE_RETIREE,
-  LIBELLE_CENTRE_BC, LIBELLE_ETAT_BC, CHEMIN_CENTRE_BC,
-} from "@/lib/bons-de-commande/regle";
+import { reserveEtapeBC, LIBELLE_CENTRE_BC, LIBELLE_ETAT_BC, CHEMIN_CENTRE_BC } from "@/lib/bons-de-commande/regle";
 import { sansBloquer } from "@/lib/journal";
+import { checkChainFrom, parseKind, peutEcrire } from "@/lib/actions/internes/legal/regles";
+import { phraseAiguillage } from "@/lib/actions/internes/legal/phrases";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/legal/{regles,phrases}` — les actions restent ici (leur clé de contrat).
 
 /**
  * LES ENGAGEMENTS DE LA SOCIÉTÉ — écriture.
@@ -52,30 +55,6 @@ import { sansBloquer } from "@/lib/journal";
  *     l'ancien passe en « renouvelé ». L'historique des engagements est justement ce qu'on vient
  *     chercher dans un module Legal.
  */
-
-// AMENDMENT n'y figure pas, et c'est délibéré : un avenant naît de SON contrat (`amendsId`), pas
-// d'un formulaire libre — un avenant orphelin ne modifierait rien et fausserait la valeur du marché.
-// CREDIT_NOTE non plus, pour la même raison : un avoir naît de SA facture, par la fabrique (§118.195), qui reprend son
-// calcul et vérifie ce qui reste à créditer. Saisi ici et chaîné par « Fait suite à », il serait retiré du règlement de
-// la facture sans être passé par ce plafond — un crédit que personne n'a borné.
-const KINDS: LegalDocKind[] = ["CONTRACT", "QUOTE", "PURCHASE_ORDER", "INVOICE", "AGREEMENT", "NDA", "INSURANCE", "LICENSE", "LEASE", "OTHER"];
-const parseKind = (v: string | null): LegalDocKind =>
-  v && KINDS.includes(v as LegalDocKind) ? (v as LegalDocKind) : "CONTRACT";
-
-/**
- * LA PORTE D'ÉCRITURE DU REGISTRE.
- *
- * Legal tient tout le registre ; la COMPTABILITÉ ne tient que les factures. La règle est un
- * module pur partagé avec l'écran et avec les actions du vocabulaire « facture » — trois copies
- * d'un contrôle d'accès finissent par diverger, et la divergence s'appelle une faille.
- */
-function peutEcrire(user: CurrentUser, verb: "CREATE" | "UPDATE" | "DELETE", kind: string): boolean {
-  return legalWriteAllowed({
-    onLegal: userCan(user, "LEGAL", verb),
-    onFinances: userCan(user, "FINANCES", verb),
-    kind,
-  });
-}
 
 /** Champs communs à la création et à la modification. */
 function readFields(formData: FormData, natureImposee?: LegalDocKind) {
@@ -111,35 +90,6 @@ function readFields(formData: FormData, natureImposee?: LegalDocKind) {
 }
 
 /**
- * CE QUE LA PHRASE DE L'ÉCRAN DIT D'UN BC QU'ON VIENT D'ÉCRIRE (§118.32).
- *
- * « Document créé » sur un bon de commande que personne n'a encore validé le ferait partir chez
- * le fournisseur : il s'ouvre, il porte un numéro. La phrase dit où il attend, et se tait quand
- * rien n'a bougé. Un aiguillage qui n'a trouvé AUCUN siège se dit aussi — une pièce sans porte ne
- * doit pas avoir l'air validée.
- */
-function phraseAiguillage(r: ResultatAiguillage): string | null {
-  const sansPorte = reserveSansPorte(r);
-  if (sansPorte) return sansPorte;
-  // La pièce n'est plus un BC (re-qualifiée ou annulée) : seule la porte retirée se dit.
-  if (r.geste === "RETIREE") return "Sa validation en attente a été retirée du centre.";
-
-  let tete: string | null = null;
-  if (r.geste === "POSEE" || r.geste === "TRANSFEREE" || r.geste === "ROUVERTE") {
-    const centre = r.porte ? LIBELLE_CENTRE_BC[r.porte.centre] : "centre de validation";
-    const verbe = r.geste === "TRANSFEREE" ? "transféré au" : r.geste === "ROUVERTE" ? "renvoyé au" : "adressé au";
-    tete = `Bon de commande ${verbe} ${centre}.`;
-  } else if (r.geste === "SOUS_SEUIL") {
-    tete = "Sa validation en attente est retirée du centre.";
-  }
-  // Rien n'a bougé : la phrase se tait (§118.32). Ce qui BOUGE sans geste de porte — l'entrée dans
-  // la file des Finances, une signature retirée — se dit comme un geste.
-  if (!tete && !r.signatureRetiree && !r.versLesFinances) return null;
-  const reserve = r.etape ? reserveEtapeBC(r.etape, r.porte, r.seuil) : reserveBC(r.porte);
-  return [r.signatureRetiree ? PHRASE_SIGNATURE_RETIREE : null, tete, reserve].filter(Boolean).join(" ");
-}
-
-/**
  * UNE PARTIE DONNÉE PAR SON NOM — pour l'appelant qui n'a que cela (Adam), résolue contre
  * l'annuaire exactement comme `attachDriveNodeToLegal` le fait déjà (§118.148).
  *
@@ -168,9 +118,6 @@ function aUnePieceJointe(formData: FormData): boolean {
   const fichier = formData.getAll("attachment").some((v) => v instanceof File && v.size > 0);
   return fichier || Boolean(fdStr(formData, "pieceExistanteId")) || Boolean(fdStr(formData, "driveNodeId"));
 }
-
-/** Le maillon amont existe-t-il ? La règle vit dans `legal/chaine.ts`, partagée avec les factures. */
-const checkChainFrom = refusMaillonAmont;
 
 export async function createLegalDocument(
   _prev: ActionResult | undefined,
