@@ -1,6 +1,7 @@
 import { createHash } from "crypto";
 import type { DoctorTitle, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { indexerSpecialites, cleDeSpecialite } from "@/lib/annuaires/specialites";
 import { composeDoctorName } from "@/lib/medical/directory-grid";
 import { titleFrom } from "@/lib/medical/directory-sheet";
@@ -415,7 +416,9 @@ export async function appliquerImportDirection(
   const maintenant = new Date();
   const motif = motifLettreFichier(nomFichier, maintenant);
 
-  return prisma.$transaction(async (tx) => {
+  // LES FICHES TOUCHÉES, pour la double écriture des lieux (refonte V2-D), faite APRÈS la transaction.
+  const lieux = { medecins: [] as string[], etablissements: [] as string[] };
+  const resultat = await prisma.$transaction(async (tx) => {
     // 1. La stratégie de la BU, et son produit #1.
     let strategieId = prep.strategie?.id ?? null;
     if (!strategieId) {
@@ -451,6 +454,7 @@ export async function appliquerImportDirection(
         select: { id: true },
       });
       etabCree.set(cle, { id: x.id, wilaya: e.wilaya });
+      lieux.etablissements.push(x.id);
     }
 
     // 4. Les lignes.
@@ -488,6 +492,7 @@ export async function appliquerImportDirection(
         doctorId = d.id;
         crees++;
       }
+      lieux.medecins.push(doctorId);
       await tx.segmentationFiche.upsert({
         where: { strategieId_doctorId: { strategieId, doctorId } },
         update: { statut: l.statut, zone: l.zone, ...(x.secteurDeRegion ? { secteurId: x.secteurDeRegion } : {}), source: "IMPORT", importId: imp.id, ligneSource: l.ligne, retireeLe: null, updatedById: auteurId },
@@ -530,5 +535,8 @@ export async function appliquerImportDirection(
       etablissementsCrees: etabCree.size, specialitesCreees: specCree.size, reglesVersion, annuaire: apercu.annuaire.nom,
     };
   }, { timeout: 300_000, maxWait: 20_000 });
+  await reposerWilayaCode("MedicalInstitution", lieux.etablissements);
+  await reposerWilayaCode("MedicalDoctor", lieux.medecins);
+  return resultat;
 }
 

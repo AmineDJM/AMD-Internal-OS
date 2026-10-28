@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { peutAnnuaire } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
 
@@ -39,6 +40,7 @@ export async function creerFournisseurAnnuaire(fd: FormData): Promise<ActionResu
   const doublon = await prisma.supplier.findFirst({ where: { name: { equals: data.name, mode: "insensitive" } }, select: { id: true } });
   if (doublon) return { ok: false, error: `« ${data.name} » existe déjà dans l'annuaire des fournisseurs.` };
   const s = await prisma.supplier.create({ data: { ...data, createdById: user.id }, select: { id: true } });
+  await reposerWilayaCode("Supplier", s.id); // double écriture des lieux (refonte V2-D) : ville + pays → wilaya
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Annuaires", entityType: "SUPPLIER", entityId: s.id, summary: `Fournisseur Regulatory « ${data.name} » ajouté` });
   revalider();
   return { ok: true, id: s.id };
@@ -56,6 +58,7 @@ export async function modifierFournisseurAnnuaire(fd: FormData): Promise<ActionR
   // La case « Actif » a un témoin caché : `fdCase` la lit (cochée, décochée, ou absente du formulaire).
   const actif = fdCase(fd, "active");
   await prisma.supplier.update({ where: { id }, data: { ...data, ...(actif !== undefined ? { active: actif } : {}) } });
+  await reposerWilayaCode("Supplier", id); // double écriture des lieux (refonte V2-D)
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Annuaires", entityType: "SUPPLIER", entityId: id, summary: `Fournisseur Regulatory « ${avant.name}${data.name !== avant.name ? ` → ${data.name}` : ""} » corrigé` });
   revalider();
   return { ok: true };

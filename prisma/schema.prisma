@@ -4875,6 +4875,10 @@ model MedicalDoctor {
   /// Découpage administratif algérien — une des 58 wilayas, choisie dans une liste fermée pour
   /// que « Alger », « ALGER » et « alger » se comptent et se filtrent ensemble.
   wilaya                String?
+  /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
+  /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
+  wilayaCode            String?
+  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   address               String?
   postalCode            String?
   /// Nom / prénom séparés (annuaire). `name` reste le libellé d'affichage, recomposé à l'édition.
@@ -4939,6 +4943,7 @@ model MedicalDoctor {
   @@index([city])
   @@index([directoryId])
   @@index([personneId])
+  @@index([wilayaCode])
 }
 
 /// UN ANNUAIRE DE PRATICIENS — une liste nommée, pas LA liste.
@@ -5036,6 +5041,10 @@ model CompanyContact {
   address     String?
   city        String?
   wilaya      String?
+  /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
+  /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
+  wilayaCode            String?
+  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   /// Identifiants utiles pour un dossier de paiement ou un contrat.
   rc          String?
   nif         String?
@@ -5060,6 +5069,7 @@ model CompanyContact {
   @@index([isActive])
   @@index([kind])
   @@index([organisationId])
+  @@index([wilayaCode])
 }
 
 // Établissement médical (hôpital, clinique, cabinet, pharmacie…) — référentiel structuré.
@@ -5090,6 +5100,10 @@ model MedicalInstitution {
   type        InstitutionType   @default(AUTRE)
   sector      InstitutionSector @default(PUBLIC)
   wilaya      String?
+  /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
+  /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
+  wilayaCode            String?
+  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   city        String?
   region      String?
   address     String?
@@ -5122,6 +5136,7 @@ model MedicalInstitution {
   @@index([wilaya])
   @@index([name])
   @@index([organisationId])
+  @@index([wilayaCode])
 }
 
 /// UN SERVICE D'UN ÉTABLISSEMENT — cardiologie, oncologie médicale, pharmacie centrale (§118.172).
@@ -7202,6 +7217,10 @@ model Supplier {
   website      String?
   address      String?
   city         String?
+  /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
+  /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
+  wilayaCode            String?
+  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   active       Boolean  @default(true)
   notes        String?
   createdById  String?
@@ -7213,6 +7232,7 @@ model Supplier {
 
   @@index([active])
   @@index([organisationId])
+  @@index([wilayaCode])
 }
 
 model SupplierUser {
@@ -9744,6 +9764,10 @@ model AppSetting {
   siteBootId                    String?
   updatedAt                     DateTime  @updatedAt
   updatedById                   String?
+  /// REFONTE V2-D — DOUBLE ÉCRITURE DES LIEUX. Vrai = chaque saisie d'une wilaya / ville sur une fiche (praticien,
+  /// établissement, partenaire, fournisseur, secteur) pose aussi `wilayaCode`. Faux = seul le texte est écrit
+  /// (la reprise « lieux-wilaya » rattrape). Réglé par le Super Admin dans Administration › Refonte des données.
+  lieuxDoubleEcriture           Boolean   @default(true)
 }
 
 /// Sonde QUOTIDIENNE de l'API IA (chatbot & fonctions IA). Le planificateur interne
@@ -12041,6 +12065,10 @@ model SalesSector {
   /// LA WILAYA PIVOT (Direction, 08/10) — choisie dans la liste fermée des 58 wilayas, sur la ligne du KAM. Une visite dans
   /// cette wilaya = IN, ailleurs = OUT (segmentation). Nul = on lit encore la ville pivot (`city`).
   wilayaPivot    String?
+  /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
+  /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
+  wilayaCode            String?
+  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   color          String?
   isActive       Boolean      @default(true)
   createdById    String?
@@ -12067,6 +12095,7 @@ model SalesSector {
   /// sous Postgres, deux NULL ne se heurtent jamais.
   @@unique([businessUnitId, repId])
   @@index([businessUnitId])
+  @@index([wilayaCode])
 }
 
 /// UN HÔPITAL DANS UN SECTEUR. Lien pur : si l'établissement disparaît de l'annuaire, le lien
@@ -17173,8 +17202,10 @@ model Adresse {
   ligne2         String?
   /// Code wilaya officiel (« 16 » = Alger).
   wilayaCode     String?
+  wilaya         Wilaya?       @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   /// Code commune officiel.
   communeCode    String?
+  commune        Commune?      @relation(fields: [communeCode], references: [code], onDelete: SetNull)
   codePostal     String?
   /// Code pays ISO 3166-1 alpha-2.
   pays           String        @default("DZ")
@@ -17543,6 +17574,12 @@ model Wilaya {
   /// Faux tant que la wilaya n'exerce pas encore (nouvelles wilayas avant leur entrée en fonction).
   active         Boolean   @default(true)
   communes       Commune[]
+  adresses       Adresse[]
+  medicalDoctors MedicalDoctor[]
+  medicalInstitutions MedicalInstitution[]
+  companyContacts CompanyContact[]
+  suppliers      Supplier[]
+  salesSectors   SalesSector[]
 
   @@index([wilayaMereCode])
 }
@@ -17556,6 +17593,7 @@ model Commune {
   nomAr      String?
   wilayaCode String
   wilaya     Wilaya  @relation(fields: [wilayaCode], references: [code])
+  adresses   Adresse[]
 
   @@index([wilayaCode])
 }

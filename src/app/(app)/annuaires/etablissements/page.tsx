@@ -6,6 +6,8 @@ import { chargerEtablissements } from "@/lib/queries/annuaires";
 import { prisma } from "@/lib/prisma";
 import { EtablissementsTable } from "./etablissements-table";
 import { EnTeteAnnuaires } from "../en-tete";
+import { EtablissementsParWilaya } from "./par-wilaya";
+import { regrouperParWilaya } from "@/lib/lieux/par-wilaya";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Annuaires — Établissements — AMD Internal OS" };
@@ -33,10 +35,12 @@ export default async function AnnuaireEtablissementsPage() {
   if (!peutAnnuaire(user, "ETABLISSEMENTS", "VIEW")) redirect("/dashboard?denied=MEDICAL");
   // Qui ne voit AUCUN praticien par son module compte les rattachements en entier : sinon il lit
   // « 0 » partout, et supprimer un CHU ne l'avertirait de rien.
-  const [feuille, specialites] = await Promise.all([
+  const [feuille, specialites, parWilaya] = await Promise.all([
     chargerEtablissements(user, { compteEntier: !userCan(user, "MEDICAL", "VIEW") }),
     // Les spécialités connues, PROPOSÉES à la saisie d'un service — un référentiel, pas une porte.
     prisma.medicalSpecialty.findMany({ select: { name: true }, orderBy: { name: "asc" } }),
+    // PAR WILAYA (refonte V2-D) : un regroupement sur la clé officielle, plus sur le texte saisi.
+    prisma.medicalInstitution.groupBy({ by: ["wilayaCode"], where: { isActive: true }, _count: { _all: true } }),
   ]);
   return (
     <div className="space-y-5">
@@ -44,6 +48,7 @@ export default async function AnnuaireEtablissementsPage() {
         user={user}
         description="CHU, EPH, EHS, cliniques, polycliniques, cabinets, et leurs services — le référentiel auquel se rattachent les praticiens. Les secteurs commerciaux ne se saisissent pas ici : chaque Business Unit les découpe dans sa configuration."
       />
+      <EtablissementsParWilaya comptes={regrouperParWilaya(parWilaya.map((g) => ({ code: g.wilayaCode, n: g._count._all })))} />
       <EtablissementsTable
         rows={feuille.rows}
         couleurs={feuille.couleurs}

@@ -157,6 +157,10 @@ export default async function AdminPage() {
             <Link href="/admin/bases">
               <Button variant="outline"><Database className="h-4 w-4" /> Bases de données</Button>
             </Link>
+            {/* REFONTE DES DONNÉES (vague 2) : les reprises vers les référentiels, aperçu à blanc puis lots journalisés. */}
+            <Link href="/admin/refonte-donnees">
+              <Button variant="outline"><Database className="h-4 w-4" /> Refonte des données</Button>
+            </Link>
           </>
         )}
         {canManage && (

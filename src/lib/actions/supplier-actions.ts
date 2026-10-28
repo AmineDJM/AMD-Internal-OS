@@ -7,6 +7,7 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 
@@ -64,6 +65,7 @@ export async function createSupplier(
   const created = await prisma.supplier.create({
     data: { name, country: fdStr(formData, "country"), contactEmail: fdStr(formData, "contactEmail")?.toLowerCase() ?? null, notes: fdStr(formData, "notes"), createdById: user.id },
   });
+  await reposerWilayaCode("Supplier", created.id); // double écriture des lieux (refonte V2-D) : un pays étranger = pas de wilaya
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Portail fournisseur", entityType: "SUPPLIER", entityId: created.id, summary: `Fournisseur « ${name} »` });
   revalidatePath("/admin/suppliers");
   return { ok: true, id: created.id };

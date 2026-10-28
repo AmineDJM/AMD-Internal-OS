@@ -203,3 +203,18 @@ Décision de la Direction validée sur l'artefact « Circuits Ad & Pro » v3 —
   `20270131150000_adpro_autre_postes`.
 - ⚠️ **À faire par l'administration** : attribuer le rôle `OPERATIONS_DIRECTOR` au Directeur des opérations, puis retirer
   `DIRECTION` de l'étape « Validation (Directeur des opérations) » dans Administration › Circuits.
+
+### Refonte des données, vague 2 — lot V2-D « Lieux et coordonnées » (2026-10-27)
+
+« Par wilaya » se compte sans nettoyage manuel. Les fiches qui portent un lieu saisi à la main (praticiens,
+établissements, partenaires, fournisseurs, secteurs de vente) gagnent une colonne **`wilayaCode`** (FK → `Wilaya`, 69
+wilayas déjà chargées par la vague 1), **à côté** du texte, qui reste la saisie. Règle unique (`lib/lieux/rattachement.ts`) :
+la colonne wilaya prime, la ville puis la région parlent si elle est vide ; ambigu → nul et listé ; fournisseur étranger →
+pas de wilaya. **Administration › Refonte des données** (`/admin/refonte-donnees`, Super Admin) : une carte par reprise
+(aperçu à blanc, lots de 500, journal `AuditLog`, reprise au dernier curseur) — `lieux-wilaya`, `adresses`,
+`points-de-contact` (R3 depuis les fiches des Personnes / Organisations **déjà** créées, identifiants déterministes :
+rejouables après les lots V2-B / V2-C). **Double écriture** à chaque saisie (interrupteur `AppSetting.lieuxDoubleEcriture`,
+allumé), gardée par `lib/lieux/double-ecriture-garde.test.ts`. Premier écran lecteur : bandeau « Par wilaya » de
+**Annuaires › Établissements**. Communes : table laissée vide (aucune source officielle complète). Migration additive
+`20270131170000_lieux_wilaya_code`. Détail, activation et décisions : `docs/architecture/refonte-v2-lieux.md`.
+

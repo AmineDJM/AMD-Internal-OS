@@ -19,6 +19,7 @@ import { enSerie } from "@/lib/refs";
 import { specialitesDemandees, ecrireSpecialitesBu, resumeSpecialitesBu } from "@/lib/sfe/specialites-bu";
 import { estBuHospitaliere, nomDuTerritoire } from "@/lib/sfe/territoire-kam";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 
 const MODULE = "SALES_PLANNING" as const;
 /**
@@ -788,6 +789,8 @@ async function ecrireSecteur(
     }
     return secteur.id;
   });
+  // DOUBLE ÉCRITURE DES LIEUX (refonte V2-D), après la transaction : la wilaya pivot (ou la ville) pose le code.
+  if (formData.has("city") || formData.has("wilayaPivot") || !sectorId) await reposerWilayaCode("SalesSector", ecrit);
 
   await recordAudit({
     actorId, action: sectorId ? "UPDATE" : "CREATE", module: "Force de vente", entityType: "SALES_SECTOR", entityId: ecrit,
@@ -950,6 +953,7 @@ export async function definirWilayaPivotKam(formData: FormData): Promise<ActionR
       await prisma.salesSectorRep.createMany({ data: [{ sectorId: cree.id, repId }], skipDuplicates: true });
       return cree.id;
     });
+    if (id) await reposerWilayaCode("SalesSector", id); // double écriture des lieux (refonte V2-D)
     if (id) {
       await recordAudit({
         actorId: user.id, action: "UPDATE", module: "Force de vente", entityType: "SALES_SECTOR", entityId: id,

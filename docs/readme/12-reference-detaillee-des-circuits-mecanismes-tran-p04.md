@@ -457,6 +457,39 @@ entité) sont éligibles. Supprimer une gamme **ne supprime aucun produit** (`SE
 
 ---
 
+### Refonte des données — les lieux et les coordonnées (vague 2, lot V2-D)
+
+**Le principe** : le texte saisi (`wilaya`, `city`, `wilayaPivot`, `region`, `country`) reste la saisie ; la colonne
+`wilayaCode` (FK → `Wilaya`, 69 wilayas de la loi n° 26-06) en est la **lecture**, posée par une seule règle,
+`rattacherFiche` (`lib/lieux/rattachement.ts`) : la colonne wilaya prime ; la ville, puis la région, ne parlent que si
+elle est vide ou illisible ; deux wilayas ou un numéro contredit → **nul et listé** ; un pays qui n'est pas l'Algérie →
+pas de wilaya. Le code suit le texte : un texte devenu ambigu remet le code à nul. Cinq fiches :
+`MedicalDoctor`, `MedicalInstitution`, `CompanyContact`, `Supplier`, `SalesSector`.
+
+**Double écriture** : chaque écrivain de ces fiches appelle `reposerWilayaCode(modele, ids)` après son écriture — relit
+la fiche entière (une cellule modifiée seule laisse les autres colonnes parler), pose le code, **n'échoue jamais**
+l'action (erreur journalisée, la reprise rattrape). Interrupteur `AppSetting.lieuxDoubleEcriture` (allumé par défaut),
+réglé sur l'écran de la refonte. Garde : `lib/lieux/double-ecriture-garde.test.ts` (un écrivain sans l'appel, ou une
+exception qui nomme une colonne de lieu, fait échouer `npm test`).
+
+**Reprises** (Administration › Refonte des données, `/admin/refonte-donnees`, **Super Admin seul**) — contrat commun
+`lib/referentiels/reprises/types.ts` : aperçu à blanc, puis lots de 500 au curseur `"<Table>:<id>"`, chaque geste à
+l'`AuditLog` (module « Refonte des données », champ = clé, curseur en `newValue` : l'écran reprend où l'on s'était
+arrêté). Aucune ne tourne au déploiement.
+
+| Clé | Lit | Écrit | Ne fait jamais |
+|---|---|---|---|
+| `lieux-wilaya` | les colonnes de lieu des cinq fiches | `wilayaCode` (sans toucher `updatedAt`) | modifier le texte ; deviner un cas ambigu |
+| `adresses` | adresses des praticiens, collaborateurs (domicile), établissements, partenaires, fournisseurs, sociétés (siège) | `Adresse` (id `adr_<sha256>` de titulaire + adresse repliée) | créer une Personne / Organisation ; reprendre une adresse à l'étranger ; poser une commune |
+| `points-de-contact` | téléphones, e-mails, sites de dix sources (dont `DirectoryEndpoint`) | `PointDeContact` (E.164 / minuscules / hôte ; id `pdc_<sha256>`) | reprendre une valeur illisible ; marquer un « principal » |
+
+Les reprises R3 ne servent que les fiches **déjà rattachées** (`personneId`, `organisationId`, posés par V2-B / V2-C) ;
+rejouées, elles n'insèrent que ce qui manque. **Lecture** : bandeau « Par wilaya » d'Annuaires › Établissements
+(`groupBy wilayaCode`, la part sans code dite à côté). Communes : table vide, rien d'inventé. Détail :
+`docs/architecture/refonte-v2-lieux.md`.
+
+---
+
 ### Accusés, verrous & confidentialité — règles éparses à ne pas casser
 
 - Événements (`Event`) n'a **pas** de champ `updatedById` → le moteur de workflow le retire avant `update`.

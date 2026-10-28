@@ -13,6 +13,7 @@ import { suivreRenommageEtablissement } from "@/lib/stocks/lieux";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
+import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { sousVerrous } from "@/lib/promo/stock-ecriture";
 import { dejaDansLaVisite, ecrireRemises, lireMaterielRemis, motifDeRemise, phraseMateriel, RefusRemise, toucheLeStock, verrousDuRapport } from "@/lib/promo/remises-visite";
 import { fenetreRapport, gestesPossibles, refusVisiteHorsDelai, retraitInterditApresRevision, type StatutPlan } from "@/lib/sfe/tournee";
@@ -135,6 +136,8 @@ export async function createInstitution(formData: FormData): Promise<ActionResul
       createdById: user.id,
     },
   });
+  // DOUBLE ÉCRITURE DES LIEUX (refonte V2-D) : la wilaya choisie devient aussi le code officiel `wilayaCode`.
+  await reposerWilayaCode("MedicalInstitution", created.id);
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Annuaires", entityType: "INSTITUTION", entityId: created.id, summary: `Établissement « ${name} »` });
   revalidatePath("/medical");
   return { ok: true, id: created.id };
@@ -182,6 +185,7 @@ export async function updateInstitution(formData: FormData): Promise<ActionResul
       isActive: fdCase(formData, "isActive"),
     },
   });
+  if (wilaya || porte("region")) await reposerWilayaCode("MedicalInstitution", id); // double écriture des lieux (V2-D)
   // Re-synchronise le libellé dénormalisé sur les praticiens rattachés.
   await prisma.medicalDoctor.updateMany({ where: { institutionId: id }, data: { institution: name } });
   // LE LIEU DE STOCK SUIT : son nom est ce que les demandes d'état, les récurrences et Adam
@@ -582,6 +586,7 @@ export async function createDoctor(
       createdById: user.id,
     },
   });
+  await reposerWilayaCode("MedicalDoctor", created.id); // double écriture des lieux (V2-D)
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Promotion médicale",
     entityType: "DOCTOR", entityId: created.id, summary: `Médecin « ${name} »`,
@@ -664,6 +669,7 @@ export async function updateDoctor(formData: FormData): Promise<ActionResult> {
       updatedById: user.id,
     },
   });
+  await reposerWilayaCode("MedicalDoctor", id); // double écriture des lieux (V2-D)
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Promotion médicale",
     entityType: "DOCTOR", entityId: id, summary: `Médecin « ${name} » mis à jour`,

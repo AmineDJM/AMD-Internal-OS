@@ -1116,6 +1116,12 @@ X("INTELLIGENCE TERRAIN (console d'administration, Direction 10/2026 : « visibl
   + "les yeux. Réservé au SUPER ADMIN, non délégable — chaque action relit le rôle ; aucune ouverture conversationnelle.", [
   "intelligence-terrain-actions:relancerAnalyseInfluence", "intelligence-terrain-actions:deciderLienInfluence",
 ]);
+X("REFONTE DES DONNÉES (Administration, Super Admin) : lancer une reprise vers les référentiels (aperçu à blanc, puis "
+  + "un lot au curseur) et allumer / éteindre la double écriture des lieux. Une reprise écrit dans les référentiels de toute "
+  + "l'entreprise : elle se décide devant l'aperçu chiffré et la liste des cas ambigus que l'écran `/admin/refonte-donnees` "
+  + "montre, lot par lot, et chaque geste relit le rôle. Réservé au SUPER ADMIN, non délégable ; aucune ouverture conversationnelle.", [
+  "refonte-reprise-actions:apercuReprise", "refonte-reprise-actions:executerReprise", "lieux-actions:reglerDoubleEcritureLieux",
+]);
 X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de configuration — variables, adresses, réponse du "
   + "Document Server. Une moitié du test se joue DANS LE NAVIGATEUR de l'administrateur (chargement d'api.js) : une "
   + "conversation ne peut pas la faire. C'est un écran de dépannage, pas un geste métier.", [
