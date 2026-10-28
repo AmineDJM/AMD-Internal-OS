@@ -48,6 +48,14 @@ describe("l'état de la dépense d'un poste", () => {
     expect(depenseDuPoste(faits({ ...base, ordres: [ordre("PENDING", 10, "NOT_REQUIRED")] })).lieu).toBe("FINANCES");
   });
 
+  it("refusée au centre : la dépense le dit, mais l'ordre ne pèse plus — ni en circuit, ni consommé (ARGENT-07)", () => {
+    const d = depenseDuPoste(faits({ imputeeLe: "2026-10-10", ordres: [ordre("PENDING", 300_000, "REFUSED")] }));
+    expect(d).toMatchObject({ etat: "CONSOMMEE", lieu: "REFUSEE", engage: 0, enCircuit: 0, consomme: 0 });
+    // Un nouvel envoi après le refus : seul le vivant compte.
+    const relance = depenseDuPoste(faits({ imputeeLe: "2026-10-10", ordres: [ordre("PENDING", 300_000, "REFUSED"), ordre("PENDING", 250_000, "AWAITING")] }));
+    expect(relance).toMatchObject({ etat: "CONSOMMEE", lieu: "CENTRE_PAIEMENT", enCircuit: 250_000 });
+  });
+
   it("le montant consommé remplace l'engagé : la différence est rendue au budget", () => {
     const d = depenseDuPoste(faits({ imputeeLe: "2026-10-10", ordres: [ordre("PENDING", 3_000_000)] }));
     expect(d.engage + d.consomme).toBe(3_000_000);

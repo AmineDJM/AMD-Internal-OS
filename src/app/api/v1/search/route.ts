@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { handle } from "@/lib/api/http";
-import { ENTITIES, canReadEntity } from "@/lib/api/registry/entities";
+import { ENTITIES, canReadEntity, porteeManquante } from "@/lib/api/registry/entities";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { textSearchWhere, serialize, parsePage } from "@/lib/api/query";
 import { sansBloquer } from "@/lib/journal";
@@ -30,7 +30,7 @@ export const GET = handle(
       return { query: q, results: [], note: "Donnez au moins deux caractères : une recherche d'un caractère rendrait tout l'ERP." };
     }
 
-    const targets = ENTITIES.filter((e) => e.searchFields.length > 0 && (only.size === 0 || only.has(e.name)) && canReadEntity(ctx.user, e));
+    const targets = ENTITIES.filter((e) => e.searchFields.length > 0 && (only.size === 0 || only.has(e.name)) && canReadEntity(ctx.user, e) && !porteeManquante(e, ctx.client.scopes));
     // Fenêtre de dates optionnelle, appliquée sur la date de création — la seule que tous
     // les objets partagent.
     const dateWhere: Record<string, unknown> = {};

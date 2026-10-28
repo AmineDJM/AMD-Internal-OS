@@ -1,5 +1,5 @@
 import type { EntityType, FinanceCategory, PaymentDeadlineNature, PaymentRequestStatus } from "@prisma/client";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { ENTITY_MODULE } from "@/lib/entity-access";
 import { initialCentralStatus, isHighValue, CENTRAL_AUTH_THRESHOLD_DZD, ROLES_CENTRE_DE_PAIEMENT } from "@/lib/payments/authorization";
 import { deadlineNatureOf } from "@/lib/finance/deadline-nature";
@@ -13,14 +13,18 @@ import { notifyRoles } from "./notify";
 
 export async function nextExpenseRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.expenseOrder.findMany({ where: { reference: { startsWith: `OD-${year}-` } }, select: { reference: true } });
-  return buildRef("OD", year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "ExpenseOrder", prefixe: "OD", annee: year,
+    existantes: async () => (await prisma.expenseOrder.findMany({ where: { reference: { startsWith: `OD-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 async function nextPaymentRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.paymentRequest.findMany({ where: { reference: { startsWith: `PAY-${year}-` } }, select: { reference: true } });
-  return buildRef("PAY", year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "PaymentRequest", prefixe: "PAY", annee: year,
+    existantes: async () => (await prisma.paymentRequest.findMany({ where: { reference: { startsWith: `PAY-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /**

@@ -21,6 +21,7 @@ export interface OrdrePromoLu {
   id: string;
   montant: number;
   statut: string;
+  centralStatus: string;
   budgetCategoryId: string | null;
   transactionId: string | null;
 }
@@ -70,14 +71,14 @@ export async function depensesDesDossiersPromo(dossiers: readonly DossierPourDep
         { sourceType: "PROMO_MATERIAL" as const, sourceId: { in: ids } },
       ],
     },
-    select: { id: true, amount: true, status: true, budgetCategoryId: true, transactionId: true, sourceType: true, sourceId: true },
+    select: { id: true, amount: true, status: true, centralStatus: true, budgetCategoryId: true, transactionId: true, sourceType: true, sourceId: true },
   });
   for (const d of dossiers) {
     const sesBcs = bcs.filter((b) => dossierDuBc.get(b.id) === d.id)
       .map((b) => ({ montant: b.amount == null ? null : toNumber(b.amount), signe: b.signedAt !== null }));
     const sesOrdres = ordres
       .filter((o) => dossierDeLOrdre.get(o.id) === d.id || (o.sourceType === "PROMO_MATERIAL" && o.sourceId === d.id))
-      .map((o) => ({ id: o.id, montant: toNumber(o.amount), statut: o.status, budgetCategoryId: o.budgetCategoryId, transactionId: o.transactionId }));
+      .map((o) => ({ id: o.id, montant: toNumber(o.amount), statut: o.status, centralStatus: o.centralStatus, budgetCategoryId: o.budgetCategoryId, transactionId: o.transactionId }));
     out.set(d.id, { bcs: sesBcs, ordres: sesOrdres, engage: engageDuDossierPromo({ bcs: sesBcs, ordres: sesOrdres }) });
   }
   return out;

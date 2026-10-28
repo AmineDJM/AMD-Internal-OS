@@ -30,6 +30,8 @@ export interface OrdreDuDossierPromo {
   montant: number;
   /** `ExpenseOrder.status` : PENDING | REVISION_REQUESTED | PAID | CANCELLED. */
   statut: string;
+  /** `ExpenseOrder.centralStatus` — un ordre REFUSÉ par le centre ne paiera jamais (ARGENT-07). */
+  centralStatus?: string | null;
 }
 
 const positif = (n: number | null | undefined) => (n != null && Number.isFinite(n) && n > 0 ? n : 0);
@@ -37,9 +39,12 @@ const positif = (n: number | null | undefined) => (n != null && Number.isFinite(
 /** Les statuts d'un ordre qui attend encore son règlement — les mêmes que `STATUTS_ORDRE_ENGAGES`. */
 const EN_CIRCUIT = ["PENDING", "REVISION_REQUESTED"];
 
-export function ordreEnCircuitPromo(statut: string): boolean {
-  return EN_CIRCUIT.includes(statut);
+export function ordreEnCircuitPromo(statut: string, centralStatus?: string | null): boolean {
+  return EN_CIRCUIT.includes(statut) && centralStatus !== "REFUSED";
 }
+
+/** Un ordre qui couvre (une part de) les BC : réglé, ou en circuit — ni annulé, ni refusé par le centre. */
+const ordreCouvre = (o: OrdreDuDossierPromo) => o.statut === "PAID" || ordreEnCircuitPromo(o.statut, o.centralStatus);
 
 /** Le total des BC signés du dossier. */
 export function totalBcSignes(bcs: readonly BcDuDossierPromo[]): number {
@@ -48,10 +53,10 @@ export function totalBcSignes(bcs: readonly BcDuDossierPromo[]): number {
 
 /**
  * L'ENGAGÉ du dossier : les BC signés, moins ce que ses ordres vivants (en circuit ou payés) couvrent déjà.
- * Un ordre annulé ne couvre rien ; l'engagé n'est jamais négatif.
+ * Un ordre annulé — ou refusé par le centre, qui ne paiera jamais — ne couvre rien ; l'engagé n'est jamais négatif.
  */
 export function engageDuDossierPromo(f: { bcs: readonly BcDuDossierPromo[]; ordres: readonly OrdreDuDossierPromo[] }): number {
-  const couvert = f.ordres.reduce((a, o) => a + (o.statut !== "CANCELLED" ? positif(o.montant) : 0), 0);
+  const couvert = f.ordres.reduce((a, o) => a + (ordreCouvre(o) ? positif(o.montant) : 0), 0);
   return Math.max(0, totalBcSignes(f.bcs) - couvert);
 }
 

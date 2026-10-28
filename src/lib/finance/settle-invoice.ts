@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import { referenceDeSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { toNumber } from "@/lib/utils";
-import { buildRef } from "@/lib/refs";
 import { settlementAction, invoiceDirection, invoiceSettlementLabel } from "@/lib/finances/settlement";
 import { compteDeLEcriture } from "@/lib/finance/comptes";
 import { netDeLaFacture } from "@/lib/lecteurs/avoir";
@@ -86,10 +86,6 @@ export async function syncInvoiceSettlement(documentId: string, actorId: string)
   if (!(amount > 0)) return;
 
   const year = (doc.paidDate ?? new Date()).getFullYear();
-  const refs = (await prisma.financeTransaction.findMany({
-    where: { reference: { startsWith: `FIN-${year}-` } },
-    select: { reference: true },
-  })).map((r) => r.reference);
 
   const direction = invoiceDirection(doc.direction);
   const compteDuReglement = await compteDeLEcriture({ compte: "Banque", societeId: doc.companyId });
@@ -102,7 +98,11 @@ export async function syncInvoiceSettlement(documentId: string, actorId: string)
     tx = await prisma.$transaction(async (t) => {
       const ecriture = await t.financeTransaction.create({
         data: {
-          reference: buildRef("FIN", year, refs),
+          // Le compteur de la série (DONNEES-12), dans la transaction : perdue, elle ne consomme rien.
+          reference: await referenceDeSerie({
+            modele: "FinanceTransaction", prefixe: "FIN", annee: year, client: t,
+            existantes: async () => (await t.financeTransaction.findMany({ where: { reference: { startsWith: `FIN-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+          }),
           date: doc.paidDate ?? new Date(),
           direction,
           category: "AUTRE",

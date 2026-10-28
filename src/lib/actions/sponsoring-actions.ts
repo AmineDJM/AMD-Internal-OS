@@ -9,7 +9,7 @@ import { moneyEntityOf } from "@/lib/company";
 import { readMultiField, lireMedecinsDemande } from "@/lib/ad-pro/pickers";
 import { businessUnitDuDemandeur } from "@/lib/ad-pro/business-unit-auto";
 import { normalizeCity } from "@/lib/geo/algeria";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";import { notifyRoles, notifyUser } from "@/lib/notify";
 import { involveThirdParty } from "@/lib/third-party";
@@ -179,8 +179,10 @@ export async function createSponsoring(
   // sponsoring, non. Le banc FORCE l'entrelacement (deux dépôts bloqués à l'insertion, relâchés
   // ensemble), sans quoi il passerait sans le filet (§118.65).
   const year = new Date().getFullYear();
-  const referenceSuivante = async () => buildRef("SPO", year,
-    (await prisma.sponsoringRequest.findMany({ where: { reference: { startsWith: `SPO-${year}-` } }, select: { reference: true } })).map((r) => r.reference));
+  const referenceSuivante = () => referenceDeSerie({
+    modele: "SponsoringRequest", prefixe: "SPO", annee: year,
+    existantes: async () => (await prisma.sponsoringRequest.findMany({ where: { reference: { startsWith: `SPO-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 
   const created = await createWithRetry(async () => prisma.sponsoringRequest.create({
     data: {

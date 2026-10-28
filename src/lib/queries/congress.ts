@@ -1,3 +1,4 @@
+import { et } from "@/lib/acces/compose";
 import { prisma } from "@/lib/prisma";
 import { clauseCongresInternationauxVisibles, clauseCongresNationauxVisibles } from "@/lib/queries/visibilite-listes";
 import { scopeCongressIntl, scopeCongressNational, type SessionUser } from "@/lib/rbac";
@@ -63,8 +64,8 @@ export async function getCongressList(type: CongressType, user: SessionUser): Pr
 export async function getCongressDetail(type: CongressType, user: SessionUser, id: string) {
   const c =
     type === "INTL"
-      ? await prisma.congressInternational.findFirst({ where: { id, ...scopeCongressIntl(user) } })
-      : await prisma.congressNational.findFirst({ where: { id, ...scopeCongressNational(user) } });
+      ? await prisma.congressInternational.findFirst({ where: et({ id }, scopeCongressIntl(user)) })
+      : await prisma.congressNational.findFirst({ where: et({ id }, scopeCongressNational(user)) });
   if (!c) return null;
 
   const names = await userNameMap([c.requesterId, c.productManagerId, c.preliminaryById, c.finalById].filter((x): x is string => Boolean(x)));

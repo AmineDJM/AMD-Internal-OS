@@ -203,10 +203,13 @@ export async function confirmPettyCashReceipt(formData: FormData): Promise<Actio
   if (cash.status !== "ALLOTTED") return { ok: false, error: "Cette réception est déjà confirmée." };
   if (refusAttente) return { ok: false, error: refusAttente };
 
-  await prisma.pettyCashAllotment.update({
-    where: { id },
+  // SUR L'ÉTAT LU (audit 27/10, reste de DONNEES-06) : une remise soldée entre la lecture et cette écriture ne repasse
+  // pas « reçue » — la confirmation réécrivait RECEIVED par-dessus CLOSED et la remise revenait dans le fond.
+  const recue = await prisma.pettyCashAllotment.updateMany({
+    where: { id, status: "ALLOTTED" },
     data: { status: "RECEIVED", receivedAt: new Date() },
   });
+  if (recue.count === 0) return { ok: false, error: "Cette remise vient de changer (confirmée ou soldée) : rouvrez la caisse." };
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: cash.department.id,
     summary: `Remise en caisse d'avance reçue — ${toNumber(cash.amount)} DZD (${periodLabel(cash.period)})`,
@@ -241,14 +244,25 @@ export async function closePettyCash(formData: FormData): Promise<ActionResult> 
     return { ok: false, error: "Rien à solder : la seule remise en cours attend encore le centre de paiement (ou son versement par les Finances)." };
   }
 
-  const fund = continuousCash(ouvertes);
-  await prisma.pettyCashAllotment.updateMany({
-    where: { id: { in: ouvertes.map((r) => r.id) } },
-    data: { status: "CLOSED" },
+  // SOLDER SOUS LE VERROU DE LA CAISSE (audit 27/10, reste de DONNEES-06) : la clôture lisait le fond puis écrivait
+  // sans verrou ni condition — une dépense saisie au même instant tombait sur une remise close, et deux clôtures
+  // simultanées journalisaient deux soldes. Le département se verrouille (comme pour une dépense), le fond se relit
+  // dessous, et seules les remises encore ouvertes se closent ; une seconde clôture trouve la caisse déjà soldée.
+  const solde = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${cash.departmentId} FOR UPDATE`;
+    const encore = (await openRemittances(cash.departmentId, tx)).filter((r) => !r.enAttenteDuCentre);
+    if (encore.length === 0) return null;
+    await tx.pettyCashAllotment.updateMany({
+      where: { id: { in: encore.map((r) => r.id) }, status: { not: "CLOSED" } },
+      data: { status: "CLOSED" },
+    });
+    return encore;
   });
+  if (!solde) return { ok: false, error: "Cette caisse est déjà soldée." };
+  const fund = continuousCash(solde);
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Budgets", entityType: "BUDGET", entityId: cash.departmentId,
-    summary: `Caisse d'avance soldée — ${ouvertes.length} remise(s), ${fund.remitted} DZD remis, ${fund.spent} DZD dépensés, reliquat ${fund.remaining} DZD`,
+    summary: `Caisse d'avance soldée — ${solde.length} remise(s), ${fund.remitted} DZD remis, ${fund.spent} DZD dépensés, reliquat ${fund.remaining} DZD`,
   });
   revalidatePath(PATH);
   return { ok: true };

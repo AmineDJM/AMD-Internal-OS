@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { refusAdministration } from "@/lib/admin/garde-comptes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -68,6 +69,11 @@ export async function grantPaymentCentreSeat(formData: FormData): Promise<Action
 
     const cible = await prisma.user.findUnique({ where: { id: userId }, select: { name: true, role: true, isActive: true, isSystem: true } });
     if (!cible) return { ok: false, error: "Personne introuvable." };
+    // UN ADMINISTRATEUR DÉLÉGUÉ NE SE DÉSIGNE PAS LUI-MÊME (audit 27/10, SA-18). Le module Administration se
+    // délègue ; le siège, lui, est le pouvoir d'autoriser des décaissements. S'en accorder un, c'est
+    // modifier ses propres droits — la même garde que le rôle et les modules (`refusAdministration`).
+    const refus = refusAdministration(admin, { id: userId, role: cible.role }, "DROITS");
+    if (refus) return { ok: false, error: refus };
     // UN COMPTE DÉSACTIVÉ NE SIÈGE PAS. Le siège serait invisible (il ne peut pas se connecter)
     // et se réveillerait à la réactivation, sans que personne ne l'ait redécidé.
     if (!cible.isActive) return { ok: false, error: `${cible.name} est un compte désactivé : réactivez-le d'abord.` };
@@ -124,9 +130,11 @@ export async function revokePaymentCentreSeat(formData: FormData): Promise<Actio
     const userId = fdStr(formData, "userId");
     if (!userId) return { ok: false, error: "Personne introuvable." };
     const seat = await prisma.paymentCentreSeat.findUnique({
-      where: { userId }, select: { id: true, note: true, user: { select: { name: true } } },
+      where: { userId }, select: { id: true, note: true, user: { select: { name: true, role: true } } },
     });
     if (!seat) return { ok: false, error: "Cette personne n'a pas de siège nommé." };
+    const refus = refusAdministration(admin, { id: userId, role: seat.user.role }, "DROITS");
+    if (refus) return { ok: false, error: refus };
 
     await prisma.paymentCentreSeat.delete({ where: { id: seat.id } });
     await notifyUser({

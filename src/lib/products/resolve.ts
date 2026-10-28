@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { moleculeStem } from "@/lib/market/galenic";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import {
   aliasKey, certainMatch, cleDci, identityKey, nomCanonique, parseMention, resolveProduct,
   type ProductCandidate, type ProductMatch,
@@ -197,11 +197,10 @@ export async function ensureProduct(input: {
  */
 export async function nextProductCode(): Promise<string> {
   const annee = new Date().getFullYear();
-  const codes = await prisma.product.findMany({
-    where: { code: { startsWith: `PRD-${annee}-` } },
-    select: { code: true },
+  return referenceDeSerie({
+    modele: "Product", prefixe: "PRD", annee: annee,
+    existantes: async () => (await prisma.product.findMany({ where: { code: { startsWith: `PRD-${annee}-` } }, select: { code: true } })).map((r) => r.code),
   });
-  return buildRef("PRD", annee, codes.map((c) => c.code));
 }
 
 /**

@@ -33,6 +33,11 @@ export async function advanceWorkflow(formData: FormData): Promise<ActionResult>
   const action = fdStr(formData, "action"); // APPROVE | REJECT | COMMENT | SKIP | RETURN
   if (!entityType || !WORKFLOW_ENTITIES.includes(entityType) || !entityId) return { ok: false, error: "Paramètres manquants." };
   if (action !== "APPROVE" && action !== "REJECT" && action !== "COMMENT" && action !== "SKIP" && action !== "RETURN") return { ok: false, error: "Action invalide." };
+  // LA PORTE DE LA FICHE avant le moteur (ADPRO-06) — comme la resoumission et le retrait : le rôle d'une
+  // étape ne suffit pas à trancher une demande qu'on ne peut pas ouvrir. Hors d'elle, la demande est
+  // introuvable, la même phrase que son absence. (Le superviseur de la gamme et qui tranche le module
+  // y entrent quelle que soit la société : c'est la lecture de `adProStakeholders`.)
+  if (!(await canAccessEntity(user, entityType, entityId, "VIEW"))) return { ok: false, error: "Demande introuvable." };
 
   // PIÈCES JOINTES À L'AVIS : la Direction Marketing, le National Sales ou la Direction peuvent
   // appuyer leur décision sur un document (devis comparatif, note, courrier).
@@ -249,6 +254,7 @@ export async function faireAppelAdPro(formData: FormData): Promise<ActionResult>
     return { ok: false, error: "Demande non précisée." };
   }
   if (!motif) return { ok: false, error: "Dites pourquoi vous faites appel : le motif est transmis à l'étape qui réexamine." };
+  if (!(await canAccessEntity(user, entityType, entityId, "VIEW"))) return { ok: false, error: "Demande introuvable." };
   const sel = { select: { requesterId: true, requestStatus: true, name: true } } as const;
   // LA DEMANDE « AUTRE » n'a ni `requestStatus` ni `name` : son statut est l'énumération courte (`REFUSED`
   // après un refus définitif du circuit), son nom est son objet.

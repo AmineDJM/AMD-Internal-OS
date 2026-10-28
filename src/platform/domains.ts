@@ -114,6 +114,11 @@ const SOCLE = [
    * + journal). De l'infrastructure lue partout, qui ne lit aucun métier.
    */
   "src/lib/journal", "src/lib/migrations-appliquees",
+  /**
+   * `acces/compose` : `et(…)`, la composition des clauses Prisma en `AND` (audit 27/10, SA-03 — deux `OR`
+   * étalés s'écrasent). Zéro import ; lue par les façades, les domaines et les actions.
+   */
+  "src/lib/acces/compose",
   "src/lib/api/registry/entities",
   "src/lib/storage/",
   "src/lib/mutations/",
