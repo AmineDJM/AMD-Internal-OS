@@ -18,7 +18,8 @@ async function derniereVersion(nodeId: string) {
  * ENREGISTRER un fichier texte du Drive — une NOUVELLE VERSION (l'ancienne reste dans l'historique). Droit : modifier le
  * fichier. Comparée à la version lue (409 si quelqu'un a enregistré entre-temps) ; un fichier tronqué ne se réécrit jamais.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401, headers: SANS_CACHE });
   if ((await resolveDriveAccess(user, params.id)) !== "EDIT") {

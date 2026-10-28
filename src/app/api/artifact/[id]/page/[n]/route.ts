@@ -29,7 +29,8 @@ import { rendrePageArtefact } from "@/platform/in-process/artifact/render";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(req: NextRequest, { params }: { params: { id: string; n: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string; n: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
 

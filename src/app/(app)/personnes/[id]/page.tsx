@@ -14,7 +14,8 @@ export const metadata = { title: "Personne — AMD Internal OS" };
  * dont l'écran d'origine s'ouvrirait à la même personne (`referentiels/personnes/fiche.ts`) ; une Personne
  * qu'on ne voit nulle part ailleurs n'existe pas ici (404). Aucune donnée sensible : elles sont au coffre.
  */
-export default async function FichePersonnePage({ params }: { params: { id: string } }) {
+export default async function FichePersonnePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const lecture = await lireFichePersonne(user, params.id);
   if (lecture.etat === "FUSIONNEE") redirect(`/personnes/${lecture.versId}`);

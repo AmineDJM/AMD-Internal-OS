@@ -42,7 +42,8 @@ export const dynamic = "force-dynamic";
  * La chaîne d'achat (devis → BC → facture) vit sur chaque poste, comme sur le sponsoring, les prises en
  * charge et les événements : le bloc « Pièces liées » de la demande disparaît (§118.204).
  */
-export default async function AdProOtherDetailPage({ params }: { params: { id: string } }) {
+export default async function AdProOtherDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("AD_PRO_OTHER");
   const req = await prisma.adProOtherRequest.findUnique({
     where: { id: params.id },

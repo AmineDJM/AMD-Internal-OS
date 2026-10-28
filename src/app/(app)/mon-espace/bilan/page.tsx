@@ -13,7 +13,8 @@ export const metadata = { title: "Mon bilan — AMD Internal OS" };
  * MON BILAN (KPI sans code, Direction 08/10 : « bilan en continu ») — mes KPI de la période, calculés en continu par
  * la plateforme, ma revue quand elle est signée, mes déclarations. Lecture seule, sauf « Déclarer » (avec la pièce).
  */
-export default async function MonBilanPage({ searchParams }: { searchParams?: { periode?: string } }) {
+export default async function MonBilanPage(props: { searchParams?: Promise<{ periode?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("KPI");
   const [bilan, onglets] = await Promise.all([chargerBilanKpi(user, user.id, searchParams?.periode ?? null), ongletsEspace(user)]);
 

@@ -29,7 +29,8 @@ export const metadata = { title: "Direction artistique — AMD Internal OS" };
  * Gestes : le module (VIEW/UPLOAD/UPDATE/DELETE), OU la responsabilité historique de la papeterie
  * (`canManageLetterheads`). Chaque dépôt est rattaché à l'entité ouverte, jamais à une autre.
  */
-export default async function DirectionArtistiquePage({ searchParams }: { searchParams?: { entite?: string } }) {
+export default async function DirectionArtistiquePage(props: { searchParams?: Promise<{ entite?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("ART_DIRECTION");
   const { entites, ouverte } = await vueDirectionArtistique(user, searchParams?.entite);
 

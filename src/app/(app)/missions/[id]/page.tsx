@@ -36,7 +36,8 @@ import { MissionRuntimePanel } from "@/components/missions/mission-runtime-panel
 
 export const dynamic = "force-dynamic";
 
-export default async function MissionRuntimePage({ params }: { params: { id: string } }) {
+export default async function MissionRuntimePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("WORKSPACE");
   // RÉSERVÉ AU SUPER ADMIN (§118.136) — même page qu'une mission inexistante, pour la même
   // raison que le filtre par propriétaire ci-dessus : on ne révèle rien par la différence.

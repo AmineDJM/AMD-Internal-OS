@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  * défini, on l'affiche comme bouton « Rejoindre » ; sinon repli sur la salle Jitsi (conservée).
  * Aucune donnée interne de l'OS n'est exposée (seul le titre est affiché).
  */
-export default async function PublicMeetPage({ params }: { params: { token: string } }) {
+export default async function PublicMeetPage(props: { params: Promise<{ token: string }> }) {
+  const params = await props.params;
   const meeting = await prisma.meeting.findUnique({
     where: { publicToken: params.token },
     select: { title: true, slug: true, withVideo: true, status: true, meetLink: true },

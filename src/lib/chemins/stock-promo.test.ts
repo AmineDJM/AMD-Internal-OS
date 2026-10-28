@@ -42,11 +42,11 @@ async function destination(appel: () => unknown): Promise<string> {
 describe("les anciennes adresses mènent au bon écran", () => {
   it("le stock : la vue demandée suit, une vue inconnue est jetée", async () => {
     const { default: Escale } = await import("@/app/(app)/promo-material/stock/page");
-    expect(await destination(() => Escale({ searchParams: { vue: "comptages" } }))).toBe(`${CHEMIN_STOCK_PROMO}?vue=comptages`);
-    expect(await destination(() => Escale({ searchParams: { vue: "moi" } }))).toBe(lienStockPromo("moi"));
-    expect(await destination(() => Escale({ searchParams: {} }))).toBe(CHEMIN_STOCK_PROMO);
+    expect(await destination(() => Escale({ searchParams: Promise.resolve({ vue: "comptages" }) }))).toBe(`${CHEMIN_STOCK_PROMO}?vue=comptages`);
+    expect(await destination(() => Escale({ searchParams: Promise.resolve({ vue: "moi" }) }))).toBe(lienStockPromo("moi"));
+    expect(await destination(() => Escale({ searchParams: Promise.resolve({}) }))).toBe(CHEMIN_STOCK_PROMO);
     // Une valeur forgée n'est pas recopiée dans l'adresse de destination.
-    expect(await destination(() => Escale({ searchParams: { vue: "https://ailleurs.example" } }))).toBe(CHEMIN_STOCK_PROMO);
+    expect(await destination(() => Escale({ searchParams: Promise.resolve({ vue: "https://ailleurs.example" }) }))).toBe(CHEMIN_STOCK_PROMO);
   });
 
   it("le catalogue", async () => {

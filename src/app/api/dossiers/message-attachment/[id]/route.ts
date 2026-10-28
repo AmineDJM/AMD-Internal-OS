@@ -8,7 +8,8 @@ import { getBlob } from "@/lib/drive-storage";
 export const dynamic = "force-dynamic";
 
 /** Sert une pièce jointe d'un message de dossier — réservé aux membres du dossier. */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user || !userCan(user, "DOSSIERS", "VIEW")) return new NextResponse(null, { status: 403 });
 

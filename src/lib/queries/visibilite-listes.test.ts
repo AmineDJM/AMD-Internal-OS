@@ -165,7 +165,7 @@ describe("Le cookie d'entité est une DEMANDE, jamais une autorisation (§118.17
   it("les lecteurs d'affichage ne s'en servent que pour NOMMER une entité parmi les leurs", () => {
     for (const f of ["src/app/(app)/courriers/page.tsx", "src/app/(app)/organigramme/page.tsx", "src/app/(app)/information-medicale/page.tsx"]) {
       const src = code(f);
-      const variable = src.match(/const (\w+) = getCompanyScope\(\);/)?.[1];
+      const variable = src.match(/const (\w+) = await getCompanyScope\(\);/)?.[1];
       expect(variable, `${f} : lecture du cookie introuvable`).toBeTruthy();
       // Chaque usage de la variable est une recherche dans une liste d'entités de la personne.
       const usages = [...src.matchAll(new RegExp(`\\b${variable}\\b`, "g"))].length;

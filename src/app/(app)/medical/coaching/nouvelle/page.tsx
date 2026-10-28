@@ -13,7 +13,8 @@ export const metadata = { title: "Nouvelle fiche de coaching — AMD Internal OS
  * NOUVELLE FICHE DE COACHING (§118.157) — sur la grille en vigueur. Le collaborateur peut être
  * pré-choisi par l'adresse (`?collaborateur=<id>`), depuis le suivi de l'équipe.
  */
-export default async function NouvelleFicheCoachingPage({ searchParams }: { searchParams?: { collaborateur?: string } }) {
+export default async function NouvelleFicheCoachingPage(props: { searchParams?: Promise<{ collaborateur?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MEDICAL");
   const l = await lecteurCoaching(user);
   const [courante, collaborateurs, managers] = await Promise.all([

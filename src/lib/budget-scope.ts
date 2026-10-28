@@ -20,9 +20,9 @@ const MAX_AGE = 60 * 60 * 24 * 180; // six mois : on ne redemande pas son envelo
  * La dernière enveloppe consultée. Défensif : hors contexte de requête (tests, tâches
  * planifiées), renvoie `null` — l'appelant retombera sur son défaut habituel.
  */
-export function getBudgetScope(): string | null {
+export async function getBudgetScope(): Promise<string | null> {
   try {
-    return cookies().get(BUDGET_COOKIE)?.value || null;
+    return (await cookies()).get(BUDGET_COOKIE)?.value || null;
   } catch {
     return null;
   }
@@ -34,6 +34,6 @@ export function getBudgetScope(): string | null {
  * L'URL d'abord, toujours : un lien envoyé à un collègue doit ouvrir CETTE enveloppe, pas la
  * dernière que le destinataire a regardée.
  */
-export function resolveBudgetEnvelope(fromUrl: string | undefined): string | null {
-  return fromUrl || getBudgetScope();
+export async function resolveBudgetEnvelope(fromUrl: string | undefined): Promise<string | null> {
+  return fromUrl || (await getBudgetScope());
 }

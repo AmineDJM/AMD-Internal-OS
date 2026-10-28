@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  * d'offres, puis on signe un contrat, puis la PCH envoie des bons de commande… si ça dépasse l'AO, on passe à des
  * avenants »). Attribué → BC cumulés → livré → reste ; au-delà de l'attribué, le dépassement est un avenant.
  */
-export default async function ContratsVentesPchPage({ searchParams }: { searchParams: ParamsVentesPch }) {
+export default async function ContratsVentesPchPage(props: { searchParams: Promise<ParamsVentesPch> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PCH_VENTES");
   const ctx = await contexteVentesPch(searchParams);
   const lignes = await chainesContratsPch(ctx.buId);

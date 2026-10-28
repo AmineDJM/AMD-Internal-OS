@@ -28,7 +28,8 @@ export const metadata = { title: "Centre de validation Ad & Pro — AMD Internal
  * ceux au-dessus du SEUIL DES BONS DE COMMANDE, réglé sur cet écran (§118.149 — 0 par défaut, donc
  * tous) ; en deçà, un BC va directement à la signature des Finances.
  */
-export default async function CentreAdProPage({ searchParams }: { searchParams: { ligne?: string } }) {
+export default async function CentreAdProPage(props: { searchParams: Promise<{ ligne?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("AD_PRO_CENTRE");
   if (!siegeAuCentreAdPro(user)) notFound();
 

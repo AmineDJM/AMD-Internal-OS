@@ -30,16 +30,17 @@ const STATUS: Record<string, { label: string; tone: "success" | "warning" | "neu
   ENDED: { label: "Terminée", tone: "neutral" },
 };
 
-function externalBase(): string {
+async function externalBase(): Promise<string> {
   const fromEnv = appBaseUrlForMeet();
   if (fromEnv) return fromEnv;
-  const h = headers();
+  const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host");
   const proto = h.get("x-forwarded-proto") ?? "https";
   return host ? `${proto}://${host}` : "";
 }
 
-export default async function MeetingDetailPage({ params }: { params: { id: string } }) {
+export default async function MeetingDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("MESSAGING");
 
   const meeting = await prisma.meeting.findUnique({
@@ -79,7 +80,7 @@ export default async function MeetingDetailPage({ params }: { params: { id: stri
     attachments: m.attachments,
   }));
 
-  const base = externalBase();
+  const base = await externalBase();
   const shareUrl = base ? publicMeetUrl(meeting.publicToken, base) : "";
   const openProposals = meeting.proposals.filter((p) => p.status === "PROPOSED");
   const acceptedCount = meeting.proposals.filter((p) => p.status === "ACCEPTED").length;

@@ -8,7 +8,8 @@ import { canViewMeeting } from "@/lib/meetings";
 export const dynamic = "force-dynamic";
 
 /** Sert une pièce jointe d'un message de réunion — réservé à l'organisateur et aux participants. */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 403 });
 

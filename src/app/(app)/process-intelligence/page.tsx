@@ -22,7 +22,8 @@ type Vue = (typeof VUES)[number];
  * journaux des circuits (`lib/process/mining.ts`) — et non plus « l'âge depuis la dernière modification ». Trois
  * vues : Circuits, Personnes, Plateforme ; période 30 j / 90 j / 12 mois (`?p=`). Super Admin.
  */
-export default async function ProcessIntelligencePage({ searchParams }: { searchParams?: { vue?: string; p?: string } }) {
+export default async function ProcessIntelligencePage(props: { searchParams?: Promise<{ vue?: string; p?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PROCESS_INTELLIGENCE");
   const vue: Vue = (VUES as readonly string[]).includes(searchParams?.vue ?? "") ? (searchParams!.vue as Vue) : "circuits";
   const periode = periodeDe(searchParams?.p);

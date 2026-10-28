@@ -75,7 +75,11 @@ const LEGAL_DOC_CATEGORIES = [
  * Le FICHIER de référence, lui, reste dans le Drive : Legal pointe dessus, ne le duplique pas.
  * Les pièces jointes ici sont les pièces PROPRES à l'engagement, par la table `Document` commune.
  */
-export default async function LegalDocumentPage({ params, searchParams }: { params: { id: string }; searchParams?: { emis?: string } }) {
+export default async function LegalDocumentPage(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ emis?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   // DEUX PORTES, ET LA SECONDE EST ÉTROITE. Legal ouvre tout le registre ; la COMPTABILITÉ n'y
   // ouvre que les FACTURES — elle venait les lire dans un écran à part, et centraliser ne devait
   // rien lui retirer. La restriction est vérifiée sur la pièce elle-même, plus bas : une porte

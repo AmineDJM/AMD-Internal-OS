@@ -145,7 +145,7 @@ async function perimetreOrganisations(userId: string): Promise<{
   if (!bearer) return { trouve: false, ouvertes: [], portee: null };
   const tous = all.map((c) => c.id);
   const ouvertes = allowedCompanyIds(bearer, tous);
-  const demande = getCompanyScope();
+  const demande = await getCompanyScope();
   if (tous.length < 2 || ouvertes.length === 0) return { trouve: true, ouvertes: null, portee: demande };
   return { trouve: true, ouvertes, portee: resolveScope(bearer, demande, tous) };
 }

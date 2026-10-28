@@ -86,7 +86,7 @@ export default async function AppLayout({
   // LE TÉMOIN DE VUE TEL QUE CE RENDU L'A VU : la garde d'identité de l'onglet le compare au témoin actuel et
   // recharge tout s'il a changé ailleurs (autre onglet, expiration) — jamais une coque d'une personne au-dessus
   // d'une page d'une autre (Direction, 06/10).
-  const marqueVue = cookies().get(MARQUE_VUE_COOKIE)?.value ?? "";
+  const marqueVue = (await cookies()).get(MARQUE_VUE_COOKIE)?.value ?? "";
 
   return (
     <IdentiteProvider id={user.id} vue={Boolean(user.impersonatedBy)}>

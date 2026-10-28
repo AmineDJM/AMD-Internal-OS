@@ -14,7 +14,8 @@ import { contentDisposition } from "@/lib/http/content-disposition";
  * La porte est celle de l'écran : `chargerFicheVisible`, donc la même règle que la page de la
  * fiche. Une fiche invisible rend 404, comme une fiche inexistante.
  */
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!userCan(user, "MEDICAL", "VIEW")) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });

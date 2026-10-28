@@ -26,7 +26,7 @@ export async function supplierLogin(
     return { ok: false, error: "Identifiants invalides ou compte désactivé." };
   }
 
-  setSupplierSession(su.id, su.supplierId);
+  await setSupplierSession(su.id, su.supplierId);
   await prisma.supplierUser.update({ where: { id: su.id }, data: { lastLoginAt: new Date() } });
   await recordAudit({
     actorId: null, action: "LOGIN", module: "Portail fournisseur",
@@ -36,6 +36,6 @@ export async function supplierLogin(
 }
 
 export async function supplierLogout(): Promise<ActionResult> {
-  clearSupplierSession();
+  await clearSupplierSession();
   return { ok: true };
 }

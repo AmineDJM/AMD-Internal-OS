@@ -15,7 +15,8 @@ export const metadata = { title: "Affinité par établissement — AMD Internal 
  * produits et/ou de molécules), sur la période choisie, établissement par établissement. C'est une affinité
  * d'HÔPITAL : l'utiliser pour un médecin est un proxy que la stratégie de segmentation choisit explicitement.
  */
-export default async function AffinitePage({ searchParams }: { searchParams?: { p?: string } }) {
+export default async function AffinitePage(props: { searchParams?: Promise<{ p?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("CONSUMPTION");
   const peutRegler = userCan(user, "CONSUMPTION", "VALIDATE");
   const { produits, configs } = await produitsEtConfigsAffinite();

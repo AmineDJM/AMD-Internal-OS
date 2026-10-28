@@ -104,8 +104,7 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
  * critère même de `rendreEnCours` — et pendant un rendu la vue est toujours honorée pour une lecture
  * (`vueHonoree`). Hors rendu (corps d'une action, route d'API), chaque appel recalcule, comme avant.
  */
-const buildDuRendu: () => Promise<CurrentUser | null> =
-  typeof cache === "function" ? cache(async () => build(await auth())) : async () => build(await auth());
+const buildDuRendu = cache(async (): Promise<CurrentUser | null> => build(await auth()));
 
 /** Returns the signed-in user (with resolved access) or redirects to /login. */
 export async function requireUser(): Promise<CurrentUser> {

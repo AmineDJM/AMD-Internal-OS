@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Scale, Coins, Timer, Layers, ClipboardList, RefreshCw, ShieldCheck, XCircle, Sparkles } from "lucide-react";
 import { requireModule } from "@/lib/session";
@@ -53,7 +54,7 @@ export default async function EnregistrementPage() {
           <CardTitle className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-primary" /> Analyseur de dossier CTD</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1.5 text-sm text-muted-foreground">
-          <p>Déposez un dossier CTD en <strong>ZIP</strong> dans l'onglet <a href="/regulatory/enregistrement/analyse" className="font-medium text-primary hover:underline">Analyse CTD</a> : le logiciel le <strong>décompresse en sécurité</strong>, <strong>lit et conserve</strong> chaque fichier (chiffré), le <strong>classe</strong> dans le bon module CTD (1 à 5), puis produira une <strong>analyse fond &amp; forme</strong> au regard de la <strong>réglementation algérienne</strong> (et des références CTD/UE), signalera les manques et <strong>préparera les formulaires</strong>.</p>
+          <p>Déposez un dossier CTD en <strong>ZIP</strong> dans l'onglet <Link href="/regulatory/enregistrement/analyse" className="font-medium text-primary hover:underline">Analyse CTD</Link> : le logiciel le <strong>décompresse en sécurité</strong>, <strong>lit et conserve</strong> chaque fichier (chiffré), le <strong>classe</strong> dans le bon module CTD (1 à 5), puis produira une <strong>analyse fond &amp; forme</strong> au regard de la <strong>réglementation algérienne</strong> (et des références CTD/UE), signalera les manques et <strong>préparera les formulaires</strong>.</p>
           <p>Cette page reste la <strong>base de connaissance</strong> qui pilote l'analyseur — l'assistant IA la maîtrise (posez-lui vos questions d'enregistrement). Toute conclusion IA est un <strong>projet soumis à revue humaine</strong>.</p>
         </CardContent>
       </Card>

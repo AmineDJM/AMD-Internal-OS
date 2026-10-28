@@ -4,6 +4,7 @@ import { PageBilletsEmis } from "@/components/care/page-billets-emis";
 export const dynamic = "force-dynamic";
 
 /** Billets émis et confirmations d'hôtel d'une prise en charge nationale — voir `PageBilletsEmis`. */
-export default function BilletsNatPage({ params }: { params: { id: string } }) {
+export default async function BilletsNatPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   return <PageBilletsEmis scope="NATIONAL" id={params.id} />;
 }

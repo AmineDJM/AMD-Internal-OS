@@ -73,7 +73,8 @@ import { reviserNumeroDuBc } from "@/lib/actions/fabrique-actions";
  *     et le journal de l'autre (`separerLeFil`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export default async function RequestDetailPage({ params }: { params: { id: string } }) {
+export default async function RequestDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("ADMIN_REQUESTS");
   // VALIDATEUR D'UNE PIÈCE = ACCÈS À TOUTE LA DEMANDE (`clauseDemandeLisible`, §118.184).
   const req = await prisma.administrativeRequest.findFirst({

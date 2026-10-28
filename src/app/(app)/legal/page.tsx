@@ -53,7 +53,10 @@ export const metadata = { title: "Legal — AMD Internal OS" };
  * lire ce qui reste à payer — et ne devait pas non plus lui ouvrir les baux et les contrats de
  * cadre. La restriction est posée DANS LA REQUÊTE : un filtre d'écran se retire dans le navigateur.
  */
-export default async function LegalPage({ searchParams }: { searchParams?: { echeances?: string; dossier?: string; nature?: string } }) {
+export default async function LegalPage(
+  props: { searchParams?: Promise<{ echeances?: string; dossier?: string; nature?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   // LA PORTÉE ET SA CLAUSE, calculées UNE fois (`perimetreLegal`) et lues aussi par la recherche
   // globale : la palette ne doit trouver que ce que cette liste montre (§118.177).

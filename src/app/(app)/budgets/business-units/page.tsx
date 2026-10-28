@@ -38,7 +38,8 @@ export const dynamic = "force-dynamic";
  * Une gamme SANS sous-département apparaît quand même, à zéro et signalée. La masquer ferait
  * croire que toutes les gammes sont budgétées — et c'est justement celle-là qu'il faut rattacher.
  */
-export default async function BusinessUnitBudgetsPage({ searchParams }: { searchParams: { year?: string } }) {
+export default async function BusinessUnitBudgetsPage(props: { searchParams: Promise<{ year?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!userCan(user, "BUDGETS", "VIEW")) notFound();
   const year = normalizeYear(searchParams.year);

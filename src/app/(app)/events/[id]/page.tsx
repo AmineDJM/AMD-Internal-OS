@@ -49,7 +49,8 @@ import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
 
 export const dynamic = "force-dynamic";
 
-export default async function EventDetailPage({ params }: { params: { id: string } }) {
+export default async function EventDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("EVENTS");
   const e = await getEventDetail(params.id);
   if (!e) notFound();

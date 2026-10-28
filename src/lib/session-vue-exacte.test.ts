@@ -22,7 +22,7 @@ vi.mock("@/auth", () => ({ auth: async () => SESSION }));
 // Le stockage asynchrone de Next qui marque l'exécution du CORPS d'une action serveur : on y met le même
 // `AsyncLocalStorage` que Next instancie (le sien n'existe qu'une fois le serveur démarré).
 const { ACTION_STORE } = vi.hoisted(() => ({ ACTION_STORE: { current: null as null | { run: <T>(s: { isAction: boolean }, f: () => T) => T; getStore: () => unknown } } }));
-vi.mock("next/dist/client/components/action-async-storage.external", async () => {
+vi.mock("next/dist/server/app-render/action-async-storage.external", async () => {
   const { AsyncLocalStorage: ALS } = await import("node:async_hooks");
   const store = new ALS<{ isAction: boolean }>();
   ACTION_STORE.current = store as never;

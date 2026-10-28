@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
  * La redirection reste : des notifications déjà parties, des liens copiés dans des messages et
  * des favoris pointent ici. Une page 404 leur ferait croire que le module a disparu.
  */
-export default function OrdresDepenseRedirect({ searchParams }: { searchParams: { focus?: string } }) {
-  redirect(searchParams.focus ? `/finances/paiements-a-faire?focus=${searchParams.focus}` : "/finances/paiements-a-faire");
+export default async function OrdresDepenseRedirect(props: { searchParams: Promise<{ focus?: string }> }) {
+ const searchParams = await props.searchParams;
+ redirect(searchParams.focus ? `/finances/paiements-a-faire?focus=${searchParams.focus}` : "/finances/paiements-a-faire");
 }

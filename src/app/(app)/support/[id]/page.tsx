@@ -20,7 +20,8 @@ export const dynamic = "force-dynamic";
 
 const SUPPORT_DOC_CATEGORIES = ["PROGRAM", "SUPPORTING_DOC", "OTHER"];
 
-export default async function SupportDetailPage({ params }: { params: { id: string } }) {
+export default async function SupportDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const r = await getSupportRequest(params.id);
   if (!r) notFound();

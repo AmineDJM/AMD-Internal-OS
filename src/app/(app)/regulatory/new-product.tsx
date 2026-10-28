@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2, AlertCircle } from "lucide-react";
 import { createRegulatoryProduct, type ActionResult } from "@/lib/actions/regulatory-actions";
@@ -31,7 +31,7 @@ interface UserOption {
 export function NewProductButton({ users, suppliers, companies, lockOnCreate = false }: { users: UserOption[]; suppliers: { id: string; name: string }[]; companies: { id: string; name: string; shortName: string | null }[]; lockOnCreate?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [state, formAction] = useFormState<ActionResult | undefined, FormData>(
+  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
     createRegulatoryProduct,
     undefined,
   );

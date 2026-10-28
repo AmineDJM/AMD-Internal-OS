@@ -18,7 +18,8 @@ export const runtime = "nodejs";
  * La réponse reste laconique — des comptes, jamais le détail d'un refus : on ne renseigne pas un
  * attaquant sur ce qui a échoué. Le détail est dans `inbound_events`, sous la vue globale.
  */
-export async function POST(req: Request, { params }: { params: { source: string } }) {
+export async function POST(req: Request, props: { params: Promise<{ source: string }> }) {
+  const params = await props.params;
   const raw = await req.text();
   let signature: string | null = null;
   for (const h of EN_TETES_SIGNATURE) { signature = req.headers.get(h); if (signature) break; }

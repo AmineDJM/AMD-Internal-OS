@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
  * SERT LE FICHIER ORIGINAL d'un import « Ventes PCH », tel qu'il a été déposé — à qui lit le module. Toujours en
  * téléchargement (un classeur ne s'ouvre pas dans le navigateur), `nosniff`, aucune mise en cache.
  */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
   if (!userCan(user, "PCH_VENTES", "VIEW")) return new NextResponse(null, { status: 404 });

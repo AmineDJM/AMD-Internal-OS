@@ -45,7 +45,7 @@ them.
   load + entity/state check → write (sometimes `$transaction`, sometimes a conditional
   `updateMany` lock) → `recordAudit` (this also feeds the event ledger) → `notifyUser/notifyRoles`
   → `revalidatePath` → `return {ok:true,id}`. [V]
-- **UI**: `useFormState` inside `CreateRecordButton`, or the `useAction()` hook. Both guard against
+- **UI**: `useActionState` inside `CreateRecordButton`, or the `useAction()` hook. Both guard against
   a thrown action and a 45-second timeout, with a message that says "check the list before you
   resubmit" (`src/lib/action-outcome.ts`). Several screens still use a hand-written
   `await fn(); setBusy(false)` with no `try`. [V]
@@ -77,7 +77,7 @@ them.
 | `src/lib/actions/types.ts` | `ActionResult` and the FormData parsers `fdStr/fdNum/fdDate/fdBool/fdCase`. |
 | `src/lib/action-outcome.ts` | Pure module: failure wording (`actionFailureMessage`), `ACTION_TIMEOUT_MS = 45_000`. |
 | `src/components/shared/use-action.ts:29,83` | `useAction()` / `useKeyedAction()`: client wrapper around an action (catch + timeout + refresh). |
-| `src/components/shared/create-record-button.tsx:331-433` | Generic create dialog: `useFormState` with a guarded action, then navigate to `${redirectBase}/${id}`. |
+| `src/components/shared/create-record-button.tsx:331-433` | Generic create dialog: `useActionState` with a guarded action, then navigate to `${redirectBase}/${id}`. |
 | `src/lib/audit.ts:23,63,91` | `recordAudit` (best-effort) → `emettreFait` (event ledger) ; `recordFieldChanges`. |
 | `src/lib/notify.ts:19,84` | `notifyUser` (row + PWA push), `notifyRoles`. |
 | `src/lib/refs.ts:23,32,68` | `buildRef("SUP", year, existing)`, `createWithRetry` (P2002 retry), `enSerie` (in-process serial queue). |
@@ -97,7 +97,7 @@ them.
   `error.tsx` and `not-found.tsx`, and 283 `page.tsx` in total. Folder names are French URL slugs
   (`centre-de-paiement`, `moyens-generaux`, `bons-de-commande`), with some legacy English ones
   (`sales`, `logistics`, `field-reports`, `business-development`). [V]
-- `src/app/(auth)/login`: the login form, which uses `useFormState`. [V]
+- `src/app/(auth)/login`: the login form, which uses `useActionState`. [V]
 - `src/app/(portal)/portail`: the external supplier portal. Its layout is deliberately bare
   (`(portal)/layout.tsx`), and pages call `requireSupplier()`, which redirects to
   `/portail/login`. The middleware skips `/portail` (`auth.config.ts:23`). [V]
@@ -200,7 +200,7 @@ export default async function SupportPage() {
 **Signatures.** Two forms exist:
 
 - `(formData: FormData) => Promise<ActionResult>`, used by `useAction` and `onClick` callers;
-- `(_prev: ActionResult | undefined, formData: FormData)`, used by `useFormState`, e.g.
+- `(_prev: ActionResult | undefined, formData: FormData)`, used by `useActionState`, e.g.
   `createSupportRequest` (`support-actions.ts:46`) and `createPaymentRequest`
   (`payment-request-actions.ts:183`). Create actions wired to `CreateRecordButton` use this one.
 
@@ -267,7 +267,7 @@ follow this `…For(user` pattern. [V]
 - **`CreateRecordButton`** (`create-record-button.tsx`). The action is wrapped in `guarded()`
   (`:345-361`), which catches a throw and returns `{ok:false, error:"L'enregistrement n'a pas
   abouti … VÉRIFIEZ D'ABORD LA LISTE …"}`. That is passed to
-  `useFormState(guarded, undefined)` (`:362`). On `ok` it calls `router.push(redirectBase/id)` or
+  `useActionState(guarded, undefined)` (`:362`). On `ok` it calls `router.push(redirectBase/id)` or
   `router.refresh()` (`:419-433`). `state.error` is rendered inline (`:550`). A separate timer
   covers the "never answered" case. [V]
 - **`useAction()`** (`use-action.ts:29-79`). `run(fn, onOk)` sets `saving`, starts a 45-second
@@ -522,7 +522,7 @@ Session-route conventions:
 2. **Page.** `support/page.tsx:22` runs `requireModule("SUPPORT")`, then `getSupportRequests(user)`
    (scoped by `scopeSupport` and `platformScope`) and an active-user list, in parallel. [V]
 3. **Form.** `<CreateRecordButton action={createSupportRequest} redirectBase="/support" fields=[…]>`
-   (`:38-55`). On submit, `useFormState(guarded)` posts the `FormData` to the action. [V]
+   (`:38-55`). On submit, `useActionState(guarded)` posts the `FormData` to the action. [V]
 4. **Action** `createSupportRequest(_prev, formData)` (`support-actions.ts:46-77`):
    - `requireUser()` (`:47`);
    - `userCan(user,"SUPPORT","CREATE")`, else "Non autorisé." (`:48`);
@@ -692,7 +692,7 @@ conditional on the status that was read (see §8). [V]
 - **D1. The middleware blocks "public" machine routes (high severity).** `src/auth.config.ts:16-58`
   returns `isLoggedIn` for every path not listed. It lists `/portail`, `/inscription`,
   `/api/events/qr`, `/meet/`, `/api/site-web/v1/`, `/api/onlyoffice/{file,callback}`. With
-  `next-auth@5.0.0-beta.22`, `handleAuth` redirects to the sign-in page when `authorized` is false
+  `next-auth@5.0.0-beta.32`, `handleAuth` redirects to the sign-in page when `authorized` is false
   (`node_modules/next-auth/lib/index.js`, `else if (!authorized)` branch), and the matcher only
   excludes `api/auth`. These routes are documented or commented as reachable without a session:
   - `/api/v1/**`: `docs/api/AGENT_API_GUIDE.md`, `API_SECURITY.md`, and

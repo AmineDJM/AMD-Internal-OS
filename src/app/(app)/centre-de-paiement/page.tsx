@@ -45,7 +45,8 @@ export const metadata = { title: "Centre de paiement — AMD Internal OS" };
  * avec ce qui y attend), puis, sous l'entité choisie, trois sections — Regulatory, Sales &
  * Marketing, Autres — rangées d'après l'ORIGINE de la dépense (`payments/sections-centre.ts`).
  */
-export default async function CentreDePaiementPage({ searchParams }: { searchParams?: { entite?: string; section?: string } }) {
+export default async function CentreDePaiementPage(props: { searchParams?: Promise<{ entite?: string; section?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
 
   // Le chargeur lit les ordres que cet écran lisait déjà — tout le centre pour qui y siège, ses

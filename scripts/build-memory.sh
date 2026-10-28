@@ -15,7 +15,10 @@
 # Sortie non nulle si le pic dépasse le plafond, pour qu'une CI puisse s'en servir.
 set -u
 
-LIMIT_MB="${BUILD_MEM_LIMIT_MB:-4200}"
+# Plafond : 4200 Mo sous Next 14. Next 15 mesure 5150 Mo (tas 3584, ci-dessous) : le plafond suit
+# la mesure avec ~8 % de marge, et reste sous la ligne utile de Render (8 Go moins node_modules
+# 1,3 Go et .next ~0,6 Go dans le même conteneur).
+LIMIT_MB="${BUILD_MEM_LIMIT_MB:-5600}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 1
 
@@ -29,10 +32,12 @@ cd "$ROOT" || exit 1
 # Le plafond de tas est le levier lui-même : V8 laisse un processus grossir jusqu'à sa limite
 # avant de ramasser sérieusement. Mesuré sur un build propre, un seul chiffre changé :
 #   4096 Mo → pic 5272 Mo (un worker de compilation à 5114)
-#   3072 Mo → pic 3743 Mo, build OK      ← retenu
+#   3072 Mo → pic 3743 Mo, build OK      ← retenu sous Next 14
 #   2048 Mo → le worker de compilation MEURT (SIGABRT, « heap out of memory »)
+# Next 15.5.28 (10/2026) : le worker de compilation serveur MEURT à 3072 Mo ; 3584 Mo → pic
+# 5150 Mo, build OK ← retenu ; 4096 Mo → pic 5612 Mo. Détail : `TAS_DU_BUILD_MO`, next.config.mjs.
 # La valeur retenue doit donc rester alignée sur celle de `build:render` dans package.json.
-HEAP_MB="${BUILD_HEAP_MB:-3072}"
+HEAP_MB="${BUILD_HEAP_MB:-3584}"
 export NODE_OPTIONS="--max-old-space-size=${HEAP_MB}"
 
 # Un build PROPRE : le cache .next masquerait le vrai coût, et Render part d'un dossier vide.

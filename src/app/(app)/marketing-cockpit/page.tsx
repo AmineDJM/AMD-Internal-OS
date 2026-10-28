@@ -43,7 +43,10 @@ type Vue = (typeof VUES)[number];
  *
  * La porte est le module MARKETING_COCKPIT ; le marché et l'argent ont chacun leur règle (`marketing-cockpit/acces.ts`).
  */
-export default async function MarketingCockpitPage({ searchParams }: { searchParams?: { vue?: string; produit?: string; bu?: string } }) {
+export default async function MarketingCockpitPage(
+  props: { searchParams?: Promise<{ vue?: string; produit?: string; bu?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MARKETING_COCKPIT");
   const maintenant = new Date();
   const voitMarche = peutVoirMarcheCockpit(user);

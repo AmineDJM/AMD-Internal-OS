@@ -34,7 +34,8 @@ export const dynamic = "force-dynamic";
  * validation porte souvent une pièce sensible (un contrat, une facture) : la rendre lisible à
  * tout le module l'aurait ouverte bien plus largement que la file de validation elle-même.
  */
-export default async function ValidationRequestPage({ params }: { params: { id: string } }) {
+export default async function ValidationRequestPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const req = await prisma.validationRequest.findUnique({
     where: { id: params.id },

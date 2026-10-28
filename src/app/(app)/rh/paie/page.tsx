@@ -28,7 +28,8 @@ export const dynamic = "force-dynamic";
  * entité (« Envoyer la paie »), puis la grille salariés × mois avec la masse salariale en pied,
  * l'alerte des salariés sans entité, les avances à trancher.
  */
-export default async function PaiePage({ searchParams }: { searchParams: { year?: string } }) {
+export default async function PaiePage(props: { searchParams: Promise<{ year?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("RH");
   if (!userCan(user, "RH", "UPDATE")) redirect("/mon-dossier");
 

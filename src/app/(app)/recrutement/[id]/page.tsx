@@ -74,7 +74,8 @@ function nomCourt(nom: string): string {
  * (le panneau de la personne qu'on attend), le reste dans « ⋯ », l'explication dans les ⓘ. Ce qui s'AFFICHE est
  * calculé ici, une fois, par le même `abilities()` que le serveur revérifie ensuite.
  */
-export default async function RecruitmentPage({ params }: { params: { id: string } }) {
+export default async function RecruitmentPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("RECRUITMENT");
   const viewer = await recruitmentViewer(user, params.id);
   if (!viewer) notFound();

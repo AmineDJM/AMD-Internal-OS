@@ -29,9 +29,13 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
   "gate" is the developer running `typecheck → build → test → next lint` locally, plus Render's
   own build failing.
 - **Build memory** is the dominant infra concern: Render kills builds at 8 GB (processes + workspace
-  files). `next.config.mjs` caps workers (`cpus: 1`), disables server minification and file tracing,
+  files). `next.config.mjs` caps workers (`cpus: 1`), disables server minification and per-page file tracing (Next 15: by removing
+  `TraceEntryPointsPlugin` from the server compiler — the `outputFileTracing` option is gone),
   shrinks the webpack cache and, **when `RENDER` is set, runs `tsc` in its own 5 GB process** before
   compiling — because (doctrine §118.208) the Render dashboard command overrides `render.yaml`.
+  **Since Next 15 (V3-A, 2026-10-28)** the compile heap is **3584 MB** (`TAS_DU_BUILD_MO`): Next 15's
+  server compile dies at 3072. Clean-build peaks (RENDER=1): Next 14 @3072 = 4542 MB; Next 15 @3584 =
+  5150 MB; @4096 = 5612 MB.
 - **Background jobs**: no external cron, no `instrumentation.ts`. `src/lib/scheduled.ts` arms an
   in-process `setInterval` (60 s) **the first time the module is imported** — in practice the first
   `GET /api/messaging/sync` poll by a logged-in browser — and runs ~48 sequential, idempotent,
@@ -52,7 +56,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
   Center", and read-only diagnostic CLIs (`adam:doctor`, `storage:check`). No APM/Sentry/metrics
   endpoint; Render's health check hits `/login`.
 - **Notable finding**: `middleware.ts` sits at the **repo root** while the app lives in `src/app`;
-  Next 14 only looks for middleware next to the `app` dir's parent (`src/`), so the edge auth
+  Next (14.2 and 15.5) only looks for middleware next to the `app` dir's parent (`src/`), so the edge auth
   middleware is very likely **not compiled at all** (details §8, §9).
 
 ---
@@ -63,7 +67,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 |---|---|
 | `render.yaml` | Render Blueprint: free Postgres `amd-postgres`, free web service, build/start commands, env vars, health check `/login`. |
 | `next.config.mjs` | Build-memory controls, separate typecheck on Render, heap cap for build workers, security headers, server-external packages, 256 MB server-action body. |
-| `package.json` | ~60 scripts (build, test, db, graphify, autotest, ~25 benches). Node deps pinned for Next 14.2.35 / Prisma 5.22 / Vitest 2.1.2 / Playwright 1.62. |
+| `package.json` | ~60 scripts (build, test, db, graphify, autotest, ~25 benches). Node deps pinned for Next 15.5.28 + React 19.2 / Prisma 5.22 / Vitest 2.1.9 / Playwright 1.62. `overrides`: `postcss` (Next pins a vulnerable 8.4.31) and `image-size` (declared, never loaded, by pptxgenjs). `xlsx` comes from the SheetJS CDN tarball (npm is no longer published). |
 | `tsconfig.json` / `tsconfig.build.json` | Full typecheck (`**/*.ts`, incl. tests, scripts, e2e) vs production-only typecheck (`src/**`, tests excluded, non-incremental). |
 | `.eslintrc.json` | `next/core-web-vitals` + 3 rules off. Lint only covers `src/` (Next default dirs). |
 | `.npmrc` | `legacy-peer-deps=true` (imapflow → nodemailer 9 vs next-auth's optional peer nodemailer 6). |
@@ -135,15 +139,16 @@ Exported as a **phase function** (`next.config.mjs:191-196`) [V]:
 3. Static config:
    - `eslint.ignoreDuringBuilds: true` (`:44`) — lint is **never** run by `next build`.
    - `experimental.cpus: 1` (`:70`) — one static-generation worker (~1.7 GB each, measured 10/2026).
-   - `webpackBuildWorker: true` (`:74`), `serverMinification: false` (`:83`).
-   - `serverComponentsExternalPackages` (`:89`): `bcryptjs, imapflow, nodemailer, mailparser,
+   - `webpackBuildWorker: true`, `webpackMemoryOptimizations: true` (Next 15), `serverMinification: false`.
+   - `serverExternalPackages` (top-level since Next 15): `bcryptjs, imapflow, nodemailer, mailparser,
      pdf-parse, mammoth, xlsx, tesseract.js, mupdf, sharp, docxtemplater, pizzip, pdfkit,
      @mastra/core` (pdfkit must stay external so its `.afm` font files resolve at runtime).
    - `serverActions.bodySizeLimit: "256mb"` (`:95`) — real limit enforced by `AppSetting`/
      `validateUpload`.
-   - `outputFileTracing: false` (`:104`).
-   - `webpack()` hook (`:121-127`): `cache.maxMemoryGenerations = 1`; gzip cache compression when
-     `RENDER` set.
+   - No `outputFileTracing` (removed by Next 15): the `webpack()` hook drops `TraceEntryPointsPlugin`
+     from the production server compiler instead (−~250 MB peak, −33 s, measured 2026-10-28).
+   - `webpack()` hook: `cache.maxMemoryGenerations = 1`; gzip cache compression when `RENDER` set.
+   - `TAS_DU_BUILD_MO = 3584`: heap cap injected into build workers when no cap is set.
    - `headers()` (`:128-170`): CSP limited to `frame-ancestors 'self'; object-src 'none';
      base-uri 'self'; form-action 'self'; upgrade-insecure-requests` (no script/style/connect
      restrictions on purpose — OnlyOffice, inline Next scripts, blob: previews), plus
@@ -598,12 +603,14 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
   OAuth secrets become unreadable. Note the two derivations prefer **different** variables:
   `drive-storage.ts` uses `NEXTAUTH_SECRET ?? AUTH_SECRET`; `secret-box.ts` uses
   `MAIL_ENCRYPTION_KEY || DRIVE_ENCRYPTION_KEY || AUTH_SECRET || NEXTAUTH_SECRET` [V].
-- **`next.config.mjs` `serverComponentsExternalPackages`** ↔ `client-bundle-guard`
+- **`next.config.mjs` `serverExternalPackages`** (Next 15 name) ↔ `client-bundle-guard`
   `NODE_ONLY_PACKAGES`: adding a new native/WASM dependency usually requires updating both.
 - **`scripts/graphify-refresh.sh`** temporarily moves `src/lib/actions/aiguillage.genere.ts` away;
   any build/typecheck/test started during a refresh fails with "Can't resolve './aiguillage.genere'".
-- **Upgrading Next** (14.2.35): the `cpus`/`webpackBuildWorker`/`serverMinification` knobs and the
-  middleware location rules are version-specific; the comments cite `next/dist` 14.2.35 internals.
+- **Upgrading Next** (15.5.28 since V3-A): the `cpus`/`webpackBuildWorker`/`serverMinification`/
+  `webpackMemoryOptimizations` knobs, the `TraceEntryPointsPlugin` filter (by constructor name — a
+  rename upstream silently re-enables tracing, +~250 MB) and the middleware location rule are
+  version-specific. Next 16 removes `next lint` (`build:render` calls it): migrate to the ESLint CLI first.
 - **Test DB = dev DB by default** (`amd_internal_os` on localhost): running `npm test` seeds tagged
   rows into the local working database.
 
@@ -626,8 +633,8 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
    `sortie/garde.ts`).
 6. **Do not set `NODE_OPTIONS` in the Render dashboard** (`render.yaml:46-49`): it would apply to
    `next start` too, and a big V8 heap on a small instance OOMs at runtime.
-7. **`middleware.ts` location** [V]: Next 14.2.35 resolves middleware in
-   `path.join(pagesDir || appDir, "..")` (`node_modules/next/dist/build/index.js:478-488`), i.e.
+7. **`middleware.ts` location** [V]: Next 14.2.35 — and still Next 15.5.28 (`node_modules/next/dist/build/index.js:548`, re-checked 2026-10-28, V3-A) — resolves middleware in
+   `path.join(pagesDir || appDir, "..")`, i.e.
    `src/` here, but the file is at the repo root and `src/middleware.ts` does not exist. The edge
    `authorized` callback (`src/auth.config.ts:16-71`) therefore probably never runs; protection
    comes from `requireUser()` in `src/app/(app)/layout.tsx:45` and per-route checks. Consistent with
@@ -723,7 +730,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
      called from `runScheduledJobs()` wrapped in `.catch`, placed after the critical reminders.
    - Added an env var → read it with a safe default, add it to `.env.example`, readme 23 and, for
      production, `render.yaml` (`sync: false` for secrets); never print values in diagnostics.
-   - Added a native/Node-only dependency → `serverComponentsExternalPackages` and
+   - Added a native/Node-only dependency → `serverExternalPackages` and
      `NODE_ONLY_PACKAGES` in the bundle guard.
 3. **Migration** → new folder sorting after `20270126100000_*`, hand-written idempotent SQL,
    `npm run db:deploy` locally (also on the test DB), update `schema.prisma`, `npm run db:generate`.
@@ -750,7 +757,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
   (`scheduled.ts:52-420`, `api/messaging/sync/route.ts:6-17`).
 - [V] Test/bench DB guard and pool (`prisma.ts:93-177`); outbound kill switch (`garde.ts:118-139`).
 - [V] Test counts, `dbOk` idiom counts, guard tests listed and their ceilings.
-- [V] Next 14.2.35 middleware lookup rule; root `middleware.ts`; no `src/middleware.ts`.
+- [V] Next 14.2.35 / 15.5.28 middleware lookup rule; root `middleware.ts`; no `src/middleware.ts`.
 - [V] No APM. (CI, `global-error.tsx` and the `/api/health` health check exist since the 27/10 audit and lot V3-E — §4.10.)
 - [U] Which build command the Render dashboard currently runs and which branch it tracks.
 - [U] Whether `build:measure` fails at its 4,200 MB default today (not run, per instructions).
