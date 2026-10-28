@@ -18,7 +18,6 @@ import { peutRelancerPiece, visaExige } from "@/lib/medical-info/parcours";
 import { archiveProcessedRequest } from "@/lib/archive";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationPieceInfoMed } from "@/lib/annulations/regles";
-import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
 import {
   circuitOfDeclaration, isOpenableDeclarationKind, DECLARATION_KIND_LABEL, ordreGlobalALaValidation,
 } from "@/lib/medical-info/circuits";
@@ -27,9 +26,8 @@ import {
 } from "@/lib/medical-info/declare-decision";
 import {
   canDeliverSlip, canEditSlips, canRequestSlipPayment, canRequestSlipsValidation, slipStage, slipSansPaiementVivant,
-  PRISE_DU_BON, SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
+  SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
 } from "@/lib/medical-info/slips";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
 import { nextDeclarationRef, decideursInfoMedActifs, pharmacienAssigne } from "@/lib/medical-info";
@@ -45,9 +43,10 @@ import {
 import { demanderAuDecideur, laDepenseEstPorteeParLesPostes } from "@/lib/actions/internes/medical-info/circuit";
 import { clorePrecedente } from "@/lib/actions/internes/medical-info/ecritures";
 import {
-  formulaireDeLaQuittance, refusDepotAutorites, refusSansVersement, reporterOrdreSurLaSource, resumeDArchive,
+  refusDepotAutorites, refusSansVersement, reporterOrdreSurLaSource, resumeDArchive,
 } from "@/lib/actions/internes/medical-info/dossier";
-// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/medical-info/{acces,circuit,ecritures,dossier}` — les actions restent ici (leur clé de contrat).
+import { demanderLaQuittance } from "@/lib/actions/internes/medical-info/quittance";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/medical-info/{acces,circuit,ecritures,dossier,quittance}` — les actions restent ici (leur clé de contrat).
 
 /** Recalcule le statut READY / DOCS_REQUESTED / AWAITING_REVIEW selon l'état des pièces. */
 async function refreshStatus(declarationId: string) {
@@ -494,60 +493,16 @@ export async function requestSlipPayment(_prev: ActionResult | undefined, formDa
     return { ok: false, error: `Le paiement de ce bon ne peut pas être demandé maintenant : ${SLIP_STAGE_LABEL[slipStage(courant ?? { requestId: null, centralStatus: null, orderStatus: null, deliveredAt: null })].toLowerCase()}.` };
   }
 
-  const raw = fdStr(formData, "amount");
-  const amount = raw ? Number(raw.replace(",", ".")) : NaN;
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Indiquez le montant de la quittance." };
-
-  // On rejoue le formulaire de la demande de paiement : c'est la MÊME action canonique que depuis
-  // les Demandes de validations, donc les mêmes contrôles et le même circuit.
-  const fd = formulaireDeLaQuittance(slip, decl, amount, {
-    payee: fdStr(formData, "payee"), note: fdStr(formData, "note"), dueDate: fdStr(formData, "dueDate"),
-    files: formData.getAll("files"),
-  });
-
-  // UN SEUL ORDRE VIVANT PAR BON (audit 10/2026). Deux soumissions simultanées lisaient toutes deux
-  // « quittance à demander » et créaient chacune leur demande — donc deux ordres au centre de paiement
-  // pour une seule taxe. Le bon est d'abord PRIS, par une écriture conditionnelle à ce qu'on a lu ; le
-  // second trouve la place prise et s'arrête avant d'avoir rien créé. Le jeton de prise voyage avec la
-  // demande : c'est lui qui prouve, à la création, qu'elle vient bien d'un bon de CE dossier — la seule
-  // porte de l'exemption de facture (`bonDeVersementRattache`).
-  const jeton = `${PRISE_DU_BON}${randomUUID()}`;
-  const pris = await prisma.medicalInfoSlip.updateMany({
-    where: { id: slipId, requestId: courant.requestId, deliveredAt: null },
-    data: { requestId: jeton },
-  });
-  if (pris.count === 0) return { ok: false, error: "Le paiement de ce bon vient d'être demandé — rechargez la page." };
-  fd.set("medicalInfoSlipClaim", jeton);
-
-  let created: ActionResult;
-  try {
-    created = await createPaymentRequest(undefined, fd);
-  } catch (err) {
-    console.error("[medical-info] demande de paiement du bon non créée", err);
-    created = { ok: false, error: "La demande de paiement n'a pas pu être créée." };
-  }
-  if (!created.ok || !created.id) {
-    // Rien n'est parti : le bon retrouve son état d'avant la prise.
-    await prisma.medicalInfoSlip.updateMany({ where: { id: slipId, requestId: jeton }, data: { requestId: courant.requestId } });
-    return { ok: false, error: created.error ?? "La demande de paiement a été refusée." };
-  }
-
-  const rattache = await prisma.medicalInfoSlip.updateMany({ where: { id: slipId, requestId: jeton }, data: { requestId: created.id } });
-  if (rattache.count === 0) {
-    // Le bon a changé pendant la création (retiré, remis) : la demande née n'a plus d'objet — elle et son
-    // ordre sont annulés tant que rien n'est réglé, plutôt que de laisser un paiement orphelin au centre.
-    const orpheline = await prisma.paymentRequest.findUnique({ where: { id: created.id }, select: { expenseOrderId: true } });
-    await prisma.paymentRequest.updateMany({ where: { id: created.id, status: { notIn: ["APPROVED", "CANCELLED"] } }, data: { status: "CANCELLED" } });
-    await annulerOrdreNonRegle(orpheline?.expenseOrderId, { acteurId: user.id, motif: `bon de versement « ${slip.label} » modifié pendant la demande (${decl.reference})` });
-    return { ok: false, error: "Ce bon vient de changer pendant la demande : elle a été annulée — rechargez la page." };
-  }
+  const demande = await demanderLaQuittance(formData, { user, slipId, courant, slip, decl });
+  if ("fini" in demande) return demande.fini;
+  const { amount } = demande;
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Information médicale",
     entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id,
     summary: `Quittance demandée au paiement — ${slip.label} · ${amount.toLocaleString("fr-FR")} DZD (${decl.reference})`,
   });
   revalidate(decl.id);
-  return { ok: true, id: created.id };
+  return { ok: true, id: demande.id };
 }
 
 /**
