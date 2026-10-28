@@ -616,7 +616,15 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
     ? await finaliserNatures(ticket.lines, { userId: user.id, objet: label, classer: !rawCategory })
     : [];
 
-  await prisma.$transaction(async (tx) => {
+  // LE CONTRÔLE DU FOND SE REFAIT SOUS VERROU (audit 27/10, reste de DONNEES-06) : celui du dessus lit le fond hors
+  // transaction — deux corrections « en fait, c'était sur la caisse » simultanées (ou une correction et une saisie)
+  // le franchissaient toutes deux et la caisse finissait en négatif. Même verrou que la saisie : le département.
+  const corrigee = await prisma.$transaction(async (tx) => {
+    if (nextCashId) {
+      await tx.$queryRaw`SELECT id FROM "Department" WHERE id = ${before.departmentId} FOR UPDATE`;
+      const encore = canSpendFromFund(fundExcluding(await openRemittances(before.departmentId, tx), id), amount);
+      if (!encore.ok) return { ok: false as const, error: encore.reason ?? "Le fond ne couvre pas ce montant." };
+    }
     await tx.departmentBudgetExpense.update({
       where: { id },
       data: { label, amount, kind, budgetCategoryId: rawCategory, notes: fdStr(formData, "notes"), pettyCashId: nextCashId },
@@ -632,7 +640,9 @@ export async function updateDepartmentExpense(formData: FormData): Promise<Actio
         })),
       });
     }
+    return { ok: true as const };
   });
+  if (!corrigee.ok) return { ok: false, error: corrigee.error };
 
   const was = toNumber(before.amount);
   // Le changement de moyen de paiement se journalise EXPLICITEMENT : c'est lui qui déplace de

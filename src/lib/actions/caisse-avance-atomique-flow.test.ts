@@ -11,10 +11,10 @@ import { getAccess, hasGlobalView, userCan } from "@/lib/rbac";
 import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { deleteFileByKey } from "@/lib/storage";
-import { allotPettyCash, confirmPettyCashReceipt, decidePettyCashTopUp, requestPettyCashTopUp, spendFromPettyCash } from "./petty-cash-actions";
+import { allotPettyCash, closePettyCash, confirmPettyCashReceipt, decidePettyCashTopUp, requestPettyCashTopUp, spendFromPettyCash } from "./petty-cash-actions";
 import { decidePayment } from "./payment-centre-actions";
 import { settleExpenseOrder } from "./expense-actions";
-import { addDepartmentExpense } from "./department-budget-actions";
+import { addDepartmentExpense, updateDepartmentExpense } from "./department-budget-actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -25,6 +25,8 @@ import { addDepartmentExpense } from "./department-budget-actions";
  *       transaction qui l'écrit.
  *   (b) La demande de rallonge prévenait la Direction, alors que ce sont les RH ou les Budgets qui tranchent
  *       (`decidePettyCashTopUp`, garde `canAllot`) : les destinataires sont désormais lus par CETTE garde.
+ *   (c) Les restes de l'audit données du 27/10 (DONNEES-06) : la CORRECTION d'une dépense vers la caisse relit le fond
+ *       sous le même verrou ; la CLÔTURE se fait sous verrou et une seule fois ; une remise soldée ne se confirme plus.
  * Par les VRAIES actions, la détentrice étant une assistante de direction SANS vue globale (§118.104).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
@@ -155,5 +157,29 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const demande = await prisma.pettyCashTopUpRequest.findFirstOrThrow({ where: { allotment: { departmentId: deptId }, status: "PENDING" }, select: { id: true } });
     const d = await decidePettyCashTopUp(form({ id: demande.id, decision: "REJECTED", note: "Pas ce mois-ci" }));
     expect(d.ok, d.error).toBe(true);
+  });
+
+  it("(c) DEUX CORRECTIONS SIMULTANÉES « en fait, c'était sur la caisse » : une passe, la caisse ne passe pas en négatif", async () => {
+    // Il reste 10 000 après (a′). Deux dépenses de 8 000 saisies HORS caisse, corrigées ensemble vers la caisse.
+    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
+    const hors = (n: number) => form({ departmentId: deptId, kind: "OPERATING", label: `${TAG} hors ${n}`, amount: "8000", year: "2026" }, [pdf()]);
+    const [h1, h2] = await Promise.all([addDepartmentExpense(hors(1)), addDepartmentExpense(hors(2))]);
+    expect(h1.ok && h2.ok, `${h1.error ?? ""} ${h2.error ?? ""}`).toBe(true);
+    const versCaisse = (id: string, n: number) => form({ id, label: `${TAG} hors ${n}`, amount: "8000", paymentSource: "CASH" });
+    const [c1, c2] = await Promise.all([updateDepartmentExpense(versCaisse(h1.id!, 1)), updateDepartmentExpense(versCaisse(h2.id!, 2))]);
+    expect([c1, c2].filter((r) => r.ok).length, "une seule correction passe").toBe(1);
+    const f = await fond();
+    expect([f.spent, f.remaining]).toEqual([98_000, 2_000]);
+  });
+
+  it("(c′) DEUX CLÔTURES SIMULTANÉES : une seule solde la caisse ; la remise soldée ne se confirme plus", async () => {
+    ACTOR = await actorFor(adminId, "SUPER_ADMIN");
+    const ouverte = (await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId, status: { not: "CLOSED" } }, select: { id: true } })).id;
+    const [k1, k2] = await Promise.all([closePettyCash(form({ id: ouverte })), closePettyCash(form({ id: ouverte }))]);
+    expect([k1, k2].filter((r) => r.ok).length, "une seule clôture").toBe(1);
+    expect(await prisma.auditLog.count({ where: { actorId: adminId, summary: { startsWith: "Caisse d'avance soldée" } } })).toBe(1);
+    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
+    expect((await confirmPettyCashReceipt(form({ id: ouverte }))).ok).toBe(false);
+    expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ouverte } })).status).toBe("CLOSED");
   });
 });
