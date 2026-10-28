@@ -331,7 +331,16 @@ const SOCLE = [
 // `fabric/` est une façade pour la même raison que `missions/` : une couche TRANSVERSE par
 // construction (recherche de contenu, registre des sources), consommée par Adam ET par les
 // domaines, qui n'importe jamais `assistant/`.
-const FACADES = ["src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/"];
+//
+// `admin-delete-registry` (lot V4, découpage des fichiers géants) : une couche TRANSVERSE par
+// construction, qui n'était rangée nulle part (hors carte). Le REGISTRE des suppressions déclare,
+// pour chaque genre de TOUS les métiers, comment le décrire, le refuser et l'effacer (il lit
+// `queries/` et les règles de refus des domaines) ; seuls Adam, le pont, une façade et des fichiers
+// hors carte l'importent — chemin entier, porte comprise.
+const FACADES = [
+  "src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/",
+  "src/lib/admin-delete-registry",
+];
 
 /**
  * LE PONT ADAM ↔ ERP — le seul fichier de `src/platform/` autorisé à connaître l'ERP, par

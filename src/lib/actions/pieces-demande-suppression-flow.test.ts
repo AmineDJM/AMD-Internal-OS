@@ -391,7 +391,7 @@ describe("le point d'appel — les écrans montent le geste, et l'action lit la 
     expect(a).toMatch(/verdictSuppressionPiece\(user, id\)/);
     expect(a).toMatch(/verdictSuppressionFichier\(user, id\)/);
     expect(a, "la pièce part par le cœur réversible").toMatch(/supprimerReversible\(\s*"LEGAL_DOCUMENT"/);
-    const reg = code("src/lib/admin-delete-registry.ts");
+    const reg = code("src/lib/admin-delete-registry/marches-validations-legal.ts");
     expect(reg).toMatch(/LEGAL_DOCUMENT: \{[\s\S]*?refuse: \(id\) => refusSuppressionDeLaPiece\(id\)/);
     expect(reg, "la porte du BC part avec la pièce").toMatch(/LEGAL_DOCUMENT: \{[\s\S]*?retirerEnAttente\(id\)/);
   });
