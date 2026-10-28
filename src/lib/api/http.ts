@@ -146,12 +146,3 @@ async function log(
     console.error("[api] journalisation impossible", e);
   }
 }
-
-/** Lecture du corps JSON, avec un refus lisible plutôt qu'une exception brute. */
-export async function readJson<T = Record<string, unknown>>(req: NextRequest): Promise<T> {
-  try {
-    return (await req.json()) as T;
-  } catch {
-    throw errors.validation("Corps JSON illisible.");
-  }
-}

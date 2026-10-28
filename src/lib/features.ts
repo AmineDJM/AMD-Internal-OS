@@ -49,8 +49,6 @@ export const FEATURES = {
   },
 } as const;
 
-export type FeatureKey = (typeof FEATURES)[keyof typeof FEATURES]["key"];
-
 type Stage = "TEST" | "PROD" | "OFF";
 
 /** Métadonnées du catalogue par clé (pour l'auto-création et l'écran d'administration). */
@@ -121,17 +119,4 @@ export async function listFeatures(): Promise<FeatureRow[]> {
     promotedAt: r.promotedAt?.toISOString() ?? null,
     promotedByName: r.promotedBy?.name ?? null,
   }));
-}
-
-/** Raccourci pour les pages serveur : `const f = await features(user.id)` puis `f.has(...)`. */
-export async function features(userId: string): Promise<Set<string>> {
-  const [rows, test] = await Promise.all([
-    prisma.featureFlag.findMany({ select: { key: true, stage: true } }).catch(sansBloquer("features.features.featureFlag", [])),
-    isTestUser(userId),
-  ]);
-  const live = new Set<string>();
-  for (const r of rows) {
-    if (r.stage === "PROD" || (r.stage === "TEST" && test)) live.add(r.key);
-  }
-  return live;
 }

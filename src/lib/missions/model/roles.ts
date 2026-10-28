@@ -83,18 +83,6 @@ export function rolePourJugement(complexity: Complexity): MissionModelRole {
 export const ROLE_COMPACTION: MissionModelRole = "STANDARD_WORKER";
 
 /**
- * L'ORDRE DE COÛT CROISSANT — sert aux tests et à l'observabilité, jamais à choisir.
- * Choisir « le rang au-dessus » sans raison métier est exactement la dérive qu'on évite.
- */
-export const RANG_ROLE: Record<MissionModelRole, number> = {
-  CHEAP_WORKER: 0,
-  STANDARD_WORKER: 1,
-  PRIMARY_REASONER: 2,
-  COMPLEX_PLANNER: 3,
-  EXCEPTIONAL_PLANNER: 4,
-};
-
-/**
  * CE QUE L'ÉCHELLE DÉCIDE VRAIMENT — la CONCURRENCE, pas le cerveau.
  *
  * L'axe « quantité de travail » a un effet réel, mais il porte sur le dispatcher : combien

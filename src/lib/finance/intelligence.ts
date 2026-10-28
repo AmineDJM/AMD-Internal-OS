@@ -16,7 +16,7 @@ import { RANG_GRAVITE, type Gravite, type Signal } from "@/lib/utils/signaux";
 
 // Le vocabulaire du signal est COMMUN aux trois intelligences (`src/lib/utils/signaux.ts`) ; on le
 // réexporte pour que les lecteurs de ce module n'aient qu'une porte.
-export { RANG_GRAVITE, resumerSignaux, trierSignaux, type Gravite, type Signal } from "@/lib/utils/signaux";
+export { resumerSignaux, trierSignaux, type Signal } from "@/lib/utils/signaux";
 
 const arrondi = (n: number, d = 0): number => Math.round(n * 10 ** d) / 10 ** d;
 const pct = (n: number): string => `${arrondi(n * 100)} %`;

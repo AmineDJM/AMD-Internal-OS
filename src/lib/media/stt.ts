@@ -23,7 +23,7 @@ export const DELAI_STT_MS = 120_000;
  * pour ne pas casser les appelants existants — une seconde table divergerait au premier format
  * ajouté (§118.5).
  */
-export { MIMES_MEDIA, EXTENSIONS_VIDEO, extensionDe, estMedia, estVideo } from "./formats";
+export { estMedia, estVideo } from "./formats";
 import { MIMES_MEDIA, extensionDe } from "./formats";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "../ai-settings";
 import { attendu } from "@/lib/journal";

@@ -95,28 +95,6 @@ export function regPermissions(user: RoleBearer): RegPermission[] {
   return REG_PERMISSIONS.filter((p) => regCan(user, p));
 }
 
-// ───────────────────────── Feature flag par organisation ─────────────────────────
-
-/** Le module est-il débloqué pour CETTE organisation ? */
-export async function regIntelligenceEnabledFor(companyId: string): Promise<boolean> {
-  if (!companyId) return false;
-  try {
-    const row = await prisma.regulatoryFeatureAccess.findUnique({ where: { companyId }, select: { enabled: true } });
-    return row?.enabled ?? false;
-  } catch {
-    return false;
-  }
-}
-
-/** Au moins une organisation a-t-elle le module débloqué ? (affichage de l'entrée de nav) */
-export async function anyRegIntelligenceEnabled(): Promise<boolean> {
-  try {
-    return (await prisma.regulatoryFeatureAccess.count({ where: { enabled: true } })) > 0;
-  } catch {
-    return false;
-  }
-}
-
 /** Organisations débloquées (ids). */
 export async function enabledRegCompanyIds(): Promise<string[]> {
   try {

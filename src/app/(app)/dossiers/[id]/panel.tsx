@@ -7,7 +7,6 @@ import { updateDossierStatus, archiveDossier, postDossierMessage, assignDossier,
 import { Button } from "@/components/ui/button";
 import { Textarea, Select, Label } from "@/components/ui/input";
 import { formatBytes } from "../../messages/format";
-import type { ActionResult } from "@/lib/actions/types";
 import { useAction } from "@/components/shared/use-action";
 
 interface UserLite { id: string; name: string }

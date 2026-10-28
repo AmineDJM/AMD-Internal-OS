@@ -1,7 +1,7 @@
 import type { Confidentiality, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { emettrePieceDeposee, type ResultatEmission } from "./evenements";
-import { validerDepot, normaliserEmpreinte, nomPourRegistre, type ConfidentialitePiece, type PieceDeposeeInput, type Rattachement } from "./depot";
+import { validerDepot, nomPourRegistre, type ConfidentialitePiece, type PieceDeposeeInput, type Rattachement } from "./depot";
 import { cleTache, confidentialitePourEnrichissement, sourceDeLEntite } from "./file";
 
 /**
@@ -152,40 +152,4 @@ export async function signalerFichierDrive(f: {
     rattachements: [{ type: "DRIVE_NODE", id: f.nodeId, role: f.version && f.version > 1 ? "version" : "fichier" }],
     confidentialite: "INTERNAL",
   });
-}
-
-/**
- * Un rattachement de plus pour un document DÉJÀ signalé — l'appelant qui connaît un sujet que le
- * goulot ignore (le voyageur d'un poste, le salarié d'une demande). L'empreinte est relue au blob.
- */
-export async function signalerRattachementDocument(
-  documentId: string,
-  rattachement: Rattachement,
-  opts: { source: PieceDeposeeInput["source"]; deposeParId: string | null },
-): Promise<ResultatSignalement> {
-  try {
-    if (!(await enrichissementActif())) return { statut: "INACTIF" };
-    const doc = await prisma.document.findUnique({
-      where: { id: documentId },
-      select: { name: true, mimeType: true, sizeBytes: true, confidentiality: true, fileKey: true },
-    });
-    if (!doc?.fileKey) return { statut: "REJETE", raison: "document introuvable" };
-    const stocke = await prisma.storedFile.findUnique({ where: { key: doc.fileKey }, select: { blobId: true } });
-    const blob = stocke ? await prisma.fileBlob.findUnique({ where: { id: stocke.blobId }, select: { sha256: true } }) : null;
-    if (!stocke || !blob) return { statut: "REJETE", raison: "contenu du document introuvable" };
-    return await signalerDepot({
-      blobId: stocke.blobId,
-      empreinte: normaliserEmpreinte(blob.sha256) ?? blob.sha256,
-      nomFichier: doc.name,
-      mime: doc.mimeType ?? "",
-      taille: doc.sizeBytes ?? 0,
-      source: opts.source,
-      deposeParId: opts.deposeParId,
-      rattachements: [rattachement],
-      confidentialite: doc.confidentiality,
-    });
-  } catch (err) {
-    console.error("[enrichissement] rattachement non signalé", err);
-    return { statut: "REJETE", raison: "signalement impossible" };
-  }
 }

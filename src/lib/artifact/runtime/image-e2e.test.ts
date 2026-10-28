@@ -18,7 +18,6 @@ import { beforeEach, describe, expect, it } from "vitest";
 import PizZip from "pizzip";
 import { docxDeParagraphes, pngUni, xlsxAvecTableau } from "@/lib/artifact/adapters/fixtures";
 import { cibleIndex, commande } from "@/lib/artifact/commands/ir";
-import type { DocxModel } from "@/lib/artifact/object-model/model";
 import {
   annuler, editer, oublierSession, ouvrir, sauvegarder, type ContexteMoteur,
 } from "@/lib/artifact/runtime/engine";

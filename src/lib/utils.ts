@@ -119,9 +119,3 @@ export function toNumber(value: unknown): number {
   const n = Number(value.toString());
   return Number.isNaN(n) ? 0 : n;
 }
-
-/** Percentage with clamping, used by progress bars. */
-export function percent(part: number, whole: number): number {
-  if (!whole) return 0;
-  return Math.min(100, Math.max(0, Math.round((part / whole) * 100)));
-}

@@ -8,7 +8,7 @@ import { PRIORITY, REGULATORY_STATUS, REGULATORY_CATEGORY, MANUFACTURING_STATUS 
 import { formatDate, daysUntil } from "@/lib/utils";
 import { setRegulatoryPriority, setRegulatoryResponsible, setRegulatoryClassification, setRegulatoryLock, unlockAllRegulatory } from "@/lib/actions/regulatory-actions";
 import { visibleStages, defaultStage, type RegStage } from "@/lib/regulatory/stage";
-import { dossierReceivedLabel, dossierReceivedOptions, DOSSIER_RECEIVED_HINT, DOSSIER_RECEIVED_YES } from "@/lib/regulatory/dossier-received";
+import { dossierReceivedLabel, dossierReceivedOptions, DOSSIER_RECEIVED_HINT } from "@/lib/regulatory/dossier-received";
 import { setFocusMode, useFocusState } from "@/components/layout/focus-mode";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { COLONNES_REGULATORY, colonnesVisibles, type CleColonneRegulatory } from "@/lib/vues/colonnes-regulatory";

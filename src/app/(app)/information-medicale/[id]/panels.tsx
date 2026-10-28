@@ -21,7 +21,6 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { ROLE_LABELS } from "@/lib/labels";
-import type { ActionResult } from "@/lib/actions/types";
 import { useAction } from "@/components/shared/use-action";
 import { InfoBulle } from "@/components/ui/info-bulle";
 
@@ -650,5 +649,3 @@ export function DirectionValidateButton({ id, amount }: { id: string; amount: nu
     </div>
   );
 }
-
-export const DocIcon = FileText;

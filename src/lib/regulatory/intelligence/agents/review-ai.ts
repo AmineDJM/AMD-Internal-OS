@@ -41,8 +41,3 @@ export function lunaReviewFn(ctx: CallContext): AiFn {
     return { ok: res.ok, configured: res.configured, text: res.text, error: res.error };
   };
 }
-
-/** L'analyse est-elle traçable et plafonnable ? (faux ⇒ on tourne sur le filet de secours) */
-export function reviewIsMetered(): boolean {
-  return lunaConfigured();
-}

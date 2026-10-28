@@ -3,7 +3,6 @@
 import { ComposerPieceButton, type RevisionComposeur } from "@/components/pieces/composer-piece";
 import type { ValeursComposables } from "@/lib/legal/piece-emise";
 
-export type { LigneRevisable } from "./lignes-editables";
 
 /**
  * RÉVISER UNE PIÈCE ÉMISE (§118.194) — un devis ou un bon de commande, ENTIÈREMENT (Direction, 10/2026 : « chaque écriture

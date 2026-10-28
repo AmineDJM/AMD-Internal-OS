@@ -150,5 +150,3 @@ export const ICONES_COQUE = {
   Wallet,
   Warehouse,
 } satisfies Record<string, LucideIcon>;
-
-export type NomIconeCoque = keyof typeof ICONES_COQUE;

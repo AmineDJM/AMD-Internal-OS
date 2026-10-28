@@ -14,12 +14,7 @@ import { blocMarche360, blocProduit360 } from "@/lib/queries/e360-blocks";
 import { DirectoryChannel, type UserRole } from "@prisma/client";
 import { subscribe as busSubscribe } from "../event-bus";
 import { missionsEnCours, vueMission } from "@/lib/missions/view/workspace";
-import {
-  PLATFORM_CONTRACT_VERSION,
-  type CommandOutcome, type ContactEndpoint, type DocumentView, type EventHandler,
-  type PendingDecision, type PersonView, type PlatformCommand, type PlatformPort, type PlatformQuery,
-  type PlatformQueryResult, type Principal, type RecordView, type Unsubscribe,
-} from "../contract";
+import { PLATFORM_CONTRACT_VERSION, type CommandOutcome, type ContactEndpoint, type DocumentView, type EventHandler, type PersonView, type PlatformCommand, type PlatformPort, type PlatformQuery, type PlatformQueryResult, type Principal, type Unsubscribe } from "../contract";
 import { sansBloquer } from "@/lib/journal";
 
 /**

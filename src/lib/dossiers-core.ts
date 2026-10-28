@@ -5,7 +5,7 @@
  * d'import (sinon les tests ne chargent plus). Ne lit jamais la session : l'auteur
  * est passé explicitement (`actorId`).
  */
-import type { Priority, Prisma } from "@prisma/client";
+import type { Priority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { companyIdForNew } from "@/lib/company";
 import { buildRef, createWithRetry } from "@/lib/refs";
@@ -105,14 +105,4 @@ export async function ecrireDansLeSujet(input: { dossierId: string; authorId: st
     await notifyUser({ userId, type: "GENERIC", title: "Nouveau message sur un sujet", body: `${d.reference} — ${input.body.slice(0, 80)}`, link: `/dossiers/${d.id}` });
   }
   return true;
-}
-
-/**
- * CLORE UN SUJET ENCORE VIVANT, dans la transaction de l'appelant (audit du 04/10, constat 37 — la demande de
- * réservation retirée). Écriture CONDITIONNELLE : un sujet abouti ou archivé entre-temps n'est pas réécrit, et
- * l'appelant le lit (`false`). Archivé, pas « abouti » : rien n'a été fait, la demande s'est arrêtée.
- */
-export async function cloreSujetVivant(tx: Prisma.TransactionClient, dossierId: string): Promise<boolean> {
-  const r = await tx.dossier.updateMany({ where: { id: dossierId, status: { in: ["OPEN", "IN_PROGRESS", "ON_HOLD"] } }, data: { status: "ARCHIVED" } });
-  return r.count > 0;
 }

@@ -14,7 +14,6 @@ import { prisma } from "@/lib/prisma";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { moneyEntityOf } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
-import { notifyRoles, notifyUser } from "@/lib/notify";
 import { statutManuelOuRien, estStatutDuCircuit } from "@/lib/events/statut";
 import {
   estStatutInscriptionRetire, estStatutOrganisation, estTypeExterne, REFUS_INSCRIPTION_PUBLIQUE, REFUS_LISTE_ATTENTE, REFUS_ORGANISATION,

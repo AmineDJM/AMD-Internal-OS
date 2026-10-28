@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { ArrowLeft, Users, Sparkles, ListChecks, CircleUser, MapPin, MessageSquare } from "lucide-react";

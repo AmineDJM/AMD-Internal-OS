@@ -22,13 +22,7 @@ import {
   refusMontantFrais, demandeRelancable, SOUS_TYPE_SECRETARIAT, LIBELLE_ETAPE,
   type HrStatut, type GateN1, type ReponseMission,
 } from "@/lib/missions-equipe/etat";
-import {
-  lireFiche, ficheStockee, etapeParticipation, estArbitre, coteDe, refusProposition, refusDecision, natureNouvelleVersion,
-  peutDemanderOmParticipation, datesConvenues, destinationConvenue, hebergementPourOm, peutDeposerReservation,
-  peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture, refusModifFrais, refusDecisionN1NoteFrais,
-  moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE, TRAJETS_BILLET,
-  type Cote, type NatureFrais,
-} from "@/lib/missions-equipe/participation";
+import { lireFiche, ficheStockee, etapeParticipation, estArbitre, coteDe, refusProposition, refusDecision, natureNouvelleVersion, datesConvenues, destinationConvenue, hebergementPourOm, peutDeposerReservation, peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture, refusModifFrais, refusDecisionN1NoteFrais, moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE, TRAJETS_BILLET, type Cote, type NatureFrais } from "@/lib/missions-equipe/participation";
 import { lireDetailsTrajets } from "@/lib/care-fiches";
 import { persistUploadedDocument } from "@/lib/documents";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";

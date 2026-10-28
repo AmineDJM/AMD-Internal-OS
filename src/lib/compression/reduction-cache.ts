@@ -50,13 +50,6 @@ export interface DemandeReduction {
   charger: () => Promise<Buffer | null>;
 }
 
-/** Verdict seul (sans octets) quand le cache le sait déjà. */
-export function verdictEnCache(empreinte: string | null): ResultatReduction | null {
-  if (!empreinte) return null;
-  const e = cache.get(`${VERSION_REDUCTION}:${empreinte}`);
-  return e && e.expire > Date.now() ? e.resultat : null;
-}
-
 /**
  * La réduction, avec cache et appel unique (deux demandes simultanées du même fichier n'en lancent
  * qu'une). `avecOctets: false` pour une simple estimation : un verdict en cache suffit.

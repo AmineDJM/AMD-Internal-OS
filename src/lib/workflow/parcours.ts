@@ -76,10 +76,10 @@
  * donc au socle, à côté de `designation.ts` et `joignabilite.ts`, et ce module la réexporte pour
  * que ses appelants n'aient pas à savoir d'où elle vient.
  */
-import { estDirectionMarketing, estKam, ROLE_DIRECTION_MARKETING, ROLE_KAM, type RolesPersonne } from "@/lib/personnes/roles-vente";
+import { estDirectionMarketing, estKam, ROLE_DIRECTION_MARKETING, type RolesPersonne } from "@/lib/personnes/roles-vente";
 import type { WorkflowCategory } from "./types";
 
-export { ROLE_KAM, ROLE_DIRECTION_MARKETING, estKam, estDirectionMarketing };
+export { ROLE_DIRECTION_MARKETING, estKam, estDirectionMarketing };
 export type DemandeurParcours = RolesPersonne;
 
 /** Les slugs de la colonne vertébrale Ad & Pro, DANS L'ORDRE où on les traverse. */

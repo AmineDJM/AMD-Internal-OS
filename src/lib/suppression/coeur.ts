@@ -6,7 +6,6 @@ import { DELETE_REGISTRY, deleteDelegateOf, modeleDuRegistre, refusDuLot, type D
 import { dejaPresents, instantaneTete, inventorier, restaurerLot, supprimerLot, type InstantaneLot } from "./lot";
 import { sansBloquer } from "@/lib/journal";
 
-export { apercuSuppression, type ApercuSuppression } from "@/lib/admin-delete-registry";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

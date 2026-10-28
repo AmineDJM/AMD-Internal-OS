@@ -23,10 +23,6 @@ export type Journal = (niveau: NiveauJournal, evenement: string, champs?: Record
 /** Tronque un message d'erreur — l'outil commun du journal unique (`@/lib/journal`). */
 export { messageErreur };
 
-export function entreeJournal(niveau: NiveauJournal, evenement: string, champs: Record<string, unknown> = {}): EntreeJournal {
-  return { ts: new Date().toISOString(), source: "taches-de-fond", niveau, evenement, ...champs };
-}
-
 /**
  * Le journal de production — il passe par le journal UNIQUE (`@/lib/journal`) : même format de
  * ligne, même anti-avalanche, et surtout même COMPTAGE. Un échec de tâche est compté par tâche

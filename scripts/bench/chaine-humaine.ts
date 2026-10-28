@@ -272,7 +272,6 @@ async function main(): Promise<void> {
   let anticipeEnvoye: string | null = null;
 
   oublierTentativesSortantes();
-  const depuis = new Date();
   const t0 = Date.now();
   const journal: Etape[] = [];
   const relances: string[] = [];

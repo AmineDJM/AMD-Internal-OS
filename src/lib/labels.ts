@@ -138,15 +138,6 @@ export const SUPPLY_UNIT: Record<string, string> = {
   KG: "Kg",
 };
 
-export const PRODUCT_TYPE: Record<string, string> = {
-  IMPORTED: "Importé",
-  LOCALLY_MANUFACTURED: "Fabriqué localement",
-  TOLL_MANUFACTURING: "Façonnage",
-  BIOSIMILAR: "Biosimilaire",
-  GENERIC: "Générique",
-  ORIGINATOR: "Princeps",
-};
-
 export const REGULATORY_STATUS: Record<string, Display> = {
   PRE_SUBMISSION: { label: "Pré-soumission", tone: "neutral" },
   IN_PREPARATION: { label: "Préparation dossier", tone: "info" },
@@ -168,14 +159,6 @@ export const EXTERNAL_REGULATORY_STATUS: Record<string, Display> = {
   APPROVED: { label: "Enregistrement obtenu", tone: "success" },
   ON_HOLD: { label: "En attente", tone: "neutral" },
   CLOSED: { label: "Clôturé", tone: "neutral" },
-};
-
-export const STEP_STATUS: Record<string, Display> = {
-  NOT_STARTED: { label: "Non commencé", tone: "neutral" },
-  IN_PROGRESS: { label: "En cours", tone: "info" },
-  DONE: { label: "Terminé", tone: "success" },
-  BLOCKED: { label: "Bloqué", tone: "danger" },
-  LATE: { label: "En retard", tone: "warning" },
 };
 
 export const REGULATORY_STEP_TYPE: Record<string, string> = {
@@ -295,32 +278,6 @@ export const SPONSORING_TYPES: string[] = [
   "Autre",
 ];
 
-export const BUDGET_CATEGORY: Record<string, string> = {
-  REGULATORY: "Regulatory",
-  SPONSORING: "Sponsoring",
-  CONGRESS_INTERNATIONAL: "Prises en charge Internationales",
-  CONGRESS_NATIONAL: "Prises en charge Nationales",
-  MEDICAL_PROMOTION: "Promotion médicale",
-  LOGISTICS: "Logistique",
-  BUSINESS_DEVELOPMENT: "Business Development",
-  MARKETING: "Marketing",
-};
-
-export const BUDGET_STATUS: Record<string, Display> = {
-  ON_TRACK: { label: "Maîtrisé", tone: "success" },
-  AT_RISK: { label: "À surveiller", tone: "warning" },
-  OVER_BUDGET: { label: "Dépassé", tone: "danger" },
-  CLOSED: { label: "Clôturé", tone: "neutral" },
-};
-
-export const CONGRESS_STATUS: Record<string, Display> = {
-  CONSIDERED: { label: "Envisagé", tone: "neutral" },
-  VALIDATED: { label: "Validé", tone: "info" },
-  ORGANIZED: { label: "Organisé", tone: "info" },
-  COMPLETED: { label: "Terminé", tone: "success" },
-  CANCELLED: { label: "Annulé", tone: "danger" },
-};
-
 export const CONGRESS_REQUEST_STATUS: Record<string, Display> = {
   AWAITING_PRELIMINARY: { label: "Attente National Sales", tone: "warning" },
   // LES DEUX LIBELLÉS DU MILIEU SUIVENT LE CIRCUIT D'AUJOURD'HUI, comme ceux du sponsoring (§118.151,
@@ -417,12 +374,6 @@ export const PCH_ORDER_STATUS: Record<string, Display> = {
   CANCELLED: { label: "Annulé", tone: "danger" },
 };
 
-export const STOCK_DIRECTION: Record<string, Display> = {
-  IN: { label: "Entrée", tone: "success" },
-  OUT: { label: "Sortie", tone: "danger" },
-  ADJUST: { label: "Ajustement", tone: "neutral" },
-};
-
 export const EVENT_TYPE: Record<string, string> = {
   CONGRESS: "Congrès",
   SEMINAR: "Séminaire",
@@ -471,13 +422,6 @@ export const FIELD_REPORT_STATUS: Record<string, Display> = {
   DRAFT: { label: "Brouillon", tone: "warning" },
   VALIDATED: { label: "Validé", tone: "success" },
   ARCHIVED: { label: "Archivé", tone: "neutral" },
-};
-
-export const VISIT_STATUS: Record<string, Display> = {
-  PLANNED: { label: "Prévu", tone: "info" },
-  COMPLETED: { label: "Réalisé", tone: "success" },
-  CANCELLED: { label: "Annulé", tone: "danger" },
-  POSTPONED: { label: "Reporté", tone: "warning" },
 };
 
 export const INFLUENCE_LEVEL: Record<string, Display> = {
@@ -530,34 +474,6 @@ export const PRODUCT_CHANNEL: Record<string, Display> = {
   RETAIL: { label: "Gamme de ville", tone: "purple" },
   HOSPITAL: { label: "Hospitalière", tone: "info" },
   BOTH: { label: "Ville + Hôpital", tone: "neutral" },
-};
-
-/**
- * LE CYCLE DE VIE D'UN PRODUIT CANONIQUE (§118.178) — distinct du statut réglementaire d'un
- * dossier : « enregistré » se DÉDUIT des dossiers (une décision obtenue), « commercialisé » et
- * « arrêté » sont des décisions humaines qu'aucun statut de dossier ne contredit.
- */
-export const PRODUCT_LIFECYCLE: Record<string, Display> = {
-  STUDY: { label: "À l'étude", tone: "neutral" },
-  REGISTERED: { label: "Enregistré", tone: "success" },
-  MARKETED: { label: "Commercialisé", tone: "info" },
-  DISCONTINUED: { label: "Arrêté", tone: "warning" },
-};
-
-// Demandes de l'information médicale (PRIM) → Regulatory.
-export const REG_REQUEST_STATUS: Record<string, Display> = {
-  OPEN: { label: "Ouverte", tone: "info" },
-  IN_PROGRESS: { label: "En cours", tone: "warning" },
-  ANSWERED: { label: "Répondue", tone: "success" },
-  CLOSED: { label: "Clôturée", tone: "neutral" },
-};
-
-export const REG_REQUEST_CATEGORY: Record<string, string> = {
-  QUESTION: "Question réglementaire",
-  DOCUMENT: "Demande de document",
-  STATUS_UPDATE: "Point statut d'enregistrement",
-  VARIATION: "Variation / modification",
-  OTHER: "Autre",
 };
 
 export const DOCTOR_TITLE: Record<string, string> = {
@@ -748,13 +664,6 @@ export const HR_DOCUMENT_CATEGORY: Record<string, string> = {
   OTHER: "Autre",
 };
 
-/** Variation d'enregistrement (Regulatory) : passage en fabrication locale. */
-export const MANUFACTURING_VARIATION: Record<string, string> = {
-  NONE: "Aucune variation",
-  SECONDARY_PACKAGING: "Packaging secondaire (fabrication locale)",
-  PRIMARY_PACKAGING: "Packaging primaire (fabrication locale)",
-  FULL_PROCESS: "Full process (fabrication locale)",
-};
 /** Variations impliquant une fabrication locale → le fabricant devient obligatoire. */
 export const LOCAL_MANUFACTURING_VARIATIONS = ["SECONDARY_PACKAGING", "PRIMARY_PACKAGING", "FULL_PROCESS"];
 
@@ -1184,13 +1093,6 @@ export const MISSION_ROLE: Record<string, Display> = {
   DELEGATE_REFERENCE: { label: "Délégué de référence", tone: "purple" },
 };
 
-/** Statut de l'ordre de mission d'une assignation. */
-export const MISSION_ORDER_STATUS: Record<string, Display> = {
-  NONE: { label: "Sans ordre de mission", tone: "neutral" },
-  REQUESTED: { label: "Ordre demandé", tone: "warning" },
-  ISSUED: { label: "Ordre de mission émis", tone: "success" },
-};
-
 /** Types d'événements du calendrier (avec couleur de pastille par défaut). */
 export const CALENDAR_EVENT_KIND: Record<string, Display & { color: string }> = {
   APPOINTMENT: { label: "Rendez-vous", tone: "info", color: "#2563eb" },
@@ -1271,13 +1173,6 @@ export const AD_PRO_OTHER_STATUS: Record<string, Display> = {
   RETURNED: { label: "À corriger", tone: "warning" },
 };
 
-/** Ordre de l'ANCIEN circuit (quinze étapes) — ne sert plus qu'aux dossiers d'avant la réforme. */
-export const PROMO_MATERIAL_FLOW: string[] = [
-  "PROSPECTION_REQUESTED", "QUOTES_UPLOADED", "AGENCY_CHOSEN", "BC_FINANCE_REVIEW", "BC_VALIDATED",
-  "BC_SENT", "PAYMENT_INITIATED", "PAYMENT_DONE", "MATERIAL_PRODUCED", "CONFORMITY_REVIEW",
-  "VISA_OBTAINED", "BAT_PRINTING", "FINAL_MATERIAL", "INVOICED", "SETTLED",
-];
-
 /** Nature du matériel promotionnel (enum MaterialType) — libellés + ordre du menu. */
 export const MATERIAL_TYPE: Record<string, string> = {
   PRESENTOIRE: "Présentoir",
@@ -1300,11 +1195,6 @@ export const MATERIAL_TYPE: Record<string, string> = {
   CLE_USB: "Clé USB",
   AUTRES: "Autres",
 };
-
-/** Options `{ value, label }` du menu « type de matériel » (dans l'ordre métier). */
-export const MATERIAL_TYPE_OPTIONS: { value: string; label: string }[] = Object.entries(MATERIAL_TYPE).map(
-  ([value, label]) => ({ value, label }),
-);
 
 export const MEDICAL_INFO_STATUS: Record<string, Display> = {
   AWAITING_REVIEW: { label: "À déclarer", tone: "warning" },
@@ -1408,20 +1298,6 @@ export const AUDIT_ACTION: Record<string, Display> = {
   REFUSE: { label: "Refus", tone: "danger" },
 };
 
-// ─────────────── Messagerie interne ───────────────
-
-export const CONVERSATION_TYPE: Record<string, Display> = {
-  DIRECT: { label: "Message direct", tone: "info" },
-  GROUP: { label: "Groupe", tone: "purple" },
-  CHANNEL: { label: "Canal", tone: "neutral" },
-};
-
-export const CONV_MEMBER_ROLE: Record<string, string> = {
-  OWNER: "Propriétaire",
-  ADMIN: "Administrateur",
-  MEMBER: "Membre",
-};
-
 export const CONV_NOTIFY_LEVEL: Record<string, string> = {
   ALL: "Tous les messages",
   MENTIONS: "Mentions uniquement",
@@ -1503,11 +1379,6 @@ export interface NavItem {
   match?: string[];
 }
 
-// (L'« Espace comptable » a été fusionné dans la page Finances : plus d'onglets.)
-export const CONGRESS_TABS: NavTab[] = [
-  { module: "CONGRESS_INTERNATIONAL", label: "Internationaux", href: "/congress-international" },
-  { module: "CONGRESS_NATIONAL", label: "Nationaux", href: "/congress-national" },
-];
 /**
  * L'ESPACE PERSONNEL — UN SEUL ENDROIT.
  *
@@ -1625,8 +1496,6 @@ export const DEMANDES_RH_TABS: NavTab[] = [
   { module: "HR_REQUESTS", label: "Demandes", href: "/rh/demandes" },
   { module: "HR_REQUESTS", label: "Congés et absences", href: "/rh/conges" },
 ];
-/** Compatibilité : les écrans RH d'avant le découpage. */
-export const HR_TABS: NavTab[] = [...EMPLOYES_TABS, ...DEMANDES_RH_TABS];// « Ad & Pro » : sponsoring + congrès (international/national) + événements +
 // matériel promotionnel, sous un seul module. Le matériel promotionnel a été
 // déplacé ici depuis « Promotion médicale » (sa fonctionnalité est inchangée).
 /**

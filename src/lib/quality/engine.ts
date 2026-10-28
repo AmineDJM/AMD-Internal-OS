@@ -17,7 +17,6 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { REGLES, detecter } from "@/lib/quality/rules";
 import { appliquerCorrection } from "@/lib/quality/fix";
-import type { Constat } from "@/lib/quality/model";
 import { sansBloquer } from "@/lib/journal";
 
 export interface RapportRegle {
@@ -178,8 +177,3 @@ export async function balayageQualiteSiDu(now: Date = new Date()): Promise<Rappo
   }
   return null;
 }
-
-/** Pour les tests : oublier la cadence mémorisée. */
-export function _reinitialiserCadence(): void { dernierLeger = 0; dernierComplet = 0; }
-
-export type { Constat };

@@ -92,8 +92,6 @@ export interface Couverture {
   faits: number;
 }
 
-export const COUVERTURE_VIDE: Couverture = { journalises: [], sansHistoire: [], depuis: null, faits: 0 };
-
 /** Les faits vrais à un instant donné. */
 export function valideA(faits: readonly Fait[], quand: Date): Fait[] {
   return faits.filter((f) => contient(f, quand) && !avantLeReleve(f, quand));

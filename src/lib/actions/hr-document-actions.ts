@@ -18,7 +18,7 @@ import { formatMonth, nextMonthYm } from "@/lib/utils";
 import { archiveProcessedRequest } from "@/lib/archive";
 import { getBlob } from "@/lib/drive-storage";
 import { HR_REQUEST_TYPE, HR_REQUEST_STATUS } from "@/lib/labels";
-import { HR_APPROVAL_TYPES, hrNature } from "@/lib/hr-request-flow";
+import { hrNature } from "@/lib/hr-request-flow";
 import {
   createLeaveRequest, attachLeaveFiles, revalidateLeaveViews,
   hrTypeIsLeave, HR_TYPE_TO_LEAVE,

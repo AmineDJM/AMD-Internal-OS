@@ -17,13 +17,9 @@
  * Module PUR (aucun accès base, aucun import lourd) : importable côté client comme serveur.
  */
 
-import {
-  nextChainStage, canDecideChain, applyChainDecision, chainNotifyRoles,
-  type ChainStage, type ChainStatus, type ChainDecider, type ChainState, type ChainTransition,
-} from "@/lib/approval-chain";
+import { nextChainStage, canDecideChain, applyChainDecision, chainNotifyRoles, type ChainStage, type ChainDecider, type ChainState, type ChainTransition } from "@/lib/approval-chain";
 
 export type LeaveStage = ChainStage;
-export type LeaveStatus = ChainStatus;
 export type LeaveDecider = ChainDecider;
 export type LeaveState = ChainState;
 export type LeaveTransition = ChainTransition;

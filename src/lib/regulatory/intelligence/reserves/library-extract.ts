@@ -34,23 +34,6 @@ export const RESERVE_CATEGORIES = [
 ] as const;
 export type ReserveCategory = (typeof RESERVE_CATEGORIES)[number];
 
-export const CATEGORY_LABEL: Record<ReserveCategory, string> = {
-  DOCUMENT_MANQUANT: "Document manquant",
-  DOCUMENT_NON_CONFORME: "Document non conforme",
-  DONNEE_INCOHERENTE: "Donnée incohérente",
-  SPECIFICATION: "Spécifications",
-  METHODE_ANALYTIQUE: "Méthode analytique",
-  VALIDATION: "Validation",
-  STABILITE: "Stabilité",
-  BIOEQUIVALENCE: "Bioéquivalence",
-  ETIQUETAGE_RCP_NOTICE: "Étiquetage / RCP / notice",
-  GMP_SITE: "BPF / site de fabrication",
-  PHARMACOVIGILANCE: "Pharmacovigilance",
-  TRADUCTION_LANGUE: "Traduction / langue",
-  SIGNATURE_LEGALISATION: "Signature / légalisation",
-  AUTRE: "Autre",
-};
-
 export type ReserveSeverity = "CRITICAL" | "MAJOR" | "MINOR";
 
 /** Une réserve telle que le modèle doit la rendre. */

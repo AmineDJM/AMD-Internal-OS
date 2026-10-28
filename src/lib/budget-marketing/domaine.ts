@@ -17,7 +17,6 @@ import { DOMAINES } from "../budget/domaines";
 
 export {
   dansLaPortee, totaliser, bornesAnnee,
-  type DomaineBudget, type PorteeBudget, type LigneTotal,
 } from "../budget/domaines";
 
 export const DOMAINE_MARKETING = "MARKETING" as const;
@@ -42,10 +41,6 @@ export const CATEGORIES_AD_PRO: readonly { nom: string; module: (typeof MODULES_
 ];
 
 const AD_PRO = new Set<string>(MODULES_AD_PRO_BUDGET);
-
-export function estModuleAdPro(m: string | null | undefined): boolean {
-  return m != null && AD_PRO.has(m);
-}
 
 /** L'enveloppe est-elle tenue par la Direction Marketing ? (Champ absent = enveloppe générale.) */
 export function estEnveloppeMarketing(e: { domaine?: string | null }): boolean {

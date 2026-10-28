@@ -138,5 +138,3 @@ export function creerServiceCoffre(dep: DependancesCoffre) {
 
   return { deposer, lire, chercher };
 }
-
-export type ServiceCoffre = ReturnType<typeof creerServiceCoffre>;

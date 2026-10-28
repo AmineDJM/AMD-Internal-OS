@@ -21,7 +21,7 @@ import {
 } from "@/lib/hr/virement-paie";
 import { instantDuCentreDePaie } from "@/lib/hr/paie-centre";
 import { chargerSalairesPartis } from "@/lib/hr/salaires-partis";
-import { decisionRattachement, phraseRattachement, type SalaireParti } from "@/lib/hr/rattachement-paie";
+import { decisionRattachement, phraseRattachement } from "@/lib/hr/rattachement-paie";
 import { validateAmounts, resolvedGross, amendImpact, canAmend } from "@/lib/hr/payroll-amend";
 import { docxToPdf, isConvertibleWord, pdfFileName } from "@/lib/payslip/to-pdf";
 import { MIME_DOCX } from "@/lib/artifact/adapters/docx/adapter";

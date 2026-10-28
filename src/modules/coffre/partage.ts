@@ -13,16 +13,12 @@ export * from "./domaine/natures";
 
 // ── Les colonnes sensibles des fiches (Employee, CompanyContact, CompanyLegalIdentity) ───────
 export {
-  CHAMPS_SENSIBLES, LIBELLE_MODELE, MODELES_SENSIBLES, champSensible, champsDe, champsNonSaisis, classerValeur,
-  estModeleSensible, estUnMasque, masqueDepuisClair, masquerSensibles, texteDeColonne,
-  type ChampSensible, type Classement, type ModeleSensible,
+  LIBELLE_MODELE, MODELES_SENSIBLES, champSensible, champsNonSaisis,
+  masqueDepuisClair, masquerSensibles,
+  type ModeleSensible,
 } from "./domaine/champs";
 
 // ── Qui peut lire quoi (un modèle d'IA, jamais) ─────────────────────────────────────────────
-export {
-  peutLire, type DecisionLecture, type LecteurCoffre, type MotifAccord, type MotifRefus, type TitulaireCoffre,
-  type TitulaireLu, type UsageLecture,
-} from "./domaine/politique";
 
 // ── Le port du dépôt (types seulement) ───────────────────────────────────────────────────────
-export type { AccesDonneeSensibleJournal, DepotCoffre, DonneeSensibleStockee, RefTitulaire, ResumeDonneeSensible } from "./domaine/depot";
+export type { RefTitulaire } from "./domaine/depot";

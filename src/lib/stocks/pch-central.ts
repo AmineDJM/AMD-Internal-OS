@@ -178,8 +178,6 @@ export function analyserCollage(texte: string, produits: readonly ProduitReconna
  */
 export type ConsommationMensuelle = (productId: string) => number | null;
 
-export const consommationInconnue: ConsommationMensuelle = () => null;
-
 /** Une table produit → consommation, vue comme le crochet de couverture. */
 export function consommationDepuis(table: ReadonlyMap<string, number | null>): ConsommationMensuelle {
   return (productId) => table.get(productId) ?? null;

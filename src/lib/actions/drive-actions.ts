@@ -710,7 +710,7 @@ export async function copyNodes(formData: FormData): Promise<BulkResult> {
  * passer cinq messages d'erreur pour un seul geste.
  */
 export async function moveNodes(formData: FormData): Promise<BulkResult> {
-  const user = await requireUser();
+  await requireUser();
   const ids = formData.getAll("id").map(String).filter(Boolean);
   if (ids.length === 0) return { ok: false, done: 0, denied: 0, error: "Rien à déplacer." };
 

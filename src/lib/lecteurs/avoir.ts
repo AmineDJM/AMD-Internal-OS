@@ -23,9 +23,6 @@ export function netDeLaFacture(ttcFacture: number, avoirsActifs: readonly number
   return Math.max(0, centimes(ttcFacture) - avoirsActifs.reduce((s, a) => s + centimes(a), 0)) / 100;
 }
 
-/** Ce qui reste à créditer : le même nombre que le net, lu du côté de l'avoir. */
-export const resteACrediter = netDeLaFacture;
-
 /**
  * Une facture ENTIÈREMENT créditée par ses avoirs : il n'y reste rien à régler. Elle quitte « à régler » — le compte,
  * le total et le filtre de la liste la lisent ensemble, sinon le compte et la liste diraient deux choses (§118.51).

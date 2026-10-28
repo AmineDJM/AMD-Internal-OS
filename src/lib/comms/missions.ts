@@ -148,16 +148,6 @@ export async function recomputeMissionStatus(missionId: string): Promise<Mission
   return next;
 }
 
-export async function setMissionStatus(missionId: string, status: MissionStatus, actorId?: string, note?: string): Promise<void> {
-  const cur = await prisma.mission.findUnique({ where: { id: missionId }, select: { status: true } });
-  if (!cur) return;
-  await prisma.mission.update({
-    where: { id: missionId },
-    data: { status, ...(status === MissionStatus.COMPLETED || status === MissionStatus.CANCELLED ? { closedAt: new Date() } : {}) },
-  });
-  await recordMissionEvent(missionId, "STATE_CHANGED", note ?? `État : ${cur.status} → ${status}.`, { from: cur.status, to: status }, actorId);
-}
-
 /** Consolide les demandes extraites des réponses — la matière du message à transmettre. */
 export async function setMissionExtracted(missionId: string, items: { from: string; request: string }[]): Promise<void> {
   await prisma.mission.update({ where: { id: missionId }, data: { extracted: items as never } });
@@ -236,13 +226,6 @@ export async function nudgeCandidates(ownerId: string, afterHours = 48, now = ne
     }
   }
   return out;
-}
-
-export async function markParticipantNudged(participantId: string): Promise<void> {
-  await prisma.missionParticipant.update({
-    where: { id: participantId },
-    data: { nudgedAt: new Date(), state: "NUDGED" },
-  });
 }
 
 /**

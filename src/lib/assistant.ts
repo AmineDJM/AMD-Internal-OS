@@ -90,7 +90,7 @@ import { resolveDeletableTarget, resolveTrashEntry } from "@/lib/assistant/delet
 import { nativeActionHint, actionsForUser } from "@/lib/assistant/action-registry";
 import { DOMAIN_TOOLS, DOMAIN_TOOL_DEFS } from "@/lib/assistant/ops";
 import { getCommunicationPolicy, setMailSendPolicy, parseMailPolicyPhrase, POLICY_LABEL, POLICY_HELP } from "@/lib/comms/policy";
-import { approveOutboundIntent, sendOutboundIntent, createOutboundIntent } from "@/lib/comms/outbound";
+import { createOutboundIntent } from "@/lib/comms/outbound";
 import { resolveOutboundIdentity, isIdentity, formatIdentity } from "@/lib/comms/identity";
 import { classifyReply } from "@/lib/comms/confirmation";
 import { approveAndExecuteIntent, solePendingMailIntent, type MailExecutionResult } from "@/lib/comms/approve-execute";
@@ -98,7 +98,6 @@ import { CHIEF_STYLE_RULES, inferMailSubject, defaultMailBody, firstNameOf } fro
 import { findPeople as findDirectoryPeople } from "@/lib/directory/resolve";
 import { decideAddress, askWhichAddress } from "@/lib/directory/rank";
 import { gmailTransport } from "@/lib/google/gmail/transport";
-import { markMissionAsked } from "@/lib/comms/missions";
 import { requestTreasuryUpdate } from "@/lib/actions/finance-actions";
 import { upsertCustomFieldDef, deleteCustomFieldDef } from "@/lib/actions/custom-field-actions";
 import { readWorkflowState, resolveWorkflowRequest, resolveWorkflowCategory } from "@/lib/assistant/workflow-admin";
@@ -115,7 +114,7 @@ import { recordShadow } from "@/lib/assistant/context/shadow";
 // canary, TOUTES les mutations sur le chemin prouvé. La politique vit dans `rollout.ts` ; ici on
 // ne fait que l'appliquer.
 import { decideRollout, recordOutcome, type RolloutDecision } from "@/lib/assistant/context/rollout";
-import { shortlistTools, fitToolBudget, outilsNommes, DISCOVERY_TOOL } from "@/lib/assistant/context/tool-shortlist";
+import { fitToolBudget, outilsNommes } from "@/lib/assistant/context/tool-shortlist";
 import { resolveTools } from "@/lib/assistant/context/tool-resolver";
 // L'ESPACE DE TRAVAIL GÉNÉRATIF : la sortie d'une source canonique traduite en blocs TYPÉS.
 // Le modèle n'écrit aucun balisage — c'est ce qui empêche l'écran de redevenir un vidage de JSON.

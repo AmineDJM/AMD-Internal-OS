@@ -3,10 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Loader2, Check, X, RotateCcw, PauseCircle, PlayCircle, Send, Plus, ShieldCheck,
-  MessageSquare, Download, Paperclip, FileQuestion, Gavel, ExternalLink, Info, BellRing, Siren, PencilLine, Trash2,
-} from "lucide-react";
+import { Loader2, Check, X, RotateCcw, PauseCircle, PlayCircle, Send, Plus, MessageSquare, Download, Paperclip, FileQuestion, Gavel, ExternalLink, Info, BellRing, Siren, PencilLine, Trash2 } from "lucide-react";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
 import { EcartMontantCarte } from "@/components/finance/ecart-montant";
 import { InfoBulle } from "@/components/ui/info-bulle";

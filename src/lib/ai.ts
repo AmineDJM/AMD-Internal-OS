@@ -286,7 +286,7 @@ export async function aiSelfTest(): Promise<AiHealthResult> {
  * porte sur qui paie.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export type { ClaudeToolDef, ClaudeContentBlock, ClaudeMessage, ClaudeRawResult } from "./models/compat";
+export type { ClaudeToolDef, ClaudeContentBlock, ClaudeMessage } from "./models/compat";
 
 type CallOptions = Omit<CompatOptions, "role">;
 

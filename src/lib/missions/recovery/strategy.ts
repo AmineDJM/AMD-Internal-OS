@@ -321,13 +321,6 @@ export function rejouable(kind: ErrorKind): boolean {
 export const CERTITUDES = ["TROUVE", "DEDUIT", "CANDIDAT", "INCONNU"] as const;
 export type Certitude = (typeof CERTITUDES)[number];
 
-export const LIBELLE_CERTITUDE: Record<Certitude, string> = {
-  TROUVE: "trouvé dans l'ERP",
-  DEDUIT: "déduit d'autres données",
-  CANDIDAT: "probable, à confirmer",
-  INCONNU: "introuvable",
-};
-
 /**
  * COMMENT UN RÉSULTAT DOIT ÊTRE PRÉSENTÉ selon sa certitude.
  *
