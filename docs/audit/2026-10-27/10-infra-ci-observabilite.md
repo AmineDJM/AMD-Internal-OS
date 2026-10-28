@@ -31,7 +31,7 @@ Les trois risques majeurs :
 |---|---|---|---|---|
 | INFRA-01 | HAUTE | maintenabilité / fiabilité | Aucune CI : rien ne vérifie un commit avant Render | **CORRIGÉ** `29108f0` |
 | INFRA-02 | HAUTE | fiabilité | Planificateur : 7 étapes sans `catch` coupent tout le passage ; 24 `catch` muets | **CORRIGÉ** `edd1128` |
-| INFRA-03 | HAUTE | sécurité | Next 14.2.35, next-auth 5.0.0-beta.22, xlsx 0.18.5 : avis critiques/hauts | PROPOSÉ (atténué par INFRA-04) |
+| INFRA-03 | HAUTE | sécurité | Next 14.2.35, next-auth 5.0.0-beta.22, xlsx 0.18.5 : avis critiques/hauts | **CORRIGÉ** lot V3-A (branche `v3/dependances`) |
 | INFRA-04 | HAUTE | sécurité | Optimiseur d'images `/_next/image` public, failles non corrigées sur Next 14 | **CORRIGÉ** `0f9cdfe` |
 | INFRA-05 | MOYENNE | fiabilité | `healthCheckPath: /login` : page statique, ne voit pas la base | **CORRIGÉ** `a49ce19` (route) — branchement Render PROPOSÉ |
 | INFRA-06 | HAUTE (CRITIQUE si la prod est en *free*) | intégrité des données | Aucune sauvegarde / restauration ; Postgres *free* dans le Blueprint ; fichiers en base | PROPOSÉ |
@@ -96,7 +96,12 @@ Les trois risques majeurs :
   `hot-alerts`, `mentions`) suivent la nouvelle forme.
 - **Effort** : S.
 
-### INFRA-03 — Dépendances vulnérables, sans correctif dans la branche utilisée · HAUTE · PROPOSÉ
+### INFRA-03 — Dépendances vulnérables, sans correctif dans la branche utilisée · HAUTE · **CORRIGÉ (V3-A)**
+
+> **Statut 28/10 (lot V3-A, branche `v3/dependances`)** : étapes 1 à 4 faites. Next 15.5.28 + React 19.2,
+> next-auth 5.0.0-beta.32, xlsx 0.20.3 (CDN SheetJS), puis le reste de l'audit (nodemailer 10, zod 4, `overrides`
+> postcss / image-size). `npm audit --omit=dev` : 23 avis (3 critiques, 16 hauts) → **2 modérés** (exceljs → uuid).
+> Porte CI `npm audit --omit=dev --audit-level=high` bloquante. Détail : journal du README (V3-A).
 
 - **Preuve** : `npm audit --omit=dev` (27/10) → **23 avis : 3 critiques, 16 hauts, 3 modérés, 1 bas**.
   - `next@14.2.35` (`package.json`) : ~25 avis dont GHSA-2464-fhr4-w9xw et GHSA-2xp9-vwfh-vxw4

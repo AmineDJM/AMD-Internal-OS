@@ -5,6 +5,7 @@ import { errors } from "@/lib/api/errors";
 import { readFileByKey } from "@/lib/storage";
 import { documentLisibleParApi } from "@/lib/api/registry/document-lisible";
 import { contentDisposition } from "@/lib/http/content-disposition";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * TÉLÉCHARGEMENT CONTRÔLÉ D'UNE PIÈCE.
@@ -27,7 +28,7 @@ export const GET = handle<{ id: string }>(
     if (!(await documentLisibleParApi(ctx.user, doc))) throw errors.notFound("Document");
 
     if (!doc.fileKey) throw errors.notFound("Contenu du document");
-    const buffer = await readFileByKey(doc.fileKey).catch(() => null);
+    const buffer = await readFileByKey(doc.fileKey).catch(sansBloquer("content-route.readFileByKey", null));
     if (!buffer) throw errors.notFound("Contenu du document");
 
     // La réponse binaire sort du cadre JSON de `handle` : on la renvoie telle quelle.

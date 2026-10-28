@@ -20,7 +20,8 @@ const INLINE_MIME: Record<string, string> = {
   txt: "text/plain; charset=utf-8", csv: "text/csv; charset=utf-8", xml: "application/xml",
 };
 
-export async function GET(req: NextRequest, { params }: { params: { documentId: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ documentId: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!regCan(user, "regulatory.document.view")) return NextResponse.json({ error: "Accès refusé." }, { status: 403 });

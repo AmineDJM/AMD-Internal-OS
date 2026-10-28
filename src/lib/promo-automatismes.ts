@@ -19,6 +19,7 @@ import { libellesPromusDeLArticle } from "@/lib/promo-material/achats";
 import { ACTION_LABEL } from "@/lib/promo-material/actions-fournisseur";
 import { texteDemandeDeDevis } from "@/lib/promo-material/texte-demande-devis";
 import { deposerLettreDevis, type DepotLettreDevis } from "@/lib/demande-devis-depot";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -154,7 +155,7 @@ export async function envoyerDemandeDeDevis(auteurId: string, promoMaterialId: s
     },
   });
   if (bascule.count === 0) {
-    await prisma.administrativeRequest.delete({ where: { id: ouverte.demande.id } }).catch(() => {});
+    await prisma.administrativeRequest.delete({ where: { id: ouverte.demande.id } }).catch(sansBloquer("promo-automatismes.envoyerDemandeDeDevis.administrativeRequest"));
     return { ok: false, error: "La demande de devis de ce dossier vient de partir." };
   }
   await recordAudit({

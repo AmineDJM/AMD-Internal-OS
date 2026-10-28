@@ -23,6 +23,7 @@ import {
   detecterIdentifiant, normaliserRequete, plierMolecules, scorerNom, trancher, TYPES_ENTITE,
   type Candidat, type Preuve, type Tranche, type TypeEntite,
 } from "@/lib/fabric/entites-score";
+import { sansBloquer } from "@/lib/journal";
 
 export interface ResolutionEntite extends Tranche {
   requete: string;
@@ -163,7 +164,7 @@ async function produits(requete: string, ident: ReturnType<typeof detecterIdenti
     }),
     parTrigramme("RegulatoryProduct", "dci", requete, 0.4),
     // Le catalogue canonique et ses ALIAS (« Keytruda » → pembrolizumab) — la brique produits existante.
-    veutProduit || veutMarque || veutMolecule ? resolveProductMention(requete).catch(() => []) : Promise.resolve([]),
+    veutProduit || veutMarque || veutMolecule ? resolveProductMention(requete).catch(sansBloquer("entites.produits.resolveProductMention", [])) : Promise.resolve([]),
   ]);
   const vus = new Set(rows.map((r) => r.id));
   const plus = trg.filter((t) => !vus.has(t.id)).length

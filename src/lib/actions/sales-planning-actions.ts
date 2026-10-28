@@ -19,7 +19,8 @@ import { enSerie } from "@/lib/refs";
 import { specialitesDemandees, ecrireSpecialitesBu, resumeSpecialitesBu } from "@/lib/sfe/specialites-bu";
 import { estBuHospitaliere, nomDuTerritoire } from "@/lib/sfe/territoire-kam";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
+import { sansBloquer } from "@/lib/journal";
 
 const MODULE = "SALES_PLANNING" as const;
 /**
@@ -298,7 +299,7 @@ export async function createPromoProduct(formData: FormData): Promise<ActionResu
     productId = dossier.productId;
     if (!productId) {
       // Produit = dossier : un dossier sans produit (d'avant ce lot) reçoit le sien ici.
-      const lien = await ensureProduitDuDossier(regulatoryProductId, { acteurId: user.id }).catch(() => null);
+      const lien = await ensureProduitDuDossier(regulatoryProductId, { acteurId: user.id }).catch(sansBloquer("sales-planning-actions.createPromoProduct.ensureProduitDuDossier", null));
       productId = lien && "produitId" in lien ? lien.produitId : null;
     }
   }

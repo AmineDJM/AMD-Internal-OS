@@ -9,6 +9,7 @@ import { cleLivret } from "@/lib/care-pieces-acces";
 import { lireMarque } from "@/lib/brand/model";
 import { civiliteDuGrade, livretGeneral, livretIndividuel, versPoste, type CoordonneesLivret, type EntreeLivret, type MembreLivret } from "./modele";
 import { rendreLivretPdf } from "./rendu-pdf";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE LIVRET DE SÉJOUR, CÔTÉ SERVEUR — lire la demande (événement, fiches voyageur, postes de groupe, équipe
@@ -167,7 +168,7 @@ export async function genererLivret(
   await recordAudit({
     actorId: acteurId, action: "CREATE", module, entityType: module, entityId: requestId,
     summary: `${livret.type === "GENERAL" ? "Livret de la délégation" : "Livret de séjour"} généré — « ${livret.nomFichier} ».`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("livret-serveur.genererLivret.recordAudit"));
   return { ok: true, documentId: r.documentId, nom: livret.nomFichier };
 }
 

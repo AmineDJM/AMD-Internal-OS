@@ -24,6 +24,7 @@ import {
 } from "@/lib/training";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationFormation } from "@/lib/annulations/regles";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = CHEMIN_FORMATIONS;
 
@@ -98,7 +99,7 @@ export async function requestTraining(_prev: ActionResult | undefined, formData:
   const amount = fdNum(formData, "amount") ?? 0;
   if (amount < 0) return { ok: false, error: "Un montant ne peut pas être négatif." };
 
-  const manager = await getManagerOfUser(user.id).catch(() => null);
+  const manager = await getManagerOfUser(user.id).catch(sansBloquer("training-actions.requestTraining.getManagerOfUser", null));
   const managerUserId = manager?.userId ?? null;
   const stage = initialTrainingStage("EMPLOYEE", Boolean(managerUserId));
 
@@ -224,7 +225,7 @@ async function deciderFor(user: SessionUser, training: { managerId: string | nul
     // ACTUELLE, sinon la demande reste orpheline.
     const emp = await prisma.employee.findUnique({ where: { userId: training.requesterId }, select: { id: true } });
     if (emp) {
-      const chain = await getManagementChain(emp.id).catch(() => []);
+      const chain = await getManagementChain(emp.id).catch(sansBloquer("training-actions.deciderFor.getManagementChain", []));
       isManager = chain.some((m) => Boolean(m.userId && ids.has(m.userId)));
     }
   }
@@ -450,11 +451,11 @@ export async function annulerFormation(formData: FormData): Promise<ActionResult
   if (training.status === "PENDING" && training.stage === "MANAGER" && training.managerId) {
     const chef = await prisma.employee.findUnique({ where: { id: training.managerId }, select: { userId: true } });
     if (chef?.userId && chef.userId !== user.id) {
-      await notifyUser({ userId: chef.userId, type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(() => undefined);
+      await notifyUser({ userId: chef.userId, type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(sansBloquer("training-actions.annulerFormation.notifyUser"));
     }
   } else {
     const roles = (training.status === "APPROVED" ? ["DIRECTION", "SUPER_ADMIN", ...rolesWithModule("TRAINING", "UPDATE")] : chainNotifyRoles(training.stage as ChainStage)) as UserRole[];
-    if (roles.length) await notifyRoles([...new Set(roles)], { type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(() => undefined);
+    if (roles.length) await notifyRoles([...new Set(roles)], { type: "GENERIC", title: "Formation annulée", body: corps, link: lienFormation(id) }).catch(sansBloquer("training-actions.annulerFormation.notifyRoles"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "TRAINING", entityId: id,

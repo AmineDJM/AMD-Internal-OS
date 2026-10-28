@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { clesDesActions } from "@/lib/actions/parc";
 import {
   ACTION_CLASSIFICATION, ERP_ACTIONS, matchNativeAction, nativeActionHint, actionsForUser, parityStats,
 } from "./action-registry";
@@ -10,29 +9,19 @@ import type { EffectiveAccess } from "@/lib/rbac";
 /**
  * PARITÉ UI ↔ CHIEF COMME INVARIANT DE BUILD (« no more capability whack-a-mole »).
  *
- * Le scan relit `src/lib/actions/` À CHAQUE exécution : un développeur qui ajoute un bouton
+ * Le scan relit le parc des actions (`src/lib/actions/` et les `actions.ts` des modules) À CHAQUE exécution : un développeur qui ajoute un bouton
  * métier (— donc une server action —) sans la classer dans le registre voit ce test échouer
  * avec le nom exact de l'action. Un trou peut être ASSUMÉ (statut GAP, note), jamais SILENCIEUX.
  * Le même test verrouille l'hygiène du registre (ids uniques, alias résolus, portes sûres) et
  * imprime la métrique UI_ACTION_PARITY.
  */
 
-const ACTIONS_DIR = join(process.cwd(), "src", "lib", "actions");
-
+/**
+ * Les clés vivantes du PARC (`src/lib/actions/parc.ts`) : `src/lib/actions/` et les `actions.ts` des
+ * modules, sous leur clé déclarée — une action rangée dans son module reste classée sous la même clé.
+ */
 function liveActionKeys(): Set<string> {
-  const keys = new Set<string>();
-  for (const file of readdirSync(ACTIONS_DIR)) {
-    // Les modules du CONTRAT vivent dans ce dossier sans être des actions d'écran : ils n'ont
-    // pas de bouton, et les compter ferait échouer la parité sur du code d'infrastructure.
-    if (!file.endsWith(".ts") || file.endsWith(".test.ts")) continue;
-    if (["types.ts", "contrat.ts", "contrat-scan.ts", "contrat.genere.ts", "generique.ts", "executer.ts", "aiguillage.genere.ts"].includes(file)) continue;
-    const base = file.replace(/\.ts$/, "");
-    const src = readFileSync(join(ACTIONS_DIR, file), "utf8");
-    for (const m of src.matchAll(/^export async function ([A-Za-z0-9_]+)/gm)) {
-      keys.add(`${base}:${m[1]}`);
-    }
-  }
-  return keys;
+  return clesDesActions();
 }
 
 function userWith(role: CurrentUser["role"], perms: Record<string, string[]> = {}): CurrentUser {

@@ -40,7 +40,8 @@ import { mailRoutingOptions } from "@/lib/queries/mail-routing";
  * factures → paiements, plus les courriers et la frise. Le niveau d'en-tête est DÉRIVÉ des
  * faits ; les montants viennent tous du même module de calcul.
  */
-export default async function PchTenderPage({ params }: { params: { id: string } }) {
+export default async function PchTenderPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("PCH");
   // LA PORTE AVANT LE CHARGEMENT (§118.184 — audit 360°, S11) : la fiche chargeait le marché par son seul
   // identifiant, et un gestionnaire PCH d'une société lisait le marché d'une autre — montants, contrat,

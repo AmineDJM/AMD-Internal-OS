@@ -212,7 +212,7 @@ suite("Teach Adam — enseigner, retrouver, départager, réviser, supprimer", (
     const route = fs.readFileSync("src/app/api/assistant/stream/route.ts", "utf8");
     const action = fs.readFileSync("src/lib/actions/assistant-actions.ts", "utf8");
     expect(route).toMatch(/memoryOn \? personalBrut : await contexteReglesSeules\(user\.id\)/);
-    expect(action).toMatch(/memoryOn \? await personalContext\(user\.id\)\.catch\(\(\) => null\) : await contexteReglesSeules\(user\.id\)/);
+    expect(action).toMatch(/memoryOn \? await personalContext\(user\.id\)\.catch\(sansBloquer\("[^"]+", null\)\) : await contexteReglesSeules\(user\.id\)/);
   }, 60_000);
 
   it("les paramètres écrits par le modèle sont normalisés : « validite_devis » / « 45 jours » deviennent la clé et le nombre que la fabrique applique", async () => {

@@ -26,7 +26,8 @@ function poids(bytes: number | null): string {
   return mo >= 1 ? `${mo.toFixed(1).replace(".", ",")} Mo` : `${Math.max(1, Math.round(bytes / 1024))} Ko`;
 }
 
-export default async function DirectiveDetailPage({ params }: { params: { id: string } }) {
+export default async function DirectiveDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const d = await getDirective(params.id);
   if (!d) notFound();

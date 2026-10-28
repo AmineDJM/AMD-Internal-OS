@@ -37,7 +37,8 @@ function Info({ label, value }: { label: string; value: React.ReactNode }) {
  * par un module : celui qui fait payer une facture n'a aucune raison d'accéder au grand livre,
  * et ne doit pourtant jamais perdre de vue SA demande.
  */
-export default async function PaymentRequestPage({ params }: { params: { id: string } }) {
+export default async function PaymentRequestPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const req = await prisma.paymentRequest.findUnique({
     where: { id: params.id },

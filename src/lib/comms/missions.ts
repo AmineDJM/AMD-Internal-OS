@@ -1,5 +1,6 @@
 import { MissionStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE MOTEUR DE MISSIONS — ce qui fait qu'une demande du PDG SURVIT à la conversation.
@@ -65,7 +66,7 @@ export async function recordMissionEvent(
   await prisma.missionEvent.create({
     data: { missionId, kind, summary: summary.slice(0, 2000), detail: (detail ?? null) as never, actorId: actorId ?? null },
   });
-  await prisma.mission.update({ where: { id: missionId }, data: { updatedAt: new Date() } }).catch(() => undefined);
+  await prisma.mission.update({ where: { id: missionId }, data: { updatedAt: new Date() } }).catch(sansBloquer("missions.recordMissionEvent.mission"));
 }
 
 /** La mission passe en attente : les demandes sont parties, on écoute. */

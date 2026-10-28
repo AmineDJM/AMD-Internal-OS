@@ -11,6 +11,7 @@ import {
   costOf,
   emptyUsage,
 } from "./contract";
+import { attendu } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -339,7 +340,7 @@ export async function callOpenAi(
         };
       }
 
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       lastError = providerErrorMessage(res.status, raw);
 
       // PARAMÈTRE REFUSÉ PAR LE MODÈLE. Un 400 sur `temperature` n'est pas une panne : c'est un
@@ -481,7 +482,7 @@ export async function streamOpenAi(
     });
 
     if (!res.ok || !res.body) {
-      const raw = await res.text().catch(() => "");
+      const raw = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[models] openai stream error", binding.role, res.status, raw.slice(0, 300));
       return {
         ok: false,

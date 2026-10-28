@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, Check, KeyRound, Loader2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { checkDciDuplicate, requestRegulatoryDossierAccess, type ExistantDeLaMolecule } from "@/lib/actions/regulatory-actions";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * « CETTE DCI EXISTE DÉJÀ » — dit PENDANT la saisie, pas après le clic.
@@ -63,7 +64,7 @@ export function useDciDuplicate(dci: string): DciDuplicateCheck {
     // Une DCI se tape lettre par lettre : sans ce délai, on interrogerait le référentiel à
     // chaque frappe pour une seule réponse utile — et les réponses arriveraient dans le désordre.
     const t = setTimeout(async () => {
-      const r = await checkDciDuplicate(propre).catch(() => null);
+      const r = await checkDciDuplicate(propre).catch(sansBloquer("dci-duplicate-banner.useDciDuplicate.checkDciDuplicate", null));
       if (!vivant) return;
       setNotice(r?.notice ?? null);
       setCanRequestAccess(r?.canRequestAccess ?? false);
@@ -99,7 +100,7 @@ export function DciDuplicateBanner({ dci, check, onPartirDuProduit }: {
   const demanderAcces = async () => {
     setEnvoi(true);
     setReponse(null);
-    const r = await requestRegulatoryDossierAccess(dci).catch(() => null);
+    const r = await requestRegulatoryDossierAccess(dci).catch(sansBloquer("dci-duplicate-banner.demanderAcces.requestRegulatoryDossierAccess", null));
     setEnvoi(false);
     setReponse(r?.ok ? (r.message ?? "Demande transmise.") : (r?.error ?? "L'envoi a échoué."));
   };

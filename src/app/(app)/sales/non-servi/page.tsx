@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  * VENTES PCH — LA DEMANDE NON SERVIE, PRODUIT × DIRECTION RÉGIONALE : ce que les hôpitaux ont commandé et que la PCH a
  * livré à 0 (rupture), et combien d'établissements l'ont demandé. Le signal que lira le cockpit.
  */
-export default async function NonServiVentesPchPage({ searchParams }: { searchParams: ParamsVentesPch }) {
+export default async function NonServiVentesPchPage(props: { searchParams: Promise<ParamsVentesPch> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PCH_VENTES");
   const ctx = await contexteVentesPch(searchParams);
   const [matrice, drs] = await Promise.all([matriceNonServi(ctx.periode, ctx.buId), directionsRegionales()]);

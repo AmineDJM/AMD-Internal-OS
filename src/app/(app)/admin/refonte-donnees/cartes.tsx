@@ -3,9 +3,9 @@
 import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { apercuReprise, executerReprise } from "@/lib/actions/refonte-reprise-actions";
-import { reglerDoubleEcritureOrganisations } from "@/lib/actions/organisation-actions";
-import type { BilanReprise } from "@/lib/referentiels/reprises/types";
+import { apercuReprise, executerReprise } from "@/modules/referentiels/actions-reprises";
+import { reglerDoubleEcritureOrganisations } from "@/modules/referentiels/actions-organisations";
+import type { BilanReprise } from "@/modules/referentiels/partage";
 import { Button } from "@/components/ui/button";
 
 /**

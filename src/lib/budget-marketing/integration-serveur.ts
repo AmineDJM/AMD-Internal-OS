@@ -20,6 +20,7 @@ import {
 } from "@/lib/budget-marketing/integration-2026";
 import { apparierPostes, suggestions, SEUIL_PRESELECTION, type Candidate, type Suggestion } from "@/lib/budget-marketing/integration-suggestions";
 import { lienDemande, piecesAttenduesDe, piecesRattacheesDe } from "@/lib/budget-marketing/integration-vue";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -875,7 +876,7 @@ export async function blocHistoriqueDe(user: SessionUser, type: TypeDemandeInteg
 export async function peutJoindrePieces(user: SessionUser, type: TypeDemandeIntegree, demandeId: string, enveloppe: Parameters<typeof canManageEnvelope>[1]): Promise<boolean> {
   if (canManageEnvelope(user, enveloppe)) return true;
   const { canAccessEntity } = await import("@/lib/entity-access");
-  return canAccessEntity(user, type, demandeId, "UPDATE").catch(() => false);
+  return canAccessEntity(user, type, demandeId, "UPDATE").catch(sansBloquer("integration-serveur.peutJoindrePieces.canAccessEntity", false));
 }
 
 /** « Demandé par » d'une demande créée par un lot actif (« Direction Marketing ») — `null` pour toute autre demande. */

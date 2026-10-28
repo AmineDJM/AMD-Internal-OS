@@ -76,7 +76,10 @@ function Comparaison({ produits, fermer }: { produits: LigneProduit360[]; fermer
  * d'abord), filtrables par BU, comparables 2 à 4 ; le pipeline (dossier en cours) dans son onglet. Chaque colonne
  * n'apparaît qu'à qui a son module.
  */
-export default async function ProduitsPage({ searchParams }: { searchParams?: { q?: string; onglet?: string; bu?: string; comparer?: string } }) {
+export default async function ProduitsPage(
+  props: { searchParams?: Promise<{ q?: string; onglet?: string; bu?: string; comparer?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PRODUCTS");
   const q = (searchParams?.q ?? "").trim();
   const bu = searchParams?.bu?.trim() || null;

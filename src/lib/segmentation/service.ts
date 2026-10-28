@@ -2,7 +2,7 @@ import { createHash } from "crypto";
 import { lireFeuilles } from "./feuilles";
 import type { DoctorTitle, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { indexerEtablissements, cleDEtablissement } from "@/lib/annuaires/rattachement";
 import { indexerSpecialites } from "@/lib/annuaires/specialites";
 import { composeDoctorName } from "@/lib/medical/directory-grid";

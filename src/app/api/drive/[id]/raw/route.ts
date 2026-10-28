@@ -15,7 +15,8 @@ import { recordAudit } from "@/lib/audit";
  * `?qualite=max|reduite|estimer` : voir `@/lib/http/telechargement`. Un dossier part en archive ZIP
  * streamée — non compressée en qualité maximale, deflate 9 en taille réduite.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
   if (!canViewDrive(await resolveDriveAccess(user, params.id))) return new NextResponse(null, { status: 403 });

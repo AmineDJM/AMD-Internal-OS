@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import type { DoctorTitle, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { indexerSpecialites, cleDeSpecialite } from "@/lib/annuaires/specialites";
 import { composeDoctorName } from "@/lib/medical/directory-grid";
 import { titleFrom } from "@/lib/medical/directory-sheet";

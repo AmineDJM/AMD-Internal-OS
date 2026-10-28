@@ -27,6 +27,7 @@ import { intelligenceComplete } from "@/platform/in-process/intelligence";
 import { resoudreEntitesDe } from "@/lib/fabric";
 import { auMoins, CONTENU_PAR_NIVEAU, LIBELLE_NIVEAU, niveauDepuisRegles, niveauParDefaut, NIVEAUX, type NiveauReunion } from "@/lib/meetings/niveau";
 import type { Signal } from "@/lib/utils/signaux";
+import { sansBloquer } from "@/lib/journal";
 
 export { auMoins, CONTENU_PAR_NIVEAU, LIBELLE_NIVEAU, NIVEAUX, RANG_NIVEAU, type NiveauReunion } from "@/lib/meetings/niveau";
 
@@ -56,7 +57,7 @@ export interface NiveauResolu { niveau: NiveauReunion; source: string; regleId?:
 
 /** LE NIVEAU de la personne : la règle enseignée d'abord (clé `niveauReunion`, ou une phrase qui parle du brief), sinon le défaut du rôle. */
 export async function niveauReunionPour(user: Pick<CurrentUser, "id" | "role">): Promise<NiveauResolu> {
-  const { resolution } = await reglesEnVigueurPour(user.id).catch(() => ({ resolution: { enVigueur: [] as { params: Record<string, unknown> | null; statement: string; id: string }[] } }));
+  const { resolution } = await reglesEnVigueurPour(user.id).catch(sansBloquer("meetings.niveauReunionPour.reglesEnVigueurPour", { resolution: { enVigueur: [] as { params: Record<string, unknown> | null; statement: string; id: string }[] } }));
   const appris = niveauDepuisRegles(resolution.enVigueur.map((r) => ({ params: r.params, statement: r.statement, id: r.id })));
   if (appris) return { niveau: appris.niveau, source: `règle enseignée : « ${appris.statement.slice(0, 160)} »`, regleId: appris.id };
   const niveau = niveauParDefaut(user.role);
@@ -112,12 +113,12 @@ export async function composerBriefReunion(user: CurrentUser, opts: OptionsBrief
       prisma.task.findMany({
         where: { status: { in: [...STATUTS_TACHE_OUVERTE] }, OR: [{ createdById: user.id, assignedToId: p.userId }, { createdById: p.userId, assignedToId: user.id }] },
         orderBy: { createdAt: "desc" }, take: 5, select: { title: true, status: true, dueDate: true },
-      }).catch(() => []),
+      }).catch(sansBloquer("meetings.composerBriefReunion.task", [])),
       auMoins(niveau, "STANDARD")
         ? prisma.executiveCommitment.findMany({
           where: { ownerId: user.id, status: { in: ["OPEN", "BROKEN"] }, OR: [{ who: { contains: p.user.name, mode: "insensitive" } }, { toWhom: { contains: p.user.name, mode: "insensitive" } }] },
           orderBy: { createdAt: "desc" }, take: 4, select: { who: true, what: true, status: true, dueAt: true },
-        }).catch(() => [])
+        }).catch(sansBloquer("meetings.composerBriefReunion.executiveCommitment", []))
         : Promise.resolve([]),
     ]);
     return {
@@ -158,10 +159,10 @@ export async function composerBriefReunion(user: CurrentUser, opts: OptionsBrief
         participants: { include: { user: { select: { name: true } } } },
         proposals: { include: { assignee: { select: { name: true } } } },
       },
-    }).catch(() => []);
+    }).catch(sansBloquer("meetings.composerBriefReunion.meeting", []));
     const idsTaches = precedentes.flatMap((r) => r.proposals.map((p) => p.createdTaskId).filter((x): x is string => !!x));
     const tachesCreees = idsTaches.length
-      ? await prisma.task.findMany({ where: { id: { in: idsTaches } }, select: { id: true, status: true, dueDate: true, assignedTo: { select: { name: true } } } }).catch(() => [])
+      ? await prisma.task.findMany({ where: { id: { in: idsTaches } }, select: { id: true, status: true, dueDate: true, assignedTo: { select: { name: true } } } }).catch(sansBloquer("meetings.composerBriefReunion.task", []))
       : [];
     const parTache = new Map(tachesCreees.map((t) => [t.id, t]));
     const vueReunion = (r: (typeof precedentes)[number]) => ({
@@ -184,7 +185,7 @@ export async function composerBriefReunion(user: CurrentUser, opts: OptionsBrief
       where: { ownerId: user.id, status: { not: "ABANDONED" }, createdAt: { gte: depuis } },
       orderBy: { createdAt: "desc" }, take: 40,
       select: { title: true, decision: true, status: true, decidedAt: true, reviewDate: true, entities: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("meetings.composerBriefReunion.executiveDecision", []));
     const prenoms = nomsParticipants.map((n) => plier(prenom(n))).filter((p) => p.length >= 3);
     const liees = decisions.filter((d) => {
       const texte = plier(`${d.title} ${d.decision ?? ""} ${JSON.stringify(d.entities ?? "")}`);
@@ -197,22 +198,22 @@ export async function composerBriefReunion(user: CurrentUser, opts: OptionsBrief
   if (auMoins(niveau, "CHIEF_OF_STAFF")) {
     const texteReunion = `${m.title} ${m.description ?? ""}`;
     const [entites, validations, missionsEnAttente, engagementsRetard, intelligence] = await Promise.all([
-      resoudreEntitesDe(texteReunion).catch(() => []),
+      resoudreEntitesDe(texteReunion).catch(sansBloquer("meetings.composerBriefReunion.resoudreEntitesDe", [])),
       prisma.validationStep.findMany({
         where: { validatorId: user.id, status: "PENDING", request: { status: "PENDING" } },
         orderBy: { createdAt: "asc" }, take: 12,
         select: { request: { select: { reference: true, title: true, module: true, amount: true, deadline: true, requester: { select: { name: true } } } } },
-      }).catch(() => []),
+      }).catch(sansBloquer("meetings.composerBriefReunion.validationStep", [])),
       prisma.missionStep.findMany({
         where: { status: "WAITING", supersededAt: null, mission: { ownerId: user.id, status: { notIn: ["COMPLETED", "CANCELLED", "FAILED"] } } },
         orderBy: { updatedAt: "desc" }, take: 12,
         select: { title: true, waitFor: true, mission: { select: { title: true } } },
-      }).catch(() => []),
+      }).catch(sansBloquer("meetings.composerBriefReunion.missionStep", [])),
       prisma.executiveCommitment.findMany({
         where: { ownerId: user.id, status: "OPEN", dueAt: { lt: maintenant } },
         orderBy: { dueAt: "asc" }, take: 12, select: { who: true, what: true, dueAt: true, relatedRef: true },
-      }).catch(() => []),
-      intelligenceComplete(user, { maintenant, leger: true }).catch(() => ({ signaux: [] as Signal[] })),
+      }).catch(sansBloquer("meetings.composerBriefReunion.executiveCommitment", [])),
+      intelligenceComplete(user, { maintenant, leger: true }).catch(sansBloquer("meetings.composerBriefReunion.intelligenceComplete", { signaux: [] as Signal[] })),
     ]);
 
     const cles = [...entites.map((e) => plier(e.label)), ...nomsParticipants.map(plier), ...motsDe(m.title)].filter((c) => c.length >= 4);
@@ -253,7 +254,7 @@ export async function composerBriefReunion(user: CurrentUser, opts: OptionsBrief
     const suivante = await prisma.meeting.findFirst({
       where: { status: "SCHEDULED", id: { not: m.id }, scheduledAt: { gt: m.scheduledAt ?? maintenant }, OR: [{ organizerId: user.id }, { participants: { some: { userId: user.id } } }], AND: [{ OR: motsDe(m.title).map((mot) => ({ title: { contains: mot, mode: "insensitive" as const } })) }] },
       orderBy: { scheduledAt: "asc" }, select: { title: true, scheduledAt: true },
-    }).catch(() => null);
+    }).catch(sansBloquer("meetings.composerBriefReunion.meeting", null));
     brief.suiviJusquaProchaine = {
       prochaineOccurrence: suivante ? `${suivante.title} (${frDate(suivante.scheduledAt)})` : null,
       aRapporter: [

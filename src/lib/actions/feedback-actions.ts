@@ -13,6 +13,7 @@ import {
   MAX_ATTACHMENTS_PER_FEEDBACK,
 } from "@/lib/files/attachment-policy";
 import { canRemoveFeedbackAttachment } from "@/lib/feedback/access";
+import { sansBloquer } from "@/lib/journal";
 
 const STATUSES: FeedbackStatus[] = ["NEW", "SEEN", "IN_PROGRESS", "DONE"];
 
@@ -38,7 +39,7 @@ async function prepareAttachments(files: File[]): Promise<
   const prepared: { blobId: string; name: string; mime: string; size: number }[] = [];
   /** Ce qui a déjà été écrit — à rendre si la suite échoue. */
   const rollback = async () => {
-    for (const p of prepared) await releaseBlob(p.blobId).catch(() => undefined);
+    for (const p of prepared) await releaseBlob(p.blobId).catch(sansBloquer("feedback-actions.rollback.releaseBlob"));
   };
 
   for (const f of files) {
@@ -93,7 +94,7 @@ export async function submitFeedback(
     });
   } catch {
     // La transaction a échoué : les octets déjà écrits n'appartiennent à personne, on les rend.
-    for (const p of att.prepared) await releaseBlob(p.blobId).catch(() => undefined);
+    for (const p of att.prepared) await releaseBlob(p.blobId).catch(sansBloquer("feedback-actions.submitFeedback.releaseBlob"));
     return { ok: false, error: "L'enregistrement du retour a échoué. Rien n'a été conservé." };
   }
 
@@ -167,7 +168,7 @@ export async function removeFeedbackAttachment(formData: FormData): Promise<Acti
   if (!canRemoveFeedbackAttachment(user, att.feedback)) return { ok: false, error: "Non autorisé." };
 
   await prisma.feedbackAttachment.delete({ where: { id } });
-  await releaseBlob(att.blobId).catch(() => undefined);
+  await releaseBlob(att.blobId).catch(sansBloquer("feedback-actions.removeFeedbackAttachment.releaseBlob"));
 
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Feedback",

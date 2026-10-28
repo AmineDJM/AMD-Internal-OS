@@ -1,8 +1,9 @@
 import type { RolePersonne, TypeIdentifiantOrganisation } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { plier } from "@/lib/referentiels/normalisation";
+import { plier } from "@/modules/referentiels/partage";
 import type { CandidatFiche } from "./decision";
 import { estPorteurDePersonne, type PorteurDePersonne } from "./sujets";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -83,7 +84,7 @@ export async function personneDuPorteur(type: PorteurDePersonne, id: string): Pr
   });
   if (await lierPorteur(type, id, creee.id)) return creee.id;
   // Une autre écriture a lié la fiche entre-temps : la nôtre ne sert à rien, la sienne fait foi.
-  await prisma.personne.delete({ where: { id: creee.id } }).catch(() => undefined);
+  await prisma.personne.delete({ where: { id: creee.id } }).catch(sansBloquer("fiches.personneDuPorteur.personne"));
   return (await lirePorteur(type, id))?.personneId ?? null;
 }
 

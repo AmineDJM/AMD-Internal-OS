@@ -29,7 +29,8 @@ export const dynamic = "force-dynamic";
  * Aucune mise en cache partagée : `private, no-store`. Une pièce de retour n'a rien à faire
  * dans un cache intermédiaire.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
 

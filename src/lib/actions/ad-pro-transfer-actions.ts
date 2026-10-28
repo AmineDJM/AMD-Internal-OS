@@ -12,6 +12,7 @@ import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { fermerInstance, ouvrirLeCircuit } from "@/lib/workflow/engine";
 import { adProInit } from "@/lib/workflow/origin";
 import type { CongressRequestStatus, Prisma, SponsoringStatus } from "@prisma/client";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * TRANSFÉRER UNE DEMANDE D'UN MODULE AD & PRO VERS UN AUTRE.
@@ -301,7 +302,7 @@ export async function transferAdProRequest(_prev: ActionResult | undefined, form
       await fermerInstance({
         viewer: { id: user.id, role: user.role, secondaryRole: user.secondaryRole ?? null, name: user.name },
         entityType: fromRaw, entityId: sourceId, motif: `Transférée vers ${LABELS[toRaw]}`,
-      }).catch(() => false);
+      }).catch(sansBloquer("ad-pro-transfer-actions.transferAdProRequest.fermerInstance", false));
 
       // Le circuit de la demande reçue naît maintenant, sur la route de son créateur, et prévient ses
       // acteurs. Le transfert est fait : une panne ici se journalise — le circuit s'ouvrira à la première
@@ -315,7 +316,7 @@ export async function transferAdProRequest(_prev: ActionResult | undefined, form
         await recordAudit({
           actorId: user.id, action: "UPDATE", module: LABELS[entry.entityType as AdProKind],
           entityType: entry.entityType as never, entityId: entry.entityId, summary: entry.summary,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("ad-pro-transfer-actions.transferAdProRequest.recordAudit"));
       }
 
       if (src.requesterId) {
@@ -324,7 +325,7 @@ export async function transferAdProRequest(_prev: ActionResult | undefined, form
           title: "Votre demande a été transférée",
           body: `« ${src.title} » a été déplacée vers ${LABELS[toRaw]}. Le circuit de validation y repart du début.`,
           link: `${PATHS[toRaw]}/${targetId}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("ad-pro-transfer-actions.transferAdProRequest.notifyUser"));
       }
 
       revalidatePath(PATHS[fromRaw]);

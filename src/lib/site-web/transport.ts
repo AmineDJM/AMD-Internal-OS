@@ -2,6 +2,7 @@ import { createHmac } from "node:crypto";
 import { exigerSortieAutorisee } from "@/lib/sortie/garde";
 import { adresseDuSite, hoteLocal } from "./config";
 import { configurationEnVigueur } from "./cles";
+import { attendu } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -139,7 +140,7 @@ export async function envoyerAuSite(r: RequeteSite): Promise<ReponseSite> {
       signal: controleur.signal,
       cache: "no-store",
     });
-    const texte = await res.text().catch(() => null);
+    const texte = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", null));
     return {
       statut: res.status,
       texte,

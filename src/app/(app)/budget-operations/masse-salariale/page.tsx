@@ -26,13 +26,14 @@ const court = (v: number) => (v === 0 ? "—" : formatCurrency(v));
  * catégorie et ses sous-catégories par BU) face à la paie réelle, BU par BU et mois par mois. Des TOTAUX : le détail par
  * personne n'existe que pour qui voit les salaires (`voitLesSalaires`).
  */
-export default async function BudgetOperationsMasseSalarialePage({ searchParams }: { searchParams: ParamsBudget }) {
+export default async function BudgetOperationsMasseSalarialePage(props: { searchParams: Promise<ParamsBudget> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("BUDGET_OPERATIONS");
   // L'enveloppe de l'année existe d'emblée, masse salariale en tête (Direction, 10/2026) : rien à créer avant de saisir.
   await assurerEnveloppeAnnuelle("OPERATIONS", user);
   const opts = { portee: "OPERATIONS" as const };
   const [envelopes, tabs] = await Promise.all([getEnvelopes(user, opts), visibleTabs(user, BUDGET_OPERATIONS_TABS)]);
-  const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), null, null, opts);
+  const overview = await getBudgetOverview(user, await resolveBudgetEnvelope(searchParams.env), null, null, opts);
   const donnees = overview ? await vueMasseSalariale(user, overview) : null;
   const gere = overview ? canManageEnvelope(user, overview.envelope) : false;
 

@@ -154,6 +154,7 @@ import {
   renderSettingValue,
 } from "@/lib/assistant/admin-write";
 import { LIBELLES_COLONNES } from "@/lib/vues/colonnes-regulatory";
+import { sansBloquer } from "@/lib/journal";
 
 /** Le refus de l'outil de création d'une demande de matériel — le même à la carte et à l'exécution. */
 const REFUS_MATERIEL_PAR_ADAM =
@@ -1919,7 +1920,7 @@ export async function assistantIdentityContext(
     return `QUI TU ES : « Assistant IA », ${IDENTITY_HEADER}
 Tu n'as pas d'adresse d'expédition à toi pour ce compte, et tu n'écris depuis la boîte de personne.`;
   }
-  const identity = await resolveOutboundIdentity(user.id).catch(() => null);
+  const identity = await resolveOutboundIdentity(user.id).catch(sansBloquer("assistant.assistantIdentityContext.resolveOutboundIdentity", null));
   const adresse = identity && isIdentity(identity)
     ? `TON ADRESSE D'EXPÉDITION est ${formatIdentity(identity)}. C'est de LÀ que partent les messages que tu prépares.`
     : "AUCUNE adresse d'expédition n'est connectée en ce moment : tu ne peux donc envoyer aucun message, "
@@ -2254,14 +2255,14 @@ async function resolvePerson(brut: string): Promise<{ id: string; name: string }
   const matches = await findPeople(query, 8);
   const exact = matches.filter((m) => m.name.toLowerCase() === q || (m.title ?? "").toLowerCase() === q);
   if (exact.length === 1) return { id: exact[0].id, name: exact[0].name };
-  const r = await resoudreEntite(query, { types: ["PERSONNE"] }).catch(() => null);
+  const r = await resoudreEntite(query, { types: ["PERSONNE"] }).catch(sansBloquer("assistant.resolvePerson.resoudreEntite", null));
   if (r && (r.verdict === "CERTAIN" || r.verdict === "PROBABLE") && r.retenu) {
     // La brique rend l'identifiant du COMPTE quand il existe (un salarié sans compte ne peut rien recevoir).
-    const compte = await prisma.user.findUnique({ where: { id: r.retenu.id }, select: { id: true, name: true, isActive: true } }).catch(() => null);
+    const compte = await prisma.user.findUnique({ where: { id: r.retenu.id }, select: { id: true, name: true, isActive: true } }).catch(sansBloquer("assistant.resolvePerson.user", null));
     if (compte?.isActive) return { id: compte.id, name: compte.name };
   }
   if (r && r.verdict === "AMBIGU" && r.candidats.length) {
-    const comptes = await prisma.user.findMany({ where: { id: { in: r.candidats.map((c) => c.id) }, isActive: true }, select: { id: true, name: true, title: true, role: true, department: { select: { name: true } } } }).catch(() => []);
+    const comptes = await prisma.user.findMany({ where: { id: { in: r.candidats.map((c) => c.id) }, isActive: true }, select: { id: true, name: true, title: true, role: true, department: { select: { name: true } } } }).catch(sansBloquer("assistant.resolvePerson.user", []));
     if (comptes.length >= 2) return { ambiguous: comptes.map((u) => ({ id: u.id, name: u.name, title: u.title, department: u.department?.name ?? null, role: u.role })) };
   }
   // L'ADRESSE TRANCHE, ET ELLE NE TRANCHE QU'À L'EXACT. Elle sert quand le nom n'a rien donné
@@ -2270,7 +2271,7 @@ async function resolvePerson(brut: string): Promise<{ id: string; name: string }
     const parAdresse = await prisma.user.findFirst({
       where: { email: { equals: adresse, mode: "insensitive" }, isActive: true },
       select: { id: true, name: true },
-    }).catch(() => null);
+    }).catch(sansBloquer("assistant.resolvePerson.user", null));
     if (parAdresse) return parAdresse;
   }
   if (matches.length === 0) return null;
@@ -2524,7 +2525,7 @@ export async function executeReadTool(name: string, input: Record<string, unknow
         },
         take, orderBy: { createdAt: "desc" },
       });
-      const total = await prisma.regulatoryProduct.count({ where: { AND: [scopeRegulatory(user)] } }).catch(() => products.length);
+      const total = await prisma.regulatoryProduct.count({ where: { AND: [scopeRegulatory(user)] } }).catch(sansBloquer("assistant.executeReadTool.regulatoryProduct", products.length));
       if (products.length === 0) {
         // Le compte du PORTEFEUILLE est conservé à part : il dit autre chose que le compte du
         // résultat, et le confondre ferait croire à 69 résultats trouvés.
@@ -4878,8 +4879,8 @@ async function runAssistantImpl(
    */
   const perimees = await retirerCaduquesAvantLeTour(user.id, String(messages[messages.length - 1]?.content ?? ""));
   const [intentsCtx, identite] = await Promise.all([
-    recentActionIntentsContext(user.id).catch(() => null),
-    assistantIdentityContext(user).catch(() => null),
+    recentActionIntentsContext(user.id).catch(sansBloquer("assistant.runAssistantImpl.recentActionIntentsContext", null)),
+    assistantIdentityContext(user).catch(sansBloquer("assistant.runAssistantImpl.assistantIdentityContext", null)),
   ]);
   // La question d'ORIGINE (avant que la boucle n'empile les résultats d'outils) — elle décide
   // de la PROFONDEUR : une décision demandée mérite la seconde passe critique.
@@ -4888,7 +4889,7 @@ async function runAssistantImpl(
   // UN ACCORD CONCLUT. « Vas-y, envoie » sur un message qui attend l'EXPÉDIE — même fonction que
   // le bouton de la carte, sans repasser par le modèle : pas de second message préparé, pas de
   // carte de plus à cliquer.
-  const spoken = await resolveSpokenMailApproval(user, question).catch(() => null);
+  const spoken = await resolveSpokenMailApproval(user, question).catch(sansBloquer("assistant.runAssistantImpl.resolveSpokenMailApproval", null));
   if (spoken) {
     const reply = spoken.ok ? (spoken.message ?? "Envoyé.") : (spoken.error ?? "Envoi impossible.");
     return { configured: true, ok: true, reply, trace: [] };
@@ -4911,7 +4912,7 @@ async function runAssistantImpl(
   // « Nadir » devient une question quand deux Nadir existent — le modèle reçoit des identifiants
   // certains et l'ordre de demander quand c'est ambigu, au lieu de deviner.
   const entitesResolues = plan.entites.length
-    ? await timedPhase("entites", () => resoudreMentions(plan.entites).then(contexteEntitesResolues).catch(() => null))
+    ? await timedPhase("entites", () => resoudreMentions(plan.entites).then(contexteEntitesResolues).catch(sansBloquer("assistant.runAssistantImpl.resoudreMentions", null)))
     : null;
   const planCtx = [queryPlanContext(plan), entitesResolues, consigneCalcul(question), consignePeriode(question), consigneRepresentation(question), consigneSignaux(question), consigneProchainGeste(question)].filter(Boolean).join("\n\n") || null;
   // ── CE QUE NOTRE CONSIGNE NOMME, LE TOUR L'OUVRE (§118.122) ──────────────────────────────
@@ -4958,7 +4959,7 @@ async function runAssistantImpl(
   // Le Super Admin dispose d'outils exclusifs (vision globale de tous les comptes).
   // LES SKILLS DE LA PERSONNE (§36) — connecteurs, micro-outils, playbooks — sont chargés AVANT la liste :
   // sans ce préchargement, `assistantToolsFor` ne verrait que le cœur.
-  await timedPhase("skills", () => prechargerCapacitesDynamiques(user).catch(() => 0));
+  await timedPhase("skills", () => prechargerCapacitesDynamiques(user).catch(sansBloquer("assistant.runAssistantImpl.prechargerCapacitesDynamiques", 0)));
   const tOutils = Date.now();
   let allTools = assistantToolsFor(user);
   addPhase("catalogue", Date.now() - tOutils);
@@ -5169,7 +5170,7 @@ async function runAssistantImpl(
       const reply = reparerReponse(brut);
       const gesteCartes = await carteDuProchainGeste(lectures, user, opts.origin ?? "text");
       if (highStakes && reply.length >= CRITIQUE_MIN_DRAFT) {
-        const revised = await reviseHighStakes(systemComplet, question, reply, opts.model, cacheKey).catch(() => null);
+        const revised = await reviseHighStakes(systemComplet, question, reply, opts.model, cacheKey).catch(sansBloquer("assistant.runAssistantImpl.reviseHighStakes", null));
         trace.push(CRITIQUE_LABEL);
         return avecProvenance({ configured: true, ok: true, reply: revised ? reparerReponse(revised) : reply, trace, ...(gesteCartes ? { proposal: gesteCartes[0], proposals: gesteCartes } : {}) });
       }
@@ -5259,7 +5260,7 @@ async function runAssistantImpl(
     // ne peut pas l'appeler et retombe sur run_code (mesuré au banc : defi-skill-micro-outil).
     const nes = outilsCreesParmi(settled.map((s) => ({ name: s.tu.name, out: s.out })));
     if (nes.length) {
-      await prechargerCapacitesDynamiques(user).catch(() => 0);
+      await prechargerCapacitesDynamiques(user).catch(sansBloquer("assistant.runAssistantImpl.prechargerCapacitesDynamiques", 0));
       allTools = assistantToolsFor(user);
       tools = avecOutilsDeclares(tools, allTools, nes);
     }
@@ -5403,12 +5404,12 @@ async function carteDuProchainGeste(
     title: geste.intitule,
     description: geste.pourquoi,
     ...(geste.echeance ? { dueDate: geste.echeance } : {}),
-  }, user).catch(() => ({ error: "carte du geste indisponible" }));
+  }, user).catch(sansBloquer("assistant.carteDuProchainGeste.buildProposal", { error: "carte du geste indisponible" }));
   if ("error" in brouillon) return null;
   // LA CARTE DIT D'OÙ ELLE VIENT. Sans cela, une tâche apparaît sans que la personne sache quel
   // constat l'a produite — et « c'est fait » redevient une parole à croire (§104.16).
   brouillon.warnings.push(`Proposé depuis le signal « ${geste.code} » (${LIBELLE_GRAVITE[geste.gravite]}) relevé dans cette réponse — rien n'est créé avant votre confirmation.`);
-  const ids = await persistActionIntents(user.id, [brouillon], origin).catch(() => []);
+  const ids = await persistActionIntents(user.id, [brouillon], origin).catch(sansBloquer("assistant.carteDuProchainGeste.persistActionIntents", []));
   if (ids[0]) brouillon.intentId = ids[0];
   return [brouillon];
 }
@@ -5492,11 +5493,11 @@ async function runAssistantStreamImpl(
   // Même règle qu'en non-streaming, et pour la même raison : le retrait précède le modèle.
   const perimees = await retirerCaduquesAvantLeTour(user.id, String(messages[messages.length - 1]?.content ?? ""));
   const [intentsCtx, spoken, identite] = await Promise.all([
-    recentActionIntentsContext(user.id).catch(() => null),
+    recentActionIntentsContext(user.id).catch(sansBloquer("assistant.runAssistantStreamImpl.recentActionIntentsContext", null)),
     // UN ACCORD CONCLUT — même règle qu'en variante non diffusée, et pour la même raison : c'est
     // le serveur qui sait quelle intention attend, et c'est lui qui l'expédie.
-    resolveSpokenMailApproval(user, question).catch(() => null),
-    assistantIdentityContext(user).catch(() => null),
+    resolveSpokenMailApproval(user, question).catch(sansBloquer("assistant.runAssistantStreamImpl.resolveSpokenMailApproval", null)),
+    assistantIdentityContext(user).catch(sansBloquer("assistant.runAssistantStreamImpl.assistantIdentityContext", null)),
   ]);
   addPhase("contexte", Date.now() - tCtx);
   if (spoken) {
@@ -5524,7 +5525,7 @@ async function runAssistantStreamImpl(
   // « Nadir » devient une question quand deux Nadir existent — le modèle reçoit des identifiants
   // certains et l'ordre de demander quand c'est ambigu, au lieu de deviner.
   const entitesResolues = plan.entites.length
-    ? await timedPhase("entites", () => resoudreMentions(plan.entites).then(contexteEntitesResolues).catch(() => null))
+    ? await timedPhase("entites", () => resoudreMentions(plan.entites).then(contexteEntitesResolues).catch(sansBloquer("assistant.runAssistantStreamImpl.resoudreMentions", null)))
     : null;
   const planCtx = [queryPlanContext(plan), entitesResolues, consigneCalcul(question), consignePeriode(question), consigneRepresentation(question), consigneSignaux(question), consigneProchainGeste(question)].filter(Boolean).join("\n\n") || null;
   // ── CE QUE NOTRE CONSIGNE NOMME, LE TOUR L'OUVRE (§118.122) ──────────────────────────────
@@ -5570,7 +5571,7 @@ async function runAssistantStreamImpl(
   const surete = safetyIdentifierFor(user.id);
   // LES SKILLS DE LA PERSONNE (§36) — connecteurs, micro-outils, playbooks — sont chargés AVANT la liste :
   // sans ce préchargement, `assistantToolsFor` ne verrait que le cœur.
-  await timedPhase("skills", () => prechargerCapacitesDynamiques(user).catch(() => 0));
+  await timedPhase("skills", () => prechargerCapacitesDynamiques(user).catch(sansBloquer("assistant.runAssistantStreamImpl.prechargerCapacitesDynamiques", 0)));
   const tOutils = Date.now();
   let allTools = assistantToolsFor(user);
   addPhase("catalogue", Date.now() - tOutils);
@@ -5906,7 +5907,7 @@ async function runAssistantStreamImpl(
           emit({ type: "trace", label: CRITIQUE_LABEL });
           trace.push(CRITIQUE_LABEL);
           metrics.turns += 1;
-          const relu = await reviseHighStakes(systemComplet, question, reply, opts.model, cacheKey).catch(() => null);
+          const relu = await reviseHighStakes(systemComplet, question, reply, opts.model, cacheKey).catch(sansBloquer("assistant.runAssistantStreamImpl.reviseHighStakes", null));
           const revised = relu ? reparerReponse(relu).texte : null;
           if (revised && revised !== reply) {
             emit({ type: "reset" });
@@ -6020,7 +6021,7 @@ async function runAssistantStreamImpl(
       // Même règle qu'en mode non flux : un micro-outil créé dans le tour est exposé dans le tour.
       const nes = outilsCreesParmi(settled.map((s) => ({ name: s.tu.name, out: s.out })));
       if (nes.length) {
-        await prechargerCapacitesDynamiques(user).catch(() => 0);
+        await prechargerCapacitesDynamiques(user).catch(sansBloquer("assistant.runAssistantStreamImpl.prechargerCapacitesDynamiques", 0));
         allTools = assistantToolsFor(user);
         tools = avecOutilsDeclares(tools, allTools, nes);
       }
@@ -6109,7 +6110,7 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
   // ARRÊT D'URGENCE : quand le Super Admin l'a levé, AUCUNE action externe ne passe — même
   // confirmée, même la sienne. Le refus est dit tel quel : prétendre exécuter serait pire.
   if (payload?.kind && ACTION_POLICY[payload.kind]?.external) {
-    const settings = await getAppSettings().catch(() => null);
+    const settings = await getAppSettings().catch(sansBloquer("assistant.performAction.getAppSettings", null));
     if (settings?.aiExternalActionsDisabled) {
       return {
         ok: false,
@@ -6648,11 +6649,11 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
     });
     // Effets de bord NON bloquants : une notification/un audit en échec ne doit pas faire croire
     // que la demande n'a pas été créée (elle l'est).
-    await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(() => undefined);
+    await notifyRoles(["DIRECTION_ASSISTANT"], { type: "ASSIGNMENT", title: "Nouvelle demande au secrétariat", body: `${created.reference} — ${title}`, link: `/demandes/${created.id}` }).catch(sansBloquer("assistant.performAction.notifyRoles"));
     await recordAudit({
       actorId: user.id, action: "CREATE", module: "Assistant IA", entityType: "ADMIN_REQUEST",
       entityId: created.id, summary: `Demande ${created.reference} — ${title} créée via l'assistant`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("assistant.performAction.recordAudit"));
     return { ok: true, message: `Demande ${created.reference} — « ${title} » créée.`, link: `/demandes/${created.id}`, revalidate: ["/demandes", "/demandes/assistant"] };
   }
 
@@ -6936,12 +6937,12 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
     if (data.assignedToId && data.assignedToId !== user.id) notifyTargets.add(data.assignedToId as string);
     if (task.assignedToId && task.assignedToId !== user.id) notifyTargets.add(task.assignedToId);
     await Promise.all([...notifyTargets].map((uid) =>
-      notifyUser({ userId: uid, type: "GENERIC", title: "Tâche mise à jour", body: `${task.title} — ${summary.join(", ")}`, link: lienTache(task.id) }).catch(() => undefined),
+      notifyUser({ userId: uid, type: "GENERIC", title: "Tâche mise à jour", body: `${task.title} — ${summary.join(", ")}`, link: lienTache(task.id) }).catch(sansBloquer("assistant.performAction.notifyUser")),
     ));
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Assistant IA", entityType: "TASK", entityId: task.id,
       summary: `Tâche « ${task.title} » — ${summary.join(", ")} (via l'assistant)`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("assistant.performAction.recordAudit"));
     return { ok: true, message: `Tâche « ${task.title} » : ${summary.join(", ")}.`, link: "/mon-espace", revalidate: ["/mon-espace", "/mon-travail"] };
   }
 
@@ -7055,7 +7056,7 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
       fd.set("id", event.id);
       const r = await deleteCalendarEvent(fd);
       if (!r.ok) return { ok: false, error: r.error ?? "L'annulation a été refusée." };
-      await recordAudit({ actorId: user.id, action: "DELETE", module: "Assistant IA", summary: `Rendez-vous « ${event.title} » annulé via l'assistant` }).catch(() => undefined);
+      await recordAudit({ actorId: user.id, action: "DELETE", module: "Assistant IA", summary: `Rendez-vous « ${event.title} » annulé via l'assistant` }).catch(sansBloquer("assistant.performAction.recordAudit"));
       return { ok: true, message: `Rendez-vous « ${event.title} » annulé.`, link: "/calendar", revalidate: ["/calendar"] };
     }
     // `updateCalendarEvent` remplace tout : on reconstruit l'état complet, overrides compris.
@@ -7088,7 +7089,7 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
     for (const inv of event.invitees) fd.append("inviteeIds", inv.userId);
     const r = await updateCalendarEvent(undefined, fd);
     if (!r.ok) return { ok: false, error: r.error ?? "La modification a été refusée." };
-    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Assistant IA", summary: `Rendez-vous « ${event.title} » déplacé via l'assistant (${payload.changes.join(", ")})` }).catch(() => undefined);
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Assistant IA", summary: `Rendez-vous « ${event.title} » déplacé via l'assistant (${payload.changes.join(", ")})` }).catch(sansBloquer("assistant.performAction.recordAudit"));
     return { ok: true, message: `Rendez-vous « ${event.title} » mis à jour (${payload.changes.join(", ")}).`, link: "/calendar", revalidate: ["/calendar"] };
   }
 
@@ -7137,7 +7138,7 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
     if (u.isActive != null) fd.set("isActive", u.isActive ? "on" : "off");
     const r = await updateInstitution(fd);
     if (!r.ok) return { ok: false, error: r.error ?? "La modification a été refusée." };
-    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Assistant IA", summary: `Établissement « ${current.name} » modifié via l'assistant (${payload.changes.join(", ")})` }).catch(() => undefined);
+    await recordAudit({ actorId: user.id, action: "UPDATE", module: "Assistant IA", summary: `Établissement « ${current.name} » modifié via l'assistant (${payload.changes.join(", ")})` }).catch(sansBloquer("assistant.performAction.recordAudit"));
     return { ok: true, message: `Établissement « ${u.newName ?? current.name} » modifié (${payload.changes.join(", ")}).`, link: "/medical", revalidate: ["/medical"] };
   }
 

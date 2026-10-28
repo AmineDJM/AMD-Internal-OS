@@ -8,8 +8,8 @@ import { recordAudit } from "@/lib/audit";
 import { getMyCompanies } from "@/lib/company";
 import { identityFieldKeys } from "@/lib/legal/identity";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
-import { champsNonSaisis } from "@/lib/coffre/champs";
+import { doubleEcrireCoffre } from "@/modules/coffre/api";
+import { champsNonSaisis } from "@/modules/coffre/partage";
 
 /**
  * LA CARTE D'IDENTITÉ LÉGALE ET FISCALE D'UNE ENTITÉ — écriture.

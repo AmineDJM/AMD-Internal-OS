@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 import { normalizeLines, receiptTotal, parseAmount, parseQuantity } from "@/lib/general-means/receipt";
 import { proposerNaturesLignes } from "@/lib/actions/natures-moyens-generaux-actions";
 import type { BudgetTarget } from "@/lib/budget/target";
+import { sansBloquer } from "@/lib/journal";
 
 /** « Enveloppe › Catégorie » → « Catégorie » : dans la liste, l'enveloppe se répète à chaque ligne sans rien apprendre. */
 const nomCourt = (label: string): string => label.split(" › ").slice(1).join(" › ") || label;
@@ -130,7 +131,7 @@ export function ReceiptLines({
             return { ...r, suggerePour: cibles[k].libelle, ...(p ? { budgetCategoryId: p.valeur, auto: true } : {}) };
           }));
         })
-        .catch(() => undefined)
+        .catch(sansBloquer("receipt-lines.ReceiptLines.proposerNaturesLignes"))
         .finally(() => { if (!annule) setEnCours(false); });
     }, ATTENTE_MS);
     return () => { annule = true; window.clearTimeout(t); };

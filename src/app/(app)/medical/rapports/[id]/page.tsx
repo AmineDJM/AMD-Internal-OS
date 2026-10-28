@@ -14,7 +14,8 @@ import { remisesDuRapport, stockPourVisite } from "@/lib/queries/promo-remises";
 
 export const dynamic = "force-dynamic";
 
-export default async function FieldReportPage({ params }: { params: { id: string } }) {
+export default async function FieldReportPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // La fiche d'un rapport est gardée par le MÊME module que la liste (« Rapports terrain »),
   // et non plus par « Promotion médicale » : sinon un profil ayant accès aux rapports mais pas
   // à la promotion médicale (ex. Direction des opérations) était renvoyé vers « Mon espace »

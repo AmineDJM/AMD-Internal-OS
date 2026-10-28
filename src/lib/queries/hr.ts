@@ -10,6 +10,7 @@ import { loadReportingLine } from "@/lib/departments";
 import { toNumber } from "@/lib/utils";
 import { basisLabel } from "@/lib/hr/payroll-cost";
 import { employeeCosts, workforceMass, massByCompany, massProvenance, massIsIncomplete } from "@/lib/hr/workforce-mass";
+import { sansBloquer } from "@/lib/journal";
 
 /** Personalised workspace data for the signed-in user ("Mon espace"). */
 export async function getMyWorkspace(userId: string) {
@@ -151,7 +152,7 @@ export async function getRhData(userId: string) {
   // sur quoi le total repose.
   const lastMonthAgg = await prisma.payrollEntry
     .groupBy({ by: ["year", "month"], orderBy: [{ year: "desc" }, { month: "desc" }], take: 1 })
-    .catch(() => [] as { year: number; month: number }[]);
+    .catch(sansBloquer("hr.getRhData.payrollEntry", [] as { year: number; month: number }[]));
   const lastPayroll = lastMonthAgg[0] ?? null;
   // ── TOUTES LES LIGNES DU MOIS, PAS SEULEMENT LES POINTÉES ─────────────────────────────────
   //
@@ -177,7 +178,7 @@ export async function getRhData(userId: string) {
           },
           select: { employeeId: true, employerCost: true, gross: true, bonuses: true, deductions: true },
         })
-        .catch(() => [])
+        .catch(sansBloquer("hr.getRhData.payrollEntry", []))
     : [];
 
   // ── UN SALARIÉ, UN COÛT, PERSONNE D'OUBLIÉ ────────────────────────────────────────────────

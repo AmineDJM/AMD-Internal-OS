@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getManagerOfUser, getDepartmentPath } from "@/lib/departments";
 import { typedMemoryContext } from "@/lib/assistant/memory-context";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * MÉMOIRE DE L'ASSISTANT — strictement personnelle.
@@ -374,7 +375,7 @@ export async function personalContext(userId: string): Promise<string> {
       },
     }),
     getMemory(userId),
-    typedMemoryContext(userId).catch(() => ""),
+    typedMemoryContext(userId).catch(sansBloquer("assistant-memory.personalContext.typedMemoryContext", "")),
   ]);
   if (!user) return "";
 
@@ -386,12 +387,12 @@ export async function personalContext(userId: string): Promise<string> {
   // Rattachement : fil d'Ariane complet du département.
   const deptId = user.employee?.departmentId ?? user.department?.id ?? null;
   if (deptId) {
-    const path = await getDepartmentPath(deptId).catch(() => []);
+    const path = await getDepartmentPath(deptId).catch(sansBloquer("assistant-memory.personalContext.getDepartmentPath", []));
     if (path.length) lines.push(`Département : ${path.map((p) => p.name).join(" › ")}.`);
   }
 
   // N+1 réel (manager désigné → responsable de département → parent).
-  const mgr = await getManagerOfUser(userId).catch(() => null);
+  const mgr = await getManagerOfUser(userId).catch(sansBloquer("assistant-memory.personalContext.getManagerOfUser", null));
   if (mgr) lines.push(`Son responsable hiérarchique (N+1) est ${mgr.fullName} — c'est lui qui valide ses demandes.`);
 
   if (memory) lines.push(`\nCE QUE TU AS RETENU DE CETTE PERSONNE (mémoire de vos échanges précédents) :\n${memory}`);
@@ -405,7 +406,7 @@ export async function personalContext(userId: string): Promise<string> {
   // composeur de missions ci-dessous — et parce que la porte des conversations reste légère.
   const regles = await import("@/platform/in-process/teach/store")
     .then((m) => m.contexteRegles(userId))
-    .catch(() => "");
+    .catch(sansBloquer("assistant-memory.personalContext", ""));
   if (regles) lines.push(`\n${regles}`);
 
   // ── LA MÉMOIRE ÉPISODIQUE, COMPOSÉE SOUS BUDGET ────────────────────────────────────
@@ -420,7 +421,7 @@ export async function personalContext(userId: string): Promise<string> {
   // aussi pour éviter un cycle — le composeur, lui, lit les tours bruts par ce fichier-ci.
   const episodique = await import("@/platform/in-process/missions/memory")
     .then((m) => m.contexteMemoire(userId))
-    .catch(() => "");
+    .catch(sansBloquer("assistant-memory.personalContext", ""));
   if (episodique) lines.push(episodique);
 
   lines.push(
@@ -441,6 +442,6 @@ export async function personalContext(userId: string): Promise<string> {
  * pour ne pas dépenser un bloc vide.
  */
 export async function contexteReglesSeules(userId: string): Promise<string | null> {
-  const regles = await import("@/platform/in-process/teach/store").then((m) => m.contexteRegles(userId)).catch(() => "");
+  const regles = await import("@/platform/in-process/teach/store").then((m) => m.contexteRegles(userId)).catch(sansBloquer("assistant-memory.contexteReglesSeules", ""));
   return regles ? regles : null;
 }

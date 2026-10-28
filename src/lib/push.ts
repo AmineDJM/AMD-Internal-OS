@@ -2,6 +2,7 @@ import webpush from "web-push";
 import { prisma } from "./prisma";
 import { sortieAutorisee } from "@/lib/sortie/garde";
 import { endpointPushAutorise } from "@/lib/notifications/endpoint-push";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Notifications **push** (Web Push / PWA) — serveur uniquement.
@@ -115,7 +116,7 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
         } catch (e) {
           // 404 / 410 = abonnement expiré → on le supprime.
           const code = (e as { statusCode?: number })?.statusCode;
-          if (code === 404 || code === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(() => {});
+          if (code === 404 || code === 410) await prisma.pushSubscription.delete({ where: { id: s.id } }).catch(sansBloquer("push.sendPushToUser.pushSubscription"));
         }
       }),
     );

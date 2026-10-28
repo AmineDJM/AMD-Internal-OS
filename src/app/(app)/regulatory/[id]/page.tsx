@@ -60,7 +60,11 @@ const REG_DOC_CATEGORIES = [
 // Documents liés aux réserves de l'ANPP (réserves reçues + réponses du laboratoire).
 const REG_RESERVE_CATEGORIES = ["QUERY_RECEIVED", "QUERY_RESPONSE"];
 
-export default async function RegulatoryDetailPage({ params, searchParams }: { params: { id: string }; searchParams: { dossier?: string; ctd?: string } }) {
+export default async function RegulatoryDetailPage(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ dossier?: string; ctd?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   // LA PORTE DE LA FICHE EST CELLE DE SON ÉCRAN (Direction, 08/10) : un dossier verrouillé s'ouvre depuis le
   // pipeline (module « Pipeline réglementaire »), un dossier ouvert depuis le suivi des dossiers (Regulatory). Qui n'a
   // que l'autre module passe la porte puis tombe sur la règle du dossier (`canAccessEntity`) : un 404, jamais un

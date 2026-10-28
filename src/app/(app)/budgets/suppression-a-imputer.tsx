@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatCurrency } from "@/lib/utils";
 import { superAdminDeleteMany, apercuSuppressionGroupee, type ResultatSuppressionGroupee } from "@/lib/actions/admin-delete-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -59,7 +60,7 @@ export function BarreSuppressionAImputer({
 
   const ouvrir = async () => {
     setOuvert(true); setApercu(null); setLecture(null); setResultat(null);
-    const r = await apercuSuppressionGroupee(formulaire()).catch(() => ({ erreur: "Lecture impossible — réessayez." }));
+    const r = await apercuSuppressionGroupee(formulaire()).catch(sansBloquer("suppression-a-imputer.ouvrir.apercuSuppressionGroupee", { erreur: "Lecture impossible — réessayez." }));
     if ("erreur" in r) setLecture(r.erreur);
     else setApercu(r.elements);
   };
@@ -67,7 +68,7 @@ export function BarreSuppressionAImputer({
   const confirmer = async () => {
     setBusy(true);
     const r: ResultatSuppressionGroupee = await superAdminDeleteMany(formulaire())
-      .catch(() => ({ ok: false, error: "Suppression impossible — réessayez.", supprimes: [], refus: [] }));
+      .catch(sansBloquer("suppression-a-imputer.confirmer.superAdminDeleteMany", { ok: false, error: "Suppression impossible — réessayez.", supprimes: [], refus: [] }));
     setBusy(false);
     setResultat({ ok: r.ok, texte: (r.ok ? r.message : r.error) ?? (r.ok ? "Supprimé." : "Suppression refusée.") });
     setOuvert(false);

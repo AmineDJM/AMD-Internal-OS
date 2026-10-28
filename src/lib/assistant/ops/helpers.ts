@@ -52,7 +52,7 @@ export async function runFd(action: Fd1, args: Record<string, string | null>, re
   return { ok: true, ...(r.id ? { createdId: r.id } : {}), ...(opts.message ? { message: opts.message } : {}), ...(opts.link ? { link: opts.link } : {}), ...(opts.revalidate ? { revalidate: opts.revalidate } : {}) };
 }
 
-/** Idem pour une action `(prev, formData)` (useFormState). */
+/** Idem pour une action `(prev, formData)` (useActionState). */
 export async function runFd2(action: Fd2, args: Record<string, string | null>, refusal: string, opts: RunOpts = {}): Promise<OpExecuteResult> {
   const r = await action(undefined, toFd(args, opts.listes));
   if (!r.ok) return { ok: false, error: r.error ?? refusal };

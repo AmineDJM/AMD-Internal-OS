@@ -33,7 +33,7 @@ export async function supplierLogin(
   }
   await clearAttempts(cle);
 
-  setSupplierSession(su.id, su.supplierId);
+  await setSupplierSession(su.id, su.supplierId);
   await prisma.supplierUser.update({ where: { id: su.id }, data: { lastLoginAt: new Date() } });
   await recordAudit({
     actorId: null, action: "LOGIN", module: "Portail fournisseur",
@@ -43,6 +43,6 @@ export async function supplierLogin(
 }
 
 export async function supplierLogout(): Promise<ActionResult> {
-  clearSupplierSession();
+  await clearSupplierSession();
   return { ok: true };
 }

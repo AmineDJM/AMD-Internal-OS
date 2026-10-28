@@ -251,7 +251,8 @@ suite("ordres fermés, factures vues, factures renvoyées", () => {
   it("POINT D'APPEL : le règlement, l'écran et l'intelligence financière lisent la MÊME règle", () => {
     const sans = (p: string) => readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     expect(sans("src/lib/actions/expense-actions.ts")).toMatch(/await ordreAFacture\(\{ id: order\.id, sourceType: order\.sourceType, sourceId: order\.sourceId \}\)/);
-    expect(sans("src/app/(app)/finances/paiements-a-faire/page.tsx")).toMatch(/await ordresAvecFacture\(/);
+    // L'écran l'attend avec ses autres lectures, dans un seul `Promise.all` (audit performance PERF-11).
+    expect(sans("src/app/(app)/finances/paiements-a-faire/page.tsx")).toMatch(/\bordresAvecFacture\(orders\.filter/);
     expect(sans("src/platform/in-process/intelligence/index.ts")).toMatch(/await ordresAvecFacture\(/);
     // … et plus aucun d'eux ne compte les factures à sa façon.
     expect(sans("src/lib/actions/expense-actions.ts")).not.toMatch(/category: "INVOICE"/);

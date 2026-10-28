@@ -1,5 +1,95 @@
 ## 🧾 Journal des évolutions récentes
 
+### V3-G : LE MONOLITHE MODULAIRE DEVIENT EXÉCUTABLE — LIEUX, COFFRE ET RÉFÉRENTIELS DANS `src/modules/` (2026-10-28)
+
+Aucun écran ne change, aucune donnée n'est touchée, aucune migration. La structure cible du rapport d'audit 08 est
+désormais **tenue par les outils** et trois modules du socle métier y vivent. Guide : [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
+- **Modules migrés** : `src/modules/lieux/`, `src/modules/coffre/`, `src/modules/referentiels/` (91 fichiers déménagés par
+  `git mv`, 46 importeurs réécrits). Chacun s'ouvre par ses **portes** : `api.ts` (serveur), `partage.ts` (pur,
+  navigateur compris) ; le coffre en a une troisième, `api-lecture.ts` — `api.ts` écrit sans jamais déchiffrer (c'est
+  celle des actions, atteignables par l'assistant), `api-lecture.ts` déchiffre (écrans RH, Legal, administration).
+- **Carte des modules** `src/modules/carte.ts` (qui lit qui, sans cycle) et `frontieres.test.ts` étendu : portes seules,
+  `domaine/` pur, liens déclarés, aucun ancien chemin importé, dette héritée nommée. ESLint dit les mêmes règles dans
+  l'éditeur (et bloque `build:render`).
+- **Une action a une clé, pas une adresse** (`src/lib/actions/parc.ts`) : `coffre-actions`, `consommation-actions`,
+  `personnes-actions`, `organisation-actions` et `refonte-reprise-actions` vivent dans leur module (`actions.ts`,
+  `actions-<cas>.ts`) sous leur clé historique ; contrat régénéré **identique** (1 184 actions).
+- **Adresses de réexpédition** : chaque ancien chemin (`@/lib/coffre/cle`…) est une entrée exacte de `tsconfig.json`
+  `paths`, pour les branches ouvertes en parallèle ; aucun fichier relais (git suit les déplacements).
+- **Nouveaux cliquets** (`src/platform/couverture.test.ts`) : fichiers de `src/lib/` hors carte 828 → 766 (768 après fusion des lots V3-C/D/E, qui en ont ajouté), pages qui
+  importent Prisma 129 → 126 (les écrans de revue des doublons lisent par `@/modules/referentiels/api`), routes Prisma
+  53, composants → `src/app` 12, kit d'interface → métier 6, tests qui lisent le source par chemin 128.
+- `npm run test:architecture` : frontières, carte, couverture, contrat, garde client — 40 fichiers en ~35 s.
+### V3-A : DÉPENDANCES — NEXT 15, REACT 19, NEXT-AUTH BETA.32, XLSX 0.20.3 ; ZÉRO AVIS CRITIQUE/HAUT EN PRODUCTION (2026-10-28)
+
+`npm audit --omit=dev` : **23 avis (3 critiques, 16 hauts) → 2 modérés** (`exceljs` → `uuid`, correctif = régression
+majeure d'exceljs, laissé). Audit INFRA-03 ([rapport](../audit/2026-10-27/10-infra-ci-observabilite.md)).
+- **Next 14.2.35 → 15.5.28** (ligne 15 encore corrigée ; tous les avis Next fermés) + **React 19.2**. Guide de migration
+  suivi : codemod officiel `next-async-request-api` (214 fichiers : `params`, `searchParams`, `cookies()`, `headers()`
+  deviennent asynchrones), puis les 13 accès qu'il forçait en synchrone réécrits à la main — `getCompanyScope`,
+  `getBudgetScope`, `resolveBudgetEnvelope`, `poserVueExacte`/`effacerVueExacte`, `set`/`clearSupplierSession`
+  deviennent `async`. `useFormState` → `useActionState` (React 19). Cache `fetch` : aucun usage explicite, le
+  « no-store par défaut » de Next 15 ne change rien. Le middleware racine reste non compilé (règle de Next inchangée,
+  INFRA-12, hors lot).
+- **next-auth 5.0.0-beta.32** : aucune v5 stable n'existe (la `latest` npm est la v4, API incompatible) ; beta.32
+  ferme les deux critiques (contrôle d'existence d'`auth` en échec ouvert, normalisation d'e-mail) et deux hauts.
+- **xlsx 0.20.3 depuis le CDN officiel SheetJS** (même API ; prototype pollution et ReDoS corrigés) — le builder
+  Render doit joindre `cdn.sheetjs.com` ([24-deploiement-render.md](24-deploiement-render.md)).
+- **Reste de l'audit** : `npm audit fix` (sans `--force`), `nodemailer` 10.2, `zod` 4.6.7, `recharts` 2.15.4,
+  `postcss` 8.5.32 imposé à Next par `overrides`, `image-size` 2.0.4 (déclaré mais jamais chargé par pptxgenjs),
+  `vitest` 2.1.9 et `tsx` 4.23.15.
+- **Mémoire de build** : Next 15 a supprimé `outputFileTracing: false` — le plugin de traçage par page est retiré du
+  compilateur serveur par le hook `webpack` (−250 Mo, −33 s) ; tas de compilation **3072 → 3584 Mo**
+  (`TAS_DU_BUILD_MO`) car Next 15 meurt en OOM à 3072. Pic sur build propre : Next 14 @3072 = 4542 Mo, Next 15 @3584
+  = 5150 Mo.
+- **Restent** (outillage de test seulement, jamais déployé) : la chaîne `vitest` 2.x (tinypool, vite) n'est corrigée
+  qu'en vitest 5 — montée majeure du lanceur de 15 800 tests, à faire dans son propre lot.
+
+### V3-D — L'ASSISTANT IA EN EXPLOITATION : CHAQUE APPEL COMPTÉ, CHAQUE TOUR BORNÉ (2026-10-28)
+
+Audit 27/10, rapport 06 (IA-ASSISTANT-03, -06, -07, -08, -09, -10, -12, -13 et l'injection par documents). **Journal** :
+les deux seules portes de l'Assistant IA vers MiMo (`repondreAvecSecours`, `genererTexte`) ouvrent un budget, comptent
+chaque étape de Mastra (`onStepFinish`) et écrivent une ligne `ModelCallLog` par appel (personne, conversation, modèle,
+jetons, durée, coût estimé) et une `AiUsageLog` par tour (`src/lib/agent/consommation.ts`). **Plafonds** (table
+`AssistantIaReglage`, réglage Super Admin, défauts 12 étapes / 150 000 jetons par tour / 600 000 par personne et par
+jour, heure d'Alger) : refus clair qui nomme le remède, avis au Super Admin une fois par jour (`AssistantIaPlafondAtteint`).
+**Écran** `/admin/ai/consommation` : par personne, par jour, par modèle, plafonds atteints, réglages. **Injection** :
+sorties d'outils à contenu tiers encadrées et désamorcées (`contenu-non-fiable.ts`, cliquet sur les noms d'outils).
+**Robustesse** : trois essais par message du fil (`AssistantIaTour.essais`), balayage `assistant.intentions` (action
+interrompue → échec dit, carte non confirmée → `EXPIRED` après 24 h, refus aussi au clic), cartes caduques retirées avant
+le tour et comparées sur `payload.op`. `agent.ts` (sans appelant) supprimé ; clé MiMo lue sous `MIMO_API_KEY` seul ;
+fournisseur réel dans le journal d'Adam. Migration `20270202090000_assistant_ia_exploitation`. Bancs au faux modèle :
+`consommation.test.ts`, `exploitation.test.ts`, `contenu-non-fiable.test.ts`.
+
+### V3-C PERFORMANCE : SONDAGES LÉGERS, ICÔNES À L'UNITÉ, LECTURES EN PARALLÈLE (2026-10-28)
+
+Suite du rapport d'audit [07 — performance](../audit/2026-10-27/07-performance-runtime.md), mesurée avant/après.
+- **Session légère des sondages (PERF-06)** — `src/lib/session-legere.ts` : `identiteDuSondage()` (jeton + session
+  révocable + compte actif + rôle en base + « Vue exacte », **sans** la matrice des droits) et `peutVoirLaMessagerie()`
+  (accès attribué, repli exact sur `getAccess`). `/api/messaging/sync` et `/api/notifications/poll` l'utilisent :
+  **13 → 2** et **14 → 3** requêtes SQL par appel. La révocation et la vue sont écrites une fois dans
+  `src/lib/session-compte.ts`, lues aussi par `session.ts` (session révocable en **une** requête jointe au lieu de deux).
+  Cliquet : une route sondée par la coque lit `identiteDuSondage` (`notifications-sondage-unique.test.ts`).
+- **Icônes de la coque à l'unité (PERF-05)** — `src/components/ui/icones-coque.ts` (imports nommés) +
+  `IconeCoque` ; le jeu complet de Lucide n'est plus chargé que pour un nom absent (chargement différé). Cliquet
+  `icones-coque.test.ts`. Mesure : `node scripts/mesure-bundle.mjs` après un build propre.
+- **Lectures indépendantes en un aller-retour (PERF-10, PERF-11)** — coque `(app)/layout.tsx`, utilisateur à l'écran
+  calculé une fois par rendu (`cache`), `finances/paiements-a-faire`, `marketing-cockpit`.
+- **`take` imbriqué (PERF-08)** — Adam « Conversations consultées » borné en SQL (`derniersMessagesParConversation`) ;
+  cliquet `src/lib/prisma-take-imbrique.test.ts` (plafond 33, décroissant).
+- **Classeurs (PERF-07, part sûre)** — l'ingestion n'analyse que les lignes indexées (`sheetRows`) : 2,7 s → 0,16 s
+  de gel sur 100 000 lignes.
+Aucune migration : les index des chemins mesurés sont en place (`EXPLAIN`).
+
+| Mesure (avant → après) | Avant | Après |
+|---|---|---|
+| SQL par appel, badge messagerie (banc journalisé) | 13 | 2 |
+| SQL par appel, `/api/notifications/poll` | 14 | 3 |
+| SQL / min / onglet, sondages de la coque | ~121 | ~22 |
+| Temps médian d'un sondage (serveur de prod local) | 18–19 ms | 10–12 ms |
+| JS de la coque (gzip, toutes les pages) | 315,4 kB | 166,1 kB |
+| Médiane du First Load JS par page | 324,5 kB | 176,4 kB |
+| Gel d'ingestion d'un classeur de 100 000 lignes | 2,7 s | 0,16 s |
 ### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
 
 Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par

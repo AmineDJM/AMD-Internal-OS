@@ -12,7 +12,8 @@ export const dynamic = "force-dynamic";
  * Sert un document RH déchiffré. Accès : l'employé propriétaire (compte lié, et
  * document marqué visible) OU un gestionnaire RH. `?dl=1` force le téléchargement.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
 

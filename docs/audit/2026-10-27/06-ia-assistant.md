@@ -36,17 +36,17 @@ Constats : **0 critique · 4 hautes · 6 moyennes · 3 basses.** Correctifs comm
 |---|---|---|---|---|---|
 | IA-ASSISTANT-01 | HAUTE | sécurité / conformité | L'interrupteur général de l'IA ne coupe pas l'Assistant IA (MiMo) | S | **CORRIGÉ** `8260089` |
 | IA-ASSISTANT-02 | HAUTE | sécurité | L'arrêt d'urgence des actions de l'IA n'arrête pas le registre de l'Assistant IA | S | **CORRIGÉ** `e4b3c8c` |
-| IA-ASSISTANT-03 | HAUTE | coûts / observabilité | Aucun journal d'usage ni plafond pour MiMo ; un message peut coûter ≈ 220 k jetons | M | PROPOSÉ |
+| IA-ASSISTANT-03 | HAUTE | coûts / observabilité | Aucun journal d'usage ni plafond pour MiMo ; un message peut coûter ≈ 220 k jetons | M | **CORRIGÉ** (V3-D) |
 | IA-ASSISTANT-04 | MOYENNE | intégrité / UX | Plusieurs cartes préparées dans un tour : une seule visible, les autres orphelines | S | **CORRIGÉ** `d171883` |
 | IA-ASSISTANT-05 | HAUTE | maintenabilité / architecture | L'Assistant IA n'est couvert par aucun cliquet d'architecture et dépend du god-file d'Adam | M | PROPOSÉ |
-| IA-ASSISTANT-06 | MOYENNE | robustesse | Fil gardé : un tour qui lève est rejoué à chaque battement, sans compteur d'essais | S | PROPOSÉ |
-| IA-ASSISTANT-07 | MOYENNE | intégrité | Une intention `EXECUTING` interrompue reste bloquée pour toujours ; `EXPIRED` n'est jamais écrit | M | PROPOSÉ |
-| IA-ASSISTANT-08 | BASSE | maintenabilité | `agent.ts` (`creerAgent`, `repondre`) n'a aucun appelant de production (§118.14) | S | PROPOSÉ |
-| IA-ASSISTANT-09 | MOYENNE | confidentialité | Le message saisi et l'historique du fil partent à MiMo sans le filtre de confidentialité | S | PROPOSÉ (décision) |
-| IA-ASSISTANT-10 | MOYENNE | intégrité | Le retrait des cartes caduques (défaut mesuré chez Adam) n'existe pas dans l'Assistant IA | S | PROPOSÉ (décision) |
+| IA-ASSISTANT-06 | MOYENNE | robustesse | Fil gardé : un tour qui lève est rejoué à chaque battement, sans compteur d'essais | S | **CORRIGÉ** (V3-D) |
+| IA-ASSISTANT-07 | MOYENNE | intégrité | Une intention `EXECUTING` interrompue reste bloquée pour toujours ; `EXPIRED` n'est jamais écrit | M | **CORRIGÉ** (V3-D) |
+| IA-ASSISTANT-08 | BASSE | maintenabilité | `agent.ts` (`creerAgent`, `repondre`) n'a aucun appelant de production (§118.14) | S | **CORRIGÉ** (V3-D) |
+| IA-ASSISTANT-09 | MOYENNE | confidentialité | Le message saisi et l'historique du fil partent à MiMo sans le filtre de confidentialité | S | **CORRIGÉ** (V3-D, option prudente, réglable) |
+| IA-ASSISTANT-10 | MOYENNE | intégrité | Le retrait des cartes caduques (défaut mesuré chez Adam) n'existe pas dans l'Assistant IA | S | **CORRIGÉ** (V3-D, option prudente, réglable) |
 | IA-ASSISTANT-11 | MOYENNE | architecture | Frontière Adam ↔ ERP à 430 (> 425) et domaines à 71 (> 68) : chemin chiffré pour repasser sous les plafonds | M | PROPOSÉ |
-| IA-ASSISTANT-12 | BASSE | observabilité | Le journal d'usage d'Adam écrit `provider: "openai"` en dur | S | PROPOSÉ |
-| IA-ASSISTANT-13 | BASSE | maintenabilité | Clé MiMo lue aussi sous le nom `mimo` (minuscules) | S | PROPOSÉ |
+| IA-ASSISTANT-12 | BASSE | observabilité | Le journal d'usage d'Adam écrit `provider: "openai"` en dur | S | **CORRIGÉ** (V3-D) |
+| IA-ASSISTANT-13 | BASSE | maintenabilité | Clé MiMo lue aussi sous le nom `mimo` (minuscules) | S | **CORRIGÉ** (V3-D) |
 
 ---
 
@@ -190,6 +190,28 @@ Constats : **0 critique · 4 hautes · 6 moyennes · 3 basses.** Correctifs comm
 - **Preuve** : `src/lib/agent/modele.ts` — `process.env.MIMO_API_KEY ?? process.env.mimo`. Une variable en minuscules échappe aux inventaires
   (`.env.example`, chapitre 10 : ~200 variables en majuscules) et à `cleModeleRequise()`. **Correctif** : ne garder que `MIMO_API_KEY`,
   avertir au démarrage si `mimo` est encore posée.
+
+---
+
+## Lot V3-D « IA en exploitation » (28/10/2026, branche `v3/ia-exploitation`)
+
+Livré : IA-03 (journal `ModelCallLog`/`AiUsageLog` à chaque appel, plafonds par tour et par personne/jour, avis au Super
+Admin, écran `/admin/ai/consommation`), IA-06, IA-07, IA-08, IA-09, IA-10, IA-12, IA-13, et l'**injection par documents /
+web** (sorties d'outils à contenu tiers encadrées et désamorcées, règle dans le prompt, cliquet sur les noms d'outils).
+Point 3 de IA-03 (offrir les outils par intention pour réduire le fixe de ≈ 9 k jetons par étape) : **non fait** — il change
+le comportement du modèle et demande une mesure sur MiMo réel ; les plafonds bornent la dépense en attendant.
+**Non traités ici** (architecture, chantier 2 de la synthèse) : IA-05 (domaine `assistant-ia` + cliquet de couplage inverse)
+et IA-11 (frontière 430 → 398).
+
+**Décisions de Direction — l'option la plus prudente est active, derrière un réglage de l'écran Consommation IA :**
+
+| Décision | Option active par défaut | Revers assumé | Réglage |
+|---|---|---|---|
+| IA-09 — filtrer ce que la personne écrit | Message saisi ET historique passent `censurerTexte` | La personne ne peut plus dicter volontairement un IBAN/salaire/numéro d'identité à l'assistant (Q12) | `censurerSaisie` |
+| IA-10 — retirer les cartes caduques | Avant chaque tour, la carte dont on reparle est retirée ; `remplace` compare sur `payload.op` | Une carte peut être retirée alors que la personne voulait la garder (elle se redemande ; une mauvaise action exécutée ne se reprend pas) | `retirerCartesCaduques` |
+| IA-07 — durée de vie d'une carte | 24 h, puis `EXPIRED` (balayage + refus au clic) ; « mes brouillons » ne réaffiche plus une carte plus vieille | Une carte de la veille se redemande | `expirationCartesHeures` |
+| IA-03 — plafonds | 12 étapes, 150 000 jetons par tour, 600 000 par personne et par jour | Un très gros travail en arrière-plan (ex-24 étapes) s'arrête plus tôt et le dit | trois champs |
+| IA-03 — tarif MiMo | Aucun tarif dans le code : coût « inconnu » tant que `MIMO_PRICE_IN`/`MIMO_PRICE_OUT` ne sont pas posés | — | environnement Render |
 
 ---
 

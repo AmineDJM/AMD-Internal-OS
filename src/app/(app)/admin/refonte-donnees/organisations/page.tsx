@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { doublonsOrganisationsARevoir } from "@/modules/referentiels/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +12,6 @@ import { DefaireFusion, TrancherDoublon } from "./gestes";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Doublons d'organisations — Refonte des données" };
 
-const RANG: Record<string, number> = { CERTAIN: 3, PROBABLE: 2, POSSIBLE: 1 };
 const TON: Record<string, "danger" | "warning" | "neutral"> = { CERTAIN: "danger", PROBABLE: "warning", POSSIBLE: "neutral" };
 const AFFICHEES = 200;
 
@@ -24,23 +23,8 @@ const AFFICHEES = 200;
 export default async function DoublonsOrganisationsPage() {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");
-  const vivantes = { organisationA: { fusionneeDansId: null }, organisationB: { fusionneeDansId: null } };
-  const org = { select: { id: true, raisonSociale: true, roles: { select: { role: true } }, identifiants: { select: { type: true, valeur: true } } } };
-  const [propositions, total, fusions] = await Promise.all([
-    prisma.propositionDoublonOrganisation.findMany({
-      where: { statut: "PROPOSEE", ...vivantes }, take: 2000,
-      select: { id: true, niveau: true, score: true, raisons: true, reserves: true, organisationA: org, organisationB: org },
-    }),
-    prisma.propositionDoublonOrganisation.count({ where: { statut: "PROPOSEE", ...vivantes } }),
-    prisma.organisation.findMany({
-      where: { fusionneeDansId: { not: null } }, orderBy: { updatedAt: "desc" }, take: 30,
-      select: { id: true, raisonSociale: true, fusionneeDans: { select: { id: true, raisonSociale: true } } },
-    }),
-  ]);
-  const triees = propositions
-    .sort((p, q) => (RANG[q.niveau] ?? 0) - (RANG[p.niveau] ?? 0) || q.score - p.score)
-    .slice(0, AFFICHEES);
-  const decrire = (o: (typeof propositions)[number]["organisationA"]) => (
+  const { propositions: triees, total, fusions } = await doublonsOrganisationsARevoir(AFFICHEES);
+  const decrire = (o: (typeof triees)[number]["organisationA"]) => (
     <div>
       <Link href={`/organisations/${o.id}`} className="font-medium hover:underline">{o.raisonSociale}</Link>
       <div className="text-xs text-muted-foreground">

@@ -20,7 +20,7 @@ import * as React from "react";
  */
 
 /** Publie la hauteur d'un élément dans une variable CSS de `<html>`, et la tient à jour. */
-function usePublishedHeight(ref: React.RefObject<HTMLElement>, cssVar: string): void {
+function usePublishedHeight(ref: React.RefObject<HTMLElement | null>, cssVar: string): void {
   React.useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -64,6 +64,6 @@ export function ChromeMetrics({ children }: { children: React.ReactNode }) {
 }
 
 /** Publie la hauteur de la barre d'onglets basse dans `--app-chrome-bottom` (0 sur ordinateur). */
-export function useTabBarHeight(ref: React.RefObject<HTMLElement>): void {
+export function useTabBarHeight(ref: React.RefObject<HTMLElement | null>): void {
   usePublishedHeight(ref, "--app-chrome-bottom");
 }

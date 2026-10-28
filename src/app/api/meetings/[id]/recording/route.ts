@@ -7,6 +7,7 @@ import { transcribeAudio } from "@/lib/ai";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { getAppSettings } from "@/lib/settings";
 import { canManageMeeting } from "@/lib/meetings";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,8 @@ export const dynamic = "force-dynamic";
  * (Whisper). Réservé à l'organisateur (ou vue globale). L'audio est conservé même si la
  * transcription IA est coupée : l'organisateur peut alors coller le texte manuellement.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   if (!user || !userCan(user, "MESSAGING", "VIEW")) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
 
@@ -37,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   // Remplace un enregistrement précédent éventuel (on libère l'ancien blob).
   const previous = meeting.audioBlobId;
   await prisma.meeting.update({ where: { id: meeting.id }, data: { audioBlobId: blobId } });
-  if (previous && previous !== blobId) await releaseBlob(previous).catch(() => {});
+  if (previous && previous !== blobId) await releaseBlob(previous).catch(sansBloquer("recording-route.POST.releaseBlob"));
 
   if (!(await aiFeatureEnabled("voice"))) {
     return NextResponse.json({ configured: true, error: "La transcription vocale est désactivée dans le Centre de contrôle IA." });

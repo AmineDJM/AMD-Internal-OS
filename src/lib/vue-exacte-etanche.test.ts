@@ -35,7 +35,7 @@ vi.mock("next/headers", () => ({
   cookies: () => ({ get: (n: string) => (n === "amd_impersonate" && ETAT.cookie ? { value: ETAT.cookie } : undefined) }),
   headers: () => new Headers(),
 }));
-vi.mock("next/dist/client/components/action-async-storage.external", async () => {
+vi.mock("next/dist/server/app-render/action-async-storage.external", async () => {
   const { AsyncLocalStorage: ALS } = await import("node:async_hooks");
   const store = new ALS<{ isAction: boolean }>();
   ETAT.action = store as never;
@@ -172,7 +172,7 @@ describe("la coque est celle de la personne visualisée — et d'elle seule", ()
   it("la coque monte la garde d'identité et range les données navigateur par personne effective", () => {
     expect(layout).toMatch(/<IdentiteProvider id=\{user\.id\}/);
     expect(layout).toMatch(/<GardeIdentite marque=\{marqueVue\}/);
-    expect(layout).toMatch(/cookies\(\)\.get\(MARQUE_VUE_COOKIE\)/);
+    expect(layout).toMatch(/\(await cookies\(\)\)\.get\(MARQUE_VUE_COOKIE\)/);
   });
 
   it("la barre du haut reçoit la personne à l'écran champ par champ — jamais l'objet de session (sid, droits)", () => {
@@ -211,10 +211,12 @@ describe("la vue se pose, s'efface et ne survit pas à la session", () => {
     const actions = lire("src/lib/actions/impersonation-actions.ts");
     expect(actions).toContain("poserVueExacte(targetId)");
     expect(actions).toContain("effacerVueExacte()");
-    expect(actions).not.toMatch(/cookies\(\)\.set/);
+    expect(actions).not.toMatch(/cookies\(\)\)?\.set/);
     const ve = lire("src/lib/vue-exacte.ts");
-    expect(ve).toMatch(/cookies\(\)\.set\(MARQUE_VUE_COOKIE, targetId/);
-    expect(ve).toMatch(/cookies\(\)\.set\(MARQUE_VUE_COOKIE, "", \{ httpOnly: false/);
+    // Next 15 : `cookies()` est asynchrone — chaque fonction lit le pot UNE fois (`const jar = await cookies()`).
+    expect(ve.match(/const jar = await cookies\(\);/g)).toHaveLength(2);
+    expect(ve).toMatch(/jar\.set\(MARQUE_VUE_COOKIE, targetId/);
+    expect(ve).toMatch(/jar\.set\(MARQUE_VUE_COOKIE, "", \{ httpOnly: false/);
   });
 
   it("se connecter et se déconnecter ferment la vue", () => {
@@ -344,7 +346,9 @@ describe("chaque route d'API résout l'identité par la session partagée", () =
   it("aucune route ne lit l'identité ailleurs que dans `@/lib/session` (hors routes sans session, nommées)", () => {
     const fautes = fichiers("src/app/api", (n) => n === "route.ts")
       .filter((f) => !SANS_SESSION.some((r) => r.test(f)))
-      .filter((f) => !readFileSync(f, "utf8").includes('"@/lib/session"'));
+      // `@/lib/session-legere` (sondages de la coque, PERF-06) applique la MÊME vue (`vueDemandee`,
+      // session-compte.ts) — vérifié par `session-vue-exacte.test.ts` et `session-legere.test.ts`.
+      .filter((f) => !/"@\/lib\/session(-legere)?"/.test(readFileSync(f, "utf8")));
     expect(fautes).toEqual([]);
   });
   it("les routes de télémétrie qui lisent `auth()` directement restent celles nommées", () => {

@@ -9,6 +9,7 @@ import { getDepartmentPath } from "@/lib/departments";
 import { ROLE_LABELS } from "@/lib/labels";
 import { regulatoryExecutiveState } from "@/lib/assistant/executive-state";
 import { regProgress, workflowAsSteps, hasWorkflowState, type RegWorkflowState } from "@/lib/regulatory-workflow";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES VUES 360° ET LES INSIGHTS ORGANISATIONNELS — comprendre une personne, un produit, un
@@ -156,7 +157,7 @@ export const THREE_SIXTY_TOOLS: PowerTool[] = [
 
       const contratJoursRestants = emp.contractEnd ? Math.ceil((emp.contractEnd.getTime() - now.getTime()) / DAY) : null;
 
-      const deptPath = emp.departmentId ? await getDepartmentPath(emp.departmentId).catch(() => []) : [];
+      const deptPath = emp.departmentId ? await getDepartmentPath(emp.departmentId).catch(sansBloquer("three-sixty.run.getDepartmentPath", [])) : [];
 
       // ACTIVITÉ OBSERVÉE (90 j) + DÉPENDANCE — uniquement si un compte applicatif existe.
       const since = new Date(now.getTime() - 90 * DAY);
@@ -173,7 +174,7 @@ export const THREE_SIXTY_TOOLS: PowerTool[] = [
             prisma.validationStep.count({ where: { validatorId: uid, status: "PENDING" } }),
             prisma.auditLog.count({ where: { actorId: uid, createdAt: { gte: since } } }),
             prisma.auditLog.findFirst({ where: { actorId: uid }, orderBy: { createdAt: "desc" }, select: { createdAt: true, summary: true } }),
-            prisma.fieldReport.count({ where: { delegateId: uid, createdAt: { gte: since } } }).catch(() => 0),
+            prisma.fieldReport.count({ where: { delegateId: uid, createdAt: { gte: since } } }).catch(sansBloquer("three-sixty.run.fieldReport", 0)),
             regVisible ? assigneeRegulatoryLoad(uid, regVisible as Record<string, unknown>, 10) : null,
             prisma.document.findMany({ where: { entityType: "EMPLOYEE", entityId: emp.id }, select: { id: true, name: true, category: true, createdAt: true }, take: 10, orderBy: { createdAt: "desc" } }),
             prisma.task.count({ where: { assignedToId: uid, status: { notIn: ["DONE", "CANCELLED"] }, priority: "CRITICAL" } }),

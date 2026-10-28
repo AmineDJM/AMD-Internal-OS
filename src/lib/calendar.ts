@@ -5,6 +5,7 @@ import { notifyUser } from "@/lib/notify";
 import { algiersYmd, algiersTime, formatAlgiers } from "@/lib/calendar-tz";
 import { lienCalendrier } from "@/lib/chemins/espace";
 import type { CalendarEventKind, CalendarInviteStatus, UserRole } from "@prisma/client";
+import { sansBloquer } from "@/lib/journal";
 
 // Réexport des helpers purs (fuseau d'Alger) pour les consommateurs serveur.
 export {
@@ -193,7 +194,7 @@ export async function createEventForUser(userId: string, data: NewCalendarEvent)
   const when = data.allDay ? formatAlgiers(data.startAt, { day: "2-digit", month: "long", year: "numeric" })
     : formatAlgiers(data.startAt, { weekday: "short", day: "2-digit", month: "long", hour: "2-digit", minute: "2-digit" });
   await Promise.all(invitees.map((id) =>
-    notifyUser({ userId: id, type: "ASSIGNMENT", title: "Invitation à un rendez-vous", body: `${data.title} — ${when}`, link: lienCalendrier(data.startAt) }).catch(() => {}),
+    notifyUser({ userId: id, type: "ASSIGNMENT", title: "Invitation à un rendez-vous", body: `${data.title} — ${when}`, link: lienCalendrier(data.startAt) }).catch(sansBloquer("calendar.createEventForUser.notifyUser")),
   ));
   return event.id;
 }

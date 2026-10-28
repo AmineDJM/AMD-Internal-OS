@@ -17,6 +17,7 @@ import {
   phraseJournee, regrouperFile, rolesDe, totaux,
   type ElementFile, type Fragment, type Lot, type MembreEncart, type MembreLu, type Mesures, type Semaine, type Tuile,
 } from "@/lib/espace/aujourdhui";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -84,7 +85,7 @@ async function mesuresDuMetier(user: SessionUser, nom: string, roles: string[], 
   const metiers = [...new Set(roles.map((r) => jobOf(r)))].filter((j) => j === "FIELD" || j === "MEDICAL_INFO" || j === "COORDINATION");
   for (const job of metiers) {
     const role = roles.find((r) => jobOf(r) === job) ?? null;
-    const k = await getTeamMemberKpis(employeeId, nom, user.id, role).catch(() => null);
+    const k = await getTeamMemberKpis(employeeId, nom, user.id, role).catch(sansBloquer("aujourdhui-espace.mesuresDuMetier.getTeamMemberKpis", null));
     if (!k) continue;
     const v = (cle: string) => {
       const x = k.job_.find((y) => y.cle === cle);
@@ -131,7 +132,7 @@ export async function chargerAujourdhui(
     gestesDatesDepuis(user.id, depuis),
     mesuresDuMetier(user, opts.nom ?? "", roles, opts.employeeId ?? null),
     getAppSettings(),
-    getMyTeam(user, { maintenant: now }).catch(() => null),
+    getMyTeam(user, { maintenant: now }).catch(sansBloquer("aujourdhui-espace.chargerAujourdhui.getMyTeam", null)),
     veutReglesSemaine
       ? prisma.expenseOrder.aggregate({
           where: { paidById: user.id, status: "PAID", paidDate: { gte: minuitAlger(semaine[0]) } },
@@ -163,7 +164,7 @@ export async function chargerAujourdhui(
     reglesSemaine: regles ? { n: regles._count._all, montant: Number(regles._sum.amount ?? 0) } : null,
   };
   if (team && team.directCount > 0) {
-    const apercu = await getMyTeamOverview(user, team, { maintenant: now }).catch(() => null);
+    const apercu = await getMyTeamOverview(user, team, { maintenant: now }).catch(sansBloquer("aujourdhui-espace.chargerAujourdhui.getMyTeamOverview", null));
     if (apercu) {
       const directs = apercu.lignes.filter((l) => l.direct);
       const userIds = directs.map((l) => l.userId).filter((x): x is string => Boolean(x));

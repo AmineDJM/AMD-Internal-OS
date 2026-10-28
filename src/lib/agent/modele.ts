@@ -20,8 +20,19 @@ export interface ModeleConfig {
   apiKey: string;
 }
 
-export function modeleMimo(): ModeleConfig | null {
-  const apiKey = (process.env.MIMO_API_KEY ?? process.env.mimo ?? "").trim();
+/**
+ * LA CLÉ SOUS SON SEUL NOM (IA-ASSISTANT-13). Elle était lue aussi sous `mimo` (minuscules) : une
+ * variable qui échappe aux inventaires (`.env.example`, ~200 variables en majuscules) et à
+ * `cleModeleRequise()`. Encore posée, elle est IGNORÉE — et on le dit une fois, au lieu de se taire.
+ */
+let ancienNomDit = false;
+
+export function modeleMimo(env: NodeJS.ProcessEnv = process.env): ModeleConfig | null {
+  if (env.mimo && !ancienNomDit) {
+    ancienNomDit = true;
+    console.warn("[assistant-ia] la variable « mimo » (minuscules) est ignorée : posez la clé sous MIMO_API_KEY.");
+  }
+  const apiKey = (env.MIMO_API_KEY ?? "").trim();
   return apiKey ? { ...MIMO, apiKey } : null;
 }
 

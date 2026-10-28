@@ -7,6 +7,7 @@ import { saveFile, validateUpload } from "@/lib/storage";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
 import { sendPushToUser } from "@/lib/push";
 import type { DirectiveAudience, DirectiveScope } from "./audience";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * DE LA PORTÉE AUX PERSONNES — et de la publication à l'envoi.
@@ -124,7 +125,7 @@ export async function sendDirective(directive: {
   // Push (PWA) — best-effort, comme partout ailleurs : un appareil injoignable ne doit pas
   // faire échouer la diffusion aux autres.
   await Promise.all(ids.map((userId) =>
-    sendPushToUser(userId, { title, body, url: link }).catch(() => undefined),
+    sendPushToUser(userId, { title, body, url: link }).catch(sansBloquer("recipients.sendDirective.sendPushToUser")),
   ));
   return ecrites;
 }

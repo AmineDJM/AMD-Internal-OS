@@ -4,6 +4,7 @@ import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/open
 import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
 import { wrapUntrusted } from "@/lib/comms/untrusted";
 import { CONSIGNE_VOIX, SCHEMA_VOIX, lireReponseVoix, regrouperParMotsCles, type RapportTerrain, type VoixTerrain } from "@/lib/voix-terrain/pur";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -76,7 +77,7 @@ async function classerParLuna(rapports: readonly RapportTerrain[], jours: number
     errorCode: panne ? "exception" : r === null ? "timeout" : !r.ok ? (r.error ?? "error").slice(0, 120) : lu ? null : "invalid_json",
     llmCalls: 1, inputTokens: r?.usage.inputTokens ?? null, outputTokens: r?.usage.outputTokens ?? null,
     cachedInputTokens: r?.usage.cachedInputTokens ?? null, costUsd: r?.usage.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("voix-terrain-luna.classerParLuna.logAiUsage"));
   if (!lu) return null;
   // Les rapports au-delà du lot envoyé ne sont pas perdus : le comptage total reste celui de la fenêtre.
   return { ...lu, rapports: rapports.length };

@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  * candidature rattachée, son CV est un Document du candidat et se sert par `/api/documents/[id]`,
  * sous la porte de SA demande.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "Non authentifié" }, { status: 401 });
   if (!peutTraiterCandidaturesSite(user)) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });

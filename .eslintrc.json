@@ -4,31 +4,188 @@
     "@next/next/no-assign-module-variable": "off",
     "react/no-unescaped-entities": "off",
     "@typescript-eslint/no-explicit-any": "off",
-    "no-restricted-imports": ["error", {
-      "patterns": [{
-        "group": ["@/modules/*/domaine", "@/modules/*/domaine/*", "@/modules/*/infra", "@/modules/*/infra/*", "**/modules/*/domaine/*", "**/modules/*/infra/*"],
-        "message": "Un module s'importe par sa porte : @/modules/<module>/api (voir src/modules/frontieres.test.ts et docs/audit/2026-10-27/08-architecture-code.md)."
-      }]
-    }],
-    "no-restricted-syntax": ["error",
-      { "selector": "SpreadElement > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]", "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts." },
-      { "selector": "SpreadElement > AwaitExpression > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]", "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts." },
-      { "selector": "ObjectExpression > SpreadElement > Identifier[name=/^(scope|portee)$/]", "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts." }
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          {
+            "group": [
+              "@/modules/*/domaine",
+              "@/modules/*/domaine/*",
+              "@/modules/*/infra",
+              "@/modules/*/infra/*",
+              "**/modules/*/domaine/*",
+              "**/modules/*/infra/*"
+            ],
+            "message": "Un module s'importe par sa porte : @/modules/<module>/api (serveur) ou /partage (pur) — voir docs/architecture/MODULES.md."
+          },
+          {
+            "group": [
+              "@/modules/*/ecrans",
+              "@/modules/*/ecrans/*",
+              "**/modules/*/ecrans/*"
+            ],
+            "message": "Un écran de module ne s'importe que depuis une page de src/app/ — voir docs/architecture/MODULES.md."
+          },
+          {
+            "group": [
+              "@/lib/coffre",
+              "@/lib/coffre/*",
+              "@/lib/lieux",
+              "@/lib/lieux/*",
+              "@/lib/referentiels",
+              "@/lib/referentiels/*",
+              "@/lib/actions/coffre-actions",
+              "@/lib/actions/consommation-actions",
+              "@/lib/actions/organisation-actions",
+              "@/lib/actions/personnes-actions",
+              "@/lib/actions/refonte-reprise-actions"
+            ],
+            "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+          }
+        ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "SpreadElement > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      },
+      {
+        "selector": "SpreadElement > AwaitExpression > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      },
+      {
+        "selector": "ObjectExpression > SpreadElement > Identifier[name=/^(scope|portee)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      }
     ]
   },
-  "overrides": [{
-    "files": ["src/modules/*/domaine/**"],
-    "rules": {
-      "no-restricted-imports": ["error", {
-        "paths": [
-          { "name": "@/lib/prisma", "message": "domaine/ est pur : la base se lit dans infra/." },
-          { "name": "xlsx", "message": "domaine/ est pur : les fichiers se lisent dans infra/." }
-        ],
-        "patterns": [
-          { "group": ["next/*", "react", "node:*", "../infra/*", "../ecrans/*", "../api"], "message": "domaine/ est pur : ni Next, ni React, ni Node, ni infra/, ni écrans." },
-          { "group": ["@/modules/*/domaine", "@/modules/*/domaine/*", "@/modules/*/infra", "@/modules/*/infra/*", "**/modules/*/domaine/*", "**/modules/*/infra/*"], "message": "Un module s'importe par sa porte : @/modules/<module>/api." }
+  "overrides": [
+    {
+      "files": [
+        "src/app/**",
+        "src/modules/*/ecrans/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/modules/*/domaine",
+                  "@/modules/*/domaine/*",
+                  "@/modules/*/infra",
+                  "@/modules/*/infra/*",
+                  "**/modules/*/domaine/*",
+                  "**/modules/*/infra/*"
+                ],
+                "message": "Un module s'importe par sa porte : @/modules/<module>/api (serveur) ou /partage (pur) — voir docs/architecture/MODULES.md."
+              },
+              {
+                "group": [
+                  "@/lib/coffre",
+                  "@/lib/coffre/*",
+                  "@/lib/lieux",
+                  "@/lib/lieux/*",
+                  "@/lib/referentiels",
+                  "@/lib/referentiels/*",
+                  "@/lib/actions/coffre-actions",
+                  "@/lib/actions/consommation-actions",
+                  "@/lib/actions/organisation-actions",
+                  "@/lib/actions/personnes-actions",
+                  "@/lib/actions/refonte-reprise-actions"
+                ],
+                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              }
+            ]
+          }
         ]
-      }]
+      }
+    },
+    {
+      "files": [
+        "src/modules/*/domaine/**"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@/lib/prisma",
+                "message": "domaine/ est pur : la base se lit dans infra/."
+              },
+              {
+                "name": "xlsx",
+                "message": "domaine/ est pur : les fichiers se lisent dans infra/."
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "next",
+                  "next/*",
+                  "react",
+                  "react-dom",
+                  "node:*",
+                  "../infra/*",
+                  "../../infra/*",
+                  "../ecrans/*",
+                  "../../ecrans/*",
+                  "../api",
+                  "../../api",
+                  "../api-*",
+                  "../../api-*",
+                  "../actions",
+                  "../../actions",
+                  "@/modules/*/api",
+                  "@/modules/*/api-*",
+                  "@/modules/*/actions"
+                ],
+                "message": "domaine/ est pur : ni Next, ni React, ni Node, ni infra/, ni écrans, ni porte serveur — un autre module se lit par sa porte pure /partage."
+              },
+              {
+                "group": [
+                  "@/modules/*/domaine",
+                  "@/modules/*/domaine/*",
+                  "@/modules/*/infra",
+                  "@/modules/*/infra/*",
+                  "**/modules/*/domaine/*",
+                  "**/modules/*/infra/*"
+                ],
+                "message": "Un module s'importe par sa porte : @/modules/<module>/api (serveur) ou /partage (pur) — voir docs/architecture/MODULES.md."
+              },
+              {
+                "group": [
+                  "@/modules/*/ecrans",
+                  "@/modules/*/ecrans/*",
+                  "**/modules/*/ecrans/*"
+                ],
+                "message": "Un écran de module ne s'importe que depuis une page de src/app/ — voir docs/architecture/MODULES.md."
+              },
+              {
+                "group": [
+                  "@/lib/coffre",
+                  "@/lib/coffre/*",
+                  "@/lib/lieux",
+                  "@/lib/lieux/*",
+                  "@/lib/referentiels",
+                  "@/lib/referentiels/*",
+                  "@/lib/actions/coffre-actions",
+                  "@/lib/actions/consommation-actions",
+                  "@/lib/actions/organisation-actions",
+                  "@/lib/actions/personnes-actions",
+                  "@/lib/actions/refonte-reprise-actions"
+                ],
+                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              }
+            ]
+          }
+        ]
+      }
     }
-  }]
+  ]
 }

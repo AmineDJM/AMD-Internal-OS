@@ -3,9 +3,8 @@ import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/session";
 import { getAppSettings } from "@/lib/settings";
-import { filtresDepuis, lecteursDuJournal, lireJournal, TAILLE_PAGE } from "@/lib/coffre/journal";
-import { champSensible, LIBELLE_MODELE, MODELES_SENSIBLES } from "@/lib/coffre/champs";
-import { estNatureCoffre, LIBELLE_NATURE, NATURES_COFFRE } from "@/lib/coffre/natures";
+import { filtresDepuis, lecteursDuJournal, lireJournal, TAILLE_PAGE } from "@/modules/coffre/api-lecture";
+import { champSensible, LIBELLE_MODELE, MODELES_SENSIBLES, estNatureCoffre, LIBELLE_NATURE, NATURES_COFFRE } from "@/modules/coffre/partage";
 import { PageHeader } from "@/components/shared/page-header";
 import { BackLink } from "@/components/shared/back-link";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -26,7 +25,10 @@ const MOTIFS: Record<string, string> = {
  * ADMINISTRATION › ACCÈS AUX DONNÉES SENSIBLES — Super Admin seul (refonte V2-E). Chaque lecture du coffre,
  * accordée ou refusée : qui, quand, pour quel geste, la colonne de qui. Filtres dans l'adresse (formulaire GET).
  */
-export default async function AccesDonneesSensiblesPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+export default async function AccesDonneesSensiblesPage(
+  props: { searchParams: Promise<Record<string, string | string[] | undefined>> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/mon-espace");
 

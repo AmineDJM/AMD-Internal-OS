@@ -36,6 +36,7 @@ import { runFd, runFd2, fieldsOf, resolveOne, isoDate, dzd, toFd } from "./helpe
 import { matchLabel, fold } from "./impl-regulatory";
 import { resolveMissionParent, type MissionParent } from "./impl-wave2b";
 import { CHEMIN_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * OPS VAGUE 5a — EVENTS (fiche en FUSION intégrale, circuit de prise en charge, inscriptions),
@@ -1036,7 +1037,7 @@ function montantDeSeuil(brut: string): { valeur: number } | { error: string } {
 async function seuilsEnVigueur(): Promise<{ demandes: number; bc: number }> {
   const row = await prisma.appSetting.findUnique({
     where: { id: "global" }, select: { adProDgThreshold: true, bcValidationThreshold: true },
-  }).catch(() => null);
+  }).catch(sansBloquer("impl-wave5.seuilsEnVigueur.appSetting", null));
   return {
     demandes: row ? Number(row.adProDgThreshold) : DEFAULT_APP_SETTINGS.adProDgThreshold,
     bc: row ? Number(row.bcValidationThreshold) : DEFAULT_APP_SETTINGS.bcValidationThreshold,

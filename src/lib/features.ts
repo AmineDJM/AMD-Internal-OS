@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 // Mémoïsation par requête (même patron que lib/company.ts) : une seule lecture par rendu.
 const perRequest: <T extends (...args: never[]) => unknown>(fn: T) => T =
@@ -76,7 +77,7 @@ async function getStage(key: string): Promise<Stage> {
 
 /** Le compte est-il en « mode test » ? (mémoïsé par requête). */
 export const isTestUser = perRequest(async (userId: string): Promise<boolean> => {
-  const u = await prisma.user.findUnique({ where: { id: userId }, select: { testMode: true } }).catch(() => null);
+  const u = await prisma.user.findUnique({ where: { id: userId }, select: { testMode: true } }).catch(sansBloquer("features.user", null));
   return Boolean(u?.testMode);
 });
 
@@ -125,7 +126,7 @@ export async function listFeatures(): Promise<FeatureRow[]> {
 /** Raccourci pour les pages serveur : `const f = await features(user.id)` puis `f.has(...)`. */
 export async function features(userId: string): Promise<Set<string>> {
   const [rows, test] = await Promise.all([
-    prisma.featureFlag.findMany({ select: { key: true, stage: true } }).catch(() => []),
+    prisma.featureFlag.findMany({ select: { key: true, stage: true } }).catch(sansBloquer("features.features.featureFlag", [])),
     isTestUser(userId),
   ]);
   const live = new Set<string>();

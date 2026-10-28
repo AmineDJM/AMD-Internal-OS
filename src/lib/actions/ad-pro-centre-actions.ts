@@ -16,6 +16,7 @@ import { MENU_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import { signalerSiASigner } from "@/lib/bons-de-commande/etat";
 import { demandeurDuVisa, peutResoumettreAuCentre, demandeAttendLeCentre } from "@/lib/queries/ad-pro-centre";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -137,7 +138,7 @@ export async function deciderVisaCentreAdPro(formData: FormData): Promise<Action
 
     // UN BC VALIDÉ PASSE À LA SIGNATURE DES FINANCES (§118.149) : elles en sont prévenues.
     if (estBC && approuve) {
-      await signalerSiASigner(entityId).catch(() => undefined);
+      await signalerSiASigner(entityId).catch(sansBloquer("ad-pro-centre-actions.deciderVisaCentreAdPro.signalerSiASigner"));
       revalidatePath(CHEMIN_BC_A_SIGNER);
     }
 
@@ -187,7 +188,7 @@ export async function reexaminerVisaCentreAdPro(formData: FormData): Promise<Act
       title: "Centre Ad & Pro : votre demande est réexaminée",
       body: `Le centre reprend sa décision : ${note}. Vous serez prévenu de la nouvelle décision.`,
       link: lienDe(entityType as EntityType, entityId),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ad-pro-centre-actions.reexaminerVisaCentreAdPro.notifyUser"));
   }
   revalidatePath("/centre-ad-pro");
   revalidatePath(lienDe(entityType as EntityType, entityId));
@@ -283,7 +284,7 @@ export async function resoumettreAuCentreAdPro(formData: FormData): Promise<Acti
   await notifyRoles(["GENERAL_MANAGER", "SUPER_ADMIN"], {
     type: "VALIDATION_REQUIRED", title: "Centre Ad & Pro : demande resoumise après correction",
     body: historique, link: lienLigneCentreAdPro(entityId),
-  }).catch(() => undefined);
+  }).catch(sansBloquer("ad-pro-centre-actions.resoumettreAuCentreAdPro.notifyRoles"));
   return { ok: true, id: entityId, message: "Resoumise au centre : elle sera revue avec sa correction." };
 }
 

@@ -18,6 +18,7 @@ import { lignesDuBon, plafondDesDevis, refusDepassement, refusMontantDesDevis, t
 import { formatDzd } from "@/lib/promo-material/devis";
 import { ITEM_KIND_LABELS } from "@/lib/ad-pro-items";
 import { enSerie } from "@/lib/refs";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -95,18 +96,18 @@ export async function tiersDuDevis(
   // UN DEVIS LU AVANT CETTE ÉVOLUTION n'a pas gardé l'identité : on la RECOPIE du texte déjà lu (sans relire le fichier,
   // sans toucher aux lignes validées), et on la garde pour les fois suivantes.
   if (!lu?.nom && d.entete.lectureId) {
-    const texte = await texteDeLaLecture(d.entete.lectureId).catch(() => null);
+    const texte = await texteDeLaLecture(d.entete.lectureId).catch(sansBloquer("ad-pro-bc-devis.tiersDuDevis.texteDeLaLecture", null));
     const recopiee = texte ? identiteEmetteurDuTexte(texte) : null;
     if (identiteUtilisable(recopiee)) {
       lu = recopiee;
       await prisma.adProDevis.updateMany({
         where: { legalDocumentId: d.pieceId },
         data: { fournisseurLu: recopiee as unknown as Prisma.InputJsonValue },
-      }).catch(() => undefined);
+      }).catch(sansBloquer("ad-pro-bc-devis.tiersDuDevis.adProDevis"));
       await prisma.legalDocument.updateMany({
         where: { id: d.pieceId, OR: [{ counterparty: null }, { counterparty: "" }] },
         data: { counterparty: recopiee.nom },
-      }).catch(() => undefined);
+      }).catch(sansBloquer("ad-pro-bc-devis.tiersDuDevis.legalDocument"));
     }
   }
   if (lu?.nom) {

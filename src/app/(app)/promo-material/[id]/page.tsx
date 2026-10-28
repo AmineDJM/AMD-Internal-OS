@@ -80,7 +80,8 @@ import { getBudgetCategoryOptions } from "@/lib/queries/budget";
 export const dynamic = "force-dynamic";
 
 
-export default async function PromoMaterialDetailPage({ params }: { params: { id: string } }) {
+export default async function PromoMaterialDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // LA PORTE DE LA FICHE EST CELLE DU DOSSIER, PAS SEULEMENT CELLE DU MODULE (§118.152). Le
   // circuit adresse des gestes à des personnes qui n'ont PAS le module Matériel promotionnel : le
   // N+1 d'un délégué qui valide sa demande, l'assistante de direction qui retranscrit les devis, le

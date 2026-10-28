@@ -22,6 +22,7 @@ import { toNumber } from "@/lib/utils";
 import { porteLeRoleQuiTranche } from "@/lib/personnes/referents-gamme";
 import { bilanCloture, peutCloturer, quiCloture, refusCloture, type QuiCloture } from "@/lib/ad-pro/cloture-sponsoring";
 import { postesPourCloture } from "@/lib/queries/ad-pro-items";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/sponsoring";
 
@@ -370,7 +371,7 @@ export async function cloturerSponsoring(formData: FormData): Promise<ActionResu
       title: bilan.total > 0 ? "Sponsoring validé et clôturé" : "Sponsoring clôturé sans dépense",
       body: `${req.reference} — ${req.institution} : ${detail}`,
       link: `${PATH}/${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("sponsoring-actions.cloturerSponsoring.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "VALIDATE", module: "Sponsoring", entityType: "SPONSORING", entityId: id,
@@ -429,7 +430,7 @@ export async function rouvrirSponsoring(formData: FormData): Promise<ActionResul
     await notifyUser({
       userId: req.requesterId, type: "SPONSORING_VALIDATION", title: "Sponsoring rouvert",
       body: `${req.reference} — ${req.institution} : ${motif}`, link: `${PATH}/${id}`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("sponsoring-actions.rouvrirSponsoring.notifyUser"));
   }
   revalidate(id);
   return { ok: true, id };

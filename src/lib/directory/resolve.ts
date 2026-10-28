@@ -1,6 +1,7 @@
 import { DirectoryChannel, EndpointConfidence } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { normalizeName, rankEndpoints, type ResolvedEndpoint, type PersonMatch } from "./rank";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RETROUVER UNE PERSONNE, ET SON ADRESSE — dans l'ordre où l'entreprise fait autorité.
@@ -68,7 +69,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       contact: { select: { id: true, name: true, email: true, phone: true } },
       company: { select: { shortName: true, name: true } },
     },
-  }).catch(() => []);
+  }).catch(sansBloquer("resolve.findPeople.directoryEntry", []));
 
   for (const e of entries) {
     const key = e.userId ?? e.employeeId ?? e.contactId ?? e.id;
@@ -91,12 +92,12 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       where: { isActive: true, name: { contains: q, mode: "insensitive" } },
       take: limit * 2,
       select: { id: true, name: true, email: true, title: true, phone: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("resolve.findPeople.user", [])),
     prisma.employee.findMany({
       where: { isActive: true, fullName: { contains: q, mode: "insensitive" } },
       take: limit * 2,
       select: { id: true, fullName: true, position: true, email: true, phone: true, userId: true, company: { select: { shortName: true, name: true } } },
-    }).catch(() => []),
+    }).catch(sansBloquer("resolve.findPeople.employee", [])),
   ]);
 
   for (const u of users) {
@@ -127,7 +128,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
     },
     take: limit,
     select: { id: true, name: true, contactName: true, email: true, phone: true, kind: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("resolve.findPeople.companyContact", []));
 
   for (const c of contacts) {
     const endpoints: ResolvedEndpoint[] = [];
@@ -145,7 +146,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       where: { direction: "INBOUND", fromName: { contains: q, mode: "insensitive" } },
       orderBy: { sentAt: "desc" }, take: limit,
       select: { fromAddress: true, fromName: true, sentAt: true },
-    }).catch(() => []);
+    }).catch(sansBloquer("resolve.findPeople.emailRecord", []));
     const uniques = new Map<string, { name: string | null; at: Date | null }>();
     for (const m of seen) if (!uniques.has(m.fromAddress)) uniques.set(m.fromAddress, { name: m.fromName, at: m.sentAt });
     for (const [address, meta] of uniques) {

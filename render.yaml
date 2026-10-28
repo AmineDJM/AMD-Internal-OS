@@ -22,7 +22,11 @@ services:
     name: amd-internal-os
     runtime: node
     plan: free
-    healthCheckPath: /login
+    # LA SONDE REGARDE LA BASE ET LES MIGRATIONS (audit 27/10, INFRA-05) : `/login` est statique et répondait 200,
+    # même base perdue. `/api/health` rend 503 si Postgres ne répond pas ou si une migration du dépôt n'est pas
+    # appliquée — le déploiement échoue au lieu de servir du code sur un schéma en retard. ⚠️ Le tableau de bord
+    # Render prime (§118.208) : y reporter *Settings → Health Check Path* = /api/health.
+    healthCheckPath: /api/health
     # Build installs deps, generates the client, LINTS (phase séparée, bloquante), typechecks and
     # builds Next.js, THEN applies migrations and creates the Super Admin (idempotent). Lint et typecheck vivent
     # dans DEUX processus : additionnés dans le même heap ils dépassaient la limite Node
@@ -48,7 +52,7 @@ services:
     # ⚠️ NE PAS poser NODE_OPTIONS dans le dashboard Render : il s'appliquerait à TOUS les
     # processus du build (npm, prisma generate, bootstrap) en les autorisant à gonfler, ET au
     # runtime `next start` où une grande laisse V8 sur une petite instance provoque l'OOM
-    # inverse. Les plafonds vivent ICI, phase par phase, dans build:render (3072 Mo).
+    # inverse. Les plafonds vivent ICI, phase par phase, dans build:render (lint 3072 Mo, compilation 3584 Mo depuis Next 15 — next.config.mjs, `TAS_DU_BUILD_MO`).
     #
     # ORDRE (refonte P0, docs/architecture/refonte-p0-outillage.md §2) : TOUT ce qui peut échouer
     # sans toucher la base passe AVANT `migrate deploy`. Avant, les migrations partaient en premier :
@@ -59,7 +63,9 @@ services:
     # compilent contre le client généré. Le bootstrap lit des tables : il suit les migrations.
     # ⚠️ Si le tableau de bord Render porte sa propre commande (§118.208), elle remplace celle-ci :
     # y recopier cette ligne à l'identique.
-    buildCommand: npm install && npx prisma generate && npm run build:render && npx prisma migrate deploy && npm run db:bootstrap
+    # `npm ci` (audit 27/10, INFRA-09) : installe EXACTEMENT `package-lock.json`, échoue s'il diverge de
+    # `package.json` — la CI fait de même ; le build déployé est celui qui a été vérifié.
+    buildCommand: npm ci && npx prisma generate && npm run build:render && npx prisma migrate deploy && npm run db:bootstrap
     startCommand: npx next start -p $PORT
     envVars:
       - key: DATABASE_URL
@@ -159,11 +165,14 @@ services:
     # APRÈS son lint, son typecheck et sa compilation (refonte P0). Le worker démarré attend que la
     # base porte les migrations de son commit (`src/lib/taches-de-fond/migrations.ts`) avant son
     # premier passage — il ne fait jamais tourner un code plus récent que le schéma.
-    buildCommand: npm install && npx prisma generate
+    buildCommand: npm ci && npx prisma generate
     startCommand: npm run worker
     envVars:
+      # EN ATTENTE au démarrage (`web`) : le worker existe et attend ; le web bat comme avant. On bascule en
+      # `les-deux` APRÈS avoir recopié sur ce service les clés posées à la main sur le web (IA, Google/Microsoft,
+      # SMTP…) — sans elles, une tâche prise par le worker échouerait là où le web la réussissait.
       - key: TACHES_DE_FOND
-        value: les-deux
+        value: web
       - key: DATABASE_URL
         fromDatabase:
           name: amd-postgres

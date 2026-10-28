@@ -20,6 +20,7 @@ import {
   type PendingDecision, type PersonView, type PlatformCommand, type PlatformPort, type PlatformQuery,
   type PlatformQueryResult, type Principal, type RecordView, type Unsubscribe,
 } from "../contract";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -350,7 +351,7 @@ async function showDocument(
     const kind = docKindOf(node.name, node.mimeType ?? version?.mimeType ?? null);
     let sheet = null;
     if (kind === "feuille" && version) {
-      const bytes = await getBlob(version.blobId).catch(() => null);
+      const bytes = await getBlob(version.blobId).catch(sansBloquer("adapter.showDocument.getBlob", null));
       if (bytes) sheet = await sheetPreview(node.name, Buffer.from(bytes));
     }
     return {
@@ -377,7 +378,7 @@ async function showDocument(
     const kind = docKindOf(doc.name, doc.mimeType);
     let sheet = null;
     if (kind === "feuille") {
-      const bytes = await readFileByKey(doc.fileKey).catch(() => null);
+      const bytes = await readFileByKey(doc.fileKey).catch(sansBloquer("adapter.showDocument.readFileByKey", null));
       if (bytes) sheet = await sheetPreview(doc.name, Buffer.from(bytes));
     }
     return {
@@ -518,7 +519,7 @@ function accessFilterFor(principal: Principal): AccessFilter {
     for (let i = 0; i < drive.length; i += PAR_PAQUET) {
       const paquet = drive.slice(i, i + PAR_PAQUET);
       const niveaux = await Promise.all(
-        paquet.map((it) => resolveDriveAccess(user, it.sourceId).catch(() => "NONE" as const)),
+        paquet.map((it) => resolveDriveAccess(user, it.sourceId).catch(sansBloquer("adapter.accessFilterFor.resolveDriveAccess", "NONE" as const))),
       );
       paquet.forEach((it, k) => { if (niveaux[k] !== "NONE") autorises.add(it.itemId); });
     }
@@ -536,7 +537,7 @@ async function searchDocuments(principal: Principal, question: string, limit: nu
     // non compris. Vérifié : le Super Admin cherchait, l'employé recevait ses extraits.
     { question, force: true, limit, scopeKey: principal.id },
     accessFilterFor(principal),
-  ).catch(() => null);
+  ).catch(sansBloquer("adapter.searchDocuments.retrieve", null));
 
   if (!r) return { kind: "document.search", extracts: [], examined: 0 };
   return {
@@ -714,7 +715,7 @@ async function etatMission(userId: string, missionId?: string): Promise<Platform
       enAttenteDeVous: v.enAttenteDeVous,
       sousMissions: v.sousMissions.length,
       bloc: v,
-      observabilite: await observabiliteMission(missionId, userId).catch(() => null),
+      observabilite: await observabiliteMission(missionId, userId).catch(sansBloquer("adapter.etatMission.observabiliteMission", null)),
     },
   };
 }

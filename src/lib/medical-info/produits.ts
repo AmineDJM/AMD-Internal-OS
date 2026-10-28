@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { resolveProductId } from "@/lib/products/resolve";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE PRODUIT D'UN DOSSIER — déduit de sa source, rien de nouveau à saisir.
@@ -53,7 +54,7 @@ export async function produitsDesDossiers(
   }
   if (options.rattraper !== false && aRattraper.length) {
     // Jamais bloquant : un rattrapage qui échoue laisse la lecture intacte (il se refera à la prochaine ouverture).
-    await Promise.all(aRattraper.map((r) => prisma.medicalInfoDeclaration.updateMany({ where: { id: r.id, productId: null }, data: { productId: r.productId } }).catch(() => null)));
+    await Promise.all(aRattraper.map((r) => prisma.medicalInfoDeclaration.updateMany({ where: { id: r.id, productId: null }, data: { productId: r.productId } }).catch(sansBloquer("produits.produitsDesDossiers.medicalInfoDeclaration", null))));
   }
   return out;
 }
@@ -127,7 +128,7 @@ async function produitsDeduitsDesSources(
   const cache = new Map<string, Promise<string | null>>();
   const resoudre = (m: string) => {
     const cle = m.toLowerCase();
-    if (!cache.has(cle)) cache.set(cle, resolveProductId(m).catch(() => null));
+    if (!cache.has(cle)) cache.set(cle, resolveProductId(m).catch(sansBloquer("produits.resoudre.resolveProductId", null)));
     return cache.get(cle)!;
   };
 

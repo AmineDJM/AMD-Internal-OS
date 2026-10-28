@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, describe, expect, it } from "vitest";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { CurrentUser } from "@/lib/session";
@@ -6,6 +6,7 @@ import { REFUS_IA_COUPEE, remplacerLecteurInterrupteurIaPourTests } from "@/lib/
 import { IaCoupee, repondreAvecSecours } from "@/lib/agent/repondre";
 import { genererTexte, remplacerModelesPourTests } from "@/lib/agent/generer";
 import { modeleFactice } from "@/lib/agent/testing/modele-factice";
+import { effacerJournalDe } from "@/lib/agent/testing/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -29,6 +30,9 @@ afterEach(() => {
   remplacerModelesPourTests(null);
 });
 
+
+// Le journal de consommation que les tours du banc ont écrit (lot V3-D).
+afterAll(() => effacerJournalDe([user.id]));
 describe("les deux portes de l'Assistant IA vers le modèle lisent l'interrupteur général", () => {
   it("coupé : repondreAvecSecours refuse avec la phrase du refus, et le modèle n'est JAMAIS appelé", async () => {
     remplacerLecteurInterrupteurIaPourTests(async () => true);
@@ -70,10 +74,9 @@ function fichiers(dir: string, out: string[] = []): string[] {
 }
 
 describe("cliquet : pas de troisième porte vers le modèle", () => {
-  it("tout fichier de l'Assistant IA qui construit un agent Mastra lit l'interrupteur — la seule exception est nommée", () => {
-    // `agent.ts` (creerAgent) n'a AUCUN appelant de production — seulement son test (constat IA-ASSISTANT-08).
-    // Le jour où il en a un, il doit lire l'interrupteur ou disparaître.
-    const SANS_APPELANT = new Set(["src/lib/agent/agent.ts"]);
+  it("tout fichier de l'Assistant IA qui construit un agent Mastra lit l'interrupteur — sans exception", () => {
+    // L'exception d'hier (`agent.ts`, sans appelant de production — IA-ASSISTANT-08) est supprimée avec lui.
+    const SANS_APPELANT = new Set<string>();
     const portes = [...fichiers("src/lib/agent"), ...fichiers("src/app/(app)/assistant")]
       .filter((f) => /\bnew Agent\(/.test(readFileSync(f, "utf8")));
     expect(portes.length).toBeGreaterThanOrEqual(2);

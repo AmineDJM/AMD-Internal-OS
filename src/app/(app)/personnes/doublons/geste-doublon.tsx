@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
-import { defaireFusionPersonne, ecarterDoublonPersonne, fusionnerDoublonPersonne } from "@/lib/actions/personnes-actions";
+import { defaireFusionPersonne, ecarterDoublonPersonne, fusionnerDoublonPersonne } from "@/modules/referentiels/actions-personnes";
 import type { ActionResult } from "@/lib/actions/types";
 
 type Props =

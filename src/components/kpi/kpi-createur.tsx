@@ -14,6 +14,7 @@ import type { ApercuKpi } from "@/lib/kpi/types";
 import { apercuKpi, creerKpi, proposerKpiDepuisPhrase } from "@/lib/actions/kpi-actions";
 import { submitFeedback } from "@/lib/actions/feedback-actions";
 import { PastilleKpi } from "@/components/kpi/kpi-commun";
+import { sansBloquer } from "@/lib/journal";
 
 type Bulle = { de: "moi" | "luna"; texte: string };
 interface Proposee { def: DefinitionKpi; explication: string | null; retenue: boolean; justificationCible?: string | null; cibleParLuna?: boolean }
@@ -48,7 +49,7 @@ export function KpiCreateur({ personnes, roles = [], onAjoute }: {
     setBusy("luna"); setMsg(null); setApercu(null);
     setBulles((b) => [...b, { de: "moi", texte }]);
     const fd = new FormData(); fd.set("phrase", texte);
-    const r = await proposerKpiDepuisPhrase(fd).catch(() => null);
+    const r = await proposerKpiDepuisPhrase(fd).catch(sansBloquer("kpi-createur.demander.proposerKpiDepuisPhrase", null));
     setBusy(null);
     if (!r?.ok) { setMsg({ ok: false, texte: r?.error ?? "Luna n'a pas répondu." }); return; }
     const notes = [r.message, ...(r.rejets ?? []), r.note].filter(Boolean).join(" ");
@@ -64,7 +65,7 @@ export function KpiCreateur({ personnes, roles = [], onAjoute }: {
     const fd = new FormData(); fd.set("definitions", JSON.stringify(retenues.map((p) => p.def)));
     // La cible se lit sur l'historique de la personne visée (en plus de celui de l'équipe).
     if (pour !== "EQUIPE" && !pour.startsWith("ROLE:")) fd.set("pour", pour);
-    const r = await apercuKpi(fd).catch(() => null);
+    const r = await apercuKpi(fd).catch(sansBloquer("kpi-createur.voirApercu.apercuKpi", null));
     setBusy(null);
     if (r?.ok) {
       setApercu(r.apercu);
@@ -90,7 +91,7 @@ export function KpiCreateur({ personnes, roles = [], onAjoute }: {
     else if (pour === "EQUIPE") fd.set("pour", "EQUIPE");
     else { fd.set("pour", "PERSONNE"); fd.set("userId", pour); }
     fd.set("poids", poids);
-    const r = await creerKpi(fd).catch(() => null);
+    const r = await creerKpi(fd).catch(sansBloquer("kpi-createur.ajouter.creerKpi", null));
     setBusy(null);
     setMsg({ ok: Boolean(r?.ok), texte: r?.ok ? r.message ?? "Ajouté." : r?.error ?? "Échec." });
     if (r?.ok) { setProps([]); setApercu(null); setBulles([]); onAjoute(); }
@@ -102,7 +103,7 @@ export function KpiCreateur({ personnes, roles = [], onAjoute }: {
     const fd = new FormData();
     fd.set("message", messagePropositionKpi({ phrase: horsBriques.phrase, ...horsBriques.h }));
     fd.set("module", MODULE_FEEDBACK_KPI);
-    const r = await submitFeedback(undefined, fd).catch(() => null);
+    const r = await submitFeedback(undefined, fd).catch(sansBloquer("kpi-createur.proposerMesure.submitFeedback", null));
     setBusy(null);
     setMsg({ ok: Boolean(r?.ok), texte: r?.ok ? "Proposition envoyée au Super Admin — suivez-la dans « Mes propositions »." : r?.error ?? "Échec de l'envoi." });
     if (r?.ok) { setHorsBriques(null); onAjoute(); }

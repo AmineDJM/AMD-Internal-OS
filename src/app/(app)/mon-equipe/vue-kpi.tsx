@@ -19,6 +19,7 @@ import { KpiCreateur } from "@/components/kpi/kpi-createur";
 import { GestionKpi } from "@/components/kpi/gestion-kpi";
 import { LIBELLE_STATUT_REVUE, PastilleKpi, couleurScore } from "@/components/kpi/kpi-commun";
 import { Avatar } from "./equipe-commun";
+import { sansBloquer } from "@/lib/journal";
 
 const STATUT_FEEDBACK: Record<string, string> = { NEW: "envoyée", SEEN: "vue", IN_PROGRESS: "en cours", DONE: "traitée" };
 
@@ -38,7 +39,7 @@ export function VueKpi({ kpi }: { kpi: TableauKpi }) {
 
   const changerFrequence = async (f: FrequenceRevue) => {
     const fd = new FormData(); fd.set("frequence", f);
-    const r = await reglerFrequenceRevue(fd).catch(() => null);
+    const r = await reglerFrequenceRevue(fd).catch(sansBloquer("vue-kpi.changerFrequence.reglerFrequenceRevue", null));
     setMsg(r?.ok ? null : r?.error ?? "Échec.");
     if (r?.ok) router.push("/mon-equipe?vue=kpi");
   };

@@ -11,7 +11,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-export async function POST(req: NextRequest, { params }: { params: { sessionId: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+  const params = await props.params;
   try {
     const user = await getCurrentUserPourEcrire();
     if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });

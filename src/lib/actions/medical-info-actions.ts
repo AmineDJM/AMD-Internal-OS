@@ -39,6 +39,7 @@ import {
 import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
 import { toNumber } from "@/lib/utils";
 import { postesPortantLaDepense } from "@/lib/workflow/engine";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/information-medicale";
 
@@ -137,7 +138,7 @@ export async function cancelDocRequest(formData: FormData): Promise<ActionResult
   await refreshStatus(r.declarationId);
   // La personne sollicitée est prévenue : sans un mot, elle chercherait encore une pièce que plus personne n'attend.
   if (r.targetUserId && r.targetUserId !== user.id) {
-    await notifyUser({ userId: r.targetUserId, type: "GENERIC", title: "Information médicale — pièce plus demandée", body: `${r.declaration.reference} — ${r.label} : la demande est annulée.`, link: `${PATH}/${r.declarationId}` }).catch(() => undefined);
+    await notifyUser({ userId: r.targetUserId, type: "GENERIC", title: "Information médicale — pièce plus demandée", body: `${r.declaration.reference} — ${r.label} : la demande est annulée.`, link: `${PATH}/${r.declarationId}` }).catch(sansBloquer("medical-info-actions.cancelDocRequest.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "DELETE", module: "Information médicale", entityType: "MEDICAL_INFO_DECLARATION", entityId: r.declarationId,
@@ -1034,7 +1035,7 @@ export async function validateDeclarationByDirection(formData: FormData): Promis
   // LE VISA D'UN PAIEMENT DE MATÉRIEL EST OBTENU : c'est peut-être la dernière pièce de son dossier,
   // qui ne se clôt « payé et visé » qu'à la déclaration VALIDÉE (`promo-cloture.ts`). Best-effort.
   if (decl.sourceType === "LEGAL_DOCUMENT") {
-    const promoId = await dossierPromoDeLaFacture(decl.sourceId).catch(() => null);
+    const promoId = await dossierPromoDeLaFacture(decl.sourceId).catch(sansBloquer("medical-info-actions.validateDeclarationByDirection.dossierPromoDeLaFacture", null));
     if (promoId && (await cloreLeDossierPromoSiSolde(promoId, user.id))) revalidatePath(`/promo-material/${promoId}`);
   }
   revalidate(id);

@@ -30,6 +30,7 @@ import { notifyRoles } from "@/lib/notify";
 import { getAppSettings } from "@/lib/settings";
 import { enrichVersionFindings, type EnrichmentContext } from "../findings/enrich";
 import { regAudit } from "../audit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RUNNER de jobs Node-first (en base Postgres, sans Redis/BullMQ). Idempotent, verrou
@@ -175,7 +176,7 @@ async function runPass(max: number, budgetMs: number): Promise<void> {
       where: { status: "RUNNING", lockedAt: { lt: new Date(Date.now() - STALE_LOCK_MS) } },
       data: { status: "QUEUED", error: "Reprise après verrou expiré." },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("jobs-runner.runPass.regulatoryJob"));
 
   // On enchaîne les tours tant qu'il reste des jobs dus ET du temps : un tour qui n'a rien trouvé
   // met fin au passage (rien à faire), un tour plein enchaîne immédiatement sur le suivant.
@@ -232,7 +233,7 @@ async function runOne(job: RegulatoryJob): Promise<void> {
   try {
     await dispatch(job);
   } catch (err) {
-    await failJob(job, err).catch(() => undefined);
+    await failJob(job, err).catch(sansBloquer("jobs-runner.runOne.failJob"));
   }
 }
 
@@ -319,7 +320,7 @@ async function failJob(job: RegulatoryJob, err: unknown): Promise<void> {
         lockedAt: null,
       },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("jobs-runner.failJob.regulatoryJob"));
   if (terminal) {
     await regAudit({
       companyId: job.companyId, actorId: "system", dossierId: job.dossierId,
@@ -367,7 +368,7 @@ async function handleExtract(job: RegulatoryJob): Promise<void> {
   } else {
     await prisma.regulatoryJob.update({ where: { id: job.id }, data: { status: "DONE", progress: 100, finishedAt: new Date() } });
     if (job.dossierId) {
-      await prisma.regulatoryDossier.update({ where: { id: job.dossierId }, data: { status: "ANALYSING" } }).catch(() => undefined);
+      await prisma.regulatoryDossier.update({ where: { id: job.dossierId }, data: { status: "ANALYSING" } }).catch(sansBloquer("jobs-runner.handleExtract.regulatoryDossier"));
     }
     // Chaîne : EXTRACT → [OCR si scans] → FACTS → RULES. L'OCR (auto-hébergé) océrise les
     // documents scannés AVANT le jumeau numérique pour que leur contenu alimente les faits.
@@ -470,7 +471,7 @@ async function ocrOne(
     ]);
   } catch (err) {
     console.error("[reg-ocr] document", doc.id, err);
-    await prisma.regulatoryDocument.update({ where: { id: doc.id }, data: { extractionStatus: "MANUAL_REVIEW_REQUIRED" } }).catch(() => undefined);
+    await prisma.regulatoryDocument.update({ where: { id: doc.id }, data: { extractionStatus: "MANUAL_REVIEW_REQUIRED" } }).catch(sansBloquer("jobs-runner.ocrOne.regulatoryDocument"));
   }
 }
 
@@ -529,7 +530,7 @@ async function handleRules(job: RegulatoryJob): Promise<void> {
     if (!ext?.content) continue;
     const detected = detectContainedSections(ext.content).map((x) => x.code);
     if (detected.length > 0) {
-      await prisma.regulatoryDocument.update({ where: { id: d.id }, data: { containedSections: detected } }).catch(() => undefined);
+      await prisma.regulatoryDocument.update({ where: { id: d.id }, data: { containedSections: detected } }).catch(sansBloquer("jobs-runner.handleRules.regulatoryDocument"));
       d.containedSections = detected;
     }
   }
@@ -685,7 +686,7 @@ async function handleVision(job: RegulatoryJob): Promise<void> {
     if (d.sizeBytes > maxProcessBytes()) continue; // même garde que l'extraction
     await yieldToEventLoop();
 
-    const buffer = await getBlob(d.blobId).catch(() => null);
+    const buffer = await getBlob(d.blobId).catch(sansBloquer("jobs-runner.handleVision.getBlob", null));
     if (!buffer) continue;
 
     const report = await readFigures({
@@ -808,7 +809,7 @@ async function closeAnalysis(dossierId: string | null): Promise<void> {
   if (!dossierId) return;
   await prisma.regulatoryDossier
     .update({ where: { id: dossierId }, data: { status: "IN_REVIEW" } })
-    .catch(() => undefined); // dossier supprimé entre-temps : rien à clore
+    .catch(sansBloquer("jobs-runner.closeAnalysis.regulatoryDossier")); // dossier supprimé entre-temps : rien à clore
 }
 
 /**
@@ -1011,7 +1012,7 @@ async function handleAiReview(job: RegulatoryJob): Promise<void> {
       companyId: job.companyId, actorId: "system", dossierId: job.dossierId, dossierVersionId: versionId,
       action: "AI_REVIEW_FAILED",
       detail: `⚠ La revue de fond n'a RIEN pu lire : ${failedParts} lecture(s) en échec — ${reason}. Aucun constat n'a été produit et les constats précédents sont CONSERVÉS. Ce dossier n'a pas été examiné sur le fond.`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("jobs-runner.handleAiReview.regAudit"));
     await notifyAiReviewOutcome(job, versionId, {
       title: "Revue de fond impossible",
       body: `La lecture de fond du dossier a échoué (${reason.slice(0, 120)}). Le dossier n'a PAS été examiné sur le fond.`,
@@ -1101,7 +1102,7 @@ async function notifyAiReviewOutcome(
       where: { id: job.dossierId },
       select: { reference: true, title: true },
     });
-    const roles = (await getAppSettings().catch(() => null))?.regulatorySupervisorRoles ?? [];
+    const roles = (await getAppSettings().catch(sansBloquer("jobs-runner.notifyAiReviewOutcome.getAppSettings", null)))?.regulatorySupervisorRoles ?? [];
     await notifyRoles([...new Set([...roles, "SUPER_ADMIN"])] as never, {
       type: "GENERIC",
       title: msg.title,
@@ -1122,7 +1123,7 @@ async function enrichmentContextOf(productId: string | null): Promise<Enrichment
   if (!productId) return {};
   const p = await prisma.regulatoryProduct
     .findUnique({ where: { id: productId }, select: { dci: true, partnerLab: true } })
-    .catch(() => null);
+    .catch(sansBloquer("jobs-runner.enrichmentContextOf.regulatoryProduct", null));
   return { dci: p?.dci ?? null, supplier: p?.partnerLab ?? null };
 }
 
@@ -1208,6 +1209,6 @@ async function extractOne(doc: ExtractDoc): Promise<void> {
     console.error("[reg-extract] document", documentId, err);
     await prisma.regulatoryDocument
       .update({ where: { id: documentId }, data: { extractionStatus: "MANUAL_REVIEW_REQUIRED" } })
-      .catch(() => undefined);
+      .catch(sansBloquer("jobs-runner.extractOne.regulatoryDocument"));
   }
 }

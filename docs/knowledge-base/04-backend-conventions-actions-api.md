@@ -45,7 +45,7 @@ them.
   load + entity/state check → write (sometimes `$transaction`, sometimes a conditional
   `updateMany` lock) → `recordAudit` (this also feeds the event ledger) → `notifyUser/notifyRoles`
   → `revalidatePath` → `return {ok:true,id}`. [V]
-- **UI**: `useFormState` inside `CreateRecordButton`, or the `useAction()` hook. Both guard against
+- **UI**: `useActionState` inside `CreateRecordButton`, or the `useAction()` hook. Both guard against
   a thrown action and a 45-second timeout, with a message that says "check the list before you
   resubmit" (`src/lib/action-outcome.ts`). Several screens still use a hand-written
   `await fn(); setBusy(false)` with no `try`. [V]
@@ -77,7 +77,7 @@ them.
 | `src/lib/actions/types.ts` | `ActionResult` and the FormData parsers `fdStr/fdNum/fdDate/fdBool/fdCase`. |
 | `src/lib/action-outcome.ts` | Pure module: failure wording (`actionFailureMessage`), `ACTION_TIMEOUT_MS = 45_000`. |
 | `src/components/shared/use-action.ts:29,83` | `useAction()` / `useKeyedAction()`: client wrapper around an action (catch + timeout + refresh). |
-| `src/components/shared/create-record-button.tsx:331-433` | Generic create dialog: `useFormState` with a guarded action, then navigate to `${redirectBase}/${id}`. |
+| `src/components/shared/create-record-button.tsx:331-433` | Generic create dialog: `useActionState` with a guarded action, then navigate to `${redirectBase}/${id}`. |
 | `src/lib/audit.ts:23,63,91` | `recordAudit` (best-effort) → `emettreFait` (event ledger) ; `recordFieldChanges`. |
 | `src/lib/notify.ts:19,84` | `notifyUser` (row + PWA push), `notifyRoles`. |
 | `src/lib/refs.ts:23,32,68` | `buildRef("SUP", year, existing)`, `createWithRetry` (P2002 retry), `enSerie` (in-process serial queue). |
@@ -97,7 +97,7 @@ them.
   `error.tsx` and `not-found.tsx`, and 283 `page.tsx` in total. Folder names are French URL slugs
   (`centre-de-paiement`, `moyens-generaux`, `bons-de-commande`), with some legacy English ones
   (`sales`, `logistics`, `field-reports`, `business-development`). [V]
-- `src/app/(auth)/login`: the login form, which uses `useFormState`. [V]
+- `src/app/(auth)/login`: the login form, which uses `useActionState`. [V]
 - `src/app/(portal)/portail`: the external supplier portal. Its layout is deliberately bare
   (`(portal)/layout.tsx`), and pages call `requireSupplier()`, which redirects to
   `/portail/login`. The middleware skips `/portail` (`auth.config.ts:23`). [V]
@@ -182,6 +182,12 @@ export default async function SupportPage() {
   `contrat.genere.ts` (+ `.json`), `generique.ts`, `executer.ts`, `aiguillage.genere.ts`.
 - They export 1,147 `async function`s; the generated contract lists 1,145, of which 1,041 write.
 - 114 colocated `*.test.ts` files.
+- **The action key is a declared name, not a path** *(added 2026-10-28, lot V3-G)* [V]: `src/lib/actions/parc.ts`
+  lists the park — every file of `src/lib/actions/` under its implicit key (file name) **plus** the `actions.ts`
+  of modules declared in `ACTIONS_DES_MODULES` under their **historical** key (`"coffre-actions":
+  "src/modules/coffre/actions.ts"`). `contrat-scan.ts`, `scripts/actions-contrat.ts`, `action-parity.test.ts` and
+  `capability-audit.test.ts` read the park; `contrat.test.ts` (« PARC DES ACTIONS ») fails on an undeclared module
+  `actions.ts`, a missing file or a duplicated key. Moving an action file changes only `aiguillage.genere.ts`.
 - About 20 more `"use server"` modules live elsewhere:
   - `src/lib/regulatory/intelligence/**/actions.ts` (14);
   - `src/platform/in-process/{inbox,quality,artifact}/actions.ts`;
@@ -194,7 +200,7 @@ export default async function SupportPage() {
 **Signatures.** Two forms exist:
 
 - `(formData: FormData) => Promise<ActionResult>`, used by `useAction` and `onClick` callers;
-- `(_prev: ActionResult | undefined, formData: FormData)`, used by `useFormState`, e.g.
+- `(_prev: ActionResult | undefined, formData: FormData)`, used by `useActionState`, e.g.
   `createSupportRequest` (`support-actions.ts:46`) and `createPaymentRequest`
   (`payment-request-actions.ts:183`). Create actions wired to `CreateRecordButton` use this one.
 
@@ -261,7 +267,7 @@ follow this `…For(user` pattern. [V]
 - **`CreateRecordButton`** (`create-record-button.tsx`). The action is wrapped in `guarded()`
   (`:345-361`), which catches a throw and returns `{ok:false, error:"L'enregistrement n'a pas
   abouti … VÉRIFIEZ D'ABORD LA LISTE …"}`. That is passed to
-  `useFormState(guarded, undefined)` (`:362`). On `ok` it calls `router.push(redirectBase/id)` or
+  `useActionState(guarded, undefined)` (`:362`). On `ok` it calls `router.push(redirectBase/id)` or
   `router.refresh()` (`:419-433`). `state.error` is rendered inline (`:550`). A separate timer
   covers the "never answered" case. [V]
 - **`useAction()`** (`use-action.ts:29-79`). `run(fn, onOk)` sets `saving`, starts a 45-second
@@ -315,6 +321,7 @@ Auth modes:
 | Code | Meaning |
 |---|---|
 | **S** | `getCurrentUser()` from `@/lib/session`, `401` if null |
+| **S-L** | `identiteDuSondage()` from `@/lib/session-legere` — shell polls only (no access matrix; same revocation & Vue exacte) |
 | **S-W** | `getCurrentUserPourEcrire()`, required for writing handlers by `session-vue-exacte.test.ts:120` |
 | **S+R** | session plus `userCan(...)`, `403` if refused |
 | **K** | `/api/v1` bearer API key via `handle()` |
@@ -354,8 +361,8 @@ Auth modes:
 | `marque/[companyId]/logo` (1) | GET | S | Company logo. |
 | `medical/{annuaire/export, coaching/export, coaching/[id]/export, plan-de-tournee/[id]/pdf}` (4) | GET | S+R | Medical exports and PDFs. |
 | `meetings/{[id]/recording, message-attachment/[id]}` (2) | POST/GET | S-W+R / S | Recording upload, attachments. |
-| `messaging/{attachment/[id], bookmarks, conversation, messages, sync, typing, upload}` (7) | GET/POST | S(+R) / S-W+R | Internal chat. |
-| `notifications/poll` (1) | GET | S | Notification polling. |
+| `messaging/{attachment/[id], bookmarks, conversation, messages, sync, typing, upload}` (7) | GET/POST | S(+R) / S-W+R | Internal chat. `sync` (shell badge poll) uses S-L + `peutVoirLaMessagerie` (PERF-06). |
+| `notifications/poll` (1) | GET | S-L | Notification polling — light poll identity `identiteDuSondage` (PERF-06). |
 | `onlyoffice/{file, callback}` (2) | GET/POST | T (`readEditToken`/`readDocEditToken`), middleware-exempt | OnlyOffice server-to-server. |
 | `onlyoffice/session` (1) | GET | S | Issues the edit token. |
 | `pch/export`, `planning/export`, `segmentation/export`, `stocks/demandes/[id]/export`, `ventes-pch/fichier/[id]` (5) | GET | S(+R) | Exports and files. |
@@ -479,9 +486,14 @@ Session-route conventions:
    (`STATUSES.includes(status)`), never trusted. [V]
 6. **Money.** Read with `toNumber`; write with `new Prisma.Decimal(n)`; compare and validate in
    pure modules (`finance/*`). [V]
-7. **Client calls.** Prefer `CreateRecordButton` (create dialogs) or `useAction` / `useKeyedAction`.
+7. **Tolerated failures are named, never silent** (lot V3-E, 2026-10-28). No `.catch(() => [])`: use
+   `.catch(sansBloquer("domain.what-failed", fallback))` (logged as one JSON line, counted, alerts the
+   Super Admin past 5/hour) or `.catch(attendu("reason", fallback))` for an expected rejection (client
+   body, optional file, best-effort close). Both from `src/lib/journal.ts` (pure, client-safe). Ratchet:
+   `src/lib/journal-catch-muets.test.ts` — server side zero outside named exceptions. [V]
+8. **Client calls.** Prefer `CreateRecordButton` (create dialogs) or `useAction` / `useKeyedAction`.
    Never write `await action(); setBusy(false)` without a try/catch. [V]
-8. **Tooling.**
+9. **Tooling.**
    - `tsconfig.json`: `strict: true`, `moduleResolution: bundler`, alias `@/* → src/*`.
    - `tsconfig.build.json` extends it with `incremental:false` and **excludes `*.test.ts(x)` and
      `*.spec.ts(x)`**. It is the typecheck used on Render (`next.config.mjs:19-31`, 5 GB heap).
@@ -490,13 +502,13 @@ Session-route conventions:
      `no-assign-module-variable` turned off.
    - `next build` skips ESLint (`eslint.ignoreDuringBuilds: true`); `build:render` runs
      `next lint` first, so lint errors block deploy (§118.155). [V]
-9. **Tests** are colocated as `*.test.ts`; Vitest only includes `src/**/*.test.ts` (no `.tsx`
+10. **Tests** are colocated as `*.test.ts`; Vitest only includes `src/**/*.test.ts` (no `.tsx`
    tests exist). There are 1,222 test files.
    - Integration tests hit a real Postgres. They mock `next/cache` and `@/lib/session`
      (`support-flow.test.ts:4-6`) and become `describe.skip` when the DB is unreachable (`:13-15`).
    - "Cliquet" (ratchet) tests read the source and enforce structure: action parity,
      client-bundle guard, session-only identity in routes, site-web gate order.
-10. **Migrations** are hand-written idempotent SQL (`CREATE TABLE IF NOT EXISTS …`) in
+11. **Migrations** are hand-written idempotent SQL (`CREATE TABLE IF NOT EXISTS …`) in
     `prisma/migrations/<YYYYMMDDHHMMSS>_<slug>/migration.sql` (463 folders). Recent folders are
     dated 2027-01-xx, ahead of the calendar, so they sort after older ones. Applied with
     `db:deploy`. [V]
@@ -510,7 +522,7 @@ Session-route conventions:
 2. **Page.** `support/page.tsx:22` runs `requireModule("SUPPORT")`, then `getSupportRequests(user)`
    (scoped by `scopeSupport` and `platformScope`) and an active-user list, in parallel. [V]
 3. **Form.** `<CreateRecordButton action={createSupportRequest} redirectBase="/support" fields=[…]>`
-   (`:38-55`). On submit, `useFormState(guarded)` posts the `FormData` to the action. [V]
+   (`:38-55`). On submit, `useActionState(guarded)` posts the `FormData` to the action. [V]
 4. **Action** `createSupportRequest(_prev, formData)` (`support-actions.ts:46-77`):
    - `requireUser()` (`:47`);
    - `userCan(user,"SUPPORT","CREATE")`, else "Non autorisé." (`:48`);
@@ -680,7 +692,7 @@ conditional on the status that was read (see §8). [V]
 - **D1. The middleware blocks "public" machine routes (high severity).** `src/auth.config.ts:16-58`
   returns `isLoggedIn` for every path not listed. It lists `/portail`, `/inscription`,
   `/api/events/qr`, `/meet/`, `/api/site-web/v1/`, `/api/onlyoffice/{file,callback}`. With
-  `next-auth@5.0.0-beta.22`, `handleAuth` redirects to the sign-in page when `authorized` is false
+  `next-auth@5.0.0-beta.32`, `handleAuth` redirects to the sign-in page when `authorized` is false
   (`node_modules/next-auth/lib/index.js`, `else if (!authorized)` branch), and the matcher only
   excludes `api/auth`. These routes are documented or commented as reachable without a session:
   - `/api/v1/**`: `docs/api/AGENT_API_GUIDE.md`, `API_SECURITY.md`, and
@@ -721,6 +733,11 @@ conditional on the status that was read (see §8). [V]
   `actionFailureMessage` (see §8). It is minor and the wording is close. [V]
 
 ## 10. Recipe: adding a new module or feature (from observed patterns)
+
+> **New business code goes into a module** *(2026-10-28, lot V3-G)*: `src/modules/<module>/{api.ts, partage.ts,
+> actions.ts, domaine/, infra/, ecrans/}` — doors, rules, map and the step-by-step "migrate a module" guide in
+> [`docs/architecture/MODULES.md`](../architecture/MODULES.md). The steps below remain valid for what still lives in
+> `src/lib/`.
 
 1. **Schema.** Add the model, enums and any new `EntityType` / `AuditAction` value to
    `prisma/schema.prisma`. Write a hand-written idempotent SQL migration in

@@ -16,6 +16,7 @@ import {
   type ClientS3Direct, type PlanEnvoi,
 } from "@/lib/storage/televersement-direct";
 import { regAudit } from "../audit";
+import { sansBloquer, attendu } from "@/lib/journal";
 
 export { objectStorageConfigured } from "@/lib/storage/object-storage";
 
@@ -126,11 +127,11 @@ function purgePartsInBackground(sessionIds: string[]): void {
       while (true) {
         const batch = await prisma.regulatoryUploadPart
           .findMany({ where: { sessionId }, select: { index: true }, take: PART_PURGE_BATCH })
-          .catch(() => []);
+          .catch(sansBloquer("upload-session.purgePartsInBackground.regulatoryUploadPart", []));
         if (batch.length === 0) break;
         const done = await prisma.regulatoryUploadPart
           .deleteMany({ where: { sessionId, index: { in: batch.map((p) => p.index) } } })
-          .catch(() => ({ count: 0 }));
+          .catch(sansBloquer("upload-session.purgePartsInBackground.regulatoryUploadPart", { count: 0 }));
         if (done.count === 0) break; // suppression impossible → on laisse le planificateur reprendre
       }
     }
@@ -293,7 +294,7 @@ async function finalizeResultFromVersion(versionId: string | null): Promise<Fina
 async function reopenFinalizing(sessionId: string, error: string): Promise<void> {
   await prisma.regulatoryUploadSession
     .updateMany({ where: { id: sessionId, status: "FINALIZING" }, data: { status: "UPLOADING", error } })
-    .catch(() => undefined);
+    .catch(sansBloquer("upload-session.reopenFinalizing.regulatoryUploadSession"));
 }
 
 /**
@@ -339,7 +340,7 @@ export async function finalizeUploadSession(sessionId: string, companyId: string
   const heartbeat = setInterval(() => {
     prisma.regulatoryUploadSession
       .updateMany({ where: { id: sessionId, status: "FINALIZING" }, data: { error: null } })
-      .catch(() => undefined);
+      .catch(sansBloquer("upload-session.finalizeUploadSession.regulatoryUploadSession"));
   }, 120_000);
   heartbeat.unref?.();
   try {
@@ -356,8 +357,8 @@ export async function finalizeUploadSession(sessionId: string, companyId: string
   const expectedParts = expectedPartsFor(totalBytes, session.partSize);
 
   const abort = async (error: string): Promise<FinalizeResult> => {
-    await prisma.regulatoryUploadSession.update({ where: { id: session.id }, data: { status: "ABORTED", error } }).catch(() => undefined);
-    await prisma.regulatoryUploadPart.deleteMany({ where: { sessionId: session.id } }).catch(() => undefined);
+    await prisma.regulatoryUploadSession.update({ where: { id: session.id }, data: { status: "ABORTED", error } }).catch(sansBloquer("upload-session.abort.regulatoryUploadSession"));
+    await prisma.regulatoryUploadPart.deleteMany({ where: { sessionId: session.id } }).catch(sansBloquer("upload-session.abort.regulatoryUploadPart"));
     return { ok: false, error };
   };
 
@@ -420,7 +421,7 @@ export async function finalizeUploadSession(sessionId: string, companyId: string
       await regAudit({ companyId, actorId, dossierId, action: "UPLOAD_SESSION_FINALIZE", detail: `Upload finalisé « ${session.filename} » (${Math.round(totalBytes / MB)} Mo, SHA-256 vérifié).` });
       return { ok: true, ingest };
     } finally {
-      await rm(tmpDir, { recursive: true, force: true }).catch(() => undefined); // nettoyage du fichier temporaire
+      await rm(tmpDir, { recursive: true, force: true }).catch(attendu("nettoyage : le fichier peut déjà être parti")); // nettoyage du fichier temporaire
     }
   } catch (err) {
     // Erreur INATTENDUE (mémoire/DB transitoire) → JAMAIS coincer la session : réouvrir en UPLOADING
@@ -637,7 +638,7 @@ export async function finalizeDirectUploadSession(
     // Recollé : l'identifiant de téléversement n'a plus cours.
     await prisma.regulatoryUploadSession.update({ where: { id: session.id }, data: { storageUploadId: null } });
   } else {
-    const taille = await client.taille(session.storageKey).catch(() => null);
+    const taille = await client.taille(session.storageKey).catch(sansBloquer("upload-session.finalizeDirectUploadSession.taille", null));
     if (taille === null) { await reouvrir("Fichier introuvable côté stockage — renvoyez-le."); return { ok: false, error: "Fichier introuvable côté stockage (renvoyez-le)." }; }
     if (taille !== totalBytes) return fail(`Taille reçue incohérente (${taille} ≠ ${totalBytes}).`);
   }
@@ -667,7 +668,7 @@ export async function finalizeDirectUploadSession(
     await regAudit({ companyId, actorId, dossierId: session.dossierId, action: "UPLOAD_SESSION_FINALIZE", detail: `Envoi DIRECT finalisé « ${session.filename} » (${Math.round(totalBytes / MB)} Mo).` });
     return { ok: true, ingest };
   } finally {
-    await rm(dir, { recursive: true, force: true }).catch(() => undefined);
+    await rm(dir, { recursive: true, force: true }).catch(attendu("nettoyage : le fichier peut déjà être parti"));
   }
 }
 
@@ -687,7 +688,7 @@ export async function abortUploadSession(sessionId: string, companyId: string): 
     // les libère, et elles restent facturées tant qu'on ne le fait pas.
     await abortMultipartUpload(session.storageKey, session.storageUploadId);
   } else if (session?.storageKey) {
-    await deleteObject(session.storageKey).catch(() => undefined);
+    await deleteObject(session.storageKey).catch(sansBloquer("upload-session.abortUploadSession.deleteObject"));
   }
   return { ok: true };
 }
@@ -713,6 +714,6 @@ export async function pruneStaleUploadSessions(): Promise<number> {
 export async function purgeClosedSessionParts(): Promise<number> {
   const done = await prisma.regulatoryUploadPart
     .deleteMany({ where: { session: { status: { in: ["ABORTED", "COMPLETED"] } } } })
-    .catch(() => ({ count: 0 }));
+    .catch(sansBloquer("upload-session.purgeClosedSessionParts.regulatoryUploadPart", { count: 0 }));
   return done.count;
 }

@@ -41,7 +41,8 @@ function tailleLisible(octets: number | null): string {
   return octets >= 1024 * 1024 ? `${(octets / (1024 * 1024)).toFixed(1)} Mo` : `${Math.max(1, Math.round(octets / 1024))} Ko`;
 }
 
-export default async function CandidaturesDuSitePage({ searchParams }: { searchParams: { etat?: string } }) {
+export default async function CandidaturesDuSitePage(props: { searchParams: Promise<{ etat?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("RECRUITMENT");
   if (!peutTraiterCandidaturesSite(user)) notFound();
 

@@ -19,6 +19,7 @@ import {
   sendDirective, attachDirectiveFiles, resolveRecipientIds, companyIdsOf, scopeOf,
 } from "@/lib/directives/recipients";
 import { rejouerNotifications } from "@/lib/notifications/ecrire";
+import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/directives";
 const STATUSES: DirectiveStatus[] = ["OPEN", "ACKNOWLEDGED", "IN_PROGRESS", "DONE", "ARCHIVED"];
@@ -31,7 +32,7 @@ function person(user: SessionUser, companyIds: string[] = []) {
 
 /** Les réglages d'accès du module, posés par le Super Admin (Administration › Réglages). */
 async function directiveAccess() {
-  const s = await getAppSettings().catch(() => null);
+  const s = await getAppSettings().catch(sansBloquer("directive-actions.directiveAccess.getAppSettings", null));
   return {
     directiveReaderRoles: s?.directiveReaderRoles ?? [],
     directiveReaderUserIds: s?.directiveReaderUserIds ?? [],

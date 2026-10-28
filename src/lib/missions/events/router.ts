@@ -3,6 +3,7 @@ import { lireReponse } from "@/lib/missions/runtime/reponse";
 import { journaliser } from "@/lib/missions/runtime/store";
 import { Attente, FaitObserve, correspond, decomposer, echue, etatAttente, lireAttente, lireProgres } from "@/lib/missions/events/match";
 import { ETATS_REPLANIFIABLES } from "@/lib/missions/runtime/replan";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -130,7 +131,7 @@ export async function reveillerMissions(fait: FaitObserve): Promise<Reveil[]> {
       await prisma.mission.updateMany({
         where: { id: { in: reveillees }, replanBloque: true },
         data: { replanBloque: false, replanRefus: null },
-      }).catch(() => undefined);
+      }).catch(sansBloquer("router.reveillerMissions.mission"));
     }
 
     /**

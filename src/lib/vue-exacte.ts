@@ -15,22 +15,24 @@ const DUREE_VUE_S = 60 * 60 * 4;
  * et le témoin que l'écran lit (`vue-exacte-ui.ts`) : mêmes chemin et durée, pour que l'onglet sache
  * quand la vue a changé sans jamais pouvoir la créer.
  */
-export function poserVueExacte(targetId: string): void {
+export async function poserVueExacte(targetId: string): Promise<void> {
+  const jar = await cookies();
   const secure = process.env.NODE_ENV === "production";
-  cookies().set(IMPERSONATE_COOKIE, targetId, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: DUREE_VUE_S });
-  cookies().set(MARQUE_VUE_COOKIE, targetId, { httpOnly: false, secure, sameSite: "lax", path: "/", maxAge: DUREE_VUE_S });
+  jar.set(IMPERSONATE_COOKIE, targetId, { httpOnly: true, secure, sameSite: "lax", path: "/", maxAge: DUREE_VUE_S });
+  jar.set(MARQUE_VUE_COOKIE, targetId, { httpOnly: false, secure, sameSite: "lax", path: "/", maxAge: DUREE_VUE_S });
   // L'ENTITÉ AFFICHÉE est un choix de l'administrateur : elle ne filtre pas l'écran de la personne visualisée,
   // qui s'ouvre sur SA portée par défaut.
-  cookies().set(COMPANY_COOKIE, "", { path: "/", maxAge: 0 });
+  jar.set(COMPANY_COOKIE, "", { path: "/", maxAge: 0 });
 }
 
 /** Efface la vue (sortie, connexion, déconnexion) : une session neuve ne reprend jamais la vue d'une autre. */
-export function effacerVueExacte(): void {
-  const enVue = Boolean(cookies().get(IMPERSONATE_COOKIE)?.value);
-  cookies().set(IMPERSONATE_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
-  cookies().set(MARQUE_VUE_COOKIE, "", { httpOnly: false, path: "/", maxAge: 0 });
+export async function effacerVueExacte(): Promise<void> {
+  const jar = await cookies();
+  const enVue = Boolean(jar.get(IMPERSONATE_COOKIE)?.value);
+  jar.set(IMPERSONATE_COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+  jar.set(MARQUE_VUE_COOKIE, "", { httpOnly: false, path: "/", maxAge: 0 });
   // Et l'entité choisie DANS la vue ne survit pas à la sortie (seulement si une vue était ouverte).
-  if (enVue) cookies().set(COMPANY_COOKIE, "", { path: "/", maxAge: 0 });
+  if (enVue) jar.set(COMPANY_COOKIE, "", { path: "/", maxAge: 0 });
 }
 
 /**
@@ -73,7 +75,7 @@ export async function personneVisualisee(user: { id: string; role: string }): Pr
   if (user.role !== "SUPER_ADMIN") return null;
   let cible: string | undefined;
   try {
-    cible = cookies().get(IMPERSONATE_COOKIE)?.value;
+    cible = (await cookies()).get(IMPERSONATE_COOKIE)?.value;
   } catch {
     return null;
   }

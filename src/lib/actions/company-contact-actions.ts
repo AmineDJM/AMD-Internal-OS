@@ -4,13 +4,13 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { peutAnnuaire } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { recordAudit } from "@/lib/audit";
-import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
+import { doubleEcrireOrganisation } from "@/modules/referentiels/api";
 import { getMyCompanies, companyIdForNew } from "@/lib/company";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
-import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
-import { champsNonSaisis } from "@/lib/coffre/champs";
+import { doubleEcrireCoffre } from "@/modules/coffre/api";
+import { champsNonSaisis } from "@/modules/coffre/partage";
 
 /**
  * L'ANNUAIRE DE L'ENTREPRISE — les contacts externes, tenus au même endroit pour tout le monde.

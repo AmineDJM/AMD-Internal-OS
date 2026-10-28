@@ -12,15 +12,14 @@ import { cleDEtablissement, indexerEtablissements } from "@/lib/annuaires/rattac
 import { CHEMINS_SPECIALITES, cleDeSpecialite, ecritureDeSpecialite, indexerSpecialites, lienDeSpecialiteValide } from "@/lib/annuaires/specialites";
 import { suivreRenommageEtablissement } from "@/lib/stocks/lieux";
 import { recordAudit } from "@/lib/audit";
-import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
+import { doubleEcrireOrganisation, relierALaPersonne } from "@/modules/referentiels/api";
 import { fdStr, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
-import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
+import { reposerWilayaCode } from "@/modules/lieux/api";
 import { sousVerrous } from "@/lib/promo/stock-ecriture";
 import { dejaDansLaVisite, ecrireRemises, lireMaterielRemis, motifDeRemise, phraseMateriel, RefusRemise, toucheLeStock, verrousDuRapport } from "@/lib/promo/remises-visite";
 import { fenetreRapport, gestesPossibles, refusVisiteHorsDelai, retraitInterditApresRevision, type StatutPlan } from "@/lib/sfe/tournee";
 import { produitsDeLaBu, refusProduitsHorsBu } from "@/lib/sfe/produits-bu";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
 
 const SECTORS: MedicalSector[] = ["HOSPITAL", "LIBERAL", "BOTH"];
 const TITLES: DoctorTitle[] = [

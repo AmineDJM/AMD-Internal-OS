@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { lunaEmbed } from "@/lib/openai-luna";
 import { cosine } from "@/lib/regulatory/intelligence/corpus/semantic";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RECHERCHE SÉMANTIQUE SUR LE DRIVE — le NIVEAU DE REPLI quand le lexical ne trouve pas :
@@ -125,7 +126,7 @@ export async function embedDriveBacklog(batch = 40, embed: EmbedFn = (t) => luna
     let done = 0;
     for (let i = 0; i < rows.length; i++) {
       if (!Array.isArray(vecs[i])) continue;
-      await prisma.driveTextIndex.update({ where: { nodeId: rows[i].nodeId }, data: { embedding: vecs[i] } }).catch(() => undefined);
+      await prisma.driveTextIndex.update({ where: { nodeId: rows[i].nodeId }, data: { embedding: vecs[i] } }).catch(sansBloquer("semantic-drive.embedDriveBacklog.driveTextIndex"));
       done += 1;
     }
     return done;

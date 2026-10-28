@@ -1,24 +1,16 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
-import { LIBELLE_ROLE } from "@/lib/referentiels/personnes/sources";
+import { doublonsPersonnesARevoir, LIBELLE_ROLE } from "@/modules/referentiels/api";
 import { GesteDoublon } from "./geste-doublon";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Personnes — doublons — AMD Internal OS" };
 
-const RANG: Record<string, number> = { CERTAIN: 3, PROBABLE: 2, POSSIBLE: 1 };
 const TON: Record<string, "danger" | "warning" | "neutral"> = { CERTAIN: "danger", PROBABLE: "warning", POSSIBLE: "neutral" };
-
-const SELECTION_PERSONNE = {
-  id: true, nom: true, prenoms: true, civilite: true, fusionneeDansId: true,
-  roles: { where: { jusquA: null }, select: { role: true } },
-  _count: { select: { users: true, employees: true, medicalDoctors: true, careBeneficiaries: true, adProVoyageurs: true, adProHebergements: true, recruitmentCandidates: true, directoryEntries: true, supplierUsers: true } },
-} as const;
 
 /**
  * LES DOUBLONS DE PERSONNES À TRANCHER (lot V2-B) — Super Admin. Le système propose (reprise
@@ -29,18 +21,7 @@ export default async function DoublonsPersonnesPage() {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");
 
-  const [proposes, fusions] = await Promise.all([
-    prisma.doublonPersonne.findMany({
-      where: { statut: "PROPOSE", personneA: { fusionneeDansId: null }, personneB: { fusionneeDansId: null } },
-      orderBy: { score: "desc" }, take: 300,
-      select: { id: true, niveau: true, score: true, raisons: true, reserves: true, personneA: { select: SELECTION_PERSONNE }, personneB: { select: SELECTION_PERSONNE } },
-    }),
-    prisma.doublonPersonne.findMany({
-      where: { statut: "FUSIONNE" }, orderBy: { decideLe: "desc" }, take: 20,
-      select: { id: true, gardeeId: true, decideLe: true, deplacees: true, personneA: { select: { id: true, nom: true, prenoms: true } }, personneB: { select: { id: true, nom: true, prenoms: true } } },
-    }),
-  ]);
-  proposes.sort((x, y) => (RANG[y.niveau] ?? 0) - (RANG[x.niveau] ?? 0) || y.score - x.score);
+  const { proposes, fusions } = await doublonsPersonnesARevoir();
 
   return (
     <div className="space-y-5">

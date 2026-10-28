@@ -27,6 +27,7 @@ import { ChampNumeroPiece } from "@/components/references/champ-numero-piece";
 import { phraseNumeroSeul } from "@/lib/bons-de-commande/numero-seul";
 import { ApercuBcPromo, type BrouillonAffiche } from "./apercu-bc-promo";
 import { MenuLigne, useGeste, type EntreeMenu } from "./menu-ligne";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'EXÉCUTION D'UN DOSSIER DU CIRCUIT 2 — du devis retenu au stock (§118.152, §118.165).
@@ -188,7 +189,7 @@ function DepotFacture({ id, e, onDone, onCancel }: { id: string; e: ExecutionAff
     if (!f) { setLectureMsg("Choisissez d'abord le fichier de la facture."); return; }
     setLit(true); setLectureMsg(null);
     const fd = new FormData(); fd.set("promoMaterialId", id); fd.set("quoteId", e.quoteId); fd.set("file", f);
-    const r = await lireFacturePromo(fd).catch(() => ({ ok: false as const, error: "La lecture n'a pas abouti — saisissez depuis le papier." }));
+    const r = await lireFacturePromo(fd).catch(sansBloquer("execution-card.lireAvecLuna.lireFacturePromo", { ok: false as const, error: "La lecture n'a pas abouti — saisissez depuis le papier." }));
     setLit(false);
     if (!r.ok || !r.lecture) { setLectureMsg(r.ok ? "Aucune lecture rendue." : (r.error ?? "La lecture n'a pas abouti.")); return; }
     const lu = r.lecture;

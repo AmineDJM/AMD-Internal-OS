@@ -1,4 +1,5 @@
 import { withRetry } from "@/lib/mail/graph/throttle";
+import { attendu } from "@/lib/journal";
 
 /**
  * L'APPEL À GOOGLE — un seul endroit qui parle réseau.
@@ -152,7 +153,7 @@ async function call(req: GoogleRequest): Promise<{ status: number; text: string;
   const out = await withRetry(async () => {
     try {
       const res = await fetch(url, { method, headers, body: body as BodyInit | undefined });
-      const text = await res.text().catch(() => "");
+      const text = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       return { status: res.status, retryAfter: res.headers.get("retry-after"), res, text };
     } catch {
       // Panne réseau : présentée comme un 503, donc réessayable, plutôt qu'une exception brute.
@@ -197,7 +198,7 @@ export async function googleBinary(req: GoogleRequest): Promise<{ buffer: Buffer
   });
   if (!out.res) throw new GoogleApiError("network", 0, "network");
   if (!out.res.ok) {
-    const err = parseError(out.status, await out.res.text().catch(() => ""));
+    const err = parseError(out.status, await out.res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
     logGoogle(false, operationOf(req), err.status, err.reason);
     throw err;
   }

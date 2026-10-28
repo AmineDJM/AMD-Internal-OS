@@ -6,6 +6,7 @@ import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import type { SessionUser } from "@/lib/rbac";
 import { leaveDecider } from "@/lib/hr/leave-core";
 import { LIEN_CONGES_A_SIGNER } from "@/lib/chemins/rh";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -75,7 +76,7 @@ export async function remonterConge(user: SessionUser, leaveId: string, note: st
     userId: n1.userId, type: "GENERIC", title: "Avis demandé sur un congé",
     body: `${await nomDe(user.id)} vous demande de valider le congé de ${leave.employee.fullName} (${periode}).${note ? ` « ${note} »` : ""}`,
     link: LIEN_CONGES_A_SIGNER,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("conge-escalade.remonterConge.notifyUser"));
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Ressources humaines", entityType: "LEAVE_REQUEST", entityId: leaveId,
     summary: `Congé de ${leave.employee.fullName} remonté à ${n1.fullName ?? (await nomDe(n1.userId))} pour avis${note ? ` — « ${note} »` : ""}`,
@@ -108,7 +109,7 @@ export async function trancherSousEscalade(
     await prisma.leaveEscalation.updateMany({ where: { leaveId, decision: null }, data: { decision: "REJECTED", decisionNote: note, decidedAt: maintenant } });
     await prisma.leaveRequest.updateMany({ where: { id: leaveId }, data: { currentApproverId: null } });
     for (const o of ouvertes) {
-      await notifyUser({ userId: o.fromUserId, type: "GENERIC", title: "Congé refusé plus haut", body: `${await nomDe(user.id)} a refusé la demande que vous lui aviez remontée.${note ? ` « ${note} »` : ""}`, link: "/mon-equipe" }).catch(() => undefined);
+      await notifyUser({ userId: o.fromUserId, type: "GENERIC", title: "Congé refusé plus haut", body: `${await nomDe(user.id)} a refusé la demande que vous lui aviez remontée.${note ? ` « ${note} »` : ""}`, link: "/mon-equipe" }).catch(sansBloquer("conge-escalade.trancherSousEscalade.notifyUser"));
     }
     return { continuer: true };
   }
@@ -125,7 +126,7 @@ export async function trancherSousEscalade(
     userId: ouverte.fromUserId, type: "GENERIC", title: "Congé validé par votre N+1",
     body: `${await nomDe(user.id)} a validé le congé de ${leave?.employee.fullName ?? "—"}${note ? ` (« ${note} »)` : ""} : à vous de le valider pour qu'il continue.`,
     link: LIEN_CONGES_A_SIGNER,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("conge-escalade.trancherSousEscalade.notifyUser"));
   await recordAudit({
     actorId: user.id, action: "VALIDATE", module: "Ressources humaines", entityType: "LEAVE_REQUEST", entityId: leaveId,
     summary: `Avis favorable sur le congé de ${leave?.employee.fullName ?? "—"} — redescend chez ${await nomDe(ouverte.fromUserId)}${note ? ` — « ${note} »` : ""}`,

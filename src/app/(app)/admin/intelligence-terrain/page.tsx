@@ -46,7 +46,8 @@ function Lettre_({ l }: { l: string | null }) {
 }
 const statutLibelle = (s: string | null) => (s && s in STATUT_LABELS ? STATUT_LABELS[s as Statut] : "—");
 
-export default async function IntelligenceTerrainPage({ searchParams }: { searchParams?: Params }) {
+export default async function IntelligenceTerrainPage(props: { searchParams?: Promise<Params> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   // RÉSERVÉ AU SUPER ADMINISTRATEUR — aucun droit de module ne l'ouvre à un autre rôle.
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");

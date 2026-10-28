@@ -7,7 +7,8 @@ import { deleteFileByKey } from "@/lib/storage";
 import { lireVoyageur, porteDesVoyageurs, type VoyageurLu } from "@/lib/ad-pro/voyageurs";
 import { lireHebergement, porteDesHebergements, type HebergementLu } from "@/lib/ad-pro/hebergements";
 import { CHAMP_FICHES, prefixesRecus, refusDeFiche, FICHES_MAX } from "@/lib/ad-pro/fiches-saisie";
-import { relierLesPersonnes } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierLesPersonnes } from "@/modules/referentiels/api";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -134,10 +135,10 @@ export async function creerPosteEtFiches(
   }
   if (echecs.length > 0) {
     const docs = await prisma.document.findMany({ where: { id: { in: poses } }, select: { fileKey: true } });
-    await prisma.document.deleteMany({ where: { id: { in: poses } } }).catch(() => undefined);
-    for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(() => undefined);
+    await prisma.document.deleteMany({ where: { id: { in: poses } } }).catch(sansBloquer("fiches-poste.creerPosteEtFiches.document"));
+    for (const d of docs) if (d.fileKey) await deleteFileByKey(d.fileKey).catch(sansBloquer("fiches-poste.creerPosteEtFiches.deleteFileByKey"));
     // Les fiches partent avec le poste (suppression en cascade).
-    await prisma.adProItem.delete({ where: { id: itemId } }).catch(() => undefined);
+    await prisma.adProItem.delete({ where: { id: itemId } }).catch(sansBloquer("fiches-poste.creerPosteEtFiches.adProItem"));
     return { ok: false, error: `${echecs.join(" ")} Le poste n'a pas été créé : renvoyez le formulaire.` };
   }
   return { ok: true, itemId, pieces: poses.length, identites };

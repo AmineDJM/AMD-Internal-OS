@@ -28,12 +28,14 @@ vi.mock("@/lib/prisma", async (importOriginal) => ({
   prisma: client,
 }));
 let ACTEUR: unknown = null;
-vi.mock("@/lib/session", () => ({ getCurrentUser: async () => ACTEUR }));
+vi.mock("@/lib/session-legere", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/session-legere")>()),
+  identiteDuSondage: async () => ACTEUR,
+}));
 vi.mock("@/lib/scheduled", () => ({ runScheduledJobs: async () => undefined }));
 
 const { NextRequest } = await import("next/server");
 const { GET } = await import("./route");
-const { getAccess } = await import("@/lib/rbac");
 
 let dbOk = false;
 try { await client.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -54,7 +56,7 @@ suite("/api/messaging/sync?portee=badge — le total, sans la liste", () => {
       data: { type: "GROUP", title: `${TAG}c`, createdById: moi, members: { create: [{ userId: moi }, { userId: autre }] } },
     })).id;
     await client.message.createMany({ data: [1, 2, 3].map((k) => ({ conversationId: conv, senderId: autre, body: `m${k}` })) });
-    ACTEUR = { id: moi, role: "SUPER_ADMIN", mustChangePassword: false, access: await getAccess(moi, "SUPER_ADMIN") };
+    ACTEUR = { id: moi, role: "SUPER_ADMIN", secondaryRole: null, mustChangePassword: false };
   });
 
   afterAll(async () => {
@@ -74,6 +76,9 @@ suite("/api/messaging/sync?portee=badge — le total, sans la liste", () => {
     // Ni adhésions avec leurs conversations, ni messages hors comptage.
     const lourdes = requetes.filter((q) => /FROM\s+"(public"\.")?(Conversation|Message|MessageAttachment)"/.test(q) && !/COUNT\(/i.test(q));
     expect(lourdes, lourdes.join("\n")).toEqual([]);
+    // PERF-06 : hors identité (simulée ici, 1 requête — `session-legere.test.ts`), le droit à la messagerie
+    // (1 lecture de la console) et le comptage ; la présence est déjà touchée par l'appel précédent.
+    expect(requetes.length, requetes.join("\n")).toBeLessThanOrEqual(2);
   });
 
   it("l'indicateur de la coque demande la portée « badge »", () => {

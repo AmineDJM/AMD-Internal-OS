@@ -4,7 +4,7 @@ import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
 import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
-import { champsNonSaisis } from "@/lib/coffre/champs";
+import { champsNonSaisis } from "@/modules/coffre/partage";
 
 /**
  * GOLDEN OPS RH 2 — VAGUE 2a. Le cœur : le PATCH SEMANTICS de la fiche employé.

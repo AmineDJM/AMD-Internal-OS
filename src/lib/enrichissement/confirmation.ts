@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { plier } from "@/lib/referentiels/normalisation";
+import { plier } from "@/modules/referentiels/partage";
 import { colonnesOrganisation, colonnesPersonne, typeIdentifiantOrganisation } from "./a-confirmer";
 import { compacterIdentifiant } from "./fiches";
 import { conflitIdDe, faitConfirmeIdDe } from "./file";

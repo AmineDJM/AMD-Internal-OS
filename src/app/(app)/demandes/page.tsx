@@ -27,7 +27,10 @@ import { RaccourcisBureau } from "./raccourcis";
  * enfin le tableau : référence, demande, demandeur, créée, échéance, chez qui, UN montant
  * (`montantDeLaDemande`, sa précédence documentée), pièces, statut. La ligne entière ouvre la fiche.
  */
-export default async function DemandesPage({ searchParams }: { searchParams: { status?: string; type?: string; onglet?: string; fiche?: string } }) {
+export default async function DemandesPage(
+  props: { searchParams: Promise<{ status?: string; type?: string; onglet?: string; fiche?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("ADMIN_REQUESTS");
   const isManager = hasGlobalView(user.role) || userCan(user, "ADMIN_REQUESTS", "UPDATE");
   // LES ONGLETS « Général » / « Ad & Pro » (14/10) — l'onglet Ad & Pro est celui de l'assistante de direction.

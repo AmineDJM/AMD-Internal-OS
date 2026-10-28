@@ -15,7 +15,8 @@ import { PresentationPanel } from "../presentation-panel";
 
 export const dynamic = "force-dynamic";
 
-export default async function MarketResearchDetailPage({ params }: { params: { id: string } }) {
+export default async function MarketResearchDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("BUSINESS_DEVELOPMENT");
   const canEdit = userCan(user, "BUSINESS_DEVELOPMENT", "UPDATE");
   const research = await getMarketResearch(params.id);

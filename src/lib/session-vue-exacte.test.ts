@@ -22,7 +22,7 @@ vi.mock("@/auth", () => ({ auth: async () => SESSION }));
 // Le stockage asynchrone de Next qui marque l'exécution du CORPS d'une action serveur : on y met le même
 // `AsyncLocalStorage` que Next instancie (le sien n'existe qu'une fois le serveur démarré).
 const { ACTION_STORE } = vi.hoisted(() => ({ ACTION_STORE: { current: null as null | { run: <T>(s: { isAction: boolean }, f: () => T) => T; getStore: () => unknown } } }));
-vi.mock("next/dist/client/components/action-async-storage.external", async () => {
+vi.mock("next/dist/server/app-render/action-async-storage.external", async () => {
   const { AsyncLocalStorage: ALS } = await import("node:async_hooks");
   const store = new ALS<{ isAction: boolean }>();
   ACTION_STORE.current = store as never;
@@ -134,7 +134,15 @@ describe("Vue exacte — chaque route d'API qui écrit le déclare", () => {
 });
 
 describe("Vue exacte — la session ne décide plus sur l'en-tête (§118.49 : le point d'appel, pas le corps)", () => {
-  const src = readFileSync("src/lib/session.ts", "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  // La règle vit dans `session-compte.ts` (audit performance PERF-06) : partagée par la session complète et
+  // par l'identité légère des sondages, qui l'appellent toutes deux.
+  const sansCommentaires = (f: string) => readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  const src = sansCommentaires("src/lib/session-compte.ts");
+
+  it("la session complète ET la session légère des sondages passent par la même règle de vue", () => {
+    expect(sansCommentaires("src/lib/session.ts")).toMatch(/\bvueDemandee\(/);
+    expect(sansCommentaires("src/lib/session-legere.ts")).toMatch(/\bvueDemandee\(/);
+  });
 
   it("`build` consulte l'exécution de l'action (stockage de Next) ET le rendu en cours avant d'ignorer la vue", () => {
     // Le rendu qui SUIT une action qui revalide tourne dans le même stockage `isAction` (Next 14.2) : sans le

@@ -6,6 +6,7 @@ import { getEntity, canReadEntity, porteeManquante } from "@/lib/api/registry/en
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { champJamaisExpose, parsePage, serialize, listResult } from "@/lib/api/query";
 import { workflowOf, availableActionsFor } from "@/lib/api/workflow";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES FACETTES D'UN OBJET : historique, pièces, objets liés, circuit, actions possibles.
@@ -64,7 +65,7 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
           where: { entityType: (def.entityType ?? def.model) as EntityType, entityId: params.id },
           orderBy: { createdAt: "desc" }, take: page.limit, skip: page.offset,
           select: { id: true, body: true, createdAt: true, author: { select: { id: true, name: true } } },
-        }).catch(() => []);
+        }).catch(sansBloquer("[aspect]-route.comment", []));
         return { items: rows.map(serialize) };
       }
 
@@ -90,7 +91,7 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
           const withRel = await model.findFirst({
             where: { id: params.id },
             select: { [field]: { take: 200, ...(champs ? { select: Object.fromEntries(champs.map((c) => [c, true])) } : {}) } },
-          }).catch(() => null);
+          }).catch(sansBloquer("[aspect]-route.findFirst", null));
           out[name] = withRel ? serialize((withRel as Record<string, unknown>)[field]) : [];
         }
         return { entity: def.name, id: params.id, related: out };

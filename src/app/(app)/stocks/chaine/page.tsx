@@ -26,7 +26,8 @@ export const metadata = { title: "Stocks de la chaîne — AMD Internal OS" };
  * rouge sous 2 mois, orange sous 3.
  */
 
-export default async function StocksChainePage({ searchParams }: { searchParams?: { bu?: string } }) {
+export default async function StocksChainePage(props: { searchParams?: Promise<{ bu?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("STOCKS");
   if (!voitLaChaine(user)) redirect(CHEMIN_STOCKS);
   const produits = await chargerProduitsPch(user);

@@ -8,6 +8,7 @@ import { conversationWorkingSet } from "@/lib/assistant/reasoning";
 import { recentActionIntentsContext } from "@/lib/assistant/action-intents";
 import { screenActionsContext } from "@/lib/assistant/action-registry";
 import { buildTurnDetection } from "@/lib/assistant/voice-tuning";
+import { sansBloquer, attendu } from "@/lib/journal";
 
 /**
  * VOIX TEMPS RÉEL — la couche SERVEUR de la conversation speech-to-speech.
@@ -225,14 +226,14 @@ export async function buildVoiceInstructions(
 ): Promise<string> {
   const parts: string[] = [buildChiefOfStaffContext(user, { voice: true })];
 
-  const personal = await personalContext(user.id).catch(() => null);
+  const personal = await personalContext(user.id).catch(sansBloquer("voice-realtime.buildVoiceInstructions.personalContext", null));
   if (personal) parts.push(`\nCONTEXTE PERSONNEL\n${personal}`);
 
   if (threadId) {
     // Une fenêtre LARGE (60) pour extraire les ENTITÉS ACTIVES (« et le fournisseur ? »,
     // « fais pareil pour Nivo » se résolvent au-delà des derniers tours), une fenêtre COURTE
     // (16) pour le verbatim — le budget de contexte temps réel se paie en latence.
-    const wide = await getThreadMessages(user.id, threadId, 60).catch(() => null);
+    const wide = await getThreadMessages(user.id, threadId, 60).catch(sansBloquer("voice-realtime.buildVoiceInstructions.getThreadMessages", null));
     const recent = wide ? wide.slice(-16) : null;
     if (recent && recent.length > 0) {
       const lines = recent.map((m) =>
@@ -248,12 +249,12 @@ export async function buildVoiceInstructions(
 
   // QUI IL EST ET DEPUIS QUELLE ADRESSE IL ÉCRIT. À la voix plus encore qu'au texte : on
   // demande son nom à quelqu'un qu'on entend, et une réponse inventée s'entend tout de suite.
-  const identity = await assistantIdentityContext(user, { compact: true }).catch(() => null);
+  const identity = await assistantIdentityContext(user, { compact: true }).catch(sansBloquer("voice-realtime.buildVoiceInstructions.assistantIdentityContext", null));
   if (identity) parts.push(`\n${identity}`);
 
   // ACTIONS RÉCENTES — l'état CANONIQUE serveur : « je te l'avais déjà demandé ? » et
   // « c'est envoyé ? » se répondent d'ici (ou d'action_history), jamais de mémoire.
-  const intents = await recentActionIntentsContext(user.id).catch(() => null);
+  const intents = await recentActionIntentsContext(user.id).catch(sansBloquer("voice-realtime.buildVoiceInstructions.recentActionIntentsContext", null));
   if (intents) parts.push(`\n${intents}`);
 
   const screen = typeof screenContext === "string" ? screenContext.replace(/\s+/g, " ").trim().slice(0, 300) : "";
@@ -306,7 +307,7 @@ export async function createVoiceSessionGrant(
   // Le fil : celui demandé (s'il appartient au demandeur, getThreadMessages le re-vérifie),
   // sinon LE FIL PRINCIPAL — l'appel vocal continue la conversation, il n'en ouvre pas une autre.
   let threadId = typeof opts.threadId === "string" && opts.threadId ? opts.threadId : null;
-  if (!threadId) threadId = await ensurePrimaryThread(user.id).catch(() => null);
+  if (!threadId) threadId = await ensurePrimaryThread(user.id).catch(sansBloquer("voice-realtime.createVoiceSessionGrant.ensurePrimaryThread", null));
 
   const voice = (REALTIME_VOICES as readonly string[]).includes(opts.voice ?? "") ? (opts.voice as string) : DEFAULT_REALTIME_VOICE;
   const instructions = await buildVoiceInstructions(user, threadId, opts.screenContext ?? null);
@@ -360,7 +361,7 @@ export async function createVoiceSessionGrant(
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
+      const detail = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
       console.error("[voice] voice_session_error", { reasonCode: `OPENAI_${res.status}`, httpStatus: res.status, model: REALTIME_VOICE_MODEL, userId: user.id, detail: detail.slice(0, 500) });
       return {
         ok: false,

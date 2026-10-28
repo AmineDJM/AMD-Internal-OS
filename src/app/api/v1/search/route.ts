@@ -3,6 +3,7 @@ import { handle } from "@/lib/api/http";
 import { ENTITIES, canReadEntity, porteeManquante } from "@/lib/api/registry/entities";
 import { porteeEntite } from "@/lib/api/registry/portee";
 import { textSearchWhere, serialize, parsePage } from "@/lib/api/query";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RECHERCHE GLOBALE — la première question d'un agent : « qu'est-ce qu'on a sur X ? ».
@@ -46,8 +47,8 @@ export const GET = handle(
       // `AND` : la recherche (`{ OR }`) ne doit jamais écraser la portée (`{ OR }` elle aussi).
       const where = { AND: [await porteeEntite(ctx.user, def), textSearchWhere(def, q), dateWhere] };
       const [rows, total] = await Promise.all([
-        model.findMany({ where, take: perEntity, orderBy: def.orderBy ?? { id: "desc" } }).catch(() => []),
-        model.count({ where }).catch(() => 0),
+        model.findMany({ where, take: perEntity, orderBy: def.orderBy ?? { id: "desc" } }).catch(sansBloquer("search-route.findMany", [])),
+        model.count({ where }).catch(sansBloquer("search-route.count", 0)),
       ]);
       return {
         entity: def.name,

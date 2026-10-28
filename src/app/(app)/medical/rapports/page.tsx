@@ -27,7 +27,10 @@ export const metadata = { title: "Rapports — AMD Internal OS" };
  * La GARDE est le module `FIELD_REPORTS`, celui de l'ancienne entrée « Rapports terrain » : la console d'administration
  * règle toujours qui voit cet onglet. Ce que chacun y lit vient des règles d'hier (`chargerListeRapports`).
  */
-export default async function RapportsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
+export default async function RapportsPage(
+  props: { searchParams?: Promise<Record<string, string | string[] | undefined>> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("FIELD_REPORTS");
   const filtres = lireFiltresRapports(searchParams);
   const [liste, settings, onglets] = await Promise.all([

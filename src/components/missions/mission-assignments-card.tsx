@@ -5,6 +5,7 @@ import { parentMission, rolesDe } from "@/lib/missions-equipe/serveur";
 import { assurerImputationEquipe, imputationsProposees } from "@/lib/missions-equipe/imputation-serveur";
 import { peutChoisirBudgetMission } from "@/lib/missions-equipe/participation";
 import { EquipeAdventum } from "./equipe-adventum";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * « ÉQUIPE ADVENTUM » sur une demande Ad & Pro (sponsoring, événement, congrès national / international) — composant
@@ -38,7 +39,7 @@ export async function MissionAssignmentsCard({
       for (const a of sans) await assurerImputationEquipe(a.id, viewer.id, parent.debut);
       assignments = await getEntityMissions(entityType, entityId);
     }
-    imputation = await imputationsProposees({ date: parent.debut, actorId: viewer.id }).catch(() => ({ options: [], defaut: null }));
+    imputation = await imputationsProposees({ date: parent.debut, actorId: viewer.id }).catch(sansBloquer("mission-assignments-card.MissionAssignmentsCard.imputationsProposees", { options: [], defaut: null }));
   }
   const personnes = canManage ? await personnesInvitables() : [];
   return (

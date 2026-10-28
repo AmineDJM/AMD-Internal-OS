@@ -37,7 +37,8 @@ export const metadata = { title: "Courriers — AMD Internal OS" };
  * corrigé quoi. Enregistrer un courrier ouvre donc directement sa fiche — on vient presque
  * toujours d'un scan à joindre.
  */
-export default async function CourriersPage({ searchParams }: { searchParams?: { dossier?: string } }) {
+export default async function CourriersPage(props: { searchParams?: Promise<{ dossier?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MAIL_REGISTER");
   const canCreate = userCan(user, "MAIL_REGISTER", "CREATE");
   const canEdit = userCan(user, "MAIL_REGISTER", "UPDATE");
@@ -81,7 +82,7 @@ export default async function CourriersPage({ searchParams }: { searchParams?: {
     prisma.mailEntry.count({ where: folderWhere }),
     prisma.mailEntry.count({ where: porteeWhere }),
   ]);
-  const scopeId = getCompanyScope();
+  const scopeId = await getCompanyScope();
   const masques = hiddenByScopeMessage({
     shown: dansPortee,
     total: horsPortee,

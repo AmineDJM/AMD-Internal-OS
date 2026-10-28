@@ -42,7 +42,8 @@ import { BackLink } from "@/components/shared/back-link";
 
 export const dynamic = "force-dynamic";
 
-export default async function DeclarationDetailPage({ params }: { params: { id: string } }) {
+export default async function DeclarationDetailPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const decl = await getDeclaration(params.id);
   if (!decl) notFound();

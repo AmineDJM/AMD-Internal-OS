@@ -1,6 +1,6 @@
 "use client";
 
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { Wallet } from "lucide-react";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { imputerBudgetMaterielPromo } from "@/lib/actions/promo-budget-actions";
@@ -17,7 +17,7 @@ export function BudgetPromoCard({ promoMaterialId, actuelle, options, peutImpute
   options: { id: string; label: string }[] | null;
   peutImputer: boolean;
 }) {
-  const [etat, envoyer] = useFormState(imputerBudgetMaterielPromo, undefined);
+  const [etat, envoyer] = useActionState(imputerBudgetMaterielPromo, undefined);
   return (
     <section className="surface space-y-2 px-4 py-3 text-sm">
       <h2 className="flex items-center gap-1.5 text-[0.9375rem] font-semibold"><Wallet className="h-4 w-4 text-muted-foreground" aria-hidden /> Budget</h2>

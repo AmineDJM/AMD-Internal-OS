@@ -26,7 +26,8 @@ function StatBlock({ stats }: { stats: PriceStats }) {
   );
 }
 
-export default async function MarketPricingPage({ searchParams }: { searchParams: { dci?: string } }) {
+export default async function MarketPricingPage(props: { searchParams: Promise<{ dci?: string }> }) {
+  const searchParams = await props.searchParams;
   await requireModule("BUSINESS_DEVELOPMENT");
   const list = pricingDciList();
   const picked = searchParams.dci && list.some((d) => d.key === searchParams.dci) ? searchParams.dci : list[0]?.key ?? "";

@@ -51,9 +51,9 @@ export interface SupplierSession {
   userName: string;
 }
 
-export function setSupplierSession(supplierUserId: string, supplierId: string) {
+export async function setSupplierSession(supplierUserId: string, supplierId: string): Promise<void> {
   const token = sign({ u: supplierUserId, s: supplierId, exp: Date.now() + MAX_AGE * 1000 });
-  cookies().set(COOKIE, token, {
+  (await cookies()).set(COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
@@ -62,13 +62,13 @@ export function setSupplierSession(supplierUserId: string, supplierId: string) {
   });
 }
 
-export function clearSupplierSession() {
-  cookies().set(COOKIE, "", { httpOnly: true, path: PATH, maxAge: 0 });
+export async function clearSupplierSession(): Promise<void> {
+  (await cookies()).set(COOKIE, "", { httpOnly: true, path: PATH, maxAge: 0 });
 }
 
 /** Lit + revalide la session fournisseur (DB), ou null si invalide/expirée/désactivée. */
 export async function getSupplierSession(): Promise<SupplierSession | null> {
-  const token = cookies().get(COOKIE)?.value;
+  const token = (await cookies()).get(COOKIE)?.value;
   if (!token) return null;
   const data = verifyToken(token);
   if (!data) return null;

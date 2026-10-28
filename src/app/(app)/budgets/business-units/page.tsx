@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { visibleTabs } from "@/lib/nav-tabs";
 import { BUDGET_TABS } from "@/lib/labels";
 import { buBudgetView, consumptionPct, buBudgetNotice, type BuBudgetLine } from "@/lib/sfe/bu-department";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -37,7 +38,8 @@ export const dynamic = "force-dynamic";
  * Une gamme SANS sous-département apparaît quand même, à zéro et signalée. La masquer ferait
  * croire que toutes les gammes sont budgétées — et c'est justement celle-là qu'il faut rattacher.
  */
-export default async function BusinessUnitBudgetsPage({ searchParams }: { searchParams: { year?: string } }) {
+export default async function BusinessUnitBudgetsPage(props: { searchParams: Promise<{ year?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (!userCan(user, "BUDGETS", "VIEW")) notFound();
   const year = normalizeYear(searchParams.year);
@@ -70,7 +72,7 @@ export default async function BusinessUnitBudgetsPage({ searchParams }: { search
       by: ["businessUnitId"],
       where: { businessUnitId: { in: bus.map((b) => b.id) } },
       _sum: { amount: true },
-    }).catch(() => [] as { businessUnitId: string | null; _sum: { amount: unknown } }[]),
+    }).catch(sansBloquer("business-units-page.BusinessUnitBudgetsPage.promoMaterial", [] as { businessUnitId: string | null; _sum: { amount: unknown } }[])),
   ]);
 
   const enveloppeParDep = new Map(enveloppes.map((e) => [e.departmentId, toNumber(e._sum.amount ?? 0)]));

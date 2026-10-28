@@ -11,6 +11,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { MorningBrief } from "@/components/shared/morning-brief";
 import { formatDate, daysUntil } from "@/lib/utils";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +28,7 @@ export default async function TodayPage() {
   // Point du matin (nouveauté indépendante) : l'assistant résume la journée en 3-5 phrases.
   const proactive = !user.impersonatedBy && (await featureEnabled(FEATURES.ASSISTANT_PROACTIVE.key, user.id));
   // LE BRIEF DU MATIN EST ADAM (§118.153) : il n'est composé — donc payé — que pour qui le voit.
-  const brief = proactive && peutVoirAdam(user) ? await getDailyBrief(user).catch(() => null) : null;
+  const brief = proactive && peutVoirAdam(user) ? await getDailyBrief(user).catch(sansBloquer("aujourdhui-page.TodayPage.getDailyBrief", null)) : null;
   const dayLabel = new Intl.DateTimeFormat("fr-FR", {
     weekday: "long", day: "numeric", month: "long", timeZone: "Africa/Algiers",
   }).format(new Date());

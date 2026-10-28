@@ -12,7 +12,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
-export async function PUT(req: NextRequest, { params }: { params: { sessionId: string } }) {
+export async function PUT(req: NextRequest, props: { params: Promise<{ sessionId: string }> }) {
+  const params = await props.params;
   try {
     const user = await getCurrentUserPourEcrire();
     if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });

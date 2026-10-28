@@ -18,6 +18,7 @@ import { santeBudget } from "@/lib/finance/intelligence";
 import { canViewDrive, resolveDriveAccess } from "@/lib/drive";
 import { toNumber } from "@/lib/utils";
 import { proprietaire } from "@/platform/in-process/missions/sweep";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -91,7 +92,7 @@ export async function resoudreCible(user: CurrentUser, reference: string, opts: 
     const motif = opts.attendu.motif.trim();
     const dossier = opts.attendu.dossier?.trim() || null;
     if (!dossier) return { cible: { type: "DRIVE_ATTENDU", id: "*", ref: motif, label: `document « ${motif} » attendu dans le Drive`, exact: true }, candidats: [] };
-    const dossiers = await prisma.driveNode.findMany({ where: { type: "FOLDER", isTrashed: false, name: { contains: dossier, mode: "insensitive" } }, select: { id: true, name: true }, take: 8 }).catch(() => []);
+    const dossiers = await prisma.driveNode.findMany({ where: { type: "FOLDER", isTrashed: false, name: { contains: dossier, mode: "insensitive" } }, select: { id: true, name: true }, take: 8 }).catch(sansBloquer("missions-watch.resoudreCible.driveNode", []));
     const visibles: { id: string; name: string }[] = [];
     for (const d of dossiers) if (canViewDrive(await resolveDriveAccess(user, d.id))) visibles.push(d);
     const candidats: CibleResolue[] = visibles.map((d) => ({ type: "DRIVE_ATTENDU" as const, id: d.id, ref: motif, label: `document « ${motif} » attendu dans « ${d.name} »`, exact: d.name.toLowerCase() === dossier.toLowerCase() }));
@@ -111,39 +112,39 @@ export async function resoudreCible(user: CurrentUser, reference: string, opts: 
     peutRegulatory ? prisma.regulatoryProduct.findMany({
       where: { OR: [{ reference: { equals: ref, mode: "insensitive" } }, { dci: { contains: ref, mode: "insensitive" } }, { brandName: { contains: ref, mode: "insensitive" } }] },
       select: { id: true, reference: true, dci: true, brandName: true }, take: 6,
-    }).catch(() => []) : Promise.resolve([]),
+    }).catch(sansBloquer("missions-watch.resoudreCible.regulatoryProduct", [])) : Promise.resolve([]),
     peutRegulatory ? prisma.regulatoryDossier.findMany({
       where: { OR: [{ reference: { equals: ref, mode: "insensitive" } }, { title: { contains: ref, mode: "insensitive" } }] },
       select: { id: true, reference: true, title: true }, take: 6,
-    }).catch(() => []) : Promise.resolve([]),
-    prisma.expenseOrder.findMany({ where: { reference: { equals: ref, mode: "insensitive" } }, select: { id: true, reference: true, label: true }, take: 2 }).catch(() => []),
-    prisma.paymentRequest.findMany({ where: { reference: { equals: ref, mode: "insensitive" } }, select: { id: true, reference: true, title: true }, take: 2 }).catch(() => []),
-    prisma.validationRequest.findMany({ where: { reference: { equals: ref, mode: "insensitive" } }, select: { id: true, reference: true, title: true }, take: 2 }).catch(() => []),
+    }).catch(sansBloquer("missions-watch.resoudreCible.regulatoryDossier", [])) : Promise.resolve([]),
+    prisma.expenseOrder.findMany({ where: { reference: { equals: ref, mode: "insensitive" } }, select: { id: true, reference: true, label: true }, take: 2 }).catch(sansBloquer("missions-watch.resoudreCible.expenseOrder", [])),
+    prisma.paymentRequest.findMany({ where: { reference: { equals: ref, mode: "insensitive" } }, select: { id: true, reference: true, title: true }, take: 2 }).catch(sansBloquer("missions-watch.resoudreCible.paymentRequest", [])),
+    prisma.validationRequest.findMany({ where: { reference: { equals: ref, mode: "insensitive" } }, select: { id: true, reference: true, title: true }, take: 2 }).catch(sansBloquer("missions-watch.resoudreCible.validationRequest", [])),
     prisma.task.findMany({
       where: { title: { contains: ref, mode: "insensitive" }, status: { in: STATUTS_TACHE_OUVERTS as never } },
       select: { id: true, title: true }, orderBy: { createdAt: "desc" }, take: 6,
-    }).catch(() => []),
-    resoudreEntitesDe(ref).catch(() => []),
+    }).catch(sansBloquer("missions-watch.resoudreCible.task", [])),
+    resoudreEntitesDe(ref).catch(sansBloquer("missions-watch.resoudreCible.resoudreEntitesDe", [])),
     // LES APPELS D'OFFRES : la référence sous ses écritures, ou le titre. « Surveille l'appel
     // d'offres PCH 2026/14 » était sans cible avant cette ligne — la surveillance répondait
     // « rien à surveiller » pour un marché que la maison suit au quotidien.
     peutPch ? prisma.pchTender.findMany({
       where: { OR: [{ reference: { contains: ref.replace(/^(AO|PCH)\s*/i, "").replace(/[^0-9]+/g, "/").replace(/^\/|\/$/g, ""), mode: "insensitive" } }, { title: { contains: ref, mode: "insensitive" } }] },
       select: { id: true, reference: true, title: true, status: true }, take: 8,
-    }).then((rows) => rows.filter((m) => memeMarche(m.reference, ref) || (m.title ?? "").toLowerCase().includes(ref.toLowerCase()))).catch(() => []) : Promise.resolve([]),
+    }).then((rows) => rows.filter((m) => memeMarche(m.reference, ref) || (m.title ?? "").toLowerCase().includes(ref.toLowerCase()))).catch(sansBloquer("missions-watch.resoudreCible.pchTender", [])) : Promise.resolve([]),
     // LES ENGAGEMENTS LEGAL (contrat, BC, facture) : sous l'entité ET les lecteurs désignés — la
     // même porte que l'écran Legal. Seuls les ACTIFS se surveillent : un contrat renouvelé a une suite.
     peutLegal ? companyScopedWhere(user.id, {
       AND: [...(lecteursLegal ? [lecteursLegal] : []), { status: "ACTIVE" as const },
         { OR: [{ reference: { equals: ref, mode: "insensitive" as const } }, { title: { contains: ref, mode: "insensitive" as const } }, { counterparty: { contains: ref, mode: "insensitive" as const } }] }],
-    }).then((where) => prisma.legalDocument.findMany({ where, select: { id: true, reference: true, title: true, kind: true, counterparty: true }, take: 6 })).catch(() => []) : Promise.resolve([]),
+    }).then((where) => prisma.legalDocument.findMany({ where, select: { id: true, reference: true, title: true, kind: true, counterparty: true }, take: 6 })).catch(sansBloquer("missions-watch.resoudreCible.legalDocument", [])) : Promise.resolve([]),
     // LES ENVELOPPES : celles que la personne voit (gestionnaire, ou ouvertes à son rôle / à elle).
-    peutBudgets ? getEnvelopes(user).then((rows) => rows.filter((e) => e.name.toLowerCase().includes(ref.toLowerCase())).slice(0, 6)).catch(() => []) : Promise.resolve([]),
+    peutBudgets ? getEnvelopes(user).then((rows) => rows.filter((e) => e.name.toLowerCase().includes(ref.toLowerCase())).slice(0, 6)).catch(sansBloquer("missions-watch.resoudreCible.getEnvelopes", [])) : Promise.resolve([]),
     // LES FILS E-MAIL de la boîte connectée de la personne — jamais celle d'un autre.
     prisma.emailRecord.findMany({
       where: { connection: { userId: user.id }, OR: [{ subject: { contains: ref, mode: "insensitive" } }, { fromAddress: { contains: ref, mode: "insensitive" } }, { fromName: { contains: ref, mode: "insensitive" } }, { toAddresses: { has: ref.toLowerCase() } }] },
       orderBy: [{ sentAt: "desc" }, { createdAt: "desc" }], select: { threadId: true, subject: true, fromAddress: true, fromName: true, toAddresses: true, direction: true }, take: 30,
-    }).catch(() => []),
+    }).catch(sansBloquer("missions-watch.resoudreCible.emailRecord", [])),
   ]);
   const fils = new Map<string, (typeof courriels)[number]>();
   for (const m of courriels) if (!fils.has(m.threadId)) fils.set(m.threadId, m);
@@ -177,7 +178,7 @@ async function dernierFait(types: readonly string[], id: string): Promise<Date |
   const e = await prisma.businessEvent.findFirst({
     where: { OR: [...(connus.length ? [{ entityType: { in: connus }, entityId: id }] : []), { relatedRefs: { hasSome: refs } }] },
     orderBy: { occurredAt: "desc" }, select: { occurredAt: true },
-  }).catch(() => null);
+  }).catch(sansBloquer("missions-watch.dernierFait.businessEvent", null));
   return e?.occurredAt ?? null;
 }
 
@@ -211,7 +212,7 @@ export async function lireEtatCible(user: CurrentUser | null, type: TypeCible, i
       if (user && !userCan(user, "BUDGETS", "VIEW")) return { existe: true, resume: "droit BUDGETS retiré : lecture impossible", champs: {} };
       const e = await prisma.budgetEnvelope.findUnique({ where: { id }, select: { name: true, isActive: true, periodStart: true, periodEnd: true, totalAmount: true, updatedAt: true } });
       if (!e) return { existe: false, champs: {} };
-      const vue = user ? await getBudgetOverview(user, id).catch(() => null) : null;
+      const vue = user ? await getBudgetOverview(user, id).catch(sansBloquer("missions-watch.lireEtatCible.getBudgetOverview", null)) : null;
       if (user && !vue) return { existe: true, resume: `enveloppe « ${e.name} » : non lisible (enveloppe fermée à ce compte)`, champs: {} };
       const alloue = toNumber(e.totalAmount); const consomme = vue?.totals.consumed ?? 0; const engage = vue?.totals.committed ?? 0;
       const sante = santeBudget({ id, nom: e.name, alloue, consomme, engage, debut: e.periodStart, fin: e.periodEnd });
@@ -336,8 +337,8 @@ export async function lireEtatCible(user: CurrentUser | null, type: TypeCible, i
       // tables), on observe ce qui la TOUCHE au registre des faits. Le silence est la seule règle
       // qui ait un sens ici, et c'est précisément celle qu'on demande (« s'il ne se passe rien »).
       const dernier = type === "PERSONNE"
-        ? await prisma.businessEvent.findFirst({ where: { OR: [{ actorId: id }, { relatedRefs: { has: `USER:${id}` } }] }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }).catch(() => null)
-        : await prisma.businessEvent.findFirst({ where: { entityId: id }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }).catch(() => null);
+        ? await prisma.businessEvent.findFirst({ where: { OR: [{ actorId: id }, { relatedRefs: { has: `USER:${id}` } }] }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }).catch(sansBloquer("missions-watch.lireEtatCible.businessEvent", null))
+        : await prisma.businessEvent.findFirst({ where: { entityId: id }, orderBy: { occurredAt: "desc" }, select: { occurredAt: true } }).catch(sansBloquer("missions-watch.lireEtatCible.businessEvent", null));
       return { existe: true, statut: null, terminal: false, bloque: false, dernierChangement: dernier?.occurredAt?.toISOString() ?? null, champs: {}, resume: `${LIBELLE_TYPE[type]} suivie au registre des faits` };
     }
   }
@@ -458,7 +459,7 @@ export async function balayerSurveillances(
   const dues = await prisma.adamWatch.findMany({
     where: { status: "ACTIVE", nextCheckAt: { lte: maintenant }, mission: { status: { notIn: ETATS_MISSION_INACTIFS as never } }, ...(opts.seulement ? { id: { in: [...opts.seulement] } } : {}) },
     orderBy: { nextCheckAt: "asc" }, take: opts.max ?? 50,
-  }).catch(() => []);
+  }).catch(sansBloquer("missions-watch.balayerSurveillances.adamWatch", []));
   const porte = porteAttentionPour();
   const proprietaires = new Map<string, CurrentUser | null>();
 
@@ -494,9 +495,9 @@ export async function balayerSurveillances(
         await porte.signaler({
           kind: "WATCH_ENDED", missionId: w.missionId, ownerId: w.ownerId, titre: w.label,
           raison: `${etat.resume ?? w.label} — ${etat.statut ?? "terminé"}`, stepKey: `fin:${etat.statut ?? ""}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("missions-watch.balayerSurveillances.signaler"));
         await prisma.adamWatch.update({ where: { id: w.id }, data: { ...base, status: "CLOSED", closeReason: `cible terminée (${etat.statut ?? "-"})`, lastSignalAt: maintenant } });
-        await prisma.mission.update({ where: { id: w.missionId }, data: { status: "COMPLETED" } }).catch(() => undefined);
+        await prisma.mission.update({ where: { id: w.missionId }, data: { status: "COMPLETED" } }).catch(sansBloquer("missions-watch.balayerSurveillances.mission"));
         await journaliser(w.missionId, "WATCH_ENDED", `La cible est arrivée à son terme (${etat.statut ?? "-"}) : la surveillance est close.`, { etat: etat as never });
         out.terminees += 1;
         continue;
@@ -509,7 +510,7 @@ export async function balayerSurveillances(
         await porte.signaler({
           kind: "WATCH_ALERT", missionId: w.missionId, ownerId: w.ownerId, titre: w.label, raison,
           decision: recommandationPour(problemes, type), stepKey: signature, niveauSuggere: gravite,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("missions-watch.balayerSurveillances.signaler"));
         await prisma.adamWatch.update({ where: { id: w.id }, data: { ...base, lastSignature: signature, lastSignalAt: maintenant } });
         await journaliser(w.missionId, "WATCH_CHECKED", `Problème(s) : ${problemes.map((p) => p.detail).join(" ; ")}.`,
           { signature, gravite, problemes: problemes as never, etat: etat as never });
@@ -517,7 +518,7 @@ export async function balayerSurveillances(
         // Une cible DISPARUE ne se resurveille pas : elle est dite, et la surveillance se ferme.
         if (!etat.existe) {
           await prisma.adamWatch.update({ where: { id: w.id }, data: { status: "CLOSED", closeReason: "cible disparue" } });
-          await prisma.mission.update({ where: { id: w.missionId }, data: { status: "COMPLETED" } }).catch(() => undefined);
+          await prisma.mission.update({ where: { id: w.missionId }, data: { status: "COMPLETED" } }).catch(sansBloquer("missions-watch.balayerSurveillances.mission"));
         }
         continue;
       }
@@ -527,7 +528,7 @@ export async function balayerSurveillances(
         await porte.signaler({
           kind: "WATCH_RESOLVED", missionId: w.missionId, ownerId: w.ownerId, titre: w.label,
           raison: etat.resume ?? w.label, stepKey: `resolu:${w.lastSignature}`,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("missions-watch.balayerSurveillances.signaler"));
         await prisma.adamWatch.update({ where: { id: w.id }, data: { ...base, lastSignature: null } });
         await journaliser(w.missionId, "WATCH_CHECKED", "Le problème signalé n'est plus observé : revenu à la normale.", { etat: etat as never });
         out.resolues += 1;
@@ -541,8 +542,8 @@ export async function balayerSurveillances(
       console.error(`[surveillances] contrôle de ${w.id} échoué`, e);
       // Une lecture impossible n'est pas une cible disparue : on réessaie dans une heure, et le
       // journal le dit une fois par panne (la même signature d'erreur n'est pas répétée).
-      await prisma.adamWatch.update({ where: { id: w.id }, data: { lastCheckedAt: maintenant, nextCheckAt: new Date(maintenant.getTime() + 3_600_000) } }).catch(() => undefined);
-      await journaliser(w.missionId, "WATCH_ERROR", `Contrôle impossible : ${e instanceof Error ? e.message : String(e)}`, {}).catch(() => undefined);
+      await prisma.adamWatch.update({ where: { id: w.id }, data: { lastCheckedAt: maintenant, nextCheckAt: new Date(maintenant.getTime() + 3_600_000) } }).catch(sansBloquer("missions-watch.balayerSurveillances.adamWatch"));
+      await journaliser(w.missionId, "WATCH_ERROR", `Contrôle impossible : ${e instanceof Error ? e.message : String(e)}`, {}).catch(sansBloquer("missions-watch.balayerSurveillances.journaliser"));
     }
   }
   return out;
@@ -572,7 +573,7 @@ export async function arreterSurveillance(user: CurrentUser, idOuMission: string
   });
   if (!w) return { ok: false };
   await prisma.adamWatch.update({ where: { id: w.id }, data: { status: "CLOSED", closeReason: "arrêtée par la personne" } });
-  await prisma.mission.update({ where: { id: w.missionId }, data: { status: "CANCELLED" } }).catch(() => undefined);
+  await prisma.mission.update({ where: { id: w.missionId }, data: { status: "CANCELLED" } }).catch(sansBloquer("missions-watch.arreterSurveillance.mission"));
   await journaliser(w.missionId, "WATCH_STOPPED", "Surveillance arrêtée à la demande de la personne.", {}, user.id);
   return { ok: true, label: w.label };
 }

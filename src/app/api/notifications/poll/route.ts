@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { identiteDuSondage } from "@/lib/session-legere";
 import { prisma } from "@/lib/prisma";
 import { reécriteLienNotification } from "@/lib/notifications/lien-actuel";
 
@@ -8,9 +8,12 @@ export const dynamic = "force-dynamic";
 /**
  * Compteur de notifications non lues (sonnerie de rappel) + notifications **pop-up** non lues
  * (grande fenêtre centrée) à afficher / accuser réception. Sondé côté client.
+ *
+ * L'identité est celle des SONDAGES (`session-legere.ts`, PERF-06) : on ne lit que SES notifications,
+ * la matrice des droits n'a rien à décider ici — 1 requête au lieu de 10 pour savoir qui appelle.
  */
 export async function GET() {
-  const user = await getCurrentUser();
+  const user = await identiteDuSondage();
   if (!user || user.mustChangePassword) return NextResponse.json({ unread: 0, popups: [] }, { status: 200 });
 
   const [unread, popups] = await Promise.all([

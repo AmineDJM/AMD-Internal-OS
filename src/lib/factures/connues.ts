@@ -20,6 +20,7 @@ import {
 } from "@/lib/factures/blocage-vue";
 import { etatDuPaiement, relancable, type EtatPaiement } from "@/lib/finance/relance-paiement";
 import { signerJetonRelance } from "@/lib/factures/jeton-relance";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -423,7 +424,7 @@ export async function lireIdentiteDuDepot(userId: string, octets: Buffer, nomFic
     });
     if (!r.ok) return { ...repli, reserves: [`Pièce non lue : ${r.error}`] };
     const p = r.proposition;
-    const texte = await texteDeLaLecture(p.lectureId).catch(() => null);
+    const texte = await texteDeLaLecture(p.lectureId).catch(sansBloquer("connues.lireIdentiteDuDepot.texteDeLaLecture", null));
     return identiteDepuisLecture({ empreintes: [empreinte], texte, entetes: p.entetes, piece: p.piece, groupe });
   } catch (err) {
     console.error("[factures] lecture de la pièce déposée impossible (le dépôt continue)", err);
@@ -489,7 +490,7 @@ async function chefDuDepartement(userId: string | null): Promise<string | null> 
 
 /** LA VUE DU BLOCAGE pour la personne arrêtée — avec ou sans accès au dossier, et le jeton de relance. */
 export async function vueDuBlocage(user: SessionUser, identite: IdentiteFacture, f: FactureConnue): Promise<FactureDejaConnue> {
-  const acces = await canAccessEntity(user, f.dossier.type, f.dossier.id, "VIEW").catch(() => false);
+  const acces = await canAccessEntity(user, f.dossier.type, f.dossier.id, "VIEW").catch(sansBloquer("connues.vueDuBlocage.canAccessEntity", false));
   const cible = relancable(f.etat) ? cibleDeRelance(f) : null;
   const phrase = phraseDeBlocage(
     { numero: identite.numero, fournisseur: identite.fournisseur.nom, ttc: identite.ttc },
@@ -561,7 +562,7 @@ export async function verifierFacturesAvantDepot(user: SessionUser, fichiers: re
       }
       if (trouvaille.niveau === "PROBABLE" && trouvaille.connue && trouvaille.rapprochement) {
         const f = trouvaille.connue;
-        const acces = await canAccessEntity(user, f.dossier.type, f.dossier.id, "VIEW").catch(() => false);
+        const acces = await canAccessEntity(user, f.dossier.type, f.dossier.id, "VIEW").catch(sansBloquer("connues.verifierFacturesAvantDepot.canAccessEntity", false));
         const raison = trouvaille.rapprochement.raison;
         probables.push({
           index, connue: f, raison,

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { derniersMessagesParConversation } from "@/lib/queries/messaging";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
@@ -41,22 +42,25 @@ export function lecturesQuotidien(user: CurrentUser, propositions: PropositionCa
               select: {
                 id: true, title: true,
                 members: { where: { leftAt: null, userId: { not: user.id } }, select: { user: { select: { name: true } } }, take: 6 },
-                messages: { where: { deletedAt: null }, orderBy: { createdAt: "desc" }, take: 3, select: { body: true, createdAt: true, senderId: true, sender: { select: { name: true } } } },
               },
             },
           },
           take: 200,
         });
+        // Les 3 derniers messages de chaque conversation, BORNÉS EN SQL : un `messages: { take: 3 }` imbriqué
+        // ici rapatriait tout l'historique des 200 conversations, corps compris (audit performance PERF-08).
+        const derniers = await derniersMessagesParConversation(membres.map((m) => m.conversation.id), 3);
         const lignes = membres
           .map((m) => {
             const c = m.conversation;
             const libelle = c.title || c.members.map((x) => x.user.name).join(", ") || "Conversation";
-            const dernier = c.messages[0];
+            const messages = derniers.get(c.id) ?? [];
+            const dernier = messages[0];
             return {
               conversation: libelle,
-              dernierMessage: dernier ? { de: dernier.senderId === user.id ? "vous" : dernier.sender?.name ?? "—", le: dernier.createdAt.toISOString().slice(0, 16).replace("T", " "), texte: dernier.body.slice(0, 300) } : null,
+              dernierMessage: dernier ? { de: dernier.senderId === user.id ? "vous" : dernier.senderName ?? "—", le: dernier.createdAt.toISOString().slice(0, 16).replace("T", " "), texte: dernier.body.slice(0, 300) } : null,
               nonLu: Boolean(dernier && dernier.senderId !== user.id && (!m.lastReadAt || dernier.createdAt > m.lastReadAt)),
-              precedents: c.messages.slice(1).map((x) => `${x.senderId === user.id ? "vous" : x.sender?.name ?? "—"} : ${x.body.slice(0, 160)}`),
+              precedents: messages.slice(1).map((x) => `${x.senderId === user.id ? "vous" : x.senderName ?? "—"} : ${x.body.slice(0, 160)}`),
               _date: dernier?.createdAt.getTime() ?? 0,
             };
           })

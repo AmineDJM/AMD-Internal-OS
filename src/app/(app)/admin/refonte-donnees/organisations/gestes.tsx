@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { defaireFusionOrganisation, ecarterDoublonOrganisation, fusionnerOrganisations } from "@/lib/actions/organisation-actions";
+import { defaireFusionOrganisation, ecarterDoublonOrganisation, fusionnerOrganisations } from "@/modules/referentiels/actions-organisations";
 import { Button } from "@/components/ui/button";
 import type { ActionResult } from "@/lib/actions/types";
 

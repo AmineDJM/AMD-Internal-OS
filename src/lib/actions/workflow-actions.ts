@@ -18,6 +18,7 @@ import {
   isWorkflowCategory, type ActorScope, type StepInput, type WorkflowPower,
 } from "@/lib/workflow/types";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 // La demande « autre » (`AD_PRO_OTHER`) suit le même circuit depuis le 27/10/2026 (décision #17).
 const WORKFLOW_ENTITIES: EntityType[] = ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "AD_PRO_OTHER"];
@@ -343,7 +344,7 @@ export async function saveWorkflowDefinition(formData: FormData): Promise<Action
   // même chemin validé). L'échec du snapshot ne bloque pas l'enregistrement — il se journalise.
   const lastVersion = await prisma.workflowDefinitionVersion
     .findFirst({ where: { category: payload.category }, orderBy: { version: "desc" }, select: { version: true } })
-    .catch(() => null);
+    .catch(sansBloquer("workflow-actions.saveWorkflowDefinition.workflowDefinitionVersion", null));
   await prisma.workflowDefinitionVersion.create({
     data: {
       category: payload.category,
