@@ -1059,10 +1059,32 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
     });
     if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
   }
-  const rendreLaReserve = () => prisma.careQuote.updateMany({
-    where: { id, expenseOrderId: null, status: "ACCEPTED" },
-    data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
-  }).catch(() => undefined);
+  const rendreLaReserve = async () => {
+    await prisma.careCell.updateMany({ where: { id: { in: cellIds }, quoteId: id, expenseOrderId: null }, data: { quoteId: null } }).catch(() => undefined);
+    await prisma.careQuote.updateMany({
+      where: { id, expenseOrderId: null, status: "ACCEPTED" },
+      data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
+    }).catch(() => undefined);
+  };
+
+  // DEUX DEVIS DIFFÉRENTS SUR LES MÊMES CASES, ACCEPTÉS À LA MÊME MINUTE (audit 2026-10-27, DONNEES-08). La garde
+  // `quoteConflicts` lit les autres devis en mémoire : le PDG accepte A pendant que le DG accepte B, chacun voit
+  // l'autre encore « en attente », et les mêmes billets partaient payés deux fois. Les CASES se prennent donc
+  // aussi, sous verrou et dans un ordre fixe (deux preneurs ne peuvent pas s'entre-bloquer) : seul le devis qui
+  // les trouve toutes libres les marque à son nom ; l'autre rend sa réserve et le dit.
+  if (decision === "ACCEPTED") {
+    const prises = await prisma.$transaction(async (tx) => {
+      const lues = await tx.$queryRaw<{ id: string; quoteId: string | null }[]>`
+        SELECT id, "quoteId" FROM "CareCell" WHERE id = ANY(${cellIds}::text[]) ORDER BY id FOR UPDATE`;
+      if (lues.length !== cellIds.length || lues.some((c) => c.quoteId !== null && c.quoteId !== id)) return false;
+      await tx.careCell.updateMany({ where: { id: { in: cellIds } }, data: { quoteId: id } });
+      return true;
+    });
+    if (!prises) {
+      await rendreLaReserve();
+      return { ok: false, error: "Un autre devis couvrant les mêmes éléments vient d'être accepté : rechargez la page." };
+    }
+  }
 
   let ordreNe = false;
   try {
