@@ -11,7 +11,7 @@ import { resultatIndisponible } from "@/lib/assistant/capability-failure";
 import { resultatVide } from "@/lib/assistant/empty-result";
 import { fichierALire, fichiersDe } from "@/lib/assistant/artifact-ref";
 import { sansBloquer } from "@/lib/journal";
-import { transcriptionPersistee, EXEC, str, DOC_TEXT_CAP } from "./commun";
+import { transcriptionPersistee, noteDeMethode, EXEC, str, DOC_TEXT_CAP } from "./commun";
 
 /**
  * OUTILS EXÉCUTIFS — Drive : chercher (`search_drive`) et LIRE une pièce (`read_document`).
