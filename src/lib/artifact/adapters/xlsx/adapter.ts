@@ -30,5 +30,5 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export { MIME_XLSX, adaptateurXlsx } from "./adapter/classeur";
-export { decalerFormule } from "./adapter/formules";
+export { MIME_XLSX, adaptateurXlsx } from "@/lib/artifact/adapters/xlsx/adapter/classeur";
+export { decalerFormule } from "@/lib/artifact/adapters/xlsx/adapter/formules";

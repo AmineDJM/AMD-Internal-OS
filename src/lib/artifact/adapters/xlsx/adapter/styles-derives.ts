@@ -5,7 +5,7 @@
 import type { Alignment } from "@/lib/artifact/object-model/model";
 import type { CommandeArtefact } from "@/lib/artifact/commands/ir";
 import { attr, child, children, cloneNode, element, ensureChild, markDirty, removeChild, serializeXml, setAttr } from "@/lib/artifact/object-model/xml";
-import type { StylesClasseur } from "./lecture";
+import type { StylesClasseur } from "@/lib/artifact/adapters/xlsx/adapter/lecture";
 
 const ALIGN_XLSX: Record<Alignment, string> = { left: "left", center: "center", right: "right", justify: "justify" };
 

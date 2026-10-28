@@ -11,9 +11,9 @@ import { resoudre } from "@/lib/artifact/commands/resolve";
 import { lireImage, tailleInsertion } from "@/lib/artifact/object-model/image";
 import { detacherDessinSiVide, enregistrerDessin, octetsDeLImageFeuille, ouvrirDessinFeuille, poserImageFeuille, poserMediaDessin, redimensionnerImageFeuille, repointerImageFeuille, retirerImageFeuille } from "@/lib/artifact/adapters/xlsx/media";
 import { type XmlNode, attr, child, children, cloneNode, element, ensureChild, insertBefore, markDirty, parseXml, removeChild, serializeXml, setAttr, textNode, textOf } from "@/lib/artifact/object-model/xml";
-import { type StylesClasseur, styleDeXf, valeurCellule, lireChainesPartagees, lireStyles } from "./lecture";
-import { deriverStyle } from "./styles-derives";
-import { decalerFormule } from "./formules";
+import { type StylesClasseur, styleDeXf, valeurCellule, lireChainesPartagees, lireStyles } from "@/lib/artifact/adapters/xlsx/adapter/lecture";
+import { deriverStyle } from "@/lib/artifact/adapters/xlsx/adapter/styles-derives";
+import { decalerFormule } from "@/lib/artifact/adapters/xlsx/adapter/formules";
 
 export const MIME_XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 

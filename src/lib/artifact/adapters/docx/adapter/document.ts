@@ -11,8 +11,8 @@ import { type AdaptateurArtefact, type DesignationImage, type DocumentOuvert, ty
 import { lireImage, tailleInsertion } from "@/lib/artifact/object-model/image";
 import { assurerNamespacesDessin, octetsDeLImage, paragrapheImage, poserMedia, repointerImage } from "@/lib/artifact/adapters/docx/media";
 import { type XmlNode, child, children, cloneNode, element, ensureChild, firstDescendant, insertAfter, insertBefore, markDirty, parseXml, removeChild, serializeXml, setAttr } from "@/lib/artifact/object-model/xml";
-import { type EtatDocx, construireEtat } from "./lecture";
-import { libelleParagraphe, ALIGN_OOXML, pPr, ORDRE_PPR, appliquerStyleProps, rPr, remplacerTexteParagraphe, nouveauRun } from "./ecriture";
+import { type EtatDocx, construireEtat } from "@/lib/artifact/adapters/docx/adapter/lecture";
+import { libelleParagraphe, ALIGN_OOXML, pPr, ORDRE_PPR, appliquerStyleProps, rPr, remplacerTexteParagraphe, nouveauRun } from "@/lib/artifact/adapters/docx/adapter/ecriture";
 
 export const MIME_DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
