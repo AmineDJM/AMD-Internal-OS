@@ -9,6 +9,12 @@ import type { DemandeConfirmation } from "@/components/ui/dialogue-regle";
 import { useRetours } from "@/components/ui/retour";
 
 /**
+ * Quand l'action refuse sans dire pourquoi : on dit au moins qu'elle a REFUSÉ (donc rien n'est parti),
+ * ce qui la distingue d'une panne (`actionFailureMessage`, où l'enregistrement a pu aboutir).
+ */
+export const REFUS_SANS_MOTIF = "Le geste a été refusé sans motif précisé : rien n'a été enregistré.";
+
+/**
  * Ce qu'un appel peut demander en plus de l'action elle-même (V3-B) — pour qu'un geste entier
  * (demander, exécuter, dire le résultat) tienne en UNE ligne au point d'appel :
  *
@@ -88,7 +94,7 @@ export function useAction(options: OptionsAction = {}) {
         if (!vivant.current) return r.ok;
         setSaving(false);
         if (r.ok) { onOk?.(); rafraichir(); if (geste.succes) retours.succes(geste.succes); return true; }
-        setErr(r.error ?? "Action impossible.");
+        setErr(r.error ?? REFUS_SANS_MOTIF);
         return false;
       } catch (e) {
         fini = true;
@@ -145,7 +151,7 @@ export function useKeyedAction(options: OptionsAction = {}) {
         fini = true;
         if (!vivant.current) return r.ok;
         setBusy(null);
-        if (!r.ok) { setError(r.error ?? "Action impossible."); return false; }
+        if (!r.ok) { setError(r.error ?? REFUS_SANS_MOTIF); return false; }
         rafraichir();
         if (geste.succes) retours.succes(geste.succes);
         return true;

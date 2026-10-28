@@ -64,8 +64,10 @@ const APPEL_NU = /\brouter\.refresh\(\)/g;
  * Ramené à 326 le 20/10 — les lots suivants avaient porté le parc à 332 (intégration Ad & Pro, pièces, références…) ;
  * le compositeur de pièces (six appels : émettre, réviser, brouillon, retirer, fermer) suit son rafraîchissement — une
  * révision rouverte sur l'état d'avant partirait avec une `versionVue` dépassée.
+ * Ramené à 1 le 28/10/2026 (V3-B, primitives UI) — tout le parc passe par `useRafraichir` (ou `useAction`, qui
+ * l'appelle) ; le seul appel restant est celui du crochet lui-même (`use-rafraichir.ts`).
  */
-const PLAFOND_APPELS_NUS = 326;
+const PLAFOND_APPELS_NUS = 1;
 
 describe("le rafraîchissement suivi", () => {
   const parc = fichiers(SRC).map((f) => ({ f, src: sansCommentaires(readFileSync(f, "utf8")) }));

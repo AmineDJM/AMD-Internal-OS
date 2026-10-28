@@ -68,13 +68,13 @@ export function releve(): Record<keyof typeof MOTIFS, Map<string, number>> {
 
 /**
  * Mesuré le 28/10/2026 (V3-B), avant migration : confirm 125, alert 46, prompt 6, repli générique 259.
- * Ramenés au chiffre mesuré après chaque lot (journal dans `docs/knowledge-base/05-frontend-ui-ux.md`).
+ * Après migration du parc (lots A1, A2, B, C, D) : ZÉRO partout. Le plafond est désormais une interdiction.
  */
 const PLAFONDS: Record<keyof typeof MOTIFS, number> = {
-  confirm: 125,
-  alert: 46,
-  prompt: 6,
-  repliGenerique: 259,
+  confirm: 0,
+  alert: 0,
+  prompt: 0,
+  repliGenerique: 0,
 };
 
 describe("pas de boîte du navigateur, pas de repli générique", () => {
