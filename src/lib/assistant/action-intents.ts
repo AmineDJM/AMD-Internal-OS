@@ -269,7 +269,7 @@ export async function executeIntentGuarded(
     where: { id: intentId },
     data: result.ok
       ? { status: "EXECUTED", executedAt: new Date(), resultMessage: result.message ?? "Action exécutée.", resultLink: result.link ?? null, error: null, events: pushEvent(fresh?.events, "EXECUTED") as object }
-      : { status: "FAILED", error: result.error ?? "Échec.", events: pushEvent(fresh?.events, "FAILED") as object },
+      : { status: "FAILED", error: result.error ?? "L'action n'a pas abouti : rien n'a été exécuté.", events: pushEvent(fresh?.events, "FAILED") as object },
   }).catch((err) => console.error("[assistant] intent receipt failed", err));
 
   return { ...result };

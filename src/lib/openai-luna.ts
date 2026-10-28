@@ -375,7 +375,7 @@ export function parseBatchOutput(jsonl: string): BatchOutcome[] {
       };
       const customId = row.custom_id ?? "";
       if (row.error) {
-        out.push({ customId, ok: false, text: "", usage: EMPTY_USAGE, error: row.error.message ?? "Échec." });
+        out.push({ customId, ok: false, text: "", usage: EMPTY_USAGE, error: row.error.message ?? "Requête refusée par le service, sans motif." });
         continue;
       }
       const body = row.response?.body;

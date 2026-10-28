@@ -274,7 +274,7 @@ export async function attachFormFiles(
       entityType, entityId, category: "OTHER", confidentiality: "INTERNAL", stepKey: null, file, maxUploadMb,
     });
     if (r.ok) attached += 1;
-    else failed.push({ name: file.name, error: r.error ?? "Échec." });
+    else failed.push({ name: file.name, error: r.error ?? "Fichier non joint." });
   }
   return { attached, failed };
 }
