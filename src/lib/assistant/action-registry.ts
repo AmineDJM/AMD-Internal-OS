@@ -1447,8 +1447,8 @@ X("GÉNÉRER L'ATTESTATION DE TRAVAIL D'UNE DEMANDE RH (Direction, 10/2026) — 
 ]);
 X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
   + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
-  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [
-  "settings-actions:setBcValidationThresholdCentre",
+  + "Adam est en pause : aucun geste neuf. Un formulaire sur l'écran du centre. — SUSPENDRE LA SÉPARATION DES TÂCHES DU CENTRE DE PAIEMENT (ARGENT-06) : lever un garde-fou, interdit à un agent (§118.6), geste journalisé du Super Admin.", [
+  "settings-actions:setBcValidationThresholdCentre", "settings-actions:setSeparationTachesPaiement",
 ]);
 X("RESOUMETTRE UNE « AUTRE DEMANDE » REFUSÉE ET PROLONGER UN CONTRAT DE CONSULTING (audit 360°, lot C4a) — la "
   + "resoumission est le geste du DEMANDEUR qui dit ce qui a changé depuis le refus (elle peut corriger la description "
@@ -2036,11 +2036,6 @@ X("L'ENTRETIEN DE L'INTÉGRATION AU SITE (§118.158) — relancer un envoi, vér
   "site-web-actions:verifierConnexionSite",
   "site-web-actions:rapprocherSiteMaintenant",
   "site-web-actions:leverBlocageSite",
-]);
-X("LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06) — la suspendre désarme le contrôle qui "
-  + "empêche un même compte de demander, autoriser et régler un paiement : §118.6 interdit structurellement à un agent "
-  + "de lever un garde-fou. C'est un geste de gouvernance du Super Admin, journalisé, sur /admin/settings.", [
-  "settings-actions:setSeparationTachesPaiement",
 ]);
 X("RELANCER LA BOÎTE MORTE DE LA COUCHE DE CONNAISSANCE remet en file des travaux qui APPELLENT DES MODÈLES "
   + "facturés (vecteurs, lectures visuelles) et que la file avait abandonnés : c'est une décision d'exploitation, prise "

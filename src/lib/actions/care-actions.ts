@@ -30,7 +30,7 @@ import { deposerFichiersSurLaPiece, retirerFichierDeLaPiece } from "@/lib/care-p
 import { phraseDepot } from "@/lib/care-pieces";
 import { createDossierRecord, ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { noterModificationFiche } from "@/lib/reservation-fiche/serveur";
-import { demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE } from "@/lib/care-engagement";
+import { demandePrevalidee, prendreLesCasesDuDevis, refusEngagementPriseEnCharge, rendreLaReserveDuDevis, REFUS_NON_PREVALIDEE } from "@/lib/care-engagement";
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
 import { relierALaPersonne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
@@ -1060,33 +1060,9 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
     });
     if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
   }
-  const rendreLaReserve = async () => {
-    // porte d'écriture : `canDecide` en tête (la Direction tranche toutes sociétés) — les seules cases de CE devis.
-    await prisma.careCell.updateMany({ where: { id: { in: cellIds }, quoteId: id, expenseOrderId: null }, data: { quoteId: null } }).catch(sansBloquer("care-actions.rendreLaReserve.careCell"));
-    await prisma.careQuote.updateMany({
-      where: { id, expenseOrderId: null, status: "ACCEPTED" },
-      data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
-    }).catch(sansBloquer("care-actions.rendreLaReserve.careQuote"));
-  };
-
-  // DEUX DEVIS DIFFÉRENTS SUR LES MÊMES CASES, ACCEPTÉS À LA MÊME MINUTE (audit 2026-10-27, DONNEES-08). La garde
-  // `quoteConflicts` lit les autres devis en mémoire : le PDG accepte A pendant que le DG accepte B, chacun voit
-  // l'autre encore « en attente », et les mêmes billets partaient payés deux fois. Les CASES se prennent donc
-  // aussi, sous verrou et dans un ordre fixe (deux preneurs ne peuvent pas s'entre-bloquer) : seul le devis qui
-  // les trouve toutes libres les marque à son nom ; l'autre rend sa réserve et le dit.
-  if (decision === "ACCEPTED") {
-    const prises = await prisma.$transaction(async (tx) => {
-      const lues = await tx.$queryRaw<{ id: string; quoteId: string | null }[]>`
-        SELECT id, "quoteId" FROM "CareCell" WHERE id = ANY(${cellIds}::text[]) ORDER BY id FOR UPDATE`;
-      if (lues.length !== cellIds.length || lues.some((c) => c.quoteId !== null && c.quoteId !== id)) return false;
-      await tx.careCell.updateMany({ where: { id: { in: cellIds } }, data: { quoteId: id } });
-      return true;
-    });
-    if (!prises) {
-      await rendreLaReserve();
-      return { ok: false, error: "Un autre devis couvrant les mêmes éléments vient d'être accepté : rechargez la page." };
-    }
-  }
+  const rendreLaReserve = () => rendreLaReserveDuDevis(id, cellIds, quote);
+  // DEVIS RIVAUX SUR LES MÊMES CASES (DONNEES-08) : seul le devis qui les trouve toutes libres les prend, sous verrou.
+  if (decision === "ACCEPTED" && !(await prendreLesCasesDuDevis(id, cellIds))) { await rendreLaReserve(); return { ok: false, error: "Un autre devis couvrant les mêmes éléments vient d'être accepté : rechargez la page." }; }
 
   let ordreNe = false;
   try {

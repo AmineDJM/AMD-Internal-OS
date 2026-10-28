@@ -150,11 +150,7 @@ async function isRequestOwner(user: SessionUser, entityType: EntityType, entityI
   return false;
 }
 
-/**
- * Les natures de dossier du module Ad&Pro. La demande « Autre » (27/10/2026) y est entrée avec l'audit sécurité
- * (SA-14) : absente, elle tombait hors du contrôle de société — sa fiche et ses pièces s'ouvraient, par identifiant,
- * à qui avait le module dans n'importe quelle société.
- */
+/** Les natures de dossier du module Ad&Pro — « Autre » comprise (SA-14 : absente, elle échappait au contrôle de société). */
 const AD_PRO_TYPES: EntityType[] = [
   "SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "PROMO_MATERIAL", "AD_PRO_OTHER",
 ];
@@ -222,8 +218,7 @@ async function adProStakeholders(
       case "EVENT": return prisma.event.findUnique({ where: { id: entityId }, ...sel });
       case "PROMO_MATERIAL":
         return prisma.promoMaterial.findUnique({ where: { id: entityId }, select: { requesterId: true, assistantId: true, companyId: true, ...bu } });
-      case "AD_PRO_OTHER":
-        return prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { requesterId: true, companyId: true, ...bu } });
+      case "AD_PRO_OTHER": return prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { requesterId: true, companyId: true, ...bu } });
       default: return null;
     }
   })();
@@ -951,41 +946,16 @@ export async function canAccessEntity(
       });
       return Boolean(found);
     }
-    case "VISIT": {
-      const found = await prisma.medicalVisit.findFirst({
-        where: { AND: [{ id: entityId }, scopeMedicalVisits(user)] },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "SALE": {
-      const found = await prisma.sale.findFirst({
-        where: { AND: [{ id: entityId }, scopeSales(user)] },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "BD_OPPORTUNITY": {
-      const found = await prisma.businessDevelopmentOpportunity.findFirst({
-        where: { AND: [{ id: entityId }, scopeBusinessDevelopment(user)] },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "SUPPORT_REQUEST": {
-      const found = await prisma.supportRequest.findFirst({
-        where: { AND: [{ id: entityId }, scopeSupport(user)] },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
-    case "DOSSIER": {
-      const found = await prisma.dossier.findFirst({
-        where: { AND: [{ id: entityId }, scopeDossiers(user)] },
-        select: { id: true },
-      });
-      return Boolean(found);
-    }
+    case "VISIT":
+      return Boolean(await prisma.medicalVisit.findFirst({ where: { AND: [{ id: entityId }, scopeMedicalVisits(user)] }, select: { id: true } }));
+    case "SALE":
+      return Boolean(await prisma.sale.findFirst({ where: { AND: [{ id: entityId }, scopeSales(user)] }, select: { id: true } }));
+    case "BD_OPPORTUNITY":
+      return Boolean(await prisma.businessDevelopmentOpportunity.findFirst({ where: { AND: [{ id: entityId }, scopeBusinessDevelopment(user)] }, select: { id: true } }));
+    case "SUPPORT_REQUEST":
+      return Boolean(await prisma.supportRequest.findFirst({ where: { AND: [{ id: entityId }, scopeSupport(user)] }, select: { id: true } }));
+    case "DOSSIER":
+      return Boolean(await prisma.dossier.findFirst({ where: { AND: [{ id: entityId }, scopeDossiers(user)] }, select: { id: true } }));
     case "PCH_TENDER": {
       // LA CLAUSE DE LA FICHE (§118.184 — audit 360°, S11) : ce type tombait dans le `default` — le droit
       // de module suffisait, et les pièces d'un marché d'une autre société se lisaient, se joignaient et
@@ -1063,10 +1033,7 @@ export async function canAccessEntity(
       });
       return c ? Boolean(await recruitmentViewer(user, c.requestId)) : false;
     }
-    case "CONSULTING_CONTRACT": {
-      // LA SOCIÉTÉ DU CONTRAT (audit 27/10, SA-14) — le module de son PÔLE est déjà lu plus haut (§118.150) ; sans ce
-      // cas, le `default` ouvrait le contrat (rémunération comprise) et ses pièces à qui avait le module, toutes
-      // sociétés confondues. La règle d'une fiche ouverte par son lien : toutes les sociétés auxquelles on a droit.
+    case "CONSULTING_CONTRACT": { // LA SOCIÉTÉ DU CONTRAT (SA-14) : le `default` l'ouvrait, rémunération comprise, toutes sociétés confondues.
       const c = await prisma.consultingContract.findUnique({ where: { id: entityId }, select: { companyId: true } });
       return c ? entitePermisePourFiche(user.id, c.companyId) : false;
     }
@@ -1131,121 +1098,4 @@ export async function peutEchangerSurConge(user: SessionUser, leaveId: string): 
   try { chaine = await getManagementChain(l.employeeId); } catch { chaine = []; }
   if (chaine.some((m) => m.userId === user.id)) return true;
   return canAccessEntity(user, "LEAVE_REQUEST", leaveId, "VIEW");
-}
-
-/**
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE SEULE PORTE D'ÉCRITURE PAR OBJET (audit 27/10/2026, rapport 01 §3.1).
- *
- * Elle vit ici, à côté de `canAccessEntity` dont elle applique la règle de ligne : un fichier à part
- * sortait de la carte des couches (cliquet `couverture`, hors carte).
- *
- * L'audit sécurité a mesuré la même faute neuf fois sur dix : une action relit le droit du MODULE
- * (`userCan(user, "FINANCES", "UPDATE")`), puis écrit `where: { id }`. Le droit du module dit « vous
- * pouvez régler des ordres » ; il ne dit pas « vous pouvez régler CET ordre ». Un comptable cloisonné
- * sur Pharmagène qui reçoit l'identifiant d'un ordre d'Adventum (lien partagé, Adam, appel direct de
- * l'action) le réglait.
- *
- * `ouvrirPourEcrire` pose les trois questions dans l'ordre, et une seule réponse :
- *   1. le droit du module pour ce geste (`userCan`) ;
- *   2. la règle de la ligne quand le type en a une (`canAccessEntity` : portée, parties prenantes) ;
- *   3. la société de l'objet, que la personne doit avoir le droit de voir (`entitePermisePourFiche`,
- *      la même règle qu'une fiche ouverte par son lien, §118.184).
- *
- * Hors de la porte, l'objet est INTROUVABLE — on ne dit pas à un curieux qu'il existe.
- *
- *   const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "UPDATE");
- *   if (!porte.ok) return porte;
- *
- * Un geste qui a SA PROPRE règle de droit (un siège du centre de paiement n'a pas forcément le
- * module Finances) passe `{ droitDuModule: false }` après l'avoir vérifiée : la ligne et la
- * société restent contrôlées ici.
- *
- * Ajouter un type : une entrée dans `OBJETS` — le module, la phrase « introuvable », et la lecture
- * de la société (avec, s'il existe, l'objet dont la règle de ligne s'applique).
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- */
-
-export type GesteDEcriture = "UPDATE" | "DELETE" | "VALIDATE";
-
-export type PorteEcriture =
-  | { ok: true; companyId: string | null }
-  | { ok: false; error: string };
-
-type LigneLue = {
-  companyId: string | null;
-  /** L'objet dont la règle de ligne (`canAccessEntity`) s'applique — l'objet lui-même, ou son parent. */
-  entite?: { type: EntityType; id: string };
-} | null;
-
-type Fiche = {
-  module: Module;
-  introuvable: string;
-  /** La phrase quand le droit du module manque — par défaut « Non autorisé. ». */
-  nonAutorise?: string;
-  lire: (id: string) => Promise<LigneLue>;
-};
-
-const OBJETS = {
-  EXPENSE_ORDER: {
-    module: "FINANCES",
-    introuvable: "Ordre introuvable.",
-    nonAutorise: "Réservé à la comptabilité (Finances).",
-    lire: (id) => prisma.expenseOrder.findUnique({ where: { id }, select: { companyId: true } }),
-  },
-  FINANCE_TRANSACTION: {
-    module: "FINANCES",
-    introuvable: "Écriture introuvable.",
-    lire: (id) => prisma.financeTransaction.findUnique({ where: { id }, select: { companyId: true } }),
-  },
-  EVENT: {
-    module: "EVENTS",
-    introuvable: "Événement introuvable.",
-    lire: async (id) => {
-      const e = await prisma.event.findUnique({ where: { id }, select: { companyId: true } });
-      return e && { companyId: e.companyId, entite: { type: "EVENT", id } };
-    },
-  },
-  // Un participant appartient à SON événement : la règle de l'événement s'applique.
-  EVENT_REGISTRATION: {
-    module: "EVENTS",
-    introuvable: "Participant introuvable.",
-    lire: async (id) => {
-      const r = await prisma.eventRegistration.findUnique({ where: { id }, select: { eventId: true, event: { select: { companyId: true } } } });
-      return r && { companyId: r.event.companyId, entite: { type: "EVENT", id: r.eventId } };
-    },
-  },
-  FIELD_REPORT: {
-    module: "FIELD_REPORTS",
-    introuvable: "Rapport introuvable.",
-    lire: (id) => prisma.fieldReport.findUnique({ where: { id }, select: { companyId: true } }),
-  },
-  LEGAL_FOLDER: {
-    module: "LEGAL",
-    introuvable: "Dossier introuvable.",
-    lire: (id) => prisma.legalFolder.findUnique({ where: { id }, select: { companyId: true } }),
-  },
-  MAIL_FOLDER: {
-    module: "MAIL_REGISTER",
-    introuvable: "Dossier introuvable.",
-    lire: (id) => prisma.mailEntryFolder.findUnique({ where: { id }, select: { companyId: true } }),
-  },
-} satisfies Record<string, Fiche>;
-
-export type ObjetEcrit = keyof typeof OBJETS;
-
-export async function ouvrirPourEcrire(
-  user: SessionUser,
-  type: ObjetEcrit,
-  id: string,
-  geste: GesteDEcriture,
-  options: { droitDuModule?: boolean } = {},
-): Promise<PorteEcriture> {
-  const fiche: Fiche = OBJETS[type];
-  if (options.droitDuModule !== false && !userCan(user, fiche.module, geste)) return { ok: false, error: fiche.nonAutorise ?? "Non autorisé." };
-  const ligne = await fiche.lire(id);
-  if (!ligne) return { ok: false, error: fiche.introuvable };
-  if (ligne.entite && !(await canAccessEntity(user, ligne.entite.type, ligne.entite.id, geste))) return { ok: false, error: fiche.introuvable };
-  if (!(await entitePermisePourFiche(user.id, ligne.companyId))) return { ok: false, error: fiche.introuvable };
-  return { ok: true, companyId: ligne.companyId };
 }

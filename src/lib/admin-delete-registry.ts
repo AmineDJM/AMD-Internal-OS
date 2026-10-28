@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { refusSuppressionRapport } from "@/lib/promo/remises-visite";
 import { refusSuppressionDeLaPiece } from "@/lib/queries/suppression-piece";
 import { refusSuppressionDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
+import { refusSuppressionCommandePch, refusSuppressionLotDeMarche, refusSuppressionPraticien } from "@/lib/queries/suppression-refus";
 import { retirerEnAttente } from "@/lib/bons-de-commande/aiguillage";
 import { inventorier } from "@/lib/suppression/lot";
 import { resumeDesLiens } from "@/lib/suppression/branches";
@@ -385,20 +386,8 @@ export const DELETE_REGISTRY: Record<DeletableKind, KindSpec> = {
       const r = await prisma.medicalDoctor.findUnique({ where: { id }, select: { name: true } });
       return r ? r.name : null;
     },
-    // CE QUI A EU LIEU NE S'EFFACE PAS (audit 27/10, DONNEES-07). Un praticien qui porte des visites rapportées ou des
-    // montants Ad & Pro attribués ne se supprime pas : la cascade emportait ses montants (`AdProMedecin`), sa
-    // segmentation et ses observations, sans retour. On l'ARCHIVE (sa fiche quitte l'annuaire, son historique reste).
-    refuse: async (id) => {
-      const [visites, montants] = await Promise.all([
-        prisma.medicalVisit.count({ where: { doctorId: id, status: "COMPLETED" } }),
-        prisma.adProMedecin.count({ where: { doctorId: id } }),
-      ]);
-      if (visites === 0 && montants === 0) return null;
-      const faits = [visites ? `${visites} visite(s) rapportée(s)` : null, montants ? `${montants} montant(s) Ad & Pro attribué(s)` : null].filter(Boolean).join(" et ");
-      return `Ce praticien porte ${faits} : il ne se supprime pas. Archivez-le depuis l'annuaire — sa fiche en sort, son historique reste.`;
-    },
-    // UN LOT (DONNEES-07) : ce qui part en cascade avec la fiche (segmentation, observations, couleurs de cellule)
-    // part dans la MÊME entrée de corbeille et revient avec elle.
+    refuse: refusSuppressionPraticien,
+    // UN LOT (DONNEES-07) : segmentation, observations, couleurs de cellule partent et reviennent avec la fiche.
     lot: true,
     async remove(id) {
       await prisma.medicalDoctor.delete({ where: { id } });
@@ -724,17 +713,8 @@ export const DELETE_REGISTRY: Record<DeletableKind, KindSpec> = {
     redirect: "/pch",
     model: "pchOrder",
     entityType: "PCH_ORDER",
-    // UNE COMMANDE LIVRÉE NE SE SUPPRIME PAS (audit 27/10, DONNEES-15) : ses bons de livraison justifient des entrées
-    // en stock — la supprimer détachait les mouvements de stock de leur livraison et perdait les réserves de
-    // réception. On corrige une commande livrée, on ne l'efface pas.
-    refuse: async (id) => {
-      const livrees = await prisma.pchDelivery.count({ where: { orderId: id, deliveredAt: { not: null } } });
-      return livrees > 0
-        ? `Ce bon de commande porte ${livrees} livraison(s) réceptionnée(s) : il ne se supprime pas — ses bons de livraison justifient des entrées en stock. Corrigez-le plutôt.`
-        : null;
-    },
-    // UN LOT : ses lignes et ses livraisons attendues (cascade) partent dans la même entrée de corbeille, et
-    // reviennent avec lui. Elle partait d'un seul `delete`, sans corbeille ni journal.
+    refuse: refusSuppressionCommandePch,
+    // UN LOT (DONNEES-15) : lignes et livraisons attendues partent et reviennent avec lui (avant : un `delete` nu).
     lot: true,
     async describe(id) {
       const r = await prisma.pchOrder.findUnique({ where: { id }, select: { reference: true, tender: { select: { reference: true } } } });
@@ -758,39 +738,7 @@ export const DELETE_REGISTRY: Record<DeletableKind, KindSpec> = {
       const r = await prisma.pchTenderLine.findUnique({ where: { id }, select: { designation: true, tender: { select: { reference: true } } } });
       return r ? `${r.designation} — ${r.tender.reference}` : null;
     },
-    /**
-     * CE QUI DÉCOULE DU LOT NE SE DÉTACHE PAS EN SILENCE. Un bon de commande né de la ligne (`PchOrder.lineId`,
-     * un lien TEXTE que Postgres ne vide pas : il désignerait un lot disparu) ou qui la porte en ligne, une
-     * ligne de contrat de marché, une vente sous marché, la répartition d'un poste Ad & Pro : les quatre la
-     * désignent, et la clé étrangère les viderait sans un mot — une vente sous marché passerait pour une vente
-     * de VILLE (§118.118), un contrat ne dirait plus de quel lot il découle. On COMPTE sans nommer ce qui n'est
-     * pas du marché : le titre d'un contrat passe par la porte de Legal, le libellé d'un poste par celle
-     * d'Ad & Pro, et ce refus ne sait pas qui le lit (§118.118). Le remède est un geste qui EXISTE sur la ligne.
-     */
-    async refuse(id) {
-      const [bons, lignesDeBon, lignesDeContrat, ventes, repartitions] = await Promise.all([
-        prisma.pchOrder.findMany({ where: { lineId: id }, select: { id: true, reference: true } }),
-        prisma.pchOrderLine.findMany({ where: { tenderLineId: id }, select: { order: { select: { id: true, reference: true } } } }),
-        prisma.pchContractLine.count({ where: { tenderLineId: id } }),
-        prisma.sale.count({ where: { tenderLineId: id } }),
-        prisma.adProProductAllocation.count({ where: { tenderLineId: id } }),
-      ]);
-      const bc = new Map<string, string>();
-      for (const b of [...bons, ...lignesDeBon.map((l) => l.order)]) bc.set(b.id, b.reference ?? "sans numéro");
-      const refs = [...bc.values()];
-      const pl = (n: number, un: string, des: string) => `${n} ${n > 1 ? des : un}`;
-      const parts: string[] = [];
-      if (refs.length) {
-        const noms = refs.length <= 3 ? refs.join(", ") : `${refs.slice(0, 3).join(", ")} et ${pl(refs.length - 3, "autre", "autres")}`;
-        parts.push(`${pl(refs.length, "bon de commande", "bons de commande")} (${noms})`);
-      }
-      if (lignesDeContrat) parts.push(pl(lignesDeContrat, "ligne de contrat de marché", "lignes de contrat de marché"));
-      if (ventes) parts.push(pl(ventes, "vente sous marché", "ventes sous marché"));
-      if (repartitions) parts.push(pl(repartitions, "répartition d'un poste Ad & Pro", "répartitions de postes Ad & Pro"));
-      if (parts.length === 0) return null;
-      const liste = parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} et ${parts[parts.length - 1]}`;
-      return `Ce lot ne se supprime pas : il porte ${liste}. Le supprimer les détacherait de leur lot — une vente sous marché passerait pour une vente de ville, un contrat ne dirait plus de quel lot il découle. Pour le sortir du marché, passez son statut à « Lot annulé » : il reste à l'historique, avec ce qui en découle.`;
-    },
+    refuse: refusSuppressionLotDeMarche,
     async remove(id) {
       await prisma.pchTenderLine.delete({ where: { id } });
     },

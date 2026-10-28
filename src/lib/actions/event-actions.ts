@@ -7,7 +7,8 @@ import {
 import type { CongressRequestStatus } from "@prisma/client";
 import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, anyRoleFilter, hasGlobalView } from "@/lib/rbac";
-import { canAccessEntity, ouvrirPourEcrire } from "@/lib/entity-access";
+import { canAccessEntity } from "@/lib/entity-access";
+import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { isAdProDecided } from "@/lib/ad-pro-edit";
 import { porteeModificationEvenement, champsModifies, CHAMPS_ORGANISATION } from "@/lib/events/modification";
 import { prisma } from "@/lib/prisma";

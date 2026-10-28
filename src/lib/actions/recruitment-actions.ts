@@ -151,10 +151,8 @@ export async function createRecruitmentRequest(
   const departmentId = fdStr(formData, "departmentId");
   const year = new Date().getFullYear();
   const created = await createWithRetry(async () => {
-    const reference = await referenceDeSerie({
-      modele: "RecruitmentRequest", prefixe: "REC", annee: year,
-      existantes: async () => (await prisma.recruitmentRequest.findMany({ where: { reference: { startsWith: `REC-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
-    });
+    const reference = await referenceDeSerie({ modele: "RecruitmentRequest", prefixe: "REC", annee: year,
+      existantes: async () => (await prisma.recruitmentRequest.findMany({ where: { reference: { startsWith: `REC-${year}-` } }, select: { reference: true } })).map((r) => r.reference) });
     return prisma.recruitmentRequest.create({
       data: {
         reference,

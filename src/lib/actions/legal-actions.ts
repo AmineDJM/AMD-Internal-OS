@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { resolveParties, findPartyByName } from "@/lib/queries/company-contacts";
+import { refusAnnulationFacture } from "@/lib/queries/legal-annulation";
 import { recordAudit } from "@/lib/audit";
 import { companyIdForNew } from "@/lib/company";
 import { canRenew, canCancel, canRestore, statutRetabli, validateDates, proposeRenewalDates } from "@/lib/legal/lifecycle";
@@ -681,8 +682,7 @@ export async function cancelLegalDocument(formData: FormData): Promise<ActionRes
   if (!id) return { ok: false, error: "Document introuvable." };
   if (!(await canAccessEntity(user, "LEGAL_DOCUMENT", id, "UPDATE"))) return { ok: false, error: "Document introuvable." };
 
-  // LA MÊME FILE QUE L'ENVOI AU RÈGLEMENT (audit 27/10, reste de DONNEES-05) : annuler et envoyer la même facture au
-  // même instant ne s'entrelacent plus dans ce processus ; entre deux processus, les écritures conditionnelles tiennent.
+  // LA FILE DE L'ENVOI AU RÈGLEMENT (reste de DONNEES-05) ; entre deux processus, les écritures conditionnelles tiennent.
   return enSerie(cleEnvoiAuReglement(id), async (): Promise<ActionResult> => {
     const doc = await prisma.legalDocument.findUnique({ where: { id }, select: { title: true, status: true, kind: true, expenseOrderId: true } });
     if (!doc) return { ok: false, error: "Document introuvable." };
@@ -692,24 +692,8 @@ export async function cancelLegalDocument(formData: FormData): Promise<ActionRes
     // ici, les refusait sous un bouton offert ; un second contrôle redirait la porte (§118.5).
     if (!canCancel(doc.status)) return { ok: false, error: "Ce document ne peut plus être annulé." };
 
-    // UNE FACTURE DONT DU MATÉRIEL EST ENTRÉ AU STOCK NE S'ANNULE PAS D'ICI : le dossier du matériel
-    // promotionnel le refuse déjà (« annulez d'abord leur réception ») ; l'annuler depuis Legal laissait
-    // au magasin des unités entrées sur une facture qui n'existe plus (§118.71 — une porte gardée à côté
-    // d'une porte ouverte).
-    if (doc.kind === "INVOICE") {
-      const recues = await prisma.promoFactureLigne.count({ where: { facture: { legalDocumentId: id }, quantiteRecue: { not: null } } });
-      if (recues > 0) {
-        return { ok: false, error: `${recues} ligne(s) de cette facture sont réceptionnées au stock promotionnel : annulez d'abord leur réception depuis le dossier du matériel (ce qui est entré au magasin y est physiquement).` };
-      }
-      // UNE FACTURE CRÉDITÉE PAR DES AVOIRS NE S'ANNULE PAS SOUS EUX (§118.195) : le client garderait des avoirs sur
-      // une facture qui n'existe plus. Les avoirs d'abord — ils s'annulent un par un, motif à l'appui.
-      const avoirs = await prisma.legalDocument.findMany({
-        where: { chainFromId: id, kind: "CREDIT_NOTE", status: { not: "CANCELLED" } }, select: { reference: true }, orderBy: { createdAt: "asc" },
-      });
-      if (avoirs.length > 0) {
-        return { ok: false, error: `Cette facture est créditée par ${avoirs.length > 1 ? `${avoirs.length} avoirs` : "un avoir"} (${avoirs.map((a) => a.reference ?? "sans numéro").join(", ")}) : annulez-${avoirs.length > 1 ? "les" : "le"} d'abord — une facture ne s'annule pas sous ses avoirs.` };
-      }
-    }
+    // Une facture réceptionnée au stock promotionnel, ou créditée par des avoirs, ne s'annule pas d'ici.
+    const refusFacture = doc.kind === "INVOICE" ? await refusAnnulationFacture(id) : null; if (refusFacture) return { ok: false, error: refusFacture };
     // UN MOTIF, toujours (audit 360°, L04) : l'annulation partait sans, et même sur le bouton « Annuler »
     // de la boîte qui le demandait. Un contrat annulé ne rappelle plus son échéance — on doit savoir pourquoi.
     // Demandé APRÈS les refus ci-dessus et AVANT tout effet : on ne demande pas pourquoi annuler une pièce

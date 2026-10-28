@@ -334,13 +334,8 @@ export async function createRegulatoryProduct(
   // formulaire de trente champs. Une création à la fois dans ce processus, un réessai entre deux.
   const product = await enSerie("REG", () => createWithRetry(async () => prisma.regulatoryProduct.create({
     data: {
-      reference: await referenceDeSerie({
-        modele: "RegulatoryProduct", prefixe: "REG", annee: year,
-        existantes: async () => (await prisma.regulatoryProduct.findMany({
-          where: { reference: { startsWith: `REG-${year}-` } },
-          select: { reference: true },
-        })).map((r) => r.reference),
-      }),
+      reference: await referenceDeSerie({ modele: "RegulatoryProduct", prefixe: "REG", annee: year,
+        existantes: async () => (await prisma.regulatoryProduct.findMany({ where: { reference: { startsWith: `REG-${year}-` } }, select: { reference: true } })).map((r) => r.reference) }),
       dci,
       molecules: molecules.length > 1 ? (molecules as unknown as Prisma.InputJsonValue) : undefined,
       brandName: str(formData, "brandName"),
