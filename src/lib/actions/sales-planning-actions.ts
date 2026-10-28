@@ -11,14 +11,11 @@ import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
 import { CHEMINS_SPECIALITES } from "@/lib/annuaires/specialites";
 import { canAttachBuDepartment, buDepartmentName } from "@/lib/sfe/bu-department";
 import { GRANULARITE_LABELS, JOURS_AVANT_ECHEANCE_MAX, estGranularite } from "@/lib/sfe/tournee";
-import { DOSSIERS_PROPOSABLES_BU } from "@/lib/sfe/produits-bu";
-import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { enSerie } from "@/lib/refs";
 import { specialitesDemandees, ecrireSpecialitesBu, resumeSpecialitesBu } from "@/lib/sfe/specialites-bu";
 import { estBuHospitaliere } from "@/lib/sfe/territoire-kam";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
 import { reposerWilayaCode } from "@/modules/lieux/api";
-import { sansBloquer } from "@/lib/journal";
 import {
   NOM_SECTEUR_MAX, REFUS_BU_DE_VILLE, REFUS_TERRITOIRE_PAR_SECTEUR, libererNomRetire, nomParDefautDuTerritoire,
   phrasesDuRattachement, rendreSonTerritoire, verifierSecteur,
@@ -27,7 +24,8 @@ import {
   REFUS_DELAI_SOUMISSION, ceQueLaBuPorte, creerSousDepartementDeLaBu, departementExiste, directionCommercialeDe,
   parseChannel, referentQuiTranche, refusMaille, reporterAffectations,
 } from "@/lib/actions/internes/sales-planning/business-units";
-// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/sales-planning/{secteurs,business-units}` — les actions restent ici (leur clé de contrat).
+import { lireLeProduitPromu } from "@/lib/actions/internes/sales-planning/produits";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/sales-planning/{secteurs,business-units,produits}` — les actions restent ici (leur clé de contrat).
 
 const MODULE = "SALES_PLANNING" as const;
 /**
@@ -249,42 +247,9 @@ export async function createPromoProduct(formData: FormData): Promise<ActionResu
   if (!userCan(user, BU_MODULE, "CREATE")) return { ok: false, error: "Non autorisé." };
   const businessUnitId = fdStr(formData, "businessUnitId") || null;
 
-  // LE PRODUIT PROMU VIENT DU DOSSIER RÉGLEMENTAIRE. Le saisir au clavier créait un second
-  // référentiel de produits, qui divergeait du premier au premier changement de nom — et rendait
-  // impossible de remonter du terrain au dossier. On reprend donc le nom et la référence du
-  // dossier ; le nom reste modifiable ensuite (une marque commerciale n'est pas une DCI).
-  const regulatoryProductId = fdStr(formData, "regulatoryProductId");
-  let name = fdStr(formData, "name");
-  let code = fdStr(formData, "code");
-  // LE PRODUIT CANONIQUE DU DOSSIER (§118.178) : c'est lui qu'une visite rapporte. Sans lui, le
-  // produit ajouté à la BU ne pouvait figurer dans AUCUN rapport — refusé à chaque visite.
-  let productId: string | null = null;
-  if (regulatoryProductId) {
-    // La clause de la LISTE de l'écran : un dossier du pipeline, deviné, n'entre pas au catalogue.
-    const dossier = await prisma.regulatoryProduct.findFirst({
-      where: { AND: [{ id: regulatoryProductId }, DOSSIERS_PROPOSABLES_BU] },
-      select: { reference: true, dci: true, brandName: true, productId: true },
-    });
-    if (!dossier) return { ok: false, error: "Ce dossier Regulatory n'existe pas, ou n'est pas encore ouvert au catalogue promotionnel." };
-    name = name || dossier.brandName || dossier.dci;
-    code = code || dossier.reference;
-    productId = dossier.productId;
-    if (!productId) {
-      // Produit = dossier : un dossier sans produit (d'avant ce lot) reçoit le sien ici.
-      const lien = await ensureProduitDuDossier(regulatoryProductId, { acteurId: user.id }).catch(sansBloquer("sales-planning-actions.createPromoProduct.ensureProduitDuDossier", null));
-      productId = lien && "produitId" in lien ? lien.produitId : null;
-    }
-  }
-  if (!name) return { ok: false, error: "Choisissez un dossier Regulatory, ou donnez un nom de produit." };
-
-  // LE CANAL SUIT LA BU quand le formulaire ne le dit pas : c'est la franchise qui décide du
-  // terrain, et redemander la même réponse à chaque produit est le genre de saisie qu'on ne fait
-  // qu'une fois — mal.
-  let channel = parseChannel(fdStr(formData, "channel"));
-  if (!formData.has("channel") && businessUnitId) {
-    const bu = await prisma.businessUnit.findUnique({ where: { id: businessUnitId }, select: { channel: true } });
-    if (bu) channel = bu.channel;
-  }
+  const lu = await lireLeProduitPromu(formData, { acteurId: user.id, businessUnitId });
+  if ("fini" in lu) return { ok: false, error: lu.fini };
+  const { regulatoryProductId, name, code, productId, channel } = lu;
 
   await prisma.promoProduct.create({
     data: {
