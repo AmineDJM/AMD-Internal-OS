@@ -6,48 +6,38 @@ import { synchroniserOffreDeLaDemande } from "@/lib/site-web/contenus";
 import type { ContractType } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { userCan, rolesWithModule, isTopManagement } from "@/lib/rbac";
+import { userCan, rolesWithModule } from "@/lib/rbac";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { buildRef, createWithRetry } from "@/lib/refs";
 import { companyIdForNew } from "@/lib/company";
-import { getManagementChain } from "@/lib/departments";
 import { attachFormFiles } from "@/lib/documents";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { recruitmentViewer } from "@/lib/recruitment/access";
 import { ecrireAuFil } from "@/lib/ad-pro/fil";
 import {
   abilities, ETAPES_RETIRABLES, prevenusAuRetrait, applyChainDecision, canDecideStep, canSelectCandidate, currentStep,
-  needsOnboarding, summarize, validateDraft, CONTRACT_LABEL,
-  marchesChangees, changementsMateriels, reouverture, STAGE_LABEL,
-  completerJusquAuSommet, ORDRE_DU_SOMMET, cibleDeLaDecision, decisionDuSommetExigeSuivi,
-  nettoyerIds, refusDesignationDuSommet, suiveursAPrevenir,
-  type ChainStep, type RecruitmentContract, type RecruitmentStage,
+  needsOnboarding, summarize, validateDraft, CONTRACT_LABEL, marchesChangees, reouverture, STAGE_LABEL,
+  cibleDeLaDecision, decisionDuSommetExigeSuivi, nettoyerIds, type ChainStep, type RecruitmentContract,
+  type RecruitmentStage,
 } from "@/lib/recruitment/request-flow";
 import { relierALaPersonne, relierCommeLaLigne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
+import {
+  AUCUN_VALIDATEUR, DEJA_CHANGE, EtatChange, MOTIF_REFUS, buildChain, etapesDeLaChaine, prevenirLaSuite,
+  prevenirLeSuivi, prevenirLesApprobateurs, prevenirQuiLaReprend,
+} from "@/lib/actions/internes/recruitment/circuit";
+import {
+  annoncerLaDesignation, designesDuSommet, ficheDeLaRecrue, ficheDuFuturManager, phraseDuSuivi,
+  questionDeLaDemande, refusAnnulationEmbauche, refusRenvoi, refusRetrait,
+} from "@/lib/actions/internes/recruitment/decisions";
+import {
+  issueDeLaCorrection, phraseDeLaCorrection, phraseDeLaReouverture, phraseDeLaReponse,
+} from "@/lib/actions/internes/recruitment/phrases";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/recruitment/{circuit,decisions,phrases}` — les actions restent ici (leur clé de contrat).
 
 /** Les valeurs multiples d'un champ (`followerIds`) — lu par nom littéral, comme les autres champs. */
 const fdList = (formData: FormData, key: string): string[] => formData.getAll(key).map((v) => String(v)).filter(Boolean);
-
-/**
- * PRÉVENIR LE SUIVI — le futur N+1 et les personnes en charge du suivi (désignés par le DG, Direction 07/10)
- * reçoivent les notifications d'étape là où le demandeur les reçoit. Jamais l'auteur du geste ni ceux de `sauf`
- * (le demandeur, déjà prévenu). Un échec de notification ne défait pas le geste.
- */
-async function prevenirLeSuivi(
-  id: string,
-  n: { title: string; body: string },
-  sauf: (string | null | undefined)[],
-): Promise<void> {
-  const r = await prisma.recruitmentRequest.findUnique({
-    where: { id }, select: { futureManagerId: true, followers: { select: { userId: true } } },
-  });
-  if (!r) return;
-  for (const userId of suiveursAPrevenir(r.futureManagerId, r.followers.map((f) => f.userId), sauf)) {
-    await notifyUser({ userId, type: "GENERIC", title: n.title, body: n.body, link: `/recrutement/${id}` }).catch(sansBloquer("recruitment-actions.prevenirLeSuivi.notifyUser"));
-  }
-}
 
 /**
  * LE CIRCUIT DE RECRUTEMENT — la porte de l'écran.
@@ -58,62 +48,7 @@ async function prevenirLeSuivi(
  * l'écran : un bouton visible correspond alors toujours à une action permise, et l'inverse.
  */
 
-/**
- * UN GESTE À LA FOIS (audit 360°, R14 — §118.192). Chaque écriture d'étape est conditionnelle sur l'étape
- * LUE : deux gestes croisés sur la même demande — le N+1 et la direction sur la même marche, un retrait
- * pendant une validation, deux RH qui tranchent ensemble — ne s'écrasent plus l'un l'autre. Le perdant
- * le dit et n'écrit rien ; dans une transaction, il défait ce qu'il avait commencé.
- */
-class EtatChange extends Error {}
-const DEJA_CHANGE = "Cette demande vient de changer — un autre geste est passé avant le vôtre : rouvrez-la pour voir où elle en est.";
-const MOTIF_REFUS = "Un refus se motive — c'est ce que le demandeur lira.";
-
 // ───────────────────────────── Créer la demande ─────────────────────────────
-
-/**
- * Construit la chaîne de validation : le N+1, puis les N+1 successifs jusqu'au sommet.
- *
- * Elle est FIGÉE ici, à la soumission. Une réorganisation en cours de route changerait sinon les
- * validateurs d'une demande déjà partie, et l'on ne saurait plus qui devait trancher quand elle a
- * été déposée.
- *
- * Le demandeur est écarté de sa propre chaîne : un directeur qui est aussi son propre N+1 dans
- * l'organigramme ne se valide pas lui-même.
- *
- * ELLE MONTE JUSQU'AU DG (Direction, 07/10) : si l'organigramme s'arrête avant le sommet (`isTopManagement`), le
- * premier sommet actif — DG, puis Direction, puis Super Admin — est ajouté en dernière marche
- * (`completerJusquAuSommet`). Un demandeur sans fiche employé part donc directement au sommet.
- */
-async function buildChain(requesterUserId: string): Promise<{ approverId: string; name: string }[]> {
-  const emp = await prisma.employee.findUnique({ where: { userId: requesterUserId }, select: { id: true } });
-  const chain = emp ? await getManagementChain(emp.id) : [];
-  const ids: string[] = [];
-  const noms = new Map<string, string>();
-  const seen = new Set<string>([requesterUserId]);
-  for (const m of chain) {
-    if (!m.userId || seen.has(m.userId)) continue;
-    seen.add(m.userId);
-    ids.push(m.userId);
-    noms.set(m.userId, m.fullName);
-  }
-  const [comptes, sommets] = await Promise.all([
-    prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, role: true, secondaryRole: true } }),
-    prisma.user.findMany({
-      where: { isActive: true, OR: [{ role: { in: [...ORDRE_DU_SOMMET] } }, { secondaryRole: { in: [...ORDRE_DU_SOMMET] } }] },
-      select: { id: true, name: true, role: true, secondaryRole: true },
-    }),
-  ]);
-  const top = new Map(comptes.map((c) => [c.id, isTopManagement(c)]));
-  const rang = (u: { role: string; secondaryRole: string | null }) => Math.min(
-    ...[u.role, u.secondaryRole].map((r) => { const i = (ORDRE_DU_SOMMET as readonly string[]).indexOf(r ?? ""); return i < 0 ? 99 : i; }),
-  );
-  const sommetsTries = [...sommets].sort((a, b) => rang(a) - rang(b) || a.name.localeCompare(b.name));
-  return completerJusquAuSommet(
-    ids.map((id) => ({ approverId: id, name: noms.get(id) ?? "", isTop: top.get(id) ?? false })),
-    sommetsTries.map((s) => ({ id: s.id, name: s.name })),
-    requesterUserId,
-  );
-}
 
 export async function createRecruitmentRequest(
   _prev: ActionResult | undefined,
@@ -140,13 +75,7 @@ export async function createRecruitmentRequest(
   // LA CHAÎNE EST CALCULÉE AVANT D'ÉCRIRE. Sans elle, la demande naîtrait sans validateur : elle
   // ne serait ni refusée ni approuvée, simplement invisible de tout le monde.
   const chain = await buildChain(user.id);
-  if (chain.length === 0) {
-    return {
-      ok: false,
-      error: "Aucun validateur n'a pu être trouvé — ni responsable hiérarchique au-dessus de vous, ni direction "
-        + "générale active : la demande ne pourrait être validée par personne. Faites compléter l'organigramme par les RH.",
-    };
-  }
+  if (chain.length === 0) return { ok: false, error: AUCUN_VALIDATEUR };
 
   const departmentId = fdStr(formData, "departmentId");
   const year = new Date().getFullYear();
@@ -227,9 +156,7 @@ export async function decideRecruitmentStep(formData: FormData): Promise<ActionR
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
 
-  const steps: ChainStep[] = req.approvals.map((a) => ({
-    order: a.order, approverId: a.approverId, approverName: a.approver?.name ?? "", status: a.status,
-  }));
+  const steps: ChainStep[] = etapesDeLaChaine(req.approvals);
   const allowed = canDecideStep(req.stage, steps, { userId: user.id, isTop: viewer.isTop });
   if (!allowed.ok) return { ok: false, error: allowed.reason ?? "Non autorisé." };
   // L'ÉTAT D'ABORD, LE MOTIF ENSUITE (§118.18). L'écran exigeait le motif d'un refus ; le serveur, non :
@@ -250,13 +177,9 @@ export async function decideRecruitmentStep(formData: FormData): Promise<ActionR
   const followerIds = nettoyerIds(fdList(formData, "followerIds"));
   let nomsDesignes = new Map<string, string>();
   if (designe) {
-    const actifs = await prisma.user.findMany({
-      where: { id: { in: nettoyerIds([futureManagerId, ...followerIds]) }, isActive: true },
-      select: { id: true, name: true },
-    });
-    const refus = refusDesignationDuSommet({ futureManagerId, followerIds }, new Set(actifs.map((a) => a.id)));
-    if (refus) return { ok: false, error: refus };
-    nomsDesignes = new Map(actifs.map((a) => [a.id, a.name]));
+    const lus = await designesDuSommet(futureManagerId, followerIds);
+    if (!lus.ok) return { ok: false, error: lus.error };
+    nomsDesignes = lus.noms;
   }
 
   const { steps: nextSteps, outcome } = applyChainDecision(steps, target.order, decision);
@@ -296,29 +219,8 @@ export async function decideRecruitmentStep(formData: FormData): Promise<ActionR
   if (decision === "REJECTED") {
     await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Refusée à la marche ${target.order} — ${reason}` }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.ecrireAuFil"));
   }
-  const phraseSuivi = designe
-    ? `N+1 de la future recrue : ${nomsDesignes.get(futureManagerId ?? "") ?? "—"} · Suivi : ${followerIds.map((f) => nomsDesignes.get(f) ?? "—").join(", ")}`
-    : null;
-  if (designe && futureManagerId) {
-    await ecrireAuFil({ entityType: "RECRUITMENT_REQUEST", entityId: id, authorId: user.id, body: `Validée par ${user.name} — ${phraseSuivi}` }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.ecrireAuFil"));
-    if (futureManagerId !== user.id) {
-      await notifyUser({
-        userId: futureManagerId, type: "GENERIC",
-        title: "Vous serez le N+1 d'une future recrue",
-        body: `${req.reference} — ${req.position} : la direction générale vous a désigné N+1 du poste.`,
-        link: `/recrutement/${id}`,
-      }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.notifyUser"));
-    }
-    for (const f of followerIds) {
-      if (f === user.id || f === futureManagerId) continue;
-      await notifyUser({
-        userId: f, type: "GENERIC",
-        title: "Recrutement à suivre",
-        body: `${req.reference} — ${req.position} : la direction générale vous a confié le suivi de ce recrutement.`,
-        link: `/recrutement/${id}`,
-      }).catch(sansBloquer("recruitment-actions.decideRecruitmentStep.notifyUser"));
-    }
-  }
+  const phraseSuivi = designe ? phraseDuSuivi(nomsDesignes, futureManagerId, followerIds) : null;
+  if (designe && futureManagerId) await annoncerLaDesignation(id, req, user, futureManagerId, followerIds, phraseSuivi);
   // L'offre publiée sur le site suit l'étape du poste (§118.158) : ouverte, elle est en ligne ;
   // pourvue, close, refusée ou annulée, elle repasse en brouillon — tout de suite.
   await synchroniserOffreDeLaDemande(id, user.id);
@@ -332,23 +234,8 @@ export async function decideRecruitmentStep(formData: FormData): Promise<ActionR
       body: `${req.reference} — ${req.position} · ${reason ?? ""}`,
       link: `/recrutement/${id}`,
     });
-  } else if (outcome.complete) {
-    await notifyRoles(rolesWithModule("RH", "UPDATE"), {
-      type: "GENERIC",
-      title: "Nouvelle demande de recrutement à instruire",
-      body: `${req.reference} — ${req.position}`,
-      link: `/recrutement/${id}`,
-    });
   } else {
-    const next = currentStep(nextSteps);
-    if (next) {
-      await notifyUser({
-        userId: next.approverId, type: "GENERIC",
-        title: "Demande de recrutement à valider",
-        body: `${req.reference} — ${req.position}`,
-        link: `/recrutement/${id}`,
-      });
-    }
+    await prevenirLaSuite(id, req, outcome.complete, nextSteps);
   }
 
   await recordAudit({
@@ -380,14 +267,7 @@ export async function cancelRecruitmentRequest(formData: FormData): Promise<Acti
     select: { reference: true, position: true, stage: true, approvals: { select: { status: true, order: true, approverId: true } } },
   });
   if (!req) return { ok: false, error: "Demande introuvable." };
-  if (!abilities(req.stage, viewer).cancel) {
-    return {
-      ok: false,
-      error: ETAPES_RETIRABLES.has(req.stage)
-        ? "Seul le demandeur (ou la direction) retire cette demande."
-        : "Cette demande n'est plus en cours : un recrutement a été prononcé, ou elle est déjà close — elle ne se retire plus.",
-    };
-  }
+  if (!abilities(req.stage, viewer).cancel) return { ok: false, error: refusRetrait(req.stage) };
 
   // Conditionnelle sur l'étape LUE : un passage d'étape concurrent (une marche qui avance, les RH qui
   // ouvrent le sourcing, un recrutement prononcé) fait refuser le retrait au lieu de l'écraser.
@@ -403,9 +283,7 @@ export async function cancelRecruitmentRequest(formData: FormData): Promise<Acti
 
   const prevenus = prevenusAuRetrait(req.stage, req.approvals, user.id);
   const corps = `${req.reference} — ${req.position} : retirée par son demandeur${motif ? ` (${motif})` : ""}. Il n'y a plus rien à traiter.`;
-  for (const approverId of prevenus.approbateurs) {
-    await notifyUser({ userId: approverId, type: "GENERIC", title: "Demande de recrutement retirée", body: corps, link: `/recrutement/${id}` }).catch(sansBloquer("recruitment-actions.cancelRecruitmentRequest.notifyUser"));
-  }
+  await prevenirLesApprobateurs(id, prevenus.approbateurs, corps);
   if (prevenus.rh) {
     await notifyRoles(rolesWithModule("RH", "UPDATE"), { type: "GENERIC", title: "Demande de recrutement retirée", body: corps, link: `/recrutement/${id}` }).catch(sansBloquer("recruitment-actions.cancelRecruitmentRequest.notifyRoles"));
   }
@@ -481,9 +359,7 @@ export async function answerRecruitmentInfo(formData: FormData): Promise<ActionR
   if (!viewer || !req) return { ok: false, error: "Cette demande n'est pas dans votre périmètre." };
   if (!abilities(req.stage, viewer).answerInfo) return { ok: false, error: "Non autorisé à cette étape." };
 
-  const info = await prisma.recruitmentInfoRequest.findFirst({
-    where: { id: infoId, requestId: id }, select: { id: true, askedById: true, question: true, answeredAt: true },
-  });
+  const info = await questionDeLaDemande(id, infoId);
   if (!info) return { ok: false, error: "Question introuvable." };
 
   await prisma.recruitmentInfoRequest.update({
@@ -516,12 +392,7 @@ export async function answerRecruitmentInfo(formData: FormData): Promise<ActionR
     summary: `${req.reference} — réponse : « ${answer} »`,
   });
   revalidatePath(`/recrutement/${id}`);
-  return {
-    ok: true,
-    message: retour.count > 0 ? "Réponse transmise aux RH."
-      : pending === 0 ? "Réponse enregistrée — la demande a changé entre-temps : rouvrez-la pour voir où elle en est."
-        : "Réponse enregistrée.",
-  };
+  return { ok: true, message: phraseDeLaReponse(retour.count, pending) };
 }
 
 /** Les RH ouvrent le poste : la recherche de candidats commence. */
@@ -845,35 +716,14 @@ export async function onboardRecruitment(formData: FormData): Promise<ActionResu
 
   // LE N+1 DÉSIGNÉ PAR LE DG (Direction, 07/10) devient le manager de la fiche — par SA fiche employé
   // (`Employee.managerId` relie deux fiches) ; sans fiche, le N+1 se déduira de l'organigramme, comme avant.
-  const managerFiche = req.futureManagerId
-    ? await prisma.employee.findUnique({ where: { userId: req.futureManagerId }, select: { id: true } })
-    : null;
+  const managerFiche = await ficheDuFuturManager(req.futureManagerId);
 
   // LA FICHE, LE LIEN ET LA CLÔTURE EN UNE TRANSACTION, depuis l'intégration LUE : une embauche annulée
   // pendant la création ne laisse pas une fiche employé pour quelqu'un qu'on ne recrute plus.
   let employee: { id: string };
   try {
     employee = await prisma.$transaction(async (tx) => {
-      const cree = await tx.employee.create({
-    data: {
-      fullName: hired.fullName,
-      position: req.position,
-      companyId: req.companyId,
-      departmentId: req.departmentId,
-      department: req.department?.name ?? null,
-      email: hired.email, phone: hired.phone,
-      contractType: req.contractType,
-      contractStart: req.startDate, contractEnd: req.endDate,
-      hireDate: req.startDate,
-      // La borne BASSE de la fourchette, pas la haute : c'est l'hypothèse prudente, et le
-      // salaire réel se fixe au contrat — que les RH saisiront sur la fiche.
-      baseSalary: req.salaryMin ?? 0,
-      managerId: managerFiche?.id ?? null,
-      isActive: true,
-      notes: `Recruté via la demande ${req.reference}.`,
-    },
-    select: { id: true },
-      });
+      const cree = await tx.employee.create({ data: ficheDeLaRecrue(req, hired, managerFiche), select: { id: true } });
       // Mesuré : retirée seule, cette condition ne change aucun résultat — tout geste qui touche le recruté
       // (une intégration concurrente, une embauche annulée) déplace aussi l'étape de la demande, que la
       // condition d'après lit. Elle reste parce qu'elle dit le fait exact : CE recruté, encore sans fiche.
@@ -935,15 +785,10 @@ export async function renvoyerDemandeRecrutement(formData: FormData): Promise<Ac
     },
   });
   if (!viewer || !req) return { ok: false, error: "Cette demande n'est pas dans votre périmètre." };
-  const steps: ChainStep[] = req.approvals.map((a) => ({ order: a.order, approverId: a.approverId, approverName: a.approver?.name ?? "", status: a.status }));
+  const steps: ChainStep[] = etapesDeLaChaine(req.approvals);
   const peutTrancher = canDecideStep(req.stage, steps, { userId: user.id, isTop: viewer.isTop }).ok;
   if (!abilities(req.stage, viewer, { peutTrancherLaMarche: peutTrancher }).returnForCorrection) {
-    return {
-      ok: false,
-      error: req.stage === "CHAIN" ? canDecideStep(req.stage, steps, { userId: user.id, isTop: viewer.isTop }).reason ?? "Ce n'est pas à vous de trancher cette marche."
-        : req.stage === "HR_REVIEW" ? "Seuls les RH renvoient une demande qu'ils instruisent."
-          : "Une demande ne se renvoie que pendant sa validation : dans la chaîne, ou chez les RH.",
-    };
+    return { ok: false, error: refusRenvoi(req.stage, steps, { userId: user.id, isTop: viewer.isTop }) };
   }
   const motif = fdStr(formData, "motif");
   if (!motif) return { ok: false, error: "Dites ce qu'il faut corriger : c'est ce que lira le demandeur." };
@@ -1021,15 +866,8 @@ export async function resoumettreDemandeRecrutement(formData: FormData): Promise
   const invalide = validateDraft(draft);
   if (invalide) return { ok: false, error: invalide };
 
-  const steps: ChainStep[] = req.approvals.map((a) => ({ order: a.order, approverId: a.approverId, approverName: a.approver?.name ?? "", status: a.status }));
-  const materiels = changementsMateriels(
-    { position: req.position, headcount: req.headcount, contractType: req.contractType, salaryMin: nombre(req.salaryMin), salaryMax: nombre(req.salaryMax), endDate: req.endDate },
-    draft,
-  );
-  // La chaîne ne REPART que si quelqu'un y avait déjà dit oui : renvoyée de la première marche, une
-  // correction matérielle y revient de toute façon.
-  const repart = materiels.length > 0 && steps.some((s) => s.status !== "PENDING");
-  const vers: RecruitmentStage = repart ? "CHAIN" : (req.returnedFrom as RecruitmentStage | null) ?? "CHAIN";
+  const steps: ChainStep[] = etapesDeLaChaine(req.approvals);
+  const { materiels, repart, vers } = issueDeLaCorrection(req, draft, steps);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -1081,12 +919,7 @@ export async function resoumettreDemandeRecrutement(formData: FormData): Promise
   });
   revalidatePath("/recrutement");
   revalidatePath(`/recrutement/${id}`);
-  return {
-    ok: true,
-    message: repart
-      ? `Demande corrigée — le besoin a changé (${materiels.join(", ")}) : la chaîne repart de sa première marche.`
-      : vers === "CHAIN" ? "Demande corrigée — elle revient à la marche qui vous l'avait renvoyée." : "Demande corrigée — elle revient aux RH.",
-  };
+  return { ok: true, message: phraseDeLaCorrection(repart, materiels, vers) };
 }
 
 /**
@@ -1112,7 +945,7 @@ export async function rouvrirDemandeRecrutement(formData: FormData): Promise<Act
   });
   if (!viewer || !req) return { ok: false, error: "Cette demande n'est pas dans votre périmètre." };
   const aRecrute = req._count.candidates > 0;
-  const steps: ChainStep[] = req.approvals.map((a) => ({ order: a.order, approverId: a.approverId, approverName: a.approver?.name ?? "", status: a.status }));
+  const steps: ChainStep[] = etapesDeLaChaine(req.approvals);
   const ou = reouverture(req.stage as RecruitmentStage, steps, aRecrute);
   if ("refus" in ou) return { ok: false, error: ou.refus };
   if (!abilities(req.stage as RecruitmentStage, viewer, { aRecrute }).reopen) {
@@ -1152,12 +985,7 @@ export async function rouvrirDemandeRecrutement(formData: FormData): Promise<Act
   }).catch(sansBloquer("recruitment-actions.rouvrirDemandeRecrutement.ecrireAuFil"));
   const corps = `${req.reference} — ${req.position} · ${motif}`;
   const lien = `/recrutement/${id}`;
-  if (ou.vers === "CHAIN" && ou.marche !== null) {
-    const marche = steps.find((s) => s.order === ou.marche);
-    if (marche) await notifyUser({ userId: marche.approverId, type: "GENERIC", title: "Demande de recrutement rouverte — à trancher de nouveau", body: corps, link: lien });
-  } else if (ou.vers === "HR_REVIEW") {
-    await notifyRoles(rolesWithModule("RH", "UPDATE"), { type: "GENERIC", title: "Demande de recrutement rouverte — à instruire", body: corps, link: lien });
-  }
+  await prevenirQuiLaReprend(ou, steps, corps, lien);
   if (req.requesterId !== user.id) {
     await notifyUser({ userId: req.requesterId, type: "GENERIC", title: "Votre demande de recrutement est rouverte", body: corps, link: lien });
   }
@@ -1170,11 +998,7 @@ export async function rouvrirDemandeRecrutement(formData: FormData): Promise<Act
   });
   revalidatePath("/recrutement");
   revalidatePath(`/recrutement/${id}`);
-  return {
-    ok: true,
-    message: ou.vers === "CHAIN" ? "Demande rouverte — elle repart à la marche qui l'avait refusée."
-      : ou.vers === "HR_REVIEW" ? "Demande rouverte — elle revient aux RH." : "Demande rouverte — le poste est de nouveau ouvert.",
-  };
+  return { ok: true, message: phraseDeLaReouverture(ou.vers) };
 }
 
 /**
@@ -1201,13 +1025,7 @@ export async function annulerEmbaucheRecrutement(formData: FormData): Promise<Ac
   const recrute = req.candidates[0];
   const sansFiche = Boolean(recrute) && recrute.employeeId === null;
   if (!abilities(req.stage as RecruitmentStage, viewer, { embaucheSansFiche: sansFiche }).cancelHire) {
-    return {
-      ok: false,
-      error: recrute && recrute.employeeId !== null
-        ? "La fiche employé existe déjà : l'embauche ne s'annule plus d'ici — c'est un départ, à traiter aux RH."
-        : req.stage !== "ONBOARDING" ? "Aucune embauche en attente d'intégration sur cette demande."
-          : "Seuls les RH ou la direction annulent une embauche.",
-    };
+    return { ok: false, error: refusAnnulationEmbauche(recrute, req.stage) };
   }
   const motif = fdStr(formData, "motif");
   if (!motif) return { ok: false, error: "Dites pourquoi l'embauche s'annule : c'est ce que liront le demandeur et la direction." };
