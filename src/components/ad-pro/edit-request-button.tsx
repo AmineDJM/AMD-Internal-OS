@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Textarea, Label, Select } from "@/components/ui/input";
 import { updateAdProRequest } from "@/lib/actions/ad-pro-edit-actions";
-import { EDITABLE_FIELDS, type AdProKind } from "@/lib/ad-pro-edit";
+import { EDITABLE_FIELDS, type NatureEditable } from "@/lib/ad-pro-edit";
 
 /**
  * CORRIGER UNE DEMANDE AD & PRO.
@@ -22,7 +22,7 @@ import { EDITABLE_FIELDS, type AdProKind } from "@/lib/ad-pro-edit";
 export function AdProEditButton({
   kind, id, values, decided,
 }: {
-  kind: AdProKind;
+  kind: NatureEditable;
   id: string;
   /** Valeurs actuelles, déjà sérialisées (montants en nombre, dates en AAAA-MM-JJ). */
   values: Record<string, string | number | null>;

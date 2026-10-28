@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { EDITABLE_FIELDS, type AdProKind } from "@/lib/ad-pro-edit";
+import { EDITABLE_FIELDS, type NatureEditable } from "@/lib/ad-pro-edit";
 
 /**
  * Valeurs actuelles d'une demande Ad & Pro, prêtes pour le formulaire de correction.
@@ -12,7 +12,7 @@ import { EDITABLE_FIELDS, type AdProKind } from "@/lib/ad-pro-edit";
  * frontière serveur → client tels quels.
  */
 export async function adProEditValues(
-  kind: AdProKind,
+  kind: NatureEditable,
   id: string,
 ): Promise<Record<string, string | number | null>> {
   const select = Object.fromEntries(EDITABLE_FIELDS[kind].map((f) => [f.key, true]));

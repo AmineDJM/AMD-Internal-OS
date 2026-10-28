@@ -19,15 +19,25 @@ import { join } from "node:path";
  *     HISTORIQUE — déménager une action ne change donc aucune clé, aucune ligne du registre de
  *     parité, aucune trace d'audit : seul l'aiguillage généré pointe le nouveau chemin.
  *
+ * UNE CLÉ, PLUSIEURS FICHIERS — quand un fichier d'actions trop gros se découpe par responsabilité
+ * (`ad-pro-item-actions`, 4 409 lignes, devenu `src/modules/ad-pro/actions-postes*.ts`), chaque
+ * morceau garde la clé HISTORIQUE : on la déclare avec la LISTE de ses fichiers. Le contrat, la parité
+ * et les traces ne voient aucune différence (`ad-pro-item-actions:emitItemExpenseOrder` reste la clé,
+ * quel que soit le morceau qui la porte) ; l'aiguillage généré réunit les exports des morceaux.
+ *
  * `contrat.test.ts` tient la règle : tout fichier d'actions d'un module est déclaré ici, toute
- * entrée d'ici existe sur le disque, et aucune clé n'est portée par deux fichiers.
+ * entrée d'ici existe sur le disque, une clé n'est portée par deux fichiers que s'ils sont déclarés
+ * ENSEMBLE ici, et une même action n'est jamais exportée par deux morceaux.
  *
  * Lu par les tests et les scripts seulement (il lit le disque) — jamais par du code d'exécution.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-/** Les fichiers d'actions rangés dans un module : clé historique → chemin depuis la racine du dépôt. */
-export const ACTIONS_DES_MODULES: Readonly<Record<string, string>> = {
+/**
+ * Les fichiers d'actions rangés dans un module : clé historique → chemin depuis la racine du dépôt,
+ * ou la LISTE des chemins quand le fichier historique s'est découpé (chaque morceau garde la clé).
+ */
+export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly string[]>> = {
   "coffre-actions": "src/modules/coffre/actions.ts",
   "consommation-actions": "src/modules/consommation/actions.ts",
   "organisation-actions": "src/modules/referentiels/actions-organisations.ts",
@@ -56,10 +66,20 @@ export function parcDesActions(racine = process.cwd()): FichierDActions[] {
   const communs = readdirSync(dossier)
     .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !HORS_PARC.has(f))
     .map((f) => ({ cle: f.replace(/\.ts$/, ""), chemin: `src/lib/actions/${f}`, specificateur: `./${f.replace(/\.ts$/, "")}` }));
-  const ranges = Object.entries(ACTIONS_DES_MODULES).map(([cle, chemin]) => ({
+  const ranges = Object.entries(ACTIONS_DES_MODULES).flatMap(([cle, chemins]) => cheminsDeLaCle(chemins).map((chemin) => ({
     cle, chemin, specificateur: `@/${chemin.replace(/^src\//, "").replace(/\.ts$/, "")}`,
-  }));
+  })));
   return [...communs, ...ranges].sort((a, b) => a.cle.localeCompare(b.cle));
+}
+
+/** Les chemins déclarés pour une clé : un seul fichier, ou les morceaux d'un fichier découpé. */
+export function cheminsDeLaCle(chemins: string | readonly string[]): readonly string[] {
+  return typeof chemins === "string" ? [chemins] : chemins;
+}
+
+/** Tous les fichiers d'actions déclarés dans les modules (les morceaux d'une clé découpée compris). */
+export function cheminsDesActionsDesModules(): string[] {
+  return Object.values(ACTIONS_DES_MODULES).flatMap((c) => [...cheminsDeLaCle(c)]);
 }
 
 /**

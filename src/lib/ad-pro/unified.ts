@@ -18,6 +18,7 @@
  * Module PUR — testé. Le seul import est un import de TYPE (effacé à la compilation).
  */
 
+import type { EntityType } from "@prisma/client";
 import type { Module } from "@/lib/rbac";
 
 export type AdProKind =
@@ -36,7 +37,7 @@ export type AdProKind =
  * fait échouer le typecheck ICI, au lieu de partager un dossier sous un type d'entité faux.
  * L'import de type est effacé à la compilation — ce module reste PUR.
  */
-export const AD_PRO_ENTITY_TYPE: Record<AdProKind, import("@prisma/client").EntityType> = {
+export const AD_PRO_ENTITY_TYPE: Record<AdProKind, EntityType> = {
   SPONSORING: "SPONSORING",
   CONGRESS_INTERNATIONAL: "CONGRESS_INTERNATIONAL",
   CONGRESS_NATIONAL: "CONGRESS_NATIONAL",

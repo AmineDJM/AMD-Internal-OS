@@ -27,7 +27,7 @@ import { MODE_LIBELLE } from "@/lib/care-fiches";
 // LE CONSULTING ET LES « AUTRES DEMANDES » (audit 360°, R11 et rapport 17 R13/R14) : absents de cette
 // liste, ils ne se corrigeaient jamais — même en brouillon —, et la seule issue d'un montant mal tapé
 // était le refus, donc l'annulation. Ils entrent par la MÊME porte que les cinq autres natures.
-export type AdProKind = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "PROMO_MATERIAL" | "EVENT" | "CONSULTING_CONTRACT" | "AD_PRO_OTHER";
+export type NatureEditable = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL" | "PROMO_MATERIAL" | "EVENT" | "CONSULTING_CONTRACT" | "AD_PRO_OTHER";
 
 /** Ce qu'on sait de la personne qui veut modifier. */
 export interface AdProEditor {
@@ -73,7 +73,7 @@ export function canEditAdProRequest(editor: AdProEditor, target: AdProEditTarget
 // « REJECTED » (`CongressRequestStatus`). La liste portait le premier — une valeur que la base ne peut
 // pas contenir —, donc une demande refusée gardait « Modifier », sur un dossier qu'on ne peut plus
 // resoumettre (audit 360°, R16). `CANCELLED` est terminal pour la même raison : rien ne le rouvre.
-const DECIDED_STATUS: Record<AdProKind, readonly string[]> = {
+const DECIDED_STATUS: Record<NatureEditable, readonly string[]> = {
   // `PRE_VALIDATED` (§118.151) : la TENUE est décidée — réécrire l'institution ou les montants
   // demandés après coup ferait diverger la demande de ce qui a été pré-validé. La vue globale
   // garde la main, comme pour toute demande tranchée.
@@ -103,7 +103,7 @@ const DECIDED_STATUS: Record<AdProKind, readonly string[]> = {
  * l'état UNIFIÉ que la liste « Toutes les demandes » affiche — refusé, validé jusqu'au bout, terminé —,
  * pas une seconde définition.
  */
-export function isAdProDecided(kind: AdProKind, status: string, circuitState?: string | null): boolean {
+export function isAdProDecided(kind: NatureEditable, status: string, circuitState?: string | null): boolean {
   if (kind === "PROMO_MATERIAL" && circuitState) {
     // Un dossier RENVOYÉ pour correction n'est pas tranché : il est chez son demandeur, qui doit
     // justement pouvoir le corriger (§118.190). La marque ne change rien à cette question — on la
@@ -139,7 +139,7 @@ export interface EditableField {
 const mapOptions = (m: Record<string, string | { label: string }>) =>
   Object.entries(m).map(([value, v]) => ({ value, label: typeof v === "string" ? v : v.label }));
 
-export const EDITABLE_FIELDS: Record<AdProKind, readonly EditableField[]> = {
+export const EDITABLE_FIELDS: Record<NatureEditable, readonly EditableField[]> = {
   SPONSORING: [
     { key: "institution", label: "Institution / service / association", type: "text", requis: "L'institution est obligatoire." },
     { key: "type", label: "Type de sponsoring", type: "select", options: SPONSORING_TYPES.map((t) => ({ value: t, label: t })) },
@@ -224,14 +224,14 @@ export const EDITABLE_FIELDS: Record<AdProKind, readonly EditableField[]> = {
  * avant le début enregistrait un événement qui se termine avant d'avoir commencé. Une table, et non
  * une condition par nature recopiée dans l'action.
  */
-export const PERIODE_DE_LA_DEMANDE: Partial<Record<AdProKind, { debut: string; fin: string }>> = {
+export const PERIODE_DE_LA_DEMANDE: Partial<Record<NatureEditable, { debut: string; fin: string }>> = {
   CONSULTING_CONTRACT: { debut: "startDate", fin: "endDate" },
   CONGRESS_NATIONAL: { debut: "date", fin: "endDate" },
   CONGRESS_INTERNATIONAL: { debut: "startDate", fin: "endDate" },
 };
 
 /** Le champ existe-t-il dans la liste blanche de ce type de demande ? */
-export function editableField(kind: AdProKind, key: string): EditableField | null {
+export function editableField(kind: NatureEditable, key: string): EditableField | null {
   return EDITABLE_FIELDS[kind].find((f) => f.key === key) ?? null;
 }
 
@@ -241,7 +241,7 @@ export function editableField(kind: AdProKind, key: string): EditableField | nul
  * dit exactement ce qui s'est passé.
  */
 export function describeChanges(
-  kind: AdProKind,
+  kind: NatureEditable,
   before: Record<string, unknown>,
   after: Record<string, unknown>,
 ): string[] {

@@ -67,18 +67,30 @@ const presents = new Set(contrats.map((c) => c.fichier));
 // La CLÉ d'un fichier (`parc.ts`), pas son chemin : une action rangée dans un module garde sa clé,
 // et seul son spécificateur change (`@/modules/<m>/actions`).
 const fichiers = parcDesActions().filter((f) => presents.has(f.cle));
+// Une clé portée par plusieurs morceaux (un fichier d'actions découpé, `parc.ts`) : une entrée, qui
+// charge les morceaux et réunit leurs exports. Une clé d'un seul fichier garde sa forme d'avant.
+const parCle = new Map<string, string[]>();
+for (const f of fichiers) parCle.set(f.cle, [...(parCle.get(f.cle) ?? []), f.specificateur]);
+const entree = ([cle, specs]: [string, string[]]): string => specs.length === 1
+  ? `  ${JSON.stringify(cle)}: () => import(${JSON.stringify(specs[0])}) as unknown as Promise<Record<string, unknown>>,`
+  : `  ${JSON.stringify(cle)}: () => Promise.all([\n${specs.map((s) => `    import(${JSON.stringify(s)}) as unknown as Promise<Record<string, unknown>>,`).join("\n")}\n  ]).then(reunir),`;
+const decoupees = [...parCle.values()].some((s) => s.length > 1);
 const aiguillage = `// ⚠️  FICHIER GÉNÉRÉ — ne pas éditer à la main. Voir \`npm run actions:contrat\`.
 //
 // Chaque entrée est un spécificateur LITTÉRAL : l'empaqueteur les voit tous, et rien n'est
 // chargé avant l'appel. \`executer.test.ts\` résout les ${contrats.length} actions et échoue en
 // nommant celle qui a disparu — c'est le contrôle d'appelant que le compilateur ne fait pas ici.
-
+${decoupees ? `
+/** Les exports des morceaux d'une clé découpée, réunis (exports nommés et objet \`default\` de l'interop CommonJS). */
+const reunir = (morceaux: Record<string, unknown>[]): Record<string, unknown> =>
+  Object.assign({}, ...morceaux.map((m) => ({ ...(m.default && typeof m.default === "object" ? m.default as Record<string, unknown> : {}), ...m })));
+` : ""}
 export const MODULES_ACTIONS: Readonly<Record<string, () => Promise<Record<string, unknown>>>> = {
-${fichiers.map((f) => `  ${JSON.stringify(f.cle)}: () => import(${JSON.stringify(f.specificateur)}) as unknown as Promise<Record<string, unknown>>,`).join("\n")}
+${[...parCle.entries()].map(entree).join("\n")}
 };
 `;
 writeFileSync(join(process.cwd(), "src", "lib", "actions", "aiguillage.genere.ts"), aiguillage, "utf8");
-console.info(`[CONTRAT] aiguillage : ${fichiers.length} modules`);
+console.info(`[CONTRAT] aiguillage : ${parCle.size} modules (${fichiers.length} fichiers)`);
 
 const appelables = contrats.length - illisibles.length;
 console.info(`[CONTRAT] ${contrats.length} actions — ${appelables} appelables, ${illisibles.length} illisibles`);

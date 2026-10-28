@@ -8,7 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { apresModificationDeLaDemande } from "@/lib/workflow/engine";
 import {
   canEditAdProRequest, isAdProDecided, editableField, describeChanges, PERIODE_DE_LA_DEMANDE,
-  type AdProKind,
+  type NatureEditable,
 } from "@/lib/ad-pro-edit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";
@@ -53,7 +53,7 @@ interface Target {
   save: (id: string, data: Record<string, unknown>) => Promise<unknown>;
 }
 
-const TARGETS: Record<AdProKind, Target> = {
+const TARGETS: Record<NatureEditable, Target> = {
   SPONSORING: {
     module: "SPONSORING",
     path: "/sponsoring",
@@ -120,7 +120,7 @@ const TARGETS: Record<AdProKind, Target> = {
   },
 };
 
-function isKind(v: string | null): v is AdProKind {
+function isKind(v: string | null): v is NatureEditable {
   return v === "SPONSORING" || v === "CONGRESS_NATIONAL" || v === "CONGRESS_INTERNATIONAL" || v === "PROMO_MATERIAL" || v === "EVENT"
     || v === "CONSULTING_CONTRACT" || v === "AD_PRO_OTHER";
 }
