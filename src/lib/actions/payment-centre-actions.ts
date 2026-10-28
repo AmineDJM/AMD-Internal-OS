@@ -285,10 +285,19 @@ export async function respondToPaymentCentre(formData: FormData): Promise<Action
   const next = applyResubmission(order.centralStatus as CentralStatus);
   if (!next) return { ok: false, error: "Ce paiement n'attend pas de réponse de votre part." };
 
-  await prisma.$transaction([
-    prisma.expenseOrder.update({ where: { id }, data: { centralStatus: next } }),
-    prisma.paymentCentreMessage.create({ data: { orderId: id, body, authorId: user.id } }),
-  ]);
+  // SUR CE QUI A ÉTÉ LU (audit 27/10, DONNEES-09) : écrite par le seul identifiant, la réponse remettait « en
+  // attente » un ordre qu'un siège venait de refuser ou d'autoriser à la même seconde — le refus revivait,
+  // l'autorisation disparaissait. Perdue, rien n'est écrit, pas même le message.
+  const repondu = await prisma.$transaction(async (tx) => {
+    const ecrit = await tx.expenseOrder.updateMany({
+      where: { id, centralStatus: order.centralStatus, status: order.status },
+      data: { centralStatus: next },
+    });
+    if (ecrit.count === 0) return false;
+    await tx.paymentCentreMessage.create({ data: { orderId: id, body, authorId: user.id } });
+    return true;
+  });
+  if (!repondu) return { ok: false, error: "Ce paiement vient de changer (décidé par le centre ou annulé) : rouvrez-le avant de répondre." };
 
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Finances", entityType: "EXPENSE_ORDER", entityId: id,

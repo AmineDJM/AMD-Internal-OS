@@ -9,6 +9,7 @@ import type { CurrentUser } from "@/lib/session";
  *                       un siège du centre limité à Alpha n'autorise pas un ordre de Beta.
  *   ARGENT-06         — qui a demandé un paiement ne l'autorise pas ; qui l'a demandé ou autorisé ne le règle
  *                       pas — tant que le Super Admin n'a pas suspendu le réglage.
+ *   DONNEES-09        — la réponse au centre n'écrase pas une décision rendue pendant qu'on répondait.
  *
  * Banc multi-société (modèle `fiche-rh-entite-ecriture.test.ts`) : un témoin prouve chaque fois que l'acteur a
  * bien le droit du module — c'est l'OBJET qui lui est refusé, pas le geste.
@@ -19,11 +20,24 @@ vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("next/headers", () => ({ cookies: () => ({ get: () => undefined }), headers: () => new Headers() }));
 let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
+// L'ENTRELACEMENT, rendu déterministe (DONNEES-09) : quand un siège répond pour le demandeur, la porte de l'ordre
+// est franchie APRÈS la lecture et AVANT l'écriture — c'est là qu'un autre siège tranche.
+let pendantLaReponse: (() => Promise<unknown>) | null = null;
+vi.mock("@/lib/acces/objet", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/lib/acces/objet")>();
+  return {
+    ...vrai,
+    ouvrirPourEcrire: async (...args: Parameters<typeof vrai.ouvrirPourEcrire>) => {
+      if (pendantLaReponse) { const f = pendantLaReponse; pendantLaReponse = null; await f(); }
+      return vrai.ouvrirPourEcrire(...args);
+    },
+  };
+});
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "./expense-actions";
-import { decidePayment } from "./payment-centre-actions";
+import { decidePayment, respondToPaymentCentre } from "./payment-centre-actions";
 import { REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION } from "@/lib/payments/separation";
 
 let dbOk = false;
@@ -44,7 +58,7 @@ const separation = (active: boolean) => prisma.appSetting.upsert({
   where: { id: "global" }, create: { id: "global", separationTachesPaiement: active }, update: { separationTachesPaiement: active },
 });
 
-suite("Argent : la porte de l'ordre, la séparation des tâches", () => {
+suite("Argent : la porte de l'ordre, la séparation des tâches, la réponse au centre", () => {
   let separationAvant = true;
 
   beforeAll(async () => {
@@ -142,5 +156,24 @@ suite("Argent : la porte de l'ordre, la séparation des tâches", () => {
     } finally {
       await separation(true);
     }
+  });
+
+  it("DONNEES-09 : un refus rendu pendant la réponse n'est pas écrasé", async () => {
+    // Le siège saisit la réponse reçue par téléphone ; au même instant, le PDG refuse l'ordre.
+    ACTEUR = acteurs.siege;
+    const a = await ordre(ids.A, { centralStatus: "INFO_REQUESTED", requestedById: ids.cpt });
+    pendantLaReponse = () => prisma.expenseOrder.update({ where: { id: a }, data: { centralStatus: "REFUSED" } });
+    const r = await respondToPaymentCentre(fd({ id: a, body: "Argumentaire reçu par téléphone." }));
+    expect(r.ok).toBe(false);
+    expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: a } })).centralStatus).toBe("REFUSED");
+    expect(await prisma.paymentCentreMessage.count({ where: { orderId: a } })).toBe(0);
+  });
+
+  it("témoin DONNEES-09 : sans décision concurrente, la réponse renvoie l'ordre au centre", async () => {
+    ACTEUR = acteurs.cpt;
+    const a = await ordre(ids.A, { centralStatus: "INFO_REQUESTED", requestedById: ids.cpt });
+    const r = await respondToPaymentCentre(fd({ id: a, body: "Voici l'argumentaire." }));
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    expect((await prisma.expenseOrder.findUniqueOrThrow({ where: { id: a } })).centralStatus).toBe("AWAITING");
   });
 });
