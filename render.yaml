@@ -121,21 +121,21 @@ services:
         sync: false
 
   # ───────────────────────────────────────────────────────────────────────────────────────────
-  # WORKER DES TÂCHES DE FOND (refonte V2-F) — PRÊT, NON ACTIVÉ.
+  # WORKER DES TÂCHES DE FOND (refonte V2-F) — ACTIVÉ (28/10/2026), EN ATTENTE jusqu'à la bascule.
   #
   # Même dépôt, même build, autre point d'entrée : `npm run worker` exécute la table des tâches de
   # `src/lib/scheduled.ts` (rappels, paie notifiée, jobs réglementaires, routines et fil de
   # l'Assistant, missions, boîte Gmail d'Adam, site public…), chaque tâche sous un BAIL en base
   # (table `TacheDeFond`) : un seul exécutant la tient, même si le web bat encore.
   #
-  # Le bloc est en COMMENTAIRE à dessein : décommenté, la prochaine synchronisation du Blueprint
-  # CRÉERAIT le service (payant : Render n'a pas d'offre gratuite pour un Background Worker). Tant
-  # qu'il n'existe pas, TACHES_DE_FOND vaut `web` (défaut) et la production ne change en rien.
+  # Le service est déclaré (Direction, 28/10/2026 : « fais-le ») : la synchronisation du Blueprint le CRÉE
+  # (payant : Render n'a pas d'offre gratuite pour un Background Worker). Il démarre EN ATTENTE
+  # (TACHES_DE_FOND=web) : la production ne change en rien tant que la bascule ci-dessous n'est pas faite.
   #
   # ACTIVATION (procédure complète : docs/readme/24-deploiement-render.md, « Worker séparé ») :
-  #   1. Décommenter le bloc ci-dessous, pousser, Render → Blueprint → Sync (ou créer à la main un
-  #      « Background Worker » sur ce dépôt avec les mêmes commandes).
-  #   2. Le worker démarre en `les-deux` ; poser AUSSI TACHES_DE_FOND=les-deux sur le web.
+  #   1. Render → Blueprint → Sync (ou créer à la main un « Background Worker » sur ce dépôt avec les
+  #      mêmes commandes). Recopier sur le worker les variables posées à la main sur le web.
+  #   2. Poser TACHES_DE_FOND=les-deux sur le worker ET sur le web.
   #   3. Vérifier GET /api/health/worker (ou Administration › Diagnostic › Tâches de fond) : des
   #      tâches passent avec l'exécutant « worker ».
   #   4. Poser TACHES_DE_FOND=worker sur le web, PUIS sur le worker. Le web ne bat plus.
@@ -150,52 +150,52 @@ services:
   # donne RENDER_EXTERNAL_URL qu'aux services web, et les liens des notifications en dépendent.
   # Contrôle : Shell du worker → `npm run adam:doctor`.
   #
-  # - type: worker
-  #   name: amd-worker
-  #   runtime: node
-  #   plan: starter
-  #   # Même dépôt, même installation, même client Prisma — mais NI compilation Next (le worker ne
-  #   # sert aucune page : `tsx` exécute le code source) NI migration : seul le build du web migre,
-  #   # APRÈS son lint, son typecheck et sa compilation (refonte P0). Le worker démarré attend que la
-  #   # base porte les migrations de son commit (`src/lib/taches-de-fond/migrations.ts`) avant son
-  #   # premier passage — il ne fait jamais tourner un code plus récent que le schéma.
-  #   buildCommand: npm install && npx prisma generate
-  #   startCommand: npm run worker
-  #   envVars:
-  #     - key: TACHES_DE_FOND
-  #       value: les-deux
-  #     - key: DATABASE_URL
-  #       fromDatabase:
-  #         name: amd-postgres
-  #         property: connectionString
-  #     - key: AUTH_SECRET
-  #       fromService:
-  #         type: web
-  #         name: amd-internal-os
-  #         envVarKey: AUTH_SECRET
-  #     - key: APP_URL
-  #       sync: false # l'URL publique du web, ex. https://amd-internal-os.onrender.com
-  #     - key: NODE_VERSION
-  #       value: "22"
-  #     - key: S3_ENDPOINT
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
-  #     - key: S3_BUCKET
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_BUCKET }
-  #     - key: S3_ACCESS_KEY_ID
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_ACCESS_KEY_ID }
-  #     - key: S3_SECRET_ACCESS_KEY
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_SECRET_ACCESS_KEY }
-  #     - key: S3_REGION
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: S3_REGION }
-  #     - key: VAPID_PUBLIC_KEY
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PUBLIC_KEY }
-  #     - key: VAPID_PRIVATE_KEY
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PRIVATE_KEY }
-  #     - key: VAPID_SUBJECT
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_SUBJECT }
-  #     - key: ADVENTUM_BASE_URL
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_BASE_URL }
-  #     - key: ADVENTUM_API_KEY
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_API_KEY }
-  #     - key: ADVENTUM_WEBHOOK_SECRET
-  #       fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_WEBHOOK_SECRET }
+  - type: worker
+    name: amd-worker
+    runtime: node
+    plan: starter
+    # Même dépôt, même installation, même client Prisma — mais NI compilation Next (le worker ne
+    # sert aucune page : `tsx` exécute le code source) NI migration : seul le build du web migre,
+    # APRÈS son lint, son typecheck et sa compilation (refonte P0). Le worker démarré attend que la
+    # base porte les migrations de son commit (`src/lib/taches-de-fond/migrations.ts`) avant son
+    # premier passage — il ne fait jamais tourner un code plus récent que le schéma.
+    buildCommand: npm install && npx prisma generate
+    startCommand: npm run worker
+    envVars:
+      - key: TACHES_DE_FOND
+        value: les-deux
+      - key: DATABASE_URL
+        fromDatabase:
+          name: amd-postgres
+          property: connectionString
+      - key: AUTH_SECRET
+        fromService:
+          type: web
+          name: amd-internal-os
+          envVarKey: AUTH_SECRET
+      - key: APP_URL
+        sync: false # l'URL publique du web, ex. https://amd-internal-os.onrender.com
+      - key: NODE_VERSION
+        value: "22"
+      - key: S3_ENDPOINT
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
+      - key: S3_BUCKET
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_BUCKET }
+      - key: S3_ACCESS_KEY_ID
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_ACCESS_KEY_ID }
+      - key: S3_SECRET_ACCESS_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_SECRET_ACCESS_KEY }
+      - key: S3_REGION
+        fromService: { type: web, name: amd-internal-os, envVarKey: S3_REGION }
+      - key: VAPID_PUBLIC_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PUBLIC_KEY }
+      - key: VAPID_PRIVATE_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_PRIVATE_KEY }
+      - key: VAPID_SUBJECT
+        fromService: { type: web, name: amd-internal-os, envVarKey: VAPID_SUBJECT }
+      - key: ADVENTUM_BASE_URL
+        fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_BASE_URL }
+      - key: ADVENTUM_API_KEY
+        fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_API_KEY }
+      - key: ADVENTUM_WEBHOOK_SECRET
+        fromService: { type: web, name: amd-internal-os, envVarKey: ADVENTUM_WEBHOOK_SECRET }
