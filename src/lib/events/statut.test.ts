@@ -98,7 +98,9 @@ describe("les deux moitiés ont leur appelant de production", () => {
   });
 
   it("le moteur de circuit ÉCRIT l'état de l'événement — sans quoi il resterait « Brouillon » à jamais", () => {
-    const src = lire("src/lib/workflow/engine.ts");
+    // Le moteur est découpé (`workflow/engine.ts` + `workflow/engine/*.ts`) : on lit le tout, porte d'abord.
+    const morceaux = fs.readdirSync(path.join(process.cwd(), "src/lib/workflow/engine")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).sort();
+    const src = [lire("src/lib/workflow/engine.ts"), ...morceaux.map((f) => lire(`src/lib/workflow/engine/${f}`))].join("\n");
     // TROIS projections : l'avance (`projectApprove`), le refus définitif (`projectReject`), et
     // l'écriture commune au renvoi pour correction, à la pose d'une demande resoumise ou relancée
     // et au retrait (`projeterStatut`, §118.186). En oublier une laisserait un événement refusé, à

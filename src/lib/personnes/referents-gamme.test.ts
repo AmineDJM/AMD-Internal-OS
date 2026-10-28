@@ -154,7 +154,10 @@ describe("les référents Direction Marketing d'une gamme", () => {
      *
      * Ce qui le ferait tomber : un quatrième site qui rappellerait `notifyRoles` pour son compte.
      */
-    const src = fs.readFileSync(path.join(process.cwd(), "src/lib/workflow/engine.ts"), "utf8")
+    // Le moteur est découpé (`workflow/engine.ts` + `workflow/engine/*.ts`) : on lit le tout, porte d'abord.
+    const morceaux = fs.readdirSync(path.join(process.cwd(), "src/lib/workflow/engine")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts")).sort();
+    const src = ["engine.ts", ...morceaux.map((f) => `engine/${f}`)]
+      .map((f) => fs.readFileSync(path.join(process.cwd(), "src/lib/workflow", f), "utf8")).join("\n")
       .replace(/\/\*[\s\S]*?\*\//g, " ")
       .replace(/^[ \t]*\/\/.*$/gm, " ");
     const appels = (src.match(/\bnotifyRoles\s*\(/g) ?? []).length;
