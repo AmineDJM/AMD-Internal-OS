@@ -116,8 +116,10 @@ describe("Adam — la carte ne promet plus une perte que le lot n'inflige pas", 
   });
 
   it("la carte de suppression d'un événement ne dit plus « aucun retour possible »", () => {
-    const src = code("src/lib/assistant/ops/impl-wave5.ts");
-    expect(src).not.toContain("aucun retour possible");
+    // Les ops de la vague 5 vivent dans `ops/impl/vague5/` ; la carte d'un événement, dans `evenements.ts`.
+    const src = code("src/lib/assistant/ops/impl/vague5/evenements.ts");
+    const vague = ["evenements", "ad-pro", "consulting", "commun"].map((f) => code(`src/lib/assistant/ops/impl/vague5/${f}.ts`)).join("\n");
+    expect(vague).not.toContain("aucun retour possible");
     expect(src).toContain('apercuSuppression("EVENT", hit.id)');
   });
 });
