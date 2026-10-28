@@ -43,7 +43,7 @@ export default async function PaiePage({ searchParams }: { searchParams: { year?
 
   const [employees, entries, budgetOptions, mesEntites] = await Promise.all([
     prisma.employee.findMany({
-      where: { isActive: true, ...portee },
+      where: { AND: [{ isActive: true }, portee] },
       select: {
         id: true, fullName: true, position: true, netToPay: true, grossSalary: true, baseSalary: true,
         employerCost: true, companyId: true, departmentId: true,

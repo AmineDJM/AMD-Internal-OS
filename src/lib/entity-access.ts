@@ -947,35 +947,35 @@ export async function canAccessEntity(
     }
     case "VISIT": {
       const found = await prisma.medicalVisit.findFirst({
-        where: { id: entityId, ...scopeMedicalVisits(user) },
+        where: { AND: [{ id: entityId }, scopeMedicalVisits(user)] },
         select: { id: true },
       });
       return Boolean(found);
     }
     case "SALE": {
       const found = await prisma.sale.findFirst({
-        where: { id: entityId, ...scopeSales(user) },
+        where: { AND: [{ id: entityId }, scopeSales(user)] },
         select: { id: true },
       });
       return Boolean(found);
     }
     case "BD_OPPORTUNITY": {
       const found = await prisma.businessDevelopmentOpportunity.findFirst({
-        where: { id: entityId, ...scopeBusinessDevelopment(user) },
+        where: { AND: [{ id: entityId }, scopeBusinessDevelopment(user)] },
         select: { id: true },
       });
       return Boolean(found);
     }
     case "SUPPORT_REQUEST": {
       const found = await prisma.supportRequest.findFirst({
-        where: { id: entityId, ...scopeSupport(user) },
+        where: { AND: [{ id: entityId }, scopeSupport(user)] },
         select: { id: true },
       });
       return Boolean(found);
     }
     case "DOSSIER": {
       const found = await prisma.dossier.findFirst({
-        where: { id: entityId, ...scopeDossiers(user) },
+        where: { AND: [{ id: entityId }, scopeDossiers(user)] },
         select: { id: true },
       });
       return Boolean(found);
