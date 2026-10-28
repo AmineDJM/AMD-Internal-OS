@@ -44,7 +44,7 @@ export const REGLES: Regle[] = [
    * cette fenêtre (une exception serait déclarée périmée à chaque passage normal).
    */
   /**
-   * VOULU — l'unicité PARTIELLE des ordres vivants par source (DONNEES-10, migration 20270205120000) : Prisma 5 ne sait
+   * VOULU — l'unicité PARTIELLE des ordres vivants par source (DONNEES-10, migration 20270206120000) : Prisma 5 ne sait
    * pas écrire `WHERE status <> 'CANCELLED' AND "sourceType" IN (…)`. Une règle et non une exception : la migration
    * ne pose pas l'index sur une base qui porte déjà des doublons vivants (elle le dit), si bien qu'il peut manquer.
    */
