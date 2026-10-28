@@ -5,6 +5,9 @@ import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/
 import { DELAI_MIMO_MS } from "@/lib/agent/modele";
 import { modelesEffectifs } from "@/lib/agent/generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
+import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "@/lib/agent/consommation";
+import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
+import { retirerCaduquesAvantLeTour } from "@/lib/assistant/action-intents";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
 /**
@@ -46,12 +49,44 @@ export interface DemandeDuTour {
   surOutil?: (libelle: string) => void;
   /** Consigne ajoutée au contexte du tour (le fil s'en sert pour les tâches longues). */
   consigne?: string;
+  /** Le fil (conversation) auquel appartient le tour — pour le journal de consommation. */
+  conversation?: string | null;
 }
 
-export async function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
+/** Les appels de modèle du tour — et ceux que ses outils déclenchent — sont imputés à la personne. */
+export function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
+  return auNomDe(user.id, () => tourAuNomDe(user, d), d.conversation ?? null);
+}
+
+/**
+ * LE FILTRE SUR CE QUE LA PERSONNE ÉCRIT (IA-ASSISTANT-09, décision de Direction — option prudente par
+ * défaut, réglage `censurerSaisie`) : le message saisi et l'historique passent `censurerTexte` avant
+ * le modèle, comme le faisait l'ancienne couche de contexte. Un IBAN collé dans un e-mail ne part pas
+ * chez MiMo — et ne repart pas à chaque tour suivant par l'historique. Le revers, assumé : la personne
+ * ne peut plus dicter volontairement une coordonnée bancaire à l'assistant (Q12 à confirmer).
+ */
+export function filtrerSaisie(
+  texte: string,
+  historique: DemandeDuTour["historique"],
+  actif: boolean,
+): { texte: string; historique: DemandeDuTour["historique"]; masques: number } {
+  if (!actif) return { texte, historique, masques: 0 };
+  const t = censurerTexte(texte);
+  let masques = t.occurrences;
+  const h = historique.map((e) => {
+    const c = censurerTexte(e.content);
+    masques += c.occurrences;
+    return { ...e, content: c.texte };
+  });
+  return { texte: t.texte, historique: h, masques };
+}
+
+async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
+  const reglages = await lireReglagesAssistantIa();
   // LES PIÈCES DU MESSAGE : revérifiées, puis dites par leur nom et leur identifiant — jamais lues ici.
   const pieces = await piecesDuMessage(user, d.pieces);
-  const texteSaisi = (d.texte ?? "").trim();
+  const saisie = filtrerSaisie((d.texte ?? "").trim(), d.historique, reglages.censurerSaisie);
+  const texteSaisi = saisie.texte;
   const message = pieces.length
     ? `${texteSaisi || "(pièces jointes sans texte)"}\n\n[Pièces jointes à ce message — à joindre aux demandes par leur identifiant : ${pieces.map((p) => `« ${p.nom} » (identifiant ${p.id})`).join(" ; ")}]`
     : texteSaisi;
@@ -59,6 +94,12 @@ export async function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<Re
 
   const modeles = modelesEffectifs();
   if (modeles.length === 0) return { ok: false, error: "L'IA n'est pas configurée sur ce serveur.", message };
+
+  // LES CARTES DONT LA PERSONNE VIENT DE REPARLER N'ONT PLUS COURS (IA-ASSISTANT-10, décision de Direction
+  // — option prudente par défaut, réglage `retirerCartesCaduques`) : le remède qu'Adam applique depuis
+  // le défaut mesuré en banc (« non, finalement Amel, lundi » → la carte « Raihana, vendredi » restait
+  // cliquable). Une carte retirée se redemande ; une mauvaise action exécutée ne se reprend pas.
+  if (reglages.retirerCartesCaduques) await retirerCaduquesAvantLeTour(user.id, texteSaisi);
 
   let instructions: string;
   let config;
@@ -79,7 +120,8 @@ export async function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<Re
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({
-      user, message, historique: d.historique, instructions,
+      user, message, historique: saisie.historique, instructions,
+      origine: d.conversation ? "fil" : "conversation", conversation: d.conversation ?? null,
       outils, modeles, delaiMs: d.delaiMs ?? DELAI_MIMO_MS, config,
       propositionsFaites: () => propositions.length,
       maxEtapes: d.maxEtapes,
@@ -108,7 +150,7 @@ export async function jouerTour(user: CurrentUser, d: DemandeDuTour): Promise<Re
       } : null,
     };
   } catch (e) {
-    if (e instanceof IaCoupee) return { ok: false, error: e.message, message };
+    if (e instanceof IaCoupee || e instanceof PlafondIaAtteint) return { ok: false, error: e.message, message };
     console.error("[assistant] aucun modèle n'a répondu", e);
     return { ok: false, error: "L'assistant n'a pas pu répondre. Réessayez dans un instant.", message };
   }

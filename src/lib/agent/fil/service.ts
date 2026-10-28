@@ -39,6 +39,14 @@ const MAX_EN_FILE = 10;
 const DELAI_FOND_MS = Number(process.env.ASSISTANT_FOND_TIMEOUT_MS) || 240_000;
 const ETAPES_FOND = 24;
 const ECRITURE_PARTIELLE_MS = 350;
+/**
+ * TROIS ESSAIS PAR MESSAGE (IA-ASSISTANT-06). Un tour qui LÈVE (base indisponible au mauvais moment,
+ * pièce illisible) laissait son message « en cours » ; le battement le remettait en file, le rejouait,
+ * créait une réponse en échec de plus — chaque minute, sans fin, et en rappelant le modèle si la panne
+ * survenait après lui. Chaque prise compte désormais un essai ; au-delà, le message échoue et le dit.
+ */
+export const ESSAIS_MAX = 3;
+export const ECHEC_ESSAIS = "La demande a échoué trois fois — reformulez-la, ou réessayez dans un moment.";
 
 export const CONSIGNE_FOND = [
   "TÂCHES LONGUES : tu travailles en arrière-plan, la personne peut quitter l'écran — elle sera notifiée.",
@@ -161,7 +169,14 @@ function pourHistorique(t: AssistantIaTour): { role: "user" | "assistant"; conte
 
 async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<void> {
   const debut = Date.now();
-  await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { etat: ETAT.COURS } });
+  if (tour.essais >= ESSAIS_MAX) {
+    await prisma.assistantIaTour.create({
+      data: { filId: tour.filId, userId, role: "assistant", contenu: ECHEC_ESSAIS, etat: ETAT.ECHEC, erreur: "essais", repondA: tour.id },
+    });
+    await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { etat: ETAT.ECHEC } });
+    return;
+  }
+  await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { etat: ETAT.COURS, essais: { increment: 1 } } });
   const reponse = await prisma.assistantIaTour.create({
     data: { filId: tour.filId, userId, role: "assistant", contenu: "", etat: ETAT.COURS, repondA: tour.id },
   });
@@ -209,6 +224,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     historique: precedents.map(pourHistorique),
     delaiMs: DELAI_FOND_MS,
     maxEtapes: ETAPES_FOND,
+    conversation: tour.filId,
     consigne: CONSIGNE_FOND,
     surTexte: (brut) => { partiel = messagePartiel(brut); publier(); },
     surOutil: (libelle) => { if (!etapes.includes(libelle)) etapes.push(libelle); publier(true); },

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { caduquesParMessage, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/lib/assistant/proposition-perimee";
+import { caduquesParMessage, natureComparable, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/lib/assistant/proposition-perimee";
 
 /**
  * ACTION INTENTS — la machine d'état SERVEUR unique des actions de l'assistant.
@@ -114,7 +114,7 @@ async function retirerPerimees(userId: string, seeds: IntentSeed[], ids: (string
   if (retraitDesPerimeesDesactive()) return;
   const nouvelles: PropositionComparable[] = seeds.flatMap((seed, i) => {
     const id = ids[i];
-    return id ? [{ id, kind: seed.kind, title: seed.title, summary: intentSummary(seed) }] : [];
+    return id ? [{ id, kind: natureComparable(seed.kind, seed.payload), title: seed.title, summary: intentSummary(seed) }] : [];
   });
   if (nouvelles.length === 0) return;
 
@@ -126,11 +126,11 @@ async function retirerPerimees(userId: string, seeds: IntentSeed[], ids: (string
       id: { notIn: nouvelles.map((n) => n.id) },
       proposedAt: { gte: new Date(Date.now() - FENETRE_PERIMEES_MS) },
     },
-    select: { id: true, kind: true, title: true, summary: true },
+    select: { id: true, kind: true, title: true, summary: true, payload: true },
     orderBy: { proposedAt: "desc" },
     take: 20,
   });
-  const morts = propositionsPerimees(nouvelles, enAttente);
+  const morts = propositionsPerimees(nouvelles, enAttente.map((p) => ({ ...p, kind: natureComparable(p.kind, p.payload) })));
   if (morts.length === 0) return;
 
   for (const id of morts) {
@@ -199,6 +199,90 @@ export async function retirerCaduquesAvantLeTour(userId: string, message: string
   }
 }
 
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * RIEN NE RESTE EN PLAN — LE BALAYAGE DES INTENTIONS (audit 27/10, IA-ASSISTANT-07).
+ *
+ *   • EXECUTING depuis plus d'un quart d'heure : le processus a redémarré PENDANT l'action. Chaque clic
+ *     répondait « déjà en cours » pour toujours. L'intention passe FAILED avec une phrase qui dit de
+ *     VÉRIFIER avant de relancer — l'action a pu s'exécuter en partie ; jamais de rejeu automatique.
+ *   • PROPOSED plus vieille que le délai d'expiration (réglage `expirationCartesHeures` du Super Admin,
+ *     24 h par défaut) : EXPIRED, l'état qui existait sans qu'aucun code ne l'écrive (§118.45). Un BC
+ *     préparé il y a trois semaines ne se confirme plus depuis l'historique : on le redemande.
+ *
+ * Le délai d'expiration est relu dans la ligne `AssistantIaReglage` (prisma, sans importer l'Assistant
+ * IA : la couche d'intentions reste sous Adam). Sans ligne, 24 h — le défaut de la colonne.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export const EXECUTION_INTERROMPUE_MS = 15 * 60 * 1000;
+export const EXPIRATION_PAR_DEFAUT_H = 24;
+export const ERREUR_INTERROMPUE = "Action interrompue (redémarrage du serveur pendant l'exécution) — vérifiez le résultat avant de la relancer.";
+export const REFUS_EXPIREE = "Cette carte a expiré sans avoir été confirmée : elle n'a jamais été exécutée. Redemandez l'action à l'assistant.";
+
+export async function expirationCartesMs(): Promise<number> {
+  const r = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { expirationCartesHeures: true } }).catch(() => null);
+  const h = r?.expirationCartesHeures && r.expirationCartesHeures > 0 ? r.expirationCartesHeures : EXPIRATION_PAR_DEFAUT_H;
+  return h * 3600 * 1000;
+}
+
+/** Le moment du dernier événement de cet état dans le journal des transitions. */
+export function dernierEvenement(events: unknown, status: string): Date | null {
+  if (!Array.isArray(events)) return null;
+  for (let k = events.length - 1; k >= 0; k--) {
+    const e = events[k] as { status?: unknown; at?: unknown };
+    if (e?.status === status && typeof e.at === "string") {
+      const d = new Date(e.at);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+  }
+  return null;
+}
+
+/**
+ * `seulementPour` borne le balayage aux intentions d'UNE personne — un banc s'en sert pour ne pas
+ * toucher celles des bancs voisins (la suite tourne en parallèle sur une seule base).
+ */
+export async function balayerIntentions(
+  now: Date = new Date(),
+  options: { expirationMs?: number; seulementPour?: string } = {},
+): Promise<{ interrompues: number; expirees: number }> {
+  const delai = options.expirationMs ?? (await expirationCartesMs());
+  const qui = options.seulementPour ? { userId: options.seulementPour } : {};
+  // La table n'a pas de `updatedAt` : le moment de la réclamation est le dernier événement EXECUTING.
+  // Les intentions d'une MISSION sont exclues : leur reprise appartient au Mission Runtime (§118), qui
+  // réclamerait une intention FAILED et la rejouerait — exactement ce que ce balayage s'interdit.
+  const enCours = await prisma.assistantActionIntent.findMany({
+    where: { status: "EXECUTING", missionId: null, ...qui },
+    select: { id: true, events: true, decidedAt: true },
+    take: 200,
+  });
+  const seuil = now.getTime() - EXECUTION_INTERROMPUE_MS;
+  let interrompues = 0;
+  for (const i of enCours) {
+    const reclamee = dernierEvenement(i.events, "EXECUTING") ?? i.decidedAt;
+    if (!reclamee || reclamee.getTime() >= seuil) continue;
+    const r = await prisma.assistantActionIntent.updateMany({
+      where: { id: i.id, status: "EXECUTING" },
+      data: { status: "FAILED", error: ERREUR_INTERROMPUE, events: pushEvent(i.events, "FAILED_INTERRUPTED") as object },
+    });
+    interrompues += r.count;
+  }
+  const vieilles = await prisma.assistantActionIntent.findMany({
+    where: { status: "PROPOSED", missionId: null, ...qui, proposedAt: { lt: new Date(now.getTime() - delai) } },
+    select: { id: true, events: true },
+    take: 500,
+  });
+  let expirees = 0;
+  for (const i of vieilles) {
+    const r = await prisma.assistantActionIntent.updateMany({
+      where: { id: i.id, status: "PROPOSED" },
+      data: { status: "EXPIRED", decidedAt: now, events: pushEvent(i.events, "EXPIRED") as object },
+    });
+    expirees += r.count;
+  }
+  return { interrompues, expirees };
+}
+
 export interface IntentExecuteResult {
   ok: boolean;
   message?: string;
@@ -233,8 +317,17 @@ export async function executeIntentGuarded(
   if (intent.status === "EXECUTING") {
     return { ok: false, error: "Cette action est déjà en cours d'exécution — elle ne sera pas lancée deux fois." };
   }
-  if (intent.status === "CANCELLED" || intent.status === "EXPIRED") {
+  if (intent.status === "EXPIRED") return { ok: false, error: REFUS_EXPIREE };
+  if (intent.status === "CANCELLED") {
     return { ok: false, error: "Cette action a été annulée : elle n'a jamais été exécutée. Redemandez-la si besoin." };
+  }
+  // L'EXPIRATION SE DIT AU CLIC, sans attendre le balayage : une carte trop vieille ne s'exécute pas.
+  if (intent.status === "PROPOSED" && Date.now() - intent.proposedAt.getTime() > (await expirationCartesMs())) {
+    await prisma.assistantActionIntent.updateMany({
+      where: { id: intentId, status: "PROPOSED" },
+      data: { status: "EXPIRED", decidedAt: new Date(), events: pushEvent(intent.events, "EXPIRED") as object },
+    });
+    return { ok: false, error: REFUS_EXPIREE };
   }
 
   // RÉCLAMATION ATOMIQUE : un seul appel gagne le droit d'exécuter (PROPOSED/CONFIRMED/FAILED
