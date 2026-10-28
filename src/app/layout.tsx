@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { PrimitivesUI } from "@/components/ui/primitives-ui";
 
 /**
  * INTER — dessinée pour les interfaces denses : hauteur d'x généreuse, chiffres tabulaires,
@@ -45,7 +46,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="fr" className={inter.variable} suppressHydrationWarning>
-      <body>{children}</body>
+      <body>
+        {/* Dialogue de confirmation et avis de retour, accessibles partout (`components/ui/primitives-ui.tsx`). */}
+        <PrimitivesUI>{children}</PrimitivesUI>
+      </body>
     </html>
   );
 }
