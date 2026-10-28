@@ -9,7 +9,7 @@
 
 What this chapter covers:
 
-- **Authentication of employees**: Auth.js v5 (`next-auth@5.0.0-beta.22`) Credentials provider, JWT cookie, the **revocable DB session** (`UserSession`), brute-force lockout (`LoginAttempt`), forced password change, invitation links (`/invite/[token]`), guided onboarding.
+- **Authentication of employees**: Auth.js v5 (`next-auth@5.0.0-beta.32` — no stable v5 exists; beta.32 closes GHSA-8fpg/7rqj/xmf8/x445, V3-A) Credentials provider, JWT cookie, the **revocable DB session** (`UserSession`), brute-force lockout (`LoginAttempt`), forced password change, invitation links (`/invite/[token]`), guided onboarding.
 - **Other authentication planes**: the supplier portal (`/portail`, own HMAC cookie), the agent API (`/api/v1`, API keys + scopes), the public website inbound calls (`/api/site-web/v1`, key + HMAC), OnlyOffice server-to-server routes (signed JWT in query string), public pages (`/inscription`, `/meet`, `/api/events/qr`).
 - **Authorization**: the role × module × action matrix (`src/lib/rbac.ts`), per-user overrides (`UserAccess`), row grants (`RowGrant`), implicit grants (pending validations, org chart, seats, interim), row-level scope helpers (`scope*`), polymorphic entity access (`src/lib/entity-access.ts`), special "seats"/predicates (`PaymentCentreSeat`, `sitsOnValidationCentre`, `peutVoirAdam`…), "Vue exacte" (Super Admin impersonation-as-view).
 - **Guard conventions** for pages, server actions and API routes; navigation hiding vs authorization.
@@ -22,7 +22,7 @@ Out of scope: business circuits themselves (validations, payments) except where 
 
 ## 2. Summary
 
-- **The edge middleware never runs.** `middleware.ts` sits at the repo root, but Next 14.2.35 only looks for it in `join(appDir, "..")` = `src/` (`node_modules/next/dist/build/index.js:478-488`) [V]. The `authorized()` callback and public whitelist in `src/auth.config.ts` are therefore **dead code**; all protection comes from **server-side guards in each layout/page/action/route**: `requireModule()` / `requireUser()` + `userCan()` + row scope (`scope*`) or `canAccessEntity()` [V]. An audit of every page outside `(app)` and all 129 API handlers found no unauthenticated route returning internal data except by design (§4.1b) [V].
+- **The edge middleware never runs.** `middleware.ts` sits at the repo root, but Next only looks for it in `join(appDir, "..")` = `src/` — true on 14.2.35 (`build/index.js:478-488`) and re-checked on 15.5.28 (`build/index.js:548`; built `.next/server/middleware-manifest.json` has `"middleware": {}`) [V]. The `authorized()` callback and public whitelist in `src/auth.config.ts` are therefore **dead code**; all protection comes from **server-side guards in each layout/page/action/route**: `requireModule()` / `requireUser()` + `userCan()` + row scope (`scope*`) or `canAccessEntity()` [V]. An audit of every page outside `(app)` and all 129 API handlers found no unauthenticated route returning internal data except by design (§4.1b) [V].
 - The JWT carries `id/role/sid/mustChangePassword`; every server-side read of the user (`build()` in `src/lib/session.ts`) re-checks the `UserSession` row (revoked/expired) and recomputes **effective access from the DB** (`getAccess`, per-request cached) — so role/override changes apply on the next request [V].
 - Effective access = role defaults (19 roles × 70 modules × 7 actions) → per-user override (replaces primary-role defaults; `canView=false` = absolute block) → secondary role union → implicit grants via a single `grantImplicit()` that never overrides a block [V].
 - Super Admin is "sovereign": all modules, plus exclusive predicates (`peutVoirAdam`, impersonation view). Administration can be *delegated* via an `ADMIN` override, bounded by `admin/garde-comptes.ts` [V].
@@ -71,7 +71,7 @@ Out of scope: business circuits themselves (validations, payments) except where 
 
 ### 4.1 Request pipeline (employee)
 
-**The middleware is not part of the pipeline** [V]. Next 14.2.35 (`node_modules/next/package.json`) computes `rootDir = path.join(pagesDir || appDir, "..")` and only collects `middleware.(ts|js…)` from that directory (`node_modules/next/dist/build/index.js:476-488`). Here `appDir = src/app`, so `rootDir = src/`; there is no `src/middleware.ts`, and the repo-root `middleware.ts` is never compiled. Consequences:
+**The middleware is not part of the pipeline** [V]. Next 14.2.35 — unchanged in 15.5.28 (`build/index.js:548`) — computes `rootDir = path.join(pagesDir || appDir, "..")` and only collects `middleware.(ts|js…)` from that directory (`node_modules/next/dist/build/index.js:476-488`). Here `appDir = src/app`, so `rootDir = src/`; there is no `src/middleware.ts`, and the repo-root `middleware.ts` is never compiled. Consequences:
 
 - The `authorized()` callback (`src/auth.config.ts:16-57`) and its whitelist never execute; nothing redirects anonymous users at the edge; `/login` does not bounce logged-in users to `/mon-espace`.
 - Had it run, `false` would have meant a 307 to `/login` for every path, APIs included (`next-auth/lib/index.js:156-164`) — which would have broken the non-whitelisted machine endpoints listed in §2.
@@ -272,7 +272,7 @@ Related guards elsewhere: `requireSupplier()` (`src/lib/supplier-auth.ts:84`), `
 ### 4.10 Security mechanisms
 
 - **HTTP headers** (`next.config.mjs:129-169`) [V]: `X-Frame-Options: SAMEORIGIN`, `nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy` camera/mic/geo self, HSTS 2 y + preload, `COOP: same-origin`, `X-DNS-Prefetch-Control: off`, `X-Permitted-Cross-Domain-Policies: none`, `poweredByHeader:false`. **CSP** only `frame-ancestors 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests` — no `default-src`/`script-src` ⇒ no XSS mitigation by CSP.
-- **Server Actions**: Next 14.2's built-in Origin/Host check is the CSRF defence [U: framework behaviour, not re-verified]; body limit 256 MB (`next.config.mjs:95`).
+- **Server Actions**: Next 15.5's built-in Origin/Host check is the CSRF defence [U: framework behaviour, not re-verified]; body limit 256 MB (`next.config.mjs:95`).
 - **Encryption at rest** [V]: AES-256-GCM, random 12-byte IV.
   - `secret-box.ts:14-21`: key = `SHA-256(MAIL_ENCRYPTION_KEY || DRIVE_ENCRYPTION_KEY || AUTH_SECRET || NEXTAUTH_SECRET || "dev-secret-box-change-me")`; format `iv:tag:ct` base64; `openSecret` returns `null` on any failure. Used by Google/Microsoft mail connections, site-web keys, invoice knowledge, missions acceptance.
   - Drive blobs (`drive-storage.ts:28-36`): `DRIVE_ENCRYPTION_KEY` (32 bytes hex/base64) else `SHA-256(NEXTAUTH_SECRET ?? AUTH_SECRET ?? "amd-internal-os")`; S3 bucket receives ciphertext only.
@@ -416,7 +416,7 @@ Related guards elsewhere: `requireSupplier()` (`src/lib/supplier-auth.ts:84`), `
 ## 10. Verified vs uncertain (claim ledger)
 
 **Verified [V]** (file:line read):
-- Middleware not compiled: Next 14.2.35 `rootDir = join(appDir,"..")` = `src/` (`node_modules/next/dist/build/index.js:476-488`); no `src/middleware.ts`; repo-root `middleware.ts` ignored. Whitelist text `auth.config.ts:16-57` therefore dead; Auth.js redirect-on-false semantics `node_modules/next-auth/lib/index.js:156-164`.
+- Middleware not compiled (re-checked on 15.5.28): Next 14.2.35 `rootDir = join(appDir,"..")` = `src/` (`node_modules/next/dist/build/index.js:476-488`); no `src/middleware.ts`; repo-root `middleware.ts` ignored. Whitelist text `auth.config.ts:16-57` therefore dead; Auth.js redirect-on-false semantics `node_modules/next-auth/lib/index.js:156-164`.
 - Protection audit without middleware: 11 pages outside `(app)` and 129 API handlers in 121 files (table §4.1b); `(app)/layout.tsx:45-55`.
 - Credentials flow, lockout policy, session creation, JWT fields — `auth.ts:27-160`, `login-throttle.ts:10-71`.
 - Revocation check & live role — `session.ts:117-123,186-195`; all guard signatures — `session.ts:205-271`.

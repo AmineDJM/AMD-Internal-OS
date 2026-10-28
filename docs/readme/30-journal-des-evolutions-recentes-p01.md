@@ -1,5 +1,30 @@
 ## 🧾 Journal des évolutions récentes
 
+### V3-A : DÉPENDANCES — NEXT 15, REACT 19, NEXT-AUTH BETA.32, XLSX 0.20.3 ; ZÉRO AVIS CRITIQUE/HAUT EN PRODUCTION (2026-10-28)
+
+`npm audit --omit=dev` : **23 avis (3 critiques, 16 hauts) → 2 modérés** (`exceljs` → `uuid`, correctif = régression
+majeure d'exceljs, laissé). Audit INFRA-03 ([rapport](../audit/2026-10-27/10-infra-ci-observabilite.md)).
+- **Next 14.2.35 → 15.5.28** (ligne 15 encore corrigée ; tous les avis Next fermés) + **React 19.2**. Guide de migration
+  suivi : codemod officiel `next-async-request-api` (214 fichiers : `params`, `searchParams`, `cookies()`, `headers()`
+  deviennent asynchrones), puis les 13 accès qu'il forçait en synchrone réécrits à la main — `getCompanyScope`,
+  `getBudgetScope`, `resolveBudgetEnvelope`, `poserVueExacte`/`effacerVueExacte`, `set`/`clearSupplierSession`
+  deviennent `async`. `useFormState` → `useActionState` (React 19). Cache `fetch` : aucun usage explicite, le
+  « no-store par défaut » de Next 15 ne change rien. Le middleware racine reste non compilé (règle de Next inchangée,
+  INFRA-12, hors lot).
+- **next-auth 5.0.0-beta.32** : aucune v5 stable n'existe (la `latest` npm est la v4, API incompatible) ; beta.32
+  ferme les deux critiques (contrôle d'existence d'`auth` en échec ouvert, normalisation d'e-mail) et deux hauts.
+- **xlsx 0.20.3 depuis le CDN officiel SheetJS** (même API ; prototype pollution et ReDoS corrigés) — le builder
+  Render doit joindre `cdn.sheetjs.com` ([24-deploiement-render.md](24-deploiement-render.md)).
+- **Reste de l'audit** : `npm audit fix` (sans `--force`), `nodemailer` 10.2, `zod` 4.6.7, `recharts` 2.15.4,
+  `postcss` 8.5.32 imposé à Next par `overrides`, `image-size` 2.0.4 (déclaré mais jamais chargé par pptxgenjs),
+  `vitest` 2.1.9 et `tsx` 4.23.15.
+- **Mémoire de build** : Next 15 a supprimé `outputFileTracing: false` — le plugin de traçage par page est retiré du
+  compilateur serveur par le hook `webpack` (−250 Mo, −33 s) ; tas de compilation **3072 → 3584 Mo**
+  (`TAS_DU_BUILD_MO`) car Next 15 meurt en OOM à 3072. Pic sur build propre : Next 14 @3072 = 4542 Mo, Next 15 @3584
+  = 5150 Mo.
+- **Restent** (outillage de test seulement, jamais déployé) : la chaîne `vitest` 2.x (tinypool, vite) n'est corrigée
+  qu'en vitest 5 — montée majeure du lanceur de 15 800 tests, à faire dans son propre lot.
+
 ### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
 
 Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par

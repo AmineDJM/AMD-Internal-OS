@@ -7,9 +7,16 @@ applique les migrations et crée le Super Admin (aucune donnée de démo).
 2. Renseigner `ADMIN_EMAIL`, `ADMIN_PASSWORD`, `ADMIN_NAME` (`DATABASE_URL` et `AUTH_SECRET` gérés automatiquement).
 3. **Apply** → Render exécute `npm install && prisma generate && npm run build:render && prisma migrate deploy && db:bootstrap` — lint, typecheck et build AVANT toute écriture en base (refonte P0, [`docs/architecture/refonte-p0-outillage.md`](../architecture/refonte-p0-outillage.md) §2).
 
-> **Conflit de dépendances résolu** : `imapflow` tire `nodemailer@9`, en conflit avec le peer optionnel
-> `nodemailer@6` de `next-auth` (inutilisé). Le fichier **`.npmrc`** (`legacy-peer-deps=true`) règle le
-> `npm install` de Render automatiquement.
+> **Conflit de dépendances résolu** : l'ERP utilise `nodemailer@10`, en conflit avec le peer optionnel
+> `nodemailer@^7 || ^8` de `next-auth` (fournisseur e-mail inutilisé : connexion par identifiants). Le fichier
+> **`.npmrc`** (`legacy-peer-deps=true`) règle le `npm install` de Render automatiquement.
+
+> **`xlsx` vient du CDN officiel SheetJS** (`https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz`, empreinte
+> d'intégrité dans `package-lock.json`) : SheetJS ne publie plus sur npm, où la 0.18.5 reste vulnérable. Le
+> builder doit joindre `cdn.sheetjs.com` ; si l'hôte tombe, `npm install` échoue AVANT toute migration.
+
+> **Mémoire de build (Next 15)** : la compilation tourne avec un tas de **3584 Mo** (`TAS_DU_BUILD_MO`,
+> `next.config.mjs`) — Next 15 meurt en OOM à 3072. Pic mesuré sur build propre : 5150 Mo.
 
 ### Worker séparé — les tâches de fond hors du web (refonte V2-F, prêt, non activé)
 
