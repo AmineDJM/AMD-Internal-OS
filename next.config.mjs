@@ -36,13 +36,13 @@ const nextConfig = {
   poweredByHeader: false,
   // ── PAS D'OPTIMISEUR D'IMAGES (`/_next/image`) ───────────────────────────────────────
   //
-  // Next 14 n'est plus corrigé : les failles de l'optimiseur publiées depuis 14.2.35 (déni de
-  // service, exécution de code à distance via SVG/AVIF — `npm audit`) ne le sont que dans 15.5.x.
   // Ce point d'entrée est PUBLIC (aucune session demandée) et fait décoder des images par sharp
   // pour n'importe qui. L'application ne s'en sert que pour UNE image décorative (fond flouté de
   // l'assistant, recompressée à 125 Ko) : `unoptimized` fait répondre 404 au point d'entrée
   // (`next/dist/server/next-server.js`, `imagesConfig.unoptimized`) et sert le fichier tel quel.
-  // À rouvrir seulement après la montée de version de Next (audit 27/10, INFRA-04).
+  // Posé sous Next 14 (failles SVG/AVIF non corrigées, audit 27/10, INFRA-04). Next 15.5.28 les
+  // corrige (INFRA-03) ; on garde quand même la surface fermée : une seule image, aucun gain à
+  // ouvrir un décodeur public.
   images: { unoptimized: true },
   eslint: {
     // PAS un contournement : le lint tourne en PHASE SÉPARÉE et BLOQUANTE du build de
@@ -82,6 +82,10 @@ const nextConfig = {
     // MEURT ensuite : la mémoire retourne à l'OS au lieu de s'accumuler dans un seul tas
     // pour les trois. C'est ce qui plafonne le pic de la phase de compilation.
     webpackBuildWorker: true,
+    // Next 15 : l'option officielle qui allège le tas du compilateur (chaînes webpack internées,
+    // pas de double cache des tampons — `next/dist/build/webpack-build/impl.js`). Elle ne suffit
+    // pas seule : voir « TAS DU BUILD » en bas de fichier.
+    webpackMemoryOptimizations: true,
     // LE PLUS GROS LEVIER MESURÉ : −1034 Mo sur le pic (4548 → 3514) et −127 s de
     // compilation. Le pic tombait en FIN de compilation — signature de la minification.
     //
@@ -91,12 +95,6 @@ const nextConfig = {
     // bundles réellement servis au navigateur — et tout le reste du comportement.
     // Aucune vérification n'est désactivée, aucune fonctionnalité retirée.
     serverMinification: false,
-    // Libs Node serveur uniquement (jamais bundlées côté client) : auth, mail (IMAP/SMTP),
-    // extraction/OCR (tesseract.js/mupdf/sharp = WASM/natif, à ne pas bundler).
-    // `pdfkit` (conversion des fiches de paie Word → PDF) lit ses MÉTRIQUES DE POLICES depuis des
-    // fichiers `.afm` livrés dans le paquet. Bundlé, ces fichiers ne suivent pas : la conversion
-    // marcherait en développement et échouerait en production — le pire des deux mondes.
-    serverComponentsExternalPackages: ["bcryptjs", "imapflow", "nodemailer", "mailparser", "pdf-parse", "mammoth", "xlsx", "tesseract.js", "mupdf", "sharp", "docxtemplater", "pizzip", "pdfkit", "@mastra/core"],
     // Téléversements via Server Action (documents Regulatory/Congrès/Dossiers…) : Next
     // plafonne le corps à 1 Mo par défaut, ce qui rendait inopérante la limite réglée par
     // l'admin. On lève ce plafond à 256 Mo ; la VRAIE limite reste celle définie par le
@@ -104,14 +102,20 @@ const nextConfig = {
     // (routes en flux, jusqu'à la limite Drive configurée).
     serverActions: { bodySizeLimit: "256mb" },
   },
-  // ── PAS DE TRAÇAGE DES FICHIERS (`.nft.json`) ─────────────────────────────────────────
+  // Libs Node serveur uniquement (jamais bundlées côté client) : auth, mail (IMAP/SMTP),
+  // extraction/OCR (tesseract.js/mupdf/sharp = WASM/natif, à ne pas bundler).
+  // `pdfkit` (conversion des fiches de paie Word → PDF) lit ses MÉTRIQUES DE POLICES depuis des
+  // fichiers `.afm` livrés dans le paquet. Bundlé, ces fichiers ne suivent pas : la conversion
+  // marcherait en développement et échouerait en production — le pire des deux mondes.
+  // (Next 15 : sorti d'`experimental.serverComponentsExternalPackages`, même sens.)
+  serverExternalPackages: ["bcryptjs", "imapflow", "nodemailer", "mailparser", "pdf-parse", "mammoth", "xlsx", "tesseract.js", "mupdf", "sharp", "docxtemplater", "pizzip", "pdfkit", "@mastra/core"],
+  // ── TRAÇAGE DES FICHIERS (`.nft.json`) ────────────────────────────────────────────────
   //
-  // Next 14 trace, pour chaque page, les fichiers dont elle dépend — DANS le processus
-  // parent, PENDANT la génération des pages : c'est ce qui porte le parent à ~3 Go au pic.
-  // Ces traces ne servent qu'à `output: "standalone"` (copier le strict nécessaire dans une
-  // image). Render lance `next start` sur le dépôt complet, node_modules compris : il ne
-  // les lit jamais. Aucune vérification, aucune fonctionnalité n'en dépend.
-  outputFileTracing: false,
+  // Next 14 permettait `outputFileTracing: false` (le traçage portait le parent à ~3 Go au pic,
+  // et ne sert qu'à `output: "standalone"`, que Render n'utilise pas). Next 15 a SUPPRIMÉ
+  // l'option : le traçage tourne toujours, dans un worker à part pendant la compilation serveur
+  // (`next/dist/build/index.js`, `collectBuildTraces`). Le pic mesuré avec Next 15 est consigné
+  // dans render.yaml (« MÉMOIRE DE BUILD »).
   // ── LE CACHE WEBPACK NE VIT PLUS EN ENTIER DANS LE TAS ─────────────────────────────────
   //
   // En production, Next règle le cache filesystem de webpack sur `maxMemoryGenerations:
@@ -128,10 +132,25 @@ const nextConfig = {
   // disparaissent. Sur Render (`process.env.RENDER`), le fichier est de plus COMPRESSÉ
   // (gzip ≈ ⅓ de la taille) : moins d'octets dans le conteneur, cache inter-déploiements
   // conservé. Aucune vérification désactivée, aucun contenu de cache perdu.
-  webpack: (config) => {
+  //
+  // ── LE TRAÇAGE PAR PAGE RESTE HORS DU COMPILATEUR SERVEUR (Next 15) ──────────────────────
+  //
+  // Next 14 coupait ce traçage par `outputFileTracing: false` (bloc « TRAÇAGE » plus haut). Next 15
+  // a supprimé l'option : son `TraceEntryPointsPlugin` repart dans le compilateur serveur
+  // (`next/dist/build/webpack-config.js`) et analyse chaque point d'entrée DANS le tas du worker.
+  // Mesuré (10/2026, build propre, RENDER=1, tas 3584 Mo) : avec le plugin, pic 5397 Mo et
+  // compilation serveur en 222 s ; sans, 5150 Mo et 189 s. Le plugin n'écrit que les
+  // `.next/server/**/*.nft.json` — lus par `output: "standalone"` seulement ; `next start` ne les
+  // ouvre jamais, et Next tolère son absence (`buildTraceContext` facultatif dans
+  // `webpack-build/impl.js` et `collect-build-traces.js`). Le retirer rend exactement le
+  // comportement de Next 14 : aucune vérification, aucune fonctionnalité en moins.
+  webpack: (config, { isServer, dev }) => {
     if (config.cache && config.cache.type === "filesystem") {
       config.cache.maxMemoryGenerations = 1;
       if (process.env.RENDER) config.cache.compression = "gzip";
+    }
+    if (isServer && !dev) {
+      config.plugins = config.plugins.filter((p) => p?.constructor?.name !== "TraceEntryPointsPlugin");
     }
     return config;
   },
@@ -182,7 +201,7 @@ const nextConfig = {
 /**
  * LE PLAFOND DE TAS DES PROCESSUS DU BUILD, QUELLE QUE SOIT LA COMMANDE.
  *
- * `build:render` pose `--max-old-space-size=3072` ; mais le tableau de bord Render lance un
+ * `build:render` pose `--max-old-space-size=3584` ; mais le tableau de bord Render lance un
  * `npx next build` NU — sans plafond, V8 laisse un worker de compilation grossir avant de ramasser :
  * mesuré (10/2026, build propre, commande nue) un worker à 6395 Mo, pic 6671 Mo, contre 4716 Mo
  * avec le plafond. Ajoutés à node_modules et .next dans le même conteneur, c'est la ligne des
@@ -191,11 +210,25 @@ const nextConfig = {
  * posé ici les couvre tous. Seulement en phase de build et seulement si personne n'a déjà fixé
  * de plafond — `next start` (autre phase) n'est jamais touché.
  */
+/**
+ * TAS DU BUILD — 3584 Mo depuis Next 15 (10/2026). Next 14 compilait sous 3072 Mo ; Next 15 produit
+ * une sortie serveur plus lourde (manifeste des server actions 50 Mo contre 32, `server/app` 112 Mo
+ * contre 79) et son worker de compilation serveur MEURT à 3072 Mo (« heap out of memory »), même
+ * avec `webpackMemoryOptimizations` et sans le traçage par page. Mesuré (build propre, RENDER=1,
+ * relevé RSS de l'arbre node toutes les 2 s) :
+ *   Next 14.2.35 @ 3072 → OK, pic 4542 Mo   (référence, commit aec7934)
+ *   Next 15.5.28 @ 3072 → OOM du worker serveur
+ *   Next 15.5.28 @ 3584 → OK, pic 5150 Mo   ← retenu (sous les 5437 Mo d'un déploiement réussi)
+ *   Next 15.5.28 @ 4096 → OK, pic 5612 Mo
+ * Valeur à garder alignée sur `build:render` (package.json) et `scripts/build-memory.sh`.
+ */
+const TAS_DU_BUILD_MO = 3584;
+
 function plafondDuBuild(phase) {
   if (phase !== "phase-production-build") return;
   const actuel = process.env.NODE_OPTIONS ?? "";
   if (/--max[-_]old[-_]space[-_]size=/.test(actuel)) return;
-  process.env.NODE_OPTIONS = `${actuel} --max-old-space-size=3072`.trim();
+  process.env.NODE_OPTIONS = `${actuel} --max-old-space-size=${TAS_DU_BUILD_MO}`.trim();
 }
 
 export default (phase) => {
