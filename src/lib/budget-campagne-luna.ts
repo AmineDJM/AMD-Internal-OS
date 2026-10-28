@@ -1,6 +1,7 @@
 import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/openai-luna";
 import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
 import { ecartPct, montantCourt, resumeDiff, LIBELLE_SOURCE, type DiffVersions, type SourceLigne } from "@/lib/budget-campagne/regles";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -60,7 +61,7 @@ async function appeler(system: string, user: string, userId: string | null): Pro
     errorCode: panne ? "exception" : r === null ? "timeout" : !r.ok ? (r.error ?? "error").slice(0, 120) : texte ? null : "invalid_json",
     llmCalls: 1, inputTokens: r?.usage.inputTokens ?? null, outputTokens: r?.usage.outputTokens ?? null,
     cachedInputTokens: r?.usage.cachedInputTokens ?? null, costUsd: r?.usage.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("budget-campagne-luna.appeler.logAiUsage"));
   return texte || null;
 }
 

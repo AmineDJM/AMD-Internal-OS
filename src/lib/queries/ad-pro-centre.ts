@@ -8,6 +8,7 @@ import { ITEM_KIND_LABELS } from "@/lib/ad-pro-items";
 import type { SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { totauxEnAttenteDuDg } from "@/lib/ad-pro/porte-dg";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -72,19 +73,19 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
       select: { entityType: true, entityId: true, amount: true, createdAt: true, updatedAt: true },
       orderBy: { updatedAt: "asc" },
       take: 300,
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.workflowInstance", [])),
     prisma.promoMaterial.findMany({
       where: { circuitState: "REVIEW_DG" },
       select: { id: true, reference: true, title: true, chosenAmount: true, amount: true, updatedAt: true, requesterId: true },
       orderBy: { updatedAt: "asc" },
       take: 300,
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.promoMaterial", [])),
     prisma.adProGateVisa.findMany({
       where: { status: "PENDING" },
       select: { entityType: true, entityId: true, amount: true, threshold: true, createdAt: true, note: true },
       orderBy: { createdAt: "asc" },
       take: 300,
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.adProGateVisa", [])),
     // LES BONS DE COMMANDE (§118.148) — la demande de BC d'un POSTE, visée ici.
     prisma.adProItem.findMany({
       where: { orderStage: "REQUESTED" },
@@ -95,16 +96,16 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
       },
       orderBy: { updatedAt: "asc" },
       take: 300,
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.adProItem", [])),
     // Le BC d'un dossier de matériel promotionnel de l'ANCIEN parcours, qui attendait les Finances.
     prisma.promoMaterial.findMany({
       where: { status: "BC_FINANCE_REVIEW", circuitState: null },
       select: { id: true, reference: true, title: true, chosenAmount: true, amount: true, bcReference: true, chosenAgency: true, updatedAt: true, requesterId: true },
       orderBy: { updatedAt: "asc" },
       take: 300,
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.promoMaterial", [])),
     // LES TOTAUX QUI ATTENDENT LE DG (27/10/2026) — la somme des postes d'une demande, au-dessus du seuil.
-    totauxEnAttenteDuDg().catch(() => []),
+    totauxEnAttenteDuDg().catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.totauxEnAttenteDuDg", [])),
   ]);
 
   // Le seuil FIGÉ du visa fait foi pour sa ligne ; pour les deux autres formes, c'est le réglage
@@ -112,7 +113,7 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
   // de rendre celui qui est en vigueur (§118.16).
   const reglage = await prisma.appSetting
     .findUnique({ where: { id: "global" }, select: { adProDgThreshold: true } })
-    .catch(() => null);
+    .catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.appSetting", null));
   const seuilDuJour = reglage ? toNumber(reglage.adProDgThreshold) : null;
 
   const lignes: LigneCentre[] = [];
@@ -128,19 +129,19 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     prisma.sponsoringRequest.findMany({
       where: { id: { in: parType.get("SPONSORING") ?? [] } },
       select: { id: true, reference: true, institution: true, requesterId: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.sponsoringRequest", [])),
     prisma.congressInternational.findMany({
       where: { id: { in: parType.get("CONGRESS_INTERNATIONAL") ?? [] } },
       select: { id: true, name: true, requesterId: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.congressInternational", [])),
     prisma.congressNational.findMany({
       where: { id: { in: parType.get("CONGRESS_NATIONAL") ?? [] } },
       select: { id: true, name: true, requesterId: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.congressNational", [])),
     prisma.event.findMany({
       where: { id: { in: parType.get("EVENT") ?? [] } },
       select: { id: true, name: true, requesterId: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.event", [])),
   ]);
   // Les opérations des POSTES dont le BC attend : leur référence et leur nom, par type, en lot.
   const opsDesPostes = new Map<string, string[]>();
@@ -152,19 +153,19 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
   }
   const [sponsPostes, intlPostes, natioPostes, evtsPostes, autresPostes] = await Promise.all([
     opsDesPostes.get("SPONSORING")?.length
-      ? prisma.sponsoringRequest.findMany({ where: { id: { in: opsDesPostes.get("SPONSORING")! } }, select: { id: true, reference: true, institution: true } }).catch(() => [])
+      ? prisma.sponsoringRequest.findMany({ where: { id: { in: opsDesPostes.get("SPONSORING")! } }, select: { id: true, reference: true, institution: true } }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.sponsoringRequest", []))
       : [],
     opsDesPostes.get("CONGRESS_INTERNATIONAL")?.length
-      ? prisma.congressInternational.findMany({ where: { id: { in: opsDesPostes.get("CONGRESS_INTERNATIONAL")! } }, select: { id: true, name: true } }).catch(() => [])
+      ? prisma.congressInternational.findMany({ where: { id: { in: opsDesPostes.get("CONGRESS_INTERNATIONAL")! } }, select: { id: true, name: true } }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.congressInternational", []))
       : [],
     opsDesPostes.get("CONGRESS_NATIONAL")?.length
-      ? prisma.congressNational.findMany({ where: { id: { in: opsDesPostes.get("CONGRESS_NATIONAL")! } }, select: { id: true, name: true } }).catch(() => [])
+      ? prisma.congressNational.findMany({ where: { id: { in: opsDesPostes.get("CONGRESS_NATIONAL")! } }, select: { id: true, name: true } }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.congressNational", []))
       : [],
     opsDesPostes.get("EVENT")?.length
-      ? prisma.event.findMany({ where: { id: { in: opsDesPostes.get("EVENT")! } }, select: { id: true, name: true } }).catch(() => [])
+      ? prisma.event.findMany({ where: { id: { in: opsDesPostes.get("EVENT")! } }, select: { id: true, name: true } }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.event", []))
       : [],
     opsDesPostes.get("AD_PRO_OTHER")?.length
-      ? prisma.adProOtherRequest.findMany({ where: { id: { in: opsDesPostes.get("AD_PRO_OTHER")! } }, select: { id: true, reference: true, title: true } }).catch(() => [])
+      ? prisma.adProOtherRequest.findMany({ where: { id: { in: opsDesPostes.get("AD_PRO_OTHER")! } }, select: { id: true, reference: true, title: true } }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.adProOtherRequest", []))
       : [],
   ]);
   const OPERATION = new Map<string, string>();
@@ -180,7 +181,7 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     ? await prisma.legalDocument.findMany({
         where: { id: { in: idsBCLegal } },
         select: { id: true, reference: true, title: true, counterparty: true, amount: true, createdById: true, sourceType: true, notes: true },
-      }).catch(() => [])
+      }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.legalDocument", []))
     : [];
 
   // ── LES NOMS EN UN SEUL LOT ────────────────────────────────────────────────────────────────
@@ -201,11 +202,11 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     prisma.consultingContract.findMany({
       where: { id: { in: idsVisaTous }, ...ATTEND_ENCORE.CONSULTING_CONTRACT, pole: "AD_PRO" },
       select: { id: true, reference: true, title: true, requesterId: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.consultingContract", [])),
     prisma.adProOtherRequest.findMany({
       where: { id: { in: idsVisaTous }, ...ATTEND_ENCORE.AD_PRO_OTHER },
       select: { id: true, reference: true, title: true, requesterId: true },
-    }).catch(() => []),
+    }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.adProOtherRequest", [])),
   ]);
 
   const idsPersonnes = [...new Set([
@@ -217,7 +218,7 @@ export async function demandesAuCentreAdPro(): Promise<LigneCentre[]> {
     ...promosBC.map((r) => r.requesterId), ...totauxDg.map((r) => r.requesterId),
   ].filter((x): x is string => Boolean(x)))];
   const personnes = idsPersonnes.length
-    ? await prisma.user.findMany({ where: { id: { in: idsPersonnes } }, select: { id: true, name: true } }).catch(() => [])
+    ? await prisma.user.findMany({ where: { id: { in: idsPersonnes } }, select: { id: true, name: true } }).catch(sansBloquer("ad-pro-centre.demandesAuCentreAdPro.user", []))
     : [];
   const NOMS = new Map(personnes.map((u) => [u.id, u.name]));
   /** Le nom du demandeur, ou `null`. Jamais un identifiant : un `cuid` à l'écran ne dit rien. */
@@ -413,7 +414,7 @@ export async function visasTranchesCentreAdPro(): Promise<{ lignes: VisaTranche[
   const candidats = await prisma.adProGateVisa.findMany({
     where: { status: { in: ["REFUSED", "CHANGES_REQUESTED"] } },
     select: { entityType: true, entityId: true, decidedAt: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("ad-pro-centre.visasTranchesCentreAdPro.adProGateVisa", []));
   const vivantes = await demandesQuiAttendent(candidats);
   const retenus = candidats
     .filter((v) => vivantes.has(`${v.entityType}:${v.entityId}`))
@@ -425,7 +426,7 @@ export async function visasTranchesCentreAdPro(): Promise<{ lignes: VisaTranche[
     where: { OR: page.map((v) => ({ entityType: v.entityType, entityId: v.entityId })) },
     orderBy: { decidedAt: "desc" },
     select: { entityType: true, entityId: true, status: true, note: true, decidedAt: true, decidedBy: { select: { name: true } } },
-  }).catch(() => []);
+  }).catch(sansBloquer("ad-pro-centre.visasTranchesCentreAdPro.adProGateVisa", []));
   const lignes: VisaTranche[] = [];
   for (const v of visas) {
     const f = vivantes.get(`${v.entityType}:${v.entityId}`);
@@ -460,13 +461,13 @@ async function demandesQuiAttendent(
   const ids = (t: string) => [...new Set(visas.filter((v) => v.entityType === t).map((v) => v.entityId))];
   const [contrats, autres, bcs] = await Promise.all([
     ids("CONSULTING_CONTRACT").length
-      ? prisma.consultingContract.findMany({ where: { id: { in: ids("CONSULTING_CONTRACT") }, ...ATTEND_ENCORE.CONSULTING_CONTRACT, pole: "AD_PRO" }, select: { id: true, reference: true, title: true } }).catch(() => [])
+      ? prisma.consultingContract.findMany({ where: { id: { in: ids("CONSULTING_CONTRACT") }, ...ATTEND_ENCORE.CONSULTING_CONTRACT, pole: "AD_PRO" }, select: { id: true, reference: true, title: true } }).catch(sansBloquer("ad-pro-centre.demandesQuiAttendent.consultingContract", []))
       : [],
     ids("AD_PRO_OTHER").length
-      ? prisma.adProOtherRequest.findMany({ where: { id: { in: ids("AD_PRO_OTHER") }, ...ATTEND_ENCORE.AD_PRO_OTHER }, select: { id: true, reference: true, title: true } }).catch(() => [])
+      ? prisma.adProOtherRequest.findMany({ where: { id: { in: ids("AD_PRO_OTHER") }, ...ATTEND_ENCORE.AD_PRO_OTHER }, select: { id: true, reference: true, title: true } }).catch(sansBloquer("ad-pro-centre.demandesQuiAttendent.adProOtherRequest", []))
       : [],
     ids("LEGAL_DOCUMENT").length
-      ? prisma.legalDocument.findMany({ where: { id: { in: ids("LEGAL_DOCUMENT") }, ...ATTEND_ENCORE.LEGAL_DOCUMENT }, select: { id: true, reference: true, title: true } }).catch(() => [])
+      ? prisma.legalDocument.findMany({ where: { id: { in: ids("LEGAL_DOCUMENT") }, ...ATTEND_ENCORE.LEGAL_DOCUMENT }, select: { id: true, reference: true, title: true } }).catch(sansBloquer("ad-pro-centre.demandesQuiAttendent.legalDocument", []))
       : [],
   ]);
   const fiche = new Map<string, { reference: string | null; intitule: string; href: string }>();
@@ -489,17 +490,17 @@ export async function demandeAttendLeCentre(entityType: EntityType, entityId: st
 export async function demandeurDuVisa(entityType: EntityType, entityId: string): Promise<string | null> {
   if (entityType === "CONSULTING_CONTRACT") {
     const c = await prisma.consultingContract
-      .findUnique({ where: { id: entityId }, select: { requesterId: true } }).catch(() => null);
+      .findUnique({ where: { id: entityId }, select: { requesterId: true } }).catch(sansBloquer("ad-pro-centre.demandeurDuVisa.consultingContract", null));
     return c?.requesterId ?? null;
   }
   if (entityType === "AD_PRO_OTHER") {
     const o = await prisma.adProOtherRequest
-      .findUnique({ where: { id: entityId }, select: { requesterId: true } }).catch(() => null);
+      .findUnique({ where: { id: entityId }, select: { requesterId: true } }).catch(sansBloquer("ad-pro-centre.demandeurDuVisa.adProOtherRequest", null));
     return o?.requesterId ?? null;
   }
   if (entityType === "LEGAL_DOCUMENT") {
     const d = await prisma.legalDocument
-      .findUnique({ where: { id: entityId }, select: { createdById: true } }).catch(() => null);
+      .findUnique({ where: { id: entityId }, select: { createdById: true } }).catch(sansBloquer("ad-pro-centre.demandeurDuVisa.legalDocument", null));
     return d?.createdById ?? null;
   }
   return null;

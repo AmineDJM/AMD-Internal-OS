@@ -24,6 +24,7 @@
  */
 
 import { Worker } from "node:worker_threads";
+import { attendu } from "@/lib/journal";
 
 export const JS_DELAI_MS = 5_000;
 export const JS_MEMOIRE_MO = 128;
@@ -129,7 +130,7 @@ export async function executerJs(code: string, data: unknown, opts: { delaiMs?: 
       resourceLimits: { maxOldGenerationSizeMb: JS_MEMOIRE_MO, maxYoungGenerationSizeMb: 32, codeRangeSizeMb: 16 },
       stdout: true, stderr: true,
     });
-    const conclure = (r: ResultatJs) => { if (fini) return; fini = true; clearTimeout(garde); worker.terminate().catch(() => undefined); resolve({ ...r, ms: Date.now() - t0 }); };
+    const conclure = (r: ResultatJs) => { if (fini) return; fini = true; clearTimeout(garde); worker.terminate().catch(attendu("fermeture au mieux : la ressource est abandonnée de toute façon")); resolve({ ...r, ms: Date.now() - t0 }); };
     // La garde du FIL : `vm` coupe le code synchrone, mais une promesse qui ne se résout jamais
     // ou un fil qui s'attarde à sérialiser doit aussi finir. Marge de 1 s au-dessus du délai vm.
     const garde = setTimeout(() => conclure({ ok: false, resultat: null, journal: [], ms: 0, erreur: `délai dépassé (${delai} ms) : le fil a été arrêté`, notes }), delai + 1_000);

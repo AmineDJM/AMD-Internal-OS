@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { authorizeUrl, tokenUrl, SCOPE_STRING, type MicrosoftMailConfig } from "./config";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'AUTHENTIFICATION MICROSOFT — code d'autorisation avec PKCE, permissions DÉLÉGUÉES.
@@ -144,7 +145,7 @@ async function postToken(cfg: MicrosoftMailConfig, body: URLSearchParams): Promi
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
   });
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const json = (await res.json().catch(sansBloquer("oauth.postToken.json", {}))) as Record<string, unknown>;
   if (!res.ok || !json.access_token) {
     // On rend le CODE d'erreur de Microsoft (`invalid_grant`, `consent_required`…), jamais la
     // description brute, qui peut contenir des éléments de la requête.

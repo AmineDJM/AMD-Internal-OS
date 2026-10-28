@@ -97,6 +97,7 @@ export { proprietaire } from "@/platform/in-process/missions/proprietaire";
 import { proprietaire } from "@/platform/in-process/missions/proprietaire";
 import { estReplanifiable } from "@/lib/missions/runtime/replan";
 import { lireInterrupteurMissions, type LecteurInterrupteur } from "@/lib/interrupteurs/missions";
+import { sansBloquer } from "@/lib/journal";
 
 export interface ConduiteMission {
   executees: number;
@@ -153,7 +154,7 @@ export async function conduireMission(
    * `avancerMission`. Il n'exécute rien lui-même : le moteur reste le seul exécutant.
    */
   const { aDesJalons, conduireHorizon } = await import("@/platform/in-process/missions/horizon");
-  if (await aDesJalons(missionId).catch(() => false)) {
+  if (await aDesJalons(missionId).catch(sansBloquer("missions-sweep.conduireMission.aDesJalons", false))) {
     const tour = await conduireHorizon(user, missionId, options);
     const apresH = await prisma.mission.findUnique({
       where: { id: missionId }, select: { status: true, planVersion: true, ownerId: true },
@@ -169,7 +170,7 @@ export async function conduireMission(
         raison: tour.arret ?? `${tour.avancement.bloques} jalon(s) bloqué(s) sur ${tour.avancement.total}`,
         decision: "préciser la demande, reprendre le jalon bloqué, ou arrêter la mission",
         planVersion: apresH.planVersion,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("missions-sweep.conduireMission.signaler"));
       sortie.signale = true;
     }
     return sortie;
@@ -208,11 +209,11 @@ export async function conduireMission(
       await journaliser(missionId, "REPLAN_SKIPPED",
         `Le planificateur n'a pas repris la main sur une mission ${apres.status} : ${raisonReplan ?? "aucune raison rendue"}.`,
         { statut: apres.status, planVersion: apres.planVersion },
-      ).catch(() => undefined);
+      ).catch(sansBloquer("missions-sweep.conduireMission.journaliser"));
     }
     if (rp?.replanifie) {
       out.replanifie = true;
-      const r2 = await avancerMission(user, missionId, options).catch(() => null);
+      const r2 = await avancerMission(user, missionId, options).catch(sansBloquer("missions-sweep.conduireMission.avancerMission", null));
       out.executees += r2?.executees ?? 0;
       out.deployees += r2?.deployees ?? 0;
       apres = await prisma.mission.findUnique({ where: { id: missionId }, select: { status: true, planVersion: true, ownerId: true } });
@@ -232,7 +233,7 @@ export async function conduireMission(
       missionId, ownerId: apres.ownerId, titre: "", raison,
       decision: "préciser la demande, replanifier depuis l'écran de la mission, ou l'arrêter",
       planVersion: apres.planVersion,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("missions-sweep.conduireMission.signaler"));
     out.signale = true;
   }
   return out;
@@ -272,14 +273,14 @@ export async function balayerMissions(deps: DependancesBalayage = {}): Promise<B
   // mission dont « reviens demain 10 h » vient d'échoir devient candidate DANS CE battement,
   // pas au suivant. La granularité est celle du battement (~60 s) — largement suffisante pour
   // « demain », et aucun minuteur en mémoire à perdre au redéploiement.
-  if (!deps.seulement) await reveillerAttentesTemporelles(new Date()).catch(() => []);
+  if (!deps.seulement) await reveillerAttentesTemporelles(new Date()).catch(sansBloquer("missions-sweep.balayerMissions.reveillerAttentesTemporelles", []));
 
   // ── 0bis. LES LANCEMENTS PERDUS — le filet du lancement détaché (§5 durabilité) ───────
   //
   // Une mission-talon PLANNING sans étape dont le processus est mort entre « je m'en occupe »
   // et la planification est RETROUVÉE ici et relancée. La demande n'est jamais perdue : elle
   // vit en base depuis la première seconde.
-  if (!deps.seulement) await rattraperLancementsPerdus(proprietaire).catch(() => 0);
+  if (!deps.seulement) await rattraperLancementsPerdus(proprietaire).catch(sansBloquer("missions-sweep.balayerMissions.rattraperLancementsPerdus", 0));
 
   // ── 1. LES MISSIONS QUI ONT QUELQUE CHOSE À FAIRE ───────────────────────────────────
   //
@@ -289,12 +290,12 @@ export async function balayerMissions(deps: DependancesBalayage = {}): Promise<B
   // chaque battement, sur chaque mission longue du produit.
   const candidates = deps.seulement
     ? [...deps.seulement]
-    : await missionsAFaireAvancer(MISSIONS_PAR_PASSAGE).catch(() => [] as string[]);
+    : await missionsAFaireAvancer(MISSIONS_PAR_PASSAGE).catch(sansBloquer("missions-sweep.balayerMissions.missionsAFaireAvancer", [] as string[]));
   const missions = candidates.length > 0
     ? await prisma.mission.findMany({
         where: { id: { in: candidates } },
         select: { id: true, ownerId: true, modelCallsCap: true, modelCalls: true },
-      }).catch(() => [] as { id: string; ownerId: string; modelCallsCap: number | null; modelCalls: number }[])
+      }).catch(sansBloquer("missions-sweep.balayerMissions.mission", [] as { id: string; ownerId: string; modelCallsCap: number | null; modelCalls: number }[]))
     : [];
 
   const cache = new Map<string, CurrentUser | null>();
@@ -373,7 +374,7 @@ export async function balayerMissions(deps: DependancesBalayage = {}): Promise<B
       // ADAM RELANCE LUI-MÊME — un barreau par jour, la hiérarchie au troisième, le dirigeant
       // seulement quand l'échelle est épuisée ou que la personne attendue est externe. L'échelle
       // relit le journal : rappelée à chaque battement, elle ne fait rien de plus dans la journée.
-      const r = await relancerAttente(e).catch(() => null);
+      const r = await relancerAttente(e).catch(sansBloquer("missions-sweep.balayerMissions.relancerAttente", null));
       if (r && r.geste !== "SILENCE") out.relances += 1;
     }
   } catch (e) {

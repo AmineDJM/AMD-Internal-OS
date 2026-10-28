@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { foldOrg, initialsOf, orgTokens } from "@/lib/name-match";
 import { ALIAS_WEIGHT, type AliasSource, type EntityKind } from "./contract";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -134,7 +135,7 @@ export async function projectEntities(): Promise<ProjectionResult> {
   const bump = (k: EntityKind) => { out.byKind[k] = (out.byKind[k] ?? 0) + 1; out.entities += 1; };
 
   // ── LES SOCIÉTÉS DU GROUPE ──────────────────────────────────────────────────────────────
-  for (const c of await prisma.company.findMany({ where: { isActive: true }, select: { id: true, name: true, shortName: true } }).catch(() => [])) {
+  for (const c of await prisma.company.findMany({ where: { isActive: true }, select: { id: true, name: true, shortName: true } }).catch(sansBloquer("project.projectEntities.company", []))) {
     const aliases: AliasDraft[] = [{ alias: c.name, source: "erp:Company.name", weight: ALIAS_WEIGHT.canonical }];
     if (c.shortName) aliases.push({ alias: c.shortName, source: "erp:Company.shortName", weight: ALIAS_WEIGHT.short });
     const acr = derivedAcronym(c.name);
@@ -143,7 +144,7 @@ export async function projectEntities(): Promise<ProjectionResult> {
   }
 
   // ── LES FOURNISSEURS ────────────────────────────────────────────────────────────────────
-  for (const s of await prisma.supplier.findMany({ where: { active: true }, select: { id: true, name: true } }).catch(() => [])) {
+  for (const s of await prisma.supplier.findMany({ where: { active: true }, select: { id: true, name: true } }).catch(sansBloquer("project.projectEntities.supplier", []))) {
     const aliases: AliasDraft[] = [{ alias: s.name, source: "erp:Supplier.name", weight: ALIAS_WEIGHT.canonical }];
     const acr = derivedAcronym(s.name);
     if (acr) aliases.push({ alias: acr, source: "derived", weight: ALIAS_WEIGHT.derived });
@@ -158,7 +159,7 @@ export async function projectEntities(): Promise<ProjectionResult> {
   const moleculeNames = new Map<string, string>(); // nom replié → graphie d'origine
   for (const p of await prisma.regulatoryProduct.findMany({
     select: { id: true, reference: true, dci: true, brandName: true, molecules: true, companyId: true },
-  }).catch(() => [])) {
+  }).catch(sansBloquer("project.projectEntities.regulatoryProduct", []))) {
     const display = p.brandName?.trim() || p.dci;
     const aliases: AliasDraft[] = [
       { alias: p.reference, source: "erp:RegulatoryProduct.reference", weight: ALIAS_WEIGHT.reference },
@@ -186,7 +187,7 @@ export async function projectEntities(): Promise<ProjectionResult> {
   //
   // Le compte ERP fait autorité quand il existe ; la fiche RH s'y raccroche plutôt que de créer
   // un second exemplaire de la même personne.
-  for (const u of await prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true, email: true } }).catch(() => [])) {
+  for (const u of await prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true, email: true } }).catch(sansBloquer("project.projectEntities.user", []))) {
     const aliases: AliasDraft[] = [{ alias: u.name, source: "erp:User.name", weight: ALIAS_WEIGHT.canonical }];
     const local = u.email.split("@")[0];
     // « prenom.nom » est une graphie réelle : les gens s'écrivent ainsi dans les fils.
@@ -197,7 +198,7 @@ export async function projectEntities(): Promise<ProjectionResult> {
   for (const e of await prisma.employee.findMany({
     where: { isActive: true },
     select: { id: true, fullName: true, userId: true, companyId: true },
-  }).catch(() => [])) {
+  }).catch(sansBloquer("project.projectEntities.employee", []))) {
     const refType = e.userId ? "User" : "Employee";
     const refId = e.userId ?? e.id;
     if (await upsertEntity({
@@ -214,7 +215,7 @@ export async function projectEntities(): Promise<ProjectionResult> {
   for (const d of await prisma.directoryEntry.findMany({
     where: { isActive: true },
     select: { id: true, displayName: true, aliases: true, userId: true, employeeId: true, contactId: true, companyId: true },
-  }).catch(() => [])) {
+  }).catch(sansBloquer("project.projectEntities.directoryEntry", []))) {
     const refType = d.userId ? "User" : d.employeeId ? "Employee" : d.contactId ? "CompanyContact" : "DirectoryEntry";
     const refId = d.userId ?? d.employeeId ?? d.contactId ?? d.id;
     const kind: EntityKind = d.contactId ? "organization" : "person";
@@ -227,7 +228,7 @@ export async function projectEntities(): Promise<ProjectionResult> {
   for (const c of await prisma.companyContact.findMany({
     where: { isActive: true },
     select: { id: true, name: true, contactName: true, companyId: true },
-  }).catch(() => [])) {
+  }).catch(sansBloquer("project.projectEntities.companyContact", []))) {
     const aliases: AliasDraft[] = [{ alias: c.name, source: "erp:CompanyContact.name", weight: ALIAS_WEIGHT.canonical }];
     const acr = derivedAcronym(c.name);
     if (acr) aliases.push({ alias: acr, source: "derived", weight: ALIAS_WEIGHT.derived });

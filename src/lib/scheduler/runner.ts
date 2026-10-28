@@ -7,6 +7,7 @@ import {
   STALE_CLAIM_MS,
 } from "./contract";
 import { workflowHandler } from "./registry";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -95,7 +96,7 @@ export async function runScheduledWorkflows(now: Date = new Date(), batch = BATC
       // resterait bloquée jusqu'au délai de péremption pour une erreur d'une seconde.
       await prisma.scheduledWorkflow
         .update({ where: { id: wf.id }, data: { claimedAt: null, lastRunAt: now } })
-        .catch(() => undefined);
+        .catch(sansBloquer("scheduler-runner.runScheduledWorkflows.scheduledWorkflow"));
 
       if (status === "FAILED") out.failed += 1;
       else if (status === "SKIPPED") out.skipped += 1;
@@ -131,7 +132,7 @@ async function claimDue(now: Date): Promise<ClaimedWorkflow | null> {
     orderBy: { nextRunAt: "asc" },
     take: 5,
     select: { id: true, kind: true, ownerId: true, payload: true, recurrence: true, hourLocal: true, dayOfWeek: true, dayOfMonth: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("scheduler-runner.claimDue.scheduledWorkflow", []));
 
   for (const c of candidates) {
     // L'ÉCHÉANCE SUIVANTE EST CALCULÉE MAINTENANT, dans la même écriture que la prise. Un
@@ -150,7 +151,7 @@ async function claimDue(now: Date): Promise<ClaimedWorkflow | null> {
       // La précondition `claimedAt: null` EST le verrou : la base arbitre, pas nous.
       where: { id: c.id, claimedAt: null, status: "ACTIVE" },
       data: { claimedAt: now, nextRunAt: next },
-    }).catch(() => ({ count: 0 }));
+    }).catch(sansBloquer("scheduler-runner.claimDue.scheduledWorkflow", { count: 0 }));
 
     if (claimed.count === 1) return { id: c.id, kind: c.kind, ownerId: c.ownerId, payload: c.payload };
   }
@@ -162,7 +163,7 @@ async function releaseStale(now: Date): Promise<number> {
   const cutoff = new Date(now.getTime() - STALE_CLAIM_MS);
   const r = await prisma.scheduledWorkflow
     .updateMany({ where: { claimedAt: { lt: cutoff } }, data: { claimedAt: null } })
-    .catch(() => ({ count: 0 }));
+    .catch(sansBloquer("scheduler-runner.releaseStale.scheduledWorkflow", { count: 0 }));
   if (r.count) console.warn("[scheduler] released stale claims", r.count);
   return r.count;
 }

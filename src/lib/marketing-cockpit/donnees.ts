@@ -12,6 +12,7 @@ import {
   aSesDeuxReponses, dansFenetre, lettreFigee, lettrePourProduit, moisDe, moisGlissants, partDeLAnnee, partImputee,
   segmentPourProduit, statsMessage, type Depense, type Fenetre, type NatureAdPro, type PraticienCockpit, type StatsMessage,
 } from "./calculs";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * MARKETING COCKPIT — les LECTURES (serveur). Chaque chiffre vient d'une table existante : la segmentation (moteur
@@ -459,7 +460,7 @@ export async function chargerEnveloppe(user: SessionUser, maintenant: Date): Pro
   const adPro = (x: (typeof enCours)[number]) => x.modules.some((m) => MODULES_AD_PRO.includes(m)) || (x.module !== null && MODULES_AD_PRO.includes(x.module));
   const e = enCours.find(adPro) ?? enCours[0];
   if (!e) return null;
-  const v = await getBudgetOverview(user, e.id, null, null, opts).catch(() => null);
+  const v = await getBudgetOverview(user, e.id, null, null, opts).catch(sansBloquer("donnees.chargerEnveloppe.getBudgetOverview", null));
   if (!v) return null;
   const debut = new Date(v.period.from).getTime(), fin = new Date(v.period.to).getTime();
   return {

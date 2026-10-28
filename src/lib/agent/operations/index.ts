@@ -16,6 +16,7 @@ import { TRADUCTION } from "./traduction";
 import { FORMULAIRE_PDF } from "./formulaire-pdf";
 import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "./types";
+import { sansBloquer } from "@/lib/journal";
 
 export type { ChargeOperationIA } from "./types";
 
@@ -112,7 +113,7 @@ export async function executerOperationIA(user: CurrentUser, charge: unknown): P
   // seulement celles d'Adam (`performAction`) : chaque opération de ce registre change une donnée
   // métier ou prévient quelqu'un (demande, BC, message, rendez-vous, relance, dépôt, routine).
   // Même lecture que `performAction` — un réglage illisible ne bloque pas plus qu'il ne bloque Adam.
-  const reglages = await getAppSettings().catch(() => null);
+  const reglages = await getAppSettings().catch(sansBloquer("operations.executerOperationIA.getAppSettings", null));
   if (reglages?.aiExternalActionsDisabled) return { ok: false, error: REFUS_ARRET_URGENCE };
   if (!o.ouverte(user)) return { ok: false, error: "Vous n'avez plus le droit de faire ce geste." };
   try {

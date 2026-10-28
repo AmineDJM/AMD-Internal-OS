@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * MÉMOIRE TYPÉE DU CHIEF OF STAFF — la couche de LECTURE, volontairement légère.
@@ -140,7 +141,7 @@ export async function expandQueryWithAliases(userId: string, query: string): Pro
     // Trace d'usage, sans bloquer la recherche.
     prisma.assistantMemoryItem
       .updateMany({ where: { id: { in: usedIds } }, data: { lastUsedAt: new Date() } })
-      .catch(() => undefined);
+      .catch(sansBloquer("memory-context.expandQueryWithAliases.assistantMemoryItem"));
 
     return { query: `${query} ${applied.map((p) => p.target).join(" ")}`, expansions: applied };
   } catch {

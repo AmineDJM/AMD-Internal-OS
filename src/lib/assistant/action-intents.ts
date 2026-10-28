@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import { caduquesParMessage, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/lib/assistant/proposition-perimee";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ACTION INTENTS — la machine d'état SERVEUR unique des actions de l'assistant.
@@ -324,7 +325,7 @@ export async function recentActionIntentsContext(userId: string, limit = 6): Pro
     orderBy: { proposedAt: "desc" },
     take: limit,
     select: { title: true, summary: true, status: true, proposedAt: true, executedAt: true, resultMessage: true },
-  }).catch(() => []);
+  }).catch(sansBloquer("action-intents.recentActionIntentsContext.assistantActionIntent", []));
   if (rows.length === 0) return null;
   const lines = rows.map((r) => {
     const label = INTENT_STATUS_LABEL[r.status as ActionIntentStatus] ?? r.status;
@@ -444,27 +445,27 @@ export const ACTION_INTENT_TOOLS: PowerTool[] = [
           where: { userId: user.id, proposedAt: { gte: since }, ...textWhere(["title", "summary"]) },
           orderBy: { proposedAt: "desc" }, take: 10,
           select: { title: true, summary: true, status: true, proposedAt: true, executedAt: true },
-        }).catch(() => []),
+        }).catch(sansBloquer("action-intents.run.assistantActionIntent", [])),
         prisma.assistantReminder.findMany({
           where: { userId: user.id, createdAt: { gte: since }, ...textWhere(["title", "note"]) },
           orderBy: { createdAt: "desc" }, take: 10,
           select: { title: true, dueAt: true, recurrence: true, active: true },
-        }).catch(() => []),
+        }).catch(sansBloquer("action-intents.run.assistantReminder", [])),
         prisma.executiveDecision.findMany({
           where: { ownerId: user.id, createdAt: { gte: since }, ...textWhere(["title", "context"]) },
           orderBy: { createdAt: "desc" }, take: 10,
           select: { title: true, status: true, createdAt: true },
-        }).catch(() => []),
+        }).catch(sansBloquer("action-intents.run.executiveDecision", [])),
         prisma.executiveCommitment.findMany({
           where: { ownerId: user.id, createdAt: { gte: since }, ...textWhere(["who", "what"]) },
           orderBy: { createdAt: "desc" }, take: 10,
           select: { who: true, what: true, status: true, dueAt: true },
-        }).catch(() => []),
+        }).catch(sansBloquer("action-intents.run.executiveCommitment", [])),
         prisma.assistantArtifact.findMany({
           where: { ownerId: user.id, createdAt: { gte: since }, ...textWhere(["title"]) },
           orderBy: { createdAt: "desc" }, take: 10,
           select: { title: true, formats: true, createdAt: true },
-        }).catch(() => []),
+        }).catch(sansBloquer("action-intents.run.assistantArtifact", [])),
       ]);
 
       const total = intents.length + reminders.length + decisions.length + commitments.length + artifacts.length;

@@ -62,7 +62,9 @@ describe("portabilité — `src/lib/models/` est ce qu'Adam emporte avec lui", (
    * régulières, sans état ni règle métier — il figure d'ailleurs comme NEUTRE dans le scanner de
    * frontière. Toute autre dépendance `@/` ferait de cette couche un morceau d'ERP déguisé.
    */
-  const ALLOWED = new Set(["@/lib/ai-text"]);
+  // `journal` (lot V3-E) : zéro import, aucune règle métier — le `catch` nommé et la ligne JSON,
+  // que la passerelle emporte avec elle comme `ai-text` (même critère que NEUTRAL, boundary-scan.ts).
+  const ALLOWED = new Set(["@/lib/ai-text", "@/lib/journal"]);
 
   it("aucun module de la passerelle n'importe le produit", () => {
     const offenders: string[] = [];

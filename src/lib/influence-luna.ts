@@ -13,6 +13,7 @@ import {
   type IndexPraticiens, type MembreService, type Resolution,
 } from "@/lib/influence/relations";
 import { scoreInfluence, type EntreeScore } from "@/lib/influence/score";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -86,7 +87,7 @@ async function extraireParLuna(lot: readonly RapportAnalyse[], userId: string | 
     errorCode: panne ? "exception" : r === null ? "timeout" : !r.ok ? (r.error ?? "error").slice(0, 120) : lu ? null : "invalid_json",
     llmCalls: 1, inputTokens: r?.usage.inputTokens ?? null, outputTokens: r?.usage.outputTokens ?? null,
     cachedInputTokens: r?.usage.cachedInputTokens ?? null, costUsd: r?.usage.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("influence-luna.extraireParLuna.logAiUsage"));
   return lu;
 }
 
@@ -376,14 +377,14 @@ export async function analyserInfluence(opts: { userId: string | null }): Promis
       where: { cle: CLE_EXECUTION },
       update: { derniereExecution: new Date(), bilan: bilan as unknown as Prisma.InputJsonValue },
       create: { cle: CLE_EXECUTION, derniereExecution: new Date(), bilan: bilan as unknown as Prisma.InputJsonValue },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("influence-luna.analyserInfluence.analyseWatermark"));
   }
   return bilan;
 }
 
 /** Le passage planifié : une analyse par jour au plus (le filigrane fait qu'elle ne relit que le nouveau). */
 export async function analyserInfluenceSiDu(maintenant = new Date()): Promise<void> {
-  const w = await prisma.analyseWatermark.findUnique({ where: { cle: CLE_EXECUTION }, select: { derniereExecution: true } }).catch(() => null);
+  const w = await prisma.analyseWatermark.findUnique({ where: { cle: CLE_EXECUTION }, select: { derniereExecution: true } }).catch(sansBloquer("influence-luna.analyserInfluenceSiDu.analyseWatermark", null));
   const jour = (d: Date) => d.toISOString().slice(0, 10);
   if (w?.derniereExecution && jour(w.derniereExecution) === jour(maintenant)) return;
   await analyserInfluence({ userId: null });

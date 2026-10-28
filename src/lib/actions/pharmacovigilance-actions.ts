@@ -15,6 +15,7 @@ import { instruitLesCasPv, lecteurPv, signaleDesCasPv } from "@/lib/pharmacovigi
 import {
   PREFIXE_REFERENCE_PV, STATUT_PV, estGravitePv, estStatutPv, lecteurDuCasPv, lireAgePv, refusEnquetePv, refusTransitionPv,
 } from "@/lib/pharmacovigilance/regles";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * PHARMACOVIGILANCE — actions serveur (Direction, 06/10).
@@ -161,7 +162,7 @@ export async function signalerCasPv(formData: FormData): Promise<ActionResult> {
   await notifyRoles(rolesWithModule("PHARMACOVIGILANCE", "UPDATE"), {
     type: "GENERIC", title: `Cas de pharmacovigilance signalé — ${cree.reference}`,
     body: `${productLabel} · ${institutionName} (${user.name})`, link: lienRegulatory(cree.id),
-  }).catch(() => undefined);
+  }).catch(sansBloquer("pharmacovigilance-actions.signalerCasPv.notifyRoles"));
   await recordAudit({
     actorId: user.id, action: "CREATE", module: MODULE_AUDIT, entityType: "PHARMACOVIGILANCE_CASE", entityId: cree.id,
     summary: `Cas ${cree.reference} signalé — ${productLabel} · ${institutionName}`,
@@ -185,14 +186,14 @@ export async function commenterCasPv(formData: FormData): Promise<ActionResult> 
   await prisma.comment.create({ data: { entityType: "PHARMACOVIGILANCE_CASE", entityId: cas.id, body: body.slice(0, 10000), authorId: user.id } });
   const suiveurs = (await suiveursDuCas(cas)).filter((u) => u !== user.id);
   for (const uid of suiveurs) {
-    await notifyUser({ userId: uid, type: "GENERIC", title: `${cas.reference} — nouveau message`, body: `${user.name} : ${body.slice(0, 80)}`, link: lienPour(uid, cas) }).catch(() => undefined);
+    await notifyUser({ userId: uid, type: "GENERIC", title: `${cas.reference} — nouveau message`, body: `${user.name} : ${body.slice(0, 80)}`, link: lienPour(uid, cas) }).catch(sansBloquer("pharmacovigilance-actions.commenterCasPv.notifyUser"));
   }
   // PERSONNE DE REGULATORY NE SUIT ENCORE LE CAS : le message du KAM ne doit pas tomber dans le vide.
   const instructeurSuit = suiveurs.some((u) => u !== cas.reporterId && !cas.participants.some((p) => p.userId === u));
   if (!instruitLesCasPv(user) && !instructeurSuit) {
     await notifyRoles(rolesWithModule("PHARMACOVIGILANCE", "UPDATE"), {
       type: "GENERIC", title: `${cas.reference} — nouveau message`, body: `${user.name} : ${body.slice(0, 80)}`, link: lienRegulatory(cas.id),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("pharmacovigilance-actions.commenterCasPv.notifyRoles"));
   }
   revaliderCas(cas.id);
   return { ok: true };
@@ -223,7 +224,7 @@ export async function changerStatutCasPv(formData: FormData): Promise<ActionResu
   const trace = `Statut : ${STATUT_PV[de].label} → ${STATUT_PV[statut].label}.${note ? `\n${note}` : ""}`;
   await prisma.comment.create({ data: { entityType: "PHARMACOVIGILANCE_CASE", entityId: cas.id, body: trace, authorId: user.id } });
   for (const uid of (await suiveursDuCas(cas)).filter((u) => u !== user.id)) {
-    await notifyUser({ userId: uid, type: "GENERIC", title: `${cas.reference} — ${STATUT_PV[statut].label}`, body: note ? note.slice(0, 120) : `${cas.productLabel} · ${cas.institutionName}`, link: lienPour(uid, cas) }).catch(() => undefined);
+    await notifyUser({ userId: uid, type: "GENERIC", title: `${cas.reference} — ${STATUT_PV[statut].label}`, body: note ? note.slice(0, 120) : `${cas.productLabel} · ${cas.institutionName}`, link: lienPour(uid, cas) }).catch(sansBloquer("pharmacovigilance-actions.changerStatutCasPv.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: statut === "CLOS" ? "VALIDATE" : "UPDATE", module: MODULE_AUDIT, entityType: "PHARMACOVIGILANCE_CASE", entityId: cas.id,
@@ -257,10 +258,10 @@ export async function ouvrirEnquetePv(formData: FormData): Promise<ActionResult>
   await notifyUser({
     userId: cas.reporterId, type: "VALIDATION_REQUIRED", title: `${cas.reference} — informations complémentaires demandées`,
     body: infos.slice(0, 160), link: lienKam(cas.id),
-  }).catch(() => undefined);
+  }).catch(sansBloquer("pharmacovigilance-actions.ouvrirEnquetePv.notifyUser"));
   for (const p of cas.participants) {
     if (p.userId === user.id || p.userId === cas.reporterId) continue;
-    await notifyUser({ userId: p.userId, type: "GENERIC", title: `${cas.reference} — enquête approfondie ouverte`, body: infos.slice(0, 120), link: lienRegulatory(cas.id) }).catch(() => undefined);
+    await notifyUser({ userId: p.userId, type: "GENERIC", title: `${cas.reference} — enquête approfondie ouverte`, body: infos.slice(0, 120), link: lienRegulatory(cas.id) }).catch(sansBloquer("pharmacovigilance-actions.ouvrirEnquetePv.notifyUser"));
   }
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityType: "PHARMACOVIGILANCE_CASE", entityId: cas.id,
@@ -286,7 +287,7 @@ export async function ajouterParticipantsPv(formData: FormData): Promise<ActionR
   const noms = actifs.map((u) => u.name).join(", ");
   await prisma.comment.create({ data: { entityType: "PHARMACOVIGILANCE_CASE", entityId: cas.id, body: `A ajouté à l'échange : ${noms}.`, authorId: user.id } });
   for (const u of actifs) {
-    await notifyUser({ userId: u.id, type: "GENERIC", title: `Ajouté à un cas de pharmacovigilance`, body: `${cas.reference} — ${cas.productLabel} · ${cas.institutionName}`, link: lienRegulatory(cas.id) }).catch(() => undefined);
+    await notifyUser({ userId: u.id, type: "GENERIC", title: `Ajouté à un cas de pharmacovigilance`, body: `${cas.reference} — ${cas.productLabel} · ${cas.institutionName}`, link: lienRegulatory(cas.id) }).catch(sansBloquer("pharmacovigilance-actions.ajouterParticipantsPv.notifyUser"));
   }
   await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE_AUDIT, entityType: "PHARMACOVIGILANCE_CASE", entityId: cas.id, summary: `Participants ajoutés à ${cas.reference} : ${noms}` });
   revaliderCas(cas.id);

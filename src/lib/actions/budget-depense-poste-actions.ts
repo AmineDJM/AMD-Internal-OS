@@ -21,6 +21,7 @@ import {
 } from "@/lib/budget/depense-poste";
 import { fdNum, fdStr, type ActionResult } from "@/lib/actions/types";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -121,7 +122,7 @@ function revalider(owner: { parent: AdProParent; id: string }) {
 }
 
 async function journal(user: SessionUser, posteId: string, field: string, summary: string, oldValue?: string | null, newValue?: string | null) {
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE, entityType: "AD_PRO_ITEM", entityId: posteId, field, oldValue: oldValue ?? null, newValue: newValue ?? null, summary }).catch(() => undefined);
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: MODULE, entityType: "AD_PRO_ITEM", entityId: posteId, field, oldValue: oldValue ?? null, newValue: newValue ?? null, summary }).catch(sansBloquer("budget-depense-poste-actions.journal.recordAudit"));
 }
 
 const dzd = (n: number) => `${Math.round(n).toLocaleString("fr-FR")} DZD`;
@@ -297,8 +298,8 @@ export async function consommerDepensePoste(formData: FormData): Promise<ActionR
   } catch (err) {
     console.error("[budget-marketing] consommation impossible", err);
     if (!ordreNe) {
-      await prisma.adProItem.updateMany({ where: { id, expenseOrderId: poste.expenseOrderId, orderStage: "ISSUED" }, data: { orderStage: poste.orderStage } }).catch(() => undefined);
-      if (factureId) await prisma.legalDocument.updateMany({ where: { id: factureId }, data: { status: "CANCELLED" } }).catch(() => undefined);
+      await prisma.adProItem.updateMany({ where: { id, expenseOrderId: poste.expenseOrderId, orderStage: "ISSUED" }, data: { orderStage: poste.orderStage } }).catch(sansBloquer("budget-depense-poste-actions.consommerDepensePoste.adProItem"));
+      if (factureId) await prisma.legalDocument.updateMany({ where: { id: factureId }, data: { status: "CANCELLED" } }).catch(sansBloquer("budget-depense-poste-actions.consommerDepensePoste.legalDocument"));
     }
     return { ok: false, error: "La consommation n'a pas pu être enregistrée." };
   }

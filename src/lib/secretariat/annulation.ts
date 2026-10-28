@@ -4,6 +4,7 @@ import { anyRoleFilter } from "@/lib/rbac";
 import { notifyUser } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -45,14 +46,14 @@ interface Avis { type: NotificationType; title: string; body?: string; link?: st
 export async function prevenirLeSecretariat(assignedToId: string | null, avis: Avis, auteurId: string): Promise<number> {
   if (assignedToId) {
     if (assignedToId === auteurId) return 0;
-    await notifyUser({ userId: assignedToId, ...avis }).catch(() => undefined);
+    await notifyUser({ userId: assignedToId, ...avis }).catch(sansBloquer("annulation.prevenirLeSecretariat.notifyUser"));
     return 1;
   }
   const assistantes = await prisma.user.findMany({
     where: { AND: [anyRoleFilter(["DIRECTION_ASSISTANT"]), { isActive: true }, { id: { not: auteurId } }] },
     select: { id: true },
   });
-  for (const a of assistantes) await notifyUser({ userId: a.id, ...avis }).catch(() => undefined);
+  for (const a of assistantes) await notifyUser({ userId: a.id, ...avis }).catch(sansBloquer("annulation.prevenirLeSecretariat.notifyUser"));
   return assistantes.length;
 }
 
@@ -106,7 +107,7 @@ export async function annulerDemandeSecretariat(
       await notifyUser({
         userId: s.validatorId, type: "GENERIC", title: "Validation retirée",
         body: `${v.reference} — la demande ${d.reference} a été annulée ${opts.cause} : ${opts.motif}`, link: lien,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("annulation.annulerDemandeSecretariat.notifyUser"));
     }
   }
   const approbations = await prisma.adminApproval.findMany({ where: { requestId: id, status: "PENDING" }, select: { id: true, validatorId: true } });
@@ -118,7 +119,7 @@ export async function annulerDemandeSecretariat(
       await notifyUser({
         userId: a.validatorId, type: "GENERIC", title: "Validation retirée",
         body: `La demande ${d.reference} a été annulée ${opts.cause} : ${opts.motif}`, link: lien,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("annulation.annulerDemandeSecretariat.notifyUser"));
     }
   }
   // LES ORDRES SE RELISENT ICI, APRÈS L'ÉCRITURE CONDITIONNELLE (vague « restes »). Lus au point 1, ils
@@ -145,7 +146,7 @@ export async function annulerDemandeSecretariat(
   // 4. La trace.
   await prisma.comment.create({
     data: { entityType: "ADMIN_REQUEST", entityId: id, body: `Demande annulée ${opts.cause} : ${opts.motif}`, authorId: opts.acteurId },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("annulation.annulerDemandeSecretariat.comment"));
   await recordAudit({
     actorId: opts.acteurId, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: id,
     field: "status", newValue: "CANCELLED",

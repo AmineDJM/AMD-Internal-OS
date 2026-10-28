@@ -9,6 +9,7 @@ import { FileGlyph } from "@/components/drive/file-glyph";
 import type { SessionPrete } from "@/components/documents/editeur-en-ligne";
 import { NodeActions } from "../node-actions";
 import { FileViewer } from "./file-viewer";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE FICHIER OUVERT — on clique sur le nom dans la liste, on est DEDANS (Direction, 10/2026 : « comme Google Drive »).
@@ -46,8 +47,8 @@ export function FichierOuvert({
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
   const basculer = React.useCallback(() => {
-    if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
-    else wrapRef.current?.requestFullscreen?.().catch(() => {});
+    if (document.fullscreenElement) document.exitFullscreen?.().catch(sansBloquer("fichier-ouvert.FichierOuvert.exitFullscreen"));
+    else wrapRef.current?.requestFullscreen?.().catch(sansBloquer("fichier-ouvert.FichierOuvert.requestFullscreen"));
   }, []);
 
   return (

@@ -2,6 +2,7 @@ import type { NotificationType, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { anyRoleFilter, getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { notifyUser } from "@/lib/notify";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -63,7 +64,7 @@ export async function signatairesAPrevenir(): Promise<string[]> {
  * de personnes prévenues ; ne lève jamais (une notification manquée ne défait pas l'aiguillage).
  */
 export async function notifierSignatairesBC(input: { type: NotificationType; title: string; body?: string; link: string }): Promise<number> {
-  const ids = await signatairesAPrevenir().catch(() => [] as string[]);
+  const ids = await signatairesAPrevenir().catch(sansBloquer("signataires.notifierSignatairesBC.signatairesAPrevenir", [] as string[]));
   for (const userId of ids) await notifyUser({ ...input, userId });
   return ids.length;
 }

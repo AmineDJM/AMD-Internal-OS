@@ -11,6 +11,7 @@ import { regCan, resolveRegCompanyIdFor } from "./access";
 import { regAudit } from "./audit";
 import { submissionReadiness } from "./lifecycle";
 import { PROCEDURE_TYPE_LABELS } from "./labels";
+import { sansBloquer } from "@/lib/journal";
 
 const FINDING_STATUSES = ["OPEN", "ACKNOWLEDGED", "RESOLVED", "WAIVED"] as const;
 const SEVERITIES = ["CRITICAL", "MAJOR", "MINOR", "INFO"] as const;
@@ -116,7 +117,7 @@ export async function deleteDossier(formData: FormData): Promise<ActionResult> {
   );
 
   await prisma.regulatoryDossier.delete({ where: { id: dossierId } }); // cascade
-  for (const id of blobIds) await releaseBlob(id).catch(() => undefined);
+  for (const id of blobIds) await releaseBlob(id).catch(sansBloquer("intelligence-actions.deleteDossier.releaseBlob"));
 
   await regAudit({
     companyId, actorId: user.id, action: "DOSSIER_DELETED",

@@ -10,6 +10,7 @@ import { shouldMirrorToDrive } from "@/lib/drive/mirror-path";
 import { prisma } from "@/lib/prisma";
 import { refusDevisLibre } from "@/lib/promo-material/rangement";
 import { gardeDuDepotLibre } from "@/lib/factures/connues";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Téléversement de documents **en lot** (fichiers ET dossiers) pour un objet métier :
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Une seule lecture des réglages pour tout le lot (repli généreux si la lecture échoue).
-  const maxUploadMb = await getAppSettings().then((s) => s.maxUploadMb).catch(() => 200);
+  const maxUploadMb = await getAppSettings().then((s) => s.maxUploadMb).catch(sansBloquer("upload-route.POST.getAppSettings", 200));
   // TOUT document téléversé est AUSSI répliqué dans le Drive : Regulatory dans le dossier du produit de
   // la catégorie « Regulatory » (Direction, 06/10 — repli : l'ancien miroir), les autres modules sous
   // « Mes documents importés / <module> / <objet> ». On garde le binaire pour ça.

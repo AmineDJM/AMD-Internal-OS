@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { EVENEMENT_NON_LUES } from "@/components/layout/notification-popup";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Sonnerie de notification (rappels « Me rappeler », invitations, etc.) — sonde le nombre de
@@ -26,7 +27,7 @@ function playChime() {
   try {
     const ac = audio();
     if (!ac) return;
-    if (ac.state === "suspended") ac.resume().catch(() => {});
+    if (ac.state === "suspended") ac.resume().catch(sansBloquer("notification-chime.playChime.resume"));
     const now = ac.currentTime;
     const notes = [523.25, 659.25, 783.99]; // C5 – E5 – G5
     notes.forEach((freq, i) => {
@@ -66,7 +67,7 @@ export function NotificationChime({ initial }: { initial: number }) {
   // Déblocage de l'audio au premier geste (politique d'autoplay).
   React.useEffect(() => {
     if (unlocked) return;
-    const onGesture = () => { audio()?.resume().catch(() => {}); unlocked = true; ["pointerdown", "keydown", "touchstart"].forEach((e) => window.removeEventListener(e, onGesture)); };
+    const onGesture = () => { audio()?.resume().catch(sansBloquer("notification-chime.onGesture.resume")); unlocked = true; ["pointerdown", "keydown", "touchstart"].forEach((e) => window.removeEventListener(e, onGesture)); };
     ["pointerdown", "keydown", "touchstart"].forEach((e) => window.addEventListener(e, onGesture));
     return () => ["pointerdown", "keydown", "touchstart"].forEach((e) => window.removeEventListener(e, onGesture));
   }, []);

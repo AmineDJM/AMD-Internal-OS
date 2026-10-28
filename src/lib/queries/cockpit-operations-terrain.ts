@@ -12,6 +12,7 @@ import {
   chevauche, relevesHopitaux, scoreEquipe, septJours, signaleUneRupture, statutDuJour, trierSemaine, villeDuJour, visitesDuJour,
   type EvenementSemaine, type LigneReleve, type SignalementRupture, type StatutDuJour,
 } from "@/lib/cockpit-operations/terrain";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * COCKPIT OPÉRATIONS · LE TERRAIN — les lectures ajoutées par la maquette validée (10/2026) : l'équipe aujourd'hui
@@ -87,7 +88,7 @@ export async function chargerEquipeDuJour(user: SessionUser, lignes: readonly Li
       where: { collaboratorId: { in: repIds }, status: "DRAFT", visitDate: { gte: auj, lt: semaine.fin } },
       select: { collaboratorId: true, visitDate: true, manager: { select: { name: true } } },
     }),
-    voitKpi ? chargerTableauKpi(user).catch(() => null) : Promise.resolve(null),
+    voitKpi ? chargerTableauKpi(user).catch(sansBloquer("cockpit-operations-terrain.chargerEquipeDuJour.chargerTableauKpi", null)) : Promise.resolve(null),
   ]);
   const noms = await nomsDesMissions(missions.map((m) => ({ entityType: String(m.entityType), entityId: m.entityId })));
   const libelleMission = (m: (typeof missions)[number]) => noms.get(`${m.entityType}:${m.entityId}`) ?? "mission";

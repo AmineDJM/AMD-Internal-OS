@@ -7,6 +7,7 @@ import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RAPPELS PERSONNELS « en un clic ». Un rappel appartient à son propriétaire (userId) ; à
@@ -46,7 +47,7 @@ export async function createReminder(formData: FormData): Promise<ActionResult> 
     },
     select: { id: true },
   });
-  await recordAudit({ actorId: user.id, action: "CREATE", module: "Rappels", entityType: "TASK", entityId: created.id, summary: `Rappel « ${title} » pour le ${remindAt.toLocaleString("fr-FR")}` }).catch(() => undefined);
+  await recordAudit({ actorId: user.id, action: "CREATE", module: "Rappels", entityType: "TASK", entityId: created.id, summary: `Rappel « ${title} » pour le ${remindAt.toLocaleString("fr-FR")}` }).catch(sansBloquer("reminder-actions.createReminder.recordAudit"));
   revalidatePath("/mon-espace");
   return { ok: true, id: created.id };
 }

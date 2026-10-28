@@ -12,6 +12,7 @@ import {
   ETAPE_DEMANDE_DEVIS, lettreDeSecours, lettreValide, texteDeLaLettre, quantiteEnLettre,
   type ArticleADeviser, type LettreDevis,
 } from "@/lib/ad-pro/demande-devis-lettre";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -139,7 +140,7 @@ export type DepotLettreDevis =
  */
 export async function societeDeLaLettre(user: CurrentUser, societeId: string | null): Promise<string | null> {
   if (societeId) return societeId;
-  const r = await resoudreSociete(user.id, null).catch(() => null);
+  const r = await resoudreSociete(user.id, null).catch(sansBloquer("demande-devis-depot.societeDeLaLettre.resoudreSociete", null));
   return r && r.ok ? r.societe.id : null;
 }
 
@@ -157,7 +158,7 @@ export async function deposerLettreDevis(
   d: ContenuDemandeDevis & { reference: string | null; societeId: string | null; referenceChoisie?: string | null },
 ): Promise<DepotLettreDevis> {
   if (cibles.length === 0) return { ok: false, error: "Aucun objet où déposer la demande de devis." };
-  const profil = await profilDocumentaire(user, d.societeId).catch(() => null);
+  const profil = await profilDocumentaire(user, d.societeId).catch(sansBloquer("demande-devis-depot.deposerLettreDevis.profilDocumentaire", null));
   const societeId = profil && profil.ok ? profil.profil.societe.id : d.societeId;
   const annee = anneeDuRegistre();
   const registre = await registreDe(societeId, annee);
@@ -189,7 +190,7 @@ export async function deposerLettreDevis(
     titre: lettre.objet,
     auteur: user.name ?? "Adventum",
   });
-  const pdf = await docxToPdf(composition.octets).catch(() => ({ ok: false as const, error: "conversion impossible" }));
+  const pdf = await docxToPdf(composition.octets).catch(sansBloquer("demande-devis-depot.deposerLettreDevis.docxToPdf", { ok: false as const, error: "conversion impossible" }));
   const base = nomDeFichier(`Demande de devis — ${reference ?? d.titre}`);
   const fichiers: { nom: string; octets: Buffer; mime: string }[] = [
     ...(pdf.ok ? [{ nom: `${base}.pdf`, octets: pdf.pdf, mime: "application/pdf" }] : []),

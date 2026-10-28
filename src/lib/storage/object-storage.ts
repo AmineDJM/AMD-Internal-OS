@@ -1,5 +1,6 @@
 import { createHash, createHmac } from "crypto";
 import { resolveS3Config, type S3Config } from "@/lib/storage/s3-config";
+import { sansBloquer, attendu } from "@/lib/journal";
 
 /**
  * STOCKAGE OBJET S3-COMPATIBLE — Supabase Storage, Cloudflare R2, AWS S3, MinIO, Backblaze…
@@ -281,7 +282,7 @@ export async function createMultipartUpload(key: string, contentType: string): P
 async function uploadPart(key: string, uploadId: string, partNumber: number, body: Buffer): Promise<string> {
   const res = await signedRequestQ("PUT", key, { partNumber: String(partNumber), uploadId }, body);
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const detail = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
     throw new Error(`Envoi de la partie ${partNumber} échoué (${res.status}${s3ErrorCode(detail) ? ` ${s3ErrorCode(detail)}` : ""}).`);
   }
   // L'ETag est indispensable à la finalisation : sans lui, S3 refuse de recoller les parties.
@@ -401,13 +402,13 @@ function s3Failure(action: string, res: Response, key: string, detail: string): 
 /** Écrit un objet (le serveur pousse les octets vers le bucket — ex. blobs chiffrés). */
 export async function putObject(key: string, body: Buffer, contentType = "application/octet-stream"): Promise<void> {
   const res = await signedRequest("PUT", key, body, contentType);
-  if (!res.ok) throw s3Failure("Écriture de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok) throw s3Failure("Écriture de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
 }
 
 /** Lit un objet en mémoire (inspection d'archive après PUT direct, ou lecture d'un blob). */
 export async function getObject(key: string): Promise<Buffer> {
   const res = await signedRequest("GET", key);
-  if (!res.ok) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -418,7 +419,7 @@ export async function getObject(key: string): Promise<Buffer> {
 export async function getObjectRange(key: string, debut: number, longueur: number): Promise<Buffer> {
   if (longueur <= 0) return Buffer.alloc(0);
   const res = await signedRequestQ("GET", key, {}, undefined, undefined, { range: `bytes=${debut}-${debut + longueur - 1}` });
-  if (!res.ok) throw s3Failure("Lecture d'une plage de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok) throw s3Failure("Lecture d'une plage de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
   return Buffer.from(await res.arrayBuffer());
 }
 
@@ -486,7 +487,7 @@ export async function listBuckets(): Promise<string[]> {
   const headers = signAuthHeaders(cfg, "GET", host, "/", "", EMPTY_SHA256);
   const res = await fetch(`${base.protocol}//${host}/`, { method: "GET", headers });
   if (!res.ok) {
-    const detail = await res.text().catch(() => "");
+    const detail = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
     const code = s3ErrorCode(detail);
     throw new Error(`Liste des buckets échouée (${res.status}${code ? ` ${code}` : ""}).`);
   }
@@ -527,8 +528,8 @@ export async function probeJurisdiction(): Promise<JurisdictionProbe | null> {
   const configuredHost = new URL(cfg.endpoint).host;
   const euHost = euJurisdictionHost(configuredHost);
   const [configuredStatus, euStatus] = await Promise.all([
-    probeBucketExists(cfg, configuredHost).catch(() => null),
-    euHost ? probeBucketExists(cfg, euHost).catch(() => null) : Promise.resolve(null),
+    probeBucketExists(cfg, configuredHost).catch(sansBloquer("object-storage.probeJurisdiction.probeBucketExists", null)),
+    euHost ? probeBucketExists(cfg, euHost).catch(sansBloquer("object-storage.probeJurisdiction.probeBucketExists", null)) : Promise.resolve(null),
   ]);
   return { bucket: cfg.bucket, configuredHost, configuredStatus, euHost, euStatus };
 }
@@ -594,6 +595,6 @@ export async function headObjectSize(key: string): Promise<number | null> {
  */
 export async function getObjectStream(key: string): Promise<ReadableStream<Uint8Array>> {
   const res = await signedRequestQ("GET", key, {});
-  if (!res.ok || !res.body) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(() => ""));
+  if (!res.ok || !res.body) throw s3Failure("Lecture de l'objet", res, key, await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", "")));
   return res.body;
 }

@@ -4,6 +4,7 @@ import {
   deleteDelegateOf,
   type DeletableKind,
 } from "@/lib/admin-delete-registry";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RÉSOLUTION d'une cible de suppression pour le Chief of Staff — le pouvoir EN PLUS de l'écran.
@@ -34,7 +35,7 @@ export async function resolveDeletableTarget(kind: DeletableKind, rawQuery: stri
 
   // 1) Un id interne exact (copié d'un lien) résout toujours — y compris les types sans
   //    champs de recherche. `describe` rend null si l'id n'existe pas : aucun coût d'erreur.
-  const direct = await spec.describe(query).catch(() => null);
+  const direct = await spec.describe(query).catch(sansBloquer("delete-resolve.resolveDeletableTarget.describe", null));
   if (direct) return { status: "resolved", id: query, name: direct };
 
   // 2) Référence humaine sur les champs déclarés par le registre.

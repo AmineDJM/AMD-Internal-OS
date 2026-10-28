@@ -31,6 +31,7 @@ import { valeursDeLaSpec, type ValeursComposables } from "@/lib/legal/piece-emis
 import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";
 import { inscrireNumeroBcDepose, refusNumeroBcDepose } from "@/lib/bons-de-commande/numero-depose";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -131,7 +132,7 @@ export async function deposerDevisDemande(formData: FormData): Promise<ActionRes
   });
   const depot = await persistUploadedDocument(user.id, { entityType: "LEGAL_DOCUMENT", entityId: doc.id, category: "QUOTE", confidentiality: "INTERNAL", stepKey: null, file: fichier });
   if (!depot.ok) {
-    await prisma.legalDocument.delete({ where: { id: doc.id } }).catch(() => undefined);
+    await prisma.legalDocument.delete({ where: { id: doc.id } }).catch(sansBloquer("secretariat-devis-actions.deposerDevisDemande.legalDocument"));
     return { ok: false, error: `Le fichier du devis n'a pas pu être enregistré (${depot.error ?? "erreur"}) : rien n'est déposé.` };
   }
   let phraseLignes = " Retranscrivez maintenant ses lignes : le demandeur les retiendra.";
@@ -152,7 +153,7 @@ async function prevenirDemandeur(req: { id: string; reference: string; requester
     userId: req.requesterId, type: "GENERIC", title: "Devis à retenir",
     body: `${req.reference} — un devis est retranscrit : cochez les lignes que vous retenez, puis générez le bon de commande.`,
     link: `/demandes/${req.id}`,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("secretariat-devis-actions.prevenirDemandeur.notifyUser"));
 }
 
 /**
@@ -389,10 +390,10 @@ export async function deposerBonDeCommandeDemande(formData: FormData): Promise<A
   });
   const depot = await persistUploadedDocument(user.id, { entityType: "LEGAL_DOCUMENT", entityId: bc.id, category: "PURCHASE_ORDER", confidentiality: "INTERNAL", stepKey: null, file: fichier });
   if (!depot.ok) {
-    await prisma.legalDocument.delete({ where: { id: bc.id } }).catch(() => undefined);
+    await prisma.legalDocument.delete({ where: { id: bc.id } }).catch(sansBloquer("secretariat-devis-actions.deposerBonDeCommandeDemande.legalDocument"));
     return { ok: false, error: `Le fichier du bon de commande n'a pas pu être enregistré (${depot.error ?? "erreur"}) : rien n'est déposé.` };
   }
-  if (reference) await inscrireNumeroBcDepose({ companyId, reference, legalDocumentId: bc.id, userId: user.id }).catch(() => undefined);
+  if (reference) await inscrireNumeroBcDepose({ companyId, reference, legalDocumentId: bc.id, userId: user.id }).catch(sansBloquer("secretariat-devis-actions.deposerBonDeCommandeDemande.inscrireNumeroBcDepose"));
   // LES LIGNES RETENUES DU DEVIS sont désormais portées par ce BC : elles ne se commandent pas deux fois.
   if (devisId && devis?.natif) {
     await enSerie(fileDuDevis(devisId), async () => {
@@ -471,9 +472,9 @@ export async function relancerDemande(formData: FormData): Promise<ActionResult>
     if (!secretariat && !signataires && !finances && ids.length === 0) return { ok: false, error: "Personne d'autre à relancer : c'est à vous d'agir." };
 
     const avis = { type: "LATE" as const, title: `Relance — ${req.reference}`, body: `${user.name ?? "Quelqu'un"} relance : ${req.title}`, link: `/demandes/${req.id}` };
-    for (const userId of ids) await notifyUser({ userId, ...avis }).catch(() => undefined);
-    if (finances) await notifyRoles(["FINANCE_BUDGET_MANAGER"], avis).catch(() => undefined);
-    if (signataires && bc) await notifierSignatairesBC({ ...avis, link: lienBonDeCommande(bc.id) }).catch(() => 0);
+    for (const userId of ids) await notifyUser({ userId, ...avis }).catch(sansBloquer("secretariat-devis-actions.relancerDemande.notifyUser"));
+    if (finances) await notifyRoles(["FINANCE_BUDGET_MANAGER"], avis).catch(sansBloquer("secretariat-devis-actions.relancerDemande.notifyRoles"));
+    if (signataires && bc) await notifierSignatairesBC({ ...avis, link: lienBonDeCommande(bc.id) }).catch(sansBloquer("secretariat-devis-actions.relancerDemande.notifierSignatairesBC", 0));
     if (secretariat) await prevenirLeSecretariat(req.assignedToId, avis, user.id);
     await recordAudit({ actorId: user.id, action: "UPDATE", module: "Bureau du secrétariat", entityType: "ADMIN_REQUEST", entityId: req.id, summary: `Relance envoyée à ${qui}` });
     revalider(req.id);

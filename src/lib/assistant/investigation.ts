@@ -5,6 +5,7 @@ import { ensureNodeIndexed } from "@/lib/assistant/document-discovery";
 import { DOC_KIND_LABEL, type DocKind } from "@/platform/doc-kind";
 import { orgTokens, rankOrgCandidates } from "@/lib/assistant/entity-normalize";
 import type { PowerTool } from "@/lib/assistant/power-tools";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * INVESTIGATIONS — deux pannes réelles corrigées à la racine :
@@ -79,7 +80,7 @@ export const INVESTIGATION_TOOLS: PowerTool[] = [
       //    (événements + institutions + sponsoring) — générale, aucun nom en dur.
       const [evNames, instNames, sponsInst] = await Promise.all([
         prisma.event.findMany({ select: { name: true }, take: 300, orderBy: { updatedAt: "desc" } }),
-        prisma.medicalInstitution.findMany({ select: { name: true }, take: 300 }).catch(() => [] as { name: string }[]),
+        prisma.medicalInstitution.findMany({ select: { name: true }, take: 300 }).catch(sansBloquer("investigation.run.medicalInstitution", [] as { name: string }[])),
         prisma.sponsoringRequest.findMany({ select: { institution: true }, distinct: ["institution"], take: 300 }),
       ]);
       const knownOrgs = [
@@ -132,7 +133,7 @@ export const INVESTIGATION_TOOLS: PowerTool[] = [
           where: tokensWhere(tokens, ["title", "payee"]) as never,
           select: { id: true, reference: true, title: true, status: true, amount: true },
           take: 6, orderBy: { createdAt: "desc" },
-        }).catch(() => []),
+        }).catch(sansBloquer("investigation.run.paymentRequest", [])),
         prisma.driveNode.findMany({
           where: { AND: [{ isTrashed: false }, tokensWhere(tokens, ["name"]) as never] },
           select: { id: true, name: true, type: true, updatedAt: true },
@@ -267,7 +268,7 @@ export const INVESTIGATION_TOOLS: PowerTool[] = [
       // indice — l'indexation lit le contenu quand le blob est disponible.
       let indexedNow = 0;
       for (const f of files.filter((x) => !x.indexed).slice(0, 25)) {
-        const ok = await ensureNodeIndexed(f.id).catch(() => false);
+        const ok = await ensureNodeIndexed(f.id).catch(sansBloquer("investigation.run.ensureNodeIndexed", false));
         if (ok) {
           indexedNow += 1;
           const row = await prisma.driveTextIndex.findUnique({ where: { nodeId: f.id }, select: { docKind: true } });

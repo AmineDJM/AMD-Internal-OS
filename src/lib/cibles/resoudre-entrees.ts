@@ -3,6 +3,7 @@ import type { ContratAction, ChampAction } from "@/lib/actions/contrat";
 import { resoudreCible, direRefus, ressembleAUnId, type Cible } from "./resoudre";
 import { entiteDuModele } from "./modele-entite";
 import { findPeople } from "@/lib/directory/resolve";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -96,7 +97,7 @@ const porteUneReference = (ch: ChampAction): boolean =>
 const MODELE_PERSONNE = "User";
 
 async function designerUnePersonne(texte: string): Promise<{ retenu: Cible[]; candidats: Cible[] }> {
-  const trouves = await findPeople(texte, 6).catch(() => []);
+  const trouves = await findPeople(texte, 6).catch(sansBloquer("resoudre-entrees.designerUnePersonne.findPeople", []));
   // SANS COMPTE, PAS DE RÉFÉRENCE : l'annuaire connaît aussi des fiches RH et des contacts
   // externes, qui n'ont pas d'identifiant `User`. Les garder ferait proposer une personne qu'on
   // ne pourrait pas écrire dans le champ — et un candidat qu'on ne peut pas retenir n'aide pas.

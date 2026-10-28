@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { attendu } from "@/lib/journal";
 
 /**
  * PARSE CPU-LOURD (pdf-parse / mammoth / xlsx) exécuté SOIT dans un WORKER THREAD (gros fichiers →
@@ -61,7 +62,7 @@ export async function parseHeavyInWorker(kind: HeavyKind, buffer: Buffer): Promi
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      worker.terminate().catch(() => undefined);
+      worker.terminate().catch(attendu("fermeture au mieux : la ressource est abandonnée de toute façon"));
       resolve(v);
     };
     let worker: import("node:worker_threads").Worker;

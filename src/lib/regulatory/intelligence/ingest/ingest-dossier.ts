@@ -7,6 +7,7 @@ import { putBlob, putBlobFromFile, releaseBlob, sha256, sha256File } from "@/lib
 import { objectStorageConfigured } from "@/lib/storage/object-storage";
 import { regAudit } from "../audit";
 import { inspectZip, inspectZipFile, type ManifestEntry, type SecurityStatus, type ZipInspection } from "./zip-inspector";
+import { sansBloquer, attendu } from "@/lib/journal";
 
 /**
  * SERVICE D'INGESTION d'un dossier CTD (ZIP) — Regulatory Intelligence OS.
@@ -133,7 +134,7 @@ async function ingestCore(
   // Blobs stockés pendant l'inspection → à libérer si la suite échoue.
   const blobByPath = new Map<string, string>();
   const releaseAll = async () => {
-    for (const id of new Set(blobByPath.values())) await releaseBlob(id).catch(() => undefined);
+    for (const id of new Set(blobByPath.values())) await releaseBlob(id).catch(sansBloquer("ingest-dossier.releaseAll.releaseBlob"));
   };
 
   // 1) + 2) Inspection sécurisée avec stockage inline des fichiers sûrs.
@@ -183,7 +184,7 @@ async function ingestCore(
     if (storeError) throw storeError;
   } catch (err) {
     console.error("[ingest] inspection échouée", err);
-    await Promise.all(inFlight).catch(() => undefined); // ne jamais laisser une écriture orpheline
+    await Promise.all(inFlight).catch(sansBloquer("ingest-dossier.ingestCore.all")); // ne jamais laisser une écriture orpheline
     await releaseAll();
     return { ok: false, error: "Échec de l'inspection de l'archive (fichier illisible ?)." };
   }
@@ -372,7 +373,7 @@ async function keepOriginalArchive(versionId: string, source: OriginalSource, sh
       try {
         return await putBlobFromFile(kept.path, { sha256: sha });
       } finally {
-        await rm(kept.dir, { recursive: true, force: true }).catch(() => undefined);
+        await rm(kept.dir, { recursive: true, force: true }).catch(attendu("nettoyage : le fichier peut déjà être parti"));
       }
     }),
   );
@@ -387,7 +388,7 @@ async function attachArchive(versionId: string, write: () => Promise<{ blobId: s
   } catch (err) {
     console.error("[ingest] conservation de l'archive originale échouée (dossier analysable)", err instanceof Error ? err.message : err);
     // La version a disparu (dossier supprimé pendant l'écriture) → ne pas laisser un blob orphelin.
-    if (blobId) await releaseBlob(blobId).catch(() => undefined);
+    if (blobId) await releaseBlob(blobId).catch(sansBloquer("ingest-dossier.attachArchive.releaseBlob"));
   }
 }
 

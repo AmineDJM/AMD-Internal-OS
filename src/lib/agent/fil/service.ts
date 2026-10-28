@@ -5,6 +5,7 @@ import { proprietaire } from "@/platform/in-process/missions/proprietaire";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/platform/in-process/visibilite-adam";
 import { jouerTour } from "@/lib/agent/fil/tour";
 import { messagePartiel } from "@/lib/agent/fil/partiel";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -143,7 +144,7 @@ export async function traiterFil(userId: string): Promise<void> {
           await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { traitementLe: new Date() } });
         }
       } finally {
-        await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { traitementLe: null } }).catch(() => undefined);
+        await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { traitementLe: null } }).catch(sansBloquer("fil-service.traiterFil.assistantIaFil"));
       }
       if (!(await prochain(fil.id))) return;
     }
@@ -200,7 +201,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     dernier = Date.now();
     const contenu = partiel;
     const liste = [...etapes];
-    enVol = enVol.then(() => prisma.assistantIaTour.update({ where: { id: reponse.id }, data: { contenu, etapes: liste } }).catch(() => undefined));
+    enVol = enVol.then(() => prisma.assistantIaTour.update({ where: { id: reponse.id }, data: { contenu, etapes: liste } }).catch(sansBloquer("fil-service.publier.assistantIaTour")));
   };
 
   const r = await jouerTour(user, {
@@ -236,7 +237,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
       body: (r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
       link: "/assistant",
-    }).catch(() => undefined);
+    }).catch(sansBloquer("fil-service.jouerTourDuFil.notifyUser"));
   }
 }
 

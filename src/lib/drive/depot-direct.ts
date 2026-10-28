@@ -13,6 +13,7 @@ import {
   CLIENT_S3, ouvrirEnvoi, planDeReprise, finaliserEnvoi, refusSansStockageObjet,
   type ClientS3Direct, type PlanEnvoi,
 } from "@/lib/storage/televersement-direct";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * GROS FICHIERS DU DRIVE — déposés DIRECTEMENT dans le bucket par le navigateur.
@@ -177,7 +178,7 @@ export async function finaliserDepotDirect(
   } catch (e) {
     // L'objet est complet dans le bucket : on garde l'envoi reprenable (une nouvelle finalisation
     // retrouvera l'objet), et l'on ne laisse pas une ligne de blob sans fichier.
-    if (blobId) await prisma.fileBlob.delete({ where: { id: blobId } }).catch(() => undefined);
+    if (blobId) await prisma.fileBlob.delete({ where: { id: blobId } }).catch(sansBloquer("depot-direct.finaliserDepotDirect.fileBlob"));
     const msg = e instanceof Error ? e.message : "erreur";
     await rouvrir(`Inscription au Drive impossible : ${msg}`);
     return { ok: false, status: 500, error: `Le fichier est bien arrivé, mais son inscription au Drive a échoué (${msg}). Relancez : il ne sera pas renvoyé.`, reprendre: true };

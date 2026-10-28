@@ -4,6 +4,7 @@ import { configurationEnVigueur, presenterCleEnAttente, type Presentation } from
 import { reveillerFile } from "./file";
 import { rapprocherSite } from "./reconciliation";
 import { envoyerAuSite, type ReponseSite, type TransportSite } from "./transport";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -96,7 +97,7 @@ export function recoitLesCandidatures(sante: SanteSite): boolean | null {
 }
 
 export async function derniereSante(): Promise<{ sante: SanteSite | null; au: Date | null }> {
-  const s = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { siteSante: true, siteSanteAt: true } }).catch(() => null);
+  const s = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { siteSante: true, siteSanteAt: true } }).catch(sansBloquer("liaison.derniereSante.appSetting", null));
   const sante = s?.siteSante && typeof s.siteSante === "object" ? (s.siteSante as unknown as SanteSite) : null;
   return { sante, au: s?.siteSanteAt ?? null };
 }
@@ -125,7 +126,7 @@ export async function lireEtGarderSante(
     rep = { statut: null, texte: null, erreur: e instanceof Error ? e.message : String(e), ms: 0, retryAfterS: null, location: null };
   }
   const sante = lireSante(rep, maintenant);
-  const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { siteBootId: true } }).catch(() => null);
+  const avant = await prisma.appSetting.findUnique({ where: { id: "global" }, select: { siteBootId: true } }).catch(sansBloquer("liaison.lireEtGarderSante.appSetting", null));
   const redemarrage = Boolean(sante.bootId && avant?.siteBootId && avant.siteBootId !== sante.bootId);
   await prisma.appSetting.upsert({
     where: { id: "global" },

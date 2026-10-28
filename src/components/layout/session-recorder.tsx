@@ -3,6 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { fieldIsRecordable, cleanLabel, type EventKind } from "@/lib/replay/capture";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'ENREGISTREMENT DES ACTIONS — pour que le support puisse rembobiner.
@@ -82,7 +83,7 @@ export function SessionRecorder() {
       if (keepalive && navigator.sendBeacon) {
         navigator.sendBeacon("/api/replay", new Blob([payload], { type: "application/json" }));
       } else {
-        void fetch("/api/replay", { method: "POST", body: payload, keepalive: true }).catch(() => {});
+        void fetch("/api/replay", { method: "POST", body: payload, keepalive: true }).catch(sansBloquer("session-recorder.SessionRecorder.fetch"));
       }
     } catch { /* un rejeu perdu ne vaut pas une erreur à l'écran */ }
   }, []);

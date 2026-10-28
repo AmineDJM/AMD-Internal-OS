@@ -12,6 +12,7 @@ import { notifyUser } from "@/lib/notify";
 import { putBlob, releaseBlob } from "@/lib/drive-storage";
 import { createDossierRecord } from "@/lib/dossiers-core";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
+import { sansBloquer } from "@/lib/journal";
 
 const MAX_MSG_ATTACHMENT = 25 * 1024 * 1024; // 25 Mo par pièce jointe de message (chat)
 
@@ -274,7 +275,7 @@ export async function deleteDossierMessage(formData: FormData): Promise<ActionRe
   const allowed = msg.authorId === user.id || isManager(user, msg.dossier);
   if (!allowed) return { ok: false, error: "Suppression non autorisée." };
   await prisma.dossierMessage.delete({ where: { id } }); // pièces jointes supprimées en cascade
-  for (const a of msg.attachments) await releaseBlob(a.blobId).catch(() => undefined); // libère le stockage
+  for (const a of msg.attachments) await releaseBlob(a.blobId).catch(sansBloquer("dossier-actions.deleteDossierMessage.releaseBlob")); // libère le stockage
 
   await recordAudit({ actorId: user.id, action: "DELETE", module: "Sujets", entityType: "DOSSIER", entityId: msg.dossierId, summary: "Message de sujet supprimé" });
   revalidate(msg.dossierId);

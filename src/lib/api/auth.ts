@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { ApiError, errors } from "./errors";
 import { hasAllScopes, normalizeScopes, isReadOnly, type Scope } from "./scopes";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * AUTHENTIFICATION DES AGENTS — machine à machine, jamais un compte humain partagé.
@@ -87,7 +88,7 @@ export async function authenticate(authorization: string | null, correlationId: 
   };
 
   // Sans attendre : la date de dernier usage sert à repérer une clé oubliée, pas à bloquer.
-  void prisma.apiClient.update({ where: { id: client.id }, data: { lastUsedAt: new Date() } }).catch(() => {});
+  void prisma.apiClient.update({ where: { id: client.id }, data: { lastUsedAt: new Date() } }).catch(sansBloquer("auth.authenticate.apiClient"));
 
   return {
     client: { id: client.id, name: client.name, scopes, readOnly: isReadOnly(scopes) },

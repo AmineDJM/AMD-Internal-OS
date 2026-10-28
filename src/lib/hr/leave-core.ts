@@ -11,6 +11,7 @@ import { saveFile, validateUpload } from "@/lib/storage";
 import { getManagerOf, getManagementChain } from "@/lib/departments";
 import { stageNotifyRoles, type LeaveDecider } from "@/lib/leave-workflow";
 import { LIEN_CONGES_A_SIGNER } from "@/lib/chemins/rh";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE CONGÉ EST **UNE** DEMANDE — quel que soit l'écran d'où elle part.
@@ -81,7 +82,7 @@ export async function createLeaveRequest(
   // Un champ caché `days=1` pour vingt jours posés ne débitait qu'un jour ; `days=-15` en recréditait quinze
   // (audit du 27/10/2026, RH-DOCUMENTS-COMMS-02). Les deux portes (Mon espace, Mon dossier RH) passent ici.
   const days = leaveDaysBetween(input.startDate, input.endDate);
-  const manager = await getManagerOf(employee.id).catch(() => null);
+  const manager = await getManagerOf(employee.id).catch(sansBloquer("leave-core.createLeaveRequest.getManagerOf", null));
   const managerUserId = manager?.userId ?? null;
   const stage = managerUserId ? "MANAGER" : "HR";
 
@@ -186,7 +187,7 @@ export async function leaveDecider(
   // Le N+1 enregistré à la soumission peut avoir changé (mutation, départ) : on accepte aussi
   // toute personne au-dessus dans la chaîne ACTUELLE, sinon la demande reste orpheline.
   if (!isManager) {
-    const chain = await getManagementChain(leave.employeeId).catch(() => []);
+    const chain = await getManagementChain(leave.employeeId).catch(sansBloquer("leave-core.leaveDecider.getManagementChain", []));
     isManager = chain.some((m) => Boolean(m.userId && ids.has(m.userId)));
   }
   return { id: user.id, isManager, isHr, isDg };

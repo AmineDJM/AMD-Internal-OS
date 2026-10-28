@@ -19,6 +19,7 @@ import { REGULATORY_STATUS } from "@/lib/labels";
 import { resolveOrg, coreTokens } from "@/lib/assistant/entity-normalize";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import { regulatoryKnowledgeDigest } from "@/lib/regulatory/anpp-knowledge";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LECTURES REGULATORY CANONIQUES DU CHIEF OF STAFF — la réponse à la panne réelle :
@@ -60,7 +61,7 @@ export async function personRegulatoryLoad(
   const account = await prisma.user.findFirst({
     where: { name: { contains: name, mode: "insensitive" }, isActive: true },
     select: { id: true, isActive: true },
-  }).catch(() => null);
+  }).catch(sansBloquer("regulatory-read.personRegulatoryLoad.user", null));
   if (!account) return null;
   if (!userCan(user, "REGULATORY", "VIEW")) return { total: 0, enRetard: 0, actif: account.isActive, href: null };
 
@@ -78,7 +79,7 @@ export async function personRegulatoryLoad(
         ],
       },
     }),
-  ]).catch(() => [0, 0]);
+  ]).catch(sansBloquer("regulatory-read.personRegulatoryLoad.regulatoryProduct", [0, 0]));
   return { total, enRetard, actif: account.isActive, href: null };
 }
 

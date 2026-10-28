@@ -26,6 +26,7 @@ import { notifierSignatairesBC } from "@/lib/bons-de-commande/signataires";
 import { lienBonDeCommande } from "@/lib/chemins/bons-de-commande";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { hasGlobalView } from "@/lib/rbac";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE CIRCUIT DU MATÉRIEL PROMOTIONNEL — les transitions de validation, et les chantiers.
@@ -304,7 +305,7 @@ export async function validatePromoStep(formData: FormData): Promise<ActionResul
       if (envoi.assistantId) await notifyUser({ userId: envoi.assistantId, ...envoi.avis });
       else await notifyRoles(["DIRECTION_ASSISTANT"], envoi.avis);
       // LA LETTRE (Direction, 07/10) — rédigée par Luna, en PDF et Word : son échec ne retient pas la demande, il se dit.
-      const lettre = await joindreLettreDeDevis(user, id, envoi.demande.id).catch(() => null);
+      const lettre = await joindreLettreDeDevis(user, id, envoi.demande.id).catch(sansBloquer("promo-circuit-actions.validatePromoStep.joindreLettreDeDevis", null));
       suiteAuto = `La demande de devis est partie au secrétariat (${envoi.demande.reference}).${lettre?.ok ? ` ${phraseDepotLettre(lettre)}` : ""}`;
     } else {
       suiteAuto = `La demande de devis n'est pas partie d'elle-même : ${envoi.error} Le demandeur l'envoie depuis « Articles demandés ».`;

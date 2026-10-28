@@ -38,6 +38,7 @@ import { resultatJonction } from "@/lib/missions/runtime/sorties";
 import { rattraperFaitAnterieur } from "@/lib/missions/events/router";
 import { fabriquerRecu, type ExecutionReceipt } from "@/lib/missions/runtime/receipt";
 import { vueParentEventail } from "@/lib/missions/runtime/worker";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -1718,7 +1719,7 @@ async function dernierJugement(missionId: string): Promise<JugementAnterieur | n
     where: { missionId, kind: { in: ["GOAL_SATISFIED", "GOAL_UNSATISFIED"] } },
     orderBy: { at: "desc" },
     select: { kind: true, detail: true },
-  }).catch(() => null);
+  }).catch(sansBloquer("runtime-engine.dernierJugement.missionEvent", null));
   if (!e) return null;
 
   const detail = (e.detail ?? null) as { empreinteJugement?: unknown } | null;
@@ -1731,7 +1732,7 @@ async function dernierJugement(missionId: string): Promise<JugementAnterieur | n
   const m = await prisma.mission.findUnique({
     where: { id: missionId },
     select: { goalSatisfied: true, goalVerdict: true },
-  }).catch(() => null);
+  }).catch(sansBloquer("runtime-engine.dernierJugement.mission", null));
   if (!m || m.goalVerdict === null) return null;
 
   return {
@@ -1883,7 +1884,7 @@ export async function conclure(
       // LE TEMPS DEPUIS LA DEMANDE : une mission finie dans la foulée n'a pas besoin d'interrompre
       // — la conversation l'a déjà dit. La politique d'attention tranche avec ce chiffre.
       dureeMs: etat.createdAt ? Math.max(0, Date.now() - etat.createdAt.getTime()) : null,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("runtime-engine.signaler.signaler"));
   };
   if (verdict.satisfait) {
     await transitionner(missionId, "RUNNING", "vérification de l'objectif");
@@ -1894,7 +1895,7 @@ export async function conclure(
     // mission ne charge le registre que lorsqu'elle a quelque chose à y écrire.
     await import("@/lib/missions/planner/patterns")
       .then((m) => m.enregistrerFormeReussie(missionId))
-      .catch(() => undefined);
+      .catch(sansBloquer("runtime-engine.conclure"));
     return "COMPLETED";
   }
 

@@ -2,6 +2,7 @@
 
 import React, { useRef } from "react";
 import { FileText, Loader2, Paperclip, X } from "lucide-react";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES PIÈCES JOINTES DE LA CONVERSATION — plusieurs fichiers, de tout type.
@@ -24,7 +25,7 @@ export async function televerser(fichier: File): Promise<{ id: string } | { erre
   fd.set("file", fichier);
   try {
     const r = await fetch("/api/drive/upload", { method: "POST", body: fd });
-    const j = (await r.json().catch(() => ({}))) as { id?: string; error?: string };
+    const j = (await r.json().catch(sansBloquer("pieces-jointes.televerser.json", {}))) as { id?: string; error?: string };
     if (!r.ok || !j.id) return { erreur: j.error ?? "Envoi refusé." };
     return { id: j.id };
   } catch {

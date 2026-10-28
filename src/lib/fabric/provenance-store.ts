@@ -14,6 +14,7 @@ import type { Prisma } from "@prisma/client";
 import {
   ancresNominales, ancresNumeriques, repondreProvenance, LIMITE_FAITS_PAR_TOUR, type FaitSource, type TourProvenance,
 } from "@/lib/fabric/provenance";
+import { sansBloquer } from "@/lib/journal";
 
 const RETENTION_MS = 30 * 86_400_000;
 
@@ -33,7 +34,7 @@ export async function consignerProvenance(args: {
     // Hygiène : au-delà de trente jours, la provenance d'un tour n'a plus de lecteur.
     void prisma.assistantProvenance
       .deleteMany({ where: { userId: args.userId, createdAt: { lt: new Date(Date.now() - RETENTION_MS) } } })
-      .catch(() => undefined);
+      .catch(sansBloquer("provenance-store.consignerProvenance.assistantProvenance"));
     return { id: row.id, nombre: faits.length };
   } catch (e) {
     console.error("[provenance] consignation impossible (non bloquant)", e);

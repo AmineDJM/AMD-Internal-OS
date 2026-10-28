@@ -11,6 +11,7 @@ import { refusTraitementRh } from "@/lib/missions-equipe/etat";
 import { marquerDemandeRhTraitee } from "@/lib/hr-demande-traitee";
 import { saisieEffective } from "@/lib/references/registre";
 import { anneeDuRegistre, attribuerAuRegistre, registreDe } from "@/lib/references/registre-serveur";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * HORS DU DOMAINE RH, À DESSEIN (comme hr-drive-mirror.ts) : c'est l'orchestration qui touche au stockage (drive-storage)
@@ -96,7 +97,7 @@ export async function genererEtRemettreOrdreDeMission(
   // LE PDF EST LA PIÈCE REMISE (Direction, 06/10 : « améliore le convertisseur en top qualité ») : le moteur de mise en page
   // reproduit le document à l'identique (en-tête, logo, pied, tabulations — vérifié contre l'export de Word). Le Word est
   // gardé par les RH pour une retouche ; sans PDF (conversion impossible), c'est le Word qui est remis — et la phrase le dit.
-  const pdf = await docxToPdf(docx).catch(() => ({ ok: false as const, error: "conversion impossible" }));
+  const pdf = await docxToPdf(docx).catch(sansBloquer("ordre-mission-depot.genererEtRemettreOrdreDeMission.docxToPdf", { ok: false as const, error: "conversion impossible" }));
   const w = await putBlob(docx);
   await prisma.employeeDocument.create({
     data: {
@@ -118,7 +119,7 @@ export async function genererEtRemettreOrdreDeMission(
   // La mission Ad & Pro reliée passe « ordre émis » — le PDF paraît aussi dans « Mes missions ».
   await synchroniserOrdreEmis(requestId, acteurId);
   if (demande.employee.userId) {
-    await notifyUser({ userId: demande.employee.userId, type: "GENERIC", title: "Votre ordre de mission est prêt", body: `N° ${champs.reference}`, link: `/mon-dossier#demande-rh-${requestId}` }).catch(() => undefined);
+    await notifyUser({ userId: demande.employee.userId, type: "GENERIC", title: "Votre ordre de mission est prêt", body: `N° ${champs.reference}`, link: `/mon-dossier#demande-rh-${requestId}` }).catch(sansBloquer("ordre-mission-depot.genererEtRemettreOrdreDeMission.notifyUser"));
   }
   await recordAudit({
     actorId: acteurId, action: "CREATE", module: "RH", entityType: "EMPLOYEE", entityId: demande.employeeId,

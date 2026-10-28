@@ -10,6 +10,7 @@ import {
   ARBORESCENCE_DOSSIER, FICHIERS_MODELES, MODELE_COURRIER_RESERVES,
   cheminDrivePourDepot, cyclesDeLaFrise, nomDossierDrive,
 } from "@/lib/regulatory/arborescence-dossier";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LE DOSSIER DRIVE D'UN PRODUIT, dans la catégorie « Regulatory » (Direction, 06/10).
@@ -270,7 +271,7 @@ export async function rangerDocumentsDansDrive(
           }
         } catch (e) {
           // La référence prise n'a pas trouvé de détenteur : on la rend.
-          await releaseBlob(stocke.blobId).catch(() => undefined);
+          await releaseBlob(stocke.blobId).catch(sansBloquer("regulatory-drive-dossier.rangerDocumentsDansDrive.releaseBlob"));
           throw e;
         }
       } catch (e) {

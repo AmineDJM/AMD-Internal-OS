@@ -8,6 +8,7 @@ import {
 } from "@/app/(app)/assistant/realtime-voice";
 import { cooldownFor, cooldownMessage, rateLimitFrom } from "@/lib/assistant/voice-cooldown";
 import { CallScreen } from "@/app/(app)/assistant/voice-mode";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'APPEL GLOBAL — « je suis au téléphone avec mon Chief of Staff », partout dans l'ERP.
@@ -120,7 +121,7 @@ export function CallProvider({ enabled, children }: { enabled: boolean; children
     void fetch("/api/assistant/voice/log", {
       method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ event, ...extra }),
-    }).catch(() => undefined);
+    }).catch(sansBloquer("call-provider.CallProvider.fetch"));
   }, []);
 
   /**
@@ -186,7 +187,7 @@ export function CallProvider({ enabled, children }: { enabled: boolean; children
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ threadId: threadRef.current, screenContext }),
         });
-        const data = (await res.json().catch(() => ({}))) as Partial<VoiceSessionGrant> & { error?: string };
+        const data = (await res.json().catch(sansBloquer("call-provider.getGrant.json", {}))) as Partial<VoiceSessionGrant> & { error?: string };
         if (!res.ok || !data.clientSecret) throw new Error(data.error ?? "Le mode vocal temps réel est momentanément indisponible.");
         if (data.threadId) {
           threadRef.current = data.threadId;
@@ -214,7 +215,7 @@ export function CallProvider({ enabled, children }: { enabled: boolean; children
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ threadId: threadRef.current, user, assistant: text }),
           keepalive: true,
-        }).catch(() => undefined);
+        }).catch(sansBloquer("call-provider.persistOrphanResult.fetch"));
       },
       callbacks: {
         onState: (s) => {
@@ -239,13 +240,13 @@ export function CallProvider({ enabled, children }: { enabled: boolean; children
             method: "POST", headers: { "content-type": "application/json" },
             body: JSON.stringify({ threadId: threadRef.current, user, assistant }),
           }).then(async (r) => {
-            const d = (await r.json().catch(() => ({}))) as { threadId?: string | null };
+            const d = (await r.json().catch(sansBloquer("call-provider.onTurnComplete.json", {}))) as { threadId?: string | null };
             if (d.threadId && d.threadId !== threadRef.current) {
               threadRef.current = d.threadId;
               setThreadId(d.threadId);
               bridgeRef.current?.onThreadId(d.threadId);
             }
-          }).catch(() => undefined);
+          }).catch(sansBloquer("call-provider.onTurnComplete.fetch"));
         },
         onToolUi: forwardUi,
         onError: (message) => { if (statusRef.current !== "IDLE") setError(message); },
@@ -406,7 +407,7 @@ export function CallProvider({ enabled, children }: { enabled: boolean; children
       void fetch("/api/assistant/voice/turn", {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ threadId: threadRef.current, user: "(fin de l'appel)", assistant: summary }),
-      }).catch(() => undefined);
+      }).catch(sansBloquer("call-provider.CallProvider.fetch"));
     }
 
     logEvent("voice_session_closed", {

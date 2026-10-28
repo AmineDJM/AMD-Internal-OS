@@ -3,6 +3,7 @@ import {
   GOOGLE_AUTHORIZE_URL, GOOGLE_TOKEN_URL, GOOGLE_REVOKE_URL, GOOGLE_SCOPE_STRING,
   type GoogleConfig,
 } from "./config";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * L'AUTHENTIFICATION GOOGLE D'ADAM — code d'autorisation + PKCE, accès HORS LIGNE.
@@ -133,7 +134,7 @@ async function postToken(body: URLSearchParams): Promise<GoogleTokenSet> {
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
   });
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  const json = (await res.json().catch(sansBloquer("oauth.postToken.json", {}))) as Record<string, unknown>;
   if (!res.ok || !json.access_token) {
     throw new GoogleAuthError(String(json.error ?? res.status), res.status);
   }

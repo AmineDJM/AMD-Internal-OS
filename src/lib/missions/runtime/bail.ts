@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -53,7 +54,7 @@ export async function rendreBail(missionId: string): Promise<void> {
   await prisma.mission.updateMany({
     where: { id: missionId, leaseOwner: INSTANCE },
     data: { leaseOwner: null, leaseUntil: null },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("bail.rendreBail.mission"));
 }
 
 /** Qui tient le bail en ce moment — pour dire, pas pour décider. */

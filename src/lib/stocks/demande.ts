@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -112,7 +113,7 @@ export async function creerDemandeEtatStock(input: DemandeEtatStock): Promise<Re
       ? `Hôpitaux : ${hospitalNames}${note ? ` — ${note}` : ""}`
       : note || "Relevez et renseignez l'état de stock actuel.").slice(0, 240),
     link: "/stocks",
-  }).catch(() => undefined);
+  }).catch(sansBloquer("demande.creerDemandeEtatStock.notifyUser"));
 
   await recordAudit({
     actorId: input.actorId,
