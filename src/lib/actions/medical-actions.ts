@@ -11,6 +11,7 @@ import { cleDEtablissement, indexerEtablissements } from "@/lib/annuaires/rattac
 import { CHEMINS_SPECIALITES, cleDeSpecialite, ecritureDeSpecialite, indexerSpecialites, lienDeSpecialiteValide } from "@/lib/annuaires/specialites";
 import { suivreRenommageEtablissement } from "@/lib/stocks/lieux";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { fdStr, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
 import { sousVerrous } from "@/lib/promo/stock-ecriture";
@@ -136,6 +137,7 @@ export async function createInstitution(formData: FormData): Promise<ActionResul
     },
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Annuaires", entityType: "INSTITUTION", entityId: created.id, summary: `Établissement « ${name} »` });
+  await doubleEcrireOrganisation("MEDICAL_INSTITUTION", created.id, user.id);
   revalidatePath("/medical");
   return { ok: true, id: created.id };
 }

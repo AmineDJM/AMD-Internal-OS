@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/session";
 import { peutAnnuaire } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
 
 /**
@@ -40,6 +41,7 @@ export async function creerFournisseurAnnuaire(fd: FormData): Promise<ActionResu
   if (doublon) return { ok: false, error: `« ${data.name} » existe déjà dans l'annuaire des fournisseurs.` };
   const s = await prisma.supplier.create({ data: { ...data, createdById: user.id }, select: { id: true } });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Annuaires", entityType: "SUPPLIER", entityId: s.id, summary: `Fournisseur Regulatory « ${data.name} » ajouté` });
+  await doubleEcrireOrganisation("SUPPLIER", s.id, user.id);
   revalider();
   return { ok: true, id: s.id };
 }

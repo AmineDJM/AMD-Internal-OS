@@ -1087,6 +1087,14 @@ X("SEGMENTATION STUDIO (Direction, 06/10) : stratégie, classement des produits,
   // Le classeur de la Direction importé « en une fois » : un fichier, une BU, un aperçu lu à l'écran avant d'importer.
   "segmentation-actions:apercuImportClasseurDirection", "segmentation-actions:importerClasseurDirection",
 ]);
+X("REFONTE DES DONNÉES — LES REPRISES ET LE RÉFÉRENTIEL DES ORGANISATIONS (vague 2, lot V2-C) : aperçu à blanc et "
+  + "exécution par lots d'une reprise, fusion ou écart d'une proposition de doublon d'organisations, fusion défaite, "
+  + "interrupteur de la double écriture. Gestes d'administration du Super Admin SEUL, décidés en REGARDANT l'aperçu "
+  + "chiffré et les deux fiches côte à côte (`/admin/refonte-donnees`) ; jamais d'office, jamais par un assistant.", [
+  "refonte-reprise-actions:apercuReprise", "refonte-reprise-actions:executerReprise",
+  "organisation-actions:fusionnerOrganisations", "organisation-actions:ecarterDoublonOrganisation",
+  "organisation-actions:defaireFusionOrganisation", "organisation-actions:reglerDoubleEcritureOrganisations",
+]);
 X("CONGRÈS / ÉVÉNEMENT — ANCIENNES DÉCISIONS HORS CIRCUIT (Direction, 27/10) : préliminaire, analyse Direction Marketing, "
   + "validation définitive et budget accordé global écrivaient `requestStatus` et le montant SANS le moteur de circuit. "
   + "Aucun écran ne les propose plus ; Adam passe par les mêmes gestes que l'écran (`advance_workflow`, puis les postes). "

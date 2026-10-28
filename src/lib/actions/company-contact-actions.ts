@@ -5,6 +5,7 @@ import { requireUser } from "@/lib/session";
 import { peutAnnuaire } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { getMyCompanies, companyIdForNew } from "@/lib/company";
 import { fdStr, fdCase, type ActionResult } from "@/lib/actions/types";
 
@@ -76,6 +77,7 @@ export async function createCompanyContact(_prev: ActionResult | undefined, form
     actorId: user.id, action: "CREATE", module: "Moyens généraux",
     summary: `Contact « ${data.name} »${data.kind ? ` (${data.kind})` : ""} ajouté à l'annuaire d'entreprise`,
   });
+  await doubleEcrireOrganisation("COMPANY_CONTACT", created.id, user.id);
   revaliderAnnuaire();
   return { ok: true, id: created.id };
 }

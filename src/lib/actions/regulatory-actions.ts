@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { projetsBdVisibles } from "@/lib/queries/bd";
 import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { phraseProduitDuDossier } from "@/lib/products/produit-du-dossier";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -251,6 +252,7 @@ export async function createRegulatorySupplier(formData: FormData): Promise<Acti
     select: { id: true },
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Regulatory", entityType: "SUPPLIER", entityId: created.id, summary: `Fournisseur « ${name} »` });
+  await doubleEcrireOrganisation("SUPPLIER", created.id, user.id);
   revalidatePath("/regulatory");
   return { ok: true, id: created.id };
 }
