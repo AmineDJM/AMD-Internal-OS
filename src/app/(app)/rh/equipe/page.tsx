@@ -17,6 +17,7 @@ import { getMyCompanies, companyOptions } from "@/lib/company";
 import { getDepartmentOptions } from "@/lib/departments";
 import { toNumber } from "@/lib/utils";
 import { TeamDirectory, type DirectoryRow } from "../team-directory";
+import { lireSensiblesPour } from "@/lib/coffre/lecture";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +46,11 @@ export default async function RhTeamPage() {
 
   // L'échéance « proche » est celle du compteur de l'en-tête — une seule règle, calculée côté serveur.
   const echeances = new Set(data.contractsExpiring.map((e) => e.id));
+  // LE COFFRE (refonte V2-E) : la colonne « Salaire » se lit par la politique, journalisée — et pas du tout
+  // quand elle est masquée (rien n'est lu, rien n'est sérialisé).
+  const salaires = canSeeSalary
+    ? await lireSensiblesPour(user, { modele: "Employee", champs: ["baseSalary"], geste: "Équipe — liste des salaires", lignes: data.employees.map((e) => ({ id: e.id, clair: e })) })
+    : null;
   const rows: DirectoryRow[] = data.employees.map((e) => ({
     id: e.id,
     fullName: e.fullName,
@@ -53,7 +59,7 @@ export default async function RhTeamPage() {
     contractType: e.contractType,
     contractEnd: e.contractEnd?.toISOString() ?? null,
     echeanceProche: echeances.has(e.id),
-    baseSalary: canSeeSalary ? toNumber(e.baseSalary) : null,
+    baseSalary: salaires?.get(e.id)?.baseSalary.lu ? Number(salaires.get(e.id)!.baseSalary.valeur ?? 0) : null,
     leaveBalanceDays: toNumber(e.leaveBalanceDays),
     hasAccount: Boolean(e.user),
     isActive: e.isActive,

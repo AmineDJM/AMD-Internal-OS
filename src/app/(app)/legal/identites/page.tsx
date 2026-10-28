@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { getMyCompanies, companyLabel } from "@/lib/company";
 import { IDENTITY_SECTIONS, identityFieldKeys } from "@/lib/legal/identity";
 import { IdentityBoard, type IdentityCompany } from "./identity-board";
+import { lireSensiblesPour } from "@/lib/coffre/lecture";
 import type { DocItem } from "@/components/documents/document-list";
 
 export const dynamic = "force-dynamic";
@@ -52,6 +53,12 @@ export default async function LegalIdentitiesPage({ searchParams }: { searchPara
     }),
   ]);
   const byCompany = new Map(identities.map((i) => [i.companyId, i]));
+  // LE COFFRE (refonte V2-E) : RIB et IBAN des sociétés lus par la politique (les Finances), journalisés ; les
+  // autres voient le masque — qui, renvoyé tel quel, garde la valeur en place, et qu'une saisie remplace.
+  const bancaires = await lireSensiblesPour(user, {
+    modele: "CompanyLegalIdentity", champs: ["rib", "iban"], geste: "Identités légales — consultation",
+    lignes: identities.map((i) => ({ id: i.id, clair: i })),
+  });
 
   const docsByCompany = new Map<string, DocItem[]>();
   for (const d of docs) {
@@ -71,6 +78,8 @@ export default async function LegalIdentitiesPage({ searchParams }: { searchPara
       const v = row?.[key];
       values[key] = typeof v === "string" ? v : "";
     }
+    const lus = row ? bancaires.get(String(row.id)) : undefined;
+    for (const [champ, lu] of Object.entries(lus ?? {})) values[champ] = (lu.lu ? lu.valeur : lu.masque) ?? "";
     return { id: c.id, label: companyLabel(c), color: c.color, values, documents: docsByCompany.get(c.id) ?? [] };
   });
 

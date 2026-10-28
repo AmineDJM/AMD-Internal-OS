@@ -13,6 +13,11 @@ import { GestesReprise, InterrupteurDoubleEcriture } from "./cartes";
 import { etatFile } from "@/lib/enrichissement/lectures";
 import { PanneauEnrichissement } from "./panneau-enrichissement";
 import { InterrupteurDoubleEcriturePersonnes } from "./interrupteur-double-ecriture";
+import { InterrupteursCoffre } from "./interrupteurs-coffre";
+import { getAppSettings } from "@/lib/settings";
+import { couvertureDuCoffre } from "@/lib/coffre/couverture";
+import { LIBELLE_MODELE } from "@/lib/coffre/champs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Refonte des données — Administration" };
@@ -30,7 +35,7 @@ const dateFr = (d: Date) => new Intl.DateTimeFormat("fr-FR", {
 export default async function RefonteDonneesPage() {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");
-  const [journaux, doubleEcriture, doublonsEnAttente, etat, reglages, personnes, doublonsPersonnes] = await Promise.all([
+  const [journaux, doubleEcriture, doublonsEnAttente, etat, reglages, personnes, doublonsPersonnes, parametres, couverture] = await Promise.all([
     Promise.all(REPRISES.map((r) => lireJournal(r.cle))),
     doubleEcritureOrganisationsOuverte(),
     prisma.propositionDoublonOrganisation.count({
@@ -40,6 +45,8 @@ export default async function RefonteDonneesPage() {
     prisma.appSetting.findUnique({ where: { id: "global" }, select: { refontePersonnesDoubleEcriture: true } }),
     prisma.personne.count({ where: { fusionneeDansId: null } }),
     prisma.doublonPersonne.count({ where: { statut: "PROPOSE" } }),
+    getAppSettings(),
+    couvertureDuCoffre(),
   ]);
 
   return (
@@ -89,6 +96,39 @@ export default async function RefonteDonneesPage() {
             <CardHeader><CardTitle>{r.titre}</CardTitle></CardHeader>
             <CardContent className="space-y-4 text-sm">
               <p className="text-muted-foreground">{r.description}</p>
+              {r.cle === "coffre" && (
+                <>
+                  <InterrupteursCoffre ecriture={parametres.coffreEcriture} lecture={parametres.coffreLecture} />
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Colonne</TableHead>
+                          <TableHead className="text-right">En clair</TableHead>
+                          <TableHead className="text-right">Copiées au coffre</TableHead>
+                          <TableHead className="text-right">Rattachées à leur fiche</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {couverture.map((c) => (
+                          <TableRow key={`${c.champ.modele}.${c.champ.champ}`}>
+                            <TableCell>
+                              {c.champ.libelle} <span className="text-xs text-muted-foreground">({LIBELLE_MODELE[c.champ.modele]})</span>
+                            </TableCell>
+                            <TableCell className="text-right tabular-nums">{c.enClair}</TableCell>
+                            <TableCell className={`text-right tabular-nums ${c.copiees < c.enClair ? "text-warning" : ""}`}>{c.copiees}</TableCell>
+                            <TableCell className="text-right tabular-nums">{c.rattachees}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Ordre conseillé : ouvrir la double écriture, exécuter la reprise jusqu&apos;au bout (les valeurs mal formées sont listées, à corriger sur leur fiche), puis ouvrir la double lecture.
+                    Qui a lu quoi : <Link className="underline" href="/admin/acces-donnees-sensibles">Accès aux données sensibles</Link>.
+                  </p>
+                </>
+              )}
               <GestesReprise cle={r.cle} suiteInitiale={journal[0]?.suite ?? null} />
               <div>
                 <div className="mb-1 text-xs font-medium uppercase text-muted-foreground">Journal</div>

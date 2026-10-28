@@ -253,3 +253,15 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `fiche.ts`, `visibilite.ts` | La fiche 360° `/personnes/[id]` : chaque ligne derrière la porte de son écran d'origine. |
 | `app/(app)/admin/refonte-donnees/` | L'écran unique des reprises (Super Admin). |
 | `app/(app)/personnes/` | La fiche 360° et `doublons/` (trancher). |
+#### Refonte des données — coffre (V2-E)
+
+| Fichier | Rôle |
+|---|---|
+| `src/lib/coffre/champs.ts` | Catalogue PUR des colonnes sensibles copiées, classement, masque, « écrire sans lire ». |
+| `src/lib/coffre/copies.ts` · `ecriture.ts` | Chemin d'écriture (copie chiffrée, remplacement daté) et double écriture derrière l'interrupteur. |
+| `src/lib/coffre/acces.ts` · `lecture.ts` · `dechiffrement.ts` | Contrôle d'accès + journal (sans déchiffrer), lecture des écrans (déchiffre), le seul module qui déchiffre. |
+| `src/lib/coffre/couverture.ts` · `journal.ts` | Couverture colonne par colonne ; journal des accès filtrable. |
+| `src/lib/referentiels/reprises/{types,index,coffre}.ts` | Contrat commun des reprises ; reprise « coffre ». |
+| `src/lib/actions/refonte-reprise-actions.ts` · `coffre-actions.ts` | Aperçu / lot (Super Admin, audités) ; interrupteurs. |
+| `src/app/(app)/admin/refonte-donnees/` · `admin/acces-donnees-sensibles/` | Écrans Super Admin. |
+

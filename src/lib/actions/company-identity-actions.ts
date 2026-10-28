@@ -8,6 +8,8 @@ import { recordAudit } from "@/lib/audit";
 import { getMyCompanies } from "@/lib/company";
 import { identityFieldKeys } from "@/lib/legal/identity";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
+import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
+import { champsNonSaisis } from "@/lib/coffre/champs";
 
 /**
  * LA CARTE D'IDENTITÉ LÉGALE ET FISCALE D'UNE ENTITÉ — écriture.
@@ -40,12 +42,17 @@ export async function saveCompanyIdentity(formData: FormData): Promise<ActionRes
   // toucher à cette action — et rien d'autre que la carte ne peut se glisser dans l'écriture.
   const data: Record<string, string | null> = {};
   for (const key of identityFieldKeys()) data[key] = fdStr(formData, key) || null;
+  // ÉCRIRE SANS LIRE (refonte V2-E) : un RIB / IBAN que l'écran ne montrait que masqué revient masqué — il reste en place.
+  for (const champ of champsNonSaisis("CompanyLegalIdentity", formData)) delete data[champ];
 
-  await prisma.companyLegalIdentity.upsert({
+  const identite = await prisma.companyLegalIdentity.upsert({
     where: { companyId },
     create: { companyId, ...data, updatedById: user.id },
     update: { ...data, updatedById: user.id },
+    select: { id: true },
   });
+  // LE COFFRE (refonte V2-E) : RIB et IBAN de la société copiés chiffrés — derrière l'interrupteur, jamais bloquant.
+  await doubleEcrireCoffre("CompanyLegalIdentity", identite.id, data, user.id);
 
   await recordAudit({
     actorId: user.id, action: "UPDATE", module: "Legal",

@@ -101,6 +101,10 @@ export interface AppSettings {
    * compte Super Admin. Nul = aucun service désigné, on retombe sur le rattachement.
    */
   generalMeansDepartmentId: string | null;
+  /** LE COFFRE EN DOUBLE ÉCRITURE (refonte V2-E) — chaque écriture d'une colonne sensible écrit aussi sa copie chiffrée. */
+  coffreEcriture: boolean;
+  /** LE COFFRE EN DOUBLE LECTURE — écrans, exports et pièces lisent par le coffre (politique + journal d'accès). */
+  coffreLecture: boolean;
 }
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -141,6 +145,9 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   regEnrollmentRoles: [],
   hiddenModules: [],
   generalMeansDepartmentId: null,
+  // FERMÉS : le coffre ne s'ouvre que par le geste du Super Admin, après la reprise (V2-E).
+  coffreEcriture: false,
+  coffreLecture: false,
 };
 
 export const getAppSettings = perRequest(async (): Promise<AppSettings> => {
@@ -178,6 +185,8 @@ export const getAppSettings = perRequest(async (): Promise<AppSettings> => {
       regEnrollmentRoles: row.regEnrollmentRoles ?? [],
       hiddenModules: row.hiddenModules ?? [],
       generalMeansDepartmentId: row.generalMeansDepartmentId ?? null,
+      coffreEcriture: row.coffreEcriture === true,
+      coffreLecture: row.coffreLecture === true,
     };
   } catch {
     return DEFAULT_APP_SETTINGS;

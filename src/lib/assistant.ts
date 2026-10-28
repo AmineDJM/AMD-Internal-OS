@@ -25,6 +25,7 @@ import { extraireFaits, faitsDuTour, repondreDouTuTiensCa, resumerFait, type Fai
 import { routeVoiceUtterance } from "@/lib/assistant/voice/fast-path";
 import { consigneCalcul, consignePeriode, consigneProchainGeste, consigneRepresentation, consigneSignaux } from "@/lib/assistant/context/router";
 import { calibrerTour } from "@/lib/assistant/confidence/tour";
+import { doubleEcrireCoffre } from "@/platform/in-process/capacites";
 import type { Calibration } from "@/lib/assistant/confidence/calibrate";
 import { resoudreEntite, resoudreMentions, contexteEntitesResolues } from "@/platform/in-process/fabric/entites";
 import { MailSendPolicy, type AdminRequestType, type Priority, type CalendarEventKind, type HrRequestType, type RegulatoryCategory } from "@prisma/client";
@@ -7172,6 +7173,8 @@ export async function performAction(user: CurrentUser, payload: AssistantActionP
       summary.push(`${f.label} : ${f.before != null ? formatMontant(f.before) : "(vide)"} → ${formatMontant(f.after)} DZD`);
     }
     await prisma.employee.update({ where: { id: emp.id }, data });
+    // LE COFFRE (refonte V2-E) : la copie chiffrée suit — chemin d'ÉCRITURE seulement, l'assistant ne lit pas le coffre.
+    await doubleEcrireCoffre("Employee", emp.id, data, user.id);
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Assistant IA", entityType: "EMPLOYEE", entityId: emp.id,
       oldValue: payload.fields.map((f) => `${f.label}=${f.before ?? "∅"}`).join(" · "),

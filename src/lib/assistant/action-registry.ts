@@ -1125,10 +1125,10 @@ X("INTELLIGENCE TERRAIN (console d'administration, Direction 10/2026 : « visibl
   "intelligence-terrain-actions:relancerAnalyseInfluence", "intelligence-terrain-actions:deciderLienInfluence",
 ]);
 X("REFONTE DES DONNÉES (Administration, Super Admin) : lancer une reprise vers les référentiels (aperçu à blanc, puis "
-  + "un lot au curseur) et allumer / éteindre la double écriture des lieux. Une reprise écrit dans les référentiels de toute "
+  + "un lot au curseur) et allumer / éteindre la double écriture des lieux et la double écriture / double lecture du coffre (un modèle d'IA n'a JAMAIS accès au coffre). Une reprise écrit dans les référentiels de toute "
   + "l'entreprise : elle se décide devant l'aperçu chiffré et la liste des cas ambigus que l'écran `/admin/refonte-donnees` "
   + "montre, lot par lot, et chaque geste relit le rôle. Réservé au SUPER ADMIN, non délégable ; aucune ouverture conversationnelle.", [
-  "refonte-reprise-actions:apercuReprise", "refonte-reprise-actions:executerReprise", "lieux-actions:reglerDoubleEcritureLieux",
+  "refonte-reprise-actions:apercuReprise", "refonte-reprise-actions:executerReprise", "lieux-actions:reglerDoubleEcritureLieux", "coffre-actions:basculerCoffre",
 ]);
 X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de configuration — variables, adresses, réponse du "
   + "Document Server. Une moitié du test se joue DANS LE NAVIGATEUR de l'administrateur (chargement d'api.js) : une "

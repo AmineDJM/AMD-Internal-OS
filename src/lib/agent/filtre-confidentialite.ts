@@ -15,6 +15,10 @@ export const MOTS_CLES_SENSIBLES = [
   "netsalary",
   "grosssalary",
   "salaire",
+  // Les colonnes de la fiche salarié copiées au coffre (refonte V2-E, `coffre/champs.ts`) : un nom de clé
+  // anglais ne doit pas laisser passer ce que son équivalent français arrête.
+  "nettopay",
+  "employercost",
   "salairebase",
   "salairenet",
   "salairebrut",

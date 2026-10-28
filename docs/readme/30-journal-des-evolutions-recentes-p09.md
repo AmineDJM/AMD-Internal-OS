@@ -237,3 +237,18 @@ Cadre : `docs/architecture/refonte-vague-2.md`. Rien ne tourne au déploiement ;
 - **Écran commun** `Administration › Refonte des données` (`/admin/refonte-donnees`) : une carte par reprise (aperçu à
   blanc, un lot, tout exécuter, journal), interrupteur de la double écriture.
 - Migration : `20270131170000_personnes_reprise`.
+### Refonte des données V2-E — le coffre en double lecture (2026-10-27)
+
+Les RIB / IBAN, NIN et salaires des salariés, le RIB des partenaires (fournisseurs) et les RIB / IBAN des sociétés sont
+**copiés chiffrés** au coffre (`src/lib/coffre/`) ; les colonnes en clair **restent** (P5 = accord de la Direction).
+**Reprise** « coffre » (`Administration › Refonte des données`, Super Admin : aperçu à blanc, lots, rejouable, rattache
+aux fiches Personne / Organisation) ; **double écriture** à chaque enregistrement (fiche RH, Finances, embauche, salaire
+par l'assistant, annuaire, identités légales) ; **double lecture** des fiches, de l'équipe, de la paie, des identités
+légales et des pièces générées (BC, factures : RIB reconnu au coffre par empreinte), avec **journal** de chaque accès,
+accordé ou refusé (`Administration › Accès aux données sensibles`). Politique : RH = salaires et NIN, Finances = RIB /
+IBAN, la personne = les siennes, une pièce officielle imprime le RIB d'une organisation ; **jamais un modèle d'IA**
+(propositions de l'assistant masquées, bac à sable SQL, filtre de confidentialité, frontière d'import). Une donnée masquée
+renvoyée par un formulaire reste en place : on écrit une fiche sans en lire les données sensibles. Deux interrupteurs
+fermés par défaut (`coffreEcriture`, `coffreLecture`) ; variable `COFFRE_KEY` à poser. Migration additive
+`20270131170000_coffre_double_lecture`. Détail, activation et procédure P5 : `docs/architecture/refonte-v2e-coffre.md`.
+

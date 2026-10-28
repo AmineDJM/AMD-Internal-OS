@@ -9775,6 +9775,12 @@ model AppSetting {
   /// la même transaction (`referentiels/personnes/double-ecriture.ts`). Éteint par défaut ; le Super Admin
   /// l'allume après la reprise, et l'éteint pour revenir en arrière.
   refontePersonnesDoubleEcriture Boolean   @default(false)
+  /// LE COFFRE EN DOUBLE ÉCRITURE (refonte V2-E) : chaque écriture d'une colonne sensible écrit aussi sa
+  /// copie chiffrée au coffre. Fermé par défaut ; ouvert par le Super Admin (Administration › Refonte des données).
+  coffreEcriture                Boolean   @default(false)
+  /// LE COFFRE EN DOUBLE LECTURE : écrans, exports et pièces lisent la valeur par le coffre (politique +
+  /// journal `AccesDonneeSensible`) ; ailleurs, le masque seul. Fermé par défaut.
+  coffreLecture                 Boolean   @default(false)
   updatedAt                     DateTime  @updatedAt
   updatedById                   String?
   /// REFONTE V2-D — DOUBLE ÉCRITURE DES LIEUX. Vrai = chaque saisie d'une wilaya / ville sur une fiche (praticien,
@@ -17413,15 +17419,19 @@ enum TypeTitulaire {
 /// titulaire pour les siennes — chaque lecture écrit un `AccesDonneeSensible`. Jamais à un modèle.
 model DonneeSensible {
   id                 String                @id @default(cuid())
-  titulaireType      TypeTitulaire
-  titulaireId        String
-  /// La clé de l'attribut sensible du catalogue (`personne.nin`, `personne.passeport.numero`, `organisation.rib`…).
+  /// Le titulaire du référentiel (Personne / Organisation) — nul tant que la fiche n'existe pas : la copie
+  /// d'une colonne reste alors tenue par son ORIGINE, et la reprise rejouée la rattache (V2-E).
+  titulaireType      TypeTitulaire?
+  titulaireId        String?
+  /// La nature du coffre (`src/lib/coffre/natures.ts`) : IBAN, RIB, NIN, PASSEPORT_NUMERO, SALAIRE…
   nature             String
   valeurChiffree     Bytes
   iv                 Bytes
   tag                Bytes
-  /// Version de la clé de chiffrement : permet la rotation sans tout déchiffrer d'un coup.
+  /// Version du FORMAT de chiffrement (`c1` → 1).
   cleVersion         Int                   @default(1)
+  /// Identifiant public de la clé maîtresse qui a chiffré (`src/lib/coffre/cle.ts`) : rotation, refus explicite.
+  cleId              String?
   /// HMAC-SHA-256 de la valeur normalisée (clé distincte) : retrouver un doublon sans déchiffrer.
   empreinteHmac      String
   derniersCaracteres String?
@@ -17431,12 +17441,20 @@ model DonneeSensible {
   valideAu           DateTime?             @db.Date
   creeParId          String?
   createdAt          DateTime              @default(now())
+  /// LA COLONNE DONT C'EST LA COPIE (V2-E) : `Employee` / `iban`… — reprise rejouable, double écriture exacte.
+  /// Une seule copie COURANTE par origine (unicité partielle `DonneeSensible_origine_courante_key`, en SQL).
+  origineModele      String?
+  origineId          String?
+  origineChamp       String?
+  /// Remplacée par une nouvelle valeur (ou la colonne vidée) : la copie est gardée, datée, plus lue.
+  remplaceeLe        DateTime?
   acces              AccesDonneeSensible[]
   faitsProposes      FaitPropose[]
   faitsConfirmes     FaitConfirme[]
 
   @@index([titulaireType, titulaireId])
   @@index([empreinteHmac])
+  @@index([origineModele, origineId])
 }
 
 /// R6 — QUI A LU QUOI, QUAND, POUR QUEL GESTE. Le journal survit à la donnée : la nature et le titulaire
@@ -17445,18 +17463,29 @@ model AccesDonneeSensible {
   id               String          @id @default(cuid())
   donneeSensibleId String?
   donneeSensible   DonneeSensible? @relation(fields: [donneeSensibleId], references: [id], onDelete: SetNull)
-  titulaireType    TypeTitulaire
-  titulaireId      String
+  titulaireType    TypeTitulaire?
+  titulaireId      String?
+  /// La colonne lue (V2-E) — renseignée aussi quand la lecture a eu lieu avant que la copie existe.
+  origineModele    String?
+  origineId        String?
+  origineChamp     String?
   nature           String
-  userId           String
-  /// LECTURE, COPIE, EXPORT, IMPRESSION… — vocabulaire tenu côté code.
+  /// Le compte qui a lu ; nul pour un modèle d'IA (refusé, `lecteurNom`).
+  userId           String?
+  lecteurNom       String?
+  /// Le geste, en clair : « Fiche employé — consultation », « Bon de commande BC-2026-014 — impression »…
   geste            String
+  /// Accordé ou refusé : un refus se journalise aussi.
+  autorise         Boolean         @default(true)
+  /// Le motif de la politique (`src/lib/coffre/politique.ts`) : RH, FINANCES, TITULAIRE, HORS_PERIMETRE…
   motif            String?
   createdAt        DateTime        @default(now())
 
   @@index([donneeSensibleId])
   @@index([userId, createdAt])
   @@index([titulaireType, titulaireId])
+  @@index([createdAt])
+  @@index([origineModele, origineId])
 }
 
 enum StatutExtraction {

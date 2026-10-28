@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
 import { FinanceCategory, FinanceMethod, type FinanceDirection, type FinanceStatus, type PayrollStatus, type Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { anyRoleFilter, userCan } from "@/lib/rbac";
@@ -586,6 +587,7 @@ export async function createEmployee(
     await relierALaPersonne(tx, "Employee", e.id, user.id);
     return e;
   });
+  await doubleEcrireCoffre("Employee", created.id, created, user.id);
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Finances", entityType: "EMPLOYEE", entityId: created.id, summary: `Employé « ${fullName} »` });
   revalidatePath("/finances");
   return { ok: true, id: created.id };

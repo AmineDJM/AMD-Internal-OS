@@ -2,6 +2,8 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { scopeMedicalDoctors, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { companyScopedWhere, getMyCompanies, companyLabel } from "@/lib/company";
+import { getAppSettings } from "@/lib/settings";
+import { champSensible, masqueDepuisClair } from "@/lib/coffre/champs";
 import { canonicalWilaya } from "@/lib/medical/wilaya";
 import { cleCellule } from "@/lib/grille/couleurs";
 import { ligneAnnuaire, type AnnuaireRow, type CustomColumnVue } from "@/lib/medical/directory-grid";
@@ -372,7 +374,7 @@ export interface AnnuairePartenaires {
 
 /** Les contacts EXTERNES de la société — agence, livreur, transitaire —, dans le périmètre d'entité. */
 export async function chargerPartenaires(user: SessionUser, sphere: "PRIVE" | "PUBLIC" = "PRIVE"): Promise<AnnuairePartenaires> {
-  const [contacts, myCompanies] = await Promise.all([
+  const [contacts, myCompanies, reglages] = await Promise.all([
     prisma.companyContact.findMany({
       // LA SPHÈRE fait l'annuaire : « Partenaires » (prestataires) ou « Partenaires publics » (Direction, 06/10).
       where: { AND: [await companyScopedWhere(user.id, {}), { sphere }] },
@@ -380,13 +382,19 @@ export async function chargerPartenaires(user: SessionUser, sphere: "PRIVE" | "P
       orderBy: [{ name: "asc" }],
     }),
     getMyCompanies(user.id),
+    getAppSettings(),
   ]);
+  // LE COFFRE (refonte V2-E) : en double lecture, la liste n'emporte que le MASQUE du RIB — rien n'est lu, rien
+  // n'est journalisé ; le RIB en clair se lit là où il sert (bon de commande, ordre de virement). Renvoyé tel quel
+  // par la boîte d'édition, le masque garde la valeur en place (`champsNonSaisis`) ; une saisie la remplace.
+  const champRib = champSensible("CompanyContact", "rib")!;
+  const rib = (v: string | null) => (reglages.coffreLecture ? masqueDepuisClair(champRib, v) : v);
   return {
     contacts: contacts.map((c) => ({
       id: c.id, name: c.name, kind: c.kind, contactName: c.contactName,
       phone: c.phone, phoneAlt: c.phoneAlt, email: c.email, website: c.website,
       address: c.address, city: c.city, wilaya: c.wilaya,
-      rc: c.rc, nif: c.nif, rib: c.rib, notes: c.notes,
+      rc: c.rc, nif: c.nif, rib: rib(c.rib), notes: c.notes,
       isActive: c.isActive, companyId: c.companyId,
       companyLabel: c.company ? c.company.shortName ?? c.company.name : null,
     })),
@@ -448,4 +456,5 @@ export async function chargerPersonnes(): Promise<DirectoryPerson[]> {
     };
   });
 }
-
+
+

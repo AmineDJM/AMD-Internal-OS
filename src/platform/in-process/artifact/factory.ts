@@ -75,6 +75,7 @@ import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { refusRevisionAval, refusPieceAmont, phrasePieceAmontNonRattachee, PIECE_AMONT_INTROUVABLE } from "@/lib/legal/piece-emise";
 import { refusPlafondAvoir, resteACrediter } from "@/lib/lecteurs/avoir";
 import { reserveDeLAiguillage, type PorteBC } from "@/lib/bons-de-commande/regle";
+import { controlerRibDePiece } from "@/lib/coffre/acces";
 
 /** Les causes d'échec que le runtime de missions sait classer (`capability-failure.ts`). */
 type Echec = "NOT_FOUND" | "MISSING_PERMISSION" | "MISSING_INPUT" | "CAPABILITY_FAILURE";
@@ -354,7 +355,8 @@ export async function profilDocumentaire(user: CurrentUser, societe?: string | n
     telephone: identite?.phone ?? null,
     email: identite?.email ?? null,
     banque: [identite?.bankName, identite?.bankAgency].filter(Boolean).join(" — ") || null,
-    rib: identite?.rib ?? null,
+    // LE COFFRE (refonte V2-E) : le RIB de la société, contrôlé et journalisé au nom de qui émet la pièce.
+    rib: (await controlerRibDePiece(user, identite?.rib, `Pièce commerciale${opts.type ? ` (${opts.type})` : ""} — RIB de la société`)) ?? null,
   };
   const papierEffectif = papierOctets && papierOctets.length > 0 ? papierOctets : null;
   return {
@@ -1120,7 +1122,9 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
     };
   }
 
-  const base = specDepuisDemande(demande, profil);
+  // LE COFFRE (refonte V2-E) : le RIB du tiers (fiche de l'annuaire ou recopié du devis) passe la politique au goulot.
+  const tiersRib = await controlerRibDePiece(user, demande.tiers?.rib, `${demande.type} pour ${demande.tiers?.nom ?? "?"} — RIB du tiers`);
+  const base = specDepuisDemande(demande.tiers ? { ...demande, tiers: { ...demande.tiers, rib: tiersRib } } : demande, profil);
   const provisoire: SpecDocumentCommercial = { ...base, numero: "PROVISOIRE" };
   const regles = verifierSpecCommerciale(provisoire);
   if (regles.bloquants.length > 0) {
@@ -1401,7 +1405,9 @@ export async function previsualiserDocument(
       tvaDefaut: demande.tvaDefaut ?? lu.calcul.tvaDefaut, remiseGlobale: demande.remiseGlobale ?? lu.calcul.remiseGlobale, taxes: demande.taxes ?? lu.calcul.taxes,
     };
   }
-  const base = specDepuisDemande(demande, profil);
+  // LE COFFRE (refonte V2-E) : le RIB du tiers (fiche de l'annuaire ou recopié du devis) passe la politique au goulot.
+  const tiersRib = await controlerRibDePiece(user, demande.tiers?.rib, `${demande.type} pour ${demande.tiers?.nom ?? "?"} — RIB du tiers`);
+  const base = specDepuisDemande(demande.tiers ? { ...demande, tiers: { ...demande.tiers, rib: tiersRib } } : demande, profil);
   const annee = Number(base.date.slice(0, 4));
   const kind = NATURE_LEGALE[type];
   const prefixe = prefixeDe(type, profil);
@@ -1465,6 +1471,12 @@ function refusDateRevisee(f: Fabrique, date: string | null | undefined): string 
  * LA SPÉCIFICATION RÉVISÉE — une seule composition pour la révision et son aperçu : l'écran montre ce qui sera écrit.
  * CE QUI N'EST PAS NOMMÉ GARDE SA VALEUR, champ par champ (§118.152) ; `null` l'efface.
  */
+/** LE COFFRE (refonte V2-E) : un RIB de tiers modifié à la révision passe la même politique qu'à l'émission. */
+async function modificationsControlees(user: CurrentUser, m: ModificationsDocument, type: string): Promise<ModificationsDocument> {
+  if (!m.tiers?.rib) return m;
+  return { ...m, tiers: { ...m.tiers, rib: await controlerRibDePiece(user, m.tiers.rib, `${type} révisé — RIB du tiers`) } };
+}
+
 function specRevisee(f: Fabrique, m: ModificationsDocument, p: ProfilDocumentaire): SpecDocumentCommercial {
   // LES COORDONNÉES DE L'ÉMETTEUR : celles choisies maintenant, sinon celles choisies à l'émission, sinon la carte
   // ACTUELLE de la société (une société qui a changé d'e-mail le voit sur la version suivante).
@@ -1578,7 +1590,7 @@ export async function reviserDocumentDrive(
     if (opts.exigerMotif && !opts.motif?.trim()) {
       return echec("MISSING_INPUT", "Dites ce qui change dans cette pièce : c'est ce que retiendra son historique.");
     }
-    const m = opts.modifications ?? {};
+    const m = await modificationsControlees(user, opts.modifications ?? {}, f.type);
     const refusDate = refusDateRevisee(f, m.date);
     if (refusDate) return echec("MISSING_INPUT", refusDate);
     const lu = await profilDeLaRevision(user, doc.companyId, f, m);
@@ -1751,7 +1763,7 @@ export async function previsualiserRevision(
   if (doc.status !== "ACTIVE") return echec("CAPABILITY_FAILURE", `La pièce ${f.numero} est ${doc.status === "CANCELLED" ? "annulée" : "close"} : elle ne se révise plus.`);
   if (!emission.delegation && !peutEcrire(user, "UPDATE", f.type)) return echec("MISSING_PERMISSION", "Réviser cette pièce exige le droit de modifier dans Legal.");
   if (!emission.delegation && !(await canEditCompanyId(user.id, doc.companyId))) return echec("MISSING_PERMISSION", "Cette pièce appartient à une société que vous ne pouvez pas engager.");
-  const m = opts.modifications ?? {};
+  const m = await modificationsControlees(user, opts.modifications ?? {}, f.type);
   const lu = await profilDeLaRevision(user, doc.companyId, f, m);
   if (!lu.ok) return lu;
   const { profil, habillage } = lu.p;

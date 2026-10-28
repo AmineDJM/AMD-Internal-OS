@@ -24,6 +24,7 @@ import { SuperAdminDeleteButton } from "@/components/shared/super-admin-delete";
 import { seesWholeGroup } from "@/lib/company-access";
 import { CompanyAccessCard, type CompanyAccessRow } from "./company-access-card";
 import { BackLink } from "@/components/shared/back-link";
+import { lireSensiblesPour } from "@/lib/coffre/lecture";
 
 const d10 = (x: Date | null | undefined) => (x ? x.toISOString().slice(0, 10) : "");
 
@@ -59,6 +60,20 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
   ]);
   const departmentPath = employee.departmentId ? await getDepartmentPath(employee.departmentId) : [];
 
+  // LE COFFRE (refonte V2-E) : IBAN, NIN et salaires lus par la politique, chaque lecture journalisée — et
+  // seulement ce que la page montre (le formulaire à qui modifie, salaire et NIN à qui voit la paie).
+  const SENSIBLES = ["iban", "nationalId", "baseSalary", "grossSalary", "netToPay", "employerCost"] as const;
+  const lus = new Set<(typeof SENSIBLES)[number]>([...(canUpdate ? SENSIBLES : []), ...(salairesVisibles ? (["baseSalary", "nationalId"] as const) : [])]);
+  const sensibles = (await lireSensiblesPour(user, {
+    modele: "Employee", champs: [...lus], geste: "Fiche employé — consultation",
+    lignes: [{ id: employee.id, clair: employee }],
+  })).get(employee.id) ?? {};
+  const texte = (c: (typeof SENSIBLES)[number]) => sensibles[c]?.valeur ?? "";
+  const montant = (c: (typeof SENSIBLES)[number]) => (sensibles[c]?.valeur ? String(Number(sensibles[c].valeur)) : "");
+  const masques: EmployeeFormValues["masques"] = Object.fromEntries(
+    SENSIBLES.filter((c) => sensibles[c] && !sensibles[c].lu).map((c) => [c, sensibles[c].masque ?? ""]),
+  );
+
   const managerOptions = otherEmployees.map((e) => ({ value: e.id, label: e.fullName }));
   const userOptions = [
     ...(employee.user ? [{ value: employee.user.id, label: `${employee.user.name} (${employee.user.email})` }] : []),
@@ -72,15 +87,15 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     department: employee.department ?? "",
     departmentId: employee.departmentId ?? "",
     contractType: employee.contractType ?? "",
-    baseSalary: String(toNumber(employee.baseSalary)),
+    baseSalary: montant("baseSalary") || "0",
     retSS9: employee.retSS9 != null ? String(toNumber(employee.retSS9)) : "",
     retSS35: employee.retSS35 != null ? String(toNumber(employee.retSS35)) : "",
     tfp: employee.tfp != null ? String(toNumber(employee.tfp)) : "",
     retIrg: employee.retIrg != null ? String(toNumber(employee.retIrg)) : "",
     expenseRefund: employee.expenseRefund != null ? String(toNumber(employee.expenseRefund)) : "",
-    netToPay: employee.netToPay != null ? String(toNumber(employee.netToPay)) : "",
-    grossSalary: employee.grossSalary != null ? String(toNumber(employee.grossSalary)) : "",
-    employerCost: employee.employerCost != null ? String(toNumber(employee.employerCost)) : "",
+    netToPay: montant("netToPay"),
+    grossSalary: montant("grossSalary"),
+    employerCost: montant("employerCost"),
     leaveBalanceDays: String(toNumber(employee.leaveBalanceDays)),
     hireDate: d10(employee.hireDate),
     contractStart: d10(employee.contractStart),
@@ -94,14 +109,15 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
     birthDate: d10(employee.birthDate),
     email: employee.email ?? "",
     phone: employee.phone ?? "",
-    iban: employee.iban ?? "",
-    nationalId: employee.nationalId ?? "",
+    iban: texte("iban"),
+    nationalId: texte("nationalId"),
     cnasNumber: employee.cnasNumber ?? "",
     address: employee.address ?? "",
     companyId: employee.companyId ?? "",
     managerId: employee.managerId ?? "",
     userId: employee.userId ?? "",
     isActive: employee.isActive,
+    masques,
   };
 
   // Accès aux entités : l'ensemble des sociétés, croisé avec ce qui est réellement accordé.
@@ -221,7 +237,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
                       value={`${employee.trialRenewalStart ? formatDate(employee.trialRenewalStart) : "?"} → ${employee.trialRenewalEnd ? formatDate(employee.trialRenewalEnd) : "?"}`}
                     />
                   )}
-                  {salairesVisibles && <Info label="Salaire de base" value={formatCurrency(toNumber(employee.baseSalary))} />}
+                  {salairesVisibles && <Info label="Salaire de base" value={sensibles.baseSalary?.lu ? formatCurrency(Number(sensibles.baseSalary.valeur ?? 0)) : sensibles.baseSalary?.masque} />}
                   <Info label="Solde congés" value={`${toNumber(employee.leaveBalanceDays)} j`} />
                   <Info label="Embauche" value={employee.hireDate ? formatDate(employee.hireDate) : null} />
                   <Info label="Fin de contrat" value={employee.contractEnd ? formatDate(employee.contractEnd) : null} />
@@ -305,7 +321,7 @@ export default async function EmployeeDetailPage({ params }: { params: { id: str
             <CardContent className="space-y-3 text-sm">
               <Info label="Compte applicatif" value={employee.user ? `${employee.user.name} (${employee.user.email})` : "Non lié"} />
               <Info label="Manager (N+1)" value={employee.manager?.fullName} />
-              {salairesVisibles && <Info label="NIN" value={employee.nationalId} />}
+              {salairesVisibles && <Info label="NIN" value={sensibles.nationalId?.lu ? sensibles.nationalId.valeur : sensibles.nationalId?.masque} />}
               {salairesVisibles && <Info label="N° CNAS" value={employee.cnasNumber} />}
               <Info label="Créé le" value={formatDateTime(employee.createdAt)} />
               <Info label="Modifié le" value={formatDateTime(employee.updatedAt)} />

@@ -1,7 +1,8 @@
 import crypto from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import { chargerCles, clesDepuisMaitresse, ErreurCleCoffre } from "./cle";
-import { chiffrer, dechiffrer, empreinte, ErreurDechiffrement } from "./chiffrement";
+import { chiffrer, decomposer, empreinte, ErreurDechiffrement } from "./chiffrement";
+import { dechiffrer, recomposer } from "./dechiffrement";
 
 const cleA = clesDepuisMaitresse(crypto.randomBytes(32));
 const cleB = clesDepuisMaitresse(crypto.randomBytes(32));
@@ -121,5 +122,24 @@ describe("Clé COFFRE_KEY", () => {
     const prod = chargerCles({ NODE_ENV: "production", COFFRE_KEY: hex } as NodeJS.ProcessEnv);
     const c = chiffrer(dev, "NIN", "d1", "109990001234567890");
     expect(() => dechiffrer(prod, "NIN", "d1", c)).toThrow(/autre clé/);
+  });
+});
+
+describe("le chiffré en colonnes", () => {
+  it("decomposer puis recomposer rend le même chiffré, qui se déchiffre", () => {
+    const k = clesDepuisMaitresse(Buffer.alloc(32, 7));
+    const c = chiffrer(k, "NIN", "d1", "109990001234567890");
+    const cols = decomposer(c);
+    expect(cols).toMatchObject({ cleVersion: 1, cleId: k.id });
+    expect(cols.iv).toHaveLength(12);
+    expect(cols.tag).toHaveLength(16);
+    expect(recomposer(cols)).toBe(c);
+    expect(dechiffrer(k, "NIN", "d1", recomposer(cols))).toBe("109990001234567890");
+  });
+
+  it("refuse une ligne sans identifiant de clé ou d'un format inconnu", () => {
+    const b = Buffer.alloc(12);
+    expect(() => recomposer({ valeurChiffree: b, iv: b, tag: b, cleVersion: 1, cleId: null })).toThrow(/identifiant de clé/);
+    expect(() => recomposer({ valeurChiffree: b, iv: b, tag: b, cleVersion: 2, cleId: "abcd1234" })).toThrow(/version 2/);
   });
 });

@@ -499,7 +499,7 @@ rejouées, elles n'insèrent que ce qui manque. **Lecture** : bandeau « Par wil
   fiche est réservé à la **fiche complète** et l'annonce clairement.
 - La **dernière activité** admin = max(`UserSession.lastSeenAt` groupé, `User.lastSeenAt` heartbeat, `lastLoginAt`).
 
----
+### Coffre des données sensibles — double écriture, double lecture (refonte V2-E)
 
 
 ### Refonte des données — le dépôt nourrit les fiches (lot V2-A, 27/10/2026)
@@ -529,3 +529,20 @@ file, rien n'est traité.
   Admin voit tout) : confirmer (écrit la fiche, l'ancienne valeur reste dans l'historique), rejeter, trancher.
 - **Rattrapage** — reprise « Rattrapage des pièces existantes » (documents de module déjà en base), par lots, depuis le
   même écran (contrat commun des reprises : `lib/referentiels/reprises/`).
+- **Ce qui est copié** (`coffre/champs.ts`) : `Employee.iban` (IBAN ou RIB, validé par sa clé), `nationalId` (NIN), les
+  quatre salaires ; `CompanyContact.rib` ; `CompanyLegalIdentity.rib`, `iban`. La colonne reste la vérité jusqu'à P5.
+- **Écriture** (`coffre/ecriture.ts` → `copies.ts`), interrupteur `AppSetting.coffreEcriture` : après chaque écriture de la
+  colonne, dans la transaction de l'écrivain s'il en a une ; sinon non bloquante (journal serveur, la reprise rattrape).
+  Nouvelle valeur → nouvelle copie, l'ancienne datée `remplaceeLe` ; colonne vidée → copie datée ; mal formée → rien.
+- **Lecture** (`coffre/acces.ts`, `lecture.ts`), interrupteur `coffreLecture` : politique (`politique.ts`) → **journal
+  `AccesDonneeSensible` d'abord** (accord comme refus, geste en clair) → valeur (déchiffrée si la copie correspond à la
+  colonne par empreinte) ou **masque**. Fermé : la colonne, sans journal, comme avant.
+- **Écrire sans lire** : un champ montré masqué n'est pas envoyé (ou revient masqué) et garde sa valeur
+  (`champsNonSaisis`) ; une saisie la remplace.
+- **Pièces** (`controlerRibDePiece`, fabrique `platform/in-process/artifact/factory.ts`) : tout RIB imprimé est reconnu
+  au coffre par empreinte ; RIB d'une organisation → imprimé au nom de qui émet (journalisé) ; donnée d'une personne
+  non ouverte → masque.
+- **Gardes** : Super Admin seul pour la reprise et les interrupteurs ; jamais un modèle d'IA (politique, API v1, bac à
+  sable SQL, filtre de confidentialité, frontière d'import `frontiere.test.ts`).
+
+---

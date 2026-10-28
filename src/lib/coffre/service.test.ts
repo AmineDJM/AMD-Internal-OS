@@ -8,7 +8,7 @@ import { creerServiceCoffre } from "./service";
 
 /**
  * Le service est éprouvé À TRAVERS le dépôt Prisma, sur un client en mémoire qui a la forme des
- * futures tables : les deux couches sont couvertes, sans base et sans les tables (lot suivant).
+ * tables : les deux couches sont couvertes, sans base (la base réelle : `copies.test.ts`).
  */
 function clientEnMemoire() {
   const donnees: LigneDonneeSensible[] = [];
@@ -17,8 +17,9 @@ function clientEnMemoire() {
     donneeSensible: {
       async create({ data }: { data: LigneDonneeSensible }) { donnees.push({ ...data }); return data; },
       async findUnique({ where }: { where: { id: string } }) { return donnees.find((d) => d.id === where.id) ?? null; },
-      async findMany({ where }: { where: Partial<LigneDonneeSensible> }) {
-        return donnees.filter((d) => Object.entries(where).every(([k, v]) => d[k as keyof LigneDonneeSensible] === v));
+      async findMany({ where }: { where: Record<string, unknown> }) {
+        // `remplaceeLe` n'est pas une colonne du dépôt par titulaire : toutes ses lignes sont courantes.
+        return donnees.filter((d) => Object.entries(where).every(([k, v]) => k === "remplaceeLe" || d[k as keyof LigneDonneeSensible] === v));
       },
     },
     accesDonneeSensible: {
@@ -76,7 +77,10 @@ describe("Service du coffre", () => {
     expect(r).toEqual({ ok: true, id: "d1", masque: "•••••• DZD", dejaPresente: false });
     const ligne = donnees[0];
     expect(JSON.stringify(ligne)).not.toMatch(/185\s?000/);
-    expect(ligne).toMatchObject({ titulairePersonneId: "p-amina", titulaireOrganisationId: null, nature: "SALAIRE", derniers4: null });
+    expect(Buffer.from(ligne.valeurChiffree).toString("utf8")).not.toMatch(/185/);
+    expect(ligne).toMatchObject({ titulaireType: "PERSONNE", titulaireId: "p-amina", nature: "SALAIRE", derniersCaracteres: null, cleVersion: 1, cleId: cles.id });
+    expect(ligne.iv).toHaveLength(12);
+    expect(ligne.tag).toHaveLength(16);
   });
 
   it("refuse une valeur mal formée sans rien écrire", async () => {
@@ -104,7 +108,10 @@ describe("Service du coffre", () => {
     await coffre.deposer({ titulaire: fournisseur, nature: "RIB", valeur: RIB, deposeParId: null });
     const r = await coffre.lire({ lecteur: lecteur({ userId: "u-fin", tientFinances: true }), id: "d1", geste: "Virement fournisseur BC-12" });
     expect(r).toEqual({ ok: true, valeur: RIB, nature: "RIB", masque: `•••• ${RIB.slice(-4)}`, motif: "FINANCES" });
-    expect(acces).toEqual([{ donneeId: "d1", lecteurGenre: "UTILISATEUR", lecteurId: "u-fin", lecteurNom: null, geste: "Virement fournisseur BC-12", autorise: true, motif: "FINANCES", createdAt: new Date("2026-10-27T10:00:00Z") }]);
+    expect(acces).toEqual([{
+      donneeSensibleId: "d1", titulaireType: "ORGANISATION", titulaireId: "o-imprimerie", nature: "RIB",
+      userId: "u-fin", lecteurNom: null, geste: "Virement fournisseur BC-12", autorise: true, motif: "FINANCES", createdAt: new Date("2026-10-27T10:00:00Z"),
+    }]);
   });
 
   it("la personne lit son propre salaire (compte résolu depuis la fiche)", async () => {
@@ -120,7 +127,7 @@ describe("Service du coffre", () => {
     expect(r).toMatchObject({ ok: false, code: "REFUSE" });
     expect(JSON.stringify(r)).not.toMatch(/185000/);
     expect(acces).toHaveLength(1);
-    expect(acces[0]).toMatchObject({ autorise: false, motif: "HORS_PERIMETRE", lecteurId: "u-fin" });
+    expect(acces[0]).toMatchObject({ autorise: false, motif: "HORS_PERIMETRE", userId: "u-fin" });
   });
 
   it("un modèle d'IA est refusé, et le refus est journalisé à son nom", async () => {
@@ -128,7 +135,7 @@ describe("Service du coffre", () => {
     await coffre.deposer({ titulaire: amina, nature: "NIN", valeur: "109990001234567890", deposeParId: null });
     const r = await coffre.lire({ lecteur: { genre: "IA", nom: "assistant" }, id: "d1", geste: "Réponse à une question" });
     expect(r).toMatchObject({ ok: false, code: "REFUSE" });
-    expect(acces[0]).toMatchObject({ lecteurGenre: "IA", lecteurId: null, lecteurNom: "assistant", autorise: false, motif: "MODELE_IA" });
+    expect(acces[0]).toMatchObject({ userId: null, lecteurNom: "assistant", autorise: false, motif: "MODELE_IA" });
     expect(await coffre.chercher({ lecteur: { genre: "IA", nom: "assistant" }, nature: "NIN", valeur: "109990001234567890" })).toEqual([]);
   });
 
@@ -136,7 +143,7 @@ describe("Service du coffre", () => {
     const { coffre, acces } = monter();
     await coffre.deposer({ titulaire: amina, nature: "PASSEPORT_NUMERO", valeur: "ab1234567", deposeParId: null });
     expect(await coffre.lire({ lecteur: lecteur({ userId: "u-admin", superAdmin: true }), id: "d1", geste: "Audit" })).toMatchObject({ ok: true, valeur: "AB1234567", motif: "SUPER_ADMIN" });
-    expect(acces[0]).toMatchObject({ lecteurId: "u-admin", motif: "SUPER_ADMIN", autorise: true });
+    expect(acces[0]).toMatchObject({ userId: "u-admin", motif: "SUPER_ADMIN", autorise: true });
   });
 
   it("aucune lecture sans geste, aucune lecture sans journal", async () => {

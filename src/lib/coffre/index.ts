@@ -9,7 +9,8 @@
  * n'est importé ni par l'assistant ni par les agents.
  */
 export { chargerCles, clesDepuisMaitresse, ErreurCleCoffre, type ClesCoffre } from "./cle";
-export { chiffrer, dechiffrer, empreinte, ErreurDechiffrement } from "./chiffrement";
+export { chiffrer, decomposer, empreinte, ErreurDechiffrement } from "./chiffrement";
+export { dechiffrer, recomposer } from "./dechiffrement";
 export * from "./natures";
 export { peutLire, type DecisionLecture, type LecteurCoffre, type MotifAccord, type MotifRefus, type TitulaireCoffre } from "./politique";
 export type { AccesDonneeSensibleJournal, DepotCoffre, DonneeSensibleStockee, RefTitulaire, ResumeDonneeSensible } from "./depot";

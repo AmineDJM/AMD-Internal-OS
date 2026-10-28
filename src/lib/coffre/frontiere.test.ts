@@ -8,14 +8,10 @@ import { describe, expect, it } from "vitest";
  * 1. Aucun composant `"use client"` n'atteint le coffre, même indirectement : il chiffre avec
  *    `node:crypto`, que le garde général (`client-bundle-guard.test.ts`) ne liste pas, et ses clés
  *    n'ont rien à faire dans un navigateur. Seuls `natures.ts` et `politique.ts`, purs, sont permis.
- * 2. L'assistant et les agents n'atteignent AUCUN module du coffre : un modèle d'IA ne le lit pas,
- *    et le code qui lui prépare un contexte ne doit même pas pouvoir l'importer.
- *
- * 3. LES PORTES D'ÉCRITURE (`PORTES_ECRITURE`) : un module hors du coffre qui ne fait que DÉPOSER
- *    et calculer une EMPREINTE, jamais lire (l'enrichissement des fiches, lot V2-A). Le graphe de
- *    l'ERP étant presque connexe (le battement et l'aiguillage des actions rejoignent l'assistant),
- *    la remontée de l'assistant s'arrête à ces portes — en échange, chacune est relue ici : aucun
- *    appel à `lire`, `chercher` ni `dechiffrer`, aucun export du service. Déposer n'est pas lire.
+ * 2. L'assistant et les agents n'atteignent que le chemin d'ÉCRITURE du coffre (V2-E : la double
+ *    écriture vit dans des actions qu'ils peuvent appeler) — jamais le déchiffrement, le service de
+ *    lecture ni la double lecture : un modèle d'IA ne lit pas le coffre, et le code qui lui prépare un
+ *    contexte ne peut même pas importer ce qui déchiffre.
  *
  * Même marche que le garde général (imports statiques, dynamiques ; arrêt aux modules
  * `"use server"` pour les composants client, puisque Next les remplace par un appel distant).
@@ -23,8 +19,15 @@ import { describe, expect, it } from "vitest";
 
 const SRC = path.join(process.cwd(), "src");
 const COFFRE = path.join(SRC, "lib", "coffre") + path.sep;
-const PURS = new Set([path.join(COFFRE, "natures.ts"), path.join(COFFRE, "politique.ts")]);
+const PURS = new Set(["natures.ts", "politique.ts", "champs.ts"].map((f) => path.join(COFFRE, f)));
+/** LES PORTES D'ÉCRITURE hors du coffre (refonte V2-A) : elles ne font que DÉPOSER et calculer une empreinte. */
 const PORTES_ECRITURE = new Set([path.join(SRC, "lib", "enrichissement", "porte-coffre.ts")]);
+/**
+ * Ce qui ne déchiffre pas : le chemin d'écriture (chiffre) et le contrôle d'accès (`acces.ts` : politique,
+ * journal, empreinte — la valeur rendue est celle de la colonne que l'action a déjà). Aucun n'importe
+ * `dechiffrement.ts`, `lecture.ts` ni `service.ts`.
+ */
+const SANS_DECHIFFREMENT = new Set([...PURS, ...["cle.ts", "chiffrement.ts", "copies.ts", "ecriture.ts", "depot.ts", "acces.ts", "lecteur.ts"].map((f) => path.join(COFFRE, f))]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -74,7 +77,6 @@ function cheminVersCoffre(entry: string, permis: ReadonlySet<string>, traverserA
       if (!next || seen.has(next)) continue;
       if (next.startsWith(COFFRE) && !permis.has(next)) return [...trail, next];
       if (!traverserActions && isServerAction(next)) continue;
-      if (traverserActions && PORTES_ECRITURE.has(next)) continue;
       stack.push({ file: next, trail: [...trail, next] });
     }
   }
@@ -92,20 +94,30 @@ describe("Frontière du coffre", () => {
     expect(fautifs).toEqual([]);
   });
 
-  it("natures.ts et politique.ts restent purs (aucun import hors d'eux-mêmes)", () => {
+  it("natures.ts, politique.ts et champs.ts restent purs (aucun import hors d'eux-mêmes)", () => {
     for (const f of PURS) {
       for (const spec of importsOf(f)) expect(PURS.has(resolve(spec, f) ?? ""), `${rel(f)} importe « ${spec} »`).toBe(true);
     }
   });
 
-  it("l'assistant et les agents n'atteignent aucun module du coffre, pas même par une action serveur", () => {
+  it("l'assistant et les agents n'atteignent du coffre que ce qui ne déchiffre pas, même par une action serveur", () => {
     const ia = tous.filter((f) => {
       const r = rel(f).split(path.sep).join("/");
-      return r.startsWith("src/lib/agent/") || r.startsWith("src/components/assistant-beta/") || r.startsWith("src/app/(app)/assistant/");
+      return r.startsWith("src/lib/agent/") || r.startsWith("src/lib/assistant/") || r === "src/lib/assistant.ts"
+        || r.startsWith("src/components/assistant-beta/") || r.startsWith("src/app/(app)/assistant/");
     });
     expect(ia.length).toBeGreaterThan(0);
-    const fautifs = ia.map((f) => cheminVersCoffre(f, new Set(), true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));
+    const fautifs = ia.map((f) => cheminVersCoffre(f, SANS_DECHIFFREMENT, true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));
     expect(fautifs).toEqual([]);
+  });
+
+  it("l'écriture et le contrôle d'accès n'importent jamais le déchiffrement", () => {
+    for (const f of SANS_DECHIFFREMENT) {
+      for (const spec of importsOf(f)) {
+        const cible = resolve(spec, f);
+        if (cible?.startsWith(COFFRE)) expect(SANS_DECHIFFREMENT.has(cible), `${rel(f)} importe « ${spec} »`).toBe(true);
+      }
+    }
   });
 
   it("une porte d'écriture ne fait que déposer et calculer une empreinte — jamais lire", () => {

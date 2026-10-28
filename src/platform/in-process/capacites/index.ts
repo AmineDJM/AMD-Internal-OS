@@ -84,6 +84,10 @@ export { setAdProDgThreshold, setBcValidationThreshold } from "@/lib/actions/set
 // Les valeurs PAR DÉFAUT des réglages : une carte qui montre « avant → après » sur une plateforme
 // neuve (sans ligne de réglages) les lit ici plutôt que de les recopier (§118.5).
 export { DEFAULT_APP_SETTINGS } from "@/lib/settings";
+// LE COFFRE (refonte V2-E) — le chemin d'ÉCRITURE seulement (copie chiffrée d'une colonne écrite) et le
+// masque : Adam écrit une fiche sans en lire les données sensibles, et ne peut pas importer ce qui déchiffre.
+export { doubleEcrireCoffre } from "@/lib/coffre/ecriture";
+export { masquerSensibles } from "@/lib/coffre/champs";
 
 export { colorerCellulesAnnuaire } from "@/lib/actions/annuaire-couleurs-actions";
 export { isAnnuaireField } from "@/lib/medical/directory-grid";

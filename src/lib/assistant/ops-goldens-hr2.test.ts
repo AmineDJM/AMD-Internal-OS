@@ -4,6 +4,7 @@ import type { CurrentUser } from "@/lib/session";
 import type { EffectiveAccess, Module, Action } from "@/lib/rbac";
 import { buildProposal, type AssistantActionPayload } from "@/lib/assistant";
 import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
+import { champsNonSaisis } from "@/lib/coffre/champs";
 
 /**
  * GOLDEN OPS RH 2 — VAGUE 2a. Le cœur : le PATCH SEMANTICS de la fiche employé.
@@ -150,8 +151,11 @@ suite("ops RH 2 — PATCH fiche employé, congés, dossier RH, intérim, accès 
       expect(args.position).toBe("Superviseur régional");
       // Le rejeu intégral : rien n'est perdu par omission.
       expect(args.fullName).toBe(`${TAG} Karim Benali`);
-      expect(args.baseSalary).toBe("120000");
-      expect(args.employerCost).toBe("180000");
+      // LE COFFRE (refonte V2-E) : les salaires sont rejoués MASQUÉS — le modèle ne les lit pas, et le masque
+      // garde la valeur en place à l'exécution (voir « le masque rejoué garde les salaires » ci-dessous).
+      expect(args.baseSalary).toBe("•••••• DZD");
+      expect(args.employerCost).toBe("•••••• DZD");
+      expect(JSON.stringify(p)).not.toMatch(/120.?000|180.?000/);
       expect(args.contractType).toBe("CDI");
       expect(args.trialRenewable).toBe("1");
       expect(args.isActive).toBe("1");
@@ -170,12 +174,25 @@ suite("ops RH 2 — PATCH fiche employé, congés, dossier RH, intérim, accès 
       const p = await buildProposal("hr_operation", { op: "update_employee_salary", employee: `${TAG} Karim`, employerCost: "195000" }, rh());
       expect("error" in p).toBe(false);
       if ("error" in p) return;
-      expect(JSON.stringify(p.fields)).toMatch(/180.000.DZD.*195.000.DZD/);
+      // L'ancien montant n'est pas montré (coffre, refonte V2-E) : seul le nouveau, dicté par la personne.
+      expect(JSON.stringify(p.fields)).toMatch(/•+ DZD → 195.000.DZD/);
+      expect(JSON.stringify(p)).not.toMatch(/180.?000/);
       const args = domainArgs(p);
       expect(args.employerCost).toBe("195000");
-      expect(args.baseSalary).toBe("120000");
-      expect(args.netToPay).toBe("110000");
+      expect(args.baseSalary).toBe("•••••• DZD");
+      expect(args.netToPay).toBe("•••••• DZD");
       expect(args.position).toBe("Délégué médical");
+    });
+
+    it("le masque rejoué garde les salaires en place : `updateEmployee` les reconnaît comme non saisis", async () => {
+      const p = await buildProposal("hr_operation", { op: "update_employee", employee: `${TAG} Karim`, phone: "0550 44 55 66" }, rh());
+      expect("error" in p).toBe(false);
+      if ("error" in p) return;
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(domainArgs(p))) if (typeof v === "string") fd.set(k, v);
+      // Ce que `updateEmployee` GARDE de la fiche au lieu de l'écrire (`champsNonSaisis`, hr-actions.ts).
+      // IBAN et NIN de Karim sont vides : non envoyés, donc gardés vides ; ses salaires reviennent masqués, donc gardés.
+      expect(champsNonSaisis("Employee", fd)).toEqual(["iban", "nationalId", "baseSalary", "grossSalary", "netToPay", "employerCost"]);
     });
 
     it("GARDE DE FRAÎCHEUR (exécution réelle) : la fiche a bougé entre la proposition et la confirmation → REFUS", async () => {
