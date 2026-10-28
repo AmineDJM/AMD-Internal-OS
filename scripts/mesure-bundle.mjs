@@ -6,7 +6,8 @@
  * À lancer APRÈS un build propre (`rm -rf .next && npm run build:render`) :
  *
  *   node scripts/mesure-bundle.mjs                  # tableau : coque, médiane, pages les plus lourdes
- *   COQUE_MAX_KB=220 node scripts/mesure-bundle.mjs # sortie non nulle si la coque dépasse 220 kB gzip
+ *   npm run bundle:plafond                          # idem + sortie non nulle au-delà de PLAFOND_COQUE_KB (CI)
+ *   COQUE_MAX_KB=220 node scripts/mesure-bundle.mjs # plafond ponctuel
  *
  * Méthode (celle du rapport 07) : `app-build-manifest.json` donne les chunks de chaque entrée (page,
  * layouts). Le « First Load JS » d'une page = l'union des chunks de la page ET de tous ses layouts
@@ -17,6 +18,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
+
+/**
+ * LE PLAFOND DE LA COQUE, en kB gzip — tenu par la CI (job build, après `build:render`).
+ * Mesuré le 2026-10-28 après PERF-05 : 166,1 kB. Marge ≈ 5 % (175) : assez pour une icône ou un petit
+ * composant de coque de plus, trop peu pour laisser revenir un jeu entier (le jeu Lucide valait 120 kB).
+ * Il ne se relève pas pour faire passer un build : on allège la coque, ou l'on décide de la hausse et
+ * on la date ici.
+ */
+const PLAFOND_COQUE_KB = 175;
 
 const NEXT = join(process.cwd(), ".next");
 const manifeste = JSON.parse(readFileSync(join(NEXT, "app-build-manifest.json"), "utf8")).pages;
@@ -53,8 +63,9 @@ console.log(`Médiane par page               : ${f(mediane)}`);
 console.log("Les 5 plus lourdes            :");
 for (const p of parPage.slice(-5).reverse()) console.log(`   ${f(p.ko).padStart(9)}  ${p.page}`);
 
-const plafond = Number(process.env.COQUE_MAX_KB);
+const plafond = process.env.COQUE_MAX_KB ? Number(process.env.COQUE_MAX_KB) : process.argv.includes("--plafond") ? PLAFOND_COQUE_KB : NaN;
 if (Number.isFinite(plafond) && plafond > 0 && coque > plafond) {
   console.error(`✗ La coque pèse ${f(coque)} gzip, au-dessus du plafond de ${f(plafond)}.`);
   process.exit(1);
 }
+if (Number.isFinite(plafond) && plafond > 0) console.log(`✓ Coque sous le plafond de ${f(plafond)}.`);
