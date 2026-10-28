@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { Prisma } from "@prisma/client";
+import { parcDesActions, type FichierDActions } from "./parc";
 import { contratsDuFichier, importsProjet, type ContratAction, type TableEnums, type TableRelations } from "./contrat";
 
 /**
@@ -14,12 +15,6 @@ import { contratsDuFichier, importsProjet, type ContratAction, type TableEnums, 
 export const DOSSIER_ACTIONS = join(process.cwd(), "src", "lib", "actions");
 /** La racine sur laquelle `@/` se résout — la même que celle du `tsconfig`. */
 const RACINE_SRC = join(process.cwd(), "src");
-
-/** Ce qui vit dans `src/lib/actions/` sans être une action : le contrat lui-même, les types. */
-const HORS_PARC = new Set([
-  "types.ts", "contrat.ts", "contrat-scan.ts", "contrat.genere.ts",
-  "generique.ts", "executer.ts", "aiguillage.genere.ts",
-]);
 
 /** Les valeurs admises que le SCHÉMA déclare — un fait de la base, pas une liste écrite. */
 export function enumsDuSchema(): TableEnums {
@@ -55,10 +50,12 @@ export function relationsDuSchema(): TableRelations {
   return table;
 }
 
-export function fichiersDActions(): string[] {
-  return readdirSync(DOSSIER_ACTIONS)
-    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && !HORS_PARC.has(f))
-    .sort();
+/**
+ * Les fichiers d'actions du parc — `src/lib/actions/` ET les `actions.ts` des modules, sous leur
+ * clé déclarée (`parc.ts`). La clé, pas le chemin, est l'identité d'une action (ARCH-03).
+ */
+export function fichiersDActions(): FichierDActions[] {
+  return parcDesActions();
 }
 
 /**
@@ -116,8 +113,8 @@ export function scannerContrats(): ContratAction[] {
   // les lectures disque sans rien changer au résultat.
   const cache = new Map<string, string>();
   for (const f of fichiersDActions()) {
-    const source = readFileSync(join(DOSSIER_ACTIONS, f), "utf8");
-    out.push(...contratsDuFichier(f.replace(/\.ts$/, ""), source, enums, relations, sourcesImportees(source, cache)));
+    const source = readFileSync(join(process.cwd(), f.chemin), "utf8");
+    out.push(...contratsDuFichier(f.cle, source, enums, relations, sourcesImportees(source, cache)));
   }
   return out.sort((a, b) => a.id.localeCompare(b.id));
 }

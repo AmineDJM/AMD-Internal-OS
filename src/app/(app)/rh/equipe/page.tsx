@@ -17,7 +17,7 @@ import { getMyCompanies, companyOptions } from "@/lib/company";
 import { getDepartmentOptions } from "@/lib/departments";
 import { toNumber } from "@/lib/utils";
 import { TeamDirectory, type DirectoryRow } from "../team-directory";
-import { lireSensiblesPour } from "@/lib/coffre/lecture";
+import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
 
 export const dynamic = "force-dynamic";
 

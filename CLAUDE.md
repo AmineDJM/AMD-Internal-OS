@@ -13,6 +13,10 @@ Un composant `"use client"` est compilé **pour le navigateur**. S'il importe �
 - Pattern à suivre : sortir les fonctions **pures** dans un module dédié qui n'importe rien de lourd (ex. `src/lib/market/galenic.ts` et `text.ts` pour les normalisations pharma ; `molecule.ts` garde l'analyse qui lit les données et les **réexporte** pour le serveur).
 - **`src/lib/client-bundle-guard.test.ts`** remonte les chaînes d'import — statiques ET dynamiques (`import("…")`), modules natifs ET paquets Node-only (`web-push`, `nodemailer`, `sharp`, `mupdf`…) — et fait échouer `npm test` en affichant le chemin fautif. Ne pas le désactiver : il existe parce que l'erreur est déjà passée en production, deux fois (`market/data.ts` par `fs`, puis `messaging.ts` par `web-push` via le registre d'événements). Un module serveur qui porte aussi des constantes d'écran se scinde : la part pure dans un fichier sans import (`messaging-ui.ts`), réexportée côté serveur.
 
+## Modules (`src/modules/<module>/`) — le code neuf d'un métier migré y vit
+
+Un module ne s'importe que par ses portes : `api.ts` (serveur), `partage.ts` (pur, navigateur compris), `actions.ts` ; jamais `domaine/` ni `infra/`. ESLint et `src/modules/frontieres.test.ts` le tiennent ; un fichier déménagé garde une adresse de réexpédition dans `tsconfig.json` (`paths`) mais le code du dépôt importe la porte. Après tout déplacement : `npm run test:architecture` (~35 s). Carte, règles, guide « migrer un module » : [docs/architecture/MODULES.md](docs/architecture/MODULES.md).
+
 ## Doctrines détaillées — déplacées sous `docs/claude-md/`
 
 Ce fichier est volontairement court (il est chargé à chaque session). Le texte intégral de l'ancien `CLAUDE.md` est découpé sans perte dans `docs/claude-md/` (index : [docs/claude-md/INDEX.md](docs/claude-md/INDEX.md)). Ne le lire qu'à la demande, par section, avec `rg -n -m 20` puis `sed -n` sur une plage courte.

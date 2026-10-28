@@ -4,8 +4,7 @@ import { requireUser } from "@/lib/session";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { formatDate } from "@/lib/utils";
-import { LIBELLE_PRISE_EN_CHARGE, lireFichePersonne } from "@/lib/referentiels/personnes/fiche";
-import { LIBELLE_ROLE, LIBELLE_SOURCE } from "@/lib/referentiels/personnes/sources";
+import { LIBELLE_PRISE_EN_CHARGE, lireFichePersonne, LIBELLE_ROLE, LIBELLE_SOURCE } from "@/modules/referentiels/api";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Personne — AMD Internal OS" };

@@ -1,6 +1,6 @@
 import type { RolePersonne, TypeIdentifiantOrganisation } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { plier } from "@/lib/referentiels/normalisation";
+import { plier } from "@/modules/referentiels/partage";
 import type { CandidatFiche } from "./decision";
 import { estPorteurDePersonne, type PorteurDePersonne } from "./sujets";
 import { sansBloquer } from "@/lib/journal";

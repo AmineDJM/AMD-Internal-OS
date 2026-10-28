@@ -2,10 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
-import { REPRISES } from "@/lib/referentiels/reprises";
-import { lireJournal } from "@/lib/referentiels/reprises/journal";
-import { doubleEcritureOrganisationsOuverte } from "@/lib/referentiels/organisations/double-ecriture";
+import { REPRISES, lireJournal, doubleEcritureOrganisationsOuverte, etatDuReferentiel } from "@/modules/referentiels/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,8 +12,8 @@ import { PanneauEnrichissement } from "./panneau-enrichissement";
 import { InterrupteurDoubleEcriturePersonnes } from "./interrupteur-double-ecriture";
 import { InterrupteursCoffre } from "./interrupteurs-coffre";
 import { getAppSettings } from "@/lib/settings";
-import { couvertureDuCoffre } from "@/lib/coffre/couverture";
-import { LIBELLE_MODELE } from "@/lib/coffre/champs";
+import { couvertureDuCoffre } from "@/modules/coffre/api-lecture";
+import { LIBELLE_MODELE } from "@/modules/coffre/partage";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const dynamic = "force-dynamic";
@@ -35,19 +32,15 @@ const dateFr = (d: Date) => new Intl.DateTimeFormat("fr-FR", {
 export default async function RefonteDonneesPage() {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");
-  const [journaux, doubleEcriture, doublonsEnAttente, etat, reglages, personnes, doublonsPersonnes, parametres, couverture] = await Promise.all([
+  const [journaux, doubleEcriture, referentiel, etat, parametres, couverture] = await Promise.all([
     Promise.all(REPRISES.map((r) => lireJournal(r.cle))),
     doubleEcritureOrganisationsOuverte(),
-    prisma.propositionDoublonOrganisation.count({
-      where: { statut: "PROPOSEE", organisationA: { fusionneeDansId: null }, organisationB: { fusionneeDansId: null } },
-    }),
+    etatDuReferentiel(),
     etatFile(),
-    prisma.appSetting.findUnique({ where: { id: "global" }, select: { refontePersonnesDoubleEcriture: true } }),
-    prisma.personne.count({ where: { fusionneeDansId: null } }),
-    prisma.doublonPersonne.count({ where: { statut: "PROPOSE" } }),
     getAppSettings(),
     couvertureDuCoffre(),
   ]);
+  const { doublonsOrganisations: doublonsEnAttente, personnes, doublonsPersonnes } = referentiel;
 
   return (
     <div className="space-y-6">
@@ -67,7 +60,7 @@ export default async function RefonteDonneesPage() {
             {personnes} Personne(s) ·{" "}
             <Link href="/personnes/doublons" className="font-medium text-primary hover:underline">{doublonsPersonnes} doublon(s) à trancher</Link>
           </p>
-          <InterrupteurDoubleEcriturePersonnes actif={reglages?.refontePersonnesDoubleEcriture === true} />
+          <InterrupteurDoubleEcriturePersonnes actif={referentiel.doubleEcriturePersonnes} />
         </CardContent>
       </Card>
 

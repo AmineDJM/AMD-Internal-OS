@@ -11,7 +11,7 @@ import { recordAudit } from "@/lib/audit";
 import { ROLE_LABELS } from "@/lib/labels";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { REFUS_COMPTE_SYSTEME } from "@/lib/missions/agent/account";
-import { relierALaPersonne } from "@/lib/referentiels/personnes/double-ecriture";
+import { relierALaPersonne } from "@/modules/referentiels/api";
 
 const AVATAR_COLORS = ["#2563eb", "#7c3aed", "#0891b2", "#059669", "#d97706", "#dc2626", "#db2777"];
 

@@ -1,5 +1,25 @@
 ## 🧾 Journal des évolutions récentes
 
+### V3-G : LE MONOLITHE MODULAIRE DEVIENT EXÉCUTABLE — LIEUX, COFFRE ET RÉFÉRENTIELS DANS `src/modules/` (2026-10-28)
+
+Aucun écran ne change, aucune donnée n'est touchée, aucune migration. La structure cible du rapport d'audit 08 est
+désormais **tenue par les outils** et trois modules du socle métier y vivent. Guide : [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
+- **Modules migrés** : `src/modules/lieux/`, `src/modules/coffre/`, `src/modules/referentiels/` (91 fichiers déménagés par
+  `git mv`, 46 importeurs réécrits). Chacun s'ouvre par ses **portes** : `api.ts` (serveur), `partage.ts` (pur,
+  navigateur compris) ; le coffre en a une troisième, `api-lecture.ts` — `api.ts` écrit sans jamais déchiffrer (c'est
+  celle des actions, atteignables par l'assistant), `api-lecture.ts` déchiffre (écrans RH, Legal, administration).
+- **Carte des modules** `src/modules/carte.ts` (qui lit qui, sans cycle) et `frontieres.test.ts` étendu : portes seules,
+  `domaine/` pur, liens déclarés, aucun ancien chemin importé, dette héritée nommée. ESLint dit les mêmes règles dans
+  l'éditeur (et bloque `build:render`).
+- **Une action a une clé, pas une adresse** (`src/lib/actions/parc.ts`) : `coffre-actions`, `consommation-actions`,
+  `personnes-actions`, `organisation-actions` et `refonte-reprise-actions` vivent dans leur module (`actions.ts`,
+  `actions-<cas>.ts`) sous leur clé historique ; contrat régénéré **identique** (1 184 actions).
+- **Adresses de réexpédition** : chaque ancien chemin (`@/lib/coffre/cle`…) est une entrée exacte de `tsconfig.json`
+  `paths`, pour les branches ouvertes en parallèle ; aucun fichier relais (git suit les déplacements).
+- **Nouveaux cliquets** (`src/platform/couverture.test.ts`) : fichiers de `src/lib/` hors carte 828 → 766 (768 après fusion des lots V3-C/D/E, qui en ont ajouté), pages qui
+  importent Prisma 129 → 126 (les écrans de revue des doublons lisent par `@/modules/referentiels/api`), routes Prisma
+  53, composants → `src/app` 12, kit d'interface → métier 6, tests qui lisent le source par chemin 128.
+- `npm run test:architecture` : frontières, carte, couverture, contrat, garde client — 40 fichiers en ~35 s.
 ### V3-A : DÉPENDANCES — NEXT 15, REACT 19, NEXT-AUTH BETA.32, XLSX 0.20.3 ; ZÉRO AVIS CRITIQUE/HAUT EN PRODUCTION (2026-10-28)
 
 `npm audit --omit=dev` : **23 avis (3 critiques, 16 hauts) → 2 modérés** (`exceljs` → `uuid`, correctif = régression

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import type { GroupeARevoir } from "../domaine/revue";
-import { confirmerCorrespondanceConso, validerImportConso, annulerImportConso } from "@/lib/actions/consommation-actions";
+import { confirmerCorrespondanceConso, validerImportConso, annulerImportConso } from "../actions";
 
 
 /**

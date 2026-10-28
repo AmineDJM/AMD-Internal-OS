@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { Prisma } from "@prisma/client";
 import { join } from "node:path";
 import {
   HELPERS_PARTAGES, contratsDuFichier, decrireAction, direContrat, helpersDuFichier, importsProjet, lireArguments, type TableEnums,
 } from "./contrat";
 import { scannerContrats } from "./contrat-scan";
+import { ACTIONS_DES_MODULES, actionsDesModulesSurLeDisque, parcDesActions } from "./parc";
 import { CONTRATS_ACTIONS, CONTRAT_PAR_ID } from "./contrat.genere";
 import { ACTION_CLASSIFICATION } from "@/lib/assistant/action-registry";
 
@@ -789,11 +790,10 @@ describe("CONTRAT D'ACTION — présence, récepteur et gardes", () => {
  */
 describe("LECTEURS DE CHAMP — aucun ne peut passer inaperçu", () => {
   it("tout helper qui lit un formulaire est connu, ou défini là où il sert", () => {
-    const dir = join(process.cwd(), "src/lib/actions");
     const inconnus: string[] = [];
-    for (const f of readdirSync(dir)) {
-      if (!f.endsWith(".ts") || f.endsWith(".test.ts") || f.includes("genere")) continue;
-      const source = readFileSync(join(dir, f), "utf8");
+    // Tout le PARC (`parc.ts`) : `src/lib/actions/` et les `actions.ts` des modules.
+    for (const { cle: f, chemin } of parcDesActions()) {
+      const source = readFileSync(join(process.cwd(), chemin), "utf8");
       // SEULS LES FICHIERS D'ACTIONS — et la directive est un fait de POSITION, pas de
       // PRÉSENCE : elle ouvre le fichier. Deux versions de ce filtre ont échoué avant celle-ci,
       // toutes deux sur `contrat.ts`, qui cite « use server » dans sa propre prose et donne
@@ -951,5 +951,38 @@ export async function faireLeTruc(formData: FormData): Promise<ActionResult> {
     expect(champ?.type).toBe("reference");
     // Et le contrat DÉCLARE quand même l'écriture du délégué.
     expect(c.modelesEcrits).toContain("truc");
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LE PARC — la clé d'une action est un NOM déclaré, pas un chemin (rapport d'audit 08, ARCH-03).
+ *
+ * Une action rangée dans son module (`src/modules/<m>/actions.ts`) garde sa clé historique en se
+ * déclarant dans `parc.ts`. Oubliée là, elle sortirait du contrat, de la parité et d'Adam sans
+ * qu'aucun autre test ne le dise : c'est ce banc qui le dit.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+describe("PARC DES ACTIONS — chaque fichier d'actions a une clé, une seule", () => {
+  it("tout `actions.ts` d'un module est déclaré dans `ACTIONS_DES_MODULES`", () => {
+    const declares = new Set(Object.values(ACTIONS_DES_MODULES));
+    expect(actionsDesModulesSurLeDisque().filter((c) => !declares.has(c)),
+      "déclarer ce fichier dans src/lib/actions/parc.ts (ACTIONS_DES_MODULES) avec sa clé historique").toEqual([]);
+  });
+
+  it("chaque entrée de `ACTIONS_DES_MODULES` existe et commence par « use server »", () => {
+    for (const chemin of Object.values(ACTIONS_DES_MODULES)) {
+      expect(readFileSync(join(process.cwd(), chemin), "utf8"), chemin).toMatch(/^\s*["']use server["']/);
+    }
+  });
+
+  it("aucune clé n'est portée par deux fichiers (un module ne reprend pas la clé d'un fichier resté en place)", () => {
+    const cles = parcDesActions().map((f) => f.cle);
+    expect(cles.filter((c, i) => cles.indexOf(c) !== i)).toEqual([]);
+  });
+
+  it("le scanner lit les actions des modules (le contrat ne les perd pas en route)", () => {
+    const fichiers = new Set(scannerContrats().map((c) => c.fichier));
+    for (const cle of Object.keys(ACTIONS_DES_MODULES)) expect(fichiers.has(cle), cle).toBe(true);
   });
 });

@@ -3,7 +3,7 @@
  * `docs/architecture/refonte-donnees-et-monolithe-modulaire.md` §3 R1-R2).
  *
  * Combien de personnes et d'organisations RÉELLES derrière les lignes de onze tables ? Le script lit les fiches,
- * les passe au moteur pur `src/lib/referentiels/doublons.ts` et imprime, par famille :
+ * les passe au moteur pur `src/modules/referentiels/domaine/doublons.ts` et imprime, par famille :
  *   • le nombre de lignes, puis l'estimation des choses réelles — BASSE en suivant CERTAIN + PROBABLE, LARGE
  *     en suivant aussi POSSIBLE (union des paires : une estimation, jamais une fusion) ;
  *   • les propositions par niveau, par couple de tables, et les meilleurs exemples avec leurs raisons.
@@ -16,7 +16,7 @@
  *   … -- --exemples 20                                        — combien d'exemples par niveau (défaut 8)
  */
 
-import type { FicheOrganisation, FichePersonne, NiveauDoublon, PropositionDoublon, ResultatLot } from "@/lib/referentiels/doublons";
+import type { FicheOrganisation, FichePersonne, NiveauDoublon, PropositionDoublon, ResultatLot } from "@/modules/referentiels/partage";
 
 function urlUneConnexion(brute: string | undefined): string {
   if (!brute) throw new Error("DATABASE_URL absente.");
@@ -49,14 +49,14 @@ async function main() {
   const lectureSeule = await prisma.$queryRawUnsafe<{ transaction_read_only: string }[]>("SHOW transaction_read_only");
   if (lectureSeule[0]?.transaction_read_only !== "on") throw new Error("La session n'est pas en lecture seule : arrêt.");
 
-  const { proposerDoublonsOrganisations, proposerDoublonsPersonnes, regrouper } = await import("@/lib/referentiels/doublons");
+  const { proposerDoublonsOrganisations, proposerDoublonsPersonnes, regrouper } = await import("@/modules/referentiels/partage");
   const iExemples = process.argv.indexOf("--exemples");
   const nExemples = iExemples > 0 ? Number(process.argv[iExemples + 1]) || 8 : 8;
 
   // ── LES PERSONNES ───────────────────────────────────────────────────────────────────────────
   // Les neuf tables de personnes : le MÊME chargeur que la reprise qui propose les doublons
   // (`referentiels/personnes/fiches-doublons.ts`) — l'inventaire mesure ce que la reprise proposera.
-  const { chargerFichesPersonnes } = await import("@/lib/referentiels/personnes/fiches-doublons");
+  const { chargerFichesPersonnes } = await import("@/modules/referentiels/api");
   const [fichesPersonnes, contacts, fournisseurs] = await Promise.all([
     chargerFichesPersonnes(prisma),
     prisma.companyContact.findMany({ select: { id: true, name: true, contactName: true, phone: true, phoneAlt: true, email: true, wilaya: true, city: true, nif: true, rc: true } }),

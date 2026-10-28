@@ -2,10 +2,8 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { natureLegale } from "@/lib/labels";
-import { chargerFicheOrganisation } from "@/lib/referentiels/organisations/fiche";
-import {
-  LIBELLE_DEMANDE, LIBELLE_IDENTIFIANT, LIBELLE_ORIGINE_AFFILIATION, LIBELLE_ROLE_ORGANISATION, LIBELLE_SOURCE_FICHE,
-} from "@/lib/referentiels/organisations/libelles";
+import { chargerFicheOrganisation } from "@/modules/referentiels/api";
+import { LIBELLE_DEMANDE, LIBELLE_IDENTIFIANT, LIBELLE_ORIGINE_AFFILIATION, LIBELLE_ROLE_ORGANISATION, LIBELLE_SOURCE_FICHE } from "@/modules/referentiels/partage";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

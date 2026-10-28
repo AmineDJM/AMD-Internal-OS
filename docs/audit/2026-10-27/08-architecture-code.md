@@ -38,15 +38,22 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 | ID | Sévérité | Catégorie | Titre | Effort | Statut |
 |---|---|---|---|---|---|
 | ARCH-01 | HAUTE | maintenabilité / correction des garde-fous | Les cliquets ignorent les imports relatifs ; le socle importait 4 domaines (cycle `rbac ⇄ hr/stand-in`) | S | **CORRIGÉ** `f4a70c7` |
-| ARCH-02 | HAUTE | maintenabilité | La carte des domaines ne couvre que 57 % de `src/lib/` ; `app/` et `components/` hors mesure ; 128 pages parlent à Prisma | M | PROPOSÉ (+ pilote) |
-| ARCH-03 | HAUTE | maintenabilité | 190 actions dans un dossier, contrat indexé par nom de fichier → on ne peut pas ranger une action dans son module | M | PROPOSÉ (scanner suit les modules : `fee019c`) |
+| ARCH-02 | HAUTE | maintenabilité | La carte des domaines ne couvre que 57 % de `src/lib/` ; `app/` et `components/` hors mesure ; 128 pages parlent à Prisma | M | **PARTIEL** V3-G : 6 cliquets `platform/couverture.test.ts` |
+| ARCH-03 | HAUTE | maintenabilité | 190 actions dans un dossier, contrat indexé par nom de fichier → on ne peut pas ranger une action dans son module | M | **CORRIGÉ** V3-G : `src/lib/actions/parc.ts` |
 | ARCH-04 | MOYENNE | maintenabilité | 14 fichiers > 1 500 lignes, sans cliquet de taille (`assistant.ts` : 7 310 l., 94 imports) | L | PROPOSÉ |
-| ARCH-05 | MOYENNE | maintenabilité / tests | 101 tests lisent le source par chemin (290 lectures) : tout déplacement casse, du code mort est « testé » | M | PROPOSÉ |
+| ARCH-05 | MOYENNE | maintenabilité / tests | 101 tests lisent le source par chemin (290 lectures) : tout déplacement casse, du code mort est « testé » | M | **PARTIEL** V3-G : adresses de réexpédition, `platform/source.ts`, cliquet (128) |
 | ARCH-06 | MOYENNE | maintenabilité | 53 fichiers / 7 918 lignes injoignables depuis toute entrée ; garde d'atteignabilité limitée à 2 dossiers | S | PROPOSÉ |
 | ARCH-07 | MOYENNE | outillage | ≥ 15 analyseurs d'imports réécrits à la main, couvertures divergentes (cause racine d'ARCH-01) | S | PARTIEL `f4a70c7` |
 | ARCH-08 | BASSE | maintenabilité / lisibilité | Nommage : un métier, plusieurs dossiers et deux langues (`finance/`+`finances/`, `hr/`+route `/rh`, `promo*`/`ad-pro*`…) | M | PROPOSÉ |
 | ARCH-09 | HAUTE | outillage | `npm run typecheck` (commande de CLAUDE.md) plante en mémoire ; ESLint sans aucune règle d'import | S | PARTIEL (règle modules) |
 | ARCH-10 | MOYENNE | tests | Suite : 11 min 17 s dont ≈ 70 % de chargement ; un test dépend de l'état laissé par les autres | M | PROPOSÉ |
+
+> **Suite — lot V3-G (28/10/2026, branche `v3/modules`).** La structure cible de §3 est exécutable et tenue :
+> `lieux`, `coffre` et `referentiels` (socle métier) migrés complètement dans `src/modules/` avec leurs actions ;
+> les actions du pilote `consommation` rangées ; carte des modules `src/modules/carte.ts` (règle 3 « arêtes ⊆ carte,
+> sans cycle » en place) ; ARCH-03 levé (clé d'action déclarée, `parc.ts`) ; ARCH-05 désamorcé pour les
+> déplacements (adresses de réexpédition dans `tsconfig.json`, aucun fichier relais) ; ARCH-02 mesuré sur `src/app/`
+> et `src/components/` (`couverture.test.ts`). Mode d'emploi : [`docs/architecture/MODULES.md`](../../architecture/MODULES.md).
 
 ### ARCH-01 — Les cliquets ignorent les imports relatifs · HAUTE · **CORRIGÉ** (`f4a70c7`)
 

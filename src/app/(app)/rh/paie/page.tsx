@@ -19,7 +19,7 @@ import { instantDuCentreDePaie } from "@/lib/hr/paie-centre";
 import { getMyCompanies, myCompanyWhere } from "@/lib/company";
 import { getRhData } from "@/lib/queries/hr";
 import { AdvanceApprovals, type AdvanceRow } from "../advance-approvals";
-import { lireSensiblesPour } from "@/lib/coffre/lecture";
+import { lireSensiblesPour } from "@/modules/coffre/api-lecture";
 
 export const dynamic = "force-dynamic";
 

@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { chiffreDeControle } from "@/lib/agent/operations/mrz";
-import { clesDepuisMaitresse } from "@/lib/coffre";
+import { clesDepuisMaitresse } from "@/modules/coffre/api";
 import { persistUploadedDocument } from "@/lib/documents";
 import { releaseBlob } from "@/lib/drive-storage";
 import type { MoteurOcr } from "@/lib/regulatory/intelligence/extract/texte-ou-ocr";
