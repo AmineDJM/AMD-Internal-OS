@@ -162,7 +162,13 @@ export const DEPENDANCES_REELLES: DependancesLecture = {
     };
   },
   async texteLocal(ext, octets, maxPages) {
-    const l = await lireTexteOuOcr(ext, octets, { cloud: false, maxPages });
+    let l = await lireTexteOuOcr(ext, octets, { cloud: false, maxPages });
+    // MESURÉ le 28/10 : la PREMIÈRE lecture après un démarrage échoue le temps que le moteur charge ses
+    // données de langue ; la seconde lit (« FACTURE N 2026-117 », confiance 91). Un essai de plus, pas un refus.
+    if (l.ocrEchoue) {
+      console.warn("[assistant-ia] OCR local en échec, nouvel essai", l.raisonOcr);
+      l = await lireTexteOuOcr(ext, octets, { cloud: false, maxPages });
+    }
     return { texte: l.texte, methode: l.methode, tronque: l.tronque, raisonOcr: l.ocrEchoue || (!l.texte.trim() && l.raisonOcr) ? l.raisonOcr : null };
   },
   async texteNatif(ext, octets) {

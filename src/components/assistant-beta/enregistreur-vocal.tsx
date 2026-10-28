@@ -192,7 +192,7 @@ export function EnregistreurVocal({ onVocal, desactive }: EnregistreurVocalProps
         <div
           role="status"
           aria-live="polite"
-          className="absolute inset-0 z-30 flex items-center gap-2 rounded-2xl bg-white/98 px-2 dark:bg-zinc-950/98"
+          className="absolute inset-0 z-30 flex items-center gap-2 rounded-2xl bg-white px-2 dark:bg-zinc-950"
           style={phase === "maintenu" ? { transform: `translateX(${Math.max(decalage.x, -SEUIL_ANNULER_PX) / 3}px)` } : undefined}
         >
           {phase === "verrouille" ? (
