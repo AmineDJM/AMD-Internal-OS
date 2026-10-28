@@ -11,7 +11,7 @@ import { notifyUser } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { fermerInstance, ouvrirLeCircuit } from "@/lib/workflow/engine";
 import { adProInit } from "@/lib/workflow/origin";
-import type { CongressRequestStatus, SponsoringStatus } from "@prisma/client";
+import type { CongressRequestStatus, Prisma, SponsoringStatus } from "@prisma/client";
 
 /**
  * TRANSFÉRER UNE DEMANDE D'UN MODULE AD & PRO VERS UN AUTRE.
@@ -154,14 +154,14 @@ async function engagementPriseEnCharge(
   return null;
 }
 
-async function createTarget(kind: AdProKind, src: Common, actorId: string, fromLabel: string): Promise<string> {
+async function createTarget(db: Prisma.TransactionClient, kind: AdProKind, src: Common, actorId: string, fromLabel: string): Promise<string> {
   // La note d'origine est portée par la NOUVELLE demande : en la lisant, on doit comprendre
   // d'où elle vient sans avoir à fouiller le journal d'audit.
   const origin = `Transférée depuis ${fromLabel}.${src.comments ? ` — ${src.comments}` : ""}`;
   // LA ROUTE DU NOUVEAU MODULE SE LIT SUR LE CRÉATEUR (décision #28, 27/10/2026) : une demande transférée
   // repart au début de SA prévalidation — celle de son demandeur —, pas à l'étape préliminaire par défaut.
   const createur = src.requesterId
-    ? await prisma.user.findUnique({ where: { id: src.requesterId }, select: { role: true, secondaryRole: true } })
+    ? await db.user.findUnique({ where: { id: src.requesterId }, select: { role: true, secondaryRole: true } })
     : null;
   const init = createur ? adProInit(createur, CATEGORIE_DU_MODULE[kind]) : null;
 
@@ -169,9 +169,10 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
     const year = new Date().getFullYear();
     const reference = await referenceDeSerie({
       modele: "SponsoringRequest", prefixe: "SPO", annee: year,
-      existantes: async () => (await prisma.sponsoringRequest.findMany({ where: { reference: { startsWith: `SPO-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+      existantes: async () => (await db.sponsoringRequest.findMany({ where: { reference: { startsWith: `SPO-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+      client: db,
     });
-    const created = await prisma.sponsoringRequest.create({
+    const created = await db.sponsoringRequest.create({
       data: {
         reference,
         institution: src.institution ?? src.title,
@@ -194,7 +195,7 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
   }
 
   if (kind === "CONGRESS_NATIONAL") {
-    const created = await prisma.congressNational.create({
+    const created = await db.congressNational.create({
       data: {
         name: src.title, hostInstitution: src.institution, specialty: src.specialty,
         estimatedBudget: src.estimatedBudget ?? undefined,
@@ -207,7 +208,7 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
     return created.id;
   }
 
-  const created = await prisma.congressInternational.create({
+  const created = await db.congressInternational.create({
     data: {
       name: src.title, specialty: src.specialty,
       estimatedBudget: src.estimatedBudget ?? undefined,
@@ -220,19 +221,31 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
   return created.id;
 }
 
-/** Referme la demande d'origine — sans l'effacer, en disant où elle est partie. */
-async function closeSource(kind: AdProKind, id: string, targetKind: AdProKind, targetId: string): Promise<void> {
-  const note = `Transférée vers ${LABELS[targetKind]} — ${PATHS[targetKind]}/${targetId}`;
+/**
+ * PRENDRE LA SOURCE (ADPRO-09) — la fermer CONDITIONNELLEMENT, avant toute autre écriture : « encore
+ * ouverte, sans ordre de dépense ». La file en mémoire ne tient que dans un processus ; cette écriture,
+ * elle, tient entre deux instances de l'application : la seconde ne trouve plus rien à prendre.
+ */
+async function prendreLaSource(db: Prisma.TransactionClient, kind: AdProKind, id: string): Promise<boolean> {
   if (kind === "SPONSORING") {
-    await prisma.sponsoringRequest.update({ where: { id }, data: { status: "CLOSED", comments: note } });
-    return;
+    return (await db.sponsoringRequest.updateMany({ where: { id, status: { not: "CLOSED" }, expenseOrderId: null }, data: { status: "CLOSED" } })).count > 0;
   }
-  if (kind === "CONGRESS_NATIONAL") {
-    await prisma.congressNational.update({ where: { id }, data: { requestStatus: "CANCELLED", rejectionReason: note } });
-    return;
-  }
-  await prisma.congressInternational.update({ where: { id }, data: { requestStatus: "CANCELLED", rejectionReason: note } });
+  const where = { id, requestStatus: { not: "CANCELLED" as const }, expenseOrderId: null };
+  const data = { requestStatus: "CANCELLED" as const };
+  return kind === "CONGRESS_NATIONAL"
+    ? (await db.congressNational.updateMany({ where, data })).count > 0
+    : (await db.congressInternational.updateMany({ where, data })).count > 0;
 }
+
+/** La note de fermeture de la source — elle dit où la demande est partie. */
+async function noterLaSource(db: Prisma.TransactionClient, kind: AdProKind, id: string, targetKind: AdProKind, targetId: string): Promise<void> {
+  const note = `Transférée vers ${LABELS[targetKind]} — ${PATHS[targetKind]}/${targetId}`;
+  if (kind === "SPONSORING") await db.sponsoringRequest.update({ where: { id }, data: { comments: note } });
+  else if (kind === "CONGRESS_NATIONAL") await db.congressNational.update({ where: { id }, data: { rejectionReason: note } });
+  else await db.congressInternational.update({ where: { id }, data: { rejectionReason: note } });
+}
+
+const DEJA_TRANSFEREE = "Cette demande vient d'être close ou transférée par un autre geste : rouvrez-la pour voir où elle est.";
 
 export async function transferAdProRequest(_prev: ActionResult | undefined, formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -263,13 +276,22 @@ export async function transferAdProRequest(_prev: ActionResult | undefined, form
     }
 
     try {
-      const targetId = await createTarget(toRaw, src, user.id, `${LABELS[fromRaw]} (${src.title})`);
-
-      // Les pièces suivent : elles sont l'essentiel du travail déjà fait.
-      const moved = await prisma.document.updateMany({
-        where: { entityType: fromRaw, entityId: sourceId },
-        data: { entityType: toRaw, entityId: targetId },
+      // UN SEUL FAIT (ADPRO-09) : la source prise d'abord, puis la cible, les pièces et la note de
+      // fermeture — ensemble ou pas du tout. Un échec ne laisse plus une cible créée face à une source
+      // restée ouverte ; un second transfert (autre processus) ne trouve plus de source à prendre.
+      const fait = await prisma.$transaction(async (tx) => {
+        if (!(await prendreLaSource(tx, fromRaw, sourceId))) return null;
+        const id = await createTarget(tx, toRaw, src, user.id, `${LABELS[fromRaw]} (${src.title})`);
+        // Les pièces suivent : elles sont l'essentiel du travail déjà fait.
+        const deplacees = await tx.document.updateMany({
+          where: { entityType: fromRaw, entityId: sourceId },
+          data: { entityType: toRaw, entityId: id },
+        });
+        await noterLaSource(tx, fromRaw, sourceId, toRaw, id);
+        return { targetId: id, moved: deplacees };
       });
+      if (!fait) return { ok: false, error: DEJA_TRANSFEREE };
+      const { targetId, moved } = fait;
 
       // Le circuit de validation de la source est clos : ses étapes n'ont plus d'objet, et le
       // laisser ouvert ferait apparaître la demande dans les files d'attente de ses acteurs. Par la
@@ -281,9 +303,10 @@ export async function transferAdProRequest(_prev: ActionResult | undefined, form
         entityType: fromRaw, entityId: sourceId, motif: `Transférée vers ${LABELS[toRaw]}`,
       }).catch(() => false);
 
-      await closeSource(fromRaw, sourceId, toRaw, targetId);
-      // Le circuit de la demande reçue naît maintenant, sur la route de son créateur, et prévient ses acteurs.
-      await ouvrirLeCircuit(toRaw, targetId);
+      // Le circuit de la demande reçue naît maintenant, sur la route de son créateur, et prévient ses
+      // acteurs. Le transfert est fait : une panne ici se journalise — le circuit s'ouvrira à la première
+      // lecture de la fiche (`ensureInstance`) — au lieu d'annoncer un échec qui n'en est pas un.
+      await ouvrirLeCircuit(toRaw, targetId).catch((e) => console.error("[ad-pro] transfert : ouverture du circuit reportée", toRaw, targetId, e));
 
       for (const entry of [
         { entityId: sourceId, entityType: fromRaw, summary: `Demande transférée vers ${LABELS[toRaw]} (${PATHS[toRaw]}/${targetId}) — ${moved.count} pièce(s) déplacée(s).` },
