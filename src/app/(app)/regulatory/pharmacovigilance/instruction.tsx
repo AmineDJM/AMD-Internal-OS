@@ -5,6 +5,7 @@ import { Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, Textarea } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { changerStatutCasPv, ouvrirEnquetePv } from "@/lib/actions/pharmacovigilance-actions";
 import { STATUT_PV, type StatutPv } from "@/lib/pharmacovigilance/regles";
 
@@ -23,10 +24,15 @@ export function InstructionCasPv({ caseId, status, suivants }: { caseId: string;
 
   const agir = async (quoi: "statut" | "enquete", fn: () => Promise<{ ok: boolean; error?: string }>) => {
     setBusy(quoi); setErr(null);
-    const r = await fn();
-    setBusy(null);
-    if (!r.ok) { setErr(r.error ?? "Échec."); return; }
-    setNote(""); setInfos(""); rafraichir();
+    try {
+      const r = await fn();
+      if (!r.ok) { setErr(r.error ?? (quoi === "statut" ? "Le statut n'a pas été changé." : "L'enquête n'a pas été ouverte.")); return; }
+      setNote(""); setInfos(""); rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   };
   const fd = (champs: Record<string, string>) => { const f = new FormData(); f.set("caseId", caseId); for (const [k, v] of Object.entries(champs)) f.set(k, v); return f; };
   const bloque = busy !== null || enCours;

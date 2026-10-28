@@ -2,13 +2,14 @@
 
 import * as React from "react";
 import { useFormState } from "react-dom";
-import { useRouter } from "next/navigation";
+
 import { Pencil, Loader2, AlertCircle, Lock } from "lucide-react";
 import { updateRegulatoryProduct, type ActionResult } from "@/lib/actions/regulatory-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { TextField, TextAreaField, SelectField, optionsFromMap } from "@/components/shared/form-fields";
 import { DciAssociationField } from "./dci-field";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { MANUFACTURING_STATUS, REGULATORY_CATEGORY, PRODUCT_CHANNEL, PRIORITY, REGULATORY_STATUS, ROLE_LABELS, PHARMA_FORM, DOSAGE_UNIT } from "@/lib/labels";
 
 interface UserOption {
@@ -66,7 +67,7 @@ function LockedField({ label, value, hint = "Réservé au Super Admin." }: { lab
 }
 
 export function EditProductButton({ product, users, suppliers, companies, canSetStructural = false }: { product: EditProductValues; users: UserOption[]; suppliers: { id: string; name: string }[]; companies: { id: string; name: string; shortName: string | null }[]; canSetStructural?: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [state, formAction] = useFormState<ActionResult | undefined, FormData>(
     updateRegulatoryProduct,
@@ -77,7 +78,7 @@ export function EditProductButton({ product, users, suppliers, companies, canSet
   React.useEffect(() => {
     if (state?.ok) {
       setSubmitting(false);
-      router.refresh();
+      rafraichir();
       // UNE RÉSERVE GARDE LA FENÊTRE OUVERTE. Le reste de la fiche est enregistré, mais un champ
       // réservé a été refusé : fermer sans le dire ferait croire que tout est passé, et la
       // personne repartirait convaincue d'avoir changé le statut de fabrication.
@@ -85,7 +86,7 @@ export function EditProductButton({ product, users, suppliers, companies, canSet
     } else if (state?.error) {
       setSubmitting(false);
     }
-  }, [state, router]);
+  }, [state, rafraichir]);
 
   const userOptions = users.map((u) => ({
     value: u.id,

@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, Plus, RefreshCw, Send, CheckCircle2, Bell, Trash2, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { createSupplierRequest, regenerateSupplierDraft, setSupplierStatus, remindSupplier, deleteSupplierRequest } from "@/lib/regulatory/intelligence/supplier/actions";
 
 interface Question { id: string; ordinal: number; question: string; answer: string | null; answered: boolean }
@@ -17,26 +19,14 @@ const STATUS: Record<string, string> = { DRAFT: "bg-muted text-muted-foreground"
  * envoyé automatiquement), échéance, statut, relance, réponse. L'IA ne crée qu'un brouillon.
  */
 export function SupplierPanel({ dossierId, requests, canManage }: { dossierId: string; requests: Req[]; canManage: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy, error, run } = useKeyedAction();
   const [creating, setCreating] = React.useState(false);
   const [openDraft, setOpenDraft] = React.useState<string | null>(null);
-
-  async function run(key: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
-    setBusy(key); setError(null);
-    const r = await fn();
-    setBusy(null);
-    if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
-  }
 
   async function create(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const fd = new FormData(e.currentTarget); fd.set("dossierId", dossierId);
-    setBusy("create"); setError(null);
-    const r = await createSupplierRequest(fd);
-    setBusy(null);
-    if (r.ok) { setCreating(false); router.refresh(); } else setError(r.error ?? "Échec.");
+    if (await run("create", () => createSupplierRequest(fd))) setCreating(false);
   }
 
   return (
@@ -44,7 +34,7 @@ export function SupplierPanel({ dossierId, requests, canManage }: { dossierId: s
       {canManage && (
         <Button type="button" size="sm" variant="outline" onClick={() => setCreating((v) => !v)}><Plus className="h-4 w-4" /> Nouvelle demande fournisseur</Button>
       )}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       {creating && (
         <form onSubmit={create} className="space-y-2 rounded-xl border border-border bg-card p-4">

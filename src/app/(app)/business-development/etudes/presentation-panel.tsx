@@ -2,10 +2,14 @@
 
 import { phraseIaNonConfiguree, courtIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Presentation, Sparkles, Loader2, Download, Trash2, RefreshCw, ChevronDown, ChevronRight, Info } from "lucide-react";
 import { generatePresentation, regeneratePresentation, deletePresentation } from "@/lib/actions/market-presentation-actions";
 import type { PresentationDTO } from "@/lib/queries/market-research";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 type Res = { ok: boolean; error?: string; id?: string };
 
@@ -16,7 +20,8 @@ export function PresentationPanel({
   /** Le nom de la clé manquante, lu côté serveur (§118.128). */
   cleIa?: string | null;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
   const [busy, setBusy] = React.useState<string | null>(null); // message d'activité
   const [creating, setCreating] = React.useState(false);
   const [angle, setAngle] = React.useState("");
@@ -29,11 +34,16 @@ export function PresentationPanel({
     fd.set("researchId", researchId);
     if (title.trim()) fd.set("title", title.trim());
     if (angle.trim()) fd.set("instruction", angle.trim());
-    const r: Res = await generatePresentation(undefined, fd);
-    setBusy(null);
-    if (!r.ok) { window.alert(r.error ?? "Génération impossible."); return; }
-    setCreating(false); setAngle(""); setTitle("");
-    router.refresh();
+    try {
+      const r: Res = await generatePresentation(undefined, fd);
+      if (!r.ok) { retours.erreur(r.error ?? "Génération impossible."); return; }
+      setCreating(false); setAngle(""); setTitle("");
+      rafraichir();
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   const disabled = !aiConfigured || rowCount === 0;
@@ -90,7 +100,7 @@ export function PresentationPanel({
 
       <div className="space-y-3">
         {presentations.map((p) => (
-          <PresentationCard key={p.id} presentation={p} canEdit={canEdit} busy={!!busy} setBusy={setBusy} onDone={() => router.refresh()} />
+          <PresentationCard key={p.id} presentation={p} canEdit={canEdit} busy={!!busy} setBusy={setBusy} onDone={rafraichir} />
         ))}
       </div>
     </div>
@@ -102,6 +112,8 @@ function PresentationCard({
 }: {
   presentation: PresentationDTO; canEdit: boolean; busy: boolean; setBusy: (m: string | null) => void; onDone: () => void;
 }) {
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [open, setOpen] = React.useState(false);
   const [comment, setComment] = React.useState("");
   const latest = presentation.versions[0];
@@ -112,21 +124,31 @@ function PresentationCard({
     const fd = new FormData();
     fd.set("presentationId", presentation.id);
     if (comment.trim()) fd.set("instruction", comment.trim());
-    const r: Res = await regeneratePresentation(undefined, fd);
-    setBusy(null);
-    if (!r.ok) { window.alert(r.error ?? "Relance impossible."); return; }
-    setComment(""); onDone();
+    try {
+      const r: Res = await regeneratePresentation(undefined, fd);
+      if (!r.ok) { retours.erreur(r.error ?? "Relance impossible."); return; }
+      setComment(""); onDone();
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function remove() {
     if (busy) return;
-    if (!window.confirm(`Supprimer la présentation « ${presentation.title} » et toutes ses versions ?`)) return;
+    if (!(await confirmer(`Supprimer la présentation « ${presentation.title} » et toutes ses versions ?`))) return;
     setBusy("Suppression…");
     const fd = new FormData(); fd.set("id", presentation.id);
-    const r: Res = await deletePresentation(fd);
-    setBusy(null);
-    if (!r.ok) { window.alert(r.error ?? "Suppression impossible."); return; }
-    onDone();
+    try {
+      const r: Res = await deletePresentation(fd);
+      if (!r.ok) { retours.erreur(r.error ?? "Suppression impossible."); return; }
+      onDone();
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (

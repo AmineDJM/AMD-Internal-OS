@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, Plus, CheckCircle2, Trash2, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { addLifecycleEvent, deleteLifecycleEvent, addObligation, completeObligation, deleteObligation } from "@/lib/regulatory/intelligence/lifecycle/actions";
 
 interface Event { id: string; kind: string; sequenceNo: number | null; operation: string | null; label: string; note: string | null; effectiveDate: string | null; createdAt: string }
@@ -14,30 +16,19 @@ const KINDS = [["SUBMISSION", "Soumission initiale"], ["SEQUENCE", "Séquence"],
 const OB_STATUS: Record<string, string> = { OPEN: "bg-muted text-muted-foreground", DONE: "bg-success/10 text-success", OVERDUE: "bg-destructive/10 text-destructive" };
 
 export function LifecyclePanel({ dossierId, events, obligations, canManage }: { dossierId: string; events: Event[]; obligations: Obligation[]; canManage: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy, error, run } = useKeyedAction();
   const [addEv, setAddEv] = React.useState(false);
   const [addOb, setAddOb] = React.useState(false);
   const [kind, setKind] = React.useState("MODIFICATION");
 
-  async function run(key: string, fn: () => Promise<{ ok: boolean; error?: string }>) {
-    setBusy(key); setError(null);
-    const r = await fn();
-    setBusy(null);
-    if (r.ok) router.refresh(); else setError(r.error ?? "Échec.");
-  }
   async function submit(key: string, fd: FormData, fn: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, close: () => void) {
     fd.set("dossierId", dossierId);
-    setBusy(key); setError(null);
-    const r = await fn(fd);
-    setBusy(null);
-    if (r.ok) { close(); router.refresh(); } else setError(r.error ?? "Échec.");
+    if (await run(key, () => fn(fd))) close();
   }
 
   return (
     <div className="space-y-3">
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       {/* Chronologie */}
       <div className="flex items-center justify-between">

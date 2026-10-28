@@ -24,6 +24,7 @@ import { DriveComments, type DriveCommentItem } from "./[id]/drive-comments";
 import { useNouvelleVersion } from "./nouvelle-version";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 // Panneaux rares : chargés au premier clic, pour que le fichier ouvert ne les embarque pas avant l'éditeur.
 const SendToLegalSheet = dynamic(() => import("./send-to-legal").then((m) => m.SendToLegalSheet), { ssr: false });
@@ -311,9 +312,16 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
     setPending(true);
     const fd = new FormData();
     fd.set("id", id);
-    const r = (await action(fd)) as { ok?: boolean; error?: string } | undefined;
-    setPending(false);
-    if (r && r.ok === false) { dire(r.error ?? "Action impossible."); return; }
+    let r: { ok?: boolean; error?: string } | undefined;
+    try {
+      r = (await action(fd)) as { ok?: boolean; error?: string } | undefined;
+    } catch {
+      dire(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setPending(false);
+    }
+    if (r && r.ok === false) { dire(r.error ?? "L'opération n'a pas abouti."); return; }
     // Le fichier ouvert vient de partir à la corbeille : on retourne à son dossier.
     if (quitter && ouvert) { router.push(ouvert.retour); return; }
     rafraichir();
@@ -324,10 +332,15 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
     setPending(true);
     const fd = new FormData();
     fd.set("id", id);
-    const r = await convertNodeToPdf(fd);
-    setPending(false);
-    if (r.ok && r.id) router.push(`/drive/${r.id}`);
-    else dire(r.error ?? "Conversion impossible.");
+    try {
+      const r = await convertNodeToPdf(fd);
+      if (r.ok && r.id) router.push(`/drive/${r.id}`);
+      else dire(r.error ?? "Conversion impossible.");
+    } catch {
+      dire(actionFailureMessage("THROWN"));
+    } finally {
+      setPending(false);
+    }
   };
 
   const entree = (e: EntreeMenu, close: () => void): React.ReactNode => {
@@ -436,7 +449,20 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
       )}
 
       <Sheet open={renaming} onClose={() => setRenaming(false)} title="Renommer" width="md">
-        <form action={async (fd) => { setSaving(true); await renameNode(fd); setSaving(false); setRenaming(false); rafraichir(); }} className="space-y-3">
+        <form
+          action={async (fd) => {
+            setSaving(true);
+            try {
+              const r = await renameNode(fd);
+              if (!r.ok) dire(r.error ?? "Le nom n'a pas été changé.");
+            } catch {
+              dire(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false); setRenaming(false); rafraichir();
+            }
+          }}
+          className="space-y-3"
+        >
           <input type="hidden" name="id" value={id} />
           <div className="space-y-1.5">
             <Label htmlFor={`name-${id}`}>Nouveau nom</Label>
@@ -453,10 +479,15 @@ export function NodeActions({ id, name, isFile, canEdit, owner, trash, moveTarge
         <form
           action={async (fd) => {
             setSaving(true); setMoveErr(null);
-            const r = await moveNode(fd);
-            setSaving(false);
-            if (r.ok) { setMoving(false); rafraichir(); }
-            else setMoveErr(r.error ?? "Déplacement impossible.");
+            try {
+              const r = await moveNode(fd);
+              if (r.ok) { setMoving(false); rafraichir(); }
+              else setMoveErr(r.error ?? "Déplacement impossible.");
+            } catch {
+              setMoveErr(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false);
+            }
           }}
           className="space-y-3"
         >

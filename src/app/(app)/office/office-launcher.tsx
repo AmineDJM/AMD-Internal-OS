@@ -9,6 +9,7 @@ import { Input, Label } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { createOfficeNode } from "@/lib/actions/drive-actions";
 import { executerCreationOffice } from "@/lib/office/creation-ui";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { OFFICE_APPS, OFFICE_PINS_KEY, parsePinned, togglePinned, type OfficeAppKey } from "@/lib/office/apps";
 import { LetterheadChoice } from "@/components/office/letterhead-choice";
 import { lireStockagePersonnel, useIdentiteEcran } from "@/components/layout/identite-vue";
@@ -37,6 +38,7 @@ export function OfficeLauncher({
   companyId?: string | null;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [pins, setPins] = React.useState<OfficeAppKey[]>([]);
   const [open, setOpen] = React.useState<OfficeAppKey | null>(focus ?? null);
   const [name, setName] = React.useState("");
@@ -76,12 +78,15 @@ export function OfficeLauncher({
     fd.set("name", clean);
     if (letterheadId) fd.set("letterheadId", letterheadId);
     // Un appel qui REJETTE laissait `busy` à vrai pour toujours : la roue tournait, sans un mot.
-    const r = await executerCreationOffice(() => createOfficeNode(fd));
-    setBusy(false);
-    if (!r.ok) { setErr(r.error); return; }
-    setOpen(null);
-    if (officeEnabled) router.push(`/drive/${r.id}`);
-    else router.refresh();
+    try {
+      const r = await executerCreationOffice(() => createOfficeNode(fd));
+      if (!r.ok) { setErr(r.error); return; }
+      setOpen(null);
+      if (officeEnabled) router.push(`/drive/${r.id}`);
+      else rafraichir();
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

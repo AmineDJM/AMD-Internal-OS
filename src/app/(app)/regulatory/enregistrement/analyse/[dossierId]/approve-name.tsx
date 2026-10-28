@@ -1,22 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Check, Loader2 } from "lucide-react";
 import { approveDocumentName } from "@/lib/regulatory/intelligence/actions";
+import { useAction } from "@/components/shared/use-action";
 
 /** Approuve le nom de fichier proposé (le renommage définitif de la copie de travail). */
 export function ApproveNameButton({ documentId }: { documentId: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Un petit bouton dans une ligne : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
 
   async function approve() {
-    setBusy(true);
     const fd = new FormData();
     fd.set("documentId", documentId);
-    const r = await approveDocumentName(fd);
-    setBusy(false);
-    if (r.ok) router.refresh();
+    await run(() => approveDocumentName(fd));
   }
 
   return (

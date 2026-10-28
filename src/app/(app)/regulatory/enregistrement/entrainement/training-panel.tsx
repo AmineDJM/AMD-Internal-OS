@@ -1,11 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Plus, Loader2, Upload, CheckCircle2, XCircle, MinusCircle, FileText, Trash2, GraduationCap, Save } from "lucide-react";
 import type { RegCaseOutcome } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { createCaseStudy, updateCaseStudy, deleteCaseStudy, importCaseFileAction } from "@/lib/regulatory/intelligence/training/actions";
 import { OUTCOME_LABELS, OUTCOME_TONES, OUTCOME_ORDER } from "@/lib/regulatory/intelligence/training/labels";
 import type { FileIngestStatus } from "@/lib/regulatory/intelligence/corpus/import-formats";
@@ -24,18 +28,13 @@ type UpRow = { id: string; file: File;
   label?: string; state: "pending" | "running" | FileIngestStatus; message?: string; sections?: number };
 
 export function TrainingPanel({ cases }: { cases: CaseRow[] }) {
-  const router = useRouter();
-  const [creating, setCreating] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy: creating, err: error, run } = useAction();
 
   async function onCreate(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (creating) return;
-    setCreating(true); setError(null);
-    const r = await createCaseStudy(new FormData(e.currentTarget));
-    setCreating(false);
-    if (r.ok) { (e.target as HTMLFormElement).reset?.(); router.refresh(); }
-    else setError(r.error ?? "Échec.");
+    const form = e.currentTarget;
+    await run(() => createCaseStudy(new FormData(form)), () => form.reset?.());
   }
 
   return (
@@ -68,7 +67,7 @@ export function TrainingPanel({ cases }: { cases: CaseRow[] }) {
             </Button>
           </div>
         </form>
-        {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Retour ton="erreur">{error}</Retour>
       </section>
 
       {cases.length === 0 ? (
@@ -84,7 +83,7 @@ export function TrainingPanel({ cases }: { cases: CaseRow[] }) {
 }
 
 function CaseCard({ c }: { c: CaseRow }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [rows, setRows] = React.useState<UpRow[]>([]);
   const [running, setRunning] = React.useState(false);
@@ -124,7 +123,7 @@ function CaseCard({ c }: { c: CaseRow }) {
     };
     await Promise.all(Array.from({ length: Math.min(2, queue.length) }, worker));
     setRunning(false);
-    router.refresh();
+    rafraichir();
   };
 
   const addFiles = (files: FileList | File[]) => {
@@ -142,17 +141,26 @@ function CaseCard({ c }: { c: CaseRow }) {
     fd.set("caseId", c.id);
     fd.set("outcome", outcome);
     fd.set("lesson", lesson);
-    const r = await updateCaseStudy(fd);
-    setSaving(false);
-    setMsg(r.ok ? "Issue et leçon enregistrées." : r.error ?? "Échec.");
-    if (r.ok) router.refresh();
+    try {
+      const r = await updateCaseStudy(fd);
+      setMsg(r.ok ? "Issue et leçon enregistrées." : r.error ?? "L'issue et la leçon n'ont pas été enregistrées.");
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const remove = async () => {
     const fd = new FormData();
     fd.set("caseId", c.id);
-    const r = await deleteCaseStudy(fd);
-    if (r.ok) router.refresh(); else setMsg(r.error ?? "Échec.");
+    try {
+      const r = await deleteCaseStudy(fd);
+      if (r.ok) rafraichir(); else setMsg(r.error ?? "L'étude de cas n'a pas été supprimée.");
+    } catch {
+      setMsg(actionFailureMessage("THROWN"));
+    }
   };
 
   return (

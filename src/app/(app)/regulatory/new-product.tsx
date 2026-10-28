@@ -13,6 +13,7 @@ import { DciDuplicateBanner, useDciDuplicate } from "./dci-duplicate-banner";
 import { CtdALaCreation } from "./ctd-creation";
 import { useBackgroundUpload } from "@/components/layout/background-upload";
 import { useLimitesEnvoi } from "@/components/layout/use-limites-envoi";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { construireEnvoi, type EntreeDepot } from "@/components/documents/envoi-document";
 import { CTD_INITIALE_CATEGORIE, CTD_INITIALE_ENTITE, CTD_INITIALE_ETAPE } from "@/lib/regulatory/ctd-initiale";
 import { MANUFACTURING_STATUS, REGULATORY_CATEGORY, PRODUCT_CHANNEL, PRIORITY, REGULATORY_STATUS, ROLE_LABELS, PHARMA_FORM, DOSAGE_UNIT } from "@/lib/labels";
@@ -30,6 +31,7 @@ interface UserOption {
  */
 export function NewProductButton({ users, suppliers, companies, lockOnCreate = false }: { users: UserOption[]; suppliers: { id: string; name: string }[]; companies: { id: string; name: string; shortName: string | null }[]; lockOnCreate?: boolean }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [state, formAction] = useFormState<ActionResult | undefined, FormData>(
     createRegulatoryProduct,
@@ -92,7 +94,7 @@ export function NewProductButton({ users, suppliers, companies, lockOnCreate = f
       }
       setOpen(false);
       setSubmitting(false);
-      router.refresh();
+      rafraichir();
       if (state.id) router.push(`/regulatory/${state.id}${aEnvoyer.length > 0 ? "?ctd=envoi" : ""}`);
     } else if (state?.error) {
       setSubmitting(false);
@@ -102,7 +104,7 @@ export function NewProductButton({ users, suppliers, companies, lockOnCreate = f
       // s'afficherait sans le bouton qui permet de passer outre, et l'on serait bloqué.
       recheck();
     }
-  }, [state, router, recheck, enqueue]);
+  }, [state, router, rafraichir, recheck, enqueue]);
 
   const userOptions = users.map((u) => ({
     value: u.id,

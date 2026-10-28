@@ -1,16 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { Mail, Loader2, KeyRound, ShieldCheck, AlertCircle } from "lucide-react";
+import { Mail, Loader2, KeyRound, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { connectMailbox } from "@/lib/actions/mail-actions";
+import { Retour } from "@/components/ui/retour";
+import { useFormAction } from "@/components/shared/use-action";
 
 export function ConnectMailbox({ defaultEmail, defaultName }: { defaultEmail: string; defaultName: string }) {
-  const router = useRouter();
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { action, busy: saving, err } = useFormAction(connectMailbox);
   const [advanced, setAdvanced] = React.useState(false);
 
   return (
@@ -21,12 +20,7 @@ export function ConnectMailbox({ defaultEmail, defaultName }: { defaultEmail: st
           <div><p className="text-lg font-semibold">Connectez votre boîte Infomaniak</p><p className="text-sm opacity-90">Lisez et envoyez vos e-mails sans quitter la plateforme.</p></div>
         </div>
         <form
-          action={async (fd) => {
-            setSaving(true); setErr(null);
-            const r = await connectMailbox(fd);
-            setSaving(false);
-            if (r.ok) router.refresh(); else setErr(r.error ?? "Connexion impossible.");
-          }}
+          action={action}
           className="space-y-4 p-4 sm:p-6"
         >
           <div className="space-y-1.5"><Label>Adresse e-mail</Label><Input name="email" type="email" inputMode="email" autoComplete="email" required defaultValue={defaultEmail} placeholder="prenom.nom@adventum.dz" /></div>
@@ -52,7 +46,7 @@ export function ConnectMailbox({ defaultEmail, defaultName }: { defaultEmail: st
             </div>
           )}
 
-          {err && <div className="flex items-start gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="mt-0.5 h-4 w-4 shrink-0" /> {err}</div>}
+          <Retour ton="erreur">{err}</Retour>
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 text-success" /> Identifiants chiffrés, jamais exposés.</p>
             <Button type="submit" className="w-full sm:w-auto" disabled={saving}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />} Connecter</Button>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { STATUTS, STATUT_LABELS, LETTRES_FORCABLES, affiniteAffichee, type Comparaison, type Lettre, type MethodeAffinite, type Statut } from "@/lib/segmentation/regles";
 import { lettreProvisoire, enteteQ1 } from "@/lib/segmentation/charge";
 import {
@@ -1061,9 +1062,13 @@ function AjoutPanel({ strategieId, onFait }: { strategieId: string; onFait: () =
     if (q.trim().length < 2) { setRes([]); return; }
     let actif = true;
     const t = setTimeout(async () => {
-      const r = await chercherPraticiensHorsPanel({ strategieId, q });
-      if (!actif) return;
-      if (r.ok) { setRes(r.praticiens); setErreur(null); } else setErreur(r.error);
+      try {
+        const r = await chercherPraticiensHorsPanel({ strategieId, q });
+        if (!actif) return;
+        if (r.ok) { setRes(r.praticiens); setErreur(null); } else setErreur(r.error);
+      } catch {
+        if (actif) setErreur(actionFailureMessage("THROWN"));
+      }
     }, 250);
     return () => { actif = false; clearTimeout(t); };
   }, [q, strategieId]);
@@ -1076,9 +1081,14 @@ function AjoutPanel({ strategieId, onFait }: { strategieId: string; onFait: () =
           <span className="min-w-0 [overflow-wrap:anywhere]"><b className="font-medium">{p.nom}</b> <span className="text-muted-foreground">{[p.etablissement, casseNom(p.specialite)].filter(Boolean).join(" · ")}</span></span>
           <Button type="button" size="sm" variant="outline" disabled={envoi} onClick={async () => {
             setEnvoi(true);
-            const r = await ajouterAuPanel(strategieId, [p.id], null);
-            setEnvoi(false);
-            if (r.ok) onFait(); else setErreur(r.error);
+            try {
+              const r = await ajouterAuPanel(strategieId, [p.id], null);
+              if (r.ok) onFait(); else setErreur(r.error);
+            } catch {
+              setErreur(actionFailureMessage("THROWN"));
+            } finally {
+              setEnvoi(false);
+            }
           }}>Ajouter</Button>
         </div>
       ))}

@@ -10,6 +10,11 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { Retour, useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import type { ActionResult } from "@/lib/actions/types";
 
 export interface MailFolderRow extends FolderLite {
   companyLabel: string | null;
@@ -35,6 +40,9 @@ export function MailFolderBar({
   canManage: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [adding, setAdding] = React.useState(false);
   const [editing, setEditing] = React.useState<MailFolderRow | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -54,13 +62,31 @@ export function MailFolderBar({
 
   const remove = async (f: MailFolderRow) => {
     const subs = folders.filter((x) => x.parentId === f.id).length;
-    if (!window.confirm(`Supprimer le dossier « ${f.name} » ?\n\n${deletionSummary({ subfolders: subs, documents: f.entryCount })}`)) return;
+    if (!(await confirmer(`Supprimer le dossier « ${f.name} » ?\n\n${deletionSummary({ subfolders: subs, documents: f.entryCount })}`))) return;
     setBusy(true);
     const fd = new FormData(); fd.set("id", f.id);
-    const r = await deleteMailFolder(fd);
-    setBusy(false);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    else { if (current === f.id) router.push("/courriers"); else router.refresh(); }
+    try {
+      const r = await deleteMailFolder(fd);
+      if (!r.ok) retours.erreur(r.error ?? "Le dossier n'a pas été supprimé.");
+      else { if (current === f.id) router.push("/courriers"); else rafraichir(); }
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Créer ou modifier un dossier : jamais figé, le refus se dit dans la feuille. */
+  const enregistrer = async (fn: () => Promise<ActionResult>, fermer: () => void, repli: string) => {
+    setBusy(true); setErr(null);
+    try {
+      const r = await fn();
+      if (r.ok) { fermer(); rafraichir(); } else setErr(r.error ?? repli);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -142,12 +168,7 @@ export function MailFolderBar({
           defaults={{ parentId: openFolder?.id ?? "" }}
           busy={busy} err={err}
           onClose={() => setAdding(false)}
-          onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
-            const r = await createMailFolder(undefined, fd);
-            setBusy(false);
-            if (r.ok) { setAdding(false); router.refresh(); } else setErr(r.error ?? "Échec.");
-          }}
+          onSubmit={(fd) => enregistrer(() => createMailFolder(undefined, fd), () => setAdding(false), "Le dossier n'a pas été créé.")}
         />
       )}
 
@@ -159,12 +180,9 @@ export function MailFolderBar({
           defaults={{ name: editing.name, parentId: editing.parentId ?? "", companyId: editing.companyId ?? "" }}
           busy={busy} err={err}
           onClose={() => setEditing(null)}
-          onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
+          onSubmit={(fd) => {
             fd.set("id", editing.id);
-            const r = await updateMailFolder(fd);
-            setBusy(false);
-            if (r.ok) { setEditing(null); router.refresh(); } else setErr(r.error ?? "Échec.");
+            return enregistrer(() => updateMailFolder(fd), () => setEditing(null), "Le dossier n'a pas été modifié.");
           }}
         />
       )}
@@ -212,7 +230,7 @@ function MailFolderSheet({
           <Label htmlFor="mf-desc">Description (facultative)</Label>
           <Textarea id="mf-desc" name="description" rows={2} />
         </div>
-        {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        <Retour ton="erreur">{err}</Retour>
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Annuler</Button>
           <Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button>

@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle2, XCircle, Hourglass } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { setDossierBudget, submitDeferredReview, submitImmediateReview } from "@/lib/regulatory/intelligence/cost/cost-actions";
 
 /**
@@ -13,7 +14,7 @@ import { setDossierBudget, submitDeferredReview, submitImmediateReview } from "@
  * plutôt que de laisser filer la facture. Champ vide = on revient au plafond global.
  */
 export function BudgetForm({ dossierId, current }: { dossierId: string; current: number | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [value, setValue] = React.useState(current != null ? String(current) : "");
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -30,8 +31,10 @@ export function BudgetForm({ dossierId, current }: { dossierId: string; current:
     void (async () => {
       try {
         const r = await setDossierBudget(fd);
-        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Échec.") });
-        if (r.ok) router.refresh();
+        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Le plafond n'a pas été enregistré.") });
+        if (r.ok) rafraichir();
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(false);
         lock.current = false;
@@ -73,7 +76,7 @@ export function BudgetForm({ dossierId, current }: { dossierId: string; current:
  * à la place de l'utilisateur.
  */
 export function DeferredReviewButton({ dossierId, pending }: { dossierId: string; pending: { requestCount: number; submittedAt: string } | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const lock = React.useRef(false);
@@ -88,8 +91,10 @@ export function DeferredReviewButton({ dossierId, pending }: { dossierId: string
     void (async () => {
       try {
         const r = await submitDeferredReview(fd);
-        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Lot déposé.") : (r.error ?? "Échec.") });
-        if (r.ok) router.refresh();
+        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Lot déposé.") : (r.error ?? "Le lot n'a pas été déposé.") });
+        if (r.ok) rafraichir();
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(false);
         lock.current = false;
@@ -125,8 +130,10 @@ export function DeferredReviewButton({ dossierId, pending }: { dossierId: string
     void (async () => {
       try {
         const r = await submitImmediateReview(fd);
-        setMsg({ ok: r.ok, text: r.ok ? "Analyse immédiate lancée — résultats dans l'heure." : (r.error ?? "Échec.") });
-        if (r.ok) router.refresh();
+        setMsg({ ok: r.ok, text: r.ok ? "Analyse immédiate lancée — résultats dans l'heure." : (r.error ?? "L'analyse immédiate n'a pas été lancée.") });
+        if (r.ok) rafraichir();
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(false);
         lock.current = false;

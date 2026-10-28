@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Trash2 } from "lucide-react";
 import { deleteBdProject } from "@/lib/actions/bd-project-actions";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
 import { Button } from "@/components/ui/button";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 
 /**
  * SUPPRIMER UN PROJET depuis l'écran « Projets » (§118.163) — par la fenêtre de confirmation
@@ -15,7 +16,7 @@ import { Button } from "@/components/ui/button";
  * rédactions de « ce qui part » finiraient par dire deux choses (§118.5).
  */
 export function SupprimerProjet({ id, name }: { id: string; name: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   return (
     <>
@@ -29,7 +30,7 @@ export function SupprimerProjet({ id, name }: { id: string; name: string }) {
         id={id}
         name={name}
         executer={deleteBdProject}
-        onSupprime={() => { setOpen(false); router.refresh(); }}
+        onSupprime={() => { setOpen(false); rafraichir(); }}
       />
     </>
   );

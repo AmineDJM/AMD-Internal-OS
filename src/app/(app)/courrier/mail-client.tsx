@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import {
   Inbox, Send as SendIcon, RefreshCw, Loader2, Paperclip, PenSquare, X,
   ChevronLeft, AlertCircle, Trash2, Mail as MailIcon, Reply, ReplyAll, Forward, Maximize2, Minimize2,
@@ -12,6 +12,8 @@ import { Input, Textarea, Label, Select } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useAction } from "@/components/shared/use-action";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { sendMailAction, disconnectMailbox, updateMailSignature } from "@/lib/actions/mail-actions";
 import { listLinkableDossiers, linkEmailToDossier } from "@/lib/actions/dossier-actions";
 
@@ -32,7 +34,8 @@ const forwardBody = (m: MsgDetail) =>
   `\n\n--- Message transféré ---\nDe : ${m.from} <${m.fromAddr}>\nDate : ${fmtDate(m.date)}\nÀ : ${m.to}${m.cc ? `\nCc : ${m.cc}` : ""}\nObjet : ${m.subject}\n\n${(m.text || "").slice(0, 6000)}`;
 
 export function MailClient({ email, signature: initialSignature }: { email: string; signature: string }) {
-  const router = useRouter();
+  // Le lien « Déconnecter » n'a pas de place pour parler : un refus part en avis flottant.
+  const { run: runDeconnexion } = useAction({ signalerErreurs: true });
   const [signature, setSignature] = React.useState(initialSignature);
   const [sigOpen, setSigOpen] = React.useState(false);
   const [folders, setFolders] = React.useState<Folder[]>([]);
@@ -176,7 +179,7 @@ export function MailClient({ email, signature: initialSignature }: { email: stri
         <button onClick={() => setSigOpen(true)} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground">
           <PenLine className="h-3.5 w-3.5" /> Signature{signature.trim() ? "" : " (aucune)"}
         </button>
-        <button onClick={async () => { if (confirm("Déconnecter cette boîte mail ?")) { await disconnectMailbox(); router.refresh(); } }} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-secondary hover:text-destructive">
+        <button onClick={() => void runDeconnexion(() => disconnectMailbox(), undefined, { confirmer: "Déconnecter cette boîte mail ?" })} className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-secondary hover:text-destructive">
           <X className="h-3.5 w-3.5" /> Déconnecter la boîte
         </button>
       </aside>
@@ -446,10 +449,15 @@ function SignatureSheet({ open, onClose, initial, onSaved }: { open: boolean; on
   async function save() {
     setSaving(true); setErr(null);
     const fd = new FormData(); fd.set("signature", text);
-    const r = await updateMailSignature(fd);
-    setSaving(false);
-    if (r.ok) { onSaved(text.trimEnd()); onClose(); }
-    else setErr(r.error ?? "Enregistrement impossible.");
+    try {
+      const r = await updateMailSignature(fd);
+      if (r.ok) { onSaved(text.trimEnd()); onClose(); }
+      else setErr(r.error ?? "Enregistrement impossible.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
