@@ -18,7 +18,6 @@ import { createExpenseOrder } from "@/lib/expense-orders";
 import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
 import { createWithRetry } from "@/lib/refs";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
-import { dejaPorteParSaFiche } from "@/lib/ad-pro/unified";
 import { ecrireAuFil } from "@/lib/ad-pro/fil";
 import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { REQUEST_TYPES } from "@/lib/admin-requests";
@@ -31,8 +30,6 @@ import {
   estDecisionDApprobation, refusSansMotif, interditSurSaPropreDemande, LIBELLE_DECISION, peutTrancherApprobation,
   refusValidateursPieceChiffree,
 } from "@/lib/secretariat/decision-approbation";
-import { ficheAFacture } from "@/lib/finance/facture-ordre";
-import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
 import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { sansBloquer } from "@/lib/journal";
@@ -47,11 +44,14 @@ import {
   retirerLesApprobationsPrecedentes,
 } from "@/lib/actions/internes/admin-request/decisions";
 import {
-  REFUS_SANS_FACTURE, REFUS_SANS_IMPUTATION, imputationDeLaDemande, paiementEnVol, pieceASoumettre, refusAvantLaFin,
-  responsablesFinances, tracerLImputation, validationDeLaPiece, validationDePiece, validationFinances,
-  validationInterne,
+  REFUS_SANS_FACTURE, imputationDeLaDemande, paiementEnVol, pieceASoumettre, refusAvantLaFin, responsablesFinances,
+  tracerLImputation, validationDeLaPiece, validationDePiece, validationFinances, validationInterne,
 } from "@/lib/actions/internes/admin-request/traitement";
-// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/admin-request/{demande,decisions,traitement}` — les actions restent ici (leur clé de contrat).
+import { lireLImputation } from "@/lib/actions/internes/admin-request/fin";
+import { ficheAFacture } from "@/lib/finance/facture-ordre";
+import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
+import { dejaPorteParSaFiche } from "@/lib/ad-pro/unified";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/admin-request/{demande,decisions,traitement,fin}` — les actions restent ici (leur clé de contrat).
 
 /** Type-specific fields are submitted as `f_<name>` and stored in `fields` JSON. */
 function collectFields(formData: FormData): Record<string, string> {
@@ -849,40 +849,20 @@ export async function finishRequest(formData: FormData): Promise<ActionResult> {
     return { ok: false, error: REFUS_SANS_FACTURE };
   }
 
-  // IMPUTATION AUX MOYENS GÉNÉRAUX — le geste qui manquait entre « la demande est faite » et
-  // « le budget le sait ».
-  //
-  // Terminer un achat sans dire QUI le paie laissait le budget des moyens généraux intact
-  // pendant que l'argent, lui, était sorti. L'assistante choisit donc le département à
-  // débiter : le sien, ou celui qui a demandé — chaque département a SES moyens généraux, et
-  // c'est le demandeur qui les consomme, pas le secrétariat qui exécute.
-  //
-  // EXCEPTION : ce qui vient d'Ad & Pro est déjà porté par le budget de l'opération (poste,
-  // ordre de dépense). L'imputer une seconde fois le compterait deux fois.
-  //
-  // La liste était écrite À LA MAIN ici — cinq natures — pendant que la page de la même demande
-  // en lisait huit : sur un achat lié à un POSTE, l'écran masquait l'imputation et cette action
-  // l'exigeait, donc la demande ne pouvait plus être terminée (§118.150). Une seule fonction.
+  // L'EXCEPTION D'AD & PRO se lit par la même fonction que la page (`dejaPorteParSaFiche`) : l'imputation qu'elle
+  // dispense, l'écran la masque aussi (§118.150).
   const fromAdPro = dejaPorteParSaFiche(req.linkedEntityType);
-  const departmentId = fdStr(formData, "budgetDepartmentId");
-  const amount = fdNum(formData, "budgetAmount");
-  const alreadyImputed = await prisma.departmentBudgetExpense.count({ where: { adminRequestId: id } });
-
-  if (req.type === "PURCHASE" && !fromAdPro && alreadyImputed === 0 && (!departmentId || !amount)) {
-    return { ok: false, error: REFUS_SANS_IMPUTATION };
-  }
-
-  const imputer = departmentId != null && amount != null && alreadyImputed === 0;
-  if (imputer && amount < 0) return { ok: false, error: "Un montant ne peut pas être négatif." };
-  const dept = imputer ? await prisma.department.findUnique({ where: { id: departmentId }, select: { id: true, name: true } }) : null;
-  if (imputer && !dept) return { ok: false, error: "Département introuvable." };
+  const fin = await lireLImputation(formData, { id, req, fromAdPro });
+  if ("fini" in fin) return fin.fini;
+  const { imputation } = fin;
 
   // LA DEMANDE EST PRISE AVANT L'IMPUTATION, sous condition (§118.187) : annulée entre la lecture et
   // l'écriture, elle ne repasse pas « terminée », et aucun budget n'est débité pour elle.
   const prise = await prisma.administrativeRequest.updateMany({ where: { id, ...OUVERTE }, data: { status: "DONE", completedAt: new Date() } });
   if (prise.count === 0) return { ok: false, error: DEMANDE_CHANGEE };
 
-  if (imputer && dept) {
+  if (imputation) {
+    const { dept, amount } = imputation;
     await prisma.departmentBudgetExpense.create({ data: imputationDeLaDemande(id, req, dept, amount, fdStr(formData, "budgetNote"), user.id) });
     await tracerLImputation(id, dept, amount, user.id);
   }
