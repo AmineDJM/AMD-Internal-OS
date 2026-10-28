@@ -37,16 +37,16 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
 | DONNEES-04 | HAUTE | Correction (RH) | Un congé annuel accordé à deux clics débite le solde deux fois | S | **CORRIGÉ** `0af0031` |
 | DONNEES-05 | HAUTE | Correction (argent) | Une facture annulée part au paiement depuis la fiche Legal | S | **CORRIGÉ** `0b75a9f` |
 | DONNEES-06 | HAUTE | Correction (argent) | La seconde porte de la caisse d'avance la met en négatif | S | **CORRIGÉ** `06376e7` |
-| DONNEES-07 | HAUTE | Intégrité des données | `deleteDoctor` efface visites, montants et segmentation sans corbeille (accessible à Adam) | M | PROPOSÉ |
-| DONNEES-08 | HAUTE | Correction (argent) | Accepter un devis de prise en charge à deux clics ouvre deux ordres | S | PROPOSÉ |
-| DONNEES-09 | MOYENNE | Correction (argent) | La réponse au centre de paiement écrase une décision concurrente | S | PROPOSÉ |
-| DONNEES-10 | MOYENNE | Intégrité des données | `ExpenseOrder (sourceType, sourceId)` n'a aucune unicité, même partielle | M | PROPOSÉ |
+| DONNEES-07 | HAUTE | Intégrité des données | `deleteDoctor` efface visites, montants et segmentation sans corbeille (accessible à Adam) | M | CORRIGÉ `5d49114` |
+| DONNEES-08 | HAUTE | Correction (argent) | Accepter un devis de prise en charge à deux clics ouvre deux ordres | S | CORRIGÉ `d1f3cd7` |
+| DONNEES-09 | MOYENNE | Correction (argent) | La réponse au centre de paiement écrase une décision concurrente | S | CORRIGÉ `b1d35ab` |
+| DONNEES-10 | MOYENNE | Intégrité des données | `ExpenseOrder (sourceType, sourceId)` n'a aucune unicité, même partielle | M | CORRIGÉ `2e27b05` |
 | DONNEES-11 | MOYENNE | Performance | Le livre comptable et le centre de paiement chargent toute l'histoire à chaque affichage | M | PROPOSÉ |
-| DONNEES-12 | MOYENNE | Performance | Chaque création charge toutes les références de l'année pour calculer la suivante | S | PROPOSÉ |
+| DONNEES-12 | MOYENNE | Performance | Chaque création charge toutes les références de l'année pour calculer la suivante | S | CORRIGÉ `937e11f` |
 | DONNEES-13 | MOYENNE | Performance | Droits sur les documents en listes `IN` de milliers d'ids, import de consommation sur toute l'histoire | M | PROPOSÉ |
 | DONNEES-14 | MOYENNE | Performance | N+1 sur les panels de segmentation et le calcul des KPI pendant le rendu | M | PROPOSÉ |
-| DONNEES-15 | MOYENNE | Intégrité des données | `deleteOrder` (PCH) efface livraisons et lignes sans audit ni corbeille | S | PROPOSÉ |
-| DONNEES-16 | MOYENNE | Maintenabilité | Les migrations des branches `refonte/*` sont datées avant le maximum de la base | S | PROPOSÉ |
+| DONNEES-15 | MOYENNE | Intégrité des données | `deleteOrder` (PCH) efface livraisons et lignes sans audit ni corbeille | S | CORRIGÉ `6fcbd95` |
+| DONNEES-16 | MOYENNE | Maintenabilité | Les migrations des branches `refonte/*` sont datées avant le maximum de la base | S | CORRIGÉ `b0c0d17` |
 | DONNEES-17 | BASSE | Intégrité des données | Cycles de réserves ANPP numérotés par `count()+1` sans unicité | S | PROPOSÉ |
 | DONNEES-18 | BASSE | Intégrité des données | `MissionInput.milestoneId` : relation au schéma, aucune clé étrangère en base | S | PROPOSÉ |
 | DONNEES-19 | BASSE | Performance | 87 clés étrangères sans index en tête, dont `FileVersion.blobId` (RESTRICT) | S | PROPOSÉ |
@@ -138,7 +138,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
 - **Correctif appliqué.** `canSendToSettlement` reçoit `status` et refuse `CANCELLED`. La fiche Legal le lui passe
   (ligne 913).
 - **Test.** Nouveau cas dans `src/lib/finances/settlement.test.ts` (rouge avant, vert après).
-- **Reste (PROPOSÉ).** La course entre l'annulation et l'envoi : `cancelLegalDocument`, à la ligne 725, écrit le statut
+- **Reste — CORRIGÉ `93a05f8`.** La course entre l'annulation et l'envoi : `cancelLegalDocument`, à la ligne 725, écrit le statut
   sans prendre la clé `enSerie(cleEnvoiAuReglement(id))`. Prendre la même clé, ou conditionner l'écriture sur
   `expenseOrderId` lu.
 
@@ -153,11 +153,11 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
 - **Correctif appliqué.** Même remède que la première porte : département `FOR UPDATE`, fond relu dessous, écriture
   dans la même transaction (ligne 439).
 - **Test.** Cas (a′) ajouté à `src/lib/actions/caisse-avance-atomique-flow.test.ts` (rouge avant, vert après).
-- **Reste (PROPOSÉ).** Même défaut à corriger dans `updateDepartmentExpense` (lignes 573-606, passage d'une dépense vers
+- **Reste — CORRIGÉ `0ab9727`.** Même défaut à corriger dans `updateDepartmentExpense` (lignes 573-606, passage d'une dépense vers
   la caisse) et `closePettyCash` (`petty-cash-actions.ts:232-244` : clôture sans verrou ni condition de statut ;
   `confirmPettyCashReceipt:205` peut ensuite réécrire `RECEIVED` sur une remise clôturée).
 
-### DONNEES-07 — `deleteDoctor` efface visites, montants et segmentation sans corbeille · HAUTE · PROPOSÉ
+### DONNEES-07 — `deleteDoctor` efface visites, montants et segmentation sans corbeille · HAUTE · CORRIGÉ `5d49114`
 
 - **Preuve.**
   - `src/lib/actions/medical-actions.ts:490-498` : `medicalVisit.deleteMany({ where: { doctorId } })` puis
@@ -178,7 +178,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
   3. Retirer la suppression physique des visites de l'action.
 - **Effort.** M.
 
-### DONNEES-08 — Accepter un devis de prise en charge à deux clics ouvre deux ordres · HAUTE · PROPOSÉ
+### DONNEES-08 — Accepter un devis de prise en charge à deux clics ouvre deux ordres · HAUTE · CORRIGÉ `d1f3cd7`
 
 - **Preuve.** `decideCareQuote` (`src/lib/actions/care-actions.ts`) :
   - lit le devis ligne 990 ;
@@ -193,7 +193,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
   en exigeant `count === cellIds.length`, sinon on défait. L'ordre n'est créé qu'après.
   Le patron de test est le même que pour DONNEES-02.
 
-### DONNEES-09 — La réponse au centre de paiement écrase une décision concurrente · MOYENNE · PROPOSÉ
+### DONNEES-09 — La réponse au centre de paiement écrase une décision concurrente · MOYENNE · CORRIGÉ `b1d35ab`
 
 - **Preuve.** `respondToPaymentCentre` (`src/lib/actions/payment-centre-actions.ts:248-271`) lit `centralStatus`,
   vérifie `canResubmit`, puis fait `expenseOrder.update({ where: { id }, data: { centralStatus: next } })` sans
@@ -205,7 +205,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
 - **Correctif concret.** Écrire avec `updateMany({ where: { id, centralStatus: order.centralStatus, status: order.status } })`
   et refuser si le compte vaut 0. Une ligne.
 
-### DONNEES-10 — Aucune unicité sur l'origine d'un ordre de dépense · MOYENNE · PROPOSÉ
+### DONNEES-10 — Aucune unicité sur l'origine d'un ordre de dépense · MOYENNE · CORRIGÉ `2e27b05`
 
 - **Preuve.** Les index de `ExpenseOrder` en base sont `ExpenseOrder_sourceType_sourceId_idx` (non unique) et
   `_reference_key`. 21 appelants de `createExpenseOrder` portent chacun leur garde anti-doublon (`enSerie`,
@@ -222,7 +222,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
      déclaré dans `exceptions.ts` du contrôle de dérive (famille D). La base porte alors la garde que 21 appelants
      doivent aujourd'hui se rappeler.
 
-### DONNEES-11 — Le livre comptable et le centre de paiement chargent toute l'histoire · MOYENNE · PROPOSÉ
+### DONNEES-11 — Le livre comptable et le centre de paiement chargent toute l'histoire · MOYENNE · PROPOSÉ — hors lot V3-F (performance de lecture, sans effet sur l'argent ni les droits) : à reprendre avec le rapport 07
 
 - **Preuve.**
   - `src/lib/queries/finance.ts:47`, `getFinanceData` :
@@ -241,7 +241,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
   - Pour la trésorerie, un seul `groupBy(["treasuryAccountId","direction"])` après la date d'ancrage.
   - Pour le centre : statuts ouverts pour la liste, `groupBy(["companyId","centralStatus"])` pour les pastilles.
 
-### DONNEES-12 — La référence suivante se calcule en chargeant toutes celles de l'année · MOYENNE · PROPOSÉ
+### DONNEES-12 — La référence suivante se calcule en chargeant toutes celles de l'année · MOYENNE · CORRIGÉ `937e11f`
 
 - **Preuve.** Le patron `findMany({ where: { reference: { startsWith: "FIN-2026-" } }, select: { reference } })` puis
   `buildRef` (max + 1 en JS) se retrouve dans :
@@ -260,7 +260,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
   (série, année). Cela supprime aussi la dépendance à `enSerie` (mono-processus), qui empêche aujourd'hui de passer à
   deux instances (KB 03 §7).
 
-### DONNEES-13 — Droits sur les documents et import de consommation : lectures non bornées · MOYENNE · PROPOSÉ
+### DONNEES-13 — Droits sur les documents et import de consommation : lectures non bornées · MOYENNE · PROPOSÉ — hors lot V3-F (performance de lecture, sans effet sur l'argent ni les droits) : à reprendre avec le rapport 07
 
 - **Preuve.**
   - `src/lib/queries/documents.ts:56`, `:64` et `:72` (`accessibleDocumentWhere`, appelé par `/documents` et par
@@ -272,7 +272,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
   relation inverse). Pour l'import, filtrer `existantes` sur les couples (établissement, produit) et les périodes du
   fichier, ou poser l'index unique sur la clé de doublon.
 
-### DONNEES-14 — N+1 dans le rendu : panels de segmentation et KPI · MOYENNE · PROPOSÉ
+### DONNEES-14 — N+1 dans le rendu : panels de segmentation et KPI · MOYENNE · PROPOSÉ — hors lot V3-F (performance de lecture, sans effet sur l'argent ni les droits) : à reprendre avec le rapport 07
 
 - **Preuve.**
   - `src/lib/segmentation/service.ts:244` : `for (const r of reps) await prisma.medicalDoctor.findMany({ where: { AND: [clausePanelDuKam(r.repId), { id: { in: ids } }] } })`.
@@ -287,7 +287,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
   - KPI : lecture groupée des briques pour tous les `userIds`, écriture du cache par `createMany` + `updateMany`, ou
     déléguée au planificateur (`rafraichirKpiSiDu`).
 
-### DONNEES-15 — `deleteOrder` (PCH) efface livraisons et lignes sans audit · MOYENNE · PROPOSÉ
+### DONNEES-15 — `deleteOrder` (PCH) efface livraisons et lignes sans audit · MOYENNE · CORRIGÉ `6fcbd95`
 
 - **Preuve.**
   - `src/lib/actions/pch-actions.ts:260-269` : `prisma.pchOrder.delete` sans `recordAudit`.
@@ -298,7 +298,7 @@ Six correctifs sont commités, un par constat. Chacun a un test qui échoue avan
 - **Correctif concret.** Refuser la suppression d'une commande qui a des livraisons (`deliveredAt` non nul), ou la
   router par `supprimerReversible` avec un type `PCH_ORDER` en `lot: true`. Dans tous les cas, appeler `recordAudit`.
 
-### DONNEES-16 — Migrations des branches `refonte/*` datées avant le maximum de la base · MOYENNE · PROPOSÉ
+### DONNEES-16 — Migrations des branches `refonte/*` datées avant le maximum de la base · MOYENNE · CORRIGÉ `b0c0d17`
 
 - **Preuve.**
   - `refonte/p1-schema-referentiels` ajoute `20270130100000_referentiels` et `refonte/lieux-reference` ajoute
