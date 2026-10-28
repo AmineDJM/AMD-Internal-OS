@@ -51,8 +51,10 @@ export async function doubleEcrireCoffre(
   valeurs: Record<string, unknown>,
   parId: string | null,
   tx?: ClientEcriture,
+  /** Interrupteur forcé (bancs) ; lu dans `AppSetting` sinon. */
+  active?: boolean,
 ): Promise<ResultatCopie[] | null> {
-  if (!(await getAppSettings()).coffreEcriture) return null;
+  if (!(active ?? (await getAppSettings()).coffreEcriture)) return null;
   if (tx) return copier(tx, modele, origineId, valeurs, parId);
   try {
     return await prisma.$transaction((t) => copier(t, modele, origineId, valeurs, parId));

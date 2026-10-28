@@ -36,6 +36,7 @@
 | `S3_DISABLED` | ⬜ | Interrupteur d'arrêt : `1` force le repli sur le stockage en base **sans effacer** les variables. Sert à écarter le stockage objet le temps d'un incident. |
 | `REG_S3_*` | ⬜ | **Anciens noms**, encore acceptés en **repli** pour ne pas casser une production en cours. Les `S3_*` priment quand les deux existent. À supprimer une fois la transition faite. |
 | `DRIVE_ENCRYPTION_KEY` | ⬜ | Clé maîtresse AES-256-GCM (32 octets, hex ou base64). À défaut, dérivée de `NEXTAUTH_SECRET`. ⚠️ **La changer rend illisibles tous les fichiers déjà stockés.** |
+| `COFFRE_KEY` | ⬜ (obligatoire pour ouvrir le coffre) | Clé maîtresse du **coffre des données sensibles** (refonte V2-E) : 32 octets, hex ou base64, **différente** de `DRIVE_ENCRYPTION_KEY` (refusée sinon). Aucun repli en production : sans elle, la double écriture et la double lecture ne s'ouvrent pas. ⚠️ **La perdre rend le coffre illisible** — la sauvegarder hors de Render. |
 | `OPENAI_API_KEY` · `OPENAI_BASE_URL` | ⬜ | Modèle économique **Luna** (`gpt-5.6-luna`) : lecture des lettres de réserves, des graphiques/images, et analyse différée (Batch). Sans clé, ces fonctions se désactivent **proprement** (message explicite) — le reste du module continue de fonctionner. |
 | `CTD_MODEL_CHEAP` | ⬜ | Surcharge du modèle économique (défaut `gpt-5.6-luna`). |
 | `CTD_BUDGET_USD_DEFAULT` | ⬜ | Plafond IA **global** par dossier, en dollars (défaut : aucun). Un dossier peut avoir son propre plafond, réglé à l'écran. Atteint ⇒ les appels sont **refusés avant dépense**, et l'écran le dit. |

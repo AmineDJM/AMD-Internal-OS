@@ -224,3 +224,16 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `routines/calendrier.ts` · `passage.ts` · `service.ts` · `operations/routines.ts` | Les routines : calendrier en heure d'Alger, passage en lecture seule (vérifier puis comparer), prise atomique, traces et notifications. |
 | `memoire.ts` · `memoire-ui.ts` · `filtre-confidentialite.ts` · `generer.ts` · `recherche-web.ts` | Mémoire personnelle, filtre (et masque réversible), appel de rédaction sans outil, recherche web à question censurée. |
 | `src/lib/actions/assistant-ia-actions.ts` | Les gestes de la personne sur SA mémoire et SES routines (identité de la session, jamais d'un paramètre). |
+
+#### Refonte des données — coffre (V2-E)
+
+| Fichier | Rôle |
+|---|---|
+| `src/lib/coffre/champs.ts` | Catalogue PUR des colonnes sensibles copiées, classement, masque, « écrire sans lire ». |
+| `src/lib/coffre/copies.ts` · `ecriture.ts` | Chemin d'écriture (copie chiffrée, remplacement daté) et double écriture derrière l'interrupteur. |
+| `src/lib/coffre/acces.ts` · `lecture.ts` · `dechiffrement.ts` | Contrôle d'accès + journal (sans déchiffrer), lecture des écrans (déchiffre), le seul module qui déchiffre. |
+| `src/lib/coffre/couverture.ts` · `journal.ts` | Couverture colonne par colonne ; journal des accès filtrable. |
+| `src/lib/referentiels/reprises/{types,index,coffre}.ts` | Contrat commun des reprises ; reprise « coffre ». |
+| `src/lib/actions/refonte-reprise-actions.ts` · `coffre-actions.ts` | Aperçu / lot (Super Admin, audités) ; interrupteurs. |
+| `src/app/(app)/admin/refonte-donnees/` · `admin/acces-donnees-sensibles/` | Écrans Super Admin. |
+

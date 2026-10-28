@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { clesDepuisMaitresse } from "./cle";
 import { copierAuCoffre } from "./copies";
+import { doubleEcrireCoffre } from "./ecriture";
 import { lireSensibles } from "./lecture";
 import { cleRib } from "./natures";
 import type { LecteurCoffre } from "./politique";
@@ -160,5 +161,30 @@ suite("Coffre — copies et double lecture (base locale)", () => {
 
   it("sans geste, aucune lecture", async () => {
     await expect(lireSensibles({ lecteur: lecteur({ superAdmin: true }), modele: "Employee", geste: " ", lignes: [{ id: employeId, clair: { iban: IBAN } }], champs: ["iban"] }, { ...dep, lectureActive: true })).rejects.toThrow(/geste/);
+  });
+});
+
+suite("Coffre — double écriture (base locale)", () => {
+  let id = "";
+  beforeAll(async () => { id = (await prisma.employee.create({ data: { fullName: `${marque} Écriture`, nationalId: NIN } })).id; });
+  afterAll(async () => {
+    await prisma.donneeSensible.deleteMany({ where: { origineId: id } });
+    await prisma.employee.delete({ where: { id } });
+  });
+
+  it("interrupteur fermé : rien n'est écrit", async () => {
+    expect(await doubleEcrireCoffre("Employee", id, { nationalId: NIN }, null, undefined, false)).toBeNull();
+    expect(await prisma.donneeSensible.count({ where: { origineId: id } })).toBe(0);
+  });
+
+  it("ouvert : la copie suit l'écriture, dans la transaction de l'écrivain quand il en a une", async () => {
+    expect(await doubleEcrireCoffre("Employee", id, { nationalId: NIN, fullName: "ignoré" }, "u-rh", undefined, true)).toEqual([{ champ: "nationalId", issue: "CREEE" }]);
+    // Une transaction annulée emporte la copie avec l'écriture métier.
+    await expect(prisma.$transaction(async (tx) => {
+      await tx.employee.update({ where: { id }, data: { iban: RIB } });
+      await doubleEcrireCoffre("Employee", id, { iban: RIB }, "u-rh", tx, true);
+      throw new Error("annulée");
+    })).rejects.toThrow("annulée");
+    expect(await prisma.donneeSensible.findMany({ where: { origineId: id }, select: { origineChamp: true } })).toEqual([{ origineChamp: "nationalId" }]);
   });
 });

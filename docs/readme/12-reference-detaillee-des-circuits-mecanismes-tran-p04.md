@@ -466,5 +466,22 @@ entité) sont éligibles. Supprimer une gamme **ne supprime aucun produit** (`SE
   fiche est réservé à la **fiche complète** et l'annonce clairement.
 - La **dernière activité** admin = max(`UserSession.lastSeenAt` groupé, `User.lastSeenAt` heartbeat, `lastLoginAt`).
 
----
+### Coffre des données sensibles — double écriture, double lecture (refonte V2-E)
 
+- **Ce qui est copié** (`coffre/champs.ts`) : `Employee.iban` (IBAN ou RIB, validé par sa clé), `nationalId` (NIN), les
+  quatre salaires ; `CompanyContact.rib` ; `CompanyLegalIdentity.rib`, `iban`. La colonne reste la vérité jusqu'à P5.
+- **Écriture** (`coffre/ecriture.ts` → `copies.ts`), interrupteur `AppSetting.coffreEcriture` : après chaque écriture de la
+  colonne, dans la transaction de l'écrivain s'il en a une ; sinon non bloquante (journal serveur, la reprise rattrape).
+  Nouvelle valeur → nouvelle copie, l'ancienne datée `remplaceeLe` ; colonne vidée → copie datée ; mal formée → rien.
+- **Lecture** (`coffre/acces.ts`, `lecture.ts`), interrupteur `coffreLecture` : politique (`politique.ts`) → **journal
+  `AccesDonneeSensible` d'abord** (accord comme refus, geste en clair) → valeur (déchiffrée si la copie correspond à la
+  colonne par empreinte) ou **masque**. Fermé : la colonne, sans journal, comme avant.
+- **Écrire sans lire** : un champ montré masqué n'est pas envoyé (ou revient masqué) et garde sa valeur
+  (`champsNonSaisis`) ; une saisie la remplace.
+- **Pièces** (`controlerRibDePiece`, fabrique `platform/in-process/artifact/factory.ts`) : tout RIB imprimé est reconnu
+  au coffre par empreinte ; RIB d'une organisation → imprimé au nom de qui émet (journalisé) ; donnée d'une personne
+  non ouverte → masque.
+- **Gardes** : Super Admin seul pour la reprise et les interrupteurs ; jamais un modèle d'IA (politique, API v1, bac à
+  sable SQL, filtre de confidentialité, frontière d'import `frontiere.test.ts`).
+
+---
