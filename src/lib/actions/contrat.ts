@@ -52,6 +52,7 @@ import { decouperActions, fonctionsLocales, sansCommentaires } from "./contrat/d
 import { deleguesDuCorps, nomsDuFormulaire, rangDuFormulaire } from "./contrat/formulaire";
 import { RE_ECRITURE, faitsEcritureImportes, importsProjet, modelesEcrits } from "./contrat/ecritures";
 import { lirePorte } from "./contrat/porte";
+import { fonctionsInternes, lecteursInternes } from "./contrat/internes";
 import {
   HELPERS_PARTAGES, constantesDuFichier, enumsLocaux, estReference, helpersDuFichier, lecteursLocaux, lectureDynamique,
   lireChamps, modeleDesigne,
@@ -243,14 +244,26 @@ export function decrireAction(
   // Les modèles d'un délégué IMPORTÉ n'entrent donc PAS dans ce que lit `lireChamps` : ils
   // s'unissent au contrat APRÈS, là où seule la garde les consulte. `ecrit` et `audit`, eux,
   // sont des booléens sans effet sur l'attribution : ils s'unissent tout de suite.
+  //
+  // ── UN DÉLÉGUÉ INTERNE ÉCRIT AUSSI PAR SES ÉCRIVAINS IMPORTÉS ─────────────────────────────
+  //
+  // Une aide de `actions/internes/` est le code du fichier, déplacé (`contrat/internes.ts`) : ce qu'elle confie à
+  // un écrivain importé, l'action le confiait quand ce code était dans son corps. On le suit donc comme s'il y
+  // était — un niveau, par son appel dans le corps du délégué —, et ces modèles-là rejoignent ce qu'on DÉCLARE,
+  // jamais l'attribution des champs (même règle que les délégués importés ci-dessous).
+  const importesInternes = delegues
+    .filter((d) => d.interne)
+    .map((d) => faitsEcritureImportes(d.corps, d.interne!.imports, sourcesImportees));
   const base = {
     ...baseCorps,
-    ecrit: baseCorps.ecrit || delegues.some((d) => RE_ECRITURE.test(d.corps)) || importes.ecrit,
+    ecrit: baseCorps.ecrit || delegues.some((d) => RE_ECRITURE.test(d.corps)) || importes.ecrit || importesInternes.some((f) => f.ecrit),
     modelesEcrits: [...new Set([...baseCorps.modelesEcrits, ...delegues.flatMap((d) => modelesEcrits(d.corps))])],
-    audit: baseCorps.audit || delegues.some((d) => /recordAudit\s*\(/.test(d.corps)) || importes.audit,
+    audit: baseCorps.audit || delegues.some((d) => /recordAudit\s*\(/.test(d.corps)) || importes.audit || importesInternes.some((f) => f.audit),
   };
   /** Les modèles à DÉCLARER — l'union complète, une fois l'attribution des champs faite. */
-  const modelesDeclares = [...new Set([...base.modelesEcrits, ...importes.modelesEcrits])].sort();
+  const modelesDeclares = [...new Set([
+    ...base.modelesEcrits, ...importes.modelesEcrits, ...importesInternes.flatMap((f) => f.modelesEcrits),
+  ])].sort();
 
   if (lectureDynamique(corps, Object.keys(lecteurs), formulaires, locaux.parametres, Object.keys(locaux.lecteurs))) {
     return {
@@ -278,13 +291,15 @@ export function decrireAction(
   const parDelegation: ChampAction[] = [];
   for (const d of delegues) {
     const fdD = nomsDuFormulaire(d.signature, d.corps);
-    const locD = lecteursLocaux(d.corps, fdD, lecteurs);
-    if (lectureDynamique(d.corps, Object.keys(lecteurs), fdD, locD.parametres, Object.keys(locD.lecteurs))) {
+    // Un délégué interne lit avec les lecteurs de SON module, en plus de ceux du fichier.
+    const lecteursD = d.interne ? { ...d.interne.lecteurs, ...lecteurs } : lecteurs;
+    const locD = lecteursLocaux(d.corps, fdD, lecteursD);
+    if (lectureDynamique(d.corps, Object.keys(lecteursD), fdD, locD.parametres, Object.keys(locD.lecteurs))) {
       delegueMuet ??= d.fonction;
       continue;
     }
     parDelegation.push(...lireChamps(
-      d.corps, enums, { ...lecteurs, ...locD.lecteurs }, base.modelesEcrits, relations, Object.keys(locD.lecteurs),
+      d.corps, enums, { ...lecteursD, ...locD.lecteurs }, base.modelesEcrits, relations, Object.keys(locD.lecteurs),
       fdD, locD.presences,
     ));
   }
@@ -335,9 +350,12 @@ export function contratsDuFichier(
   const constantes = constantesDuFichier(source);
   const enums = { ...enumsSchema, ...enumsLocaux(source) };
   const lecteurs = helpersDuFichier(source);
-  const locales = fonctionsLocales(source);
   // UNE FOIS PAR FICHIER : les imports sont un fait de l'en-tête, pas de chaque action.
   const imports = importsProjet(source);
+  // LES AIDES INTERNES COMPTENT COMME LE FICHIER (`contrat/internes.ts`) : ses fonctions et ses lecteurs, sous ceux
+  // du fichier — une fonction ou un lecteur défini sur place garde la main.
+  const locales = { ...fonctionsInternes(imports, sourcesImportees), ...fonctionsLocales(source) };
+  Object.assign(lecteurs, { ...lecteursInternes(imports, sourcesImportees), ...lecteurs });
   return decouperActions(fichier, source).map((a) =>
     decrireAction(a, constantes, enums, lecteurs, relations, locales, imports, sourcesImportees));
 }

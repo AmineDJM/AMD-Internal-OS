@@ -122,6 +122,11 @@ export interface SourceAction {
   fonction: string;
   signature: string;
   corps: string;
+  /**
+   * Une fonction d'une aide interne (`actions/internes/`, voir `contrat/internes.ts`) : les imports et les lecteurs
+   * de SON module, pour suivre ses écrivains et lire ses champs. Absent pour une fonction du fichier d'actions.
+   */
+  interne?: { imports: Readonly<Record<string, string>>; lecteurs: Readonly<Record<string, TypeChamp>> };
 }
 
 /** Les énums connus, fournis par l'appelant (Prisma les tient ; ce module reste pur). */

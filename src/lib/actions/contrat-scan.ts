@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { Prisma } from "@prisma/client";
 import { parcDesActions, type FichierDActions } from "./parc";
 import { contratsDuFichier, importsProjet, type ContratAction, type TableEnums, type TableRelations } from "./contrat";
+import { PREFIXE_INTERNES } from "./contrat/internes";
 
 /**
  * LA LECTURE DU PARC — la seule pièce qui touche au disque.
@@ -71,14 +72,19 @@ export function fichiersDActions(): FichierDActions[] {
  * entière parce qu'un import pointe vers un fichier `index.ts` d'un dossier, cas que ce
  * résolveur ne prétend pas couvrir.
  */
-function sourcesImportees(source: string, cache: Map<string, string>): Record<string, string> {
+function sourcesImportees(source: string, cache: Map<string, string>, profondeur = 0): Record<string, string> {
   const out: Record<string, string> = {};
   for (const spec of new Set(Object.values(importsProjet(source)))) {
-    const deja = cache.get(spec);
-    if (deja !== undefined) { if (deja) out[spec] = deja; continue; }
-    const texte = lireAvecReexports(join(RACINE_SRC, spec.replace(/^@\//, "")));
-    cache.set(spec, texte);
-    if (texte) out[spec] = texte;
+    let texte = cache.get(spec);
+    if (texte === undefined) {
+      texte = lireAvecReexports(join(RACINE_SRC, spec.replace(/^@\//, "")));
+      cache.set(spec, texte);
+    }
+    if (!texte) continue;
+    out[spec] = texte;
+    // UNE AIDE INTERNE EST LE CODE DU FICHIER (`contrat/internes.ts`) : ce qu'ELLE importe se lit aussi, pour suivre
+    // ses écrivains comme ceux de l'action. Un seul niveau, et seulement sous `actions/internes/`.
+    if (profondeur === 0 && spec.startsWith(PREFIXE_INTERNES)) Object.assign(out, sourcesImportees(texte, cache, 1), out);
   }
   return out;
 }
