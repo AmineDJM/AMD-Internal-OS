@@ -84,7 +84,14 @@ export const DOMAINS: { name: string; paths: string[] }[] = [
   // PowerPoint ou un PDF. C'est le même métier que `office/` (bureautique) et il est déclaré
   // ici pour être MESURÉ comme les autres — il ne doit importer aucun autre domaine, et ses
   // capacités lui arrivent par un port (`artifact/ports.ts`), rempli par le pont.
-  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/"] },
+  // `payslip/` : la lecture d'un Word (`docx-lecture`), sa mise en page et son rendu PDF — de la
+  // bureautique pure, qui ne lit que `artifact/` (le modèle XML). Rangé ici au découpage V4 des
+  // fichiers géants : ses morceaux neufs auraient sinon grossi le compte « hors carte ».
+  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/", "src/lib/payslip/"] },
+  // `carte-plateforme/` : le catalogue DESCRIPTIF de `/admin/carte-plateforme` (modules, circuits,
+  // mécanismes) et le calcul des niveaux d'accès qu'il affiche. Zéro import hors de son dossier :
+  // déclaré pour être MESURÉ — il ne doit lire aucun autre domaine.
+  { name: "carte", paths: ["src/lib/carte-plateforme/"] },
 ];
 
 /**
