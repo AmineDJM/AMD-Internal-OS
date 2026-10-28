@@ -29,11 +29,6 @@ const PLAFOND = 1_000;
 
 /** Fichiers hérités au-dessus du plafond (hors périmètre du lot V4, confiés à d'autres chantiers) → taille mesurée. */
 const HERITES: Readonly<Record<string, number>> = {
-  "src/app/(app)/admin/settings/admin-settings-forms.tsx": 1070,
-  "src/app/(app)/assistant/assistant-chat.tsx": 1556,
-  "src/app/(app)/assistant/realtime-voice.ts": 1146,
-  "src/app/(app)/medical/annuaire/annuaire-grid.tsx": 1140,
-  "src/app/(app)/segmentation/praticiens-table.tsx": 1088,
   "src/components/ad-pro/items-panel.tsx": 2149,
   "src/lib/actions/ad-pro-item-actions.ts": 4409,
   "src/lib/actions/admin-request-actions.ts": 1260,
@@ -48,17 +43,12 @@ const HERITES: Readonly<Record<string, number>> = {
   "src/lib/actions/recruitment-actions.ts": 1277,
   "src/lib/actions/regulatory-actions.ts": 1465,
   "src/lib/actions/sales-planning-actions.ts": 1178,
-  "src/lib/artifact/adapters/docx/adapter.ts": 1040,
-  "src/lib/artifact/adapters/xlsx/adapter.ts": 1063,
   "src/lib/assistant.ts": 7314,
   "src/lib/assistant/action-registry.ts": 2213,
   "src/lib/assistant/adam-tools.ts": 1089,
   "src/lib/assistant/executive-tools.ts": 1384,
   "src/lib/assistant/ops/catalog.ts": 5399,
   "src/lib/assistant/ops/index.ts": 1282,
-  "src/lib/carte-plateforme/catalogue.ts": 1214,
-  "src/lib/payslip/docx-composition.ts": 1060,
-  "src/lib/payslip/docx-lecture.ts": 1507,
 };
 
 function fichiersDeProduction(dir: string, out: string[] = []): string[] {
