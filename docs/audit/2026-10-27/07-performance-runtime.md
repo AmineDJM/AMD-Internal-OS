@@ -39,13 +39,13 @@ Les trois risques majeurs :
 | PERF-02 | HAUTE | performance | Le badge de la coque (toutes les pages, 12 s) calcule la liste complète du Messenger | S | **CORRIGÉ** `16cfa59` |
 | PERF-03 | HAUTE | correction / disponibilité | 7 balayages du battement sans `.catch` : une exception saute les ~40 suivants | S | **CORRIGÉ** `e3cc4be` |
 | PERF-04 | MOYENNE | performance | `/api/notifications/poll` sondé par deux composants de la coque (15 s + 20 s) | S | **CORRIGÉ** `db8f8a5` |
-| PERF-05 | HAUTE | performance (bundle) | `ui/icon.tsx` importe tout Lucide → +120 kB gzip dans la coque de chaque page | M | PROPOSÉ |
-| PERF-06 | HAUTE | performance | Chaque sondage ré-authentifie avec `getAccess` complet (10 requêtes) | M | PROPOSÉ |
-| PERF-07 | MOYENNE | performance / disponibilité | `XLSX.read` synchrone dans le processus web : 2,2 s à 7,7 s de gel total | M | PROPOSÉ |
-| PERF-08 | MOYENNE | performance | Même motif que PERF-01 en 33 autres endroits (Adam, routines, planifications, corpus…) | M | PROPOSÉ (+ cliquet) |
+| PERF-05 | HAUTE | performance (bundle) | `ui/icon.tsx` importe tout Lucide → +120 kB gzip dans la coque de chaque page | M | **CORRIGÉ** V3-C (coque 315 → 166 kB) |
+| PERF-06 | HAUTE | performance | Chaque sondage ré-authentifie avec `getAccess` complet (10 requêtes) | M | **CORRIGÉ** V3-C (`session-legere.ts`) |
+| PERF-07 | MOYENNE | performance / disponibilité | `XLSX.read` synchrone dans le processus web : 2,2 s à 7,7 s de gel total | M | PARTIEL V3-C (`sheetRows` à l'ingestion ; imports métier restants) |
+| PERF-08 | MOYENNE | performance | Même motif que PERF-01 en 33 autres endroits (Adam, routines, planifications, corpus…) | M | PARTIEL V3-C (Adam borné + cliquet à 33) |
 | PERF-09 | MOYENNE | exploitation | Planificateur dans le processus web : 48 étapes en série, sans budget ni mesure par étape | L | PROPOSÉ (mesure globale ajoutée dans `e3cc4be`) |
-| PERF-10 | BASSE | performance | Coque `(app)/layout.tsx` : 6 allers-retours SQL séquentiels, fiche `User` lue 5 fois | S | PROPOSÉ |
-| PERF-11 | BASSE | performance | `finances/paiements-a-faire` : 5 lectures indépendantes en cascade | S | PROPOSÉ |
+| PERF-10 | BASSE | performance | Coque `(app)/layout.tsx` : 6 allers-retours SQL séquentiels, fiche `User` lue 5 fois | S | **CORRIGÉ** V3-C (allers-retours ; lectures `User` restent) |
+| PERF-11 | BASSE | performance | `finances/paiements-a-faire` : 5 lectures indépendantes en cascade | S | **CORRIGÉ** V3-C |
 
 Répartition : **0 CRITIQUE, 5 HAUTES, 4 MOYENNES, 2 BASSES** — 4 corrigés, 7 proposés.
 

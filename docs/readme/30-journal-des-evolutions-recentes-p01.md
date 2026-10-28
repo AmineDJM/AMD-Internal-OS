@@ -19,6 +19,16 @@ Suite du rapport d'audit [07 — performance](../audit/2026-10-27/07-performance
 - **Classeurs (PERF-07, part sûre)** — l'ingestion n'analyse que les lignes indexées (`sheetRows`) : 2,7 s → 0,16 s
   de gel sur 100 000 lignes.
 Aucune migration : les index des chemins mesurés sont en place (`EXPLAIN`).
+
+| Mesure (avant → après) | Avant | Après |
+|---|---|---|
+| SQL par appel, badge messagerie (banc journalisé) | 13 | 2 |
+| SQL par appel, `/api/notifications/poll` | 14 | 3 |
+| SQL / min / onglet, sondages de la coque | ~121 | ~22 |
+| Temps médian d'un sondage (serveur de prod local) | 18–19 ms | 10–12 ms |
+| JS de la coque (gzip, toutes les pages) | 315,4 kB | 166,1 kB |
+| Médiane du First Load JS par page | 324,5 kB | 176,4 kB |
+| Gel d'ingestion d'un classeur de 100 000 lignes | 2,7 s | 0,16 s |
 ### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
 
 Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par
