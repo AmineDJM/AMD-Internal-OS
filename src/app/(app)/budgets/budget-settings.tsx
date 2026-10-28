@@ -80,9 +80,10 @@ export function BudgetSettings({
   });
 
   const deleteCat = (cat: BudgetCategoryView) => {
-    if (window.confirm(`Supprimer « ${cat.name} » ?${cat.parentId === null ? " Ses sous-catégories seront aussi supprimées." : ""} Les écritures de trésorerie repasseront en « à imputer » ; une catégorie qui porte des dépenses budgétaires ne se supprime pas.`)) {
-      const fd = new FormData(); fd.set("id", cat.id); run(() => deleteBudgetCategory(fd));
-    }
+    const fd = new FormData(); fd.set("id", cat.id);
+    void run(() => deleteBudgetCategory(fd), undefined, {
+      confirmer: `Supprimer « ${cat.name} » ?${cat.parentId === null ? " Ses sous-catégories seront aussi supprimées." : ""} Les écritures de trésorerie repasseront en « à imputer » ; une catégorie qui porte des dépenses budgétaires ne se supprime pas.`,
+    });
   };
 
   return (

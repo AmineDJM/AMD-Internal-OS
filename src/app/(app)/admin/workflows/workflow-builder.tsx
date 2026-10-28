@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Trash2, ArrowUp, ArrowDown, Loader2, Save, RotateCcw, GripVertical } from "lucide-react";
 import { saveWorkflowDefinition, resetWorkflowDefinition } from "@/lib/actions/workflow-actions";
 import type { DefinitionAdminView, WorkflowStepView } from "@/lib/queries/workflow";
@@ -10,6 +9,9 @@ import { ROLE_LABELS } from "@/lib/labels";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const ROLE_ENTRIES = Object.entries(ROLE_LABELS);
 
@@ -24,7 +26,8 @@ function blankStep(): Draft {
 }
 
 export function WorkflowBuilder({ definitions }: { definitions: DefinitionAdminView[] }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [active, setActive] = React.useState(definitions[0]?.category ?? "SPONSORING");
   const [drafts, setDrafts] = React.useState<Record<string, { name: string; description: string; isActive: boolean; steps: Draft[] }>>(() =>
     Object.fromEntries(definitions.map((d) => [d.category, { name: d.name, description: d.description ?? "", isActive: d.isActive, steps: d.steps.map((s) => ({ ...s })) }])),
@@ -53,26 +56,34 @@ export function WorkflowBuilder({ definitions }: { definitions: DefinitionAdminV
   const removeStep = (i: number) => setDrafts((prev) => ({ ...prev, [active]: { ...prev[active], steps: prev[active].steps.filter((_, idx) => idx !== i) } }));
   const addStep = () => setDrafts((prev) => ({ ...prev, [active]: { ...prev[active], steps: [...prev[active].steps, blankStep()] } }));
 
-  const save = () => {
+  const save = async () => {
     setSaving(true); setMsg(null);
     const fd = new FormData();
     fd.set("payload", JSON.stringify({ category: active, name: draft.name, description: draft.description, isActive: draft.isActive, steps: draft.steps }));
-    void saveWorkflowDefinition(fd).then((r) => {
+    try {
+      const r = await saveWorkflowDefinition(fd);
+      if (r.ok) { setMsg({ ok: true, text: "Circuit enregistré." }); rafraichir(); }
+      else setMsg({ ok: false, text: r.error ?? "Le circuit n'a pas été enregistré." });
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
       setSaving(false);
-      if (r.ok) { setMsg({ ok: true, text: "Circuit enregistré." }); router.refresh(); }
-      else setMsg({ ok: false, text: r.error ?? "Échec de l'enregistrement." });
-    });
+    }
   };
-  const reset = () => {
-    if (!confirm("Réinitialiser ce circuit au modèle par défaut ? (impossible si des demandes l'utilisent)")) return;
+  const reset = async () => {
+    if (!(await confirmer("Réinitialiser ce circuit au modèle par défaut ? (impossible si des demandes l'utilisent)"))) return;
     setSaving(true); setMsg(null);
     const fd = new FormData();
     fd.set("category", active);
-    void resetWorkflowDefinition(fd).then((r) => {
+    try {
+      const r = await resetWorkflowDefinition(fd);
+      if (r.ok) { setMsg({ ok: true, text: "Circuit réinitialisé — rechargez la page." }); rafraichir(); }
+      else setMsg({ ok: false, text: r.error ?? "Le circuit n'a pas été réinitialisé." });
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
       setSaving(false);
-      if (r.ok) { setMsg({ ok: true, text: "Circuit réinitialisé — rechargez la page." }); router.refresh(); }
-      else setMsg({ ok: false, text: r.error ?? "Échec." });
-    });
+    }
   };
 
   return (

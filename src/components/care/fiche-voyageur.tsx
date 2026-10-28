@@ -28,6 +28,7 @@ import { DocumentPreview } from "@/components/documents/document-preview";
 import { BoutonLivret } from "@/components/care/bouton-livret";
 import { EnvoiFiche } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
+import { useConfirmer } from "@/components/ui/dialogue";
 
 export type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText?: string) => Promise<unknown>;
 
@@ -84,6 +85,7 @@ interface FicheProps {
  */
 export function FicheVoyageur(p: FicheProps) {
   const { scope, b, quotes, canEdit, canDecide, busy, run } = p;
+  const confirmer = useConfirmer();
   const [menu, setMenu] = React.useState(false);
   const pieces = piecesDuProfessionnel(scope, b.cells);
   const passeport = pieces.find((x) => x.label === "Passeport");
@@ -153,7 +155,7 @@ export function FicheVoyageur(p: FicheProps) {
               )}
               {canEdit && b.status !== "APPROVED" && (
                 <button type="button" disabled={busy !== null}
-                  onClick={() => { if (window.confirm(`Retirer ${b.name} de la prise en charge ?`)) void run(`bd:${b.id}`, () => removeCareBeneficiary(undefined, fd({ id: b.id })), "Personne retirée.").then(p.onRetour); }}
+                  onClick={async () => { if (await confirmer(`Retirer ${b.name} de la prise en charge ?`)) void run(`bd:${b.id}`, () => removeCareBeneficiary(undefined, fd({ id: b.id })), "Personne retirée.").then(p.onRetour); }}
                   className="inline-flex min-h-9 items-center gap-1 text-destructive hover:underline sm:min-h-0">
                   <Trash2 className="h-3.5 w-3.5" /> Retirer de la demande
                 </button>
@@ -663,10 +665,11 @@ function PosteAutre(p: PosteProps) {
 }
 
 function RetirerPoste({ c, busy, run }: { c: CellRow; busy: string | null; run: Run }) {
+  const confirmer = useConfirmer();
   if (c.expenseOrderId) return null;
   return (
     <Button type="button" size="sm" variant="ghost" disabled={busy !== null}
-      onClick={() => { if (window.confirm(`Retirer « ${c.label} » de la fiche ?`)) void run(`cd:${c.id}`, () => removeCareCell(undefined, fd({ id: c.id })), "Poste retiré."); }}>
+      onClick={async () => { if (await confirmer(`Retirer « ${c.label} » de la fiche ?`)) void run(`cd:${c.id}`, () => removeCareCell(undefined, fd({ id: c.id })), "Poste retiré."); }}>
       <Trash2 className="h-4 w-4" /> Retirer
     </Button>
   );

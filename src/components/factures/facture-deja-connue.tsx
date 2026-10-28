@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { relancerPaiement } from "@/lib/actions/relance-paiement-actions";
 import type { CibleRelance, FactureDejaConnue } from "@/lib/factures/blocage-vue";
 import { COMMENTAIRE_RELANCE_MAX } from "@/lib/finance/relance-paiement";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -37,10 +38,15 @@ export function RelancerPaiement({ cible, jeton, libelle = "Relancer", compact =
     fd.set("cibleId", cible.id);
     if (jeton) fd.set("jeton", jeton);
     if (commentaire.trim()) fd.set("commentaire", commentaire.trim());
-    const r = await relancerPaiement(fd);
-    setBusy(false);
-    if (!r.ok) { setErreur(r.error ?? "La relance n'a pas pu être envoyée."); return; }
-    setFait(r.message ?? "Relance envoyée."); setOuvert(false); setCommentaire("");
+    try {
+      const r = await relancerPaiement(fd);
+      if (!r.ok) { setErreur(r.error ?? "La relance n'a pas pu être envoyée."); return; }
+      setFait(r.message ?? "Relance envoyée."); setOuvert(false); setCommentaire("");
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (fait) return <p className="rounded-lg bg-success/10 px-2.5 py-1.5 text-xs text-success [overflow-wrap:anywhere]" role="status">{fait}</p>;

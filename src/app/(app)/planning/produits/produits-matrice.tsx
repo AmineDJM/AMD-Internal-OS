@@ -4,6 +4,8 @@ import * as React from "react";
 import { Loader2, CopyPlus } from "lucide-react";
 import { saveAssignment, deleteAssignment, carryForwardAssignments } from "@/lib/actions/sales-planning-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn } from "@/lib/utils";
 
 /**
@@ -23,6 +25,8 @@ export function ProduitsMatrice({ cycleId, kams, produits, affectations }: {
   cycleId: string; kams: KamProduits[]; produits: ProduitColonne[]; affectations: Affectation[];
 }) {
   const { rafraichir, enCours } = useRafraichir();
+  // Une cellule de la matrice n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const [etat, setEtat] = React.useState(() => new Map(affectations.map((a) => [cle(a.repId, a.productId), a])));
   const [ecrit, setEcrit] = React.useState<string | null>(null);
   React.useEffect(() => { setEtat(new Map(affectations.map((a) => [cle(a.repId, a.productId), a]))); }, [affectations]);
@@ -33,16 +37,22 @@ export function ProduitsMatrice({ cycleId, kams, produits, affectations }: {
     const fd = new FormData();
     fd.set("cycleId", cycleId); fd.set("repId", repId); fd.set("productId", productId);
     setEcrit(k);
-    let r: { ok: boolean; error?: string };
-    if (valeur === "") {
-      r = await deleteAssignment(fd);
-    } else {
-      fd.set("position", valeur);
-      fd.set("plannedVisits", String(avant?.plannedVisits ?? 0));
-      r = await saveAssignment(fd);
+    let r: { ok: boolean; error?: string } = { ok: false };
+    try {
+      if (valeur === "") {
+        r = await deleteAssignment(fd);
+      } else {
+        fd.set("position", valeur);
+        fd.set("plannedVisits", String(avant?.plannedVisits ?? 0));
+        r = await saveAssignment(fd);
+      }
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setEcrit(null);
     }
-    setEcrit(null);
-    if (!r.ok) { window.alert(r.error ?? "Enregistrement impossible."); return; }
+    if (!r.ok) { retours.erreur(r.error ?? "Enregistrement impossible."); return; }
     setEtat((m) => {
       const n = new Map(m);
       if (valeur === "") n.delete(k); else n.set(k, { repId, productId, position: Number(valeur), plannedVisits: avant?.plannedVisits ?? 0 });
@@ -105,6 +115,8 @@ export function ProduitsMatrice({ cycleId, kams, produits, affectations }: {
 /** « Reprendre <mois> » — les rangs du cycle précédent recopiés sans écraser ce qui existe (l'action existante). */
 export function ReprendreMoisPrecedent({ cycleId, fromYear, fromMonth, libelle }: { cycleId: string; fromYear: number; fromMonth: number; libelle: string }) {
   const { rafraichir, enCours } = useRafraichir();
+  // Le bouton n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const [busy, setBusy] = React.useState(false);
   return (
     <button
@@ -113,10 +125,15 @@ export function ReprendreMoisPrecedent({ cycleId, fromYear, fromMonth, libelle }
         setBusy(true);
         const fd = new FormData();
         fd.set("toCycleId", cycleId); fd.set("fromYear", String(fromYear)); fd.set("fromMonth", String(fromMonth));
-        const r = await carryForwardAssignments(fd);
-        setBusy(false);
-        if (!r.ok) { window.alert(r.error ?? "Reprise impossible."); return; }
-        rafraichir();
+        try {
+          const r = await carryForwardAssignments(fd);
+          if (!r.ok) { retours.erreur(r.error ?? "Reprise impossible."); return; }
+          rafraichir();
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setBusy(false);
+        }
       }}
       className="inline-flex h-8 items-center gap-1.5 rounded-[var(--radius)] border border-border bg-card px-2.5 text-xs font-medium hover:bg-secondary disabled:opacity-60"
     >

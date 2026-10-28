@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import { Download, Loader2, GripVertical, ChevronUp, ChevronDown, Trash2, Share2, FolderOpen, Check, Search, ClipboardPaste, Copy, Scissors } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FileGlyph } from "@/components/drive/file-glyph";
@@ -13,6 +13,9 @@ import {
 } from "@/lib/drive/clipboard";
 import { Sheet } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import {
   clickSelect, selectAll, pruneSelection, allSelected, EMPTY_SELECTION, type SelectionState,
 } from "@/lib/drive/selection";
@@ -67,7 +70,8 @@ export function DriveTable({
   /** Script de l'éditeur Office (null : éditeur non configuré) — préchargé au survol d'un fichier Office. */
   officeApiJs?: string | null;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   // TRI PAR EN-TÊTE, comme dans un explorateur : on clique sur « Taille » pour trouver le gros
   // fichier, sur « Modifié le » pour retrouver celui d'hier. Les dossiers restent en tête dans les
   // deux sens (règle du module `explorer`, testée) — sinon l'arborescence se dissout dans la liste.
@@ -132,16 +136,21 @@ export function DriveTable({
   const bulkTrash = async () => {
     const n = sel.ids.length;
     if (n === 0 || busy) return;
-    if (!window.confirm(n === 1 ? "Mettre cet élément à la corbeille ?" : `Mettre ces ${n} éléments à la corbeille ?`)) return;
+    if (!(await confirmer(n === 1 ? "Mettre cet élément à la corbeille ?" : `Mettre ces ${n} éléments à la corbeille ?`))) return;
     setBusy(true);
     const fd = new FormData();
     for (const id of sel.ids) fd.append("id", id);
-    const r = await trashNodes(fd);
-    setBusy(false);
-    setMoveMsg(r.ok
-      ? { ok: true, text: `${r.done} élément·s mis à la corbeille${r.denied ? `, ${r.denied} refusé·s` : ""}.` }
-      : { ok: false, text: r.error ?? "Suppression impossible." });
-    if (r.ok) { clear(); router.refresh(); }
+    try {
+      const r = await trashNodes(fd);
+      setMoveMsg(r.ok
+        ? { ok: true, text: `${r.done} élément·s mis à la corbeille${r.denied ? `, ${r.denied} refusé·s` : ""}.` }
+        : { ok: false, text: r.error ?? "Suppression impossible." });
+      if (r.ok) { clear(); rafraichir(); }
+    } catch {
+      setMoveMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
     window.setTimeout(() => setMoveMsg(null), 4000);
   };
 
@@ -156,15 +165,19 @@ export function DriveTable({
     fd.set("id", id);
     fd.set("targetId", opts.targetId ?? "");
     fd.set("spaceId", opts.destSpaceId ?? ""); // catégorie de destination (racine) ; vide = Drive perso
-    const r = await moveNode(fd);
-    if (r.ok) {
-      setMoveMsg({ ok: true, text: `« ${dragged?.name ?? "Élément"} » déplacé vers ${opts.label}.` });
-      router.refresh();
-    } else {
-      setMoveMsg({ ok: false, text: r.error ?? "Déplacement impossible." });
+    try {
+      const r = await moveNode(fd);
+      if (r.ok) {
+        setMoveMsg({ ok: true, text: `« ${dragged?.name ?? "Élément"} » déplacé vers ${opts.label}.` });
+        rafraichir();
+      } else {
+        setMoveMsg({ ok: false, text: r.error ?? "Déplacement impossible." });
+      }
+    } catch {
+      setMoveMsg({ ok: false, text: actionFailureMessage("THROWN") });
     }
     window.setTimeout(() => setMoveMsg(null), 3500);
-  }, [rowById, router]);
+  }, [rowById, rafraichir]);
 
   /**
    * COPIER / COUPER / COLLER — le geste de l'explorateur, celui que personne n'a eu à apprendre.
@@ -211,8 +224,16 @@ export function DriveTable({
     for (const id of clip.ids) fd.append("id", id);
     fd.set("targetId", folderId ?? "");
     fd.set("spaceId", spaceId ?? "");
-    const r = clip.mode === "cut" ? await moveNodes(fd) : await copyNodes(fd);
-    setPasting(false);
+    let r: Awaited<ReturnType<typeof moveNodes>>;
+    try {
+      r = clip.mode === "cut" ? await moveNodes(fd) : await copyNodes(fd);
+    } catch {
+      setMoveMsg({ ok: false, text: actionFailureMessage("THROWN") });
+      window.setTimeout(() => setMoveMsg(null), 4000);
+      return;
+    } finally {
+      setPasting(false);
+    }
     setMoveMsg({ ok: r.ok, text: r.ok ? `${r.done} élément(s) ${clip.mode === "cut" ? "déplacé(s)" : "collé(s)"}.${r.error ? ` ${r.error}` : ""}` : r.error ?? "Collage impossible." });
     window.setTimeout(() => setMoveMsg(null), 4000);
     // Couper se consomme : garder le presse-papiers ferait « déplacer » une seconde fois des
@@ -221,8 +242,8 @@ export function DriveTable({
       try { window.localStorage.removeItem(cleClip); } catch { /* rien à nettoyer */ }
       setClip(null);
     }
-    if (r.ok) router.refresh();
-  }, [clip, folderId, ancestorIds, spaceId, router, cleClip]);
+    if (r.ok) rafraichir();
+  }, [clip, folderId, ancestorIds, spaceId, rafraichir, cleClip]);
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -254,10 +275,14 @@ export function DriveTable({
     for (const id of moving) fd.append("id", id);
     fd.set("targetId", targetFolderId);
     fd.set("spaceId", spaceId ?? "");
-    const r = await moveNodes(fd);
-    setMoveMsg({ ok: r.ok, text: r.ok ? `${r.done} élément(s) déplacé(s) vers « ${target?.name ?? "dossier"} ».` : r.error ?? "Déplacement impossible." });
+    try {
+      const r = await moveNodes(fd);
+      setMoveMsg({ ok: r.ok, text: r.ok ? `${r.done} élément(s) déplacé(s) vers « ${target?.name ?? "dossier"} ».` : r.error ?? "Déplacement impossible." });
+      if (r.ok) rafraichir();
+    } catch {
+      setMoveMsg({ ok: false, text: actionFailureMessage("THROWN") });
+    }
     window.setTimeout(() => setMoveMsg(null), 3500);
-    if (r.ok) router.refresh();
   };
 
   return (
@@ -355,7 +380,7 @@ export function DriveTable({
           nodes={selectedRows.map((r) => ({ id: r.id, name: r.name }))}
           users={users}
           onClose={() => setShareOpen(false)}
-          onDone={(msg) => { setShareOpen(false); setMoveMsg({ ok: true, text: msg }); clear(); router.refresh(); window.setTimeout(() => setMoveMsg(null), 4000); }}
+          onDone={(msg) => { setShareOpen(false); setMoveMsg({ ok: true, text: msg }); clear(); rafraichir(); window.setTimeout(() => setMoveMsg(null), 4000); }}
         />
       )}
 
@@ -503,10 +528,15 @@ function BulkShareSheet({
     for (const n of nodes) fd.append("nodeId", n.id);
     for (const id of picked) fd.append("userId", id);
     fd.set("access", access);
-    const r = await shareNodesWithMany(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Partage impossible."); return; }
-    onDone(`${r.done} élément·s partagé·s avec ${picked.size} personne·s${r.denied ? ` (${r.denied} refusé·s)` : ""}.`);
+    try {
+      const r = await shareNodesWithMany(fd);
+      if (!r.ok) { setErr(r.error ?? "Partage impossible."); return; }
+      onDone(`${r.done} élément·s partagé·s avec ${picked.size} personne·s${r.denied ? ` (${r.denied} refusé·s)` : ""}.`);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

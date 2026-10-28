@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Save, Loader2, Check, RotateCcw } from "lucide-react";
 import { saveSfeSettings } from "@/lib/actions/sales-planning-actions";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { InfoBulle } from "@/components/ui/info-bulle";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 interface Config {
   positionWeights: Record<string, number>;
@@ -35,7 +36,7 @@ const num = (v: string, fallback: number) => { const n = Number(String(v).replac
  * Un seul bouton « Enregistrer » applique l'ensemble. Prévisualisation de la capacité en direct.
  */
 export function SettingsForm({ config, canEdit }: { config: Config; canEdit: boolean }) {
-  const router = useRouter();
+  const { busy, err, run } = useAction();
   const [cap, setCap] = React.useState(config.capacity);
   const [pw, setPw] = React.useState({
     p1: config.positionWeights["1"] ?? 1,
@@ -47,14 +48,12 @@ export function SettingsForm({ config, canEdit }: { config: Config; canEdit: boo
     for (const t of TIERS) f[t.key] = config.frequencyByTier[t.key] ?? DEFAULTS.frequencyByTier[t.key];
     return f;
   });
-  const [busy, setBusy] = React.useState(false);
   const [done, setDone] = React.useState(false);
 
   const capacityPreview = Math.round(cap.daysPerMonth * cap.visitsPerDay * (cap.fieldPct / 100));
 
   async function save() {
     if (!canEdit) return;
-    setBusy(true);
     const fd = new FormData();
     fd.set("daysPerMonth", String(cap.daysPerMonth));
     fd.set("visitsPerDay", String(cap.visitsPerDay));
@@ -63,12 +62,13 @@ export function SettingsForm({ config, canEdit }: { config: Config; canEdit: boo
     fd.set("p2", String(pw.p2));
     fd.set("p3", String(pw.p3));
     for (const t of TIERS) fd.set(`freq_${t.key}`, String(freq[t.key]));
-    const r = await saveSfeSettings(fd);
-    setBusy(false);
-    if (!r.ok) { window.alert(r.error ?? "Enregistrement impossible."); return; }
-    setDone(true);
-    setTimeout(() => setDone(false), 1800);
-    router.refresh();
+    await run(async () => {
+      const r = await saveSfeSettings(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? "Enregistrement impossible." };
+    }, () => {
+      setDone(true);
+      setTimeout(() => setDone(false), 1800);
+    });
   }
 
   function resetDefaults() {
@@ -139,6 +139,7 @@ export function SettingsForm({ config, canEdit }: { config: Config; canEdit: boo
         </CardContent>
       </Card>
 
+      <Retour ton="erreur">{err}</Retour>
       {canEdit && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <button type="button" onClick={save} disabled={busy} className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60 sm:py-2">

@@ -17,6 +17,7 @@ import type { VisaTranche } from "@/lib/queries/ad-pro-centre";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
 import { ancreLigneCentre } from "@/lib/chemins/ad-pro";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * LE PLAN DE TRAVAIL DU CENTRE.
@@ -170,9 +171,14 @@ function LigneTranchee({ t }: { t: VisaTranche }) {
               setBusy(true); setError(null);
               const fd = new FormData();
               fd.set("entityType", t.entityType); fd.set("entityId", t.entityId); fd.set("note", note);
-              const r = await reexaminerVisaCentreAdPro(fd);
-              setBusy(false);
-              if (!r.ok) setError(r.error ?? "Échec.");
+              try {
+                const r = await reexaminerVisaCentreAdPro(fd);
+                if (!r.ok) setError(r.error ?? "Le réexamen n'a pas été enregistré.");
+              } catch {
+                setError(actionFailureMessage("THROWN"));
+              } finally {
+                setBusy(false);
+              }
             }}
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Réexaminer
@@ -203,10 +209,15 @@ function SeuilForm({ seuil }: { seuil: number }) {
         <form
           action={async (fd) => {
             setSaving(true); setError(null);
-            const r = await setAdProDgThreshold(fd);
-            setSaving(false);
-            if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-            else setError(r.error ?? "Échec.");
+            try {
+              const r = await setAdProDgThreshold(fd);
+              if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+              else setError(r.error ?? "Le seuil n'a pas été enregistré.");
+            } catch {
+              setError(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false);
+            }
           }}
           className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
         >
@@ -256,10 +267,15 @@ function SeuilBCForm({ seuil }: { seuil: number }) {
         <form
           action={async (fd) => {
             setSaving(true); setError(null); setMessage(null);
-            const r = await setBcValidationThreshold(fd);
-            setSaving(false);
-            if (r.ok) setMessage(r.message ?? "Enregistré.");
-            else setError(r.error ?? "Échec.");
+            try {
+              const r = await setBcValidationThreshold(fd);
+              if (r.ok) setMessage(r.message ?? "Enregistré.");
+              else setError(r.error ?? "Le seuil n'a pas été enregistré.");
+            } catch {
+              setError(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false);
+            }
           }}
           className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end"
         >
@@ -351,26 +367,31 @@ function DecisionVisa({ row }: { row: LigneCentre }) {
     setBusy(true); setError(null);
     const fd = new FormData();
     let r: { ok: boolean; error?: string };
-    // LE BC D'UN POSTE se décide par l'action du poste — la MÊME que le bouton de la fiche, avec
-    // la même garde : le centre est une lentille, jamais une seconde autorisation.
-    if (row.forme === "BC_POSTE") {
-      fd.set("id", row.entityId);
-      fd.set("decision", approuve ? "APPROVE" : "REFUSE");
-      fd.set("note", note);
-      // CE QUE LE CENTRE A LU (§118.187) : un montant ou un prestataire changé pendant la lecture
-      // ne se vise pas sans avoir été vu — l'action compare et refuse en le disant.
-      if (row.montant != null) fd.set("montantVu", String(row.montant));
-      fd.set("prestataireVu", row.prestataire ?? "");
-      r = await approveAdProItemOrder(undefined, fd);
-    } else {
-      fd.set("entityType", row.entityType);
-      fd.set("entityId", row.entityId);
-      fd.set("decision", choix);
-      fd.set("note", note);
-      r = await deciderVisaCentreAdPro(fd);
+    try {
+      // LE BC D'UN POSTE se décide par l'action du poste — la MÊME que le bouton de la fiche, avec
+      // la même garde : le centre est une lentille, jamais une seconde autorisation.
+      if (row.forme === "BC_POSTE") {
+        fd.set("id", row.entityId);
+        fd.set("decision", approuve ? "APPROVE" : "REFUSE");
+        fd.set("note", note);
+        // CE QUE LE CENTRE A LU (§118.187) : un montant ou un prestataire changé pendant la lecture
+        // ne se vise pas sans avoir été vu — l'action compare et refuse en le disant.
+        if (row.montant != null) fd.set("montantVu", String(row.montant));
+        fd.set("prestataireVu", row.prestataire ?? "");
+        r = await approveAdProItemOrder(undefined, fd);
+      } else {
+        fd.set("entityType", row.entityType);
+        fd.set("entityId", row.entityId);
+        fd.set("decision", choix);
+        fd.set("note", note);
+        r = await deciderVisaCentreAdPro(fd);
+      }
+      if (!r.ok) setError(r.error ?? "La décision n'a pas été enregistrée.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
-    if (!r.ok) setError(r.error ?? "Échec.");
   };
   const libelleAccord = row.forme === "VISA_CENTRE" ? "Autoriser le dépassement" : "Valider le bon de commande";
 

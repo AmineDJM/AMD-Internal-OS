@@ -11,6 +11,7 @@ import { jourLisible, nomComplet, separerNom } from "@/lib/ad-pro/voyageurs";
 import { nuitsLisibles, TYPES_CHAMBRE } from "@/lib/ad-pro/hebergements";
 import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
+import { useConfirmer } from "@/components/ui/dialogue";
 
 /** Une fiche hôtellerie telle que l'écran la montre — les dates en AAAA-MM-JJ, prêtes pour un champ « date ». */
 export interface HebergementVue {
@@ -53,6 +54,7 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
   /** L'ÉTAT DE CHAQUE FICHE chez l'assistante (`EnvoiVue`, par fiche) — chaque fiche s'envoie seule (14/10). */
   envois?: Record<string, EnvoiVue>;
 }) {
+  const confirmer = useConfirmer();
   const [ajout, setAjout] = React.useState(false);
   const [ouvert, setOuvert] = React.useState<{ id: string; quoi: "MENU" | "EDITER" | "DOCUMENTS" } | null>(null);
   const fermer = () => setOuvert(null);
@@ -113,8 +115,8 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
                     <MenuItem onClick={() => basculer(h.id, "DOCUMENTS")}>Documents (pièce d&apos;identité, autres)</MenuItem>
                     <MenuItem
                       danger
-                      onClick={() => {
-                        if (!window.confirm(`Retirer la fiche hôtellerie de ${nomComplet(h)} ?`)) return;
+                      onClick={async () => {
+                        if (!(await confirmer(`Retirer la fiche hôtellerie de ${nomComplet(h)} ?`))) return;
                         const fd = new FormData();
                         fd.set("id", h.id);
                         void run(`hdel:${h.id}`, () => retirerHebergement(fd), "Fiche hôtellerie retirée.").then(fermer);

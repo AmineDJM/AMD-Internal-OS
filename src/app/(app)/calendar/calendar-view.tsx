@@ -13,6 +13,10 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Avatar } from "@/components/ui/avatar";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { CALENDAR_EVENT_KIND, CALENDAR_INVITE_STATUS } from "@/lib/labels";
 
 const MONTH_LABELS = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
@@ -38,6 +42,7 @@ export function CalendarView({
   canCreate: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [sheet, setSheet] = React.useState<SheetMode>(null);
   // Au téléphone, une grille de 7 colonnes laisse ~48 px par jour : illisible. On y ouvre donc
   // l'agenda en LISTE (jours du mois qui ont un rendez-vous) ; la grille reste à un appui. Sans effet dès `sm`.
@@ -186,7 +191,7 @@ export function CalendarView({
         users={users}
         currentUserId={currentUserId}
         onEdit={(event) => setSheet({ mode: "edit", event })}
-        onDone={() => { setSheet(null); router.refresh(); }}
+        onDone={() => { setSheet(null); rafraichir(); }}
       />
     </div>
   );
@@ -231,21 +236,38 @@ function CalendarSheet({
 }
 
 function EventDetail({ event: e, currentUserId, onEdit, onDone }: { event: CalendarEventDTO; currentUserId: string; onEdit: () => void; onDone: () => void }) {
-  const router = useRouter();
+  const confirmer = useConfirmer();
   const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
   const isOrganizer = e.isOrganizer;
   const amInvited = !isOrganizer && e.myStatus != null;
 
   async function respond(status: string) {
-    setBusy(true);
+    setBusy(true); setErr(null);
     const fd = new FormData(); fd.set("eventId", e.id); fd.set("status", status);
-    await respondToInvite(fd); setBusy(false); onDone();
+    try {
+      const r = await respondToInvite(fd);
+      if (!r.ok) { setErr(r.error ?? "Votre réponse n'a pas été enregistrée."); return; }
+      onDone();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
   async function remove() {
-    if (!window.confirm("Supprimer ce rendez-vous ?")) return;
-    setBusy(true);
+    if (!(await confirmer("Supprimer ce rendez-vous ?"))) return;
+    setBusy(true); setErr(null);
     const fd = new FormData(); fd.set("id", e.id);
-    await deleteCalendarEvent(fd); setBusy(false); router.refresh(); onDone();
+    try {
+      const r = await deleteCalendarEvent(fd);
+      if (!r.ok) { setErr(r.error ?? "Le rendez-vous n'a pas été supprimé."); return; }
+      onDone();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   // UNE DEMANDE AD & PRO : lue sur sa fiche, elle s'y modifie — ici, ni réponse ni suppression.
@@ -307,6 +329,7 @@ function EventDetail({ event: e, currentUserId, onEdit, onDone }: { event: Calen
           <Button size="sm" variant="outline" disabled={busy} onClick={remove} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /> Supprimer</Button>
         </div>
       )}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }
@@ -334,9 +357,14 @@ function EventForm({
     setBusy(true); setError(null);
     if (ev) fd.set("id", ev.id);
     invitees.forEach((id) => fd.append("inviteeIds", id));
-    const r = ev ? await updateCalendarEvent(undefined, fd) : await createCalendarEvent(undefined, fd);
-    setBusy(false);
-    if (r.ok) onDone(); else setError(r.error ?? "Échec.");
+    try {
+      const r = ev ? await updateCalendarEvent(undefined, fd) : await createCalendarEvent(undefined, fd);
+      if (r.ok) onDone(); else setError(r.error ?? (ev ? "Le rendez-vous n'a pas été modifié." : "Le rendez-vous n'a pas été créé."));
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -403,7 +431,7 @@ function EventForm({
         </div>
       </div>
 
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={onCancel} disabled={busy} className="w-full sm:w-auto">Annuler</Button>
         <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} {ev ? "Enregistrer" : "Créer"}</Button>

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Check, Loader2 } from "lucide-react";
 import { Input, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -47,7 +48,7 @@ export function FormulaireActualisation({ demandeId, lignes, peutRepondre, aujou
   peutRepondre: boolean;
   aujourdhui: string;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const ouvertes = lignes.filter((l) => l.etat !== "ACTUALISE");
   const [choix, setChoix] = React.useState<Record<string, "ACTUALISE" | "NON_RECU">>(() =>
     Object.fromEntries(ouvertes.map((l) => [l.id, "ACTUALISE"])),
@@ -75,10 +76,15 @@ export function FormulaireActualisation({ demandeId, lignes, peutRepondre, aujou
     const fd = new FormData();
     fd.set("id", demandeId);
     fd.set("lignes", JSON.stringify(saisies));
-    const r = await repondreActualisationSoldes(fd);
-    setBusy(false);
-    if (r.ok) { setFait(r.message ?? "Réponse enregistrée."); router.refresh(); }
-    else setErreur(r.error ?? "Échec.");
+    try {
+      const r = await repondreActualisationSoldes(fd);
+      if (r.ok) { setFait(r.message ?? "Réponse enregistrée."); rafraichir(); }
+      else setErreur(r.error ?? "La réponse n'a pas été enregistrée.");
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

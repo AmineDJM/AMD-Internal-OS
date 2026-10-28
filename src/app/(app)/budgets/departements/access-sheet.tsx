@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, CheckCircle2, XCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -43,7 +44,7 @@ export function DepartmentAccessSheet({
   grant: DeptBudgetGrant;
   users: UserOpt[];
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const lock = React.useRef(false);
@@ -59,8 +60,10 @@ export function DepartmentAccessSheet({
     void (async () => {
       try {
         const r = await setDepartmentBudgetAccess(fd);
-        setMsg({ ok: r.ok, text: r.ok ? "Accès enregistrés." : (r.error ?? "Échec.") });
-        if (r.ok) { onClose(); router.refresh(); }
+        setMsg({ ok: r.ok, text: r.ok ? "Accès enregistrés." : (r.error ?? "Les accès n'ont pas été enregistrés.") });
+        if (r.ok) { onClose(); rafraichir(); }
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(false);
         lock.current = false;

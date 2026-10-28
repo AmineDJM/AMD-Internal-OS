@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { ArrowRightLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { transfererConsulting } from "@/lib/actions/consulting-actions";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * TRANSFÉRER LE CONTRAT VERS L'AUTRE PÔLE (§118.150) — Ad & Pro ⇄ Ressources humaines.
@@ -22,28 +25,36 @@ export function TransferPanel({
   vers: string;
   versLibelle: string;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [fait, setFait] = React.useState<string | null>(null);
 
   const transferer = async () => {
-    if (!window.confirm(
+    if (!(await confirmer(
       `Transférer ce contrat de ${depuis} vers ${versLibelle} ?\n\n`
       + `• Il quitte la liste de ${depuis} et rejoint celle de ${versLibelle} : ceux qui n'ont que ${depuis} ne le verront plus.\n`
       + "• Rien n'est perdu : référence, tâches, pièces, validation et historique suivent le contrat.\n"
       + "• Une validation encore en attente au centre Ad & Pro est retirée si le contrat quitte Ad & Pro.\n\n"
       + "Le geste inverse le ramène.",
-    )) return;
+    ))) return;
     setBusy(true); setErr(null);
     const fd = new FormData();
     fd.set("id", id);
     fd.set("vers", vers);
-    const r = await transfererConsulting(fd);
-    setBusy(false);
+    let r: Awaited<ReturnType<typeof transfererConsulting>>;
+    try {
+      r = await transfererConsulting(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!r.ok) { setErr(r.error ?? "Le transfert a échoué."); return; }
     setFait(r.message ?? `Contrat transféré vers ${versLibelle}.`);
-    router.refresh();
+    rafraichir();
   };
 
   return (
@@ -58,7 +69,7 @@ export function TransferPanel({
         Transférer vers {versLibelle}
       </Button>
       {fait && <p className="break-words rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{fait}</p>}
-      {err && <p className="break-words rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

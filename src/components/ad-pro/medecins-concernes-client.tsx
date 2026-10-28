@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { Loader2, Search, X } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ajouterMedecinConcerne, chercherMedecinsAnnuaire, retirerMedecinConcerne } from "@/lib/actions/ad-pro-medecins-actions";
 import { LIBELLE_ROLE_MEDECIN, ROLES_MEDECIN, type RoleMedecin } from "@/lib/ad-pro/medecins-concernes";
 
@@ -21,7 +22,7 @@ interface Resultat { id: string; nom: string; specialite: string | null; etablis
 export function MedecinsConcernesClient({ entityType, entityId, medecins, peutModifier }: {
   entityType: string; entityId: string; medecins: PuceMedecin[]; peutModifier: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [q, setQ] = React.useState("");
   const [role, setRole] = React.useState<RoleMedecin>("BENEFICIAIRE");
   const [resultats, setResultats] = React.useState<Resultat[]>([]);
@@ -53,7 +54,9 @@ export function MedecinsConcernesClient({ entityType, entityId, medecins, peutMo
     try {
       const r = await action(fd);
       if (!r.ok) setErreur(r.error ?? "Échec de l'enregistrement.");
-      else { setQ(""); setResultats([]); router.refresh(); }
+      else { setQ(""); setResultats([]); rafraichir(); }
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
     } finally { setOccupe(false); }
   }
 

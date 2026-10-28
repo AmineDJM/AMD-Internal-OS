@@ -11,6 +11,7 @@ import { Input, Label } from "@/components/ui/input";
 import { saveOnboardingProfile, completeOnboarding } from "@/lib/actions/onboarding-actions";
 import { connectMailbox } from "@/lib/actions/mail-actions";
 import { cn } from "@/lib/utils";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { AssistantPreview, SearchPreview, CourrierPreview, DossierPreview } from "./onboarding-previews";
 
 export interface GuideEntry {
@@ -396,13 +397,18 @@ function MailboxStep({
   async function connect(fd: FormData) {
     setSaving(true);
     setErr(null);
-    const r = await connectMailbox(fd);
-    setSaving(false);
-    if (r.ok) {
-      setConnected(true);
-      setTimeout(onNext, 700);
-    } else {
-      setErr(r.error ?? "Connexion impossible.");
+    try {
+      const r = await connectMailbox(fd);
+      if (r.ok) {
+        setConnected(true);
+        setTimeout(onNext, 700);
+      } else {
+        setErr(r.error ?? "Connexion impossible.");
+      }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
     }
   }
 

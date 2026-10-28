@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { updateRiskThresholds } from "@/lib/actions/adventum-actions";
 import { THRESHOLD_FIELDS, type RiskThresholds } from "@/lib/adventum/risk-thresholds";
 
@@ -22,9 +23,14 @@ export function RiskThresholdsForm({ initial }: { initial: RiskThresholds }) {
         <form
           action={async (fd) => {
             setEnvoi(true); setErr(null);
-            const r = await updateRiskThresholds(fd);
-            setEnvoi(false);
-            if (r.ok) { setOuvert(false); rafraichir(); } else setErr(r.error ?? "Enregistrement impossible.");
+            try {
+              const r = await updateRiskThresholds(fd);
+              if (r.ok) { setOuvert(false); rafraichir(); } else setErr(r.error ?? "Enregistrement impossible.");
+            } catch {
+              setErr(actionFailureMessage("THROWN"));
+            } finally {
+              setEnvoi(false);
+            }
           }}
           className="space-y-4"
         >

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FolderPlus, FileText, FileSpreadsheet, Presentation, RefreshCw, Loader2 } from "lucide-react";
 import { createFolder, createOfficeNode } from "@/lib/actions/drive-actions";
 import { executerCreationOffice } from "@/lib/office/creation-ui";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 
 type NewKind = "folder" | "word" | "cell" | "slide";
 
@@ -39,6 +40,7 @@ export function DriveCanvas({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [menu, setMenu] = React.useState<{ x: number; y: number } | null>(null);
   const [naming, setNaming] = React.useState<NewKind | null>(null);
   const [value, setValue] = React.useState("");
@@ -96,7 +98,7 @@ export function DriveCanvas({
     if (!r.ok) { setErr(r.error); return; }
     close();
     if (naming !== "folder" && officeEnabled) router.push(`/drive/${r.id}`);
-    else router.refresh();
+    else rafraichir();
   };
 
   return (
@@ -151,7 +153,7 @@ export function DriveCanvas({
                 ))}
                 <div className="my-1 border-t border-border" />
                 <button
-                  type="button" role="menuitem" onClick={() => { close(); router.refresh(); }}
+                  type="button" role="menuitem" onClick={() => { close(); rafraichir(); }}
                   className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left text-sm hover:bg-secondary sm:py-1.5"
                 >
                   <RefreshCw className="h-4 w-4 shrink-0 text-muted-foreground" /> Actualiser

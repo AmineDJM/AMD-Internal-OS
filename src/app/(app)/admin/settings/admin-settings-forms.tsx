@@ -2,20 +2,21 @@
 
 import * as React from "react";
 import { Loader2, Check, Megaphone, Search, Plus, X, RotateCcw, Eye, EyeOff } from "lucide-react";
-import { saveAppSettings, setAdProDgThreshold, setRegEnrollmentEnabled, setRegulatorySupervisorRoles, setRegulatoryTherapeuticSegments, setRegulatoryHiddenColumns, setDriveSpaceCreatorRoles, setFieldReportsOverviewRoles, setPromoMessageAuthorRoles, setOrgChartViewers, setHiddenModules, setPipelineAccess, setDirectiveAccess } from "@/lib/actions/settings-actions";
-import { describePipelineAudience } from "@/lib/regulatory/pipeline-access";
-import { describeDirectiveAccess } from "@/lib/directives/access";
+import { saveAppSettings, setAdProDgThreshold, setRegEnrollmentEnabled, setRegulatorySupervisorRoles, setRegulatoryTherapeuticSegments, setRegulatoryHiddenColumns, setDriveSpaceCreatorRoles, setFieldReportsOverviewRoles, setPromoMessageAuthorRoles, setOrgChartViewers, setHiddenModules } from "@/lib/actions/settings-actions";
 import { setRegIntelligenceEnabled } from "@/lib/regulatory/intelligence/actions";
 import { sendBroadcast } from "@/lib/actions/notification-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { Retour, useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { THERAPEUTIC_SEGMENTS } from "@/lib/labels";
 import { COLONNES_REGULATORY, COLONNES_INAMOVIBLES } from "@/lib/vues/colonnes-regulatory";
 import { hiddenSummary } from "@/lib/modules-visibility";
 import type { AppSettings } from "@/lib/settings";
+export { PipelineAccessForm, DirectiveAccessForm } from "./admin-settings-forms/acces-pipeline-directives";
 
-interface Opt { value: string; label: string }
-interface UserLite { id: string; name: string; role: string }
+export interface Opt { value: string; label: string }
+export interface UserLite { id: string; name: string; role: string }
 
 export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
   const [saving, setSaving] = React.useState(false);
@@ -25,10 +26,15 @@ export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
     <form
       action={async (fd) => {
         setSaving(true); setError(null);
-        const r = await saveAppSettings(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec.");
+        try {
+          const r = await saveAppSettings(fd);
+          if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(r.error ?? "Les limites n'ont pas été enregistrées.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -44,7 +50,7 @@ export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
           <p className="text-xs text-muted-foreground">Fichiers du Drive (gros transferts en flux), jusqu'à 2 048 Mo.</p>
         </div>
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex justify-end">
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : null}
@@ -54,7 +60,6 @@ export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
     </form>
   );
 }
-
 
 /**
  * LE SEUIL Ad & Pro AU-DELÀ DUQUEL LE DIRECTEUR GÉNÉRAL VALIDE (§118.138).
@@ -71,10 +76,15 @@ export function AdProDgThresholdForm({ settings }: { settings: AppSettings }) {
     <form
       action={async (fd) => {
         setSaving(true); setError(null);
-        const r = await setAdProDgThreshold(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec.");
+        try {
+          const r = await setAdProDgThreshold(fd);
+          if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(r.error ?? "Le seuil n'a pas été enregistré.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -92,7 +102,7 @@ export function AdProDgThresholdForm({ settings }: { settings: AppSettings }) {
           Ce même seuil se règle depuis le centre.
         </p>
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex justify-end">
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : null}
@@ -110,10 +120,15 @@ export function RegEnrollmentToggle({ enabled: initial }: { enabled: boolean }) 
   const [error, setError] = React.useState<string | null>(null);
   async function toggle(next: boolean) {
     setBusy(true); setError(null);
-    const r = await setRegEnrollmentEnabled(next);
-    setBusy(false);
-    if (r.ok) setEnabled(next);
-    else setError(r.error ?? "Échec.");
+    try {
+      const r = await setRegEnrollmentEnabled(next);
+      if (r.ok) setEnabled(next);
+      else setError(r.error ?? "Le réglage n'a pas été changé.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <div className="space-y-2">
@@ -133,7 +148,7 @@ export function RegEnrollmentToggle({ enabled: initial }: { enabled: boolean }) 
         </button>
       </div>
       {busy && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Mise à jour…</p>}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }
@@ -150,10 +165,15 @@ export function RegIntelligenceToggles({ companies }: { companies: CompanyFlag[]
 
   async function toggle(companyId: string, next: boolean) {
     setBusyId(companyId); setError(null);
-    const r = await setRegIntelligenceEnabled(companyId, next);
-    setBusyId(null);
-    if (r.ok) setState((s) => ({ ...s, [companyId]: next }));
-    else setError(r.error ?? "Échec.");
+    try {
+      const r = await setRegIntelligenceEnabled(companyId, next);
+      if (r.ok) setState((s) => ({ ...s, [companyId]: next }));
+      else setError(r.error ?? "Le réglage de cette entité n'a pas été changé.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   if (companies.length === 0) {
@@ -182,7 +202,7 @@ export function RegIntelligenceToggles({ companies }: { companies: CompanyFlag[]
           </div>
         );
       })}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }
@@ -207,10 +227,15 @@ export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserL
         setSending(true); setResult(null);
         fd.set("audience", audience);
         picked.forEach((id) => fd.append("userIds", id));
-        const r = await sendBroadcast(fd);
-        setSending(false);
-        setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Envoyée.") : (r.error ?? "Échec.") });
-        if (r.ok) { setPicked(new Set()); (document.getElementById("bc-form") as HTMLFormElement | null)?.reset(); }
+        try {
+          const r = await sendBroadcast(fd);
+          setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Envoyée.") : (r.error ?? "L'annonce n'a pas été envoyée.") });
+          if (r.ok) { setPicked(new Set()); (document.getElementById("bc-form") as HTMLFormElement | null)?.reset(); }
+        } catch {
+          setResult({ ok: false, text: actionFailureMessage("THROWN") });
+        } finally {
+          setSending(false);
+        }
       }}
       id="bc-form"
       className="space-y-3"
@@ -275,7 +300,7 @@ export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserL
         </span>
       </label>
 
-      {result && <p className={`rounded-lg px-3 py-2 text-sm ${result.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{result.text}</p>}
+      {result && <Retour ton={result.ok ? "succes" : "erreur"}>{result.text}</Retour>}
       <div className="flex justify-end">
         <Button type="submit" disabled={sending}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} Diffuser
@@ -336,7 +361,7 @@ export function MailDiagnosticPanel({ mailboxes }: { mailboxes: Mailbox[] }) {
         </Button>
       </div>
 
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
 
       {res && (
         <div className={`space-y-2 rounded-lg border px-3 py-3 text-sm ${DIAG_TONE[res.category] ?? DIAG_TONE.OTHER}`}>
@@ -360,6 +385,8 @@ export function RegulatorySupervisorForm({ roles, selected }: { roles: Opt[]; se
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -368,9 +395,15 @@ export function RegulatorySupervisorForm({ roles, selected }: { roles: Opt[]; se
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setRegulatorySupervisorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setRegulatorySupervisorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles superviseurs n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -425,10 +458,15 @@ export function RegulatoryHiddenColumnsForm({ hidden }: { hidden: string[] }) {
     setSaving(true); setErr(null);
     const fd = new FormData();
     list.forEach((k) => fd.append("columns", k));
-    const res = await setRegulatoryHiddenColumns(fd);
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-    else setErr(res.error ?? "Enregistrement impossible.");
+    try {
+      const res = await setRegulatoryHiddenColumns(fd);
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+      else setErr(res.error ?? "Enregistrement impossible.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -456,7 +494,7 @@ export function RegulatoryHiddenColumnsForm({ hidden }: { hidden: string[] }) {
           ? "Toutes les colonnes sont affichées."
           : `${list.length} colonne(s) retirée(s) du tableau — les données restent sur les fiches et reviennent dès qu'on les remet.`}
       </p>
-      {err && <p className="text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" onClick={() => void save()} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer
@@ -479,6 +517,8 @@ export function RegulatoryTherapeuticSegmentsForm({ segments }: { segments: stri
   const [draft, setDraft] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const usingDefault = list.length === 0;
 
   const add = () => {
@@ -494,9 +534,15 @@ export function RegulatoryTherapeuticSegmentsForm({ segments }: { segments: stri
     setSaving(true);
     const fd = new FormData();
     list.forEach((s) => fd.append("segments", s));
-    const res = await setRegulatoryTherapeuticSegments(fd);
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+    try {
+      const res = await setRegulatoryTherapeuticSegments(fd);
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+      else retours.erreur(res.error ?? "Les segments thérapeutiques n'ont pas été enregistrés.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -561,6 +607,8 @@ export function DriveSpaceCreatorForm({ roles, selected }: { roles: Opt[]; selec
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -569,9 +617,15 @@ export function DriveSpaceCreatorForm({ roles, selected }: { roles: Opt[]; selec
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setDriveSpaceCreatorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setDriveSpaceCreatorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles créateurs d'espaces n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -609,6 +663,8 @@ export function PromoMessageAuthorsForm({ roles, selected }: { roles: Opt[]; sel
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -617,9 +673,15 @@ export function PromoMessageAuthorsForm({ roles, selected }: { roles: Opt[]; sel
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setPromoMessageAuthorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setPromoMessageAuthorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les auteurs de messages promotionnels n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -657,6 +719,8 @@ export function FieldReportsOverviewForm({ roles, selected }: { roles: Opt[]; se
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -665,9 +729,15 @@ export function FieldReportsOverviewForm({ roles, selected }: { roles: Opt[]; se
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setFieldReportsOverviewRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setFieldReportsOverviewRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles de la vue d'ensemble n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -712,6 +782,8 @@ export function OrgChartViewersForm({ roles, users, selectedRoles, selectedUserI
   const [query, setQuery] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
   const toggleUser = (id: string) => setPickedUsers((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -725,9 +797,15 @@ export function OrgChartViewersForm({ roles, users, selectedRoles, selectedUserI
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
         pickedUsers.forEach((id) => fd.append("userIds", id));
-        const res = await setOrgChartViewers(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setOrgChartViewers(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les lecteurs de l'organigramme n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -798,6 +876,8 @@ export function HiddenModulesForm({ modules, selected }: { modules: Opt[]; selec
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -806,9 +886,15 @@ export function HiddenModulesForm({ modules, selected }: { modules: Opt[]; selec
         setSaving(true);
         const fd = new FormData();
         picked.forEach((m) => fd.append("modules", m));
-        const res = await setHiddenModules(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setHiddenModules(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les modules masqués n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -840,230 +926,6 @@ export function HiddenModulesForm({ modules, selected }: { modules: Opt[]; selec
       <Button type="submit" size="sm" disabled={saving}>
         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
         {saved ? "Enregistré" : "Enregistrer les modules en service"}
-      </Button>
-    </form>
-  );
-}
-
-/**
- * UN NIVEAU D'ACCÈS — des rôles, et des personnes nommées. Réutilisé pour les deux niveaux du
- * pipeline (consultation / cadenas) : deux blocs écrits deux fois auraient divergé dès la
- * première correction, et l'administrateur aurait eu deux ergonomies pour un même geste.
- */
-function RolePeoplePicker({
-  title, hint, roles, users, pickedRoles, pickedUsers, onToggleRole, onToggleUser,
-}: {
-  title: string;
-  hint: string;
-  roles: Opt[];
-  users: UserLite[];
-  pickedRoles: string[];
-  pickedUsers: string[];
-  onToggleRole: (v: string) => void;
-  onToggleUser: (id: string) => void;
-}) {
-  const [query, setQuery] = React.useState("");
-  const q = query.trim().toLowerCase();
-  // Sans recherche, on n'affiche QUE les personnes déjà choisies : dérouler cent noms pour en
-  // cocher deux transforme un réglage en corvée, et l'on finit par ne plus le régler.
-  const shown = q ? users.filter((u) => u.name.toLowerCase().includes(q)) : users.filter((u) => pickedUsers.includes(u.id));
-
-  return (
-    <div className="space-y-2 rounded-lg border border-border p-3">
-      <div>
-        <p className="text-sm font-medium">{title}</p>
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {roles.filter((r) => r.value !== "SUPER_ADMIN").map((r) => {
-          const on = pickedRoles.includes(r.value);
-          return (
-            <button
-              key={r.value}
-              type="button"
-              onClick={() => onToggleRole(r.value)}
-              className={`rounded-full border px-3 py-1.5 text-xs sm:py-1 font-medium transition-colors ${on ? "border-primary bg-primary/10 text-primary" : "border-input text-muted-foreground hover:bg-secondary"}`}
-            >
-              {r.label}
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="space-y-1.5">
-        <Label className="text-xs">Personnes nommées {pickedUsers.length > 0 ? `(${pickedUsers.length})` : ""}</Label>
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher une personne…" className="h-10 pl-8 text-xs sm:h-8" />
-        </div>
-        <div className="flex max-h-40 flex-wrap gap-1.5 overflow-y-auto">
-          {shown.length === 0 ? (
-            <p className="text-xs text-muted-foreground">{q ? "Aucune personne trouvée." : "Aucune personne ajoutée — cherchez un nom pour en ajouter."}</p>
-          ) : shown.map((u) => {
-            const on = pickedUsers.includes(u.id);
-            return (
-              <button
-                key={u.id}
-                type="button"
-                onClick={() => onToggleUser(u.id)}
-                className={`rounded-full border px-2.5 py-1.5 text-xs sm:py-1 transition-colors ${on ? "border-primary bg-primary/10 text-primary" : "border-input text-muted-foreground hover:bg-secondary"}`}
-              >
-                {u.name}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * LES ACCÈS AU PIPELINE — deux niveaux, jamais confondus.
- *
- * CONSULTER, c'est lire un portefeuille qu'on n'a pas encore décidé de déposer. TENIR LE CADENAS,
- * c'est le publier à toute l'entreprise — et cela ne se reprend pas : ce qui a été lu a été lu.
- * L'écran affiche donc le second en second, avec sa propre mise en garde, plutôt que de mêler les
- * deux listes dans un seul bloc « accès » où l'on cocherait le mauvais.
- */
-export function PipelineAccessForm({ roles, users, settings }: {
-  roles: Opt[];
-  users: UserLite[];
-  settings: Pick<AppSettings, "pipelineViewerRoles" | "pipelineViewerUserIds" | "pipelineManagerRoles" | "pipelineManagerUserIds">;
-}) {
-  const [viewerRoles, setViewerRoles] = React.useState<string[]>(settings.pipelineViewerRoles);
-  const [viewerUsers, setViewerUsers] = React.useState<string[]>(settings.pipelineViewerUserIds);
-  const [managerRoles, setManagerRoles] = React.useState<string[]>(settings.pipelineManagerRoles);
-  const [managerUsers, setManagerUsers] = React.useState<string[]>(settings.pipelineManagerUserIds);
-  const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const flip = (set: React.Dispatch<React.SetStateAction<string[]>>) => (v: string) =>
-    set((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
-
-  const audience = describePipelineAudience({
-    pipelineViewerRoles: viewerRoles,
-    pipelineViewerUserIds: viewerUsers,
-    pipelineManagerRoles: managerRoles,
-    pipelineManagerUserIds: managerUsers,
-  });
-
-  return (
-    <form
-      action={async () => {
-        setSaving(true); setError(null);
-        const fd = new FormData();
-        viewerRoles.forEach((r) => fd.append("viewerRoles", r));
-        viewerUsers.forEach((id) => fd.append("viewerUserIds", id));
-        managerRoles.forEach((r) => fd.append("managerRoles", r));
-        managerUsers.forEach((id) => fd.append("managerUserIds", id));
-        const res = await setPipelineAccess(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(res.error ?? "Échec.");
-      }}
-      className="space-y-3"
-    >
-      <RolePeoplePicker
-        title="Consulter les dossiers verrouillés"
-        hint="Voir le portefeuille à l'étude — dans le pipeline, mais aussi partout ailleurs (recherche, sélecteurs de produits, assistant). C'est une confidence, pas un pouvoir."
-        roles={roles} users={users}
-        pickedRoles={viewerRoles} pickedUsers={viewerUsers}
-        onToggleRole={flip(setViewerRoles)} onToggleUser={flip(setViewerUsers)}
-      />
-
-      <RolePeoplePicker
-        title="Tenir le cadenas (ouvrir un dossier)"
-        hint="Ouvrir un dossier le rend visible de TOUTE l'entreprise, et cela ne se reprend pas : ce qui a été lu a été lu. À donner à moins de monde que la consultation. Tenir le cadenas donne aussi la consultation."
-        roles={roles} users={users}
-        pickedRoles={managerRoles} pickedUsers={managerUsers}
-        onToggleRole={flip(setManagerRoles)} onToggleUser={flip(setManagerUsers)}
-      />
-
-      <p className="text-xs text-muted-foreground">{audience}</p>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <Button type="submit" size="sm" disabled={saving}>
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
-        {saved ? "Enregistré" : "Enregistrer les accès au pipeline"}
-      </Button>
-    </form>
-  );
-}
-
-/**
- * ACCÈS AU MODULE DIRECTIVES — qui lit les notes de service, qui en rédige.
- *
- * Le troisième droit, la PUBLICATION, n'apparaît pas ici : il n'est pas réglable. Une note de
- * service engage l'entreprise devant tous ses salariés ; sa signature appartient à la direction
- * générale, en dur dans le code. L'écran le DIT, pour que personne ne cherche la case.
- */
-export function DirectiveAccessForm({ roles, users, settings }: {
-  roles: Opt[];
-  users: UserLite[];
-  settings: Pick<AppSettings, "directiveReaderRoles" | "directiveReaderUserIds" | "directiveIssuerRoles" | "directiveIssuerUserIds">;
-}) {
-  const [readerRoles, setReaderRoles] = React.useState<string[]>(settings.directiveReaderRoles);
-  const [readerUsers, setReaderUsers] = React.useState<string[]>(settings.directiveReaderUserIds);
-  const [issuerRoles, setIssuerRoles] = React.useState<string[]>(settings.directiveIssuerRoles);
-  const [issuerUsers, setIssuerUsers] = React.useState<string[]>(settings.directiveIssuerUserIds);
-  const [saving, setSaving] = React.useState(false);
-  const [saved, setSaved] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
-
-  const flip = (set: React.Dispatch<React.SetStateAction<string[]>>) => (v: string) =>
-    set((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
-
-  const audience = describeDirectiveAccess({
-    directiveReaderRoles: readerRoles,
-    directiveReaderUserIds: readerUsers,
-    directiveIssuerRoles: issuerRoles,
-    directiveIssuerUserIds: issuerUsers,
-  });
-
-  return (
-    <form
-      action={async () => {
-        setSaving(true); setError(null);
-        const fd = new FormData();
-        readerRoles.forEach((r) => fd.append("readerRoles", r));
-        readerUsers.forEach((id) => fd.append("readerUserIds", id));
-        issuerRoles.forEach((r) => fd.append("issuerRoles", r));
-        issuerUsers.forEach((id) => fd.append("issuerUserIds", id));
-        const res = await setDirectiveAccess(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(res.error ?? "Échec.");
-      }}
-      className="space-y-3"
-    >
-      <RolePeoplePicker
-        title="Lire les directives"
-        hint="Recevoir et consulter les notes de service qui vous concernent. C'est le cas ordinaire : presque tout le monde doit lire les notes de la direction."
-        roles={roles} users={users}
-        pickedRoles={readerRoles} pickedUsers={readerUsers}
-        onToggleRole={flip(setReaderRoles)} onToggleUser={flip(setReaderUsers)}
-      />
-
-      <RolePeoplePicker
-        title="Rédiger une directive"
-        hint="Écrire une note et la SOUMETTRE. Ce n'est pas la publier : elle attendra l'accord de la direction générale. Rédiger donne aussi la lecture."
-        roles={roles} users={users}
-        pickedRoles={issuerRoles} pickedUsers={issuerUsers}
-        onToggleRole={flip(setIssuerRoles)} onToggleUser={flip(setIssuerUsers)}
-      />
-
-      <p className="rounded-lg bg-secondary px-3 py-2 text-xs text-muted-foreground">
-        <strong className="text-foreground">La publication ne se règle pas.</strong> Une note de service
-        engage l&apos;entreprise devant tous ses salariés : seuls le <strong>Directeur Général</strong> et le
-        <strong> Super Admin</strong> la prononcent, et cela ne s&apos;ouvre pas depuis cet écran.
-      </p>
-      <p className="text-xs text-muted-foreground">{audience}</p>
-      {error && <p className="text-xs text-destructive">{error}</p>}
-      <Button type="submit" size="sm" disabled={saving}>
-        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4" /> : null}
-        {saved ? "Enregistré" : "Enregistrer les accès aux directives"}
       </Button>
     </form>
   );

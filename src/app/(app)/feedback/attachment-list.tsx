@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Paperclip, Download, Trash2, Loader2 } from "lucide-react";
 import { removeFeedbackAttachment } from "@/lib/actions/feedback-actions";
+import { useKeyedAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 
 /**
  * LES PIÈCES D'UN RETOUR — visibles, ouvrables, retirables.
@@ -34,22 +35,17 @@ function humanSize(bytes: number): string {
 }
 
 export function FeedbackAttachments({ items }: { items: FeedbackAttachmentRow[] }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy, error, run } = useKeyedAction();
 
   if (items.length === 0) return null;
 
   const remove = async (id: string, name: string) => {
-    if (!window.confirm(`Retirer « ${name} » de ce retour ?`)) return;
-    setBusy(id);
-    setError(null);
     const fd = new FormData();
     fd.set("id", id);
-    const r = await removeFeedbackAttachment(fd);
-    setBusy(null);
-    if (r.ok) router.refresh();
-    else setError(r.error ?? "Le retrait a échoué.");
+    await run(id, async () => {
+      const r = await removeFeedbackAttachment(fd);
+      return r.ok ? r : { ...r, error: r.error ?? "Le retrait a échoué." };
+    }, { confirmer: `Retirer « ${name} » de ce retour ?` });
   };
 
   return (
@@ -94,7 +90,7 @@ export function FeedbackAttachments({ items }: { items: FeedbackAttachmentRow[] 
           </li>
         ))}
       </ul>
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }

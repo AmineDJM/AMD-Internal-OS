@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { FileQuestion, ShieldCheck, Loader2, Check } from "lucide-react";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -10,6 +9,8 @@ import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { requestDocument, askablePeople } from "@/lib/actions/document-request-actions";
 import { pieceKindOptions, filingNotice } from "@/lib/legal/from-piece";
 import { createValidationRequest } from "@/lib/actions/validation-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * CE QU'ON DEMANDE À QUELQU'UN D'AUTRE, DEPUIS UN POSTE DE DÉPENSE.
@@ -54,7 +55,7 @@ export function ItemAskPanel({
    */
   canAskValidation?: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [mode, setMode] = React.useState<"piece" | "validation" | null>(null);
   const [people, setPeople] = React.useState<{ id: string; name: string }[] | null>(null);
   const [busy, setBusy] = React.useState(false);
@@ -85,11 +86,18 @@ export function ItemAskPanel({
     fd.set("askedToId", who);
     fd.set("dueDate", due);
     fd.set("note", note);
-    const r = await requestDocument(fd);
-    setBusy(false);
+    let r: Awaited<ReturnType<typeof requestDocument>>;
+    try {
+      r = await requestDocument(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!r.ok) { setErr(r.error ?? "La demande n'a pas pu être créée."); return; }
     setDone({ href: `/pieces/${r.id}`, text: "Demande envoyée — la personne est prévenue." });
-    router.refresh();
+    rafraichir();
   };
 
   const submitValidation = async () => {
@@ -102,11 +110,18 @@ export function ItemAskPanel({
     fd.set("validator1Id", who);
     if (who2) fd.set("validator2Id", who2);
     if (due) fd.set("deadline", due);
-    const r = await createValidationRequest(undefined, fd);
-    setBusy(false);
+    let r: Awaited<ReturnType<typeof createValidationRequest>>;
+    try {
+      r = await createValidationRequest(undefined, fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!r.ok) { setErr(r.error ?? "La demande n'a pas pu être créée."); return; }
     setDone({ href: "/validations", text: "Validation demandée — le validateur est prévenu." });
-    router.refresh();
+    rafraichir();
   };
 
   const loading = people === null;

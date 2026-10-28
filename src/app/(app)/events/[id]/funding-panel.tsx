@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Send } from "lucide-react";
 import { submitEventForApproval } from "@/lib/actions/event-actions";
 import { WorkflowPanel } from "@/components/workflow/workflow-panel";
@@ -10,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
 
 interface Props {
   eventId: string;
@@ -100,19 +100,14 @@ function RelaunchForm({ id }: { id: string }) {
  * demande Ad & Pro (§118.138). Un réglage sans effet est un mensonge fait à qui le règle.
  */
 function SubmitButton({ id, compact = false }: { id: string; compact?: boolean }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const [err, setErr] = React.useState<string | null>(null);
+  // Gardé (levée, délai) et rafraîchi par `useAction`.
+  const { busy: pending, err, run } = useAction();
 
-  const submit = () =>
-    start(async () => {
-      setErr(null);
-      const fd = new FormData();
-      fd.set("id", id);
-      const r = await submitEventForApproval(fd);
-      if (!r.ok) { setErr(r.error ?? "Erreur."); return; }
-      router.refresh();
-    });
+  const submit = () => {
+    const fd = new FormData();
+    fd.set("id", id);
+    void run(() => submitEventForApproval(fd));
+  };
   if (compact) {
     // Le geste, et le pourquoi derrière un ⓘ (Direction, 07/10).
     return (

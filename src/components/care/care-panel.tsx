@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { formatCurrency } from "@/lib/utils";
 import {
   careProgress, financeReadiness, piecesDuProfessionnel, ETAT_PIECE_LABELS, CELL_STATUS_LABELS, QUOTE_STATUS_LABELS, SERVICE_KIND_LABELS,
@@ -95,9 +97,14 @@ export function CarePanel({
     setMsg(null);
     try {
       const r = await fn();
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText ?? "Terminé.") : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText ?? "Terminé.") : (r.error ?? "Le geste n'a pas abouti.") });
       if (r.ok) rafraichir();
       return r;
+    } catch {
+      // Une action qui LÈVE (connexion coupée, redéploiement) se dit ; elle ne remonte plus nue.
+      const echec = { ok: false, error: actionFailureMessage("THROWN") };
+      setMsg({ ok: false, text: echec.error });
+      return echec;
     } finally {
       setAction(null);
       lock.current = false;
@@ -191,11 +198,10 @@ export function CarePanel({
               <AddBeneficiaryForm
                 scope={scope} requestId={requestId} directory={directory} busy={busy === "add"}
                 onCancel={() => setAdding(false)}
-                onSubmit={(f) => void run("add", async () => {
-                  const r = await addCareBeneficiary(undefined, f);
+                onSubmit={(f) => void run("add", () => addCareBeneficiary(undefined, f).then((r) => {
                   if (r.ok) { setAdding(false); if (r.id) setFicheId(r.id); }
                   return r;
-                }, "Professionnel ajouté — sa fiche est ouverte.")}
+                }), "Professionnel ajouté — sa fiche est ouverte.")}
               />
             </div>
           )}
@@ -294,11 +300,10 @@ export function CarePanel({
           <QuoteForm
             scope={scope} requestId={requestId} mode={mode} taux={reglages.taux} beneficiaries={beneficiaries} preselection={quoting.cellIds}
             busy={busy === "nq"} onCancel={() => setQuoting(null)}
-            onSubmit={(f) => void run("nq", async () => {
-              const r = await createCareQuote(undefined, f);
+            onSubmit={(f) => void run("nq", () => createCareQuote(undefined, f).then((r) => {
               if (r.ok) setQuoting(null);
               return r;
-            }, "Devis enregistré.")}
+            }), "Devis enregistré.")}
           />
         )}
         {quotes.length === 0 ? (
@@ -402,6 +407,7 @@ function PrixDuGroupe({ scope, requestId, postes, personnes, taux, canEdit, busy
   scope: Perimetre; requestId: string; postes: GroupPosteRow[]; personnes: { id: string; status: BeneficiaryRow["status"] }[];
   taux: number | null; canEdit: boolean; busy: string | null; run: Run; onDevis: () => void;
 }) {
+  const confirmer = useConfirmer();
   const [ajout, setAjout] = React.useState(false);
   const [type, setType] = React.useState("DEJEUNER");
   const t = TYPES_POSTE.find((x) => x.cle === type) ?? TYPES_POSTE[0]!;
@@ -429,11 +435,10 @@ function PrixDuGroupe({ scope, requestId, postes, personnes, taux, canEdit, busy
             const f = new FormData(e.currentTarget);
             f.set("scope", scope);
             f.set("requestId", requestId);
-            void run("gadd", async () => {
-              const r = await ajouterPosteGroupe(undefined, f);
+            void run("gadd", () => ajouterPosteGroupe(undefined, f).then((r) => {
               if (r.ok) { setAjout(false); setUnitaire(""); }
               return r;
-            });
+            }));
           }}
         >
           <label className="block text-xs text-muted-foreground">Catégorie
@@ -495,7 +500,7 @@ function PrixDuGroupe({ scope, requestId, postes, personnes, taux, canEdit, busy
                     <td className="px-3 py-2 text-right">
                       {canEdit && g.status !== "SETTLED" && (
                         <button type="button" disabled={busy !== null} aria-label={`Retirer « ${g.label} »`}
-                          onClick={() => { if (window.confirm(`Retirer le poste « ${g.label} » ?`)) void run(`gd:${g.id}`, () => retirerPosteGroupe(undefined, fd({ id: g.id }))); }}
+                          onClick={async () => { if (await confirmer(`Retirer le poste « ${g.label} » ?`)) void run(`gd:${g.id}`, () => retirerPosteGroupe(undefined, fd({ id: g.id }))); }}
                           className="inline-flex h-9 w-9 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:h-7 sm:w-7">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>

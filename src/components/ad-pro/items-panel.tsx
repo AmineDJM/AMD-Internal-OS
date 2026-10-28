@@ -3,11 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import {
-  Plus, Trash2, Loader2, CheckCircle2, XCircle, Link2, AlertTriangle, ExternalLink, Send, FileText,
-  ThumbsUp, ThumbsDown, RotateCcw, History, Pencil, MoreHorizontal, Circle, X, Wallet, Split,
-  Undo2, Ban, Scale, Paperclip, ShieldCheck, FileCheck2, MessageSquarePlus, Inbox, Clock,
-} from "lucide-react";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import { Plus, Trash2, Loader2, CheckCircle2, XCircle, Link2, AlertTriangle, ExternalLink, Send, FileText, ThumbsUp, ThumbsDown, RotateCcw, History, Pencil, MoreHorizontal, Circle, X, Wallet, Split, Undo2, Ban, Scale, Paperclip, ShieldCheck, FileCheck2, MessageSquarePlus, Inbox, Clock } from "lucide-react";
 import type { AdProItemKind, AdProItemStatus, AdProItemBudgetKind, AdProItemOrderStage } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
@@ -15,37 +12,20 @@ import { cn } from "@/lib/utils";
 import { ItemAskPanel } from "./item-ask-panel";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import {
-  breakdown, canRemoveItem, budgetKindLocked, plannedGaps,
-  ITEM_KINDS, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, ITEM_BUDGET_KIND_LABELS, LIBELLE_BC_SOUS_LE_SEUIL, LIBELLE_ORDRE_EMIS,
-  type AdProParent,
-} from "@/lib/ad-pro-items";
-import {
-  addAdProItem, updateAdProItem, deleteAdProItem, repartirPoste, linkPromoMaterial,
-  submitAdProItem, decideAdProItem, setAdProItemBudget,
-  demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder,
-  retirerDemandeBC, modifierDemandeBC, annulerOrdrePoste, demanderRevisionPoste,
-  ajouterDevisPoste, retirerDevisDuPoste, demanderPaiementPoste, genererBonDeCommandePoste, genererDemandeDevisPoste,
-  referenceDemandeDevisPoste,
-} from "@/lib/actions/ad-pro-item-actions";
+import { breakdown, canRemoveItem, plannedGaps, ITEM_KINDS, ITEM_KIND_LABELS, ITEM_STATUS_LABELS, LIBELLE_BC_SOUS_LE_SEUIL, LIBELLE_ORDRE_EMIS, type AdProParent } from "@/lib/ad-pro-items";
+import { addAdProItem, updateAdProItem, deleteAdProItem, repartirPoste, linkPromoMaterial, submitAdProItem, decideAdProItem, setAdProItemBudget, demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder, retirerDemandeBC, modifierDemandeBC, annulerOrdrePoste, demanderRevisionPoste, ajouterDevisPoste, retirerDevisDuPoste, demanderPaiementPoste, genererBonDeCommandePoste, genererDemandeDevisPoste, referenceDemandeDevisPoste } from "@/lib/actions/ad-pro-item-actions";
 import { ChampReference } from "@/components/references/champ-reference";
 import { deleteDocument } from "@/lib/actions/document-actions";
 import { decideDocumentRequest } from "@/lib/actions/document-request-actions";
 import type { DroitsValidation } from "@/lib/ad-pro/validation-poste";
 import { LIBELLE_ETAPE_BC } from "@/lib/bons-de-commande/regle";
 import { kindLabel } from "@/lib/ad-pro/unified";
-import {
-  NATURES_PIECE_SECRETARIAT, PIECE_SECRETARIAT, peutDemanderPiece, type NaturePieceSecretariat,
-} from "@/lib/ad-pro/pieces-secretariat";
-import {
-  etapesDuPoste, prochainPas, grouperParRepartition, faitsDuPoste, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT,
-  type CleGeste, type EtatEtape, type RegardPoste,
-} from "@/lib/ad-pro/poste-etapes";
+import { NATURES_PIECE_SECRETARIAT, PIECE_SECRETARIAT, peutDemanderPiece, type NaturePieceSecretariat } from "@/lib/ad-pro/pieces-secretariat";
+import { etapesDuPoste, prochainPas, grouperParRepartition, faitsDuPoste, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, type CleGeste, type EtatEtape, type RegardPoste } from "@/lib/ad-pro/poste-etapes";
 import { NATURES_REPARTITION } from "@/lib/ad-pro/repartition";
 import { porteDesVoyageurs } from "@/lib/ad-pro/voyageurs";
 import { porteDesHebergements } from "@/lib/ad-pro/hebergements";
 import { DocumentUpload } from "@/components/documents/document-upload";
-import { AD_PRO_DOC_CATEGORIES } from "@/lib/ad-pro/doc-categories";
 import { faitDeStock, NATURE_MATERIEL_STOCK } from "@/lib/promo/reservations";
 import { BlocMaterielStock, type LigneStockVue, type ContexteMaterielStock } from "./materiel-stock";
 import { BlocVoyageurs, type VoyageurVue } from "./voyageurs-bloc";
@@ -62,13 +42,15 @@ import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { ancrePoste } from "@/lib/chemins/ad-pro";
 import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
 import { CartePorteDg } from "./porte-dg-carte";
+import { AD_PRO_DOC_CATEGORIES } from "@/lib/ad-pro/doc-categories";
+import { EditItemForm, Figure } from "./items-panel/modifier-poste";
 
 export type { LigneStockVue } from "./materiel-stock";
 export type { VoyageurVue } from "./voyageurs-bloc";
 export type { HebergementVue } from "./hebergements-bloc";
 
 /** Un poste « Matériel du stock » n'engage pas d'argent : il ne montre ni montant, ni budget, ni BC. */
-const estPosteStock = (it: { kind: AdProItemKind }) => it.kind === NATURE_MATERIEL_STOCK;
+export const estPosteStock = (it: { kind: AdProItemKind }) => it.kind === NATURE_MATERIEL_STOCK;
 /** Un poste qui liste les articles du stock se compose tant qu'il n'est ni soumis ni accordé. */
 const POSTE_STOCK_EDITABLE: readonly AdProItemStatus[] = ["DRAFT", "REVISION", "REJECTED"];
 /**
@@ -76,7 +58,7 @@ const POSTE_STOCK_EDITABLE: readonly AdProItemStatus[] = ["DRAFT", "REVISION", "
  * vise une barre, pas un mot), en ligne au-delà. Un `BoutonDecisif` y prend `max-sm:w-full` : son
  * enveloppe s'étire seule, pas le bouton qu'elle contient.
  */
-const RANGEE_ACTIONS = "flex flex-col gap-2 sm:flex-row sm:flex-wrap";
+export const RANGEE_ACTIONS = "flex flex-col gap-2 sm:flex-row sm:flex-wrap";
 
 export interface ItemRow {
   id: string;
@@ -297,8 +279,11 @@ export function AdProItemsPanel({
       const r = await fn();
       // La phrase de l'ACTION l'emporte quand elle en rend une : elle seule sait, par exemple,
       // qu'un BC sous le seuil est parti aux Finances sans passer par le centre (§118.149).
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText) : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText) : (r.error ?? "Le geste n'a pas abouti.") });
       if (r.ok) rafraichir();
+    } catch {
+      // Une action qui LÈVE (connexion coupée, redéploiement) se dit ; elle ne remonte plus nue.
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setBusy(null);
       lock.current = false;
@@ -461,11 +446,10 @@ export function AdProItemsPanel({
             decided={tardif}
             busy={busy === "add"}
             onCancel={() => setAdding(false)}
-            onSubmit={(fd) => void run("add", async () => {
-              const r = await addAdProItem(undefined, fd);
+            onSubmit={(fd) => void run("add", () => addAdProItem(undefined, fd).then((r) => {
               if (r.ok) setAdding(false);
               return r;
-            }, "Poste ajouté.")}
+            }), "Poste ajouté.")}
           />
         ) : (
           <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" onClick={() => setAdding(true)}>
@@ -2054,96 +2038,5 @@ function AddItemForm({ parent, parentId, decided, busy, onCancel, onSubmit }: {
         <Button size="sm" type="button" variant="outline" onClick={onCancel}>Annuler</Button>
       </div>
     </form>
-  );
-}
-
-/**
- * MODIFIER UN POSTE — ce qui le DÉCRIT, pas ce qui l'engage.
- *
- * Ces champs ne portent aucun engagement financier — seul le montant AFFECTÉ a été transmis aux
- * Finances, et lui seul se verrouille avec l'ordre de dépense. La nature de budget (inclus /
- * rallonge) reste modifiable tant que la Direction n'a pas tranché : après, c'est sur quoi elle
- * s'est prononcée.
- */
-function EditItemForm({ item, busy, onCancel, onSave }: {
-  item: ItemRow; busy: boolean; onCancel: () => void; onSave: (fd: FormData) => void;
-}) {
-  const budgetLocked = budgetKindLocked(item);
-  const champ = "mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-2 text-base outline-none focus:border-primary/60 sm:text-sm";
-  // UN POSTE « MATÉRIEL DU STOCK » ne se décrit que par son libellé et ses précisions : ni montant,
-  // ni fournisseur, ni nature de budget — et sa nature ne change plus hors d'un brouillon vierge
-  // (`refusChangementNature`). Son matériel se compose dans son propre bloc.
-  if (estPosteStock(item)) {
-    return (
-      <form onSubmit={(e) => { e.preventDefault(); onSave(new FormData(e.currentTarget)); }} className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
-        <label className="block text-xs">Libellé<input name="label" required defaultValue={item.label} className={champ} /></label>
-        <label className="block text-xs">Précisions<input name="notes" defaultValue={item.notes ?? ""} placeholder="Facultatif" className={champ} /></label>
-        <div className={RANGEE_ACTIONS}>
-          <Button size="sm" type="submit" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Enregistrer</Button>
-          <Button size="sm" type="button" variant="outline" onClick={onCancel}>Annuler</Button>
-        </div>
-      </form>
-    );
-  }
-  return (
-    <form onSubmit={(e) => { e.preventDefault(); onSave(new FormData(e.currentTarget)); }} className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3">
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <label className="text-xs">
-          Nature
-          <select name="kind" defaultValue={item.kind} className={champ}>
-            {ITEM_KINDS.map((k) => <option key={k} value={k}>{ITEM_KIND_LABELS[k]}</option>)}
-          </select>
-        </label>
-        <label className="text-xs">Libellé<input name="label" required defaultValue={item.label} className={champ} /></label>
-        <label className="text-xs">Payé à<input name="supplier" defaultValue={item.supplier ?? ""} placeholder="Organisateur, agence, association…" className={champ} /></label>
-        <label className="text-xs">
-          Montant estimé (DZD)
-          <input name="amountEstimated" type="number" inputMode="decimal" min="0" step="0.01" defaultValue={item.amountEstimated ?? ""} className={`${champ} tabular-nums`} />
-        </label>
-      </div>
-      <label className="block text-xs">Précisions<input name="notes" defaultValue={item.notes ?? ""} placeholder="Facultatif" className={champ} /></label>
-
-      {budgetLocked ? (
-        <p className="text-[0.6875rem] text-muted-foreground">
-          La Direction a tranché : la nature du budget ({ITEM_BUDGET_KIND_LABELS[item.budgetKind]}) ne change plus —
-          c&apos;est sur elle qu&apos;elle s&apos;est prononcée.
-        </p>
-      ) : (
-        <fieldset className="rounded-lg border border-border p-2.5">
-          <legend className="px-1 text-xs text-muted-foreground">Ce poste est-il couvert par le budget accordé ?</legend>
-          <div className="flex flex-wrap gap-3 text-sm">
-            <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
-              <input type="radio" name="budgetKind" value="INCLUDED" defaultChecked={item.budgetKind === "INCLUDED"} /> Inclus dans le budget accordé
-            </label>
-            <label className="inline-flex min-h-9 items-center gap-1.5 sm:min-h-0">
-              <input type="radio" name="budgetKind" value="ADDITIONAL" defaultChecked={item.budgetKind === "ADDITIONAL"} /> Budget supplémentaire (rallonge)
-            </label>
-          </div>
-        </fieldset>
-      )}
-
-      {item.expenseOrderId && (
-        <p className="flex items-start gap-1.5 text-[0.6875rem] text-muted-foreground">
-          <AlertTriangle className="mt-px h-3 w-3 shrink-0 text-warning" />
-          Un ordre de dépense a été émis : le <strong>montant affecté</strong> ne change plus. Le reste se corrige librement.
-        </p>
-      )}
-
-      <div className={RANGEE_ACTIONS}>
-        <Button size="sm" type="submit" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Enregistrer</Button>
-        <Button size="sm" type="button" variant="outline" onClick={onCancel}>Annuler</Button>
-      </div>
-    </form>
-  );
-}
-
-function Figure({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "danger" | "success" }) {
-  const cls = tone === "danger" ? "text-destructive" : tone === "success" ? "text-success" : "";
-  return (
-    <div className="min-w-0 rounded-lg border border-border px-2.5 py-2 sm:px-3">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className={`mt-0.5 text-sm font-semibold tabular-nums [overflow-wrap:anywhere] sm:text-base ${cls}`}>{value}</p>
-      {hint && <p className="text-[0.6875rem] text-muted-foreground">{hint}</p>}
-    </div>
   );
 }

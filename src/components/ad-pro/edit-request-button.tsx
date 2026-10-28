@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Textarea, Label, Select } from "@/components/ui/input";
 import { updateAdProRequest } from "@/lib/actions/ad-pro-edit-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { EDITABLE_FIELDS, type AdProKind } from "@/lib/ad-pro-edit";
 
 /**
@@ -29,7 +30,7 @@ export function AdProEditButton({
   /** La décision est-elle rendue ? (l'écran le dit — corriger un dossier tranché n'est pas anodin) */
   decided: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -49,11 +50,13 @@ export function AdProEditButton({
     void (async () => {
       try {
         const r = await updateAdProRequest(fd);
-        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Demande mise à jour.") : (r.error ?? "Échec.") });
+        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Demande mise à jour.") : (r.error ?? "La demande n'a pas été modifiée.") });
         // Une correction qui a CHANGÉ quelque chose ailleurs (la porte du centre s'ouvre, se rouvre, se
         // retire) le DIT, et la fenêtre reste ouverte le temps de le lire : se refermer sur cette phrase
         // la jetterait — l'écran qui se ferme sans rien dire (§118.168).
-        if (r.ok) { if (!r.message) setOpen(false); router.refresh(); }
+        if (r.ok) { if (!r.message) setOpen(false); rafraichir(); }
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(false);
         lock.current = false;

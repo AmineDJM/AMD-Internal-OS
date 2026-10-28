@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { CheckCircle2, Copy, FileSearch, Link2, Loader2, Pause, Play, Undo2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +41,7 @@ const LIBELLE_CERTITUDE: Record<Certitude, string> = { CERTAINE: "Certaine", PRO
 const NATURE: Record<string, string> = { ECRITURE: "Écriture", LIGNE: "Ligne budgétaire", ORDRE: "Ordre de dépense" };
 
 export function EcranRapprochement({ vue }: { vue: VueRapprochement }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [onglet, setOnglet] = React.useState<Onglet>("DEPENSES");
   const [filtre, setFiltre] = React.useState<Filtre>("TOUT");
   const [occupe, setOccupe] = React.useState<string | null>(null);
@@ -72,9 +73,11 @@ export function EcranRapprochement({ vue }: { vue: VueRapprochement }) {
         if (r.progression.erreurs.length) setErreursLecture((e) => [...e, ...r.progression!.erreurs].slice(-5));
         if (arret.current || r.progression.restantes === 0 || r.progression.luesCetteFois === 0) break;
       }
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setLecture(false);
-      router.refresh();
+      rafraichir();
     }
   }
 
@@ -84,7 +87,9 @@ export function EcranRapprochement({ vue }: { vue: VueRapprochement }) {
     try {
       const r = await fn();
       setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Enregistré." : r.error ?? "L'action n'a pas abouti." });
-      if (r.ok) router.refresh();
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setOccupe(null);
     }

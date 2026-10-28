@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import type { LibelleHerite, SpecialiteRow } from "@/lib/annuaires/types";
 
 /**
@@ -35,6 +37,7 @@ export function SpecialitesTable({
   canDelete: boolean;
 }) {
   const { enCours: rafraichit, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [enAction, setEnAction] = React.useState(false);
   const busy = enAction || rafraichit;
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -47,11 +50,17 @@ export function SpecialitesTable({
     setEnAction(true); setMsg(null);
     const fd = new FormData();
     for (const [k, v] of Object.entries(champs)) fd.set(k, v);
-    const r = await action(fd);
-    setEnAction(false);
-    setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Action impossible.") });
-    if (r.ok) rafraichir();
-    return r.ok;
+    try {
+      const r = await action(fd);
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "La spécialité n'a pas été modifiée.") });
+      if (r.ok) rafraichir();
+      return r.ok;
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+      return false;
+    } finally {
+      setEnAction(false);
+    }
   };
 
   const autres = (id: string) => specialites.filter((s) => s.id !== id);
@@ -134,7 +143,7 @@ export function SpecialitesTable({
                       onClick={async () => {
                         const cible = specialites.find((o) => o.id === fusion.cibleId);
                         if (!cible) return;
-                        if (!window.confirm(`Fusionner « ${s.name} » dans « ${cible.name} » ?\n\n• ${s.praticiens} praticien(s) passeront à « ${cible.name} »${s.bu.length ? `\n• ${s.bu.length} Business Unit(s) viseront « ${cible.name} »` : ""}\n• « ${s.name} » disparaîtra du référentiel`)) return;
+                        if (!(await confirmer(`Fusionner « ${s.name} » dans « ${cible.name} » ?\n\n• ${s.praticiens} praticien(s) passeront à « ${cible.name} »${s.bu.length ? `\n• ${s.bu.length} Business Unit(s) viseront « ${cible.name} »` : ""}\n• « ${s.name} » disparaîtra du référentiel`))) return;
                         if (await executer(fusionnerSpecialite, { id: s.id, cibleId: fusion.cibleId })) setFusion(null);
                       }}
                     >
@@ -176,7 +185,7 @@ export function SpecialitesTable({
                           const suite = s.praticiens > 0
                             ? `\n\n• ${s.praticiens} praticien(s) GARDENT « ${s.name} » écrite sur leur fiche, sans lien — à rattacher.\n• Pour réunir deux doublons, utilisez plutôt « Fusionner ».`
                             : "";
-                          if (!window.confirm(`Retirer « ${s.name} » du référentiel ?${suite}`)) return;
+                          if (!(await confirmer(`Retirer « ${s.name} » du référentiel ?${suite}`))) return;
                           await executer(deleteSpecialty, { id: s.id });
                         }}
                         className="rounded-md p-2.5 sm:p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive">

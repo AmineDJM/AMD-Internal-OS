@@ -6,6 +6,7 @@ import type { CareMode } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { formatCurrency } from "@/lib/utils";
 import { QUOTE_STATUS_LABELS, SERVICE_KIND_LABELS } from "@/lib/care";
 import { montantLisible, type BeneficiaryRow, type Perimetre, type QuoteRow } from "@/lib/care-fiches";
@@ -39,8 +40,10 @@ export function DevisSollicitesPanel({ scope, requestId, mode, taux, beneficiari
     setMsg(null);
     try {
       const r = await createCareQuote(undefined, f);
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Devis enregistré.") : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Devis enregistré.") : (r.error ?? "Le devis n'a pas été enregistré.") });
       if (r.ok) { setOuvert(false); rafraichir(); }
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setBusy(false);
     }

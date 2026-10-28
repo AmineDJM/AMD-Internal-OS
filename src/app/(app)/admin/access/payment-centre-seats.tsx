@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { ShieldCheck, Loader2, UserPlus, X, AlertCircle, Info } from "lucide-react";
+import { ShieldCheck, Loader2, UserPlus, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Retour } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { grantPaymentCentreSeat, revokePaymentCentreSeat } from "@/lib/actions/payment-centre-seat-actions";
 
 export interface SeatHolder {
@@ -49,21 +50,17 @@ export function PaymentCentreSeats({
   candidates: SeatCandidate[];
   byRole: { id: string; name: string; role: string }[];
 }) {
-  const router = useRouter();
   const [userId, setUserId] = React.useState("");
   const [note, setNote] = React.useState("");
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const geste = useKeyedAction();
+  const busy = geste.busy;
+  const err = geste.error;
 
   const run = async (key: string, fn: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fields: Record<string, string>) => {
-    setBusy(key); setErr(null);
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, v);
-    const r = await fn(fd);
-    setBusy(null);
-    if (!r.ok) { setErr(r.error ?? "L'opération a échoué."); return; }
-    setUserId(""); setNote("");
-    router.refresh();
+    const ok = await geste.run(key, () => fn(fd));
+    if (ok) { setUserId(""); setNote(""); }
   };
 
   return (
@@ -145,11 +142,7 @@ export function PaymentCentreSeats({
         </p>
       </div>
 
-      {err && (
-        <p className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4" /> {err}
-        </p>
-      )}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

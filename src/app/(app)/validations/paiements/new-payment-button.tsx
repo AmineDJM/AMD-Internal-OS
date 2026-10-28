@@ -10,6 +10,7 @@ import { PAYMENT_PIECE_KIND_OPTIONS, PAYMENT_URGENCY_OPTIONS } from "@/lib/label
 import { DEADLINE_NATURE_OPTIONS } from "@/lib/finance/deadline-nature";
 import { dossierHint } from "@/lib/finance/payment-dossier";
 import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { FactureDejaConnueCarte } from "@/components/factures/facture-deja-connue";
 import { EcartMontantCarte } from "@/components/finance/ecart-montant";
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
@@ -101,16 +102,22 @@ export function NewPaymentButton() {
       fd.set(`kind_${i}`, p.kind);
       fd.set(`note_${i}`, p.note);
     }
-    const r = await createPaymentRequest(undefined, fd);
-    setBusy(false);
-    if (!r.ok) {
-      if (r.factureConnue) setConnue(r.factureConnue);
-      else if (r.ecartMontant) { setEcart(r.ecartMontant); if (justification.trim()) setErr(r.error ?? null); }
-      else setErr(r.error ?? "La demande n'a pas pu être créée.");
-      return;
+    try {
+      const r = await createPaymentRequest(undefined, fd);
+      if (!r.ok) {
+        if (r.factureConnue) setConnue(r.factureConnue);
+        else if (r.ecartMontant) { setEcart(r.ecartMontant); if (justification.trim()) setErr(r.error ?? null); }
+        else setErr(r.error ?? "La demande n'a pas pu être créée.");
+        return;
+      }
+      setOpen(false); reset();
+      router.push(`/validations/paiements/${r.id}`);
+    } catch {
+      // Le message de secours ne dit jamais « réessayez » : la demande a pu partir malgré la levée.
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
     }
-    setOpen(false); reset();
-    router.push(`/validations/paiements/${r.id}`);
   };
 
   return (

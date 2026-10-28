@@ -4,6 +4,7 @@ import * as React from "react";
 import { CheckCircle2, Circle, Link2, Loader2, Upload } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn } from "@/lib/utils";
 import { joindrePiecesIntegration, rattacherPieceIntegration, relierEcritureIntegration } from "@/lib/actions/integration-adpro-actions";
 import type { EtatPiece } from "@/lib/budget-marketing/integration-vue";
@@ -35,8 +36,10 @@ export function PiecesHistorique({ demandeRowId, pieces, manquantes, rattachable
       fd.set("demandeRowId", demandeRowId); fd.set("cle", cle);
       for (const f of Array.from(fichiers)) fd.append("fichiers", f);
       const r = await joindrePiecesIntegration(fd);
-      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Pièces jointes." : r.error ?? "Échec." });
+      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Pièces jointes." : r.error ?? "Les pièces n'ont pas été jointes." });
       if (r.ok) { rafraichir(); apres?.(); }
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally { setOccupe(null); verrou.current = false; }
   }
 
@@ -47,8 +50,10 @@ export function PiecesHistorique({ demandeRowId, pieces, manquantes, rattachable
       const fd = new FormData();
       fd.set("demandeRowId", demandeRowId); fd.set("cle", cle); fd.set("documentId", documentId);
       const r = await rattacherPieceIntegration(fd);
-      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Rattachée." : r.error ?? "Échec." });
+      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Rattachée." : r.error ?? "La pièce n'a pas été rattachée." });
       if (r.ok) { rafraichir(); apres?.(); }
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally { setOccupe(null); verrou.current = false; }
   }
 
@@ -121,8 +126,10 @@ export function RelierEcriture({ demandeRowId, actuelle }: { demandeRowId: strin
       const fd = new FormData();
       fd.set("demandeRowId", demandeRowId); fd.set("reference", reference.trim());
       const r = await relierEcritureIntegration(fd);
-      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Reliée." : r.error ?? "Échec." });
+      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Reliée." : r.error ?? "L'écriture n'a pas été reliée." });
       if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally { setOccupe(false); }
   }
   return (

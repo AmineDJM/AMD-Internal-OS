@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { cn, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const STATUS_TONE: Record<string, { label: string; tone: "success" | "danger" | "warning" | "neutral" }> = {
   IN_PROGRESS: { label: "En cours", tone: "warning" },
@@ -137,8 +138,15 @@ export function WorkflowPanel({ entityType, entityId, view, compact = false, sui
     }
     start(async () => {
       setErr(null);
-      const r = await advanceWorkflow(fd);
-      if (!r.ok) { setErr(r.error ?? "Action impossible."); return; }
+      let r: Awaited<ReturnType<typeof advanceWorkflow>>;
+      try {
+        r = await advanceWorkflow(fd);
+      } catch {
+        // Une action qui LÈVE (connexion coupée, redéploiement) se dit ; elle ne remonte plus nue.
+        setErr(actionFailureMessage("THROWN"));
+        return;
+      }
+      if (!r.ok) { setErr(r.error ?? "La décision n'a pas été enregistrée."); return; }
       resetForm();
       rafraichir();
     });
@@ -606,7 +614,13 @@ export function WithdrawForm({ entityType, entityId, dansUnMenu = false }: {
     fd.set("entityType", entityType);
     fd.set("entityId", entityId);
     fd.set("motif", motif.trim());
-    const r = await retirerDemandeAdPro(fd);
+    let r: Awaited<ReturnType<typeof retirerDemandeAdPro>>;
+    try {
+      r = await retirerDemandeAdPro(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    }
     if (!r.ok) { setErr(r.error ?? "Retrait impossible."); return; }
     setOpen(false);
     // Pas de `refresh()` : la fiche n'existe plus, la rafraîchir la rendrait « Introuvable ». L'action a

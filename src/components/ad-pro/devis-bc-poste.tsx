@@ -390,11 +390,11 @@ export function PanneauLignesDevis({ itemId, devis, peutEditer, busy, run, onClo
       f.append("ligneId", r.id); f.append("ligneReference", r.reference); f.append("ligneUnite", r.unit);
       f.append("ligneQuantite", r.quantity); f.append("lignePrix", r.unitPrice);
     }
-    void run(`edit:${devis.pieceId}`, async () => {
-      const r = await enregistrerLignesDuDevis(f);
+    // `run` garde déjà l'appel (levée, délai) : la promesse ne fait que refermer l'édition sur un succès.
+    void run(`edit:${devis.pieceId}`, () => enregistrerLignesDuDevis(f).then((r) => {
       if (r.ok) setEdition(false);
       return r;
-    }, "Lignes enregistrées.");
+    }), "Lignes enregistrées.");
   };
   const relire = () => void run(`lire:${devis.pieceId}`, () => lireLesLignesDuDevis(fd()), "Devis relu.");
 

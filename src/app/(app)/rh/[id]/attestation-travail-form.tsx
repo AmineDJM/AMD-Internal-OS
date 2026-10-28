@@ -134,7 +134,7 @@ export function AttestationTravailForm({ requestId, details, dejaGeneree = false
         setBusy(true); setMsg(null);
         const r = await genererAttestationDeTravail(fd).catch(sansBloquer("attestation-travail-form.AttestationTravailForm.genererAttestationDeTravail", { ok: false as const, error: "La génération a échoué.", message: undefined }));
         setBusy(false);
-        setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Attestation générée.") : (r.error ?? "Échec.") });
+        setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Attestation générée.") : (r.error ?? "L'attestation n'a pas été générée.") });
         if (r.ok) { setOuvert(false); rafraichir(); }
       }}
     >

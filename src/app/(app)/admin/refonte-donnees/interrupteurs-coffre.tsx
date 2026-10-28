@@ -18,7 +18,7 @@ export function InterrupteursCoffre({ ecriture, lecture }: { ecriture: boolean; 
     setOccupe(bascule); setErreur(null);
     try {
       const r = await basculerCoffre(bascule, actif);
-      if (!r.ok) setErreur(r.error ?? "Échec."); else rafraichir();
+      if (!r.ok) setErreur(r.error ?? "Le réglage du coffre n'a pas été changé."); else rafraichir();
     } catch {
       setErreur(actionFailureMessage("THROWN"));
     } finally {

@@ -4308,7 +4308,7 @@ export async function apercuBcPoste(formData: FormData): Promise<ApercuBcPoste> 
   if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
   const user = await requireUser();
   const lu = await brouillonDuDevis(user, formData, false);
-  if ("error" in lu) return { ok: false, error: lu.error ?? "Échec." };
+  if ("error" in lu) return { ok: false, error: lu.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
   const r = await apercuDuBC(user, lu.poste, lu.devis, lu.brouillon);
   if (!r.ok) return r;
   return { ...r, papeterie: await papeterieDeLaSociete(r.societeId), societeNom: r.ecran.societe.nom };
@@ -4318,7 +4318,7 @@ export async function apercuBcPoste(formData: FormData): Promise<ApercuBcPoste> 
 async function brouillonDeLaSaisie(formData: FormData) {
   const user = await requireUser();
   const lu = await brouillonDuDevis(user, formData, false);
-  if ("error" in lu) return { ok: false as const, error: lu.error ?? "Échec." };
+  if ("error" in lu) return { ok: false as const, error: lu.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
   const saisie = lireModificationsDuBc(formData);
   const refus = refusDeLaSaisie(saisie);
   if (refus) return { ok: false as const, error: refus };
@@ -4366,7 +4366,7 @@ export async function modifierApercuBcPoste(formData: FormData): Promise<ActionR
 async function ecrireApercuBcPoste(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   const lu = await brouillonDuDevis(user, formData, true);
-  if ("error" in lu) return { ok: false, error: lu.error ?? "Échec." };
+  if ("error" in lu) return { ok: false, error: lu.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
   const { id, pieceId, item, owner, devis, brouillon, poste } = lu;
   if (devis.brouillon?.perime) return { ok: false, error: "Les lignes validées du devis ont changé depuis vos corrections : retirez cet aperçu et générez-le de nouveau." };
   const saisie = lireModificationsDuBc(formData);
@@ -4395,7 +4395,7 @@ export async function annulerApercuBcPoste(formData: FormData): Promise<ActionRe
   if (!fdStr(formData, "id") || !fdStr(formData, "pieceId")) return { ok: false, error: "Poste ou devis non précisé." };
   const user = await requireUser();
   const lu = await brouillonDuDevis(user, formData, true);
-  if ("error" in lu) return { ok: false, error: lu.error ?? "Échec." };
+  if ("error" in lu) return { ok: false, error: lu.error ?? "Le devis du poste n'a pas pu être lu : rien n'a été modifié." };
   const { id, pieceId, item, owner, devis } = lu;
   return chez(id, pieceId, async () => {
     await prisma.adProDevis.updateMany({ where: { legalDocumentId: pieceId }, data: { bcBrouillon: Prisma.DbNull } });

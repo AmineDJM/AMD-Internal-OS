@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Label } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { completerCategoriesPole, saisirBvManuel, imputerBv } from "@/lib/actions/budget-pole-actions";
 
 type Resultat = { ok: boolean; error?: string; message?: string };
@@ -23,9 +24,14 @@ function useGeste() {
   const [msg, setMsg] = React.useState<{ ok: boolean; texte: string } | null>(null);
   const lancer = async (fn: () => Promise<Resultat>, onOk?: () => void) => {
     setBusy(true); setMsg(null);
-    const r = await fn();
-    setBusy(false);
-    if (r.ok) { if (r.message) setMsg({ ok: true, texte: r.message }); onOk?.(); rafraichir(); } else setMsg({ ok: false, texte: r.error ?? "Erreur." });
+    try {
+      const r = await fn();
+      if (r.ok) { if (r.message) setMsg({ ok: true, texte: r.message }); onOk?.(); rafraichir(); } else setMsg({ ok: false, texte: r.error ?? "L'opération n'a pas été enregistrée." });
+    } catch {
+      setMsg({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
   };
   return { busy: busy || enCours, msg, lancer };
 }

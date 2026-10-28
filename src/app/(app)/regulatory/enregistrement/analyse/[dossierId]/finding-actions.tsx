@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import Link from "next/link";
 import { Loader2, Check, Eye, ShieldOff, ListPlus, CheckCircle2 } from "lucide-react";
 import { updateFindingStatus, createTaskFromFinding } from "@/lib/regulatory/intelligence/actions";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 interface Props {
   findingId: string;
@@ -16,34 +18,24 @@ interface Props {
 
 /** Boutons de revue d'un constat : Pris en compte / Résolu / Lever (avec justification). */
 export function FindingControls({ findingId, status, blocker, canEdit, canApprove }: Props) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  const { busy, err: error, run } = useAction();
   const [waiving, setWaiving] = React.useState(false);
   const [note, setNote] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
   const [taskCreated, setTaskCreated] = React.useState(false);
 
   async function apply(next: string, justification?: string) {
-    setBusy(true); setError(null);
     const fd = new FormData();
     fd.set("findingId", findingId);
     fd.set("status", next);
     if (justification) fd.set("note", justification);
-    const r = await updateFindingStatus(fd);
-    setBusy(false);
-    if (r.ok) { setWaiving(false); setNote(""); router.refresh(); }
-    else setError(r.error ?? "Échec.");
+    await run(() => updateFindingStatus(fd), () => { setWaiving(false); setNote(""); });
   }
 
   // CONSTAT → TÂCHE : le pont entre « ce qui ne va pas » et « qui s'en occupe ».
   async function toTask() {
-    setBusy(true); setError(null);
     const fd = new FormData();
     fd.set("findingId", findingId);
-    const r = await createTaskFromFinding(fd);
-    setBusy(false);
-    if (r.ok) setTaskCreated(true);
-    else setError(r.error ?? "Échec.");
+    await run(() => createTaskFromFinding(fd), () => setTaskCreated(true));
   }
 
   if (!canEdit && !canApprove) return null;
@@ -84,7 +76,7 @@ export function FindingControls({ findingId, status, blocker, canEdit, canApprov
           </div>
         </div>
       )}
-      {error && <span className="text-[0.6875rem] text-destructive">{error}</span>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }

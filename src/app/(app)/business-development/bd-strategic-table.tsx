@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChevronRight, ChevronDown, Plus, Trash2, Search, Download, X, ExternalLink, Loader2 } from "lucide-react";
 import {
   updateBdCell, createBdRange, createBdProduct, deleteBdRange, deleteBdProduct, deleteBdProject,
@@ -11,6 +10,11 @@ import { BD_PROJECT_STATUS, BD_SOURCING } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn, formatCompact, formatNumber } from "@/lib/utils";
 import type { BdProjectDTO, BdRangeDTO, BdProductDTO } from "@/lib/queries/bd";
 
@@ -92,7 +96,8 @@ export function BdStrategicTable({
   canUpdate: boolean;
   canDelete: boolean;
 }) {
-  const router = useRouter();
+  // Les gestes du tableau (icônes, lignes d'ajout) n'ont pas de place pour parler : un refus part en avis flottant.
+  const { run } = useAction({ signalerErreurs: true });
   const [search, setSearch] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState("");
   const [sourcingFilter, setSourcingFilter] = React.useState("");
@@ -144,12 +149,7 @@ export function BdStrategicTable({
 
   const exportCsv = () => downloadCsv(filtered);
 
-  const submit = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    const r = await fn();
-    if (!r.ok) { window.alert(r.error ?? "Erreur."); return false; }
-    router.refresh();
-    return true;
-  };
+  const submit = (fn: () => Promise<{ ok: boolean; error?: string }>) => run(fn);
 
   return (
     <div className="space-y-3">
@@ -372,7 +372,7 @@ function EditableCell({
   display?: React.ReactNode;
   className?: string;
 }) {
-  const router = useRouter();
+  const ecrire = useEcrireCellule();
   const [editing, setEditing] = React.useState(false);
   const [pending, startTransition] = React.useTransition();
 
@@ -380,11 +380,7 @@ function EditableCell({
     setEditing(false);
     const v = next.trim();
     if (v === (raw ?? "")) return;
-    startTransition(async () => {
-      const r = await updateBdCell(fd({ kind, id, field, value: v }));
-      if (!r.ok) window.alert(r.error ?? "Erreur.");
-      router.refresh();
-    });
+    startTransition(() => ecrire({ kind, id, field, value: v }));
   };
 
   if (!canUpdate) {
@@ -414,15 +410,33 @@ function EditableCell({
   );
 }
 
+/**
+ * Écrit une cellule. La cellule n'a pas de place pour parler : un refus part en avis flottant,
+ * et le tableau est relu dans tous les cas (comme avant).
+ */
+function useEcrireCellule() {
+  const retours = useRetours();
+  const { rafraichir } = useRafraichir();
+  return React.useCallback(async (data: Record<string, string>) => {
+    try {
+      const r = await updateBdCell(fd(data));
+      if (!r.ok) retours.erreur(r.error ?? "La modification n'a pas été enregistrée.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    }
+    rafraichir();
+  }, [retours, rafraichir]);
+}
+
 function SourcingSelect({ id, value, canUpdate }: { id: string; value: string; canUpdate: boolean }) {
-  const router = useRouter();
+  const ecrire = useEcrireCellule();
   const [pending, startTransition] = React.useTransition();
   if (!canUpdate) return <span className="text-xs">{BD_SOURCING[value] ?? value}</span>;
   return (
     <select
       value={value}
       disabled={pending}
-      onChange={(e) => startTransition(async () => { const r = await updateBdCell(fd({ kind: "product", id, field: "sourcing", value: e.target.value })); if (!r.ok) window.alert(r.error ?? "Erreur."); router.refresh(); })}
+      onChange={(e) => { const v = e.target.value; startTransition(() => ecrire({ kind: "product", id, field: "sourcing", value: v })); }}
       className="h-7 w-full rounded border border-input bg-card px-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {Object.entries(BD_SOURCING).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
@@ -431,7 +445,7 @@ function SourcingSelect({ id, value, canUpdate }: { id: string; value: string; c
 }
 
 function StatusSelect({ kind, id, value, canUpdate }: { kind: "project"; id: string; value: string; canUpdate: boolean }) {
-  const router = useRouter();
+  const ecrire = useEcrireCellule();
   const [pending, startTransition] = React.useTransition();
   if (!canUpdate) {
     const d = BD_PROJECT_STATUS[value];
@@ -441,7 +455,7 @@ function StatusSelect({ kind, id, value, canUpdate }: { kind: "project"; id: str
     <select
       value={value}
       disabled={pending}
-      onChange={(e) => startTransition(async () => { const r = await updateBdCell(fd({ kind, id, field: "status", value: e.target.value })); if (!r.ok) window.alert(r.error ?? "Erreur."); router.refresh(); })}
+      onChange={(e) => { const v = e.target.value; startTransition(() => ecrire({ kind, id, field: "status", value: v })); }}
       className="h-7 w-full rounded border border-input bg-card px-1 text-xs font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {Object.entries(BD_PROJECT_STATUS).map(([v, d]) => <option key={v} value={v}>{d.label}</option>)}
@@ -450,8 +464,9 @@ function StatusSelect({ kind, id, value, canUpdate }: { kind: "project"; id: str
 }
 
 function DeleteBtn({ title, onConfirm }: { title: string; onConfirm: () => void }) {
+  const confirmer = useConfirmer();
   return (
-    <button onClick={() => { if (window.confirm(title)) onConfirm(); }} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1" title={title} aria-label={title}>
+    <button onClick={async () => { if (await confirmer(title)) onConfirm(); }} className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1" title={title} aria-label={title}>
       <Trash2 className="h-4 w-4" />
     </button>
   );

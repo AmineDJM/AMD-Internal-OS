@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 import { Loader2, ShieldCheck, CheckCircle2, XCircle, Clock, Send, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { submitAttachmentValidation, cancelAttachmentValidation } from "@/lib/actions/admin-request-actions";
@@ -40,14 +41,12 @@ export function AttachmentValidationBlock({ requestId, documents, validations, u
   users: { id: string; name: string }[];
   canSubmit: boolean;
 }) {
-  const router = useRouter();
   const [openFor, setOpenFor] = React.useState<string | null>(null);
   const [chosen, setChosen] = React.useState<string[]>([]);
   const [note, setNote] = React.useState("");
   const [amount, setAmount] = React.useState("");
   const [category, setCategory] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy, err: error, run } = useAction();
 
   if (documents.length === 0) return null;
   const byDoc = new Map<string, ValidationView[]>();
@@ -59,7 +58,6 @@ export function AttachmentValidationBlock({ requestId, documents, validations, u
 
   const submit = async (documentId: string) => {
     if (busy || chosen.length === 0) return;
-    setBusy(true); setError(null);
     const fd = new FormData();
     fd.set("requestId", requestId);
     fd.set("documentId", documentId);
@@ -67,21 +65,14 @@ export function AttachmentValidationBlock({ requestId, documents, validations, u
     if (note.trim()) fd.set("note", note.trim());
     if (amount.trim()) fd.set("amount", amount.trim());
     if (category) fd.set("category", category);
-    const r = await submitAttachmentValidation(fd);
-    setBusy(false);
-    if (r.ok) { setOpenFor(null); resetForm(); router.refresh(); }
-    else setError(r.error ?? "Échec.");
+    await run(() => submitAttachmentValidation(fd), () => { setOpenFor(null); resetForm(); });
   };
 
   const withdraw = async (v: ValidationView) => {
     if (busy) return;
-    setBusy(true); setError(null);
     const fd = new FormData();
     fd.set("validationId", v.id);
-    const r = await cancelAttachmentValidation(fd);
-    setBusy(false);
-    if (r.ok) router.refresh();
-    else setError(r.error ?? "Échec du retrait.");
+    await run(() => cancelAttachmentValidation(fd));
   };
 
   return (
@@ -89,7 +80,7 @@ export function AttachmentValidationBlock({ requestId, documents, validations, u
       <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
         <ShieldCheck className="h-3.5 w-3.5" /> Validation des pièces jointes — chaque pièce se soumet à part, à une ou plusieurs personnes
       </p>
-      {error && <p className="rounded-lg bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       <ul className="space-y-1.5">
         {documents.map((d) => {

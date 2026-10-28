@@ -19,7 +19,7 @@ Out of scope: RBAC internals (`rbac.ts`), the Adam/Chief-of-Staff product intern
 ## 2. Summary
 
 - **Every route page is a React Server Component** (0 of 294 `page.tsx` start with `"use client"`); 566 of 948 `.tsx`/`.ts` files under `src` are `"use client"` islands fed by serializable props (ISO strings, numbers) [V].
-- The "shadcn-style" kit is **much thinner than shadcn**: no Radix, no `class-variance-authority`, no Dialog/Tabs/Dropdown/Toast primitives. `ui/` = Button, Badge, Card, Input/Textarea/Select/Label, Table, Sheet, Progress, Avatar, Icon, InfoBulle, BoutonDecisif [V].
+- The "shadcn-style" kit is **much thinner than shadcn**: no Radix, no `class-variance-authority`, no Tabs/Dropdown primitives. `ui/` = Button, Badge, Card, Input/Textarea/Select/Label, Table, Sheet, Progress, Avatar, Icon, InfoBulle, BoutonDecisif, and since V3-B (28/10/2026) **DialogueConfirmation (`useConfirmer`/`useSaisir`) and Retour (`<Retour>`/`useRetours`)** [V].
 - One visual language: CSS-variable tokens in `globals.css` (azure brand `#1677FF`, night-blue sidebar, 4 status colours + `info` + reserved `luna` violet); **no dark mode** despite `darkMode: ["class"]` [V].
 - Two house mechanisms dominate interaction: **`BoutonDecisif`** (two-click confirmation, no `window.confirm`) and **`useAction` / `useKeyedAction` / `useRafraichir`** (server action call with throw-catch, 45 s watchdog, and `router.refresh()` inside a transition so buttons stay locked until fresh data is on screen, §118.172) [V].
 - Forms mostly go through `CreateRecordButton` → `Sheet` → `RecordForm` (`useActionState` + guarded action + redirect to `${redirectBase}/${id}`) [V].
@@ -83,8 +83,11 @@ Out of scope: RBAC internals (`rbac.ts`), the Adam/Chief-of-Staff product intern
 | `Avatar` | `size`: sm/md/lg, initials | no |
 | `Icon` / `iconeParNom` | lucide by string name | no |
 | `InfoBulle` (`info-bulle.tsx:14`) | ⓘ tooltip, `label` default "Plus d'informations", `align` | yes |
+| `DialogueConfirmation`, `useConfirmer()`, `useSaisir()` (`dialogue.tsx`, rule `dialogue-regle.ts`) — V3-B | `await confirmer("Supprimer ce document ?")` → `boolean`; `await saisir({ titre, saisie: { libelle, obligatoire } })` → `string \| null`. A plain string suffices: 1st paragraph = title, rest = detail, button = the verb when known (closed list) else "Confirmer"; cancel is always "Retour". `role="alertdialog"` + `aria-modal`, labelled/described, focus enters (on "Retour" for a risky gesture — `danger` tone auto-detected from supprimer/retirer/corbeille/irréversible…), Tab loops (`sautDeFocus`), Escape captured before an underlying `Sheet`, focus restored, voile click cancels, `z-[100]`, queued requests | yes |
+| `Retour` (bandeau), `useRetours()` (avis flottants) (`retour.tsx`, rule `retour-regle.ts`) — V3-B | `<Retour ton="erreur\|alerte\|succes\|info">{err}</Retour>` renders nothing when empty; `role="alert"` for erreur/alerte, `status` otherwise. `useRetours().erreur/alerte/succes/info(msg)`: two `aria-live` regions present from first render; erreur/alerte stay until closed, succes/info 4–10 s; same message not stacked; max 3; above the mobile tab bar, `z-[110]` | yes |
+| `PrimitivesUI` (`primitives-ui.tsx`) — V3-B | Mounts `RetoursProvider` (`retours-porteur.tsx`) + `DialoguesProvider` (`dialogue.tsx`) once in `app/(app)/layout.tsx` and `app/(portal)/layout.tsx` — not the root layout, a separate build entry that would duplicate them in every page's JS. The dialog window (`dialogue-fenetre.tsx`), the toast drawing (`retours-pile.tsx`) and the ⌘K palette / announcement window are fetched at browser idle (`differe.ts`), outside the shell budget; offline, confirmation falls back to the native box and toasts to plain text in the same `aria-live` region. Without a provider the hooks fall back to the native box (the only `window.confirm/alert/prompt` allowed, in `dialogue.tsx` and `retours-porteur.tsx`) | yes |
 
-There is **no Dialog, Tabs, Dropdown, Popover, Tooltip (other than InfoBulle) or Toast primitive** [V]. Modals are `Sheet` (127 importers) or ad-hoc `fixed inset-0` overlays (21 files) [V].
+There is no Tabs, Dropdown, Popover or Tooltip primitive (other than InfoBulle) [V]. Since V3-B (28/10/2026) there **is** a confirmation dialog and a feedback (toast/banner) primitive — see the rows above and § 4.7. Modals are `Sheet` (127 importers) or ad-hoc `fixed inset-0` overlays (21 files) [V].
 
 ### 4.3 Shared building blocks (`src/components/shared`)
 
@@ -96,7 +99,11 @@ There is **no Dialog, Tabs, Dropdown, Popover, Tooltip (other than InfoBulle) or
 - `KpiCard` (tones default/success/warning/danger/info + trend) and `Tuile` (label/value/context + `info` slot) [V].
 - `CreateRecordButton` / `RecordForm` (`create-record-button.tsx`, 619 l.): declarative `FieldDef[]` (`text` with `inputType` number/date/datetime-local, `textarea`, `select`, `multiselect`, `checkbox`, `file`, `drivepicker`, `parties`, `hidden`), optional AI prefill (`analyze`), `autoOpenParam` (opens via `?new`), opens a `Sheet` (`:584-619`) [V].
 - `form-fields.tsx`: `Field`, `TextField`, `TextAreaField`, `SelectField`, `optionsFromMap` (turn a labels map into options) [V].
-- `use-action.ts`: `useAction()` → `{ saving, busy, err, setErr, run(fn, onOk) }`; `useKeyedAction()` → `{ busy: key, error, run(key, fn) }` (`:29-122`) [V].
+- `use-action.ts` — **the single way to call a server action from a client island** (V3-B):
+  - `useAction(opts?)` → `{ saving, busy, err, setErr, run(fn, onOk?, { confirmer?, succes? }) }`;
+  - `useKeyedAction(opts?)` → `{ busy: key, error, setError, run(key, fn, { confirmer?, succes? }) }`;
+  - `useFormAction(fn, { prepare?, onOk?, confirmer?, succes?, signalerErreurs? })` → `{ action, busy, err, setErr }` for `<form action>`, with a synchronous anti-double-submit lock.
+  - All three: catch throws, 45 s watchdog, `actionFailureMessage` (never "réessayez"), refresh via `useRafraichir` on success, `confirmer` asked BEFORE the call (dialog), `succes` announced after. `opts.signalerErreurs` also sends errors to a floating notice (for icon-only row gestures). A refusal with no `error` → `REFUS_SANS_MOTIF`.
 - `use-rafraichir.ts:29-36`: `rafraichir()` wraps `router.refresh()` in `useTransition`; `enCours` stays true until new RSC payload is rendered (§118.172) [V].
 - `BackLink` (`back-link.tsx`): real `<Link>` that goes `router.back()` when there is in-app history (counted per tab in `sessionStorage` by `NavDepthTracker` mounted in the shell), else its written `href` [V]. 80 files.
 - `RecordDeleteButton` (creator-level soft delete to admin trash, honest copy), `SuperAdminDeleteButton`, `CommentThread`, `EntityLinks`, `LinkedRecords`, `ValidationStepper`, `PartagerButton`, `CompanyBadge`… [V names; internals not reviewed].
@@ -132,8 +139,8 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
 
 ### 4.7 Feedback, confirmation, empty/loading states
 
-- **No toast system** (no library; two local `toast` states in `segmentation/praticiens-table.tsx:175` and `drive/node-actions.tsx`) [V]. Feedback is **inline**: an error block `rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive` with `AlertCircle` (e.g. `support/[id]/panel.tsx:13-14`, `create-record-button.tsx:548`) or `text-xs text-destructive` lines (`workflow-panel.tsx`) [V]. `aria-live` appears 25× in 17 files [V].
-- **Confirmation**: `BoutonDecisif` is the doctrine for any gesture that decides, commits money, signs, emits, pays or deletes (`bouton-decisif-regle.ts:1-11`); 55 files use it; `boutons-decisifs.test.ts` pins named call sites with minimum occurrence counts and forbids `window.confirm` in those files [V]. Elsewhere `window.confirm` still appears ~122 times in `.tsx` (e.g. `shared/comment-thread.tsx:73`, `site-web/offre-form.tsx:113,141`) [V].
+- **Feedback (V3-B, 28/10/2026)**: inline next to the gesture with `<Retour ton="erreur">{err}</Retour>` (role alert/status), or a floating notice with `useRetours()` when the gesture has no room to speak. Older inline blocks (`bg-destructive/10 … text-destructive`) remain valid but carry no role — prefer `Retour` when touching them. Two local ad-hoc toasts predate it (`segmentation/praticiens-table.tsx`, `drive/node-actions.tsx`).
+- **Confirmation**: `BoutonDecisif` remains the doctrine for any gesture that decides, commits money, signs, emits, pays (second click on the button itself); `boutons-decisifs.test.ts` pins named call sites. Every other confirmation (delete a row, quit unsaved, reset a setting, type a reason) goes through `useConfirmer()` / `useSaisir()` (dialog) — or `run(fn, onOk, { confirmer })`. **`window.confirm/alert/prompt` are banned** (ceiling 0, `src/lib/ui/dialogues-natifs.test.ts`), as are generic fallbacks `?? "Échec." / "Erreur." / "Action impossible."` — write what did NOT happen.
 - **Busy states**: `Loader2 animate-spin` inside the button, `disabled={saving}`; `useAction` gives a 45 s watchdog (`ACTION_TIMEOUT_MS`, `src/lib/action-outcome.ts:53`) and a pure failure message (`actionFailureMessage`) [V].
 - **Loading**: no Suspense skeletons; `NavProgress` top bar instead [V].
 - **Empty**: `EmptyState` or `DataTable emptyTitle` [V].
@@ -267,7 +274,8 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 - **Client bundle boundary** (CLAUDE.md; production broke twice — `market/data.ts` via `fs`, `messaging.ts` via `web-push`): ordinary imports from a client file must not reach Node-only code; split pure parts into an import-free module and re-export server-side. Guard: `src/lib/client-bundle-guard.test.ts` [V].
 - **`npm run build` reuses `.next` cache**; Render runs `next lint` before build (§118.155) — one lint error blocks deploy [V CLAUDE.md].
 - **No `loading.tsx` above redirecting pages** (Next 14.2 prod turned `redirect()` into client redirects → 26 screens "Application error") — `src/lib/ui/loading-boundary.test.ts`, `nav-progress.tsx:7-31` [V].
-- **§118.172**: a state-changing gesture keeps its buttons closed until fresh data is displayed (`useRafraichir`); bare `router.refresh()` count is ceiling-tested and must only go down [V].
+- **§118.172**: a state-changing gesture keeps its buttons closed until fresh data is displayed (`useRafraichir`); bare `router.refresh()` is ceiling-tested at **1** (the hook itself) since V3-B [V].
+- **V3-B ratchets at zero** (28/10/2026): unguarded server-action calls (`src/lib/ui/action-gardee.test.ts`, 315 → 0), `confirm(` 125 → 0, `alert(` 46 → 0, `prompt(` 6 → 0, generic fallback 259 → 0 (`src/lib/ui/dialogues-natifs.test.ts`). Known blind spots of the unguarded-call detector: `const r: T = await f()` (annotated) and `await f(); setX(false)` without assignment — reviewed by hand during V3-B, not mechanically guarded.
 - **Decisive buttons**: two-click confirmation, 5 s, Escape cancels; `Sheet` must not close on Escape when an armed button consumed it (`sheet.tsx:34-37`, `sheet-echap.test.ts`) [V].
 - **Never round money**; inputs must not force `step="1000"` [V].
 - **Action failure copy** never invites blind retry (duplicates) [V].
@@ -281,7 +289,7 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 - **Gotcha — time zone**: `formatDate/formatDateTime` have no `timeZone`; on a UTC server (Render default, no `TZ` in `render.yaml`) server-rendered times are 1 h behind Algiers and dates can shift near midnight; client components formatting the same ISO string during SSR vs hydration can differ [V code; U runtime TZ].
 - **Gotcha — bell staleness**: chime plays but the bell digit only updates on layout re-render [V].
 - **Gotcha — DataTable** cannot be fed `render` functions from an RSC page; always wrap [V].
-- **Gotcha — `consulting/[id]/actions-panel.tsx:62-75`** shows the pre-`useAction` anti-pattern (no try/catch, bare `router.refresh()`): if the action throws, `busy` never resets. Don't copy it [V].
+- **Gotcha — hooks of the primitives** (`useConfirmer`, `useRetours`, `useAction`…) must be called at the top of a component, never inside a `.map` or a callback: in a row-level gesture, extract a small row component or lift the hook to the list.
 - Section numbers cited in code (§118.149, §118.164, §118.151) do not always map one-to-one to a same-topic paragraph in `docs/claude-md` (e.g. §118.149 there covers Ad & Pro thresholds with sub-items a–i) [U — spot-checked only].
 
 ## 9. Docs-vs-code discrepancies
@@ -327,8 +335,8 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 4. Every enum → `labels.ts` map → `StatusBadge`; no raw enum strings, no hex, no `amber-500`; use tokens (`text-success`, `bg-warning/10`, `text-muted-foreground`).
 5. Money via `formatCurrency`/`formatMontant`; dates via `formatDate`/`formatDateTime`, Algiers-sensitive logic via `src/lib/calendar-tz.ts`.
 6. Create flows via `CreateRecordButton` (`FieldDef[]`, `ActionResult`, `redirectBase`, `autoOpenParam`).
-7. Button actions via `useAction`/`useKeyedAction`; refresh via `useRafraichir`; keep gestures disabled while busy; show `err` inline (`bg-destructive/10` block).
-8. Irreversible/money/sign/delete gestures: `BoutonDecisif` (+ `confirmation`), never `window.confirm`.
+7. Button actions via `useAction`/`useKeyedAction`, forms via `useFormAction`; never `router.refresh()` by hand (the hooks refresh; else `useRafraichir`); keep gestures disabled while busy; show `err` with `<Retour ton="erreur">`.
+8. Money/decide/sign gestures: `BoutonDecisif` (+ `confirmation`). Other confirmations: `useConfirmer()` / `run(…, { confirmer })`; a reason: `useSaisir()`. Never `window.confirm/alert/prompt` (ceiling 0).
 9. Panels: `Sheet`; any custom overlay at z ≥ 50 with `role="dialog"`, `aria-modal`, Escape, `useScrollLock`.
 10. Tables: `ui/table` (`mobileCards` for wide data) or `DataTable`; always an `overflow-x-auto` container; `EmptyState` when empty.
 11. Responsive: test at 375 px; `sm:col-span-*`, `min-w-0`, no fixed widths that overflow.
