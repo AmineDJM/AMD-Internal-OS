@@ -45,21 +45,37 @@ const num = (d: Prisma.Decimal | number | null | undefined): number => (d == nul
  * les mêmes cases, les additionner gonflerait le total de propositions qu'on n'engagera jamais.
  */
 export async function totalDeLaDemande(parent: AdProParent, parentId: string): Promise<number> {
+  return (await totauxDesDemandes(parent, [parentId])).get(parentId) ?? 0;
+}
+
+/**
+ * LES TOTAUX DE PLUSIEURS DEMANDES d'un même type, EN LOT (ADPRO-07) — deux requêtes quel que soit leur
+ * nombre. C'est LE calcul : `totalDeLaDemande` n'en est que l'appel sur un identifiant (§118.5).
+ */
+export async function totauxDesDemandes(parent: AdProParent, parentIds: readonly string[]): Promise<Map<string, number>> {
+  const totaux = new Map<string, number>(parentIds.map((id) => [id, 0]));
+  if (parentIds.length === 0) return totaux;
+  const colonne = PARENT_COLONNE[parent];
   const colonneDevis = parent === "CONGRESS_NATIONAL" ? "congressNationalId" : parent === "CONGRESS_INTERNATIONAL" ? "congressInternationalId" : null;
+  const ids = [...parentIds];
   const [lignes, devis] = await Promise.all([
     prisma.adProItem.findMany({
-      where: { [PARENT_COLONNE[parent]]: parentId, status: { not: "REJECTED" } },
-      select: { amountEstimated: true, amountGranted: true },
-    }),
+      where: { [colonne]: { in: ids }, status: { not: "REJECTED" } },
+      select: { [colonne]: true, amountEstimated: true, amountGranted: true },
+    }) as Promise<({ amountEstimated: Prisma.Decimal | null; amountGranted: Prisma.Decimal | null } & Record<string, unknown>)[]>,
     colonneDevis
       ? prisma.careQuote.findMany({
-        where: { [colonneDevis]: parentId, OR: [{ status: "ACCEPTED" }, { status: "PENDING", retainedAt: { not: null } }] },
-        select: { amountDzd: true },
-      })
-      : Promise.resolve([] as { amountDzd: Prisma.Decimal }[]),
+        where: { [colonneDevis]: { in: ids }, OR: [{ status: "ACCEPTED" }, { status: "PENDING", retainedAt: { not: null } }] },
+        select: { [colonneDevis]: true, amountDzd: true },
+      }) as Promise<({ amountDzd: Prisma.Decimal } & Record<string, unknown>)[]>
+      : Promise.resolve([] as ({ amountDzd: Prisma.Decimal } & Record<string, unknown>)[]),
   ]);
-  const postes = lignes.reduce((t, l) => t + (l.amountGranted != null ? num(l.amountGranted) : num(l.amountEstimated)), 0);
-  return postes + devis.reduce((t, d) => t + num(d.amountDzd), 0);
+  const ajouter = (id: unknown, montant: number) => {
+    if (typeof id === "string" && totaux.has(id)) totaux.set(id, totaux.get(id)! + montant);
+  };
+  for (const l of lignes) ajouter(l[colonne], l.amountGranted != null ? num(l.amountGranted) : num(l.amountEstimated));
+  if (colonneDevis) for (const d of devis) ajouter(d[colonneDevis], num(d.amountDzd));
+  return totaux;
 }
 
 function decisionDe(row: { statut: string | null; montant: Prisma.Decimal | null } | null): DecisionDg | null {
@@ -99,28 +115,41 @@ export function peutStatuerSurLeTotal(user: { role: string; secondaryRole?: stri
 }
 
 async function demandeurEtNom(parent: AdProParent, parentId: string): Promise<{ requesterId: string | null; nom: string } | null> {
+  return (await demandeursEtNoms(parent, [parentId])).get(parentId) ?? null;
+}
+
+/** Le demandeur et le nom de plusieurs demandes d'un même type — une requête (ADPRO-07). */
+async function demandeursEtNoms(parent: AdProParent, parentIds: readonly string[]): Promise<Map<string, { requesterId: string | null; nom: string }>> {
+  const out = new Map<string, { requesterId: string | null; nom: string }>();
+  const where = { id: { in: [...parentIds] } };
   switch (parent) {
-    case "SPONSORING": {
-      const r = await prisma.sponsoringRequest.findUnique({ where: { id: parentId }, select: { requesterId: true, reference: true, institution: true } });
-      return r ? { requesterId: r.requesterId, nom: `Sponsoring ${r.reference} — ${r.institution}` } : null;
-    }
-    case "CONGRESS_NATIONAL": {
-      const r = await prisma.congressNational.findUnique({ where: { id: parentId }, select: { requesterId: true, name: true } });
-      return r ? { requesterId: r.requesterId, nom: `Prise en charge nationale — ${r.name}` } : null;
-    }
-    case "CONGRESS_INTERNATIONAL": {
-      const r = await prisma.congressInternational.findUnique({ where: { id: parentId }, select: { requesterId: true, name: true } });
-      return r ? { requesterId: r.requesterId, nom: `Prise en charge internationale — ${r.name}` } : null;
-    }
-    case "EVENT": {
-      const r = await prisma.event.findUnique({ where: { id: parentId }, select: { requesterId: true, name: true } });
-      return r ? { requesterId: r.requesterId, nom: `Événement — ${r.name}` } : null;
-    }
-    case "AD_PRO_OTHER": {
-      const r = await prisma.adProOtherRequest.findUnique({ where: { id: parentId }, select: { requesterId: true, reference: true, title: true } });
-      return r ? { requesterId: r.requesterId, nom: `Autre demande ${r.reference} — ${r.title}` } : null;
-    }
+    case "SPONSORING":
+      for (const r of await prisma.sponsoringRequest.findMany({ where, select: { id: true, requesterId: true, reference: true, institution: true } })) {
+        out.set(r.id, { requesterId: r.requesterId, nom: `Sponsoring ${r.reference} — ${r.institution}` });
+      }
+      break;
+    case "CONGRESS_NATIONAL":
+      for (const r of await prisma.congressNational.findMany({ where, select: { id: true, requesterId: true, name: true } })) {
+        out.set(r.id, { requesterId: r.requesterId, nom: `Prise en charge nationale — ${r.name}` });
+      }
+      break;
+    case "CONGRESS_INTERNATIONAL":
+      for (const r of await prisma.congressInternational.findMany({ where, select: { id: true, requesterId: true, name: true } })) {
+        out.set(r.id, { requesterId: r.requesterId, nom: `Prise en charge internationale — ${r.name}` });
+      }
+      break;
+    case "EVENT":
+      for (const r of await prisma.event.findMany({ where, select: { id: true, requesterId: true, name: true } })) {
+        out.set(r.id, { requesterId: r.requesterId, nom: `Événement — ${r.name}` });
+      }
+      break;
+    case "AD_PRO_OTHER":
+      for (const r of await prisma.adProOtherRequest.findMany({ where, select: { id: true, requesterId: true, reference: true, title: true } })) {
+        out.set(r.id, { requesterId: r.requesterId, nom: `Autre demande ${r.reference} — ${r.title}` });
+      }
+      break;
   }
+  return out;
 }
 
 /**
@@ -177,8 +206,10 @@ export async function statuerSurLeTotal(input: {
   const maintenant = new Date();
   await prisma.adProPorteDg.upsert({
     where: { entityType_entityId: { entityType: parent, entityId: parentId } },
+    // LE SIGNALEMENT EST LEVÉ (ADPRO-07) : le DG a statué, la ligne quitte la liste que relit le centre. Un
+    // total qui bouge ensuite au-dessus de ce qu'il a validé la referme — et la signale de nouveau.
     create: { entityType: parent, entityId: parentId, statut: decision, montant: p.total, note, decideParId: user.id, decideLe: maintenant },
-    update: { statut: decision, montant: p.total, note, decideParId: user.id, decideLe: maintenant },
+    update: { statut: decision, montant: p.total, note, decideParId: user.id, decideLe: maintenant, signaleMontant: null, signaleLe: null },
   });
   const montant = `${Math.round(p.total).toLocaleString("fr-FR")} DZD`;
   const libelle = decision === "VALIDEE" ? `Total de ${montant} validé par le Directeur Général` : `Total de ${montant} renvoyé en révision par le Directeur Général`;
@@ -209,28 +240,45 @@ export async function statuerSurLeTotal(input: {
 
 /**
  * LES TOTAUX QUI ATTENDENT LE DG — pour le centre de validation. Ne relit que les demandes déjà
- * signalées (`signaleMontant`, posé quand la porte s'est fermée), puis recalcule leur état : une
- * demande dont le total est redescendu sous le seuil, ou déjà validée, n'y figure pas.
+ * signalées (`signaleMontant`, posé quand la porte s'est fermée, levé quand le DG statue), puis
+ * recalcule leur état : une demande dont le total est redescendu sous le seuil, ou déjà validée, n'y
+ * figure pas.
+ *
+ * EN LOT (audit 27/10/2026, ADPRO-07) : la porte (3 requêtes) et le demandeur (1) se relisaient pour
+ * CHACUNE des 300 lignes, à chaque ouverture du centre. Désormais : la porte d'abord (décisions
+ * comprises), puis, par type de demande, les totaux et les demandeurs — une poignée de requêtes quel que
+ * soit le nombre de lignes, et la MÊME règle d'état (`etatPorteDg`) appliquée en mémoire.
  */
 export async function totauxEnAttenteDuDg(): Promise<{
   entityType: AdProParent; entityId: string; total: number; seuil: number | null; nom: string; requesterId: string | null; depuis: Date;
 }[]> {
   const rows = await prisma.adProPorteDg.findMany({
     where: { signaleMontant: { not: null } },
-    select: { entityType: true, entityId: true, signaleLe: true, updatedAt: true },
+    select: { entityType: true, entityId: true, signaleLe: true, updatedAt: true, statut: true, montant: true },
     orderBy: { signaleLe: "asc" },
     take: 300,
   });
   const seuil = await getAppSettings().then((s) => s.adProDgThreshold).catch(() => null);
-  const out: Awaited<ReturnType<typeof totauxEnAttenteDuDg>> = [];
+  const parType = new Map<AdProParent, string[]>();
   for (const r of rows) {
     const parent = r.entityType as AdProParent;
     if (!(parent in PARENT_COLONNE)) continue;
-    const p = await lirePorteDg(parent, r.entityId, seuil);
-    if (p.etat !== "EN_ATTENTE") continue;
-    const d = await demandeurEtNom(parent, r.entityId);
-    if (!d) continue;
-    out.push({ entityType: parent, entityId: r.entityId, total: p.total, seuil: p.seuil, nom: d.nom, requesterId: d.requesterId, depuis: r.signaleLe ?? r.updatedAt });
+    parType.set(parent, [...(parType.get(parent) ?? []), r.entityId]);
+  }
+  const lus = new Map<AdProParent, { totaux: Map<string, number>; demandeurs: Map<string, { requesterId: string | null; nom: string }> }>();
+  await Promise.all([...parType].map(async ([parent, ids]) => {
+    const [totaux, demandeurs] = await Promise.all([totauxDesDemandes(parent, ids), demandeursEtNoms(parent, ids)]);
+    lus.set(parent, { totaux, demandeurs });
+  }));
+  const out: Awaited<ReturnType<typeof totauxEnAttenteDuDg>> = [];
+  for (const r of rows) {
+    const parent = r.entityType as AdProParent;
+    const l = lus.get(parent);
+    const d = l?.demandeurs.get(r.entityId);
+    if (!l || !d) continue;
+    const total = l.totaux.get(r.entityId) ?? 0;
+    if (etatPorteDg(total, seuil, decisionDe(r)) !== "EN_ATTENTE") continue;
+    out.push({ entityType: parent, entityId: r.entityId, total, seuil, nom: d.nom, requesterId: d.requesterId, depuis: r.signaleLe ?? r.updatedAt });
   }
   return out;
 }
