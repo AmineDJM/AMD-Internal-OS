@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { controlerCoherence, superviseurPropose, kamsHorsLigne, type Coherence } from "./coherence";
-import type { DepartmentNodeLite, EmployeeNode } from "@/lib/hr/reporting-line";
+import type { DepartmentNodeLite, EmployeeNode } from "@/modules/rh/partage";
 
 /**
  * LES TABLES DU CONTRÔLE DE COHÉRENCE — chargées une fois, passées au module pur (`coherence.ts`). Lecture seule.

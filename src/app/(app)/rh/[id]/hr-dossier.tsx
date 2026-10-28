@@ -8,13 +8,14 @@ import { Input, Select, Label } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { HR_DOCUMENT_CATEGORY, HR_REQUEST_TYPE, HR_REQUEST_STATUS } from "@/lib/labels";
 import { formatDate, formatMonth, formatCurrency } from "@/lib/utils";
-import { processHrRequest, deleteEmployeeDocument, decideExpenseReport, decideHrLeave, deleteHrRequest, setEmployeeDocumentVisibility } from "@/lib/actions/hr-document-actions";
-import { defaultVisibleToEmployee, visibilityLabel } from "@/lib/hr/document-visibility";
-import { hrNature, HR_DOCUMENT_STATUSES, CATEGORIE_DU_DEPOT } from "@/lib/hr-request-flow";
-import { HrRequestThread } from "@/components/shared/hr-request-thread";
-import { MeetingControls } from "@/components/shared/hr-meeting-controls";
+import { processHrRequest, deleteEmployeeDocument, decideExpenseReport, decideHrLeave, deleteHrRequest, setEmployeeDocumentVisibility } from "@/modules/rh/actions-documents";
+import {
+  defaultVisibleToEmployee, visibilityLabel, hrNature, HR_DOCUMENT_STATUSES, CATEGORIE_DU_DEPOT,
+} from "@/modules/rh/partage";
+import { HrRequestThread } from "@/modules/rh/ecrans/hr-request-thread";
+import { MeetingControls } from "@/modules/rh/ecrans/hr-meeting-controls";
 import { ExpenseClaimHrPanel } from "@/components/hr/expense-claim-hr-panel";
-import type { HrDocumentDTO, HrRequestDTO } from "@/lib/queries/hr-documents";
+import type { HrDocumentDTO, HrRequestDTO } from "@/modules/rh/api";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { OrdreMissionForm } from "./ordre-mission-form";
 import { AttestationTravailForm } from "./attestation-travail-form";

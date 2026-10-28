@@ -7,9 +7,9 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { getLeavesToDecide } from "@/lib/queries/hr";
-import { requestLeave, decideLeave, updateLeaveRequest } from "./hr-actions";
-import { decideHrLeave, deleteHrRequest } from "./hr-document-actions";
+import { getLeavesToDecide } from "@/modules/rh/api";
+import { requestLeave, decideLeave, updateLeaveRequest } from "@/modules/rh/actions";
+import { decideHrLeave, deleteHrRequest } from "@/modules/rh/actions-documents";
 import { superAdminDelete, restoreDeletedRecord } from "./admin-delete-actions";
 
 let dbOk = false;

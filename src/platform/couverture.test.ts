@@ -27,7 +27,7 @@ import { mesurerCouverture } from "./couverture";
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 768,
+  horsCarte: 756,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
@@ -41,7 +41,7 @@ const PLAFONDS = {
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 128,
+  testsDeTexte: 125,
 } as const;
 
 const mesure = mesurerCouverture();

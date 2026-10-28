@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select } from "@/components/ui/input";
-import { proposeStandIn, decideStandIn } from "@/lib/actions/stand-in-actions";
+import { proposeStandIn, decideStandIn } from "@/modules/rh/actions-interim";
 import { STAND_IN_LABEL, type StandInStatus } from "@/lib/hr/stand-in";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 

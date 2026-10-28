@@ -30,6 +30,11 @@ import { join } from "node:path";
 export const ACTIONS_DES_MODULES: Readonly<Record<string, string>> = {
   "coffre-actions": "src/modules/coffre/actions.ts",
   "consommation-actions": "src/modules/consommation/actions.ts",
+  "hr-actions": "src/modules/rh/actions.ts",
+  "hr-document-actions": "src/modules/rh/actions-documents.ts",
+  "payroll-hr-actions": "src/modules/rh/actions-paie.ts",
+  "conge-discussion-actions": "src/modules/rh/actions-conges-discussion.ts",
+  "stand-in-actions": "src/modules/rh/actions-interim.ts",
   "organisation-actions": "src/modules/referentiels/actions-organisations.ts",
   "personnes-actions": "src/modules/referentiels/actions-personnes.ts",
   "refonte-reprise-actions": "src/modules/referentiels/actions-reprises.ts",
