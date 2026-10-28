@@ -9,7 +9,7 @@ import { setRegIntelligenceEnabled } from "@/lib/regulatory/intelligence/actions
 import { sendBroadcast } from "@/lib/actions/notification-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
-import { useRetours } from "@/components/ui/retour";
+import { Retour, useRetours } from "@/components/ui/retour";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { THERAPEUTIC_SEGMENTS } from "@/lib/labels";
 import { COLONNES_REGULATORY, COLONNES_INAMOVIBLES } from "@/lib/vues/colonnes-regulatory";
@@ -51,7 +51,7 @@ export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
           <p className="text-xs text-muted-foreground">Fichiers du Drive (gros transferts en flux), jusqu'à 2 048 Mo.</p>
         </div>
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex justify-end">
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : null}
@@ -104,7 +104,7 @@ export function AdProDgThresholdForm({ settings }: { settings: AppSettings }) {
           Ce même seuil se règle depuis le centre.
         </p>
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex justify-end">
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : null}
@@ -150,7 +150,7 @@ export function RegEnrollmentToggle({ enabled: initial }: { enabled: boolean }) 
         </button>
       </div>
       {busy && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Mise à jour…</p>}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }
@@ -204,7 +204,7 @@ export function RegIntelligenceToggles({ companies }: { companies: CompanyFlag[]
           </div>
         );
       })}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }
@@ -302,7 +302,7 @@ export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserL
         </span>
       </label>
 
-      {result && <p className={`rounded-lg px-3 py-2 text-sm ${result.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{result.text}</p>}
+      {result && <Retour ton={result.ok ? "succes" : "erreur"}>{result.text}</Retour>}
       <div className="flex justify-end">
         <Button type="submit" disabled={sending}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} Diffuser
@@ -363,7 +363,7 @@ export function MailDiagnosticPanel({ mailboxes }: { mailboxes: Mailbox[] }) {
         </Button>
       </div>
 
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
 
       {res && (
         <div className={`space-y-2 rounded-lg border px-3 py-3 text-sm ${DIAG_TONE[res.category] ?? DIAG_TONE.OTHER}`}>
@@ -496,7 +496,7 @@ export function RegulatoryHiddenColumnsForm({ hidden }: { hidden: string[] }) {
           ? "Toutes les colonnes sont affichées."
           : `${list.length} colonne(s) retirée(s) du tableau — les données restent sur les fiches et reviennent dès qu'on les remet.`}
       </p>
-      {err && <p className="text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" onClick={() => void save()} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer
