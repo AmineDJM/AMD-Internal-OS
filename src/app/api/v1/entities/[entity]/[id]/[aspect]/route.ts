@@ -85,9 +85,11 @@ export const GET = handle<{ entity: string; id: string; aspect: string }>(
       case "related": {
         const out: Record<string, unknown> = {};
         for (const [name, field] of Object.entries(def.related ?? {})) {
+          // Une relation qui porte des données personnelles a sa projection (`champsRelation`) : la ligne entière, non.
+          const champs = def.champsRelation?.[name];
           const withRel = await model.findFirst({
             where: { id: params.id },
-            select: { [field]: { take: 200 } },
+            select: { [field]: { take: 200, ...(champs ? { select: Object.fromEntries(champs.map((c) => [c, true])) } : {}) } },
           }).catch(() => null);
           out[name] = withRel ? serialize((withRel as Record<string, unknown>)[field]) : [];
         }

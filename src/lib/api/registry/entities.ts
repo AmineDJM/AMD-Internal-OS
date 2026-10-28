@@ -57,6 +57,12 @@ export interface EntityDef {
   entityType?: string;
   /** Objets liés exposés par `/related` : nom → champ de relation Prisma. */
   related?: Record<string, string>;
+  /**
+   * LA PROJECTION D'UNE RELATION (audit 27/10, reste de SA-05) : les champs rendus pour chaque objet lié, quand
+   * l'objet lié porte des données personnelles. Sans elle, `/related` rendait la ligne entière — les membres d'un
+   * département arrivaient avec adresse et téléphone, que la fiche du salarié ne montre qu'aux RH.
+   */
+  champsRelation?: Record<string, string[]>;
   /** Tri par défaut. */
   orderBy?: Record<string, "asc" | "desc">;
   /** L'objet porte-t-il un circuit de validation exposé par `/workflow` ? */
@@ -130,6 +136,8 @@ export const ENTITIES: EntityDef[] = [
     listFields: ["id", "name", "code", "parentId", "companyId", "headId", "deputyId", "description"],
     searchFields: ["name", "code"],
     related: { children: "children", members: "members", budgets: "budgets", pettyCash: "pettyCash" },
+    // Les membres : ce que la LISTE des employés rend, pas leur fiche (adresse, téléphone, pièces d'identité).
+    champsRelation: { members: ["id", "fullName", "position", "departmentId", "companyId", "isActive", "hireDate", "contractType", "userId"] },
     orderBy: { name: "asc" },
   },
   {
