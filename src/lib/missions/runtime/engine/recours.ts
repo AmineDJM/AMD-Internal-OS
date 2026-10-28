@@ -9,8 +9,8 @@ import { attenduDe } from "@/lib/missions/recovery/evaluate";
 import { ERROR_KINDS, type ErrorKind, type Strategy } from "@/lib/missions/recovery/strategy";
 import { deciderRecours, historiqueDe, noter, peutConclureEtape, type ResolveursRecours } from "@/lib/missions/recovery/coordinator";
 import { elargirEntree, memeAppel } from "@/lib/missions/recovery/action";
-import { metaDe, type StepOutcome } from "./contrat";
-import { appliquer } from "./execution";
+import { metaDe, type StepOutcome } from "@/lib/missions/runtime/engine/contrat";
+import { appliquer } from "@/lib/missions/runtime/engine/execution";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

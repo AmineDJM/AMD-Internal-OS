@@ -5,9 +5,9 @@
  */
 import { EFFECT_RANK } from "@/lib/missions/registry/capability-meta";
 import { auMoinsUnePartira, direCondition, estInconditionnelle, nombreGaranti } from "@/lib/missions/compiler/garanties";
-import type { CompiledStep, OptionsCompilation } from "./types";
-import { issue, viseLeDemandeur } from "./outils";
-import type { ContexteCompilation } from "./etape";
+import type { CompiledStep, OptionsCompilation } from "@/lib/missions/compiler/compile/types";
+import { issue, viseLeDemandeur } from "@/lib/missions/compiler/compile/outils";
+import type { ContexteCompilation } from "@/lib/missions/compiler/compile/etape";
 
 export function porteDAccordVide(ctx: ContexteCompilation): void {
   const { plan, warnings, compiled } = ctx;

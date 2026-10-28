@@ -9,7 +9,7 @@ import { EtatMission, journaliser, transitionner } from "@/lib/missions/runtime/
 import { aReparer, controlerQualite, evaluerObjectif, type EtapeObservee, type JugementAnterieur } from "@/lib/missions/goal/evaluate";
 import { EFFECT_RANK } from "@/lib/missions/registry/capability-meta";
 import { sansBloquer } from "@/lib/journal";
-import { type EngineDeps, plafondDuCatalogue } from "./contrat";
+import { type EngineDeps, plafondDuCatalogue } from "@/lib/missions/runtime/engine/contrat";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

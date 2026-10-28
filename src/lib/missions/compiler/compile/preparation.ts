@@ -8,8 +8,8 @@ import { EFFECT_RANK } from "@/lib/missions/registry/capability-meta";
 import type { CapabilityCatalog } from "@/lib/missions/ports";
 import { reparerReglesDacceptation } from "@/lib/missions/goal/rules";
 import { sortieAttendue, type SortieEtape } from "@/lib/missions/compiler/sorties";
-import type { OptionsCompilation } from "./types";
-import { assainirPlan, contexteReglesDuPlan, issue } from "./outils";
+import type { OptionsCompilation } from "@/lib/missions/compiler/compile/types";
+import { assainirPlan, contexteReglesDuPlan, issue } from "@/lib/missions/compiler/compile/outils";
 
 /**
  * PASSE 0 — rend le plan ASSAINI (identifiants, critères réparés) et, sous plafond de lecture,

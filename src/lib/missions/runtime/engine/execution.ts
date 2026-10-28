@@ -19,11 +19,11 @@ import { resultatJonction } from "@/lib/missions/runtime/sorties";
 import { rattraperFaitAnterieur } from "@/lib/missions/events/router";
 import { fabriquerRecu } from "@/lib/missions/runtime/receipt";
 import { vueParentEventail } from "@/lib/missions/runtime/worker";
-import { type EngineDeps, metaDe, type StepContext, type StepOutcome } from "./contrat";
-import { SYNTHESE } from "./ordonnancement";
-import { tenterRecours } from "./recours";
-import { ecrireSortie } from "./sortie";
-import { deployerEventail } from "./eventail";
+import { type EngineDeps, metaDe, type StepContext, type StepOutcome } from "@/lib/missions/runtime/engine/contrat";
+import { SYNTHESE } from "@/lib/missions/runtime/engine/ordonnancement";
+import { tenterRecours } from "@/lib/missions/runtime/engine/recours";
+import { ecrireSortie } from "@/lib/missions/runtime/engine/sortie";
+import { deployerEventail } from "@/lib/missions/runtime/engine/eventail";
 
 type Sortie =
   | { kind: "expansion"; n: number }

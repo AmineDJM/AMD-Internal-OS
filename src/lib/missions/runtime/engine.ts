@@ -39,15 +39,15 @@ import { prendreBail } from "@/lib/missions/runtime/bail";
 import { limitesDe, ordonnancer } from "@/lib/missions/runtime/scheduler";
 import { EtatMission, chargerEtat, transitionner } from "@/lib/missions/runtime/store";
 import { lireInterrupteurMissions, type LecteurInterrupteur } from "@/lib/interrupteurs/missions";
-import { type EngineDeps, profilCapacite, type TickResult } from "./engine/contrat";
-import { enParallele, etapesPretes, relancerReparables, reprendreOrphelines, reserver } from "./engine/ordonnancement";
-import { executerUneEtape } from "./engine/execution";
-import { resoudreEventails } from "./engine/eventail";
-import { conclure, synchroniserEtat } from "./engine/conclusion";
+import { type EngineDeps, profilCapacite, type TickResult } from "@/lib/missions/runtime/engine/contrat";
+import { enParallele, etapesPretes, relancerReparables, reprendreOrphelines, reserver } from "@/lib/missions/runtime/engine/ordonnancement";
+import { executerUneEtape } from "@/lib/missions/runtime/engine/execution";
+import { resoudreEventails } from "@/lib/missions/runtime/engine/eventail";
+import { conclure, synchroniserEtat } from "@/lib/missions/runtime/engine/conclusion";
 
-export { BAIL_MS, type StepContext, type StepOutcome, type StepHandlers, type EngineDeps, type TickResult } from "./engine/contrat";
-export { dependanceSatisfaite } from "./engine/ordonnancement";
-export { bilanDe, conclure } from "./engine/conclusion";
+export { BAIL_MS, type StepContext, type StepOutcome, type StepHandlers, type EngineDeps, type TickResult } from "@/lib/missions/runtime/engine/contrat";
+export { dependanceSatisfaite } from "@/lib/missions/runtime/engine/ordonnancement";
+export { bilanDe, conclure } from "@/lib/missions/runtime/engine/conclusion";
 
 /**
  * FAIT AVANCER LA MISSION AUTANT QU'ELLE PEUT AVANCER MAINTENANT.

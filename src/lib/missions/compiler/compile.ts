@@ -39,14 +39,14 @@
 import type { CompileIssue, MissionPlan } from "@/lib/missions/planner/contract";
 import { effetMaximal } from "@/lib/missions/registry/capability-meta";
 import type { CapabilityCatalog, MissionActor } from "@/lib/missions/ports";
-import type { CompiledStep, CompileResult, OptionsCompilation } from "./compile/types";
-import { preparerLePlan, verifierLimitesEtCles, sortiesDuPlan } from "./compile/preparation";
-import { type ContexteCompilation, compilerEtape } from "./compile/etape";
-import { porteDAccordVide, questionDeConfort, produireEstInterdit, couverturePrimitives, nombreDePieces } from "./compile/couverture";
-import { poserLeGraphe } from "./compile/graphe";
-import { planSansProduction, planSansSource, attentesIndiscernables } from "./compile/controles";
+import type { CompiledStep, CompileResult, OptionsCompilation } from "@/lib/missions/compiler/compile/types";
+import { preparerLePlan, verifierLimitesEtCles, sortiesDuPlan } from "@/lib/missions/compiler/compile/preparation";
+import { type ContexteCompilation, compilerEtape } from "@/lib/missions/compiler/compile/etape";
+import { porteDAccordVide, questionDeConfort, produireEstInterdit, couverturePrimitives, nombreDePieces } from "@/lib/missions/compiler/compile/couverture";
+import { poserLeGraphe } from "@/lib/missions/compiler/compile/graphe";
+import { planSansProduction, planSansSource, attentesIndiscernables } from "@/lib/missions/compiler/compile/controles";
 
-export type { CompiledStep, StepSpec, CompiledMission, CompileResult, OptionsCompilation } from "./compile/types";
+export type { CompiledStep, StepSpec, CompiledMission, CompileResult, OptionsCompilation } from "@/lib/missions/compiler/compile/types";
 
 export function compile(
   planBrut: MissionPlan,

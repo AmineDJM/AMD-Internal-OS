@@ -3,8 +3,8 @@
  * rien, un plan qui ne touche aucune source, et plusieurs réponses humaines attendues qui ne disent
  * pas ce qu'elles attendent.
  */
-import { issue } from "./outils";
-import type { ContexteCompilation } from "./etape";
+import { issue } from "@/lib/missions/compiler/compile/outils";
+import type { ContexteCompilation } from "@/lib/missions/compiler/compile/etape";
 
 export function planSansProduction(ctx: ContexteCompilation): void {
   const { plan, issues, compiled } = ctx;

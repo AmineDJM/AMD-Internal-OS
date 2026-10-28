@@ -5,7 +5,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Clock } from "@/lib/missions/ports";
 import { EtatEtape, EtatMission, journaliser } from "@/lib/missions/runtime/store";
-import { BAIL_MS, estTerminal } from "./contrat";
+import { BAIL_MS, estTerminal } from "@/lib/missions/runtime/engine/contrat";
 
 /**
  * LES ÉTAPES QUI PEUVENT PARTIR.

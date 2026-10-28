@@ -7,7 +7,7 @@ import type { Clock } from "@/lib/missions/ports";
 import { assertStepTransition } from "@/lib/missions/runtime/state";
 import { EtatEtape, EtatMission, journaliser } from "@/lib/missions/runtime/store";
 import { classer } from "@/lib/registre/manques";
-import type { StepOutcome } from "./contrat";
+import type { StepOutcome } from "@/lib/missions/runtime/engine/contrat";
 
 /** Écrit le résultat de l'étape — et transitionne en passant par la machine à états. */
 export async function ecrireSortie(

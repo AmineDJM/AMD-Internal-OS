@@ -5,7 +5,7 @@
  */
 import { COMPILE_ERRORS, CompileIssue, MissionPlan, NodeType, PlannedStep } from "@/lib/missions/planner/contract";
 import { reecrireClesDansRegles, type ContexteReglesPlan } from "@/lib/missions/goal/rules";
-import type { StepSpec } from "./types";
+import type { StepSpec } from "@/lib/missions/compiler/compile/types";
 
 const ERREURS = new Set<string>(COMPILE_ERRORS);
 

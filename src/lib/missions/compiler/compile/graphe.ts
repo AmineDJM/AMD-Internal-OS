@@ -4,8 +4,8 @@
  */
 import { PLAN_LIMITS } from "@/lib/missions/planner/contract";
 import { layout } from "@/lib/missions/compiler/graph";
-import { issue } from "./outils";
-import type { ContexteCompilation } from "./etape";
+import { issue } from "@/lib/missions/compiler/compile/outils";
+import type { ContexteCompilation } from "@/lib/missions/compiler/compile/etape";
 
 /** PASSE 4 — le graphe : un livrable produit une fois (§88), pas de cycle, une profondeur bornée, les vagues. */
 export function poserLeGraphe(ctx: ContexteCompilation): ReturnType<typeof layout> {

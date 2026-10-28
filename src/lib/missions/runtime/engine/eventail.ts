@@ -10,9 +10,9 @@ import { EtatEtape, EtatMission, journaliser } from "@/lib/missions/runtime/stor
 import { entreeIteration, identiteIteration } from "@/lib/missions/runtime/interpolate";
 import { expliquer, resoudreCollection } from "@/lib/missions/runtime/collection";
 import { EFFECT_RANK } from "@/lib/missions/registry/capability-meta";
-import { metaDe, type StepOutcome } from "./contrat";
-import { tenterRecours } from "./recours";
-import { ecrireSortie } from "./sortie";
+import { metaDe, type StepOutcome } from "@/lib/missions/runtime/engine/contrat";
+import { tenterRecours } from "@/lib/missions/runtime/engine/recours";
+import { ecrireSortie } from "@/lib/missions/runtime/engine/sortie";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

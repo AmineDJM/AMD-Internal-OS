@@ -12,8 +12,8 @@ import { decrireEntrees, estGabarit, verifierEntree } from "@/lib/missions/regis
 import { referencesDe, resoudreReference } from "@/lib/missions/runtime/interpolate";
 import { direRefus, verdictChemin, type SortieEtape } from "@/lib/missions/compiler/sorties";
 import { verdictEmpreinte } from "@/lib/mutations/empreinte";
-import type { CompiledStep, OptionsCompilation } from "./types";
-import { CAPACITES_LISTE, FORMES, issue, nbDestinataires, specDe } from "./outils";
+import type { CompiledStep, OptionsCompilation } from "@/lib/missions/compiler/compile/types";
+import { CAPACITES_LISTE, FORMES, issue, nbDestinataires, specDe } from "@/lib/missions/compiler/compile/outils";
 
 /**
  * CE QUE LES PASSES LISENT ET ÉCRIVENT — les variables de `compile`, rendues explicites. Les tableaux
