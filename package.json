@@ -41,6 +41,8 @@
     "factory:bench": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/factory-bench.ts",
     "audit:reachability": "tsx scripts/audit-runtime-reachability.ts",
     "actions:contrat": "tsx scripts/actions-contrat.ts",
+    "qualite:mort": "tsx scripts/qualite.ts mort",
+    "qualite:doublons": "tsx scripts/qualite.ts doublons",
     "factures:doublons": "tsx scripts/recenser-doublons-factures.ts",
     "adam:smoke:provider": "tsx scripts/smoke-provider.ts",
     "adam:smoke:deep": "tsx scripts/deep-smoke.ts",
