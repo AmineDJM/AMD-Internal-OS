@@ -74,3 +74,15 @@ export {
   checkDeferral, deferralNote, SETTLEMENT_LABEL, settlementState, type SettlementState, sortForSettlement,
 } from "./domaine/settlement";
 export { compteParDefaut, jourAlger, resoudreCompte } from "./domaine/tresorerie";
+
+// La paie VERSÉE par le centre de paiement (décision du 28/10/2026) : les RH décident les salaires, les Finances les
+// versent — le mois de la paie, l'état d'un salaire et du virement, le coût employeur et la masse salariale.
+export {
+  basisLabel, type CostBasis, defaultEmployerCost, entryBasis, entryCost, type PayrollCostInput,
+} from "./domaine/payroll-cost";
+export { type LigneMasseMensuelle, type MasseMensuelle, masseMensuelleParEntite } from "./domaine/payroll-mass";
+export {
+  clauseSalairesVersesANotifier, deMois, ETAT_VIREMENT_LABEL, etatSalaire, type EtatSalaire, etatVirement,
+  libelleVirementPaie, lireSommeAVirer, moisDeLaPaie, moisDeLEntite, type MoisDeLEntite, noteVirementPaie,
+  saisiAvantLeCentre, SOMME_A_VIRER_MANQUANTE, virementCouvre, type VirementDuMois,
+} from "./domaine/virement-paie";

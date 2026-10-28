@@ -32,6 +32,8 @@ export { verserLaRemise } from "./infra/verser-remise";
 export { syncInvoiceSettlement } from "./infra/settle-invoice";
 export { solderLeDossierCompagnon } from "./infra/compagnon-regle";
 export { nextFinanceRef } from "./infra/next-ref";
+// La paie versée par le centre : le virement soldé au règlement, l'instant de la bascule (§118.176).
+export { instantDuCentreDePaie, solderVirementPaie } from "./infra/paie-centre";
 
 // ── Requêtes : trésorerie, comptes, pièces ───────────────────────────────────────────────────
 export { compteDeLEcriture, comptesTresorerie } from "./infra/comptes";

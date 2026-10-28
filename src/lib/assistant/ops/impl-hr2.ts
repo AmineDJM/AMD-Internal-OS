@@ -4,12 +4,12 @@ import { toNumber } from "@/lib/utils";
 import { HR_REQUEST_TYPE, LEAVE_TYPE, MODULE_LABELS } from "@/lib/labels";
 import {
   createEmployee, updateEmployee, requestLeave, updateLeaveRequest, requestAdvance, cancelAdvance,
-} from "@/lib/actions/hr-actions";
+} from "@/modules/rh/actions";
 import {
   addHrRequestComment, decideHrLeave, ackExpenseOriginals, proposeHrMeeting, confirmHrMeeting,
   deleteHrRequest, deleteEmployeeDocument, setEmployeeDocumentVisibility,
-} from "@/lib/actions/hr-document-actions";
-import { proposeStandIn, decideStandIn } from "@/lib/actions/stand-in-actions";
+} from "@/modules/rh/actions-documents";
+import { proposeStandIn, decideStandIn } from "@/modules/rh/actions-interim";
 import { saveAccessMatrix, updateUserProfile, revokeAllSessions, requestOnboarding } from "@/lib/actions/access-actions";
 import { MODULES, type Module } from "@/lib/rbac";
 import type { OpImpl, OpProposalDraft, OpExecuteResult } from "./types";

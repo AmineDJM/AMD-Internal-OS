@@ -37,7 +37,7 @@ const RECHERCHE = "src/lib/queries/search.ts";
 const CLAUSES: { fonction: string; ecrans: string[] }[] = [
   { fonction: "clauseSponsoringsVisibles", ecrans: ["src/app/(app)/sponsoring/page.tsx"] },
   { fonction: "clauseEcrituresVisibles", ecrans: ["src/modules/finances/infra/requetes/finance.ts", "src/modules/finances/infra/requetes/compta.ts"] },
-  { fonction: "clauseSalariesVisibles", ecrans: ["src/lib/queries/hr.ts"] },
+  { fonction: "clauseSalariesVisibles", ecrans: ["src/modules/rh/infra/requetes/hr.ts"] },
   { fonction: "clauseVentesVisibles", ecrans: ["src/app/(app)/sales/historique/page.tsx"] },
   { fonction: "clauseCommandesLogistiqueVisibles", ecrans: ["src/app/(app)/logistics/page.tsx"] },
   { fonction: "clauseDemandesSecretariatVisibles", ecrans: ["src/lib/queries/admin-requests.ts"] },

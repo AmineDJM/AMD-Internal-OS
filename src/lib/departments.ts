@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import {
   resolveManager, managementChainOf,
   type DepartmentNodeLite, type EmployeeNode, type ManagerSource,
-} from "@/lib/hr/reporting-line";
+} from "@/modules/rh/partage";
 
 /**
  * DÉPARTEMENTS — structure de l'entreprise et hiérarchie réelle (N+1).

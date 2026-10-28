@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import { formatCurrency } from "@/lib/utils";
-import { rattacherSalariesAEntite } from "@/lib/actions/payroll-hr-actions";
+import { rattacherSalariesAEntite } from "@/modules/rh/actions-paie";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { sansBloquer } from "@/lib/journal";
 

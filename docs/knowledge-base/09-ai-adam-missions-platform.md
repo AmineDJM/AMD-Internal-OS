@@ -258,7 +258,7 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   L1 domains must not import each other; L2 façades (`queries/`, `api/registry/`, `links/`) are the authorised crossings; L3 Adam (`assistant/`, `models/`).
 - **Event bus** [V] `event-bus.ts` / `events.ts`: in-memory, per process, `REPLAY_CAPACITY = 500`, handlers isolated (errors swallowed),
   `emit` never throws and drops unknown types. Closed catalogue of **17** past-tense facts (`events.ts`). Actually emitted by ERP code in
-  **3** places: `actions/hr-actions.ts:97` (`hr.employee-added`), `actions/regulatory-actions.ts:824` (`regulatory.owner-changed`),
+  **3** places: `modules/rh/actions.ts:97` (`hr.employee-added`), `actions/regulatory-actions.ts:824` (`regulatory.owner-changed`),
   `comms/outbound.ts:514` (`mail.sent`). One subscriber: Adam's change feed (`assistant/platform/change-feed.ts:78-89`, `replayFrom: 0`),
   served via the `what_changed` tool as a *hint*, never as truth.
 - **Two event systems — do not confuse** [V]: the volatile `platform` bus (hints for Adam) vs the persistent `BusinessEvent` ledger

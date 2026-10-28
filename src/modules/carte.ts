@@ -28,6 +28,8 @@ export const CARTE = {
   consommation: [],
   /** Ordres de dépense, centre de paiement, demandes de paiement, règlement, trésorerie et comptes. */
   finances: ["referentiels", "coffre"],
+  /** RH : congés, paie (par le centre de paiement), avances, notes de frais, documents RH, organisation. */
+  rh: ["coffre", "referentiels", "finances"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

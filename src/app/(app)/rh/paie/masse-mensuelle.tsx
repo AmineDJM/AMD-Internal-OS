@@ -1,4 +1,4 @@
-import type { MasseMensuelle } from "@/lib/hr/payroll-mass";
+import type { MasseMensuelle } from "@/modules/finances/partage";
 
 /**
  * LA MASSE SALARIALE, ENTITÉ PAR ENTITÉ ET MOIS PAR MOIS — « pour chaque entité avoir la masse

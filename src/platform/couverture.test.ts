@@ -18,6 +18,8 @@ import { mesurerCouverture } from "./couverture";
  *   kit d'interface → métier 6 · tests qui lisent le source par chemin 128.
  * Lot V4 (28/10/2026, migration des Finances vers `src/modules/finances/`) : hors carte 768 → 760 ·
  *   kit d'interface → métier 6 → 5 · tests qui lisent le source par chemin 128 → 122.
+ * Fusion des lots V4 `rh` et `finances` (la paie versée passe à `finances`) : hors carte 748 · kit → métier 5 ·
+ *   tests de texte 119.
  *
  * Point de départ RECALÉ à la fusion de la base `bf7a907` (lots V3-C/D/E), et seulement là : ces lots ont
  * ajouté 9 fichiers hors carte (`lib/agent/consommation*.ts`, `contenu-non-fiable.ts`, `testing/journal.ts`,
@@ -29,7 +31,7 @@ import { mesurerCouverture } from "./couverture";
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 760,
+  horsCarte: 748,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
@@ -43,7 +45,7 @@ const PLAFONDS = {
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 122,
+  testsDeTexte: 119,
 } as const;
 
 const mesure = mesurerCouverture();

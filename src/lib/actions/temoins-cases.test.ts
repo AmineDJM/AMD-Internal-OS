@@ -121,7 +121,8 @@ const litParFdCase = (src: string, nom: string) =>
 function modulesActions(src: string): string[] {
   const mods = new Set<string>();
   for (const m of sansCommentaires(src).matchAll(/from\s+["']@\/lib\/actions\/([\w-]+)["']/g)) mods.add(`lib/actions/${m[1]}`);
-  for (const m of sansCommentaires(src).matchAll(/from\s+["']@\/modules\/([\w-]+\/actions(?:-[\w-]+)?)["']/g)) mods.add(`modules/${m[1]}`);
+  // Les actions rangées dans un module (`@/modules/rh/actions-documents`) : même lecture, autre racine.
+  for (const m of sansCommentaires(src).matchAll(/from\s+["']@\/(modules\/[\w-]+\/actions(?:-[\w-]+)?)["']/g)) mods.add(m[1]);
   return [...mods].sort();
 }
 

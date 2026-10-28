@@ -4,7 +4,7 @@ import type { CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { getEnvelopes, getEnvelopesGrandTotal, getBudgetOverview } from "@/lib/queries/budget";
 import { getComptaData } from "@/modules/finances/api";
-import { getRhData, getLeavesToDecide } from "@/lib/queries/hr";
+import { getRhData, getLeavesToDecide } from "@/modules/rh/api";
 import { getActionCenter, PREFIXE_CONGE } from "@/lib/queries/action-center";
 import { EXECUTIVE_TOOLS } from "@/lib/assistant/executive-tools";
 import { WATCH_TOOLS } from "@/lib/assistant/watch-tools";

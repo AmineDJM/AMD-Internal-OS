@@ -101,15 +101,12 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/infra/demandes.ts → src/lib/factures/connues",
     "src/modules/finances/actions-relances.ts → src/lib/factures/jeton-relance",
     // LE RÈGLEMENT FERME LE CHANTIER D'ORIGINE : payer un ordre clôt le sponsoring, le matériel promo, le BV
-    // réglementaire, la paie du mois. Ce sont des appels sortants vers chaque métier — cible = un événement
+    // réglementaire (la paie du mois, elle, est versée par le module même : `infra/paie-centre.ts`). Ce sont des appels sortants vers chaque métier — cible = un événement
     // « ordre réglé » écouté par chacun (registre d'événements), et Ad & Pro / RH / Regulatory par leur porte.
     "src/modules/finances/actions-depenses.ts → src/lib/ad-pro/cloture-sponsoring",
     "src/modules/finances/actions-depenses.ts → src/lib/promo-cloture",
     "src/modules/finances/actions-depenses.ts → src/lib/regulatory/bv-circuit",
     "src/modules/finances/actions-depenses.ts → src/lib/regulatory/bv-reglement",
-    "src/modules/finances/actions-depenses.ts → src/lib/hr/paie-centre",
-    "src/modules/finances/infra/requetes/compta.ts → src/lib/hr/paie-centre",
-    "src/modules/finances/infra/requetes/compta.ts → src/lib/hr/virement-paie",
     // Ce qui entre au centre depuis un autre métier : le bon de versement de l'information médicale (dispense
     // de facture), la ligne consulting d'un ordre, la règle des bons de commande (`blocageParLeBC`).
     "src/modules/finances/actions-demandes.ts → src/lib/medical-info",
@@ -135,6 +132,87 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // La reprise des pièces relance la file d'enrichissement (moteur E) : cible = `@/modules/pieces/api`.
     "src/modules/referentiels/infra/reprises/rattrapage-pieces.ts → src/lib/enrichissement/file",
     "src/modules/referentiels/infra/reprises/rattrapage-pieces.ts → src/lib/enrichissement/signalement",
+  ],
+  rh: [
+    // La paie et les avances partent au CENTRE DE PAIEMENT par `@/modules/finances/api` (carte : rh → finances) ;
+    // restent le budget et la numérotation, que le module Finances ne porte pas.
+    "src/modules/rh/actions-paie.ts → src/lib/queries/budget",
+    "src/modules/rh/actions-paie.ts → src/lib/refs",
+    // Les droits délégués d'un absent restent au SOCLE DES DROITS : `rbac.ts` les lit (domains.ts, ARCH-01).
+    // Cible = `src/lib/rbac/` quand `rbac.ts` sera découpé — alors ces lignes tombent d'elles-mêmes.
+    "src/modules/rh/actions-interim.ts → src/lib/hr/stand-in",
+    "src/modules/rh/actions-interim.ts → src/lib/hr/stand-in-resolve",
+    "src/modules/rh/infra/conge-escalade.ts → src/lib/hr/stand-in-resolve",
+    "src/modules/rh/infra/leave-core.ts → src/lib/hr/stand-in-resolve",
+    "src/modules/rh/infra/requetes/hr.ts → src/lib/hr/stand-in-resolve",
+    // L'organisation (départements, entités, source unique de l'organigramme) : cible = un module `organisation`.
+    "src/modules/rh/actions-documents.ts → src/lib/company",
+    "src/modules/rh/actions-interim.ts → src/lib/company",
+    "src/modules/rh/actions-paie.ts → src/lib/company",
+    "src/modules/rh/actions.ts → src/lib/company",
+    "src/modules/rh/actions.ts → src/lib/org/source-unique",
+    "src/modules/rh/domaine/leave-workflow.ts → src/lib/approval-chain",
+    "src/modules/rh/infra/conge-escalade.ts → src/lib/departments",
+    "src/modules/rh/infra/leave-core.ts → src/lib/departments",
+    "src/modules/rh/infra/requetes/hr-pulse.ts → src/lib/company",
+    "src/modules/rh/infra/requetes/hr.ts → src/lib/approval-chain",
+    "src/modules/rh/infra/requetes/hr.ts → src/lib/departments",
+    // Les services transverses : notifications, Drive chiffré, stockage, agenda, archives, références, PDF.
+    // Ce sont des plateformes, pas des métiers : cible = `src/platform/` (rapport 08, §3.4).
+    "src/modules/rh/actions-conges-discussion.ts → src/lib/notify",
+    "src/modules/rh/actions-documents.ts → src/lib/calendar",
+    "src/modules/rh/actions-documents.ts → src/lib/calendar-tz",
+    "src/modules/rh/actions-documents.ts → src/lib/drive-storage",
+    "src/modules/rh/actions-documents.ts → src/lib/notify",
+    "src/modules/rh/actions-documents.ts → src/lib/references/registre",
+    "src/modules/rh/actions-documents.ts → src/lib/references/registre-serveur",
+    "src/modules/rh/actions-documents.ts → src/lib/storage",
+    "src/modules/rh/actions-interim.ts → src/lib/notify",
+    "src/modules/rh/actions-paie.ts → src/lib/artifact/adapters/docx/adapter",
+    "src/modules/rh/actions-paie.ts → src/lib/drive-storage",
+    "src/modules/rh/actions-paie.ts → src/lib/payslip/to-pdf",
+    "src/modules/rh/actions-paie.ts → src/lib/storage",
+    "src/modules/rh/actions.ts → src/lib/notify",
+    "src/modules/rh/domaine/absences.ts → src/lib/calendar-tz",
+    "src/modules/rh/ecrans/hr-meeting-controls.tsx → src/lib/calendar-tz",
+    "src/modules/rh/infra/archive-demande-rh.ts → src/lib/archive",
+    "src/modules/rh/infra/archive-demande-rh.ts → src/lib/calendar-tz",
+    "src/modules/rh/infra/archive-demande-rh.ts → src/lib/drive-storage",
+    "src/modules/rh/infra/attestation-travail-depot.ts → src/lib/drive-storage",
+    "src/modules/rh/infra/attestation-travail-depot.ts → src/lib/notify",
+    "src/modules/rh/infra/attestation-travail-depot.ts → src/lib/payslip/to-pdf",
+    "src/modules/rh/infra/attestation-travail-depot.ts → src/lib/references/registre",
+    "src/modules/rh/infra/attestation-travail-depot.ts → src/lib/references/registre-serveur",
+    "src/modules/rh/infra/conge-escalade.ts → src/lib/notify",
+    "src/modules/rh/infra/hr-drive-mirror.ts → src/lib/drive-storage",
+    "src/modules/rh/infra/leave-core.ts → src/lib/notify",
+    "src/modules/rh/infra/leave-core.ts → src/lib/storage",
+    "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/drive-storage",
+    "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/notify",
+    "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/payslip/to-pdf",
+    "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/references/registre",
+    "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/references/registre-serveur",
+    // La lecture des pièces par l'IA (contrat de travail, attestation) : cible = `@/modules/pieces/api`.
+    "src/modules/rh/actions.ts → src/lib/ai",
+    "src/modules/rh/actions.ts → src/lib/ia/cle-manquante",
+    "src/modules/rh/actions.ts → src/lib/regulatory/intelligence/ocr/ocr-engine",
+    "src/modules/rh/infra/attestation-travail-luna.ts → src/lib/ai-settings",
+    "src/modules/rh/infra/attestation-travail-luna.ts → src/lib/comms/untrusted",
+    "src/modules/rh/infra/attestation-travail-luna.ts → src/lib/openai-luna",
+    "src/modules/rh/infra/attestation-travail-luna.ts → src/lib/pieces-lues/lecture-fichier",
+    "src/modules/rh/infra/attestation-travail-luna.ts → src/lib/pieces-lues/moteur-luna",
+    "src/modules/rh/infra/attestation-travail-luna.ts → src/lib/regulatory/intelligence/extract/texte-ou-ocr",
+    // L'ordre de mission suit la mission d'équipe (Ad & Pro, autre session) : cible = `@/modules/adpro/api`.
+    "src/modules/rh/actions-documents.ts → src/lib/missions-equipe/etat",
+    "src/modules/rh/actions-documents.ts → src/lib/missions-equipe/serveur",
+    "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/missions-equipe/etat",
+    "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/missions-equipe/serveur",
+    // Les gardes transverses : visibilité des listes, accès par fiche, garde des comptes, règles d'annulation.
+    "src/modules/rh/actions-conges-discussion.ts → src/lib/entity-access",
+    "src/modules/rh/actions-documents.ts → src/lib/annulations/regles",
+    "src/modules/rh/actions-documents.ts → src/lib/queries/visibilite-listes",
+    "src/modules/rh/infra/depart.ts → src/lib/admin/garde-comptes",
+    "src/modules/rh/infra/requetes/hr.ts → src/lib/queries/visibilite-listes",
   ],
 };
 

@@ -6,17 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { MeetingControls } from "@/components/shared/hr-meeting-controls";
+import { MeetingControls } from "@/modules/rh/ecrans/hr-meeting-controls";
 import { ExpenseClaimHrPanel } from "@/components/hr/expense-claim-hr-panel";
 import { DocumentList } from "@/components/documents/document-list";
 import { HR_REQUEST_TYPE } from "@/lib/labels";
 import { cn, formatCurrency, formatDate, formatDateTime, formatMonth, initials } from "@/lib/utils";
 import { joursCivilsDepuis } from "@/lib/calendar-tz";
-import { CATEGORIE_DU_DEPOT, hrNature, type HrNature } from "@/lib/hr-request-flow";
+import { CATEGORIE_DU_DEPOT, hrNature, type HrNature } from "@/modules/rh/partage";
 import {
   addHrRequestComment, decideExpenseReport, decideHrLeave, deleteHrRequest, processHrRequest,
-} from "@/lib/actions/hr-document-actions";
-import type { HrQueueItem } from "@/lib/queries/hr-documents";
+} from "@/modules/rh/actions-documents";
+import type { HrQueueItem } from "@/modules/rh/api";
 import { OrdreMissionForm } from "../[id]/ordre-mission-form";
 import { AttestationTravailForm } from "../[id]/attestation-travail-form";
 import { sansBloquer } from "@/lib/journal";

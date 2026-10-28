@@ -140,7 +140,7 @@ Key architectural decisions and their reasons (from code comments / doctrine):
    Marketing only, then the **DG validates the TOTAL** (postes + retained/accepted PEC quotes) strictly above
    `adProDgThreshold` — no BC/visa/payment/quote acceptance before (`lib/ad-pro/porte-dg.ts`, table `AdProPorteDg`).
    The `dg` workflow step is always sieved out. [V·orch 27/10]
-4. **Manager tree** has one source: `resolveManager` (`src/lib/hr/reporting-line.ts`); `directReportsOf`/`subtreeOf` are its
+4. **Manager tree** has one source: `resolveManager` (`src/modules/rh/domaine/reporting-line.ts`); `directReportsOf`/`subtreeOf` are its
    inverse and route leave, Mon équipe, KPIs, promo stock. [V·agent 08]
 5. **Retired modules** stay retired via `rbac.getAccess`; a test keeps them retired. [V·agent 07]
 6. **Dossier status is derived** (`process-status.ts` `deriveStatus`, only writer `syncStatusFromWorkflow`), never typed. [V·agent 07]

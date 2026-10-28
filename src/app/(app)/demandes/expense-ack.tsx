@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Receipt, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { ackExpenseOriginals } from "@/lib/actions/hr-document-actions";
+import { ackExpenseOriginals } from "@/modules/rh/actions-documents";
 import { formatMonth, formatDate } from "@/lib/utils";
 
 export interface ExpenseAckItem {

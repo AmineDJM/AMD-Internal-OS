@@ -11,7 +11,7 @@ import {
 } from "@/modules/finances/actions-demandes";
 import { updateTransaction, deleteTransaction, deleteTreasuryAccount, createPayroll } from "@/modules/finances/actions-tresorerie";
 import { updateInvoice, deleteInvoice } from "@/lib/actions/invoice-actions";
-import { markSalaryPaid, unmarkSalaryPaid } from "@/lib/actions/payroll-hr-actions";
+import { markSalaryPaid, unmarkSalaryPaid } from "@/modules/rh/actions-paie";
 import { createBudget } from "@/lib/actions/budget-actions";
 import { respondToPaymentCentre } from "@/modules/finances/actions-centre";
 import type { PaymentMove } from "@/modules/finances/partage";

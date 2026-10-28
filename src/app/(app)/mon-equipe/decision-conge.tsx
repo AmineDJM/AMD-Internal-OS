@@ -5,7 +5,7 @@ import { ArrowUp, CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { decideLeave, demanderAvisN1Conge } from "@/lib/actions/hr-actions";
+import { decideLeave, demanderAvisN1Conge } from "@/modules/rh/actions";
 import type { CongeADecider } from "@/lib/queries/my-team";
 
 /**

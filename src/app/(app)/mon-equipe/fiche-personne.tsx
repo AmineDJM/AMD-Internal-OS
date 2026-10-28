@@ -11,7 +11,7 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { cn, formatDate } from "@/lib/utils";
 import type { LigneEquipe } from "@/lib/queries/my-team-overview";
 import type { TeamMemberKpis } from "@/lib/queries/team-kpis";
-import type { TeamKpi } from "@/lib/hr/team-kpis";
+import type { TeamKpi } from "@/modules/rh/partage";
 import { teamMemberKpis } from "@/lib/actions/my-team-actions";
 import { createDirect } from "@/lib/actions/messaging-actions";
 import { createTask } from "@/lib/actions/task-actions";

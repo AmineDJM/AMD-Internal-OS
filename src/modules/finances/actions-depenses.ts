@@ -9,13 +9,12 @@ import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
 import {
   ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus, checkDeferral, budgetGate,
-  dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
+  dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon, solderVirementPaie,
 } from "@/modules/finances/api";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/lib/ad-pro/cloture-sponsoring";
-import { solderVirementPaie } from "@/lib/hr/paie-centre";
 import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 import { validateUpload } from "@/lib/storage";

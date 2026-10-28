@@ -55,6 +55,20 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > déplacements (adresses de réexpédition dans `tsconfig.json`, aucun fichier relais) ; ARCH-02 mesuré sur `src/app/`
 > et `src/components/` (`couverture.test.ts`). Mode d'emploi : [`docs/architecture/MODULES.md`](../../architecture/MODULES.md).
 
+> **Suite — lot V4, module `rh` (28/10/2026, branche `v4/module-rh`).** Le métier RH vit dans `src/modules/rh/`
+> (congés, paie, avances, notes de frais, documents RH, organisation) ; recette §3.5 suivie à la lettre (`git mv`,
+> portes, adresses de réexpédition, clés d'action historiques). Mesures avant → après :
+>
+> | Mesure | Avant | Après |
+> |---|---|---|
+> | Fichiers du métier hors module (`lib/hr/`, `lib/*hr*`, `lib/queries/hr*`, `lib/actions/{hr,payroll,stand-in,conge}-*`) | 46 sources + 25 tests | 3 sources + 4 tests (socle des droits : `stand-in`, `stand-in-resolve`, `confidentialite`) |
+> | Plus gros fichier du métier | 1 013 lignes (`hr-document-actions.ts`) | 948 (`actions-documents.ts`) — aucun > 1 000 |
+> | Importeurs externes du métier | 70 fichiers par 28 chemins `@/lib/hr/*` + 46 chemins d'actions | 68 fichiers par 3 portes (`partage` 32, `api` 25 dont les actions du module) + 5 fichiers d'actions + 2 écrans |
+> | `contrat.genere.json` (1 185 actions) | — | **identique octet pour octet** ; seul `aiguillage.genere.ts` change (5 lignes) |
+> | `horsCarte` (`couverture.test.ts`) | 768 | **756** |
+> | `testsDeTexte` | 128 | **125** |
+> | Dette héritée `rh` (`DETTE_HERITEE`) | — | 71 arêtes nommées, 7 familles (centre de paiement → `finances`, missions → `adpro`, socle des droits, organisation, services transverses, lecture IA, gardes) |
+> | Imports du kit `components/shared` vers un métier | 6 | 6 (les deux écrans RH de `shared/` sont devenus `rh/ecrans/`) |
 > **Suite — lot V4 Finances (28/10/2026, branche `v4/module-finances`).** Premier « gros métier » de la vague 4 (§3.5) :
 > ordres de dépense, centre de paiement, demandes de paiement, règlement, trésorerie et comptes migrés dans
 > `src/modules/finances/` ; `finance/` et `finances/` **fusionnés** (ARCH-08) ; écrivain du versement de caisse d'avance
@@ -70,8 +84,13 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > | Hors carte (`couverture.test.ts`) | 768 | **760** |
 > | Kit d'interface → métier | 6 | **5** (`linked-records.tsx` lit la règle par `queries/chaine-des-pieces.ts`) |
 > | Tests qui lisent le source par chemin (hors modules) | 128 | **122** (les gardes du métier vivent dans le module) |
-> | Dette héritée nommée (`DETTE_HERITEE.finances`) | — | 52 arêtes (notifications/numérotation, entité de l'argent, pièces, factures connues, clôture des chantiers au règlement, budgets) |
+> | Dette héritée nommée (`DETTE_HERITEE.finances`) | — | 49 arêtes après la fusion avec `rh` (notifications/numérotation, entité de l'argent, pièces, factures connues, clôture des chantiers au règlement, budgets) |
 > | Suite complète | 1 375 fichiers, 15 886 tests, 0 échec | 1 376 fichiers, 15 936 tests (fusion du lot V4 « fichiers géants » comprise), **0 échec** ; `build:render` propre |
+>
+> **Fusion avec le module `rh`** : la parente avait déjà migré RH, qui émet ses ordres par `@/modules/finances/api` ;
+> Finances lisait la paie de RH au règlement et en comptabilité — un cycle de modules. Décision (B) : la paie VERSÉE
+> (`paie-centre`, `virement-paie`, `payroll-cost`, `payroll-mass`) passe dans `finances` ; carte `rh → finances` seule,
+> contrat toujours identique octet pour octet, aucun outillage changé.
 
 ### ARCH-01 — Les cliquets ignorent les imports relatifs · HAUTE · **CORRIGÉ** (`f4a70c7`)
 

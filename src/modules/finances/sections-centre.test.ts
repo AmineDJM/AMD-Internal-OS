@@ -56,7 +56,7 @@ describe("la table des sections — exhaustive, et lue sur l'origine", () => {
   });
 
   it("chaque `sourceType` littéral que le code écrit sur un ordre est décidé ICI (un circuit neuf force une décision)", () => {
-    // `src/lib` ET `src/modules` : les demandes de paiement émettent leurs ordres depuis le module finances.
+    // `src/modules/` aussi : la paie (`rh/actions-paie.ts`) y émet ses ordres depuis le lot V4.
     const racines = ["src/lib", "src/modules"].map((r) => join(process.cwd(), r));
     const fichiers: string[] = [];
     const parcourir = (dir: string) => {
@@ -66,7 +66,7 @@ describe("la table des sections — exhaustive, et lue sur l'origine", () => {
         else if (/\.tsx?$/.test(nom) && !/\.test\.tsx?$/.test(nom)) fichiers.push(chemin);
       }
     };
-    for (const r of racines) parcourir(r);
+    racines.forEach(parcourir);
     const trouves = new Set<string>();
     let lus = 0;
     for (const f of fichiers) {

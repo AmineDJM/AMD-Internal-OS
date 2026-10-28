@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { moneyEntityOf, adventumCompanyId } from "@/lib/company";
 import { createPaymentRequest } from "@/modules/finances/actions-demandes";
-import { envoyerPaieAuCentre } from "./payroll-hr-actions";
+import { envoyerPaieAuCentre } from "@/modules/rh/actions-paie";
 import { decidePayment } from "@/modules/finances/actions-centre";
 import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 

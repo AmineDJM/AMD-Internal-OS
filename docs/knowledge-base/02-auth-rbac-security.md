@@ -166,7 +166,7 @@ Public whitelist (`src/auth.config.ts`, *dead* — kept as the documented intent
 2. **Vue exacte** (see 4.7) if the JWT role is `SUPER_ADMIN` and the `amd_impersonate` cookie names another active user (`:153-184`) [V].
 3. Otherwise `getAccess(id, jwtRole)`; the **role returned is the live DB role** (`access.role ?? session.user.role`, `:195`) [V].
 
-Revocation writers: `doSignOut` (current sid, `auth-actions.ts:37-43`), `changePassword` (all, `:76-79`), `adminResetPassword` (`access-actions.ts:232`), `setUserActive` (on deactivate, `:305`), `revokeSession` (`:329`), `revokeAllSessions` (`:365`), HR departure (`src/lib/hr/depart.ts:52`) [V]. **Not** revoking: `updateUserProfile`/`updateUserRole`/`setSecondaryRole` (role change) and `admin-actions.ts:toggleUserActive` (deactivation used by Adam) [V] — see §8.3.
+Revocation writers: `doSignOut` (current sid, `auth-actions.ts:37-43`), `changePassword` (all, `:76-79`), `adminResetPassword` (`access-actions.ts:232`), `setUserActive` (on deactivate, `:305`), `revokeSession` (`:329`), `revokeAllSessions` (`:365`), HR departure (`src/modules/rh/infra/depart.ts:52`) [V]. **Not** revoking: `updateUserProfile`/`updateUserRole`/`setSecondaryRole` (role change) and `admin-actions.ts:toggleUserActive` (deactivation used by Adam) [V] — see §8.3.
 
 `build()` does **not** check `User.isActive` for the real user [V]; deactivation relies on session revocation.
 
@@ -431,7 +431,7 @@ Related guards elsewhere: `requireSupplier()` (`src/lib/supplier-auth.ts:84`), `
 - Protection audit without middleware: 11 pages outside `(app)` and 129 API handlers in 121 files (table §4.1b); `(app)/layout.tsx:45-55`.
 - Credentials flow, lockout policy, session creation, JWT fields — `auth.ts:27-160`, `login-throttle.ts:10-71`.
 - Revocation check & live role — `session.ts:117-123,186-195`; all guard signatures — `session.ts:205-271`.
-- Revocation call sites and their absence on role change/`toggleUserActive` — `access-actions.ts:232,305,329,365`, `admin-actions.ts:62-115`, `auth-actions.ts:37-79`, `hr/depart.ts:52`.
+- Revocation call sites and their absence on role change/`toggleUserActive` — `access-actions.ts:232,305,329,365`, `admin-actions.ts:62-115`, `auth-actions.ts:37-79`, `modules/rh/infra/depart.ts:52`.
 - 19 roles, 70 modules, 7 actions; predicates; `accesAttribue`; `getAccess` queries & implicit grants; `userCan` — `rbac.ts` lines cited in §4.5.
 - `canAccessEntity` structure incl. `default: return true` — `entity-access.ts:516-1063`.
 - Override/row-grant/seat models — `schema.prisma:5349-5401`; admin guard — `garde-comptes.ts:25-38`.
