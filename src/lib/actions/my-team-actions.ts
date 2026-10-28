@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/session";
 import { enLecture } from "@/lib/vue-lecture";
 import { userCan } from "@/lib/rbac";
 import { loadReportingLine } from "@/lib/departments";
-import { subtreeOf, flattenTree } from "@/lib/hr/team-tree";
+import { subtreeOf, flattenTree } from "@/modules/rh/partage";
 import { getTeamMemberKpis, type TeamMemberKpis } from "@/lib/queries/team-kpis";
 
 /**

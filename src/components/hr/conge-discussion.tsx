@@ -3,7 +3,7 @@
 import * as React from "react";
 import { MessageSquare } from "lucide-react";
 import { CommentThread, type CommentItem } from "@/components/shared/comment-thread";
-import { commenterConge } from "@/lib/actions/conge-discussion-actions";
+import { commenterConge } from "@/modules/rh/actions-conges-discussion";
 import { updateComment, deleteComment } from "@/lib/actions/comment-actions";
 import { cn } from "@/lib/utils";
 

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Select, Textarea, Label, Input } from "@/components/ui/input";
 import { LEAVE_TYPE } from "@/lib/labels";
-import { requestLeave } from "@/lib/actions/hr-actions";
+import { requestLeave } from "@/modules/rh/actions";
 
 /**
  * DEMANDER UN CONGÉ — **un seul formulaire**, partagé par « Mon espace » et « Mon dossier RH ».

@@ -4,7 +4,7 @@ import path from "node:path";
 import PizZip from "pizzip";
 import { docxToPdf } from "./to-pdf";
 import { lireDocx } from "./docx-lecture";
-import { remplirOrdreDeMission, VALEURS_DU_MODELE } from "@/lib/hr/ordre-mission/modele";
+import { remplirOrdreDeMission, VALEURS_DU_MODELE } from "@/modules/rh/api";
 
 /**
  * LA FIDÉLITÉ DU PDF, MESURÉE CONTRE WORD.
@@ -16,7 +16,7 @@ import { remplirOrdreDeMission, VALEURS_DU_MODELE } from "@/lib/hr/ordre-mission
  * de repli (cas du serveur Linux sans Calibri).
  */
 
-const MODELE = readFileSync(path.join(__dirname, "../hr/ordre-mission/modele-ordre-de-mission.docx"));
+const MODELE = readFileSync(path.join(__dirname, "../../modules/rh/infra/ordre-mission/modele-ordre-de-mission.docx"));
 
 async function ordreDeMission(): Promise<Buffer> {
   return remplirOrdreDeMission(MODELE, {

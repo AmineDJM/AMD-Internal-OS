@@ -5,11 +5,10 @@ import { isOutstanding } from "@/lib/doc-request";
 import { getAppSettings } from "@/lib/settings";
 import { peutOuvrirModule } from "@/lib/queries/lien-ouvrable";
 import { algiersYmd } from "@/lib/calendar-tz";
-import { aujourdhuiAlger, minuitUtc, plusJours } from "@/lib/hr/absences";
+import { aujourdhuiAlger, minuitUtc, plusJours, jobOf } from "@/modules/rh/partage";
 import { getMyTeam } from "@/lib/queries/my-team";
 import { getMyTeamOverview, semaineOuvree } from "@/lib/queries/my-team-overview";
 import { getTeamMemberKpis } from "@/lib/queries/team-kpis";
-import { jobOf } from "@/lib/hr/team-kpis";
 import { peutRelancer } from "@/lib/tasks/request-flow";
 import { ROLE_LABELS } from "@/lib/labels";
 import {

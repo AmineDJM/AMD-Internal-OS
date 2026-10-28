@@ -15,6 +15,18 @@
 - **Filtre de confidentialité** : un IBAN imprimé par groupes de quatre est désormais masqué (il passait en clair).
   Décision [0011](../assistant/decisions/0011-vocaux-et-lecture-de-toute-piece.md).
 
+### MODULE RH — LE MÉTIER RH RANGÉ DANS `src/modules/rh/` (lot V4, 2026-10-28)
+
+- **Aucun changement de comportement** : congés, paie, avances, notes de frais, demandes et documents RH, attestation
+  de travail, ordre de mission et lectures des écrans déménagent (`git mv`) dans `src/modules/rh/` (`domaine/` pur,
+  `infra/`, `ecrans/`), derrière deux portes : `partage.ts` (pur, navigateur compris) et `api.ts` (serveur).
+- **Les actions gardent leur clé** (`hr-actions`, `hr-document-actions`, `payroll-hr-actions`, `stand-in-actions`,
+  `conge-discussion-actions` — `src/lib/actions/parc.ts`) : `contrat.genere.json` identique octet pour octet.
+- **La paie passe toujours par le centre de paiement** (Finances, `lib/expense-orders`) — lien déclaré en dette nommée,
+  cible `@/modules/finances/api`. Les données sensibles restent écrites par le coffre et déchiffrées par les seules pages RH.
+- Restent au socle des droits (lus par `rbac.ts` et le coffre) : `lib/hr/stand-in`, `stand-in-resolve`, `confidentialite`.
+  Les anciens chemins sont des adresses de réexpédition (`tsconfig.json`). Mesures : rapport 08, « Suite — lot V4 ».
+
 ### ASSISTANT IA SUR OPENAI, CAISSE D'AVANCE CRÉDITÉE À L'AUTORISATION, BUILD RENDER SOUS 8 GO (2026-10-28)
 
 - **Assistant IA → OpenAI `gpt-6.1-terra`** (Direction) : il utilise la clé `OPENAI_API_KEY` déjà en service, par l'API

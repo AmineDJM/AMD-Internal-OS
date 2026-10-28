@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Select, Textarea, Label, Input } from "@/components/ui/input";
 import { HR_REQUEST_TYPE } from "@/lib/labels";
-import { requestHrDocument, annulerDemandeRh } from "@/lib/actions/hr-document-actions";
+import { requestHrDocument, annulerDemandeRh } from "@/modules/rh/actions-documents";
 import { ExpenseClaimFields } from "@/components/hr/expense-claim-form";
 
 /** Types « congé » à jours entiers (début + fin) ; l'absence ponctuelle n'a qu'une date. */

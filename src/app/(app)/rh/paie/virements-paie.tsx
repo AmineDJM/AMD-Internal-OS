@@ -7,9 +7,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Label, Select } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
-import { envoyerPaieAuCentre } from "@/lib/actions/payroll-hr-actions";
+import { envoyerPaieAuCentre } from "@/modules/rh/actions-paie";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { ETAT_VIREMENT_LABEL, moisDeLaPaie, type MoisDeLEntite, type VirementDuMois } from "@/lib/hr/virement-paie";
+import { ETAT_VIREMENT_LABEL, moisDeLaPaie, type MoisDeLEntite, type VirementDuMois } from "@/modules/rh/partage";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { sansBloquer } from "@/lib/journal";
 

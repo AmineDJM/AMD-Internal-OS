@@ -235,7 +235,7 @@ describe("le registre, branché partout où un document porte une référence", 
     const apercu = fabrique.slice(fabrique.indexOf("export async function previsualiserDocument"), fabrique.indexOf("// ─────────────────────────── La révision"));
     expect(apercu, "l'aperçu prévoit, il n'attribue pas").not.toMatch(/attribuerReference|attribuerAuRegistre/);
     expect(apercu).toMatch(/prevoirReference\(/);
-    expect(lire("src/lib/ordre-mission-depot.ts")).toMatch(/docType: "ORDRE_MISSION"/);
+    expect(lire("src/modules/rh/infra/ordre-mission-depot.ts")).toMatch(/docType: "ORDRE_MISSION"/);
     expect(lire("src/lib/demande-devis-depot.ts")).toMatch(/docType: "DEMANDE_DEVIS"/);
   });
 });
