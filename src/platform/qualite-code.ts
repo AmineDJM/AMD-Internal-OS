@@ -42,7 +42,7 @@ export const PLAFONDS = {
   /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. */
   clones: 1473,
   /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. */
-  lignesDupliquees: 13326,
+  lignesDupliquees: 13272,
 } as const;
 
 const RACINE = process.cwd();

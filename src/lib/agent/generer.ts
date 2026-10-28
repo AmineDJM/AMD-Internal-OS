@@ -2,7 +2,7 @@ import { Agent } from "@mastra/core/agent";
 import { modelesAssistant, pourMastra } from "@/lib/agent/modele";
 import { fournisseurDe, type ModeleTour } from "@/lib/agent/repondre";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
-import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, porteurCourant, type Budget, type OrigineAppel } from "@/lib/agent/consommation";
+import { appelDepuisEtape, budgetDeLAppel, fermerBudget, type OrigineAppel } from "@/lib/agent/consommation";
 
 /**
  * UN APPEL DE RÉDACTION SANS OUTIL — pour les travaux de documents qui dépassent un tour :
@@ -49,21 +49,9 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
   // L'interrupteur général — lu ici comme dans `repondreAvecSecours` : l'autre porte vers le modèle.
   if (await interrupteurIaCoupe()) return { ok: false, raison: REFUS_IA_COUPEE };
 
-  const porteur = porteurCourant();
-  let budget: Budget;
-  let proprietaire = false;
-  if (porteur?.budget) {
-    budget = porteur.budget;
-    if (budget.depasse) return { ok: false, raison: budget.refus() };
-  } else {
-    try {
-      budget = await ouvrirBudget({ userId: porteur?.userId ?? null, origine: opts.origine ?? "redaction", conversation: porteur?.conversation });
-      proprietaire = true;
-    } catch (e) {
-      if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message };
-      throw e;
-    }
-  }
+  const ouvert = await budgetDeLAppel(opts.origine ?? "redaction");
+  if (!ouvert.ok) return ouvert;
+  const { budget, proprietaire } = ouvert;
 
   const debut = Date.now();
   let resultat: { ok: true; texte: string } | { ok: false; raison: string } = { ok: false, raison: "aucune réponse" };

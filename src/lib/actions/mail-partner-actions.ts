@@ -58,12 +58,20 @@ export async function createMailPartner(_prev: ActionResult | undefined, formDat
   return { ok: true, id: created.id };
 }
 
+/** La personne, si elle tient le registre du courrier, et le partenaire désigné par le formulaire. */
+async function partenaireVise(formData: FormData) {
+  const user = await requireUser();
+  if (!userCan(user, "MAIL_REGISTER", "UPDATE")) return { ok: false as const, error: "Non autorisé." };
+  const id = fdStr(formData, "id");
+  if (!id) return { ok: false as const, error: "Partenaire introuvable." };
+  return { ok: true as const, user, id };
+}
+
 /** Modifie un partenaire (nom, nature, contact, notes) ou le désactive. */
 export async function updateMailPartner(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "MAIL_REGISTER", "UPDATE")) return { ok: false, error: "Non autorisé." };
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Partenaire introuvable." };
+  const vise = await partenaireVise(formData);
+  if (!vise.ok) return vise;
+  const { user, id } = vise;
   const existing = await prisma.mailPartner.findUnique({ where: { id }, select: { name: true } });
   if (!existing) return { ok: false, error: "Partenaire introuvable." };
 
@@ -99,10 +107,9 @@ export async function updateMailPartner(formData: FormData): Promise<ActionResul
  * effacer le lien de ceux qui l'ont déjà.
  */
 export async function deleteMailPartner(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!userCan(user, "MAIL_REGISTER", "UPDATE")) return { ok: false, error: "Non autorisé." };
-  const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Partenaire introuvable." };
+  const vise = await partenaireVise(formData);
+  if (!vise.ok) return vise;
+  const { user, id } = vise;
   const existing = await prisma.mailPartner.findUnique({
     where: { id },
     select: { name: true, _count: { select: { entries: true } } },

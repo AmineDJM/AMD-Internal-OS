@@ -312,26 +312,34 @@ export const JETONS_PAR_SECONDE_AUDIO = 10;
 export const jetonsTexte = (texte: string): number => Math.ceil((texte ?? "").length / 4);
 export const jetonsAudio = (secondes: number | null | undefined): number => Math.max(0, Math.round((secondes ?? 0) * JETONS_PAR_SECONDE_AUDIO));
 
+/**
+ * LE BUDGET D'UN APPEL HORS TOUR — celui du tour en cours quand il y en a un, sinon un budget ouvert pour cet appel
+ * seul, que l'appelant ferme (`proprietaire`). Plafond du jour atteint : le refus, avec sa phrase. Partagé par la
+ * rédaction (`generer.ts`) et la voix (`appelVoix`) : deux portes vers le modèle, un seul compte.
+ */
+export async function budgetDeLAppel(
+  origine: OrigineAppel,
+): Promise<{ ok: true; budget: Budget; proprietaire: boolean } | { ok: false; raison: string }> {
+  const porteur = porteurCourant();
+  if (porteur?.budget) {
+    return porteur.budget.depasse ? { ok: false, raison: porteur.budget.refus() } : { ok: true, budget: porteur.budget, proprietaire: false };
+  }
+  try {
+    return { ok: true, budget: await ouvrirBudget({ userId: porteur?.userId ?? null, origine, conversation: porteur?.conversation }), proprietaire: true };
+  } catch (e) {
+    if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message };
+    throw e;
+  }
+}
+
 export async function appelVoix<T>(
   origine: Extract<OrigineAppel, "transcription" | "synthese">,
   fn: (inscrire: (a: Omit<AppelModele, "cache" | "raisonnement">) => void) => Promise<{ ok: true; valeur: T } | { ok: false; raison: string }>,
 ): Promise<IssueVoix<T>> {
   if (await interrupteurIaCoupe()) return { ok: false, raison: REFUS_IA_COUPEE, code: "IA_COUPEE" };
-  const porteur = porteurCourant();
-  let budget: Budget;
-  let proprietaire = false;
-  if (porteur?.budget) {
-    budget = porteur.budget;
-    if (budget.depasse) return { ok: false, raison: budget.refus(), code: "PLAFOND" };
-  } else {
-    try {
-      budget = await ouvrirBudget({ userId: porteur?.userId ?? null, origine, conversation: porteur?.conversation });
-      proprietaire = true;
-    } catch (e) {
-      if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message, code: "PLAFOND" };
-      throw e;
-    }
-  }
+  const ouvert = await budgetDeLAppel(origine);
+  if (!ouvert.ok) return { ok: false, raison: ouvert.raison, code: "PLAFOND" };
+  const { budget, proprietaire } = ouvert;
   const debut = Date.now();
   let issue: IssueVoix<T> = { ok: false, raison: "aucune réponse", code: "ECHEC" };
   try {
