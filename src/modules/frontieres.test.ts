@@ -114,6 +114,12 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/finances/domaine/chemins-paiement.ts → src/lib/bons-de-commande/regle",
     // Les budgets ne sont pas encore migrés : l'imputation automatique d'une catégorie au règlement.
     "src/modules/finances/actions-depenses.ts → src/lib/budget/auto-category",
+    // Les gardes d'écriture du lot sécurité & argent (audit 27/10) : la porte d'écriture par identifiant et la garde
+    // des comptes (on n'accorde pas un siège à un compte système ou désactivé). Cible = le socle des droits.
+    "src/modules/finances/actions-centre.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-depenses.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-tresorerie.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-sieges.ts → src/lib/admin/garde-comptes",
   ],
   referentiels: [
     // Les normalisations NIF / RC / e-mail vivent chez la qualité des données et la lecture des pièces.

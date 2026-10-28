@@ -31,7 +31,7 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   information médicale…) par `api.ts` ; les pages `/finances`, `/centre-de-paiement`, `/validations/paiements`.
 - **Hors périmètre** : les budgets (`src/lib/budget*`, non migrés) ; les écrans restent dans `src/app/` et
   `src/components/finance/` (pas encore de dossier `ecrans/`).
-- **Dette héritée** (nommée dans `frontieres.test.ts`, 49 arêtes) : notifications et numérotation, l'entité de
+- **Dette héritée** (nommée dans `frontieres.test.ts`, 53 arêtes) : notifications et numérotation, l'entité de
   l'argent (`company`, `entity-access`), les pièces, la garde des factures connues, et surtout la **clôture des
   chantiers d'origine au règlement** (sponsoring, matériel promo, BV) — à remplacer par un événement « ordre réglé ».
 
