@@ -1,5 +1,29 @@
 ## 🧾 Journal des évolutions récentes
 
+### REFONTE V2-C : LES ORGANISATIONS EN SERVICE — REPRISE, DOUBLONS PROPOSÉS, DOUBLE ÉCRITURE, FICHE 360° (2026-10-27)
+
+Migration `20270131170000_organisations_reprise` (une table `PropositionDoublonOrganisation`, une colonne
+`AppSetting.doubleEcritureOrganisations`, fausse par défaut) — elle n'écrit AUCUNE donnée.
+- **Administration › Refonte des données** (`/admin/refonte-donnees`, Super Admin seul) : une carte par reprise — aperçu
+  à blanc, un lot (200 lignes) ou tous les lots, journal (lignes d'audit « Refonte des données »). Contrat commun
+  `referentiels/reprises/types.ts`, liste `reprises/index.ts`, action unique `actions/refonte-reprise-actions.ts`.
+- **Quatre reprises, dans l'ordre** : `organisations` (sociétés du groupe, partenaires, fournisseurs Regulatory,
+  établissements → une `Organisation` chacun, rôles, NIF/NIS/RC/AI normalisés, `organisationId` posé) ;
+  `organisations-textes` (institution d'un sponsoring, établissement hôte d'un congrès national : rattachés à la seule
+  organisation de même nom, ou à une organisation née du texte ; le texte saisi reste) ; `organisations-affiliations`
+  (salarié ↔ sa société, praticien ↔ son établissement… quand la Personne existe — aucune personne créée) ;
+  `organisations-doublons` (paires proposées avec leurs raisons). Rejouées, elles ne refont rien (ids déterministes).
+- **Un NIF identifie un tiers** : unique par (type, valeur normalisée). Deux fiches au même NIF → le second n'est pas
+  recopié, la paire est proposée « certaine » ; le NIF d'une société du groupe recopié sur un tiers ne compte pas.
+- **Doublons à trancher** (`/admin/refonte-donnees/organisations`) : garder l'une, garder l'autre, ou « pas les
+  mêmes ». Une fusion n'efface rien (`fusionneeDansId`) et se défait ; une paire écartée n'est jamais reproposée.
+- **Double écriture** (interrupteur sur l'écran) à la création d'un fournisseur (3 portes), d'un partenaire, d'un
+  établissement : même code que la reprise, non bloquante.
+- **Fiche Organisation 360°** `/organisations/[id]` : identifiants, rôles, coordonnées relevées sur les fiches,
+  personnes affiliées, fiches d'origine, devis/BC/factures (`LegalDocument`), demandes Ad & Pro — chaque bloc avec la
+  porte de son écran d'origine. Ni RIB ni IBAN (lot coffre).
+- Code : `src/lib/referentiels/organisations/*` ; bancs `candidats.test.ts`, `reprises/lots.test.ts`, `reprise.test.ts`.
+
 ### LEGAL : « NOUVEAU DOCUMENT » ET « NOUVELLE FACTURE » SE REMPLISSENT DEPUIS LA PIÈCE (2026-10-27)
 
 Migration `20270129100000_synthese_legale` (deux colonnes nullables sur `LecturePiece`). On dépose d'abord le fichier (ou

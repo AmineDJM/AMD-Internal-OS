@@ -8,6 +8,7 @@ import { userCan } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { fdStr, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 
 const EXTERNAL_STATUSES: ExternalRegulatoryStatus[] = [
@@ -65,6 +66,7 @@ export async function createSupplier(
     data: { name, country: fdStr(formData, "country"), contactEmail: fdStr(formData, "contactEmail")?.toLowerCase() ?? null, notes: fdStr(formData, "notes"), createdById: user.id },
   });
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Portail fournisseur", entityType: "SUPPLIER", entityId: created.id, summary: `Fournisseur « ${name} »` });
+  await doubleEcrireOrganisation("SUPPLIER", created.id, user.id);
   revalidatePath("/admin/suppliers");
   return { ok: true, id: created.id };
 }

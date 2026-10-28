@@ -9742,6 +9742,10 @@ model AppSetting {
   /// L'identifiant de DÉMARRAGE du site : il change quand le site redémarre (déploiement, mise en
   /// veille du plan gratuit, qui efface ce qu'il a reçu). L'ERP rapproche alors aussitôt.
   siteBootId                    String?
+  /// REFONTE V2-C — DOUBLE ÉCRITURE DES ORGANISATIONS (`referentiels/organisations/double-ecriture.ts`). Vrai = la
+  /// création d'un fournisseur, d'un partenaire ou d'un établissement crée aussi (ou retrouve) son `Organisation`.
+  /// Faux par défaut : le Super Admin l'ouvre depuis Administration › Refonte des données, et le referme d'un clic.
+  doubleEcritureOrganisations   Boolean   @default(false)
   updatedAt                     DateTime  @updatedAt
   updatedById                   String?
 }
@@ -17065,6 +17069,8 @@ model Organisation {
   sponsoringRequests     SponsoringRequest[]
   congressNationals      CongressNational[]
   congressInternationals CongressInternational[]
+  doublonsA              PropositionDoublonOrganisation[] @relation("DoublonA")
+  doublonsB              PropositionDoublonOrganisation[] @relation("DoublonB")
 
   @@index([nomReplie])
   @@index([fusionneeDansId])
@@ -17129,6 +17135,32 @@ model OrganisationIdentifiant {
 
   @@unique([type, valeurNormalisee])
   @@index([organisationId])
+}
+
+/// R2 — DEUX ORGANISATIONS QUI SONT PEUT-ÊTRE LA MÊME : le système PROPOSE (`referentiels/doublons.ts`), une
+/// personne TRANCHE. `organisationAId` < `organisationBId` (paire ordonnée, unique). Rien n'est fusionné d'office :
+/// FUSIONNEE pose `Organisation.fusionneeDansId` sur l'absorbée (geste du Super Admin, audité), ECARTEE garde les deux.
+model PropositionDoublonOrganisation {
+  id              String       @id @default(cuid())
+  organisationAId String
+  organisationA   Organisation @relation("DoublonA", fields: [organisationAId], references: [id], onDelete: Cascade)
+  organisationBId String
+  organisationB   Organisation @relation("DoublonB", fields: [organisationBId], references: [id], onDelete: Cascade)
+  /// CERTAIN | PROBABLE | POSSIBLE (`NiveauDoublon`).
+  niveau          String
+  score           Int          @default(0)
+  raisons         String[]     @default([])
+  reserves        String[]     @default([])
+  /// PROPOSEE | FUSIONNEE | ECARTEE — vocabulaire tenu côté code.
+  statut          String       @default("PROPOSEE")
+  decideeParId    String?
+  decideeLe       DateTime?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  @@unique([organisationAId, organisationBId])
+  @@index([statut, niveau])
+  @@index([organisationBId])
 }
 
 /// R2 — PERSONNE ↔ ORGANISATION : remplace les champs texte `institution`. Une personne a au plus une
