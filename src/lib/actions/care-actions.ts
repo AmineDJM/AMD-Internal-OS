@@ -3,21 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { Prisma, type CareCellKind, type CareCellStatus, type CareOpinion, type CareServiceKind } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, hasRole, anyRoleFilter, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, type SessionUser, anyRoleFilter } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
+import { defaultCells, piecesADemander, OPINION_LABELS, SERVICE_KIND_LABELS } from "@/lib/care";
 import {
-  beneficiaryName, careProgress, defaultCells, financeReadiness, quoteConflicts, piecesADemander,
-  OPINION_LABELS, SERVICE_KIND_LABELS,
-} from "@/lib/care";
-import {
-  casesDeLaCategorie, detailsStockes, deviseDuDevis, deviseDuPoste, etapesDuBillet, etapesStockees,
-  lireDetailsTrajets, peutTeleverserBillet, hotelPrerempli, libelleNouveauPoste,
-  lignesReservationFiche, lireMontant, lirePosteSaisi, manquesPourReserverFiche, montantLisible, personneVivante,
-  tauxDeLaDemande, typePoste, versDzd, peutMarquerRealisee, DECISION_LIBELLE, TAUX_USD_DZD_DEFAUT, type CellRow,
+  deviseDuPoste, etapesDuBillet, lireDetailsTrajets, peutTeleverserBillet, libelleNouveauPoste, lireMontant,
+  lirePosteSaisi, montantLisible, typePoste, versDzd, peutMarquerRealisee,
 } from "@/lib/care-fiches";
 import { envoiAuxFinances, ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME } from "@/lib/care-realisation";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
@@ -34,6 +29,23 @@ import { demandePrevalidee, refusEngagementPriseEnCharge, REFUS_NON_PREVALIDEE }
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
 import { relierALaPersonne } from "@/modules/referentiels/api";
 import { sansBloquer } from "@/lib/journal";
+import {
+  SPEC, canDecide, canEdit, chargerPosteGroupe, isScope, loadRequest, nameOf, parentWhere, revalidate, rolesDe,
+  scopeOfBeneficiary, tauxDe, type Scope,
+} from "@/lib/actions/internes/care/demande";
+import { versCellRow, CELL_FICHE_SELECT } from "@/lib/actions/internes/care/fiches";
+import {
+  fichierEtSaPiece, hotelDeLaPersonne, materielsRattachables, posteFusionne, praticiensDeLAnnuaire,
+} from "@/lib/actions/internes/care/postes";
+import {
+  casesDeLaCategorieDemandee, chiffrerLeDevis, conflitDeCouverture, demandeDeBc, devisATrancher, devisRetenus,
+  devisRivaux, marquerBcDemande, rattacherLOrdre, refuserLeDevis, rendreLaReserveDuDevis, reserverLeDevis,
+  retenirALaPlace,
+} from "@/lib/actions/internes/care/devis";
+import {
+  creerPosteGroupe, etatPourLesFinances, exclureOuReinclure, poserLaFin,
+} from "@/lib/actions/internes/care/demande-suite";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/care/{demande,fiches,postes,devis,demande-suite}` — les actions restent ici (leur clé de contrat).
 
 /**
  * PRISE EN CHARGE — actions serveur (nationale et internationale).
@@ -51,58 +63,11 @@ import { sansBloquer } from "@/lib/journal";
  * personne ne s'en apercevrait avant la facture.
  */
 
-type Scope = "NATIONAL" | "INTERNATIONAL";
-
-const SPEC: Record<Scope, { module: "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL"; path: string }> = {
-  NATIONAL: { module: "CONGRESS_NATIONAL", path: "/congress-national" },
-  INTERNATIONAL: { module: "CONGRESS_INTERNATIONAL", path: "/congress-international" },
-};
-
-const isScope = (v: string): v is Scope => v === "NATIONAL" || v === "INTERNATIONAL";
-
-/** Statuts à partir desquels la Direction a tranché la demande dans son ensemble. */
-const DECIDED = ["APPROVED", "COMPLETED"];
-
-function revalidate(scope: Scope, id: string) {
-  revalidatePath(SPEC[scope].path);
-  revalidatePath(`${SPEC[scope].path}/${id}`);
-  revalidatePath(`${SPEC[scope].path}/${id}/devis`);
-}
-
-/** Décrire les personnes et leurs besoins : ouvert aux acteurs de la demande. */
-function canEdit(user: SessionUser, scope: Scope): boolean {
-  const m = SPEC[scope].module;
-  return userCan(user, m, "CREATE") || userCan(user, m, "UPDATE") || hasGlobalView(user);
-}
-/** Trancher (accorder une personne, accepter un devis) : Direction. */
-function canDecide(user: SessionUser, scope: Scope): boolean {
-  return hasGlobalView(user) || userCan(user, SPEC[scope].module, "VALIDATE");
-}
-
 async function audit(user: SessionUser, scope: Scope, id: string, action: "CREATE" | "UPDATE" | "DELETE", detail: string) {
   await recordAudit({
     actorId: user.id, module: SPEC[scope].module, entityType: SPEC[scope].module, entityId: id, action, summary: detail,
   }).catch(sansBloquer("care-actions.audit.recordAudit"));
 }
-
-/** Ce qu'on lit d'une demande, quel que soit son périmètre. */
-const REQUEST_SELECT = {
-  id: true, name: true, requestStatus: true, requesterId: true, finalAmount: true,
-  careMode: true, usdDzdRate: true, city: true, companyId: true, careReservationDossierId: true,
-} as const;
-
-/** Charge la demande, quel que soit son périmètre. */
-async function loadRequest(scope: Scope, id: string) {
-  if (scope === "NATIONAL") {
-    const r = await prisma.congressNational.findUnique({ where: { id }, select: REQUEST_SELECT });
-    return r;
-  }
-  return prisma.congressInternational.findUnique({ where: { id }, select: REQUEST_SELECT });
-}
-
-/** Le taux figé de la demande (international), ou aucun (national). */
-const tauxDe = (scope: Scope, req: { usdDzdRate: unknown } | null) =>
-  tauxDeLaDemande(scope, req?.usdDzdRate != null ? toNumber(req.usdDzdRate) : null);
 
 /**
  * OUVRIR LA FICHE D'UNE PERSONNE — sa billetterie et son hôtellerie, ouvertes par défaut (Direction, 10/2026).
@@ -121,29 +86,6 @@ async function ouvrirFiche(tx: Prisma.TransactionClient, scope: Scope, beneficia
     data.push({ beneficiaryId, kind: "SERVICE", serviceKind: "HOTEL", label: "Hôtellerie", city, currency: deviseDuPoste(scope, "HOTEL"), requestedById: userId, position: ++pos });
   }
   if (data.length) await tx.careCell.createMany({ data });
-}
-
-/** Une case lue pour les règles des fiches (dates en AAAA-MM-JJ). */
-const CELL_FICHE_SELECT = {
-  id: true, kind: true, serviceKind: true, label: true, notes: true, status: true, amountDzd: true, amount: true, currency: true,
-  expenseOrderId: true, promoMaterialId: true, documentId: true, dateStart: true, dateEnd: true, trajet: true, transport: true,
-  fromCity: true, toCity: true, segments: true, hotelName: true, city: true, roomType: true,
-  issuedDocumentId: true, bookingRef: true, legDetails: true, timeStart: true, address: true,
-} as const;
-
-type CellFicheDb = Prisma.CareCellGetPayload<{ select: typeof CELL_FICHE_SELECT }>;
-
-function versCellRow(c: CellFicheDb): CellRow {
-  const iso = (d: Date | null) => (d ? d.toISOString().slice(0, 10) : null);
-  const base = {
-    id: c.id, kind: c.kind, serviceKind: c.serviceKind, label: c.label, notes: c.notes, status: c.status,
-    amountDzd: c.amountDzd != null ? toNumber(c.amountDzd) : null, amount: c.amount != null ? toNumber(c.amount) : null,
-    currency: c.currency, expenseOrderId: c.expenseOrderId, promoMaterialId: c.promoMaterialId, documentId: c.documentId,
-    promoMaterial: null, dateStart: iso(c.dateStart), dateEnd: iso(c.dateEnd), trajet: c.trajet, transport: c.transport,
-    fromCity: c.fromCity, toCity: c.toCity, segments: etapesStockees(c.segments), hotelName: c.hotelName, city: c.city, roomType: c.roomType,
-    issuedDocumentId: c.issuedDocumentId, bookingRef: c.bookingRef, timeStart: c.timeStart, address: c.address,
-  };
-  return { ...base, legDetails: detailsStockes(c.legDetails, c.serviceKind === "TICKET" ? etapesDuBillet(base).length : 0) };
 }
 
 /**
@@ -183,31 +125,6 @@ async function ecrireAAssistante(
   if (scope === "NATIONAL") await prisma.congressNational.update({ where: { id: req.id }, data: { careReservationDossierId: sujet.id } });
   else await prisma.congressInternational.update({ where: { id: req.id }, data: { careReservationDossierId: sujet.id } });
   return { ok: true, id: sujet.id, reference: sujet.reference, nouveau: true };
-}
-
-/** Le lien parent d'une personne / d'un devis, selon le périmètre. */
-const parentWhere = (scope: Scope, id: string) =>
-  scope === "NATIONAL" ? { congressNationalId: id } : { congressInternationalId: id };
-
-/** Retrouve le périmètre et la demande depuis une personne. */
-async function scopeOfBeneficiary(beneficiaryId: string) {
-  const b = await prisma.careBeneficiary.findUnique({
-    where: { id: beneficiaryId },
-    select: { id: true, congressNationalId: true, congressInternationalId: true, status: true, doctorId: true, firstName: true, lastName: true },
-  });
-  if (!b) return null;
-  const scope: Scope = b.congressNationalId ? "NATIONAL" : "INTERNATIONAL";
-  const requestId = b.congressNationalId ?? b.congressInternationalId;
-  return requestId ? { beneficiary: b, scope, requestId } : null;
-}
-
-/** Nom affichable d'une personne — résout l'annuaire si besoin. */
-async function nameOf(b: { doctorId: string | null; firstName: string | null; lastName: string | null }): Promise<string> {
-  let doctorName: string | null = null;
-  if (b.doctorId) {
-    doctorName = (await prisma.medicalDoctor.findUnique({ where: { id: b.doctorId }, select: { name: true } }))?.name ?? null;
-  }
-  return beneficiaryName({ ...b, doctorName });
 }
 
 // ───────────────────────────── Les personnes ─────────────────────────────
@@ -524,13 +441,9 @@ export async function deposerPiecePriseEnCharge(_prev: ActionResult | undefined,
 export async function retirerFichierPiecePriseEnCharge(documentId: string, _path?: string): Promise<ActionResult> {
   const user = await requireUser();
   if (!documentId) return { ok: false, error: "Fichier non précisé." };
-  const doc = await prisma.document.findUnique({ where: { id: documentId }, select: { id: true, name: true, entityType: true, entityId: true, stepKey: true } });
-  if (!doc) return { ok: false, error: "Fichier introuvable." };
-  const cell = await prisma.careCell.findFirst({
-    where: { kind: "DOCUMENT", OR: [{ documentId: doc.id }, ...(doc.stepKey ? [{ id: doc.stepKey }] : [])] },
-    select: { id: true, label: true, status: true, documentId: true, beneficiaryId: true },
-  });
-  if (!cell) return { ok: false, error: "Ce fichier n'est pas celui d'une pièce de prise en charge." };
+  const lu = await fichierEtSaPiece(documentId);
+  if (!lu.ok) return { ok: false, error: lu.error };
+  const { doc, cell } = lu;
   const found = await scopeOfBeneficiary(cell.beneficiaryId);
   if (!found) return { ok: false, error: "Personne introuvable." };
   const module = SPEC[found.scope].module;
@@ -580,13 +493,7 @@ export async function addCareCell(_prev: ActionResult | undefined, formData: For
 
   // UN HÔTEL AJOUTÉ prend la ville de l'événement et les dates du billet principal (propositions, corrigeables).
   let prerempli: { city: string | null; dateStart: Date | null; dateEnd: Date | null } = { city: null, dateStart: null, dateEnd: null };
-  if (serviceKind === "HOTEL") {
-    const req = await loadRequest(found.scope, found.requestId);
-    const billet = await prisma.careCell.findFirst({ where: { beneficiaryId, kind: "SERVICE", serviceKind: "TICKET" }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: CELL_FICHE_SELECT });
-    const p = hotelPrerempli({ city: req?.city ?? null }, billet ? versCellRow(billet) : null);
-    const d = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00.000Z`) : null);
-    prerempli = { city: p.city, dateStart: d(p.dateStart), dateEnd: d(p.dateEnd) };
-  }
+  if (serviceKind === "HOTEL") prerempli = await hotelDeLaPersonne(found.scope, found.requestId, beneficiaryId);
 
   try {
     const last = await prisma.careCell.findFirst({ where: { beneficiaryId }, orderBy: { position: "desc" }, select: { position: true } });
@@ -698,16 +605,7 @@ export async function modifierPosteFiche(_prev: ActionResult | undefined, formDa
     address: formData.has("address") ? String(formData.get("address") ?? "") : undefined,
     amount: formData.has("amount") ? String(formData.get("amount") ?? "") : undefined,
   };
-  const lu = lirePosteSaisi(cell.serviceKind, nom, {
-    label: envoye.label ?? avant.label, notes: envoye.notes ?? avant.notes ?? "",
-    dateStart: envoye.dateStart ?? avant.dateStart ?? "", dateEnd: envoye.dateEnd ?? avant.dateEnd ?? "",
-    trajet: envoye.trajet ?? avant.trajet ?? "", transport: envoye.transport ?? avant.transport ?? "",
-    fromCity: envoye.fromCity ?? avant.fromCity ?? "", toCity: envoye.toCity ?? avant.toCity ?? "",
-    segments: envoye.segments ?? JSON.stringify(avant.segments),
-    hotelName: envoye.hotelName ?? avant.hotelName ?? "", city: envoye.city ?? avant.city ?? "", roomType: envoye.roomType ?? avant.roomType ?? "",
-    timeStart: envoye.timeStart ?? avant.timeStart ?? "", address: envoye.address ?? avant.address ?? "",
-    amount: envoye.amount ?? "",
-  });
+  const lu = lirePosteSaisi(cell.serviceKind, nom, posteFusionne(envoye, avant));
   if (!lu.ok) return { ok: false, error: lu.error };
   const p = lu.poste;
 
@@ -739,9 +637,6 @@ export async function modifierPosteFiche(_prev: ActionResult | undefined, formDa
   revalidate(found.scope, found.requestId);
   return { ok: true, id, message: "Poste enregistré." };
 }
-
-/** Les rôles d'une personne (principal et secondaire) — ce que `peutTeleverserBillet` lit. */
-const rolesDe = (u: SessionUser): string[] => [u.role, (u as { secondaryRole?: string | null }).secondaryRole].filter((r): r is string => Boolean(r));
 
 /**
  * LE BILLET ÉMIS / LA CONFIRMATION D'HÔTEL (Direction, 10/2026) — sur le billet : l'e-billet (PDF), la
@@ -848,11 +743,7 @@ export async function createCareQuote(_prev: ActionResult | undefined, formData:
   if (categorie && !(categorie in SERVICE_KIND_LABELS)) return { ok: false, error: "Catégorie inconnue." };
   let cellIds = formData.getAll("cellIds").map(String).filter(Boolean);
   if (cellIds.length === 0 && categorie) {
-    const personnes = await prisma.careBeneficiary.findMany({
-      where: parentWhere(scopeRaw, requestId),
-      select: { status: true, cells: { where: { kind: "SERVICE", serviceKind: categorie }, select: CELL_FICHE_SELECT } },
-    });
-    cellIds = casesDeLaCategorie(personnes.map((p) => ({ status: p.status, cells: p.cells.map(versCellRow) })), categorie);
+    cellIds = await casesDeLaCategorieDemandee(scopeRaw, requestId, categorie);
     if (cellIds.length === 0) return { ok: false, error: `Aucune personne n'a de poste « ${SERVICE_KIND_LABELS[categorie]} » à couvrir.` };
   }
   if (cellIds.length === 0) return { ok: false, error: "Précisez ce que ce devis couvre." };
@@ -874,14 +765,9 @@ export async function createCareQuote(_prev: ActionResult | undefined, formData:
   // direction qui joint le devis d'une agence en dinars ne doit pas le voir relu en dollars (×240).
   const deviseBrute = fdStr(formData, "devise");
   if (deviseBrute && deviseBrute !== "DZD" && deviseBrute !== "USD") return { ok: false, error: "Devise inconnue (DZD ou USD)." };
-  const deviseDite: "DZD" | "USD" | null = deviseBrute === "DZD" || deviseBrute === "USD" ? deviseBrute : null;
-  const devise = deviseDite && saisi
-    ? ({ ok: true, devise: deviseDite } as const)
-    : saisi ? deviseDuDevis(scopeRaw, couvertes.map((c) => c.serviceKind)) : ({ ok: true, devise: "DZD" } as const);
-  if (!devise.ok) return { ok: false, error: devise.error };
-  // Un montant DIT en dollars se convertit au taux figé de la demande — 240 au national, qui n'en porte pas.
-  const taux = tauxDe(scopeRaw, req) ?? (deviseDite === "USD" ? TAUX_USD_DZD_DEFAUT : null);
-  const amountDzd = versDzd(montant, devise.devise, taux);
+  const chiffre = chiffrerLeDevis(scopeRaw, req, deviseBrute, Boolean(saisi), couvertes, montant);
+  if (!chiffre.ok) return { ok: false, error: chiffre.error };
+  const { devise, amountDzd } = chiffre;
   if (amountDzd == null) return { ok: false, error: "Le taux de conversion de cette demande est inconnu : le devis en dollars ne peut pas être converti." };
   const natures = new Set(couvertes.map((c) => c.serviceKind));
   const serviceKind = categorie ?? (natures.size === 1 ? [...natures][0] ?? null : null);
@@ -962,16 +848,10 @@ export async function retenirDevisPriseEnCharge(_prev: ActionResult | undefined,
   }
 
   const cellIds = quote.cells.map((c) => c.cellId);
-  const rivaux = await prisma.careQuote.findMany({
-    where: { ...parentWhere(scope, requestId), id: { not: id }, status: "PENDING", retainedAt: { not: null }, cells: { some: { cellId: { in: cellIds } } } },
-    select: { id: true, supplier: true, bcRequestedAt: true },
-  });
+  const rivaux = await devisRivaux(scope, requestId, id, cellIds);
   const engage = rivaux.find((r) => r.bcRequestedAt);
   if (engage) return { ok: false, error: `Le devis ${engage.supplier}, déjà retenu pour ces postes, a son BC demandé : il reste le choix.` };
-  await prisma.$transaction([
-    prisma.careQuote.updateMany({ where: { id: { in: rivaux.map((r) => r.id) }, bcRequestedAt: null }, data: { retainedAt: null, retainedById: null } }),
-    prisma.careQuote.update({ where: { id }, data: { retainedAt: new Date(), retainedById: user.id } }),
-  ]);
+  await retenirALaPlace(id, rivaux, user.id);
   await audit(user, scope, requestId, "UPDATE", `Devis ${quote.supplier} RETENU${rivaux.length ? ` (à la place de ${rivaux.map((r) => r.supplier).join(", ")})` : ""}.`);
   await signalerPorteDgSiBesoin(SPEC[scope].module, requestId);
   revalidate(scope, requestId);
@@ -991,15 +871,7 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
   const decision = fdStr(formData, "decision");
   if (!id || (decision !== "ACCEPTED" && decision !== "REJECTED")) return { ok: false, error: "Décision non précisée." };
 
-  const quote = await prisma.careQuote.findUnique({
-    where: { id },
-    select: {
-      id: true, supplier: true, amountDzd: true, status: true, expenseOrderId: true, amount: true, currency: true, retainedAt: true,
-      decidedById: true, decidedAt: true,
-      congressNationalId: true, congressInternationalId: true,
-      cells: { select: { cellId: true } },
-    },
-  });
+  const quote = await devisATrancher(id);
   if (!quote) return { ok: false, error: "Devis introuvable." };
   const scope: Scope = quote.congressNationalId ? "NATIONAL" : "INTERNATIONAL";
   const requestId = quote.congressNationalId ?? quote.congressInternationalId;
@@ -1029,21 +901,8 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
   }
 
   if (decision === "ACCEPTED") {
-    const others = await prisma.careQuote.findMany({
-      where: { ...parentWhere(scope, requestId), id: { not: id } },
-      select: { id: true, status: true, amountDzd: true, cells: { select: { cellId: true } } },
-    });
-    const conflicts = quoteConflicts(
-      { id, status: "PENDING", amountDzd: toNumber(quote.amountDzd), cellIds },
-      others.map((o) => ({ id: o.id, status: o.status, amountDzd: toNumber(o.amountDzd), cellIds: o.cells.map((c) => c.cellId) })),
-    );
-    if (conflicts.length > 0) {
-      const labels = await prisma.careCell.findMany({ where: { id: { in: conflicts.map((c) => c.cellId) } }, select: { label: true } });
-      return {
-        ok: false,
-        error: `Déjà couvert par un devis accepté : ${labels.map((l) => l.label).join(", ")}. Refusez d'abord l'autre devis.`,
-      };
-    }
+    const conflit = await conflitDeCouverture(scope, requestId, id, quote.amountDzd, cellIds);
+    if (conflit) return { ok: false, error: conflit };
   }
 
   const req = await loadRequest(scope, requestId);
@@ -1053,17 +912,10 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
   // passaient toutes deux la lecture et émettaient DEUX ordres au centre de paiement — le second écrasait le
   // lien du premier, qui restait payable sans que rien ne le rattache plus au devis. Le devis se RÉSERVE donc
   // d'abord, sur l'état lu (§118.151) : seul le gagnant émet l'ordre ; un échec de l'émission rend la réserve.
-  if (decision === "ACCEPTED") {
-    const reserve = await prisma.careQuote.updateMany({
-      where: { id, expenseOrderId: null, status: quote.status, decidedAt: quote.decidedAt },
-      data: { status: "ACCEPTED", decidedById: user.id, decidedAt: new Date() },
-    });
-    if (reserve.count === 0) return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
+  if (decision === "ACCEPTED" && !(await reserverLeDevis(quote, user.id))) {
+    return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
   }
-  const rendreLaReserve = () => prisma.careQuote.updateMany({
-    where: { id, expenseOrderId: null, status: "ACCEPTED" },
-    data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
-  }).catch(sansBloquer("care-actions.rendreLaReserve.careQuote"));
+  const rendreLaReserve = () => rendreLaReserveDuDevis(quote);
 
   let ordreNe = false;
   try {
@@ -1082,25 +934,11 @@ export async function decideCareQuote(_prev: ActionResult | undefined, formData:
         notes: `Devis couvrant ${cellIds.length} élément(s) de la prise en charge.${quote.currency === "USD" && quote.amount != null ? ` Saisi : ${montantLisible(toNumber(quote.amount), "USD")} (converti au taux de la demande).` : ""}`,
       });
       ordreNe = true;
-      await prisma.$transaction([
-        prisma.careQuote.update({
-          where: { id },
-          data: { status: "ACCEPTED", decidedById: user.id, decidedAt: new Date(), expenseOrderId: order.id },
-        }),
-        // Les cases couvertes deviennent réglées et portent leur part de la dépense.
-        prisma.careCell.updateMany({
-          where: { id: { in: cellIds } },
-          data: { status: "SETTLED", quoteId: id, expenseOrderId: order.id },
-        }),
-      ]);
+      await rattacherLOrdre(id, cellIds, order.id, user.id);
       await audit(user, scope, requestId, "UPDATE",
         `Devis ${quote.supplier} ACCEPTÉ (${amount.toLocaleString("fr-FR")} DZD) — ordre de dépense ${order.reference}.`);
     } else {
-      await prisma.$transaction([
-        prisma.careQuote.update({ where: { id }, data: { status: "REJECTED", decidedById: user.id, decidedAt: new Date(), note: fdStr(formData, "note") } }),
-        // Les cases redeviennent « demandées » : il faut un autre devis.
-        prisma.careCell.updateMany({ where: { id: { in: cellIds }, status: "PROVIDED" }, data: { status: "REQUESTED" } }),
-      ]);
+      await refuserLeDevis(id, cellIds, user.id, fdStr(formData, "note"));
       await audit(user, scope, requestId, "UPDATE", `Devis ${quote.supplier} REFUSÉ — les éléments couverts repassent en attente.`);
     }
 
@@ -1175,29 +1013,7 @@ export async function sendCareToFinance(_prev: ActionResult | undefined, formDat
   const req = await loadRequest(scopeRaw, requestId);
   if (!req) return { ok: false, error: "Demande introuvable." };
 
-  const beneficiaries = await prisma.careBeneficiary.findMany({
-    where: parentWhere(scopeRaw, requestId),
-    select: {
-      status: true, doctorId: true, firstName: true, lastName: true,
-      cells: { select: { kind: true, status: true, label: true, amountDzd: true } },
-    },
-  });
-  const quotes = await prisma.careQuote.findMany({
-    where: parentWhere(scopeRaw, requestId),
-    select: { id: true, status: true, amountDzd: true, cells: { select: { cellId: true } } },
-  });
-
-  const rows = await Promise.all(
-    beneficiaries.map(async (b) => ({
-      status: b.status,
-      name: await nameOf(b),
-      progress: careProgress(b.cells.map((c) => ({ ...c, amountDzd: c.amountDzd != null ? toNumber(c.amountDzd) : null }))),
-    })),
-  );
-  const readiness = financeReadiness(
-    rows,
-    quotes.map((q) => ({ id: q.id, status: q.status, amountDzd: toNumber(q.amountDzd), cellIds: q.cells.map((c) => c.cellId) })),
-  );
+  const { rows, readiness } = await etatPourLesFinances(scopeRaw, requestId);
   if (!readiness.ready) return { ok: false, error: readiness.blockers.join(" ") };
 
   await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], {
@@ -1248,11 +1064,7 @@ export async function marquerPriseEnChargeRealisee(_prev: ActionResult | undefin
     return { ok: false, error: "Transmettez d'abord le dossier aux Finances : une prise en charge se marque réalisée après cet envoi." };
   }
 
-  const data = { requestStatus: "COMPLETED" as const, status: "COMPLETED" as const, updatedById: user.id };
-  // Écriture CONDITIONNELLE : deux clics simultanés ne posent pas deux fois la même fin.
-  const n = scopeRaw === "NATIONAL"
-    ? await prisma.congressNational.updateMany({ where: { id: requestId, requestStatus: "APPROVED" }, data })
-    : await prisma.congressInternational.updateMany({ where: { id: requestId, requestStatus: "APPROVED" }, data });
+  const n = await poserLaFin(scopeRaw, requestId, user.id);
   if (n.count === 0) return { ok: false, error: "La demande a changé entre-temps — rechargez la page." };
 
   await recordAudit({
@@ -1268,13 +1080,7 @@ export async function marquerPriseEnChargeRealisee(_prev: ActionResult | undefin
 /** L'annuaire, pour le sélecteur de personnes. */
 export async function careDirectoryOptions(): Promise<{ id: string; name: string; specialty: string | null; institution: string | null }[]> {
   await requireUser();
-  const rows = await prisma.medicalDoctor.findMany({
-    // 2 000 comme le sélecteur d'avant (`listBeneficiaryRefs`) : à 500, la recherche taisait le
-    // cinq-cent-unième praticien, et « introuvable » se lisait « absent de l'annuaire » (§118.60).
-    orderBy: { name: "asc" }, take: 2000,
-    select: { id: true, name: true, specialty: true, institution: true },
-  });
-  return rows;
+  return praticiensDeLAnnuaire();
 }
 
 /**
@@ -1318,23 +1124,6 @@ export async function linkCareCellPromoMaterial(_prev: ActionResult | undefined,
 
 // ───────────────────────────── Réservation et BC — l'assistante de direction ─────────────────────────────
 
-/** Les personnes d'une demande, avec leurs cases lues pour les règles des fiches. */
-async function fichesDeLaDemande(scope: Scope, requestId: string) {
-  const rows = await prisma.careBeneficiary.findMany({
-    where: parentWhere(scope, requestId),
-    orderBy: [{ position: "asc" }, { createdAt: "asc" }],
-    select: { id: true, status: true, doctorId: true, firstName: true, lastName: true, cells: { orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: CELL_FICHE_SELECT } },
-  });
-  const ids = rows.map((r) => r.doctorId).filter((x): x is string => Boolean(x));
-  const docs = ids.length ? await prisma.medicalDoctor.findMany({ where: { id: { in: ids } }, select: { id: true, name: true } }) : [];
-  const nomDe = new Map(docs.map((d) => [d.id, d.name]));
-  return rows.map((r) => ({
-    id: r.id, status: r.status,
-    nom: beneficiaryName({ ...r, doctorName: r.doctorId ? nomDe.get(r.doctorId) ?? null : null }),
-    cells: r.cells.map(versCellRow),
-  }));
-}
-
 /**
  * DEMANDER LA RÉSERVATION EN BLOC — FERMÉ (Direction, 27/10). La réservation d'une prise en charge se fait FICHE
  * PAR FICHE (`DemandeReservation`, `reservation-fiche-actions.ts`) : chaque billet ou hôtel part seul et a son état.
@@ -1371,11 +1160,7 @@ export async function demanderBCPriseEnCharge(_prev: ActionResult | undefined, f
   if (!req) return { ok: false, error: "Demande introuvable." };
 
   const voulus = formData.getAll("quoteIds").map(String).filter(Boolean);
-  const retenus = await prisma.careQuote.findMany({
-    where: { ...parentWhere(scopeRaw, requestId), status: "PENDING", retainedAt: { not: null }, bcRequestedAt: null, ...(voulus.length ? { id: { in: voulus } } : {}) },
-    select: { id: true, supplier: true, reference: true, amount: true, currency: true, amountDzd: true, cells: { select: { cellId: true, cell: { select: { label: true, beneficiaryId: true } } } } },
-    orderBy: { createdAt: "asc" },
-  });
+  const retenus = await devisRetenus(scopeRaw, requestId, voulus);
   if (retenus.length === 0) return { ok: false, error: "Retenez d'abord un devis : le bon de commande s'établit d'après les propositions retenues." };
   // Pas de BC avant la prévalidation de la demande ni l'accord de chaque personne couverte (27/10/2026).
   const refusEngagement = await refusEngagementPriseEnCharge(scopeRaw, requestId, retenus.flatMap((q) => q.cells.map((c) => c.cellId)));
@@ -1387,29 +1172,11 @@ export async function demanderBCPriseEnCharge(_prev: ActionResult | undefined, f
     return { ok: false, error: refusDg };
   }
 
-  const fiches = await fichesDeLaDemande(scopeRaw, requestId);
-  const nomDe = new Map(fiches.map((f) => [f.id, f.nom]));
-  const liste = retenus.map((q) => {
-    const qui = [...new Set(q.cells.map((c) => nomDe.get(c.cell.beneficiaryId) ?? "?"))];
-    const montant = q.amount != null && q.currency === "USD"
-      ? `${montantLisible(toNumber(q.amount), "USD")} = ${montantLisible(toNumber(q.amountDzd))}`
-      : montantLisible(toNumber(q.amountDzd));
-    return `• ${q.supplier}${q.reference ? ` (${q.reference})` : ""} — ${montant} — ${[...new Set(q.cells.map((c) => c.cell.label))].join(", ")} — ${qui.join(", ")}`;
-  });
-  const total = retenus.reduce((s, q) => s + toNumber(q.amountDzd), 0);
-  const corps = [
-    `Devis retenus (${retenus.length}) — total ${montantLisible(Math.round(total * 100) / 100)} :`,
-    ...liste,
-    ...(fdStr(formData, "note") ? [`Note : ${fdStr(formData, "note")}`] : []),
-    `Fiche de la demande : ${SPEC[scopeRaw].path}/${requestId}`,
-  ].join("\n");
+  const { total, corps } = await demandeDeBc(scopeRaw, requestId, retenus, fdStr(formData, "note"));
 
   const sujet = await ecrireAAssistante(scopeRaw, req, user, "Demande de bon de commande.", corps);
   if (!sujet.ok) return { ok: false, error: sujet.error };
-  const marques = await prisma.careQuote.updateMany({
-    where: { id: { in: retenus.map((q) => q.id) }, status: "PENDING", bcRequestedAt: null },
-    data: { bcRequestedAt: new Date(), bcRequestedById: user.id },
-  });
+  const marques = await marquerBcDemande(retenus, user.id);
   await notifyRoles(["DIRECTION", "SUPER_ADMIN"], {
     type: "VALIDATION_REQUIRED",
     title: "Prise en charge — devis retenus à accepter",
@@ -1426,15 +1193,6 @@ export async function demanderBCPriseEnCharge(_prev: ActionResult | undefined, f
 }
 
 // ───────────────────────────── Postes de groupe ─────────────────────────────
-
-/** Charge un poste de groupe, son périmètre et sa demande. */
-async function chargerPosteGroupe(id: string) {
-  const g = await prisma.careGroupPoste.findUnique({ where: { id } });
-  if (!g) return null;
-  const scope: Scope = g.congressNationalId ? "NATIONAL" : "INTERNATIONAL";
-  const requestId = g.congressNationalId ?? g.congressInternationalId;
-  return requestId ? { g, scope, requestId } : null;
-}
 
 /**
  * AJOUTER UN POSTE DE GROUPE — « repas 100 par personne » (Direction, 10/2026) : un montant PAR PERSONNE qui
@@ -1457,17 +1215,7 @@ export async function ajouterPosteGroupe(_prev: ActionResult | undefined, formDa
   });
   if (!lu.ok) return { ok: false, error: lu.error };
   const devise = deviseDuPoste(scopeRaw, type.serviceKind);
-  const last = await prisma.careGroupPoste.findFirst({ where: parentWhere(scopeRaw, requestId), orderBy: { position: "desc" }, select: { position: true } });
-  const created = await prisma.careGroupPoste.create({
-    data: {
-      ...parentWhere(scopeRaw, requestId),
-      serviceKind: type.serviceKind, label: lu.poste.label ?? type.libelle, notes: lu.poste.notes, date: lu.poste.dateStart,
-      timeStart: lu.poste.timeStart, address: lu.poste.address,
-      unitAmount: lu.poste.amount, currency: devise, unitAmountDzd: versDzd(lu.poste.amount, devise, tauxDe(scopeRaw, req)),
-      position: (last?.position ?? 0) + 1, createdById: user.id, updatedById: user.id,
-    },
-    select: { id: true, label: true },
-  });
+  const created = await creerPosteGroupe(scopeRaw, requestId, req, type, lu.poste, devise, user.id);
   await audit(user, scopeRaw, requestId, "CREATE", `Poste de groupe « ${created.label} »${lu.poste.amount != null ? ` — ${montantLisible(lu.poste.amount, devise)} par personne` : ""}.`);
   revalidate(scopeRaw, requestId);
   return { ok: true, id: created.id, message: "Poste de groupe ajouté — il s'applique à chaque personne." };
@@ -1493,9 +1241,7 @@ export async function modifierPosteGroupe(_prev: ActionResult | undefined, formD
     const qui = (exclure ?? inclure)!;
     const appartient = await prisma.careBeneficiary.count({ where: { id: qui, ...parentWhere(scope, requestId) } });
     if (!appartient) return { ok: false, error: "Personne introuvable sur cette demande." };
-    const liste = new Set(g.excludedBeneficiaryIds);
-    if (exclure) liste.add(qui); else liste.delete(qui);
-    await prisma.careGroupPoste.update({ where: { id }, data: { excludedBeneficiaryIds: [...liste], updatedById: user.id } });
+    await exclureOuReinclure(g, qui, Boolean(exclure), user.id);
     await audit(user, scope, requestId, "UPDATE", `Poste de groupe « ${g.label} » : une personne ${exclure ? "exclue" : "réincluse"}.`);
     revalidate(scope, requestId);
     return { ok: true, id, message: exclure ? "Personne exclue de ce poste." : "Personne réincluse dans ce poste." };
@@ -1547,10 +1293,5 @@ export async function retirerPosteGroupe(_prev: ActionResult | undefined, formDa
 /** Les matériels promotionnels rattachables — pour le sélecteur. */
 export async function carePromoOptions(): Promise<{ id: string; reference: string; title: string }[]> {
   await requireUser();
-  const rows = await prisma.promoMaterial.findMany({
-    where: { status: { not: "CANCELLED" } },
-    orderBy: { createdAt: "desc" }, take: 60,
-    select: { id: true, reference: true, title: true },
-  });
-  return rows;
+  return materielsRattachables();
 }
