@@ -15,6 +15,7 @@
 | `npx tsx scripts/gen-selection-pf-migration.ts` | Régénère la migration d'import du portefeuille « Sélection PF Produits » depuis `data/selection-pf-produits.xlsx` (le SQL est committé ; ne pas l'éditer à la main). |
 | `npm run adam:doctor` | **Diagnostic de mise en service d'Adam** — base, migrations, chiffrement des jetons, config Google, connexion, droits accordés, veille Gmail, ingestion, politique d'envoi, coupe-circuits, planificateur, parité. Sans effet de bord, n'affiche AUCUN secret, sort en erreur s'il reste un ÉCHEC. |
 | `npm run build:measure` | **Pic mémoire du build** — build propre, **avec le plafond de tas de `build:render`** (`BUILD_HEAP_MB`, 3072 Mo), échantillonnage du RSS de l'arbre node, échec au-delà du plafond (`BUILD_MEM_LIMIT_MB`, 4200 Mo par défaut). La garde contre le retour de l'OOM Render — elle ne vaut que parce qu'elle mesure la MÊME configuration que le déploiement. |
+| `node scripts/mesure-bundle.mjs` | **JS payé par chaque page** (gzip) après un build propre : coque (layout racine + `(app)`), page la plus légère, médiane, les plus lourdes, depuis `app-build-manifest.json`. `COQUE_MAX_KB=…` : sortie en erreur au-delà du plafond. |
 | `npm run autotest` | **Auto-testeur** — audit de cohérence pages ↔ gardes ↔ menu ↔ matrice RBAC (déterministe, aucun serveur). Voir `scripts/auto-test/README.md`. |
 | `npm run autotest:live -- --base-url=…` | Crawl **en direct** (Playwright) : passe anonyme (fuites d'accès) + passes par rôle (accès réel vs RBAC, uploads jetables). |
 
