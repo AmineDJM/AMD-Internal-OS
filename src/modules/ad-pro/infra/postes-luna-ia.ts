@@ -112,7 +112,9 @@ export async function proposerPostesParModele(e: EntreePostes, deps: Dependances
 
   await deps.journaliser({
     feature: FONCTION,
-    provider: usage?.provider ?? (deps.cle() === "ANTHROPIC_API_KEY" ? "anthropic" : "openai"),
+    // `cle()` rend l'une des deux variables du registre (`cleModeleRequise`) : son préfixe dit le fournisseur,
+    // sans recopier le nom de la clé dans un fichier serveur du module (cliquet `ia/cle-manquante.test.ts`).
+    provider: usage?.provider ?? (deps.cle()?.startsWith("ANTHROPIC") ? "anthropic" : "openai"),
     model: usage?.model ?? null,
     userId: e.userId,
     ok: errorCode === null,
