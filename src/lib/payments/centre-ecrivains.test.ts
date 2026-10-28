@@ -160,7 +160,7 @@ const ECRIVAINS_PAIEMENT: Record<string, string> = {
   "src/lib/actions/expense-actions.ts": "canDisburse",
   // Le versement d'une remise de caisse d'avance, à l'autorisation du centre (Direction, 28/10/2026) :
   // il relit le verrou avant d'écrire, et son écriture est conditionnelle sur l'autorisation lue.
-  "src/lib/general-means/verser-remise.ts": "canDisburse",
+  "src/lib/finance/verser-remise.ts": "canDisburse",
 };
 const ECRIVAINS_MONTANT: Record<string, string> = {
   // Une hausse de montant rouvre l'autorisation : sans cela, le centre aurait autorisé 500 000

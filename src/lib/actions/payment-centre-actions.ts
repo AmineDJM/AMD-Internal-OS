@@ -17,7 +17,7 @@ import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { ENTITE_SANS, slugSectionDeLOrdre } from "@/lib/payments/sections-centre";
 import { lienCentreDePaiement, lienOrdreAPayer } from "@/lib/chemins/finances";
 import { sansBloquer } from "@/lib/journal";
-import { verserLaRemise } from "@/lib/general-means/verser-remise";
+import { verserLaRemise } from "@/lib/finance/verser-remise";
 
 /**
  * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
@@ -205,7 +205,7 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   if (next === "REFUSED") await suitesDuRefus(id, body.trim());
 
   // UNE REMISE DE CAISSE D'AVANCE AUTORISÉE ENTRE DANS LA CAISSE (Direction, 28/10/2026) : elle ne va
-  // pas dans « Banque & paiements » — l'autorisation vaut versement (`general-means/verser-remise.ts`).
+  // pas dans « Banque & paiements » — l'autorisation vaut versement (`finance/verser-remise.ts`).
   // Un versement qui échoue (ordre révisé ou annulé à la même seconde) laisse l'ordre autorisé : il
   // reste alors dans la file des Finances, comme avant, plutôt que de disparaître.
   const versement = next === "APPROVED" ? await verserLaRemise({ orderId: id, acteurId: user.id, par: "CENTRE" }) : null;

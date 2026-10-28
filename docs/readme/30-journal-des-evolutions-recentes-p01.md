@@ -8,7 +8,7 @@
   au-dessus du seuil ; la réponse dit les branches réelles (`parcoursAdPro`) et ce qui suit la prévalidation.
 - **Caisse d'avance** (Direction) : une remise ou une rallonge autorisée par le **centre de paiement** entre **directement**
   dans la caisse des moyens généraux — ordre réglé, sortie en liquide non classée, remise en main — sans passer par
-  « Banque & paiements » ni par une confirmation de réception. Un seul écrivain : `src/lib/general-means/verser-remise.ts`.
+  « Banque & paiements » ni par une confirmation de réception. Un seul écrivain : `src/lib/finance/verser-remise.ts`.
 - **Build Render** : plus de cache webpack persistant au build de production (`next.config.mjs`) — le worker serveur de
   Next 15 mourait en OOM et le conteneur dépassait 8 Go ; mesuré : pic 4985 Mo (contre 5532 et OOM), `.next` 315 Mo.
 

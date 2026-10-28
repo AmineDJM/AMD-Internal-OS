@@ -26,7 +26,7 @@ import { getAppSettings } from "@/lib/settings";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { ordresBvAvecQuittance, deposerQuittanceBv, cocherPaiementBv } from "@/lib/regulatory/bv-reglement";
 import { sansBloquer } from "@/lib/journal";
-import { verserLaRemise } from "@/lib/general-means/verser-remise";
+import { verserLaRemise } from "@/lib/finance/verser-remise";
 import { solderLeDossierCompagnon } from "@/lib/finance/compagnon-regle";
 
 /**
@@ -90,7 +90,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // achat fait ensuite sur la caisse s'impute à SON budget. Depuis le 28/10/2026, l'autorisation du
   // centre VAUT versement — la remise entre dans la caisse sans passer par cette file. N'arrive donc ici
   // qu'une remise autorisée AVANT cette règle : elle est versée par le MÊME écrivain que le centre
-  // (`general-means/verser-remise.ts`), sans classement, en liquide, et entre dans le fond.
+  // (`finance/verser-remise.ts`), sans classement, en liquide, et entre dans le fond.
   const versementRemise = await verserLaRemise({ orderId: order.id, acteurId: user.id, compteId: fdStr(formData, "treasuryAccountId"), par: "FINANCES" });
   if (versementRemise) {
     if (!versementRemise.ok) return { ok: false, error: versementRemise.error };
@@ -201,7 +201,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
       data: {
         reference, date: new Date(), direction: "OUT",
         category: order.category, label: order.label, amount: order.amount,
-        // Une remise sort en liquide (`general-means/verser-remise.ts`) ; ici, tout part par virement.
+        // Une remise sort en liquide (`finance/verser-remise.ts`) ; ici, tout part par virement.
         method: "BANK_TRANSFER", account: "Banque", counterparty: order.beneficiary,
         status: "SETTLED", budgetCategoryId, createdById: user.id,
         companyId: order.companyId,

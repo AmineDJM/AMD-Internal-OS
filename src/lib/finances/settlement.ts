@@ -116,13 +116,13 @@ export const PAYMENT_PATHS: PaymentPath[] = [
   {
     key: "petty-cash-allotment", label: "Caisse d'avance remise", module: "Moyens généraux → centre de paiement → caisse",
     settles: true,
-    why: "L'écriture se pose au VERSEMENT de la remise, qui a lieu À L'AUTORISATION du centre (`general-means/verser-remise.ts`, Direction 28/10/2026) : l'ordre passe réglé, la sortie en liquide s'écrit, la remise entre dans le fond — sans passer par « Banque & paiements ». Elle n'est pas classée au budget — chaque achat fait sur la caisse l'est, ticket par ticket.",
+    why: "L'écriture se pose au VERSEMENT de la remise, qui a lieu À L'AUTORISATION du centre (`finance/verser-remise.ts`, Direction 28/10/2026) : l'ordre passe réglé, la sortie en liquide s'écrit, la remise entre dans le fond — sans passer par « Banque & paiements ». Elle n'est pas classée au budget — chaque achat fait sur la caisse l'est, ticket par ticket.",
     centre: "AUTORISE",
     centreWhy: "« La caisse donnée mensuellement aux moyens généraux doit passer par le centre de paiement et attendre la validation » (la Direction, 01/10/2026) : la remise naît avec son ordre, en attente du centre ; autorisée, elle est dans la caisse (règle du 28/10/2026 : plus de confirmation de réception).",
   },
   {
     key: "petty-cash-top-up", label: "Rallonge de caisse d'avance accordée", module: "Moyens généraux → centre de paiement → caisse",
-    settles: true, why: "Accordée, la rallonge devient une remise : son écriture se pose au VERSEMENT, à l'autorisation du centre — comme la remise mensuelle, par le même écrivain (`general-means/verser-remise.ts` ; `general-means/remettre.ts` pour la rédaction de l'ordre).",
+    settles: true, why: "Accordée, la rallonge devient une remise : son écriture se pose au VERSEMENT, à l'autorisation du centre — comme la remise mensuelle, par le même écrivain (`finance/verser-remise.ts` ; `general-means/remettre.ts` pour la rédaction de l'ordre).",
     centre: "AUTORISE",
     centreWhy: "« La rallonge de caisse doit passer dans le centre de paiement » (la Direction, 04/10/2026) : l'accord crée un ordre en attente du centre ; autorisée, la somme est dans la caisse (règle du 28/10/2026).",
   },

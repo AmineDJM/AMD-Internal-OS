@@ -8,7 +8,7 @@ import { companionStatusForOrder } from "@/lib/finance/dossier-auto";
  * Best-effort : un dossier qui ne se met pas à jour ne doit jamais annuler un virement déjà
  * inscrit. C'est la même hiérarchie que partout dans ce circuit — l'argent prime, l'affichage
  * se rattrape. Partagé par les deux écrivains d'un règlement : les Finances (`settleExpenseOrder`)
- * et le versement d'une remise de caisse à l'autorisation du centre (`general-means/verser-remise.ts`).
+ * et le versement d'une remise de caisse à l'autorisation du centre (`finance/verser-remise.ts`).
  */
 export async function solderLeDossierCompagnon(orderId: string, orderRef: string, actorId: string, message?: string): Promise<void> {
   try {
