@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { defaireFusionPersonne, ecarterDoublonPersonne, fusionnerDoublonPersonne } from "@/lib/actions/personnes-actions";
@@ -17,12 +18,13 @@ export function GesteDoublon(p: Props) {
   const [occupe, setBusy] = React.useState(false);
   const busy = occupe || enCours;
   const [erreur, setErreur] = React.useState<string | null>(null);
+  const confirmer = useConfirmer();
   const agir = async (geste: () => Promise<ActionResult>, confirmation: string) => {
-    if (!window.confirm(confirmation)) return;
+    if (!(await confirmer(confirmation))) return;
     setBusy(true); setErreur(null);
     try {
       const r = await geste();
-      if (!r.ok) setErreur(r.error ?? "Échec.");
+      if (!r.ok) setErreur(r.error ?? "La proposition de doublon n'a pas été tranchée.");
       rafraichir();
     } catch {
       setErreur(actionFailureMessage("THROWN"));

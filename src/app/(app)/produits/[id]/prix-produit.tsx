@@ -5,6 +5,8 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { enregistrerPrixProduit, revenirAuPrixExplorateur } from "@/lib/actions/prix-produit-actions";
 import { LIBELLE_PRIX, type PrixResolu, type TypePrix } from "@/lib/products/fiche-360";
 
@@ -26,6 +28,7 @@ export function PrixProduit({ productId, prix, historique, peutModifier }: {
   const [envoi, setEnvoi] = React.useState(false);
   const [erreur, setErreur] = React.useState<string | null>(null);
   const occupe = envoi || enCours;
+  const confirmer = useConfirmer();
 
   async function enregistrer(e: React.FormEvent<HTMLFormElement>, kind: TypePrix) {
     e.preventDefault();
@@ -37,23 +40,33 @@ export function PrixProduit({ productId, prix, historique, peutModifier }: {
     fd.set("validFrom", String(f.get("validFrom") ?? ""));
     fd.set("note", String(f.get("note") ?? ""));
     setEnvoi(true); setErreur(null);
-    const r = await enregistrerPrixProduit(fd);
-    setEnvoi(false);
-    if (!r.ok) { setErreur(r.error ?? "Enregistrement impossible."); return; }
-    setOuvert(null);
-    rafraichir();
+    try {
+      const r = await enregistrerPrixProduit(fd);
+      if (!r.ok) { setErreur(r.error ?? "Enregistrement impossible."); return; }
+      setOuvert(null);
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   async function revenir(kind: TypePrix) {
-    if (!window.confirm("Revenir à la valeur de l'Explorateur produits ? La saisie reste dans l'historique.")) return;
+    if (!(await confirmer("Revenir à la valeur de l'Explorateur produits ? La saisie reste dans l'historique."))) return;
     const fd = new FormData();
     fd.set("productId", productId);
     fd.set("kind", kind);
     setEnvoi(true); setErreur(null);
-    const r = await revenirAuPrixExplorateur(fd);
-    setEnvoi(false);
-    if (!r.ok) { setErreur(r.error ?? "Opération impossible."); return; }
-    rafraichir();
+    try {
+      const r = await revenirAuPrixExplorateur(fd);
+      if (!r.ok) { setErreur(r.error ?? "Le prix n'est pas revenu à la valeur de l'Explorateur."); return; }
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   return (

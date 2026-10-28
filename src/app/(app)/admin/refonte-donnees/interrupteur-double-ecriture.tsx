@@ -22,7 +22,7 @@ export function InterrupteurDoubleEcriturePersonnes({ actif }: { actif: boolean 
     setMessage(null);
     try {
       const r = await basculerDoubleEcriturePersonnes(!actif);
-      setMessage(r.ok ? r.message ?? null : r.error ?? "Échec.");
+      setMessage(r.ok ? r.message ?? null : r.error ?? "La double écriture des personnes n'a pas été basculée.");
       if (r.ok) rafraichir();
     } catch {
       setMessage(actionFailureMessage("THROWN"));

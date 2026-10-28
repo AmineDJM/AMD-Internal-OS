@@ -6,6 +6,7 @@ import { reglerDoubleEcritureLieux } from "@/lib/actions/lieux-actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /** L'interrupteur de la double écriture des lieux (`AppSetting.lieuxDoubleEcriture`). */
 export function InterrupteurLieux({ actif }: { actif: boolean }) {
@@ -14,9 +15,13 @@ export function InterrupteurLieux({ actif }: { actif: boolean }) {
   const [erreur, setErreur] = React.useState<string | null>(null);
   const basculer = () =>
     demarrer(async () => {
-      const r = await reglerDoubleEcritureLieux(!actif);
-      setErreur(r.ok ? null : r.error ?? "Échec.");
-      if (r.ok) rafraichir();
+      try {
+        const r = await reglerDoubleEcritureLieux(!actif);
+        setErreur(r.ok ? null : r.error ?? "La double écriture des lieux n'a pas été basculée.");
+        if (r.ok) rafraichir();
+      } catch {
+        setErreur(actionFailureMessage("THROWN"));
+      }
     });
   return (
     <Card>

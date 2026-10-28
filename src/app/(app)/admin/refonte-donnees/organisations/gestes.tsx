@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { defaireFusionOrganisation, ecarterDoublonOrganisation, fusionnerOrganisations } from "@/lib/actions/organisation-actions";
 import { Button } from "@/components/ui/button";
@@ -13,9 +14,10 @@ export function TrancherDoublon({ propositionId, a, b }: { propositionId: string
   const [busy, setBusy] = React.useState(false);
   const pending = busy || enCours;
   const [message, setMessage] = React.useState<string | null>(null);
+  const confirmer = useConfirmer();
   const agir = (geste: (fd: FormData) => Promise<ActionResult>, champs: Record<string, string>, confirmation?: string) => {
-    if (confirmation && !window.confirm(confirmation)) return;
     void (async () => {
+      if (confirmation && !(await confirmer(confirmation))) return;
       setBusy(true);
       const fd = new FormData();
       fd.set("propositionId", propositionId);

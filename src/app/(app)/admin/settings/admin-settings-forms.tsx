@@ -9,6 +9,8 @@ import { setRegIntelligenceEnabled } from "@/lib/regulatory/intelligence/actions
 import { sendBroadcast } from "@/lib/actions/notification-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { THERAPEUTIC_SEGMENTS } from "@/lib/labels";
 import { COLONNES_REGULATORY, COLONNES_INAMOVIBLES } from "@/lib/vues/colonnes-regulatory";
 import { hiddenSummary } from "@/lib/modules-visibility";
@@ -25,10 +27,15 @@ export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
     <form
       action={async (fd) => {
         setSaving(true); setError(null);
-        const r = await saveAppSettings(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec.");
+        try {
+          const r = await saveAppSettings(fd);
+          if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(r.error ?? "Les limites n'ont pas été enregistrées.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -71,10 +78,15 @@ export function AdProDgThresholdForm({ settings }: { settings: AppSettings }) {
     <form
       action={async (fd) => {
         setSaving(true); setError(null);
-        const r = await setAdProDgThreshold(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec.");
+        try {
+          const r = await setAdProDgThreshold(fd);
+          if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(r.error ?? "Le seuil n'a pas été enregistré.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -110,10 +122,15 @@ export function RegEnrollmentToggle({ enabled: initial }: { enabled: boolean }) 
   const [error, setError] = React.useState<string | null>(null);
   async function toggle(next: boolean) {
     setBusy(true); setError(null);
-    const r = await setRegEnrollmentEnabled(next);
-    setBusy(false);
-    if (r.ok) setEnabled(next);
-    else setError(r.error ?? "Échec.");
+    try {
+      const r = await setRegEnrollmentEnabled(next);
+      if (r.ok) setEnabled(next);
+      else setError(r.error ?? "Le réglage n'a pas été changé.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <div className="space-y-2">
@@ -150,10 +167,15 @@ export function RegIntelligenceToggles({ companies }: { companies: CompanyFlag[]
 
   async function toggle(companyId: string, next: boolean) {
     setBusyId(companyId); setError(null);
-    const r = await setRegIntelligenceEnabled(companyId, next);
-    setBusyId(null);
-    if (r.ok) setState((s) => ({ ...s, [companyId]: next }));
-    else setError(r.error ?? "Échec.");
+    try {
+      const r = await setRegIntelligenceEnabled(companyId, next);
+      if (r.ok) setState((s) => ({ ...s, [companyId]: next }));
+      else setError(r.error ?? "Le réglage de cette entité n'a pas été changé.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   if (companies.length === 0) {
@@ -207,10 +229,15 @@ export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserL
         setSending(true); setResult(null);
         fd.set("audience", audience);
         picked.forEach((id) => fd.append("userIds", id));
-        const r = await sendBroadcast(fd);
-        setSending(false);
-        setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Envoyée.") : (r.error ?? "Échec.") });
-        if (r.ok) { setPicked(new Set()); (document.getElementById("bc-form") as HTMLFormElement | null)?.reset(); }
+        try {
+          const r = await sendBroadcast(fd);
+          setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Envoyée.") : (r.error ?? "L'annonce n'a pas été envoyée.") });
+          if (r.ok) { setPicked(new Set()); (document.getElementById("bc-form") as HTMLFormElement | null)?.reset(); }
+        } catch {
+          setResult({ ok: false, text: actionFailureMessage("THROWN") });
+        } finally {
+          setSending(false);
+        }
       }}
       id="bc-form"
       className="space-y-3"
@@ -360,6 +387,8 @@ export function RegulatorySupervisorForm({ roles, selected }: { roles: Opt[]; se
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -368,9 +397,15 @@ export function RegulatorySupervisorForm({ roles, selected }: { roles: Opt[]; se
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setRegulatorySupervisorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setRegulatorySupervisorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles superviseurs n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -425,10 +460,15 @@ export function RegulatoryHiddenColumnsForm({ hidden }: { hidden: string[] }) {
     setSaving(true); setErr(null);
     const fd = new FormData();
     list.forEach((k) => fd.append("columns", k));
-    const res = await setRegulatoryHiddenColumns(fd);
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-    else setErr(res.error ?? "Enregistrement impossible.");
+    try {
+      const res = await setRegulatoryHiddenColumns(fd);
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+      else setErr(res.error ?? "Enregistrement impossible.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -479,6 +519,8 @@ export function RegulatoryTherapeuticSegmentsForm({ segments }: { segments: stri
   const [draft, setDraft] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const usingDefault = list.length === 0;
 
   const add = () => {
@@ -494,9 +536,15 @@ export function RegulatoryTherapeuticSegmentsForm({ segments }: { segments: stri
     setSaving(true);
     const fd = new FormData();
     list.forEach((s) => fd.append("segments", s));
-    const res = await setRegulatoryTherapeuticSegments(fd);
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+    try {
+      const res = await setRegulatoryTherapeuticSegments(fd);
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+      else retours.erreur(res.error ?? "Les segments thérapeutiques n'ont pas été enregistrés.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -561,6 +609,8 @@ export function DriveSpaceCreatorForm({ roles, selected }: { roles: Opt[]; selec
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -569,9 +619,15 @@ export function DriveSpaceCreatorForm({ roles, selected }: { roles: Opt[]; selec
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setDriveSpaceCreatorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setDriveSpaceCreatorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles créateurs d'espaces n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -609,6 +665,8 @@ export function PromoMessageAuthorsForm({ roles, selected }: { roles: Opt[]; sel
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -617,9 +675,15 @@ export function PromoMessageAuthorsForm({ roles, selected }: { roles: Opt[]; sel
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setPromoMessageAuthorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setPromoMessageAuthorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les auteurs de messages promotionnels n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -657,6 +721,8 @@ export function FieldReportsOverviewForm({ roles, selected }: { roles: Opt[]; se
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -665,9 +731,15 @@ export function FieldReportsOverviewForm({ roles, selected }: { roles: Opt[]; se
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setFieldReportsOverviewRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setFieldReportsOverviewRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles de la vue d'ensemble n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -712,6 +784,8 @@ export function OrgChartViewersForm({ roles, users, selectedRoles, selectedUserI
   const [query, setQuery] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
   const toggleUser = (id: string) => setPickedUsers((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -725,9 +799,15 @@ export function OrgChartViewersForm({ roles, users, selectedRoles, selectedUserI
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
         pickedUsers.forEach((id) => fd.append("userIds", id));
-        const res = await setOrgChartViewers(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setOrgChartViewers(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les lecteurs de l'organigramme n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -798,6 +878,8 @@ export function HiddenModulesForm({ modules, selected }: { modules: Opt[]; selec
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -806,9 +888,15 @@ export function HiddenModulesForm({ modules, selected }: { modules: Opt[]; selec
         setSaving(true);
         const fd = new FormData();
         picked.forEach((m) => fd.append("modules", m));
-        const res = await setHiddenModules(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setHiddenModules(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les modules masqués n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -959,10 +1047,15 @@ export function PipelineAccessForm({ roles, users, settings }: {
         viewerUsers.forEach((id) => fd.append("viewerUserIds", id));
         managerRoles.forEach((r) => fd.append("managerRoles", r));
         managerUsers.forEach((id) => fd.append("managerUserIds", id));
-        const res = await setPipelineAccess(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(res.error ?? "Échec.");
+        try {
+          const res = await setPipelineAccess(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(res.error ?? "Les accès au pipeline n'ont pas été enregistrés.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -1031,10 +1124,15 @@ export function DirectiveAccessForm({ roles, users, settings }: {
         readerUsers.forEach((id) => fd.append("readerUserIds", id));
         issuerRoles.forEach((r) => fd.append("issuerRoles", r));
         issuerUsers.forEach((id) => fd.append("issuerUserIds", id));
-        const res = await setDirectiveAccess(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(res.error ?? "Échec.");
+        try {
+          const res = await setDirectiveAccess(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(res.error ?? "Les accès aux directives n'ont pas été enregistrés.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >

@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * CHOISIR UNE PARTIE DANS L'ANNUAIRE DE L'ENTREPRISE — et pouvoir l'y créer sans partir.
@@ -287,14 +288,19 @@ function CreerContact({
     setBusy(true); setErr(null);
     const fd = new FormData();
     for (const [k, val] of Object.entries(v)) fd.set(k, val.trim());
-    const r = await createCompanyContact(undefined, fd);
-    setBusy(false);
-    if (!r.ok || !r.id) { setErr(r.error ?? "Création impossible."); return; }
-    onCreated({
-      id: r.id, name: nom, kind: v.kind.trim() || null, contactName: v.contactName.trim() || null,
-      email: v.email.trim() || null, phone: v.phone.trim() || null, phoneAlt: null,
-      city: v.city.trim() || null, companyLabel: null,
-    });
+    try {
+      const r = await createCompanyContact(undefined, fd);
+      if (!r.ok || !r.id) { setErr(r.error ?? "Création impossible."); return; }
+      onCreated({
+        id: r.id, name: nom, kind: v.kind.trim() || null, contactName: v.contactName.trim() || null,
+        email: v.email.trim() || null, phone: v.phone.trim() || null, phoneAlt: null,
+        city: v.city.trim() || null, companyLabel: null,
+      });
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

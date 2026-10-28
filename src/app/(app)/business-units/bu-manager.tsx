@@ -13,6 +13,8 @@ import type { TerritoireRow } from "./territoire-kam";
 import type { EtabOpt } from "./choix-etablissements";
 import { Sheet } from "@/components/ui/sheet";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn } from "@/lib/utils";
 import { EtapeIdentite, EtapeProduits, EtapeKams, EtapeSecteurs, inputCls, btnCls, type Run } from "./bu-etapes";
 import { ETAPES, type Etape } from "./etapes";
@@ -99,6 +101,8 @@ export function BusinessUnitsManager({
   // LES GESTES ATTENDENT LES NOUVELLES DONNÉES (§118.172) : rouvert avant le rafraîchissement, un panneau remontrerait
   // l'état d'AVANT, et l'enregistrer le RÉÉCRIVAIT par-dessus ce qu'on venait de changer.
   const { enCours: rafraichit, rafraichir } = useRafraichir();
+  // Les gestes des étapes (icônes, sélecteurs en ligne) n'ont pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const [enAction, setBusy] = React.useState(false);
   const busy = enAction || rafraichit;
   const [creating, setCreating] = React.useState(false);
@@ -108,12 +112,18 @@ export function BusinessUnitsManager({
 
   const run = React.useCallback<Run>(async (action: Action, fd: FormData, refresh = true) => {
     setBusy(true);
-    const r = await action(fd);
-    setBusy(false);
-    if (!r.ok) { window.alert(r.error ?? "Action impossible."); return false; }
-    if (refresh) rafraichir();
-    return true;
-  }, [rafraichir]);
+    try {
+      const r = await action(fd);
+      if (!r.ok) { retours.erreur(r.error ?? "La Business Unit n'a pas été modifiée."); return false; }
+      if (refresh) rafraichir();
+      return true;
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }, [rafraichir, retours]);
 
   const kamsOf = (buId: string | null) => kams.filter((k) => k.businessUnitId === buId);
   const territoiresOf = (buId: string) => territoires.filter((x) => x.businessUnitId === buId);

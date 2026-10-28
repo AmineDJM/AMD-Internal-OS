@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import type { EtablissementRow, ServiceEtablissementRow } from "@/lib/annuaires/types";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const SUGGESTIONS_ID = "services-suggestions";
 
@@ -38,6 +40,7 @@ export function ServicesPanel({
   // Un service renommé ou supprimé reste affiché sous son ancien nom tant que les nouvelles
   // données ne sont pas là : les gestes attendent leur arrivée (§118.172).
   const { enCours: rafraichit, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [saisie, setSaisie] = React.useState("");
   const [enAction, setBusy] = React.useState(false);
   const busy = enAction || rafraichit;
@@ -48,11 +51,17 @@ export function ServicesPanel({
 
   const executer = async (action: (fd: FormData) => Promise<{ ok: boolean; error?: string; message?: string }>, fd: FormData) => {
     setBusy(true); setMsg(null);
-    const r = await action(fd);
-    setBusy(false);
-    setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Action impossible.") });
-    if (r.ok) rafraichir();
-    return r.ok;
+    try {
+      const r = await action(fd);
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Le service n'a pas été modifié.") });
+      if (r.ok) rafraichir();
+      return r.ok;
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   const ajouter = async () => {
@@ -76,7 +85,7 @@ export function ServicesPanel({
       s.doctorCount > 0 ? `• ${s.doctorCount} praticien(s) resteront rattachés à l'établissement, SANS service (ils ne sont pas supprimés)` : null,
       s.sectorCount > 0 ? `• ${s.sectorCount} secteur(s) commercial(aux) qui le choisissaient ne le couvriront plus` : null,
     ].filter(Boolean);
-    if (!window.confirm(`Supprimer le service « ${s.name} » de « ${etablissement?.name ?? ""} » ?${suites.length ? `\n\n${suites.join("\n")}` : ""}`)) return;
+    if (!(await confirmer(`Supprimer le service « ${s.name} » de « ${etablissement?.name ?? ""} » ?${suites.length ? `\n\n${suites.join("\n")}` : ""}`))) return;
     const fd = new FormData();
     fd.set("id", s.id);
     await executer(supprimerServiceEtablissement, fd);

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export interface CarteReprise {
   cle: string;
@@ -54,14 +55,22 @@ function Carte({ carte }: { carte: CarteReprise }) {
   const terminee = lot !== null && !lot.suite;
 
   const voir = () => demarrer(async () => {
-    const r = await apercuReprise(carte.cle);
-    setErreur(r.ok ? null : r.error ?? "Échec.");
-    if (r.ok && r.bilan) setApercu(r.bilan);
+    try {
+      const r = await apercuReprise(carte.cle);
+      setErreur(r.ok ? null : r.error ?? "L'aperçu de la reprise n'a pas été calculé.");
+      if (r.ok && r.bilan) setApercu(r.bilan);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    }
   });
   const executer = () => demarrer(async () => {
-    const r = await executerReprise(carte.cle, terminee ? null : curseur);
-    setErreur(r.ok ? null : r.error ?? "Échec.");
-    if (r.ok && r.bilan) { setLot(r.bilan); rafraichir(); }
+    try {
+      const r = await executerReprise(carte.cle, terminee ? null : curseur);
+      setErreur(r.ok ? null : r.error ?? "Le lot de reprise n'a pas été exécuté.");
+      if (r.ok && r.bilan) { setLot(r.bilan); rafraichir(); }
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    }
   });
 
   return (
