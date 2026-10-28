@@ -2,6 +2,9 @@
   "name": "amd-internal-os",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "description": "AMD Internal OS — lightweight internal ERP for Adventum Pharma",
   "scripts": {
     "dev": "next dev",
