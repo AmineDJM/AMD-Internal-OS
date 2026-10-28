@@ -1,5 +1,32 @@
 ## 🧾 Journal des évolutions récentes
 
+### ASSISTANT IA : VOCAUX « COMME WHATSAPP » ET LECTURE DE TOUTE PIÈCE JOINTE (2026-10-28)
+
+- **Messages vocaux** (Direction) : sur `/assistant`, maintenir le micro enregistre (minuterie, onde), relâcher envoie, glisser à
+  gauche annule, glisser vers le haut ou un appui bref verrouille. Le vocal est un **message du fil** : fichier du Drive personnel
+  (« Assistant IA — vocaux »), transcrit en arrière-plan, la transcription **sous le lecteur** ; l'assistant répond à son contenu.
+- **Réponse vocale** (option ⋯ › « Réponses vocales ») : la réponse texte est aussi lue à voix haute (synthèse OpenAI, fichier du
+  Drive, 1 500 caractères au plus — la coupe dite).
+- **L'assistant LIT les pièces** au lieu de les nommer : Word, Excel, PowerPoint, CSV, texte, PDF (texte, ou **scan par vision**,
+  6 pages), **images par vision** (photo de facture, capture, tableau photographié), audio, **vidéo** (piste transcrite + 4 images
+  clés si `ffmpeg`). Coffre refusé avant tout envoi (nature locale, pièce confidentielle, nom évocateur, OCR local qui reconnaît une
+  pièce d'identité ou une fiche de paie), données sensibles masquées, contenu encadré comme non fiable, **chaque limite dite sous la
+  pièce** (lue, partielle, refusée, illisible). Transcription, vision et synthèse comptées dans les plafonds et le journal.
+- **Filtre de confidentialité** : un IBAN imprimé par groupes de quatre est désormais masqué (il passait en clair).
+  Décision [0011](../assistant/decisions/0011-vocaux-et-lecture-de-toute-piece.md).
+
+### MODULE RH — LE MÉTIER RH RANGÉ DANS `src/modules/rh/` (lot V4, 2026-10-28)
+
+- **Aucun changement de comportement** : congés, paie, avances, notes de frais, demandes et documents RH, attestation
+  de travail, ordre de mission et lectures des écrans déménagent (`git mv`) dans `src/modules/rh/` (`domaine/` pur,
+  `infra/`, `ecrans/`), derrière deux portes : `partage.ts` (pur, navigateur compris) et `api.ts` (serveur).
+- **Les actions gardent leur clé** (`hr-actions`, `hr-document-actions`, `payroll-hr-actions`, `stand-in-actions`,
+  `conge-discussion-actions` — `src/lib/actions/parc.ts`) : `contrat.genere.json` identique octet pour octet.
+- **La paie passe toujours par le centre de paiement** (Finances, `lib/expense-orders`) — lien déclaré en dette nommée,
+  cible `@/modules/finances/api`. Les données sensibles restent écrites par le coffre et déchiffrées par les seules pages RH.
+- Restent au socle des droits (lus par `rbac.ts` et le coffre) : `lib/hr/stand-in`, `stand-in-resolve`, `confidentialite`.
+  Les anciens chemins sont des adresses de réexpédition (`tsconfig.json`). Mesures : rapport 08, « Suite — lot V4 ».
+
 ### ASSISTANT IA SUR OPENAI, CAISSE D'AVANCE CRÉDITÉE À L'AUTORISATION, BUILD RENDER SOUS 8 GO (2026-10-28)
 
 - **Assistant IA → OpenAI `gpt-6.1-terra`** (Direction) : il utilise la clé `OPENAI_API_KEY` déjà en service, par l'API

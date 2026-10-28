@@ -2,10 +2,9 @@ import Link from "next/link";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
-import { getLeavesToDecide } from "@/lib/queries/hr";
-import { getHrRequestQueue, getHrRequestsPretes } from "@/lib/queries/hr-documents";
-import { complementsConges } from "@/lib/queries/conges-discussion";
-import { referenceOrdreMissionSuggeree } from "@/lib/ordre-mission-depot";
+import {
+  getLeavesToDecide, getHrRequestQueue, getHrRequestsPretes, complementsConges, referenceOrdreMissionSuggeree,
+} from "@/modules/rh/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { visibleTabs } from "@/lib/nav-tabs";

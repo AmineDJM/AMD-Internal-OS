@@ -38,7 +38,9 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // part en lot avec son ordre annulé, et REFUSE tant qu'elle est vivante ou que son paiement est sorti.
     // 36 → 37 : un élément du Drive supprimé depuis la corbeille du Drive (10/2026) — il était effacé, octets
     // compris ; il part désormais en lot (versions, partages, commentaires) dans la corbeille du Super Admin.
-    expect(DELETABLE_KINDS).toHaveLength(37);
+    // 37 → 38 : le bon de commande de marché PCH (audit 27/10, DONNEES-15) — un seul `delete`, sans corbeille ni journal ;
+    // il part en lot avec ses lignes et ses livraisons attendues, et REFUSE quand il a été livré.
+    expect(DELETABLE_KINDS).toHaveLength(38);
   });
 
   it("le poste Ad & Pro part EN LOT et ne refuse rien lui-même — c'est le lot qui refuse ce qui a quitté l'ERP", () => {
@@ -72,7 +74,11 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // FIELD_REPORT (§118.204) : un compte rendu qui porte du matériel remis justifie des sorties du stock —
     // la corbeille lit le MÊME refus que l'action (`refusSuppressionRapport`), éprouvé dans
     // `rapport-terrain-remises-flow.test.ts`, avec son témoin (un compte rendu sans remise part toujours).
-    const AVEC_REFUS: readonly string[] = ["CONVERSATION", "NOTIFICATION", "PROMO_CATALOGUE", "PROMO_STOCK_ITEM", "PCH_TENDER_LINE", "FIELD_REPORT", "LEGAL_DOCUMENT", "PAYMENT_REQUEST"];
+    const AVEC_REFUS: readonly string[] = ["CONVERSATION", "NOTIFICATION", "PROMO_CATALOGUE", "PROMO_STOCK_ITEM", "PCH_TENDER_LINE", "FIELD_REPORT", "LEGAL_DOCUMENT", "PAYMENT_REQUEST",
+      // Un praticien qui porte des visites rapportées ou des montants Ad & Pro (audit 27/10, DONNEES-07).
+      "DOCTOR",
+      // Un bon de commande de marché déjà livré (audit 27/10, DONNEES-15).
+      "PCH_ORDER"];
     // LEGAL_DOCUMENT (§118.209) : une pièce signée, réglée ou dont une autre découle ne se supprime pas ; le refus
     // vit chez l'écrivain (`refusSuppressionDeLaPiece`), éprouvé dans `legal-suppression-flow`.
     // PAYMENT_REQUEST (19/10/2026) : une demande vivante, un compagnon, un paiement sorti ne se suppriment pas
@@ -82,7 +88,8 @@ describe("Registre des suppressions — le refus et la réserve", () => {
     // refuse une facture réglée ou une pièce signée parmi ses branches (`faitIrreversible`).
     // 29 → 30 : le poste d'une demande Ad & Pro (§118.187), pour la même raison.
     // 28 → 29 (10/2026) : l'élément du Drive, qui ne refuse ni ne réserve rien — tout ce qui part revient.
-    expect(anciens).toHaveLength(29);
+    // 29 → 28 (audit 27/10, DONNEES-07) : le praticien passe chez ceux qui refusent (`AVEC_REFUS`).
+    expect(anciens).toHaveLength(28);
     for (const k of anciens) {
       expect(DELETE_REGISTRY[k].refuse, `${k} ne refusait rien avant ce lot`).toBeUndefined();
       expect(DELETE_REGISTRY[k].reserve, `${k} n'annonçait aucune réserve avant ce lot`).toBeUndefined();

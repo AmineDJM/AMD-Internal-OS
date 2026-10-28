@@ -5,7 +5,7 @@ import { getAppSettings } from "@/lib/settings";
 import { visibleModules } from "@/lib/modules-visibility";
 import { featureEnabled } from "@/lib/features";
 import { loadReportingLine } from "@/lib/departments";
-import { managesAnyone } from "@/lib/hr/reporting-line";
+import { managesAnyone } from "@/modules/rh/partage";
 import { prisma } from "@/lib/prisma";
 import { estDirecteurDesOperations } from "@/lib/suppression/delegation";
 import { voitTousLesCasPv } from "@/lib/pharmacovigilance/acces";

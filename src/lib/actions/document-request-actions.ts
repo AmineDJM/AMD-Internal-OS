@@ -8,7 +8,7 @@ import { hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import {
   nextDocRequestStatus, canSubmit, canDecide, refusAnnulationPiece, refusReaffectation, STATUTS_PIECE_ANNULABLES, STATUTS_PIECE_REAFFECTABLES,
@@ -33,10 +33,10 @@ const PATH = "/pieces";
 
 async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.documentRequest.findMany({
-    where: { reference: { startsWith: `PIE-${year}-` } }, select: { reference: true },
+  return referenceDeSerie({
+    modele: "DocumentRequest", prefixe: "PIE", annee: year,
+    existantes: async () => (await prisma.documentRequest.findMany({ where: { reference: { startsWith: `PIE-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("PIE", year, refs.map((r) => r.reference));
 }
 
 function revalidate(id?: string, link?: string | null) {

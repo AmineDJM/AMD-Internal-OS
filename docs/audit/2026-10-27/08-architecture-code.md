@@ -55,6 +55,21 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > déplacements (adresses de réexpédition dans `tsconfig.json`, aucun fichier relais) ; ARCH-02 mesuré sur `src/app/`
 > et `src/components/` (`couverture.test.ts`). Mode d'emploi : [`docs/architecture/MODULES.md`](../../architecture/MODULES.md).
 
+> **Suite — lot V4, module `rh` (28/10/2026, branche `v4/module-rh`).** Le métier RH vit dans `src/modules/rh/`
+> (congés, paie, avances, notes de frais, documents RH, organisation) ; recette §3.5 suivie à la lettre (`git mv`,
+> portes, adresses de réexpédition, clés d'action historiques). Mesures avant → après :
+>
+> | Mesure | Avant | Après |
+> |---|---|---|
+> | Fichiers du métier hors module (`lib/hr/`, `lib/*hr*`, `lib/queries/hr*`, `lib/actions/{hr,payroll,stand-in,conge}-*`) | 46 sources + 25 tests | 3 sources + 4 tests (socle des droits : `stand-in`, `stand-in-resolve`, `confidentialite`) |
+> | Plus gros fichier du métier | 1 013 lignes (`hr-document-actions.ts`) | 948 (`actions-documents.ts`) — aucun > 1 000 |
+> | Importeurs externes du métier | 70 fichiers par 28 chemins `@/lib/hr/*` + 46 chemins d'actions | 68 fichiers par 3 portes (`partage` 32, `api` 25 dont les actions du module) + 5 fichiers d'actions + 2 écrans |
+> | `contrat.genere.json` (1 185 actions) | — | **identique octet pour octet** ; seul `aiguillage.genere.ts` change (5 lignes) |
+> | `horsCarte` (`couverture.test.ts`) | 768 | **756** |
+> | `testsDeTexte` | 128 | **125** |
+> | Dette héritée `rh` (`DETTE_HERITEE`) | — | 71 arêtes nommées, 7 familles (centre de paiement → `finances`, missions → `adpro`, socle des droits, organisation, services transverses, lecture IA, gardes) |
+> | Imports du kit `components/shared` vers un métier | 6 | 6 (les deux écrans RH de `shared/` sont devenus `rh/ecrans/`) |
+
 ### ARCH-01 — Les cliquets ignorent les imports relatifs · HAUTE · **CORRIGÉ** (`f4a70c7`)
 
 - **Preuve.** `src/platform/domains.ts` (avant correctif) : `if (!spec.startsWith("@/")) continue;` ;

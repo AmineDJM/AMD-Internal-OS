@@ -3,8 +3,8 @@ import { HR_REQUEST_TYPE, LEAVE_TYPE } from "@/lib/labels";
 import { toNumber } from "@/lib/utils";
 import {
   decideLeave, cancelLeave, decideAdvance, setEmployeeActive,
-} from "@/lib/actions/hr-actions";
-import { processHrRequest, decideExpenseReport } from "@/lib/actions/hr-document-actions";
+} from "@/modules/rh/actions";
+import { processHrRequest, decideExpenseReport } from "@/modules/rh/actions-documents";
 import { decideTraining } from "@/lib/actions/training-actions";
 import { decideRecruitmentStep } from "@/lib/actions/recruitment-actions";
 import type { OpImpl, OpProposalDraft } from "./types";

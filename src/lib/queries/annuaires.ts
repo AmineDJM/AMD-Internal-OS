@@ -322,7 +322,7 @@ export async function chargerEtablissements(
     }),
     prisma.medicalDoctor.groupBy({
       by: ["institutionId"],
-      where: { ...portee, institutionId: { not: null } },
+      where: { AND: [portee, { institutionId: { not: null } }] },
       _count: { _all: true },
     }),
     // DANS COMBIEN DE SECTEURS COMMERCIAUX il entre : c'est ce que la suppression ampute.
@@ -331,7 +331,7 @@ export async function chargerEtablissements(
     // secteurs qui le choisissent nommément — ce que sa suppression emporte, dit avant le clic.
     prisma.medicalDoctor.groupBy({
       by: ["serviceId"],
-      where: { ...portee, serviceId: { not: null } },
+      where: { AND: [portee, { serviceId: { not: null } }] },
       _count: { _all: true },
     }),
     prisma.salesSectorInstitutionService.groupBy({ by: ["serviceId"], _count: { _all: true } }),

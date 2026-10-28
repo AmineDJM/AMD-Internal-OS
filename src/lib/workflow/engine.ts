@@ -14,7 +14,7 @@
  * franchissements automatiques : l'instance et son avance, le geste, ses effets financiers, la
  * projection d'une approbation, et les relances du cycle (resoumettre, retirer, relancer, ouvrir).
  */
-import type { EntityType, Prisma, UserRole } from "@prisma/client";
+import { Prisma, type EntityType, type UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
@@ -144,10 +144,24 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
   // sur la route : la demande s'y serait posée devant un DG qui n'a rien à valider. On avance donc
   // jusqu'à la première étape réellement traversée.
   const pose = status === "IN_PROGRESS" ? premiereEtapeTraversee(def, currentSlug, skippedSlugs) : currentSlug;
+  // SEULE LA COURSE SE RATTRAPE (audit 27/10/2026, ADPRO-11). Un `catch {}` couvrait la création ET
+  // toute la suite : une vraie panne devenait « Impossible d'initialiser le circuit » sans trace, ou
+  // rendait l'instance d'un autre geste comme la sienne. Un doublon (P2002 — un autre geste vient de
+  // la créer) rend l'existante ; toute autre erreur de création remonte.
+  let created: LoadedInstance;
   try {
-    const created = await prisma.workflowInstance.create({
+    created = await prisma.workflowInstance.create({
       data: { definitionId: def.id, entityType, entityId, category, currentSlug: pose, status, finalSlug, skippedSlugs },
     });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType, entityId } } });
+    }
+    throw e;
+  }
+  // LA SUITE (journal, prévalidation d'office, franchissements) ne défait pas l'instance posée : une
+  // panne y est JOURNALISÉE et l'instance relue par SON identifiant — jamais celle d'un autre.
+  try {
     // LA PREMIÈRE LIGNE DE L'HISTORIQUE : QUI a demandé, et QUAND.
     //
     // L'historique ne commençait qu'à la première validation : on lisait « approuvé par X à
@@ -225,8 +239,9 @@ export async function ensureInstance(entityType: EntityType, entityId: string): 
       }
     }
     return created;
-  } catch {
-    return prisma.workflowInstance.findUnique({ where: { entityType_entityId: { entityType, entityId } } });
+  } catch (e) {
+    console.error("[workflow] ouverture du circuit : suite en échec", entityType, entityId, e);
+    return prisma.workflowInstance.findUnique({ where: { id: created.id } });
   }
 }
 

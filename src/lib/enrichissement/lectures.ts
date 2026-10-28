@@ -57,8 +57,8 @@ export async function faitsAConfirmer(user: { id: string; superAdmin: boolean },
     conflits: { where: { statut: "OUVERT" as const }, select: { id: true, valeurActuelle: true }, take: 1 },
   } satisfies Prisma.FaitProposeSelect;
   const [aTrancher, sansFiche] = await Promise.all([
-    prisma.faitPropose.findMany({ where: { ...portee, sensible: false, sujetId: { not: null }, decision: { in: ["EN_ATTENTE", "CONFLIT"] } }, select, orderBy: { createdAt: "asc" }, take: limite }),
-    prisma.faitPropose.findMany({ where: { ...portee, sensible: false, sujetId: null, decision: "EN_ATTENTE" }, select, orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.faitPropose.findMany({ where: { AND: [portee, { sensible: false, sujetId: { not: null }, decision: { in: ["EN_ATTENTE", "CONFLIT"] } }] }, select, orderBy: { createdAt: "asc" }, take: limite }),
+    prisma.faitPropose.findMany({ where: { AND: [portee, { sensible: false, sujetId: null, decision: "EN_ATTENTE" }] }, select, orderBy: { createdAt: "desc" }, take: 50 }),
   ]);
   const ids = (type: "PERSONNE" | "ORGANISATION") => [...new Set(aTrancher.filter((f) => f.sujetType === type && f.sujetId).map((f) => f.sujetId!))];
   const [personnes, organisations] = await Promise.all([

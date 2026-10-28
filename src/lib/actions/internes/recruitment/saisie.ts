@@ -12,7 +12,7 @@
 import type { ContractType } from "@prisma/client";
 import type { SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { companyIdForNew } from "@/lib/company";
 import { attachFormFiles } from "@/lib/documents";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -49,12 +49,11 @@ export async function enregistrerLaDemande(
   const departmentId = fdStr(formData, "departmentId");
   const year = new Date().getFullYear();
   return createWithRetry(async () => {
-    const refs = await prisma.recruitmentRequest.findMany({
-      where: { reference: { startsWith: `REC-${year}-` } }, select: { reference: true },
-    });
+    const reference = await referenceDeSerie({ modele: "RecruitmentRequest", prefixe: "REC", annee: year,
+      existantes: async () => (await prisma.recruitmentRequest.findMany({ where: { reference: { startsWith: `REC-${year}-` } }, select: { reference: true } })).map((r) => r.reference) });
     return prisma.recruitmentRequest.create({
       data: {
-        reference: buildRef("REC", year, refs.map((r) => r.reference)),
+        reference,
         companyId: await companyIdForNew(user.id),
         departmentId,
         requesterId: user.id,

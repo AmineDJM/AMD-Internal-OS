@@ -7,6 +7,7 @@ import type { EntityType } from "@prisma/client";
 
 /** Types d'enregistrements que le Super Admin peut supprimer définitivement. */
 export type DeletableKind =
+  | "PCH_ORDER"
   | "REGULATORY_PRODUCT"
   | "SPONSORING"
   | "EVENT"

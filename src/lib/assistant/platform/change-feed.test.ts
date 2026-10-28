@@ -112,7 +112,7 @@ describe("les actions métier instrumentées le RESTENT", () => {
   // Un `emit` retiré ne casse rien : Adam devient juste sourd, en silence. D'où ce contrôle
   // structurel — le même esprit que le ratchet de parité des actions.
   const INSTRUMENTED: [string, string][] = [
-    ["src/lib/actions/hr-actions.ts", "hr.employee-added"],
+    ["src/modules/rh/actions.ts", "hr.employee-added"],
     ["src/lib/actions/regulatory-actions.ts", "regulatory.owner-changed"],
     ["src/lib/comms/outbound.ts", "mail.sent"],
   ];

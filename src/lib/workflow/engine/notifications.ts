@@ -3,10 +3,12 @@
  * compris), le gestionnaire d'étape, et la pose d'une demande.
  */
 import type { EntityType, UserRole } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
 import { notifyRoles, notifyUser } from "@/lib/notify";
-import { aPrevenirPourLaGamme, laGammeEstConcernee, porteLeRoleQuiTranche, type ReferentMarketing } from "@/lib/personnes/referents-gamme";
+import { aPrevenirPourLaGamme, laGammeEstConcernee } from "@/lib/personnes/referents-gamme";
 import { getManagerOfUser } from "@/lib/departments";
+import { sansBloquer } from "@/lib/journal";
+import { rolesAPrevenir, superviseurQuiTientLEtape, ROLE_LIE_A_LA_GAMME } from "../etape-gamme";
+import { referentsDeLaDemande, superviseurDeLaGamme } from "../gamme-lue";
 import type { ActorScope } from "../types";
 import type { LoadedInstance, LoadedStep } from "./definitions";
 import { entityPath } from "./entites";
@@ -52,7 +54,13 @@ export async function prevenirEtapeAtteinte(
   type: "VALIDATION_REQUIRED" | "GENERIC" = "VALIDATION_REQUIRED",
 ): Promise<void> {
   const roles = (etape.notifyRoles as UserRole[]).filter(Boolean);
-  if (roles.length) await notifyRoles(roles, { type, ...msg });
+  // LE NATIONAL SALES DE LA GAMME, nommément, au lieu de tout le rôle (ADPRO-06) : les autres
+  // National Sales ne peuvent ni ouvrir ni trancher ce dossier — l'alerte leur était un bruit.
+  const superviseur = roles.includes(ROLE_LIE_A_LA_GAMME as UserRole) ? await superviseurDeLaGamme(entityType, entityId).catch(sansBloquer("engine.superviseurDeLaGamme", null)) : null;
+  const aPrevenir = rolesAPrevenir(roles, superviseur);
+  if (aPrevenir.length) await notifyRoles(aPrevenir, { type, ...msg });
+  const tenant = superviseurQuiTientLEtape(roles, superviseur);
+  if (tenant) await notifyUser({ userId: tenant.id, type, ...msg }).catch((err) => console.error("[workflow] notification du National Sales de la gamme impossible", err));
   // LES RÉFÉRENTS DE LA GAMME s'AJOUTENT au rôle — et seulement là où l'étape NOMME ce rôle.
   // La décision est pure (`laGammeEstConcernee`) : l'écrire ici en lisant le slug ferait une
   // seconde vérité, fausse au premier circuit remanié (§118.5, §118.73).
@@ -65,35 +73,6 @@ export async function prevenirEtapeAtteinte(
   } catch (err) {
     console.error("[workflow] notification des référents Direction Marketing impossible", err);
   }
-}
-
-/**
- * LES RÉFÉRENTS DE LA GAMME QUE PORTE CETTE DEMANDE.
- *
- * La gamme vit sur la LIGNE de la demande (`businessUnitId`), pas sur l'instance de circuit : le
- * moteur est générique, et y recopier la gamme ferait une seconde vérité qui prendrait du retard
- * au premier rattachement corrigé (§118.5). On la lit donc là où elle est.
- *
- * Le rôle est relu EN MÊME TEMPS : une désignation ne garantit pas que la personne porte encore
- * le rôle, et prévenir quelqu'un qui ne peut plus trancher est une attente sans pouvoir.
- */
-async function referentsDeLaDemande(entityType: EntityType, entityId: string): Promise<ReferentMarketing[]> {
-  const ligne =
-    entityType === "SPONSORING" ? await prisma.sponsoringRequest.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-      : entityType === "CONGRESS_INTERNATIONAL" ? await prisma.congressInternational.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-        : entityType === "CONGRESS_NATIONAL" ? await prisma.congressNational.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-          : entityType === "AD_PRO_OTHER" ? await prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { businessUnitId: true } })
-            : await prisma.event.findUnique({ where: { id: entityId }, select: { businessUnitId: true } });
-  if (!ligne?.businessUnitId) return [];
-  const lignes = await prisma.businessUnitMarketingReferent.findMany({
-    where: { businessUnitId: ligne.businessUnitId, user: { isActive: true } },
-    select: { userId: true, user: { select: { name: true, role: true, secondaryRole: true } } },
-  });
-  return lignes.map((r) => ({
-    userId: r.userId,
-    name: r.user.name,
-    porteLeRole: porteLeRoleQuiTranche(r.user),
-  }));
 }
 
 export async function notifyStepManager(step: LoadedStep, requesterId: string | null, title: string, body: string, link: string): Promise<void> {

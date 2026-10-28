@@ -20,7 +20,7 @@ import {
   PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece, TITRE_BC_A_ETABLIR,
   type NaturePieceSecretariat,
 } from "@/lib/ad-pro/pieces-secretariat";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { montantDeLaDemande } from "@/lib/ad-pro/montant-demande";
 import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";
 import { siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO } from "@/lib/ad-pro/centre";
@@ -2413,11 +2413,10 @@ export async function referenceDemandeDevisPoste(formData: FormData): Promise<Re
 /** Référence d'une demande administrative — même forme que le module (DEM-année-n). */
 async function nextAdminRequestRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `DEM-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "DEM", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `DEM-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("DEM", year, rows.map((r) => r.reference));
 }
 
 /**

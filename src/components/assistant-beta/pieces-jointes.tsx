@@ -1,16 +1,18 @@
 "use client";
 
 import React, { useRef } from "react";
-import { FileText, Loader2, Paperclip, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileText, Loader2, Paperclip, ShieldAlert, X } from "lucide-react";
 import { sansBloquer } from "@/lib/journal";
+import { resumeLecture, type LecturePiece } from "@/lib/agent/lecture/regles";
 
 /**
  * LES PIÈCES JOINTES DE LA CONVERSATION — plusieurs fichiers, de tout type.
  *
  * Chaque fichier part dans le Drive de la personne par la route de l'écran Drive
  * (`/api/drive/upload` : droits, quotas, formats, chiffrement), et seul son IDENTIFIANT revient.
- * L'assistant reçoit le nom et l'identifiant — jamais le contenu — pour joindre la pièce à une
- * demande ; le serveur revérifie que la personne la voit, à la proposition puis à l'exécution.
+ * Le serveur revérifie que la personne la voit, puis la LIT pour l'assistant (texte, OCR, vision,
+ * transcription — `lib/agent/lecture/`) ; sous chaque pièce envoyée, l'écran DIT ce que la lecture
+ * a donné : lue, partielle (et la limite), refusée (coffre), illisible.
  */
 export interface PieceJointe {
   cle: string;
@@ -84,17 +86,30 @@ export function PiecesEnAttente({ pieces, onRetirer }: { pieces: PieceJointe[]; 
   );
 }
 
-/** Les pièces d'un message envoyé, sous la bulle de la personne. */
-export function PiecesDuMessage({ pieces }: { pieces: { id: string; nom: string }[] }) {
+/** Les pièces d'un message envoyé, sous la bulle de la personne — et ce que leur lecture a donné. */
+export function PiecesDuMessage({ pieces, lectures }: { pieces: { id: string; nom: string }[]; lectures?: LecturePiece[] | null }) {
   if (!pieces.length) return null;
+  const parId = new Map((lectures ?? []).map((l) => [l.id, l]));
   return (
-    <div className="flex flex-wrap justify-end gap-1.5">
-      {pieces.map((p) => (
-        <a key={p.id} href={`/drive/${p.id}`} className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg border border-slate-200 bg-white/90 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
-          <FileText className="h-3 w-3 shrink-0" />
-          <span className="truncate">{p.nom}</span>
-        </a>
-      ))}
+    <div className="flex max-w-full flex-col items-end gap-1">
+      {pieces.map((p) => {
+        const l = parId.get(p.id);
+        const Icone = !l ? FileText : l.statut === "LUE" ? CheckCircle2 : l.statut === "REFUSEE" ? ShieldAlert : AlertTriangle;
+        const teinte = !l ? "" : l.statut === "LUE" ? "text-emerald-600 dark:text-emerald-400" : l.statut === "REFUSEE" ? "text-red-600 dark:text-red-400" : "text-amber-600 dark:text-amber-400";
+        return (
+          <div key={p.id} className="flex max-w-full flex-col items-end gap-0.5">
+            <a href={`/drive/${p.id}`} className="inline-flex max-w-[16rem] items-center gap-1.5 rounded-lg border border-slate-200 bg-white/90 px-2 py-1 text-xs text-slate-700 hover:bg-slate-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-300">
+              <Icone className={`h-3 w-3 shrink-0 ${teinte}`} aria-hidden />
+              <span className="truncate">{p.nom}</span>
+            </a>
+            {l && (
+              <p className={`max-w-[18rem] text-right text-[11px] leading-snug [overflow-wrap:anywhere] ${l.statut === "LUE" ? "text-slate-500 dark:text-zinc-400" : teinte}`}>
+                {resumeLecture(l)}
+              </p>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

@@ -121,6 +121,11 @@ const SOCLE = [
    * + journal). De l'infrastructure lue partout, qui ne lit aucun métier.
    */
   "src/lib/journal", "src/lib/migrations-appliquees",
+  /**
+   * `acces/compose` : `et(…)`, la composition des clauses Prisma en `AND` (audit 27/10, SA-03 — deux `OR`
+   * étalés s'écrasent). Zéro import ; lue par les façades, les domaines et les actions.
+   */
+  "src/lib/acces/compose",
   "src/lib/api/registry/entities",
   "src/lib/storage/",
   "src/lib/mutations/",
@@ -186,6 +191,17 @@ const SOCLE = [
    * dossier ; Adam (par le pont), les tests et les scripts le lisent. Pur par construction.
    */
   "src/lib/actions/contrat/",
+  /**
+   * LES RÈGLES PURES DE L'ASSISTANT IA (décision 0011) — zéro import chacune : ce qu'une lecture de pièce
+   * a donné et la phrase de sa limite (`lecture/regles`), les plafonds et le coût (`consommation-regles`),
+   * le cadre du contenu non fiable (`contenu-non-fiable`), la mémoire telle que l'écran la montre
+   * (`memoire-ui`), le texte partiel d'une réponse qui s'écrit (`fil/partiel`). Le moteur (serveur) et
+   * l'écran (composants client) les lisent tous deux et n'ont pas le droit de s'importer : une seconde copie
+   * de la phrase d'une limite aurait dit autre chose à l'écran qu'au modèle. Chemins EXACTS : un fichier
+   * serveur posé à côté n'est pas exempté sans décision.
+   */
+  "src/lib/agent/lecture/regles", "src/lib/agent/consommation-regles", "src/lib/agent/contenu-non-fiable",
+  "src/lib/agent/memoire-ui", "src/lib/agent/fil/partiel",
   /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions

@@ -24,14 +24,19 @@ import { mesurerCouverture } from "./couverture";
  * `journal` et `migrations-appliquees` ont été rangés au socle ; reste 768. Désormais, chaque fichier neuf hors
  * carte se range avant fusion.
  *
- * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte 768 → 759 (les dossiers découpés sont rangés
+ * −2 (28/10/2026, décision 0011 — vocaux et lecture des pièces de l'Assistant IA ; 756 → 754 après le module
+ * `rh`) : deux fichiers
+ * serveur neufs (`agent/lecture/pieces.ts`, `voix.ts`), et cinq fichiers PURS de l'Assistant IA, zéro import,
+ * rangés au socle (`lecture/regles`, `consommation-regles`, `contenu-non-fiable`, `memoire-ui`, `fil/partiel`).
+ *
+ * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte −9, mesuré 745 après fusion de la base (les dossiers découpés sont rangés
  * dans une couche : `payslip/` → office, `carte-plateforme/` → couche `carte`, `admin-delete-registry`,
- * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle) ; tests de texte 128 → 126.
+ * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle) ; tests de texte mesurés 123.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 759,
+  horsCarte: 745,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
@@ -45,7 +50,7 @@ const PLAFONDS = {
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 126,
+  testsDeTexte: 123,
 } as const;
 
 const mesure = mesurerCouverture();

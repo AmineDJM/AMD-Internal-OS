@@ -17,7 +17,7 @@ export {
 } from "@prisma/client";
 export { prisma } from "@/lib/prisma";
 export { companyIdForNew, companyScopedWhere } from "@/lib/company";
-export { buildRef, createWithRetry } from "@/lib/refs";
+export { createWithRetry, referenceDeSerie } from "@/lib/refs";
 export { recordAudit } from "@/lib/audit";
 export { notifyUser, notifyRoles, broadcastNotification, type BroadcastAudience } from "@/lib/notify";
 export { createEventForUser, algiersInputToUtc, CALENDAR_KINDS } from "@/lib/calendar";

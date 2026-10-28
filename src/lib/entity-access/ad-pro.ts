@@ -43,9 +43,9 @@ export async function isRequestOwner(user: SessionUser, entityType: EntityType, 
   return false;
 }
 
-/** Les cinq natures de dossier du module Ad&Pro. */
+/** Les natures de dossier du module Ad&Pro — « Autre » comprise (SA-14 : absente, elle échappait au contrôle de société). */
 export const AD_PRO_TYPES: EntityType[] = [
-  "SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "PROMO_MATERIAL",
+  "SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENT", "PROMO_MATERIAL", "AD_PRO_OTHER",
 ];
 
 /**
@@ -71,6 +71,7 @@ export async function adProStakeholders(
       case "EVENT": return prisma.event.findUnique({ where: { id: entityId }, ...sel });
       case "PROMO_MATERIAL":
         return prisma.promoMaterial.findUnique({ where: { id: entityId }, select: { requesterId: true, assistantId: true, companyId: true, ...bu } });
+      case "AD_PRO_OTHER": return prisma.adProOtherRequest.findUnique({ where: { id: entityId }, select: { requesterId: true, companyId: true, ...bu } });
       default: return null;
     }
   })();

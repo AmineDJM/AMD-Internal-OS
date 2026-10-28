@@ -8,6 +8,7 @@
 import { CHEMIN_RAPPORTS_TERRAIN } from "@/lib/chemins/rapports-terrain";
 import { prisma } from "@/lib/prisma";
 import { refusSuppressionRapport } from "@/lib/promo/remises-visite";
+import { refusSuppressionPraticien } from "@/lib/queries/suppression-refus";
 import type { DeletableKind, KindSpec } from "./types";
 
 export const REGISTRE_TERRAIN_VENTES_BD_SUPPORT = {
@@ -63,6 +64,9 @@ export const REGISTRE_TERRAIN_VENTES_BD_SUPPORT = {
       const r = await prisma.medicalDoctor.findUnique({ where: { id }, select: { name: true } });
       return r ? r.name : null;
     },
+    refuse: refusSuppressionPraticien,
+    // UN LOT (DONNEES-07) : segmentation, observations, couleurs de cellule partent et reviennent avec la fiche.
+    lot: true,
     async remove(id) {
       await prisma.medicalDoctor.delete({ where: { id } });
     },

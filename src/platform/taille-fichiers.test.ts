@@ -33,7 +33,6 @@ const PLAFOND = 1_000;
 const HERITES: Readonly<Record<string, number>> = {
   "src/components/ad-pro/items-panel.tsx": 2149,
   "src/lib/actions/ad-pro-item-actions.ts": 4409,
-  "src/lib/actions/hr-document-actions.ts": 1013,
   "src/lib/actions/payment-request-actions.ts": 1197,
 };
 

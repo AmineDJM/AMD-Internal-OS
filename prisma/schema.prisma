@@ -1006,6 +1006,8 @@ model AssistantIaFil {
   depuisLe     DateTime          @default(now())
   /// Prise du fil : un seul passage joue ses messages à la fois (reprise si elle est perdue).
   traitementLe DateTime?
+  /// Option « réponse vocale » (28/10/2026) : chaque réponse est AUSSI lue à voix haute (synthèse OpenAI).
+  reponseVocale Boolean          @default(false)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   tours        AssistantIaTour[]
@@ -1036,6 +1038,12 @@ model AssistantIaTour {
   /// Combien de fois ce message a été PRIS pour être joué (IA-ASSISTANT-06) : au-delà de 3, il
   /// échoue et le fil passe au suivant — un tour qui lève n'est plus rejoué à chaque battement.
   essais          Int            @default(0)
+  /// Message VOCAL (28/10/2026) : `{ id, dureeS, etat, transcription?, erreur? }` — l'audio est un fichier du Drive.
+  vocal           Json?
+  /// Ce que la lecture des pièces a donné : une `LecturePiece` par pièce (lue, partielle, refusée…), affichée.
+  lecture         Json?
+  /// Réponse VOCALE de l'assistant : `{ id, dureeS, coupe?, erreur? }` — un fichier du Drive de la personne.
+  audio           Json?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -5889,6 +5897,15 @@ model CompanyDocumentProfile {
 /// ne l'est jamais deux fois — même sous vingt-cinq émissions parallèles — et une pièce
 /// supprimée ne libère pas son numéro : la numérotation d'une facture est continue par
 /// construction, pas par discipline.
+/// LE COMPTEUR D'UNE SÉRIE DE RÉFÉRENCES (audit 27/10, DONNEES-12 / ADPRO-08) — `cle` = « Modèle:PRÉFIXE-AAAA »
+/// (`ExpenseOrder:OD-2026`). Avancé atomiquement par `lib/references/serie.ts` ; un numéro attribué ne revient jamais,
+/// même après une suppression réversible (sinon la restauration échoue sur la référence reprise).
+model SerieReference {
+  cle       String   @id
+  dernier   Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 model DocumentSequence {
   id        String   @id @default(cuid())
   companyId String
@@ -9820,6 +9837,10 @@ model AppSetting {
   /// LE COFFRE EN DOUBLE LECTURE : écrans, exports et pièces lisent la valeur par le coffre (politique +
   /// journal `AccesDonneeSensible`) ; ailleurs, le masque seul. Fermé par défaut.
   coffreLecture                 Boolean   @default(false)
+  /// LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06). Vrai (défaut) : qui a DEMANDÉ un
+  /// paiement ne l'autorise pas, qui l'a demandé ou autorisé ne le règle pas (`payments/separation.ts`).
+  /// Suspendue par le Super Admin seulement (Réglages & diffusion), geste journalisé.
+  separationTachesPaiement      Boolean   @default(true)
   updatedAt                     DateTime  @updatedAt
   updatedById                   String?
   /// REFONTE V2-D — DOUBLE ÉCRITURE DES LIEUX. Vrai = chaque saisie d'une wilaya / ville sur une fiche (praticien,

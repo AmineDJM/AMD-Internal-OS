@@ -1,5 +1,5 @@
-import { buildRef } from "@/lib/refs";
 import { prisma } from "@/lib/prisma";
+import { referenceDeSerie } from "@/lib/refs";
 
 /**
  * LA PROCHAINE RÉFÉRENCE D'ÉCRITURE — « FIN-2026-137 ».
@@ -14,9 +14,8 @@ import { prisma } from "@/lib/prisma";
  */
 export async function nextFinanceRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.financeTransaction.findMany({
-    where: { reference: { startsWith: `FIN-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "FinanceTransaction", prefixe: "FIN", annee: year,
+    existantes: async () => (await prisma.financeTransaction.findMany({ where: { reference: { startsWith: `FIN-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("FIN", year, refs.map((r) => r.reference));
 }

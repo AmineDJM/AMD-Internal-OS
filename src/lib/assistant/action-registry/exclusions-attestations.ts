@@ -200,8 +200,8 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-actions:listerMesRoutines", "assistant-ia-actions:lireMonPassage", "assistant-ia-actions:basculerMaRoutine",
     "assistant-ia-actions:supprimerMaRoutine", "assistant-ia-actions:executerMaRoutine",
   ]);
-  X("FIL GARDÉ de l'Assistant IA — écrire à l'assistant (le message rejoint la file de SA conversation) et repartir d'une nouvelle conversation. C'est l'écran de l'assistant lui-même, pas une action métier : chaque écriture que l'assistant prépare reste une carte à confirmer.", [
-    "assistant-ia-actions:envoyerAuFil", "assistant-ia-actions:repartirDeZero",
+  X("FIL GARDÉ de l'Assistant IA — écrire à l'assistant (le message rejoint la file de SA conversation), repartir d'une nouvelle conversation, choisir que ses réponses soient aussi dites à voix haute. C'est l'écran de l'assistant lui-même, pas une action métier : chaque écriture que l'assistant prépare reste une carte à confirmer.", [
+    "assistant-ia-actions:envoyerAuFil", "assistant-ia-actions:repartirDeZero", "assistant-ia-actions:reglerMaReponseVocale",
   ]);
   X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
     "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",

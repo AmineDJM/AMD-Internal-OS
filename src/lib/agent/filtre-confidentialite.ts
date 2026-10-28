@@ -48,6 +48,13 @@ const MOTIF_REMPLACEMENT = "[CONFIDENTIEL]";
  * 3. Rémunérations (mentions explicites de salaires, émoluments, montants suivis de net/brut)
  */
 const MOTIFS_TEXTUELS: Array<{ regex: RegExp; label: string }> = [
+  // IBAN IMPRIMÉ PAR GROUPES DE QUATRE (« DZ58 0021 0001 1234 5678 9012 ») — la forme d'une facture, d'un
+  // RIB photographié, d'un tableur fournisseurs. Mesuré le 28/10/2026 sur un CSV joint à l'Assistant IA :
+  // la forme compacte seule était reconnue, l'IBAN groupé partait au modèle en clair.
+  {
+    regex: /\b[A-Z]{2}\d{2}(?: [A-Z0-9]{4}){3,7}(?: [A-Z0-9]{1,4})?\b/gi,
+    label: "IBAN_GROUPE",
+  },
   // IBAN (DZ + 2 chiffres de contrôle + 20 caractères ou format international générique)
   {
     regex: /\b[A-Z]{2}\d{2}[A-Z0-9]{12,30}\b/gi,
@@ -59,7 +66,8 @@ const MOTIFS_TEXTUELS: Array<{ regex: RegExp; label: string }> = [
     label: "RIB_20",
   },
   {
-    regex: /\b(?:RIB|IBAN|CCP|Compte\s+bancaire)\s*[:#=]?\s*[0-9A-Z\s-]{10,30}\b/gi,
+    // Sur UNE ligne : l'en-tête « iban » d'un tableau n'avale pas le nom du fournisseur de la ligne suivante.
+    regex: /\b(?:RIB|IBAN|CCP|Compte[ \t]+bancaire)[ \t]*[:#=]?[ \t]*[0-9A-Z \t-]{10,30}\b/gi,
     label: "COMPTE_BANCAIRE",
   },
   // NIN algérien (Numéro d'Identification Nationale : 18 chiffres consécutifs)

@@ -7,7 +7,7 @@ import { prisma } from "./erp";
 import { toNumber } from "@/lib/utils";
 import { updateTransaction, deleteTransaction, deleteTreasuryAccount, createPayroll } from "@/lib/actions/finance-actions";
 import { updateInvoice, deleteInvoice } from "@/lib/actions/invoice-actions";
-import { markSalaryPaid, unmarkSalaryPaid } from "@/lib/actions/payroll-hr-actions";
+import { markSalaryPaid, unmarkSalaryPaid } from "@/modules/rh/actions-paie";
 import { createBudget } from "@/lib/actions/budget-actions";
 import { respondToPaymentCentre } from "@/lib/actions/payment-centre-actions";
 import type { OpImpl, OpProposalDraft } from "../../types";

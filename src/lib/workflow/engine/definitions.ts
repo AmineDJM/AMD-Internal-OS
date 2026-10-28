@@ -10,6 +10,8 @@ import { isManagerOfUser, getManagerOfUser } from "@/lib/departments";
 import { toNumber } from "@/lib/utils";
 import { defaultDefinition } from "../defaults";
 import { estDecisionnaire, etapesNonAtteintes, estIgnoree, seuilFranchissement } from "../parcours";
+import { horsDeSaGamme, ROLE_LIE_A_LA_GAMME } from "../etape-gamme";
+import { superviseurDeLaGamme } from "../gamme-lue";
 import { argentEffectif } from "../pouvoirs-argent";
 import { CATEGORY_LABELS, type ActorScope, type StepInput, type WorkflowCategory } from "../types";
 
@@ -240,8 +242,14 @@ export async function canActOnStep(viewer: Viewer, step: LoadedStep, instance: L
       return Boolean(mgr && mgr.userId === viewer.id);
     }
     case "ROLE":
-    default:
-      return step.actorRoles.some((r) => hasRole(viewer, r as UserRole));
+    default: {
+      if (!step.actorRoles.some((r) => hasRole(viewer, r as UserRole))) return false;
+      // L'étape du National Sales revient au superviseur de la gamme du dossier (ADPRO-06) — lu
+      // seulement quand l'étape nomme ce rôle.
+      if (!step.actorRoles.includes(ROLE_LIE_A_LA_GAMME)) return true;
+      const superviseur = await superviseurDeLaGamme(instance.entityType, instance.entityId);
+      return !horsDeSaGamme(step.actorRoles, { id: viewer.id, role: viewer.role, secondaryRole: viewer.secondaryRole ?? null }, superviseur);
+    }
   }
 }
 

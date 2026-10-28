@@ -1,8 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { platformScope } from "@/lib/company";
 import { clauseEcrituresVisibles, clauseSalariesVisibles } from "@/lib/queries/visibilite-listes";
-import { instantDuCentreDePaie } from "@/lib/hr/paie-centre";
-import { etatSalaire, saisiAvantLeCentre } from "@/lib/hr/virement-paie";
+import { instantDuCentreDePaie, etatSalaire, saisiAvantLeCentre } from "@/modules/rh/api";
 import {
   resultatParMois, debutDuMoisAlger, finDeLaPeriodeAlger, type Periode, type ResultatPeriode,
 } from "@/lib/finance/resultat-mensuel";

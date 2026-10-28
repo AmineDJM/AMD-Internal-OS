@@ -3,7 +3,7 @@
  * famille, et les petites normalisations (compte actif, référence, priorité, date).
  */
 
-import { type Priority, prisma, buildRef, type CurrentUser } from "@/lib/assistant/coeur/erp";
+import { type Priority, prisma, referenceDeSerie, type CurrentUser } from "@/lib/assistant/coeur/erp";
 import type { AssistantActionPayload } from "@/lib/assistant/coeur/contrat-actions";
 
 // ───────────────────────────── Exécution (après confirmation) ─────────────────────────────
@@ -29,11 +29,10 @@ export async function activeUserId(id: string | null | undefined): Promise<strin
  *  suppression → violation d'unicité → « L'action n'a pas pu être exécutée »). */
 export async function nextRequestRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `REQ-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "REQ", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `REQ-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("REQ", year, refs.map((r) => r.reference));
 }
 
 export function priorityOf(p: string | null | undefined): Priority {

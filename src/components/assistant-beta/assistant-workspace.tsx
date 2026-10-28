@@ -8,8 +8,10 @@ import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
 import { RoutinesPanel } from "./routines-panel";
 import { BoutonJoindre, PiecesEnAttente, televerser, type PieceJointe } from "./pieces-jointes";
-import { AlarmClock, Brain } from "lucide-react";
-import { envoyerAuFil, listerMesRoutines, repartirDeZero } from "@/lib/actions/assistant-ia-actions";
+import { EnregistreurVocal } from "./enregistreur-vocal";
+import { AlarmClock, Brain, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
+import { envoyerAuFil, listerMesRoutines, reglerMaReponseVocale, repartirDeZero } from "@/lib/actions/assistant-ia-actions";
+import type { AudioDuTour, LecturePiece, VocalDuTour } from "@/lib/agent/lecture/regles";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
 import { sansBloquer } from "@/lib/journal";
@@ -38,6 +40,9 @@ interface TourDuFil {
   memoireProposee?: ChatMessage["memoireProposee"] | null;
   outils?: string[];
   etapes?: string[];
+  vocal?: VocalDuTour | null;
+  lecture?: LecturePiece[] | null;
+  audio?: AudioDuTour | null;
   createdAt: string;
 }
 
@@ -45,13 +50,14 @@ function versMessage(t: TourDuFil): ChatMessage {
   if (t.role === "user") {
     return {
       id: t.id, role: "user", content: t.contenu, pieces: t.pieces ?? undefined, createdAt: t.createdAt,
+      vocal: t.vocal ?? null, lectures: t.lecture ?? null,
       etat: t.etat === "EN_ATTENTE" ? "attente" : undefined,
     };
   }
   const redaction = t.etat === "EN_COURS";
   return {
     id: t.id, role: "assistant", content: t.contenu, createdAt: t.createdAt,
-    blocs: t.blocs ?? undefined, intent: t.intent ?? null, memoireProposee: t.memoireProposee ?? null,
+    blocs: t.blocs ?? undefined, intent: t.intent ?? null, memoireProposee: t.memoireProposee ?? null, audio: t.audio ?? null,
     outilsAppeles: redaction ? t.etapes ?? [] : (t.outils?.length ? t.outils : t.etapes ?? []),
     etat: redaction ? "redaction" : t.etat === "ECHEC" ? "echec" : undefined,
   };
@@ -85,13 +91,17 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const [localEnCours, setLocalEnCours] = useState(false);
   const [envoi, setEnvoi] = useState(false);
   const [erreur, setErreur] = useState<string | null>(null);
+  // L'option « réponse vocale » vit sur le fil (serveur) : elle suit la personne d'un appareil à l'autre.
+  const [reponseVocale, setReponseVocale] = useState(false);
+  const [menuOuvert, setMenuOuvert] = useState(false);
 
   const lire = useCallback(async (): Promise<boolean> => {
     try {
       const r = await fetch("/api/assistant-ia/fil", { cache: "no-store" });
       if (!r.ok) return false;
-      const d = (await r.json()) as { tours: TourDuFil[]; enCours: boolean; vueExacte: boolean };
+      const d = (await r.json()) as { tours: TourDuFil[]; enCours: boolean; vueExacte: boolean; reponseVocale?: boolean };
       setVueExacte(d.vueExacte);
+      setReponseVocale(d.reponseVocale === true);
       setFil(d.tours.map(versMessage));
       setTravaille(d.enCours);
       return d.enCours;
@@ -176,6 +186,53 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     }
   };
 
+  /**
+   * UN VOCAL PART COMME UN MESSAGE : affiché tout de suite (lisible depuis l'enregistrement local), puis
+   * déposé dans le Drive et le fil (`/api/assistant-ia/vocal`) avec les pièces prêtes ; la
+   * transcription et la réponse arrivent par la lecture du fil.
+   */
+  const envoyerVocal = async (audio: Blob, dureeS: number) => {
+    if (vueExacte) { setErreur("Les messages vocaux sont indisponibles en « Vue exacte »."); return; }
+    const pretes = pieces.filter((p): p is PieceJointe & { id: string } => p.etat === "prete" && !!p.id).map((p) => ({ id: p.id, nom: p.nom }));
+    setPieces([]);
+    setErreur(null);
+    const local = URL.createObjectURL(audio);
+    const provisoire: ChatMessage = {
+      id: `prov-vocal-${Date.now()}`, role: "user", content: "", pieces: pretes, etat: "attente", createdAt: new Date().toISOString(),
+      vocal: { id: null, local, dureeS, etat: "TRANSCRIPTION" },
+    };
+    setFil((prev) => [...prev, provisoire]);
+    setTravaille(true);
+    setEnvoi(true);
+    try {
+      const ext = audio.type.includes("mp4") ? "m4a" : audio.type.includes("ogg") ? "ogg" : "webm";
+      const fd = new FormData();
+      fd.set("audio", new File([audio], `vocal.${ext}`, { type: audio.type || "audio/webm" }));
+      fd.set("dureeS", String(dureeS));
+      fd.set("pieces", JSON.stringify(pretes));
+      const r = await fetch("/api/assistant-ia/vocal", { method: "POST", body: fd });
+      const j = (await r.json().catch(sansBloquer("assistant-workspace.envoyerVocal.json", {}))) as { ok?: boolean; error?: string };
+      if (!r.ok || !j.ok) {
+        setFil((prev) => prev.filter((m) => m.id !== provisoire.id));
+        setErreur(j.error ?? "Le vocal n'est pas parti. Réessayez.");
+      }
+    } catch {
+      setFil((prev) => prev.filter((m) => m.id !== provisoire.id));
+      setErreur("La connexion a été interrompue : le vocal n'est pas parti. Réessayez.");
+    } finally {
+      setEnvoi(false);
+      window.dispatchEvent(new Event("assistant-fil:relancer"));
+    }
+  };
+
+  const basculerReponseVocale = async () => {
+    const voulu = !reponseVocale;
+    setReponseVocale(voulu);
+    setMenuOuvert(false);
+    const r = await reglerMaReponseVocale(voulu).catch(sansBloquer("assistant-workspace.reponseVocale", null));
+    if (!r || !r.ok) { setReponseVocale(!voulu); setErreur(r && !r.ok ? r.erreur : "Réglage non enregistré. Réessayez."); }
+  };
+
   const handleConfirmIntent = async (intentId: string, confirmTyped?: string) => {
     return confirmerActionBeta(intentId, confirmTyped);
   };
@@ -238,28 +295,20 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               canSendEmpty={pieces.some((p) => p.etat === "prete")}
               sendBlocked={envoiEnCours}
               above={<PiecesEnAttente pieces={pieces} onRetirer={(cle) => setPieces((prev) => prev.filter((p) => p.cle !== cle))} />}
+              vocal={vueExacte ? undefined : <EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={envoiEnCours} />}
               leading={
                 <>
                 <BoutonJoindre onFichiers={joindre} desactive={vueExacte && localEnCours} />
-                <button
-                  type="button"
-                  onClick={() => setMemoireOuverte(true)}
-                  aria-label="Ma mémoire"
-                  title="Ma mémoire"
-                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                >
-                  <Brain className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRoutinesOuvertes(true)}
-                  aria-label={nonLus ? `Mes routines (${nonLus} non lu${nonLus > 1 ? "s" : ""})` : "Mes routines"}
-                  title="Mes routines"
-                  className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                >
-                  <AlarmClock className="h-4 w-4" />
-                  {nonLus > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-violet-600" />}
-                </button>
+                <Outils
+                  ouvert={menuOuvert}
+                  onBasculer={() => setMenuOuvert((o) => !o)}
+                  onMemoire={() => { setMenuOuvert(false); setMemoireOuverte(true); }}
+                  onRoutines={() => { setMenuOuvert(false); setRoutinesOuvertes(true); }}
+                  nonLus={nonLus}
+                  reponseVocale={reponseVocale}
+                  onReponseVocale={() => void basculerReponseVocale()}
+                  vueExacte={vueExacte}
+                />
                 </>
               }
             />
@@ -269,5 +318,55 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
     </div>
+  );
+}
+
+/**
+ * LES OUTILS DE LA BARRE — mémoire, routines, réponse vocale. Sur ordinateur, trois boutons ; sur
+ * téléphone, un seul « ⋯ » qui les déplie : à 375 px, trois boutons de plus ne laissaient que
+ * quelques lettres au champ de saisie.
+ */
+function Outils({ ouvert, onBasculer, onMemoire, onRoutines, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
+  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; nonLus: number;
+  reponseVocale: boolean; onReponseVocale: () => void; vueExacte: boolean;
+}) {
+  const bouton = "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800";
+  const libelleRoutines = nonLus ? `Mes routines (${nonLus} non lu${nonLus > 1 ? "s" : ""})` : "Mes routines";
+  const libelleVoix = reponseVocale ? "Réponses vocales activées — désactiver" : "Réponses vocales désactivées — activer";
+  const IconeVoix = reponseVocale ? Volume2 : VolumeX;
+  const point = nonLus > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-violet-600" />;
+  return (
+    <>
+      <div className="hidden sm:contents">
+        <button type="button" onClick={onMemoire} aria-label="Ma mémoire" title="Ma mémoire" className={bouton}><Brain className="h-4 w-4" /></button>
+        <button type="button" onClick={onRoutines} aria-label={libelleRoutines} title="Mes routines" className={bouton}><AlarmClock className="h-4 w-4" />{point}</button>
+        {!vueExacte && (
+          <button type="button" onClick={onReponseVocale} aria-pressed={reponseVocale} aria-label={libelleVoix} title={libelleVoix}
+            className={`${bouton} ${reponseVocale ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : ""}`}>
+            <IconeVoix className="h-4 w-4" />
+          </button>
+        )}
+      </div>
+      <div className="relative sm:hidden">
+        <button type="button" onClick={onBasculer} aria-expanded={ouvert} aria-label="Plus d'outils" title="Plus d'outils" className={bouton}>
+          <MoreHorizontal className="h-4 w-4" />{point}
+        </button>
+        {ouvert && (
+          <div role="menu" className="absolute bottom-12 left-0 z-40 w-60 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
+            <button type="button" role="menuitem" onClick={onMemoire} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+              <Brain className="h-4 w-4" /> Ma mémoire
+            </button>
+            <button type="button" role="menuitem" onClick={onRoutines} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+              <AlarmClock className="h-4 w-4" /> {libelleRoutines}
+            </button>
+            {!vueExacte && (
+              <button type="button" role="menuitemcheckbox" aria-checked={reponseVocale} onClick={onReponseVocale} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                <IconeVoix className="h-4 w-4" /> Réponses vocales : {reponseVocale ? "activées" : "désactivées"}
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   );
 }

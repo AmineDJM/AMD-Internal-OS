@@ -18,7 +18,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import type { ActionResult } from "@/lib/actions/types";
 import { projetsBdVisibles } from "@/lib/queries/bd";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { phraseProduitDuDossier } from "@/lib/products/produit-du-dossier";
@@ -75,10 +75,8 @@ export async function creerLeDossier(
   // formulaire de trente champs. Une création à la fois dans ce processus, un réessai entre deux.
   return enSerie("REG", () => createWithRetry(async () => prisma.regulatoryProduct.create({
     data: {
-      reference: buildRef("REG", year, (await prisma.regulatoryProduct.findMany({
-        where: { reference: { startsWith: `REG-${year}-` } },
-        select: { reference: true },
-      })).map((r) => r.reference)),
+      reference: await referenceDeSerie({ modele: "RegulatoryProduct", prefixe: "REG", annee: year,
+        existantes: async () => (await prisma.regulatoryProduct.findMany({ where: { reference: { startsWith: `REG-${year}-` } }, select: { reference: true } })).map((r) => r.reference) }),
       dci,
       molecules: molecules.length > 1 ? (molecules as unknown as Prisma.InputJsonValue) : undefined,
       brandName: str(formData, "brandName"),

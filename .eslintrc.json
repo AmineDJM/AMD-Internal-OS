@@ -36,14 +36,77 @@
               "@/lib/referentiels",
               "@/lib/referentiels/*",
               "@/lib/actions/coffre-actions",
-            "@/lib/actions/consommation-actions",
-            "@/lib/actions/organisation-actions",
-            "@/lib/actions/personnes-actions",
-            "@/lib/actions/refonte-reprise-actions"
+              "@/lib/actions/consommation-actions",
+              "@/lib/actions/organisation-actions",
+              "@/lib/actions/personnes-actions",
+              "@/lib/actions/refonte-reprise-actions"
             ],
             "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+          },
+          {
+            "group": [
+              "@/components/shared/hr-meeting-controls",
+              "@/components/shared/hr-request-thread",
+              "@/lib/actions/conge-discussion-actions",
+              "@/lib/actions/hr-actions",
+              "@/lib/actions/hr-document-actions",
+              "@/lib/actions/payroll-hr-actions",
+              "@/lib/actions/stand-in-actions",
+              "@/lib/attestation-travail-depot",
+              "@/lib/attestation-travail-luna",
+              "@/lib/hr-demande-traitee",
+              "@/lib/hr-drive-mirror",
+              "@/lib/hr-request-flow",
+              "@/lib/hr/absences",
+              "@/lib/hr/attestation-travail/modele",
+              "@/lib/hr/attestation-travail/regles",
+              "@/lib/hr/conge-escalade",
+              "@/lib/hr/decision-sur-soi",
+              "@/lib/hr/depart",
+              "@/lib/hr/document-visibility",
+              "@/lib/hr/expense-claim",
+              "@/lib/hr/file-conges",
+              "@/lib/hr/leave-core",
+              "@/lib/hr/leave-form-context",
+              "@/lib/hr/leave-sheet",
+              "@/lib/hr/ordre-mission/constantes",
+              "@/lib/hr/ordre-mission/modele",
+              "@/lib/hr/paie-centre",
+              "@/lib/hr/payroll-amend",
+              "@/lib/hr/payroll-cost",
+              "@/lib/hr/payroll-mass",
+              "@/lib/hr/rattachement-paie",
+              "@/lib/hr/reporting-line",
+              "@/lib/hr/salaires-partis",
+              "@/lib/hr/team-kpis",
+              "@/lib/hr/team-tree",
+              "@/lib/hr/virement-paie",
+              "@/lib/hr/workforce-mass",
+              "@/lib/leave-workflow",
+              "@/lib/ordre-mission-depot",
+              "@/lib/queries/conges-discussion",
+              "@/lib/queries/hr",
+              "@/lib/queries/hr-documents",
+              "@/lib/queries/hr-pulse"
+            ],
+            "message": "Ce fichier a déménagé dans src/modules/rh/ : importer la porte du module (/api, /partage ou /actions*). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
           }
         ]
+      }
+    ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "SpreadElement > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      },
+      {
+        "selector": "SpreadElement > AwaitExpression > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      },
+      {
+        "selector": "ObjectExpression > SpreadElement > Identifier[name=/^(scope|portee)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
       }
     ]
   },
@@ -78,12 +141,60 @@
                   "@/lib/referentiels",
                   "@/lib/referentiels/*",
                   "@/lib/actions/coffre-actions",
-            "@/lib/actions/consommation-actions",
-            "@/lib/actions/organisation-actions",
-            "@/lib/actions/personnes-actions",
-            "@/lib/actions/refonte-reprise-actions"
+                  "@/lib/actions/consommation-actions",
+                  "@/lib/actions/organisation-actions",
+                  "@/lib/actions/personnes-actions",
+                  "@/lib/actions/refonte-reprise-actions"
                 ],
                 "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              },
+              {
+                "group": [
+                  "@/components/shared/hr-meeting-controls",
+                  "@/components/shared/hr-request-thread",
+                  "@/lib/actions/conge-discussion-actions",
+                  "@/lib/actions/hr-actions",
+                  "@/lib/actions/hr-document-actions",
+                  "@/lib/actions/payroll-hr-actions",
+                  "@/lib/actions/stand-in-actions",
+                  "@/lib/attestation-travail-depot",
+                  "@/lib/attestation-travail-luna",
+                  "@/lib/hr-demande-traitee",
+                  "@/lib/hr-drive-mirror",
+                  "@/lib/hr-request-flow",
+                  "@/lib/hr/absences",
+                  "@/lib/hr/attestation-travail/modele",
+                  "@/lib/hr/attestation-travail/regles",
+                  "@/lib/hr/conge-escalade",
+                  "@/lib/hr/decision-sur-soi",
+                  "@/lib/hr/depart",
+                  "@/lib/hr/document-visibility",
+                  "@/lib/hr/expense-claim",
+                  "@/lib/hr/file-conges",
+                  "@/lib/hr/leave-core",
+                  "@/lib/hr/leave-form-context",
+                  "@/lib/hr/leave-sheet",
+                  "@/lib/hr/ordre-mission/constantes",
+                  "@/lib/hr/ordre-mission/modele",
+                  "@/lib/hr/paie-centre",
+                  "@/lib/hr/payroll-amend",
+                  "@/lib/hr/payroll-cost",
+                  "@/lib/hr/payroll-mass",
+                  "@/lib/hr/rattachement-paie",
+                  "@/lib/hr/reporting-line",
+                  "@/lib/hr/salaires-partis",
+                  "@/lib/hr/team-kpis",
+                  "@/lib/hr/team-tree",
+                  "@/lib/hr/virement-paie",
+                  "@/lib/hr/workforce-mass",
+                  "@/lib/leave-workflow",
+                  "@/lib/ordre-mission-depot",
+                  "@/lib/queries/conges-discussion",
+                  "@/lib/queries/hr",
+                  "@/lib/queries/hr-documents",
+                  "@/lib/queries/hr-pulse"
+                ],
+                "message": "Ce fichier a déménagé dans src/modules/rh/ : importer la porte du module (/api, /partage ou /actions*). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }
             ]
           }
@@ -160,12 +271,60 @@
                   "@/lib/referentiels",
                   "@/lib/referentiels/*",
                   "@/lib/actions/coffre-actions",
-            "@/lib/actions/consommation-actions",
-            "@/lib/actions/organisation-actions",
-            "@/lib/actions/personnes-actions",
-            "@/lib/actions/refonte-reprise-actions"
+                  "@/lib/actions/consommation-actions",
+                  "@/lib/actions/organisation-actions",
+                  "@/lib/actions/personnes-actions",
+                  "@/lib/actions/refonte-reprise-actions"
                 ],
                 "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              },
+              {
+                "group": [
+                  "@/components/shared/hr-meeting-controls",
+                  "@/components/shared/hr-request-thread",
+                  "@/lib/actions/conge-discussion-actions",
+                  "@/lib/actions/hr-actions",
+                  "@/lib/actions/hr-document-actions",
+                  "@/lib/actions/payroll-hr-actions",
+                  "@/lib/actions/stand-in-actions",
+                  "@/lib/attestation-travail-depot",
+                  "@/lib/attestation-travail-luna",
+                  "@/lib/hr-demande-traitee",
+                  "@/lib/hr-drive-mirror",
+                  "@/lib/hr-request-flow",
+                  "@/lib/hr/absences",
+                  "@/lib/hr/attestation-travail/modele",
+                  "@/lib/hr/attestation-travail/regles",
+                  "@/lib/hr/conge-escalade",
+                  "@/lib/hr/decision-sur-soi",
+                  "@/lib/hr/depart",
+                  "@/lib/hr/document-visibility",
+                  "@/lib/hr/expense-claim",
+                  "@/lib/hr/file-conges",
+                  "@/lib/hr/leave-core",
+                  "@/lib/hr/leave-form-context",
+                  "@/lib/hr/leave-sheet",
+                  "@/lib/hr/ordre-mission/constantes",
+                  "@/lib/hr/ordre-mission/modele",
+                  "@/lib/hr/paie-centre",
+                  "@/lib/hr/payroll-amend",
+                  "@/lib/hr/payroll-cost",
+                  "@/lib/hr/payroll-mass",
+                  "@/lib/hr/rattachement-paie",
+                  "@/lib/hr/reporting-line",
+                  "@/lib/hr/salaires-partis",
+                  "@/lib/hr/team-kpis",
+                  "@/lib/hr/team-tree",
+                  "@/lib/hr/virement-paie",
+                  "@/lib/hr/workforce-mass",
+                  "@/lib/leave-workflow",
+                  "@/lib/ordre-mission-depot",
+                  "@/lib/queries/conges-discussion",
+                  "@/lib/queries/hr",
+                  "@/lib/queries/hr-documents",
+                  "@/lib/queries/hr-pulse"
+                ],
+                "message": "Ce fichier a déménagé dans src/modules/rh/ : importer la porte du module (/api, /partage ou /actions*). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }
             ]
           }

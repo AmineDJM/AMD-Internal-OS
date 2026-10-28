@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { logAiUsage } from "@/lib/ai-settings";
+import { interrupteurIaCoupe, logAiUsage, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { notifyUser } from "@/lib/notify";
 import { sansBloquer } from "@/lib/journal";
 import {
@@ -46,7 +46,7 @@ import {
 export const FEATURE_ASSISTANT_IA = "assistant_ia" as const;
 
 /** D'où part l'appel — la colonne `role` du journal : ce que « par usage » distingue à l'écran. */
-export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction";
+export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction" | "transcription" | "vision" | "synthese";
 
 export class PlafondIaAtteint extends Error {
   constructor(message: string) { super(message); this.name = "PlafondIaAtteint"; }
@@ -80,10 +80,13 @@ export async function lireReglagesAssistantIa(): Promise<ReglagesAssistantIa> {
  * LE TARIF N'EST PAS DANS LE CODE — il se pose dans l'environnement (dollars par million de jetons),
  * comme les tarifs surchargés d'Adam (`ADAM_PRICE_*`) : `ASSISTANT_IA_PRICE_IN` / `_OUT` pour le modèle
  * OpenAI de l'assistant, `MIMO_PRICE_IN` / `_OUT` pour les journaux d'avant le 28/10/2026. Absent : le
- * coût est INCONNU, et l'écran le dit ; jamais un chiffre deviné.
+ * coût est INCONNU, et l'écran le dit ; jamais un chiffre deviné. La VOIX (transcription d'un vocal,
+ * synthèse d'une réponse) n'a pas le tarif du modèle de conversation : fournisseur `openai-audio`,
+ * `ASSISTANT_IA_AUDIO_PRICE_IN` / `_OUT` (dollars par million de jetons, équivalents compris).
  */
 export const VARIABLES_TARIF: Record<string, readonly [string, string]> = {
   openai: ["ASSISTANT_IA_PRICE_IN", "ASSISTANT_IA_PRICE_OUT"],
+  "openai-audio": ["ASSISTANT_IA_AUDIO_PRICE_IN", "ASSISTANT_IA_AUDIO_PRICE_OUT"],
   mimo: ["MIMO_PRICE_IN", "MIMO_PRICE_OUT"],
 };
 
@@ -285,4 +288,60 @@ export function auNomDe<T>(userId: string, fn: () => Promise<T>, conversation: s
 /** Exécute `fn` sous ce budget (le tour en cours) : les rédactions qu'il lance s'y inscrivent. */
 export function sousBudget<T>(b: Budget, fn: () => Promise<T>): Promise<T> {
   return porteurs.run({ userId: b.userId, conversation: b.conversation, budget: b }, fn);
+}
+
+// ─────────────────────────────── Les appels de VOIX (décision 0011) ───────────────────────────────
+
+/**
+ * UN APPEL DE VOIX, COMPTÉ ET BORNÉ — transcription d'un vocal, synthèse d'une réponse parlée. Ces
+ * moteurs ne sont pas des agents Mastra (`/audio/transcriptions`, `/audio/speech`) : ils ne passent
+ * ni par `repondreAvecSecours` ni par `genererTexte` (la vision, elle, passe par `genererTexte`). Ils
+ * prennent donc les mêmes gardes ICI, dans le même ordre :
+ *
+ *   1. l'INTERRUPTEUR GÉNÉRAL — coupé, rien ne part (la phrase du refus est rendue) ;
+ *   2. le PLAFOND DU JOUR de la personne — atteint, rien ne part (`ouvrirBudget` prévient le Super Admin) ;
+ *   3. l'APPEL, puis le journal (`ModelCallLog` + `AiUsageLog`, rôle « transcription » ou « synthese »).
+ *
+ * `whisper-1` facture des SECONDES, pas des jetons : l'appel inscrit un ÉQUIVALENT (`jetonsAudio`) —
+ * sans quoi un vocal ne pèserait rien dans le plafond, et dix minutes de dictée passeraient sous la borne.
+ */
+export type IssueVoix<T> = { ok: true; valeur: T } | { ok: false; raison: string; code: "IA_COUPEE" | "PLAFOND" | "ECHEC" };
+
+/** Équivalent jetons d'une seconde d'audio (≈ ce que comptent les moteurs audio : 600 par minute). */
+export const JETONS_PAR_SECONDE_AUDIO = 10;
+export const jetonsTexte = (texte: string): number => Math.ceil((texte ?? "").length / 4);
+export const jetonsAudio = (secondes: number | null | undefined): number => Math.max(0, Math.round((secondes ?? 0) * JETONS_PAR_SECONDE_AUDIO));
+
+export async function appelVoix<T>(
+  origine: Extract<OrigineAppel, "transcription" | "synthese">,
+  fn: (inscrire: (a: Omit<AppelModele, "cache" | "raisonnement">) => void) => Promise<{ ok: true; valeur: T } | { ok: false; raison: string }>,
+): Promise<IssueVoix<T>> {
+  if (await interrupteurIaCoupe()) return { ok: false, raison: REFUS_IA_COUPEE, code: "IA_COUPEE" };
+  const porteur = porteurCourant();
+  let budget: Budget;
+  let proprietaire = false;
+  if (porteur?.budget) {
+    budget = porteur.budget;
+    if (budget.depasse) return { ok: false, raison: budget.refus(), code: "PLAFOND" };
+  } else {
+    try {
+      budget = await ouvrirBudget({ userId: porteur?.userId ?? null, origine, conversation: porteur?.conversation });
+      proprietaire = true;
+    } catch (e) {
+      if (e instanceof PlafondIaAtteint) return { ok: false, raison: e.message, code: "PLAFOND" };
+      throw e;
+    }
+  }
+  const debut = Date.now();
+  let issue: IssueVoix<T> = { ok: false, raison: "aucune réponse", code: "ECHEC" };
+  try {
+    const r = await fn((a) => { budget.enregistrer({ cache: 0, raisonnement: 0, ...a }); });
+    issue = r.ok ? r : { ok: false, raison: r.raison, code: "ECHEC" };
+    return issue;
+  } catch (e) {
+    issue = { ok: false, raison: e instanceof Error ? e.message.slice(0, 300) : String(e), code: "ECHEC" };
+    return issue;
+  } finally {
+    if (proprietaire) await fermerBudget(budget, { ok: issue.ok, erreur: issue.ok ? null : issue.raison, ms: Date.now() - debut });
+  }
 }

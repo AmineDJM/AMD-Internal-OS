@@ -14,6 +14,8 @@ describe("l'engagé d'un dossier de matériel promotionnel", () => {
     // Un ordre annulé ne couvre rien ; un dépassement ne rend pas l'engagé négatif.
     expect(engageDuDossierPromo({ bcs, ordres: [{ montant: 200_000, statut: "CANCELLED" }] })).toBe(500_000);
     expect(engageDuDossierPromo({ bcs, ordres: [{ montant: 900_000, statut: "PAID" }] })).toBe(0);
+    // Un ordre refusé par le centre ne paiera jamais : il ne couvre rien, le BC reste engagé (ARGENT-07).
+    expect(engageDuDossierPromo({ bcs, ordres: [{ montant: 200_000, statut: "PENDING", centralStatus: "REFUSED" }] })).toBe(500_000);
   });
 });
 

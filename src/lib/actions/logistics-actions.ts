@@ -5,7 +5,7 @@ import type { LogisticsStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { buildRef } from "@/lib/refs";
+import { referenceDeSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 
@@ -20,8 +20,10 @@ export async function createLogistics(
   if (!product) return { ok: false, error: "Le produit est obligatoire." };
 
   const year = new Date().getFullYear();
-  const refs = await prisma.logisticsOrder.findMany({ where: { reference: { startsWith: `CMD-${year}-` } }, select: { reference: true } });
-  const reference = buildRef("CMD", year, refs.map((r) => r.reference));
+  const reference = await referenceDeSerie({
+    modele: "LogisticsOrder", prefixe: "CMD", annee: year,
+    existantes: async () => (await prisma.logisticsOrder.findMany({ where: { reference: { startsWith: `CMD-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 
   const created = await prisma.logisticsOrder.create({
     data: {

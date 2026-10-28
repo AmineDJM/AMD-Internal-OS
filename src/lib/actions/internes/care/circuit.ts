@@ -14,13 +14,13 @@ import { notifyRoles } from "@/lib/notify";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { montantLisible } from "@/lib/care-fiches";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { refusEngagementPriseEnCharge } from "@/lib/care-engagement";
+import { prendreLesCasesDuDevis, refusEngagementPriseEnCharge, rendreLaReserveDuDevis } from "@/lib/care-engagement";
 import { refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/lib/ad-pro/porte-dg";
 import { sansBloquer } from "@/lib/journal";
 import { SPEC, loadRequest, revalidate, type Scope } from "@/lib/actions/internes/care/demande";
 import {
   conflitDeCouverture, demandeDeBc, devisRetenus, devisRivaux, marquerBcDemande, rattacherLOrdre, refuserLeDevis,
-  rendreLaReserveDuDevis, reserverLeDevis, retenirALaPlace, type devisATrancher,
+  reserverLeDevis, retenirALaPlace, type devisATrancher,
 } from "@/lib/actions/internes/care/devis";
 import { ecrireAuSujetDeLAssistante, journaliser as audit } from "./journal";
 
@@ -95,7 +95,9 @@ export async function trancherLeDevis(
   if (decision === "ACCEPTED" && !(await reserverLeDevis(quote, user.id))) {
     return { ok: false, error: "Ce devis vient d'être tranché (ou engagé) par quelqu'un d'autre : rechargez la page." };
   }
-  const rendreLaReserve = () => rendreLaReserveDuDevis(quote);
+  const rendreLaReserve = () => rendreLaReserveDuDevis(id, cellIds, quote);
+  // DEVIS RIVAUX SUR LES MÊMES CASES (DONNEES-08) : seul le devis qui les trouve toutes libres les prend, sous verrou.
+  if (decision === "ACCEPTED" && !(await prendreLesCasesDuDevis(id, cellIds))) { await rendreLaReserve(); return { ok: false, error: "Un autre devis couvrant les mêmes éléments vient d'être accepté : rechargez la page." }; }
 
   let ordreNe = false;
   try {

@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { moneyEntityOf, adventumCompanyId } from "@/lib/company";
 import { createPaymentRequest } from "./payment-request-actions";
-import { envoyerPaieAuCentre } from "./payroll-hr-actions";
+import { envoyerPaieAuCentre } from "@/modules/rh/actions-paie";
 import { decidePayment } from "./payment-centre-actions";
 import { settleExpenseOrder } from "./expense-actions";
 
@@ -50,7 +50,7 @@ const withPiece = (fields: Record<string, string>): FormData => {
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 suite("L'entité de l'argent", () => {
-  let advId = "", phaId = "", deptId = "", rhId = "", demandeurId = "", employeId = "";
+  let advId = "", phaId = "", deptId = "", rhId = "", demandeurId = "", employeId = "", pdgId = "", comptableId = "";
 
   beforeAll(async () => {
     const [adv, pha] = await Promise.all([
@@ -61,11 +61,14 @@ suite("L'entité de l'argent", () => {
     const dept = await prisma.department.create({ data: { name: `${TAG} Ventes`, code: `${TAG}V`, companyId: phaId } });
     deptId = dept.id;
 
-    const [rh, dem] = await Promise.all([
+    // Séparation des tâches (ARGENT-06) : les RH envoient la paie, le PDG l'autorise, la comptabilité la règle.
+    const [rh, dem, pdg, cpt] = await Promise.all([
       prisma.user.create({ data: { name: `${TAG}rh`, email: `${TAG}rh@t.dz`, role: "SUPER_ADMIN", passwordHash: "x" } }),
       prisma.user.create({ data: { name: `${TAG}dem`, email: `${TAG}dem@t.dz`, role: "MEDICAL_DELEGATE", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}pdg`, email: `${TAG}pdg@t.dz`, role: "DIRECTION", passwordHash: "x" } }),
+      prisma.user.create({ data: { name: `${TAG}cpt`, email: `${TAG}cpt@t.dz`, role: "FINANCE_BUDGET_MANAGER", passwordHash: "x" } }),
     ]);
-    rhId = rh.id; demandeurId = dem.id;
+    rhId = rh.id; demandeurId = dem.id; pdgId = pdg.id; comptableId = cpt.id;
 
     // LE DEMANDEUR TRAVAILLE CHEZ PHARMAGÈNE : c'est cette société qui doit payer ses dépenses.
     const emp = await prisma.employee.create({
@@ -96,6 +99,7 @@ suite("L'entité de l'argent", () => {
     await prisma.employee.deleteMany({ where: { id: employeId } }).catch(() => {});
     await prisma.userCompanyAccess.deleteMany({ where: { userId: demandeurId } }).catch(() => {});
     await prisma.userAccess.deleteMany({ where: { userId: { in: [rhId, demandeurId] } } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: [pdgId, comptableId] } } }).catch(() => {});
     await prisma.department.deleteMany({ where: { id: deptId } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
     await prisma.company.deleteMany({ where: { id: { in: [advId, phaId] } } }).catch(() => {});
@@ -165,10 +169,12 @@ suite("L'entité de l'argent", () => {
       const r = await envoyerPaieAuCentre(fd);
       expect(r.ok, r.error).toBe(true);
       const wire = await prisma.payrollWire.findFirstOrThrow({ where: { companyId: phaId, year: 2031, month: 3 } });
-      const regler = () => { const f = new FormData(); f.set("id", wire.expenseOrderId!); return settleExpenseOrder(f); };
+      const [pdg, comptable] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER")]);
+      const regler = () => { ACTOR = comptable; const f = new FormData(); f.set("id", wire.expenseOrderId!); return settleExpenseOrder(f); };
 
       // Avant l'autorisation du centre, rien ne bouge — ni le livre, ni la masse.
       expect((await regler()).ok).toBe(false);
+      ACTOR = pdg;
       const autoriser = new FormData(); autoriser.set("id", wire.expenseOrderId!); autoriser.set("decision", "APPROVE");
       expect((await decidePayment(autoriser)).ok).toBe(true);
       const regle = await regler();

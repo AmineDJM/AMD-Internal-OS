@@ -9,10 +9,11 @@ import { validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
-import { mirrorEmployeeContractToDrive } from "@/lib/hr-drive-mirror";
+import {
+  mirrorEmployeeContractToDrive, marquerDemandeRhTraitee, resolveVisibility, shouldMirrorToDrive,
+  visibilityLabel,
+} from "@/modules/rh/api";
 import { synchroniserOrdreEmis } from "@/lib/missions-equipe/serveur";
-import { marquerDemandeRhTraitee } from "@/lib/hr-demande-traitee";
-import { resolveVisibility, shouldMirrorToDrive, visibilityLabel } from "@/lib/hr/document-visibility";
 import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";

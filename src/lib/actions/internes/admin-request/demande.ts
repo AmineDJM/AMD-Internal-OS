@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { formatAlgiers } from "@/lib/calendar-tz";
 import { archiveProcessedRequest } from "@/lib/archive";
 import { ADMIN_REQUEST_TYPE } from "@/lib/labels";
-import { buildRef } from "@/lib/refs";
+import { referenceDeSerie } from "@/lib/refs";
 import type { ActionResult } from "@/lib/actions/types";
 import { ramenerSiPlusDeDemandeDevis } from "@/lib/promo-material/retrait-devis";
 
@@ -63,11 +63,10 @@ export async function archiveAdminRequestIfDone(id: string, actorId: string): Pr
 /** Référence robuste (dérivée du maximum réel, pas de `count()+1` fragile). */
 export async function nextRequestRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `REQ-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "REQ", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `REQ-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("REQ", year, refs.map((r) => r.reference));
 }
 
 /**

@@ -383,8 +383,8 @@ export function classerExclusionsCircuits(): void {
   ]);
   X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
     + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
-    + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [
-    "settings-actions:setBcValidationThresholdCentre",
+    + "Adam est en pause : aucun geste neuf. Un formulaire sur l'écran du centre. — SUSPENDRE LA SÉPARATION DES TÂCHES DU CENTRE DE PAIEMENT (ARGENT-06) : lever un garde-fou, interdit à un agent (§118.6), geste journalisé du Super Admin.", [
+    "settings-actions:setBcValidationThresholdCentre", "settings-actions:setSeparationTachesPaiement",
   ]);
   X("RESOUMETTRE UNE « AUTRE DEMANDE » REFUSÉE ET PROLONGER UN CONTRAT DE CONSULTING (audit 360°, lot C4a) — la "
     + "resoumission est le geste du DEMANDEUR qui dit ce qui a changé depuis le refus (elle peut corriger la description "

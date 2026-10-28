@@ -103,14 +103,6 @@ export async function reserverLeDevis(quote: DevisLu, decidedById: string): Prom
   return reserve.count > 0;
 }
 
-/** Un échec de l'émission rend la réserve : le devis retrouve l'état lu. */
-export function rendreLaReserveDuDevis(quote: DevisLu) {
-  return prisma.careQuote.updateMany({
-    where: { id: quote.id, expenseOrderId: null, status: "ACCEPTED" },
-    data: { status: quote.status, decidedById: quote.decidedById, decidedAt: quote.decidedAt },
-  }).catch(sansBloquer("care-actions.rendreLaReserve.careQuote"));
-}
-
 /** L'ordre né, rattaché au devis ; les cases couvertes deviennent réglées et portent leur part de la dépense. */
 export async function rattacherLOrdre(id: string, cellIds: string[], orderId: string, decidedById: string): Promise<void> {
   await prisma.$transaction([
