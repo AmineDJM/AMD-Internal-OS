@@ -51,6 +51,7 @@ import { DIRECTORY_TOOLS } from "@/lib/assistant/directory-tools";
 import { SHOW_TOOLS } from "@/lib/assistant/show-tools";
 import { WEB_RESEARCH_TOOLS } from "@/lib/assistant/web-research";
 import { resultatVide } from "@/lib/assistant/empty-result";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES POUVOIRS DE L'ASSISTANT SONT **CEUX DE SON INTERLOCUTEUR** — ni plus, ni moins.
@@ -327,7 +328,7 @@ export const POWER_TOOLS: PowerTool[] = [
       const limit = Math.max(1, Math.min(60, Math.round(rawLimit)));
       const [center, leaves] = await Promise.all([
         getActionCenter(user),
-        getLeavesToDecide(user).catch(() => []),
+        getLeavesToDecide(user).catch(sansBloquer("power-tools.run.getLeavesToDecide", [])),
       ]);
       // Les congés du centre sont écartés : ils sont relus juste en dessous, avec leurs gestes. Depuis le lot E2
       // le centre les porte aussi — sans ce filtre, chaque congé serait listé, et compté, deux fois.

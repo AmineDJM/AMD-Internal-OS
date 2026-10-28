@@ -32,6 +32,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import type { Reasoner, ReasonRequest, ReasonResult } from "@/lib/missions/ports";
+import { sansBloquer } from "@/lib/journal";
 
 export interface AppelModele {
   /** Le scénario auquel cet appel appartient — sans quoi trois missions se mélangent. */
@@ -237,7 +238,7 @@ export async function cascade(
       where: { missionId },
       select: { kind: true, summary: true, at: true },
       orderBy: { at: "asc" },
-    }).catch(() => []);
+    }).catch(sansBloquer("provider-waterfall.cascade.missionEvent", []));
 
     // Chaque événement ouvre une phase qui se ferme au suivant. C'est grossier pour un événement
     // isolé, et exact pour une suite — or c'est bien une SUITE qu'on cherche à expliquer.
@@ -259,7 +260,7 @@ export async function cascade(
       where: { missionId },
       select: { key: true, nodeType: true, capability: true, status: true, startedAt: true, attempt: true },
       orderBy: { startedAt: "asc" },
-    }).catch(() => []);
+    }).catch(sansBloquer("provider-waterfall.cascade.missionStep", []));
     for (const s of steps) {
       if (!s.startedAt) continue;
       phases.push({

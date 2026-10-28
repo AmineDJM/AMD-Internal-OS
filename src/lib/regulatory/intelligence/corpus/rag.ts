@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { semanticSearchSections, mergeHybrid } from "./semantic";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RAG RÉGLEMENTAIRE (G4) — recherche dans le corpus **actif** via Postgres FTS `french`
@@ -51,7 +52,7 @@ export async function searchCorpus(query: string, filters: CorpusFilters = {}): 
   const limit = Math.min(Math.max(filters.limit ?? 8, 1), 30);
   const lexical = await searchCorpusLexical(query, filters);
 
-  const semantic = await semanticSearchSections(query, limit).catch(() => []);
+  const semantic = await semanticSearchSections(query, limit).catch(sansBloquer("rag.searchCorpus.semanticSearchSections", []));
   if (semantic.length === 0) return lexical;
 
   // Les sections sémantiques absentes du lexical doivent devenir des citations complètes.

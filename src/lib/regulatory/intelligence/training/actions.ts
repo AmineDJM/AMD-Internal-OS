@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { regAudit } from "../audit";
 import { ingestCaseArchive, ingestCaseFile } from "./ingest-case";
 import type { FileIngestResult } from "../corpus/import-formats";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * MODULE « ENTRAÎNEMENT IA » — actions serveur, SUPER ADMIN UNIQUEMENT.
@@ -47,7 +48,7 @@ export async function createCaseStudy(formData: FormData): Promise<Result> {
     },
     select: { id: true },
   });
-  await regAudit({ actorId: g.userId, action: "TRAINING_CASE_CREATED", detail: `Étude de cas « ${title} » créée (entraînement IA).` }).catch(() => undefined);
+  await regAudit({ actorId: g.userId, action: "TRAINING_CASE_CREATED", detail: `Étude de cas « ${title} » créée (entraînement IA).` }).catch(sansBloquer("training-actions.createCaseStudy.regAudit"));
   revalidatePath(PATH);
   return { ok: true, id: cs.id };
 }
@@ -68,7 +69,7 @@ export async function updateCaseStudy(formData: FormData): Promise<Result> {
       lesson: str(formData, "lesson"),
     },
   });
-  await regAudit({ actorId: g.userId, action: "TRAINING_CASE_UPDATED", detail: `Étude de cas « ${existing.title} » mise à jour (issue/leçon).` }).catch(() => undefined);
+  await regAudit({ actorId: g.userId, action: "TRAINING_CASE_UPDATED", detail: `Étude de cas « ${existing.title} » mise à jour (issue/leçon).` }).catch(sansBloquer("training-actions.updateCaseStudy.regAudit"));
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -82,7 +83,7 @@ export async function deleteCaseStudy(formData: FormData): Promise<Result> {
   if (!existing) return { ok: false, error: "Étude de cas introuvable." };
 
   await prisma.regulatoryCaseStudy.delete({ where: { id: caseId } }); // documents en cascade
-  await regAudit({ actorId: g.userId, action: "TRAINING_CASE_DELETED", detail: `Étude de cas « ${existing.title} » supprimée — ses précédents ne seront plus injectés.` }).catch(() => undefined);
+  await regAudit({ actorId: g.userId, action: "TRAINING_CASE_DELETED", detail: `Étude de cas « ${existing.title} » supprimée — ses précédents ne seront plus injectés.` }).catch(sansBloquer("training-actions.deleteCaseStudy.regAudit"));
   revalidatePath(PATH);
   return { ok: true };
 }
@@ -111,7 +112,7 @@ export async function importCaseFileAction(formData: FormData): Promise<FileInge
       await regAudit({
         actorId: g.userId, action: "TRAINING_DOC_INGESTED",
         detail: `Entraînement IA : archive « ${file.name} » dépliée dans « ${cs.title} » — ${ingested} pièce(s) ingérée(s), ${unchanged} déjà connue(s), ${failed} refusée(s).`,
-      }).catch(() => undefined);
+      }).catch(sansBloquer("training-actions.importCaseFileAction.regAudit"));
       revalidatePath(PATH);
     }
     return {
@@ -128,7 +129,7 @@ export async function importCaseFileAction(formData: FormData): Promise<FileInge
     await regAudit({
       actorId: g.userId, action: "TRAINING_DOC_INGESTED",
       detail: `Entraînement IA : pièce « ${res.filename} » ajoutée à « ${cs.title} » (${res.sections ?? 0} section(s) CTD repérée(s)).`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("training-actions.importCaseFileAction.regAudit"));
     revalidatePath(PATH);
   }
   return res;

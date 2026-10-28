@@ -9,6 +9,7 @@ import {
 import { configurationEnVigueur, presenterCleEnAttente } from "./cles";
 import { envoyerAuSite, type ReponseSite, type TransportSite } from "./transport";
 import { ECRAN_LIAISON } from "./ecran";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -156,7 +157,7 @@ export async function lireBlocage(): Promise<Blocage | null> {
   const s = await prisma.appSetting.findUnique({
     where: { id: "global" },
     select: { siteBlocageEmpreinte: true, siteBlocageAt: true, siteBlocageMotif: true },
-  }).catch(() => null);
+  }).catch(sansBloquer("site-web-file.lireBlocage.appSetting", null));
   if (!s?.siteBlocageEmpreinte) return null;
   return { empreinte: s.siteBlocageEmpreinte, at: s.siteBlocageAt ?? new Date(0), motif: s.siteBlocageMotif ?? "Configuration refusée par le site." };
 }
@@ -316,7 +317,7 @@ export async function viderFile(opts: OptionsVidage = {}): Promise<BilanVidage> 
         where: { state: "PENDING", claimedAt: null },
         orderBy: { nextAttemptAt: "asc" },
         select: { nextAttemptAt: true },
-      }).catch(() => null);
+      }).catch(sansBloquer("site-web-file.viderFile.sitePublication", null));
       if (suivante) reveillerFile(suivante.nextAttemptAt.getTime() - Date.now());
     }
     if (bilan.envoyes) console.info("[site-web] file", JSON.stringify(bilan));

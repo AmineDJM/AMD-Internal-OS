@@ -22,6 +22,7 @@ import { getBlob } from "@/lib/drive-storage";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { extractAttachmentText } from "@/lib/assistant-files";
 import { geste } from "@/lib/assistant/workspace/emit";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LES OUTILS D'ADAM — les sens et les mains du Chief sur ses canaux de communication.
@@ -993,7 +994,7 @@ export const ADAM_TOOLS: PowerTool[] = [
       let googleContacts: { displayName: string; emails: string[] }[] = [];
       const active = await activeOrMessage(user.id);
       if (typeof active !== "string") {
-        googleContacts = await searchContacts(active.token, q, 5).then((r) => r.map((c) => ({ displayName: c.displayName, emails: c.emails }))).catch(() => []);
+        googleContacts = await searchContacts(active.token, q, 5).then((r) => r.map((c) => ({ displayName: c.displayName, emails: c.emails }))).catch(sansBloquer("adam-tools.run.searchContacts", []));
       }
       const candidates = [
         ...users.map((u) => ({ source: "compte ERP", nom: u.name, adresse: u.email, detail: u.role })),
@@ -1082,7 +1083,7 @@ export async function liveGmailSearch(user: CurrentUser, query: string, limit = 
 
 /** Journalise un geste de mission depuis l'extérieur du moteur (envoi approuvé, relance). */
 export async function noteMissionActivity(missionId: string, summary: string): Promise<void> {
-  await recordMissionEvent(missionId, "NOTE", summary).catch(() => undefined);
+  await recordMissionEvent(missionId, "NOTE", summary).catch(sansBloquer("adam-tools.noteMissionActivity.recordMissionEvent"));
 }
 
 export const ADAM_MISSION_STATUSES = MissionStatus;

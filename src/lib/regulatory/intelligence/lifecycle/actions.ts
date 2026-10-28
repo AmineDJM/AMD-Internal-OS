@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { regCan, resolveRegCompanyIdFor } from "../access";
 import { regAudit } from "../audit";
 import { analyzeImpact, type ImpactResult } from "./impact";
+import { sansBloquer } from "@/lib/journal";
 
 /** Lifecycle réglementaire (G12). regulatory.dossier.analyse. Org-scopé. */
 
@@ -56,7 +57,7 @@ export async function addLifecycleEvent(formData: FormData): Promise<Result> {
     },
   });
   // Une version approuvée passe le dossier en MAINTAINED.
-  if (kind === "APPROVED") await prisma.regulatoryDossier.update({ where: { id: dossierId }, data: { status: "MAINTAINED" } }).catch(() => undefined);
+  if (kind === "APPROVED") await prisma.regulatoryDossier.update({ where: { id: dossierId }, data: { status: "MAINTAINED" } }).catch(sansBloquer("lifecycle-actions.addLifecycleEvent.regulatoryDossier"));
   await regAudit({ companyId: g.companyId, actorId: g.userId, dossierId, action: `LIFECYCLE_${kind}`, detail: `Événement lifecycle « ${label} »${operation ? ` (${operation})` : ""}.` });
   revalidate(dossierId);
   return { ok: true, impact };

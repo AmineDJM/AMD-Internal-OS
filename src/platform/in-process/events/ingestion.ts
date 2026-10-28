@@ -44,6 +44,7 @@ import {
   SEUIL_DOUTE, SEUIL_SUR, SOURCES, decider, estRef, estSource, nettoyer, normaliserLot,
   type CandidatAssociation, type DecisionAssociation, type FaitNormalise, type Source,
 } from "@/lib/events/ingestion";
+import { sansBloquer } from "@/lib/journal";
 
 export { SOURCES };
 export type { Source };
@@ -128,7 +129,7 @@ export interface Association {
 export async function associer(fait: FaitNormalise, resoudre: typeof resoudreMentions = resoudreMentions): Promise<Association> {
   const candidats: CandidatAssociation[] = [];
   if (fait.mentions.length) {
-    const resolutions = await resoudre(fait.mentions.slice(0, 8)).catch(() => []);
+    const resolutions = await resoudre(fait.mentions.slice(0, 8)).catch(sansBloquer("ingestion.associer.resoudre", []));
     for (const r of resolutions) {
       for (const c of r.candidats.slice(0, 3)) {
         const type = REF_TYPE[c.type];
@@ -227,7 +228,7 @@ export async function ingerer(source: Source, corps: unknown, opts: OptionsInges
         status: statut, confidence: asso.confiance, businessEventId, refs: asso.refs, reason: raison,
         candidats: asso.candidats.length ? (asso.candidats as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
       },
-    }).catch(() => undefined);
+    }).catch(sansBloquer("ingestion.ingerer.ingestedEvent"));
     faits.push({ externalId, type: fait.type, statut, confiance: asso.confiance, refs: asso.refs, businessEventId, raison, aVerifier: asso.aVerifier });
   }
 
@@ -304,12 +305,12 @@ export async function rattacherEvenement(user: CurrentUser, d: { id?: string | n
   const refs = [...new Set([...row.refs, ref])];
   const { entityType, entityId } = entitePrincipale(refs);
   const evt = row.businessEventId
-    ? await prisma.businessEvent.update({ where: { id: row.businessEventId }, data: { relatedRefs: refs, ...(entityType ? { entityType, entityId } : {}) }, select: { id: true, type: true, payload: true, actorId: true, entityType: true, entityId: true } }).catch(() => null)
+    ? await prisma.businessEvent.update({ where: { id: row.businessEventId }, data: { relatedRefs: refs, ...(entityType ? { entityType, entityId } : {}) }, select: { id: true, type: true, payload: true, actorId: true, entityType: true, entityId: true } }).catch(sansBloquer("ingestion.rattacherEvenement.businessEvent", null))
     : null;
   await prisma.ingestedEvent.update({ where: { id: row.id }, data: { status: "ACCEPTED", refs, confidence: 1, reason: `rattaché à ${ref} par ${user.name}` } });
   const reveils = evt
-    ? await reveillerMissions({ type: evt.type, actorId: evt.actorId, entityType: evt.entityType, entityId: evt.entityId, relatedRefs: refs, payload: (evt.payload ?? undefined) as Prisma.InputJsonValue | undefined, missionId: null }).catch(() => [])
+    ? await reveillerMissions({ type: evt.type, actorId: evt.actorId, entityType: evt.entityType, entityId: evt.entityId, relatedRefs: refs, payload: (evt.payload ?? undefined) as Prisma.InputJsonValue | undefined, missionId: null }).catch(sansBloquer("ingestion.rattacherEvenement.reveillerMissions", []))
     : [];
-  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT", entityId: row.id, summary: `Fait externe ${row.source}/${row.type} rattaché à ${ref} (${reveils.length} mission(s) réveillée(s)).` }).catch(() => undefined);
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "ASSISTANT", entityId: row.id, summary: `Fait externe ${row.source}/${row.type} rattaché à ${ref} (${reveils.length} mission(s) réveillée(s)).` }).catch(sansBloquer("ingestion.rattacherEvenement.recordAudit"));
   return { ok: true, id: row.id, refs, reveils };
 }

@@ -35,6 +35,7 @@ import { enabledRegCompanyIds, regCan } from "@/lib/regulatory/intelligence/acce
 import { toNumber, formatMontant } from "@/lib/utils";
 import type { PaymentRequestStatus, RegDossierStatus } from "@prisma/client";
 import { graviteParJours, isoJour, joursEntre, resumerSignaux, trierSignaux, type DomaineSignal, type Gravite, type Signal } from "@/lib/utils/signaux";
+import { sansBloquer } from "@/lib/journal";
 
 // Le PONT réexporte le vocabulaire du socle pour qu'Adam le consomme sans traverser la
 // frontière — `gesteDuTour` et `isoJour` rejoignent la liste pour le prochain geste (§118.126) :
@@ -237,7 +238,7 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
     ? (async () => {
       const enveloppes = (await getEnvelopes(user)).slice(0, opts.leger ? 3 : ENVELOPPES_MAX);
       portee.enveloppes = enveloppes.length;
-      const vues = await Promise.all(enveloppes.map((e) => getBudgetOverview(user, e.id).catch(() => null)));
+      const vues = await Promise.all(enveloppes.map((e) => getBudgetOverview(user, e.id).catch(sansBloquer("intelligence.signauxFinance.getBudgetOverview", null))));
       for (const v of vues) {
         if (!v) continue;
         const lue: EnveloppeLue = {
@@ -404,7 +405,7 @@ export async function signauxRegulatory(user: SessionUser, opts: { horizonJours?
         orderBy: { updatedAt: "asc" }, take: 100,
       });
       dossiersLus = dossiers.length;
-      const readiness = await Promise.all(dossiers.filter((d) => ["ANALYSING", "IN_REVIEW", "SUPPLIER_LOOP", "READY_FOR_REVIEW"].includes(d.status)).slice(0, opts.leger ? 5 : DOSSIERS_READINESS_MAX).map(async (d) => [d.id, await submissionReadiness(d.id).catch(() => null)] as const));
+      const readiness = await Promise.all(dossiers.filter((d) => ["ANALYSING", "IN_REVIEW", "SUPPLIER_LOOP", "READY_FOR_REVIEW"].includes(d.status)).slice(0, opts.leger ? 5 : DOSSIERS_READINESS_MAX).map(async (d) => [d.id, await submissionReadiness(d.id).catch(sansBloquer("intelligence.signauxRegulatory.submissionReadiness", null))] as const));
       const pret = new Map(readiness);
       for (const d of dossiers) {
         const nom = `${d.reference} — ${d.title}`;

@@ -10,6 +10,7 @@ import { splitIntoSections } from "./import";
 import { ingestCorpusFile, type FileIngestResult } from "./ingest-file";
 import { searchCorpus, type Citation } from "./rag";
 import { regulatoryKnowledgeDigest } from "@/lib/regulatory/anpp-knowledge";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Administration du CORPUS réglementaire versionné (G3). **Super Admin / corpus.manage.**
@@ -95,7 +96,7 @@ export async function importCorpusFileAction(formData: FormData): Promise<FileIn
     await regAudit({
       actorId: user.id, action: "CORPUS_IMPORTED",
       detail: `Texte importé : « ${res.filename} » — ${res.sections ?? 0} section(s), ${res.chars ?? 0} caractères. ACTIF : utilisé par toutes les analyses dès maintenant.`,
-    }).catch(() => undefined);
+    }).catch(sansBloquer("corpus-actions.importCorpusFileAction.regAudit"));
     revalidatePath("/regulatory/enregistrement/corpus");
   }
   return res;

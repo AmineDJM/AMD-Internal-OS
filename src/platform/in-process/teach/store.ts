@@ -37,6 +37,7 @@ import {
 import { cleDe, conflitsAvecExistantes, resoudre, type Resolution } from "@/lib/teach/resolve";
 import { composerBlocRegles, lignesPourPlanificateur } from "@/lib/teach/compose";
 import { NIVEAUX, niveauDepuisTexte } from "@/lib/meetings/niveau";
+import { sansBloquer } from "@/lib/journal";
 
 export type { Kind, Regle, Scope, Statut } from "@/lib/teach/model";
 export { DOMAINES_SUGGERES, KINDS, LIBELLE_KIND, LIBELLE_SCOPE, LIBELLE_STATUT, SCOPES } from "@/lib/teach/model";
@@ -77,11 +78,11 @@ const INCLURE = { company: { select: { name: true } } } as const;
 /** Les sociétés et la chaîne de départements d'une personne — ce sur quoi les périmètres se résolvent. */
 export async function sujetDe(userId: string, maintenant?: Date): Promise<Sujet & { departementDirect: string | null }> {
   const [societes, u] = await Promise.all([
-    getMyCompanies(userId).catch(() => []),
+    getMyCompanies(userId).catch(sansBloquer("teach-store.sujetDe.getMyCompanies", [])),
     prisma.user.findUnique({ where: { id: userId }, select: { departmentId: true, employee: { select: { departmentId: true } } } }),
   ]);
   const direct = u?.employee?.departmentId ?? u?.departmentId ?? null;
-  const chaine = direct ? await getDepartmentPath(direct).catch(() => []) : [];
+  const chaine = direct ? await getDepartmentPath(direct).catch(sansBloquer("teach-store.sujetDe.getDepartmentPath", [])) : [];
   const departmentIds = [...new Set([direct, ...chaine.map((d) => d.id)].filter((x): x is string => !!x))];
   return { userId, companyIds: societes.map((c) => c.id), departmentIds, maintenant, departementDirect: direct };
 }

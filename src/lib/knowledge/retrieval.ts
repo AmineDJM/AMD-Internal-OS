@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { lunaEmbed, lunaConfigured, EMBED_DIMS } from "@/lib/openai-luna";
 import type { KnowledgeMeta, KnowledgeSourceType, RelationPredicate } from "./contract";
 import { fold } from "./text";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -234,7 +235,7 @@ interface SemanticChunk {
 async function semanticChunks(needle: string, where: object, take: number): Promise<SemanticChunk[]> {
   if (!lunaConfigured()) return [];
 
-  const encoded = await lunaEmbed([needle], EMBED_DIMS).catch(() => null);
+  const encoded = await lunaEmbed([needle], EMBED_DIMS).catch(sansBloquer("retrieval.semanticChunks.lunaEmbed", null));
   const query = encoded?.[0];
   if (!query) return []; // service indisponible : on se retire, la recherche continue sans nous
 
@@ -244,7 +245,7 @@ async function semanticChunks(needle: string, where: object, take: number): Prom
       take: SEMANTIC_SCAN_CAP,
       select: { text: true, label: true, locator: true, embedding: true, item: { select: SELECT_ITEM } },
     })
-    .catch(() => []);
+    .catch(sansBloquer("retrieval.semanticChunks.knowledgeChunk", []));
 
   const scored: SemanticChunk[] = [];
   for (const r of rows) {

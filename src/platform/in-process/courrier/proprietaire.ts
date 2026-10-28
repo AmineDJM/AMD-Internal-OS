@@ -36,6 +36,7 @@ import { getMailAccount, sendMail } from "@/lib/mail";
 import { estUneAdresse, lireAdressesDeContact } from "@/lib/personnes/joignabilite";
 import { sansConfirmation, type NatureAutonome } from "@/lib/personnes/autonomie-proprietaire";
 import { reglesEnVigueurPour } from "@/platform/in-process/teach/store";
+import { sansBloquer } from "@/lib/journal";
 
 /** Ce qu'un envoi a réellement fait — jamais un booléen : « pas envoyé » a plusieurs causes. */
 export type IssueEnvoi = "envoye" | "sans-boite" | "echec";
@@ -57,7 +58,7 @@ export async function envoyerParBoiteConnectee(
   corps: string,
   adresses: readonly string[] = [],
 ): Promise<IssueEnvoi> {
-  const compte = await getMailAccount(ownerId).catch(() => null);
+  const compte = await getMailAccount(ownerId).catch(sansBloquer("proprietaire.envoyerParBoiteConnectee.getMailAccount", null));
   if (!compte) return "sans-boite";
   const [principale, ...copies] = adresses;
   try {
@@ -83,13 +84,13 @@ export async function envoyerParBoiteConnectee(
  */
 export async function adressesDeclareesDe(ownerId: string): Promise<string[]> {
   const out: string[] = [];
-  const regles = await reglesEnVigueurPour(ownerId).catch(() => null);
+  const regles = await reglesEnVigueurPour(ownerId).catch(sansBloquer("proprietaire.adressesDeclareesDe.reglesEnVigueurPour", null));
   for (const r of regles?.resolution.enVigueur ?? []) {
     const cle = r.params && typeof r.params.cle === "string" ? r.params.cle : null;
     if (cle !== "canalPrefere") continue;
     for (const a of lireAdressesDeContact(r.params?.valeur)) if (!out.includes(a)) out.push(a);
   }
-  const compte = await prisma.user.findUnique({ where: { id: ownerId }, select: { email: true } }).catch(() => null);
+  const compte = await prisma.user.findUnique({ where: { id: ownerId }, select: { email: true } }).catch(sansBloquer("proprietaire.adressesDeclareesDe.user", null));
   if (estUneAdresse(compte?.email) && !out.includes(compte!.email)) out.push(compte!.email);
   return out;
 }

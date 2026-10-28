@@ -10,6 +10,7 @@ import {
 } from "./config";
 import type { ReponseSite, TransportSite } from "./transport";
 import { ECRAN_LIAISON } from "./ecran";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -153,18 +154,18 @@ function ouvrir(l: LigneCle | null): CleOuverte | null {
 }
 
 export async function cleActive(): Promise<CleOuverte | null> {
-  const l = await prisma.siteWebCle.findFirst({ where: { etat: ACTIVE }, select: SELECTION }).catch(() => null);
+  const l = await prisma.siteWebCle.findFirst({ where: { etat: ACTIVE }, select: SELECTION }).catch(sansBloquer("cles.cleActive.siteWebCle", null));
   return ouvrir(l);
 }
 
 export async function cleEnAttente(): Promise<CleOuverte | null> {
-  const l = await prisma.siteWebCle.findFirst({ where: { etat: ATTENTE }, select: SELECTION }).catch(() => null);
+  const l = await prisma.siteWebCle.findFirst({ where: { etat: ATTENTE }, select: SELECTION }).catch(sansBloquer("cles.cleEnAttente.siteWebCle", null));
   return ouvrir(l);
 }
 
 /** Une ligne existe-t-elle sans que son sceau s'ouvre ? L'écran le dit, au lieu de « jamais relié ». */
 export async function clesIllisibles(): Promise<string[]> {
-  const lignes = await prisma.siteWebCle.findMany({ where: { etat: { in: [ACTIVE, ATTENTE] } }, select: SELECTION }).catch(() => []);
+  const lignes = await prisma.siteWebCle.findMany({ where: { etat: { in: [ACTIVE, ATTENTE] } }, select: SELECTION }).catch(sansBloquer("cles.clesIllisibles.siteWebCle", []));
   return lignes.filter((l) => ouvrir(l) === null).map((l) => l.etat);
 }
 
