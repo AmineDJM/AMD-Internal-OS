@@ -5884,6 +5884,15 @@ model CompanyDocumentProfile {
 /// ne l'est jamais deux fois — même sous vingt-cinq émissions parallèles — et une pièce
 /// supprimée ne libère pas son numéro : la numérotation d'une facture est continue par
 /// construction, pas par discipline.
+/// LE COMPTEUR D'UNE SÉRIE DE RÉFÉRENCES (audit 27/10, DONNEES-12 / ADPRO-08) — `cle` = « Modèle:PRÉFIXE-AAAA »
+/// (`ExpenseOrder:OD-2026`). Avancé atomiquement par `lib/references/serie.ts` ; un numéro attribué ne revient jamais,
+/// même après une suppression réversible (sinon la restauration échoue sur la référence reprise).
+model SerieReference {
+  cle       String   @id
+  dernier   Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
 model DocumentSequence {
   id        String   @id @default(cuid())
   companyId String

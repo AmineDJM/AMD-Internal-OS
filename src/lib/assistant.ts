@@ -33,7 +33,7 @@ import { capabilityDoctrine } from "@/lib/assistant/capability-surface";
 import { resultatListe, resultatVide } from "@/lib/assistant/empty-result";
 import { prisma } from "@/lib/prisma";
 import { companyIdForNew, companyScopedWhere } from "@/lib/company";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles, broadcastNotification, type BroadcastAudience } from "@/lib/notify";
 import { lienTache, lienConversation } from "@/lib/chemins/espace";
@@ -6082,11 +6082,10 @@ async function activeUserId(id: string | null | undefined): Promise<string | nul
  *  suppression → violation d'unicité → « L'action n'a pas pu être exécutée »). */
 async function nextRequestRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `REQ-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "REQ", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `REQ-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("REQ", year, refs.map((r) => r.reference));
 }
 
 function priorityOf(p: string | null | undefined): Priority {

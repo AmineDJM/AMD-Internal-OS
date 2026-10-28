@@ -8,7 +8,7 @@
 import type { Priority, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { companyIdForNew } from "@/lib/company";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 
@@ -32,8 +32,10 @@ export interface DossierInput {
 
 export async function nextDossierRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.dossier.findMany({ where: { reference: { startsWith: `DOS-${year}-` } }, select: { reference: true } });
-  return buildRef("DOS", year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "Dossier", prefixe: "DOS", annee: year,
+    existantes: async () => (await prisma.dossier.findMany({ where: { reference: { startsWith: `DOS-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /**

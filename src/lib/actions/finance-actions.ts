@@ -6,7 +6,7 @@ import { FinanceCategory, FinanceMethod, type FinanceDirection, type FinanceStat
 import { requireUser } from "@/lib/session";
 import { anyRoleFilter, userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { buildRef, nextRefNumber } from "@/lib/refs";
+import { referenceDeSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { broadcastNotification } from "@/lib/notify";
 import { entiteParDefaut } from "@/lib/company-defaut";
@@ -22,8 +22,10 @@ const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
 
 async function nextRef(prefix: string): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.financeTransaction.findMany({ where: { reference: { startsWith: `${prefix}-${year}-` } }, select: { reference: true } });
-  return buildRef(prefix, year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "FinanceTransaction", prefixe: prefix, annee: year,
+    existantes: async () => (await prisma.financeTransaction.findMany({ where: { reference: { startsWith: `${prefix}-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 export async function createTransaction(
@@ -320,18 +322,15 @@ export async function importTransactions(
 
   let n = 0;
   const ecartees: LigneEcartee[] = [];
-  const year = new Date().getFullYear();
-  const existingRefs = await prisma.financeTransaction.findMany({ where: { reference: { startsWith: `FIN-${year}-` } }, select: { reference: true } });
-  let base = nextRefNumber(existingRefs.map((r) => r.reference)) - 1; // prochain = base+1 (dérivé du max, robuste aux trous)
   const comptes = await comptesTresorerie();
   for (const { texte, numero } of lignes) {
     const lue = lireLigneReleve(texte.split(separateur).map((x) => x.trim()));
     if (!lue.ok) { ecartees.push({ numero, raison: lue.raison }); continue; }
-    base += 1;
     try {
       await prisma.financeTransaction.create({
         data: {
-          reference: `FIN-${year}-${String(base).padStart(3, "0")}`,
+          // Le compteur de la série (DONNEES-12) : une ligne écartée par la base laisse un trou, jamais un doublon.
+          reference: await nextRef("FIN"),
           date: lue.date,
           direction: lue.direction,
           category: lue.category,

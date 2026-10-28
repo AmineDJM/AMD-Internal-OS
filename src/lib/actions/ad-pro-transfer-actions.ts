@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { buildRef, enSerie } from "@/lib/refs";
+import { enSerie, referenceDeSerie } from "@/lib/refs";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
@@ -167,12 +167,13 @@ async function createTarget(kind: AdProKind, src: Common, actorId: string, fromL
 
   if (kind === "SPONSORING") {
     const year = new Date().getFullYear();
-    const refs = await prisma.sponsoringRequest.findMany({
-      where: { reference: { startsWith: `SPO-${year}-` } }, select: { reference: true },
+    const reference = await referenceDeSerie({
+      modele: "SponsoringRequest", prefixe: "SPO", annee: year,
+      existantes: async () => (await prisma.sponsoringRequest.findMany({ where: { reference: { startsWith: `SPO-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
     });
     const created = await prisma.sponsoringRequest.create({
       data: {
-        reference: buildRef("SPO", year, refs.map((r) => r.reference)),
+        reference,
         institution: src.institution ?? src.title,
         // Le type de sponsoring n'a pas d'équivalent dans les autres modules : on ne l'invente
         // pas, on dit d'où il vient pour qu'un humain le corrige.

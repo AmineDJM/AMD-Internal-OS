@@ -11,7 +11,7 @@ import { bonDeVersementRattache } from "@/lib/medical-info";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { moneyEntityOf, getMyCompanies, adventumCompanyId } from "@/lib/company";
 import { resolveMoneyEntity, checkMoneyEntity } from "@/lib/finance/money-entity";
 import { persistUploadedDocument } from "@/lib/documents";
@@ -72,10 +72,10 @@ function isRequester(user: SessionUser, req: { requesterId: string }): boolean {
 
 async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.paymentRequest.findMany({
-    where: { reference: { startsWith: `PAY-${year}-` } }, select: { reference: true },
+  return referenceDeSerie({
+    modele: "PaymentRequest", prefixe: "PAY", annee: year,
+    existantes: async () => (await prisma.paymentRequest.findMany({ where: { reference: { startsWith: `PAY-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("PAY", year, refs.map((r) => r.reference));
 }
 
 function revalidate(id?: string) {

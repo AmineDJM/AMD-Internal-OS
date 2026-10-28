@@ -8,7 +8,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { companyIdForNew } from "@/lib/company";
 import { getManagerOfUser } from "@/lib/departments";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import {
   cleanLines, estimatedTotal, summarize, purchaseStage, canWithdraw, type PurchaseLine,
 } from "@/lib/general-means/purchase-request";
@@ -55,11 +55,10 @@ function readLines(raw: FormDataEntryValue | null): PurchaseLine[] {
 
 async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `REQ-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "REQ", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `REQ-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("REQ", year, refs.map((r) => r.reference));
 }
 
 export async function createPurchaseRequest(

@@ -6,7 +6,7 @@ import { rolesWithModule, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { persistUploadedDocument } from "@/lib/documents";
 import { getAppSettings } from "@/lib/settings";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -40,11 +40,13 @@ function revaliderCas(id?: string): void {
 
 async function prochaineReference(): Promise<string> {
   const annee = new Date().getFullYear();
-  const existantes = await prisma.pharmacovigilanceCase.findMany({
-    where: { reference: { startsWith: `${PREFIXE_REFERENCE_PV}-${annee}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "PharmacovigilanceCase", prefixe: PREFIXE_REFERENCE_PV, annee,
+    existantes: async () => (await prisma.pharmacovigilanceCase.findMany({
+      where: { reference: { startsWith: `${PREFIXE_REFERENCE_PV}-${annee}-` } },
+      select: { reference: true },
+    })).map((r) => r.reference),
   });
-  return buildRef(PREFIXE_REFERENCE_PV, annee, existantes.map((r) => r.reference));
 }
 
 /** Le cas, lu pour une personne — `null` quand il n'existe pas OU qu'elle ne le lit pas (même réponse). */

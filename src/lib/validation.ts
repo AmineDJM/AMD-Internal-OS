@@ -3,7 +3,7 @@ import type { EntityType, Prisma, Priority, UserRole, ValidationRule } from "@pr
 import { prisma } from "@/lib/prisma";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { notifyUser } from "@/lib/notify";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { lienDemandeDeValidation, lienEtapeAValider } from "@/lib/chemins/validations";
 
 /**
@@ -82,8 +82,10 @@ const SERIE_VALIDATION = "ValidationRequest.reference";
 async function nextReference(): Promise<string> {
   const year = new Date().getFullYear();
   // Dérivée du maximum réel (robuste aux suppressions) — voir src/lib/refs.ts.
-  const refs = await prisma.validationRequest.findMany({ where: { reference: { startsWith: `VAL-${year}-` } }, select: { reference: true } });
-  return buildRef("VAL", year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "ValidationRequest", prefixe: "VAL", annee: year,
+    existantes: async () => (await prisma.validationRequest.findMany({ where: { reference: { startsWith: `VAL-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /**
