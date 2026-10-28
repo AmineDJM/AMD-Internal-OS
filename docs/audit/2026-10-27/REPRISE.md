@@ -1,4 +1,4 @@
-# Reprise de session — état au 28/10/2026 ~01h UTC
+# Reprise de session — état au 28/10/2026 ~01h40 UTC
 
 Branche déployée : `claude/hopeful-goodall-phd0nb` (Render). Règles : base locale seulement
 (`postgresql://amd:amd@localhost:5432/amd_internal_os`), typecheck + lint + tests + `rm -rf .next && npm run build` avant push,
@@ -22,6 +22,15 @@ toujours `git fetch` + merge avant push, pas de Co-Authored-By, `Claude-Session:
   V2-B personnes (`refonte/v2-personnes`), V2-E coffre (`refonte/v2-coffre`), audit 01 sécurité (`audit/securite-acces`).
   À fusionner comme les autres : registre commun `src/lib/referentiels/reprises/index.ts` (ordre : organisations →
   personnes → lieux → coffre), page et action de la version organisations (journal `reprises/journal.ts`).
+
+## Mis à jour le 28/10 ~01h40 — vague 2 et audits TOUS intégrés
+- Intégrés et poussés : audit 01 sécurité, V2-A enrichissement, V2-B personnes, V2-E coffre (+ C, D, F déjà).
+  Registre des reprises : organisations → organisations-textes → personnes → affiliations → doublons → lieux →
+  adresses → coordonnées → rattrapage des pièces → coffre. Suite complète : 0 échec ; `build:render` à froid OK
+  (`npm run build` seul dépasse 6 Go de tas en local : utiliser 8 Go ou `build:render`).
+- Activation en production (Super Admin, Administration › Refonte des données) : voir le rapport de chaque lot dans
+  `docs/architecture/refonte-vague-2.md` et `refonte-v2e-coffre.md` ; poser `COFFRE_KEY` (32 octets hex) avant le coffre
+  et l'enrichissement ; worker Render : `docs/readme/24-deploiement-render.md`.
 
 ## Reste à faire
 1. Fusionner chaque branche audit/* et refonte/v2-* terminée (conflits, `npx prisma generate`, `npm run actions:contrat`, tests ciblés, suite complète, build), push.
