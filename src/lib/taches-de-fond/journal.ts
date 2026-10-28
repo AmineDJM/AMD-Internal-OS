@@ -7,7 +7,9 @@
  * durée, un message d'erreur tronqué.
  */
 
-export type NiveauJournal = "info" | "avertissement" | "erreur";
+import { journaliser, messageErreur, type NiveauJournal } from "@/lib/journal";
+
+export type { NiveauJournal };
 
 export type EntreeJournal = {
   ts: string;
@@ -18,20 +20,20 @@ export type EntreeJournal = {
 
 export type Journal = (niveau: NiveauJournal, evenement: string, champs?: Record<string, unknown>) => void;
 
-/** Tronque un message d'erreur : assez pour diagnostiquer, jamais une pile entière en base. */
-export function messageErreur(e: unknown, max = 500): string {
-  const brut = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
-  return brut.length > max ? `${brut.slice(0, max - 1)}…` : brut;
-}
+/** Tronque un message d'erreur — l'outil commun du journal unique (`@/lib/journal`). */
+export { messageErreur };
 
 export function entreeJournal(niveau: NiveauJournal, evenement: string, champs: Record<string, unknown> = {}): EntreeJournal {
   return { ts: new Date().toISOString(), source: "taches-de-fond", niveau, evenement, ...champs };
 }
 
-/** Le journal de production : `console.error` pour les erreurs (flux stderr), `console.log` sinon. */
-export const journalConsole: Journal = (niveau, evenement, champs) => {
-  const ligne = JSON.stringify(entreeJournal(niveau, evenement, champs));
-  if (niveau === "erreur") console.error(ligne);
-  else if (niveau === "avertissement") console.warn(ligne);
-  else console.log(ligne);
+/**
+ * Le journal de production — il passe par le journal UNIQUE (`@/lib/journal`) : même format de
+ * ligne, même anti-avalanche, et surtout même COMPTAGE. Un échec de tâche est compté par tâche
+ * (`tache.echec:<clé>`) : c'est lui qui, répété, remonte au Super Admin.
+ */
+export const journalConsole: Journal = (niveau, evenement, champs = {}) => {
+  const { erreur, ...reste } = champs;
+  const cle = typeof reste.tache === "string" ? `${evenement}:${reste.tache}` : evenement;
+  journaliser(niveau, evenement, { source: "taches-de-fond", ...reste }, erreur, { cle });
 };
