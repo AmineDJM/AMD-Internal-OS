@@ -6,7 +6,7 @@ import {
   ArrowRight, BookOpen, ChevronLeft, ChevronRight, ExternalLink, GitBranch, Info, Map as MapIcon,
   Search, ShieldCheck, Users, Workflow, X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, plier } from "@/lib/utils";
 import {
   CIRCUITS, DOMAINES, MECANISMES, MODULES_PLATEFORME, TYPES_ACTEUR, circuitsDuModule, voisinsDuModule,
   type CleDomaine, type ModulePlateforme, type TypeActeur,
@@ -68,12 +68,10 @@ const INITIALE_NIVEAU: Record<Niveau, string> = { gerer: "G", valider: "V", ecri
 const PAR_ID = new Map(MODULES_PLATEFORME.map((m) => [m.id, m]));
 const NOM_DOMAINE = new Map(DOMAINES.map((d) => [d.cle, d.nom]));
 
-const sansAccent = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
-
 function correspond(m: ModulePlateforme, q: string): boolean {
   if (!q) return false;
   const texte = [m.nom, m.resume, m.pourQui, m.route ?? "", ...m.gestes.map((g) => `${g.label} ${g.qui} ${g.effet}`), ...m.regles].join(" ");
-  return sansAccent(texte).includes(q);
+  return plier(texte).includes(q);
 }
 
 interface Props {
@@ -213,7 +211,7 @@ function VueCarte(props: {
   const [taille, setTaille] = useState({ l: 0, h: 0 });
   const [survol, setSurvol] = useState<string | null>(null);
 
-  const q = sansAccent(recherche.trim());
+  const q = plier(recherche.trim());
   const actif = survol ?? moduleId;
   const voisins = useMemo(() => new Set(actif ? voisinsDuModule(actif) : []), [actif]);
   const circuit = circuitSurCarte ? CIRCUITS.find((c) => c.id === circuitSurCarte) ?? null : null;

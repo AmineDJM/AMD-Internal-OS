@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { ArrowDown, ArrowUp, Filter, Loader2, MoreHorizontal, X } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { cn, plier } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
@@ -93,7 +93,6 @@ const COLS_TEXTE: readonly Colonne[] = ["nom", "prenom", "q1", "q2"];
 
 const fmt = (n: number | null) => (n === null ? "" : String(n).replace(".", ","));
 const libelleLettre = (l: Lettre | null) => (l === null ? "—" : l === "NC" ? "non ciblé" : l);
-const plie = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const gradeAffiche = (v: LignePraticien) => (v.titre === "AUTRE" && v.gradeBrut ? v.gradeBrut : v.grade);
 
 /** La ligne effective : celle du serveur, plus ce que la personne vient d'écrire (la lettre se recalcule à l'écran). */
@@ -844,8 +843,8 @@ function EditeurChoix({ options, courant, recherche, selectionner, onValider, on
   const [ancre, setAncre] = React.useState<HTMLInputElement | null>(null);
   const fait = React.useRef(false);
   const filtrees = React.useMemo(() => {
-    const mots = plie(q).split(/\s+/).filter(Boolean);
-    const r = mots.length ? options.filter((o) => { const t = plie(`${o.libelle} ${o.detail ?? ""}`); return mots.every((m) => t.includes(m)); }) : options;
+    const mots = plier(q).split(/\s+/).filter(Boolean);
+    const r = mots.length ? options.filter((o) => { const t = plier(`${o.libelle} ${o.detail ?? ""}`); return mots.every((m) => t.includes(m)); }) : options;
     return mots.length ? r.slice(0, 150) : r;
   }, [options, q]);
   const [iBrut, setI] = React.useState(() => (recherche ? 0 : Math.max(0, options.findIndex((o) => o.valeur === courant))));
@@ -968,8 +967,8 @@ function ListeFiltre({ f, etat, setEtat, lignes }: { f: FiltreListe; etat: EtatT
   const [q, setQ] = React.useState("");
   const valeurs = React.useMemo(() => valeursDuFiltre(lignes, f, (l) => libelleFiltre(f, l)), [lignes, f]);
   const choisis = etat.listes[f] ?? [];
-  const mots = plie(q).trim();
-  const montrees = mots ? valeurs.filter((v) => plie(v.libelle).includes(mots)) : valeurs;
+  const mots = plier(q).trim();
+  const montrees = mots ? valeurs.filter((v) => plier(v.libelle).includes(mots)) : valeurs;
   return (
     <div className="text-sm">
       {valeurs.length > 8 && (

@@ -49,15 +49,8 @@ export function fieldVisitsCapacity(cap: SfeConfig["capacity"]): number {
   return Math.round(cap.daysPerMonth * cap.visitsPerDay * (cap.fieldPct / 100));
 }
 
-// ─────────────────────── Phase 2/3 — hiérarchie, affectations & FTE ───────────────────────
-
-/** Positions de détail possibles (rang du produit dans la mallette). */
-export const POSITIONS = [1, 2, 3] as const;
 /** Paliers de potentiel (ordre d'affichage), alignés sur `SegmentLevel`. */
 export const TIERS = ["VERY_HIGH", "HIGH", "MEDIUM", "LOW", "VERY_LOW"] as const;
-export const TIER_LABELS: Record<string, string> = {
-  VERY_HIGH: "Très fort", HIGH: "Fort", MEDIUM: "Moyen", LOW: "Faible", VERY_LOW: "Très faible",
-};
 
 /** Surcharge de capacité individuelle d'un KAM (null = valeur globale). */
 export interface RepCapacityOverride {

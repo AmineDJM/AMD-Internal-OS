@@ -113,38 +113,6 @@ export async function consommationHospitaliereMensuelle(productId: string, opts:
   return tout.map((r) => ({ institutionId: r.institutionId, clientCle: r.clientCle, mois: moisDeDate(r.mois), livre: n(r._sum.qteLivree), nonServi: nsDe.get(cle(r)) ?? 0 }));
 }
 
-export interface ReceptionsProduit {
-  total: number;
-  nous: number;
-  parMois: { mois: string; total: number; nous: number }[];
-  parFournisseur: { fournisseur: string; qte: number; nous: boolean }[];
-}
-
-export async function receptionsPch(productId: string, periode: Bornes): Promise<ReceptionsProduit> {
-  const [rows, nos] = await Promise.all([
-    prisma.pchReceptionLigne.groupBy({ by: ["mois", "fournisseurCle", "fournisseur"], where: { productId, type: "FO", mois: entreMois(periode) }, _sum: { qte: true } }),
-    fournisseursActifs([productId]),
-  ]);
-  const miens = nos.get(productId) ?? new Map();
-  const parMois = new Map<string, { mois: string; total: number; nous: number }>();
-  const parFour = new Map<string, { fournisseur: string; qte: number; nous: boolean }>();
-  let total = 0, nous = 0;
-  for (const r of rows) {
-    const q = n(r._sum.qte), estNous = miens.has(r.fournisseurCle), m = moisDeDate(r.mois);
-    total += q; if (estNous) nous += q;
-    const pm = parMois.get(m) ?? parMois.set(m, { mois: m, total: 0, nous: 0 }).get(m)!;
-    pm.total += q; if (estNous) pm.nous += q;
-    const pf = parFour.get(r.fournisseurCle) ?? parFour.set(r.fournisseurCle, { fournisseur: r.fournisseur, qte: 0, nous: estNous }).get(r.fournisseurCle)!;
-    pf.qte += q;
-  }
-  return { total, nous, parMois: [...parMois.values()].sort((a, b) => a.mois.localeCompare(b.mois)), parFournisseur: [...parFour.values()].sort((a, b) => b.qte - a.qte) };
-}
-
-export async function partDeMarche(productId: string, periode: Bornes): Promise<{ nous: number; marche: number; pct: number | null }> {
-  const r = await receptionsPch(productId, periode);
-  return { nous: r.nous, marche: r.total, pct: partDeMarchePct(r.nous, r.total) };
-}
-
 // ─────────────────────────── Synthèse ───────────────────────────
 
 /** Le coût d'achat PCH de référence d'un produit : valeur ÷ quantité livrée, sur toutes les données (stable). */

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 import { roleDuRetour, type TonRetour } from "./retour-regle";
 import { STYLE } from "./retour-style";
 
-export { useRetours, type Retours } from "./retours-porteur";
+export { useRetours } from "./retours-porteur";
 
 /**
  * LE RETOUR D'UN GESTE — bandeau dans l'écran, ou avis flottant (V3-B). Remplace `window.alert()`.

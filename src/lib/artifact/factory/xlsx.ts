@@ -2,8 +2,8 @@ import ExcelJS from "exceljs";
 import { figerEtVerifierClasseur } from "@/lib/artifact/sheets/build";
 import { a1DeCoord } from "@/lib/artifact/sheets/refs";
 import {
-  ACCENT_MAISON, LIBELLE_MODE, LIBELLE_TYPE, ajouterJours, arrondirCentimes, calculerTotaux, estPieceFiscale, formaterDateFr,
-  verifierSpecCommerciale, type PartieCommerciale, type SpecDocumentCommercial, type TotauxCommerciaux,
+  ACCENT_MAISON, LIBELLE_MODE, LIBELLE_TYPE, ajouterJours, arrondirCentimes, calculerTotaux, estPieceFiscale,
+  formaterDateFr, verifierSpecCommerciale, type PartieCommerciale, type SpecDocumentCommercial,
 } from "@/lib/artifact/factory/commercial";
 
 /**
@@ -332,5 +332,3 @@ export async function construireXlsxCommercial(spec: SpecDocumentCommercial, opt
     verification: { ok: bloquants.length === 0, bloquants, avertissements: regles.avertissements, formules: nbFormules },
   };
 }
-
-export type { TotauxCommerciaux };

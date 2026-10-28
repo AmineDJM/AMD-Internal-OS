@@ -15,9 +15,9 @@ import {
 } from "@/lib/care";
 import {
   casesDeLaCategorie, detailsStockes, deviseDuDevis, deviseDuPoste, etapesDuBillet, etapesStockees,
-  lireDetailsTrajets, peutTeleverserBillet, hotelPrerempli, libelleNouveauPoste,
-  lignesReservationFiche, lireMontant, lirePosteSaisi, manquesPourReserverFiche, montantLisible, personneVivante,
-  tauxDeLaDemande, typePoste, versDzd, peutMarquerRealisee, DECISION_LIBELLE, TAUX_USD_DZD_DEFAUT, type CellRow,
+  lireDetailsTrajets, peutTeleverserBillet, hotelPrerempli, libelleNouveauPoste, lireMontant, lirePosteSaisi,
+  montantLisible, tauxDeLaDemande, typePoste, versDzd, peutMarquerRealisee, TAUX_USD_DZD_DEFAUT,
+  type CellRow,
 } from "@/lib/care-fiches";
 import { envoiAuxFinances, ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME } from "@/lib/care-realisation";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
@@ -59,9 +59,6 @@ const SPEC: Record<Scope, { module: "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONA
 };
 
 const isScope = (v: string): v is Scope => v === "NATIONAL" || v === "INTERNATIONAL";
-
-/** Statuts à partir desquels la Direction a tranché la demande dans son ensemble. */
-const DECIDED = ["APPROVED", "COMPLETED"];
 
 function revalidate(scope: Scope, id: string) {
   revalidatePath(SPEC[scope].path);

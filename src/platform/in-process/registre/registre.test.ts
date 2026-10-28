@@ -2,7 +2,6 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import type { ReasonRequest } from "@/lib/missions/ports";
 import { avancerMission, lancerMission } from "@/platform/in-process/missions/runtime";
 import { RaisonneurScripte, planScripte, pour } from "@/platform/in-process/missions/fake-reasoner";
 import { chargerEtat } from "@/lib/missions/runtime/store";

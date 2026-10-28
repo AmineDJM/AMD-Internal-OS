@@ -15,18 +15,16 @@
 export * from "./api";
 
 // ── Déchiffrer ───────────────────────────────────────────────────────────────────────────────
-export { dechiffrer, recomposer } from "./infra/dechiffrement";
 
 // ── Le service et ses dépôts ─────────────────────────────────────────────────────────────────
 export {
-  creerServiceCoffre, type DependancesCoffre, type EntreeDepot, type ResultatDepot, type ResultatLecture, type ServiceCoffre,
+  creerServiceCoffre, type EntreeDepot, type ResultatDepot,
 } from "./infra/service";
-export { creerDepotPrisma } from "./infra/depot-prisma";
 export { creerDepotReferentiel } from "./infra/depot-referentiel";
 
 // ── Requêtes : lire en clair, avec journal ───────────────────────────────────────────────────
-export { lireSensibles, lireSensiblesPour } from "./infra/lecture";
+export { lireSensiblesPour } from "./infra/lecture";
 
 // ── Requêtes : le journal des accès et la couverture de la reprise ───────────────────────────
-export { TAILLE_PAGE, filtresDepuis, lecteursDuJournal, lireJournal, type FiltresJournal, type LigneJournal } from "./infra/journal";
-export { couvertureDuCoffre, type CouvertureChamp } from "./infra/couverture";
+export { TAILLE_PAGE, filtresDepuis, lecteursDuJournal, lireJournal } from "./infra/journal";
+export { couvertureDuCoffre } from "./infra/couverture";

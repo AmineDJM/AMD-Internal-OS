@@ -87,13 +87,6 @@ export async function prevoirReference(
   return formaterReference(numeroPrevu(dernier, r.plancher, (n) => pris.has(n)), annee, r.largeur);
 }
 
-/** Le prochain numéro d'une société AU REGISTRE ; `null` quand elle ne le tient pas (elle garde sa numérotation). */
-export async function referencePrevue(companyId: string | null | undefined, annee = anneeDuRegistre()): Promise<string | null> {
-  if (!companyId) return null;
-  const r = await registreDe(companyId, annee);
-  return r.actif ? prevoirReference(companyId, annee, r) : null;
-}
-
 /** Ce que le champ « Référence » d'un formulaire lit : la société, si elle tient le registre, et son prochain numéro. */
 export async function etatDuRegistre(companyId: string | null | undefined, annee = anneeDuRegistre()): Promise<ReferenceProchaine> {
   if (!companyId) return { ok: true, actif: false, societeId: null, prochaine: null };

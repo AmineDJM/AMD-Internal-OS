@@ -12,18 +12,18 @@ import * as React from "react";
 import { useAction, type OptionsAction, type OptionsGeste } from "@/components/shared/use-action";
 import { useConfirmer } from "@/components/ui/dialogue";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { Plus, Pencil, Trash2, Loader2, SlidersHorizontal, Wallet, CornerDownRight, Download } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, CornerDownRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { formatCurrency, formatDate } from "@/lib/utils";
+import { formatCurrency } from "@/lib/utils";
 import {
-  createEnvelope, updateEnvelope, deleteEnvelope, setBudgetTotal,
-  createBudgetCategory, updateBudgetCategory, deleteBudgetCategory, attributeTransaction, addBudgetExpense, updateBudgetExpense, deleteBudgetExpense,
+  createEnvelope, updateEnvelope, deleteEnvelope, setBudgetTotal, createBudgetCategory, updateBudgetCategory,
+  addBudgetExpense, updateBudgetExpense,
 } from "@/lib/actions/budget-envelope-actions";
-import type { BudgetOverview, BudgetEnvelopeOption, BudgetCategoryView, BudgetHealth, EnvelopesGrandTotal, AttributedTx } from "@/lib/queries/budget";
+import type { BudgetOverview, BudgetCategoryView, BudgetHealth, AttributedTx } from "@/lib/queries/budget";
 import { ROLE_LABELS } from "@/lib/labels";
 import { effetAllocation } from "@/lib/budget/marketing-vue";
 import { journal } from "@/lib/journal";

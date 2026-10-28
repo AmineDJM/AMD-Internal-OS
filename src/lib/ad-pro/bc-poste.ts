@@ -1,5 +1,6 @@
 import type { AdProItemOrderStage } from "@prisma/client";
 import { motifSousLeSeuil, validationRequiseBC } from "@/lib/bons-de-commande/regle";
+import { montantDzd } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -57,8 +58,6 @@ export type GesteVisaPoste =
   /** `REQUESTED` → `DIRECTION_OK` sans centre : la validation qui attendait n'a plus d'objet. */
   | { geste: "SOUS_LE_SEUIL"; motif: string };
 
-const DZD = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
-
 /** Deux libellés de prestataire désignent-ils le même ? Casse, accents et espaces mis à part. */
 export function memePrestataire(a: string | null | undefined, b: string | null | undefined): boolean {
   const n = (s: string | null | undefined) =>
@@ -99,12 +98,12 @@ export function gesteVisaPoste(
   if (!e.viseParLeCentre) {
     return {
       geste: "ROUVRIR",
-      motif: `Montant porté à ${apres.montant != null ? DZD(apres.montant) : "un montant inconnu"}, au-dessus du seuil de validation des bons de commande${typeof seuil === "number" && seuil > 0 ? ` (${DZD(seuil)})` : ""} : le centre de validation Ad & Pro doit le viser.`,
+      motif: `Montant porté à ${apres.montant != null ? montantDzd(apres.montant) : "un montant inconnu"}, au-dessus du seuil de validation des bons de commande${typeof seuil === "number" && seuil > 0 ? ` (${montantDzd(seuil)})` : ""} : le centre de validation Ad & Pro doit le viser.`,
     };
   }
   const montantRef = e.montantVise ?? e.montantAvant;
   if (montantRef != null && apres.montant != null && apres.montant > montantRef) {
-    return { geste: "ROUVRIR", motif: `Montant relevé de ${DZD(montantRef)} à ${DZD(apres.montant)} après la validation du centre.` };
+    return { geste: "ROUVRIR", motif: `Montant relevé de ${montantDzd(montantRef)} à ${montantDzd(apres.montant)} après la validation du centre.` };
   }
   const fournisseurRef = e.montantVise != null || e.fournisseurVise != null ? e.fournisseurVise : e.fournisseurAvant;
   if (!memePrestataire(fournisseurRef, apres.fournisseur)) {

@@ -417,13 +417,6 @@ export function comparerFactures(a: IdentiteFacture, b: IdentiteFacture): Rappro
   return aucun("Rien ne permet de dire que c'est la même pièce.");
 }
 
-const RANG: Record<NiveauDoublon, number> = { CERTAIN: 2, PROBABLE: 1, AUCUN: 0 };
-
-/** Le plus fort de deux rapprochements. */
-export function plusFort(a: Rapprochement, b: Rapprochement): Rapprochement {
-  return RANG[b.niveau] > RANG[a.niveau] ? b : a;
-}
-
 // ─────────────────────────────── Le recensement ───────────────────────────────
 
 /** Une facture connue, telle que le recensement la groupe. */

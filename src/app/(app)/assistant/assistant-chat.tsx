@@ -25,7 +25,6 @@ import { useRetours } from "@/components/ui/retour";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { sansBloquer } from "@/lib/journal";
 import { ActionCard } from "./assistant-chat/carte-action";
-export { ActionCard } from "./assistant-chat/carte-action";
 
 /** Pièce jointe en attente d'envoi : fichier local (upload) ou fichier du Drive (référence). */
 type PendingAttach =

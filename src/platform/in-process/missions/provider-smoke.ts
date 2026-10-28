@@ -74,7 +74,7 @@ import { annuler } from "@/lib/missions/runtime/control";
 import { effetDuNoeud } from "@/lib/missions/registry/node-effect";
 import { lireRecu } from "@/lib/missions/runtime/receipt";
 import { RESOLVER_WRITE_NAMES } from "@/lib/assistant";
-import { acteurDe, catalogueDe } from "@/platform/in-process/missions/catalog";
+import { catalogueDe } from "@/platform/in-process/missions/catalog";
 import { raisonneur } from "@/platform/in-process/missions/reasoner";
 import { avancerMission, lancerMission, replanifierMission } from "@/platform/in-process/missions/runtime";
 import { RaisonneurInstrumente, cascade, rendreCascade, type Cascade } from "@/platform/in-process/missions/provider-waterfall";

@@ -26,7 +26,7 @@ import { sansBloquer } from "@/lib/journal";
  * teste sans base, et c'est là qu'est la logique délicate.
  */
 
-export type { ResolvedEndpoint, PersonMatch } from "./rank";
+export type { PersonMatch } from "./rank";
 
 const CONFIDENCE_OF_SOURCE: Record<string, EndpointConfidence> = {
   directory: EndpointConfidence.VERIFIED_INTERNAL,
@@ -163,13 +163,4 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
   return [...byKey.values()]
     .map((p) => ({ ...p, endpoints: rankEndpoints(p.endpoints) }))
     .slice(0, limit);
-}
-
-/** Les adresses d'une personne, déjà classées — la question « à quelle adresse lui écrire ? ». */
-export async function emailOptions(query: string): Promise<{ person: PersonMatch; addresses: ResolvedEndpoint[] }[]> {
-  const people = await findPeople(query);
-  return people.map((person) => ({
-    person,
-    addresses: person.endpoints.filter((e) => e.channel === DirectoryChannel.EMAIL),
-  }));
 }

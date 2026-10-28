@@ -1,6 +1,6 @@
-import { analyser, nomsDe, referencesDe, type Ref } from "@/lib/artifact/sheets/formula";
+import { analyser, nomsDe, referencesDe } from "@/lib/artifact/sheets/formula";
 import { cleDe, contient, tailleDe, type Plage } from "@/lib/artifact/sheets/refs";
-import { formulesDe, type Cellule, type Classeur, type Feuille } from "@/lib/artifact/sheets/model";
+import { formulesDe, type Classeur } from "@/lib/artifact/sheets/model";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -227,4 +227,3 @@ export function libelleCellule(classeur: Classeur, id: IdCellule): string {
 }
 
 export const celluleDeId = coordDeId;
-export type { Cellule, Feuille, Ref };

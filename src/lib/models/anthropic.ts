@@ -9,7 +9,8 @@ import {
   type ModelToolDef,
   type ModelTurn,
   costOf,
-  emptyUsage,
+  reponseEnEchec,
+  reponseSansCle,
 } from "./contract";
 import { attendu } from "@/lib/journal";
 
@@ -134,14 +135,7 @@ const headers = (key: string) => ({
 const baseUrl = () => (process.env.ANTHROPIC_BASE_URL ?? "https://api.anthropic.com").replace(/\/$/, "");
 
 function notConfigured(binding: ModelBinding): ModelReply {
-  return {
-    ok: false,
-    configured: false,
-    stop: "error",
-    blocks: [],
-    usage: emptyUsage(binding.role, binding.model, "anthropic"),
-    error: "Clé ANTHROPIC_API_KEY non configurée.",
-  };
+  return reponseSansCle(binding, "anthropic", "ANTHROPIC_API_KEY");
 }
 
 export async function callAnthropic(
@@ -210,14 +204,7 @@ export async function callAnthropic(
     await new Promise((r) => setTimeout(r, 600 * attempt));
   }
 
-  return {
-    ok: false,
-    configured: true,
-    stop: "error",
-    blocks: [],
-    usage: { ...emptyUsage(binding.role, binding.model, "anthropic"), ms: Date.now() - started },
-    error: lastError,
-  };
+  return reponseEnEchec(binding, "anthropic", started, lastError);
 }
 
 /**

@@ -45,7 +45,3 @@ export function formatDeFichier(nom: string, mime?: string | null): ArtifactForm
 
 /** Le type MIME canonique d'un format — celui qu'on écrit dans le Drive. */
 export const mimeDe = (f: ArtifactFormat): string => ADAPTATEURS[f].mimes[0];
-
-/** Les extensions reconnues, tous formats — sert aux messages et aux filtres de fichiers. */
-export const EXTENSIONS_OFFICE: string[] = (Object.keys(ADAPTATEURS) as ArtifactFormat[])
-  .flatMap((f) => [...ADAPTATEURS[f].extensions]);

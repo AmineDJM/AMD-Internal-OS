@@ -30,7 +30,6 @@ export interface Lieu {
 export const RAYON_TERRE_KM = 6371.0088;
 /** Le détour routier moyen par rapport au vol d'oiseau — DÉCLARÉ, jamais appliqué en douce. */
 export const FACTEUR_DETOUR_ROUTIER = 1.3;
-export const LIEUX_MAX = 20_000;
 
 const rad = (d: number): number => (d * Math.PI) / 180;
 const deg = (r: number): number => (r * 180) / Math.PI;

@@ -153,9 +153,6 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
     if (p.status) { const s = statuts.current.get(jobId); if (s) s[idx] = p.status; }
     setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, files: j.files.map((f, i) => (i === idx ? { ...f, ...p } : f)) } : j)));
   }, []);
-  const patchJob = React.useCallback((jobId: string, p: Partial<BgJob>) => {
-    setJobs((js) => js.map((j) => (j.id === jobId ? { ...j, ...p } : j)));
-  }, []);
   const dismiss = React.useCallback((jobId: string) => { statuts.current.delete(jobId); setJobs((js) => js.filter((j) => j.id !== jobId)); }, []);
 
   // ANNULATION — le drapeau arrête la file, l'avortement coupe ce qui est déjà en vol. Les deux

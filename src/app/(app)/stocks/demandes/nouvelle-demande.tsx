@@ -8,6 +8,7 @@ import { actionFailureMessage } from "@/lib/action-outcome";
 import { developperDemande, produitsCouverts, type PorteurKam } from "@/lib/stocks/demande-stocks";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { plier } from "@/lib/utils";
 
 /**
  * LANCER UNE DEMANDE DE STOCKS (DO).
@@ -19,8 +20,6 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 
 interface Hopital { id: string; name: string; wilaya: string | null; porteurs: PorteurKam[] }
 interface Produit { id: string; label: string }
-
-const plier = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export function NouvelleDemandeStocks({ hopitaux, produits, produitsParBu, kams }: {
   hopitaux: Hopital[];

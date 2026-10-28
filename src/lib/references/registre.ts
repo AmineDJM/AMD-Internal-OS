@@ -1,27 +1,3 @@
-/**
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LE REGISTRE COMMUN DES RÉFÉRENCES NNN/DG/AAAA (Direction, 10/2026).
- *
- * « Tout document ou BC généré doit avoir la numérotation NNN/DG/AAAA » ; « commence par 040 […] pour Adventum, Pharmagene et
- * AMD, et permets de modifier les numéros de référence à la génération » ; « un compteur commun pour les références ».
- *
- *   • UN compteur par société et par année (`DocumentSequence`, kind `REGISTRE_DG`), partagé par TOUS les documents qui
- *     portent une référence : bon de commande, ordre de mission, attestation de travail, lettre de demande de devis (et toute
- *     pièce de la fabrique dont
- *     le motif porte « /DG/ »). L'année civile suivante repart à 001 (le plancher n'est réglé que pour l'année qu'il nomme).
- *   • UN registre (`DocumentReference`) : une ligne par numéro attribué, jamais supprimée — l'unicité (société, année, numéro)
- *     vaut pour tous les types à la fois : le 041 d'un ordre de mission n'est pas aussi celui d'un BC.
- *   • Le numéro est attribué quand le document est FINALISÉ (jamais sur un brouillon ni un aperçu), prérempli avec le prochain
- *     et MODIFIABLE : une valeur libre est acceptée si elle est libre pour la société et l'année ; plus haute que le compteur,
- *     elle le fait avancer ; un numéro attribué ne se réutilise jamais.
- *
- * PUR, SANS AUCUN IMPORT : les formulaires (navigateur) et le serveur lisent la même règle. L'attribution se joue contre un
- * MAGASIN abstrait — Prisma au serveur (`registre-serveur.ts`), la mémoire dans les tests.
- * ═══════════════════════════════════════════════════════════════════════════════════════════
- */
-
-/** Le motif du registre : trois chiffres au moins, « DG », l'année sur quatre chiffres. */
-export const MOTIF_REGISTRE = "{n:3}/DG/{aaaa}";
 
 /** La nature du compteur commun dans `DocumentSequence`. */
 export const KIND_REGISTRE = "REGISTRE_DG";

@@ -171,7 +171,6 @@ export async function getMyHrDossier(userId: string): Promise<MyHrDossier | null
   if (!employee) return null;
   const requests = employee.hrRequests.map(mapReq);
   await attachThreads(requests);
-  const num = (v: unknown) => (v == null ? null : Number(v.toString()));
   return {
     employee: {
       id: employee.id,

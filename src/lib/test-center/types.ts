@@ -1,6 +1,6 @@
-import type { TestRunMode, TestRunStatus, TestCleanupStatus, TestSeverity } from "@prisma/client";
+import type { TestRunMode, TestSeverity } from "@prisma/client";
 
-export type { TestRunMode, TestRunStatus, TestCleanupStatus, TestSeverity };
+export type { TestRunMode, TestSeverity };
 
 /** Modes qui créent des données synthétiques (donc nécessitent un nettoyage). */
 export const WRITE_MODES: TestRunMode[] = ["SAFE_SYNTHETIC_TEST", "STAGING_FULL_TEST", "CHAOS_TEST"];

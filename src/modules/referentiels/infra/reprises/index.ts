@@ -37,4 +37,4 @@ export function trouverReprise(cle: string): Reprise | null {
   return REPRISES.find((r) => r.cle === cle) ?? null;
 }
 
-export type { BilanReprise, Reprise } from "../../domaine/reprises/types";
+export type { Reprise } from "../../domaine/reprises/types";

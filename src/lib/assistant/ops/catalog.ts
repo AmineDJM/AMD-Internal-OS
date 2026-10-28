@@ -5394,6 +5394,3 @@ export function catalogCoveredKeys(): Map<string, string> {
   for (const m of OPS_CATALOG) for (const k of m.covers) out.set(k, `${m.tool}:${m.op}`);
   return out;
 }
-
-export const opGlobalView = hasGlobalView;
-export const opIsSA = isSA;

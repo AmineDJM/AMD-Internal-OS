@@ -47,7 +47,6 @@ export interface ContexteDefi {
   confirmation: { ok: boolean; message?: string; error?: string } | null;
 }
 
-type Verdict = { ok: boolean; motif: string };
 export interface Cas {
   id: string;
   categorie: string;

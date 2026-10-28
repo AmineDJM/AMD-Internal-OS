@@ -32,7 +32,7 @@ import { CHAMP, FicheVoyageur, PastilleDecision, TON_BADGE, type Run } from "@/c
 import { BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
-export type { CellRow, BeneficiaryRow, QuoteRow } from "@/lib/care-fiches";
+export type { BeneficiaryRow } from "@/lib/care-fiches";
 
 interface Props {
   scope: Perimetre;

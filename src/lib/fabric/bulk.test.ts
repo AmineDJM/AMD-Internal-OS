@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { creerLoteur, loteurNoeudsDrive } from "@/lib/fabric/bulk";
+import { creerLoteur } from "@/lib/fabric/bulk";
 import { indexDriveNodeText } from "@/lib/assistant/document-discovery";
 import { POWER_TOOLS } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Bell, BellRing, Loader2, Check } from "lucide-react";
+import { BellRing, Loader2, Check } from "lucide-react";
 import { sansBloquer } from "@/lib/journal";
 import { getKey, subscribe, supported } from "./push-register";
 

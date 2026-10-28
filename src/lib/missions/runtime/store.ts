@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { prendreBail } from "@/lib/missions/runtime/bail";
-import type { CompiledMission, CompiledStep, StepSpec } from "@/lib/missions/compiler/compile";
+import type { CompiledMission, StepSpec } from "@/lib/missions/compiler/compile";
 import { MissionState, StepState, assertTransition } from "@/lib/missions/runtime/state";
 import { lireRecu, type ExecutionReceipt } from "@/lib/missions/runtime/receipt";
 import { criteresQuiSurvivent } from "@/lib/missions/goal/rules";

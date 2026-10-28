@@ -68,22 +68,9 @@ export interface RouteDecision {
   why: string;
 }
 
-/** Les formats que le code sait lire seul, entièrement. */
-const NATIVE_MIMES = new Set([
-  "application/pdf",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-  "text/csv",
-  "text/plain",
-  "text/markdown",
-  "application/json",
-]);
-
 /** Les formats où il n'y a, par construction, rien à parser : il faut REGARDER. */
 const IMAGE_MIMES = /^image\//;
 
-export const isNativeParsable = (mime: string): boolean => NATIVE_MIMES.has(mime);
 export const isImage = (mime: string): boolean => IMAGE_MIMES.test(mime);
 
 /**

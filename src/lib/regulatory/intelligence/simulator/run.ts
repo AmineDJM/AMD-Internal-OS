@@ -26,17 +26,6 @@ export const PERSPECTIVES: { key: string; label: string; focus: string }[] = [
 
 export interface SimPerspective { perspective: string; verdict: string; questions: string[]; risks: string[] }
 
-/**
- * NORMALISATION TOLÉRANTE de la sortie du modèle — PURE, testée.
- *
- * Un schéma Zod RIGIDE faisait échouer TOUTE la simulation dès qu'un seul détail débordait :
- * verdict en minuscules, question de plus de 400 caractères, onzième perspective, `risks` absent…
- * Le message « Sortie non conforme au schéma » masquait une analyse par ailleurs parfaitement
- * exploitable. On récupère donc ce que le modèle a produit et on le met en forme nous-mêmes ;
- * l'échec n'est possible que si la réponse ne contient AUCUNE perspective.
- */
-const VERDICTS = ["FAVORABLE", "RESERVES", "DEFAVORABLE"] as const;
-
 function normVerdict(raw: unknown): string {
   const s = String(raw ?? "").toUpperCase();
   if (s.includes("DEFAV") || s.includes("DÉFAV") || s.includes("REJE") || s.includes("UNFAV")) return "DEFAVORABLE";

@@ -15,6 +15,7 @@ import { addDossierStep } from "@/lib/actions/regulatory-timeline-actions";
 import type { OpImpl, OpProposalDraft } from "./types";
 import { opStr } from "./types";
 import { resolvePeopleList } from "./impl-drive";
+import { montantDzd } from "@/lib/utils";
 
 /**
  * OPS REGULATORY — la longue traîne du dossier AMM au-delà des champs simples (déjà natifs) :
@@ -85,8 +86,6 @@ const iso = (raw: string): string | null => {
   const d = new Date(raw);
   return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
 };
-
-const dzd = (n: number): string => `${n.toLocaleString("fr-FR")} DZD`;
 
 function amountOf(input: Record<string, unknown>, key: string): number | null {
   const v = input[key];
@@ -492,16 +491,16 @@ export const REGULATORY_OPS_IMPL: Record<string, OpImpl> = {
       const bvType = opStr(input, "bvType") || "BV";
       const dueDate = iso(opStr(input, "dueDate"));
       return {
-        title: `Demander un ${bvType} — ${product.reference} (${dzd(amount)})`,
+        title: `Demander un ${bvType} — ${product.reference} (${montantDzd(amount)})`,
         fields: [
           { label: "Dossier", value: `${product.reference} — ${product.dci}` },
           { label: "Type", value: bvType },
-          { label: "Montant", value: dzd(amount) },
+          { label: "Montant", value: montantDzd(amount) },
           ...(dueDate ? [{ label: "Échéance", value: dueDate }] : []),
         ],
         warnings: ["Un ORDRE DE DÉPENSE (bénéficiaire ANPP) est créé dans le circuit Finances / Centre de paiement — rien n'est décaissé ici."],
         args: { productId: product.id, bvType, amount: String(amount), dueDate, note: opStr(input, "note"), reference: product.reference },
-        successMessage: `${bvType} demandé sur ${product.reference} — ordre de dépense de ${dzd(amount)} créé.`,
+        successMessage: `${bvType} demandé sur ${product.reference} — ordre de dépense de ${montantDzd(amount)} créé.`,
         link: productLink(product.id),
         revalidate: [...REG_REVALIDATE, "/finances"],
       };

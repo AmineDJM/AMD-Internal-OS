@@ -1,6 +1,6 @@
 "use client";
 
-import { phraseIaNonConfiguree, courtIaNonConfiguree } from "@/lib/ia/cle-manquante";
+import { courtIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import * as React from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";

@@ -45,7 +45,7 @@ import { CartePorteDg } from "./porte-dg-carte";
 import { AD_PRO_DOC_CATEGORIES } from "@/lib/ad-pro/doc-categories";
 import { EditItemForm, Figure } from "./items-panel/modifier-poste";
 
-export type { LigneStockVue, ContexteMaterielStock, ArticleMagasinVue } from "./materiel-stock";
+export type { LigneStockVue } from "./materiel-stock";
 export type { VoyageurVue } from "./voyageurs-bloc";
 export type { HebergementVue } from "./hebergements-bloc";
 

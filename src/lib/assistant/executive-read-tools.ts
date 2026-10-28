@@ -7,7 +7,7 @@ import { platformScope } from "@/lib/company";
 import { chargerPorteeStock, clauseRelevesDePortee, porteeVide, explicationPortee } from "@/platform/in-process/stocks";
 import { searchEverything } from "@/lib/queries/search-everything";
 import { expandQueryWithAliases } from "@/lib/assistant/memory-context";
-import { getCalendarEvents, getUpcomingEvents, algiersInputToUtc, algiersYmd, algiersTime } from "@/lib/calendar";
+import { getCalendarEvents, getUpcomingEvents, algiersInputToUtc, algiersTime } from "@/lib/calendar";
 import { toNumber, formatMontant } from "@/lib/utils";
 import { ROLE_LABELS } from "@/lib/labels";
 

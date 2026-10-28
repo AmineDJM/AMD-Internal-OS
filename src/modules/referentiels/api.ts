@@ -27,13 +27,13 @@ export { annulerFusionPersonnes, ecarterDoublon, fusionnerPersonnes, RefusFusion
 
 // ── Commandes : les reprises (remplir le référentiel depuis l'existant) ──────────────────────
 export { REPRISES, trouverReprise } from "./infra/reprises/index";
-export { lireJournal, MODULE_JOURNAL_REFONTE, MODULE_JOURNAL_REPRISES, type EntreeJournal } from "./infra/reprises/journal";
+export { lireJournal, MODULE_JOURNAL_REFONTE } from "./infra/reprises/journal";
 
 // ── Requêtes : les fiches de lecture ─────────────────────────────────────────────────────────
-export { LIBELLE_PRISE_EN_CHARGE, lireFichePersonne, type LectureFiche } from "./infra/personnes/fiche";
+export { LIBELLE_PRISE_EN_CHARGE, lireFichePersonne } from "./infra/personnes/fiche";
 export { chargerFicheOrganisation } from "./infra/organisations/fiche";
-export { chargerFichesPersonnes, type FicheChargee } from "./infra/personnes/fiches-doublons";
+export { chargerFichesPersonnes } from "./infra/personnes/fiches-doublons";
 
 // ── Requêtes : ce que montrent les écrans de revue (une page ne lit pas Prisma) ──────────────
 export { doublonsOrganisationsARevoir, doublonsPersonnesARevoir, etatDuReferentiel } from "./infra/requetes";
-export { LIBELLE_ROLE, LIBELLE_SOURCE, type SourcePersonne } from "./infra/personnes/sources";
+export { LIBELLE_ROLE, LIBELLE_SOURCE } from "./infra/personnes/sources";

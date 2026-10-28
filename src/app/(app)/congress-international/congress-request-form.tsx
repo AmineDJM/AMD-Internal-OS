@@ -10,7 +10,7 @@ import { listBeneficiaryRefs } from "@/lib/actions/congress-beneficiary-actions"
 import { filtrerAnnuaire, PLAFOND_MENU } from "@/components/care/filtrer-annuaire";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
-import { Input, Select, Textarea, Label } from "@/components/ui/input";
+import { Input, Select, Label } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { wilayaOptions } from "@/lib/geo/algeria";
 import { NATIONAL_EVENT_TYPE } from "@/lib/labels";

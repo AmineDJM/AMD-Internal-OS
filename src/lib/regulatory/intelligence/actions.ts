@@ -2,7 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
-import { Prisma, type RegProcedureType, type RegFindingSeverity, type RegFindingStatus } from "@prisma/client";
+import { Prisma, type RegProcedureType, type RegFindingStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -14,7 +14,6 @@ import { PROCEDURE_TYPE_LABELS } from "./labels";
 import { sansBloquer } from "@/lib/journal";
 
 const FINDING_STATUSES = ["OPEN", "ACKNOWLEDGED", "RESOLVED", "WAIVED"] as const;
-const SEVERITIES = ["CRITICAL", "MAJOR", "MINOR", "INFO"] as const;
 const revalidateDossier = (id: string) => revalidatePath(`/regulatory/enregistrement/analyse/${id}`);
 
 /**
@@ -258,35 +257,6 @@ export async function createTaskFromFinding(formData: FormData): Promise<ActionR
   });
   revalidateDossier(dossierId);
   return { ok: true, taskId: task.id };
-}
-
-/** Ajout d'un constat manuel (humain) sur la dernière version. Jamais bloquant. */
-export async function addHumanFinding(formData: FormData): Promise<ActionResult> {
-  const user = await requireUser();
-  if (!regCan(user, "regulatory.finding.edit")) return { ok: false, error: "Non autorisé." };
-  const dossierId = str(formData, "dossierId");
-  const title = str(formData, "title");
-  const detail = str(formData, "detail");
-  const sevRaw = (str(formData, "severity") ?? "MAJOR") as RegFindingSeverity;
-  if (!dossierId || !title) return { ok: false, error: "Le titre est obligatoire." };
-
-  const companyId = await targetCompanyId(user.id);
-  if (!companyId) return { ok: false, error: "Module non activé." };
-  const version = await prisma.regulatoryDossierVersion.findFirst({
-    where: { dossierId, dossier: { companyId } }, orderBy: { versionNo: "desc" }, select: { id: true },
-  });
-  if (!version) return { ok: false, error: "Aucune version à annoter." };
-
-  const severity: RegFindingSeverity = SEVERITIES.includes(sevRaw) ? sevRaw : "MAJOR";
-  await prisma.regulatoryFinding.create({
-    data: {
-      dossierVersionId: version.id, code: "HUMAN_NOTE", severity, category: "content",
-      title, detail: detail || title, source: "HUMAN", draft: false, blocker: false, createdById: user.id,
-    },
-  });
-  await regAudit({ companyId, actorId: user.id, dossierId, action: "FINDING_ADDED", detail: `Constat manuel ajouté : « ${title} ».` });
-  revalidateDossier(dossierId);
-  return { ok: true };
 }
 
 /** Approuve le nom de fichier proposé (renommage définitif de la copie de travail). */

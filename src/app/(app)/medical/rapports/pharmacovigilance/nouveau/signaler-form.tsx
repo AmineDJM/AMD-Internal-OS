@@ -9,10 +9,9 @@ import { Input, Select, Textarea } from "@/components/ui/input";
 import { signalerCasPv } from "@/lib/actions/pharmacovigilance-actions";
 import { GRAVITES_PV, GRAVITE_PV } from "@/lib/pharmacovigilance/regles";
 import { lienCasPvKam } from "@/lib/chemins/rapports-terrain";
+import { plier } from "@/lib/utils";
 
 const AUTRE = "__autre__";
-
-const cle = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 /**
  * LE FORMULAIRE DE SIGNALEMENT (Direction, 06/10) — pensé pour le téléphone, en visite : produit (ses produits
@@ -36,14 +35,14 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
   const [nbFichiers, setNbFichiers] = React.useState(0);
 
   const produitsFiltres = React.useMemo(() => {
-    const q = cle(qProduit.trim());
-    return produits.filter((p) => !q || cle(p.nom).includes(q) || (p.bu && cle(p.bu).includes(q))).slice(0, 150);
+    const q = plier(qProduit.trim());
+    return produits.filter((p) => !q || plier(p.nom).includes(q) || (p.bu && plier(p.bu).includes(q))).slice(0, 150);
   }, [produits, qProduit]);
   const miens = produitsFiltres.filter((p) => p.mien);
   const autres = produitsFiltres.filter((p) => !p.mien);
   const etabsFiltres = React.useMemo(() => {
-    const q = cle(qEtab.trim());
-    return etablissements.filter((e) => !q || cle(e.nom).includes(q) || (e.lieu && cle(e.lieu).includes(q))).slice(0, 150);
+    const q = plier(qEtab.trim());
+    return etablissements.filter((e) => !q || plier(e.nom).includes(q) || (e.lieu && plier(e.lieu).includes(q))).slice(0, 150);
   }, [etablissements, qEtab]);
 
   // Une recherche qui ne laisse qu'un résultat le choisit : au téléphone, c'est un geste de moins.

@@ -84,7 +84,7 @@ interface FicheProps {
  * du sponsoring). Le mode « de groupe » cache les montants par fiche : les prix vivent au niveau du groupe.
  */
 export function FicheVoyageur(p: FicheProps) {
-  const { scope, mode, b, quotes, canEdit, canDecide, busy, run } = p;
+  const { scope, b, quotes, canEdit, canDecide, busy, run } = p;
   const confirmer = useConfirmer();
   const [menu, setMenu] = React.useState(false);
   const pieces = piecesDuProfessionnel(scope, b.cells);
@@ -97,7 +97,6 @@ export function FicheVoyageur(p: FicheProps) {
   const hotels = postesDeNature(b.cells, "HOTEL");
   const autres = autresPostes(b.cells).filter((c) => c.serviceKind !== "TICKET" && c.serviceKind !== "HOTEL");
   const principal = billetPrincipal(b.cells);
-  const groupe = mode === "GROUP";
   const somme = (cs: CellRow[]) => cs.reduce((s, c) => s + (c.status === "WAIVED" ? 0 : p.parCase.get(c.id) ?? 0), 0);
   const partGroupe = p.groupPostes.filter((g) => personnesDuPosteGroupe(g, p.personnes).some((x) => x.id === b.id)).reduce((s, g) => s + (g.status === "WAIVED" ? 0 : g.unitAmountDzd ?? 0), 0);
   const retenusDeLaFiche = quotes.filter((q) => q.status === "PENDING" && q.retained && !q.bcRequested && b.cells.some((c) => q.cellIds.includes(c.id)));

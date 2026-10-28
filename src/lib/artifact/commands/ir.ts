@@ -159,7 +159,6 @@ export const OPS_PDF = [
 ] as const;
 
 export const OPS = [...OPS_DOCX, ...OPS_XLSX, ...OPS_PPTX, ...OPS_PDF] as const;
-export type OpArtefact = (typeof OPS)[number];
 
 export const OPS_PAR_FORMAT: Record<ArtifactFormat, readonly string[]> = {
   DOCX: OPS_DOCX,
@@ -265,12 +264,4 @@ export const COMMANDE_VIDE: Omit<CommandeArtefact, "op"> = {
 
 export function commande(op: string, champs: Partial<CommandeArtefact> = {}): CommandeArtefact {
   return { ...COMMANDE_VIDE, op, ...champs };
-}
-
-/** Le format auquel appartient une opération, ou `null` si l'opération est inconnue. */
-export function formatDeLOp(op: string): ArtifactFormat | null {
-  for (const f of Object.keys(OPS_PAR_FORMAT) as ArtifactFormat[]) {
-    if (OPS_PAR_FORMAT[f].includes(op)) return f;
-  }
-  return null;
 }

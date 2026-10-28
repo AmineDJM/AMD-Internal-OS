@@ -27,7 +27,7 @@ import { actionFailureMessage } from "@/lib/action-outcome";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input, Label, Select, Textarea } from "@/components/ui/input";
+import { Input, Select, Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { CommentThread } from "@/components/shared/comment-thread";
 

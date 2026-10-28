@@ -11,10 +11,7 @@ import { DEFAULT_ZIP_LIMITS } from "../ingest/zip-inspector";
 import {
   presignPutUrl, deleteObject, objectStorageConfigured, getObjectStream, abortMultipartUpload,
 } from "@/lib/storage/object-storage";
-import {
-  CLIENT_S3, TAILLE_PARTIE, PARTIES_EN_PARALLELE, ouvrirEnvoi, planDeReprise, finaliserEnvoi,
-  type ClientS3Direct, type PlanEnvoi,
-} from "@/lib/storage/televersement-direct";
+import { CLIENT_S3, ouvrirEnvoi, planDeReprise, finaliserEnvoi, type ClientS3Direct, type PlanEnvoi } from "@/lib/storage/televersement-direct";
 import { regAudit } from "../audit";
 import { sansBloquer, attendu } from "@/lib/journal";
 
@@ -449,12 +446,6 @@ export interface DirectStartResult {
   /** Vrai quand un envoi interrompu a été REPRIS : seules les parties manquantes repartent. */
   resumed?: boolean;
 }
-
-/** Taille d'une partie en envoi direct (voir `televersement-direct.ts`). */
-export const DIRECT_PART_BYTES = TAILLE_PARTIE;
-
-/** Combien de parties en vol à la fois, côté navigateur. */
-export const DIRECT_CONCURRENCY = PARTIES_EN_PARALLELE;
 
 /** Un envoi interrompu se reprend pendant ce délai ; au-delà, il est abandonné et l'on repart. */
 const REPRISE_MS = 24 * 3600_000;

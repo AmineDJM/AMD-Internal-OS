@@ -73,7 +73,7 @@ import { enSerie } from "@/lib/refs";
 import { avalActif } from "@/lib/legal/aval";
 import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
 import { refusRevisionAval, refusPieceAmont, phrasePieceAmontNonRattachee, PIECE_AMONT_INTROUVABLE } from "@/lib/legal/piece-emise";
-import { refusPlafondAvoir, resteACrediter } from "@/lib/lecteurs/avoir";
+import { refusPlafondAvoir, netDeLaFacture } from "@/lib/lecteurs/avoir";
 import { reserveDeLAiguillage, type PorteBC } from "@/lib/bons-de-commande/regle";
 import { controlerRibDePiece } from "@/modules/coffre/api";
 import { sansBloquer } from "@/lib/journal";
@@ -1108,7 +1108,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
   }
   const p = await profilDocumentaire(user, demande.societe, { papierEnTeteId: demande.letterheadId ?? null, type });
   if (!p.ok) return p;
-  const { profil, papierOctets, habillage } = p;
+  const { profil, habillage } = p;
   if (!opts.delegation && !(await canEditCompanyId(user.id, profil.societe.id))) return echec("MISSING_PERMISSION", `Vous voyez ${profil.societe.nom} sans pouvoir l'engager : la pièce ne peut pas être émise en son nom.`);
 
   // L'AVOIR SE LIT SUR SA FACTURE (§118.195) : client, numéro et date d'origine viennent du lien, pas de la demande.
@@ -1190,7 +1190,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
   // reste refusait « entièrement créditée » la resoumission d'un avoir TOTAL au lieu de rendre la pièce — et empêchait
   // pour toujours de reprendre une émission interrompue, dont la ligne restait comptée sans fichier (§118.195).
   if (facture) {
-    const refus = refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, resteACrediter(facture.ttc, await montantsDesAvoirsActifs(facture.id)));
+    const refus = refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, netDeLaFacture(facture.ttc, await montantsDesAvoirsActifs(facture.id)));
     if (refus) return echec("MISSING_INPUT", refus);
   }
 
@@ -1223,7 +1223,7 @@ export async function emettreDocumentDrive(user: CurrentUser, demande: DemandeDo
     // compter ses avoirs et d'écrire celui-ci — entre deux processus aussi.
     if (facture) {
       await tx.$queryRaw`SELECT 1 FROM "LegalDocument" WHERE id = ${facture.id} FOR UPDATE`;
-      const refus = refusPlafondAvoir(facture.numero, totaux.totalTtc, resteACrediter(facture.ttc, await montantsDesAvoirsActifs(facture.id, tx)));
+      const refus = refusPlafondAvoir(facture.numero, totaux.totalTtc, netDeLaFacture(facture.ttc, await montantsDesAvoirsActifs(facture.id, tx)));
       if (refus) throw new PlafondAvoirDepasse(refus);
     }
     let numero: string;
@@ -1429,7 +1429,7 @@ export async function previsualiserDocument(
   const regles = verifierSpecCommerciale(spec);
   if (regles.bloquants.length > 0) return { ...commun, totaux: null, bloquants: [...regles.bloquants, ...motifAmont], avertissements: [...regles.avertissements, ...manquesDIdentite(profil)], peutEmettre: false };
   const essai = await construireDocumentCommercial(spec, habillage);
-  const plafond = facture && essai.totaux ? refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, resteACrediter(facture.ttc, facture.avoirs)) : null;
+  const plafond = facture && essai.totaux ? refusPlafondAvoir(facture.numero, essai.totaux.totalTtc, netDeLaFacture(facture.ttc, facture.avoirs)) : null;
   const bloquants = [...essai.verification.bloquants, ...(plafond ? [plafond] : []), ...motifAmont];
   // L'APERÇU AVANT IMPRESSION : le MÊME fichier que l'émission composerait, rendu en PDF par le serveur — jamais écrit.
   const rendu = opts.avecPdf && essai.verification.ok ? await docxToPdf(essai.octets) : null;

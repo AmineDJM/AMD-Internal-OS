@@ -108,7 +108,7 @@ const nextConfig = {
   // fichiers `.afm` livrés dans le paquet. Bundlé, ces fichiers ne suivent pas : la conversion
   // marcherait en développement et échouerait en production — le pire des deux mondes.
   // (Next 15 : sorti d'`experimental.serverComponentsExternalPackages`, même sens.)
-  serverExternalPackages: ["bcryptjs", "imapflow", "nodemailer", "mailparser", "pdf-parse", "mammoth", "xlsx", "tesseract.js", "mupdf", "sharp", "docxtemplater", "pizzip", "pdfkit", "@mastra/core"],
+  serverExternalPackages: ["bcryptjs", "imapflow", "nodemailer", "mailparser", "pdf-parse", "mammoth", "xlsx", "tesseract.js", "mupdf", "sharp", "pizzip", "pdfkit", "@mastra/core"],
   // ── TRAÇAGE DES FICHIERS (`.nft.json`) ────────────────────────────────────────────────
   //
   // Next 14 permettait `outputFileTracing: false` (le traçage portait le parent à ~3 Go au pic,

@@ -14,7 +14,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import { type Rigueur, arrondi, ecartType, mediane, moyenne, percentile, rigueurVide } from "./rigueur";
+import { type Rigueur, arrondi, ecartType, mediane, moyenne, rigueurVide } from "./rigueur";
 
 export const POINTS_MIN = 6;
 export const POINTS_MAX = 100_000;

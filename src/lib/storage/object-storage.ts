@@ -474,26 +474,6 @@ export function euJurisdictionHost(host: string): string | null {
   return eu === host ? null : eu;
 }
 
-/**
- * Liste les buckets visibles pour ces identifiants À CET endpoint (S3 ListBuckets, GET `/`).
- * NB : un token R2 *scopé* à un bucket renvoie 403 AccessDenied ici (normal) — la sonde décisive
- * est `probeJurisdiction()`. Lève une erreur explicite si l'appel échoue.
- */
-export async function listBuckets(): Promise<string[]> {
-  const cfg = config();
-  if (!cfg) throw new Error("Stockage objet non configuré.");
-  const base = new URL(cfg.endpoint);
-  const host = base.host;
-  const headers = signAuthHeaders(cfg, "GET", host, "/", "", EMPTY_SHA256);
-  const res = await fetch(`${base.protocol}//${host}/`, { method: "GET", headers });
-  if (!res.ok) {
-    const detail = await res.text().catch(attendu("corps d\'une réponse en échec : le statut HTTP suffit au diagnostic", ""));
-    const code = s3ErrorCode(detail);
-    throw new Error(`Liste des buckets échouée (${res.status}${code ? ` ${code}` : ""}).`);
-  }
-  return parseBucketNames(await res.text());
-}
-
 /** Résultat de la sonde de juridiction : où le bucket cible existe-t-il ? */
 export interface JurisdictionProbe {
   bucket: string;

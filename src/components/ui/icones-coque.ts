@@ -83,6 +83,9 @@ import {
  * Ajouter une icône au menu = l'ajouter ICI (import + entrée), dans l'ordre alphabétique.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+// La table répète la liste des imports PAR CONSTRUCTION : des imports nommés, une à une, sont ce qui garde les
+// ~1 400 autres icônes hors de la coque (PERF-05). Ce n'est pas un doublon à fusionner.
+// jscpd:ignore-start
 export const ICONES_COQUE = {
   Banknote,
   BookOpen,
@@ -150,5 +153,4 @@ export const ICONES_COQUE = {
   Wallet,
   Warehouse,
 } satisfies Record<string, LucideIcon>;
-
-export type NomIconeCoque = keyof typeof ICONES_COQUE;
+// jscpd:ignore-end

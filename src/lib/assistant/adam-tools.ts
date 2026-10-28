@@ -1,11 +1,9 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { hasGlobalView } from "@/lib/rbac";
-import { MissionStatus } from "@prisma/client";
 import { getGoogleStatus, getActiveGoogleConnection } from "@/lib/google/connection";
 import { adamConnection } from "@/lib/google/gmail/reconcile";
-import { getThread, searchMessages } from "@/lib/google/gmail/messages";
+import { getThread } from "@/lib/google/gmail/messages";
 import { addLabels, archiveMessage, ensureLabel, markRead, trashMessage } from "@/lib/google/gmail/labels";
 import { listEvents, freeBusy, findFreeSlots, ALGIERS_TZ } from "@/lib/google/calendar/provider";
 import { searchFiles, downloadFile, uploadFile as uploadToGoogleDrive } from "@/lib/google/drive/provider";
@@ -14,10 +12,7 @@ import { createOutboundIntent, pendingApprovals } from "@/lib/comms/outbound";
 import { getCommunicationPolicy, POLICY_LABEL } from "@/lib/comms/policy";
 import { wrapUntrusted, wrapAttachmentText } from "@/lib/comms/untrusted";
 import { shouldReplyTo, checkRateLimits } from "@/lib/comms/loop-safety";
-import {
-  createMission, missionSnapshot, activeMissions, setMissionExtracted,
-  nudgeCandidates, MISSION_STATUS_LABEL, recordMissionEvent,
-} from "@/lib/comms/missions";
+import { createMission, missionSnapshot, activeMissions, setMissionExtracted, nudgeCandidates, MISSION_STATUS_LABEL } from "@/lib/comms/missions";
 import { getBlob } from "@/lib/drive-storage";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { extractAttachmentText } from "@/lib/assistant-files";
@@ -1058,32 +1053,3 @@ export const ADAM_TOOLS: PowerTool[] = [
     },
   },
 ];
-
-/**
- * Recherche Gmail EN DIRECT (au-delà de ce qui est ingéré) — utilisée par la recherche fédérée
- * quand l'index local ne rend rien. Bornée, tolérante : une panne Google ne casse pas la
- * recherche du Chief.
- */
-export async function liveGmailSearch(user: CurrentUser, query: string, limit = 8): Promise<{ subject: string; from: string; date: string; snippet: string }[]> {
-  if (!hasGlobalView(user)) return [];
-  try {
-    const conn = await getActiveGoogleConnection(user.id);
-    if (!conn) return [];
-    const messages = await searchMessages(conn.accessToken, { q: query, maxResults: limit });
-    return messages.map((m) => ({
-      subject: m.subject,
-      from: m.from.address,
-      date: m.sentAt?.toISOString() ?? "",
-      snippet: m.snippet.slice(0, 200),
-    }));
-  } catch {
-    return [];
-  }
-}
-
-/** Journalise un geste de mission depuis l'extérieur du moteur (envoi approuvé, relance). */
-export async function noteMissionActivity(missionId: string, summary: string): Promise<void> {
-  await recordMissionEvent(missionId, "NOTE", summary).catch(sansBloquer("adam-tools.noteMissionActivity.recordMissionEvent"));
-}
-
-export const ADAM_MISSION_STATUSES = MissionStatus;

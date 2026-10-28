@@ -43,22 +43,22 @@ suite("API v1 — comptes et journal d'audit : la portée `erp.admin` est exigé
 
   it("sans `erp.admin` : la liste des comptes et du journal est refusée, la fiche d'un compte aussi", async () => {
     for (const entite of ["user", "audit_log"]) {
-      const r = await listGET(appel(`/api/v1/entities/${entite}`, cles.lecture), { params: { entity: entite } });
+      const r = await listGET(appel(`/api/v1/entities/${entite}`, cles.lecture), { params: Promise.resolve({ entity: entite }) });
       expect(r.status, entite).toBe(403);
       expect((await r.json()).error.code).toBe("MISSING_SCOPE");
     }
-    const fiche = await ficheGET(appel(`/api/v1/entities/user/${adminId}`, cles.lecture), { params: { entity: "user", id: adminId } });
+    const fiche = await ficheGET(appel(`/api/v1/entities/user/${adminId}`, cles.lecture), { params: Promise.resolve({ entity: "user", id: adminId }) });
     expect(fiche.status).toBe(403);
   });
 
   it("sans `erp.admin` : la recherche ne passe pas par les comptes", async () => {
-    const r = await searchGET(appel(`/api/v1/search?q=${TAG}&entities=user`, cles.lecture), { params: {} });
+    const r = await searchGET(appel(`/api/v1/search?q=${TAG}&entities=user`, cles.lecture), { params: Promise.resolve({}) });
     expect(r.status).toBe(200);
     expect(JSON.stringify(await r.json())).not.toContain(adminId);
   });
 
   it("témoin : avec `erp.admin`, la même identité liste les comptes", async () => {
-    const r = await listGET(appel(`/api/v1/entities/user?q=${TAG}`, cles.admin), { params: { entity: "user" } });
+    const r = await listGET(appel(`/api/v1/entities/user?q=${TAG}`, cles.admin), { params: Promise.resolve({ entity: "user" }) });
     expect(r.status).toBe(200);
     expect(((await r.json()).data.items as { id: string }[]).map((u) => u.id)).toContain(adminId);
   });

@@ -154,12 +154,6 @@ export async function getDepartmentMembers(
   });
 }
 
-/** Comptes applicatifs des membres d'un département (pour notifier / habiliter). */
-export async function getDepartmentUserIds(departmentId: string, includeSubDepartments = true): Promise<string[]> {
-  const members = await getDepartmentMembers(departmentId, { includeSubDepartments });
-  return members.map((m) => m.userId).filter((id): id is string => Boolean(id));
-}
-
 // ───────────────────────────── Hiérarchie réelle (N+1) ─────────────────────────────
 
 export interface ManagerRef {

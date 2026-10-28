@@ -4,7 +4,6 @@ import { createHash } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { regCan } from "../access";
 import { regAudit } from "../audit";
 import { splitIntoSections } from "./import";
 import { ingestCorpusFile, type FileIngestResult } from "./ingest-file";
