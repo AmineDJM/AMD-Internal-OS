@@ -332,14 +332,18 @@ const SOCLE = [
 // construction (recherche de contenu, registre des sources), consommée par Adam ET par les
 // domaines, qui n'importe jamais `assistant/`.
 //
-// `admin-delete-registry` (lot V4, découpage des fichiers géants) : une couche TRANSVERSE par
-// construction, qui n'était rangée nulle part (hors carte). Le REGISTRE des suppressions déclare,
-// pour chaque genre de TOUS les métiers, comment le décrire, le refuser et l'effacer (il lit
-// `queries/` et les règles de refus des domaines) ; seuls Adam, le pont, une façade et des fichiers
-// hors carte l'importent — chemin entier, porte comprise.
+// `admin-delete-registry` et `entity-access/` (lot V4, découpage des fichiers géants) : deux couches
+// TRANSVERSES par construction, qui n'étaient rangées nulle part (hors carte). Le REGISTRE des
+// suppressions déclare, pour chaque genre de TOUS les métiers, comment le décrire, le refuser et
+// l'effacer (il lit `queries/` et les règles de refus des domaines) ; seuls Adam, le pont, une
+// façade et des fichiers hors carte l'importent — chemin entier, porte comprise. La garde
+// `canAccessEntity` répond par enregistrement pour tout le parc (`queries/` + une règle par
+// domaine) : ses MORCEAUX sont une façade, mais sa PORTE `entity-access.ts` reste hors carte, car
+// trois domaines (regulatory, legal, mail) l'appellent — la déclarer façade compterait trois
+// inversions de couche, à défaire chez eux d'abord.
 const FACADES = [
   "src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/",
-  "src/lib/admin-delete-registry",
+  "src/lib/admin-delete-registry", "src/lib/entity-access/",
 ];
 
 /**
