@@ -63,17 +63,8 @@ const HERITES: Readonly<Record<string, number>> = {
   "src/lib/assistant/ops/impl-wave6.ts": 1009,
   "src/lib/assistant/ops/index.ts": 1282,
   "src/lib/carte-plateforme/catalogue.ts": 1214,
-  "src/lib/missions/compiler/compile.ts": 1339,
-  "src/lib/missions/runtime/engine.ts": 1996,
-  "src/lib/models/openai-responses.ts": 1012,
   "src/lib/payslip/docx-composition.ts": 1060,
   "src/lib/payslip/docx-lecture.ts": 1507,
-  "src/lib/regulatory/intelligence/jobs/runner.ts": 1214,
-  "src/lib/workflow/engine.ts": 1884,
-  "src/platform/in-process/artifact/factory.ts": 1859,
-  "src/platform/in-process/missions/acceptance.ts": 1342,
-  "src/platform/in-process/missions/provider-smoke.ts": 1030,
-  "src/platform/in-process/missions/runtime.ts": 1383,
 };
 
 function fichiersDeProduction(dir: string, out: string[] = []): string[] {
