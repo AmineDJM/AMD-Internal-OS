@@ -59,16 +59,18 @@ export function ecrituresSansPorte(chemin: string, src: string): string[] {
 }
 
 /**
- * Mesuré le 28/10/2026 (lot V3-F) : 589 écritures sans porte avant ce lot ; 577 après la migration du livre
- * comptable et des ordres de dépense (règlement, report, centre de paiement) vers `ouvrirPourEcrire`. Il ne peut que baisser.
+ * Mesuré le 28/10/2026 (lot V3-F) : 589 écritures sans porte avant ce lot ; 574 après la migration du livre
+ * comptable, des ordres de dépense (règlement, report, centre de paiement) et des événements vers
+ * `ouvrirPourEcrire`. Il ne peut que baisser.
  */
-const PLAFOND_ECRITURES_SANS_PORTE = 577;
+const PLAFOND_ECRITURES_SANS_PORTE = 574;
 
 /** Les domaines migrés : aucune écriture par identifiant sans porte, jamais. */
 const FICHIERS_A_ZERO = [
   "src/lib/actions/expense-actions.ts",
   "src/lib/actions/payment-centre-actions.ts",
   "src/lib/actions/finance-actions.ts",
+  "src/lib/actions/event-actions.ts",
 ];
 
 describe("l'écriture par identifiant passe par une porte", () => {
