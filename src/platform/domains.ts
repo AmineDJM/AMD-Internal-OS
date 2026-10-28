@@ -181,6 +181,12 @@ const SOCLE = [
    */
   "src/lib/bons-de-commande/regle",
   /**
+   * `actions/contrat/` — les morceaux du LECTEUR DE CONTRAT des actions (`actions/contrat.ts`, lot V4) :
+   * découpage de la source, formulaire, écritures, porte, champs, arguments. Zéro import hors du
+   * dossier ; Adam (par le pont), les tests et les scripts le lisent. Pur par construction.
+   */
+  "src/lib/actions/contrat/",
+  /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions
    * en lisent les refus. Chemin EXACT, comme `regle`.
@@ -348,9 +354,14 @@ const SOCLE = [
 // domaine) : ses MORCEAUX sont une façade, mais sa PORTE `entity-access.ts` reste hors carte, car
 // trois domaines (regulatory, legal, mail) l'appellent — la déclarer façade compterait trois
 // inversions de couche, à défaire chez eux d'abord.
+//
+// `actions/internes/` (lot V4) : ce que les fichiers d'actions serveur ont sorti d'eux-mêmes pour passer
+// sous 1 000 lignes — aides, types, lectures, corps intermédiaires. Même couche que les actions qu'elles
+// servent (elles lisent les domaines et les façades), jamais importées par un domaine. Hors de la racine de
+// `actions/` et sans `"use server"` : ce ne sont PAS des actions (`actions/parc.ts`).
 const FACADES = [
   "src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/",
-  "src/lib/admin-delete-registry", "src/lib/entity-access/",
+  "src/lib/admin-delete-registry", "src/lib/entity-access/", "src/lib/actions/internes/",
 ];
 
 /**
