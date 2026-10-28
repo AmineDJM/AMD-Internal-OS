@@ -34,12 +34,12 @@ structure physique qui ne dit pas où vit un métier.
 
 | Ordre | Chantier | Source | Effort |
 |---|---|---|---|
-| 1 | **Sauvegardes et restauration testée** : Postgres payant avec PITR, procédure de restauration écrite et rejouée | 10 | S |
+| 1 | ✅ **Sauvegardes et restauration testée** (28/10) : copie nocturne chiffrée hors de Render, rétention, restauration vérifiée chaque dimanche — `docs/readme/37-sauvegardes-restauration.md` ; reste à poser les secrets et, en complément, un Postgres payant avec PITR | 10 | S |
 | 2 | **Rendre les cliquets d'architecture vrais** (imports relatifs, `src/app` et `src/components` mesurés) puis les repasser au vert sans relever de plafond | 08, 06 | M |
 | 3 | **Monter Next 15 / next-auth stable**, corriger `npm audit` | 10 | M |
 | 4 | **Primitives UI** : toast/bandeau, dialogue accessible, `useAction` partout (remplace 125 `confirm()`, 45 `alert()`) | 09 | M |
 | 5 | **Session légère** pour les sondages de la coque ; icônes à l'unité | 07 | S |
-| 6 | **Worker séparé** pour les tâches de fond (lot refonte V2-F) | 07, 10 | M |
+| 6 | ✅ **Worker séparé** livré (V2-F) et déclaré dans `render.yaml` (28/10), en attente de bascule `TACHES_DE_FOND` | 07, 10 | M |
 | 7 | **Plafonds et journal des appels IA** de l'Assistant IA (coût par personne, par jour) | 06 | S |
 | 8 | **Erreurs avalées** : remplacer `catch(() => valeur)` par un journal nommé (règle ESLint + cliquet décroissant) | 10 | M |
 | 9 | **Séparation des tâches** au centre de paiement (qui demande ≠ qui paie) — décision de Direction | 03 | S |
