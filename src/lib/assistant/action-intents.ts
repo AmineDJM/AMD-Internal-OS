@@ -221,7 +221,7 @@ export const ERREUR_INTERROMPUE = "Action interrompue (redémarrage du serveur p
 export const REFUS_EXPIREE = "Cette carte a expiré sans avoir été confirmée : elle n'a jamais été exécutée. Redemandez l'action à l'assistant.";
 
 export async function expirationCartesMs(): Promise<number> {
-  const r = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { expirationCartesHeures: true } }).catch(() => null);
+  const r = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { expirationCartesHeures: true } }).catch(sansBloquer("assistant-action-intents.expiration.reglage", null));
   const h = r?.expirationCartesHeures && r.expirationCartesHeures > 0 ? r.expirationCartesHeures : EXPIRATION_PAR_DEFAUT_H;
   return h * 3600 * 1000;
 }

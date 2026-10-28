@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { logAiUsage } from "@/lib/ai-settings";
 import { notifyUser } from "@/lib/notify";
+import { sansBloquer } from "@/lib/journal";
 import {
   coutEstimeUsd, debutJourAlger, jourAlger, normaliserReglages, refusPlafondJour, refusPlafondTour,
   REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa, type Tarif,
@@ -123,7 +124,7 @@ export async function signalerPlafondJour(userId: string, jetons: number, plafon
         body: `${Math.round(jetons).toLocaleString("fr-FR")} jetons consommés pour un plafond de ${plafond.toLocaleString("fr-FR")}. `
           + "Ses demandes sont refusées jusqu'à minuit (heure d'Alger). Le plafond se règle dans Consommation IA.",
         link: "/admin/ai/consommation",
-      }).catch(() => undefined);
+      }).catch(sansBloquer("agent-consommation.plafondAtteint.notifyUser"));
     }
     return true;
   } catch (e) {

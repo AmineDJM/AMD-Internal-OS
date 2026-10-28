@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { attendu } from "@/lib/journal";
 
 /**
  * LE JOURNAL DE CONSOMMATION D'UN BANC, EFFACÉ — chaque tour joué au faux modèle écrit, comme en
@@ -10,8 +11,8 @@ export async function effacerJournalDe(userIds: (string | null | undefined)[]): 
   const ids = userIds.filter((x): x is string => !!x);
   if (!ids.length) return;
   await Promise.all([
-    prisma.modelCallLog.deleteMany({ where: { userId: { in: ids }, feature: "assistant_ia" } }).catch(() => undefined),
-    prisma.aiUsageLog.deleteMany({ where: { userId: { in: ids }, feature: "assistant_ia" } }).catch(() => undefined),
-    prisma.assistantIaPlafondAtteint.deleteMany({ where: { userId: { in: ids } } }).catch(() => undefined),
+    prisma.modelCallLog.deleteMany({ where: { userId: { in: ids }, feature: "assistant_ia" } }).catch(attendu("banc : journal du compte déjà effacé")),
+    prisma.aiUsageLog.deleteMany({ where: { userId: { in: ids }, feature: "assistant_ia" } }).catch(attendu("banc : journal du compte déjà effacé")),
+    prisma.assistantIaPlafondAtteint.deleteMany({ where: { userId: { in: ids } } }).catch(attendu("banc : journal du compte déjà effacé")),
   ]);
 }
