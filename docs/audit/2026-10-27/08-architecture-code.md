@@ -71,7 +71,7 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > | Kit d'interface → métier | 6 | **5** (`linked-records.tsx` lit la règle par `queries/chaine-des-pieces.ts`) |
 > | Tests qui lisent le source par chemin (hors modules) | 128 | **122** (les gardes du métier vivent dans le module) |
 > | Dette héritée nommée (`DETTE_HERITEE.finances`) | — | 52 arêtes (notifications/numérotation, entité de l'argent, pièces, factures connues, clôture des chantiers au règlement, budgets) |
-> | Suite complète | 1 375 fichiers, 15 886 tests, 0 échec | RESULTAT_APRES |
+> | Suite complète | 1 375 fichiers, 15 886 tests, 0 échec | 1 376 fichiers, 15 936 tests (fusion du lot V4 « fichiers géants » comprise), **0 échec** ; `build:render` propre |
 
 ### ARCH-01 — Les cliquets ignorent les imports relatifs · HAUTE · **CORRIGÉ** (`f4a70c7`)
 
