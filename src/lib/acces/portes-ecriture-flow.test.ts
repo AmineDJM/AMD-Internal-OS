@@ -22,7 +22,8 @@ let ACTEUR: CurrentUser | null = null;
 vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
-import { getAccess, type Role } from "@/lib/rbac";
+import type { UserRole } from "@prisma/client";
+import { getAccess } from "@/lib/rbac";
 import { addRegistration, setRegistrationStatus, deleteRegistration, deleteEvent } from "@/lib/actions/event-actions";
 import { validateFieldReport, updateFieldReport } from "@/lib/actions/field-report-actions";
 import { updateLegalFolder, deleteLegalFolder } from "@/lib/actions/legal-folder-actions";
@@ -36,7 +37,7 @@ const TAG = `zportes${Date.now().toString(36)}`;
 const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
 const ids = { A: "", B: "", ev: "", mgr: "", leg: "" };
 const acteurs: Record<"ev" | "mgr" | "leg", CurrentUser | null> = { ev: null, mgr: null, leg: null };
-const ROLES: Record<"ev" | "mgr" | "leg", Role> = { ev: "COORDINATOR", mgr: "MEDICAL_PROMOTION_MANAGER", leg: "COORDINATOR" };
+const ROLES: Record<"ev" | "mgr" | "leg", UserRole> = { ev: "COORDINATOR", mgr: "MEDICAL_PROMOTION_MANAGER", leg: "COORDINATOR" };
 
 suite("Écritures par identifiant : la société de l'objet", () => {
   beforeAll(async () => {
