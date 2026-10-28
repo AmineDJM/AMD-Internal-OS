@@ -1,5 +1,17 @@
 ## 🧾 Journal des évolutions récentes
 
+### ASSISTANT IA SUR OPENAI, CAISSE D'AVANCE CRÉDITÉE À L'AUTORISATION, BUILD RENDER SOUS 8 GO (2026-10-28)
+
+- **Assistant IA → OpenAI `gpt-6.1-terra`** (Direction) : il utilise la clé `OPENAI_API_KEY` déjà en service, par l'API
+  Responses (décision [0010](../assistant/decisions/0010-assistant-sur-openai.md)). Sans clé, il dit la variable exacte à poser.
+- **Le circuit expliqué par l'assistant** ne récite plus « Validation du DG » comme une étape : le DG valide le TOTAL à la fin,
+  au-dessus du seuil ; la réponse dit les branches réelles (`parcoursAdPro`) et ce qui suit la prévalidation.
+- **Caisse d'avance** (Direction) : une remise ou une rallonge autorisée par le **centre de paiement** entre **directement**
+  dans la caisse des moyens généraux — ordre réglé, sortie en liquide non classée, remise en main — sans passer par
+  « Banque & paiements » ni par une confirmation de réception. Un seul écrivain : `src/lib/general-means/verser-remise.ts`.
+- **Build Render** : plus de cache webpack persistant au build de production (`next.config.mjs`) — le worker serveur de
+  Next 15 mourait en OOM et le conteneur dépassait 8 Go ; mesuré : pic 4985 Mo (contre 5532 et OOM), `.next` 315 Mo.
+
 ### V3-G : LE MONOLITHE MODULAIRE DEVIENT EXÉCUTABLE — LIEUX, COFFRE ET RÉFÉRENTIELS DANS `src/modules/` (2026-10-28)
 
 Aucun écran ne change, aucune donnée n'est touchée, aucune migration. La structure cible du rapport d'audit 08 est

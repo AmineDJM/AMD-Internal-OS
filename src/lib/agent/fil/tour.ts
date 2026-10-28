@@ -2,7 +2,7 @@ import type { CurrentUser } from "@/lib/session";
 import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
-import { DELAI_MIMO_MS, IA_NON_CONFIGUREE } from "@/lib/agent/modele";
+import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "@/lib/agent/modele";
 import { modelesEffectifs } from "@/lib/agent/generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "@/lib/agent/consommation";
@@ -122,7 +122,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const r = await repondreAvecSecours({
       user, message, historique: saisie.historique, instructions,
       origine: d.conversation ? "fil" : "conversation", conversation: d.conversation ?? null,
-      outils, modeles, delaiMs: d.delaiMs ?? DELAI_MIMO_MS, config,
+      outils, modeles, delaiMs: d.delaiMs ?? DELAI_MODELE_MS, config,
       propositionsFaites: () => propositions.length,
       maxEtapes: d.maxEtapes,
       surTexte: d.surTexte,
