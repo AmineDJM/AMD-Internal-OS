@@ -575,9 +575,14 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
     await comme("kam");
     let geste!: Promise<Awaited<ReturnType<typeof retirerDemandeBC>>>;
     await prisma.$transaction(async (tx) => {
-      // Les écritures du registre attendent, ses lectures passent : l'annulation lit un BC NON signé, puis
-      // bute sur le verrou ; le détenteur signe le BC (il peut écrire), puis relâche.
-      await tx.$executeRawUnsafe(`LOCK TABLE "LegalDocument" IN SHARE MODE`);
+      // Les écritures sur CE BC attendent, ses lectures passent : l'annulation lit un BC NON signé, puis bute
+      // sur le verrou ; le détenteur signe le BC (il peut écrire), puis relâche.
+      //
+      // Un verrou de LIGNE, et une barrière qui ne compte que les connexions bloquées PAR CETTE TRANSACTION :
+      // l'ancien verrou de table bloquait aussi les écritures des autres fichiers de la suite, et la première
+      // d'entre elles suffisait à franchir la barrière avant que le geste y soit — sous charge, la signature
+      // passait alors AVANT la lecture, et le geste répondait « est signé » au lieu de « vient de changer ».
+      await tx.$queryRaw`SELECT id FROM "LegalDocument" WHERE id = ${pieceId} FOR SHARE`;
       geste = retirerDemandeBC(undefined, fd({ id, motif: "Course." }));
       geste.catch(() => undefined);
       const debut = Date.now();
@@ -585,8 +590,7 @@ suite("Ad & Pro — réviser un poste : visa, demande de BC, ordre, décision, r
         await tx.$executeRawUnsafe("SELECT pg_stat_clear_snapshot()");
         const [{ n }] = await tx.$queryRaw<{ n: number }[]>`
           SELECT count(*)::int AS n FROM pg_stat_activity
-          WHERE datname = current_database() AND pid <> pg_backend_pid()
-            AND wait_event_type = 'Lock' AND query ILIKE ANY(${["%LegalDocument%"]}::text[])`;
+          WHERE pid <> pg_backend_pid() AND pg_backend_pid() = ANY(pg_blocking_pids(pid))`;
         if (n >= 1) break;
         if (Date.now() - debut > 10_000) throw new Error("le geste n'a pas atteint la barrière");
         await new Promise((res) => setTimeout(res, 25));
