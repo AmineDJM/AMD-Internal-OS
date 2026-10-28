@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Check, Loader2, Lock, AlertCircle, ShieldCheck, Plus, ThumbsUp, ThumbsDown, Receipt } from "lucide-react";
 import {
   setDepartmentBudget, requestDepartmentBudget, decideDepartmentBudgetRequest, annulerDemandeBudgetDepartement, addDepartmentExpense,
@@ -261,7 +264,7 @@ function AmountCell({
   departmentId: string; year: number; kind: DeptBudgetKind;
   value: number; readOnly: boolean; onError: (e: string | null) => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [text, setText] = React.useState(value ? String(value) : "");
   const [busy, setBusy] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -295,7 +298,10 @@ function AmountCell({
         initial.current = text;
         setSaved(true);
         setTimeout(() => setSaved(false), 1500);
-        router.refresh();
+        rafraichir();
+      } catch {
+        onError(actionFailureMessage("THROWN"));
+        setText(initial.current); // rien n'est sûr d'avoir été retenu : on rend la valeur connue
       } finally {
         setBusy(false);
       }
@@ -345,7 +351,7 @@ function Consumption({ allocated, consumed }: { allocated: number; consumed: num
 function RequestForm({ departmentId, path, year, onDone, onError }: {
   departmentId: string; path: string; year: number; onDone: () => void; onError: (e: string | null) => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   return (
     <form
@@ -357,8 +363,8 @@ function RequestForm({ departmentId, path, year, onDone, onError }: {
         setBusy(true); onError(null);
         void requestDepartmentBudget(fd).then((r) => {
           setBusy(false);
-          if (r.ok) { onDone(); router.refresh(); } else onError(r.error ?? "Échec.");
-        });
+          if (r.ok) { onDone(); rafraichir(); } else onError(r.error ?? "La demande de dotation n'a pas été envoyée.");
+        }).catch(() => { setBusy(false); onError(actionFailureMessage("THROWN")); });
       }}
       className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3"
     >
@@ -404,7 +410,7 @@ function RequestForm({ departmentId, path, year, onDone, onError }: {
 function ExpenseForm({ departmentId, path, year, onDone, onError }: {
   departmentId: string; path: string; year: number; onDone: () => void; onError: (e: string | null) => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   return (
     <form
@@ -416,8 +422,8 @@ function ExpenseForm({ departmentId, path, year, onDone, onError }: {
         setBusy(true); onError(null);
         void addDepartmentExpense(fd).then((r) => {
           setBusy(false);
-          if (r.ok) { onDone(); router.refresh(); } else onError(r.error ?? "Échec.");
-        });
+          if (r.ok) { onDone(); rafraichir(); } else onError(r.error ?? "La dépense n'a pas été imputée.");
+        }).catch(() => { setBusy(false); onError(actionFailureMessage("THROWN")); });
       }}
       className="space-y-2 rounded-xl border border-border bg-secondary/30 p-3"
     >
@@ -460,7 +466,8 @@ function ExpenseForm({ departmentId, path, year, onDone, onError }: {
 function RequestList({ requests, canDecide, onError }: {
   requests: DeptBudgetRequestRow[]; canDecide: boolean; onError: (e: string | null) => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [busy, setBusy] = React.useState<string | null>(null);
 
   const decide = (id: string, decision: "APPROVED" | "REJECTED") => {
@@ -469,20 +476,20 @@ function RequestList({ requests, canDecide, onError }: {
     fd.set("id", id); fd.set("decision", decision);
     void decideDepartmentBudgetRequest(fd).then((r) => {
       setBusy(null);
-      if (r.ok) router.refresh(); else onError(r.error ?? "Échec.");
-    });
+      if (r.ok) rafraichir(); else onError(r.error ?? "La décision n'a pas été enregistrée.");
+    }).catch(() => { setBusy(null); onError(actionFailureMessage("THROWN")); });
   };
 
   // RETIRER SA DEMANDE (décision du 04/10) — tant que l'administration ne l'a pas tranchée.
-  const retirer = (id: string) => {
-    if (!window.confirm("Retirer cette demande de dotation ? L'administration en sera prévenue.")) return;
+  const retirer = async (id: string) => {
+    if (!(await confirmer("Retirer cette demande de dotation ? L'administration en sera prévenue."))) return;
     setBusy(id); onError(null);
     const fd = new FormData();
     fd.set("id", id);
     void annulerDemandeBudgetDepartement(fd).then((r) => {
       setBusy(null);
-      if (r.ok) router.refresh(); else onError(r.error ?? "Échec.");
-    });
+      if (r.ok) rafraichir(); else onError(r.error ?? "La demande n'a pas été retirée.");
+    }).catch(() => { setBusy(null); onError(actionFailureMessage("THROWN")); });
   };
 
   return (
@@ -512,7 +519,7 @@ function RequestList({ requests, canDecide, onError }: {
               <span className="flex flex-wrap items-center gap-1.5">
                 <Badge tone="warning" dot={false}>En attente de l&apos;administration</Badge>
                 {q.canCancel && (
-                  <button type="button" disabled={busy === q.id} onClick={() => retirer(q.id)}
+                  <button type="button" disabled={busy === q.id} onClick={() => void retirer(q.id)}
                     className="inline-flex min-h-9 items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 sm:min-h-0">
                     Retirer
                   </button>

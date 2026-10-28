@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,7 +38,7 @@ export function ParNatureMois({
   /** La liste est-elle plafonnée ? (la carte le dit) */
   tronque: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [mois, setMois] = React.useState(moisInitial);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -59,8 +60,11 @@ export function ParNatureMois({
     setBusy(true); setMsg(null);
     void classerDepensesNonClassees(fd).then((r) => {
       setBusy(false);
-      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Rangé." : r.error ?? "Échec." });
-      if (r.ok) router.refresh();
+      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Rangé." : r.error ?? "Les dépenses n'ont pas été rangées." });
+      if (r.ok) rafraichir();
+    }).catch(() => {
+      setBusy(false);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 

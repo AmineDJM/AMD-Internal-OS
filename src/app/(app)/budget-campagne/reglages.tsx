@@ -146,7 +146,7 @@ export function ReglagesCampagne({ mode, campagne, departements, valideursPossib
                       </td>
                     )}
                     <td className={td}>
-                      {p.version === 0 && <button type="button" className={btn} disabled={busy} onClick={() => { if (window.confirm(`Retirer « ${p.pole} » ?`)) void run(retirerPoleCampagne, { proposalId: p.id }); }}>Retirer</button>}
+                      {p.version === 0 && <button type="button" className={btn} disabled={busy} onClick={() => void run(retirerPoleCampagne, { proposalId: p.id }, { confirmer: `Retirer « ${p.pole} » ?` })}>Retirer</button>}
                     </td>
                   </tr>
                 ))}

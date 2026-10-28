@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Receipt, Loader2, Plus, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +40,7 @@ export function ExpensePanel({
   /** La caisse d'avance, quand elle contient quelque chose ET qu'on peut en sortir de l'argent. */
   cash?: { status: string; remaining: number; canSpend: boolean } | null;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
@@ -85,9 +86,12 @@ export function ExpensePanel({
                 ok: r.ok,
                 text: r.ok
                   ? (source === "CASH" ? "Dépense enregistrée et déduite de la caisse d'avance." : "Dépense enregistrée et déduite de la caisse de l'exercice.")
-                  : (r.error ?? "Échec."),
+                  : (r.error ?? "La dépense n'a pas été enregistrée."),
               });
-              if (r.ok) { setOpen(false); setTotal(0); router.refresh(); }
+              if (r.ok) { setOpen(false); setTotal(0); rafraichir(); }
+            }).catch(() => {
+              setBusy(false);
+              setMsg({ ok: false, text: actionFailureMessage("THROWN") });
             });
           }}
           className="space-y-3"

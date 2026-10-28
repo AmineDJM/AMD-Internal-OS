@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { Check, X, MessageSquareWarning, Loader2, Undo2 } from "lucide-react";
 import { reviewValidationItem, clearValidationItem } from "@/lib/actions/validation-actions";
 import { Button } from "@/components/ui/button";
@@ -38,11 +38,13 @@ export function ItemReview({
   current?: string;
   currentComment?: string;
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState<null | Decision>(null);
   const [comment, setComment] = React.useState(currentComment ?? "");
-  const [pending, start] = React.useTransition();
-  const [err, setErr] = React.useState<string | null>(null);
+  const verdict = useAction();
+  // « Effacer » est une icône sans place pour parler : un refus part en avis flottant.
+  const effacement = useAction({ signalerErreurs: true });
+  const pending = verdict.busy || effacement.busy;
+  const { err, setErr } = verdict;
 
   const begin = (d: Decision) => { setErr(null); setComment(currentComment ?? ""); setOpen(d); };
 
@@ -53,19 +55,14 @@ export function ItemReview({
     fd.set("itemKey", itemKey);
     fd.set("decision", open);
     fd.set("comment", comment.trim()); // commentaire OPTIONNEL
-    start(async () => {
-      const r = await reviewValidationItem(fd);
-      if (!r.ok) { setErr(r.error ?? "Erreur."); return; }
-      setOpen(null);
-      router.refresh();
-    });
+    void verdict.run(() => reviewValidationItem(fd), () => setOpen(null));
   };
 
   const clear = () => {
     const fd = new FormData();
     fd.set("stepId", stepId);
     fd.set("itemKey", itemKey);
-    start(async () => { await clearValidationItem(fd); router.refresh(); });
+    void effacement.run(() => clearValidationItem(fd));
   };
 
   if (open) {

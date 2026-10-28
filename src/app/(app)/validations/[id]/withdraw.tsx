@@ -6,6 +6,7 @@ import { Loader2, Trash2 } from "lucide-react";
 import { deleteMyValidationRequest } from "@/lib/actions/validation-actions";
 import { Button } from "@/components/ui/button";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 
 /**
@@ -48,10 +49,15 @@ export function WithdrawRequestButton({ id, reference, canWithdraw, abandon = fa
           setBusy(true); setErr(null);
           const fd = new FormData();
           fd.set("id", id);
-          const r = await deleteMyValidationRequest(fd);
-          setBusy(false);
-          if (r.ok) { if (abandon) rafraichir(); else router.push("/validations"); }
-          else setErr(r.error ?? "Retrait impossible.");
+          try {
+            const r = await deleteMyValidationRequest(fd);
+            if (r.ok) { if (abandon) rafraichir(); else router.push("/validations"); }
+            else setErr(r.error ?? "Retrait impossible.");
+          } catch {
+            setErr(actionFailureMessage("THROWN"));
+          } finally {
+            setBusy(false);
+          }
         }}
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Retirer ma demande

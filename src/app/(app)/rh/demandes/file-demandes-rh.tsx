@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { MeetingControls } from "@/components/shared/hr-meeting-controls";
 import { ExpenseClaimHrPanel } from "@/components/hr/expense-claim-hr-panel";
 import { DocumentList } from "@/components/documents/document-list";
@@ -143,9 +144,14 @@ function LigneDemande({ r, ouverte, basculer, referenceOrdreMission, currentUser
     const fd = new FormData();
     fd.set("id", r.id); fd.set("status", "IN_PROGRESS");
     if (r.hrNote) fd.set("hrNote", r.hrNote);
-    const res = await processHrRequest(fd);
-    setPassage(false);
-    if (res.ok) rafraichir();
+    try {
+      const res = await processHrRequest(fd);
+      if (res.ok) rafraichir();
+    } catch {
+      // Le passage « en préparation » n'est qu'un signal : son échec n'empêche pas de lire la demande.
+    } finally {
+      setPassage(false);
+    }
   };
 
   return (
@@ -207,18 +213,28 @@ function MenuPlus({ r, lienFiche }: { r: HrQueueItem; lienFiche: boolean }) {
     setBusy(true); setErr(null);
     const fd = new FormData();
     fd.set("id", r.id); fd.set("status", r.status); fd.set("hrNote", note);
-    const res = await processHrRequest(fd);
-    setBusy(false);
-    if (!res.ok) setErr(res.error ?? "Échec.");
-    else { setOuvert(false); rafraichir(); }
+    try {
+      const res = await processHrRequest(fd);
+      if (!res.ok) setErr(res.error ?? "La note n'a pas été enregistrée.");
+      else { setOuvert(false); rafraichir(); }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
   const supprimer = async () => {
     setBusy(true); setErr(null);
     const fd = new FormData(); fd.set("id", r.id);
-    const res = await deleteHrRequest(fd);
-    setBusy(false);
-    if (!res.ok) setErr(res.error ?? "Échec.");
-    else { setOuvert(false); rafraichir(); }
+    try {
+      const res = await deleteHrRequest(fd);
+      if (!res.ok) setErr(res.error ?? "La demande n'a pas été supprimée.");
+      else { setOuvert(false); rafraichir(); }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -324,29 +340,44 @@ function PanneauTraitement({ r, nature, referenceOrdreMission, currentUserId }: 
   const decider = async (choix: "APPROVE" | "APPROVE_NEXT") => {
     setDecision(choix); setErr(null);
     const fd = new FormData(); fd.set("id", r.id); fd.set("decision", choix);
-    const res = await decideExpenseReport(fd);
-    setDecision(null);
-    if (!res.ok) setErr(res.error ?? "Échec."); else rafraichir();
+    try {
+      const res = await decideExpenseReport(fd);
+      if (!res.ok) setErr(res.error ?? "La décision n'a pas été enregistrée."); else rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setDecision(null);
+    }
   };
   // Congé / absence / sortie (nature APPROBATION) : accorder.
   const accorder = async () => {
     setDecision("APPROVE"); setErr(null);
     const fd = new FormData(); fd.set("id", r.id); fd.set("decision", "APPROVE");
-    const res = await decideHrLeave(fd);
-    setDecision(null);
-    if (!res.ok) setErr(res.error ?? "Échec."); else rafraichir();
+    try {
+      const res = await decideHrLeave(fd);
+      if (!res.ok) setErr(res.error ?? "La décision n'a pas été enregistrée."); else rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setDecision(null);
+    }
   };
   // REFUSER, AVEC UN MOTIF — l'action de la nature de la demande ; le motif est la note que le salarié lit.
   const refuser = async () => {
     if (!motif.trim()) { setErr("Indiquez le motif du refus."); return; }
     setDecision("REJECT"); setErr(null);
     const fd = new FormData(); fd.set("id", r.id); fd.set("hrNote", motif.trim());
-    let res;
-    if (nature === "EXPENSE") { fd.set("decision", "REJECT"); res = await decideExpenseReport(fd); }
-    else if (nature === "APPROVAL") { fd.set("decision", "REJECT"); res = await decideHrLeave(fd); }
-    else { fd.set("status", "REJECTED"); res = await processHrRequest(fd); }
-    setDecision(null);
-    if (!res.ok) setErr(res.error ?? "Échec."); else { setRefus(false); rafraichir(); }
+    try {
+      let res;
+      if (nature === "EXPENSE") { fd.set("decision", "REJECT"); res = await decideExpenseReport(fd); }
+      else if (nature === "APPROVAL") { fd.set("decision", "REJECT"); res = await decideHrLeave(fd); }
+      else { fd.set("status", "REJECTED"); res = await processHrRequest(fd); }
+      if (!res.ok) setErr(res.error ?? "Le refus n'a pas été enregistré."); else { setRefus(false); rafraichir(); }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setDecision(null);
+    }
   };
   // Écrire au salarié : le fil d'échange de la demande (il est prévenu).
   const envoyer = async (e: React.FormEvent) => {
@@ -354,10 +385,15 @@ function PanneauTraitement({ r, nature, referenceOrdreMission, currentUserId }: 
     if (!message.trim()) return;
     setEnvoi(true); setErr(null);
     const fd = new FormData(); fd.set("requestId", r.id); fd.set("body", message.trim());
-    const res = await addHrRequestComment(fd);
-    setEnvoi(false);
-    if (!res.ok) setErr(res.error ?? "Échec de l'envoi.");
-    else { setMessage(""); rafraichir(); }
+    try {
+      const res = await addHrRequestComment(fd);
+      if (!res.ok) setErr(res.error ?? "Échec de l'envoi.");
+      else { setMessage(""); rafraichir(); }
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   };
 
   const peutRefuser = !termine && !(nature === "EXPENSE" && !r.originalsAckAt);

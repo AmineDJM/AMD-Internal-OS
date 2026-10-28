@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronRight, Loader2, PackageSearch, Send, X } from "lucide-react";
 import { creerDemandeStocks } from "@/lib/actions/demande-stocks-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { developperDemande, produitsCouverts, type PorteurKam } from "@/lib/stocks/demande-stocks";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
@@ -94,10 +95,15 @@ export function NouvelleDemandeStocks({ hopitaux, produits, produitsParBu, kams 
           for (const p of produitsPar[id] ?? []) { fd.append("produitHopitalId", id); fd.append("produitId", p); }
         }
         if (coches.length === 0) for (const p of communs) fd.append("produitCommunId", p);
-        const r = await creerDemandeStocks(fd);
-        setBusy(false);
-        if (!r.ok) { setError(r.error ?? "Échec."); return; }
-        router.push(r.redirect ?? "/stocks/demandes");
+        try {
+          const r = await creerDemandeStocks(fd);
+          if (!r.ok) { setError(r.error ?? "La demande de stocks n'a pas été créée."); return; }
+          router.push(r.redirect ?? "/stocks/demandes");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setBusy(false);
+        }
       }}
     >
       <div className="flex items-center justify-between gap-2">

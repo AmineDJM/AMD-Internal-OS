@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { MapPin, Clock, Paperclip, Phone, XCircle } from "lucide-react";
 import { updateMission } from "@/lib/actions/admin-request-actions";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -37,18 +37,17 @@ const letter = (i: number) => String.fromCharCode(65 + (i % 26));
 
 /** Les courses déjà posées — en lecture (10/2026) : les missions chauffeur ne se créent plus. */
 export function CoursesBoard({ courses }: { courses: CourseDTO[] }) {
-  const router = useRouter();
+  // Le lien « Annuler » d'une carte n'a pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
 
   const active = courses.filter((c) => c.status !== "DONE" && c.status !== "CANCELLED");
   const finished = courses.filter((c) => c.status === "DONE" || c.status === "CANCELLED");
 
   async function cancelCourse(c: CourseDTO) {
-    if (!window.confirm(`Annuler la course « ${c.title} » ?`)) return;
     const fd = new FormData();
     fd.set("id", c.id);
     fd.set("status", "CANCELLED");
-    await updateMission(fd);
-    router.refresh();
+    await run(() => updateMission(fd), undefined, { confirmer: `Annuler la course « ${c.title} » ?` });
   }
 
   return (
@@ -98,7 +97,7 @@ export function CoursesBoard({ courses }: { courses: CourseDTO[] }) {
               </div>
 
               <div className="flex justify-end">
-                <button onClick={() => cancelCourse(c)} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
+                <button onClick={() => void cancelCourse(c)} disabled={busy} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground hover:bg-destructive/10 hover:text-destructive">
                   <XCircle className="h-3.5 w-3.5" /> Annuler la course
                 </button>
               </div>
