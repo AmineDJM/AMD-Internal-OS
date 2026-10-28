@@ -285,7 +285,7 @@ suite("Candidatures du site — réception, rattachement, tri", () => {
   it("LE CV SE SERT DERRIÈRE LA SESSION ET LA PORTE DU TRI — et son téléchargement est tracé", async () => {
     const r = await recevoirCandidature(candidature("cv"));
     const id = r.ok ? r.id : "";
-    const appel = (dl = false) => cvDeLaCandidature(new NextRequest(`http://erp.test/api/site-web/candidatures/${id}/cv${dl ? "?dl=1" : ""}`), { params: { id } });
+    const appel = (dl = false) => cvDeLaCandidature(new NextRequest(`http://erp.test/api/site-web/candidatures/${id}/cv${dl ? "?dl=1" : ""}`), { params: Promise.resolve({ id }) });
 
     ACTOR = null;
     expect((await appel()).status).toBe(401);

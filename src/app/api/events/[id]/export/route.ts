@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 const esc = (v: string | null | undefined) => `"${String(v ?? "").replace(/"/g, '""')}"`;
 
 /** Export Excel/CSV de la liste des inscrits / présence. */
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user || !userCan(user, "EVENTS", "VIEW")) return new NextResponse(null, { status: 403 });
 

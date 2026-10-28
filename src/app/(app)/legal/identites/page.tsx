@@ -23,7 +23,8 @@ export const dynamic = "force-dynamic";
  * numéros sont ce par quoi elle s'engage. On choisit l'entité, on lit, on copie — le champ
  * seul ou le bloc entier.
  */
-export default async function LegalIdentitiesPage({ searchParams }: { searchParams?: { entite?: string } }) {
+export default async function LegalIdentitiesPage(props: { searchParams?: Promise<{ entite?: string }> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("LEGAL");
   const canEdit = userCan(user, "LEGAL", "UPDATE");
 

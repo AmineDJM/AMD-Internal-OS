@@ -19,7 +19,8 @@ export const dynamic = "force-dynamic";
  * terrain, du plus récent au plus ancien, avec leurs compteurs et des filtres (statut, produit, période). Qui ne reçoit
  * pas les cas (le KAM) est renvoyé vers ses signalements.
  */
-export default async function PharmacovigilancePage({ searchParams }: { searchParams: Record<string, string | undefined> }) {
+export default async function PharmacovigilancePage(props: { searchParams: Promise<Record<string, string | undefined>> }) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("PHARMACOVIGILANCE");
   if (!voitTousLesCasPv(user)) redirect(CHEMIN_PV_KAM);
   const statut = estStatutPv(searchParams.statut) ? searchParams.statut : "";

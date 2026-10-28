@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
-import { actionAsyncStorage } from "next/dist/client/components/action-async-storage.external";
+import { actionAsyncStorage } from "next/dist/server/app-render/action-async-storage.external";
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import type { UserRole } from "@prisma/client";
@@ -73,19 +73,18 @@ function actionServeurEnCours(): boolean {
  * UN RENDU DE COMPOSANTS SERVEUR EST-IL EN COURS ? — la moitié manquante de la règle ci-dessus.
  *
  * « Le problème d'interface quand je vois à la place d'un user refait surface » (Direction, 06/10). LU dans
- * Next 14.2 (`server/app-render/action-handler.js`) : `generateFlight` — le rendu de la page qui SUIT une
+ * Next 14.2, et RELU dans Next 15.5.28 (`server/app-render/action-handler.js`, inchangé) : `generateFlight` — le rendu de la page qui SUIT une
  * action qui revalide — s'exécute DANS `actionAsyncStorage.run({ isAction: true })`. Tout ce rendu (la coque :
  * nom en haut, menu, pastilles, bandeau ; et la page) se faisait donc au nom de l'ADMINISTRATEUR, au milieu
  * de l'écran de la personne visualisée : le chevauchement, après chaque geste.
  *
  * React dit, lui, si l'on rend : `cache` ne mémorise QUE pendant un rendu de composants serveur (documenté ;
  * hors rendu — corps d'une action, route d'API — chaque appel recalcule). Deux appels qui rendent le même
- * objet = un rendu en cours. Hors de Next (bancs : React 18 sans `cache`), aucun rendu.
+ * objet = un rendu en cours. Hors de Next (bancs, tests), React 19 livre un `cache` qui ne mémorise rien
+ * (`react/cjs/react.production.js`) : deux objets distincts, aucun rendu.
  */
-const sondeDeRendu: (() => object) | null =
-  typeof cache === "function" ? (cache as <T extends () => object>(f: T) => T)(() => ({})) : null;
+const sondeDeRendu = cache((): object => ({}));
 function rendreEnCours(): boolean {
-  if (!sondeDeRendu) return false;
   try {
     return sondeDeRendu() === sondeDeRendu();
   } catch {
@@ -94,9 +93,9 @@ function rendreEnCours(): boolean {
 }
 
 /** Le cookie de la vue, ou `undefined` hors requête (banc, battement : personne ne visualise rien). */
-function cookieDeVue(): string | undefined {
+async function cookieDeVue(): Promise<string | undefined> {
   try {
-    return cookies().get(IMPERSONATE_COOKIE)?.value;
+    return (await cookies()).get(IMPERSONATE_COOKIE)?.value;
   } catch {
     return undefined;
   }
@@ -161,7 +160,7 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
   // au nom du Super Admin, qui garde alors `visualise` : un geste réservé à « soi » (Adam) sait le refuser.
   let visualise: CurrentUser["visualise"];
   const roleReel = compte?.role ?? session.user.role;
-  const targetId = roleReel === "SUPER_ADMIN" ? cookieDeVue() : undefined;
+  const targetId = roleReel === "SUPER_ADMIN" ? await cookieDeVue() : undefined;
   if (targetId && targetId !== session.user.id) {
     const target = await prisma.user.findUnique({
       where: { id: targetId },

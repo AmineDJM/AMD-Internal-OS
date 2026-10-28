@@ -28,7 +28,8 @@ export const dynamic = "force-dynamic";
  *   • la configuration de l'éditeur construite ICI, avec ces mêmes valeurs (`sessionEditeur` ne relit rien) ;
  *   • partages, versions et commentaires se lisent à l'ouverture de LEUR panneau.
  */
-export default async function DriveFilePage({ params }: { params: { id: string } }) {
+export default async function DriveFilePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("DRIVE");
   const level = await resolveDriveAccess(user, params.id);
   if (level === "NONE") notFound();

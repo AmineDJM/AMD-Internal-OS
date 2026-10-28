@@ -20,7 +20,10 @@ const pctTone = (g: number | null) => (g == null ? "text-muted-foreground" : g >
 const MODES = [{ key: "class", label: "Par classe thérapeutique" }, { key: "lab", label: "Par laboratoire" }] as const;
 type Mode = (typeof MODES)[number]["key"];
 
-export default async function MarketCompetitionPage({ searchParams }: { searchParams: { mode?: string; class?: string; lab?: string } }) {
+export default async function MarketCompetitionPage(
+  props: { searchParams: Promise<{ mode?: string; class?: string; lab?: string }> }
+) {
+  const searchParams = await props.searchParams;
   await requireModule("BUSINESS_DEVELOPMENT");
   const mode = (MODES.some((m) => m.key === searchParams.mode) ? searchParams.mode : "class") as Mode;
 

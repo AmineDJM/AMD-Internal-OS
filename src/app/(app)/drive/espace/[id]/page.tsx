@@ -26,7 +26,11 @@ import { letterheadContextFor } from "@/lib/queries/letterheads";
 export const dynamic = "force-dynamic";
 
 
-export default async function DriveSpacePage({ params, searchParams }: { params: { id: string }; searchParams: { folder?: string; trash?: string } }) {
+export default async function DriveSpacePage(
+  props: { params: Promise<{ id: string }>; searchParams: Promise<{ folder?: string; trash?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireModule("DRIVE");
   const spaceId = params.id;
   const folderId = searchParams.folder ?? null;

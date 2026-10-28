@@ -22,7 +22,8 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number]["key"];
 
-export default async function MarketRadarPage({ searchParams }: { searchParams: { tab?: string } }) {
+export default async function MarketRadarPage(props: { searchParams: Promise<{ tab?: string }> }) {
+  const searchParams = await props.searchParams;
   await requireModule("BUSINESS_DEVELOPMENT");
   const tab = (TABS.some((t) => t.key === searchParams.tab) ? searchParams.tab : "white") as Tab;
 

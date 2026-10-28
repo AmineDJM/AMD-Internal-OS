@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
  * (Whisper). Réservé à l'organisateur (ou vue globale). L'audio est conservé même si la
  * transcription IA est coupée : l'organisateur peut alors coller le texte manuellement.
  */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   if (!user || !userCan(user, "MESSAGING", "VIEW")) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
 

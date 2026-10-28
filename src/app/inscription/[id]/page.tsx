@@ -6,7 +6,8 @@ import { formatDate } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
-export default async function InscriptionPage({ params }: { params: { id: string } }) {
+export default async function InscriptionPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const event = await getPublicEvent(params.id);
   if (!event) notFound();
 

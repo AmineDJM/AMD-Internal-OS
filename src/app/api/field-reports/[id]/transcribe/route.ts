@@ -11,7 +11,8 @@ import { managesReports } from "@/lib/queries/field-reports";
 export const dynamic = "force-dynamic";
 
 /** Reçoit l'audio d'un rapport, le stocke (chiffré) et le transcrit (Whisper). */
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUserPourEcrire();
   // Garde sur le module RAPPORTS TERRAIN (et non « Promotion médicale ») : c'est le module
   // qui régit ce flux depuis leur séparation ; sinon un profil ayant les rapports mais pas la

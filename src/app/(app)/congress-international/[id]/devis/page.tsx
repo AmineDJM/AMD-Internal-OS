@@ -4,6 +4,7 @@ import { PageDevisPriseEnCharge } from "@/components/care/page-devis";
 export const dynamic = "force-dynamic";
 
 /** Devis d'une prise en charge internationale, pour l'assistante sollicitée — voir `PageDevisPriseEnCharge`. */
-export default function DevisIntlPage({ params }: { params: { id: string } }) {
+export default async function DevisIntlPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   return <PageDevisPriseEnCharge scope="INTERNATIONAL" id={params.id} />;
 }

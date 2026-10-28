@@ -251,7 +251,7 @@ suite("Fiche de coaching — grille, fiches, droits, export", () => {
     const id = fiches[0]!;
     const appeler = async (qui: string) => {
       ACTOR = await actorFor(ids[qui]!);
-      return exporterFiche(new Request(`http://t/api/medical/coaching/${id}/export`), { params: { id } });
+      return exporterFiche(new Request(`http://t/api/medical/coaching/${id}/export`), { params: Promise.resolve({ id }) });
     };
     const ok = await appeler("kam1");
     expect(ok.status).toBe(200);

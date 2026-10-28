@@ -34,7 +34,10 @@ export const metadata = { title: "Coaching — AMD Internal OS" };
  *   • un KAM : ses propres fiches finalisées.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-export default async function CoachingPage({ searchParams }: { searchParams?: { collaborateur?: string; statut?: string } }) {
+export default async function CoachingPage(
+  props: { searchParams?: Promise<{ collaborateur?: string; statut?: string }> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("MEDICAL");
   const l = await lecteurCoaching(user);
   const filtreCollaborateur = searchParams?.collaborateur || null;

@@ -54,9 +54,9 @@ export async function adventumCompanyId(): Promise<string | null> {
  * Portée d'entité active (cookie). `null` = toutes les entités. Défensif : hors
  * contexte de requête (tests, tâches planifiées), renvoie `null` (aucun filtre).
  */
-export function getCompanyScope(): string | null {
+export async function getCompanyScope(): Promise<string | null> {
   try {
-    const raw = cookies().get(COMPANY_COOKIE)?.value;
+    const raw = (await cookies()).get(COMPANY_COOKIE)?.value;
     return raw && raw !== "ALL" ? raw : null;
   } catch {
     return null;
@@ -225,7 +225,7 @@ export const accessBearerOf = perRequest(async (userId: string): Promise<AccessB
 export async function myCompanyScope(userId: string): Promise<string | null> {
   const [all, bearer] = await Promise.all([getCompanies(), accessBearerOf(userId)]);
   if (!bearer) return null;
-  return resolveScope(bearer, getCompanyScope(), all.map((c) => c.id));
+  return resolveScope(bearer, await getCompanyScope(), all.map((c) => c.id));
 }
 
 /**
@@ -235,7 +235,7 @@ export async function myCompanyScope(userId: string): Promise<string | null> {
 export async function myCompanyWhere(userId: string): Promise<{ companyId?: string | { in: string[] } }> {
   const [all, bearer] = await Promise.all([getCompanies(), accessBearerOf(userId)]);
   if (!bearer) return { companyId: { in: [] } };
-  return companyAccessWhere(bearer, getCompanyScope(), all.map((c) => c.id));
+  return companyAccessWhere(bearer, await getCompanyScope(), all.map((c) => c.id));
 }
 
 /**
@@ -254,7 +254,7 @@ export async function myCompanyWhere(userId: string): Promise<{ companyId?: stri
 export async function platformScope(userId: string): Promise<ScopeWhere> {
   const [all, bearer] = await Promise.all([getCompanies(), accessBearerOf(userId)]);
   if (!bearer) return {};
-  return platformScopeWhere(bearer, getCompanyScope(), all.map((c) => c.id));
+  return platformScopeWhere(bearer, await getCompanyScope(), all.map((c) => c.id));
 }
 
 /**

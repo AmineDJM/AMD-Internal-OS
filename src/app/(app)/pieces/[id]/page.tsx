@@ -30,7 +30,8 @@ export const dynamic = "force-dynamic";
  * un collègue sans lui ouvrir tout le pôle Ad & Pro au passage. L'autorisation vient du fil —
  * on a demandé, ou on est celui à qui l'on demande.
  */
-export default async function DocumentRequestPage({ params }: { params: { id: string } }) {
+export default async function DocumentRequestPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const req = await prisma.documentRequest.findUnique({
     where: { id: params.id },

@@ -56,7 +56,8 @@ const jourFr = (iso: string | null) => {
   return `${j}/${m}/${a}`;
 };
 
-export default async function PaiementsAFairePage({ searchParams }: { searchParams: { focus?: string; entite?: string } }) {
+export default async function PaiementsAFairePage(props: { searchParams: Promise<{ focus?: string; entite?: string }> }) {
+  const searchParams = await props.searchParams;
   // `?focus=` : la ligne qu'on vient de cliquer depuis « Mon espace ». Voir OrdersTable.
   const focusId = searchParams.focus ?? null;
   const user = await requireModule("FINANCES");

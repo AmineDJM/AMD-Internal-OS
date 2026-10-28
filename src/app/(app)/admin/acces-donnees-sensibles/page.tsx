@@ -26,7 +26,10 @@ const MOTIFS: Record<string, string> = {
  * ADMINISTRATION › ACCÈS AUX DONNÉES SENSIBLES — Super Admin seul (refonte V2-E). Chaque lecture du coffre,
  * accordée ou refusée : qui, quand, pour quel geste, la colonne de qui. Filtres dans l'adresse (formulaire GET).
  */
-export default async function AccesDonneesSensiblesPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
+export default async function AccesDonneesSensiblesPage(
+  props: { searchParams: Promise<Record<string, string | string[] | undefined>> }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/mon-espace");
 

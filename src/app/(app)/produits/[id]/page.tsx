@@ -169,7 +169,11 @@ async function EssentielLuna({ f, userId }: { f: Fiche360; userId: string }) {
  * marketing, Ad & Pro, réglementaire et qualité. Une note sur 100 (détail au clic), six chiffres, l'essentiel du mois par
  * Luna, et un onglet par métier. Chaque chiffre, chaque onglet n'apparaît qu'à qui a son module (`vues-360-acces.ts`).
  */
-export default async function Produit360Page({ params, searchParams }: { params: { id: string }; searchParams?: { onglet?: string; dossier?: string } }) {
+export default async function Produit360Page(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ onglet?: string; dossier?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireModule("PRODUCTS");
   const voit = sections360(user);
   const f = await fiche360(user, params.id);

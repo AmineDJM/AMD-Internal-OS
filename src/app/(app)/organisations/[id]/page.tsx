@@ -30,7 +30,8 @@ function Bloc({ titre, vide, children }: { titre: string; vide: boolean; childre
  * LA FICHE ORGANISATION 360° (lot V2-C) — en lecture. Chaque bloc derrière la porte de l'écran d'origine
  * (`referentiels/organisations/fiche.ts`) ; une organisation fusionnée renvoie à sa survivante. Sans RIB ni IBAN.
  */
-export default async function OrganisationPage({ params }: { params: { id: string } }) {
+export default async function OrganisationPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   const fiche = await chargerFicheOrganisation(user, params.id);
   if (fiche.etat === "INTROUVABLE") notFound();

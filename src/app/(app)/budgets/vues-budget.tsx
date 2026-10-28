@@ -102,11 +102,11 @@ export async function VueEnsembleBudget({ user, searchParams, config }: { user: 
     getEnvelopesGrandTotal(user, opts),
   ]);
   const { from, to } = periode(searchParams);
-  const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), from, to, opts);
+  const overview = await getBudgetOverview(user, await resolveBudgetEnvelope(searchParams.env), from, to, opts);
   const pole = poleDeLaConfig(config);
   // Budget Marketing : le lot d'intégration de l'enveloppe regardée (« À traiter », onglet Intégration) — lu une fois.
   const lot = pole === "MARKETING" && overview?.integration ? await vueDuLot(user, overview.envelope.id) : null;
-  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? resolveBudgetEnvelope(searchParams.env), overview ? { envelopeId: overview.envelope.id, lot } : undefined);
+  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? await resolveBudgetEnvelope(searchParams.env), overview ? { envelopeId: overview.envelope.id, lot } : undefined);
   const description = pole ? DOMAINES[pole].description : "Où en est votre budget, en un coup d'œil.";
 
   if (!overview) {
@@ -372,8 +372,8 @@ export async function VueDepensesBudget({ user, searchParams, config }: { user: 
   const opts = { portee: config.portee };
   const [envelopes, societes] = await Promise.all([getEnvelopes(user, opts), getMyCompanies(user.id)]);
   const { from, to } = periode(searchParams);
-  const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), from, to, opts);
-  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? resolveBudgetEnvelope(searchParams.env));
+  const overview = await getBudgetOverview(user, await resolveBudgetEnvelope(searchParams.env), from, to, opts);
+  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? await resolveBudgetEnvelope(searchParams.env));
 
   const canManageContent = overview ? canManageEnvelope(user, overview.envelope) : canManageEnvelopes(user);
   const canAttribute = hasGlobalView(user.role) || canManageContent;
@@ -472,8 +472,8 @@ export async function VueReglagesBudget({ user, searchParams, config }: { user: 
     pole ? optionsRattachement() : Promise.resolve(null),
   ]);
   const { from, to } = periode(searchParams);
-  const overview = await getBudgetOverview(user, resolveBudgetEnvelope(searchParams.env), from, to, opts);
-  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? resolveBudgetEnvelope(searchParams.env));
+  const overview = await getBudgetOverview(user, await resolveBudgetEnvelope(searchParams.env), from, to, opts);
+  const tabs = await ongletsDe(user, config, overview?.envelope.id ?? await resolveBudgetEnvelope(searchParams.env));
   const poleTenant = !pole && overview !== null ? poleDe(overview.envelope) : null;
   const tenueAilleurs = poleTenant !== null;
 

@@ -28,7 +28,7 @@ export async function startImpersonation(formData: FormData): Promise<ActionResu
 
   // Cookie de la vue + témoin lu par l'écran, posés ensemble (`vue-exacte.ts`) : un autre onglet ouvert
   // se recharge en entier au lieu de mêler deux personnes (`GardeIdentite`).
-  poserVueExacte(targetId);
+  await poserVueExacte(targetId);
   await recordAudit({
     actorId: moi.id, action: "LOGIN", module: "Administration",
     summary: `Vue exacte démarrée — ${target.name}`,
@@ -43,7 +43,7 @@ export async function startImpersonation(formData: FormData): Promise<ActionResu
 /** Quitte la « Vue exacte ». Même raison : le bouton recharge toute la page (la coque redevient celle de l'administrateur). */
 export async function stopImpersonation(): Promise<ActionResult> {
   const session = await auth();
-  effacerVueExacte();
+  await effacerVueExacte();
   if (session?.user?.id) {
     await recordAudit({ actorId: session.user.id, action: "LOGOUT", module: "Administration", summary: "Vue exacte terminée" });
   }

@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
  * une archive CTD de plusieurs Go s'ouvre en une seconde sur une instance à 512 Mo.
  */
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ ok: false, error: "Non authentifié." }, { status: 401 });
 

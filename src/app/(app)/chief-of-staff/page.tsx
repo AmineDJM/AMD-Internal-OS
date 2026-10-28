@@ -47,11 +47,12 @@ export const metadata = { title: "Adam — Chief of Staff" };
  *
  * Le résultat : en arrivant, le PDG voit une salutation, une question, et de la place.
  */
-export default async function ChiefOfStaffPage({
-  searchParams,
-}: {
-  searchParams?: { q?: string; ref?: string; call?: string; apercu?: string };
-}) {
+export default async function ChiefOfStaffPage(
+  props: {
+    searchParams?: Promise<{ q?: string; ref?: string; call?: string; apercu?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const user = await requireModule("CHIEF_OF_STAFF");
   // Adam n'est visible que du Super Admin (§118.153) — la Direction garde le module, pas Adam.
   if (!peutVoirAdam(user)) notFound();

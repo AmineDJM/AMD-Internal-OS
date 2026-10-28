@@ -32,7 +32,8 @@ import { toNumber } from "@/lib/utils";
 import { SuperAdminDeleteButton } from "@/components/shared/super-admin-delete";
 import { DocumentList } from "@/components/documents/document-list";
 
-export default async function ValidationsPage({ searchParams }: { searchParams: { focus?: string } }) {
+export default async function ValidationsPage(props: { searchParams: Promise<{ focus?: string }> }) {
+  const searchParams = await props.searchParams;
   /**
    * `?focus=<stepId>` — ON ARRIVE **DANS** LA VALIDATION.
    *

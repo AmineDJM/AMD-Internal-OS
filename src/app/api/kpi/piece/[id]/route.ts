@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
  * que le bilan, `peutVoirBilan`). Introuvable et interdit rendent le même 404. Type enregistré, `nosniff`, PDF et
  * images en ligne, le reste en téléchargement — les protections de la pièce d'un retour.
  */
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await getCurrentUser();
   if (!user) return new NextResponse(null, { status: 401 });
   const d = await prisma.kpiDeclaration.findUnique({ where: { id: params.id }, select: { userId: true, pieceBlobId: true, pieceNom: true, pieceMime: true } });

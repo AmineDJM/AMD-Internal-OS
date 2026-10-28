@@ -19,7 +19,11 @@ const LIB: Record<string, string> = { OK: "Sûre", A_REVOIR: "À revoir", DOUBLO
  * trancher (regroupé par valeur brute : une correspondance confirmée vaut pour toutes ses lignes et s'apprend),
  * l'impact sur la segmentation, puis la validation.
  */
-export default async function RevueImportPage({ params, searchParams }: { params: { id: string }; searchParams?: { statut?: string } }) {
+export default async function RevueImportPage(
+  props: { params: Promise<{ id: string }>; searchParams?: Promise<{ statut?: string }> }
+) {
+  const searchParams = await props.searchParams;
+  const params = await props.params;
   const user = await requireModule("CONSUMPTION");
   const imp = await lireImport(params.id);
   if (!imp) notFound();

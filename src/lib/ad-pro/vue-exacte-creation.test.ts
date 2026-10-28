@@ -36,7 +36,7 @@ vi.mock("next/headers", () => ({
 }));
 // Depuis §118.210, la session reconnaît une ACTION serveur au stockage asynchrone de Next (et plus à
 // l'en-tête `Next-Action`, que la page rendue après l'action rejoue) : le banc le simule par le même fait.
-vi.mock("next/dist/client/components/action-async-storage.external", () => ({
+vi.mock("next/dist/server/app-render/action-async-storage.external", () => ({
   actionAsyncStorage: { getStore: () => (ETAT.ecrit ? { isAction: true } : undefined) },
 }));
 vi.mock("next/navigation", () => ({
@@ -96,10 +96,10 @@ function formEvenement(nom: string): FormData {
   return f;
 }
 
-type Page = (p: { params: { id: string } }) => Promise<unknown>;
+type Page = (p: { params: Promise<{ id: string }> }) => Promise<unknown>;
 /** Ouvre la fiche comme le serveur le ferait : « introuvable » se distingue d'une fiche qui s'ouvre. */
 async function ouvre(page: Page, id: string): Promise<"OK" | "INTROUVABLE" | string> {
-  try { await page({ params: { id } }); return "OK"; } catch (e) {
+  try { await page({ params: Promise.resolve({ id }) }); return "OK"; } catch (e) {
     const m = String(e);
     if (m.includes("NEXT_NOT_FOUND")) return "INTROUVABLE";
     // Aucune transformation JSX ici : la page est allée jusqu'à construire son arbre, donc ses données se sont chargées.

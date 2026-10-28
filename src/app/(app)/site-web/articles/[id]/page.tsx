@@ -21,7 +21,8 @@ function jourDAlger(d: Date | null): string {
 }
 
 /** UN ARTICLE — son texte, ses contrôles, et son état SUR LE SITE (confirmé par le site, jamais supposé). */
-export default async function ArticlePage({ params }: { params: { id: string } }) {
+export default async function ArticlePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("SITE_WEB");
   const a = await prisma.blogArticle.findUnique({
     where: { id: params.id },

@@ -17,7 +17,8 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Offre d'emploi — AMD Internal OS" };
 
 /** UNE OFFRE — son texte, ses contrôles, son recrutement, et son état SUR LE SITE. */
-export default async function OffrePage({ params }: { params: { id: string } }) {
+export default async function OffrePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireUser();
   if (user.mustChangePassword) redirect("/change-password");
   if (!peutVoirOffres(user)) notFound();

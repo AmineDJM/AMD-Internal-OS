@@ -17,7 +17,8 @@ const TYPES = Object.keys(LIBELLE_TYPE_DEMANDE) as TypeDemandeIntegree[];
  * dépôt). Elle sert d'abord aux FORMATIONS, qui n'ont pas de fiche à elles ; les autres natures y renvoient aussi vers
  * leur fiche. Une demande qu'aucun lot actif ne porte n'a pas de fiche ici.
  */
-export default async function FicheIntegrationPage({ params }: { params: { type: string; id: string } }) {
+export default async function FicheIntegrationPage(props: { params: Promise<{ type: string; id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("BUDGET_MARKETING");
   const type = params.type as TypeDemandeIntegree;
   if (!TYPES.includes(type)) notFound();

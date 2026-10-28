@@ -18,7 +18,8 @@ import { SuiviKams, GestesDemande } from "./suivi-gestes";
  * Un KAM ne reçoit QUE ses cases (ses établissements × les produits de sa BU) : la matrice
  * entière, les autres KAM et leurs chiffres ne partent pas dans sa page.
  */
-export default async function DemandeStocksPage({ params }: { params: { id: string } }) {
+export default async function DemandeStocksPage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const user = await requireModule("STOCKS");
   const d = await chargerDemandeStocks(params.id);
   if (!d) notFound();

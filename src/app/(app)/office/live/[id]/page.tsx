@@ -32,7 +32,8 @@ import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 
 export const dynamic = "force-dynamic";
 
-export default async function OfficeLivePage({ params }: { params: { id: string } }) {
+export default async function OfficeLivePage(props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   // Le droit du MODULE ouvre l'écran ; le droit du FICHIER est revérifié par le port, nœud par
   // nœud. Les deux, parce qu'ils ne disent pas la même chose : l'un donne accès à la page,
   // l'autre à ce document-là.
