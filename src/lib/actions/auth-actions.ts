@@ -6,6 +6,7 @@ import { auth, signIn, signOut } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { effacerVueExacte } from "@/lib/vue-exacte";
+import { checkLockout, clearAttempts, cleChangementMotDePasse, recordFailure } from "@/lib/login-throttle";
 
 /** Server action used by the login form. Returns an error string on failure. */
 export async function authenticate(
@@ -64,9 +65,14 @@ export async function changePassword(
 
   const user = await prisma.user.findUnique({ where: { id: session.user.id } });
   if (!user) return "Utilisateur introuvable.";
+  // Anti-force brute (SA-17) : une session laissée ouverte ne permet pas de deviner le mot de passe actuel à volonté.
+  const cle = cleChangementMotDePasse(user.id);
+  if ((await checkLockout(cle)).locked) return "Trop d'essais du mot de passe actuel : réessayez dans quelques minutes.";
   if (!(await bcrypt.compare(current, user.passwordHash))) {
+    await recordFailure(cle, null);
     return "Mot de passe actuel incorrect.";
   }
+  await clearAttempts(cle);
 
   await prisma.user.update({
     where: { id: user.id },

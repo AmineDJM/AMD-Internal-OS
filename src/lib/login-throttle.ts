@@ -12,6 +12,15 @@ const WINDOW_MS = 15 * 60_000; // fenêtre glissante de comptage (15 min)
 const BASE_LOCK_MS = 15 * 60_000; // durée de verrouillage de base (15 min)
 const MAX_LOCK_MS = 2 * 60 * 60_000; // plafond (2 h)
 
+/**
+ * LES AUTRES PORTES À MOT DE PASSE (audit 27/10, SA-17 — KB R6/R14). Le portail fournisseur et le changement de mot
+ * de passe vérifiaient un mot de passe sans limite d'essais : on pouvait les deviner à volonté. Ils passent par le
+ * MÊME compteur, sous une clé préfixée — un fournisseur et un salarié de même adresse ne se verrouillent pas l'un
+ * l'autre, et deviner le mot de passe actuel d'une session volée ne bloque pas la connexion de son titulaire.
+ */
+export const cleConnexionPortail = (email: string) => `portail:${email.trim().toLowerCase()}`;
+export const cleChangementMotDePasse = (userId: string) => `mdp:${userId}`;
+
 export interface LockState {
   locked: boolean;
   until?: Date;
