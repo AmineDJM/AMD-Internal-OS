@@ -13,7 +13,8 @@ const lire = (p: string) => sansCommentaires(readFileSync(p, "utf8"));
 // identifiant sans vérifier qui appelle n'a rien à y faire. Les ACTIONS restent la porte.
 const CŒUR = "src/lib/suppression/coeur.ts";
 const ACTIONS = "src/lib/actions/admin-delete-actions.ts";
-const ADAM = "src/lib/assistant.ts";
+// La carte de suppression d'Adam (ex-`assistant.ts`, découpé au lot V4).
+const ADAM = "src/lib/assistant/propositions/donnees-et-corbeille.ts";
 
 describe("Registre des suppressions — le refus et la réserve", () => {
   it("les trois nouveaux types sont au registre, et le compte est mesuré", () => {

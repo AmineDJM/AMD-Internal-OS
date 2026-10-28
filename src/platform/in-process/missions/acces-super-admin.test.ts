@@ -292,7 +292,7 @@ describe("§118.136 — les POINTS D'APPEL : la garde est là où l'on décide, 
   });
 
   it("le prompt DIT la règle à qui n'a pas les outils — sinon il irait les chercher (§118.122)", () => {
-    const a = lire("lib/assistant.ts");
+    const a = lire("lib/assistant/coeur/prompt.ts"); // le prompt d'`assistant.ts`, découpé (lot V4)
     expect(a).toContain('${peutPiloterMissionsAdam(user) ? "" : `');
     expect(a).toContain("MISSIONS ET SURVEILLANCES D'ADAM — RÉSERVÉES AU SUPER ADMIN");
   });
