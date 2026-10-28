@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import { censurerSortie, circuitLisible, outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { APRES_LA_PREVALIDATION, censurerSortie, circuitLisible, outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { OPERATIONS_IA } from "@/lib/agent/operations";
 
 /**
@@ -80,6 +80,18 @@ describe("circuitLisible — un circuit expliqué se LIT, jamais de mémoire", (
     const c = JSON.parse(circuitLisible(JSON.stringify({ categorie: "EVENTS", libelle: "Événements", actif: true, etapes: [{ title: "Visa du chef", actorRoles: ["Direction"], optional: false }], dictionnaires: { x: 1 } })));
     expect(c).toMatchObject({ personnalise: true, etapes: [{ titre: "Visa du chef", qui: ["Direction"] }] });
     expect(JSON.stringify(c)).not.toMatch(/dictionnaires/);
+  });
+
+  it("le DG n'est pas récité comme une étape : il valide le TOTAL à la fin, au-dessus du seuil (27/10/2026)", () => {
+    const parDefaut = JSON.parse(circuitLisible(JSON.stringify({ categorie: "SPONSORING", libelle: "Sponsoring", actif: true, etapes: "Circuit PAR DÉFAUT …" })));
+    expect(parDefaut.etapes.map((e: { titre: string }) => e.titre).join(" ")).not.toMatch(/Directeur Général/);
+    expect(parDefaut.ensuite).toBe(APRES_LA_PREVALIDATION);
+    expect(parDefaut.ensuite).toMatch(/TOTAL.*seuil/);
+    const enBase = JSON.parse(circuitLisible(JSON.stringify({
+      categorie: "SPONSORING", libelle: "Sponsoring", actif: true,
+      etapes: [{ slug: "preliminaire", title: "Approbation préliminaire (National Sales)", actorRoles: ["National Sales"] }, { slug: "dg", title: "Validation du Directeur Général", actorRoles: ["Directeur Général"] }],
+    })));
+    expect(enBase.etapes).toEqual([{ titre: "Approbation préliminaire (National Sales)", qui: ["National Sales"] }]);
   });
 
   it("une catégorie inconnue : le message du moteur passe tel quel", () => {

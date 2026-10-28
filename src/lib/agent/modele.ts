@@ -4,6 +4,8 @@
  * Pas de modèle de secours : si MiMo échoue ou dépasse le délai, l'assistant le dit plutôt que de
  * répondre avec un autre fournisseur. La clé n'est lue qu'ici, jamais écrite dans le code.
  */
+import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
+
 export const MIMO = {
   providerId: "mimo",
   modelId: process.env.MIMO_MODEL?.trim() || "mimo-v2.6-flash",
@@ -35,6 +37,12 @@ export function modeleMimo(env: NodeJS.ProcessEnv = process.env): ModeleConfig |
   const apiKey = (env.MIMO_API_KEY ?? "").trim();
   return apiKey ? { ...MIMO, apiKey } : null;
 }
+
+/**
+ * Ce que l'Assistant IA répond quand aucun modèle n'est configuré : le geste EXACT (§118.128), pas
+ * « l'IA n'est pas configurée » — phrase vraie qui ne dit ni quelle clé ni où la poser.
+ */
+export const IA_NON_CONFIGUREE = phraseIaNonConfiguree("MIMO_API_KEY", "l'Assistant IA");
 
 /** Les modèles à essayer, dans l'ordre. Vide = IA non configurée. */
 export function modelesAssistant(): ModeleConfig[] {

@@ -5,6 +5,7 @@ import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { composantsEnBlocs, lireReponseModele, repondreAvecSecours } from "@/lib/agent/repondre";
 import { auNomDe, PlafondIaAtteint } from "@/lib/agent/consommation";
 import { genererTexte, modelesEffectifs } from "@/lib/agent/generer";
+import { IA_NON_CONFIGUREE } from "@/lib/agent/modele";
 import { dateLongue, FUSEAU } from "./calendrier";
 
 /**
@@ -92,7 +93,7 @@ export function passageDeRoutine(user: CurrentUser, d: DemandePassage): Promise<
 
 async function passageAuNomDe(user: CurrentUser, d: DemandePassage): Promise<IssuePassage> {
   const modeles = modelesEffectifs();
-  if (!modeles.length) return { ok: false, raison: "L'IA n'est pas configurée sur ce serveur." };
+  if (!modeles.length) return { ok: false, raison: IA_NON_CONFIGUREE };
   let instructions: string;
   let config;
   try {

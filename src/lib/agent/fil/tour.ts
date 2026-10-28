@@ -2,7 +2,7 @@ import type { CurrentUser } from "@/lib/session";
 import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
 import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
-import { DELAI_MIMO_MS } from "@/lib/agent/modele";
+import { DELAI_MIMO_MS, IA_NON_CONFIGUREE } from "@/lib/agent/modele";
 import { modelesEffectifs } from "@/lib/agent/generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "@/lib/agent/consommation";
@@ -93,7 +93,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   if (!message) return { ok: false, error: "Message vide.", message };
 
   const modeles = modelesEffectifs();
-  if (modeles.length === 0) return { ok: false, error: "L'IA n'est pas configurée sur ce serveur.", message };
+  if (modeles.length === 0) return { ok: false, error: IA_NON_CONFIGUREE, message };
 
   // LES CARTES DONT LA PERSONNE VIENT DE REPARLER N'ONT PLUS COURS (IA-ASSISTANT-10, décision de Direction
   // — option prudente par défaut, réglage `retirerCartesCaduques`) : le remède qu'Adam applique depuis
