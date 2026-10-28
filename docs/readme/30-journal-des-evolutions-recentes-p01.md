@@ -1,5 +1,25 @@
 ## 🧾 Journal des évolutions récentes
 
+### REFONTE V3-B : PRIMITIVES UI — DIALOGUE ET RETOUR ACCESSIBLES, UN SEUL CROCHET D'ACTION, PARC MIGRÉ (2026-10-28)
+
+Suite de l'audit 09 (FRONTEND-UX-01 et -05). Deux primitives dans `src/components/ui/`, montées une fois dans
+`app/layout.tsx` (`PrimitivesUI`) :
+- **Dialogue de confirmation** (`dialogue.tsx`, règle pure `dialogue-regle.ts`) : `useConfirmer()` remplace
+  `window.confirm`, `useSaisir()` remplace `window.prompt`. `role="alertdialog"`, focus piégé et rendu, Échap qui ne
+  ferme que la fenêtre (pas la feuille dessous), bouton au verbe du geste (« Supprimer »), « Retour » focalisé sur un
+  geste à risque.
+- **Retour** (`retour.tsx`, règle `retour-regle.ts`) : `<Retour ton>` (bandeau près du geste) et `useRetours()` (avis
+  flottants, régions `aria-live`) remplacent `window.alert`. Une erreur ne s'efface jamais seule.
+- **Un seul crochet d'action** (`components/shared/use-action.ts`) : `useAction` / `useKeyedAction` gagnent
+  `run(fn, onOk, { confirmer, succes })` et `signalerErreurs` ; nouveau `useFormAction` pour `<form action>` (verrou
+  anti double envoi). Tous attrapent la levée, coupent à 45 s et rafraîchissent par `useRafraichir`.
+
+**Parc migré** (≈ 340 fichiers, en 5 lots : argent et décisions d'abord) — aucune règle métier changée ; des refus
+autrefois muets s'affichent désormais. Cliquets abaissés au chiffre mesuré : `confirm(` 125 → **0**, `alert(` 46 →
+**0**, `prompt(` 6 → **0**, repli « Échec. / Erreur. / Action impossible. » 259 → **0** (`src/lib/ui/dialogues-natifs.test.ts`),
+appels d'action non gardés 315 → **0** (`action-gardee.test.ts`), `router.refresh()` nus 326 → **1**, le crochet lui-même
+(`rafraichir.test.ts`). Carte : [KB 05 § 4.2, 4.7](../knowledge-base/05-frontend-ui-ux.md).
+
 ### REFONTE V2-F : LES TÂCHES DE FOND PEUVENT QUITTER LE WEB — WORKER, BAIL PAR TÂCHE, BATTEMENT VISIBLE (2026-10-27)
 
 Le passage de `runScheduledJobs` devient une **table** (`TACHES_PLANIFIEES`, `src/lib/scheduled.ts`) : une ligne par
