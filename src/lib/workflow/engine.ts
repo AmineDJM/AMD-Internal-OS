@@ -1384,7 +1384,7 @@ async function prevenirEtapeAtteinte(
   const roles = (etape.notifyRoles as UserRole[]).filter(Boolean);
   // LE NATIONAL SALES DE LA GAMME, nommément, au lieu de tout le rôle (ADPRO-06) : les autres
   // National Sales ne peuvent ni ouvrir ni trancher ce dossier — l'alerte leur était un bruit.
-  const superviseur = roles.includes(ROLE_LIE_A_LA_GAMME as UserRole) ? await superviseurDeLaGamme(entityType, entityId).catch(() => null) : null;
+  const superviseur = roles.includes(ROLE_LIE_A_LA_GAMME as UserRole) ? await superviseurDeLaGamme(entityType, entityId).catch(sansBloquer("engine.superviseurDeLaGamme", null)) : null;
   const aPrevenir = rolesAPrevenir(roles, superviseur);
   if (aPrevenir.length) await notifyRoles(aPrevenir, { type, ...msg });
   const tenant = superviseurQuiTientLEtape(roles, superviseur);
