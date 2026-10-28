@@ -6,6 +6,7 @@ import type { DoctorTitle, InfluenceLevel, InstitutionSector, InstitutionType, M
 import { requireUser } from "@/lib/session";
 import { userCan, peutAnnuaire, peutGererSpecialites, scopeMedicalDoctors } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
+import { supprimerReversible } from "@/lib/suppression/coeur";
 import { prisma } from "@/lib/prisma";
 import { cleDEtablissement, indexerEtablissements } from "@/lib/annuaires/rattachement";
 import { CHEMINS_SPECIALITES, cleDeSpecialite, ecritureDeSpecialite, indexerSpecialites, lienDeSpecialiteValide } from "@/lib/annuaires/specialites";
@@ -494,18 +495,27 @@ export async function rattacherLibelleSpecialite(formData: FormData): Promise<Ac
 
 /** Supprime un médecin de l'annuaire (MEDICAL:DELETE). Ses visites sont supprimées
  *  en cascade ; il est retiré des listes d'invités de congrès (IDs orphelins ignorés). */
+/**
+ * SUPPRIMER UN PRATICIEN — par le cœur réversible (audit 27/10, DONNEES-07).
+ *
+ * Ce geste effaçait d'abord TOUTES les visites du praticien, puis la fiche — et la cascade du schéma emportait ses
+ * montants Ad & Pro, sa segmentation et ses observations, sans corbeille, y compris quand le geste venait d'Adam.
+ * Désormais : la porte de la ligne (portée du délégué, `canAccessEntity`), le refus du registre (des visites
+ * rapportées ou des montants attribués → l'archivage), puis une entrée de corbeille qui emporte et rend le lot.
+ * Les visites PLANIFIÉES restent au registre, détachées de la fiche (lien remis à la restauration).
+ */
 export async function deleteDoctor(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
   if (!userCan(user, "MEDICAL", "DELETE")) return { ok: false, error: "Suppression réservée (droit Supprimer sur l'Annuaire)." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
+  if (!(await canAccessEntity(user, "DOCTOR", id, "DELETE"))) return { ok: false, error: "Médecin introuvable." };
   const doc = await prisma.medicalDoctor.findUnique({ where: { id }, select: { name: true } });
   if (!doc) return { ok: false, error: "Médecin introuvable." };
-  await prisma.medicalVisit.deleteMany({ where: { doctorId: id } });
-  await prisma.medicalDoctor.delete({ where: { id } });
-  await recordAudit({ actorId: user.id, action: "DELETE", module: "Promotion médicale", entityType: "DOCTOR", entityId: id, summary: `Médecin supprimé — ${doc.name}` });
+  const r = await supprimerReversible("DOCTOR", id, user.id, `Suppression d'un praticien — ${doc.name} (restaurable depuis la corbeille)`);
+  if (!r.ok) return { ok: false, error: r.error ?? "Suppression impossible." };
   revalidatePath("/medical");
-  return { ok: true };
+  return { ok: true, message: "Praticien supprimé — restaurable depuis la corbeille." };
 }
 
 /** Supprime une visite (MEDICAL:DELETE, ou le délégué auteur de la visite). */

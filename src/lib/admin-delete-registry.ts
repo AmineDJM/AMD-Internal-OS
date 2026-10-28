@@ -384,6 +384,21 @@ export const DELETE_REGISTRY: Record<DeletableKind, KindSpec> = {
       const r = await prisma.medicalDoctor.findUnique({ where: { id }, select: { name: true } });
       return r ? r.name : null;
     },
+    // CE QUI A EU LIEU NE S'EFFACE PAS (audit 27/10, DONNEES-07). Un praticien qui porte des visites rapportées ou des
+    // montants Ad & Pro attribués ne se supprime pas : la cascade emportait ses montants (`AdProMedecin`), sa
+    // segmentation et ses observations, sans retour. On l'ARCHIVE (sa fiche quitte l'annuaire, son historique reste).
+    refuse: async (id) => {
+      const [visites, montants] = await Promise.all([
+        prisma.medicalVisit.count({ where: { doctorId: id, status: "COMPLETED" } }),
+        prisma.adProMedecin.count({ where: { doctorId: id } }),
+      ]);
+      if (visites === 0 && montants === 0) return null;
+      const faits = [visites ? `${visites} visite(s) rapportée(s)` : null, montants ? `${montants} montant(s) Ad & Pro attribué(s)` : null].filter(Boolean).join(" et ");
+      return `Ce praticien porte ${faits} : il ne se supprime pas. Archivez-le depuis l'annuaire — sa fiche en sort, son historique reste.`;
+    },
+    // UN LOT (DONNEES-07) : ce qui part en cascade avec la fiche (segmentation, observations, couleurs de cellule)
+    // part dans la MÊME entrée de corbeille et revient avec elle.
+    lot: true,
     async remove(id) {
       await prisma.medicalDoctor.delete({ where: { id } });
     },
