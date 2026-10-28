@@ -65,12 +65,14 @@ export default async function MarketingCockpitPage({ searchParams }: { searchPar
   const demandee = (VUES as readonly string[]).includes(searchParams?.vue ?? "") ? (searchParams!.vue as Vue) : "ensemble";
   const vue: Vue = (demandee === "marche" && !voitMarche) || (demandee === "investissements" && !voitArgent) ? "ensemble" : demandee;
 
-  const base = await chargerBase(user, bu, produit, maintenant);
+  // La base du périmètre et les onglets visibles ne dépendent pas l'une de l'autre : un seul aller-retour
+  // (audit performance PERF-11).
+  const [base, ongletsVisibles] = await Promise.all([chargerBase(user, bu, produit, maintenant), visibleTabs(user, MARKETING_COCKPIT_TABS)]);
   const perimetre = produit ? `produit=${produit.id}` : `bu=${bu.id}`;
   const lien = (v: Vue) => `/marketing-cockpit?${v === "ensemble" ? "" : `vue=${v}&`}${perimetre}`;
   const nomPerimetre = produit?.nom ?? "Tous les produits";
 
-  const onglets = (await visibleTabs(user, MARKETING_COCKPIT_TABS)).filter((t) => t.show !== false).map((t) => {
+  const onglets = ongletsVisibles.filter((t) => t.show !== false).map((t) => {
     const cle = (new URLSearchParams(t.href.split("?")[1] ?? "").get("vue") ?? "ensemble") as Vue;
     return { cle, label: t.label, href: lien(cle) };
   });

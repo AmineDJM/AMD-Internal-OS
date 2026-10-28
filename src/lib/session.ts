@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import type { UserRole } from "@prisma/client";
@@ -92,9 +93,21 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
   };
 }
 
+/**
+ * L'utilisateur À L'ÉCRAN, calculé UNE fois par rendu (audit performance PERF-10). La coque
+ * (`requireUser`), la page (`requireModule` → `requireUser`) et leurs composants le demandent chacun :
+ * sans mémoire, chaque appel relisait la session révocable et la cible de la Vue exacte.
+ *
+ * Exact par construction : `cache` ne mémorise QUE pendant un rendu de composants serveur — c'est le
+ * critère même de `rendreEnCours` — et pendant un rendu la vue est toujours honorée pour une lecture
+ * (`vueHonoree`). Hors rendu (corps d'une action, route d'API), chaque appel recalcule, comme avant.
+ */
+const buildDuRendu: () => Promise<CurrentUser | null> =
+  typeof cache === "function" ? cache(async () => build(await auth())) : async () => build(await auth());
+
 /** Returns the signed-in user (with resolved access) or redirects to /login. */
 export async function requireUser(): Promise<CurrentUser> {
-  const user = await build(await auth());
+  const user = await buildDuRendu();
   if (!user) redirect("/login");
   return user;
 }
@@ -149,7 +162,7 @@ export async function requireModule(
 
 /** Non-redirecting variant for layouts / optional checks. */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  return build(await auth());
+  return buildDuRendu();
 }
 
 /**
