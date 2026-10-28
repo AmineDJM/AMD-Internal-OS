@@ -1,5 +1,5 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./dependances";
 import { ROLE_LABELS } from "@/lib/labels";
 import { geste } from "@/lib/assistant/workspace/emit";
 import { EXEC, str, fr } from "./commun";

@@ -1,4 +1,4 @@
-import { userCan, hasGlobalView } from "@/lib/rbac";
+import { userCan, hasGlobalView } from "./dependances";
 import { isSA, type OpMeta } from "./types";
 
 /**

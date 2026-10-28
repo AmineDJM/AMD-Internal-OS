@@ -1,5 +1,4 @@
-import type { CurrentUser } from "@/lib/session";
-import { prisma } from "@/lib/prisma";
+import { type CurrentUser, prisma } from "./dependances";
 
 /**
  * LE SOCLE DES OUTILS EXÉCUTIFS — les aides partagées par les morceaux de `executive-tools/` :

@@ -1,4 +1,4 @@
-import type { CurrentUser } from "@/lib/session";
+import type { CurrentUser } from "./action-registry/dependances";
 import { buildIndex, resolve, type ResolverContext } from "./nl/resolver";
 import { OPS_CATALOG, catalogCoveredKeys } from "@/lib/assistant/ops/catalog";
 import type { NativeAction } from "./action-registry/types";

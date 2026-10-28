@@ -1,5 +1,5 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "./dependances";
 import {
   REMINDER_RECURRENCES, RECURRENCE_LABEL, algiersToUtc, formatAlgiersDue, type ReminderRecurrence,
 } from "@/lib/assistant/reminders";

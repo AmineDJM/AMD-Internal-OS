@@ -1,5 +1,4 @@
-import type { Module } from "@/lib/rbac";
-import type { ClaudeToolDef } from "@/lib/ai";
+import type { Module, ClaudeToolDef } from "./dependances";
 import { OPS_BY_TOOL, type OpMeta } from "../catalog";
 import type { OpImpl } from "../types";
 

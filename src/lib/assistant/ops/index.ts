@@ -1,4 +1,4 @@
-import type { ClaudeToolDef } from "@/lib/ai";
+import type { ClaudeToolDef } from "./outils/dependances";
 // L'ORDRE D'ÉVALUATION est conservé à l'identique : catalogue, puis chaque implémentation dans
 // l'ordre historique, AVANT les morceaux qui les zippent (`ops/index.ts` et `lib/assistant.ts`
 // forment un cycle d'initialisation, voir `capability-audit.test.ts`).

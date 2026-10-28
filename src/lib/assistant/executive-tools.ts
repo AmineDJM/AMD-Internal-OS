@@ -1,6 +1,5 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import type { CurrentUser } from "@/lib/session";
-import { hasGlobalView } from "@/lib/rbac";
+import { type CurrentUser, hasGlobalView } from "./executive-tools/dependances";
 import { EXEC } from "./executive-tools/commun";
 import { OUTILS_DRIVE } from "./executive-tools/drive";
 import { OUTILS_INSPECT_RECORD } from "./executive-tools/inspect-record";

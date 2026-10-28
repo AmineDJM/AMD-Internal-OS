@@ -1,9 +1,8 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
 import {
-  createDoc, appendToDoc, readDocText, createSheetFromTable, createPresentation, addSlide, searchContacts,
-} from "@/lib/google/workspace/provider";
-import { wrapUntrusted } from "@/lib/comms/untrusted";
+  prisma, createDoc, appendToDoc, readDocText, createSheetFromTable, createPresentation, addSlide, searchContacts,
+  wrapUntrusted,
+} from "./dependances";
 import { geste } from "@/lib/assistant/workspace/emit";
 import { sansBloquer } from "@/lib/journal";
 import { EXEC, str, fr, activeOrMessage } from "./commun";

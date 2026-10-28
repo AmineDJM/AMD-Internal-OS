@@ -1,7 +1,6 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
+import { prisma, chainOf, amountDrift, type ChainDoc } from "./dependances";
 import { toNumber } from "@/lib/utils";
-import { chainOf, amountDrift, type ChainDoc } from "@/lib/legal/chain";
 import { paymentExecutiveState } from "@/lib/assistant/executive-state";
 import { REGULATORY_STEP_TYPE as REG_STEP_FR } from "@/lib/labels";
 import {

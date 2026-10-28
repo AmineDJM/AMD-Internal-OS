@@ -1,4 +1,4 @@
-import { userCan, hasGlobalView } from "@/lib/rbac";
+import { userCan, hasGlobalView } from "./dependances";
 import { siegeAuCentreAdPro } from "@/platform/in-process/capacites";
 import type { OpMeta } from "./types";
 

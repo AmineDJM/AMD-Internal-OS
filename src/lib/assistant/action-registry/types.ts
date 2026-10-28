@@ -1,4 +1,4 @@
-import type { CurrentUser } from "@/lib/session";
+import type { CurrentUser } from "./dependances";
 
 /**
  * TYPES DU REGISTRE D'ACTIONS — la forme d'une action native (`NativeAction`), son risque, et la

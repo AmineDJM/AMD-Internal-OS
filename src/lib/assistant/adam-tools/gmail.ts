@@ -1,15 +1,9 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
-import { getGoogleStatus } from "@/lib/google/connection";
-import { adamConnection } from "@/lib/google/gmail/reconcile";
-import { getThread } from "@/lib/google/gmail/messages";
-import { addLabels, archiveMessage, ensureLabel, markRead, trashMessage } from "@/lib/google/gmail/labels";
-import { createOutboundIntent, pendingApprovals } from "@/lib/comms/outbound";
-import { getCommunicationPolicy, POLICY_LABEL } from "@/lib/comms/policy";
-import { wrapUntrusted, wrapAttachmentText } from "@/lib/comms/untrusted";
-import { shouldReplyTo, checkRateLimits } from "@/lib/comms/loop-safety";
-import { activeMissions, MISSION_STATUS_LABEL } from "@/lib/comms/missions";
-import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
+import {
+  prisma, getGoogleStatus, adamConnection, getThread, addLabels, archiveMessage, ensureLabel, markRead, trashMessage,
+  createOutboundIntent, pendingApprovals, getCommunicationPolicy, POLICY_LABEL, wrapUntrusted, wrapAttachmentText,
+  shouldReplyTo, checkRateLimits, activeMissions, MISSION_STATUS_LABEL, resolveDriveAccess, canViewDrive,
+} from "./dependances";
 import { geste } from "@/lib/assistant/workspace/emit";
 import { EXEC, str, num, fr, NOT_CONNECTED, activeOrMessage } from "./commun";
 

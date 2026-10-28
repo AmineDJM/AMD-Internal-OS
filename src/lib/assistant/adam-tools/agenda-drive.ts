@@ -1,10 +1,8 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
-import { listEvents, freeBusy, findFreeSlots, ALGIERS_TZ } from "@/lib/google/calendar/provider";
-import { searchFiles, downloadFile, uploadFile as uploadToGoogleDrive } from "@/lib/google/drive/provider";
-import { wrapUntrusted } from "@/lib/comms/untrusted";
-import { getBlob } from "@/lib/drive-storage";
-import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
+import {
+  prisma, listEvents, freeBusy, findFreeSlots, ALGIERS_TZ, searchFiles, downloadFile, uploadToGoogleDrive,
+  wrapUntrusted, getBlob, resolveDriveAccess, canViewDrive,
+} from "./dependances";
 import { extractAttachmentText } from "@/lib/assistant-files";
 import { EXEC, str, num, fr, activeOrMessage } from "./commun";
 

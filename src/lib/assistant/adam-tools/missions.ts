@@ -1,8 +1,7 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
 import {
-  createMission, missionSnapshot, activeMissions, setMissionExtracted, nudgeCandidates, MISSION_STATUS_LABEL,
-} from "@/lib/comms/missions";
+  prisma, createMission, missionSnapshot, activeMissions, setMissionExtracted, nudgeCandidates, MISSION_STATUS_LABEL,
+} from "./dependances";
 import { EXEC, str, num, fr } from "./commun";
 
 /**

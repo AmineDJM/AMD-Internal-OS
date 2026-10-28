@@ -1,4 +1,4 @@
-import { hasGlobalView } from "@/lib/rbac";
+import { hasGlobalView } from "./catalogue/dependances";
 import { isSA, type OpMeta } from "./catalogue/types";
 import { OPS_SOCLE } from "./catalogue/socle";
 import { OPS_FINANCES } from "./catalogue/finances";

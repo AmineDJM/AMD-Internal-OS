@@ -1,5 +1,4 @@
-import type { CurrentUser } from "@/lib/session";
-import { getActiveGoogleConnection } from "@/lib/google/connection";
+import { type CurrentUser, getActiveGoogleConnection } from "./dependances";
 
 /**
  * LE SOCLE DES OUTILS D'ADAM — les aides partagées par les morceaux de `adam-tools/` : le siège

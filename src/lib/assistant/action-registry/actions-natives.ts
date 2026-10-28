@@ -1,5 +1,4 @@
-import { userCan, hasGlobalView } from "@/lib/rbac";
-import { canSetStructural } from "@/lib/regulatory/structural-fields";
+import { userCan, hasGlobalView, canSetStructural } from "./dependances";
 import { isSA, type NativeAction } from "./types";
 
 /**

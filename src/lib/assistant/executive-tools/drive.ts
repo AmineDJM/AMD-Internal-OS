@@ -1,9 +1,5 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { prisma } from "@/lib/prisma";
-import { searchDrive } from "@/lib/queries/drive-search";
-import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
-import { getBlob } from "@/lib/drive-storage";
-import { readFileByKey } from "@/lib/storage";
+import { prisma, searchDrive, resolveDriveAccess, canViewDrive, getBlob, readFileByKey } from "./dependances";
 import { extractAttachmentText } from "@/lib/assistant-files";
 import { estMedia } from "@/platform/in-process/media";
 import { indexDriveNodeText } from "@/lib/assistant/document-discovery";

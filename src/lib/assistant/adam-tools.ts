@@ -1,10 +1,7 @@
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import type { CurrentUser } from "@/lib/session";
-import { hasGlobalView } from "@/lib/rbac";
-import { MissionStatus } from "@prisma/client";
-import { getActiveGoogleConnection } from "@/lib/google/connection";
-import { searchMessages } from "@/lib/google/gmail/messages";
-import { recordMissionEvent } from "@/lib/comms/missions";
+import {
+  type CurrentUser, hasGlobalView, MissionStatus, getActiveGoogleConnection, searchMessages, recordMissionEvent,
+} from "./adam-tools/dependances";
 import { sansBloquer } from "@/lib/journal";
 import { OUTILS_GMAIL } from "./adam-tools/gmail";
 import { OUTILS_MISSIONS } from "./adam-tools/missions";

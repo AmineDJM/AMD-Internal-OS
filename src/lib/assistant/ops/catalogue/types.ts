@@ -1,4 +1,4 @@
-import type { CurrentUser } from "@/lib/session";
+import type { CurrentUser } from "./dependances";
 
 /**
  * TYPES DU CATALOGUE DES OPS — la forme d'une op (`OpMeta`), son niveau de risque, et la porte

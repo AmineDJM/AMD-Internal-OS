@@ -1,4 +1,4 @@
-import { userCan } from "@/lib/rbac";
+import { userCan } from "./dependances";
 import type { OpMeta } from "./types";
 
 /**

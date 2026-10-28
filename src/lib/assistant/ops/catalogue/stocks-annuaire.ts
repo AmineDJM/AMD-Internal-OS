@@ -1,4 +1,4 @@
-import { userCan, peutGererSpecialites } from "@/lib/rbac";
+import { userCan, peutGererSpecialites } from "./dependances";
 import { isSA, type OpMeta } from "./types";
 
 /**
