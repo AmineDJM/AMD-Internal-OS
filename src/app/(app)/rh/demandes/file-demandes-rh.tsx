@@ -19,6 +19,7 @@ import {
 import type { HrQueueItem } from "@/lib/queries/hr-documents";
 import { OrdreMissionForm } from "../[id]/ordre-mission-form";
 import { AttestationTravailForm } from "../[id]/attestation-travail-form";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA FILE DES DEMANDES RH (Direction, 07/10 — maquette « Demandes RH ») : UNE ligne par demande, la plus ancienne en
@@ -313,7 +314,7 @@ function PanneauTraitement({ r, nature, referenceOrdreMission, currentUserId }: 
     fd.set("requestId", r.id);
     try {
       const res = await fetch("/api/rh/upload", { method: "POST", body: fd });
-      const data = await res.json().catch(() => ({}));
+      const data = await res.json().catch(sansBloquer("file-demandes-rh.deposer.json", {}));
       if (!res.ok) setErr(data.error ?? "Échec de l'envoi.");
       else rafraichir();
     } catch { setErr("Échec de l'envoi."); }

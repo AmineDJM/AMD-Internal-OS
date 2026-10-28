@@ -5,6 +5,7 @@ import { AlertTriangle, Loader2 } from "lucide-react";
 import { Input, Label } from "@/components/ui/input";
 import { verifierNumeroPiece } from "@/lib/actions/fabrique-actions";
 import { memeNumero } from "@/lib/bons-de-commande/numero-reference";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,7 +68,7 @@ export function ChampNumeroPiece({
       if (legalDocumentId) fd.set("legalDocumentId", legalDocumentId);
       if (societe) fd.set("societe", societe);
       if (date) fd.set("date", date);
-      const r = await verifierNumeroPiece(fd).catch(() => null);
+      const r = await verifierNumeroPiece(fd).catch(sansBloquer("champ-numero-piece.ChampNumeroPiece.verifierNumeroPiece", null));
       if (!vivant) return;
       setVerification(false);
       setErreur(r && !r.ok ? r.error : null);

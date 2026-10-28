@@ -12,6 +12,7 @@ import { AlarmClock, Brain } from "lucide-react";
 import { envoyerAuFil, listerMesRoutines, repartirDeZero } from "@/lib/actions/assistant-ia-actions";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
+import { sansBloquer } from "@/lib/journal";
 
 export interface AssistantWorkspaceProps {
   initialKpiData?: KpiData;
@@ -68,7 +69,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("routine");
     if (id) { setRoutineInitiale(id); setRoutinesOuvertes(true); }
-    void listerMesRoutines().then((r) => { if (r.ok) setNonLus(r.nonLus); }).catch(() => undefined);
+    void listerMesRoutines().then((r) => { if (r.ok) setNonLus(r.nonLus); }).catch(sansBloquer("assistant-workspace.AssistantWorkspace.listerMesRoutines"));
   }, []);
   const [pieces, setPieces] = useState<PieceJointe[]>([]);
   const envoiEnCours = pieces.some((p) => p.etat === "envoi");

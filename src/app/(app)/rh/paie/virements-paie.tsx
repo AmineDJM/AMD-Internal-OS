@@ -11,6 +11,7 @@ import { envoyerPaieAuCentre } from "@/lib/actions/payroll-hr-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { ETAT_VIREMENT_LABEL, moisDeLaPaie, type MoisDeLEntite, type VirementDuMois } from "@/lib/hr/virement-paie";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -165,7 +166,7 @@ function LigneEntite({
     fd.set("companyId", carte.companyId);
     fd.set("year", String(year));
     fd.set("month", String(month));
-    const r = await envoyerPaieAuCentre(fd).catch(() => ({ ok: false as const, error: "L'envoi n'a pas abouti — réessayez." }));
+    const r = await envoyerPaieAuCentre(fd).catch(sansBloquer("virements-paie.envoyer.envoyerPaieAuCentre", { ok: false as const, error: "L'envoi n'a pas abouti — réessayez." }));
     setBusy(false);
     setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Paie envoyée au centre de paiement.") : (r.error ?? "Envoi refusé.") });
     if (r.ok) { setSomme(""); setOuvert(false); rafraichir(); }

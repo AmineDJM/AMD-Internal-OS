@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Loader2, Send, ClipboardCheck, RefreshCw, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { submitDossier, reanalyseDossier } from "@/lib/regulatory/intelligence/actions";
+import { sansBloquer } from "@/lib/journal";
 
 interface Props {
   dossierId: string;
@@ -39,7 +40,7 @@ export function SubmissionGate({ dossierId, status, openBlockers, canPrepare, ca
     fd.set("dossierId", dossierId);
     const r = await reanalyseDossier(fd);
     if (r.ok) {
-      await fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(() => undefined);
+      await fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("submission-gate.reanalyse.fetch"));
       router.refresh();
     } else setError(r.error ?? "Échec.");
     setBusy(null);

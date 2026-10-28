@@ -13,6 +13,7 @@ import { setFocusMode, useFocusState } from "@/components/layout/focus-mode";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { COLONNES_REGULATORY, colonnesVisibles, type CleColonneRegulatory } from "@/lib/vues/colonnes-regulatory";
 import { Table } from "@/components/ui/table";
+import { sansBloquer } from "@/lib/journal";
 
 export interface RegulatoryRow {
   id: string;
@@ -367,7 +368,7 @@ export function RegulatoryTable({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids }),
       });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Export impossible.");
+      if (!res.ok) throw new Error((await res.json().catch(sansBloquer("regulatory-table.exportXlsx.json", {}))).error ?? "Export impossible.");
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");

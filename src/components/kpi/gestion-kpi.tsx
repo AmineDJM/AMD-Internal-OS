@@ -12,6 +12,7 @@ import { phraseCalcul, type DefinitionKpi } from "@/lib/kpi/definition";
 import {
   archiverKpi, catalogueKpi, importerKpi, modifierKpi, reglerAffectationKpi, retirerAffectationKpi,
 } from "@/lib/actions/kpi-actions";
+import { sansBloquer } from "@/lib/journal";
 
 type Catalogue = Awaited<ReturnType<typeof catalogueKpi>>;
 type Def = Catalogue["definitions"][number];
@@ -28,7 +29,7 @@ export function GestionKpi({ roles, personnes, onChange }: {
 }) {
   const [cat, setCat] = React.useState<Catalogue | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; texte: string } | null>(null);
-  const charger = React.useCallback(async () => { setCat(await catalogueKpi().catch(() => null)); }, []);
+  const charger = React.useCallback(async () => { setCat(await catalogueKpi().catch(sansBloquer("gestion-kpi.GestionKpi.catalogueKpi", null))); }, []);
   React.useEffect(() => { void charger(); }, [charger]);
 
   const apres = async (r: { ok: boolean; error?: string; message?: string } | null) => {
@@ -65,7 +66,7 @@ function CarteDef({ d, affectations, roles, nomDe, apres }: {
     const fd = new FormData();
     for (const [k, v] of Object.entries(champs)) fd.set(k, v);
     setBusy(true);
-    const r = await fn(fd).catch(() => null);
+    const r = await fn(fd).catch(sansBloquer("gestion-kpi.action.fn", null));
     setBusy(false);
     await apres(r);
     return r;
@@ -143,7 +144,7 @@ function EditionDef({ d, onFin, apres }: { d: Def; onFin: () => void; apres: (r:
     fd.set("definitionId", d.id);
     fd.set("definition", JSON.stringify(def));
     setBusy(true);
-    const r = await modifierKpi(fd).catch(() => null);
+    const r = await modifierKpi(fd).catch(sansBloquer("gestion-kpi.enregistrer.modifierKpi", null));
     setBusy(false);
     await apres(r);
     if (r?.ok) onFin();
@@ -184,7 +185,7 @@ function ImportDef({ d, apres }: { d: Def; apres: (r: { ok: boolean; error?: str
     const fd = new FormData(e.currentTarget);
     fd.set("definitionId", d.id);
     setBusy(true);
-    const r = await importerKpi(fd).catch(() => null);
+    const r = await importerKpi(fd).catch(sansBloquer("gestion-kpi.importer.importerKpi", null));
     setBusy(false);
     await apres(r);
   };
