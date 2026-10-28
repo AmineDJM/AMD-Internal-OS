@@ -22,7 +22,9 @@ import { describe, expect, it } from "vitest";
  * découpe (voir `docs/architecture/MODULES.md` et les dossiers `src/lib/rbac/`, `src/lib/labels/`,
  * `src/lib/assistant/coeur/` pour des exemples) ; il n'entre pas dans la liste.
  *
- * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4.
+ * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4 (dont `assistant.ts` 7 314,
+ * `assistant/ops/catalog.ts` 5 399, `labels.ts` 2 289, `rbac.ts` 2 212) → 4 après, tous confiés à d'autres
+ * chantiers (Ad & Pro, RH, paiements) : ce sont les HERITES ci-dessous.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFOND = 1_000;
@@ -31,11 +33,8 @@ const PLAFOND = 1_000;
 const HERITES: Readonly<Record<string, number>> = {
   "src/components/ad-pro/items-panel.tsx": 2149,
   "src/lib/actions/ad-pro-item-actions.ts": 4409,
-  "src/lib/actions/care-actions.ts": 1297,
   "src/lib/actions/hr-document-actions.ts": 1013,
   "src/lib/actions/payment-request-actions.ts": 1197,
-  "src/lib/actions/recruitment-actions.ts": 1095,
-  "src/lib/actions/regulatory-actions.ts": 1267,
 };
 
 function fichiersDeProduction(dir: string, out: string[] = []): string[] {

@@ -23,11 +23,15 @@ import { mesurerCouverture } from "./couverture";
  * `migrations-appliquees.ts`) avant que ce cliquet existe dans la base — et en ont retiré un (`agent/agent.ts`).
  * `journal` et `migrations-appliquees` ont été rangés au socle ; reste 768. Désormais, chaque fichier neuf hors
  * carte se range avant fusion.
+ *
+ * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte 768 → 759 (les dossiers découpés sont rangés
+ * dans une couche : `payslip/` → office, `carte-plateforme/` → couche `carte`, `admin-delete-registry`,
+ * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle) ; tests de texte 128 → 126.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 768,
+  horsCarte: 759,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
@@ -41,7 +45,7 @@ const PLAFONDS = {
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 128,
+  testsDeTexte: 126,
 } as const;
 
 const mesure = mesurerCouverture();
