@@ -1,6 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, peutGererSpecialites } from "@/lib/rbac";
-import { canManageLetterheads } from "@/lib/office/letterhead";
+import { canManageLetterheads } from "@/platform/in-process/office";
 import { siegeAuCentreAdPro } from "@/platform/in-process/capacites";
 
 /**

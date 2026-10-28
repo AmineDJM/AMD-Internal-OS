@@ -4,7 +4,7 @@ import { ROLE_LABELS } from "@/lib/labels";
 import {
   CATEGORY_ENTITY, CATEGORY_LABELS, SCOPE_LABELS, POWER_LABELS, WORKFLOW_CATEGORIES,
   type WorkflowCategory, type ActorScope, type WorkflowPower,
-} from "@/lib/workflow/types";
+} from "@/platform/in-process/demandes";
 
 /**
  * ADMINISTRATION DES CIRCUITS pour le Chief of Staff — lectures et résolutions au service des

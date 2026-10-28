@@ -10,7 +10,7 @@ import { uploadLetterhead } from "@/lib/actions/letterhead-actions";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { getBlob } from "@/lib/drive-storage";
 import { DOCUMENT_CATEGORY, ENTITY_TYPE_LABELS } from "@/lib/labels";
-import { KIND_EXTENSION, KIND_LABEL } from "@/lib/office/letterhead";
+import { KIND_EXTENSION, KIND_LABEL } from "@/platform/in-process/office";
 import { hasGlobalView } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import type { OpImpl, OpProposalDraft } from "./types";

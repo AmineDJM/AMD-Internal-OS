@@ -124,8 +124,14 @@ import { scanBoundary, ADAM_PATHS, BRIDGE_PATHS, NEUTRAL } from "./boundary-scan
  * état d'accepter le premier import neuf sans rien dire (§118.79c). Mesuré ici par différence
  * entre deux copies (`git archive`) — 8089f05 et le commit du lot : un franchissement de moins,
  * aucun de plus.
+ *
+ * 430 → 425 (2026-10-27, audit) : le cliquet lit désormais les imports relatifs (ARCH-01) — mesuré à 430 — et
+ * ADPRO-04 fait créer une prise en charge par l'action de l'écran (+1). Les six dépendances « demandes » d'
+ * `assistant.ts` (sponsoring, événement, prise en charge, secrétariat, circuits et leur vocabulaire) passent par
+ * le pont `in-process/demandes/` : un seul fichier à rebrancher ; le papier à en-tête et le vocabulaire des
+ * circuits suivent (`in-process/office/`, `workflow-admin.ts`). Mesuré : 422. Solde : −9.
  */
-const DEBT_CEILING = 425;
+const DEBT_CEILING = 422;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();

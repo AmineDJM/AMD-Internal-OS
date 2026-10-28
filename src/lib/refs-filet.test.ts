@@ -26,7 +26,6 @@ import { join, relative } from "node:path";
 
 /** La dette mesurée le 02/10/2026 : des créations numérotées sans filet, à reprendre une à une. */
 const DETTE = new Set([
-  "src/lib/actions/ad-pro-transfer-actions.ts",
   "src/lib/actions/directive-actions.ts",
   "src/lib/actions/finance-actions.ts",
   "src/lib/actions/logistics-actions.ts",

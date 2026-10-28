@@ -64,8 +64,12 @@ import { scanDomains, formatDomains, cycleEdges, DOMAINS } from "./domains";
  * le vocabulaire de la pièce commerciale (`artifact/factory/commercial`) depuis le domaine `adpro` — deux traversées.
  * Partagé par le poste Ad & Pro ET le devis de matériel promotionnel, il est la règle du BC, pas d'un circuit : il vit
  * désormais sous `bons-de-commande/brouillon.ts`, à côté de la règle et de l'aiguillage. Plafond inchangé.
+ *
+ * 71 → 67 (2026-10-27, audit) : les imports relatifs désormais lus (ARCH-01) avaient porté la mesure à 71. Adam lit le
+ * vocabulaire des circuits (`workflow-admin.ts`) par le pont `in-process/demandes/`, et le papier à en-tête
+ * (`ops/catalog.ts`, `ops/impl-wave8-files.ts`) par le pont `in-process/office/`. Mesuré : 67. Plafond ramené.
  */
-const CROSSING_CEILING = 68;
+const CROSSING_CEILING = 67;
 const PROVIDER_CEILING = 42;
 
 const report = scanDomains(process.cwd());

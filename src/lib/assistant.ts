@@ -39,9 +39,12 @@ import { lienTache, lienConversation } from "@/lib/chemins/espace";
 import { lienDemandeRhATraiter, lienMaDemandeRh } from "@/lib/chemins/rh";
 import { createEventForUser, algiersInputToUtc, CALENDAR_KINDS } from "@/lib/calendar";
 import { createDossierRecord } from "@/lib/dossiers-core";
-import { createSponsoring } from "@/lib/actions/sponsoring-actions";
-import { createEvent } from "@/lib/actions/event-actions";
-import { createCongressRequest } from "@/lib/actions/congress-request-actions";
+// Les demandes Ad & Pro, le secrétariat et les circuits : par le pont (frontière Adam ↔ ERP).
+import {
+  createSponsoring, createEvent, createCongressRequest, updateRequestStatus, assignRequest, addRequestComment,
+  advanceWorkflow, saveWorkflowDefinition, resetWorkflowDefinition,
+  WORKFLOW_CATEGORIES, CATEGORY_LABELS, SCOPE_LABELS, POWER_LABELS, ACTOR_SCOPES, WORKFLOW_POWERS,
+} from "@/platform/in-process/demandes";
 import { envoyerMessageDirect } from "@/lib/messaging";
 import { getMailAccount, listMessages, getMessage } from "@/lib/mail";
 import {
@@ -75,7 +78,6 @@ import {
   userCan, accessibleModules, hasGlobalView, isRegulatorySupervisor, peutPiloterMissionsAdam, peutAnnuaire, type Module,
   scopeMedicalDoctors, scopeRegulatory, scopeAdminRequests,
 } from "@/lib/rbac";
-import { updateRequestStatus, assignRequest, addRequestComment } from "@/lib/actions/admin-request-actions";
 import { createLegalDocument, updateLegalDocument } from "@/lib/actions/legal-actions";
 import { updateCalendarEvent, deleteCalendarEvent } from "@/lib/actions/calendar-actions";
 import { setRegulatoryResponsible, setRegulatoryStepState, setRegulatoryPresubOutcome, requestRegulatoryStatusUpdate } from "@/lib/actions/regulatory-actions";
@@ -97,10 +99,8 @@ import { decideAddress, askWhichAddress } from "@/lib/directory/rank";
 import { gmailTransport } from "@/lib/google/gmail/transport";
 import { markMissionAsked } from "@/lib/comms/missions";
 import { requestTreasuryUpdate } from "@/lib/actions/finance-actions";
-import { advanceWorkflow, saveWorkflowDefinition, resetWorkflowDefinition } from "@/lib/actions/workflow-actions";
 import { upsertCustomFieldDef, deleteCustomFieldDef } from "@/lib/actions/custom-field-actions";
 import { readWorkflowState, resolveWorkflowRequest, resolveWorkflowCategory } from "@/lib/assistant/workflow-admin";
-import { WORKFLOW_CATEGORIES, CATEGORY_LABELS, SCOPE_LABELS, POWER_LABELS, ACTOR_SCOPES, WORKFLOW_POWERS } from "@/lib/workflow/types";
 import { CUSTOM_ENTITY_TYPES } from "@/lib/custom-fields";
 import { canSetStructural } from "@/lib/regulatory/structural-fields";
 import { isRegStepKey, isRegStepState, isRegPresubOutcome, REG_STEPS, PRESUB_ANSWER_STEP } from "@/lib/regulatory-workflow";

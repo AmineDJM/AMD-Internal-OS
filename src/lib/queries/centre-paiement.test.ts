@@ -295,9 +295,11 @@ describe("l'écran lit la règle — points d'appel (§118.49)", () => {
     expect(nav).toMatch(/<Link[\s\S]{0,80}href=\{hrefCentre\(e\.cle, section\)\}/);
     expect(nav).toMatch(/aria-current/);
     const board = lire("src/app/(app)/centre-de-paiement/centre-board.tsx");
-    expect(board, "après une décision, les gestes restent fermés jusqu'à l'arrivée des nouvelles données").toMatch(/useRafraichir\(\)/);
+    // `useAction` (audit FRONTEND-UX-01) porte `useRafraichir` : son `busy` couvre l'appel ET le rafraîchissement.
+    expect(board, "après une décision, les gestes restent fermés jusqu'à l'arrivée des nouvelles données").toMatch(/useAction\(\)/);
+    expect(lire("src/components/shared/use-action.ts"), "le crochet attend le rafraîchissement").toMatch(/useRafraichir\(\)/);
     expect(board).not.toMatch(/router\.refresh\(\)/);
-    expect((board.match(/disabled=\{enCours\}/g) ?? []).length, "Autoriser, Refuser et Répondre se ferment pendant le rafraîchissement").toBeGreaterThanOrEqual(3);
+    expect((board.match(/disabled=\{busy\}/g) ?? []).length, "Autoriser, Refuser et Répondre se ferment pendant le rafraîchissement").toBeGreaterThanOrEqual(3);
     expect(board, "la double lecture montant/bénéficiaire reste envoyée").toMatch(/montantVu/);
     expect(board).toMatch(/beneficiaireVu/);
   });
