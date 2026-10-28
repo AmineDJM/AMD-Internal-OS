@@ -8,7 +8,7 @@ import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { getComptaData } from "@/lib/queries/compta";
-import { getRhData } from "@/lib/queries/hr";
+import { getRhData } from "@/modules/rh/api";
 import { getUpcomingEvents } from "@/lib/calendar";
 import type { ExecutiveAlert } from "@/lib/assistant/proactive";
 import { alertesExecutivesChaudes, fraicheurDeLecture } from "@/lib/assistant/hot-alerts";

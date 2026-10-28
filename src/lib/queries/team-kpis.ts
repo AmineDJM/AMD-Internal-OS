@@ -4,13 +4,12 @@ import { toNumber } from "@/lib/utils";
 import { clausePanelDuKam, hasGlobalView, regulatoryLockWhere, type Module, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { entitePermisePourFiche } from "@/lib/company";
-import { managementChainOf, type DepartmentNodeLite, type EmployeeNode } from "@/lib/hr/reporting-line";
+import {
+  managementChainOf, type DepartmentNodeLite, type EmployeeNode, avecLiens, commonKpis, jobKpis, jobOf,
+  JOB_LABEL, NO_JOB_KPI_NOTE, type CommonCounts, type JobCounts, type LiensKpi, type TeamJob, type TeamKpi,
+} from "@/modules/rh/partage";
 import { accesAuPlan, type StatutPlan } from "@/lib/sfe/tournee";
 import { peutOuvrirModule } from "@/lib/queries/lien-ouvrable";
-import {
-  avecLiens, commonKpis, jobKpis, jobOf, JOB_LABEL, NO_JOB_KPI_NOTE,
-  type CommonCounts, type JobCounts, type LiensKpi, type TeamJob, type TeamKpi,
-} from "@/lib/hr/team-kpis";
 
 /**
  * LES INDICATEURS D'UNE PERSONNE DE MON ÉQUIPE — chargés À LA DEMANDE, quand on ouvre sa carte.

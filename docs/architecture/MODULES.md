@@ -3,7 +3,7 @@
 > Référence d'architecture : [`docs/audit/2026-10-27/08-architecture-code.md`](../audit/2026-10-27/08-architecture-code.md)
 > (§3) et [`refonte-donnees-et-monolithe-modulaire.md`](refonte-donnees-et-monolithe-modulaire.md) §5.
 > Ce document est le **mode d'emploi** : un développeur qui arrive doit pouvoir migrer un module seul en le suivant.
-> État au 28/10/2026 (lot V3-G).
+> État au 28/10/2026 (lot V3-G, puis V4 : module `rh`).
 
 ---
 
@@ -27,6 +27,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `coffre` | socle métier | `api.ts` (écriture), `api-lecture.ts` (déchiffre), `partage.ts`, `actions.ts` | — | `referentiels`, actions RH/Finances/Legal, enrichissement, pont d'Adam | **migré** (V3-G) |
 | `referentiels` | socle métier | `api.ts`, `partage.ts`, `actions-{personnes,organisations,reprises}.ts` | `lieux`, `coffre` | ~20 fichiers d'actions, enrichissement, pages `/personnes`, `/organisations`, `/admin/refonte-donnees` | **migré** (V3-G) |
 | `consommation` | métier | `api.ts`, `actions.ts` | — | segmentation, vue 360° | **pilote** (audit 08), actions rangées au lot V3-G |
+| `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐
@@ -41,7 +42,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 ```
 
 **Prochains candidats** (ordre du rapport 08, §3.5) : `produits` et `annuaires` (ils effacent la dette héritée de
-`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `adpro`, `finances`, `rh` après ; Adam en dernier.
+`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `adpro`, `finances` après (`rh` migré au lot V4) ; Adam en dernier.
 
 ---
 
@@ -108,12 +109,12 @@ le test voit ce qu'ESLint ne voit pas (imports relatifs qui sortent du module, g
 
 | Mesure | Avant V3-G | Après |
 |---|---|---|
-| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | **766** (768 après fusion des lots V3-C/D/E) |
+| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | **766** (768 après fusion des lots V3-C/D/E ; **756** après le module `rh`, V4) |
 | Pages / layouts qui importent `@/lib/prisma` | 129 | **126** |
 | Routes qui importent `@/lib/prisma` | 53 | 53 |
 | Imports `src/components/` → `src/app/` (inversion) | 12 | 12 |
 | Imports du kit d'interface (`components/ui`, `shared`) vers un métier | 6 | 6 |
-| Tests qui lisent le source par un chemin `src/…` | 128 | 128 |
+| Tests qui lisent le source par un chemin `src/…` | 128 | 128 (**125** après le module `rh`, V4) |
 
 Un chiffre qui baisse grâce à vous : **abaissez le plafond au chiffre mesuré** dans le même commit.
 

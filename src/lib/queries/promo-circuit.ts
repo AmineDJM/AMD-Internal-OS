@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { entitePermisePourFiche } from "@/lib/company";
 import { loadReportingLine } from "@/lib/departments";
-import { managementChainOf } from "@/lib/hr/reporting-line";
+import { managementChainOf } from "@/modules/rh/partage";
 import { anyRoleFilter, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac";
 import { getAppSettings } from "@/lib/settings";
 import { ROLE_DIRECTION_MARKETING } from "@/lib/personnes/roles-vente";
