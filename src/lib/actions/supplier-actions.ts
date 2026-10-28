@@ -9,6 +9,7 @@ import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { fdStr, fdDate, fdBool, type ActionResult } from "@/lib/actions/types";
 
 const EXTERNAL_STATUSES: ExternalRegulatoryStatus[] = [
@@ -67,6 +68,7 @@ export async function createSupplier(
   });
   await reposerWilayaCode("Supplier", created.id); // double écriture des lieux (refonte V2-D) : un pays étranger = pas de wilaya
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Portail fournisseur", entityType: "SUPPLIER", entityId: created.id, summary: `Fournisseur « ${name} »` });
+  await doubleEcrireOrganisation("SUPPLIER", created.id, user.id);
   revalidatePath("/admin/suppliers");
   return { ok: true, id: created.id };
 }

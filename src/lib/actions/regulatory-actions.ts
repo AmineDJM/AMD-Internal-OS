@@ -24,6 +24,7 @@ import { reposerWilayaCode } from "@/lib/lieux/rattachement-prisma";
 import { projetsBdVisibles } from "@/lib/queries/bd";
 import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
+import { doubleEcrireOrganisation } from "@/lib/referentiels/organisations/double-ecriture";
 import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { phraseProduitDuDossier } from "@/lib/products/produit-du-dossier";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -253,6 +254,7 @@ export async function createRegulatorySupplier(formData: FormData): Promise<Acti
   });
   await reposerWilayaCode("Supplier", created.id); // double écriture des lieux (refonte V2-D)
   await recordAudit({ actorId: user.id, action: "CREATE", module: "Regulatory", entityType: "SUPPLIER", entityId: created.id, summary: `Fournisseur « ${name} »` });
+  await doubleEcrireOrganisation("SUPPLIER", created.id, user.id);
   revalidatePath("/regulatory");
   return { ok: true, id: created.id };
 }

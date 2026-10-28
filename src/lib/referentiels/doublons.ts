@@ -307,6 +307,14 @@ const cleComparable = (nom: string | null | undefined): string => cleOrganisatio
 
 const motsSignifiants = (cle: string): string[] => cle.split(" ").filter((m) => m.length >= 3 && !MOTS_VIDES.has(m) && !MOTS_DE_TYPE.has(m));
 
+/**
+ * UN NOM QUI DÉSIGNE QUELQU'UN : au moins un mot qui n'est ni vide ni une nature (« CHU », « Clinique médicale »,
+ * « Association » seuls ne nomment aucune organisation — les rapprocher réunirait tous les CHU en un).
+ */
+export function nomDesigneUneOrganisation(nom: string | null | undefined): boolean {
+  return motsSignifiants(cleComparable(nom)).length > 0;
+}
+
 type TypeIdOrg = "NIF" | "RC" | "NIS";
 
 /**

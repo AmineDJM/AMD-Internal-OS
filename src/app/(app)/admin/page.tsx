@@ -80,6 +80,10 @@ export default async function AdminPage() {
             <Link href="/admin/qualite">
               <Button variant="outline"><ScanSearch className="h-4 w-4" /> Qualité des données</Button>
             </Link>
+            {/* LA REFONTE DES DONNÉES (vague 2) : les reprises des référentiels, lancées ici et nulle part ailleurs. */}
+            <Link href="/admin/refonte-donnees">
+              <Button variant="outline"><Database className="h-4 w-4" /> Refonte des données</Button>
+            </Link>
             <Link href="/admin/marque">
               <Button variant="outline"><Palette className="h-4 w-4" /> Marque & modèles</Button>
             </Link>

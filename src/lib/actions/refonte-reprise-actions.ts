@@ -4,70 +4,65 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { recordAudit } from "@/lib/audit";
 import { trouverReprise } from "@/lib/referentiels/reprises";
+import { MODULE_JOURNAL_REFONTE } from "@/lib/referentiels/reprises/journal";
 import type { BilanReprise } from "@/lib/referentiels/reprises/types";
-import type { ActionResult } from "@/lib/actions/types";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LANCER UNE REPRISE DE LA REFONTE DES DONNÉES — Administration › Refonte des données (vague 2).
+ * LES REPRISES DE LA REFONTE — l'action serveur UNIQUE derrière Administration › Refonte des données.
  *
- * Deux gestes, une seule porte : le SUPER ADMIN, et lui seul (la reprise écrit dans les référentiels de toute
- * l'entreprise ; elle ne se délègue pas). Aucune reprise ne tourne au déploiement : c'est ici qu'elle commence.
- *
- *   apercuReprise(cle)            compte à blanc tout l'existant — rien n'est écrit ;
- *   executerReprise(cle, apresId) un LOT, repris au curseur `apresId` ; rend le curseur suivant (`null` = fini).
- *
- * Chaque geste est JOURNALISÉ (`AuditLog`, module « Refonte des données », champ = clé de la reprise) avec son
- * bilan, et le curseur du lot dans `newValue` : l'écran relit ce journal pour reprendre là où on s'était arrêté.
+ * Super Admin SEUL. `apercuReprise` n'écrit rien. `executerReprise` traite UN lot et rend le curseur du
+ * suivant : l'écran relance tant qu'il en reste, et chaque lot laisse une ligne au journal d'audit
+ * (module « Refonte des données », champ = la clé de la reprise) — c'est le journal que l'écran relit.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const MODULE = "Refonte des données";
-const CHEMIN = "/admin/refonte-donnees";
-/** Un lot = au plus ce nombre de fiches : assez pour avancer, assez peu pour tenir dans une requête web. */
-const TAILLE_LOT = 500;
+/** Lignes par lot : assez pour avancer, assez peu pour qu'un lot tienne largement dans une requête. */
+const TAILLE_LOT = 200;
 
-export type ResultatReprise = ActionResult & { bilan?: BilanReprise & { suite?: string | null } };
+export type ResultatReprise =
+  | { ok: true; bilan: BilanReprise & { suite?: string | null } }
+  | { ok: false; error: string };
 
-function resume(b: BilanReprise): string {
-  return `${b.lues} lue(s), ${b.creees} créée(s), ${b.liees} liée(s), ${b.doublonsProposes} doublon(s) proposé(s), ${b.ignorees} ignorée(s), ${b.erreurs.length} cas à regarder`;
-}
-
-async function porte(): Promise<{ ok: true; userId: string } | { ok: false; error: string }> {
+async function superAdmin() {
   const user = await requireUser();
-  if (user.role !== "SUPER_ADMIN") return { ok: false, error: "Les reprises de la refonte sont réservées au Super Admin." };
-  return { ok: true, userId: user.id };
+  return user.role === "SUPER_ADMIN" ? user : null;
 }
+
+const resume = (b: BilanReprise) =>
+  `${b.lues} lue(s) · ${b.creees} créée(s) · ${b.liees} liée(s) · ${b.doublonsProposes} doublon(s) proposé(s) · ${b.ignorees} ignorée(s)`
+  + (b.erreurs.length ? ` · ${b.erreurs.length} erreur(s)` : "");
 
 export async function apercuReprise(cle: string): Promise<ResultatReprise> {
-  const g = await porte();
-  if (!g.ok) return g;
+  const user = await superAdmin();
+  if (!user) return { ok: false, error: "Réservé au Super Admin." };
   const reprise = trouverReprise(cle);
-  if (!reprise) return { ok: false, error: `Reprise inconnue : « ${cle} ».` };
+  if (!reprise) return { ok: false, error: "Reprise inconnue." };
   try {
-    const bilan = await reprise.apercu();
-    await recordAudit({ actorId: g.userId, action: "EXPORT", module: MODULE, field: cle, summary: `Aperçu à blanc « ${reprise.titre} » — ${resume(bilan)}` });
-    return { ok: true, bilan };
+    return { ok: true, bilan: await reprise.apercu() };
   } catch (e) {
-    return { ok: false, error: `Aperçu impossible : ${e instanceof Error ? e.message : String(e)}` };
+    console.error(`[refonte] aperçu ${cle} :`, e);
+    return { ok: false, error: "L'aperçu a échoué : voir les journaux du serveur." };
   }
 }
 
 export async function executerReprise(cle: string, apresId: string | null): Promise<ResultatReprise> {
-  const g = await porte();
-  if (!g.ok) return g;
+  const user = await superAdmin();
+  if (!user) return { ok: false, error: "Réservé au Super Admin." };
   const reprise = trouverReprise(cle);
-  if (!reprise) return { ok: false, error: `Reprise inconnue : « ${cle} ».` };
+  if (!reprise) return { ok: false, error: "Reprise inconnue." };
+  let bilan: BilanReprise & { suite: string | null };
   try {
-    const bilan = await reprise.executer({ taille: TAILLE_LOT, apresId: apresId || null });
-    await recordAudit({
-      actorId: g.userId, action: "IMPORT", module: MODULE, field: cle,
-      oldValue: apresId || null, newValue: bilan.suite,
-      summary: `Lot « ${reprise.titre} » — ${resume(bilan)}${bilan.suite ? "" : " · reprise terminée"}`,
-    });
-    revalidatePath(CHEMIN);
-    return { ok: true, bilan };
+    bilan = await reprise.executer({ taille: TAILLE_LOT, apresId });
   } catch (e) {
-    return { ok: false, error: `Lot interrompu, rien n'est perdu (relancer reprend au même curseur) : ${e instanceof Error ? e.message : String(e)}` };
+    console.error(`[refonte] lot ${cle} après ${apresId ?? "le début"} :`, e);
+    return { ok: false, error: e instanceof Error ? e.message : "Le lot a échoué." };
   }
+  await recordAudit({
+    actorId: user.id, action: "IMPORT", module: MODULE_JOURNAL_REFONTE, field: cle,
+    oldValue: apresId, newValue: JSON.stringify(bilan),
+    summary: `${reprise.titre} — lot : ${resume(bilan)}${bilan.suite ? "" : " (terminé)"}`,
+  });
+  revalidatePath("/admin/refonte-donnees");
+  return { ok: true, bilan };
 }
