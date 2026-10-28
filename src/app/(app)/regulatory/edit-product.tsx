@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Loader2, AlertCircle, Lock } from "lucide-react";
 import { updateRegulatoryProduct, type ActionResult } from "@/lib/actions/regulatory-actions";
@@ -68,7 +68,7 @@ function LockedField({ label, value, hint = "Réservé au Super Admin." }: { lab
 export function EditProductButton({ product, users, suppliers, companies, canSetStructural = false }: { product: EditProductValues; users: UserOption[]; suppliers: { id: string; name: string }[]; companies: { id: string; name: string; shortName: string | null }[]; canSetStructural?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [state, formAction] = useFormState<ActionResult | undefined, FormData>(
+  const [state, formAction] = useActionState<ActionResult | undefined, FormData>(
     updateRegulatoryProduct,
     undefined,
   );

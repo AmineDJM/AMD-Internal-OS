@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useFormState } from "react-dom";
+import { useActionState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { importTransactions, type ResultatImport } from "@/lib/actions/finance-actions";
@@ -17,7 +17,7 @@ const SAMPLE = `date,direction,category,label,amount,method,account,counterparty
 export function ImportTransactionsButton() {
   const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [state, formAction] = useFormState<ResultatImport | undefined, FormData>(importTransactions, undefined);
+  const [state, formAction] = useActionState<ResultatImport | undefined, FormData>(importTransactions, undefined);
   const [pending, setPending] = React.useState(false);
   // Le bilan de CET import, remis à zéro à chaque ouverture : le bilan d'un import précédent ne
   // doit pas se lire sous un texte neuf.
