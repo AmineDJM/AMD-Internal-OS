@@ -43,6 +43,16 @@ export const REGLES: Regle[] = [
    * fenêtre, il voit ces objets. Une règle et non une exception, car ils sont ABSENTS hors de
    * cette fenêtre (une exception serait déclarée périmée à chaque passage normal).
    */
+  /**
+   * VOULU — l'unicité PARTIELLE des ordres vivants par source (DONNEES-10, migration 20270202110000) : Prisma 5 ne sait
+   * pas écrire `WHERE status <> 'CANCELLED' AND "sourceType" IN (…)`. Une règle et non une exception : la migration
+   * ne pose pas l'index sur une base qui porte déjà des doublons vivants (elle le dit), si bien qu'il peut manquer.
+   */
+  {
+    nom: "ordre-source-unique-vivant",
+    accepte: (e: Ecart) => e.cle === "index:ExpenseOrder_source_unique_vivant:DROP",
+    raison: "Unicité partielle des ordres vivants d'une demande de paiement / d'une avance (DONNEES-10) : inexprimable en Prisma 5.",
+  },
   {
     nom: "banc-facture-reprise",
     accepte: (e: Ecart) => /^(table:Invoice:|type:InvoiceStatus:|fk:Invoice_|index:Invoice_)/.test(e.cle),
