@@ -2,12 +2,13 @@
 
 Dix auditeurs, un périmètre chacun, consignes communes : [`00-CONSIGNES.md`](00-CONSIGNES.md). Chaque constat est
 prouvé (`fichier:ligne`), rejoué sur un scénario réel, et les défauts graves au correctif local et testable sont
-**corrigés dans le dépôt** (un commit et un test par constat). Le rapport 01 (sécurité) est en cours de finition.
+**corrigés dans le dépôt** (un commit et un test par constat).
 
 ## Notes par périmètre
 
 | # | Périmètre | Note | Ce qui tient | Le risque n° 1 (statut) |
 |---|---|---|---|---|
+| 01 | [Sécurité, accès](01-securite-acces.md) | 6 | Session révocable relue à chaque requête, SQL paramétré, une seule porte d'ajout implicite | La « garde à moitié » : droit du module vérifié, appartenance de l'objet non (10 CRITIQUE/HAUTE corrigés ; SA-11 à SA-21 → lot V3-F) |
 | 02 | [Données, schéma, migrations](02-donnees-schema.md) | 6,5 | Argent en `Decimal`, migrations additives, numérotation atomique | Cascades qui effaçaient des dépenses (corrigé) ; doubles clics → doubles mouvements (4 corrigés, 2 restent) |
 | 03 | [Argent](03-argent-finances.md) | 6,5 | Un seul écrivain d'ordres, un seul écrivain de `PAID` | « Vider l'historique » supprimait des ordres réglés → double paiement possible (corrigé) |
 | 04 | [Ad & Pro, workflow](04-adpro-workflow.md) | 6 | Route pure gelée à la naissance, porte DG à règle unique | 4 portes latérales émettaient de l'argent hors circuit (corrigées) ; ADPRO-06 portée des acteurs (proposé) |
@@ -35,15 +36,15 @@ structure physique qui ne dit pas où vit un métier.
 | Ordre | Chantier | Source | Effort |
 |---|---|---|---|
 | 1 | ✅ **Sauvegardes et restauration testée** (28/10) : copie nocturne chiffrée hors de Render, rétention, restauration vérifiée chaque dimanche — `docs/readme/37-sauvegardes-restauration.md` ; reste à poser les secrets et, en complément, un Postgres payant avec PITR | 10 | S |
-| 2 | **Rendre les cliquets d'architecture vrais** (imports relatifs, `src/app` et `src/components` mesurés) puis les repasser au vert sans relever de plafond | 08, 06 | M |
-| 3 | **Monter Next 15 / next-auth stable**, corriger `npm audit` | 10 | M |
+| 2 | ✅ **Cliquets d'architecture vrais** (28/10, V3-G) : `src/app` et `src/components` mesurés par `src/platform/couverture.test.ts` (six plafonds décroissants), clé d'action par nom déclaré (`src/lib/actions/parc.ts`), `npm run test:architecture` | 08, 06 | M |
+| 3 | ✅ **Next 15.5 + React 19, next-auth beta.32** (28/10, V3-A) ; `npm audit` production 23 avis (3 critiques, 16 hauts) → 2 modérés ; porte CI `npm audit --omit=dev --audit-level=high` | 10 | M |
 | 4 | **Primitives UI** : toast/bandeau, dialogue accessible, `useAction` partout (remplace 125 `confirm()`, 45 `alert()`) | 09 | M |
-| 5 | **Session légère** pour les sondages de la coque ; icônes à l'unité | 07 | S |
+| 5 | ✅ **Session légère** des sondages de la coque, icônes à l'unité, `take` imbriqué borné, lectures parallèles (28/10, V3-C) ; plafond du JS de la coque en CI | 07 | S |
 | 6 | ✅ **Worker séparé** livré (V2-F) et déclaré dans `render.yaml` (28/10), en attente de bascule `TACHES_DE_FOND` | 07, 10 | M |
-| 7 | **Plafonds et journal des appels IA** de l'Assistant IA (coût par personne, par jour) | 06 | S |
-| 8 | **Erreurs avalées** : remplacer `catch(() => valeur)` par un journal nommé (règle ESLint + cliquet décroissant) | 10 | M |
+| 7 | ✅ **Journal de chaque appel du modèle et plafonds** par personne et par jour, écran Super Admin « Consommation IA » ; contenus externes marqués non fiables (28/10, V3-D) | 06 | S |
+| 8 | ✅ **Erreurs avalées** : `sansBloquer(nom, repli)` / `attendu(raison, repli)` (`src/lib/journal.ts`), cliquet serveur à zéro (`journal-catch-muets.test.ts`), erreurs répétées remontées au Super Admin et à `/api/health` (28/10, V3-E) | 10 | M |
 | 9 | **Séparation des tâches** au centre de paiement (qui demande ≠ qui paie) — décision de Direction | 03 | S |
-| 10 | **Monolithe modulaire** : `src/modules/<module>/{api.ts,domaine,infra,ecrans}`, module pilote puis Ad & Pro | 08 | L |
+| 10 | 🟡 **Monolithe modulaire** engagé (28/10, V3-G) : `lieux`, `coffre` (deux portes : écriture / lecture), `referentiels` et le pilote `consommation` migrés sous `src/modules/` ; carte `src/modules/carte.ts`, ESLint + `frontieres.test.ts` ; guide `docs/architecture/MODULES.md`. Suivants : `produits`, `annuaires`, puis Ad & Pro | 08 | L |
 
 ## Système design cible (résumé — référence : rapport 08 et `../../architecture/refonte-donnees-et-monolithe-modulaire.md`)
 1. **Un module = un dossier**, une seule porte (`api.ts`), ses tables, ses actions, ses écrans ; imports profonds
