@@ -9,20 +9,13 @@ import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { actionFailureMessage } from "@/lib/action-outcome";
 import { STATUTS, STATUT_LABELS, LETTRES_FORCABLES, affiniteAffichee, type Comparaison, type Lettre, type MethodeAffinite, type Statut } from "@/lib/segmentation/regles";
 import { lettreProvisoire, enteteQ1 } from "@/lib/segmentation/charge";
-import {
-  vueDuTableau, triSuivant, valeursDuFiltre, basculerValeur, retirerFiltre, effacerFiltres, nbFiltresActifs, urlAvecEtat,
-  lireSaisieQ, casseNom, FILTRES_LISTE, FILTRES_TEXTE, FILTRES_PLAGE,
-  type Colonne, type EtatTableau, type LigneTri, type FiltreListe, type FiltreTexte, type FiltrePlage, type CleFiltre,
-} from "@/lib/segmentation/tableau-praticiens";
-import {
-  enregistrerPotentiel, changerStatut, forcerLettre, rendreLettreCalculee, changerSecteur, retirerDuPanel,
-  ajouterAuPanel, chercherPraticiensHorsPanel, type PraticienTrouve,
-} from "@/lib/actions/segmentation-actions";
+import { vueDuTableau, triSuivant, valeursDuFiltre, basculerValeur, retirerFiltre, effacerFiltres, nbFiltresActifs, urlAvecEtat, lireSaisieQ, casseNom, FILTRES_LISTE, FILTRES_TEXTE, FILTRES_PLAGE, type Colonne, type EtatTableau, type LigneTri, type FiltreListe, type FiltreTexte, type FiltrePlage, type CleFiltre } from "@/lib/segmentation/tableau-praticiens";
+import { enregistrerPotentiel, changerStatut, forcerLettre, rendreLettreCalculee, changerSecteur, retirerDuPanel } from "@/lib/actions/segmentation-actions";
 import { saveDirectoryCell, deleteDirectoryDoctors } from "@/lib/actions/medical-directory-actions";
 import { LettreBadge } from "./lettre-badge";
+import { AjoutPanel } from "./praticiens-table/ajout-panel";
 
 /**
  * LES PRATICIENS — les colonnes du classeur (Secteur, CDR, Spécialité, Nom, Prénom, Grade, Statut, Q1, Q2, %, Potentiel),
@@ -84,7 +77,7 @@ type EtatCellule = "envoi" | "erreur";
 type Deplacement = "bas" | "haut" | "droite" | "gauche" | "ici" | null;
 type Resultat = { ok: boolean; error?: string };
 
-const champ = "rounded-lg border border-border bg-background px-2.5 py-2 text-sm sm:py-1.5";
+export const champ = "rounded-lg border border-border bg-background px-2.5 py-2 text-sm sm:py-1.5";
 const LIBELLES: Record<Colonne, string> = {
   secteur: "Secteur", cdr: "CDR", specialite: "Spécialité", nom: "Nom", prenom: "Prénom", grade: "Grade", statut: "Statut",
   q1: "Q1", q2: "Q2", pct: "%", potentiel: "Potentiel",
@@ -1047,52 +1040,5 @@ function Flottant({ ancre, onFermer, largeur, garderFocus, children }: { ancre: 
       {children}
     </div>,
     document.body,
-  );
-}
-
-// ─────────────────────────────── Ajouter au panel ───────────────────────────────
-
-/** Ajouter un praticien de l'annuaire au panel. */
-function AjoutPanel({ strategieId, onFait }: { strategieId: string; onFait: () => void }) {
-  const [q, setQ] = React.useState("");
-  const [res, setRes] = React.useState<PraticienTrouve[]>([]);
-  const [erreur, setErreur] = React.useState<string | null>(null);
-  const [envoi, setEnvoi] = React.useState(false);
-  React.useEffect(() => {
-    if (q.trim().length < 2) { setRes([]); return; }
-    let actif = true;
-    const t = setTimeout(async () => {
-      try {
-        const r = await chercherPraticiensHorsPanel({ strategieId, q });
-        if (!actif) return;
-        if (r.ok) { setRes(r.praticiens); setErreur(null); } else setErreur(r.error);
-      } catch {
-        if (actif) setErreur(actionFailureMessage("THROWN"));
-      }
-    }, 250);
-    return () => { actif = false; clearTimeout(t); };
-  }, [q, strategieId]);
-  return (
-    <div className="space-y-2 border-b border-border px-4 py-3 text-sm">
-      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Chercher dans l'annuaire (nom, établissement)…" aria-label="Chercher un praticien" className={cn(champ, "w-full sm:w-96")} autoFocus />
-      {erreur && <p className="text-destructive">{erreur}</p>}
-      {res.map((p) => (
-        <div key={p.id} className="flex flex-wrap items-center justify-between gap-2">
-          <span className="min-w-0 [overflow-wrap:anywhere]"><b className="font-medium">{p.nom}</b> <span className="text-muted-foreground">{[p.etablissement, casseNom(p.specialite)].filter(Boolean).join(" · ")}</span></span>
-          <Button type="button" size="sm" variant="outline" disabled={envoi} onClick={async () => {
-            setEnvoi(true);
-            try {
-              const r = await ajouterAuPanel(strategieId, [p.id], null);
-              if (r.ok) onFait(); else setErreur(r.error);
-            } catch {
-              setErreur(actionFailureMessage("THROWN"));
-            } finally {
-              setEnvoi(false);
-            }
-          }}>Ajouter</Button>
-        </div>
-      ))}
-      {q.trim().length >= 2 && res.length === 0 && !erreur && <p className="text-muted-foreground">Aucun praticien hors panel ne correspond.</p>}
-    </div>
   );
 }
