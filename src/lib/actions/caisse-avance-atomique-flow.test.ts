@@ -72,7 +72,9 @@ suite("Caisse d'avance — dépense atomique, rallonge adressée à qui tranche"
     const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
-    // Autorisée par le centre, la remise est versée et EN MAIN (règle du 28/10/2026).
+    // Autorisée par le centre — par le PDG, pas par qui l'a demandée (séparation des tâches, ARGENT-06) — la
+    // remise est versée et EN MAIN (règle du 28/10/2026).
+    ACTOR = await actorFor(pdgId, "DIRECTION");
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
     expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ligne.id } })).status).toBe("RECEIVED");
   }, 60_000);
