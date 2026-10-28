@@ -61,14 +61,14 @@ export async function totauxDesDemandes(parent: AdProParent, parentIds: readonly
   const [lignes, devis] = await Promise.all([
     prisma.adProItem.findMany({
       where: { [colonne]: { in: ids }, status: { not: "REJECTED" } },
-      select: { [colonne]: true, amountEstimated: true, amountGranted: true },
-    }) as Promise<({ amountEstimated: Prisma.Decimal | null; amountGranted: Prisma.Decimal | null } & Record<string, unknown>)[]>,
+      select: { sponsoringId: true, congressNationalId: true, congressInternationalId: true, eventId: true, otherRequestId: true, amountEstimated: true, amountGranted: true },
+    }),
     colonneDevis
       ? prisma.careQuote.findMany({
         where: { [colonneDevis]: { in: ids }, OR: [{ status: "ACCEPTED" }, { status: "PENDING", retainedAt: { not: null } }] },
-        select: { [colonneDevis]: true, amountDzd: true },
-      }) as Promise<({ amountDzd: Prisma.Decimal } & Record<string, unknown>)[]>
-      : Promise.resolve([] as ({ amountDzd: Prisma.Decimal } & Record<string, unknown>)[]),
+        select: { congressNationalId: true, congressInternationalId: true, amountDzd: true },
+      })
+      : Promise.resolve([]),
   ]);
   const ajouter = (id: unknown, montant: number) => {
     if (typeof id === "string" && totaux.has(id)) totaux.set(id, totaux.get(id)! + montant);
