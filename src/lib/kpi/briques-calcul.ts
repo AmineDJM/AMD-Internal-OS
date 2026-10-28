@@ -13,6 +13,7 @@ import {
   tachesATemps, type PraticienFenetre,
 } from "./mesures";
 import { calculerBriquePch, detailBriquePch } from "./briques-pch";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -56,7 +57,7 @@ export class ChargeurBriques {
   constructor(readonly maintenant: Date = new Date()) {}
 
   private lettresDe(): Promise<Map<string, EntreeLettre[]>> {
-    if (!this.lettres) this.lettres = chargerSegmentations().then(indexerLettres).catch(() => new Map());
+    if (!this.lettres) this.lettres = chargerSegmentations().then(indexerLettres).catch(sansBloquer("briques-calcul.lettresDe.chargerSegmentations", new Map()));
     return this.lettres;
   }
 

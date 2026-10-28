@@ -3,6 +3,7 @@ import path from "path";
 import { prisma } from "./prisma";
 import { putBlob, getBlob, releaseBlob } from "./drive-storage";
 import { refusTeleversement } from "./files/politique-televersement";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Stockage des fichiers de **documents** (modèle Document, hors Drive).
@@ -56,7 +57,7 @@ export async function deleteFileByKey(key: string): Promise<void> {
   if (stored) {
     // La référence part AVANT de rendre le blob : `releaseBlob` n'efface que ce qu'aucune
     // colonne ne désigne plus, et cette ligne en est une.
-    await prisma.storedFile.delete({ where: { key } }).catch(() => undefined);
+    await prisma.storedFile.delete({ where: { key } }).catch(sansBloquer("storage.deleteFileByKey.storedFile"));
     await releaseBlob(stored.blobId);
   }
 }

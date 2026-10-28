@@ -6,6 +6,7 @@ import {
   CONSIGNE_ESSENTIEL, SCHEMA_ESSENTIEL, faitsPourLuna, lireReponseEssentiel, essentielDeterministe, empreinteFaits,
   type Fait360, type Essentiel360,
 } from "@/lib/products/essentiel-360";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -78,7 +79,7 @@ async function demanderALuna(faits: readonly Fait360[], userId: string | null): 
     errorCode: panne ? "exception" : r === null ? "timeout" : !r.ok ? (r.error ?? "error").slice(0, 120) : lu ? null : "invalid_json",
     llmCalls: 1, inputTokens: r?.usage.inputTokens ?? null, outputTokens: r?.usage.outputTokens ?? null,
     cachedInputTokens: r?.usage.cachedInputTokens ?? null, costUsd: r?.usage.costUsd ?? null,
-  }).catch(() => undefined);
+  }).catch(sansBloquer("produit-360-luna.demanderALuna.logAiUsage"));
   return lu;
 }
 

@@ -1,5 +1,6 @@
 import { MailSendPolicy } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * LA POLITIQUE D'ENVOI — la règle qui décide si un message peut PARTIR.
@@ -42,7 +43,7 @@ const DEFAULT_STATE: CommunicationPolicyState = {
  * neuve, une migration à moitié jouée ou une ligne effacée ne doivent jamais ouvrir l'envoi.
  */
 export async function getCommunicationPolicy(scope: string = GLOBAL_SCOPE): Promise<CommunicationPolicyState> {
-  const row = await prisma.communicationPolicy.findUnique({ where: { scope } }).catch(() => null);
+  const row = await prisma.communicationPolicy.findUnique({ where: { scope } }).catch(sansBloquer("policy.getCommunicationPolicy.communicationPolicy", null));
   if (!row) return { ...DEFAULT_STATE };
   return {
     mailSendPolicy: row.mailSendPolicy,

@@ -6,6 +6,7 @@
  * (en cas de panne du suivi, on laisse passer plutôt que de bloquer tout le monde).
  */
 import { prisma } from "./prisma";
+import { sansBloquer } from "@/lib/journal";
 
 export const MAX_FAILURES = 5; // échecs tolérés avant verrouillage
 const WINDOW_MS = 15 * 60_000; // fenêtre glissante de comptage (15 min)
@@ -19,7 +20,7 @@ export interface LockState {
 
 /** Indique si l'identifiant est actuellement verrouillé. */
 export async function checkLockout(email: string): Promise<LockState> {
-  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(() => null);
+  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(sansBloquer("login-throttle.checkLockout.loginAttempt", null));
   if (row?.lockedUntil && row.lockedUntil > new Date()) return { locked: true, until: row.lockedUntil };
   return { locked: false };
 }
@@ -36,7 +37,7 @@ export interface FailureResult {
  */
 export async function recordFailure(email: string, ip: string | null): Promise<FailureResult> {
   const now = new Date();
-  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(() => null);
+  const row = await prisma.loginAttempt.findUnique({ where: { email } }).catch(sansBloquer("login-throttle.recordFailure.loginAttempt", null));
 
   // Fenêtre glissante : une dernière tentative trop ancienne (sans verrou actif)
   // repart de zéro pour ne pas pénaliser un utilisateur légitime occasionnel.
@@ -60,12 +61,12 @@ export async function recordFailure(email: string, ip: string | null): Promise<F
       create: { email, ipAddress: ip, failures, lockedUntil, lastAttempt: now },
       update: { ipAddress: ip, failures, lockedUntil, lastAttempt: now },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("login-throttle.recordFailure.loginAttempt"));
 
   return { lockedNow, until: lockedUntil ?? undefined, failures };
 }
 
 /** Réinitialise le compteur (connexion réussie). */
 export async function clearAttempts(email: string): Promise<void> {
-  await prisma.loginAttempt.deleteMany({ where: { email } }).catch(() => undefined);
+  await prisma.loginAttempt.deleteMany({ where: { email } }).catch(sansBloquer("login-throttle.clearAttempts.loginAttempt"));
 }

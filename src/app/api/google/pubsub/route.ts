@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { resolveGoogleConfig } from "@/lib/google/config";
 import { verifyPubSubToken, parsePubSubEnvelope, safeEqual } from "@/lib/google/pubsub-verify";
 import { syncFromHistory, adamConnection } from "@/lib/google/gmail/reconcile";
+import { sansBloquer, attendu } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +55,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "origine non vérifiée" }, { status: 401 });
   }
 
-  const body = await req.json().catch(() => null);
+  const body = await req.json().catch(attendu("corps de requête illisible : c'est une erreur du client, il reçoit le repli", null));
   const envelope = parsePubSubEnvelope(body);
   const address = typeof envelope.data?.emailAddress === "string" ? envelope.data.emailAddress.toLowerCase() : null;
 
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
     where: { connectionId: conn.id },
     create: { connectionId: conn.id, lastNotifiedAt: new Date() },
     update: { lastNotifiedAt: new Date() },
-  }).catch(() => undefined);
+  }).catch(sansBloquer("pubsub-route.POST.gmailIngestionState"));
 
   try {
     // On ne prend PAS l'`historyId` du push comme point de départ : le nôtre fait foi. Le push ne

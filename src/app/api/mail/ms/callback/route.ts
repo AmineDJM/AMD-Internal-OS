@@ -5,6 +5,7 @@ import { resolveMicrosoftConfig, GRAPH_BASE } from "@/lib/mail/config";
 import { exchangeCode, verifyState, MicrosoftAuthError } from "@/lib/mail/oauth";
 import { saveConnection } from "@/lib/mail/connection";
 import { recordAudit } from "@/lib/audit";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 
@@ -91,7 +92,7 @@ export async function GET(req: NextRequest) {
     stage = "graph-me";
     const meRes = await fetch(`${GRAPH_BASE}/me`, { headers: { authorization: `Bearer ${tokens.accessToken}` } });
     graphStatus = meRes.status;
-    const me = (await meRes.json().catch(() => ({}))) as Record<string, unknown>;
+    const me = (await meRes.json().catch(sansBloquer("callback-route.GET.json", {}))) as Record<string, unknown>;
     const address = String(me.mail ?? me.userPrincipalName ?? "").trim();
     if (!address) {
       // Ce chemin ne lève pas : sans ce journal, un refus de Graph (401/403) se présenterait comme

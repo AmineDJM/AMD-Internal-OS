@@ -7,6 +7,7 @@ import { personalContext, contexteReglesSeules } from "@/lib/assistant-memory";
 import { runAssistantStream, type ChatTurn, type AssistantStreamEvent } from "@/lib/assistant";
 import { rememberExchange } from "@/lib/memoire-echange";
 import { consignerProvenance } from "@/platform/in-process/fabric/provenance";
+import { sansBloquer } from "@/lib/journal";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
         const [enabled, memoryOn, personalBrut] = await Promise.all([
           aiFeatureEnabled("assistant"),
           featureEnabled(FEATURES.ASSISTANT_MEMORY.key, user.id),
-          personalContext(user.id).catch(() => null),
+          personalContext(user.id).catch(sansBloquer("stream-route.start.personalContext", null)),
         ]);
         if (!enabled) {
           send({ type: "done", result: { configured: true, ok: false, reply: "", trace: [], error: "L'assistant IA est actuellement désactivé par l'administrateur." } });

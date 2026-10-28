@@ -5,6 +5,7 @@ import { simpleParser } from "mailparser";
 import type { MailAccount } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { exigerSortieAutorisee, sortieAutorisee } from "@/lib/sortie/garde";
+import { sansBloquer, attendu } from "@/lib/journal";
 
 /**
  * Couche e-mail — **serveur uniquement** (jamais côté client). Connexion par
@@ -152,11 +153,11 @@ export async function mailDiagnostic(account: { email: string; passwordEnc: stri
     const c = imapClient(account);
     try {
       await c.connect();
-      await c.status("INBOX", { messages: true }).catch(() => undefined);
-      await c.logout().catch(() => {});
+      await c.status("INBOX", { messages: true }).catch(sansBloquer("mail.mailDiagnostic.status"));
+      await c.logout().catch(attendu("fermeture au mieux : la ressource est abandonnée de toute façon"));
       return { ok: true, category: "OK" as MailDiagCategory, label: DIAG_LABEL.OK, raw: "", ...base };
     } catch (e) {
-      await c.logout().catch(() => {});
+      await c.logout().catch(attendu("fermeture au mieux : la ressource est abandonnée de toute façon"));
       const category = classifyMailError(e);
       return { ok: false, category, label: DIAG_LABEL[category], raw: String((e as Error)?.message ?? e ?? "erreur inconnue").slice(0, 600), ...base };
     }
@@ -174,9 +175,9 @@ const imapChains = new Map<string, Promise<unknown>>();
 function withAccountLock<T>(email: string, fn: () => Promise<T>): Promise<T> {
   const key = email.toLowerCase();
   const prev = imapChains.get(key) ?? Promise.resolve();
-  const run = prev.catch(() => {}).then(fn);
+  const run = prev.catch(attendu("l\'erreur du maillon appartient à son appelant, qui l\'a déjà reçue")).then(fn);
   // On garde la chaîne vivante (sans propager l'erreur) pour sérialiser le suivant.
-  const tail = run.catch(() => {});
+  const tail = run.catch(attendu("l\'erreur du maillon appartient à son appelant, qui l\'a déjà reçue"));
   imapChains.set(key, tail);
   // Nettoyage : si personne ne s'est enchaîné derrière, on libère l'entrée.
   tail.then(() => { if (imapChains.get(key) === tail) imapChains.delete(key); });
@@ -532,7 +533,7 @@ export async function getMessage(account: MailAccount, mailbox: string, uid: num
         const ccList = Array.isArray(parsed.cc) ? parsed.cc : parsed.cc ? [parsed.cc] : [];
         const cc = ccList.flatMap((t) => t.value).map((v) => v.address).filter(Boolean).join(", ");
         // Marque comme lu (best-effort).
-        c.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true }).catch(() => {});
+        c.messageFlagsAdd(String(uid), ["\\Seen"], { uid: true }).catch(sansBloquer("mail.getMessage.messageFlagsAdd"));
         return {
           uid,
           subject: parsed.subject || "(sans objet)",

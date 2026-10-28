@@ -7,6 +7,7 @@ import {
   diffEmpreintes, estChezElle, etatRepris, lireEmpreinte, phraseChangements, NATURE_LIBELLE,
   type EtatDemande, type SourceFiche,
 } from "@/lib/reservation-fiche/etat";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -45,7 +46,7 @@ export async function destinatairesAssistante(d: { priseParId: string | null }):
 export async function prevenir(userIds: readonly string[], n: { title: string; body: string; link: string }, sauf?: string): Promise<void> {
   for (const userId of new Set(userIds)) {
     if (userId === sauf) continue;
-    await notifyUser({ userId, type: "GENERIC", title: n.title, body: n.body, link: n.link }).catch(() => undefined);
+    await notifyUser({ userId, type: "GENERIC", title: n.title, body: n.body, link: n.link }).catch(sansBloquer("reservation-fiche-serveur.prevenir.notifyUser"));
   }
 }
 
@@ -114,7 +115,7 @@ export async function assurerSujet(f: FicheReservation, acteurId: string): Promi
       : await prisma.congressInternational.updateMany({ where: { id: f.operation.id, careReservationDossierId: null }, data: { careReservationDossierId: sujet.id } });
   if (pose.count > 0) return { ok: true, id: sujet.id };
   // UN AUTRE ENVOI L'A OUVERT ENTRE-TEMPS : on retire le nôtre (vide) et on rejoint le sien.
-  await prisma.dossier.delete({ where: { id: sujet.id } }).catch(() => undefined);
+  await prisma.dossier.delete({ where: { id: sujet.id } }).catch(sansBloquer("reservation-fiche-serveur.assurerSujet.dossier"));
   const autre = f.itemId
     ? (await prisma.adProItem.findUnique({ where: { id: f.itemId }, select: { reservationDossierId: true } }))?.reservationDossierId
     : f.operation.type === "CONGRESS_NATIONAL"

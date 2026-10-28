@@ -2,6 +2,7 @@ import {
   createMultipartUpload, completeMultipartUpload, abortMultipartUpload, presignUploadPartUrl,
   listParts, headObjectSize, type PartieRecue,
 } from "@/lib/storage/object-storage";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * TÉLÉVERSEMENT DIRECT NAVIGATEUR → BUCKET, EN PLUSIEURS PARTIES — le cœur partagé.
@@ -197,7 +198,7 @@ export async function finaliserEnvoi(
       if (!/NoSuchUpload/i.test(msg)) return { ok: false, erreur: `Recollage des parties impossible (${msg}).`, reprendre: true };
     }
   }
-  const taille = await client.taille(cle).catch(() => null);
+  const taille = await client.taille(cle).catch(sansBloquer("televersement-direct.finaliserEnvoi.taille", null));
   if (taille === null) return { ok: false, erreur: "Le fichier n'est pas arrivé dans le stockage — renvoyez-le.", reprendre: false };
   if (taille !== total) {
     return { ok: false, erreur: `Taille reçue incohérente (${taille} octets au lieu de ${total}) — le fichier n'a pas été enregistré.`, reprendre: false };

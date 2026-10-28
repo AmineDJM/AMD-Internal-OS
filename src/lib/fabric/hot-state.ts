@@ -28,6 +28,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
+import { sansBloquer } from "@/lib/journal";
 
 export interface LectureChaude<T> {
   valeur: T;
@@ -52,7 +53,7 @@ export async function lireEtatChaud<T>(
 ): Promise<LectureChaude<T>> {
   const ligne = await prisma.assistantHotState
     .findUnique({ where: { kind_subjectId: { kind, subjectId } } })
-    .catch(() => null);
+    .catch(sansBloquer("hot-state.lireEtatChaud.assistantHotState", null));
   if (ligne && !ligne.staleAt && Date.now() - ligne.computedAt.getTime() < opts.ttlMs) {
     return { valeur: ligne.payload as T, voie: "PRECALCULE", calculeLe: ligne.computedAt, coutMesureMs: ligne.costMs };
   }
@@ -80,7 +81,7 @@ export async function rechaufferEtatChaud<T>(
       create: { kind, subjectId, payload: valeur as Prisma.InputJsonValue, computedAt: calculeLe, costMs: coutMesureMs },
       update: { payload: valeur as Prisma.InputJsonValue, computedAt: calculeLe, costMs: coutMesureMs, staleAt: null },
     })
-    .catch(() => undefined);
+    .catch(sansBloquer("hot-state.rechaufferEtatChaud.assistantHotState"));
   return { valeur, voie: "CALCULE", calculeLe, coutMesureMs };
 }
 
@@ -93,6 +94,6 @@ export async function rechaufferEtatChaud<T>(
 export async function invaliderEtatsChauds(kind: string): Promise<number> {
   const r = await prisma.assistantHotState
     .updateMany({ where: { kind, staleAt: null }, data: { staleAt: new Date() } })
-    .catch(() => ({ count: 0 }));
+    .catch(sansBloquer("hot-state.invaliderEtatsChauds.assistantHotState", { count: 0 }));
   return r.count;
 }

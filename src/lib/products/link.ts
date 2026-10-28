@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import type { ActionResult } from "@/lib/actions/types";
 import { ensureProduitDuDossier } from "./canonique";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * RATTACHER UN PRODUIT À SON DOSSIER RÉGLEMENTAIRE — le cœur, appelé par les DEUX portes.
@@ -52,7 +53,7 @@ export async function linkProductToDossierFor(user: SessionUser, input: {
   // lot) reçoit le sien ici, identité complète ou non.
   let produitDuDossier = dossier.productId;
   if (!produitDuDossier) {
-    const lien = await ensureProduitDuDossier(dossier.id, { acteurId: user.id }).catch(() => null);
+    const lien = await ensureProduitDuDossier(dossier.id, { acteurId: user.id }).catch(sansBloquer("link.linkProductToDossierFor.ensureProduitDuDossier", null));
     if (lien && "produitId" in lien) produitDuDossier = lien.produitId;
   }
 

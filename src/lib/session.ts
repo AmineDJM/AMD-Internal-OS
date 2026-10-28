@@ -14,6 +14,7 @@ import { canOpenModule } from "./modules-visibility";
 import { IMPERSONATE_COOKIE } from "./vue-exacte";
 import { vueHonoree } from "./vue-exacte-ui";
 import { lectureDeclaree } from "./vue-lecture";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. Défini dans
@@ -135,7 +136,7 @@ async function build(session: Session | null, opts: OptionsDeSession = {}): Prom
     if (shouldTouch(`sess:${sid}`, 60_000)) {
       prisma.userSession
         .update({ where: { id: sid }, data: { lastSeenAt: new Date() } })
-        .catch(() => undefined);
+        .catch(sansBloquer("lib-session.build.userSession"));
     }
   }
 
