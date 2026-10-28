@@ -44,6 +44,8 @@ import { executerPassage, type BilanPassage, type ContexteExecution, type TacheP
 import { identiteDuProcessus } from "@/lib/taches-de-fond/bail";
 import { battementWebArme, executeurAutorise, executeurDuProcessus, lireModeTachesDeFond } from "@/lib/taches-de-fond/mode";
 import { traiterFileEnrichissement } from "@/lib/taches-de-fond/enrichissement";
+import { alerterIncidentsRepetes, verserCompteurs } from "@/lib/incidents-repetes";
+import { sansBloquer } from "@/lib/journal";
 
 /**
  * Tâches périodiques **sans cron externe**. Deux exécutants possibles, choisis par l'interrupteur
@@ -130,7 +132,10 @@ export async function runScheduledJobs(): Promise<void> {
 }
 
 /** Un passage complet de la table — le point d'entrée commun au web et au worker. */
-export function executerTachesPlanifiees(ctx: ContexteExecution): Promise<BilanPassage> {
+export async function executerTachesPlanifiees(ctx: ContexteExecution): Promise<BilanPassage> {
+  // Les erreurs comptées par CE processus rejoignent la base AVANT le passage — hors bail : le web
+  // et le worker ont chacun leur mémoire, chacun doit verser la sienne (`incidents-repetes.ts`).
+  await verserCompteurs();
   return executerPassage(TACHES_PLANIFIEES, ctx);
 }
 
@@ -156,6 +161,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // son produit — l'existant rejoint la règle des nouveaux. Idempotent ; le bilan part au journal du serveur.
   { cle: "produits.dossiers", executer: assurerProduitsDesDossiersAuDemarrage },
   { cle: "ia.sante", executer: performAiHealthCheck }, // test IA 1×/jour + alerte Super Admin
+  // LES ERREURS RÉPÉTÉES (lot V3-E) : un événement du journal qui a échoué cinq fois dans l'heure part
+  // au Super Admin — une notification agrégée, puis le silence six heures (`incidents-repetes.ts`).
+  { cle: "observabilite.incidents", executer: () => alerterIncidentsRepetes() },
   { cle: "regulatory.jobs", executer: () => runDueRegulatoryJobs() },
   { cle: "regulatory.sessions-upload", executer: pruneStaleUploadSessions }, // sessions d'upload incomplètes
   { cle: "regulatory.parties-closes", executer: purgeClosedSessionParts }, // filet : octets d'envois clos qu'un redémarrage aurait laissés
@@ -394,7 +402,7 @@ async function sendDueReminders(): Promise<void> {
     // Verrou atomique : ne notifie qu'une fois même sous concurrence (PENDING → SENT).
     const claimed = await prisma.reminder.updateMany({ where: { id: r.id, status: "PENDING" }, data: { status: "SENT", sentAt: now } });
     if (claimed.count === 0) continue;
-    await notifyUser({ userId: r.userId, type: "GENERIC", title: "Rappel", body: r.title, link: r.link ?? "/mon-espace" }).catch(() => undefined);
+    await notifyUser({ userId: r.userId, type: "GENERIC", title: "Rappel", body: r.title, link: r.link ?? "/mon-espace" }).catch(sansBloquer("scheduled.sendDueReminders.notifyUser"));
   }
 }
 
@@ -409,7 +417,7 @@ async function sendDuePayrollNotifications(): Promise<void> {
   const now = new Date();
   // Les salaires marqués payés AVANT la bascule ont été versés par l'ancien circuit : ils
   // s'annoncent comme avant, sans virement (§118.176).
-  const depuisLeCentre = await instantDuCentreDePaie().catch(() => null);
+  const depuisLeCentre = await instantDuCentreDePaie().catch(sansBloquer("scheduled.sendDuePayrollNotifications.instantDuCentreDePaie", null));
   const due = await prisma.payrollEntry.findMany({
     where: clauseSalairesVersesANotifier(now, depuisLeCentre),
     include: { employee: { select: { userId: true, fullName: true } } },
@@ -427,7 +435,7 @@ async function sendDuePayrollNotifications(): Promise<void> {
       title: "Votre salaire a été versé",
       body: `Votre paie de ${String(e.month).padStart(2, "0")}/${e.year} a été versée. La fiche de paie est disponible dans Mon dossier RH.`,
       link: "/mon-dossier",
-    }).catch(() => {});
+    }).catch(sansBloquer("scheduled.sendDuePayrollNotifications.notifyUser"));
   }
 }
 

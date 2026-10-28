@@ -17773,6 +17773,29 @@ model TacheDeFond {
   updatedAt       DateTime           @updatedAt
 }
 
+/// LES INCIDENTS RÉPÉTÉS (lot V3-E « Fiabilité ») — une ligne par événement du journal unique
+/// (`src/lib/journal.ts`) qui a échoué au moins une fois. Chaque processus y verse ses compteurs à
+/// chaque passage des tâches de fond ; la tâche `observabilite.incidents` prévient le Super Admin
+/// quand un événement dépasse le seuil dans la fenêtre — UNE notification agrégée, puis le silence
+/// jusqu'au rappel. Diagnostic (Super Admin) seulement : le message est tronqué, jamais une pile.
+model IncidentRepete {
+  /// Nom de l'événement (`centre-adpro.visas`, `tache.echec:rappels.reunions`).
+  evenement      String    @id
+  /// Cumul depuis la première erreur connue.
+  total          Int       @default(0)
+  /// Début de la fenêtre courante ; une fenêtre échue repart de zéro au versement suivant.
+  fenetreDebut   DateTime  @default(now())
+  compteFenetre  Int       @default(0)
+  premierA       DateTime  @default(now())
+  dernierA       DateTime  @default(now())
+  dernierMessage String?
+  /// Dernière alerte envoyée au Super Admin pour cet événement (null : jamais).
+  notifieA       DateTime?
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  @@index([dernierA])
+}
+
 enum StatutTacheDeFond {
   EN_COURS
   OK
