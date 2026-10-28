@@ -141,7 +141,7 @@ export async function personnesParEmpreinte(nature: string, empreinte: string): 
     select: { titulaireId: true },
     take: 20,
   });
-  return [...new Set(lignes.map((l) => l.titulaireId))];
+  return [...new Set(lignes.map((l) => l.titulaireId).filter((id): id is string => id !== null))];
 }
 
 const TYPE_IDENTIFIANT: Record<string, TypeIdentifiantOrganisation> = {

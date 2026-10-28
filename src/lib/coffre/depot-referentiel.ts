@@ -49,8 +49,14 @@ const titulaireDe = (t: RefTitulaire) =>
 
 type Ligne = Prisma.DonneeSensibleGetPayload<Record<string, never>>;
 
-function versResume(l: Omit<Ligne, "valeurChiffree" | "iv" | "tag" | "cleVersion">): ResumeDonneeSensible {
+/** Les colonnes que ce dépôt lit d'une ligne du coffre (sans le chiffré). */
+type LigneLue = Pick<Ligne, "id" | "titulaireType" | "titulaireId" | "nature" | "empreinteHmac" | "derniersCaracteres" | "pieceId" | "valideDu" | "valideAu" | "creeParId" | "createdAt">;
+
+function versResume(l: LigneLue): ResumeDonneeSensible {
   if (!estNatureCoffre(l.nature)) throw new Error(`Nature inconnue au coffre : ${l.nature}`);
+  // Depuis V2-E une copie peut attendre son titulaire (la fiche d'origine n'a pas encore de Personne/Organisation) :
+  // ce dépôt-ci ne sert que des valeurs rattachées — l'appelant filtre (`aUnTitulaire`).
+  if (!l.titulaireType || !l.titulaireId) throw new Error(`Donnée sensible ${l.id} sans titulaire`);
   return {
     id: l.id,
     titulaire: l.titulaireType === "PERSONNE" ? { genre: "PERSONNE", personneId: l.titulaireId } : { genre: "ORGANISATION", organisationId: l.titulaireId },
@@ -64,6 +70,8 @@ function versResume(l: Omit<Ligne, "valeurChiffree" | "iv" | "tag" | "cleVersion
     deposeLe: l.createdAt,
   };
 }
+
+const aUnTitulaire = (l: { titulaireType: unknown; titulaireId: string | null }) => Boolean(l.titulaireType && l.titulaireId);
 
 const versStockee = (l: Ligne): DonneeSensibleStockee => ({ ...versResume(l), valeurChiffree: depuisColonnes(l) });
 
@@ -119,7 +127,7 @@ export function creerDepotReferentiel(client: Client): DepotCoffre {
         },
         orderBy: { createdAt: "asc" },
       });
-      return lignes.map(versResume);
+      return lignes.filter(aUnTitulaire).map(versResume);
     },
   };
 }

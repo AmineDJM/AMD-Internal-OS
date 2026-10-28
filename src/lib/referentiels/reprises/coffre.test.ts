@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { cleRib } from "@/lib/coffre/natures";
 import { compterIssues, creerRepriseCoffre, lireCurseur } from "./coffre";
-import { REPRISES, repriseParCle } from ".";
+import { REPRISES, trouverReprise } from ".";
 import { bilanVide } from "./types";
 
 /**
@@ -34,7 +34,7 @@ describe("le curseur et le bilan (purs)", () => {
 
   it("la reprise est inscrite au registre commun", () => {
     expect(REPRISES.map((r) => r.cle)).toContain("coffre");
-    expect(repriseParCle("coffre")?.titre).toMatch(/Coffre/);
+    expect(trouverReprise("coffre")?.titre).toMatch(/Coffre/);
   });
 });
 
