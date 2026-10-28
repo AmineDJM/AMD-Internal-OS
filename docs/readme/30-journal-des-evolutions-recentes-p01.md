@@ -1,5 +1,21 @@
 ## 🧾 Journal des évolutions récentes
 
+### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 3, ET UN CLIQUET DE TAILLE (2026-10-28)
+
+Aucun écran ne change, aucune donnée, aucune migration : du code DÉPLACÉ, tel quel (audit 08, ARCH-04 — « hyper
+structuré, que n'importe quel développeur comprenne »).
+- **Mesure** : 49 fichiers de production > 1 000 lignes avant, **3 après** — tous confiés à d'autres chantiers
+  (`ad-pro-item-actions.ts`, `ad-pro/items-panel.tsx`, `payment-request-actions.ts`). `assistant.ts` 7 314 → porte de 41
+  lignes ; `assistant/ops/catalog.ts` 5 399 → 81 ; `labels.ts` 2 289 → 21 ; `rbac.ts` 2 212 → 28 ; 45 fichiers découpés.
+- **Une règle unique** : un dossier au nom du fichier (`src/lib/rbac/`, `src/lib/labels/`, `src/lib/assistant/{coeur,
+  outils,propositions,actions-confirmees,boucle}/`, `ops/catalogue/`, `ops/impl/<vague>/`…), un fichier par
+  responsabilité ; l'ancien fichier reste la **porte** qui réexporte — aucun import à changer.
+- **Contrat des actions identique octet pour octet** (1 187 actions) : les actions restent dans leur fichier ; leurs
+  aides vivent dans `src/lib/actions/internes/<domaine>/`, que le lecteur de contrat lit comme du code local.
+- **Cliquet** `src/platform/taille-fichiers.test.ts` (dans `npm run test:architecture`) : 1 000 lignes au plus pour
+  tout fichier ; les 3 hérités figés, la liste ne fait que rétrécir. Aucun autre cliquet relevé (frontière 422,
+  traversées 67) ; hors carte −9, tests de texte au plus bas mesuré.
+
 ### ASSISTANT IA : VOCAUX « COMME WHATSAPP » ET LECTURE DE TOUTE PIÈCE JOINTE (2026-10-28)
 
 - **Messages vocaux** (Direction) : sur `/assistant`, maintenir le micro enregistre (minuterie, onde), relâcher envoie, glisser à
