@@ -108,7 +108,7 @@ le test voit ce qu'ESLint ne voit pas (imports relatifs qui sortent du module, g
 
 | Mesure | Avant V3-G | Après |
 |---|---|---|
-| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | **766** (768 après fusion des lots V3-C/D/E) |
+| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | **766** (768 après fusion des lots V3-C/D/E ; 766 au 28/10, décision 0011) |
 | Pages / layouts qui importent `@/lib/prisma` | 129 | **126** |
 | Routes qui importent `@/lib/prisma` | 53 | 53 |
 | Imports `src/components/` → `src/app/` (inversion) | 12 | 12 |

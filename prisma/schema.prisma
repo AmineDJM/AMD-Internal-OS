@@ -1006,6 +1006,8 @@ model AssistantIaFil {
   depuisLe     DateTime          @default(now())
   /// Prise du fil : un seul passage joue ses messages à la fois (reprise si elle est perdue).
   traitementLe DateTime?
+  /// Option « réponse vocale » (28/10/2026) : chaque réponse est AUSSI lue à voix haute (synthèse OpenAI).
+  reponseVocale Boolean          @default(false)
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   tours        AssistantIaTour[]
@@ -1036,6 +1038,12 @@ model AssistantIaTour {
   /// Combien de fois ce message a été PRIS pour être joué (IA-ASSISTANT-06) : au-delà de 3, il
   /// échoue et le fil passe au suivant — un tour qui lève n'est plus rejoué à chaque battement.
   essais          Int            @default(0)
+  /// Message VOCAL (28/10/2026) : `{ id, dureeS, etat, transcription?, erreur? }` — l'audio est un fichier du Drive.
+  vocal           Json?
+  /// Ce que la lecture des pièces a donné : une `LecturePiece` par pièce (lue, partielle, refusée…), affichée.
+  lecture         Json?
+  /// Réponse VOCALE de l'assistant : `{ id, dureeS, coupe?, erreur? }` — un fichier du Drive de la personne.
+  audio           Json?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 

@@ -67,4 +67,11 @@ describe("filtre-confidentialite — décision Q14", () => {
     expect(resultat.coordonnees.ville).toBe("Alger");
     expect(resultat.coordonnees.nationalId).toBe("[CONFIDENTIEL]");
   });
+
+  it("masque un IBAN imprimé par groupes de quatre, sans avaler la ligne suivante d'un tableau", () => {
+    const r = censurerTexte("fournisseur;iban\nPharmalab;DZ58 0021 0001 1234 5678 9012\nMedistock;FR76 3000 6000 0112 3456 7890 189");
+    expect(r.texte).not.toMatch(/DZ58|FR76/);
+    expect(r.texte).toContain("Pharmalab");
+    expect(r.texte).toContain("Medistock");
+  });
 });

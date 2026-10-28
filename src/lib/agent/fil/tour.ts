@@ -9,12 +9,16 @@ import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "@/lib/agent/
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { retirerCaduquesAvantLeTour } from "@/lib/assistant/action-intents";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
+import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
+import { lirePieces, type DependancesLecture } from "@/lib/agent/lecture/pieces";
+import type { LecturePiece } from "@/lib/agent/lecture/regles";
 
 /**
  * UN TOUR DE L'ASSISTANT IA — la même règle, qu'il soit joué dans la requête (ancienne action de l'écran)
  * ou EN ARRIÈRE-PLAN, dans le fil gardé (`fil/service.ts`).
  *
- * Les pièces sont revérifiées ici (jamais lues), le contexte compilé sous les droits de la personne,
+ * Les pièces sont revérifiées ici, puis LUES (`lecture/pieces.ts` : texte, OCR local, vision,
+ * transcription — coffre refusé, données sensibles masquées, limites dites), le contexte compilé sous les droits de la personne,
  * l'UI générative filtrée par ce que les outils du tour prouvent. Une écriture n'est qu'une CARTE :
  * rien ne s'exécute sans le geste de confirmation.
  */
@@ -51,6 +55,12 @@ export interface DemandeDuTour {
   consigne?: string;
   /** Le fil (conversation) auquel appartient le tour — pour le journal de consommation. */
   conversation?: string | null;
+  /** Le message a été DIT (vocal transcrit) : le modèle le sait, une transcription peut écorcher un nom. */
+  vocal?: boolean;
+  /** Ce que la lecture des pièces a donné — le fil le garde et l'écran le montre sous le message. */
+  surLecture?: (lectures: LecturePiece[]) => Promise<void> | void;
+  /** RÉSERVÉ AUX BANCS : les gestes de lecture (Drive, OCR, vision, transcription) remplacés. */
+  lecture?: DependancesLecture;
 }
 
 /** Les appels de modèle du tour — et ceux que ses outils déclenchent — sont imputés à la personne. */
@@ -83,17 +93,21 @@ export function filtrerSaisie(
 
 async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<ResultatDuTour & { message: string }> {
   const reglages = await lireReglagesAssistantIa();
-  // LES PIÈCES DU MESSAGE : revérifiées, puis dites par leur nom et leur identifiant — jamais lues ici.
+  // LES PIÈCES DU MESSAGE : revérifiées (la personne les VOIT), puis LUES — après les portes qui
+  // peuvent refuser sans rien dépenser (message vide, aucun modèle, interrupteur coupé).
   const pieces = await piecesDuMessage(user, d.pieces);
   const saisie = filtrerSaisie((d.texte ?? "").trim(), d.historique, reglages.censurerSaisie);
   const texteSaisi = saisie.texte;
-  const message = pieces.length
-    ? `${texteSaisi || "(pièces jointes sans texte)"}\n\n[Pièces jointes à ce message — à joindre aux demandes par leur identifiant : ${pieces.map((p) => `« ${p.nom} » (identifiant ${p.id})`).join(" ; ")}]`
-    : texteSaisi;
-  if (!message) return { ok: false, error: "Message vide.", message };
+  const dit = d.vocal && texteSaisi ? `[Message vocal, transcrit automatiquement — un nom propre peut y être écorché]\n${texteSaisi}` : texteSaisi;
+  if (!dit && !pieces.length) return { ok: false, error: "Message vide.", message: dit };
 
   const modeles = modelesEffectifs();
-  if (modeles.length === 0) return { ok: false, error: IA_NON_CONFIGUREE, message };
+  if (modeles.length === 0) return { ok: false, error: IA_NON_CONFIGUREE, message: dit };
+  if (pieces.length && (await interrupteurIaCoupe())) return { ok: false, error: REFUS_IA_COUPEE, message: dit };
+
+  const lues = pieces.length ? await lirePieces(user, pieces, texteSaisi, d.lecture) : null;
+  if (lues) await d.surLecture?.(lues.lectures);
+  const message = lues ? `${dit || "(pièces jointes sans texte)"}\n\n${lues.pourModele}` : dit;
 
   // LES CARTES DONT LA PERSONNE VIENT DE REPARLER N'ONT PLUS COURS (IA-ASSISTANT-10, décision de Direction
   // — option prudente par défaut, réglage `retirerCartesCaduques`) : le remède qu'Adam applique depuis

@@ -6,6 +6,9 @@ import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/platform/in-proce
 import { jouerTour } from "@/lib/agent/fil/tour";
 import { messagePartiel } from "@/lib/agent/fil/partiel";
 import { sansBloquer } from "@/lib/journal";
+import { auNomDe } from "@/lib/agent/consommation";
+import { resumeLecture, type AudioDuTour, type LecturePiece, type VocalDuTour } from "@/lib/agent/lecture/regles";
+import { repondreAVoixHaute, transcrireVocal } from "@/lib/agent/lecture/voix";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -27,6 +30,12 @@ import { sansBloquer } from "@/lib/journal";
  *
  * Les limites ne bougent pas : droits RELUS à chaque tour (`proprietaire`), écritures en cartes à
  * confirmer, aucune donnée sensible au modèle (outils de l'Assistant IA, `censurerSortie`).
+ *
+ * VOCAUX ET PIÈCES LUES (28/10/2026) : un message peut être un VOCAL (fichier du Drive, transcrit
+ * au moment d'être joué, la transcription gardée sur le tour et affichée sous le lecteur) ; les
+ * pièces sont LUES (`lecture/pieces.ts`) et ce que la lecture a donné — lue, partielle, refusée —
+ * est gardé sur le tour (`lecture`) pour que l'écran DISE chaque limite. Option « réponse vocale » :
+ * la réponse est aussi synthétisée (`audio`, un fichier du Drive de la personne).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -61,16 +70,29 @@ export async function filDe(userId: string) {
 
 export type PieceDuTour = { id: string; nom: string };
 
-/** DÉPOSER un message dans le fil. Ne joue rien : l'appelant lance `traiterFil` (sans l'attendre). */
-export async function deposerMessage(userId: string, texte: string, pieces: PieceDuTour[]): Promise<{ ok: true; tour: AssistantIaTour } | { ok: false; erreur: string }> {
+/**
+ * DÉPOSER un message dans le fil. Ne joue rien : l'appelant lance `traiterFil` (sans l'attendre).
+ * `vocal` : l'identifiant Drive de l'enregistrement (déjà déposé sous les droits de la personne) et
+ * sa durée — la transcription viendra quand le fil jouera le message.
+ */
+export async function deposerMessage(
+  userId: string, texte: string, pieces: PieceDuTour[], vocal?: { id: string; dureeS: number | null } | null,
+): Promise<{ ok: true; tour: AssistantIaTour } | { ok: false; erreur: string }> {
   const t = (texte ?? "").trim().slice(0, 8000);
   const p = pieces.filter((x) => x && typeof x.id === "string").slice(0, 10).map((x) => ({ id: x.id, nom: String(x.nom ?? "").slice(0, 200) }));
-  if (!t && !p.length) return { ok: false, erreur: "Message vide." };
+  const v: VocalDuTour | null = vocal && typeof vocal.id === "string" && vocal.id
+    ? { id: vocal.id, dureeS: Number.isFinite(vocal.dureeS) ? Math.max(0, Math.round(vocal.dureeS as number)) : null, etat: "TRANSCRIPTION" }
+    : null;
+  if (!t && !p.length && !v) return { ok: false, erreur: "Message vide." };
   const fil = await filDe(userId);
   const enFile = await prisma.assistantIaTour.count({ where: { filId: fil.id, role: "user", etat: { in: [ETAT.ATTENTE, ETAT.COURS] } } });
   if (enFile >= MAX_EN_FILE) return { ok: false, erreur: `${MAX_EN_FILE} messages attendent déjà leur réponse — laissez l'assistant avancer.` };
   const tour = await prisma.assistantIaTour.create({
-    data: { filId: fil.id, userId, role: "user", contenu: t, etat: ETAT.ATTENTE, ...(p.length ? { pieces: p as Prisma.InputJsonValue } : {}) },
+    data: {
+      filId: fil.id, userId, role: "user", contenu: t, etat: ETAT.ATTENTE,
+      ...(p.length ? { pieces: p as Prisma.InputJsonValue } : {}),
+      ...(v ? { vocal: v as unknown as Prisma.InputJsonValue } : {}),
+    },
   });
   await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { consulteLe: new Date() } });
   return { ok: true, tour };
@@ -115,7 +137,13 @@ export async function lireFil(userId: string, limite = 80) {
       return etat ? { ...t, intent: { ...i, status: etat.status, resultLink: etat.resultLink ?? undefined, resultMessage: etat.resultMessage ?? undefined } } : t;
     }),
     enCours: tours.some((t) => t.etat === ETAT.ATTENTE || t.etat === ETAT.COURS),
+    reponseVocale: fil.reponseVocale,
   };
+}
+
+/** L'option « réponse vocale » de la personne : chaque réponse est aussi dite à voix haute. */
+export async function reglerReponseVocale(userId: string, active: boolean): Promise<void> {
+  await prisma.assistantIaFil.upsert({ where: { userId }, update: { reponseVocale: active }, create: { userId, reponseVocale: active } });
 }
 
 /** NOUVELLE CONVERSATION : le fil repart de zéro pour le modèle ; rien n'est supprimé en base. */
@@ -161,11 +189,30 @@ export async function traiterFil(userId: string): Promise<void> {
   }
 }
 
+/** Ce que la personne a DIT : son texte, sinon la transcription de son vocal. */
+export function texteDuTour(t: Pick<AssistantIaTour, "contenu" | "vocal">): string {
+  const v = t.vocal as VocalDuTour | null;
+  return t.contenu.trim() || (v?.etat === "TRANSCRIT" ? v.transcription ?? "" : "");
+}
+
+/**
+ * Un tour ancien, tel que le modèle le relit : le texte (ou le vocal transcrit), puis les pièces avec
+ * ce que leur lecture a donné — leur CONTENU n'est pas repris (il a servi au tour où elles ont été
+ * jointes ; `lire_document` les relit au besoin).
+ */
 function pourHistorique(t: AssistantIaTour): { role: "user" | "assistant"; content: string } {
+  if (t.role !== "user") return { role: "assistant", content: t.contenu };
   const pieces = (t.pieces as PieceDuTour[] | null) ?? [];
-  return t.role === "user"
-    ? { role: "user", content: pieces.length ? `${t.contenu}\n[Pièces jointes : ${pieces.map((p) => `« ${p.nom} » (identifiant ${p.id})`).join(" ; ")}]` : t.contenu }
-    : { role: "assistant", content: t.contenu };
+  const lectures = (t.lecture as LecturePiece[] | null) ?? [];
+  const parId = new Map(lectures.map((l) => [l.id, l]));
+  const texte = texteDuTour(t);
+  const dit = (t.vocal as VocalDuTour | null)?.etat === "TRANSCRIT" && !t.contenu.trim() ? `[Message vocal transcrit] ${texte}` : texte;
+  if (!pieces.length) return { role: "user", content: dit };
+  const liste = pieces.map((p) => {
+    const l = parId.get(p.id);
+    return `« ${p.nom} » (identifiant ${p.id})${l ? ` — ${resumeLecture(l)}` : ""}`;
+  }).join(" ; ");
+  return { role: "user", content: `${dit}\n[Pièces jointes : ${liste}]` };
 }
 
 async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<void> {
@@ -203,7 +250,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   const questions = new Set(anterieurs.filter((t) => t.role === "user" && t.createdAt < tour.createdAt).map((t) => t.id));
   const precedents = anterieurs
     .filter((t) => (t.role === "user" ? questions.has(t.id) && t.etat === ETAT.TRAITE : !!t.repondA && questions.has(t.repondA) && t.etat === ETAT.TERMINE))
-    .filter((t) => t.contenu.trim())
+    .filter((t) => (t.role === "user" ? texteDuTour(t) || (t.pieces as unknown[] | null)?.length : t.contenu.trim()))
     .slice(-TOURS_EN_CONTEXTE);
 
   // LE TEXTE QUI S'ÉCRIT : une écriture toutes les 350 ms au plus, jamais en parallèle.
@@ -219,8 +266,27 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     enVol = enVol.then(() => prisma.assistantIaTour.update({ where: { id: reponse.id }, data: { contenu, etapes: liste } }).catch(sansBloquer("fil-service.publier.assistantIaTour")));
   };
 
+  // LE VOCAL D'ABORD : transcrit une fois (gardé sur le tour — un essai suivant ne repaie pas), la
+  // transcription s'affiche sous le lecteur pendant que l'assistant rédige.
+  let vocal = tour.vocal as VocalDuTour | null;
+  if (vocal && vocal.etat !== "TRANSCRIT") {
+    const v = vocal;
+    vocal = await auNomDe(userId, () => transcrireVocal(user, v), tour.filId);
+    await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { vocal: vocal as unknown as Prisma.InputJsonValue } });
+    if (vocal.etat !== "TRANSCRIT" && !tour.contenu.trim() && !((tour.pieces as unknown[] | null)?.length)) {
+      const raison = `Le vocal n'a pas pu être transcrit : ${vocal.erreur ?? "raison inconnue"}`;
+      await finir({ etat: ETAT.ECHEC, contenu: raison, erreur: raison.slice(0, 300) }, ETAT.ECHEC);
+      return;
+    }
+  }
+  const texteDit = texteDuTour({ contenu: tour.contenu, vocal: vocal as unknown as Prisma.JsonValue });
+
   const r = await jouerTour(user, {
-    texte: tour.contenu,
+    texte: texteDit,
+    vocal: !tour.contenu.trim() && vocal?.etat === "TRANSCRIT",
+    surLecture: async (lectures) => {
+      await prisma.assistantIaTour.update({ where: { id: tour.id }, data: { lecture: lectures as unknown as Prisma.InputJsonValue } }).catch(sansBloquer("fil-service.surLecture.assistantIaTour"));
+    },
     pieces: tour.pieces ?? [],
     historique: precedents.map(pourHistorique),
     delaiMs: DELAI_FOND_MS,
@@ -244,10 +310,22 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     await finir({ etat: ETAT.ECHEC, contenu: r.error, erreur: r.error.slice(0, 300), etapes }, ETAT.ECHEC);
   }
 
+  // LA RÉPONSE VOCALE (option de la personne) : après le texte, qui s'affiche sans l'attendre.
+  if (r.ok && fil.reponseVocale) {
+    let audio: AudioDuTour | null;
+    try {
+      audio = await auNomDe(userId, () => repondreAVoixHaute(user, r.content), tour.filId);
+    } catch (e) {
+      console.error("[assistant-fil] réponse vocale", e);
+      audio = { id: "", dureeS: null, erreur: "La réponse vocale n'a pas pu être préparée." };
+    }
+    if (audio) await prisma.assistantIaTour.update({ where: { id: reponse.id }, data: { audio: audio as unknown as Prisma.InputJsonValue } }).catch(sansBloquer("fil-service.reponseVocale.assistantIaTour"));
+  }
+
   // LA PERSONNE EST AILLEURS : la réponse va la chercher (cloche + téléphone).
   const vu = await prisma.assistantIaFil.findUnique({ where: { id: tour.filId }, select: { consulteLe: true } });
   if (!vu?.consulteLe || Date.now() - vu.consulteLe.getTime() > ABSENT_APRES_MS) {
-    const sujet = tour.contenu.replace(/\s+/g, " ").trim().slice(0, 60) || "pièces jointes";
+    const sujet = texteDit.replace(/\s+/g, " ").trim().slice(0, 60) || (vocal ? "message vocal" : "pièces jointes");
     await notifyUser({
       userId, type: "GENERIC",
       title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
