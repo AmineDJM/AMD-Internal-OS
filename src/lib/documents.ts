@@ -10,6 +10,7 @@ import { recordAudit } from "@/lib/audit";
 import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { mirrorRegulatoryUpload } from "@/lib/regulatory-drive-mirror";
 import { cheminSur, refusDepotCtd } from "@/lib/regulatory/ctd-initiale";
+import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
 
 /**
  * Chemin de dossier SÛR : jamais de « .. », jamais de chemin absolu, séparateur « / », borné.
@@ -78,8 +79,9 @@ export async function persistUploadedDocument(
   // d'écriture, créait la fiche quand même et l'écran disait « téléversé » : la personne
   // découvrait des semaines plus tard un document « indisponible », l'original jeté entre-temps.
   // Un échec d'écriture est DIT, et rien n'est créé — renvoyer le fichier suffit.
+  let ecrit: { blobId: string; sha256: string };
   try {
-    await saveFile(key, content);
+    ecrit = await saveFile(key, content);
   } catch (err) {
     console.error("[upload] écriture du fichier impossible — aucune fiche créée", err);
     const detail = err instanceof Error ? err.message : String(err);
@@ -132,6 +134,13 @@ export async function persistUploadedDocument(
     summary: `Document « ${folder ? `${folder}/` : ""}${file.name} » téléversé`,
   }).catch((e) => console.error("[upload] audit failed (non-bloquant)", e));
 
+  // LA PIÈCE NOURRIT LES FICHES (refonte, lot V2-A) : fait `PIECE_DEPOSEE` et mise en file de
+  // l'enrichissement, une fois le document acquis. Interrupteur fermé : rien. Ne lève jamais.
+  await signalerDocumentDepose({
+    documentId, entityType, entityId, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
+    nom: file.name, mime: file.type || null, taille: file.size, deposeParId: userId,
+  });
+
   // MIROIR DRIVE, en arrière-plan : le document est déjà enregistré, c'est ce que la personne
   // voit. La copie se termine côté serveur — on ne fait pas attendre un téléversement pour elle.
   if (input.mirrorToDrive !== false) {
@@ -182,6 +191,14 @@ export async function inscrireDocumentDirect(
       actorId: userId, action: "UPLOAD", module: ENTITY_TYPE_LABELS[entityType] ?? ENTITY_MODULE[entityType], entityType, entityId,
       summary: `Document « ${folder ? `${folder}/` : ""}${name} » téléversé (envoi direct)`,
     }).catch((e) => console.error("[upload direct] audit failed (non-bloquant)", e));
+    // L'empreinte d'un envoi direct n'est pas calculée (`direct:…`) : la file la calculera avant d'émettre.
+    const blob = await prisma.fileBlob.findUnique({ where: { id: input.blobId }, select: { sha256: true } }).catch(() => null);
+    if (blob) {
+      await signalerDocumentDepose({
+        documentId: created.id, entityType, entityId, category: input.category, confidentiality: input.confidentiality, blobId: input.blobId,
+        sha256: blob.sha256, nom: name, mime: input.mimeType, taille: input.size, deposeParId: userId,
+      });
+    }
     // REGULATORY (Direction, 06/10) : la pièce rejoint le dossier du produit dans la catégorie
     // « Regulatory » par RÉFÉRENCE à son blob — aucun octet relu, même pour plusieurs Go.
     if (entityType === "REGULATORY_PRODUCT") {

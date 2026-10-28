@@ -242,6 +242,8 @@ Added by `prisma/migrations/20270130100000_referentiels/` (additive, idempotent;
 | `FaitConfirme` | E | What the record holds as true, historised (source PIECE/SAISIE/IMPORT, confirmé par / le, valide du / au, `actif`); same no-clear-value CHECK when `sensible`. |
 | `ConflitDeFait` | E | Disagreement between a confirmed and a proposed fact — a decision queue, never an overwrite. |
 
+**V2-A — the enrichment queue** (`prisma/migrations/20270131170000_enrichissement_file/`, additive, idempotent): model `TacheEnrichissement` (enum `StatutTacheEnrichissement`: A_FAIRE, EN_COURS, FAITE, ECHEC, IGNOREE) — the persistent outbox of deposited pieces, **one row per (empreinte, rattachement)**, `cle` unique (= the `PIECE_DEPOSEE` idempotency key `empreinte|TYPE:id|rôle`; `direct:<blobId>|…` while a direct-to-bucket upload has no hash yet), lock `verrouilleLe`, retry `tentatives`/`prochainEssaiLe`, `derniereErreur`, `bilan` (counts only). And `AppSetting.enrichissementActif Boolean @default(false)` — the switch. Rows written by the chain use **derived ids** (`piece_<sha256>`, `<pieceId>_x1`, `<extractionId>_f<rang>`, `…_ok`, `…_cf`) so a replay rewrites nothing (`src/lib/enrichissement/file.ts`).
+
 **Link columns** (nullable, indexed, FK `ON DELETE SET NULL`): `personneId` on `User`, `Employee`, `MedicalDoctor`, `CareBeneficiary`, `AdProVoyageur`, `AdProHebergement`, `RecruitmentCandidate`, `DirectoryEntry`, `SupplierUser`; `organisationId` on `Company`, `CompanyContact`, `Supplier`, `MedicalInstitution`, `SponsoringRequest`, `CongressNational`, `CongressInternational`; `pieceId` on `Document`, `DriveNode`. CHECK constraints live only in SQL (Prisma ignores them, no drift).
 
 ### 4.13 Places and contact details — V2-D (2026-10-27)

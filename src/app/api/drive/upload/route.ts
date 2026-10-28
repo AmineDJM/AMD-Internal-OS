@@ -82,7 +82,7 @@ export async function POST(req: NextRequest) {
   if (!deduplicated) addPhysicalUsage(storedSize ?? size); // le COMPRIMÉ quand le stockage l'a compressé
   const mimeType = file.type || "application/octet-stream";
 
-  const res = await enregistrerFichierDrive(user, cible, { blobId, size, mimeType, name: file.name });
+  const res = await enregistrerFichierDrive(user, cible, { blobId, size, mimeType, name: file.name, sha256: ecrit.sha256 });
   timer.mark("base");
   // Le découpage part dans la réponse (l'écran le montre quand un envoi traîne) ET dans le
   // journal du serveur — on peut ainsi diagnostiquer sans demander à personne de rejouer le cas.

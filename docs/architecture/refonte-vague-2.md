@@ -30,3 +30,26 @@
 | **V2-D Lieux et coordonnées** | `Wilaya` chargée (69) ; rattachement des colonnes texte `wilaya`/`city` par `lieux/normaliser.ts` (colonnes `wilayaCode` nullables) ; `Adresse` et `PointDeContact` repris des fiches ; communes : table vide tant qu'aucune source officielle complète n'est chargée. | « Par wilaya » se compte sans nettoyage manuel. Livré : [`refonte-v2-lieux.md`](refonte-v2-lieux.md). |
 | **V2-E Coffre en double lecture** | Copier `Employee.iban`, `Employee.nationalId`, `CompanyContact.rib`, `CompanyLegalIdentity.rib/iban`, salaires vers `DonneeSensible` (chiffré, HMAC, 4 derniers) ; les écrans et exports lisent par le coffre avec `AccesDonneeSensible` ; écriture double. Le clair RESTE (P5 = accord). | Qui a lu l'IBAN de qui, quand, pour quel geste. |
 | **V2-F Worker séparé** | Point d'entrée `worker` (même code) pour `runScheduledJobs`, l'enrichissement et les routines ; service Render `worker` ; le web ne porte plus le battement. Interrupteur pour revenir au battement web. | Une extraction lourde ne ralentit plus une page. **Livré (prêt, non activé)** : `npm run worker`, bail par tâche (`TacheDeFond`), `TACHES_DE_FOND=web\|worker\|les-deux` (défaut `web`), `/api/health/worker` ; activation : `docs/readme/24-deploiement-render.md`. |
+| **V2-F Worker séparé** | Point d'entrée `worker` (même code) pour `runScheduledJobs`, l'enrichissement et les routines ; service Render `worker` ; le web ne porte plus le battement. Interrupteur pour revenir au battement web. | Une extraction lourde ne ralentit plus une page. |
+
+## État des lots
+
+### V2-A — livré (branche `refonte/v2-depot-enrichissement`)
+
+- **Branché** : `persistUploadedDocument`, `inscrireDocumentDirect`, `attachFiles`, `enregistrerFichierDrive` (route
+  `/api/drive/upload` et finalisation du dépôt direct) → `enrichissement/signalement.ts` (fait `PIECE_DEPOSEE` + file).
+- **File** `TacheEnrichissement` (migration `20270131170000_enrichissement_file`), passage `traiterLaFile({ max })` au
+  battement ; identifiants dérivés : rejouer ne duplique rien (banc `enrichissement/traitement.test.ts`).
+- **Écrans** : `/admin/refonte-donnees` (interrupteur, file, reprises), `/a-confirmer`.
+- **Activation en production (geste du Super Admin)** : déployer ; poser `COFFRE_KEY` (32 octets hex, ≠
+  `DRIVE_ENCRYPTION_KEY`) — sans elle, les faits sensibles échouent et la tâche le dit ; ouvrir l'interrupteur ;
+  surveiller la file ; lancer, si voulu, la reprise « Rattrapage des pièces existantes » par lots.
+- **Reste** : points de dépôt hors goulots (`refonte-p4-points-de-depot.md` §3 : RH `/api/rh/upload`, paie, messagerie,
+  OnlyOffice, livrables) ; rattrapage des fichiers Drive existants ; projection des coordonnées confirmées vers
+  `Adresse` / `PointDeContact` (V2-D) et de la nationalité (ISO alpha-3 lu → alpha-2 de la fiche) ; rattachement des
+  faits « produit » au catalogue ; lecture par modèle des pièces ordinaires (jamais `NATURES_LOCALES`), si la Direction l'ouvre.
+- **Décisions à prendre** : (1) qui est le « responsable d'une fiche » — aujourd'hui le dépositaire de la pièce et le
+  Super Admin ; (2) la création d'une Personne depuis une fiche porteuse non rapprochée (faite, avec la saisie de la
+  fiche, en attendant R1) ; (3) la porte d'écriture seule du coffre reconnue par `coffre/frontiere.test.ts` — déposer et
+  calculer une empreinte ne sont pas lire ; (4) l'adaptateur `coffre/depot-referentiel.ts` remplace, pour les tables
+  réelles, `coffre/depot-prisma.ts` écrit avant elles (V2-E doit s'en servir).

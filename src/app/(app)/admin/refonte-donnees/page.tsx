@@ -10,6 +10,8 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GestesReprise, InterrupteurDoubleEcriture } from "./cartes";
+import { etatFile } from "@/lib/enrichissement/lectures";
+import { PanneauEnrichissement } from "./panneau-enrichissement";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Refonte des données — Administration" };
@@ -27,12 +29,13 @@ const dateFr = (d: Date) => new Intl.DateTimeFormat("fr-FR", {
 export default async function RefonteDonneesPage() {
   const user = await requireUser();
   if (user.role !== "SUPER_ADMIN") redirect("/dashboard?denied=ADMIN");
-  const [journaux, doubleEcriture, doublonsEnAttente] = await Promise.all([
+  const [journaux, doubleEcriture, doublonsEnAttente, etat] = await Promise.all([
     Promise.all(REPRISES.map((r) => lireJournal(r.cle))),
     doubleEcritureOrganisationsOuverte(),
     prisma.propositionDoublonOrganisation.count({
       where: { statut: "PROPOSEE", organisationA: { fusionneeDansId: null }, organisationB: { fusionneeDansId: null } },
     }),
+    etatFile(),
   ]);
 
   return (
@@ -43,6 +46,8 @@ export default async function RefonteDonneesPage() {
       >
         <Link href="/admin" className="text-sm text-muted-foreground hover:underline"><ArrowLeft className="mr-1 inline h-4 w-4" />Administration</Link>
       </PageHeader>
+
+      <PanneauEnrichissement etat={etat} />
 
       <Card>
         <CardHeader><CardTitle>Organisations — double écriture et doublons</CardTitle></CardHeader>

@@ -134,6 +134,8 @@ export const REFERENTS: readonly Referent[] = [
     raison: "une surveillance d'Adam : son balayage constate lui-même la disparition de sa cible." },
   { modele: "ApiCall", champType: "entityType", champId: "entityId", conduite: "HISTOIRE",
     raison: "le journal des appels d'API." },
+  { modele: "TacheEnrichissement", champType: "rattachementType", champId: "rattachementId", conduite: "HISTOIRE",
+    raison: "la file de l'enrichissement (refonte, V2-A) : la trace d'un DÉPÔT qui a eu lieu ; traitée ou non, elle ne porte aucun contenu et ne bloque rien." },
   { modele: "KnowledgeLink", champType: "toType", champId: "toId", conduite: "HISTOIRE",
     raison: "un lien de l'index de connaissance : un index, pas une branche." },
   { modele: "AssistantReminder", champType: "watchType", champId: "watchId", conduite: "HISTOIRE",

@@ -2158,6 +2158,21 @@ X("LE CONTRÔLE DE COHÉRENCE DE L'ORGANIGRAMME (Direction, 10/2026) — aligner
   "org-coherence-actions:appliquerSuperviseurPropose",
 ]);
 
+X("LA REFONTE DES DONNÉES ET L'ENRICHISSEMENT DES FICHES (vague 2, lot V2-A) — lancer une reprise, ouvrir ou fermer "
+  + "l'enrichissement, traiter sa file : des gestes d'EXPLOITATION du Super Admin devant l'aperçu chiffré, comme la corbeille. "
+  + "Confirmer, rejeter un fait lu sur une pièce, trancher un conflit avec la fiche : la décision humaine que le moteur "
+  + "réserve exprès à la personne qui a déposé la pièce — un modèle ne confirme pas l'identité de quelqu'un, et les pièces "
+  + "d'identité ou de paie ne s'approchent d'aucun modèle (§3-E). Des clics sur Refonte des données et À confirmer.", [
+  "refonte-reprise-actions:apercuReprise",
+  "refonte-reprise-actions:executerReprise",
+  "enrichissement-actions:basculerEnrichissement",
+  "enrichissement-actions:lancerPassageEnrichissement",
+  "enrichissement-actions:relancerTachesEnEchec",
+  "enrichissement-actions:confirmerFait",
+  "enrichissement-actions:rejeterFait",
+  "enrichissement-actions:trancherConflit",
+]);
+
 // ── RECLASSIFICATION AUTOMATIQUE PAR LE CATALOGUE D'OPS (après tous les blocs ci-dessus). ──
 // Chaque op de domaine déclare les server actions qu'elle rend NATIVE (`covers`) : leurs clés
 // passent de GAP à NATIVE ici, sans retoucher les blocs à la main. Ajouter une op = fermer ses

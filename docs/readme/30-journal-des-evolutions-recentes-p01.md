@@ -34,6 +34,14 @@ Migration `20270131170000_organisations_reprise` (une table `PropositionDoublonO
   personnes affiliées, fiches d'origine, devis/BC/factures (`LegalDocument`), demandes Ad & Pro — chaque bloc avec la
   porte de son écran d'origine. Ni RIB ni IBAN (lot coffre).
 - Code : `src/lib/referentiels/organisations/*` ; bancs `candidats.test.ts`, `reprises/lots.test.ts`, `reprise.test.ts`.
+### REFONTE DES DONNÉES, LOT V2-A : LE DÉPÔT NOURRIT LES FICHES (2026-10-27)
+
+Migration `20270131170000_enrichissement_file` (table `TacheEnrichissement`, colonne `AppSetting.enrichissementActif`
+fausse par défaut). Les trois goulots de dépôt émettent `PIECE_DEPOSEE` et mettent la pièce en file ; le battement la
+lit EN LOCAL, la classe, en extrait les faits, les rattache à la Personne de la fiche où elle est déposée (ou à
+l'Organisation de son NIF), confirme d'office ce qui peut l'être, range au coffre ce qui est sensible, et laisse le reste
+à l'écran « À confirmer ». Rien n'est actif avant que le Super Admin ouvre l'interrupteur (Administration › Refonte des
+données), qui porte aussi la reprise « Rattrapage des pièces existantes ». Détail : référence des circuits, p04.
 
 ### LEGAL : « NOUVEAU DOCUMENT » ET « NOUVELLE FACTURE » SE REMPLISSENT DEPUIS LA PIÈCE (2026-10-27)
 

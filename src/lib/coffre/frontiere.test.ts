@@ -11,6 +11,12 @@ import { describe, expect, it } from "vitest";
  * 2. L'assistant et les agents n'atteignent AUCUN module du coffre : un modèle d'IA ne le lit pas,
  *    et le code qui lui prépare un contexte ne doit même pas pouvoir l'importer.
  *
+ * 3. LES PORTES D'ÉCRITURE (`PORTES_ECRITURE`) : un module hors du coffre qui ne fait que DÉPOSER
+ *    et calculer une EMPREINTE, jamais lire (l'enrichissement des fiches, lot V2-A). Le graphe de
+ *    l'ERP étant presque connexe (le battement et l'aiguillage des actions rejoignent l'assistant),
+ *    la remontée de l'assistant s'arrête à ces portes — en échange, chacune est relue ici : aucun
+ *    appel à `lire`, `chercher` ni `dechiffrer`, aucun export du service. Déposer n'est pas lire.
+ *
  * Même marche que le garde général (imports statiques, dynamiques ; arrêt aux modules
  * `"use server"` pour les composants client, puisque Next les remplace par un appel distant).
  */
@@ -18,6 +24,7 @@ import { describe, expect, it } from "vitest";
 const SRC = path.join(process.cwd(), "src");
 const COFFRE = path.join(SRC, "lib", "coffre") + path.sep;
 const PURS = new Set([path.join(COFFRE, "natures.ts"), path.join(COFFRE, "politique.ts")]);
+const PORTES_ECRITURE = new Set([path.join(SRC, "lib", "enrichissement", "porte-coffre.ts")]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -67,6 +74,7 @@ function cheminVersCoffre(entry: string, permis: ReadonlySet<string>, traverserA
       if (!next || seen.has(next)) continue;
       if (next.startsWith(COFFRE) && !permis.has(next)) return [...trail, next];
       if (!traverserActions && isServerAction(next)) continue;
+      if (traverserActions && PORTES_ECRITURE.has(next)) continue;
       stack.push({ file: next, trail: [...trail, next] });
     }
   }
@@ -98,6 +106,14 @@ describe("Frontière du coffre", () => {
     expect(ia.length).toBeGreaterThan(0);
     const fautifs = ia.map((f) => cheminVersCoffre(f, new Set(), true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));
     expect(fautifs).toEqual([]);
+  });
+
+  it("une porte d'écriture ne fait que déposer et calculer une empreinte — jamais lire", () => {
+    for (const porte of PORTES_ECRITURE) {
+      const src = readFileSync(porte, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      expect(src, rel(porte)).not.toMatch(/\.lire\(|\.chercher\(|\bdechiffrer\b|lireAvecJournal|chercherParEmpreinte/);
+      expect([...src.matchAll(/^export\s+(?:async\s+)?(?:function|const|class)\s+(\w+)/gm)].map((m) => m[1]), rel(porte)).toEqual(["porteDuCoffre"]);
+    }
   });
 
   it("le garde détecte bien un import du coffre (le test n'est pas vide)", () => {
