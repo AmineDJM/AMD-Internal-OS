@@ -11,7 +11,7 @@ applique les migrations et crée le Super Admin (aucune donnée de démo).
 > `nodemailer@6` de `next-auth` (inutilisé). Le fichier **`.npmrc`** (`legacy-peer-deps=true`) règle le
 > `npm install` de Render automatiquement.
 
-### Worker séparé — les tâches de fond hors du web (refonte V2-F, prêt, non activé)
+### Worker séparé — les tâches de fond hors du web (refonte V2-F, déclaré le 28/10/2026, en attente de bascule)
 
 Les tâches de fond (rappels, paie notifiée, jobs réglementaires, routines et fil de l'Assistant IA, missions, boîte
 Gmail d'Adam, site public, couche de connaissance… — la table `TACHES_PLANIFIEES` de `src/lib/scheduled.ts`) tournent
@@ -28,8 +28,8 @@ par défaut **dans le processus web**. Le même passage peut tourner dans un **s
 
 **Activation sur Render — procédure exacte**
 
-1. **Créer le service.** Décommenter le bloc `amd-worker` en bas de [`render.yaml`](../../render.yaml), pousser, puis
-   *Blueprint → Sync* — ou créer à la main **New + → Background Worker** sur ce dépôt et cette branche, runtime Node,
+1. **Créer le service.** Le bloc `amd-worker` est déclaré dans [`render.yaml`](../../render.yaml) depuis le 28/10/2026
+   (en attente : `TACHES_DE_FOND=web`) : *Blueprint → Sync* — ou créer à la main **New + → Background Worker** sur ce dépôt et cette branche, runtime Node,
    *Build Command* `npm install && npx prisma generate`, *Start Command* `npm run worker`, plan payant (pas d'offre
    gratuite pour un worker). Le build du worker ne compile pas Next et **ne migre pas** : seul le build du web migre,
    après son lint/typecheck/build (P0) ; le worker démarré **attend** que la base porte les migrations de son commit.
