@@ -224,6 +224,10 @@ battement pour les dirigeants actifs), `assistant/source-map.ts`, `document-disc
 | `routines/calendrier.ts` · `passage.ts` · `service.ts` · `operations/routines.ts` | Les routines : calendrier en heure d'Alger, passage en lecture seule (vérifier puis comparer), prise atomique, traces et notifications. |
 | `memoire.ts` · `memoire-ui.ts` · `filtre-confidentialite.ts` · `generer.ts` · `recherche-web.ts` | Mémoire personnelle, filtre (et masque réversible), appel de rédaction sans outil, recherche web à question censurée. |
 | `src/lib/actions/assistant-ia-actions.ts` | Les gestes de la personne sur SA mémoire et SES routines (identité de la session, jamais d'un paramètre). |
+| `repondre.ts` · `generer.ts` | Les DEUX SEULES portes vers le modèle (cliquets `interrupteur.test.ts`, `consommation.test.ts`) : interrupteur général, puis budget ouvert / compté par étape / fermé. |
+| `consommation.ts` · `consommation-regles.ts` · `consommation-stats.ts` | Lot V3-D : journal de chaque appel (`ModelCallLog`, feature `assistant_ia`) et de chaque tour (`AiUsageLog`), plafonds (par tour, par personne et par jour, heure d'Alger), avis au Super Admin ; règles PURES partagées avec l'écran ; agrégats de l'écran. |
+| `contenu-non-fiable.ts` | Les sorties d'outils qui ramènent un contenu TIERS (document, message reçu, page web) sont encadrées et désamorcées avant le modèle ; la règle est dans `REGLES`. |
+| `src/app/(app)/admin/ai/consommation/` · `src/lib/actions/assistant-ia-consommation-actions.ts` | Écran Super Admin « Consommation IA » (par personne, par jour, par modèle) et réglage des plafonds / décisions (`AssistantIaReglage`). |
 
 ### Refonte des données — enrichissement des fiches (lot V2-A)
 
