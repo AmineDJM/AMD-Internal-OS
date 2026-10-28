@@ -1,6 +1,6 @@
 "use server";
 
-import type { PaymentRequestStatus, SponsoringStatus } from "@prisma/client";
+import type { SponsoringStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
@@ -12,12 +12,10 @@ import { ordreAFacture } from "@/lib/finance/facture-ordre";
 import { nextFinanceRef } from "@/lib/finance/next-ref";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { lienRemiseCaisse } from "@/lib/chemins/moyens-generaux";
 import { canDisburse, blockedReason, type CentralStatus } from "@/lib/payments/authorization";
 import { checkDeferral } from "@/lib/finance/settlement";
 import { budgetGate } from "@/lib/finance/settle-budget";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
-import { companionStatusForOrder } from "@/lib/finance/dossier-auto";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { compteDeLEcriture } from "@/lib/finance/comptes";
 import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/lib/ad-pro/cloture-sponsoring";
@@ -29,6 +27,8 @@ import { getAppSettings } from "@/lib/settings";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { ordresBvAvecQuittance, deposerQuittanceBv, cocherPaiementBv } from "@/lib/regulatory/bv-reglement";
 import { sansBloquer } from "@/lib/journal";
+import { verserLaRemise } from "@/lib/finance/verser-remise";
+import { solderLeDossierCompagnon } from "@/lib/finance/compagnon-regle";
 
 /**
  * OÙ ENVOYER LE DEMANDEUR D'UN ORDRE — le dossier qui l'a émis (sa demande, ses pièces), qu'il peut
@@ -37,37 +37,6 @@ import { sansBloquer } from "@/lib/journal";
 async function lienDuDossierDeLOrdre(orderId: string): Promise<string> {
   const dossier = await dossierHrefByOrder([orderId]).then((m) => m.get(orderId)).catch(sansBloquer("expense-actions.lienDuDossierDeLOrdre.dossierHrefByOrder"));
   return dossier ?? lienOrdreAPayer(orderId);
-}
-
-/**
- * LE DOSSIER COMPAGNON PASSE À « SOLDÉ » quand son ordre est réglé, et le fil le dit.
- *
- * Best-effort : un dossier qui ne se met pas à jour ne doit jamais annuler un virement déjà
- * inscrit. C'est la même hiérarchie que partout dans ce circuit — l'argent prime, l'affichage
- * se rattrape.
- */
-async function syncCompanionOnSettle(orderId: string, orderRef: string, actorId: string): Promise<void> {
-  try {
-    const dossiers = await prisma.paymentRequest.findMany({
-      where: { expenseOrderId: orderId, origin: "EXPENSE_ORDER" },
-      select: { id: true },
-    });
-    if (dossiers.length === 0) return;
-    const ids = dossiers.map((d) => d.id);
-    // porte d'écriture : appelé par `settleExpenseOrder` seul, après la porte de l'ordre — les dossiers de CET ordre.
-    await prisma.paymentRequest.updateMany({
-      where: { id: { in: ids } },
-      data: { status: companionStatusForOrder("PAID") as PaymentRequestStatus },
-    });
-    await prisma.paymentRequestEvent.createMany({
-      data: ids.map((requestId) => ({
-        requestId, actorId, kind: "APPROVE",
-        message: `Ordre ${orderRef} réglé par les Finances.`,
-      })),
-    });
-  } catch (e) {
-    console.error("[expense] dossier compagnon non synchronisé", e);
-  }
 }
 
 /** Comptable settles an ordre de dépense → generates the treasury OUT entry and marks the source paid. */
@@ -124,16 +93,25 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
 
   // ── UNE REMISE DE CAISSE D'AVANCE N'EST PAS UNE DÉPENSE (§118.176) ─────────────────────────
   //
-  // Elle passe désormais par le centre comme tout décaissement, mais ce qu'elle paie, c'est un
-  // CHANGEMENT DE TIROIR : l'argent quitte la banque pour la caisse, et chaque achat fait ensuite
-  // sur la caisse s'impute à SON budget, ticket par ticket. Classer la remise elle-même compterait
-  // le même dinar deux fois — c'est l'erreur que le registre des chemins de paiement nomme
-  // (`petty-cash-expense`). Elle se règle donc SANS catégorie, et elle n'apparaît pas parmi les
-  // écritures « à imputer » (`finance/a-imputer.ts`) : il n'y a rien à y imputer.
-  const remise = await prisma.pettyCashAllotment.findUnique({
-    where: { expenseOrderId: order.id },
-    select: { id: true, holderId: true, amount: true, period: true, department: { select: { name: true } } },
-  });
+  // Ce qu'elle paie est un CHANGEMENT DE TIROIR : l'argent quitte la banque pour la caisse, et chaque
+  // achat fait ensuite sur la caisse s'impute à SON budget. Depuis le 28/10/2026, l'autorisation du
+  // centre VAUT versement — la remise entre dans la caisse sans passer par cette file. N'arrive donc ici
+  // qu'une remise autorisée AVANT cette règle : elle est versée par le MÊME écrivain que le centre
+  // (`finance/verser-remise.ts`), sans classement, en liquide, et entre dans le fond.
+  const versementRemise = await verserLaRemise({ orderId: order.id, acteurId: user.id, compteId: fdStr(formData, "treasuryAccountId"), par: "FINANCES" });
+  if (versementRemise) {
+    if (!versementRemise.ok) return { ok: false, error: versementRemise.error };
+    if (order.requestedById && !versementRemise.dejaVersee) {
+      await notifyUser({
+        userId: order.requestedById, type: "GENERIC", title: "Ordre de dépense réglé",
+        body: `${order.reference} — ${order.label}`, link: await lienDuDossierDeLOrdre(order.id),
+      });
+    }
+    revalidatePath("/finances");
+    revalidatePath("/finances/paiements-a-faire");
+    revalidatePath("/moyens-generaux");
+    return { ok: true };
+  }
 
   // ── ON CLASSE AVANT DE PAYER ───────────────────────────────────────────────────────────────
   //
@@ -143,16 +121,12 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // Si aucune ne répond, le règlement s'ARRÊTE et demande le classement : une écriture sans
   // budget rejoint les « à imputer », que personne ne reprend jamais, et l'enveloppe affiche
   // l'année suivante une consommation fausse. La règle vit dans `finance/settle-budget.ts`.
-  // Une remise ne se classe pas : la garde qui le TIENT est la porte budgétaire plus bas, qu'une
-  // remise ne franchit pas (mesuré, §118.176 : retirer le `null` ci-dessous ne fait tomber aucun
-  // banc, retirer l'exception de la porte en fait tomber deux). Celui-ci ne fait qu'éviter une
-  // lecture pour un choix qui serait ignoré.
-  let chosenCategoryId: string | null = remise ? null : fdStr(formData, "budgetCategoryId");
+  let chosenCategoryId: string | null = fdStr(formData, "budgetCategoryId");
   if (chosenCategoryId) {
     const ok = await prisma.budgetCategoryLine.count({ where: { id: chosenCategoryId } });
     if (ok === 0) chosenCategoryId = null;
   }
-  let budgetCategoryId: string | null = remise ? null : order.budgetCategoryId ?? null;
+  let budgetCategoryId: string | null = order.budgetCategoryId ?? null;
   if (budgetCategoryId) {
     // Sécurité : on ignore une (sous-)catégorie qui n'existe plus.
     const exists = await prisma.budgetCategoryLine.count({ where: { id: budgetCategoryId } });
@@ -184,15 +158,13 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   // L'EXCEPTION QUI ÉVITE L'IMPASSE : s'il n'existe AUCUNE catégorie où classer, on paie et la
   // dépense reste à imputer. Exiger un choix dans une liste vide ferme une porte à clé sur une
   // pièce vide, et une installation sans enveloppes doit pouvoir régler ses factures.
-  if (!remise) {
-    const gate = budgetGate({
-      chosen: chosenCategoryId,
-      onOrder: budgetCategoryId,
-      availableCount: await prisma.budgetCategoryLine.count({ where: { envelope: { isActive: true } } }),
-    });
-    if (!gate.ok) return { ok: false, error: gate.reason ?? "Classez cette dépense dans son budget avant de la régler." };
-    budgetCategoryId = gate.categoryId;
-  }
+  const gate = budgetGate({
+    chosen: chosenCategoryId,
+    onOrder: budgetCategoryId,
+    availableCount: await prisma.budgetCategoryLine.count({ where: { envelope: { isActive: true } } }),
+  });
+  if (!gate.ok) return { ok: false, error: gate.reason ?? "Classez cette dépense dans son budget avant de la régler." };
+  budgetCategoryId = gate.categoryId;
 
   // LA QUITTANCE DU BV SE RANGE MAINTENANT — sur l'étape « Paiement du BV » du dossier, avant l'écriture :
   // un stockage qui échoue arrête le règlement au lieu de laisser un BV « payé » sans sa pièce.
@@ -236,9 +208,8 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
       data: {
         reference, date: new Date(), direction: "OUT",
         category: order.category, label: order.label, amount: order.amount,
-        // Une remise sort de la banque en LIQUIDE pour la caisse — c'est ce que l'écriture de la
-        // remise disait déjà avant le centre ; tout le reste part par virement.
-        method: remise ? "CASH" : "BANK_TRANSFER", account: "Banque", counterparty: order.beneficiary,
+        // Une remise sort en liquide (`finance/verser-remise.ts`) ; ici, tout part par virement.
+        method: "BANK_TRANSFER", account: "Banque", counterparty: order.beneficiary,
         status: "SETTLED", budgetCategoryId, createdById: user.id,
         companyId: order.companyId,
         treasuryAccountId: compteDuReglement,
@@ -260,7 +231,7 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
   //
   // Les dossiers NATIFS ne sont pas touchés : leur « bon à payer » a été donné par quelqu'un, et
   // récrire `decidedById` avec le nom du comptable qui règle effacerait celui qui a décidé.
-  await syncCompanionOnSettle(id, order.reference, user.id);
+  await solderLeDossierCompagnon(id, order.reference, user.id);
 
   // Mark the originating record as settled.
   if (order.sourceType === "SPONSORING" && order.sourceId) {
@@ -299,20 +270,6 @@ export async function settleExpenseOrder(formData: FormData): Promise<ActionResu
     await solderVirementPaie(order.sourceId, tx.id, user.id).catch((e) => {
       console.error("[expense] virement de paie non soldé — l'ordre réglé le dit encore", e);
     });
-  }
-
-  // LA REMISE EST VERSÉE : son écriture lui revient, et la détentrice peut enfin confirmer l'avoir
-  // reçue. La prévenir maintenant, c'est la seule façon qu'elle sache que la somme est partie.
-  if (remise) {
-    await prisma.pettyCashAllotment.update({ where: { id: remise.id }, data: { transactionId: tx.id } })
-      .catch((e) => console.error("[expense] écriture de la remise non rattachée", e));
-    if (remise.holderId) {
-      await notifyUser({
-        userId: remise.holderId, type: "ASSIGNMENT", title: "Caisse d'avance versée",
-        body: `${Number(remise.amount).toLocaleString("fr-FR")} DZD versés pour la caisse ${remise.department.name} — confirmez leur réception dans Moyens généraux.`,
-        link: lienRemiseCaisse(remise.id),
-      });
-    }
   }
 
   if (order.requestedById) {

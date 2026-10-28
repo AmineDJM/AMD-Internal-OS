@@ -13,7 +13,6 @@ import { openRemittances } from "@/lib/queries/general-means";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
 import { decidePayment } from "./payment-centre-actions";
-import { settleExpenseOrder } from "./expense-actions";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -103,8 +102,8 @@ suite("Caisse d'avance continue", () => {
     return allotPettyCash(form({ departmentId: deptId, holderId, amount, period }));
   };
   /**
-   * LE CENTRE AUTORISE, LES FINANCES VERSENT (§118.176) — par les vraies actions, celles des
-   * boutons. Sans ce passage, la détentrice ne peut rien confirmer : la somme n'est pas partie.
+   * LE CENTRE AUTORISE, ET LA SOMME ENTRE DANS LA CAISSE (§118.176, règle du 28/10/2026) — par la vraie
+   * action, celle du bouton. Sans ce passage, rien n'est dans le fond : la somme n'est pas partie.
    */
   const verserTout = async () => {
     const [pdg, comptable] = await Promise.all([actorFor(pdgId, "DIRECTION"), actorFor(comptableId, "FINANCE_BUDGET_MANAGER")]);
@@ -115,15 +114,7 @@ suite("Caisse d'avance continue", () => {
     for (const r of attente) {
       ACTOR = pdg;
       expect((await decidePayment(form({ id: r.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
-      ACTOR = comptable;
-      const regle = await settleExpenseOrder(form({ id: r.expenseOrderId! }));
-      expect(regle.ok, regle.error).toBe(true);
     }
-  };
-  const confirmerTout = async () => {
-    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
-    const attente = await prisma.pettyCashAllotment.findMany({ where: { departmentId: deptId, status: "ALLOTTED" }, select: { id: true } });
-    for (const r of attente) expect((await confirmPettyCashReceipt(form({ id: r.id }))).ok).toBe(true);
   };
   const fond = async () => continuousCash(await openRemittances(deptId));
 
@@ -152,9 +143,9 @@ suite("Caisse d'avance continue", () => {
     const f = await fond();
     expect(f.remitted).toBe(80_000);
     expect(f.remittanceCount).toBe(2);
-    // Versé n'est pas confirmé reçu : décidé, puis versé, n'est pas encore détenu.
-    expect(f.received).toBe(0);
-    expect(f.awaitingAmount).toBe(80_000);
+    // Autorisée par le centre, la remise est EN MAIN : plus de confirmation à attendre.
+    expect(f.received).toBe(80_000);
+    expect(f.awaitingAmount).toBe(0);
   });
 
   it("la remise suivante NE REDEMANDE PAS la détentrice — elle est reprise du fond", async () => {
@@ -165,9 +156,8 @@ suite("Caisse d'avance continue", () => {
     expect(derniere?.holderId).toBe(holderId);
   });
 
-  it("chaque remise se confirme SÉPARÉMENT, et le fond ne compte que le confirmé", async () => {
+  it("chaque remise entre dans le fond à SON autorisation", async () => {
     await verserTout();
-    await confirmerTout();
     const f = await fond();
     expect(f.received).toBe(90_000);
     expect(f.remaining).toBe(90_000);

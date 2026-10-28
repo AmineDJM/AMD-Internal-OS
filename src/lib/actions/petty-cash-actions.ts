@@ -165,12 +165,12 @@ export async function allotPettyCash(formData: FormData): Promise<ActionResult> 
   await notifyUser({
     userId: holder, type: "GENERIC",
     title: premiere ? "Caisse d'avance annoncée" : "Nouvelle remise en caisse d'avance annoncée",
-    body: `${amount} DZD demandés au centre de paiement le ${new Date().toLocaleDateString("fr-FR")} — vous serez prévenue au versement, et confirmerez alors la réception.`,
+    body: `${amount} DZD demandés au centre de paiement le ${new Date().toLocaleDateString("fr-FR")} — elle s'ajoutera à la caisse dès que le centre l'autorise ; vous en serez prévenue.`,
     link: lienRemiseCaisse(remise.id),
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
-  return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : elle rejoindra le fond une fois autorisée et versée par les Finances.` };
+  return { ok: true, message: `Remise de ${amount.toLocaleString("fr-FR")} DZD envoyée au centre de paiement (${ordre.reference}) : elle s'ajoutera au fond dès que le centre l'autorise.` };
 }
 
 /**
@@ -573,7 +573,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
       userId: req.requestedById, type: "GENERIC",
       title: decision === "APPROVED" ? "Rallonge accordée" : "Rallonge refusée",
       body: decision === "APPROVED"
-        ? `${granted} DZD accordés, envoyés au centre de paiement${reference ? ` (${reference})` : ""} : ils rejoindront la caisse une fois versés${note ? ` — ${note}` : ""}`
+        ? `${granted} DZD accordés, envoyés au centre de paiement${reference ? ` (${reference})` : ""} : ils s'ajouteront à la caisse dès que le centre les autorise${note ? ` — ${note}` : ""}`
         : `Demande refusée${note ? ` — ${note}` : ""}`,
       link: lienRallongeCaisse(id),
     });
@@ -585,7 +585,7 @@ export async function decidePettyCashTopUp(formData: FormData): Promise<ActionRe
   });
   revalidatePath(PATH);
   revalidatePath("/centre-de-paiement");
-  return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : elle rejoindra la caisse une fois autorisée et versée.` : undefined };
+  return { ok: true, message: reference ? `Rallonge accordée et envoyée au centre de paiement (${reference}) : elle s'ajoutera à la caisse dès que le centre l'autorise.` : undefined };
 }
 
 /**

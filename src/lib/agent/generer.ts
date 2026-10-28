@@ -1,5 +1,5 @@
 import { Agent } from "@mastra/core/agent";
-import { modelesAssistant } from "@/lib/agent/modele";
+import { modelesAssistant, pourMastra } from "@/lib/agent/modele";
 import { fournisseurDe, type ModeleTour } from "@/lib/agent/repondre";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, porteurCourant, type Budget } from "@/lib/agent/consommation";
@@ -53,7 +53,7 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
   try {
     for (const m of modeles) {
       try {
-        const agent = new Agent({ id: "redaction", name: "Rédaction", instructions: consigne, model: m as ConstructorParameters<typeof Agent>[0]["model"] });
+        const agent = new Agent({ id: "redaction", name: "Rédaction", instructions: consigne, model: pourMastra(m) as ConstructorParameters<typeof Agent>[0]["model"] });
         const t0 = Date.now();
         const r = await agent.generate([{ role: "user" as const, content: texte }], { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs) });
         budget.enregistrer(appelDepuisEtape(fournisseurDe(m), (r as { usage?: unknown }).usage, Date.now() - t0));

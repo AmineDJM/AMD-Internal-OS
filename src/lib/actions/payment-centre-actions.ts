@@ -20,6 +20,7 @@ import { ouvrirPourEcrire } from "@/lib/entity-access";
 import { refusSeparationDesTaches } from "@/lib/payments/separation";
 import { getAppSettings } from "@/lib/settings";
 import { sansBloquer } from "@/lib/journal";
+import { verserLaRemise } from "@/lib/finance/verser-remise";
 
 /**
  * LE CENTRE DE PAIEMENT — le PDG, le Directeur Général et le Super Admin autorisent, la comptabilité exécute.
@@ -216,9 +217,17 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
 
   if (next === "REFUSED") await suitesDuRefus(id, body.trim());
 
+  // UNE REMISE DE CAISSE D'AVANCE AUTORISÉE ENTRE DANS LA CAISSE (Direction, 28/10/2026) : elle ne va
+  // pas dans « Banque & paiements » — l'autorisation vaut versement (`finance/verser-remise.ts`).
+  // Un versement qui échoue (ordre révisé ou annulé à la même seconde) laisse l'ordre autorisé : il
+  // reste alors dans la file des Finances, comme avant, plutôt que de disparaître.
+  const versement = next === "APPROVED" ? await verserLaRemise({ orderId: id, acteurId: user.id, par: "CENTRE" }) : null;
+  if (versement && !versement.ok) console.error(`[centre] remise ${order.reference} autorisée mais non versée : ${versement.error}`);
+  const caisseCreditee = versement?.ok === true;
+
   // On prévient CELUI QUI ATTEND : le demandeur quand la balle lui revient, la comptabilité quand
   // le paiement est enfin exécutable.
-  if (next === "APPROVED") {
+  if (next === "APPROVED" && !caisseCreditee) {
     await notifyRoles(["FINANCE_BUDGET_MANAGER", "SUPER_ADMIN"], {
       type: "VALIDATION_REQUIRED",
       title: "Paiement autorisé — à régler",
@@ -241,6 +250,10 @@ export async function decidePayment(formData: FormData): Promise<ActionResult> {
   revalidatePath(PATH);
   revalidatePath("/finances/paiements-a-faire");
   if (dossierBv) revalidatePath(dossierBv);
+  if (versement?.ok) {
+    revalidatePath("/moyens-generaux");
+    return { ok: true, message: `Autorisé — ${versement.montant.toLocaleString("fr-FR")} DZD ajoutés à la caisse d'avance ${versement.departement}.` };
+  }
   return { ok: true, message: `${CENTRAL_DECISION_LABEL[decision]} — enregistré.` };
 }
 

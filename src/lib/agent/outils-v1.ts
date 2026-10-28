@@ -6,6 +6,7 @@ import { assistantToolsFor, buildProposal, executeReadTool } from "@/lib/assista
 import { persistActionIntents } from "@/lib/assistant/action-intents";
 import { censurerObjet, censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { defaultDefinition } from "@/lib/workflow/defaults";
+import { SLUG_DG } from "@/lib/workflow/parcours";
 import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
 import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "@/lib/agent/memoire-ui";
@@ -76,18 +77,30 @@ const filtre = (outil: PowerTool, journal?: string[]): PowerTool => ({
  * validation budgétaire, comité… »). On complète donc par la définition par défaut CANONIQUE
  * (`defaultDefinition`, celle que le moteur sème), et on ne garde que ce qu'une explication lit :
  * l'ordre, le titre, qui agit, ce que l'étape fait.
+ *
+ * L'ÉTAPE DU DG N'EST PAS RÉCITÉE COMME UNE ÉTAPE (27/10/2026). Elle reste dans la définition pour les
+ * demandes nées avant la règle, mais aucune demande nouvelle ne la traverse : le DG valide le TOTAL des
+ * postes, à la fin, au-dessus du seuil (`ad-pro/porte-dg.ts`). Mesuré en production : la lire telle
+ * quelle faisait annoncer « 2. Validation du Directeur Général » — un circuit que plus personne ne suit.
+ * On la retire de la colonne et on dit, à la place, ce qui vient APRÈS la prévalidation.
  */
+export const APRES_LA_PREVALIDATION =
+  "Après la prévalidation de la Direction Marketing : les postes (devis, bons de commande, factures) sont ajoutés par les "
+  + "parties prenantes et acceptés par la Direction Marketing ; le Directeur Général valide le TOTAL de la demande, à la fin, "
+  + "seulement s'il dépasse le seuil réglé en Administration › Réglages (aucun bon de commande ni paiement avant) ; "
+  + "puis la Direction Marketing range chaque poste dans un budget et clôture la demande.";
+
 export function circuitLisible(sortie: string): string {
   let o: Record<string, unknown>;
   try { o = JSON.parse(sortie) as Record<string, unknown>; } catch { return sortie; }
   const cat = String(o.categorie ?? "") as WorkflowCategory;
   const etapes = Array.isArray(o.etapes)
-    ? (o.etapes as Record<string, unknown>[]).map((e) => ({
+    ? (o.etapes as Record<string, unknown>[]).filter((e) => e.slug !== SLUG_DG).map((e) => ({
       titre: e.title, qui: e.actorRoles, facultative: e.optional === true || undefined,
       franchieSousSeuilDZD: e.autoSkipMaxAmount ?? undefined,
     }))
     : (WORKFLOW_CATEGORIES as readonly string[]).includes(cat)
-      ? defaultDefinition(cat).steps.map((e) => ({
+      ? defaultDefinition(cat).steps.filter((e) => e.slug !== SLUG_DG).map((e) => ({
         titre: e.title,
         qui: e.actorRoles.map((r) => ROLE_LABELS[r as keyof typeof ROLE_LABELS] ?? r),
         role: e.description ?? undefined,
@@ -99,7 +112,12 @@ export function circuitLisible(sortie: string): string {
     personnalise: Array.isArray(o.etapes),
     actif: o.actif,
     etapes,
-    note: "Chaque demande suit cette colonne selon son parcours (rôle du demandeur, seuil de montant) : une étape peut être franchie automatiquement.",
+    ensuite: APRES_LA_PREVALIDATION,
+    // Les branches de `parcoursAdPro` (workflow/parcours.ts), dites en clair.
+    note: "Chaque demande suit cette colonne selon le rang du demandeur : un délégué médical (KAM) passe par son National Sales, puis le "
+      + "Directeur des opérations, puis la Direction Marketing ; tout autre demandeur commence au Directeur des opérations ; la Direction, "
+      + "le DG et le Directeur des opérations vont directement à la Direction Marketing, dont la propre demande est prévalidée d'office. "
+      + "Le Directeur Général n'est PAS une étape de cette colonne.",
   });
 }
 

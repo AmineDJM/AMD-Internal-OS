@@ -11,10 +11,9 @@ import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac"
 import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { deleteFileByKey } from "@/lib/storage";
-import { allotPettyCash, confirmPettyCashReceipt, spendFromPettyCash } from "./petty-cash-actions";
+import { allotPettyCash, spendFromPettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
 import { decidePayment } from "./payment-centre-actions";
-import { settleExpenseOrder } from "./expense-actions";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -79,20 +78,14 @@ suite("moyens généraux — une pièce refusée n'écrit aucune dépense", () =
       data: { userId: holderId, module: "GENERAL_MEANS", canView: true, canCreate: true, canUpdate: true, scope: "ALL" },
     });
 
-    // UN FOND EN MAIN, par les vraies actions (§118.176) : remis, autorisé par le centre, versé par
-    // les Finances, confirmé reçu par la détentrice.
+    // UN FOND EN MAIN, par les vraies actions (§118.176) : remis, puis autorisé par le centre.
     ACTOR = await actorFor(adminId, "SUPER_ADMIN");
     const remise = await allotPettyCash(form({ departmentId: deptId, holderId, amount: "100000" }));
     expect(remise.ok, remise.error).toBe(true);
     const ligne = await prisma.pettyCashAllotment.findFirstOrThrow({ where: { departmentId: deptId }, select: { id: true, expenseOrderId: true } });
-    ACTOR = await actorFor(pdgId, "DIRECTION");
+    // Autorisée par le centre, la remise est versée et EN MAIN (règle du 28/10/2026).
     expect((await decidePayment(form({ id: ligne.expenseOrderId!, decision: "APPROVE" }))).ok).toBe(true);
-    ACTOR = await actorFor(comptableId, "FINANCE_BUDGET_MANAGER");
-    const regle = await settleExpenseOrder(form({ id: ligne.expenseOrderId! }));
-    expect(regle.ok, regle.error).toBe(true);
-    ACTOR = await actorFor(holderId, "DIRECTION_ASSISTANT");
-    const recu = await confirmPettyCashReceipt(form({ id: ligne.id }));
-    expect(recu.ok, recu.error).toBe(true);
+    expect((await prisma.pettyCashAllotment.findUniqueOrThrow({ where: { id: ligne.id } })).status).toBe("RECEIVED");
   }, 60_000);
 
   afterAll(async () => {

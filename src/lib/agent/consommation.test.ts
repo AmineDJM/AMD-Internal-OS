@@ -66,6 +66,8 @@ describe("règles pures", () => {
   it("le coût est INCONNU sans tarif, jamais zéro ; estimé au million de jetons sinon", () => {
     expect(coutEstimeUsd(1_000, 500, null)).toBeNull();
     expect(coutEstimeUsd(1_000_000, 1_000_000, { entreeParM: 0.1, sortieParM: 0.4 })).toBeCloseTo(0.5);
+    expect(tarifDe("openai", {} as NodeJS.ProcessEnv)).toBeNull();
+    expect(tarifDe("openai", { ASSISTANT_IA_PRICE_IN: "1.5", ASSISTANT_IA_PRICE_OUT: "6" } as unknown as NodeJS.ProcessEnv)).toEqual({ entreeParM: 1.5, sortieParM: 6 });
     expect(tarifDe("mimo", {} as NodeJS.ProcessEnv)).toBeNull();
     expect(tarifDe("mimo", { MIMO_PRICE_IN: "0.1", MIMO_PRICE_OUT: "0.4" } as unknown as NodeJS.ProcessEnv)).toEqual({ entreeParM: 0.1, sortieParM: 0.4 });
     expect(tarifDe("factice", { MIMO_PRICE_IN: "0.1", MIMO_PRICE_OUT: "0.4" } as unknown as NodeJS.ProcessEnv)).toBeNull();

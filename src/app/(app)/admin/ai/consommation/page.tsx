@@ -15,10 +15,10 @@ export const metadata = { title: "Consommation IA — AMD Internal OS" };
 export const dynamic = "force-dynamic";
 
 /**
- * CONSOMMATION IA — l'Assistant IA (MiMo) vu par le Super Admin (lot V3-D, audit 27/10 rapport 06) :
+ * CONSOMMATION IA — l'Assistant IA (OpenAI) vu par le Super Admin (lot V3-D, audit 27/10 rapport 06) :
  * par personne, par jour, par modèle, avec les plafonds qui le bornent. Les chiffres viennent du
  * journal (`ModelCallLog`, une ligne par appel) ; le coût est ESTIMÉ quand le tarif est posé
- * (`MIMO_PRICE_IN` / `MIMO_PRICE_OUT`), « inconnu » sinon — jamais zéro.
+ * (`ASSISTANT_IA_PRICE_IN` / `ASSISTANT_IA_PRICE_OUT`), « inconnu » sinon — jamais zéro.
  */
 const usd = (v: number) => `${v.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} $`;
 const cout = (a: Agregat) => (a.appels === 0 ? "—" : a.sansTarif === a.appels ? "inconnu" : a.sansTarif > 0 ? `${usd(a.coutUsd)} + ${a.sansTarif} sans tarif` : usd(a.coutUsd));
@@ -36,7 +36,7 @@ export default async function ConsommationIaPage() {
     );
   }
   const [c, reglages] = await Promise.all([consommationAssistantIa(30), lireReglagesAssistantIa()]);
-  const tarifConnu = tarifDe("mimo") != null;
+  const tarifConnu = tarifDe("openai") != null;
 
   return (
     <div className="space-y-5">
@@ -66,7 +66,7 @@ export default async function ConsommationIaPage() {
         <Card><CardContent className="pt-5">
           <p className="text-xs text-muted-foreground">Plafond par personne et par jour</p>
           <p className="text-xl font-semibold">{formatNumber(reglages.plafondJetonsJour)} jetons</p>
-          <p className="text-xs text-muted-foreground">{tarifConnu ? "Coût estimé au tarif posé (MIMO_PRICE_IN / OUT)." : "Tarif MiMo non posé : le coût est « inconnu » (MIMO_PRICE_IN / MIMO_PRICE_OUT)."}</p>
+          <p className="text-xs text-muted-foreground">{tarifConnu ? "Coût estimé au tarif posé (ASSISTANT_IA_PRICE_IN / OUT)." : "Tarif du modèle non posé : le coût est « inconnu » (ASSISTANT_IA_PRICE_IN / ASSISTANT_IA_PRICE_OUT)."}</p>
         </CardContent></Card>
       </div>
 

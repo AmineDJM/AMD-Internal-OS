@@ -77,15 +77,23 @@ export async function lireReglagesAssistantIa(): Promise<ReglagesAssistantIa> {
 // ─────────────────────────────── Le tarif ───────────────────────────────
 
 /**
- * LE TARIF DE MIMO N'EST PAS DANS LE CODE — il se pose dans l'environnement (dollars par million de
- * jetons), comme les tarifs surchargés d'Adam (`ADAM_PRICE_*`). Absent : le coût est INCONNU, et
- * l'écran le dit ; jamais un chiffre deviné.
+ * LE TARIF N'EST PAS DANS LE CODE — il se pose dans l'environnement (dollars par million de jetons),
+ * comme les tarifs surchargés d'Adam (`ADAM_PRICE_*`) : `ASSISTANT_IA_PRICE_IN` / `_OUT` pour le modèle
+ * OpenAI de l'assistant, `MIMO_PRICE_IN` / `_OUT` pour les journaux d'avant le 28/10/2026. Absent : le
+ * coût est INCONNU, et l'écran le dit ; jamais un chiffre deviné.
  */
+export const VARIABLES_TARIF: Record<string, readonly [string, string]> = {
+  openai: ["ASSISTANT_IA_PRICE_IN", "ASSISTANT_IA_PRICE_OUT"],
+  mimo: ["MIMO_PRICE_IN", "MIMO_PRICE_OUT"],
+};
+
 export function tarifDe(provider: string, env: NodeJS.ProcessEnv = process.env): Tarif | null {
-  if (provider !== "mimo") return null;
-  const e = Number(env.MIMO_PRICE_IN);
-  const s = Number(env.MIMO_PRICE_OUT);
-  return env.MIMO_PRICE_IN && env.MIMO_PRICE_OUT && Number.isFinite(e) && Number.isFinite(s) && e >= 0 && s >= 0
+  const noms = VARIABLES_TARIF[provider];
+  if (!noms) return null;
+  const [brutE, brutS] = [env[noms[0]], env[noms[1]]];
+  const e = Number(brutE);
+  const s = Number(brutS);
+  return brutE && brutS && Number.isFinite(e) && Number.isFinite(s) && e >= 0 && s >= 0
     ? { entreeParM: e, sortieParM: s }
     : null;
 }
@@ -217,7 +225,7 @@ export async function fermerBudget(b: Budget, issue: { ok: boolean; erreur?: str
   const premier = b.appels[0];
   await logAiUsage({
     feature: FEATURE_ASSISTANT_IA,
-    provider: premier?.provider ?? "mimo",
+    provider: premier?.provider ?? "openai",
     model: premier?.model ?? null,
     userId: b.userId,
     ok: issue.ok,
