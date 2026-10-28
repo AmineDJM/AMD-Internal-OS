@@ -22,7 +22,8 @@ import { describe, expect, it } from "vitest";
  * découpe (voir `docs/architecture/MODULES.md` et les dossiers `src/lib/rbac/`, `src/lib/labels/`,
  * `src/lib/assistant/coeur/` pour des exemples) ; il n'entre pas dans la liste.
  *
- * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4.
+ * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4 ; 48 après la migration des Finances
+ * (`payment-request-actions.ts`, 1 197 lignes, devenu `modules/finances/actions-demandes.ts`, 996).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFOND = 1_000;
@@ -43,7 +44,6 @@ const HERITES: Readonly<Record<string, number>> = {
   "src/lib/actions/legal-actions.ts": 1033,
   "src/lib/actions/medical-info-actions.ts": 1148,
   "src/lib/actions/mission-actions.ts": 1081,
-  "src/lib/actions/payment-request-actions.ts": 1197,
   "src/lib/actions/promo-execution-actions.ts": 1108,
   "src/lib/actions/recruitment-actions.ts": 1277,
   "src/lib/actions/regulatory-actions.ts": 1465,
