@@ -142,8 +142,14 @@ describe("un montant recopié d'une pièce se saisit au centime, pas au millier"
         } else expect(attribut(b, "step"), `${a.quoi} : pas attendu au centime`).toBe("0.01");
       }
     }
-    // Ajout ET correction d'un poste : DEUX champs `amountEstimated`, pas un.
-    expect(toutes.filter(({ f, b }) => f === "src/components/ad-pro/items-panel.tsx" && attribut(b, "name") === "amountEstimated").length).toBe(2);
+    // Ajout ET correction d'un poste : DEUX champs `amountEstimated`, pas un — la correction vit dans le
+    // dossier du panneau (`items-panel/modifier-poste.tsx`, découpé par le cliquet de taille).
+    const POSTE = ["src/components/ad-pro/items-panel.tsx", "src/components/ad-pro/items-panel/modifier-poste.tsx"];
+    expect(toutes.filter(({ f, b }) => POSTE.includes(f) && attribut(b, "name") === "amountEstimated").length).toBe(2);
+    for (const { b } of toutes.filter(({ f, b }) => POSTE[1] === f && attribut(b, "name") === "amountEstimated")) {
+      expect(estUnMontant(b), "montant estimé (correction) : le détecteur ne le reconnaît plus comme montant").toBe(true);
+      expect(attribut(b, "step"), "montant estimé (correction) : pas attendu au centime").toBe("0.01");
+    }
   });
 
   it("le détecteur dit NON quand il le faut, dans les deux sens", () => {
