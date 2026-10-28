@@ -16,10 +16,6 @@
 export const ETAPES_CYCLE = ["ETUDE", "ENREGISTREMENT", "COMMERCIALISE", "FIN_DE_VIE"] as const;
 export type EtapeCycle = (typeof ETAPES_CYCLE)[number];
 
-export const LIBELLE_ETAPE: Record<EtapeCycle, string> = {
-  ETUDE: "Étude", ENREGISTREMENT: "Enregistrement", COMMERCIALISE: "Commercialisé", FIN_DE_VIE: "Fin de vie",
-};
-
 /** Les statuts de dossier qui font d'un produit un produit de la société (`products/termines.ts`). */
 const TERMINES = new Set(["DECISION_OBTAINED", "CLOSED"]);
 

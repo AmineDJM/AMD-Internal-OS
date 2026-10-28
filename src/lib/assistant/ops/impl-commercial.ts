@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { toNumber } from "@/lib/utils";
+import { toNumber, montantDzd } from "@/lib/utils";
 import { decideAdProItem } from "@/modules/ad-pro/actions-postes-decision";
 import { transferAdProRequest } from "@/modules/ad-pro/actions-transfert";
 import { validatePromoStep, refusePromoStep } from "@/lib/actions/promo-circuit-actions";
@@ -15,8 +15,6 @@ import { designerDossierPromo } from "@/platform/in-process/promo";
  * hôpitaux, par les ACTIONS CANONIQUES. Les portes de fond (Direction pour les postes,
  * étape courante pour le circuit promo) restent celles des actions.
  */
-
-const dzd = (n: number): string => `${n.toLocaleString("fr-FR")} DZD`;
 
 function amountOf(input: Record<string, unknown>, key: string): number | null {
   const v = input[key];
@@ -128,7 +126,7 @@ export const ADPRO_OPS_IMPL: Record<string, OpImpl> = {
       const parentRef = (r: (typeof rows)[number]): string =>
         r.sponsoring?.reference ?? r.congressNational?.name ?? r.congressInternational?.name ?? r.event?.name ?? r.training?.reference ?? "—";
       if (rows.length > 1) {
-        return { error: `Plusieurs postes soumis : ${rows.map((r) => `« ${r.label} » (${parentRef(r)}${r.amountEstimated !== null ? `, ${dzd(toNumber(r.amountEstimated))}` : ""})`).join(" ; ")} — préciser le libellé.` };
+        return { error: `Plusieurs postes soumis : ${rows.map((r) => `« ${r.label} » (${parentRef(r)}${r.amountEstimated !== null ? `, ${montantDzd(toNumber(r.amountEstimated))}` : ""})`).join(" ; ")} — préciser le libellé.` };
       }
       const item = rows[0];
       const estimated = item.amountEstimated !== null ? toNumber(item.amountEstimated) : null;
@@ -139,12 +137,12 @@ export const ADPRO_OPS_IMPL: Record<string, OpImpl> = {
         fields: [
           { label: "Poste", value: `${item.label} — ${parentRef(item)}` },
           ...(item.supplier ? [{ label: "Bénéficiaire", value: item.supplier }] : []),
-          ...(estimated !== null ? [{ label: "Montant estimé", value: dzd(estimated) }] : []),
-          { label: "Décision", value: decision === "APPROVED" && granted !== null ? `Accordé — ${dzd(granted)}` : DECISION_FR[decision] },
+          ...(estimated !== null ? [{ label: "Montant estimé", value: montantDzd(estimated) }] : []),
+          { label: "Décision", value: decision === "APPROVED" && granted !== null ? `Accordé — ${montantDzd(granted)}` : DECISION_FR[decision] },
         ],
         warnings: ["Décision de la DIRECTION sur le poste — le demandeur est notifié. Un poste dont le bon de commande est émis ne se redécide plus."],
         args: { id: item.id, decision, amountGranted: granted !== null ? String(granted) : null, note: opStr(input, "note"), label: item.label },
-        successMessage: `Poste « ${item.label} » : ${DECISION_FR[decision].toLowerCase()}${granted !== null && decision === "APPROVED" ? ` (${dzd(granted)})` : ""}.`,
+        successMessage: `Poste « ${item.label} » : ${DECISION_FR[decision].toLowerCase()}${granted !== null && decision === "APPROVED" ? ` (${montantDzd(granted)})` : ""}.`,
         revalidate: ["/sponsoring"],
       };
     },

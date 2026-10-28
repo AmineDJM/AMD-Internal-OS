@@ -21,9 +21,8 @@ import {
   assurerMembre, assurerSujet, destinatairesAssistante, lienBureau, ligneFiche, noterAuFil, prevenir,
 } from "@/lib/reservation-fiche/serveur";
 import {
-  diffEmpreintes, etatApres, etatFiche, etatLu, fichesAEnvoyer, gestePossible, lireEmpreinte, phraseChangements,
-  refusGeste, refusRelance, NATURE_LIBELLE, REFUS_AVANT_ACCORD,
-  type EtatDemande, type SourceFiche,
+  diffEmpreintes, etatApres, etatFiche, etatLu, fichesAEnvoyer, lireEmpreinte, phraseChangements, refusGeste,
+  refusRelance, NATURE_LIBELLE, REFUS_AVANT_ACCORD, type EtatDemande, type SourceFiche,
 } from "@/lib/reservation-fiche/etat";
 import { sansBloquer } from "@/lib/journal";
 

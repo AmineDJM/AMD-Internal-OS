@@ -120,7 +120,6 @@ function formValider(id: string, pieceId: string, ligneIds: string[], extra: Rec
   for (const l of ligneIds) f.append("ligneId", l);
   return f;
 }
-const ttc = (ht: number) => Math.round(ht * 119) / 100;
 
 const REGARD_DEMANDEUR: RegardPoste = { canEdit: true, canAllocate: false, canViserBC: false, canEmettre: false, fige: false, operationDecidee: false };
 

@@ -39,7 +39,6 @@ try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
 const suite = dbOk ? describe : describe.skip;
 
 const TAG = `__integ${Date.now().toString(36)}__`;
-const c = (dzd: number) => Math.round(dzd * 100);
 const arrondi = (n: number) => Math.round(n * 100) / 100;
 
 const classeur = (): Uint8Array => {

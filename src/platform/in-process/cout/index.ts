@@ -1,6 +1,6 @@
 import { allBindings, bindingFor } from "@/lib/models/registry";
 import type { ModelRole } from "@/lib/models/contract";
-import { choisir, escalader, northStar, porteDeRegression, type Bilan, type Candidate, type Choix, type Mesure } from "@/lib/cout/choix";
+import { choisir, escalader, northStar, porteDeRegression, type Candidate, type Choix, type Mesure } from "@/lib/cout/choix";
 import { plancherDe, type Classe } from "@/lib/cout/plancher";
 
 /**

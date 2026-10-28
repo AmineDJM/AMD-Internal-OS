@@ -56,10 +56,3 @@ export async function rendreBail(missionId: string): Promise<void> {
     data: { leaseOwner: null, leaseUntil: null },
   }).catch(sansBloquer("bail.rendreBail.mission"));
 }
-
-/** Qui tient le bail en ce moment — pour dire, pas pour décider. */
-export async function detenteurDuBail(missionId: string, maintenant = new Date()): Promise<string | null> {
-  const m = await prisma.mission.findUnique({ where: { id: missionId }, select: { leaseOwner: true, leaseUntil: true } });
-  if (!m?.leaseOwner || !m.leaseUntil || m.leaseUntil < maintenant) return null;
-  return m.leaseOwner;
-}

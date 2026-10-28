@@ -1,4 +1,5 @@
 import { normaliserTexte, type PlanIntegration } from "./integration-2026";
+import { arrondirAuCentime } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -47,8 +48,6 @@ export interface ApercuRecalculable<L extends LigneRecalculable = LigneRecalcula
   absentes: A[];
 }
 
-const arrondi = (n: number) => Math.round(n * 100) / 100;
-
 /** Un élément compte-t-il au budget avec ce choix ? (la règle du lot : seul « SORTIR » le retire). */
 export const compteAvec = (d: DecisionAbsente | null | undefined): boolean => d !== "SORTIR";
 
@@ -69,11 +68,11 @@ export function appliquerDecisionsLocales<P extends ApercuRecalculable>(apercu: 
   }
   const lignes = apercu.lignes.map((l) => {
     const d = delta.get(l.id);
-    return d ? { ...l, apres: { consomme: arrondi(l.apres.consomme + d.consomme), engage: arrondi(l.apres.engage + d.engage) } } : l;
+    return d ? { ...l, apres: { consomme: arrondirAuCentime(l.apres.consomme + d.consomme), engage: arrondirAuCentime(l.apres.engage + d.engage) } } : l;
   });
   const totalApres = delta.size === 0 ? apercu.totalApres : {
-    consomme: arrondi(lignes.reduce((s, l) => s + l.apres.consomme, 0)),
-    engage: arrondi(lignes.reduce((s, l) => s + l.apres.engage, 0)),
+    consomme: arrondirAuCentime(lignes.reduce((s, l) => s + l.apres.consomme, 0)),
+    engage: arrondirAuCentime(lignes.reduce((s, l) => s + l.apres.engage, 0)),
   };
   const absentes = apercu.absentes.map((a) => (decisions[a.cle] && decisions[a.cle] !== a.decision ? { ...a, decision: decisions[a.cle] } : a));
   return { ...apercu, lignes, totalApres, absentes };

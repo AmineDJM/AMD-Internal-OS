@@ -19,6 +19,7 @@ import {
   type CibleComptage, type FrequenceComptage, type GenreAlerte, type StatutComptage, type StatutRefonte,
 } from "@/lib/promo/comptages";
 import { chargerFaitsAlertes } from "@/lib/queries/promo-stock-alertes";
+import { arrondirAuMillieme } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -34,7 +35,6 @@ import { chargerFaitsAlertes } from "@/lib/queries/promo-stock-alertes";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const r3 = (n: number): number => Math.round(n * 1000) / 1000;
 const num = (v: unknown): number => (v == null ? 0 : Number(v));
 
 /** L'ÉQUIPE : l'arbre de l'organigramme sous la personne, plus les KAM des gammes qu'elle supervise. */
@@ -466,18 +466,18 @@ export async function chargerPageStock(user: SessionUser, maintenant = new Date(
   const soldesParArticle = new Map<string, Map<string, SoldeVue>>();
   const totalParArticle = new Map<string, number>();
   for (const s of sommes) {
-    const q = r3(num(s._sum.delta));
-    totalParArticle.set(s.itemId, r3((totalParArticle.get(s.itemId) ?? 0) + q));
+    const q = arrondirAuMillieme(num(s._sum.delta));
+    totalParArticle.set(s.itemId, arrondirAuMillieme((totalParArticle.get(s.itemId) ?? 0) + q));
     if (!detenteursVisibles(s.holderId)) continue;
     const parDet = soldesParArticle.get(s.itemId) ?? new Map<string, SoldeVue>();
     const cle = cleDetenteur(s.holderId);
     const sv = parDet.get(cle) ?? { detenteurId: s.holderId, quantite: 0, parLot: [] };
-    sv.quantite = r3(sv.quantite + q);
+    sv.quantite = arrondirAuMillieme(sv.quantite + q);
     if (q !== 0) sv.parLot.push({ lotId: s.lotId, quantite: q });
     parDet.set(cle, sv);
     soldesParArticle.set(s.itemId, parDet);
   }
-  const enRouteParArticle = new Map(enRoute.map((e) => [e.itemId, r3(num(e._sum.quantite))]));
+  const enRouteParArticle = new Map(enRoute.map((e) => [e.itemId, arrondirAuMillieme(num(e._sum.quantite))]));
 
   // LE JOURNAL — borné, et il le dit. Un détenteur que la personne ne voit pas n'y figure pas.
   const visiblesFiltre = f.superAdmin || f.vueGlobale
@@ -543,7 +543,7 @@ export async function chargerPageStock(user: SessionUser, maintenant = new Date(
       continue;
     }
     const soldes = [...(soldesParArticle.get(it.id)?.values() ?? [])];
-    const visible = r3(soldes.reduce((a, s) => a + s.quantite, 0));
+    const visible = arrondirAuMillieme(soldes.reduce((a, s) => a + s.quantite, 0));
     const journal = journalParArticle.get(it.id) ?? [];
     articles.push({
       id: it.id, companyId: it.companyId, societe: it.company?.name ?? null,
@@ -556,7 +556,7 @@ export async function chargerPageStock(user: SessionUser, maintenant = new Date(
         valableJusquau: l.valableJusquau?.toISOString() ?? null, libelle: l.libelle, etat: etatValidite(l.valableJusquau, maintenant),
       })),
       soldes, visible,
-      total: f.superAdmin || f.vueGlobale ? r3(totalParArticle.get(it.id) ?? 0) : null,
+      total: f.superAdmin || f.vueGlobale ? arrondirAuMillieme(totalParArticle.get(it.id) ?? 0) : null,
       enRoute: f.superAdmin || f.vueGlobale || voirMagasin ? enRouteParArticle.get(it.id) ?? 0 : 0,
       journal,
       journalNonAffiche: Math.max(0, (comptes.get(it.id) ?? 0) - journal.length),
@@ -568,9 +568,9 @@ export async function chargerPageStock(user: SessionUser, maintenant = new Date(
   const parMedecin = new Map<string, { articles: Map<string, number>; delegues: Set<string>; dernier: number }>();
   for (const sm of sommesMedecins) {
     if (!sm.doctorId) continue;
-    const net = r3(-num(sm._sum.delta));
+    const net = arrondirAuMillieme(-num(sm._sum.delta));
     const e = parMedecin.get(sm.doctorId) ?? { articles: new Map<string, number>(), delegues: new Set<string>(), dernier: 0 };
-    e.articles.set(sm.itemId, r3((e.articles.get(sm.itemId) ?? 0) + net));
+    e.articles.set(sm.itemId, arrondirAuMillieme((e.articles.get(sm.itemId) ?? 0) + net));
     if (net > 0 && sm.holderId) e.delegues.add(sm.holderId);
     e.dernier = Math.max(e.dernier, sm._max.occurredAt?.getTime() ?? 0);
     parMedecin.set(sm.doctorId, e);
@@ -834,10 +834,10 @@ async function chargerTableau(c: {
 
   // LA VALEUR — soldes positifs par lot, chez les détenteurs que la personne voit.
   const visibles = c.sommes.filter((s) => famille.has(s.itemId) && peutVoirStockDe(f, s.holderId));
-  const lignes = visibles.map((s) => ({ itemId: s.itemId, quantite: r3(num(s._sum.delta)), coutUnitaire: cout.get(s.lotId) ?? null }));
+  const lignes = visibles.map((s) => ({ itemId: s.itemId, quantite: arrondirAuMillieme(num(s._sum.delta)), coutUnitaire: cout.get(s.lotId) ?? null }));
   const parFamille = (["CONSOMMABLE", "DURABLE"] as const).map((fam) => {
     const v = valeurDuStock(lignes.filter((l) => famille.get(l.itemId) === fam));
-    return { famille: fam, valeur: v.valeur, unites: r3(v.unitesValorisees + v.unitesSansCout) };
+    return { famille: fam, valeur: v.valeur, unites: arrondirAuMillieme(v.unitesValorisees + v.unitesSansCout) };
   });
 
   // LA CONSOMMATION — sur la fenêtre, nette des corrections, dans le même périmètre que le journal.
@@ -865,17 +865,17 @@ async function chargerTableau(c: {
     : [[], [], [], [], [], []];
   // Une remise est un delta NÉGATIF ; sa contre-passation, positive : le net se lit au signe près.
   const parArticle = new Map<string, number>();
-  const ajouter = (itemId: string, q: number) => parArticle.set(itemId, r3((parArticle.get(itemId) ?? 0) + q));
+  const ajouter = (itemId: string, q: number) => parArticle.set(itemId, arrondirAuMillieme((parArticle.get(itemId) ?? 0) + q));
   let remisMedecins = 0;
-  for (const r of remises) { const q = r3(-num(r._sum.delta)); remisMedecins = r3(remisMedecins + q); ajouter(r.itemId, q); }
+  for (const r of remises) { const q = arrondirAuMillieme(-num(r._sum.delta)); remisMedecins = arrondirAuMillieme(remisMedecins + q); ajouter(r.itemId, q); }
   let remisEvenements = 0;
   for (const l of evenements) {
-    const q = r3(num(l.utilisee) + num(l.abimee) + num(l.perdue));
-    remisEvenements = r3(remisEvenements + q);
+    const q = arrondirAuMillieme(num(l.utilisee) + num(l.abimee) + num(l.perdue));
+    remisEvenements = arrondirAuMillieme(remisEvenements + q);
     ajouter(l.stockItemId, q);
   }
-  const totalPertes = r3(pertes.reduce((t, p) => t - num(p._sum.delta), 0) - pertesAnnulees.reduce((t, p) => t + num(p._sum.delta), 0));
-  const ecartsComptage = r3(ecarts.reduce((t, e) => t + num(e._sum.delta), 0));
+  const totalPertes = arrondirAuMillieme(pertes.reduce((t, p) => t - num(p._sum.delta), 0) - pertesAnnulees.reduce((t, p) => t + num(p._sum.delta), 0));
+  const ecartsComptage = arrondirAuMillieme(ecarts.reduce((t, e) => t + num(e._sum.delta), 0));
 
   // LES DORMANTS — du stock en main, aucune sortie sur la fenêtre, et un article qui a eu le temps de servir.
   const derniereSortie = new Map(sorties.map((s) => [s.itemId, s._max.occurredAt ?? null]));

@@ -9,7 +9,7 @@ import {
 } from "./contract";
 import { fold, clip } from "./text";
 import { renumber } from "./chunk";
-import { enqueue, enqueueAll } from "./queue";
+import { enqueueAll } from "./queue";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -250,27 +250,6 @@ export async function setStage(itemId: string, stage: IngestStage, error?: strin
   await prisma.knowledgeItem
     .update({ where: { id: itemId }, data: { stage, error: error ?? null } })
     .catch(sansBloquer("ingest.setStage.knowledgeItem"));
-}
-
-/**
- * L'ENTRÉE ÉVÉNEMENTIELLE (§19) — « quelque chose a changé, occupe-t'en ».
- *
- * Volontairement SANS `await` côté appelant : c'est un signal, pas une étape du circuit métier.
- * Un dépôt de fichier ne doit pas ralentir d'une milliseconde parce que la couche de
- * connaissance a du travail, ni échouer parce qu'elle est indisponible.
- *
- * Le job `parse` fait ensuite le vrai travail, dans la file, avec ses réessais.
- */
-export function noteChange(sourceType: KnowledgeSourceType, sourceId: string, opts: { priority?: number; delayMs?: number } = {}): void {
-  void enqueue({
-    kind: "parse",
-    payload: { sourceType, sourceId },
-    priority: opts.priority,
-    // Un léger retard laisse la transaction métier devenir visible : sans lui, le job lirait
-    // parfois une ligne qui n'est pas encore committée et conclurait « introuvable ».
-    delayMs: opts.delayMs ?? 2_000,
-    dedupeKey: `parse:${sourceType}:${sourceId}`,
-  }).catch(sansBloquer("ingest.noteChange.enqueue"));
 }
 
 /**

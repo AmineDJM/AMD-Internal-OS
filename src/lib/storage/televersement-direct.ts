@@ -206,4 +206,4 @@ export async function finaliserEnvoi(
   return { ok: true, taille };
 }
 
-export { VARIABLES_STOCKAGE, refusSansStockageObjet } from "@/lib/storage/phrases-stockage";
+export { refusSansStockageObjet } from "@/lib/storage/phrases-stockage";

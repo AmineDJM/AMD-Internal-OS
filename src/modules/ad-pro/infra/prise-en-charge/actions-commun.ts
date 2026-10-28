@@ -41,8 +41,6 @@ export const SPEC: Record<Scope, { module: "CONGRESS_NATIONAL" | "CONGRESS_INTER
 
 export const isScope = (v: string): v is Scope => v === "NATIONAL" || v === "INTERNATIONAL";
 
-/** Statuts à partir desquels la Direction a tranché la demande dans son ensemble. */
-export const DECIDED = ["APPROVED", "COMPLETED"];
 
 export function revalidate(scope: Scope, id: string) {
   revalidatePath(SPEC[scope].path);

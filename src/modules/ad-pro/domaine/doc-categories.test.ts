@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { DOCUMENT_CATEGORY } from "@/lib/labels";
-import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS, type AdProKind } from "./unified";
+import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS } from "./unified";
 import {
   AD_PRO_DOC_CATEGORIES, AD_PRO_ENTITY_TYPES, PROMO_MATERIAL_DOC_CATEGORIES, categoriesDePieces,
 } from "./doc-categories";

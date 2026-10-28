@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { callLuna, lunaConfigured, lunaModel, type LunaResult } from "@/lib/openai-luna";
-import { aiFeatureEnabled, interrupteurIaCoupe, logAiUsage } from "@/lib/ai-settings";
+import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/openai-luna";
+import { logAiUsage } from "@/lib/ai-settings";
 import { wrapUntrusted } from "@/lib/comms/untrusted";
 import { chargerLiensAdPro } from "@/modules/ad-pro/api";
 import {
@@ -53,16 +53,6 @@ export interface BilanAnalyse {
   luna: "OK" | "INDISPONIBLE" | "ECHEC" | "RIEN_A_LIRE";
   resteALire: boolean;
   scores: number;
-}
-
-async function porteOuverte(): Promise<boolean> {
-  try {
-    if (await interrupteurIaCoupe()) return false;
-    if (!(await aiFeatureEnabled(FONCTION))) return false;
-    return lunaConfigured();
-  } catch {
-    return false;
-  }
 }
 
 async function extraireParLuna(lot: readonly RapportAnalyse[], userId: string | null): Promise<MentionLue[] | null> {
@@ -340,7 +330,7 @@ export async function analyserInfluence(opts: { userId: string | null }): Promis
     bilan.structurels = await recalculerStructure(ctx);
     const index = indexerPraticiens(ctx.medecins);
     const chefs = chefsParService(ctx);
-    const ouverte = await porteOuverte();
+    const ouverte = await portesLunaOuvertes(FONCTION);
     let lotsRestants = MAX_LOTS;
     for (const [cle, lire] of [[CLE_RAPPORTS, rapportsVocaux], [CLE_VISITES, comptesRendusEcrits]] as const) {
       if (bilan.luna === "ECHEC") break;

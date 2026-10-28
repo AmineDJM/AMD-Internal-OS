@@ -19,7 +19,6 @@ import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "./types";
 import { sansBloquer } from "@/lib/journal";
 
-export type { ChargeOperationIA } from "./types";
 
 /** LE REGISTRE — chaque geste que l'Assistant IA sait préparer. */
 export const OPERATIONS_IA: OperationIA[] = [

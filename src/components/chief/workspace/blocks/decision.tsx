@@ -3,7 +3,7 @@
 import * as React from "react";
 import { AlertTriangle, ArrowRight, Check, CircleAlert, Info, Loader2, X } from "lucide-react";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
-import { ActionRow, AskContext, Card, Chip } from "../primitives";
+import { ActionRow, AskContext, Card } from "../primitives";
 import "../blocks-godmode.css";
 
 /**
@@ -184,7 +184,3 @@ export function AlerteBlock({ b }: { b: Alerte }) {
     </section>
   );
 }
-
-/** Réexport groupé — le registre importe d'un seul endroit. */
-export const DECISION_BLOCKS = { ComparisonBlock, MissionBlock, AlerteBlock };
-export { Chip };

@@ -9,7 +9,7 @@
 #
 # Trois jobs PARALLÈLES, chacun dans son propre conteneur — même raison que build:render : lint,
 # typecheck et compilation additionnés dans un seul processus dépassent la mémoire.
-#   verifier : migrations sur base vide · contrat des actions · typecheck · lint · npm audit (prod)
+#   verifier : migrations sur base vide · code mort / doublons · contrat des actions · typecheck · lint · npm audit (prod)
 #   tests    : Vitest complet en 4 tranches, chacune contre son Postgres 16 (les suites DB tournent)
 #   build    : `npm run build:render` à froid — la commande exacte du déploiement — puis le plafond
 #              du JS de la coque (`npm run bundle:plafond`)
@@ -43,7 +43,7 @@ env:
 
 jobs:
   verifier:
-    name: Migrations · contrat · typecheck · lint
+    name: Migrations · code mort · contrat · typecheck · lint
     runs-on: ubuntu-latest
     timeout-minutes: 30
     services:
@@ -70,6 +70,11 @@ jobs:
       # La dérive schéma ↔ base (558 lignes de `prisma migrate diff` au 27/10) est tenue par le
       # test-cliquet de refonte/p0-outillage (src/lib/derive-schema/), qui tourne dans `tests`.
       - run: npm run db:bootstrap
+      # Code mort et doublons, mesurés par knip et jscpd (audit 08, ARCH-06) : zéro fichier, export,
+      # type ou dépendance inutilisé ; doublons sous leur plafond. Plafonds et exceptions nommées :
+      # `src/platform/qualite-code.ts` (tenus aussi par `qualite-code.test.ts`, dans `tests`).
+      - run: npm run qualite:mort
+      - run: npm run qualite:doublons
       # Contrat des server actions : le fichier généré est-il celui du code ?
       - name: Contrat des actions à jour
         run: |
@@ -117,8 +122,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      # `reachability.test.ts` appelle le binaire `rg`.
-      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
       - run: npm ci
       - run: npx prisma generate
       - run: npx prisma migrate deploy

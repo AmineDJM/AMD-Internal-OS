@@ -264,6 +264,3 @@ export type FrequenceRevue = (typeof FREQUENCES)[number];
 export const FREQUENCE_LABELS: Record<FrequenceRevue, string> = {
   MENSUELLE: "mensuelle", TRIMESTRIELLE: "trimestrielle", SEMESTRIELLE: "semestrielle",
 };
-
-/** Les rôles « KAM » — le premier métier servi (Direction, 08/10 : « on commence par les KAM »). */
-export const ROLES_KAM = ["MEDICAL_DELEGATE", "NATIONAL_SALES"] as const;

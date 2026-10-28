@@ -26,7 +26,7 @@ import { CHAMP, FicheVoyageur, PastilleDecision, TON_BADGE, type Run } from "./f
 import { BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 
-export type { CellRow, BeneficiaryRow, QuoteRow } from "../../domaine/prise-en-charge/fiches";
+export type { BeneficiaryRow } from "../../domaine/prise-en-charge/fiches";
 
 interface Props {
   scope: Perimetre;

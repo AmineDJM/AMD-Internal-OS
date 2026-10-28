@@ -141,6 +141,18 @@ export const CONGRESS_FERME = ["REJECTED", "CANCELLED"];
  */
 export const tardifCongres = (decided: boolean, finalAmount: unknown) => decided && finalAmount != null;
 
+/** Un congrès (national ou international) lu pour ses postes — les deux ne diffèrent que par le bénéficiaire. */
+function congresLu(
+  r: { id: string; name: string; requestStatus: string; requesterId: string | null; companyId: string | null; finalAmount: unknown },
+  beneficiary: string,
+): ParentInfo {
+  const decided = CONGRESS_DECIDED.includes(r.requestStatus);
+  return {
+    id: r.id, ref: r.name, beneficiary, decided, tardif: tardifCongres(decided, r.finalAmount), clos: false,
+    refusee: CONGRESS_FERME.includes(r.requestStatus), requesterId: r.requesterId, companyId: r.companyId,
+  };
+}
+
 export const PARENTS: Record<AdProParent, ParentSpec> = {
   SPONSORING: {
     module: "SPONSORING",
@@ -171,12 +183,7 @@ export const PARENTS: Record<AdProParent, ParentSpec> = {
         select: { id: true, name: true, hostInstitution: true, requestStatus: true, requesterId: true, companyId: true, finalAmount: true },
       });
       // Le congrès n'a pas de référence : son nom est ce qui l'identifie sur une pièce.
-      if (!r) return null;
-      const decided = CONGRESS_DECIDED.includes(r.requestStatus);
-      return {
-        id: r.id, ref: r.name, beneficiary: r.hostInstitution ?? r.name, decided, tardif: tardifCongres(decided, r.finalAmount), clos: false,
-        refusee: CONGRESS_FERME.includes(r.requestStatus), requesterId: r.requesterId, companyId: r.companyId,
-      };
+      return r ? congresLu(r, r.hostInstitution ?? r.name) : null;
     },
   },
   CONGRESS_INTERNATIONAL: {
@@ -188,12 +195,7 @@ export const PARENTS: Record<AdProParent, ParentSpec> = {
         where: { id },
         select: { id: true, name: true, requestStatus: true, requesterId: true, companyId: true, finalAmount: true },
       });
-      if (!r) return null;
-      const decided = CONGRESS_DECIDED.includes(r.requestStatus);
-      return {
-        id: r.id, ref: r.name, beneficiary: r.name, decided, tardif: tardifCongres(decided, r.finalAmount), clos: false,
-        refusee: CONGRESS_FERME.includes(r.requestStatus), requesterId: r.requesterId, companyId: r.companyId,
-      };
+      return r ? congresLu(r, r.name) : null;
     },
   },
   EVENT: {

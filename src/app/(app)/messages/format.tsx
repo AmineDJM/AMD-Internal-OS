@@ -48,10 +48,6 @@ export function sameDay(a: string, b: string): boolean {
   return new Date(a).toDateString() === new Date(b).toDateString();
 }
 
-export function presenceText(presence: Presence): string {
-  return presence === "online" ? "En ligne" : presence === "away" ? "Absent" : "Hors ligne";
-}
-
 /**
  * Ligne de présence d'un contact direct, façon messagerie : « En ligne » (vert) sinon
  * « Vu à HH:MM » / « Vu hier à HH:MM » / « Vu le JJ mois à HH:MM » à partir de l'heure exacte

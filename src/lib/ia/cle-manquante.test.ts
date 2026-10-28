@@ -211,7 +211,7 @@ describe("le module qui LIT l'environnement ne recopie pas non plus le nom dans 
   it("la clé de TRANSCRIPTION ne se nomme que là où le module la LIT, juste au-dessus", () => {
     const fautifs = refus
       .filter(({ l }) => l.includes("OPENAI_API_KEY"))
-      .filter(({ i }) => !lignes.slice(Math.max(0, i - 3), i).some((x) => x.includes("process.env.OPENAI_API_KEY")))
+      .filter(({ i }) => !lignes.slice(Math.max(0, i - 3), i).some((x) => x.includes("process.env.OPENAI_API_KEY") || x.includes("cleOpenAI(")))
       .map(({ i }) => `ai.ts:${i + 1}`);
     expect(fautifs).toEqual([]);
   });

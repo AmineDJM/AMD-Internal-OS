@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, LifeBuoy, MessageSquare, Paperclip } from "lucide-react";
 import { requireUser } from "@/lib/session";

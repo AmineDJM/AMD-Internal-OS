@@ -143,6 +143,3 @@ export const RUN_HISTORY_KEEP = 50;
  * part. C'est la panne silencieuse la plus coûteuse d'un planificateur.
  */
 export const STALE_CLAIM_MS = 15 * 60_000;
-
-/** Une planification qui échoue à répétition est SIGNALÉE, jamais désactivée en douce. */
-export const CONSECUTIVE_FAILURES_ALERT = 3;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Plane, Plus, Send, Loader2, ExternalLink, CheckCircle2, MoreHorizontal, Upload, FileCheck2, Trash2 } from "lucide-react";
 import type { AdProTrajet, AdProTransport } from "@prisma/client";
 import { Button } from "@/components/ui/button";
+import { champ, IdentiteDeLaFiche, MenuItem, PiedDeFiche } from "./fiches-communes";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { ChoixFichiers } from "@/components/shared/choix-fichiers";
@@ -14,9 +15,10 @@ import { ajouterVoyageur, modifierVoyageur, retirerVoyageur, validerDevisVoyageu
 import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
 import {
-  manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom, ETAPES_MAX,
-  TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, TRAJETS, type EtapeTrajet,
+  manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom,
+  ETAPES_MAX, TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, type EtapeTrajet,
 } from "../domaine/voyageurs";
+import { montantDzd } from "@/lib/utils";
 
 /** Un devis ou une pro forma déposé pour un voyageur (§118.205) — une pièce du poste, au registre Legal. */
 export interface DevisVoyageurVue {
@@ -58,7 +60,6 @@ export interface VoyageurVue {
 type Run = (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>, okText: string) => Promise<void>;
 
 const jour = (iso: string | null) => (iso ? new Date(`${iso}T00:00:00.000Z`) : null);
-const dzd = (n: number) => `${n.toLocaleString("fr-FR")} DZD`;
 
 /**
  * LES VOYAGEURS D'UN POSTE « BILLETTERIE » (§118.175, §118.205).
@@ -160,7 +161,7 @@ export function BlocVoyageurs({
                   ) : <span className="text-warning">passeport manquant</span>}
                   {retenu && (
                     <span className="inline-flex items-center gap-0.5 text-success">
-                      <FileCheck2 className="h-3 w-3" /> devis retenu{retenu.montant != null ? ` (${dzd(retenu.montant)})` : ""}
+                      <FileCheck2 className="h-3 w-3" /> devis retenu{retenu.montant != null ? ` (${montantDzd(retenu.montant)})` : ""}
                     </span>
                   )}
                   {peutEditer && (
@@ -292,7 +293,7 @@ export function BlocVoyageurs({
                         {d.fichier
                           ? <DocumentPreview id={d.fichier.id} name={d.reference ?? d.titre} hasFile={d.fichier.hasFile} />
                           : <span className="min-w-0 [overflow-wrap:anywhere]">{d.reference ?? d.titre}</span>}
-                        {d.montant != null && <span>{dzd(d.montant)}</span>}
+                        {d.montant != null && <span>{montantDzd(d.montant)}</span>}
                         {d.annule ? <span>annulé</span> : d.retenu ? <span className="text-success">retenu</span> : retenu ? <span>écarté</span> : null}
                         {peutEditer && !d.annule && !d.retenu && (mode === "CHOIX") && (
                           <Button
@@ -410,18 +411,7 @@ function fdVoyageur(voyageurId: string, extra: Record<string, string>, cle = "vo
   return fd;
 }
 
-function MenuItem({ children, onClick, danger }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) {
-  return (
-    <button
-      type="button" role="menuitem" onClick={onClick}
-      className={`min-h-9 rounded px-3 py-2 text-[0.6875rem] font-medium hover:bg-secondary sm:min-h-0 sm:px-2 sm:py-1 ${danger ? "text-destructive" : "text-foreground"}`}
-    >
-      {children}
-    </button>
-  );
-}
 
-const champ = "mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary/60";
 
 /** LE DEVIS DE L'AGENCE POUR UN VOYAGEUR — le fichier (exigé), son montant, et s'il s'agit d'une pro forma. */
 function FormulaireDevis({ nom, busy, onSubmit, onCancel }: { nom: string; busy: boolean; onSubmit: (fd: FormData) => void; onCancel: () => void }) {
@@ -491,12 +481,7 @@ function FormulaireVoyageur({ suggestions, defaut, busy, libelle, onSubmit, onCa
         suggestions={suggestions} defaut={defaut}
         passeports={passeports} setPasseports={setPasseports} documents={documents} setDocuments={setDocuments}
       />
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button size="sm" type="submit" disabled={busy} className="h-10 w-full sm:h-8 sm:w-auto">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {libelle}
-        </Button>
-        <Button size="sm" type="button" variant="outline" onClick={onCancel} className="h-10 w-full sm:h-8 sm:w-auto">Annuler</Button>
-      </div>
+      <PiedDeFiche busy={busy} libelle={libelle} onCancel={onCancel} />
     </form>
   );
 }
@@ -546,26 +531,7 @@ export function ChampsVoyageur({ prefixe = "", suggestions, defaut, passeports, 
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {suggestions.length > 0 && (
-          <label className="text-xs sm:col-span-2">
-            Personne de la demande
-            <select
-              defaultValue="" className={champ} aria-label="Choisir une personne de la demande"
-              onChange={(e) => { if (e.target.value) { const c = separerNom(e.target.value); setPrenom(c.prenom); setNom(c.nom); } }}
-            >
-              <option value="">— Saisir à la main —</option>
-              {suggestions.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
-          </label>
-        )}
-        <label className="text-xs">
-          Prénom
-          <input name={n("prenom")} value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Amel" className={champ} />
-        </label>
-        <label className="text-xs">
-          Nom
-          <input name={n("nom")} required value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Haddad" className={champ} />
-        </label>
+        <IdentiteDeLaFiche n={n} suggestions={suggestions} prenom={prenom} setPrenom={setPrenom} nom={nom} setNom={setNom} />
         <label className="text-xs sm:col-span-2">
           Mode de transport
           <select name={n("transport")} defaultValue={defaut ? (defaut.transport ?? "") : "AVION"} className={champ}>

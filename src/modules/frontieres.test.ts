@@ -265,7 +265,6 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/actions-centre.ts → src/lib/notify",
     "src/modules/ad-pro/actions-congres.ts → src/lib/notify",
     "src/modules/ad-pro/actions-edition.ts → src/lib/notify",
-    "src/modules/ad-pro/actions-evenements.ts → src/lib/notify",
     "src/modules/ad-pro/actions-postes-decision.ts → src/lib/notify",
     "src/modules/ad-pro/actions-postes-lignes.ts → src/lib/notify",
     "src/modules/ad-pro/actions-postes-materiel.ts → src/lib/notify",
@@ -302,7 +301,6 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/infra/postes-luna-ia.ts → src/lib/models/gateway",
     // Le seuil de la porte du DG (`seuils/`) : au socle des domaines, à verser au socle des modules.
     "src/modules/ad-pro/actions-centre.ts → src/lib/seuils/ad-pro",
-    "src/modules/ad-pro/domaine/centre.ts → src/lib/seuils/ad-pro",
     "src/modules/ad-pro/domaine/poste-etapes.ts → src/lib/seuils/porte-dg-total",
     "src/modules/ad-pro/ecrans/items-panel.tsx → src/lib/seuils/porte-dg-total",
     "src/modules/ad-pro/ecrans/porte-dg-carte.tsx → src/lib/seuils/porte-dg-total",

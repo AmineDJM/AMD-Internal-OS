@@ -1,5 +1,5 @@
 import { requireModule } from "@/lib/session";
-import { userCan, anyRoleFilter } from "@/lib/rbac";
+import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { clauseSponsoringsVisibles } from "@/lib/queries/visibilite-listes";
 import { toNumber } from "@/lib/utils";
@@ -8,7 +8,7 @@ import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { getAdProCreateData } from "@/modules/ad-pro/api";
-import { sponsoringCreateFields, AVAILABLE_PRODUCT_STATUSES } from "@/modules/ad-pro/partage";
+import { sponsoringCreateFields } from "@/modules/ad-pro/partage";
 import { EVENTS_TABS } from "@/lib/labels";
 import { SponsoringTable, type SponsoringRow } from "./sponsoring-table";
 

@@ -31,5 +31,3 @@ export async function myPaymentRequests(userId: string, take = 200) {
     take,
   });
 }
-
-export type MyPaymentRequest = Awaited<ReturnType<typeof myPaymentRequests>>[number];

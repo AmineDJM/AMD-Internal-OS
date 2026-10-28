@@ -14,7 +14,6 @@ import { cookies } from "next/headers";
  */
 
 export const BUDGET_COOKIE = "amd-budget-env";
-const MAX_AGE = 60 * 60 * 24 * 180; // six mois : on ne redemande pas son enveloppe chaque semaine
 
 /**
  * La dernière enveloppe consultée. Défensif : hors contexte de requête (tests, tâches

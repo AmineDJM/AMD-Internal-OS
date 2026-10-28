@@ -1,8 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  currentPeriod, periodLabel, normalizeRechargeDay, nextRechargeDate,
-  shouldRemindRecharge, grantedTopUpAmount, MAX_RECHARGE_DAY, REMINDER_LEAD_HOURS,
-} from "./petty-cash";
+import { currentPeriod, periodLabel, normalizeRechargeDay, nextRechargeDate, shouldRemindRecharge, grantedTopUpAmount } from "./petty-cash";
 
 /**
  * LE SOLDE A DÉMÉNAGÉ. Il se calculait ici, par mois ; la caisse est devenue CONTINUE et son

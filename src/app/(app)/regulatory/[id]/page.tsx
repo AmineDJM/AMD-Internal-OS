@@ -237,7 +237,6 @@ export default async function RegulatoryDetailPage(
     };
   }
 
-  const doneSteps = product.steps.filter((s) => s.status === "DONE").length;
 
   // DCI : molécule unique ou association (double/triple…).
   const molecules = Array.isArray(product.molecules)

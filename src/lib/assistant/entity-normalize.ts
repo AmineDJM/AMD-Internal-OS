@@ -17,12 +17,6 @@ export {
   orgTokens,
   coreTokens,
   initialsOf,
-  tokenOverlap,
-  editDistance,
-  typoBudget,
-  typoSimilarity,
   rankOrgCandidates,
   resolveOrg,
-  type OrgMatch,
-  type OrgResolution,
 } from "@/lib/name-match";

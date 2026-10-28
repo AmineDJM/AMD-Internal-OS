@@ -3,10 +3,11 @@ import type {
   CareOpinion, CareQuoteStatus, CareServiceKind,
 } from "@prisma/client";
 import {
-  lireVoyageur, manquesPourReserver, ligneVoyageur, prochainGesteVoyageur, lireEtapes, jourLisible,
-  TRAJET_LIBELLE, TRANSPORT_LIBELLE, type EtapeTrajet, type VoyageurPourReservation,
+  lireVoyageur, manquesPourReserver, prochainGesteVoyageur, lireEtapes, jourLisible, TRAJET_LIBELLE,
+  TRANSPORT_LIBELLE, type EtapeTrajet, type VoyageurPourReservation,
 } from "../voyageurs";
-import { lireHebergement, ligneHebergement, nuitsDe } from "../hebergements";
+import { lireHebergement, nuitsDe } from "../hebergements";
+import { arrondirAuCentime } from "@/lib/utils";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -56,9 +57,6 @@ import { lireHebergement, ligneHebergement, nuitsDe } from "../hebergements";
 
 export type Perimetre = "NATIONAL" | "INTERNATIONAL";
 
-// ───────────────────────────── Mode et devise ─────────────────────────────
-
-export const MODES_PRISE_EN_CHARGE: readonly CareMode[] = ["INDIVIDUAL", "GROUP"];
 export const MODE_LIBELLE: Record<CareMode, string> = { INDIVIDUAL: "Individuelle", GROUP: "De groupe" };
 
 export function lireMode(v: string | null | undefined): CareMode | null {
@@ -79,14 +77,12 @@ export function tauxDeLaDemande(scope: Perimetre, stocke: number | null | undefi
   return typeof stocke === "number" && Number.isFinite(stocke) && stocke > 0 ? stocke : TAUX_USD_DZD_DEFAUT;
 }
 
-const centimes = (n: number) => Math.round(n * 100) / 100;
-
 /** L'équivalent DZD d'un montant saisi — `null` pour un montant en dollars sans taux (jamais deviné). */
 export function versDzd(montant: number | null, devise: CareCurrency, taux: number | null): number | null {
   if (montant == null || !Number.isFinite(montant)) return null;
-  if (devise === "DZD") return centimes(montant);
+  if (devise === "DZD") return arrondirAuCentime(montant);
   if (taux == null || !Number.isFinite(taux) || taux <= 0) return null;
-  return centimes(montant * taux);
+  return arrondirAuCentime(montant * taux);
 }
 
 export function montantLisible(montant: number, devise: CareCurrency = "DZD"): string {
@@ -585,7 +581,7 @@ export function montantPosteGroupe(
 ): number | null {
   if (poste.status === "WAIVED") return 0;
   if (poste.unitAmountDzd == null) return null;
-  return centimes(poste.unitAmountDzd * personnesDuPosteGroupe(poste, personnes).length);
+  return arrondirAuCentime(poste.unitAmountDzd * personnesDuPosteGroupe(poste, personnes).length);
 }
 
 // ───────────────────────────── Estimé et totaux ─────────────────────────────
@@ -662,9 +658,9 @@ export function estimations(input: {
     for (const p of personnesDuPosteGroupe(g, input.personnes)) parPersonne.set(p.id, (parPersonne.get(p.id) ?? 0) + (g.unitAmountDzd ?? 0));
   }
 
-  for (const [k, v] of parPersonne) parPersonne.set(k, centimes(v));
-  for (const [k, v] of parCase) parCase.set(k, centimes(v));
-  return { parPersonne, parCase, total: centimes(devisTotal + saisis + groupe), devis: centimes(devisTotal), saisis: centimes(saisis), groupe: centimes(groupe) };
+  for (const [k, v] of parPersonne) parPersonne.set(k, arrondirAuCentime(v));
+  for (const [k, v] of parCase) parCase.set(k, arrondirAuCentime(v));
+  return { parPersonne, parCase, total: arrondirAuCentime(devisTotal + saisis + groupe), devis: arrondirAuCentime(devisTotal), saisis: arrondirAuCentime(saisis), groupe: arrondirAuCentime(groupe) };
 }
 
 /** LE TOTAL FACE À L'ENVELOPPE — la phrase du dépassement, ou `null`. Un dépassement se DIT, il ne bloque rien. */
@@ -828,29 +824,3 @@ export function personnePasseport(cells: readonly CellRow[]): boolean {
   return cells.some((c) => c.kind === "DOCUMENT" && /passeport/i.test(c.label) && (c.status === "PROVIDED" || c.status === "SETTLED"));
 }
 
-// ───────────────────────────── Ce que lit l'assistante ─────────────────────────────
-
-/**
- * LES LIGNES D'UNE FICHE DANS LE SUJET DE RÉSERVATION — le billet comme un voyageur du sponsoring
- * (`ligneVoyageur`), chaque hôtel comme une fiche hôtellerie (`ligneHebergement`), puis les autres postes.
- */
-export function lignesReservationFiche(scope: Perimetre, nom: string, cells: readonly CellRow[], passeport: boolean): string[] {
-  const out: string[] = [];
-  for (const b of postesDeNature(cells, "TICKET")) {
-    if (b.status === "WAIVED") continue;
-    const ligne = ligneVoyageur(voyageurDuBillet(nom, b, scope === "INTERNATIONAL" ? passeport : true));
-    out.push(scope === "INTERNATIONAL" ? ligne : ligne.replace(" — passeport joint", ""));
-  }
-  for (const h of postesDeNature(cells, "HOTEL")) {
-    if (h.status === "WAIVED") continue;
-    out.push(ligneHebergement({
-      nom, prenom: null, hotel: h.hotelName, ville: h.city, dateArrivee: jour(h.dateStart), dateDepart: jour(h.dateEnd),
-      typeChambre: h.roomType, notes: h.notes,
-    }));
-  }
-  for (const c of autresPostes(cells)) {
-    if (c.status === "WAIVED" || c.serviceKind === "TICKET" || c.serviceKind === "HOTEL") continue;
-    out.push(`• ${nom} — ${c.label}${c.dateStart ? ` le ${jourLisible(jour(c.dateStart))}` : ""}${c.timeStart ? ` à ${c.timeStart}` : ""}${c.address ? ` — ${c.address}` : ""}${c.notes ? ` — ${c.notes}` : ""}`);
-  }
-  return out;
-}

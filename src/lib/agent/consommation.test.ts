@@ -215,7 +215,8 @@ describe("cliquets", () => {
     expect(portes.sort()).toEqual(["src/lib/agent/generer.ts", "src/lib/agent/repondre.ts"]);
     for (const f of portes) {
       const s = readFileSync(f, "utf8");
-      expect(/\bouvrirBudget\(/.test(s) && /\bfermerBudget\(/.test(s), `${f} appelle le modèle sans budget`).toBe(true);
+      // `budgetDeLAppel` ouvre le budget (celui du tour, ou un neuf par `ouvrirBudget`) : c'est la même porte.
+      expect(/\b(ouvrirBudget|budgetDeLAppel)\(/.test(s) && /\bfermerBudget\(/.test(s), `${f} appelle le modèle sans budget`).toBe(true);
     }
   });
 

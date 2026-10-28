@@ -23,11 +23,11 @@ import {
   type HrStatut, type GateN1, type ReponseMission,
 } from "@/lib/missions-equipe/etat";
 import {
-  lireFiche, ficheStockee, etapeParticipation, estArbitre, coteDe, refusProposition, refusDecision, natureNouvelleVersion,
-  peutDemanderOmParticipation, datesConvenues, destinationConvenue, hebergementPourOm, peutDeposerReservation,
-  peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture, refusModifFrais, refusDecisionN1NoteFrais,
-  moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE, TRAJETS_BILLET,
-  type Cote, type NatureFrais,
+  lireFiche, ficheStockee, etapeParticipation, estArbitre, coteDe, refusProposition, refusDecision,
+  natureNouvelleVersion, datesConvenues, destinationConvenue, hebergementPourOm, peutDeposerReservation,
+  peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture, refusModifFrais,
+  refusDecisionN1NoteFrais, moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE,
+  NATURE_FRAIS_LIBELLE, TRAJETS_BILLET, type Cote, type NatureFrais,
 } from "@/lib/missions-equipe/participation";
 import { lireDetailsTrajets } from "@/modules/ad-pro/partage";
 import { persistUploadedDocument } from "@/lib/documents";

@@ -27,7 +27,7 @@ import { PosteCarte } from "./postes/poste-carte";
 import { estPosteStock, RAFRAICHISSEMENT } from "./postes/elements";
 import { AddItemForm, Figure } from "./postes/formulaires";
 
-export type { LigneStockVue, ContexteMaterielStock, ArticleMagasinVue } from "./materiel-stock";
+export type { LigneStockVue } from "./materiel-stock";
 
 export type { VoyageurVue } from "./voyageurs-bloc";
 

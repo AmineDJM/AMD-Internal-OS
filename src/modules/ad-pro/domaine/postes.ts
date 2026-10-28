@@ -1,5 +1,6 @@
 import type { AdProItemKind, AdProItemStatus, AdProItemBudgetKind, AdProItemOrderStage } from "@prisma/client";
 import { refusFichesPersonnes } from "./hebergements";
+import { arrondirAuCentime } from "@/lib/utils";
 
 /**
  * POSTES D'UNE OPÉRATION AD & PRO — la ventilation de l'enveloppe.
@@ -18,7 +19,7 @@ import { refusFichesPersonnes } from "./hebergements";
 // socle des adresses (`@/lib/chemins/ad-pro`) : le référentiel des personnes les lit pour relier une
 // fiche à la demande d'un poste, et un référentiel ne lit pas un métier. Réexportés ici pour le module.
 export {
-  AD_PRO_PARENTS, PARENT_COLONNE, PARENT_ENTITE, parentDuPoste, type AdProParent, type ColonnesParent,
+  AD_PRO_PARENTS, PARENT_COLONNE, PARENT_ENTITE, parentDuPoste, type AdProParent,
 } from "@/lib/chemins/ad-pro";
 
 /** Libellés métier. `PROMO_MATERIAL` est distingué : il renvoie vers un autre circuit. */
@@ -139,7 +140,6 @@ const sum = (xs: (number | null | undefined)[]): number =>
   xs.reduce<number>((a, x) => a + (typeof x === "number" && Number.isFinite(x) ? x : 0), 0);
 
 /** Arrondi au centime — les décimaux flottants ne doivent pas faire apparaître un écart fantôme. */
-const round2 = (n: number): number => Math.round(n * 100) / 100;
 
 /**
  * L'état de la ventilation, tel qu'il sera affiché.
@@ -161,14 +161,14 @@ export function breakdown(items: ItemAmounts[], amountGranted: number | null | u
   const additional = live.filter((i) => i.budgetKind === "ADDITIONAL");
   const included = live.filter((i) => i.budgetKind !== "ADDITIONAL");
 
-  const estimatedDzd = round2(sum(live.map((i) => i.amountEstimated)));
+  const estimatedDzd = arrondirAuCentime(sum(live.map((i) => i.amountEstimated)));
   // La ventilation de l'ENVELOPPE ne compte que les postes qui s'y imputent : un poste
   // « supplémentaire » est une RALLONGE demandée, pas une part du montant déjà accordé.
-  const allocatedDzd = round2(sum(included.map((i) => i.amountGranted)));
-  const additionalDzd = round2(sum(additional.map((i) => i.amountGranted ?? i.amountEstimated)));
-  const pendingDzd = round2(sum(live.filter((i) => i.status === "PENDING" || i.status === "REVISION").map((i) => i.amountGranted ?? i.amountEstimated)));
+  const allocatedDzd = arrondirAuCentime(sum(included.map((i) => i.amountGranted)));
+  const additionalDzd = arrondirAuCentime(sum(additional.map((i) => i.amountGranted ?? i.amountEstimated)));
+  const pendingDzd = arrondirAuCentime(sum(live.filter((i) => i.status === "PENDING" || i.status === "REVISION").map((i) => i.amountGranted ?? i.amountEstimated)));
 
-  const diff = envelopeDzd == null ? 0 : round2(envelopeDzd - allocatedDzd);
+  const diff = envelopeDzd == null ? 0 : arrondirAuCentime(envelopeDzd - allocatedDzd);
   const unallocatedDzd = diff > 0 ? diff : 0;
   const overrunDzd = diff < 0 ? -diff : 0;
 
@@ -184,7 +184,7 @@ export function breakdown(items: ItemAmounts[], amountGranted: number | null | u
     itemCount: live.length,
     additionalDzd,
     pendingDzd,
-    totalRequestedDzd: round2(allocatedDzd + additionalDzd),
+    totalRequestedDzd: arrondirAuCentime(allocatedDzd + additionalDzd),
   };
 }
 

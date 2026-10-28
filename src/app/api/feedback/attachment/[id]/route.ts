@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { entetesAntiExecution } from "@/lib/http/types-actifs";
+import { servirPiece } from "@/lib/http/servir-piece";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 import { canReadFeedback } from "@/lib/feedback/access";
-import { dispositionFor, extensionOf } from "@/lib/files/attachment-policy";
 
 export const dynamic = "force-dynamic";
 
@@ -44,20 +43,5 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
   const bytes = await getBlob(att.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });
-
-  const forced = req.nextUrl.searchParams.get("dl") === "1";
-  const disposition = forced ? "attachment" : dispositionFor(extensionOf(att.name));
-
-  return new NextResponse(new Uint8Array(bytes), {
-    headers: {
-      "Content-Type": att.mime || "application/octet-stream",
-      // Un type actif (HTML, SVG, XML) s'affiche sans jamais s'exécuter dans l'ERP (`lib/http/types-actifs.ts`).
-      ...entetesAntiExecution(att.mime || "application/octet-stream"),
-      "Content-Disposition": `${disposition}; filename*=UTF-8''${encodeURIComponent(att.name)}`,
-      "Content-Length": String(bytes.length),
-      "X-Content-Type-Options": "nosniff",
-      "Content-Security-Policy": "default-src 'none'; sandbox",
-      "Cache-Control": "private, no-store",
-    },
-  });
+  return servirPiece(req, { octets: bytes, nom: att.name, mime: att.mime }, { disposition: "selon-type", bacASable: true });
 }

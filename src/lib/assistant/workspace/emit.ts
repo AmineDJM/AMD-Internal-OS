@@ -65,17 +65,3 @@ export function chargeMetriques(total: number, enRetard: number): { valeur: stri
     { valeur: `${aJour} %`, label: "Dans les délais", ton: aJour >= 90 ? "succes" : aJour >= 70 ? "attention" : "alerte" },
   ];
 }
-
-/**
- * LES CINQ ÉTAPES D'UN DOSSIER RÉGLEMENTAIRE, positionnées sur l'étape courante.
- *
- * L'ordre est celui du métier, pas celui de la base : c'est ce que le PDG voit sur l'écran
- * Regulatory, et deux représentations différentes du même circuit seraient un piège.
- */
-export function etapesCircuit(labels: readonly string[], courant: string | null): { label: string; etat: "fait" | "courant" | "a-venir" }[] {
-  const idx = courant ? labels.findIndex((l) => l.toLowerCase() === courant.toLowerCase()) : -1;
-  return labels.map((label, i) => ({
-    label,
-    etat: idx < 0 ? "a-venir" : i < idx ? "fait" : i === idx ? "courant" : "a-venir",
-  }));
-}

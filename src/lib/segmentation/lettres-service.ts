@@ -1,10 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { getSfeConfig } from "@/lib/sfe";
 import { chargerStrategie, chargerPanel, type LignePanel, type StrategieChargee } from "./service";
-import { requisDuPraticien, type EntreeLettre, type RequisPraticien } from "./lettre-requise";
+import { type EntreeLettre } from "./lettre-requise";
 
-export type { EntreeLettre, RequisPraticien } from "./lettre-requise";
+export type { EntreeLettre } from "./lettre-requise";
 
 /**
  * LA LETTRE PARTOUT — côté BASE (Direction, 07/10). Charge, pour chaque BU, sa stratégie ACTIVE et le panel que le moteur
@@ -64,19 +63,4 @@ export function indexerLettres(segmentations: readonly SegmentationBu[]): Map<st
 /** Les lettres d'une liste de praticiens (toutes BU). */
 export async function lettresDesPraticiens(doctorIds: readonly string[]): Promise<Map<string, EntreeLettre[]>> {
   return indexerLettres(await chargerSegmentations({ doctorIds }));
-}
-
-/**
- * UN praticien vu depuis un KAM (sa BU) ou une BU : sa lettre et ses visites par cycle, sinon le palier de potentiel.
- * Pour la fiche d'un praticien, Ma journée, le plan de tournée.
- */
-export async function lettreDuPraticien(doctorId: string, ctx: { repId?: string | null; buId?: string | null } = {}): Promise<RequisPraticien> {
-  const [doc, profil, entrees, config] = await Promise.all([
-    prisma.medicalDoctor.findUnique({ where: { id: doctorId }, select: { potential: true } }),
-    ctx.repId && !ctx.buId ? prisma.salesRepProfile.findUnique({ where: { repId: ctx.repId }, select: { businessUnitId: true } }) : Promise.resolve(null),
-    lettresDesPraticiens([doctorId]),
-    getSfeConfig(),
-  ]);
-  const buId = ctx.buId ?? profil?.businessUnitId ?? null;
-  return requisDuPraticien(entrees.get(doctorId), buId, doc ? String(doc.potential) : null, config.frequencyByTier);
 }

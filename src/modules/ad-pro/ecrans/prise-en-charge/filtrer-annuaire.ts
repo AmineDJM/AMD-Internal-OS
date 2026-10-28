@@ -1,3 +1,4 @@
+import { plier } from "@/lib/utils";
 /**
  * LA RECHERCHE DANS L'ANNUAIRE d'un sélecteur de praticiens — une règle pour le formulaire de
  * création et pour la fiche : deux filtres écrits à la main finiraient par ne pas trouver le même
@@ -5,8 +6,6 @@
  * apparaître, dans le nom, la spécialité ou l'établissement.
  */
 export const PLAFOND_MENU = 50;
-
-const plier = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 
 export function filtrerAnnuaire<T extends { name: string; specialty?: string | null; institution?: string | null }>(
   annuaire: T[],

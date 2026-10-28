@@ -14,7 +14,6 @@ import { prisma } from "@/lib/prisma";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { moneyEntityOf } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
-import { notifyRoles, notifyUser } from "@/lib/notify";
 import { adProInit, PRODUCT_MANAGER_ROLES } from "@/lib/workflow/origin";
 import { ouvrirLeCircuit, relancerCycle } from "@/lib/workflow/engine";
 import { referentAInscrire, gammeImposee, businessUnitDuDemandeur } from "@/modules/ad-pro/api";

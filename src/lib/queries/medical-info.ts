@@ -49,8 +49,6 @@ export async function getDeclaration(id: string) {
   });
 }
 
-export type DeclarationDetail = NonNullable<Awaited<ReturnType<typeof getDeclaration>>>;
-
 /**
  * Le détail d'une déclaration est visible par : le pharmacien responsable / la
  * Direction / un admin (accès au module), ou tout utilisateur sollicité pour une

@@ -35,7 +35,7 @@ export { ecrireAuFil } from "./infra/fil";
 export { lireLaMarcheDuBC, notificationDuCentreBC, REFUS_MARCHE_PRISE } from "./infra/marche-bc";
 export { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "./infra/passeport-acces";
 export { accesPiecesLiees, contextePiecesLiees } from "./infra/pieces-liees";
-export { annulerDemandesPiecesDuPoste, assistantesDeDirection, demanderBcAAssistante, demandesBCDesPostes, natureDePiece, piecesDesPostes, rattacherPieceAuPoste, societeDuPoste } from "./infra/pieces-poste";
+export { annulerDemandesPiecesDuPoste, assistantesDeDirection, demandesBCDesPostes, natureDePiece, piecesDesPostes, rattacherPieceAuPoste, societeDuPoste } from "./infra/pieces-poste";
 export { refusSiPorteDgFermee, signalerPorteDgSiBesoin, statuerSurLeTotal, totalDeLaDemande } from "./infra/porte-dg";
 export { proposerPostesParModele, type ResultatPostes } from "./infra/postes-luna-ia";
 export { peutSaisirLesDevis } from "./infra/prise-en-charge/devis-acces";
@@ -48,7 +48,7 @@ export { type CongressDetail, type CongressListRow, getCongressDetail, getCongre
 export { getAdProCreateData, getAdProRequests } from "./infra/requetes/demandes";
 export { devisDesPostes, empreintesDesDevis } from "./infra/requetes/devis-poste";
 export { adProEditValues } from "./infra/requetes/edition";
-export { type EventDetail, getEventDetail, getEvents, getPublicEvent, type RegistrationDTO } from "./infra/requetes/evenements";
+export { type EventDetail, getEventDetail, getEvents, getPublicEvent } from "./infra/requetes/evenements";
 export { chargerLiensAdPro, medecinsParDemande } from "./infra/requetes/medecins";
 export { adProBudgetOptions, contexteMaterielStock, contextePostes, loadAdProItems, postesPourCloture } from "./infra/requetes/postes";
 export { getCareDossier } from "./infra/requetes/prise-en-charge";

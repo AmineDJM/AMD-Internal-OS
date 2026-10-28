@@ -379,7 +379,6 @@ const DYNAMIQUES = new Map<string, CapabilityMeta>();
 export function declarerMetaDynamique(name: string, meta: Omit<CapabilityMeta, "id" | "declared">): void {
   DYNAMIQUES.set(name, { id: name, declared: true, ...meta });
 }
-export const metaDynamique = (name: string): CapabilityMeta | null => DYNAMIQUES.get(name) ?? null;
 
 export function capabilityMeta(name: string, estEcriture?: (n: string) => boolean): CapabilityMeta {
   const dyn = DYNAMIQUES.get(name);
@@ -441,9 +440,4 @@ export function capabilityMeta(name: string, estEcriture?: (n: string) => boolea
 /** L'effet le plus grave d'un ensemble — ce qui décide du niveau d'approbation d'une mission. */
 export function effetMaximal(effets: readonly Effect[]): Effect {
   return effets.reduce<Effect>((max, e) => (EFFECT_RANK[e] > EFFECT_RANK[max] ? e : max), "READ");
-}
-
-/** Une capacité dont l'effet est au moins une écriture — donc qui laisse une trace. */
-export function ecritQuelqueChose(m: CapabilityMeta): boolean {
-  return EFFECT_RANK[m.effect] >= EFFECT_RANK.INTERNAL_REVERSIBLE_WRITE;
 }

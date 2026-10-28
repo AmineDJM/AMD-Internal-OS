@@ -234,8 +234,6 @@ export type EtapeParticipation =
   | "RETIREE"
   | "CONFIRMEE_SANS_FICHE"; // assignation d'avant la fiche (ou soi-même) : la mission est ouverte
 
-export const autreCote = (c: Cote): Cote => (c === "PERSONNE" ? "ADVENTUM" : "PERSONNE");
-
 /** Une version stockée (textes libres en base), lue pour les règles — une valeur inconnue retombe sur le cas sûr. */
 export function versionLite(v: { numero: number; cote: string; nature: string; statut: string; motifDecision?: string | null }): VersionLite {
   const statuts: readonly StatutVersion[] = ["EN_ATTENTE", "ACCEPTEE", "REFUSEE", "REMPLACEE"];

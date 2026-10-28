@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { BedDouble, Plus, Loader2, CheckCircle2, MoreHorizontal } from "lucide-react";
+import { BedDouble, Plus, CheckCircle2, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { champ, IdentiteDeLaFiche, MenuItem, PiedDeFiche } from "./fiches-communes";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { ChoixFichiers } from "@/components/shared/choix-fichiers";
 import { ajouterHebergement, modifierHebergement, retirerHebergement } from "../actions-postes-voyageurs";
-import { jourLisible, nomComplet, separerNom } from "../domaine/voyageurs";
+import { jourLisible, nomComplet } from "../domaine/voyageurs";
 import { nuitsLisibles, TYPES_CHAMBRE } from "../domaine/hebergements";
 import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
@@ -186,18 +187,7 @@ export function BlocHebergements({ itemId, hebergements, nomsSuggeres, peutEdite
   );
 }
 
-function MenuItem({ children, onClick, danger }: { children: React.ReactNode; onClick: () => void; danger?: boolean }) {
-  return (
-    <button
-      type="button" role="menuitem" onClick={onClick}
-      className={`min-h-9 rounded px-3 py-2 text-[0.6875rem] font-medium hover:bg-secondary sm:min-h-0 sm:px-2 sm:py-1 ${danger ? "text-destructive" : "text-foreground"}`}
-    >
-      {children}
-    </button>
-  );
-}
 
-const champ = "mt-1 w-full rounded-lg border border-border bg-background px-2.5 py-1.5 text-sm outline-none focus:border-primary/60";
 
 /**
  * LE FORMULAIRE D'UNE FICHE HÔTELLERIE — nom et prénom, hôtel, ville, arrivée, départ, chambre ; à la
@@ -229,12 +219,7 @@ function FormulaireHebergement({ suggestions, defaut, busy, libelle, onSubmit, o
         suggestions={suggestions} defaut={defaut}
         pieces={pieces} setPieces={setPieces} documents={documents} setDocuments={setDocuments}
       />
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <Button size="sm" type="submit" disabled={busy} className="h-10 w-full sm:h-8 sm:w-auto">
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {libelle}
-        </Button>
-        <Button size="sm" type="button" variant="outline" onClick={onCancel} className="h-10 w-full sm:h-8 sm:w-auto">Annuler</Button>
-      </div>
+      <PiedDeFiche busy={busy} libelle={libelle} onCancel={onCancel} />
     </form>
   );
 }
@@ -263,26 +248,7 @@ export function ChampsHebergement({ prefixe = "", suggestions, defaut, pieces, s
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        {suggestions.length > 0 && (
-          <label className="text-xs sm:col-span-2">
-            Personne de la demande
-            <select
-              defaultValue="" className={champ} aria-label="Choisir une personne de la demande"
-              onChange={(e) => { if (e.target.value) { const c = separerNom(e.target.value); setPrenom(c.prenom); setNom(c.nom); } }}
-            >
-              <option value="">— Saisir à la main —</option>
-              {suggestions.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </label>
-        )}
-        <label className="text-xs">
-          Prénom
-          <input name={n("prenom")} value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Amel" className={champ} />
-        </label>
-        <label className="text-xs">
-          Nom
-          <input name={n("nom")} required value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Haddad" className={champ} />
-        </label>
+        <IdentiteDeLaFiche n={n} suggestions={suggestions} prenom={prenom} setPrenom={setPrenom} nom={nom} setNom={setNom} />
         <label className="text-xs">
           Hôtel
           <input name={n("hotel")} defaultValue={defaut?.hotel ?? ""} placeholder="Sheraton" className={champ} />

@@ -4,7 +4,7 @@ import nodemailer from "nodemailer";
 import { simpleParser } from "mailparser";
 import type { MailAccount } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { exigerSortieAutorisee, sortieAutorisee } from "@/lib/sortie/garde";
+import { exigerSortieAutorisee } from "@/lib/sortie/garde";
 import { sansBloquer, attendu } from "@/lib/journal";
 
 /**
@@ -462,10 +462,6 @@ async function readEnvelopes(c: ImapFlow, mailbox: string, limit: number, search
     }
     return out.reverse(); // plus récents d'abord
   } finally { lock.release(); }
-}
-
-export async function listMailboxes(account: MailAccount): Promise<MailboxInfo[]> {
-  return withClient(account, readBoxes);
 }
 
 export async function listMessages(account: MailAccount, mailbox = "INBOX", limit = 30): Promise<MailEnvelope[]> {

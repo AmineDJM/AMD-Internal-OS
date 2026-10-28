@@ -9,7 +9,7 @@ import {
  * la demande (nature, date, Business Unit). La règle, elle, reste pure et testée à part.
  */
 
-export { refusCategoriePourDemande, type NatureDemandeAdPro } from "../domaine/categorie-budgetaire";
+export { type NatureDemandeAdPro } from "../domaine/categorie-budgetaire";
 
 /** Profondeur maximale lue pour les parentes — garde-fou contre une boucle de rattachement. */
 const PROFONDEUR = 8;

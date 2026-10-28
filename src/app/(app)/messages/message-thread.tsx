@@ -4,7 +4,6 @@ import * as React from "react";
 import { ArrowLeft, Hash, Users, Info, Pin, ChevronDown, ChevronUp, X, Phone, Video, Loader2 } from "lucide-react";
 import { startCall } from "@/lib/actions/meeting-actions";
 import { Avatar } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
 import type { ConversationDetailDTO, ConvMemberDTO, MessageDTO } from "@/lib/queries/messaging";
 import { CHAT_STATUS_LABEL, CHAT_STATUSES, peutGererLaConversation, type ChatStatus } from "@/lib/messaging-ui";
 import { MessageItem } from "./message-item";

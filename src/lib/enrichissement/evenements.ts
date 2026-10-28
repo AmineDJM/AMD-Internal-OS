@@ -8,8 +8,8 @@ import {
 } from "./depot";
 
 export {
-  TYPE_PIECE_DEPOSEE, DOMAINE_ENRICHISSEMENT, SOURCES_DEPOT, CONFIDENTIALITES, lireChargePieceDeposee,
-  type PieceDeposeeInput, type Rattachement, type SourceDepot, type ConfidentialitePiece, type ChargePieceDeposee,
+  TYPE_PIECE_DEPOSEE, lireChargePieceDeposee,
+  type PieceDeposeeInput, type Rattachement,
 } from "./depot";
 
 /**

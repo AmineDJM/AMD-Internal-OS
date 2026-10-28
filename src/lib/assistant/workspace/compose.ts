@@ -6,9 +6,8 @@ import {
   type WorkspacePerson, type WorkspaceRow, type WorkspaceStep,
 } from "./protocol";
 import {
-  actionsOf, arr, clip, DOC_KINDS, endpointsOf, humanize, isInternalHref, isObj, num,
-  readColumns, readEditable, readMetrics, readPerson, readRows, readSheet, s, strings,
-  TONES, tonOf, type Json,
+  actionsOf, arr, clip, DOC_KINDS, endpointsOf, humanize, isInternalHref, isObj, num, readColumns,
+  readEditable, readPerson, readRows, readSheet, s, strings, TONES, tonOf, type Json,
 } from "./read";
 import { suivreChemin } from "@/lib/skills/affichage";
 import { readGodmodeBlock } from "./compose-godmode";

@@ -195,7 +195,6 @@ export type Action = (typeof ACTIONS)[number];
 
 const ALL: Action[] = [...ACTIONS];
 const READ: Action[] = ["VIEW", "EXPORT"];
-const READ_VALIDATE: Action[] = ["VIEW", "EXPORT", "VALIDATE"];
 const CONTRIBUTE: Action[] = ["VIEW", "CREATE", "UPDATE", "UPLOAD", "EXPORT"];
 const MANAGE: Action[] = ["VIEW", "CREATE", "UPDATE", "DELETE", "VALIDATE", "EXPORT", "UPLOAD"];
 /** Le Directeur des opérations dans le circuit Ad & Pro (27/10/2026) : tout MANAGE sauf retirer. */
@@ -934,11 +933,6 @@ export interface EnvelopeAccessBearer {
 /** Le droit du module de budget d'un pôle — lu sans lever d'erreur sur un utilisateur de test sans accès résolu. */
 export function peutBudgetDuPole(user: SessionUser, pole: DomainePole, action: Action): boolean {
   return user.access?.modules?.get(DOMAINES[pole].module)?.actions.has(action) ?? false;
-}
-
-/** Le droit du module Budget Marketing (`peutBudgetDuPole` pour le pôle Marketing). */
-export function peutBudgetMarketing(user: SessionUser, action: Action): boolean {
-  return peutBudgetDuPole(user, "MARKETING", action);
 }
 
 /** L'enveloppe est tenue par un pôle, et la personne porte le geste demandé sur le module de budget de CE pôle. */

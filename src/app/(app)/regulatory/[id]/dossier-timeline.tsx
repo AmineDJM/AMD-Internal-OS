@@ -18,7 +18,6 @@ import {
 import {
   addDossierStep, updateDossierStep, deleteDossierStep, startDossierTimeline,
 } from "@/lib/actions/regulatory-timeline-actions";
-import type { ActionResult } from "@/lib/actions/types";
 import { useAction } from "@/components/shared/use-action";
 
 export interface TimelineStepView {

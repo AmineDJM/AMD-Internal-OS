@@ -1,5 +1,4 @@
 import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
