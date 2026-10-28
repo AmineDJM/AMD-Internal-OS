@@ -142,7 +142,10 @@ describe("Établissements — un seul écran, et l'ancienne adresse REDIRIGE", (
   it("les liens d'Adam pointent vers l'écran QUI EXISTE, pas vers la redirection", () => {
     // Un lien vers une redirection marche, mais il fait payer un aller-retour à chaque clic et
     // il devient faux le jour où la redirection disparaît.
-    for (const f of ["src/lib/assistant/ops/impl-wave4b.ts", "src/lib/assistant/executive-read-tools.ts"]) {
+    // La vague 4b vit dans `ops/impl/vague4b/` ; `impl-wave4b.ts` n'en est plus que la porte.
+    const vague4b = ["commun", "erp", "medical", "medical-fiches", "medical-annuaires", "gammes", "etudes-presentations"]
+      .map((m) => `src/lib/assistant/ops/impl/vague4b/${m}.ts`);
+    for (const f of ["src/lib/assistant/ops/impl-wave4b.ts", ...vague4b, "src/lib/assistant/executive-read-tools.ts"]) {
       const src = lire(f).replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
       expect(src, `${f} ne doit plus lier /medical/etablissements`).not.toContain('"/medical/etablissements"');
     }
