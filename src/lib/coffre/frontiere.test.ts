@@ -77,6 +77,9 @@ function cheminVersCoffre(entry: string, permis: ReadonlySet<string>, traverserA
       if (!next || seen.has(next)) continue;
       if (next.startsWith(COFFRE) && !permis.has(next)) return [...trail, next];
       if (!traverserActions && isServerAction(next)) continue;
+      // UNE PORTE D'ÉCRITURE (refonte V2-A) arrête la remontée : elle ne fait que déposer et calculer une
+      // empreinte — ce qu'elle expose est tenu par le test « une porte d'écriture… » ci-dessous.
+      if (traverserActions && PORTES_ECRITURE.has(next)) continue;
       stack.push({ file: next, trail: [...trail, next] });
     }
   }

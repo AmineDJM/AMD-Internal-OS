@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { defaireFusionPersonne, ecarterDoublonPersonne, fusionnerDoublonPersonne } from "@/lib/actions/personnes-actions";
 import type { ActionResult } from "@/lib/actions/types";
@@ -12,16 +13,22 @@ type Props =
 
 /** Trancher une proposition : garder l'une des deux, écarter — ou défaire une fusion. */
 export function GesteDoublon(p: Props) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  const { enCours, rafraichir } = useRafraichir();
+  const [occupe, setBusy] = React.useState(false);
+  const busy = occupe || enCours;
   const [erreur, setErreur] = React.useState<string | null>(null);
   const agir = async (geste: () => Promise<ActionResult>, confirmation: string) => {
     if (!window.confirm(confirmation)) return;
     setBusy(true); setErreur(null);
-    const r = await geste();
-    if (!r.ok) setErreur(r.error ?? "Échec.");
-    setBusy(false);
-    router.refresh();
+    try {
+      const r = await geste();
+      if (!r.ok) setErreur(r.error ?? "Échec.");
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
   if (p.defaire) {
     return (

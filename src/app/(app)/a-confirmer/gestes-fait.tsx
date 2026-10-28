@@ -1,20 +1,29 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { confirmerFait, rejeterFait, trancherConflit } from "@/lib/actions/enrichissement-actions";
 import { Button } from "@/components/ui/button";
 
 /** Confirmer / rejeter un fait, ou trancher son conflit — le serveur revérifie la porte et écrit l'audit. */
 export function GestesFait({ faitId, conflitId }: { faitId: string; conflitId: string | null }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { enCours, rafraichir } = useRafraichir();
+  const [occupe, setOccupe] = React.useState(false);
+  const pending = occupe || enCours;
   const [message, setMessage] = React.useState<string | null>(null);
-  const agir = (geste: () => Promise<{ ok: boolean; message: string }>) => start(async () => {
-    const r = await geste();
-    setMessage(r.message);
-    if (r.ok) router.refresh();
-  });
+  const agir = (geste: () => Promise<{ ok: boolean; message: string }>) => void (async () => {
+    setOccupe(true);
+    try {
+      const r = await geste();
+      setMessage(r.message);
+      if (r.ok) rafraichir();
+    } catch {
+      setMessage(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(false);
+    }
+  })();
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {conflitId ? (

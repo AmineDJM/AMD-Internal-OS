@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { basculerEnrichissement, lancerPassageEnrichissement, relancerTachesEnEchec } from "@/lib/actions/enrichissement-actions";
 import type { EtatFile } from "@/lib/enrichissement/lectures";
 import { Button } from "@/components/ui/button";
@@ -16,14 +17,22 @@ const STATUTS: { cle: keyof EtatFile["parStatut"]; libelle: string }[] = [
 
 /** L'INTERRUPTEUR ET LA FILE DE L'ENRICHISSEMENT — ce que le Super Admin ouvre, voit et relance. */
 export function PanneauEnrichissement({ etat }: { etat: EtatFile }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const { enCours, rafraichir } = useRafraichir();
+  const [occupe, setOccupe] = React.useState(false);
+  const pending = occupe || enCours;
   const [message, setMessage] = React.useState<string | null>(null);
-  const agir = (geste: () => Promise<{ ok: boolean; message: string }>) => start(async () => {
-    const r = await geste();
-    setMessage(r.message);
-    router.refresh();
-  });
+  const agir = (geste: () => Promise<{ ok: boolean; message: string }>) => void (async () => {
+    setOccupe(true);
+    try {
+      const r = await geste();
+      setMessage(r.message);
+      rafraichir();
+    } catch {
+      setMessage(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(false);
+    }
+  })();
 
   return (
     <Card data-testid="panneau-enrichissement">
