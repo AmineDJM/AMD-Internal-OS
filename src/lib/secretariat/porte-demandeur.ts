@@ -1,5 +1,5 @@
 import type { AdminRequestStatus, EntityType } from "@prisma/client";
-import { estDemandeBcAEtablir } from "@/lib/ad-pro/pieces-secretariat";
+import { estDemandeBcAEtablir } from "@/modules/ad-pro/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

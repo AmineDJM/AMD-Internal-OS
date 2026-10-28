@@ -1,4 +1,4 @@
-import { PageBilletsEmis } from "@/components/care/page-billets-emis";
+import { PageBilletsEmis } from "@/modules/ad-pro/ecrans/prise-en-charge/page-billets-emis";
 
 // Une page qui dépend de QUI regarde ne se met jamais en cache.
 export const dynamic = "force-dynamic";

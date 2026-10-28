@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Send } from "lucide-react";
-import { submitEventForApproval } from "@/lib/actions/event-actions";
+import { submitEventForApproval } from "@/modules/ad-pro/actions-evenements";
 import { WorkflowPanel } from "@/components/workflow/workflow-panel";
 import type { WorkflowView } from "@/lib/queries/workflow";
 import { Button } from "@/components/ui/button";

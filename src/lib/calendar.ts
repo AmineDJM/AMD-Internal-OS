@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { hasGlobalView, type SessionUser } from "@/lib/rbac";
-import { getAdProEventsAsCalendar } from "@/lib/calendar-ad-pro";
+import { getAdProEventsAsCalendar } from "@/modules/ad-pro/api";
 import { notifyUser } from "@/lib/notify";
 import { algiersYmd, algiersTime, formatAlgiers } from "@/lib/calendar-tz";
 import { lienCalendrier } from "@/lib/chemins/espace";

@@ -29,7 +29,7 @@ import {
   moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE, TRAJETS_BILLET,
   type Cote, type NatureFrais,
 } from "@/lib/missions-equipe/participation";
-import { lireDetailsTrajets } from "@/lib/care-fiches";
+import { lireDetailsTrajets } from "@/modules/ad-pro/partage";
 import { persistUploadedDocument } from "@/lib/documents";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import { toNumber } from "@/lib/utils";

@@ -56,7 +56,7 @@ export { legalReaderWhere } from "@/lib/lecteurs/legal";
 // port ne fait que les rendre atteignables sans qu'Adam connaisse `actions/` (§118.111).
 export {
   rattacherLegalAFiche, detacherLegalDeFiche,
-} from "@/lib/actions/ad-pro-rattacher-legal";
+} from "@/modules/ad-pro/actions-rattacher-legal";
 // LA FEUILLE DES ANNUAIRES (§118.133) — colorer des cellules, et reconnaître les colonnes des
 // deux feuilles (praticiens, établissements). L'action revérifie les droits LIGNE PAR LIGNE ;
 // les deux gardes de colonnes sont des listes pures. Le port les rend atteignables sans qu'Adam
@@ -74,9 +74,9 @@ export {
  * du centre est le MÊME lecteur que l'écran (§118.5) — une op qui chercherait les visas de son
  * côté finirait par ne pas voir les mêmes lignes.
  */
-export { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO, type LigneCentre, type FormePorte } from "@/lib/ad-pro/centre";
-export { demandesAuCentreAdPro } from "@/lib/queries/ad-pro-centre";
-export { deciderVisaCentreAdPro } from "@/lib/actions/ad-pro-centre-actions";
+export { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO, type LigneCentre, type FormePorte } from "@/modules/ad-pro/partage";
+export { demandesAuCentreAdPro } from "@/modules/ad-pro/api";
+export { deciderVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
 // LES DEUX SEUILS DU CENTRE (§118.149) — celui des demandes et celui des bons de commande. Leurs
 // ops appellent l'action de l'ÉCRAN : même siège, même borne, et surtout le même RÉAIGUILLAGE des
 // BC en vol — écrire la colonne à côté en ferait une seconde écriture qui l'oublierait (§118.5).
@@ -100,14 +100,14 @@ export { porteLeRoleQuiTranche } from "@/lib/personnes/referents-gamme";
 
 // LA SECTION DISCUSSION d'une demande Ad & Pro — l'écrivain unique des sept natures. L'op le
 // lisait en direct : 429 franchissements pour un plafond de 428, et le plafond ne se relève pas.
-export { addAdProComment } from "@/lib/actions/ad-pro-discussion-actions";
+export { addAdProComment } from "@/modules/ad-pro/actions-discussion";
 // Les DEUX natures de pièce qu'on fait établir par le secrétariat (devis, facture) : le
 // vocabulaire est PUR et vit au socle, mais Adam n'a pas le droit d'importer `@/lib/ad-pro/`
 // en direct — il passe par cette porte, comme pour le centre de validation ci-dessus.
 export {
   PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, peutDemanderPiece, titrePiece,
   type NaturePieceSecretariat,
-} from "@/lib/ad-pro/pieces-secretariat";
+} from "@/modules/ad-pro/partage";
 
 // LE PÔLE D'UN CONTRAT DE CONSULTING (§118.150) — Ad & Pro ou Ressources humaines. La règle est
 // PURE et vit au socle (`lecteurs/consulting`) ; l'op qui transfère un contrat en lit le libellé
@@ -120,11 +120,11 @@ export { LIBELLE_POLE, poleDe, poleOppose, type PoleConsulting } from "@/lib/lec
 // une carte qui propose une clôture que l'action refusera est un geste offert puis retiré
 // (§118.83). La règle est PURE et vit dans `ad-pro/` ; Adam n'a pas le droit de l'importer en
 // direct, il passe par cette porte, comme pour les pièces du secrétariat ci-dessus.
-export { bilanCloture, type BilanCloture } from "@/lib/ad-pro/cloture-sponsoring";
+export { bilanCloture, type BilanCloture } from "@/modules/ad-pro/partage";
 // LES POSTES TELS QUE LA CLÔTURE LES JUGE (§118.167) — nature et matériel réservé compris. L'op
 // d'Adam les lisait avec sa propre requête ; trois lectures écrites à la main auraient oublié le
 // matériel chez l'une des trois, et la carte aurait proposé une clôture que l'action refuse.
-export { postesPourCloture } from "@/lib/queries/ad-pro-items";
+export { postesPourCloture } from "@/modules/ad-pro/api";
 
 // CE QU'UNE SUPPRESSION EMPORTERAIT (§118.162) — l'aperçu du lot : ce qui part avec l'élément, et
 // ce qui l'interdit (règlement, signature, dépôt aux autorités, courrier inscrit). L'op d'Adam qui

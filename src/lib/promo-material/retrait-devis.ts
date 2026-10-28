@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import { sansBloquer } from "@/lib/journal";
 
 /**

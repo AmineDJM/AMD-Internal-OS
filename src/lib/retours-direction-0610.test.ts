@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { refusTauxDuDevis, refusDepassement, reservesEncoreVraies } from "@/lib/ad-pro/devis-poste";
+import { refusTauxDuDevis, refusDepassement, reservesEncoreVraies } from "@/modules/ad-pro/partage";
 import { montantLu } from "@/lib/pieces-lues/montants";
 
 /** Retours de la Direction du 06/10 — gardes de comportement et de points d'appel. */
@@ -25,7 +25,7 @@ describe("devis : pas de TVA imprimée = pas de TVA", () => {
 
 describe("le bon de commande porte le fournisseur RECOPIÉ du devis", () => {
   it("sans fiche d'annuaire, l'identité lue sur le papier (ou relue dans le texte déjà lu) nomme le fournisseur", () => {
-    const src = lire("src/lib/ad-pro-bc-devis.ts");
+    const src = lire("src/modules/ad-pro/infra/bc-devis.ts");
     expect(src).toContain("d.fournisseurLu");
     expect(src).toContain("texteDeLaLecture(d.entete.lectureId)");
     expect(src).toContain("identiteEmetteurDuTexte(texte)");
@@ -34,7 +34,7 @@ describe("le bon de commande porte le fournisseur RECOPIÉ du devis", () => {
 
 describe("l'écran ne double plus ses gestes", () => {
   it("« Générer le BC » n'apparaît qu'une fois : dans la case Bon de commande, pas en haut de la carte", () => {
-    expect(lire("src/components/ad-pro/items-panel.tsx")).toContain('pas.geste?.cle !== "GENERER_BC"');
+    expect(lire("src/modules/ad-pro/ecrans/postes/poste-carte.tsx")).toContain('pas.geste?.cle !== "GENERER_BC"');
   });
 
   it("la confirmation d'un bouton-icône s'ouvre dans une bulle, sans réécrire le texte voisin", () => {

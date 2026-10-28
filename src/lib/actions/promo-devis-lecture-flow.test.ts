@@ -60,7 +60,7 @@ import { empreinteDe, VERSION_LECTEUR } from "@/lib/pieces-lues/lecture-fichier"
 import type { LectureDevisPromo } from "@/lib/pieces-lues/prerempli-devis-promo";
 import type { ActionResult } from "./types";
 import { formatDzd } from "@/lib/promo-material/devis";
-import { ETAPE_DEMANDE_DEVIS } from "@/lib/ad-pro/demande-devis-lettre";
+import { ETAPE_DEMANDE_DEVIS } from "@/modules/ad-pro/partage";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

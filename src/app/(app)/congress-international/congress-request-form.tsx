@@ -4,18 +4,18 @@ import * as React from "react";
 import { useAutoOpen } from "@/components/shared/use-auto-open";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2, AlertCircle, X, Search, Check, UserPlus } from "lucide-react";
-import { createCongressRequest } from "@/lib/actions/congress-request-actions";
-import { creerProfilProfessionnel } from "@/lib/actions/care-actions";
-import { listBeneficiaryRefs } from "@/lib/actions/congress-beneficiary-actions";
-import { filtrerAnnuaire, PLAFOND_MENU } from "@/components/care/filtrer-annuaire";
+import { createCongressRequest } from "@/modules/ad-pro/actions-congres";
+import { creerProfilProfessionnel } from "@/modules/ad-pro/actions-prise-en-charge";
+import { listBeneficiaryRefs } from "@/modules/ad-pro/actions-congres-beneficiaires";
+import { filtrerAnnuaire, PLAFOND_MENU } from "@/modules/ad-pro/ecrans/prise-en-charge/filtrer-annuaire";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { wilayaOptions } from "@/lib/geo/algeria";
 import { NATIONAL_EVENT_TYPE } from "@/lib/labels";
-import { businessUnitField } from "@/lib/ad-pro/create-fields";
-import type { ProductRow, SpecialtyRow } from "@/lib/ad-pro/pickers";
+import { businessUnitField } from "@/modules/ad-pro/partage";
+import type { ProductRow, SpecialtyRow } from "@/modules/ad-pro/partage";
 
 const WILAYA_OPTIONS = wilayaOptions();
 

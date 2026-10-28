@@ -22,7 +22,7 @@ const rel = (f: string) => relative(process.cwd(), f).replace(/\\/g, "/");
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const RACINES = ["src/app", "src/components"];
+const RACINES = ["src/app", "src/components", "src/modules"];
 
 function ecrans(): string[] {
   const out: string[] = [];

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2, Lock, RotateCcw } from "lucide-react";
-import { cloturerSponsoring, rouvrirSponsoring } from "@/lib/actions/sponsoring-actions";
+import { cloturerSponsoring, rouvrirSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { Textarea } from "@/components/ui/input";

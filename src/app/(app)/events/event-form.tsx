@@ -8,20 +8,14 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { EVENT_TYPE, EVENT_SCOPE, EVENT_FORMAT, EVENT_STATUS } from "@/lib/labels";
-import { TYPES_EVENEMENT_EXTERNE, estTypeExterne } from "@/lib/events/externe";
-import { STATUTS_MANUELS } from "@/lib/events/statut";
-import { createEvent, updateEvent, deleteEvent } from "@/lib/actions/event-actions";
-import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
-import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/components/ad-pro/description-luna";
-import { versFormulairePoste, type PostePropose } from "@/lib/ad-pro/postes-luna";
-import type { EventDetail } from "@/lib/queries/events";
+import { TYPES_EVENEMENT_EXTERNE, estTypeExterne, STATUTS_MANUELS, versFormulairePoste, type PostePropose, availableProductOptions, doctorOptions, specialtyOptions, splitMulti, repartirMedecins, CHAMPS_MEDECINS, type DoctorRow, type ProductRow, type SpecialtyRow } from "@/modules/ad-pro/partage";
+import { createEvent, updateEvent, deleteEvent } from "@/modules/ad-pro/actions-evenements";
+import { addAdProItem } from "@/modules/ad-pro/actions-postes";
+import { DescriptionLuna, remplirChampsVidesEvenement, viderChampsLuna } from "@/modules/ad-pro/ecrans/description-luna";
+import type { EventDetail } from "@/modules/ad-pro/api";
 import { MultiSelectField } from "@/components/shared/create-record-button";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
 import { wilayaOptions } from "@/lib/geo/algeria";
-import {
-  availableProductOptions, doctorOptions, specialtyOptions, splitMulti, repartirMedecins, CHAMPS_MEDECINS,
-  type DoctorRow, type ProductRow, type SpecialtyRow,
-} from "@/lib/ad-pro/pickers";
 import { sansBloquer } from "@/lib/journal";
 
 /**

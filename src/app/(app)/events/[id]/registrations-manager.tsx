@@ -9,9 +9,9 @@ import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { cn } from "@/lib/utils";
 import { PARTICIPANT_ROLE, REGISTRATION_STATUS } from "@/lib/labels";
-import { addRegistration, setRegistrationStatus, deleteRegistration } from "@/lib/actions/event-actions";
-import type { RegistrationDTO } from "@/lib/queries/events";
-import { estStatutInscriptionRetire } from "@/lib/events/externe";
+import { addRegistration, setRegistrationStatus, deleteRegistration } from "@/modules/ad-pro/actions-evenements";
+import type { RegistrationDTO } from "@/modules/ad-pro/api";
+import { estStatutInscriptionRetire } from "@/modules/ad-pro/partage";
 
 /**
  * LES STATUTS PROPOSÉS — sans la liste d'attente (Direction, 27/10) : un événement externe n'a pas de capacité à tenir.

@@ -1,10 +1,10 @@
 import { requireModule } from "@/lib/session";
 import { userCan, type Module } from "@/lib/rbac";
-import { getAdProRequests, getAdProCreateData } from "@/lib/queries/ad-pro";
+import { getAdProRequests, getAdProCreateData } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
-import { countByState, creatableKinds } from "@/lib/ad-pro/unified";
+import { countByState, creatableKinds } from "@/modules/ad-pro/partage";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { visibleTabs } from "@/lib/nav-tabs";
 import { EVENTS_TABS } from "@/lib/labels";

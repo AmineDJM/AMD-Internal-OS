@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Gavel, Loader2, AlertCircle } from "lucide-react";
-import { sponsoringAppeal } from "@/lib/actions/sponsoring-actions";
+import { sponsoringAppeal } from "@/modules/ad-pro/actions-sponsoring";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";

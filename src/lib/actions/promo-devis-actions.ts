@@ -22,14 +22,14 @@ import { manquesDeRetranscription, totauxDeLaSelection, formatDzd, type DevisLu 
 import { demandeLesDevis, retranscritLesDevis, choisitLesLignes } from "@/lib/promo-material/circuit";
 import { devisLu, SELECT_DEVIS } from "@/lib/queries/promo-circuit";
 import { validatePromoStep } from "@/lib/actions/promo-circuit-actions";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import { rouvrirDemandeAuSecretariat, fermerDemandeAuSecretariat } from "@/lib/promo-material/demande-secretariat";
 import { estAction, type PromoAction } from "@/lib/promo-material/actions-fournisseur";
 import { envoyerDemandeDeDevis, ouvrirDemandeDeDevis, joindreLettreDeDevis, societeDuDossier } from "@/lib/promo-automatismes";
 import { phraseDepotLettre, societeDeLaLettre } from "@/lib/demande-devis-depot";
 import { saisieEffective, type ReferenceProchaine } from "@/lib/references/registre";
 import { etatDuRegistre } from "@/lib/references/registre-serveur";
-import { natureDeLaCategorie } from "@/lib/ad-pro/doc-categories";
+import { natureDeLaCategorie } from "@/modules/ad-pro/partage";
 import { refusDeRangement } from "@/lib/promo-material/rangement";
 import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { etatRetraitDemandeDevis, ramenerSiPlusDeDemandeDevis } from "@/lib/promo-material/retrait-devis";

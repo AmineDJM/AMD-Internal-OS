@@ -5,7 +5,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyRoles } from "@/lib/notify";
 import { createDirectValidation } from "@/lib/validation";
 import { centreValidatorFrom } from "@/lib/validations/centre";
-import { TYPES_ENTITE_AD_PRO } from "@/lib/ad-pro/unified";
+import { TYPES_ENTITE_AD_PRO } from "@/modules/ad-pro/partage";
 import { poleDe } from "@/lib/lecteurs/consulting";
 import { getAppSettings } from "@/lib/settings";
 import { CHEMIN_BONS_DE_COMMANDE, lienBonDeCommande } from "@/lib/chemins/bons-de-commande";

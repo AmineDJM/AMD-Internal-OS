@@ -40,7 +40,7 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 | ARCH-01 | HAUTE | maintenabilité / correction des garde-fous | Les cliquets ignorent les imports relatifs ; le socle importait 4 domaines (cycle `rbac ⇄ hr/stand-in`) | S | **CORRIGÉ** `f4a70c7` |
 | ARCH-02 | HAUTE | maintenabilité | La carte des domaines ne couvre que 57 % de `src/lib/` ; `app/` et `components/` hors mesure ; 128 pages parlent à Prisma | M | **PARTIEL** V3-G : 6 cliquets `platform/couverture.test.ts` |
 | ARCH-03 | HAUTE | maintenabilité | 190 actions dans un dossier, contrat indexé par nom de fichier → on ne peut pas ranger une action dans son module | M | **CORRIGÉ** V3-G : `src/lib/actions/parc.ts` |
-| ARCH-04 | MOYENNE | maintenabilité | 14 fichiers > 1 500 lignes, sans cliquet de taille (`assistant.ts` : 7 310 l., 94 imports) | L | PROPOSÉ |
+| ARCH-04 | MOYENNE | maintenabilité | 14 fichiers > 1 500 lignes, sans cliquet de taille (`assistant.ts` : 7 310 l., 94 imports) | L | **PARTIEL** V4 : `ad-pro-item-actions`, `items-panel`, `care-actions` découpés |
 | ARCH-05 | MOYENNE | maintenabilité / tests | 101 tests lisent le source par chemin (290 lectures) : tout déplacement casse, du code mort est « testé » | M | **PARTIEL** V3-G : adresses de réexpédition, `platform/source.ts`, cliquet (128) |
 | ARCH-06 | MOYENNE | maintenabilité | 53 fichiers / 7 918 lignes injoignables depuis toute entrée ; garde d'atteignabilité limitée à 2 dossiers | S | PROPOSÉ |
 | ARCH-07 | MOYENNE | outillage | ≥ 15 analyseurs d'imports réécrits à la main, couvertures divergentes (cause racine d'ARCH-01) | S | PARTIEL `f4a70c7` |
@@ -54,6 +54,26 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > sans cycle » en place) ; ARCH-03 levé (clé d'action déclarée, `parc.ts`) ; ARCH-05 désamorcé pour les
 > déplacements (adresses de réexpédition dans `tsconfig.json`, aucun fichier relais) ; ARCH-02 mesuré sur `src/app/`
 > et `src/components/` (`couverture.test.ts`). Mode d'emploi : [`docs/architecture/MODULES.md`](../../architecture/MODULES.md).
+>
+> **Suite — lot V4 « module Ad & Pro » (28/10/2026, branche `v4/module-ad-pro`).** Premier gros métier migré :
+> `src/modules/ad-pro/` (sponsoring, congrès, événements, « autres », prise en charge, postes, porte du DG, centre,
+> clôture). Mesures avant → après :
+>
+> | Mesure | Avant | Après |
+> |---|---|---|
+> | Fichiers de production d'Ad & Pro éparpillés dans `src/lib/` (règles, lectures, actions) | 83 (dont 16 fichiers d'actions) | **0** — 121 fichiers dans le module |
+> | Imports PROFONDS vers ces fichiers depuis le reste du dépôt (production) | 186 (82 fichiers) | **0** — 110 imports de porte (`api`/`partage`) depuis 81 fichiers |
+> | Fichiers > 1 000 lignes du métier (ARCH-04) | 3 (`ad-pro-item-actions` 4 409, `items-panel` 2 149, `care-actions` 1 556) | **0** (le plus long : 965) |
+> | Fichiers de `src/lib/` dans aucune couche (`couverture.test.ts`) | 768 | **736** |
+> | Imports du kit d'interface vers un métier | 6 | **2** (les pièces liées sortent du kit vers `components/pieces/`) |
+> | Tests hors modules qui lisent le source par chemin | 128 | **112** (la plupart ont suivi leur sujet dans le module) |
+> | Contrat des actions (`contrat.genere.json`, 1 185 actions) | — | **identique octet pour octet** |
+>
+> Une clé d'action peut désormais être portée par plusieurs morceaux d'un fichier découpé (`parc.ts`) : la clé
+> `ad-pro-item-actions` vit en six fichiers, `care-actions` en deux, sans qu'aucun identifiant ne change. La dette
+> restante (251 imports du module vers `src/lib/`, surtout bons de commande, circuit, stock promotionnel, argent) est
+> nommée dans `DETTE_HERITEE` (`src/modules/frontieres.test.ts`). Le stock et le dossier de matériel promotionnel
+> (`lib/promo*`) sont le prochain lot du pôle.
 
 ### ARCH-01 — Les cliquets ignorent les imports relatifs · HAUTE · **CORRIGÉ** (`f4a70c7`)
 

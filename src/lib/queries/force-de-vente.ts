@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { anyRoleFilter } from "@/lib/rbac";
-import { chargerLiensAdPro } from "@/lib/queries/ad-pro-medecins";
+import { chargerLiensAdPro } from "@/modules/ad-pro/api";
 import { getSfeConfig, type RepScope } from "@/lib/sfe";
 import { panelsDesKams, kamsQuiCouvrent } from "@/lib/queries/panel-kam";
 import { loadTourneeDirection } from "@/lib/queries/tour-schedule";

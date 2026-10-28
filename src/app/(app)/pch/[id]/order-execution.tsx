@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Loader2, PackageCheck, Plus, Trash2 } from "lucide-react";
 import { addOrderLine, createDelivery, deleteDelivery, deleteOrderLine } from "@/lib/actions/pch-market-actions";
-import { AttachToSourceButtons } from "@/components/shared/attach-to-source";
+import { AttachToSourceButtons } from "@/components/pieces/attach-to-source";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select } from "@/components/ui/input";

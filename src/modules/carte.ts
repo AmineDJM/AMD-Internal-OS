@@ -26,6 +26,11 @@ export const CARTE = {
   // ── Métiers ────────────────────────────────────────────────────────────────────────────────
   /** Consumption Intelligence : imports de ventes, résolution, affinité (module pilote). */
   consommation: [],
+  /**
+   * Ad & Pro : sponsoring, congrès, événements, « autres », prise en charge, postes, porte du DG,
+   * centre de validation, clôture. Relie les personnes qu'il crée au référentiel (double écriture).
+   */
+  "ad-pro": ["referentiels"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

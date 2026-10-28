@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { UserPlus, Loader2 } from "lucide-react";
-import { requestThirdPartyInput } from "@/lib/actions/sponsoring-actions";
+import { requestThirdPartyInput } from "@/modules/ad-pro/actions-sponsoring";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Select, Textarea, Label } from "@/components/ui/input";

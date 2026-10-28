@@ -39,9 +39,38 @@
             "@/lib/actions/consommation-actions",
             "@/lib/actions/organisation-actions",
             "@/lib/actions/personnes-actions",
-            "@/lib/actions/refonte-reprise-actions"
+            "@/lib/actions/refonte-reprise-actions",
+            "@/lib/ad-pro",
+            "@/lib/ad-pro/*",
+            "@/lib/ad-pro-items",
+            "@/lib/ad-pro-edit",
+            "@/lib/ad-pro-bc-devis",
+            "@/lib/calendar-ad-pro",
+            "@/lib/postes-luna-ia",
+            "@/lib/care",
+            "@/lib/care-*",
+            "@/lib/events/statut",
+            "@/lib/events/modification",
+            "@/lib/events/externe",
+            "@/lib/queries/ad-pro",
+            "@/lib/queries/ad-pro-*",
+            "@/lib/queries/care",
+            "@/lib/queries/congress",
+            "@/lib/queries/events",
+            "@/components/ad-pro/*",
+            "@/components/care/*",
+            "@/lib/actions/ad-pro-*",
+            "@/lib/actions/care-actions",
+            "@/lib/actions/sponsoring-actions",
+            "@/lib/actions/congress-request-actions",
+            "@/lib/actions/congress-beneficiary-actions",
+            "@/lib/actions/event-actions",
+            "@/components/shared/linked-records",
+            "@/components/shared/attach-to-source",
+            "@/components/shared/attacher-legal-existant",
+            "@/components/shared/third-party-involve"
             ],
-            "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+            "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels, ad-pro) : importer la porte du module (/api, /api-lecture, /partage, /actions ou /actions-<cas> ; un écran depuis src/app/ : /ecrans/<écran>). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
           }
         ]
       }
@@ -81,9 +110,38 @@
             "@/lib/actions/consommation-actions",
             "@/lib/actions/organisation-actions",
             "@/lib/actions/personnes-actions",
-            "@/lib/actions/refonte-reprise-actions"
+            "@/lib/actions/refonte-reprise-actions",
+            "@/lib/ad-pro",
+            "@/lib/ad-pro/*",
+            "@/lib/ad-pro-items",
+            "@/lib/ad-pro-edit",
+            "@/lib/ad-pro-bc-devis",
+            "@/lib/calendar-ad-pro",
+            "@/lib/postes-luna-ia",
+            "@/lib/care",
+            "@/lib/care-*",
+            "@/lib/events/statut",
+            "@/lib/events/modification",
+            "@/lib/events/externe",
+            "@/lib/queries/ad-pro",
+            "@/lib/queries/ad-pro-*",
+            "@/lib/queries/care",
+            "@/lib/queries/congress",
+            "@/lib/queries/events",
+            "@/components/ad-pro/*",
+            "@/components/care/*",
+            "@/lib/actions/ad-pro-*",
+            "@/lib/actions/care-actions",
+            "@/lib/actions/sponsoring-actions",
+            "@/lib/actions/congress-request-actions",
+            "@/lib/actions/congress-beneficiary-actions",
+            "@/lib/actions/event-actions",
+            "@/components/shared/linked-records",
+            "@/components/shared/attach-to-source",
+            "@/components/shared/attacher-legal-existant",
+            "@/components/shared/third-party-involve"
                 ],
-                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels, ad-pro) : importer la porte du module (/api, /api-lecture, /partage, /actions ou /actions-<cas> ; un écran depuis src/app/ : /ecrans/<écran>). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }
             ]
           }
@@ -163,9 +221,149 @@
             "@/lib/actions/consommation-actions",
             "@/lib/actions/organisation-actions",
             "@/lib/actions/personnes-actions",
-            "@/lib/actions/refonte-reprise-actions"
+            "@/lib/actions/refonte-reprise-actions",
+            "@/lib/ad-pro",
+            "@/lib/ad-pro/*",
+            "@/lib/ad-pro-items",
+            "@/lib/ad-pro-edit",
+            "@/lib/ad-pro-bc-devis",
+            "@/lib/calendar-ad-pro",
+            "@/lib/postes-luna-ia",
+            "@/lib/care",
+            "@/lib/care-*",
+            "@/lib/events/statut",
+            "@/lib/events/modification",
+            "@/lib/events/externe",
+            "@/lib/queries/ad-pro",
+            "@/lib/queries/ad-pro-*",
+            "@/lib/queries/care",
+            "@/lib/queries/congress",
+            "@/lib/queries/events",
+            "@/components/ad-pro/*",
+            "@/components/care/*",
+            "@/lib/actions/ad-pro-*",
+            "@/lib/actions/care-actions",
+            "@/lib/actions/sponsoring-actions",
+            "@/lib/actions/congress-request-actions",
+            "@/lib/actions/congress-beneficiary-actions",
+            "@/lib/actions/event-actions",
+            "@/components/shared/linked-records",
+            "@/components/shared/attach-to-source",
+            "@/components/shared/attacher-legal-existant",
+            "@/components/shared/third-party-involve"
                 ],
-                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels, ad-pro) : importer la porte du module (/api, /api-lecture, /partage, /actions ou /actions-<cas> ; un écran depuis src/app/ : /ecrans/<écran>). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/modules/*/domaine/**/*.test.ts",
+        "src/modules/*/domaine/**/*.test.tsx"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "@/lib/prisma",
+                "message": "domaine/ est pur : la base se lit dans infra/."
+              },
+              {
+                "name": "xlsx",
+                "message": "domaine/ est pur : les fichiers se lisent dans infra/."
+              }
+            ],
+            "patterns": [
+              {
+                "group": [
+                  "next",
+                  "next/*",
+                  "react",
+                  "react-dom",
+                  "../infra/*",
+                  "../../infra/*",
+                  "../ecrans/*",
+                  "../../ecrans/*",
+                  "../api",
+                  "../../api",
+                  "../api-*",
+                  "../../api-*",
+                  "../actions",
+                  "../../actions",
+                  "@/modules/*/api",
+                  "@/modules/*/api-*",
+                  "@/modules/*/actions"
+                ],
+                "message": "domaine/ est pur : ni Next, ni React, ni Node, ni infra/, ni écrans, ni porte serveur — un autre module se lit par sa porte pure /partage."
+              },
+              {
+                "group": [
+                  "@/modules/*/domaine",
+                  "@/modules/*/domaine/*",
+                  "@/modules/*/infra",
+                  "@/modules/*/infra/*",
+                  "**/modules/*/domaine/*",
+                  "**/modules/*/infra/*"
+                ],
+                "message": "Un module s'importe par sa porte : @/modules/<module>/api (serveur) ou /partage (pur) — voir docs/architecture/MODULES.md."
+              },
+              {
+                "group": [
+                  "@/modules/*/ecrans",
+                  "@/modules/*/ecrans/*",
+                  "**/modules/*/ecrans/*"
+                ],
+                "message": "Un écran de module ne s'importe que depuis une page de src/app/ — voir docs/architecture/MODULES.md."
+              },
+              {
+                "group": [
+                  "@/lib/coffre",
+                  "@/lib/coffre/*",
+                  "@/lib/lieux",
+                  "@/lib/lieux/*",
+                  "@/lib/referentiels",
+                  "@/lib/referentiels/*",
+                  "@/lib/actions/coffre-actions",
+                  "@/lib/actions/consommation-actions",
+                  "@/lib/actions/organisation-actions",
+                  "@/lib/actions/personnes-actions",
+                  "@/lib/actions/refonte-reprise-actions",
+                  "@/lib/ad-pro",
+                  "@/lib/ad-pro/*",
+                  "@/lib/ad-pro-items",
+                  "@/lib/ad-pro-edit",
+                  "@/lib/ad-pro-bc-devis",
+                  "@/lib/calendar-ad-pro",
+                  "@/lib/postes-luna-ia",
+                  "@/lib/care",
+                  "@/lib/care-*",
+                  "@/lib/events/statut",
+                  "@/lib/events/modification",
+                  "@/lib/events/externe",
+                  "@/lib/queries/ad-pro",
+                  "@/lib/queries/ad-pro-*",
+                  "@/lib/queries/care",
+                  "@/lib/queries/congress",
+                  "@/lib/queries/events",
+                  "@/components/ad-pro/*",
+                  "@/components/care/*",
+                  "@/lib/actions/ad-pro-*",
+                  "@/lib/actions/care-actions",
+                  "@/lib/actions/sponsoring-actions",
+                  "@/lib/actions/congress-request-actions",
+                  "@/lib/actions/congress-beneficiary-actions",
+                  "@/lib/actions/event-actions",
+                  "@/components/shared/linked-records",
+                  "@/components/shared/attach-to-source",
+                  "@/components/shared/attacher-legal-existant",
+                  "@/components/shared/third-party-involve"
+                ],
+                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels, ad-pro) : importer la porte du module (/api, /api-lecture, /partage, /actions ou /actions-<cas> ; un écran depuis src/app/ : /ecrans/<écran>). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }
             ]
           }

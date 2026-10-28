@@ -11,7 +11,7 @@ import {
   etapeParticipation, ficheStockee, tauxMission, versionLite, TRAJETS_BILLET,
   type EtapeParticipation, type FicheParticipation, type VersionLite,
 } from "@/lib/missions-equipe/participation";
-import { detailsStockes, personneVivante, type DetailTrajet } from "@/lib/care-fiches";
+import { detailsStockes, personneVivante, type DetailTrajet } from "@/modules/ad-pro/partage";
 import { fraisIntegres, imputationsDe } from "@/lib/missions-equipe/imputation-serveur";
 import type { ImputationEquipe } from "@/lib/missions-equipe/imputation";
 import { sansBloquer } from "@/lib/journal";

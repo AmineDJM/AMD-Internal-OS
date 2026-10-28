@@ -6,10 +6,9 @@ import { toNumber } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { ModuleTabs } from "@/components/shared/module-tabs";
-import { createSponsoring } from "@/lib/actions/sponsoring-actions";
-import { getAdProCreateData } from "@/lib/queries/ad-pro";
-import { sponsoringCreateFields } from "@/lib/ad-pro/create-fields";
-import { AVAILABLE_PRODUCT_STATUSES } from "@/lib/ad-pro/pickers";
+import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
+import { getAdProCreateData } from "@/modules/ad-pro/api";
+import { sponsoringCreateFields, AVAILABLE_PRODUCT_STATUSES } from "@/modules/ad-pro/partage";
 import { EVENTS_TABS } from "@/lib/labels";
 import { SponsoringTable, type SponsoringRow } from "./sponsoring-table";
 

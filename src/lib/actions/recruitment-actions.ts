@@ -15,7 +15,7 @@ import { getManagementChain } from "@/lib/departments";
 import { attachFormFiles } from "@/lib/documents";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { recruitmentViewer } from "@/lib/recruitment/access";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import {
   abilities, ETAPES_RETIRABLES, prevenusAuRetrait, applyChainDecision, canDecideStep, canSelectCandidate, currentStep,
   needsOnboarding, summarize, validateDraft, CONTRACT_LABEL,

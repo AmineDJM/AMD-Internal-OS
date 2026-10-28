@@ -38,11 +38,30 @@ import { join } from "node:path";
  * ou la LISTE des chemins quand le fichier historique s'est découpé (chaque morceau garde la clé).
  */
 export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly string[]>> = {
+  "ad-pro-centre-actions": "src/modules/ad-pro/actions-centre.ts",
+  "ad-pro-conseil-actions": "src/modules/ad-pro/actions-conseil.ts",
+  "ad-pro-discussion-actions": "src/modules/ad-pro/actions-discussion.ts",
+  "ad-pro-edit-actions": "src/modules/ad-pro/actions-edition.ts",
+  "ad-pro-item-actions": [
+    "src/modules/ad-pro/actions-postes.ts", "src/modules/ad-pro/actions-postes-decision.ts", "src/modules/ad-pro/actions-postes-paiement.ts",
+    "src/modules/ad-pro/actions-postes-materiel.ts", "src/modules/ad-pro/actions-postes-voyageurs.ts", "src/modules/ad-pro/actions-postes-lignes.ts",
+  ],
+  "ad-pro-medecins-actions": "src/modules/ad-pro/actions-medecins.ts",
+  "ad-pro-other-actions": "src/modules/ad-pro/actions-autres.ts",
+  "ad-pro-pieces-actions": "src/modules/ad-pro/actions-pieces.ts",
+  "ad-pro-postes-luna-actions": "src/modules/ad-pro/actions-postes-luna.ts",
+  "ad-pro-rattacher-legal": "src/modules/ad-pro/actions-rattacher-legal.ts",
+  "ad-pro-transfer-actions": "src/modules/ad-pro/actions-transfert.ts",
+  "care-actions": ["src/modules/ad-pro/actions-prise-en-charge.ts", "src/modules/ad-pro/actions-prise-en-charge-logistique.ts"],
   "coffre-actions": "src/modules/coffre/actions.ts",
+  "congress-beneficiary-actions": "src/modules/ad-pro/actions-congres-beneficiaires.ts",
+  "congress-request-actions": "src/modules/ad-pro/actions-congres.ts",
   "consommation-actions": "src/modules/consommation/actions.ts",
+  "event-actions": "src/modules/ad-pro/actions-evenements.ts",
   "organisation-actions": "src/modules/referentiels/actions-organisations.ts",
   "personnes-actions": "src/modules/referentiels/actions-personnes.ts",
   "refonte-reprise-actions": "src/modules/referentiels/actions-reprises.ts",
+  "sponsoring-actions": "src/modules/ad-pro/actions-sponsoring.ts",
 };
 
 /** Ce qui vit dans `src/lib/actions/` sans être un fichier d'actions : le contrat lui-même, les types. */
@@ -106,4 +125,16 @@ export function clesDesActions(racine = process.cwd()): Set<string> {
     }
   }
   return cles;
+}
+
+/**
+ * LE SOURCE D'UNE CLÉ — tous ses fichiers mis bout à bout (les morceaux d'un fichier découpé, dans l'ordre
+ * déclaré). Pour les tests de structure qui lisaient le fichier d'avant : la règle vise la clé, pas l'adresse.
+ */
+export function sourceDeLaCle(cle: string, racine = process.cwd()): string {
+  const chemins = parcDesActions(racine).filter((f) => f.cle === cle).map((f) => f.chemin);
+  const declares = ACTIONS_DES_MODULES[cle];
+  const ordre = declares ? [...cheminsDeLaCle(declares)] : chemins;
+  if (chemins.length === 0) throw new Error(`sourceDeLaCle(« ${cle} ») : aucune clé de ce nom dans le parc.`);
+  return ordre.map((c) => readFileSync(join(racine, c), "utf8")).join("\n");
 }

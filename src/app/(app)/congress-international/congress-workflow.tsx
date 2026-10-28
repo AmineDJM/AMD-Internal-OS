@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Check, X, Loader2 } from "lucide-react";
-import { submitProductAnalysis, finalDecision, updateGrantedBudget } from "@/lib/actions/congress-request-actions";
+import { submitProductAnalysis, finalDecision, updateGrantedBudget } from "@/modules/ad-pro/actions-congres";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";

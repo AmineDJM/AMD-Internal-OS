@@ -17,7 +17,7 @@ import type { BadgeTone } from "@/lib/labels";
 import { EmptyState } from "@/components/shared/empty-state";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { deadlineNatureLabel, deadlineNatureOf } from "@/lib/finance/deadline-nature";
-import { ItemAskPanel } from "@/components/ad-pro/item-ask-panel";
+import { ItemAskPanel } from "@/modules/ad-pro/ecrans/item-ask-panel";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 
 export interface CentreMessage {

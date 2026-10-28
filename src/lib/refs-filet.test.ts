@@ -141,7 +141,7 @@ describe("Cliquet — une référence numérotée porte son filet", () => {
 
   it("les trois créations réparées par ce lot gardent leur filet", () => {
     const { numerotent, sansFilet } = etat();
-    for (const f of ["src/lib/actions/sponsoring-actions.ts", "src/lib/dossiers-core.ts", "src/lib/actions/ad-pro-item-actions.ts"]) {
+    for (const f of ["src/modules/ad-pro/actions-sponsoring.ts", "src/lib/dossiers-core.ts", "src/modules/ad-pro/actions-postes.ts"]) {
       expect(numerotent, `${f} numérote encore`).toContain(f);
       expect(sansFilet, `${f} a perdu son filet`).not.toContain(f);
     }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
-import { peutLirePasseportDuSujet } from "@/lib/ad-pro/passeport-acces";
+import { peutLirePasseportDuSujet } from "@/modules/ad-pro/api";
 import { prisma } from "@/lib/prisma";
 import { readFileByKey } from "@/lib/storage";
 import { estUnTexteEditable, lireTexte } from "@/lib/texte-fichier";

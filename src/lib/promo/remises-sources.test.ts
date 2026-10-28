@@ -96,7 +96,8 @@ describe("Remis aux médecins : les opérations Ad & Pro", () => {
   });
 
   it("et ces deux fonctions ne sont appelées que par les actions des postes Ad & Pro", () => {
-    expect(appelants("reserverPourEvenement")).toEqual(["src/lib/actions/ad-pro-item-actions.ts"]);
-    expect(appelants("rendreAuMagasin")).toEqual(["src/lib/actions/ad-pro-item-actions.ts"]);
+    expect(appelants("reserverPourEvenement")).toEqual(["src/modules/ad-pro/actions-postes-decision.ts"]);
+    // Deux morceaux de la même clé `ad-pro-item-actions` : décider le poste, et recomposer son matériel.
+    expect(appelants("rendreAuMagasin")).toEqual(["src/modules/ad-pro/actions-postes-decision.ts", "src/modules/ad-pro/actions-postes-materiel.ts"]);
   });
 });

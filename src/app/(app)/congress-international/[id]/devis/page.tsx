@@ -1,4 +1,4 @@
-import { PageDevisPriseEnCharge } from "@/components/care/page-devis";
+import { PageDevisPriseEnCharge } from "@/modules/ad-pro/ecrans/prise-en-charge/page-devis";
 
 // Une page qui dépend de QUI regarde ne se met jamais en cache.
 export const dynamic = "force-dynamic";
