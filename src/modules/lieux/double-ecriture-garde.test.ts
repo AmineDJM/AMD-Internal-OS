@@ -25,6 +25,9 @@ const EXCEPTIONS: Record<string, { raison: string; litLeLieu?: true }> = {
   "src/lib/actions/force-de-vente-actions.ts": { raison: "affecte un praticien à un délégué (delegateId)" },
   "src/lib/actions/medical-directory-crud-actions.ts": { raison: "déplace des fiches d'un annuaire à l'autre (directoryId)" },
   "src/lib/actions/tour-visit-actions.ts": { raison: "date de dernière visite (lastVisit)" },
+  "src/lib/actions/internes/sales-planning/secteurs.ts": {
+    raison: "renomme un secteur RETIRÉ pour libérer son nom (name) ; l'écriture du secteur et de son lieu reste dans `sales-planning-actions.ts`",
+  },
   "src/lib/custom-fields.ts": { raison: "champs personnalisés (JSON custom)" },
   "src/lib/medical/profil-rapide.ts": { raison: "crée un profil praticien depuis un bénéficiaire : nom et établissement, aucun lieu" },
   "src/lib/medical/rattachement-auto.ts": { raison: "pose établissement et service ; LIT la wilaya sans l'écrire", litLeLieu: true },
