@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import {
   Plus, Trash2, Loader2, CheckCircle2, XCircle, Link2, AlertTriangle, ExternalLink, Send, FileText,
   ThumbsUp, ThumbsDown, RotateCcw, History, Pencil, MoreHorizontal, Circle, X, Wallet, Split,
@@ -297,8 +298,11 @@ export function AdProItemsPanel({
       const r = await fn();
       // La phrase de l'ACTION l'emporte quand elle en rend une : elle seule sait, par exemple,
       // qu'un BC sous le seuil est parti aux Finances sans passer par le centre (§118.149).
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText) : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText) : (r.error ?? "Le geste n'a pas abouti.") });
       if (r.ok) rafraichir();
+    } catch {
+      // Une action qui LÈVE (connexion coupée, redéploiement) se dit ; elle ne remonte plus nue.
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setBusy(null);
       lock.current = false;
@@ -461,11 +465,10 @@ export function AdProItemsPanel({
             decided={tardif}
             busy={busy === "add"}
             onCancel={() => setAdding(false)}
-            onSubmit={(fd) => void run("add", async () => {
-              const r = await addAdProItem(undefined, fd);
+            onSubmit={(fd) => void run("add", () => addAdProItem(undefined, fd).then((r) => {
               if (r.ok) setAdding(false);
               return r;
-            }, "Poste ajouté.")}
+            }), "Poste ajouté.")}
           />
         ) : (
           <Button size="sm" variant="outline" className="h-10 w-full sm:h-8 sm:w-auto" onClick={() => setAdding(true)}>

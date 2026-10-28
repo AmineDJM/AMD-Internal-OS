@@ -10,6 +10,7 @@ import {
   apercuBcPoste, previsualiserApercuBcPoste, imprimerApercuBcPoste, modifierApercuBcPoste, annulerApercuBcPoste, validerEtEnvoyerBcPoste,
   type ApercuBcPoste,
 } from "@/lib/actions/ad-pro-item-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -60,7 +61,16 @@ export function ApercuBonDeCommande({ itemId, pieceId, nomDevis, peutEditer, peu
             {peutEditer && (
               <Button
                 type="button" variant="outline" size="sm"
-                onClick={() => start(async () => { const r = await annulerApercuBcPoste(avec(new FormData())); if (r.ok) onClose(); else setRetrait(r.error ?? "Échec."); })}
+                onClick={() => start(async () => {
+                  let r: Awaited<ReturnType<typeof annulerApercuBcPoste>>;
+                  try {
+                    r = await annulerApercuBcPoste(avec(new FormData()));
+                  } catch {
+                    setRetrait(actionFailureMessage("THROWN"));
+                    return;
+                  }
+                  if (r.ok) onClose(); else setRetrait(r.error ?? "L'aperçu n'a pas été retiré.");
+                })}
               >
                 <Trash2 className="h-3.5 w-3.5" /> Retirer l&apos;aperçu
               </Button>

@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Loader2 } from "lucide-react";
 import { updateLeaveRequest } from "@/lib/actions/hr-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
@@ -27,7 +28,7 @@ export interface EditableLeave {
  * statut (décision) et note. Le solde annuel est réajusté par l'action serveur.
  */
 export function LeaveEditButton({ leave }: { leave: EditableLeave }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -54,8 +55,13 @@ export function LeaveEditButton({ leave }: { leave: EditableLeave }) {
               setBusy(true); setErr(null);
               updateLeaveRequest(fd).then((r) => {
                 setBusy(false);
-                if (r.ok) { setOpen(false); router.refresh(); }
-                else { setErr(r.error ?? "Échec de la modification."); lock.current = false; }
+                if (r.ok) { setOpen(false); rafraichir(); }
+                else { setErr(r.error ?? "La demande de congé n'a pas été modifiée."); lock.current = false; }
+              }, () => {
+                // Une action qui LÈVE (connexion coupée, redéploiement) ne fige plus la fenêtre.
+                setBusy(false);
+                setErr(actionFailureMessage("THROWN"));
+                lock.current = false;
               });
             }}
             className="grid grid-cols-1 gap-3 sm:grid-cols-2"

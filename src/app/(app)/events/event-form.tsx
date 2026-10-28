@@ -17,6 +17,10 @@ import { versFormulairePoste, type PostePropose } from "@/lib/ad-pro/postes-luna
 import type { EventDetail } from "@/lib/queries/events";
 import { MultiSelectField } from "@/components/shared/create-record-button";
 import { ConfirmationSuppression } from "@/components/shared/super-admin-delete";
+import { useFormAction } from "@/components/shared/use-action";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { Retour } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { wilayaOptions } from "@/lib/geo/algeria";
 import {
   availableProductOptions, doctorOptions, specialtyOptions, splitMulti, repartirMedecins, CHAMPS_MEDECINS,
@@ -265,8 +269,15 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
 
   async function creer(fd: FormData) {
     setSaving(true); setErr(null);
-    const r: Result = await createEvent(fd);
-    if (!r.ok || !r.id) { setSaving(false); setErr(r.error ?? "Erreur."); return; }
+    let r: Result;
+    try {
+      r = await createEvent(fd);
+    } catch {
+      setSaving(false);
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    }
+    if (!r.ok || !r.id) { setSaving(false); setErr(r.error ?? "L'événement n'a pas été créé."); return; }
     const echecs: string[] = [];
     for (const p of postesLuna) {
       const f = new FormData();
@@ -304,7 +315,7 @@ export function CreateEventForm({ responsibles, referentiels, onDone, onCancel, 
           />
         }
       />
-      {err && <p className="break-words text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={onCancel} className="w-full sm:w-auto">{cancelLabel}</Button><Button type="submit" disabled={saving} className="w-full sm:w-auto">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Créer{postesLuna.length > 0 ? ` avec ${postesLuna.length} poste${postesLuna.length > 1 ? "s" : ""}` : ""}</Button></div>
     </form>
   );
@@ -340,9 +351,12 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
   organisationSeule?: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { action: enregistrer, busy: saving, err, setErr } = useFormAction(updateEvent, {
+    prepare: (fd) => fd.set("id", event.id),
+    onOk: () => setOpen(false),
+  });
   // LA SUPPRESSION passe par la même fenêtre que le bouton du Super Admin (§118.162) : elle lit
   // AVANT le clic ce qui part avec l'événement (sa déclaration d'information médicale, son
   // circuit, ses postes, ses inscriptions…) et dit le refus quand une branche porte un paiement
@@ -353,7 +367,7 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
     <>
       <Button variant="outline" size="sm" onClick={() => { setErr(null); setOpen(true); }}><Pencil className="h-4 w-4" /> Modifier</Button>
       <Sheet open={open} onClose={() => setOpen(false)} title="Modifier l'événement" width="lg">
-        <form action={async (fd) => { fd.set("id", event.id); setSaving(true); setErr(null); const r: Result = await updateEvent(fd); setSaving(false); if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Erreur."); }} className="space-y-4">
+        <form action={enregistrer} className="space-y-4">
           {organisationSeule && (
             <p role="note" className="rounded-lg border border-warning/40 bg-warning/10 p-3 text-sm">
               La prise en charge est décidée : le nom, les dates, le lieu, les médecins, les produits et le budget ne se modifient plus
@@ -361,7 +375,7 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
             </p>
           )}
           <EventFields e={event} responsibles={responsibles} referentiels={referentiels} />
-          {err && <p className="break-words text-sm text-destructive">{err}</p>}
+          <Retour ton="erreur">{err}</Retour>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
             {canDelete ? <Button type="button" variant="ghost" className="w-full text-destructive sm:w-auto" onClick={() => { setOpen(false); setSuppression(true); }}><Trash2 className="h-4 w-4" /> Supprimer</Button> : <span className="hidden sm:block" />}
             <div className="flex flex-col-reverse gap-2 sm:flex-row"><Button type="button" variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">Annuler</Button><Button type="submit" disabled={saving} className="w-full sm:w-auto">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button></div>
@@ -376,7 +390,7 @@ export function EditEventButton({ event, responsibles, referentiels, canDelete, 
           id={event.id}
           name={event.name}
           executer={deleteEvent}
-          onSupprime={() => { setSuppression(false); router.push("/events"); router.refresh(); }}
+          onSupprime={() => { setSuppression(false); router.push("/events"); rafraichir(); }}
         />
       )}
     </>

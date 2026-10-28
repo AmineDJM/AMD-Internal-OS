@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Loader2, AlertCircle, CalendarRange, Stethoscope, Route } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Select, Textarea, Label, Input } from "@/components/ui/input";
 import { LEAVE_TYPE } from "@/lib/labels";
 import { requestLeave } from "@/lib/actions/hr-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * DEMANDER UN CONGÉ — **un seul formulaire**, partagé par « Mon espace » et « Mon dossier RH ».
@@ -37,7 +38,7 @@ export function LeaveRequestButton({
   /** Les personnes pouvant tenir la place pendant l'absence. */
   colleagues?: { id: string; name: string }[];
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -62,11 +63,18 @@ export function LeaveRequestButton({
 
   const onSubmit = async (fd: FormData) => {
     setSaving(true); setErr(null);
-    const r = await requestLeave(undefined, fd);
-    setSaving(false);
+    let r: Awaited<ReturnType<typeof requestLeave>>;
+    try {
+      r = await requestLeave(undefined, fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
     if (r.ok) {
       setOpen(false); setStart(""); setEnd(""); setType("ANNUAL");
-      router.refresh();
+      rafraichir();
     } else setErr(r.error ?? "Une erreur est survenue.");
   };
 

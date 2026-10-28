@@ -1,28 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, X, Loader2 } from "lucide-react";
 import { submitProductAnalysis, finalDecision, updateGrantedBudget } from "@/lib/actions/congress-request-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useAction } from "@/components/shared/use-action";
 
 type Cat = { id: string; label: string; isSub: boolean };
 type Action = (fd: FormData) => Promise<{ ok: boolean; error?: string }>;
 
 function useRun() {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const [err, setErr] = React.useState<string | null>(null);
-  const run = (fd: FormData, action: Action, onOk?: () => void) =>
-    start(async () => {
-      setErr(null);
-      const r = await action(fd);
-      if (!r.ok) { setErr(r.error ?? "Erreur."); return; }
-      onOk?.();
-      router.refresh();
-    });
+  // Gardé (levée, délai) et rafraîchi par `useAction` : le bouton ne peut plus tourner pour toujours.
+  const { busy: pending, err, run: executer } = useAction();
+  const run = (fd: FormData, action: Action, onOk?: () => void) => { void executer(() => action(fd), onOk); };
   return { pending, err, run };
 }
 

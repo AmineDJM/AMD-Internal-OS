@@ -18,6 +18,7 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import type { ActionResult } from "@/lib/actions/types";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * LE SUIVI DU CIRCUIT — ce que chacun voit dépend de qui il est.
@@ -89,9 +90,16 @@ function useRun() {
    *  envoi que l'action refuserait — un bouton offert puis refusé n'est pas un geste (§118.83). */
   const run = async (fn: () => Promise<ActionResult>, apres?: () => void) => {
     setSaving(true); setErr(null); setMsg(null);
-    const r = await fn();
-    setSaving(false);
-    if (r.ok) { setMsg(r.message ?? null); apres?.(); rafraichir(); } else setErr(r.error ?? "Action impossible.");
+    let r: ActionResult;
+    try {
+      r = await fn();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
+    if (r.ok) { setMsg(r.message ?? null); apres?.(); rafraichir(); } else setErr(r.error ?? "Le geste n'a pas abouti.");
   };
   return { saving: saving || enCours, err, msg, run };
 }

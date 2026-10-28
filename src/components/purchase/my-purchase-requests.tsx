@@ -2,11 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { X, Loader2, ExternalLink } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/shared/empty-state";
 import { withdrawPurchaseRequest } from "@/lib/actions/purchase-request-actions";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { STAGE_LABEL, STAGE_TONE, canWithdraw, type PurchaseStage } from "@/lib/general-means/purchase-request";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
@@ -30,8 +30,8 @@ export interface MyPurchaseRow {
  * « en attente » sans destinataire fait relancer tout le monde, ou personne.
  */
 export function MyPurchaseRequests({ rows }: { rows: MyPurchaseRow[] }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
+  // Le bouton d'une ligne n'a pas de place où parler : un refus part en avis flottant (remplace `window.alert`).
+  const { busy, run } = useKeyedAction({ signalerErreurs: true });
 
   if (rows.length === 0) {
     return (
@@ -44,13 +44,8 @@ export function MyPurchaseRequests({ rows }: { rows: MyPurchaseRow[] }) {
   }
 
   const withdraw = async (id: string) => {
-    if (!window.confirm("Retirer cette demande ? Votre responsable en sera informé.")) return;
-    setBusy(id);
     const fd = new FormData(); fd.set("id", id);
-    const r = await withdrawPurchaseRequest(fd);
-    setBusy(null);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    else router.refresh();
+    await run(id, () => withdrawPurchaseRequest(fd), { confirmer: "Retirer cette demande ? Votre responsable en sera informé." });
   };
 
   return (

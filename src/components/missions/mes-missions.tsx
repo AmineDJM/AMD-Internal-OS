@@ -19,6 +19,8 @@ import { lienMission } from "@/lib/chemins/espace";
 import { MISSION_ROLE } from "@/lib/labels";
 import { formatDate, cn } from "@/lib/utils";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,9 +65,16 @@ export function MesMissions({ missions, aValider, articles, currentUserId }: {
     if (champs instanceof FormData) fd = champs;
     else { fd = new FormData(); for (const [k, v] of Object.entries(champs)) fd.set(k, v); }
     setBusy(cle); setMsg(null);
-    const r = await action(fd);
-    setBusy(null);
-    setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Échec.") });
+    let r: Resultat;
+    try {
+      r = await action(fd);
+    } catch {
+      setMsg({ ok: false, texte: actionFailureMessage("THROWN") });
+      return;
+    } finally {
+      setBusy(null);
+    }
+    setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Le geste n'a pas abouti.") });
     if (r.ok) { apres?.(); rafraichir(); }
   };
 
@@ -266,6 +275,7 @@ function Invitation({ m, occupe, executer }: { m: MissionAssignmentDTO; occupe: 
 function CarteMission({ m, articles, occupe, busy, executer, currentUserId }: {
   m: MissionAssignmentDTO; articles: { id: string; libelle: string }[]; occupe: boolean; busy: string | null; executer: Executer; currentUserId: string;
 }) {
+  const confirmer = useConfirmer();
   const [ouverte, setOuverte] = React.useState<EtapeFacultative | "DATES" | null>(null);
   const [pieces, setPieces] = React.useState(false);
   const liees: EtapeFacultative[] = [
@@ -325,7 +335,7 @@ function CarteMission({ m, articles, occupe, busy, executer, currentUserId }: {
             </Button>
           )}
           {peutRetirerOrdre(m.om.etat) && (
-            <Button size="sm" variant="ghost" disabled={occupe} onClick={() => { if (window.confirm("Retirer votre demande d'ordre de mission ?")) void executer(`omr-${m.id}`, retirerDemandeOrdreMission, { id: m.id }); }}>Retirer</Button>
+            <Button size="sm" variant="ghost" disabled={occupe} onClick={async () => { if (await confirmer("Retirer votre demande d'ordre de mission ?")) void executer(`omr-${m.id}`, retirerDemandeOrdreMission, { id: m.id }); }}>Retirer</Button>
           )}
           {m.om.etat !== "AUCUN" && !peutDemanderOrdre(m.om.etat) && !peutRetirerOrdre(m.om.etat) && !m.om.pdfDocId && <Pastille etat={m.om.libelle} />}
         </Etape>

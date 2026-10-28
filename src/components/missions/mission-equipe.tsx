@@ -22,6 +22,8 @@ import { POLE_EQUIPE, imputationHistorique, texteImputation } from "@/lib/missio
 import { MISSION_ROLE } from "@/lib/labels";
 import { formatDate, cn } from "@/lib/utils";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,9 +68,16 @@ export function MissionEquipe({ detail, vue, peutDeposer, peutBudget, budgetOpti
     if (champs instanceof FormData) fd = champs;
     else { fd = new FormData(); for (const [k, v] of Object.entries(champs)) fd.set(k, v); }
     setBusy(cle); setMsg(null);
-    const r = await action(fd);
-    setBusy(null);
-    setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Échec.") });
+    let r: Resultat;
+    try {
+      r = await action(fd);
+    } catch {
+      setMsg({ ok: false, texte: actionFailureMessage("THROWN") });
+      return;
+    } finally {
+      setBusy(null);
+    }
+    setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Le geste n'a pas abouti.") });
     if (r.ok) { apres?.(); rafraichir(); }
   };
 
@@ -248,6 +257,7 @@ const LIBELLE_STATUT: Record<VersionDTO["statut"], string> = { EN_ATTENTE: "en a
 function Propositions({ detail, vue, occupe, busy, executer }: { detail: MissionDetailDTO; vue: Cote | null; occupe: boolean; busy: string | null; executer: Executer }) {
   const m = detail.mission;
   const p = m.participation;
+  const confirmer = useConfirmer();
   const [mode, setMode] = React.useState<"aucun" | "modifier" | "refuser" | "decliner">("aucun");
   const tour = aQuiLeTour(p.etape);
   const monTour = vue !== null && tour === vue;
@@ -277,7 +287,7 @@ function Propositions({ detail, vue, occupe, busy, executer }: { detail: Mission
                 </Button>
               )}
               {vue === "PERSONNE" && peutRetirerOrdre(m.om.etat) && (
-                <Button size="sm" variant="ghost" disabled={occupe} onClick={() => { if (window.confirm("Retirer votre demande d'ordre de mission ?")) void executer("omr", retirerDemandeOrdreMission, { id: m.id }); }}>Retirer la demande</Button>
+                <Button size="sm" variant="ghost" disabled={occupe} onClick={async () => { if (await confirmer("Retirer votre demande d'ordre de mission ?")) void executer("omr", retirerDemandeOrdreMission, { id: m.id }); }}>Retirer la demande</Button>
               )}
               {peutRouvrir && mode !== "modifier" && (
                 <Button size="sm" variant="ghost" disabled={occupe} onClick={() => setMode("modifier")}>Modifier</Button>
@@ -681,6 +691,7 @@ function NotesDeFrais({ detail, moi, occupe, busy, executer }: { detail: Mission
 
 function LigneFrais({ f, modifiable, occupe, executer }: { f: FraisDTO; modifiable: boolean; occupe: boolean; executer: Executer }) {
   const input = React.useRef<HTMLInputElement>(null);
+  const confirmer = useConfirmer();
   return (
     <tr className="border-t border-border">
       <td className="sticky left-0 z-10 whitespace-nowrap bg-card px-3 py-2">{jourCourt(f.date)}</td>
@@ -708,7 +719,7 @@ function LigneFrais({ f, modifiable, occupe, executer }: { f: FraisDTO; modifiab
       {modifiable && (
         <td className="px-3 py-2 text-right">
           <Button type="button" size="sm" variant="ghost" className="text-destructive" disabled={occupe}
-            onClick={() => { if (window.confirm("Retirer cette dépense ?")) void executer(`rm-${f.id}`, retirerFraisMission, { ligneId: f.id }); }}>Retirer</Button>
+            onClick={async () => { if (await confirmer("Retirer cette dépense ?")) void executer(`rm-${f.id}`, retirerFraisMission, { ligneId: f.id }); }}>Retirer</Button>
         </td>
       )}
     </tr>
@@ -755,6 +766,7 @@ function Rapport({ detail, moi, occupe, executer }: { detail: MissionDetailDTO; 
 
 function Cloture({ detail, moi, occupe, busy, executer, terminee }: { detail: MissionDetailDTO; moi: boolean; occupe: boolean; busy: string | null; executer: Executer; terminee: boolean }) {
   const m = detail.mission;
+  const confirmer = useConfirmer();
   const manques = manquesCloture({
     cloturee: Boolean(m.clotureLe), omEmis: m.om.etat === "EMIS", terminee, rapport: detail.rapport,
     lignes: detail.frais.map((f) => ({ justificatif: Boolean(f.documentId) })),
@@ -765,7 +777,7 @@ function Cloture({ detail, moi, occupe, busy, executer, terminee }: { detail: Mi
         sous={m.clotureLe ? `clôturée le ${formatDate(m.clotureLe)}` : manques.length ? manques.join(" ") : "Envoie les notes de frais à votre N+1 puis aux RH, et le rapport à l'organisateur"}>
         {moi && !m.clotureLe && (
           <Button size="sm" disabled={occupe || manques.length > 0}
-            onClick={() => { if (window.confirm("Clôturer la mission ? Les dépenses partent en note de frais et ne se modifient plus.")) void executer("cloture", cloturerMission, { id: m.id }); }}>
+            onClick={async () => { if (await confirmer("Clôturer la mission ? Les dépenses partent en note de frais et ne se modifient plus.")) void executer("cloture", cloturerMission, { id: m.id }); }}>
             {busy === "cloture" ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Clôturer
           </Button>
         )}

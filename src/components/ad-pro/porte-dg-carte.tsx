@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { statuerTotalDg } from "@/lib/actions/porte-dg-actions";
 import type { EtatPorteDg } from "@/lib/seuils/porte-dg-total";
 import type { AdProParent } from "@/lib/ad-pro-items";
@@ -41,8 +42,10 @@ export function CartePorteDg({ parent, parentId, porte }: {
     if (note.trim()) fd.set("note", note.trim());
     try {
       const r = await statuerTotalDg(fd);
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Décision enregistrée.") : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Décision enregistrée.") : (r.error ?? "La décision n'a pas été enregistrée.") });
       if (r.ok) { setRevoir(false); setNote(""); rafraichir(); }
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setBusy(false);
     }

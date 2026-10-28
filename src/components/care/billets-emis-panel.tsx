@@ -3,6 +3,7 @@
 import * as React from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { resumeBillet, resumeHotel, type CellRow } from "@/lib/care-fiches";
 import { BilletEmis, IconePoste, type Run } from "@/components/care/fiche-voyageur";
 import { BoutonLivret } from "@/components/care/bouton-livret";
@@ -27,9 +28,14 @@ export function BilletsEmisPanel({ lignes, demande }: {
     setMsg(null);
     try {
       const r = await fn();
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText ?? "Enregistré.") : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText ?? "Enregistré.") : (r.error ?? "Le geste n'a pas abouti.") });
       if (r.ok) rafraichir();
       return r;
+    } catch {
+      // Une action qui LÈVE (connexion coupée, redéploiement) se dit ; elle ne remonte plus nue.
+      const echec = { ok: false, error: actionFailureMessage("THROWN") };
+      setMsg({ ok: false, text: echec.error });
+      return echec;
     } finally {
       setAction(null);
     }

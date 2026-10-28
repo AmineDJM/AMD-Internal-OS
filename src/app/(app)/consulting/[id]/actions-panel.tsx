@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Send, Check, X, CalendarCheck, Plus, Trash2, Undo2, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
@@ -10,6 +9,9 @@ import {
   addConsultingTask, toggleConsultingTask, deleteConsultingTask,
 } from "@/lib/actions/consulting-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export interface ContractTask { id: string; label: string; dueDate: string | null; doneAt: string | null }
 
@@ -47,7 +49,7 @@ export function ConsultingActions({
   /** Le transfert de pôle (§118.150) — rendu par la page, qui seule sait si la personne y a droit. */
   transfer?: React.ReactNode;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [annonce, setAnnonce] = React.useState<string | null>(null);
@@ -63,14 +65,21 @@ export function ConsultingActions({
     setBusy(key); setErr(null); setAnnonce(null);
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, v);
-    const r = await fn(fd);
-    setBusy(null);
+    let r: Awaited<ReturnType<typeof fn>>;
+    try {
+      r = await fn(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(null);
+    }
     if (!r.ok) { setErr(r.error ?? "L'opération a échoué."); return; }
     setNote(""); setTaskLabel(""); setTaskDue(""); setNouvelleFin(""); setMotifProlongation(""); setMotifAnnulation("");
     // Ce que le geste a fait AILLEURS (la porte du centre, la date prolongée) se DIT : l'écran ne jette
     // pas la phrase de l'action (§118.168).
     if (r.message) setAnnonce(r.message);
-    router.refresh();
+    rafraichir();
   };
 
   return (
@@ -224,7 +233,7 @@ export function ConsultingActions({
       {transfer}
 
       {annonce && <p role="status" className="break-words rounded-lg bg-success/10 px-3 py-2 text-sm">{annonce}</p>}
-      {err && <p className="break-words rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

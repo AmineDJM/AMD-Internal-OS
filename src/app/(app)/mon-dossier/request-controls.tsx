@@ -1,20 +1,23 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Loader2, AlertCircle, CalendarClock, CalendarRange, Stethoscope } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Select, Textarea, Label, Input } from "@/components/ui/input";
 import { HR_REQUEST_TYPE } from "@/lib/labels";
 import { requestHrDocument, annulerDemandeRh } from "@/lib/actions/hr-document-actions";
+import { useSaisir } from "@/components/ui/dialogue";
+import { useAction } from "@/components/shared/use-action";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ExpenseClaimFields } from "@/components/hr/expense-claim-form";
 
 /** Types « congé » à jours entiers (début + fin) ; l'absence ponctuelle n'a qu'une date. */
 const LEAVE_TYPES = new Set(["ANNUAL_LEAVE", "UNPAID_LEAVE", "SPECIAL_LEAVE", "MATERNITY_LEAVE", "SICK_LEAVE"]);
 
 export function NewRequestButton() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -33,9 +36,16 @@ export function NewRequestButton() {
 
   const onSubmit = async (fd: FormData) => {
     setSaving(true); setErr(null);
-    const r = await requestHrDocument(fd);
-    setSaving(false);
-    if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Une erreur est survenue.");
+    let r: Awaited<ReturnType<typeof requestHrDocument>>;
+    try {
+      r = await requestHrDocument(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
+    if (r.ok) { setOpen(false); rafraichir(); } else setErr(r.error ?? "Une erreur est survenue.");
   };
 
   return (
@@ -119,20 +129,21 @@ export function NewRequestButton() {
 }
 
 export function CancelRequestButton({ id }: { id: string }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  const saisir = useSaisir();
+  // Le bouton n'a pas de place où parler : un refus part en avis flottant (remplace `window.alert`).
+  const { busy: pending, run } = useAction({ signalerErreurs: true });
   return (
     <button
       disabled={pending}
-      onClick={() => {
-        const motif = window.prompt("Annuler cette demande ? Les RH en seront prévenues. Motif (facultatif) :", "");
+      onClick={async () => {
+        const motif = await saisir({
+          titre: "Annuler cette demande ?",
+          message: "Les RH en seront prévenues.",
+          saisie: { libelle: "Motif (facultatif)", valeur: "" },
+        });
         if (motif === null) return;
         const fd = new FormData(); fd.set("id", id); if (motif.trim()) fd.set("motif", motif.trim());
-        start(async () => {
-          const r = await annulerDemandeRh(fd);
-          if (!r.ok) window.alert(r.error ?? "Annulation impossible.");
-          router.refresh();
-        });
+        void run(() => annulerDemandeRh(fd));
       }}
       className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground hover:bg-secondary sm:min-h-0 sm:px-2.5"
     >

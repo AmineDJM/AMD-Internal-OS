@@ -14,6 +14,7 @@ import {
 } from "@/lib/actions/ad-pro-item-actions";
 import { EnvoiFiche, BandeauEnvois } from "@/components/reservation-fiche/envoi-fiche";
 import type { EnvoiVue } from "@/lib/reservation-fiche/etat";
+import { useConfirmer } from "@/components/ui/dialogue";
 import {
   manquesPourReserver, jourLisible, prochainGesteVoyageur, depassementDevisRetenus, nomComplet, separerNom, ETAPES_MAX,
   TRANSPORTS, TRANSPORT_LIBELLE, TRAJET_LIBELLE, TRAJETS, type EtapeTrajet,
@@ -97,6 +98,7 @@ export function BlocVoyageurs({
   /** L'ÉTAT DE CHAQUE FICHE chez l'assistante (`EnvoiVue`, par voyageur) — chaque fiche s'envoie seule (14/10). */
   envois?: Record<string, EnvoiVue>;
 }) {
+  const confirmer = useConfirmer();
   const [ajout, setAjout] = React.useState(false);
   const [ouvert, setOuvert] = React.useState<{ id: string; quoi: "MENU" | "EDITER" | "PASSEPORT" | "DEVIS" | "CHOIX" } | null>(null);
   const [assistanteId, setAssistanteId] = React.useState("");
@@ -218,8 +220,8 @@ export function BlocVoyageurs({
                     {vivants.length > 1 && <MenuItem onClick={() => basculer(v.id, "CHOIX")}>{retenu ? "Changer de devis" : "Choisir le devis"}</MenuItem>}
                     <MenuItem
                       danger
-                      onClick={() => {
-                        if (!window.confirm(`Retirer ${nomComplet(v)} des voyageurs ?`)) return;
+                      onClick={async () => {
+                        if (!(await confirmer(`Retirer ${nomComplet(v)} des voyageurs ?`))) return;
                         void run(`vdel:${v.id}`, () => retirerVoyageur(fdVoyageur(v.id, {}, "id")), "Voyageur retiré.").then(fermer);
                       }}
                     >

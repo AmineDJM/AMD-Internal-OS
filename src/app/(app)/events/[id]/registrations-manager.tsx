@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Trash2, QrCode, Check, Search, Download, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -12,6 +11,8 @@ import { PARTICIPANT_ROLE, REGISTRATION_STATUS } from "@/lib/labels";
 import { addRegistration, setRegistrationStatus, deleteRegistration } from "@/lib/actions/event-actions";
 import type { RegistrationDTO } from "@/lib/queries/events";
 import { estStatutInscriptionRetire } from "@/lib/events/externe";
+import { useFormAction, useKeyedAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 
 /**
  * LES STATUTS PROPOSÉS — sans la liste d'attente (Direction, 27/10) : un événement externe n'a pas de capacité à tenir.
@@ -21,12 +22,15 @@ const statutsProposes = (actuel?: string) =>
   Object.entries(REGISTRATION_STATUS).filter(([v]) => !estStatutInscriptionRetire(v) || v === actuel);
 
 export function RegistrationsManager({ eventId, registrations, canManage }: { eventId: string; registrations: RegistrationDTO[]; canManage: boolean }) {
-  const router = useRouter();
+  // Les gestes d'une ligne (statut, suppression) n'ont pas de place où parler : un refus part en avis flottant.
+  const { run } = useKeyedAction({ signalerErreurs: true });
   const [q, setQ] = React.useState("");
   const [adding, setAdding] = React.useState(false);
   const [qrToken, setQrToken] = React.useState<string | null>(null);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { action: ajouter, busy: saving, err, setErr } = useFormAction(addRegistration, {
+    prepare: (fd) => fd.set("eventId", eventId),
+    onOk: () => setAdding(false),
+  });
 
   const list = registrations.filter((r) =>
     !q || `${r.fullName} ${r.specialty ?? ""} ${r.institution ?? ""} ${r.email ?? ""}`.toLowerCase().includes(q.toLowerCase()),
@@ -34,7 +38,7 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
 
   const setStatus = (id: string, status: string) => {
     const fd = new FormData(); fd.set("id", id); fd.set("status", status);
-    setRegistrationStatus(fd).then(() => router.refresh());
+    void run(`statut-${id}`, () => setRegistrationStatus(fd));
   };
 
   return (
@@ -71,7 +75,7 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
                     {statutsProposes(r.status).map(([v, x]) => <option key={v} value={v}>{x.label}</option>)}
                   </Select>
                   <button onClick={() => setQrToken(r.qrToken)} title="QR code" aria-label="QR code" className="rounded p-2.5 text-muted-foreground hover:bg-secondary hover:text-foreground sm:p-1.5"><QrCode className="h-4 w-4" /></button>
-                  <button onClick={() => { if (window.confirm("Supprimer cet inscrit ?")) { const fd = new FormData(); fd.set("id", r.id); deleteRegistration(fd).then(() => router.refresh()); } }} aria-label="Supprimer cet inscrit" className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5"><Trash2 className="h-4 w-4" /></button>
+                  <button onClick={() => { const fd = new FormData(); fd.set("id", r.id); void run(`suppr-${r.id}`, () => deleteRegistration(fd), { confirmer: "Supprimer cet inscrit ?" }); }} aria-label="Supprimer cet inscrit" className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5"><Trash2 className="h-4 w-4" /></button>
                 </div>
               )}
             </div>
@@ -92,7 +96,7 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
 
       {/* Ajout d'un participant */}
       <Sheet open={adding} onClose={() => setAdding(false)} title="Ajouter un participant" width="md">
-        <form action={async (fd) => { fd.set("eventId", eventId); setSaving(true); setErr(null); const r = await addRegistration(fd); setSaving(false); if (r.ok) { setAdding(false); router.refresh(); } else setErr(r.error ?? "Erreur."); }} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <form action={ajouter} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5"><Label>Prénom</Label><Input name="firstName" required /></div>
           <div className="space-y-1.5"><Label>Nom</Label><Input name="lastName" required /></div>
           <div className="space-y-1.5"><Label>Rôle</Label><Select name="role" defaultValue="DOCTOR">{Object.entries(PARTICIPANT_ROLE).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></div>
@@ -103,7 +107,7 @@ export function RegistrationsManager({ eventId, registrations, canManage }: { ev
           <div className="space-y-1.5"><Label>Email</Label><Input name="email" type="email" inputMode="email" /></div>
           <div className="space-y-1.5"><Label>Téléphone</Label><Input name="phone" type="tel" inputMode="tel" /></div>
           <div className="space-y-1.5 sm:col-span-2"><Label>Commentaire</Label><Textarea name="comment" rows={2} /></div>
-          {err && <p className="break-words text-sm text-destructive sm:col-span-2">{err}</p>}
+          <Retour ton="erreur" className="sm:col-span-2">{err}</Retour>
           <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => setAdding(false)} className="w-full sm:w-auto">Annuler</Button><Button type="submit" disabled={saving} className="w-full sm:w-auto">{saving && <Loader2 className="h-4 w-4 animate-spin" />} Ajouter</Button></div>
         </form>
       </Sheet>

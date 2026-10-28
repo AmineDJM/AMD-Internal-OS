@@ -6,6 +6,7 @@ import { ArrowLeftRight, Loader2, CheckCircle2, XCircle, AlertTriangle } from "l
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { transferAdProRequest } from "@/lib/actions/ad-pro-transfer-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 type Kind = "SPONSORING" | "CONGRESS_NATIONAL" | "CONGRESS_INTERNATIONAL";
 
@@ -48,11 +49,13 @@ export function AdProTransferButton({ from, sourceId, title }: { from: Kind; sou
     void (async () => {
       try {
         const r = await transferAdProRequest(undefined, fd);
-        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Transférée.") : (r.error ?? "Échec.") });
+        setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Transférée.") : (r.error ?? "La demande n'a pas été transférée.") });
         if (r.ok && r.id) {
           const path = to === "SPONSORING" ? "/sponsoring" : to === "CONGRESS_NATIONAL" ? "/congress-national" : "/congress-international";
           router.push(`${path}/${r.id}`);
         }
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(false);
         lock.current = false;

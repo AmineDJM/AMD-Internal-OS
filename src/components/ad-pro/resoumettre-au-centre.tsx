@@ -6,6 +6,7 @@ import { resoumettreAuCentreAdPro } from "@/lib/actions/ad-pro-centre-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * Resoumettre au centre une demande qu'il a renvoyée — ce qui a été corrigé est exigé, et le
@@ -27,9 +28,16 @@ export function ResoumettreAuCentre({ entityType, entityId, montant }: {
         setBusy(true); setError(null);
         const fd = new FormData(e.currentTarget);
         fd.set("entityType", entityType); fd.set("entityId", entityId);
-        const r = await resoumettreAuCentreAdPro(fd);
-        setBusy(false);
-        if (!r.ok) { setError(r.error ?? "Échec."); return; }
+        let r: Awaited<ReturnType<typeof resoumettreAuCentreAdPro>>;
+        try {
+          r = await resoumettreAuCentreAdPro(fd);
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+          return;
+        } finally {
+          setBusy(false);
+        }
+        if (!r.ok) { setError(r.error ?? "La demande n'a pas été resoumise au centre."); return; }
         rafraichir();
       }}
     >

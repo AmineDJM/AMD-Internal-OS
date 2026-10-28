@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, AlertCircle, BadgeCheck, Send, Bell, XCircle } from "lucide-react";
 import {
   submitQuotes, chooseAgency, submitBcForFinance, remindFinance, validateBc, confirmBcSent,
@@ -14,6 +13,8 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { ActionResult } from "@/lib/actions/types";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export interface PromoFlags {
   isMarketing: boolean;
@@ -55,16 +56,24 @@ const Err = ({ msg }: { msg: string | null }) =>
   msg ? <div className="flex items-center gap-2 rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive"><AlertCircle className="h-4 w-4 shrink-0" /> {msg}</div> : null;
 
 function useRun() {
-  const router = useRouter();
+  // LE RAFRAÎCHISSEMENT SUIVI (§118.172) : les gestes restent fermés jusqu'à l'arrivée des nouvelles données.
+  const { enCours, rafraichir } = useRafraichir();
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const run = async (fn: () => Promise<ActionResult>) => {
     setSaving(true); setErr(null);
-    const r = await fn();
-    setSaving(false);
-    if (r.ok) router.refresh(); else setErr(r.error ?? "Action impossible.");
+    let r: ActionResult;
+    try {
+      r = await fn();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
+    if (r.ok) rafraichir(); else setErr(r.error ?? "Le geste n'a pas abouti.");
   };
-  return { saving, err, run };
+  return { saving: saving || enCours, err, run };
 }
 
 /** Carte d'action de l'étape courante, gérée par l'acteur concerné. */

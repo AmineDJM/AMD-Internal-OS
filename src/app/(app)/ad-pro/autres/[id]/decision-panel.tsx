@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, X, CircleCheckBig } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { closeAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { Retour } from "@/components/ui/retour";
 
 /**
  * LA SUITE D'UNE DEMANDE « AUTRE » — la marquer terminée, ou l'annuler.
@@ -18,7 +19,7 @@ import { actionFailureMessage } from "@/lib/action-outcome";
  * puis échoue fait douter de tout le reste de l'écran.
  */
 export function OtherDecisionPanel({ id, status, canClose }: { id: string; status: string; canClose: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [annonce, setAnnonce] = React.useState<string | null>(null);
@@ -48,7 +49,7 @@ export function OtherDecisionPanel({ id, status, canClose }: { id: string; statu
     if (!r.ok) { setErr(r.error ?? "L'opération a échoué."); return; }
     setMotifAnnulation("");
     if (r.message) setAnnonce(r.message);
-    router.refresh();
+    rafraichir();
   };
 
   if (!canClose) return annonce ? <p className="rounded-lg bg-success/10 px-3 py-2 text-sm">{annonce}</p> : null;
@@ -71,7 +72,7 @@ export function OtherDecisionPanel({ id, status, canClose }: { id: string; statu
       </div>
 
       {annonce && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm">{annonce}</p>}
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

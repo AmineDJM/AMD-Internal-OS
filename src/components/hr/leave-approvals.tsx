@@ -5,6 +5,7 @@ import { Loader2, Check, X, MessageSquare, MoreHorizontal } from "lucide-react";
 import { decideLeave } from "@/lib/actions/hr-actions";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import type { CommentItem } from "@/components/shared/comment-thread";
 import { Badge } from "@/components/ui/badge";
 import { InfoBulle } from "@/components/ui/info-bulle";
@@ -57,10 +58,17 @@ function useDecisionConge(leaveId: string, note: string) {
     fd.set("id", leaveId);
     fd.set("decision", decision);
     if (note.trim()) fd.set("note", note.trim());
-    const r = await decideLeave(fd);
-    setBusy(null);
+    let r: Awaited<ReturnType<typeof decideLeave>>;
+    try {
+      r = await decideLeave(fd);
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(null);
+    }
     if (r.ok) rafraichir();
-    else setError(r.error ?? "Échec de la décision.");
+    else setError(r.error ?? "La décision n'a pas été enregistrée.");
   };
   return { busy, error, decide, enCours };
 }

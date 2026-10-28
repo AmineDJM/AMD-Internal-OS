@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, Check, FileQuestion, Loader2, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { askHrRequestPiece, setExpenseClaimEditUnlocked } from "@/lib/actions/hr-document-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { EXPENSE_EDIT_MINUTES } from "@/lib/hr/expense-claim";
 
 /**
@@ -42,7 +43,7 @@ export function ExpenseClaimHrPanel({
   /** Une note tranchée ne se rouvre pas : il n'y a plus rien à corriger. */
   decided: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -53,17 +54,31 @@ export function ExpenseClaimHrPanel({
     const fd = new FormData();
     fd.set("id", requestId);
     fd.set("unlock", unlocked ? "0" : "1");
-    const r = await setExpenseClaimEditUnlocked(fd);
-    setBusy(false);
-    if (r.ok) { setOk(r.message ?? null); router.refresh(); } else setErr(r.error ?? "Le changement a échoué.");
+    let r: Awaited<ReturnType<typeof setExpenseClaimEditUnlocked>>;
+    try {
+      r = await setExpenseClaimEditUnlocked(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (r.ok) { setOk(r.message ?? null); rafraichir(); } else setErr(r.error ?? "Le changement a échoué.");
   };
 
   const demanderPiece = async (fd: FormData) => {
     setBusy(true); setErr(null); setOk(null);
     fd.set("requestId", requestId);
-    const r = await askHrRequestPiece(fd);
-    setBusy(false);
-    if (r.ok) { setOpen(false); setOk(r.message ?? "Pièce demandée."); router.refresh(); }
+    let r: Awaited<ReturnType<typeof askHrRequestPiece>>;
+    try {
+      r = await askHrRequestPiece(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (r.ok) { setOpen(false); setOk(r.message ?? "Pièce demandée."); rafraichir(); }
     else setErr(r.error ?? "La demande n'a pas pu être créée.");
   };
 

@@ -2,13 +2,14 @@
 
 import { phraseIaNonConfiguree, courtIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Check, Wand2, Sparkles } from "lucide-react";
 import { updateEmployee, analyzeEmployeeContract } from "@/lib/actions/hr-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
 import { CONTRACT_TYPE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 type Option = { value: string; label: string };
 
@@ -107,7 +108,7 @@ function SelectInput({ name, label, defaultValue, options, placeholder }: { name
 }
 
 export function EmployeeForm({ employee, managerOptions, departmentOptions, userOptions, companyOptions, aiConfigured, cleIa = null }: Props) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
   // CE QUE L'ENREGISTREMENT A DIT — un refus, ou ce qu'il a entraîné (le compte qui suit la fiche,
@@ -131,8 +132,15 @@ export function EmployeeForm({ employee, managerOptions, departmentOptions, user
     if (!f) { setAnalyzeMsg({ ok: false, text: "Choisissez d'abord le contrat (PDF ou image)." }); return; }
     setAnalyzing(true); setAnalyzeMsg(null);
     const fd = new FormData(); fd.set("file", f);
-    const r = await analyzeEmployeeContract(fd);
-    setAnalyzing(false);
+    let r: Awaited<ReturnType<typeof analyzeEmployeeContract>>;
+    try {
+      r = await analyzeEmployeeContract(fd);
+    } catch {
+      setAnalyzeMsg({ ok: false, text: actionFailureMessage("THROWN") });
+      return;
+    } finally {
+      setAnalyzing(false);
+    }
     if (!r.ok) { setAnalyzeMsg({ ok: false, text: r.error ?? "Analyse impossible." }); return; }
     setPrefill((p) => ({ ...p, ...(r.values ?? {}) }));
     setPrefillVersion((n) => n + 1);
@@ -159,16 +167,22 @@ export function EmployeeForm({ employee, managerOptions, departmentOptions, user
         action={async (fd) => {
           setSaving(true);
           setRetour(null);
-          const r = await updateEmployee(fd);
-          setSaving(false);
-          if (!r.ok) {
-            setRetour({ ok: false, text: r.error ?? "Enregistrement refusé." });
-            return;
+          try {
+            const r = await updateEmployee(fd);
+            setSaving(false);
+            if (!r.ok) {
+              setRetour({ ok: false, text: r.error ?? "Enregistrement refusé." });
+              return;
+            }
+            if (r.message) setRetour({ ok: true, text: r.message });
+            setSaved(true);
+            rafraichir();
+            setTimeout(() => setSaved(false), 1500);
+          } catch {
+            setRetour({ ok: false, text: actionFailureMessage("THROWN") });
+          } finally {
+            setSaving(false);
           }
-          if (r.message) setRetour({ ok: true, text: r.message });
-          setSaved(true);
-          router.refresh();
-          setTimeout(() => setSaved(false), 1500);
         }}
         className="space-y-4"
       >

@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Trash2, Loader2, ShoppingBasket, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { createPurchaseRequest } from "@/lib/actions/purchase-request-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { estimatedTotal, type PurchaseLine } from "@/lib/general-means/purchase-request";
 import { formatCurrency } from "@/lib/utils";
 import type { CatalogArticle } from "@/app/(app)/moyens-generaux/receipt-lines";
@@ -35,7 +36,7 @@ export function PurchaseRequestForm({
   /** Le responsable qui recevra la demande, nommé — pour qu'on sache à qui l'on écrit. */
   managerName: string | null;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [rows, setRows] = React.useState<Row[]>([blank()]);
   const [busy, setBusy] = React.useState(false);
@@ -57,13 +58,20 @@ export function PurchaseRequestForm({
   const submit = async (fd: FormData) => {
     setBusy(true); setMsg(null);
     fd.set("lines", JSON.stringify(rows.map(({ key: _key, ...l }) => l)));
-    const r = await createPurchaseRequest(undefined, fd);
-    setBusy(false);
-    if (!r.ok) { setMsg({ ok: false, text: r.error ?? "Échec." }); return; }
+    let r: Awaited<ReturnType<typeof createPurchaseRequest>>;
+    try {
+      r = await createPurchaseRequest(undefined, fd);
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!r.ok) { setMsg({ ok: false, text: r.error ?? "La demande d'achat n'a pas été envoyée." }); return; }
     setMsg({ ok: true, text: r.message ?? "Demande envoyée." });
     setRows([blank()]);
     setOpen(false);
-    router.refresh();
+    rafraichir();
   };
 
   return (

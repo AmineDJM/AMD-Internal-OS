@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, Clock, Loader2, Lock, Pencil, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { ExpenseClaimFields } from "./expense-claim-form";
 import { canEditExpenseClaim, expenseEditLabel, type ExpenseEditState } from "@/lib/hr/expense-claim";
 import { updateExpenseClaim } from "@/lib/actions/hr-document-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * CORRIGER SA NOTE DE FRAIS — pendant quinze minutes, ou après si les RH ont rouvert.
@@ -32,7 +33,7 @@ export function ExpenseClaimEdit({
   amount: number | null;
   details: string | null;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -51,9 +52,16 @@ export function ExpenseClaimEdit({
   const submit = async (fd: FormData) => {
     setBusy(true); setErr(null);
     fd.set("id", id);
-    const r = await updateExpenseClaim(fd);
-    setBusy(false);
-    if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "La modification a échoué.");
+    let r: Awaited<ReturnType<typeof updateExpenseClaim>>;
+    try {
+      r = await updateExpenseClaim(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (r.ok) { setOpen(false); rafraichir(); } else setErr(r.error ?? "La modification a échoué.");
   };
 
   return (
