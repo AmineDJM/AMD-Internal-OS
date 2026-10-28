@@ -41,10 +41,22 @@ const REPAREES: { fichier: string; capacites: string[] }[] = [
  */
 const REFUS_EN_PROSE = /return\s+[`"'](?:Aucun|Aucune|Rien|Pas de|Il n'y a)/;
 
+/**
+ * `executive-tools.ts` a été découpé (lot V4) : le balayage du refus en prose couvre TOUT le dossier,
+ * comme il couvrait tout l'ancien fichier — pas seulement le morceau qui porte `inspect_record`.
+ */
+const DOSSIER_EXECUTIF = "src/lib/assistant/executive-tools";
+const BALAYES: { fichier: string; capacites: string[] }[] = [
+  ...REPAREES,
+  ...fs.readdirSync(DOSSIER_EXECUTIF)
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "inspect-record.ts")
+    .map((f) => ({ fichier: `${DOSSIER_EXECUTIF}/${f}`, capacites: ["inspect_record"] })),
+];
+
 describe("§118.20 — la forme d'une sortie ne dépend jamais de la donnée", () => {
   it("aucune capacité réparée ne rend une PHRASE là où elle rendait un objet", () => {
     const fautes: string[] = [];
-    for (const { fichier, capacites } of REPAREES) {
+    for (const { fichier, capacites } of BALAYES) {
       const src = fs.readFileSync(fichier, "utf8");
       for (const [i, ligne] of src.split("\n").entries()) {
         if (ligne.trim().startsWith("*") || ligne.trim().startsWith("//")) continue;

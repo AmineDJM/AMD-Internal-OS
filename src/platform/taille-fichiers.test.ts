@@ -44,11 +44,6 @@ const HERITES: Readonly<Record<string, number>> = {
   "src/lib/actions/regulatory-actions.ts": 1465,
   "src/lib/actions/sales-planning-actions.ts": 1178,
   "src/lib/assistant.ts": 7314,
-  "src/lib/assistant/action-registry.ts": 2213,
-  "src/lib/assistant/adam-tools.ts": 1089,
-  "src/lib/assistant/executive-tools.ts": 1384,
-  "src/lib/assistant/ops/catalog.ts": 5399,
-  "src/lib/assistant/ops/index.ts": 1282,
 };
 
 function fichiersDeProduction(dir: string, out: string[] = []): string[] {
