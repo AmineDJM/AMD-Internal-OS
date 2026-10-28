@@ -169,6 +169,8 @@ describe("mise en service ADAM — couche par couche, tout est BRANCHÉ", () => 
       "lib/comms/policy.ts", "lib/comms/outbound.ts", "lib/comms/missions.ts",
       "lib/comms/untrusted.ts", "lib/comms/loop-safety.ts", "lib/comms/email-intelligence.ts",
       "lib/assistant/adam-tools.ts",
+      "lib/assistant/adam-tools/commun.ts", "lib/assistant/adam-tools/gmail.ts", "lib/assistant/adam-tools/missions.ts",
+      "lib/assistant/adam-tools/agenda-drive.ts", "lib/assistant/adam-tools/bureautique-contacts.ts",
     ];
     const morts: string[] = [];
     for (const f of files) {
