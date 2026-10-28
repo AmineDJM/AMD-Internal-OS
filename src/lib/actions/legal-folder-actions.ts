@@ -1,5 +1,6 @@
 "use server";
 
+import { ouvrirPourEcrire } from "@/lib/acces/objet";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -61,9 +62,11 @@ export async function createLegalFolder(_prev: ActionResult | undefined, formDat
 /** Renomme un dossier, ou le déplace sous un autre. */
 export async function updateLegalFolder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "LEGAL", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dossier introuvable." };
+  // LA PORTE DU DOSSIER (audit 27/10, SA-16) : le droit du module ET sa société — la création la vérifiait déjà.
+  const porte = await ouvrirPourEcrire(user, "LEGAL_FOLDER", id, "UPDATE");
+  if (!porte.ok) return porte;
   const existing = await prisma.legalFolder.findUnique({ where: { id }, select: { name: true } });
   if (!existing) return { ok: false, error: "Dossier introuvable." };
 
@@ -107,9 +110,11 @@ export async function updateLegalFolder(formData: FormData): Promise<ActionResul
  */
 export async function deleteLegalFolder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "LEGAL", "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dossier introuvable." };
+  // LA PORTE DU DOSSIER (audit 27/10, SA-16) : le droit du module ET sa société — la création la vérifiait déjà.
+  const porte = await ouvrirPourEcrire(user, "LEGAL_FOLDER", id, "DELETE");
+  if (!porte.ok) return porte;
   const existing = await prisma.legalFolder.findUnique({ where: { id }, select: { name: true } });
   if (!existing) return { ok: false, error: "Dossier introuvable." };
 
@@ -137,6 +142,9 @@ export async function moveLegalDocuments(formData: FormData): Promise<ActionResu
   const folderId = fdStr(formData, "folderId");
   let folderName = "Non classés";
   if (folderId) {
+    // On ne range pas dans le dossier d'une société qu'on ne voit pas (SA-16).
+    const porte = await ouvrirPourEcrire(user, "LEGAL_FOLDER", folderId, "UPDATE");
+    if (!porte.ok) return porte;
     const folder = await prisma.legalFolder.findUnique({ where: { id: folderId }, select: { name: true } });
     if (!folder) return { ok: false, error: "Dossier introuvable." };
     folderName = folder.name;
@@ -151,6 +159,7 @@ export async function moveLegalDocuments(formData: FormData): Promise<ActionResu
   });
   if (movable.length === 0) return { ok: false, error: "Ces documents ne sont pas dans votre périmètre." };
 
+  // porte d'écriture : `movable` ne garde que les pièces des sociétés de la personne (filtre ci-dessus).
   await prisma.legalDocument.updateMany({
     where: { id: { in: movable.map((d) => d.id) } },
     data: { folderId: folderId || null },

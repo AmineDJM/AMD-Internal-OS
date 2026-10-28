@@ -3,10 +3,13 @@ import type { CurrentUser } from "@/lib/session";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE SOCIÉTÉ VOISINE NE S'ÉCRIT PAS PAR IDENTIFIANT (audit 27/10/2026, SA-13).
+ * UNE SOCIÉTÉ VOISINE NE S'ÉCRIT PAS PAR IDENTIFIANT (audit 27/10/2026, SA-13 et SA-16).
  *
  *   SA-13 — événements : inscrire, changer le statut, retirer un participant, supprimer l'événement
  *           n'exigeaient que le droit du module ; `updateEvent` lisait déjà la porte de la fiche.
+ *   SA-16 — rapports terrain : un manager (« lire le module » suffisait) réécrivait, validait ou rouvrait
+ *           le rapport d'une autre société ; dossiers Legal et Courrier : la création vérifiait l'entité,
+ *           la modification et la suppression non.
  *
  * Chaque acteur est cloisonné sur Alpha ; un témoin prouve qu'il agit sur Alpha — c'est la société de
  * l'OBJET qui le bloque, pas son droit.
@@ -21,6 +24,9 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUse
 import { prisma } from "@/lib/prisma";
 import { getAccess, type Role } from "@/lib/rbac";
 import { addRegistration, setRegistrationStatus, deleteRegistration, deleteEvent } from "@/lib/actions/event-actions";
+import { validateFieldReport, updateFieldReport } from "@/lib/actions/field-report-actions";
+import { updateLegalFolder, deleteLegalFolder } from "@/lib/actions/legal-folder-actions";
+import { updateMailFolder, deleteMailFolder } from "@/lib/actions/mail-folder-actions";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -86,5 +92,37 @@ suite("Écritures par identifiant : la société de l'objet", () => {
     expect(r.ok, r.ok ? "" : r.error).toBe(true);
     const reg = await prisma.eventRegistration.findFirstOrThrow({ where: { eventId: evA.id } });
     expect((await deleteRegistration(fd({ id: reg.id }))).ok).toBe(true);
+  });
+
+  it("SA-16 : un manager d'Alpha ne réécrit ni ne valide un rapport terrain de Beta ; il valide celui d'Alpha", async () => {
+    ACTEUR = acteurs.mgr;
+    const [rB, rA] = await Promise.all([
+      prisma.fieldReport.create({ data: { companyId: ids.B, summary: `${TAG} visite Beta`, status: "DRAFT" } }),
+      prisma.fieldReport.create({ data: { companyId: ids.A, summary: `${TAG} visite Alpha`, status: "DRAFT" } }),
+    ]);
+    expect((await updateFieldReport(fd({ id: rB.id, summary: `${TAG} réécrit` }))).ok).toBe(false);
+    expect((await validateFieldReport(fd({ id: rB.id }))).ok).toBe(false);
+    const b = await prisma.fieldReport.findUniqueOrThrow({ where: { id: rB.id } });
+    expect([b.summary, b.status]).toEqual([`${TAG} visite Beta`, "DRAFT"]);
+    const ok = await validateFieldReport(fd({ id: rA.id }));
+    expect(ok.ok, ok.ok ? "" : ok.error).toBe(true);
+  });
+
+  it("SA-16 : les dossiers Legal et Courrier de Beta ne se renomment ni ne se suppriment ; ceux d'Alpha, si", async () => {
+    ACTEUR = acteurs.leg;
+    const [lB, lA, mB, mA] = await Promise.all([
+      prisma.legalFolder.create({ data: { name: `${TAG} contrats Beta`, companyId: ids.B } }),
+      prisma.legalFolder.create({ data: { name: `${TAG} contrats Alpha`, companyId: ids.A } }),
+      prisma.mailEntryFolder.create({ data: { name: `${TAG} plis Beta`, companyId: ids.B } }),
+      prisma.mailEntryFolder.create({ data: { name: `${TAG} plis Alpha`, companyId: ids.A } }),
+    ]);
+    expect((await updateLegalFolder(fd({ id: lB.id, name: `${TAG} pris` }))).ok).toBe(false);
+    expect((await deleteLegalFolder(fd({ id: lB.id }))).ok).toBe(false);
+    expect((await updateMailFolder(fd({ id: mB.id, name: `${TAG} pris` }))).ok).toBe(false);
+    expect((await deleteMailFolder(fd({ id: mB.id }))).ok).toBe(false);
+    expect(await prisma.legalFolder.findUnique({ where: { id: lB.id }, select: { name: true } })).toEqual({ name: `${TAG} contrats Beta` });
+    expect(await prisma.mailEntryFolder.findUnique({ where: { id: mB.id }, select: { name: true } })).toEqual({ name: `${TAG} plis Beta` });
+    expect((await updateLegalFolder(fd({ id: lA.id, name: `${TAG} contrats Alpha 2026` }))).ok).toBe(true);
+    expect((await deleteMailFolder(fd({ id: mA.id }))).ok).toBe(true);
   });
 });
