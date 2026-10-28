@@ -11,7 +11,8 @@
 # typecheck et compilation additionnés dans un seul processus dépassent la mémoire.
 #   verifier : migrations sur base vide · contrat des actions · typecheck · lint
 #   tests    : Vitest complet en 4 tranches, chacune contre son Postgres 16 (les suites DB tournent)
-#   build    : `npm run build:render` à froid — la commande exacte du déploiement
+#   build    : `npm run build:render` à froid — la commande exacte du déploiement — puis le plafond
+#              du JS de la coque (`npm run bundle:plafond`)
 #
 # Rien ici ne sort : aucune clé de fournisseur, ADAM_SORTIE_INTERDITE=1, base locale au runner.
 # Audit 27/10/2026 — docs/audit/2026-10-27/10-infra-ci-observabilite.md (INFRA-01).
@@ -138,3 +139,7 @@ jobs:
       # rater l'erreur « Can't resolve 'fs' » que Render, parti d'un dossier vide, verra.
       # `next build` n'ouvre aucune connexion à la base (mesuré, refonte P0) : pas de service ici.
       - run: npm run build:render
+      # LE POIDS DE LA COQUE (audit performance PERF-05) : le JS que paie CHAQUE page. Plafond dans
+      # `scripts/mesure-bundle.mjs` (PLAFOND_COQUE_KB) — un import « tout le module » qui revient échoue ici.
+      - name: Plafond du JS de la coque
+        run: npm run bundle:plafond
