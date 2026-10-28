@@ -168,7 +168,10 @@ describe("moteur de qualité des données — banc d'anomalies plantées", () =>
   });
 
   it("une correction PROPOSÉE s'applique d'un clic sous les droits ; écarter exige un motif et tient au balayage suivant", async () => {
-    const admin = (await prisma.user.findFirst({ where: { role: "SUPER_ADMIN", isActive: true } })) as unknown as CurrentUser | null;
+    // SON PROPRE Super Admin (effacé par `nettoyer`, préfixe `__dq__`) : une base fraîche (CI) n'en a aucun.
+    const admin = (await prisma.user.create({
+      data: { name: `${P} Super Admin`, email: "__dq__admin@test.dz", passwordHash: "x", role: "SUPER_ADMIN", isActive: true },
+    })) as unknown as CurrentUser | null;
     expect(admin, "un Super Admin existe en base de test").not.toBeNull();
     const user = { ...admin!, access: (admin as unknown as { access?: unknown })?.access } as CurrentUser;
     const echu = await prisma.dataQualityFinding.findFirst({ where: { regle: "contrat_actif_echu", entiteId: ids.c1, status: "OPEN" } });
