@@ -180,6 +180,19 @@ describe("le journal et les plafonds, au faux modèle", () => {
     const appels = await lignes(v.id);
     expect(appels).toHaveLength(3); // deux étapes du tour + la rédaction
     expect(new Set(appels.map((a) => a.turnId)).size).toBe(1);
+
+    // EN FLUX (le fil) : la même imputation — le budget suit l'exécution à travers la lecture du flux.
+    const w = compte("dans-le-flux");
+    remplacerModelesPourTests([modeleFactice([{ texte: "Résumé." }]).modele as never]);
+    const g = modeleFactice([{ appel: { outil: "lire", entree: {} } }, { texte: "Fin." }]);
+    await repondreAvecSecours({
+      user: w, message: "?", historique: [], instructions: "Banc.", outils: [outilQuiResume],
+      modeles: [g.modele as never], delaiMs: 5_000, propositionsFaites: () => 0, surTexte: () => {},
+    });
+    const enFlux = await lignes(w.id);
+    expect(enFlux).toHaveLength(3); // deux étapes du flux + la rédaction, sous l'origine du tour
+    expect(enFlux.every((a) => a.role === "conversation")).toBe(true);
+    expect(new Set(enFlux.map((a) => a.turnId)).size).toBe(1);
   });
 });
 

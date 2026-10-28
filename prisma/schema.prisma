@@ -869,6 +869,8 @@ model AssistantActionIntent {
   @@index([userId, proposedAt])
   @@index([userId, status])
   @@index([missionId])
+  /// Le balayage des intentions en plan (IA-ASSISTANT-07) : par état et par âge, toutes personnes confondues.
+  @@index([status, proposedAt])
 }
 
 model AssistantMemoryItem {
