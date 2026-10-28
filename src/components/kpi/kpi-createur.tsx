@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
@@ -92,7 +93,7 @@ export function KpiCreateur({ personnes, roles = [], onAjoute }: {
     fd.set("poids", poids);
     const r = await creerKpi(fd).catch(() => null);
     setBusy(null);
-    setMsg({ ok: Boolean(r?.ok), texte: r?.ok ? r.message ?? "Ajouté." : r?.error ?? "Échec." });
+    setMsg({ ok: Boolean(r?.ok), texte: r?.ok ? r.message ?? "Ajouté." : r ? r.error ?? "Le KPI n'a pas été ajouté." : actionFailureMessage("THROWN") });
     if (r?.ok) { setProps([]); setApercu(null); setBulles([]); onAjoute(); }
   };
 

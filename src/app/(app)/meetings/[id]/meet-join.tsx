@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Video, ExternalLink, Link2, Loader2, Check, Pencil } from "lucide-react";
 import { setMeetingLink } from "@/lib/actions/meeting-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 /**
  * Rejoindre une réunion via son **lien** (Google Meet, Teams, Zoom… ou lien d'appel).
@@ -13,18 +14,13 @@ import { Input } from "@/components/ui/input";
  * coller / modifier le lien. (Le code Jitsi reste présent, simplement masqué ici.)
  */
 export function MeetJoin({ meetingId, meetLink, canManage }: { meetingId: string; meetLink: string | null; canManage: boolean }) {
-  const router = useRouter();
   const [editing, setEditing] = React.useState(false);
   const [value, setValue] = React.useState(meetLink ?? "");
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { saving, err, run } = useAction();
 
   async function save() {
-    setSaving(true); setErr(null);
     const fd = new FormData(); fd.set("id", meetingId); fd.set("meetLink", value);
-    const r = await setMeetingLink(fd);
-    setSaving(false);
-    if (r.ok) { setEditing(false); router.refresh(); } else setErr(r.error ?? "Erreur.");
+    await run(() => setMeetingLink(fd), () => setEditing(false));
   }
 
   // Saisie / modification du lien.
@@ -37,7 +33,7 @@ export function MeetJoin({ meetingId, meetLink, canManage }: { meetingId: string
         </Button>
         {meetLink && <Button type="button" variant="outline" onClick={() => { setEditing(false); setValue(meetLink); }}>Annuler</Button>}
       </div>
-      {err && <p className="text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 

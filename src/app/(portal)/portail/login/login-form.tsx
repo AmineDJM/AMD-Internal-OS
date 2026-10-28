@@ -6,9 +6,12 @@ import { Loader2, LogIn, AlertCircle } from "lucide-react";
 import { supplierLogin } from "@/lib/actions/supplier-portal-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export function SupplierLoginForm() {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [pending, setPending] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
@@ -16,9 +19,13 @@ export function SupplierLoginForm() {
     <form
       action={async (fd) => {
         setPending(true); setErr(null);
-        const r = await supplierLogin(undefined, fd);
-        if (r.ok) { router.replace("/portail"); router.refresh(); }
-        else { setErr(r.error ?? "Erreur."); setPending(false); }
+        try {
+          const r = await supplierLogin(undefined, fd);
+          if (r.ok) { router.replace("/portail"); rafraichir(); }
+          else { setErr(r.error ?? "La connexion n'a pas abouti."); setPending(false); }
+        } catch {
+          setErr(actionFailureMessage("THROWN")); setPending(false);
+        }
       }}
       className="space-y-4"
     >

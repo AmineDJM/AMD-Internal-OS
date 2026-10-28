@@ -28,6 +28,9 @@ import { matchesConfirmText } from "@/lib/assistant/confirm";
 import type { AssistantAttachment, AssistantFileOption } from "@/lib/assistant-attachments";
 import type { ThreadSummary } from "@/lib/assistant-memory";
 import { useScrollLock } from "@/lib/use-scroll-lock";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /** Pièce jointe en attente d'envoi : fichier local (upload) ou fichier du Drive (référence). */
 type PendingAttach =
@@ -222,6 +225,8 @@ export function AssistantChat({
   historyOpen?: boolean;
   onHistoryOpenChange?: (open: boolean) => void;
 }) {
+  const confirmer = useConfirmer();
+  const retours = useRetours();
   const [messages, setMessages] = React.useState<Msg[]>(() => (initialMessages ?? []).map(repriseDuTour));
   const [input, setInput] = React.useState("");
   const [sending, setSending] = React.useState(false);
@@ -309,17 +314,25 @@ export function AssistantChat({
   }, [initialThreadId, memoryEnabled]);
 
   const removeThread = async (id: string) => {
-    const r = await deleteMyAssistantThread(id);
-    if (r.ok) {
-      if (id === threadId) { setThreadId(null); setMessages([]); }
-      await refreshThreads();
+    try {
+      const r = await deleteMyAssistantThread(id);
+      if (r.ok) {
+        if (id === threadId) { setThreadId(null); setMessages([]); }
+        await refreshThreads();
+      }
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
     }
   };
 
   const forgetAll = async () => {
-    if (!window.confirm("Effacer TOUTE la mémoire de votre assistant (conversations et souvenirs) ? Cette action est définitive.")) return;
-    const r = await forgetMyAssistantMemory();
-    if (r.ok) { setThreadId(null); setMessages([]); await refreshThreads(); }
+    if (!(await confirmer("Effacer TOUTE la mémoire de votre assistant (conversations et souvenirs) ? Cette action est définitive."))) return;
+    try {
+      const r = await forgetMyAssistantMemory();
+      if (r.ok) { setThreadId(null); setMessages([]); await refreshThreads(); }
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    }
   };
 
   const addFiles = (files: FileList | File[]) => {
@@ -1317,8 +1330,12 @@ function DriveFilePicker({ onPick, onClose }: { onPick: (f: AssistantFileOption)
     let alive = true;
     setLoading(true);
     const t = setTimeout(async () => {
-      const res = await listAssistantFiles(q);
-      if (alive) { setFiles(res); setLoading(false); }
+      try {
+        const res = await listAssistantFiles(q);
+        if (alive) { setFiles(res); setLoading(false); }
+      } catch {
+        if (alive) { setFiles([]); setLoading(false); }
+      }
     }, q ? 250 : 0);
     return () => { alive = false; clearTimeout(t); };
   }, [q]);

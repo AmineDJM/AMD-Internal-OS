@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, CalendarClock, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 import { proposeHrMeeting, confirmHrMeeting } from "@/lib/actions/hr-document-actions";
 import { formatAlgiers } from "@/lib/calendar-tz";
 
@@ -24,9 +25,7 @@ export function MeetingControls({
   /** Libellé de l'autre partie (« les RH » ou le nom de l'employé). */
   otherParty: string;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
   const [counter, setCounter] = React.useState(false);
 
   const whenLabel = meetingAt
@@ -34,11 +33,11 @@ export function MeetingControls({
     : null;
 
   async function accept() {
-    setBusy(true); setErr(null);
     const fd = new FormData(); fd.set("id", requestId);
-    const r = await confirmHrMeeting(fd);
-    setBusy(false);
-    if (!r.ok) setErr(r.error ?? "Échec."); else router.refresh();
+    await run(async () => {
+      const r = await confirmHrMeeting(fd);
+      return r.ok ? r : { ...r, error: r.error ?? "La date n'a pas été acceptée." };
+    });
   }
 
   if (confirmed && whenLabel) {
@@ -72,11 +71,12 @@ export function MeetingControls({
       {(counter || (!whenLabel && canPropose)) && (
         <form
           action={async (fd) => {
-            setBusy(true); setErr(null);
             fd.set("id", requestId);
-            const r = await proposeHrMeeting(fd);
-            setBusy(false);
-            if (!r.ok) setErr(r.error ?? "Échec."); else { setCounter(false); router.refresh(); }
+            const proposer = async () => {
+              const r = await proposeHrMeeting(fd);
+              return r.ok ? r : { ...r, error: r.error ?? "La proposition de date n'a pas été envoyée." };
+            };
+            await run(proposer, () => setCounter(false));
           }}
           className="flex flex-wrap items-end gap-2"
         >
@@ -87,7 +87,7 @@ export function MeetingControls({
           <Button type="submit" size="sm" disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Envoyer la proposition</Button>
         </form>
       )}
-      {err && <p className="text-xs text-destructive">{err}</p>}
+      <Retour ton="erreur" className="py-1 text-xs">{err}</Retour>
     </div>
   );
 }

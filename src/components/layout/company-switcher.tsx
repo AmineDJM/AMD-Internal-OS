@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Building2, Check, ChevronDown, Loader2 } from "lucide-react";
 import { setCompanyScope } from "@/lib/actions/company-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 interface Company {
   id: string;
@@ -17,7 +19,8 @@ interface Company {
  * filtre ; sinon les vues serveur se restreignent à l'entité choisie (cookie de portée).
  */
 export function CompanySwitcher({ companies, scope }: { companies: Company[]; scope: string | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const ref = React.useRef<HTMLDivElement>(null);
@@ -52,10 +55,16 @@ export function CompanySwitcher({ companies, scope }: { companies: Company[]; sc
 
   async function choose(value: string) {
     setBusy(true);
-    await setCompanyScope(value);
-    setOpen(false);
-    setBusy(false);
-    router.refresh();
+    try {
+      await setCompanyScope(value);
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setOpen(false);
+      setBusy(false);
+    }
+    rafraichir();
   }
 
   return (

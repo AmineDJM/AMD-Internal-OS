@@ -5,6 +5,8 @@ import { ArrowLeft, Hash, Users, Info, Pin, ChevronDown, ChevronUp, X, Phone, Vi
 import { startCall } from "@/lib/actions/meeting-actions";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import type { ConversationDetailDTO, ConvMemberDTO, MessageDTO } from "@/lib/queries/messaging";
 import { CHAT_STATUS_LABEL, CHAT_STATUSES, peutGererLaConversation, type ChatStatus } from "@/lib/messaging-ui";
 import { MessageItem } from "./message-item";
@@ -199,15 +201,22 @@ export function MessageThread({
 /** Lance un appel audio/vidéo (Jitsi) depuis la conversation et ouvre la salle. */
 function CallButtons({ conversationId }: { conversationId: string }) {
   const [busy, setBusy] = React.useState<"audio" | "video" | null>(null);
+  const retours = useRetours();
 
   async function call(video: boolean) {
     setBusy(video ? "video" : "audio");
     const fd = new FormData();
     fd.set("conversationId", conversationId);
     fd.set("withVideo", video ? "true" : "false");
-    const r = await startCall(fd);
-    setBusy(null);
-    if (r.ok && r.id) window.open(`/meetings/${r.id}`, "_blank", "noopener");
+    try {
+      const r = await startCall(fd);
+      if (r.ok && r.id) window.open(`/meetings/${r.id}`, "_blank", "noopener");
+      else if (!r.ok) retours.erreur(r.error ?? "L'appel n'a pas été lancé.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (

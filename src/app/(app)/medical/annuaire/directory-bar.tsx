@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 
 import type { DirectoryRow } from "@/lib/annuaires/types";
 
@@ -51,21 +53,21 @@ export function DirectoryBar({
   const [adding, setAdding] = React.useState(false);
   const [editing, setEditing] = React.useState<DirectoryRow | null>(null);
   const [accessFor, setAccessFor] = React.useState<DirectoryRow | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  // Les fiches (créer, renommer, accès) disent leur erreur dans la fiche ; la corbeille d'une
+  // pastille n'a pas de place pour parler : son refus part en avis flottant.
+  const fiche = useAction();
+  const suppression = useAction({ signalerErreurs: true });
+  const busy = fiche.busy || suppression.busy;
+  const { err, setErr, run } = fiche;
 
   const href = (id: string | null) => (id ? `${basePath}?annuaire=${id}` : basePath);
 
   const remove = async (d: DirectoryRow) => {
-    if (!window.confirm(
-      `Supprimer l'annuaire « ${d.name} » ?\n\n${d.doctorCount} praticien(s) repasseront dans l'annuaire général — aucun n'est supprimé.`,
-    )) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", d.id);
-    const r = await deleteMedicalDirectory(fd);
-    setBusy(false);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    else { if (current === d.id) router.push(basePath); else router.refresh(); }
+    const ok = await suppression.run(() => deleteMedicalDirectory(fd), undefined, {
+      confirmer: `Supprimer l'annuaire « ${d.name} » ?\n\n${d.doctorCount} praticien(s) repasseront dans l'annuaire général — aucun n'est supprimé.`,
+    });
+    if (ok && current === d.id) router.push(basePath);
   };
 
   return (
@@ -146,10 +148,7 @@ export function DirectoryBar({
           title="Nouvel annuaire" companies={companies} defaults={{}} busy={busy} err={err}
           onClose={() => setAdding(false)}
           onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
-            const r = await createMedicalDirectory(undefined, fd);
-            setBusy(false);
-            if (r.ok) { setAdding(false); router.refresh(); } else setErr(r.error ?? "Échec.");
+            await run(() => createMedicalDirectory(undefined, fd), () => setAdding(false));
           }}
         />
       )}
@@ -161,11 +160,8 @@ export function DirectoryBar({
           busy={busy} err={err}
           onClose={() => setEditing(null)}
           onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
             fd.set("id", editing.id);
-            const r = await updateMedicalDirectory(fd);
-            setBusy(false);
-            if (r.ok) { setEditing(null); router.refresh(); } else setErr(r.error ?? "Échec.");
+            await run(() => updateMedicalDirectory(fd), () => setEditing(null));
           }}
         />
       )}
@@ -175,11 +171,8 @@ export function DirectoryBar({
           directory={accessFor} people={people} busy={busy} err={err}
           onClose={() => setAccessFor(null)}
           onSubmit={async (fd) => {
-            setBusy(true); setErr(null);
             fd.set("id", accessFor.id);
-            const r = await setDirectoryAccess(fd);
-            setBusy(false);
-            if (r.ok) { setAccessFor(null); router.refresh(); } else setErr(r.error ?? "Échec.");
+            await run(() => setDirectoryAccess(fd), () => setAccessFor(null));
           }}
         />
       )}
@@ -219,7 +212,7 @@ function AccessSheet({
             </label>
           ))}
         </div>
-        {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        <Retour ton="erreur">{err}</Retour>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy} className="w-full sm:w-auto">Annuler</Button>
           <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer l&apos;accès</Button>
@@ -258,7 +251,7 @@ function DirectorySheet({
           <Label htmlFor="md-desc">Description (facultative)</Label>
           <Textarea id="md-desc" name="description" rows={2} />
         </div>
-        {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+        <Retour ton="erreur">{err}</Retour>
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy} className="w-full sm:w-auto">Annuler</Button>
           <Button type="submit" disabled={busy} className="w-full sm:w-auto">{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button>

@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { UploadCloud, Loader2, CheckCircle2, AlertCircle, X, ChevronDown, Ban } from "lucide-react";
 import {
   envoyerParties, EnvoiAnnule, Debitmetre, debitLisible, resteLisible, type PlanClient,
 } from "@/lib/storage/envoi-direct-client";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 
 /**
  * GESTIONNAIRE D'ENVOIS GÉNÉRIQUE, GLOBAL — n'importe quel téléversement de la plateforme
@@ -141,7 +141,8 @@ function postFormXhr(
 }
 
 export function BackgroundUploadProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  // Fin de lot en tâche de fond : `enCours` n'est lu nulle part — aucun geste n'est bloqué.
+  const { rafraichir } = useRafraichir();
   const [jobs, setJobs] = React.useState<BgJob[]>([]);
   // L'état de chaque fichier, tenu AUSSI hors de React : le bilan de fin de lot (`onJobDone`) se lit
   // ici, de façon synchrone — l'état React n'est pas lisible depuis la boucle d'envoi.
@@ -346,8 +347,8 @@ export function BackgroundUploadProvider({ children }: { children: React.ReactNo
         annules: s.filter((st) => st === "cancelled").length,
       });
     } catch { /* l'écran qui écoutait a pu disparaître */ }
-    router.refresh();
-  }, [patchFile, router, track, noterOctets]);
+    rafraichir();
+  }, [patchFile, rafraichir, track, noterOctets]);
 
   /**
    * ANNULER UN LOT EN COURS.

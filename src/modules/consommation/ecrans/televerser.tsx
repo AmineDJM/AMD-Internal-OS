@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +17,14 @@ export function TeleverserConsommation() {
     if (!fichier) return;
     setEnvoi(true); setErreur(null);
     const fd = new FormData(); fd.set("fichier", fichier);
-    const r = await importerFichierConsommation(fd);
-    setEnvoi(false);
-    if (!r.ok) setErreur(r.error); else router.push(`/consommation/${r.importId}`);
+    try {
+      const r = await importerFichierConsommation(fd);
+      if (!r.ok) setErreur(r.error); else router.push(`/consommation/${r.importId}`);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
   return (
     <div className="surface flex flex-col gap-3 p-3 sm:flex-row sm:flex-wrap sm:items-end sm:p-4">

@@ -9,6 +9,9 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ROLE_LABELS, CONV_NOTIFY_LEVEL, CONV_MEMBER_ROLE } from "@/lib/labels";
 import type { ConversationDetailDTO, DirectoryUserDTO } from "@/lib/queries/messaging";
 import {
@@ -37,8 +40,14 @@ export function InfoPanel({ detail, directory, selfId, onChanged, onLeft, onClos
   const [description, setDescription] = React.useState(detail.description ?? "");
   const [adding, setAdding] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const confirmer = useConfirmer();
+  const retours = useRetours();
 
-  const act = async (fn: () => Promise<{ ok: boolean }>) => { setBusy(true); await fn(); setBusy(false); onChanged(); };
+  const act = async (fn: () => Promise<{ ok: boolean }>) => {
+    setBusy(true);
+    try { await fn(); } catch { retours.erreur(actionFailureMessage("THROWN")); } finally { setBusy(false); }
+    onChanged();
+  };
 
   const saveInfo = async () => {
     const f = cid(detail.id);
@@ -158,7 +167,7 @@ export function InfoPanel({ detail, directory, selfId, onChanged, onLeft, onClos
                       <button
                         title="Retirer"
                         aria-label="Retirer"
-                        onClick={() => { if (window.confirm(`Retirer ${m.name} ?`)) { const f = cid(detail.id); f.set("userId", m.userId); act(() => removeMember(f)); } }}
+                        onClick={async () => { if (await confirmer(`Retirer ${m.name} ?`)) { const f = cid(detail.id); f.set("userId", m.userId); act(() => removeMember(f)); } }}
                         className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -184,7 +193,12 @@ export function InfoPanel({ detail, directory, selfId, onChanged, onLeft, onClos
             </button>
           )}
           <button
-            onClick={async () => { if (window.confirm("Quitter cette conversation ?")) { setBusy(true); await leaveConversation(cid(detail.id)); setBusy(false); onLeft(); } }}
+            onClick={async () => {
+              if (!(await confirmer("Quitter cette conversation ?"))) return;
+              setBusy(true);
+              try { await leaveConversation(cid(detail.id)); } catch { retours.erreur(actionFailureMessage("THROWN")); return; } finally { setBusy(false); }
+              onLeft();
+            }}
             className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-destructive hover:bg-destructive/10"
           >
             <LogOut className="h-4 w-4" /> Quitter la conversation

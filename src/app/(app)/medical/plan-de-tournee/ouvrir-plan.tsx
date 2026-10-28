@@ -6,6 +6,8 @@ import { Loader2, Plus } from "lucide-react";
 import { ouvrirPlanTournee } from "@/lib/actions/tour-plan-actions";
 import { GRANULARITE_LABELS, type Granularite } from "@/lib/sfe/tournee";
 import { Button } from "@/components/ui/button";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 /**
  * OUVRIR LE PLAN DE LA PÉRIODE À VENIR — un seul bouton, une seule question.
@@ -22,24 +24,24 @@ export function OuvrirPlan({
   dateSuivante: string;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
 
   const ouvrir = async () => {
-    setBusy(true); setErr(null);
     const fd = new FormData();
     fd.set("granularity", granularite);
     fd.set("date", dateSuivante);
-    const r = await ouvrirPlanTournee(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Ouverture impossible."); return; }
-    if (r.id) router.push(`/medical/plan-de-tournee?plan=${r.id}`);
-    else router.refresh();
+    let planId: string | undefined;
+    const ok = await run(async () => {
+      const r = await ouvrirPlanTournee(fd);
+      planId = r.id;
+      return r.ok ? r : { ...r, error: r.error ?? "Ouverture impossible." };
+    });
+    if (ok && planId) router.push(`/medical/plan-de-tournee?plan=${planId}`);
   };
 
   return (
     <span className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
-      {err && <span className="text-xs text-destructive">{err}</span>}
+      <Retour ton="erreur" className="py-1 text-xs">{err}</Retour>
       <Button size="sm" className="h-auto min-h-12 w-full whitespace-normal py-2 text-sm leading-tight sm:min-h-0 sm:h-8 sm:w-auto sm:whitespace-nowrap sm:py-0 sm:text-xs" onClick={() => void ouvrir()} disabled={busy}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
         Préparer {GRANULARITE_LABELS[granularite].toLowerCase() === "mensuelle" ? "le mois" : "la période"} {labelPeriodeSuivante}

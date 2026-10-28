@@ -7,6 +7,7 @@ import { createMeeting } from "@/lib/actions/meeting-actions";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/input";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 interface UserOption { id: string; name: string; title?: string | null }
 
@@ -44,10 +45,15 @@ export function NewMeetingButton({ users }: { users: UserOption[] }) {
             fd.set("withVideo", video ? "true" : "false");
             fd.set("inPerson", inPerson ? "true" : "false");
             picked.forEach((id) => fd.append("participantIds", id));
-            const r = await createMeeting(undefined, fd);
-            setSaving(false);
-            if (r.ok && r.id) { setOpen(false); router.push(`/meetings/${r.id}`); }
-            else setErr(r.error ?? "Erreur.");
+            try {
+              const r = await createMeeting(undefined, fd);
+              if (r.ok && r.id) { setOpen(false); router.push(`/meetings/${r.id}`); }
+              else setErr(r.error ?? "La réunion n'a pas été créée.");
+            } catch {
+              setErr(actionFailureMessage("THROWN"));
+            } finally {
+              setSaving(false);
+            }
           }}
           className="space-y-4"
         >

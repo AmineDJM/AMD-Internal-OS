@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Search, Upload, Loader2, FileSpreadsheet, Plus, Rows3, LayoutList, Check, X, Trash2, RotateCcw, Columns3, Building2, Stethoscope, ArrowUpRight,
 } from "lucide-react";
@@ -30,6 +29,9 @@ import type { Coord } from "@/lib/grille/selection";
 import { useSelectionGrille } from "@/components/grille/use-selection";
 import { BarreSelection, DockSelection, classeCouleurCellule } from "@/components/grille/barre-selection";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { Retour } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ImportMappingSheet } from "./import-mapping-sheet";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { EntreeMenu, MenuPlus } from "../menu-plus";
@@ -466,6 +468,7 @@ export function AnnuaireGrid({
   // Le rafraîchissement est SUIVI : tant qu'il court, ce qu'on vient d'écrire reste affiché et fait
   // foi pour le geste suivant (§118.172).
   const { enCours: rafraichit, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   // SÉLECTION DE LIGNES (cases) — un annuaire se nettoie par lots (doublons d'import, cabinet
   // fermé). Ligne par ligne, personne ne le fait : on garde alors des fiches fausses, pire
   // qu'absentes. Distincte de la sélection de CELLULES, qui sert à colorer et copier.
@@ -663,18 +666,21 @@ export function AnnuaireGrid({
   // coup sûr — vit ici, à côté de ce qu'il corrige.
   const aRattacher = React.useMemo(() => filtered.filter(estARattacher), [filtered]);
   const [rattachement, setRattachement] = React.useState(false);
-  const rattacher = () => {
+  const rattacher = async () => {
     if (aRattacher.length === 0) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       `Rattacher à l'annuaire des établissements les ${aRattacher.length} fiche(s) « à rattacher » de cette vue ?\n\n`
       + "Seules celles dont le texte désigne EXACTEMENT un établissement actif (majuscules et accents mis à part) seront rattachées ; "
       + "les autres restent « à rattacher », et le message dira pourquoi.",
-    )) return;
+    ))) return;
     setRattachement(true); setMsg(null);
     void rattacherEtablissementsParNom({ ids: aRattacher.map((r) => r.id) }).then((r) => {
       setRattachement(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
+    }).catch(() => {
+      setRattachement(false);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 
@@ -683,18 +689,21 @@ export function AnnuaireGrid({
   // référentiel est rattaché ; les autres sont DITS.
   const specialitesARattacher = React.useMemo(() => filtered.filter(specialiteEstARattacher), [filtered]);
   const [rattachementSpecialites, setRattachementSpecialites] = React.useState(false);
-  const rattacherSpecialites = () => {
+  const rattacherSpecialites = async () => {
     if (specialitesARattacher.length === 0) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       `Rattacher au référentiel des spécialités les ${specialitesARattacher.length} fiche(s) « à rattacher » de cette vue ?\n\n`
       + "Seules celles dont le texte désigne EXACTEMENT une spécialité du référentiel (majuscules et accents mis à part) seront rattachées ; "
       + "les autres restent « à rattacher », et le message dira pourquoi.",
-    )) return;
+    ))) return;
     setRattachementSpecialites(true); setMsg(null);
     void rattacherSpecialitesParNom({ ids: specialitesARattacher.map((r) => r.id) }).then((r) => {
       setRattachementSpecialites(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
+    }).catch(() => {
+      setRattachementSpecialites(false);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 
@@ -707,19 +716,22 @@ export function AnnuaireGrid({
     return !!etab && serviceDeLaSpecialite(etab, r.specialty) !== null;
   }), [filtered, etablissements]);
   const [rattachementAuto, setRattachementAuto] = React.useState(false);
-  const rattacherAuto = () => {
+  const rattacherAuto = async () => {
     if (rattachables.length === 0) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       `Rattacher automatiquement ${rattachables.length} fiche(s) de cette vue ?\n\n`
       + "• l'établissement, quand la wilaya n'a qu'un établissement hospitalier, ou qu'un seul a le service de la spécialité ;\n"
       + "• le service, quand l'établissement a un service qui porte le nom de la spécialité.\n\n"
       + "Les fiches « à trancher » ne sont pas touchées.",
-    )) return;
+    ))) return;
     setRattachementAuto(true); setMsg(null);
     void rattacherAutomatiquement({ ids: rattachables.map((r) => r.id) }).then((r) => {
       setRattachementAuto(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
+    }).catch(() => {
+      setRattachementAuto(false);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 
@@ -947,14 +959,17 @@ export function AnnuaireGrid({
             {canDelete && (
               <Button
                 size="sm" variant="outline" disabled={deleting}
-                onClick={() => {
+                onClick={async () => {
                   // SUPPRIMER = ARCHIVER (réversible) ; dans la vue « Archivés », le même bouton RESTAURE.
-                  if (!archives && !window.confirm(`Archiver ${selected.size} fiche(s) de l'annuaire ? Elles sortent de la feuille mais restent restaurables depuis « Archivés ».`)) return;
+                  if (!archives && !(await confirmer(`Archiver ${selected.size} fiche(s) de l'annuaire ? Elles sortent de la feuille mais restent restaurables depuis « Archivés ».`))) return;
                   setDeleting(true);
                   void (archives ? restaurerDirectoryDoctors : deleteDirectoryDoctors)([...selected]).then((r) => {
                     setDeleting(false);
                     setMsg({ ok: r.ok, text: r.ok ? (r.message ?? (archives ? "Restauré." : "Archivé.")) : (r.error ?? (archives ? "Restauration impossible." : "Archivage impossible.")) });
                     if (r.ok) { setSelected(new Set()); rafraichir(); }
+                  }).catch(() => {
+                    setDeleting(false);
+                    setMsg({ ok: false, text: actionFailureMessage("THROWN") });
                   });
                 }}
                 className={archives ? undefined : "text-destructive"}
@@ -996,7 +1011,7 @@ function AddDoctorRow({
   /** La ligne s'ouvre depuis le bouton de la barre (geste principal) ; elle se referme ici. */
   onClose: () => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const setOpen = (o: boolean) => { if (!o) onClose(); };
   const [lastName, setLastName] = React.useState("");
   const [firstName, setFirstName] = React.useState("");
@@ -1019,8 +1034,11 @@ function AddDoctorRow({
       institutionId: institutionId || null, serviceId: serviceId || null,
     }).then((r) => {
       setBusy(false);
-      if (r.ok) { reset(); setOpen(false); router.refresh(); }
+      if (r.ok) { reset(); setOpen(false); rafraichir(); }
       else setErr(r.error ?? "Ajout impossible.");
+    }).catch(() => {
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
     });
   };
 
@@ -1045,7 +1063,7 @@ function AddDoctorRow({
           {services.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </Select>
       </div>
-      {err && <p className="text-xs text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex items-center gap-2">
         <Button size="sm" disabled={busy} onClick={submit} className="flex-1 sm:flex-none">
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Ajouter
@@ -1068,6 +1086,7 @@ function AddDoctorRow({
  * confirmation le dit.
  */
 function GestionColonnes({ directoryId, colonnes, onDone }: { directoryId: string; colonnes: CustomColumnVue[]; onDone: () => void }) {
+  const confirmer = useConfirmer();
   const [label, setLabel] = React.useState("");
   const [kind, setKind] = React.useState<CustomColumnVue["kind"]>("TEXT");
   const [options, setOptions] = React.useState("");
@@ -1085,17 +1104,23 @@ function GestionColonnes({ directoryId, colonnes, onDone }: { directoryId: strin
       setBusy(false);
       if (r.ok) { setLabel(""); setOptions(""); setKind("TEXT"); onDone(); }
       else setErr(r.error ?? "Ajout impossible.");
+    }).catch(() => {
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
     });
   };
 
-  const retirer = (c: CustomColumnVue) => {
-    if (!window.confirm(`Retirer la colonne « ${c.label} » de cet annuaire ? Les valeurs déjà saisies ne seront plus affichées.`)) return;
+  const retirer = async (c: CustomColumnVue) => {
+    if (!(await confirmer(`Retirer la colonne « ${c.label} » de cet annuaire ? Les valeurs déjà saisies ne seront plus affichées.`))) return;
     const fd = new FormData();
     fd.set("id", c.id);
     setBusy(true); setErr(null);
     void deleteDirectoryColumn(fd).then((r) => {
       setBusy(false);
       if (r.ok) onDone(); else setErr(r.error ?? "Suppression impossible.");
+    }).catch(() => {
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
     });
   };
 

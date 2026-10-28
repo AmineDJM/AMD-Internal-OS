@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Check, Loader2, MapPin, Search, Stethoscope, X } from "lucide-react";
 import { logVisit } from "@/lib/actions/medical-actions";
 import { Button } from "@/components/ui/button";
@@ -9,6 +8,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import type { CarriedProduct, TourneeItem } from "@/lib/sfe-day";
 import type { StockPourVisite } from "@/lib/queries/promo-remises";
 import { BlocMaterielRemis } from "./materiel-remis";
@@ -50,7 +51,7 @@ export function DayClient({
   /** Le matériel en main — la saisie rapide aussi peut déclarer une remise (§118.166). */
   stock: StockPourVisite;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [cible, setCible] = React.useState<{ id: string; name: string } | null>(null);
   const [autre, setAutre] = React.useState(false);
 
@@ -118,7 +119,7 @@ export function DayClient({
           produits={produits}
           stock={stock}
           onClose={() => setCible(null)}
-          onDone={() => { setCible(null); router.refresh(); }}
+          onDone={() => { setCible(null); rafraichir(); }}
         />
       )}
     </>
@@ -193,9 +194,14 @@ function CaptureSheet({
           setSaving(true); setErr(null);
           fd.set("doctorId", doctor.id);
           for (const id of checked) fd.append("productId", id);
-          const r = await logVisit(undefined, fd);
-          setSaving(false);
-          if (r.ok) onDone(); else setErr(r.error ?? "Enregistrement impossible.");
+          try {
+            const r = await logVisit(undefined, fd);
+            if (r.ok) onDone(); else setErr(r.error ?? "Enregistrement impossible.");
+          } catch {
+            setErr(actionFailureMessage("THROWN"));
+          } finally {
+            setSaving(false);
+          }
         }}
         className="space-y-4"
       >

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
@@ -23,9 +24,14 @@ export function Revue({ importId, statut, groupes, etablissements, produits, peu
   const [envoi, setEnvoi] = React.useState(false);
   async function agir(f: () => Promise<{ ok: true } | { ok: false; error: string }>) {
     setEnvoi(true); setErreur(null);
-    const r = await f();
-    setEnvoi(false);
-    if (!r.ok) setErreur(r.error); else rafraichir();
+    try {
+      const r = await f();
+      if (!r.ok) setErreur(r.error); else rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
   const occupe = envoi || enCours;
   return (

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,7 +44,7 @@ export function BilanKpiVue({ userId, periodeInitiale, bilanInitial, onChange }:
   }, [bilanInitial, periodeInitiale, recharger]);
 
   const apres = async (r: { ok: boolean; error?: string; message?: string } | null) => {
-    setMsg(r ? { ok: r.ok, texte: r.ok ? r.message ?? "Enregistré." : r.error ?? "Échec." } : { ok: false, texte: "Échec." });
+    setMsg(r ? { ok: r.ok, texte: r.ok ? r.message ?? "Enregistré." : r.error ?? "La modification n'a pas été enregistrée." } : { ok: false, texte: actionFailureMessage("THROWN") });
     if (r?.ok) { await recharger(periode); onChange?.(); }
   };
 

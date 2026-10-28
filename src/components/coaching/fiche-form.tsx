@@ -6,6 +6,9 @@ import { Loader2, Save, Send } from "lucide-react";
 import { creerFicheCoaching, modifierFicheCoaching } from "@/lib/actions/coaching-actions";
 import { bilanDesNotes, type GrilleCoaching, type Points } from "@/lib/coaching/grille";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { EchelleNiveaux, GrilleEvaluation, TotalFiche } from "./fiche-grille";
 
 /**
@@ -52,6 +55,8 @@ export function FicheCoachingForm({
   nomManagerParDefaut: string;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [collaboratorId, setCollaboratorId] = React.useState(valeurs.collaboratorId);
   const [managerId, setManagerId] = React.useState(valeurs.managerId);
   const [visitDate, setVisitDate] = React.useState(valeurs.visitDate);
@@ -85,10 +90,10 @@ export function FicheCoachingForm({
   const envoyer = async (finaliser: boolean) => {
     setErr(null);
     if (!collaboratorId) { setErr("Choisissez le collaborateur évalué."); return; }
-    if (finaliser && !window.confirm(
+    if (finaliser && !(await confirmer(
       `Finaliser la fiche et la partager avec ${collaborateur?.nom ?? "le collaborateur"} ?\n\n`
       + "Il en sera prévenu et pourra la consulter. Une fois finalisée, seule la direction des opérations pourra la modifier.",
-    )) return;
+    ))) return;
     setBusy(finaliser ? "finaliser" : "brouillon");
     const fd = new FormData();
     if (ficheId) fd.set("id", ficheId);
@@ -100,11 +105,16 @@ export function FicheCoachingForm({
     fd.set("strengths", strengths);
     fd.set("improvements", improvements);
     if (finaliser) fd.set("finaliser", "true");
-    const r = mode === "creation" ? await creerFicheCoaching(fd) : await modifierFicheCoaching(fd);
-    setBusy(null);
-    if (!r.ok) { setErr(r.error ?? "Enregistrement impossible."); return; }
-    router.push(`/medical/coaching/${r.id ?? ficheId}`);
-    router.refresh();
+    try {
+      const r = mode === "creation" ? await creerFicheCoaching(fd) : await modifierFicheCoaching(fd);
+      if (!r.ok) { setErr(r.error ?? "Enregistrement impossible."); return; }
+      router.push(`/medical/coaching/${r.id ?? ficheId}`);
+      rafraichir();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   };
 
   // 16 px au téléphone : en dessous, iOS zoome sur le champ touché.

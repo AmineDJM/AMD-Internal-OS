@@ -4,10 +4,11 @@ import * as React from "react";
 import { Loader2, Plus } from "lucide-react";
 import { enregistrerBesoinService, retirerBesoinService } from "@/lib/actions/besoins-services-actions";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Select } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
 import { cn } from "@/lib/utils";
 
 export interface LignePrevisionEcran {
@@ -40,21 +41,13 @@ export function PrevisionsServices({
   decideurs: { id: string; libelle: string }[];
   peutSaisir: boolean;
 }) {
-  const { rafraichir } = useRafraichir();
+  const { busy, err, setErr, run: lancer } = useAction();
+  const confirmer = useConfirmer();
   const [ajout, setAjout] = React.useState(false);
   const [edition, setEdition] = React.useState<LignePrevisionEcran | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
   const editable = peutSaisir && !!produit;
 
-  const run = async (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => {
-    setBusy(true); setErr(null);
-    const r = await action(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return false; }
-    rafraichir();
-    return true;
-  };
+  const run = (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => lancer(() => action(fd));
   const fermer = () => { setAjout(false); setEdition(null); setErr(null); };
 
   return (
@@ -162,7 +155,7 @@ export function PrevisionsServices({
             <div className="flex flex-wrap justify-between gap-2">
               <Button type="button" variant="outline" disabled={busy}
                 onClick={async () => {
-                  if (!window.confirm("Retirer ce besoin ?")) return;
+                  if (!(await confirmer("Retirer ce besoin ?"))) return;
                   const fd = new FormData();
                   fd.set("id", edition.ligne!.id);
                   if (await run(retirerBesoinService, fd)) fermer();
