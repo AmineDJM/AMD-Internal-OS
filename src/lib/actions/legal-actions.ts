@@ -8,6 +8,7 @@ import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { resolveParties, findPartyByName } from "@/lib/queries/company-contacts";
+import { refusAnnulationFacture } from "@/lib/queries/legal-annulation";
 import { recordAudit } from "@/lib/audit";
 import { companyIdForNew } from "@/lib/company";
 import { canRenew, canCancel, canRestore, statutRetabli, validateDates, proposeRenewalDates } from "@/lib/legal/lifecycle";
@@ -679,70 +680,60 @@ export async function cancelLegalDocument(formData: FormData): Promise<ActionRes
   if (!id) return { ok: false, error: "Document introuvable." };
   if (!(await canAccessEntity(user, "LEGAL_DOCUMENT", id, "UPDATE"))) return { ok: false, error: "Document introuvable." };
 
-  const doc = await prisma.legalDocument.findUnique({ where: { id }, select: { title: true, status: true, kind: true, expenseOrderId: true } });
-  if (!doc) return { ok: false, error: "Document introuvable." };
-  // ANNULER UNE PIÈCE, C'EST LA MODIFIER (audit 360°, R16) — et la porte de la fiche, juste au-dessus, EST
-  // cette règle : `accesAuxPiecesLegal` juge UPDATE par `legalWriteAllowed`, donc les Finances qui écrivent
-  // factures et bons de commande passent, et un contrat leur reste fermé. Le droit Legal seul, qu'on lisait
-  // ici, les refusait sous un bouton offert ; un second contrôle redirait la porte (§118.5).
-  if (!canCancel(doc.status)) return { ok: false, error: "Ce document ne peut plus être annulé." };
+  // LA FILE DE L'ENVOI AU RÈGLEMENT (reste de DONNEES-05) ; entre deux processus, les écritures conditionnelles tiennent.
+  return enSerie(cleEnvoiAuReglement(id), async (): Promise<ActionResult> => {
+    const doc = await prisma.legalDocument.findUnique({ where: { id }, select: { title: true, status: true, kind: true, expenseOrderId: true } });
+    if (!doc) return { ok: false, error: "Document introuvable." };
+    // ANNULER UNE PIÈCE, C'EST LA MODIFIER (audit 360°, R16) — et la porte de la fiche, juste au-dessus, EST
+    // cette règle : `accesAuxPiecesLegal` juge UPDATE par `legalWriteAllowed`, donc les Finances qui écrivent
+    // factures et bons de commande passent, et un contrat leur reste fermé. Le droit Legal seul, qu'on lisait
+    // ici, les refusait sous un bouton offert ; un second contrôle redirait la porte (§118.5).
+    if (!canCancel(doc.status)) return { ok: false, error: "Ce document ne peut plus être annulé." };
 
-  // UNE FACTURE DONT DU MATÉRIEL EST ENTRÉ AU STOCK NE S'ANNULE PAS D'ICI : le dossier du matériel
-  // promotionnel le refuse déjà (« annulez d'abord leur réception ») ; l'annuler depuis Legal laissait
-  // au magasin des unités entrées sur une facture qui n'existe plus (§118.71 — une porte gardée à côté
-  // d'une porte ouverte).
-  if (doc.kind === "INVOICE") {
-    const recues = await prisma.promoFactureLigne.count({ where: { facture: { legalDocumentId: id }, quantiteRecue: { not: null } } });
-    if (recues > 0) {
-      return { ok: false, error: `${recues} ligne(s) de cette facture sont réceptionnées au stock promotionnel : annulez d'abord leur réception depuis le dossier du matériel (ce qui est entré au magasin y est physiquement).` };
+    // Une facture réceptionnée au stock promotionnel, ou créditée par des avoirs, ne s'annule pas d'ici.
+    const refusFacture = doc.kind === "INVOICE" ? await refusAnnulationFacture(id) : null; if (refusFacture) return { ok: false, error: refusFacture };
+    // UN MOTIF, toujours (audit 360°, L04) : l'annulation partait sans, et même sur le bouton « Annuler »
+    // de la boîte qui le demandait. Un contrat annulé ne rappelle plus son échéance — on doit savoir pourquoi.
+    // Demandé APRÈS les refus ci-dessus et AVANT tout effet : on ne demande pas pourquoi annuler une pièce
+    // qui ne s'annule pas d'ici (§118.18).
+    const reason = fdStr(formData, "reason");
+    if (!reason) return { ok: false, error: "Le motif de l'annulation est obligatoire." };
+    // UNE FACTURE PARTIE AU RÈGLEMENT EMPORTE SON ORDRE (§118.185, audit 360° I7) : l'annuler en
+    // laissant l'ordre ouvert, c'était une facture « annulée » au-dessus d'un paiement qui part quand
+    // même. L'ordre non réglé est annulé d'abord ; réglé, la facture ne s'annule pas — rien n'est touché.
+    let ordreAnnule: string | null = null;
+    if (doc.kind === "INVOICE" && doc.expenseOrderId) {
+      const annulation = await annulerOrdreNonRegle(doc.expenseOrderId, { acteurId: user.id, motif: `facture « ${doc.title} » annulée — ${reason}` });
+      if (!annulation.ok) return { ok: false, error: annulation.error };
+      if (annulation.annule) ordreAnnule = annulation.reference;
     }
-    // UNE FACTURE CRÉDITÉE PAR DES AVOIRS NE S'ANNULE PAS SOUS EUX (§118.195) : le client garderait des avoirs sur
-    // une facture qui n'existe plus. Les avoirs d'abord — ils s'annulent un par un, motif à l'appui.
-    const avoirs = await prisma.legalDocument.findMany({
-      where: { chainFromId: id, kind: "CREDIT_NOTE", status: { not: "CANCELLED" } }, select: { reference: true }, orderBy: { createdAt: "asc" },
+
+    // SUR CE QUI A ÉTÉ LU (reste de DONNEES-05) : un envoi au règlement qui a lié un ordre entre la lecture et cette
+    // écriture fait échouer l'annulation — sinon la facture passait « annulée » au-dessus d'un paiement qui part.
+    const annulee = await prisma.legalDocument.updateMany({
+      where: { id, status: doc.status, expenseOrderId: doc.expenseOrderId },
+      data: {
+        status: "CANCELLED" satisfies LegalDocStatus,
+        cancelledAt: new Date(),
+        cancelReason: reason,
+        updatedById: user.id,
+      },
     });
-    if (avoirs.length > 0) {
-      return { ok: false, error: `Cette facture est créditée par ${avoirs.length > 1 ? `${avoirs.length} avoirs` : "un avoir"} (${avoirs.map((a) => a.reference ?? "sans numéro").join(", ")}) : annulez-${avoirs.length > 1 ? "les" : "le"} d'abord — une facture ne s'annule pas sous ses avoirs.` };
-    }
-  }
-  // UN MOTIF, toujours (audit 360°, L04) : l'annulation partait sans, et même sur le bouton « Annuler »
-  // de la boîte qui le demandait. Un contrat annulé ne rappelle plus son échéance — on doit savoir pourquoi.
-  // Demandé APRÈS les refus ci-dessus et AVANT tout effet : on ne demande pas pourquoi annuler une pièce
-  // qui ne s'annule pas d'ici (§118.18).
-  const reason = fdStr(formData, "reason");
-  if (!reason) return { ok: false, error: "Le motif de l'annulation est obligatoire." };
-  // UNE FACTURE PARTIE AU RÈGLEMENT EMPORTE SON ORDRE (§118.185, audit 360° I7) : l'annuler en
-  // laissant l'ordre ouvert, c'était une facture « annulée » au-dessus d'un paiement qui part quand
-  // même. L'ordre non réglé est annulé d'abord ; réglé, la facture ne s'annule pas — rien n'est touché.
-  let ordreAnnule: string | null = null;
-  if (doc.kind === "INVOICE" && doc.expenseOrderId) {
-    const annulation = await annulerOrdreNonRegle(doc.expenseOrderId, { acteurId: user.id, motif: `facture « ${doc.title} » annulée — ${reason}` });
-    if (!annulation.ok) return { ok: false, error: annulation.error };
-    if (annulation.annule) ordreAnnule = annulation.reference;
-  }
-
-  await prisma.legalDocument.update({
-    where: { id },
-    data: {
-      status: "CANCELLED" satisfies LegalDocStatus,
-      cancelledAt: new Date(),
-      cancelReason: reason,
-      updatedById: user.id,
-    },
+    if (annulee.count === 0) return { ok: false, error: "Cette pièce vient de changer (envoyée au règlement, ou modifiée) : rouvrez-la avant de l'annuler." };
+    await recordAudit({
+      actorId: user.id, action: "UPDATE", module: "Legal",
+      entityType: "LEGAL_DOCUMENT", entityId: id,
+      field: "status", oldValue: doc.status, newValue: "CANCELLED",
+      summary: `Annulation de « ${doc.title} » — motif : ${reason}`,
+    });
+    // Un BC annulé n'a plus rien à faire valider : sa porte en attente quitte le centre.
+    if (doc.kind === "PURCHASE_ORDER") await aiguillerBC(id, { acteurId: user.id });
+    revalidatePath("/legal");
+    revalidatePath(`/legal/${id}`);
+    return ordreAnnule
+      ? { ok: true, message: `Facture annulée — l'ordre de dépense ${ordreAnnule} est annulé avec elle : il ne sera pas payé.` }
+      : { ok: true };
   });
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Legal",
-    entityType: "LEGAL_DOCUMENT", entityId: id,
-    field: "status", oldValue: doc.status, newValue: "CANCELLED",
-    summary: `Annulation de « ${doc.title} » — motif : ${reason}`,
-  });
-  // Un BC annulé n'a plus rien à faire valider : sa porte en attente quitte le centre.
-  if (doc.kind === "PURCHASE_ORDER") await aiguillerBC(id, { acteurId: user.id });
-  revalidatePath("/legal");
-  revalidatePath(`/legal/${id}`);
-  return ordreAnnule
-    ? { ok: true, message: `Facture annulée — l'ordre de dépense ${ordreAnnule} est annulé avec elle : il ne sera pas payé.` }
-    : { ok: true };
 }
 
 /**
@@ -933,7 +924,16 @@ export async function sendLegalInvoiceToSettlement(formData: FormData): Promise<
       // La facture d'un matériel promotionnel imputé porte son budget (point 21) — par cette porte comme par le dossier.
       budgetCategoryId: await budgetPromoDeLaPiece(doc),
     });
-    await prisma.legalDocument.update({ where: { id }, data: { expenseOrderId: order.id, updatedById: user.id } });
+    // LE LIEN SE POSE SUR CE QUI A ÉTÉ LU (reste de DONNEES-05) : une facture annulée — ou envoyée par l'autre porte —
+    // pendant l'émission ne reçoit pas l'ordre ; il est annulé aussitôt au lieu de rester payable sans facture.
+    const lie = await prisma.legalDocument.updateMany({
+      where: { id, status: { not: "CANCELLED" }, expenseOrderId: doc.expenseOrderId },
+      data: { expenseOrderId: order.id, updatedById: user.id },
+    });
+    if (lie.count === 0) {
+      await annulerOrdreNonRegle(order.id, { acteurId: user.id, motif: `facture « ${doc.title} » annulée ou envoyée pendant l'émission` });
+      return { ok: false, error: "Cette facture vient de changer (annulée, ou déjà envoyée) : l'ordre émis est annulé. Rouvrez-la." };
+    }
     await recordAudit({
       actorId: user.id, action: "UPDATE", module: "Legal",
       entityType: "LEGAL_DOCUMENT", entityId: id,

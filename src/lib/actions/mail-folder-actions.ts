@@ -1,5 +1,6 @@
 "use server";
 
+import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
@@ -62,9 +63,11 @@ export async function createMailFolder(_prev: ActionResult | undefined, formData
 /** Renomme un dossier, ou le déplace sous un autre. */
 export async function updateMailFolder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "MAIL_REGISTER", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dossier introuvable." };
+  // LA PORTE DU DOSSIER (audit 27/10, SA-16) : le droit du module ET sa société — la création la vérifiait déjà.
+  const porte = await ouvrirPourEcrire(user, "MAIL_FOLDER", id, "UPDATE");
+  if (!porte.ok) return porte;
   const existing = await prisma.mailEntryFolder.findUnique({ where: { id }, select: { name: true } });
   if (!existing) return { ok: false, error: "Dossier introuvable." };
 
@@ -105,9 +108,11 @@ export async function updateMailFolder(formData: FormData): Promise<ActionResult
  */
 export async function deleteMailFolder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "MAIL_REGISTER", "DELETE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Dossier introuvable." };
+  // LA PORTE DU DOSSIER (audit 27/10, SA-16) : le droit du module ET sa société — la création la vérifiait déjà.
+  const porte = await ouvrirPourEcrire(user, "MAIL_FOLDER", id, "DELETE");
+  if (!porte.ok) return porte;
   const existing = await prisma.mailEntryFolder.findUnique({ where: { id }, select: { name: true } });
   if (!existing) return { ok: false, error: "Dossier introuvable." };
 
@@ -135,6 +140,9 @@ export async function moveMailEntries(formData: FormData): Promise<ActionResult>
   const folderId = fdStr(formData, "folderId");
   let folderName = "Non classés";
   if (folderId) {
+    // On ne range pas dans le dossier d'une société qu'on ne voit pas (SA-16).
+    const porte = await ouvrirPourEcrire(user, "MAIL_FOLDER", folderId, "UPDATE");
+    if (!porte.ok) return porte;
     const folder = await prisma.mailEntryFolder.findUnique({ where: { id: folderId }, select: { name: true } });
     if (!folder) return { ok: false, error: "Dossier introuvable." };
     folderName = folder.name;
@@ -147,6 +155,7 @@ export async function moveMailEntries(formData: FormData): Promise<ActionResult>
   });
   if (movable.length === 0) return { ok: false, error: "Ces courriers ne sont pas dans votre périmètre." };
 
+  // porte d'écriture : `movable` ne garde que les pièces des sociétés de la personne (filtre ci-dessus).
   await prisma.mailEntry.updateMany({
     where: { id: { in: movable.map((d) => d.id) } },
     data: { folderId: folderId || null },

@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
+import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
 import { toNumber, formatCurrency, formatDate } from "@/lib/utils";
 import { onlyofficeConfigured } from "@/lib/onlyoffice";
@@ -45,6 +46,9 @@ export const dynamic = "force-dynamic";
 export default async function AdProOtherDetailPage(props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const user = await requireModule("AD_PRO_OTHER");
+  // LA PORTE DE LA FICHE (audit 27/10, SA-14) : société, parties prenantes, portée « ses demandes » — la même que
+  // ses pièces. La liste était filtrée par entité ; la fiche s'ouvrait par son seul identifiant.
+  if (!(await canAccessEntity(user, "AD_PRO_OTHER", params.id, "VIEW"))) notFound();
   const req = await prisma.adProOtherRequest.findUnique({
     where: { id: params.id },
     include: { company: { select: { name: true } } },

@@ -76,7 +76,7 @@ suite("Règlements simultanés — une seule sortie d'argent, une seule décisio
     const ordre = await prisma.expenseOrder.create({
       data: {
         reference: `${TAG}OD${RUN.slice(-5)}`, label: `${TAG} facture unique`, amount: 54_321, category: "AUTRE", status: "PENDING",
-        centralStatus: "APPROVED", budgetCategoryId: categorie, requiresInvoice: false, requestedById: sa,
+        centralStatus: "APPROVED", budgetCategoryId: categorie, requiresInvoice: false,
       },
     });
 

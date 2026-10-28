@@ -84,6 +84,7 @@
       "@/lib/payments/relance-destinataires": ["./src/modules/finances/infra/relance-destinataires"],
       "@/lib/payments/revision-ordre": ["./src/modules/finances/infra/revision-ordre"],
       "@/lib/payments/sections-centre": ["./src/modules/finances/domaine/sections-centre"],
+      "@/lib/payments/separation": ["./src/modules/finances/domaine/separation"],
       "@/lib/queries/centre-paiement": ["./src/modules/finances/infra/requetes/centre-paiement"],
       "@/lib/queries/compta": ["./src/modules/finances/infra/requetes/compta"],
       "@/lib/queries/demande-paiement-suppression": ["./src/modules/finances/infra/requetes/demande-paiement-suppression"],

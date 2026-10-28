@@ -185,6 +185,9 @@ export const ENTITE_DU_MODELE: Readonly<Record<string, EntityType>> = {
   PharmacovigilanceCase: "PHARMACOVIGILANCE_CASE",
   // Un élément du Drive (10/2026) : ses pièces et commentaires polymorphes le suivent, sous-dossiers compris.
   DriveNode: "DRIVE_NODE",
+  // Un praticien (audit 27/10, DONNEES-07) : ses pièces, ses commentaires, sa segmentation et ses observations
+  // partent dans le même lot de corbeille et reviennent avec lui.
+  MedicalDoctor: "DOCTOR",
 };
 
 /**
@@ -277,6 +280,11 @@ export function delegueDe(modele: string): string {
 
 /** Libellés lisibles, pour dire à la personne ce qui part avec la demande. */
 export const LIBELLE_DU_MODELE: Readonly<Record<string, [string, string]>> = {
+  // Ce qui part avec un praticien (DONNEES-07) — l'aperçu le dit en français avant le clic.
+  DirectoryCellStyle: ["couleur de cellule d'annuaire", "couleurs de cellule d'annuaire"],
+  SegmentationFiche: ["fiche de segmentation", "fiches de segmentation"],
+  HcpObservation: ["observation de praticien", "observations de praticien"],
+  SegmentationDerogation: ["dérogation de segmentation", "dérogations de segmentation"],
   AdProItem: ["poste", "postes"],
   AdProItemDecision: ["décision de poste", "décisions de poste"],
   AdProProductAllocation: ["répartition par produit", "répartitions par produit"],

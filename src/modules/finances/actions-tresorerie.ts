@@ -6,12 +6,13 @@ import { FinanceCategory, FinanceMethod, type FinanceDirection, type FinanceStat
 import { requireUser } from "@/lib/session";
 import { anyRoleFilter, userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { buildRef, nextRefNumber } from "@/lib/refs";
+import { referenceDeSerie } from "@/lib/refs";
 import { recordAudit } from "@/lib/audit";
 import { broadcastNotification } from "@/lib/notify";
 import { entiteParDefaut } from "@/lib/company-defaut";
 import { fdStr, fdNum, fdDate, fdCase, type ActionResult } from "@/lib/actions/types";
-import { getMyCompanies, companyScopedWhere, entitePermisePourFiche } from "@/lib/company";
+import { getMyCompanies, companyScopedWhere } from "@/lib/company";
+import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import { toNumber } from "@/lib/utils";
 import { compteDeLEcriture, comptesTresorerie, resoudreCompte } from "@/modules/finances/api";
 import { relierALaPersonne } from "@/modules/referentiels/api";
@@ -19,22 +20,12 @@ import { sansBloquer } from "@/lib/journal";
 
 const IN_CATEGORIES = ["RECETTE", "CCA", "PRET"];
 
-/**
- * L'ÉCRITURE, SEULEMENT SI LA LISTE LA MONTRE À CETTE PERSONNE (audit sécurité 27/10, SECURITE-ACCES-10).
- * Le livre `/finances` est filtré par entité (`clauseEcrituresVisibles`) ; les écritures, non : un financier
- * d'Alpha modifiait, soldait ou supprimait une écriture de Beta par son identifiant. La porte est celle d'une
- * FICHE (`entitePermisePourFiche`) : toutes les entités ouvertes à la personne, pas la seule du sélecteur.
- * Non exporté : dans un fichier `"use server"`, un export devient une action appelable.
- */
-async function ecritureVisible(userId: string, id: string): Promise<{ reference: string; label: string } | null> {
-  const tx = await prisma.financeTransaction.findUnique({ where: { id }, select: { reference: true, label: true, companyId: true } });
-  return tx && (await entitePermisePourFiche(userId, tx.companyId)) ? tx : null;
-}
-
 async function nextRef(prefix: string): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.financeTransaction.findMany({ where: { reference: { startsWith: `${prefix}-${year}-` } }, select: { reference: true } });
-  return buildRef(prefix, year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "FinanceTransaction", prefixe: prefix, annee: year,
+    existantes: async () => (await prisma.financeTransaction.findMany({ where: { reference: { startsWith: `${prefix}-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 export async function createTransaction(
@@ -110,11 +101,12 @@ const refusReglement = (reference: string, geste: string) =>
 
 export async function updateTransactionStatus(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   const status = fdStr(formData, "status") as FinanceStatus;
   if (!id || !status) return { ok: false, error: "Paramètres manquants." };
-  if (!(await ecritureVisible(user.id, id))) return { ok: false, error: "Écriture introuvable." };
+  // LA PORTE DE L'ÉCRITURE : le droit Finances ET sa société (SA-10, puis `ouvrirPourEcrire`).
+  const porte = await ouvrirPourEcrire(user, "FINANCE_TRANSACTION", id, "UPDATE");
+  if (!porte.ok) return porte;
   const regle = await reglementPorte(id);
   if (regle && status !== "SETTLED") return { ok: false, error: refusReglement(regle, "changer son statut") };
   await prisma.financeTransaction.update({ where: { id }, data: { status } });
@@ -133,13 +125,13 @@ export async function updateTransactionStatus(formData: FormData): Promise<Actio
  */
 export async function updateTransaction(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Non autorisé." };
   const id = fdStr(formData, "id");
   const label = fdStr(formData, "label");
   const amount = fdNum(formData, "amount");
   if (!id) return { ok: false, error: "Identifiant manquant." };
+  const porte = await ouvrirPourEcrire(user, "FINANCE_TRANSACTION", id, "UPDATE");
+  if (!porte.ok) return porte;
   if (!label || amount === null) return { ok: false, error: "Libellé et montant obligatoires." };
-  if (!(await ecritureVisible(user.id, id))) return { ok: false, error: "Écriture introuvable." };
   const category = (fdStr(formData, "category") as FinanceCategory) ?? "AUTRE";
   const direction = (fdStr(formData, "direction") as FinanceDirection) ??
     (IN_CATEGORIES.includes(category) ? "IN" : "OUT");
@@ -182,10 +174,11 @@ export async function updateTransaction(formData: FormData): Promise<ActionResul
 /** Supprime définitivement une écriture du livre comptable (trésorerie recalculée). */
 export async function deleteTransaction(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "DELETE")) return { ok: false, error: "Suppression non autorisée." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Identifiant manquant." };
-  const tx = await ecritureVisible(user.id, id);
+  const porte = await ouvrirPourEcrire(user, "FINANCE_TRANSACTION", id, "DELETE");
+  if (!porte.ok) return porte;
+  const tx = await prisma.financeTransaction.findUnique({ where: { id }, select: { reference: true, label: true } });
   if (!tx) return { ok: false, error: "Écriture introuvable." };
   const regle = await reglementPorte(id);
   if (regle) return { ok: false, error: refusReglement(regle, "la supprimer") };
@@ -329,18 +322,15 @@ export async function importTransactions(
 
   let n = 0;
   const ecartees: LigneEcartee[] = [];
-  const year = new Date().getFullYear();
-  const existingRefs = await prisma.financeTransaction.findMany({ where: { reference: { startsWith: `FIN-${year}-` } }, select: { reference: true } });
-  let base = nextRefNumber(existingRefs.map((r) => r.reference)) - 1; // prochain = base+1 (dérivé du max, robuste aux trous)
   const comptes = await comptesTresorerie();
   for (const { texte, numero } of lignes) {
     const lue = lireLigneReleve(texte.split(separateur).map((x) => x.trim()));
     if (!lue.ok) { ecartees.push({ numero, raison: lue.raison }); continue; }
-    base += 1;
     try {
       await prisma.financeTransaction.create({
         data: {
-          reference: `FIN-${year}-${String(base).padStart(3, "0")}`,
+          // Le compteur de la série (DONNEES-12) : une ligne écartée par la base laisse un trou, jamais un doublon.
+          reference: await nextRef("FIN"),
           date: lue.date,
           direction: lue.direction,
           category: lue.category,

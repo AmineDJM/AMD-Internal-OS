@@ -69,6 +69,10 @@ export {
   ENTITE_SANS, SECTION_CENTRE_LABEL, SECTION_CENTRE_SLUG, type SectionCentre, SECTIONS_CENTRE,
   slugSectionDeLOrdre,
 } from "./domaine/sections-centre";
+export {
+  type GesteDArgent, REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION,
+  refusSeparationDesTaches,
+} from "./domaine/separation";
 export { BUDGET_CLASSIFY_PROMPT, budgetGate, needsBudgetChoice } from "./domaine/settle-budget";
 export {
   checkDeferral, deferralNote, SETTLEMENT_LABEL, settlementState, type SettlementState, sortForSettlement,

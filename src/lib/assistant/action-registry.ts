@@ -1447,8 +1447,8 @@ X("GÉNÉRER L'ATTESTATION DE TRAVAIL D'UNE DEMANDE RH (Direction, 10/2026) — 
 ]);
 X("RÉGLER LE SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026) — depuis le centre de validations, par ses "
   + "sièges (DG, Super Admin) ; le centre Ad & Pro garde le sien. Le changement réaiguille les BC en vol de ce centre. "
-  + "Adam est en pause de développement : aucun geste neuf ne lui est ouvert. Un formulaire sur l'écran du centre.", [
-  "settings-actions:setBcValidationThresholdCentre",
+  + "Adam est en pause : aucun geste neuf. Un formulaire sur l'écran du centre. — SUSPENDRE LA SÉPARATION DES TÂCHES DU CENTRE DE PAIEMENT (ARGENT-06) : lever un garde-fou, interdit à un agent (§118.6), geste journalisé du Super Admin.", [
+  "settings-actions:setBcValidationThresholdCentre", "settings-actions:setSeparationTachesPaiement",
 ]);
 X("RESOUMETTRE UNE « AUTRE DEMANDE » REFUSÉE ET PROLONGER UN CONTRAT DE CONSULTING (audit 360°, lot C4a) — la "
   + "resoumission est le geste du DEMANDEUR qui dit ce qui a changé depuis le refus (elle peut corriger la description "
@@ -1846,8 +1846,8 @@ X("ROUTINES PERSONNELLES de l'Assistant IA — les gestes de la personne sur SES
   "assistant-ia-actions:listerMesRoutines", "assistant-ia-actions:lireMonPassage", "assistant-ia-actions:basculerMaRoutine",
   "assistant-ia-actions:supprimerMaRoutine", "assistant-ia-actions:executerMaRoutine",
 ]);
-X("FIL GARDÉ de l'Assistant IA — écrire à l'assistant (le message rejoint la file de SA conversation) et repartir d'une nouvelle conversation. C'est l'écran de l'assistant lui-même, pas une action métier : chaque écriture que l'assistant prépare reste une carte à confirmer.", [
-  "assistant-ia-actions:envoyerAuFil", "assistant-ia-actions:repartirDeZero",
+X("FIL GARDÉ de l'Assistant IA — écrire à l'assistant (le message rejoint la file de SA conversation), repartir d'une nouvelle conversation, choisir que ses réponses soient aussi dites à voix haute. C'est l'écran de l'assistant lui-même, pas une action métier : chaque écriture que l'assistant prépare reste une carte à confirmer.", [
+  "assistant-ia-actions:envoyerAuFil", "assistant-ia-actions:repartirDeZero", "assistant-ia-actions:reglerMaReponseVocale",
 ]);
 X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
   "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",

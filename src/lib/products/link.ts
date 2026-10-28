@@ -1,3 +1,4 @@
+import { et } from "@/lib/acces/compose";
 import { userCan, scopeRegulatory, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -43,7 +44,7 @@ export async function linkProductToDossierFor(user: SessionUser, input: {
   // Le dossier doit être DANS SA PORTÉE : sans ce contrôle, on rattacherait à un dossier
   // verrouillé ou hors périmètre en devinant son identifiant.
   const dossier = await prisma.regulatoryProduct.findFirst({
-    where: { id: input.regulatoryProductId, ...scopeRegulatory(user) },
+    where: et({ id: input.regulatoryProductId }, scopeRegulatory(user)),
     select: { id: true, dci: true, dosage: true, reference: true, productId: true },
   });
   if (!dossier) return { ok: false, error: "Dossier réglementaire introuvable dans votre périmètre." };

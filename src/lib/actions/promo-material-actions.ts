@@ -12,7 +12,7 @@ import { notifyRoles, notifyUser } from "@/lib/notify";
 import { lienLigneCentreAdPro } from "@/lib/chemins/ad-pro";
 import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { persistUploadedDocument } from "@/lib/documents";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { initialStep, libelleEtape } from "@/lib/promo-material/circuit";
 import { promoManagerOf } from "@/lib/queries/promo-material";
 import { validateursDeLaDemande } from "@/lib/queries/promo-circuit";
@@ -64,8 +64,10 @@ function isMarketing(user: SessionUser, pm: { requesterId: string | null }): boo
 
 async function nextPromoRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.promoMaterial.findMany({ where: { reference: { startsWith: `MP-${year}-` } }, select: { reference: true } });
-  return buildRef("MP", year, refs.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "PromoMaterial", prefixe: "MP", annee: year,
+    existantes: async () => (await prisma.promoMaterial.findMany({ where: { reference: { startsWith: `MP-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 function revalidate(id: string) {

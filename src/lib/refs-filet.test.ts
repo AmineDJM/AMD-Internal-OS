@@ -5,38 +5,22 @@ import { cibleInterne, specificateurs } from "@/platform/imports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * UNE RÉFÉRENCE DÉRIVÉE DU MAXIMUM SE RECALCULE SOUS COLLISION (§118.175).
+ * UNE RÉFÉRENCE NUMÉROTÉE NAÎT D'UN COMPTEUR, PLUS DU MAXIMUM (§118.175, puis audit 27/10/2026, DONNEES-12).
  *
- * `buildRef` lit les références existantes et rend la suivante : deux créations à la même
- * seconde lisent le MÊME maximum, calculent la MÊME référence, et la seconde heurte la contrainte
- * d'unicité. `createWithRetry` recalcule et réessaie ; `enSerie` sérialise une série dans le
- * processus (§118.148g). Trouvé par la suite elle-même : deux bancs déposaient des sponsorings en
- * parallèle, et `createSponsoring` — le seul des quatre dépôts Ad & Pro sans filet — échouait sur
- * une erreur brute. Le même défaut tenait la création des sujets (le chemin de la réservation) et
- * la demande de pièce d'un poste (la série DEM, que le secrétariat, lui, protégeait).
+ * `buildRef` lisait les références existantes et rendait la suivante : deux créations à la même seconde lisaient
+ * le MÊME maximum et la seconde heurtait la contrainte d'unicité — d'où le filet (`createWithRetry`, `enSerie`)
+ * que ce cliquet imposait, avec une DETTE de neuf fichiers qui n'en portaient pas. Le maximum avait deux autres
+ * défauts : un coût O(n) à chaque création, et une référence REPRISE après une suppression réversible (la
+ * restauration échouait, ADPRO-08).
  *
- * Réparer trois créations ne protège pas la quatrième (§118.58). Le cliquet s'arme sur un fait du
- * FICHIER : un fichier qui numérote par `buildRef` porte un filet. Il est GROSSIER, et on le dit :
- * il attrape le fichier qui n'en a AUCUN, pas celui qui en a un sur une création et l'oublie sur
- * l'autre — le lire fonction par fonction serait faux sur le motif le plus courant, une aide qui
- * calcule la référence appelée DANS l'essai d'une autre fonction. Les fichiers déjà sans filet
- * sont une DETTE NOMMÉE au chiffre mesuré : elle ne peut que baisser, et un fichier neuf sans
- * filet fait tomber la suite.
+ * Depuis DONNEES-12, chaque série passe par `referenceDeSerie` (`refs.ts`) : un compteur avancé atomiquement en
+ * base, qui ne rend jamais un numéro. Le cliquet devient plus strict, pas plus lâche :
+ *   1. PLUS AUCUN fichier de production ne numérote par le maximum (`buildRef(`) — la dette est soldée, à zéro ;
+ *   2. un écrivain qui prendrait encore le maximum à la main reprendrait un numéro que le compteur va donner :
+ *      la règle 1 l'interdit ;
+ *   3. l'écrivain de tout décaissement garde son filet, création par création (cas ci-dessous, §118.182).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-
-/** La dette mesurée le 02/10/2026 : des créations numérotées sans filet, à reprendre une à une. */
-const DETTE = new Set([
-  "src/lib/actions/directive-actions.ts",
-  "src/modules/finances/actions-tresorerie.ts",
-  "src/lib/actions/logistics-actions.ts",
-  "src/lib/actions/pch-actions.ts",
-  "src/lib/actions/support-actions.ts",
-  "src/lib/medical-info.ts",
-  // Deux AIDES de la série FIN : le filet appartient à leurs appelants, qui n'en ont pas.
-  "src/modules/finances/infra/next-ref.ts", // expense-actions, petty-cash-actions
-  "src/modules/finances/infra/settle-invoice.ts", // invoice-actions, legal-actions
-]);
 
 function fichiersDeProduction(dir = "src"): string[] {
   const out: string[] = [];
@@ -54,75 +38,38 @@ function sansCommentaires(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'`\\])\/\/.*$/gm, "$1");
 }
 
-const FILET = /\b(createWithRetry|enSerie)\(/;
-const NUMEROTE = /(?<!function\s)\bbuildRef\(/;
+const AU_MAXIMUM = /(?<!function\s)\bbuildRef\(/;
+const AU_COMPTEUR = /(?<!function\s)\breferenceDeSerie\(/;
 
-/** Le corps d'une fonction exportée, jusqu'à l'accolade fermante en colonne 0 — le style du dépôt. */
-function aidesExportees(code: string): { nom: string; corps: string }[] {
-  const out: { nom: string; corps: string }[] = [];
-  for (const m of code.matchAll(/^export (?:async )?function (\w+)\(/gm)) {
-    const debut = m.index ?? 0;
-    const fin = code.indexOf("\n}\n", debut);
-    out.push({ nom: m[1]!, corps: code.slice(debut, fin < 0 ? undefined : fin) });
-  }
-  return out;
-}
-
-/**
- * Qui est EN DETTE. Un fichier qui numérote et porte un filet est couvert. Sans filet, deux cas :
- * une AIDE partagée (« la prochaine référence FIN ») ne fait pas la création — le filet appartient
- * à ses appelants, et elle est couverte quand TOUS en portent un ; sinon, c'est le fichier qui crée,
- * et il est en dette. Sans ce partage, une aide ne pourrait jamais sortir de la dette, même ses
- * appelants réparés : un cliquet qui ne peut pas descendre ne garde rien (§118.79c).
- */
 function etat() {
-  const sources = new Map<string, string>();
-  for (const f of fichiersDeProduction()) sources.set(relative(process.cwd(), f).replace(/\\/g, "/"), sansCommentaires(readFileSync(f, "utf8")));
-  const numerotent: string[] = [];
-  const sansFilet: string[] = [];
-  const appelantsNus = new Map<string, string[]>();
-  for (const [rel, code] of sources) {
-    // L'appel, pas la définition : `refs.ts` DÉFINIT `buildRef` et porte les deux filets.
-    if (!NUMEROTE.test(code)) continue;
-    numerotent.push(rel);
-    if (FILET.test(code)) continue;
-    const specificateur = rel.replace(/^src\//, "@/").replace(/\.tsx?$/, "");
-    const aides = aidesExportees(code).filter((a) => NUMEROTE.test(a.corps)).map((a) => a.nom);
-    // L'importeur se reconnaît par la CIBLE de ses imports, relatifs compris (`./infra/demandes` depuis un fichier
-    // d'actions du même module) : un cliquet qu'un `./` suffit à contourner ne mesure rien (ARCH-01).
-    const cible = rel.replace(/\.tsx?$/, "");
-    const importe = (autre: string, c: string) => c.includes(`"${specificateur}"`)
-      || specificateurs(c).some((sp) => cibleInterne(sp, autre) === cible);
-    const appelants = [...sources].filter(([autre, c]) =>
-      autre !== rel && importe(autre, c) && aides.some((n) => new RegExp(`\\b${n}\\b`).test(c)));
-    if (appelants.length > 0 && appelants.every(([, c]) => FILET.test(c))) continue;
-    sansFilet.push(rel);
-    appelantsNus.set(rel, appelants.filter(([, c]) => !FILET.test(c)).map(([a]) => a));
+  const auMaximum: string[] = [];
+  const auCompteur: string[] = [];
+  for (const f of fichiersDeProduction()) {
+    const rel = relative(process.cwd(), f).replace(/\\/g, "/");
+    // `refs.ts` DÉFINIT les deux fonctions : il ne numérote rien lui-même.
+    if (rel === "src/lib/refs.ts") continue;
+    const code = sansCommentaires(readFileSync(f, "utf8"));
+    if (AU_MAXIMUM.test(code)) auMaximum.push(rel);
+    if (AU_COMPTEUR.test(code)) auCompteur.push(rel);
   }
-  return { numerotent, sansFilet, appelantsNus };
+  return { auMaximum, auCompteur };
 }
 
-describe("Cliquet — une référence numérotée porte son filet", () => {
+describe("Cliquet — une référence numérotée naît du compteur de sa série", () => {
   it("PLANCHER : le parcours trouve les fichiers qui numérotent — un parcours cassé rendrait le cliquet vert sur rien", () => {
-    expect(etat().numerotent.length).toBeGreaterThanOrEqual(20);
+    expect(etat().auCompteur.length).toBeGreaterThanOrEqual(20);
   });
 
-  it("aucun fichier NEUF sans filet — et le refus nomme le fichier, avec ses appelants nus si c'est une aide", () => {
-    const { sansFilet, appelantsNus } = etat();
-    const neufs = sansFilet.filter((f) => !DETTE.has(f)).map((f) => `${f}${appelantsNus.get(f)?.length ? ` (appelée sans filet par ${appelantsNus.get(f)!.join(", ")})` : ""}`);
-    expect(neufs, "numérote par buildRef sans createWithRetry ni enSerie : la seconde création simultanée échouerait").toEqual([]);
+  it("plus aucun fichier ne numérote par le maximum (dette soldée : 9 → 0)", () => {
+    expect(etat().auMaximum, "numérote par buildRef : reprendrait un numéro que le compteur de la série va donner — passer par referenceDeSerie").toEqual([]);
   });
 
-  it("la DETTE ne fait que baisser : un fichier réparé sort de la liste, et la liste ne grossit pas", () => {
-    const { sansFilet } = etat();
-    const repares = [...DETTE].filter((f) => !sansFilet.includes(f));
-    expect(repares, "réparé : retirez-le de DETTE — un cliquet qui ne peut pas descendre ne garde rien (§118.79c)").toEqual([]);
-    // 12 → 11 (§118.176) : la paie ne numérote plus rien elle-même — le « transfert au budget », qui
-    // écrivait une écriture FIN par salarié sans filet, n'existe plus ; l'envoi au centre passe par
-    // `createExpenseOrder`. Ce commentaire disait « qui porte le sien » : c'était FAUX jusqu'au §118.182
-    // — le filet du fichier était celui du dossier compagnon, et la création de l'ORDRE n'en avait
-    // aucun. Le cas ci-dessous le mesure création par création.
-    expect(DETTE.size, "dette mesurée le 04/10/2026 (§118.197 : la demande d'achat porte son filet)").toBeLessThanOrEqual(9);
+  it("les créations réparées au §118.175 numérotent au compteur, et gardent leur filet", () => {
+    const { auCompteur } = etat();
+    for (const f of ["src/lib/actions/sponsoring-actions.ts", "src/lib/dossiers-core.ts", "src/lib/actions/ad-pro-item-actions.ts"]) {
+      expect(auCompteur, `${f} ne numérote plus au compteur`).toContain(f);
+      expect(/\b(createWithRetry|enSerie)\(/.test(sansCommentaires(readFileSync(f, "utf8"))), `${f} a perdu son filet`).toBe(true);
+    }
   });
 
   it("L'ÉCRIVAIN DE TOUT DÉCAISSEMENT porte un filet sur CHACUNE de ses créations numérotées (§118.182)", () => {
@@ -143,13 +90,5 @@ describe("Cliquet — une référence numérotée porte son filet", () => {
     // LA SÉRIE PAY A DEUX CRÉATEURS : une file chacun n'en protégerait que la moitié.
     expect(avantLaCreation("src/modules/finances/actions-demandes.ts", "paymentRequest"), "la demande de paiement partage la file PAY")
       .toMatch(/enSerie\(\s*SERIE_DEMANDES_PAIEMENT\s*,\s*\(\)\s*=>\s*createWithRetry\(/);
-  });
-
-  it("les trois créations réparées par ce lot gardent leur filet", () => {
-    const { numerotent, sansFilet } = etat();
-    for (const f of ["src/lib/actions/sponsoring-actions.ts", "src/lib/dossiers-core.ts", "src/lib/actions/ad-pro-item-actions.ts"]) {
-      expect(numerotent, `${f} numérote encore`).toContain(f);
-      expect(sansFilet, `${f} a perdu son filet`).not.toContain(f);
-    }
   });
 });

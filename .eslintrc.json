@@ -113,6 +113,21 @@
           }
         ]
       }
+    ],
+    "no-restricted-syntax": [
+      "error",
+      {
+        "selector": "SpreadElement > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      },
+      {
+        "selector": "SpreadElement > AwaitExpression > CallExpression[callee.name=/^(scope(?!Of$)[A-Z]\\w*|porteeEntite|textSearchWhere|parseFilters|companyScopedWhere|ficheScopedWhere|clause[A-Z]\\w*)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      },
+      {
+        "selector": "ObjectExpression > SpreadElement > Identifier[name=/^(scope|portee)$/]",
+        "message": "Une clause Prisma ne s'étale pas : deux `OR` étalés dans le même objet s'écrasent et ouvrent les lignes des autres (audit 27/10, SA-03). Composer en `{ AND: [portee, filtres] }` — voir src/lib/acces/compose.ts."
+      }
     ]
   },
   "overrides": [

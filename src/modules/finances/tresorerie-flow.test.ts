@@ -182,7 +182,7 @@ suite("Trésorerie ancrée — comptes, règlement, solde et disponible", () => 
       const o = await prisma.expenseOrder.create({
         data: {
           reference: `${TAG}${ref}${RUN.slice(-4)}`, label: `${TAG} ${ref}`, amount, category: "AUTRE", status: "PENDING",
-          centralStatus: "APPROVED", companyId: socA, budgetCategoryId: categorie, requiresInvoice: false, requestedById: u.finA,
+          centralStatus: "APPROVED", companyId: socA, budgetCategoryId: categorie, requiresInvoice: false, requestedById: u.sa,
         },
       });
       ordres.push(o.id);
@@ -237,7 +237,7 @@ suite("Trésorerie ancrée — comptes, règlement, solde et disponible", () => 
       const o = await prisma.expenseOrder.create({
         data: {
           reference: `${TAG}${ref}${RUN.slice(-4)}`, label: `${TAG} ${ref}`, amount, category: "AUTRE", status,
-          centralStatus, companyId: socA, requestedById: u.finA, ...(deferredUntil ? { deferredUntil, deferredReason: "fin de mois" } : {}),
+          centralStatus, companyId: socA, requestedById: u.sa, ...(deferredUntil ? { deferredUntil, deferredReason: "fin de mois" } : {}),
         },
       });
       ordres.push(o.id);

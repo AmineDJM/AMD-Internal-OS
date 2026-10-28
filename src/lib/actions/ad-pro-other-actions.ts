@@ -8,7 +8,7 @@ import { retirerVisaEnAttente } from "@/lib/ad-pro/visa";
 import { ecrireAuFil } from "@/lib/ad-pro/fil";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { companyIdForNew } from "@/lib/company";
 import { readMultiField, lireMedecinsDemande } from "@/lib/ad-pro/pickers";
 import { gammeImposee } from "@/lib/ad-pro/business-unit-auto";
@@ -44,10 +44,10 @@ const PATH = "/ad-pro/autres";
 
 async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.adProOtherRequest.findMany({
-    where: { reference: { startsWith: `AUT-${year}-` } }, select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdProOtherRequest", prefixe: "AUT", annee: year,
+    existantes: async () => (await prisma.adProOtherRequest.findMany({ where: { reference: { startsWith: `AUT-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("AUT", year, refs.map((r) => r.reference));
 }
 
 function revalidate(id?: string) {

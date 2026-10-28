@@ -26,6 +26,15 @@ Covered:
   documents (`documents-lus.ts`, `mrz.ts`, `traduction.ts`, `formulaire-pdf.ts`, `bc-depuis-devis.ts`), user-scheduled
   read-only routines (`src/lib/agent/routines/`, tables `AssistantRoutine`/`AssistantRoutineRun`, swept from
   `runScheduledJobs`). Decision records: `docs/assistant/decisions/0001`–`0008`.
+  **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
+  attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
+  door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file
+  name, local OCR + `classerPiece`/`natureSensible` BEFORE any image leaves) → `censurerTexte` → bounds (24k chars/piece,
+  60k/message, 12 images) → `encadrerNonFiable`; each `LecturePiece` (LUE/PARTIELLE/REFUSEE/ECHEC/NOMMEE + limit phrase)
+  is stored on the user turn (`AssistantIaTour.lecture`) and shown under the piece. `voix.ts`: voice note = Drive file in
+  the owner's "Assistant IA — vocaux" folder, `AssistantIaTour.vocal` transcribed when the thread plays it; optional spoken
+  reply (`AssistantIaFil.reponseVocale`, OpenAI TTS → `AssistantIaTour.audio`). STT/TTS metered by `appelVoix`
+  (`consommation.ts`, provider `openai-audio`, token equivalents). Route `POST /api/assistant-ia/vocal`.
   **Operations (lot V3-D, 2026-10-28)**: the only two model doors (`repondre.ts`, `generer.ts`) read the master switch,
   then open a **budget** (`consommation.ts`): per-step usage from Mastra `onStepFinish` → one `ModelCallLog` row per
   call (feature `assistant_ia`, `role` = origin conversation/fil/routine/redaction, `threadId` = fil id) + one

@@ -231,13 +231,13 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
   const now = opts.maintenant ?? new Date();
   const horizon = Math.max(1, Math.min(180, opts.horizonJours ?? 30));
   const signaux: Signal[] = [];
-  const portee: Record<string, number> = {};
+  const lus: Record<string, number> = {};
   const notes: string[] = [];
 
   const budgets = userCan(user, "BUDGETS", "VIEW")
     ? (async () => {
       const enveloppes = (await getEnvelopes(user)).slice(0, opts.leger ? 3 : ENVELOPPES_MAX);
-      portee.enveloppes = enveloppes.length;
+      lus.enveloppes = enveloppes.length;
       const vues = await Promise.all(enveloppes.map((e) => getBudgetOverview(user, e.id).catch(sansBloquer("intelligence.signauxFinance.getBudgetOverview", null))));
       for (const v of vues) {
         if (!v) continue;
@@ -282,7 +282,7 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
           select: { id: true, reference: true, title: true, amount: true, counterparty: true, chainFrom: { select: { id: true, reference: true, kind: true, amount: true } } }, take: 300, orderBy: { createdAt: "desc" },
         }),
       ]);
-      portee.ordresDeDepense = ordres.length; portee.demandesDePaiement = demandes.length; portee.facturesChainees = facturesChainees.length;
+      lus.ordresDeDepense = ordres.length; lus.demandesDePaiement = demandes.length; lus.facturesChainees = facturesChainees.length;
       // La MÊME règle que le règlement (`finance/facture-ordre.ts`, §118.185) : ce signal ne lisait que
       // le registre Legal et criait « justificatif manquant » sur un ordre dont la facture était jointe.
       const liees = await ordresAvecFacture(ordres.filter((o) => o.requiresInvoice));
@@ -311,7 +311,7 @@ export async function signauxFinance(user: SessionUser, opts: { horizonJours?: n
 
   await Promise.all([budgets, finances]);
   const tries = trierSignaux(signaux);
-  return { domaine: "FINANCE", signaux: tries, resume: resumerSignaux(tries), portee: { ...portee, horizonJours: horizon }, notes, calculeLe: now.toISOString(), ms: Date.now() - t0 };
+  return { domaine: "FINANCE", signaux: tries, resume: resumerSignaux(tries), portee: { ...lus, horizonJours: horizon }, notes, calculeLe: now.toISOString(), ms: Date.now() - t0 };
 }
 
 // ═══════════════════════════════ REGULATORY ═══════════════════════════════

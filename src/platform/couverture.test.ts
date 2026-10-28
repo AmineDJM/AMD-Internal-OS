@@ -18,7 +18,7 @@ import { mesurerCouverture } from "./couverture";
  *   kit d'interface → métier 6 · tests qui lisent le source par chemin 128.
  * Lot V4 (28/10/2026, migration des Finances vers `src/modules/finances/`) : hors carte 768 → 760 ·
  *   kit d'interface → métier 6 → 5 · tests qui lisent le source par chemin 128 → 122.
- * Fusion des lots V4 `rh` et `finances` (la paie versée passe à `finances`) : hors carte 748 · kit → métier 5 ·
+ * Fusion des lots V4 `rh` et `finances` (la paie versée passe à `finances`) : hors carte 748 (746 avec le lot sécurité & argent) · kit → métier 5 ·
  *   tests de texte 119.
  *
  * Point de départ RECALÉ à la fusion de la base `bf7a907` (lots V3-C/D/E), et seulement là : ces lots ont
@@ -27,11 +27,16 @@ import { mesurerCouverture } from "./couverture";
  * `migrations-appliquees.ts`) avant que ce cliquet existe dans la base — et en ont retiré un (`agent/agent.ts`).
  * `journal` et `migrations-appliquees` ont été rangés au socle ; reste 768. Désormais, chaque fichier neuf hors
  * carte se range avant fusion.
+ *
+ * −2 (28/10/2026, décision 0011 — vocaux et lecture des pièces de l'Assistant IA ; 756 → 754 après le module
+ * `rh`) : deux fichiers
+ * serveur neufs (`agent/lecture/pieces.ts`, `voix.ts`), et cinq fichiers PURS de l'Assistant IA, zéro import,
+ * rangés au socle (`lecture/regles`, `consommation-regles`, `contenu-non-fiable`, `memoire-ui`, `fil/partiel`).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 748,
+  horsCarte: 746,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */

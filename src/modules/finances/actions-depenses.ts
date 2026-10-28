@@ -5,12 +5,14 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
 import { ENTITY_MODULE, moduleDeLEntite } from "@/lib/entity-access";
+import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
+import {
+  refusSeparationDesTaches, ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus,
+  checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
+  solderVirementPaie,
+} from "@/modules/finances/api";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
-import {
-  ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus, checkDeferral, budgetGate,
-  dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon, solderVirementPaie,
-} from "@/modules/finances/api";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
@@ -35,13 +37,19 @@ async function lienDuDossierDeLOrdre(orderId: string): Promise<string> {
 /** Comptable settles an ordre de dépense → generates the treasury OUT entry and marks the source paid. */
 export async function settleExpenseOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
+  // LA PORTE DE L'ORDRE (audit 27/10, SA-11 / ARGENT-08) : le droit Finances ET la société de l'ordre.
+  const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "UPDATE");
+  if (!porte.ok) return porte;
   const order = await prisma.expenseOrder.findUnique({ where: { id } });
   if (!order) return { ok: false, error: "Ordre introuvable." };
   if (order.status === "PAID") return { ok: true };
   if (order.status !== "PENDING") return { ok: false, error: "Cet ordre a été annulé." };
+
+  // QUI DEMANDE OU AUTORISE NE RÈGLE PAS (audit 27/10, ARGENT-06) — réglage du Super Admin, actif par défaut.
+  const separation = refusSeparationDesTaches("REGLER", order, user.id, (await getAppSettings()).separationTachesPaiement);
+  if (separation) return { ok: false, error: separation };
 
   // LE VERROU DU CENTRE DE PAIEMENT — la dernière porte avant que l'argent sorte.
   //
@@ -345,6 +353,8 @@ export async function requestInvoice(formData: FormData): Promise<ActionResult> 
   if (!userCan(user, "FINANCES", "UPDATE") && !hasGlobalView(user.role)) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
+  const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "UPDATE", { droitDuModule: false });
+  if (!porte.ok) return porte;
   const order = await prisma.expenseOrder.findUnique({ where: { id } });
   if (!order) return { ok: false, error: "Ordre introuvable." };
 
@@ -389,9 +399,11 @@ export async function requestInvoice(formData: FormData): Promise<ActionResult> 
  */
 export async function deferExpenseOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
+  // LA PORTE DE L'ORDRE (audit 27/10, SA-11 / ARGENT-08) : le droit Finances ET la société de l'ordre.
+  const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "UPDATE");
+  if (!porte.ok) return porte;
   const order = await prisma.expenseOrder.findUnique({ where: { id } });
   if (!order) return { ok: false, error: "Ordre introuvable." };
   if (order.status !== "PENDING") return { ok: false, error: "Seul un ordre à régler peut être reporté." };
@@ -438,9 +450,11 @@ export async function deferExpenseOrder(formData: FormData): Promise<ActionResul
  */
 export async function resumeExpenseOrder(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "FINANCES", "UPDATE")) return { ok: false, error: "Réservé à la comptabilité (Finances)." };
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Ordre introuvable." };
+  // LA PORTE DE L'ORDRE (audit 27/10, SA-11 / ARGENT-08) : le droit Finances ET la société de l'ordre.
+  const porte = await ouvrirPourEcrire(user, "EXPENSE_ORDER", id, "UPDATE");
+  if (!porte.ok) return porte;
   const order = await prisma.expenseOrder.findUnique({ where: { id } });
   if (!order) return { ok: false, error: "Ordre introuvable." };
   if (!order.deferredUntil) return { ok: false, error: "Ce paiement n'est pas reporté." };

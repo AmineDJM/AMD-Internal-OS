@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { userCan, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { buildRef } from "@/lib/refs";
+import { referenceDeSerie } from "@/lib/refs";
 import { ttcDesFacturesStockees } from "@/lib/factures/connues";
 import type { ActionResult } from "@/lib/actions/types";
 import { ROLES_CENTRE_DE_PAIEMENT } from "../domaine/authorization";
@@ -38,10 +38,10 @@ export function isRequester(user: SessionUser, req: { requesterId: string }): bo
 
 export async function nextRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.paymentRequest.findMany({
-    where: { reference: { startsWith: `PAY-${year}-` } }, select: { reference: true },
+  return referenceDeSerie({
+    modele: "PaymentRequest", prefixe: "PAY", annee: year,
+    existantes: async () => (await prisma.paymentRequest.findMany({ where: { reference: { startsWith: `PAY-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("PAY", year, refs.map((r) => r.reference));
 }
 
 export function revalidate(id?: string) {

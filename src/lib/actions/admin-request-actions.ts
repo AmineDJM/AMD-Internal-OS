@@ -17,7 +17,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder, ficheAFacture, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
-import { buildRef, createWithRetry } from "@/lib/refs";
+import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { dejaPorteParSaFiche } from "@/lib/ad-pro/unified";
 import { ecrireAuFil } from "@/lib/ad-pro/fil";
@@ -83,11 +83,10 @@ async function archiveAdminRequestIfDone(id: string, actorId: string): Promise<v
 /** Référence robuste (dérivée du maximum réel, pas de `count()+1` fragile). */
 async function nextRequestRef(): Promise<string> {
   const year = new Date().getFullYear();
-  const refs = await prisma.administrativeRequest.findMany({
-    where: { reference: { startsWith: `REQ-${year}-` } },
-    select: { reference: true },
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "REQ", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `REQ-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
   });
-  return buildRef("REQ", year, refs.map((r) => r.reference));
 }
 
 /**

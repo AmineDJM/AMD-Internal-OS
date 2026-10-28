@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { moneyEntityOf } from "@/lib/company";
 import type { CurrentUser } from "@/lib/session";
-import { buildRef, createWithRetry, enSerie } from "@/lib/refs";
+import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { MENU_CATALOGUE_PROMO } from "@/lib/chemins/stock-promo";
 import { CHEMIN_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
@@ -61,8 +61,10 @@ const SELECT_DOSSIER_DEVIS = {
 /** La référence d'une demande au secrétariat — la même série que les demandes de devis des postes. */
 async function prochaineReferenceDemande(): Promise<string> {
   const year = new Date().getFullYear();
-  const rows = await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `DEM-${year}-` } }, select: { reference: true } });
-  return buildRef("DEM", year, rows.map((r) => r.reference));
+  return referenceDeSerie({
+    modele: "AdministrativeRequest", prefixe: "DEM", annee: year,
+    existantes: async () => (await prisma.administrativeRequest.findMany({ where: { reference: { startsWith: `DEM-${year}-` } }, select: { reference: true } })).map((r) => r.reference),
+  });
 }
 
 /** Les articles d'un dossier, dans la forme que le texte de la demande lit — la même que l'aperçu du formulaire. */
