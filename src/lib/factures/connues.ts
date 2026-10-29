@@ -4,7 +4,7 @@ import { openSecret } from "@/lib/crypto/secret-box";
 import { canAccessEntity, ENTITY_MODULE } from "@/lib/entity-access";
 import { entityHref } from "@/lib/entity-href";
 import { ENTITY_TYPE_LABELS, MODULE_LABELS } from "@/lib/labels";
-import { TYPES_ENTITE_AD_PRO } from "@/lib/ad-pro/unified";
+import { TYPES_ENTITE_AD_PRO } from "@/modules/ad-pro/partage";
 import type { Module, SessionUser } from "@/lib/rbac";
 import { proposerLecture } from "@/lib/pieces-lues/service";
 import { empreinteDe, texteDeLaLecture } from "@/lib/pieces-lues/lecture-fichier";

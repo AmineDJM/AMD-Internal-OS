@@ -72,7 +72,9 @@ export const DOMAINS: { name: string; paths: string[] }[] = [
   { name: "adam", paths: ["src/lib/assistant/", "src/lib/models/", "src/lib/assistant.ts"] },
   { name: "google", paths: ["src/lib/google/"] },
   { name: "directory", paths: ["src/lib/directory/", "src/lib/contacts/", "src/lib/medical/"] },
-  { name: "adpro", paths: ["src/lib/ad-pro/", "src/lib/promo/", "src/lib/promo-material/"] },
+  // Le reste d'Ad & Pro (demandes, postes, prise en charge, événements) vit dans le module `src/modules/ad-pro/`
+  // (lot V4) : ici ne reste que le stock et le dossier de matériel promotionnel, prochain lot du pôle.
+  { name: "adpro", paths: ["src/lib/promo/", "src/lib/promo-material/"] },
   { name: "general-means", paths: ["src/lib/general-means/"] },
   // `site-web/` : la publication vers le site public Adventum (§118.158) — contrat de l'API du
   // site, lecture du Markdown, file de réessais, réconciliation. Déclaré pour être MESURÉ : il ne

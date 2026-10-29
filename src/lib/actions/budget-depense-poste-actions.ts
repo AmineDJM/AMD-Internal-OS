@@ -8,14 +8,11 @@ import { recordAudit } from "@/lib/audit";
 import { createExpenseOrder } from "@/lib/expense-orders";
 import { persistUploadedDocument } from "@/lib/documents";
 import { validateAttachments } from "@/lib/attach-files";
-import { ITEM_KIND_LABELS, PARENT_ENTITE, type AdProParent } from "@/lib/ad-pro-items";
-import { facturePourPayer } from "@/lib/ad-pro/poste-etapes";
-import { rattacherPieceAuPoste } from "@/lib/ad-pro/pieces-poste";
+import { ITEM_KIND_LABELS, PARENT_ENTITE, type AdProParent, facturePourPayer } from "@/modules/ad-pro/partage";
+import { rattacherPieceAuPoste, refusCategoriePourLaDemande, refusSiPorteDgFermee } from "@/modules/ad-pro/api";
 import { CHEMIN_PARENT_AD_PRO } from "@/lib/chemins/ad-pro";
 import { DOMAINES } from "@/lib/budget/domaines";
 import { depensesDesPostes } from "@/lib/queries/budget-sources";
-import { refusCategoriePourLaDemande } from "@/lib/ad-pro/categorie-budgetaire-serveur";
-import { refusSiPorteDgFermee } from "@/lib/ad-pro/porte-dg";
 import {
   MOTIF_MAX, refusAnnulation, refusConsommation, refusImputation, type GesteImputation,
 } from "@/lib/budget/depense-poste";

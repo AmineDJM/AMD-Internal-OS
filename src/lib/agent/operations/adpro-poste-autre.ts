@@ -1,7 +1,7 @@
 import { userCan } from "@/lib/rbac";
-import { addAdProItem } from "@/lib/actions/ad-pro-item-actions";
-import { createAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
-import { ITEM_KIND_LABELS } from "@/lib/ad-pro-items";
+import { addAdProItem } from "@/modules/ad-pro/actions-postes";
+import { createAdProOtherRequest } from "@/modules/ad-pro/actions-autres";
+import { ITEM_KIND_LABELS } from "@/modules/ad-pro/partage";
 import { getAppSettings } from "@/lib/settings";
 import { porteDgRequise } from "@/lib/seuils/ad-pro";
 import type { AdProItemKind } from "@prisma/client";

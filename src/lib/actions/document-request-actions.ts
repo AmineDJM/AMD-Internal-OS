@@ -18,7 +18,7 @@ import { companyIdForNew } from "@/lib/company";
 import { pieceKindOf, legalKindOfPiece, legalTitleFromPiece, PIECE_KIND_LABEL } from "@/lib/legal/from-piece";
 import { aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
 import { reserveDeLAiguillage } from "@/lib/bons-de-commande/regle";
-import { assistantesDeDirection, natureDePiece, rattacherPieceAuPoste, societeDuPoste } from "@/lib/ad-pro/pieces-poste";
+import { assistantesDeDirection, natureDePiece, rattacherPieceAuPoste, societeDuPoste } from "@/modules/ad-pro/api";
 
 const PATH = "/pieces";
 

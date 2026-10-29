@@ -5,7 +5,7 @@ import { etapeFixeLArgent, issueTerminaleSponsoring } from "./issue-sponsoring";
 import { defaultDefinition, ETAPE_PRE_VALIDATION_SPONSORING, ETAPE_PREVALIDATION } from "./defaults";
 import { WORKFLOW_CATEGORIES } from "./types";
 import { SLUG_DIRECTION, SLUG_MARKETING } from "./parcours";
-import { quiCloture } from "@/lib/ad-pro/cloture-sponsoring";
+import { quiCloture } from "@/modules/ad-pro/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

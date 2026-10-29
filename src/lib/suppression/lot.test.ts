@@ -8,7 +8,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { apercuDeSuppression, restoreDeletedRecord, superAdminDelete } from "@/lib/actions/admin-delete-actions";
-import { deleteEvent } from "@/lib/actions/event-actions";
+import { deleteEvent } from "@/modules/ad-pro/actions-evenements";
 import { deleteBdProject } from "@/lib/actions/bd-project-actions";
 import { inventorier, supprimerLot } from "./lot";
 

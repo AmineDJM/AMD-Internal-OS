@@ -197,7 +197,7 @@ describe("La valeur d'une clé ne quitte pas la couche serveur", () => {
   it("aucun composant ne reçoit une clé : la carte ne prend que le bloc, déjà composé côté serveur", () => {
     const carte = lire(CARTE);
     expect(carte).not.toMatch(/from\s*"@\/lib\/site-web\/cles"/);
-    const composants = fichiers("src/components", (f) => /\.(ts|tsx)$/.test(f));
+    const composants = [...fichiers("src/components", (f) => /\.(ts|tsx)$/.test(f)), ...fichiers("src/modules", (f) => /\/ecrans\/.*\.(ts|tsx)$/.test(f))];
     const fautes = composants.filter((f) => /from\s*"@\/lib\/site-web\/cles"/.test(lire(f)));
     expect(fautes, fautes.join("\n")).toEqual([]);
   });

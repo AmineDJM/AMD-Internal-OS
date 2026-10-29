@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { scopeCongressIntl, scopeCongressNational, userCan } from "@/lib/rbac";
-import { createCongressRequest } from "@/lib/actions/congress-request-actions";
+import { createCongressRequest } from "@/modules/ad-pro/actions-congres";
 import { getAppSettings } from "@/lib/settings";
 import { porteDgRequise } from "@/lib/seuils/ad-pro";
-import { piecesAttendues } from "@/lib/care";
+import { piecesAttendues } from "@/modules/ad-pro/partage";
 import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, liste, nombre, texte, type OperationIA, type PropositionOperation } from "./types";
 import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";

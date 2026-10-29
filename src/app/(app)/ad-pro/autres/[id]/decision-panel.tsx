@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Loader2, X, CircleCheckBig } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { closeAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
+import { closeAdProOtherRequest } from "@/modules/ad-pro/actions-autres";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { useRafraichir } from "@/components/shared/use-rafraichir";

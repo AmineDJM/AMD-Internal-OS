@@ -19,8 +19,8 @@ import { createExpenseOrder } from "@/lib/expense-orders";
 import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
-import { dejaPorteParSaFiche } from "@/lib/ad-pro/unified";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { dejaPorteParSaFiche } from "@/modules/ad-pro/partage";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { fieldLabels, REQUEST_TYPES } from "@/lib/admin-requests";
 import {

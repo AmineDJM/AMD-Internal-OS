@@ -14,8 +14,9 @@ vi.mock("@/lib/settings", async (importOriginal) => {
 import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
-import { decideCareQuote, demanderBCPriseEnCharge, retenirDevisPriseEnCharge } from "./care-actions";
-import { statuerSurLeTotal, totalDeLaDemande } from "@/lib/ad-pro/porte-dg";
+import { decideCareQuote } from "@/modules/ad-pro/actions-prise-en-charge";
+import { demanderBCPriseEnCharge, retenirDevisPriseEnCharge } from "@/modules/ad-pro/actions-prise-en-charge-logistique";
+import { statuerSurLeTotal, totalDeLaDemande } from "@/modules/ad-pro/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

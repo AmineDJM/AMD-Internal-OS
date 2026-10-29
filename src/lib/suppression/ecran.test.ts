@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS } from "@/lib/ad-pro/unified";
+import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS } from "@/modules/ad-pro/partage";
 import { DELETE_REGISTRY, DELETABLE_KINDS } from "@/lib/admin-delete-registry";
 
 /** Un cliquet juge le CODE, pas la prose qui le décrit (§118.79d, §118.88, §118.112b). */
@@ -75,7 +75,7 @@ describe("Écran — un événement se supprime par la même fenêtre, plus par 
   });
 
   it("l'action du module passe par le cœur réversible — plus de suppression sèche", () => {
-    const src = code("src/lib/actions/event-actions.ts");
+    const src = code("src/modules/ad-pro/actions-evenements.ts");
     const corps = src.slice(src.indexOf("export async function deleteEvent"), src.indexOf("export async function deleteEvent") + 900);
     expect(corps).toContain('supprimerReversible("EVENT"');
     expect(corps).not.toMatch(/prisma\.event\.delete\(/);

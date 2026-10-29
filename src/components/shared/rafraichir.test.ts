@@ -85,8 +85,8 @@ describe("le rafraîchissement suivi", () => {
       // §118.175 : la carte d'un poste ouvre des fiches (modifier le poste, un voyageur) sur
       // l'état qu'elle montre — ouvertes avant la fin du rafraîchissement, elles réécriraient
       // l'état d'avant.
-      "src/components/ad-pro/items-panel.tsx",
-      "src/components/ad-pro/supprimer-demande.tsx",
+      "src/modules/ad-pro/ecrans/items-panel.tsx",
+      "src/modules/ad-pro/ecrans/supprimer-demande.tsx",
       // §118.176 : envoyer la paie au centre, puis renvoyer sur l'état d'avant, partirait deux fois ;
       // supprimer des écritures « à imputer » rouvrirait une sélection sur des lignes disparues.
       "src/app/(app)/rh/paie/virements-paie.tsx",
