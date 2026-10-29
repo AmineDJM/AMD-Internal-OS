@@ -129,7 +129,7 @@ describe("la fabrique — le titre, le plancher de numérotation, la couleur de 
   const build = lire("src/lib/artifact/factory/build.ts");
   // La fabrique est découpée (`artifact/factory/`) : on la relit entière, morceaux dans l'ordre d'origine.
   const fabrique = ["profil", "demande", "numerotation", "emission", "apercu", "revision", "dossier"]
-    .map((m) => lire(`src/platform/in-process/artifact/factory/${m}.ts`)).join("\n");
+    .map((m) => lire(`src/platform/ia/artifact/factory/${m}.ts`)).join("\n");
 
   it("le titre vient AVANT « B.C : N° … », au centre, en gras, à l'accent — et dit DEVIS pour un devis", () => {
     const iTitre = build.indexOf('paragraphe(estDevis ? "DEVIS" : "BON DE COMMANDE", { alignement: "center", gras: true');

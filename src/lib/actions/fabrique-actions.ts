@@ -6,7 +6,7 @@
  *
  * ── CE QUE CE FICHIER N'EST PAS ────────────────────────────────────────────────────────────
  *
- * Ce n'est pas un second générateur de pièces. La fabrique (`platform/in-process/artifact/
+ * Ce n'est pas un second générateur de pièces. La fabrique (`platform/ia/artifact/
  * factory.ts`) existait pour Adam : numéro atomique, identité légale, papier en-tête, montants
  * calculés par le code, pièce inscrite au registre Legal, fichiers dans le Drive. Ces actions ne
  * font que TRADUIRE un formulaire en demande de fabrique (§118.5 : deux chemins d'émission

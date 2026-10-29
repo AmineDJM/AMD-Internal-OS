@@ -15,7 +15,7 @@
  * ── CE QUE CE FICHIER NE FAIT PAS ───────────────────────────────────────────────────────
  *
  * Il n'écrit pas en base et ne décide d'aucun droit : tout passe par le pont
- * (`platform/in-process/teach/store.ts`), qui porte la porte des périmètres. Il n'importe
+ * (`platform/ia/teach/store.ts`), qui porte la porte des périmètres. Il n'importe
  * aucun module de l'ERP — la frontière Adam ↔ ERP est au plafond mesuré.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */

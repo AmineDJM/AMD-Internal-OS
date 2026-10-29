@@ -23,7 +23,7 @@ import { actionsOf, arr, clip, isInternalHref, isObj, s, TONES, type Json } from
  *      chiffres dans un graphique, il nomme les colonnes.
  *
  * Aucune forme n'a de composant React : le client rend `type` avec UN rendu générique
- * (`components/chief/workspace/blocks/viz-figure.tsx`). Ajouter une forme = un cas ici (les
+ * (`platform/ia/ecrans/blocks/viz-figure.tsx`). Ajouter une forme = un cas ici (les
  * données qu'elle exige) + un cas là (son dessin). Jamais un fichier par graphique.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
