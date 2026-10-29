@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber, montantDzd } from "@/lib/utils";
-import { decideAdProItem } from "@/lib/actions/ad-pro-item-actions";
-import { transferAdProRequest } from "@/lib/actions/ad-pro-transfer-actions";
+import { decideAdProItem } from "@/modules/ad-pro/actions-postes-decision";
+import { transferAdProRequest } from "@/modules/ad-pro/actions-transfert";
 import { validatePromoStep, refusePromoStep } from "@/lib/actions/promo-circuit-actions";
 import { createBD, updateBDStatus } from "@/lib/actions/bd-actions";
 import { requestStockState } from "@/lib/actions/stock-snapshot-actions";

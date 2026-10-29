@@ -22,6 +22,7 @@ import {
   isBonDeVersement, companionNotice,
 } from "@/modules/finances/partage";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { pieceKindOptions, filingNotice } from "@/lib/legal/from-piece";
 import {
   addPaymentPiece, commentPaymentPiece, reviewPaymentPiece, addPaymentComment,
@@ -103,11 +104,16 @@ function NudgePanel({ id, onDone }: { id: string; onDone: () => void }) {
     setBusy(true); setErr(null);
     const fd = new FormData();
     fd.set("id", id); fd.set("kind", kind); fd.set("comment", comment);
-    const r = await nudgePaymentRequest(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "La relance n'a pas pu être envoyée."); return; }
-    setDone(r.message ?? "Envoyé."); setKind(null); setComment("");
-    onDone();
+    try {
+      const r = await nudgePaymentRequest(fd);
+      if (!r.ok) { setErr(r.error ?? "La relance n'a pas pu être envoyée."); return; }
+      setDone(r.message ?? "Envoyé."); setKind(null); setComment("");
+      onDone();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -239,18 +245,24 @@ export function PaymentDossier({
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, v);
     for (const [k, f] of Object.entries(files ?? {})) fd.set(k, f);
-    const r = await fn(fd);
-    setEnVol(null);
-    if (!r.ok) {
-      if (r.factureConnue) setConnue(r.factureConnue);
-      else if (r.ecartMontant) { setEcart(r.ecartMontant); if (justification.trim()) setErr(r.error ?? null); }
-      else setErr(r.error ?? "L'opération a échoué.");
+    try {
+      const r = await fn(fd);
+      if (!r.ok) {
+        if (r.factureConnue) setConnue(r.factureConnue);
+        else if (r.ecartMontant) { setEcart(r.ecartMontant); if (justification.trim()) setErr(r.error ?? null); }
+        else setErr(r.error ?? "L'opération a échoué.");
+        return false;
+      }
+      if (r.message) setInfo(r.message);
+      setNote(""); setMessage(""); setEcart(null); setJustification(""); setConfirme(false);
+      rafraichir();
+      return true;
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
       return false;
+    } finally {
+      setEnVol(null);
     }
-    if (r.message) setInfo(r.message);
-    setNote(""); setMessage(""); setEcart(null); setJustification(""); setConfirme(false);
-    rafraichir();
-    return true;
   };
   // Le dernier écart de montant dit — tant qu'aucune correction ne l'a suivi : corrigé, il ne se montre plus.
   const dernierEcart = [...events].reverse().find((e) => e.kind === "ECART_MONTANT" || e.kind === "CORRECTED");
@@ -538,8 +550,7 @@ function CorrigerDemande({
               e.preventDefault();
               const fields: Record<string, string> = { id };
               new FormData(e.currentTarget).forEach((val, k) => { fields[k] = String(val); });
-              const ok = await run("corriger", corrigerDemandePaiement, fields);
-              if (ok) setOuvert(false);
+              if (await run("corriger", corrigerDemandePaiement, fields)) setOuvert(false);
             }}
           >
             <div className="space-y-1.5">
@@ -929,12 +940,17 @@ function AskPiece({
                 fd.set("kind", kind);
                 fd.set("dueDate", due);
                 fd.set("note", note);
-                const r = await requestDocument(fd);
-                setSending(false);
-                if (!r.ok) { setErr(r.error ?? "La demande n'a pas pu être créée."); return; }
-                setDone(label.trim());
-                setWho(""); setLabel(""); setKind("INVOICE"); setDue(""); setNote("");
-                rafraichir();
+                try {
+                  const r = await requestDocument(fd);
+                  if (!r.ok) { setErr(r.error ?? "La demande n'a pas pu être créée."); return; }
+                  setDone(label.trim());
+                  setWho(""); setLabel(""); setKind("INVOICE"); setDue(""); setNote("");
+                  rafraichir();
+                } catch {
+                  setErr(actionFailureMessage("THROWN"));
+                } finally {
+                  setSending(false);
+                }
               }}
             >
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Envoyer la demande

@@ -7,6 +7,7 @@ import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { referenceDemandeDevisPromo, regenererDemandeDevisPromo } from "@/lib/actions/promo-devis-actions";
 import { deleteDocument } from "@/lib/actions/document-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ChampReference } from "@/components/references/champ-reference";
 
 /**
@@ -43,15 +44,29 @@ export function DemandeDevisCard({ promoMaterialId, generations, peutGenerer, ap
     // La référence NNN/DG/AAAA (registre commun) : préremplie avec le prochain numéro, modifiable.
     fd.set("reference", reference.valeur);
     fd.set("referenceSuggeree", reference.suggeree);
-    const r = await regenererDemandeDevisPromo(fd);
-    setOccupe(false);
-    if (r.ok) { setMsg(r.message ?? null); rafraichir(); } else setErr(r.error ?? "Génération impossible.");
+    let r: Awaited<ReturnType<typeof regenererDemandeDevisPromo>>;
+    try {
+      r = await regenererDemandeDevisPromo(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setOccupe(false);
+    }
+    if (r.ok) { setMsg(r.message ?? null); rafraichir(); } else setErr(r.error ?? "La demande de devis n'a pas été générée.");
   };
   const supprimer = async (f: FichierLettre) => {
     setOccupe(true); setErr(null); setMsg(null);
-    const r = await deleteDocument(f.id, chemin);
-    setOccupe(false);
-    if (r.ok) rafraichir(); else setErr(r.error ?? "Suppression impossible.");
+    let r: Awaited<ReturnType<typeof deleteDocument>>;
+    try {
+      r = await deleteDocument(f.id, chemin);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setOccupe(false);
+    }
+    if (r.ok) rafraichir(); else setErr(r.error ?? "La lettre n'a pas été supprimée.");
   };
 
   const [derniere, ...anciennes] = generations;

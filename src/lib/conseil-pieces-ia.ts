@@ -13,7 +13,7 @@ import { FORMATS_LUS, PAGES_MAX, TAILLE_MAX_OCTETS } from "@/lib/pieces-lues/ser
 import { CARACTERES_MIN, phraseCoupeDuTexte } from "@/lib/lecture-pieces-ia";
 import {
   composerContexte, CONSIGNE_CONSEIL, lireConseilModele, SCHEMA_CONSEIL, type ConseilPiece, type ContexteConseil,
-} from "@/lib/ad-pro/conseil-pieces";
+} from "@/modules/ad-pro/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { ChevronDown, ChevronRight, Loader2, Lock, Plus, Send } from "lucide-react";
 import {
   addChecklistItem, createSubmission, submitSubmission, toggleChecklistItem, updateSubmission,
@@ -24,19 +24,10 @@ export function SubmissionPanel({ tenderId, soumissions, canEdit }: {
   soumissions: Market360["soumissions"];
   canEdit: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy, err, run } = useAction();
   // La version la plus récente s'ouvre d'elle-même ; l'historique se déplie.
   const [openId, setOpenId] = React.useState<string | null>(soumissions[0]?.id ?? null);
 
-  const run = async (fn: () => Promise<{ ok: boolean; error?: string }>) => {
-    setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) setErr(r.error ?? "Erreur.");
-    else router.refresh();
-  };
 
   const statutLabel: Record<string, { label: string; tone: "neutral" | "info" | "warning" | "success" }> = {
     DRAFT: { label: "Brouillon", tone: "neutral" },
@@ -143,8 +134,9 @@ export function SubmissionPanel({ tenderId, soumissions, canEdit }: {
                       size="sm"
                       disabled={busy}
                       onClick={() => {
-                        if (!window.confirm(`Déposer la V${s.version} ? La version sera VERROUILLÉE, la date de soumission posée sur le marché, et la photo des lignes figée.`)) return;
-                        void run(() => { const fd = new FormData(); fd.set("id", s.id); return submitSubmission(fd); });
+                        void run(() => { const fd = new FormData(); fd.set("id", s.id); return submitSubmission(fd); }, undefined, {
+                          confirmer: `Déposer la V${s.version} ? La version sera VERROUILLÉE, la date de soumission posée sur le marché, et la photo des lignes figée.`,
+                        });
                       }}
                     >
                       {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Déposer &amp; verrouiller

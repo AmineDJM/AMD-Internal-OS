@@ -42,6 +42,7 @@ import {
   viserArtefact,
 } from "@/platform/in-process/artifact/actions";
 import { AskContext } from "../primitives";
+import { useConfirmer } from "@/components/ui/dialogue";
 import "./artifact.css";
 
 const CM_PAR_POUCE = 2.54;
@@ -51,6 +52,7 @@ const PX_PAR_CM = 96 / CM_PAR_POUCE;
 type BlocArtefact = Extract<WorkspaceBlock, { kind: "artifact" }>;
 
 export function ArtifactBlock({ b }: { b: BlocArtefact }) {
+  const confirmer = useConfirmer();
   const [vue, setVue] = React.useState<VueArtefact>(b.vue);
   const [occupe, setOccupe] = React.useState(false);
   const [message, setMessage] = React.useState<string | null>(null);
@@ -91,7 +93,7 @@ export function ArtifactBlock({ b }: { b: BlocArtefact }) {
   const retablir = () => appliquer(() => retablirArtefact(vue.sessionId));
 
   const fermer = async () => {
-    if (vue.dirty && !window.confirm("Des modifications ne sont pas enregistrées. Fermer quand même ?")) return;
+    if (vue.dirty && !(await confirmer("Des modifications ne sont pas enregistrées. Fermer quand même ?"))) return;
     await fermerArtefact(vue.sessionId);
     setFerme(true);
   };

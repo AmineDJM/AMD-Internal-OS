@@ -16,6 +16,8 @@ import { useSelectionGrille } from "@/components/grille/use-selection";
 import { BarreSelection, DockSelection, classeCouleurCellule } from "@/components/grille/barre-selection";
 import { ServicesPanel } from "./services-panel";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 import type { EtablissementRow } from "@/lib/annuaires/types";
 
@@ -73,6 +75,7 @@ export function EtablissementsTable({
   // Les gestes attendent que l'écran ait reçu ses nouvelles données : une fiche ouverte
   // avant porterait l'état d'AVANT, et l'enregistrer le réécrirait (§118.172).
   const { enCours: rafraichit, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   // LE PANNEAU DES SERVICES suit la LIGNE par son identifiant, relue à chaque rendu : garder
   // l'objet de la ligne montrerait la liste d'avant l'ajout, jusqu'à ce qu'on le referme.
   const [servicesDeId, setServicesDeId] = React.useState<string | null>(null);
@@ -94,11 +97,17 @@ export function EtablissementsTable({
 
   const run = async (action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData) => {
     setBusy(true); setErr(null);
-    const r = await action(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return false; }
-    rafraichir();
-    return true;
+    try {
+      const r = await action(fd);
+      if (!r.ok) { setErr(r.error ?? "L'établissement n'a pas été modifié."); return false; }
+      rafraichir();
+      return true;
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return false;
+    } finally {
+      setBusy(false);
+    }
   };
 
   const remove = async (e: EtablissementRow) => {
@@ -109,7 +118,7 @@ export function EtablissementsTable({
     ].filter(Boolean);
     const msg = `Supprimer « ${e.name} » ?`
       + (consequences.length ? `\n\n${consequences.map((c) => `• ${c}`).join("\n")}` : "");
-    if (!window.confirm(msg)) return;
+    if (!(await confirmer(msg))) return;
     const fd = new FormData();
     fd.set("id", e.id);
     await run(deleteInstitution, fd);
@@ -122,10 +131,10 @@ export function EtablissementsTable({
    * n'envoie que l'identifiant et l'état — `updateInstitution` laisse le reste tel quel.
    */
   const basculerActif = async (e: EtablissementRow) => {
-    if (e.isActive && !window.confirm(
+    if (e.isActive && !(await confirmer(
       `Désactiver « ${e.name} » ?\n\nIl ne se proposera plus au rattachement d'un praticien ni au découpage d'un secteur. `
       + "Les praticiens et les secteurs qui le portent déjà le gardent.",
-    )) return;
+    ))) return;
     const fd = new FormData();
     fd.set("id", e.id);
     fd.set("isActive", e.isActive ? "off" : "on");
@@ -182,6 +191,10 @@ export function EtablissementsTable({
       if (!r.ok) { setCouleursLocales(avant); setMsgCouleur({ ok: false, text: r.error ?? "Coloration refusée." }); return; }
       if (r.ignorees > 0) setMsgCouleur({ ok: true, text: r.message ?? "" });
       rafraichir();
+    }, () => {
+      setBusy(false);
+      setCouleursLocales(avant);
+      setMsgCouleur({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 
@@ -368,8 +381,8 @@ export function EtablissementsTable({
           className="space-y-3"
           action={async (fd) => {
             if (editing) fd.set("id", editing.id);
-            const ok = await run(editing ? updateInstitution : createInstitution, fd);
-            if (ok) { setCreating(false); setEditing(null); }
+            // `run` est gardé (try/catch/finally) : il rend faux sur refus comme sur levée.
+            if (await run(editing ? updateInstitution : createInstitution, fd)) { setCreating(false); setEditing(null); }
           }}
         >
           <div>

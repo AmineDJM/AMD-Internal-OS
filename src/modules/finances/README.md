@@ -13,7 +13,7 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
 | `partage.ts` | **Porte pure** : autorisation du centre (`canDisburse`, `applyDecision`, `canResubmitAuCentre`, `ROLES_CENTRE_DE_PAIEMENT`), chemins de paiement, porte budgétaire (`budgetGate`), règlement, machine d'état des demandes, trésorerie, libellés |
 | `api.ts` | **Porte serveur** : `createExpenseOrder` (l'unique écrivain), `reviserOrdreNonRegle`, `annulerOrdreNonRegle`, `verserLaRemise`, `syncInvoiceSettlement`, comptes ; les lectures des écrans (`chargerCentre`, `chargerOrdresDesFinances`, `getFinanceData`, `getComptaData`…) |
 | `actions-*.ts` | `actions-depenses` (`expense-actions` : payer, reporter, purger), `actions-centre` (`payment-centre-actions` : décider), `actions-sieges` (`payment-centre-seat-actions`), `actions-demandes` (`payment-request-actions`), `actions-relances` (`relance-paiement-actions`), `actions-soldes` (`actualisation-soldes-actions`), `actions-tresorerie` (`finance-actions`) — chacun sous sa **clé historique** (`src/lib/actions/parc.ts`) |
-| `domaine/` | `authorization` (le centre), `chemins-paiement` (ex-`finances/settlement` : `PAYMENT_PATHS`), `settlement` (UNPAID / DEFERRED / PAID), `settle-budget`, `payment-request`, `payment-dossier`, `correction-demande`, `dossier-auto`, `relance-paiement`, `montant-facture`, `money-entity`, `deadline-nature`, `sections-centre`, `reglement`, `tresorerie`, `virement-paie`, `payroll-cost`, `payroll-mass`, `actualisation-soldes`, `resultat-mensuel`, `ledger-audit`, `intelligence`, `invariants-argent` |
+| `domaine/` | `authorization` (le centre), `chemins-paiement` (ex-`finances/settlement` : `PAYMENT_PATHS`), `settlement` (UNPAID / DEFERRED / PAID), `settle-budget`, `payment-request`, `payment-dossier`, `correction-demande`, `dossier-auto`, `relance-paiement`, `montant-facture`, `money-entity`, `deadline-nature`, `sections-centre`, `reglement`, `tresorerie`, `virement-paie`, `payroll-cost`, `payroll-mass`, `soldes-au-reglement` (les statuts de sponsoring qu'un règlement solde, venus d'`ad-pro`), `actualisation-soldes`, `resultat-mensuel`, `ledger-audit`, `intelligence`, `invariants-argent` |
 | `infra/` | `expense-orders`, `revision-ordre`, `annulation`, `verser-remise`, `settle-invoice`, `compagnon-regle`, `comptes`, `next-ref`, `facture-ordre`, `pieces-depense`, `a-imputer`, `relance-destinataires`, `paie-centre`, `demandes` (aides privées des actions de demande) |
 | `infra/requetes/` | les lectures des écrans : `centre-paiement`, `paiements-a-faire`, `finance`, `compta`, `my-payment-requests`, `demande-paiement-suppression` |
 
@@ -23,7 +23,7 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   `infra/paie-centre` (`solderVirementPaie` au règlement, `instantDuCentreDePaie`, la masse salariale actualisée),
   `domaine/virement-paie` (mois de la paie, état d'un salaire et du virement), `domaine/payroll-cost` (coût
   employeur), `domaine/payroll-mass` (masse salariale) — venus de `src/modules/rh/`, qui les lit par nos portes
-  (`rh → finances` ; ce module ne lit jamais `rh`, la carte reste sans cycle).
+  (`rh → finances` ; ce module ne lit jamais `rh`, la carte reste sans cycle). Même règle pour `ad-pro` (`ad-pro → finances`).
 - **Règles tenues par des tests du module** : un seul écrivain d'ordre, qui le fait naître au centre ; liste FERMÉE des
   écrivains de l'autorisation, de `PAID` et du montant (`centre-ecrivains.test.ts`) ; écrivains de la trésorerie
   (`ecrivains-tresorerie.test.ts`) ; deux issues au centre (`centre-deux-issues.test.ts`).
@@ -31,9 +31,9 @@ Ancien emplacement : `src/lib/{finance,finances,payments}/`, `src/lib/expense-or
   information médicale…) par `api.ts` ; les pages `/finances`, `/centre-de-paiement`, `/validations/paiements`.
 - **Hors périmètre** : les budgets (`src/lib/budget*`, non migrés) ; les écrans restent dans `src/app/` et
   `src/components/finance/` (pas encore de dossier `ecrans/`).
-- **Dette héritée** (nommée dans `frontieres.test.ts`, 53 arêtes) : notifications et numérotation, l'entité de
+- **Dette héritée** (nommée dans `frontieres.test.ts`, 52 arêtes) : notifications et numérotation, l'entité de
   l'argent (`company`, `entity-access`), les pièces, la garde des factures connues, et surtout la **clôture des
-  chantiers d'origine au règlement** (sponsoring, matériel promo, BV) — à remplacer par un événement « ordre réglé ».
+  chantiers d'origine au règlement** (matériel promo, BV) — à remplacer par un événement « ordre réglé ».
 
 ### Ce qui n'existe plus (et pourquoi) — ex-fin de `payment-request-actions.ts`
 

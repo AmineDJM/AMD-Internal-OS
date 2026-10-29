@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { AlertCircle, Loader2, Send } from "lucide-react";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { sendLegalInvoiceToSettlement } from "@/lib/actions/legal-actions";
@@ -23,7 +24,7 @@ import { formatCurrency } from "@/lib/utils";
  * facture repart (§118.185, audit 360° I8). Le bouton le dit, pour qu'on sache qu'on ne double rien.
  */
 export function SendToSettlementButton({ id, amount, renvoi = false }: { id: string; amount: number | null; renvoi?: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
@@ -31,9 +32,14 @@ export function SendToSettlementButton({ id, amount, renvoi = false }: { id: str
     setBusy(true); setErr(null);
     const f = new FormData();
     f.set("id", id);
-    const r = await sendLegalInvoiceToSettlement(f);
-    setBusy(false);
-    if (r.ok) router.refresh(); else setErr(r.error ?? "L'envoi a échoué.");
+    try {
+      const r = await sendLegalInvoiceToSettlement(f);
+      if (r.ok) rafraichir(); else setErr(r.error ?? "L'envoi a échoué.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

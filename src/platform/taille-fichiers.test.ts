@@ -30,15 +30,11 @@ const PLAFOND = 1_000;
 
 /** Fichiers hérités au-dessus du plafond (hors périmètre du lot V4, confiés à d'autres chantiers) → taille mesurée. */
 const HERITES: Readonly<Record<string, number>> = {
-  "src/app/(app)/admin/settings/admin-settings-forms.tsx": 1070,
-  "src/app/(app)/assistant/assistant-chat.tsx": 1556,
+  "src/app/(app)/assistant/assistant-chat.tsx": 1469,
   "src/app/(app)/assistant/realtime-voice.ts": 1146,
-  "src/app/(app)/medical/annuaire/annuaire-grid.tsx": 1140,
-  "src/app/(app)/segmentation/praticiens-table.tsx": 1087,
-  "src/components/ad-pro/items-panel.tsx": 2149,
-  "src/lib/actions/ad-pro-item-actions.ts": 4407,
+  "src/app/(app)/medical/annuaire/annuaire-grid.tsx": 1069,
+  "src/app/(app)/segmentation/praticiens-table.tsx": 1044,
   "src/lib/actions/admin-request-actions.ts": 1260,
-  "src/lib/actions/care-actions.ts": 1552,
   "src/lib/actions/contrat.ts": 1403,
   "src/lib/actions/legal-actions.ts": 1033,
   "src/lib/actions/medical-info-actions.ts": 1148,

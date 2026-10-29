@@ -70,7 +70,7 @@ const FICHIERS_A_ZERO = [
   "src/modules/finances/actions-depenses.ts",
   "src/modules/finances/actions-centre.ts",
   "src/modules/finances/actions-tresorerie.ts",
-  "src/lib/actions/event-actions.ts",
+  "src/modules/ad-pro/actions-evenements.ts",
   "src/lib/actions/field-report-actions.ts",
   "src/lib/actions/legal-folder-actions.ts",
   "src/lib/actions/mail-folder-actions.ts",

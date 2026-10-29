@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { dossiersPromoAMonTour } from "./promo-circuit";
 import { getActionCenter } from "./action-center";
-import { getAdProRequests } from "./ad-pro";
+import { getAdProRequests } from "@/modules/ad-pro/api";
 import { libelleEtape } from "@/lib/promo-material/circuit";
 import { createPromoMaterial } from "@/lib/actions/promo-material-actions";
 

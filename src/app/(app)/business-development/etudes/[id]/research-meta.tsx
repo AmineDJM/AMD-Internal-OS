@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { X, UserPlus, Users, Loader2, Trash2, Database } from "lucide-react";
 import { Input, Textarea, Label, Select } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { updateMarketResearch, deleteMarketResearch, setMarketResearchParticipants } from "@/lib/actions/market-research-actions";
 
 /**
@@ -19,6 +23,10 @@ export function ResearchMeta({
   canEdit: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
+  // Enregistrement au fil de la saisie : pas de bouton où parler, un refus part en avis flottant.
+  const retours = useRetours();
   const [title, setTitle] = React.useState(research.title);
   const [sources, setSources] = React.useState(research.sources ?? "");
   const [notes, setNotes] = React.useState(research.notes ?? "");
@@ -32,23 +40,39 @@ export function ResearchMeta({
     setSaving(true);
     const fd = new FormData();
     fd.set("id", research.id); fd.set("title", title || research.title); fd.set("sources", sources); fd.set("notes", notes);
-    await updateMarketResearch(fd);
-    setSaving(false); router.refresh();
+    try {
+      const r = await updateMarketResearch(fd);
+      if (!r.ok) retours.erreur(r.error ?? "L'étude n'a pas été enregistrée.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false); rafraichir();
+    }
   }
 
   async function saveParticipants(next: string[]) {
     setPIds(next);
     const fd = new FormData(); fd.set("id", research.id);
     next.forEach((i) => fd.append("participantIds", i));
-    await setMarketResearchParticipants(fd);
-    router.refresh();
+    try {
+      const r = await setMarketResearchParticipants(fd);
+      if (!r.ok) retours.erreur(r.error ?? "Les participants n'ont pas été enregistrés.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      rafraichir();
+    }
   }
 
   async function remove() {
-    if (!window.confirm(`Supprimer définitivement l'étude « ${research.title} » (lignes, acteurs et présentations) ?`)) return;
+    if (!(await confirmer(`Supprimer définitivement l'étude « ${research.title} » (lignes, acteurs et présentations) ?`))) return;
     const fd = new FormData(); fd.set("id", research.id);
-    const r = await deleteMarketResearch(fd);
-    if (r.ok) router.push("/business-development/etudes"); else window.alert(r.error ?? "Suppression impossible.");
+    try {
+      const r = await deleteMarketResearch(fd);
+      if (r.ok) router.push("/business-development/etudes"); else retours.erreur(r.error ?? "Suppression impossible.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    }
   }
 
   if (!canEdit) {

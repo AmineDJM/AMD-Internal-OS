@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO } from "@/lib/ad-pro/centre";
+import { siegeAuCentreAdPro, REFUS_CENTRE_AD_PRO } from "@/modules/ad-pro/partage";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { DEFAULT_APP_SETTINGS } from "@/lib/settings";

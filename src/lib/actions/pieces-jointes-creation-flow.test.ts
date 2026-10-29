@@ -10,8 +10,8 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { deleteFileByKey } from "@/lib/storage";
 import { createRequest } from "./admin-request-actions";
-import { createAdProOtherRequest } from "./ad-pro-other-actions";
-import { CHAMP_PIECES_COMPLEMENTAIRES } from "@/lib/ad-pro/create-fields";
+import { createAdProOtherRequest } from "@/modules/ad-pro/actions-autres";
+import { CHAMP_PIECES_COMPLEMENTAIRES } from "@/modules/ad-pro/partage";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

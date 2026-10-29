@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { callLuna, lunaModel, type LunaResult, portesLunaOuvertes } from "@/lib/openai-luna";
 import { logAiUsage } from "@/lib/ai-settings";
 import { wrapUntrusted } from "@/lib/comms/untrusted";
-import { chargerLiensAdPro } from "@/lib/queries/ad-pro-medecins";
+import { chargerLiensAdPro } from "@/modules/ad-pro/api";
 import {
   CONSIGNE_INFLUENCE, SCHEMA_INFLUENCE, TEXTE_MAX, enteteRapport, lireReponseInfluence, rapportPorteur, texteEnvoye,
   type MentionLue, type RapportAnalyse,

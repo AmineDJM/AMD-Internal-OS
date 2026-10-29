@@ -13,10 +13,10 @@ import {
   createLegalDocument, updateLegalDocument, cancelLegalDocument, deleteLegalDocument,
   sendLegalInvoiceToSettlement, adresserBCAuCentre,
 } from "@/lib/actions/legal-actions";
-import { rattacherLegalAFiche } from "@/lib/actions/ad-pro-rattacher-legal";
+import { rattacherLegalAFiche } from "@/modules/ad-pro/actions-rattacher-legal";
 import { decideValidation } from "@/lib/actions/validation-actions";
-import { deciderVisaCentreAdPro } from "@/lib/actions/ad-pro-centre-actions";
-import { demandesAuCentreAdPro } from "@/lib/queries/ad-pro-centre";
+import { deciderVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
+import { demandesAuCentreAdPro } from "@/modules/ad-pro/api";
 import { porteDuBC, aiguillerBC, OBJET_BC } from "./aiguillage";
 import { reserveSansPorte } from "./regle";
 

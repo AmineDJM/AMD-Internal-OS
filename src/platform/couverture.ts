@@ -46,8 +46,8 @@ export interface Couverture {
   testsDeTexte: string[];
 }
 
-/** Lit un chemin `src/…` écrit en dur dans `readFileSync(…)`, `lire(…)`, `lireSource(…)`, `join(…, "src/…")`. */
-const LECTURE_PAR_CHEMIN = /(?:readFileSync|lire|lireSource|existsSync)\(\s*(?:path\.join\(\s*|join\(\s*)?(?:process\.cwd\(\),\s*|RACINE,\s*|ROOT,\s*)?["'`]src\//;
+/** Lit un chemin `src/…` écrit en dur dans `readFileSync(…)`, `lire(…)`, `lireSource(…)`, `lireSources(…)`, `join(…, "src/…")`. */
+const LECTURE_PAR_CHEMIN = /(?:readFileSync|lire|lireSource|lireSources|existsSync)\(\s*(?:path\.join\(\s*|join\(\s*)?(?:process\.cwd\(\),\s*|RACINE,\s*|ROOT,\s*)?["'`]src\//;
 
 export function mesurerCouverture(racine = process.cwd()): Couverture {
   const cwd = process.cwd();
@@ -55,7 +55,8 @@ export function mesurerCouverture(racine = process.cwd()): Couverture {
   try {
     const lib = walk("src/lib").filter((f) => !estTest(f));
     const app = walk("src/app").filter((f) => !estTest(f));
-    const comps = walk("src/components").filter((f) => !estTest(f));
+    // Les écrans d'un module (`src/modules/<m>/ecrans/`) sont des composants : un écran déménagé reste mesuré.
+    const comps = [...walk("src/components"), ...walk("src/modules").filter((f) => f.includes("/ecrans/"))].filter((f) => !estTest(f));
     const importsDe = (f: string) => dependances(fs.readFileSync(f, "utf8")).map((d) => cibleInterne(d.spec, f)).filter((t): t is string => !!t);
 
     const pagesPrisma: string[] = [];

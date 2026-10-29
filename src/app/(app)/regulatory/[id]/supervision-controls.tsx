@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, CalendarClock, BellRing, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { setRegulatoryTargetDates, requestRegulatoryStatusUpdate } from "@/lib/actions/regulatory-actions";
 
 /**
@@ -19,7 +22,8 @@ export function SupervisionControls({
   targetSubmissionDate: string | null; // YYYY-MM-DD
   targetDate: string | null; // YYYY-MM-DD
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
   const [sub, setSub] = React.useState(targetSubmissionDate ?? "");
   const [reg, setReg] = React.useState(targetDate ?? "");
   const [savingDates, setSavingDates] = React.useState(false);
@@ -33,9 +37,15 @@ export function SupervisionControls({
     fd.set("id", id);
     if (sub) fd.set("targetSubmissionDate", sub);
     if (reg) fd.set("targetDate", reg);
-    await setRegulatoryTargetDates(fd);
-    setSavingDates(false);
-    router.refresh();
+    try {
+      const r = await setRegulatoryTargetDates(fd);
+      if (!r.ok) retours.erreur(r.error ?? "Les dates cibles n'ont pas été enregistrées.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setSavingDates(false);
+      rafraichir();
+    }
   }
 
   async function requestUpdate() {
@@ -43,11 +53,17 @@ export function SupervisionControls({
     const fd = new FormData();
     fd.set("id", id);
     if (note.trim()) fd.set("note", note.trim());
-    await requestRegulatoryStatusUpdate(fd);
-    setRequesting(false);
-    setNote("");
-    setSent(true);
-    setTimeout(() => setSent(false), 2000);
+    try {
+      const r = await requestRegulatoryStatusUpdate(fd);
+      if (!r.ok) { retours.erreur(r.error ?? "La demande de mise à jour n'a pas été envoyée."); return; }
+      setNote("");
+      setSent(true);
+      setTimeout(() => setSent(false), 2000);
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setRequesting(false);
+    }
   }
 
   return (

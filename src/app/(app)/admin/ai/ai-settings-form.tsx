@@ -3,6 +3,8 @@
 import * as React from "react";
 import { Loader2, Check, Power } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 import { updateAiSettings } from "@/lib/actions/ai-settings-actions";
 import { cn } from "@/lib/utils";
 
@@ -53,7 +55,7 @@ function Toggle({ checked, onClick, disabled }: { checked: boolean; onClick: () 
 
 export function AiSettingsForm({ initial }: { initial: AiSettings }) {
   const [s, setS] = React.useState<AiSettings>(initial);
-  const [saving, setSaving] = React.useState(false);
+  const { busy: saving, err, run } = useAction();
   const [saved, setSaved] = React.useState(false);
   const dirty = React.useMemo(() => (Object.keys(s) as (keyof AiSettings)[]).some((k) => s[k] !== initial[k]), [s, initial]);
 
@@ -63,12 +65,9 @@ export function AiSettingsForm({ initial }: { initial: AiSettings }) {
   };
 
   async function save() {
-    setSaving(true);
     const fd = new FormData();
     for (const [k, v] of Object.entries(s)) if (v) fd.set(k, "on");
-    const r = await updateAiSettings(fd);
-    setSaving(false);
-    if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1800); }
+    await run(() => updateAiSettings(fd), () => { setSaved(true); setTimeout(() => setSaved(false), 1800); });
   }
 
   return (
@@ -102,6 +101,7 @@ export function AiSettingsForm({ initial }: { initial: AiSettings }) {
         ))}
       </div>
 
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex flex-col-reverse items-stretch gap-2 sm:flex-row sm:items-center sm:justify-end sm:gap-3">
         {saved && <span className="flex items-center justify-center gap-1.5 text-sm text-success"><Check className="h-4 w-4" /> Enregistré</span>}
         <Button onClick={save} disabled={saving || !dirty} className="w-full sm:w-auto">

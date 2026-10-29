@@ -1,33 +1,30 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Pencil, Trash2, Loader2 } from "lucide-react";
 import { DataTable, type Column } from "@/components/shared/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useFormAction, useKeyedAction } from "@/components/shared/use-action";
 import { FINANCE_CATEGORY, FINANCE_METHOD, FINANCE_STATUS, FINANCE_DIRECTION } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { updateTransaction, deleteTransaction } from "@/modules/finances/actions-tresorerie";
 import type { LedgerRow } from "@/modules/finances/api";
 
-type Result = { ok: boolean; error?: string };
-
 export function LedgerTable({ rows, canUpdate = false, canDelete = false }: { rows: LedgerRow[]; canUpdate?: boolean; canDelete?: boolean }) {
-  const router = useRouter();
   const [edit, setEdit] = React.useState<LedgerRow | null>(null);
-  const [busyId, setBusyId] = React.useState<string | null>(null);
+  // L'icône « supprimer » n'a pas de place pour parler : un refus part en avis flottant.
+  const { busy: busyId, run } = useKeyedAction({ signalerErreurs: true });
 
-  const onDelete = async (r: LedgerRow) => {
-    if (!window.confirm(`Supprimer définitivement l'écriture « ${r.label} » (${r.reference}) ? La trésorerie sera recalculée.`)) return;
-    setBusyId(r.id);
+  const onDelete = (r: LedgerRow) => {
     const fd = new FormData(); fd.set("id", r.id);
-    const res = await deleteTransaction(fd);
-    setBusyId(null);
-    if (res.ok) router.refresh();
-    else window.alert(res.error ?? "Suppression impossible.");
+    void run(r.id, () => deleteTransaction(fd), {
+      confirmer: { titre: `Supprimer définitivement l'écriture « ${r.label} » (${r.reference}) ?`, message: "La trésorerie sera recalculée.", confirmer: "Supprimer" },
+      succes: "Écriture supprimée.",
+    });
   };
 
   const columns: Column<LedgerRow>[] = [
@@ -81,16 +78,7 @@ export function LedgerTable({ rows, canUpdate = false, canDelete = false }: { ro
 }
 
 function EditTransactionSheet({ row, onClose }: { row: LedgerRow; onClose: () => void }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
-  const submit = async (fd: FormData) => {
-    fd.set("id", row.id);
-    setBusy(true); setErr(null);
-    const res: Result = await updateTransaction(fd);
-    setBusy(false);
-    if (res.ok) { onClose(); router.refresh(); } else setErr(res.error ?? "Erreur.");
-  };
+  const { action: submit, busy, err } = useFormAction(updateTransaction, { prepare: (fd) => fd.set("id", row.id), onOk: onClose });
   return (
     <Sheet open onClose={onClose} title={`Modifier l'écriture ${row.reference}`} description="Livre comptable — la trésorerie est recalculée automatiquement." width="md">
       <form action={submit} className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -121,7 +109,7 @@ function EditTransactionSheet({ row, onClose }: { row: LedgerRow; onClose: () =>
           </Select>
         </div>
         <div className="space-y-1.5 sm:col-span-2"><Label>Notes</Label><Textarea name="notes" defaultValue={row.notes} rows={2} /></div>
-        {err && <p className="text-sm text-destructive sm:col-span-2">{err}</p>}
+        <Retour ton="erreur" className="sm:col-span-2">{err}</Retour>
         <div className="flex flex-col-reverse gap-2 sm:col-span-2 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" className="w-full sm:w-auto" onClick={onClose}>Annuler</Button>
           <Button type="submit" className="w-full sm:w-auto" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button>

@@ -27,13 +27,13 @@ import {
 } from "./promo-execution-actions";
 import { enregistrerArticleDemandePromo, retirerArticleDemandePromo } from "./promo-demande-actions";
 import { REFUS_SANS_LIGNE } from "@/lib/promo-material/lignes-demande";
-import { deciderVisaCentreAdPro } from "./ad-pro-centre-actions";
+import { deciderVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
 import { signerBonDeCommande } from "./bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
 import { etatCompletDuBC } from "@/lib/bons-de-commande/etat-bc-test-outils";
 import { decidePayment } from "@/modules/finances/actions-centre";
 import { validateursDeLaDemande, peutOuvrirLeDossierPromo } from "@/lib/queries/promo-circuit";
-import { getAdProCreateData } from "@/lib/queries/ad-pro";
+import { getAdProCreateData } from "@/modules/ad-pro/api";
 import { executionDuDossier } from "@/lib/queries/promo-execution";
 import { emettreDocumentDrive } from "@/platform/in-process/artifact/factory";
 import { portsArtefact } from "@/platform/in-process/artifact/ports";

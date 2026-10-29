@@ -1,10 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { X, Users, Loader2, UserPlus } from "lucide-react";
 import { Select } from "@/components/ui/input";
 import { setRegulatoryParticipants } from "@/lib/actions/regulatory-actions";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * Participants / collaborateurs du dossier Regulatory : plusieurs personnes travaillent
@@ -20,7 +23,8 @@ export function ParticipantsPanel({
   coreIds: string[];
   canEdit: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
   const [ids, setIds] = React.useState<string[]>(participants.map((p) => p.id));
   const [saving, setSaving] = React.useState(false);
   const nameById = React.useMemo(() => new Map([...participants, ...allUsers].map((u) => [u.id, u.name])), [participants, allUsers]);
@@ -33,9 +37,15 @@ export function ParticipantsPanel({
     const fd = new FormData();
     fd.set("id", productId);
     next.filter((i) => !core.has(i)).forEach((i) => fd.append("participantIds", i));
-    await setRegulatoryParticipants(fd);
-    setSaving(false);
-    router.refresh();
+    try {
+      const r = await setRegulatoryParticipants(fd);
+      if (!r.ok) retours.erreur(r.error ?? "Les participants n'ont pas été enregistrés.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+      rafraichir();
+    }
   }
 
   return (

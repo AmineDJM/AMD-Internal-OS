@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import Link from "next/link";
 import { CheckCircle2, XCircle, Loader2, Hand, Upload, FileText, AlertTriangle, Send, ExternalLink, Plane, BedDouble } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -51,9 +52,13 @@ export function TableauAdPro({ data, ficheInitiale }: { data: BureauAdProData; f
     setMsg(null);
     try {
       const r = await fn();
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText) : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? okText) : (r.error ?? "La demande n'a pas été mise à jour.") });
       rafraichir();
       return r;
+    } catch {
+      const error = actionFailureMessage("THROWN");
+      setMsg({ ok: false, text: error });
+      return { ok: false, error };
     } finally {
       setAction(null);
       verrou.current = false;

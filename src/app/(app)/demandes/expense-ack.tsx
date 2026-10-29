@@ -1,7 +1,7 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useKeyedAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 import { Loader2, Receipt, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ackExpenseOriginals } from "@/modules/rh/actions-documents";
@@ -19,19 +19,15 @@ export interface ExpenseAckItem {
  * réceptionnés. Un clic vaut accusé de réception (tracé, notifié à l'employé et aux RH).
  */
 export function ExpenseAckList({ items }: { items: ExpenseAckItem[] }) {
-  const router = useRouter();
-  const [busyId, setBusyId] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy: busyId, error: err, run } = useKeyedAction();
 
   if (items.length === 0) return null;
 
   async function ack(item: ExpenseAckItem) {
-    if (!window.confirm(`Accuser réception des originaux de la note de frais de ${item.employeeName} (${formatMonth(item.expenseMonth)}) ?`)) return;
-    setBusyId(item.id); setErr(null);
     const fd = new FormData(); fd.set("id", item.id);
-    const r = await ackExpenseOriginals(fd);
-    setBusyId(null);
-    if (!r.ok) setErr(r.error ?? "Échec."); else router.refresh();
+    await run(item.id, () => ackExpenseOriginals(fd), {
+      confirmer: `Accuser réception des originaux de la note de frais de ${item.employeeName} (${formatMonth(item.expenseMonth)}) ?`,
+    });
   }
 
   return (
@@ -47,13 +43,13 @@ export function ExpenseAckList({ items }: { items: ExpenseAckItem[] }) {
               <p className="text-sm font-medium">{it.employeeName} — {formatMonth(it.expenseMonth)}</p>
               <p className="text-xs text-muted-foreground">Demande du {formatDate(it.createdAt)} · en attente du dépôt des originaux</p>
             </div>
-            <Button size="sm" variant="outline" disabled={busyId !== null} onClick={() => ack(it)}>
+            <Button size="sm" variant="outline" disabled={busyId !== null} onClick={() => void ack(it)}>
               {busyId === it.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} Accuser réception
             </Button>
           </div>
         ))}
       </div>
-      {err && <p className="text-xs text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </section>
   );
 }

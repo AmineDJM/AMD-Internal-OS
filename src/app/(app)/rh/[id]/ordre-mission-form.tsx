@@ -5,6 +5,7 @@ import { FileSignature, Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { genererOrdreDeMission, referenceOrdreDeMission } from "@/modules/rh/actions-documents";
 import { MODES_TRANSPORT_MISSION, VALEURS_DU_MODELE } from "@/modules/rh/partage";
 import { ChampReference } from "@/components/references/champ-reference";
@@ -57,9 +58,16 @@ export function OrdreMissionForm({ requestId, employeeName, employeePosition, de
         const fd = new FormData(e.currentTarget);
         fd.set("requestId", requestId);
         setBusy(true); setMsg(null);
-        const r = await genererOrdreDeMission(fd);
-        setBusy(false);
-        setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Ordre de mission généré.") : (r.error ?? "Échec.") });
+        let r: Awaited<ReturnType<typeof genererOrdreDeMission>>;
+        try {
+          r = await genererOrdreDeMission(fd);
+        } catch {
+          setMsg({ ok: false, texte: actionFailureMessage("THROWN") });
+          return;
+        } finally {
+          setBusy(false);
+        }
+        setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Ordre de mission généré.") : (r.error ?? "L'ordre de mission n'a pas été généré.") });
         if (r.ok) { setOuvert(false); rafraichir(); }
       }}
     >

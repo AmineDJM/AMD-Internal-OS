@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketingPoste } from "@/lib/ad-pro/validation-poste";
+import { tempsEnAttente, peutTenir, estDirectionOperations, estDirectionMarketingPoste } from "@/modules/ad-pro/partage";
 import { canAccessEntity } from "@/lib/entity-access";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { getLeavesToDecide } from "@/modules/rh/api";

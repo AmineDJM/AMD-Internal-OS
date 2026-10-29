@@ -11,7 +11,7 @@ import { anneeDuRegistre, attribuerAuRegistre, registreDe, verifierReferenceLibr
 import {
   ETAPE_DEMANDE_DEVIS, lettreDeSecours, lettreValide, texteDeLaLettre, quantiteEnLettre,
   type ArticleADeviser, type LettreDevis,
-} from "@/lib/ad-pro/demande-devis-lettre";
+} from "@/modules/ad-pro/partage";
 import { sansBloquer } from "@/lib/journal";
 
 /**

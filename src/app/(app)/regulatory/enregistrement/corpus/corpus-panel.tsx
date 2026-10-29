@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Download, Radar, Loader2, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Badge } from "@/components/ui/badge";
 import { ingestWave, ingestOneSource, runAnppWatch } from "@/lib/regulatory/intelligence/corpus/corpus-actions";
 
@@ -23,7 +24,7 @@ type IngestResults = NonNullable<Awaited<ReturnType<typeof ingestWave>>["results
  * qu'au rendu suivant, donc trop tard pour un double-clic rapide.
  */
 export function CorpusPanel({ firstWave, missing, watchPages }: { firstWave: Src[]; missing: Src[]; watchPages: { code: string; title: string; url: string }[] }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<null | "first" | "all" | "watch" | "one">(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [results, setResults] = React.useState<IngestResults | null>(null);
@@ -43,10 +44,12 @@ export function CorpusPanel({ firstWave, missing, watchPages }: { firstWave: Src
     setWatch(null);
     try {
       const r = await fn();
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Terminé.") : (r.error ?? "Échec.") });
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Terminé.") : (r.error ?? "L'opération n'a pas abouti.") });
       if (r.results) setResults(r.results);
       if (r.findings) setWatch(r.findings);
-      if (r.ok) router.refresh();
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setBusy(null);
       lock.current = false;

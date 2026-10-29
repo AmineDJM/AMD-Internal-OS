@@ -12,6 +12,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
 import { TextField, TextAreaField, SelectField } from "@/components/shared/form-fields";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { formatCurrency } from "@/lib/utils";
 
 /**
@@ -45,6 +47,7 @@ export function ComptesTresorerieButton({ comptes, entites, canUpdate }: {
   const [message, setMessage] = React.useState<string | null>(null);
   const [occupe, setOccupe] = React.useState(false);
   const { enCours, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   // Tant que l'écran n'a pas reçu l'état écrit, ses gestes restent fermés : une fiche ouverte sur
   // l'état d'avant réécrirait l'ancien ancrage par-dessus le nouveau (§118.172).
   const bloque = occupe || enCours;
@@ -53,12 +56,17 @@ export function ComptesTresorerieButton({ comptes, entites, canUpdate }: {
     setOccupe(true);
     setErreur(null);
     setMessage(null);
-    const r = await fn();
-    setOccupe(false);
-    if (!r.ok) { setErreur(r.error ?? "L'opération a été refusée."); return; }
-    setMessage(r.message ?? "Enregistré.");
-    setMode({ type: "liste" });
-    rafraichir();
+    try {
+      const r = await fn();
+      if (!r.ok) { setErreur(r.error ?? "L'opération a été refusée."); return; }
+      setMessage(r.message ?? "Enregistré.");
+      setMode({ type: "liste" });
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setOccupe(false);
+    }
   };
 
   const total = comptes.reduce((t, c) => t + c.solde, 0);
@@ -124,8 +132,8 @@ export function ComptesTresorerieButton({ comptes, entites, canUpdate }: {
                             </Button>
                             <Button
                               size="sm" variant="ghost" disabled={bloque} aria-label={`Supprimer le compte ${c.nom}`}
-                              onClick={() => {
-                                if (!window.confirm(`Supprimer le compte « ${c.nom} » ? Refusé si des écritures le nomment.`)) return;
+                              onClick={async () => {
+                                if (!(await confirmer(`Supprimer le compte « ${c.nom} » ? Refusé si des écritures le nomment.`))) return;
                                 const fd = new FormData();
                                 fd.set("id", c.id);
                                 void executer(() => deleteTreasuryAccount(fd));

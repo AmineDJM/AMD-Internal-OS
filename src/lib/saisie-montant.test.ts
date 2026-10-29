@@ -33,7 +33,7 @@ import { join, relative } from "node:path";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const RACINES = ["src/app", "src/components"];
+const RACINES = ["src/app", "src/components", "src/modules"];
 
 function ecrans(): string[] {
   const out: string[] = [];
@@ -127,9 +127,9 @@ describe("un montant recopié d'une pièce se saisit au centime, pas au millier"
     // AUCUN pas — rien ne peut refuser 452 300. Ce qui reste à garder : qu'il soit encore vu comme un montant, et qu'il
     // ne reprenne pas de pas grossier s'il redevenait numérique.
     const attendus: { fichier: string; designe: (b: string) => boolean; quoi: string; texte?: true }[] = [
-      { fichier: "src/components/care/care-panel.tsx", designe: (b) => attribut(b, "aria-label") === "Montant du devis", quoi: "montant d'un devis de prise en charge", texte: true },
-      { fichier: "src/components/ad-pro/items-panel.tsx", designe: (b) => attribut(b, "name") === "amountEstimated", quoi: "montant estimé d'un poste (ajout et correction)" },
-      { fichier: "src/components/ad-pro/items-panel.tsx", designe: (b) => (attribut(b, "aria-label") ?? "").startsWith("Montant affecté au poste"), quoi: "montant accordé d'un poste" },
+      { fichier: "src/modules/ad-pro/ecrans/prise-en-charge/care-panel.tsx", designe: (b) => attribut(b, "aria-label") === "Montant du devis", quoi: "montant d'un devis de prise en charge", texte: true },
+      { fichier: "src/modules/ad-pro/ecrans/postes/formulaires.tsx", designe: (b) => attribut(b, "name") === "amountEstimated", quoi: "montant estimé d'un poste (ajout et correction)" },
+      { fichier: "src/modules/ad-pro/ecrans/postes/formulaires.tsx", designe: (b) => (attribut(b, "aria-label") ?? "").startsWith("Montant affecté au poste"), quoi: "montant accordé d'un poste" },
     ];
     for (const a of attendus) {
       const trouves = toutes.filter(({ f, b }) => f === a.fichier && a.designe(b));
@@ -143,7 +143,13 @@ describe("un montant recopié d'une pièce se saisit au centime, pas au millier"
       }
     }
     // Ajout ET correction d'un poste : DEUX champs `amountEstimated`, pas un.
-    expect(toutes.filter(({ f, b }) => f === "src/components/ad-pro/items-panel.tsx" && attribut(b, "name") === "amountEstimated").length).toBe(2);
+    const POSTE = "src/modules/ad-pro/ecrans/postes/formulaires.tsx";
+    const champs = toutes.filter(({ f, b }) => f === POSTE && attribut(b, "name") === "amountEstimated");
+    expect(champs.length).toBe(2);
+    for (const { b } of champs) {
+      expect(estUnMontant(b), "montant estimé : le détecteur ne le reconnaît plus comme montant").toBe(true);
+      expect(attribut(b, "step"), "montant estimé : pas attendu au centime").toBe("0.01");
+    }
   });
 
   it("le détecteur dit NON quand il le faut, dans les deux sens", () => {

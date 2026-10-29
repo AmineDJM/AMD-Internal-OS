@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer, useSaisir } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { FilterX, Loader2, RefreshCw, Ban, Paperclip, ExternalLink, Lock, FolderInput, Check, Undo2 } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
@@ -75,7 +78,10 @@ export function LegalTable({
     legalWriteAllowed({ onLegal: droitsEcriture.legal[verbe], onFinances: droitsEcriture.finances[verbe], kind });
   // « Réglée » / « À régler » ÉCRIVENT AU LIVRE : le geste de qui règle aux Finances, la même règle que l'action.
   const dateLeReglement = peutDaterLeReglement({ financesModifier: droitsEcriture.finances.modifier });
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
+  const saisir = useSaisir();
+  const retours = useRetours();
   const [state, setState] = React.useState(() => initialLegalListState(scope, watchByDefault, initialKind));
   const [busy, setBusy] = React.useState<string | null>(null);
 
@@ -112,14 +118,20 @@ export function LegalTable({
 
   const run = async (key: string, fn: () => Promise<{ ok: boolean; error?: string; message?: string }>) => {
     setBusy(key);
-    const r = await fn();
-    setBusy(null);
-    if (r.ok) {
-      // Ce que le geste a ENTRAÎNÉ se dit (§118.185) : annuler une facture partie au règlement annule
-      // aussi son ordre de dépense — le taire laisserait croire que le paiement attend toujours.
-      if (r.message) window.alert(r.message);
-      router.refresh();
-    } else window.alert(r.error ?? "Échec.");
+    try {
+      const r = await fn();
+      if (r.ok) {
+        // Ce que le geste a ENTRAÎNÉ se dit (§118.185) : annuler une facture partie au règlement annule
+        // aussi son ordre de dépense — le taire laisserait croire que le paiement attend toujours. En `alerte` :
+        // l'avis reste jusqu'à ce qu'on le ferme, comme la boîte qu'il remplace.
+        if (r.message) retours.alerte(r.message);
+        rafraichir();
+      } else retours.erreur(r.error ?? "Le document n'a pas été mis à jour.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -165,12 +177,12 @@ export function LegalTable({
             <FolderInput className="h-3.5 w-3.5" />
             <select
               value="" disabled={busy === "move"}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const target = e.target.value;
                 if (!target) return;
                 e.target.value = "";
                 const name = target === "none" ? "Non classés" : folders.find((x) => x.id === target)?.name ?? "";
-                if (!window.confirm(`Ranger les ${shown.length} document(s) affiché(s) dans « ${name} » ?`)) return;
+                if (!(await confirmer(`Ranger les ${shown.length} document(s) affiché(s) dans « ${name} » ?`))) return;
                 const fd = new FormData();
                 for (const r of shown) fd.append("documentId", r.id);
                 if (target !== "none") fd.set("folderId", target);
@@ -349,14 +361,19 @@ export function LegalTable({
                               </Button>
                             )}
                             {peutSurLaPiece("modifier", r.kind) && <Button size="sm" variant="ghost" disabled={busy === `c:${r.id}`}
-                              onClick={() => {
+                              onClick={async () => {
                                 // ABANDONNER LA BOÎTE NE FAIT RIEN (audit 360°, L04) : `?? ""` annulait le
                                 // contrat sur le bouton « Annuler » de la boîte elle-même. Et un motif vide
                                 // n'en est pas un — le serveur le refuse aussi.
-                                const saisi = window.prompt("Motif de l'annulation (obligatoire) ?");
+                                const saisi = await saisir({
+                                  titre: "Motif de l'annulation (obligatoire) ?",
+                                  confirmer: "Annuler le document",
+                                  ton: "danger",
+                                  saisie: { libelle: "Motif", obligatoire: true },
+                                });
                                 if (saisi === null) return;
                                 const reason = saisi.trim();
-                                if (!reason) { window.alert("Le motif de l'annulation est obligatoire : rien n'a été annulé."); return; }
+                                if (!reason) { retours.alerte("Le motif de l'annulation est obligatoire : rien n'a été annulé."); return; }
                                 const fd = new FormData(); fd.set("id", r.id); fd.set("reason", reason);
                                 void run(`c:${r.id}`, () => cancelLegalDocument(fd));
                               }}>
@@ -367,8 +384,8 @@ export function LegalTable({
                         {/* RÉTABLIR un document annulé : l'annulation n'avait aucun retour (L04). */}
                         {r.status === "CANCELLED" && peutSurLaPiece("modifier", r.kind) && (
                           <Button size="sm" variant="outline" disabled={busy === `t:${r.id}`}
-                            onClick={() => {
-                              if (!window.confirm(`Rétablir « ${r.title} » ? Il reprendra l'état que sa date de fin lui donne, et ses rappels d'échéance reprendront.`)) return;
+                            onClick={async () => {
+                              if (!(await confirmer(`Rétablir « ${r.title} » ? Il reprendra l'état que sa date de fin lui donne, et ses rappels d'échéance reprendront.`))) return;
                               const fd = new FormData(); fd.set("id", r.id);
                               void run(`t:${r.id}`, () => restoreLegalDocument(fd));
                             }}>

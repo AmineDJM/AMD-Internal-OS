@@ -41,9 +41,9 @@ const CLAUSES: { fonction: string; ecrans: string[] }[] = [
   { fonction: "clauseVentesVisibles", ecrans: ["src/app/(app)/sales/historique/page.tsx"] },
   { fonction: "clauseCommandesLogistiqueVisibles", ecrans: ["src/app/(app)/logistics/page.tsx"] },
   { fonction: "clauseDemandesSecretariatVisibles", ecrans: ["src/lib/queries/admin-requests.ts"] },
-  { fonction: "clauseCongresInternationauxVisibles", ecrans: ["src/lib/queries/congress.ts"] },
-  { fonction: "clauseCongresNationauxVisibles", ecrans: ["src/lib/queries/congress.ts"] },
-  { fonction: "clauseEvenementsVisibles", ecrans: ["src/lib/queries/events.ts"] },
+  { fonction: "clauseCongresInternationauxVisibles", ecrans: ["src/modules/ad-pro/infra/requetes/congres.ts"] },
+  { fonction: "clauseCongresNationauxVisibles", ecrans: ["src/modules/ad-pro/infra/requetes/congres.ts"] },
+  { fonction: "clauseEvenementsVisibles", ecrans: ["src/modules/ad-pro/infra/requetes/evenements.ts"] },
   { fonction: "clauseMarchesPchVisibles", ecrans: ["src/lib/queries/pch.ts"] },
   // Les bons de commande PCH n'ont pas d'écran : ils héritent de la clause des marchés, qui l'appelle.
   { fonction: "clauseBonsDeCommandePchVisibles", ecrans: [] },

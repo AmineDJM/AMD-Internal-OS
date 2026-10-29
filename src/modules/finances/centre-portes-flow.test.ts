@@ -13,7 +13,7 @@ import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { createExpenseOrder } from "./infra/expense-orders";
 import { updateInvoice } from "@/lib/actions/invoice-actions";
-import { updateGrantedBudget } from "@/lib/actions/congress-request-actions";
+import { updateGrantedBudget } from "@/modules/ad-pro/actions-congres";
 import { decidePettyCashTopUp } from "@/lib/actions/petty-cash-actions";
 import { completePromoTrack } from "@/lib/actions/promo-circuit-actions";
 import { decidePayment } from "./actions-centre";

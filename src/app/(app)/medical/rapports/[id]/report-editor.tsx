@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Mic, Square, Loader2, Check, Trash2, Paperclip, FileText, Download, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { FIELD_REPORT_STATUS } from "@/lib/labels";
 import { formatBytes } from "@/app/(app)/messages/format";
 import { updateFieldReport, validateFieldReport, reopenFieldReport, deleteFieldReportAttachment } from "@/lib/actions/field-report-actions";
@@ -27,7 +29,8 @@ export function ReportEditor({ detail, doctors, materiel, rattacheAUneVisite }: 
   /** Le matériel du KAM qui a fait la visite (sa « voiture »), et ce que ce compte rendu a déjà remis. */
   materiel: MaterielDuRapport | null; rattacheAUneVisite: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const ro = detail.status === "VALIDATED"; // lecture seule si validé
 
   const [summary, setSummary] = React.useState(detail.summary ?? detail.transcript ?? "");
@@ -60,10 +63,15 @@ export function ReportEditor({ detail, doctors, materiel, rattacheAUneVisite }: 
 
   const save = async () => {
     setSaving(true); setMsg(null);
-    const r = await updateFieldReport(fd());
-    setSaving(false);
-    if (r.ok) { setSavedAt(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })); router.refresh(); }
-    else setMsg(r.error ?? "Échec de l'enregistrement.");
+    try {
+      const r = await updateFieldReport(fd());
+      if (r.ok) { setSavedAt(new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })); rafraichir(); }
+      else setMsg(r.error ?? "Échec de l'enregistrement.");
+    } catch {
+      setMsg(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   const startRec = async () => {
@@ -98,20 +106,29 @@ export function ReportEditor({ detail, doctors, materiel, rattacheAUneVisite }: 
   };
 
   const validate = async () => {
-    if (!window.confirm("Valider ce compte rendu ? Il alimentera les vues Direction et Annuaire.")) return;
+    if (!(await confirmer("Valider ce compte rendu ? Il alimentera les vues Direction et Annuaire."))) return;
     setSaving(true);
-    await updateFieldReport(fd());
-    const f = new FormData(); f.set("id", detail.id);
-    const r = await validateFieldReport(f);
-    setSaving(false);
-    if (r.ok) router.refresh(); else setMsg(r.error ?? "Validation impossible.");
+    try {
+      await updateFieldReport(fd());
+      const f = new FormData(); f.set("id", detail.id);
+      const r = await validateFieldReport(f);
+      if (r.ok) rafraichir(); else setMsg(r.error ?? "Validation impossible.");
+    } catch {
+      setMsg(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
-  const reopen = async () => { const f = new FormData(); f.set("id", detail.id); await reopenFieldReport(f); router.refresh(); };
+  const reopen = async () => {
+    const f = new FormData(); f.set("id", detail.id);
+    try { await reopenFieldReport(f); } catch { setMsg(actionFailureMessage("THROWN")); return; }
+    rafraichir();
+  };
 
   const uploadAttachment = async (file: File) => {
     const f = new FormData(); f.set("file", file);
     const res = await fetch(`/api/field-reports/${detail.id}/upload`, { method: "POST", body: f });
-    if (res.ok) router.refresh(); else { const d = await res.json(); setMsg(d.error ?? "Échec de la pièce jointe."); }
+    if (res.ok) rafraichir(); else { const d = await res.json(); setMsg(d.error ?? "Échec de la pièce jointe."); }
   };
 
   return (
@@ -171,7 +188,7 @@ export function ReportEditor({ detail, doctors, materiel, rattacheAUneVisite }: 
                 ) : <FileText className="h-8 w-8 shrink-0 text-primary" />}
                 <div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{a.name}</p><p className="text-[0.6875rem] text-muted-foreground">{formatBytes(a.size)}</p></div>
                 <a href={`/api/field-reports/attachment/${a.id}?dl=1`} aria-label={`Télécharger ${a.name}`} className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-secondary sm:rounded sm:p-1"><Download className="h-4 w-4" /></a>
-                {!ro && <button onClick={() => { if (window.confirm("Supprimer ?")) { const f = new FormData(); f.set("id", a.id); deleteFieldReportAttachment(f).then(() => router.refresh()); } }} aria-label={`Supprimer ${a.name}`} className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:rounded sm:p-1"><Trash2 className="h-4 w-4" /></button>}
+                {!ro && <button onClick={async () => { if (await confirmer("Supprimer ?")) { const f = new FormData(); f.set("id", a.id); deleteFieldReportAttachment(f).then(() => rafraichir(), () => setMsg(actionFailureMessage("THROWN"))); } }} aria-label={`Supprimer ${a.name}`} className="shrink-0 rounded-lg p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:rounded sm:p-1"><Trash2 className="h-4 w-4" /></button>}
               </div>
             ))}
           </div>

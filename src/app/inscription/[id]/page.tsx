@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { CalendarDays, MapPin } from "lucide-react";
-import { getPublicEvent } from "@/lib/queries/events";
+import { getPublicEvent } from "@/modules/ad-pro/api";
 import { EVENT_TYPE, EVENT_FORMAT } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 

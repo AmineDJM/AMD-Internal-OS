@@ -41,7 +41,7 @@ import { linksOf, linkedViews } from "@/lib/links/store";
 import { porteDuBC, origineDuBC, centreVouluDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { blocageParLeBC, reserveEtapeBC } from "@/lib/bons-de-commande/regle";
 import { REFUS_FACTURE_EMISE_AU_REGLEMENT, peutDaterLeReglement, refusFactureDePoste } from "@/modules/finances/partage";
-import { siegeAuCentreAdPro } from "@/lib/ad-pro/centre";
+import { siegeAuCentreAdPro } from "@/modules/ad-pro/partage";
 import { sitsOnValidationCentre } from "@/lib/validations/centre";
 import { BonDeCommandeGate } from "./bc-gate";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";

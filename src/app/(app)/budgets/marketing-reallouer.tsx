@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { reallouerCategorie } from "@/lib/actions/budget-pole-actions";
 import { MOTIF_MIN, refusReallocation, type NoeudArbre } from "@/lib/budget/marketing-vue";
 import { FenetreConfirmation, type Confirmation } from "./fenetre-confirmation";
@@ -65,10 +66,12 @@ export function ReallouerSheet({ ouverte, onClose, tetes, envelopeId, initial, o
       fd.set("montant", String(valeur));
       fd.set("motif", motif.trim());
       const r = await reallouerCategorie(fd);
-      if (!r.ok) { setErreur(r.error ?? "Échec."); return; }
+      if (!r.ok) { setErreur(r.error ?? "La réallocation n'a pas été faite."); return; }
       onFait?.(r.message ?? "Réalloué.");
       rafraichir();
       onClose();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
     } finally {
       setEnvoi(false);
     }

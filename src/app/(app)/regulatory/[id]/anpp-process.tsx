@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import {
   Check, Loader2, CircleDot, ArrowRight, ChevronDown, Paperclip, MessageSquare,
   ReceiptText, ListChecks, Repeat, Ban,
@@ -20,6 +20,10 @@ import { Button } from "@/components/ui/button";
 import { DocumentList, type DocItem } from "@/components/documents/document-list";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { cn } from "@/lib/utils";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import type { ActionResult } from "@/lib/actions/types";
 import { BvRequestSheet } from "./bv-requests";
 import { DossierTimeline, type TimelineStepView } from "./dossier-timeline";
 import { CtdInitiale } from "./ctd-initiale";
@@ -27,6 +31,27 @@ import { CTD_INITIALE_ETAPE, CTD_INITIALE_CATEGORIE } from "@/lib/regulatory/ctd
 import { ETAT_BV, type SuiviBvVue } from "@/lib/regulatory/bv-circuit";
 
 const STATE_OPTS: RegStepState[] = ["TODO", "DOING", "DONE", "BLOCKED"];
+
+/**
+ * Une écriture optimiste du processus : l'écran a déjà bougé, on écrit, on relit dans tous les cas
+ * (la relecture remet l'état réel si l'écriture n'a pas abouti) — et un refus se DIT en avis flottant.
+ */
+function useEcrireProcessus() {
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
+  return React.useCallback(async (fn: () => Promise<ActionResult>, repli: string): Promise<boolean> => {
+    try {
+      const r = await fn();
+      if (!r.ok) retours.erreur(r.error ?? repli);
+      return r.ok;
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return false;
+    } finally {
+      rafraichir();
+    }
+  }, [rafraichir, retours]);
+}
 
 function Bar({ pct, tone = "primary" }: { pct: number; tone?: "primary" | "success" }) {
   return (
@@ -102,7 +127,7 @@ export function RegulatoryProcess({
     retiree: { quand: string; fichiers: number; remplacee: boolean } | null;
   };
 }) {
-  const router = useRouter();
+  const ecrire = useEcrireProcessus();
   const [state, setState] = React.useState<RegWorkflowState>(workflow ?? {});
   const [busy, setBusy] = React.useState<string | null>(null);
   const [openKey, setOpenKey] = React.useState<string | null>(null);
@@ -120,9 +145,8 @@ export function RegulatoryProcess({
     }));
     const fd = new FormData();
     fd.set("productId", productId); fd.set("stepKey", key); fd.set("status", status);
-    await setRegulatoryStepState(fd);
+    await ecrire(() => setRegulatoryStepState(fd), "L'étape n'a pas été mise à jour.");
     setBusy(null);
-    router.refresh();
   }
 
   // Avis de présoumission : favorable → « Fait » (le flux continue) ; défavorable → « Bloqué » ;
@@ -139,9 +163,8 @@ export function RegulatoryProcess({
     }));
     const fd = new FormData();
     fd.set("productId", productId); fd.set("outcome", outcome);
-    await setRegulatoryPresubOutcome(fd);
+    await ecrire(() => setRegulatoryPresubOutcome(fd), "L'avis de présoumission n'a pas été enregistré.");
     setBusy(null);
-    router.refresh();
   }
 
   /** Une étape de la frise, avec son rail, sa pastille et son tiroir. */
@@ -478,7 +501,7 @@ function AnppExchanges({
 
 /** Éditeur de commentaire d'une étape (note). Lecture seule si pas de droit d'édition. */
 function StepNote({ productId, stepKey, initial, canUpdate, path }: { productId: string; stepKey: string; initial: string; canUpdate: boolean; path: string }) {
-  const router = useRouter();
+  const ecrire = useEcrireProcessus();
   const [value, setValue] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
@@ -490,10 +513,12 @@ function StepNote({ productId, stepKey, initial, canUpdate, path }: { productId:
     setSaving(true); setSaved(false);
     const fd = new FormData();
     fd.set("productId", productId); fd.set("stepKey", stepKey); fd.set("note", value);
-    await setRegulatoryStepNote(fd);
-    setSaving(false); setSaved(true);
-    router.refresh();
-    setTimeout(() => setSaved(false), 1500);
+    // `ecrire` ne lève pas : le bouton ne peut plus rester figé.
+    if (await ecrire(() => setRegulatoryStepNote(fd), "La note n'a pas été enregistrée.")) {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    }
+    setSaving(false);
   }
 
   if (!canUpdate) {
@@ -528,7 +553,7 @@ function StepNote({ productId, stepKey, initial, canUpdate, path }: { productId:
  * on l'ouvre quand on la remplit, elle ne coupe pas la lecture du parcours le reste du temps.
  */
 function ChecklistPanel({ productId, checklist, canUpdate }: { productId: string; checklist: RegChecklistState | null; canUpdate: boolean }) {
-  const router = useRouter();
+  const ecrire = useEcrireProcessus();
   const [state, setState] = React.useState<RegChecklistState>(checklist ?? {});
   const [busy, setBusy] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState(false);
@@ -541,9 +566,8 @@ function ChecklistPanel({ productId, checklist, canUpdate }: { productId: string
     setState((prev) => ({ ...prev, [key]: { ...prev[key], checked } }));
     const fd = new FormData();
     fd.set("productId", productId); fd.set("itemKey", key); fd.set("checked", checked ? "true" : "false");
-    await setRegulatoryChecklistItem(fd);
+    await ecrire(() => setRegulatoryChecklistItem(fd), "La case n'a pas été enregistrée.");
     setBusy(null);
-    router.refresh();
   }
 
   return (

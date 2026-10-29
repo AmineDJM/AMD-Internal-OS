@@ -13,6 +13,9 @@ import { setFocusMode, useFocusState } from "@/components/layout/focus-mode";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { COLONNES_REGULATORY, colonnesVisibles, type CleColonneRegulatory } from "@/lib/vues/colonnes-regulatory";
 import { Table } from "@/components/ui/table";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import type { ActionResult } from "@/lib/actions/types";
 import { sansBloquer } from "@/lib/journal";
 
 export interface RegulatoryRow {
@@ -202,6 +205,7 @@ export function RegulatoryTable({
   crossExport?: { label: string; ids: string[] } | null;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   // Les colonnes visibles dépendent du verrou : sans lui, le pipeline serait toujours vide.
   const stages = React.useMemo(() => (stageTabs ? visibleStages(canLock) : []), [canLock, stageTabs]);
   const pipelineCount = React.useMemo(() => rows.filter((r) => r.stage === "pipeline").length, [rows]);
@@ -340,12 +344,29 @@ export function RegulatoryTable({
 
   const anyFilter = Object.values(filters).some((v) => v && v.trim());
 
+  /**
+   * Un geste de ligne : il ne peut plus rester figé (une levée se dit), un refus du serveur
+   * s'affiche, et la liste est relue dans tous les cas — comme avant.
+   */
+  async function geste(cle: string, fn: () => Promise<ActionResult>, repli: string): Promise<ActionResult | null> {
+    setBusyId(cle);
+    setAssignError(null);
+    try {
+      const res = await fn();
+      if (!res.ok) setAssignError(res.error ?? repli);
+      return res;
+    } catch {
+      setAssignError(actionFailureMessage("THROWN"));
+      return null;
+    } finally {
+      setBusyId(null);
+      rafraichir();
+    }
+  }
+
   async function changePriority(id: string, priority: string) {
-    setBusyId(id);
     const fd = new FormData(); fd.set("id", id); fd.set("priority", priority);
-    await setRegulatoryPriority(fd);
-    setBusyId(null);
-    router.refresh();
+    await geste(id, () => setRegulatoryPriority(fd), "La priorité n'a pas été modifiée.");
   }
 
   /**
@@ -388,31 +409,19 @@ export function RegulatoryTable({
 
   /** Ouvrir ou fermer le cadenas d'un dossier (Super Admin). */
   async function toggleLock(id: string, locked: boolean) {
-    setBusyId(id);
-    setAssignError(null);
     const fd = new FormData(); fd.set("id", id); fd.set("locked", locked ? "1" : "0");
-    const res = await setRegulatoryLock(fd);
-    setBusyId(null);
-    if (!res.ok) setAssignError(res.error ?? "Impossible de modifier le verrou.");
-    router.refresh();
+    await geste(id, () => setRegulatoryLock(fd), "Impossible de modifier le verrou.");
   }
 
   /** Ouvrir le cadenas sur tout ce qui est verrouillé — un portefeuille se publie d'un geste. */
   async function unlockAll() {
-    setBusyId("*");
-    setAssignError(null);
-    const res = await unlockAllRegulatory();
-    setBusyId(null);
-    if (!res.ok) setAssignError(res.error ?? "Impossible de déverrouiller.");
-    router.refresh();
+    await geste("*", () => unlockAllRegulatory(), "Impossible de déverrouiller.");
   }
 
   /** Confier le dossier à quelqu'un. Un refus du serveur se DIT — sinon le menu revient
    *  silencieusement en arrière et personne ne comprend pourquoi. */
   /** Entité et segments se corrigent EN LISANT la liste — c'est là qu'on s'en aperçoit. */
   async function changeClassification(id: string, fields: { companyId?: string; segments?: string[]; bdProjectId?: string }) {
-    setBusyId(id);
-    setAssignError(null);
     const fd = new FormData();
     fd.set("id", id);
     if (fields.companyId !== undefined) fd.set("companyId", fields.companyId);
@@ -423,21 +432,13 @@ export function RegulatoryTable({
     // Chaîne VIDE = « sans projet », et c'est un geste voulu : `formData.has` distingue déjà
     // « on n'y touche pas » de « on le retire », donc la clé part telle quelle.
     if (fields.bdProjectId !== undefined) fd.set("bdProjectId", fields.bdProjectId);
-    const res = await setRegulatoryClassification(fd);
-    setBusyId(null);
-    if (!res.ok) setAssignError(res.error ?? "Modification impossible.");
-    router.refresh();
+    await geste(id, () => setRegulatoryClassification(fd), "Modification impossible.");
   }
 
   async function changeResponsible(id: string, responsibleId: string) {
-    setBusyId(id);
-    setAssignError(null);
     const fd = new FormData(); fd.set("id", id); fd.set("responsibleId", responsibleId);
-    const res = await setRegulatoryResponsible(fd);
-    setBusyId(null);
-    if (!res.ok) setAssignError(res.error ?? "Impossible de confier ce dossier.");
-    else setAssignNotice(res.message ?? null);
-    router.refresh();
+    const res = await geste(id, () => setRegulatoryResponsible(fd), "Impossible de confier ce dossier.");
+    if (res?.ok) setAssignNotice(res.message ?? null);
   }
 
   /** Le filtre d'une colonne — rendu dans l'en-tête au bureau, dans le panneau « Filtrer » au téléphone. */

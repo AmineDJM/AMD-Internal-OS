@@ -1,9 +1,8 @@
 "use client";
 
-import * as React from "react";
 import { CheckCircle2, Loader2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
 import { marquerExamenDoublon } from "@/lib/actions/doublons-factures-actions";
 
 /**
@@ -13,18 +12,12 @@ import { marquerExamenDoublon } from "@/lib/actions/doublons-factures-actions";
 export function BoutonExamen({ signature, examine, par, le, peutExaminer }: {
   signature: string; examine: boolean; par: string | null; le: string | null; peutExaminer: boolean;
 }) {
-  const { rafraichir } = useRafraichir();
-  const [busy, setBusy] = React.useState(false);
-  const [erreur, setErreur] = React.useState<string | null>(null);
+  const { busy, err: erreur, run } = useAction();
   const basculer = async () => {
-    setBusy(true); setErreur(null);
     const fd = new FormData();
     fd.set("signature", signature);
     fd.set("examine", examine ? "0" : "1");
-    const r = await marquerExamenDoublon(fd);
-    setBusy(false);
-    if (!r.ok) { setErreur(r.error ?? "Échec."); return; }
-    rafraichir();
+    await run(() => marquerExamenDoublon(fd));
   };
   const etat = examine
     ? `Examiné${par ? ` par ${par}` : ""}${le ? ` le ${new Date(le).toLocaleDateString("fr-FR")}` : ""}`

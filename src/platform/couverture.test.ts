@@ -20,6 +20,7 @@ import { mesurerCouverture } from "./couverture";
  *   kit d'interface → métier 6 → 5 · tests qui lisent le source par chemin 128 → 122.
  * Fusion des lots V4 `rh` et `finances` (la paie versée passe à `finances`) : hors carte 748 (746 avec le lot sécurité & argent) · kit → métier 5 ·
  *   tests de texte 119.
+ * Fusion avec le module `ad-pro` (29/10/2026) : hors carte 714 · tests de texte 103.
  *
  * Point de départ RECALÉ à la fusion de la base `bf7a907` (lots V3-C/D/E), et seulement là : ces lots ont
  * ajouté 9 fichiers hors carte (`lib/agent/consommation*.ts`, `contenu-non-fiable.ts`, `testing/journal.ts`,
@@ -36,21 +37,21 @@ import { mesurerCouverture } from "./couverture";
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 746,
+  horsCarte: 714,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
   routesPrisma: 52,
-  /** Imports `src/components/` → `src/app/` : un composant partagé ne dépend pas d'une page. */
+  /** Imports `src/components/` (et des `ecrans/` de modules) → `src/app/` : un composant partagé ne dépend pas d'une page. */
   composantsVersApp: 10,
   /** Imports du kit d'interface du socle (`components/ui`, `components/shared`) vers un métier. */
-  kitVersMetier: 5,
+  kitVersMetier: 2,
   /**
    * Tests (hors `src/platform/` et `src/modules/`) qui lisent le source par un chemin `src/…` : ils
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 119,
+  testsDeTexte: 103,
 } as const;
 
 const mesure = mesurerCouverture();

@@ -1,4 +1,4 @@
-import { BlocHistorique } from "@/components/ad-pro/bloc-historique";
+import { BlocHistorique } from "@/modules/ad-pro/ecrans/bloc-historique";
 import { refusAnnulationPieceInfoMed } from "@/lib/annulations/regles";
 import type { ReactNode } from "react";
 import Link from "next/link";

@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 import { requireModule } from "@/lib/session";
 import { getAppSettings } from "@/lib/settings";
-import { siegeAuCentreAdPro, trierCentre, compteursCentre } from "@/lib/ad-pro/centre";
-import { demandesAuCentreAdPro, visasTranchesCentreAdPro } from "@/lib/queries/ad-pro-centre";
+import { siegeAuCentreAdPro, trierCentre, compteursCentre } from "@/modules/ad-pro/partage";
+import { demandesAuCentreAdPro, visasTranchesCentreAdPro } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { CentreAdProBoard } from "./centre-board";

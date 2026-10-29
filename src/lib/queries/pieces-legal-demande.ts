@@ -2,7 +2,7 @@ import type { EntityType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
 import { accesAuxPiecesLegalDetaille } from "@/lib/entity-access";
-import { AD_PRO_PARENTS, PARENT_COLONNE, type AdProParent } from "@/lib/ad-pro-items";
+import { AD_PRO_PARENTS, PARENT_COLONNE, type AdProParent } from "@/modules/ad-pro/partage";
 import { LEGAL_DOC_STATUS, INVOICE_SETTLEMENT, invoiceSettlementState, natureLegale, type BadgeTone } from "@/lib/labels";
 import { fichiersEmis, type FichiersEmis } from "@/lib/legal/fichiers-emis";
 import { toNumber } from "@/lib/utils";

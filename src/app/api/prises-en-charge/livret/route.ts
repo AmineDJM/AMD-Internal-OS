@@ -3,7 +3,7 @@ import { getCurrentUserPourEcrire } from "@/lib/session";
 import { hasGlobalView, hasRole } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
 import { prisma } from "@/lib/prisma";
-import { peutTeleverserBillet } from "@/lib/care-fiches";
+import { peutTeleverserBillet } from "@/modules/ad-pro/partage";
 import { genererLivret, type PerimetreLivret } from "@/lib/livret/serveur";
 import { attendu } from "@/lib/journal";
 

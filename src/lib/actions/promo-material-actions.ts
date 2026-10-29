@@ -4,7 +4,7 @@ import { Prisma, type PromoMaterialStatus } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { requireUser, requireUserAuNomDeLaVue } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil, businessUnitDuDemandeur } from "@/modules/ad-pro/api";
 import { prisma } from "@/lib/prisma";
 import { canAccessEntity } from "@/lib/entity-access";
 import { recordAudit } from "@/lib/audit";
@@ -25,7 +25,7 @@ import { aucunPromu, designeUnProduit, type PromusChoisis } from "@/lib/promo-ma
 import { resoudrePromus } from "@/lib/queries/promo-promus";
 import { envoyerDemandeDeDevis, joindreLettreDeDevis } from "@/lib/promo-automatismes";
 import { phraseDepotLettre } from "@/lib/demande-devis-depot";
-import { siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO } from "@/lib/ad-pro/centre";
+import { siegeAuCentreAdPro, REFUS_BC_CENTRE_AD_PRO } from "@/modules/ad-pro/partage";
 import { getAppSettings } from "@/lib/settings";
 import { moneyEntityOf } from "@/lib/company";
 import { validationRequiseBC, motifSousLeSeuil } from "@/lib/bons-de-commande/regle";
@@ -34,7 +34,6 @@ import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
 import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { deleteFileByKey } from "@/lib/storage";
-import { businessUnitDuDemandeur } from "@/lib/ad-pro/business-unit-auto";
 import { sansBloquer } from "@/lib/journal";
 
 const PATH = "/promo-material";

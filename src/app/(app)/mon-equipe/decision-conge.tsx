@@ -7,6 +7,7 @@ import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { decideLeave, demanderAvisN1Conge } from "@/modules/rh/actions";
 import type { CongeADecider } from "@/lib/queries/my-team";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * DÉCIDER D'UN CONGÉ DEPUIS MON ÉQUIPE (Direction, 06/10) — valider, refuser, ou DEMANDER À SON N+1. La trace de ce qui
@@ -25,10 +26,16 @@ export function DecisionConge({ conge }: { conge: CongeADecider }) {
     fd.set("id", conge.leaveId);
     if (note.trim()) fd.set("note", note.trim());
     if (quoi !== "REMONTER") fd.set("decision", quoi);
-    const r = quoi === "REMONTER" ? await demanderAvisN1Conge(fd) : await decideLeave(fd);
-    setBusy(false);
-    setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? (quoi === "APPROVED" ? "Congé validé." : "Congé refusé.")) : (r.error ?? "Échec.") });
-    if (r.ok) { setMode(null); setNote(""); rafraichir(); }
+    try {
+      const r = quoi === "REMONTER" ? await demanderAvisN1Conge(fd) : await decideLeave(fd);
+      const pasFait = quoi === "REMONTER" ? "La demande d'avis n'a pas été envoyée." : quoi === "APPROVED" ? "Le congé n'a pas été validé." : "Le congé n'a pas été refusé.";
+      setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? (quoi === "APPROVED" ? "Congé validé." : "Congé refusé.")) : (r.error ?? pasFait) });
+      if (r.ok) { setMode(null); setNote(""); rafraichir(); }
+    } catch {
+      setMsg({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setBusy(false);
+    }
   };
   const occupe = busy || enCours;
 

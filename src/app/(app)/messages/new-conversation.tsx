@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea, Label } from "@/components/ui/input";
 import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ROLE_LABELS } from "@/lib/labels";
 import type { DirectoryUserDTO, ChannelDTO } from "@/lib/queries/messaging";
 import { createDirect, createGroup, createChannel, joinChannel } from "@/lib/actions/messaging-actions";
@@ -31,10 +32,15 @@ export function NewConversation({ open, onClose, directory, channels, onCreated 
 
   const run = async (fn: () => Promise<{ ok: boolean; error?: string; id?: string }>) => {
     setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (r.ok && r.id) { onCreated(r.id); reset(); }
-    else setErr(r.error ?? "Une erreur est survenue.");
+    try {
+      const r = await fn();
+      setBusy(false);
+      if (r.ok && r.id) { onCreated(r.id); reset(); }
+      else setErr(r.error ?? "La conversation n'a pas été ouverte.");
+    } catch {
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
+    }
   };
 
   return (

@@ -9,6 +9,7 @@ import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { cn } from "@/lib/utils";
 import { agirSurRisque } from "@/lib/actions/adventum-actions";
 import { HISTORY_LABEL, libelleEtat, type BrainStatus } from "@/lib/adventum/lifecycle-rules";
@@ -64,9 +65,14 @@ function DialogueGeste({ risque, geste, personnes, onClose }: { risque: LigneRis
 
   const soumettre = async (fd: FormData) => {
     setEnvoi(true); setErr(null);
-    const r = await agirSurRisque(fd);
-    setEnvoi(false);
-    if (r.ok) { onClose(); rafraichir(); } else setErr(r.error ?? "Geste impossible.");
+    try {
+      const r = await agirSurRisque(fd);
+      if (r.ok) { onClose(); rafraichir(); } else setErr(r.error ?? "Geste impossible.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   };
 
   return (

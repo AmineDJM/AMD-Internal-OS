@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { depth } from "./nav-depth-tracker";
 
 /**
  * REVENIR À LA PAGE PRÉCÉDENTE — et pas à la racine du module.
@@ -16,46 +17,12 @@ import { usePathname, useRouter } from "next/navigation";
  * retombe sur sa destination écrite quand il n'y en a pas — arrivée directe par notification,
  * signet, ou nouvel onglet. Dans ces cas-là, `router.back()` sortirait du site.
  *
- * Le compteur vit en `sessionStorage` : par onglet, effacé à sa fermeture. Un compteur global
+ * Le compteur (`nav-depth-tracker.tsx`, monté dans la coque) vit en `sessionStorage` : par onglet, effacé à sa fermeture. Un compteur global
  * ferait croire à un historique dans un onglet fraîchement ouvert.
  *
  * Reste un vrai `<Link>` : le clic milieu, « ouvrir dans un nouvel onglet » et la navigation
  * sans JavaScript continuent de fonctionner.
  */
-
-const KEY = "amd-nav-depth";
-
-/** Nombre de navigations effectuées DANS l'application, pour cet onglet. */
-function depth(): number {
-  try {
-    return Number(sessionStorage.getItem(KEY) ?? "0") || 0;
-  } catch {
-    return 0; // navigation privée stricte : on retombe sur le lien écrit
-  }
-}
-
-/**
- * Compte les navigations internes. Monté une fois dans la coque de l'application.
- *
- * ⚠️ Ne compte QUE les changements de chemin après le premier rendu : la page d'arrivée n'est
- * pas une navigation, sinon un lien « Retour » ouvert directement croirait pouvoir remonter.
- */
-export function NavDepthTracker() {
-  const pathname = usePathname();
-  const first = React.useRef(true);
-
-  React.useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      // Nouvel onglet / rechargement : l'historique interne repart de zéro.
-      try { sessionStorage.setItem(KEY, "0"); } catch { /* stockage indisponible */ }
-      return;
-    }
-    try { sessionStorage.setItem(KEY, String(depth() + 1)); } catch { /* stockage indisponible */ }
-  }, [pathname]);
-
-  return null;
-}
 
 export function BackLink({
   href, children, className,

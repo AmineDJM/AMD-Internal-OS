@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { Pencil, Trash2, Loader2, Check, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -47,10 +47,8 @@ export function ExpenseRowActions({
   /** Une caisse du mois existe, reçue, entre les mains de qui regarde : le moyen de paiement se corrige. */
   cashUsable?: boolean;
 }) {
-  const router = useRouter();
   const [mode, setMode] = React.useState<"idle" | "edit" | "confirm">("idle");
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy, err: error, setErr: setError, run } = useAction();
   const [total, setTotal] = React.useState(expense.amount);
   const [source, setSource] = React.useState<PaymentSource>(expense.fromPettyCash ? "CASH" : "OFF_CASH");
   React.useEffect(() => {
@@ -62,13 +60,8 @@ export function ExpenseRowActions({
     : [{ label: expense.label, quantity: 1, amount: expense.amount, budgetCategoryId: expense.budgetCategoryId }];
 
   const remove = async () => {
-    setBusy(true); setError(null);
     const fd = new FormData(); fd.set("id", expense.id);
-    const r = await deleteDepartmentExpense(fd);
-    setBusy(false);
-    if (!r.ok) { setError(r.error ?? "Suppression impossible."); return; }
-    setMode("idle");
-    router.refresh();
+    await run(() => deleteDepartmentExpense(fd), () => setMode("idle"));
   };
 
   return (
@@ -122,13 +115,7 @@ export function ExpenseRowActions({
             // Champ envoyé UNIQUEMENT quand le choix est offert : absent = moyen de paiement
             // inchangé côté serveur, ce qui protège les écrans qui ne le proposent pas.
             if (cashUsable || expense.fromPettyCash) fd.set("paymentSource", source);
-            setBusy(true); setError(null);
-            void updateDepartmentExpense(fd).then((r) => {
-              setBusy(false);
-              if (!r.ok) { setError(r.error ?? "Échec."); return; }
-              setMode("idle");
-              router.refresh();
-            });
+            void run(() => updateDepartmentExpense(fd), () => setMode("idle"));
           }}
           className="w-full space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-2.5"
         >

@@ -4,18 +4,19 @@ import * as React from "react";
 import { useAutoOpen } from "@/components/shared/use-auto-open";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2, AlertCircle, X, Search, Check, UserPlus } from "lucide-react";
-import { createCongressRequest } from "@/lib/actions/congress-request-actions";
-import { creerProfilProfessionnel } from "@/lib/actions/care-actions";
-import { listBeneficiaryRefs } from "@/lib/actions/congress-beneficiary-actions";
-import { filtrerAnnuaire, PLAFOND_MENU } from "@/components/care/filtrer-annuaire";
+import { createCongressRequest } from "@/modules/ad-pro/actions-congres";
+import { creerProfilProfessionnel } from "@/modules/ad-pro/actions-prise-en-charge";
+import { listBeneficiaryRefs } from "@/modules/ad-pro/actions-congres-beneficiaires";
+import { filtrerAnnuaire, PLAFOND_MENU } from "@/modules/ad-pro/ecrans/prise-en-charge/filtrer-annuaire";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Label } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { wilayaOptions } from "@/lib/geo/algeria";
 import { NATIONAL_EVENT_TYPE } from "@/lib/labels";
-import { businessUnitField } from "@/lib/ad-pro/create-fields";
-import type { ProductRow, SpecialtyRow } from "@/lib/ad-pro/pickers";
+import { businessUnitField, type ProductRow, type SpecialtyRow } from "@/modules/ad-pro/partage";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 
 const WILAYA_OPTIONS = wilayaOptions();
 
@@ -59,6 +60,7 @@ export function CongressRequestForm({
   businessUnits = [], businessUnitDeduite = null,
 }: CongressRequestFormProps) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const formRef = React.useRef<HTMLFormElement>(null);
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -112,11 +114,18 @@ export function CongressRequestForm({
     ].filter((x): x is string => x !== null);
     if (manque.length > 0) { setErr(`À renseigner : ${manque.join(", ")}.`); return; }
     setSaving(true); setErr(null);
-    const r = await createCongressRequest(undefined, fd);
-    setSaving(false);
+    let r: Awaited<ReturnType<typeof createCongressRequest>>;
+    try {
+      r = await createCongressRequest(undefined, fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
     // On atterrit sur la demande, section Professionnels : c'est là qu'on ajoute les personnes prises en charge.
-    if (r.ok) { onDone(); router.refresh(); if (r.id) router.push(`${national ? "/congress-national" : "/congress-international"}/${r.id}#professionnels`); }
-    else setErr(r.error ?? "Erreur.");
+    if (r.ok) { onDone(); rafraichir(); if (r.id) router.push(`${national ? "/congress-national" : "/congress-international"}/${r.id}#professionnels`); }
+    else setErr(r.error ?? "La demande n'a pas été créée.");
   };
 
   return (
@@ -325,8 +334,15 @@ function NouveauProfil({ scope, onCree }: { scope: "NATIONAL" | "INTERNATIONAL";
     if (etablissement) fd.set("institutionId", etablissement);
     if (secteur) fd.set("sector", secteur);
     setBusy(true); setErreur(null);
-    const r = await creerProfilProfessionnel(undefined, fd);
-    setBusy(false);
+    let r: Awaited<ReturnType<typeof creerProfilProfessionnel>>;
+    try {
+      r = await creerProfilProfessionnel(undefined, fd);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!r.ok || !r.id) { setErreur(r.error ?? "Le profil n'a pas pu être créé."); return; }
     onCree({
       id: r.id, name: r.message ?? nom.trim(),

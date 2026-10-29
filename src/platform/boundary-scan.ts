@@ -161,6 +161,29 @@ export const NEUTRAL = new Set([
   // tables séparées auraient divergé, et le jour où l'une dit 24 h et l'autre 72, personne ne
   // saurait laquelle fait foi (§118.5).
   "src/lib/fraicheur/ages",
+  // LES PRIMITIVES D'INTERACTION (V3-B, 28/10/2026) — le dialogue de confirmation, le retour d'un geste
+  // (bandeau, avis), la phrase d'une panne d'action et le rafraîchissement suivi. Aucune ne connaît
+  // l'ERP : pas de base, pas de règle métier, pas de donnée — une fenêtre, une région `aria-live`, une
+  // phrase, un `router.refresh()` en transition. Elles sont la doctrine d'accessibilité commune
+  // (`confirm()`/`alert()` interdits, cliquet `dialogues-natifs.test.ts`) : les écrans d'Adam la
+  // suivent comme ceux de l'ERP. Les compter ici aurait obligé Adam à garder les boîtes du navigateur
+  // ou à recopier les primitives — deux façons de les voir diverger.
+  "src/components/ui/dialogue",
+  "src/components/ui/dialogue-fenetre",
+  "src/components/ui/retour",
+  "src/components/ui/retours-porteur",
+  "src/components/ui/retours-pile",
+  "src/components/ui/retour-style",
+  "src/components/ui/differe",
+  "src/lib/action-outcome",
+  "src/components/shared/use-rafraichir",
+  // … et ce dont elles sont faites, vérifié par le même portillon (`boundary.test.ts`) : le bouton du kit
+  // (React + `cn`), le verrou de défilement, et trois règles pures sans import (focus, dialogue, retour).
+  "src/components/ui/button",
+  "src/lib/use-scroll-lock",
+  "src/components/ui/sheet-focus-regle",
+  "src/components/ui/dialogue-regle",
+  "src/components/ui/retour-regle",
   // `grille/selection` et `grille/couleurs` : l'arithmétique d'une sélection de cellules et la
   // palette FERMÉE des couleurs d'annuaire (§118.133). Zéro import, sans état, sans base, sans
   // règle métier. Les DEUX côtés en ont besoin et n'ont pas le droit de se parler : les feuilles

@@ -1,12 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { BellRing, Loader2, Check, AlertCircle, Clock, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label } from "@/components/ui/input";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { sendRegulatoryUpdateReminder } from "@/lib/actions/regulatory-reminder-actions";
 import { REMINDER_STALE_DAYS, REMINDER_COOLDOWN_DAYS } from "@/lib/regulatory/update-reminder";
 
@@ -47,7 +49,7 @@ function LastReminder({ iso }: { iso: string | null }) {
 }
 
 export function UpdateReminderButton({ people, unassigned }: { people: ReminderPerson[]; unassigned: number }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -63,12 +65,17 @@ export function UpdateReminderButton({ people, unassigned }: { people: ReminderP
     const fd = new FormData();
     if (recipientId) fd.set("recipientId", recipientId);
     if (note.trim()) fd.set("note", note.trim());
-    const r = await sendRegulatoryUpdateReminder(fd);
-    setBusy(null);
-    if (!r.ok) { setError(r.error ?? "Relance impossible."); return; }
-    setDone(r.message ?? "Relance envoyée.");
-    router.refresh();
-    setTimeout(() => setDone(null), 4000);
+    try {
+      const r = await sendRegulatoryUpdateReminder(fd);
+      if (!r.ok) { setError(r.error ?? "Relance impossible."); return; }
+      setDone(r.message ?? "Relance envoyée.");
+      rafraichir();
+      setTimeout(() => setDone(null), 4000);
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (

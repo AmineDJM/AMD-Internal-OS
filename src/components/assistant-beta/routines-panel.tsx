@@ -1,5 +1,6 @@
 "use client";
 
+import { actionFailureMessage } from "@/lib/action-outcome";
 import React, { useCallback, useEffect, useState } from "react";
 import { AlarmClock, ArrowLeft, Loader2, Pause, Play, RotateCw, Trash2, X } from "lucide-react";
 import {
@@ -41,8 +42,12 @@ export function RoutinesPanel({ ouvert, onFermer, routineInitiale, onNonLus }: {
   const [aSupprimer, setASupprimer] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
-    const r = await listerMesRoutines();
-    if (r.ok) { setRoutines(r.routines); setErreur(null); onNonLus?.(r.nonLus); } else setErreur(r.erreur);
+    try {
+      const r = await listerMesRoutines();
+      if (r.ok) { setRoutines(r.routines); setErreur(null); onNonLus?.(r.nonLus); } else setErreur(r.erreur);
+    } catch {
+      setErreur("Les routines n'ont pas pu être chargées (connexion ou serveur).");
+    }
   }, [onNonLus]);
 
   const ouvrir = useCallback(async (runId: string) => {
@@ -68,8 +73,15 @@ export function RoutinesPanel({ ouvert, onFermer, routineInitiale, onNonLus }: {
 
   const agir = async (cle: string, f: () => Promise<{ ok: boolean; erreur?: string; runId?: string }>) => {
     setOccupe(cle);
-    const r = await f();
-    setOccupe(null);
+    let r: { ok: boolean; erreur?: string; runId?: string };
+    try {
+      r = await f();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setOccupe(null);
+    }
     if (!r.ok) { setErreur(r.erreur ?? "Opération impossible."); return; }
     setErreur(null);
     await charger();

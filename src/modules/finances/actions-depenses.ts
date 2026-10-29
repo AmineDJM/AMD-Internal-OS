@@ -16,7 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/lib/ad-pro/cloture-sponsoring";
+import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/modules/finances/api";
 import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 import { validateUpload } from "@/lib/storage";

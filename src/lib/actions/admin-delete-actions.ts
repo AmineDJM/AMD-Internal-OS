@@ -19,8 +19,8 @@ import {
 import { restaurerLotDeLaCorbeille, supprimerReversible, type DeleteResult } from "@/lib/suppression/coeur";
 import { KIND_CORBEILLE_CTD } from "@/lib/regulatory/ctd-initiale";
 import { restaurerLaCtdDeLaCorbeille } from "@/lib/regulatory/ctd-initiale-corbeille";
-import { peutSupprimerUneDemandeAdPro } from "@/lib/queries/ad-pro-suppression";
-import { estDemandeAdProSupprimable, REFUS_SUPPRESSION_AD_PRO } from "@/lib/ad-pro/suppression";
+import { peutSupprimerUneDemandeAdPro } from "@/modules/ad-pro/api";
+import { estDemandeAdProSupprimable, REFUS_SUPPRESSION_AD_PRO } from "@/modules/ad-pro/partage";
 import { peutSupprimerUnRapportTerrain } from "@/lib/queries/field-reports";
 import { peutSupprimerUneDemandePaiement } from "@/modules/finances/api";
 import { corbeillePermise, estDirecteurDesOperations, suppressionPermise } from "@/lib/suppression/delegation";

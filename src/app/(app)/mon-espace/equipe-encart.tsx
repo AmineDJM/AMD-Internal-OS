@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { relanceTaskRequest } from "@/lib/actions/task-actions";
 import type { MembreEncart } from "@/lib/espace/aujourdhui";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * MON ÉQUIPE, EN ENCART — qui est en retard, sur quoi ; et la relance en un clic quand elle EXISTE :
@@ -14,7 +15,7 @@ import type { MembreEncart } from "@/lib/espace/aujourdhui";
  * promet pas un geste que le serveur refuserait. Le détail vit dans « Mon équipe ».
  */
 export function EquipeEncart({ membres, personnesEnRetard, retards }: { membres: MembreEncart[]; personnesEnRetard: number; retards: number }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [faits, setFaits] = React.useState<Record<string, string>>({});
 
@@ -23,10 +24,15 @@ export function EquipeEncart({ membres, personnesEnRetard, retards }: { membres:
     setBusy(m.employeeId);
     const fd = new FormData();
     fd.set("id", m.relanceTacheId);
-    const r = await relanceTaskRequest(fd);
-    setBusy(null);
-    setFaits((f) => ({ ...f, [m.employeeId]: r.ok ? "Relancé" : r.error ?? "Relance refusée" }));
-    if (r.ok) router.refresh();
+    try {
+      const r = await relanceTaskRequest(fd);
+      setFaits((f) => ({ ...f, [m.employeeId]: r.ok ? "Relancé" : r.error ?? "Relance refusée" }));
+      if (r.ok) rafraichir();
+    } catch {
+      setFaits((f) => ({ ...f, [m.employeeId]: actionFailureMessage("THROWN") }));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (

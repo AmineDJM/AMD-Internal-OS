@@ -43,7 +43,8 @@ Les métiers quittent progressivement `src/lib/` pour un dossier chacun, `src/mo
 serveur), `partage.ts` (porte pure), `actions.ts`, `domaine/` (règles pures), `infra/` (base, fichiers), `ecrans/`.
 Hors d'un module on n'importe que ses portes — tenu par ESLint et `src/modules/frontieres.test.ts`. Modules migrés :
 `lieux`, `coffre`, `referentiels` (socle métier), `consommation` (pilote), `finances` (lot V4 : ordres de dépense,
-centre de paiement, demandes de paiement, règlement, trésorerie — ex-`lib/finance/`, `lib/finances/`, `lib/payments/`). Carte (`src/modules/carte.ts`), règles et
+centre de paiement, demandes de paiement, règlement, trésorerie — ex-`lib/finance/`, `lib/finances/`, `lib/payments/`), `ad-pro` (lot V4 : sponsoring, congrès,
+événements, « autres », prise en charge, postes, porte du DG, centre, clôture — voir `src/modules/ad-pro/README.md`). Carte (`src/modules/carte.ts`), règles et
 guide pas à pas « migrer un module » : [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 
 > 🐍 Un prototype historique **Streamlit + SQLite** subsiste dans [`streamlit_app/`](streamlit_app/) — l'édition

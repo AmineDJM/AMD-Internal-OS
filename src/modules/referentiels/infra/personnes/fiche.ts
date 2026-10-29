@@ -29,7 +29,7 @@ import { entitePermisePourFiche } from "@/lib/company";
 import { canAccessEntity } from "@/lib/entity-access";
 import { praticienVisible } from "@/lib/queries/vue-360";
 import { entityHref } from "@/lib/entity-href";
-import { PARENT_ENTITE, parentDuPoste } from "@/lib/ad-pro-items";
+import { PARENT_ENTITE, parentDuPoste } from "@/lib/chemins/ad-pro";
 import { lireLigne, type SourcePersonne } from "./sources";
 import { ficheOuverte, naissanceVisible, rolesVisibles, type Regard } from "./visibilite";
 

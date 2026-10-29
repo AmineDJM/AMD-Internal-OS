@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { resolveDriveAccess, canViewDrive, type DriveAccessLevel } from "@/lib/drive";
 import { canAccessEntity } from "@/lib/entity-access";
-import { peutLirePasseportDuSujet } from "@/lib/ad-pro/passeport-acces";
+import { peutLirePasseportDuSujet } from "@/modules/ad-pro/api";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import {
   onlyofficeConfigured, onlyofficeServerUrl, appBaseUrl, onlyofficeDocType, onlyofficeTypeOuvrable, fileExt,

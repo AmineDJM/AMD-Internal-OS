@@ -4,6 +4,7 @@ import * as React from "react";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { STATUTS, STATUT_LABELS, SEGMENTS, METHODE_LABELS, SOURCE_AFFINITE_LABELS, pct, type Regles, type RegleProduit, type ReglePriorite, type Segment, type Statut } from "@/lib/segmentation/regles";
 import { libelleRegle } from "@/lib/segmentation/moteur";
 import { apercuRegles, publierRegles, type ApercuRegles } from "@/lib/actions/segmentation-actions";
@@ -62,17 +63,27 @@ export function EditeurRegles({ strategieId, produits, version, contenu, peutPub
 
   async function voirImpact() {
     setEnvoi(true); setErreur(null);
-    const res = await apercuRegles(strategieId, JSON.stringify(r));
-    setEnvoi(false);
-    if (!res.ok) { setErreur(res.error); return; }
-    setImpact(res.apercu);
+    try {
+      const res = await apercuRegles(strategieId, JSON.stringify(r));
+      if (!res.ok) { setErreur(res.error); return; }
+      setImpact(res.apercu);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
   async function publier() {
     setEnvoi(true); setErreur(null);
-    const res = await publierRegles(strategieId, JSON.stringify(r), note);
-    setEnvoi(false);
-    if (!res.ok) { setErreur(res.error); return; }
-    setImpact(null); setNote(""); rafraichir();
+    try {
+      const res = await publierRegles(strategieId, JSON.stringify(r), note);
+      if (!res.ok) { setErreur(res.error); return; }
+      setImpact(null); setNote(""); rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   return (

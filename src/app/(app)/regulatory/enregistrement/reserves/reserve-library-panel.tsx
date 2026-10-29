@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Upload, Search, Loader2, Sparkles, CheckCircle2, XCircle, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Badge } from "@/components/ui/badge";
 import {
   importReserveLetter, importReserveText, similarReserves, riskOfReserve, refreshDerivedRules,
@@ -24,7 +25,7 @@ type Risk = Awaited<ReturnType<typeof riskOfReserve>>;
  * rendu suivant, donc trop tard pour un double-clic rapide.
  */
 export function ReserveLibraryPanel() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const lock = React.useRef(false);
@@ -38,8 +39,10 @@ export function ReserveLibraryPanel() {
     setMsg(null);
     try {
       const r = await fn();
-      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Terminé.") : (r.error ?? "Échec.") });
-      if (r.ok) router.refresh();
+      setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Terminé.") : (r.error ?? "L'opération n'a pas abouti.") });
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally {
       setBusy(false);
       lock.current = false;

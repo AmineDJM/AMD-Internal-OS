@@ -53,6 +53,11 @@ registry internals, promo-material execution chantiers.
 
 ## 3. Key files
 
+> **Since lot V4 (2026-10-28)** the Ad & Pro code lives in `src/modules/ad-pro/` (doors `api.ts` / `partage.ts` /
+> `actions-*.ts`, see its README). Old paths below (`lib/ad-pro/*`, `lib/ad-pro-items.ts`, `lib/care*.ts`,
+> `lib/queries/ad-pro*.ts`, `lib/actions/ad-pro-*`, `components/ad-pro/*`) resolve through `tsconfig.json` `paths`;
+> `ad-pro-item-actions` is one action key carried by six files (`actions-postes*.ts`), `care-actions` by two.
+
 | Path | Role |
 |---|---|
 | `src/modules/finances/infra/expense-orders.ts` | `createExpenseOrder` — sole ExpenseOrder writer; entity resolution (`COMPANY_OF_SOURCE`), companion dossier, centre notification |

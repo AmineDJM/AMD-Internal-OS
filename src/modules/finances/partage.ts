@@ -73,6 +73,7 @@ export {
   refusSeparationDesTaches,
 } from "./domaine/separation";
 export { BUDGET_CLASSIFY_PROMPT, budgetGate, needsBudgetChoice } from "./domaine/settle-budget";
+export { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "./domaine/soldes-au-reglement";
 export {
   checkDeferral, deferralNote, SETTLEMENT_LABEL, settlementState, type SettlementState, sortForSettlement,
 } from "./domaine/settlement";

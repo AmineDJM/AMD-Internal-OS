@@ -17,6 +17,8 @@ import { Sheet } from "@/components/ui/sheet";
 import { Input, Select, Textarea, Label } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { createPoleEnvelope, updatePoleEnvelope, deletePoleEnvelope } from "@/lib/actions/budget-pole-actions";
 import type { BudgetOverview } from "@/lib/queries/budget";
 import { DOMAINES, type DomainePole } from "@/lib/budget/domaines";
@@ -50,9 +52,14 @@ function useEnvoi() {
   const [err, setErr] = React.useState<string | null>(null);
   const envoyer = async (fn: () => Promise<Resultat>, onOk?: () => void) => {
     setBusy(true); setErr(null);
-    const r = await fn();
-    setBusy(false);
-    if (r.ok) { onOk?.(); rafraichir(); } else setErr(r.error ?? "Erreur.");
+    try {
+      const r = await fn();
+      if (r.ok) { onOk?.(); rafraichir(); } else setErr(r.error ?? "L'opération sur l'enveloppe n'a pas abouti.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
   return { busy: busy || enCours, err, envoyer };
 }
@@ -131,6 +138,7 @@ export function EnveloppePoleSheet({ domaine, envelope, options, canDelete, onCl
   onClose: () => void;
 }) {
   const router = useRouter();
+  const confirmer = useConfirmer();
   const { busy, err, envoyer } = useEnvoi();
   const d10 = (iso: string) => iso.slice(0, 10);
   return (
@@ -154,8 +162,8 @@ export function EnveloppePoleSheet({ domaine, envelope, options, canDelete, onCl
           {canDelete ? (
             <Button
               type="button" variant="ghost" className="text-destructive"
-              onClick={() => {
-                if (!window.confirm("Supprimer cette enveloppe et ses catégories ? Les écritures imputées repasseront « à imputer » ; une enveloppe qui porte des dépenses budgétaires ne se supprime pas.")) return;
+              onClick={async () => {
+                if (!(await confirmer("Supprimer cette enveloppe et ses catégories ? Les écritures imputées repasseront « à imputer » ; une enveloppe qui porte des dépenses budgétaires ne se supprime pas."))) return;
                 const fd = new FormData(); fd.set("id", envelope.id);
                 envoyer(() => deletePoleEnvelope(fd), () => { onClose(); router.push(DOMAINES[domaine].chemin); });
               }}

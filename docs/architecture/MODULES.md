@@ -3,7 +3,7 @@
 > Référence d'architecture : [`docs/audit/2026-10-27/08-architecture-code.md`](../audit/2026-10-27/08-architecture-code.md)
 > (§3) et [`refonte-donnees-et-monolithe-modulaire.md`](refonte-donnees-et-monolithe-modulaire.md) §5.
 > Ce document est le **mode d'emploi** : un développeur qui arrive doit pouvoir migrer un module seul en le suivant.
-> État au 28/10/2026 (lot V3-G, puis V4 : modules `rh` et `finances`).
+> État au 29/10/2026 (lot V3-G, puis V4 : modules `rh`, `finances` et `ad-pro`).
 
 ---
 
@@ -27,6 +27,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `coffre` | socle métier | `api.ts` (écriture), `api-lecture.ts` (déchiffre), `partage.ts`, `actions.ts` | — | `referentiels`, actions RH/Finances/Legal, enrichissement, pont d'Adam | **migré** (V3-G) |
 | `referentiels` | socle métier | `api.ts`, `partage.ts`, `actions-{personnes,organisations,reprises}.ts` | `lieux`, `coffre` | ~20 fichiers d'actions, enrichissement, pages `/personnes`, `/organisations`, `/admin/refonte-donnees` | **migré** (V3-G) |
 | `consommation` | métier | `api.ts`, `actions.ts` | — | segmentation, vue 360° | **pilote** (audit 08), actions rangées au lot V3-G |
+| `ad-pro` | métier | `api.ts`, `partage.ts`, `actions-*.ts` (16 clés, dont `ad-pro-item-actions` en six morceaux), `ecrans/` | `referentiels`, `finances` | pages `/sponsoring`, `/congress-*`, `/events`, `/ad-pro`, `/centre-ad-pro`, `/budget-marketing`, `/promo-material` ; Adam ; consulting, secrétariat, bons de commande | **migré** (V4) — dette : 253 imports vers `src/lib/` |
 | `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels`, `finances` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 | `finances` | métier | `api.ts`, `partage.ts`, `actions-{centre,demandes,depenses,relances,sieges,soldes,tresorerie}.ts` | `referentiels`, `coffre` | tout métier qui émet un ordre de dépense (Ad & Pro, RH, Legal, Regulatory, moyens généraux…), pages `/finances`, `/centre-de-paiement`, `/validations/paiements` | **migré** (V4) — ex-`lib/{finance,finances,payments}/`, fusionnés |
 
@@ -43,7 +44,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 ```
 
 **Prochains candidats** (ordre du rapport 08, §3.5) : `produits` et `annuaires` (ils effacent la dette héritée de
-`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `adpro` après (`rh` et `finances` migrés au lot V4) ; Adam en dernier.
+`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `promo` (le stock et le dossier de matériel promotionnel, reste du pôle Ad & Pro) après (`rh`, `finances` et `ad-pro` migrés au lot V4) ; Adam en dernier.
 
 ---
 
@@ -108,14 +109,18 @@ le test voit ce qu'ESLint ne voit pas (imports relatifs qui sortent du module, g
 
 `src/platform/couverture.test.ts` — six plafonds mesurés, qui ne peuvent que baisser :
 
-| Mesure | Avant V3-G | Après |
-|---|---|---|
-| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | **766** (768 après fusion des lots V3-C/D/E ; **756** après le module `rh`, V4 ; **754** après la décision 0011 de l'Assistant IA) |
-| Pages / layouts qui importent `@/lib/prisma` | 129 | **126** |
-| Routes qui importent `@/lib/prisma` | 53 | 53 |
-| Imports `src/components/` → `src/app/` (inversion) | 12 | 12 |
-| Imports du kit d'interface (`components/ui`, `shared`) vers un métier | 6 | 6 |
-| Tests qui lisent le source par un chemin `src/…` | 128 | 128 (**125** après le module `rh`, V4) |
+| Mesure | Avant V3-G | Après V3-G | Après V4 (`rh` puis `ad-pro`) |
+|---|---|---|---|
+| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | 768 (fusion V3-C/D/E) | **722** (756 après `rh`, 754 après la décision 0011 de l'Assistant IA) |
+| Pages / layouts qui importent `@/lib/prisma` | 129 | **126** | 126 |
+| Routes qui importent `@/lib/prisma` | 53 | 53 | 53 |
+| Imports `src/components/` (et `ecrans/` des modules) → `src/app/` (inversion) | 12 | 12 | 12 |
+| Imports du kit d'interface (`components/ui`, `shared`) vers un métier | 6 | 6 | **2** |
+| Tests (hors modules) qui lisent le source par un chemin `src/…` | 128 | 128 | **109** (125 après `rh`) |
+
+Au lot V4, les écrans d'un module sont mesurés comme des composants (`couverture.ts`) : un écran déménagé ne
+sort pas de la mesure. Les bancs qui parcourent les écrans (`saisie-montant`, `responsive-guard`, `cle-manquante`…)
+parcourent aussi `src/modules/`.
 
 Après le lot V4 (`finances`) : hors carte **760** (**748** une fois fusionné avec `rh`), kit d'interface → métier **5**, tests qui lisent le source par
 chemin **122** (les gardes du métier sont rangés dans le module, hors de cette mesure).
@@ -270,3 +275,8 @@ et `npm run graphify:refresh` en fin de lot.
 | Deux fichiers fusionnés exportent le même nom (`canResubmit` du centre et du dossier, lot V4) | La porte renomme l'un (`canResubmitAuCentre`) ; l'action l'importe `as canResubmit` : ses `gardes` au contrat ne bougent pas |
 | Un fichier d'actions dépasse 1 000 lignes, et ses clés ne se découpent pas | Ses aides PRIVÉES vont en `infra/` (importées en relatif : le scanner ne suit que `@/`, comme quand elles étaient locales), ses calculs purs en `domaine/` ; `actions:contrat` identique |
 | Le kit d'interface (`components/shared/`) importait une règle du métier | Règle 4 : le socle n'importe aucun module — la règle passe par la lecture de la carte (`daterLeReglementPour`, `queries/chaine-des-pieces.ts`) |
+| Un fichier d'actions de 4 000 lignes à découper | Une clé, plusieurs morceaux (`ACTIONS_DES_MODULES` accepte une liste) ; une action qui passe son formulaire à une autre reste dans le même morceau (le contrat suit la délégation locale) ; les aides privées communes vont dans `infra/…/commun.ts`, importées en RELATIF (invisibles au scanner, comme l'appel local d'avant) ; `actions:contrat` doit rester identique |
+| Un découpage ajoute un spécificateur dans un fichier d'Adam (frontière à 422) | Regrouper dans un même morceau les actions qu'un fichier d'Adam importe ensemble |
+| Un test lisait le fichier découpé | `sourceDeLaCle("<clé>")` (`parc.ts`) ou `lireSources(fichier, "dossier/")` (`platform/source.ts`) |
+| Un composant du kit (`components/shared`) appelle une action du module | Le socle n'importe aucun module : le composant n'est pas du kit — il sort (les pièces liées vers `components/pieces/`) |
+| Deux modules métiers se lisaient l'un l'autre (rh ⇄ finances, ad-pro ⇄ finances) | Ce que le règlement lit d'un métier est une règle de PAIEMENT : elle déménage dans `finances` (la paie versée, les statuts qu'un règlement solde) ; le métier lit `finances`, jamais l'inverse |
