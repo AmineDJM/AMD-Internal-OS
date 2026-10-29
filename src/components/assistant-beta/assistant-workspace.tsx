@@ -240,7 +240,10 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       e.preventDefault();
       profondeur.current = 0;
       setSurvol(false);
-      void lireDepot(e.dataTransfer).then(joindre).catch(() => setAvisDepot("Le dépôt n'a pas pu être lu. Réessayez avec le trombone."));
+      const dt = e.dataTransfer;
+      void (async () => {
+        try { joindre(await lireDepot(dt)); } catch { setAvisDepot("Le dépôt n'a pas pu être lu. Réessayez avec le trombone."); }
+      })();
     };
     const quitte = () => { profondeur.current = 0; setSurvol(false); };
     window.addEventListener("dragenter", entre);
