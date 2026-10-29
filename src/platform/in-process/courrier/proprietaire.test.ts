@@ -98,7 +98,7 @@ describe("le module a un APPELANT de production — pas seulement des tests (§1
 
   it("`plan_reminder` OFFRE le canal — sinon le modèle continue d'inventer une impossibilité", () => {
     // §118.19 : ce que le code sait faire, le contexte doit dire comment le demander.
-    const src = fs.readFileSync("src/lib/assistant/executive-tools.ts", "utf8");
+    const src = fs.readFileSync("src/lib/assistant/executive-tools/planification.ts", "utf8");
     expect(src).toMatch(/canal: \{\s*\n?\s*type: "string", enum: \["notification", "email", "les_deux"\]/);
     expect(src, "la description doit lever le doute, en toutes lettres").toMatch(/un e-mail différé est possible/);
   });

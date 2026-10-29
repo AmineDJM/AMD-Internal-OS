@@ -28,11 +28,15 @@ import { mesurerCouverture } from "./couverture";
  * `rh`) : deux fichiers
  * serveur neufs (`agent/lecture/pieces.ts`, `voix.ts`), et cinq fichiers PURS de l'Assistant IA, zéro import,
  * rangés au socle (`lecture/regles`, `consommation-regles`, `contenu-non-fiable`, `memoire-ui`, `fil/partiel`).
+ *
+ * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte −9 (mesuré 714 après fusion des lots code mort, primitives UI et module Ad & Pro) — les dossiers découpés sont rangés
+ * dans une couche : `payslip/` → office, `carte-plateforme/` → couche `carte`, `admin-delete-registry`,
+ * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle ; tests de texte mesurés 107 après fusion.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 722,
+  horsCarte: 714,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
@@ -46,7 +50,7 @@ const PLAFONDS = {
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 109,
+  testsDeTexte: 107,
 } as const;
 
 const mesure = mesurerCouverture();

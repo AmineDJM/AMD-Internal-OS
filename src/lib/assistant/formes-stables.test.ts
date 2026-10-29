@@ -32,7 +32,7 @@ const REPAREES: { fichier: string; capacites: string[] }[] = [
   { fichier: "src/lib/assistant/three-sixty.ts", capacites: ["person_report", "product_360", "supplier_360"] },
   { fichier: "src/lib/assistant/executive-brief-tools.ts", capacites: ["create_report"] },
   { fichier: "src/lib/assistant/regulatory-read.ts", capacites: ["regulatory_workload"] },
-  { fichier: "src/lib/assistant/executive-tools.ts", capacites: ["inspect_record"] },
+  { fichier: "src/lib/assistant/executive-tools/inspect-record.ts", capacites: ["inspect_record"] },
 ];
 
 /**
@@ -41,10 +41,22 @@ const REPAREES: { fichier: string; capacites: string[] }[] = [
  */
 const REFUS_EN_PROSE = /return\s+[`"'](?:Aucun|Aucune|Rien|Pas de|Il n'y a)/;
 
+/**
+ * `executive-tools.ts` a été découpé (lot V4) : le balayage du refus en prose couvre TOUT le dossier,
+ * comme il couvrait tout l'ancien fichier — pas seulement le morceau qui porte `inspect_record`.
+ */
+const DOSSIER_EXECUTIF = "src/lib/assistant/executive-tools";
+const BALAYES: { fichier: string; capacites: string[] }[] = [
+  ...REPAREES,
+  ...fs.readdirSync(DOSSIER_EXECUTIF)
+    .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "inspect-record.ts")
+    .map((f) => ({ fichier: `${DOSSIER_EXECUTIF}/${f}`, capacites: ["inspect_record"] })),
+];
+
 describe("§118.20 — la forme d'une sortie ne dépend jamais de la donnée", () => {
   it("aucune capacité réparée ne rend une PHRASE là où elle rendait un objet", () => {
     const fautes: string[] = [];
-    for (const { fichier, capacites } of REPAREES) {
+    for (const { fichier, capacites } of BALAYES) {
       const src = fs.readFileSync(fichier, "utf8");
       for (const [i, ligne] of src.split("\n").entries()) {
         if (ligne.trim().startsWith("*") || ligne.trim().startsWith("//")) continue;
@@ -84,7 +96,7 @@ describe("§118.20 — la forme d'une sortie ne dépend jamais de la donnée", (
      * dépendait de la donnée, et le contrôle de flux tenait à une chaîne que n'importe quelle
      * reformulation aurait cassée en silence.
      */
-    const src = fs.readFileSync("src/lib/assistant/executive-tools.ts", "utf8");
+    const src = fs.readFileSync("src/lib/assistant/executive-tools/inspect-record.ts", "utf8");
     expect(src).not.toMatch(/\.startsWith\(AUCUN\)/);
     expect(src, "`inspecter` doit DIRE s'il a trouvé").toMatch(/Promise<\{ trouve: boolean; charge: string \}>/);
   });

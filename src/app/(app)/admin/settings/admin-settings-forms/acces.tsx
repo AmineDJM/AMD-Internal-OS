@@ -1,5 +1,8 @@
 "use client";
 
+/**
+ * LES FORMULAIRES DES RÉGLAGES — l'accès par rôle ET par personne : pipeline Regulatory, directives.
+ */
 import * as React from "react";
 import { Loader2, Check, Search } from "lucide-react";
 import { setPipelineAccess, setDirectiveAccess } from "@/lib/actions/settings-actions";
@@ -7,11 +10,9 @@ import { describePipelineAudience } from "@/lib/regulatory/pipeline-access";
 import { describeDirectiveAccess } from "@/lib/directives/access";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { actionFailureMessage } from "@/lib/action-outcome";
 import type { AppSettings } from "@/lib/settings";
-import type { Opt, UserLite } from "../admin-settings-forms";
-
-/** LES ACCÈS NOMMÉS DU PIPELINE ET DES DIRECTIVES — sortis de `admin-settings-forms.tsx` (cliquet de taille), qui les réexporte. */
+import type { Opt, UserLite } from "./types";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * UN NIVEAU D'ACCÈS — des rôles, et des personnes nommées. Réutilisé pour les deux niveaux du

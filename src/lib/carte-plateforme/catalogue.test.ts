@@ -85,5 +85,13 @@ describe("carte de la plateforme — cohérence du catalogue", () => {
   it("le catalogue reste PUR : aucun import (il est lu par un composant client)", () => {
     const source = fs.readFileSync(path.join(process.cwd(), "src", "lib", "carte-plateforme", "catalogue.ts"), "utf8");
     expect(source).not.toMatch(/^\s*import\s/m);
+    // Découpé en `catalogue/` : la porte ne fait que réexporter ses morceaux, et chaque morceau
+    // n'importe que ses frères (`./…`) — rien hors du dossier, donc rien de lourd pour le navigateur.
+    expect(source.match(/from\s+"([^"]+)"/g)?.every((f) => f.includes('"./catalogue/'))).toBe(true);
+    const dossier = path.join(process.cwd(), "src", "lib", "carte-plateforme", "catalogue");
+    for (const f of fs.readdirSync(dossier)) {
+      const morceau = fs.readFileSync(path.join(dossier, f), "utf8");
+      expect(morceau, f).not.toMatch(/^\s*import\s[^;]*from\s+"(?!\.\/)/m);
+    }
   });
 });

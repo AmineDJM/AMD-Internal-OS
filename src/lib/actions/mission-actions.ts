@@ -14,26 +14,34 @@ import { refusRetraitOrdreMission, refusAnnulationDemandeRh } from "@/lib/annula
 import { requestHrDocument } from "@/modules/rh/actions-documents";
 import { createRequest } from "@/lib/actions/admin-request-actions";
 import { demanderMateriel } from "@/lib/actions/promo-stock-actions";
-import { MES_MISSIONS, PARENT_TYPES, parentPath, parentMission, rolesDe, organisateursDe } from "@/lib/missions-equipe/serveur";
-import { assurerImputationEquipe, categorieEquipePour, categorieEquipeValide } from "@/lib/missions-equipe/imputation-serveur";
+import {
+  MES_MISSIONS, PARENT_TYPES, parentPath, parentMission, rolesDe, organisateursDe,
+} from "@/lib/missions-equipe/serveur";
+import {
+  assurerImputationEquipe, categorieEquipePour, categorieEquipeValide,
+} from "@/lib/missions-equipe/imputation-serveur";
 import {
   refusReponse, peutRelancerInvitation, retraitSouple, refusAjoutEtape, etatOrdreMission, peutDemanderOrdre,
-  peutRetirerOrdre, marcheInitiale, refusDecisionN1, noteFraisOuverte, jourIso, objetOrdreMission,
-  refusMontantFrais, demandeRelancable, SOUS_TYPE_SECRETARIAT, LIBELLE_ETAPE,
-  type HrStatut, type GateN1, type ReponseMission,
+  peutRetirerOrdre, marcheInitiale, refusDecisionN1, noteFraisOuverte, jourIso, objetOrdreMission, refusMontantFrais,
+  demandeRelancable, SOUS_TYPE_SECRETARIAT, LIBELLE_ETAPE, type HrStatut, type GateN1, type ReponseMission,
 } from "@/lib/missions-equipe/etat";
 import {
-  lireFiche, ficheStockee, etapeParticipation, estArbitre, coteDe, refusProposition, refusDecision,
-  natureNouvelleVersion, datesConvenues, destinationConvenue, hebergementPourOm, peutDeposerReservation,
-  peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture, refusModifFrais,
-  refusDecisionN1NoteFrais, moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE,
-  NATURE_FRAIS_LIBELLE, TRAJETS_BILLET, type Cote, type NatureFrais,
+  lireFiche, ficheStockee, refusProposition, refusDecision, natureNouvelleVersion, datesConvenues, destinationConvenue,
+  hebergementPourOm, peutChoisirBudgetMission, lireLigneFrais, tauxMission, totalFrais, manquesCloture,
+  refusDecisionN1NoteFrais, moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE,
+  TRAJETS_BILLET, type NatureFrais,
 } from "@/lib/missions-equipe/participation";
 import { lireDetailsTrajets } from "@/modules/ad-pro/partage";
-import { persistUploadedDocument } from "@/lib/documents";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import { toNumber } from "@/lib/utils";
 import { sansBloquer } from "@/lib/journal";
+import {
+  chargerAssignation, dates, dernierOrdre, maMissionConfirmee, revalider, tracesDe,
+} from "@/lib/actions/internes/mission/assignation";
+import {
+  contexteParticipation, deposerPiece, porteFrais, porteReservation, prevenirAutreCote,
+} from "@/lib/actions/internes/mission/participation";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/mission/{assignation,participation}` — les actions restent ici (leur clé de contrat).
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -48,16 +56,6 @@ import { sansBloquer } from "@/lib/journal";
  */
 
 const MISSION_ROLES: MissionRole[] = ["ACCOMPAGNANT", "DELEGATE_REFERENCE"];
-
-function revalider(entityType: EntityType, entityId: string): void {
-  revalidatePath(parentPath(entityType, entityId));
-  revalidatePath(MES_MISSIONS);
-  revalidatePath(`${MES_MISSIONS}/[id]`, "page");
-  revalidatePath("/missions");
-}
-
-const dates = (d: Date | null, f: Date | null) =>
-  d ? ` · ${d.toLocaleDateString("fr-FR")}${f && f.getTime() !== d.getTime() ? ` → ${f.toLocaleDateString("fr-FR")}` : ""}` : "";
 
 /**
  * INVITER — créer l'assignation, ou rouvrir celle d'une personne qui avait décliné ou été retirée
@@ -129,11 +127,6 @@ export async function assignMission(formData: FormData): Promise<ActionResult> {
   return r;
 }
 
-async function chargerAssignation(id: string | null) {
-  if (!id) return null;
-  return prisma.missionAssignment.findUnique({ where: { id } });
-}
-
 /** « Je confirme » / « Je décline » — la personne invitée ; décliner porte un motif et prévient l'organisateur. */
 export async function repondreMission(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
@@ -192,21 +185,6 @@ export async function relancerMission(formData: FormData): Promise<ActionResult>
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Congrès", entityType: "MISSION_ASSIGNMENT", entityId: a.id, field: "relance", newValue: String(rang), summary: `Relance ${rang} — ${parent.label}` });
   revalider(a.entityType, a.entityId);
   return { ok: true, message: "Relance envoyée." };
-}
-
-/** Les traces qui interdisent l'effacement : pièces, fil, demandes reliées. */
-async function tracesDe(id: string) {
-  const [documents, commentaires, rh, secretariat, materiel, versions, frais] = await Promise.all([
-    prisma.document.count({ where: { entityType: "MISSION_ASSIGNMENT", entityId: id } }),
-    prisma.comment.count({ where: { entityType: "MISSION_ASSIGNMENT", entityId: id } }),
-    prisma.hrDocumentRequest.count({ where: { missionAssignmentId: id } }),
-    prisma.administrativeRequest.count({ where: { linkedEntityType: "MISSION_ASSIGNMENT", linkedEntityId: id } }),
-    prisma.promoStockRequest.count({ where: { missionAssignmentId: id } }),
-    // Une fiche envoyée ou une dépense saisie est une trace : la négociation et les frais restent, archivés.
-    prisma.missionParticipationVersion.count({ where: { assignmentId: id } }),
-    prisma.missionExpenseLine.count({ where: { assignmentId: id } }),
-  ]);
-  return { documents, commentaires, demandes: rh + secretariat + materiel + versions + frais };
 }
 
 /** Retirer sans effacer ce qui a eu lieu : archive si traces, effacement sinon. */
@@ -298,14 +276,6 @@ export async function retirerEtapeMission(formData: FormData): Promise<ActionRes
 }
 
 // ─────────────────────────────── L'ordre de mission (N+1 → RH) ───────────────────────────────
-
-async function dernierOrdre(assignmentId: string) {
-  return prisma.hrDocumentRequest.findFirst({
-    where: { missionAssignmentId: assignmentId, type: "MISSION_ORDER" },
-    orderBy: { createdAt: "desc" },
-    select: { id: true, status: true, managerGate: true, managerUserId: true },
-  });
-}
 
 /**
  * « Demander l'ordre de mission » — UNE demande RH (MISSION_ORDER), pré-remplie depuis la mission,
@@ -494,15 +464,6 @@ export async function issueMissionOrder(formData: FormData): Promise<ActionResul
 
 // ─────────────────────────────── Les étapes facultatives, dans leurs circuits ───────────────────────────────
 
-/** Une mission confirmée, la sienne, active — la porte de toutes les étapes. */
-async function maMissionConfirmee(id: string | null, userId: string) {
-  const a = await chargerAssignation(id);
-  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
-  if (a.userId !== userId) return { erreur: "Seule la personne en mission fait ses demandes." } as const;
-  if (a.response !== "CONFIRMEE") return { erreur: "Confirmez d'abord la mission." } as const;
-  return { a } as const;
-}
-
 /**
  * TRANSPORT / HÉBERGEMENT — une demande « Déplacement / Hôtel / Billet » au Bureau du secrétariat, la
  * personne concernée étant celle en mission, reliée à l'assignation (pré-remplie : ville, dates).
@@ -684,38 +645,6 @@ export async function addMissionComment(formData: FormData): Promise<ActionResul
 // `missions-equipe/participation.ts`.
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 
-type Assignation = NonNullable<Awaited<ReturnType<typeof chargerAssignation>>>;
-
-/** Les versions de l'invitation EN COURS (une réinvitation repart à zéro), de la plus ancienne à la plus récente. */
-async function versionsCourantes(a: { id: string; createdAt: Date }) {
-  return prisma.missionParticipationVersion.findMany({
-    where: { assignmentId: a.id, createdAt: { gte: a.createdAt } },
-    orderBy: { numero: "asc" },
-  });
-}
-
-/** Le contexte d'une participation pour l'acteur : demande parente, organisateurs, son côté, l'état. */
-async function contexteParticipation(a: Assignation, user: { id: string; role: string; secondaryRole?: string | null }) {
-  const parent = await parentMission(a.entityType, a.entityId);
-  const organisateurs = organisateursDe(a, parent);
-  const roles = rolesDe(user);
-  const arbitre = estArbitre({ id: user.id, roles }, organisateurs);
-  const cote = coteDe(user.id, a.userId, arbitre);
-  const versions = await versionsCourantes(a);
-  const derniere = versions.length ? versions[versions.length - 1]! : null;
-  const etape = etapeParticipation(a, derniere ? versionLite(derniere) : null);
-  return { parent, organisateurs, roles, arbitre, cote, versions, derniere, etape };
-}
-
-/** Prévenir l'autre côté : la personne, ou les organisateurs (hors soi). */
-async function prevenirAutreCote(a: Assignation, cote: Cote, acteurId: string, organisateurs: string[], titre: string, corps: string, ancre?: "fil") {
-  const cibles = cote === "PERSONNE" ? organisateurs : [a.userId];
-  for (const c of new Set(cibles)) {
-    if (c === acteurId) continue;
-    await notifyUser({ userId: c, type: "ASSIGNMENT", title: titre, body: corps, link: lienMission(a.id, ancre) }).catch(sansBloquer("mission-actions.prevenirAutreCote.notifyUser"));
-  }
-}
-
 /**
  * ENVOYER SA FICHE / « MODIFIER ET CONTRE-PROPOSER » — une nouvelle VERSION de la fiche. La personne ouvre ;
  * ensuite seul le côté qui a la balle propose. La version en attente qu'elle remplace est marquée REMPLACÉE ;
@@ -810,24 +739,6 @@ export async function deciderParticipation(formData: FormData): Promise<ActionRe
   return { ok: true, message: decision === "ACCEPTER" ? "Accord trouvé : l'ordre de mission peut être demandé." : "Refus envoyé : l'autre partie peut reproposer." };
 }
 
-/** La porte des dépôts de la plateforme (billet, hôtel) : assistante de direction, organisateurs, Direction Marketing, Super Admin. */
-async function porteReservation(id: string | null, user: { id: string; role: string; secondaryRole?: string | null }) {
-  const a = await chargerAssignation(id);
-  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
-  const parent = await parentMission(a.entityType, a.entityId);
-  if (!peutDeposerReservation({ id: user.id, roles: rolesDe(user) }, organisateursDe(a, parent))) {
-    return { erreur: "Le billet émis et la confirmation d'hôtel se déposent par l'assistante de direction, l'organisateur, la Direction Marketing ou le Super Admin." } as const;
-  }
-  return { a, parent } as const;
-}
-
-async function deposerPiece(userId: string, assignmentId: string, f: FormDataEntryValue | null, stepKey: "BILLET" | "HOTEL" | "FRAIS"): Promise<{ ok: true; id: string | undefined } | { ok: false; error: string }> {
-  if (!(f instanceof File) || f.size === 0) return { ok: true, id: undefined };
-  const r = await persistUploadedDocument(userId, { entityType: "MISSION_ASSIGNMENT", entityId: assignmentId, category: "SUPPORTING_DOC", confidentiality: "INTERNAL", stepKey, file: f });
-  if (!r.ok || !r.documentId) return { ok: false, error: r.error ?? "Le fichier n'a pas pu être enregistré." };
-  return { ok: true, id: r.documentId };
-}
-
 /**
  * LE BILLET ÉMIS d'un membre de l'équipe (Adventum réserve) — l'e-billet, le PNR et, pour l'aller puis le retour,
  * le n° de vol / train et les heures : la même structure que le billet émis d'une fiche voyageur.
@@ -920,17 +831,6 @@ export async function choisirBudgetMission(formData: FormData): Promise<ActionRe
   revalider(a.entityType, a.entityId);
   revalidatePath("/budget-operations");
   return { ok: true, message: `Imputé à ${libelle}.` };
-}
-
-/** La porte des dépenses : la personne, sa mission ouverte (OM émis), pas encore clôturée. */
-async function porteFrais(id: string | null, userId: string) {
-  const a = await chargerAssignation(id);
-  if (!a || a.archivedAt) return { erreur: "Mission introuvable." } as const;
-  const om = await dernierOrdre(a.id);
-  const etatOm = etatOrdreMission(om ? { status: om.status as HrStatut, managerGate: (om.managerGate ?? null) as GateN1 | null } : null, a.orderStatus);
-  const refus = refusModifFrais({ cloturee: Boolean(a.clotureLe), omEmis: etatOm === "EMIS" }, a.userId === userId);
-  if (refus) return { erreur: refus } as const;
-  return { a, etatOm } as const;
 }
 
 /** AJOUTER UNE DÉPENSE — date, nature, détail, montant (USD à l'international hors billet), justificatif. */

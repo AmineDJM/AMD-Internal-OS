@@ -96,7 +96,7 @@ describe("personne ne réécrit l'ancienne adresse", () => {
     const tous = fichiers(SRC);
     expect(tous.length, "PRÉMISSE : le parcours lit bien le dépôt").toBeGreaterThan(1000);
     const fautes = tous
-      .filter((f) => !f.endsWith(join("lib", "labels.ts")))
+      .filter((f) => !f.endsWith(join("lib", "labels", "navigation.ts")))
       .flatMap((f) => citationsAnciennes(readFileSync(f, "utf8")).map((c) => `${relative(process.cwd(), f)} : ${c}`));
     expect(fautes, fautes.join("\n")).toEqual([]);
   });

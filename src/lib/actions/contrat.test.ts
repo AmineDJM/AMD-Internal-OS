@@ -956,6 +956,68 @@ export async function faireLeTruc(formData: FormData): Promise<ActionResult> {
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * UNE AIDE INTERNE (`actions/internes/`) EST LE CODE DU FICHIER D'ACTIONS (`contrat/internes.ts`).
+ *
+ * Le même corps — qui reçoit le formulaire, lit ses champs avec un lecteur de son module, écrit et confie une
+ * notification à un écrivain importé — déplacé hors du fichier `"use server"`. Hors de `actions/internes/`, la
+ * dérivation ne le suit que pour ses faits d'écriture directs : les champs et l'attribution sont PERDUS. Sous
+ * `actions/internes/`, l'action dit exactement ce qu'elle disait quand ce code était dans son corps.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+describe("une aide INTERNE compte comme une fonction locale du fichier d'actions", () => {
+  const action = (depuis: string) => `"use server";
+import { requireUser } from "@/lib/session";
+import { renommerLeTruc } from "${depuis}";
+
+export async function renommerTruc(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  return renommerLeTruc(formData, user);
+}
+`;
+  const MODULE_INTERNE = `import { notifyUser } from "@/lib/notify";
+
+export function champ(formData: FormData, key: string): string | null {
+  const v = formData.get(key);
+  return v ? String(v) : null;
+}
+
+export async function renommerLeTruc(formData: FormData, acteur: { id: string }) {
+  const id = champ(formData, "trucId");
+  const nom = champ(formData, "nom");
+  if (!id || !nom) return { ok: false, error: "Champs manquants." };
+  await prisma.truc.update({ where: { id }, data: { name: nom } });
+  await notifyUser({ userId: acteur.id, title: "Renommé" });
+  return { ok: true };
+}
+`;
+  const NOTIFY = `
+export async function notifyUser(n: { userId: string }) {
+  return prisma.notification.create({ data: n });
+}
+`;
+  const relations = { "Truc.trucId": "Truc" };
+  const decrire = (depuis: string) => contratsDuFichier("truc-actions", action(depuis), {}, relations, {
+    [depuis]: MODULE_INTERNE, "@/lib/notify": NOTIFY,
+  })[0]!;
+
+  it("TÉMOIN — hors de `actions/internes/`, les champs, l'attribution et l'écrivain du corps déplacé sont perdus", () => {
+    const c = decrire("@/lib/domaine/truc-renommage");
+    expect(c.champs).toEqual([]);
+    expect(c.illisible).not.toBeNull();
+    expect(c.modelesEcrits).not.toContain("notification");
+  });
+
+  it("sous `actions/internes/`, l'action lit les champs, attribue la référence et déclare les écrivains du délégué", () => {
+    const c = decrire("@/lib/actions/internes/truc/renommage");
+    expect(c.illisible).toBeNull();
+    expect(c.champs.map((ch) => [ch.nom, ch.obligatoire, ch.modele])).toEqual([["nom", true, null], ["trucId", true, "Truc"]]);
+    expect(c.ecrit).toBe(true);
+    expect(c.modelesEcrits).toEqual(["notification", "truc"]);
+  });
+});
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LE PARC — la clé d'une action est un NOM déclaré, pas un chemin (rapport d'audit 08, ARCH-03).
  *
  * Une action rangée dans son module (`src/modules/<m>/actions.ts`) garde sa clé historique en se

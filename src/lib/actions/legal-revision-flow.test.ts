@@ -417,7 +417,7 @@ suite("Legal — une pièce émise se révise depuis sa fiche, et le formulaire 
     expect(corps).toContain("reviserDocumentDrive(");
     expect(corps).not.toMatch(/legalDocument\.count\(/);
     // Et la fabrique tient la règle AVANT la version et le motif : l'état d'abord.
-    const fab = readFileSync("src/platform/in-process/artifact/factory.ts", "utf8");
+    const fab = readFileSync("src/platform/in-process/artifact/factory/revision.ts", "utf8"); // la fabrique est découpée : la révision a son fichier
     const rev = fab.slice(fab.indexOf("export async function reviserDocumentDrive"));
     const iAval = rev.indexOf("avalActif(doc.id, f.type)");
     expect(iAval).toBeGreaterThan(-1);
