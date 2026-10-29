@@ -127,7 +127,7 @@ function ParPersonne({ personnes }: { personnes: LignePersonne[] }) {
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">Par personne — prime sur son rôle</CardTitle></CardHeader>
-      <CardContent className="grid gap-4 md:grid-cols-[280px_1fr]">
+      <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-[280px_1fr]">
         <div className="space-y-2">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
