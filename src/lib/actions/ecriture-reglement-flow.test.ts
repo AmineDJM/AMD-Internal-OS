@@ -6,7 +6,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
-import { deleteTransaction, updateTransaction, updateTransactionStatus } from "./finance-actions";
+import { deleteTransaction, updateTransaction, updateTransactionStatus } from "@/modules/finances/actions-tresorerie";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

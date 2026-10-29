@@ -18,7 +18,7 @@ import {
 import { continuousCash, canSpendFromFund } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { toNumber } from "@/lib/utils";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { ordreDeRemise } from "@/lib/general-means/remettre";
 import { etatRemise, refusConfirmationRemise } from "@/lib/general-means/remise-centre";
 import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";

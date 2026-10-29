@@ -223,7 +223,7 @@ to go when the object no longer exists), plus domain fields (`factureConnue`, `a
    error. [V]
 4. **Load + state check.** `findUnique` → `"… introuvable."`. State transitions go through *pure*
    functions in a domain module: `nextPaymentStatus(from, move)` and `canApprove(...)` in
-   `src/lib/finance/payment-request.ts:67,147`; `canDecideFromDossier` in `finance/dossier-auto`. [V]
+   `src/modules/finances/domaine/payment-request.ts:67,147`; `canDecideFromDossier` in `finance/dossier-auto`. [V]
 5. **Write.** Three styles are seen:
    - plain `prisma.x.create/update`, the majority;
    - `prisma.$transaction(async (tx) => …)` in 77 files;

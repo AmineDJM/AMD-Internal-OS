@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { clauseAImputer } from "@/lib/finance/a-imputer";
-import { piecesDesEcritures, type LienDepense, type PieceDepense } from "@/lib/finance/pieces-depense";
+import { clauseAImputer, piecesDesEcritures, type LienDepense, type PieceDepense } from "@/modules/finances/api";
 import { platformScope } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
 import { canViewEnvelope, type SessionUser } from "@/lib/rbac";

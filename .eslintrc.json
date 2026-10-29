@@ -39,9 +39,29 @@
               "@/lib/actions/consommation-actions",
               "@/lib/actions/organisation-actions",
               "@/lib/actions/personnes-actions",
-              "@/lib/actions/refonte-reprise-actions"
+              "@/lib/actions/refonte-reprise-actions",
+              "@/lib/actions/actualisation-soldes-actions",
+              "@/lib/actions/expense-actions",
+              "@/lib/actions/finance-actions",
+              "@/lib/actions/payment-centre-actions",
+              "@/lib/actions/payment-centre-seat-actions",
+              "@/lib/actions/payment-request-actions",
+              "@/lib/actions/relance-paiement-actions",
+              "@/lib/expense-orders",
+              "@/lib/finance",
+              "@/lib/finance/*",
+              "@/lib/finances",
+              "@/lib/finances/*",
+              "@/lib/payments",
+              "@/lib/payments/*",
+              "@/lib/queries/centre-paiement",
+              "@/lib/queries/compta",
+              "@/lib/queries/demande-paiement-suppression",
+              "@/lib/queries/finance",
+              "@/lib/queries/my-payment-requests",
+              "@/lib/queries/paiements-a-faire"
             ],
-            "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+            "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels, finances) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
           },
           {
             "group": [
@@ -178,9 +198,29 @@
                   "@/lib/actions/consommation-actions",
                   "@/lib/actions/organisation-actions",
                   "@/lib/actions/personnes-actions",
-                  "@/lib/actions/refonte-reprise-actions"
+                  "@/lib/actions/refonte-reprise-actions",
+                  "@/lib/actions/actualisation-soldes-actions",
+                  "@/lib/actions/expense-actions",
+                  "@/lib/actions/finance-actions",
+                  "@/lib/actions/payment-centre-actions",
+                  "@/lib/actions/payment-centre-seat-actions",
+                  "@/lib/actions/payment-request-actions",
+                  "@/lib/actions/relance-paiement-actions",
+                  "@/lib/expense-orders",
+                  "@/lib/finance",
+                  "@/lib/finance/*",
+                  "@/lib/finances",
+                  "@/lib/finances/*",
+                  "@/lib/payments",
+                  "@/lib/payments/*",
+                  "@/lib/queries/centre-paiement",
+                  "@/lib/queries/compta",
+                  "@/lib/queries/demande-paiement-suppression",
+                  "@/lib/queries/finance",
+                  "@/lib/queries/my-payment-requests",
+                  "@/lib/queries/paiements-a-faire"
                 ],
-                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels, finances) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               },
               {
                 "group": [
@@ -342,9 +382,29 @@
                   "@/lib/actions/consommation-actions",
                   "@/lib/actions/organisation-actions",
                   "@/lib/actions/personnes-actions",
-                  "@/lib/actions/refonte-reprise-actions"
+                  "@/lib/actions/refonte-reprise-actions",
+                  "@/lib/actions/actualisation-soldes-actions",
+                  "@/lib/actions/expense-actions",
+                  "@/lib/actions/finance-actions",
+                  "@/lib/actions/payment-centre-actions",
+                  "@/lib/actions/payment-centre-seat-actions",
+                  "@/lib/actions/payment-request-actions",
+                  "@/lib/actions/relance-paiement-actions",
+                  "@/lib/expense-orders",
+                  "@/lib/finance",
+                  "@/lib/finance/*",
+                  "@/lib/finances",
+                  "@/lib/finances/*",
+                  "@/lib/payments",
+                  "@/lib/payments/*",
+                  "@/lib/queries/centre-paiement",
+                  "@/lib/queries/compta",
+                  "@/lib/queries/demande-paiement-suppression",
+                  "@/lib/queries/finance",
+                  "@/lib/queries/my-payment-requests",
+                  "@/lib/queries/paiements-a-faire"
                 ],
-                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+                "message": "Ce fichier a déménagé dans src/modules/ (coffre, lieux, referentiels, finances) : importer la porte du module (/api, /api-lecture, /partage ou /actions). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               },
               {
                 "group": [

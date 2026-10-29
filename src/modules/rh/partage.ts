@@ -14,10 +14,7 @@ export { type AbsenceDEquipe, aujourdhuiAlger, chevauchementsDe, couvreLeJour, j
 export { refusDecisionSurSoi } from "./domaine/decision-sur-soi";
 
 // ── Paie : coût, masse, correction, virement au centre de paiement, rattachement
-export { defaultEmployerCost, entryCost } from "./domaine/payroll-cost";
-export { type LigneMasseMensuelle, type MasseMensuelle, masseMensuelleParEntite } from "./domaine/payroll-mass";
 export { amendImpact, canAmend, resolvedGross, validateAmounts } from "./domaine/payroll-amend";
-export { clauseSalairesVersesANotifier, deMois, ETAT_VIREMENT_LABEL, etatSalaire, type EtatSalaire, etatVirement, libelleVirementPaie, lireSommeAVirer, moisDeLaPaie, moisDeLEntite, type MoisDeLEntite, noteVirementPaie, saisiAvantLeCentre, SOMME_A_VIRER_MANQUANTE, virementCouvre, type VirementDuMois } from "./domaine/virement-paie";
 export { decisionRattachement, phraseRattachement } from "./domaine/rattachement-paie";
 
 // ── Demandes et documents RH, notes de frais, attestation de travail, ordre de mission

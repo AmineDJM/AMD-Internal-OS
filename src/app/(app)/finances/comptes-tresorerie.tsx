@@ -4,9 +4,9 @@ import * as React from "react";
 import { Landmark, Loader2, AlertCircle, Trash2, Pencil, Anchor, Plus } from "lucide-react";
 import {
   setTreasuryOpeningBalance, modifierCompteTresorerie, corrigerAncrageTresorerie, deleteTreasuryAccount,
-} from "@/lib/actions/finance-actions";
+} from "@/modules/finances/actions-tresorerie";
 import type { ActionResult } from "@/lib/actions/types";
-import type { CompteLu } from "@/lib/queries/finance";
+import type { CompteLu } from "@/modules/finances/api";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";

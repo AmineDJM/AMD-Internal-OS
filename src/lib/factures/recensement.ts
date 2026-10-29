@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { prisma } from "@/lib/prisma";
 import { chargerFacturesConnues, type FactureConnue } from "@/lib/factures/connues";
 import { groupesDeDoublons, LIBELLE_NATURE } from "@/lib/factures/identite";
-import { PHRASE_ETAT_PAIEMENT } from "@/lib/finance/relance-paiement";
+import { PHRASE_ETAT_PAIEMENT } from "@/modules/finances/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

@@ -11,9 +11,9 @@ import { randomUUID } from "crypto";
 import type { SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { createPaymentRequest } from "@/lib/actions/payment-request-actions";
+import { createPaymentRequest } from "@/modules/finances/actions-demandes";
 import { PRISE_DU_BON } from "@/lib/medical-info/slips";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { annulerOrdreNonRegle } from "@/modules/finances/api";
 import { formulaireDeLaQuittance } from "@/lib/actions/internes/medical-info/dossier";
 
 /** L'arrêt de l'action, avec ce qu'elle rend — un type nommé, pour que `"fini" in …` le distingue de la suite. */

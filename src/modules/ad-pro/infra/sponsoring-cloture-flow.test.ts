@@ -11,11 +11,11 @@ import { createSponsoring, cloturerSponsoring, rouvrirSponsoring } from "../acti
 import { addAdProItem, setAdProItemBudget, updateAdProItem, deleteAdProItem, submitAdProItem } from "../actions-postes";
 import { decideAdProItem, repartirPoste } from "../actions-postes-decision";
 import { demanderPaiementPoste } from "../actions-postes-paiement";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { transferAdProRequest } from "../actions-transfert";
 import { validateDeclarationByDirection } from "@/lib/actions/medical-info-actions";
 import { advanceWorkflowInstance, ensureInstance, montantADeclarer } from "@/lib/workflow/engine";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { createMedicalInfoDeclaration } from "@/lib/medical-info";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
 

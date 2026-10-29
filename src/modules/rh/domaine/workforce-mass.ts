@@ -49,7 +49,7 @@
  * Module PUR : ni base, ni session. Testé.
  */
 
-import { defaultEmployerCost, entryCost, entryBasis, type PayrollCostInput, type CostBasis } from "./payroll-cost";
+import { defaultEmployerCost, entryCost, entryBasis, type PayrollCostInput, type CostBasis } from "@/modules/finances/partage";
 
 export interface WorkforceEmployee {
   id: string;

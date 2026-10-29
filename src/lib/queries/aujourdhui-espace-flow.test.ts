@@ -8,6 +8,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 import { prisma } from "@/lib/prisma";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { chargerAujourdhui } from "@/lib/queries/aujourdhui-espace";
+import { jourDeReferenceDeLaSemaine } from "@/lib/espace/aujourdhui";
+import { aujourdhuiAlger } from "@/modules/rh/partage";
 import { relanceTaskRequest } from "@/lib/actions/task-actions";
 
 /**
@@ -81,8 +83,11 @@ suite("« Aujourd'hui » — la file, la semaine et l'équipe, selon les droits"
     tacheId = (await prisma.task.create({
       data: { title: `${TAG} rapport`, assignedToId: u.del, createdById: u.mgr, status: "TODO", requestedAt: ilYA(8), dueDate: ilYA(3), createdAt: ilYA(8) },
     })).id;
-    // Un geste fait aujourd'hui par le délégué : une tâche terminée.
-    await prisma.task.create({ data: { title: `${TAG} fait`, assignedToId: u.del, createdById: u.del, status: "DONE", completedAt: new Date() } });
+    // Un geste fait par le délégué DANS la semaine que « Ma semaine » raconte : aujourd'hui un jour ouvré ;
+    // un vendredi ou un samedi (heure d'Alger), la semaine racontée est celle qui vient de finir, donc le jeudi.
+    const jourOuvre = jourDeReferenceDeLaSemaine(aujourdhuiAlger(new Date()));
+    const faitLe = jourOuvre === aujourdhuiAlger(new Date()) ? new Date() : new Date(`${jourOuvre}T10:00:00.000Z`);
+    await prisma.task.create({ data: { title: `${TAG} fait`, assignedToId: u.del, createdById: u.del, status: "DONE", completedAt: faitLe } });
   }, 180_000);
   afterAll(nettoyer, 180_000);
 

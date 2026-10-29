@@ -5,11 +5,11 @@
  */
 import { prisma } from "./erp";
 import { toNumber } from "@/lib/utils";
-import { updateTransaction, deleteTransaction, deleteTreasuryAccount, createPayroll } from "@/lib/actions/finance-actions";
+import { updateTransaction, deleteTransaction, deleteTreasuryAccount, createPayroll } from "@/modules/finances/actions-tresorerie";
 import { updateInvoice, deleteInvoice } from "@/lib/actions/invoice-actions";
 import { markSalaryPaid, unmarkSalaryPaid } from "@/modules/rh/actions-paie";
 import { createBudget } from "@/lib/actions/budget-actions";
-import { respondToPaymentCentre } from "@/lib/actions/payment-centre-actions";
+import { respondToPaymentCentre } from "@/modules/finances/actions-centre";
 import type { OpImpl, OpProposalDraft } from "../../types";
 import { opStr } from "../../types";
 import { runFd, runFd2, dzd, fieldsOf, resolveOne, monthOf, isoDate } from "../../helpers";

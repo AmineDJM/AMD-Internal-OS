@@ -26,7 +26,6 @@ export { leaveFormContext } from "./infra/leave-form-context";
 export { remonterConge, trancherSousEscalade } from "./infra/conge-escalade";
 
 // ── Paie : coût, masse, correction, virement au centre de paiement, rattachement
-export { instantDuCentreDePaie, solderVirementPaie } from "./infra/paie-centre";
 export { chargerSalairesPartis } from "./infra/salaires-partis";
 
 // ── Demandes et documents RH, notes de frais, attestation de travail, ordre de mission

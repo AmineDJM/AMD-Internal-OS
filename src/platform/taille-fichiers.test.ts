@@ -24,15 +24,14 @@ import { describe, expect, it } from "vitest";
  *
  * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4 (dont `assistant.ts` 7 314,
  * `assistant/ops/catalog.ts` 5 399, `labels.ts` 2 289, `rbac.ts` 2 212) → 1 après fusion des lots RH
- * et Ad & Pro (qui ont découpé les leurs) : `payment-request-actions.ts`, confié au chantier des paiements — le seul HÉRITÉ.
+ * et Ad & Pro (qui ont découpé les leurs) : `payment-request-actions.ts`, confié au chantier des paiements → 0 après la
+ * migration des Finances (devenu `modules/finances/actions-demandes.ts`, 996 lignes). Plus aucun HÉRITÉ.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFOND = 1_000;
 
 /** Fichiers hérités au-dessus du plafond (hors périmètre du lot V4, confiés à d'autres chantiers) → taille mesurée. */
-const HERITES: Readonly<Record<string, number>> = {
-  "src/lib/actions/payment-request-actions.ts": 1197,
-};
+const HERITES: Readonly<Record<string, number>> = {};
 
 function fichiersDeProduction(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

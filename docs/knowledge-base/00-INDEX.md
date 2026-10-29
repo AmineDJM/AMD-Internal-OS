@@ -38,7 +38,8 @@ with file:line, not re-checked · **[V·orch]** re-checked by the orchestrator �
 
 Code migrated to the modular monolith lives in `src/modules/<module>/` and is entered only through its doors — see
 **[`docs/architecture/MODULES.md`](../architecture/MODULES.md)** (map, doors, rules, step-by-step migration guide)
-before touching `lieux`, `coffre`, `referentiels` or `consommation`.
+before touching `lieux`, `coffre`, `referentiels`, `consommation` or `finances` (expense orders, payment centre,
+payment requests, settlement, treasury — formerly `src/lib/{finance,finances,payments}/`, lot V4, 2026-10-28).
 
 ## Keeping it current
 

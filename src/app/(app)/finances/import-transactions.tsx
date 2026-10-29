@@ -4,7 +4,7 @@ import * as React from "react";
 import { useActionState } from "react";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
-import { importTransactions, type ResultatImport } from "@/lib/actions/finance-actions";
+import { importTransactions, type ResultatImport } from "@/modules/finances/actions-tresorerie";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/input";

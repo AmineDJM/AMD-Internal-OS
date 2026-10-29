@@ -5,7 +5,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { refusSuppressionDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
+import { refusSuppressionDemandePaiement } from "@/modules/finances/api";
 import type { DeletableKind, KindSpec } from "./types";
 
 export const REGISTRE_FINANCE = {
