@@ -50,7 +50,11 @@ Covered:
   in `role-config.ts`; tokens inside a card input are substituted server-side (`substituerReperes`, refused without the
   right), stored as `reperesSubstitues` on the intent, re-checked at confirmation (`verifierReperesAvantExecution` in
   `confirmerIntentionAssistantIA`), audited at card and execution; non-vault values are journaled through
-  `journaliserLectureHorsColonne` (coffre door) with tool name and source (`PayrollEntry`, `EmployeeDocument`). Bench: `src/lib/agent/droits-metier.test.ts`.
+  `journaliserLectureHorsColonne` (coffre door) with tool name and source (`PayrollEntry`, `EmployeeDocument`).
+  Bench V4-H gaps closed: directory returns manager/department (`findPeople`), `list_pending_decisions` exposed,
+  `demandes_adpro` / `etat_dossier_reglementaire` (`lecturesMetier`, `lectures.ts`, under the elevated view, perimeter-
+  scoped — `product_360` not lent), leave requests on the HR card, cached input billed at `cacheParM`
+  (`ASSISTANT_IA_PRICE_CACHED`, defaults `TARIFS_PAR_DEFAUT` 2/12/0.2 $ per M), `consigneGestesFermes` (refusals name the right). Bench: `src/lib/agent/droits-metier.test.ts`.
   **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
   attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
   door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file

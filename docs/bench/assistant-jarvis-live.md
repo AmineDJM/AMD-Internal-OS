@@ -149,3 +149,26 @@ Moins prioritaires, relevés en passant :
 Toutes passes comprises (instrument, passage complet, passage corrigé, rejeu de 4 scénarios) : **110 appels**,
 1 002 357 jetons d'entrée dont 878 619 en cache, 8 227 de sortie — **2,10 $ au journal du produit, ~0,52 $ au tarif
 réel du cache** (hypothèse 2 $ / 0,20 $ / 12 $ par million). Budget alloué : 5 $.
+
+## Après le lot « droits de la personne » (décision 0012, `v4/assistant-droits-metier`, 29/10/2026)
+
+Même banc, même semis, base locale `amd_bench`, `gpt-6.1-terra`. Deux critères du banc mis à jour pour ce que le lot
+introduit : l'outil attendu du n° 07 accepte « Dossier réglementaire consulté » (`etat_dossier_reglementaire`), et un
+refus reconnaît la forme « la famille … est fermée — la Direction l'ouvre dans la console » (20, 21, 22).
+
+**Passage complet : 19 / 26 OK** (avant : 8 / 26) · 2 SANS OUTIL · 5 ÉCHEC · 0 erreur · **0 écriture sans
+confirmation**. Rejeu de 07, 20, 21, 22 avec les critères mis à jour : **4 / 4 OK** → **23 / 26**.
+
+| Restant | Pourquoi |
+| --- | --- |
+| 06 · créer le dossier daclatasvir | l'outil demande l'ENTITÉ (obligatoire : elle décide qui voit le dossier) — le banc est en un tour ; la carte vient au tour suivant (vérifié en essai réel) |
+| 14 · lettre Word | idem (la société), la carte vient au 14b |
+| 11 · document retrouvé par son contenu | recherche plein texte du Drive : lot J1 (hors de ce lot) |
+
+| Mesure | Avant (`ed81866f`) | Après |
+| --- | --- | --- |
+| Premier mot P50 / P95 | 4,2 s / 9,4 s | **5,5 s / 15,2 s** (P95 = 2 docs + vision) |
+| Total d'un tour P50 / P95 | 4,9 s / 9,8 s | **6,8 s / 17,6 s** |
+| Entrée par appel (Super Admin / assistante) | ~10 200 / ~6 300 jetons | **~23 400 / ~17 800** — les définitions des outils ouverts (lot J4 : réduction du prompt) |
+| Coût du passage complet (journal, cache à son tarif) | 2,10 $ au journal (cache plein tarif), ~0,52 $ réel | **0,60 $** (57 appels, 1 234 745 jetons d'entrée, 5 740 de sortie) |
+| Coût moyen d'un tour en cache | ~0,010 $ | **~0,012 $** (tour à 2 appels, cache chaud) |

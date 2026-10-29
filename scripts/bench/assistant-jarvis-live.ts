@@ -76,7 +76,7 @@ interface Scenario {
   outilManquant?: string;
 }
 
-const REFUS = /(ne figure pas parmi (vos|tes) accès|ne vous est pas ouvert|pas (accès|le droit|autoris)|ne (peux|puis) pas|n'ai pas accès|n'(est|êtes) pas (autoris|ouvert)|confidenti|réservé|aucun (accès|droit)|hors de (mes|vos) droits|pas habilit|pas disponible pour (vous|votre)|vos droits ne)/i;
+const REFUS = /(ne figure pas parmi (vos|tes) accès|ne vous est pas ouvert|pas (accès|le droit|autoris)|ne (peux|puis) pas|n'ai pas accès|n'(est|êtes) pas (autoris|ouvert)|confidenti|réservé|aucun (accès|droit)|hors de (mes|vos) droits|pas habilit|pas disponible pour (vous|votre)|vos droits ne|(est|sont) ferm[ée]e?s?|vous est ferm)/i; // « … est fermée … la Direction l'ouvre » : le refus d'une famille (décision 0012)
 /** Un manager « non indiqué / non confirmé » n'est pas une réponse, même si le directeur du service est cité. */
 const HESITE = /(pas (indiqu|précis|confirm|renseign)|ne précise pas|n'est pas confirm)/i;
 const LIEN = /(\/drive|\/api\/drive|\/rh|\/hr|\/documents?|https?:\/\/)\S*/i;
@@ -100,7 +100,7 @@ const SCENARIOS: Scenario[] = [
   { id: "06-reg-creer-daclatasvir", cat: "reglementaire", role: "SA", texte: "Crée un dossier réglementaire pour le produit daclatasvir.",
     attendu: { carte: true }, outilManquant: "création d'un produit / dossier Regulatory (aucune opération Regulatory dans OPERATIONS_IA)" },
   { id: "07-reg-etat-nivolumab", cat: "reglementaire", role: "SA", texte: "Où en est le dossier réglementaire du Nivolumab ?",
-    attendu: { outils: ["Catalogue consulté", "Portefeuille Regulatory par partenaire", "Charge Regulatory (assignations directes)"], contient: [/ANPP/i, /r[ée]serves?/i], carte: false } },
+    attendu: { outils: ["Dossier réglementaire consulté", "Catalogue consulté", "Portefeuille Regulatory par partenaire", "Charge Regulatory (assignations directes)"], contient: [/ANPP/i, /r[ée]serves?/i], carte: false } },
   // ── Ad & Pro / finances ──
   { id: "08-budget-enveloppe", cat: "finances", role: "SA", texte: `Combien reste-t-il sur l'enveloppe « ${JARVIS.enveloppe.nom} » ?`,
     attendu: { contient: [/12[\s  .]?000[\s  .]?000|12 ?M|12 millions/i], carte: false }, outilManquant: "lecture des enveloppes budgétaires (BudgetEnvelope)" },

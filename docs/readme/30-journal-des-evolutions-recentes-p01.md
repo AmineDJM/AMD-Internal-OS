@@ -20,6 +20,10 @@
   Ad & Pro (lectures) ; repère `⟦Sn⟧` accepté dans une carte (valeur substituée par le serveur, rejugée à la confirmation,
   tracée) ; toute valeur sensible hors colonne du coffre journalisée avec l'outil ; route des documents RH ouverte par la
   famille « Contrats & documents RH ».
+- **Manques du banc « Jarvis » (V4-H)** : l'annuaire rend le N+1 ; « qu'ai-je à valider ? » (`list_pending_decisions`) ; demandes
+  Ad & Pro par année / état / nature (`demandes_adpro`) ; état d'un dossier réglementaire du périmètre avec réserves, échéances
+  et commentaires (`etat_dossier_reglementaire`) ; congés de l'année sur la fiche ; coût du cache à son tarif et tarif par
+  défaut documenté de `gpt-6.1-terra` ; refus formulés par le droit.
   Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
 
 ### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)

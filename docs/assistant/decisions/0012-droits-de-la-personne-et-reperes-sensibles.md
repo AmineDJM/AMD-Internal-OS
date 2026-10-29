@@ -152,6 +152,25 @@ l'outil lit, la voisine du même rôle reste au défaut ; repère dans une carte
 refus sans droit ; exécution tracée ; famille refermée → refus à la confirmation) ; journal hors colonne (accord et
 refus) ; route des documents RH.
 
+## Manques du banc « Jarvis » en direct (V4-H, 29/10/2026) — corrigés dans ce lot
+Le banc (`docs/bench/assistant-jarvis-live.md`, `scripts/bench/assistant-jarvis-live.ts`) avait été joué sur `ed81866f`,
+AVANT ce lot. Repris un à un :
+
+| N° | Manque | Correction |
+|---|---|---|
+| 1 | le filtre de saisie détruisait « le salaire d'Assia » ; « salaire de base de 165 000 DZD » laissait passer le montant | motif : un montant commence par un chiffre ; « est / de / du / à » acceptés devant le montant |
+| 2 | aucun outil RH | `lire_fiche_rh` (avec N+1 et **congés de l'année**), `lire_paie`, `documents_rh` — familles et repères (ci-dessus) |
+| 3 | l'annuaire ne rend pas le manager | `findPeople` charge `Employee.manager` et le département ; `directory_lookup` rend `responsable` |
+| 5 | pas de file « à valider par moi » | `list_pending_decisions` offerte (centre d'action + congés à trancher, la file de l'utilisateur) |
+| 6 | pas de lecture des demandes Ad & Pro ni des budgets | `demandes_adpro` (requête de l'écran `getAdProRequests`, par année / état / nature, totaux) ; `read_budget`, `finance_totals` |
+| 7 | pas d'écriture Regulatory ni de demande administrative | `regulatory_operation` (`create_product`…) et `create_admin_request` sont offerts (outils du moteur, cartes) — pas dans `OPERATIONS_IA` |
+| 8 | état d'un dossier superficiel | `etat_dossier_reglementaire` : dossier du PÉRIMÈTRE (société, portée, verrou) — statut, échéances, retards, blocages, frise (réserves ANPP), commentaires. `product_360` n'est pas prêté : il résout le produit sans périmètre |
+| 9 | coût du cache au plein tarif ; « inconnu » sans variable | le cache à son tarif (`ASSISTANT_IA_PRICE_CACHED`) ; défauts documentés `gpt-6.1-terra` 2 $ / 12 $ / 0,20 $ par million (`TARIFS_PAR_DEFAUT`) |
+| — | refus « avec les outils disponibles » | règle fondamentale : un refus nomme le DROIT ; le contexte liste les gestes non ouverts au rôle |
+| — | `send_message` renvoyait à `search_people`, absent | la description renvoie à `directory_lookup` |
+
+Hors de ce lot (consigne) : recherche du Drive par contenu (lot J1), réduction du prompt (lot J4).
+
 ## Encore ouvert
 - Les ÉCRITURES d'une famille ouverte au-delà des droits (créer un dossier réglementaire sans le droit de l'écran) :
   il faudrait une exécution « au nom de la Direction » — non fait, à décider.
