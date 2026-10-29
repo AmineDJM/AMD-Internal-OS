@@ -6,7 +6,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { moneyEntityOf } from "@/lib/company";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { canEmitOrder, ITEM_KIND_LABELS, PARENT_ENTITE, VERSEMENT_SANS_BC, LIBELLE_JUSTIFICATIF_DIRECT, facturePourPayer, etatDuPaiement, phrasePaiementBloque, nomComplet, beneficiaireDuPaiement, gesteVisaPoste } from "@/modules/ad-pro/partage";
 import { enSerie } from "@/lib/refs";
 import { fdStr, fdNum, fdCase, type ActionResult } from "@/lib/actions/types";

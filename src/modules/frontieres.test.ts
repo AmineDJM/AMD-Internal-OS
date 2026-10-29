@@ -128,21 +128,14 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/ad-pro/infra/requetes/postes.ts → src/lib/queries/promo-stock",
     "src/modules/ad-pro/infra/requetes/prise-en-charge.ts → src/lib/promo-material/statut",
     "src/modules/ad-pro/infra/requetes/suppression.ts → src/lib/queries/promo-circuit",
-    // L'argent — ordres de dépense, règlement, factures connues, budget marketing et intégration 2026 : cible =
-    // `@/modules/finances/api` (lot Finances en cours ; ces fichiers deviendront ses portes).
-    "src/modules/ad-pro/actions-congres.ts → src/lib/expense-orders",
-    "src/modules/ad-pro/actions-congres.ts → src/lib/payments/revision-ordre",
-    "src/modules/ad-pro/actions-postes-decision.ts → src/lib/payments/annulation",
-    "src/modules/ad-pro/actions-postes-paiement.ts → src/lib/expense-orders",
+    // L'argent hors du module finances — factures connues, budget marketing et intégration 2026 (les ordres de
+    // dépense et le règlement passent par `@/modules/finances/api`, carte : ad-pro → finances).
     "src/modules/ad-pro/actions-postes-paiement.ts → src/lib/factures/blocage-vue",
     "src/modules/ad-pro/actions-postes-paiement.ts → src/lib/factures/connues",
-    "src/modules/ad-pro/actions-postes.ts → src/lib/payments/annulation",
-    "src/modules/ad-pro/actions-prise-en-charge.ts → src/lib/expense-orders",
     "src/modules/ad-pro/ecrans/bloc-historique.tsx → src/lib/budget-marketing/integration-2026",
     "src/modules/ad-pro/ecrans/bloc-historique.tsx → src/lib/budget-marketing/integration-serveur",
     "src/modules/ad-pro/ecrans/bloc-historique.tsx → src/lib/budget-marketing/rapprochement-serveur",
     "src/modules/ad-pro/ecrans/facture-paiement-bc.tsx → src/lib/factures/blocage-vue",
-    "src/modules/ad-pro/ecrans/facture-paiement-bc.tsx → src/lib/finance/relance-paiement",
     "src/modules/ad-pro/ecrans/pieces-historique.tsx → src/lib/budget-marketing/integration-vue",
     "src/modules/ad-pro/infra/requetes/postes.ts → src/lib/queries/budget",
     // L'intérim des décideurs : cible = `@/modules/rh/api` (lot RH en cours).
@@ -319,6 +312,76 @@ const DETTE_HERITEE: Record<string, string[]> = {
     // Qui a droit aux salaires : la règle de confidentialité RH, lue pour bâtir le lecteur.
     "src/modules/coffre/infra/lecteur.ts → src/lib/hr/confidentialite",
   ],
+  finances: [
+    // Prévenir et numéroter : `notify` (notifications) et `refs` (séries PAY-, OD-, FIN-) sont des services
+    // transverses que tout métier appelle ; cible = le socle, quand ils y seront rangés.
+    "src/modules/finances/actions-centre.ts → src/lib/notify",
+    "src/modules/finances/actions-demandes.ts → src/lib/notify",
+    "src/modules/finances/actions-demandes.ts → src/lib/refs",
+    "src/modules/finances/actions-depenses.ts → src/lib/notify",
+    "src/modules/finances/actions-relances.ts → src/lib/notify",
+    "src/modules/finances/actions-sieges.ts → src/lib/notify",
+    "src/modules/finances/actions-soldes.ts → src/lib/notify",
+    "src/modules/finances/actions-tresorerie.ts → src/lib/notify",
+    "src/modules/finances/actions-tresorerie.ts → src/lib/refs",
+    "src/modules/finances/infra/expense-orders.ts → src/lib/notify",
+    "src/modules/finances/infra/expense-orders.ts → src/lib/refs",
+    "src/modules/finances/infra/demandes.ts → src/lib/notify",
+    "src/modules/finances/infra/demandes.ts → src/lib/refs",
+    "src/modules/finances/infra/next-ref.ts → src/lib/refs",
+    "src/modules/finances/infra/relance-destinataires.ts → src/lib/notify",
+    "src/modules/finances/infra/revision-ordre.ts → src/lib/notify",
+    "src/modules/finances/infra/settle-invoice.ts → src/lib/refs",
+    "src/modules/finances/infra/verser-remise.ts → src/lib/notify",
+    // L'ENTITÉ DE L'ARGENT (Adventum, Novapharm…) et la visibilité par entité : `company` et `entity-access`
+    // décident quelle société voit quel ordre. Cible = une porte « entités » du socle (proposition §5.3).
+    "src/modules/finances/actions-demandes.ts → src/lib/company",
+    "src/modules/finances/actions-demandes.ts → src/lib/entity-access",
+    "src/modules/finances/actions-depenses.ts → src/lib/entity-access",
+    "src/modules/finances/actions-soldes.ts → src/lib/company",
+    "src/modules/finances/actions-tresorerie.ts → src/lib/company",
+    "src/modules/finances/actions-tresorerie.ts → src/lib/company-defaut",
+    "src/modules/finances/infra/expense-orders.ts → src/lib/entity-access",
+    "src/modules/finances/infra/requetes/centre-paiement.ts → src/lib/company",
+    "src/modules/finances/infra/requetes/compta.ts → src/lib/company",
+    "src/modules/finances/infra/requetes/finance.ts → src/lib/company",
+    "src/modules/finances/infra/requetes/compta.ts → src/lib/queries/visibilite-listes",
+    "src/modules/finances/infra/requetes/finance.ts → src/lib/queries/visibilite-listes",
+    // Les pièces : dépôt d'un fichier (`documents`, `storage`), lien vers la fiche d'origine (`entity-href`),
+    // fichiers émis et avoirs lus par les lecteurs de Legal, la corbeille. Cible = `@/modules/pieces/api`.
+    "src/modules/finances/actions-demandes.ts → src/lib/documents",
+    "src/modules/finances/actions-demandes.ts → src/lib/suppression/coeur",
+    "src/modules/finances/actions-depenses.ts → src/lib/storage",
+    "src/modules/finances/infra/pieces-depense.ts → src/lib/entity-href",
+    "src/modules/finances/infra/pieces-depense.ts → src/lib/lecteurs/fichiers-emis",
+    "src/modules/finances/infra/pieces-depense.ts → src/lib/partage",
+    "src/modules/finances/infra/settle-invoice.ts → src/lib/lecteurs/avoir",
+    "src/modules/finances/infra/settle-invoice.ts → src/lib/lecteurs/avoirs-actifs",
+    // Une facture déjà connue ne repart pas au paiement (Direction, 14/10) : la garde vit chez les factures.
+    "src/modules/finances/actions-demandes.ts → src/lib/factures/connues",
+    "src/modules/finances/infra/demandes.ts → src/lib/factures/connues",
+    "src/modules/finances/actions-relances.ts → src/lib/factures/jeton-relance",
+    // LE RÈGLEMENT FERME LE CHANTIER D'ORIGINE : payer un ordre clôt le sponsoring, le matériel promo, le BV
+    // réglementaire (la paie versée et les statuts de sponsoring soldés vivent au module même : `infra/paie-centre.ts`,
+    // `domaine/soldes-au-reglement.ts`). Ce sont des appels sortants vers chaque métier — cible = un événement
+    // « ordre réglé » écouté par chacun (registre d'événements).
+    "src/modules/finances/actions-depenses.ts → src/lib/promo-cloture",
+    "src/modules/finances/actions-depenses.ts → src/lib/regulatory/bv-circuit",
+    "src/modules/finances/actions-depenses.ts → src/lib/regulatory/bv-reglement",
+    // Ce qui entre au centre depuis un autre métier : le bon de versement de l'information médicale (dispense
+    // de facture), la ligne consulting d'un ordre, la règle des bons de commande (`blocageParLeBC`).
+    "src/modules/finances/actions-demandes.ts → src/lib/medical-info",
+    "src/modules/finances/infra/requetes/centre-paiement.ts → src/lib/lecteurs/consulting",
+    "src/modules/finances/domaine/chemins-paiement.ts → src/lib/bons-de-commande/regle",
+    // Les budgets ne sont pas encore migrés : l'imputation automatique d'une catégorie au règlement.
+    "src/modules/finances/actions-depenses.ts → src/lib/budget/auto-category",
+    // Les gardes d'écriture du lot sécurité & argent (audit 27/10) : la porte d'écriture par identifiant et la garde
+    // des comptes (on n'accorde pas un siège à un compte système ou désactivé). Cible = le socle des droits.
+    "src/modules/finances/actions-centre.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-depenses.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-tresorerie.ts → src/lib/queries/porte-ecriture",
+    "src/modules/finances/actions-sieges.ts → src/lib/admin/garde-comptes",
+  ],
   referentiels: [
     // Les normalisations NIF / RC / e-mail vivent chez la qualité des données et la lecture des pièces.
     "src/modules/referentiels/domaine/coordonnees.ts → src/lib/quality/model",
@@ -337,12 +400,10 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/referentiels/infra/reprises/rattrapage-pieces.ts → src/lib/enrichissement/signalement",
   ],
   rh: [
-    // La paie et les avances partent au CENTRE DE PAIEMENT (Finances) comme une demande : `createExpenseOrder` et le budget.
-    // Cible = `@/modules/finances/api` quand le module Finances sera migré (autre session) — jamais une copie ici.
-    "src/modules/rh/actions-paie.ts → src/lib/expense-orders",
+    // La paie et les avances partent au CENTRE DE PAIEMENT par `@/modules/finances/api` (carte : rh → finances) ;
+    // restent le budget et la numérotation, que le module Finances ne porte pas.
     "src/modules/rh/actions-paie.ts → src/lib/queries/budget",
     "src/modules/rh/actions-paie.ts → src/lib/refs",
-    "src/modules/rh/actions.ts → src/lib/expense-orders",
     // Les droits délégués d'un absent restent au SOCLE DES DROITS : `rbac.ts` les lit (domains.ts, ARCH-01).
     // Cible = `src/lib/rbac/` quand `rbac.ts` sera découpé — alors ces lignes tombent d'elles-mêmes.
     "src/modules/rh/actions-interim.ts → src/lib/hr/stand-in",

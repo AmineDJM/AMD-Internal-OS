@@ -5,20 +5,24 @@
 
 import {
   prisma, recordAudit, getMailAccount, listMessages, getMessage, userCan, accessibleModules, scopeMedicalDoctors,
-  scopeAdminRequests, type CurrentUser, getAppSettings,
+  scopeRegulatory, scopeAdminRequests, type CurrentUser, getAppSettings,
 } from "@/lib/assistant/coeur/erp";
-import { resultatVide } from "@/platform/ia/lectures/empty-result";
+import { resultatListe, resultatVide } from "@/platform/ia/lectures/empty-result";
+// Les demandes Ad & Pro, le secrétariat et les circuits : par le pont (frontière Adam ↔ ERP).
+import {
+  WORKFLOW_CATEGORIES, CATEGORY_LABELS, SCOPE_LABELS, POWER_LABELS, ACTOR_SCOPES, WORKFLOW_POWERS,
+} from "@/platform/in-process/demandes";
 import { actionsForUser } from "@/lib/assistant/action-registry";
+import { readWorkflowState, resolveWorkflowCategory } from "@/platform/ia/lectures/workflow-admin";
 import { executePowerTool } from "@/lib/assistant/power-tools";
-// Les lectures partagées avec l'Assistant IA (`read_workflow`, `list_my_tasks`, `search_products`) vivent au socle.
-import { executerLecturePartagee } from "@/platform/ia/outils/partages";
 import { verdictEmpreinte } from "@/lib/mutations/empreinte";
 import {
-  ROLE_LABELS, ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS, MEDICAL_SECTOR, INFLUENCE_LEVEL,
-  EVENT_STATUS, EVENT_TYPE, doctorDisplayName,
+  ROLE_LABELS, TASK_STATUS, PRIORITY, ADMIN_REQUEST_TYPE, ADMIN_REQUEST_STATUS, MEDICAL_SECTOR, INFLUENCE_LEVEL,
+  REGULATORY_STATUS, EVENT_STATUS, EVENT_TYPE, doctorDisplayName,
 } from "@/lib/labels";
 import { DATASETS, isExportDataset, exportDatasetToDrive } from "@/lib/assistant/exports";
 import { WRITABLE_SETTINGS } from "@/lib/assistant/admin-write";
+import { sansBloquer } from "@/lib/journal";
 import { MODULE_FR } from "@/lib/assistant/outils/catalogue-lecture";
 import { asStr, asNum, findPeople } from "@/platform/ia/outils/arguments";
 
@@ -55,8 +59,26 @@ export async function executeReadTool(name: string, input: Record<string, unknow
       if (people.length === 0) return resultatVide("Aucun collègue trouvé pour cette recherche.");
       return JSON.stringify(people.map((p) => ({ id: p.id, nom: p.name, fonction: p.title, departement: p.department, role: ROLE_LABELS[p.role] ?? p.role })));
     }
-    case "read_workflow":
-      return executerLecturePartagee(name, input, user);
+    case "read_workflow": {
+      const cat = resolveWorkflowCategory(asStr(input, "category"));
+      if (!cat) {
+        return `Catégorie inconnue. Circuits configurables : ${WORKFLOW_CATEGORIES.map((c) => `${c} (${CATEGORY_LABELS[c]})`).join(", ")}. Les autres circuits de l'ERP sont codés en dur.`;
+      }
+      const state = await readWorkflowState(cat);
+      return JSON.stringify({
+        categorie: state.category,
+        libelle: state.categoryLabel,
+        nomDuCircuit: state.name,
+        actif: state.isActive,
+        etapes: state.steps ?? "Circuit PAR DÉFAUT (aucune personnalisation enregistrée) — la première sauvegarde via configure_workflow créera la définition.",
+        dictionnaires: {
+          portees: Object.fromEntries(ACTOR_SCOPES.map((s) => [s, SCOPE_LABELS[s]])),
+          pouvoirs: Object.fromEntries(WORKFLOW_POWERS.map((p) => [p, POWER_LABELS[p]])),
+          rolesValides: ROLE_LABELS,
+        },
+        regle: "Pour modifier : recomposer la LISTE COMPLÈTE des étapes (slugs existants conservés) et appeler configure_workflow — remplacement intégral, les demandes en cours gardent leur étape par slug.",
+      });
+    }
     case "find_available_actions": {
       // Le REGISTRE réel filtré par les droits — jamais une liste inventée. Chaque entrée dit
       // le bouton d'écran, l'outil à appeler, le risque et la sémantique (effet, réversibilité).
@@ -87,8 +109,23 @@ export async function executeReadTool(name: string, input: Record<string, unknow
       const mods = accessibleModules(user).map((m) => MODULE_FR[m]).filter(Boolean);
       return JSON.stringify({ tachesOuvertes: openTasks, demandesEnCours: openRequests, notificationsNonLues: unread, modulesAccessibles: mods });
     }
-    case "list_my_tasks":
-      return executerLecturePartagee(name, input, user);
+    case "list_my_tasks": {
+      const includeDone = input.includeDone === true;
+      const tasks = await prisma.task.findMany({
+        where: {
+          OR: [{ assignedToId: user.id }, { createdById: user.id }],
+          ...(includeDone ? {} : { status: { in: ["TODO", "IN_PROGRESS"] } }),
+        },
+        select: { title: true, status: true, priority: true, dueDate: true, assignedTo: { select: { name: true } } },
+        orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
+        take: 20,
+      });
+      if (tasks.length === 0) return resultatVide("Aucune tâche.");
+      return JSON.stringify(tasks.map((t) => ({
+        titre: t.title, statut: TASK_STATUS[t.status]?.label ?? t.status, priorite: PRIORITY[t.priority]?.label ?? t.priority,
+        echeance: t.dueDate?.toISOString().slice(0, 10) ?? null, assigneA: t.assignedTo?.name ?? null,
+      })));
+    }
     case "list_my_requests": {
       const reqs = await prisma.administrativeRequest.findMany({
         where: scopeAdminRequests(user),
@@ -121,8 +158,81 @@ export async function executeReadTool(name: string, input: Record<string, unknow
         etablissement: d.institution ?? null, ville: d.city ?? null, influence: INFLUENCE_LEVEL[d.influenceLevel]?.label ?? d.influenceLevel,
       })));
     }
-    case "search_products":
-      return executerLecturePartagee(name, input, user);
+    case "search_products": {
+      if (!userCan(user, "REGULATORY", "VIEW")) return "Accès non autorisé au module Regulatory.";
+      const q = asStr(input, "query");
+      // Un inventaire complet doit être possible : « donne-moi tous les produits » échouait
+      // parce que la recherche s'arrêtait à 12 lignes et ne regardait que DCI / nom / référence.
+      const rawLimit = Number(input.limit);
+      const take = Math.min(Math.max(Number.isFinite(rawLimit) && rawLimit > 0 ? rawLimit : 40, 1), 300);
+      const category = asStr(input, "category");
+      const withoutCompany = input.withoutCompany === true;
+
+      const like = (field: string) => ({ [field]: { contains: q, mode: "insensitive" as const } });
+      const products = await prisma.regulatoryProduct.findMany({
+        where: {
+          AND: [
+            scopeRegulatory(user),
+            // La classe thérapeutique porte « oncologie », « biosimilaire », « anticorps
+            // monoclonal » : sans elle, ces recherches ne remontaient rien.
+            q
+              ? {
+                  OR: [
+                    like("dci"), like("brandName"), like("reference"), like("therapeuticClass"),
+                    like("pharmaceuticalForm"), like("partnerLab"), like("countryOfOrigin"),
+                    { company: { is: { name: { contains: q, mode: "insensitive" } } } },
+                    { company: { is: { shortName: { contains: q, mode: "insensitive" } } } },
+                  ],
+                }
+              : {},
+            category === "MEDICINE" || category === "MEDICAL_DEVICE" ? { category } : {},
+            withoutCompany ? { companyId: null } : {},
+          ],
+        },
+        select: {
+          reference: true, dci: true, brandName: true, status: true, therapeuticClass: true,
+          category: true, companyId: true, company: { select: { name: true, shortName: true } },
+          // Le responsable et la priorité : sans eux, « un tableau de tous les dossiers avec leur
+          // responsable » coûtait une fiche complète (`product_360`) PAR produit — mesuré au banc
+          // des défis : sept appels et dix-sept secondes pour sept lignes.
+          priority: true, responsible: { select: { name: true } },
+        },
+        take, orderBy: { createdAt: "desc" },
+      });
+      const total = await prisma.regulatoryProduct.count({ where: { AND: [scopeRegulatory(user)] } }).catch(sansBloquer("assistant.executeReadTool.regulatoryProduct", products.length));
+      if (products.length === 0) {
+        // Le compte du PORTEFEUILLE est conservé à part : il dit autre chose que le compte du
+        // résultat, et le confondre ferait croire à 69 résultats trouvés.
+        return resultatVide(
+          `Aucun produit ne correspond${q ? ` à « ${q} »` : ""}. Le portefeuille compte ${total} produit(s) au total (ne pas inventer).`,
+          { totalPortefeuille: total },
+        );
+      }
+      // MÊME ENVELOPPE QUE LE CAS VIDE (§118.20) : `items` / `count` / `message` dans les deux,
+      // et ce qui est propre au portefeuille à côté. Avant, les deux sorties de cette capacité
+      // n'avaient pas une seule clé en commun.
+      const lignes = products.map((p) => ({
+          reference: p.reference, dci: p.dci, nomCommercial: p.brandName ?? null,
+          classeTherapeutique: p.therapeuticClass ?? null,
+          categorie: p.category,
+          entite: p.company?.shortName ?? p.company?.name ?? null,
+          statut: REGULATORY_STATUS[p.status]?.label ?? p.status,
+          priorite: p.priority ?? null,
+          responsable: p.responsible?.name ?? null,
+      }));
+      return resultatListe(lignes, `${lignes.length} produit(s) sur un portefeuille de ${total}.`, {
+        total_portefeuille: total,
+        renvoyes: lignes.length,
+        tronque: lignes.length >= take,
+        produits: lignes,
+        // Une liste coupée qui ne le dit pas devient « les 40 produits » dans la réponse. `null`
+        // et non l'absence de clé : `JSON.stringify` efface une clé indéfinie, et une clé qui
+        // apparaît selon la donnée est le défaut qu'on répare ici.
+        avertissement: lignes.length >= take
+          ? `Liste TRONQUÉE à ${take} (portefeuille : ${total}) : pour un inventaire complet, rappeler avec un limit plus grand. Ne jamais présenter une liste tronquée comme complète.`
+          : null,
+      });
+    }
     case "search_events": {
       if (!userCan(user, "EVENTS", "VIEW")) return "Accès non autorisé au module Events.";
       const q = asStr(input, "query");

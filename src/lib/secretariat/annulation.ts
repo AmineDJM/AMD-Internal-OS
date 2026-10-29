@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { anyRoleFilter } from "@/lib/rbac";
 import { notifyUser } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { annulerOrdreNonRegle } from "@/modules/finances/api";
 import { sansBloquer } from "@/lib/journal";
 
 /**

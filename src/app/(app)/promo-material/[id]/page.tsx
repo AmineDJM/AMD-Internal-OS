@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ChevronDown, Megaphone, Scale } from "lucide-react";
 import { requireUser, safeLanding } from "@/lib/session";
 import { userCan, hasGlobalView, hasRole } from "@/lib/rbac";
-import { peutDaterLeReglement } from "@/lib/finances/settlement";
+import { peutDaterLeReglement, etatDeLOrdre, LIBELLE_ETAT_REGLEMENT } from "@/modules/finances/partage";
 import { prisma } from "@/lib/prisma";
 import { getAppSettings } from "@/lib/settings";
 import { canOpenModule } from "@/lib/modules-visibility";
@@ -66,7 +66,6 @@ import { articlesDemandesDuDossier, optionsDesArticlesDemandes } from "@/lib/que
 import { etatReception, lignesAReceptionner, natureDeReception, peutReceptionner, resteAFacturer } from "@/lib/promo-material/achats";
 import { libelleArticleStock } from "@/lib/promo/stock";
 import { BackLink } from "@/components/shared/back-link";
-import { etatDeLOrdre, LIBELLE_ETAT_REGLEMENT } from "@/lib/payments/reglement";
 import { BudgetPromoCard } from "./budget-promo";
 import { peutImputerMaterielPromo } from "@/lib/promo-material/budget";
 import { getBudgetCategoryOptions } from "@/lib/queries/budget";

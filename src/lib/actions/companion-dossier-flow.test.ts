@@ -8,10 +8,10 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { createExpenseOrder, dossierHrefByOrder } from "@/lib/expense-orders";
-import { decidePaymentRequest, cancelPaymentRequest, nudgePaymentRequest } from "./payment-request-actions";
-import { settleExpenseOrder } from "./expense-actions";
-import { canDecideFromDossier } from "@/lib/finance/dossier-auto";
+import { createExpenseOrder, dossierHrefByOrder } from "@/modules/finances/api";
+import { decidePaymentRequest, cancelPaymentRequest, nudgePaymentRequest } from "@/modules/finances/actions-demandes";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
+import { canDecideFromDossier } from "@/modules/finances/partage";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

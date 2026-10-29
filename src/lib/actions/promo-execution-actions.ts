@@ -10,13 +10,12 @@ import { recordAudit } from "@/lib/audit";
 import { type SessionUser } from "@/lib/rbac";
 import { persistUploadedDocument } from "@/lib/documents";
 import { validateDocumentUpload } from "@/lib/storage";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { createMedicalInfoDeclaration } from "@/lib/medical-info";
 import { aiguillerBC, porteDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { canCancel } from "@/lib/legal/lifecycle";
-import { canSendToSettlement, cleEnvoiAuReglement } from "@/lib/finances/settlement";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { canSendToSettlement, cleEnvoiAuReglement } from "@/modules/finances/partage";
 import { getAppSettings } from "@/lib/settings";
 import { enSerie } from "@/lib/refs";
 import {

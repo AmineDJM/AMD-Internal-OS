@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { decisionRattachement, phraseRattachement } from "./rattachement-paie";
-import { masseMensuelleParEntite } from "./payroll-mass";
+import { masseMensuelleParEntite } from "@/modules/finances/partage";
 
 const nom = (id: string) => ({ A: "Adventum", B: "Pharmagène" } as Record<string, string>)[id] ?? id;
 

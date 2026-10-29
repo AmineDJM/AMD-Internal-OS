@@ -2,72 +2,157 @@ import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { DIRECTORY_TOOLS } from "@/platform/ia/lectures/directory-tools";
 import { REGULATORY_READ_TOOLS } from "@/platform/ia/lectures/regulatory-read";
-// Les cinq outils réutilisés d'Adam vivent au socle (lot J0) ; les noms locaux restent ceux du code ci-dessous.
-import {
-  outilsPartagesPour as assistantToolsFor, construirePropositionPartagee as buildProposal, executerLecturePartagee as executeReadTool,
-} from "@/platform/ia/outils/partages";
+import { assistantToolsFor, buildProposal, executeReadTool } from "@/lib/assistant";
+import { executePowerTool } from "@/lib/assistant/power-tools";
+import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
-import { censurerObjet, censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { defaultDefinition } from "@/lib/workflow/defaults";
 import { SLUG_DG } from "@/lib/workflow/parcours";
 import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
 import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "@/lib/agent/memoire-ui";
 import { outilsOperations, REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
-import { lecturesQuotidien } from "@/lib/agent/lectures";
 import { lecturesDocuments } from "@/lib/agent/operations/documents-lus";
 import { lectureFormulaire } from "@/lib/agent/operations/formulaire-pdf";
 import { lectureRoutines } from "@/lib/agent/operations/routines";
 import { rechercheWeb } from "@/lib/agent/recherche-web";
 import { sortiePourModele } from "@/lib/agent/contenu-non-fiable";
+import { lecturesQuotidien, lecturesRh } from "@/lib/agent/lectures";
+import { censurerTexte, jetonnerSortie, jetonOuMasque, type CoffretDuTour } from "@/lib/agent/filtre-confidentialite";
+import { voitLesSalaires } from "@/lib/hr/confidentialite";
+import { formatMontant } from "@/lib/utils";
+import { familleExplicite, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
+import { droitsApplicatifsIa } from "@/lib/agent/role-config";
 
 /**
- * LES OUTILS DE LA V1 — tous EXISTANTS, aucun réécrit (Q7, Q20).
+ * LES OUTILS DE L'ASSISTANT IA — tous EXISTANTS au moteur ou à l'Assistant IA, aucun réécrit (Q7, Q20).
  *
- * Lecture : annuaire (2), Regulatory (3), tâches et produits (lus par `executeReadTool`, avec le
- * contrôle d'accès qu'ils portent déjà). Écriture : `create_task` et `send_message`, préparés par
- * `buildProposal` (destinataire désigné PAR SON NOM, refus explicite s'il est introuvable ou
- * ambigu) et enregistrés comme intentions : RIEN ne s'écrit avant la confirmation, qui passe par
- * `executeAssistantAction` (droit revérifié, `envoyerMessageDirect`, notification, audit).
+ * LES DROITS SONT CEUX DE LA PERSONNE, RIEN DE PLUS, RIEN DE MOINS (décision 0012, Direction 28/10/2026 :
+ * en Super Admin, « le salaire d'Assia », « son contrat », « crée un dossier pour daclatasvir » étaient
+ * refusés faute d'outil). Lecture : annuaire, Regulatory, tâches, produits, demandes (`executeReadTool`),
+ * lectures ouvertes par droit (situation RH, recherche fédérée, agenda, Drive — `executePowerTool` rejuge),
+ * fiche / paie / documents RH (`lectures.ts` — `lecturesRh`). Écriture : les gestes métier préparés par `buildProposal`
+ * (outils et ops de domaine : la règle de l'écran) et enregistrés comme intentions : RIEN ne s'écrit avant
+ * la confirmation, qui passe par `confirmerIntentionAssistantIA` → `performAction` (droit revérifié, audit).
  *
- * Tout ce qui revient au modèle passe le filtre de confidentialité (Q12) : MiMo ne reçoit jamais
- * une rémunération, une coordonnée bancaire ni une pièce d'identité.
+ * Tout ce qui revient au modèle passe le filtre : une rémunération, une coordonnée bancaire, un n° de pièce
+ * d'identité y deviennent des REPÈRES (`filtre-confidentialite.ts` — repères) que le serveur ne remplace, à l'affichage, que pour qui
+ * a le droit de les voir (`fil/tour.ts` — `Revelateur`). Le modèle n'en reçoit jamais la valeur.
  */
 const LECTURES_POWER = new Set(["directory_lookup", "directory_list", "regulatory_portfolio", "regulatory_workload", "regulatory_knowledge"]);
-const LECTURES_MOTEUR = new Set(["list_my_tasks", "search_products", "read_workflow"]);
-const ECRITURES = new Set(["create_task", "send_message"]);
+const LECTURES_MOTEUR = new Set(["list_my_tasks", "search_products", "read_workflow", "list_my_requests", "my_overview"]);
+/**
+ * LES LECTURES DU MOTEUR OUVERTES PAR DROIT (décision 0012) — des outils de pouvoir d'Adam, chacun avec
+ * SON droit (`allowed`, la permission qui ouvre l'écran), revérifié à l'exécution par `executePowerTool`.
+ * `read_employee` et `read_payroll` n'en sont PAS : leur garde (lecture du module RH, sans société) est
+ * plus large que l'écran ; l'Assistant IA lit la fiche et la paie par `lectures.ts` — `lecturesRh`.
+ */
+const LECTURES_DROIT = new Set(["read_hr_overview", "search_everything", "read_calendar", "search_drive", "read_budget", "finance_totals"]);
+/**
+ * LES ÉCRITURES MÉTIER (décision 0012) — préparées par `buildProposal` (qui juge le droit et résout les
+ * noms), enregistrées en intention, exécutées seulement à la confirmation (`performAction` rejuge tout).
+ * Pas `create_dossier` (un PROJET, que le modèle confondait avec un dossier réglementaire), pas
+ * `create_calendar_event` (l'Assistant IA a `preparer_rendez_vous`), ni les outils d'administration.
+ */
+const ECRITURES = new Set([
+  "create_task", "update_task", "send_message", "create_hr_request", "create_admin_request",
+  "update_regulatory_product", "assign_regulatory_responsible", "set_regulatory_step", "request_regulatory_status_update",
+]);
+/**
+ * LES OUTILS DE DOMAINE (une op = un geste d'écran), offerts si la personne passe la porte d'AU MOINS
+ * une de leurs ops (`meta.gate`, la règle de l'écran) ; chaque op la rejuge à la proposition. Les
+ * créations Ad & Pro restent aux opérations de l'Assistant IA (`operations/`), le rattrapage générique
+ * (`capability_operation`) reste à Adam.
+ */
+const DOMAINES = ["regulatory_operation", "hr_operation", "task_operation", "drive_operation", "request_operation"] as const;
+/**
+ * LES FAMILLES RÉGLÉES PAR LA DIRECTION (décision 0012, console `/admin/ai/acces`) — chaque outil, la ou les
+ * familles qu'il exige. Fermée : l'outil reste offert, mais refuse en disant quelle famille et qui l'ouvre.
+ * Les lectures RH (`lire_paie`, `documents_rh`, `lire_fiche_rh`) jugent elles-mêmes (la personne garde l'accès
+ * à SON dossier) ; toute opération de l'Assistant IA hors routines exige les écritures.
+ */
+const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
+  read_hr_overview: ["FICHES"],
+  search_drive: ["DRIVE"], search_everything: ["DRIVE"], drive_operation: ["DRIVE", "ECRITURES"],
+  read_budget: ["BUDGETS"], finance_totals: ["BUDGETS"],
+  regulatory_portfolio: ["REGLEMENTAIRE"], regulatory_workload: ["REGLEMENTAIRE"], regulatory_knowledge: ["REGLEMENTAIRE"],
+  regulatory_operation: ["REGLEMENTAIRE", "ECRITURES"], update_regulatory_product: ["REGLEMENTAIRE", "ECRITURES"],
+  assign_regulatory_responsible: ["REGLEMENTAIRE", "ECRITURES"], set_regulatory_step: ["REGLEMENTAIRE", "ECRITURES"],
+  request_regulatory_status_update: ["REGLEMENTAIRE", "ECRITURES"],
+  read_workflow: ["AD_PRO"],
+  preparer_sponsoring: ["AD_PRO", "ECRITURES"], preparer_prise_en_charge: ["AD_PRO", "ECRITURES"], preparer_evenement: ["AD_PRO", "ECRITURES"],
+  preparer_materiel_promo: ["AD_PRO", "ECRITURES"], preparer_demande_autre: ["AD_PRO", "ECRITURES"], preparer_poste: ["AD_PRO", "ECRITURES"],
+  preparer_bon_de_commande: ["AD_PRO", "ECRITURES"], preparer_bc_depuis_devis: ["AD_PRO", "ECRITURES"], preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
+  hr_operation: ["FICHES", "ECRITURES"],
+};
+const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire"]);
+
+/** L'accès par défaut (sans réglage lu) : droits applicatifs, familles sensibles fermées. Un tour passe toujours le réglage relu. */
+export const accesParDefaut = (user: CurrentUser): AccesIa =>
+  resoudreAccesIa({ superAdmin: user.role === "SUPER_ADMIN", droits: droitsApplicatifsIa(user) });
+
+/** Les familles qu'un outil exige — celles de la table, et les écritures pour tout geste préparé. */
+function famillesDe(nom: string, ecriture: boolean): FamilleIa[] {
+  const f = FAMILLES_DES_OUTILS[nom] ?? [];
+  return ecriture && !f.includes("ECRITURES") ? [...f, "ECRITURES"] : f;
+}
+
+const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTool => (familles.length === 0 ? outil : {
+  ...outil,
+  run: async (entree, u) => {
+    const fermee = familles.find((f) => !familleOuverte(acces, f));
+    return fermee ? JSON.stringify({ statut: "REFUS", raison: refusFamille(fermee) }) : outil.run(entree, u);
+  },
+});
+
+/** TOUT ce qui prépare une écriture du moteur — une routine (lecture seule) n'en reçoit aucun (`routines/passage.ts`). */
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...ECRITURES, ...DOMAINES]);
 /** Ce que l'utilisateur lit sous la réponse (« sources consultées ») — jamais un nom d'outil. */
 const LIBELLES: Record<string, string> = {
   list_my_tasks: "Tâches consultées",
   read_workflow: "Circuit consulté",
   search_products: "Catalogue consulté",
+  list_my_requests: "Demandes consultées",
+  read_hr_overview: "Situation RH consultée",
+  search_everything: "Recherche effectuée",
+  read_calendar: "Agenda consulté",
+  search_drive: "Drive fouillé",
+  read_budget: "Budget consulté",
+  finance_totals: "Finances consultées",
+  my_overview: "Vue d'ensemble consultée",
   create_task: "Tâche préparée",
+  update_task: "Tâche préparée",
   send_message: "Message préparé",
+  create_hr_request: "Demande RH préparée",
+  create_admin_request: "Demande préparée",
+  update_regulatory_product: "Dossier réglementaire préparé",
+  assign_regulatory_responsible: "Dossier réglementaire préparé",
+  set_regulatory_step: "Dossier réglementaire préparé",
+  request_regulatory_status_update: "Relance réglementaire préparée",
+  regulatory_operation: "Dossier réglementaire préparé",
+  hr_operation: "Geste RH préparé",
+  task_operation: "Tâche préparée",
+  drive_operation: "Geste Drive préparé",
+  request_operation: "Demande préparée",
+};
+/** Le dossier RÉGLEMENTAIRE se crée ici — le modèle disait « je n'ai pas d'outil pour créer un dossier réglementaire ». */
+const PREAMBULE_DOMAINE: Partial<Record<(typeof DOMAINES)[number], string>> = {
+  regulatory_operation: "DOSSIERS RÉGLEMENTAIRES (module Regulatory). « Crée un (nouveau) dossier pour <DCI> », « ouvre un dossier réglementaire » = op create_product "
+    + "(DCI obligatoire ; entité obligatoire — demande-la si elle manque, ex. Adventum ou Pharmagène). ",
 };
 
-/** Le résultat d'un outil, censuré avant de partir au modèle. JSON gardé JSON quand il l'était. */
-export function censurerSortie(sortie: string): string {
-  try {
-    const { resultat } = censurerObjet(JSON.parse(sortie));
-    return JSON.stringify(resultat);
-  } catch {
-    return censurerTexte(sortie).texte;
-  }
-}
-
 /**
- * Censure, et CONSIGNE ce que le modèle a lu : le garde-fou de l'UI générative (`ui/composants.ts`)
- * n'accepte un chiffre ou une ligne d'un composant que s'il figure dans ces sorties.
- */
-/**
- * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : censurée (confidentialité), puis ENCADRÉE si elle porte un
+ * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : jetonnée (confidentialité), CONSIGNÉE (le garde-fou de l'UI
+ * générative n'accepte un chiffre d'un composant que s'il figure dans ces sorties), puis ENCADRÉE si elle porte un
  * contenu écrit par un tiers (`contenu-non-fiable.ts` — un document ne donne pas d'ordres). Le journal
  * du tour garde la sortie censurée SANS cadre : c'est elle que l'UI générative confronte aux faits.
  */
-const filtre = (outil: PowerTool, journal?: string[]): PowerTool => ({
+const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null): PowerTool => ({
   ...outil,
   run: async (entree, user) => {
-    const sortie = censurerSortie(await outil.run(entree, user));
+    // Avec un coffret (la conversation) : les valeurs sensibles deviennent des REPÈRES (décision 0012) ;
+    // sans (une routine) : censurées comme avant.
+    const sortie = jetonnerSortie(await outil.run(entree, user), coffret);
     journal?.push(sortie);
     return sortiePourModele(outil.def.name, sortie);
   },
@@ -159,14 +244,39 @@ function outilMemoire(user: CurrentUser, memoires?: MemoireProposee[]): PowerToo
     run: async (entree) => {
       const contenu = typeof entree.contenu === "string" ? entree.contenu.replace(/\s+/g, " ").trim().slice(0, MEMOIRE_MAX_CARACTERES) : "";
       if (!contenu) return JSON.stringify({ statut: "REFUS", raison: "Rien à retenir." });
-      if (censurerTexte(contenu).censure) return JSON.stringify({ statut: "REFUS", raison: "Donnée sensible : elle ne se retient pas." });
+      if (censurerTexte(contenu).censure || /⟦S\d+⟧/.test(contenu)) return JSON.stringify({ statut: "REFUS", raison: "Donnée sensible : elle ne se retient pas." });
       memoires?.push({ contenu, sorte: estSorteMemoire(entree.sorte) ? entree.sorte : "USER_PREFERENCE" });
       return JSON.stringify({ statut: "EN_ATTENTE_DE_CONFIRMATION", consigne: "Une carte « Retenir » est affichée : rien n'est retenu avant le geste de l'utilisateur." });
     },
   };
 }
 
-export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[]): PowerTool[] {
+/**
+ * LA MASSE SALARIALE de la situation RH : un REPÈRE pour qui gère les RH, rien pour qui n'a que la lecture
+ * du module — l'écran ne la lui montre pas non plus (`voitLesSalaires`, §118.184).
+ */
+export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret: CoffretDuTour | null | undefined, acces: AccesIa): string {
+  let o: unknown;
+  try { o = JSON.parse(sortie); } catch { return sortie; }
+  const voit = familleOuverte(acces, "SALAIRES") && (voitLesSalaires(user) || familleExplicite(acces, "SALAIRES"));
+  const visiter = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(visiter);
+    if (!v || typeof v !== "object") return v;
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (!/masse/i.test(k)) { out[k] = visiter(x); continue; }
+      if (!voit) continue;
+      out[k] = typeof x === "number" ? jetonOuMasque(coffret, { valeur: `${formatMontant(x)} DZD`, nature: "SALAIRE", titulaireUserId: null }) : visiter(x);
+    }
+    return out;
+  };
+  return JSON.stringify(visiter(o));
+}
+
+export function outilsV1(
+  user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[], coffret?: CoffretDuTour | null, accesDuTour?: AccesIa,
+): PowerTool[] {
+  const acces = accesDuTour ?? accesParDefaut(user);
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
   const defs = assistantToolsFor(user);
   const defParNom = new Map(defs.map((d) => [d.name, d]));
@@ -187,10 +297,31 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
     return [{ def, allowed: (u) => u.id === user.id, label: LIBELLES[nom] ?? def.name, run: (entree, u) => executeReadTool(nom, entree, u) }];
   });
 
-  const ecritures: PowerTool[] = [...ECRITURES].flatMap((nom) => {
+  // LES LECTURES PAR DROIT : offertes si `assistantToolsFor` les donne (le droit de l'outil), rejugées à l'exécution.
+  const lecturesDroit: PowerTool[] = [...LECTURES_DROIT].flatMap((nom) => {
     const def = defParNom.get(nom);
     if (!def) return [];
     return [{
+      def,
+      allowed: (u) => u.id === user.id,
+      label: LIBELLES[nom] ?? def.name,
+      run: async (entree, u) => {
+        const sortie = (await executePowerTool(nom, entree, u)) ?? "Cette lecture n'est pas disponible.";
+        return nom === "read_hr_overview" ? situationRhSansMasse(sortie, u, coffret, acces) : sortie;
+      },
+    }];
+  });
+
+  // LES OUTILS DE DOMAINE : offerts à qui passe la porte d'au moins une op ; `buildProposal` rejuge l'op.
+  const domaines: PowerTool[] = DOMAINES.flatMap((nom) => {
+    const spec = DOMAIN_TOOLS[nom];
+    if (!spec || !Object.values(spec.ops).some((o) => o.meta.gate(user))) return [];
+    const preambule = PREAMBULE_DOMAINE[nom];
+    return [{ ...spec.def, ...(preambule ? { description: preambule + spec.def.description } : {}) }];
+  }).map((def) => carte(def.name, def));
+
+  function carte(nom: string, def: PowerTool["def"]): PowerTool {
+    return {
       def,
       allowed: (u) => u.id === user.id,
       label: LIBELLES[nom] ?? def.name,
@@ -208,9 +339,27 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
           consigne: "Rien n'est exécuté : une carte de confirmation est affichée. Ne dis pas que c'est fait.",
         });
       },
-    }];
+    };
+  }
+
+  const ecritures: PowerTool[] = [...ECRITURES].flatMap((nom) => {
+    const def = defParNom.get(nom);
+    return def ? [carte(nom, def)] : [];
   });
 
-  return [...lecturesPower, ...lecturesMoteur, ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user), lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...ecritures, ...outilsOperations(user, propositions), outilMemoire(user, memoires)]
-    .map((o) => filtre(o, journal));
+  const lectures = [
+    ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
+    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(),
+  ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
+  const gestes = [
+    ...[...ecritures, ...domaines].map((o) => garde(o, famillesDe(o.def.name, true), acces)),
+    ...outilsOperations(user, propositions).map((o) => garde(o, famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
+  ];
+  // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le
+  // refuse déjà au modèle), il refuse au lieu de prêter ces accès.
+  const aSoi = (o: PowerTool): PowerTool => ({
+    ...o,
+    run: (entree, u) => (u.id === user.id ? o.run(entree, u) : Promise.resolve(JSON.stringify({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." }))),
+  });
+  return [...lectures, ...gestes, outilMemoire(user, memoires)].map((o) => filtre(aSoi(o), journal, coffret));
 }

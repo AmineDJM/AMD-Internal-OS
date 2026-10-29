@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { uploadDocument } from "@/lib/actions/document-actions";
-import { importTransactions } from "@/lib/actions/finance-actions";
+import { importTransactions } from "@/modules/finances/actions-tresorerie";
 import { spendFromPettyCash } from "@/lib/actions/petty-cash-actions";
-import { addPaymentPiece } from "@/lib/actions/payment-request-actions";
+import { addPaymentPiece } from "@/modules/finances/actions-demandes";
 import { importDirectorySheet } from "@/lib/actions/medical-directory-actions";
 import { fulfillDocRequest } from "@/lib/actions/medical-info-actions";
 import { analyzeTenderDocument } from "@/lib/actions/pch-tender-line-actions";

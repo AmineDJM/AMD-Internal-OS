@@ -31,10 +31,13 @@ const ECRITURES = new Set(["create_task", "send_message", "proposer_memoire", "m
 export async function outilsDeRoutine(user: CurrentUser, sorties: string[]): Promise<PowerTool[]> {
   // Chargé à l'appel : `outils-v1` connaît le registre des opérations, qui connaît les routines — un import
   // statique fermerait la boucle au chargement.
-  const [{ outilsV1 }, { OPERATIONS_IA }] = await Promise.all([import("@/lib/agent/outils-v1"), import("@/lib/agent/operations")]);
-  // TOUTE opération du registre écrit (ou programme) : aucune n'est offerte, quel que soit son nom.
+  const [{ outilsV1, ECRITURES_DU_MOTEUR }, { OPERATIONS_IA }] = await Promise.all([import("@/lib/agent/outils-v1"), import("@/lib/agent/operations")]);
+  // TOUTE opération du registre écrit (ou programme) : aucune n'est offerte, quel que soit son nom. Les gestes
+  // métier du moteur ouverts par la décision 0012 (dossier réglementaire, RH, demandes…) non plus.
   const operations = new Set(OPERATIONS_IA.map((o) => o.nom));
-  return outilsV1(user, [], sorties, []).filter((o) => !ECRITURES.has(o.def.name) && !operations.has(o.def.name) && !o.def.name.startsWith("preparer_"));
+  // Les familles réglées par la Direction valent pour une routine comme pour la conversation (relues à chaque passage).
+  const { accesAssistantIa } = await import("@/lib/agent/role-config");
+  return outilsV1(user, [], sorties, [], null, await accesAssistantIa(user)).filter((o) => !ECRITURES.has(o.def.name) && !ECRITURES_DU_MOTEUR.has(o.def.name) && !operations.has(o.def.name) && !o.def.name.startsWith("preparer_"));
 }
 
 const CONSIGNE_ROUTINE = [

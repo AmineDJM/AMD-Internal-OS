@@ -21,7 +21,7 @@ import { CHEMIN_BC_A_SIGNER } from "@/lib/bons-de-commande/aiguillage";
 import { faitDeStock, refusArgentSurPosteStock, refusChangementNature } from "@/lib/promo/reservations";
 import { Prisma } from "@prisma/client";
 import { ecrireDansLeSujet } from "@/lib/dossiers-core";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { annulerOrdreNonRegle } from "@/modules/finances/api";
 import { prevenirLeSecretariat } from "@/lib/secretariat/annulation";
 import { supprimerReversible } from "@/lib/suppression/coeur";
 import { apercuSuppression } from "@/lib/admin-delete-registry";

@@ -9,10 +9,9 @@ import { PageHeader } from "@/components/shared/page-header";
 import { toNumber } from "@/lib/utils";
 import { PayrollMatrix, type PayrollRow, type PayrollCell } from "./payroll-matrix";
 import { VirementsPaie, type CarteEntite, type MoisCarte } from "./virements-paie";
-import {
-  defaultEmployerCost, entryCost, masseMensuelleParEntite, type LigneMasseMensuelle, etatVirement, etatSalaire,
-  moisDeLEntite, saisiAvantLeCentre, type VirementDuMois, type EtatSalaire, instantDuCentreDePaie, getRhData,
-} from "@/modules/rh/api";
+import { getRhData } from "@/modules/rh/api";
+import { defaultEmployerCost, entryCost, masseMensuelleParEntite, type LigneMasseMensuelle, etatVirement, etatSalaire, moisDeLEntite, saisiAvantLeCentre, type VirementDuMois, type EtatSalaire } from "@/modules/finances/partage";
+import { instantDuCentreDePaie } from "@/modules/finances/api";
 import type { ColonneMasse } from "./masse-mensuelle";
 import { RattacherSansEntite, type SalarieSansEntite } from "./rattacher-sans-entite";
 import { getMyCompanies, myCompanyWhere } from "@/lib/company";

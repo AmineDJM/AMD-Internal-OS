@@ -2,7 +2,7 @@ import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import type { SessionUser } from "@/lib/rbac";
-import { clauseAImputer } from "@/lib/finance/a-imputer";
+import { clauseAImputer } from "@/modules/finances/api";
 import { getBudgetOverview, getEnvelopes, type BudgetOverview } from "@/lib/queries/budget";
 import { generalMeansConsumption } from "@/lib/queries/budget-general-means";
 import { masseSalarialeConsumption } from "@/lib/queries/budget-operations";

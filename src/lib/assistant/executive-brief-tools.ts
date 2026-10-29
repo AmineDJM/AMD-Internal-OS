@@ -1,13 +1,13 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
+import { ORDRE_NON_ANNULE } from "@/modules/finances/partage";
 import { userCan } from "@/lib/rbac";
 import { platformScope } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { getActionCenter } from "@/lib/queries/action-center";
-import { getComptaData } from "@/lib/queries/compta";
+import { getComptaData } from "@/modules/finances/api";
 import { getRhData } from "@/modules/rh/api";
 import { getUpcomingEvents } from "@/lib/calendar";
 import type { ExecutiveAlert } from "@/lib/assistant/proactive";

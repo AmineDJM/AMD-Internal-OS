@@ -8,8 +8,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { requestBV } from "@/lib/actions/regulatory-actions";
-import { decidePayment } from "@/lib/actions/payment-centre-actions";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { canAccessEntity } from "@/lib/entity-access";
 import type { RegWorkflowState } from "@/lib/regulatory-workflow";
 import { natureDeLOrdreBv, ordreQuiDitLEtat, etatDeLOrdreBv, bloqueUneNouvelleDemande } from "./bv-circuit";

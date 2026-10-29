@@ -5,7 +5,6 @@
 
 import type { Module } from "@/lib/assistant/coeur/erp";
 import type { ClaudeToolDef } from "@/lib/models/compat";
-import { DEF_LIST_MY_TASKS, DEF_READ_WORKFLOW, DEF_SEARCH_PRODUCTS } from "@/platform/ia/outils/partages";
 
 // ───────────────────────────── Libellés modules ─────────────────────────────
 
@@ -65,14 +64,37 @@ export const READ_TOOLS: ClaudeToolDef[] = [
       },
     },
   },
-  DEF_READ_WORKFLOW,
+  {
+    name: "read_workflow",
+    description:
+      "Lit le CIRCUIT DE VALIDATION configurable d'une catégorie Ad&Pro (Sponsoring, Prise en charge "
+      + "Internationale, Prise en charge Nationale, Événements) : étapes ordonnées avec titre, slug, qui agit "
+      + "(portée + rôles, libellés ET codes), pouvoirs, options d'automatisme — plus les dictionnaires de codes "
+      + "valides. À APPELER AVANT toute modification de circuit (configure_workflow attend la liste COMPLÈTE "
+      + "recomposée). Les autres circuits de l'ERP (congés, recrutement, matériel promo…) sont codés en dur et "
+      + "ne se configurent pas ici.",
+    input_schema: {
+      type: "object",
+      properties: {
+        category: { type: "string", description: "Catégorie : SPONSORING, CONGRESS_INTERNATIONAL, CONGRESS_NATIONAL, EVENTS (ou son libellé français)." },
+      },
+      required: ["category"],
+    },
+  },
   {
     name: "my_overview",
     description:
       "Aperçu de l'espace de travail de l'utilisateur courant : modules accessibles, nombre de tâches ouvertes, de demandes en cours, de notifications non lues. À utiliser pour répondre à « où en suis-je ? ».",
     input_schema: { type: "object", properties: {} },
   },
-  DEF_LIST_MY_TASKS,
+  {
+    name: "list_my_tasks",
+    description: "Liste les tâches de l'utilisateur (assignées ou créées par lui). Par défaut les tâches non terminées.",
+    input_schema: {
+      type: "object",
+      properties: { includeDone: { type: "boolean", description: "Inclure les tâches terminées." } },
+    },
+  },
   {
     name: "list_my_requests",
     description: "Liste les demandes administratives visibles par l'utilisateur (les siennes, celles qui le concernent ou qu'il traite).",
@@ -87,7 +109,23 @@ export const READ_TOOLS: ClaudeToolDef[] = [
       properties: { query: { type: "string", description: "Nom du médecin, spécialité ou établissement." } },
     },
   },
-  DEF_SEARCH_PRODUCTS,
+  {
+    name: "search_products",
+    description:
+      "Liste ou recherche les produits Regulatory que l'utilisateur a le droit de voir. " +
+      "La recherche porte sur la DCI, le nom commercial, la référence, la CLASSE THÉRAPEUTIQUE (« oncologie », « biosimilaire »…), la forme galénique, le laboratoire partenaire et l'entité. " +
+      "Sans `query`, renvoie TOUT le portefeuille (utiliser pour « donne-moi tous les produits »). " +
+      "Augmenter `limit` pour un inventaire complet. Ne jamais inventer un produit.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Terme libre : DCI, nom commercial, référence, classe thérapeutique, forme, laboratoire ou entité. Omettre pour tout lister." },
+        limit: { type: "number", description: "Nombre maximum de produits (défaut 40, maximum 300)." },
+        category: { type: "string", enum: ["MEDICINE", "MEDICAL_DEVICE"], description: "Restreindre aux médicaments ou aux dispositifs médicaux." },
+        withoutCompany: { type: "boolean", description: "Vrai pour ne remonter que les produits SANS entité rattachée." },
+      },
+    },
+  },
   {
     name: "search_events",
     description: "Recherche des événements (congrès, séminaires, webinars) et leur statut / nombre d'inscrits.",

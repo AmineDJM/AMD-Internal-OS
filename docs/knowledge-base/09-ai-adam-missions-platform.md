@@ -53,7 +53,26 @@ Covered:
   `executerOperationIA` (re-checks `ouverte`) → the SCREEN's server action. Personal memory (`AssistantMemoryItem`),
   documents (`documents-lus.ts`, `mrz.ts`, `traduction.ts`, `formulaire-pdf.ts`, `bc-depuis-devis.ts`), user-scheduled
   read-only routines (`src/lib/agent/routines/`, tables `AssistantRoutine`/`AssistantRoutineRun`, swept from
-  `runScheduledJobs`). Decision records: `docs/assistant/decisions/0001`–`0008`.
+  `runScheduledJobs`). Decision records: `docs/assistant/decisions/0001`–`0012`.
+  **User's rights + sensitive values as tokens (decision 0012, 2026-10-28)**: `outilsV1` now exposes the engine reads and
+  writes the PERSON is entitled to — `lectures.ts` — `lecturesRh` (`lire_fiche_rh` RH VIEW or self; `lire_paie` `voitLesSalaires` +
+  `entitePermisePourFiche` or self; `documents_rh` = the `/api/rh/document/[id]` rule, returns the download link, reads a
+  contract LOCALLY), power reads by their own `allowed` (`read_hr_overview` with payroll mass stripped/tokenised,
+  `search_everything`, `read_calendar`, `search_drive`), engine writes via `buildProposal` (`create_hr_request`,
+  `create_admin_request`, regulatory field/step tools…) and domain tools `regulatory_operation` (incl. `create_product`),
+  `hr_operation`, `task_operation`, `drive_operation`, `request_operation` offered iff one op `meta.gate` passes. NOT the
+  engine's `read_employee`/`read_payroll` (guard wider than the screen). Every tool output goes through
+  `jetonnerSortie` (`filtre-confidentialite.ts` — repères, pure) with the turn's `CoffretDuTour`: sensitive keys/patterns → opaque `⟦Sn⟧`; the model
+  writes with the token; `Revelateur` (`fil/tour.ts` — `Revelateur`) replaces tokens BEFORE display/storage iff the coffre policy
+  `peutLire` allows (coffre columns also through `controlerLecture` = policy + `AccesDonneeSensible` journal, no
+  decryption — exported from `@/modules/coffre/api`, NOT `api-lecture`, the frontier holds); else `[confidentiel]`.
+  Revealed values are wrapped in U+2063: `filtrerSaisie` always strips them from assistant history; TTS and notifications
+  too. Routines (no coffret) keep the old `[CONFIDENTIEL]` censorship. **Access families** (Direction 29/10):
+  `acces-regles.ts` (pure, socle) — SUPER_ADMIN = everything; others default to app rights (`droitsApplicatifsIa`,
+  `role-config.ts`) with SALAIRES/CONTRATS_RH CLOSED; `AssistantIaAcces` rows (per role, per user — user wins) open/close
+  families; explicit opening may exceed app rights (own HR tools, token reveal — audited — and the RH document route).
+  Re-read every turn (`accesAssistantIa`); closed family → tool refuses naming it (`refusFamille`). Console
+  `/admin/ai/acces` (`enregistrerAccesAssistantIa`, Super Admin, audit, EXCLUDED in the action registry). Bench: `src/lib/agent/droits-metier.test.ts`.
   **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
   attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
   door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file

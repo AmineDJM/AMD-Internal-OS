@@ -3,7 +3,7 @@
 import { requireUser } from "@/lib/session";
 import { peutVoirAdam, REFUS_ADAM } from "@/lib/rbac";
 import { decideValidation } from "@/lib/actions/validation-actions";
-import { decidePayment } from "@/lib/actions/payment-centre-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
 import { deciderAccordMission, fournirElementMission } from "@/lib/actions/mission-runtime-actions";
 import { markNotificationRead } from "@/lib/actions/notification-actions";
 import { corrigerConstat, ignorerConstat } from "@/lib/quality/decide";

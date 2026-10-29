@@ -144,7 +144,7 @@ un en-tête de tableau).
 
 **Ce qui n'est pas prétendu** : le logo de marque n'entre que dans les pièces SANS papier en-tête (un papier déposé fait foi) ; les livrables de mission (`missions/artifacts`) gardent leur thème propre ; un modèle Word/Excel/PowerPoint de la société reste un papier en-tête déposé (`OfficeLetterhead`), la marque ne le régénère pas.
 
-### L'intelligence métier (`src/lib/legal/clauses.ts`, `src/lib/finance/intelligence.ts`, `platform/in-process/intelligence/`) — mandat 4 §27
+### L'intelligence métier (`src/lib/legal/clauses.ts`, `src/modules/finances/domaine/intelligence.ts`, `platform/in-process/intelligence/`) — mandat 4 §27
 
 Regulatory, Legal et Finance produisent des **signaux** de la même forme (`src/lib/utils/signaux.ts`,
 socle sans import) : un code, une gravité (critique / haute / normale / basse), un titre, un détail,

@@ -4,7 +4,7 @@ import * as React from "react";
 import { useAction } from "@/components/shared/use-action";
 import { Retour } from "@/components/ui/retour";
 import { Loader2, Trash2 } from "lucide-react";
-import { purgeSettledExpenseOrders } from "@/lib/actions/expense-actions";
+import { purgeSettledExpenseOrders } from "@/modules/finances/actions-depenses";
 import { Button } from "@/components/ui/button";
 
 /**

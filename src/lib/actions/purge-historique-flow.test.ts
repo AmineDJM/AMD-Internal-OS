@@ -6,8 +6,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, requireUserAu
 
 import { prisma } from "@/lib/prisma";
 import { depenseDuPoste, type FaitsDepensePoste } from "@/lib/budget/depense-poste";
-import { chargerOrdresDesFinances } from "@/lib/queries/paiements-a-faire";
-import { purgeSettledExpenseOrders } from "./expense-actions";
+import { chargerOrdresDesFinances } from "@/modules/finances/api";
+import { purgeSettledExpenseOrders } from "@/modules/finances/actions-depenses";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

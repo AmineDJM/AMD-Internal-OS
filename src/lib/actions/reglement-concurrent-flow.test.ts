@@ -7,8 +7,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 
 import { prisma } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
-import { decidePaymentRequest } from "@/lib/actions/payment-request-actions";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
+import { decidePaymentRequest } from "@/modules/finances/actions-demandes";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

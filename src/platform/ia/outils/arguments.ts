@@ -3,25 +3,12 @@
  * résolution d'une personne de l'annuaire interne (unique, ambiguë ou introuvable — jamais inventée).
  */
 
-import type { Priority } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { resoudreEntite } from "@/lib/fabric/entites";
 import { sansBloquer } from "@/lib/journal";
 
 /** Un libellé replié pour être comparé : minuscules, sans accents, ponctuation réduite à un espace. */
 export const fold = (s: string): string => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
-
-/** Une priorité lue dans l'entrée du modèle — `null` si ce n'en est pas une. */
-export function normPriority(p: string): Priority | null {
-  const up = p.toUpperCase();
-  return (["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).includes(up as Priority) ? (up as Priority) : null;
-}
-
-/** Une date lue dans l'entrée du modèle, rendue AAAA-MM-JJ — `null` si elle ne se lit pas. */
-export function isoDate(s: string): string | null {
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-}
 
 export function asStr(input: Record<string, unknown>, key: string): string {
   const v = input[key];

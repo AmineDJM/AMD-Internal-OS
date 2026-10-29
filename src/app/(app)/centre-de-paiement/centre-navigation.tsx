@@ -3,8 +3,8 @@ import { Building2 } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import {
   SECTION_CENTRE_LABEL, SECTION_CENTRE_SLUG, SECTIONS_CENTRE, type SectionCentre,
-} from "@/lib/payments/sections-centre";
-import type { EntiteDuCentre, SectionDuCentre } from "@/lib/queries/centre-paiement";
+} from "@/modules/finances/partage";
+import type { EntiteDuCentre, SectionDuCentre } from "@/modules/finances/api";
 
 const CHEMIN = "/centre-de-paiement";
 
