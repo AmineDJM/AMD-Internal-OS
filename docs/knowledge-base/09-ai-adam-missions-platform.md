@@ -44,7 +44,13 @@ Covered:
   `role-config.ts`) with SALAIRES/CONTRATS_RH CLOSED; `AssistantIaAcces` rows (per role, per user — user wins) open/close
   families; explicit opening may exceed app rights (own HR tools, token reveal — audited — and the RH document route).
   Re-read every turn (`accesAssistantIa`); closed family → tool refuses naming it (`refusFamille`). Console
-  `/admin/ai/acces` (`enregistrerAccesAssistantIa`, Super Admin, audit, EXCLUDED in the action registry). Bench: `src/lib/agent/droits-metier.test.ts`.
+  `/admin/ai/acces` (`enregistrerAccesAssistantIa`, Super Admin, audit, EXCLUDED in the action registry).
+  Follow-up (Direction 29/10): `vueDeLAssistant` adds VIEW on the modules of explicitly-opened families, so engine READS
+  accept "app right OR console opening" (writes still run under the real session); `Revelateur`/`peutVoirLaValeur` live
+  in `role-config.ts`; tokens inside a card input are substituted server-side (`substituerReperes`, refused without the
+  right), stored as `reperesSubstitues` on the intent, re-checked at confirmation (`verifierReperesAvantExecution` in
+  `confirmerIntentionAssistantIA`), audited at card and execution; non-vault values are journaled through
+  `journaliserLectureHorsColonne` (coffre door) with tool name and source (`PayrollEntry`, `EmployeeDocument`). Bench: `src/lib/agent/droits-metier.test.ts`.
   **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
   attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
   door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file

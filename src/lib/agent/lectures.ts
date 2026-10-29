@@ -307,7 +307,7 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
         where: { id: e.id },
         select: {
           baseSalary: true, grossSalary: true, netToPay: true, employerCost: true,
-          payrolls: { orderBy: [{ year: "desc" }, { month: "desc" }], take: 6, select: { year: true, month: true, net: true, employerCost: true, gross: true, status: true, paidDate: true } },
+          payrolls: { orderBy: [{ year: "desc" }, { month: "desc" }], take: 6, select: { id: true, year: true, month: true, net: true, employerCost: true, gross: true, status: true, paidDate: true } },
         },
       });
       const titulaire = e.userId ?? null;
@@ -316,13 +316,14 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
         if (v == null) return null;
         return jetonOuMasque(coffret, { valeur: dzd(v), nature: "SALAIRE", titulaireUserId: titulaire, origine: { modele: "Employee", id: e.id, champ, brut: String(v) } });
       };
-      const montant = (v: unknown) => jetonOuMasque(coffret, { valeur: dzd(v), nature: "SALAIRE", titulaireUserId: titulaire });
+      const montant = (v: Parameters<typeof dzd>[0], id: string) =>
+        jetonOuMasque(coffret, { valeur: dzd(v), nature: "SALAIRE", titulaireUserId: titulaire, source: { modele: "PayrollEntry", id } });
       return JSON.stringify({
         nom: e.fullName, poste: e.position,
         ficheActuelle: { salaireBase: colonne("baseSalary"), salaireBrut: colonne("grossSalary"), salaireNet: colonne("netToPay"), employerCost: colonne("employerCost") },
         derniersMois: p.payrolls.map((l) => ({
           mois: `${l.year}-${String(l.month).padStart(2, "0")}`,
-          salaireNet: montant(l.net), employerCost: montant(l.employerCost ?? l.gross),
+          salaireNet: montant(l.net, l.id), employerCost: montant(l.employerCost ?? l.gross, l.id),
           statut: l.status, payeLe: jour(l.paidDate),
         })),
         lien: `/rh/${e.id}`,
@@ -417,7 +418,7 @@ async function lireDocumentRh(u: CurrentUser, id: string, lire: boolean, coffret
   const nature = natureSensible(l.texte);
   if (nature) return JSON.stringify({ ...base, lu: false, raison: nature === "IDENTITE" ? REFUS_IDENTITE : REFUS_PAIE });
   // Les MONTANTS d'un document RH sont des rémunérations : chacun devient un repère, avec son titulaire.
-  const ctx = { titulaireUserId: doc.employee.userId ?? null };
+  const ctx = { titulaireUserId: doc.employee.userId ?? null, source: { modele: "EmployeeDocument", id: doc.id } };
   const texte = coffret ? jetonnerMontants(jetonnerTexte(l.texte, coffret, ctx), coffret, ctx) : null;
   if (texte === null) return JSON.stringify({ ...base, lu: false, raison: "Lecture réservée à la conversation de l'Assistant IA." });
   return JSON.stringify({ ...base, lu: true, ...(l.tronque ? { limite: "Lecture partielle (premières pages)." } : {}), contenu: couper(texte, CARACTERES_PAR_PIECE) });

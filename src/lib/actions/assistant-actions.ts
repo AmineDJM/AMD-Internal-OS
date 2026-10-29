@@ -321,7 +321,16 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
     if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
     // Les opérations de l'Assistant IA s'exécutent par SON registre ; les écritures V1 partagées
     // (tâche, message) par `performAction`. Jamais l'inverse : Adam n'exécute pas un geste de l'IA.
-    const executeur = (stored: unknown) => (estChargeOperationIA(stored) ? executerOperationIA(user, stored) : performAction(user, stored as AssistantActionPayload));
+    const executeur = async (stored: unknown) => {
+      // Une valeur confidentielle substituée dans la carte (décision 0012) est rejugée pour qui confirme, maintenant.
+      const reperes = (stored as { reperesSubstitues?: unknown } | null)?.reperesSubstitues;
+      if (Array.isArray(reperes) && reperes.length) {
+        const { verifierReperesAvantExecution } = await import("@/lib/agent/role-config");
+        const refus = await verifierReperesAvantExecution(user, reperes, (stored as { title?: string }).title ?? "carte de l'Assistant IA");
+        if (refus) return { ok: false, error: refus };
+      }
+      return estChargeOperationIA(stored) ? executerOperationIA(user, stored) : performAction(user, stored as AssistantActionPayload);
+    };
     return (await executerIntention(user, intentId, confirmTyped, executeur)) ?? { ok: false, error: "Action introuvable." };
   } catch (err) {
     console.error("[assistant] confirmerIntentionAssistantIA failed", err);

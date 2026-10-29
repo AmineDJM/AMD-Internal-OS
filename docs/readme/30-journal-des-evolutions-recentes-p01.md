@@ -16,6 +16,10 @@
 - **Console « Assistant IA — accès »** (précision de la Direction, 29/10) : `/admin/ai/acces`, par rôle et par personne,
   huit familles cochables (défaut / ouverte / fermée). Le Super Admin a tout ; salaires et contrats fermés par défaut pour
   les autres ; relu à chaque tour ; audit de chaque changement. Table `AssistantIaAcces` (migration additive).
+- **Suite (réponses de la Direction, 29/10)** : ouverture explicite au-delà des droits pour Budgets, Drive, Réglementaire,
+  Ad & Pro (lectures) ; repère `⟦Sn⟧` accepté dans une carte (valeur substituée par le serveur, rejugée à la confirmation,
+  tracée) ; toute valeur sensible hors colonne du coffre journalisée avec l'outil ; route des documents RH ouverte par la
+  famille « Contrats & documents RH ».
   Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
 
 ### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)

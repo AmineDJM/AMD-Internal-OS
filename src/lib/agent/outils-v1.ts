@@ -22,7 +22,7 @@ import { censurerTexte, jetonnerSortie, jetonOuMasque, type CoffretDuTour } from
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { formatMontant } from "@/lib/utils";
 import { familleExplicite, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
-import { droitsApplicatifsIa } from "@/lib/agent/role-config";
+import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "@/lib/agent/role-config";
 
 /**
  * LES OUTILS DE L'ASSISTANT IA — tous EXISTANTS au moteur ou à l'Assistant IA, aucun réécrit (Q7, Q20).
@@ -152,7 +152,9 @@ const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | 
   run: async (entree, user) => {
     // Avec un coffret (la conversation) : les valeurs sensibles deviennent des REPÈRES (décision 0012) ;
     // sans (une routine) : censurées comme avant.
+    const avant = coffret?.taille ?? 0;
     const sortie = jetonnerSortie(await outil.run(entree, user), coffret);
+    coffret?.nommer(avant, outil.def.name);
     journal?.push(sortie);
     return sortiePourModele(outil.def.name, sortie);
   },
@@ -278,10 +280,13 @@ export function outilsV1(
 ): PowerTool[] {
   const acces = accesDuTour ?? accesParDefaut(user);
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
-  const defs = assistantToolsFor(user);
+  // LA VUE : la personne, plus en lecture les modules des familles que la Direction lui a ouvertes explicitement.
+  const vue = vueDeLAssistant(user, acces);
+  const sousVue = (o: PowerTool): PowerTool => ({ ...o, allowed: (u) => u.id === user.id && o.allowed(vue), run: (entree, u) => o.run(entree, u.id === user.id ? vue : u) });
+  const defs = assistantToolsFor(vue);
   const defParNom = new Map(defs.map((d) => [d.name, d]));
 
-  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name));
+  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name)).map(sousVue);
 
   const lecturesMoteur: PowerTool[] = [...LECTURES_MOTEUR].flatMap((nom) => {
     const def = defParNom.get(nom);
@@ -291,10 +296,10 @@ export function outilsV1(
         def: { ...def, description: "Lit le CIRCUIT DE VALIDATION d'une catégorie Ad & Pro (SPONSORING, CONGRESS_INTERNATIONAL, CONGRESS_NATIONAL, EVENTS) : étapes dans l'ordre et qui agit. À appeler AVANT d'expliquer un circuit — n'en décris jamais un de mémoire." },
         allowed: (u) => u.id === user.id,
         label: LIBELLES[nom] ?? def.name,
-        run: async (entree, u) => circuitLisible(await executeReadTool(nom, entree, u)),
+        run: async (entree, u) => circuitLisible(await executeReadTool(nom, entree, u.id === user.id ? vue : u)),
       }];
     }
-    return [{ def, allowed: (u) => u.id === user.id, label: LIBELLES[nom] ?? def.name, run: (entree, u) => executeReadTool(nom, entree, u) }];
+    return [{ def, allowed: (u) => u.id === user.id, label: LIBELLES[nom] ?? def.name, run: (entree, u) => executeReadTool(nom, entree, u.id === user.id ? vue : u) }];
   });
 
   // LES LECTURES PAR DROIT : offertes si `assistantToolsFor` les donne (le droit de l'outil), rejugées à l'exécution.
@@ -306,7 +311,7 @@ export function outilsV1(
       allowed: (u) => u.id === user.id,
       label: LIBELLES[nom] ?? def.name,
       run: async (entree, u) => {
-        const sortie = (await executePowerTool(nom, entree, u)) ?? "Cette lecture n'est pas disponible.";
+        const sortie = (await executePowerTool(nom, entree, u.id === user.id ? vue : u)) ?? "Cette lecture n'est pas disponible.";
         return nom === "read_hr_overview" ? situationRhSansMasse(sortie, u, coffret, acces) : sortie;
       },
     }];
@@ -351,9 +356,31 @@ export function outilsV1(
     ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
     lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
+  /**
+   * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
+   * le droit de la voir (sinon refus) ; la carte garde la liste des valeurs substituées, rejugées à l'exécution ; la
+   * substitution est tracée ; la sortie rendue au modèle remet chaque valeur en repère.
+   */
+  const avecReperes = (o: PowerTool): PowerTool => ({
+    ...o,
+    run: async (entree, u) => {
+      const s = await substituerReperes(entree ?? {}, coffret, u, acces, o.def.name);
+      if ("refus" in s) return JSON.stringify({ statut: "REFUS", raison: s.refus });
+      const avant = propositions.length;
+      let sortie = await o.run(s.entree, u);
+      if (!s.substitues.length) return sortie;
+      const p = propositions.length > avant ? propositions[propositions.length - 1] : null;
+      if (p) {
+        await ajouterReperesAIntention(p.intentId, s.substitues.map((x) => x.e));
+        await tracerSubstitutions(u, s.substitues, { titre: p.proposition.title, champs: p.proposition.fields }, "carte");
+      }
+      for (const { n, e } of s.substitues) sortie = sortie.split(e.valeur).join(`⟦S${n}⟧`);
+      return sortie;
+    },
+  });
   const gestes = [
-    ...[...ecritures, ...domaines].map((o) => garde(o, famillesDe(o.def.name, true), acces)),
-    ...outilsOperations(user, propositions).map((o) => garde(o, famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
+    ...[...ecritures, ...domaines].map((o) => garde(avecReperes(o), famillesDe(o.def.name, true), acces)),
+    ...outilsOperations(user, propositions).map((o) => garde(avecReperes(o), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
   ];
   // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le
   // refuse déjà au modèle), il refuse au lieu de prêter ces accès.
