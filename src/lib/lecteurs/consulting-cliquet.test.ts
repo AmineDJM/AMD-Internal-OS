@@ -104,7 +104,7 @@ describe("les lecteurs de contrats de consulting (§118.150)", () => {
   });
 
   it("la garde par enregistrement lit le module de la LIGNE, pas la table écrite à la main", () => {
-    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access.ts", "utf8"));
+    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access/acces-entite.ts", "utf8"));
     const corps = garde.slice(garde.indexOf("export async function canAccessEntity"));
     expect(corps).toMatch(/const module = await moduleDeLEntite\(entityType, entityId\)/);
     expect(corps).not.toMatch(/const module = ENTITY_MODULE\[entityType\]/);
@@ -115,7 +115,7 @@ describe("les lecteurs de contrats de consulting (§118.150)", () => {
     // sur une simple panne, le contrat d'un consultant RH. Une garde ne se trompe que dans le sens
     // qui FERME : l'erreur remonte et l'appelant refuse. (L'aiguillage des BC garde, lui, son repli :
     // les deux centres valident, se tromper de centre coûte un transfert, jamais une lecture.)
-    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access.ts", "utf8"));
+    const garde = sansCommentaires(fs.readFileSync("src/lib/entity-access/modules.ts", "utf8"));
     const debut = garde.indexOf("export async function modulesDesEntites");
     expect(debut, "le lecteur en lot a disparu").toBeGreaterThan(-1);
     const corps = garde.slice(debut, garde.indexOf("\n}\n", debut));

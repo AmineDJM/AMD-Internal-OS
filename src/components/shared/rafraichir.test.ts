@@ -119,9 +119,11 @@ describe("le rafraîchissement suivi", () => {
       expect(src.match(APPEL_NU) ?? [], `${e} rafraîchit encore à nu`).toEqual([]);
     }
     // La feuille des praticiens : le composant PRINCIPAL suit son rafraîchissement ; les deux
-    // petits formulaires qu'il héberge (ajout de ligne, colonnes) n'ouvrent aucune fiche.
-    const grille = sansCommentaires(readFileSync(join(process.cwd(), "src/app/(app)/medical/annuaire/annuaire-grid.tsx"), "utf8"));
-    const principal = grille.slice(grille.indexOf("export function AnnuaireGrid("), grille.indexOf("function AddDoctorRow("));
+    // petits formulaires qu'il héberge (ajout de ligne, colonnes) n'ouvrent aucune fiche. Depuis le
+    // découpage de `annuaire-grid.tsx`, le composant principal vit SEUL dans `annuaire-grid/feuille.tsx`
+    // (les deux formulaires sont dans `ajout-ligne.tsx` et `gestion-colonnes.tsx`).
+    const grille = sansCommentaires(readFileSync(join(process.cwd(), "src/app/(app)/medical/annuaire/annuaire-grid/feuille.tsx"), "utf8"));
+    const principal = grille.slice(grille.indexOf("export function AnnuaireGrid("));
     expect(principal).toMatch(/useRafraichir\(\)/);
     expect(principal.match(APPEL_NU) ?? []).toEqual([]);
   });

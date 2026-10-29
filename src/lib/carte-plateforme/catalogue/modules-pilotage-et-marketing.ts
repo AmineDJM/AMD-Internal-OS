@@ -1,0 +1,330 @@
+/**
+ * LA CARTE DE LA PLATEFORME — les MODULES, première moitié : Pilotage, Regulatory, Marketing.
+ * Recomposés dans l'ordre du menu par `MODULES_PLATEFORME` (`modules.ts`).
+ */
+import type { ModulePlateforme } from "./types";
+
+export const MODULES_PILOTAGE_ET_MARKETING: readonly ModulePlateforme[] = [
+  // ── PILOTAGE ──────────────────────────────────────────────────────────────────────────────
+  {
+    id: "mon-espace", nom: "Mon espace", route: "/mon-espace", domaine: "pilotage", rbac: ["WORKSPACE"],
+    resume: "Le poste de travail de chacun : tout ce qui attend une décision ou une action de la personne, au même endroit.",
+    pourQui: "Tout le monde (accordé à tous les rôles).",
+    gestes: [
+      { label: "Bloc « À valider »", qui: "Tout validateur", effet: "Liste les validations à SON tour seulement, et ses congés à signer ; chaque ligne dit depuis quand elle attend." },
+      { label: "Lignes « À corriger »", qui: "Tout demandeur", effet: "Ce qu'un circuit lui a renvoyé (Ad & Pro, consulting, paiement, recrutement, plan de tournée) : il corrige et resoumet." },
+      { label: "Ajouter une note de frais", qui: "Tout employé", effet: "Crée la demande RH « note de frais » (mois, montant, justificatif exigés) — même circuit que depuis Mon dossier RH." },
+      { label: "Demande de formation", qui: "Tout employé", effet: "Ouvre une demande de formation validée N+1 → RH → DG." },
+      { label: "Onglet Mes missions", qui: "Personne invitée sur une demande Ad & Pro", effet: "Confirmer ou décliner l'invitation ; l'ordre de mission passe par le N+1 puis les RH." },
+    ],
+    regles: [
+      "Onglets : Aujourd'hui · Mon espace · Tâches · Mes missions · Mon dossier RH · Mon bilan.",
+      "« À valider » compte exactement les lignes des deux blocs de décision — rien de plus.",
+      "Les achats ne se demandent plus ici : ils passent par le Bureau du secrétariat.",
+    ],
+    liens: [
+      { vers: "taches", pourquoi: "L'onglet Tâches" },
+      { vers: "validations", pourquoi: "Les validations à son tour remontent ici" },
+      { vers: "mon-dossier-rh", pourquoi: "Note de frais, congés, attestations" },
+      { vers: "pieces", pourquoi: "Les pièces qu'on lui demande" },
+      { vers: "formations", pourquoi: "Demande de formation" },
+    ],
+  },
+  {
+    id: "taches", nom: "Tâches", route: "/mon-espace/taches", domaine: "pilotage", rbac: ["WORKSPACE"],
+    resume: "Les tâches qu'on reçoit, qu'on demande à d'autres et qu'on partage.",
+    pourQui: "Tout le monde.",
+    gestes: [
+      { label: "Nouvelle tâche", qui: "Tout le monde", effet: "Crée une tâche pour soi ou la DEMANDE à quelqu'un (elle arrive dans « À accepter » chez lui)." },
+      { label: "Accepter / Refuser", qui: "La personne à qui on la demande", effet: "Acceptée, elle passe dans « À faire »." },
+      { label: "Réattribuer", qui: "Le créateur", effet: "Une demande refusée ou sans réponse se réattribue au lieu d'être recréée." },
+      { label: "Supprimer", qui: "Le créateur ou le Super Admin", effet: "Supprime la tâche avec ses pièces et son fil." },
+    ],
+    regles: ["Vues : À accepter · À faire · Demandées · Partagées · Terminées.", "Un message de la messagerie peut devenir une tâche demandée."],
+    liens: [{ vers: "messagerie", pourquoi: "Un message devient une tâche" }, { vers: "sujets", pourquoi: "Une tâche peut ouvrir un sujet" }],
+  },
+  {
+    id: "messagerie", nom: "Messagerie", route: "/messages", domaine: "pilotage", rbac: ["MESSAGING"],
+    resume: "La messagerie interne en temps réel : messages directs, groupes, canaux.",
+    pourQui: "Tout le monde ; un administrateur peut la retirer à un compte.",
+    gestes: [
+      { label: "Écrire / joindre", qui: "Membre de la conversation", effet: "Message envoyé en direct, badge et son de non-lu chez les autres." },
+      { label: "Modifier / supprimer son message", qui: "L'auteur", effet: "Le message est modifié ou retiré pour tous." },
+    ],
+    regles: ["L'accès à une conversation dépend de l'appartenance, pas du module.", "En Vue exacte, les brouillons sont rangés par personne."],
+    liens: [{ vers: "taches", pourquoi: "Transformer un message en tâche" }],
+  },
+  {
+    id: "directives", nom: "Directives", route: "/directives", domaine: "pilotage", rbac: ["DIRECTIVES"],
+    resume: "Notes de service et instructions priorisées vers des personnes, un rôle, une entité ou tout le monde.",
+    pourQui: "Tout le monde les lit ; la Direction les rédige ; seuls le DG et le Super Admin les publient.",
+    gestes: [
+      { label: "Rédiger puis soumettre", qui: "Direction", effet: "La directive part en brouillon puis en attente de publication." },
+      { label: "Publier / Refuser", qui: "Directeur Général, Super Admin", effet: "Publiée, elle apparaît chez son audience ; refusée, avec motif." },
+      { label: "Accuser réception / répondre", qui: "Destinataires", effet: "Statut et fil d'échange suivis par l'auteur." },
+    ],
+    regles: ["Plus un onglet de Mon espace : on les lit dans Aujourd'hui, la recherche et les notifications."],
+    liens: [{ vers: "mon-espace", pourquoi: "Elles s'affichent dans « Aujourd'hui »" }],
+  },
+  {
+    id: "agenda", nom: "Agenda & réunions", route: "/calendar", domaine: "pilotage", rbac: ["WORKSPACE"],
+    resume: "Le calendrier de l'entreprise (heure d'Alger) et les réunions : lien Meet ou présentiel, fil, enregistrement, compte rendu IA.",
+    pourQui: "Tout le monde.",
+    gestes: [
+      { label: "Nouveau rendez-vous / réunion", qui: "Tout le monde", effet: "Invitations envoyées ; rappel 30 min avant." },
+      { label: "Répondre Oui / Peut-être / Non", qui: "Invités", effet: "La réponse s'affiche chez l'organisateur." },
+      { label: "Enregistrer / transcrire", qui: "Organisateur", effet: "Transcription Whisper + compte rendu IA." },
+    ],
+    regles: ["Les événements Ad & Pro (congrès, symposiums) y sont projetés pour qui voit la demande.", "Une entrevue RH acceptée crée le rendez-vous chez les deux."],
+    liens: [{ vers: "ad-pro", pourquoi: "Événements Ad & Pro projetés" }, { vers: "rh", pourquoi: "Entrevues RH" }],
+  },
+  {
+    id: "sujets", nom: "Sujets", route: "/dossiers", domaine: "pilotage", rbac: ["DOSSIERS"],
+    resume: "Un sujet de suivi ad hoc : description, responsable, participants, fichiers et fil de discussion.",
+    pourQui: "Tout le monde crée ; on ne voit que les sujets qu'on a créés, qu'on porte ou où l'on participe.",
+    gestes: [
+      { label: "Nouveau sujet", qui: "Tout le monde", effet: "Crée le sujet dans une entité que la personne voit." },
+      { label: "Ajouter participants / fichiers / messages", qui: "Membres", effet: "Le fil et les pièces sont partagés aux membres." },
+      { label: "Archiver", qui: "Responsable / créateur", effet: "Le sujet sort de la liste active (pas de réouverture à l'écran)." },
+    ],
+    regles: ["Créé automatiquement quand on « implique une tierce personne » sur un événement : il dit l'événement SANS budget.", "Ex-« Projets » : ce nom désigne désormais le registre de Business Development."],
+    liens: [{ vers: "ad-pro", pourquoi: "Tierce personne impliquée → sujet automatique" }, { vers: "secretariat", pourquoi: "Demande de réservation de billets → sujet pour l'assistante" }],
+  },
+  {
+    id: "mon-equipe", nom: "Mon équipe", route: "/mon-equipe", domaine: "pilotage", rbac: ["MY_TEAM"],
+    resume: "L'écran du manager : tout l'arbre sous soi (N-1, N-2…), ce qui attend sa décision, qui est absent.",
+    pourQui: "Ouvert à tous, mais n'apparaît qu'à qui a réellement des N-1 dans l'organigramme.",
+    gestes: [
+      { label: "« À décider »", qui: "Le manager", effet: "Congés, achats, formations (son 1er rang), marches de recrutement, plans de tournée à trancher." },
+      { label: "Clic sur une personne", qui: "Le manager", effet: "KPI selon le métier (terrain, réglementaire, info médicale, coordination)." },
+      { label: "Onglet KPI", qui: "Qui a le module KPI", effet: "Tableau des KPI de l'arbre, revues à signer." },
+    ],
+    regles: ["La porte n'est pas le module : c'est la HIÉRARCHIE, revérifiée côté serveur.", "Ni salaire, ni évaluation, ni dossier RH ici."],
+    liens: [{ vers: "rh", pourquoi: "L'organigramme vient des départements RH" }, { vers: "kpi", pourquoi: "Onglet KPI" }, { vers: "conges-rh", pourquoi: "Congés à signer" }],
+  },
+  {
+    id: "mon-dossier-rh", nom: "Mon dossier RH", route: "/mon-dossier", domaine: "pilotage", rbac: [],
+    resume: "Les documents RH personnels (contrats, bulletins) et les demandes RH de la personne.",
+    pourQui: "Chaque employé, sur SES propres documents uniquement.",
+    gestes: [
+      { label: "Demande RH", qui: "L'employé", effet: "Attestation, congé, arrêt maladie, note de frais, entrevue RH… avec pièces et fil." },
+      { label: "Corriger sa note de frais", qui: "L'employé", effet: "15 minutes après l'envoi (ou si les RH rouvrent la correction)." },
+      { label: "Carte « Ma rémunération »", qui: "L'employé", effet: "Base, retenues, net — jamais le brut, la Ret SS 35 % ni la TFP." },
+    ],
+    regles: ["Pas de module RBAC : c'est l'espace personnel de chacun.", "« Salaire versé » n'est notifié qu'une fois le virement réglé, au plus tôt 24 h après la saisie."],
+    liens: [{ vers: "rh", pourquoi: "Les RH traitent les demandes" }, { vers: "secretariat", pourquoi: "Originaux des notes de frais" }],
+  },
+  {
+    id: "kpi", nom: "KPI & bilans", route: "/mon-espace/bilan", domaine: "pilotage", rbac: ["KPI"],
+    resume: "Des KPI sans code : chacun voit son bilan, le manager celui de son arbre.",
+    pourQui: "Selon le module KPI ; le périmètre suit l'organigramme, jamais le rôle.",
+    gestes: [
+      { label: "Déclarer / proposer un KPI", qui: "Collaborateur", effet: "La déclaration attend la validation du manager." },
+      { label: "Noter / valider / signer la revue", qui: "Manager", effet: "Le score pondéré est mis à jour." },
+    ],
+    regles: ["Le catalogue et les modèles par rôle se règlent dans Administration › KPI & modèles (Super Admin)."],
+    liens: [{ vers: "mon-equipe", pourquoi: "Onglet KPI de l'équipe" }],
+  },
+
+  // ── REGULATORY ────────────────────────────────────────────────────────────────────────────
+  {
+    id: "regulatory", nom: "Regulatory — suivi des dossiers", route: "/regulatory", domaine: "regulatory", rbac: ["REGULATORY"],
+    resume: "Les dossiers d'enregistrement AMM / ANPP : un dossier = un produit (DCI, dosage, forme, conditionnement), son CTD, ses étapes, ses BV et ses réserves.",
+    pourQui: "L'équipe Regulatory (Responsable, Assistante), la Direction ; lecture pour d'autres rôles.",
+    gestes: [
+      { label: "Nouveau dossier", qui: "Responsable / Assistante Réglementaire", effet: "Crée le dossier avec son CTD initial (zip ou dossier) déposé à l'étape 1 ; la DCI déjà suivie est signalée." },
+      { label: "Chargé du dossier (menu du tableau)", qui: "Responsable Réglementaire", effet: "Désigne la personne qui porte le dossier." },
+      { label: "Cocher les étapes", qui: "Équipe Regulatory", effet: "Fait avancer le workflow 17 étapes et le niveau de process." },
+      { label: "Demande de BV", qui: "Équipe Regulatory", effet: "Émet un ordre de dépense (avec échéance) vers le centre de paiement." },
+      { label: "Priorité / cadenas", qui: "Super Admin (ou rôles délégués dans Réglages)", effet: "Priorise ; verrouille ou déverrouille un dossier." },
+      { label: "Relance de mise à jour", qui: "Super Admin, Directeur Général", effet: "Relance une personne ou tous sur les dossiers en sommeil (30 j)." },
+    ],
+    regles: [
+      "Onglets : À traiter (déverrouillés) · Traitement terminé (décision obtenue ou clôturé).",
+      "Un dossier verrouillé est invisible pour toute l'équipe — Direction et IA comprises.",
+      "Chaque dossier non verrouillé EST un produit de Produits 360, créé et tenu à jour automatiquement.",
+      "Une variation en fabrication locale exige le fabricant (bloqué côté serveur).",
+    ],
+    liens: [
+      { vers: "pipeline", pourquoi: "Les dossiers verrouillés vivent au pipeline" },
+      { vers: "produits", pourquoi: "Un dossier = un produit" },
+      { vers: "centre-paiement", pourquoi: "Demande de BV → ordre de dépense" },
+      { vers: "budget-regulatory", pourquoi: "BV 25 % / 75 % par dossier" },
+      { vers: "analyse-ctd", pourquoi: "Analyse IA du CTD" },
+      { vers: "stocks", pourquoi: "Les stocks sont rattachés aux produits Regulatory" },
+      { vers: "portail", pourquoi: "Le fournisseur voit un statut simplifié" },
+    ],
+  },
+  {
+    id: "pipeline", nom: "Pipeline réglementaire", route: "/regulatory/pipeline", domaine: "regulatory", rbac: ["REGULATORY_PIPELINE"],
+    resume: "Les dossiers VERROUILLÉS : des produits qu'on étudie, pas encore ouverts à l'équipe.",
+    pourQui: "Le Super Admin, et ceux à qui il ouvre le pipeline (Administration › Réglages : consulter ou tenir le cadenas).",
+    gestes: [
+      { label: "Ouvrir le cadenas", qui: "Qui tient le cadenas", effet: "Le dossier passe dans « À traiter » : l'équipe peut s'en saisir, et son produit est créé." },
+      { label: "Mettre au pipeline", qui: "Super Admin", effet: "Reverrouille ; un dossier abouti reste dans « Terminé »." },
+      { label: "Demander l'accès", qui: "Personne qui voit le compteur", effet: "Prévient la supervision Regulatory (le dossier est compté, jamais nommé)." },
+    ],
+    regles: ["Deux clés : le module ET la confidence nommée dans les Réglages.", "Déverrouiller EST l'acte qui met un dossier au travail."],
+    liens: [{ vers: "regulatory", pourquoi: "Déverrouillé, il rejoint le suivi" }, { vers: "bd-projets", pourquoi: "Un dossier se classe dans un projet BD" }],
+  },
+  {
+    id: "analyse-ctd", nom: "Analyse CTD", route: "/regulatory/enregistrement", domaine: "regulatory", rbac: [],
+    resume: "Le référentiel ANPP intégré et l'analyse IA des dossiers CTD (OCR, lecture visuelle des pages, réserves).",
+    pourQui: "Masqué tant que le Super Admin ne l'a pas débloqué, puis ouvert à des rôles choisis.",
+    gestes: [
+      { label: "Lancer une analyse", qui: "Rôles autorisés", effet: "Luna lit les pages (images comprises), Terra arbitre et rédige les constats." },
+      { label: "Bibliothèque des réserves", qui: "Rôles autorisés", effet: "Retrouver des réserves ANPP passées pour préparer la réponse." },
+    ],
+    regles: ["L'entité analysée est choisie parmi celles ouvertes à la personne, jamais le cookie tel quel.", "Le coût IA se suit dans Administration › Coût IA & audit Regulatory."],
+    liens: [{ vers: "regulatory", pourquoi: "Analyse le CTD d'un dossier" }, { vers: "admin", pourquoi: "Déblocage et coût" }],
+  },
+  {
+    id: "budget-regulatory", nom: "Budget Regulatory", route: "/budget-regulatory", domaine: "regulatory", rbac: ["BUDGET_REGULATORY"],
+    resume: "Les enveloppes du pôle Regulatory, surtout les BV par dossier (25 % en préparation, 75 % avant le dépôt).",
+    pourQui: "Par défaut : Responsable Réglementaire, Direction, DG gèrent ; Finances et Assistante lisent.",
+    gestes: [
+      { label: "Saisir un BV payé hors circuit", qui: "Gestionnaire de l'enveloppe", effet: "Le BV compte dans l'enveloppe." },
+      { label: "Ranger un BV dans l'enveloppe", qui: "Gestionnaire", effet: "Impute un BV demandé ou payé." },
+    ],
+    regles: ["Les mêmes lignes que Budgets : Budgets les lit sans pouvoir les régler."],
+    liens: [{ vers: "regulatory", pourquoi: "BV des dossiers" }, { vers: "budgets", pourquoi: "Enveloppes partagées" }],
+  },
+  {
+    id: "pharmacovigilance", nom: "Pharmacovigilance", route: "/regulatory/pharmacovigilance", domaine: "regulatory", rbac: ["PHARMACOVIGILANCE"],
+    resume: "La boîte de réception des cas signalés par les KAM depuis leurs rapports terrain.",
+    pourQui: "Regulatory voit tout ; un KAM voit ses propres signalements et les cas où on l'a ajouté.",
+    gestes: [
+      { label: "Signaler un cas", qui: "KAM (depuis son planning)", effet: "Crée le cas, reçu par Regulatory." },
+      { label: "Instruire", qui: "Regulatory", effet: "Statut, enquête, participants." },
+    ],
+    regles: ["Le signalement se fait depuis Promotion médicale › Rapports."],
+    liens: [{ vers: "promotion-medicale", pourquoi: "Le KAM signale depuis le terrain" }],
+  },
+  {
+    id: "bd-projets", nom: "Projets (Business Development)", route: "/business-development/projets", domaine: "regulatory", rbac: ["BD_PROJECTS"],
+    resume: "Le registre des projets stratégiques par lesquels on classe les dossiers réglementaires.",
+    pourQui: "Par défaut : chaque rôle qui voit Regulatory le lit, le Super Admin le gère.",
+    gestes: [
+      { label: "Nouveau projet", qui: "Gestionnaire", effet: "Projet rattaché obligatoirement à une entité." },
+      { label: "Supprimer", qui: "Gestionnaire", effet: "Passe par la corbeille ; ses dossiers sont déclassés, tout revient à la restauration." },
+    ],
+    regles: ["Market Intelligence (l'ancien Business Development) est retiré ; ce registre survit."],
+    liens: [{ vers: "regulatory", pourquoi: "Colonne « Projet » des dossiers" }],
+  },
+
+  // ── MARKETING ─────────────────────────────────────────────────────────────────────────────
+  {
+    id: "ad-pro", nom: "Ad & Pro", route: "/ad-pro", domaine: "marketing", rbac: ["SPONSORING", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "EVENTS", "PROMO_MATERIAL", "CONSULTING", "AD_PRO_OTHER"],
+    resume: "Toutes les dépenses de promotion, en 7 natures : sponsoring, prises en charge internationales et nationales, événements, matériel promotionnel, consulting, autres.",
+    pourQui: "Les KAM et managers demandent ; National Sales, Direction des opérations, Direction Marketing, DG tranchent selon le parcours.",
+    gestes: [
+      { label: "Nouvelle demande", qui: "Tout rôle qui peut CRÉER la nature", effet: "Le formulaire de la nature choisie s'ouvre ; la BU est déduite de l'auteur." },
+      { label: "Approuver / Refuser / Renvoyer pour correction", qui: "L'étape courante du circuit", effet: "Fait avancer, arrête, ou rend la demande au demandeur (motif exigé)." },
+      { label: "Fixer le montant + sous-catégorie", qui: "Direction Marketing (l'étape qui tranche)", effet: "Le budget accordé est visible du demandeur." },
+      { label: "Postes (stand, hôtellerie, billetterie…)", qui: "Demandeur, Direction Marketing", effet: "Chaque poste : devis → décision → BC → facture → paiement." },
+      { label: "Impliquer une tierce personne", qui: "Acteur du circuit", effet: "Validation dans l'espace de la personne + sujet automatique sans budget." },
+      { label: "Supprimer la demande", qui: "Super Admin, Directeur des Opérations, Direction Marketing", effet: "Jamais l'auteur ; réversible depuis la corbeille." },
+    ],
+    regles: [
+      "QUI demande décide PAR OÙ ça passe (5 parcours) — voir le circuit « Demande Ad & Pro ».",
+      "La porte du DG s'applique au-dessus du seuil réglé, pour tout demandeur sauf le rang le plus haut.",
+      "On ne tranche jamais sa propre demande.",
+      "Sponsoring : la Direction Marketing pré-valide la TENUE ; l'argent se fixe poste par poste, puis à la clôture.",
+    ],
+    liens: [
+      { vers: "centre-ad-pro", pourquoi: "Toute demande au-dessus du seuil y passe" },
+      { vers: "information-medicale", pourquoi: "Déclaration PRIM si applicable" },
+      { vers: "centre-paiement", pourquoi: "Chaque ordre de dépense y attend" },
+      { vers: "budget-marketing", pourquoi: "Les postes accordés s'imputent ici" },
+      { vers: "sujets", pourquoi: "Tierce personne → sujet" },
+      { vers: "secretariat", pourquoi: "Devis, BC et réservations par l'assistante" },
+      { vers: "stock-promo", pourquoi: "Poste « Matériel du stock »" },
+      { vers: "agenda", pourquoi: "Événements projetés au calendrier" },
+    ],
+  },
+  {
+    id: "information-medicale", nom: "Information médicale (PRIM)", route: "/information-medicale", domaine: "marketing", rbac: ["MEDICAL_INFO"],
+    resume: "Le module du pharmacien responsable de l'information médicale : déclarations au ministère et bons de versement du matériel promotionnel.",
+    pourQui: "Le PRIM instruit ; le Directeur des Opérations valide ; le Super Admin à défaut.",
+    gestes: [
+      { label: "Soumettre sa lecture", qui: "PRIM", effet: "« À déclarer au ministère » ou « sans déclaration » (motif exigé) → validation du Directeur des Opérations." },
+      { label: "Réclamer / relancer une pièce", qui: "PRIM", effet: "Notification à la personne sollicitée ; relance au plus une toutes les 4 h." },
+      { label: "Séparer en matériels (bons de versement)", qui: "PRIM", effet: "Un bon par matériel ; une validation pour le lot ; un paiement par quittance." },
+      { label: "Valider / Refuser", qui: "Directeur des Opérations", effet: "Validé : l'ordre de dépense naît. Refusé (motif) : retour au PRIM." },
+      { label: "Ouvrir un dossier", qui: "PRIM", effet: "Deux natures seulement : déclaration MIP ou demande de visa publicitaire." },
+    ],
+    regles: ["Deux circuits : ÉVÉNEMENT (sans bon de versement) et MATÉRIEL PROMOTIONNEL — la nature du dossier décide.", "La fiche montre la frise puis LA seule action à faire maintenant."],
+    liens: [{ vers: "ad-pro", pourquoi: "Reçoit les dossiers après la décision" }, { vers: "centre-paiement", pourquoi: "Ordres et quittances" }],
+  },
+  {
+    id: "marketing-cockpit", nom: "Marketing cockpit", route: "/marketing-cockpit", domaine: "marketing", rbac: ["MARKETING_COCKPIT"],
+    resume: "Le tableau de la Direction Marketing par produit : ciblés → segmentés → vus, leaders d'opinion, messages, marché, investissements.",
+    pourQui: "Direction Marketing et ceux à qui le Super Admin l'ouvre.",
+    gestes: [
+      { label: "Écrire / archiver un message", qui: "Direction Marketing", effet: "Le message est proposé aux KAM dans leurs rapports ; un message porté s'archive, jamais supprimé." },
+    ],
+    regles: ["Rien ne s'y saisit sauf les messages.", "Les vues Marché et Investissements n'apparaissent qu'à qui lit déjà ces données."],
+    liens: [{ vers: "segmentation", pourquoi: "Ciblés → segmentés" }, { vers: "promotion-medicale", pourquoi: "Messages portés en visite" }, { vers: "ad-pro", pourquoi: "Investissements" }],
+  },
+  {
+    id: "segmentation", nom: "Segmentation", route: "/segmentation", domaine: "marketing", rbac: ["SEGMENTATION", "SEGMENTATION_POTENTIEL"],
+    resume: "Le Segmentation Studio par BU : chaque praticien reçoit une LETTRE (H, A–D, NA) qui décide combien de fois le KAM doit le voir.",
+    pourQui: "Direction Marketing, superviseurs ; le KAM est borné à son panel.",
+    gestes: [
+      { label: "Saisir Q1 / Q2 / statut", qui: "Terrain (Modifier)", effet: "Potentiel et affinité → la lettre se recalcule." },
+      { label: "Publier une version de règles", qui: "Droit Valider", effet: "Nouvelles règles après aperçu de leur impact." },
+      { label: "Importer le classeur de la Direction", qui: "Droit Valider", effet: "Aperçu avant écriture ; la lettre du fichier fait foi." },
+      { label: "Forcer une lettre", qui: "Qui a SEGMENTATION_POTENTIEL (aucun rôle par défaut)", effet: "Dérogation motivée, gardée à côté de la valeur calculée." },
+    ],
+    regles: ["Le seul « requis » de visite d'un praticien = lettre × In/Out × fréquence du secteur.", "La wilaya pivot du territoire décide In / Out."],
+    liens: [{ vers: "promotion-medicale", pourquoi: "La lettre pilote la tournée" }, { vers: "business-units", pourquoi: "Secteurs et wilaya pivot" }, { vers: "annuaires", pourquoi: "Praticiens de l'annuaire" }],
+  },
+  {
+    id: "produits", nom: "Produits 360", route: "/produits", domaine: "marketing", rbac: ["PRODUCTS"],
+    resume: "LE catalogue : un produit = son dossier réglementaire. Fiche 360° : ventes, terrain, réglementaire, stock, coûts, documents.",
+    pourQui: "Selon le module ; chaque onglet de la fiche reste gardé par SON module.",
+    gestes: [
+      { label: "Prix manuel", qui: "Produits 360 ou Regulatory « Modifier »", effet: "L'emporte sur le prix observé à partir de sa date d'effet ; historisé." },
+      { label: "Vérifier le catalogue", qui: "Super Admin", effet: "Bilan : produits créés, mis à jour, à compléter." },
+      { label: "Comparer", qui: "Lecteurs", effet: "2 à 4 produits côte à côte (note de santé /100)." },
+    ],
+    regles: ["Chaque dossier non verrouillé reçoit SON produit automatiquement."],
+    liens: [{ vers: "regulatory", pourquoi: "Le produit EST le dossier" }, { vers: "ventes-pch", pourquoi: "Onglet Ventes & marchés" }, { vers: "stocks", pourquoi: "Onglet Stock" }],
+  },
+  {
+    id: "stock-promo", nom: "Stock promotionnel", route: "/stock-promotionnel", domaine: "marketing", rbac: ["PROMO_STOCK", "PROMO_CATALOG"],
+    resume: "Le magasin central du matériel promotionnel, ce que chaque délégué a en main, ce qui est en route, et le catalogue (CAT-0001…).",
+    pourQui: "Direction Marketing tient le magasin ; le Directeur des Opérations a la vue globale ; chaque délégué son stock.",
+    gestes: [
+      { label: "Entrée par facture", qui: "Magasin", effet: "Ce qui est reçu (et lui seul) entre au stock et est payé." },
+      { label: "Doter un délégué", qui: "Magasin / Directeur des Opérations", effet: "N'entre dans son stock qu'à SA confirmation." },
+      { label: "Remettre en visite", qui: "KAM", effet: "Sort de son stock ; au-delà de son solde la visite est bloquée." },
+      { label: "Demander un comptage", qui: "Directeur des Opérations", effet: "Ponctuel ou régulier." },
+    ],
+    regles: ["Quantités calculées par mouvements et par lot (le plus tôt périmé sort d'abord).", "Le catalogue est tenu par le Super Admin et s'ouvre personne par personne."],
+    liens: [{ vers: "ad-pro", pourquoi: "Poste « Matériel du stock » d'une demande" }, { vers: "promotion-medicale", pourquoi: "Matériel remis en visite" }],
+  },
+  {
+    id: "budget-marketing", nom: "Budget Marketing", route: "/budget-marketing", domaine: "marketing", rbac: ["BUDGET_MARKETING"],
+    resume: "Les enveloppes Ad & Pro et de la Direction Marketing, avec l'imputation de chaque poste accordé.",
+    pourQui: "Par défaut : Direction Marketing, Direction, DG gèrent ; Finances lisent.",
+    gestes: [
+      { label: "Créer / régler une enveloppe", qui: "Créer / Modifier", effet: "Catégories, lignes, imputation." },
+      { label: "Réallouer entre catégories", qui: "Gestionnaire", effet: "Montant déplacé, motif gardé dans l'historique." },
+    ],
+    regles: ["Les listes d'accès par enveloppe restent au Super Admin."],
+    liens: [{ vers: "ad-pro", pourquoi: "Onglet Demandes Ad & Pro" }, { vers: "budgets", pourquoi: "Mêmes lignes que Budgets" }],
+  },
+  {
+    id: "site-web", nom: "Site web", route: "/site-web", domaine: "marketing", rbac: ["SITE_WEB"],
+    resume: "L'ERP publie les offres d'emploi et les articles du site public adventumdz.com, et reçoit les candidatures.",
+    pourQui: "Direction, DG, Direction Marketing écrivent ; les RH publient les offres.",
+    gestes: [
+      { label: "Écrire un article", qui: "Rédacteurs", effet: "Envoyé au site par une file qui réessaie." },
+      { label: "Publier une offre", qui: "RH", effet: "Préparée depuis une demande de recrutement, sans rémunération." },
+      { label: "Rédiger avec l'IA", qui: "Rédacteurs", effet: "Brouillon proposé (interrupteur dans Contrôle IA)." },
+    ],
+    regles: ["La liaison (clé, mise en service) vit dans Administration › Site web (connexion), Super Admin seul."],
+    liens: [{ vers: "recrutement", pourquoi: "Offres et candidatures du site" }],
+  },
+];

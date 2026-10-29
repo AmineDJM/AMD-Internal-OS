@@ -22,57 +22,16 @@ import { describe, expect, it } from "vitest";
  * découpe (voir `docs/architecture/MODULES.md` et les dossiers `src/lib/rbac/`, `src/lib/labels/`,
  * `src/lib/assistant/coeur/` pour des exemples) ; il n'entre pas dans la liste.
  *
- * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4 ; 48 après la migration des Finances
- * (`payment-request-actions.ts`, 1 197 lignes, devenu `modules/finances/actions-demandes.ts`, 996).
+ * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4 (dont `assistant.ts` 7 314,
+ * `assistant/ops/catalog.ts` 5 399, `labels.ts` 2 289, `rbac.ts` 2 212) → 1 après fusion des lots RH
+ * et Ad & Pro (qui ont découpé les leurs) : `payment-request-actions.ts`, confié au chantier des paiements → 0 après la
+ * migration des Finances (devenu `modules/finances/actions-demandes.ts`, 996 lignes). Plus aucun HÉRITÉ.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFOND = 1_000;
 
 /** Fichiers hérités au-dessus du plafond (hors périmètre du lot V4, confiés à d'autres chantiers) → taille mesurée. */
-const HERITES: Readonly<Record<string, number>> = {
-  "src/app/(app)/assistant/assistant-chat.tsx": 1469,
-  "src/app/(app)/assistant/realtime-voice.ts": 1146,
-  "src/app/(app)/medical/annuaire/annuaire-grid.tsx": 1069,
-  "src/app/(app)/segmentation/praticiens-table.tsx": 1044,
-  "src/lib/actions/admin-request-actions.ts": 1260,
-  "src/lib/actions/contrat.ts": 1403,
-  "src/lib/actions/legal-actions.ts": 1033,
-  "src/lib/actions/medical-info-actions.ts": 1148,
-  "src/lib/actions/mission-actions.ts": 1081,
-  "src/lib/actions/promo-execution-actions.ts": 1108,
-  "src/lib/actions/recruitment-actions.ts": 1276,
-  "src/lib/actions/regulatory-actions.ts": 1463,
-  "src/lib/actions/sales-planning-actions.ts": 1178,
-  "src/lib/admin-delete-registry.ts": 1037,
-  "src/lib/artifact/adapters/docx/adapter.ts": 1040,
-  "src/lib/artifact/adapters/xlsx/adapter.ts": 1063,
-  "src/lib/assistant.ts": 7313,
-  "src/lib/assistant/action-registry.ts": 2213,
-  "src/lib/assistant/adam-tools.ts": 1055,
-  "src/lib/assistant/executive-tools.ts": 1384,
-  "src/lib/assistant/ops/catalog.ts": 5396,
-  "src/lib/assistant/ops/impl-finance-flows.ts": 1093,
-  "src/lib/assistant/ops/impl-wave2b.ts": 1155,
-  "src/lib/assistant/ops/impl-wave4.ts": 1031,
-  "src/lib/assistant/ops/impl-wave4b.ts": 1597,
-  "src/lib/assistant/ops/impl-wave5.ts": 1342,
-  "src/lib/assistant/ops/impl-wave6.ts": 1009,
-  "src/lib/assistant/ops/index.ts": 1282,
-  "src/lib/carte-plateforme/catalogue.ts": 1214,
-  "src/lib/entity-access.ts": 1101,
-  "src/lib/labels.ts": 2158,
-  "src/lib/missions/compiler/compile.ts": 1339,
-  "src/lib/missions/runtime/engine.ts": 1996,
-  "src/lib/payslip/docx-composition.ts": 1060,
-  "src/lib/payslip/docx-lecture.ts": 1507,
-  "src/lib/rbac.ts": 2206,
-  "src/lib/regulatory/intelligence/jobs/runner.ts": 1214,
-  "src/lib/workflow/engine.ts": 1884,
-  "src/platform/in-process/artifact/factory.ts": 1859,
-  "src/platform/in-process/missions/acceptance.ts": 1342,
-  "src/platform/in-process/missions/provider-smoke.ts": 1030,
-  "src/platform/in-process/missions/runtime.ts": 1383,
-};
+const HERITES: Readonly<Record<string, number>> = {};
 
 function fichiersDeProduction(dir: string, out: string[] = []): string[] {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {

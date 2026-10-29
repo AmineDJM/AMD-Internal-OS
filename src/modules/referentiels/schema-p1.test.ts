@@ -108,6 +108,18 @@ async function dansUnBancAnnule<T>(corps: (tx: Parameters<Parameters<typeof pris
   return r as T;
 }
 
+/** Recommence `essai` tant qu'il échoue sur un délai de verrou dépassé (55P03) — jamais sur une autre erreur. */
+async function avecReprise<T>(essai: () => Promise<T>, fois = 40): Promise<T> {
+  for (let i = 1; ; i++) {
+    try {
+      return await essai();
+    } catch (e) {
+      if (i >= fois || !/55P03|lock timeout/i.test(String((e as { message?: string })?.message ?? e))) throw e;
+      await new Promise((r) => setTimeout(r, 50 + Math.random() * 200));
+    }
+  }
+}
+
 /** Les fiches existantes que la migration touche, réduites à leur clé — et l'énumération qu'elle emprunte. */
 const SOUCHES = [
   `CREATE TYPE "Confidentiality" AS ENUM ('INTERNAL', 'RESTRICTED', 'CONFIDENTIAL')`,
@@ -218,14 +230,19 @@ suite("Rejouée sur la base de travail (un `migrate deploy` relancé)", () => {
   });
 
   it("deux fois de suite, dans une transaction annulée : rien ne change", async () => {
-    const { avant, apres } = await dansUnBancAnnule(async (tx) => {
+    // Rejouer sur les VRAIES tables prend leurs verrous exclusifs un à un, pendant que les suites voisines y
+    // écrivent : en attendant, ce banc pouvait former une étreinte fatale et Postgres tuait l'écriture d'un
+    // VOISIN (CI 244c8695). Un délai de verrou plus court que la détection d'étreinte (1 s) fait renoncer CE banc
+    // le premier — il relâche tout et recommence ; les voisins n'attendent jamais plus que ce délai.
+    const { avant, apres } = await avecReprise(() => dansUnBancAnnule(async (tx) => {
+      await tx.$executeRawUnsafe(`SET LOCAL lock_timeout = '300ms'`);
       const avant = await etatDuSchema(tx, "public");
       await jouer(tx);
       await jouer(tx);
       return { avant, apres: await etatDuSchema(tx, "public") };
-    });
+    }));
     expect(apres).toEqual(avant);
-  });
+  }, 120_000);
 });
 
 suite("Aucune dérive entre la base migrée et `schema.prisma`", () => {

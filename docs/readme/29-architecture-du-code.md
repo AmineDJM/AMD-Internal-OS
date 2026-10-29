@@ -47,6 +47,12 @@ centre de paiement, demandes de paiement, règlement, trésorerie — ex-`lib/fi
 événements, « autres », prise en charge, postes, porte du DG, centre, clôture — voir `src/modules/ad-pro/README.md`). Carte (`src/modules/carte.ts`), règles et
 guide pas à pas « migrer un module » : [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 
+### Taille des fichiers — 1 000 lignes au plus (depuis le lot V4, 2026-10-28)
+
+Un fichier de production tient en 1 000 lignes ; au-delà, il se découpe par responsabilité dans un dossier qui porte son
+nom, l'ancien fichier restant une porte qui réexporte (`src/lib/rbac.ts` → `src/lib/rbac/`, `src/lib/assistant.ts` →
+`src/lib/assistant/{coeur,outils,propositions,actions-confirmees,boucle}/`). Tenu par `src/platform/taille-fichiers.test.ts`.
+
 > 🐍 Un prototype historique **Streamlit + SQLite** subsiste dans [`streamlit_app/`](streamlit_app/) — l'édition
 > **Next.js + PostgreSQL** (ce dossier racine) est **le** produit de référence.
 

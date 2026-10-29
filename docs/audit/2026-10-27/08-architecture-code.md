@@ -40,7 +40,7 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 | ARCH-01 | HAUTE | maintenabilité / correction des garde-fous | Les cliquets ignorent les imports relatifs ; le socle importait 4 domaines (cycle `rbac ⇄ hr/stand-in`) | S | **CORRIGÉ** `f4a70c7` |
 | ARCH-02 | HAUTE | maintenabilité | La carte des domaines ne couvre que 57 % de `src/lib/` ; `app/` et `components/` hors mesure ; 128 pages parlent à Prisma | M | **PARTIEL** V3-G : 6 cliquets `platform/couverture.test.ts` |
 | ARCH-03 | HAUTE | maintenabilité | 190 actions dans un dossier, contrat indexé par nom de fichier → on ne peut pas ranger une action dans son module | M | **CORRIGÉ** V3-G : `src/lib/actions/parc.ts` |
-| ARCH-04 | MOYENNE | maintenabilité | 14 fichiers > 1 500 lignes, sans cliquet de taille (`assistant.ts` : 7 310 l., 94 imports) | L | **PARTIEL** V4 : `ad-pro-item-actions`, `items-panel`, `care-actions` découpés |
+| ARCH-04 | MOYENNE | maintenabilité | 14 fichiers > 1 500 lignes, sans cliquet de taille (`assistant.ts` : 7 310 l., 94 imports) | L | **CORRIGÉ** lot V4 : 49 → 1 fichier > 1 000 l. (paiements, hors périmètre), cliquet `taille-fichiers.test.ts` |
 | ARCH-05 | MOYENNE | maintenabilité / tests | 101 tests lisent le source par chemin (290 lectures) : tout déplacement casse, du code mort est « testé » | M | **PARTIEL** V3-G : adresses de réexpédition, `platform/source.ts`, cliquet (128) |
 | ARCH-06 | MOYENNE | maintenabilité | 53 fichiers / 7 918 lignes injoignables depuis toute entrée ; garde d'atteignabilité limitée à 2 dossiers | S | **CORRIGÉ** (lot V4, `v4/code-mort-doublons`) |
 | ARCH-07 | MOYENNE | outillage | ≥ 15 analyseurs d'imports réécrits à la main, couvertures divergentes (cause racine d'ARCH-01) | S | PARTIEL `f4a70c7` |
@@ -175,7 +175,7 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
   une table d'alias `ancienne clé → nouvelle` garde la compatibilité de `action-registry.ts` et des traces d'audit
   (`AuditLog`) pendant la transition. Test : chaque action a une et une seule clé, chaque alias pointe une action vivante.
 
-### ARCH-04 — Fichiers géants sans cliquet de taille · MOYENNE · PROPOSÉ
+### ARCH-04 — Fichiers géants sans cliquet de taille · MOYENNE · **CORRIGÉ** (lot V4, 28/10/2026)
 
 - **Preuve.** `find src -name '*.ts*' ! -name '*.test.*' | xargs wc -l | sort -rn` — 14 fichiers > 1 500 lignes :
   `lib/assistant.ts` 7 310 (94 imports, 14 exports, un bloc copié 2 fois : l. 4902 et 5517, 28 fenêtres identiques),
@@ -191,6 +191,38 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
   (valeur mesurée, ne peut que baisser), 800 lignes pour tout autre fichier. Découpage par **cas d'usage** :
   `ad-pro-item-actions.ts` → `modules/adpro/actions/{poste,devis,bc,facture,stock}.ts` ; `labels.ts` → un fichier de
   libellés par module + `socle/navigation.ts` ; `rbac.ts` → `src/lib/rbac/{matrice,acces,delegations,annuaires}.ts`.
+
+- **Correctif appliqué — lot V4 « fichiers géants » (28/10/2026, branche `v4/fichiers-geants`).**
+  Mesure AVANT (`find src -name '*.ts*' ! -name '*.test.*' | xargs wc -l`) : **49 fichiers de production > 1 000 lignes**.
+  Mesure APRÈS (fusion des lots `rh` et `ad-pro` comprise, qui ont découpé les leurs) : **1** —
+  `actions/payment-request-actions.ts` 1 197, confié au chantier des paiements. Le plus gros fichier découpé ne dépasse plus 986 lignes ; le plus gros morceau créé, 842.
+  - **Méthode** : un dossier au nom du fichier, un fichier par responsabilité (en français), l'origine devient une
+    **porte** qui réexporte les mêmes noms (aucun importeur réécrit). Aucun changement de comportement : code déplacé tel
+    quel ; gros littéraux recomposés dans le même ordre (`{ ...A, ...B }`, `[...A, ...B]`) ; fonctions géantes
+    (`buildProposal`, `performAction`, `compile`, `executerAcceptance`) découpées en familles appelées dans l'ordre
+    d'origine, sur un contexte explicite. Les morceaux n'importent jamais leur porte (pas de cycle neuf).
+  - **Avant → après (lignes de la porte)** : `assistant.ts` 7 314 → 41 (`assistant/{coeur,outils,propositions,
+    actions-confirmees,boucle}/`) · `assistant/ops/catalog.ts` 5 399 → 81 (`ops/catalogue/`, 20 familles) ·
+    `labels.ts` 2 289 → 21 (`labels/<domaine>.ts`, purs) · `assistant/action-registry.ts` 2 213 → 227 · `rbac.ts`
+    2 212 → 28 (`rbac/{modules,gestes,permissions,roles,budgets-drive,acces,verifications,portees}`) ·
+    `missions/runtime/engine.ts` 1 996 → 218 · `workflow/engine.ts` 1 884 → 959 · `artifact/factory.ts` 1 859 → 45 ·
+    `ops/impl-wave4b.ts` 1 597 → 15 (et les cinq autres vagues, `ops/impl/<vague>/`) · `assistant-chat.tsx` 1 556 → 14 ·
+    `care-actions.ts` 1 556 → 892 (puis rangé par le lot `ad-pro` dans son module) · `docx-lecture.ts` 1 507 → 38 · `regulatory-actions.ts` 1 465 → 876 · `contrat.ts`
+    1 403 → 380 · `executive-tools.ts` 1 384 → 55 · `missions/runtime.ts` 1 383 → 43 · `acceptance.ts` 1 342 → 279 ·
+    `compile.ts` 1 339 → 112 · `ops/index.ts` 1 282 → 65 · … (45 fichiers au total).
+  - **Fichiers d'actions** : les actions exportées restent dans leur fichier (clé `"<fichier>:<fonction>"`) ; leurs aides
+    vont dans `src/lib/actions/internes/<domaine>/` (sans `"use server"`, rangé en façade). Le lecteur de contrat lit
+    une aide de `actions/internes/` comme une fonction LOCALE du fichier d'actions (cas jouet dans `contrat.test.ts`) :
+    `contrat.genere.json` régénéré **identique octet pour octet** à chaque étape, et identique à celui de la base après fusion.
+  - **Cliquets tenus sans relèvement** : frontière Adam ↔ ERP 422, traversées 67, fuites fournisseurs 42, cycles 0 —
+    chaque dossier découpé importe l'ERP par UNE porte (`erp.ts` / `dependances.ts`), comme l'unique fichier d'avant.
+    Hors carte −9 (dossiers rangés : `payslip/` → office, `carte-plateforme/` → couche `carte`,
+    `admin-delete-registry`, `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle).
+  - **Cliquet** `src/platform/taille-fichiers.test.ts` (dans `test:architecture`) : 1 000 lignes au plus pour tout
+    fichier de production ; le seul hérité figé à sa taille, liste qui ne peut que rétrécir.
+  - **Reste** : `payment-request-actions.ts` (paiements) ; `entity-access.ts` (porte) reste hors carte (trois domaines
+    l'appellent) ; le bloc copié deux fois de la boucle de l'assistant (`boucle/tour.ts`, `boucle/flux.ts`) est
+    conservé tel quel — le dédupliquer est un changement de comportement à part.
 
 ### ARCH-05 — Les tests lisent le source par chemin · MOYENNE · PROPOSÉ
 
@@ -388,7 +420,7 @@ prisma/schema/<module>.prisma     # P0 de la proposition : un fichier de schéma
 | Module → module seulement par `api` et selon `carte.ts` | idem règle 1 | règle 1 + (à ajouter) arêtes ⊆ `carte.ts`, sans cycle |
 | Le socle n'importe aucun module | — | règle 4 — **en place** ; `scanSocle()` pour `src/lib` |
 | Dette héritée module → ancien `src/lib/` | — | `DETTE_HERITEE` exacte, ne peut que rétrécir — **en place** |
-| Taille, pages sans Prisma, fichiers hors carte | — | cliquets à ajouter (ARCH-02, ARCH-04) |
+| Taille, pages sans Prisma, fichiers hors carte | `platform/taille-fichiers.test.ts`, `couverture.test.ts` | en place (ARCH-02, ARCH-04) |
 
 Configuration en place (`.eslintrc.json`) :
 

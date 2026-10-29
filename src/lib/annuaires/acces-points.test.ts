@@ -347,7 +347,7 @@ describe("les écrans et la conversation interrogent la règle de l'annuaire", (
   });
 
   it("la conversation sur les établissements pose la même question que l'écran", () => {
-    const src = lire("src/lib/assistant.ts");
+    const src = lire("src/lib/assistant/propositions/donnees-et-corbeille.ts"); // ex-`assistant.ts` (lot V4)
     expect(src).toMatch(/peutAnnuaire\(user, "ETABLISSEMENTS", "CREATE"\)/);
     expect(src).toMatch(/peutAnnuaire\(user, "ETABLISSEMENTS", "UPDATE"\)/);
   });

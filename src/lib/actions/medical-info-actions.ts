@@ -2,84 +2,51 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
-import type { EntityType, MedicalInfoStatus } from "@prisma/client";
+import type { MedicalInfoStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
-import { userCan, hasGlobalView, hasRole, type SessionUser } from "@/lib/rbac";
+import { userCan, hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { saveFile, validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
-import { getDeclaration, canViewDeclaration, dernieresRelancesPieces, RELANCE_PIECE_CHAMP, REFUS_FINAL_CHAMP } from "@/lib/queries/medical-info";
+import {
+  getDeclaration, canViewDeclaration, dernieresRelancesPieces, RELANCE_PIECE_CHAMP, REFUS_FINAL_CHAMP,
+} from "@/lib/queries/medical-info";
 import { peutRelancerPiece, visaExige } from "@/lib/medical-info/parcours";
 import { archiveProcessedRequest } from "@/lib/archive";
-import { formatAlgiers } from "@/lib/calendar-tz";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { refusAnnulationPieceInfoMed } from "@/lib/annulations/regles";
-import { createPaymentRequest } from "@/modules/finances/actions-demandes";
-import { circuitOfDeclaration, isOpenableDeclarationKind, DECLARATION_KIND_LABEL, ordreGlobalALaValidation } from "@/lib/medical-info/circuits";
 import {
-  canRequestDecision, canValidateEvent, declareStage, declareStageLabel, isDeclareIntent,
-  DECLARE_INTENT_LABEL,
+  circuitOfDeclaration, isOpenableDeclarationKind, DECLARATION_KIND_LABEL, ordreGlobalALaValidation,
+} from "@/lib/medical-info/circuits";
+import {
+  canRequestDecision, canValidateEvent, declareStage, declareStageLabel, isDeclareIntent, DECLARE_INTENT_LABEL,
 } from "@/lib/medical-info/declare-decision";
 import {
-  canDeliverSlip, canEditSlips, canRequestSlipPayment, canRequestSlipsValidation,
-  slipStage, slipSansPaiementVivant, PRISE_DU_BON, SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
+  canDeliverSlip, canEditSlips, canRequestSlipPayment, canRequestSlipsValidation, slipStage, slipSansPaiementVivant,
+  SLIPS_LOT_LABEL, SLIP_STAGE_LABEL,
 } from "@/lib/medical-info/slips";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 import { circuitStateOf, authoritiesOpen } from "@/lib/medical-info/circuit-state";
 import { nextDeclarationRef, decideursInfoMedActifs, pharmacienAssigne } from "@/lib/medical-info";
 import {
-  estDecideurInfoMed, noteDecideurs, confirmationDemande, AUCUN_DECIDEUR, OBJET_DECISION_INFO_MED, DECIDEUR_INFO_MED_LABEL,
-  ROLE_DECIDEUR_INFO_MED, type DecideursInfoMed,
+  estDecideurInfoMed, confirmationDemande, AUCUN_DECIDEUR, DECIDEUR_INFO_MED_LABEL,
 } from "@/lib/medical-info/decideur";
 
-import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
-import { toNumber } from "@/lib/utils";
-import { postesPortantLaDepense } from "@/lib/workflow/engine";
+import { retirerValidationSansObjet } from "@/lib/validation";
 import { sansBloquer } from "@/lib/journal";
-
-const PATH = "/information-medicale";
-
-/**
- * QUI PORTE LA DÉPENSE D'UN ÉVÉNEMENT DÉCLARÉ ? — l'ordre GLOBAL, ou ses POSTES (§118.151).
- *
- * La Direction émettait ici un ordre de dépense du montant de la déclaration, sans regarder les
- * postes. Or un poste émet sa PROPRE pièce (BC, puis facture, puis ordre) : une opération ventilée
- * payait donc deux fois la même dépense — une fois par l'ordre global, une fois par ses postes.
- * Le moteur de circuit s'en gardait déjà dans son autre branche (pas de pharmacien, `emitFinancials`) ;
- * celle-ci ne s'en gardait pas, et depuis que chaque sponsoring naît avec son poste, le défaut
- * serait devenu SYSTÉMATIQUE.
- *
- * Deux faits font dire « les postes » :
- *   · des postes non refusés existent — la lecture est celle du moteur (`postesPortantLaDepense`),
- *     pas un second comptage qui divergerait ;
- *   · le sponsoring suit la règle de la TENUE : pré-validé ou clôturé par sa validation finale. Là,
- *     le montant déclaré n'est qu'une ESTIMATION — l'argent se décide poste par poste —, et un ordre
- *     bâti dessus serait un ordre sur un montant que personne n'a accordé. Même si tous ses postes
- *     ont été refusés : c'est alors qu'il n'y a RIEN à payer, pas qu'il faut payer l'estimation.
- *
- * Aucune erreur n'est rattrapée : une lecture qui échoue fait échouer la validation, qui se refait
- * d'un clic. Se tromper dans l'autre sens émettrait un ordre de trop — de l'argent qui sort.
- */
-async function laDepenseEstPorteeParLesPostes(sourceType: EntityType, sourceId: string): Promise<boolean> {
-  if (sourceType === "SPONSORING") {
-    const s = await prisma.sponsoringRequest.findUnique({ where: { id: sourceId }, select: { status: true, closedAt: true } });
-    if (s && (s.status === "PRE_VALIDATED" || s.closedAt != null)) return true;
-  }
-  return (await postesPortantLaDepense(sourceType, sourceId)).nombre > 0;
-}
-
-/** Le pharmacien responsable (ou la Direction / un admin) pilote la déclaration. */
-function canManage(user: SessionUser): boolean {
-  return hasGlobalView(user.role) || userCan(user, "MEDICAL_INFO", "VALIDATE");
-}
-
-function revalidate(id: string) {
-  revalidatePath(PATH);
-  revalidatePath(`${PATH}/${id}`);
-}
+import {
+  DEJA_TRANCHE, PATH, canManage, qualiteDuDecideur, refusDecideur, revalidate,
+} from "@/lib/actions/internes/medical-info/acces";
+import { demanderAuDecideur, laDepenseEstPorteeParLesPostes } from "@/lib/actions/internes/medical-info/circuit";
+import { clorePrecedente } from "@/lib/actions/internes/medical-info/ecritures";
+import {
+  refusDepotAutorites, refusSansVersement, reporterOrdreSurLaSource, resumeDArchive,
+} from "@/lib/actions/internes/medical-info/dossier";
+import { demanderLaQuittance } from "@/lib/actions/internes/medical-info/quittance";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/medical-info/{acces,circuit,ecritures,dossier,quittance}` — les actions restent ici (leur clé de contrat).
 
 /** Recalcule le statut READY / DOCS_REQUESTED / AWAITING_REVIEW selon l'état des pièces. */
 async function refreshStatus(declarationId: string) {
@@ -243,14 +210,7 @@ export async function recordAuthorityDeclaration(formData: FormData): Promise<Ac
   const decl = await prisma.medicalInfoDeclaration.findUnique({ where: { id } });
   if (!decl) return { ok: false, error: "Déclaration introuvable." };
   const etat = await circuitStateOf(decl);
-  if (!authoritiesOpen(etat)) {
-    return {
-      ok: false,
-      error: etat.circuit === "EVENT"
-        ? `La décision de déclarer n'est pas encore accordée : ${declareStageLabel(declareStage(etat.declare)).toLowerCase()}.`
-        : `Les quittances ne sont pas toutes entre vos mains : ${etat.summary.delivered}/${etat.summary.count} remise(s).`,
-    };
-  }
+  if (!authoritiesOpen(etat)) return { ok: false, error: refusDepotAutorites(etat) };
 
   await prisma.medicalInfoDeclaration.update({
     where: { id },
@@ -264,33 +224,6 @@ export async function recordAuthorityDeclaration(formData: FormData): Promise<Ac
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // CIRCUIT ÉVÉNEMENT — « faut-il déclarer ? », et rien d'autre
 // ═══════════════════════════════════════════════════════════════════════════════════════════
-
-/**
- * CLORE LA DEMANDE « À REVOIR » QU'UNE RESOUMISSION REMPLACE (audit 360°, I9).
- *
- * L'écriture est CONDITIONNELLE : seule une demande encore à revoir se clôt. Deux resoumissions
- * simultanées lisent toutes deux « à revoir » ; la première clôt et poursuit, la seconde trouve la
- * demande déjà close et s'arrête — sans quoi deux demandes vivraient pour une seule question, ce
- * que la règle d'avant existait pour empêcher. Non exportée : une fonction qui reçoit un acteur
- * en argument n'a pas sa place parmi les points d'entrée d'un fichier « use server » (§118.153).
- */
-async function clorePrecedente(validationId: string | null, acteurId: string, reference: string): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!validationId) return { ok: true };
-  const r = await prisma.validationRequest.updateMany({
-    where: { id: validationId, status: "CHANGES_REQUESTED" },
-    data: { status: "CANCELLED" },
-  });
-  if (r.count !== 1) {
-    return { ok: false, error: "Une nouvelle demande vient déjà d'être soumise pour ce dossier — rechargez la page." };
-  }
-  await recordAudit({
-    actorId: acteurId, action: "UPDATE", module: "Validations",
-    entityType: "VALIDATION_REQUEST", entityId: validationId,
-    field: "status", newValue: "CANCELLED",
-    summary: `Demande à revoir close par sa resoumission (${reference})`,
-  });
-  return { ok: true };
-}
 
 /**
  * LE PHARMACIEN SOUMET SA LECTURE : ce dossier se déclare au ministère, ou il ne se déclare pas.
@@ -375,41 +308,6 @@ export async function requestDeclareDecision(_prev: ActionResult | undefined, fo
   });
   revalidate(id);
   return { ok: true, id: res.requestId, message: confirmationDemande(decideurs, "Votre lecture est envoyée") };
-}
-
-/**
- * LA DEMANDE DE VALIDATION D'UN GESTE DU PRIM — adressée au(x) Directeur(s) des Opérations.
- *
- * Tous les comptes saisis EN MÊME TEMPS (`PARALLEL`), et l'accord du premier qui tranche vaut pour
- * tous (`OBJET_DECISION_INFO_MED`, lu par le moteur commun) : une fonction tenue par deux personnes
- * ne devient pas une double signature.
- *
- * L'EXISTANT N'EST PAS RE-ROUTÉ : une demande déjà en cours sous l'ancienne chaîne (N+1, référent
- * Direction Marketing, centre — en série) finit son circuit tel qu'il a été annoncé à ses signataires ;
- * seules les demandes soumises (ou resoumises) à partir d'ici vont au Directeur des Opérations. Une
- * demande à revoir qui se resoumet passe donc, elle, chez lui (`clorePrecedente` clôt l'ancienne).
- *
- * Non exportée : une fonction qui reçoit un demandeur en
- * argument n'a pas sa place parmi les points d'entrée d'un fichier « use server » (§118.153).
- */
-async function demanderAuDecideur(
-  decideurs: DecideursInfoMed,
-  d: { requesterId: string; title: string; description: (string | null)[]; declarationId: string; amount?: number },
-) {
-  return createDirectValidation({
-    requesterId: d.requesterId,
-    title: d.title,
-    description: [...d.description, noteDecideurs(decideurs)].filter(Boolean).join("\n\n") || null,
-    link: `${PATH}/${d.declarationId}`,
-    module: "Information médicale",
-    priority: "HIGH",
-    validatorIds: decideurs.validatorIds,
-    mode: "PARALLEL",
-    objectType: OBJET_DECISION_INFO_MED,
-    entityType: "MEDICAL_INFO_DECLARATION",
-    entityId: d.declarationId,
-    amount: d.amount,
-  });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -595,75 +493,16 @@ export async function requestSlipPayment(_prev: ActionResult | undefined, formDa
     return { ok: false, error: `Le paiement de ce bon ne peut pas être demandé maintenant : ${SLIP_STAGE_LABEL[slipStage(courant ?? { requestId: null, centralStatus: null, orderStatus: null, deliveredAt: null })].toLowerCase()}.` };
   }
 
-  const raw = fdStr(formData, "amount");
-  const amount = raw ? Number(raw.replace(",", ".")) : NaN;
-  if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: "Indiquez le montant de la quittance." };
-
-  // On rejoue le formulaire de la demande de paiement : c'est la MÊME action canonique que depuis
-  // les Demandes de validations, donc les mêmes contrôles et le même circuit.
-  const fd = new FormData();
-  fd.set("title", `Quittance de versement — ${slip.label} (${decl.label})`);
-  fd.set("payee", fdStr(formData, "payee") || "Autorités sanitaires");
-  fd.set("amount", String(amount));
-  fd.set("description", [
-    fdStr(formData, "note"),
-    slip.amount ? `Bon annoncé pour ${toNumber(slip.amount).toLocaleString("fr-FR")} DZD.` : null,
-  ].filter(Boolean).join("\n\n"));
-  if (decl.companyId) fd.set("companyId", decl.companyId);
-  const echeance = fdStr(formData, "dueDate");
-  if (echeance) fd.set("dueDate", echeance);
-  // LE RATTACHEMENT EST POSÉ DÈS LA CRÉATION, et non par une mise à jour qui suivrait. C'est lui
-  // qui identifie un BON DE VERSEMENT, et donc ce qui l'exempte de l'obligation de joindre un bon
-  // de commande ou une facture (`finance/payment-dossier.ts`) : un BV n'en a ni n'en peut avoir,
-  // et sa quittance n'existe qu'APRÈS le versement.
-  fd.set("entityType", "MEDICAL_INFO_DECLARATION");
-  fd.set("entityId", decl.id);
-  fd.set("link", `${PATH}/${decl.id}`);
-  for (const f of formData.getAll("files")) if (f instanceof File && f.size > 0) fd.append("files", f);
-
-  // UN SEUL ORDRE VIVANT PAR BON (audit 10/2026). Deux soumissions simultanées lisaient toutes deux
-  // « quittance à demander » et créaient chacune leur demande — donc deux ordres au centre de paiement
-  // pour une seule taxe. Le bon est d'abord PRIS, par une écriture conditionnelle à ce qu'on a lu ; le
-  // second trouve la place prise et s'arrête avant d'avoir rien créé. Le jeton de prise voyage avec la
-  // demande : c'est lui qui prouve, à la création, qu'elle vient bien d'un bon de CE dossier — la seule
-  // porte de l'exemption de facture (`bonDeVersementRattache`).
-  const jeton = `${PRISE_DU_BON}${randomUUID()}`;
-  const pris = await prisma.medicalInfoSlip.updateMany({
-    where: { id: slipId, requestId: courant.requestId, deliveredAt: null },
-    data: { requestId: jeton },
-  });
-  if (pris.count === 0) return { ok: false, error: "Le paiement de ce bon vient d'être demandé — rechargez la page." };
-  fd.set("medicalInfoSlipClaim", jeton);
-
-  let created: ActionResult;
-  try {
-    created = await createPaymentRequest(undefined, fd);
-  } catch (err) {
-    console.error("[medical-info] demande de paiement du bon non créée", err);
-    created = { ok: false, error: "La demande de paiement n'a pas pu être créée." };
-  }
-  if (!created.ok || !created.id) {
-    // Rien n'est parti : le bon retrouve son état d'avant la prise.
-    await prisma.medicalInfoSlip.updateMany({ where: { id: slipId, requestId: jeton }, data: { requestId: courant.requestId } });
-    return { ok: false, error: created.error ?? "La demande de paiement a été refusée." };
-  }
-
-  const rattache = await prisma.medicalInfoSlip.updateMany({ where: { id: slipId, requestId: jeton }, data: { requestId: created.id } });
-  if (rattache.count === 0) {
-    // Le bon a changé pendant la création (retiré, remis) : la demande née n'a plus d'objet — elle et son
-    // ordre sont annulés tant que rien n'est réglé, plutôt que de laisser un paiement orphelin au centre.
-    const orpheline = await prisma.paymentRequest.findUnique({ where: { id: created.id }, select: { expenseOrderId: true } });
-    await prisma.paymentRequest.updateMany({ where: { id: created.id, status: { notIn: ["APPROVED", "CANCELLED"] } }, data: { status: "CANCELLED" } });
-    await annulerOrdreNonRegle(orpheline?.expenseOrderId, { acteurId: user.id, motif: `bon de versement « ${slip.label} » modifié pendant la demande (${decl.reference})` });
-    return { ok: false, error: "Ce bon vient de changer pendant la demande : elle a été annulée — rechargez la page." };
-  }
+  const demande = await demanderLaQuittance(formData, { user, slipId, courant, slip, decl });
+  if ("fini" in demande) return demande.fini;
+  const { amount } = demande;
   await recordAudit({
     actorId: user.id, action: "CREATE", module: "Information médicale",
     entityType: "MEDICAL_INFO_DECLARATION", entityId: decl.id,
     summary: `Quittance demandée au paiement — ${slip.label} · ${amount.toLocaleString("fr-FR")} DZD (${decl.reference})`,
   });
   revalidate(decl.id);
-  return { ok: true, id: created.id };
+  return { ok: true, id: demande.id };
 }
 
 /**
@@ -739,15 +578,8 @@ export async function skipMedicalInfoBv(formData: FormData): Promise<ActionResul
   }
   if (decl.bvSkippedAt) return { ok: false, error: "Ce dossier est déjà déclaré sans versement." };
 
-  const etat = await circuitStateOf(decl);
-  // Un bon dont le paiement a été refusé ou annulé n'engage plus rien (audit 10/2026) : il ne doit
-  // plus empêcher de dire que le dossier n'appelle aucun versement — il le bloquait à vie.
-  if (etat.slips.some((sl) => !slipSansPaiementVivant(sl))) {
-    return { ok: false, error: "Une quittance est engagée : elle doit être menée à son terme ou refusée." };
-  }
-  if (etat.lot !== "A_DEMANDER" && etat.lot !== "VALIDATION_REFUSEE" && etat.lot !== "QUITTANCE_A_DEMANDER") {
-    return { ok: false, error: "Le dépôt des bons est engagé en validation : il doit être mené à son terme ou refusé." };
-  }
+  const refusSansBv = refusSansVersement(await circuitStateOf(decl));
+  if (refusSansBv) return { ok: false, error: refusSansBv };
 
   await prisma.medicalInfoDeclaration.update({
     where: { id },
@@ -906,16 +738,7 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
       where: { entityType: "MEDICAL_INFO_DECLARATION", entityId: id },
       select: { name: true, fileKey: true, mimeType: true },
     });
-    const lines = [
-      `Déclaration d'information médicale — ${decl.reference}`,
-      `Libellé : ${decl.label}`,
-      decl.beneficiary ? `Bénéficiaire : ${decl.beneficiary}` : null,
-      decl.authorityRef ? `Référence autorités : ${decl.authorityRef}` : null,
-      decl.authorityNotes ? `Notes de déclaration : ${decl.authorityNotes}` : null,
-      `Créée le : ${formatAlgiers(decl.createdAt, { day: "2-digit", month: "long", year: "numeric" })}`,
-      `Validée par le pharmacien le : ${formatAlgiers(new Date(), { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}`,
-      `Transmise ${decideurs.repli ? "au Super Admin" : `au ${DECIDEUR_INFO_MED_LABEL}`} pour validation finale.`,
-    ].filter(Boolean).join("\n");
+    const lines = resumeDArchive(decl, decideurs.repli);
     const day = new Date().toISOString().slice(0, 10);
     const nodeId = await archiveProcessedRequest({
       bureau: "Information médicale",
@@ -935,25 +758,6 @@ export async function validateDeclaration(formData: FormData): Promise<ActionRes
 }
 
 // ───────────── Validation finale (Directeur des Opérations) → ordre de dépense au comptable ─────────────
-
-/** Ce que l'écran et le journal disent de celui qui tranche. */
-function qualiteDuDecideur(user: SessionUser): string {
-  return hasRole(user, ROLE_DECIDEUR_INFO_MED) ? DECIDEUR_INFO_MED_LABEL : "Super Admin";
-}
-
-/**
- * La porte commune aux deux décisions finales : le décideur, et jamais le pharmacien qui a validé
- * lui-même le dossier (un PRIM qui porterait aussi le rôle de directeur ne se valide pas).
- */
-function refusDecideur(user: SessionUser, decl: { pharmacistValidatedById: string | null }): string | null {
-  if (!estDecideurInfoMed(user)) return `Validation finale réservée au ${DECIDEUR_INFO_MED_LABEL} (à défaut, au Super Admin).`;
-  if (user.role !== "SUPER_ADMIN" && decl.pharmacistValidatedById === user.id) {
-    return "Vous avez validé ce dossier comme pharmacien : la validation finale revient à un autre décideur.";
-  }
-  return null;
-}
-
-const DEJA_TRANCHE = "Ce dossier vient d'être tranché par un autre décideur — rechargez la page.";
 
 /**
  * Le Directeur des Opérations donne la validation finale « pour le comptable », avec un commentaire
@@ -1022,11 +826,7 @@ export async function validateDeclarationByDirection(formData: FormData): Promis
     await prisma.comment.create({ data: { entityType: "MEDICAL_INFO_DECLARATION", entityId: id, body: comment, authorId: user.id } });
   }
   // Reporte l'ordre de dépense sur l'événement source (tout reste interconnecté).
-  if (order) {
-    if (decl.sourceType === "SPONSORING") await prisma.sponsoringRequest.update({ where: { id: decl.sourceId }, data: { expenseOrderId: order.id } });
-    else if (decl.sourceType === "CONGRESS_INTERNATIONAL") await prisma.congressInternational.update({ where: { id: decl.sourceId }, data: { expenseOrderId: order.id } });
-    else if (decl.sourceType === "CONGRESS_NATIONAL") await prisma.congressNational.update({ where: { id: decl.sourceId }, data: { expenseOrderId: order.id } });
-  }
+  if (order) await reporterOrdreSurLaSource(decl, order.id);
   const qualite = qualiteDuDecideur(user);
   if (decl.requesterId) await notifyUser({ userId: decl.requesterId, type: "GENERIC", title: `Information médicale — événement validé (${qualite})`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });
   if (decl.pharmacistId && decl.pharmacistId !== user.id) await notifyUser({ userId: decl.pharmacistId, type: "GENERIC", title: `Information médicale — validé par le ${qualite}`, body: `${decl.reference} — ${decl.label}`, link: `${PATH}/${id}` });

@@ -252,9 +252,9 @@ suite("Retirer une demande Ad & Pro la SUPPRIME — par le cœur réversible, r�
     expect(sansCommentaires(panneau), "après le retrait, l'écran va où l'action le dit").toMatch(/router\.push\(r\.redirect \?\? "\/ad-pro"\)/);
     expect(panneau, "la confirmation dit que la demande sera SUPPRIMÉE et récupérable").toMatch(/SUPPRIMÉE[\s\S]{0,200}corbeille/);
     // ADAM (en pause, mais une phrase fausse qu'un modèle lit se corrige) : la carte et le catalogue disent « supprimée ».
-    const carte = readFileSync("src/lib/assistant/ops/impl-wave5.ts", "utf8");
+    const carte = readFileSync("src/lib/assistant/ops/impl/vague5/ad-pro.ts", "utf8");
     expect(carte, "la carte du retrait annonce la suppression").toMatch(/Retirer SUPPRIME la demande/);
-    expect(readFileSync("src/lib/assistant/ops/catalog.ts", "utf8"), "le catalogue dit « retire » et « supprimée »").toMatch(/Retire une demande de congrès \/ événement NON encore validée : elle est SUPPRIMÉE/);
+    expect(readFileSync("src/lib/assistant/ops/catalogue/ad-pro.ts", "utf8"), "le catalogue dit « retire » et « supprimée »").toMatch(/Retire une demande de congrès \/ événement NON encore validée : elle est SUPPRIMÉE/);
     const adpro = sansCommentaires(readFileSync("src/lib/actions/admin-delete-actions.ts", "utf8"));
     expect(adpro, "la suppression du Super Admin revalide le tableau et Mon espace").toMatch(/revalidatePath\("\/ad-pro"\)[\s\S]{0,80}revalidatePath\("\/mon-espace"\)/);
   });

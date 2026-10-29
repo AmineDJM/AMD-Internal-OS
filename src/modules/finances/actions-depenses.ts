@@ -9,14 +9,13 @@ import { ouvrirPourEcrire } from "@/lib/queries/porte-ecriture";
 import {
   refusSeparationDesTaches, ordreAFacture, nextFinanceRef, canDisburse, blockedReason, type CentralStatus,
   checkDeferral, budgetGate, dossierHrefByOrder, compteDeLEcriture, verserLaRemise, solderLeDossierCompagnon,
-  solderVirementPaie,
+  solderVirementPaie, STATUTS_SOLDES_PAR_UN_REGLEMENT,
 } from "@/modules/finances/api";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
-import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/modules/finances/api";
 import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";
 import { validateUpload } from "@/lib/storage";

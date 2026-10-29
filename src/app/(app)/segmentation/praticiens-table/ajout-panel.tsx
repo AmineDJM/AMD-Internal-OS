@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { casseNom } from "@/lib/segmentation/tableau-praticiens";
 import { ajouterAuPanel, chercherPraticiensHorsPanel, type PraticienTrouve } from "@/lib/actions/segmentation-actions";
-import { champ } from "../praticiens-table";
+import { champ } from "./modele";
 
 /** L'AJOUT D'UN PRATICIEN AU PANEL — sorti de `praticiens-table.tsx` (cliquet de taille). */
 

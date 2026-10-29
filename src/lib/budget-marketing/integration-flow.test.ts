@@ -81,9 +81,15 @@ suite("Intégration des dépenses réelles Ad & Pro 2026 — de bout en bout", (
 
   const ov = async () => (await getBudgetOverview(actor as SessionUser, envId, null, null, { portee: "MARKETING" }))!;
   const consommeDe = (o: Awaited<ReturnType<typeof ov>>, id: string) => o.categories.find((x) => x.id === id)?.consumed ?? 0;
-  const empreinteLedger = async () => new Map((await prisma.financeTransaction.findMany({ where: { createdAt: { lt: T0 } }, select: { id: true, amount: true, status: true, budgetCategoryId: true, date: true, updatedAt: true } }))
+  /**
+   * Le livre et les ordres que l'intégration POURRAIT toucher : ceux des catégories de l'enveloppe du banc, et les
+   * fixtures du banc. Les suites voisines écrivent en parallèle sur la même base (règlements, remises) : une empreinte
+   * de TOUTE la base mesurait leurs écritures, pas celles de l'intégration.
+   */
+  const duBanc = (ids: string[]) => ({ OR: [{ budgetCategoryId: { in: Object.values(cat) } }, { id: { in: ids.filter(Boolean) } }] });
+  const empreinteLedger = async () => new Map((await prisma.financeTransaction.findMany({ where: { createdAt: { lt: T0 }, ...duBanc([txId, txManuelle]) }, select: { id: true, amount: true, status: true, budgetCategoryId: true, date: true, updatedAt: true } }))
     .map((t) => [t.id, `${t.amount}|${t.status}|${t.budgetCategoryId}|${t.date.toISOString()}|${t.updatedAt.toISOString()}`]));
-  const empreinteOrdres = async () => new Map((await prisma.expenseOrder.findMany({ where: { createdAt: { lt: T0 } }, select: { id: true, amount: true, status: true, budgetCategoryId: true, transactionId: true, updatedAt: true } }))
+  const empreinteOrdres = async () => new Map((await prisma.expenseOrder.findMany({ where: { createdAt: { lt: T0 }, ...duBanc([ordreId]) }, select: { id: true, amount: true, status: true, budgetCategoryId: true, transactionId: true, updatedAt: true } }))
     .map((o) => [o.id, `${o.amount}|${o.status}|${o.budgetCategoryId}|${o.transactionId}|${o.updatedAt.toISOString()}`]));
   /** Chaque écriture et chaque ordre qui existaient avant le test, et existent encore, sont restés identiques. */
   const ledgerInchange = async () => {

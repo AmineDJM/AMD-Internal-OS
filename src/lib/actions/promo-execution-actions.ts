@@ -7,7 +7,7 @@ import { Prisma } from "@prisma/client";
 import { requireUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { hasGlobalView, type SessionUser } from "@/lib/rbac";
+import { type SessionUser } from "@/lib/rbac";
 import { persistUploadedDocument } from "@/lib/documents";
 import { validateDocumentUpload } from "@/lib/storage";
 import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
@@ -15,36 +15,46 @@ import { createMedicalInfoDeclaration } from "@/lib/medical-info";
 import { aiguillerBC, porteDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
 import { canCancel } from "@/lib/legal/lifecycle";
-import { canSendToSettlement, cleEnvoiAuReglement, ordreClos } from "@/modules/finances/partage";
+import { canSendToSettlement, cleEnvoiAuReglement } from "@/modules/finances/partage";
 import { getAppSettings } from "@/lib/settings";
 import { enSerie } from "@/lib/refs";
-import { annuaireDeLecture, consignerConfirmation, exigerLectureConfirmee, proposerLecture, RefusLecture, type ConfirmationPrete } from "@/lib/pieces-lues/service";
+import {
+  annuaireDeLecture, consignerConfirmation, exigerLectureConfirmee, proposerLecture, RefusLecture,
+  type ConfirmationPrete,
+} from "@/lib/pieces-lues/service";
 import { empreinteDe } from "@/lib/pieces-lues/lecture-fichier";
-import { lignesProposeesFacturePromo, preremplirFacturePromo, type PrerempliFacturePromo } from "@/lib/pieces-lues/prerempli-facture-promo";
+import {
+  lignesProposeesFacturePromo, preremplirFacturePromo, type PrerempliFacturePromo,
+} from "@/lib/pieces-lues/prerempli-facture-promo";
 import { fdCase } from "@/lib/actions/types";
 import { reviserDocumentDrive } from "@/platform/in-process/artifact/factory";
 import { genererLesBonsDeCommande, apercuDuBcPromo, type ApercuBcPromo } from "@/lib/promo-automatismes";
 import { cloreLeDossierPromoSiSolde } from "@/lib/promo-cloture";
-import { brouillonPromoEnJson, lireBrouillonPromo, type BrouillonBcPromo } from "@/lib/promo-material/bc-brouillon-promo";
+import { brouillonPromoEnJson, type BrouillonBcPromo } from "@/lib/promo-material/bc-brouillon-promo";
 import { peutValiderLeBrouillon, REFUS_VALIDATION_BROUILLON } from "@/lib/bons-de-commande/brouillon";
 import { memeNumero } from "@/lib/bons-de-commande/numero-reference";
 import { saisieEffective } from "@/lib/references/registre";
 import { MODES_PAIEMENT } from "@/lib/artifact/factory/commercial";
 import { devisDuDossier, devisLu } from "@/lib/queries/promo-circuit";
 import { formatDzd } from "@/lib/promo-material/devis";
-import { piloteLExecution } from "@/lib/promo-material/circuit";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import {
-  ecartTotalImprime, ecartsAuBC, lignesDuBC, lignesProposees, natureDeReception, peutReceptionner, phraseEcart,
-  totauxFacture, validerLignesFacture, validerReception, verdictPaiementDetaille, type FamillePromo,
+  ecartTotalImprime, ecartsAuBC, lignesDuBC, lignesProposees, natureDeReception, phraseEcart, totauxFacture,
+  validerLignesFacture, validerReception, verdictPaiementDetaille, type FamillePromo,
 } from "@/lib/promo-material/achats";
-import { articleDemandeLu, ligneFactureLue, SELECT_ARTICLE_DEMANDE, SELECT_LIGNE_FACTURE } from "@/lib/queries/promo-achats";
+import { articleDemandeLu, ligneFactureLue, SELECT_ARTICLE_DEMANDE } from "@/lib/queries/promo-achats";
 import { gestionnairesDuMagasin } from "@/lib/queries/promo-stock";
 import { notifyUser } from "@/lib/notify";
 import { familleAValidite, familleQuantifiee } from "@/lib/promo/catalogue";
 import { libelleArticleStock, lireDateJour, parseQuantity } from "@/lib/promo/stock";
 import { annulerMouvementEcrit, entrerLot, sousVerrou, trouverOuCreerArticle } from "@/lib/promo/stock-ecriture";
 import { sansBloquer } from "@/lib/journal";
+import {
+  chargerDossier, chemin, devisAvecApercu, devisEtBC, factureDuDossier, ligneDuDossier, lireNombreSaisi,
+  paiementEnCours, quantiteLue, refusExecution, refusReception, type Dossier,
+} from "@/lib/actions/internes/promo-execution/dossier";
+import { detailDeLaFacture, ordreDejaLie, phraseDuPaiement } from "@/lib/actions/internes/promo-execution/paiement";
+// Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/promo-execution/{dossier,paiement}` — les actions restent ici (leur clé de contrat).
 
 /**
  * L'EXÉCUTION DU MATÉRIEL PROMOTIONNEL — bons de commande, factures, paiements, visas (§118.152).
@@ -73,60 +83,8 @@ import { sansBloquer } from "@/lib/journal";
  *    de paiement, §118.148).
  */
 
-const PATH = "/promo-material";
-const chemin = (id: string) => `${PATH}/${id}`;
-
-type Dossier = {
-  id: string; reference: string; title: string; status: string; circuitVersion: number; circuitState: string | null;
-  requesterId: string | null; companyId: string | null;
-  /** Le budget imputé par la Direction Marketing (point 21) : l'ordre fournisseur le porte, son règlement aussi. */
-  budgetCategoryId: string | null;
-};
-
-async function chargerDossier(id: string | null): Promise<Dossier | null> {
-  if (!id) return null;
-  return prisma.promoMaterial.findUnique({
-    where: { id },
-    select: { id: true, reference: true, title: true, status: true, circuitVersion: true, circuitState: true, requesterId: true, companyId: true, budgetCategoryId: true },
-  });
-}
-
-/** Ceux qui PILOTENT l'exécution — la règle du module pur, lue aussi par la fiche et la clôture des chantiers. */
-function pilote(user: SessionUser, pm: Dossier): boolean {
-  return piloteLExecution({ id: user.id, role: user.role, secondaryRole: user.secondaryRole, vueGlobale: hasGlobalView(user.role) }, pm);
-}
-
-/** Le refus commun : ni pilote, ni circuit 2, ni validations obtenues. `null` = on peut agir. */
-function refusExecution(user: SessionUser, pm: Dossier | null): string | null {
-  if (!pm) return "Dossier introuvable.";
-  if (pm.circuitVersion !== 2) return "Ce dossier suit l'ancien circuit : ses bons de commande se créent depuis « Pièces liées ».";
-  if (!pilote(user, pm)) return "Seuls le demandeur, l'assistante de direction et la Direction pilotent l'exécution de ce dossier.";
-  if (pm.circuitState !== "IN_EXECUTION") {
-    // UN DOSSIER CLOS SE DIT CLOS : annulé ou refusé, « une fois les validations obtenues » promettait
-    // une suite qui n'existe plus.
-    if (pm.status === "CANCELLED") return "Ce dossier a été annulé : plus rien ne s'y génère ni ne s'y facture.";
-    if (pm.circuitState === "REFUSED") return "Ce dossier a été refusé : plus rien ne s'y génère ni ne s'y facture.";
-    return pm.circuitState === "COMPLETED"
-      ? "Ce dossier est terminé."
-      : "Les bons de commande se génèrent une fois TOUTES les validations obtenues (demandeur, Direction Marketing, et Directeur Général au-dessus du seuil).";
-  }
-  return null;
-}
-
 async function audit(user: SessionUser, id: string, summary: string) {
   await recordAudit({ actorId: user.id, action: "UPDATE", module: "Matériel promotionnel", entityType: "PROMO_MATERIAL", entityId: id, summary });
-}
-
-/** Le devis de ce dossier, et son BC s'il en a un d'actif. */
-async function devisEtBC(pm: Dossier, quoteId: string | null) {
-  if (!quoteId) return null;
-  const devis = await prisma.promoQuote.findFirst({
-    where: { id: quoteId, promoMaterialId: pm.id },
-    select: { id: true, supplierId: true, supplierName: true, purchaseOrderId: true, purchaseOrderSentAt: true },
-  });
-  if (!devis) return null;
-  const etat = devis.purchaseOrderId ? await etatDuBC(devis.purchaseOrderId) : null;
-  return { devis, bc: etat && !etat.annule ? etat : null };
 }
 
 /**
@@ -177,17 +135,6 @@ export async function genererBonsDeCommandePromo(formData: FormData): Promise<Ac
 }
 
 // ───────────────────────── 1 bis. L'aperçu du BC, à valider par le demandeur ─────────────────────────
-
-/** Le devis et son aperçu, lus pour l'un des gestes de l'aperçu — après la porte commune de l'exécution. */
-async function devisAvecApercu(pm: Dossier, quoteId: string | null) {
-  if (!quoteId) return null;
-  const devis = await prisma.promoQuote.findFirst({
-    where: { id: quoteId, promoMaterialId: pm.id },
-    select: { id: true, supplierName: true, purchaseOrderId: true, bcBrouillon: true },
-  });
-  if (!devis) return null;
-  return { devis, brouillon: lireBrouillonPromo(devis.bcBrouillon) };
-}
 
 export type ApercuBcPromoResultat = ApercuBcPromo | { ok: false; error: string };
 
@@ -432,13 +379,6 @@ export async function marquerBonDeCommandeEnvoye(formData: FormData): Promise<Ac
 
 // ───────────────────────── 3. Factures, paiements, visas ─────────────────────────
 
-/** « 4 800 », « 4 800,5 » → nombre ; vide → 0 (la ligne n'est pas sur cette facture) ; illisible → null. */
-function lireNombreSaisi(brut: unknown): number | null {
-  const s = String(brut ?? "").trim();
-  if (s === "") return 0;
-  return parseQuantity(s);
-}
-
 /**
  * DÉPOSER LA FACTURE D'UN BON DE COMMANDE — détaillée ligne à ligne, obligatoire pour demander un
  * paiement (§118.152, §118.165).
@@ -657,31 +597,6 @@ export async function deposerFacturePromo(formData: FormData): Promise<ActionRes
     };
   });
 }
-
-/** La ligne de facture d'un dossier, avec sa facture — `null` si elle n'est pas à ce dossier. */
-async function ligneDuDossier(pm: Dossier, ligneId: string | null) {
-  if (!ligneId) return null;
-  return prisma.promoFactureLigne.findFirst({
-    where: { id: ligneId, facture: { legalDocument: { kind: "INVOICE", sourceType: "PROMO_MATERIAL", sourceId: pm.id, status: { not: "CANCELLED" } } } },
-    select: {
-      ...SELECT_LIGNE_FACTURE,
-      facture: { select: { legalDocument: { select: { id: true, reference: true, companyId: true, expenseOrderId: true, paidDate: true, counterparty: true } } } },
-    },
-  });
-}
-
-/** Le refus commun de la réception ; `null` = on peut cocher. */
-function refusReception(user: SessionUser, pm: Dossier | null): string | null {
-  if (!pm) return "Dossier introuvable.";
-  if (pm.circuitVersion !== 2) return "Ce dossier suit l'ancien circuit : il n'a pas de réception ligne à ligne.";
-  if (!peutReceptionner({ id: user.id, role: user.role }, pm)) {
-    return "La réception se coche par le demandeur du dossier (le Super Admin en suppléance) : c'est lui qui atteste ce qui est arrivé.";
-  }
-  if (pm.circuitState !== "IN_EXECUTION") return pm.circuitState === "COMPLETED" ? "Ce dossier est terminé." : "La réception vient après les bons de commande et leurs factures.";
-  return null;
-}
-
-const quantiteLue = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 3 });
 
 /**
  * RÉCEPTIONNER UNE LIGNE DE FACTURE — « le demandeur coche, sur la facture décomposée en tableau,
@@ -915,30 +830,6 @@ type Formalite = (typeof FORMALITES)[number];
 const LIBELLE_FORMALITE: Record<Formalite, string> = { AD_VISA: "demande de visa publicitaire", MIP: "déclaration au ministère" };
 
 /**
- * LE PAIEMENT DE CETTE FACTURE EST-IL EN COURS ? Réglée en direct, ou partie au circuit sur un ordre
- * qui peut encore payer. Un ordre REFUSÉ par le centre ou ANNULÉ ne paiera jamais (§118.185, audit
- * 360° I8) : la facture redevient corrigeable, annulable et renvoyable — sinon elle restait figée.
- */
-async function paiementEnCours(facture: { expenseOrderId: string | null; paidDate: Date | null }): Promise<boolean> {
-  if (facture.paidDate) return true;
-  if (!facture.expenseOrderId) return false;
-  const ordre = await prisma.expenseOrder.findUnique({ where: { id: facture.expenseOrderId }, select: { status: true, centralStatus: true } });
-  return !ordreClos(ordre);
-}
-
-/** La facture de CE dossier, et le BC dont elle découle. */
-async function factureDuDossier(pm: Dossier, invoiceId: string | null) {
-  if (!invoiceId) return null;
-  return prisma.legalDocument.findFirst({
-    where: { id: invoiceId, kind: "INVOICE", sourceType: "PROMO_MATERIAL", sourceId: pm.id, status: { not: "CANCELLED" } },
-    select: {
-      id: true, reference: true, title: true, kind: true, amount: true, counterparty: true, endDate: true,
-      paidDate: true, expenseOrderId: true, chainFrom: { select: { id: true, reference: true } },
-    },
-  });
-}
-
-/**
  * DEMANDER LE PAIEMENT D'UNE FACTURE — et, avec lui, la demande à l'information médicale.
  *
  * Le paiement passe par la porte commune : `canSendToSettlement` (pas deux fois, pas sans montant,
@@ -973,10 +864,7 @@ export async function demanderPaiementFacturePromo(formData: FormData): Promise<
     // ligne qui attend bloque le paiement — sauf renoncement CONFIRMÉ, définitif (« un paiement
     // pour cette ligne ne pourra pas être fait ultérieurement »). Une facture d'avant le détail
     // ligne à ligne garde le comportement d'avant : son montant, sans réception.
-    const detail = await prisma.promoFacture.findUnique({
-      where: { legalDocumentId: facture.id },
-      select: { tvaRate: true, extraTaxRate: true, totalImprime: true, lignes: { orderBy: { position: "asc" }, select: SELECT_LIGNE_FACTURE } },
-    });
+    const detail = await detailDeLaFacture(facture.id);
     let montant = facture.amount != null ? Number(facture.amount) : 0;
     let renoncer: string[] = [];
     let partiel = false;
@@ -994,9 +882,7 @@ export async function demanderPaiementFacturePromo(formData: FormData): Promise<
     // L'ORDRE DÉJÀ LIÉ (§118.185, audit 360° I8) : refusé par le centre ou annulé, il ne paiera
     // jamais — la facture repart, et l'ancien ordre est fermé pour qu'aucune décision tardive du
     // centre ne rende payables deux ordres pour la même facture.
-    const ordreLie = facture.expenseOrderId
-      ? await prisma.expenseOrder.findUnique({ where: { id: facture.expenseOrderId }, select: { status: true, centralStatus: true } })
-      : null;
+    const ordreLie = await ordreDejaLie(facture.expenseOrderId);
     const envoi = canSendToSettlement({
       kind: facture.kind, amount: montant || null, paidDate: facture.paidDate, expenseOrderId: facture.expenseOrderId,
       bc: { porte: await porteDuBC(bc.id), reference: bc.reference }, ordreLie,
@@ -1051,15 +937,7 @@ export async function demanderPaiementFacturePromo(formData: FormData): Promise<
     await audit(user, pm.id, `Paiement demandé — facture ${facture.reference ?? ""} (${formatDzd(montant)}${partiel ? ", part reçue" : ""}, ordre ${ordre.reference})${renoncer.length ? ` ; ${renoncer.length} ligne(s) non livrée(s) — renoncement confirmé, elles ne se paieront pas` : ""} ; ${declaration ? `${LIBELLE_FORMALITE[formalite]} ${declaration.reference} adressée à l'information médicale` : `${LIBELLE_FORMALITE[formalite]} NON adressée (échec) — à rattraper`}`);
     revalidatePath(chemin(pm.id));
     revalidatePath("/information-medicale");
-    const formaliteLue = `${LIBELLE_FORMALITE[formalite][0].toUpperCase()}${LIBELLE_FORMALITE[formalite].slice(1)}`;
-    return {
-      ok: true,
-      message: `Paiement demandé (ordre ${ordre.reference}, ${formatDzd(montant)}${partiel ? " — la part reçue" : ""}) : il attend le centre de paiement. `
-        + (renoncer.length ? `${renoncer.length} ligne${renoncer.length > 1 ? "s" : ""} non livrée${renoncer.length > 1 ? "s" : ""} : renoncement enregistré, elle${renoncer.length > 1 ? "s" : ""} ne se paiera${renoncer.length > 1 ? "ont" : ""} pas. ` : "")
-        + (declaration
-          ? `${formaliteLue} ${declaration.reference} adressée à l'information médicale.`
-          : `${formaliteLue} : elle n'a PAS pu partir — utilisez « Adresser à l'information médicale » sur cette facture.`),
-    };
+    return { ok: true, message: phraseDuPaiement(ordre.reference, montant, partiel, renoncer.length, declaration, LIBELLE_FORMALITE[formalite]) };
   });
 }
 
