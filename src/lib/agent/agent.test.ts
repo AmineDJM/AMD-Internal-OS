@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { Agent } from "@mastra/core/agent";
 import { adapterOutil, outilsPour } from "@/lib/agent/outils";

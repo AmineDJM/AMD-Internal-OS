@@ -44,7 +44,7 @@ aucun autre module n'interroge ces tables :
   épisodique, silencieux en cas d'échec — la mémoire est un confort, jamais un point de rupture).
 - Injection : `personalContext(userId)` est ajouté au prompt système par `runAssistant`
   (`opts.personalContext`), avec un rappel explicite de confidentialité.
-- UI : `app/(app)/assistant/assistant-chat.tsx` — rail « Mes conversations » (ouvrir, supprimer,
+- UI : `components/chief/assistant-chat.tsx` — rail « Mes conversations » (ouvrir, supprimer,
   **tout effacer** = droit à l'oubli), tiroir sur mobile.
 - Actions scopées : `myAssistantThreads`, `myAssistantThread`, `deleteMyAssistantThread`,
   `forgetMyAssistantMemory`, `refreshMyBrief`.

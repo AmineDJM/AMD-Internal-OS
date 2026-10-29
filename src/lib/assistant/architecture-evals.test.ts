@@ -3,7 +3,7 @@ import { assistantToolsFor } from "@/lib/assistant";
 import { routeQuery } from "@/lib/assistant/context/router";
 import { LEVEL_CAP, resolveTools } from "@/lib/assistant/context/tool-resolver";
 import { BUSINESS_CAPABILITIES } from "./business-capabilities";
-import { DIRECT_INTENTS } from "./workspace/direct-intents";
+import { DIRECT_INTENTS } from "@/platform/ia/workspace/direct-intents";
 import { stripDisplayPayload } from "./workspace/compose";
 import { METRICS } from "@/lib/metrics/catalog";
 import type { CurrentUser } from "@/lib/session";

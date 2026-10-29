@@ -8,8 +8,8 @@ import {
   type CurrentUser,
 } from "@/lib/assistant/coeur/erp";
 import { extraireFaits, resumerFait } from "@/platform/in-process/fabric/provenance";
-import type { WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
-import { persistActionIntents } from "@/lib/assistant/action-intents";
+import type { WorkspaceComposition } from "@/platform/ia/workspace/protocol";
+import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { gesteDuTour, isoJour, LIBELLE_GRAVITE } from "@/platform/in-process/intelligence";
 import { lireSignauxDeSortie } from "@/lib/assistant/intelligence-tools";
 import { sansBloquer } from "@/lib/journal";

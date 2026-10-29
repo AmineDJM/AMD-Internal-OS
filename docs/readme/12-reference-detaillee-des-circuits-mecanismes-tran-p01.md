@@ -576,7 +576,7 @@ ou l'annuaire des PERSONNES ouvert en modification depuis la console — `canEdi
 laisser une conversation changer une adresse ouvrirait un détournement de courrier trivial.
 
 Fichiers : `src/lib/directory/` (resolve, rank, normalize, access), `src/lib/actions/directory-actions.ts`,
-`src/lib/assistant/directory-tools.ts`, `src/app/(app)/mon-espace/annuaire/people-directory.tsx`.
+`src/platform/ia/lectures/directory-tools.ts`, `src/app/(app)/mon-espace/annuaire/people-directory.tsx`.
 
 ### Regulatory — l'avancement d'un dossier a UNE source
 

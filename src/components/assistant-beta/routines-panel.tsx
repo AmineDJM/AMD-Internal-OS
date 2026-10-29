@@ -7,8 +7,8 @@ import {
   basculerMaRoutine, executerMaRoutine, lireMonPassage, listerMesRoutines, supprimerMaRoutine,
 } from "@/lib/actions/assistant-ia-actions";
 import { MarkdownMessage } from "./markdown-message";
-import { WorkspaceBlocks } from "@/components/chief/workspace/blocks";
-import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
+import { WorkspaceBlocks } from "@/platform/ia/ecrans/blocks";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
 /**
  * LE PANNEAU « ROUTINES » — ce que la personne a programmé, et ce que chaque passage a rapporté.

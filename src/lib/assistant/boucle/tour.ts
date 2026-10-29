@@ -27,7 +27,7 @@ import type { ClaudeContentBlock } from "@/lib/models/compat";
  * boucle parlera la forme neutre, l'import et le pont disparaissent ensemble.
  */
 import { callClaude, assistantConfigured as aiConfigured } from "@/lib/models/compat";
-import { candidatsMontres, verdictCible, type Candidat } from "@/lib/assistant/cible-designee";
+import { candidatsMontres, verdictCible, type Candidat } from "@/platform/ia/intentions/cible-designee";
 import { recordTool, addPhase, timedPhase, type TurnContext } from "@/lib/models/telemetry";
 import {
   avertirAbsenceNonProuvable, avertirPromesseSansObjet, complementDeLimite, OUTILS_DURABLES, gardeAbsence,
@@ -55,7 +55,7 @@ import { collecterLiensInternes, reparerLiensInternes } from "@/lib/assistant/li
 import { runDiscovery, DISCOVERY_TOOL_NAME } from "@/lib/assistant/context/discovery";
 import { powerToolLabels } from "@/lib/assistant/power-tools";
 import { conversationWorkingSet, isHighStakesQuestion, queryPlan, queryPlanContext } from "@/lib/assistant/reasoning";
-import { persistActionIntents, recentActionIntentsContext, retirerCaduquesAvantLeTour } from "@/lib/assistant/action-intents";
+import { persistActionIntents, recentActionIntentsContext, retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
 import { verdictEmpreinte } from "@/lib/mutations/empreinte";
 import { sansBloquer } from "@/lib/journal";
 import type { ChatTurn, ProposedAction, AssistantResult } from "@/lib/assistant/coeur/contrat-actions";

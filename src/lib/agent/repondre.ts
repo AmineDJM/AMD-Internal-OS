@@ -1,6 +1,6 @@
 import { Agent } from "@mastra/core/agent";
 import type { AssistantRoleConfig } from "@prisma/client";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { outilsPour } from "@/lib/agent/outils";
 import { pourMastra, type ModeleConfig } from "@/lib/agent/modele";

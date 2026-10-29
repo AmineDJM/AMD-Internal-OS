@@ -539,7 +539,7 @@ file, rien n'est traité.
   colonne par empreinte) ou **masque**. Fermé : la colonne, sans journal, comme avant.
 - **Écrire sans lire** : un champ montré masqué n'est pas envoyé (ou revient masqué) et garde sa valeur
   (`champsNonSaisis`) ; une saisie la remplace.
-- **Pièces** (`controlerRibDePiece`, fabrique `platform/in-process/artifact/factory.ts`) : tout RIB imprimé est reconnu
+- **Pièces** (`controlerRibDePiece`, fabrique `platform/ia/artifact/factory.ts`) : tout RIB imprimé est reconnu
   au coffre par empreinte ; RIB d'une organisation → imprimé au nom de qui émet (journalisé) ; donnée d'une personne
   non ouverte → masque.
 - **Gardes** : Super Admin seul pour la reprise et les interrupteurs ; jamais un modèle d'IA (politique, API v1, bac à

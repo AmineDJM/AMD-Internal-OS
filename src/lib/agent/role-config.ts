@@ -1,7 +1,7 @@
 import type { AssistantRoleConfig, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { userCan } from "@/lib/rbac";
 
 /**

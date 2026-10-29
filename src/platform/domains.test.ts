@@ -69,8 +69,14 @@ import { scanDomains, formatDomains, cycleEdges, DOMAINS } from "./domains";
  * vocabulaire des circuits (`workflow-admin.ts`) par le pont `in-process/demandes/`, et le papier à en-tête
  * (`ops/catalog.ts`, `ops/impl-wave8-files.ts`) par le pont `in-process/office/`. Mesuré : 67. Plafond ramené.
  */
-const CROSSING_CEILING = 67;
-const PROVIDER_CEILING = 42;
+/*
+ * 67 → 62, fournisseurs 42 → 40 (2026-10-29, lot J0, décision 0013) : le code que partagent Adam et l'Assistant
+ * IA quitte le domaine `adam` pour le SOCLE IA (`src/platform/ia/`), rangé comme le pont : il connaît l'ERP par
+ * dessein, et sa dette se compte à part (`boundary.test.ts`, `SOCLE_IA_CEILING`). Rien n'a été découplé : les
+ * traversées partent avec le code (−4 mesurées depuis 66, −1 fournisseur depuis 41). Plafonds ramenés au mesuré.
+ */
+const CROSSING_CEILING = 62;
+const PROVIDER_CEILING = 40;
 
 const report = scanDomains(process.cwd());
 

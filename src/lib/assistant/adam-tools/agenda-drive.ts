@@ -1,9 +1,9 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   prisma, listEvents, freeBusy, findFreeSlots, ALGIERS_TZ, searchFiles, downloadFile, uploadToGoogleDrive,
   wrapUntrusted, getBlob, resolveDriveAccess, canViewDrive,
 } from "./dependances";
-import { extractAttachmentText } from "@/lib/assistant-files";
+import { extractAttachmentText } from "@/platform/ia/media/assistant-files";
 import { EXEC, str, num, fr, activeOrMessage } from "./commun";
 
 /**

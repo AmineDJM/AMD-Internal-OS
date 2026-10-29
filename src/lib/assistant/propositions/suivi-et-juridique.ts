@@ -10,7 +10,7 @@ import { toNumber, formatMontant } from "@/lib/utils";
 import { TASK_STATUS, PRIORITY, ADMIN_REQUEST_STATUS } from "@/lib/labels";
 import { direCeQuiEstArrive } from "@/lib/personnes/designation";
 import type { AssistantActionPayload, ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import { normPriority, isoDate, pastWarning, type ContexteProposition } from "@/lib/assistant/propositions/aides";
 
 /** La famille « suivi-et-juridique » de `buildProposal` : rend `undefined` quand l'outil n'est pas le sien. */

@@ -1,7 +1,7 @@
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
 import { composerDocx, MIME_DOCX, paragraphe, vide } from "@/lib/artifact/factory/word";
-import { profilDocumentaire } from "@/platform/in-process/artifact/factory";
+import { profilDocumentaire } from "@/platform/ia/artifact/factory";
 import type { CurrentUser } from "@/lib/session";
 import { champs, texte, type OperationIA, type PropositionOperation } from "./types";
 import { replier } from "./annuaire-medical";

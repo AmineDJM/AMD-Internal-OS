@@ -913,20 +913,20 @@ export async function ouvrirSession(id: string) {
 
   it("le PONT de plateforme est du code du dépôt : ses écrivains sont suivis, une bibliothèque non", () => {
     // CE QUI FERAIT TOMBER : ne retenir que `@/lib/…`. `emettrePieceCommerciale` émet une facture
-    // par `@/platform/in-process/artifact/factory` et sortait `ecrit: false` : la carte de
+    // par `@/platform/ia/artifact/factory` (le socle IA) et sortait `ecrit: false` : la carte de
     // confirmation disait « aucune écriture en base détectée » sur un geste qui inscrit une pièce
     // au registre Legal et consomme un numéro (§118.116). Mesuré : 4 actions du parc réparées,
     // 0 champ changé.
-    expect(importsProjet(`import { emettreDocumentDrive } from "@/platform/in-process/artifact/factory";
+    expect(importsProjet(`import { emettreDocumentDrive } from "@/platform/ia/artifact/factory";
 import { z } from "zod";
 import { fdStr } from "@/lib/actions/types";`))
-      .toEqual({ emettreDocumentDrive: "@/platform/in-process/artifact/factory", fdStr: "@/lib/actions/types" });
+      .toEqual({ emettreDocumentDrive: "@/platform/ia/artifact/factory", fdStr: "@/lib/actions/types" });
     const [c] = contratsDuFichier("fabrique-actions", `"use server";
-import { emettre } from "@/platform/in-process/artifact/factory";
+import { emettre } from "@/platform/ia/artifact/factory";
 export async function poser(formData: FormData): Promise<R> {
   const n = fdStr(formData, "n");
   return emettre({ n });
-}`, {}, {}, { "@/platform/in-process/artifact/factory": `export async function emettre(d) {
+}`, {}, {}, { "@/platform/ia/artifact/factory": `export async function emettre(d) {
   return prisma.$transaction(async (tx) => tx.legalDocument.create({ data: d }));
 }` });
     expect(c!.ecrit).toBe(true);

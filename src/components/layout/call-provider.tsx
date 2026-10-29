@@ -5,9 +5,9 @@ import { usePathname, useRouter } from "next/navigation";
 import {
   OpenAIGptRealtime21Provider,
   type VoiceCallState, type VoiceToolUi, type VoiceSessionGrant,
-} from "@/app/(app)/assistant/realtime-voice";
+} from "@/components/chief/realtime-voice";
 import { cooldownFor, cooldownMessage, rateLimitFrom } from "@/lib/assistant/voice-cooldown";
-import { CallScreen } from "@/app/(app)/assistant/voice-mode";
+import { CallScreen } from "@/components/chief/voice-mode";
 import { sansBloquer } from "@/lib/journal";
 
 /**

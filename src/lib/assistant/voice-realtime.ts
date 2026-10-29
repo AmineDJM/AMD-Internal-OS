@@ -5,7 +5,7 @@ import { capabilityDoctrine, voiceDirectNames } from "@/lib/assistant/capability
 import { TRIAGE_RULE } from "@/lib/assistant/triage";
 import { personalContext, getThreadMessages, ensurePrimaryThread } from "@/lib/assistant-memory";
 import { conversationWorkingSet } from "@/lib/assistant/reasoning";
-import { recentActionIntentsContext } from "@/lib/assistant/action-intents";
+import { recentActionIntentsContext } from "@/platform/ia/intentions/action-intents";
 import { screenActionsContext } from "@/lib/assistant/action-registry";
 import { buildTurnDetection } from "@/lib/assistant/voice-tuning";
 import { sansBloquer, attendu } from "@/lib/journal";

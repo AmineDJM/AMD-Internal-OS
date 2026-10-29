@@ -4,14 +4,14 @@ import {
   type WorkspaceEvent, type WorkspaceField, type WorkspaceGauge,
   type WorkspaceColumn, type WorkspaceEndpoint, type WorkspaceItem, type WorkspaceMail,
   type WorkspacePerson, type WorkspaceRow, type WorkspaceStep,
-} from "./protocol";
+} from "@/platform/ia/workspace/protocol";
 import {
   actionsOf, arr, clip, DOC_KINDS, endpointsOf, humanize, isInternalHref, isObj, num, readColumns,
   readEditable, readPerson, readRows, readSheet, s, strings, TONES, tonOf, type Json,
-} from "./read";
+} from "@/platform/ia/workspace/read";
 import { suivreChemin } from "@/lib/skills/affichage";
 import { readGodmodeBlock } from "./compose-godmode";
-import { readDashboardBlock, readVizBlock } from "./viz-block";
+import { readDashboardBlock, readVizBlock } from "@/platform/ia/workspace/viz-block";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

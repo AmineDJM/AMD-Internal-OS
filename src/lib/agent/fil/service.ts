@@ -1,8 +1,8 @@
 import type { AssistantIaTour, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
-import { proprietaire } from "@/platform/in-process/missions/proprietaire";
-import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/platform/in-process/visibilite-adam";
+import { proprietaire } from "@/platform/ia/proprietaire";
+import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { jouerTour } from "@/lib/agent/fil/tour";
 import { messagePartiel } from "@/lib/agent/fil/partiel";
 import { sansBloquer } from "@/lib/journal";

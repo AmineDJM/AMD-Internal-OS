@@ -26,7 +26,7 @@ import {
   apercuBCDuFournisseur, devisDeLaDemande, devisNatifDe, ecrireDevisNatif, fileDuDevis, genererBCDuFournisseur, nouvelIdDeLigne,
 } from "@/lib/secretariat/devis-natif-serveur";
 import { lireSaisieDuComposeur, refusDeLaSaisie } from "@/lib/bons-de-commande/saisie-composeur";
-import { apercuPourEcran, type ApercuPiece } from "@/platform/in-process/artifact/factory";
+import { apercuPourEcran, type ApercuPiece } from "@/platform/ia/artifact/factory";
 import { valeursDeLaSpec, type ValeursComposables } from "@/lib/legal/piece-emise";
 import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";

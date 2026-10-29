@@ -1,5 +1,5 @@
-import { WEB_RESEARCH_TOOLS } from "@/lib/assistant/web-research";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import { WEB_RESEARCH_TOOLS } from "@/platform/ia/web-research";
+import type { PowerTool } from "@/platform/ia/outil";
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 
 /**

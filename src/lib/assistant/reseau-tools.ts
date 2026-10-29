@@ -14,9 +14,9 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { blocTableau } from "@/lib/assistant/sandbox-tools";
-import { construireViz } from "@/lib/assistant/workspace/viz-block";
+import { construireViz } from "@/platform/ia/workspace/viz-block";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
 import {
   type Graphe, type Lieu, auMoment, autour, barycentre, centralites, cheminsMultiples, choisirSites,

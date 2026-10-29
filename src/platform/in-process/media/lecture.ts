@@ -21,8 +21,8 @@ import { callLuna, lunaConfigured, lunaModel } from "@/lib/openai-luna";
 import { askModelJsonAvecImages } from "@/lib/models/gateway";
 import { recordModelCall } from "@/lib/models/telemetry";
 import { BUDGETS, PLAFOND_SUPERIEUR_ABSOLU, confianceDe, methodeDe, planifier, rapport, type Budget, type Decision, type EtatPage, type Exigence, type Palier } from "@/lib/media/paliers";
-import { portsArtefact } from "@/platform/in-process/artifact/ports";
-import { resoudrePdf } from "@/platform/in-process/artifact/documents";
+import { portsArtefact } from "@/platform/ia/artifact/ports";
+import { resoudrePdf } from "@/platform/ia/artifact/documents";
 import { sansBloquer } from "@/lib/journal";
 
 export interface PageParPaliers {

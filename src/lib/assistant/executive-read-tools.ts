@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { faitCalcule, declarerProvenance } from "@/platform/in-process/fabric/provenance";
 import { prisma } from "@/lib/prisma";

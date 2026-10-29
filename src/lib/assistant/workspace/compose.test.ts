@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { composeWorkspace, tableFromRows, COMPOSABLE_TOOLS } from "./compose";
-import { WORKSPACE_LIMITS } from "./protocol";
+import { WORKSPACE_LIMITS } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

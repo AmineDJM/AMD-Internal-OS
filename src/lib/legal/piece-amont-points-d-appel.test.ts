@@ -69,7 +69,7 @@ describe("le compositeur envoie la pièce amont qu'il propose — et seulement c
 
 describe("la fabrique juge la pièce amont, à l'émission comme à l'aperçu", () => {
   // La fabrique est découpée (`artifact/factory/`) : l'émission puis l'aperçu, dans l'ordre d'origine.
-  const fabrique = lire("src/platform/in-process/artifact/factory/emission.ts") + "\n" + lire("src/platform/in-process/artifact/factory/apercu.ts");
+  const fabrique = lire("src/platform/ia/artifact/factory/emission.ts") + "\n" + lire("src/platform/ia/artifact/factory/apercu.ts");
 
   it("`jugerPieceAmont` est appelée par l'émission ET par l'aperçu, et lit le droit de lire la pièce", () => {
     expect(corps(fabrique, "emettreDocumentDrive")).toMatch(/jugerPieceAmont\(user, type, chainFromId, profil\.societe\.id\)/);

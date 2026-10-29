@@ -1,4 +1,4 @@
-import type { WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
+import type { WorkspaceComposition } from "@/platform/ia/workspace/protocol";
 
 /**
  * LA PLANCHE DES REPRÉSENTATIONS (§35) — les dix-sept formes et un mini-tableau de bord, avec des

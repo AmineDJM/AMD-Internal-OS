@@ -18,10 +18,10 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { blocTableau, chargerLignes } from "@/lib/assistant/sandbox-tools";
-import { VIZ_TYPES, WORKSPACE_LIMITS, type VizDonnees, type VizType } from "@/lib/assistant/workspace/protocol";
-import { ATTENDU, FAMILLE, construireViz, isVizType, readVizBlock, type DemandeViz } from "@/lib/assistant/workspace/viz-block";
+import { VIZ_TYPES, WORKSPACE_LIMITS, type VizDonnees, type VizType } from "@/platform/ia/workspace/protocol";
+import { ATTENDU, FAMILLE, construireViz, isVizType, readVizBlock, type DemandeViz } from "@/platform/ia/workspace/viz-block";
 import { recommanderGraphique, verifierGraphique, type SpecGraphique, type TypeGraphique } from "@/platform/in-process/sandbox";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
 

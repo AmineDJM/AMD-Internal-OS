@@ -10,7 +10,7 @@ import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { aiConfigured, aiModel, aiModelCheap } from "@/lib/ai";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { getUnreadDigest } from "@/lib/assistant-nudge";
-import { executeIntentGuarded, cancelActionIntent } from "@/lib/assistant/action-intents";
+import { executeIntentGuarded, cancelActionIntent } from "@/platform/ia/intentions/action-intents";
 import {
   executeBundle, referencesPrevious,
   type BundleItem, type BundleLevel, type BundleResult,
@@ -26,7 +26,7 @@ import {
 import { getDailyBrief } from "@/lib/daily-brief";
 // L'écriture d'un échange n'est PAS une action serveur : elle reçoit l'identité en argument (§118.153).
 import { rememberExchange } from "@/lib/memoire-echange";
-import { extractAttachmentText, buildAttachmentContext, type AttachmentText } from "@/lib/assistant-files";
+import { extractAttachmentText, buildAttachmentContext, type AttachmentText } from "@/platform/ia/media/assistant-files";
 import type { AssistantAttachment, AssistantFileOption } from "@/lib/assistant-attachments";
 import {
   runAssistant, performAction, payloadRequiresStrongConfirm, executeReadTool,
@@ -34,8 +34,8 @@ import {
 } from "@/lib/assistant";
 import { consignerProvenance } from "@/platform/in-process/fabric/provenance";
 import { composeWorkspace } from "@/lib/assistant/workspace/compose";
-import { directIntent, intentArgs, intentPhrase } from "@/lib/assistant/workspace/direct-intents";
-import type { WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
+import { directIntent, intentArgs, intentPhrase } from "@/platform/ia/workspace/direct-intents";
+import type { WorkspaceComposition } from "@/platform/ia/workspace/protocol";
 import { executerOperationIA } from "@/lib/agent/operations";
 import { estChargeOperationIA } from "@/lib/agent/operations/types";
 import { sansBloquer } from "@/lib/journal";

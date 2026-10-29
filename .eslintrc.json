@@ -124,6 +124,78 @@
               "@/components/shared/third-party-involve"
             ],
             "message": "Ce fichier a déménagé dans src/modules/ad-pro : importer la porte du module (/api, /partage, /actions-<cas> ; un écran depuis src/app/ : /ecrans/<écran> ; les pièces liées : @/components/pieces/*). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+          },
+          {
+            "group": [
+              "@/lib/queries/hr-pulse",
+              "@/lib/assistant/action-intents",
+              "@/lib/assistant/proposition-perimee",
+              "@/lib/assistant/cible-designee",
+              "@/lib/assistant/web-research",
+              "@/platform/in-process/missions/proprietaire",
+              "@/lib/assistant-files",
+              "@/platform/in-process/teach/store",
+              "@/platform/in-process/artifact/actions",
+              "@/platform/in-process/artifact/documents",
+              "@/platform/in-process/artifact/factory-access",
+              "@/platform/in-process/artifact/factory",
+              "@/platform/in-process/artifact/factory/apercu",
+              "@/platform/in-process/artifact/factory/demande",
+              "@/platform/in-process/artifact/factory/dossier",
+              "@/platform/in-process/artifact/factory/emission",
+              "@/platform/in-process/artifact/factory/numerotation",
+              "@/platform/in-process/artifact/factory/profil",
+              "@/platform/in-process/artifact/factory/revision",
+              "@/platform/in-process/artifact/office",
+              "@/platform/in-process/artifact/ports",
+              "@/platform/in-process/artifact/render",
+              "@/platform/in-process/artifact/sheets",
+              "@/platform/in-process/artifact/store",
+              "@/platform/in-process/artifact/view-types",
+              "@/lib/assistant/workspace/protocol",
+              "@/lib/assistant/workspace/read",
+              "@/lib/assistant/workspace/direct-intents",
+              "@/lib/assistant/workspace/viz-block",
+              "@/lib/assistant/workspace/emit",
+              "@/components/chief/workspace/blocks",
+              "@/components/chief/workspace/primitives",
+              "@/components/chief/workspace/blocks/artifact",
+              "@/components/chief/workspace/blocks/decision",
+              "@/components/chief/workspace/blocks/entity360",
+              "@/components/chief/workspace/blocks/story",
+              "@/components/chief/workspace/blocks/viz-figure",
+              "@/components/chief/workspace/blocks/viz",
+              "@/lib/assistant/directory-tools",
+              "@/lib/assistant/regulatory-read",
+              "@/lib/assistant/capability-failure",
+              "@/lib/assistant/entity-normalize",
+              "@/lib/assistant/empty-result",
+              "@/lib/assistant/workflow-admin",
+              "@/lib/assistant/outils/arguments",
+              "@/platform/in-process/telemetry/usage-sink",
+              "@/app/(app)/assistant/assistant-chat",
+              "@/app/(app)/assistant/realtime-voice",
+              "@/app/(app)/assistant/voice-mode",
+              "@/app/(app)/assistant/assistant-chat/accueil",
+              "@/app/(app)/assistant/assistant-chat/bulle",
+              "@/app/(app)/assistant/assistant-chat/carte-action",
+              "@/app/(app)/assistant/assistant-chat/conversation",
+              "@/app/(app)/assistant/assistant-chat/dictee",
+              "@/app/(app)/assistant/assistant-chat/drive-picker",
+              "@/app/(app)/assistant/assistant-chat/erp",
+              "@/app/(app)/assistant/assistant-chat/historique",
+              "@/app/(app)/assistant/assistant-chat/modele",
+              "@/app/(app)/assistant/assistant-chat/panneau-contexte",
+              "@/app/(app)/assistant/assistant-chat/pont-appel",
+              "@/app/(app)/assistant/assistant-chat/reponse-en-cours",
+              "@/app/(app)/assistant/assistant-chat/texte-lie",
+              "@/app/(app)/assistant/assistant-chat/tour-adam",
+              "@/app/(app)/assistant/realtime-voice/contrats",
+              "@/app/(app)/assistant/realtime-voice/fournisseur",
+              "@/app/(app)/assistant/realtime-voice/refus-sdp",
+              "@/app/(app)/assistant/realtime-voice/socle"
+            ],
+            "message": "Ce fichier a déménagé au socle IA (src/platform/ia/) ou, pour l'écran d'Adam, dans src/components/chief/ (lot J0, décision 0013) : importer la nouvelle adresse. L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
           }
         ]
       }
@@ -263,6 +335,78 @@
                   "@/components/shared/third-party-involve"
                 ],
                 "message": "Ce fichier a déménagé dans src/modules/ad-pro : importer la porte du module (/api, /partage, /actions-<cas> ; un écran depuis src/app/ : /ecrans/<écran> ; les pièces liées : @/components/pieces/*). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              },
+              {
+                "group": [
+                  "@/lib/queries/hr-pulse",
+                  "@/lib/assistant/action-intents",
+                  "@/lib/assistant/proposition-perimee",
+                  "@/lib/assistant/cible-designee",
+                  "@/lib/assistant/web-research",
+                  "@/platform/in-process/missions/proprietaire",
+                  "@/lib/assistant-files",
+                  "@/platform/in-process/teach/store",
+                  "@/platform/in-process/artifact/actions",
+                  "@/platform/in-process/artifact/documents",
+                  "@/platform/in-process/artifact/factory-access",
+                  "@/platform/in-process/artifact/factory",
+                  "@/platform/in-process/artifact/factory/apercu",
+                  "@/platform/in-process/artifact/factory/demande",
+                  "@/platform/in-process/artifact/factory/dossier",
+                  "@/platform/in-process/artifact/factory/emission",
+                  "@/platform/in-process/artifact/factory/numerotation",
+                  "@/platform/in-process/artifact/factory/profil",
+                  "@/platform/in-process/artifact/factory/revision",
+                  "@/platform/in-process/artifact/office",
+                  "@/platform/in-process/artifact/ports",
+                  "@/platform/in-process/artifact/render",
+                  "@/platform/in-process/artifact/sheets",
+                  "@/platform/in-process/artifact/store",
+                  "@/platform/in-process/artifact/view-types",
+                  "@/lib/assistant/workspace/protocol",
+                  "@/lib/assistant/workspace/read",
+                  "@/lib/assistant/workspace/direct-intents",
+                  "@/lib/assistant/workspace/viz-block",
+                  "@/lib/assistant/workspace/emit",
+                  "@/components/chief/workspace/blocks",
+                  "@/components/chief/workspace/primitives",
+                  "@/components/chief/workspace/blocks/artifact",
+                  "@/components/chief/workspace/blocks/decision",
+                  "@/components/chief/workspace/blocks/entity360",
+                  "@/components/chief/workspace/blocks/story",
+                  "@/components/chief/workspace/blocks/viz-figure",
+                  "@/components/chief/workspace/blocks/viz",
+                  "@/lib/assistant/directory-tools",
+                  "@/lib/assistant/regulatory-read",
+                  "@/lib/assistant/capability-failure",
+                  "@/lib/assistant/entity-normalize",
+                  "@/lib/assistant/empty-result",
+                  "@/lib/assistant/workflow-admin",
+                  "@/lib/assistant/outils/arguments",
+                  "@/platform/in-process/telemetry/usage-sink",
+                  "@/app/(app)/assistant/assistant-chat",
+                  "@/app/(app)/assistant/realtime-voice",
+                  "@/app/(app)/assistant/voice-mode",
+                  "@/app/(app)/assistant/assistant-chat/accueil",
+                  "@/app/(app)/assistant/assistant-chat/bulle",
+                  "@/app/(app)/assistant/assistant-chat/carte-action",
+                  "@/app/(app)/assistant/assistant-chat/conversation",
+                  "@/app/(app)/assistant/assistant-chat/dictee",
+                  "@/app/(app)/assistant/assistant-chat/drive-picker",
+                  "@/app/(app)/assistant/assistant-chat/erp",
+                  "@/app/(app)/assistant/assistant-chat/historique",
+                  "@/app/(app)/assistant/assistant-chat/modele",
+                  "@/app/(app)/assistant/assistant-chat/panneau-contexte",
+                  "@/app/(app)/assistant/assistant-chat/pont-appel",
+                  "@/app/(app)/assistant/assistant-chat/reponse-en-cours",
+                  "@/app/(app)/assistant/assistant-chat/texte-lie",
+                  "@/app/(app)/assistant/assistant-chat/tour-adam",
+                  "@/app/(app)/assistant/realtime-voice/contrats",
+                  "@/app/(app)/assistant/realtime-voice/fournisseur",
+                  "@/app/(app)/assistant/realtime-voice/refus-sdp",
+                  "@/app/(app)/assistant/realtime-voice/socle"
+                ],
+                "message": "Ce fichier a déménagé au socle IA (src/platform/ia/) ou, pour l'écran d'Adam, dans src/components/chief/ (lot J0, décision 0013) : importer la nouvelle adresse. L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }
             ]
           }
@@ -591,6 +735,114 @@
                   "@/components/shared/third-party-involve"
                 ],
                 "message": "Ce fichier a déménagé dans src/modules/ad-pro : importer la porte du module (/api, /partage, /actions-<cas> ; un écran depuis src/app/ : /ecrans/<écran> ; les pièces liées : @/components/pieces/*). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/lib/agent/**",
+        "src/components/assistant-beta/**",
+        "src/app/(app)/assistant/**",
+        "src/app/api/assistant-ia/**",
+        "src/lib/actions/assistant-ia-actions.ts",
+        "src/lib/actions/assistant-ia-consommation-actions.ts"
+      ],
+      "excludedFiles": [
+        "src/lib/agent/limites.test.ts"
+      ],
+      "plugins": [
+        "@typescript-eslint"
+      ],
+      "rules": {
+        "@typescript-eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/lib/assistant",
+                  "@/lib/assistant/**",
+                  "@/lib/assistant-*",
+                  "@/components/chief/**",
+                  "@/app/(app)/chief-of-staff/**",
+                  "@/app/api/assistant/**",
+                  "@/platform/in-process/**"
+                ],
+                "message": "L'Assistant IA n'importe jamais Adam (lib/assistant*, son écran, son pont in-process) : ce que les deux partagent vit au socle src/platform/ia/ — décision 0013, src/platform/ia/frontieres.test.ts."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/lib/assistant.ts",
+        "src/lib/assistant/**",
+        "src/lib/assistant-*.ts",
+        "src/components/chief/**",
+        "src/app/(app)/chief-of-staff/**",
+        "src/app/api/assistant/**",
+        "src/platform/in-process/**"
+      ],
+      "plugins": [
+        "@typescript-eslint"
+      ],
+      "rules": {
+        "@typescript-eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/lib/agent",
+                  "@/lib/agent/**",
+                  "@/components/assistant-beta/**",
+                  "@/app/(app)/assistant/**",
+                  "@/app/api/assistant-ia/**",
+                  "@/lib/actions/assistant-ia-actions",
+                  "@/lib/actions/assistant-ia-consommation-actions"
+                ],
+                "message": "Adam n'importe jamais l'Assistant IA (lib/agent, assistant-beta, /assistant) : ce que les deux partagent vit au socle src/platform/ia/ — décision 0013, src/platform/ia/frontieres.test.ts."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/platform/ia/**"
+      ],
+      "plugins": [
+        "@typescript-eslint"
+      ],
+      "rules": {
+        "@typescript-eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "@/lib/assistant",
+                  "@/lib/assistant/**",
+                  "@/lib/assistant-*",
+                  "@/components/chief/**",
+                  "@/app/(app)/chief-of-staff/**",
+                  "@/app/api/assistant/**",
+                  "@/platform/in-process/**",
+                  "@/lib/agent",
+                  "@/lib/agent/**",
+                  "@/components/assistant-beta/**",
+                  "@/app/(app)/assistant/**",
+                  "@/app/api/assistant-ia/**",
+                  "@/lib/actions/assistant-ia-actions",
+                  "@/lib/actions/assistant-ia-consommation-actions"
+                ],
+                "message": "Le socle IA (src/platform/ia/) n'importe ni Adam ni l'Assistant IA : il est sous les deux — décision 0013, src/platform/ia/frontieres.test.ts."
               }
             ]
           }

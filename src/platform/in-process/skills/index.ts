@@ -6,7 +6,7 @@ import { recordAudit } from "@/lib/audit";
 import { recordPermissionRefusal } from "@/lib/models/telemetry";
 import { MODULES, hasGlobalView, userCan, type Module } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { declarerDomaineDynamique } from "@/lib/assistant/context/tool-shortlist";
 import type { Domain } from "@/lib/assistant/context/router";
 import { EFFECT_RANK, declarerMetaDynamique } from "@/lib/missions/registry/capability-meta";
@@ -18,7 +18,7 @@ import {
 import { lireChemin, remplir, trous } from "@/lib/skills/gabarit";
 import type { Attente, SchemaSortie } from "@/lib/sandbox/porte";
 import { executerJs, executerPython, passerLaPorte, sonderPython } from "@/platform/in-process/sandbox";
-import { reglesEnVigueurPour, sujetDe, type RegleVue } from "@/platform/in-process/teach/store";
+import { reglesEnVigueurPour, sujetDe, type RegleVue } from "@/platform/ia/teach/store";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
 import { sansBloquer } from "@/lib/journal";
 

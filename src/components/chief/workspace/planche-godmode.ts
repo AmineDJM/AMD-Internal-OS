@@ -1,4 +1,4 @@
-import type { WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
+import type { WorkspaceComposition } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

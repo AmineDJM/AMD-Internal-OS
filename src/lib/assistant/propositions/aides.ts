@@ -9,6 +9,7 @@ import {
   getCommunicationPolicy, type CurrentUser,
 } from "@/lib/assistant/coeur/erp";
 import { ROLE_LABELS, doctorDisplayName } from "@/lib/labels";
+import { isoDate, normPriority } from "@/platform/ia/outils/arguments";
 import type { ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
 
 /**
@@ -67,15 +68,9 @@ export function productBulkWhere(
 
 // ───────────────────────────── Construction d'une action proposée ─────────────────────────────
 
-export function normPriority(p: string): Priority | null {
-  const up = p.toUpperCase();
-  return (["LOW", "MEDIUM", "HIGH", "CRITICAL"] as const).includes(up as Priority) ? (up as Priority) : null;
-}
-
-export function isoDate(s: string): string | null {
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10);
-}
+// Les normalisations de priorité et de date vivent au socle (`platform/ia/outils/arguments.ts`) :
+// les propositions partagées avec l'Assistant IA (`create_task`) en ont besoin.
+export { normPriority, isoDate };
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);

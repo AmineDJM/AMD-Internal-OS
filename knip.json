@@ -7,6 +7,8 @@
     "src/lib/actions/*-actions.ts!",
     "src/modules/*/actions*.ts!",
     "src/platform/in-process/**/*.ts!",
+    "src/platform/ia/{artifact,teach,telemetry}/**/*.ts!",
+    "src/platform/ia/{media/index,proprietaire}.ts!",
     "scripts/**/*.{ts,mjs,cjs,js}!",
     "prisma/*.ts!",
     "e2e/**/*.ts",

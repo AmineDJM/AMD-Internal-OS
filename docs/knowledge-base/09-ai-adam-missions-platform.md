@@ -5,6 +5,34 @@
 > Tests were NOT run (the vitest `globalSetup` touches Postgres); test outcomes below are derived
 > statically from the test source plus a read-only run of the boundary scanner (`scripts/adam-boundary.ts`).
 
+> **Update 2026-10-29 — lot J0, Adam / Assistant IA / AI socle separation** (decision record
+> `docs/assistant/decisions/0013-jarvis-architecture.md`, map `docs/architecture/MODULES.md` §7) [V]:
+> - **Three perimeters.** *Adam* = `src/lib/assistant.ts`, `src/lib/assistant/**`, `src/lib/assistant-*.ts`, the bridge
+>   `src/platform/in-process/**`, `src/lib/actions/assistant-actions.ts`, UI `src/components/chief/**` (incl. the chat
+>   `assistant-chat*` and the voice call `voice-mode.tsx` / `realtime-voice*`, **moved out of** `src/app/(app)/assistant/`),
+>   `src/app/(app)/chief-of-staff/**`, `src/app/api/assistant/**`. *Assistant IA* = `src/lib/agent/**`,
+>   `src/app/(app)/assistant/**` (now only `page.tsx` + `beta/`), `src/components/assistant-beta/**`,
+>   `src/app/api/assistant-ia/**`, `src/lib/actions/assistant-ia-*.ts`. *AI socle* = **`src/platform/ia/**`** (README there).
+> - **Socle content** (moved with `git mv` + `tsconfig.json` forwarding addresses, or extracted): `PowerTool` (`outil.ts`);
+>   the 5 tools Adam lent to the Assistant IA — `read_workflow`, `list_my_tasks`, `search_products`, `create_task`,
+>   `send_message` — defs, executors, proposal builders, person resolution (`outils/partages.ts`, `outils/arguments.ts`);
+>   directory/Regulatory reads, workflow admin (`lectures/`); `action-intents` + stale-proposal logic (`intentions/`);
+>   `resolveDriveFile`/`driveNodeToFile` (`drive.ts`); web research; ffmpeg + attachments + media door (`media/`); the
+>   document factory and Live Office artifact ports/store (`artifact/`, ex-`in-process/artifact/`); `teach/store.ts`;
+>   `proprietaire.ts`; the model-usage sink (`telemetry/usage-sink.ts`, now also installed by the socle modules that call
+>   a model); workspace protocol + block components (`workspace/`, `ecrans/`).
+> - **Guards.** `src/platform/ia/frontieres.test.ts` (in `test:architecture`): IA ↛ Adam, Adam ↛ IA, socle ↛ either (0,
+>   no exception), residuals = exact list. ESLint `@typescript-eslint/no-restricted-imports` overrides (a distinct rule so
+>   the base `no-restricted-imports` patterns are not clobbered). Before: 35 IA→Adam imports in 23 files (42 with tests).
+>   After: 1 (`assistant/beta/actions.ts → lib/actions/assistant-actions`: `confirmerIntentionAssistantIA` lives in Adam's
+>   actions file and still executes task/message cards via Adam's `performAction`; moving it changes the action contract →
+>   phase B), plus the reverse 2 imports of that file into `lib/agent/operations*`, plus test `lib/agent/limites.test.ts`.
+> - **Ratchets.** `boundary.test.ts`: Adam→ERP `DEBT_CEILING` 419 → **393**; new `SOCLE_IA_CEILING = 184` (socle ERP
+>   imports counted apart; `src/app/(app)/assistant/` left `ADAM_PATHS`). `domains.ts`: new layer "socle IA";
+>   crossings 67 → 62, providers 42 → 40. Action contract (`npm run actions:contrat`) byte-identical.
+> - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
+>   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
+
 ---
 
 ## 1. Scope
@@ -87,11 +115,12 @@ pipeline internals, Live Office (§104).
 | `src/lib/ai.ts` | Legacy facade (`askClaude`=worker, `askClaudeCheap`=bulk); reads master kill switch first; Whisper transcription |
 | `src/lib/ai-settings.ts` | `AiSetting` row (master + per-feature toggles), `aiFeatureEnabled`, `interrupteurIaCoupe`, `logAiUsage` |
 | `src/lib/openai-luna.ts` | Regulatory CTD path: Luna vision, Batch API, embeddings; own accounting (`RegulatoryAiCall`) |
-| `src/platform/in-process/telemetry/usage-sink.ts` | Buffered sink → `ModelCallLog` (installed by side-effect import) |
+| `src/platform/ia/telemetry/usage-sink.ts` | Buffered sink → `ModelCallLog` (installed by side-effect import: `assistant.ts`, mission reasoner, socle modules that call a model) |
 | `src/lib/assistant.ts` | Adam: tool lists, prompts, `executeReadTool` :2354, `buildProposal` :2805, loops :4850/:5468, `performAction` :6107 |
 | `src/lib/assistant/power-tools.ts` | RBAC-gated "power" read tools; `powerToolsFor` :461, `executePowerTool` :477 |
 | `src/lib/assistant/ops/index.ts` + `ops/impl-*.ts` | Generic `domain_op` tools (catalogue × implementations, ~40 files) |
-| `src/lib/assistant/action-intents.ts` | Intent state machine: `persistActionIntents` :63, `executeIntentGuarded` :218 |
+| `src/platform/ia/intentions/action-intents.ts` (ex-`lib/assistant/`, lot J0) | Intent state machine: `persistActionIntents`, `executeIntentGuarded` — shared by Adam and the Assistant IA |
+| `src/platform/ia/**` | The AI socle shared by Adam and the Assistant IA (lot J0, see the update note at the top) |
 | `src/lib/actions/assistant-actions.ts` | Server actions: `assistantChat` :162, `assistantNudge` :239, `executeAssistantAction` :273 |
 | `src/app/api/assistant/stream/route.ts` | SSE entry point for the Adam text loop |
 | `src/app/api/assistant/{transcribe,voice/*}` | Whisper dictation; realtime voice session / tool / turn / log routes |
@@ -257,6 +286,8 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
 - **Contract** [V] `contract.ts` (zero imports, test-enforced): `PlatformPort { contractVersion; query; command; authorize; subscribe }`
   (`:448`), `Principal` with opaque role + capability set, `CommandOutcome` distinguishing refusal vs failure (`:399-404`), `DomainEvent`.
 - **Bridge** [V]: `BRIDGE_PATHS = ["src/platform/in-process/"]` (`boundary-scan.ts:74`), the only Adam code allowed to import ERP.
+  Since lot J0 the **AI socle** `src/platform/ia/` also knows the ERP by design; its imports are counted apart
+  (`SOCLE_IA_PATHS`, `SOCLE_IA_CEILING`), and the "zero in `src/platform/`" rule excludes it.
   `adapter.ts` implements the port; `runCommand` (`:410`) re-reads the session user (never trusts `Principal`) and calls `performAction`.
   Some queries (`record.get`, `record.search`, `pending-decisions.list`) throw "not served yet" by design (`adapter.ts:224-226`).
 - **Ratchet** [V] `boundary.test.ts`: `src/platform/` (minus bridge) has zero ERP imports; total Adam→ERP crossings ≤ `DEBT_CEILING = 425`

@@ -23,7 +23,7 @@ import type { CurrentUser } from "@/lib/session";
 import { adaptateurDocx } from "@/lib/artifact/adapters/docx/adapter";
 import type { DocxModel } from "@/lib/artifact/object-model/model";
 import { formaterMontant } from "@/lib/artifact/factory/commercial";
-import { portsArtefact } from "@/platform/in-process/artifact/ports";
+import { portsArtefact } from "@/platform/ia/artifact/ports";
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 let ACTOR: CurrentUser;

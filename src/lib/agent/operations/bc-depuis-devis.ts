@@ -4,7 +4,7 @@ import { createValidationRequest } from "@/lib/actions/validation-actions";
 import { getAppSettings } from "@/lib/settings";
 import { validationRequiseBC } from "@/lib/bons-de-commande/regle";
 import { peutCreerUnBC } from "@/lib/bons-de-commande/retenue-bc";
-import { emettreDocumentDrive, profilDocumentaire } from "@/platform/in-process/artifact/factory";
+import { emettreDocumentDrive, profilDocumentaire } from "@/platform/ia/artifact/factory";
 import type { PartieCommerciale } from "@/lib/artifact/factory/commercial";
 import type { CurrentUser } from "@/lib/session";
 import { champs, dzd, nombre, texte, type OperationIA, type PropositionOperation } from "./types";

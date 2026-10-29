@@ -34,12 +34,12 @@ const lire = (rel: string): string => fs.readFileSync(path.join(process.cwd(), r
 const existe = (rel: string): boolean => fs.existsSync(path.join(process.cwd(), rel));
 
 const PAGE = "src/app/(app)/chief-of-staff/page.tsx";
-const CHAT = "src/app/(app)/assistant/assistant-chat.tsx";
+const CHAT = "src/components/chief/assistant-chat.tsx";
 /**
  * La conversation est découpée en `assistant-chat/` (la porte ne fait que réexporter) : les règles de
  * mise en page ci-dessous valent pour TOUT son rendu, donc on lit la porte et chacun de ses morceaux.
  */
-const DOSSIER_CHAT = "src/app/(app)/assistant/assistant-chat";
+const DOSSIER_CHAT = "src/components/chief/assistant-chat";
 const lireChat = (): string =>
   [CHAT, ...fs.readdirSync(path.join(process.cwd(), DOSSIER_CHAT)).sort().map((f) => `${DOSSIER_CHAT}/${f}`)].map(lire).join("\n");
 

@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/session";
 import { logAiUsage } from "@/lib/ai-settings";
 import { canUseRealtimeVoice, REALTIME_VOICE_MODEL } from "@/lib/assistant/voice-realtime";
 import { coutSessionVocale, type UsageVocal } from "@/lib/assistant/voice/cost";
-import { journaliserSessionVocale } from "@/platform/in-process/telemetry/usage-sink";
+import { journaliserSessionVocale } from "@/platform/ia/telemetry/usage-sink";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";

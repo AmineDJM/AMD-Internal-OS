@@ -8,7 +8,7 @@ import { capabilityMeta } from "@/lib/missions/registry/capability-meta";
 import { refusPourActeur } from "@/lib/missions/policy/guard";
 import { domainesDe, shortlistNames } from "@/lib/assistant/context/tool-shortlist";
 import { catalogueDe } from "@/platform/in-process/missions/catalog";
-import { enseigner } from "@/platform/in-process/teach/store";
+import { enseigner } from "@/platform/ia/teach/store";
 import {
   __configurerPourTests, connecteursMessagerie, creerMicroSkill, listerSkills, prechargerCapacitesDynamiques, preparerAppelMission, promouvoirSkill, supprimerSkill,
 } from "./index";

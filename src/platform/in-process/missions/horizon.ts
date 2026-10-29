@@ -106,7 +106,7 @@ export async function ouvrirHorizon(
 ): Promise<ResultatHorizon> {
   const cerveau = opts.reasoner ?? raisonneur;
   const situation = opts.sansEnquete ? null : await enqueter(user, objectif).catch(sansBloquer("horizon.ouvrirHorizon.enqueter", null));
-  const politiques = await import("@/platform/in-process/teach/store")
+  const politiques = await import("@/platform/ia/teach/store")
     .then((m) => m.politiquesPourMission(user.id))
     .catch(sansBloquer("horizon.ouvrirHorizon", [] as string[]));
 
@@ -430,7 +430,7 @@ async function compilerJalon(
   const acquis = await acquisDeLaMission(mission.id);
   const echecs = await echecsDuJalon(mission.id, jalon.id);
   const perimees = await entreesAVerifier(mission.id);
-  const politiques = await import("@/platform/in-process/teach/store")
+  const politiques = await import("@/platform/ia/teach/store")
     .then((m) => m.politiquesPourMission(user.id))
     .catch(sansBloquer("horizon.compilerJalon", [] as string[]));
 

@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 import { canViewDrive, resolveDriveAccess } from "@/lib/drive";
 import { lireTexteOuOcr } from "@/lib/regulatory/intelligence/extract/texte-ou-ocr";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { genererTexte } from "@/lib/agent/generer";

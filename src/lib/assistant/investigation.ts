@@ -3,8 +3,8 @@ import { userCan } from "@/lib/rbac";
 import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { ensureNodeIndexed } from "@/lib/assistant/document-discovery";
 import { DOC_KIND_LABEL, type DocKind } from "@/platform/doc-kind";
-import { orgTokens, rankOrgCandidates } from "@/lib/assistant/entity-normalize";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import { orgTokens, rankOrgCandidates } from "@/platform/ia/lectures/entity-normalize";
+import type { PowerTool } from "@/platform/ia/outil";
 import { sansBloquer } from "@/lib/journal";
 
 /**

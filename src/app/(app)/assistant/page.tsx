@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
-import { peutUtiliserAssistantIA } from "@/platform/in-process/visibilite-adam";
+import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { AssistantWorkspace } from "@/components/assistant-beta/assistant-workspace";
 
 export const metadata: Metadata = {

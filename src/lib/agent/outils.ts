@@ -1,5 +1,5 @@
 import { createTool } from "@mastra/core/tools";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { zodDepuisSchemaJson } from "@/lib/agent/schema";
 

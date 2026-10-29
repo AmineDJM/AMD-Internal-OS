@@ -1,6 +1,6 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
-import { persistActionIntents } from "@/lib/assistant/action-intents";
+import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { getAppSettings } from "@/lib/settings";
 import { auNomDe } from "@/lib/agent/consommation";
 import { SPONSORING_CREATION } from "./adpro-sponsoring";

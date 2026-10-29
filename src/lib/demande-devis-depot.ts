@@ -5,7 +5,7 @@ import { saveFile } from "@/lib/storage";
 import { callLuna, lunaModel } from "@/lib/openai-luna";
 import { docxToPdf } from "@/lib/payslip/to-pdf";
 import { composerDocx, paragraphe, MIME_DOCX } from "@/lib/artifact/factory/word";
-import { profilDocumentaire, resoudreSociete } from "@/platform/in-process/artifact/factory";
+import { profilDocumentaire, resoudreSociete } from "@/platform/ia/artifact/factory";
 import type { CurrentUser } from "@/lib/session";
 import { anneeDuRegistre, attribuerAuRegistre, registreDe, verifierReferenceLibre } from "@/lib/references/registre-serveur";
 import {

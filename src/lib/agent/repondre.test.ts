@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, it, vi } from "vitest";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { repondreAvecSecours } from "@/lib/agent/repondre";
 import { modeleFactice } from "@/lib/agent/testing/modele-factice";

@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { searchDrive } from "@/lib/queries/drive-search";
@@ -6,7 +6,7 @@ import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { inProcessPlatform, principalOf } from "@/platform/in-process/adapter";
 import type { DocumentExtract } from "@/platform/contract";
 import { getBlob } from "@/lib/drive-storage";
-import { extractAttachmentText } from "@/lib/assistant-files";
+import { extractAttachmentText } from "@/platform/ia/media/assistant-files";
 import { estMedia } from "@/lib/media/formats";
 import { foldText } from "@/lib/assistant/memory-context";
 import { driveSemanticCandidates } from "@/lib/assistant/semantic-drive";
@@ -211,7 +211,7 @@ async function texteDeMedia(nodeId: string, nom: string): Promise<{ text: string
   if (!compte) return null;
   const { getAccess } = await import("@/lib/rbac");
   const { transcrireMediaDrive } = await import("@/platform/in-process/media/transcription");
-  const { texteHorodate, formatHorodatage } = await import("@/platform/in-process/media");
+  const { texteHorodate, formatHorodatage } = await import("@/platform/ia/media");
   const u = await prisma.user.findUnique({ where: { id: compte.id } });
   if (!u) return null;
   const acteur = { ...u, access: await getAccess(u.id, u.role) } as unknown as CurrentUser;

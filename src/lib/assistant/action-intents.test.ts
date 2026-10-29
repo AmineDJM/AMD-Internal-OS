@@ -6,7 +6,7 @@ import { POWER_TOOLS } from "./power-tools";
 import {
   persistActionIntents, executeIntentGuarded, cancelActionIntent,
   recentActionIntentsContext, intentSummary,
-} from "./action-intents";
+} from "@/platform/ia/intentions/action-intents";
 
 /**
  * GOLDEN RÉGRESSION — les deux pannes réelles de l'appel de production :

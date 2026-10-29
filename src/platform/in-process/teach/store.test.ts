@@ -14,8 +14,8 @@ import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { executePowerTool } from "@/lib/assistant/power-tools";
 import { personalContext } from "@/lib/assistant-memory";
-import { politiquesPourMission, reglesEnVigueurPour } from "@/platform/in-process/teach/store";
-import { profilDocumentaire } from "@/platform/in-process/artifact/factory";
+import { politiquesPourMission, reglesEnVigueurPour } from "@/platform/ia/teach/store";
+import { profilDocumentaire } from "@/platform/ia/artifact/factory";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -247,7 +247,7 @@ suite("Teach Adam — enseigner, retrouver, départager, réviser, supprimer", (
 
 describe("normalisation — la forme plate du modèle", () => {
   it("« { validiteDevis: 45, unite: 'jours' } » devient « { cle: validiteDevis, valeur: 45, unite } »", async () => {
-    const { normaliserParams } = await import("./store");
+    const { normaliserParams } = await import("@/platform/ia/teach/store");
     expect(normaliserParams({ validiteDevis: 45, unite: "jours" }, null)).toEqual({ cle: "validiteDevis", valeur: 45, unite: "jours" });
     expect(normaliserParams({ validite_devis: "45 jours" }, null)).toEqual({ cle: "validiteDevis", valeur: 45 });
     // Deux clés connues à plat : on ne devine pas laquelle porte la règle.
@@ -260,7 +260,7 @@ describe("normalisation — la forme plate du modèle", () => {
     expect(normaliserParams({ style: "complet" }, { cle: "niveauReunion", valeur: "CHIEF_OF_STAFF" })).toEqual({ cle: "niveauReunion", valeur: "CHIEF_OF_STAFF" });
   });
   it("les canaux (§37) : « canal: Slack » devient canalPrefere slack ; une destination reste ; « 22h-7h » devient { de: 22, a: 7 }", async () => {
-    const { normaliserParams } = await import("./store");
+    const { normaliserParams } = await import("@/platform/ia/teach/store");
     expect(normaliserParams({ canal: "Slack" }, null)).toEqual({ cle: "canalPrefere", valeur: "slack" });
     expect(normaliserParams({ cle: "canal_prefere", valeur: "slack:#direction" }, null)).toEqual({ cle: "canalPrefere", valeur: "slack:#direction" });
     expect(normaliserParams({ cle: "canalPrefere", valeur: "E-mail" }, null)).toEqual({ cle: "canalPrefere", valeur: "email" });

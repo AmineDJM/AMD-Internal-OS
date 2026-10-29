@@ -1,10 +1,7 @@
-// L'ORDRE COMPTE : `lib/assistant` (le point d'entrée des ops) se charge AVANT une implémentation
-// d'op — importée seule, elle ferait vérifier un catalogue à moitié chargé, qui refuse de démarrer.
-import "@/lib/assistant";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { canViewDrive, resolveDriveAccess } from "@/lib/drive";
-import { driveNodeToFile, resolveDriveFile } from "@/lib/assistant/ops/impl-wave8-files";
+import { driveNodeToFile, resolveDriveFile } from "@/platform/ia/drive";
 
 /**
  * LES PIÈCES JOINTES D'UNE OPÉRATION — un fichier du Drive de la personne, ou un fichier glissé

@@ -1,9 +1,12 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
-import { DIRECTORY_TOOLS } from "@/lib/assistant/directory-tools";
-import { REGULATORY_READ_TOOLS } from "@/lib/assistant/regulatory-read";
-import { assistantToolsFor, buildProposal, executeReadTool } from "@/lib/assistant";
-import { persistActionIntents } from "@/lib/assistant/action-intents";
+import { DIRECTORY_TOOLS } from "@/platform/ia/lectures/directory-tools";
+import { REGULATORY_READ_TOOLS } from "@/platform/ia/lectures/regulatory-read";
+// Les cinq outils réutilisés d'Adam vivent au socle (lot J0) ; les noms locaux restent ceux du code ci-dessous.
+import {
+  outilsPartagesPour as assistantToolsFor, construirePropositionPartagee as buildProposal, executerLecturePartagee as executeReadTool,
+} from "@/platform/ia/outils/partages";
+import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { censurerObjet, censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { defaultDefinition } from "@/lib/workflow/defaults";
 import { SLUG_DG } from "@/lib/workflow/parcours";

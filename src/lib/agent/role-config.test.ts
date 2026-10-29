@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CurrentUser } from "@/lib/session";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   filtrerOutilsParRole,
   resoudreConsignesRole,

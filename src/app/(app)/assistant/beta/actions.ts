@@ -1,11 +1,11 @@
 "use server";
 
 import { requireUser, type CurrentUser } from "@/lib/session";
-import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/platform/in-process/visibilite-adam";
+import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { confirmerIntentionAssistantIA } from "@/lib/actions/assistant-actions";
 import type { MemoireProposee } from "@/lib/agent/outils-v1";
 import { jouerTour } from "@/lib/agent/fil/tour";
-import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
 export interface ReponseBetaAction {
   ok: boolean;

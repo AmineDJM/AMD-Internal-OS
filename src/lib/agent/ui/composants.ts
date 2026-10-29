@@ -1,5 +1,5 @@
-import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
-import { readVizBlock } from "@/lib/assistant/workspace/viz-block";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
+import { readVizBlock } from "@/platform/ia/workspace/viz-block";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

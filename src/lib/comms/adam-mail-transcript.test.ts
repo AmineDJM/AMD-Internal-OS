@@ -9,7 +9,7 @@ import {
   assistantIdentityContext,
 } from "@/lib/assistant";
 import { createOutboundIntent } from "./outbound";
-import { recentActionIntentsContext } from "@/lib/assistant/action-intents";
+import { recentActionIntentsContext } from "@/platform/ia/intentions/action-intents";
 import { setMailSendPolicy } from "./policy";
 
 /**

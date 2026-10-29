@@ -7,7 +7,7 @@ import { avancerMission, lancerMission } from "@/platform/in-process/missions/ru
 import { RaisonneurScripte, planScripte, pour } from "@/platform/in-process/missions/fake-reasoner";
 import { chargerEtat } from "@/lib/missions/runtime/store";
 import { PLANNER_PROMPT_VERSION } from "@/lib/missions/planner/plan";
-import { enseigner } from "@/platform/in-process/teach/store";
+import { enseigner } from "@/platform/ia/teach/store";
 import { executePowerTool } from "@/lib/assistant/power-tools";
 import { setTurnContext, summarize, withTurn } from "@/lib/models/telemetry";
 import { ADAM_PROMPT_VERSION } from "@/lib/assistant/prompt-version";

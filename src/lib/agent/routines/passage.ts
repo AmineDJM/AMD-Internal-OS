@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { compileContext } from "@/lib/agent/contexte";
 import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";

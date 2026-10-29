@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { apercuDesSources, POIDS_APERCU, SOURCES_MIN, TITRE_PAR_DEFAUT } from "./apercu";
 import { composeTurn } from "./turn";
-import type { WorkspaceBlock } from "./protocol";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 import { composeWorkspace } from "./compose";
-import { WORKSPACE_LIMITS } from "./protocol";
+import { WORKSPACE_LIMITS } from "@/platform/ia/workspace/protocol";
 import { extractSources } from "@/lib/assistant";
 import { consignerMesure } from "@/lib/evals/registre";
 

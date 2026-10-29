@@ -9,7 +9,7 @@ import type { Module } from "@/lib/assistant/coeur/erp";
 import { DOMAIN_TOOLS } from "@/lib/assistant/ops";
 import { type AssistantActionPayload, deferredStepLevel, type ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
 import { WRITE_TOOL_NAMES } from "@/lib/assistant/outils/catalogue-ecriture";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import { BULKABLE, type ContexteProposition } from "@/lib/assistant/propositions/aides";
 
 /** La famille « composees » de `buildProposal` : rend `undefined` quand l'outil n'est pas le sien. */

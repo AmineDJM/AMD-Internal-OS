@@ -22,7 +22,7 @@ import { ETIQUETTE_BROUILLON, REFUS_VALIDATION_BROUILLON, brouillonCorrige, brou
 import { refusDeLaSaisie } from "@/lib/bons-de-commande/saisie-composeur";
 import { papeterieDeLaSociete } from "@/lib/queries/letterheads";
 import { saisieEffective } from "@/lib/references/registre";
-import { apercuPourEcran, type ApercuPiece } from "@/platform/in-process/artifact/factory";
+import { apercuPourEcran, type ApercuPiece } from "@/platform/ia/artifact/factory";
 import { sansBloquer } from "@/lib/journal";
 import { PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, lireModificationsDuBc, filePoste, devisDuPoste, validerAutomatiquementLesLignesLues } from "./infra/postes/commun";
 

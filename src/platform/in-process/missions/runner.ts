@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { preparerAppelMission } from "@/platform/in-process/skills";
 import type { CurrentUser } from "@/lib/session";
 import { buildProposal, executeReadTool, performAction, RESOLVER_WRITE_NAMES } from "@/lib/assistant";
-import { executeIntentGuarded, intentSummary } from "@/lib/assistant/action-intents";
+import { executeIntentGuarded, intentSummary } from "@/platform/ia/intentions/action-intents";
 import type { CapabilityCall, CapabilityOutcome, CapabilityRunner } from "@/lib/missions/ports";
 import { estAutonome } from "@/lib/missions/registry/capability-meta";
 import { journaliser } from "@/lib/missions/runtime/store";

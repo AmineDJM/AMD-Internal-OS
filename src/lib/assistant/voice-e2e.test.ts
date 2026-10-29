@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { OpenAIGptRealtime21Provider, type VoiceToolUi } from "@/app/(app)/assistant/realtime-voice";
+import { OpenAIGptRealtime21Provider, type VoiceToolUi } from "@/components/chief/realtime-voice";
 import { STUCK_TURN_MS, STUCK_TURN_TICK_MS } from "./voice-tuning";
 
 /**

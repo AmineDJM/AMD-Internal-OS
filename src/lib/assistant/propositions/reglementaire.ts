@@ -15,7 +15,7 @@ import {
 } from "@/lib/assistant/admin-write";
 import { LIBELLES_COLONNES } from "@/lib/vues/colonnes-regulatory";
 import type { ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import { productBulkWhere, type ContexteProposition } from "@/lib/assistant/propositions/aides";
 
 /** La famille « reglementaire » de `buildProposal` : rend `undefined` quand l'outil n'est pas le sien. */

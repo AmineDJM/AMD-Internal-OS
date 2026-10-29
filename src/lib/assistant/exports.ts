@@ -4,7 +4,7 @@ import { putBlob } from "@/lib/drive-storage";
 import { userCan, isTopManagement, type SessionUser } from "@/lib/rbac";
 import { companyScopedWhere } from "@/lib/company";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
-import { dossierStageLabel } from "@/lib/assistant/regulatory-read";
+import { dossierStageLabel } from "@/platform/ia/lectures/regulatory-read";
 import { recruitmentScope } from "@/lib/recruitment/access";
 import {
   PHARMA_FORM, DOSAGE_UNIT, REGULATORY_STATUS, PRIORITY, DOCTOR_TITLE,

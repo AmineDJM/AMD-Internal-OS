@@ -35,10 +35,10 @@ import {
   type HeuresSilence, type PreferencesCanaux,
 } from "@/lib/missions/attention/policy";
 import type { NiveauSignal, PorteAttention, SignalAttention } from "@/lib/missions/ports";
-import { reglesEnVigueurPour } from "@/platform/in-process/teach/store";
+import { reglesEnVigueurPour } from "@/platform/ia/teach/store";
 import { connecteursMessagerie, executerOutilDynamique } from "@/platform/in-process/skills";
 import { outilDeCanal, type CanalMessagerie } from "@/lib/skills/plugins";
-import { proprietaire } from "@/platform/in-process/missions/proprietaire";
+import { proprietaire } from "@/platform/ia/proprietaire";
 import { sansBloquer } from "@/lib/journal";
 
 export type { IssueEnvoi };

@@ -7,7 +7,7 @@ import { pour } from "@/platform/in-process/missions/fake-reasoner";
 import { RaisonneurInstrumente } from "@/platform/in-process/missions/provider-waterfall";
 import { raisonneur } from "@/platform/in-process/missions/reasoner";
 import { lancerMission } from "@/platform/in-process/missions/runtime";
-import { WEB_RESEARCH_TOOLS } from "@/lib/assistant/web-research";
+import { WEB_RESEARCH_TOOLS } from "@/platform/ia/web-research";
 import { callModel } from "@/lib/models/gateway";
 import { etatPorte } from "@/lib/models/throttle";
 import { type ContexteAcceptance, attendre, conduire, lecture } from "./banc";

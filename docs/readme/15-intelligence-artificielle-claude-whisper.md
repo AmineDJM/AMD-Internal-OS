@@ -56,7 +56,7 @@ affiche proprement « IA non configurée » — **aucune fonctionnalité ne cass
   **aucun téléchargement + re-téléversement**). Le contenu est extrait **côté serveur** — **Excel complet** (toutes
   les feuilles), **PowerPoint** (texte des diapositives), **Word**, **PDF** (couche texte), **CSV/texte** — puis
   injecté dans le message pour que l'assistant s'appuie dessus (résumé, extraction de chiffres, comparaison). Fichiers
-  du Drive lus **après contrôle d'accès** ; formats scannés/binaires hérités signalés (`lib/assistant-files.ts`).
+  du Drive lus **après contrôle d'accès** ; formats scannés/binaires hérités signalés (`platform/ia/media/assistant-files.ts`).
   **Export Excel** — `export_excel` produit un vrai `.xlsx` (dossiers réglementaires, annuaire, courriers,
   recrutement, effectif, comptes) et le dépose dans le **Drive personnel** du demandeur, dossier « Exports IA » :
   il doit vivre là où les autorisations existent déjà, pas dans un lien qui traîne. Le contenu ne dépasse

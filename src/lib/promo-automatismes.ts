@@ -8,7 +8,7 @@ import { createWithRetry, enSerie, referenceDeSerie } from "@/lib/refs";
 import { MENU_CATALOGUE_PROMO } from "@/lib/chemins/stock-promo";
 import { CHEMIN_BONS_DE_COMMANDE } from "@/lib/chemins/bons-de-commande";
 import { etatsDesBC } from "@/lib/bons-de-commande/etat";
-import { emettreDocumentDrive, previsualiserDocument, type DemandeDocument } from "@/platform/in-process/artifact/factory";
+import { emettreDocumentDrive, previsualiserDocument, type DemandeDocument } from "@/platform/ia/artifact/factory";
 import type { PartieCommerciale } from "@/lib/artifact/factory/commercial";
 import { ETIQUETTE_BROUILLON } from "@/lib/bons-de-commande/brouillon";
 import { brouillonPromoEnJson, brouillonPromoNeuf, lireBrouillonPromo, type BrouillonBcPromo } from "@/lib/promo-material/bc-brouillon-promo";

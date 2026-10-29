@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { type CurrentUser, hasGlobalView } from "./executive-tools/dependances";
 import { EXEC } from "./executive-tools/commun";
 import { OUTILS_DRIVE } from "./executive-tools/drive";

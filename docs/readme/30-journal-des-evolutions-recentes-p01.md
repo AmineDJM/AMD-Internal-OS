@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### J0 : ADAM ET L'ASSISTANT IA SÉPARÉS — UN SOCLE COMMUN `src/platform/ia/`, ZÉRO IMPORT DU SOCLE VERS L'UN OU L'AUTRE (2026-10-29)
+
+Premier lot du plan « Jarvis » validé par la Direction le 29/10 (décision `docs/assistant/decisions/0013-jarvis-architecture.md`).
+Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
+- **Deux produits, un socle.** Adam (Super Admin, `/chief-of-staff`) et l'Assistant IA (chacun selon ses droits,
+  `/assistant`) ne s'importent plus : ce qu'ils partagent — la forme d'un outil, cinq outils (`read_workflow`,
+  `list_my_tasks`, `search_products`, `create_task`, `send_message`), les intentions, les lectures annuaire/Regulatory, la
+  résolution d'un fichier du Drive, la recherche web, les médias, la fabrique de documents, les blocs de l'espace de
+  travail — vit au **socle IA** `src/platform/ia/`, qui n'importe ni l'un ni l'autre.
+- **L'écran d'Adam** (conversation, appel vocal) quitte `src/app/(app)/assistant/` pour `src/components/chief/` : le dossier
+  `/assistant` ne porte plus que l'Assistant IA.
+- **Mesure** : 35 imports de l'Assistant IA vers Adam (23 fichiers) → 1, nommé (l'action `confirmerIntentionAssistantIA`
+  vit dans le fichier d'actions d'Adam ; la déplacer changerait le contrat des actions — phase B). Garde-fous :
+  `src/platform/ia/frontieres.test.ts` et une règle ESLint dans les trois sens.
+- **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
+  socle, plafonné à part : 184) ; traversées entre domaines 66 → 62. Aucun plafond relevé.
+
 ### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)
 
 Aucun écran ne change, aucune donnée, aucune migration : du code DÉPLACÉ, tel quel (audit 08, ARCH-04 — « hyper

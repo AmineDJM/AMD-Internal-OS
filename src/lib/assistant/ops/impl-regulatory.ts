@@ -14,6 +14,7 @@ import {
 import { addDossierStep } from "@/lib/actions/regulatory-timeline-actions";
 import type { OpImpl, OpProposalDraft } from "./types";
 import { opStr } from "./types";
+import { fold } from "@/platform/ia/outils/arguments";
 import { resolvePeopleList } from "./impl-drive";
 import { montantDzd } from "@/lib/utils";
 
@@ -49,7 +50,8 @@ export async function resolveRegProduct(user: CurrentUser, raw: string): Promise
 }
 
 /** Repli accents/casse pour matcher un LIBELLÉ humain contre un référentiel. */
-export const fold = (s: string): string => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+// `fold` vit au socle (`platform/ia/outils/arguments.ts`) : la résolution d'un fichier du Drive, partagée, en a besoin.
+export { fold };
 
 export function matchLabel<T extends string>(raw: string, entries: [T, string][]): T | { error: string } {
   const q = fold(raw);

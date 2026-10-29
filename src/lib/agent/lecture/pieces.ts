@@ -6,7 +6,7 @@ import { rasterizePdf } from "@/lib/regulatory/intelligence/ocr/ocr-engine";
 import { parsePptx, pptxToText } from "@/lib/knowledge/parsers/pptx";
 import { classerPiece, estNatureLocale } from "@/lib/enrichissement/classement";
 import { NATURES_PIECE, type NaturePiece } from "@/lib/enrichissement/types";
-import { ffmpegPresent, imageAlInstant } from "@/platform/in-process/media/transcription";
+import { ffmpegPresent, imageAlInstant } from "@/platform/ia/media/ffmpeg";
 import { CONSIGNE_CONTENU_NON_FIABLE, encadrerNonFiable } from "@/lib/agent/contenu-non-fiable";
 import { natureSensible, REFUS_IDENTITE, REFUS_PAIE } from "@/lib/agent/operations/documents-lus";
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";

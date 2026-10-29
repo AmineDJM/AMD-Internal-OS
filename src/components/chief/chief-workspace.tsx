@@ -4,7 +4,7 @@ import * as React from "react";
 import { ChiefHeader } from "./chief-header";
 import { ChiefHome } from "./chief-home";
 import type { TourRelu } from "@/lib/assistant/workspace/turn";
-import { AssistantChat } from "@/app/(app)/assistant/assistant-chat";
+import { AssistantChat } from "@/components/chief/assistant-chat";
 
 /**
  * LA COQUE CLIENTE — elle décide de ce qui occupe l'écran, et de rien d'autre.

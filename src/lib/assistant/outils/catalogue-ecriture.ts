@@ -6,6 +6,7 @@
 
 import { sitsOnPaymentCentre, type CurrentUser } from "@/lib/assistant/coeur/erp";
 import type { ClaudeToolDef } from "@/lib/models/compat";
+import { DEF_CREATE_TASK, DEF_SEND_MESSAGE } from "@/platform/ia/outils/partages";
 import { DOMAIN_TOOL_DEFS } from "@/lib/assistant/ops";
 import { powerToolsFor } from "@/lib/assistant/power-tools";
 import { HR_REQUEST_TYPES, READ_TOOLS, EXPORT_TOOL, SUPERADMIN_TOOLS } from "@/lib/assistant/outils/catalogue-lecture";
@@ -88,25 +89,7 @@ const WRITE_TOOLS: ClaudeToolDef[] = [
       required: ["companyName"],
     },
   },
-  {
-    name: "create_task",
-    description:
-      "PROPOSE la création d'une tâche — LE MÊME CIRCUIT QUE L'ÉCRAN : pour soi c'est une to-do ; "
-      + "pour un COLLÈGUE c'est une DEMANDE DE TÂCHE (il la reçoit en pop-up et l'ACCEPTE ou la REFUSE, "
-      + "avec fil d'échange et dépôt du travail). Se PLANIFIE avec dueDate (échéance AAAA-MM-JJ) et une "
-      + "priorité. N'exécute rien : confirmation requise. Résoudre d'abord le collègue avec search_people si besoin.",
-    input_schema: {
-      type: "object",
-      properties: {
-        title: { type: "string", description: "Intitulé clair de la tâche." },
-        description: { type: "string", description: "Détails utiles." },
-        assigneeName: { type: "string", description: "Nom du collègue à qui la demander (sinon soi-même)." },
-        dueDate: { type: "string", description: "Échéance au format AAAA-MM-JJ (planification)." },
-        priority: { type: "string", enum: ["LOW", "MEDIUM", "HIGH", "CRITICAL"] },
-      },
-      required: ["title"],
-    },
-  },
+  DEF_CREATE_TASK,
   {
     name: "request_treasury_update",
     description:
@@ -199,19 +182,7 @@ const WRITE_TOOLS: ClaudeToolDef[] = [
       required: ["title"],
     },
   },
-  {
-    name: "send_message",
-    description:
-      "PROPOSE l'envoi d'un message interne (messagerie) à un collègue. N'exécute rien : confirmation requise. Résoudre le destinataire avec search_people d'abord. Réservé aux utilisateurs ayant la messagerie.",
-    input_schema: {
-      type: "object",
-      properties: {
-        recipientName: { type: "string", description: "Nom d'UN collègue (une personne, jamais une équipe ni un service : pour écrire à une équipe, lister ses membres avec directory_list et écrire à chacun)." },
-        body: { type: "string", description: "Texte du message à envoyer." },
-      },
-      required: ["recipientName", "body"],
-    },
-  },
+  DEF_SEND_MESSAGE,
   {
     name: "send_email",
     description:

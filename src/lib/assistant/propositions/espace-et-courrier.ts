@@ -14,7 +14,8 @@ import { inferMailSubject, defaultMailBody, firstNameOf } from "@/lib/assistant/
 import { PRIORITY, ADMIN_REQUEST_TYPE } from "@/lib/labels";
 import { lirePersonne, direCeQuiEstArrive, collectifDesigne, CONSEIL_COLLECTIF } from "@/lib/personnes/designation";
 import type { ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
+import { proposerMessage, proposerTache } from "@/platform/ia/outils/partages";
 import {
   normPriority, isoDate, pastWarning, mailApprovalCard, type ContexteProposition,
 } from "@/lib/assistant/propositions/aides";
@@ -23,35 +24,7 @@ import {
 export async function proposerEspaceEtCourrier(c: ContexteProposition): Promise<ProposedAction | { error: string } | undefined> {
   const { toolName, input, user, warnings, resolve } = c;
 
-  if (toolName === "create_task") {
-    const title = asStr(input, "title");
-    if (!title) return { error: "Intitulé de tâche manquant." };
-    const assignee = await resolve("Destinataire", input.assigneeName);
-    const due = asStr(input, "dueDate") ? isoDate(asStr(input, "dueDate")) : null;
-    const priority = asStr(input, "priority") ? normPriority(asStr(input, "priority")) : null;
-    // LE MÊME CIRCUIT QUE L'ÉCRAN : pour un collègue, c'est une DEMANDE qui s'accepte ou se
-    // refuse — la carte le dit avant la confirmation, pas après.
-    const isRequest = Boolean(assignee.id) && assignee.id !== user.id;
-    const fields = [
-      { label: "Tâche", value: title },
-      { label: isRequest ? "Demandée à" : "Assignée à", value: assignee.name ?? `${user.name} (vous)` },
-    ];
-    if (asStr(input, "description")) fields.push({ label: "Détails", value: asStr(input, "description") });
-    if (due) fields.push({ label: "Échéance", value: due });
-    if (priority) fields.push({ label: "Priorité", value: PRIORITY[priority]?.label ?? priority });
-    if (isRequest) {
-      warnings.push(`${assignee.name} recevra la demande en POP-UP et pourra l'ACCEPTER ou la REFUSER — même circuit que l'écran.`);
-    }
-    return {
-      kind: "create_task", module: "WORKSPACE",
-      title: isRequest ? `Demander une tâche à ${assignee.name}` : "Créer une tâche",
-      fields, warnings,
-      payload: {
-        kind: "create_task", title, description: asStr(input, "description") || null,
-        assigneeId: assignee.id, assigneeName: assignee.name, dueDate: due, priority,
-      },
-    };
-  }
+  if (toolName === "create_task") return proposerTache(c);
 
   if (toolName === "create_dossier") {
     const title = asStr(input, "title");
@@ -108,35 +81,7 @@ export async function proposerEspaceEtCourrier(c: ContexteProposition): Promise<
     };
   }
 
-  if (toolName === "send_message") {
-    if (!userCan(user, "MESSAGING", "VIEW")) return { error: "Vous n'avez pas accès à la messagerie." };
-    const body = asStr(input, "body");
-    if (!body) return { error: "Le message est vide." };
-    const recipient = await resolve("Destinataire", input.recipientName);
-    if (!recipient.id) {
-      /**
-       * UN REFUS NOMME LE REMÈDE DE CELUI QUI LE LIT (§118.68).
-       *
-       * « Précisez le bon collègue » est écrit pour une personne devant un écran. Dans une
-       * MISSION, c'est le planificateur qui lit — et il l'a suivi à la lettre : le sous-plan
-       * suivant posait la question au DIRIGEANT, et la mission s'est arrêtée là. Quand la
-       * désignation est un COLLECTIF, le remède est le même pour les deux lecteurs et il est
-       * ailleurs : lister les personnes, puis déployer.
-       */
-      const collectif = collectifDesigne(input.recipientName);
-      return { error: collectif
-        ? `Destinataire « ${direCeQuiEstArrive(input.recipientName)} » : « ${collectif} » désigne un GROUPE, pas une personne. ${CONSEIL_COLLECTIF}`
-        : `Destinataire « ${direCeQuiEstArrive(input.recipientName)} » introuvable ou ambigu — précisez le bon collègue (search_people).` };
-    }
-    return {
-      kind: "send_message", module: "MESSAGING", title: "Envoyer un message", warnings,
-      fields: [
-        { label: "À", value: recipient.name ?? "" },
-        { label: "Message", value: body },
-      ],
-      payload: { kind: "send_message", recipientId: recipient.id, recipientName: recipient.name, body },
-    };
-  }
+  if (toolName === "send_message") return proposerMessage(c);
 
   if (toolName === "send_prepared_mail") {
     return mailApprovalCard(asStr(input, "intentId"), user, warnings);

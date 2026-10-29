@@ -1,5 +1,5 @@
 import { callModel } from "@/lib/models/gateway";
-import "@/platform/in-process/telemetry/usage-sink";
+import "@/platform/ia/telemetry/usage-sink";
 import { textOf, type ModelRole } from "@/lib/models/contract";
 import type { Reasoner, ReasonRequest, ReasonResult } from "@/lib/missions/ports";
 import { MISSION_MODEL_ROLES, type MissionModelRole } from "@/lib/missions/model/roles";

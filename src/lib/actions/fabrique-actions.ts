@@ -29,7 +29,7 @@ import { MODES_PAIEMENT, TYPES_DOCUMENT, type ModePaiement, type TypeDocumentCom
 import {
   apercuPourEcran, definirProfilDocumentaire, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive, verifierNumeroDeLaPiece, estRevisionDeNumeroSeul,
   type ApercuDocument, type ApercuPiece, type DemandeDocument, type EchecFabrique, type MethodePdf, type ModificationsDocument,
-} from "@/platform/in-process/artifact/factory";
+} from "@/platform/ia/artifact/factory";
 import type { CoordonneesEmetteur } from "@/lib/artifact/factory/commercial";
 import { factureACrediter } from "@/lib/legal/aval";
 import { montantsDesAvoirsActifs } from "@/lib/lecteurs/avoirs-actifs";
@@ -204,7 +204,7 @@ function lireDemande(
 }
 
 /** Ce que l'écran du composeur reçoit de l'aperçu — défini avec la fabrique (`apercuPourEcran`), une seule forme pour deux actions. */
-export type { ApercuPiece } from "@/platform/in-process/artifact/factory";
+export type { ApercuPiece } from "@/platform/ia/artifact/factory";
 
 /**
  * LA DÉLÉGATION D'UNE RÉVISION — le BC d'une demande au secrétariat se révise depuis la demande, par son demandeur ou qui la

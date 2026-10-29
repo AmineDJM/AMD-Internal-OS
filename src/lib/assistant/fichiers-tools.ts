@@ -15,7 +15,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { blocTableau } from "@/lib/assistant/sandbox-tools";
 import { declarerProvenance, faitCalcule } from "@/platform/in-process/fabric/provenance";
 import {

@@ -1,6 +1,6 @@
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { champs, texte, type OperationIA, type PropositionOperation } from "./types";

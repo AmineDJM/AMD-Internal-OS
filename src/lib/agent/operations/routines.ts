@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { champs, nombre, texte, type OperationIA, type PropositionOperation } from "./types";
 import { replier } from "./annuaire-medical";

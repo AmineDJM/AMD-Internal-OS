@@ -20,8 +20,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
-import { KINDS, SCOPES, DOMAINES_SUGGERES } from "@/platform/in-process/teach/store";
+import type { PowerTool } from "@/platform/ia/outil";
+import { KINDS, SCOPES, DOMAINES_SUGGERES } from "@/platform/ia/teach/store";
 
 const str = (input: Record<string, unknown>, k: string): string => (typeof input[k] === "string" ? (input[k] as string).trim() : "");
 const num = (input: Record<string, unknown>, k: string): number | null => (typeof input[k] === "number" && Number.isFinite(input[k] as number) ? (input[k] as number) : null);
@@ -79,7 +79,7 @@ export const TEACH_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Teach Adam — règle enseignée",
     run: async (input, user) => {
-      const { enseigner } = await import("@/platform/in-process/teach/store");
+      const { enseigner } = await import("@/platform/ia/teach/store");
       const r = await enseigner(user, {
         statement: str(input, "statement"), kind: str(input, "kind") || null, scope: str(input, "scope") || null,
         societe: str(input, "societe") || null, departement: str(input, "departement") || null, domaine: str(input, "domaine") || null,
@@ -119,7 +119,7 @@ export const TEACH_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Teach Adam — règles consultées",
     run: async (input, user) => {
-      const { listerRegles } = await import("@/platform/in-process/teach/store");
+      const { listerRegles } = await import("@/platform/ia/teach/store");
       const r = await listerRegles(user, {
         texte: str(input, "texte") || null, domaine: str(input, "domaine") || null, kind: str(input, "kind") || null, scope: str(input, "scope") || null,
         societe: str(input, "societe") || null, inclureHistorique: bool(input, "historique"), id: str(input, "id") || null,
@@ -153,7 +153,7 @@ export const TEACH_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Teach Adam — règle modifiée",
     run: async (input, user) => {
-      const { modifierRegle } = await import("@/platform/in-process/teach/store");
+      const { modifierRegle } = await import("@/platform/ia/teach/store");
       const r = await modifierRegle(user, {
         id: str(input, "id"), statement: str(input, "statement") || null, title: str(input, "title") || null, params: obj(input, "params"),
         priorite: num(input, "priorite"), domaine: str(input, "domaine") || null,
@@ -173,7 +173,7 @@ export const TEACH_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Teach Adam — règle désactivée / réactivée",
     run: async (input, user) => {
-      const { changerStatutRegle } = await import("@/platform/in-process/teach/store");
+      const { changerStatutRegle } = await import("@/platform/ia/teach/store");
       const reactiver = bool(input, "reactiver");
       const r = await changerStatutRegle(user, { id: str(input, "id"), statut: reactiver ? "ACTIVE" : "DISABLED", motif: str(input, "motif") || null });
       if (!r.ok) return JSON.stringify({ fait: false, echec: r.echec, message: r.motif });
@@ -189,7 +189,7 @@ export const TEACH_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Teach Adam — règle supprimée",
     run: async (input, user) => {
-      const { changerStatutRegle } = await import("@/platform/in-process/teach/store");
+      const { changerStatutRegle } = await import("@/platform/ia/teach/store");
       const r = await changerStatutRegle(user, { id: str(input, "id"), statut: "DELETED", motif: str(input, "motif") || null });
       if (!r.ok) return JSON.stringify({ fait: false, echec: r.echec, message: r.motif });
       return JSON.stringify({ fait: true, regle: vue(r.regle), message: `Règle ${r.regle.id} supprimée : « ${r.regle.statement} » ne s'applique plus.` });

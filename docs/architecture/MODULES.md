@@ -276,3 +276,38 @@ et `npm run graphify:refresh` en fin de lot.
 | Un découpage ajoute un spécificateur dans un fichier d'Adam (frontière à 422) | Regrouper dans un même morceau les actions qu'un fichier d'Adam importe ensemble |
 | Un test lisait le fichier découpé | `sourceDeLaCle("<clé>")` (`parc.ts`) ou `lireSources(fichier, "dossier/")` (`platform/source.ts`) |
 | Un composant du kit (`components/shared`) appelle une action du module | Le socle n'importe aucun module : le composant n'est pas du kit — il sort (les pièces liées vers `components/pieces/`) |
+
+---
+
+## 7. Adam, l'Assistant IA et leur socle — la frontière (lot J0, 29/10/2026)
+
+Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (décision
+[`docs/assistant/decisions/0013-jarvis-architecture.md`](../assistant/decisions/0013-jarvis-architecture.md)) :
+
+```
+   Adam (Super Admin, /chief-of-staff)                Assistant IA (chacun selon ses droits, /assistant)
+   lib/assistant*, components/chief/,                 lib/agent/, app/(app)/assistant/,
+   app/(app)/chief-of-staff/, app/api/assistant/,     components/assistant-beta/, app/api/assistant-ia/,
+   platform/in-process/ (son pont),                   lib/actions/assistant-ia-*.ts
+   lib/actions/assistant-actions.ts
+                    │                                              │
+                    └──────────────►  src/platform/ia/  ◄──────────┘
+                                   LE SOCLE IA : n'importe ni l'un ni l'autre
+              (forme d'un outil, 5 outils partagés, intentions, lectures, Drive, web,
+               médias, fabrique de documents, enseignements, puits d'usage, blocs d'écran)
+```
+
+| Règle | ESLint | Test |
+|---|---|---|
+| L'Assistant IA n'importe pas Adam | `@typescript-eslint/no-restricted-imports` (une règle DISTINCTE de `no-restricted-imports` : un override qui la redéclarerait écraserait ses motifs) | `src/platform/ia/frontieres.test.ts` |
+| Adam n'importe pas l'Assistant IA | idem | idem |
+| Le socle n'importe ni l'un ni l'autre — zéro, sans exception | idem | idem |
+| Ce qui reste est une liste EXACTE (`RESIDUS`), qui ne peut que rétrécir | — | idem |
+| Le socle connaît l'ERP (comme le pont) : sa dette est comptée À PART | — | `boundary.test.ts` (`SOCLE_IA_CEILING`), `domains.ts` (couche « socle IA ») |
+
+**Résidus nommés** (phase B, avec le déménagement de `lib/agent/` en module `src/modules/assistant-ia/`) : l'action
+`confirmerIntentionAssistantIA` vit dans le fichier d'actions d'Adam (la déplacer change le contrat des actions), et le test
+`lib/agent/limites.test.ts` qui vérifie ce chemin.
+
+**Un test qui exerce le socle À TRAVERS Adam** (il importe `POWER_TOOLS`, `composeWorkspace`…) reste côté Adam, à côté de
+l'ancien emplacement du code : le socle n'a pas de test qui connaisse Adam.

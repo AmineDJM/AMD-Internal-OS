@@ -2,9 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { ouvrirDocument } from "@/platform/in-process/artifact/office";
-import { ArtifactBlock } from "@/components/chief/workspace/blocks/artifact";
-import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
+import { ouvrirDocument } from "@/platform/ia/artifact/office";
+import { ArtifactBlock } from "@/platform/ia/ecrans/blocks/artifact";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

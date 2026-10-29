@@ -404,7 +404,7 @@ export async function personalContext(userId: string): Promise<string> {
   // précédence, dates d'effet) et composé sous budget par le code. Avant les souvenirs : une
   // règle en vigueur pèse plus qu'un épisode. Import différé pour les mêmes raisons que le
   // composeur de missions ci-dessous — et parce que la porte des conversations reste légère.
-  const regles = await import("@/platform/in-process/teach/store")
+  const regles = await import("@/platform/ia/teach/store")
     .then((m) => m.contexteRegles(userId))
     .catch(sansBloquer("assistant-memory.personalContext", ""));
   if (regles) lines.push(`\n${regles}`);
@@ -442,6 +442,6 @@ export async function personalContext(userId: string): Promise<string> {
  * pour ne pas dépenser un bloc vide.
  */
 export async function contexteReglesSeules(userId: string): Promise<string | null> {
-  const regles = await import("@/platform/in-process/teach/store").then((m) => m.contexteRegles(userId)).catch(sansBloquer("assistant-memory.contexteReglesSeules", ""));
+  const regles = await import("@/platform/ia/teach/store").then((m) => m.contexteRegles(userId)).catch(sansBloquer("assistant-memory.contexteReglesSeules", ""));
   return regles ? regles : null;
 }

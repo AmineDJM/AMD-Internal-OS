@@ -1,10 +1,10 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { prisma } from "./dependances";
 import {
   REMINDER_RECURRENCES, RECURRENCE_LABEL, algiersToUtc, formatAlgiersDue, type ReminderRecurrence,
 } from "@/lib/assistant/reminders";
 import { ROLE_LABELS } from "@/lib/labels";
-import { resultatListe } from "@/lib/assistant/empty-result";
+import { resultatListe } from "@/platform/ia/lectures/empty-result";
 import { EXEC, str } from "./commun";
 
 /**

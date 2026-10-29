@@ -1,6 +1,6 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
-import { assigneeRegulatoryLoad } from "@/lib/assistant/regulatory-read";
+import { assigneeRegulatoryLoad } from "@/platform/ia/lectures/regulatory-read";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
 import { prisma } from "@/lib/prisma";
 import { userCan } from "@/lib/rbac";

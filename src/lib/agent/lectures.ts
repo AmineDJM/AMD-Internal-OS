@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { derniersMessagesParConversation } from "@/lib/queries/messaging";
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
 

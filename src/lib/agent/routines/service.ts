@@ -2,7 +2,7 @@ import type { AssistantRoutine, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
-import { proprietaire } from "@/platform/in-process/missions/proprietaire";
+import { proprietaire } from "@/platform/ia/proprietaire";
 import { decrireCalendrier, prochaineExecution, type Calendrier, type Frequence } from "./calendrier";
 import { passageDeRoutine } from "./passage";
 import { sansBloquer } from "@/lib/journal";

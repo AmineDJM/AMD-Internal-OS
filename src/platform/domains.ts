@@ -389,6 +389,16 @@ const FACADES = [
 const BRIDGE = ["src/platform/in-process/"];
 
 /**
+ * LE SOCLE IA (`src/platform/ia/`, lot J0, décision 0013) — ce que partagent Adam et l'Assistant IA :
+ * la forme d'un outil, les lectures et les propositions communes, les intentions, la fabrique de
+ * documents, les médias. Comme le pont, il CONNAÎT l'ERP par dessein (il lit et prépare pour les
+ * deux assistants) ; il n'est donc ni au socle L0 ni dans un domaine. Sa dette vers l'ERP est
+ * comptée et plafonnée à part (`boundary.test.ts`, `SOCLE_IA_CEILING`) ; ce qu'il n'importe JAMAIS
+ * — Adam, l'Assistant IA — est tenu par `src/platform/ia/frontieres.test.ts`.
+ */
+const SOCLE_IA = ["src/platform/ia/"];
+
+/**
  * LES FOURNISSEURS EXTERNES, qui doivent rester ISOLÉS (§1).
  *
  * Un domaine métier qui importe directement le client OpenAI ou le SDK Google se lie à un
@@ -455,7 +465,7 @@ const isFacade = (t: string): boolean => inList(t, FACADES);
 const isProvider = (t: string): boolean => PROVIDERS.some((s) => t === s || t.startsWith(`${s}/`));
 
 /** La couche d'un fichier de `src/lib/` ou `src/platform/` — `null` s'il n'est dans AUCUNE (hors carte). */
-export type Couche = "socle" | "façade" | "pont" | "fournisseur" | `domaine:${string}`;
+export type Couche = "socle" | "façade" | "pont" | "socle IA" | "fournisseur" | `domaine:${string}`;
 
 /**
  * Où un fichier vit sur la carte. Un fichier `null` n'est mesuré par aucun cliquet : c'est ce
@@ -464,6 +474,7 @@ export type Couche = "socle" | "façade" | "pont" | "fournisseur" | `domaine:${s
  */
 export function coucheDe(file: string): Couche | null {
   if (BRIDGE.some((b) => file.startsWith(b))) return "pont";
+  if (SOCLE_IA.some((b) => file.startsWith(b))) return "socle IA";
   if (isSocle(file)) return "socle";
   if (isFacade(file)) return "façade";
   if (isProvider(file.replace(/\.tsx?$/, ""))) return "fournisseur";
@@ -497,7 +508,7 @@ export function scanDomains(root = process.cwd()): DomainReport {
 
     for (const file of files) {
       const fromDomain = domainOf(file);
-      const fromSocle = isSocle(file) && !BRIDGE.some((b) => file.startsWith(b));
+      const fromSocle = isSocle(file) && !BRIDGE.some((b) => file.startsWith(b)) && !SOCLE_IA.some((b) => file.startsWith(b));
 
       for (const spec of specificateurs(fs.readFileSync(file, "utf8"))) {
         const target = cibleInterne(spec, file);

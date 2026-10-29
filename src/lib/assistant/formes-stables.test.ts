@@ -31,7 +31,7 @@ const REPAREES: { fichier: string; capacites: string[] }[] = [
   { fichier: "src/lib/assistant/memory-tools.ts", capacites: ["recall_conversation", "list_commitments"] },
   { fichier: "src/lib/assistant/three-sixty.ts", capacites: ["person_report", "product_360", "supplier_360"] },
   { fichier: "src/lib/assistant/executive-brief-tools.ts", capacites: ["create_report"] },
-  { fichier: "src/lib/assistant/regulatory-read.ts", capacites: ["regulatory_workload"] },
+  { fichier: "src/platform/ia/lectures/regulatory-read.ts", capacites: ["regulatory_workload"] },
   { fichier: "src/lib/assistant/executive-tools/inspect-record.ts", capacites: ["inspect_record"] },
 ];
 
@@ -80,7 +80,7 @@ describe("§118.20 — la forme d'une sortie ne dépend jamais de la donnée", (
   it("le cas VIDE et le cas PLEIN d'une liste partagent la même enveloppe", () => {
     // `resultatVide` existait seul : le cas plein rendait `{produits}`, `{collegues}`, `{taches}`
     // — jamais `items`, jamais `count`. Les deux sorties n'avaient pas UNE clé en commun.
-    const src = fs.readFileSync("src/lib/assistant/empty-result.ts", "utf8");
+    const src = fs.readFileSync("src/platform/ia/lectures/empty-result.ts", "utf8");
     expect(src).toContain("export function resultatVide");
     expect(src, "le pendant du cas plein a disparu").toContain("export function resultatListe");
     for (const f of ["resultatVide", "resultatListe"]) {

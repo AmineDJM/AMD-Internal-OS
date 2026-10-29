@@ -9,8 +9,8 @@ import { PiecesDuMessage } from "./pieces-jointes";
 import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "@/lib/agent/lecture/regles";
 import type { MemoireProposee } from "@/lib/agent/memoire-ui";
-import { WorkspaceBlocks } from "@/components/chief/workspace/blocks";
-import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
+import { WorkspaceBlocks } from "@/platform/ia/ecrans/blocks";
+import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
 export interface ChatMessage {
   id: string;
