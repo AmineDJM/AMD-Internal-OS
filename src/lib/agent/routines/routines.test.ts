@@ -79,6 +79,10 @@ suite("Assistant IA — routines programmées", () => {
     const noms = (await outilsDeRoutine(assistante, [])).map((o) => o.def.name);
     for (const ecriture of ["create_task", "send_message", "proposer_memoire", "mes_brouillons", "programmer_routine", "gerer_routine"]) expect(noms).not.toContain(ecriture);
     expect(noms.some((n) => n.startsWith("preparer_"))).toBe(false);
+    // Les gestes métier du moteur ouverts à la conversation (décision 0012) ne le sont pas à une routine.
+    const { ECRITURES_DU_MOTEUR, outilsV1 } = await import("@/lib/agent/outils-v1");
+    expect(outilsV1(assistante, []).map((o) => o.def.name)).toContain("create_hr_request");
+    for (const ecriture of ECRITURES_DU_MOTEUR) expect(noms).not.toContain(ecriture);
     expect(noms).toContain("web_research");
   });
 

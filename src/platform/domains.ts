@@ -204,6 +204,8 @@ const SOCLE = [
    */
   "src/lib/agent/lecture/regles", "src/lib/agent/consommation-regles", "src/lib/agent/contenu-non-fiable",
   "src/lib/agent/memoire-ui", "src/lib/agent/fil/partiel",
+  // Les FAMILLES d'accès de l'Assistant IA (décision 0012) : le moteur les applique, la console les règle.
+  "src/lib/agent/acces-regles",
   /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions
