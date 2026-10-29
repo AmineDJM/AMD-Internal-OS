@@ -8,8 +8,7 @@ tenue par `frontieres.test.ts` et ESLint.
 | Chemin | Rôle |
 |---|---|
 | `outil.ts` | `PowerTool` — la forme d'un outil qu'un assistant appelle |
-| `outils/partages.ts` | les 5 outils qu'Adam prête à l'Assistant IA : schémas, 3 lectures, 2 propositions, résolution de personne |
-| `outils/arguments.ts` | lecture des arguments du modèle (`asStr`, `asNum`, dates, priorités), recherche et résolution de personnes |
+| `outils/arguments.ts` | lecture des arguments du modèle (`asStr`, `asNum`, `fold`), recherche et résolution de personnes |
 | `lectures/` | annuaire, Regulatory, circuits de validation, résultats vides, échecs de capacité |
 | `intentions/` | une écriture proposée devient une intention en base (`AssistantActionIntent`) ; propositions périmées |
 | `drive.ts` | un fichier du Drive désigné par son nom, relu à l'exécution (droits revérifiés) |

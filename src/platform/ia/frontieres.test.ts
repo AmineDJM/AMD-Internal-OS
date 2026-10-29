@@ -18,8 +18,8 @@ import { cibleInterne, specificateurs } from "@/platform/imports";
  *   2. Adam n'importe jamais l'Assistant IA ;
  *   3. le socle n'importe ni l'un ni l'autre.
  *
- * Le jour où la frontière a été posée, l'Assistant IA importait Adam à 35 endroits (23 fichiers,
- * hors tests ; 42 avec les tests). Ce qui reste est la liste EXACTE ci-dessous : elle ne peut que
+ * Le jour où la frontière a été posée (base b42a952c, avec les droits métier V4-G), l'Assistant IA
+ * importait Adam à 38 endroits hors tests (24 fichiers ; 45 avec les tests). Ce qui reste est la liste EXACTE ci-dessous : elle ne peut que
  * rétrécir — une entrée neuve est un couplage ajouté, une entrée disparue se RETIRE d'ici.
  * ESLint (`.eslintrc.json`, `@typescript-eslint/no-restricted-imports`) dit la même chose pendant
  * qu'on écrit ; ce test voit en plus les imports relatifs et la liste exacte.
@@ -51,6 +51,14 @@ const RESIDUS = [
   // `npm run actions:contrat` doit rendre identique au lot J0.
   "src/app/(app)/assistant/beta/actions.ts → src/lib/actions/assistant-actions",
   "src/lib/actions/assistant-actions.ts → src/lib/agent/operations",
+  // LE CATALOGUE D'ADAM, emprunté tel quel par les droits métier de l'Assistant IA (décision 0012, V4-G) :
+  // ses schémas et ses conditions d'accès (`assistantToolsFor`), ses lectures (`executeReadTool`, et
+  // `executePowerTool` pour les lectures ouvertes par droit), ses cartes d'écriture (`buildProposal`) et
+  // ses outils de domaine (`DOMAIN_TOOLS`). Les sortir veut dire sortir le catalogue d'Adam au socle —
+  // un chantier à part entière, mené en phase B avec le module `assistant-ia` (une suite de V4-G est en cours).
+  "src/lib/agent/outils-v1.ts → src/lib/assistant",
+  "src/lib/agent/outils-v1.ts → src/lib/assistant/ops",
+  "src/lib/agent/outils-v1.ts → src/lib/assistant/power-tools",
   "src/lib/actions/assistant-actions.ts → src/lib/agent/operations/types",
   // Un TEST de bout en bout : la carte `send_message` de l'Assistant IA, confirmée sans le droit,
   // est refusée par l'exécuteur — qui est `performAction` d'Adam tant que l'action ci-dessus y vit.
@@ -102,9 +110,14 @@ describe("Adam, l'Assistant IA et leur socle — la frontière (décision 0013)"
     ).toEqual([...RESIDUS].sort());
   });
 
-  it("le code de l'Assistant IA n'atteint plus Adam que par l'action qui confirme ses cartes", () => {
-    // Avant le lot J0 : 35 imports (23 fichiers) vers `lib/assistant*` et le pont. Après : celui-ci.
-    expect(iaVersAdam.filter((a) => !/\.test\.tsx? → /.test(a))).toEqual(["src/app/(app)/assistant/beta/actions.ts → src/lib/actions/assistant-actions"]);
+  it("le code de l'Assistant IA n'atteint plus Adam que par son catalogue d'outils et l'action qui confirme ses cartes", () => {
+    // Avant le lot J0 : 38 imports (24 fichiers) vers `lib/assistant*`, le pont et l'action. Après : ces quatre.
+    expect(iaVersAdam.filter((a) => !/\.test\.tsx? → /.test(a))).toEqual([
+      "src/app/(app)/assistant/beta/actions.ts → src/lib/actions/assistant-actions",
+      "src/lib/agent/outils-v1.ts → src/lib/assistant",
+      "src/lib/agent/outils-v1.ts → src/lib/assistant/ops",
+      "src/lib/agent/outils-v1.ts → src/lib/assistant/power-tools",
+    ]);
   });
 
   it("les périmètres désignent des fichiers qui existent — une frontière sur un chemin mort ne garde rien", () => {

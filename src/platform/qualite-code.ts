@@ -39,10 +39,10 @@ export const ATTEINTS_PAR_LES_TESTS_SEULS: Readonly<Record<string, string>> = {
 };
 
 export const PLAFONDS = {
-  /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. */
-  clones: 1441,
-  /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. */
-  lignesDupliquees: 12999,
+  /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. Mesuré au lot J0 (29/10) : 1 440. */
+  clones: 1440,
+  /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. Mesuré au lot J0 (29/10) : 12 991. */
+  lignesDupliquees: 12991,
 } as const;
 
 const RACINE = process.cwd();

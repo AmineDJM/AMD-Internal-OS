@@ -80,8 +80,8 @@ export const BRIDGE_PATHS = ["src/platform/in-process/"] as const;
  * LE SOCLE IA — `src/platform/ia/` (lot J0, décision 0013 de l'Assistant IA).
  *
  * Deux produits : Adam (le Chief of Staff du Super Admin) et l'Assistant IA (tout le monde, selon ses
- * droits). Le second importait le premier à 35 endroits pour réutiliser ce que les deux font : la forme
- * d'un outil, cinq outils, les intentions, la fabrique de documents, les médias. Ce code est au socle,
+ * droits). Le second importait le premier à 38 endroits pour réutiliser ce que les deux font : la forme
+ * d'un outil, des outils, les intentions, la fabrique de documents, les médias. Ce code est au socle,
  * qu'aucun des deux ne possède et qui n'importe ni l'un ni l'autre.
  *
  * Il CONNAÎT l'ERP — c'est son travail, comme celui du pont. Ses imports vers l'ERP sont donc comptés,

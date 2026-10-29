@@ -142,19 +142,19 @@ import { scanBoundary, ADAM_PATHS, BRIDGE_PATHS, NEUTRAL, estSocleIA } from "./b
  * annuaire et Regulatory en lecture, circuits, arguments, espace de travail, recherche web, pièces
  * jointes) quitte `lib/assistant/` pour le SOCLE IA (`src/platform/ia/`) et y emporte ses imports vers
  * l'ERP, comptés sous `SOCLE_IA_CEILING`. `src/app/(app)/assistant/` sort du périmètre : il ne porte plus
- * que l'Assistant IA (deux imports de la page et de ses actions). Mesuré : 393 (Adam) + 184 (socle IA).
+ * que l'Assistant IA (deux imports de la page et de ses actions). Mesuré : 393 (Adam) + 179 (socle IA, après fusion de b42a952c).
  */
 const DEBT_CEILING = 393;
 
 /**
  * LE PLAFOND DU SOCLE IA — mesuré le jour de sa création (lot J0, 2026-10-29).
  *
- * 184 imports vers l'ERP : ceux que le code venu d'Adam portait déjà (≈ 24, ils quittent la dette
- * d'Adam), et ceux du code venu du PONT (fabrique de documents, enseignements, médias, puits d'usage,
+ * 179 imports vers l'ERP (184 au premier comptage, 179 après fusion de la base b42a952c) : ceux que le
+ * code venu d'Adam portait déjà (≈ 24, ils quittent la dette d'Adam), et ceux du code venu du PONT (fabrique de documents, enseignements, médias, puits d'usage,
  * propriétaire d'un travail), qui n'étaient comptés nulle part. Même règle que la dette d'Adam : on le
  * baisse en migrant, on ne le relève jamais. Un besoin neuf de l'ERP dans le socle passe par un port.
  */
-const SOCLE_IA_CEILING = 184;
+const SOCLE_IA_CEILING = 179;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();

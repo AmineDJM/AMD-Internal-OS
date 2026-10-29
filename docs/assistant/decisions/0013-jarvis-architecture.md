@@ -52,40 +52,43 @@ J1 et J2 avancent en parallèle après J0. Chaque lot : migration additive, test
 
 ## 4. Ce que le lot J0 a livré
 
-**Mesures** (non-tests ; « tests compris » entre parenthèses) :
+**Mesures** (après fusion de la base `b42a952c`, qui apporte les droits métier V4-G — décision 0012 — et le module
+Finances ; non-tests, « tests compris » entre parenthèses) :
 
-| | Avant | Après |
+| | Base `b42a952c` | Après J0 |
 |---|---|---|
-| Imports de l'Assistant IA vers Adam | 35 dans 23 fichiers (42 / 29) | **1** : `app/(app)/assistant/beta/actions.ts → lib/actions/assistant-actions` (2 avec le test `limites.test.ts`) |
-| Imports d'Adam vers l'Assistant IA | 2 (`lib/actions/assistant-actions.ts`) | 2 — les mêmes, nommés ci-dessous |
+| Imports de l'Assistant IA vers Adam | 38 dans 24 fichiers (45) | **4**, nommés (5 avec le test `limites.test.ts`) |
+| Imports d'Adam vers l'Assistant IA | 2 (`lib/actions/assistant-actions.ts`) | 2 — les mêmes, nommés |
 | Imports du socle vers l'un ou l'autre | — | **0** |
-| Frontière Adam → ERP (`boundary.test.ts`) | 417 (plafond 419) | **393** (plafond 393) + socle IA **184** (plafond propre) |
-| Domaines (`domains.test.ts`) : traversées / fournisseurs | 66 / 41 | 62 / 40 |
-| Contrat des actions (`npm run actions:contrat`) | 1 187 actions | **identique, octet pour octet** |
+| Frontière Adam → ERP (`boundary.test.ts`) | plafond 419 | **393** + socle IA **179** (plafond propre) |
+| Domaines (`domains.test.ts`) : traversées / fournisseurs | plafonds 67 / 42 | 57 / 40 |
+| Contrat des actions (`npm run actions:contrat`) | — | **identique, octet pour octet** |
 
 **Ce qui est allé au socle** (`git mv` quand c'était un fichier entier ; extrait sinon) : la forme d'un outil (`outil.ts`,
-`PowerTool`) ; les cinq outils qu'Adam prêtait à l'Assistant IA — schémas, trois lectures (`read_workflow`, `list_my_tasks`,
-`search_products`), deux propositions (`create_task`, `send_message`) et la résolution de personne (`outils/partages.ts`,
-`outils/arguments.ts`) ; les lectures annuaire et Regulatory, les circuits (`lectures/`) ; les intentions et leur persistance
-(`intentions/`) ; la résolution d'un fichier du Drive (`drive.ts`) ; la recherche web (`web-research.ts`) ; ffmpeg et les
-pièces jointes (`media/`) ; la fabrique de documents et les artefacts (`artifact/`) ; les standards documentaires appris
+`PowerTool`) ; les lectures annuaire et Regulatory, les circuits, les résultats vides (`lectures/`) ; la lecture des
+arguments et la résolution de personne (`outils/arguments.ts`) ; les intentions et leur persistance (`intentions/`) ; la
+résolution d'un fichier du Drive (`drive.ts`) ; la recherche web (`web-research.ts`) ; ffmpeg et les pièces jointes
+(`media/`) ; la fabrique de documents et les artefacts (`artifact/`) ; les standards documentaires appris
 (`teach/store.ts`) ; le propriétaire d'un travail (`proprietaire.ts`) ; le puits d'usage des modèles (`telemetry/`) ; le
-protocole et les blocs de l'espace de travail (`workspace/`, `ecrans/`). Adam reprend chacun à son rang : il n'y a qu'une
-version de chaque chose.
+protocole et les blocs de l'espace de travail (`workspace/`, `ecrans/`). Adam les importe au socle : il n'y a qu'une
+version de chaque chose. La règle d'accès de l'Assistant IA se lit dans `@/lib/rbac` (plus par le pont d'Adam).
 
-**Ce qui n'a pas changé** : aucune URL ; aucun comportement. Deux points vérifiés à la main parce qu'ils auraient pu bouger :
-- *le puits d'usage* était branché au chargement d'`assistant.ts` ; l'Assistant IA, qui chargeait Adam, en profitait. Les
-  deux modules du socle qui appellent un modèle (`web-research.ts`, `media/assistant-files.ts`) le branchent eux-mêmes ;
-- *les lectures partagées* passaient chez Adam par `executePowerTool` (les skills dynamiques) avant leur `switch` : aucun
-  skill ne peut porter l'un de ces noms (`nomOutil` préfixe toujours), le passage rendait `null` — l'Assistant IA ne le fait plus.
+**Ce qui n'a pas changé** : aucune URL ; aucun comportement. Point vérifié à la main parce qu'il aurait pu bouger : *le
+puits d'usage* était branché au chargement d'`assistant.ts` ; l'Assistant IA, qui chargeait Adam, en profitait. Les deux
+modules du socle qui appellent un modèle (`web-research.ts`, `media/assistant-files.ts`) le branchent eux-mêmes.
 
-**Ce qui reste — la phase B** (déménagement de l'Assistant IA en module `src/modules/assistant-ia/`, après la fusion de V4-G) :
+**Ce qui reste — la phase B** (déménagement de l'Assistant IA en module `src/modules/assistant-ia/`, après la suite de V4-G) :
+- **le catalogue d'outils d'Adam**, que les droits métier de l'Assistant IA (décision 0012) empruntent tel quel dans
+  `lib/agent/outils-v1.ts` : `assistantToolsFor`, `executeReadTool`, `buildProposal` (`@/lib/assistant`),
+  `executePowerTool` (`power-tools`), `DOMAIN_TOOLS` (`ops`). Les sortir, c'est sortir au socle les schémas, l'exécution des
+  lectures, la construction des cartes et le catalogue des opérations — le gros morceau de la phase B. (Un premier essai
+  de J0 sortait les cinq outils de la V1 ; V4-G, fusionné entre-temps, en emprunte une trentaine : l'essai a été retiré
+  plutôt que de couvrir un sixième du besoin.) ;
 - `confirmerIntentionAssistantIA` — l'action qui exécute une carte de l'Assistant IA — vit dans `lib/actions/assistant-actions.ts`
-  (le fichier d'Adam) : la page `/assistant` l'importe, et elle importe le registre d'opérations de l'IA ; pour la tâche et le
-  message, elle exécute par `performAction` d'Adam. La déplacer change son identifiant dans le contrat des actions : c'est un
-  geste de la phase B (nouvelle porte `actions.ts` du module, exécuteurs partagés au socle), pas du lot J0 ;
+  (le fichier d'Adam) : la page `/assistant` l'importe, et elle importe le registre d'opérations de l'IA ; pour les écritures
+  métier, elle exécute par `performAction` d'Adam. La déplacer change son identifiant dans le contrat des actions ;
 - `lib/agent/limites.test.ts` vérifie ce chemin de bout en bout et importe donc `performAction` ;
-- `src/lib/agent/` reste où il est (une autre session y travaille) ; ses imports pointent déjà le socle.
+- `src/lib/agent/` reste où il est ; ses imports pointent déjà le socle pour tout le reste.
 
 Les adresses de réexpédition (`tsconfig.json`, une par fichier déplacé) servent aux branches ouvertes avant J0 ;
 `src/modules/frontieres.test.ts` (règle 5) et ESLint disent au code qui arrive quelle adresse écrire.

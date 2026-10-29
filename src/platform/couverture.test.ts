@@ -38,7 +38,7 @@ import { mesurerCouverture } from "./couverture";
  * dans une couche : `payslip/` → office, `carte-plateforme/` → couche `carte`, `admin-delete-registry`,
  * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle ; tests de texte mesurés 107 après fusion.
  *
- * Lot J0 (séparation Adam / Assistant IA, 29/10/2026) : hors carte −1 (`lib/assistant-files.ts` rangé au socle IA,
+ * Lot J0 (séparation Adam / Assistant IA, 29/10/2026) : hors carte −1 (706 → 705 après fusion de la base b42a952c) (`lib/assistant-files.ts` rangé au socle IA,
  * `src/platform/ia/media/`) ; composants → `src/app/` −3 : l'écran de conversation d'Adam quitte
  * `src/app/(app)/assistant/` pour `src/components/chief/`, et ceux qui l'importaient (`chief-workspace`, la
  * barre d'appel de `layout/call-provider`) n'importent plus une page.
@@ -46,7 +46,7 @@ import { mesurerCouverture } from "./couverture";
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 706,
+  horsCarte: 705,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */

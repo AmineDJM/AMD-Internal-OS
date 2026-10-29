@@ -73,9 +73,10 @@ import { scanDomains, formatDomains, cycleEdges, DOMAINS } from "./domains";
  * 67 → 62, fournisseurs 42 → 40 (2026-10-29, lot J0, décision 0013) : le code que partagent Adam et l'Assistant
  * IA quitte le domaine `adam` pour le SOCLE IA (`src/platform/ia/`), rangé comme le pont : il connaît l'ERP par
  * dessein, et sa dette se compte à part (`boundary.test.ts`, `SOCLE_IA_CEILING`). Rien n'a été découplé : les
- * traversées partent avec le code (−4 mesurées depuis 66, −1 fournisseur depuis 41). Plafonds ramenés au mesuré.
+ * traversées partent avec le code (−4 mesurées depuis 66, −1 fournisseur depuis 41). Mesuré après fusion de la base
+ * b42a952c (module Finances) : 57 / 40. Plafonds ramenés au mesuré.
  */
-const CROSSING_CEILING = 62;
+const CROSSING_CEILING = 57;
 const PROVIDER_CEILING = 40;
 
 const report = scanDomains(process.cwd());

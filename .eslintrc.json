@@ -811,7 +811,8 @@
         "src/lib/actions/assistant-ia-consommation-actions.ts"
       ],
       "excludedFiles": [
-        "src/lib/agent/limites.test.ts"
+        "src/lib/agent/limites.test.ts",
+        "src/lib/agent/outils-v1.ts"
       ],
       "plugins": [
         "@typescript-eslint"

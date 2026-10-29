@@ -5,17 +5,17 @@
 Premier lot du plan « Jarvis » validé par la Direction le 29/10 (décision `docs/assistant/decisions/0013-jarvis-architecture.md`).
 Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
 - **Deux produits, un socle.** Adam (Super Admin, `/chief-of-staff`) et l'Assistant IA (chacun selon ses droits,
-  `/assistant`) ne s'importent plus : ce qu'ils partagent — la forme d'un outil, cinq outils (`read_workflow`,
-  `list_my_tasks`, `search_products`, `create_task`, `send_message`), les intentions, les lectures annuaire/Regulatory, la
+  `/assistant`) ne s'importent plus : ce qu'ils partagent — la forme d'un outil, les intentions, les lectures annuaire/Regulatory, la
   résolution d'un fichier du Drive, la recherche web, les médias, la fabrique de documents, les blocs de l'espace de
   travail — vit au **socle IA** `src/platform/ia/`, qui n'importe ni l'un ni l'autre.
 - **L'écran d'Adam** (conversation, appel vocal) quitte `src/app/(app)/assistant/` pour `src/components/chief/` : le dossier
   `/assistant` ne porte plus que l'Assistant IA.
-- **Mesure** : 35 imports de l'Assistant IA vers Adam (23 fichiers) → 1, nommé (l'action `confirmerIntentionAssistantIA`
-  vit dans le fichier d'actions d'Adam ; la déplacer changerait le contrat des actions — phase B). Garde-fous :
+- **Mesure** : 38 imports de l'Assistant IA vers Adam (24 fichiers) → 4, nommés pour la phase B : le catalogue d'outils
+  d'Adam qu'empruntent les droits métier (`outils-v1.ts`, décision 0012) et l'action `confirmerIntentionAssistantIA`, qui
+  vit dans le fichier d'actions d'Adam (la déplacer changerait le contrat des actions). Garde-fous :
   `src/platform/ia/frontieres.test.ts` et une règle ESLint dans les trois sens.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
-  socle, plafonné à part : 184) ; traversées entre domaines 66 → 62. Aucun plafond relevé.
+  socle, plafonné à part : 179) ; traversées entre domaines 67 → 57 (plafonds). Aucun plafond relevé.
 
 ### ASSISTANT IA : LES DROITS DE LA PERSONNE, ET LES DONNÉES SENSIBLES EN REPÈRES (2026-10-28)
 

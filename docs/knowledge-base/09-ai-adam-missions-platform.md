@@ -14,22 +14,22 @@
 >   `src/app/(app)/assistant/**` (now only `page.tsx` + `beta/`), `src/components/assistant-beta/**`,
 >   `src/app/api/assistant-ia/**`, `src/lib/actions/assistant-ia-*.ts`. *AI socle* = **`src/platform/ia/**`** (README there).
 > - **Socle content** (moved with `git mv` + `tsconfig.json` forwarding addresses, or extracted): `PowerTool` (`outil.ts`);
->   the 5 tools Adam lent to the Assistant IA — `read_workflow`, `list_my_tasks`, `search_products`, `create_task`,
->   `send_message` — defs, executors, proposal builders, person resolution (`outils/partages.ts`, `outils/arguments.ts`);
->   directory/Regulatory reads, workflow admin (`lectures/`); `action-intents` + stale-proposal logic (`intentions/`);
+>   model-argument reading and person resolution (`outils/arguments.ts`); directory/Regulatory reads, workflow admin (`lectures/`); `action-intents` + stale-proposal logic (`intentions/`);
 >   `resolveDriveFile`/`driveNodeToFile` (`drive.ts`); web research; ffmpeg + attachments + media door (`media/`); the
 >   document factory and Live Office artifact ports/store (`artifact/`, ex-`in-process/artifact/`); `teach/store.ts`;
 >   `proprietaire.ts`; the model-usage sink (`telemetry/usage-sink.ts`, now also installed by the socle modules that call
 >   a model); workspace protocol + block components (`workspace/`, `ecrans/`).
 > - **Guards.** `src/platform/ia/frontieres.test.ts` (in `test:architecture`): IA ↛ Adam, Adam ↛ IA, socle ↛ either (0,
 >   no exception), residuals = exact list. ESLint `@typescript-eslint/no-restricted-imports` overrides (a distinct rule so
->   the base `no-restricted-imports` patterns are not clobbered). Before: 35 IA→Adam imports in 23 files (42 with tests).
->   After: 1 (`assistant/beta/actions.ts → lib/actions/assistant-actions`: `confirmerIntentionAssistantIA` lives in Adam's
->   actions file and still executes task/message cards via Adam's `performAction`; moving it changes the action contract →
->   phase B), plus the reverse 2 imports of that file into `lib/agent/operations*`, plus test `lib/agent/limites.test.ts`.
-> - **Ratchets.** `boundary.test.ts`: Adam→ERP `DEBT_CEILING` 419 → **393**; new `SOCLE_IA_CEILING = 184` (socle ERP
+>   the base `no-restricted-imports` patterns are not clobbered). Before (base b42a952c, with V4-G
+>   business rights): 38 IA→Adam imports in 24 files. After: 4, named — `lib/agent/outils-v1.ts` borrows Adam's tool
+>   catalogue (`assistantToolsFor`, `executeReadTool`, `buildProposal`, `executePowerTool`, `DOMAIN_TOOLS`; decision 0012),
+>   and `assistant/beta/actions.ts → lib/actions/assistant-actions` (`confirmerIntentionAssistantIA` lives in Adam's actions
+>   file and executes business cards via Adam's `performAction`; moving it changes the action contract). Plus the reverse 2
+>   imports of that file into `lib/agent/operations*`, plus test `lib/agent/limites.test.ts`. All → phase B.
+> - **Ratchets.** `boundary.test.ts`: Adam→ERP `DEBT_CEILING` 419 → **393**; new `SOCLE_IA_CEILING = 179` (socle ERP
 >   imports counted apart; `src/app/(app)/assistant/` left `ADAM_PATHS`). `domains.ts`: new layer "socle IA";
->   crossings 67 → 62, providers 42 → 40. Action contract (`npm run actions:contrat`) byte-identical.
+>   crossings 67 → 57, providers 42 → 40 (measured after merging b42a952c). Action contract (`npm run actions:contrat`) byte-identical.
 > - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
 >   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
 

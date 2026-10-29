@@ -301,7 +301,7 @@ Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (déci
                     │                                              │
                     └──────────────►  src/platform/ia/  ◄──────────┘
                                    LE SOCLE IA : n'importe ni l'un ni l'autre
-              (forme d'un outil, 5 outils partagés, intentions, lectures, Drive, web,
+              (forme d'un outil, intentions, lectures, arguments, Drive, web,
                médias, fabrique de documents, enseignements, puits d'usage, blocs d'écran)
 ```
 
@@ -313,9 +313,11 @@ Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (déci
 | Ce qui reste est une liste EXACTE (`RESIDUS`), qui ne peut que rétrécir | — | idem |
 | Le socle connaît l'ERP (comme le pont) : sa dette est comptée À PART | — | `boundary.test.ts` (`SOCLE_IA_CEILING`), `domains.ts` (couche « socle IA ») |
 
-**Résidus nommés** (phase B, avec le déménagement de `lib/agent/` en module `src/modules/assistant-ia/`) : l'action
-`confirmerIntentionAssistantIA` vit dans le fichier d'actions d'Adam (la déplacer change le contrat des actions), et le test
-`lib/agent/limites.test.ts` qui vérifie ce chemin.
+**Résidus nommés** (phase B, avec le déménagement de `lib/agent/` en module `src/modules/assistant-ia/`) : le catalogue
+d'outils d'Adam emprunté par les droits métier de l'Assistant IA (`lib/agent/outils-v1.ts` → `@/lib/assistant`, `power-tools`,
+`ops` — décision 0012) ; l'action `confirmerIntentionAssistantIA`, qui vit dans le fichier d'actions d'Adam (la déplacer
+change le contrat des actions) ; le test `lib/agent/limites.test.ts` qui vérifie ce chemin. ESLint exclut nommément
+`outils-v1.ts` et ce test ; le test tient la liste exacte.
 
 **Un test qui exerce le socle À TRAVERS Adam** (il importe `POWER_TOOLS`, `composeWorkspace`…) reste côté Adam, à côté de
 l'ancien emplacement du code : le socle n'a pas de test qui connaisse Adam.
