@@ -20,13 +20,13 @@ const ecrire = (f: string, s: string) => {
   fs.writeFileSync(path.join(racine, f), s);
 };
 ecrire("src/lib/hr/conges.ts", "export const x = 1;\n");
-ecrire("src/lib/finance/budget.ts", "export const y = 2;\n");
+ecrire("src/lib/budget/enveloppe.ts", "export const y = 2;\n");
 // Le socle qui importe un domaine en relatif.
 ecrire("src/lib/rbac.ts", 'import { x } from "./hr/conges";\nexport const z = x;\n');
 // Un domaine qui en fouille un autre en relatif.
-ecrire("src/lib/finance/paie.ts", 'import { x } from "../hr/conges";\nexport const w = x;\n');
+ecrire("src/lib/budget/paie.ts", 'import { x } from "../hr/conges";\nexport const w = x;\n');
 // Adam qui traverse vers l'ERP en relatif.
-ecrire("src/lib/assistant/outil.ts", 'import { y } from "../finance/budget";\nexport const v = y;\n');
+ecrire("src/lib/assistant/outil.ts", 'import { y } from "../budget/enveloppe";\nexport const v = y;\n');
 
 afterAll(() => fs.rmSync(racine, { recursive: true, force: true }));
 
@@ -44,11 +44,11 @@ describe("les cliquets lisent aussi les imports relatifs", () => {
 
   it("un domaine qui en importe un autre en relatif est une traversée", () => {
     const r = scanDomains(racine);
-    expect(r.crossings.map((v) => `${v.from} → ${v.to}`)).toContain("src/lib/finance/paie.ts → src/lib/hr/conges");
+    expect(r.crossings.map((v) => `${v.from} → ${v.to}`)).toContain("src/lib/budget/paie.ts → src/lib/hr/conges");
   });
 
   it("Adam qui importe l'ERP en relatif franchit la frontière", () => {
     const r = scanBoundary(racine);
-    expect(r.violations.map((v) => `${v.from} → ${v.to}`)).toEqual(["src/lib/assistant/outil.ts → src/lib/finance/budget"]);
+    expect(r.violations.map((v) => `${v.from} → ${v.to}`)).toEqual(["src/lib/assistant/outil.ts → src/lib/budget/enveloppe"]);
   });
 });

@@ -9,7 +9,7 @@ import { InfoBulle } from "@/components/ui/info-bulle";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { envoyerPaieAuCentre } from "@/modules/rh/actions-paie";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
-import { ETAT_VIREMENT_LABEL, moisDeLaPaie, type MoisDeLEntite, type VirementDuMois } from "@/modules/rh/partage";
+import { ETAT_VIREMENT_LABEL, moisDeLaPaie, type MoisDeLEntite, type VirementDuMois } from "@/modules/finances/partage";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { sansBloquer } from "@/lib/journal";
 

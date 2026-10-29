@@ -20,7 +20,7 @@ import { notifyUser } from "@/lib/notify";
 import { recordAudit } from "@/lib/audit";
 import { hasGlobalView, hasRole } from "@/lib/rbac";
 import { createMedicalInfoDeclaration, pharmacienAssigne } from "@/lib/medical-info";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { toNumber } from "@/lib/utils";
 import { parcoursEffectif, seuilFranchissement, SLUG_MARKETING } from "./parcours";
 import { adProOriginRank } from "./origin";

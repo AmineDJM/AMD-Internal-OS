@@ -67,9 +67,9 @@ const PLAFOND_ECRITURES_SANS_PORTE = 562;
 
 /** Les domaines migrés : aucune écriture par identifiant sans porte, jamais. */
 const FICHIERS_A_ZERO = [
-  "src/lib/actions/expense-actions.ts",
-  "src/lib/actions/payment-centre-actions.ts",
-  "src/lib/actions/finance-actions.ts",
+  "src/modules/finances/actions-depenses.ts",
+  "src/modules/finances/actions-centre.ts",
+  "src/modules/finances/actions-tresorerie.ts",
   "src/modules/ad-pro/actions-evenements.ts",
   "src/lib/actions/field-report-actions.ts",
   "src/lib/actions/legal-folder-actions.ts",

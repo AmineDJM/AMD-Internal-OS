@@ -390,7 +390,7 @@ Graphify god nodes (graph at `c78d1eb4`) [V, graph]:
 
 The modular monolith is enforced, not only proposed: `lieux`, `coffre`, `referentiels` (business foundation) and
 `consommation` (pilot) live under `src/modules/<m>/` and are imported only through their doors. Edges are declared in
-`src/modules/carte.ts` (`referentiels → lieux, coffre`; nothing else). Blast radius of a change inside a module = its
+`src/modules/carte.ts` (`referentiels → lieux, coffre`; `finances → referentiels, coffre` and `rh → coffre, referentiels, finances` since lot V4 — Finances pays salaries that RH decides, never the reverse). Blast radius of a change inside a module = its
 door's importers (listed in each module `README.md`). The vault has two server doors so that the assistant, which
 reaches server actions, can never reach decryption (`src/modules/coffre/frontiere.test.ts`). Map, rules and migration
 guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).

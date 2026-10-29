@@ -32,7 +32,7 @@ import {
   userCan, hasGlobalView, isTopManagement, scopeMedicalDoctors, scopeMedicalVisits, scopeSales, scopeBusinessDevelopment, scopeSupport, scopeDossiers, type Action, type SessionUser,
   annuaireOuvertParConsole, moduleDuDossierRegulatory, hasRole,
 } from "@/lib/rbac";
-import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
+import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { moduleDeLEntite } from "./modules";
 import { AD_PRO_TYPES, adProStakeholders, dansLaPorteeAdPro, isRequestOwner, societeOuverteAdPro, trancheAdPro } from "./ad-pro";
 import { GESTES_D_ECRITURE_DE_PIECE, lecteurDeLaDemandeDeValidation } from "./demande-validation";

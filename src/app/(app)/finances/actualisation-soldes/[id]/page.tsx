@@ -6,11 +6,10 @@ import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { companyScopedWhere } from "@/lib/company";
 import { toNumber } from "@/lib/utils";
-import { jourAlger } from "@/lib/finance/tresorerie";
-import { chargerTresorerie } from "@/lib/queries/finance";
+import { jourAlger, estEtatLigne, etatDemande, LIBELLE_ETAT_DEMANDE, type EtatLigne } from "@/modules/finances/partage";
+import { chargerTresorerie } from "@/modules/finances/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
-import { estEtatLigne, etatDemande, LIBELLE_ETAT_DEMANDE, type EtatLigne } from "@/lib/finance/actualisation-soldes";
 import { FormulaireActualisation, type LigneEcran } from "./formulaire";
 
 export const dynamic = "force-dynamic";

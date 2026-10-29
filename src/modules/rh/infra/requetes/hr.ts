@@ -8,7 +8,7 @@ import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { clauseFileConges, fichesDesSignataires, salariesDontJeSuisLeN1 } from "../../domaine/file-conges";
 import { loadReportingLine } from "@/lib/departments";
 import { toNumber } from "@/lib/utils";
-import { basisLabel } from "../../domaine/payroll-cost";
+import { basisLabel } from "@/modules/finances/partage";
 import { employeeCosts, workforceMass, massByCompany, massProvenance, massIsIncomplete } from "../../domaine/workforce-mass";
 import { sansBloquer } from "@/lib/journal";
 

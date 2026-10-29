@@ -14,7 +14,7 @@ import { porteAttentionPour } from "@/platform/in-process/missions/attention";
 import { companyScopedWhere } from "@/lib/company";
 import { legalReaderWhere } from "@/lib/lecteurs/legal";
 import { getBudgetOverview, getEnvelopes } from "@/lib/queries/budget";
-import { santeBudget } from "@/lib/finance/intelligence";
+import { santeBudget } from "@/modules/finances/partage";
 import { canViewDrive, resolveDriveAccess } from "@/lib/drive";
 import { toNumber } from "@/lib/utils";
 import { proprietaire } from "@/platform/in-process/missions/sweep";

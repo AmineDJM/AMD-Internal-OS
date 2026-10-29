@@ -66,7 +66,7 @@
   envoi refusé libère ses salaires.
 - **Au règlement** de l'ordre (`settleExpenseOrder`) : **une seule écriture** SALAIRE, de la somme déclarée, et le FAIT
   du virement posé sur lui (`paidAt`, qui survit à la purge des règlements) ; la masse salariale est actualisée
-  (`modules/rh/infra/paie-centre.ts`).
+  (`modules/finances/infra/paie-centre.ts`).
 - **Notification différée** : `sendDuePayrollNotifications()` (`scheduled.ts`) annonce « Votre salaire a été versé »
   24 h au plus tôt après la saisie **et une fois le virement réglé** (`clauseSalairesVersesANotifier`).
 - **La paie d'AVANT le centre** : avant le 01/10, « marquer payé » voulait dire **versé**. Un salaire marqué payé avant
@@ -75,8 +75,8 @@
 - **Éléments de salaire** sur `Employee` : `baseSalary`, `retSS9`, `retSS35`, `tfp`, `retIrg`, `expenseRefund`,
   `netToPay`, `grossSalary`. **Confidentialité** : le salarié ne voit JAMAIS `grossSalary`, `retSS35`, `tfp`
   (exclus de la requête `getMyHrDossier`, pas seulement masqués).
-- **Fichiers** : `src/modules/rh/actions-paie.ts`, `src/modules/rh/domaine/virement-paie.ts` (règles PURES),
-  `src/modules/rh/infra/paie-centre.ts`, `src/app/(app)/rh/paie/{page,payroll-matrix,virements-paie}.tsx`. Le « transfert au
+- **Fichiers** : `src/modules/rh/actions-paie.ts`, `src/modules/finances/domaine/virement-paie.ts` (règles PURES),
+  `src/modules/finances/infra/paie-centre.ts`, `src/app/(app)/rh/paie/{page,payroll-matrix,virements-paie}.tsx`. Le « transfert au
   budget » (une écriture par salarié, hors du centre) et le « régler la paie » d'un bulletin côté Finances
   (`payPayroll`) **n'existent plus** : ils sortaient l'argent du livre sans le centre.
 

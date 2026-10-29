@@ -14,7 +14,7 @@ import { journaliserDemandeAchat } from "@/lib/general-means/purchase-journal";
 import { companyIdForNew } from "@/lib/company";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder, ficheAFacture, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
 import { createWithRetry } from "@/lib/refs";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
@@ -31,7 +31,6 @@ import {
   refusValidateursPieceChiffree,
 } from "@/lib/secretariat/decision-approbation";
 import { attachFiles, validateAttachments } from "@/lib/attach-files";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
 import { sansBloquer } from "@/lib/journal";
 import {
   DEMANDE_CHANGEE, DENIED, OUVERTE, VALIDATION_SANS_OBJET, apresRetraitDevisPromo, archiveAdminRequestIfDone,
@@ -48,7 +47,6 @@ import {
   tracerLImputation, validationDeLaPiece, validationDePiece, validationFinances, validationInterne,
 } from "@/lib/actions/internes/admin-request/traitement";
 import { lireLImputation } from "@/lib/actions/internes/admin-request/fin";
-import { ficheAFacture } from "@/lib/finance/facture-ordre";
 import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
 import { dejaPorteParSaFiche } from "@/modules/ad-pro/partage";
 // Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/admin-request/{demande,decisions,traitement,fin}` — les actions restent ici (leur clé de contrat).

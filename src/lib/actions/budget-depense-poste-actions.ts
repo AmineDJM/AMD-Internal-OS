@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/session";
 import { canManageEnvelope, type SessionUser } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { persistUploadedDocument } from "@/lib/documents";
 import { validateAttachments } from "@/lib/attach-files";
 import { ITEM_KIND_LABELS, PARENT_ENTITE, type AdProParent, facturePourPayer } from "@/modules/ad-pro/partage";

@@ -13,7 +13,7 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { LEGAL_DOC_KIND, LEGAL_DOC_STATUS, LEGAL_EXPIRY_LEVEL, natureLegale } from "@/lib/labels";
 import { renewLegalDocument, cancelLegalDocument, restoreLegalDocument } from "@/lib/actions/legal-actions";
 import { setInvoicePaid } from "@/lib/actions/invoice-actions";
-import { peutDaterLeReglement } from "@/lib/finances/settlement";
+import { peutDaterLeReglement } from "@/modules/finances/partage";
 import { moveLegalDocuments } from "@/lib/actions/legal-folder-actions";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { invoiceSettlementState, INVOICE_SETTLEMENT, isInvoice } from "@/lib/labels";

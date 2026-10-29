@@ -10,9 +10,8 @@ import { getAccess, hasGlobalView, userCan, type SessionUser } from "@/lib/rbac"
 import { createRequest, requestApproval, decideApproval, finishRequest } from "@/lib/actions/admin-request-actions";
 import { createPurchaseRequest } from "@/lib/actions/purchase-request-actions";
 import { createInvoice } from "@/lib/actions/invoice-actions";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
-import { createExpenseOrder } from "@/lib/expense-orders";
-import { ordresAvecFacture } from "@/lib/finance/facture-ordre";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
+import { createExpenseOrder, ordresAvecFacture } from "@/modules/finances/api";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

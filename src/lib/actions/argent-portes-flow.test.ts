@@ -36,9 +36,9 @@ vi.mock("@/lib/queries/porte-ecriture", async (importOriginal) => {
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
-import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "./expense-actions";
-import { decidePayment, respondToPaymentCentre } from "./payment-centre-actions";
-import { REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION } from "@/lib/payments/separation";
+import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "@/modules/finances/actions-depenses";
+import { decidePayment, respondToPaymentCentre } from "@/modules/finances/actions-centre";
+import { REFUS_AUTORISER_SA_DEMANDE, REFUS_REGLER_SA_DEMANDE, REFUS_REGLER_SON_AUTORISATION } from "@/modules/finances/partage";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

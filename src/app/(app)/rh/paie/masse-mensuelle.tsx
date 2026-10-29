@@ -1,4 +1,4 @@
-import type { MasseMensuelle } from "@/modules/rh/partage";
+import type { MasseMensuelle } from "@/modules/finances/partage";
 import { arrondirAuCentime } from "@/lib/utils";
 
 /**

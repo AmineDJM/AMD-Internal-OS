@@ -1,7 +1,8 @@
+import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/modules/finances/partage";
 import { describe, expect, it } from "vitest";
 import {
   bilanCloture, etatPostesSponsoring, peutCloturer, quiCloture, refusCloture,
-  SPONSORING_DECIDE, SPONSORING_ARGENT_DECIDE, STATUTS_SOLDES_PAR_UN_REGLEMENT,
+  SPONSORING_DECIDE, SPONSORING_ARGENT_DECIDE,
   type PostePourCloture,
 } from "./cloture-sponsoring";
 

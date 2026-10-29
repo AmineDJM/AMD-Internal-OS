@@ -4,9 +4,9 @@ import * as React from "react";
 import Link from "next/link";
 import { BellRing, Copy, ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { relancerPaiement } from "@/lib/actions/relance-paiement-actions";
+import { relancerPaiement } from "@/modules/finances/actions-relances";
 import type { CibleRelance, FactureDejaConnue } from "@/lib/factures/blocage-vue";
-import { COMMENTAIRE_RELANCE_MAX } from "@/lib/finance/relance-paiement";
+import { COMMENTAIRE_RELANCE_MAX } from "@/modules/finances/partage";
 import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**

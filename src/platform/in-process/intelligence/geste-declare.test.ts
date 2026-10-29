@@ -17,7 +17,7 @@ import { join } from "node:path";
  * ── IL Y AVAIT DEUX ÉMETTEURS, ET CE BANC N'EN LISAIT QU'UN (§118.127) ────────────────────
  *
  * Première version : un chemin écrit à la main. Elle affirmait une partition sur 24 littéraux
- * avec l'assurance d'avoir vu le parc, pendant que `src/lib/finance/intelligence.ts` en émettait
+ * avec l'assurance d'avoir vu le parc, pendant que `src/modules/finances/domaine/intelligence.ts` en émettait
  * six autres — dont `justificatif_manquant`, que la mesure live a vu sortir en constat HAUTE
  * sans proposer quoi que ce soit. Complet sur le fichier qu'il lisait, aveugle au parc : c'est
  * « 712 avec l'assurance d'en avoir vu 715 » (§118.73) et une garde qui ne s'arme pas sur la

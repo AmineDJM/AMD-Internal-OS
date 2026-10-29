@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ORDRE_NON_ANNULE } from "@/lib/payments/authorization";
+import { ORDRE_NON_ANNULE } from "@/modules/finances/partage";
 import type { CurrentUser } from "@/lib/session";
 import { platformScope } from "@/lib/company";
 import { toNumber, formatMontant } from "@/lib/utils";
