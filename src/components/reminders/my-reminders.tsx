@@ -2,9 +2,11 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Bell, Check, Clock, X, Loader2, ExternalLink } from "lucide-react";
 import { completeReminder, snoozeReminder, cancelReminder } from "@/lib/actions/reminder-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 interface ReminderRow {
   id: string;
@@ -18,7 +20,8 @@ interface ReminderRow {
 
 /** « Mes rappels » — liste des rappels actifs (échus en tête), avec terminer / reporter / annuler. */
 export function MyReminders({ reminders }: { reminders: ReminderRow[] }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
   const [busyId, setBusyId] = React.useState<string | null>(null);
 
   async function act(fn: (fd: FormData) => Promise<{ ok: boolean }>, id: string, extra?: Record<string, string>) {
@@ -26,9 +29,14 @@ export function MyReminders({ reminders }: { reminders: ReminderRow[] }) {
     const fd = new FormData();
     fd.set("id", id);
     for (const [k, v] of Object.entries(extra ?? {})) fd.set(k, v);
-    await fn(fd);
-    setBusyId(null);
-    router.refresh();
+    try {
+      await fn(fd);
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusyId(null);
+    }
+    rafraichir();
   }
 
   if (reminders.length === 0) {

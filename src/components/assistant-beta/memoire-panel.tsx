@@ -1,5 +1,6 @@
 "use client";
 
+import { actionFailureMessage } from "@/lib/action-outcome";
 import React, { useCallback, useEffect, useState } from "react";
 import { Brain, Check, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import {
@@ -22,8 +23,12 @@ export function MemoirePanel({ ouvert, onFermer }: { ouvert: boolean; onFermer: 
   const [confirmerTout, setConfirmerTout] = useState(false);
 
   const charger = useCallback(async () => {
-    const r = await listerMaMemoire();
-    if (r.ok) { setElements(r.elements); setErreur(null); } else setErreur(r.erreur);
+    try {
+      const r = await listerMaMemoire();
+      if (r.ok) { setElements(r.elements); setErreur(null); } else setErreur(r.erreur);
+    } catch {
+      setErreur("La mémoire n'a pas pu être chargée (connexion ou serveur).");
+    }
   }, []);
 
   useEffect(() => { if (ouvert) void charger(); }, [ouvert, charger]);
@@ -37,8 +42,15 @@ export function MemoirePanel({ ouvert, onFermer }: { ouvert: boolean; onFermer: 
 
   const agir = async (f: () => Promise<{ ok: boolean; erreur?: string }>) => {
     setOccupe(true);
-    const r = await f();
-    setOccupe(false);
+    let r: { ok: boolean; erreur?: string };
+    try {
+      r = await f();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+      return false;
+    } finally {
+      setOccupe(false);
+    }
     if (!r.ok) { setErreur(r.erreur ?? "Opération impossible."); return false; }
     setErreur(null);
     await charger();

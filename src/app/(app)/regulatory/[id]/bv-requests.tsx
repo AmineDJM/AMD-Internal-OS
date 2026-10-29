@@ -1,13 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, ReceiptText, FileUp, X } from "lucide-react";
 import { requestBV } from "@/lib/actions/regulatory-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 import { etatDeLOrdreBv, ETAT_BV } from "@/lib/regulatory/bv-circuit";
 import { montantDzd } from "@/lib/utils";
 
@@ -55,9 +57,7 @@ export function BvRequestSheet({
   bvType: string;
   onClose: () => void;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { busy, err: error, run } = useAction();
   const [files, setFiles] = React.useState<File[]>([]);
 
   return (
@@ -69,15 +69,11 @@ export function BvRequestSheet({
     >
       <form
         action={async (fd) => {
-          setBusy(true); setError(null);
           fd.set("productId", productId);
           fd.set("bvType", bvType);
           fd.set("stepKey", stepKey);
           for (const f of files) fd.append("files", f);
-          const r = await requestBV(fd);
-          setBusy(false);
-          if (r.ok) { onClose(); router.refresh(); }
-          else setError(r.error ?? "Échec.");
+          await run(() => requestBV(fd), onClose);
         }}
         className="space-y-4"
       >
@@ -136,7 +132,7 @@ export function BvRequestSheet({
           )}
         </div>
 
-        {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+        <Retour ton="erreur">{error}</Retour>
 
         <div className="flex flex-col-reverse gap-2 pt-1 sm:flex-row sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Annuler</Button>

@@ -8,11 +8,9 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR , requireUserAu
 import { prisma } from "@/lib/prisma";
 import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity, moduleDeLEntite, modulesDesEntites } from "@/lib/entity-access";
-import { getAdProRequests } from "@/lib/queries/ad-pro";
-import { demandesAuCentreAdPro } from "@/lib/queries/ad-pro-centre";
+import { getAdProRequests, demandesAuCentreAdPro, seuilAdProEnVigueur, lireVisaAdPro } from "@/modules/ad-pro/api";
 import { resoudreCible } from "@/lib/cibles/resoudre";
 import { getEntity, canReadEntity } from "@/lib/api/registry/entities";
-import { seuilAdProEnVigueur, lireVisaAdPro } from "@/lib/ad-pro/visa";
 import { aiguillerBC, porteDuBC } from "@/lib/bons-de-commande/aiguillage";
 import { getAppSettings } from "@/lib/settings";
 import { refusTransfert } from "@/lib/lecteurs/consulting";
@@ -21,7 +19,7 @@ import {
   createConsultingContract, requestConsultingValidation, decideConsultingContract,
   addConsultingTask, transfererConsulting,
 } from "./consulting-actions";
-import { deciderVisaCentreAdPro } from "./ad-pro-centre-actions";
+import { deciderVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

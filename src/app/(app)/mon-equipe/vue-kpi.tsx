@@ -40,7 +40,7 @@ export function VueKpi({ kpi }: { kpi: TableauKpi }) {
   const changerFrequence = async (f: FrequenceRevue) => {
     const fd = new FormData(); fd.set("frequence", f);
     const r = await reglerFrequenceRevue(fd).catch(sansBloquer("vue-kpi.changerFrequence.reglerFrequenceRevue", null));
-    setMsg(r?.ok ? null : r?.error ?? "Échec.");
+    setMsg(r?.ok ? null : r?.error ?? "La fréquence de revue n'a pas été changée.");
     if (r?.ok) router.push("/mon-equipe?vue=kpi");
   };
 

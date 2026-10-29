@@ -2,7 +2,8 @@
 
 import { courtIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, Bot, ShieldQuestion, CheckCircle2 } from "lucide-react";
 import { runAgentAction } from "@/lib/regulatory/intelligence/agents/actions";
 
@@ -15,18 +16,23 @@ interface RunState { status: "abstained" | "done" | "error"; message: string }
  * conclusion. Jamais autonome, jamais bloquant.
  */
 export function AgentsPanel({ dossierId, agents, configured, cleIa = null }: { dossierId: string; agents: AgentItem[]; configured: boolean; /** Le nom de la clé manquante, lu côté serveur (§118.128). */ cleIa?: string | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [results, setResults] = React.useState<Record<string, RunState>>({});
 
   async function run(agentKey: string) {
     setBusy(agentKey);
     const fd = new FormData(); fd.set("dossierId", dossierId); fd.set("agentKey", agentKey);
-    const r = await runAgentAction(fd);
-    setBusy(null);
-    if (!r.ok) setResults((s) => ({ ...s, [agentKey]: { status: "error", message: r.error ?? "Échec." } }));
-    else if (r.abstained) setResults((s) => ({ ...s, [agentKey]: { status: "abstained", message: r.message ?? "Abstention." } }));
-    else { setResults((s) => ({ ...s, [agentKey]: { status: "done", message: `${r.findings} constat(s) PROJET ajouté(s).` } })); router.refresh(); }
+    try {
+      const r = await runAgentAction(fd);
+      if (!r.ok) setResults((s) => ({ ...s, [agentKey]: { status: "error", message: r.error ?? "L'agent n'a pas été lancé." } }));
+      else if (r.abstained) setResults((s) => ({ ...s, [agentKey]: { status: "abstained", message: r.message ?? "Abstention." } }));
+      else { setResults((s) => ({ ...s, [agentKey]: { status: "done", message: `${r.findings} constat(s) PROJET ajouté(s).` } })); rafraichir(); }
+    } catch {
+      setResults((s) => ({ ...s, [agentKey]: { status: "error", message: actionFailureMessage("THROWN") } }));
+    } finally {
+      setBusy(null);
+    }
   }
 
   if (!configured) {

@@ -7,7 +7,7 @@ import {
   type ChampChange, type EnvoiVue, type EtatDemande, type NatureFiche, type SourceFiche, type TuilesFiches,
 } from "@/lib/reservation-fiche/etat";
 import type { BadgeTone } from "@/lib/labels";
-import { TITRE_BC_A_ETABLIR } from "@/lib/ad-pro/pieces-secretariat";
+import { TITRE_BC_A_ETABLIR } from "@/modules/ad-pro/partage";
 import { dossiersPromoAMonTour } from "@/lib/queries/promo-circuit";
 import { sansBloquer } from "@/lib/journal";
 

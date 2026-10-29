@@ -5,8 +5,8 @@ import { chargerStrategie, chargerPanel, type LignePanel, type StrategieChargee 
 import { porteeSegmentation } from "@/lib/segmentation/droits";
 import type { Instantane } from "@/lib/segmentation/cycle-service";
 import type { EtatProduit, Lettre, Statut } from "@/lib/segmentation/regles";
-import { splitMulti } from "@/lib/ad-pro/pickers";
-import { chargerLiensAdPro, medecinsParDemande } from "@/lib/queries/ad-pro-medecins";
+import { splitMulti } from "@/modules/ad-pro/partage";
+import { chargerLiensAdPro, medecinsParDemande } from "@/modules/ad-pro/api";
 import { getBudgetOverview, getEnvelopes } from "@/lib/queries/budget";
 import {
   aSesDeuxReponses, dansFenetre, lettreFigee, lettrePourProduit, moisDe, moisGlissants, partDeLAnnee, partImputee,

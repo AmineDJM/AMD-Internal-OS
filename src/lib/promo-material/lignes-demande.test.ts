@@ -108,7 +108,7 @@ describe("ce que la demande ne porte PLUS (décision du 01/10) — lu sur les fa
   });
 
   it("le FORMULAIRE n'envoie que le titre, le brief, la date de besoin et les lignes", () => {
-    const src = sansCommentaires(readFileSync(path.join(process.cwd(), "src/components/ad-pro/demande-materiel-form.tsx"), "utf8"));
+    const src = sansCommentaires(readFileSync(path.join(process.cwd(), "src/modules/ad-pro/ecrans/demande-materiel-form.tsx"), "utf8"));
     // PRÉMISSE : la lecture voit bien les clés qu'il envoie — sans cela, l'absence ci-dessous ne
     // prouverait rien (un fichier vide ne contiendrait aucune clé retirée non plus).
     expect(src).toMatch(/\["title", "description", "neededBy"\]/);

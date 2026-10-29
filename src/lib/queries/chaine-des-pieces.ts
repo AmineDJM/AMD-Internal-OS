@@ -10,13 +10,13 @@ import { LIBELLE_ETAPE_BC, type EtapeBC } from "@/lib/bons-de-commande/regle";
 import { fichiersEmis, type FichiersEmis } from "@/lib/legal/fichiers-emis";
 import {
   categorieDuPdf, natureDeLaCategorie, sectionDeLaNature, type NatureDeChaine, type SectionPieces,
-} from "@/lib/ad-pro/doc-categories";
+} from "@/modules/ad-pro/partage";
 
 // La règle de section vit au module PUR, que le formulaire du navigateur lit aussi : on la
 // réexporte pour les lecteurs serveur, on ne la réécrit pas (§118.5).
 export { categorieDuPdf, sectionDeLaNature, type SectionPieces };
 import type { DocItem } from "@/components/documents/document-list";
-import type { MaillonAmont, NaturePieceLiee } from "@/components/shared/attach-to-source";
+import type { MaillonAmont, NaturePieceLiee } from "@/components/pieces/attach-to-source";
 import { demandeDeLaPiece, droitsSuppressionDesPieces, type DroitsPieceDemande } from "@/lib/queries/pieces-demande-droits";
 
 /**

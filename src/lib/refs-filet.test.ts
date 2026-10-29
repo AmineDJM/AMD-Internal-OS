@@ -65,7 +65,7 @@ describe("Cliquet — une référence numérotée naît du compteur de sa série
 
   it("les créations réparées au §118.175 numérotent au compteur, et gardent leur filet", () => {
     const { auCompteur } = etat();
-    for (const f of ["src/lib/actions/sponsoring-actions.ts", "src/lib/dossiers-core.ts", "src/lib/actions/ad-pro-item-actions.ts"]) {
+    for (const f of ["src/modules/ad-pro/actions-sponsoring.ts", "src/lib/dossiers-core.ts", "src/modules/ad-pro/actions-postes.ts"]) {
       expect(auCompteur, `${f} ne numérote plus au compteur`).toContain(f);
       expect(/\b(createWithRetry|enSerie)\(/.test(sansCommentaires(readFileSync(f, "utf8"))), `${f} a perdu son filet`).toBe(true);
     }

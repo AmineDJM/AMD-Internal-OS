@@ -18,6 +18,44 @@
   les autres ; relu à chaque tour ; audit de chaque changement. Table `AssistantIaAcces` (migration additive).
   Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
 
+### REFONTE V3-B : PRIMITIVES UI — DIALOGUE ET RETOUR ACCESSIBLES, UN SEUL CROCHET D'ACTION, PARC MIGRÉ (2026-10-28)
+
+Suite de l'audit 09 (FRONTEND-UX-01 et -05). Deux primitives dans `src/components/ui/`, montées une fois dans
+la coque `app/(app)/layout.tsx` et le portail (`PrimitivesUI`) — pas à la racine, autre entrée de build qui les
+aurait recopiées dans le JS de chaque page. La fenêtre et le dessin des avis se téléchargent au premier moment
+libre (`differe.ts`) ; la palette ⌘K et la fenêtre d'annonce suivent la même voie, pour tenir le plafond de la
+coque sans le relever :
+- **Dialogue de confirmation** (`dialogue.tsx`, règle pure `dialogue-regle.ts`) : `useConfirmer()` remplace
+  `window.confirm`, `useSaisir()` remplace `window.prompt`. `role="alertdialog"`, focus piégé et rendu, Échap qui ne
+  ferme que la fenêtre (pas la feuille dessous), bouton au verbe du geste (« Supprimer »), « Retour » focalisé sur un
+  geste à risque.
+- **Retour** (`retour.tsx`, règle `retour-regle.ts`) : `<Retour ton>` (bandeau près du geste) et `useRetours()` (avis
+  flottants, régions `aria-live`) remplacent `window.alert`. Une erreur ne s'efface jamais seule.
+- **Un seul crochet d'action** (`components/shared/use-action.ts`) : `useAction` / `useKeyedAction` gagnent
+  `run(fn, onOk, { confirmer, succes })` et `signalerErreurs` ; nouveau `useFormAction` pour `<form action>` (verrou
+  anti double envoi). Tous attrapent la levée, coupent à 45 s et rafraîchissent par `useRafraichir`.
+
+**Parc migré** (≈ 340 fichiers, en 5 lots : argent et décisions d'abord) — aucune règle métier changée ; des refus
+autrefois muets s'affichent désormais. Cliquets abaissés au chiffre mesuré : `confirm(` 125 → **0**, `alert(` 46 →
+**0**, `prompt(` 6 → **0**, repli « Échec. / Erreur. / Action impossible. » 259 → **0** (`src/lib/ui/dialogues-natifs.test.ts`),
+appels d'action non gardés 315 → **0** (`action-gardee.test.ts`), `router.refresh()` nus 326 → **1**, le crochet lui-même
+(`rafraichir.test.ts`). Carte : [KB 05 § 4.2, 4.7](../knowledge-base/05-frontend-ui-ux.md).
+
+### MODULE AD & PRO — LE MÉTIER RANGÉ DANS `src/modules/ad-pro/` (2026-10-28, lot V4)
+
+- **Aucun changement de comportement ni de nom d'action** : `contrat.genere.json` (1 185 actions) est identique octet pour
+  octet ; seules les adresses changent. Les anciens chemins (`@/lib/ad-pro/*`, `@/lib/ad-pro-items`, `@/lib/care*`,
+  `@/lib/queries/ad-pro*`, `@/lib/actions/ad-pro-*`, `@/components/ad-pro/*`, `@/components/care/*`…) restent des adresses
+  de réexpédition (`tsconfig.json`) pour les branches ouvertes ; le code du dépôt importe les portes (`api`, `partage`,
+  `actions-*`, `ecrans/*`).
+- **Découpage par responsabilité** : `ad-pro-item-actions` (4 409 lignes) devient six morceaux sous la MÊME clé
+  (`actions-postes{,-decision,-paiement,-materiel,-voyageurs,-lignes}.ts`, déclarés ensemble dans `parc.ts`) ;
+  `care-actions` deux (`actions-prise-en-charge{,-logistique}.ts`) ; la carte d'un poste (`items-panel`, 2 149 lignes)
+  quatre (`ecrans/items-panel.tsx` + `ecrans/postes/`). Plus aucun fichier du métier au-delà de 1 000 lignes.
+- **Les pièces liées sortent du kit** : `linked-records`, `attach-to-source`, `attacher-legal-existant` vivent dans
+  `components/pieces/` (le socle n'importe aucun module) ; le parent d'un poste (`parentDuPoste`) rejoint les adresses
+  `lib/chemins/ad-pro.ts` (le référentiel des personnes le lit sans lire un métier).
+- Mesures et dette restante : rapport d'audit 08 (suite V4) et `docs/architecture/MODULES.md`.
 ### ASSISTANT IA : VOCAUX « COMME WHATSAPP » ET LECTURE DE TOUTE PIÈCE JOINTE (2026-10-28)
 
 - **Messages vocaux** (Direction) : sur `/assistant`, maintenir le micro enregistre (minuterie, onde), relâcher envoie, glisser à

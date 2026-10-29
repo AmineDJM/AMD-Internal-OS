@@ -6,9 +6,9 @@
  * l'action de l'écran — audit ADPRO-04), avec leurs gardes. Les rassembler ici rend la dépendance visible et
  * remplaçable le jour où Adam sortira de l'ERP : un seul fichier à rebrancher sur un contrat de plateforme.
  */
-export { createSponsoring } from "@/lib/actions/sponsoring-actions";
-export { createEvent } from "@/lib/actions/event-actions";
-export { createCongressRequest } from "@/lib/actions/congress-request-actions";
+export { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
+export { createEvent } from "@/modules/ad-pro/actions-evenements";
+export { createCongressRequest } from "@/modules/ad-pro/actions-congres";
 export { updateRequestStatus, assignRequest, addRequestComment } from "@/lib/actions/admin-request-actions";
 export { advanceWorkflow, saveWorkflowDefinition, resetWorkflowDefinition } from "@/lib/actions/workflow-actions";
 export {

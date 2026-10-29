@@ -2,13 +2,15 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+
 import { Paperclip, Plus, Pencil, Trash2, Loader2, ExternalLink, UserRound, HardDrive } from "lucide-react";
 import { addMailPiece, updateMailPiece, deleteMailPiece } from "@/lib/actions/mail-piece-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input, Label, Textarea } from "@/components/ui/input";
 import { DrivePickerField } from "@/components/drive/drive-picker";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 export interface PieceRow {
   id: string;
@@ -33,20 +35,19 @@ export interface PieceRow {
  * fait foi.
  */
 export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; pieces: PieceRow[]; canEdit: boolean }) {
-  const router = useRouter();
   const [adding, setAdding] = React.useState(false);
   const [editing, setEditing] = React.useState<PieceRow | null>(null);
-  const [busy, setBusy] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const formulaire = useAction();
+  // L'icône « retirer » n'a pas de place pour parler : un refus part en avis flottant.
+  const ligne = useAction({ signalerErreurs: true });
+  const busy = formulaire.busy || ligne.busy;
+  const { err, setErr } = formulaire;
 
   const remove = async (p: PieceRow) => {
-    if (!window.confirm(`Retirer la pièce « ${p.label} » de ce courrier ?\n\nLe fichier lui-même est conservé.`)) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", p.id);
-    const r = await deleteMailPiece(fd);
-    setBusy(false);
-    if (!r.ok) window.alert(r.error ?? "Échec.");
-    else router.refresh();
+    await ligne.run(() => deleteMailPiece(fd), undefined, {
+      confirmer: `Retirer la pièce « ${p.label} » de ce courrier ?\n\nLe fichier lui-même est conservé.`,
+    });
   };
 
   return (
@@ -110,11 +111,8 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
           description="Téléversez un ou plusieurs fichiers, ou désignez une pièce du Drive — elle y reste, elle n'est pas recopiée.">
           <form
             action={async (fd) => {
-              setBusy(true); setErr(null);
               fd.set("entryId", entryId);
-              const r = await addMailPiece(fd);
-              setBusy(false);
-              if (r.ok) { setAdding(false); router.refresh(); } else setErr(r.error ?? "Échec.");
+              await formulaire.run(() => addMailPiece(fd), () => setAdding(false));
             }}
             className="space-y-4"
           >
@@ -138,7 +136,7 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
               <Label htmlFor="mp-notes">Note (facultative)</Label>
               <Textarea id="mp-notes" name="notes" rows={2} />
             </div>
-            {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+            <Retour ton="erreur">{err}</Retour>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setAdding(false)} disabled={busy}>Annuler</Button>
               <Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Ajouter</Button>
@@ -152,11 +150,8 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
           description="Le fichier ne change pas : on corrige son nom, son destinataire et sa note.">
           <form
             action={async (fd) => {
-              setBusy(true); setErr(null);
               fd.set("id", editing.id);
-              const r = await updateMailPiece(fd);
-              setBusy(false);
-              if (r.ok) { setEditing(null); router.refresh(); } else setErr(r.error ?? "Échec.");
+              await formulaire.run(() => updateMailPiece(fd), () => setEditing(null));
             }}
             className="space-y-4"
           >
@@ -172,7 +167,7 @@ export function MailPieces({ entryId, pieces, canEdit }: { entryId: string; piec
               <Label htmlFor="mpe-notes">Note</Label>
               <Textarea id="mpe-notes" name="notes" rows={2} defaultValue={editing.notes ?? ""} />
             </div>
-            {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+            <Retour ton="erreur">{err}</Retour>
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setEditing(null)} disabled={busy}>Annuler</Button>
               <Button type="submit" disabled={busy}>{busy && <Loader2 className="h-4 w-4 animate-spin" />} Enregistrer</Button>

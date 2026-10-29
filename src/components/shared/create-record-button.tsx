@@ -4,6 +4,7 @@ import * as React from "react";
 import { useAutoOpen } from "./use-auto-open";
 import { useActionState } from "react";
 import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Plus, Loader2, AlertCircle, Wand2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -376,6 +377,7 @@ export function RecordForm({
   onTouched,
 }: RecordFormProps) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   // LES CHAMPS TOUCHÉS : un champ rempli depuis la pièce perd son violet dès que la personne y met la main.
   const [touches, setTouches] = React.useState<ReadonlySet<string>>(() => new Set());
   const [preuveOuverte, setPreuveOuverte] = React.useState<string | null>(null);
@@ -501,12 +503,12 @@ export function RecordForm({
       // liste qu'on abandonne, puis la fiche — et le bouton tournait pendant les deux.
       // L'action a déjà invalidé le cache de la liste : elle sera à jour au retour.
       if (redirectBase && state.id) router.push(`${redirectBase}/${state.id}`);
-      else router.refresh();
+      else rafraichir();
     } else if (state?.error) {
       setSubmitting(false);
       lock.current = false; // échec → nouvelle tentative autorisée
     }
-  }, [state, router, redirectBase]);
+  }, [state, router, redirectBase, rafraichir]);
 
   return (
     <>

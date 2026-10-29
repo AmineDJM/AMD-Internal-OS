@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { dispositionPourBucket } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { canAccessEntity } from "@/lib/entity-access";
-import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "@/lib/ad-pro/passeport-acces";
+import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "@/modules/ad-pro/api";
 import { readFileByKey } from "@/lib/storage";
 import { cleObjetDirect, infoBlob } from "@/lib/drive-storage";
 import { presignGetUrl } from "@/lib/storage/object-storage";

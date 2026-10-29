@@ -5,7 +5,7 @@ import {
   A_CONFIRMER, civiliteDuGrade, delegation, livretGeneral, livretIndividuel, nomDuLivret, nomImprime, nuits, planning, plageDates,
   versPoste, volsDe, type CaseLue, type EntreeLivret, type PersonneLivret,
 } from "./modele";
-import { peutLirePiecePriseEnCharge, natureDuLivret, cleLivret } from "@/lib/care-pieces-acces";
+import { peutLirePiecePriseEnCharge, natureDuLivret, cleLivret } from "@/modules/ad-pro/partage";
 
 const vide: Omit<CaseLue, "id" | "kind" | "serviceKind" | "label" | "status"> = {
   dateStart: null, dateEnd: null, trajet: null, transport: null, fromCity: null, toCity: null, segments: [], hotelName: null, city: null,
@@ -194,7 +194,7 @@ describe("pièces d'une prise en charge — la porte de l'assistante de directio
   it("la route de téléchargement passe bien par cette porte, après celle de la demande", () => {
     const route = readFileSync(join(process.cwd(), "src", "app", "api", "documents", "[id]", "route.ts"), "utf8");
     expect(route).toMatch(/\|\|\s*\(await peutLirePieceDePriseEnCharge\(user, doc\)\)/);
-    const porte = readFileSync(join(process.cwd(), "src", "lib", "ad-pro", "passeport-acces.ts"), "utf8");
+    const porte = readFileSync(join(process.cwd(), "src", "modules", "ad-pro", "infra", "passeport-acces.ts"), "utf8");
     expect(porte).toContain("issuedDocumentId: doc.id");
     expect(porte).toContain("careReservationDossierId");
   });

@@ -16,7 +16,7 @@ import { DocumentList, type DocItem } from "@/components/documents/document-list
 import { PIECE_REQUEST_STATUS, ENTITY_TYPE_LABELS } from "@/lib/labels";
 import { canSubmit, canDecide, canCancel, isLate, docRequestSummary, refusReaffectation } from "@/lib/doc-request";
 import { tientPourLaSollicitee } from "@/lib/doc-request-interim";
-import { assistantesDeDirection } from "@/lib/ad-pro/pieces-poste";
+import { assistantesDeDirection } from "@/modules/ad-pro/api";
 import { PIECE_KIND_LABEL, pieceKindOf } from "@/lib/legal/from-piece";
 import { RespondPanel } from "./respond-panel";
 import { ReaffecterPanel } from "./reaffecter-panel";

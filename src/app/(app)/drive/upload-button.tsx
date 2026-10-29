@@ -11,6 +11,8 @@ import { useLimitesEnvoi } from "@/components/layout/use-limites-envoi";
 // L'essai « contenu déjà là » et l'import d'arborescence sont PARTAGÉS avec la messagerie (Direction, 06/10).
 import { envoiDrive, envoiArborescenceDrive, preflightDrive as makePreflight } from "@/components/drive/envoi-drive";
 import { cn } from "@/lib/utils";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { useNouvelleVersion } from "./nouvelle-version";
 
 type Perm = "none" | "view" | "edit";
@@ -75,6 +77,7 @@ export function UploadButton({
 function RichUpload({ parentId, users, label, spaceId }: { parentId: string | null; users: UserLite[]; label?: string; spaceId: string | null }) {
   const { enqueue } = useBackgroundUpload();
   const limites = useLimitesEnvoi();
+  const retours = useRetours();
   const [open, setOpen] = React.useState(false);
   const [menu, setMenu] = React.useState(false);
   const [files, setFiles] = React.useState<File[]>([]);
@@ -103,9 +106,16 @@ function RichUpload({ parentId, users, label, spaceId }: { parentId: string | nu
     setFolderBusy(true);
     // Crée d'abord l'arborescence de dossiers (chemins relatifs uniques) côté serveur.
     const dirs = [...new Set(picked.map((f) => dirOf(rel(f))).filter(Boolean))];
-    const r = await ensureDriveFolders(parentId ?? null, dirs, spaceId);
-    setFolderBusy(false);
-    if (!r.ok || !r.map) { window.alert(r.error ?? "Import du dossier impossible."); return; }
+    let r: Awaited<ReturnType<typeof ensureDriveFolders>>;
+    try {
+      r = await ensureDriveFolders(parentId ?? null, dirs, spaceId);
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setFolderBusy(false);
+    }
+    if (!r.ok || !r.map) { retours.erreur(r.error ?? "Import du dossier impossible."); return; }
     const rootName = rel(picked[0]).split("/")[0] || "dossier";
     // Six en parallèle, envoi direct au-delà du seuil, contenu déjà connu non retransféré, chaque
     // fichier dans SON dossier : la construction est commune avec le dépôt de la messagerie.

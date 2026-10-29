@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { userCan } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
-import { createEvent, submitEventForApproval } from "@/lib/actions/event-actions";
+import { createEvent, submitEventForApproval } from "@/modules/ad-pro/actions-evenements";
 import { getAppSettings } from "@/lib/settings";
 import { porteDgRequise } from "@/lib/seuils/ad-pro";
 import type { CurrentUser } from "@/lib/session";

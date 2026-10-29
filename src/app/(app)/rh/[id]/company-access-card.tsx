@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Building2, Loader2, CheckCircle2, XCircle, ShieldCheck } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { setCompanyAccess } from "@/lib/actions/company-access-actions";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export interface CompanyAccessRow {
   companyId: string;
@@ -32,7 +33,7 @@ export interface CompanyAccessRow {
 export function CompanyAccessCard({ userId, rows, seesWholeGroup }: {
   userId: string; rows: CompanyAccessRow[]; seesWholeGroup: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const lock = React.useRef(false);
@@ -49,8 +50,10 @@ export function CompanyAccessCard({ userId, rows, seesWholeGroup }: {
     void (async () => {
       try {
         const r = await setCompanyAccess(undefined, fd);
-        setMsg({ ok: r.ok, text: r.ok ? "Accès mis à jour." : (r.error ?? "Échec.") });
-        if (r.ok) router.refresh();
+        setMsg({ ok: r.ok, text: r.ok ? "Accès mis à jour." : (r.error ?? "L'accès n'a pas été modifié.") });
+        if (r.ok) rafraichir();
+      } catch {
+        setMsg({ ok: false, text: actionFailureMessage("THROWN") });
       } finally {
         setBusy(null);
         lock.current = false;

@@ -1,13 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { AlertCircle, ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Sheet } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import {
@@ -300,7 +299,7 @@ function FormulaireSaisie({ comptage, page, onClose, onSucces }: {
    *  fermerait sans rien dire laisserait la personne chercher ce qui a été corrigé. */
   onSucces: (texte: string) => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const { attendus, ajoutables } = React.useMemo(() => partitionComptage(
     page.articles.map((a) => ({ itemId: a.id, famille: a.catalogue.famille, actif: a.isActive, solde: quantiteDe(a, comptage.holderId) })),
     comptage.famille,
@@ -319,7 +318,7 @@ function FormulaireSaisie({ comptage, page, onClose, onSucces }: {
     setErreur(null);
     try {
       const r = await saisirComptage(new FormData(e.currentTarget));
-      if (r.ok) { onSucces(r.message ?? "Comptage enregistré."); router.refresh(); onClose(); }
+      if (r.ok) { onSucces(r.message ?? "Comptage enregistré."); rafraichir(); onClose(); }
       else setErreur(r.error ?? "Le comptage n'a pas été enregistré.");
     } catch {
       setErreur("Le comptage n'a pas abouti (connexion ou serveur). Rechargez la page avant de recommencer : il a pu s'enregistrer malgré tout.");

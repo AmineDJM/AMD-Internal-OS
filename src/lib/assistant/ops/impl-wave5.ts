@@ -1,25 +1,22 @@
 import { prisma } from "@/lib/prisma";
 import {
   updateEvent, deleteEvent, submitEventForApproval, addRegistration, setRegistrationStatus, deleteRegistration,
-} from "@/lib/actions/event-actions";
+} from "@/modules/ad-pro/actions-evenements";
 import {
   sponsoringAppeal, cloturerSponsoring, rouvrirSponsoring,
   requestThirdPartyInput as sponsoringThirdParty,
-} from "@/lib/actions/sponsoring-actions";
+} from "@/modules/ad-pro/actions-sponsoring";
 import {
   cancelCongressRequest, requestThirdPartyInput as congressThirdParty,
-} from "@/lib/actions/congress-request-actions";
+} from "@/modules/ad-pro/actions-congres";
 import {
   addCongressBeneficiary, removeCongressBeneficiary, requestBeneficiaryIds,
-} from "@/lib/actions/congress-beneficiary-actions";
-import {
-  addAdProItem, updateAdProItem, deleteAdProItem, linkPromoMaterial,
-  submitAdProItem, setAdProItemBudget, demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder,
-} from "@/lib/actions/ad-pro-item-actions";
+} from "@/modules/ad-pro/actions-congres-beneficiaires";
+import { addAdProItem, updateAdProItem, deleteAdProItem, linkPromoMaterial, submitAdProItem, setAdProItemBudget, demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder } from "@/modules/ad-pro/actions-postes";
 import {
   createAdProOtherRequest, decideAdProOtherRequest, closeAdProOtherRequest,
-} from "@/lib/actions/ad-pro-other-actions";
-import { updateAdProRequest } from "@/lib/actions/ad-pro-edit-actions";
+} from "@/modules/ad-pro/actions-autres";
+import { updateAdProRequest } from "@/modules/ad-pro/actions-edition";
 import {
   demandesAuCentreAdPro, deciderVisaCentreAdPro, setAdProDgThreshold, setBcValidationThreshold, DEFAULT_APP_SETTINGS,
   PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, type NaturePieceSecretariat,

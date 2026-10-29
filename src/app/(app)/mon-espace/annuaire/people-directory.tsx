@@ -6,6 +6,7 @@ import {
   ensureDirectoryEntry, addDirectoryEndpoint, deactivateDirectoryEndpoint, updateDirectoryEndpoint, updateDirectoryEntry,
 } from "@/lib/actions/directory-actions";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
 
 /**
  * L'ANNUAIRE DES PERSONNES — l'écran où l'on enrichit ce qu'Adam saura.
@@ -40,6 +41,7 @@ const CHANNEL_ICON = {
 const champ = "h-10 max-w-full rounded-lg border border-border bg-background px-2 text-sm sm:h-8";
 
 export function PeopleDirectory({ people, canEdit }: { people: DirectoryPerson[]; canEdit: boolean }) {
+  const confirmer = useConfirmer();
   const { enCours, rafraichir } = useRafraichir();
   const [query, setQuery] = React.useState("");
   const [openKey, setOpenKey] = React.useState<string | null>(null);
@@ -189,8 +191,8 @@ export function PeopleDirectory({ people, canEdit }: { people: DirectoryPerson[]
                                 </button>
                                 <button
                                   type="button" aria-label={`Retirer ${e.value}`} disabled={occupe}
-                                  onClick={() => {
-                                    if (!confirm(`Retirer ${e.value} de l'annuaire ?`)) return;
+                                  onClick={async () => {
+                                    if (!(await confirmer(`Retirer ${e.value} de l'annuaire ?`))) return;
                                     const fd = new FormData(); fd.set("id", e.id);
                                     void agir(() => deactivateDirectoryEndpoint(fd));
                                   }}

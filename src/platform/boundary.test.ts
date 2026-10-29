@@ -130,8 +130,14 @@ import { scanBoundary, ADAM_PATHS, BRIDGE_PATHS, NEUTRAL } from "./boundary-scan
  * `assistant.ts` (sponsoring, événement, prise en charge, secrétariat, circuits et leur vocabulaire) passent par
  * le pont `in-process/demandes/` : un seul fichier à rebrancher ; le papier à en-tête et le vocabulaire des
  * circuits suivent (`in-process/office/`, `workflow-admin.ts`). Mesuré : 422. Solde : −9.
+ *
+ * 422 → 419 (2026-10-28, V3-B primitives UI) : les écrans d'Adam quittent `confirm()`/`alert()` pour le dialogue
+ * et le retour accessibles (+5 imports), et le kit d'interaction est reconnu NEUTRE après inspection par le
+ * portillon ci-dessous (dialogue, retour, leurs règles pures, `Button`, `useScrollLock`, `useRafraichir`,
+ * `action-outcome` : aucune base, aucune règle métier). Les deux imports de `Button` déjà comptés tombent avec.
+ * Mesuré : 419.
  */
-const DEBT_CEILING = 422;
+const DEBT_CEILING = 419;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();
@@ -191,7 +197,8 @@ describe("frontière Adam ↔ ERP", () => {
   it("les modules déclarés NEUTRES le sont vraiment — la porte se referme", () => {
     const fautes: string[] = [];
     for (const mod of NEUTRAL) {
-      const fichier = `${mod}.ts`;
+      // Un composant neutre (le kit d'interaction, V3-B) est un `.tsx` : même exigence.
+      const fichier = fs.existsSync(`${mod}.ts`) ? `${mod}.ts` : `${mod}.tsx`;
       if (!fs.existsSync(fichier)) { fautes.push(`${mod} : déclaré neutre, mais le fichier n'existe pas`); continue; }
       const src = fs.readFileSync(fichier, "utf8");
       const dossier = mod.slice(0, mod.lastIndexOf("/"));

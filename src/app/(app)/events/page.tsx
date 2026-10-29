@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { getEvents } from "@/lib/queries/events";
+import { getEvents, getAdProCreateData } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -12,7 +12,6 @@ import { Badge } from "@/components/ui/badge";
 import { EVENT_TYPE, EVENT_FORMAT, EVENT_STATUS, EVENTS_TABS } from "@/lib/labels";
 import { formatDate } from "@/lib/utils";
 import { CreateEventButton } from "./event-form";
-import { getAdProCreateData } from "@/lib/queries/ad-pro";
 
 export const dynamic = "force-dynamic";
 

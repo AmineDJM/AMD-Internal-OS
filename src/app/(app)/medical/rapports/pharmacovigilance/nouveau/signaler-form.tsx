@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { useRouter } from "next/navigation";
 import { Loader2, Paperclip, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -55,9 +56,15 @@ export function SignalerCasForm({ produits, etablissements, aujourdhui, initial 
     if (produit === AUTRE) fd.delete("promoProductId");
     if (etab === AUTRE) fd.delete("institutionId");
     setBusy(true);
-    const r = await signalerCasPv(fd);
-    if (!r.ok || !r.id) { setBusy(false); setErr(r.error ?? "Le signalement n'a pas pu être enregistré."); return; }
-    router.push(lienCasPvKam(r.id));
+    try {
+      const r = await signalerCasPv(fd);
+      if (!r.ok || !r.id) { setBusy(false); setErr(r.error ?? "Le signalement n'a pas pu être enregistré."); return; }
+      // Le bouton reste « en cours » pendant la navigation vers le cas créé.
+      router.push(lienCasPvKam(r.id));
+    } catch {
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
+    }
   }
 
   const champ = "space-y-1.5";

@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { chargerLiensAdPro } from "@/lib/queries/ad-pro-medecins";
-import { CHEMIN_DEMANDE, LIBELLE_NATURE_DEMANDE, demandeAbandonnee, type RoleMedecin, type TypeMedecinsConcernes } from "@/lib/ad-pro/medecins-concernes";
+import { chargerLiensAdPro } from "@/modules/ad-pro/api";
+import { CHEMIN_DEMANDE, LIBELLE_NATURE_DEMANDE, demandeAbandonnee, type RoleMedecin, type TypeMedecinsConcernes } from "@/modules/ad-pro/partage";
 import { cleNom } from "@/lib/influence/relations";
 import {
   EFFET_EN_ATTENTE, ajouterMois, avantApres, choisirComparables, coutParPassage, graineDe, lettreA, lettreDeFige, mesurerEffet,

@@ -1,4 +1,4 @@
-import { versDzd, tauxDeLaDemande, type DetailTrajet } from "@/lib/care-fiches";
+import { versDzd, tauxDeLaDemande, type DetailTrajet } from "@/modules/ad-pro/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

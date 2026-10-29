@@ -1,24 +1,28 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Trash2, Loader2, Recycle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useAction } from "@/components/shared/use-action";
 import { formatBytes as fmtBytes } from "@/lib/utils";
 import { purgeOrphanStorage, permanentlyDeleteDriveNode, permanentlyDeleteDocument } from "@/lib/actions/database-admin-actions";
 
 /** Ramasse-miettes : détruit les blobs orphelins → libère l'espace disque réellement. */
 export function PurgeOrphansButton({ count, bytes }: { count: number; bytes: number }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Le bouton n'a pas de place où parler : un refus part en avis flottant.
+  const geste = useAction({ signalerErreurs: true });
+  const busy = geste.busy;
   const [done, setDone] = React.useState<string | null>(null);
   const run = async () => {
-    if (!window.confirm(`Détruire définitivement ${count} blob·s orphelins (${fmtBytes(bytes)}) ? Cette opération libère l'espace disque et est irréversible.`)) return;
-    setBusy(true); setDone(null);
-    const r = await purgeOrphanStorage();
-    setBusy(false);
-    if (r.ok) { setDone(`${r.count ?? 0} blob·s détruits · ${fmtBytes(r.bytes ?? 0)} libérés.`); router.refresh(); }
-    else window.alert(r.error ?? "Échec.");
+    let bilan = "";
+    await geste.run(async () => {
+      setDone(null);
+      const r = await purgeOrphanStorage();
+      if (r.ok) bilan = `${r.count ?? 0} blob·s détruits · ${fmtBytes(r.bytes ?? 0)} libérés.`;
+      return r.ok ? r : { ok: false, error: r.error ?? "Le stockage orphelin n'a pas été purgé." };
+    }, () => setDone(bilan), {
+      confirmer: `Détruire définitivement ${count} blob·s orphelins (${fmtBytes(bytes)}) ? Cette opération libère l'espace disque et est irréversible.`,
+    });
   };
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -34,16 +38,16 @@ export function PurgeOrphansButton({ count, bytes }: { count: number; bytes: num
 
 /** Suppression DÉFINITIVE d'un fichier/dossier Drive ou d'un document (libère le stockage). */
 export function PermanentDeleteButton({ kind, id, name }: { kind: "drive" | "document"; id: string; name: string }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // L'icône n'a pas de place où parler : un refus part en avis flottant.
+  const { busy, run: executer } = useAction({ signalerErreurs: true });
   const run = async () => {
-    if (!window.confirm(`Supprimer DÉFINITIVEMENT « ${name} » ?\nCette action est irréversible et libère le stockage. ${kind === "drive" ? "Un dossier emporte tout son contenu." : ""}`)) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", id);
-    const r = kind === "drive" ? await permanentlyDeleteDriveNode(fd) : await permanentlyDeleteDocument(fd);
-    setBusy(false);
-    if (r.ok) router.refresh();
-    else window.alert(r.error ?? "Échec.");
+    await executer(async () => {
+      const r = kind === "drive" ? await permanentlyDeleteDriveNode(fd) : await permanentlyDeleteDocument(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? "La suppression définitive n'a pas abouti." };
+    }, undefined, {
+      confirmer: `Supprimer DÉFINITIVEMENT « ${name} » ?\nCette action est irréversible et libère le stockage. ${kind === "drive" ? "Un dossier emporte tout son contenu." : ""}`,
+    });
   };
   return (
     <button title="Supprimer définitivement" aria-label={`Supprimer définitivement « ${name} »`} onClick={run} disabled={busy} className="rounded-lg p-2.5 text-muted-foreground sm:p-1.5 hover:bg-destructive/10 hover:text-destructive disabled:opacity-50">

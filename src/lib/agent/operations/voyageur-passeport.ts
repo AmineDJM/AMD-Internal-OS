@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { userCan } from "@/lib/rbac";
-import { ajouterVoyageur } from "@/lib/actions/ad-pro-item-actions";
-import { porteDesVoyageurs } from "@/lib/ad-pro/voyageurs";
+import { ajouterVoyageur } from "@/modules/ad-pro/actions-postes-voyageurs";
+import { porteDesVoyageurs } from "@/modules/ad-pro/partage";
 import type { CurrentUser } from "@/lib/session";
 import { champs, texte, type OperationIA, type PropositionOperation } from "./types";
 import { fichiersDepuisDrive, resoudrePiece } from "./pieces";

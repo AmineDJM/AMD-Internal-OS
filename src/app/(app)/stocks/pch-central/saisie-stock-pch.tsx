@@ -6,6 +6,7 @@ import { enregistrerStockPch, lireReleveStockPch } from "@/lib/actions/stock-pch
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { ageEnJours, analyserCollage, cleReleve, estPerime, ilYa, type LigneCollee } from "@/lib/stocks/pch-central";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
 
@@ -102,13 +103,18 @@ export function SaisieStockPch({ produits, directions, annexes, etats, releves, 
       fd.append("quantity", q.trim());
     }
     for (const f of Array.from(fichiers.current?.files ?? [])) fd.append("files", f);
-    const r = await enregistrerStockPch(fd);
-    setBusy(false);
-    if (!r.ok) { setErreur(r.error ?? "Échec de l'enregistrement."); return; }
-    setQuantites({});
-    if (fichiers.current) fichiers.current.value = "";
-    setMessage(r.message ?? "Relevé enregistré.");
-    rafraichir();
+    try {
+      const r = await enregistrerStockPch(fd);
+      if (!r.ok) { setErreur(r.error ?? "Échec de l'enregistrement."); return; }
+      setQuantites({});
+      if (fichiers.current) fichiers.current.value = "";
+      setMessage(r.message ?? "Relevé enregistré.");
+      rafraichir();
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   /** LE FICHIER EXCEL / CSV DE LA PCH : lu par le serveur (produit par code PCH ou désignation, lieu par colonne ou onglet), vérifié ici. */
@@ -119,10 +125,15 @@ export function SaisieStockPch({ produits, directions, annexes, etats, releves, 
     setBusy(true); setErreur(null); setMessage(null);
     const fd = new FormData();
     fd.set("file", fichier);
-    const r = await lireReleveStockPch(fd);
-    setBusy(false);
-    if (!r.ok || !r.lignes) { setErreur(r.error ?? "Fichier illisible."); return; }
-    setCollage({ texte: "", lignes: r.lignes });
+    try {
+      const r = await lireReleveStockPch(fd);
+      if (!r.ok || !r.lignes) { setErreur(r.error ?? "Fichier illisible."); return; }
+      setCollage({ texte: "", lignes: r.lignes });
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   // Les quantités saisies, comptées par lieu : on voit d'un coup d'œil ce que « Enregistrer » va écrire.

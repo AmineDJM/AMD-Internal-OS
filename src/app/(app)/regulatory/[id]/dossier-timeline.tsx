@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import {
   Plus, Loader2, AlertCircle, Pencil, Trash2, Check, X, FileStack, CalendarDays, Paperclip,
 } from "lucide-react";
@@ -19,6 +19,7 @@ import {
   addDossierStep, updateDossierStep, deleteDossierStep, startDossierTimeline,
 } from "@/lib/actions/regulatory-timeline-actions";
 import { useAction } from "@/components/shared/use-action";
+import { useConfirmer } from "@/components/ui/dialogue";
 
 export interface TimelineStepView {
   id: string;
@@ -153,6 +154,7 @@ function StepCard({
   onAddAfter: () => void;
 }) {
   const { busy, err, run } = useAction();
+  const confirmer = useConfirmer();
   const [editing, setEditing] = React.useState(false);
   const [label, setLabel] = React.useState(step.label);
   const [when, setWhen] = React.useState(step.occurredAt?.slice(0, 10) ?? "");
@@ -219,8 +221,8 @@ function StepCard({
             {step.kind !== "CTD_INITIAL" && (
               <button
                 type="button" disabled={busy} title="Supprimer l'étape"
-                onClick={() => {
-                  if (!window.confirm(`Supprimer l'étape « ${step.label} » ?`)) return;
+                onClick={async () => {
+                  if (!(await confirmer(`Supprimer l'étape « ${step.label} » ?`))) return;
                   run(() => { const fd = new FormData(); fd.set("id", step.id); return deleteDossierStep(fd); });
                 }}
                 className="rounded-md p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50 sm:p-1.5"
@@ -276,13 +278,12 @@ function AddStepSheet({
   /** Libellé proposé pour un nouveau cycle de réserves — « Réserves ANPP n+1 ». */
   reservesLabel: string;
 }) {
-  const router = useRouter();
+  const { busy: saving, err, setErr, run } = useAction();
   const [kind, setKind] = React.useState<DossierStepKind>("ANPP_RESERVES");
   const [version, setVersion] = React.useState("");
   const [label, setLabel] = React.useState(reservesLabel);
   const [touched, setTouched] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+
 
   // Le libellé suit le type TANT QUE la personne ne l'a pas écrit elle-même : pré-remplir aide,
   // écraser une saisie serait insupportable. Un cycle de réserves arrive NUMÉROTÉ.
@@ -293,12 +294,9 @@ function AddStepSheet({
   const reset = () => { setKind("ANPP_RESERVES"); setVersion(""); setLabel(reservesLabel); setTouched(false); setErr(null); };
 
   const submit = async (fd: FormData) => {
-    setSaving(true); setErr(null);
     fd.set("productId", productId);
     if (afterId) fd.set("afterId", afterId);
-    const r = await addDossierStep(undefined, fd);
-    setSaving(false);
-    if (r.ok) { reset(); onClose(); router.refresh(); } else setErr(r.error ?? "Ajout impossible.");
+    await run(() => addDossierStep(undefined, fd), () => { reset(); onClose(); });
   };
 
   return (

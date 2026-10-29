@@ -5,7 +5,7 @@ import {
 } from "./branches";
 import { RELATIONS, ouIdentite } from "./lot";
 import { DELETE_REGISTRY, DELETABLE_KINDS, modeleDuRegistre } from "@/lib/admin-delete-registry";
-import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS } from "@/lib/ad-pro/unified";
+import { AD_PRO_ENTITY_TYPE, AD_PRO_KINDS } from "@/modules/ad-pro/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

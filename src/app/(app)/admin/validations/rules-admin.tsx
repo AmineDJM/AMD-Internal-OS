@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Plus, Pencil, Trash2, Loader2, AlertCircle, Power } from "lucide-react";
+import { useAction, useFormAction } from "@/components/shared/use-action";
 import { createValidationRule, updateValidationRule, deleteValidationRule, toggleValidationRule } from "@/lib/actions/validation-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -37,11 +37,12 @@ export function RuleEditor({
   priorityOptions: Option[];
   rule?: RuleDTO;
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
   const editing = Boolean(rule);
+  const { action: enregistrer, busy: saving, err, setErr } = useFormAction(
+    (fd) => (editing ? updateValidationRule(fd) : createValidationRule(undefined, fd)),
+    { prepare: (fd) => { if (rule) fd.set("id", rule.id); }, onOk: () => setOpen(false) },
+  );
 
   return (
     <>
@@ -55,13 +56,7 @@ export function RuleEditor({
 
       <Sheet open={open} onClose={() => setOpen(false)} title={editing ? "Modifier la règle" : "Nouvelle règle de validation"} description="Définissez qui valide quoi, selon le contexte." width="lg">
         <form
-          action={async (fd) => {
-            setSaving(true); setErr(null);
-            if (rule) fd.set("id", rule.id);
-            const r = editing ? await updateValidationRule(fd) : await createValidationRule(undefined, fd);
-            setSaving(false);
-            if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Erreur.");
-          }}
+          action={enregistrer}
           className="space-y-4"
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -108,18 +103,16 @@ export function RuleEditor({
 }
 
 export function RuleControls({ id, active }: { id: string; active: boolean }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>) =>
-    start(async () => { const r = await fn(); if (!r.ok) window.alert(r.error ?? "Erreur."); router.refresh(); });
+  // Les icônes d'une ligne n'ont pas de place pour parler : un refus part en avis flottant.
+  const { busy: pending, run } = useAction({ signalerErreurs: true });
   const fd = (o: Record<string, string>) => { const f = new FormData(); for (const [k, v] of Object.entries(o)) f.set(k, v); return f; };
   return (
     <span className="inline-flex items-center gap-1">
       {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-      <button onClick={() => run(() => toggleValidationRule(fd({ id })))} className={`rounded p-2.5 hover:bg-secondary sm:p-1.5 ${active ? "text-success" : "text-muted-foreground"}`} title={active ? "Désactiver" : "Activer"} aria-label={active ? "Désactiver la règle" : "Activer la règle"}>
+      <button onClick={() => void run(() => toggleValidationRule(fd({ id })))} disabled={pending} className={`rounded p-2.5 hover:bg-secondary sm:p-1.5 ${active ? "text-success" : "text-muted-foreground"}`} title={active ? "Désactiver" : "Activer"} aria-label={active ? "Désactiver la règle" : "Activer la règle"}>
         <Power className="h-4 w-4" />
       </button>
-      <button onClick={() => { if (window.confirm("Supprimer cette règle ?")) run(() => deleteValidationRule(fd({ id }))); }} className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5" title="Supprimer" aria-label="Supprimer la règle">
+      <button onClick={() => void run(() => deleteValidationRule(fd({ id })), undefined, { confirmer: "Supprimer cette règle ?" })} disabled={pending} className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5" title="Supprimer" aria-label="Supprimer la règle">
         <Trash2 className="h-4 w-4" />
       </button>
     </span>

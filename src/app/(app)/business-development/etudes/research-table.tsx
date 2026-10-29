@@ -1,13 +1,17 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Plus, Trash2, Loader2, Sparkles, BarChart3, ChevronDown, ChevronRight } from "lucide-react";
 import {
   addResearchRow, updateResearchRow, deleteResearchRow,
   addResearchPlayer, updateResearchPlayer, deleteResearchPlayer, prefillResearchRow,
 } from "@/lib/actions/market-research-actions";
 import type { ResearchRowDTO } from "@/lib/queries/market-research";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const STATUS_LABEL: Record<string, string> = { IMPORT: "Importation", MANUFACTURING: "Fabrication" };
 const STATUS_COLOR: Record<string, string> = { IMPORT: "#f59e0b", MANUFACTURING: "#0ea5e9" };
@@ -16,15 +20,22 @@ const inp = "h-9 w-full rounded-md border border-input bg-background px-2 text-b
 const nOrNull = (s: string) => { const t = s.trim(); if (!t) return ""; return t; };
 
 export function ResearchTable({ researchId, rows, canEdit, dciOptions = [] }: { researchId: string; rows: ResearchRowDTO[]; canEdit: boolean; dciOptions?: string[] }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  // Les cellules et icônes du tableau n'ont pas de place pour parler : un refus part en avis flottant.
+  const retours = useRetours();
   const [busy, setBusy] = React.useState(false);
 
   async function run(action: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData, refresh = true) {
     setBusy(true);
-    const r = await action(fd);
-    setBusy(false);
-    if (!r.ok) { window.alert(r.error ?? "Action impossible."); return; }
-    if (refresh) router.refresh();
+    try {
+      const r = await action(fd);
+      if (!r.ok) { retours.erreur(r.error ?? "La modification n'a pas été enregistrée."); return; }
+      if (refresh) rafraichir();
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   const th = "whitespace-nowrap px-2 py-2 text-left text-xs font-medium text-muted-foreground";
@@ -54,7 +65,7 @@ export function ResearchTable({ researchId, rows, canEdit, dciOptions = [] }: { 
               <tr><td colSpan={10} className="px-3 py-4 text-muted-foreground sm:text-center"><span className="sticky left-3 inline-block">Aucune molécule. {canEdit && "Ajoutez une ligne ci-dessous."}</span></td></tr>
             )}
             {rows.map((row, i) => (
-              <RowEditor key={row.id} researchId={researchId} row={row} index={i + 1} canEdit={canEdit} onStruct={() => router.refresh()} busy={busy} run={run} />
+              <RowEditor key={row.id} researchId={researchId} row={row} index={i + 1} canEdit={canEdit} onStruct={rafraichir} busy={busy} run={run} />
             ))}
           </tbody>
         </table>
@@ -80,6 +91,7 @@ function RowEditor({
   researchId: string; row: ResearchRowDTO; index: number; canEdit: boolean; onStruct: () => void; busy: boolean;
   run: (a: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fd: FormData, refresh?: boolean) => void;
 }) {
+  const confirmer = useConfirmer();
   const [s, setS] = React.useState({
     therapeuticClass: row.therapeuticClass ?? "",
     product: row.product,
@@ -133,7 +145,7 @@ function RowEditor({
             <button type="button" title="Pré-remplir depuis l'intelligence marché (Pharmatool)" onClick={() => { const fd = new FormData(); fd.set("id", row.id); fd.set("researchId", researchId); run(prefillResearchRow, fd); }} aria-label="Pré-remplir depuis l'intelligence marché" className="rounded p-2 text-primary hover:bg-primary/10 sm:p-1"><Sparkles className="h-3.5 w-3.5" /></button>
           )}
           {canEdit && (
-            <button type="button" onClick={() => { if (window.confirm(`Supprimer « ${s.product} » ?`)) { const fd = new FormData(); fd.set("id", row.id); fd.set("researchId", researchId); run(deleteResearchRow, fd); } }}
+            <button type="button" onClick={async () => { if (await confirmer(`Supprimer « ${s.product} » ?`)) { const fd = new FormData(); fd.set("id", row.id); fd.set("researchId", researchId); run(deleteResearchRow, fd); } }}
               aria-label={`Supprimer ${s.product}`} className="rounded p-2 text-destructive hover:bg-destructive/10 sm:p-1"><Trash2 className="h-3.5 w-3.5" /></button>
           )}
         </div>

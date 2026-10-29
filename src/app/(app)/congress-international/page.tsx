@@ -1,7 +1,6 @@
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
-import { getCongressList } from "@/lib/queries/congress";
-import { getAdProCreateData } from "@/lib/queries/ad-pro";
+import { getCongressList, getAdProCreateData } from "@/modules/ad-pro/api";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { ModuleTabs } from "@/components/shared/module-tabs";

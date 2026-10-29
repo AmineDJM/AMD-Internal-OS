@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, Check, X, Upload, Ban } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
+import { Retour } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
 import { submitDocumentRequest, decideDocumentRequest, cancelDocumentRequest } from "@/lib/actions/document-request-actions";
 
 /**
@@ -17,20 +19,14 @@ import { submitDocumentRequest, decideDocumentRequest, cancelDocumentRequest } f
 export function RespondPanel({
   id, canSubmit, canDecide, canCancel, attachmentCount,
 }: { id: string; canSubmit: boolean; canDecide: boolean; canCancel: boolean; attachmentCount: number }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const geste = useKeyedAction();
+  const { busy, error: err } = geste;
   const [note, setNote] = React.useState("");
 
   const run = async (key: string, fn: (fd: FormData) => Promise<{ ok: boolean; error?: string }>, fields: Record<string, string>) => {
-    setBusy(key); setErr(null);
     const fd = new FormData();
     for (const [k, v] of Object.entries(fields)) fd.set(k, v);
-    const r = await fn(fd);
-    setBusy(null);
-    if (!r.ok) { setErr(r.error ?? "L'opération a échoué."); return; }
-    setNote("");
-    router.refresh();
+    if (await geste.run(key, () => fn(fd))) setNote("");
   };
 
   if (!canSubmit && !canDecide && !canCancel) return null;
@@ -77,7 +73,7 @@ export function RespondPanel({
         </Button>
       )}
 
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

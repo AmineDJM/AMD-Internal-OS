@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, Check, Pencil, X, AlertTriangle, FileText } from "lucide-react";
 import { reviewFact, resolveConflict } from "@/lib/regulatory/intelligence/actions";
+import { Retour } from "@/components/ui/retour";
+import { useAction } from "@/components/shared/use-action";
 
 interface Occurrence { id: string; documentId: string; sectionCode: string | null; rawValue: string; extract: string; confidence: number; method: string }
 interface Fact { id: string; factKey: string; label: string; value: string | null; status: string; hasConflict: boolean; approvedValue: string | null; occurrences: Occurrence[] }
@@ -37,21 +39,18 @@ export function TwinPanel({ facts, conflicts, canEdit, canApprove }: { facts: Fa
 }
 
 function FactRow({ fact, canEdit }: { fact: Fact; canEdit: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Les petits boutons d'un fait n'ont pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
   const [editing, setEditing] = React.useState(false);
   const [val, setVal] = React.useState(fact.value ?? "");
   const [open, setOpen] = React.useState(false);
 
   async function act(decision: string, value?: string) {
-    setBusy(true);
     const fd = new FormData();
     fd.set("factId", fact.id);
     fd.set("decision", decision);
     if (value !== undefined) fd.set("value", value);
-    const r = await reviewFact(fd);
-    setBusy(false);
-    if (r.ok) { setEditing(false); router.refresh(); }
+    await run(() => reviewFact(fd), () => setEditing(false));
   }
 
   const tone = fact.status === "CONFIRMED" || fact.status === "CORRECTED" ? "text-success" : fact.status === "REJECTED" ? "text-muted-foreground line-through" : "text-foreground";
@@ -102,23 +101,17 @@ function FactRow({ fact, canEdit }: { fact: Fact; canEdit: boolean }) {
 }
 
 function ConflictRow({ conflict, canApprove }: { conflict: Conflict; canApprove: boolean }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  const { busy, err: error, run } = useAction();
   const [finalValue, setFinalValue] = React.useState("");
   const [note, setNote] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
 
   async function resolve() {
-    setBusy(true); setError(null);
     const fd = new FormData();
     fd.set("conflictId", conflict.id);
     fd.set("finalValue", finalValue);
     fd.set("note", note);
     fd.set("status", "RESOLVED");
-    const r = await resolveConflict(fd);
-    setBusy(false);
-    if (r.ok) router.refresh();
-    else setError(r.error ?? "Échec.");
+    await run(() => resolveConflict(fd));
   }
 
   return (
@@ -142,7 +135,7 @@ function ConflictRow({ conflict, canApprove }: { conflict: Conflict; canApprove:
           </button>
         </div>
       )}
-      {error && <p className="mt-1 text-[0.6875rem] text-destructive">{error}</p>}
+      <Retour ton="erreur" className="mt-1">{error}</Retour>
     </div>
   );
 }

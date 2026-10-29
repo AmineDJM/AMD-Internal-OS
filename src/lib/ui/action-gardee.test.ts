@@ -54,6 +54,8 @@ export function appelsNonGardes(chemin: string, src: string): string[] {
   const lignes = src.split("\n");
   const hits: string[] = [];
   lignes.forEach((l, i) => {
+    // Une ligne de commentaire (un exemple du patron cité en prose) n'appelle rien (§118.79d).
+    if (/^\s*(\*|\/\/)/.test(l)) return;
     if (!APPEL.test(l) || /\.catch\(|\bfetch\(/.test(l)) return;
     if (/try\s*\{/.test(lignes.slice(Math.max(0, i - 12), i).join("\n"))) return;
     if (!REMISE.test(lignes.slice(i + 1, i + 3).join("\n"))) return;
@@ -65,8 +67,10 @@ export function appelsNonGardes(chemin: string, src: string): string[] {
 /**
  * Mesuré le 27/10/2026 (audit frontend-ux), après correction du centre de paiement et du panneau
  * de décision Ad & Pro « autres » : 315 points d'appel (318 avant). Il ne peut que baisser.
+ * Ramené à 0 le 28/10/2026 (V3-B, primitives UI) — le parc entier passe par `useAction` / `useKeyedAction` /
+ * `useFormAction` ou un `try/catch/finally` ; les lignes de commentaire ne sont plus lues comme des appels.
  */
-const PLAFOND_APPELS_NON_GARDES = 315;
+const PLAFOND_APPELS_NON_GARDES = 0;
 
 describe("l'action serveur gardée", () => {
   const parc = fichiers(SRC).map((f) => ({ f, src: readFileSync(f, "utf8") }));
@@ -80,6 +84,8 @@ describe("l'action serveur gardée", () => {
     const garde = `"use client";\nasync function go(fd) {\n  setBusy(true);\n  try {\n    const r = await decidePayment(fd);\n    setBusy(false);\n  } catch {}\n}`;
     expect(appelsNonGardes(join(SRC, "x.tsx"), nu)).toHaveLength(1);
     expect(appelsNonGardes(join(SRC, "x.tsx"), garde)).toHaveLength(0);
+    const cite = `"use client";\n/**\n *     const r = await decidePayment(fd);\n *     setBusy(false);\n */`;
+    expect(appelsNonGardes(join(SRC, "x.tsx"), cite)).toHaveLength(0);
   });
 
   it("les écrans de décision corrigés par l'audit ne peuvent plus rester figés", () => {

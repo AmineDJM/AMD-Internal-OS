@@ -1,24 +1,22 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { LogOut, Loader2 } from "lucide-react";
 import { disconnectMicrosoftMail } from "@/lib/actions/microsoft-mail-actions";
+import { useAction } from "@/components/shared/use-action";
 
 /**
  * SE DÉCONNECTER DOIT VRAIMENT DÉCONNECTER : les jetons sont EFFACÉS, pas désactivés. On confirme,
  * parce qu'un clic malheureux obligerait à repasser par Microsoft.
  */
 export function DisconnectButton() {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // Le bouton n'a pas de place où parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
 
   const go = async () => {
-    if (!window.confirm("Déconnecter votre boîte Microsoft ? Vos e-mails restent chez Microsoft ; seule la liaison est coupée.")) return;
-    setBusy(true);
-    await disconnectMicrosoftMail();
-    setBusy(false);
-    router.refresh();
+    await run(() => disconnectMicrosoftMail(), undefined, {
+      confirmer: "Déconnecter votre boîte Microsoft ? Vos e-mails restent chez Microsoft ; seule la liaison est coupée.",
+    });
   };
 
   return (

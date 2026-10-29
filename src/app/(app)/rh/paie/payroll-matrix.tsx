@@ -11,6 +11,7 @@ import { cn, formatBytes, formatCurrency, formatMontant, formatMonth, initials }
 import { DocumentPreview } from "@/components/documents/document-preview";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { FILTRE_SANS_ENTITE, masseDuFiltre, type ColonneMasse } from "./masse-mensuelle";
 
 export interface PayrollCell {
@@ -104,9 +105,16 @@ export function PayrollMatrix({
   async function undo(entryId: string) {
     const fd = new FormData(); fd.set("id", entryId);
     setBusy(true);
-    const r = await unmarkSalaryPaid(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Échec."); return; }
+    let r: Awaited<ReturnType<typeof unmarkSalaryPaid>>;
+    try {
+      r = await unmarkSalaryPaid(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!r.ok) { setErr(r.error ?? "Le paiement n'a pas été annulé."); return; }
     setEditing(null);
     rafraichir();
   }
@@ -278,9 +286,16 @@ export function PayrollMatrix({
               fd.set("employeeId", paying.row.employeeId);
               fd.set("year", String(year));
               fd.set("month", String(paying.month));
-              const r = await markSalaryPaid(fd);
-              setBusy(false);
-              if (r.ok) { setPaying(null); rafraichir(); } else setErr(r.error ?? "Échec.");
+              let r: Awaited<ReturnType<typeof markSalaryPaid>>;
+              try {
+                r = await markSalaryPaid(fd);
+              } catch {
+                setErr(actionFailureMessage("THROWN"));
+                return;
+              } finally {
+                setBusy(false);
+              }
+              if (r.ok) { setPaying(null); rafraichir(); } else setErr(r.error ?? "Le salaire n'a pas été marqué payé.");
             }}
             className="space-y-4"
           >
@@ -343,9 +358,16 @@ export function PayrollMatrix({
             action={async (fd) => {
               setBusy(true); setErr(null);
               fd.set("id", editing.cell.entryId ?? "");
-              const r = await updatePayrollEntry(fd);
-              setBusy(false);
-              if (r.ok) { setEditing(null); rafraichir(); } else setErr(r.error ?? "Échec.");
+              let r: Awaited<ReturnType<typeof updatePayrollEntry>>;
+              try {
+                r = await updatePayrollEntry(fd);
+              } catch {
+                setErr(actionFailureMessage("THROWN"));
+                return;
+              } finally {
+                setBusy(false);
+              }
+              if (r.ok) { setEditing(null); rafraichir(); } else setErr(r.error ?? "La ligne de paie n'a pas été modifiée.");
             }}
             className="space-y-4"
           >

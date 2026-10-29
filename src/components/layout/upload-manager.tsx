@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Loader2, CheckCircle2, AlertCircle, X, UploadCloud, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { isRetryableHttpStatus, backoffMs } from "@/lib/regulatory/intelligence/upload/retry";
 import { rememberUpload, forgetUpload, listPendingUploads } from "@/lib/regulatory/intelligence/upload/pending-store";
@@ -129,7 +129,8 @@ async function postJsonWithRetry<T extends { ok?: boolean; error?: string; retry
 // ────────────────────────────────────────────────────────────────────────────────────────────
 
 export function UploadProvider({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  // Rafraîchissements de fin d'envoi, en tâche de fond : `enCours` n'est lu nulle part — aucun geste n'est bloqué.
+  const { rafraichir } = useRafraichir();
   const [jobs, setJobs] = React.useState<Record<string, UploadJob>>({});
   const jobsRef = React.useRef(jobs);
   jobsRef.current = jobs;
@@ -263,8 +264,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
               console.info(`[upload] ${(file.size / 1048576).toFixed(0)} Mo en ${seconds.toFixed(1)} s — ${(file.size / 1048576 / Math.max(seconds, 0.001)).toFixed(1)} Mo/s`);
               patch(dossierId, { phase: "done", summary: data.summary ?? null });
               void forgetUpload(dossierId);
-              fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => router.refresh());
-              router.refresh();
+              fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => rafraichir());
+              rafraichir();
               return;
             }
             if (!data.manquantes?.length || essai >= 2) throw new Error(data.error ?? "Finalisation refusée.");
@@ -297,8 +298,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
         if (!data.ok) throw new Error(data.error ?? "Finalisation refusée.");
         patch(dossierId, { phase: "done", summary: data.summary ?? null });
         void forgetUpload(dossierId); // terminé : plus rien à reprendre
-        fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => router.refresh());
-        router.refresh();
+        fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => rafraichir());
+        rafraichir();
         return;
       }
 
@@ -363,8 +364,8 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
       if (!data.ok) throw new Error(data.error ?? "Finalisation refusée.");
       patch(dossierId, { phase: "done", summary: data.summary ?? null });
       void forgetUpload(dossierId); // terminé : plus rien à reprendre
-      fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => router.refresh());
-      router.refresh();
+      fetch("/api/regulatory/intelligence/process", { method: "POST" }).catch(sansBloquer("upload-manager.UploadProvider.fetch")).finally(() => rafraichir());
+      rafraichir();
     } catch (e) {
       // Annulé À LA DEMANDE : ce n'est pas une panne, et surtout ce n'est pas « relancez pour
       // reprendre » — l'utilisateur vient précisément de dire qu'il ne voulait plus de cet envoi.
@@ -373,7 +374,7 @@ export function UploadProvider({ children }: { children: React.ReactNode }) {
     } finally {
       inflight.current.delete(dossierId);
     }
-  }, [patch, router, track]);
+  }, [patch, rafraichir, track]);
 
   /**
    * ANNULER — arrêter POUR DE BON, pas seulement à l'écran.

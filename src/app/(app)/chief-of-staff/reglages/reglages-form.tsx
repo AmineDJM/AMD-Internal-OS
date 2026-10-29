@@ -2,9 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Loader2, ShieldCheck, ShieldAlert, Radio, Unplug, RefreshCw, OctagonPause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Input } from "@/components/ui/input";
 import {
   setAdamMailPolicy,
@@ -62,7 +62,7 @@ export function ReglagesForm({
   /** Les missions d'Adam sont réservées au Super Admin (§118.136) : sans ce droit, pas de section. */
   missionsPilotables: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [message, setMessage] = React.useState<{ tone: "ok" | "err"; text: string } | null>(null);
   // La ressaisie n'apparaît QUE lorsqu'on vise l'envoi autonome — une friction affichée en
@@ -79,9 +79,9 @@ export function ReglagesForm({
         setMessage({ tone: "ok", text: okText });
         setConfirmFor(null);
         setConfirmText("");
-        router.refresh();
+        rafraichir();
       } else {
-        setMessage({ tone: "err", text: r.error ?? "Échec." });
+        setMessage({ tone: "err", text: r.error ?? "Le réglage n'a pas été enregistré." });
       }
     } catch {
       setMessage({ tone: "err", text: "Le serveur n'a pas répondu." });

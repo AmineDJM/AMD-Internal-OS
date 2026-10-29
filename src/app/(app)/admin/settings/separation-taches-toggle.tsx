@@ -4,6 +4,7 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { setSeparationTachesPaiement } from "@/lib/actions/settings-actions";
 import { useAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 
 /**
  * LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06) — active par défaut. La suspendre
@@ -13,8 +14,9 @@ export function SeparationTachesToggle({ active: initial }: { active: boolean })
   const [active, setActive] = React.useState(initial);
   const { busy, err, run } = useAction();
   function basculer(next: boolean) {
-    if (!next && !window.confirm("Suspendre la séparation des tâches ? Un même compte pourra demander, autoriser et régler un paiement.")) return;
-    void run(() => setSeparationTachesPaiement(next), () => setActive(next));
+    void run(() => setSeparationTachesPaiement(next), () => setActive(next), next ? undefined : {
+      confirmer: { titre: "Suspendre la séparation des tâches ?", message: "Un même compte pourra demander, autoriser et régler un paiement.", confirmer: "Suspendre", ton: "danger" },
+    });
   }
   return (
     <div className="space-y-2">
@@ -37,7 +39,7 @@ export function SeparationTachesToggle({ active: initial }: { active: boolean })
         </button>
       </div>
       {busy && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Mise à jour…</p>}
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

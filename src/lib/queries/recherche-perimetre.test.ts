@@ -17,8 +17,7 @@ import { globalSearch, type SearchResult } from "@/lib/queries/search";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
 import { resolveRegCompanyIdFor, regCan } from "@/lib/regulatory/intelligence/access";
 import { canSee, clauseTachesVisibles } from "@/lib/tasks/request-flow";
-import { getEvents } from "@/lib/queries/events";
-import { getCongressList } from "@/lib/queries/congress";
+import { getEvents, getCongressList } from "@/modules/ad-pro/api";
 import { getRequestList } from "@/lib/queries/admin-requests";
 import { getPchTenders } from "@/lib/queries/pch";
 

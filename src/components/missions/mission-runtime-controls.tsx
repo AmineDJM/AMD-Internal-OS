@@ -8,6 +8,7 @@ import {
   prevoirModificationMission, reprendreMission, suspendreToutesMesMissions,
   type ApercuModification,
 } from "@/lib/actions/mission-runtime-actions";
+import { useConfirmer } from "@/components/ui/dialogue";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -175,6 +176,7 @@ export function ElementControls(
  */
 export function ConduiteControls({ missionId, statut }: { missionId: string; statut: string }) {
   const { enCours, etat, lancer, pret } = useGeste();
+  const confirmer = useConfirmer();
   const terminee = statut === "COMPLETED" || statut === "CANCELLED";
   if (terminee) return null;
 
@@ -205,12 +207,12 @@ export function ConduiteControls({ missionId, statut }: { missionId: string; sta
         type="button"
         className="inline-flex items-center gap-1.5 rounded-md border border-rose-300 px-3 py-2 text-sm text-rose-700 disabled:opacity-60 sm:py-1.5"
         disabled={!pret || enCours !== null}
-        onClick={() => {
+        onClick={async () => {
           // UNE SEULE CONFIRMATION, et elle dit ce qui ne sera PAS défait. « Êtes-vous sûr ? »
           // ne renseigne sur rien ; ce qui compte, c'est que les envois partis restent partis.
-          if (!window.confirm(
+          if (!(await confirmer(
             "Arrêter définitivement cette mission ? Ce qui a déjà été fait reste fait — rien n'est défait.",
-          )) return;
+          ))) return;
           void lancer("arreter", () => arreterMission(missionId));
         }}
       >
@@ -437,6 +439,7 @@ export function ModificationControls({ missionId }: { missionId: string }) {
  */
 export function MissionBulkControls({ suspendables, bloquees }: { suspendables: number; bloquees: number }) {
   const { enCours, etat, lancer, pret } = useGeste();
+  const confirmer = useConfirmer();
   if (suspendables === 0 && bloquees === 0) return null;
   return (
     <div className="surface p-3" data-testid="mission-bulk-controls">
@@ -447,10 +450,10 @@ export function MissionBulkControls({ suspendables, bloquees }: { suspendables: 
             type="button"
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 disabled:opacity-60 sm:w-auto sm:py-1.5"
             disabled={!pret || enCours !== null}
-            onClick={() => {
-              if (!window.confirm(
+            onClick={async () => {
+              if (!(await confirmer(
                 `Suspendre ${suspendables} mission(s) en cours ? Elles repartiront où elles en étaient quand vous les reprendrez, une par une.`,
-              )) return;
+              ))) return;
               void lancer("suspendre-tout", () => suspendreToutesMesMissions());
             }}
           >
@@ -463,10 +466,10 @@ export function MissionBulkControls({ suspendables, bloquees }: { suspendables: 
             type="button"
             className="inline-flex w-full items-center justify-center gap-1.5 rounded-md border border-rose-300 px-3 py-2 text-sm font-medium text-rose-700 disabled:opacity-60 sm:w-auto sm:py-1.5"
             disabled={!pret || enCours !== null}
-            onClick={() => {
-              if (!window.confirm(
+            onClick={async () => {
+              if (!(await confirmer(
                 `Arrêter définitivement ${bloquees} mission(s) bloquée(s) ou en échec ? Ce qui a déjà été fait reste fait — rien n'est défait.`,
-              )) return;
+              ))) return;
               void lancer("arreter-bloquees", () => arreterMesMissionsBloquees());
             }}
           >

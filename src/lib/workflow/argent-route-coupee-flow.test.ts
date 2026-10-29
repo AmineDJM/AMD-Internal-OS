@@ -15,8 +15,8 @@ import { adProInit } from "./origin";
 import type { StepInput } from "./types";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { advanceWorkflow } from "@/lib/actions/workflow-actions";
-import { createCongressRequest } from "@/lib/actions/congress-request-actions";
-import { createEvent, submitEventForApproval } from "@/lib/actions/event-actions";
+import { createCongressRequest } from "@/modules/ad-pro/actions-congres";
+import { createEvent, submitEventForApproval } from "@/modules/ad-pro/actions-evenements";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

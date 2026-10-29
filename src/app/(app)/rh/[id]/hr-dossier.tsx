@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Upload, Loader2, Trash2, FileText, Download, Paperclip, FolderArchive, FolderTree } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
@@ -17,11 +16,17 @@ import { MeetingControls } from "@/modules/rh/ecrans/hr-meeting-controls";
 import { ExpenseClaimHrPanel } from "@/components/hr/expense-claim-hr-panel";
 import type { HrDocumentDTO, HrRequestDTO } from "@/modules/rh/api";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useKeyedAction } from "@/components/shared/use-action";
+import { useRetours } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { OrdreMissionForm } from "./ordre-mission-form";
 import { AttestationTravailForm } from "./attestation-travail-form";
 
 export function HrDossier({ employeeId, employeeName, employeePosition = null, referenceOrdreMission = "", documents, requests, currentUserId }: { employeeId: string; employeeName: string; employeePosition?: string | null; referenceOrdreMission?: string; documents: HrDocumentDTO[]; requests: HrRequestDTO[]; currentUserId: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  // Les gestes d'une ligne (partage, suppression) n'ont pas de place où parler : un refus part en avis flottant.
+  const { run: agirLigne } = useKeyedAction({ signalerErreurs: true });
   const [category, setCategory] = React.useState("PAYSLIP");
   // La case suit la CATÉGORIE tant que personne ne l'a touchée : choisir « Contrat » doit
   // décocher tout seul, sinon le défaut ne protège que ceux qui y pensent.
@@ -48,7 +53,7 @@ export function HrDossier({ employeeId, employeeName, employeePosition = null, r
       const res = await fetch("/api/rh/upload", { method: "POST", body: fd });
       const data = await res.json();
       if (!res.ok) setErr(data.error ?? "Échec de l'envoi.");
-      else router.refresh();
+      else rafraichir();
     } catch { setErr("Échec de l'envoi."); }
     finally { setBusy(false); }
   };
@@ -122,7 +127,7 @@ export function HrDossier({ employeeId, employeeName, employeePosition = null, r
                 {/* L'ÉTAT SE VOIT, et se change d'un clic : une restriction invisible est une
                     restriction dont on doute, et qu'on finit par contourner « au cas où ». */}
                 <button
-                  onClick={() => { const fd = new FormData(); fd.set("id", d.id); fd.set("visible", d.visibleToEmployee ? "0" : "1"); setEmployeeDocumentVisibility(fd).then(() => router.refresh()); }}
+                  onClick={() => { const fd = new FormData(); fd.set("id", d.id); fd.set("visible", d.visibleToEmployee ? "0" : "1"); void agirLigne(`vis-${d.id}`, () => setEmployeeDocumentVisibility(fd)); }}
                   title={d.visibleToEmployee ? "Reprendre l'accès du salarié" : "Partager avec le salarié"}
                   className={`ml-auto shrink-0 rounded-full border px-2.5 py-1.5 text-[0.6875rem] font-medium transition-colors sm:ml-0 sm:px-2 sm:py-0.5 ${d.visibleToEmployee ? "border-success/40 text-success hover:bg-success/10" : "border-border text-muted-foreground hover:bg-secondary"}`}
                 >
@@ -130,7 +135,7 @@ export function HrDossier({ employeeId, employeeName, employeePosition = null, r
                 </button>
                 <a href={`/api/rh/document/${d.id}?dl=1`} className="shrink-0 rounded p-2.5 text-muted-foreground hover:bg-secondary hover:text-foreground sm:p-1.5" title="Télécharger" aria-label="Télécharger"><Download className="h-4 w-4" /></a>
                 <BoutonDecisif brut
-                  onClick={() => { const fd = new FormData(); fd.set("id", d.id); deleteEmployeeDocument(fd).then(() => router.refresh()); }}
+                  onClick={() => { const fd = new FormData(); fd.set("id", d.id); void agirLigne(`suppr-${d.id}`, () => deleteEmployeeDocument(fd)); }}
                   className="rounded p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5" title="Supprimer"
                 ><Trash2 className="h-4 w-4" /></BoutonDecisif>
               </li>
@@ -157,7 +162,10 @@ export function HrDossier({ employeeId, employeeName, employeePosition = null, r
 // La file du sous-module « Demandes RH » vit dans `rh/demandes/file-demandes-rh.tsx` (Direction, 07/10) : une ligne par
 // demande et un panneau de traitement. La ligne ci-dessous reste celle de la fiche du salarié.
 function RequestRow({ req, employeeId, employeeName, employeePosition, referenceOrdreMission, onFulfil, busy, currentUserId }: { req: HrRequestDTO; employeeId: string; employeeName: string; employeePosition: string | null; referenceOrdreMission: string; onFulfil: (file: File, opts: { category: string; requestId: string }) => void; busy: boolean; currentUserId: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
+  // Supprimer la demande : l'icône n'a pas de place où parler, un refus part en avis flottant.
+  const { run: agirLigne } = useKeyedAction({ signalerErreurs: true });
   const [status, setStatus] = React.useState(req.status);
   const [note, setNote] = React.useState(req.hrNote ?? "");
   const [saving, setSaving] = React.useState(false);
@@ -174,9 +182,16 @@ function RequestRow({ req, employeeId, employeeName, employeePosition, reference
     const fd = new FormData();
     fd.set("id", req.id); fd.set("decision", decision);
     if (note) fd.set("hrNote", note);
-    const r = await decideExpenseReport(fd);
-    setDeciding(null);
-    if (!r.ok) setDecideErr(r.error ?? "Échec."); else router.refresh();
+    let r: Awaited<ReturnType<typeof decideExpenseReport>>;
+    try {
+      r = await decideExpenseReport(fd);
+    } catch {
+      setDecideErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setDeciding(null);
+    }
+    if (!r.ok) setDecideErr(r.error ?? "La décision n'a pas été enregistrée."); else rafraichir();
   };
 
   // Décision congé / absence / autorisation (nature APPROBATION) : accorder ou refuser.
@@ -185,17 +200,31 @@ function RequestRow({ req, employeeId, employeeName, employeePosition, reference
     const fd = new FormData();
     fd.set("id", req.id); fd.set("decision", decision);
     if (note) fd.set("hrNote", note);
-    const r = await decideHrLeave(fd);
-    setDeciding(null);
-    if (!r.ok) setDecideErr(r.error ?? "Échec."); else router.refresh();
+    let r: Awaited<ReturnType<typeof decideHrLeave>>;
+    try {
+      r = await decideHrLeave(fd);
+    } catch {
+      setDecideErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setDeciding(null);
+    }
+    if (!r.ok) setDecideErr(r.error ?? "La décision n'a pas été enregistrée."); else rafraichir();
   };
 
   const save = async () => {
     setSaving(true);
     const fd = new FormData(); fd.set("id", req.id); fd.set("status", status); fd.set("hrNote", note);
-    await processHrRequest(fd);
-    setSaving(false);
-    router.refresh();
+    try {
+      const r = await processHrRequest(fd);
+      if (!r.ok) retours.erreur(r.error ?? "La demande n'a pas été mise à jour.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
+    rafraichir();
   };
 
   return (
@@ -212,7 +241,7 @@ function RequestRow({ req, employeeId, employeeName, employeePosition, reference
         <BoutonDecisif brut
           onClick={() => {
             const fd = new FormData(); fd.set("id", req.id);
-            deleteHrRequest(fd).then(() => router.refresh());
+            void agirLigne("suppr", () => deleteHrRequest(fd));
           }}
           title="Supprimer cette demande (la demande seule, pas l'employé)"
           className="ml-auto rounded-md p-2.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5"

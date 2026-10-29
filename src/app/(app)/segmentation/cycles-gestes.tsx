@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input, Select, Label } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { DUREES, DUREE_LABELS } from "@/lib/segmentation/cycle";
 import { ouvrirCycleSegmentation, cloreCycleSegmentation } from "@/lib/actions/segmentation-actions";
 
@@ -22,9 +23,14 @@ export function OuvrirCycle({ strategieId }: { strategieId: string }) {
       className="surface grid grid-cols-1 gap-3 p-3 sm:flex sm:flex-wrap sm:items-end sm:p-4"
       onSubmit={async (e) => {
         e.preventDefault(); setEnvoi(true); setErreur(null);
-        const r = await ouvrirCycleSegmentation({ strategieId, debut, duree, fin, libelle });
-        setEnvoi(false);
-        if (!r.ok) setErreur(r.error); else router.push(`/segmentation?s=${strategieId}&vue=cycles&cycle=${r.id}`);
+        try {
+          const r = await ouvrirCycleSegmentation({ strategieId, debut, duree, fin, libelle });
+          if (!r.ok) setErreur(r.error); else router.push(`/segmentation?s=${strategieId}&vue=cycles&cycle=${r.id}`);
+        } catch {
+          setErreur(actionFailureMessage("THROWN"));
+        } finally {
+          setEnvoi(false);
+        }
       }}
     >
       <div><Label>Début</Label><Input type="date" value={debut} onChange={(e) => setDebut(e.target.value)} className="sm:w-40" /></div>
@@ -43,7 +49,15 @@ export function CloreCycle({ cycleId }: { cycleId: string }) {
   const [erreur, setErreur] = React.useState<string | null>(null);
   return (
     <span className="flex flex-wrap items-center gap-2">
-      <Button size="sm" variant="outline" disabled={enCours} onClick={async () => { setErreur(null); const r = await cloreCycleSegmentation(cycleId); if (!r.ok) setErreur(r.error); else rafraichir(); }}>Clore le cycle</Button>
+      <Button size="sm" variant="outline" disabled={enCours} onClick={async () => {
+        setErreur(null);
+        try {
+          const r = await cloreCycleSegmentation(cycleId);
+          if (!r.ok) setErreur(r.error); else rafraichir();
+        } catch {
+          setErreur(actionFailureMessage("THROWN"));
+        }
+      }}>Clore le cycle</Button>
       {erreur && <span className="text-xs text-destructive">{erreur}</span>}
     </span>
   );

@@ -358,7 +358,7 @@ suite("Bons de commande — modifiables de A à Z, et les coordonnées de la soc
       const reviser = readFileSync("src/components/legal/reviser-piece.tsx", "utf8");
       expect(reviser).toContain("<ComposerPieceButton");
       expect(reviser).not.toMatch(/<Sheet\b/);
-      const poste = readFileSync("src/components/ad-pro/devis-bc-poste.tsx", "utf8");
+      const poste = readFileSync("src/modules/ad-pro/ecrans/devis-bc-poste.tsx", "utf8");
       expect(poste).toContain("valeurs={bc.revision.valeurs}");
       expect(poste).toContain("previsualiserBcDuPoste");
       const fiche = readFileSync("src/app/(app)/legal/[id]/page.tsx", "utf8");

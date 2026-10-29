@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { NouvelleDemandeMaterielButton } from "@/components/ad-pro/demande-materiel-form";
+import { NouvelleDemandeMaterielButton } from "@/modules/ad-pro/ecrans/demande-materiel-form";
 import { optionsDesArticlesDemandes } from "@/lib/queries/promo-achats";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

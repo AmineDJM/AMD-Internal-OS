@@ -22,7 +22,7 @@ import {
   genererBonsDeCommandePromo, deposerFacturePromo, lireFacturePromo, receptionnerLigneFacturePromo, annulerReceptionLigneFacturePromo,
   annulerFacturePromo, demanderPaiementFacturePromo, validerEtEnvoyerBcPromo,
 } from "./promo-execution-actions";
-import { deciderVisaCentreAdPro } from "./ad-pro-centre-actions";
+import { deciderVisaCentreAdPro } from "@/modules/ad-pro/actions-centre";
 import { signerBonDeCommande } from "./bc-signature-actions";
 import { avecCopieSignee } from "@/lib/bons-de-commande/signature-test-outils";
 import { executionDuDossier } from "@/lib/queries/promo-execution";

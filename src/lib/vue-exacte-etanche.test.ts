@@ -265,12 +265,12 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     "src/lib/actions/drive-comment-actions.ts": ["listDriveComments"],
     "src/lib/regulatory/intelligence/knowledge/actions.ts": ["loadDossierChatAction"],
     "src/lib/actions/market-actions.ts": ["searchMarketProducts", "marketSuggestions"],
-    "src/lib/actions/congress-beneficiary-actions.ts": ["listBeneficiaryRefs"],
+    "src/modules/ad-pro/actions-congres-beneficiaires.ts": ["listBeneficiaryRefs"],
     "src/lib/actions/document-request-actions.ts": ["askablePeople"],
     "src/lib/actions/link-actions.ts": ["linkCandidatesFor"],
     "src/lib/actions/my-team-actions.ts": ["teamMemberKpis"],
     "src/lib/actions/regulatory-actions.ts": ["checkDciDuplicate"],
-    "src/lib/actions/ad-pro-medecins-actions.ts": ["chercherMedecinsAnnuaire"],
+    "src/modules/ad-pro/actions-medecins.ts": ["chercherMedecinsAnnuaire"],
     "src/lib/actions/assistant-actions.ts": ["listAssistantFiles", "myAssistantThreads", "myAssistantThread", "refreshMyBrief"],
   };
   // Lectures VOLONTAIREMENT au nom du Super Admin réel : aperçus d'une écriture qui suivra en son nom, lectures

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, Check, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -17,7 +18,7 @@ import { requestTreasuryUpdate } from "@/lib/actions/finance-actions";
  * encore ouverte la RELANCE au lieu d'en créer une autre.
  */
 export function TreasuryUpdateRequestButton({ entiteId, entite }: { entiteId: string | null; entite: string | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [note, setNote] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -29,12 +30,17 @@ export function TreasuryUpdateRequestButton({ entiteId, entite }: { entiteId: st
     const fd = new FormData();
     if (note.trim()) fd.set("note", note.trim());
     if (entiteId) fd.set("entite", entiteId);
-    const r = await requestTreasuryUpdate(fd);
-    setBusy(false);
-    if (r.ok) {
-      setDone(r.message ?? "Demande envoyée.");
-      setTimeout(() => { setOpen(false); setDone(null); setNote(""); router.refresh(); }, 2500);
-    } else setError(r.error ?? "Échec.");
+    try {
+      const r = await requestTreasuryUpdate(fd);
+      if (r.ok) {
+        setDone(r.message ?? "Demande envoyée.");
+        setTimeout(() => { setOpen(false); setDone(null); setNote(""); rafraichir(); }, 2500);
+      } else setError(r.error ?? "La demande n'a pas été envoyée.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

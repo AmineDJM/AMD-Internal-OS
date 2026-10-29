@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { apercuImportClasseurDirection, importerClasseurDirection } from "@/lib/actions/segmentation-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 type Apercu = Extract<Awaited<ReturnType<typeof apercuImportClasseurDirection>>, { ok: true }>;
 type Bilan = Extract<Awaited<ReturnType<typeof importerClasseurDirection>>, { ok: true }>;
@@ -31,19 +32,29 @@ export function ImportDirection({ bus, buInitiale, peutForcer }: { bus: { id: st
     setApercu(null); setBilan(null); setErreur(null);
     if (!f) return;
     setEnvoi("lecture");
-    const r = await apercuImportClasseurDirection(fd(f, buId));
-    setEnvoi(null);
-    if (!r.ok) { setErreur(r.error); return; }
-    setApercu(r);
-    setBu(r.businessUnit.id);
+    try {
+      const r = await apercuImportClasseurDirection(fd(f, buId));
+      if (!r.ok) { setErreur(r.error); return; }
+      setApercu(r);
+      setBu(r.businessUnit.id);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(null);
+    }
   }
   async function importer() {
     if (!fichier || !apercu) return;
     setEnvoi("import"); setErreur(null);
-    const r = await importerClasseurDirection(fd(fichier, apercu.businessUnit.id));
-    setEnvoi(null);
-    if (!r.ok) { setErreur(r.error); return; }
-    setBilan(r); setApercu(null);
+    try {
+      const r = await importerClasseurDirection(fd(fichier, apercu.businessUnit.id));
+      if (!r.ok) { setErreur(r.error); return; }
+      setBilan(r); setApercu(null);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(null);
+    }
   }
 
   const bloqueForcer = !!apercu && !peutForcer && (apercu.ecarts.length > 0 || apercu.decisionsALever > 0);

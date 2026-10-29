@@ -1,7 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import Link from "next/link";
 import { Plus, Trash2, Loader2, Sparkles, Wand2, Package, Upload, TrendingUp, ShoppingCart, BadgeCheck, Download, Factory, Ship } from "lucide-react";
 import { addTenderLine, updateTenderLine, deleteTenderLine, analyzeTenderText, analyzeTenderDocument, enrichTenderLine, enrichAllTenderLines, createOrderFromLine } from "@/lib/actions/pch-tender-line-actions";
@@ -46,7 +49,8 @@ export function TenderLines({ tenderId, lines, canEdit, aiConfigured, reserves =
   /** Les lectures précédentes du document (lot D1c — F2) : ce que chacune a fait, et le compte des autres. */
   lectures?: { liste: LectureAoDTO[]; total: number };
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const retours = useRetours();
   const [busy, setBusy] = React.useState(false);
   const [analyzing, setAnalyzing] = React.useState(false);
   const [text, setText] = React.useState("");
@@ -60,20 +64,31 @@ export function TenderLines({ tenderId, lines, canEdit, aiConfigured, reserves =
 
   async function run(fn: () => Promise<Res>) {
     if (busy) return; setBusy(true);
-    const r = await fn(); setBusy(false);
-    if (!r.ok) { window.alert(r.error ?? "Action impossible."); return; }
-    router.refresh();
+    try {
+      const r = await fn();
+      if (!r.ok) { retours.erreur(r.error ?? "La ligne du marché n'a pas été mise à jour."); return; }
+      rafraichir();
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
   async function analyzeText() {
     if (!text.trim()) return;
     setAnalyzing(true); setBilan(null);
     const fd = new FormData(); fd.set("tenderId", tenderId); fd.set("text", text.trim());
     if (complementaire) fd.set("complementaire", "on");
-    const r: Res = await analyzeTenderText(fd);
-    setAnalyzing(false);
-    if (!r.ok) { setBilan({ ok: false, texte: r.error ?? "Analyse impossible : rien n'a été écrit au tableau du marché." }); return; }
-    setBilan({ ok: true, texte: r.message ?? "Lecture terminée." });
-    setText(""); setComplementaire(false); setShowAnalyze(false); router.refresh();
+    try {
+      const r: Res = await analyzeTenderText(fd);
+      if (!r.ok) { setBilan({ ok: false, texte: r.error ?? "Analyse impossible : rien n'a été écrit au tableau du marché." }); return; }
+      setBilan({ ok: true, texte: r.message ?? "Lecture terminée." });
+      setText(""); setComplementaire(false); setShowAnalyze(false); rafraichir();
+    } catch {
+      setBilan({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setAnalyzing(false);
+    }
   }
   async function analyzeFile() {
     const f = fileRef.current?.files?.[0];
@@ -82,12 +97,17 @@ export function TenderLines({ tenderId, lines, canEdit, aiConfigured, reserves =
     const fd = new FormData(); fd.set("tenderId", tenderId); fd.set("file", f);
     if (complementaire) fd.set("complementaire", "on");
     if (forcerOcr) fd.set("forcerOcr", "on");
-    const r: Res = await analyzeTenderDocument(fd);
-    setAnalyzing(false);
-    if (!r.ok) { setBilan({ ok: false, texte: r.error ?? "Analyse impossible : rien n'a été écrit au tableau du marché." }); return; }
-    setBilan({ ok: true, texte: r.message ?? "Lecture terminée." });
-    if (fileRef.current) fileRef.current.value = "";
-    setComplementaire(false); setForcerOcr(false); setShowAnalyze(false); router.refresh();
+    try {
+      const r: Res = await analyzeTenderDocument(fd);
+      if (!r.ok) { setBilan({ ok: false, texte: r.error ?? "Analyse impossible : rien n'a été écrit au tableau du marché." }); return; }
+      setBilan({ ok: true, texte: r.message ?? "Lecture terminée." });
+      if (fileRef.current) fileRef.current.value = "";
+      setComplementaire(false); setForcerOcr(false); setShowAnalyze(false); rafraichir();
+    } catch {
+      setBilan({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setAnalyzing(false);
+    }
   }
 
   return (
@@ -195,6 +215,7 @@ export function TenderLines({ tenderId, lines, canEdit, aiConfigured, reserves =
 }
 
 function LineCard({ tenderId, line, canEdit, busy, run, reserve }: { tenderId: string; line: PchTenderLineDTO; canEdit: boolean; busy: boolean; run: (fn: () => Promise<Res>) => void; reserve?: string }) {
+  const confirmer = useConfirmer();
   const [s, setS] = React.useState({
     designation: line.designation, dci: line.dci ?? "", dosage: line.dosage ?? "", form: line.form ?? "",
     quantityUnits: String(line.quantityUnits || ""), unitsPerBox: line.unitsPerBox != null ? String(line.unitsPerBox) : "",
@@ -330,7 +351,7 @@ function LineCard({ tenderId, line, canEdit, busy, run, reserve }: { tenderId: s
         <div className="ml-auto flex items-center gap-1.5">
           <button type="button" disabled={busy} onClick={() => { const fd = new FormData(); fd.set("id", line.id); fd.set("tenderId", tenderId); run(() => enrichTenderLine(fd)); }}
             className="inline-flex items-center gap-1 rounded px-2 py-2 text-primary hover:bg-primary/10 sm:py-1" title="Verrou prix Réception 2025 + concurrents + nomenclature + notre produit"><Sparkles className="h-3.5 w-3.5" /> Enrichir</button>
-          <button type="button" disabled={busy} aria-label={`Supprimer ${line.designation}`} onClick={() => { if (window.confirm(`Supprimer « ${line.designation} » ?`)) { const fd = new FormData(); fd.set("id", line.id); fd.set("tenderId", tenderId); run(() => deleteTenderLine(fd)); } }}
+          <button type="button" disabled={busy} aria-label={`Supprimer ${line.designation}`} onClick={async () => { if (await confirmer(`Supprimer « ${line.designation} » ?`)) { const fd = new FormData(); fd.set("id", line.id); fd.set("tenderId", tenderId); run(() => deleteTenderLine(fd)); } }}
             className="rounded p-2 text-destructive hover:bg-destructive/10 sm:p-1"><Trash2 className="h-4 w-4 sm:h-3.5 sm:w-3.5" /></button>
         </div>
       </div>
@@ -379,13 +400,14 @@ function MarketBadges({ line }: { line: PchTenderLineDTO }) {
 
 /** Ventes réelles : bons de commande (fractions) rattachés à une ligne GAGNÉE + taux de réalisation. */
 function SalesBlock({ tenderId, line, canEdit, busy, run }: { tenderId: string; line: PchTenderLineDTO; canEdit: boolean; busy: boolean; run: (fn: () => Promise<Res>) => void }) {
+  const retours = useRetours();
   const [qty, setQty] = React.useState("");
   const [ref, setRef] = React.useState("");
   const pct = line.fulfillmentPct ?? 0;
 
   function addOrder() {
     const q = Number(qty) || 0;
-    if (q <= 0) { window.alert("Indiquez la quantité vendue (fraction)."); return; }
+    if (q <= 0) { retours.alerte("Indiquez la quantité vendue (fraction)."); return; }
     const fd = new FormData();
     fd.set("lineId", line.id); fd.set("tenderId", tenderId);
     fd.set("quantity", qty); fd.set("reference", ref);
