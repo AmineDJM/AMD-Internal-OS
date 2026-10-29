@@ -13,7 +13,7 @@ import { putBlob, releaseBlob } from "@/lib/drive-storage";
 import { createDossierRecord } from "@/lib/dossiers-core";
 import { fdStr, fdDate, type ActionResult } from "@/lib/actions/types";
 import { sansBloquer } from "@/lib/journal";
-import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
+import { inscrirePieceJointe } from "@/modules/bibliotheque/api-inscription";
 
 const MAX_MSG_ATTACHMENT = 25 * 1024 * 1024; // 25 Mo par pièce jointe de message (chat)
 
@@ -135,16 +135,13 @@ export async function postDossierMessage(formData: FormData): Promise<ActionResu
   for (const f of files) {
     if (f.size > MAX_MSG_ATTACHMENT) continue;
     const buf = Buffer.from(await f.arrayBuffer());
-    const { blobId, size, sha256 } = await putBlob(buf);
+    const ecrit = await putBlob(buf);
     const pj = await prisma.dossierMessageAttachment.create({
-      data: { messageId: msg.id, blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size },
-      select: { id: true, name: true },
+      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size: ecrit.size },
+      select: { id: true, name: true, mime: true },
     });
-    // La pièce entre à la bibliothèque (J1), ouverte par la règle des pièces de sujet. Ne lève jamais.
-    await inscrirePiece({
-      blobId, empreinte: sha256, nom: pj.name, mime: f.type || null, taille: size, source: "AUTRE",
-      objet: { famille: "SUJET_PIECE", id: pj.id }, proprietaireId: user.id, role: "piece-jointe",
-    });
+    // La pièce entre à la bibliothèque (J1), ouverte par la règle de sa famille. Ne lève jamais.
+    await inscrirePieceJointe("SUJET_PIECE", pj, ecrit, { source: "AUTRE", proprietaireId: user.id });
   }
 
   await prisma.dossier.update({ where: { id }, data: { updatedAt: new Date() } });

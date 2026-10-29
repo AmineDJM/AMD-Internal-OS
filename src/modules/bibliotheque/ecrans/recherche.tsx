@@ -19,7 +19,7 @@ export interface ParamsRecherche {
 
 export function FormulaireBibliotheque({ p }: { p: ParamsRecherche }) {
   return (
-    <form method="get" className="surface grid gap-3 p-3 sm:grid-cols-[1fr_auto] sm:p-4">
+    <form method="get" className="surface grid grid-cols-1 gap-3 p-3 sm:grid-cols-[1fr_auto] sm:p-4">
       <div className="space-y-1">
         <Label htmlFor="q">Chercher par le contenu</Label>
         <Input id="q" name="q" defaultValue={p.q ?? ""} placeholder="« durée de conservation du lot », « contrat de transport frigorifique »…" autoFocus />
@@ -27,7 +27,7 @@ export function FormulaireBibliotheque({ p }: { p: ParamsRecherche }) {
       <div className="flex items-end">
         <Button type="submit" className="w-full sm:w-auto">Chercher</Button>
       </div>
-      <div className="grid gap-3 sm:col-span-2 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:col-span-2 sm:grid-cols-4">
         <div className="space-y-1">
           <Label htmlFor="format">Format</Label>
           <Select id="format" name="format" defaultValue={p.format ?? ""}>

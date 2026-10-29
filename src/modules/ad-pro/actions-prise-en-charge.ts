@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { careProgress, defaultCells, financeReadiness, quoteConflicts, OPINION_LABELS, SERVICE_KIND_LABELS, casesDeLaCategorie, deviseDuDevis, deviseDuPoste, hotelPrerempli, libelleNouveauPoste, lireMontant, montantLisible, typePoste, versDzd, peutMarquerRealisee, TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
 import { envoiAuxFinances, ENVOI_FINANCES_CHAMP, ENVOI_FINANCES_RESUME, peutSaisirLesDevis, demandePrevalidee, prendreLesCasesDuDevis, refusEngagementPriseEnCharge, rendreLaReserveDuDevis, REFUS_NON_PREVALIDEE, refusSiPorteDgFermee, signalerPorteDgSiBesoin } from "@/modules/ad-pro/api";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";

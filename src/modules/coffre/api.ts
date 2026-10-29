@@ -28,4 +28,8 @@ export { doubleEcrireCoffre } from "./infra/ecriture";
 export { copierAuCoffre, type ResultatCopie } from "./infra/copies";
 
 // ── Contrôle d'accès (politique + journal, sur la valeur que l'appelant a déjà) ──────────────
-export { controlerRibDePiece } from "./infra/acces";
+export { controlerRibDePiece, controlerLecture } from "./infra/acces";
+export { lecteurDepuisSession } from "./infra/lecteur";
+// La politique pure (décision 0012) : l'Assistant IA juge, au moment d'AFFICHER une valeur que son outil
+// a lue sur la colonne, si la personne a le droit de la voir — le modèle, lui, n'a eu que le repère.
+export { peutLire } from "./domaine/politique";

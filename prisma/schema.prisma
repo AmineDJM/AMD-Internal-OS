@@ -9415,6 +9415,20 @@ model AiSetting {
 /// LES BORNES DE L'ASSISTANT IA (lot V3-D, audit 27/10 rapport 06) — UNE ligne (`id = "global"`),
 /// réglée par le Super Admin (Administration › Consommation IA). Sans ligne : les défauts ci-dessous,
 /// les mêmes que dans `agent/consommation-regles.ts`. Lue par `agent/consommation.ts`.
+/// Décision 0012 (Direction, 29/10/2026) — CE QUE L'ASSISTANT IA PEUT FAIRE pour un rôle (défaut de ses membres) ou
+/// pour une personne (prime sur son rôle) : les familles OUVERTES et FERMÉES (`acces-regles.ts`), le reste suit le défaut
+/// (droits applicatifs, salaires et contrats fermés). Réglé par le Super Admin seul (`/admin/ai/acces`), chaque
+/// changement à l'audit. Une ligne a une cible : `userId` OU `role`.
+model AssistantIaAcces {
+  id          String    @id @default(cuid())
+  userId      String?   @unique
+  role        UserRole? @unique
+  ouvertes    String[]  @default([])
+  fermees     String[]  @default([])
+  updatedById String?
+  updatedAt   DateTime  @default(now()) @updatedAt
+}
+
 model AssistantIaReglage {
   id                     String   @id @default("global")
   /// Jetons (entrée + sortie) par personne et par jour, heure d'Alger. Atteint : refus dit, avis au Super Admin.

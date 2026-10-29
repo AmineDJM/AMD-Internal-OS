@@ -124,7 +124,7 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
   access family) + `BibliothequeFiche` (one per piece: `cles` access keys, `familles`, format, source, confidentiality —
   strictest wins —, `sensible`, queue state) + `BibliothequePassage` (~800-token chunks). Ratchet
   `src/modules/bibliotheque/inscription-cliquet.test.ts`: a vault write not followed by a registration fails `test:architecture`
-  unless named in its 10 justified exceptions (regulatory corpus → J2, letterhead/logo, KPI value import, `saveFile` itself,
+  unless named in its 9 justified exceptions (regulatory corpus → J2, letterhead/logo, KPI value import,
   messaging upload registered at `sendMessage`).
 - **Access keys** `FAMILY:id` (11 families, `domaine/familles.ts`); EXCLUSIVE families (Drive node, `Document`, meeting/field
   audio, KPI proof) move the key off the previous content (old versions stop matching).

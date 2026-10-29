@@ -20,7 +20,7 @@ import { rendreAuMagasin, reserverPourEvenement, sousVerrous, type Tx } from "@/
 import { refusArgentSurPosteStock, refusReservation } from "@/lib/promo/reservations";
 import { saisieEffective, type ReferenceProchaine } from "@/lib/references/registre";
 import { etatDuRegistre } from "@/lib/references/registre-serveur";
-import { annulerOrdreNonRegle } from "@/lib/payments/annulation";
+import { annulerOrdreNonRegle } from "@/modules/finances/api";
 import { aiguillerBC } from "@/lib/bons-de-commande/aiguillage";
 import { sansBloquer } from "@/lib/journal";
 import { PARENTS, revalidate, canEditItems, canAllocate, demandeurDe, peutTrancherSur, prevenirLeTemps, audit, refusSiClos, reprojeterMontantDemande, loadItem, REFUS_HISTORIQUE, etatBcDe, FINANCES_BC, appliquerGesteVisa, cloreDemandesAuBureau, resumeRepartition, postesRepartis, recordDecision, envoyerDemandeBC, libellesArticles, signalerAuSujet } from "./infra/postes/commun";

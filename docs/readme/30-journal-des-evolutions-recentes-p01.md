@@ -6,7 +6,7 @@ Décision de la Direction (lot J1, pgvector approuvé) — `docs/assistant/decis
 - **Une porte d'inscription** (`@/modules/bibliotheque/api-inscription`) branchée sur ≈ 45 points d'entrée : Drive (dépôts,
   versions, éditeurs, copies, miroirs, exports, fabrique), pièces de module, messagerie, sujets, réunions, rapports terrain,
   RH, courriels Microsoft 365, retours, KPI, candidatures, Assistant IA. Registre R5 réutilisé (`Piece`/`PieceLien`) +
-  `BibliothequeFiche`/`BibliothequePassage`. Cliquet `inscription-cliquet.test.ts` (10 exceptions nommées).
+  `BibliothequeFiche`/`BibliothequePassage`. Cliquet `inscription-cliquet.test.ts` (9 exceptions nommées).
 - **Lue une fois** par empreinte (tâches `bibliotheque.ingestion` et `.rattrapage`, sous bail), par les lecteurs existants
   (texte, OCR local, PowerPoint, transcription), découpée en passages ~800 jetons, vectorisée (text-embedding-3-small, 512 d)
   quand la pièce n'est ni confidentielle ni sensible.
@@ -17,6 +17,24 @@ Décision de la Direction (lot J1, pgvector approuvé) — `docs/assistant/decis
   `entity-access/ouverture-pieces.ts`) ; `pourModele` écarte le confidentiel et le coffre. Écran de vérification `/bibliotheque`.
 - **Mesuré** (2 000 pièces) : p50 23 ms / p95 115 ms, rappel@10 30/30, 0 résultat hors droits ; avec le vrai fournisseur
   d'embeddings, p95 ≈ 360–400 ms (l'appel au fournisseur, ≈ 280 ms, borné et mis en cache).
+
+### ASSISTANT IA : LES DROITS DE LA PERSONNE, ET LES DONNÉES SENSIBLES EN REPÈRES (2026-10-28)
+
+- **Retour de la Direction** (Super Admin) : « le salaire d'Assia », « son contrat », « crée un dossier pour daclatasvir »
+  étaient refusés — faute d'outil, et parce que toute rémunération était masquée pour tout le monde.
+- **Les droits de la personne, rien de plus, rien de moins** : fiche RH, paie (qui gère les RH, ou soi), documents RH (lien de
+  téléchargement, lecture d'un contrat), situation RH, recherche fédérée, agenda, Drive ; écritures en cartes à confirmer :
+  dossier réglementaire, gestes RH, tâches, demandes RH et administratives, Drive. Chaque garde rejugée à l'exécution ;
+  un KAM est refusé sur la paie et les documents d'autrui, et n'a pas la création de dossier réglementaire.
+- **Repères** : le modèle ne reçoit jamais un salaire, un IBAN, un n° de pièce — il écrit `⟦S1⟧`, et le serveur l'affiche à
+  qui a le droit (politique du coffre, journal des accès), « [confidentiel] » sinon. Rien ne repart (historique, voix,
+  notification).
+- **Filtre de la saisie** : « C'est quoi le salaire d'Assia ? » devenait « C'est quoi le [CONFIDENTIEL]d'Assia ? » (l'espace
+  passait pour un montant) — un montant commence désormais par un chiffre.
+- **Console « Assistant IA — accès »** (précision de la Direction, 29/10) : `/admin/ai/acces`, par rôle et par personne,
+  huit familles cochables (défaut / ouverte / fermée). Le Super Admin a tout ; salaires et contrats fermés par défaut pour
+  les autres ; relu à chaque tour ; audit de chaque changement. Table `AssistantIaAcces` (migration additive).
+  Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
 
 ### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)
 

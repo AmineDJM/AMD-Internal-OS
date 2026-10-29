@@ -12,7 +12,7 @@ import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash } from "./petty-cash-actions";
 import { addDepartmentExpense } from "./department-budget-actions";
-import { decidePayment } from "./payment-centre-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

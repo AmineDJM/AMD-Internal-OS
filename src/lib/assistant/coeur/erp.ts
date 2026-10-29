@@ -47,17 +47,14 @@ export { approveAndExecuteIntent, solePendingMailIntent, type MailExecutionResul
 export { findPeople } from "@/lib/directory/resolve";
 export { decideAddress, askWhichAddress } from "@/lib/directory/rank";
 export { gmailTransport } from "@/lib/google/gmail/transport";
-export { requestTreasuryUpdate } from "@/lib/actions/finance-actions";
+export { requestTreasuryUpdate } from "@/modules/finances/actions-tresorerie";
 export { upsertCustomFieldDef, deleteCustomFieldDef } from "@/lib/actions/custom-field-actions";
 export { CUSTOM_ENTITY_TYPES } from "@/lib/custom-fields";
 export { canSetStructural } from "@/lib/regulatory/structural-fields";
 export { isRegStepKey, isRegStepState, isRegPresubOutcome, REG_STEPS, PRESUB_ANSWER_STEP } from "@/lib/regulatory-workflow";
 export { createInstitution, updateInstitution } from "@/lib/actions/medical-actions";
 export { createStockHospital, createStockAnnex } from "@/lib/actions/stock-snapshot-actions";
-export {
-  sitsOnPaymentCentre, applyDecision, CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, PAYMENT_CENTRE_REFUSAL,
-  type CentralStatus,
-} from "@/lib/payments/authorization";
-export { decidePayment } from "@/lib/actions/payment-centre-actions";
+export { sitsOnPaymentCentre, applyDecision, CENTRAL_STATUS_LABEL, CENTRAL_DECISION_LABEL, PAYMENT_CENTRE_REFUSAL, type CentralStatus } from "@/modules/finances/partage";
+export { decidePayment } from "@/modules/finances/actions-centre";
 export type { CurrentUser } from "@/lib/session";
 export { getAppSettings } from "@/lib/settings";

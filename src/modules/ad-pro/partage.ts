@@ -13,7 +13,7 @@
 export { attachHint, canAttachToAdPro, isOwnBusiness } from "./domaine/attachments";
 export { beneficiaireDuPaiement, gesteVisaPoste, memePrestataire } from "./domaine/bc-poste";
 export { compteursCentre, type FormeBC, type FormePorte, type LigneCentre, REFUS_BC_CENTRE_AD_PRO, REFUS_CENTRE_AD_PRO, siegeAuCentreAdPro, trierCentre } from "./domaine/centre";
-export { bilanCloture, type BilanCloture, etatPostesSponsoring, LIBELLE_QUI_CLOTURE, peutCloturer, quiCloture, type QuiCloture, refusCloture, STATUTS_SOLDES_PAR_UN_REGLEMENT } from "./domaine/cloture-sponsoring";
+export { bilanCloture, type BilanCloture, etatPostesSponsoring, LIBELLE_QUI_CLOTURE, peutCloturer, quiCloture, type QuiCloture, refusCloture } from "./domaine/cloture-sponsoring";
 export { composerContexte, type ConseilPiece, CONSIGNE_CONSEIL, type ContexteConseil, lireConseilModele, lireEmplacement, type NatureDemandeConseil, NATURES_DEMANDE_CONSEIL, type PosteDuContexte, SCHEMA_CONSEIL } from "./domaine/conseil-pieces";
 export { billingSuffix, isAwaitingDecision, isContractEditable, isOverdue, nextConsultingStatus, totalCommitment } from "./domaine/consulting";
 export { type AdProCreateData, adProOtherCreateFields, businessUnitField, CHAMP_PIECES_COMPLEMENTAIRES, consultingCreateFields, consultingRhCreateFields, sponsoringCreateFields, toPeople } from "./domaine/create-fields";

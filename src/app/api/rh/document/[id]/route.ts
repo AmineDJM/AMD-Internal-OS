@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { servirPiece } from "@/lib/http/servir-piece";
 import { getCurrentUser } from "@/lib/session";
 import { peutOuvrirDocumentRh } from "@/lib/entity-access/ouverture-pieces";
+import { entitePermisePourFiche } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
+import { accesAssistantIa } from "@/lib/agent/role-config";
+import { familleExplicite } from "@/lib/agent/acces-regles";
 
 export const dynamic = "force-dynamic";
 
@@ -22,9 +25,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   });
   if (!doc) return new NextResponse(null, { status: 404 });
 
-  // Un bulletin, un contrat, une pièce d'identité : GÉRER les RH dans une société permise, ou l'employé
-  // pour ses pièces visibles — la règle est partagée avec la bibliothèque (`entity-access/ouverture-pieces.ts`).
-  if (!(await peutOuvrirDocumentRh(user, doc))) return new NextResponse(null, { status: 403 });
+  // Un bulletin, un contrat, une pièce d'identité : GÉRER les RH dans une société permise, ou l'employé pour ses pièces
+  // visibles — la règle est partagée avec la bibliothèque (`entity-access/ouverture-pieces.ts`).
+  // Décision 0012 : la Direction peut OUVRIR explicitement « Contrats & documents RH » à une personne dans la
+  // console de l'Assistant IA — le lien que l'assistant lui donne doit alors s'ouvrir (société permise toujours).
+  // Cette ouverture vaut pour le LIEN de l'assistant : la recherche de la bibliothèque, elle, s'en tient à la règle de base.
+  const ouvertParDirection = async () => familleExplicite(await accesAssistantIa(user), "CONTRATS_RH")
+    && (await entitePermisePourFiche(user.id, doc.employee.companyId));
+  if (!(await peutOuvrirDocumentRh(user, doc)) && !(await ouvertParDirection())) return new NextResponse(null, { status: 403 });
 
   const bytes = await getBlob(doc.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });

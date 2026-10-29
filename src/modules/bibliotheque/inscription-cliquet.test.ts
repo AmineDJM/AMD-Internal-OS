@@ -21,7 +21,6 @@ import { fichierDuSymbole } from "@/platform/source";
 
 const EXCEPTIONS: Record<string, { ecritures: number; raison: string }> = {
   "src/lib/drive-storage.ts": { ecritures: 0, raison: "Le coffre lui-même : `putBlob` y est défini, pas appelé pour une pièce." },
-  "src/lib/storage.ts": { ecritures: 1, raison: "`saveFile`, la porte du coffre pour les `Document` : ce sont ses appelants qui inscrivent (avec l'objet)." },
   "src/app/api/messaging/upload/route.ts": {
     ecritures: 1,
     raison: "Le blob n'a pas encore d'endroit : il est inscrit par `sendMessage` (messaging-actions.ts) à la création de la pièce jointe.",
@@ -44,7 +43,7 @@ const EXCEPTIONS: Record<string, { ecritures: number; raison: string }> = {
 
 /** Les appels qui inscrivent : la porte de la bibliothèque, et les portes qui inscrivent elles-mêmes. */
 const INSCRIPTIONS = [
-  "inscrirePiece", "inscrireDocument", "inscrireDocumentEcrit", "inscrireDocumentExistant", "inscrireDocumentRh", "inscrireFichierDrive",
+  "inscrirePiece", "inscrirePieceJointe", "inscrireDocument", "inscrireDocumentEcrit", "inscrireDocumentExistant", "inscrireDocumentRh", "inscrireFichierDrive",
 ];
 const PORTES_QUI_INSCRIVENT = ["enregistrerFichierDrive", "persistUploadedDocument", "inscrireDocumentDirect", "attachFiles", "deposerFichierDrive", "putDriveFile"];
 

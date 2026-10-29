@@ -8,7 +8,7 @@
 import { prisma } from "@/lib/prisma";
 import { hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { etatDuBC } from "@/lib/bons-de-commande/etat";
-import { ordreClos } from "@/lib/finances/settlement";
+import { ordreClos } from "@/modules/finances/partage";
 import { lireBrouillonPromo } from "@/lib/promo-material/bc-brouillon-promo";
 import { piloteLExecution } from "@/lib/promo-material/circuit";
 import { peutReceptionner } from "@/lib/promo-material/achats";

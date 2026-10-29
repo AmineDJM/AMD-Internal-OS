@@ -8,7 +8,7 @@ import { userCan, hasGlobalView } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
 import { validateUpload, deposerPieceDeModule } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import {

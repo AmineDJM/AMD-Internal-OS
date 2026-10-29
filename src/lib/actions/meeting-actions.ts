@@ -15,7 +15,7 @@ import { fdStr, fdBool, fdDate, type ActionResult } from "@/lib/actions/types";
 import type { CalendarInviteStatus } from "@prisma/client";
 import { lienTache } from "@/lib/chemins/espace";
 import { sansBloquer } from "@/lib/journal";
-import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
+import { inscrirePieceJointe } from "@/modules/bibliotheque/api-inscription";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 const MAX_MSG_ATTACHMENT = 25 * 1024 * 1024; // 25 Mo par pièce jointe du fil de réunion
@@ -383,16 +383,13 @@ export async function postMeetingMessage(formData: FormData): Promise<ActionResu
   for (const f of files) {
     if (f.size > MAX_MSG_ATTACHMENT) continue;
     const buf = Buffer.from(await f.arrayBuffer());
-    const { blobId, size, sha256 } = await putBlob(buf);
+    const ecrit = await putBlob(buf);
     const pj = await prisma.meetingMessageAttachment.create({
-      data: { messageId: msg.id, blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size },
-      select: { id: true, name: true },
+      data: { messageId: msg.id, blobId: ecrit.blobId, name: (f.name || "fichier").slice(0, 200), mime: f.type || "application/octet-stream", size: ecrit.size },
+      select: { id: true, name: true, mime: true },
     });
-    // La pièce entre à la bibliothèque (J1), ouverte par la règle des pièces de réunion. Ne lève jamais.
-    await inscrirePiece({
-      blobId, empreinte: sha256, nom: pj.name, mime: f.type || null, taille: size, source: "CONVERSATION",
-      objet: { famille: "REUNION_PIECE", id: pj.id }, proprietaireId: user.id, role: "piece-jointe",
-    });
+    // La pièce entre à la bibliothèque (J1), ouverte par la règle de sa famille. Ne lève jamais.
+    await inscrirePieceJointe("REUNION_PIECE", pj, ecrit, { source: "CONVERSATION", proprietaireId: user.id });
   }
 
   // Notifie les autres membres (organisateur + participants).

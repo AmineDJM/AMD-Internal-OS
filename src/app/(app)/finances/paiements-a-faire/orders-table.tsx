@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useFormAction } from "@/components/shared/use-action";
 import { Loader2, Banknote, CalendarClock, RotateCcw, AlertCircle, FileText, Lock, FolderOpen } from "lucide-react";
-import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "@/lib/actions/expense-actions";
+import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "@/modules/finances/actions-depenses";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Sheet } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,10 @@ import { Input, Textarea, Label, Select } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { FINANCE_CATEGORY } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { settlementState, deferralNote, SETTLEMENT_LABEL, type SettlementState } from "@/lib/finance/settlement";
-import { deadlineNatureLabel, deadlineNatureOf, deferralWarning } from "@/lib/finance/deadline-nature";
-import { BUDGET_CLASSIFY_PROMPT } from "@/lib/finance/settle-budget";
+import {
+  settlementState, deferralNote, SETTLEMENT_LABEL, type SettlementState, deadlineNatureLabel, deadlineNatureOf,
+  deferralWarning, BUDGET_CLASSIFY_PROMPT,
+} from "@/modules/finances/partage";
 import type { ActionResult } from "@/lib/actions/types";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 

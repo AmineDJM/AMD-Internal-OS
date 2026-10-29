@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { SessionUser } from "@/lib/rbac";
 import { userCan, hasGlobalView } from "@/lib/rbac";
-import { sitsOnPaymentCentre } from "@/lib/payments/authorization";
+import { sitsOnPaymentCentre } from "@/modules/finances/partage";
 import { platformScope } from "@/lib/company";
 import { globalSearch } from "@/lib/queries/search";
 import { toNumber } from "@/lib/utils";

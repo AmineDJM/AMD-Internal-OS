@@ -22,7 +22,7 @@ import { restaurerLaCtdDeLaCorbeille } from "@/lib/regulatory/ctd-initiale-corbe
 import { peutSupprimerUneDemandeAdPro } from "@/modules/ad-pro/api";
 import { estDemandeAdProSupprimable, REFUS_SUPPRESSION_AD_PRO } from "@/modules/ad-pro/partage";
 import { peutSupprimerUnRapportTerrain } from "@/lib/queries/field-reports";
-import { peutSupprimerUneDemandePaiement } from "@/lib/queries/demande-paiement-suppression";
+import { peutSupprimerUneDemandePaiement } from "@/modules/finances/api";
 import { corbeillePermise, estDirecteurDesOperations, suppressionPermise } from "@/lib/suppression/delegation";
 import { sansBloquer } from "@/lib/journal";
 

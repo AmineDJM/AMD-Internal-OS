@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { clauseSalairesVersesANotifier, instantDuCentreDePaie } from "@/modules/rh/api";
+import { clauseSalairesVersesANotifier } from "@/modules/finances/partage";
+import { instantDuCentreDePaie } from "@/modules/finances/api";
 import { declencherRecurrencesStock } from "@/lib/stocks/recurrence-runner";
 import { relancerReceptionsStock } from "@/lib/promo-stock-rappels";
 import { alerterStock, declencherComptagesRecurrents } from "@/lib/promo-stock-comptages";

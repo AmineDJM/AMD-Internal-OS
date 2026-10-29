@@ -1,7 +1,9 @@
 import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { ordresAvecFacture } from "@/lib/finance/facture-ordre";
+import {
+  ordresAvecFacture, chargerOrdresDesFinances, dossierHrefByOrder, chargerTresorerie, comptesTresorerie,
+} from "@/modules/finances/api";
 import { companyScopedWhere, getMyCompanies, companyOptions } from "@/lib/company";
 import { entiteParDefaut } from "@/lib/company-defaut";
 import Link from "next/link";
@@ -11,18 +13,12 @@ import { ComptesTresorerieButton } from "../comptes-tresorerie";
 import { toNumber, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
-import { chargerOrdresDesFinances } from "@/lib/queries/paiements-a-faire";
-import { settlementState, sortForSettlement } from "@/lib/finance/settlement";
-import { dossierHrefByOrder } from "@/lib/expense-orders";
+import { settlementState, sortForSettlement, needsBudgetChoice, compteParDefaut } from "@/modules/finances/partage";
 import { marquesDesOrdres } from "@/lib/factures/connues";
-import { needsBudgetChoice } from "@/lib/finance/settle-budget";
 import { pickAutoCategory } from "@/lib/budget/auto-category";
 import { ENTITY_MODULE, modulesDesEntites } from "@/lib/entity-access";
-import { chargerTresorerie } from "@/lib/queries/finance";
 import { TreasuryUpdateRequestButton } from "../treasury-update-request";
 import { OrdersTable, type OrderRow, type BudgetChoice, type CompteChoice } from "./orders-table";
-import { compteParDefaut } from "@/lib/finance/tresorerie";
-import { comptesTresorerie } from "@/lib/finance/comptes";
 import { PurgeHistoryButton } from "./purge-history";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import { ordresBvAvecQuittance } from "@/lib/regulatory/bv-reglement";

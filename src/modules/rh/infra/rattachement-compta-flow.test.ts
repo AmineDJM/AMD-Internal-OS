@@ -11,8 +11,8 @@ import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { rattacherSalariesAEntite, envoyerPaieAuCentre } from "@/modules/rh/actions-paie";
 import { updateEmployee } from "@/modules/rh/actions";
 import { getMyCompanies } from "@/lib/company";
-import { getResultatMensuel } from "@/lib/queries/compta";
-import { lirePeriode } from "@/lib/finance/resultat-mensuel";
+import { getResultatMensuel } from "@/modules/finances/api";
+import { lirePeriode } from "@/modules/finances/partage";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }

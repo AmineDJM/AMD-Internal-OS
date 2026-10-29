@@ -22,8 +22,8 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUse
 // L'ENTRELACEMENT ENTRE DEUX PROCESSUS, rendu déterministe : pendant que l'envoi émet l'ordre (après avoir lu la
 // facture, avant de la lier), une annulation venue d'ailleurs passe — `enSerie` ne la voit pas, elle est ailleurs.
 let pendantLEmission: (() => Promise<unknown>) | null = null;
-vi.mock("@/lib/expense-orders", async (importOriginal) => {
-  const vrai = await importOriginal<typeof import("@/lib/expense-orders")>();
+vi.mock("@/modules/finances/infra/expense-orders", async (importOriginal) => {
+  const vrai = await importOriginal<typeof import("@/modules/finances/infra/expense-orders")>();
   return {
     ...vrai,
     createExpenseOrder: async (...args: Parameters<typeof vrai.createExpenseOrder>) => {

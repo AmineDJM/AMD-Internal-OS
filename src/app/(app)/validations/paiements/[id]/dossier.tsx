@@ -17,18 +17,18 @@ import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { FileGlyph } from "@/components/drive/file-glyph";
 import { PAYMENT_PIECE_STATUS, PAYMENT_PIECE_KIND, PAYMENT_PIECE_KIND_OPTIONS, VALIDATION_STATUS, PAYMENT_URGENCY_OPTIONS } from "@/lib/labels";
-import { needsReplacement, tallyPieces, refusDeRemplacement, piecesEnVigueur } from "@/lib/finance/payment-request";
-import { DEADLINE_NATURE_OPTIONS } from "@/lib/finance/deadline-nature";
+import {
+  needsReplacement, tallyPieces, refusDeRemplacement, piecesEnVigueur, DEADLINE_NATURE_OPTIONS, dossierHint,
+  isBonDeVersement, companionNotice,
+} from "@/modules/finances/partage";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { actionFailureMessage } from "@/lib/action-outcome";
-import { dossierHint, isBonDeVersement } from "@/lib/finance/payment-dossier";
-import { companionNotice } from "@/lib/finance/dossier-auto";
 import { pieceKindOptions, filingNotice } from "@/lib/legal/from-piece";
 import {
   addPaymentPiece, commentPaymentPiece, reviewPaymentPiece, addPaymentComment,
   submitPaymentRequest, decidePaymentRequest, cancelPaymentRequest, updatePaymentRequestDetails,
   nudgePaymentRequest, corrigerDemandePaiement, supprimerDemandePaiement,
-} from "@/lib/actions/payment-request-actions";
+} from "@/modules/finances/actions-demandes";
 import { requestDocument, askablePeople } from "@/lib/actions/document-request-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
 import { BoutonTelecharger } from "@/components/telechargement/bouton-telecharger";

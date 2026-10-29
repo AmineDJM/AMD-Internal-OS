@@ -3,6 +3,7 @@ import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
+import { userCan } from "@/lib/rbac";
 import { peutOuvrirPieceDeRapport } from "@/lib/entity-access/ouverture-pieces";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const user = await getCurrentUser();
-  if (!user) return new NextResponse(null, { status: 403 });
+  // Garde sur le module RAPPORTS TERRAIN d'abord (la règle partagée le revérifie) : sans lui, inutile de charger la pièce.
+  if (!user || !userCan(user, "FIELD_REPORTS", "VIEW")) return new NextResponse(null, { status: 403 });
 
   const att = await prisma.fieldReportAttachment.findUnique({
     where: { id: params.id },

@@ -10,7 +10,7 @@
  */
 
 export {
-  inscrirePiece, inscrireDocument, inscrireDocumentEcrit, inscrireDocumentExistant, inscrireDocumentRh, inscrireFichierDrive,
+  inscrirePiece, inscrireDocument, inscrireDocumentEcrit, inscrireDocumentExistant, inscrireDocumentRh, inscrireFichierDrive, inscrirePieceJointe,
   type InscriptionPiece, type ResultatInscription,
 } from "./infra/inscription";
 export type { Famille } from "./domaine/familles";

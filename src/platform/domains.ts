@@ -47,13 +47,12 @@ import { cibleInterne, specificateurs } from "./imports";
 
 /**
  * LES DOMAINES. Chacun est un préfixe de chemin, et l'ordre compte : le PREMIER qui correspond
- * gagne. `finances/` et `finance/` coexistent dans l'arbre (dette historique) et sont donc
- * déclarés comme UN seul domaine — les séparer compterait comme « inter-domaine » ce qui n'est
- * qu'une incohérence de nommage.
+ * gagne. `finance/`, `finances/` et `payments/` ont déménagé ensemble dans le module
+ * `src/modules/finances/` (lot V4, 28/10/2026) : le domaine `finance` ne garde ici que les budgets.
  */
 export const DOMAINS: { name: string; paths: string[] }[] = [
   { name: "regulatory", paths: ["src/lib/regulatory/", "src/lib/products/", "src/lib/market/"] },
-  { name: "finance", paths: ["src/lib/finance/", "src/lib/finances/", "src/lib/payments/", "src/lib/budget/"] },
+  { name: "finance", paths: ["src/lib/budget/"] },
   { name: "hr", paths: ["src/lib/hr/", "src/lib/recruitment/", "src/lib/org/"] },
   { name: "drive", paths: ["src/lib/drive/", "src/lib/files/"] },
   { name: "mail", paths: ["src/lib/mail/", "src/lib/mail-register/", "src/lib/comms/"] },
@@ -181,8 +180,8 @@ const SOCLE = [
    * `bons-de-commande/regle` — la RÈGLE des bons de commande (§118.148), et elle seule : quel
    * centre (Ad & Pro ou validations), quel état, ce qui bloque la facture, ce que dit la phrase.
    * Zéro import. QUATRE couches en ont besoin sans avoir le droit de se parler : les actions de
-   * Legal, la fabrique documentaire (le pont), le règlement des factures (domaine `finance`,
-   * `finances/settlement.ts`) et le centre Ad & Pro. L'AIGUILLAGE (`bons-de-commande/aiguillage`),
+   * Legal, la fabrique documentaire (le pont), le règlement des factures (module `finances`,
+   * `domaine/chemins-paiement.ts`) et le centre Ad & Pro. L'AIGUILLAGE (`bons-de-commande/aiguillage`),
    * qui lit la base et pose les portes, n'est PAS au socle : le chemin est EXACT, pour qu'un
    * fichier serveur ajouté à côté ne se retrouve pas exempté sans décision (§118.128).
    */
@@ -204,6 +203,8 @@ const SOCLE = [
    */
   "src/lib/agent/lecture/regles", "src/lib/agent/consommation-regles", "src/lib/agent/contenu-non-fiable",
   "src/lib/agent/memoire-ui", "src/lib/agent/fil/partiel",
+  // Les FAMILLES d'accès de l'Assistant IA (décision 0012) : le moteur les applique, la console les règle.
+  "src/lib/agent/acces-regles",
   /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions

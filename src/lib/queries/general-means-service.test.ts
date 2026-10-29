@@ -175,7 +175,7 @@ describe("Moyens généraux — plus aucune porte vers les autres départements 
   });
 
   it("les notifications de la caisse mènent à la page qui porte le geste (constats 14 et 15 de l'audit du 04/10)", () => {
-    for (const f of ["src/lib/finance/verser-remise.ts", "src/lib/actions/payment-centre-actions.ts"]) {
+    for (const f of ["src/modules/finances/infra/verser-remise.ts", "src/modules/finances/actions-centre.ts"]) {
       // La page qui porte le geste, ouverte SUR la remise visée (`/moyens-generaux?cible=remise-<id>`).
       expect(sansCommentaires(readFileSync(path.join(RACINE, f), "utf8")), f).toMatch(/link: lienRemiseCaisse\(remise\.id\)/);
     }

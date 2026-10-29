@@ -148,6 +148,26 @@ async function retirerCleAilleurs(cle: string, pieceId: string): Promise<void> {
   }
 }
 
+// ─────────────────────────── Les formes courtes, par endroit ───────────────────────────
+
+/** Le contenu tel que les écrivains le décrivent (ce que `putBlob` rend, et le fichier). */
+interface Contenu { blobId: string; sha256?: string | null; nom: string; mime?: string | null; taille?: number | null }
+const contenu = (c: Contenu) => ({ blobId: c.blobId, empreinte: c.sha256 ?? null, nom: c.nom, mime: c.mime ?? null, taille: c.taille ?? null });
+
+/**
+ * Une PIÈCE JOINTE (sujet, réunion, rapport terrain…) : la ligne créée par l'écrivain, et ce que `putBlob` a rendu.
+ * Ouverte par la règle de sa famille ; rôle « pièce-jointe ».
+ */
+export function inscrirePieceJointe(
+  famille: Famille, pj: { id: string; name: string; mime?: string | null }, ecrit: { blobId: string; sha256: string; size: number },
+  p: { source: SourcePiece; proprietaireId: string | null },
+): Promise<ResultatInscription> {
+  return inscrirePiece({
+    ...contenu({ blobId: ecrit.blobId, sha256: ecrit.sha256, nom: pj.name, mime: pj.mime, taille: ecrit.size }),
+    source: p.source, objet: { famille, id: pj.id }, proprietaireId: p.proprietaireId, role: "piece-jointe",
+  });
+}
+
 // ─────────────────────────── Les pièces d'un `Document` de module ───────────────────────────
 
 /**
@@ -160,11 +180,7 @@ export function inscrireDocument(d: {
   blobId: string; sha256?: string | null; nom: string; mime?: string | null; taille?: number | null; deposeParId: string | null;
 }): Promise<ResultatInscription> {
   return inscrirePiece({
-    blobId: d.blobId,
-    empreinte: d.sha256 ?? null,
-    nom: d.nom,
-    mime: d.mime ?? null,
-    taille: d.taille ?? null,
+    ...contenu(d),
     source: sourcePieceDe(sourceDeLEntite(d.entityType)),
     objet: { famille: "DOCUMENT", id: d.documentId },
     confidentialite: confidentialitePourEnrichissement(d.confidentiality ?? "INTERNAL", { category: d.category ?? null, entityType: d.entityType }),
@@ -179,11 +195,7 @@ export function inscrireFichierDrive(f: {
   deposeParId: string | null; version?: number | null; source?: SourcePiece; confidentialite?: Confidentiality;
 }): Promise<ResultatInscription> {
   return inscrirePiece({
-    blobId: f.blobId,
-    empreinte: f.sha256 ?? null,
-    nom: f.nom,
-    mime: f.mime ?? null,
-    taille: f.taille ?? null,
+    ...contenu(f),
     source: f.source ?? "DRIVE",
     objet: { famille: "DRIVE_NODE", id: f.nodeId },
     confidentialite: f.confidentialite,
@@ -240,7 +252,7 @@ export function inscrireDocumentRh(d: {
   id: string; blobId: string; sha256?: string | null; nom: string; mime?: string | null; taille?: number | null; deposeParId: string | null;
 }): Promise<ResultatInscription> {
   return inscrirePiece({
-    blobId: d.blobId, empreinte: d.sha256 ?? null, nom: d.nom, mime: d.mime ?? null, taille: d.taille ?? null, source: "RH",
+    ...contenu(d), source: "RH",
     objet: { famille: "RH_DOCUMENT", id: d.id }, confidentialite: "CONFIDENTIAL", proprietaireId: d.deposeParId, role: "dossier-rh",
   });
 }

@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import {
   createTransaction, updateTransactionStatus, createQuickIncome, setTreasuryOpeningBalance,
-} from "@/lib/actions/finance-actions";
-import { settleExpenseOrder } from "@/lib/actions/expense-actions";
+} from "@/modules/finances/actions-tresorerie";
+import { settleExpenseOrder } from "@/modules/finances/actions-depenses";
 import { createInvoice, setInvoicePaid, setInvoiceOrder } from "@/lib/actions/invoice-actions";
 import { decidePettyCashTopUp } from "@/lib/actions/petty-cash-actions";
 import { decideDepartmentBudgetRequest } from "@/lib/actions/department-budget-actions";

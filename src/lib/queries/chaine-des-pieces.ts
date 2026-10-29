@@ -1,6 +1,7 @@
 import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import type { SessionUser } from "@/lib/rbac";
+import { userCan, type SessionUser } from "@/lib/rbac";
+import { peutDaterLeReglement } from "@/modules/finances/partage";
 import { accesAuxPiecesLegalDetaille } from "@/lib/entity-access";
 import { LEGAL_DOC_STATUS, MAIL_DIRECTION, invoiceSettlementState, INVOICE_SETTLEMENT, natureLegale } from "@/lib/labels";
 import { formatCurrency, formatDate, toNumber } from "@/lib/utils";
@@ -134,6 +135,15 @@ const docItem = (d: {
   confidentiality: d.confidentiality, uploadedBy: d.uploadedBy?.name ?? null,
   createdAt: d.createdAt.toISOString(), hasFile: Boolean(d.fileKey),
 });
+
+/**
+ * La date de paiement d'une facture créée depuis la fiche : à qui règle aux Finances seulement
+ * (`peutDaterLeReglement`, module finances). Lue ICI pour la carte des pièces liées : le kit
+ * d'interface (`components/shared/`) n'importe aucun module.
+ */
+export function daterLeReglementPour(spectateur: SessionUser | null | undefined): boolean {
+  return spectateur ? peutDaterLeReglement({ financesModifier: userCan(spectateur, "FINANCES", "UPDATE") }) : false;
+}
 
 export async function chargerPiecesLiees(e: EntreePiecesLiees): Promise<PiecesLieesChargees> {
   const where = { sourceType: e.entityType, sourceId: e.entityId };

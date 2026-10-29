@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { getComptaData, ComptaItem } from "@/lib/queries/compta";
-import { CHOIX_PERIODE, type Periode, type ResultatPeriode } from "@/lib/finance/resultat-mensuel";
+import type { getComptaData, ComptaItem } from "@/modules/finances/api";
+import { CHOIX_PERIODE, type Periode, type ResultatPeriode } from "@/modules/finances/partage";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";

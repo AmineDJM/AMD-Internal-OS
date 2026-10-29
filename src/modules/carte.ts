@@ -26,13 +26,15 @@ export const CARTE = {
   // ── Métiers ────────────────────────────────────────────────────────────────────────────────
   /** Consumption Intelligence : imports de ventes, résolution, affinité (module pilote). */
   consommation: [],
+  /** Ordres de dépense, centre de paiement, demandes de paiement, règlement, trésorerie et comptes. */
+  finances: ["referentiels", "coffre"],
   /**
    * Ad & Pro : sponsoring, congrès, événements, « autres », prise en charge, postes, porte du DG,
    * centre de validation, clôture. Relie les personnes qu'il crée au référentiel (double écriture).
    */
-  "ad-pro": ["referentiels"],
+  "ad-pro": ["referentiels", "finances"],
   /** RH : congés, paie (par le centre de paiement), avances, notes de frais, documents RH, organisation. */
-  rh: ["coffre", "referentiels", "bibliotheque"],
+  rh: ["coffre", "referentiels", "finances", "bibliotheque"],
   /**
    * Bibliothèque (J1) : toute pièce entrée est inscrite au registre (`Piece`/`PieceLien`), lue une fois, découpée,
    * vectorisée ; une requête la retrouve par son contenu, sous la règle d'ouverture de l'écran qui la sert.

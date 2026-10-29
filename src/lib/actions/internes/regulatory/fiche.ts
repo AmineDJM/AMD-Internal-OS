@@ -23,7 +23,7 @@ import { ensureProduitDuDossier } from "@/lib/products/canonique";
 import { phraseProduitDuDossier } from "@/lib/products/produit-du-dossier";
 import { creerDossierDriveProduit } from "@/lib/regulatory-drive-dossier";
 import { regSupervisorRoles } from "@/lib/regulatory/sync-status";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { categorieBvPourOrdre } from "@/lib/queries/budget-regulatory";
 import { natureDuLibelle } from "@/lib/budget-regulatory/bv";
 import { deposerPieceDeModule } from "@/lib/storage";

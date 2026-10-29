@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { entetesAntiExecution } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
+import { userCan } from "@/lib/rbac";
 import { peutOuvrirPieceDeSujet } from "@/lib/entity-access/ouverture-pieces";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
@@ -11,7 +12,8 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   const params = await props.params;
   const user = await getCurrentUser();
-  if (!user) return new NextResponse(null, { status: 403 });
+  // Le module d'abord (la règle partagée le revérifie) : sans lui, inutile de charger la pièce.
+  if (!user || !userCan(user, "DOSSIERS", "VIEW")) return new NextResponse(null, { status: 403 });
 
   const att = await prisma.dossierMessageAttachment.findUnique({
     where: { id: params.id },

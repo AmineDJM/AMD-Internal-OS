@@ -35,7 +35,7 @@ import { statutDuDossier } from "@/lib/promo-material/statut";
 import { lireLignesDAchat } from "@/lib/general-means/purchase-request";
 import { auNomDeQui } from "@/lib/hr/stand-in-resolve";
 import { PurchaseLines } from "@/components/purchase/purchase-lines";
-import { ficheAFacture } from "@/lib/finance/facture-ordre";
+import { ficheAFacture } from "@/modules/finances/api";
 import { LIBELLE_ETAT_BC } from "@/lib/bons-de-commande/regle";
 import { porteDuDemandeur, refusDeModification, suitLaDemandeDeBcDuPoste, refusDemandeDeBcDuPoste } from "@/lib/secretariat/porte-demandeur";
 import { decideurAffiche, libelleMotif, interditSurSaPropreDemande } from "@/lib/secretariat/decision-approbation";
