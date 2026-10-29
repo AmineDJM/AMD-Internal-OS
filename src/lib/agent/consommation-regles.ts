@@ -90,12 +90,21 @@ export function jourAlger(now: Date = new Date()): Date {
 }
 
 /** Le tarif d'un modèle, en dollars par MILLION de jetons. */
-export interface Tarif { entreeParM: number; sortieParM: number }
+/**
+ * Un tarif, en dollars par million de jetons. `cacheParM` : l'entrée LUE EN CACHE (le prompt système et l'historique
+ * renvoyés à chaque étape — 88 % de l'entrée mesurés par le banc V4-H) ; absente, elle est facturée au tarif d'entrée.
+ */
+export interface Tarif { entreeParM: number; sortieParM: number; cacheParM?: number }
 
-/** Coût ESTIMÉ d'un appel : `null` quand le tarif est inconnu — un coût inconnu n'est jamais zéro. */
-export function coutEstimeUsd(entree: number, sortie: number, tarif: Tarif | null): number | null {
+/**
+ * Coût ESTIMÉ d'un appel : `null` quand le tarif est inconnu — un coût inconnu n'est jamais zéro. `cache` : la part
+ * de `entree` lue en cache, facturée à `cacheParM` (mesuré : la facturer au plein tarif quadruplait le coût).
+ */
+export function coutEstimeUsd(entree: number, sortie: number, tarif: Tarif | null, cache = 0): number | null {
   if (!tarif) return null;
-  return Math.round(((entree * tarif.entreeParM + sortie * tarif.sortieParM) / 1_000_000) * 1_000_000) / 1_000_000;
+  const enCache = Math.min(Math.max(cache, 0), entree);
+  const usd = (entree - enCache) * tarif.entreeParM + enCache * (tarif.cacheParM ?? tarif.entreeParM) + sortie * tarif.sortieParM;
+  return Math.round((usd / 1_000_000) * 1_000_000) / 1_000_000;
 }
 
 const fmt = (n: number) => n.toLocaleString("fr-FR").replace(/ | /g, " ");

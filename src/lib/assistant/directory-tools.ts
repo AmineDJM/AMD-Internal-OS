@@ -41,7 +41,8 @@ export const DIRECTORY_TOOLS: PowerTool[] = [
       name: "directory_lookup",
       description:
         "L'ANNUAIRE INTERNE : retrouve une personne (salarié, compte ERP, contact d'entreprise) et TOUTES ses coordonnées — "
-        + "adresses professionnelles, personnelles, téléphone, WhatsApp — avec la PROVENANCE de chacune. "
+        + "adresses professionnelles, personnelles, téléphone, WhatsApp — avec la PROVENANCE de chacune —, son poste, son département et son "
+        + "RESPONSABLE (N+1) : « qui est le manager d'Assia ? ». "
         + "À utiliser dès qu'il faut une adresse ou un numéro : « l'e-mail de Raihana », « le numéro de l'imprimeur », « comment joindre Deepak ». "
         + "Ne JAMAIS répondre « je n'ai pas son adresse » sans avoir appelé cet outil.",
       input_schema: {
@@ -72,6 +73,9 @@ export const DIRECTORY_TOOLS: PowerTool[] = [
         nom: p.name,
         poste: p.jobTitle,
         entite: p.company,
+        ...(p.department ? { departement: p.department } : {}),
+        // Le N+1 n'est pas une donnée sensible : l'organigramme le montre à tous.
+        responsable: p.manager ?? (p.employeeId ? "non renseigné sur la fiche RH" : undefined),
         coordonnees: p.endpoints.map((e) => ({
           canal: e.channel === DirectoryChannel.EMAIL ? "e-mail" : e.channel === DirectoryChannel.PHONE ? "téléphone" : "WhatsApp",
           valeur: e.value,

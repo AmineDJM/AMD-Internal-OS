@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatNumber } from "@/lib/utils";
 import { consommationAssistantIa, type Agregat } from "@/lib/agent/consommation-stats";
-import { lireReglagesAssistantIa, tarifDe } from "@/lib/agent/consommation";
+import { lireReglagesAssistantIa, tarifPose } from "@/lib/agent/consommation";
 import { ReglagesAssistantIaForm } from "./reglages-form";
 
 export const metadata = { title: "Consommation IA — AMD Internal OS" };
@@ -36,7 +36,7 @@ export default async function ConsommationIaPage() {
     );
   }
   const [c, reglages] = await Promise.all([consommationAssistantIa(30), lireReglagesAssistantIa()]);
-  const tarifConnu = tarifDe("openai") != null;
+  const tarifConnu = tarifPose("openai");
 
   return (
     <div className="space-y-5">
@@ -66,7 +66,7 @@ export default async function ConsommationIaPage() {
         <Card><CardContent className="pt-5">
           <p className="text-xs text-muted-foreground">Plafond par personne et par jour</p>
           <p className="text-xl font-semibold">{formatNumber(reglages.plafondJetonsJour)} jetons</p>
-          <p className="text-xs text-muted-foreground">{tarifConnu ? "Coût estimé au tarif posé (ASSISTANT_IA_PRICE_IN / OUT)." : "Tarif du modèle non posé : le coût est « inconnu » (ASSISTANT_IA_PRICE_IN / ASSISTANT_IA_PRICE_OUT)."}</p>
+          <p className="text-xs text-muted-foreground">{tarifConnu ? "Coût estimé au tarif posé (ASSISTANT_IA_PRICE_IN / OUT / CACHED)." : "Coût estimé à la grille publique de gpt-6.1-terra (2 $ / 12 $ par million, 0,20 $ en cache) — posez ASSISTANT_IA_PRICE_IN / OUT / CACHED pour un autre tarif."}</p>
         </CardContent></Card>
       </div>
 

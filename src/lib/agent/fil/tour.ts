@@ -2,7 +2,7 @@ import type { CurrentUser } from "@/lib/session";
 import { compileContext } from "@/lib/agent/contexte";
 import { accesAssistantIa, getRoleConfig, resoudreConsignesRole, Revelateur } from "@/lib/agent/role-config";
 import { consigneFamilles, type AccesIa } from "@/lib/agent/acces-regles";
-import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "@/lib/agent/modele";
 import { modelesEffectifs } from "@/lib/agent/generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
@@ -131,8 +131,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     instructions = (await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt;
     if (d.consigne) instructions = `${instructions}\n\n${d.consigne}`;
     instructions = `${instructions}\n\n${CONSIGNE_JETONS}`;
-    const fermees = consigneFamilles(acces);
-    if (fermees) instructions = `${instructions}\n\n${fermees}`;
+    for (const c of [consigneFamilles(acces), consigneGestesFermes(user)]) if (c) instructions = `${instructions}\n\n${c}`;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
     console.error("[assistant] contexte indisponible", e);

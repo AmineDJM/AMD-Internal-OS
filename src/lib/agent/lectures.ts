@@ -4,12 +4,13 @@ import { derniersMessagesParConversation } from "@/lib/queries/messaging";
 import type { PowerTool } from "@/lib/assistant/power-tools";
 import type { CurrentUser } from "@/lib/session";
 import { REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
-import { userCan } from "@/lib/rbac";
-import { entitePermisePourFiche, ficheScopedWhere } from "@/lib/company";
-import { voitLesSalaires } from "@/lib/hr/confidentialite";
+import { scopeRegulatory, userCan } from "@/lib/rbac";
+import { companyScopedWhere, entitePermisePourFiche, ficheScopedWhere } from "@/lib/company";
 import { getBlob } from "@/lib/drive-storage";
 import { formatMontant, toNumber } from "@/lib/utils";
-import { HR_DOCUMENT_CATEGORY, ROLE_LABELS } from "@/lib/labels";
+import { HR_DOCUMENT_CATEGORY, LEAVE_TYPE, REGULATORY_STATUS, REGULATORY_STEP_TYPE, ROLE_LABELS } from "@/lib/labels";
+import { natureDeLAbsence, voitLeTypeDesAbsences, voitLesSalaires } from "@/lib/hr/confidentialite";
+import { AD_PRO_KINDS, AD_PRO_STATE, getAdProRequests } from "@/modules/ad-pro/api";
 import { DEPENDANCES_REELLES } from "@/lib/agent/lecture/pieces";
 import { CARACTERES_PAR_PIECE, couper, extensionDe, nomAnnonceLeCoffre, REFUS_COFFRE } from "@/lib/agent/lecture/regles";
 import { natureSensible, REFUS_IDENTITE, REFUS_PAIE } from "@/lib/agent/operations/documents-lus";
@@ -244,6 +245,10 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
           departmentRef: { select: { name: true } }, manager: { select: { fullName: true } },
           company: { select: { shortName: true, name: true } }, user: { select: { role: true } },
           _count: { select: { documents: true } },
+          leaveRequests: {
+            where: { startDate: { gte: new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1)) } },
+            orderBy: { startDate: "asc" }, take: 30, select: { type: true, startDate: true, endDate: true, days: true, status: true },
+          },
         },
       });
       const titulaire = e.userId ?? null;
@@ -259,6 +264,12 @@ export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | un
         ...(f.iban ? { iban: jetonOuMasque(coffret, { valeur: f.iban, nature: "IBAN", titulaireUserId: titulaire, origine: { modele: "Employee", id: e.id, champ: "iban", brut: f.iban } }) } : {}),
         ...(f.nationalId ? { nin: jetonOuMasque(coffret, { valeur: f.nationalId, nature: "NIN", titulaireUserId: titulaire, origine: { modele: "Employee", id: e.id, champ: "nationalId", brut: f.nationalId } }) } : {}),
         documentsRh: f._count.documents,
+        // LES CONGÉS DE L'ANNÉE (banc V4-H : « je ne peux pas consulter les congés d'Assia ») — la nature précise pour qui
+        // gère les RH et pour soi, « Congé » / « Absent » pour un encadrant (§118.184, `natureDeLAbsence`).
+        congesDeLAnnee: f.leaveRequests.map((l) => ({
+          du: jour(l.startDate), au: jour(l.endDate), jours: Number(l.days), statut: l.status,
+          nature: estSoi(u, e) || voitLeTypeDesAbsences(u) ? LEAVE_TYPE[l.type] ?? l.type : natureDeLAbsence(l.type) === "CONGE" ? "Congé" : "Absent",
+        })),
         lien: `/rh/${e.id}`,
       });
     },
@@ -422,4 +433,107 @@ async function lireDocumentRh(u: CurrentUser, id: string, lire: boolean, coffret
   const texte = coffret ? jetonnerMontants(jetonnerTexte(l.texte, coffret, ctx), coffret, ctx) : null;
   if (texte === null) return JSON.stringify({ ...base, lu: false, raison: "Lecture réservée à la conversation de l'Assistant IA." });
   return JSON.stringify({ ...base, lu: true, ...(l.tronque ? { limite: "Lecture partielle (premières pages)." } : {}), contenu: couper(texte, CARACTERES_PAR_PIECE) });
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LES LECTURES MÉTIER QUI MANQUAIENT (banc V4-H, 29/10/2026) — chacune par la REQUÊTE DE L'ÉCRAN, sous la vue de
+ * l'assistant (`vue` : la personne, plus en lecture les familles que la Direction lui a ouvertes explicitement).
+ *
+ *   • demandes_adpro : la liste unifiée Ad & Pro (`getAdProRequests`, la portée des lignes de chaque nature), filtrée
+ *     par année, état, nature, avec ses totaux — « fais-moi le point des demandes Ad & Pro de 2026 » ;
+ *   • etat_dossier_reglementaire : un dossier du PÉRIMÈTRE (société permise + portée Regulatory + verrou du
+ *     pipeline) — statut, échéances, étape en cours, retards, frise (réserves ANPP) et commentaires. `product_360`
+ *     d'Adam résout le produit SANS périmètre : on ne le prête pas.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export function lecturesMetier(user: CurrentUser, vue: CurrentUser): PowerTool[] {
+  const a_moi = (u: CurrentUser) => u.id === user.id;
+  return [
+    {
+      def: def("demandes_adpro",
+        "Les DEMANDES AD & PRO visibles (sponsoring, prises en charge, événements, matériel promotionnel, consulting, autres) : "
+        + "par `annee` (AAAA), `etat` (brouillon, en attente, renvoyée, approuvée, réalisée, refusée) et `nature` ; avec le nombre et le "
+        + "montant par nature et par état. Pour « le point des demandes Ad & Pro de 2026 », « mes sponsorings en attente ».", {
+          annee: { type: "string", description: "Année AAAA (facultatif)." },
+          etat: { type: "string", description: "État (facultatif)." },
+          nature: { type: "string", description: "Nature : sponsoring, prise en charge, événement, matériel promotionnel, consulting, autre (facultatif)." },
+        }),
+      allowed: a_moi,
+      label: "Demandes Ad & Pro consultées",
+      run: async (entree) => {
+        const plie = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        const annee = str(entree, "annee");
+        const etat = plie(str(entree, "etat"));
+        const nature = plie(str(entree, "nature"));
+        const toutes = await getAdProRequests(vue);
+        const lignes = toutes.filter((r) =>
+          (!annee || r.createdAt.startsWith(annee))
+          && (!etat || plie(AD_PRO_STATE[r.state]?.label ?? r.state).includes(etat))
+          && (!nature || plie(AD_PRO_KINDS.find((k) => k.kind === r.kind)?.label ?? r.kind).includes(nature)));
+        const totaux = new Map<string, { nombre: number; montantDzd: number }>();
+        for (const r of lignes) {
+          const cle = `${AD_PRO_KINDS.find((k) => k.kind === r.kind)?.label ?? r.kind} — ${AD_PRO_STATE[r.state]?.label ?? r.state}`;
+          const t = totaux.get(cle) ?? { nombre: 0, montantDzd: 0 };
+          t.nombre += 1; t.montantDzd += r.amount ?? 0;
+          totaux.set(cle, t);
+        }
+        return JSON.stringify({
+          total: lignes.length,
+          parNatureEtEtat: [...totaux].map(([cle, t]) => ({ cle, ...t })),
+          demandes: lignes.slice(0, 40).map((r) => ({
+            reference: r.reference, nature: AD_PRO_KINDS.find((k) => k.kind === r.kind)?.label ?? r.kind, titre: r.title,
+            beneficiaire: r.beneficiary, montantDzd: r.amount, etat: AD_PRO_STATE[r.state]?.label ?? r.state, demandeur: r.requester,
+            creeeLe: r.createdAt.slice(0, 10), lien: r.href,
+          })),
+          ...(lignes.length > 40 ? { limite: `40 demandes listées sur ${lignes.length} : les totaux, eux, portent sur toutes.` } : {}),
+        });
+      },
+    },
+    {
+      def: def("etat_dossier_reglementaire",
+        "L'ÉTAT D'UN DOSSIER RÉGLEMENTAIRE de ton périmètre (référence REG-…, DCI ou nom de marque) : statut, priorité, chargé, dates cibles, "
+        + "étape en cours, étapes en retard ou bloquées, FRISE du dossier (réserves ANPP, versions CTD) et commentaires. "
+        + "Pour « où en est le dossier nivolumab ? », « quelles réserves de l'ANPP ? », « quelle échéance ? ».", {
+          dossier: { type: "string", description: "Référence REG-…, DCI ou nom de marque." },
+        }),
+      allowed: a_moi,
+      label: "Dossier réglementaire consulté",
+      run: async (entree) => {
+        const q = str(entree, "dossier");
+        if (q.length < 2) return refus("Donnez la référence, la DCI ou le nom de marque du dossier.");
+        const where = await companyScopedWhere(vue.id, {
+          AND: [scopeRegulatory(vue), { OR: [{ reference: { equals: q, mode: "insensitive" as const } }, { dci: { contains: q, mode: "insensitive" as const } }, { brandName: { contains: q, mode: "insensitive" as const } }] }],
+        });
+        const trouves = await prisma.regulatoryProduct.findMany({ where, select: { id: true, reference: true, dci: true, brandName: true }, take: 6 });
+        if (!trouves.length) return refus(`Aucun dossier « ${q} » dans votre périmètre Regulatory.`);
+        if (trouves.length > 1) return JSON.stringify({ statut: "PRECISER", candidats: trouves.map((t) => `${t.reference} — ${t.dci}${t.brandName ? ` (${t.brandName})` : ""}`) });
+        const p = await prisma.regulatoryProduct.findUniqueOrThrow({
+          where: { id: trouves[0]!.id },
+          select: {
+            id: true, reference: true, dci: true, brandName: true, status: true, priority: true, isLocked: true, comments: true,
+            targetSubmissionDate: true, targetDate: true, responsible: { select: { name: true } }, company: { select: { shortName: true, name: true } },
+            steps: { orderBy: { order: "asc" }, select: { type: true, status: true, plannedDate: true, actualDate: true } },
+            dossierSteps: { orderBy: { order: "desc" }, take: 8, select: { kind: true, label: true, occurredAt: true, note: true } },
+          },
+        });
+        const maintenant = Date.now();
+        const libEtape = (t: string) => REGULATORY_STEP_TYPE[t] ?? t;
+        const enRetard = p.steps.filter((x) => x.status === "LATE" || (x.status !== "DONE" && x.plannedDate && x.plannedDate.getTime() < maintenant));
+        const enCours = p.steps.find((x) => x.status === "IN_PROGRESS") ?? p.steps.find((x) => x.status !== "DONE");
+        return JSON.stringify({
+          reference: p.reference, dci: p.dci, marque: p.brandName, entite: p.company?.shortName ?? p.company?.name ?? null,
+          statut: REGULATORY_STATUS[p.status]?.label ?? p.status, priorite: p.priority, auPipeline: p.isLocked || undefined,
+          charge: p.responsible?.name ?? null,
+          depotCible: jour(p.targetSubmissionDate), enregistrementCible: jour(p.targetDate),
+          etapeEnCours: enCours ? { etape: libEtape(enCours.type), statut: enCours.status, prevueLe: jour(enCours.plannedDate) } : null,
+          bloquees: p.steps.filter((x) => x.status === "BLOCKED").map((x) => libEtape(x.type)),
+          enRetard: enRetard.map((x) => ({ etape: libEtape(x.type), prevueLe: jour(x.plannedDate) })),
+          frise: p.dossierSteps.map((d) => ({ etape: d.label, nature: d.kind, le: jour(d.occurredAt), ...(d.note ? { note: d.note } : {}) })),
+          ...(p.comments ? { commentaires: p.comments } : {}),
+          lien: `/regulatory/${p.id}`,
+        });
+      },
+    },
+  ];
 }
