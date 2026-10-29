@@ -22,6 +22,41 @@
 - **Trouvé à l'essai réel** : le filtre de la SAISIE prenait l'espace de « le salaire d'Assia » pour un montant — la question
   arrivait au modèle sous la forme « C'est quoi le [CONFIDENTIEL]d'Assia ? ». Le motif exige désormais un chiffre.
 
+## Précision de la Direction (29/10/2026) — elle prime sur le brief initial
+1. Le **Super Admin** : l'assistant a accès à TOUT (salaires, budgets, contrats, documents RH, paie, finances,
+   réglementaire…), lectures ET écritures métier (par carte). Aucun masquage pour lui.
+2. Les **autres** : seulement ce que la Direction leur ouvre, **réglé dans la console** — **Administration › Contrôle de
+   l'IA › Assistant IA — accès** (`/admin/ai/acces`, Super Admin seul), par rôle (défaut de ses membres) et par personne
+   (prime sur son rôle), par **familles** : Salaires & paie, Budgets & finances, Contrats & documents RH, Fiches
+   collaborateurs, Drive & documents, Réglementaire, Ad & Pro, Écritures métier.
+3. **Défaut** (non-Super-Admin) : chaque famille suit les droits applicatifs de la personne (`droitsApplicatifsIa`) ;
+   **Salaires & paie** et **Contrats & documents RH** sont FERMÉES tant que la Direction ne les ouvre pas — y compris pour
+   qui gère les RH dans l'application. « Défaut » ne donne jamais plus que les droits applicatifs ; **ouvrir
+   explicitement** le peut (décision de la Direction), et chaque changement est à l'audit (avant → après).
+4. Relu **à chaque tour** (`accesAssistantIa`, sans cache) — conversation et routines. Une famille fermée : l'outil reste
+   offert mais refuse en disant **quelle famille** et que **la Direction l'ouvre dans la console** ; le contexte du tour
+   liste aussi les familles fermées pour que l'assistant réponde directement.
+
+Règle pure : `src/lib/agent/acces-regles.ts` (zéro import, au socle — lue par le moteur et par la console). Stockage :
+table `AssistantIaAcces` (une ligne par rôle OU par personne : `ouvertes`, `fermees`), migration additive
+`20270207100000_assistant_ia_acces`. Action : `enregistrerAccesAssistantIa` (Super Admin, audit, classée EXCLUDED au
+registre — une IA ne règle jamais ses propres accès). Ce que chaque famille garde :
+
+| Famille | Outils | Ouverture explicite au-delà des droits |
+|---|---|---|
+| Salaires & paie | `lire_paie`, masse salariale de `read_hr_overview`, **révélation** des repères de nature salaire | oui (lecture et révélation ; la révélation est alors tracée à l'audit) |
+| Contrats & documents RH | `documents_rh` (liste, lien, lecture) | oui — et la route `/api/rh/document/[id]` sert alors le fichier (société permise) |
+| Fiches collaborateurs | `lire_fiche_rh`, `read_hr_overview`, `hr_operation` | oui pour `lire_fiche_rh` ; les outils du moteur gardent leur droit |
+| Budgets & finances | `read_budget`, `finance_totals` | non : la garde du moteur (droit de l'écran) reste |
+| Drive & documents | `search_drive`, `search_everything`, `drive_operation` | non (ACL du Drive) |
+| Réglementaire | lectures Regulatory, `regulatory_operation`, outils d'écriture Regulatory | non (porte de l'écran) |
+| Ad & Pro | `read_workflow`, cartes `preparer_*` Ad & Pro et bons de commande | non |
+| Écritures métier | toute carte (outils d'écriture, ops de domaine, opérations de l'Assistant IA hors routines et mémoire) | — |
+
+La personne garde toujours l'accès à SON dossier (sa fiche, sa paie, ses pièces visibles) : c'est ce que l'application
+lui montre déjà (« Mon dossier RH »). Défense en profondeur : chaque outil porte les accès de SA personne et refuse s'il
+est appelé sous une autre.
+
 ## A. Les droits = ceux de la personne, rien de plus, rien de moins
 | Outil | Qui | Garde revérifiée à l'exécution |
 |---|---|---|
@@ -86,6 +121,8 @@ encadré comme contenu non fiable (« document du dossier RH »).
 Coût : 59 outils pour le Super Admin (≈ 67 Ko de définitions), 54 pour un KAM ; ~5–8 s par tour.
 
 ## Décisions à prendre (Direction)
+- **Ouverture au-delà des droits pour Budgets, Drive, Réglementaire, Ad & Pro** : aujourd'hui l'ouverture explicite n'y va
+  pas au-delà de la garde de l'écran (les outils du moteur jugent sur les droits de la personne). Faut-il un passe-droit ?
 - **Repère dans une écriture** : aujourd'hui interdit (le modèle doit dire de copier la valeur). Faut-il remplacer, côté
   serveur, un repère dans l'entrée d'une carte (ex. « envoie son salaire à X ») quand la personne a le droit de le voir ?
 - **Valeurs hors colonnes du coffre** (historique de paie, montants lus dans un contrat) : jugées par la même politique, mais

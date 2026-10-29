@@ -2,7 +2,9 @@ import type { AssistantRoleConfig, UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import type { PowerTool } from "@/lib/assistant/power-tools";
-import { userCan } from "@/lib/rbac";
+import { getAccess, userCan } from "@/lib/rbac";
+import { voitLesSalaires } from "@/lib/hr/confidentialite";
+import { normaliserReglageFamilles, resoudreAccesIa, type AccesIa, type FamilleIa, type ReglageFamilles } from "@/lib/agent/acces-regles";
 
 /**
  * CONFIGURATION DE L'ASSISTANT PAR RÔLE — Jalon 4 (Décisions Q4 & Q12).
@@ -154,4 +156,65 @@ export function resoudreConsignesRole(config: AssistantRoleConfig | null | undef
   }
 
   return parties.length > 0 ? parties.join("\n") : undefined;
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LES ACCÈS DE L'ASSISTANT IA D'UNE PERSONNE (décision 0012) — relus À CHAQUE TOUR, sans cache : un
+ * réglage changé dans la console vaut dès la demande suivante. Les droits applicatifs posent le défaut de
+ * chaque famille (la règle est dans `acces-regles.ts`, pure) ; le réglage du rôle, puis celui de la
+ * personne, ouvrent ou ferment.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export function droitsApplicatifsIa(user: CurrentUser): Record<FamilleIa, boolean> {
+  const voit = (...modules: string[]) => modules.some((m) => userCan(user, m as never, "VIEW"));
+  return {
+    SALAIRES: voitLesSalaires(user),
+    CONTRATS_RH: voitLesSalaires(user),
+    FICHES: voit("RH"),
+    BUDGETS: voit("BUDGETS", "FINANCES"),
+    DRIVE: voit("DRIVE", "DOCUMENTS"),
+    REGLEMENTAIRE: voit("REGULATORY", "REGULATORY_PIPELINE"),
+    AD_PRO: voit("SPONSORING", "AD_PRO_CENTRE", "EVENTS", "CONGRESS_INTERNATIONAL", "CONGRESS_NATIONAL", "PROMO_MATERIAL", "AD_PRO_OTHER"),
+    ECRITURES: true,
+  };
+}
+
+export async function accesAssistantIa(user: CurrentUser): Promise<AccesIa> {
+  if (user.role === "SUPER_ADMIN") return resoudreAccesIa({ superAdmin: true, droits: droitsApplicatifsIa(user) });
+  const lignes = await prisma.assistantIaAcces.findMany({ where: { OR: [{ userId: user.id }, { role: user.role as UserRole }] } });
+  const reglage = (l?: { ouvertes: string[]; fermees: string[] }) => (l ? normaliserReglageFamilles(l.ouvertes, l.fermees) : null);
+  return resoudreAccesIa({
+    superAdmin: false,
+    droits: droitsApplicatifsIa(user),
+    role: reglage(lignes.find((l) => l.role === user.role && !l.userId)),
+    personne: reglage(lignes.find((l) => l.userId === user.id)),
+  });
+}
+
+/**
+ * CE QUE LA CONSOLE MONTRE (`/admin/ai/acces`) : les réglages par rôle, et chaque personne active (hors Super Admin)
+ * avec ses droits applicatifs par famille, le réglage de son rôle et le sien — l'écran recalcule l'accès effectif
+ * avec la même règle pure que le moteur (`resoudreAccesIa`).
+ */
+export async function chargerConsoleAccesIa(): Promise<{
+  parRole: Map<UserRole, ReglageFamilles>;
+  personnes: { id: string; nom: string; email: string; role: UserRole; droits: Record<FamilleIa, boolean>; reglageRole: ReglageFamilles; reglage: ReglageFamilles }[];
+}> {
+  const [reglages, comptes] = await Promise.all([
+    prisma.assistantIaAcces.findMany(),
+    prisma.user.findMany({ where: { isActive: true, role: { not: "SUPER_ADMIN" } }, select: { id: true, name: true, email: true, role: true }, orderBy: { name: "asc" } }),
+  ]);
+  const vide: ReglageFamilles = { ouvertes: [], fermees: [] };
+  const parRole = new Map(reglages.filter((r) => r.role && !r.userId).map((r) => [r.role!, normaliserReglageFamilles(r.ouvertes, r.fermees)]));
+  const parPersonne = new Map(reglages.filter((r) => r.userId).map((r) => [r.userId!, normaliserReglageFamilles(r.ouvertes, r.fermees)]));
+  const personnes = await Promise.all(comptes.map(async (c) => {
+    const access = await getAccess(c.id, c.role);
+    const session = { id: c.id, name: c.name, email: c.email, role: access.role ?? c.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
+    return {
+      id: c.id, nom: c.name, email: c.email, role: c.role, droits: droitsApplicatifsIa(session),
+      reglageRole: parRole.get(c.role) ?? vide, reglage: parPersonne.get(c.id) ?? vide,
+    };
+  }));
+  return { parRole, personnes };
 }

@@ -13,6 +13,9 @@
   notification).
 - **Filtre de la saisie** : « C'est quoi le salaire d'Assia ? » devenait « C'est quoi le [CONFIDENTIEL]d'Assia ? » (l'espace
   passait pour un montant) — un montant commence désormais par un chiffre.
+- **Console « Assistant IA — accès »** (précision de la Direction, 29/10) : `/admin/ai/acces`, par rôle et par personne,
+  huit familles cochables (défaut / ouverte / fermée). Le Super Admin a tout ; salaires et contrats fermés par défaut pour
+  les autres ; relu à chaque tour ; audit de chaque changement. Table `AssistantIaAcces` (migration additive).
   Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
 
 ### ASSISTANT IA : VOCAUX « COMME WHATSAPP » ET LECTURE DE TOUTE PIÈCE JOINTE (2026-10-28)

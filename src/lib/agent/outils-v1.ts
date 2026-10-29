@@ -21,6 +21,8 @@ import { lecturesQuotidien, lecturesRh } from "@/lib/agent/lectures";
 import { censurerTexte, jetonnerSortie, jetonOuMasque, type CoffretDuTour } from "@/lib/agent/filtre-confidentialite";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { formatMontant } from "@/lib/utils";
+import { familleExplicite, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
+import { droitsApplicatifsIa } from "@/lib/agent/role-config";
 
 /**
  * LES OUTILS DE L'ASSISTANT IA — tous EXISTANTS au moteur ou à l'Assistant IA, aucun réécrit (Q7, Q20).
@@ -45,7 +47,7 @@ const LECTURES_MOTEUR = new Set(["list_my_tasks", "search_products", "read_workf
  * `read_employee` et `read_payroll` n'en sont PAS : leur garde (lecture du module RH, sans société) est
  * plus large que l'écran ; l'Assistant IA lit la fiche et la paie par `lectures.ts` — `lecturesRh`.
  */
-const LECTURES_DROIT = new Set(["read_hr_overview", "search_everything", "read_calendar", "search_drive"]);
+const LECTURES_DROIT = new Set(["read_hr_overview", "search_everything", "read_calendar", "search_drive", "read_budget", "finance_totals"]);
 /**
  * LES ÉCRITURES MÉTIER (décision 0012) — préparées par `buildProposal` (qui juge le droit et résout les
  * noms), enregistrées en intention, exécutées seulement à la confirmation (`performAction` rejuge tout).
@@ -63,6 +65,46 @@ const ECRITURES = new Set([
  * (`capability_operation`) reste à Adam.
  */
 const DOMAINES = ["regulatory_operation", "hr_operation", "task_operation", "drive_operation", "request_operation"] as const;
+/**
+ * LES FAMILLES RÉGLÉES PAR LA DIRECTION (décision 0012, console `/admin/ai/acces`) — chaque outil, la ou les
+ * familles qu'il exige. Fermée : l'outil reste offert, mais refuse en disant quelle famille et qui l'ouvre.
+ * Les lectures RH (`lire_paie`, `documents_rh`, `lire_fiche_rh`) jugent elles-mêmes (la personne garde l'accès
+ * à SON dossier) ; toute opération de l'Assistant IA hors routines exige les écritures.
+ */
+const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
+  read_hr_overview: ["FICHES"],
+  search_drive: ["DRIVE"], search_everything: ["DRIVE"], drive_operation: ["DRIVE", "ECRITURES"],
+  read_budget: ["BUDGETS"], finance_totals: ["BUDGETS"],
+  regulatory_portfolio: ["REGLEMENTAIRE"], regulatory_workload: ["REGLEMENTAIRE"], regulatory_knowledge: ["REGLEMENTAIRE"],
+  regulatory_operation: ["REGLEMENTAIRE", "ECRITURES"], update_regulatory_product: ["REGLEMENTAIRE", "ECRITURES"],
+  assign_regulatory_responsible: ["REGLEMENTAIRE", "ECRITURES"], set_regulatory_step: ["REGLEMENTAIRE", "ECRITURES"],
+  request_regulatory_status_update: ["REGLEMENTAIRE", "ECRITURES"],
+  read_workflow: ["AD_PRO"],
+  preparer_sponsoring: ["AD_PRO", "ECRITURES"], preparer_prise_en_charge: ["AD_PRO", "ECRITURES"], preparer_evenement: ["AD_PRO", "ECRITURES"],
+  preparer_materiel_promo: ["AD_PRO", "ECRITURES"], preparer_demande_autre: ["AD_PRO", "ECRITURES"], preparer_poste: ["AD_PRO", "ECRITURES"],
+  preparer_bon_de_commande: ["AD_PRO", "ECRITURES"], preparer_bc_depuis_devis: ["AD_PRO", "ECRITURES"], preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
+  hr_operation: ["FICHES", "ECRITURES"],
+};
+const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire"]);
+
+/** L'accès par défaut (sans réglage lu) : droits applicatifs, familles sensibles fermées. Un tour passe toujours le réglage relu. */
+export const accesParDefaut = (user: CurrentUser): AccesIa =>
+  resoudreAccesIa({ superAdmin: user.role === "SUPER_ADMIN", droits: droitsApplicatifsIa(user) });
+
+/** Les familles qu'un outil exige — celles de la table, et les écritures pour tout geste préparé. */
+function famillesDe(nom: string, ecriture: boolean): FamilleIa[] {
+  const f = FAMILLES_DES_OUTILS[nom] ?? [];
+  return ecriture && !f.includes("ECRITURES") ? [...f, "ECRITURES"] : f;
+}
+
+const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTool => (familles.length === 0 ? outil : {
+  ...outil,
+  run: async (entree, u) => {
+    const fermee = familles.find((f) => !familleOuverte(acces, f));
+    return fermee ? JSON.stringify({ statut: "REFUS", raison: refusFamille(fermee) }) : outil.run(entree, u);
+  },
+});
+
 /** TOUT ce qui prépare une écriture du moteur — une routine (lecture seule) n'en reçoit aucun (`routines/passage.ts`). */
 export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...ECRITURES, ...DOMAINES]);
 /** Ce que l'utilisateur lit sous la réponse (« sources consultées ») — jamais un nom d'outil. */
@@ -75,6 +117,8 @@ const LIBELLES: Record<string, string> = {
   search_everything: "Recherche effectuée",
   read_calendar: "Agenda consulté",
   search_drive: "Drive fouillé",
+  read_budget: "Budget consulté",
+  finance_totals: "Finances consultées",
   my_overview: "Vue d'ensemble consultée",
   create_task: "Tâche préparée",
   update_task: "Tâche préparée",
@@ -211,10 +255,10 @@ function outilMemoire(user: CurrentUser, memoires?: MemoireProposee[]): PowerToo
  * LA MASSE SALARIALE de la situation RH : un REPÈRE pour qui gère les RH, rien pour qui n'a que la lecture
  * du module — l'écran ne la lui montre pas non plus (`voitLesSalaires`, §118.184).
  */
-export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret?: CoffretDuTour | null): string {
+export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret: CoffretDuTour | null | undefined, acces: AccesIa): string {
   let o: unknown;
   try { o = JSON.parse(sortie); } catch { return sortie; }
-  const voit = voitLesSalaires(user);
+  const voit = familleOuverte(acces, "SALAIRES") && (voitLesSalaires(user) || familleExplicite(acces, "SALAIRES"));
   const visiter = (v: unknown): unknown => {
     if (Array.isArray(v)) return v.map(visiter);
     if (!v || typeof v !== "object") return v;
@@ -229,7 +273,10 @@ export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret?
   return JSON.stringify(visiter(o));
 }
 
-export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[], coffret?: CoffretDuTour | null): PowerTool[] {
+export function outilsV1(
+  user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[], coffret?: CoffretDuTour | null, accesDuTour?: AccesIa,
+): PowerTool[] {
+  const acces = accesDuTour ?? accesParDefaut(user);
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
   const defs = assistantToolsFor(user);
   const defParNom = new Map(defs.map((d) => [d.name, d]));
@@ -260,7 +307,7 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
       label: LIBELLES[nom] ?? def.name,
       run: async (entree, u) => {
         const sortie = (await executePowerTool(nom, entree, u)) ?? "Cette lecture n'est pas disponible.";
-        return nom === "read_hr_overview" ? situationRhSansMasse(sortie, u, coffret) : sortie;
+        return nom === "read_hr_overview" ? situationRhSansMasse(sortie, u, coffret, acces) : sortie;
       },
     }];
   });
@@ -300,8 +347,19 @@ export function outilsV1(user: CurrentUser, propositions: PropositionPreparee[],
     return def ? [carte(nom, def)] : [];
   });
 
-  return [
-    ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
-    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...ecritures, ...domaines, ...outilsOperations(user, propositions), outilMemoire(user, memoires),
-  ].map((o) => filtre(o, journal, coffret));
+  const lectures = [
+    ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
+    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(),
+  ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
+  const gestes = [
+    ...[...ecritures, ...domaines].map((o) => garde(o, famillesDe(o.def.name, true), acces)),
+    ...outilsOperations(user, propositions).map((o) => garde(o, famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
+  ];
+  // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le
+  // refuse déjà au modèle), il refuse au lieu de prêter ces accès.
+  const aSoi = (o: PowerTool): PowerTool => ({
+    ...o,
+    run: (entree, u) => (u.id === user.id ? o.run(entree, u) : Promise.resolve(JSON.stringify({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." }))),
+  });
+  return [...lectures, ...gestes, outilMemoire(user, memoires)].map((o) => filtre(aSoi(o), journal, coffret));
 }

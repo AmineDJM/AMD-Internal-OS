@@ -35,7 +35,9 @@ export async function outilsDeRoutine(user: CurrentUser, sorties: string[]): Pro
   // TOUTE opération du registre écrit (ou programme) : aucune n'est offerte, quel que soit son nom. Les gestes
   // métier du moteur ouverts par la décision 0012 (dossier réglementaire, RH, demandes…) non plus.
   const operations = new Set(OPERATIONS_IA.map((o) => o.nom));
-  return outilsV1(user, [], sorties, []).filter((o) => !ECRITURES.has(o.def.name) && !ECRITURES_DU_MOTEUR.has(o.def.name) && !operations.has(o.def.name) && !o.def.name.startsWith("preparer_"));
+  // Les familles réglées par la Direction valent pour une routine comme pour la conversation (relues à chaque passage).
+  const { accesAssistantIa } = await import("@/lib/agent/role-config");
+  return outilsV1(user, [], sorties, [], null, await accesAssistantIa(user)).filter((o) => !ECRITURES.has(o.def.name) && !ECRITURES_DU_MOTEUR.has(o.def.name) && !operations.has(o.def.name) && !o.def.name.startsWith("preparer_"));
 }
 
 const CONSIGNE_ROUTINE = [

@@ -43,9 +43,9 @@ describe("outils V1", () => {
     // chacun revérifie à l'exécution par l'action de l'écran).
     expect(noms).toEqual([
       "assign_regulatory_responsible", "comparer_versions", "create_admin_request", "create_hr_request", "create_task", "directory_list", "directory_lookup", "documents_rh",
-      "drive_operation", "hr_operation", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks",
+      "drive_operation", "finance_totals", "hr_operation", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks",
       "mes_brouillons", "mes_conversations", "mes_demandes_en_attente", "mes_routines", "my_overview",
-      "proposer_memoire", "read_calendar", "read_hr_overview", "read_workflow",
+      "proposer_memoire", "read_budget", "read_calendar", "read_hr_overview", "read_workflow",
       "regulatory_knowledge", "regulatory_operation", "regulatory_portfolio", "regulatory_workload", "request_operation", "request_regulatory_status_update",
       "search_drive", "search_everything", "search_products", "send_message", "set_regulatory_step", "task_operation", "update_regulatory_product", "update_task", "web_research",
       ...OPERATIONS_IA.map((o) => o.nom),

@@ -39,7 +39,12 @@ Covered:
   `peutLire` allows (coffre columns also through `controlerLecture` = policy + `AccesDonneeSensible` journal, no
   decryption — exported from `@/modules/coffre/api`, NOT `api-lecture`, the frontier holds); else `[confidentiel]`.
   Revealed values are wrapped in U+2063: `filtrerSaisie` always strips them from assistant history; TTS and notifications
-  too. Routines (no coffret) keep the old `[CONFIDENTIEL]` censorship. Bench: `src/lib/agent/droits-metier.test.ts`.
+  too. Routines (no coffret) keep the old `[CONFIDENTIEL]` censorship. **Access families** (Direction 29/10):
+  `acces-regles.ts` (pure, socle) — SUPER_ADMIN = everything; others default to app rights (`droitsApplicatifsIa`,
+  `role-config.ts`) with SALAIRES/CONTRATS_RH CLOSED; `AssistantIaAcces` rows (per role, per user — user wins) open/close
+  families; explicit opening may exceed app rights (own HR tools, token reveal — audited — and the RH document route).
+  Re-read every turn (`accesAssistantIa`); closed family → tool refuses naming it (`refusFamille`). Console
+  `/admin/ai/acces` (`enregistrerAccesAssistantIa`, Super Admin, audit, EXCLUDED in the action registry). Bench: `src/lib/agent/droits-metier.test.ts`.
   **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
   attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
   door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file

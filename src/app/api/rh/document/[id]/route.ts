@@ -5,6 +5,8 @@ import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { entitePermisePourFiche } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
+import { accesAssistantIa } from "@/lib/agent/role-config";
+import { familleExplicite } from "@/lib/agent/acces-regles";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   // permise (S6). L'employé garde ses propres pièces marquées visibles.
   const isOwner = doc.employee.userId === user.id && doc.visibleToEmployee;
   const isHr = voitLesSalaires(user) && (await entitePermisePourFiche(user.id, doc.employee.companyId));
-  if (!isOwner && !isHr) return new NextResponse(null, { status: 403 });
+  // Décision 0012 : la Direction peut OUVRIR explicitement « Contrats & documents RH » à une personne dans la
+  // console de l'Assistant IA — le lien que l'assistant lui donne doit alors s'ouvrir (société permise toujours).
+  const ouvertParDirection = !isOwner && !isHr
+    && familleExplicite(await accesAssistantIa(user), "CONTRATS_RH") && (await entitePermisePourFiche(user.id, doc.employee.companyId));
+  if (!isOwner && !isHr && !ouvertParDirection) return new NextResponse(null, { status: 403 });
 
   const bytes = await getBlob(doc.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });

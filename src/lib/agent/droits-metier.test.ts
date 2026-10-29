@@ -17,6 +17,8 @@ import type { CurrentUser } from "@/lib/session";
  */
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
+let ACTEUR: unknown = null;
+vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
@@ -26,7 +28,10 @@ import { modeleFactice } from "@/lib/agent/testing/modele-factice";
 import { effacerJournalDe } from "@/lib/agent/testing/journal";
 import { filtrerSaisie, jouerTour, Revelateur } from "@/lib/agent/fil/tour";
 import { outilsV1, situationRhSansMasse, type PropositionPreparee } from "@/lib/agent/outils-v1";
-import { REFUS_DOCUMENTS_AUTRUI, REFUS_FICHE, REFUS_PAIE_AUTRUI } from "@/lib/agent/lectures";
+import { REFUS_PAIE_AUTRUI } from "@/lib/agent/lectures";
+import { accesAssistantIa } from "@/lib/agent/role-config";
+import { FAMILLES_IA, refusFamille, resoudreAccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
+import { enregistrerAccesAssistantIa } from "@/lib/actions/assistant-ia-consommation-actions";
 import {
   BORNE_REVELEE, CoffretDuTour, jetonnerMontants, jetonnerObjet, jetonnerSortie, jetonnerTexte, masquerReperesPartiels, MASQUE_CONFIDENTIEL, sansValeursRevelees,
 } from "@/lib/agent/filtre-confidentialite";
@@ -86,11 +91,34 @@ describe("les repères du tour (pur)", () => {
   });
 });
 
+describe("les familles réglées par la Direction (pur)", () => {
+  const tout = Object.fromEntries(FAMILLES_IA.map((f) => [f, true])) as Record<FamilleIa, boolean>;
+  it("le Super Admin a tout, quels que soient les réglages", () => {
+    expect(resoudreAccesIa({ superAdmin: true, droits: tout, personne: { ouvertes: [], fermees: [...FAMILLES_IA] } }).ouvertes).toEqual([...FAMILLES_IA]);
+  });
+  it("défaut : les droits applicatifs, salaires et contrats FERMÉS même pour qui gère les RH", () => {
+    const a = resoudreAccesIa({ superAdmin: false, droits: { ...tout, BUDGETS: false } });
+    expect(a.ouvertes).not.toContain("SALAIRES");
+    expect(a.ouvertes).not.toContain("CONTRATS_RH");
+    expect(a.ouvertes).not.toContain("BUDGETS");
+    expect(a.ouvertes).toContain("FICHES");
+    expect(a.explicites).toEqual([]);
+  });
+  it("le rôle pose le défaut, la personne prime ; ouvrir explicitement va au-delà des droits", () => {
+    const sans = Object.fromEntries(FAMILLES_IA.map((f) => [f, false])) as Record<FamilleIa, boolean>;
+    const a = resoudreAccesIa({ superAdmin: false, droits: sans, role: { ouvertes: ["SALAIRES", "BUDGETS"], fermees: [] }, personne: { ouvertes: [], fermees: ["BUDGETS"] } });
+    expect(a.ouvertes).toEqual(["SALAIRES"]);
+    expect(a.explicites).toEqual(["SALAIRES"]);
+  });
+});
+
 suite("contre la base, au faux modèle", () => {
   let superAdmin: CurrentUser;
   let kam: CurrentUser;
   let assia: CurrentUser;
   let karim: CurrentUser;
+  let assistante: CurrentUser;
+  let autreAssistante: CurrentUser;
   let employeAssia = "";
   let contratKarim = "";
   let contratAssia = "";
@@ -106,6 +134,8 @@ suite("contre la base, au faux modèle", () => {
     kam = await session("MEDICAL_DELEGATE", "Kamel");
     assia = await session("MEDICAL_DELEGATE", "Assia");
     karim = await session("MEDICAL_DELEGATE", "Karim");
+    assistante = await session("DIRECTION_ASSISTANT", "Samia");
+    autreAssistante = await session("DIRECTION_ASSISTANT", "Nadia");
     const ea = await prisma.employee.create({
       data: { fullName: `Assia ${TAG}Benali`, userId: assia.id, position: "Pharmacienne", baseSalary: 185000, netToPay: 152340, iban: "DZ5900400174401234567890" },
     });
@@ -117,7 +147,9 @@ suite("contre la base, au faux modèle", () => {
   });
   afterEach(() => { remplacerModelesPourTests(null); });
   afterAll(async () => {
-    const ids = [superAdmin, kam, assia, karim].filter(Boolean).map((u) => u.id);
+    const ids = [superAdmin, kam, assia, karim, assistante, autreAssistante].filter(Boolean).map((u) => u.id);
+    await prisma.assistantIaAcces.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
+    await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await effacerJournalDe(ids);
     await prisma.employeeDocument.deleteMany({ where: { employee: { fullName: { contains: TAG } } } }).catch(() => {});
     await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
@@ -165,8 +197,9 @@ suite("contre la base, au faux modèle", () => {
     expect(s).not.toMatch(/185|152/);
     expect(JSON.parse(s).ficheActuelle.salaireBase).toMatch(/^⟦S\d+⟧$/);
     const refuse = JSON.parse(await outil(kam, "lire_paie", new CoffretDuTour()).run({ nom: `Assia ${TAG}Benali` }, kam));
-    expect(refuse).toEqual({ statut: "REFUS", raison: REFUS_PAIE_AUTRUI });
-    expect(JSON.parse(await outil(kam, "lire_fiche_rh").run({ nom: `Assia ${TAG}Benali` }, kam))).toEqual({ statut: "REFUS", raison: REFUS_FICHE });
+    // La famille d'abord : « Salaires & paie » est fermée au KAM — le refus le dit, et qui l'ouvre.
+    expect(refuse).toEqual({ statut: "REFUS", raison: refusFamille("SALAIRES") });
+    expect(JSON.parse(await outil(kam, "lire_fiche_rh").run({ nom: `Assia ${TAG}Benali` }, kam)).statut).toBe("REFUS");
   });
 
   it("la règle revérifiée À L'EXÉCUTION : l'outil du Super Admin, appelé sous un KAM, refuse", async () => {
@@ -183,7 +216,7 @@ suite("contre la base, au faux modèle", () => {
     expect(lu.contenu).toMatch(/Article 5/);
     expect(lu.contenu).not.toMatch(/185 000|quatre-vingt/);
     expect(json(await outil(assia, "documents_rh").run({ nom: "moi" }, assia)).documents).toHaveLength(1);
-    expect(json(await outil(karim, "documents_rh").run({ nom: `Assia ${TAG}Benali` }, karim))).toEqual({ statut: "REFUS", raison: REFUS_DOCUMENTS_AUTRUI });
+    expect(json(await outil(karim, "documents_rh").run({ nom: `Assia ${TAG}Benali` }, karim))).toEqual({ statut: "REFUS", raison: refusFamille("CONTRATS_RH") });
     expect(json(await outil(karim, "documents_rh", new CoffretDuTour()).run({ documentId: contratAssia, lire: true }, karim)).statut).toBe("REFUS");
     expect(json(await outil(karim, "documents_rh", new CoffretDuTour()).run({ documentId: contratKarim, lire: true }, karim)).lu).toBe(true);
   });
@@ -192,17 +225,18 @@ suite("contre la base, au faux modèle", () => {
     const c = new CoffretDuTour();
     const j = c.jeton({ valeur: "185 000 DZD", nature: "SALAIRE", titulaireUserId: assia.id, origine: { modele: "Employee", id: employeAssia, champ: "baseSalary", brut: "185000" } });
     const phrase = `Salaire de base : ${j}. Autre : ⟦S7⟧.`;
-    expect(await new Revelateur(c, superAdmin).texte(phrase)).toBe(`Salaire de base : ${BORNE_REVELEE}185 000 DZD${BORNE_REVELEE}. Autre : ${MASQUE_CONFIDENTIEL}.`);
-    expect(chiffres(await new Revelateur(c, assia).texte(phrase))).toContain("185000DZD");
-    expect(await new Revelateur(c, kam).texte(phrase)).toBe(`Salaire de base : ${MASQUE_CONFIDENTIEL}. Autre : ${MASQUE_CONFIDENTIEL}.`);
+    const r = async (u: CurrentUser) => new Revelateur(c, u, await accesAssistantIa(u)).texte(phrase);
+    expect(await r(superAdmin)).toBe(`Salaire de base : ${BORNE_REVELEE}185 000 DZD${BORNE_REVELEE}. Autre : ${MASQUE_CONFIDENTIEL}.`);
+    expect(chiffres(await r(assia))).toContain("185000DZD");
+    expect(await r(kam)).toBe(`Salaire de base : ${MASQUE_CONFIDENTIEL}. Autre : ${MASQUE_CONFIDENTIEL}.`);
   });
 
-  it("la masse salariale de la situation RH : un repère pour qui gère les RH, absente sinon", () => {
+  it("la masse salariale de la situation RH : un repère pour qui gère les RH, absente sinon", async () => {
     const sortie = JSON.stringify({ effectif: 12, masseSalarialeDzd: 2400000, parEntite: [{ entite: "Adventum", masseSalarialeDzd: 1200000 }] });
     const c = new CoffretDuTour();
-    expect(situationRhSansMasse(sortie, superAdmin, c)).not.toMatch(/2400000|1200000/);
-    expect(JSON.parse(situationRhSansMasse(sortie, superAdmin, c)).masseSalarialeDzd).toMatch(/^⟦S\d+⟧$/);
-    expect(JSON.parse(situationRhSansMasse(sortie, kam, c))).toEqual({ effectif: 12, parEntite: [{ entite: "Adventum" }] });
+    expect(situationRhSansMasse(sortie, superAdmin, c, await accesAssistantIa(superAdmin))).not.toMatch(/2400000|1200000/);
+    expect(JSON.parse(situationRhSansMasse(sortie, superAdmin, c, await accesAssistantIa(superAdmin))).masseSalarialeDzd).toMatch(/^⟦S\d+⟧$/);
+    expect(JSON.parse(situationRhSansMasse(sortie, kam, c, await accesAssistantIa(kam)))).toEqual({ effectif: 12, parEntite: [{ entite: "Adventum" }] });
   });
 
   it("UN TOUR ENTIER — « c'est quoi le salaire d'Assia ? » : le modèle ne reçoit jamais la valeur, le Super Admin la lit", async () => {
@@ -238,6 +272,48 @@ suite("contre la base, au faux modèle", () => {
     expect(r.ok).toBe(true);
     if (!r.ok) return;
     expect(r.content).toBe(`Réponse : ${MASQUE_CONFIDENTIEL}.`);
-    expect(JSON.stringify(f.promptsRecus)).toContain(REFUS_PAIE_AUTRUI.slice(0, 40));
+    expect(JSON.stringify(f.promptsRecus)).toContain("Salaires & paie");
+    expect(REFUS_PAIE_AUTRUI).toMatch(/gère les RH/);
+  });
+
+  it("L'ASSISTANTE DE DIRECTION : refusée sur salaire et contrat par défaut, autorisée après ouverture dans la console — elle seule", async () => {
+    const paie = async (u: CurrentUser, c = new CoffretDuTour()) =>
+      JSON.parse(await outilsV1(u, [], [], [], c, await accesAssistantIa(u)).find((o) => o.def.name === "lire_paie")!.run({ nom: `Assia ${TAG}Benali` }, u));
+    const docs = async (u: CurrentUser) =>
+      json(await outilsV1(u, [], [], [], new CoffretDuTour(), await accesAssistantIa(u)).find((o) => o.def.name === "documents_rh")!.run({ nom: `Assia ${TAG}Benali` }, u));
+
+    expect(await paie(assistante)).toEqual({ statut: "REFUS", raison: refusFamille("SALAIRES") });
+    expect(await docs(assistante)).toEqual({ statut: "REFUS", raison: refusFamille("CONTRATS_RH") });
+
+    // La Direction ouvre les deux familles à Samia, dans la console (action du Super Admin, journalisée).
+    ACTEUR = superAdmin;
+    const fd = new FormData();
+    fd.set("cible", `user:${assistante.id}`);
+    fd.set("ouvertes", "SALAIRES,CONTRATS_RH");
+    expect(await enregistrerAccesAssistantIa(fd)).toEqual({ ok: true });
+    expect(await prisma.auditLog.count({ where: { actorId: superAdmin.id, field: "Assistant IA — accès", summary: { contains: "Samia" } } })).toBe(1);
+
+    const c = new CoffretDuTour();
+    const lu = await paie(assistante, c);
+    expect(lu.ficheActuelle.salaireBase).toMatch(/^⟦S\d+⟧$/);
+    const vu = await new Revelateur(c, assistante, await accesAssistantIa(assistante)).texte(lu.ficheActuelle.salaireBase);
+    expect(chiffres(vu)).toContain("185000DZD");
+    expect((await docs(assistante)).documents).toHaveLength(1);
+
+    // Le réglage ne vaut que pour elle : Nadia, même rôle, reste au défaut.
+    expect(await paie(autreAssistante)).toEqual({ statut: "REFUS", raison: refusFamille("SALAIRES") });
+
+    // Un non-Super-Admin ne règle rien.
+    ACTEUR = assistante;
+    expect((await enregistrerAccesAssistantIa(fd)).ok).toBe(false);
+  });
+
+  it("le Super Admin voit tout, même si un réglage tentait de le fermer", async () => {
+    ACTEUR = superAdmin;
+    const fd = new FormData();
+    fd.set("cible", `user:${superAdmin.id}`);
+    fd.set("fermees", "SALAIRES");
+    expect((await enregistrerAccesAssistantIa(fd)).ok).toBe(false);
+    expect((await accesAssistantIa(superAdmin)).ouvertes).toEqual([...FAMILLES_IA]);
   });
 });

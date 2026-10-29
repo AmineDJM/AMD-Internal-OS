@@ -1,6 +1,8 @@
 import type { CurrentUser } from "@/lib/session";
 import { compileContext } from "@/lib/agent/contexte";
-import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
+import { accesAssistantIa, getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
+import { consigneFamilles, familleExplicite, familleOuverte, LIBELLE_FAMILLE, type AccesIa } from "@/lib/agent/acces-regles";
+import { recordAudit } from "@/lib/audit";
 import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "@/lib/agent/modele";
 import { modelesEffectifs } from "@/lib/agent/generer";
@@ -123,11 +125,16 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
 
   let instructions: string;
   let config;
+  // LES ACCÈS RÉGLÉS PAR LA DIRECTION (décision 0012), relus à chaque tour : un réglage changé vaut dès maintenant.
+  let acces: AccesIa;
   try {
+    acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
     instructions = (await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt;
     if (d.consigne) instructions = `${instructions}\n\n${d.consigne}`;
     instructions = `${instructions}\n\n${CONSIGNE_JETONS}`;
+    const fermees = consigneFamilles(acces);
+    if (fermees) instructions = `${instructions}\n\n${fermees}`;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
     console.error("[assistant] contexte indisponible", e);
@@ -139,7 +146,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const memoires: MemoireProposee[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les repères.
   const coffret = new CoffretDuTour();
-  const outils = outilsV1(user, propositions, sorties, memoires, coffret);
+  const outils = outilsV1(user, propositions, sorties, memoires, coffret, acces);
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({
@@ -159,7 +166,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const p = propositions[0];
     // LA RÉVÉLATION, AVANT D'AFFICHER ET DE STOCKER : chaque repère devient la valeur pour qui a le droit de
     // la voir (politique du coffre, journal), « [confidentiel] » sinon.
-    const revelateur = new Revelateur(coffret, user);
+    const revelateur = new Revelateur(coffret, user, acces);
     return {
       ok: true,
       message,
@@ -203,31 +210,45 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
 
 export const GESTE_ASSISTANT = "Assistant IA — réponse à la personne";
 
-async function decider(e: EntreeJeton, user: CurrentUser): Promise<boolean> {
+async function decider(e: EntreeJeton, user: CurrentUser, acces: AccesIa): Promise<boolean> {
+  const soi = !!e.titulaireUserId && e.titulaireUserId === user.id;
+  // LA FAMILLE D'ABORD (décision 0012) : salaires fermés par la Direction → rien, sauf les siens.
+  if (e.nature === "SALAIRE" && !soi && !familleOuverte(acces, "SALAIRES")) return false;
   const lecteur = lecteurDepuisSession(user);
   const politique = peutLire(lecteur, e.nature, { genre: "PERSONNE", userId: e.titulaireUserId });
-  if (!e.origine) return politique.autorise;
-  // Le contrôle du coffre journalise (interrupteur `coffreLecture` ouvert) ; fermé, il rend la colonne
-  // sans juger — la politique ci-dessus reste donc la condition, toujours.
-  const { lecture } = await controlerLecture({
-    lecteur, modele: e.origine.modele, champs: [e.origine.champ], geste: GESTE_ASSISTANT,
-    lignes: [{ id: e.origine.id, clair: { [e.origine.champ]: e.origine.brut } }],
+  let accorde = politique.autorise;
+  if (e.origine) {
+    // Le contrôle du coffre journalise (interrupteur `coffreLecture` ouvert) ; fermé, il rend la colonne
+    // sans juger — la politique ci-dessus reste donc la condition, toujours.
+    const { lecture } = await controlerLecture({
+      lecteur, modele: e.origine.modele, champs: [e.origine.champ], geste: GESTE_ASSISTANT,
+      lignes: [{ id: e.origine.id, clair: { [e.origine.champ]: e.origine.brut } }],
+    });
+    accorde = politique.autorise && lecture.get(e.origine.id)?.[e.origine.champ]?.lu === true;
+  }
+  if (accorde) return true;
+  // L'OUVERTURE EXPLICITE de la Direction va au-delà de la politique du coffre — et cela se trace à l'audit.
+  if (e.nature !== "SALAIRE" || !familleExplicite(acces, "SALAIRES")) return false;
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "Assistant IA",
+    summary: `Rémunération montrée par l'Assistant IA sur ouverture de la Direction (famille « ${LIBELLE_FAMILLE.SALAIRES} »)`
+      + `${e.origine ? ` — ${e.origine.modele}.${e.origine.champ} ${e.origine.id}` : ""}`,
   });
-  return politique.autorise && lecture.get(e.origine.id)?.[e.origine.champ]?.lu === true;
+  return true;
 }
 
 /** Les décisions d'un tour, gardées : le même repère n'est jugé (et journalisé) qu'une fois. */
 export class Revelateur {
   private readonly decisions = new Map<number, Promise<boolean>>();
 
-  constructor(private readonly coffret: CoffretDuTour, private readonly user: CurrentUser) {}
+  constructor(private readonly coffret: CoffretDuTour, private readonly user: CurrentUser, private readonly acces: AccesIa) {}
 
   private autorise(n: number): Promise<boolean> {
     const e = this.coffret.entree(n);
     if (!e) return Promise.resolve(false);
     let d = this.decisions.get(n);
     if (!d) {
-      d = decider(e, this.user).catch((err) => {
+      d = decider(e, this.user, this.acces).catch((err) => {
         // Le journal a échoué : rien ne sort (la règle du coffre).
         console.error("[assistant-ia] révélation refusée faute de journal", err);
         return false;

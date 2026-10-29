@@ -13,6 +13,7 @@ import { HR_DOCUMENT_CATEGORY, ROLE_LABELS } from "@/lib/labels";
 import { DEPENDANCES_REELLES } from "@/lib/agent/lecture/pieces";
 import { CARACTERES_PAR_PIECE, couper, extensionDe, nomAnnonceLeCoffre, REFUS_COFFRE } from "@/lib/agent/lecture/regles";
 import { natureSensible, REFUS_IDENTITE, REFUS_PAIE } from "@/lib/agent/operations/documents-lus";
+import { familleExplicite, familleOuverte, refusFamille, type AccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
 import { jetonnerMontants, jetonnerTexte, jetonOuMasque, type CoffretDuTour } from "@/lib/agent/filtre-confidentialite";
 
 /**
@@ -205,11 +206,22 @@ async function gereLesRhDe(user: CurrentUser, e: EmployeTrouve): Promise<boolean
   return voitLesSalaires(user) && (await entitePermisePourFiche(user.id, e.companyId));
 }
 
+/**
+ * LE DROIT SUR LE DOSSIER D'AUTRUI — la famille de l'assistant d'abord (réglée par la Direction : un refus dit
+ * laquelle et qui l'ouvre), la société de la fiche ensuite, puis le droit applicatif — ou l'ouverture EXPLICITE
+ * de la famille par la Direction, qui peut aller au-delà. `null` : accordé.
+ */
+async function droitSurAutrui(u: CurrentUser, e: EmployeTrouve, acces: AccesIa, famille: FamilleIa, droitApplicatif: boolean, refusRegle: string): Promise<string | null> {
+  if (!familleOuverte(acces, famille)) return refusFamille(famille);
+  if (!(await entitePermisePourFiche(u.id, e.companyId))) return refusRegle;
+  return droitApplicatif || familleExplicite(acces, famille) ? null : refusRegle;
+}
+
 export const REFUS_PAIE_AUTRUI = "La paie d'un autre salarié n'est lue que par qui gère les RH (modifier ou valider le module) dans sa société — la même règle que l'écran de la paie.";
 export const REFUS_DOCUMENTS_AUTRUI = "Les documents RH d'un autre salarié ne sont ouverts qu'à qui gère les RH dans sa société — la même règle que leur téléchargement.";
 export const REFUS_FICHE = "Le registre RH ne vous est pas ouvert : vous ne pouvez consulter que votre propre fiche.";
 
-export function lecturesRh(user: CurrentUser, coffret?: CoffretDuTour | null): PowerTool[] {
+export function lecturesRh(user: CurrentUser, coffret: CoffretDuTour | null | undefined, acces: AccesIa): PowerTool[] {
   const fiche: PowerTool = {
     def: {
       name: "lire_fiche_rh",
@@ -223,7 +235,8 @@ export function lecturesRh(user: CurrentUser, coffret?: CoffretDuTour | null): P
     run: async (entree, u) => {
       const e = await employeDesigne(u, str(entree, "nom"));
       if ("erreur" in e) return refus(e.erreur);
-      if (!estSoi(u, e) && !userCan(u, "RH", "VIEW")) return refus(REFUS_FICHE);
+      const nonFiche = estSoi(u, e) ? null : await droitSurAutrui(u, e, acces, "FICHES", userCan(u, "RH", "VIEW"), REFUS_FICHE);
+      if (nonFiche) return refus(nonFiche);
       const f = await prisma.employee.findUniqueOrThrow({
         where: { id: e.id },
         select: {
@@ -271,7 +284,8 @@ export function lecturesRh(user: CurrentUser, coffret?: CoffretDuTour | null): P
     run: async (entree, u) => {
       const mois = str(entree, "mois");
       if (mois && !str(entree, "nom")) {
-        if (!voitLesSalaires(u)) return refus("La masse salariale n'est lue que par qui gère les RH.");
+        if (!familleOuverte(acces, "SALAIRES")) return refus(refusFamille("SALAIRES"));
+        if (!voitLesSalaires(u) && !familleExplicite(acces, "SALAIRES")) return refus("La masse salariale n'est lue que par qui gère les RH.");
         if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(mois)) return refus("Mois illisible (AAAA-MM).");
         const [y, m] = mois.split("-").map(Number);
         const employe = await ficheScopedWhere(u.id, {} as Prisma.EmployeeWhereInput);
@@ -287,7 +301,8 @@ export function lecturesRh(user: CurrentUser, coffret?: CoffretDuTour | null): P
       }
       const e = await employeDesigne(u, str(entree, "nom"));
       if ("erreur" in e) return refus(e.erreur);
-      if (!estSoi(u, e) && !(await gereLesRhDe(u, e))) return refus(REFUS_PAIE_AUTRUI);
+      const nonPaie = estSoi(u, e) ? null : await droitSurAutrui(u, e, acces, "SALAIRES", voitLesSalaires(u), REFUS_PAIE_AUTRUI);
+      if (nonPaie) return refus(nonPaie);
       const p = await prisma.employee.findUniqueOrThrow({
         where: { id: e.id },
         select: {
@@ -336,11 +351,13 @@ export function lecturesRh(user: CurrentUser, coffret?: CoffretDuTour | null): P
     label: "Documents RH consultés",
     run: async (entree, u) => {
       const documentId = str(entree, "documentId");
-      if (documentId) return lireDocumentRh(u, documentId, entree.lire === true || entree.lire === "true", coffret);
+      if (documentId) return lireDocumentRh(u, documentId, entree.lire === true || entree.lire === "true", coffret, acces);
       const e = await employeDesigne(u, str(entree, "nom"));
       if ("erreur" in e) return refus(e.erreur);
-      const gere = await gereLesRhDe(u, e);
-      if (!gere && !estSoi(u, e)) return refus(REFUS_DOCUMENTS_AUTRUI);
+      const nonDocs = estSoi(u, e) ? null : await droitSurAutrui(u, e, acces, "CONTRATS_RH", voitLesSalaires(u), REFUS_DOCUMENTS_AUTRUI);
+      if (nonDocs) return refus(nonDocs);
+      // Ses propres pièces : celles qui lui sont visibles ; le dossier d'autrui : tout (la règle de l'écran RH).
+      const gere = !estSoi(u, e) || (await gereLesRhDe(u, e));
       const filtre = categoriesDe(str(entree, "nature"));
       const docs = await prisma.employeeDocument.findMany({
         where: { employeeId: e.id, ...(gere ? {} : { visibleToEmployee: true }), ...(filtre ? { category: { in: filtre as never } } : {}) },
@@ -373,14 +390,19 @@ function categoriesDe(nature: string): string[] | null {
 }
 
 /** LIRE une pièce du dossier RH — les droits de la route, puis les portes du coffre, puis une lecture LOCALE. */
-async function lireDocumentRh(u: CurrentUser, id: string, lire: boolean, coffret: CoffretDuTour | null | undefined): Promise<string> {
+async function lireDocumentRh(u: CurrentUser, id: string, lire: boolean, coffret: CoffretDuTour | null | undefined, acces: AccesIa): Promise<string> {
   const doc = await prisma.employeeDocument.findUnique({
     where: { id },
     select: { id: true, name: true, category: true, blobId: true, visibleToEmployee: true, employee: { select: { ...SELECTION } } },
   });
   if (!doc) return refus("Document introuvable.");
   const proprietaire = estSoi(u, doc.employee) && doc.visibleToEmployee;
-  if (!proprietaire && !(await gereLesRhDe(u, doc.employee))) return refus(REFUS_DOCUMENTS_AUTRUI);
+  if (!proprietaire) {
+    const non = estSoi(u, doc.employee)
+      ? ((await gereLesRhDe(u, doc.employee)) ? null : REFUS_DOCUMENTS_AUTRUI)
+      : await droitSurAutrui(u, doc.employee, acces, "CONTRATS_RH", voitLesSalaires(u), REFUS_DOCUMENTS_AUTRUI);
+    if (non) return refus(non);
+  }
   const lien = `/api/rh/document/${doc.id}?dl=1`;
   const base = { document: doc.name, nature: HR_DOCUMENT_CATEGORY[doc.category] ?? doc.category, employe: doc.employee.fullName, lien };
   if (!lire) return JSON.stringify(base);

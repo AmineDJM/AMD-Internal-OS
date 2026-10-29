@@ -51,6 +51,11 @@ affiche proprement « IA non configurée » — **aucune fonctionnalité ne cass
     la voir (politique du coffre `peutLire`, journal `AccesDonneeSensible` pour une colonne du coffre — `fil/tour.ts` — `Revelateur`),
     « [confidentiel] » sinon. Une valeur révélée ne repart ni dans l'historique du modèle, ni dans la voix, ni dans une
     notification.
+  - *Console « Assistant IA — accès »* (`/admin/ai/acces`, Super Admin) : par rôle et par personne, les familles Salaires &
+    paie, Budgets & finances, Contrats & documents RH, Fiches collaborateurs, Drive & documents, Réglementaire, Ad & Pro,
+    Écritures métier. Le Super Admin a tout ; les autres suivent leurs droits, **salaires et contrats fermés** tant que la
+    Direction ne les ouvre pas. Relu à chaque tour ; un refus nomme la famille et dit que la Direction l'ouvre dans la
+    console ; chaque changement à l'audit.
   - Décisions : `docs/assistant/decisions/0001` → `0012`.
 - **Ancien Assistant IA — moteur d'Adam (en pause depuis 09/2026, `/chief-of-staff`)** — module à part entière
   à l'époque (entrée de menu dédiée, page plein écran ; l'ancienne bulle flottante a été retirée). **Boucle agent Claude**,
