@@ -102,11 +102,22 @@ export function refusFamille(f: FamilleIa): string {
     + "Administration › Contrôle de l'IA › Assistant IA — accès.";
 }
 
-/** La ligne du contexte qui dit au modèle ce qui est fermé — il répond directement, sans tenter l'outil. */
+/**
+ * Ce que le contexte dit au modèle des familles — fermées ET ouvertes, chacune avec son périmètre : mesuré le 29/10,
+ * une liste des seules fermées (« Fiches collaborateurs ») lui faisait refuser un salaire que « Salaires & paie »,
+ * ouverte, permettait. Une demande d'une famille ouverte passe par l'outil, qui juge.
+ */
 export function consigneFamilles(a: AccesIa): string | null {
   if (a.superAdmin) return null;
   const fermees = FAMILLES_IA.filter((f) => !a.ouvertes.includes(f));
   if (!fermees.length) return null;
-  return `ACCÈS RÉGLÉS PAR LA DIRECTION : pour cette personne, les familles ${fermees.map((f) => `« ${LIBELLE_FAMILLE[f]} »`).join(", ")} sont FERMÉES à l'assistant. `
-    + "Une demande qui en relève : dis-le directement, en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Assistant IA — accès.";
+  const ligne = (f: FamilleIa) => `- « ${LIBELLE_FAMILLE[f]} » : ${AIDE_FAMILLE[f]}`;
+  return [
+    "ACCÈS RÉGLÉS PAR LA DIRECTION pour cette personne (une famille = un périmètre ; elles sont indépendantes).",
+    `FERMÉES :\n${fermees.map(ligne).join("\n")}`,
+    ...(a.ouvertes.length ? [`OUVERTES :\n${a.ouvertes.map(ligne).join("\n")}`] : []),
+    "Une demande qui relève d'une famille OUVERTE : appelle l'outil (un salaire relève de « Salaires & paie », un contrat ou un document RH de "
+      + "« Contrats & documents RH », même si « Fiches collaborateurs » est fermée). Une demande d'une famille FERMÉE : dis-le directement, "
+      + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Assistant IA — accès.",
+  ].join("\n");
 }
