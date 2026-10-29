@@ -35,6 +35,13 @@ const existe = (rel: string): boolean => fs.existsSync(path.join(process.cwd(), 
 
 const PAGE = "src/app/(app)/chief-of-staff/page.tsx";
 const CHAT = "src/app/(app)/assistant/assistant-chat.tsx";
+/**
+ * La conversation est découpée en `assistant-chat/` (la porte ne fait que réexporter) : les règles de
+ * mise en page ci-dessous valent pour TOUT son rendu, donc on lit la porte et chacun de ses morceaux.
+ */
+const DOSSIER_CHAT = "src/app/(app)/assistant/assistant-chat";
+const lireChat = (): string =>
+  [CHAT, ...fs.readdirSync(path.join(process.cwd(), DOSSIER_CHAT)).sort().map((f) => `${DOSSIER_CHAT}/${f}`)].map(lire).join("\n");
 
 describe("la coque d'Adam — un module comme les autres", () => {
   it("la page vit sous `(app)`, donc elle HÉRITE du menu latéral et de la barre supérieure", () => {
@@ -94,7 +101,7 @@ describe("deux mesures dans une conversation — la prose se lit, la donnée s'e
   });
 
   it("LE FLUX porte le plan de travail, et la borne de LECTURE n'y est plus", () => {
-    const chat = lire(CHAT);
+    const chat = lireChat();
     expect(chat, "le conteneur du flux doit porter la mesure du plan de travail").toContain('className="chat-surface space-y-6"');
     // LE CŒUR DU DÉFAUT, nommé : la borne unique de 768 px sur le flux. Ce qui ferait tomber ce
     // test est exactement le geste qui a produit le défaut — remettre un `max-w-3xl` sur le
@@ -103,7 +110,7 @@ describe("deux mesures dans une conversation — la prose se lit, la donnée s'e
   });
 
   it("LA PROSE garde sa colonne : composeur, bulle de la personne, tour verbal", () => {
-    const chat = lire(CHAT);
+    const chat = lireChat();
     // Trois endroits au moins, et ils comptent : un champ de saisie de 1600 px ne se lit pas,
     // une bulle de 1600 px non plus, et une phrase seule n'est pas un espace de travail.
     const mesures = chat.match(/chat-measure/g) ?? [];
@@ -114,7 +121,7 @@ describe("deux mesures dans une conversation — la prose se lit, la donnée s'e
   });
 
   it("LES BLOCS sont HORS de la colonne de lecture — c'est ce qui leur donne la place", () => {
-    const chat = lire(CHAT);
+    const chat = lireChat();
     // L'espace de travail en cours de streaming doit être un frère de la colonne de prose, pas
     // son enfant : un enfant hériterait de la borne, et le défaut reviendrait sans qu'on le voie.
     const i = chat.indexOf('<div className="chat-measure space-y-1.5">');

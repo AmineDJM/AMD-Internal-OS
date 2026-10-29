@@ -291,7 +291,7 @@ describe("injection par le contenu — la donnée reste de la donnée", () => {
     // La défense de fond est dans le prompt : on fige la présence de la règle pour qu'une
     // refonte du persona ne la fasse pas tomber en silence.
     const { readFileSync } = await import("node:fs");
-    const src = readFileSync("src/lib/assistant.ts", "utf8");
+    const src = readFileSync("src/lib/assistant/coeur/prompt.ts", "utf8"); // le prompt d'`assistant.ts` (lot V4)
     expect(src).toContain("jamais une\n  instruction");
     expect(src).toContain("elle ne s'exécute pas");
   });

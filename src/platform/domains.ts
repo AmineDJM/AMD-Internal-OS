@@ -86,7 +86,14 @@ export const DOMAINS: { name: string; paths: string[] }[] = [
   // PowerPoint ou un PDF. C'est le même métier que `office/` (bureautique) et il est déclaré
   // ici pour être MESURÉ comme les autres — il ne doit importer aucun autre domaine, et ses
   // capacités lui arrivent par un port (`artifact/ports.ts`), rempli par le pont.
-  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/"] },
+  // `payslip/` : la lecture d'un Word (`docx-lecture`), sa mise en page et son rendu PDF — de la
+  // bureautique pure, qui ne lit que `artifact/` (le modèle XML). Rangé ici au découpage V4 des
+  // fichiers géants : ses morceaux neufs auraient sinon grossi le compte « hors carte ».
+  { name: "office", paths: ["src/lib/office/", "src/lib/pdf/", "src/lib/artifact/", "src/lib/payslip/"] },
+  // `carte-plateforme/` : le catalogue DESCRIPTIF de `/admin/carte-plateforme` (modules, circuits,
+  // mécanismes) et le calcul des niveaux d'accès qu'il affiche. Zéro import hors de son dossier :
+  // déclaré pour être MESURÉ — il ne doit lire aucun autre domaine.
+  { name: "carte", paths: ["src/lib/carte-plateforme/"] },
 ];
 
 /**
@@ -180,6 +187,12 @@ const SOCLE = [
    * fichier serveur ajouté à côté ne se retrouve pas exempté sans décision (§118.128).
    */
   "src/lib/bons-de-commande/regle",
+  /**
+   * `actions/contrat/` — les morceaux du LECTEUR DE CONTRAT des actions (`actions/contrat.ts`, lot V4) :
+   * découpage de la source, formulaire, écritures, porte, champs, arguments. Zéro import hors du
+   * dossier ; Adam (par le pont), les tests et les scripts le lisent. Pur par construction.
+   */
+  "src/lib/actions/contrat/",
   /**
    * LES RÈGLES PURES DE L'ASSISTANT IA (décision 0011) — zéro import chacune : ce qu'une lecture de pièce
    * a donné et la phrase de sa limite (`lecture/regles`), les plafonds et le coût (`consommation-regles`),
@@ -349,7 +362,25 @@ const SOCLE = [
 // `fabric/` est une façade pour la même raison que `missions/` : une couche TRANSVERSE par
 // construction (recherche de contenu, registre des sources), consommée par Adam ET par les
 // domaines, qui n'importe jamais `assistant/`.
-const FACADES = ["src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/"];
+//
+// `admin-delete-registry` et `entity-access/` (lot V4, découpage des fichiers géants) : deux couches
+// TRANSVERSES par construction, qui n'étaient rangées nulle part (hors carte). Le REGISTRE des
+// suppressions déclare, pour chaque genre de TOUS les métiers, comment le décrire, le refuser et
+// l'effacer (il lit `queries/` et les règles de refus des domaines) ; seuls Adam, le pont, une
+// façade et des fichiers hors carte l'importent — chemin entier, porte comprise. La garde
+// `canAccessEntity` répond par enregistrement pour tout le parc (`queries/` + une règle par
+// domaine) : ses MORCEAUX sont une façade, mais sa PORTE `entity-access.ts` reste hors carte, car
+// trois domaines (regulatory, legal, mail) l'appellent — la déclarer façade compterait trois
+// inversions de couche, à défaire chez eux d'abord.
+//
+// `actions/internes/` (lot V4) : ce que les fichiers d'actions serveur ont sorti d'eux-mêmes pour passer
+// sous 1 000 lignes — aides, types, lectures, corps intermédiaires. Même couche que les actions qu'elles
+// servent (elles lisent les domaines et les façades), jamais importées par un domaine. Hors de la racine de
+// `actions/` et sans `"use server"` : ce ne sont PAS des actions (`actions/parc.ts`).
+const FACADES = [
+  "src/lib/queries/", "src/lib/api/", "src/lib/links/", "src/lib/missions/", "src/lib/fabric/",
+  "src/lib/admin-delete-registry", "src/lib/entity-access/", "src/lib/actions/internes/",
+];
 
 /**
  * LE PONT ADAM ↔ ERP — le seul fichier de `src/platform/` autorisé à connaître l'ERP, par

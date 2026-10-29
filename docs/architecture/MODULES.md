@@ -123,6 +123,10 @@ parcourent aussi `src/modules/`.
 
 Un chiffre qui baisse grâce à vous : **abaissez le plafond au chiffre mesuré** dans le même commit.
 
+`src/platform/taille-fichiers.test.ts` (lot V4) : **1 000 lignes au plus** par fichier de production ; au-delà, on
+découpe par responsabilité dans un dossier au nom du fichier, l'origine restant une porte qui réexporte. Le seul fichier
+hérité (`payment-request-actions.ts`, paiements) est figé à sa taille ; la liste ne fait que rétrécir.
+
 ---
 
 ## 5. Les trois verrous levés (et comment ils marchent)

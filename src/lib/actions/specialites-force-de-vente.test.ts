@@ -99,7 +99,7 @@ describe("les points d'appel — une règle, un écran, une liste de chemins", (
   });
 
   it("les trois ops d'Adam lisent la même règle que l'écran, plus le droit de module seul", () => {
-    const src = code("src/lib/assistant/ops/catalog.ts");
+    const src = code("src/lib/assistant/ops/catalogue/stocks-annuaire.ts");
     for (const [op, geste] of [["create_specialty", "CREATE"], ["update_specialty", "UPDATE"], ["delete_specialty", "DELETE"]] as const) {
       const debut = src.indexOf(`op: "${op}"`);
       expect(debut, op).toBeGreaterThan(-1);

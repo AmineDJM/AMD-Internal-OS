@@ -1,5 +1,21 @@
 ## 🧾 Journal des évolutions récentes
 
+### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)
+
+Aucun écran ne change, aucune donnée, aucune migration : du code DÉPLACÉ, tel quel (audit 08, ARCH-04 — « hyper
+structuré, que n'importe quel développeur comprenne »).
+- **Mesure** : 49 fichiers de production > 1 000 lignes avant, **1 après** (avec les lots RH et Ad & Pro, qui ont découpé
+  les leurs) : `payment-request-actions.ts`, confié au chantier des paiements. `assistant.ts` 7 314 → porte de 41
+  lignes ; `assistant/ops/catalog.ts` 5 399 → 81 ; `labels.ts` 2 289 → 21 ; `rbac.ts` 2 212 → 28 ; 45 fichiers découpés.
+- **Une règle unique** : un dossier au nom du fichier (`src/lib/rbac/`, `src/lib/labels/`, `src/lib/assistant/{coeur,
+  outils,propositions,actions-confirmees,boucle}/`, `ops/catalogue/`, `ops/impl/<vague>/`…), un fichier par
+  responsabilité ; l'ancien fichier reste la **porte** qui réexporte — aucun import à changer.
+- **Contrat des actions identique octet pour octet** (identique à celui de la base) : les actions restent dans leur fichier ; leurs
+  aides vivent dans `src/lib/actions/internes/<domaine>/`, que le lecteur de contrat lit comme du code local.
+- **Cliquet** `src/platform/taille-fichiers.test.ts` (dans `npm run test:architecture`) : 1 000 lignes au plus pour
+  tout fichier ; le seul hérité figé, la liste ne fait que rétrécir. Aucun autre cliquet relevé (frontière 422,
+  traversées 67) ; hors carte −9, tests de texte au plus bas mesuré.
+
 ### REFONTE V3-B : PRIMITIVES UI — DIALOGUE ET RETOUR ACCESSIBLES, UN SEUL CROCHET D'ACTION, PARC MIGRÉ (2026-10-28)
 
 Suite de l'audit 09 (FRONTEND-UX-01 et -05). Deux primitives dans `src/components/ui/`, montées une fois dans
