@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { lireFil } from "@/lib/agent/fil/service";
+import { piecesCitees } from "@/lib/agent/operations/pieces";
+import { idsDriveCites } from "@/lib/agent/lecture/depot";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,14 @@ export async function GET() {
   // En « Vue exacte », on ne marque pas la présence de la personne regardée (ni ne lit son fil).
   if (user.impersonatedBy || user.visualise) return NextResponse.json({ tours: [], enCours: false, vueExacte: true }, { headers: { "Cache-Control": "no-store" } });
   const fil = await lireFil(user.id);
+  // LES PIÈCES RENVOYÉES PAR L'ASSISTANT (décision 0015) : les fichiers du Drive cités par une réponse
+  // terminée ou par le résultat d'une action exécutée — droits revérifiés, ouvrables dans l'aperçu.
+  const rendues = new Map<string, { id: string; nom: string }[]>();
+  for (const t of fil.tours) {
+    if (t.role !== "assistant" || t.etat === "EN_COURS") continue;
+    const ids = idsDriveCites(t.contenu, (t.intent as { resultLink?: string } | null)?.resultLink);
+    if (ids.length) rendues.set(t.id, await piecesCitees(user, ids));
+  }
   return NextResponse.json({
     vueExacte: false,
     enCours: fil.enCours,
@@ -25,7 +35,7 @@ export async function GET() {
     tours: fil.tours.map((t) => ({
       id: t.id, role: t.role, contenu: t.contenu, etat: t.etat, pieces: t.pieces, blocs: t.blocs, intent: t.intent,
       memoireProposee: t.memoireProposee, outils: t.outils, etapes: t.etapes, createdAt: t.createdAt.toISOString(),
-      vocal: t.vocal, lecture: t.lecture, audio: t.audio,
+      vocal: t.vocal, lecture: t.lecture, audio: t.audio, piecesRendues: rendues.get(t.id) ?? null,
     })),
   }, { headers: { "Cache-Control": "no-store" } });
 }

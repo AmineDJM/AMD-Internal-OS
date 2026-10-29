@@ -205,6 +205,12 @@ const SOCLE = [
   "src/lib/agent/lecture/regles", "src/lib/agent/consommation-regles", "src/lib/agent/contenu-non-fiable",
   "src/lib/agent/memoire-ui", "src/lib/agent/fil/partiel",
   /**
+   * `lecture/depot` (décision 0015, glisser-déposer) — les règles PURES du dépôt de fichiers dans la conversation :
+   * parcours d'un dossier, fichiers système, bornes d'un envoi, phrases. Son seul import est `lecture/regles`
+   * (même couche) : la borne de 40 Mo et les 6 pièces lues sont LES MÊMES à l'écran et dans le moteur.
+   */
+  "src/lib/agent/lecture/depot",
+  /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions
    * en lisent les refus. Chemin EXACT, comme `regle`.

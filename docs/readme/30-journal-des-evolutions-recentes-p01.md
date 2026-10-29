@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### ASSISTANT IA : GLISSER-DÉPOSER DE FICHIERS ET DE DOSSIERS, APERÇU DES PIÈCES (2026-10-29)
+
+- **Déposer** (Direction) : sur `/assistant`, des fichiers ou des **dossiers** glissés n'importe où sur la conversation font
+  apparaître « Déposez vos fichiers ou dossiers » ; un dossier est parcouru en entier, le chemin relatif affiché
+  (« Congrès Oran/devis/imprimeur.pdf »), les fichiers système ignorés et comptés. Aussi : Ctrl+V d'une image, trombone
+  « Des fichiers… / Un dossier… » (téléphone : fichiers).
+- **Rien ne part avant Entrée** : chaque fichier est une puce (taille, icône, miniature) qu'on retire (croix, Suppr sur la
+  sélection, « Tout retirer ») sans rien laisser dans le Drive — le téléversement n'a lieu qu'à l'envoi, avec sa progression.
+- **Ouvrir** : pièces envoyées et fichiers renvoyés par l'assistant s'ouvrent dans un aperçu latéral (Échap ferme) ;
+  « Demander une modification » sur un Word. Décision [0015](../assistant/decisions/0015-glisser-deposer.md).
+
 ### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)
 
 Aucun écran ne change, aucune donnée, aucune migration : du code DÉPLACÉ, tel quel (audit 08, ARCH-04 — « hyper

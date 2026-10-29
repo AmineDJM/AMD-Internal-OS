@@ -1,15 +1,21 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { LuminescentCursor } from "./luminescent-cursor";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
 import { RoutinesPanel } from "./routines-panel";
-import { BoutonJoindre, PiecesEnAttente, televerser, type PieceJointe } from "./pieces-jointes";
+import { BoutonJoindre, PiecesEnAttente, type PieceJointe, type PieceOuvrable } from "./pieces-jointes";
+import { ApercuPiece } from "./apercu-piece";
+import { deposeDesFichiers, depuisListe, lireDepot, nommerCollage, televerser } from "./depot-navigateur";
+import {
+  avertissementPiece, miniaturePossible, OCTETS_MAX_DEPOT, phraseRefus, PIECES_PAR_ENVOI_MAX, planifierDepot, retirerPieces, texteDemandeModification,
+  type Parcours,
+} from "@/lib/agent/lecture/depot";
 import { EnregistreurVocal } from "./enregistreur-vocal";
-import { AlarmClock, Brain, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
+import { AlarmClock, Brain, FolderUp, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
 import { envoyerAuFil, listerMesRoutines, reglerMaReponseVocale, repartirDeZero } from "@/lib/actions/assistant-ia-actions";
 import type { AudioDuTour, LecturePiece, VocalDuTour } from "@/lib/agent/lecture/regles";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
@@ -45,6 +51,7 @@ interface TourDuFil {
   vocal?: VocalDuTour | null;
   lecture?: LecturePiece[] | null;
   audio?: AudioDuTour | null;
+  piecesRendues?: { id: string; nom: string }[] | null;
   createdAt: string;
 }
 
@@ -60,6 +67,7 @@ function versMessage(t: TourDuFil): ChatMessage {
   return {
     id: t.id, role: "assistant", content: t.contenu, createdAt: t.createdAt,
     blocs: t.blocs ?? undefined, intent: t.intent ?? null, memoireProposee: t.memoireProposee ?? null, audio: t.audio ?? null,
+    piecesRendues: t.piecesRendues ?? null,
     outilsAppeles: redaction ? t.etapes ?? [] : (t.outils?.length ? t.outils : t.etapes ?? []),
     etat: redaction ? "redaction" : t.etat === "ECHEC" ? "echec" : undefined,
   };
@@ -81,7 +89,16 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     void listerMesRoutines().then((r) => { if (r.ok) setNonLus(r.nonLus); }).catch(sansBloquer("assistant-workspace.AssistantWorkspace.listerMesRoutines"));
   }, []);
   const [pieces, setPieces] = useState<PieceJointe[]>([]);
-  const envoiEnCours = pieces.some((p) => p.etat === "envoi");
+  // Les pièces du message en préparation, lues par l'envoi (l'état React n'est pas encore à jour dans un même geste).
+  const piecesRef = useRef<PieceJointe[]>([]);
+  useEffect(() => { piecesRef.current = pieces; }, [pieces]);
+  const [televersement, setTeleversement] = useState(false);
+  const envoiEnCours = televersement;
+  // Ce que le dernier dépôt n'a pas pu joindre (aria-live) — et l'aperçu ouvert.
+  const [avisDepot, setAvisDepot] = useState<string | null>(null);
+  const [apercu, setApercu] = useState<PieceOuvrable | null>(null);
+  const [brouillon, setBrouillon] = useState<{ texte: string; jeton: number } | null>(null);
+  const [survol, setSurvol] = useState(false);
 
   // ── LE FIL GARDÉ (27/10) : la conversation vit sur le serveur, pas dans l'onglet ──────────────
   // À l'ouverture : le fil tel qu'il est (même si l'on était parti pendant une réponse). Tant
@@ -133,15 +150,135 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     };
   }, [lire]);
 
-  /** Chaque fichier part dans le Drive de la personne ; seul son identifiant revient. */
-  const joindre = (fichiers: File[]) => {
-    for (const f of fichiers) {
-      const cle = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-      setPieces((prev) => [...prev, { cle, nom: f.name, etat: "envoi" }]);
-      void televerser(f).then((r) => setPieces((prev) => prev.map((p) => (p.cle !== cle ? p
-        : "id" in r ? { ...p, id: r.id, etat: "prete" } : { ...p, etat: "erreur", erreur: r.erreur }))));
+  /**
+   * JOINDRE (décision 0015) : chaque fichier déposé, collé ou choisi devient une PUCE — rien n'est
+   * téléversé avant l'envoi. Les bornes (nombre, taille, doublons) et les fichiers système écartés
+   * sont dits en clair.
+   */
+  const joindre = useCallback((parcours: Parcours<File>) => {
+    const dejaLa = piecesRef.current.map((p) => ({ chemin: p.nom, taille: p.taille ?? 0 }));
+    const { acceptes, refus } = planifierDepot(dejaLa, parcours.trouves.map((t) => ({ ...t, taille: t.fichier.size })));
+    const neuves: PieceJointe[] = acceptes.map((a) => ({
+      cle: `${Date.now()}-${Math.random().toString(36).slice(2)}`, nom: a.chemin, taille: a.fichier.size, type: a.fichier.type,
+      fichier: a.fichier, etat: "attente", avertissement: avertissementPiece(a.chemin),
+      miniature: miniaturePossible(a.fichier.name, a.fichier.type) ? URL.createObjectURL(a.fichier) : undefined,
+    }));
+    if (neuves.length) {
+      piecesRef.current = [...piecesRef.current, ...neuves];
+      setPieces(piecesRef.current);
+    }
+    setAvisDepot(phraseRefus(refus, parcours.ignores, parcours.tronque));
+  }, []);
+
+  /** Retirer des puces : rien n'a été téléversé, rien ne reste dans le Drive ; la miniature est libérée. */
+  const retirer = useCallback((cles: string[]) => {
+    const { restantes, retirees } = retirerPieces(piecesRef.current, cles);
+    for (const p of retirees) if (p.miniature) URL.revokeObjectURL(p.miniature);
+    piecesRef.current = restantes;
+    setPieces(restantes);
+    setAvisDepot(retirees.length ? `${retirees.length} pièce${retirees.length > 1 ? "s" : ""} retirée${retirees.length > 1 ? "s" : ""}.` : null);
+  }, []);
+
+  const majPiece = (cle: string, maj: Partial<PieceJointe>) => {
+    piecesRef.current = piecesRef.current.map((p) => (p.cle === cle ? { ...p, ...maj } : p));
+    setPieces(piecesRef.current);
+  };
+
+  /**
+   * À L'ENVOI SEULEMENT : chaque fichier part dans le Drive (progression sur sa puce). Un échec arrête
+   * l'envoi — le message ne part pas avec une pièce manquante ; la puce dit pourquoi, on la retire ou
+   * l'on réessaie. Rend les pièces prêtes, ou `null`.
+   */
+  const preparerPieces = async (): Promise<{ id: string; nom: string }[] | null> => {
+    setTeleversement(true);
+    try {
+      for (const p of [...piecesRef.current]) {
+        if (p.id || !p.fichier) continue;
+        majPiece(p.cle, { etat: "envoi", progression: 0, erreur: undefined });
+        const r = await televerser(p.fichier, (part) => majPiece(p.cle, { progression: part }));
+        if ("erreur" in r) {
+          majPiece(p.cle, { etat: "erreur", erreur: r.erreur });
+          setErreur(`« ${p.nom} » n'a pas pu être joint : ${r.erreur} Le message n'est pas parti — retirez la pièce ou réessayez.`);
+          return null;
+        }
+        majPiece(p.cle, { etat: "prete", id: r.id, fichier: undefined, progression: 1 });
+      }
+      const pretes = piecesRef.current.filter((p): p is PieceJointe & { id: string } => !!p.id).map((p) => ({ id: p.id, nom: p.nom }));
+      for (const p of piecesRef.current) if (p.miniature) URL.revokeObjectURL(p.miniature);
+      piecesRef.current = [];
+      setPieces([]);
+      setAvisDepot(null);
+      return pretes;
+    } finally {
+      setTeleversement(false);
     }
   };
+
+  // ── LE GLISSER-DÉPOSER, SUR TOUTE LA CONVERSATION ──────────────────────────────────────────────
+  // Dès que des FICHIERS survolent la fenêtre, la zone de dépôt apparaît ; un texte glissé ne la montre pas.
+  const profondeur = useRef(0);
+  useEffect(() => {
+    const entre = (e: DragEvent) => {
+      if (!deposeDesFichiers(e.dataTransfer)) return;
+      e.preventDefault();
+      profondeur.current++;
+      setSurvol(true);
+    };
+    const passe = (e: DragEvent) => {
+      if (!deposeDesFichiers(e.dataTransfer)) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "copy";
+    };
+    const sort = (e: DragEvent) => {
+      if (!deposeDesFichiers(e.dataTransfer)) return;
+      profondeur.current = Math.max(0, profondeur.current - 1);
+      if (!profondeur.current) setSurvol(false);
+    };
+    const depose = (e: DragEvent) => {
+      if (!deposeDesFichiers(e.dataTransfer) || !e.dataTransfer) return;
+      // Jamais la page qui s'en va vers le fichier : le dépôt est pour la conversation.
+      e.preventDefault();
+      profondeur.current = 0;
+      setSurvol(false);
+      void lireDepot(e.dataTransfer).then(joindre).catch(() => setAvisDepot("Le dépôt n'a pas pu être lu. Réessayez avec le trombone."));
+    };
+    const quitte = () => { profondeur.current = 0; setSurvol(false); };
+    window.addEventListener("dragenter", entre);
+    window.addEventListener("dragover", passe);
+    window.addEventListener("dragleave", sort);
+    window.addEventListener("drop", depose);
+    window.addEventListener("dragend", quitte);
+    return () => {
+      window.removeEventListener("dragenter", entre);
+      window.removeEventListener("dragover", passe);
+      window.removeEventListener("dragleave", sort);
+      window.removeEventListener("drop", depose);
+      window.removeEventListener("dragend", quitte);
+    };
+  }, [joindre]);
+
+  // COLLER (Ctrl+V) une image ou un fichier : il devient une puce ; un texte collé reste du texte.
+  useEffect(() => {
+    const colle = (e: ClipboardEvent) => {
+      const f = Array.from(e.clipboardData?.files ?? []);
+      if (!f.length) return;
+      e.preventDefault();
+      joindre(depuisListe(f.map(nommerCollage)));
+    };
+    document.addEventListener("paste", colle);
+    return () => document.removeEventListener("paste", colle);
+  }, [joindre]);
+
+  /** « Demander une modification » : la pièce rejoint le message, la saisie est pré-remplie. */
+  const demanderModification = (p: PieceOuvrable) => {
+    setApercu(null);
+    if (!piecesRef.current.some((x) => x.id === p.id)) {
+      piecesRef.current = [...piecesRef.current, { cle: `drive-${p.id}`, nom: p.nom, id: p.id, etat: "prete" }];
+      setPieces(piecesRef.current);
+    }
+    setBrouillon({ texte: texteDemandeModification(p.nom), jeton: Date.now() });
+  };
+  const fermerApercu = useCallback(() => setApercu(null), []);
 
   /** Vue exacte seulement : le tour joué dans la requête, comme avant, sans rien garder. */
   const envoyerLocal = async (text: string, pretes: { id: string; nom: string }[]) => {
@@ -162,12 +299,12 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   };
 
   /** ENVOYER ne bloque jamais : le message rejoint la file, l'assistant le traite après les précédents. */
-  const handleSendMessage = async (text: string) => {
-    const pretes = pieces.filter((p): p is PieceJointe & { id: string } => p.etat === "prete" && !!p.id).map((p) => ({ id: p.id, nom: p.nom }));
-    if (!text.trim() && !pretes.length) return;
-    setPieces([]);
+  const handleSendMessage = async (text: string): Promise<boolean> => {
+    if (!text.trim() && !piecesRef.current.length) return false;
     setErreur(null);
-    if (vueExacte) return envoyerLocal(text, pretes);
+    const pretes = await preparerPieces();
+    if (!pretes) return false;
+    if (vueExacte) { await envoyerLocal(text, pretes); return true; }
     // Affiché tout de suite, remplacé par le tour du serveur à la lecture suivante.
     const provisoire: ChatMessage = { id: `prov-${Date.now()}`, role: "user", content: text, pieces: pretes, etat: "attente", createdAt: new Date().toISOString() };
     setFil((prev) => [...prev, provisoire]);
@@ -177,12 +314,15 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       const r = await envoyerAuFil(text, JSON.stringify(pretes));
       if (!r.ok) {
         setFil((prev) => prev.filter((m) => m.id !== provisoire.id));
-        if (r.vueExacte) { setVueExacte(true); return envoyerLocal(text, pretes); }
+        if (r.vueExacte) { setVueExacte(true); await envoyerLocal(text, pretes); return true; }
         setErreur(r.erreur);
+        return false;
       }
+      return true;
     } catch {
       setFil((prev) => prev.filter((m) => m.id !== provisoire.id));
       setErreur("La connexion a été interrompue : le message n'est pas parti. Réessayez.");
+      return false;
     } finally {
       setEnvoi(false);
       window.dispatchEvent(new Event("assistant-fil:relancer"));
@@ -196,9 +336,9 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
    */
   const envoyerVocal = async (audio: Blob, dureeS: number) => {
     if (vueExacte) { setErreur("Les messages vocaux sont indisponibles en « Vue exacte »."); return; }
-    const pretes = pieces.filter((p): p is PieceJointe & { id: string } => p.etat === "prete" && !!p.id).map((p) => ({ id: p.id, nom: p.nom }));
-    setPieces([]);
     setErreur(null);
+    const pretes = await preparerPieces();
+    if (!pretes) return;
     const local = URL.createObjectURL(audio);
     const provisoire: ChatMessage = {
       id: `prov-vocal-${Date.now()}`, role: "user", content: "", pieces: pretes, etat: "attente", createdAt: new Date().toISOString(),
@@ -288,24 +428,27 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
             messages={messages}
             isLoading={attente}
             onConfirmIntent={handleConfirmIntent}
+            onOuvrirPiece={setApercu}
           />
 
           {/* Barre de saisie — au-dessus de la barre système du téléphone (zone sûre). */}
           <div className="px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 sm:p-4 sm:pt-0">
             {erreur && <p role="alert" className="mb-1 px-2 text-xs text-red-600 dark:text-red-400">{erreur}</p>}
+            <p aria-live="polite" className={avisDepot ? "mb-1 px-2 text-xs text-amber-700 dark:text-amber-400" : "sr-only"} data-testid="avis-depot">{avisDepot}</p>
             <CommandPillBar
               onSendMessage={handleSendMessage}
               onReset={handleReset}
               // On peut écrire pendant que l'assistant travaille : le message rejoint la file.
               isLoading={vueExacte && localEnCours}
               showSuggestions={messages.length <= 1 && !pieces.length}
-              canSendEmpty={pieces.some((p) => p.etat === "prete")}
+              canSendEmpty={pieces.length > 0}
               sendBlocked={envoiEnCours}
-              above={<PiecesEnAttente pieces={pieces} onRetirer={(cle) => setPieces((prev) => prev.filter((p) => p.cle !== cle))} />}
+              brouillon={brouillon}
+              above={<PiecesEnAttente pieces={pieces} onRetirer={retirer} verrou={televersement} />}
               vocal={vueExacte ? undefined : <EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={envoiEnCours} />}
               leading={
                 <>
-                <BoutonJoindre onFichiers={joindre} desactive={vueExacte && localEnCours} />
+                <BoutonJoindre onFichiers={(f) => joindre(depuisListe(f))} desactive={(vueExacte && localEnCours) || televersement} />
                 <Outils
                   ouvert={menuOuvert}
                   onBasculer={() => setMenuOuvert((o) => !o)}
@@ -320,8 +463,21 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               }
             />
           </div>
+          {survol && (
+            <div
+              data-testid="zone-depot"
+              className="pointer-events-none absolute inset-2 z-30 flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-violet-500 bg-violet-50/90 text-center text-violet-900 backdrop-blur-sm sm:inset-3 dark:border-violet-400 dark:bg-violet-950/80 dark:text-violet-100"
+            >
+              <FolderUp className="h-8 w-8" aria-hidden />
+              <p className="text-base font-semibold">Déposez vos fichiers ou dossiers</p>
+              <p className="max-w-sm px-4 text-xs opacity-80">
+                {PIECES_PAR_ENVOI_MAX} pièces au plus par message, {Math.round(OCTETS_MAX_DEPOT / 1048576)} Mo chacune. Rien n&apos;est envoyé avant que vous appuyiez sur Entrée.
+              </p>
+            </div>
+          )}
         </div>
       </div>
+      <ApercuPiece piece={apercu} onFermer={fermerApercu} onDemanderModification={vueExacte ? undefined : demanderModification} />
       <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
     </div>

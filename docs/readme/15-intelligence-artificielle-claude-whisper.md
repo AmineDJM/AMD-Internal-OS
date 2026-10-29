@@ -39,7 +39,16 @@ affiche proprement « IA non configurée » — **aucune fonctionnalité ne cass
     sur le message saisi et l'historique (IA-09) ; retrait, avant le tour, d'une carte dont la personne vient de
     reparler (IA-10) ; expiration d'une carte non confirmée après 24 h (IA-07). Une action interrompue par un
     redémarrage passe en échec dit (jamais rejouée) ; un message du fil a trois essais (IA-06).
-  - Décisions : `docs/assistant/decisions/0001` → `0008`.
+  - *Glisser-déposer (décision 0015, 29/10)* : fichiers **et dossiers** déposés sur toute la conversation (parcours
+    récursif, chemin relatif gardé, `.DS_Store`/`Thumbs.db` ignorés), collés (Ctrl+V) ou choisis au trombone (fichiers
+    ou dossier) → des **puces** dans la saisie (taille, icône, miniature, sélection, Suppr, « Tout retirer »). **Rien
+    n'est téléversé avant Entrée** : une puce retirée ne laisse rien dans le Drive ; à l'envoi, progression par puce, un
+    échec arrête l'envoi et le dit. 10 pièces et 40 Mo par fichier au plus ; au-delà de 6, jointes et rangées mais pas
+    lues — dit avant l'envoi. Les pièces envoyées ET les fichiers renvoyés par l'assistant (lien `/drive/<id>`, droits
+    revérifiés) s'ouvrent dans un **aperçu latéral** (lecture seule, « Télécharger », « Ouvrir dans le Drive ») ; sur un
+    Word, « **Demander une modification** » joint la pièce et pré-remplit la saisie → nouvelle version par
+    `preparer_document`, jamais d'écrasement.
+  - Décisions : `docs/assistant/decisions/0001` → `0015`.
 - **Ancien Assistant IA — moteur d'Adam (en pause depuis 09/2026, `/chief-of-staff`)** — module à part entière
   à l'époque (entrée de menu dédiée, page plein écran ; l'ancienne bulle flottante a été retirée). **Boucle agent Claude**,
   comprend l'app et les données **filtrées par les droits**. **Proactif** sur les messages non lus. Outils de
