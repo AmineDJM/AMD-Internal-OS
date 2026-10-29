@@ -145,6 +145,8 @@ export default async function AiControlCenterPage() {
           <p className="text-sm text-muted-foreground">
             Activez ou coupez l'IA par fonction, et suivez son usage. Réservé au Super Admin.{" "}
             <Link href="/admin/ai/consommation" className="underline">Consommation IA de l'Assistant IA — plafonds par personne</Link>
+            {" · "}
+            <Link href="/admin/ai/acces" className="underline">Assistant IA — accès (salaires, contrats, budgets… par rôle et par personne)</Link>
           </p>
         </div>
       </div>

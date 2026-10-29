@@ -27,7 +27,7 @@
     "!src/lib/bons-de-commande/*-test-outils.ts!",
     "!src/lib/budget-marketing/integration-fixture.ts!",
     "!src/lib/derive-schema/**!",
-    "!src/lib/finance/invariants-argent.ts!",
+    "!src/modules/finances/domaine/invariants-argent.ts!",
     "!src/modules/carte.ts!",
     "!src/platform/{couverture,demenagements,domains,source}.ts!"
   ],

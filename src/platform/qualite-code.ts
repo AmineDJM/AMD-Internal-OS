@@ -40,9 +40,9 @@ export const ATTEINTS_PAR_LES_TESTS_SEULS: Readonly<Record<string, string>> = {
 
 export const PLAFONDS = {
   /** jscpd : nombre de clones dans `src/` (hors tests). Avant le lot : 1 506. */
-  clones: 1443,
+  clones: 1441,
   /** jscpd : lignes dupliquées dans `src/` (hors tests). Avant le lot : 13 719. */
-  lignesDupliquees: 13012,
+  lignesDupliquees: 12999,
 } as const;
 
 const RACINE = process.cwd();

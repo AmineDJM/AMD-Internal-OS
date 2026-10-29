@@ -1,13 +1,12 @@
 import Link from "next/link";
 import type { EntityType } from "@prisma/client";
 import { Scale, ReceiptText, Mails, ExternalLink, Paperclip, FileText, ShoppingCart, ArrowDown } from "lucide-react";
-import { userCan, type SessionUser } from "@/lib/rbac";
-import { peutDaterLeReglement } from "@/lib/finances/settlement";
+import type { SessionUser } from "@/lib/rbac";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { lienFichierEmis, type FichiersEmis } from "@/lib/legal/fichiers-emis";
 import type { NatureDeChaine } from "@/modules/ad-pro/partage";
-import { chargerPiecesLiees, type LignePiece, type LigneCourrier, type Ton } from "@/lib/queries/chaine-des-pieces";
+import { chargerPiecesLiees, daterLeReglementPour, type LignePiece, type LigneCourrier, type Ton } from "@/lib/queries/chaine-des-pieces";
 import { AttachToSourceButtons, CreerFicheDepuisPiece, type NaturePieceLiee } from "./attach-to-source";
 import { AttacherLegalExistant } from "./attacher-legal-existant";
 import { JoindrePdf } from "@/components/shared/joindre-pdf";
@@ -146,7 +145,7 @@ export async function LinkedRecords({
   const boutonsChaine = (["quote", "order", "invoice"] as const).filter((k) => p.droitDeCreer[k]);
   const boutonsEngagement = (["legal", "mail"] as const).filter((k) => p.droitDeCreer[k]);
   // La date de paiement d'une facture créée d'ici : à qui règle aux Finances seulement (`peutDaterLeReglement`).
-  const dater = acces?.spectateur ? peutDaterLeReglement({ financesModifier: userCan(acces.spectateur, "FINANCES", "UPDATE") }) : false;
+  const dater = daterLeReglementPour(acces?.spectateur);
 
   const fichiersLibres = (nature: NatureDeChaine) => p.libres[nature].length > 0 && piecesDeLaDemande ? (
     <FichiersLibres

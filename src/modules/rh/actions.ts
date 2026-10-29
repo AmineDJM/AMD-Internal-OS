@@ -12,7 +12,7 @@ import {
   applyLeaveDecision, stageNotifyRoles, LEAVE_STAGE_LABELS, type LeaveStage, remonterConge, trancherSousEscalade,
   compteSuitLaFiche, chargerSalairesPartis, decisionRattachement,
 } from "@/modules/rh/api";
-import { createExpenseOrder } from "@/lib/expense-orders";
+import { createExpenseOrder } from "@/modules/finances/api";
 import { askClaude, aiConfigured, cleModeleRequise } from "@/lib/ai";
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { ocrDocument, canOcr } from "@/lib/regulatory/intelligence/ocr/ocr-engine";

@@ -1,17 +1,22 @@
 import type { CurrentUser } from "@/lib/session";
 import { compileContext } from "@/lib/agent/contexte";
-import { getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
+import { accesAssistantIa, getRoleConfig, resoudreConsignesRole } from "@/lib/agent/role-config";
+import { consigneFamilles, familleExplicite, familleOuverte, LIBELLE_FAMILLE, type AccesIa } from "@/lib/agent/acces-regles";
+import { recordAudit } from "@/lib/audit";
 import { outilsV1, type MemoireProposee, type PropositionPreparee } from "@/lib/agent/outils-v1";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "@/lib/agent/modele";
 import { modelesEffectifs } from "@/lib/agent/generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "@/lib/agent/repondre";
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "@/lib/agent/consommation";
-import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { retirerCaduquesAvantLeTour } from "@/lib/assistant/action-intents";
 import type { WorkspaceBlock } from "@/lib/assistant/workspace/protocol";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { lirePieces, type DependancesLecture } from "@/lib/agent/lecture/pieces";
 import type { LecturePiece } from "@/lib/agent/lecture/regles";
+import { controlerLecture, lecteurDepuisSession, peutLire } from "@/modules/coffre/api";
+import {
+  borner, censurerTexte, CoffretDuTour, CONSIGNE_JETONS, MASQUE_CONFIDENTIEL, masquerReperesPartiels, remplacerReperes, reperesDe, sansValeursRevelees, type EntreeJeton,
+} from "@/lib/agent/filtre-confidentialite";
 
 /**
  * UN TOUR DE L'ASSISTANT IA — la même règle, qu'il soit joué dans la requête (ancienne action de l'écran)
@@ -80,10 +85,13 @@ export function filtrerSaisie(
   historique: DemandeDuTour["historique"],
   actif: boolean,
 ): { texte: string; historique: DemandeDuTour["historique"]; masques: number } {
-  if (!actif) return { texte, historique, masques: 0 };
+  // LES RÉPONSES DE L'ASSISTANT, TOUJOURS (décision 0012) : une valeur qu'il a RÉVÉLÉE à la personne (salaire,
+  // IBAN) ne repart pas au modèle par l'historique — elle redevient « [confidentiel] », réglage ou pas.
+  const reponses = historique.map((e) => (e.role === "assistant" ? { ...e, content: censurerTexte(sansValeursRevelees(e.content)).texte } : e));
+  if (!actif) return { texte, historique: reponses, masques: 0 };
   const t = censurerTexte(texte);
   let masques = t.occurrences;
-  const h = historique.map((e) => {
+  const h = reponses.map((e) => {
     const c = censurerTexte(e.content);
     masques += c.occurrences;
     return { ...e, content: c.texte };
@@ -117,10 +125,16 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
 
   let instructions: string;
   let config;
+  // LES ACCÈS RÉGLÉS PAR LA DIRECTION (décision 0012), relus à chaque tour : un réglage changé vaut dès maintenant.
+  let acces: AccesIa;
   try {
+    acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
     instructions = (await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt;
     if (d.consigne) instructions = `${instructions}\n\n${d.consigne}`;
+    instructions = `${instructions}\n\n${CONSIGNE_JETONS}`;
+    const fermees = consigneFamilles(acces);
+    if (fermees) instructions = `${instructions}\n\n${fermees}`;
   } catch (e) {
     // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
     console.error("[assistant] contexte indisponible", e);
@@ -130,7 +144,9 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const propositions: PropositionPreparee[] = [];
   const sorties: string[] = [];
   const memoires: MemoireProposee[] = [];
-  const outils = outilsV1(user, propositions, sorties, memoires);
+  // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les repères.
+  const coffret = new CoffretDuTour();
+  const outils = outilsV1(user, propositions, sorties, memoires, coffret, acces);
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({
@@ -139,7 +155,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       outils, modeles, delaiMs: d.delaiMs ?? DELAI_MODELE_MS, config,
       propositionsFaites: () => propositions.length,
       maxEtapes: d.maxEtapes,
-      surTexte: d.surTexte,
+      // En flux, un repère n'est pas encore jugé : il s'affiche « ••• » jusqu'à la réponse finale.
+      surTexte: d.surTexte ? (brut) => d.surTexte!(masquerReperesPartiels(brut)) : undefined,
       surOutil: d.surOutil ? (nom) => d.surOutil!(libelles.get(nom) ?? nom) : undefined,
     });
     if (r.echecs.length) console.warn("[assistant] modèles abandonnés", r.echecs);
@@ -147,11 +164,14 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
     if (ui.retires.length) console.warn("[assistant] composants retirés", ui.retires);
     const p = propositions[0];
+    // LA RÉVÉLATION, AVANT D'AFFICHER ET DE STOCKER : chaque repère devient la valeur pour qui a le droit de
+    // la voir (politique du coffre, journal), « [confidentiel] » sinon.
+    const revelateur = new Revelateur(coffret, user, acces);
     return {
       ok: true,
       message,
-      content: ui.message || "Je n'ai pas de réponse à afficher.",
-      blocs: ui.blocs,
+      content: await revelateur.texte(ui.message || "Je n'ai pas de réponse à afficher."),
+      blocs: await revelateur.objet(ui.blocs),
       memoireProposee: memoires[0] ?? null,
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))],
@@ -167,5 +187,97 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     if (e instanceof IaCoupee || e instanceof PlafondIaAtteint) return { ok: false, error: e.message, message };
     console.error("[assistant] aucun modèle n'a répondu", e);
     return { ok: false, error: "L'assistant n'a pas pu répondre. Réessayez dans un instant.", message };
+  }
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LA RÉVÉLATION — le serveur remplace les repères de la réponse (`⟦S1⟧`) par les vraies valeurs, AVANT
+ * de l'afficher et de la stocker, et seulement pour qui a le droit de les voir (décision 0012).
+ *
+ * La règle est CELLE DU COFFRE (`peutLire`, porte `@/modules/coffre/api`) : le Super Admin voit tout ; la
+ * personne voit les siennes ; qui tient les RH (`voitLesSalaires` : modifier ou valider le module) voit
+ * salaires, NIN, pièces d'identité ; qui tient les Finances voit RIB et IBAN. Une valeur lue sur une
+ * COLONNE d'une fiche (salaire de base, net, coût employeur, IBAN, NIN de l'employé) passe en plus par le
+ * contrôle d'accès du coffre, `controlerLecture`, qui écrit sa décision au journal `AccesDonneeSensible`
+ * (accord comme refus) AVANT de rendre quoi que ce soit — sans déchiffrer : la valeur est celle que
+ * l'outil a lue sur la colonne. Ce module n'atteint donc pas `api-lecture` (`frontiere.test.ts`).
+ *
+ * Un repère que le tour n'a pas émis, ou dont la valeur est refusée, s'affiche « [confidentiel] ».
+ * Chaque décision est prise UNE fois par tour (un repère cité deux fois n'est journalisé qu'une fois).
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+
+export const GESTE_ASSISTANT = "Assistant IA — réponse à la personne";
+
+async function decider(e: EntreeJeton, user: CurrentUser, acces: AccesIa): Promise<boolean> {
+  const soi = !!e.titulaireUserId && e.titulaireUserId === user.id;
+  // LA FAMILLE D'ABORD (décision 0012) : salaires fermés par la Direction → rien, sauf les siens.
+  if (e.nature === "SALAIRE" && !soi && !familleOuverte(acces, "SALAIRES")) return false;
+  const lecteur = lecteurDepuisSession(user);
+  const politique = peutLire(lecteur, e.nature, { genre: "PERSONNE", userId: e.titulaireUserId });
+  let accorde = politique.autorise;
+  if (e.origine) {
+    // Le contrôle du coffre journalise (interrupteur `coffreLecture` ouvert) ; fermé, il rend la colonne
+    // sans juger — la politique ci-dessus reste donc la condition, toujours.
+    const { lecture } = await controlerLecture({
+      lecteur, modele: e.origine.modele, champs: [e.origine.champ], geste: GESTE_ASSISTANT,
+      lignes: [{ id: e.origine.id, clair: { [e.origine.champ]: e.origine.brut } }],
+    });
+    accorde = politique.autorise && lecture.get(e.origine.id)?.[e.origine.champ]?.lu === true;
+  }
+  if (accorde) return true;
+  // L'OUVERTURE EXPLICITE de la Direction va au-delà de la politique du coffre — et cela se trace à l'audit.
+  if (e.nature !== "SALAIRE" || !familleExplicite(acces, "SALAIRES")) return false;
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "Assistant IA",
+    summary: `Rémunération montrée par l'Assistant IA sur ouverture de la Direction (famille « ${LIBELLE_FAMILLE.SALAIRES} »)`
+      + `${e.origine ? ` — ${e.origine.modele}.${e.origine.champ} ${e.origine.id}` : ""}`,
+  });
+  return true;
+}
+
+/** Les décisions d'un tour, gardées : le même repère n'est jugé (et journalisé) qu'une fois. */
+export class Revelateur {
+  private readonly decisions = new Map<number, Promise<boolean>>();
+
+  constructor(private readonly coffret: CoffretDuTour, private readonly user: CurrentUser, private readonly acces: AccesIa) {}
+
+  private autorise(n: number): Promise<boolean> {
+    const e = this.coffret.entree(n);
+    if (!e) return Promise.resolve(false);
+    let d = this.decisions.get(n);
+    if (!d) {
+      d = decider(e, this.user, this.acces).catch((err) => {
+        // Le journal a échoué : rien ne sort (la règle du coffre).
+        console.error("[assistant-ia] révélation refusée faute de journal", err);
+        return false;
+      });
+      this.decisions.set(n, d);
+    }
+    return d;
+  }
+
+  /** Le texte, ses repères remplacés : la valeur (bornée) si la personne y a droit, « [confidentiel] » sinon. */
+  async texte(texte: string): Promise<string> {
+    const reperes = reperesDe(texte);
+    if (!reperes.length) return texte;
+    const ok = new Map(await Promise.all(reperes.map(async (n) => [n, await this.autorise(n)] as const)));
+    return remplacerReperes(texte, (n) => (ok.get(n) ? borner(this.coffret.entree(n)!.valeur) : MASQUE_CONFIDENTIEL));
+  }
+
+  /** Un objet (les blocs de l'UI générative) : chaque chaîne révélée de même. */
+  async objet<T>(donnees: T): Promise<T> {
+    const visiter = async (v: unknown): Promise<unknown> => {
+      if (typeof v === "string") return this.texte(v);
+      if (Array.isArray(v)) return Promise.all(v.map(visiter));
+      if (v && typeof v === "object") {
+        const out: Record<string, unknown> = {};
+        for (const [k, x] of Object.entries(v as Record<string, unknown>)) out[k] = await visiter(x);
+        return out;
+      }
+      return v;
+    };
+    return (await visiter(donnees)) as T;
   }
 }

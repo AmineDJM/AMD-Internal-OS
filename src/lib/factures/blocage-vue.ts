@@ -1,4 +1,4 @@
-import { PHRASE_ETAT_PAIEMENT, QUI_A_LA_MAIN, relancable, type EtatPaiement } from "@/lib/finance/relance-paiement";
+import { PHRASE_ETAT_PAIEMENT, QUI_A_LA_MAIN, relancable, type EtatPaiement } from "@/modules/finances/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

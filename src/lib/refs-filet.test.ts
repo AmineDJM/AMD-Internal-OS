@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { cibleInterne, specificateurs } from "@/platform/imports";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -82,12 +83,12 @@ describe("Cliquet — une référence numérotée naît du compteur de sa série
       return code.slice(Math.max(0, i - 160), i);
     };
     for (const [modele, serie] of [["expenseOrder", "SERIE_ORDRES"], ["paymentRequest", "SERIE_DEMANDES_PAIEMENT"]] as const) {
-      const avant = avantLaCreation("src/lib/expense-orders.ts", modele);
+      const avant = avantLaCreation("src/modules/finances/infra/expense-orders.ts", modele);
       expect(avant, `${modele} : la création doit être DANS l'essai — la référence se recalcule à chaque tentative`).toMatch(/createWithRetry\(\s*async\s*\(\)\s*=>\s*$/);
       expect(avant, `${modele} : et dans la file de SA série`).toMatch(new RegExp(`enSerie\\(\\s*${serie}\\s*,\\s*\\(\\)\\s*=>\\s*createWithRetry\\(`));
     }
     // LA SÉRIE PAY A DEUX CRÉATEURS : une file chacun n'en protégerait que la moitié.
-    expect(avantLaCreation("src/lib/actions/payment-request-actions.ts", "paymentRequest"), "la demande de paiement partage la file PAY")
+    expect(avantLaCreation("src/modules/finances/actions-demandes.ts", "paymentRequest"), "la demande de paiement partage la file PAY")
       .toMatch(/enSerie\(\s*SERIE_DEMANDES_PAIEMENT\s*,\s*\(\)\s*=>\s*createWithRetry\(/);
   });
 });

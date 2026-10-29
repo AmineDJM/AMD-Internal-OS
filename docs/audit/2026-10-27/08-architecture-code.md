@@ -44,7 +44,7 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 | ARCH-05 | MOYENNE | maintenabilité / tests | 101 tests lisent le source par chemin (290 lectures) : tout déplacement casse, du code mort est « testé » | M | **PARTIEL** V3-G : adresses de réexpédition, `platform/source.ts`, cliquet (128) |
 | ARCH-06 | MOYENNE | maintenabilité | 53 fichiers / 7 918 lignes injoignables depuis toute entrée ; garde d'atteignabilité limitée à 2 dossiers | S | **CORRIGÉ** (lot V4, `v4/code-mort-doublons`) |
 | ARCH-07 | MOYENNE | outillage | ≥ 15 analyseurs d'imports réécrits à la main, couvertures divergentes (cause racine d'ARCH-01) | S | PARTIEL `f4a70c7` |
-| ARCH-08 | BASSE | maintenabilité / lisibilité | Nommage : un métier, plusieurs dossiers et deux langues (`finance/`+`finances/`, `hr/`+route `/rh`, `promo*`/`ad-pro*`…) | M | PROPOSÉ |
+| ARCH-08 | BASSE | maintenabilité / lisibilité | Nommage : un métier, plusieurs dossiers et deux langues (`finance/`+`finances/`, `hr/`+route `/rh`, `promo*`/`ad-pro*`…) | M | **PARTIEL** V4 : `finance/`+`finances/`+`payments/` → `modules/finances/` |
 | ARCH-09 | HAUTE | outillage | `npm run typecheck` (commande de CLAUDE.md) plante en mémoire ; ESLint sans aucune règle d'import | S | PARTIEL (règle modules) |
 | ARCH-10 | MOYENNE | tests | Suite : 11 min 17 s dont ≈ 70 % de chargement ; un test dépend de l'état laissé par les autres | M | PROPOSÉ |
 
@@ -89,6 +89,28 @@ répondre seul à « où est le module Ad & Pro ? » : il est réparti sur `lib/
 > | `testsDeTexte` | 128 | **125** |
 > | Dette héritée `rh` (`DETTE_HERITEE`) | — | 71 arêtes nommées, 7 familles (centre de paiement → `finances`, missions → `adpro`, socle des droits, organisation, services transverses, lecture IA, gardes) |
 > | Imports du kit `components/shared` vers un métier | 6 | 6 (les deux écrans RH de `shared/` sont devenus `rh/ecrans/`) |
+> **Suite — lot V4 Finances (28/10/2026, branche `v4/module-finances`).** Premier « gros métier » de la vague 4 (§3.5) :
+> ordres de dépense, centre de paiement, demandes de paiement, règlement, trésorerie et comptes migrés dans
+> `src/modules/finances/` ; `finance/` et `finances/` **fusionnés** (ARCH-08) ; écrivain du versement de caisse d'avance
+> (`verserLaRemise`, règle du 28/10) dans `infra/`. Budgets non migrés (couplage nommé en dette). Aucun changement de
+> comportement : `contrat.genere.json` identique octet pour octet (1 185 actions, mêmes clés).
+>
+> | Mesure | Avant | Après |
+> |---|---|---|
+> | Emplacements du métier | 3 dossiers (`lib/finance/` 51 fichiers, `lib/finances/` 2, `lib/payments/` 15) + `lib/expense-orders.ts` + 6 lectures `lib/queries/` + 7 fichiers d'actions | **1 module** (`src/modules/finances/`, 98 fichiers) |
+> | Code de production du périmètre | 46 fichiers, 8 999 lignes | 49 fichiers, 9 124 lignes (+ portes, en-têtes, `infra/demandes.ts`) |
+> | Plus gros fichier | `payment-request-actions.ts` 1 197 lignes | `actions-demandes.ts` **996** (aucun fichier > 1 000) |
+> | Spécificateurs par lesquels on entre dans le métier | 48 (97 importeurs) | **9** portes : `api`, `partage`, 7 `actions-*` (96 importeurs) |
+> | Hors carte (`couverture.test.ts`) | 768 | **760** |
+> | Kit d'interface → métier | 6 | **5** (`linked-records.tsx` lit la règle par `queries/chaine-des-pieces.ts`) |
+> | Tests qui lisent le source par chemin (hors modules) | 128 | **122** (les gardes du métier vivent dans le module) |
+> | Dette héritée nommée (`DETTE_HERITEE.finances`) | — | 52 arêtes après les fusions (`rh`, sécurité & argent, `ad-pro`) (notifications/numérotation, entité de l'argent, pièces, factures connues, clôture des chantiers au règlement, budgets) |
+> | Suite complète | 1 375 fichiers, 15 886 tests, 0 échec | 1 376 fichiers, 15 936 tests (fusion du lot V4 « fichiers géants » comprise), **0 échec** ; `build:render` propre |
+>
+> **Fusion avec le module `rh`** : la parente avait déjà migré RH, qui émet ses ordres par `@/modules/finances/api` ;
+> Finances lisait la paie de RH au règlement et en comptabilité — un cycle de modules. Décision (B) : la paie VERSÉE
+> (`paie-centre`, `virement-paie`, `payroll-cost`, `payroll-mass`) passe dans `finances` ; carte `rh → finances` seule,
+> contrat toujours identique octet pour octet, aucun outillage changé.
 
 ### ARCH-01 — Les cliquets ignorent les imports relatifs · HAUTE · **CORRIGÉ** (`f4a70c7`)
 

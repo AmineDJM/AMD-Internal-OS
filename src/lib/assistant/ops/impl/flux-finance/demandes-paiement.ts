@@ -4,8 +4,8 @@
  */
 import { prisma } from "./erp";
 import { toNumber } from "@/lib/utils";
-import { createPaymentRequest, submitPaymentRequest, decidePaymentRequest, cancelPaymentRequest, addPaymentComment, commentPaymentPiece, reviewPaymentPiece, updatePaymentRequestDetails } from "@/lib/actions/payment-request-actions";
-import type { PaymentMove } from "@/lib/finance/payment-request";
+import { createPaymentRequest, submitPaymentRequest, decidePaymentRequest, cancelPaymentRequest, addPaymentComment, commentPaymentPiece, reviewPaymentPiece, updatePaymentRequestDetails } from "@/modules/finances/actions-demandes";
+import type { PaymentMove } from "@/modules/finances/partage";
 import type { OpImpl, OpProposalDraft } from "../../types";
 import { opStr } from "../../types";
 import { runFd, runFd2, dzd, fieldsOf, isoDate } from "../../helpers";

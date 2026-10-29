@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { POWER_TOOLS, powerToolsFor, executePowerTool } from "./power-tools";
 import { buildProposal, performAction, extractSources, ACTION_POLICY, type AssistantActionPayload } from "@/lib/assistant";
 import { watchState } from "./reminders";
-import { PAYMENT_CENTRE_REFUSAL } from "@/lib/payments/authorization";
+import { PAYMENT_CENTRE_REFUSAL } from "@/modules/finances/partage";
 import { REFUS_MISSIONS_ADAM } from "@/lib/rbac";
 
 /**

@@ -11,8 +11,8 @@ import { Retour } from "@/components/ui/retour";
 import { useFormAction, useKeyedAction } from "@/components/shared/use-action";
 import { FINANCE_CATEGORY, FINANCE_METHOD, FINANCE_STATUS, FINANCE_DIRECTION } from "@/lib/labels";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { updateTransaction, deleteTransaction } from "@/lib/actions/finance-actions";
-import type { LedgerRow } from "@/lib/queries/finance";
+import { updateTransaction, deleteTransaction } from "@/modules/finances/actions-tresorerie";
+import type { LedgerRow } from "@/modules/finances/api";
 
 export function LedgerTable({ rows, canUpdate = false, canDelete = false }: { rows: LedgerRow[]; canUpdate?: boolean; canDelete?: boolean }) {
   const [edit, setEdit] = React.useState<LedgerRow | null>(null);

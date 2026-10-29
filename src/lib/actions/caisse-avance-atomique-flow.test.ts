@@ -12,7 +12,7 @@ import { continuousCash } from "@/lib/general-means/continuous-cash";
 import { openRemittances } from "@/lib/queries/general-means";
 import { deleteFileByKey } from "@/lib/storage";
 import { allotPettyCash, closePettyCash, confirmPettyCashReceipt, decidePettyCashTopUp, requestPettyCashTopUp, spendFromPettyCash } from "./petty-cash-actions";
-import { decidePayment } from "./payment-centre-actions";
+import { decidePayment } from "@/modules/finances/actions-centre";
 import { addDepartmentExpense, updateDepartmentExpense } from "./department-budget-actions";
 
 /**

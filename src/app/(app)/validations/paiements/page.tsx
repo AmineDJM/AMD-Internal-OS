@@ -10,13 +10,13 @@ import { KpiCard } from "@/components/shared/kpi-card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PAYMENT_REQUEST_STATUS, PAYMENT_URGENCY } from "@/lib/labels";
-import { sortByPriority, isOverdue, deadlineLabel, isWithFinance } from "@/lib/finance/payment-request";
-import { isCompanionDossier } from "@/lib/finance/dossier-auto";
-import { deadlineNatureLabel, deadlineNatureOf } from "@/lib/finance/deadline-nature";
+import {
+  sortByPriority, isOverdue, deadlineLabel, isWithFinance, isCompanionDossier, deadlineNatureLabel,
+  deadlineNatureOf, groupByEntity, unassignedWarning,
+} from "@/modules/finances/partage";
 import { NewPaymentButton } from "./new-payment-button";
 import { getMyCompanies } from "@/lib/company";
-import { myPaymentRequests } from "@/lib/queries/my-payment-requests";
-import { groupByEntity, unassignedWarning } from "@/lib/finance/money-entity";
+import { myPaymentRequests } from "@/modules/finances/api";
 
 export const dynamic = "force-dynamic";
 

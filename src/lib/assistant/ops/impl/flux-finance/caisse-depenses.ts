@@ -5,7 +5,7 @@
 import { prisma } from "./erp";
 import { toNumber } from "@/lib/utils";
 import { allotPettyCash, confirmPettyCashReceipt, closePettyCash, requestPettyCashTopUp, setPettyCashPlan } from "@/lib/actions/petty-cash-actions";
-import { requestInvoice, deferExpenseOrder, resumeExpenseOrder } from "@/lib/actions/expense-actions";
+import { requestInvoice, deferExpenseOrder, resumeExpenseOrder } from "@/modules/finances/actions-depenses";
 import type { OpImpl, OpProposalDraft } from "../../types";
 import { opStr } from "../../types";
 import { runFd, dzd, fieldsOf, resolveOne, monthOf, isoDate } from "../../helpers";

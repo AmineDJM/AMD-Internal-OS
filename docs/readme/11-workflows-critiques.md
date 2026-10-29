@@ -467,7 +467,7 @@ dit. Redemander la validation à quelqu'un d'autre retire l'approbation précéd
 validateur. Le demandeur lit l'issue par son nom — « À modifier », avec le motif, le geste qui reste (retirer, puis
 redéposer corrigée) et le nom de qui a tranché quand ce n'est pas le validateur nommé (`phraseDeDecision`) ; la fiche
 affiche le décideur et son motif, et le journal des achats les garde. La **fin d'un achat** exige sa facture là où
-l'écran la range (`ficheAFacture`, `lib/finance/facture-ordre.ts`) : un fichier « Facture » de la demande, ou une
+l'écran la range (`ficheAFacture`, `modules/finances/infra/facture-ordre.ts`) : un fichier « Facture » de la demande, ou une
 facture du registre avec son PDF, rattachée à la demande ou qui SUIT un devis ou un BC non annulé de la MÊME fiche ;
 une facture annulée, ou sans son fichier, ne compte pas. Règle pure `secretariat/decision-approbation.ts`, lue par
 l'action et par les écrans.

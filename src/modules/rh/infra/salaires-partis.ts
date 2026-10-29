@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { etatVirement, etatSalaire, virementCouvre, saisiAvantLeCentre } from "../domaine/virement-paie";
-import { instantDuCentreDePaie } from "./paie-centre";
+import { etatVirement, etatSalaire, virementCouvre, saisiAvantLeCentre } from "@/modules/finances/partage";
+import { instantDuCentreDePaie } from "@/modules/finances/api";
 import type { SalaireParti } from "../domaine/rattachement-paie";
 
 /**

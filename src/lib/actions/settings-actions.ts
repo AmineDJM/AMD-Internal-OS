@@ -180,7 +180,7 @@ async function reglerSeuilBC(adminId: string, brut: number | null, centre: Centr
  * LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06). **Super Admin uniquement.**
  *
  * Active par défaut : qui demande un paiement ne l'autorise pas, qui le demande ou l'autorise ne le règle pas
- * (`payments/separation.ts`). La suspendre est un geste de gouvernance — le temps de nommer un second siège,
+ * (`modules/finances/domaine/separation.ts`). La suspendre est un geste de gouvernance — le temps de nommer un second siège,
  * par exemple — : il est journalisé avec son auteur, et l'écran dit ce qu'il ouvre.
  */
 export async function setSeparationTachesPaiement(active: boolean): Promise<ActionResult> {

@@ -12,7 +12,7 @@ import { toNumber } from "@/lib/utils";
 import { createLegalDocument } from "@/lib/actions/legal-actions";
 import { effectiveStatus, expiryLevel, daysLeft } from "@/lib/legal/lifecycle";
 import { legalFields } from "./legal-fields";
-import { peutDaterLeReglement } from "@/lib/finances/settlement";
+import { peutDaterLeReglement } from "@/modules/finances/partage";
 import { LegalTable, type LegalRow } from "./legal-table";
 import { LegalFolderBar, type FolderRow } from "./folder-bar";
 import { buildFolderTree, flattenFolders, indentedLabel } from "@/lib/legal/folders";

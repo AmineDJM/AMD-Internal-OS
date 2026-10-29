@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { entierementCreditee, netDeLaFacture, refusPlafondAvoir } from "@/lib/lecteurs/avoir";
 import { invoiceTally } from "@/lib/legal/invoices";
 import { initialLegalListState, visibleLegalRows, type LegalListRow } from "@/lib/legal/list-view";
-import { canSendToSettlement, REFUS_FACTURE_EMISE_AU_REGLEMENT } from "@/lib/finances/settlement";
+import { canSendToSettlement, REFUS_FACTURE_EMISE_AU_REGLEMENT } from "@/modules/finances/partage";
 import {
   AVAL_QUI_FIGE, pieceDefinitive, pieceEmise, refusChampsDuFichier, remedePieceEmise,
 } from "@/lib/legal/piece-emise";
@@ -174,7 +174,7 @@ describe("les lecteurs de ce qu'une facture doit encore — le NET, partout où 
 
   it("le règlement et la règle qualité comparent au NET — leur point d'appel, pas seulement la règle (§118.49)", () => {
     const sansCommentaires = (f: string) => readFileSync(join(process.cwd(), f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    expect(sansCommentaires("src/lib/finance/settle-invoice.ts")).toMatch(/const amount = netDeLaFacture\(.*, await montantsDesAvoirsActifs\(doc\.id\)\);/);
+    expect(sansCommentaires("src/modules/finances/infra/settle-invoice.ts")).toMatch(/const amount = netDeLaFacture\(.*, await montantsDesAvoirsActifs\(doc\.id\)\);/);
     const regle = sansCommentaires("src/lib/quality/rules.ts");
     const bloc = regle.slice(regle.indexOf("async montant_contradictoire"), regle.indexOf("async valeur_aberrante"));
     expect(bloc).toContain("const du = netDeLaFacture(montant, [avoirs]);");

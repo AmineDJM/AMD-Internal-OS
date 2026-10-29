@@ -4,11 +4,11 @@ import { toNumber, formatCurrency } from "@/lib/utils";
 import { PageHeader } from "@/components/shared/page-header";
 import { KpiCard } from "@/components/shared/kpi-card";
 import { EmptyState } from "@/components/shared/empty-state";
-import { CENTRAL_AUTH_THRESHOLD_DZD, PAYMENT_CENTRE_REFUSAL, type CentralStatus } from "@/lib/payments/authorization";
-import { SECTION_CENTRE_LABEL } from "@/lib/payments/sections-centre";
-import { chargerCentre } from "@/lib/queries/centre-paiement";
+import {
+  CENTRAL_AUTH_THRESHOLD_DZD, PAYMENT_CENTRE_REFUSAL, type CentralStatus, SECTION_CENTRE_LABEL,
+} from "@/modules/finances/partage";
+import { chargerCentre, dossierHrefByOrder } from "@/modules/finances/api";
 import { entityHref } from "@/lib/entity-href";
-import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { marquesDesOrdres } from "@/lib/factures/connues";
 import { existingSources } from "@/lib/entity-exists";
 import { ENTITY_TYPE_LABELS } from "@/lib/labels";

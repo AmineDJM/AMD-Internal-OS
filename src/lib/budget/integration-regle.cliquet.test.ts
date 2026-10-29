@@ -47,8 +47,8 @@ const HORS_REGLE: Record<string, string> = {
 const AUTO_CATEGORIE: Record<string, string> = {
   "src/lib/budget/auto-category.ts": "la règle pure",
   "src/lib/queries/budget-sources.ts": "LECTEUR : l'engagé des ordres sans catégorie — jugé par la règle juste après (engagementsDesCategories)",
-  "src/lib/finance/settle-budget.ts": "ÉCRIVAIN au règlement : l'écriture née porte sa catégorie ; la règle la juge à la lecture, datée par son ordre",
-  "src/lib/actions/expense-actions.ts": "ÉCRIVAIN au règlement (même chemin que settle-budget)",
+  "src/modules/finances/domaine/settle-budget.ts": "ÉCRIVAIN au règlement : l'écriture née porte sa catégorie ; la règle la juge à la lecture, datée par son ordre",
+  "src/modules/finances/actions-depenses.ts": "ÉCRIVAIN au règlement (même chemin que settle-budget)",
   "src/app/(app)/finances/paiements-a-faire/page.tsx": "AFFICHAGE de la catégorie prévue d'un ordre — pas un total",
 };
 

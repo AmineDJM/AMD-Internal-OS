@@ -4,7 +4,7 @@ Le pôle Ad & Pro : une **demande** (sponsoring, congrès national ou internatio
 « autre », dossier de matériel promotionnel) passe son circuit, porte des **postes** (devis → BC →
 facture → paiement), franchit la **porte du DG** sur son total et le **centre de validation**, puis se
 **clôture**. Les congrès emmènent des professionnels : la **prise en charge** (une fiche par personne,
-ses pièces, ses cases, ses devis). Lit `referentiels` (double écriture des personnes, `carte.ts`).
+ses pièces, ses cases, ses devis). Lit `referentiels` (double écriture des personnes) et `finances` (ordres de dépense, révision et annulation d'un ordre, statuts qu'un règlement solde — jamais l'inverse) (`carte.ts`).
 
 | Porte / dossier | Rôle |
 |---|---|

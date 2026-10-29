@@ -8,7 +8,7 @@ import { natureLegale } from "@/lib/labels";
 import { delayDays, delayLabel, missingKinds, amountDrift, CHAIN_KIND_LABEL } from "@/lib/legal/chain";
 import type { ChainLink, ChainSettlement } from "@/lib/queries/legal-chain";
 import { SendToSettlementButton } from "./send-to-settlement";
-import { ordreClos } from "@/lib/finances/settlement";
+import { ordreClos } from "@/modules/finances/partage";
 
 /**
  * LA CHAÎNE DU DOSSIER D'ACHAT — devis → bon de commande → facture → règlement, d'un seul écran.
