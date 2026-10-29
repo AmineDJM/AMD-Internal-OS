@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
+import { Retour } from "@/components/ui/retour";
 import { Loader2, Trash2 } from "lucide-react";
 import { purgeSettledExpenseOrders } from "@/lib/actions/expense-actions";
 import { Button } from "@/components/ui/button";
@@ -14,10 +15,8 @@ import { Button } from "@/components/ui/button";
  * dans la trésorerie et dans le journal d'audit ; elle n'est pas touchée.
  */
 export function PurgeHistoryButton({ count }: { count: number }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  const { busy, err, run } = useAction();
   const [msg, setMsg] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
 
   if (count === 0) return null;
 
@@ -29,23 +28,23 @@ export function PurgeHistoryButton({ count }: { count: number }) {
         className="text-destructive"
         disabled={busy}
         onClick={async () => {
-          const ok = window.confirm(
-            `Vider l'historique : ${count} ordre(s) réglé(s) ou annulé(s) disparaîtront de cet écran.\n\n`
+          let message: string | undefined;
+          const question = `Vider l'historique : ${count} ordre(s) réglé(s) ou annulé(s) disparaîtront de cet écran.\n\n`
             + "Les ÉCRITURES DE TRÉSORERIE et le journal d'audit sont conservés — c'est là que reste la trace de l'argent sorti.\n\n"
-            + "Les ordres encore à régler ne sont pas touchés.",
-          );
-          if (!ok) return;
-          setBusy(true); setErr(null); setMsg(null);
-          const r = await purgeSettledExpenseOrders();
-          setBusy(false);
-          if (r.ok) { setMsg(r.message ?? "Historique vidé."); router.refresh(); }
-          else setErr(r.error ?? "Purge impossible.");
+            + "Les ordres encore à régler ne sont pas touchés.";
+          setMsg(null);
+          const ok = await run(async () => {
+            const r = await purgeSettledExpenseOrders();
+            message = r.message;
+            return r.ok ? r : { ...r, error: r.error ?? "Purge impossible." };
+          }, undefined, { confirmer: question });
+          if (ok) setMsg(message ?? "Historique vidé.");
         }}
       >
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />} Vider l&apos;historique ({count})
       </Button>
       {msg && <p className="text-xs text-success">{msg}</p>}
-      {err && <p role="alert" className="text-xs text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { CheckCircle2, Loader2, Clock, Sparkles, Hourglass, PauseCircle, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { formatEta, type PhaseState } from "@/lib/regulatory/intelligence/progress/analysis-progress";
@@ -16,7 +16,7 @@ import type { AnalysisProgressResult } from "@/lib/regulatory/intelligence/progr
  * rafraîchit la page pour révéler le verdict et les constats — puis disparaît.
  */
 export function AnalysisProgressCard({ versionId, initial }: { versionId: string; initial: AnalysisProgressResult }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [p, setP] = React.useState<AnalysisProgressResult>(initial);
   const wasRunning = React.useRef(initial.running);
 
@@ -31,13 +31,13 @@ export function AnalysisProgressCard({ versionId, initial }: { versionId: string
         if (!alive) return;
         setP(next);
         // Transition « ça tournait → c'est fini » : on révèle les résultats.
-        if (wasRunning.current && !next.running) router.refresh();
+        if (wasRunning.current && !next.running) rafraichir();
         wasRunning.current = next.running;
       } catch { /* réseau : prochain tick */ }
     };
     const id = setInterval(tick, 4000);
     return () => { alive = false; clearInterval(id); };
-  }, [versionId, p.running, router]);
+  }, [versionId, p.running, rafraichir]);
 
   // UNE ANALYSE QUI N'A PAS EU LIEU DOIT SE VOIR. Sans ce bloc, une panne totale donnait
   // exactement le même écran qu'un dossier irréprochable : rien.

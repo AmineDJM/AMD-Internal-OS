@@ -29,28 +29,28 @@ import { mesurerCouverture } from "./couverture";
  * serveur neufs (`agent/lecture/pieces.ts`, `voix.ts`), et cinq fichiers PURS de l'Assistant IA, zéro import,
  * rangés au socle (`lecture/regles`, `consommation-regles`, `contenu-non-fiable`, `memoire-ui`, `fil/partiel`).
  *
- * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte −9, mesuré 746 après fusion de la base (lot code mort : +1 fichier neuf de la base) (les dossiers découpés sont rangés
+ * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte −9 (mesuré 714 après fusion des lots code mort, primitives UI et module Ad & Pro) — les dossiers découpés sont rangés
  * dans une couche : `payslip/` → office, `carte-plateforme/` → couche `carte`, `admin-delete-registry`,
- * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle) ; tests de texte mesurés 123.
+ * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle ; tests de texte mesurés 107 après fusion.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 746,
+  horsCarte: 714,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
   routesPrisma: 52,
-  /** Imports `src/components/` → `src/app/` : un composant partagé ne dépend pas d'une page. */
+  /** Imports `src/components/` (et des `ecrans/` de modules) → `src/app/` : un composant partagé ne dépend pas d'une page. */
   composantsVersApp: 10,
   /** Imports du kit d'interface du socle (`components/ui`, `components/shared`) vers un métier. */
-  kitVersMetier: 6,
+  kitVersMetier: 2,
   /**
    * Tests (hors `src/platform/` et `src/modules/`) qui lisent le source par un chemin `src/…` : ils
    * rougissent au premier déplacement sans qu'aucun comportement change. Un nouveau test de structure
    * utilise `lireSource()` / `sourceDuSymbole()` (`platform/source.ts`) ou teste le comportement.
    */
-  testsDeTexte: 123,
+  testsDeTexte: 107,
 } as const;
 
 const mesure = mesurerCouverture();

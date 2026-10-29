@@ -18,7 +18,7 @@ import { createExpenseOrder } from "@/lib/expense-orders";
 import { createDirectValidation, retirerValidationSansObjet } from "@/lib/validation";
 import { createWithRetry } from "@/lib/refs";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import { clauseDemandeLisible } from "@/lib/queries/admin-requests";
 import { REQUEST_TYPES } from "@/lib/admin-requests";
 import {
@@ -50,7 +50,7 @@ import {
 import { lireLImputation } from "@/lib/actions/internes/admin-request/fin";
 import { ficheAFacture } from "@/lib/finance/facture-ordre";
 import { joindreFactureALaDemande } from "@/lib/secretariat/facture-jointe";
-import { dejaPorteParSaFiche } from "@/lib/ad-pro/unified";
+import { dejaPorteParSaFiche } from "@/modules/ad-pro/partage";
 // Découpé par responsabilité (lot V4) : aides, lectures et corps internes dans `actions/internes/admin-request/{demande,decisions,traitement,fin}` — les actions restent ici (leur clé de contrat).
 
 /** Type-specific fields are submitted as `f_<name>` and stored in `fields` JSON. */

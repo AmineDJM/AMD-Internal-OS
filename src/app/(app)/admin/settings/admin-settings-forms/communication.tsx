@@ -9,6 +9,8 @@ import { sendBroadcast } from "@/lib/actions/notification-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import type { Opt, UserLite } from "./types";
+import { Retour } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserLite[] }) {
   const [audience, setAudience] = React.useState<"ALL" | "ROLE" | "USERS">("ALL");
@@ -30,10 +32,15 @@ export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserL
         setSending(true); setResult(null);
         fd.set("audience", audience);
         picked.forEach((id) => fd.append("userIds", id));
-        const r = await sendBroadcast(fd);
-        setSending(false);
-        setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Envoyée.") : (r.error ?? "Échec.") });
-        if (r.ok) { setPicked(new Set()); (document.getElementById("bc-form") as HTMLFormElement | null)?.reset(); }
+        try {
+          const r = await sendBroadcast(fd);
+          setResult({ ok: r.ok, text: r.ok ? (r.message ?? "Envoyée.") : (r.error ?? "L'annonce n'a pas été envoyée.") });
+          if (r.ok) { setPicked(new Set()); (document.getElementById("bc-form") as HTMLFormElement | null)?.reset(); }
+        } catch {
+          setResult({ ok: false, text: actionFailureMessage("THROWN") });
+        } finally {
+          setSending(false);
+        }
       }}
       id="bc-form"
       className="space-y-3"
@@ -98,7 +105,7 @@ export function BroadcastComposer({ roles, users }: { roles: Opt[]; users: UserL
         </span>
       </label>
 
-      {result && <p className={`rounded-lg px-3 py-2 text-sm ${result.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>{result.text}</p>}
+      {result && <Retour ton={result.ok ? "succes" : "erreur"}>{result.text}</Retour>}
       <div className="flex justify-end">
         <Button type="submit" disabled={sending}>
           {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Megaphone className="h-4 w-4" />} Diffuser
@@ -159,7 +166,7 @@ export function MailDiagnosticPanel({ mailboxes }: { mailboxes: Mailbox[] }) {
         </Button>
       </div>
 
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
 
       {res && (
         <div className={`space-y-2 rounded-lg border px-3 py-3 text-sm ${DIAG_TONE[res.category] ?? DIAG_TONE.OTHER}`}>

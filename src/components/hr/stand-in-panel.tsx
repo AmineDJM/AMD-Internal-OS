@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { UserCog, Loader2, Check, X, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +9,8 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { proposeStandIn, decideStandIn } from "@/modules/rh/actions-interim";
 import { STAND_IN_LABEL, type StandInStatus } from "@/lib/hr/stand-in";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * DÉSIGNER UN INTÉRIMAIRE, ET LE FAIRE VALIDER.
@@ -70,7 +71,7 @@ export function StandInButton({
   modules: StandInModule[];
   moduleLabels?: Record<string, string>;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [who, setWho] = React.useState(state.standInId ?? "");
   // CE QUI A ÉTÉ CHOISI SOUS UNE LISTE PLUS LARGE (un module qu'on ne détient plus, un module retiré de
@@ -93,11 +94,18 @@ export function StandInButton({
       fd.set("standInId", who);
       for (const m of picked) fd.append("modules", m);
     }
-    const r = await proposeStandIn(fd);
-    setBusy(false);
+    let r: Awaited<ReturnType<typeof proposeStandIn>>;
+    try {
+      r = await proposeStandIn(fd);
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!r.ok) { setError(r.error ?? "Enregistrement impossible."); return; }
     setOpen(false);
-    router.refresh();
+    rafraichir();
   }
 
   return (
@@ -177,7 +185,7 @@ export function StandInButton({
 
 /** Le geste des RH : valider, ou refuser en disant pourquoi. */
 export function StandInDecision({ leaveId }: { leaveId: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [note, setNote] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
@@ -188,10 +196,17 @@ export function StandInDecision({ leaveId }: { leaveId: string }) {
     fd.set("id", leaveId);
     fd.set("decision", approve ? "APPROVED" : "REJECTED");
     if (note.trim()) fd.set("note", note.trim());
-    const r = await decideStandIn(fd);
-    setBusy(null);
+    let r: Awaited<ReturnType<typeof decideStandIn>>;
+    try {
+      r = await decideStandIn(fd);
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(null);
+    }
     if (!r.ok) { setError(r.error ?? "Décision impossible."); return; }
-    router.refresh();
+    rafraichir();
   }
 
   return (

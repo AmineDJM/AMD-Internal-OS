@@ -5,7 +5,7 @@ import { StatusBadge } from "@/components/shared/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { CONSULTING_STATUS, CONSULTING_BILLING } from "@/lib/labels";
-import { billingSuffix, isOverdue } from "@/lib/ad-pro/consulting";
+import { billingSuffix, isOverdue } from "@/modules/ad-pro/partage";
 
 /**
  * LA LISTE DES CONTRATS DE CONSULTING — une seule, pour les deux pôles (§118.150).

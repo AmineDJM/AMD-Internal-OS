@@ -9,6 +9,10 @@ import {
 } from "@/lib/adoption";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { Retour } from "@/components/ui/retour";
+import { useFormAction } from "@/components/shared/use-action";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 const FIELD_KEY: Record<string, string> = {
   regularity: "wRegularity", time: "wTime", breadth: "wBreadth", diversity: "wDiversity",
@@ -23,9 +27,10 @@ const TARGET_NAME: Record<string, string> = {
 
 /** Réglage (Super Admin) des poids et seuils du score d'adoption. */
 export function AdoptionSettingsForm({ settings }: { settings: AdoptionSettings }) {
-  const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { action: enregistrer, busy: saving, err: error } = useFormAction(saveAdoptionSettings, {
+    onOk: () => { setSaved(true); setTimeout(() => setSaved(false), 1500); },
+  });
   // Total des poids (affiché en direct) — le score est normalisé par ce total.
   const [weights, setWeights] = React.useState<Record<string, number>>(
     () => Object.fromEntries(ADOPTION_WEIGHT_FIELDS.map((f) => [f.key, settings.weights[f.key]])),
@@ -38,13 +43,7 @@ export function AdoptionSettingsForm({ settings }: { settings: AdoptionSettings 
 
   return (
     <form
-      action={async (fd) => {
-        setSaving(true); setError(null);
-        const r = await saveAdoptionSettings(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec de l'enregistrement.");
-      }}
+      action={enregistrer}
       className="space-y-4"
     >
       <div>
@@ -91,7 +90,7 @@ export function AdoptionSettingsForm({ settings }: { settings: AdoptionSettings 
         </div>
       </div>
 
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex justify-end">
         <Button type="submit" disabled={saving} className="w-full sm:w-auto">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : <SlidersHorizontal className="h-4 w-4" />}
@@ -107,13 +106,19 @@ export function ResetActivityTimeButton() {
   const [busy, setBusy] = React.useState(false);
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
+  const confirmer = useConfirmer();
 
   async function run() {
-    if (!window.confirm("Remettre à zéro les temps d'activité de tous les comptes ?\n\nLes relevés (appareil, géoloc, page) sont conservés ; seule la durée est remise à 0. Le nouveau comptage précis (temps au premier plan) prend le relais. Action irréversible.")) return;
+    if (!(await confirmer("Remettre à zéro les temps d'activité de tous les comptes ?\n\nLes relevés (appareil, géoloc, page) sont conservés ; seule la durée est remise à 0. Le nouveau comptage précis (temps au premier plan) prend le relais. Action irréversible."))) return;
     setBusy(true); setErr(null); setMsg(null);
-    const r = await resetActivityTime();
-    setBusy(false);
-    if (r.ok) setMsg(r.message ?? "Temps d'activité remis à zéro."); else setErr(r.error ?? "Échec.");
+    try {
+      const r = await resetActivityTime();
+      if (r.ok) setMsg(r.message ?? "Temps d'activité remis à zéro."); else setErr(r.error ?? "Les temps d'activité n'ont pas été remis à zéro.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -122,7 +127,7 @@ export function ResetActivityTimeButton() {
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <TimerReset className="h-4 w-4" />} Remettre les temps d'activité à zéro
       </Button>
       {msg && <p className="rounded-lg bg-success/10 px-3 py-2 text-sm text-success">{msg}</p>}
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
     </div>
   );
 }

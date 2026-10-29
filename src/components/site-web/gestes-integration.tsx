@@ -1,13 +1,14 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { KeyRound, Loader2, PlugZap, RefreshCw, RotateCcw, ShieldOff, XCircle } from "lucide-react";
 import {
   abandonnerCleSite, genererCleSite, leverBlocageSite, rapprocherSiteMaintenant, relancerEnvoiSite, verifierConnexionSite,
 } from "@/lib/actions/site-web-actions";
 import type { ActionResult } from "@/lib/actions/types";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 
 /**
  * LES GESTES D'EXPLOITATION DE L'INTÉGRATION (§118.158, §118.159) — vérifier la connexion,
@@ -48,15 +49,16 @@ export function GesteIntegration({
   /** Une question posée avant d'agir, quand le geste remplace quelque chose. */
   confirmation?: string;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [enCours, setEnCours] = React.useState(false);
   const [retour, setRetour] = React.useState<{ ok: boolean; texte: string } | null>(null);
 
   const agir = async () => {
-    if (geste === "lever" && !window.confirm(
+    if (geste === "lever" && !(await confirmer(
       "Lever le blocage ?\n\nLes envois reprennent immédiatement. Si le site refuse toujours la clé, le blocage se reposera au premier envoi — mieux vaut d'abord « Vérifier la connexion ».",
-    )) return;
-    if (confirmation && !window.confirm(confirmation)) return;
+    ))) return;
+    if (confirmation && !(await confirmer(confirmation))) return;
     setEnCours(true); setRetour(null);
     let r: ActionResult;
     try {
@@ -74,8 +76,8 @@ export function GesteIntegration({
       r = { ok: false, error: "Le serveur n'a pas répondu. Rechargez la page avant de recommencer : le geste a peut-être eu lieu." };
     }
     setEnCours(false);
-    setRetour(r.ok ? { ok: true, texte: r.message ?? "Fait." } : { ok: false, texte: r.error ?? "Action impossible." });
-    router.refresh();
+    setRetour(r.ok ? { ok: true, texte: r.message ?? "Fait." } : { ok: false, texte: r.error ?? `« ${libelle ?? LIBELLE[geste]} » n'a pas abouti.` });
+    rafraichir();
   };
 
   return (

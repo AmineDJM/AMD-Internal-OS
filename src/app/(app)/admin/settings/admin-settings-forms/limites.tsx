@@ -9,6 +9,8 @@ import { saveAppSettings, setAdProDgThreshold } from "@/lib/actions/settings-act
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import type { AppSettings } from "@/lib/settings";
+import { Retour } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
   const [saving, setSaving] = React.useState(false);
@@ -18,10 +20,15 @@ export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
     <form
       action={async (fd) => {
         setSaving(true); setError(null);
-        const r = await saveAppSettings(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec.");
+        try {
+          const r = await saveAppSettings(fd);
+          if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(r.error ?? "Les limites n'ont pas été enregistrées.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -37,7 +44,7 @@ export function AdminLimitsForm({ settings }: { settings: AppSettings }) {
           <p className="text-xs text-muted-foreground">Fichiers du Drive (gros transferts en flux), jusqu'à 2 048 Mo.</p>
         </div>
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex justify-end">
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : null}
@@ -63,10 +70,15 @@ export function AdProDgThresholdForm({ settings }: { settings: AppSettings }) {
     <form
       action={async (fd) => {
         setSaving(true); setError(null);
-        const r = await setAdProDgThreshold(fd);
-        setSaving(false);
-        if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(r.error ?? "Échec.");
+        try {
+          const r = await setAdProDgThreshold(fd);
+          if (r.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(r.error ?? "Le seuil n'a pas été enregistré.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -84,7 +96,7 @@ export function AdProDgThresholdForm({ settings }: { settings: AppSettings }) {
           Ce même seuil se règle depuis le centre.
         </p>
       </div>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
       <div className="flex justify-end">
         <Button type="submit" disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : saved ? <Check className="h-4 w-4 text-success" /> : null}

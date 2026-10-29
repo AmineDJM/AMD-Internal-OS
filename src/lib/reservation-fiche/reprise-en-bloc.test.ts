@@ -10,7 +10,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTOR, requireUserAuN
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import { createDossierRecord } from "@/lib/dossiers-core";
-import { demanderReservationPriseEnCharge } from "@/lib/actions/care-actions";
+import { demanderReservationPriseEnCharge } from "@/modules/ad-pro/actions-prise-en-charge-logistique";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

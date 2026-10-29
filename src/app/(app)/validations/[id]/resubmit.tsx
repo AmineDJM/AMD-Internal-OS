@@ -6,6 +6,7 @@ import { resoumettreValidation } from "@/lib/actions/validation-actions";
 import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * RESOUMETTRE UNE DEMANDE RENVOYÉE (audit 360°, R08) — sur elle-même, et elle reprend à l'étape
@@ -31,10 +32,15 @@ export function ResubmitValidation({ id, description, montant }: {
         setBusy(true); setErr(null);
         const fd = new FormData(e.currentTarget);
         fd.set("id", id);
-        const r = await resoumettreValidation(fd);
-        setBusy(false);
-        if (!r.ok) { setErr(r.error ?? "Resoumission impossible."); return; }
-        rafraichir();
+        try {
+          const r = await resoumettreValidation(fd);
+          if (!r.ok) { setErr(r.error ?? "Resoumission impossible."); return; }
+          rafraichir();
+        } catch {
+          setErr(actionFailureMessage("THROWN"));
+        } finally {
+          setBusy(false);
+        }
       }}
     >
       <label className="block space-y-1 text-sm">

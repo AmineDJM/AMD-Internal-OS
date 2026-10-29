@@ -7,6 +7,11 @@
 - Références séquentielles via `src/lib/refs.ts` (`buildRef` + `createWithRetry`) — **jamais** `count()+1`.
 - `PERMISSIONS` (rbac.ts) est **exhaustif** : tout nouveau rôle impose une entrée (le typecheck l'exige).
 - Secrets **toujours côté serveur**, jamais committés ni exposés au client.
+- Écrans (V3-B) : une action serveur s'appelle par `useAction` / `useKeyedAction` / `useFormAction`
+  (`components/shared/use-action.ts`) ; une confirmation par `BoutonDecisif` (argent, décision, signature) ou
+  `useConfirmer()` / `useSaisir()` (`components/ui/dialogue.tsx`) ; un retour par `<Retour>` / `useRetours()`
+  (`components/ui/retour.tsx`). **Jamais** `window.confirm/alert/prompt`, `router.refresh()` à la main, ni
+  `?? "Échec."` — cliquets à zéro.
 - **Un `catch` ne tait pas son erreur** (lot V3-E, [`src/lib/journal.ts`](../../src/lib/journal.ts)). Jamais `.catch(() => [])` :
   - `.catch(sansBloquer("domaine.ce-qui-a-echoue", repli))` — une **panne tolérée** : l'écran garde son repli, l'échec part
     au journal (une ligne JSON : `ts`, `niveau`, `evenement`, contexte, `erreur` tronquée, `repetitions` tues), il est

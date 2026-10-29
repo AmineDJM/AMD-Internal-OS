@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Archive, Link2, Loader2, RotateCcw, Trash2 } from "lucide-react";
 import {
   classerCandidatureSite, effacerCandidatureSite, rattacherCandidatureSite, remettreCandidatureATrier,
 } from "@/lib/actions/candidatures-site-actions";
 import type { ActionResult } from "@/lib/actions/types";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Button } from "@/components/ui/button";
 
 /**
@@ -24,7 +25,8 @@ export function GestesCandidature({
   /** Rattachée à un candidat qui n'existe plus : il ne reste qu'à pouvoir l'effacer. */
   orpheline: boolean;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [enCours, setEnCours] = React.useState<string | null>(null);
   const [retour, setRetour] = React.useState<{ ok: boolean; texte: string } | null>(null);
   const [poste, setPoste] = React.useState("");
@@ -42,12 +44,12 @@ export function GestesCandidature({
       r = { ok: false, error: "Le serveur n'a pas répondu. Rechargez la page avant de recommencer : le geste a peut-être eu lieu." };
     }
     setEnCours(null);
-    setRetour(r.ok ? { ok: true, texte: r.message ?? "Fait." } : { ok: false, texte: r.error ?? "Action impossible." });
-    router.refresh();
+    setRetour(r.ok ? { ok: true, texte: r.message ?? "Fait." } : { ok: false, texte: r.error ?? "Le geste n'a pas abouti." });
+    rafraichir();
   };
 
-  const effacer = () => {
-    if (!window.confirm(`Effacer la candidature de ${nom} ET son CV ?\n\nC'est définitif : on ne pourra plus la retrouver (droit à l'oubli).`)) return;
+  const effacer = async () => {
+    if (!(await confirmer(`Effacer la candidature de ${nom} ET son CV ?\n\nC'est définitif : on ne pourra plus la retrouver (droit à l'oubli).`))) return;
     void agir("effacer", effacerCandidatureSite);
   };
 

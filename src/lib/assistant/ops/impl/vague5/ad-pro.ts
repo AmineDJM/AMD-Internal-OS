@@ -5,12 +5,12 @@
  * blanche, seuils. Par les actions canoniques.
  */
 import { prisma } from "./erp";
-import { sponsoringAppeal, cloturerSponsoring, rouvrirSponsoring, requestThirdPartyInput as sponsoringThirdParty } from "@/lib/actions/sponsoring-actions";
-import { cancelCongressRequest, requestThirdPartyInput as congressThirdParty } from "@/lib/actions/congress-request-actions";
-import { addCongressBeneficiary, removeCongressBeneficiary, requestBeneficiaryIds } from "@/lib/actions/congress-beneficiary-actions";
-import { addAdProItem, updateAdProItem, deleteAdProItem, linkPromoMaterial, submitAdProItem, setAdProItemBudget, demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder } from "@/lib/actions/ad-pro-item-actions";
-import { createAdProOtherRequest, decideAdProOtherRequest, closeAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
-import { updateAdProRequest } from "@/lib/actions/ad-pro-edit-actions";
+import { sponsoringAppeal, cloturerSponsoring, rouvrirSponsoring, requestThirdPartyInput as sponsoringThirdParty } from "@/modules/ad-pro/actions-sponsoring";
+import { cancelCongressRequest, requestThirdPartyInput as congressThirdParty } from "@/modules/ad-pro/actions-congres";
+import { addCongressBeneficiary, removeCongressBeneficiary, requestBeneficiaryIds } from "@/modules/ad-pro/actions-congres-beneficiaires";
+import { addAdProItem, updateAdProItem, deleteAdProItem, linkPromoMaterial, submitAdProItem, setAdProItemBudget, demanderPieceSecretariat, requestAdProItemOrder, approveAdProItemOrder } from "@/modules/ad-pro/actions-postes";
+import { createAdProOtherRequest, decideAdProOtherRequest, closeAdProOtherRequest } from "@/modules/ad-pro/actions-autres";
+import { updateAdProRequest } from "@/modules/ad-pro/actions-edition";
 import { demandesAuCentreAdPro, deciderVisaCentreAdPro, setAdProDgThreshold, setBcValidationThreshold, DEFAULT_APP_SETTINGS, PIECE_SECRETARIAT, NATURES_PIECE_SECRETARIAT, type NaturePieceSecretariat, bilanCloture, postesPourCloture } from "@/platform/in-process/capacites";
 import type { OpImpl, OpProposalDraft } from "../../types";
 import { opStr } from "../../types";

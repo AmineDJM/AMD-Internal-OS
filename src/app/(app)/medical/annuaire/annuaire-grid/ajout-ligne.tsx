@@ -4,7 +4,6 @@
  * L'ANNUAIRE — la ligne d'ajout d'un praticien.
  */
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Check, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
@@ -12,6 +11,10 @@ import { ANNUAIRE_COLUMNS } from "@/lib/medical/directory-grid";
 import { addDirectoryDoctor } from "@/lib/actions/medical-directory-actions";
 import type { EtablissementOption } from "@/lib/annuaires/types";
 import { libelleEtab } from "./colonnes";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { Retour } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import { journal } from "@/lib/journal";
 
 /** La ligne d'ajout — un nom (ou prénom) suffit, le reste se remplit ensuite dans la feuille. */
 export function AddDoctorRow({
@@ -21,7 +24,7 @@ export function AddDoctorRow({
   /** La ligne s'ouvre depuis le bouton de la barre (geste principal) ; elle se referme ici. */
   onClose: () => void;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const setOpen = (o: boolean) => { if (!o) onClose(); };
   const [lastName, setLastName] = React.useState("");
   const [firstName, setFirstName] = React.useState("");
@@ -44,8 +47,11 @@ export function AddDoctorRow({
       institutionId: institutionId || null, serviceId: serviceId || null,
     }).then((r) => {
       setBusy(false);
-      if (r.ok) { reset(); setOpen(false); router.refresh(); }
+      if (r.ok) { reset(); setOpen(false); rafraichir(); }
       else setErr(r.error ?? "Ajout impossible.");
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.addDirectoryDoctor", {}, e);
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
     });
   };
 
@@ -70,7 +76,7 @@ export function AddDoctorRow({
           {services.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
         </Select>
       </div>
-      {err && <p className="text-xs text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex items-center gap-2">
         <Button size="sm" disabled={busy} onClick={submit} className="flex-1 sm:flex-none">
           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />} Ajouter

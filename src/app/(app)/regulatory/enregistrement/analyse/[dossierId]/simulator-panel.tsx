@@ -1,9 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, FlaskConical } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Retour } from "@/components/ui/retour";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { runSimulationAction } from "@/lib/regulatory/intelligence/simulator/actions";
 import type { SimPerspective } from "@/lib/regulatory/intelligence/simulator/run";
 
@@ -18,7 +21,7 @@ const VERDICT: Record<string, string> = {
  * INTERNE NON PRÉDICTIVE (jamais une décision de l'ANPP).
  */
 export function SimulatorPanel({ dossierId, last }: { dossierId: string; last: Sim | null }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [result, setResult] = React.useState<Sim | null>(last);
@@ -26,11 +29,16 @@ export function SimulatorPanel({ dossierId, last }: { dossierId: string; last: S
   async function run() {
     setBusy(true); setError(null);
     const fd = new FormData(); fd.set("dossierId", dossierId);
-    const r = await runSimulationAction(fd);
-    setBusy(false);
-    if (!r.ok) setError(r.error ?? "Échec.");
-    else if (!r.configured) setError(r.error ?? "IA non configurée — simulation indisponible.");
-    else { setResult({ perspectives: r.perspectives, overall: r.overall ?? null, createdAt: new Date().toISOString() }); router.refresh(); }
+    try {
+      const r = await runSimulationAction(fd);
+      if (!r.ok) setError(r.error ?? "La simulation n'a pas été lancée.");
+      else if (!r.configured) setError(r.error ?? "IA non configurée — simulation indisponible.");
+      else { setResult({ perspectives: r.perspectives, overall: r.overall ?? null, createdAt: new Date().toISOString() }); rafraichir(); }
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -42,7 +50,7 @@ export function SimulatorPanel({ dossierId, last }: { dossierId: string; last: S
       <Button type="button" size="sm" disabled={busy} onClick={run}>
         {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <FlaskConical className="h-4 w-4" />} Lancer la simulation multi-perspectives
       </Button>
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
 
       {result && (
         <div className="space-y-2">

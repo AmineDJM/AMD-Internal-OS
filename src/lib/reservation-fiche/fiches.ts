@@ -1,13 +1,7 @@
 import type { AdProTrajet, AdProTransport, CareCell, EntityType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { beneficiaryName } from "@/lib/care";
-import {
-  manquesBillet, manquesHotel, personnePasseport, personneVivante, etapesStockees, resumeBillet, resumeHotel,
-  type CellRow, type Perimetre,
-} from "@/lib/care-fiches";
-import { manquesPourReserver, nomComplet, lireEtapes, TRAJET_LIBELLE, TRANSPORT_LIBELLE, type EtapeTrajet } from "@/lib/ad-pro/voyageurs";
-import { nuitsLisibles } from "@/lib/ad-pro/hebergements";
+import { beneficiaryName, manquesBillet, manquesHotel, personnePasseport, personneVivante, etapesStockees, resumeBillet, resumeHotel, type CellRow, type Perimetre, manquesPourReserver, nomComplet, lireEtapes, TRAJET_LIBELLE, TRANSPORT_LIBELLE, type EtapeTrajet, nuitsLisibles } from "@/modules/ad-pro/partage";
 import {
   empreinteBillet, empreinteHotel, jourFr, manquesHebergement,
   type Empreinte, type NatureFiche, type SourceFiche,

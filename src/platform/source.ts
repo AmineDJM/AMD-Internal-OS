@@ -16,7 +16,11 @@ import { demenagements } from "./demenagements";
  *   - `lireSource(chemin)` suit les DÉMÉNAGEMENTS (`tsconfig.json`, voir `demenagements.ts`) :
  *     un test qui cite l'ancien chemin lit le fichier à sa nouvelle place ;
  *   - `sourceDuSymbole(nom)` trouve le fichier qui DÉCLARE un export (`export function nom`,
- *     `export const nom`…) : le test vise la règle par son nom, pas par son adresse.
+ *     `export const nom`…) : le test vise la règle par son nom, pas par son adresse ;
+ *   - `lireSources(…chemins)` relit d'un seul tenant un fichier DÉCOUPÉ par responsabilité (un chemin
+ *     qui finit par `/` désigne tout le dossier) — la carte d'un poste Ad & Pro, 2 149 lignes, vit en
+ *     quatre fichiers ; une règle qui la lisait la lit entière. (Une clé d'actions découpée se relit
+ *     par `sourceDeLaCle`, `src/lib/actions/parc.ts`.)
  *
  * Le mieux reste de tester le COMPORTEMENT (appeler la fonction) ; ces portes sont pour les vraies
  * règles de structure. Lu par les tests seulement.
@@ -72,4 +76,17 @@ export function fichierDuSymbole(nom: string, racine = process.cwd()): string {
 /** Le texte du fichier qui déclare l'export `nom`. */
 export function sourceDuSymbole(nom: string, racine = process.cwd()): string {
   return fs.readFileSync(path.join(racine, fichierDuSymbole(nom, racine)), "utf8");
+}
+
+/**
+ * Le texte de plusieurs fichiers mis bout à bout (déménagements suivis) ; un chemin qui finit par `/` vaut
+ * tous les fichiers `.ts`/`.tsx` du dossier, hors tests, dans l'ordre alphabétique.
+ */
+export function lireSources(...chemins: string[]): string {
+  return chemins.flatMap((c) => {
+    if (!c.endsWith("/")) return [lireSource(c)];
+    const dir = path.join(process.cwd(), c);
+    return fs.readdirSync(dir).filter((f) => /\.tsx?$/.test(f) && !/\.test\.tsx?$/.test(f)).sort()
+      .map((f) => fs.readFileSync(path.join(dir, f), "utf8"));
+  }).join("\n");
 }

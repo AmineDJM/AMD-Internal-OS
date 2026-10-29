@@ -6,6 +6,7 @@ import {
   Paperclip, X, Loader2, Printer, ChevronLeft, Plus, HardDriveDownload, Link2,
 } from "lucide-react";
 import { Icon } from "@/components/ui/icon";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { folderLabel, folderBadge, FOLDER_ICON, defaultFolderId } from "@/lib/mail/folders";
@@ -123,9 +124,16 @@ export function MailWorkspace({ address, signature }: Props) {
 
   const act = async (fn: () => Promise<{ ok: boolean; error?: string }>, removeId?: string) => {
     setBusy(true);
-    const r = await fn();
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Action impossible."); return; }
+    let r: { ok: boolean; error?: string };
+    try {
+      r = await fn();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (!r.ok) { setErr(r.error ?? "L'action sur le message n'a pas abouti."); return; }
     if (removeId) {
       setItems((cur) => cur.filter((x) => x.id !== removeId));
       setOpenMsg(null);
@@ -393,10 +401,15 @@ function AttachmentBar({ messageId, attachments }: { messageId: string; attachme
     const fd = new FormData();
     fd.set("messageId", messageId);
     fd.set("attachmentId", a.id);
-    const r = await saveAttachmentToDrive(fd);
-    setSavingId(null);
-    if (!r.ok) { setErr(r.error ?? "Enregistrement impossible."); return; }
-    if (r.nodeId) setSaved((s) => ({ ...s, [a.id]: r.nodeId! }));
+    try {
+      const r = await saveAttachmentToDrive(fd);
+      if (!r.ok) { setErr(r.error ?? "Enregistrement impossible."); return; }
+      if (r.nodeId) setSaved((s) => ({ ...s, [a.id]: r.nodeId! }));
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSavingId(null);
+    }
   };
 
   return (
@@ -468,10 +481,15 @@ function Composer({
     fd.set("to", to); fd.set("cc", cc); fd.set("bcc", bcc);
     fd.set("subject", subject); fd.set("bodyHtml", body);
     if (initial?.inReplyTo) { fd.set("replyToId", initial.inReplyTo.messageId); fd.set("replyMode", initial.inReplyTo.mode); }
-    const r = await sendMessage(fd);
-    setBusy(false);
-    if (!r.ok) { setErr(r.error ?? "Envoi impossible."); return; }
-    onSent();
+    try {
+      const r = await sendMessage(fd);
+      if (!r.ok) { setErr(r.error ?? "Envoi impossible."); return; }
+      onSent();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (

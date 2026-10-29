@@ -11,12 +11,16 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { hiddenSummary } from "@/lib/modules-visibility";
 import type { Opt, UserLite } from "./types";
+import { useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /** Sélection des rôles autorisés à CRÉER des catégories de Drive (Super Admin toujours inclus). */
 export function DriveSpaceCreatorForm({ roles, selected }: { roles: Opt[]; selected: string[] }) {
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -25,9 +29,15 @@ export function DriveSpaceCreatorForm({ roles, selected }: { roles: Opt[]; selec
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setDriveSpaceCreatorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setDriveSpaceCreatorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles créateurs d'espaces n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -65,6 +75,8 @@ export function PromoMessageAuthorsForm({ roles, selected }: { roles: Opt[]; sel
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -73,9 +85,15 @@ export function PromoMessageAuthorsForm({ roles, selected }: { roles: Opt[]; sel
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setPromoMessageAuthorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setPromoMessageAuthorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les auteurs de messages promotionnels n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -113,6 +131,8 @@ export function FieldReportsOverviewForm({ roles, selected }: { roles: Opt[]; se
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -121,9 +141,15 @@ export function FieldReportsOverviewForm({ roles, selected }: { roles: Opt[]; se
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setFieldReportsOverviewRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setFieldReportsOverviewRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles de la vue d'ensemble n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -168,6 +194,8 @@ export function OrgChartViewersForm({ roles, users, selectedRoles, selectedUserI
   const [query, setQuery] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
   const toggleUser = (id: string) => setPickedUsers((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
 
@@ -181,9 +209,15 @@ export function OrgChartViewersForm({ roles, users, selectedRoles, selectedUserI
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
         pickedUsers.forEach((id) => fd.append("userIds", id));
-        const res = await setOrgChartViewers(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setOrgChartViewers(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les lecteurs de l'organigramme n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -254,6 +288,8 @@ export function HiddenModulesForm({ modules, selected }: { modules: Opt[]; selec
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -262,9 +298,15 @@ export function HiddenModulesForm({ modules, selected }: { modules: Opt[]; selec
         setSaving(true);
         const fd = new FormData();
         picked.forEach((m) => fd.append("modules", m));
-        const res = await setHiddenModules(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setHiddenModules(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les modules masqués n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >

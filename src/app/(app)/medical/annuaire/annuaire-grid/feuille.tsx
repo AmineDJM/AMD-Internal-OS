@@ -27,6 +27,9 @@ import { colonnesDeLaFeuille, valeurAffichee, type Edition, type ColonneVue, val
 import { GridTable } from "./grille-table";
 import { AddDoctorRow } from "./ajout-ligne";
 import { GestionColonnes } from "./gestion-colonnes";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import { journal } from "@/lib/journal";
 
 export function AnnuaireGrid({
   rows, etablissements, couleurs, customColumns, canEdit, canImport, canImportFile, canDelete, canManageColumns, specialties, directoryId, directoryName,
@@ -78,6 +81,7 @@ export function AnnuaireGrid({
   // Le rafraîchissement est SUIVI : tant qu'il court, ce qu'on vient d'écrire reste affiché et fait
   // foi pour le geste suivant (§118.172).
   const { enCours: rafraichit, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   // SÉLECTION DE LIGNES (cases) — un annuaire se nettoie par lots (doublons d'import, cabinet
   // fermé). Ligne par ligne, personne ne le fait : on garde alors des fiches fausses, pire
   // qu'absentes. Distincte de la sélection de CELLULES, qui sert à colorer et copier.
@@ -275,18 +279,21 @@ export function AnnuaireGrid({
   // coup sûr — vit ici, à côté de ce qu'il corrige.
   const aRattacher = React.useMemo(() => filtered.filter(estARattacher), [filtered]);
   const [rattachement, setRattachement] = React.useState(false);
-  const rattacher = () => {
+  const rattacher = async () => {
     if (aRattacher.length === 0) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       `Rattacher à l'annuaire des établissements les ${aRattacher.length} fiche(s) « à rattacher » de cette vue ?\n\n`
       + "Seules celles dont le texte désigne EXACTEMENT un établissement actif (majuscules et accents mis à part) seront rattachées ; "
       + "les autres restent « à rattacher », et le message dira pourquoi.",
-    )) return;
+    ))) return;
     setRattachement(true); setMsg(null);
     void rattacherEtablissementsParNom({ ids: aRattacher.map((r) => r.id) }).then((r) => {
       setRattachement(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.rattacherEtablissementsParNom", {}, e);
+      setRattachement(false);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 
@@ -295,18 +302,21 @@ export function AnnuaireGrid({
   // référentiel est rattaché ; les autres sont DITS.
   const specialitesARattacher = React.useMemo(() => filtered.filter(specialiteEstARattacher), [filtered]);
   const [rattachementSpecialites, setRattachementSpecialites] = React.useState(false);
-  const rattacherSpecialites = () => {
+  const rattacherSpecialites = async () => {
     if (specialitesARattacher.length === 0) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       `Rattacher au référentiel des spécialités les ${specialitesARattacher.length} fiche(s) « à rattacher » de cette vue ?\n\n`
       + "Seules celles dont le texte désigne EXACTEMENT une spécialité du référentiel (majuscules et accents mis à part) seront rattachées ; "
       + "les autres restent « à rattacher », et le message dira pourquoi.",
-    )) return;
+    ))) return;
     setRattachementSpecialites(true); setMsg(null);
     void rattacherSpecialitesParNom({ ids: specialitesARattacher.map((r) => r.id) }).then((r) => {
       setRattachementSpecialites(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.rattacherSpecialitesParNom", {}, e);
+      setRattachementSpecialites(false);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 
@@ -319,19 +329,22 @@ export function AnnuaireGrid({
     return !!etab && serviceDeLaSpecialite(etab, r.specialty) !== null;
   }), [filtered, etablissements]);
   const [rattachementAuto, setRattachementAuto] = React.useState(false);
-  const rattacherAuto = () => {
+  const rattacherAuto = async () => {
     if (rattachables.length === 0) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       `Rattacher automatiquement ${rattachables.length} fiche(s) de cette vue ?\n\n`
       + "• l'établissement, quand la wilaya n'a qu'un établissement hospitalier, ou qu'un seul a le service de la spécialité ;\n"
       + "• le service, quand l'établissement a un service qui porte le nom de la spécialité.\n\n"
       + "Les fiches « à trancher » ne sont pas touchées.",
-    )) return;
+    ))) return;
     setRattachementAuto(true); setMsg(null);
     void rattacherAutomatiquement({ ids: rattachables.map((r) => r.id) }).then((r) => {
       setRattachementAuto(false);
       setMsg({ ok: r.ok, text: r.ok ? (r.message ?? "Rattachement terminé.") : (r.error ?? "Rattachement impossible.") });
       if (r.ok) rafraichir();
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.rattacherAutomatiquement", {}, e);
+      setRattachementAuto(false);
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     });
   };
 
@@ -559,14 +572,17 @@ export function AnnuaireGrid({
             {canDelete && (
               <Button
                 size="sm" variant="outline" disabled={deleting}
-                onClick={() => {
+                onClick={async () => {
                   // SUPPRIMER = ARCHIVER (réversible) ; dans la vue « Archivés », le même bouton RESTAURE.
-                  if (!archives && !window.confirm(`Archiver ${selected.size} fiche(s) de l'annuaire ? Elles sortent de la feuille mais restent restaurables depuis « Archivés ».`)) return;
+                  if (!archives && !(await confirmer(`Archiver ${selected.size} fiche(s) de l'annuaire ? Elles sortent de la feuille mais restent restaurables depuis « Archivés ».`))) return;
                   setDeleting(true);
                   void (archives ? restaurerDirectoryDoctors : deleteDirectoryDoctors)([...selected]).then((r) => {
                     setDeleting(false);
                     setMsg({ ok: r.ok, text: r.ok ? (r.message ?? (archives ? "Restauré." : "Archivé.")) : (r.error ?? (archives ? "Restauration impossible." : "Archivage impossible.")) });
                     if (r.ok) { setSelected(new Set()); rafraichir(); }
+                  }).catch((e: unknown) => { journal.erreur("annuaire-grid.archiverOuRestaurer", {}, e);
+                    setDeleting(false);
+                    setMsg({ ok: false, text: actionFailureMessage("THROWN") });
                   });
                 }}
                 className={archives ? undefined : "text-destructive"}

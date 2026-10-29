@@ -19,8 +19,12 @@ export function DriveFilePicker({ onPick, onClose }: { onPick: (f: AssistantFile
     let alive = true;
     setLoading(true);
     const t = setTimeout(async () => {
-      const res = await listAssistantFiles(q);
-      if (alive) { setFiles(res); setLoading(false); }
+      try {
+        const res = await listAssistantFiles(q);
+        if (alive) { setFiles(res); setLoading(false); }
+      } catch {
+        if (alive) { setFiles([]); setLoading(false); }
+      }
     }, q ? 250 : 0);
     return () => { alive = false; clearTimeout(t); };
   }, [q]);

@@ -12,8 +12,8 @@ import { validateAttachments } from "@/lib/attach-files";
 import { persistUploadedDocument } from "@/lib/documents";
 import { fdStr, fdNum, type ActionResult } from "@/lib/actions/types";
 import { submitDocumentRequest } from "@/lib/actions/document-request-actions";
-import { createCareQuote } from "@/lib/actions/care-actions";
-import { montantLisible, TAUX_USD_DZD_DEFAUT } from "@/lib/care-fiches";
+import { createCareQuote } from "@/modules/ad-pro/actions-prise-en-charge";
+import { montantLisible, TAUX_USD_DZD_DEFAUT } from "@/modules/ad-pro/partage";
 import {
   chargerFiche, chargerFiches, cleFiche, colonneFiche, ficheDeLaDemande, MODULE_OPERATION, type FicheReservation,
 } from "@/lib/reservation-fiche/fiches";

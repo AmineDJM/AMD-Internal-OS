@@ -16,7 +16,7 @@ import { chargerPiecesLegalDeLaDemande } from "@/lib/queries/pieces-legal-demand
 import { chargerPiecesLiees } from "@/lib/queries/chaine-des-pieces";
 import {
   apercuSuppressionPieceDeLaDemande, supprimerFichierDePieceDeLaDemande, supprimerPieceDeLaDemande,
-} from "./ad-pro-pieces-actions";
+} from "@/modules/ad-pro/actions-pieces";
 
 let dbOk = false;
 try { await prisma.$queryRaw`SELECT 1`; dbOk = true; } catch { dbOk = false; }
@@ -361,7 +361,7 @@ describe("le point d'appel — les écrans montent le geste, et l'action lit la 
     .replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 
   it("le bloc des pièces de la demande monte le bouton ET l'action de fichier (sinon « Lecture seule » reste vrai)", () => {
-    const c = code("src/components/ad-pro/pieces-legal-demande.tsx");
+    const c = code("src/modules/ad-pro/ecrans/pieces-legal-demande.tsx");
     expect(c).toMatch(/<SupprimerPieceLegal[^>]*offert=\{l\.suppression\.piece\.offert\}/);
     expect(c).toMatch(/canDelete=\{l\.suppression\.fichiers\.offert\}/);
     expect(c).toMatch(/supprimer=\{supprimerFichierDePieceDeLaDemande\}/);
@@ -375,7 +375,7 @@ describe("le point d'appel — les écrans montent le geste, et l'action lit la 
       expect(code(rel), rel).toMatch(/<LinkedRecords[\s\S]*?candidatsLegal=\{ctxPieces\.candidatsLegal\} suppression/);
     }
     expect(code("src/app/(app)/demandes/[id]/page.tsx")).not.toMatch(/<LinkedRecords[^>]*suppression/);
-    const lr = code("src/components/shared/linked-records.tsx");
+    const lr = code("src/components/pieces/linked-records.tsx");
     expect(lr).toMatch(/supprimer=\{s \? supprimerFichierDePieceDeLaDemande : undefined\}/);
     expect(lr).toMatch(/<SupprimerPieceLegal[^>]*offert=\{s\.piece\.offert\}/);
   });
@@ -387,7 +387,7 @@ describe("le point d'appel — les écrans montent le geste, et l'action lit la 
   });
 
   it("les actions lisent le MÊME verdict que l'écran, et le cœur du registre refuse chez l'écrivain", () => {
-    const a = code("src/lib/actions/ad-pro-pieces-actions.ts");
+    const a = code("src/modules/ad-pro/actions-pieces.ts");
     expect(a).toMatch(/verdictSuppressionPiece\(user, id\)/);
     expect(a).toMatch(/verdictSuppressionFichier\(user, id\)/);
     expect(a, "la pièce part par le cœur réversible").toMatch(/supprimerReversible\(\s*"LEGAL_DOCUMENT"/);
@@ -397,7 +397,7 @@ describe("le point d'appel — les écrans montent le geste, et l'action lit la 
   });
 
   it("la confirmation lit l'aperçu de LA MÊME porte que l'action (sinon le bouton ne s'arme pas, ou en dit trop)", () => {
-    const c = code("src/components/ad-pro/supprimer-piece-legal.tsx");
+    const c = code("src/components/pieces/supprimer-piece-legal.tsx");
     expect(c).toMatch(/executer=\{supprimerPieceDeLaDemande\}/);
     expect(c).toMatch(/apercuer=\{apercuSuppressionPieceDeLaDemande\}/);
     expect(code("src/components/shared/super-admin-delete.tsx")).toMatch(/apercuer\(fd\)/);

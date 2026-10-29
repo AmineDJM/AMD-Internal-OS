@@ -6,7 +6,7 @@ import {
   HELPERS_PARTAGES, contratsDuFichier, decrireAction, direContrat, helpersDuFichier, importsProjet, lireArguments, type TableEnums,
 } from "./contrat";
 import { scannerContrats } from "./contrat-scan";
-import { ACTIONS_DES_MODULES, actionsDesModulesSurLeDisque, parcDesActions } from "./parc";
+import { ACTIONS_DES_MODULES, actionsDesModulesSurLeDisque, cheminsDeLaCle, cheminsDesActionsDesModules, parcDesActions } from "./parc";
 import { CONTRATS_ACTIONS, CONTRAT_PAR_ID } from "./contrat.genere";
 import { ACTION_CLASSIFICATION } from "@/lib/assistant/action-registry";
 
@@ -1027,20 +1027,37 @@ export async function notifyUser(n: { userId: string }) {
  */
 describe("PARC DES ACTIONS — chaque fichier d'actions a une clé, une seule", () => {
   it("tout `actions.ts` d'un module est déclaré dans `ACTIONS_DES_MODULES`", () => {
-    const declares = new Set(Object.values(ACTIONS_DES_MODULES));
+    const declares = new Set(cheminsDesActionsDesModules());
     expect(actionsDesModulesSurLeDisque().filter((c) => !declares.has(c)),
       "déclarer ce fichier dans src/lib/actions/parc.ts (ACTIONS_DES_MODULES) avec sa clé historique").toEqual([]);
   });
 
   it("chaque entrée de `ACTIONS_DES_MODULES` existe et commence par « use server »", () => {
-    for (const chemin of Object.values(ACTIONS_DES_MODULES)) {
+    for (const chemin of cheminsDesActionsDesModules()) {
       expect(readFileSync(join(process.cwd(), chemin), "utf8"), chemin).toMatch(/^\s*["']use server["']/);
     }
   });
 
-  it("aucune clé n'est portée par deux fichiers (un module ne reprend pas la clé d'un fichier resté en place)", () => {
+  it("aucune clé n'est portée par deux fichiers, sauf les morceaux d'un fichier découpé déclarés ENSEMBLE", () => {
+    const decoupees = new Set(Object.entries(ACTIONS_DES_MODULES).filter(([, c]) => cheminsDeLaCle(c).length > 1).map(([cle]) => cle));
     const cles = parcDesActions().map((f) => f.cle);
-    expect(cles.filter((c, i) => cles.indexOf(c) !== i)).toEqual([]);
+    expect(cles.filter((c, i) => cles.indexOf(c) !== i && !decoupees.has(c)),
+      "un module ne reprend pas la clé d'un fichier resté en place ; un fichier découpé déclare la liste de ses morceaux").toEqual([]);
+    // Un morceau de `src/lib/actions/` ne peut pas porter une clé découpée : elle vit entière dans son module.
+    expect(parcDesActions().filter((f) => decoupees.has(f.cle) && f.chemin.startsWith("src/lib/actions/")).map((f) => f.chemin)).toEqual([]);
+  });
+
+  it("une action n'est exportée que par UN morceau de sa clé (sinon l'aiguillage choisirait au hasard)", () => {
+    const vues = new Map<string, string>();
+    const doublons: string[] = [];
+    for (const { cle, chemin } of parcDesActions()) {
+      for (const m of readFileSync(join(process.cwd(), chemin), "utf8").matchAll(/^export async function ([A-Za-z0-9_]+)/gm)) {
+        const id = `${cle}:${m[1]}`;
+        if (vues.has(id)) doublons.push(`${id} — ${vues.get(id)} et ${chemin}`);
+        else vues.set(id, chemin);
+      }
+    }
+    expect(doublons).toEqual([]);
   });
 
   it("le scanner lit les actions des modules (le contrat ne les perd pas en route)", () => {

@@ -7,6 +7,7 @@ import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
 import { InfoBulle } from "@/components/ui/info-bulle";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * RETIRER LA DEMANDE DE DEVIS DEPUIS LE DOSSIER (audit du 04/10, constat 35). Offert seulement quand le
@@ -48,9 +49,16 @@ export function RetirerDemandeDevis({ promoMaterialId, references, refus }: { pr
             f.set("promoMaterialId", promoMaterialId);
             f.set("motif", motif);
             setEnvoi(true); setErr(null);
-            const r = await retirerDemandeDevisPromo(f);
-            setEnvoi(false);
-            if (!r.ok) { setErr(r.error ?? "Retrait impossible."); return; }
+            let r: Awaited<ReturnType<typeof retirerDemandeDevisPromo>>;
+            try {
+              r = await retirerDemandeDevisPromo(f);
+            } catch {
+              setErr(actionFailureMessage("THROWN"));
+              return;
+            } finally {
+              setEnvoi(false);
+            }
+            if (!r.ok) { setErr(r.error ?? "La demande de devis n'a pas été retirée."); return; }
             setMsg(r.message ?? "Demande de devis retirée.");
             setOuvert(false); setMotif("");
             rafraichir();

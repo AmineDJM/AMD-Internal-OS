@@ -31,7 +31,7 @@ import {
   refusDecisionN1NoteFrais, moisNoteFrais, rapportRedige, versionLite, MODE_TRANSPORT_LIBELLE, NATURE_FRAIS_LIBELLE,
   TRAJETS_BILLET, type NatureFrais,
 } from "@/lib/missions-equipe/participation";
-import { lireDetailsTrajets } from "@/lib/care-fiches";
+import { lireDetailsTrajets } from "@/modules/ad-pro/partage";
 import { lienMission, LIEN_MISSIONS_A_VALIDER } from "@/lib/chemins/espace";
 import { toNumber } from "@/lib/utils";
 import { sansBloquer } from "@/lib/journal";

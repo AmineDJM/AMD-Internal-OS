@@ -1,22 +1,22 @@
 "use client";
 
-import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Power } from "lucide-react";
 import { toggleSupplier, toggleSupplierUser } from "@/lib/actions/supplier-actions";
+import { useAction } from "@/components/shared/use-action";
 
 export function ActiveToggle({ kind, id, active }: { kind: "supplier" | "user"; id: string; active: boolean }) {
-  const router = useRouter();
-  const [pending, start] = React.useTransition();
+  // La pastille n'a pas de place où parler : un refus part en avis flottant.
+  const { busy: pending, run } = useAction({ signalerErreurs: true });
   return (
     <button
       disabled={pending}
-      onClick={() => start(async () => {
+      onClick={() => {
         const fd = new FormData(); fd.set("id", id);
-        const r = await (kind === "supplier" ? toggleSupplier(fd) : toggleSupplierUser(fd));
-        if (!r.ok) window.alert(r.error ?? "Erreur.");
-        router.refresh();
-      })}
+        void run(async () => {
+          const r = await (kind === "supplier" ? toggleSupplier(fd) : toggleSupplierUser(fd));
+          return r.ok ? r : { ok: false, error: r.error ?? (active ? "La désactivation n'a pas abouti." : "L'activation n'a pas abouti.") };
+        });
+      }}
       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs ${active ? "border-success/30 bg-success/10 text-success" : "border-border bg-secondary text-muted-foreground"}`}
       title={active ? "Actif — cliquer pour désactiver" : "Désactivé — cliquer pour activer"}
     >

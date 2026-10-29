@@ -19,7 +19,7 @@ import { join } from "path";
  * Ce test lit les sources : il n'a besoin ni de navigateur, ni de capture d'écran.
  */
 
-const ROOTS = ["src/app", "src/components"];
+const ROOTS = ["src/app", "src/components", "src/modules"];
 
 function tsxFiles(dir: string): string[] {
   const out: string[] = [];

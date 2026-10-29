@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import type { AppSettings } from "@/lib/settings";
 import type { Opt, UserLite } from "./types";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * UN NIVEAU D'ACCÈS — des rôles, et des personnes nommées. Réutilisé pour les deux niveaux du
@@ -127,10 +128,15 @@ export function PipelineAccessForm({ roles, users, settings }: {
         viewerUsers.forEach((id) => fd.append("viewerUserIds", id));
         managerRoles.forEach((r) => fd.append("managerRoles", r));
         managerUsers.forEach((id) => fd.append("managerUserIds", id));
-        const res = await setPipelineAccess(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(res.error ?? "Échec.");
+        try {
+          const res = await setPipelineAccess(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(res.error ?? "Les accès au pipeline n'ont pas été enregistrés.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -199,10 +205,15 @@ export function DirectiveAccessForm({ roles, users, settings }: {
         readerUsers.forEach((id) => fd.append("readerUserIds", id));
         issuerRoles.forEach((r) => fd.append("issuerRoles", r));
         issuerUsers.forEach((id) => fd.append("issuerUserIds", id));
-        const res = await setDirectiveAccess(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-        else setError(res.error ?? "Échec.");
+        try {
+          const res = await setDirectiveAccess(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else setError(res.error ?? "Les accès aux directives n'ont pas été enregistrés.");
+        } catch {
+          setError(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { demanderValidationFinaleBC } from "@/lib/actions/validation-actions";
@@ -11,7 +12,7 @@ import { demanderValidationFinaleBC } from "@/lib/actions/validation-actions";
  * pièce au centre se confirme une seconde fois, avec ce qui va se passer.
  */
 export function ValidationFinaleBC({ demandeId, reference }: { demandeId: string; reference: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [arme, setArme] = React.useState(false);
   const [message, setMessage] = React.useState<{ ok: boolean; texte: string } | null>(null);
   const [envoi, start] = React.useTransition();
@@ -19,10 +20,15 @@ export function ValidationFinaleBC({ demandeId, reference }: { demandeId: string
   const confirmer = () => start(async () => {
     const fd = new FormData();
     fd.set("id", demandeId);
-    const r = await demanderValidationFinaleBC(fd);
-    setArme(false);
-    setMessage(r.ok ? { ok: true, texte: r.message ?? "Validation finale demandée." } : { ok: false, texte: r.error ?? "La validation finale n'a pas pu être demandée." });
-    if (r.ok) router.refresh();
+    try {
+      const r = await demanderValidationFinaleBC(fd);
+      setMessage(r.ok ? { ok: true, texte: r.message ?? "Validation finale demandée." } : { ok: false, texte: r.error ?? "La validation finale n'a pas pu être demandée." });
+      if (r.ok) rafraichir();
+    } catch {
+      setMessage({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setArme(false);
+    }
   });
 
   if (message?.ok) return <p className="text-xs text-success">{message.texte}</p>;

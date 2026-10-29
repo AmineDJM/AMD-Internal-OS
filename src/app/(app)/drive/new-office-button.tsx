@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import type { OfficeKind } from "@/lib/office-templates";
 import { executerCreationOffice } from "@/lib/office/creation-ui";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { LetterheadChoice } from "@/components/office/letterhead-choice";
 import type { LetterheadOption } from "@/lib/queries/letterheads";
 
@@ -29,6 +30,7 @@ export function NewOfficeButton({
   companyId?: string | null;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [kind, setKind] = React.useState<OfficeKind>("word");
   const [letterheadId, setLetterheadId] = React.useState<string | null>(null);
@@ -52,12 +54,15 @@ export function NewOfficeButton({
             setSaving(true); setErr(null);
             fd.set("kind", kind);
             if (letterheadId) fd.set("letterheadId", letterheadId);
-            const r = await executerCreationOffice(() => createOfficeNode(fd));
-            setSaving(false);
-            if (!r.ok) { setErr(r.error); return; }
-            setOpen(false);
-            if (officeEnabled) router.push(`/drive/${r.id}`);
-            else router.refresh();
+            try {
+              const r = await executerCreationOffice(() => createOfficeNode(fd));
+              if (!r.ok) { setErr(r.error); return; }
+              setOpen(false);
+              if (officeEnabled) router.push(`/drive/${r.id}`);
+              else rafraichir();
+            } finally {
+              setSaving(false);
+            }
           }}
           className="space-y-4"
         >

@@ -1,14 +1,14 @@
 "use client";
 
-/**
- * LES PRATICIENS — ajouter au panel un praticien de l'annuaire qui n'y est pas encore.
- */
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { casseNom } from "@/lib/segmentation/tableau-praticiens";
 import { ajouterAuPanel, chercherPraticiensHorsPanel, type PraticienTrouve } from "@/lib/actions/segmentation-actions";
 import { champ } from "./modele";
+
+/** L'AJOUT D'UN PRATICIEN AU PANEL — sorti de `praticiens-table.tsx` (cliquet de taille). */
 
 // ─────────────────────────────── Ajouter au panel ───────────────────────────────
 
@@ -22,9 +22,13 @@ export function AjoutPanel({ strategieId, onFait }: { strategieId: string; onFai
     if (q.trim().length < 2) { setRes([]); return; }
     let actif = true;
     const t = setTimeout(async () => {
-      const r = await chercherPraticiensHorsPanel({ strategieId, q });
-      if (!actif) return;
-      if (r.ok) { setRes(r.praticiens); setErreur(null); } else setErreur(r.error);
+      try {
+        const r = await chercherPraticiensHorsPanel({ strategieId, q });
+        if (!actif) return;
+        if (r.ok) { setRes(r.praticiens); setErreur(null); } else setErreur(r.error);
+      } catch {
+        if (actif) setErreur(actionFailureMessage("THROWN"));
+      }
     }, 250);
     return () => { actif = false; clearTimeout(t); };
   }, [q, strategieId]);
@@ -37,9 +41,14 @@ export function AjoutPanel({ strategieId, onFait }: { strategieId: string; onFai
           <span className="min-w-0 [overflow-wrap:anywhere]"><b className="font-medium">{p.nom}</b> <span className="text-muted-foreground">{[p.etablissement, casseNom(p.specialite)].filter(Boolean).join(" · ")}</span></span>
           <Button type="button" size="sm" variant="outline" disabled={envoi} onClick={async () => {
             setEnvoi(true);
-            const r = await ajouterAuPanel(strategieId, [p.id], null);
-            setEnvoi(false);
-            if (r.ok) onFait(); else setErreur(r.error);
+            try {
+              const r = await ajouterAuPanel(strategieId, [p.id], null);
+              if (r.ok) onFait(); else setErreur(r.error);
+            } catch {
+              setErreur(actionFailureMessage("THROWN"));
+            } finally {
+              setEnvoi(false);
+            }
           }}>Ajouter</Button>
         </div>
       ))}

@@ -3,7 +3,7 @@
 > Référence d'architecture : [`docs/audit/2026-10-27/08-architecture-code.md`](../audit/2026-10-27/08-architecture-code.md)
 > (§3) et [`refonte-donnees-et-monolithe-modulaire.md`](refonte-donnees-et-monolithe-modulaire.md) §5.
 > Ce document est le **mode d'emploi** : un développeur qui arrive doit pouvoir migrer un module seul en le suivant.
-> État au 28/10/2026 (lot V3-G, puis V4 : module `rh`).
+> État au 28/10/2026 (lot V3-G, puis V4 : modules `rh` et `ad-pro`).
 
 ---
 
@@ -27,6 +27,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `coffre` | socle métier | `api.ts` (écriture), `api-lecture.ts` (déchiffre), `partage.ts`, `actions.ts` | — | `referentiels`, actions RH/Finances/Legal, enrichissement, pont d'Adam | **migré** (V3-G) |
 | `referentiels` | socle métier | `api.ts`, `partage.ts`, `actions-{personnes,organisations,reprises}.ts` | `lieux`, `coffre` | ~20 fichiers d'actions, enrichissement, pages `/personnes`, `/organisations`, `/admin/refonte-donnees` | **migré** (V3-G) |
 | `consommation` | métier | `api.ts`, `actions.ts` | — | segmentation, vue 360° | **pilote** (audit 08), actions rangées au lot V3-G |
+| `ad-pro` | métier | `api.ts`, `partage.ts`, `actions-*.ts` (16 clés, dont `ad-pro-item-actions` en six morceaux), `ecrans/` | `referentiels` | pages `/sponsoring`, `/congress-*`, `/events`, `/ad-pro`, `/centre-ad-pro`, `/budget-marketing`, `/promo-material` ; Adam ; consulting, secrétariat, bons de commande | **migré** (V4) — dette : 253 imports vers `src/lib/` |
 | `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 
 ```
@@ -42,7 +43,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 ```
 
 **Prochains candidats** (ordre du rapport 08, §3.5) : `produits` et `annuaires` (ils effacent la dette héritée de
-`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `adpro`, `finances` après (`rh` migré au lot V4) ; Adam en dernier.
+`consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `promo` (le stock et le dossier de matériel promotionnel, reste du pôle Ad & Pro), `finances` après (`rh` et `ad-pro` migrés au lot V4) ; Adam en dernier.
 
 ---
 
@@ -107,20 +108,24 @@ le test voit ce qu'ESLint ne voit pas (imports relatifs qui sortent du module, g
 
 `src/platform/couverture.test.ts` — six plafonds mesurés, qui ne peuvent que baisser :
 
-| Mesure | Avant V3-G | Après |
-|---|---|---|
-| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | **766** (768 après fusion des lots V3-C/D/E ; **756** après le module `rh`, V4 ; **754** après la décision 0011 de l'Assistant IA) |
-| Pages / layouts qui importent `@/lib/prisma` | 129 | **126** |
-| Routes qui importent `@/lib/prisma` | 53 | 53 |
-| Imports `src/components/` → `src/app/` (inversion) | 12 | 12 |
-| Imports du kit d'interface (`components/ui`, `shared`) vers un métier | 6 | 6 |
-| Tests qui lisent le source par un chemin `src/…` | 128 | 128 (**125** après le module `rh`, V4) |
+| Mesure | Avant V3-G | Après V3-G | Après V4 (`rh` puis `ad-pro`) |
+|---|---|---|---|
+| Fichiers de `src/lib/` dans aucune couche (jamais mesurés ailleurs) | 828 | 768 (fusion V3-C/D/E) | **722** (756 après `rh`, 754 après la décision 0011 de l'Assistant IA) |
+| Pages / layouts qui importent `@/lib/prisma` | 129 | **126** | 126 |
+| Routes qui importent `@/lib/prisma` | 53 | 53 | 53 |
+| Imports `src/components/` (et `ecrans/` des modules) → `src/app/` (inversion) | 12 | 12 | 12 |
+| Imports du kit d'interface (`components/ui`, `shared`) vers un métier | 6 | 6 | **2** |
+| Tests (hors modules) qui lisent le source par un chemin `src/…` | 128 | 128 | **109** (125 après `rh`) |
+
+Au lot V4, les écrans d'un module sont mesurés comme des composants (`couverture.ts`) : un écran déménagé ne
+sort pas de la mesure. Les bancs qui parcourent les écrans (`saisie-montant`, `responsive-guard`, `cle-manquante`…)
+parcourent aussi `src/modules/`.
 
 Un chiffre qui baisse grâce à vous : **abaissez le plafond au chiffre mesuré** dans le même commit.
 
 `src/platform/taille-fichiers.test.ts` (lot V4) : **1 000 lignes au plus** par fichier de production ; au-delà, on
-découpe par responsabilité dans un dossier au nom du fichier, l'origine restant une porte qui réexporte. Les 3 fichiers
-hérités (Ad & Pro, paiements) sont figés à leur taille ; la liste ne fait que rétrécir.
+découpe par responsabilité dans un dossier au nom du fichier, l'origine restant une porte qui réexporte. Le seul fichier
+hérité (`payment-request-actions.ts`, paiements) est figé à sa taille ; la liste ne fait que rétrécir.
 
 ---
 
@@ -267,3 +272,7 @@ et `npm run graphify:refresh` en fin de lot.
 | Un composant client importe `api.ts` → `fs`/`node:crypto` dans le navigateur | Il importe `partage.ts` ; `client-bundle-guard.test.ts` le rappelle |
 | Un test lit l'ancien chemin d'un fichier | `lireSource()` (suit les adresses) ou, mieux, un test de comportement |
 | Le contrat d'une action perd ses faits d'écriture | L'action importe `@/modules/<m>/api`, et `api.ts` réexporte directement depuis `./infra/x` |
+| Un fichier d'actions de 4 000 lignes à découper | Une clé, plusieurs morceaux (`ACTIONS_DES_MODULES` accepte une liste) ; une action qui passe son formulaire à une autre reste dans le même morceau (le contrat suit la délégation locale) ; les aides privées communes vont dans `infra/…/commun.ts`, importées en RELATIF (invisibles au scanner, comme l'appel local d'avant) ; `actions:contrat` doit rester identique |
+| Un découpage ajoute un spécificateur dans un fichier d'Adam (frontière à 422) | Regrouper dans un même morceau les actions qu'un fichier d'Adam importe ensemble |
+| Un test lisait le fichier découpé | `sourceDeLaCle("<clé>")` (`parc.ts`) ou `lireSources(fichier, "dossier/")` (`platform/source.ts`) |
+| Un composant du kit (`components/shared`) appelle une action du module | Le socle n'importe aucun module : le composant n'est pas du kit — il sort (les pièces liées vers `components/pieces/`) |

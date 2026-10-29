@@ -6,7 +6,7 @@
 import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { entitePermisePourFiche } from "@/lib/company";
-import { isOwnBusiness } from "@/lib/ad-pro/attachments";
+import { isOwnBusiness } from "@/modules/ad-pro/partage";
 import {
   userCan, hasGlobalView, type Module, type SessionUser,
   scopeCongressIntl, scopeCongressNational, scopePromoMaterial, scopeSponsoring, scopeAdProOther,

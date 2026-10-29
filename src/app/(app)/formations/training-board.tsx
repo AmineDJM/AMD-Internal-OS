@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import {
   Plus, Loader2, ThumbsUp, ThumbsDown, Check, X, Users, FileText, Download, ChevronDown, ChevronRight, GraduationCap,
 } from "lucide-react";
@@ -19,6 +18,9 @@ import {
   requestTraining, createHrTraining, decideTraining, inviteTrainingParticipants, respondToTrainingInvitation, annulerFormation,
 } from "@/lib/actions/training-actions";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useSaisir } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { SurlignerCible } from "@/components/shared/surligner-cible";
 import { ancreFormation } from "@/lib/chemins/formations";
 
@@ -76,7 +78,8 @@ export function TrainingBoard({
   /** La formation dont parle la notification (`?formation=`) : sa ligne s'ouvre, vient sous les yeux et s'entoure. */
   formationAOuvrir?: string | null;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const saisir = useSaisir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [open, setOpen] = React.useState<string | null>(
@@ -88,10 +91,17 @@ export function TrainingBoard({
 
   const run = async (key: string, fn: () => Promise<{ ok: boolean; error?: string }>, okText: string) => {
     setBusy(key); setMsg(null);
-    const r = await fn();
-    setBusy(null);
-    setMsg({ ok: r.ok, text: r.ok ? okText : (r.error ?? "Échec.") });
-    if (r.ok) { setForm("none"); router.refresh(); }
+    let r: { ok: boolean; error?: string };
+    try {
+      r = await fn();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
+      return;
+    } finally {
+      setBusy(null);
+    }
+    setMsg({ ok: r.ok, text: r.ok ? okText : (r.error ?? "Le geste n'a pas abouti.") });
+    if (r.ok) { setForm("none"); rafraichir(); }
   };
 
   return (
@@ -322,8 +332,12 @@ export function TrainingBoard({
 
                     {/* ANNULER SA DEMANDE (décision du 04/10) — tant qu'elle n'a pas eu lieu. */}
                     {t.canCancel && (
-                      <button type="button" disabled={busy === `ann:${t.id}`} onClick={() => {
-                        const motif = window.prompt("Annuler cette formation ? Les personnes qui l'ont en main en seront prévenues. Motif (facultatif) :", "");
+                      <button type="button" disabled={busy === `ann:${t.id}`} onClick={async () => {
+                        const motif = await saisir({
+                          titre: "Annuler cette formation ?",
+                          message: "Les personnes qui l'ont en main en seront prévenues.",
+                          saisie: { libelle: "Motif (facultatif)", valeur: "" },
+                        });
                         if (motif === null) return;
                         const fd = new FormData();
                         fd.set("id", t.id); if (motif.trim()) fd.set("motif", motif.trim());

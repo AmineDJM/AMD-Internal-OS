@@ -1,14 +1,16 @@
 "use client";
 
-/**
- * L'ANNUAIRE — la gestion des colonnes sur mesure (créer, supprimer).
- */
 import * as React from "react";
 import { Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
-import type { CustomColumnVue } from "@/lib/medical/directory-grid";
+import { type CustomColumnVue } from "@/lib/medical/directory-grid";
 import { createDirectoryColumn, deleteDirectoryColumn } from "@/lib/actions/medical-directory-crud-actions";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
+import { journal } from "@/lib/journal";
+
+/** LA GESTION DES COLONNES PROPRES À L'ANNUAIRE — sortie de `annuaire-grid.tsx` (cliquet de taille). */
 
 /**
  * LES COLONNES PROPRES À L'ANNUAIRE — enfin gérables depuis la feuille.
@@ -20,6 +22,7 @@ import { createDirectoryColumn, deleteDirectoryColumn } from "@/lib/actions/medi
  * confirmation le dit.
  */
 export function GestionColonnes({ directoryId, colonnes, onDone }: { directoryId: string; colonnes: CustomColumnVue[]; onDone: () => void }) {
+  const confirmer = useConfirmer();
   const [label, setLabel] = React.useState("");
   const [kind, setKind] = React.useState<CustomColumnVue["kind"]>("TEXT");
   const [options, setOptions] = React.useState("");
@@ -37,17 +40,23 @@ export function GestionColonnes({ directoryId, colonnes, onDone }: { directoryId
       setBusy(false);
       if (r.ok) { setLabel(""); setOptions(""); setKind("TEXT"); onDone(); }
       else setErr(r.error ?? "Ajout impossible.");
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.createDirectoryColumn", {}, e);
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
     });
   };
 
-  const retirer = (c: CustomColumnVue) => {
-    if (!window.confirm(`Retirer la colonne « ${c.label} » de cet annuaire ? Les valeurs déjà saisies ne seront plus affichées.`)) return;
+  const retirer = async (c: CustomColumnVue) => {
+    if (!(await confirmer(`Retirer la colonne « ${c.label} » de cet annuaire ? Les valeurs déjà saisies ne seront plus affichées.`))) return;
     const fd = new FormData();
     fd.set("id", c.id);
     setBusy(true); setErr(null);
     void deleteDirectoryColumn(fd).then((r) => {
       setBusy(false);
       if (r.ok) onDone(); else setErr(r.error ?? "Suppression impossible.");
+    }).catch((e: unknown) => { journal.erreur("annuaire-grid.deleteDirectoryColumn", {}, e);
+      setBusy(false);
+      setErr(actionFailureMessage("THROWN"));
     });
   };
 

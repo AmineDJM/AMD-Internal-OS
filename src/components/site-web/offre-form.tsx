@@ -11,6 +11,8 @@ import { RedigerAvecIA } from "@/components/site-web/rediger-ia";
 import type { ActionResult } from "@/lib/actions/types";
 import { LIMITES_OFFRE, lignes, refusOffre, TYPES_CONTRAT_SITE, type OffreSaisie } from "@/lib/site-web/contrat";
 import { Button } from "@/components/ui/button";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
 import { Input, Label, Select, Textarea } from "@/components/ui/input";
 import { EtatPublicationBadge, type EtatVisible } from "@/components/site-web/etat-badge";
 import { cn } from "@/lib/utils";
@@ -62,6 +64,8 @@ export function OffreForm({
   prerempliDepuisDemande?: boolean;
 }) {
   const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [v, setV] = React.useState<OffreEditee>(offre);
   const [enCours, setEnCours] = React.useState<Intention | "supprimer" | null>(null);
   const [retour, setRetour] = React.useState<{ ok: boolean; texte: string } | null>(null);
@@ -110,9 +114,9 @@ export function OffreForm({
   if (v.contractLabel && !typesProposes.includes(v.contractLabel)) typesProposes.push(v.contractLabel);
 
   const agir = async (intention: Intention) => {
-    if (intention === "retirer" && !window.confirm(
+    if (intention === "retirer" && !(await confirmer(
       "Retirer l'offre du site ?\n\nLe site la garde en brouillon, invisible des candidats : elle reste republiable.",
-    )) return;
+    ))) return;
     setEnCours(intention); setRetour(null);
     const fd = new FormData();
     if (v.id) fd.set("id", v.id);
@@ -133,14 +137,14 @@ export function OffreForm({
     }
     setRetour({ ok: true, texte: r.message ?? "Enregistrée." });
     if (!v.id && r.id) router.replace(`/site-web/offres/${r.id}`);
-    else router.refresh();
+    else rafraichir();
   };
 
   const supprimer = async () => {
     if (!v.id) return;
-    if (!window.confirm(
+    if (!(await confirmer(
       "Supprimer définitivement cette offre ?\n\nSi elle est sur le site, sa page en est retirée. Pour la masquer sans la perdre, préférez « Retirer du site ».",
-    )) return;
+    ))) return;
     setEnCours("supprimer"); setRetour(null);
     const fd = new FormData();
     fd.set("id", v.id);
@@ -149,7 +153,7 @@ export function OffreForm({
     setEnCours(null);
     if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "Suppression impossible." }); return; }
     router.push("/site-web/offres");
-    router.refresh();
+    rafraichir();
   };
 
   const occupe = enCours !== null;

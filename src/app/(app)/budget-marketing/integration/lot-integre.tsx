@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { CheckCircle2, Loader2, Undo2, Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,7 +25,7 @@ export type FiltreLot = "TOUT" | "MANQUANTES" | "COMPLETES";
  * sortir, à tout moment) ; l'annulation d'un bloc, REPLIÉE par défaut (motif + mot « ANNULER »).
  */
 export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: VueLot; enveloppe: string; filtreInitial?: FiltreLot }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [occupe, setOccupe] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<{ ok: boolean; text: string } | null>(null);
   const [motif, setMotif] = React.useState("");
@@ -34,10 +35,9 @@ export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: Vu
   const [fiche, setFiche] = React.useState<FicheOuverte | null>(null);
 
   // GARDER / SORTIR À TOUT MOMENT, SANS QUITTER LA PAGE (Direction, 14/10/2026) : le choix s'affiche AUSSITÔT (optimiste),
-  // s'enregistre, puis la page se relit en arrière-plan (`startTransition`) — même écran, même filtre, même panneau ouvert.
+  // s'enregistre, puis la page se relit en arrière-plan (`useRafraichir`, en transition) — même écran, même filtre, même panneau ouvert.
   // Un refus rend l'ancien choix et le dit.
   const [locales, setLocales] = React.useState<Record<string, "GARDER" | "SORTIR">>({});
-  const [, demarrer] = React.useTransition();
   const decisionDe = (a: VueLot["absentes"][number]) => locales[a.cle] ?? a.decision;
   // La page relue fait foi : ses choix remplacent les choix optimistes (déjà enregistrés).
   React.useEffect(() => { setLocales({}); }, [lot]);
@@ -51,8 +51,8 @@ export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: Vu
       fd.set("lotId", lot.id); fd.set("cleSource", a.cle); fd.set("decision", decision);
       fd.set("libelle", `${a.reference} — ${a.libelle}`); fd.set("montant", String(a.montant));
       const r = await deciderAbsenteIntegration(fd);
-      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Enregistré." : r.error ?? "Échec." });
-      if (r.ok) demarrer(() => router.refresh());
+      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Enregistré." : r.error ?? "Le choix n'a pas été enregistré." });
+      if (r.ok) rafraichir();
       else setLocales((x) => { const n = { ...x }; if (avant) n[a.cle] = avant; else delete n[a.cle]; return n; });
     } catch {
       setLocales((x) => { const n = { ...x }; if (avant) n[a.cle] = avant; else delete n[a.cle]; return n; });
@@ -66,8 +66,10 @@ export function LotIntegre({ lot, enveloppe, filtreInitial = "TOUT" }: { lot: Vu
       const fd = new FormData();
       fd.set("lotId", lot.id); fd.set("motif", motif); fd.set("confirmation", mot);
       const r = await annulerIntegrationAdPro(fd);
-      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Annulée." : r.error ?? "Échec." });
-      if (r.ok) router.refresh();
+      setMsg({ ok: r.ok, text: r.ok ? r.message ?? "Annulée." : r.error ?? "L'intégration n'a pas été annulée." });
+      if (r.ok) rafraichir();
+    } catch {
+      setMsg({ ok: false, text: actionFailureMessage("THROWN") });
     } finally { setOccupe(null); }
   }
 

@@ -40,7 +40,8 @@ export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [
   /** Le Super Admin supprime une ou plusieurs écritures « à imputer » (§118.176) — le serveur revérifie. */
   canDelete: boolean;
 }) {
-  const { run } = useRun();
+  // Les icônes d'une ligne n'ont pas de place pour parler : un refus part en avis flottant.
+  const { run } = useRun({ signalerErreurs: true });
   const [editExpense, setEditExpense] = React.useState<AttributedTx | null>(null);
   const [selection, setSelection] = React.useState<Set<string>>(new Set());
   // LES PIÈCES D'UNE DÉPENSE, dépliées à la demande (Direction, 06/10 : « j'ai besoin des documents pour comprendre »).
@@ -255,9 +256,8 @@ export function BudgetExpenses({ overview, canAttribute, canDelete, societes = [
                     <button
                       title="Supprimer cette ligne budgétaire"
                       onClick={() => {
-                        if (window.confirm(`Supprimer la dépense « ${tx.label} » ? La consommation de la catégorie sera réajustée.`)) {
-                          const fd = new FormData(); fd.set("id", tx.id); run(() => deleteBudgetExpense(fd));
-                        }
+                        const fd = new FormData(); fd.set("id", tx.id);
+                        void run(() => deleteBudgetExpense(fd), undefined, { confirmer: `Supprimer la dépense « ${tx.label} » ? La consommation de la catégorie sera réajustée.` });
                       }}
                       className="rounded p-2 text-muted-foreground hover:bg-destructive/10 hover:text-destructive sm:p-1.5"
                     >

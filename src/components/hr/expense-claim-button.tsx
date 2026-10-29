@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, Loader2, ReceiptText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { requestHrDocument } from "@/modules/rh/actions-documents";
 import { ExpenseClaimFields } from "./expense-claim-form";
 import { EXPENSE_EDIT_MINUTES } from "@/modules/rh/partage";
@@ -37,7 +38,7 @@ import { EXPENSE_EDIT_MINUTES } from "@/modules/rh/partage";
  */
 /** `compact` : le bouton discret du bloc « Moi » d'Aujourd'hui (« Ajouter ») — même feuille, même action. */
 export function ExpenseClaimButton({ compact = false }: { compact?: boolean } = {}) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [open, setOpen] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
@@ -46,9 +47,16 @@ export function ExpenseClaimButton({ compact = false }: { compact?: boolean } = 
     setBusy(true); setErr(null);
     // La nature est POSÉE ICI, pas choisie : le bouton dit ce qu'il fait.
     fd.set("type", "EXPENSE_REPORT");
-    const r = await requestHrDocument(fd);
-    setBusy(false);
-    if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "L'envoi a échoué.");
+    let r: Awaited<ReturnType<typeof requestHrDocument>>;
+    try {
+      r = await requestHrDocument(fd);
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setBusy(false);
+    }
+    if (r.ok) { setOpen(false); rafraichir(); } else setErr(r.error ?? "L'envoi a échoué.");
   };
 
   return (

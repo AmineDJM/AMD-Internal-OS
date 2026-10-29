@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Paperclip } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
@@ -54,7 +55,7 @@ const SPLIT = "min-[900px]:border-l-2 min-[900px]:border-border";
 const TH = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-muted-foreground";
 
 export function DepensesMarketing({ donnees, annee, enveloppe }: { donnees: DonneesDepensesPostes; annee: string; enveloppe: string }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const { lignes, options, tuiles: t, peutGerer } = donnees;
   const [filtre, setFiltre] = React.useState<CleFiltreDepense>("TOUT");
   const [edition, setEdition] = React.useState<string | null>(null);
@@ -82,8 +83,10 @@ export function DepensesMarketing({ donnees, annee, enveloppe }: { donnees: Donn
       if (r.ok) {
         apres?.();
         setMessage(r.message ?? "Enregistré.");
-        router.refresh();
+        rafraichir();
       } else setMessage(r.error ?? "L'action n'a pas abouti.");
+    } catch {
+      setMessage(actionFailureMessage("THROWN"));
     } finally {
       setOccupe(false);
     }

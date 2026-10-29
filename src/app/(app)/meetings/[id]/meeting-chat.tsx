@@ -1,11 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Send, AlertCircle, Trash2, Paperclip, FileText, Download, X } from "lucide-react";
 import { postMeetingMessage, deleteMeetingMessage } from "@/lib/actions/meeting-actions";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/input";
+import { useAction } from "@/components/shared/use-action";
 import { formatBytes } from "../../messages/format";
 
 export interface ChatAttachment { id: string; name: string; mime: string; size: number }
@@ -46,15 +46,12 @@ function MessageAttachments({ attachments, onDark }: { attachments: ChatAttachme
 
 /** Bulle d'un message du fil de réunion (suppression pour l'auteur ou l'organisateur/vue globale). */
 function MeetingMessageItem({ m }: { m: ChatMessage }) {
-  const router = useRouter();
-  const [busy, setBusy] = React.useState(false);
+  // L'icône de la bulle n'a pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
 
   async function remove() {
-    if (!window.confirm("Supprimer ce message ?")) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", m.id);
-    await deleteMeetingMessage(fd);
-    setBusy(false); router.refresh();
+    await run(() => deleteMeetingMessage(fd), undefined, { confirmer: "Supprimer ce message ?" });
   }
 
   return (
@@ -79,27 +76,22 @@ function MeetingMessageItem({ m }: { m: ChatMessage }) {
  * Les messages sont fournis par le serveur ; l'envoi/suppression rafraîchit la page.
  */
 export function MeetingChat({ meetingId, messages }: { meetingId: string; messages: ChatMessage[] }) {
-  const router = useRouter();
   const [body, setBody] = React.useState("");
   const [files, setFiles] = React.useState<File[]>([]);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { saving, err, run } = useAction();
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!body.trim() && files.length === 0) return;
-    setSaving(true); setErr(null);
     const fd = new FormData();
     fd.set("id", meetingId);
     fd.set("body", body);
     files.forEach((f) => fd.append("files", f));
-    (async () => {
+    void run(async () => {
       const r = await postMeetingMessage(fd);
-      setSaving(false);
-      if (r.ok) { setBody(""); setFiles([]); router.refresh(); }
-      else setErr(r.error ?? "Envoi impossible.");
-    })();
+      return r.ok ? r : { ...r, error: r.error ?? "Envoi impossible." };
+    }, () => { setBody(""); setFiles([]); });
   };
 
   return (

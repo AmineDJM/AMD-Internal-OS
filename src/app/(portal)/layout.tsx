@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { PrimitivesUI } from "@/components/ui/primitives-ui";
 
 export const metadata: Metadata = {
   title: "Portail Fournisseur — Adventum Pharma",
@@ -13,7 +14,9 @@ export const metadata: Metadata = {
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-muted/30">
-      <div className="mx-auto max-w-5xl px-4 py-6">{children}</div>
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <PrimitivesUI>{children}</PrimitivesUI>
+      </div>
     </div>
   );
 }

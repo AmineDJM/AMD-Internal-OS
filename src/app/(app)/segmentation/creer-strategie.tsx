@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Select, Label } from "@/components/ui/input";
 import { creerStrategie } from "@/lib/actions/segmentation-actions";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * ACTIVER LA SEGMENTATION D'UNE BU (Direction, 06/10 : « une porte de vérité ») — ni BU ni stratégie à inventer ici :
@@ -22,9 +23,14 @@ export function CreerStrategie({ bu, produits }: { bu: { id: string; nom: string
   async function activer(e: React.FormEvent) {
     e.preventDefault();
     setEnvoi(true); setErreur(null);
-    const r = await creerStrategie({ businessUnitId: bu.id, nom: bu.nom, productIds: ids });
-    setEnvoi(false);
-    if (!r.ok) setErreur(r.error); else router.push(`/segmentation/import?bu=${bu.id}`);
+    try {
+      const r = await creerStrategie({ businessUnitId: bu.id, nom: bu.nom, productIds: ids });
+      if (!r.ok) setErreur(r.error); else router.push(`/segmentation/import?bu=${bu.id}`);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   if (produits.length === 0) {

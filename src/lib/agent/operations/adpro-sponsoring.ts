@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { scopeSponsoring, userCan } from "@/lib/rbac";
-import { createSponsoring } from "@/lib/actions/sponsoring-actions";
+import { createSponsoring } from "@/modules/ad-pro/actions-sponsoring";
 import { getAppSettings } from "@/lib/settings";
 import { porteDgRequise } from "@/lib/seuils/ad-pro";
 import { PRIORITY, SPONSORING_NATURE, SPONSORING_TYPES } from "@/lib/labels";

@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Users, UserPlus, X, Loader2, Search } from "lucide-react";
 import { addMeetingParticipants, removeMeetingParticipant } from "@/lib/actions/meeting-actions";
 import { Button } from "@/components/ui/button";
 import { Sheet } from "@/components/ui/sheet";
 import { Input } from "@/components/ui/input";
+import { useAction } from "@/components/shared/use-action";
 
 interface UserLite { id: string; name: string }
 
@@ -21,9 +21,8 @@ export function ManageParticipants({
   participants: UserLite[];
   allUsers: UserLite[];
 }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [busy, setBusy] = React.useState(false);
+  const { busy, run } = useAction({ signalerErreurs: true });
   const [pick, setPick] = React.useState<Set<string>>(new Set());
   const [search, setSearch] = React.useState("");
 
@@ -33,20 +32,16 @@ export function ManageParticipants({
 
   async function addSelected() {
     if (pick.size === 0) return;
-    setBusy(true);
     const fd = new FormData();
     fd.set("id", meetingId);
     pick.forEach((id) => fd.append("participantIds", id));
-    await addMeetingParticipants(fd);
-    setBusy(false); setPick(new Set()); setSearch(""); router.refresh();
+    await run(() => addMeetingParticipants(fd), () => { setPick(new Set()); setSearch(""); });
   }
 
   async function remove(userId: string) {
-    setBusy(true);
     const fd = new FormData();
     fd.set("id", meetingId); fd.set("userId", userId);
-    await removeMeetingParticipant(fd);
-    setBusy(false); router.refresh();
+    await run(() => removeMeetingParticipant(fd));
   }
 
   return (

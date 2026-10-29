@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Hash, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import type { ValeursComposables } from "@/lib/legal/piece-emise";
 import { formulaireDuComposeur } from "@/lib/bons-de-commande/composeur-test-outils";
 import { phraseNumeroSeul } from "@/lib/bons-de-commande/numero-seul";
@@ -34,7 +35,7 @@ export function ModifierNumeroBc({ legalDocumentId, numero, version, valeurs, si
   /** Les champs propres au chemin (l'id du poste…). */
   extra?: Record<string, string>;
 }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [ouvert, setOuvert] = React.useState(false);
   const [etat, setEtat] = React.useState<EtatNumeroPiece | null>(null);
   const [motif, setMotif] = React.useState("");
@@ -57,9 +58,13 @@ export function ModifierNumeroBc({ legalDocumentId, numero, version, valeurs, si
     });
     setRetour(null);
     start(async () => {
-      const r = await envoyer(fd);
-      setRetour(r);
-      if (r.ok) router.refresh();
+      try {
+        const r = await envoyer(fd);
+        setRetour(r);
+        if (r.ok) rafraichir();
+      } catch {
+        setRetour({ ok: false, error: actionFailureMessage("THROWN") });
+      }
     });
   };
   return (

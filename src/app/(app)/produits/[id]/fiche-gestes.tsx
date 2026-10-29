@@ -5,6 +5,8 @@ import { Loader2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import {
   ajouterAliasProduitCanonique, renommerProduitCanonique, retirerAliasProduitCanonique,
 } from "@/lib/actions/produit-canonique-actions";
@@ -33,10 +35,15 @@ export function RenommerProduit({ id, nom }: { id: string; nom: string }) {
     setEnvoi(true); setRetour(null);
     const fd = new FormData();
     fd.set("id", id); fd.set("canonicalName", valeur);
-    const r = await renommerProduitCanonique(fd);
-    setEnvoi(false);
-    setRetour({ ok: r.ok, texte: r.ok ? "Nom enregistré." : r.error ?? "Enregistrement impossible." });
-    if (r.ok) rafraichir();
+    try {
+      const r = await renommerProduitCanonique(fd);
+      setRetour({ ok: r.ok, texte: r.ok ? "Nom enregistré." : r.error ?? "Enregistrement impossible." });
+      if (r.ok) rafraichir();
+    } catch {
+      setRetour({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   const occupe = envoi || enCours;
@@ -60,29 +67,40 @@ export function AliasProduit({ id, aliases }: { id: string; aliases: { id: strin
   const [nouveau, setNouveau] = React.useState("");
   const [envoi, setEnvoi] = React.useState(false);
   const [retour, setRetour] = React.useState<Retour>(null);
+  const confirmer = useConfirmer();
 
   async function ajouter(e: React.FormEvent) {
     e.preventDefault();
     setEnvoi(true); setRetour(null);
     const fd = new FormData();
     fd.set("id", id); fd.set("label", nouveau);
-    const r = await ajouterAliasProduitCanonique(fd);
-    setEnvoi(false);
-    if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "Ajout impossible." }); return; }
-    setNouveau("");
-    setRetour({ ok: true, texte: "Alias ajouté." });
-    rafraichir();
+    try {
+      const r = await ajouterAliasProduitCanonique(fd);
+      if (!r.ok) { setRetour({ ok: false, texte: r.error ?? "Ajout impossible." }); return; }
+      setNouveau("");
+      setRetour({ ok: true, texte: "Alias ajouté." });
+      rafraichir();
+    } catch {
+      setRetour({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   async function retirer(aliasId: string, label: string) {
-    if (!window.confirm(`Retirer l'alias « ${label} » ?`)) return;
+    if (!(await confirmer(`Retirer l'alias « ${label} » ?`))) return;
     setEnvoi(true); setRetour(null);
     const fd = new FormData();
     fd.set("aliasId", aliasId);
-    const r = await retirerAliasProduitCanonique(fd);
-    setEnvoi(false);
-    setRetour({ ok: r.ok, texte: r.ok ? "Alias retiré." : r.error ?? "Retrait impossible." });
-    if (r.ok) rafraichir();
+    try {
+      const r = await retirerAliasProduitCanonique(fd);
+      setRetour({ ok: r.ok, texte: r.ok ? "Alias retiré." : r.error ?? "Retrait impossible." });
+      if (r.ok) rafraichir();
+    } catch {
+      setRetour({ ok: false, texte: actionFailureMessage("THROWN") });
+    } finally {
+      setEnvoi(false);
+    }
   }
 
   const occupe = envoi || enCours;

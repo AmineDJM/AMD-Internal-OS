@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, Send, AlertCircle, Play, Pause, CheckCircle2, Archive, Users, Trash2, Pencil, Check, X, Paperclip, AtSign, FileText, Download } from "lucide-react";
 import { updateDossierStatus, archiveDossier, postDossierMessage, assignDossier, deleteDossierMessage, editDossierMessage } from "@/lib/actions/dossier-actions";
 import { Button } from "@/components/ui/button";
@@ -45,24 +45,19 @@ function MessageAttachments({ attachments, onDark }: { attachments: MsgAttachmen
 export function DossierMessageItem({
   id, body, author, createdAt, mine, canManage, attachments = [], mentionNames = [],
 }: { id: string; body: string; author: string; createdAt: string; mine: boolean; canManage: boolean; attachments?: MsgAttachment[]; mentionNames?: string[] }) {
-  const router = useRouter();
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState(body);
-  const [busy, setBusy] = React.useState(false);
+  // Les icônes d'un message n'ont pas de place pour parler : un refus part en avis flottant.
+  const { busy, run } = useAction({ signalerErreurs: true });
 
   async function save() {
     if (!draft.trim()) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", id); fd.set("body", draft);
-    await editDossierMessage(fd);
-    setBusy(false); setEditing(false); router.refresh();
+    await run(() => editDossierMessage(fd), () => setEditing(false));
   }
   async function remove() {
-    if (!window.confirm("Supprimer ce message ?")) return;
-    setBusy(true);
     const fd = new FormData(); fd.set("id", id);
-    await deleteDossierMessage(fd);
-    setBusy(false); router.refresh();
+    await run(() => deleteDossierMessage(fd), undefined, { confirmer: "Supprimer ce message ?" });
   }
 
   return (

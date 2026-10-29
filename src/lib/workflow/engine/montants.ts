@@ -5,7 +5,7 @@
 import type { EntityType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { toNumber } from "@/lib/utils";
-import { AD_PRO_PARENTS, PARENT_COLONNE, type AdProParent } from "@/lib/ad-pro-items";
+import { AD_PRO_PARENTS, PARENT_COLONNE, type AdProParent } from "@/modules/ad-pro/partage";
 
 /**
  * LES POSTES QUI PORTENT LA DÉPENSE D'UNE OPÉRATION — la seule lecture, partagée (§118.151).

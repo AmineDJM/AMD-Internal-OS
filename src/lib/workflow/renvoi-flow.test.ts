@@ -14,13 +14,13 @@ import { advanceWorkflowInstance, ensureInstance as ensureInstanceDuMoteur, step
 import { defaultDefinition } from "./defaults";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
 import { getActionCenter } from "@/lib/queries/action-center";
-import { adProState } from "@/lib/ad-pro/unified";
+import { adProState } from "@/modules/ad-pro/partage";
 import { resoumettreDemande, retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
-import { updateAdProRequest } from "@/lib/actions/ad-pro-edit-actions";
-import { cancelCongressRequest } from "@/lib/actions/congress-request-actions";
-import { submitEventForApproval } from "@/lib/actions/event-actions";
-import { sponsoringAppeal } from "@/lib/actions/sponsoring-actions";
-import { transferAdProRequest } from "@/lib/actions/ad-pro-transfer-actions";
+import { updateAdProRequest } from "@/modules/ad-pro/actions-edition";
+import { cancelCongressRequest } from "@/modules/ad-pro/actions-congres";
+import { submitEventForApproval } from "@/modules/ad-pro/actions-evenements";
+import { sponsoringAppeal } from "@/modules/ad-pro/actions-sponsoring";
+import { transferAdProRequest } from "@/modules/ad-pro/actions-transfert";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

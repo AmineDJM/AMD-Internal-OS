@@ -10,11 +10,10 @@ import { readFileSync } from "node:fs";
 import { prisma } from "@/lib/prisma";
 import { getAccess, hasGlobalView, type SessionUser } from "@/lib/rbac";
 import { canAccessEntity } from "@/lib/entity-access";
-import { peutSupprimerUneDemandeAdPro } from "@/lib/queries/ad-pro-suppression";
-import { getAdProRequests } from "@/lib/queries/ad-pro";
+import { peutSupprimerUneDemandeAdPro, getAdProRequests } from "@/modules/ad-pro/api";
 import { ensureInstance } from "@/lib/workflow/engine";
 import { retirerDemandeAdPro } from "@/lib/actions/workflow-actions";
-import { cancelCongressRequest } from "@/lib/actions/congress-request-actions";
+import { cancelCongressRequest } from "@/modules/ad-pro/actions-congres";
 import { supprimerDemandeAdPro, restoreDeletedRecord } from "@/lib/actions/admin-delete-actions";
 
 /**

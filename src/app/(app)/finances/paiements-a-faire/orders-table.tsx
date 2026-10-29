@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useFormAction } from "@/components/shared/use-action";
 import { Loader2, Banknote, CalendarClock, RotateCcw, AlertCircle, FileText, Lock, FolderOpen } from "lucide-react";
 import { settleExpenseOrder, deferExpenseOrder, resumeExpenseOrder } from "@/lib/actions/expense-actions";
 import { EmptyState } from "@/components/shared/empty-state";
@@ -98,9 +98,13 @@ function InvoiceState({ hasInvoice }: { hasInvoice: boolean }) {
 }
 
 function SubmitForm({ action, id, extra, children, className }: { action: (fd: FormData) => Promise<ActionResult>; id: string; extra?: Record<string, string>; children: React.ReactNode; className?: string }) {
-  const [saving, setSaving] = React.useState(false);
+  // Un petit bouton de ligne n'a pas de place pour parler : un refus part en avis flottant.
+  const { action: envoyer, busy: saving } = useFormAction(action, {
+    prepare: (fd) => { fd.set("id", id); if (extra) for (const k in extra) fd.set(k, extra[k]); },
+    signalerErreurs: true,
+  });
   return (
-    <form action={async (fd) => { setSaving(true); fd.set("id", id); if (extra) for (const k in extra) fd.set(k, extra[k]); await action(fd); setSaving(false); }} className={className ?? "inline"}>
+    <form action={envoyer} className={className ?? "inline"}>
       {saving ? <span className="inline-flex items-center"><Loader2 className="h-3.5 w-3.5 animate-spin" /></span> : children}
     </form>
   );
@@ -126,10 +130,11 @@ function MiniBtn({ tone = "default", decisif = false, children }: { tone?: "succ
  * fixe et non négociable, et la raison est dite à l'écran plutôt que découverte dans une erreur.
  */
 function DeferControl({ row }: { row: OrderRow }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
+  const { action: reporter, busy: saving, err, setErr } = useFormAction(deferExpenseOrder, {
+    prepare: (fd) => fd.set("id", row.id),
+    onOk: () => setOpen(false),
+  });
   const avertissement = deferralWarning(row.deadlineNature);
   const motifRequis = deadlineNatureOf(row.deadlineNature) === "FIXED";
   return (
@@ -147,12 +152,7 @@ function DeferControl({ row }: { row: OrderRow }) {
         width="md"
       >
         <form
-          action={async (fd) => {
-            setSaving(true); setErr(null); fd.set("id", row.id);
-            const r = await deferExpenseOrder(fd);
-            setSaving(false);
-            if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Erreur.");
-          }}
+          action={reporter}
           className="space-y-3"
         >
           <p className="text-xs text-muted-foreground">
@@ -196,10 +196,7 @@ function DeferControl({ row }: { row: OrderRow }) {
  * apprend à cliquer sans lire.
  */
 function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: BudgetChoice[]; comptes: CompteChoice[] }) {
-  const router = useRouter();
   const [open, setOpen] = React.useState(false);
-  const [saving, setSaving] = React.useState(false);
-  const [err, setErr] = React.useState<string | null>(null);
   const [categoryId, setCategoryId] = React.useState("");
   // « PAYÉ DEPUIS… » — demandé seulement quand il y a un CHOIX : avec un seul compte, la question
   // a sa réponse, et la poser apprendrait à cliquer sans lire (§118.176).
@@ -208,6 +205,15 @@ function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: Budg
   // LA QUITTANCE DU BV, exigée quand elle n'est pas déjà jointe : on paie ET on dépose, d'un seul geste.
   const quittanceRequise = Boolean(row.bv && !row.bv.quittanceJointe);
   const [quittance, setQuittance] = React.useState<File | null>(null);
+  const { action: regler, busy: saving, err, setErr } = useFormAction(settleExpenseOrder, {
+    prepare: (fd) => {
+      fd.set("id", row.id);
+      if (row.needsBudget) fd.set("budgetCategoryId", categoryId);
+      if (choisirCompte && compteId) fd.set("treasuryAccountId", compteId);
+      if (quittance) fd.set("quittance", quittance);
+    },
+    onOk: () => setOpen(false),
+  });
 
   if (!row.needsBudget && !choisirCompte && !quittanceRequise) {
     return <SubmitForm action={settleExpenseOrder} id={row.id}><MiniBtn tone="success" decisif><Banknote className="h-3.5 w-3.5" /> Payé</MiniBtn></SubmitForm>;
@@ -231,16 +237,7 @@ function SettleControl({ row, budgets, comptes }: { row: OrderRow; budgets: Budg
         width="md"
       >
         <form
-          action={async (fd) => {
-            setSaving(true); setErr(null);
-            fd.set("id", row.id);
-            if (row.needsBudget) fd.set("budgetCategoryId", categoryId);
-            if (choisirCompte && compteId) fd.set("treasuryAccountId", compteId);
-            if (quittance) fd.set("quittance", quittance);
-            const r = await settleExpenseOrder(fd);
-            setSaving(false);
-            if (r.ok) { setOpen(false); router.refresh(); } else setErr(r.error ?? "Erreur.");
-          }}
+          action={regler}
           className="space-y-3"
         >
           <p className="text-xs text-muted-foreground">

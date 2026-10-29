@@ -1,12 +1,13 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Loader2, Undo2, Flame, Paperclip } from "lucide-react";
 import { restoreDeletedRecord, destroyDeletedRecord } from "@/lib/actions/admin-delete-actions";
 import { Badge } from "@/components/ui/badge";
 import { formatDateTime } from "@/lib/utils";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { Retour } from "@/components/ui/retour";
+import { useKeyedAction } from "@/components/shared/use-action";
 
 export interface TrashItem {
   id: string;
@@ -26,21 +27,21 @@ export function TrashList({ items, peutDetruire = true }: {
   /** Détruire pour de bon (irréversible) reste au seul Super Admin : la corbeille du directeur des opérations restaure seulement. */
   peutDetruire?: boolean;
 }) {
-  const router = useRouter();
-  const [busyId, setBusyId] = React.useState<string | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
+  const geste = useKeyedAction();
+  const busyId = geste.busy;
+  const err = geste.error;
 
   async function run(item: TrashItem, action: "restore" | "destroy") {
-    setBusyId(item.id); setErr(null);
     const fd = new FormData(); fd.set("id", item.id);
-    const r = action === "restore" ? await restoreDeletedRecord(fd) : await destroyDeletedRecord(fd);
-    setBusyId(null);
-    if (!r.ok) setErr(r.error ?? "Échec."); else router.refresh();
+    await geste.run(item.id, async () => {
+      const r = action === "restore" ? await restoreDeletedRecord(fd) : await destroyDeletedRecord(fd);
+      return r.ok ? r : { ok: false, error: r.error ?? (action === "restore" ? "La restauration n'a pas abouti." : "La destruction n'a pas abouti.") };
+    });
   }
 
   return (
     <div className="space-y-2">
-      {err && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="surface divide-y divide-border">
         {items.map((it) => (
           <div key={it.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5 sm:px-4">

@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { THERAPEUTIC_SEGMENTS } from "@/lib/labels";
 import { COLONNES_REGULATORY, COLONNES_INAMOVIBLES } from "@/lib/vues/colonnes-regulatory";
 import type { Opt } from "./types";
+import { Retour, useRetours } from "@/components/ui/retour";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /** Débloque / masque l'onglet Regulatory « Enregistrement » (analyseur CTD). */
 export function RegEnrollmentToggle({ enabled: initial }: { enabled: boolean }) {
@@ -21,10 +23,15 @@ export function RegEnrollmentToggle({ enabled: initial }: { enabled: boolean }) 
   const [error, setError] = React.useState<string | null>(null);
   async function toggle(next: boolean) {
     setBusy(true); setError(null);
-    const r = await setRegEnrollmentEnabled(next);
-    setBusy(false);
-    if (r.ok) setEnabled(next);
-    else setError(r.error ?? "Échec.");
+    try {
+      const r = await setRegEnrollmentEnabled(next);
+      if (r.ok) setEnabled(next);
+      else setError(r.error ?? "Le réglage n'a pas été changé.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(false);
+    }
   }
   return (
     <div className="space-y-2">
@@ -44,7 +51,7 @@ export function RegEnrollmentToggle({ enabled: initial }: { enabled: boolean }) 
         </button>
       </div>
       {busy && <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Mise à jour…</p>}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }
@@ -61,10 +68,15 @@ export function RegIntelligenceToggles({ companies }: { companies: CompanyFlag[]
 
   async function toggle(companyId: string, next: boolean) {
     setBusyId(companyId); setError(null);
-    const r = await setRegIntelligenceEnabled(companyId, next);
-    setBusyId(null);
-    if (r.ok) setState((s) => ({ ...s, [companyId]: next }));
-    else setError(r.error ?? "Échec.");
+    try {
+      const r = await setRegIntelligenceEnabled(companyId, next);
+      if (r.ok) setState((s) => ({ ...s, [companyId]: next }));
+      else setError(r.error ?? "Le réglage de cette entité n'a pas été changé.");
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusyId(null);
+    }
   }
 
   if (companies.length === 0) {
@@ -93,7 +105,7 @@ export function RegIntelligenceToggles({ companies }: { companies: CompanyFlag[]
           </div>
         );
       })}
-      {error && <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p>}
+      <Retour ton="erreur">{error}</Retour>
     </div>
   );
 }
@@ -103,6 +115,8 @@ export function RegulatorySupervisorForm({ roles, selected }: { roles: Opt[]; se
   const [picked, setPicked] = React.useState<string[]>(selected);
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const toggle = (v: string) => setPicked((p) => (p.includes(v) ? p.filter((x) => x !== v) : [...p, v]));
 
   return (
@@ -111,9 +125,15 @@ export function RegulatorySupervisorForm({ roles, selected }: { roles: Opt[]; se
         setSaving(true);
         const fd = new FormData();
         picked.forEach((r) => fd.append("roles", r));
-        const res = await setRegulatorySupervisorRoles(fd);
-        setSaving(false);
-        if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+        try {
+          const res = await setRegulatorySupervisorRoles(fd);
+          if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+          else retours.erreur(res.error ?? "Les rôles superviseurs n'ont pas été enregistrés.");
+        } catch {
+          retours.erreur(actionFailureMessage("THROWN"));
+        } finally {
+          setSaving(false);
+        }
       }}
       className="space-y-3"
     >
@@ -168,10 +188,15 @@ export function RegulatoryHiddenColumnsForm({ hidden }: { hidden: string[] }) {
     setSaving(true); setErr(null);
     const fd = new FormData();
     list.forEach((k) => fd.append("columns", k));
-    const res = await setRegulatoryHiddenColumns(fd);
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
-    else setErr(res.error ?? "Enregistrement impossible.");
+    try {
+      const res = await setRegulatoryHiddenColumns(fd);
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+      else setErr(res.error ?? "Enregistrement impossible.");
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -199,7 +224,7 @@ export function RegulatoryHiddenColumnsForm({ hidden }: { hidden: string[] }) {
           ? "Toutes les colonnes sont affichées."
           : `${list.length} colonne(s) retirée(s) du tableau — les données restent sur les fiches et reviennent dès qu'on les remet.`}
       </p>
-      {err && <p className="text-sm text-destructive">{err}</p>}
+      <Retour ton="erreur">{err}</Retour>
       <div className="flex items-center gap-2">
         <Button type="button" size="sm" onClick={() => void save()} disabled={saving}>
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Enregistrer
@@ -222,6 +247,8 @@ export function RegulatoryTherapeuticSegmentsForm({ segments }: { segments: stri
   const [draft, setDraft] = React.useState("");
   const [saving, setSaving] = React.useState(false);
   const [saved, setSaved] = React.useState(false);
+  // Ce formulaire n'a pas de place où parler : un refus part en avis flottant.
+  const retours = useRetours();
   const usingDefault = list.length === 0;
 
   const add = () => {
@@ -237,9 +264,15 @@ export function RegulatoryTherapeuticSegmentsForm({ segments }: { segments: stri
     setSaving(true);
     const fd = new FormData();
     list.forEach((s) => fd.append("segments", s));
-    const res = await setRegulatoryTherapeuticSegments(fd);
-    setSaving(false);
-    if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+    try {
+      const res = await setRegulatoryTherapeuticSegments(fd);
+      if (res.ok) { setSaved(true); setTimeout(() => setSaved(false), 1500); }
+      else retours.erreur(res.error ?? "Les segments thérapeutiques n'ont pas été enregistrés.");
+    } catch {
+      retours.erreur(actionFailureMessage("THROWN"));
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (

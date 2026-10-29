@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Plus, Star, Trash2, Upload } from "lucide-react";
 import { updateLetterhead, deleteLetterhead } from "@/lib/actions/letterhead-actions";
 import { definirModeleDePiece, definirPapierParDefaut, televerserModele, televerserModeleDePiece } from "@/lib/actions/direction-artistique-actions";
@@ -14,6 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Input, Select } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import type { ActionResult } from "@/lib/actions/types";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 
 /**
  * LES GESTES DE LA DIRECTION ARTISTIQUE — une liste de modèles par type (Word, Excel, PowerPoint)
@@ -27,20 +29,27 @@ function Message({ r }: { r: ActionResult | null }) {
   if (!r) return null;
   return (
     <p className={cn("rounded-lg px-3 py-2 text-sm", r.ok ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive")} role="status">
-      {r.ok ? r.message ?? "Enregistré." : r.error ?? "Échec."}
+      {r.ok ? r.message ?? "Enregistré." : r.error ?? "La modification n'a pas été enregistrée."}
     </p>
   );
 }
 
 function useGeste() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState<string | null>(null);
   const [resultat, setResultat] = React.useState<ActionResult | null>(null);
-  const agir = async (cle: string, fn: () => Promise<ActionResult>) => {
+  const agir = async (cle: string, fn: () => Promise<ActionResult>): Promise<ActionResult> => {
     setBusy(cle); setResultat(null);
-    const r = await fn();
-    setBusy(null); setResultat(r);
-    if (r.ok) router.refresh();
+    let r: ActionResult;
+    try {
+      r = await fn();
+    } catch {
+      r = { ok: false, error: actionFailureMessage("THROWN") };
+    } finally {
+      setBusy(null);
+    }
+    setResultat(r);
+    if (r.ok) rafraichir();
     return r;
   };
   return { busy, resultat, agir };
@@ -65,6 +74,7 @@ export function PapeterieParType({
   aide: string;
 }) {
   const { busy, resultat, agir } = useGeste();
+  const confirmer = useConfirmer();
   const formRef = React.useRef<HTMLFormElement>(null);
   const ext = KIND_EXTENSION[kind];
 
@@ -107,8 +117,8 @@ export function PapeterieParType({
                   {droits.supprimer && (
                     <button type="button" className="rounded-lg p-2 text-destructive hover:bg-secondary" disabled={busy !== null}
                       title="Supprimer définitivement" aria-label="Supprimer définitivement"
-                      onClick={() => {
-                        if (!window.confirm(`Supprimer le modèle « ${m.name} » ? Les documents déjà créés dessus ne changent pas.`)) return;
+                      onClick={async () => {
+                        if (!(await confirmer(`Supprimer le modèle « ${m.name} » ? Les documents déjà créés dessus ne changent pas.`))) return;
                         void agir(`del-${m.id}`, () => deleteLetterhead(fd({ id: m.id })));
                       }}>
                       {busy === `del-${m.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}

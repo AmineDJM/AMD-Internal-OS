@@ -3,7 +3,7 @@
  * inscriptions. Par les actions canoniques.
  */
 import { prisma } from "./erp";
-import { updateEvent, deleteEvent, submitEventForApproval, addRegistration, setRegistrationStatus, deleteRegistration } from "@/lib/actions/event-actions";
+import { updateEvent, deleteEvent, submitEventForApproval, addRegistration, setRegistrationStatus, deleteRegistration } from "@/modules/ad-pro/actions-evenements";
 import { apercuSuppression } from "@/platform/in-process/capacites";
 import type { OpImpl, OpProposalDraft } from "../../types";
 import { opStr } from "../../types";

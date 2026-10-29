@@ -14,6 +14,8 @@ import { envoyerAuFil, listerMesRoutines, reglerMaReponseVocale, repartirDeZero 
 import type { AudioDuTour, LecturePiece, VocalDuTour } from "@/lib/agent/lecture/regles";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { sansBloquer } from "@/lib/journal";
 
 export interface AssistantWorkspaceProps {
@@ -65,6 +67,7 @@ function versMessage(t: TourDuFil): ChatMessage {
 
 export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const bienvenue: ChatMessage = { id: "welcome-1", role: "assistant", content: accueil(userName) };
+  const confirmer = useConfirmer();
   const [memoireOuverte, setMemoireOuverte] = useState(false);
   const [routinesOuvertes, setRoutinesOuvertes] = useState(false);
   const [routineInitiale, setRoutineInitiale] = useState<string | null>(null);
@@ -240,9 +243,13 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const handleReset = async () => {
     setErreur(null);
     if (vueExacte) { setLocaux([]); return; }
-    if (!window.confirm("Repartir d'une nouvelle conversation ? L'assistant ne tiendra plus compte des échanges précédents.")) return;
-    const r = await repartirDeZero();
-    if (!r.ok) setErreur(r.erreur);
+    if (!(await confirmer("Repartir d'une nouvelle conversation ? L'assistant ne tiendra plus compte des échanges précédents."))) return;
+    try {
+      const r = await repartirDeZero();
+      if (!r.ok) setErreur(r.erreur);
+    } catch {
+      setErreur(actionFailureMessage("THROWN"));
+    }
     window.dispatchEvent(new Event("assistant-fil:relancer"));
   };
 

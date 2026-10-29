@@ -19,7 +19,7 @@ import { budgetGate } from "@/lib/finance/settle-budget";
 import { dossierHrefByOrder } from "@/lib/expense-orders";
 import { fdStr, type ActionResult } from "@/lib/actions/types";
 import { compteDeLEcriture } from "@/lib/finance/comptes";
-import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/lib/ad-pro/cloture-sponsoring";
+import { STATUTS_SOLDES_PAR_UN_REGLEMENT } from "@/modules/ad-pro/partage";
 import { solderVirementPaie } from "@/modules/rh/api";
 import { lienOrdreAPayer } from "@/lib/chemins/finances";
 import { cloreLeDossierPromoSiSolde, dossierPromoDeLaFacture } from "@/lib/promo-cloture";

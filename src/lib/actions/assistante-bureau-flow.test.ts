@@ -12,7 +12,7 @@ import { getRequestList } from "@/lib/queries/admin-requests";
 import { clauseDemandesSecretariatVisibles } from "@/lib/queries/visibilite-listes";
 import { getActionCenter } from "@/lib/queries/action-center";
 import { createRequest, decideApproval } from "./admin-request-actions";
-import { peutLirePasseportDuSujet } from "@/lib/ad-pro/passeport-acces";
+import { peutLirePasseportDuSujet } from "@/modules/ad-pro/api";
 import { canAccessEntity } from "@/lib/entity-access";
 
 /**

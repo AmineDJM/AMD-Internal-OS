@@ -10,7 +10,7 @@
 import type { ContractType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import {
   canDecideStep, ETAPES_RETIRABLES, nettoyerIds, refusDesignationDuSommet, type ChainStep, type RecruitmentStage,
 } from "@/lib/recruitment/request-flow";

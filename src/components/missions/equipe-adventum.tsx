@@ -14,6 +14,8 @@ import { lienMission } from "@/lib/chemins/espace";
 import { POLE_EQUIPE, imputationHistorique, texteImputation } from "@/lib/missions-equipe/imputation";
 import { MISSION_ROLE } from "@/lib/labels";
 import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useConfirmer } from "@/components/ui/dialogue";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -57,6 +59,7 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
   imputationDefaut?: { id: string; label: string } | null;
 }) {
   const { enCours, rafraichir } = useRafraichir();
+  const confirmer = useConfirmer();
   const [inviter, setInviter] = React.useState(false);
   const [remplacer, setRemplacer] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -65,9 +68,16 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
 
   async function executer(cle: string, action: (fd: FormData) => Promise<Resultat>, fd: FormData, apres?: () => void) {
     setBusy(cle); setMsg(null);
-    const r = await action(fd);
-    setBusy(null);
-    setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Échec.") });
+    let r: Resultat;
+    try {
+      r = await action(fd);
+    } catch {
+      setMsg({ ok: false, texte: actionFailureMessage("THROWN") });
+      return;
+    } finally {
+      setBusy(null);
+    }
+    setMsg({ ok: r.ok, texte: r.ok ? (r.message ?? "Enregistré.") : (r.error ?? "Le geste n'a pas abouti.") });
     if (r.ok) { apres?.(); rafraichir(); }
   }
   const avecId = (id: string, champs: Record<string, string> = {}) => {
@@ -234,7 +244,7 @@ export function EquipeAdventum({ entityType, entityId, assignments, personnes, c
                                 Remplacer
                               </Button>
                               <Button size="sm" variant="ghost" className="justify-start text-destructive" disabled={occupe}
-                                onClick={() => { if (window.confirm(`Retirer ${a.userName} de l'équipe ? La personne est prévenue ; ses pièces et demandes restent archivées.`)) void executer(`retirer-${a.id}`, removeMission, avecId(a.id)); }}>
+                                onClick={async () => { if (await confirmer(`Retirer ${a.userName} de l'équipe ? La personne est prévenue ; ses pièces et demandes restent archivées.`)) void executer(`retirer-${a.id}`, removeMission, avecId(a.id)); }}>
                                 Retirer
                               </Button>
                             </MenuDossier>

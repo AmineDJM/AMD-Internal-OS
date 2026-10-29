@@ -30,8 +30,8 @@ import { appliquerDecisionsLocales } from "./integration-absentes";
 import {
   annulerIntegrationAdPro, deciderAbsenteIntegration, joindrePiecesIntegration, rattacherPieceIntegration, relierEcritureIntegration, validerIntegrationAdPro,
 } from "@/lib/actions/integration-adpro-actions";
-import { submitAdProItem, requestAdProItemOrder } from "@/lib/actions/ad-pro-item-actions";
-import { addCareBeneficiary } from "@/lib/actions/care-actions";
+import { submitAdProItem, requestAdProItemOrder } from "@/modules/ad-pro/actions-postes";
+import { addCareBeneficiary } from "@/modules/ad-pro/actions-prise-en-charge";
 import { imputerDepensePoste } from "@/lib/actions/budget-depense-poste-actions";
 
 let dbOk = false;

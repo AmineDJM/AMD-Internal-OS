@@ -3,7 +3,7 @@
  * refus, d'un renvoi pour correction ou d'une pose (l'approbation reste dans `engine.ts`).
  */
 import type { EntityType } from "@prisma/client";
-import { statutDepuisCircuit } from "@/lib/events/statut";
+import { statutDepuisCircuit } from "@/modules/ad-pro/partage";
 import { statutLegacyALEtape } from "../renvoi";
 import { type LoadedDefinition, type LoadedStep, orderedSteps, type Viewer } from "./definitions";
 import { LEGACY_FIELD, updateEntity } from "./entites";

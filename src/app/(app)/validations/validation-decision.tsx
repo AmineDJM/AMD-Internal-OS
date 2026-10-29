@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useAction } from "@/components/shared/use-action";
 import { Check, X, MessageSquareWarning, Loader2 } from "lucide-react";
 import { decideValidation } from "@/lib/actions/validation-actions";
 import { Button } from "@/components/ui/button";
@@ -23,11 +23,9 @@ const CFG: Record<Decision, { label: string; variant: "success" | "primary" | "d
  * n'est plus close : son demandeur la corrige et la resoumet, et elle revient à cette étape.
  */
 export function ValidationDecision({ stepId }: { stepId: string }) {
-  const router = useRouter();
   const [mode, setMode] = React.useState<null | Decision>(null);
   const [reason, setReason] = React.useState("");
-  const [pending, start] = React.useTransition();
-  const [err, setErr] = React.useState<string | null>(null);
+  const { busy: pending, err, setErr, run } = useAction();
 
   const open = (d: Decision) => { setReason(""); setErr(null); setMode(d); };
 
@@ -38,12 +36,7 @@ export function ValidationDecision({ stepId }: { stepId: string }) {
     fd.set("stepId", stepId);
     fd.set("decision", mode);
     fd.set("reason", reason.trim()); // optionnel pour valider, EXIGÉ pour renvoyer ou refuser
-    start(async () => {
-      const r = await decideValidation(fd);
-      if (!r.ok) { setErr(r.error ?? "Erreur."); return; }
-      setMode(null); setReason("");
-      router.refresh();
-    });
+    void run(() => decideValidation(fd), () => { setMode(null); setReason(""); });
   };
 
   if (mode) {

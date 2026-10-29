@@ -4,8 +4,8 @@ import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { fdStr, fdNum } from "@/lib/actions/types";
 import { canAccessEntity } from "@/lib/entity-access";
-import { statuerSurLeTotal } from "@/lib/ad-pro/porte-dg";
-import { AD_PRO_PARENTS, PARENT_ENTITE, type AdProParent } from "@/lib/ad-pro-items";
+import { statuerSurLeTotal } from "@/modules/ad-pro/api";
+import { AD_PRO_PARENTS, PARENT_ENTITE, type AdProParent } from "@/modules/ad-pro/partage";
 import { CHEMIN_CENTRE_AD_PRO, lienDemandeAdPro } from "@/lib/chemins/ad-pro";
 
 /**

@@ -12,7 +12,7 @@ import { notifyUser, notifyRoles } from "@/lib/notify";
 import { attachFormFiles } from "@/lib/documents";
 import { fdStr, fdNum, fdDate, type ActionResult } from "@/lib/actions/types";
 import { recruitmentViewer } from "@/lib/recruitment/access";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import {
   abilities, ETAPES_RETIRABLES, applyChainDecision, canDecideStep, canSelectCandidate, needsOnboarding, summarize,
   validateDraft, CONTRACT_LABEL, marchesChangees, reouverture, cibleDeLaDecision, decisionDuSommetExigeSuivi,

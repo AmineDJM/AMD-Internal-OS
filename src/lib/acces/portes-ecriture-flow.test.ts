@@ -24,7 +24,7 @@ vi.mock("@/lib/session", () => ({ requireUser: async () => ACTEUR, getCurrentUse
 import { prisma } from "@/lib/prisma";
 import type { UserRole } from "@prisma/client";
 import { getAccess } from "@/lib/rbac";
-import { addRegistration, setRegistrationStatus, deleteRegistration, deleteEvent } from "@/lib/actions/event-actions";
+import { addRegistration, setRegistrationStatus, deleteRegistration, deleteEvent } from "@/modules/ad-pro/actions-evenements";
 import { validateFieldReport, updateFieldReport } from "@/lib/actions/field-report-actions";
 import { updateLegalFolder, deleteLegalFolder } from "@/lib/actions/legal-folder-actions";
 import { updateMailFolder, deleteMailFolder } from "@/lib/actions/mail-folder-actions";

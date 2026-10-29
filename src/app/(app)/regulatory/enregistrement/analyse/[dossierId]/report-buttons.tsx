@@ -1,9 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+
 import { Loader2, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { generateFindingsReportAction, generateReserveLetterAction } from "@/lib/regulatory/intelligence/docgen/actions";
 
 /**
@@ -13,7 +15,7 @@ import { generateFindingsReportAction, generateReserveLetterAction } from "@/lib
  */
 
 function useGenerate() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const lock = React.useRef(false);
@@ -28,10 +30,12 @@ function useGenerate() {
         const r = await fn();
         if (r.ok && r.generatedDocId) {
           window.location.assign(`/api/regulatory/intelligence/generated/${r.generatedDocId}`);
-          router.refresh();
+          rafraichir();
         } else if (!r.ok) {
-          setError(r.error ?? "Échec.");
+          setError(r.error ?? "Le document n'a pas été généré.");
         }
+      } catch {
+        setError(actionFailureMessage("THROWN"));
       } finally {
         setBusy(false);
         lock.current = false;

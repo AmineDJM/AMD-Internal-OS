@@ -23,16 +23,14 @@ import { describe, expect, it } from "vitest";
  * `src/lib/assistant/coeur/` pour des exemples) ; il n'entre pas dans la liste.
  *
  * Mesure (lignes comme `wc -l`) : 49 fichiers > 1 000 lignes avant le lot V4 (dont `assistant.ts` 7 314,
- * `assistant/ops/catalog.ts` 5 399, `labels.ts` 2 289, `rbac.ts` 2 212) → 4 après, tous confiés à d'autres
- * chantiers (Ad & Pro, RH, paiements) : ce sont les HERITES ci-dessous.
+ * `assistant/ops/catalog.ts` 5 399, `labels.ts` 2 289, `rbac.ts` 2 212) → 1 après fusion des lots RH
+ * et Ad & Pro (qui ont découpé les leurs) : `payment-request-actions.ts`, confié au chantier des paiements — le seul HÉRITÉ.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFOND = 1_000;
 
 /** Fichiers hérités au-dessus du plafond (hors périmètre du lot V4, confiés à d'autres chantiers) → taille mesurée. */
 const HERITES: Readonly<Record<string, number>> = {
-  "src/components/ad-pro/items-panel.tsx": 2149,
-  "src/lib/actions/ad-pro-item-actions.ts": 4409,
   "src/lib/actions/payment-request-actions.ts": 1197,
 };
 

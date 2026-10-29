@@ -1,7 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { useAction } from "@/components/shared/use-action";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { Package, Loader2, AlertCircle, Check, Plus, Pencil, X, WandSparkles } from "lucide-react";
 import {
   createSupplyArticle, updateSupplyArticle, toggleSupplyArticle,
@@ -34,7 +36,7 @@ export interface SupplyArticleRow {
  * rien montrer serait un bouton qu'on n'ose pas cliquer — donc un bouton mort.
  */
 function NormalizePanel() {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
   const [rewrites, setRewrites] = React.useState<CatalogRewrite[] | null>(null);
   const [busy, setBusy] = React.useState<"scan" | "apply" | null>(null);
   const [done, setDone] = React.useState<string | null>(null);
@@ -42,21 +44,31 @@ function NormalizePanel() {
 
   async function scan() {
     setBusy("scan"); setError(null); setDone(null);
-    const r = await previewCatalogNormalization();
-    setBusy(null);
-    if (!r.ok) { setError(r.error ?? "Lecture impossible."); return; }
-    setRewrites(r.rewrites);
-    if (r.rewrites.length === 0) setDone(`Le catalogue est déjà uniforme (${r.total} articles).`);
+    try {
+      const r = await previewCatalogNormalization();
+      if (!r.ok) { setError(r.error ?? "Lecture impossible."); return; }
+      setRewrites(r.rewrites);
+      if (r.rewrites.length === 0) setDone(`Le catalogue est déjà uniforme (${r.total} articles).`);
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function apply() {
     setBusy("apply"); setError(null);
-    const r = await applyCatalogNormalization();
-    setBusy(null);
-    if (!r.ok) { setError(r.error ?? "Application impossible."); return; }
-    setRewrites(null);
-    setDone(r.message ?? "Catalogue uniformisé.");
-    router.refresh();
+    try {
+      const r = await applyCatalogNormalization();
+      if (!r.ok) { setError(r.error ?? "Application impossible."); return; }
+      setRewrites(null);
+      setDone(r.message ?? "Catalogue uniformisé.");
+      rafraichir();
+    } catch {
+      setError(actionFailureMessage("THROWN"));
+    } finally {
+      setBusy(null);
+    }
   }
 
   return (
@@ -131,7 +143,9 @@ export function SuppliesManager({ articles }: { articles: SupplyArticleRow[] }) 
  * un bouton offert puis refusé n'est pas un geste (§118.83).
  */
 export function CatalogueArticles({ articles, peutModifier = true }: { articles: SupplyArticleRow[]; peutModifier?: boolean }) {
-  const router = useRouter();
+  const { rafraichir } = useRafraichir();
+  // La pastille Actif / Inactif n'a pas de place pour parler : un refus part en avis flottant.
+  const bascule = useAction({ signalerErreurs: true });
   const [editing, setEditing] = React.useState<SupplyArticleRow | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -148,10 +162,15 @@ export function CatalogueArticles({ articles, peutModifier = true }: { articles:
         key={editing?.id ?? "new"}
         action={async (fd) => {
           setSubmitting(true); setError(null); setSaved(false);
-          const r = editing ? await updateSupplyArticle(fd) : await createSupplyArticle(fd);
-          setSubmitting(false);
-          if (r.ok) { setSaved(true); reset(); router.refresh(); setTimeout(() => setSaved(false), 2000); }
-          else setError(r.error ?? "Erreur.");
+          try {
+            const r = editing ? await updateSupplyArticle(fd) : await createSupplyArticle(fd);
+            if (r.ok) { setSaved(true); reset(); rafraichir(); setTimeout(() => setSaved(false), 2000); }
+            else setError(r.error ?? "L'article n'a pas été enregistré.");
+          } catch {
+            setError(actionFailureMessage("THROWN"));
+          } finally {
+            setSubmitting(false);
+          }
         }}
         className="space-y-4 rounded-xl border bg-card p-4"
       >
@@ -220,9 +239,9 @@ export function CatalogueArticles({ articles, peutModifier = true }: { articles:
                   <Button type="button" variant="ghost" size="sm" onClick={() => { setEditing(a); setError(null); }}>
                     <Pencil className="h-3.5 w-3.5" />
                   </Button>
-                  <form action={async (fd) => { await toggleSupplyArticle(fd); router.refresh(); }}>
+                  <form action={async (fd) => { await bascule.run(() => toggleSupplyArticle(fd)); }}>
                     <input type="hidden" name="id" value={a.id} />
-                    <Button type="submit" variant="ghost" size="sm">
+                    <Button type="submit" variant="ghost" size="sm" disabled={bascule.busy}>
                       {a.active ? <Badge tone="success" dot={false}>Actif</Badge> : <Badge tone="neutral" dot={false}>Inactif</Badge>}
                     </Button>
                   </form>

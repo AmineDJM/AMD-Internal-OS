@@ -11,7 +11,7 @@ import type { SessionUser } from "@/lib/rbac";
 import { rolesWithModule } from "@/lib/rbac";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { fdStr } from "@/lib/actions/types";
-import { ecrireAuFil } from "@/lib/ad-pro/fil";
+import { ecrireAuFil } from "@/modules/ad-pro/api";
 import { sansBloquer } from "@/lib/journal";
 import {
   STAGE_LABEL, currentStep, prevenusAuRetrait, type ChainStep, type RecruitmentStage, type reouverture,

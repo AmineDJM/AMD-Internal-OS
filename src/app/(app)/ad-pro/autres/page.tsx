@@ -12,8 +12,8 @@ import { CreateRecordButton } from "@/components/shared/create-record-button";
 import { PartagerButton } from "@/components/shared/partager-button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AD_PRO_OTHER_STATUS, EVENTS_TABS } from "@/lib/labels";
-import { adProOtherCreateFields } from "@/lib/ad-pro/create-fields";
-import { createAdProOtherRequest } from "@/lib/actions/ad-pro-other-actions";
+import { adProOtherCreateFields } from "@/modules/ad-pro/partage";
+import { createAdProOtherRequest } from "@/modules/ad-pro/actions-autres";
 
 export const dynamic = "force-dynamic";
 

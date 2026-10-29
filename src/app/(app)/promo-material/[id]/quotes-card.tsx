@@ -1,7 +1,6 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, FileText, Loader2, Pencil, Plus, RotateCcw, ScanText, Trash2, Undo2 } from "lucide-react";
 import {
   enregistrerDevisPromo, supprimerDevisPromo, choisirLignesPromo, demanderCorrectionDevisPromo,
@@ -20,6 +19,8 @@ import { Input, Label, Textarea } from "@/components/ui/input";
 import { Sheet } from "@/components/ui/sheet";
 import type { ActionResult } from "@/lib/actions/types";
 import { BoutonDecisif } from "@/components/ui/bouton-decisif";
+import { useRafraichir } from "@/components/shared/use-rafraichir";
+import { actionFailureMessage } from "@/lib/action-outcome";
 import { InfoBulle } from "@/components/ui/info-bulle";
 import { DemandeDevisCard, type GenerationLettre } from "./demande-devis-card";
 import { MenuLigne, useGeste } from "./menu-ligne";
@@ -80,17 +81,25 @@ interface Props {
 }
 
 function useRun() {
-  const router = useRouter();
+  // LE RAFRAÎCHISSEMENT SUIVI (§118.172) : les gestes restent fermés jusqu'à l'arrivée des nouvelles données.
+  const { enCours, rafraichir } = useRafraichir();
   const [saving, setSaving] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<string | null>(null);
   const run = async (fn: () => Promise<ActionResult>, after?: () => void) => {
     setSaving(true); setErr(null); setMsg(null);
-    const r = await fn();
-    setSaving(false);
-    if (r.ok) { setMsg(r.message ?? null); after?.(); router.refresh(); } else setErr(r.error ?? "Action impossible.");
+    let r: ActionResult;
+    try {
+      r = await fn();
+    } catch {
+      setErr(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setSaving(false);
+    }
+    if (r.ok) { setMsg(r.message ?? null); after?.(); rafraichir(); } else setErr(r.error ?? "Le geste n'a pas abouti.");
   };
-  return { saving, err, msg, run };
+  return { saving: saving || enCours, err, msg, run };
 }
 
 const Erreur = ({ msg }: { msg: string | null }) =>
@@ -206,8 +215,15 @@ function EditeurDevis({ id, devis, articles, parties, canCreateContact, onDone }
     const f = new FormData();
     f.set("promoMaterialId", id);
     f.set("scan", fichier);
-    const r = await lireScanDevisPromo(f);
-    setEnLecture(false);
+    let r: Awaited<ReturnType<typeof lireScanDevisPromo>>;
+    try {
+      r = await lireScanDevisPromo(f);
+    } catch {
+      setErreurLecture(actionFailureMessage("THROWN"));
+      return;
+    } finally {
+      setEnLecture(false);
+    }
     if (!r.ok || !r.lecture) { setLecture(null); setAppliquee(false); setErreurLecture(r.error ?? "Lecture impossible."); return; }
     const nouvelle = r.lecture;
     setLecture(nouvelle);
