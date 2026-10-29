@@ -70,14 +70,6 @@ export function BoutonJoindre({ onFichiers, desactive }: { onFichiers: (f: File[
     dossier.current?.setAttribute("webkitdirectory", "");
     dossier.current?.setAttribute("directory", "");
   }, []);
-  useEffect(() => {
-    if (!menu) return;
-    const fermer = (e: MouseEvent) => { if (!racine.current?.contains(e.target as Node)) setMenu(false); };
-    const echap = (e: KeyboardEvent) => { if (e.key === "Escape") setMenu(false); };
-    document.addEventListener("mousedown", fermer);
-    document.addEventListener("keydown", echap);
-    return () => { document.removeEventListener("mousedown", fermer); document.removeEventListener("keydown", echap); };
-  }, [menu]);
   const recu = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = Array.from(e.target.files ?? []);
     if (f.length) onFichiers(f);
@@ -85,7 +77,13 @@ export function BoutonJoindre({ onFichiers, desactive }: { onFichiers: (f: File[
   };
   const item = "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 focus:bg-slate-100 focus:outline-none dark:text-zinc-200 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800";
   return (
-    <div ref={racine} className="relative">
+    <div
+      ref={racine}
+      className="relative"
+      // Le menu se ferme quand le focus quitte le trombone (clic ailleurs, Tab) ou sur Échap.
+      onBlur={(e) => { if (!racine.current?.contains(e.relatedTarget as Node | null)) setMenu(false); }}
+      onKeyDown={(e) => { if (e.key === "Escape" && menu) { e.stopPropagation(); setMenu(false); } }}
+    >
       <input ref={champ} type="file" multiple className="hidden" onChange={recu} data-testid="joindre-fichiers" />
       <input ref={dossier} type="file" multiple className="hidden" onChange={recu} data-testid="joindre-dossier" />
       <button
