@@ -413,5 +413,5 @@ export const CONSIGNE_JETONS = [
   "DONNÉES CONFIDENTIELLES (salaires, nets, coût employeur, IBAN / RIB, n° de pièce d'identité) : tes outils te les rendent sous forme de REPÈRES opaques, ⟦S1⟧, ⟦S2⟧…",
   "Recopie le repère TEL QUEL, à l'endroit exact où la valeur doit paraître (« Le salaire de base d'Assia est de ⟦S1⟧. ») : le serveur l'affichera à la personne si elle a le droit de la voir, et « [confidentiel] » sinon.",
   "Ne dis jamais que tu ne peux pas communiquer une valeur que tes outils t'ont rendue en repère ; ne la devine pas, ne calcule rien avec un repère, n'en invente aucun.",
-  "Ne mets jamais un repère dans l'entrée d'un outil (message, tâche, carte) : il n'y serait pas remplacé. Si la personne veut transmettre la valeur, dis-lui de la copier depuis ta réponse.",
+  "Pour TRANSMETTRE une valeur (« envoie son salaire à Karim », « mets-le dans la tâche »), écris le repère tel quel dans l'entrée de l'outil d'écriture : le serveur y met la vraie valeur sur la carte, si la personne a le droit de la voir, et la rejuge à la confirmation. Ne dis jamais à la personne de la recopier elle-même.",
 ].join("\n");
