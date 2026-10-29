@@ -192,8 +192,11 @@ describe("pièces d'une prise en charge — la porte de l'assistante de directio
     expect(natureDuLivret("c1")).toBeNull();
   });
   it("la route de téléchargement passe bien par cette porte, après celle de la demande", () => {
+    // La règle de la route est partagée avec la recherche de la bibliothèque (J1) : `entity-access/ouverture-pieces.ts`.
     const route = readFileSync(join(process.cwd(), "src", "app", "api", "documents", "[id]", "route.ts"), "utf8");
-    expect(route).toMatch(/\|\|\s*\(await peutLirePieceDePriseEnCharge\(user, doc\)\)/);
+    expect(route).toMatch(/await peutOuvrirDocument\(user, doc\)/);
+    const regle = readFileSync(join(process.cwd(), "src", "lib", "entity-access", "ouverture-pieces.ts"), "utf8");
+    expect(regle).toMatch(/\|\|\s*\(await peutLirePieceDePriseEnCharge\(user, doc\)\)/);
     const porte = readFileSync(join(process.cwd(), "src", "modules", "ad-pro", "infra", "passeport-acces.ts"), "utf8");
     expect(porte).toContain("issuedDocumentId: doc.id");
     expect(porte).toContain("careReservationDossierId");

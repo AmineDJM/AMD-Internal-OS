@@ -39,7 +39,7 @@ import { balayerSurveillances } from "@/platform/in-process/missions/watch";
 import { vieillirMemoire } from "@/platform/in-process/missions/memory";
 import { relancerEngagements } from "@/platform/in-process/missions/commitments";
 import { assurerProduitsDesDossiersAuDemarrage } from "@/lib/products/canonique";
-import { executerPassage, type BilanPassage, type ContexteExecution, type TachePlanifiee } from "@/lib/taches-de-fond/executer";
+import { executerPassage, ignoree, type BilanPassage, type ContexteExecution, type TachePlanifiee } from "@/lib/taches-de-fond/executer";
 import { identiteDuProcessus } from "@/lib/taches-de-fond/bail";
 import { battementWebArme, executeurAutorise, executeurDuProcessus, lireModeTachesDeFond } from "@/lib/taches-de-fond/mode";
 import { traiterFileEnrichissement } from "@/lib/taches-de-fond/enrichissement";
@@ -183,6 +183,17 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // LA FILE D'ENRICHISSEMENT (lot V2-A) : la place est prise, le corps est livré par V2-A
   // (`taches-de-fond/enrichissement.ts`). D'ici là, la tâche se déclare « ignorée ».
   { cle: "enrichissement.file", executer: traiterFileEnrichissement },
+  // LA BIBLIOTHÈQUE (J1) : chaque pièce inscrite est lue UNE fois (texte, OCR local, transcription), découpée en
+  // passages et vectorisée par lots ; le rattrapage inscrit, par petits lots, les pièces entrées avant elle.
+  // Chargées à l'appel (les lecteurs ne pèsent que s'ils servent). Débrayage : BIBLIOTHEQUE_INGESTION=off.
+  { cle: "bibliotheque.ingestion", executer: async () => {
+    if (bibliothequeDebrayee()) return ignoree("BIBLIOTHEQUE_INGESTION=off");
+    await (await import("@/modules/bibliotheque/api")).traiterFile({ max: 10 });
+  } },
+  { cle: "bibliotheque.rattrapage", executer: async () => {
+    if (bibliothequeDebrayee()) return ignoree("BIBLIOTHEQUE_INGESTION=off");
+    await (await import("@/modules/bibliotheque/api")).rattraper({ lot: 25 });
+  } },
   // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
   // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
   { cle: "assistant.routines", executer: async () => (await import("@/lib/agent/routines/service")).executerRoutinesDues() },
@@ -335,6 +346,10 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // tiers depuis un battement serait une communication sortante que personne n'a relue.
   { cle: "missions.engagements", executer: () => relancerEngagements() },
 ];
+
+function bibliothequeDebrayee(): boolean {
+  return (process.env.BIBLIOTHEQUE_INGESTION ?? "").trim().toLowerCase() === "off";
+}
 
 // Armé APRÈS la table : un battement ne doit jamais trouver `TACHES_PLANIFIEES` non initialisée.
 armHeartbeat();

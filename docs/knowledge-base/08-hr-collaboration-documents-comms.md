@@ -48,6 +48,8 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 | `src/lib/storage/televersement-direct.ts` | Shared browser→bucket multipart engine (open / resume plan / finalize, injectable client). |
 | `src/lib/storage/envoi-direct-client.ts` | Import-free browser module that PUTs parts in parallel with progress/abort. |
 | `src/lib/storage/limites-blob.ts`, `phrases-stockage.ts` | Pure limits: 2 GB vault cap, 10 GB per-file cap, `MAX_DB_UPLOAD_MB` (default 100). |
+| `src/modules/bibliotheque/` | **Library (J1, 2026-10-29)**: single registration door `api-inscription.ts` (`inscrirePiece` & forms), ingestion/backfill (`infra/ingestion.ts`, `rattrapage.ts`), hybrid search + rights (`infra/recherche.ts`, `acces.ts`), screen `/bibliotheque`. See §4.1 ter. |
+| `src/lib/entity-access/ouverture-pieces.ts` | Opening rules extracted from the download routes (`peutOuvrirDocument`, `peutOuvrirPieceDeSujet`, `peutOuvrirDocumentRh`, `peutOuvrirPieceDeRapport`) — called by the routes AND the library search. |
 | `src/lib/drive.ts` | `resolveDriveAccess` (owner / share / space / module scope), `canCreateInSpace`, `effectiveSpaceId`. |
 | `src/lib/drive/depot.ts` | Single authorization (`refusDepotDrive`) + registration (`enregistrerFichierDrive`) shared by normal and direct upload paths. |
 | `src/lib/drive/depot-direct.ts` | Drive large-file direct upload sessions (`DirectUpload` model). |
@@ -111,6 +113,44 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 - **Person creation**: a carrier record without `personneId` gets a `Personne` built from its OWN saisie (nom/prénom, never the piece's), linked conditionally — the R1 back-fill will find it linked.
 - **Human decision** `/a-confirmer` (`src/app/(app)/a-confirmer/`): facts EN_ATTENTE with a subject and open conflicts, scoped to pieces the user deposited (Super Admin: all); confirm / reject / settle (`src/lib/actions/enrichissement-actions.ts`, audited). Confirming writes `FaitConfirme` (previous value closed, never deleted) and the record column (Personne nom/prénoms/civilité/naissance; Organisation raison sociale/forme/site; NIF/NIS/RC/AI → `OrganisationIdentifiant`).
 - **Back-fill** of existing documents: reprise `rattrapage-pieces` (`src/modules/referentiels/infra/reprises/`), Super Admin, by batches.
+
+### 4.1 ter Every piece is registered, read once, found by its content — the library (lot J1, 2026-10-29)
+
+- **Registration** (never throws): every writer of the vault (`putBlob`/`saveFile`) calls, after its business write,
+  `inscrirePiece` or a form of it (`inscrireDocument`, `inscrireDocumentEcrit`, `inscrireDocumentExistant`,
+  `inscrireDocumentRh`, `inscrireFichierDrive`) from `@/modules/bibliotheque/api-inscription`; choke points
+  (`enregistrerFichierDrive`, `persistUploadedDocument`, `inscrireDocumentDirect`, `attachFiles`, `putDriveFile`) do it for
+  their callers. R5 registry reused: `Piece` id `piece_<sha256>` (same as enrichment) + `PieceLien` (ENTITE, `entityType` =
+  access family) + `BibliothequeFiche` (one per piece: `cles` access keys, `familles`, format, source, confidentiality —
+  strictest wins —, `sensible`, queue state) + `BibliothequePassage` (~800-token chunks). Ratchet
+  `src/modules/bibliotheque/inscription-cliquet.test.ts`: a vault write not followed by a registration fails `test:architecture`
+  unless named in its 10 justified exceptions (regulatory corpus → J2, letterhead/logo, KPI value import, `saveFile` itself,
+  messaging upload registered at `sendMessage`).
+- **Access keys** `FAMILY:id` (11 families, `domaine/familles.ts`); EXCLUSIVE families (Drive node, `Document`, meeting/field
+  audio, KPI proof) move the key off the previous content (old versions stop matching).
+- **Ingestion** (`bibliotheque.ingestion`, leased `TacheDeFond`, `FOR UPDATE SKIP LOCKED`, stale lock 10 min, retries
+  1 min → 6 h, `ECHEC` at 6): existing readers only — `lireFichierUneFois` (native text then LOCAL OCR, sealed, shared with
+  enrichment), `parsePptx`, transcription (stored transcript of the meeting / field report if any, else `transcribeAudio`
+  under the "voice" switch, never for CONFIDENTIAL); local classification (`classerPiece`/`estNatureLocale`) marks
+  identity/payslip/RIB `sensible`; embeddings (`lunaEmbed`, 512 d, batches of 64) only if pgvector is present AND the piece
+  is neither CONFIDENTIAL nor sensible. Ignored with a reason: archive/unknown, > 40 MB (> 25 MB audio). Backfill
+  `bibliotheque.rattrapage`: 25 rows per family per pass. Kill switch `BIBLIOTHEQUE_INGESTION=off`.
+- **Index** (migration `20270207100000_bibliotheque`, idempotent): `recherche` generated tsvector with config
+  `bibliotheque_fr` (unaccent + french_stem) + GIN; GIN on `cles`/`familles`; trigram GIN on `titrePlie`; `vecteur vector(512)`
+  + HNSW **only if** pgvector is available (DO block; never fails without it). `infra/capacites.ts` detects and falls back
+  (full text + trigrams / folded LIKE).
+- **Search** `chercherDocuments(user, q, filters, { pourModele })`: three lists (FTS in OR mode, title trigrams, vector with
+  `SET LOCAL hnsw.ef_search = 480`, 50 neighbours within 0.1 of the best) fused by RRF (k=60); filters format, period, source,
+  object key, family; highlighted excerpt segments (no HTML). Each candidate piece is judged in rank order: kept only if the
+  user can open at least one of its places through **the very rule of the route serving that file** (`infra/acces.ts`:
+  `resolveDriveAccess` with exact shortcuts for Super Admin / scope ALL / owner, `peutOuvrirDocument`,
+  `canAccessConversation`, `canViewMeeting`, `peutOuvrirDocumentRh`, `peutOuvrirPieceDeRapport`, `peutOuvrirPieceDeSujet`,
+  `canReadFeedback`, `peutVoirBilan`); trashed nodes and vanished objects open nothing. `pourModele`: CONFIDENTIAL and
+  sensible excluded in SQL, excerpts through `censurerTexte`. `ouvrirDocuments(user, ids)` re-stitches the text, same rights;
+  "not found" and "forbidden" read the same.
+- **Not yet wired** into the AI Assistant nor Adam (other sessions own those tools).
+- **Measured** (`npm run bench:bibliotheque`, 2 000 pieces): p50 23 ms / p95 115 ms, recall@10 30/30, 0 out-of-rights;
+  live provider p95 ≈ 360–400 ms (query embedding ≈ 280 ms, bounded at 400 ms and cached).
 
 ### 4.2 Drive model & access
 

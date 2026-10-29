@@ -13,6 +13,7 @@ import { getActiveConnection, disconnect as dropConnection } from "@/lib/mail/co
 import { MicrosoftGraphMailProvider } from "@/lib/mail/graph/provider";
 import { MailError, describeDiagnostic, type MailDraftInput, type MailProvider } from "@/lib/mail/provider";
 import { parseAddressList } from "@/lib/mail/reply";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * LA SEULE PORTE entre les écrans et la messagerie.
@@ -236,7 +237,7 @@ export async function saveAttachmentToDrive(fd: FormData): Promise<MailActionRes
       const invalid = validateDriveUpload(att.name, att.content.length, settings.maxDriveUploadMb);
       if (invalid) return { ok: false, error: invalid };
 
-      const { blobId, size } = await putBlob(att.content);
+      const { blobId, size, sha256 } = await putBlob(att.content);
       const effSpaceId = await effectiveSpaceId(parentId, spaceId);
       const node = await prisma.driveNode.create({
         data: {
@@ -257,6 +258,10 @@ export async function saveAttachmentToDrive(fd: FormData): Promise<MailActionRes
           subject: msg.subject.slice(0, 500),
           entityType, entityId, driveNodeId: node.id, createdById: ctx.userId,
         },
+      });
+      // La pièce jointe entre à la bibliothèque (J1), sous la clé de son nœud du Drive. Ne lève jamais.
+      await inscrireFichierDrive({
+        nodeId: node.id, blobId, sha256, nom: att.name, mime: att.contentType, taille: size, deposeParId: ctx.userId, source: "EMAIL",
       });
 
       await recordAudit({

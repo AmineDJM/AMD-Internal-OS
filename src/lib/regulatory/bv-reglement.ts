@@ -7,6 +7,7 @@ import { ETAPES_BV } from "@/lib/budget-regulatory/bv";
 import { natureDeLOrdreBv, LIBELLE_NATURE_BV } from "@/lib/regulatory/bv-circuit";
 import type { RegWorkflowState } from "@/lib/regulatory-workflow";
 import { syncStatusFromWorkflow } from "@/lib/regulatory/sync-status";
+import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -70,15 +71,17 @@ export async function deposerQuittanceBv(o: OrdreBvRegle, file: File, userId: st
   const nature = natureDeLOrdreBv(o);
   if (!nature || !o.sourceId) throw new Error("Cet ordre n'est pas le BV d'un dossier.");
   const key = `REGULATORY_PRODUCT/${o.sourceId}/${randomUUID()}__${file.name}`;
-  await saveFile(key, Buffer.from(await file.arrayBuffer()));
+  const ecrit = await saveFile(key, Buffer.from(await file.arrayBuffer()));
   const doc = await prisma.document.create({
     data: {
       name: file.name, category: "BV_RECEIPT", entityType: "REGULATORY_PRODUCT", entityId: o.sourceId,
       stepKey: ETAPES_BV[nature].paiement, fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
       confidentiality: "INTERNAL", uploadedById: userId,
     },
-    select: { id: true },
+    select: { id: true, entityType: true, category: true, confidentiality: true, name: true, mimeType: true, sizeBytes: true, uploadedById: true },
   });
+  // La pièce entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.
+  await inscrireDocumentEcrit(doc, ecrit);
   return doc.id;
 }
 

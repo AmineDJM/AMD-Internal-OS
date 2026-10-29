@@ -4,6 +4,9 @@ import { prisma } from "./prisma";
 import { putBlob, getBlob, releaseBlob } from "./drive-storage";
 import { refusTeleversement } from "./files/politique-televersement";
 import { sansBloquer } from "@/lib/journal";
+import { randomUUID } from "node:crypto";
+import type { Confidentiality, DocumentCategory, EntityType } from "@prisma/client";
+import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * Stockage des fichiers de **documents** (modèle Document, hors Drive).
@@ -87,4 +90,39 @@ export function validateDocumentUpload(
   maxMb = Number(process.env.MAX_UPLOAD_MB ?? "25"),
 ): string | null {
   return refusTeleversement(filename, sizeBytes, maxMb);
+}
+
+/**
+ * DÉPOSER UNE PIÈCE DE MODULE, simplement — le fichier au coffre, la fiche `Document`, son inscription à la
+ * bibliothèque (J1) : le geste que neuf écrivains répétaient (justificatifs d'une dépense, d'un BV, d'une
+ * formation, d'une directive, d'une validation, d'une demande RH, d'un congé, d'une information médicale).
+ *
+ * Une écriture au coffre ratée GARDE la fiche (métadonnées seules) : une pièce annoncée puis introuvable se voit
+ * et se redemande ; une pièce silencieusement disparue laisse croire au dépôt. Rien n'est alors inscrit — il n'y a
+ * rien à lire. (`persistUploadedDocument`, `lib/documents.ts`, est le dépôt complet : versions, miroir Drive.)
+ */
+export async function deposerPieceDeModule(file: File, d: {
+  entityType: EntityType; entityId: string; category: DocumentCategory; confidentiality: Confidentiality;
+  uploadedById: string | null; stepKey?: string | null; journal: string;
+}): Promise<{ id: string }> {
+  const key = `${d.entityType}/${d.entityId}/${randomUUID()}__${file.name}`;
+  let ecrit: { blobId: string; sha256: string } | null = null;
+  try {
+    // `saveFile` sur une clé NEUVE (aléa) : le blob et sa correspondance, écrits ici pour que le contrat des actions
+    // voie l'écriture de `StoredFile` (il lit un niveau d'appel, `actions/contrat/ecritures.ts`).
+    const { blobId, size, sha256 } = await putBlob(Buffer.from(await file.arrayBuffer()));
+    await prisma.storedFile.create({ data: { key, blobId, size } });
+    ecrit = { blobId, sha256 };
+  } catch (err) {
+    console.error(`[${d.journal}] storage write failed, recording metadata only`, err);
+  }
+  const doc = await prisma.document.create({
+    data: {
+      name: file.name, category: d.category, entityType: d.entityType, entityId: d.entityId, stepKey: d.stepKey ?? null,
+      fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: d.confidentiality, uploadedById: d.uploadedById,
+    },
+    select: { id: true, entityType: true, category: true, confidentiality: true, name: true, mimeType: true, sizeBytes: true, uploadedById: true },
+  });
+  await inscrireDocumentEcrit(doc, ecrit);
+  return { id: doc.id };
 }

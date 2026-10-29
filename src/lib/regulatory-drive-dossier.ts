@@ -11,6 +11,7 @@ import {
   cheminDrivePourDepot, cyclesDeLaFrise, nomDossierDrive,
 } from "@/lib/regulatory/arborescence-dossier";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * LE DOSSIER DRIVE D'UN PRODUIT, dans la catégorie « Regulatory » (Direction, 06/10).
@@ -125,14 +126,17 @@ async function poserArborescence(rootId: string, espaceId: string, acteurId: str
     if (!parentId) continue;
     const present = await prisma.driveNode.count({ where: { type: "FILE", parentId, name: f.nom } });
     if (present > 0) continue;
-    const { blobId, size } = await putBlob(contenu);
+    const { blobId, size, sha256 } = await putBlob(contenu);
     const mimeType = mimeFromName(f.nom);
-    await prisma.driveNode.create({
+    const modele = await prisma.driveNode.create({
       data: {
         name: f.nom, type: "FILE", parentId, spaceId: espaceId, ownerId: acteurId, createdById: acteurId, mimeType, size,
         versions: { create: { blobId, version: 1, size, mimeType, createdById: acteurId } },
       },
+      select: { id: true },
     });
+    // Le modèle entre à la bibliothèque (J1) — une pièce pour tous les dossiers (même empreinte), une clé par dossier.
+    await inscrireFichierDrive({ nodeId: modele.id, blobId, sha256, nom: f.nom, mime: mimeType, taille: size, deposeParId: acteurId });
   }
 }
 
@@ -260,14 +264,18 @@ export async function rangerDocumentsDansDrive(
             await prisma.fileVersion.create({ data: { nodeId: existant.id, blobId: stocke.blobId, version: (last?.version ?? 0) + 1, size, mimeType, createdById: ownerId } });
             await prisma.driveNode.update({ where: { id: existant.id }, data: { size, mimeType } });
             bilan.versionsAjoutees++;
+            await inscrireFichierDrive({ nodeId: existant.id, version: (last?.version ?? 0) + 1, blobId: stocke.blobId, nom: d.name, mime: mimeType, taille: size, deposeParId: ownerId });
           } else {
-            await prisma.driveNode.create({
+            const range = await prisma.driveNode.create({
               data: {
                 name: d.name, type: "FILE", parentId, spaceId: espaceId, ownerId, createdById: ownerId, mimeType, size,
                 versions: { create: { blobId: stocke.blobId, version: 1, size, mimeType, createdById: ownerId } },
               },
+              select: { id: true },
             });
             bilan.fichiersAjoutes++;
+            // La pièce du dossier, rangée au Drive : un endroit de plus pour la même pièce (J1).
+            await inscrireFichierDrive({ nodeId: range.id, blobId: stocke.blobId, nom: d.name, mime: mimeType, taille: size, deposeParId: ownerId });
           }
         } catch (e) {
           // La référence prise n'a pas trouvé de détenteur : on la rend.

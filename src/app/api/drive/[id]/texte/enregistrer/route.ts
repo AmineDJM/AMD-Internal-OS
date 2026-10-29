@@ -6,6 +6,7 @@ import { getBlob, putBlob } from "@/lib/drive-storage";
 import { recordAudit } from "@/lib/audit";
 import { estUnTexteEditable, texteAEnregistrer } from "@/lib/texte-fichier";
 import { TAILLE_MAX_TEXTE_OCTETS } from "@/lib/formats/apercu";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 const SANS_CACHE = { "Cache-Control": "no-store" };
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const verifie = texteAEnregistrer(corps.texte, tailleActuelle > TAILLE_MAX_TEXTE_OCTETS);
   if (!verifie.ok) return NextResponse.json({ error: verifie.error }, { status: 400, headers: SANS_CACHE });
 
-  const { blobId, size } = await putBlob(verifie.octets);
+  const { blobId, size, sha256 } = await putBlob(verifie.octets);
   const version = actuelle.version + 1;
   try {
     // (nodeId, version) est unique : deux enregistrements simultanés ne créent pas deux fois la même version.
@@ -50,5 +51,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   }
   await prisma.driveNode.update({ where: { id: params.id }, data: { size } });
   await recordAudit({ actorId: user.id, action: "UPLOAD", module: "Drive", entityType: "DRIVE_NODE", entityId: params.id, summary: `Texte modifié (v${version}) — ${node.name}` });
+  // La nouvelle version entre à la bibliothèque (J1) : la clé du nœud passe à ce contenu. Ne lève jamais.
+  await inscrireFichierDrive({ nodeId: params.id, version, blobId, sha256, nom: node.name, mime: actuelle.mimeType ?? "text/plain", taille: size, deposeParId: user.id });
   return NextResponse.json({ ok: true, version }, { headers: SANS_CACHE });
 }

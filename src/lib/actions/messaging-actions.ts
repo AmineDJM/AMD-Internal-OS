@@ -38,6 +38,7 @@ export async function setMessagingStatus(formData: FormData): Promise<{ ok: bool
 }
 import { mapMessage, messageInclude, type MessageRow, type MessageDTO } from "@/lib/queries/messaging";
 import { fdStr, fdBool, type ActionResult } from "@/lib/actions/types";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 const DENIED: ActionResult = { ok: false, error: "Non autorisé." };
 
@@ -472,6 +473,17 @@ export async function sendMessage(
   // L'ACCÈS SUIT LE PARTAGE, et il le suit APRÈS la création du message : si l'écriture du
   // message échoue, on n'aura ouvert l'accès à rien.
   if (driveRefs.length > 0) await grantDriveRefAccess(driveRefs, [...memberIds], user.id);
+  // Les pièces téléversées (le blob vient de `/api/messaging/upload`) entrent à la bibliothèque (J1), sous la clé de
+  // la pièce jointe : la recherche les rend aux membres de la conversation. Une référence au Drive y est déjà.
+  if (attachments.length > 0) {
+    const jointes = await prisma.messageAttachment.findMany({ where: { messageId: created.id, blobId: { not: null } }, select: { id: true, blobId: true, name: true, mime: true, size: true } });
+    for (const j of jointes) {
+      await inscrirePiece({
+        blobId: j.blobId!, nom: j.name, mime: j.mime, taille: j.size, source: "CONVERSATION",
+        objet: { famille: "MESSAGE_PIECE", id: j.id }, proprietaireId: user.id, role: "piece-jointe",
+      });
+    }
+  }
 
   await prisma.conversation.update({ where: { id: conversationId }, data: { lastMessageAt: created.createdAt } });
   await prisma.conversationMember.update({ where: { id: membership.id }, data: { lastReadAt: created.createdAt } });

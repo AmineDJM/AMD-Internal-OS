@@ -32,7 +32,12 @@ export const CARTE = {
    */
   "ad-pro": ["referentiels"],
   /** RH : congés, paie (par le centre de paiement), avances, notes de frais, documents RH, organisation. */
-  rh: ["coffre", "referentiels"],
+  rh: ["coffre", "referentiels", "bibliotheque"],
+  /**
+   * Bibliothèque (J1) : toute pièce entrée est inscrite au registre (`Piece`/`PieceLien`), lue une fois, découpée,
+   * vectorisée ; une requête la retrouve par son contenu, sous la règle d'ouverture de l'écran qui la sert.
+   */
+  bibliotheque: [],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { servirPiece } from "@/lib/http/servir-piece";
 import { getCurrentUser } from "@/lib/session";
-import { voitLesSalaires } from "@/lib/hr/confidentialite";
-import { entitePermisePourFiche } from "@/lib/company";
+import { peutOuvrirDocumentRh } from "@/lib/entity-access/ouverture-pieces";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
 
@@ -23,12 +22,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   });
   if (!doc) return new NextResponse(null, { status: 404 });
 
-  // Un bulletin, un contrat, une pièce d'identité : la LECTURE du module ne suffisait plus à les
-  // télécharger (audit 360°, S5) — il faut GÉRER les RH (`voitLesSalaires`), et dans une société
-  // permise (S6). L'employé garde ses propres pièces marquées visibles.
-  const isOwner = doc.employee.userId === user.id && doc.visibleToEmployee;
-  const isHr = voitLesSalaires(user) && (await entitePermisePourFiche(user.id, doc.employee.companyId));
-  if (!isOwner && !isHr) return new NextResponse(null, { status: 403 });
+  // Un bulletin, un contrat, une pièce d'identité : GÉRER les RH dans une société permise, ou l'employé
+  // pour ses pièces visibles — la règle est partagée avec la bibliothèque (`entity-access/ouverture-pieces.ts`).
+  if (!(await peutOuvrirDocumentRh(user, doc))) return new NextResponse(null, { status: 403 });
 
   const bytes = await getBlob(doc.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });

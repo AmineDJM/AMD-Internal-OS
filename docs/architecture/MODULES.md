@@ -3,7 +3,7 @@
 > Référence d'architecture : [`docs/audit/2026-10-27/08-architecture-code.md`](../audit/2026-10-27/08-architecture-code.md)
 > (§3) et [`refonte-donnees-et-monolithe-modulaire.md`](refonte-donnees-et-monolithe-modulaire.md) §5.
 > Ce document est le **mode d'emploi** : un développeur qui arrive doit pouvoir migrer un module seul en le suivant.
-> État au 28/10/2026 (lot V3-G, puis V4 : modules `rh` et `ad-pro`).
+> État au 29/10/2026 (lot V3-G, puis V4 : modules `rh` et `ad-pro` ; J1 : module `bibliotheque`).
 
 ---
 
@@ -28,7 +28,8 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `referentiels` | socle métier | `api.ts`, `partage.ts`, `actions-{personnes,organisations,reprises}.ts` | `lieux`, `coffre` | ~20 fichiers d'actions, enrichissement, pages `/personnes`, `/organisations`, `/admin/refonte-donnees` | **migré** (V3-G) |
 | `consommation` | métier | `api.ts`, `actions.ts` | — | segmentation, vue 360° | **pilote** (audit 08), actions rangées au lot V3-G |
 | `ad-pro` | métier | `api.ts`, `partage.ts`, `actions-*.ts` (16 clés, dont `ad-pro-item-actions` en six morceaux), `ecrans/` | `referentiels` | pages `/sponsoring`, `/congress-*`, `/events`, `/ad-pro`, `/centre-ad-pro`, `/budget-marketing`, `/promo-material` ; Adam ; consulting, secrétariat, bons de commande | **migré** (V4) — dette : 253 imports vers `src/lib/` |
-| `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
+| `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels`, `bibliotheque` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
+| `bibliotheque` | métier (transverse) | `api-inscription.ts` (inscrire — porte étroite), `api.ts` (chercher, ouvrir, file), `partage.ts`, `actions.ts`, `ecrans/` | — | ≈ 45 points d'entrée (inscription), `rh`, `scheduled.ts` (tâches `bibliotheque.*`), page `/bibliotheque` | **neuf** (J1, 29/10) — dette : les règles d'ouverture et les lecteurs existants (`DETTE_HERITEE`) |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐
@@ -74,6 +75,13 @@ comme sous-dossiers. Des sous-dossiers **dans** `domaine/` ou `infra/` sont libr
 | le `domaine/` d'un autre module | `@/modules/<m>/partage` **seulement** | `referentiels/domaine/coordonnees.ts` → `@/modules/lieux/partage` |
 | une page de `src/app/` qui rend un écran du module | `@/modules/<m>/ecrans/<écran>` | `consommation/page.tsx` → `@/modules/consommation/ecrans/televerser` |
 | un fichier du **même** module | un chemin relatif (`../domaine/x`) | `infra/requetes.ts` → `../domaine/revue` |
+
+### Une porte étroite pour les écrivains : l'exemple de la bibliothèque
+
+Une quarantaine de fichiers inscrivent une pièce après l'avoir écrite. S'ils importaient `api.ts`, chacun tirerait dans son
+graphe la recherche, les règles d'ouverture de toutes les familles et les lecteurs (OCR, transcription). D'où
+`api-inscription.ts` : `inscrirePiece` et ses formes, rien d'autre (Prisma + le domaine pur). `api.ts` la réexporte pour qui
+veut tout.
 
 ### Pourquoi une porte peut se dédoubler : l'exemple du coffre
 

@@ -7,6 +7,7 @@ import { recordAudit } from "@/lib/audit";
 import { estUnTexteEditable, texteAEnregistrer } from "@/lib/texte-fichier";
 import { TAILLE_MAX_TEXTE_OCTETS } from "@/lib/formats/apercu";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentExistant } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 const SANS_CACHE = { "Cache-Control": "no-store" };
@@ -50,5 +51,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     return NextResponse.json({ error: "L'enregistrement a échoué : rien n'a été modifié." }, { status: 500, headers: SANS_CACHE });
   }
   await recordAudit({ actorId: user.id, action: "UPLOAD", module: "Documents", entityType: doc.entityType, entityId: doc.entityId, summary: `Texte modifié — ${doc.name}` });
+  // La nouvelle version entre à la bibliothèque (J1) ; l'ancienne ne ressort plus par ce document. Ne lève jamais.
+  await inscrireDocumentExistant(doc.id, user.id);
   return NextResponse.json({ ok: true, version: doc.version + 1 }, { headers: SANS_CACHE });
 }

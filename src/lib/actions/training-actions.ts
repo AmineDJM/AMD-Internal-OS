@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { UserRole } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -11,7 +10,7 @@ import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { CHEMIN_FORMATIONS, lienFormation } from "@/lib/chemins/formations";
 import { getAppSettings } from "@/lib/settings";
-import { saveFile, validateUpload } from "@/lib/storage";
+import { validateUpload, deposerPieceDeModule } from "@/lib/storage";
 import { companyIdForNew } from "@/lib/company";
 import { createWithRetry, referenceDeSerie } from "@/lib/refs";
 import { getManagerOfUser, getManagementChain } from "@/lib/departments";
@@ -66,19 +65,8 @@ async function attachFiles(trainingId: string, files: File[], uploaderId: string
   for (const file of files) {
     const invalid = validateUpload(file.name, file.size, maxMb);
     if (invalid) return invalid;
-    const key = `TRAINING/${trainingId}/${randomUUID()}__${file.name}`;
-    try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
-    } catch (err) {
-      console.error("[training] storage write failed, recording metadata only", err);
-    }
-    await prisma.document.create({
-      data: {
-        name: file.name, category: "OTHER", entityType: "TRAINING", entityId: trainingId,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
-        confidentiality: "INTERNAL", uploadedById: uploaderId,
-      },
-    });
+    // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+    await deposerPieceDeModule(file, { entityType: "TRAINING", entityId: trainingId, category: "OTHER", confidentiality: "INTERNAL", uploadedById: uploaderId, journal: "training" });
   }
   return null;
 }

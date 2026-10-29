@@ -1,5 +1,23 @@
 ## 🧾 Journal des évolutions récentes
 
+### J1 : LA BIBLIOTHÈQUE — TOUTE PIÈCE INSCRITE, LUE UNE FOIS, RETROUVÉE PAR SON CONTENU SOUS LES DROITS (2026-10-29)
+
+Décision de la Direction (lot J1, pgvector approuvé) — `docs/assistant/decisions/0014-bibliotheque.md`.
+- **Une porte d'inscription** (`@/modules/bibliotheque/api-inscription`) branchée sur ≈ 45 points d'entrée : Drive (dépôts,
+  versions, éditeurs, copies, miroirs, exports, fabrique), pièces de module, messagerie, sujets, réunions, rapports terrain,
+  RH, courriels Microsoft 365, retours, KPI, candidatures, Assistant IA. Registre R5 réutilisé (`Piece`/`PieceLien`) +
+  `BibliothequeFiche`/`BibliothequePassage`. Cliquet `inscription-cliquet.test.ts` (10 exceptions nommées).
+- **Lue une fois** par empreinte (tâches `bibliotheque.ingestion` et `.rattrapage`, sous bail), par les lecteurs existants
+  (texte, OCR local, PowerPoint, transcription), découpée en passages ~800 jetons, vectorisée (text-embedding-3-small, 512 d)
+  quand la pièce n'est ni confidentielle ni sensible.
+- **Index hybride** : `tsvector` français replié + trigrammes + `vector` HNSW si pgvector (migration idempotente qui passe
+  sans l'extension ; repli détecté), fusion RRF, extraits surlignés. CI : tests sur `pgvector/pgvector:pg16`, migrations
+  sur Postgres nu.
+- **Droits** : la règle de la route qui sert chaque fichier, appelée telle quelle (règles des routes sorties dans
+  `entity-access/ouverture-pieces.ts`) ; `pourModele` écarte le confidentiel et le coffre. Écran de vérification `/bibliotheque`.
+- **Mesuré** (2 000 pièces) : p50 23 ms / p95 115 ms, rappel@10 30/30, 0 résultat hors droits ; avec le vrai fournisseur
+  d'embeddings, p95 ≈ 360–400 ms (l'appel au fournisseur, ≈ 280 ms, borné et mis en cache).
+
 ### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)
 
 Aucun écran ne change, aucune donnée, aucune migration : du code DÉPLACÉ, tel quel (audit 08, ARCH-04 — « hyper

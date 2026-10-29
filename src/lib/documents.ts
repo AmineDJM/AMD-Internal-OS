@@ -11,6 +11,7 @@ import { mirrorDocumentsToDrive } from "@/lib/drive/document-mirror";
 import { mirrorRegulatoryUpload } from "@/lib/regulatory-drive-mirror";
 import { cheminSur, refusDepotCtd } from "@/lib/regulatory/ctd-initiale";
 import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
+import { inscrireDocument } from "@/modules/bibliotheque/api-inscription";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -141,6 +142,11 @@ export async function persistUploadedDocument(
     documentId, entityType, entityId, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
     nom: file.name, mime: file.type || null, taille: file.size, deposeParId: userId,
   });
+  // LA BIBLIOTHÈQUE (J1) : la pièce entre au registre, sous la clé du document, et en file de lecture. Ne lève jamais.
+  await inscrireDocument({
+    documentId, entityType, category, confidentiality, blobId: ecrit.blobId, sha256: ecrit.sha256,
+    nom: file.name, mime: file.type || null, taille: file.size, deposeParId: userId,
+  });
 
   // MIROIR DRIVE, en arrière-plan : le document est déjà enregistré, c'est ce que la personne
   // voit. La copie se termine côté serveur — on ne fait pas attendre un téléversement pour elle.
@@ -200,6 +206,11 @@ export async function inscrireDocumentDirect(
         sha256: blob.sha256, nom: name, mime: input.mimeType, taille: input.size, deposeParId: userId,
       });
     }
+    // LA BIBLIOTHÈQUE (J1) : l'empreinte manquante (`direct:…`) sera posée par l'ingestion, qui relit les octets.
+    await inscrireDocument({
+      documentId: created.id, entityType, category: input.category, confidentiality: input.confidentiality, blobId: input.blobId,
+      sha256: blob?.sha256 ?? null, nom: name, mime: input.mimeType, taille: input.size, deposeParId: userId,
+    });
     // REGULATORY (Direction, 06/10) : la pièce rejoint le dossier du produit dans la catégorie
     // « Regulatory » par RÉFÉRENCE à son blob — aucun octet relu, même pour plusieurs Go.
     if (entityType === "REGULATORY_PRODUCT") {

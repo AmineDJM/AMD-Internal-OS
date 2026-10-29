@@ -17436,6 +17436,8 @@ model Piece {
   faitsConfirmes   FaitConfirme[]
   documents        Document[]
   driveNodes       DriveNode[]
+  /// J1 — sa fiche de bibliothèque (lecture, passages, clés d'accès) : née à l'inscription (`inscrirePiece`).
+  fiche            BibliothequeFiche?
 
   @@index([empreinte])
   @@index([nature])
@@ -17863,4 +17865,82 @@ enum StatutTacheDeFond {
   ECHEC
   /// La tâche a déclaré n'avoir rien à faire pour une raison durable (débrayée, pas encore livrée).
   IGNOREE
+}
+
+/// J1 — Où en est la lecture d'une pièce par la bibliothèque (`src/modules/bibliotheque/`).
+enum StatutIngestionPiece {
+  A_FAIRE
+  EN_COURS
+  FAITE
+  ECHEC
+  /// Rien à lire, pour une raison durable (format sans texte, trop volumineux) — dite dans `derniereErreur`.
+  IGNOREE
+}
+
+/// J1 — LA BIBLIOTHÈQUE : une fiche par `Piece` (le registre R5 reste le seul registre). Elle porte ce que la
+/// recherche filtre (format, source, date, confidentialité, sensibilité, CLÉS D'ACCÈS des sources) et l'état de
+/// l'ingestion (file sous bail : statut, tentatives, prochain essai). Le texte vit dans ses passages.
+///
+/// `cles` : une clé « FAMILLE:id » par source où la pièce est rangée (`DRIVE_NODE:…`, `DOCUMENT:…`) — la même règle
+/// que l'ouverture du fichier la juge (`src/modules/bibliotheque/infra/acces.ts`). `familles` en est la projection,
+/// pour écarter en SQL ce qu'une personne ne peut ouvrir d'aucune façon. Index GIN et trigrammes : SQL seulement
+/// (migration `20270207100000_bibliotheque`).
+model BibliothequeFiche {
+  pieceId          String               @id
+  piece            Piece                @relation(fields: [pieceId], references: [id], onDelete: Cascade)
+  blobId           String
+  titre            String
+  /// Le titre REPLIÉ (minuscules sans accents) — la colonne des trigrammes.
+  titrePlie        String
+  /// pdf, texte, traitement-texte, tableur, presentation, image, audio, video, archive, autre.
+  format           String
+  mime             String?
+  taille           Float?
+  /// Une valeur de `NATURES_PIECE` (classement LOCAL de l'enrichissement), posée à l'ingestion.
+  nature           String?
+  source           SourcePiece          @default(AUTRE)
+  confidentiality  Confidentiality      @default(INTERNAL)
+  /// Pièce du coffre (identité, paie, RIB…) reconnue par le classement local, ou annoncée par son nom.
+  sensible         Boolean              @default(false)
+  cles             String[]
+  familles         String[]
+  auteurId         String?
+  dateDocument     DateTime             @default(now())
+  statut           StatutIngestionPiece @default(A_FAIRE)
+  tentatives       Int                  @default(0)
+  prochainEssaiLe  DateTime             @default(now())
+  verrouilleLe     DateTime?
+  derniereErreur   String?
+  /// texte, ocr, transcription, aucune.
+  methode          String?
+  caracteres       Int?
+  nbPassages       Int                  @default(0)
+  /// Version des règles d'ingestion (découpage, lecteurs) qui ont produit les passages.
+  versionIngestion Int                  @default(0)
+  ingereLe         DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @default(now()) @updatedAt
+  passages         BibliothequePassage[]
+
+  @@index([statut, prochainEssaiLe])
+  @@index([dateDocument])
+  @@index([blobId])
+}
+
+/// J1 — UN PASSAGE (~800 jetons, avec chevauchement) du texte d'une pièce. Colonnes SQL seulement : `recherche`
+/// (tsvector français replié, GIN) et, si l'extension pgvector est installée, `vecteur` (vector(512), HNSW).
+model BibliothequePassage {
+  id          String            @id @default(cuid())
+  pieceId     String
+  fiche       BibliothequeFiche @relation(fields: [pieceId], references: [pieceId], onDelete: Cascade)
+  rang        Int
+  texte       String
+  /// Position du passage dans le texte complet de la pièce (caractères).
+  debut       Int
+  jetons      Int
+  vectoriseLe DateTime?
+  createdAt   DateTime          @default(now())
+
+  @@unique([pieceId, rang])
+  @@index([vectoriseLe])
 }

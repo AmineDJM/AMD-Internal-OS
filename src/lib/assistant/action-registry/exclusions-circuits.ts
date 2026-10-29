@@ -72,6 +72,11 @@ export function classerExclusionsCircuits(): void {
     + "montre, lot par lot, et chaque geste relit le rôle. Réservé au SUPER ADMIN, non délégable ; aucune ouverture conversationnelle.", [
     "refonte-reprise-actions:apercuReprise", "refonte-reprise-actions:executerReprise", "lieux-actions:reglerDoubleEcritureLieux", "coffre-actions:basculerCoffre",
   ]);
+  X("BIBLIOTHÈQUE (J1, Super Admin) : lancer un passage de rattrapage et de lecture des pièces, ou remettre une pièce en "
+    + "file. Des gestes d'EXPLOITATION de l'index (ils ne modifient aucune pièce) décidés devant l'état de la file que l'écran "
+    + "`/bibliotheque` montre ; chaque geste relit le rôle. Réservé au SUPER ADMIN ; aucune ouverture conversationnelle.", [
+    "bibliotheque-actions:lancerPassageBibliotheque", "bibliotheque-actions:relancerFicheBibliotheque",
+  ]);
   X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de configuration — variables, adresses, réponse du "
     + "Document Server. Une moitié du test se joue DANS LE NAVIGATEUR de l'administrateur (chargement d'api.js) : une "
     + "conversation ne peut pas la faire. C'est un écran de dépannage, pas un geste métier.", [
