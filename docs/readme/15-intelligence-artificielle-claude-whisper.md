@@ -3,7 +3,7 @@
 La couche IA (`src/lib/ai.ts`) est **serveur uniquement** ; sans clé, elle renvoie `configured:false` et l'UI
 affiche proprement « IA non configurée » — **aucune fonctionnalité ne casse**.
 
-- **Assistant IA (`/assistant`) — le moteur actuel** (Mastra sur MiMo, `src/lib/agent/`, interface
+- **Assistant IA (`/assistant`) — le moteur actuel** (Mastra sur OpenAI `gpt-6.1-terra` — décision 0010, `src/lib/agent/`, interface
   `src/components/assistant-beta/` ; **pas Adam**). Ouvert personne par personne (module `ASSISTANT_IA`), il ne
   possède que ce que la personne voit : chaque outil s'exécute sous ses droits, chaque sortie passe le filtre de
   confidentialité (rémunération, banque, identité jamais au modèle). **Rien ne s'écrit sans carte confirmée** ;
@@ -39,7 +39,19 @@ affiche proprement « IA non configurée » — **aucune fonctionnalité ne cass
     sur le message saisi et l'historique (IA-09) ; retrait, avant le tour, d'une carte dont la personne vient de
     reparler (IA-10) ; expiration d'une carte non confirmée après 24 h (IA-07). Une action interrompue par un
     redémarrage passe en échec dit (jamais rejouée) ; un message du fil a trois essais (IA-06).
-  - Décisions : `docs/assistant/decisions/0001` → `0008`.
+  - *Droits de la personne et repères sensibles (décision 0012, 28/10/2026)* : l'assistant a les lectures et écritures du
+    moteur **auxquelles la personne a droit** — fiche RH (`lire_fiche_rh` : lecture du module RH ou soi), **paie**
+    (`lire_paie` : qui gère les RH — `voitLesSalaires` — dans une société permise, ou soi), **documents RH**
+    (`documents_rh` : lien `/api/rh/document/<id>?dl=1`, lecture locale d'un contrat / avenant / attestation, jamais d'un
+    bulletin ni d'une pièce d'identité), situation RH, recherche fédérée, agenda, Drive ; écritures en cartes :
+    tâches, demandes RH et administratives, **dossiers réglementaires** (`regulatory_operation`, dont `create_product`),
+    gestes RH / Drive / tâches / demandes (ops de domaine, porte de l'écran rejugée). Chaque outil rejuge sa garde à
+    l'exécution. **Données sensibles** (salaire, net, IBAN / RIB, n° de pièce) : le modèle ne reçoit que des **repères**
+    `⟦S1⟧` (`filtre-confidentialite.ts` — repères) ; le serveur les remplace, avant d'afficher et de stocker, par la valeur pour qui a le droit de
+    la voir (politique du coffre `peutLire`, journal `AccesDonneeSensible` pour une colonne du coffre — `fil/tour.ts` — `Revelateur`),
+    « [confidentiel] » sinon. Une valeur révélée ne repart ni dans l'historique du modèle, ni dans la voix, ni dans une
+    notification.
+  - Décisions : `docs/assistant/decisions/0001` → `0012`.
 - **Ancien Assistant IA — moteur d'Adam (en pause depuis 09/2026, `/chief-of-staff`)** — module à part entière
   à l'époque (entrée de menu dédiée, page plein écran ; l'ancienne bulle flottante a été retirée). **Boucle agent Claude**,
   comprend l'app et les données **filtrées par les droits**. **Proactif** sur les messages non lus. Outils de

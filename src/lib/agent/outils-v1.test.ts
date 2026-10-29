@@ -2,7 +2,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import { APRES_LA_PREVALIDATION, censurerSortie, circuitLisible, outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { APRES_LA_PREVALIDATION, circuitLisible, outilsV1, type PropositionPreparee } from "@/lib/agent/outils-v1";
+import { jetonnerSortie } from "@/lib/agent/filtre-confidentialite";
 import { OPERATIONS_IA } from "@/lib/agent/operations";
 
 /**
@@ -35,14 +36,18 @@ const outil = (nom: string, props: PropositionPreparee[]) => {
 };
 
 describe("outils V1", () => {
-  it("offre au Super Admin les lectures et les deux écritures de la V1, rien d'autre", () => {
+  it("offre au Super Admin les lectures et les écritures auxquelles il a droit (décision 0012), sans doublon", () => {
     const noms = outilsV1(auteur, []).map((o) => o.def.name).sort();
-    // Les lectures et écritures V1, la mémoire proposée, et les opérations de l'Assistant IA (le
-    // Super Admin les a toutes ; chacune revérifie à l'exécution par l'action de l'écran).
+    // Les lectures et écritures V1, les lectures RH (`lectures.ts` — `lecturesRh`), les lectures et gestes du moteur
+    // ouverts par droit, la mémoire proposée et les opérations de l'Assistant IA (le Super Admin a tout ;
+    // chacun revérifie à l'exécution par l'action de l'écran).
     expect(noms).toEqual([
-      "comparer_versions", "create_task", "directory_list", "directory_lookup", "lire_devis_facture", "lire_document", "lire_formulaire_pdf", "list_my_tasks", "mes_brouillons", "mes_conversations", "mes_demandes_en_attente", "mes_routines",
-      "proposer_memoire", "read_workflow",
-      "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload", "search_products", "send_message", "web_research",
+      "assign_regulatory_responsible", "comparer_versions", "create_admin_request", "create_hr_request", "create_task", "directory_list", "directory_lookup", "documents_rh",
+      "drive_operation", "hr_operation", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks",
+      "mes_brouillons", "mes_conversations", "mes_demandes_en_attente", "mes_routines", "my_overview",
+      "proposer_memoire", "read_calendar", "read_hr_overview", "read_workflow",
+      "regulatory_knowledge", "regulatory_operation", "regulatory_portfolio", "regulatory_workload", "request_operation", "request_regulatory_status_update",
+      "search_drive", "search_everything", "search_products", "send_message", "set_regulatory_step", "task_operation", "update_regulatory_product", "update_task", "web_research",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
   });
@@ -99,13 +104,13 @@ describe("circuitLisible — un circuit expliqué se LIT, jamais de mémoire", (
   });
 });
 
-describe("censurerSortie — ce qui part au modèle", () => {
+describe("jetonnerSortie sans coffret (routines) — ce qui part au modèle", () => {
   it("masque une rémunération dans un JSON et le garde JSON", () => {
-    const s = JSON.parse(censurerSortie(JSON.stringify({ nom: "A", salaire: 180000, poste: "Pharmacien" })));
+    const s = JSON.parse(jetonnerSortie(JSON.stringify({ nom: "A", salaire: 180000, poste: "Pharmacien" }), null));
     expect(s).toEqual({ nom: "A", salaire: "[CONFIDENTIEL]", poste: "Pharmacien" });
   });
 
   it("masque un IBAN dans un texte libre", () => {
-    expect(censurerSortie("Virement : IBAN DZ5900010002000300040005")).not.toMatch(/0001000200030004/);
+    expect(jetonnerSortie("Virement : IBAN DZ5900010002000300040005", null)).not.toMatch(/0001000200030004/);
   });
 });

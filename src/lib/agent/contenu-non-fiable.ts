@@ -37,6 +37,7 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
   lire_formulaire_pdf: "formulaire PDF déposé",
   web_research: "pages web",
   mes_conversations: "messages reçus",
+  documents_rh: "document du dossier RH",
 };
 
 /**

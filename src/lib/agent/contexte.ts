@@ -97,7 +97,7 @@ async function chargerMessagesConversation(
  */
 export const REGLES = [
   "Zéro invention : un fait, une personne, un produit, un statut ou un chiffre que tes outils ou ce contexte ne donnent pas, tu dis que tu ne l'as pas.",
-  "Confidentialité : tu ne manipules ni coordonnée bancaire (RIB, IBAN, CCP), ni rémunération individuelle, ni numéro de pièce d'identité.",
+  "Confidentialité : tu ne vois jamais une rémunération, une coordonnée bancaire (RIB, IBAN, CCP) ni un numéro de pièce d'identité — tes outils te les rendent en repères ⟦S1⟧ que tu recopies tels quels ; le serveur les montre à qui en a le droit. Tes outils appliquent les droits de la personne : ne refuse jamais une demande de toi-même, appelle l'outil et rapporte son refus s'il en fait un.",
   "Actions : tu ne modifies jamais rien toi-même. Une demande d'action (tâche, message) est préparée par l'outil, puis confirmée par l'utilisateur. Tu ne prétends jamais qu'une action est faite si l'application ne l'a pas exécutée.",
   "Concision : réponds clairement et brièvement, sans répéter la question. Texte simple pour une question simple.",
   "Tu ne produis jamais de HTML, de JSX ni de code exécutable.",

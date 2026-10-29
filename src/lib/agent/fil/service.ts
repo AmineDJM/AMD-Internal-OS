@@ -9,6 +9,7 @@ import { sansBloquer } from "@/lib/journal";
 import { auNomDe } from "@/lib/agent/consommation";
 import { resumeLecture, type AudioDuTour, type LecturePiece, type VocalDuTour } from "@/lib/agent/lecture/regles";
 import { repondreAVoixHaute, transcrireVocal } from "@/lib/agent/lecture/voix";
+import { sansValeursRevelees } from "@/lib/agent/filtre-confidentialite";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -29,7 +30,7 @@ import { repondreAVoixHaute, transcrireVocal } from "@/lib/agent/lecture/voix";
  *   • En arrière-plan, un tour peut être long : jusqu'à 24 étapes d'outils et 4 minutes.
  *
  * Les limites ne bougent pas : droits RELUS à chaque tour (`proprietaire`), écritures en cartes à
- * confirmer, aucune donnée sensible au modèle (outils de l'Assistant IA, `censurerSortie`).
+ * confirmer, aucune donnée sensible au modèle (sorties d'outils jetonnées, `filtre-confidentialite.ts` — repères).
  *
  * VOCAUX ET PIÈCES LUES (28/10/2026) : un message peut être un VOCAL (fichier du Drive, transcrit
  * au moment d'être joué, la transcription gardée sur le tour et affichée sous le lecteur) ; les
@@ -314,7 +315,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
   if (r.ok && fil.reponseVocale) {
     let audio: AudioDuTour | null;
     try {
-      audio = await auNomDe(userId, () => repondreAVoixHaute(user, r.content), tour.filId);
+      // La voix est synthétisée par un modèle : une valeur révélée n'y part pas (décision 0012).
+      audio = await auNomDe(userId, () => repondreAVoixHaute(user, sansValeursRevelees(r.content)), tour.filId);
     } catch (e) {
       console.error("[assistant-fil] réponse vocale", e);
       audio = { id: "", dureeS: null, erreur: "La réponse vocale n'a pas pu être préparée." };
@@ -329,7 +331,8 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     await notifyUser({
       userId, type: "GENERIC",
       title: r.ok ? `Assistant IA : réponse prête — « ${sujet} »` : `Assistant IA : la demande n'a pas abouti — « ${sujet} »`,
-      body: (r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
+      // Une notification sort de l'écran (téléphone, cloche) : jamais une valeur révélée.
+      body: sansValeursRevelees(r.ok ? r.content : r.error).replace(/[#*_`>]/g, "").trim().slice(0, 280),
       link: "/assistant",
     }).catch(sansBloquer("fil-service.jouerTourDuFil.notifyUser"));
   }

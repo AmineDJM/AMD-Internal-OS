@@ -1,5 +1,20 @@
 ## 🧾 Journal des évolutions récentes
 
+### ASSISTANT IA : LES DROITS DE LA PERSONNE, ET LES DONNÉES SENSIBLES EN REPÈRES (2026-10-28)
+
+- **Retour de la Direction** (Super Admin) : « le salaire d'Assia », « son contrat », « crée un dossier pour daclatasvir »
+  étaient refusés — faute d'outil, et parce que toute rémunération était masquée pour tout le monde.
+- **Les droits de la personne, rien de plus, rien de moins** : fiche RH, paie (qui gère les RH, ou soi), documents RH (lien de
+  téléchargement, lecture d'un contrat), situation RH, recherche fédérée, agenda, Drive ; écritures en cartes à confirmer :
+  dossier réglementaire, gestes RH, tâches, demandes RH et administratives, Drive. Chaque garde rejugée à l'exécution ;
+  un KAM est refusé sur la paie et les documents d'autrui, et n'a pas la création de dossier réglementaire.
+- **Repères** : le modèle ne reçoit jamais un salaire, un IBAN, un n° de pièce — il écrit `⟦S1⟧`, et le serveur l'affiche à
+  qui a le droit (politique du coffre, journal des accès), « [confidentiel] » sinon. Rien ne repart (historique, voix,
+  notification).
+- **Filtre de la saisie** : « C'est quoi le salaire d'Assia ? » devenait « C'est quoi le [CONFIDENTIEL]d'Assia ? » (l'espace
+  passait pour un montant) — un montant commence désormais par un chiffre.
+  Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
+
 ### ASSISTANT IA : VOCAUX « COMME WHATSAPP » ET LECTURE DE TOUTE PIÈCE JOINTE (2026-10-28)
 
 - **Messages vocaux** (Direction) : sur `/assistant`, maintenir le micro enregistre (minuterie, onde), relâcher envoie, glisser à

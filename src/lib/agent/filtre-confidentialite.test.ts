@@ -74,4 +74,12 @@ describe("filtre-confidentialite — décision Q14", () => {
     expect(r.texte).toContain("Pharmalab");
     expect(r.texte).toContain("Medistock");
   });
+
+  it("une QUESTION sur un salaire passe : seul un montant chiffré est masqué (mesuré le 28/10/2026)", () => {
+    expect(censurerTexte("C'est quoi le salaire d'Assia ?")).toEqual({ texte: "C'est quoi le salaire d'Assia ?", censure: false, occurrences: 0 });
+    expect(censurerTexte("Quel est le salaire, la prime et le net à payer de Karim ?").censure).toBe(false);
+    expect(censurerTexte("Son salaire de base est de 185 000 DZD.").texte).not.toContain("185");
+    expect(censurerTexte("Mon salaire de base est 180 000 DZD").texte).not.toContain("180");
+    expect(censurerTexte("un salaire mensuel de 150 000 DA").texte).not.toContain("150");
+  });
 });
