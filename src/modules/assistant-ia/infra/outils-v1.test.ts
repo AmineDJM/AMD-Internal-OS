@@ -43,7 +43,7 @@ describe("outils V1", () => {
     // proposée et les opérations de l'Assistant IA (le Super Admin a tout ; chacun revérifie à l'exécution).
     expect(noms).toEqual([
       "comparer_versions", "demandes_adpro", "directory_list", "directory_lookup", "documents_rh",
-      "etat_dossier_reglementaire", "finance_totals", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks", "list_pending_decisions",
+      "etat_dossier_reglementaire", "finance_totals", "lire_devis_facture", "lire_document", "lire_dossier_depose", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks", "list_pending_decisions",
       "mes_brouillons", "mes_conversations", "mes_demandes_en_attente", "mes_routines", "my_overview",
       "proposer_memoire", "read_budget", "read_calendar", "read_hr_overview", "read_workflow",
       "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload",
