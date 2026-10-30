@@ -52,6 +52,9 @@ export function classerNatifsEtCouverts(): void {
   classify("COVERED", "delete_record (carte : « Part aussi »)", ["admin-delete-actions:apercuDeSuppression"]);
   classify("COVERED", "create_task (planifiée, circuit demande)", ["task-actions:requestTask"]);
   classify("COVERED", "update_task", ["task-actions:updateTaskStatus", "task-actions:startTask", "task-actions:modifierTache"]);
+  // Les portes lisibles que l'Assistant IA appelle (décision 0020 § 8) : le même geste que les ops d'Adam.
+  classify("COVERED", "request_operation (op edit_own_request)", ["admin-request-actions:corrigerMaDemande"]);
+  classify("COVERED", "task_operation (op set_custom_field)", ["custom-field-actions:modifierChampPersonnalise"]);
   classify("COVERED", "create_dossier", ["dossier-actions:createDossier"]);
   classify("COVERED", "create_calendar_event", ["calendar-actions:createCalendarEvent"]);
   classify("COVERED", "create_hr_request", ["hr-document-actions:requestHrDocument"]);
