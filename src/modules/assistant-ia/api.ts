@@ -66,3 +66,8 @@ export {
 } from "./infra/qualite/banc";
 export { changerModeleRole, modelesEnService, revenirModeleEnvironnement, type ModeleEnService } from "./infra/qualite/modeles";
 export { tableauQualite } from "./infra/qualite/tableau";
+// ── Le terrain et la voix (J13, décision 0025) : vocaux et photos de délégué → cartes ; voix temps réel
+export {
+  capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
+} from "./infra/terrain/captation";
+export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";

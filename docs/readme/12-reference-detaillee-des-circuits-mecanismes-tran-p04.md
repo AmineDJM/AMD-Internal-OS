@@ -674,3 +674,27 @@ Décision [0021](../assistant/decisions/0021-graphe.md). Module `src/modules/gra
   FERMÉ (`fermeLe`, `fermeParId`, `remplaceParId`), jamais écrasé. État à une date, et « ce qu'on savait » à une autre.
 - **Outils de l'Assistant IA** : `explorer_relations`, `etat_a_une_date`, `d_ou_vient` — fiches de la sélection ; chaque
   chiffre porte sa `source` (vérifié au banc : `chiffresSansSource`).
+### Terrain et voix (lot J13, 30/10/2026)
+
+Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modules/assistant-ia/domaine/terrain/`,
+`infra/terrain/captation.ts`, `infra/operations/terrain.ts`, `infra/voix/temps-reel.ts`, `ecrans/terrain/`,
+`ecrans/voix-temps-reel.tsx` ; socle `src/platform/ia/voix/` ; page `/medical/terrain` ; routes `/api/assistant-ia/terrain`,
+`/api/assistant-ia/voix/{session,delegation,journal}` ; table `AssistantIaTerrainCapture`.
+
+- **Vocal → compte rendu** : file locale → dépôt idempotent (clé de capture) → Drive « Terrain — vocaux et photos » →
+  `gpt-transcribe` (langue détectée, indice du panel et de la gamme ; mesuré meilleur des quatre moteurs) → structuration
+  JSON relue → médecin résolu dans l'annuaire DU délégué (jamais deviné) → **cartes** : brouillon de compte rendu
+  pré-rempli (`createFieldReport` + `updateFieldReport`), demande d'échantillons (`demanderMateriel`), tournée de demain
+  (`planifierVisites`, sélection complète relue). **Rien n'est écrit sans clic** ; confirmation par `confirmerCarteTerrain`
+  (porte : module Rapports terrain ; seulement les opérations `terrain_*` de ce compte).
+- **Photos** : présentoir, ordonnance anonymisée (aucune donnée patient recopiée, filtrée en sortie), facture, carte de
+  visite → faits proposés ; carte « rattacher au compte rendu » → `rattacherPhotoTerrain` (brouillon seulement).
+- **Hors ligne** : IndexedDB, un élément ne sort de la file que sur l'accusé du serveur ; réessai 5 s → 5 min ; refus 4xx
+  gardé à relire ; envoi au retour du réseau ; état visible ; `sw.js` sert l'écran Terrain hors ligne (et rien d'autre).
+- **Voix temps réel de l'Assistant IA** (GPT-Live `gpt-live-1` seul, décision de Direction du 30/10 ; bouton à côté du
+  micro de `/assistant`) : l'offre WebRTC est échangée par notre serveur (`/v1/live/sessions`, aucun secret au
+  navigateur) ; GPT-Live converse et **délègue** ; la demande dite part dans **le même fil** que le texte, jouée par le
+  même assistant (outils, droits, console, repères, cartes) ; le résultat revient à la voix sans valeur sensible ;
+  **aucune confirmation à la voix** — une écriture est une carte, exécutée par son bouton. Modèle réglable par le Super
+  Admin (Consommation IA) ou `ASSISTANT_IA_VOICE_MODEL`. Latence mesurée sur la ligne de temps de la session (cible p50
+  ≤ 1,5 s, première mesure réelle à relever en production).

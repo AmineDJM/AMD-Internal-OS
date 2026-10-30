@@ -60,6 +60,20 @@ Lot J12 — `docs/assistant/decisions/0024-proactivite.md`.
   (R1). Le geste passe par l'action de l'écran, dans la session de la personne ; tout va à l'audit.
 - **Écrans** : « Ce que mon assistant surveille » (`/assistant`), suggestions à l'ouverture d'un dossier, console
   (`/admin/ai/acces` : plafond, interrupteur, mesure, mandats).
+### J13 : TERRAIN ET VOIX — LE VOCAL D'UN DÉLÉGUÉ DEVIENT UN COMPTE RENDU PRÊT, HORS LIGNE COMPRIS (2026-10-30)
+
+Lot J13 — `docs/assistant/decisions/0025-terrain-voix.md` ; banc STT `scripts/banc-stt-terrain.mjs`.
+- **Compte rendu vocal** : écran `/medical/terrain` (mobile, 390 px) ; transcription `gpt-transcribe` + indice (banc :
+  WER 0,229, 11 entités sur 12, ~1 s — devant whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe) ; compte rendu
+  structuré, médecin résolu dans l'annuaire du délégué ; cartes compte rendu / échantillons / tournée de demain ; rien
+  d'écrit sans confirmation.
+- **Photos de terrain** → faits proposés (ordonnance : jamais le patient) → photo rattachée au compte rendu par carte.
+- **Hors ligne** : file IndexedDB, envoi automatique au retour du réseau, état visible, aucune perte (50 éléments sur
+  réseau intermittent au banc ; E2E 390 px).
+- **Voix temps réel de l'Assistant IA** : GPT-Live (`gpt-live-1` seul, réglable par le Super Admin), délégation au
+  même assistant que le texte, dans le même fil ; valeurs sensibles jamais lues ; écritures confirmées à l'écran
+  seulement. Adam inchangé.
+- Migration additive `20270210110000_terrain_voix`. Aucun cliquet relevé.
 
 ### J5 + J14 : LA QUALITÉ CONTINUE DE L'ASSISTANT IA — BANC PROGRAMMÉ, TRACES REJOUABLES, CARTES QUI DISENT LEUR SOURCE, A/B DES MODÈLES (2026-10-30)
 
