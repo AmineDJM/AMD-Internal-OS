@@ -23,6 +23,10 @@ export interface FicheOutil {
   nom: string;
   libelle: string;
   description: string;
+  /** Les mots d'une CAPACITÉ (J6, dérivés : libellé, module, synonymes) — pesés comme un libellé. */
+  mots?: string;
+  /** Son contexte (fichier, champs) — pesé comme une description : il départage, il ne désigne pas. */
+  contexte?: string;
 }
 
 export interface OutilClasse {
@@ -58,9 +62,8 @@ const MOTS_CLES: Record<string, string> = {
   list_my_requests: "mes demandes administratives deplacement courrier signature achat",
   my_overview: "apercu resume espace travail tableau de bord synthese journee",
   read_hr_overview: "situation rh effectif masse salariale conges absences ressources humaines",
-  search_everything: "cherche trouve recherche partout erp reference",
+  search_everything: "cherche trouve recherche partout erp reference drive fichier dossier chemin nom",
   read_calendar: "agenda calendrier rendez vous reunion planning semaine demain aujourd hui disponibilite",
-  search_drive: "drive fichier dossier chemin nom",
   read_budget: "budget enveloppe reste restant consomme alloue disponible",
   finance_totals: "total paye encaisse depenses montant finances combien argent somme paiements",
   list_pending_decisions: "attend validation decision a valider en attente ma signature approuver trancher",
@@ -78,20 +81,7 @@ const MOTS_CLES: Record<string, string> = {
   lire_formulaire_pdf: "formulaire pdf champs remplir",
   mes_routines: "mes routines programmees briefing",
   web_research: "web internet actualite marche externe prix public congres etranger concurrent",
-  create_task: "cree tache assigne rappelle moi todo a faire pour",
-  update_task: "modifie tache reassigne echeance priorite statut terminee",
   send_message: "envoie message ecris dis previens collegue",
-  create_hr_request: "demande rh note frais avance conge absence attestation pour moi",
-  create_admin_request: "demande administrative deplacement billet courrier signature achat devis paiement reservation salle",
-  update_regulatory_product: "modifie dossier reglementaire champ change",
-  assign_regulatory_responsible: "confie dossier charge responsable assigne reglementaire",
-  set_regulatory_step: "etape anpp processus avance dossier reglementaire",
-  request_regulatory_status_update: "relance mise a jour statut dossier reglementaire",
-  regulatory_operation: "cree nouveau dossier reglementaire produit dci ouvre enregistrement",
-  hr_operation: "rh employe fiche cree conge deposer decider remuneration contrat",
-  task_operation: "tache rappel repondre demande tache avancer",
-  drive_operation: "drive deplace renomme partage dossier fichier supprime",
-  request_operation: "demande administrative valider traiter secretariat",
   preparer_sponsoring: "sponsoring sponsoriser medecin congres demande",
   preparer_prise_en_charge: "prise en charge congres national international medecin inscription",
   preparer_evenement: "evenement seminaire soiree organiser ad pro",
@@ -117,7 +107,7 @@ const MOTS_CLES: Record<string, string> = {
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",
   // J9 — le graphe de l'entreprise et les faits datés (fiches, pas socle : la sélection les trouve à la demande).
   explorer_relations: "depend dependent relie lien liens relation relations graphe reseau chemin qui travaille travaillent sur fournisseur dossier tombe impacte touche quels documents parlent concernent mentionnent lies a autour",
-  etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passe quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
+  etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passee autrefois quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
   d_ou_vient: "d ou vient provenance source origine qui a confirme justifie piece prouve preuve vient cette information ce chiffre fiable",
   // J3 — l'Atelier : les mots d'une personne qui veut voir ou retoucher SON document (joint, renvoyé, trouvé).
   ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",
@@ -145,8 +135,12 @@ export function plier(t: string): string {
 
 /** La racine : six lettres au plus, le pluriel ôté — « salaires » et « salaire » donnent « salair ». */
 export function racine(mot: string): string {
-  const m = mot.length > 3 ? mot.replace(/(s|x)$/, "") : mot;
-  return m.slice(0, 6);
+  // Les verbes en -yer (« renvoie » / « renvoyer », « envoie » / « envoyer ») se rejoignent sur leur radical.
+  const m0 = mot.length > 3 ? mot.replace(/(s|x)$/, "") : mot;
+  const m = m0.replace(/oie$/, "oye").replace(/(?<=.{4})ir$/, "i");
+  // L'infinitif et l'impératif se rejoignent (« créer » / « crée », « supprimer » / « supprime ») — J6 : les libellés des
+  // capacités sont à l'infinitif, les demandes à l'impératif.
+  return (m.length > 4 && m.endsWith("er") ? m.slice(0, -1) : m).slice(0, 6);
 }
 
 export function termes(t: string): string[] {
@@ -154,29 +148,56 @@ export function termes(t: string): string[] {
 }
 
 const POIDS = { cles: 3, nom: 2, libelle: 2, description: 1 } as const;
+/** Le premier mot de la demande, et le verbe du libellé qui lui répond (J6, réglés sur les deux corpus de référence). */
+const PREMIER_MOT = 1.4;
+const MEME_VERBE = 1.2;
 
 /** Les verbes d'un GESTE : ils poussent les outils qui préparent une carte. */
 const GESTE = /\b(cree|creer|prepare|preparer|ajoute|ajouter|envoie|envoyer|programme|planifie|organise|redige|remplis|modifie|depose|relance|confie|ouvre un|lance)\b/;
-const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set_|request_regulatory|programmer_|gerer_)|_operation$/.test(nom);
+// Un geste : un outil qui prépare une carte — ou une CAPACITÉ (J6, `fichier__fonction`) qui n'est pas une lecture.
+const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set_|request_regulatory|programmer_|gerer_)|_operation$/.test(nom)
+  || /__(?!(get|list|lister|lire|read|search|chercher|apercu|preview|previsualiser|verifier|check|compter|browse))/.test(nom);
 
 interface Index {
-  fiches: { nom: string; poids: Map<string, number> }[];
+  /** `tete` : le premier mot du libellé — le verbe d'une capacité (« Créer », « Supprimer »). */
+  fiches: { nom: string; poids: Map<string, number>; tete: string | undefined }[];
   idf: Map<string, number>;
+}
+
+/**
+ * LES POIDS D'UNE FICHE, gardés d'un tour à l'autre (J6) : avec les capacités, un catalogue compte ~1 000 fiches, et les
+ * découper à chaque tour coûtait ~150 ms avant le premier mot. Une fiche est un texte fixe — la clé est ce texte, pas
+ * la personne : deux personnes qui ont la même fiche ont les mêmes poids (les droits décident de la LISTE, pas des poids).
+ */
+const POIDS_DES_FICHES = new Map<string, { poids: Map<string, number>; tete: string | undefined }>();
+const POIDS_MAX_GARDES = 5_000;
+
+function poidsDe(f: FicheOutil): { poids: Map<string, number>; tete: string | undefined } {
+  const cle = `${f.nom}\u0000${f.libelle}\u0000${f.description}\u0000${f.mots ?? ""}\u0000${f.contexte ?? ""}`;
+  const garde = POIDS_DES_FICHES.get(cle);
+  if (garde) return garde;
+  const poids = new Map<string, number>();
+  const poser = (texte: string, p: number) => {
+    for (const m of termes(texte)) poids.set(m, Math.max(poids.get(m) ?? 0, p));
+  };
+  poser(f.description, POIDS.description);
+  poser(f.libelle, POIDS.libelle);
+  poser(f.nom, POIDS.nom);
+  poser(f.contexte ?? "", POIDS.description);
+  poser(f.mots ?? "", POIDS.libelle);
+  poser(MOTS_CLES[f.nom] ?? "", POIDS.cles);
+  const lu = { poids, tete: termes(f.libelle)[0] };
+  if (POIDS_DES_FICHES.size >= POIDS_MAX_GARDES) POIDS_DES_FICHES.clear();
+  POIDS_DES_FICHES.set(cle, lu);
+  return lu;
 }
 
 export function indexer(fiches: readonly FicheOutil[]): Index {
   const df = new Map<string, number>();
   const out = fiches.map((f) => {
-    const poids = new Map<string, number>();
-    const poser = (texte: string, p: number) => {
-      for (const m of termes(texte)) poids.set(m, Math.max(poids.get(m) ?? 0, p));
-    };
-    poser(f.description, POIDS.description);
-    poser(f.libelle, POIDS.libelle);
-    poser(f.nom, POIDS.nom);
-    poser(MOTS_CLES[f.nom] ?? "", POIDS.cles);
+    const { poids, tete } = poidsDe(f);
     for (const m of poids.keys()) df.set(m, (df.get(m) ?? 0) + 1);
-    return { nom: f.nom, poids };
+    return { nom: f.nom, poids, tete };
   });
   const n = Math.max(1, fiches.length);
   const idf = new Map([...df].map(([m, d]) => [m, Math.log(1 + n / d)]));
@@ -189,10 +210,15 @@ export function classer(demande: string, fiches: readonly FicheOutil[] | Index, 
   const q = [...new Set(termes(demande))];
   if (!q.length) return [];
   const geste = GESTE.test(plier(demande));
+  // LE PREMIER MOT est le plus souvent le geste demandé (« Crée une tâche pour Walid : relancer le fournisseur… ») :
+  // il pèse plus que les mots du CONTENU qui le suivent (J6 — mesuré sur le corpus des capacités).
+  const premier = q[0];
   return idx.fiches
     .map((f) => {
       let s = 0;
-      for (const m of q) s += (f.poids.get(m) ?? 0) * (idx.idf.get(m) ?? 0);
+      for (const m of q) s += (f.poids.get(m) ?? 0) * (idx.idf.get(m) ?? 0) * (m === premier ? PREMIER_MOT : 1);
+      // Le geste demandé EST le verbe du libellé (« Crée une tâche… » → « Créer tâche ») : la capacité qui le porte passe devant.
+      if (s > 0 && f.tete && f.tete === premier) s *= MEME_VERBE;
       if (s > 0 && geste && estGeste(f.nom)) s *= 1.35;
       if (s > 0 && !geste && estGeste(f.nom)) s *= 0.8;
       return { nom: f.nom, score: Math.round(s * 100) / 100 };
@@ -220,10 +246,35 @@ export const HERITES_MAX = 3;
  * La présélection d'un tour : le socle disponible, les meilleurs outils pour la demande, et quelques-uns de ceux de la
  * question précédente (MESURÉ au banc : sans eux, « Au nom d'Adventum Pharma. » passait par `trouver_outil`, une étape de plus).
  */
-export function preselectionner(demande: string, fiches: readonly FicheOutil[], k = PRESELECTION_MAX, precedente = ""): string[] {
+export function preselectionner(
+  demande: string, fiches: readonly FicheOutil[], k = PRESELECTION_MAX, precedente = "", poids?: (nom: string) => number,
+): string[] {
   const disponibles = new Set(fiches.map((f) => f.nom));
   const herites = precedente ? classer(precedente, fiches, HERITES_MAX).map((c) => c.nom) : [];
-  return ordonnerActifs([...SOCLE_OUTILS, ...classer(demande, fiches, k).map((c) => c.nom), ...herites], disponibles);
+  const candidats = [...classer(demande, fiches, k).map((c) => c.nom), ...herites];
+  const retenus = poids ? dansLeBudget(SOCLE_OUTILS.filter((n) => disponibles.has(n)), candidats, poids) : candidats;
+  return ordonnerActifs([...SOCLE_OUTILS, ...retenus], disponibles);
+}
+
+/**
+ * LE BUDGET FIXE D'UNE ÉTAPE (J6, décision 0020 : ≤ 4 000 jetons d'outils, `trouver_outil` compris — d'où la marge).
+ * Le socle passe toujours ; les candidats entrent dans l'ordre du classement tant qu'ils tiennent — un schéma trop
+ * lourd cède sa place au suivant, et reste à portée de `trouver_outil`. Mesuré : quatre pièces commerciales et une
+ * facture (≈ 700 jetons chacune) dépassaient le budget sur « émets une facture ».
+ */
+export const BUDGET_JETONS_FIXES = 3_800;
+
+function dansLeBudget(socle: readonly string[], candidats: readonly string[], poids: (nom: string) => number): string[] {
+  let total = socle.reduce((s, n) => s + poids(n), 0);
+  const retenus: string[] = [];
+  for (const n of candidats) {
+    if (socle.includes(n) || retenus.includes(n)) continue;
+    const p = poids(n);
+    if (total + p > BUDGET_JETONS_FIXES) continue;
+    total += p;
+    retenus.push(n);
+  }
+  return retenus;
 }
 
 /** Ce que le contexte dit au modèle de cette mécanique (une ligne, stable). */

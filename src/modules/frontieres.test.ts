@@ -514,11 +514,16 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/persona",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/plan",
     "src/modules/assistant-ia/infra/travaux.ts → src/lib/missions/travaux/service",
-    // LE CATALOGUE D'ADAM (outils-v1, performAction) : résidu nommé de la frontière Adam / Assistant IA (décision 0013). Cible = le socle IA, selon l'arbitrage de la phase B.
-    "src/modules/assistant-ia/actions.ts → src/lib/assistant",
-    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant",
-    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/ops",
-    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/power-tools",
+    // J6 (décision 0020) — LE CATALOGUE D'ADAM n'est plus emprunté (4 entrées vers `src/lib/assistant*` et celle de
+    // `outils-v1.ts → hr/confidentialite` retirées). À leur place, et pas plus (5 pour 5) : le registre des capacités lit la
+    // table d'annulation (`annulation/reversibilite`) et désigne une fiche par son nom sous la portée de la personne
+    // (`cibles/resoudre-entrees`) ; les lectures propres au module (`infra/lectures-erp.ts`) lisent l'agenda, la file des
+    // décisions et la recherche fédérée par les requêtes de l'écran. Cible : leurs portes, quand ces métiers seront migrés.
+    "src/modules/assistant-ia/infra/capacites.ts → src/lib/annulation/reversibilite",
+    "src/modules/assistant-ia/infra/capacites.ts → src/lib/cibles/resoudre-entrees",
+    "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/calendar",
+    "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/action-center",
+    "src/modules/assistant-ia/infra/lectures-erp.ts → src/lib/queries/search-everything",
     // Le Drive (droits, dépôt, quota) : cible = un module `drive` quand il sera migré.
     "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive/depot",
     "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive/quota",
@@ -562,7 +567,6 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/assistant-ia/infra/operations/traduction.ts → src/lib/artifact/factory/word",
     // « Qui voit les salaires » (`hr/confidentialite`) : reste au socle des droits (voir le module rh).
     "src/modules/assistant-ia/infra/lectures.ts → src/lib/hr/confidentialite",
-    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/hr/confidentialite",
     "src/modules/assistant-ia/infra/role-config.ts → src/lib/hr/confidentialite",
     // Les notifications : cible = une porte de notification commune.
     "src/modules/assistant-ia/infra/consommation.ts → src/lib/notify",

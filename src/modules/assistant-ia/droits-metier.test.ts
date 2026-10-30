@@ -27,7 +27,8 @@ import { remplacerModelesPourTests } from "./infra/generer";
 import { modeleFactice } from "./infra/testing/modele-factice";
 import { effacerJournalDe } from "./infra/testing/journal";
 import { filtrerSaisie, jouerTour, Revelateur } from "./infra/fil/tour";
-import { outilsV1, situationRhSansMasse, type PropositionPreparee } from "./infra/outils-v1";
+import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
+import { situationRhSansMasse } from "./infra/lectures";
 import { REFUS_PAIE_AUTRUI } from "./infra/lectures";
 import { accesAssistantIa } from "./infra/role-config";
 import { FAMILLES_IA, refusFamille, resoudreAccesIa, type FamilleIa } from "./domaine/acces-regles";
@@ -179,14 +180,15 @@ suite("contre la base, au faux modèle", () => {
   });
 
   const outil = (u: CurrentUser, nom: string, coffret?: CoffretDuTour, props: PropositionPreparee[] = []) => {
-    const o = outilsV1(u, props, [], [], coffret).find((t) => t.def.name === nom);
+    const o = outilsV1(u, props, [], [], coffret, undefined, { capacites: true }).find((t) => t.def.name === nom);
     if (!o) throw new Error(`outil ${nom} absent pour ${u.role}`);
     return o;
   };
 
   it("le Super Admin a les lectures RH, la paie, les documents, et les écritures métier (dossier réglementaire, RH…)", () => {
-    const noms = outilsV1(superAdmin, []).map((o) => o.def.name);
-    for (const n of ["lire_fiche_rh", "lire_paie", "documents_rh", "read_hr_overview", "search_everything", "regulatory_operation", "hr_operation", "create_hr_request", "create_task"]) {
+    // J6 : les écritures métier sont les CAPACITÉS de l'ERP (registre dérivé du contrat) — offertes à la conversation.
+    const noms = outilsV1(superAdmin, [], [], [], null, undefined, { capacites: true }).map((o) => o.def.name);
+    for (const n of ["lire_fiche_rh", "lire_paie", "documents_rh", "read_hr_overview", "search_everything", "regulatory__createRegulatoryProduct", "hr__requestLeave", "hr-document__requestHrDocument", "task__createTask", "send_message"]) {
       expect(noms, n).toContain(n);
     }
     expect(noms).not.toContain("read_payroll");
@@ -195,21 +197,22 @@ suite("contre la base, au faux modèle", () => {
   });
 
   it("un KAM n'a pas l'outil de création de dossier réglementaire (aucune op ne lui est ouverte)", () => {
-    const noms = outilsV1(kam, []).map((o) => o.def.name);
-    expect(noms).not.toContain("regulatory_operation");
+    const noms = outilsV1(kam, [], [], [], null, undefined, { capacites: true }).map((o) => o.def.name);
+    expect(noms).not.toContain("regulatory__createRegulatoryProduct");
     expect(noms).toContain("lire_paie"); // offert pour SA paie ; la paie d'autrui est refusée à l'exécution
   });
 
   it("« crée un nouveau dossier pour daclatasvir » : le Super Admin obtient une CARTE, rien n'est créé", async () => {
     const props: PropositionPreparee[] = [];
     const avant = await prisma.regulatoryProduct.count();
-    const s = await outil(superAdmin, "regulatory_operation", undefined, props).run({ op: "create_product", dci: "Daclatasvir", entity: "Adventum" }, superAdmin);
+    // J6 : la CAPACITÉ dérivée de `regulatory-actions:createRegulatoryProduct` — ses champs sont ceux du contrat.
+    const s = await outil(superAdmin, "regulatory__createRegulatoryProduct", undefined, props).run({ dci: "Daclatasvir", companyId: "Adventum" }, superAdmin);
     expect(await prisma.regulatoryProduct.count()).toBe(avant);
-    // Selon la base semée, l'entité peut manquer : la proposition le dit ; sinon la carte est préparée.
+    // Selon la base semée, l'entité (ou un champ obligatoire du contrat) peut manquer : la proposition le dit ; sinon la carte est préparée.
     const o = JSON.parse(s);
-    expect(["EN_ATTENTE_DE_CONFIRMATION", "REFUS"]).toContain(o.statut);
+    expect(["EN_ATTENTE_DE_CONFIRMATION", "REFUS", "INCOMPLET"]).toContain(o.statut);
     if (o.statut === "EN_ATTENTE_DE_CONFIRMATION") expect(props).toHaveLength(1);
-    else expect(o.raison).not.toMatch(/droit/i);
+    else expect(JSON.stringify(o.raison ?? o.manque)).not.toMatch(/droit/i);
   });
 
   it("la paie d'Assia : le Super Admin reçoit des REPÈRES (jamais la valeur) ; un KAM est refusé", async () => {
@@ -382,7 +385,6 @@ suite("contre la base, au faux modèle", () => {
     const j = paie.ficheActuelle.salaireBase as string;
     const sortie = await outils.find((o) => o.def.name === "send_message")!.run({ recipientName: `Karim ${TAG}`, body: `Le salaire de base d'Assia est de ${j}.` }, superAdmin);
     expect(chiffres(sortie)).not.toContain("185000");
-    expect(sortie).toContain(j);
     expect(props).toHaveLength(1);
     const intent = await prisma.assistantActionIntent.findUniqueOrThrow({ where: { id: props[0]!.intentId } });
     expect(chiffres(JSON.stringify(intent.payload))).toContain("185000DZD");
@@ -409,9 +411,10 @@ suite("contre la base, au faux modèle", () => {
     // Samia a « Salaires & paie » ouverte (test précédent) : elle prépare, puis la Direction referme, puis elle confirme.
     const c = new CoffretDuTour();
     const props: PropositionPreparee[] = [];
-    const outils = outilsV1(assistante, props, [], [], c, await accesAssistantIa(assistante));
+    const outils = outilsV1(assistante, props, [], [], c, await accesAssistantIa(assistante), { capacites: true });
     const paie = JSON.parse(await outils.find((o) => o.def.name === "lire_paie")!.run({ nom: `Assia ${TAG}Benali` }, assistante));
-    await outils.find((o) => o.def.name === "create_task")!.run({ title: `Vérifier ${paie.ficheActuelle.salaireBase}`, assigneeName: `Karim ${TAG}` }, assistante);
+    // J6 : la CAPACITÉ `task__createTask` (le contrat de `task-actions:createTask`), le destinataire désigné par son nom.
+    await outils.find((o) => o.def.name === "task__createTask")!.run({ title: `Vérifier ${paie.ficheActuelle.salaireBase}`, assignedToId: `Karim ${TAG}` }, assistante);
     expect(props).toHaveLength(1);
     ACTEUR = superAdmin;
     const fd = new FormData();

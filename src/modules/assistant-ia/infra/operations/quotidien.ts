@@ -3,8 +3,9 @@ import { hasGlobalView, userCan } from "@/lib/rbac";
 import { commenterValidation, remindValidator } from "@/lib/actions/validation-actions";
 import { uploadDocument } from "@/lib/actions/document-actions";
 import { createCalendarEvent } from "@/lib/actions/calendar-actions";
-import { sendMessage } from "@/lib/actions/messaging-actions";
-import { DOCUMENT_CATEGORY } from "@/lib/labels";
+import { createDirect, sendMessage } from "@/lib/actions/messaging-actions";
+import { findPeople } from "@/platform/ia/outils/arguments";
+import { DOCUMENT_CATEGORY, ENTITY_TYPE_LABELS } from "@/lib/labels";
 import type { CurrentUser } from "@/lib/session";
 import { champs, liste, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
@@ -94,13 +95,24 @@ export const RELANCE: OperationIA = {
 
 const CATEGORIES = Object.entries(DOCUMENT_CATEGORY) as [string, string][];
 
+/** La fiche nommée par son type et son identifiant (toute l'ERP), sinon une demande Ad & Pro. Le droit, l'action le juge. */
+async function ficheOuDemande(user: CurrentUser, type: string, id: string, demande: string, nature: string) {
+  if (!type && !id) return trouverDemande(user, demande, nature);
+  const t = type.trim().toUpperCase();
+  const libelle = ENTITY_TYPE_LABELS[t as keyof typeof ENTITY_TYPE_LABELS];
+  if (!libelle) return { manque: `le type de la fiche (« ${type || "?"} » inconnu)` };
+  if (!id.trim()) return { manque: "l'identifiant de la fiche" };
+  return { nature: t, id: id.trim(), libelle: `${libelle} ${id.trim()}`, lien: "" };
+}
+
 export const DEPOT_PIECE: OperationIA = {
   nom: "preparer_depot_piece",
   module: "DOCUMENTS",
   libelle: "Dépôt de pièce préparé",
   description:
     "PRÉPARE le DÉPÔT d'une ou plusieurs pièces (fichiers du Drive ou glissés dans la conversation) sur une demande Ad & Pro que tu vois "
-    + "(sponsoring, prise en charge, événement, matériel promotionnel, demande « autre »). Le droit de téléverser est revérifié par l'action de l'écran.",
+    + "(sponsoring, prise en charge, événement, matériel promotionnel, demande « autre ») — ou sur TOUTE AUTRE FICHE de l'ERP (tâche, dossier, "
+    + "courrier, employé…) dont tu as le type et l'identifiant (`typeFiche`, `idFiche`). Le droit de téléverser est revérifié par l'action de l'écran.",
   schema: {
     type: "object",
     properties: {
@@ -108,12 +120,14 @@ export const DEPOT_PIECE: OperationIA = {
       natureDemande: { type: "string" },
       pieces: { type: "string", description: "Noms ou identifiants des fichiers." },
       categorie: { type: "string", description: "Catégorie (ex. Lettre de demande, Facture, Devis, Autre)." },
+      typeFiche: { type: "string", description: "Hors Ad & Pro : le type de la fiche (TASK, DOSSIER, MAIL_ENTRY, EMPLOYEE…)." },
+      idFiche: { type: "string", description: "Hors Ad & Pro : l'identifiant de la fiche (lu par une recherche)." },
     },
   },
   ouverte: (u) => Boolean(u.id),
 
   async proposer(e, user): Promise<PropositionOperation> {
-    const demande = await trouverDemande(user, texte(e, "demande"), texte(e, "natureDemande"));
+    const demande = await ficheOuDemande(user, texte(e, "typeFiche"), texte(e, "idFiche"), texte(e, "demande"), texte(e, "natureDemande"));
     const refs = liste(e, "pieces");
     const manque = ["manque" in demande ? demande.manque : null, !refs.length ? "la ou les pièces à déposer (glissez-les dans la conversation ou nommez-les)" : null]
       .filter((x): x is string => x !== null);
@@ -286,3 +300,56 @@ export async function convsDe(user: CurrentUser, q: string): Promise<{ id: strin
     .map((m) => ({ id: m.conversation.id, libelle: m.conversation.title || m.conversation.members.map((x) => x.user.name).join(", ") || "Conversation" }))
     .filter((c) => replier(c.libelle).includes(k));
 }
+
+/**
+ * UN MESSAGE À UN COLLÈGUE (J6, décision 0020) — l'outil propre au module qui remplace `send_message` d'Adam. Aucune
+ * action serveur ne porte « écrire à une personne » en un geste : l'écran ouvre la conversation directe
+ * (`createDirect`, retrouvée si elle existe), puis envoie (`sendMessage`). La carte nomme le destinataire RÉSOLU par
+ * l'annuaire ; plusieurs homonymes n'en désignent aucun (une question), personne ne se devine.
+ */
+export const MESSAGE_DIRECT: OperationIA = {
+  nom: "send_message",
+  module: "MESSAGING",
+  libelle: "Message préparé",
+  description:
+    "PRÉPARE un message interne à UN collègue (messagerie de l'ERP), désigné par son nom ou sa fonction. Rien ne part avant la confirmation. "
+    + "Pour répondre dans une conversation existante : preparer_reponse_message.",
+  schema: {
+    type: "object",
+    properties: {
+      recipientName: { type: "string", description: "Le nom (ou la fonction) du destinataire." },
+      body: { type: "string", description: "Le texte du message." },
+    },
+    required: ["recipientName", "body"],
+  },
+  ouverte: (u) => userCan(u, "MESSAGING", "CREATE"),
+
+  async proposer(e, user: CurrentUser): Promise<PropositionOperation> {
+    const qui = texte(e, "recipientName");
+    const corps = texte(e, "body");
+    const manque = [!qui ? "à qui (le nom du collègue)" : null, !corps ? "le texte du message" : null].filter((x): x is string => x !== null);
+    if (manque.length) return { manque };
+    const gens = (await findPeople(qui, 6)).filter((p) => p.id !== user.id);
+    if (!gens.length) return { erreur: `Aucun collègue « ${qui} » dans l'annuaire : vérifiez le nom.` };
+    const exact = gens.find((p) => p.name.toLowerCase() === qui.toLowerCase());
+    if (!exact && gens.length > 1) return { manque: [`lequel : ${gens.map((p) => `${p.name}${p.title ? ` (${p.title})` : ""}`).join(" ; ")}`] };
+    const dest = exact ?? gens[0]!;
+    return {
+      carte: { title: `Message à ${dest.name}`, fields: champs([["Destinataire", dest.name], ["Fonction", dest.title], ["Message", corps]]), warnings: [], libelleBouton: "Envoyer" },
+      args: { userId: dest.id, body: corps },
+    };
+  },
+
+  async executer(a) {
+    const direct = new FormData();
+    direct.set("userId", a.userId ?? "");
+    const conv = await createDirect(direct);
+    const id = conv.ok ? (conv as { id?: string }).id : null;
+    if (!id) return { ok: false, error: conv.ok ? "Conversation introuvable." : conv.error ?? "Conversation refusée." };
+    const fd = new FormData();
+    fd.set("conversationId", id);
+    fd.set("body", a.body ?? "");
+    const r = await sendMessage(fd);
+    return r.ok ? { ok: true, message: "Message envoyé.", link: `/messages?c=${id}` } : { ok: false, error: r.error ?? "Envoi refusé." };
+  },
+};

@@ -487,6 +487,17 @@ const PRIORITIES_DEMANDE: readonly Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITI
  * description et remettait la priorité à « moyenne ». Une clé portée vide efface, une clé absente garde.
  */
 export async function editOwnRequest(formData: FormData): Promise<ActionResult> {
+  return corrigerLaDemande(formData, champsDuTypeSaisis(formData));
+}
+
+/** Les champs propres au type de la demande (`f_…`), tels que le formulaire les porte — vides compris (ils effacent). */
+function champsDuTypeSaisis(formData: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of formData.entries()) if (k.startsWith("f_") && typeof v === "string") out[k.slice(2)] = v.trim();
+  return out;
+}
+
+async function corrigerLaDemande(formData: FormData, champsDuType: Readonly<Record<string, string>>): Promise<ActionResult> {
   const user = await requireUser();
   const id = fdStr(formData, "id");
   if (!id) return { ok: false, error: "Demande introuvable." };
@@ -512,11 +523,9 @@ export async function editOwnRequest(formData: FormData): Promise<ActionResult> 
   const deadline = formData.has("deadline") ? fdDate(formData, "deadline") : req.deadline;
   const existants = req.fields && typeof req.fields === "object" && !Array.isArray(req.fields) ? (req.fields as Record<string, unknown>) : {};
   const fields: Record<string, unknown> = { ...existants };
-  for (const [k, v] of formData.entries()) {
-    if (!k.startsWith("f_") || typeof v !== "string") continue;
-    const val = v.trim();
-    if (val) fields[k.slice(2)] = val;
-    else delete fields[k.slice(2)];
+  for (const [k, val] of Object.entries(champsDuType)) {
+    if (val) fields[k] = val;
+    else delete fields[k];
   }
 
   const changes = ceQuiAChange(req, existants, { title, description, priority, deadline, fields });
@@ -547,6 +556,19 @@ export async function editOwnRequest(formData: FormData): Promise<ActionResult> 
     return { ok: true, message: `Demande corrigée — elle repart chez ${resoumise} pour validation.` };
   }
   return { ok: true, message: porte.discret ? "Demande modifiée." : `Demande modifiée — l'assistante est prévenue (${quoi}).` };
+}
+
+/**
+ * CORRIGER MA DEMANDE, CHAMP PAR CHAMP (décision 0020) — la porte que l'Assistant IA appelle : les quatre champs
+ * communs à toutes les demandes (titre, description, priorité, échéance), nommés en clair pour que le contrat des
+ * actions les lise. Le corps est celui de `editOwnRequest` (le demandeur, la fenêtre de trente minutes, les
+ * validations en cours, l'assistante prévenue) : une clé absente garde, comme à l'écran ; les champs propres au type
+ * (`f_…`) ne passent pas par ici et restent tels qu'ils sont.
+ */
+export async function corrigerMaDemande(formData: FormData): Promise<ActionResult> {
+  const priority = fdStr(formData, "priority") as Priority | null;
+  if (priority && !PRIORITIES_DEMANDE.includes(priority)) return { ok: false, error: "Priorité inconnue." };
+  return corrigerLaDemande(formData, {});
 }
 
 /**

@@ -1,5 +1,6 @@
 import { userCan } from "@/lib/rbac";
-import { getBudgetOverview } from "@/lib/queries/budget";
+import { getBudgetOverview, getEnvelopes, getEnvelopesGrandTotal } from "@/lib/queries/budget";
+import type { PowerTool } from "@/platform/ia/outil";
 import { disponible } from "@/lib/budget/marketing-vue";
 import type { CurrentUser } from "@/lib/session";
 import { dzd } from "../../domaine/operations/types";
@@ -25,4 +26,48 @@ export async function avertissementBudget(user: CurrentUser, montant: number | n
   } catch {
     return "Budget : enveloppe illisible pour l'instant — la Direction arbitre à la validation.";
   }
+}
+
+/**
+ * LIRE LE BUDGET (J6, décision 0020 — l'outil propre au module qui remplace l'emprunt à Adam) : la synthèse des
+ * enveloppes que la personne voit, ou le détail d'une enveloppe désignée par un fragment de son nom — les chiffres
+ * de l'écran Budgets (`queries/budget`), sous sa portée. Le module Budgets est la porte ; la famille « Budgets &
+ * finances » de la console est rejugée par la garde du catalogue (`outils-v1.ts`).
+ */
+export function lectureBudget(user: CurrentUser): PowerTool {
+  return {
+    def: {
+      name: "read_budget",
+      description: "Lit le BUDGET : sans `envelope`, la synthèse des enveloppes que je vois (total, alloué, consommé, restant) ; avec `envelope` (fragment du nom), "
+        + "le détail de cette enveloppe par poste. Ne jamais inventer un montant : une enveloppe introuvable ou fermée se dit.",
+      input_schema: { type: "object", properties: { envelope: { type: "string", description: "Fragment du nom de l'enveloppe ; vide = synthèse." } } },
+    },
+    allowed: (u) => u.id === user.id && userCan(u, "BUDGETS", "VIEW"),
+    label: "Budget consulté",
+    run: async (entree, u) => {
+      if (!userCan(u, "BUDGETS", "VIEW")) return "Le module Budgets ne vous est pas ouvert.";
+      const voulu = typeof entree.envelope === "string" ? entree.envelope.trim().toLowerCase() : "";
+      const ouvertes = await getEnvelopes(u);
+      if (!ouvertes.length) return "Aucune enveloppe budgétaire ne vous est ouverte.";
+      if (!voulu) {
+        const g = await getEnvelopesGrandTotal(u);
+        return JSON.stringify({
+          enveloppes: g.count, total: dzd(g.total), alloue: dzd(g.allocated), consomme: dzd(g.consumed), reste: dzd(g.remaining),
+          detail: g.items.map((x) => ({ enveloppe: x.name, total: dzd(x.total), consomme: dzd(x.consumed), reste: dzd(x.remaining) })),
+        });
+      }
+      const cible = ouvertes.find((x) => x.name.toLowerCase().includes(voulu));
+      if (!cible) return `Aucune enveloppe « ${voulu} » parmi les vôtres : ${ouvertes.map((x) => x.name).join(", ")}.`;
+      const vue = await getBudgetOverview(u, cible.id);
+      if (!vue) return `L'enveloppe « ${cible.name} » ne vous est pas ouverte.`;
+      const t = vue.totals;
+      return JSON.stringify({
+        enveloppe: vue.envelope.name, du: vue.period.from.slice(0, 10), au: vue.period.to.slice(0, 10),
+        total: dzd(t.total), alloue: dzd(t.allocated), consomme: dzd(t.consumed), engage: dzd(t.committed), reste: dzd(t.remaining), tauxPct: t.pct,
+        disponible: dzd(disponible(t.total, t.consumed, t.committed)),
+        postes: vue.categories.filter((c) => !c.parentId).map((c) => ({ poste: c.name, alloue: dzd(c.allocated), consomme: dzd(c.consumed) })),
+        nonImputees: { nombre: vue.unattributed.count, montant: dzd(vue.unattributed.total) },
+      });
+    },
+  };
 }

@@ -75,41 +75,79 @@ export async function saveCustomValues(formData: FormData): Promise<ActionResult
   const current = await readCustomValues(entityType, entityId);
   const next = { ...current };
   for (const def of defs) {
-    const raw = formData.get(`cf_${def.key}`);
-    if (def.type === "BOOLEAN") {
-      next[def.key] = raw === "on";
-    } else if (def.type === "NUMBER") {
-      const n = raw ? Number(String(raw)) : null;
-      next[def.key] = n === null || Number.isNaN(n) ? null : n;
-    } else if (def.type === "FILE") {
-      // FICHIER : une RÉFÉRENCE Drive (jamais une copie). Le nœud doit exister et être
-      // accessible au demandeur — un id forgé ou hors de ses droits ne se stocke pas.
-      const nodeId = raw ? String(raw) : "";
-      if (!nodeId) {
-        next[def.key] = null;
-      } else {
-        const node = await prisma.driveNode.findUnique({ where: { id: nodeId }, select: { id: true, name: true, isTrashed: true } });
-        if (!node || node.isTrashed) return { ok: false, error: `${def.label} : document du Drive introuvable.` };
-        if (!canViewDrive(await resolveDriveAccess(user, nodeId))) {
-          return { ok: false, error: `${def.label} : vous n'avez pas accès à ce document du Drive.` };
-        }
-        next[def.key] = { nodeId: node.id, name: node.name };
-      }
-    } else {
-      next[def.key] = raw ? String(raw) : null;
-    }
+    const lu = await valeurDuChamp(user, def, formData.get(`cf_${def.key}`));
+    if ("erreur" in lu) return { ok: false, error: lu.erreur };
+    next[def.key] = lu.valeur;
   }
-  // Les champs marqués OBLIGATOIRES par l'administrateur doivent être remplis — le serveur
-  // fait foi (l'attribut `required` du navigateur n'est qu'un confort).
-  const missing = missingRequiredValues(defs, next);
-  if (missing.length > 0) {
-    return { ok: false, error: `Champ(s) obligatoire(s) à remplir : ${missing.join(", ")}.` };
-  }
+  const manquants = refusObligatoires(defs, next);
+  if (manquants) return { ok: false, error: manquants };
   await writeCustomValues(entityType, entityId, next);
-  await recordAudit({
-    actorId: user.id, action: "UPDATE", module: "Champs personnalisés",
-    entityType, entityId, summary: "Mise à jour des champs personnalisés",
-  });
+  await recordAudit({ actorId: user.id, action: "UPDATE", module: "Champs personnalisés", entityType, entityId, summary: "Mise à jour des champs personnalisés" });
   if (path) revalidatePath(path);
   return { ok: true };
+}
+
+type Definition = Awaited<ReturnType<typeof getFieldDefs>>[number];
+
+/** La valeur saisie d'UN champ, selon son type — la même lecture pour le formulaire entier et pour un seul champ. */
+async function valeurDuChamp(
+  user: Awaited<ReturnType<typeof requireUser>>, def: Definition, raw: FormDataEntryValue | null,
+): Promise<{ valeur: unknown } | { erreur: string }> {
+  if (def.type === "BOOLEAN") return { valeur: ["on", "true", "1", "oui", "vrai"].includes(String(raw ?? "").trim().toLowerCase()) };
+  if (def.type === "NUMBER") {
+    const n = raw ? Number(String(raw).replace(",", ".")) : null;
+    return { valeur: n === null || Number.isNaN(n) ? null : n };
+  }
+  if (def.type === "FILE") {
+    // FICHIER : une RÉFÉRENCE Drive (jamais une copie). Le nœud doit exister et être
+    // accessible au demandeur — un id forgé ou hors de ses droits ne se stocke pas.
+    const nodeId = raw ? String(raw) : "";
+    if (!nodeId) return { valeur: null };
+    const node = await prisma.driveNode.findUnique({ where: { id: nodeId }, select: { id: true, name: true, isTrashed: true } });
+    if (!node || node.isTrashed) return { erreur: `${def.label} : document du Drive introuvable.` };
+    if (!canViewDrive(await resolveDriveAccess(user, nodeId))) return { erreur: `${def.label} : vous n'avez pas accès à ce document du Drive.` };
+    return { valeur: { nodeId: node.id, name: node.name } };
+  }
+  return { valeur: raw ? String(raw) : null };
+}
+
+/**
+ * Les champs marqués OBLIGATOIRES par l'administrateur doivent être remplis — le serveur
+ * fait foi (l'attribut `required` du navigateur n'est qu'un confort).
+ */
+function refusObligatoires(defs: Definition[], next: Record<string, unknown>): string | null {
+  const missing = missingRequiredValues(defs, next);
+  return missing.length > 0 ? `Champ(s) obligatoire(s) à remplir : ${missing.join(", ")}.` : null;
+}
+
+/**
+ * UN CHAMP PERSONNALISÉ, UN SEUL (décision 0020) — « mets le n° de lot de cette fiche à L-204 ». Le formulaire de la
+ * fiche réécrit tous les champs à la fois ; ce geste n'en change qu'UN, désigné par sa clé ou son libellé, et garde
+ * les autres tels qu'ils sont. Même droit (modifier l'objet), même lecture des types, mêmes champs obligatoires.
+ */
+export async function modifierChampPersonnalise(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const entityType = fdStr(formData, "entityType") as EntityType | null;
+  const entityId = fdStr(formData, "entityId");
+  const champ = fdStr(formData, "field");
+  if (!entityType || !entityId || !champ) return { ok: false, error: "Entité ou champ manquant." };
+  if (!(await canAccessEntity(user, entityType, entityId, "UPDATE"))) {
+    return { ok: false, error: "Modification non autorisée." };
+  }
+  const defs = await getFieldDefs(entityType);
+  const def = defs.find((d) => d.key === champ || slug(d.label) === slug(champ));
+  if (!def) {
+    return { ok: false, error: `Aucun champ « ${champ} » sur cette fiche${defs.length ? ` — champs : ${defs.map((d) => d.label).join(", ")}` : ""}.` };
+  }
+  const lu = await valeurDuChamp(user, def, formData.get("value"));
+  if ("erreur" in lu) return { ok: false, error: lu.erreur };
+  const next = { ...(await readCustomValues(entityType, entityId)), [def.key]: lu.valeur };
+  const manquants = refusObligatoires(defs, next);
+  if (manquants) return { ok: false, error: manquants };
+  await writeCustomValues(entityType, entityId, next);
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "Champs personnalisés", entityType, entityId,
+    field: def.key, summary: `Champ personnalisé « ${def.label} » mis à jour`,
+  });
+  return { ok: true, message: `« ${def.label} » mis à jour.` };
 }

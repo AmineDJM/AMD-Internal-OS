@@ -48,6 +48,13 @@ describe("cliquet : tout outil qui ramène un contenu tiers est classé", () => 
     expect(morts).toEqual([]);
   });
 
+  it("J6 : une CAPACITÉ de lecture dont le nom évoque un document, un message ou le web est marquée « contenu tiers » (encadrée)", async () => {
+    const { registreDesCapacites } = await import("./capacites");
+    const lectures = registreDesCapacites().capacites.filter((c) => c.source === "action" && c.risque === "R0" && c.appelable);
+    const nonMarquees = lectures.filter((c) => NOM_EVOQUANT_UN_TIERS.test(c.outil.toLowerCase()) && !c.contenuTiers).map((c) => c.outil);
+    expect(nonMarquees).toEqual([]);
+  });
+
   it("la sortie d'un outil à contenu tiers arrive ENCADRÉE au modèle — par le filtre unique des sorties ; le journal du tour la garde brute", async () => {
     const access = await getAccess("__banc_contenu_tiers", "SUPER_ADMIN" as never);
     const u = { id: "__banc_contenu_tiers", name: "Banc", email: "b@t.dz", role: "SUPER_ADMIN", secondaryRole: null, access, mustChangePassword: false } as unknown as CurrentUser;
