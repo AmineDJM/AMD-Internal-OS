@@ -1577,6 +1577,16 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "assistant-ia-proactivite-actions:accorderMonMandat": {
   "risque": "R1",
   "familles": [
@@ -1732,6 +1742,63 @@
    "ECRITURES"
   ],
   "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:declinerMaDemande": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:equipeVisiblePourMoi": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:lireTravailDeMonEquipe": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:listerMesDemandesRecues": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:listerTravauxDeMonEquipe": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:reglerPrioriteMonTravail": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:repondreAMaDemande": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": false
  },

@@ -54,6 +54,8 @@ describe("outils V1", () => {
       "explorer_relations", "etat_a_une_date", "d_ou_vient",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
+      // J8 — les demandes reçues du travail d'un collègue (la réponse est une opération, `preparer_reponse_demande`).
+      "mes_demandes_recues",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
     expect(new Set(noms).size).toBe(noms.length);

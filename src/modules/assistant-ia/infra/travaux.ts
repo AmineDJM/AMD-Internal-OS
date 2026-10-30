@@ -12,9 +12,51 @@ import { coutEstimeUsd } from "../domaine/consommation-regles";
 import { genererTexte } from "./generer";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/missions/travaux/plan";
-import type { PersonaTravaux, PlafondsTravail } from "@/lib/missions/travaux/persona";
-import { proposerTravail } from "@/lib/missions/travaux/service";
+import type { PersonaTravaux, PieceTravail, PlafondsTravail, PortPiecesTravail } from "@/lib/missions/travaux/persona";
+import { proposerTravail, responsableDe } from "@/lib/missions/travaux/service";
+import { recordAudit } from "@/lib/audit";
+import { executerHorsRequete } from "@/platform/ia/hors-requete";
+import { droitsSurDocument } from "@/platform/ia/artifact/ports";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
+import { deposerLivrableTravail } from "./travaux-livrables";
+
+// J8 (décision 0023) : la porte du moteur des travaux pour le reste du module — délégation, équipe, priorité.
+export {
+  declinerDemande, equipeVisible, lireDemandeRecue, lireTravailEquipe, listerDemandesRecues, listerTravauxEquipe, reglerPrioriteTravail, repondreDemande,
+  type DemandeRecue, type EtapeVue, type TravailDEquipe,
+} from "@/lib/missions/travaux/service";
+export type { DocumentLivrable } from "@/lib/missions/travaux/persona";
+export type { FormatLivrable } from "@/lib/missions/travaux/plan";
+
+/**
+ * LES PIÈCES D'UNE DÉLÉGATION (J8) — sous les droits du Drive, relus à chaque appel. VOIR : `droitsSurDocument`
+ * (la règle de l'écran du Drive et de l'Atelier). PARTAGER : une ligne `DriveShare` en LECTURE, jamais par-dessus
+ * un droit existant (`skipDuplicates`), ni au propriétaire — et chaque partage est à l'audit.
+ */
+export const PIECES_TRAVAUX: PortPiecesTravail = {
+  async visibles(userId, nodeIds) {
+    const ids = [...new Set(nodeIds)].slice(0, 20);
+    if (ids.length === 0) return [];
+    const noeuds = await prisma.driveNode.findMany({ where: { id: { in: ids }, isTrashed: false }, select: { id: true, name: true } });
+    const out: PieceTravail[] = [];
+    for (const n of noeuds) if ((await droitsSurDocument(userId, n.id)).voir) out.push({ nodeId: n.id, nom: n.name });
+    return out;
+  },
+  async partager(nodeIds, userId, parId) {
+    const ids = [...new Set(nodeIds)];
+    if (ids.length === 0) return;
+    const noeuds = await prisma.driveNode.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, ownerId: true } });
+    const cibles = noeuds.filter((n) => n.ownerId !== userId);
+    if (cibles.length === 0) return;
+    await prisma.driveShare.createMany({ data: cibles.map((n) => ({ nodeId: n.id, userId, access: "VIEW" as const })), skipDuplicates: true });
+    const nom = (await prisma.user.findUnique({ where: { id: userId }, select: { name: true } }))?.name ?? userId;
+    await recordAudit({
+      actorId: parId, action: "UPDATE", module: "Assistant IA — travaux", field: "Partage d'une demande",
+      newValue: cibles.map((n) => n.name).join(", ").slice(0, 500),
+      summary: `Pièce(s) partagée(s) en lecture avec ${nom} par une demande de travail : ${cibles.map((n) => n.name).join(", ")}`.slice(0, 500),
+    });
+  },
+};
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -35,7 +77,8 @@ import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTr
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const GESTES_EXCLUS = new Set(["programmer_routine", "gerer_routine"]);
+// J8 : répondre à une demande est un geste de la personne SOLLICITÉE, dans sa conversation — jamais d'un travail.
+const GESTES_EXCLUS = new Set(["programmer_routine", "gerer_routine", "preparer_reponse_demande"]);
 const GESTES_TRAVAIL = OPERATIONS_IA.filter((o) => !GESTES_EXCLUS.has(o.nom));
 /** Ce qui n'est pas une LECTURE parmi les outils du tour : les gestes (cartes) et la mémoire proposée. */
 const PAS_UNE_LECTURE = new Set([...OPERATIONS_IA.map((o) => o.nom), ...ECRITURES_DU_MOTEUR, "proposer_memoire"]);
@@ -150,7 +193,9 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     if ("erreur" in prop) return { ok: false, erreur: prop.erreur };
     const charge = { kind: "assistant_ia_op" as const, op: o.nom, args: prop.args };
     if (!estChargeOperationIA(charge)) return { ok: false, erreur: "Geste illisible." };
-    const r = await executerOperationIA(p.user, charge);
+    // HORS REQUÊTE (le worker) : l'action de l'écran trouve la personne du geste et un store pour ses invalidations
+    // (`contexte-geste.ts`) — sans quoi `requireUser` redirigeait et `revalidatePath` levait APRÈS l'écriture.
+    const { resultat: r } = await executerHorsRequete(p.user, "travail", () => executerOperationIA(p.user, charge));
     return r.ok ? { ok: true, resultat: { titre: prop.carte.title }, message: r.message, lien: r.link } : { ok: false, erreur: r.error ?? "Le geste n'a pas pu être exécuté." };
   },
 
@@ -176,6 +221,10 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
   },
 
   plafonds: (principalId) => plafondsDe(principalId),
+
+  pieces: PIECES_TRAVAUX,
+  responsable: (userId) => responsableDe(userId),
+  deposerLivrable: (principalId, d) => deposerLivrableTravail(principalId, d),
 };
 
 /** L'outil « lancer_un_travail » du tour — le socle le décrit, le moteur des travaux l'exécute pour CETTE personne. */

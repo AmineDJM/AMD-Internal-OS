@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { PlanTravail } from "@/lib/missions/travaux/plan";
+import type { DocumentLivrable } from "@/lib/missions/travaux/persona";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -17,7 +18,8 @@ import type { PlanTravail } from "@/lib/missions/travaux/plan";
  */
 
 export interface EntreeCarnet { etape: string; texte: string; at: string }
-export interface LivrableCarnet { etape: string; titre: string; contenu: string; at: string }
+/** J8 : `document` — le vrai document déposé au Drive de la personne (Word, PDF, Excel), inscrit à la Bibliothèque. */
+export interface LivrableCarnet { etape: string; titre: string; contenu: string; at: string; document?: DocumentLivrable }
 
 export interface Carnet {
   objectif: string;
@@ -42,7 +44,10 @@ export function lireCarnet(v: unknown): Carnet {
     .map((e) => ({ etape: String(e.etape ?? ""), texte: e.texte, at: String(e.at ?? "") }));
   const livrables = (Array.isArray(o.livrables) ? o.livrables : [])
     .filter((e): e is LivrableCarnet => !!e && typeof e === "object" && typeof (e as LivrableCarnet).contenu === "string")
-    .map((e) => ({ etape: String(e.etape ?? ""), titre: String(e.titre ?? ""), contenu: e.contenu, at: String(e.at ?? "") }));
+    .map((e) => ({
+      etape: String(e.etape ?? ""), titre: String(e.titre ?? ""), contenu: e.contenu, at: String(e.at ?? ""),
+      ...(e.document && typeof e.document === "object" && typeof e.document.nodeId === "string" ? { document: e.document } : {}),
+    }));
   return {
     objectif: typeof o.objectif === "string" ? o.objectif : "",
     plan: o.plan && typeof o.plan === "object" ? (o.plan as PlanTravail) : null,
@@ -59,7 +64,7 @@ export function lireCarnet(v: unknown): Carnet {
 export async function ecrireAuCarnet(
   missionId: string,
   etape: string,
-  part: { notes?: string[]; trouvailles?: string[]; livrable?: { titre: string; contenu: string } },
+  part: { notes?: string[]; trouvailles?: string[]; livrable?: { titre: string; contenu: string; document?: DocumentLivrable } },
   maintenant = new Date(),
 ): Promise<void> {
   const at = maintenant.toISOString();
@@ -72,7 +77,10 @@ export async function ecrireAuCarnet(
     const notes = [...sans(c.notes), ...(part.notes ?? []).filter((t) => t.trim()).map((t) => ({ etape, texte: coupe(t), at }))].slice(-BORNES.entrees);
     const trouvailles = [...sans(c.trouvailles), ...(part.trouvailles ?? []).filter((t) => t.trim()).map((t) => ({ etape, texte: coupe(t), at }))].slice(-BORNES.entrees);
     const livrables = part.livrable
-      ? [...sans(c.livrables), { etape, titre: part.livrable.titre.slice(0, 200), contenu: part.livrable.contenu.slice(0, BORNES.livrable), at }]
+      ? [...sans(c.livrables), {
+        etape, titre: part.livrable.titre.slice(0, 200), contenu: part.livrable.contenu.slice(0, BORNES.livrable), at,
+        ...(part.livrable.document ? { document: part.livrable.document } : {}),
+      }]
       : c.livrables;
     await tx.mission.update({
       where: { id: missionId },

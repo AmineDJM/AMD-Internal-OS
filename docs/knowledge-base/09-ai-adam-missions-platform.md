@@ -379,6 +379,23 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   touch travaux. Additive engine changes: `materialiser({ kind, naissance })`, `kind` on pause/resume/cancel, `payload` predicate
   on waits (`events/match.ts`), `reveillerAttentesTemporelles(now, seulement?)`. Decision `docs/assistant/decisions/0016-travaux.md`.
 
+- **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
+  → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique
+  `missionId, stepKey`; delays counted from the deposit; shared Drive pieces granted VIEW via the persona port
+  `pieces`, audited). The recipient sees `DemandeRecue` only (question, expected/shared pieces, due date — never the
+  carnet); `repondreDemande` / `declinerDemande` settle the step (conditional on WAITING), write the answer to the carnet,
+  signal the fast wake. **Jalons** `jalons.ts` (relance / escalade to N+1 via `persona.responsable` / abandon → TIMEOUT),
+  run by `travaux.balayage` before conducting. **Fast wake** `reveil.ts`: `router.ts` (events + timers) and delegation set
+  `Mission.reveilDemandeLe`; `scheduled.ts armerReveilsTravaux` (10 s loop, worker + web) conducts flagged travaux under the
+  mission lease — measured p95 10 s. **Fairness**: `travauxAFaireAvancer` round-robins per `principalId` (window
+  function), priority within a person. **Team view** `assistant-ia/infra/travaux-equipe.ts`: gated by
+  `AssistantIaReglage.managerVoitEquipe` (default false), team = `isManagerOfUser`, summary + steps only, every read
+  audited. **Deliverables** `assistant-ia/infra/travaux-livrables.ts`: Markdown → `composerDocx` / `construireClasseurVerifie`,
+  deposited through `portsArtefact.documents.creerFichier` (personal Drive « Travaux », Bibliothèque inscription), PDF via
+  Atelier conversions; deposit under a `TravailEcriture` receipt (`|livrable`), reprise finds the document by its
+  deterministic name. **Robustness** `robustesse.test.ts`: real child processes (`scripts/bench/travail-processus.ts`)
+  SIGKILLed 10× over a 3-week fake-clock travail, plus web + worker processes racing on one travail.
+
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
   (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for

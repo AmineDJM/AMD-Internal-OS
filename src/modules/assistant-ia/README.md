@@ -2,12 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0024 ; 0013 : la séparation d'Adam et le socle IA ;
-
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0022 ; 0013 : la séparation d'Adam et le socle IA ;
-
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0024, 0025 ; 0013 : la séparation d'Adam et le socle IA ;
-0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle).
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0021 → 0025 ; 0013 : la séparation d'Adam et le socle IA ;
+0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ;
+0023 : délégation des travaux, attentes avancées, équipe, livrables au Drive).
 
 [`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0024 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
@@ -21,6 +18,7 @@ capacités ; 0022 : la qualité continue ; 0024 : la proactivité).
 | `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) |
 | `actions-qualite.ts` | clé `assistant-ia-qualite-actions` (J5 + J14, décision 0022) : calendrier du banc programmé, passage maintenant, banc A/B, modèle d'un rôle (sur banc vert seulement) |
 | `actions-atelier.ts` | clé `assistant-ia-atelier-actions` (J3, décision 0017) : l'Atelier — ouvrir, revoir, enregistrer (nouvelle version), comparer, convertir |
+| `actions-travaux.ts` | clé `assistant-ia-travaux-actions` (J8, décision 0023) : demandes reçues (lister, répondre, décliner), priorité d'un travail, travaux de mon équipe (si la console l'autorise, audités) |
 | `actions-proactivite.ts` | clé `assistant-ia-proactivite-actions` (J12, décision 0024) : ma veille (veilleurs, réglages, retours), mandats, gestes sous mandat (coque), console |
 | `domaine/` | règles pures (accès, plafonds, confidentialité, lecture, dépôt, mémoire affichée, MRZ, UI générative) |
 | `infra/` | le moteur : fil, tour, outils, opérations, lecture des pièces, voix, mémoire, routines, consommation, modèle ; `testing/` (faux modèle, tests seulement) |
@@ -66,6 +64,18 @@ capacités ; 0022 : la qualité continue ; 0024 : la proactivité).
   La fiche employé passe par `executerAction(…, "assistant-ia")` (`GESTES_DE_FICHE`, sans `userId`) ; `updateEmployee` est
   relue et rejouée à la confirmation (`FUSIONS`).
 
+
+## Travaux, suite (lot J8, décision 0023)
+
+- **Persona** (`infra/travaux.ts`) : en plus de J2, `pieces` (`PIECES_TRAVAUX` : voir / accorder la lecture d'une
+  pièce du Drive, à l'audit), `responsable` (N+1 de l'organigramme, pour les escalades), `deposerLivrable`
+  (`infra/travaux-livrables.ts` : Word / Excel de la fabrique au Drive « Travaux », inscrit à la Bibliothèque ; PDF par
+  l'Atelier).
+- **Côté sollicité** (`infra/operations/delegation.ts`) : lecture `mes_demandes_recues` (contenu non fiable), carte
+  `preparer_reponse_demande` — fiches MOTS_CLES de la sélection (pas le socle) ; exclue des gestes de travail.
+- **Équipe** (`lib/missions/travaux/equipe.ts`, par la porte `service.ts`) : option console `managerVoitEquipe` (défaut non), résumé et étapes seulement,
+  chaque consultation à l'audit.
+- **Écrans** : `ecrans/demandes-recues.tsx`, `ecrans/travaux-equipe.tsx`, onglets du panneau « Travaux ».
 
 ## Graphe de l'entreprise (lot J9, décision 0021)
 
