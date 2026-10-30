@@ -385,7 +385,7 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `AssistantIaNotePage` (flat `blocs` JSON with a nesting LEVEL 0–4, `version` optimistic lock, `supprimeeLe` trash),
   `AssistantIaNoteVersion` (state BEFORE a change: ≤ 1 per 5 min of typing, always before an AI change; 50/page),
   `AssistantIaNoteCorbeille` (non-empty deleted lines, 30 days, purged lazily on read), `AssistantIaNoteProposition`, and
-  `AssistantIaTour.notesProposees` (migration `20270210130000_assistant_ia_notes`). **Private**: every query filters on the
+  `AssistantIaTour.notesProposees` (migration `20270210140000_assistant_ia_notes`). **Private**: every query filters on the
   session/turn `userId`; no action or tool takes an account; « Vue exacte » refused even for reads (`porte(true)`, tool check);
   no admin screen; audit records AI gestures only, never note text. **The AI never writes** (Direction decision): tools
   `lire_notes` + `ajouter_note` / `modifier_note` / `cocher_note` / `deplacer_note` / `supprimer_note` / `creer_page` /

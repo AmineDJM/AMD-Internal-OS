@@ -20,7 +20,7 @@ ses réponses aux questions « À valider ») :
 > Code : `src/modules/assistant-ia/domaine/notes/` (pur : `blocs.ts`, `gestes.ts`, `regles.ts`), `infra/notes/`
 > (`pages.ts`, `propositions.ts`, `outils.ts`), `actions-notes.ts` (clé `assistant-ia-notes-actions`),
 > `ecrans/notes/` (`panneau-notes.tsx`, `editeur-notes.tsx`), `ecrans/notes-proposees-card.tsx` ; migration additive
-> `20270210130000_assistant_ia_notes`. Tests : `domaine/notes/*.test.ts`, `notes.test.ts`, `e2e/notes.spec.ts`.
+> `20270210140000_assistant_ia_notes`. Tests : `domaine/notes/*.test.ts`, `notes.test.ts`, `e2e/notes.spec.ts`.
 
 ## 1. Le modèle de données
 

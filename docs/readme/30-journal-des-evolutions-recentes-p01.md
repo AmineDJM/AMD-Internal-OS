@@ -20,7 +20,7 @@ voit, Super Admin compris (« Vue exacte » refusée). L'assistant lit les notes
 d'ajouter, modifier, cocher, déplacer, supprimer une ligne ou de créer / renommer une page : la proposition s'affiche
 **surlignée** dans la page et sur une carte de la conversation — Accepter / Refuser / Tout accepter, puis Annuler ; **rien
 n'est écrit avant l'acceptation** (décision de la Direction). Un montant de paie noté reste en repère vers le modèle.
-Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270210130000_assistant_ia_notes`.
+Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270210140000_assistant_ia_notes`.
 
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
