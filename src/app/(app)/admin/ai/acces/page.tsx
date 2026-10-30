@@ -6,6 +6,7 @@ import { userCan } from "@/lib/rbac";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { ADMIN_TABS, ROLE_LABELS } from "@/lib/labels";
 import { chargerConsoleAccesIa } from "@/modules/assistant-ia/api";
+import { ConsoleProactivite } from "@/modules/assistant-ia/ecrans/console-proactivite";
 import { AccesAssistantIaForm, type LignePersonne, type LigneRole } from "./acces-form";
 
 export const metadata = { title: "Assistant IA — accès — AMD Internal OS" };
@@ -52,6 +53,7 @@ export default async function AccesAssistantIaPage() {
         </div>
       </div>
       <AccesAssistantIaForm roles={roles} personnes={personnes} plafondsGlobaux={plafondsGlobaux} />
+      <ConsoleProactivite />
     </div>
   );
 }

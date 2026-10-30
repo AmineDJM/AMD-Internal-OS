@@ -37,6 +37,16 @@
 >   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
 >   Adam → IA = 0. Remaining IA → Adam was Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
 >   closure is 92 % of Adam; kept, named and ratcheted until J6, which removed it (see J6 below).
+> - **J5 + J14 (2026-10-30) — continuous quality of the Assistant IA** (decision `docs/assistant/decisions/0022-qualite-continue.md`) [V]:
+>   scheduled bench on the WORKER (`qualite.banc` → child process `scripts/bench/banc-programme.ts`, trial DB only:
+>   `BANC_ESSAI_DATABASE_URL` + fingerprint ≠ prod + `BancBaseEssai` marker; refused and said otherwise), Super-Admin calendar
+>   (default weekly, 1 $ cap per run), history `AssistantIaBancPassage`/`Scenario`, regression (success down, P50/P95 or cost
+>   +30 %) → Super Admin notified; dashboard `/admin/ai/qualite`. Replayable traces of every fil turn (`AssistantIaTrace`, gzip,
+>   30 d; `modeleTrace` wraps the Mastra model; `npm run assistant:rejouer`). Third-party provenance on every card
+>   (`domaine/provenance-tierce.ts`: RIB/e-mail/phone/link/amount/name from a framed third-party content and not said by the
+>   person → "ce RIB provient du document X, à vérifier"; injection detection FR/AR/EN, hidden text) — 240-item trap corpus,
+>   0 unflagged misleading card. Model per role changed on screen (`AssistantIaModeleRole`) ONLY with a green A/B bench for that
+>   exact candidate (< 14 d); revert to env always allowed. New env: `ASSISTANT_IA_MODEL_RAISONNEMENT`, `ASSISTANT_IA_TRACES(_JOURS)`.
 > - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
 >   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
 >   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay
@@ -374,6 +384,23 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `ouvrir_dans_l_atelier` / `modifier_document` / `convertir_document` (family DRIVE, excluded from routines/travaux) and op
   `enregistrer_document`. The screen polls `/api/assistant-ia/atelier` (no SSE: the op journal IS the stream). Decision
   `docs/assistant/decisions/0017-atelier.md`.
+
+- **Proactivity under mandate (J12, 30/10/2026)** [V] `src/modules/assistant-ia/{domaine,infra}/proactivite/`: 12 **watchers**
+  (veilleurs) = pure CODE rules over what belongs to the person (own Ad & Pro requests, own budget lines ≥ 90 %, own unsigned
+  POs, ANPP obligations/deadlines, assigned reserve points, DIRECT reports' trial/CDD end, own overdue payments, duplicate
+  invoices, unreported visits, own stale validations, meeting within the hour). Gated by a screen module AND the console family
+  (re-read each pass). Signature = unique `(userId, veilleur, cle)` on `AssistantSignal` → said once; vanished → RESOLU;
+  reappears → reopened as JOURNAL (never rings twice). **Interruption budget** (`domaine/proactivite/budget.ts`, pure):
+  quiet hours 19→8 Algiers + Fri/Sat, one grouped notification per pass, ≥ 1 h apart, ≤ 5/day (console
+  `AssistantIaReglage.interruptionsMaxJour`, person can only lower) → else JOURNAL. One-click useful/not-useful adjusts the
+  watcher (threshold factor ×1.25 up to ×3; < 1/3 useful over ≥ 3 → discreet). Morning point = only model call (fast role,
+  confidentiality filter, fallback text). Heartbeat task `assistant.veilleurs` (15 min/person, 20/beat). **Mandates**
+  (`AssistantMandat`, receipts `AssistantMandatGeste` unique per mandate+signal, taken BEFORE acting): bounded capability /
+  recipients / amount / per-day / expiry ≤ 90 d, revocable, R1 by default (`NIVEAU_OPERATION`), sensitive family or R2 →
+  console approval. **Gestures run in the person's own request** (`ExecuteurMandats` in the `(app)` layout, server-side
+  10-min window): screen actions need `requireUser` and `revalidatePath` throws outside a request (after the write) — the
+  same limit applies to J2 travaux gestures on the worker. Actions key `assistant-ia-proactivite-actions`. Decision
+  `docs/assistant/decisions/0024-proactivite.md`.
 
 ### 4.5 `src/platform` — the boundary
 

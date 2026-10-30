@@ -227,3 +227,12 @@ l'outil fermé n'est pas offert (ou refuse par sa famille : paie, contrat RH).
 Les scénarios « SANS OUTIL » de 2026-10-29 portaient sur des outils manquants ; 06 (dossier réglementaire) et 10b (demande
 administrative de l'assistante de direction) sont désormais des CAPACITÉS (`regulatory__createRegulatoryProduct`,
 `admin-request__createRequest`). Le banc réel (modèle, premier mot, coût) se rejoue une fois, à la fin des lots.
+
+## J5 — le banc programmé (décision 0022, `jarvis/j5-j14-qualite`, 30/10/2026)
+
+Ce banc tourne désormais **sur le worker**, selon le calendrier du Super Admin (`/admin/ai/qualite`, défaut chaque vendredi
+à 3 h, plafond 1 $ par passage), contre la base d'essai déclarée (`BANC_ESSAI_DATABASE_URL`), avec les bancs Atelier,
+Travaux et Bibliothèque : `scripts/bench/banc-programme.ts` (lancé par la tâche `qualite.banc`). Chaque script de banc
+écrit un résultat normalisé (`BANC_SORTIE`) ; un scénario que le plafond empêche de jouer est « NON JOUÉ ». Passage réduit
+pour la mise au point : `BANC_SEULEMENT=jarvis JARVIS_ONLY=00-,02-`. Les résultats sont historisés en base et comparés au
+passage précédent ; une régression notifie le Super Admin.
