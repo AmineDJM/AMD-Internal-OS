@@ -7,7 +7,8 @@
  *
  * Tables possédées : `AssistantIaFil` / `AssistantIaTour` (le fil gardé), `AssistantMemoryItem` (mémoire
  * personnelle), `AssistantRoutine` / `AssistantRoutineRun`, `AssistantRoleConfig`, `AssistantIaAcces` (console
- * d'accès), `AssistantIaReglage` / `AssistantIaPlafondAtteint` (consommation). Les intentions (cartes à
+ * d'accès), `AssistantIaReglage` / `AssistantIaPlafondAtteint` (consommation), `AssistantIaNote{Page,Version,Corbeille,
+ * Proposition}` (« Mes notes », décision 0026 — privées, aucune porte pour un autre compte). Les intentions (cartes à
  * confirmer, `AssistantActionIntent`) sont au socle IA, partagées avec Adam.
  *
  * Ce que le module n'importe JAMAIS : Adam (`lib/assistant*`, son écran, son pont) — sauf le catalogue d'outils
@@ -53,3 +54,7 @@ export { PERSONA_ASSISTANT_IA } from "./infra/travaux";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";
+
+// ── « Mes notes » (décision 0026) : le bloc-notes privé de chacun ; l'IA propose, la personne accepte
+export { outilsNotes, OUTILS_NOTES } from "./infra/notes/outils";
+export { propositionsParIds, type PropositionNote } from "./infra/notes/propositions";

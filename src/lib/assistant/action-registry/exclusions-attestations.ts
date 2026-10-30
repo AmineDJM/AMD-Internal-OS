@@ -212,6 +212,14 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",
     "assistant-ia-atelier-actions:comparerOnglet", "assistant-ia-atelier-actions:convertirDansAtelier", "assistant-ia-atelier-actions:fermerOngletAtelier",
   ]);
+  X("« MES NOTES » de l'Assistant IA (décision 0026) — le bloc-notes PRIVÉ de la personne : ses pages, l'enregistrement automatique, l'historique, la corbeille, et accepter / refuser / annuler ce que l'assistant a PROPOSÉ. Identité prise de la session, jamais d'un paramètre ; refusé en « Vue exacte » (pas même le Super Admin ne lit les notes d'autrui) : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-notes-actions:etatMesNotes", "assistant-ia-notes-actions:enregistrerMaPage", "assistant-ia-notes-actions:creerMaPage",
+    "assistant-ia-notes-actions:renommerMaPage", "assistant-ia-notes-actions:reordonnerMesPages", "assistant-ia-notes-actions:supprimerMaPage",
+    "assistant-ia-notes-actions:versionsDeMaPage", "assistant-ia-notes-actions:lireMaVersion", "assistant-ia-notes-actions:restaurerMaVersion",
+    "assistant-ia-notes-actions:maCorbeille", "assistant-ia-notes-actions:restaurerDeMaCorbeille", "assistant-ia-notes-actions:oublierDeMaCorbeille",
+    "assistant-ia-notes-actions:accepterPropositionNote", "assistant-ia-notes-actions:refuserPropositionNote", "assistant-ia-notes-actions:toutAccepterNotes",
+    "assistant-ia-notes-actions:annulerPropositionNote",
+  ]);
   X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
     "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",
     "budget-scope-actions:rememberBudgetEnvelope", "supplier-actions:updateSupplierView",

@@ -120,6 +120,15 @@ const MOTS_CLES: Record<string, string> = {
   modifier_document: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese en place document",
   convertir_document: "convertis convertir conversion pdf word excel exporte transforme en",
   enregistrer_document: "enregistre sauvegarde nouvelle version garde valide document atelier",
+  // « Mes notes » (décision 0026) — le bloc-notes privé : offert seulement quand la demande en parle.
+  lire_notes: "notes note bloc liste reste faire semaine page pages relis lis mes notes todo cases cochees noter",
+  ajouter_note: "ajoute note notes noter liste bloc ligne puce case inscris rajoute semaine",
+  modifier_note: "modifie corrige change remplace reecris ligne note notes liste",
+  cocher_note: "coche cocher decoche fait termine barre case ligne note notes liste",
+  deplacer_note: "deplace bouge remonte descend range ligne note notes liste section",
+  supprimer_note: "supprime retire efface enleve raye ligne note notes liste",
+  creer_page: "page nouvelle cree fais notes bloc",
+  renommer_page: "renomme page nom appelle notes",
 };
 
 const MOTS_VIDES = new Set((

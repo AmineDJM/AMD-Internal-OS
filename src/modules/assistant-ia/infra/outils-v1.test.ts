@@ -52,6 +52,8 @@ describe("outils V1", () => {
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
+      // « Mes notes » (décision 0026) : lire, et PROPOSER des modifications que la personne accepte.
+      "lire_notes", "ajouter_note", "modifier_note", "cocher_note", "deplacer_note", "supprimer_note", "creer_page", "renommer_page",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
   });

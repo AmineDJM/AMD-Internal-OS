@@ -171,6 +171,17 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
   `atelier-apparait`), all disabled under `prefers-reduced-motion`. Review list (`data-testid="atelier-modif"`, `data-etat`),
   compare overlay, conversion menu, inline `ActionConfirmationCard` for sensitive saves. Polls `/api/assistant-ia/atelier`
   (0.6 s while the assistant works, 8 s idle). The preview panel gains « Ouvrir dans l'Atelier ».
+- **« Mes notes »** (decision 0026) [V] `src/modules/assistant-ia/ecrans/notes/`: a private notebook beside the chat in `/assistant`.
+  A floating notebook button (top-right of the conversation, `data-testid="bouton-notes"`, amber count of pending AI proposals)
+  opens `panneau-notes.tsx`, loaded with `next/dynamic` on first click (`lg:w-[380px]` column; `fixed inset-0` full screen below
+  `lg`). Page tabs (`role="tablist"`, rename by double-click / F2, reorder and trash from the page menu), toolbar (Tâche, Puce,
+  Texte, Titre), block editor `editeur-notes.tsx` (auto-sized `<textarea>` per block, Enter / Backspace / Tab / Shift+Tab /
+  Alt+↑↓ / Ctrl+Enter, line-start shortcuts « - » « [] » « # », HTML5 drag handle that also answers ↑/↓), autosave 0.7 s with an
+  `aria-live` « Enregistrement… / Enregistré » and optimistic version (conflict → server page shown, user told), history and
+  30-day trash views. AI proposals render IN the page (amber ring; an added line is a read-only « ghost » at its position;
+  deletion in red) with Accepter / Refuser, a proposals band with « Tout accepter », accepted ones with « Annuler »; the chat card
+  `notes-proposees-card.tsx` mirrors them (events `notes:relire` / `assistant-fil:relancer` keep both in sync). A new proposal in
+  the fil opens the panel. Polls `etatMesNotes` (2 s while the assistant works, 15 s idle; never overwrites unsaved typing).
 
 ### 4.11 Real-time UX — polling + Web Audio
 

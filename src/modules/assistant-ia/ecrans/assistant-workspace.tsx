@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { LuminescentCursor } from "./luminescent-cursor";
 import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
@@ -17,7 +18,7 @@ import {
   type Parcours,
 } from "../domaine/lecture/depot";
 import { EnregistreurVocal } from "./enregistreur-vocal";
-import { AlarmClock, Brain, Briefcase, FolderUp, MoreHorizontal, Sparkles, Volume2, VolumeX } from "lucide-react";
+import { AlarmClock, Brain, Briefcase, FolderUp, MoreHorizontal, NotebookPen, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { envoyerAuFil, listerMesRoutines, listerMesTravaux, reglerMaReponseVocale, repartirDeZero } from "@/modules/assistant-ia/actions";
 import type { AudioDuTour, LecturePiece, VocalDuTour } from "../domaine/lecture/regles";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
@@ -25,6 +26,15 @@ import type { KpiData } from "./kpi-glass-strip";
 import { useConfirmer } from "@/components/ui/dialogue";
 import { actionFailureMessage } from "@/lib/action-outcome";
 import { sansBloquer } from "@/lib/journal";
+
+/**
+ * « MES NOTES » (décision 0026) — l'éditeur n'est chargé qu'au premier clic sur le bloc-notes : la page `/assistant`
+ * ne paie pas son JavaScript tant que la personne ne s'en sert pas.
+ */
+const PanneauNotes = dynamic(() => import("./notes/panneau-notes"), {
+  ssr: false,
+  loading: () => <p className="m-auto p-6 text-[13px] text-slate-500">Ouverture de vos notes…</p>,
+});
 
 export interface AssistantWorkspaceProps {
   initialKpiData?: KpiData;
@@ -48,6 +58,7 @@ interface TourDuFil {
   blocs?: ChatMessage["blocs"] | null;
   intent?: ChatMessage["intent"] | null;
   memoireProposee?: ChatMessage["memoireProposee"] | null;
+  notesProposees?: ChatMessage["notesProposees"] | null;
   outils?: string[];
   etapes?: string[];
   vocal?: VocalDuTour | null;
@@ -68,7 +79,7 @@ function versMessage(t: TourDuFil): ChatMessage {
   const redaction = t.etat === "EN_COURS";
   return {
     id: t.id, role: "assistant", content: t.contenu, createdAt: t.createdAt,
-    blocs: t.blocs ?? undefined, intent: t.intent ?? null, memoireProposee: t.memoireProposee ?? null, audio: t.audio ?? null,
+    blocs: t.blocs ?? undefined, intent: t.intent ?? null, memoireProposee: t.memoireProposee ?? null, notesProposees: t.notesProposees ?? null, audio: t.audio ?? null,
     piecesRendues: t.piecesRendues ?? null,
     outilsAppeles: redaction ? t.etapes ?? [] : (t.outils?.length ? t.outils : t.etapes ?? []),
     etat: redaction ? "redaction" : t.etat === "ECHEC" ? "echec" : undefined,
@@ -79,6 +90,11 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const bienvenue: ChatMessage = { id: "welcome-1", role: "assistant", content: accueil(userName) };
   const confirmer = useConfirmer();
   const [memoireOuverte, setMemoireOuverte] = useState(false);
+  // « Mes notes » : le panneau à côté de la conversation (plein écran sur téléphone).
+  const [notesOuvertes, setNotesOuvertes] = useState(false);
+  const [notesEnAttente, setNotesEnAttente] = useState(0);
+  const boutonNotes = useRef<HTMLButtonElement>(null);
+  const fermerNotes = useCallback(() => { setNotesOuvertes(false); boutonNotes.current?.focus(); }, []);
   const [routinesOuvertes, setRoutinesOuvertes] = useState(false);
   const [routineInitiale, setRoutineInitiale] = useState<string | null>(null);
   const [nonLus, setNonLus] = useState(0);
@@ -188,6 +204,17 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       document.removeEventListener("visibilitychange", auRetour);
     };
   }, [lire]);
+
+  // UNE PROPOSITION DE NOTE ARRIVE (l'assistant vient de proposer) : le panneau s'ouvre pour la montrer, surlignée.
+  // Celles déjà là à l'ouverture de l'écran ne l'ouvrent pas.
+  const notesVues = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    const enAttente = fil.flatMap((m) => (m.notesProposees ?? []).filter((p) => p.etat === "PROPOSEE").map((p) => p.id));
+    if (!notesVues.current) { if (fil.length) notesVues.current = new Set(enAttente); return; }
+    const neuves = enAttente.filter((id) => !notesVues.current!.has(id));
+    for (const id of neuves) notesVues.current.add(id);
+    if (neuves.length) setNotesOuvertes(true);
+  }, [fil]);
 
   /**
    * JOINDRE (décision 0015) : chaque fichier déposé, collé ou choisi devient une PUCE — rien n'est
@@ -439,6 +466,9 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   };
 
   const messages = [bienvenue, ...(vueExacte ? locaux : fil)];
+  // Le point du bloc-notes : le panneau compte quand il est ouvert ; fermé, les cartes du fil le disent.
+  const notesProposeesDuFil = fil.reduce((n, m) => n + (m.notesProposees ?? []).filter((p) => p.etat === "PROPOSEE").length, 0);
+  const pointNotes = notesOuvertes ? notesEnAttente : notesProposeesDuFil;
   const redige = fil.some((m) => m.etat === "redaction");
   // L'indicateur « Consultation en cours » ne double pas une réponse qui s'écrit déjà sous les yeux.
   const attente = vueExacte ? localEnCours : (travaille || envoi) && !redige;
@@ -468,17 +498,29 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
         <div
           ref={verre}
           data-glass="true"
-          className={`relative mx-auto flex h-full w-full flex-1 flex-row overflow-hidden bg-white/80 backdrop-blur-2xl sm:rounded-3xl sm:border sm:border-white/60 sm:bg-white/75 sm:shadow-2xl dark:bg-zinc-950/75 sm:dark:border-white/10 sm:dark:bg-zinc-950/70 ${atelierOuvert ? "max-w-none" : "max-w-5xl"}`}
+          className={`relative mx-auto flex h-full w-full flex-1 flex-row overflow-hidden bg-white/80 backdrop-blur-2xl sm:rounded-3xl sm:border sm:border-white/60 sm:bg-white/75 sm:shadow-2xl dark:bg-zinc-950/75 sm:dark:border-white/10 sm:dark:bg-zinc-950/70 ${atelierOuvert ? "max-w-none" : notesOuvertes ? "max-w-[1400px]" : "max-w-5xl"}`}
         >
           <div
             className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${atelierOuvert ? "lg:flex-none lg:basis-[var(--conversation)]" : ""} ${atelierOuvert && atelierPlein ? "lg:hidden" : ""}`}
             style={{ "--conversation": `${largeurConversation}%` } as React.CSSProperties}
           >
+          {!vueExacte && (
+            <button
+              ref={boutonNotes} type="button" onClick={() => setNotesOuvertes((o) => !o)} aria-pressed={notesOuvertes} data-testid="bouton-notes"
+              aria-label={pointNotes ? `Mes notes (${pointNotes} modification${pointNotes > 1 ? "s" : ""} proposée${pointNotes > 1 ? "s" : ""})` : "Mes notes"}
+              title="Mes notes"
+              className={`absolute right-2 top-2 z-20 flex h-10 w-10 items-center justify-center rounded-xl border shadow-sm backdrop-blur sm:right-3 sm:top-3 ${notesOuvertes ? "border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-950/60 dark:text-violet-300" : "border-slate-200 bg-white/90 text-slate-600 hover:bg-white dark:border-zinc-700 dark:bg-zinc-900/90 dark:text-zinc-300"}`}
+            >
+              <NotebookPen className="h-[18px] w-[18px]" />
+              {pointNotes > 0 && <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-white">{pointNotes}</span>}
+            </button>
+          )}
           <ChatMessageList
             messages={messages}
             isLoading={attente}
             onConfirmIntent={handleConfirmIntent}
             onOuvrirPiece={setApercu}
+            onOuvrirNotes={() => setNotesOuvertes(true)}
           />
 
           {/* Barre de saisie — au-dessus de la barre système du téléphone (zone sûre). */}
@@ -549,6 +591,11 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               onConfirmIntent={handleConfirmIntent}
             />
           </div>
+          {notesOuvertes && !vueExacte && (
+            <div className="fixed inset-0 z-50 flex min-h-0 lg:static lg:z-auto lg:w-[380px] lg:shrink-0 lg:border-l lg:border-slate-200 lg:dark:border-zinc-800">
+              <PanneauNotes onFermer={fermerNotes} travaille={travaille || envoi} onEnAttente={setNotesEnAttente} />
+            </div>
+          )}
         </div>
       </div>
       <ApercuPiece piece={apercu} onFermer={fermerApercu} onDemanderModification={vueExacte ? undefined : demanderModification} onOuvrirAtelier={vueExacte ? undefined : ouvrirDansAtelier} />

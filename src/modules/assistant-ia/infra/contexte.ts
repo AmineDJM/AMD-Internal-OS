@@ -7,6 +7,7 @@ import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { CONSIGNE_COMPOSANTS } from "../domaine/ui/composants";
 import { memoirePourContexte } from "./memoire";
 import { souvenirsPourQuestion } from "../domaine/assembleur";
+import { REGLE_NOTES } from "../domaine/notes/regles";
 
 /**
  * COUCHE DE CONTEXTE (Q9, Q11, Q14, Q17, C10).
@@ -121,7 +122,7 @@ export const REGLES = [
   "Routines : quand l'utilisateur te DEMANDE de faire quelque chose à un moment donné ou régulièrement (« chaque dimanche à 8 h », « tous les matins », « le 1er du mois », « demain à 9 h ») → programmer_routine ; ne devine jamais l'heure ni le jour, demande-les. Ses routines : mes_routines ; pause, reprise, suppression, exécution immédiate : gerer_routine. Jamais de routine ni de relance de ta propre initiative.",
   "Web : une information EXTÉRIEURE à l'entreprise (marché, actualité d'un laboratoire, réglementation étrangère, congrès) → web_research, en citant ses sources et leur date ; jamais pour une donnée de l'ERP.",
   CONSIGNE_CONTENU_NON_FIABLE,
-  "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
+  "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",  REGLE_NOTES,
 ];
 
 /**
@@ -133,6 +134,7 @@ const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
   6: (n) => /^(lire_devis_facture|preparer_bc_depuis_devis|lire_document|comparer_versions|preparer_document|preparer_traduction|lire_formulaire_pdf|preparer_formulaire_pdf|preparer_voyageur_passeport)$/.test(n),
   7: (n) => /^(programmer_routine|mes_routines|gerer_routine)$/.test(n),
   8: (n) => n === "web_research",
+  11: (n) => /^(lire_notes|ajouter_note|modifier_note|cocher_note|deplacer_note|supprimer_note|creer_page|renommer_page)$/.test(n),
 };
 
 /** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */

@@ -47,7 +47,11 @@ export interface IntentionDuTour {
 }
 
 export type ResultatDuTour =
-  | { ok: true; content: string; blocs: WorkspaceBlock[]; memoireProposee: MemoireProposee | null; outilsAppeles: string[]; intent: IntentionDuTour | null }
+  | {
+    ok: true; content: string; blocs: WorkspaceBlock[]; memoireProposee: MemoireProposee | null; outilsAppeles: string[]; intent: IntentionDuTour | null;
+    /** « Mes notes » (décision 0026) : les modifications de notes PROPOSÉES pendant le tour — la carte de la conversation. */
+    notesProposees: string[];
+  }
   | { ok: false; error: string };
 
 export interface DemandeDuTour {
@@ -138,6 +142,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const propositions: PropositionPreparee[] = [];
   const sorties: string[] = [];
   const memoires: MemoireProposee[] = [];
+  const notesProposees: string[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les repères.
   const coffret = new CoffretDuTour();
   let outils;
@@ -146,7 +151,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
     // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
-    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces), outilTravailPour(user)];
+    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, notesProposees), outilTravailPour(user)];
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
     selection = selectionDuTour(outils, user, message, config, precedente);
@@ -197,6 +202,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       content: await revelateur.texte(ui.message || "Je n'ai pas de réponse à afficher."),
       blocs: await revelateur.objet(ui.blocs),
       memoireProposee: memoires[0] ?? null,
+      notesProposees: [...notesProposees],
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
       outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
       intent: p ? {

@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### « MES NOTES » — UN BLOC-NOTES PRIVÉ DANS L'ASSISTANT IA, QUE L'IA NE MODIFIE QU'AVEC L'ACCORD DE LA PERSONNE (2026-10-30)
+
+Une icône bloc-notes en haut de la conversation ouvre « Mes notes » (plein écran sur téléphone) : des **pages** que chacun
+crée, nomme et réordonne ; texte, titres, puces, cases à cocher, listes imbriquées, raccourcis « - » / « [] » / « # », glisser
+une ligne ; enregistrement automatique, historique des versions, corbeille de 30 jours. **Privé** : personne d'autre ne les
+voit, Super Admin compris (« Vue exacte » refusée). L'assistant lit les notes quand la question s'y rapporte et **propose**
+d'ajouter, modifier, cocher, déplacer, supprimer une ligne ou de créer / renommer une page : la proposition s'affiche
+**surlignée** dans la page et sur une carte de la conversation — Accepter / Refuser / Tout accepter, puis Annuler ; **rien
+n'est écrit avant l'acceptation** (décision de la Direction). Un montant de paie noté reste en repère vers le modèle.
+Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270210130000_assistant_ia_notes`.
+
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
 « Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les

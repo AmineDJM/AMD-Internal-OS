@@ -317,6 +317,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       blocs: r.blocs as unknown as Prisma.InputJsonValue,
       ...(r.intent ? { intent: r.intent as unknown as Prisma.InputJsonValue } : {}),
       ...(r.memoireProposee ? { memoireProposee: r.memoireProposee as unknown as Prisma.InputJsonValue } : {}),
+      ...(r.notesProposees.length ? { notesProposees: r.notesProposees as unknown as Prisma.InputJsonValue } : {}),
       outils: r.outilsAppeles,
     }, ETAT.TRAITE);
   } else {

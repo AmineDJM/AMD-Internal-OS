@@ -30,3 +30,9 @@ export type { MemoireProposee } from "./domaine/memoire-ui";
 // ── Opérations : la charge d'une carte de l'Assistant IA ; la bande MRZ (lue aussi par l'enrichissement)
 export { estChargeOperationIA } from "./domaine/operations/types";
 export { casse, chiffreDeControle, lireMrz } from "./domaine/operations/mrz";
+
+// ── « Mes notes » (décision 0026) : les blocs et les gestes, purs — l'éditeur, le serveur et la voix les partagent
+export {
+  normaliserBlocs, raccourci, TITRE_PAGE_DEFAUT, type BlocNote, type TypeBloc,
+} from "./domaine/notes/blocs";
+export { resumeGeste, type GesteNote, type PropositionNote } from "./domaine/notes/gestes";

@@ -14,6 +14,7 @@ import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoirePr
 import { OPERATIONS_IA, outilsOperations, REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { lecturesDocuments } from "./operations/documents-lus";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
+import { OUTILS_NOTES_ECRITURE, outilsNotes } from "./notes/outils";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
 import { rechercheWeb } from "./recherche-web";
@@ -92,7 +93,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
 };
-const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire"]);
+// « Mes notes » (décision 0026) : le bloc-notes de la personne, chaque geste proposé puis accepté par elle — comme la mémoire.
+const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire", ...OUTILS_NOTES_ECRITURE]);
 
 /** Les familles qu'un GESTE exige (J2 : un travail rejuge chaque geste contre la console avant d'agir). */
 export const famillesDuGeste = (nom: string): FamilleIa[] => famillesDe(nom, !SANS_FAMILLE_ECRITURE.has(nom));
@@ -119,7 +121,8 @@ const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTo
 
 /** TOUT ce qui prépare une écriture du moteur — une routine (lecture seule) n'en reçoit aucun (`routines/passage.ts`). */
 // L'Atelier (J3) n'a rien à faire dans une routine ou un travail : il ouvre des onglets sous les yeux de la personne.
-export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...ECRITURES, ...DOMAINES, ...OUTILS_ATELIER]);
+// Les notes (décision 0026) non plus : une proposition attend le geste de la personne, qui n'est pas là.
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...ECRITURES, ...DOMAINES, ...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE]);
 /** Ce que l'utilisateur lit sous la réponse (« sources consultées ») — jamais un nom d'outil. */
 const LIBELLES: Record<string, string> = {
   list_my_tasks: "Tâches consultées",
@@ -291,6 +294,7 @@ export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret:
 
 export function outilsV1(
   user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[], coffret?: CoffretDuTour | null, accesDuTour?: AccesIa,
+  notesProposees?: string[],
 ): PowerTool[] {
   const acces = accesDuTour ?? accesParDefaut(user);
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
@@ -404,7 +408,9 @@ export function outilsV1(
     ...o,
     run: (entree, u) => (u.id === user.id ? o.run(entree, u) : Promise.resolve(JSON.stringify({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." }))),
   });
-  return [...lectures, ...gestes, outilMemoire(user, memoires)].map((o) => filtre(aSoi(o), journal, coffret));
+  // « Mes notes » (décision 0026) : lire SES notes, et PROPOSER des modifications qu'elle accepte ou refuse.
+  const notes = outilsNotes(user, { coffret, acces, proposees: notesProposees });
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret));
 }
 
 /**
