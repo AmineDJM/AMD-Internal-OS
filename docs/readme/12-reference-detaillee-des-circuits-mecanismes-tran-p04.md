@@ -610,6 +610,31 @@ Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missio
 - **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
   Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
 
+### Travaux, suite — délégation, attentes avancées, équipe, livrables au Drive (lot J8, 30/10/2026)
+
+Décision [0023](../assistant/decisions/0023-delegation.md). Code : `src/lib/missions/travaux/` (`delegation.ts`, `jalons.ts`,
+`reveil.ts`, `signaux.ts`), `src/modules/assistant-ia/infra/travaux-{pieces,livrables,equipe}.ts`,
+`src/modules/assistant-ia/infra/operations/delegation.ts`, `src/modules/assistant-ia/actions-travaux.ts`, écrans
+`ecrans/{demandes-recues,travaux-equipe}.tsx`.
+
+- **Délégation** : étape `DEMANDE` (`a`, `question`, `pieces`, `partager`, `jours`) → nœud `WAIT_INPUT`. Dépôt **une fois**
+  par étape (`TravailDemande`, clé `missionId, stepKey`), pièces partagées **en lecture** (`DriveShare`, audit), avis à la
+  personne sollicitée (`/assistant?demande=…`). Elle ne voit que la question, les pièces attendues et partagées — jamais
+  le carnet. Réponse (texte + pièces de **son** Drive, accordées en lecture au demandeur) ou refus motivé → l'étape se
+  règle, la réponse entre au carnet, le travail reprend. Relance (mi-délai), escalade (échéance, au N+1 de l'organigramme),
+  abandon (second délai → issue `TIMEOUT`). Faits `DEMANDE_DEPOSEE` / `DEMANDE_REPONDUE`. Côté sollicité : lecture
+  `mes_demandes_recues` (contenu non fiable) et carte `preparer_reponse_demande` (fiches de la sélection, hors socle).
+- **Attentes** : prédicat de charge utile sur les 34 types du catalogue ; jalons `relance` / `escalade { a: RESPONSABLE }` ;
+  **réveil rapide** — tout ce qui règle une attente signale le travail (`Mission.reveilDemandeLe`), la boucle courte
+  (`armerReveilsTravaux`, 10 s, worker et web) le conduit : p95 mesuré 10 s (critère 90 s).
+- **Plusieurs travaux par personne** : priorité (`HAUTE` / `NORMALE` / `BASSE`), battement servi à tour de rôle par personne.
+- **Équipe** : option console `/admin/ai/acces` « Travaux de l'équipe » (défaut **non**) — un N+1 voit résumé et étapes
+  des travaux de son équipe, en lecture seule ; chaque consultation à l'audit (`Assistant IA — travaux`).
+- **Livrables** : `format` `docx` | `pdf` | `xlsx` | `md` — Word / Excel de la fabrique, déposé au Drive personnel
+  (dossier « Travaux »), inscrit à la Bibliothèque ; PDF par les conversions de l'Atelier. Dépôt sous reçu : jamais deux.
+- **Robustesse mesurée** (`robustesse.test.ts`) : 3 semaines, 10 `SIGKILL` sur de vrais processus, aucun doublon ;
+  web + worker simultanés : un seul exécute.
+
 ### L'Atelier de l'Assistant IA — documents affichés et modifiés en direct (lot J3, 30/10/2026)
 
 Décision [0017](../assistant/decisions/0017-atelier.md). Code : `src/platform/ia/artifact/atelier/` (gestes, service,

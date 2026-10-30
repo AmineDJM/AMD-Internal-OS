@@ -24,6 +24,20 @@ registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermé
 semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
 [0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
 
+### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
+
+Lot J8 — `docs/assistant/decisions/0023-delegation.md` ; migration additive `20270214100000_travaux_delegation`.
+- **« Demander à »** : un travail dépose une demande précise (question, pièces attendues, échéance, pièces partagées en
+  lecture) chez un collègue — notification et carte dans **son** Assistant IA ; il répond avec ses pièces ou décline ;
+  le travail reprend. Relance, escalade au responsable, abandon. Il ne voit jamais le carnet de l'autre.
+- **Attentes métier** sur les 34 types de faits (prédicat), relance et escalade ; **reprise mesurée** après l'événement :
+  médiane 7,5 s, p95 10 s (boucle courte des réveils, 10 s).
+- **Plusieurs travaux par personne** avec priorités ; **vue « Mon équipe »** pour un responsable si la console l'autorise
+  (défaut : non), chaque consultation à l'audit.
+- **Livrables = vrais documents** (Word, PDF, Excel) déposés dans le Drive de la personne et inscrits à la Bibliothèque.
+- **Robustesse** : un travail de 3 semaines traverse 10 arrêts brutaux (`SIGKILL`) de vrais processus sans doublon ;
+  web + worker simultanés : un seul exécute.
+
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
 « Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les

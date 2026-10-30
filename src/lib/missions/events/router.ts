@@ -5,6 +5,8 @@ import { journaliser } from "@/lib/missions/runtime/store";
 import { Attente, FaitObserve, correspond, decomposer, echue, etatAttente, lireAttente, lireProgres } from "@/lib/missions/events/match";
 import { ETATS_REPLANIFIABLES } from "@/lib/missions/runtime/replan";
 import { sansBloquer } from "@/lib/journal";
+// J8 : un TRAVAIL dont une attente se règle est signalé à la boucle courte des réveils (les missions d'Adam : filtre `kind`).
+import { signalerReveil } from "@/lib/missions/travaux/signaux";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -133,6 +135,7 @@ export async function reveillerMissions(fait: FaitObserve): Promise<Reveil[]> {
         where: { id: { in: reveillees }, replanBloque: true },
         data: { replanBloque: false, replanRefus: null },
       }).catch(sansBloquer("router.reveillerMissions.mission"));
+      await signalerReveil(reveillees, maintenant);
     }
 
     /**
@@ -248,6 +251,7 @@ export async function reveillerAttentesTemporelles(
         { stepKey: step.key, instant: maintenant.toISOString() });
       reveils.push({ missionId: step.missionId, stepKey: step.key });
     }
+    await signalerReveil(reveils.map((r) => r.missionId), maintenant);
     return reveils;
   } catch (err) {
     console.error("[missions] réveil temporel impossible", err);

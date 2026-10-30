@@ -14,6 +14,7 @@ import { lectureBudget } from "./operations/budget";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
+import { lectureDemandesRecues } from "./operations/delegation";
 import { rechercheWeb } from "./recherche-web";
 import { outilsConnaissance } from "@/platform/ia/lectures/connaissance";
 import { outilsGraphe } from "@/platform/ia/lectures/graphe";
@@ -252,7 +253,7 @@ export function outilsV1(
 
   const lectures = [
     ...lecturesPower, ...propres, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
-    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
+    lectureFormulaire(user), lectureRoutines(user), lectureDemandesRecues(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
     // J9 — le graphe : une famille FERMÉE retire ses types du parcours (dossiers, demandes, documents), sans fermer l'outil.
     ...outilsGraphe(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
