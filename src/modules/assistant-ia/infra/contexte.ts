@@ -122,7 +122,9 @@ export const REGLES = [
   "Routines : quand l'utilisateur te DEMANDE de faire quelque chose à un moment donné ou régulièrement (« chaque dimanche à 8 h », « tous les matins », « le 1er du mois », « demain à 9 h ») → programmer_routine ; ne devine jamais l'heure ni le jour, demande-les. Ses routines : mes_routines ; pause, reprise, suppression, exécution immédiate : gerer_routine. Jamais de routine ni de relance de ta propre initiative.",
   "Web : une information EXTÉRIEURE à l'entreprise (marché, actualité d'un laboratoire, réglementation étrangère, congrès) → web_research, en citant ses sources et leur date ; jamais pour une donnée de l'ERP.",
   CONSIGNE_CONTENU_NON_FIABLE,
-  "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",  REGLE_NOTES,
+  "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
+  "Graphe et faits datés : « qu'est-ce qui dépend de… », « qui a travaillé sur… », « quels documents parlent de… » → explorer_relations ; « quelle était… à telle date » → etat_a_une_date (jamais la valeur d'aujourd'hui à la place) ; « d'où vient ce chiffre » → d_ou_vient. CHAQUE chiffre, date ou identifiant que tu en reprends est suivi de sa source entre parenthèses (la `source` rendue) ; une entité AMBIGUË se tranche par une question, jamais par un choix.",
+  REGLE_NOTES,
 ];
 
 /**
@@ -134,7 +136,8 @@ const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
   6: (n) => /^(lire_devis_facture|preparer_bc_depuis_devis|lire_document|comparer_versions|preparer_document|preparer_traduction|lire_formulaire_pdf|preparer_formulaire_pdf|preparer_voyageur_passeport)$/.test(n),
   7: (n) => /^(programmer_routine|mes_routines|gerer_routine)$/.test(n),
   8: (n) => n === "web_research",
-  11: (n) => /^(lire_notes|ajouter_note|modifier_note|cocher_note|deplacer_note|supprimer_note|creer_page|renommer_page)$/.test(n),
+  11: (n) => n === "explorer_relations" || n === "etat_a_une_date" || n === "d_ou_vient",
+  12: (n) => /^(lire_notes|ajouter_note|modifier_note|cocher_note|deplacer_note|supprimer_note|creer_page|renommer_page)$/.test(n),
 };
 
 /** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */

@@ -39,6 +39,9 @@ export {
   changerStatut, executerMaintenant, executerRoutinesDues, lirePassage, listerRoutines, passagesNonLus, supprimerRoutine,
 } from "./infra/routines/service";
 
+// ── La proactivité sous mandat (J12, décision 0024) : veilleurs, budget d'interruptions, mandats
+export { executerVeilles, passerLaVeille } from "./infra/proactivite/veille";
+
 // ── Opérations (écritures confirmées) et accès
 export { executerOperationIA } from "./infra/operations";
 export { accesAssistantIa, chargerConsoleAccesIa, verifierReperesAvantExecution } from "./infra/role-config";
@@ -58,3 +61,12 @@ export { etatAtelier } from "./infra/atelier/etat";
 // ── « Mes notes » (décision 0026) : le bloc-notes privé de chacun ; l'IA propose, la personne accepte
 export { outilsNotes, OUTILS_NOTES } from "./infra/notes/outils";
 export { propositionsParIds, type PropositionNote } from "./infra/notes/propositions";
+// J14 (décision 0022) : les traces rejouables d'un tour, et leur rejeu sans modèle.
+export { decoderTrace, lireTrace, purgerTraces, type Trace } from "./infra/qualite/traces";
+export { rejouerTrace, type BilanRejeu } from "./infra/qualite/rejeu";
+// J5 (décision 0022) : le banc programmé ; J14 : le modèle de chaque rôle, changé seulement sur un banc vert.
+export {
+  demanderPassage, enregistrerReglageBanc, etatBaseEssai, lireReglageBanc, tacheBancProgramme,
+} from "./infra/qualite/banc";
+export { changerModeleRole, modelesEnService, revenirModeleEnvironnement, type ModeleEnService } from "./infra/qualite/modeles";
+export { tableauQualite } from "./infra/qualite/tableau";

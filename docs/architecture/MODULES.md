@@ -3,7 +3,7 @@
 > Référence d'architecture : [`docs/audit/2026-10-27/08-architecture-code.md`](../audit/2026-10-27/08-architecture-code.md)
 > (§3) et [`refonte-donnees-et-monolithe-modulaire.md`](refonte-donnees-et-monolithe-modulaire.md) §5.
 > Ce document est le **mode d'emploi** : un développeur qui arrive doit pouvoir migrer un module seul en le suivant.
-> État au 29/10/2026 (lot V3-G, puis V4 : modules `rh`, `finances` et `ad-pro` ; J1 : module `bibliotheque`).
+> État au 30/10/2026 (lot V3-G, puis V4 : modules `rh`, `finances` et `ad-pro` ; J1 : module `bibliotheque` ; J9 : module `graphe-entreprise`).
 
 ---
 
@@ -32,6 +32,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `finances` | métier | `api.ts`, `partage.ts`, `actions-{centre,demandes,depenses,relances,sieges,soldes,tresorerie}.ts` | `referentiels`, `coffre` | tout métier qui émet un ordre de dépense (Ad & Pro, RH, Legal, Regulatory, moyens généraux…), pages `/finances`, `/centre-de-paiement`, `/validations/paiements` | **migré** (V4) — ex-`lib/{finance,finances,payments}/`, fusionnés |
 | `bibliotheque` | métier (transverse) | `api-inscription.ts` (inscrire — porte étroite), `api.ts` (chercher, ouvrir, file), `partage.ts`, `actions.ts`, `ecrans/` | — | ≈ 45 points d'entrée (inscription), `rh`, `scheduled.ts` (tâches `bibliotheque.*`), page `/bibliotheque` | **neuf** (J1, 29/10) — dette : les règles d'ouverture et les lecteurs existants (`DETTE_HERITEE`) |
 | `assistant-ia` | métier | `api.ts`, `partage.ts`, `actions.ts` (clé `assistant-ia-actions`), `actions-consommation.ts` (clé `assistant-ia-consommation-actions`), `actions-atelier.ts` (clé `assistant-ia-atelier-actions`, J3), `actions-notes.ts` (clé `assistant-ia-notes-actions`, « Mes notes », décision 0026), `ecrans/` | `ad-pro`, `coffre` | page `/assistant`, routes `/api/assistant-ia/*` (dont `atelier`), consoles `/admin/ai/{acces,consommation}`, `bibliotheque` (confidentialité), enrichissement (MRZ), `runScheduledJobs` | **migré** (J0, phase B) — dette : 68 imports vers `src/lib/` dont 4 vers Adam (catalogue, §7) et 5 vers le moteur des travaux (J2) ; l'Atelier (J3) passe par le socle `platform/ia/artifact/atelier`, sans dette neuve |
+| `graphe-entreprise` | métier (transverse) | `api.ts`, `partage.ts` | `referentiels`, `bibliotheque` | socle IA (`platform/ia/lectures/graphe.ts` : outils de l'Assistant IA), `lib/enrichissement/confirmation.ts` (`fermeture`) | **neuf** (J9, 30/10) — une VUE sans table : nœuds = fiches canoniques, arêtes lues où elles sont écrites ; aucune dette vers `src/lib/` |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐

@@ -90,6 +90,9 @@ export const MODELES_INTERDITS: Readonly<Record<string, string>> = {
   // effacerait la preuve d'une lecture.
   donneeSensible: "le coffre des données sensibles (NIN, passeport, RIB, salaire)",
   accesDonneeSensible: "le journal des lectures du coffre des données sensibles",
+  // LE MODÈLE DE CHAQUE RÔLE DE L'ASSISTANT IA (J14, décision 0022) — changé seulement sur un banc vert, par le Super Admin :
+  // l'écrire par le chemin générique contournerait la garde du protocole A/B.
+  assistantIaModeleRole: "le modèle de chaque rôle de l'Assistant IA (changé seulement sur un banc vert)",
 };
 
 /**

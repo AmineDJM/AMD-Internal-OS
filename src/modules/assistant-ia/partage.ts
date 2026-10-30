@@ -36,3 +36,11 @@ export {
   normaliserBlocs, raccourci, TITRE_PAGE_DEFAUT, type BlocNote, type TypeBloc,
 } from "./domaine/notes/blocs";
 export { resumeGeste, type GesteNote, type PropositionNote } from "./domaine/notes/gestes";
+// ── Qualité continue (J5 + J14, décision 0022) : calendrier du banc, régression, base d'essai, A/B, provenance tierce
+export {
+  calendrierLisible, FREQUENCES, JOURS_SEMAINE, normaliserReglageBanc, PLAFOND_PASSAGE_MAX_USD, prochainCreneau, REGLAGE_BANC_DEFAUT,
+  type Frequence, type ReglageBanc,
+} from "./domaine/qualite/calendrier";
+export { choisirBaseEssai, empreinteBase } from "./domaine/qualite/base-essai";
+export { EFFORTS_MODELE, ROLES_MODELE, VALIDITE_BANC_JOURS, lireCandidat, type Candidat } from "./domaine/qualite/ab-modele";
+export type { Regression } from "./domaine/qualite/regression";

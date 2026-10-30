@@ -671,3 +671,23 @@ Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/mo
   documents »), `faits_confirmes` (un fait n'est rendu qu'à qui peut ouvrir sa pièce ; jamais un fait sensible).
 - **Modèle par geste** : rapide `gpt-6-luna` (résumé), standard `gpt-6.1-terra` effort `low`, raisonnement effort
   `medium` (analyse, comparaison, plusieurs pièces) — variables `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`.
+
+### Graphe de l'entreprise et faits datés (lot J9, 30/10/2026)
+
+Décision [0021](../assistant/decisions/0021-graphe.md). Module `src/modules/graphe-entreprise/` ; outils au socle
+`src/platform/ia/lectures/graphe.ts` ; fermeture bitemporelle `src/lib/enrichissement/confirmation.ts`.
+
+- **Une vue, pas un registre** : nœuds = fiches canoniques (`Personne`, `Organisation`, `Product`, `RegulatoryProduct`,
+  sponsoring / événement / demande « autre », congrès, `Piece`), arêtes datées lues dans `EntityLink`, `PieceLien`,
+  `FaitConfirme` (`atteste`, jamais un fait sensible), `EntityMention` et les clés métier (affiliation, emploi, dossier,
+  demandes, congrès). Une clé étrangère dit l'état actuel, et l'arête le dit.
+- **Droits avant le parcours** : types fermés non lus (module RBAC, ou famille de la console fermée : Réglementaire →
+  dossiers, Ad & Pro → demandes et congrès, Drive & documents → documents) ; chaque nœud jugé par la portée de son écran
+  (`scopeRegulatory` + verrou, `scopeSponsoring`, `scopeCongress*`, `scopeAdProOther`, `piecesOuvrables`) AVANT d'être
+  traversé ; pour un modèle, ni pièce confidentielle ni pièce du coffre. Profondeur ≤ 3, bornes dites (`tronque`).
+- **Résolution** : arabe ↔ latin (translittération + squelette consonantique), particules (Ben, Abd El, Aït), fautes,
+  sigles (ENPP), NIF/RC ; homonymes = question ; les candidats hors droits sont écartés avant le verdict.
+- **Faits bitemporels** : validité (`valideDu`/`valideAu`) ≠ constat (`confirmeLe`/`fermeLe`) ; un fait remplacé est
+  FERMÉ (`fermeLe`, `fermeParId`, `remplaceParId`), jamais écrasé. État à une date, et « ce qu'on savait » à une autre.
+- **Outils de l'Assistant IA** : `explorer_relations`, `etat_a_une_date`, `d_ou_vient` — fiches de la sélection ; chaque
+  chiffre porte sa `source` (vérifié au banc : `chiffresSansSource`).

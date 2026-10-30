@@ -1,6 +1,5 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import { prisma } from "@/lib/prisma";
-import { DirectoryChannel } from "@prisma/client";
 import { findPeople } from "@/lib/directory/resolve";
 import { canReadDirectory } from "@/lib/directory/access";
 import { userCan } from "@/lib/rbac";
@@ -77,7 +76,7 @@ export const DIRECTORY_TOOLS: PowerTool[] = [
         // Le N+1 n'est pas une donnée sensible : l'organigramme le montre à tous.
         responsable: p.manager ?? (p.employeeId ? "non renseigné sur la fiche RH" : undefined),
         coordonnees: p.endpoints.map((e) => ({
-          canal: e.channel === DirectoryChannel.EMAIL ? "e-mail" : e.channel === DirectoryChannel.PHONE ? "téléphone" : "WhatsApp",
+          canal: e.channel === "EMAIL" ? "e-mail" : e.channel === "PHONE" ? "téléphone" : "WhatsApp",
           valeur: e.value,
           usage: e.label,
           fiabilite: CONFIDENCE_LABEL[e.confidence] ?? e.confidence,
@@ -213,7 +212,7 @@ export const DIRECTORY_TOOLS: PowerTool[] = [
         salaries: employees.map((e) => {
           // L'annuaire d'abord (il porte les adresses vérifiées et les variantes), puis les
           // fiches — mais sans jamais rendre deux fois la même adresse.
-          const fromDirectory = (e.directoryEntry?.endpoints ?? []).filter((p) => p.channel === DirectoryChannel.EMAIL);
+          const fromDirectory = (e.directoryEntry?.endpoints ?? []).filter((p) => p.channel === "EMAIL");
           const mails = new Map<string, { adresse: string; usage: string | null; fiabilite: string }>();
           for (const p of fromDirectory) {
             mails.set(p.value, { adresse: p.value, usage: p.label, fiabilite: CONFIDENCE_LABEL[p.confidence] ?? p.confidence });
@@ -223,7 +222,7 @@ export const DIRECTORY_TOOLS: PowerTool[] = [
               mails.set(fallback.toLowerCase(), { adresse: fallback.toLowerCase(), usage: "fiche ERP", fiabilite: CONFIDENCE_LABEL.VERIFIED_PROVIDER });
             }
           }
-          const phones = (e.directoryEntry?.endpoints ?? []).filter((p) => p.channel !== DirectoryChannel.EMAIL).map((p) => p.value);
+          const phones = (e.directoryEntry?.endpoints ?? []).filter((p) => p.channel !== "EMAIL").map((p) => p.value);
           if (e.phone && !phones.includes(e.phone)) phones.push(e.phone);
           return {
             // L'IDENTITÉ CANONIQUE D'ABORD (§28). Elle était SÉLECTIONNÉE et jamais rendue :

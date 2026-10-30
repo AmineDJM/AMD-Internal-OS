@@ -19,12 +19,14 @@ import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
 import { rechercheWeb } from "./recherche-web";
 import { outilsConnaissance } from "@/platform/ia/lectures/connaissance";
+import { outilsGraphe } from "@/platform/ia/lectures/graphe";
 import { sortiePourModele } from "../domaine/contenu-non-fiable";
+import { avecProvenance, type ProvenanceDuTour } from "./provenance";
 import { lecturesMetier, lecturesQuotidien, lecturesRh } from "./lectures";
 import { censurerTexte, jetonnerSortie, jetonOuMasque, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { formatMontant } from "@/lib/utils";
-import { familleExplicite, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
+import { FAMILLES_IA, familleExplicite, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "../domaine/acces-regles";
 import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "./role-config";
 
 /**
@@ -164,7 +166,7 @@ const PREAMBULE_DOMAINE: Partial<Record<(typeof DOMAINES)[number], string>> = {
  * contenu écrit par un tiers (`contenu-non-fiable.ts` — un document ne donne pas d'ordres). Le journal
  * du tour garde la sortie censurée SANS cadre : c'est elle que l'UI générative confronte aux faits.
  */
-const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null): PowerTool => ({
+const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour): PowerTool => ({
   ...outil,
   run: async (entree, user) => {
     // Avec un coffret (la conversation) : les valeurs sensibles deviennent des REPÈRES (décision 0012) ;
@@ -173,7 +175,10 @@ const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | 
     const sortie = jetonnerSortie(await outil.run(entree, user), coffret);
     coffret?.nommer(avant, outil.def.name);
     journal?.push(sortie);
-    return sortiePourModele(outil.def.name, sortie);
+    const pourModele = sortiePourModele(outil.def.name, sortie);
+    // J14 : ce que le tour a lu d'un tiers (encadré) ou de l'ERP — la carte dira ce qui vient d'un tiers.
+    provenance?.noter(pourModele);
+    return pourModele;
   },
 });
 
@@ -294,6 +299,7 @@ export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret:
 
 export function outilsV1(
   user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[], coffret?: CoffretDuTour | null, accesDuTour?: AccesIa,
+  provenance?: ProvenanceDuTour,
   notesProposees?: string[],
 ): PowerTool[] {
   const acces = accesDuTour ?? accesParDefaut(user);
@@ -375,6 +381,8 @@ export function outilsV1(
   const lectures = [
     ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
     lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
+    // J9 — le graphe : une famille FERMÉE retire ses types du parcours (dossiers, demandes, documents), sans fermer l'outil.
+    ...outilsGraphe(user, FAMILLES_IA.filter((f) => !familleOuverte(acces, f))),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
@@ -399,8 +407,8 @@ export function outilsV1(
     },
   });
   const gestes = [
-    ...[...ecritures, ...domaines].map((o) => garde(avecReperes(o), famillesDe(o.def.name, true), acces)),
-    ...outilsOperations(user, propositions).map((o) => garde(avecReperes(o), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
+    ...[...ecritures, ...domaines].map((o) => garde(avecProvenance(avecReperes(o), propositions, provenance), famillesDe(o.def.name, true), acces)),
+    ...outilsOperations(user, propositions).map((o) => garde(avecProvenance(avecReperes(o), propositions, provenance), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
   ];
   // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le
   // refuse déjà au modèle), il refuse au lieu de prêter ces accès.
@@ -410,7 +418,7 @@ export function outilsV1(
   });
   // « Mes notes » (décision 0026) : lire SES notes, et PROPOSER des modifications qu'elle accepte ou refuse.
   const notes = outilsNotes(user, { coffret, acces, proposees: notesProposees });
-  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret));
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance));
 }
 
 /**

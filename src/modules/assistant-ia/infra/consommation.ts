@@ -137,6 +137,13 @@ export async function jetonsDuJour(userId: string, now: Date = new Date()): Prom
  * LE SUPER ADMIN EST PRÉVENU — une fois par personne et par jour. La clé unique (`userId`, `jour`) fait
  * le tri : deux tours qui franchissent le plafond ensemble n'écrivent qu'une ligne, un seul avis part.
  */
+/** J5 (décision 0022) : un avis aux Super Admins actifs (cloche + téléphone) — la régression d'un banc, par exemple. */
+export async function avertirSuperAdmins(avis: { title: string; body: string; link: string }): Promise<number> {
+  const admins = await prisma.user.findMany({ where: { role: "SUPER_ADMIN", isActive: true }, select: { id: true } });
+  for (const a of admins) await notifyUser({ userId: a.id, type: "GENERIC", ...avis }).catch(sansBloquer("assistant-ia.avertirSuperAdmins.notifyUser"));
+  return admins.length;
+}
+
 export async function signalerPlafondJour(userId: string, jetons: number, plafond: number, now: Date = new Date()): Promise<boolean> {
   try {
     const r = await prisma.assistantIaPlafondAtteint.createMany({
