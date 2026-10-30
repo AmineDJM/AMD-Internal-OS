@@ -183,6 +183,12 @@ export function classerExclusionsAttestations(): void {
     // La confirmation de l'ASSISTANT IA (/assistant) : la même porte que `executeAssistantAction`
     // (intention de CE compte, idempotence, `performAction`), sous la règle de l'Assistant IA.
     "assistant-ia-actions:confirmerIntentionAssistantIA",
+    // La confirmation d'une carte de TERRAIN (J13, décision 0025) : même garde, porte du module Rapports terrain,
+    // seulement les opérations `terrain_*` que ce compte a préparées.
+    "assistant-ia-actions:confirmerCarteTerrain",
+    // Rattacher une photo de terrain au compte rendu : le geste qu'exécute la carte `terrain_piece_visite` (J13) —
+    // une capture de la personne seulement, jamais une pièce désignée par un modèle.
+    "field-report-actions:rattacherPhotoTerrain",
     // LE GESTE DÉTERMINISTE d'un bouton de l'espace de travail (§23). Il n'ouvre AUCUNE capacité
     // nouvelle : il exécute une LECTURE déjà exposée au Chief comme outil, en sautant l'appel au
     // modèle que le serveur n'avait aucune raison de payer — il connaissait l'intention exacte au

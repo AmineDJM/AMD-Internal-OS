@@ -19,6 +19,7 @@ import {
   type Parcours,
 } from "../domaine/lecture/depot";
 import { EnregistreurVocal } from "./enregistreur-vocal";
+import { BoutonVoixTempsReel } from "./voix-temps-reel";
 import { AlarmClock, Brain, Briefcase, FolderUp, MoreHorizontal, NotebookPen, Radar, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { envoyerAuFil, listerMesRoutines, listerMesTravaux, reglerMaReponseVocale, repartirDeZero } from "@/modules/assistant-ia/actions";
 import type { AudioDuTour, LecturePiece, VocalDuTour } from "../domaine/lecture/regles";
@@ -542,7 +543,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               sendBlocked={envoiEnCours}
               brouillon={brouillon}
               above={<PiecesEnAttente pieces={pieces} onRetirer={retirer} verrou={televersement} />}
-              vocal={vueExacte ? undefined : <EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={envoiEnCours} />}
+              vocal={vueExacte ? undefined : <><BoutonVoixTempsReel /><EnregistreurVocal onVocal={(a, d) => void envoyerVocal(a, d)} desactive={envoiEnCours} /></>}
               leading={
                 <>
                 <BoutonJoindre onFichiers={(f) => joindre(depuisListe(f))} desactive={(vueExacte && localEnCours) || televersement} />

@@ -43,8 +43,8 @@ export type ResultatStt =
   | { ok: true; texte: string; langue: string | null; dureeS: number | null; segments: Segment[]; modele: string; ms: number; horodate: boolean }
   | { ok: false; configured: boolean; erreur: string; limite?: "RESSOURCE" };
 
-/** Les modèles qui ne rendent pas `verbose_json` : un seul segment, sans horodatage — dit dans `horodate: false`. */
-const SANS_SEGMENTS = /^gpt-4o/i;
+/** Les modèles qui ne rendent pas `verbose_json` (`gpt-4o-*-transcribe`, `gpt-transcribe`) : un seul segment, sans horodatage — dit dans `horodate: false`. */
+const SANS_SEGMENTS = /^gpt-/i;
 
 export async function transcrireAvecSegments(buffer: Buffer, nom: string, opts: OptionsStt = {}): Promise<ResultatStt> {
   // Un enregistrement envoyé au moteur de transcription est un appel d'IA comme un autre : la lecture

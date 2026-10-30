@@ -99,10 +99,10 @@ export interface TranscriptionAudio {
   modele: string;
 }
 
-export async function transcrireMedia(octets: Buffer, nom: string, opts: Pick<OptionsStt, "fetchImpl" | "env" | "langue"> = {}): Promise<IssueVoix<TranscriptionAudio>> {
+export async function transcrireMedia(octets: Buffer, nom: string, opts: Pick<OptionsStt, "fetchImpl" | "env" | "langue" | "modele" | "indice"> = {}): Promise<IssueVoix<TranscriptionAudio>> {
   return appelVoix("transcription", async (inscrire) => {
     const t0 = Date.now();
-    const r = await transcrireAvecSegments(octets, nom, { langue: opts.langue ?? "auto", fetchImpl: opts.fetchImpl, env: opts.env });
+    const r = await transcrireAvecSegments(octets, nom, { langue: opts.langue ?? "auto", fetchImpl: opts.fetchImpl, env: opts.env, modele: opts.modele, indice: opts.indice });
     if (!r.ok) return { ok: false, raison: r.erreur };
     inscrire({ provider: "openai-audio", model: r.modele, entree: jetonsAudio(r.dureeS), sortie: jetonsTexte(r.texte), ms: Date.now() - t0 });
     return { ok: true, valeur: { texte: r.texte, dureeS: r.dureeS, langue: r.langue, modele: r.modele } };

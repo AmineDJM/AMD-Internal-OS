@@ -76,3 +76,30 @@ export function roleDuTour(d: { texte: string; pieces?: number; travail?: boolea
   if ((d.pieces ?? 0) > 1) return "raisonnement";
   return "standard";
 }
+
+// ─────────────────────────── J13 (décision 0025) : la parole ───────────────────────────
+
+/**
+ * LA TRANSCRIPTION D'UN VOCAL DE TERRAIN — MESURÉE (banc `scripts/banc-stt-terrain.mjs`, 30/10/2026, 4 vocaux :
+ * français, darija mêlée de français, arabe, français rapide ; WER moyen / entités entendues sur 12 / médiane) :
+ *
+ *   whisper-1                     0,313 ·  9/12 · 2,0 s     (+ indice : 0,266 · 10/12 · 2,4 s)
+ *   gpt-4o-mini-transcribe        0,290 ·  8/12 · 1,1 s     (+ indice : 0,248 ·  9/12 · 2,6 s)
+ *   gpt-4o-transcribe             0,276 ·  8/12 · 1,2 s     (+ indice : 0,250 · 11/12 · 1,4 s)
+ *   gpt-transcribe                0,249 · 10/12 · 0,9 s     (+ indice : 0,229 · 11/12 · 1,0 s)   ← retenu
+ *
+ * Langue NON forcée (le moteur détecte, l'écran dit celle qu'il a lue), INDICE de vocabulaire (le panel et la gamme
+ * du délégué). `TERRAIN_STT_MODEL` le change sans code.
+ */
+export const MODELE_STT_TERRAIN_DEFAUT = "gpt-transcribe";
+export const modeleSttTerrain = (env: Record<string, string | undefined> = process.env): string =>
+  env.TERRAIN_STT_MODEL?.trim() || MODELE_STT_TERRAIN_DEFAUT;
+
+/**
+ * La voix temps réel de l'Assistant IA (pas celle d'Adam) — GPT-Live, décision de Direction du 30/10 : `gpt-live-1` SEUL,
+ * sans modèle de secours. Réglable sans redéploiement : le réglage du Super Admin (Consommation IA), sinon
+ * `ASSISTANT_IA_VOICE_MODEL`, sinon `gpt-live-1`.
+ */
+export const MODELE_VOIX_DEFAUT = "gpt-live-1";
+export const modeleVoix = (reglage?: string | null, env: Record<string, string | undefined> = process.env): string =>
+  reglage?.trim() || env.ASSISTANT_IA_VOICE_MODEL?.trim() || MODELE_VOIX_DEFAUT;

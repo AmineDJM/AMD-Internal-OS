@@ -2,7 +2,7 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0021, 0022, 0024, 0026 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0021, 0022, 0024, 0025, 0026 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ;
 0026 : « Mes notes »).
 
@@ -75,6 +75,16 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   pièges `infra/testing/corpus-pieges.ts`, preuves `infra/qualite/pieges-regles.test.ts`, `pieges.test.ts`.
 - **A/B des modèles** — `infra/qualite/modeles.ts` (`AssistantIaModeleRole` au-dessus de l'environnement ; garde
   `domaine/qualite/ab-modele.ts` : banc vert pour ce candidat exact, < 14 jours).
+
+## Terrain et voix (lot J13, décision 0025)
+
+- **Terrain** — `domaine/terrain/` (compte rendu dicté, résolution dans l'annuaire, file hors ligne, photos, règles de la
+  voix — pur), `infra/terrain/captation.ts` (vocal / photo → cartes, idempotent), `infra/operations/terrain.ts`
+  (`terrain_*`), `ecrans/terrain/` (écran mobile, file IndexedDB), page `/medical/terrain`, confirmation
+  `confirmerCarteTerrain`. Table `AssistantIaTerrainCapture`.
+- **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
+  assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune
+  confirmation à la voix ; valeurs sensibles jamais lues ; modèle `gpt-live-1` réglable (Consommation IA).
 
 ## « Mes notes » (décision 0026)
 
