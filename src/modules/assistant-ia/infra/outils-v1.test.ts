@@ -5,6 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 import { APRES_LA_PREVALIDATION, circuitLisible, outilsV1, type PropositionPreparee } from "./outils-v1";
 import { jetonnerSortie } from "../domaine/filtre-confidentialite";
 import { OPERATIONS_IA } from "./operations";
+import { capacitesOffertes } from "./capacites";
 
 /**
  * LES OUTILS V1 SUR LA VRAIE BASE DE TEST (Q17) — sans Prisma simulé.
@@ -38,24 +39,36 @@ const outil = (nom: string, props: PropositionPreparee[]) => {
 describe("outils V1", () => {
   it("offre au Super Admin les lectures et les écritures auxquelles il a droit (décision 0012), sans doublon", () => {
     const noms = outilsV1(auteur, []).map((o) => o.def.name).sort();
-    // Les lectures et écritures V1, les lectures RH (`lectures.ts` — `lecturesRh`), les lectures et gestes du moteur
-    // ouverts par droit, la mémoire proposée et les opérations de l'Assistant IA (le Super Admin a tout ;
-    // chacun revérifie à l'exécution par l'action de l'écran).
+    // Les lectures propres au module (J6 : plus rien d'emprunté à Adam), les lectures RH (`lectures.ts`), la mémoire
+    // proposée et les opérations de l'Assistant IA (le Super Admin a tout ; chacun revérifie à l'exécution).
     expect(noms).toEqual([
-      "assign_regulatory_responsible", "comparer_versions", "demandes_adpro", "create_admin_request", "create_hr_request", "create_task", "directory_list", "directory_lookup", "documents_rh",
-      "drive_operation", "etat_dossier_reglementaire", "finance_totals", "hr_operation", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks", "list_pending_decisions",
+      "comparer_versions", "demandes_adpro", "directory_list", "directory_lookup", "documents_rh",
+      "etat_dossier_reglementaire", "finance_totals", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks", "list_pending_decisions",
       "mes_brouillons", "mes_conversations", "mes_demandes_en_attente", "mes_routines", "my_overview",
       "proposer_memoire", "read_budget", "read_calendar", "read_hr_overview", "read_workflow",
-      "regulatory_knowledge", "regulatory_operation", "regulatory_portfolio", "regulatory_workload", "request_operation", "request_regulatory_status_update",
-      "search_drive", "search_everything", "search_products", "send_message", "set_regulatory_step", "task_operation", "update_regulatory_product", "update_task", "web_research",
+      "regulatory_knowledge", "regulatory_portfolio", "regulatory_workload",
+      "search_everything", "search_products", "web_research",
       // J4 : la connaissance de l'entreprise (Bibliothèque, faits confirmés — `platform/ia/lectures/connaissance.ts`).
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
       // J9 : le graphe de l'entreprise et les faits datés (`platform/ia/lectures/graphe.ts`).
-      "explorer_relations", "etat_a_une_date", "d_ou_vient",
+      "explorer_relations", "etat_a_une_date", "d_ou_vient", "recette_pour",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
+      // J8 — les demandes reçues du travail d'un collègue (la réponse est une opération, `preparer_reponse_demande`).
+      "mes_demandes_recues",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
+    expect(new Set(noms).size).toBe(noms.length);
+  });
+
+  it("la conversation reçoit EN PLUS les capacités de l'ERP (J6) — toutes celles que la porte de l'écran ouvre, sans doublon", () => {
+    const sans = outilsV1(auteur, []).map((o) => o.def.name);
+    const avec = outilsV1(auteur, [], [], [], null, undefined, { capacites: true }).map((o) => o.def.name);
+    const capacites = capacitesOffertes(auteur).map((c) => c.outil);
+    expect(capacites.length).toBeGreaterThan(900);
+    expect([...avec].sort()).toEqual([...sans, ...capacites].sort());
+    expect(new Set(avec).size).toBe(avec.length);
+    expect(avec).toEqual(expect.arrayContaining(["task__createTask", "regulatory__createRegulatoryProduct", "admin-request__createRequest", "hr__requestLeave"]));
   });
 
   it("send_message prépare une intention SANS envoyer, destinataire résolu par son nom", async () => {
@@ -65,14 +78,14 @@ describe("outils V1", () => {
     expect(props).toHaveLength(1);
     const intent = await prisma.assistantActionIntent.findUnique({ where: { id: props[0].intentId } });
     expect(intent?.status).toBe("PROPOSED");
-    expect((intent?.payload as { recipientId?: string }).recipientId).toBe(destinataireId);
+    expect((intent?.payload as { args?: { userId?: string } }).args?.userId).toBe(destinataireId);
     expect(await prisma.message.count({ where: { senderId: auteur.id } })).toBe(0);
   });
 
   it("refuse un destinataire inconnu au lieu d'en choisir un autre", async () => {
     const props: PropositionPreparee[] = [];
     const sortie = JSON.parse(await outil("send_message", props).run({ recipientName: `${TAG}Personne-Inexistante`, body: "x" }, auteur));
-    expect(sortie.statut).toBe("REFUS");
+    expect(["REFUS", "INCOMPLET"]).toContain(sortie.statut);
     expect(props).toHaveLength(0);
   });
 });

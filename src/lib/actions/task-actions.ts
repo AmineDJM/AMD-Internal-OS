@@ -119,6 +119,81 @@ export async function updateTaskStatus(formData: FormData): Promise<ActionResult
   return { ok: true };
 }
 
+const PRIORITES: readonly Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
+
+/**
+ * REPLANIFIER UNE TÂCHE — l'échéance, la priorité, le responsable (lot J6, décision 0020).
+ *
+ * Le geste que l'Assistant IA faisait par une écriture à lui et que l'écran n'offrait pas : il revient
+ * comme une action d'écran, appelée par la même porte que le reste. QUI : le responsable, le créateur, un
+ * participant ou une vue globale changent l'échéance et la priorité (la règle de `updateTaskStatus`) ;
+ * changer de RESPONSABLE est réservé au responsable, au créateur et à la vue globale — un participant
+ * n'attribue pas le travail d'un autre. Une DEMANDE en attente se réattribue par `reattribuerDemandeTache`
+ * (son circuit). Le responsable — l'ancien et le nouveau — est prévenu ; l'audit garde chaque champ.
+ */
+export async function modifierTache(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  if (!userCan(user, "WORKSPACE", "UPDATE") || !id) return { ok: false, error: id ? "Non autorisé." : "Tâche introuvable." };
+  const echeance = fdStr(formData, "dueDate");
+  const dueDate = fdDate(formData, "dueDate");
+  const retirerEcheance = fdStr(formData, "clearDueDate") === "1";
+  const priority = fdStr(formData, "priority") as Priority | null;
+  const assignedToId = fdStr(formData, "assignedToId");
+  if (echeance && dueDate === null) return { ok: false, error: "Échéance illisible (attendu : AAAA-MM-JJ)." };
+  if (priority && !PRIORITES.includes(priority)) return { ok: false, error: "Priorité inconnue." };
+  const demandes = [dueDate, retirerEcheance, priority, assignedToId].filter(Boolean).length;
+  if (demandes === 0) return { ok: false, error: "Rien à modifier." };
+
+  const task = await prisma.task.findUnique({ where: { id }, select: {
+    title: true, status: true, assignedToId: true, createdById: true, participantIds: true, readerIds: true, priority: true,
+  } });
+  if (!task) return { ok: false, error: "Tâche introuvable." };
+  const global = hasGlobalView(user.role);
+  const porteur = task.assignedToId === user.id || task.createdById === user.id || global;
+  if (!porteur && !task.participantIds.includes(user.id)) return { ok: false, error: "Non autorisé." };
+
+  const data: { dueDate?: Date | null; priority?: Priority; assignedToId?: string; participantIds?: string[]; readerIds?: string[] } = {};
+  const resume: string[] = [];
+  if (retirerEcheance) { data.dueDate = null; resume.push("échéance retirée"); }
+  else if (dueDate) { data.dueDate = dueDate; resume.push(`échéance ${dueDate.toISOString().slice(0, 10)}`); }
+  if (priority && priority !== task.priority) { data.priority = priority; resume.push(`priorité ${priority}`); }
+  let nouveau: { id: string; name: string } | null = null;
+  if (assignedToId && assignedToId !== task.assignedToId) {
+    if (!porteur) return { ok: false, error: "Seuls le responsable, le créateur ou une vue globale changent le responsable." };
+    if (task.status === "REQUESTED") return { ok: false, error: "Cette demande attend sa réponse : réattribuez-la depuis la demande." };
+    nouveau = await prisma.user.findFirst({ where: { id: assignedToId, isActive: true }, select: { id: true, name: true } });
+    if (!nouveau) return { ok: false, error: "Cette personne n'est pas (ou plus) active." };
+    data.assignedToId = nouveau.id;
+    // Le nouveau responsable ne figure plus parmi les participants ou les lecteurs.
+    data.participantIds = task.participantIds.filter((p) => p !== nouveau!.id);
+    data.readerIds = task.readerIds.filter((p) => p !== nouveau!.id);
+    resume.push(`confiée à ${nouveau.name}`);
+  }
+  if (!resume.length) return { ok: true, id, message: "La tâche était déjà ainsi." };
+
+  await prisma.task.update({ where: { id }, data });
+  const prevenir = new Set([data.assignedToId, task.assignedToId].filter((p): p is string => !!p && p !== user.id));
+  const lignes = [...prevenir].map((userId) => ({
+    userId, type: "ASSIGNMENT" as const, title: "Tâche modifiée", body: `${task.title} — ${resume.join(", ")}`,
+    link: userId === task.assignedToId && nouveau ? CHEMIN_TACHES : lienTache(id),
+  }));
+  if (lignes.length) {
+    try {
+      await prisma.notification.createMany({ data: lignes });
+    } catch (err) {
+      await rejouerNotifications(lignes, err);
+    }
+  }
+  await recordAudit({
+    actorId: user.id, action: "UPDATE", module: "Espace de travail", entityType: "TASK", entityId: id,
+    summary: `Tâche « ${task.title} » — ${resume.join(", ")}`,
+  });
+  revalidatePath("/mon-espace");
+  revalidatePath(`/mon-espace/taches/${id}`);
+  return { ok: true, id, message: `Tâche « ${task.title} » : ${resume.join(", ")}.` };
+}
+
 /**
  * SUPPRIMER UNE TÂCHE — le geste de rangement qui manquait : une to-do créée en double, un
  * intitulé de test, une tâche devenue sans objet restaient à l'écran pour toujours (« terminée »

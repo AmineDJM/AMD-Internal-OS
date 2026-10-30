@@ -1,7 +1,7 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * CE QUE L'ASSISTANT IA PEUT FAIRE POUR UNE PERSONNE — les FAMILLES réglées par la Direction
- * (décision 0012, précision du 29/10/2026). Règle PURE, zéro import : le moteur (serveur) et l'écran
+ * (décision 0012, précision du 29/10/2026). Règle PURE (sa seule importation : la liste des familles, au socle) : le moteur (serveur) et l'écran
  * d'administration (`/admin/ai/acces`, composant client) la lisent tous deux.
  *
  *   • Le SUPER ADMIN : tout, toujours — aucune famille ne se ferme pour lui.
@@ -14,8 +14,9 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export const FAMILLES_IA = ["SALAIRES", "BUDGETS", "CONTRATS_RH", "FICHES", "DRIVE", "REGLEMENTAIRE", "AD_PRO", "ECRITURES"] as const;
-export type FamilleIa = (typeof FAMILLES_IA)[number];
+// La liste des familles vit au socle (J6, décision 0020) : le registre des capacités y range chaque action.
+import { estFamilleIa, FAMILLES_IA, type FamilleIa } from "@/platform/ia/capacites/familles";
+export { estFamilleIa, FAMILLES_IA, type FamilleIa };
 
 export const LIBELLE_FAMILLE: Record<FamilleIa, string> = {
   SALAIRES: "Salaires & paie",
@@ -42,7 +43,6 @@ export const AIDE_FAMILLE: Record<FamilleIa, string> = {
 /** Fermées par défaut pour qui n'est pas Super Admin, quels que soient ses droits applicatifs. */
 export const FAMILLES_SENSIBLES: ReadonlySet<FamilleIa> = new Set<FamilleIa>(["SALAIRES", "CONTRATS_RH"]);
 
-export const estFamilleIa = (v: unknown): v is FamilleIa => typeof v === "string" && (FAMILLES_IA as readonly string[]).includes(v);
 
 /** Un réglage enregistré (d'un rôle ou d'une personne) : ce qu'il ouvre et ce qu'il ferme ; le reste suit le défaut. */
 export interface ReglageFamilles {

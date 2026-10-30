@@ -9,7 +9,7 @@ import { EVENEMENT_CREATION } from "./adpro-evenement";
 import { MATERIEL_PROMO_CREATION } from "./adpro-materiel-promo";
 import { AUTRE_CREATION, POSTE_AJOUT } from "./adpro-poste-autre";
 import { BON_DE_COMMANDE } from "./bon-de-commande";
-import { DEPOT_PIECE, RELANCE, RENDEZ_VOUS, REPONSE_MESSAGE } from "./quotidien";
+import { DEPOT_PIECE, MESSAGE_DIRECT, RELANCE, RENDEZ_VOUS, REPONSE_MESSAGE } from "./quotidien";
 import { DOCUMENT_MODELE } from "./document-modele";
 import { BC_DEPUIS_DEVIS } from "./bc-depuis-devis";
 import { VOYAGEUR_PASSEPORT } from "./voyageur-passeport";
@@ -17,6 +17,7 @@ import { TRADUCTION } from "./traduction";
 import { FORMULAIRE_PDF } from "./formulaire-pdf";
 import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { ENREGISTRER_ATELIER } from "./atelier-enregistrer";
+import { REPONSE_DEMANDE } from "./delegation";
 import { OPERATIONS_TERRAIN } from "./terrain";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
@@ -26,10 +27,11 @@ import { sansBloquer } from "@/lib/journal";
 export const OPERATIONS_IA: OperationIA[] = [
   SPONSORING_CREATION, PRISE_EN_CHARGE_CREATION, EVENEMENT_CREATION, MATERIEL_PROMO_CREATION, AUTRE_CREATION, POSTE_AJOUT,
   BON_DE_COMMANDE, BC_DEPUIS_DEVIS, VOYAGEUR_PASSEPORT,
-  RELANCE, DEPOT_PIECE, RENDEZ_VOUS, REPONSE_MESSAGE,
+  RELANCE, DEPOT_PIECE, RENDEZ_VOUS, REPONSE_MESSAGE, MESSAGE_DIRECT,
   DOCUMENT_MODELE, TRADUCTION, FORMULAIRE_PDF,
   PROGRAMMER_ROUTINE, GERER_ROUTINE,
   ENREGISTRER_ATELIER,
+  REPONSE_DEMANDE,
   // J13 (décision 0025) : le terrain — compte rendu pré-rempli, échantillons, tournée de demain, photo rattachée.
   ...OPERATIONS_TERRAIN,
 ];

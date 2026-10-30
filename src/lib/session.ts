@@ -8,6 +8,8 @@ import { firstAccessibleHref } from "./labels";
 import { getAppSettings } from "./settings";
 import { canOpenModule } from "./modules-visibility";
 import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDeSession } from "./session-compte";
+// J8 : un geste métier exécuté HORS requête (worker) porte la personne du geste — consultée AVANT le cookie.
+import { utilisateurDuGeste } from "./contexte-geste";
 
 /**
  * Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. Défini dans
@@ -104,7 +106,7 @@ const buildDuRendu = cache(async (): Promise<CurrentUser | null> => build(await 
 
 /** Returns the signed-in user (with resolved access) or redirects to /login. */
 export async function requireUser(): Promise<CurrentUser> {
-  const user = await buildDuRendu();
+  const user = utilisateurDuGeste() ?? await buildDuRendu();
   if (!user) redirect("/login");
   return user;
 }
@@ -115,7 +117,7 @@ export async function requireUser(): Promise<CurrentUser> {
  * autre écriture reste au nom du Super Admin (§118.184).
  */
 export async function requireUserAuNomDeLaVue(): Promise<CurrentUser> {
-  const user = await build(await auth(), { auNomDeLaVue: true });
+  const user = utilisateurDuGeste() ?? await build(await auth(), { auNomDeLaVue: true });
   if (!user) redirect("/login");
   return user;
 }
@@ -159,7 +161,7 @@ export async function requireModule(
 
 /** Non-redirecting variant for layouts / optional checks. */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
-  return buildDuRendu();
+  return utilisateurDuGeste() ?? buildDuRendu();
 }
 
 /**
@@ -168,5 +170,5 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
  * `getCurrentUser` : une action serveur se reconnaît d'elle-même, une route d'API non.
  */
 export async function getCurrentUserPourEcrire(): Promise<CurrentUser | null> {
-  return build(await auth(), { ecriture: true });
+  return utilisateurDuGeste() ?? build(await auth(), { ecriture: true });
 }

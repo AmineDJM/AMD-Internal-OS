@@ -4,7 +4,8 @@ import { materialiser, journaliser, transitionner } from "@/lib/missions/runtime
 import { rendreBail } from "@/lib/missions/runtime/bail";
 import { annuler, mettreEnPause } from "@/lib/missions/runtime/control";
 import { systemClock, type Clock } from "@/lib/missions/ports";
-import { compilerTravail, lirePlan, PLAFOND_TRAVAIL_DEFAUT_USD, type GesteAutorise, type PlanTravail } from "@/lib/missions/travaux/plan";
+import { compilerTravail, lirePlan, PLAFOND_TRAVAIL_DEFAUT_USD, PRIORITES, prioriteDe, type GesteAutorise, type PlanTravail, type PrioriteTravail } from "@/lib/missions/travaux/plan";
+import { annulerDemandesDuTravail, demandesDuTravail, type DemandeEnvoyee } from "@/lib/missions/travaux/delegation";
 import type { PersonaTravaux } from "@/lib/missions/travaux/persona";
 import { carnetInitial, lireCarnet, type Carnet } from "@/lib/missions/travaux/carnet";
 import { lireGestesAutorises, reprendreTravail } from "@/lib/missions/travaux/conduite";
@@ -39,12 +40,14 @@ export async function proposerTravail(
   if (refus) return { ok: false, fautes: [refus] };
   const lu = lirePlan(brut, await persona.catalogue(principalId));
   if (!lu.ok) return lu;
+  const fautes = await resoudreDemandes(lu.plan, principalId, persona);
+  if (fautes.length) return { ok: false, fautes };
   const plafondUsd = (await persona.plafonds(principalId)).travailUsd || PLAFOND_TRAVAIL_DEFAUT_USD;
   const m = await prisma.mission.create({
     data: {
       kind: "TRAVAIL", ownerId: principalId, principalId, persona: persona.persona,
       title: lu.plan.titre, objective: lu.plan.objectif, goalRaw: lu.plan.objectif,
-      status: "AWAITING_APPROVAL", planVersion: 0, maxConcurrency: 3, plafondUsd,
+      status: "AWAITING_APPROVAL", planVersion: 0, maxConcurrency: 3, plafondUsd, priority: PRIORITES[lu.plan.priorite ?? "NORMALE"],
       carnet: carnetInitial(lu.plan) as unknown as Prisma.InputJsonValue,
       gestesAutorises: lu.gestes as unknown as Prisma.InputJsonValue,
       context: opts.origine ?? null,
@@ -54,6 +57,35 @@ export async function proposerTravail(
   await journaliser(m.id, "TRAVAIL_PROPOSE", `Plan proposé par ${persona.nom} : ${lu.plan.etapes.length} étapes, ${lu.gestes.length} geste(s) à autoriser.`,
     { etapes: lu.plan.etapes.length, gestes: lu.gestes.map((g) => g.nom), plafondUsd }, principalId);
   return { ok: true, travailId: m.id, plan: lu.plan, gestes: lu.gestes, plafondUsd };
+}
+
+/**
+ * LES PERSONNES SOLLICITÉES (J8) — « demander à Karim » se résout MAINTENANT, à la proposition : un compte actif,
+ * désigné sans ambiguïté (identifiant, e-mail, ou nom exact), jamais la personne elle-même. Les pièces à partager
+ * doivent être des pièces du Drive qu'elle voit. Le plan garde l'identifiant (`a`) et le nom (`aNom`).
+ */
+async function resoudreDemandes(plan: PlanTravail, principalId: string, persona: PersonaTravaux): Promise<string[]> {
+  const fautes: string[] = [];
+  for (const e of plan.etapes) {
+    if (e.type !== "DEMANDE" || !e.demande) continue;
+    const a = e.demande.a.trim();
+    const actifs = { isActive: true };
+    const trouves = await prisma.user.findMany({
+      where: { ...actifs, OR: [{ id: a }, { email: { equals: a, mode: "insensitive" } }, { name: { equals: a, mode: "insensitive" } }] },
+      select: { id: true, name: true }, take: 3,
+    });
+    if (trouves.length === 0) { fautes.push(`Étape « ${e.cle} » : personne de ce nom parmi les comptes actifs (« ${a} ») — demandez son nom exact ou son e-mail.`); continue; }
+    if (trouves.length > 1) { fautes.push(`Étape « ${e.cle} » : « ${a} » désigne plusieurs personnes (${trouves.map((t) => t.name).join(", ")}) — précisez l'e-mail.`); continue; }
+    if (trouves[0]!.id === principalId) { fautes.push(`Étape « ${e.cle} » : on ne se délègue pas une demande à soi-même.`); continue; }
+    e.demande.a = trouves[0]!.id;
+    e.demande.aNom = trouves[0]!.name;
+    if (e.demande.partager?.length) {
+      const vues = new Set((await persona.pieces.visibles(principalId, e.demande.partager)).map((p) => p.nodeId));
+      const absentes = e.demande.partager.filter((id) => !vues.has(id));
+      if (absentes.length) fautes.push(`Étape « ${e.cle} » : ${absentes.length} pièce(s) à partager introuvable(s) dans votre Drive (${absentes.join(", ")}).`);
+    }
+  }
+  return fautes;
 }
 
 /**
@@ -119,8 +151,21 @@ export async function reprendreMonTravail(travailId: string, principalId: string
   return r.ok ? { ok: true, travailId, message: "Travail repris là où il s'était arrêté." } : { ok: false, erreur: r.message };
 }
 
-export const annulerTravail = (travailId: string, principalId: string) =>
-  parLaMain(travailId, principalId, () => annuler(travailId, principalId, "à la demande de la personne", "TRAVAIL"));
+/** ANNULER — et retirer ses demandes ouvertes : la personne sollicitée apprend qu'on n'attend plus sa réponse (J8). */
+export async function annulerTravail(travailId: string, principalId: string): Promise<ResultatTravail> {
+  const r = await parLaMain(travailId, principalId, () => annuler(travailId, principalId, "à la demande de la personne", "TRAVAIL"));
+  if (r.ok) await annulerDemandesDuTravail(travailId);
+  return r;
+}
+
+/** LA PRIORITÉ (J8) — parmi les travaux de la personne ; le battement sert les hautes d'abord, chacun à son tour. */
+export async function reglerPrioriteTravail(travailId: string, principalId: string, priorite: string): Promise<ResultatTravail> {
+  if (!(priorite in PRIORITES)) return { ok: false, erreur: "Priorité inconnue (HAUTE, NORMALE ou BASSE)." };
+  const r = await prisma.mission.updateMany({ where: ou(travailId, principalId), data: { priority: PRIORITES[priorite as PrioriteTravail] } });
+  if (!r.count) return { ok: false, erreur: "Travail introuvable — ou il ne vous appartient pas." };
+  await journaliser(travailId, "TRAVAIL_PRIORITE", `Priorité du travail : ${priorite.toLowerCase()}.`, { priorite }, principalId);
+  return { ok: true, travailId, message: `Priorité : ${priorite.toLowerCase()}.` };
+}
 
 /** Relever le plafond d'UN travail (la personne, dans la limite de son plafond mensuel ; la console fixe le défaut). */
 export async function reglerPlafondTravail(travailId: string, principalId: string, plafondUsd: number): Promise<ResultatTravail> {
@@ -151,23 +196,27 @@ export interface TravailVue {
   creeLe: string;
   majLe: string;
   gestes: GesteAutorise[];
+  /** J8 : la priorité parmi les travaux de la personne. */
+  priorite: PrioriteTravail;
 }
 
 export interface TravailDetail extends TravailVue {
   liste: EtapeVue[];
   carnet: Carnet;
   journal: { at: string; texte: string }[];
+  /** J8 : les demandes déposées chez d'autres personnes, et où elles en sont. */
+  demandes: DemandeEnvoyee[];
 }
 
-const TYPE_DE_NOEUD: Record<string, string> = { CAPABILITY: "Lecture", WORKER: "Analyse", WAIT_EVENT: "Attente", ARTIFACT: "Livrable", JOIN: "Jonction" };
+const TYPE_DE_NOEUD: Record<string, string> = { CAPABILITY: "Lecture", WORKER: "Analyse", WAIT_EVENT: "Attente", WAIT_INPUT: "Demande", ARTIFACT: "Livrable", JOIN: "Jonction" };
 
 function vue(m: {
-  id: string; title: string; objective: string; status: string; persona: string | null; pausedReason: string | null; costUsd: number; plafondUsd: number | null;
+  id: string; title: string; objective: string; status: string; persona: string | null; pausedReason: string | null; costUsd: number; plafondUsd: number | null; priority: number;
   createdAt: Date; updatedAt: Date; gestesAutorises: unknown;
   steps: { key: string; title: string; nodeType: string; capability: string | null; status: string; updatedAt: Date; supersededAt: Date | null; forEach: unknown }[];
 }, maintenant: Date): TravailVue {
   const steps = m.steps.filter((s) => !s.supersededAt && !s.forEach);
-  const attenteEtape = steps.filter((s) => s.status === "WAITING" && s.nodeType === "WAIT_EVENT").sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())[0];
+  const attenteEtape = steps.filter((s) => s.status === "WAITING" && (s.nodeType === "WAIT_EVENT" || s.nodeType === "WAIT_INPUT")).sort((a, b) => a.updatedAt.getTime() - b.updatedAt.getTime())[0];
   return {
     id: m.id, titre: m.title, objectif: m.objective, statut: m.status, persona: m.persona,
     etat: etatTravail(m.status, m.pausedReason),
@@ -182,11 +231,12 @@ function vue(m: {
     plafondUsd: m.plafondUsd,
     creeLe: m.createdAt.toISOString(), majLe: m.updatedAt.toISOString(),
     gestes: lireGestesAutorises(m.gestesAutorises),
+    priorite: prioriteDe(m.priority),
   };
 }
 
 const SELECTION = {
-  id: true, title: true, objective: true, status: true, persona: true, pausedReason: true, costUsd: true, plafondUsd: true,
+  id: true, title: true, objective: true, status: true, persona: true, pausedReason: true, costUsd: true, plafondUsd: true, priority: true,
   createdAt: true, updatedAt: true, gestesAutorises: true,
   steps: { select: { key: true, title: true, nodeType: true, capability: true, status: true, updatedAt: true, supersededAt: true, forEach: true, error: true, createdAt: true }, orderBy: [{ createdAt: "asc" as const }, { key: "asc" as const }] },
 } satisfies Prisma.MissionSelect;
@@ -200,15 +250,38 @@ export async function listerTravaux(principalId: string, limite = 30, maintenant
     take: Math.min(Math.max(1, limite), 100),
   });
   const vues = ms.map((m) => vue(m, maintenant));
-  const rang = (e: EtatTravail) => (e === "A_APPROUVER" ? 0 : ["TERMINE", "ANNULE", "ECHEC"].includes(e) ? 2 : 1);
-  return vues.sort((a, b) => rang(a.etat) - rang(b.etat));
+  return trier(vues);
+}
+
+const rang = (e: EtatTravail) => (e === "A_APPROUVER" ? 0 : ["TERMINE", "ANNULE", "ECHEC"].includes(e) ? 2 : 1);
+const poids = { HAUTE: 0, NORMALE: 1, BASSE: 2 } as const;
+/** Les vivants d'abord, et parmi eux les priorités hautes (J8). */
+const trier = (vues: TravailVue[]) => vues.sort((a, b) => rang(a.etat) - rang(b.etat) || poids[a.priorite] - poids[b.priorite]);
+
+/**
+ * LES TRAVAUX DE CES PERSONNES (J8) — la vue d'un responsable sur son équipe, quand la console l'autorise. LE RÉSUMÉ
+ * seulement (état, attente, avancement, coût) : ni carnet, ni journal. Qui a le droit de voir, et l'audit de chaque
+ * consultation, sont décidés par l'appelant (`assistant-ia/infra/travaux-equipe.ts`).
+ */
+export async function listerTravauxDe(principalIds: readonly string[], limite = 60, maintenant = new Date()): Promise<(TravailVue & { principalId: string })[]> {
+  if (principalIds.length === 0) return [];
+  const ms = await prisma.mission.findMany({
+    where: { kind: "TRAVAIL", principalId: { in: [...principalIds] }, status: { not: "AWAITING_APPROVAL" } },
+    select: { ...SELECTION, principalId: true },
+    orderBy: { updatedAt: "desc" },
+    take: Math.min(Math.max(1, limite), 200),
+  });
+  return trier(ms.map((m) => ({ ...vue(m, maintenant), principalId: m.principalId! }))) as (TravailVue & { principalId: string })[];
 }
 
 export async function lireTravail(travailId: string, principalId: string, maintenant = new Date()): Promise<TravailDetail | null> {
   const m = await prisma.mission.findFirst({ where: ou(travailId, principalId), select: { ...SELECTION, carnet: true } });
   if (!m) return null;
   const evenements = await prisma.missionEvent.findMany({
-    where: { missionId: travailId, kind: { in: ["TRAVAIL_PROPOSE", "TRAVAIL_APPROUVE", "TRAVAIL_REPRIS", "TRAVAIL_SIGNAL", "ACTION_TRACED", "GESTE_REFUSE", "PAUSED", "RESUMED", "CLOSED", "EVENT_WAKE", "TIME_WAKE", "STEP_RECLAIMED", "GOAL_SATISFIED"] } },
+    where: { missionId: travailId, kind: { in: [
+      "TRAVAIL_PROPOSE", "TRAVAIL_APPROUVE", "TRAVAIL_REPRIS", "TRAVAIL_SIGNAL", "ACTION_TRACED", "GESTE_REFUSE", "PAUSED", "RESUMED", "CLOSED", "EVENT_WAKE", "TIME_WAKE",
+      "STEP_RECLAIMED", "GOAL_SATISFIED", "DEMANDE_DEPOSEE", "DEMANDE_REPONDUE", "DEMANDE_DECLINEE", "DEMANDE_EXPIREE", "ATTENTE_RELANCE", "ATTENTE_ESCALADE", "LIVRABLE_DEPOSE", "TRAVAIL_PRIORITE",
+    ] } },
     select: { at: true, summary: true }, orderBy: { at: "desc" }, take: 40,
   });
   return {
@@ -219,5 +292,13 @@ export async function lireTravail(travailId: string, principalId: string, mainte
     })),
     carnet: lireCarnet(m.carnet),
     journal: evenements.map((e) => ({ at: e.at.toISOString(), texte: e.summary })),
+    demandes: await demandesDuTravail(travailId),
   };
 }
+
+// ─────────────────────── J8 (décision 0023) : la porte des travaux, suite ───────────────────────
+// Un assistant (persona) atteint la délégation et la vue d'équipe par CE fichier : une seule porte du moteur.
+export {
+  declinerDemande, lireDemandeRecue, listerDemandesRecues, repondreDemande, type DemandeRecue,
+} from "@/lib/missions/travaux/delegation";
+export { equipeVisible, lireTravailEquipe, listerTravauxEquipe, responsableDe, type TravailDEquipe } from "@/lib/missions/travaux/equipe";

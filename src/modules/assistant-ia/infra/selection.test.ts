@@ -10,7 +10,7 @@ import { classer, OUTIL_TROUVER, PRESELECTION_MAX, SOCLE_OUTILS, TROUVES_MAX } f
 /**
  * LES OUTILS CHOISIS À LA DEMANDE (J4, décision 0018) — sur les VRAIS catalogues (Super Admin, assistante de direction).
  *
- *   • le corpus de référence : 71 demandes (60 de J4, 5 de l’Atelier J3), l'outil juste dans les 8 premiers (`trouver_outil`) ;
+ *   • le corpus de référence : 74 demandes (60 de J4, 5 de l’Atelier J3, 3 des recettes J10), l'outil juste dans les 8 premiers (`trouver_outil`) ;
  *   • jamais un outil hors droits : ni présélectionné, ni trouvé, quelle que soit la demande ;
  *   • la présélection reste petite (socle + 6) et son ordre est stable.
  */
@@ -28,9 +28,10 @@ async function compte(nom: string, role: "SUPER_ADMIN" | "DIRECTION_ASSISTANT"):
   return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
 }
 
-const catalogue = (u: CurrentUser) => [...outilsV1(u, [], [], []), outilTravailPour(u)];
+// J6 : le catalogue de la CONVERSATION — ses outils et les capacités de l'ERP que la porte de l'écran ouvre.
+const catalogue = (u: CurrentUser) => [...outilsV1(u, [], [], [], null, undefined, { capacites: true }), outilTravailPour(u)];
 
-/** 71 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
+/** 74 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
 export const CORPUS: [string, string[]][] = [
   ["Qui est Assia ? Donne-moi son poste et son manager.", ["directory_lookup", "lire_fiche_rh"]],
   // J3 — l'Atelier : modifier en place, ouvrir, convertir.
@@ -47,15 +48,15 @@ export const CORPUS: [string, string[]][] = [
   ["Quels sont les congés d'Assia cette année ?", ["lire_fiche_rh", "read_hr_overview"]],
   ["Quel est l'effectif actuel et la masse salariale ?", ["read_hr_overview"]],
   ["Qui est le responsable hiérarchique de Nadia ?", ["lire_fiche_rh", "directory_lookup"]],
-  ["Crée un dossier réglementaire pour le produit daclatasvir.", ["regulatory_operation"]],
+  ["Crée un dossier réglementaire pour le produit daclatasvir.", ["regulatory__createRegulatoryProduct"]],
   ["Où en est le dossier réglementaire du Nivolumab ?", ["etat_dossier_reglementaire"]],
   ["Quelles sont les réserves de l'ANPP sur le dossier REG-2026-9011 ?", ["etat_dossier_reglementaire"]],
   ["Combien de dossiers gère Amel ?", ["regulatory_workload"]],
   ["Montre-moi le portefeuille Kwality et les statuts des produits.", ["regulatory_portfolio"]],
   ["Quels sont les droits d'enregistrement à payer à l'ANPP ?", ["regulatory_knowledge"]],
-  ["Confie le dossier REG-2026-9011 à Amel.", ["assign_regulatory_responsible"]],
-  ["Passe l'étape dépôt du dossier REG-2026-9011 à terminée.", ["set_regulatory_step"]],
-  ["Relance la mise à jour du statut du dossier REG-2026-9002.", ["request_regulatory_status_update"]],
+  ["Confie le dossier REG-2026-9011 à Amel.", ["regulatory__setRegulatoryResponsible"]],
+  ["Passe l'étape dépôt du dossier REG-2026-9011 à terminée.", ["regulatory__setRegulatoryStepState", "regulatory__updateRegulatoryStep", "regulatory-timeline__updateDossierStep"]],
+  ["Relance la mise à jour du statut du dossier REG-2026-9002.", ["regulatory__requestRegulatoryStatusUpdate"]],
   ["Cherche le produit sofosbuvir dans le catalogue.", ["search_products"]],
   ["Combien reste-t-il sur l'enveloppe Séminaires 2026 ?", ["read_budget"]],
   ["Quel est le total payé aux fournisseurs ce mois-ci ?", ["finance_totals"]],
@@ -79,13 +80,13 @@ export const CORPUS: [string, string[]][] = [
   ["Traduis ce document en anglais.", ["preparer_traduction"]],
   ["Remplis ce formulaire PDF avec mes informations.", ["preparer_formulaire_pdf", "lire_formulaire_pdf"]],
   ["Quels sont les champs de ce formulaire PDF ?", ["lire_formulaire_pdf"]],
-  ["Cherche le fichier « Plan marketing 2027 » dans le Drive.", ["search_drive", "chercher_documents"]],
-  ["Déplace le dossier Archives 2024 dans Projets.", ["drive_operation"]],
+  ["Cherche le fichier « Plan marketing 2027 » dans le Drive.", ["search_everything", "chercher_documents"]],
+  ["Déplace le dossier Archives 2024 dans Projets.", ["drive__moveNode", "drive__moveNodes"]],
   ["Qu'ai-je dans mon agenda demain ?", ["read_calendar"]],
   ["Fixe un rendez-vous avec Karim jeudi à 10 h.", ["preparer_rendez_vous"]],
   ["Quelles sont mes tâches en retard ?", ["list_my_tasks"]],
-  ["Crée une tâche pour Walid : relancer le fournisseur avant vendredi.", ["create_task"]],
-  ["Change l'échéance de la tâche « Rapport ANPP » à lundi.", ["update_task"]],
+  ["Crée une tâche pour Walid : relancer le fournisseur avant vendredi.", ["task__createTask", "task__requestTask"]],
+  ["Passe la tâche « Rapport ANPP » au statut terminée.", ["task__updateTaskStatus", "task__reattribuerDemandeTache"]],
   ["Envoie un message à Karim pour lui dire que la réunion est décalée.", ["send_message"]],
   ["Réponds à Nadia dans notre conversation que c'est d'accord.", ["preparer_reponse_message"]],
   ["Ai-je des messages non lus ?", ["mes_conversations"]],
@@ -96,7 +97,7 @@ export const CORPUS: [string, string[]][] = [
   ["Quelle est l'actualité du marché de l'hépatite C en Europe ?", ["web_research"]],
   ["Où en sont mes demandes en attente de validation ? Relance le validateur.", ["mes_demandes_en_attente", "preparer_relance"]],
   ["Dépose ce justificatif sur ma demande DA-2026-31.", ["preparer_depot_piece"]],
-  ["Crée une demande administrative : réservation d'une salle à l'hôtel Sheraton d'Oran.", ["create_admin_request"]],
+  ["Crée une demande administrative : réservation d'une salle à l'hôtel Sheraton d'Oran.", ["admin-request__createRequest"]],
   ["Quelle est la raison sociale confirmée du fournisseur Imprimerie Atlas ?", ["faits_confirmes"]],
   // J9 — le graphe de l'entreprise et les faits datés.
   ["Qu'est-ce qui dépend du fournisseur Saidal ?", ["explorer_relations"]],
@@ -105,6 +106,10 @@ export const CORPUS: [string, string[]][] = [
   ["Quelle était la raison sociale de Biopharm en mars 2025 ?", ["etat_a_une_date"]],
   ["D'où vient ce chiffre du capital de Saidal ?", ["d_ou_vient"]],
   ["Quel est le capital de Saidal ?", ["etat_a_une_date", "faits_confirmes"]],
+  // J10 — les recettes de la maison.
+  ["Comment on fait une prise en charge nationale chez nous ?", ["recette_pour"]],
+  ["Qui valide un sponsoring et combien de temps ça prend d'habitude ?", ["recette_pour"]],
+  ["Quelles pièces faut-il pour un recrutement, et quelles étapes ?", ["recette_pour"]],
 ];
 
 suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
@@ -116,20 +121,20 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("le corpus a 71 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
-    expect(CORPUS).toHaveLength(71);
+  it("le corpus a 74 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
+    expect(CORPUS).toHaveLength(74);
     const noms = new Set(fichesOffertes(catalogue(sa), sa).map((f) => f.nom));
     for (const [, attendus] of CORPUS) for (const a of attendus) expect(noms, a).toContain(a);
   });
 
-  it("l'outil juste est dans les 8 premiers, pour les 71 demandes (Super Admin)", () => {
+  it("l'outil juste est dans les 8 premiers, pour les 74 demandes (Super Admin)", () => {
     const fiches = fichesOffertes(catalogue(sa), sa);
     const rates = CORPUS.filter(([d, attendus]) => !classer(d, fiches, TROUVES_MAX).some((c) => attendus.includes(c.nom)))
       .map(([d, a]) => `${d} → ${a.join("|")} ; rendu : ${classer(d, fiches, TROUVES_MAX).map((c) => c.nom).join(", ")}`);
     expect(rates).toEqual([]);
   });
 
-  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 71 demandes)", async () => {
+  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 74 demandes)", async () => {
     const outils = catalogue(ad);
     const permis = new Set(fichesOffertes(outils, ad).map((f) => f.nom));
     const horsDroits = fichesOffertes(catalogue(sa), sa).map((f) => f.nom).filter((n) => !permis.has(n));
@@ -160,9 +165,9 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     expect(fichesOffertes(outils, sa).length).toBeGreaterThan(s.initiaux.length * 3);
     // Un outil trouvé s'ajoute à la suite du tour, sans déranger l'ordre du socle.
     await s.outil.run({ intention: "créer un dossier réglementaire" }, sa);
-    expect(s.actifs()).toContain("regulatory_operation");
+    expect(s.actifs()).toContain("regulatory__createRegulatoryProduct");
     expect(s.actifs().slice(0, 3)).toEqual(SOCLE_OUTILS.slice(0, 3));
-    expect(s.trouves()).toContain("regulatory_operation");
+    expect(s.trouves()).toContain("regulatory__createRegulatoryProduct");
   });
 
   it("une relance courte hérite des outils de la question précédente (au plus 3)", () => {

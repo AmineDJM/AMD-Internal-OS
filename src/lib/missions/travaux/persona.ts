@@ -1,4 +1,4 @@
-import type { CatalogueTravail, PersonaTravail } from "@/lib/missions/travaux/plan";
+import type { CatalogueTravail, FormatLivrable, PersonaTravail } from "@/lib/missions/travaux/plan";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -33,6 +33,31 @@ export interface PlafondsTravail {
   jourAtteint: boolean;
 }
 
+/** Une pièce du Drive, désignée et nommée. */
+export interface PieceTravail { nodeId: string; nom: string }
+
+/** Le document qu'un livrable a déposé au Drive de la personne (J8). */
+export interface DocumentLivrable {
+  nodeId: string;
+  nom: string;
+  format: FormatLivrable;
+  lien: string;
+  /** Une conversion (PDF) confiée au worker : le PDF arrivera à côté du Word. */
+  enFile?: boolean;
+  note?: string | null;
+}
+
+/**
+ * LES PIÈCES (J8) — ce que la délégation fait du Drive, sous les droits RELUS de chacun. Le moteur ne lit
+ * jamais un fichier : il demande ce qu'une personne peut voir, et fait accorder la LECTURE d'une pièce.
+ */
+export interface PortPiecesTravail {
+  /** Parmi `nodeIds`, ceux que `userId` peut voir maintenant — avec leur nom. Les autres sont écartés. */
+  visibles(userId: string, nodeIds: readonly string[]): Promise<PieceTravail[]>;
+  /** Accorde la LECTURE de ces pièces à `userId` (jamais par-dessus un droit existant), au nom de `parId`. */
+  partager(nodeIds: readonly string[], userId: string, parId: string): Promise<void>;
+}
+
 export interface PersonaTravaux {
   persona: PersonaTravail;
   /** Le nom sous lequel la persona signe (« Assistant IA », « Adam »). */
@@ -47,4 +72,16 @@ export interface PersonaTravaux {
   ecrire(principalId: string, geste: string, entree: Record<string, unknown>): Promise<IssueGeste>;
   raisonner(principalId: string, d: { consigne: string; texte: string; travailId: string }): Promise<IssueRaisonnement>;
   plafonds(principalId: string): Promise<PlafondsTravail>;
+  /** J8 : les pièces du Drive (délégation) — droits relus à chaque appel. */
+  pieces: PortPiecesTravail;
+  /** J8 : le responsable hiérarchique (N+1) d'une personne — l'escalade d'une attente. `null` = aucun. */
+  responsable(userId: string): Promise<string | null>;
+  /**
+   * J8 : dépose le livrable au Drive de la personne, en VRAI document (Word, PDF, Excel), inscrit à la
+   * Bibliothèque. `reprise` : un dépôt précédent a peut-être eu lieu (processus tué) — le retrouver avant
+   * d'en créer un second. `cle` désigne CE livrable de CE travail, d'un passage à l'autre.
+   */
+  deposerLivrable(principalId: string, d: {
+    travailId: string; cle: string; titre: string; contenu: string; format: FormatLivrable; reprise: boolean;
+  }): Promise<{ ok: true; document: DocumentLivrable } | { ok: false; erreur: string }>;
 }

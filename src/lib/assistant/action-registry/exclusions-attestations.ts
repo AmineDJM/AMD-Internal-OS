@@ -213,6 +213,11 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-actions:listerMesTravaux", "assistant-ia-actions:lireMonTravail", "assistant-ia-actions:approuverMonTravail",
     "assistant-ia-actions:pauserMonTravail", "assistant-ia-actions:reprendreMonTravailIA", "assistant-ia-actions:annulerMonTravail",
   ]);
+  X("TRAVAUX, SUITE (J8, décision 0023) — les demandes que les travaux de collègues adressent à la personne (les lister, y RÉPONDRE avec ses pièces, les décliner), la priorité de SES travaux, et la vue d'un responsable sur ceux de son équipe (si la console l'autorise, chaque consultation à l'audit). Identité prise de la session, jamais d'un paramètre ; une réponse est un geste humain que l'assistant aide seulement à préparer (carte `preparer_reponse_demande`) : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-travaux-actions:listerMesDemandesRecues", "assistant-ia-travaux-actions:repondreAMaDemande", "assistant-ia-travaux-actions:declinerMaDemande",
+    "assistant-ia-travaux-actions:reglerPrioriteMonTravail", "assistant-ia-travaux-actions:equipeVisiblePourMoi",
+    "assistant-ia-travaux-actions:listerTravauxDeMonEquipe", "assistant-ia-travaux-actions:lireTravailDeMonEquipe",
+  ]);
   X("L'ATELIER de l'Assistant IA (J3, décision 0017) — les gestes de la personne sur SES onglets de documents (ouvrir, relire, accepter / refuser une modification, annuler, comparer, convertir, enregistrer une NOUVELLE version, fermer). Identité prise de la session, droits du Drive relus à chaque geste ; un document rattaché à un objet métier s'enregistre par une carte de confirmation : ce n'est pas une action métier à proposer.", [
     "assistant-ia-atelier-actions:ouvrirDansLAtelier", "assistant-ia-atelier-actions:relireOnglet", "assistant-ia-atelier-actions:revoirModificationAtelier",
     "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",

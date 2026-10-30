@@ -3,6 +3,7 @@ import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { zodDepuisSchemaJson } from "../domaine/schema";
 import { OUTIL_TROUVER } from "../domaine/selection-outils";
+import { autoriseParLaConfig } from "../domaine/capacites";
 
 /**
  * L'ADAPTATEUR D'OUTIL — mince à dessein (Q7).
@@ -16,11 +17,20 @@ import { OUTIL_TROUVER } from "../domaine/selection-outils";
  * description que lit le modèle. Un modèle qui s'entête à appeler un outil fermé reçoit un refus,
  * pas un résultat.
  */
+/** Le schéma zod d'un schéma JSON, gardé tant que le schéma l'est : les capacités (J6) gardent le même objet d'un tour à l'autre. */
+const ZOD = new WeakMap<object, ReturnType<typeof zodDepuisSchemaJson>>();
+const zodDe = (schema: unknown) => {
+  if (!schema || typeof schema !== "object") return zodDepuisSchemaJson(schema as never);
+  let z = ZOD.get(schema);
+  if (!z) { z = zodDepuisSchemaJson(schema as never); ZOD.set(schema, z); }
+  return z;
+};
+
 export function adapterOutil(outil: PowerTool, user: CurrentUser) {
   return createTool({
     id: outil.def.name,
     description: outil.def.description,
-    inputSchema: zodDepuisSchemaJson(outil.def.input_schema as never),
+    inputSchema: zodDe(outil.def.input_schema),
     execute: async (entree: unknown) => {
       if (!outil.allowed(user)) {
         return outil.refus ?? "Ce module ne vous est pas ouvert : l'outil n'a pas été exécuté.";
@@ -40,7 +50,7 @@ export function outilsPour(
   if (config?.allowedTools && config.allowedTools.length > 0) {
     // `trouver_outil` (J4) ne cherche que parmi les outils déjà restreints : il reste offert.
     const autorises = new Set([...config.allowedTools, OUTIL_TROUVER]);
-    filtres = filtres.filter((o) => autorises.has(o.def.name));
+    filtres = filtres.filter((o) => autoriseParLaConfig(o.def.name, autorises));
   }
   return Object.fromEntries(filtres.map((o) => [o.def.name, adapterOutil(o, user)]));
 }

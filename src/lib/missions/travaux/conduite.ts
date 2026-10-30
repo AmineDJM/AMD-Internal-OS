@@ -1,6 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import { notifyUser } from "@/lib/notify";
-import { sansBloquer } from "@/lib/journal";
 import { avancer, type EngineDeps, type StepContext, type StepOutcome } from "@/lib/missions/runtime/engine";
 import { compter, journaliser, type EtatEtape, type EtatMission } from "@/lib/missions/runtime/store";
 import { rendreBail } from "@/lib/missions/runtime/bail";
@@ -11,11 +9,14 @@ import type { LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import type { JugeObjectif } from "@/lib/missions/goal/evaluate";
 import type { CapabilityMeta } from "@/lib/missions/registry/capability-meta";
 import { PREFIXE, decouperEnLots, type GesteAutorise } from "@/lib/missions/travaux/plan";
-import type { PersonaTravaux } from "@/lib/missions/travaux/persona";
+import type { DocumentLivrable, PersonaTravaux } from "@/lib/missions/travaux/persona";
 import { carnetPourEtape, ecrireAuCarnet, lireCarnet } from "@/lib/missions/travaux/carnet";
 import { cloreEcriture, reclamerEcriture } from "@/lib/missions/travaux/ecritures";
 import { consigneAnalyse, consigneLivrable, lireAnalyse, texteEtape } from "@/lib/missions/travaux/consignes";
 import { MOTIF_BUDGET, MOTIF_DROITS, motifPlafond } from "@/lib/missions/travaux/regles";
+import { signalerUneFois } from "@/lib/missions/travaux/signaux";
+import { deposerDemande } from "@/lib/missions/travaux/delegation";
+import type { DemandeCompilee, FormatLivrable } from "@/lib/missions/travaux/plan";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -53,7 +54,7 @@ export interface DepsTravaux {
   dureeMaxMs?: number;
   interrupteur?: LecteurInterrupteur;
   /** RÉSERVÉ AUX TESTS : un point d'arrêt juste après qu'un geste a été fait et son reçu clos (redémarrage simulé). */
-  sondes?: { apresGeste?: (stepKey: string) => Promise<void> };
+  sondes?: { apresGeste?: (stepKey: string) => Promise<void>; apresLivrable?: (stepKey: string) => Promise<void> };
 }
 
 export interface BilanConduite {
@@ -237,12 +238,49 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
     }
     await compter(travailId, { modelCalls: 1, tokensIn: r.usage.entree, tokensOut: r.usage.sortie, costUsd: r.usage.coutUsd ?? 0 });
     if (livrable) {
-      await ecrireAuCarnet(travailId, step.key, { livrable: { titre: step.title, contenu: r.texte } }, clock.now());
-      return { status: "DONE", result: { titre: step.title, caracteres: r.texte.length, apercu: r.texte.slice(0, 600) }, receipt: "LIVRABLE" };
+      // J8 : le livrable est un VRAI document, déposé au Drive de la personne et inscrit à la Bibliothèque — sous reçu.
+      const format = (String(entrees.format ?? "docx") as FormatLivrable);
+      const depot = format === "md" ? null : await deposerLivrable(step.key, step.title, r.texte, format);
+      if (depot && !depot.ok) return { status: "FAILED", error: depot.erreur, errorKind: "CAPABILITY_FAILURE", retryable: depot.reessayable };
+      const document = depot?.ok ? depot.document : null;
+      await ecrireAuCarnet(travailId, step.key, { livrable: { titre: step.title, contenu: r.texte, ...(document ? { document } : {}) } }, clock.now());
+      return { status: "DONE", result: { titre: step.title, caracteres: r.texte.length, apercu: r.texte.slice(0, 600), document }, receipt: "LIVRABLE" };
     }
     const lu = lireAnalyse(r.texte);
     await ecrireAuCarnet(travailId, step.key, { notes: lu.notes, trouvailles: lu.trouvailles }, clock.now());
     return { status: "DONE", result: { texte: lu.resultat, trouvailles: lu.trouvailles, notes: lu.notes }, receipt: "ANALYSE" };
+  };
+
+  /**
+   * LE DÉPÔT D'UN LIVRABLE (J8) — un geste comme un autre : réclamé, fait, clos. Un reçu FAIT rend le document
+   * déjà déposé ; un reçu INTERROMPU (processus tué pendant le dépôt) demande à la persona de RETROUVER le
+   * document avant d'en créer un : jamais deux exemplaires du même livrable dans le Drive.
+   */
+  async function deposerLivrable(stepKey: string, titre: string, contenu: string, format: FormatLivrable) {
+    const cle = `${travailId}|${stepKey}|livrable`;
+    const recu = await reclamerEcriture(cle, travailId, stepKey, `livrable:${format}`);
+    if (recu.etat === "FAIT") return { ok: true as const, document: (recu.resultat as { document: DocumentLivrable }).document };
+    let r: Awaited<ReturnType<PersonaTravaux["deposerLivrable"]>>;
+    try {
+      r = await persona.deposerLivrable(principalId, { travailId, cle, titre, contenu, format, reprise: recu.etat === "INTERROMPU" });
+    } catch (e) {
+      r = { ok: false, erreur: e instanceof Error ? e.message : String(e) };
+    }
+    await prisma.travailEcriture.update({ where: { cle }, data: { statut: r.ok ? "FAIT" : "ECHEC", resultat: (r.ok ? { document: r.document } : { erreur: r.erreur }) as never } });
+    if (!r.ok) return { ok: false as const, erreur: `Le livrable n'a pas pu être déposé au Drive : ${r.erreur}`, reessayable: true };
+    await journaliser(travailId, "LIVRABLE_DEPOSE", `Livrable « ${r.document.nom} » déposé dans le Drive de ${nom} et inscrit à la Bibliothèque.`, { stepKey, nodeId: r.document.nodeId, format }, principalId);
+    await deps.sondes?.apresLivrable?.(stepKey);
+    return r;
+  }
+
+  /** LA DEMANDE À UNE AUTRE PERSONNE (J8) — déposée une fois ; l'étape attend la réponse (WAIT_INPUT). */
+  const etapeDemande = async (ctx: StepContext): Promise<StepOutcome> => {
+    const demande = (ctx.step.input as { demande?: DemandeCompilee }).demande;
+    if (!demande?.destinataireId) return { status: "FAILED", error: "demande illisible (destinataire manquant)", errorKind: "MISSING_INPUT", retryable: false };
+    const r = await deposerDemande({ travailId, stepKey: ctx.step.key, principalId, demande, pieces: persona.pieces, maintenant: clock.now() });
+    if (r.etat === "IMPOSSIBLE") return { status: "FAILED", error: r.erreur, errorKind: "MISSING_INPUT", retryable: false };
+    if (r.etat === "CLOSE") return { status: "DONE", result: r.resultat as never, receipt: "DEMANDE" };
+    return { status: "WAITING", raison: `attend la réponse de ${demande.destinataireNom}`, result: { demandeId: r.demandeId } };
   };
 
   const attention: PorteAttention = {
@@ -257,7 +295,7 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
 
   const moteur: EngineDeps = {
     runner, catalog: CATALOGUE_TRAVAUX, clock, juge: JUGE_TRAVAIL, attention, maxTours: 1,
-    handlers: { WORKER: etapeDeModele(false), ARTIFACT: etapeDeModele(true) },
+    handlers: { WORKER: etapeDeModele(false), ARTIFACT: etapeDeModele(true), WAIT_INPUT: etapeDemande },
     ...(opts.interrupteur ? { interrupteur: opts.interrupteur } : {}),
   };
 
@@ -322,19 +360,4 @@ export async function reprendreTravail(travailId: string, principalId: string, r
     await journaliser(travailId, "TRAVAIL_REPRIS", `Repris : ${raison}.`, { raison }, principalId);
   }
   return r;
-}
-
-/**
- * PRÉVENIR LA PERSONNE, UNE FOIS — la clé est au journal du travail (pas de second registre). Un
- * battement qui revoit le même état ne renotifie pas.
- */
-export async function signalerUneFois(travailId: string, principalId: string, cle: string, titre: string, corps: string): Promise<void> {
-  const deja = await prisma.missionEvent.findFirst({
-    where: { missionId: travailId, kind: "TRAVAIL_SIGNAL", detail: { path: ["cle"], equals: cle } },
-    select: { id: true },
-  });
-  if (deja) return;
-  await journaliser(travailId, "TRAVAIL_SIGNAL", titre, { cle }, principalId);
-  await notifyUser({ userId: principalId, type: "GENERIC", title: titre.slice(0, 200), body: corps.slice(0, 280), link: `/assistant?travail=${travailId}` })
-    .catch(sansBloquer("travaux.signalerUneFois.notifyUser"));
 }
