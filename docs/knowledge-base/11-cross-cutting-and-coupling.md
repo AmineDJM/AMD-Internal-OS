@@ -503,6 +503,29 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 - **Guards**: `graphe-entreprise/graphe.test.ts` (real DB: resolution ≥ 95 %, 100 % sourced figures, p95 < 300 ms on 50,000
   edges, no out-of-rights result per role); AI base ceiling `SOCLE_IA_CEILING` stays 177 (+1 module door, −1 enum import).
 
+## 8ter. Agent gesture context, simulation, effects journal, undo (lot J7, 2026-10-30)
+
+- **Where**: `src/lib/effets/` (socle in `platform/domains.ts`), façade `lib/contexte-geste.ts`, IA door
+  `platform/ia/hors-requete.ts`. Decision `docs/assistant/decisions/0029-simulation-annulation.md`.
+- **`prisma` is now a relay** (`lib/prisma.ts`): outside a gesture it is the base client (`prismaBrut`); inside an agent
+  gesture it routes every query to the gesture's client — the rolled-back transaction of a SIMULATION, or the capturing
+  client of a journaled REAL gesture. `$transaction` inside a simulation runs "in place". **Blast radius**: any code that
+  builds its own `PrismaClient`, or talks to Postgres outside Prisma, escapes both simulation and journal (none today).
+- **Capture** (`effets/capture.ts`, Prisma `$allOperations` extension): before/after rows of every write, nested children of
+  a nested create, `createMany` with ids, raw-SQL writes (`$executeRaw`, `$queryRaw` that writes). Trace models (audit,
+  events, intents, AI logs) are skipped (`effets/modeles.ts` `MODELES_TRACE`).
+- **Output ports**: every module that calls the output guard (`sortie/garde.ts`) must call `noterEffetExterne` first
+  (mail SMTP/Graph/API, push, site, object storage) — enforced by `effets/ports.test.ts`; `effets/reseau.ts` wraps `fetch`
+  (simulation: non-GET to a non-local host neutralised with a 202).
+- **Journal**: `AssistantGesteJournal` + `AssistantEffet` (migration `20270215100000_journal_des_effets`), written for confirmed
+  cards, work steps (`PersonaTravaux.ecrire(…, contexte)`), mandated gestures; purge job `assistant.effets` (`lib/scheduled.ts`),
+  retention `AssistantIaReglage.retentionEffetsJours`.
+- **Undo** (`effets/annulation.ts`): per effect ANNULE / COMPENSE / IMPOSSIBLE / SANS_OBJET with reason; field undo goes
+  through `annulation/plan.ts` `composer` (invariant: only if the current value is still the written one); every write locks
+  the row (`FOR UPDATE`), re-reads, writes only if unchanged. Screen `/assistant/gestes`.
+- **Guards**: `effets/{simulation,ports,annulation}.test.ts` (50 real cases, 0 overwrite), `assistant-ia/infra/capacites-simulation.test.ts`,
+  `platform/ia/capacites/registre.test.ts` (≥ 80 % of R1–R2 simulable).
+
 ## 9. Docs versus code discrepancies
 
 | Doc claim | Code reality |

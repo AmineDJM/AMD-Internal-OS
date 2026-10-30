@@ -24,6 +24,20 @@ registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermé
 semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
 [0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
 
+### J7 : SIMULATION, JOURNAL DES EFFETS, ANNULATION HONNÊTE (2026-10-30)
+
+Lot J7 — `docs/assistant/decisions/0029-simulation-annulation.md` ; migration additive `20270215100000_journal_des_effets`.
+- **La carte montre ce qui sera écrit** : une capacité R1–R4 simulable est jouée pour de vrai dans une transaction
+  annulée, et la carte dit « 3 champs modifiés sur la demande X, 1 notification à Karim, 1 pièce déposée » — courriel,
+  poussée, stockage, site et webhooks neutralisés (0 effet sorti, un test par port). 92,5 % des capacités R1–R2 se simulent.
+- **Rien ne s'exécute qui ne ressemble plus à la carte** : la simulation est rejouée à la confirmation, son empreinte
+  comparée ; un écart, et la carte se remontre avec le nouveau diff.
+- **Journal des effets** : chaque geste de l'assistant (carte, étape de travail, mandat) garde la valeur AVANT de ce qu'il
+  touche (durée de garde réglable à la console).
+- **« Ce que l'assistant a fait »** (`/assistant/gestes`) : « Annuler » défait ce qui est encore tel que l'assistant l'a
+  laissé, compense ce qui se compense, dit ce qui est impossible et pourquoi — jamais d'écrasement du travail d'un autre
+  (50 cas réels justes, 0 écrasement).
+
 ### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
 
 Lot J8 — `docs/assistant/decisions/0023-delegation.md` ; migration additive `20270214100000_travaux_delegation`.

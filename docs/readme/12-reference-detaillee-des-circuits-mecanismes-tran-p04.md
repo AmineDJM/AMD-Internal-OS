@@ -610,6 +610,21 @@ Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missio
 - **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
   Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
 
+### Simulation, journal des effets, annulation (lot J7, 30/10/2026)
+
+Décision [0029](../assistant/decisions/0029-simulation-annulation.md). Code : `src/lib/effets/` (façade `lib/contexte-geste.ts`,
+porte IA `platform/ia/hors-requete.ts`), `lib/prisma.ts` (le client du geste), ports dans `mail.ts`, `mail-smart.ts`,
+`mail/graph/provider.ts`, `push.ts`, `site-web/transport.ts`, `storage/object-storage.ts` ; module `assistant-ia` :
+`infra/capacites.ts`, `domaine/simulation.ts`, `actions-gestes.ts`, `ecrans/gestes-assistant.tsx`.
+- **Simulation** : l'action de l'écran s'exécute dans une transaction Prisma annulée (`prisma` route vers elle) ; la
+  capture garde chaque écriture (avant, après, champs) ; les effets externes sont notés et neutralisés ; le diff et son
+  empreinte vont sur la carte. Confirmation : simulation rejouée, empreinte comparée — écart ⇒ rien d'exécuté.
+- **Journal** (`AssistantGesteJournal`, `AssistantEffet`) : cartes confirmées, étapes de travaux, gestes sous mandat.
+  Garde : `AssistantIaReglage.retentionEffetsJours` (console `/admin/ai/acces`), purge `assistant.effets`.
+- **Annulation** (`/assistant/gestes`) : par effet, annulé / compensé / impossible / sans objet + pourquoi ; écriture
+  verrouillée (`FOR UPDATE`), relue, jamais par-dessus une valeur changée depuis ; la personne (ou le Super Admin) seule ;
+  à l'audit ; un lot rend son détail geste par geste.
+
 ### Travaux, suite — délégation, attentes avancées, équipe, livrables au Drive (lot J8, 30/10/2026)
 
 Décision [0023](../assistant/decisions/0023-delegation.md). Code : `src/lib/missions/travaux/` (`delegation.ts`, `jalons.ts`,

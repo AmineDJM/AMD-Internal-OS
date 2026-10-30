@@ -1,6 +1,6 @@
 import type { CurrentUser } from "@/lib/session";
+import { journaliser, sansBloquer } from "@/lib/journal";
 import { prismaBrut } from "@/lib/prisma";
-import { journaliser } from "@/lib/journal";
 import { clientCapturant } from "./client";
 import { consolider, empreinteDe } from "./diff";
 import { avecStoreHorsRequete, etatPour } from "./geste";
@@ -138,7 +138,7 @@ async function inscrire(
 
 /** Le journal au-delà de sa durée de garde, retiré (tâche de fond). */
 export async function purgerJournalDesEffets(maintenant = new Date()): Promise<number> {
-  const reglage = await prismaBrut.assistantIaReglage.findUnique({ where: { id: "global" }, select: { retentionEffetsJours: true } }).catch(() => null);
+  const reglage = await prismaBrut.assistantIaReglage.findUnique({ where: { id: "global" }, select: { retentionEffetsJours: true } }).catch(sansBloquer("effets.journal.retention", null));
   const jours = Math.max(7, reglage?.retentionEffetsJours ?? RETENTION_EFFETS_JOURS);
   const r = await prismaBrut.assistantGesteJournal.deleteMany({ where: { creeLe: { lt: new Date(maintenant.getTime() - jours * 86_400_000) } } });
   return r.count;

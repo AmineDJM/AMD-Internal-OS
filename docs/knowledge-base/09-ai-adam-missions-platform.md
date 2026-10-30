@@ -379,6 +379,15 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   touch travaux. Additive engine changes: `materialiser({ kind, naissance })`, `kind` on pause/resume/cancel, `payload` predicate
   on waits (`events/match.ts`), `reveillerAttentesTemporelles(now, seulement?)`. Decision `docs/assistant/decisions/0016-travaux.md`.
 
+- **Simulation & undo J7 (30/10/2026)** [V] decision `docs/assistant/decisions/0029-simulation-annulation.md`. A card for a
+  simulable R1–R4 capability (`infra/capacites.ts`) runs the real screen action inside a rolled-back Prisma transaction
+  (`lib/effets/simulation.ts`) and shows the real diff (`domaine/simulation.ts` `VueSimulation`, card block in
+  `ecrans/action-confirmation-card.tsx`); at confirmation the simulation is replayed and its fingerprint compared — any
+  difference executes nothing and re-shows the card. Confirmed cards, work steps and mandated gestures run under
+  `journaliserGeste` (before/after of every write, `AssistantGesteJournal`/`AssistantEffet`); `/assistant/gestes` lists them
+  with an honest undo (annulé / compensé / impossible / sans objet + why). Classification: `simulableDe` (J7 rules), 92.5 %
+  of R1–R2 capabilities simulable. Cross-cutting details: KB 11 § 8ter.
+
 - **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
   → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique
   `missionId, stepKey`; delays counted from the deposit; shared Drive pieces granted VIEW via the persona port

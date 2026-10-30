@@ -5,7 +5,7 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
 [`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0025 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
 capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux, attentes avancées, équipe, livrables au Drive ; 0024 : la proactivité ;
-0025 : terrain et voix).
+0025 : terrain et voix ; 0029 : simulation, journal des effets, annulation).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -60,6 +60,22 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux, atte
   qu'Adam prêtait avant J6 et son équivalent ; `equivalents-avant-j6.test.ts` le rejoue (appelable, porte ouverte par rôle).
   La fiche employé passe par `executerAction(…, "assistant-ia")` (`GESTES_DE_FICHE`, sans `userId`) ; `updateEmployee` est
   relue et rejouée à la confirmation (`FUSIONS`).
+
+## Simulation, journal des effets, annulation (lot J7, décision 0029)
+
+- **Socle** (`src/lib/effets/`, porte `@/platform/ia/hors-requete`) : contexte de geste étendu (mode réel / simulation),
+  client Prisma du geste (`lib/prisma.ts`), capture des écritures (avant / après / champs), simulation dans une transaction
+  annulée, ports de sortie neutralisés en simulation, journal des effets, annulation honnête.
+- **Carte** (`infra/capacites.ts`, `domaine/simulation.ts`) : une capacité R1–R4 simulable montre le **diff réel** de sa
+  simulation (`proposition.simulation`, `ecrans/action-confirmation-card.tsx` — bloc « Simulé — rien n'a été écrit ») ;
+  non simulable, elle le dit. À la confirmation, la simulation est rejouée et son empreinte comparée : un écart, rien ne
+  s'exécute et la carte se remontre (`payload.simulation` remplacé ; `fil/service.ts` le relit).
+- **Journal** : toute carte confirmée (`actions.ts` → `executerOperationJournalisee`, `executerCapacite`), toute étape de
+  travail (`infra/travaux.ts`, `ecrire(…, contexte)`) et tout geste sous mandat (`proactivite/mandats.ts`) va au journal
+  des effets (`AssistantGesteJournal`, `AssistantEffet`) ; durée de garde à la console `/admin/ai/acces`.
+- **Écran** « Ce que l'assistant a fait » : `/assistant/gestes` (`ecrans/gestes-assistant.tsx`, `actions-gestes.ts` :
+  lister, aperçu, annuler un geste ou un lot — annulé / compensé / impossible / sans objet + pourquoi).
+- **Preuves** : `lib/effets/{simulation,ports,annulation}.test.ts` (50 cas réels), `infra/capacites-simulation.test.ts`.
 
 ## Travaux, suite (lot J8, décision 0023)
 

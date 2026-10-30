@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { attendu, sansBloquer } from "@/lib/journal";
 import type { CurrentUser } from "@/lib/session";
 import { prismaBrut } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
@@ -100,7 +101,7 @@ function deserialiser(info: InfoModele, champ: string, v: unknown): unknown {
 /** La ligne telle qu'elle est maintenant, sérialisée (scalaires sans octets) — `null` si elle n'existe plus. */
 async function lireActuelle(c: Client, info: InfoModele, id: string): Promise<Record<string, unknown> | null> {
   if (!info.cle) return null;
-  const r = await delegue(c, info).findUnique({ where: { [info.cle]: id } }).catch(() => null);
+  const r = await delegue(c, info).findUnique({ where: { [info.cle]: id } }).catch(sansBloquer("effets.annulation.lecture", null));
   return serialiserLigne(r, new Set(info.scalaires));
 }
 
@@ -117,7 +118,7 @@ async function ecrireVerrouille(
     if (!verifier(await lireActuelle(t, info, id))) return false;
     await ecrire(t);
     return true;
-  }) as Promise<boolean>).catch(() => false);
+  }) as Promise<boolean>).catch(attendu("la ligne a bougé sous le verrou, ou une contrainte a refusé : rien n'est écrit", false));
 }
 
 async function verrouiller(tx: Client, info: InfoModele, id: string): Promise<void> {
@@ -134,7 +135,7 @@ async function rattaches(c: Client, info: InfoModele, id: string, ignorer: Reado
     const enfant = infoModele(e.modele);
     if (!d || !enfant?.cle) continue;
     const exclus = [...ignorer];
-    const k = await d.count({ where: { [e.champ]: id, ...(exclus.length ? { NOT: { [enfant.cle]: { in: exclus } } } : {}) } }).catch(() => 0);
+    const k = await d.count({ where: { [e.champ]: id, ...(exclus.length ? { NOT: { [enfant.cle]: { in: exclus } } } : {}) } }).catch(sansBloquer("effets.annulation.rattaches", 0));
     if (k) { n += k; quoi.push(`${k} ${natureDe(e.modele)}`); }
   }
   return { n, quoi };
@@ -372,7 +373,7 @@ const nomsEnCache = () => {
   const cache = new Map<string, string | null>();
   return async (id: string | null | undefined) => {
     if (!id) return null;
-    if (!cache.has(id)) cache.set(id, (await prismaBrut.user.findUnique({ where: { id }, select: { name: true } }).catch(() => null))?.name ?? null);
+    if (!cache.has(id)) cache.set(id, (await prismaBrut.user.findUnique({ where: { id }, select: { name: true } }).catch(sansBloquer("effets.annulation.lecture", null)))?.name ?? null);
     return cache.get(id) ?? null;
   };
 };

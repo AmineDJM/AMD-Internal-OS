@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import { sansBloquer } from "@/lib/journal";
 import { etatDuGeste, type Capture, type EcritureCapturee } from "./magasin";
 import { infoModele, MODELES_TRACE, type InfoModele } from "./modeles";
 import { champsChanges, serialiserLigne } from "./valeurs";
@@ -79,7 +80,7 @@ async function compterCascades(lecteur: Client, info: InfoModele, id: string): P
   let n = 0;
   for (const c of info.cascades) {
     const d = lecteur[c.delegue] as Delegue | undefined;
-    if (d) n += await d.count({ where: { [c.champ]: id } }).catch(() => 0);
+    if (d) n += await d.count({ where: { [c.champ]: id } }).catch(sansBloquer("effets.capture.compte", 0));
   }
   return n;
 }
@@ -97,7 +98,7 @@ async function noterEnfantsNes(lecteur: Client, info: InfoModele, id: string, no
     const enfant = infoModele(lien.modele);
     const d = lecteur[lien.delegue] as Delegue | undefined;
     if (!enfant || !d || MODELES_TRACE.has(lien.modele)) continue;
-    const lignes = await d.findMany({ where: { [lien.champ]: id }, take: LOT_MAX }).catch(() => []);
+    const lignes = await d.findMany({ where: { [lien.champ]: id }, take: LOT_MAX }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[]));
     for (const l of lignes) {
       const apres = serialiserLigne(l, new Set(enfant.scalaires));
       noter({ modele: lien.modele, operation: "CREATE", id: versId(enfant, l), avant: null, apres, champs: Object.keys(apres ?? {}).sort() });
@@ -173,7 +174,7 @@ async function capturer(
           }
           case "update":
           case "upsert": {
-            const avantBrut = await d.findUnique({ where: a.where }).catch(() => null);
+            const avantBrut = await d.findUnique({ where: a.where }).catch(sansBloquer("effets.capture.lecture", null));
             const { args: elargi, rendre } = elargir(info, a);
             const r = (await query(elargi)) as Record<string, unknown>;
             const avant = serialiserLigne(avantBrut, garder);
@@ -188,7 +189,7 @@ async function capturer(
             return rendre(r);
           }
           case "delete": {
-            const avantBrut = await d.findUnique({ where: a.where }).catch(() => null);
+            const avantBrut = await d.findUnique({ where: a.where }).catch(sansBloquer("effets.capture.lecture", null));
             const id = versId(info, avantBrut);
             const cascade = id ? await compterCascades(lecteur, info, id) : 0;
             const r = await query(a);
@@ -196,14 +197,14 @@ async function capturer(
             return r;
           }
           case "updateMany": {
-            const lignes = info.cle ? await d.findMany({ where: a.where, take: LOT_MAX + 1 }).catch(() => []) : [];
+            const lignes = info.cle ? await d.findMany({ where: a.where, take: LOT_MAX + 1 }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[])) : [];
             const r = (await query(a)) as { count?: number };
             if (!info.cle || lignes.length > LOT_MAX) {
               noter({ modele: model, operation: "UPDATE", id: null, avant: null, apres: null, champs: Object.keys((a.data as object) ?? {}).sort(), nombre: r?.count });
               return r;
             }
             const ids = lignes.map((l) => l[info.cle!]);
-            const apresTous = ids.length ? await d.findMany({ where: { [info.cle]: { in: ids } } }).catch(() => []) : [];
+            const apresTous = ids.length ? await d.findMany({ where: { [info.cle]: { in: ids } } }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[])) : [];
             const parId = new Map(apresTous.map((l) => [String(l[info.cle!]), l]));
             for (const l of lignes) {
               const id = String(l[info.cle]);
@@ -215,7 +216,7 @@ async function capturer(
             return r;
           }
           case "deleteMany": {
-            const lignes = info.cle ? await d.findMany({ where: a.where, take: LOT_MAX + 1 }).catch(() => []) : [];
+            const lignes = info.cle ? await d.findMany({ where: a.where, take: LOT_MAX + 1 }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[])) : [];
             if (!info.cle || lignes.length > LOT_MAX) {
               const r = (await query(a)) as { count?: number };
               noter({ modele: model, operation: "DELETE", id: null, avant: null, apres: null, champs: [], nombre: r?.count });
@@ -245,7 +246,7 @@ async function capturer(
             const nommees = lignesData.map((l) => (l[info.cle!] ? l : { ...l, [info.cle!]: nouvelId() }));
             const r = (await query({ ...a, data: nommees })) as { count?: number };
             const ids = nommees.map((l) => String(l[info.cle!]));
-            const relues = etat.mode === "SIMULATION" ? await d.findMany({ where: { [info.cle]: { in: ids } } }).catch(() => []) : [];
+            const relues = etat.mode === "SIMULATION" ? await d.findMany({ where: { [info.cle]: { in: ids } } }).catch(sansBloquer("effets.capture.lecture", [] as Record<string, unknown>[])) : [];
             const parId = new Map(relues.map((l) => [String(l[info.cle!]), l]));
             for (const [i, id] of ids.entries()) {
               if (relues.length && !parId.has(id)) continue; // écartée par `skipDuplicates`
@@ -280,7 +281,7 @@ export async function finaliserCapture(capture: Capture, lecteur: Client, opts: 
     const info = infoModele(modele);
     const d = info?.cle ? (lecteur[info.delegue] as Delegue | undefined) : undefined;
     if (!info?.cle || !d) continue;
-    const lignes = await d.findMany({ where: { [info.cle]: { in: [...new Set(ecritures.map((e) => e.id))] } } }).catch(() => null);
+    const lignes = await d.findMany({ where: { [info.cle]: { in: [...new Set(ecritures.map((e) => e.id))] } } }).catch(sansBloquer("effets.capture.lecture", null));
     if (!lignes) continue;
     const parId = new Map(lignes.map((l) => [String(l[info.cle!]), serialiserLigne(l, new Set(info.scalaires))]));
     for (const e of ecritures) {

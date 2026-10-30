@@ -1,4 +1,5 @@
 import type { CurrentUser } from "@/lib/session";
+import { sansBloquer } from "@/lib/journal";
 import { prismaBrut } from "@/lib/prisma";
 import { avecStoreHorsRequete, etatPour, type ContexteDuGeste } from "./geste";
 import { finaliserCapture } from "./capture";
@@ -90,7 +91,7 @@ export async function nomsDesDestinataires(capture: Capture): Promise<Map<string
   for (const e of capture.ecritures) if (e.modele === "Notification" && typeof e.apres?.userId === "string") ids.add(e.apres.userId);
   for (const f of capture.effets) if (f.acte === "NOTIFICATION_PUSH") ids.add(f.cible);
   if (!ids.size) return new Map();
-  const users = await prismaBrut.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, name: true } }).catch(() => []);
+  const users = await prismaBrut.user.findMany({ where: { id: { in: [...ids] } }, select: { id: true, name: true } }).catch(sansBloquer("effets.simulation.noms", [] as { id: string; name: string | null }[]));
   return new Map(users.map((u) => [u.id, u.name ?? "une personne"]));
 }
 
