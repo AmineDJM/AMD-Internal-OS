@@ -7,6 +7,7 @@ import { ClientVoixTempsReel, type EtatVoix, type ResultatOutilVocal } from "@/p
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { CIBLE_LATENCE_VOCALE_MS, mediane } from "@/modules/assistant-ia/partage";
 import { ActionConfirmationCard } from "./action-confirmation-card";
+import { attendu, sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -67,15 +68,15 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
     const corps = JSON.stringify({ ...c.consommation, latences: c.latences, dureeMs: Date.now() - debut.current });
     // Le journal part même si l'onglet se ferme.
     if (!navigator.sendBeacon?.("/api/assistant-ia/voix/journal", new Blob([corps], { type: "application/json" }))) {
-      void fetch("/api/assistant-ia/voix/journal", { method: "POST", headers: { "content-type": "application/json" }, body: corps, keepalive: true }).catch(() => undefined);
+      void fetch("/api/assistant-ia/voix/journal", { method: "POST", headers: { "content-type": "application/json" }, body: corps, keepalive: true }).catch(sansBloquer("voix-temps-reel.journal"));
     }
   }, []);
 
   const demarrer = useCallback(async () => {
     setDetail(null);
     setEtat("CONNEXION");
-    const r = await fetch("/api/assistant-ia/voix/session", { method: "POST" }).catch(() => null);
-    const d = r ? ((await r.json().catch(() => ({}))) as { secret?: string; urlAppel?: string; error?: string }) : { error: "Réseau indisponible." };
+    const r = await fetch("/api/assistant-ia/voix/session", { method: "POST" }).catch(sansBloquer("voix-temps-reel.session", null));
+    const d = r ? ((await r.json().catch(attendu("réponse non JSON : le statut HTTP décide", {}))) as { secret?: string; urlAppel?: string; error?: string }) : { error: "Réseau indisponible." };
     if (!r?.ok || !d.secret || !d.urlAppel) {
       setEtat("ERREUR");
       setDetail(d.error ?? "La voix temps réel est indisponible.");

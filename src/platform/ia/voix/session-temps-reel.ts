@@ -72,7 +72,8 @@ export async function ouvrirSessionTempsReel(d: DemandeSession): Promise<Session
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
-      const detail = await res.text().catch(() => "");
+      let detail = "";
+      try { detail = await res.text(); } catch (e) { detail = `corps illisible : ${e instanceof Error ? e.message : String(e)}`; }
       console.error("[voix] session refusée par le fournisseur", res.status, detail.slice(0, 300));
       return { ok: false, erreur: "La voix temps réel est momentanément indisponible.", statut: 502 };
     }

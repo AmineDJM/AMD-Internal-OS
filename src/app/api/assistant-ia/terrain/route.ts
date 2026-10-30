@@ -39,8 +39,9 @@ export async function POST(req: Request) {
 }
 
 /** Les captations récentes de la personne (l'écran les relit au retour du réseau). */
-export async function GET() {
-  const user = await getCurrentUser();
+export async function GET(req: Request) {
+  // Une lecture : elle voit comme la personne (vue exacte comprise) — `peutCapterTerrain` la ferme alors.
+  const user = req.method === "GET" ? await getCurrentUser() : await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (!peutCapterTerrain(user)) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
   return NextResponse.json({ captations: await lireCaptations(user) });

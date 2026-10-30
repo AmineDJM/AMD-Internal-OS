@@ -7,6 +7,8 @@ import {
   type ElementFile, type IssueEnvoi, type SortePhoto, type VueCaptation,
 } from "@/modules/assistant-ia/partage";
 import { confirmerCarteTerrain } from "@/modules/assistant-ia/actions";
+import { attendu, sansBloquer } from "@/lib/journal";
+import { useConfirmer } from "@/components/ui/dialogue";
 import { ActionConfirmationCard } from "../action-confirmation-card";
 import { nouvelleCle, ouvrirFileLocale, type FileLocale } from "./file-locale";
 
@@ -34,7 +36,7 @@ async function envoyerAuServeur(f: FileLocale, e: ElementFile): Promise<IssueEnv
   if (c.dureeS != null) form.set("dureeS", String(c.dureeS));
   if (c.sortePhoto) form.set("sortePhoto", c.sortePhoto);
   const r = await fetch("/api/assistant-ia/terrain", { method: "POST", body: form });
-  const d = (await r.json().catch(() => ({}))) as { captation?: VueCaptation; error?: string };
+  const d = (await r.json().catch(attendu("réponse non JSON : le statut HTTP décide", {}))) as { captation?: VueCaptation; error?: string };
   if (r.ok && d.captation) return { ok: true, accuse: d.captation.id, captation: d.captation };
   // 4xx (hors 401/408/429) : le serveur refuse CET élément — le renvoyer tel quel ne changera rien.
   const definitif = r.status >= 400 && r.status < 500 && ![401, 408, 429].includes(r.status);
@@ -54,6 +56,7 @@ export function EcranTerrain({ initiales }: { initiales: VueCaptation[] }) {
   const enCours = useRef(false);
   const rec = useRef<{ mr: MediaRecorder; morceaux: Blob[]; debut: number; minuterie: ReturnType<typeof setInterval> } | null>(null);
   const photo = useRef<HTMLInputElement>(null);
+  const confirmer = useConfirmer();
 
   const relire = useCallback(async () => { if (stock.current) setFile(await stock.current.lister()); }, []);
 
@@ -76,7 +79,7 @@ export function EcranTerrain({ initiales }: { initiales: VueCaptation[] }) {
   useEffect(() => {
     let vivant = true;
     // Le service worker garde l'écran ouvrable hors ligne (public/sw.js) — enregistré ici aussi, sans attendre les notifications.
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(sansBloquer("terrain.serviceWorker.register"));
     void (async () => {
       const f = await ouvrirFileLocale();
       if (!vivant) return;
@@ -147,7 +150,7 @@ export function EcranTerrain({ initiales }: { initiales: VueCaptation[] }) {
     void vider();
   };
   const jeter = async (e: ElementFile) => {
-    if (!window.confirm(`Jeter « ${e.libelle} » ? Il n'a pas été envoyé : il sera perdu.`)) return;
+    if (!(await confirmer(`Jeter « ${e.libelle} » ? Il n'a pas été envoyé : il sera perdu.`))) return;
     await stock.current?.retirer(e.id);
     await relire();
   };

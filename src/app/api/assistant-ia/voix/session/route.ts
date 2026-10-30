@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUserPourEcrire } from "@/lib/session";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { ouvrirVoixAssistant } from "@/modules/assistant-ia/api";
 
@@ -11,7 +11,7 @@ export const runtime = "nodejs";
  * la clé ; la session (consignes, outils sous les droits de la personne) est configurée côté serveur.
  */
 export async function POST() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (await interrupteurIaCoupe()) return NextResponse.json({ error: REFUS_IA_COUPEE }, { status: 409 });
   const s = await ouvrirVoixAssistant(user);

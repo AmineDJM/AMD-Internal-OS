@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
+import { getCurrentUserPourEcrire } from "@/lib/session";
 import { executerOutilVocal } from "@/modules/assistant-ia/api";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ export const maxDuration = 60;
  * rend ce que la voix peut dire (aucune valeur sensible), la carte à afficher, et les valeurs que l'écran seul montre.
  */
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
+  const user = await getCurrentUserPourEcrire();
   if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   let corps: { nom?: unknown; arguments?: unknown } = {};
   try { corps = (await req.json()) as typeof corps; } catch { return NextResponse.json({ error: "Requête invalide." }, { status: 400 }); }
