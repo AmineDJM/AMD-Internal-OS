@@ -198,6 +198,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
   // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
   { cle: "assistant.routines", executer: async () => (await import("@/modules/assistant-ia/api")).executerRoutinesDues() },
+  // J12 (décision 0024) — LES VEILLEURS de l'Assistant IA : règles de code par personne (au plus une veille par quart
+  // d'heure chacune), budget d'interruptions, point du matin. Les gestes sous mandat, eux, se font dans la requête de la personne.
+  { cle: "assistant.veilleurs", executer: async () => (await import("@/modules/assistant-ia/api")).executerVeilles() },
   // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
   { cle: "assistant.fils", executer: async () => (await import("@/modules/assistant-ia/api")).reprendreLesFils() },
   // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT
@@ -335,6 +338,16 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     const r = await balayerTravaux({ personas: { ASSISTANT_IA: PERSONA_ASSISTANT_IA }, mode: lireModeTachesDeFond(), executeur: executeurDuProcessus() });
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
   } },
+
+  // LE BANC PROGRAMMÉ (J5, décision 0022) : le banc de l'Assistant IA, selon le calendrier du Super Admin (Administration ›
+  // Qualité IA), SUR LE WORKER, contre la base d'essai déclarée (BANC_ESSAI_DATABASE_URL) — jamais la production. Le
+  // passage tourne dans un processus à part : la tâche le lance et rend la main ; le worker historise à la fin.
+  { cle: "qualite.banc", executer: async () => {
+    const r = await (await import("@/modules/assistant-ia/api")).tacheBancProgramme({ executeur: executeurDuProcessus() });
+    if (r.issue === "rien" && r.raison) return ignoree(r.raison);
+  } },
+  // J14 : les traces rejouables des tours, gardées ASSISTANT_IA_TRACES_JOURS jours (30 par défaut).
+  { cle: "assistant.traces", executer: async () => (await import("@/modules/assistant-ia/api")).purgerTraces() },
 
   // L'ATELIER (J3, décision 0017) : les conversions confiées au worker (LibreOffice de son image). Ailleurs, rien.
   { cle: "atelier.conversions", bailMs: 300_000, executer: async () => {

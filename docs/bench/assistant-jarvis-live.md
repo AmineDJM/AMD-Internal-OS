@@ -211,3 +211,12 @@ retrouvé par son contenu et résumé ; AVANT « je n'ai pas trouvé »).
 
 **Coût de la campagne J4** : AVANT 0,62 $ ; APRÈS 0,47 + 0,48 + 0,47 $ ; un passage interrompu par un redémarrage du
 conteneur (~0,3 $, écarté) ; essais de modèles et de cache ~0,01 $ — **≈ 2,3 $** (budget 4 $).
+
+## J5 — le banc programmé (décision 0022, `jarvis/j5-j14-qualite`, 30/10/2026)
+
+Ce banc tourne désormais **sur le worker**, selon le calendrier du Super Admin (`/admin/ai/qualite`, défaut chaque vendredi
+à 3 h, plafond 1 $ par passage), contre la base d'essai déclarée (`BANC_ESSAI_DATABASE_URL`), avec les bancs Atelier,
+Travaux et Bibliothèque : `scripts/bench/banc-programme.ts` (lancé par la tâche `qualite.banc`). Chaque script de banc
+écrit un résultat normalisé (`BANC_SORTIE`) ; un scénario que le plafond empêche de jouer est « NON JOUÉ ». Passage réduit
+pour la mise au point : `BANC_SEULEMENT=jarvis JARVIS_ONLY=00-,02-`. Les résultats sont historisés en base et comparés au
+passage précédent ; une régression notifie le Super Admin.

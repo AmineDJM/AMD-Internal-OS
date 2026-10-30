@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { requireUser } from "@/lib/session";
 import { MARQUE_VUE_COOKIE } from "@/lib/vue-exacte-ui";
 import { IdentiteProvider, GardeIdentite } from "@/components/layout/identite-vue";
-import { userCan } from "@/lib/rbac";
+import { peutUtiliserAssistantIA, userCan } from "@/lib/rbac";
 import { moduleForPath } from "@/lib/labels";
 import { reécriteLienNotification } from "@/lib/notifications/lien-actuel";
 import { navigationFor } from "@/lib/nav-access";
@@ -11,6 +11,7 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { Topbar } from "@/components/layout/topbar";
 import { MobileTabBar } from "@/components/layout/mobile-tabbar";
 import { ActivityTracker } from "@/components/layout/activity-tracker";
+import { ExecuteurMandats } from "@/modules/assistant-ia/ecrans/executeur-mandats";
 import { SessionRecorder } from "@/components/layout/session-recorder";
 import { FocusExit } from "@/components/layout/focus-mode";
 import { ScreenGuard } from "@/components/layout/screen-guard";
@@ -113,6 +114,8 @@ export default async function AppLayout({
           qui casse en production sur Next 14.2 (voir `nav-progress.tsx`). */}
       <NavProgress />
       <ActivityTracker />
+      {/* J12 : les gestes confiés par mandat à l'Assistant IA se font dans la requête de la personne (jamais en Vue exacte). */}
+      {!user.impersonatedBy && peutUtiliserAssistantIA(user) && <ExecuteurMandats />}
       {/* LE REJEU DE SESSION — pour le support technique : rembobiner la suite des actions et
           voir où ça a bugué. Aucune valeur de champ n'est lue ; les champs sensibles sont
           écartés entièrement. La divulgation aux salariés relève du règlement intérieur. */}

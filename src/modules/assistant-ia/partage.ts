@@ -30,3 +30,12 @@ export type { MemoireProposee } from "./domaine/memoire-ui";
 // ── Opérations : la charge d'une carte de l'Assistant IA ; la bande MRZ (lue aussi par l'enrichissement)
 export { estChargeOperationIA } from "./domaine/operations/types";
 export { casse, chiffreDeControle, lireMrz } from "./domaine/operations/mrz";
+
+// ── Qualité continue (J5 + J14, décision 0022) : calendrier du banc, régression, base d'essai, A/B, provenance tierce
+export {
+  calendrierLisible, FREQUENCES, JOURS_SEMAINE, normaliserReglageBanc, PLAFOND_PASSAGE_MAX_USD, prochainCreneau, REGLAGE_BANC_DEFAUT,
+  type Frequence, type ReglageBanc,
+} from "./domaine/qualite/calendrier";
+export { choisirBaseEssai, empreinteBase } from "./domaine/qualite/base-essai";
+export { EFFORTS_MODELE, ROLES_MODELE, VALIDITE_BANC_JOURS, lireCandidat, type Candidat } from "./domaine/qualite/ab-modele";
+export type { Regression } from "./domaine/qualite/regression";

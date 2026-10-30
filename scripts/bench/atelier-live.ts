@@ -14,12 +14,12 @@ process.env.ASSISTANT_IA_PRICE_IN ||= "2";
 process.env.ASSISTANT_IA_PRICE_OUT ||= "12";
 
 import fs from "node:fs";
-import { prisma, estUneBaseDeBanc } from "@/lib/prisma";
+import { prisma, estUneBaseDeBancOuDEssai } from "@/lib/prisma";
 
 const TAG = `__banc_atelier__${Date.now()}`;
 
 async function main() {
-  if (!estUneBaseDeBanc(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
+  if (!estUneBaseDeBancOuDEssai(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
   const { getAccess } = await import("@/lib/rbac");
   const { putBlob, getBlob } = await import("@/lib/drive-storage");
   const { docxDeParagraphes, pptxDiapos } = await import("@/lib/artifact/adapters/fixtures");

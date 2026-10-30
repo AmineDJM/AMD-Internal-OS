@@ -149,7 +149,7 @@ inchangés (décision en attente) ; worker `starter`.
 **Contrôle au démarrage** (`src/lib/taches-de-fond/sante.ts`, appelé par `scripts/worker.ts` une fois la base à jour) :
 chaque variable recensée dans le code du worker (critique / importante / facultative, avec ce qui ne marche pas sans elle)
 et le moteur (`convertir.py --verifier` : paquets, tesseract ara/fra/eng, LibreOffice, polices) ; une ligne de journal par
-manque (`worker.controle.manque`) et le rapport en base (table `ControleWorker`, migration `20270210090000_controle_worker`,
+manque (`worker.controle.manque`) et le rapport en base (table `ControleWorker`, migration `20270211090000_controle_worker`,
 additive) — jamais une valeur. L'image elle-même refuse de se construire si le moteur ne se déclare pas complet.
 
 ## C. L'écran

@@ -971,21 +971,21 @@ model AssistantRoutineRun {
 /// « DG_TOTAL ») et à l'audit.
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
 model AdProPorteDg {
-  id         String     @id @default(cuid())
-  entityType EntityType
-  entityId   String
+  id             String     @id @default(cuid())
+  entityType     EntityType
+  entityId       String
   /// Dernière décision : « VALIDEE » ou « A_REVOIR » — null tant que le DG n'a pas statué.
-  statut     String?
+  statut         String?
   /// Le total sur lequel il a statué.
-  montant    Decimal?   @db.Decimal(14, 2)
-  note       String?
-  decideParId String?
-  decideLe   DateTime?
+  montant        Decimal?   @db.Decimal(14, 2)
+  note           String?
+  decideParId    String?
+  decideLe       DateTime?
   /// Le dernier total pour lequel le DG a été PRÉVENU — on ne le relance pas pour le même total.
-  signaleMontant Decimal? @db.Decimal(14, 2)
+  signaleMontant Decimal?   @db.Decimal(14, 2)
   signaleLe      DateTime?
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
 
   @@unique([entityType, entityId])
 }
@@ -997,25 +997,25 @@ model AdProPorteDg {
 /// notifiée. Distinct d'`AssistantThread` (le fil d'Adam, le Chief of Staff).
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
 model AssistantIaFil {
-  id           String            @id @default(cuid())
-  userId       String            @unique
-  user         User              @relation("AssistantIaFil", fields: [userId], references: [id], onDelete: Cascade)
+  id            String            @id @default(cuid())
+  userId        String            @unique
+  user          User              @relation("AssistantIaFil", fields: [userId], references: [id], onDelete: Cascade)
   /// Dernière lecture du fil par l'écran : au-delà de 6 s, une réponse prête se NOTIFIE.
-  consulteLe   DateTime?
+  consulteLe    DateTime?
   /// « Nouvelle conversation » : les tours plus anciens restent en base mais ne font plus le contexte.
-  depuisLe     DateTime          @default(now())
+  depuisLe      DateTime          @default(now())
   /// Prise du fil : un seul passage joue ses messages à la fois (reprise si elle est perdue).
-  traitementLe DateTime?
+  traitementLe  DateTime?
   /// Option « réponse vocale » (28/10/2026) : chaque réponse est AUSSI lue à voix haute (synthèse OpenAI).
-  reponseVocale Boolean          @default(false)
+  reponseVocale Boolean           @default(false)
   /// J4 (décision 0018) : le RÉSUMÉ ROULANT des échanges sortis de la fenêtre mot pour mot — jamais une valeur sensible.
-  resume       String?
+  resume        String?
   /// Le dernier tour (sa date) que le résumé couvre : la compaction ne refait rien tant qu'aucun tour ne le dépasse.
-  resumeJusquA DateTime?
-  resumeLe     DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  tours        AssistantIaTour[]
+  resumeJusquA  DateTime?
+  resumeLe      DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  tours         AssistantIaTour[]
 }
 
 /// UN TOUR DU FIL — un message de la personne (EN_ATTENTE → EN_COURS → TRAITE | ECHEC) ou une réponse
@@ -1532,40 +1532,40 @@ model User {
   reminders                   Reminder[]                      @relation("UserReminders")
   /// Entités auxquelles cette personne a accès (voir / modifier). Distinct de son entité
   /// d'appartenance, portée par sa fiche Employee.
-  companyAccess              UserCompanyAccess[]
-  rangeAccess                UserProductRange[]
-  legalDocReads              LegalDocumentReader[]
-  directoryAccess            MedicalDirectoryAccess[]        @relation("MedicalDirectoryAccessUser")
-  assistantReminders         AssistantReminder[]             @relation("AssistantReminderUser")
-  assistantRemindersTargeted AssistantReminder[]             @relation("AssistantReminderTarget")
-  scheduledWorkflows         ScheduledWorkflow[]             @relation("ScheduledWorkflowOwner")
-  assistantMemoryItems       AssistantMemoryItem[]           @relation("AssistantMemoryItems")
-  assistantRoutines          AssistantRoutine[]              @relation("AssistantRoutines")
-  assistantIaFil             AssistantIaFil?                 @relation("AssistantIaFil")
-  executiveDecisions         ExecutiveDecision[]             @relation("ExecutiveDecisions")
-  executiveObjectives        ExecutiveObjective[]            @relation("ExecutiveObjectives")
-  executiveCommitments       ExecutiveCommitment[]           @relation("ExecutiveCommitments")
-  adamWatches                AdamWatch[]                     @relation("AdamWatches")
-  adamRulesOwned             AdamRule[]                      @relation("AdamRulesOwned")
-  adamRulesSubject           AdamRule[]                      @relation("AdamRulesSubject")
-  adamSkills                 AdamSkill[]                     @relation("AdamSkills")
-  assistantArtifacts         AssistantArtifact[]             @relation("AssistantArtifacts")
-  artifactSessions           ArtifactSession[]               @relation("ArtifactSessions")
-  assistantActionIntents     AssistantActionIntent[]         @relation("AssistantActionIntents")
-  userInvites                UserInvite[]                    @relation("UserInvites")
-  adProItemDecisions         AdProItemDecision[]             @relation("AdProItemDecider")
-  apiClients                 ApiClient[]                     @relation("ApiClientActAs")
-  docRequestsAsked           DocumentRequest[]               @relation("DocRequestAsker")
-  docRequestsToMe            DocumentRequest[]               @relation("DocRequestAsked")
-  paymentCentreMessages      PaymentCentreMessage[]
-  sessionEvents              SessionEvent[]
-  businessEvents             BusinessEvent[]                 @relation("BusinessEventActor")
-  productAliases             ProductAlias[]                  @relation("ProductAliasAuthor")
-  productAssignments         ProductAssignment[]             @relation("ProductAssignmentUser")
-  adProGateVisas             AdProGateVisa[]                 @relation("adProGateVisaDecidedBy")
-  marketingReferentOf        BusinessUnitMarketingReferent[] @relation("AdProMarketingReferentOf")
-  assistantRoleConfigsUpdated AssistantRoleConfig[]          @relation("AssistantRoleConfigUpdatedBy")
-  assistantRoleConfigAudits   AssistantRoleConfigAudit[]     @relation("AssistantRoleConfigAuditActor")
+  companyAccess               UserCompanyAccess[]
+  rangeAccess                 UserProductRange[]
+  legalDocReads               LegalDocumentReader[]
+  directoryAccess             MedicalDirectoryAccess[]        @relation("MedicalDirectoryAccessUser")
+  assistantReminders          AssistantReminder[]             @relation("AssistantReminderUser")
+  assistantRemindersTargeted  AssistantReminder[]             @relation("AssistantReminderTarget")
+  scheduledWorkflows          ScheduledWorkflow[]             @relation("ScheduledWorkflowOwner")
+  assistantMemoryItems        AssistantMemoryItem[]           @relation("AssistantMemoryItems")
+  assistantRoutines           AssistantRoutine[]              @relation("AssistantRoutines")
+  assistantIaFil              AssistantIaFil?                 @relation("AssistantIaFil")
+  executiveDecisions          ExecutiveDecision[]             @relation("ExecutiveDecisions")
+  executiveObjectives         ExecutiveObjective[]            @relation("ExecutiveObjectives")
+  executiveCommitments        ExecutiveCommitment[]           @relation("ExecutiveCommitments")
+  adamWatches                 AdamWatch[]                     @relation("AdamWatches")
+  adamRulesOwned              AdamRule[]                      @relation("AdamRulesOwned")
+  adamRulesSubject            AdamRule[]                      @relation("AdamRulesSubject")
+  adamSkills                  AdamSkill[]                     @relation("AdamSkills")
+  assistantArtifacts          AssistantArtifact[]             @relation("AssistantArtifacts")
+  artifactSessions            ArtifactSession[]               @relation("ArtifactSessions")
+  assistantActionIntents      AssistantActionIntent[]         @relation("AssistantActionIntents")
+  userInvites                 UserInvite[]                    @relation("UserInvites")
+  adProItemDecisions          AdProItemDecision[]             @relation("AdProItemDecider")
+  apiClients                  ApiClient[]                     @relation("ApiClientActAs")
+  docRequestsAsked            DocumentRequest[]               @relation("DocRequestAsker")
+  docRequestsToMe             DocumentRequest[]               @relation("DocRequestAsked")
+  paymentCentreMessages       PaymentCentreMessage[]
+  sessionEvents               SessionEvent[]
+  businessEvents              BusinessEvent[]                 @relation("BusinessEventActor")
+  productAliases              ProductAlias[]                  @relation("ProductAliasAuthor")
+  productAssignments          ProductAssignment[]             @relation("ProductAssignmentUser")
+  adProGateVisas              AdProGateVisa[]                 @relation("adProGateVisaDecidedBy")
+  marketingReferentOf         BusinessUnitMarketingReferent[] @relation("AdProMarketingReferentOf")
+  assistantRoleConfigsUpdated AssistantRoleConfig[]           @relation("AssistantRoleConfigUpdatedBy")
+  assistantRoleConfigAudits   AssistantRoleConfigAudit[]      @relation("AssistantRoleConfigAuditActor")
 
   @@index([role])
   @@index([departmentId])
@@ -1739,18 +1739,18 @@ model UserCompanyAccess {
 }
 
 model Company {
-  id          String   @id @default(cuid())
+  id             String        @id @default(cuid())
   /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
   organisationId String?
-  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
-  name        String   @unique // raison sociale (« Adventum Pharma »)
-  shortName   String? // libellé court affiché dans les pastilles (« Adventum »)
-  color       String? // couleur de la pastille (hex, ex. « #2563eb »)
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  createdById String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  name           String        @unique // raison sociale (« Adventum Pharma »)
+  shortName      String? // libellé court affiché dans les pastilles (« Adventum »)
+  color          String? // couleur de la pastille (hex, ex. « #2563eb »)
+  isActive       Boolean       @default(true)
+  sortOrder      Int           @default(0)
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   regulatoryProducts          RegulatoryProduct[]
   legalDocuments              LegalDocument[]
@@ -2192,20 +2192,20 @@ model RecruitmentInfoRequest {
 /// vitesses différentes. Une demande qui porterait un seul état « en entretien » ne saurait pas
 /// dire de qui elle parle.
 model RecruitmentCandidate {
-  id        String                     @id @default(cuid())
+  id         String                     @id @default(cuid())
   /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
   personneId String?
-  personne  Personne?                  @relation(fields: [personneId], references: [id], onDelete: SetNull)
-  requestId String
-  request   RecruitmentRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  fullName  String
-  email     String?
-  phone     String?
+  personne   Personne?                  @relation(fields: [personneId], references: [id], onDelete: SetNull)
+  requestId  String
+  request    RecruitmentRequest         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  fullName   String
+  email      String?
+  phone      String?
   /// D'où vient le CV (candidature spontanée, cabinet, cooptation…). Texte libre : les sources
   /// changent tout le temps et une liste fermée serait fausse dès le mois suivant.
-  source    String?
-  notes     String?
-  status    RecruitmentCandidateStatus @default(RECEIVED)
+  source     String?
+  notes      String?
+  status     RecruitmentCandidateStatus @default(RECEIVED)
 
   addedById       String?
   addedBy         User?     @relation("RecruitmentCandidateAdder", fields: [addedById], references: [id], onDelete: SetNull)
@@ -2669,12 +2669,12 @@ model AdProItem {
 /// d'identité ») dont `stepKey` est l'identifiant du voyageur — le téléversement, l'aperçu, les
 /// droits et la corbeille sont ceux de toute pièce jointe d'un poste, jamais un second chemin.
 model AdProVoyageur {
-  id           String               @id @default(cuid())
+  id                 String               @id @default(cuid())
   /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
-  personneId   String?
-  personne     Personne?            @relation(fields: [personneId], references: [id], onDelete: SetNull)
-  itemId       String
-  item         AdProItem            @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  personneId         String?
+  personne           Personne?            @relation(fields: [personneId], references: [id], onDelete: SetNull)
+  itemId             String
+  item               AdProItem            @relation(fields: [itemId], references: [id], onDelete: Cascade)
   /// Le NOM de famille. Un voyageur d'avant la séparation porte ici son nom COMPLET (`prenom` vide) :
   /// l'écran propose de le couper à la prochaine modification, rien n'est deviné en base.
   nom                String
@@ -2746,18 +2746,18 @@ model AdProVoyageurDevis {
 /// La PIÈCE D'IDENTITÉ n'est pas une colonne : c'est un `Document` du poste dont `stepKey` est
 /// l'identifiant de la fiche — même chemin que le passeport d'un voyageur.
 model AdProHebergement {
-  id          String    @id @default(cuid())
+  id                 String              @id @default(cuid())
   /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
-  personneId  String?
-  personne    Personne? @relation(fields: [personneId], references: [id], onDelete: SetNull)
-  itemId      String
-  item        AdProItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
-  nom         String
-  prenom      String?
-  hotel       String?
-  ville       String?
-  dateArrivee DateTime?
-  dateDepart  DateTime?
+  personneId         String?
+  personne           Personne?           @relation(fields: [personneId], references: [id], onDelete: SetNull)
+  itemId             String
+  item               AdProItem           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  nom                String
+  prenom             String?
+  hotel              String?
+  ville              String?
+  dateArrivee        DateTime?
+  dateDepart         DateTime?
   /// Libellé libre (Single, Double, Twin, Suite… — liste proposée par `ad-pro/hebergements.ts`).
   typeChambre        String?
   notes              String?
@@ -5041,37 +5041,37 @@ model MedicalDirectoryAccess {
 /// on cherche l'imprimeur sur Internet. La `kind` est libre — la réalité invente des métiers plus
 /// vite qu'une liste fermée ne les prévoit.
 model CompanyContact {
-  id          String   @id @default(cuid())
+  id             String        @id @default(cuid())
   /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
   organisationId String?
-  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
-  name        String
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  name           String
   /// Nature libre : « Agence de voyage », « Livreur », « Imprimeur », « Agence marketing »…
-  kind        String?
+  kind           String?
   /// PRIVE (prestataires, l'annuaire « Partenaires ») · PUBLIC (ministères, PCH, ANPP, DSP… l'annuaire « Partenaires
   /// publics »). Même fiche, même écran : seule la porte change (Direction, 06/10).
-  sphere      String   @default("PRIVE")
-  contactName String? // la personne qu'on demande
-  phone       String?
-  phoneAlt    String?
-  email       String?
-  website     String?
-  address     String?
-  city        String?
-  wilaya      String?
+  sphere         String        @default("PRIVE")
+  contactName    String? // la personne qu'on demande
+  phone          String?
+  phoneAlt       String?
+  email          String?
+  website        String?
+  address        String?
+  city           String?
+  wilaya         String?
   /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
   /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
-  wilayaCode            String?
-  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
+  wilayaCode     String?
+  wilayaRef      Wilaya?       @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   /// Identifiants utiles pour un dossier de paiement ou un contrat.
-  rc          String?
-  nif         String?
-  rib         String?
-  notes       String?
-  isActive    Boolean  @default(true)
+  rc             String?
+  nif            String?
+  rib            String?
+  notes          String?
+  isActive       Boolean       @default(true)
   /// Entité de rattachement. Nul = contact commun au groupe.
-  companyId   String?
-  company     Company? @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  companyId      String?
+  company        Company?      @relation(fields: [companyId], references: [id], onDelete: SetNull)
 
   createdById String?
   updatedById String?
@@ -5110,28 +5110,28 @@ enum InstitutionSector {
 }
 
 model MedicalInstitution {
-  id          String            @id @default(cuid())
+  id             String            @id @default(cuid())
   /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
   organisationId String?
-  organisation Organisation?    @relation(fields: [organisationId], references: [id], onDelete: SetNull)
-  name        String
-  type        InstitutionType   @default(AUTRE)
-  sector      InstitutionSector @default(PUBLIC)
-  wilaya      String?
+  organisation   Organisation?     @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  name           String
+  type           InstitutionType   @default(AUTRE)
+  sector         InstitutionSector @default(PUBLIC)
+  wilaya         String?
   /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
   /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
-  wilayaCode            String?
-  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
-  city        String?
-  region      String?
-  address     String?
-  phone       String?
-  email       String?
-  notes       String?
-  isActive    Boolean           @default(true)
-  createdById String?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  wilayaCode     String?
+  wilayaRef      Wilaya?           @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
+  city           String?
+  region         String?
+  address        String?
+  phone          String?
+  email          String?
+  notes          String?
+  isActive       Boolean           @default(true)
+  createdById    String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   doctors        MedicalDoctor[]
   /// SES SERVICES (cardiologie, oncologie, pharmacie centrale…) — §118.172. Un praticien se
@@ -7231,28 +7231,28 @@ model ValidationItemDecision {
 // les champs externes exposés par l'équipe Regulatory.
 
 model Supplier {
-  id           String   @id @default(cuid())
+  id             String        @id @default(cuid())
   /// Référentiel R2 : l'Organisation réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
   organisationId String?
-  organisation Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
-  name         String
-  country      String?
-  contactEmail String?
+  organisation   Organisation? @relation(fields: [organisationId], references: [id], onDelete: SetNull)
+  name           String
+  country        String?
+  contactEmail   String?
   /// LES COORDONNÉES de l'annuaire « Fournisseurs Regulatory » (Direction, 06/10) — un annuaire comme les autres.
-  contactName  String?
-  phone        String?
-  website      String?
-  address      String?
-  city         String?
+  contactName    String?
+  phone          String?
+  website        String?
+  address        String?
+  city           String?
   /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
   /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
-  wilayaCode            String?
-  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
-  active       Boolean  @default(true)
-  notes        String?
-  createdById  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  wilayaCode     String?
+  wilayaRef      Wilaya?       @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
+  active         Boolean       @default(true)
+  notes          String?
+  createdById    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   users    SupplierUser[]
   products RegulatoryProduct[]
@@ -7823,22 +7823,22 @@ model PromoMaterial {
   /// LA BUSINESS UNIT qui porte cette demande — c'est SON budget Ad&Pro qui est engagé.
   /// Sans elle, la dépense pesait sur un total commercial que personne ne pouvait
   /// répartir : « combien la gamme oncologie a-t-elle dépensé ? » n'avait pas de réponse.
-  businessUnitId String?
-  businessUnit   BusinessUnit?       @relation("AdProPromoMaterial", fields: [businessUnitId], references: [id], onDelete: SetNull)
+  businessUnitId    String?
+  businessUnit      BusinessUnit?       @relation("AdProPromoMaterial", fields: [businessUnitId], references: [id], onDelete: SetNull)
   /// LE BUDGET DU DOSSIER (Direction, 27/10 — point 21) : la (sous-)catégorie que la Direction Marketing lui impute.
   /// Ses BC signés y comptent en ENGAGÉ, ses ordres fournisseur en CONSOMMÉ (`queries/budget-sources.ts`).
   budgetCategoryId  String?
   budgetCategory    BudgetCategoryLine? @relation("PromoMaterialBudget", fields: [budgetCategoryId], references: [id], onDelete: SetNull)
   budgetImputeLe    DateTime?
   budgetImputeParId String?
-  id             String              @id @default(cuid())
-  reference      String              @unique // MP-2026-001
-  title          String
-  description    String?
-  materialType   MaterialType? // nature du support (présentoir, poster, vidéo…)
-  companyId      String? // entité (Adventum / Pharmagène / …)
-  company        Company?            @relation(fields: [companyId], references: [id])
-  status         PromoMaterialStatus @default(PROSPECTION_REQUESTED)
+  id                String              @id @default(cuid())
+  reference         String              @unique // MP-2026-001
+  title             String
+  description       String?
+  materialType      MaterialType? // nature du support (présentoir, poster, vidéo…)
+  companyId         String? // entité (Adventum / Pharmagène / …)
+  company           Company?            @relation(fields: [companyId], references: [id])
+  status            PromoMaterialStatus @default(PROSPECTION_REQUESTED)
 
   requesterId String? // Marketing — initiateur
   assistantId String? // Assistante de direction en charge
@@ -9173,6 +9173,8 @@ model Event {
   @@index([startDate])
   @@index([type])
   @@index([companyId])
+  @@index([requesterId])
+  @@index([responsibleId])
 }
 
 model EventRegistration {
@@ -9425,16 +9427,16 @@ model AiSetting {
 /// (droits applicatifs, salaires et contrats fermés). Réglé par le Super Admin seul (`/admin/ai/acces`), chaque
 /// changement à l'audit. Une ligne a une cible : `userId` OU `role`.
 model AssistantIaAcces {
-  id          String    @id @default(cuid())
-  userId      String?   @unique
-  role        UserRole? @unique
-  ouvertes    String[]  @default([])
-  fermees     String[]  @default([])
+  id                String    @id @default(cuid())
+  userId            String?   @unique
+  role              UserRole? @unique
+  ouvertes          String[]  @default([])
+  fermees           String[]  @default([])
   /// J2 : plafonds propres à ce rôle ou à cette personne (NULL = le défaut global, `AssistantIaReglage`).
   plafondTravailUsd Float?
   plafondMensuelUsd Float?
-  updatedById String?
-  updatedAt   DateTime  @default(now()) @updatedAt
+  updatedById       String?
+  updatedAt         DateTime  @default(now()) @updatedAt
 }
 
 model AssistantIaReglage {
@@ -9455,6 +9457,10 @@ model AssistantIaReglage {
   plafondTravailUsd      Float    @default(20)
   /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.
   plafondMensuelUsd      Float    @default(50)
+  /// J12 (décision 0024) : interruptions des veilleurs par personne et par jour, au plus (la personne peut baisser).
+  interruptionsMaxJour   Int      @default(5)
+  /// J12 : coupe toute la proactivité (veilleurs, point du matin, gestes sous mandat) — les écrans restent lisibles.
+  proactiviteCoupee      Boolean  @default(false)
   updatedAt              DateTime @default(now()) @updatedAt
   updatedById            String?
 }
@@ -9470,6 +9476,235 @@ model AssistantIaPlafondAtteint {
   createdAt DateTime @default(now())
 
   @@unique([userId, jour])
+}
+
+// ─────────────────────────────── J12 — PROACTIVITÉ SOUS MANDAT (décision 0024) ───────────────────────────────
+
+/// LA VEILLE D'UNE PERSONNE — ses préférences (budget d'interruptions, heures calmes) et l'état du battement.
+model AssistantVeille {
+  userId                 String    @id
+  /// Interruptions par jour, au plus (bornée par `AssistantIaReglage.interruptionsMaxJour`).
+  interruptionsMax       Int       @default(5)
+  /// Heures calmes, heures entières d'Alger [debut, fin) — 19 → 8 traverse minuit.
+  calmeDebut             Int       @default(19)
+  calmeFin               Int       @default(8)
+  /// Vendredi et samedi calmes.
+  weekendCalme           Boolean   @default(true)
+  pointDuMatin           Boolean   @default(true)
+  derniereVeilleLe       DateTime?
+  dernierMatinLe         DateTime?
+  derniereInterruptionLe DateTime?
+  /// Les gestes sous mandat se font dans une requête de la personne : au plus une fois par fenêtre.
+  derniersGestesLe       DateTime?
+  updatedAt              DateTime  @default(now()) @updatedAt
+}
+
+/// UN VEILLEUR D'UNE PERSONNE — actif ou non, son seuil, et ce que ses retours ont appris.
+model AssistantVeilleur {
+  id        String   @id @default(cuid())
+  userId    String
+  /// Code du veilleur (`domaine/proactivite/veilleurs.ts`).
+  code      String
+  actif     Boolean  @default(true)
+  /// Seuil choisi par la personne (jours, %, minutes) ; null = celui par défaut.
+  seuil     Int?
+  /// Multiplicateur du seuil appris des retours « pas utile » (1 → 3).
+  facteur   Float    @default(1)
+  utiles    Int      @default(0)
+  inutiles  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([userId, code])
+}
+
+/// UN CONSTAT D'UN VEILLEUR — dit une fois (clé unique), livré selon le budget d'interruptions, jugé en un clic.
+model AssistantSignal {
+  id         String    @id @default(cuid())
+  userId     String
+  veilleur   String
+  /// La signature : même clé = même constat, jamais redit.
+  cle        String
+  titre      String
+  detail     String
+  /// INFO | ATTENTION | URGENT
+  gravite    String
+  lien       String?
+  entiteType String?
+  entiteId   String?
+  /// EN_ATTENTE (heures calmes, regroupement) | LIVRE (interruption ou point du matin) | JOURNAL (sans notification) | RESOLU | ECARTE
+  etat       String    @default("EN_ATTENTE")
+  /// INTERRUPTION | MATIN | JOURNAL | DOSSIER — comment il a été dit.
+  canal      String?
+  detecteLe  DateTime  @default(now())
+  livreLe    DateTime?
+  resoluLe   DateTime?
+  /// UTILE | PAS_UTILE
+  retour     String?
+  retourLe   DateTime?
+
+  @@unique([userId, veilleur, cle])
+  @@index([userId, etat])
+  @@index([userId, entiteType, entiteId])
+}
+
+/// UN MANDAT — approbation durable, bornée, révocable : un geste fait sans carte à chaque fois.
+model AssistantMandat {
+  id            String                 @id @default(cuid())
+  userId        String
+  /// Code de la capacité (`domaine/proactivite/mandats.ts`).
+  capacite      String
+  /// ACTIF | EN_ATTENTE_CONSOLE | REVOQUE | EXPIRE
+  statut        String                 @default("ACTIF")
+  /// Personnes que le geste peut toucher (vide : celles que le geste vise déjà).
+  destinataires String[]               @default([])
+  montantMax    Float?
+  gestesParJour Int                    @default(3)
+  expireLe      DateTime
+  accordeLe     DateTime               @default(now())
+  consoleParId  String?
+  consoleLe     DateTime?
+  revoqueLe     DateTime?
+  revoqueParId  String?
+  gestes        AssistantMandatGeste[]
+
+  @@index([userId, statut])
+}
+
+/// LE REÇU D'UN GESTE SOUS MANDAT — un par constat (jamais deux relances pour la même étape).
+model AssistantMandatGeste {
+  id       String          @id @default(cuid())
+  mandatId String
+  mandat   AssistantMandat @relation(fields: [mandatId], references: [id], onDelete: Cascade)
+  userId   String
+  signalId String
+  /// EN_COURS (reçu pris, jamais rejoué) | FAIT | REFUSE | ECHEC
+  statut   String
+  resume   String
+  lien     String?
+  faitLe   DateTime        @default(now())
+
+  @@unique([mandatId, signalId])
+  @@index([userId, faitLe])
+}
+
+/// J5 (décision 0022) — LE CALENDRIER DU BANC PROGRAMMÉ, réglé par le Super Admin (Administration › Qualité IA).
+/// Une ligne (`id = "global"`). Le banc tourne sur le WORKER, contre la base d'essai déclarée — jamais la production.
+model AssistantIaBancReglage {
+  id          String   @id @default("global")
+  actif       Boolean  @default(true)
+  /// QUOTIDIEN | HEBDOMADAIRE | MENSUEL
+  frequence   String   @default("HEBDOMADAIRE")
+  /// 0 = dimanche … 6 = samedi (heure d'Alger) — HEBDOMADAIRE ; le jour du mois (1 à 28) — MENSUEL.
+  jour        Int      @default(5)
+  /// L'heure de départ (0 à 23, heure d'Alger).
+  heure       Int      @default(3)
+  /// Plafond de dépense d'UN passage, en dollars : atteint, le banc s'arrête et le dit.
+  plafondUsd  Float    @default(1)
+  updatedAt   DateTime @default(now()) @updatedAt
+  updatedById String?
+}
+
+/// J5 — UN PASSAGE DU BANC : demandé (écran, A/B), en cours (worker), terminé, refusé (base d'essai absente ou douteuse), échoué.
+model AssistantIaBancPassage {
+  id                 String                    @id @default(cuid())
+  /// PROGRAMME | MANUEL | AB
+  declencheur        String
+  /// DEMANDE | EN_COURS | TERMINE | ECHEC | REFUSE
+  statut             String                    @default("DEMANDE")
+  raison             String?
+  demandeParId       String?
+  /// Les modèles par rôle EN SERVICE pendant le passage : `{ rapide, standard, raisonnement }` → `{ modelId, effort }`.
+  modeles            Json?
+  /// A/B : le candidat éprouvé `{ role, modelId, effort }` — le passage tourne avec lui à la place du modèle du rôle.
+  candidat           Json?
+  plafondUsd         Float                     @default(1)
+  reussis            Int                       @default(0)
+  total              Int                       @default(0)
+  erreurs            Int                       @default(0)
+  ecrituresSansCarte Int                       @default(0)
+  latenceP50Ms       Int?
+  latenceP95Ms       Int?
+  premierMotP50Ms    Int?
+  premierMotP95Ms    Int?
+  jetonsEntree       Int                       @default(0)
+  jetonsCache        Int                       @default(0)
+  jetonsSortie       Int                       @default(0)
+  coutUsd            Float                     @default(0)
+  budgetAtteint      Boolean                   @default(false)
+  /// Le passage de référence auquel il a été comparé, et ce qui a régressé (réussite, latence +30 %, coût +30 %).
+  referenceId        String?
+  regressions        Json?
+  /// Vert : rien n'a régressé, aucune écriture sans carte, aucun scénario en erreur — la condition d'un changement de modèle.
+  vert               Boolean?
+  notifieLe          DateTime?
+  demandeLe          DateTime                  @default(now())
+  debutLe            DateTime?
+  finLe              DateTime?
+  scenarios          AssistantIaBancScenario[]
+
+  @@index([statut, demandeLe])
+  @@index([finLe])
+}
+
+/// J5 — LE RÉSULTAT D'UN SCÉNARIO dans un passage (Jarvis, Atelier, Bibliothèque, Travaux).
+model AssistantIaBancScenario {
+  id           String                 @id @default(cuid())
+  passageId    String
+  passage      AssistantIaBancPassage @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  scenario     String
+  famille      String
+  /// OK | ÉCHEC | SANS OUTIL | ERREUR | NON JOUÉ
+  verdict      String
+  motifs       String[]               @default([])
+  ms           Int?
+  premierMotMs Int?
+  appels       Int                    @default(0)
+  jetonsEntree Int                    @default(0)
+  jetonsCache  Int                    @default(0)
+  jetonsSortie Int                    @default(0)
+  coutUsd      Float                  @default(0)
+
+  @@index([passageId])
+  @@index([scenario])
+}
+
+/// J14 (décision 0022) — LE MODÈLE D'UN RÔLE (rapide, standard, raisonnement) choisi À L'ÉCRAN, seulement sur un banc vert.
+/// Absente : le modèle de l'environnement (`ASSISTANT_IA_MODEL…`, `platform/ia/modeles-roles.ts`).
+model AssistantIaModeleRole {
+  role        String   @id
+  modelId     String
+  effort      String
+  /// Le passage VERT qui l'a autorisé (décision tracée : qui, quand, sur quelle mesure).
+  passageId   String
+  decideParId String
+  decideLe    DateTime @default(now())
+}
+
+/// J14 — LA TRACE REJOUABLE D'UN TOUR : ce que le modèle a reçu (consigne, messages, outils) et ce qu'il a rendu, appel par
+/// appel, avec les sorties d'outils — compressée (gzip). Rejouée à l'identique SANS rappeler le modèle
+/// (`npm run assistant:rejouer`). Aucune valeur sensible : tout y est déjà passé par le filtre et les repères.
+model AssistantIaTrace {
+  id        String   @id @default(cuid())
+  /// La réponse (tour « assistant ») — ou, hors du fil, une clé propre au tour.
+  tourId    String   @unique
+  messageId String?
+  userId    String
+  version   Int      @default(1)
+  appels    Int      @default(0)
+  octets    Int      @default(0)
+  donnees   Bytes
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+/// J5 — LE MARQUEUR D'UNE BASE D'ESSAI : posé par le semis du banc, dans la base d'essai SEULEMENT. Le banc refuse une base
+/// qui ne le porte pas ; le worker refuse de lancer le banc si la base de PRODUCTION le porte.
+model BancBaseEssai {
+  id         String   @id @default("base-essai")
+  nom        String
+  declareeLe DateTime @default(now())
 }
 
 /// Seuils de déclenchement du Risk Radar (Adventum Brain), ajustables par le
@@ -9698,12 +9933,12 @@ model DeletedRecord {
 }
 
 model AppSetting {
-  id                            String    @id @default("global")
+  id                             String    @id @default("global")
   /// ARRÊT D'URGENCE DES ACTIONS EXTERNES DE L'IA. Vrai = plus AUCUNE action de l'assistant qui
   /// touche le monde réel (messages, e-mails, tâches pour autrui, mutations métier, relances
   /// planifiées) — même confirmée. Les lectures, analyses et rappels pour soi continuent.
   /// Réglé par le Super Admin (écran Réglages ou update_platform_setting).
-  aiExternalActionsDisabled     Boolean   @default(false)
+  aiExternalActionsDisabled      Boolean   @default(false)
   /// SUSPENSION GLOBALE DES MISSIONS D'ADAM (§118.132). Vrai = AUCUNE mission d'exécution
   /// n'avance, ne se replanifie, ne se lance ni ne notifie — pour tout le monde, jusqu'à la
   /// levée. Ce n'est pas `PAUSED` posé sur chaque mission : c'est un interrupteur du MOTEUR,
@@ -9711,67 +9946,67 @@ model AppSetting {
   /// missions repartent exactement où elles en étaient — rien n'a été touché.
   /// Posé depuis l'écran des réglages d'Adam ou par le geste RÉDUCTEUR de `mission_control` ;
   /// LEVÉ depuis l'écran seulement (§118.15 : Adam ne relève pas ses propres barrières).
-  missionsPaused                Boolean   @default(false)
-  missionsPausedAt              DateTime?
-  missionsPausedById            String?
-  maxUploadMb                   Int       @default(200) // pièces jointes des modules (Documents/messagerie/RH) — ZIP de dossier
-  maxDriveUploadMb              Int       @default(10240) // fichiers du Drive (10 Go ; au-delà de 2 Go : envoi direct au bucket)
-  driveCapacityGb               Int       @default(100) // capacité globale du Drive (modifiable Super Admin)
-  driveUserQuotaGb              Int       @default(10) // quota par utilisateur (modifiable Super Admin)
+  missionsPaused                 Boolean   @default(false)
+  missionsPausedAt               DateTime?
+  missionsPausedById             String?
+  maxUploadMb                    Int       @default(200) // pièces jointes des modules (Documents/messagerie/RH) — ZIP de dossier
+  maxDriveUploadMb               Int       @default(10240) // fichiers du Drive (10 Go ; au-delà de 2 Go : envoi direct au bucket)
+  driveCapacityGb                Int       @default(100) // capacité globale du Drive (modifiable Super Admin)
+  driveUserQuotaGb               Int       @default(10) // quota par utilisateur (modifiable Super Admin)
   // Budget total au-dessus des enveloppes : FIXED (montant figé) ou FLEXIBLE
   // (= somme des enveloppes actives). Réglé par le Super Admin.
-  budgetTotalMode               String    @default("FLEXIBLE")
-  budgetFixedTotal              Decimal   @default(0) @db.Decimal(14, 2)
+  budgetTotalMode                String    @default("FLEXIBLE")
+  budgetFixedTotal               Decimal   @default(0) @db.Decimal(14, 2)
   /// SEUIL Ad & Pro AU-DELÀ DUQUEL LE DIRECTEUR GÉNÉRAL VALIDE EN PLUS (§118.138).
   /// Décision de la Direction (09/2026) : « toutes les demandes Ad&Pro, matériel promotionnel
   /// compris, passent par la validation du DG à partir de 1 000 000 DZD, mais ce seuil doit
   /// pouvoir être configuré par le super admin. » UN seul chiffre, lu par les quatre circuits
   /// configurables ET par le matériel promotionnel, qui n'a pas d'étapes en base : cinq copies
   /// auraient divergé au premier ajustement (§118.5). 0 = aucune porte du DG.
-  adProDgThreshold              Decimal   @default(1000000) @db.Decimal(14, 2)
+  adProDgThreshold               Decimal   @default(1000000) @db.Decimal(14, 2)
   /// SEUIL DES BONS DE COMMANDE (§118.149). Décision de la Direction (09/2026) : « tout BC
   /// supérieur à un montant configuré dans les centres de validations Ad&Pro devra passer par la
   /// validation d'un des centres ». STRICTEMENT au-dessus → un centre (Ad & Pro ou normal, selon
   /// l'origine) ; en dessous → directement à la signature des Finances. Distinct du seuil du DG :
   /// l'un gouverne les DEMANDES, l'autre les PIÈCES qui engagent la société. 0 = tout BC passe
   /// par un centre — le comportement d'avant la règle, jusqu'à ce que la Direction fixe le montant.
-  bcValidationThreshold         Decimal   @default(0) @db.Decimal(14, 2)
+  bcValidationThreshold          Decimal   @default(0) @db.Decimal(14, 2)
   /// SEUIL DES BONS DE COMMANDE HORS AD & PRO (Direction, 10/2026 : « les BC hors Ad & Pro passent par le centre de
   /// validation, mets-moi un seuil là-bas aussi »). Celui qui précède ne vaut plus que pour les BC du centre Ad & Pro ;
   /// celui-ci, réglé depuis le centre de validations, pour les BC qu'il valide. 0 = tout BC y passe.
-  bcValidationThresholdCentre   Decimal   @default(0) @db.Decimal(14, 2)
+  bcValidationThresholdCentre    Decimal   @default(0) @db.Decimal(14, 2)
   // Onglet Regulatory « Enregistrement » (analyseur de dossier CTD) — masqué tant que
   // le Super Admin ne l'a pas débloqué.
-  regEnrollmentEnabled          Boolean   @default(false)
+  regEnrollmentEnabled           Boolean   @default(false)
   /// MODULES MASQUÉS — retirés de la plateforme sans toucher aux droits ni aux données.
   /// Ce n'est pas une permission : c'est « ce module n'est pas en service ici, pour personne ».
   /// Le Super Admin continue de les voir (signalés), sans quoi il ne pourrait plus les rallumer.
-  hiddenModules                 String[]  @default([])
+  hiddenModules                  String[]  @default([])
   // Rôles « superviseurs Regulatory » (en plus du Super Admin, toujours inclus) : fixent
   // la priorité et les dates cibles, reçoivent les notifications (nouveau dossier / dépôt),
   // et peuvent demander des mises à jour de statut. Configurable en Administration.
-  regulatorySupervisorRoles     String[]  @default([])
+  regulatorySupervisorRoles      String[]  @default([])
   // Segments thérapeutiques que le tableau Regulatory propose (menu déroulant multi-choix de la
   // colonne « Segments »). VIDE = la liste par défaut intégrée. L'administrateur les gère en
   // Administration : le marché d'un groupe pharma n'est pas celui d'un autre.
-  regulatoryTherapeuticSegments String[]  @default([])
+  regulatoryTherapeuticSegments  String[]  @default([])
   /// COLONNES RETIRÉES du tableau Regulatory — sur les DEUX sous-modules (Suivi de dossiers et
   /// Pipeline), pour tout le monde. Ce n'est pas la préférence d'affichage locale au navigateur
   /// (« je ne veux pas voir ça sur MON écran ») : c'est « cette colonne n'a pas lieu d'être dans
   /// cette maison ». Le catalogue des clés vit dans `lib/regulatory/colonnes.ts`, et la référence
   /// ne s'y masque jamais — sans elle on ne saurait plus de quel dossier on parle.
-  regulatoryHiddenColumns       String[]  @default([])
+  regulatoryHiddenColumns        String[]  @default([])
   // Rôles autorisés à CRÉER des « Demandes à Regulatory » (en plus du PRIM, toujours inclus).
   // L'équipe Regulatory RÉPOND mais ne crée pas. Configurable en Administration.
-  regRequestCreatorRoles        String[]  @default([])
+  regRequestCreatorRoles         String[]  @default([])
   // Rôles autorisés à CRÉER des « catégories » de Drive (espaces partagés type « Promotion
   // Médicale » présentés en onglets à côté de Drive/Documents). En plus du Super Admin,
   // toujours inclus. Configurable en Administration.
-  driveSpaceCreatorRoles        String[]  @default([])
+  driveSpaceCreatorRoles         String[]  @default([])
   // Rôles autorisés (par le Super Admin) à voir l'onglet « Overview » des Rapports terrain
   // (graphes d'analyse : visites par médecin / hôpital / délégué / spécialité, tendance…).
   // En plus du Super Admin, toujours inclus. Configurable en Administration.
-  fieldReportsOverviewRoles     String[]  @default([])
+  fieldReportsOverviewRoles      String[]  @default([])
   /// QUI ÉCRIT LES MESSAGES PRÉ-DÉFINIS de la Direction Marketing (en plus du Super Admin).
   ///
   /// Une LISTE DE RÔLES et non un élargissement du module `MEDICAL` : `PRODUCT_MANAGER`
@@ -9780,33 +10015,33 @@ model AppSetting {
   /// C'est le mécanisme que le dépôt emploie déjà pour ce genre de question, et il laisse la
   /// DÉCISION DE PERMISSION au Super Admin, à qui elle appartient (§118.86).
   /// Défaut : la Direction Marketing (Direction, 07/10) — `20270115140000_cockpit_marketing_auteurs`.
-  promoMessageAuthorRoles       String[]  @default(["PRODUCT_MANAGER"])
+  promoMessageAuthorRoles        String[]  @default(["PRODUCT_MANAGER"])
   // ORGANIGRAMME — qui a le droit de le CONSULTER (l'édition reste au Super Admin). Les RH en
   // ont besoin au quotidien ; d'autres personnes peuvent y être ajoutées nommément. Un
   // consultant voit toutes les entités ou filtre sur l'une d'elles ; il ne modifie rien.
-  orgChartViewerRoles           String[]  @default([])
-  orgChartViewerUserIds         String[]  @default([])
+  orgChartViewerRoles            String[]  @default([])
+  orgChartViewerUserIds          String[]  @default([])
   /// ENREGISTREMENT (CTD) — l'onglet est réservé à l'ADMINISTRATEUR par défaut (liste vide) ;
   /// l'admin peut l'ouvrir à des rôles précis depuis la console.
-  regEnrollmentRoles            String[]  @default([])
+  regEnrollmentRoles             String[]  @default([])
   /// PIPELINE (dossiers VERROUILLÉS) — deux droits distincts, réglés en Administration.
   /// CONSULTER : voir les dossiers à l'étude, partout (pipeline, recherche, sélecteurs).
   /// CADENAS : ouvrir un dossier, donc le publier à toute l'entreprise — l'acte est irréversible
   /// dans les faits (ce qui a été lu a été lu), il se donne à moins de monde. Le Super Admin
   /// détient toujours les deux. Voir `lib/regulatory/pipeline-access.ts`.
-  pipelineViewerRoles           String[]  @default([])
-  pipelineViewerUserIds         String[]  @default([])
-  pipelineManagerRoles          String[]  @default([])
-  pipelineManagerUserIds        String[]  @default([])
+  pipelineViewerRoles            String[]  @default([])
+  pipelineViewerUserIds          String[]  @default([])
+  pipelineManagerRoles           String[]  @default([])
+  pipelineManagerUserIds         String[]  @default([])
   /// DIRECTIVES (notes de service) — deux droits distincts, réglés en Administration.
   /// LIRE : recevoir et consulter les directives publiées qui vous concernent. ÉMETTRE :
   /// rédiger une note et la soumettre à la direction générale. Le Super Admin et le Directeur
   /// Général détiennent toujours les deux — ce sont eux qui publient.
   /// Voir `lib/directives/access.ts`.
-  directiveReaderRoles          String[]  @default([])
-  directiveReaderUserIds        String[]  @default([])
-  directiveIssuerRoles          String[]  @default([])
-  directiveIssuerUserIds        String[]  @default([])
+  directiveReaderRoles           String[]  @default([])
+  directiveReaderUserIds         String[]  @default([])
+  directiveIssuerRoles           String[]  @default([])
+  directiveIssuerUserIds         String[]  @default([])
   /// LE SERVICE DES MOYENS GÉNÉRAUX — un seul, pour toute la société.
   ///
   /// Les moyens généraux ne sont pas « ceux de mon département » : c'est UN service qui achète
@@ -9814,44 +10049,44 @@ model AppSetting {
   /// rattachement. Le découpage par département n'a pas disparu — il reste la façon dont
   /// l'argent est imputé — mais il ne se PILOTE plus que depuis le compte Super Admin.
   /// Nul = aucun service désigné ; on retombe alors sur le rattachement, comme avant.
-  generalMeansDepartmentId      String?
+  generalMeansDepartmentId       String?
   /// L'INSTANT OÙ LA PAIE EST PASSÉE PAR LE CENTRE DE PAIEMENT (§118.176) — posé UNE fois par la
   /// migration `20261220090000_paie_avant_le_centre`, jamais déplacé. Avant lui, « marquer payé »
   /// voulait dire « versé » : l'ancien circuit prévenait le salarié « votre salaire a été versé »
   /// 24 h après. Ces salaires-là sont VIRÉS — les présenter « à envoyer » au centre les ferait payer
   /// une seconde fois. Après lui, marquer payé n'est plus qu'une SAISIE.
-  payrollCentreSince            DateTime?
+  payrollCentreSince             DateTime?
   // Clés VAPID (Web Push) auto-générées et persistées si non fournies par l'environnement.
   // La clé privée reste côté serveur ; la publique est servie via /api/push/key.
-  vapidPublicKey                String?
-  vapidPrivateKey               String?
+  vapidPublicKey                 String?
+  vapidPrivateKey                String?
   /// LE SITE WEB A REFUSÉ LA CONFIGURATION (§118.158) — un 401 (clé ou signature refusée) ou une
   /// redirection (adresse fausse). Tant que l'EMPREINTE de la configuration en vigueur est celle
   /// qui a été refusée, plus rien ne part vers le site : réessayer en boucle une clé refusée ne
   /// fait que remplir les journaux des deux côtés (« Ne pas réessayer en boucle », contrat §6).
   /// Une configuration différente (clé ou adresse changée) lève le blocage d'elle-même. On ne
   /// stocke JAMAIS la clé : seulement une empreinte tronquée de son condensat.
-  siteBlocageEmpreinte          String?
-  siteBlocageAt                 DateTime?
-  siteBlocageMotif              String?
+  siteBlocageEmpreinte           String?
+  siteBlocageAt                  DateTime?
+  siteBlocageMotif               String?
   /// LA DERNIÈRE LECTURE DE LA SANTÉ DU SITE (§118.159) — `GET /health` avec la clé active, au plus
   /// une fois l'heure : ce que le site dit de lui-même (liaison à l'ERP, signature, candidatures en
   /// attente de livraison, stockage). Une fois l'heure et pas plus : chaque lecture RÉVEILLE un site
   /// hébergé en plan gratuit, et le garder éveillé en permanence consommerait les heures gratuites de
   /// tout le compte Render — le jour où elles manquent, c'est le site public qui s'éteint.
-  siteSante                     Json?
-  siteSanteAt                   DateTime?
+  siteSante                      Json?
+  siteSanteAt                    DateTime?
   /// L'identifiant de DÉMARRAGE du site : il change quand le site redémarre (déploiement, mise en
   /// veille du plan gratuit, qui efface ce qu'il a reçu). L'ERP rapproche alors aussitôt.
-  siteBootId                    String?
+  siteBootId                     String?
   /// REFONTE V2-C — DOUBLE ÉCRITURE DES ORGANISATIONS (`referentiels/organisations/double-ecriture.ts`). Vrai = la
   /// création d'un fournisseur, d'un partenaire ou d'un établissement crée aussi (ou retrouve) son `Organisation`.
   /// Faux par défaut : le Super Admin l'ouvre depuis Administration › Refonte des données, et le referme d'un clic.
-  doubleEcritureOrganisations   Boolean   @default(false)
+  doubleEcritureOrganisations    Boolean   @default(false)
   /// L'ENRICHISSEMENT DES FICHES PAR LES PIÈCES DÉPOSÉES (refonte, lot V2-A). Faux par défaut : aucun dépôt
   /// n'est mis en file ni traité. Ouvert et refermé par le Super Admin depuis Administration › Refonte des
   /// données ; refermé, la file garde ce qu'elle a et reprend à la réouverture.
-  enrichissementActif           Boolean   @default(false)
+  enrichissementActif            Boolean   @default(false)
   /// REFONTE DES DONNÉES, lot V2-B : la DOUBLE ÉCRITURE des Personnes. Vrai = les écrivains de création
   /// (salarié, praticien, bénéficiaire de prise en charge, voyageur…) créent ou relient la `Personne` dans
   /// la même transaction (`referentiels/personnes/double-ecriture.ts`). Éteint par défaut ; le Super Admin
@@ -9859,20 +10094,20 @@ model AppSetting {
   refontePersonnesDoubleEcriture Boolean   @default(false)
   /// LE COFFRE EN DOUBLE ÉCRITURE (refonte V2-E) : chaque écriture d'une colonne sensible écrit aussi sa
   /// copie chiffrée au coffre. Fermé par défaut ; ouvert par le Super Admin (Administration › Refonte des données).
-  coffreEcriture                Boolean   @default(false)
+  coffreEcriture                 Boolean   @default(false)
   /// LE COFFRE EN DOUBLE LECTURE : écrans, exports et pièces lisent la valeur par le coffre (politique +
   /// journal `AccesDonneeSensible`) ; ailleurs, le masque seul. Fermé par défaut.
-  coffreLecture                 Boolean   @default(false)
+  coffreLecture                  Boolean   @default(false)
   /// LA SÉPARATION DES TÂCHES AU CENTRE DE PAIEMENT (audit 27/10, ARGENT-06). Vrai (défaut) : qui a DEMANDÉ un
   /// paiement ne l'autorise pas, qui l'a demandé ou autorisé ne le règle pas (`payments/separation.ts`).
   /// Suspendue par le Super Admin seulement (Réglages & diffusion), geste journalisé.
-  separationTachesPaiement      Boolean   @default(true)
-  updatedAt                     DateTime  @updatedAt
-  updatedById                   String?
+  separationTachesPaiement       Boolean   @default(true)
+  updatedAt                      DateTime  @updatedAt
+  updatedById                    String?
   /// REFONTE V2-D — DOUBLE ÉCRITURE DES LIEUX. Vrai = chaque saisie d'une wilaya / ville sur une fiche (praticien,
   /// établissement, partenaire, fournisseur, secteur) pose aussi `wilayaCode`. Faux = seul le texte est écrit
   /// (la reprise « lieux-wilaya » rattrape). Réglé par le Super Admin dans Administration › Refonte des données.
-  lieuxDoubleEcriture           Boolean   @default(true)
+  lieuxDoubleEcriture            Boolean   @default(true)
 }
 
 /// Sonde QUOTIDIENNE de l'API IA (chatbot & fonctions IA). Le planificateur interne
@@ -12173,8 +12408,8 @@ model SalesSector {
   wilayaPivot    String?
   /// Code officiel de la wilaya (référentiel `Wilaya`), LU du texte saisi par `src/lib/lieux/normaliser.ts` — nul si
   /// ce texte est vide ou ambigu. Le texte reste la saisie (reprise « lieux-wilaya », double écriture V2-D).
-  wilayaCode            String?
-  wilayaRef             Wilaya?                    @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
+  wilayaCode     String?
+  wilayaRef      Wilaya?      @relation(fields: [wilayaCode], references: [code], onDelete: SetNull)
   color          String?
   isActive       Boolean      @default(true)
   createdById    String?
@@ -14830,10 +15065,10 @@ model MissionEvent {
 /// la source. L'annuaire n'ajoute que ce qu'aucune de ces tables ne porte : les MOYENS DE JOINDRE
 /// la personne, avec leur provenance.
 model DirectoryEntry {
-  id String @id @default(cuid())
+  id         String    @id @default(cuid())
   /// Référentiel R1 : la Personne réelle derrière cette fiche (nul tant que non rapprochée — reprise P2).
   personneId String?
-  personne Personne? @relation(fields: [personneId], references: [id], onDelete: SetNull)
+  personne   Personne? @relation(fields: [personneId], references: [id], onDelete: SetNull)
 
   /// LE SUJET CANONIQUE — au plus un lien par nature. C'est lui la vérité sur le nom, le poste et
   /// le rattachement ; l'entrée ne fait que s'y accrocher.
@@ -17144,6 +17379,7 @@ model AnalyseWatermark {
   bilan             Json?
   updatedAt         DateTime  @updatedAt
 }
+
 // ═══════════════════════════════════════════════════════════════════════════════════════════
 // RÉFÉRENTIELS (refonte des données, palier P1) — `docs/architecture/refonte-donnees-et-monolithe-modulaire.md`
 //
@@ -17263,28 +17499,28 @@ model PersonneRole {
 /// reconnue par ses identifiants (`OrganisationIdentifiant`). `Company`, `Supplier`, `MedicalInstitution`,
 /// `CompanyContact` et les demandes la désignent par `organisationId`. Fusion tracée par `fusionneeDansId`.
 model Organisation {
-  id                     String                    @id @default(cuid())
+  id                     String                           @id @default(cuid())
   raisonSociale          String
   nomCourt               String?
   /// Raison sociale repliée (minuscules, sans accents, sans forme juridique) : recherche et rapprochement.
   nomReplie              String
   formeJuridique         String?
-  capital                Decimal?                  @db.Decimal(14, 2)
+  capital                Decimal?                         @db.Decimal(14, 2)
   /// Code pays ISO 3166-1 alpha-2.
-  pays                   String                    @default("DZ")
+  pays                   String                           @default("DZ")
   /// ACTIVE | CESSEE | INCONNU — vocabulaire tenu côté code.
-  statut                 String                    @default("ACTIVE")
+  statut                 String                           @default("ACTIVE")
   siteWeb                String?
   /// Logo : `FileBlob.id` (scalaire).
   logoBlobId             String?
   /// 0–100, calculée.
-  completude             Int                       @default(0)
+  completude             Int                              @default(0)
   fusionneeDansId        String?
-  fusionneeDans          Organisation?             @relation("OrganisationFusion", fields: [fusionneeDansId], references: [id], onDelete: SetNull)
-  fusionnees             Organisation[]            @relation("OrganisationFusion")
+  fusionneeDans          Organisation?                    @relation("OrganisationFusion", fields: [fusionneeDansId], references: [id], onDelete: SetNull)
+  fusionnees             Organisation[]                   @relation("OrganisationFusion")
   creeParId              String?
-  createdAt              DateTime                  @default(now())
-  updatedAt              DateTime                  @updatedAt
+  createdAt              DateTime                         @default(now())
+  updatedAt              DateTime                         @updatedAt
   roles                  OrganisationRole[]
   identifiants           OrganisationIdentifiant[]
   affiliations           Affiliation[]
@@ -17502,7 +17738,7 @@ enum SourcePiece {
 /// confidentialité. `Document` et `DriveNode` restent le stockage et les vues de l'écran et la désignent par
 /// `pieceId` ; la pièce se rattache à PLUSIEURS sujets par `PieceLien`.
 model Piece {
-  id               String           @id @default(cuid())
+  id               String             @id @default(cuid())
   /// `FileBlob.id` (scalaire — le compte de références du blob reste tenu par le Drive).
   blobId           String?
   /// SHA-256 du contenu en clair — la même empreinte que `FileBlob.sha256` et `LecturePiece.empreinte`.
@@ -17516,11 +17752,11 @@ model Piece {
   /// Une valeur de `NATURES_PIECE` (`src/lib/enrichissement/types.ts`) ; nulle tant que non classée.
   nature           String?
   natureConfiance  Float?
-  confidentiality  Confidentiality  @default(INTERNAL)
-  source           SourcePiece      @default(AUTRE)
+  confidentiality  Confidentiality    @default(INTERNAL)
+  source           SourcePiece        @default(AUTRE)
   deposeeParId     String?
-  deposeeLe        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  deposeeLe        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
   liens            PieceLien[]
   extractions      Extraction[]
   donneesSensibles DonneeSensible[]
@@ -17768,9 +18004,15 @@ model FaitConfirme {
   valideDu         DateTime?
   valideAu         DateTime?
   actif            Boolean            @default(true)
+  /// J9 (décision 0021) — le temps de CONSTAT de la fermeture (≠ `valideAu`, fin de validité), qui l'a fermé, et
+  /// le fait confirmé qui le remplace. Un fait périmé se ferme, il n'est jamais écrasé.
+  fermeLe          DateTime?
+  fermeParId       String?
+  remplaceParId    String?
   conflits         ConflitDeFait[]
 
   @@index([sujetType, sujetId, attribut, actif])
+  @@index([sujetType, sujetId, valideDu])
   @@index([attribut, valeurNormalisee])
   @@index([pieceId])
 }
@@ -17862,27 +18104,27 @@ model TacheEnrichissement {
 /// `src/lib/lieux/normaliser.ts`.
 model Wilaya {
   /// Le numéro officiel sur deux chiffres — « 16 » pour Alger, « 68 » pour Bou Saâda.
-  code           String    @id
-  nom            String
+  code                String               @id
+  nom                 String
   /// Nom arabe — rempli seulement quand un texte officiel lisible le donne (aujourd'hui : 59 à 69).
-  nomAr          String?
+  nomAr               String?
   /// Date du texte qui a CRÉÉ la wilaya (loi 84-09, 19-12 ou 26-06). Nulle pour 01 à 31 : antérieures à 1984.
-  creeeLe        DateTime? @db.Date
+  creeeLe             DateTime?            @db.Date
   /// Le texte de création (ou, pour 01 à 31, le texte qui fixe leur nom et chef-lieu actuels).
-  texteCreation  String?
+  texteCreation       String?
   /// Entrée en fonction effective, quand elle diffère de la création (1er janvier 2027 pour 59 à 69).
-  enFonctionLe   DateTime? @db.Date
+  enFonctionLe        DateTime?            @db.Date
   /// La wilaya dont elle a été détachée.
-  wilayaMereCode String?
+  wilayaMereCode      String?
   /// Faux tant que la wilaya n'exerce pas encore (nouvelles wilayas avant leur entrée en fonction).
-  active         Boolean   @default(true)
-  communes       Commune[]
-  adresses       Adresse[]
-  medicalDoctors MedicalDoctor[]
+  active              Boolean              @default(true)
+  communes            Commune[]
+  adresses            Adresse[]
+  medicalDoctors      MedicalDoctor[]
   medicalInstitutions MedicalInstitution[]
-  companyContacts CompanyContact[]
-  suppliers      Supplier[]
-  salesSectors   SalesSector[]
+  companyContacts     CompanyContact[]
+  suppliers           Supplier[]
+  salesSectors        SalesSector[]
 
   @@index([wilayaMereCode])
 }
@@ -17891,11 +18133,11 @@ model Wilaya {
 /// codes ONS, rattachements de 2026) n'a pu être chargée — on n'en invente pas.
 model Commune {
   /// Code officiel de la commune (quatre chiffres : wilaya + rang).
-  code       String  @id
+  code       String    @id
   nom        String
   nomAr      String?
   wilayaCode String
-  wilaya     Wilaya  @relation(fields: [wilayaCode], references: [code])
+  wilaya     Wilaya    @relation(fields: [wilayaCode], references: [code])
   adresses   Adresse[]
 
   @@index([wilayaCode])
@@ -17987,8 +18229,8 @@ enum StatutIngestionPiece {
 /// pour écarter en SQL ce qu'une personne ne peut ouvrir d'aucune façon. Index GIN et trigrammes : SQL seulement
 /// (migration `20270207110000_bibliotheque`).
 model BibliothequeFiche {
-  pieceId          String               @id
-  piece            Piece                @relation(fields: [pieceId], references: [id], onDelete: Cascade)
+  pieceId          String                @id
+  piece            Piece                 @relation(fields: [pieceId], references: [id], onDelete: Cascade)
   blobId           String
   titre            String
   /// Le titre REPLIÉ (minuscules sans accents) — la colonne des trigrammes.
@@ -17999,28 +18241,28 @@ model BibliothequeFiche {
   taille           Float?
   /// Une valeur de `NATURES_PIECE` (classement LOCAL de l'enrichissement), posée à l'ingestion.
   nature           String?
-  source           SourcePiece          @default(AUTRE)
-  confidentiality  Confidentiality      @default(INTERNAL)
+  source           SourcePiece           @default(AUTRE)
+  confidentiality  Confidentiality       @default(INTERNAL)
   /// Pièce du coffre (identité, paie, RIB…) reconnue par le classement local, ou annoncée par son nom.
-  sensible         Boolean              @default(false)
+  sensible         Boolean               @default(false)
   cles             String[]
   familles         String[]
   auteurId         String?
-  dateDocument     DateTime             @default(now())
-  statut           StatutIngestionPiece @default(A_FAIRE)
-  tentatives       Int                  @default(0)
-  prochainEssaiLe  DateTime             @default(now())
+  dateDocument     DateTime              @default(now())
+  statut           StatutIngestionPiece  @default(A_FAIRE)
+  tentatives       Int                   @default(0)
+  prochainEssaiLe  DateTime              @default(now())
   verrouilleLe     DateTime?
   derniereErreur   String?
   /// texte, ocr, transcription, aucune.
   methode          String?
   caracteres       Int?
-  nbPassages       Int                  @default(0)
+  nbPassages       Int                   @default(0)
   /// Version des règles d'ingestion (découpage, lecteurs) qui ont produit les passages.
-  versionIngestion Int                  @default(0)
+  versionIngestion Int                   @default(0)
   ingereLe         DateTime?
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @default(now()) @updatedAt
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @default(now()) @updatedAt
   passages         BibliothequePassage[]
 
   @@index([statut, prochainEssaiLe])

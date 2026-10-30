@@ -5,6 +5,7 @@ import type { CurrentUser } from "@/lib/session";
 import { outilsPour } from "./outils";
 import { optionsFournisseur, pourMastra, type ModeleConfig } from "./modele";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
+import { modeleTrace, tracerEntree, tracerResultat } from "./qualite/traces";
 import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, sousBudget, type Budget, type OrigineAppel } from "./consommation";
 
 // L'UI générative (R5) se lit au même endroit que le tour : l'action de l'écran n'a qu'une porte
@@ -123,7 +124,17 @@ export async function repondreAvecSecours(t: TourAssistant): Promise<ResultatTou
   let echec: string | null = null;
   let outils = 0;
   try {
-    const r = await sousBudget(budget, () => boucle(t, budget));
+    // J14 : l'entrée de la boucle et les sorties de ses outils vont à la trace du tour (s'il y en a une ouverte).
+    const outilsTraces = tracerEntree(() => {
+      const offerts = new Set(Object.keys(outilsPour(t.outils, t.user, t.config)));
+      return {
+        message: t.message, historique: t.historique, instructions: t.instructions,
+        outils: t.outils.filter((o) => offerts.has(o.def.name)).map((o) => ({ name: o.def.name, description: o.def.description, input_schema: o.def.input_schema, label: o.label })),
+        nomAssistant: t.config?.assistantName ?? null, maxEtapes: t.maxEtapes ?? null, delaiMs: t.delaiMs,
+      };
+    }, t.outils);
+    const r = await sousBudget(budget, () => boucle({ ...t, outils: outilsTraces }, budget));
+    tracerResultat(r);
     outils = r.outilsAppeles.length;
     return r;
   } catch (e) {
@@ -145,7 +156,7 @@ async function boucle(t: TourAssistant, budget: Budget): Promise<ResultatTour> {
       id: "assistant",
       name: t.config?.assistantName ?? "Assistant",
       instructions: t.instructions,
-      model: pourMastra(m) as ConstructorParameters<typeof Agent>[0]["model"],
+      model: modeleTrace(pourMastra(m), "tour") as ConstructorParameters<typeof Agent>[0]["model"],
       tools: outilsPour(t.outils, t.user, t.config),
     });
     const arret = new AbortController();

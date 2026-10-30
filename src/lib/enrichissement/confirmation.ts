@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { plier } from "@/modules/referentiels/partage";
+import { fermeture } from "@/modules/graphe-entreprise/partage";
 import { colonnesOrganisation, colonnesPersonne, typeIdentifiantOrganisation } from "./a-confirmer";
 import { compacterIdentifiant } from "./fiches";
 import { conflitIdDe, faitConfirmeIdDe } from "./file";
@@ -40,11 +41,12 @@ async function ecrireConfirmation(
   const attribut = ATTRIBUT_PAR_CLE.get(f.attribut);
   if (!attribut) return { ok: false, message: "Attribut hors catalogue." };
 
-  // Une valeur UNIQUE remplace la précédente — qui reste, close, dans l'historique.
+  // Une valeur UNIQUE remplace la précédente — qui reste, FERMÉE, dans l'historique (J9, décision 0021 : fin de
+  // validité, temps de constat, qui l'a fermée, par quoi elle est remplacée — jamais écrasée).
   if (!attribut.multiple) {
     await tx.faitConfirme.updateMany({
-      where: { sujetType: f.sujetType, sujetId: f.sujetId, attribut: f.attribut, actif: true },
-      data: { actif: false, valideAu: o.maintenant },
+      where: { sujetType: f.sujetType, sujetId: f.sujetId, attribut: f.attribut, actif: true, NOT: { id: faitConfirmeIdDe(f.id) } },
+      data: fermeture({ maintenant: o.maintenant, parId: o.parId, remplaceParId: faitConfirmeIdDe(f.id) }),
     });
   }
   await tx.faitConfirme.upsert({

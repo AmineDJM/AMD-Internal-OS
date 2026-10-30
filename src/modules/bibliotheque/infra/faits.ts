@@ -17,7 +17,8 @@ export interface FaitRendu {
   confirmeLe: string;
 }
 
-async function faitsVisibles(user: SessionUser, faits: { pieceId: string | null; sensible: boolean }[]): Promise<boolean[]> {
+/** La règle de lecture d'un fait, ligne à ligne — aussi celle du graphe (J9) : une seule écriture. */
+export async function faitsVisibles(user: SessionUser, faits: { pieceId: string | null; sensible: boolean }[]): Promise<boolean[]> {
   const ouvrables = await piecesOuvrables(user, faits.map((f) => f.pieceId).filter((x): x is string => !!x));
   return faits.map((f) => !f.sensible && (f.pieceId ? ouvrables.has(f.pieceId) : user.role === "SUPER_ADMIN"));
 }

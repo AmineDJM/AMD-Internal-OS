@@ -778,6 +778,15 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 > LibreOffice 7.4, **Tesseract 5.3** — measured better on Arabic than 5.5; do not bump without re-running the bench in the image), three stages (deps, Python engine, runtime), Arabic/Latin fonts incl. Carlito/Caladea, and a
 > build-time `convertir.py --verifier` gate. Worker start-up control (`evaluerControle`/`controlerAuDemarrage` in
 > `src/lib/taches-de-fond/sante.ts`, after the migration wait via `apresMigrations`) logs each missing variable/engine piece
-> (`worker.controle.manque`) and upserts table `ControleWorker` (migration `20270210090000_controle_worker`, additive; presence only,
+> (`worker.controle.manque`) and upserts table `ControleWorker` (migration `20270211090000_controle_worker`, additive; presence only,
 > never values). Web side: `atelier.conversions` still never converts on the web, but expires queued conversions the worker did not
 > take (15 min). Local docker builds behind the agent proxy need a CA-injected variant (not shipped).
+
+## J5 + J14 (2026-10-30) — scheduled bench & quality tests [V]
+
+- Worker task `qualite.banc` (no-op outside the worker) spawns `tsx scripts/bench/banc-programme.ts` with `DATABASE_URL` =
+  the declared trial DB; `@/lib/prisma` (`estLaBaseEssaiDeclaree`) is the ONLY door for a bench to open a remote DB.
+  One-time setup: `BANC_ESSAI_DATABASE_URL=… npm run banc:essai:semer` (migrations applied on that DB first).
+- Bench scripts write a normalized `BANC_SORTIE` JSON; `BANC_SEULEMENT=jarvis,…` runs a reduced pass.
+- Tests (fake model only): `infra/qualite/{regles,banc,traces,pieges-regles}.test.ts`, `pieges.test.ts` (35 traps through
+  `jouerTour`). Task `assistant.traces` purges traces older than `ASSISTANT_IA_TRACES_JOURS` (30).
