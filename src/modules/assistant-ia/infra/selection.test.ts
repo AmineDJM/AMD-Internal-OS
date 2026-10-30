@@ -10,7 +10,7 @@ import { classer, OUTIL_TROUVER, PRESELECTION_MAX, SOCLE_OUTILS, TROUVES_MAX } f
 /**
  * LES OUTILS CHOISIS À LA DEMANDE (J4, décision 0018) — sur les VRAIS catalogues (Super Admin, assistante de direction).
  *
- *   • le corpus de référence : 60 demandes, l'outil juste dans les 8 premiers (`trouver_outil`) ;
+ *   • le corpus de référence : 65 demandes (60 de J4, 5 de l’Atelier J3), l'outil juste dans les 8 premiers (`trouver_outil`) ;
  *   • jamais un outil hors droits : ni présélectionné, ni trouvé, quelle que soit la demande ;
  *   • la présélection reste petite (socle + 6) et son ordre est stable.
  */
@@ -30,9 +30,15 @@ async function compte(nom: string, role: "SUPER_ADMIN" | "DIRECTION_ASSISTANT"):
 
 const catalogue = (u: CurrentUser) => [...outilsV1(u, [], [], []), outilTravailPour(u)];
 
-/** 60 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
+/** 65 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
 export const CORPUS: [string, string[]][] = [
   ["Qui est Assia ? Donne-moi son poste et son manager.", ["directory_lookup", "lire_fiche_rh"]],
+  // J3 — l'Atelier : modifier en place, ouvrir, convertir.
+  ["Dans ce contrat, mets la période d'essai à 6 mois.", ["modifier_document"]],
+  ["Remplace le titre de la présentation et ajoute une diapositive de synthèse.", ["modifier_document"]],
+  ["Ouvre ce PowerPoint dans l'atelier, je veux le voir à côté.", ["ouvrir_dans_l_atelier"]],
+  ["Corrige le paragraphe sur la rémunération dans le Word joint.", ["modifier_document"]],
+  ["Convertis ce document Word en PDF.", ["convertir_document"]],
   ["Quel est le numéro de téléphone de Karim ?", ["directory_lookup"]],
   ["Liste-moi les collaborateurs du service Marketing.", ["directory_list"]],
   ["Quel est le salaire d'Assia Benmoussa ?", ["lire_paie"]],
@@ -103,20 +109,20 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("le corpus a 60 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
-    expect(CORPUS).toHaveLength(60);
+  it("le corpus a 65 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
+    expect(CORPUS).toHaveLength(65);
     const noms = new Set(fichesOffertes(catalogue(sa), sa).map((f) => f.nom));
     for (const [, attendus] of CORPUS) for (const a of attendus) expect(noms, a).toContain(a);
   });
 
-  it("l'outil juste est dans les 8 premiers, pour les 60 demandes (Super Admin)", () => {
+  it("l'outil juste est dans les 8 premiers, pour les 65 demandes (Super Admin)", () => {
     const fiches = fichesOffertes(catalogue(sa), sa);
     const rates = CORPUS.filter(([d, attendus]) => !classer(d, fiches, TROUVES_MAX).some((c) => attendus.includes(c.nom)))
       .map(([d, a]) => `${d} → ${a.join("|")} ; rendu : ${classer(d, fiches, TROUVES_MAX).map((c) => c.nom).join(", ")}`);
     expect(rates).toEqual([]);
   });
 
-  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 60 demandes)", async () => {
+  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 65 demandes)", async () => {
     const outils = catalogue(ad);
     const permis = new Set(fichesOffertes(outils, ad).map((f) => f.nom));
     const horsDroits = fichesOffertes(catalogue(sa), sa).map((f) => f.nom).filter((n) => !permis.has(n));
