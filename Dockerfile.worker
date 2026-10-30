@@ -14,12 +14,14 @@
 #     Carlito/Caladea (métriques de Calibri/Cambria : la pagination d'un Word reste celle de Word) ;
 #   • ffmpeg : images clés et son des vidéos.
 #
-# Base Debian 13 « trixie » : Python 3.13, LibreOffice 25.2, Tesseract 5.5 — les versions du banc.
+# Base Debian 12 « bookworm » : Python 3.11, LibreOffice 7.4, TESSERACT 5.3 — choisi sur mesure (décision 0019) :
+# tesseract 5.5 (Debian 13) lit moins bien l'arabe (scan arabe : CER 2,95 % contre 1,28 % en 5.3 ; scan vocalisé :
+# 23,5 % contre 13,6 %). Ne pas monter de version sans relancer `npm run conversions:bench` dans l'image.
 # Trois étages : dépendances Node (`npm ci`, client Prisma), moteur Python (venv), exécution. Utilisateur non root.
 # Construire : docker build -f Dockerfile.worker -t amd-worker .
 # ═══════════════════════════════════════════════════════════════════════════════════════════
 
-FROM node:22-trixie-slim AS dependances
+FROM node:22-bookworm-slim AS dependances
 WORKDIR /app
 RUN apt-get update \
  && apt-get install -y --no-install-recommends openssl ca-certificates python3 make g++ \
@@ -29,7 +31,7 @@ COPY prisma ./prisma
 # `npm ci` : EXACTEMENT le verrou, comme le web. Les dépendances de développement restent : `tsx` exécute le worker.
 RUN npm ci --no-audit --no-fund && npx prisma generate && npm cache clean --force
 
-FROM node:22-trixie-slim AS moteur
+FROM node:22-bookworm-slim AS moteur
 RUN apt-get update \
  && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates curl \
  && rm -rf /var/lib/apt/lists/*
@@ -48,7 +50,7 @@ RUN mkdir -p /opt/tessdata && cd /opt/tessdata \
       echo "$2  $1.traineddata" | sha256sum -c -; \
     done
 
-FROM node:22-trixie-slim AS execution
+FROM node:22-bookworm-slim AS execution
 ENV NODE_ENV=production \
     TACHES_DE_FOND=web \
     HOME=/home/node \

@@ -37,7 +37,57 @@ SEUIL_INCONNUS = 0.05
 
 def _brut(page) -> list:
     flags = FLAGS | (pymupdf.TEXT_INHIBIT_SPACES if _espaces_reelles(page) else 0)
-    return page.get_text("rawdict", flags=flags)["blocks"]
+    return completer_par_les_glyphes(page, page.get_text("rawdict", flags=flags)["blocks"])
+
+
+def completer_par_les_glyphes(page, blocs: list) -> list:
+    """Une grappe arabe couverte par un `/ActualText` peut DISPARAÎTRE de la lecture de PyMuPDF (mesuré : le « ضِ » final
+    d'une ligne en Amiri). Relue glyphe par glyphe (`TEXT_IGNORE_ACTUALTEXT`), elle est là. On réinjecte chaque lettre
+    arabe que la première lecture ne couvre pas (et ses marques), dans la ligne de même hauteur ; rien d'autre ne change."""
+    from .normaliser import classe
+
+    principaux = [ch for b in blocs if b.get("type", 0) == 0 for l in b["lines"] for s in l["spans"] for ch in s["chars"]]
+    if not any(classe(ch["c"]) == "R" for ch in principaux):
+        return blocs
+    glyphes = [ch for b in page.get_text("rawdict", flags=FLAGS | pymupdf.TEXT_IGNORE_ACTUALTEXT | pymupdf.TEXT_INHIBIT_SPACES)["blocks"]
+               if b.get("type", 0) == 0 for l in b["lines"] for s in l["spans"] for ch in s["chars"]]
+
+    def meme_rangee(a, b) -> bool:
+        return min(a[3], b[3]) - max(a[1], b[1]) > 0.4 * min(a[3] - a[1], b[3] - b[1])
+
+    def couvert(g) -> bool:
+        gx0, _, gx1, _ = g["bbox"]
+        for m in principaux:
+            if classe(m["c"]) != "R" or not meme_rangee(m["bbox"], g["bbox"]):
+                continue
+            mx0, _, mx1, _ = m["bbox"]
+            if mx1 - mx0 > 0.05 and min(gx1, mx1) - max(gx0, mx0) > 0.3 * (gx1 - gx0):
+                return True
+            if mx1 - mx0 <= 0.05 and m["c"] == g["c"] and gx0 - 0.5 <= mx0 <= gx1 + 0.5:
+                return True
+        return False
+
+    def hors_etendue(g) -> bool:
+        """Au-delà des lettres arabes de sa rangée (une grappe perdue est en FIN de ligne, mesuré) — à l'intérieur, les
+        boîtes des deux lectures diffèrent trop (Amiri) pour décider sans risque."""
+        voisines = [m for m in principaux if classe(m["c"]) == "R" and meme_rangee(m["bbox"], g["bbox"])]
+        if not voisines:
+            return False
+        # Bout de ligne arabe = à GAUCHE (sa fin logique) ; à droite, l'écho d'une lettre déjà lue se confondrait.
+        return g["bbox"][2] <= min(m["bbox"][0] for m in voisines) + 0.5
+
+    manquantes = [g for g in glyphes if classe(g["c"]) == "R" and g["bbox"][2] - g["bbox"][0] > 0.05 and hors_etendue(g) and not couvert(g)]
+    for g in manquantes:
+        ligne = next((l for b in blocs if b.get("type", 0) == 0 for l in b["lines"] if meme_rangee(tuple(l["bbox"]), g["bbox"])
+                      and l["bbox"][0] - 3 * (g["bbox"][2] - g["bbox"][0] + 1) <= g["bbox"][0] <= l["bbox"][2] + 30), None)
+        if ligne is None or not ligne["spans"]:
+            continue
+        marques = [m for m in glyphes if classe(m["c"]) == "M" and g["bbox"][0] - 0.5 <= m["bbox"][0] <= g["bbox"][2] + 0.5
+                   and meme_rangee(m["bbox"], g["bbox"])]
+        span = min(ligne["spans"], key=lambda s: abs(s["bbox"][0] - g["bbox"][0]))
+        span["chars"].extend([{**g}, *({**m} for m in marques)])
+        ligne["bbox"] = (min(ligne["bbox"][0], g["bbox"][0]), ligne["bbox"][1], max(ligne["bbox"][2], g["bbox"][2]), ligne["bbox"][3])
+    return blocs
 
 
 # ─────────────────────────── En-têtes et pieds ───────────────────────────
@@ -184,7 +234,7 @@ class _Patch:
                     del page.get_text
             else:
                 blocs = origine_texte(page_self, **settings)
-            return remettre_a_l_endroit(blocs, stats, exclure=zones.get(page.number))
+            return remettre_a_l_endroit(completer_par_les_glyphes(page, blocs), stats, exclure=zones.get(page.number))
 
         def sort_in_line_order(coll):
             origine_tri(coll)

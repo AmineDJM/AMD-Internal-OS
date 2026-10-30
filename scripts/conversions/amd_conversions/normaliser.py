@@ -138,6 +138,28 @@ def _largeur_nulle(ch: dict) -> bool:
     return ch["bbox"][2] - ch["bbox"][0] < 0.05
 
 
+def retirer_echos(chars: list[dict]) -> list[dict]:
+    """LibreOffice entoure chaque lettre vocalisée d'un `/ActualText` (« نَ ») qui couvre DEUX glyphes (la marque et la
+    base) : PyMuPDF rend le texte deux fois — d'abord à la vraie place de la base, puis un ÉCHO de largeur nulle. Une
+    séquence répétée à l'identique juste après elle-même, dont la répétition n'a aucune largeur, est cet écho."""
+    out: list[dict] = []
+    i, n = 0, len(chars)
+    while i < n:
+        for longueur in (4, 3, 2, 1):
+            a, b = chars[i:i + longueur], chars[i + longueur:i + 2 * longueur]
+            # (Une lettre liée à la précédente — « لأ » — n'a pas de largeur propre : son écho est alors un point à côté.)
+            if (len(b) == longueur and [c["c"] for c in a] == [c["c"] for c in b] and any(classe(c["c"]) == "R" for c in a)
+                    and all(_largeur_nulle(c) for c in b)
+                    and (not all(_largeur_nulle(c) for c in a) or abs(a[-1]["bbox"][0] - b[-1]["bbox"][0]) < 2)):
+                out.extend(a)
+                i += 2 * longueur
+                break
+        else:
+            out.append(chars[i])
+            i += 1
+    return out
+
+
 def grappes(chars: list[dict]) -> list[Grappe]:
     """Chars (dict : c, bbox) DANS L'ORDRE DU FLUX → grappes.
 
@@ -147,6 +169,14 @@ def grappes(chars: list[dict]) -> list[Grappe]:
     • Un DOUBLON de largeur nulle (LibreOffice émet parfois la base une seconde fois pour porter une marque :
       « طَط ») posé dans la boîte d'une base identique, voisine dans le flux, se fond dans celle-ci.
     • Une même marque deux fois sur une base n'en fait qu'une."""
+    avant = len(chars)
+    chars = retirer_echos(chars)
+    # La convention du producteur, ligne par ligne. Une marque est posée sur la JOINTURE de deux lettres (bord gauche
+    # de l'une = bord droit de l'autre) : la géométrie ne tranche pas, l'ordre du flux si. Mesuré :
+    #   LibreOffice 24.x : [marque, base] + un écho par grappe → la base est celle qui SUIT ;
+    #   LibreOffice 7.4  : [base, marque], sans écho           → la base est celle qui PRÉCÈDE.
+    marques = sum(1 for c in chars if classe(c["c"]) == "M")
+    suivante_dabord = marques > 0 and (avant - len(chars)) >= 0.3 * marques
     n = len(chars)
     est_marque = [classe(ch["c"]) == "M" for ch in chars]
     res: list[Grappe] = []
@@ -199,9 +229,33 @@ def grappes(chars: list[dict]) -> list[Grappe]:
                 k += pas
             if 0 <= k < n and grappe_de[k] >= 0 and k not in voisins:
                 voisins.append(k)
+        # Motif LibreOffice ([marque…, base], échos retirés) : la base est la PREMIÈRE lettre qui suit dans le flux.
+        k_suiv = i + 1
+        while k_suiv < n and est_marque[k_suiv]:
+            k_suiv += 1
+        k_prec = i - 1
+        while k_prec >= 0 and est_marque[k_prec]:
+            k_prec -= 1
+        k_conv = k_suiv if suivante_dabord else k_prec
+        if (marques and 0 <= k_conv < n and grappe_de[k_conv] >= 0 and classe(chars[k_conv]["c"]) == "R"
+                and not _largeur_nulle(chars[k_conv])
+                and chars[k_conv]["bbox"][0] - 0.6 <= mx <= chars[k_conv]["bbox"][2] + 0.6):
+            exactes, contenantes = [k_conv], []
+        # Une marque arabe ne se pose pas sur un point ou une espace quand une lettre arabe la réclame : on prend la
+        # première liste qui offre une LETTRE ARABE — au besoin celle qui la touche, où qu'elle soit dans le flux (la
+        # marque de la dernière lettre, émise en tête de ligne par LibreOffice 7.4).
+        arabes = lambda ks: [k for k in ks if classe(chars[k]["c"]) == "R"]
+        loin = [k for k in bases if classe(chars[k]["c"]) == "R" and chars[k]["bbox"][0] - 0.6 <= mx <= chars[k]["bbox"][2] + 0.6]
+        loin = sorted(loin, key=lambda k: abs(chars[k]["bbox"][0] - mx))[:1]
+        prefere = arabes(exactes) or arabes(contenantes) or loin or arabes(voisins)
+        if prefere:
+            exactes, contenantes, voisins = prefere, [], []
         choix = exactes or contenantes or voisins
         if choix:
-            k = min(choix, key=lambda k: (abs(chars[k]["bbox"][0] - mx) > 0.05 if choix is voisins else 0, abs(k - i)))
+            # À distance égale, la base qui SUIT la marque dans le flux : LibreOffice émet [marque, base], et une marque
+            # posée sur la jointure de deux lettres (bord droit de l'une = bord gauche de l'autre) est à la suivante.
+            k = min(choix, key=lambda k: (abs(chars[k]["bbox"][0] - mx) > 0.05 if choix is voisins else 0,
+                                          (k < i) if suivante_dabord else (k > i), abs(k - i), k < i))
             cible = res[grappe_de[k]]
         elif res:
             cible = min(res, key=lambda g: 0 if g.x0 <= mx <= g.x1 else min(abs(g.x0 - mx), abs(g.x1 - mx)))
@@ -210,9 +264,27 @@ def grappes(chars: list[dict]) -> list[Grappe]:
             continue
         if not any(c["c"] == ch["c"] for c in cible.chars):
             cible.chars.append(ch)
+    _replacer_orphelines(res)
     for g in res:
         g.calculer_classe()
     return res
+
+
+def _replacer_orphelines(res: list[Grappe]) -> None:
+    """Une base de largeur nulle SANS jumelle (son glyphe réel perdu par le producteur) posée DANS la boîte d'une autre
+    lettre serait rangée au hasard (« ؤْيُ » pour « يُؤْ »). On la place par l'ordre du flux : juste à côté de la base
+    réelle qui la suit (flux de droite à gauche, LibreOffice) ou la précède (flux de gauche à droite)."""
+    reelles = [g for g in res if g.x1 - g.x0 > 0.05]
+    descend = sum(1 for a, b in zip(reelles, reelles[1:]) if b.x0 < a.x0) > len(reelles) / 2
+    for j, g in enumerate(res):
+        if g.x1 - g.x0 > 0.05 or not any(classe(c["c"]) == "R" for c in g.chars):
+            continue
+        if not any(r.x0 + 0.05 < g.x0 < r.x1 - 0.05 for r in reelles if any(classe(c["c"]) == "R" for c in r.chars)):
+            continue
+        voisines = res[j + 1:] if descend else res[:j][::-1]
+        v = next((r for r in voisines if r.x1 - r.x0 > 0.05), None)
+        if v is not None:
+            g.x0 = g.x1 = v.x1 + 0.001
 
 
 SEPARATEURS_NOMBRE = set("/.,:-+\u060c\u066b\u066c")

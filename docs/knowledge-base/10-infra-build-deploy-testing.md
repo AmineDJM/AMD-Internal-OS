@@ -774,8 +774,8 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 > `TACHES_DE_FOND=les-deux` on BOTH web and worker (the per-task lease arbitrates; the web keeps doing everything until the
 > worker has beaten); the worker gets `AUTH_SECRET`, `OPENAI_API_KEY`, `S3_*`, `VAPID_*`, `ADVENTUM_*` via `fromService` (only keys
 > the web block declares — Render does not document `fromService` to an absent key), `DATABASE_URL` via `fromDatabase`, literal
-> `APP_URL`; plans of DB and web unchanged, worker `starter`. `Dockerfile.worker` now on `node:22-trixie-slim` (Python 3.13,
-> LibreOffice 25.2, Tesseract 5.5), three stages (deps, Python engine, runtime), Arabic/Latin fonts incl. Carlito/Caladea, and a
+> `APP_URL`; plans of DB and web unchanged, worker `starter`. `Dockerfile.worker` on `node:22-bookworm-slim` (Python 3.11,
+> LibreOffice 7.4, **Tesseract 5.3** — measured better on Arabic than 5.5; do not bump without re-running the bench in the image), three stages (deps, Python engine, runtime), Arabic/Latin fonts incl. Carlito/Caladea, and a
 > build-time `convertir.py --verifier` gate. Worker start-up control (`evaluerControle`/`controlerAuDemarrage` in
 > `src/lib/taches-de-fond/sante.ts`, after the migration wait via `apresMigrations`) logs each missing variable/engine piece
 > (`worker.controle.manque`) and upserts table `ControleWorker` (migration `20270210090000_controle_worker`, additive; presence only,

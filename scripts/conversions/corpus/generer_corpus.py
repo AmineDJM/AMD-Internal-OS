@@ -78,6 +78,17 @@ MIXTE = [
     "المسؤول الصيدلاني : Dr Karim Benali — الهاتف 021 45 67 89",
     "La notice bilingue doit reprendre la mention « يحفظ بعيدا عن متناول الأطفال » en tête de page.",
 ]
+#: Texte ENTIÈREMENT vocalisé (notice patient) — le cas difficile de l'OCR arabe (harakat, chadda, tanwin).
+AR_VOC_TITRE = "نَشْرَةُ المَعْلُومَاتِ لِلْمَرِيضِ"
+AR_VOC = [
+    "تُحْفَظُ الأَدْوِيَةُ فِي مَكَانٍ بَارِدٍ وَجَافٍّ، بَعِيدًا عَنْ مُتَنَاوَلِ الأَطْفَالِ.",
+    "يُؤْخَذُ قُرْصٌ وَاحِدٌ ثَلَاثَ مَرَّاتٍ فِي اليَوْمِ بَعْدَ الأَكْلِ.",
+    "لَا تَتَجَاوَزِ الجُرْعَةَ المُوصَى بِهَا دُونَ اسْتِشَارَةِ الطَّبِيبِ.",
+    "فِي حَالَةِ ظُهُورِ أَعْرَاضٍ جَانِبِيَّةٍ، يَجِبُ التَّوَقُّفُ عَنِ العِلَاجِ فَوْرًا.",
+    "تَحْتَوِي هَذِهِ العُلْبَةُ عَلَى عِشْرِينَ قُرْصًا مُغَلَّفًا.",
+    "اِقْرَأْ هَذِهِ النَّشْرَةَ بِعِنَايَةٍ قَبْلَ اسْتِعْمَالِ الدَّوَاءِ.",
+]
+
 COL_FR = [
     "La stratégie de lancement s’appuie sur trois piliers : la disponibilité du produit en officine, la formation des délégués médicaux et la présence aux congrès nationaux.",
     "Le premier pilier exige un stock de sécurité de six semaines chez chaque grossiste répartiteur, vérifié chaque lundi par le service logistique.",
@@ -255,6 +266,20 @@ def doc_ar() -> tuple[Document, dict]:
     return doc, {"texte": texte, "arabes": arabes, "tableaux": [[4, 4]], "entete": AR_ENTETE, "pied": AR_PIED, "gras": ["ملاحظة هامة"], "italique": []}
 
 
+def doc_ar_voc(police: str) -> tuple[Document, dict]:
+    """Une notice entièrement vocalisée, dans la police donnée (Noto Naskh Arabic, Amiri)."""
+    doc = Document()
+    h = doc.add_paragraph()
+    _rtl_paragraphe(h)
+    r = _run(h, AR_VOC_TITRE, rtl=True, gras=True, taille=18)
+    r._r.rPr.find(qn("w:rFonts")).set(qn("w:cs"), police)
+    for t in AR_VOC:
+        p = paragraphe(doc, [(t, {"taille": 15})])
+        for run in p.runs:
+            run._r.rPr.find(qn("w:rFonts")).set(qn("w:cs"), police)
+    return doc, {"texte": [AR_VOC_TITRE, *AR_VOC], "arabes": [AR_VOC_TITRE, *AR_VOC], "tableaux": [], "entete": None, "pied": None, "gras": [], "italique": []}
+
+
 def doc_mixte() -> tuple[Document, dict]:
     doc = Document()
     doc.add_heading("Fiche produit — بطاقة المنتج", level=1)
@@ -324,20 +349,23 @@ def vers_pdf_chromium(html: str, sortie: Path) -> None:
                         f"--print-to-pdf={sortie}", f.as_uri()], check=True, capture_output=True, timeout=120)
 
 
-def scanner(pdf: Path, sortie: Path, graine: int, ppp: int = 200) -> None:
-    """Le PDF rendu en image : plus une lettre dans le fichier. Gris, flou léger, bruit — un scanner de bureau."""
+def scanner(pdf: Path, sortie: Path, graine: int, ppp: int = 200, flou: float = 0.4, bruit: int = 400, qualite: int = 80, rotation: float = 0.0) -> None:
+    """Le PDF rendu en image : plus une lettre dans le fichier. Gris, flou léger, bruit — un scanner de bureau.
+    Un MAUVAIS scan : basse résolution, flou, bruit dense, page de travers, JPEG très compressé."""
     rnd = random.Random(graine)
     src = fitz.open(pdf)
     out = fitz.open()
     for page in src:
         pix = page.get_pixmap(dpi=ppp, colorspace=fitz.csGRAY)
-        im = Image.frombytes("L", (pix.width, pix.height), pix.samples).filter(ImageFilter.GaussianBlur(0.4))
+        im = Image.frombytes("L", (pix.width, pix.height), pix.samples).filter(ImageFilter.GaussianBlur(flou))
+        if rotation:
+            im = im.rotate(rotation, resample=Image.BICUBIC, expand=False, fillcolor=255)
         px = im.load()
-        for _ in range(pix.width * pix.height // 400):
+        for _ in range(pix.width * pix.height // bruit):
             x, y = rnd.randrange(pix.width), rnd.randrange(pix.height)
             px[x, y] = max(0, px[x, y] - rnd.randint(40, 120))
         b = io.BytesIO()
-        im.save(b, "JPEG", quality=80)
+        im.save(b, "JPEG", quality=qualite)
         p = out.new_page(width=page.rect.width, height=page.rect.height)
         p.insert_image(p.rect, stream=b.getvalue())
     out.save(sortie, deflate=True)
@@ -346,7 +374,8 @@ def scanner(pdf: Path, sortie: Path, graine: int, ppp: int = 200) -> None:
 def main() -> None:
     attendu: dict[str, dict] = {}
     with tempfile.TemporaryDirectory() as d:
-        for nom, fab in (("fr-rapport", doc_fr), ("ar-note", doc_ar), ("mixte-ar-fr", doc_mixte), ("fr-deux-colonnes", doc_colonnes)):
+        for nom, fab in (("fr-rapport", doc_fr), ("ar-note", doc_ar), ("mixte-ar-fr", doc_mixte), ("fr-deux-colonnes", doc_colonnes),
+                         ("ar-vocalise-naskh", lambda: doc_ar_voc("Noto Naskh Arabic")), ("ar-vocalise-amiri", lambda: doc_ar_voc("Amiri"))):
             doc, meta = fab()
             docx = Path(d) / f"{nom}.docx"
             doc.save(docx)
@@ -356,9 +385,15 @@ def main() -> None:
         html, meta = html_chromium()
         vers_pdf_chromium(html, ICI / "ar-chromium.pdf")
         attendu["ar-chromium.pdf"] = {**meta, "producteur": "Chromium"}
-    for nom, src, graine in (("scan-fr.pdf", "fr-rapport.pdf", 7), ("scan-ar.pdf", "ar-note.pdf", 11)):
-        scanner(ICI / src, ICI / nom, graine)
-        attendu[nom] = {**attendu[src], "producteur": "scan 200 ppp", "scan": True}
+    for nom, src, graine, opts, producteur in (
+        ("scan-fr.pdf", "fr-rapport.pdf", 7, {}, "scan 200 ppp"),
+        ("scan-ar.pdf", "ar-note.pdf", 11, {}, "scan 200 ppp"),
+        ("scan-ar-vocalise.pdf", "ar-vocalise-naskh.pdf", 13, {"ppp": 300}, "scan 300 ppp"),
+        ("scan-ar-vocalise-amiri.pdf", "ar-vocalise-amiri.pdf", 17, {}, "scan 200 ppp"),
+        ("scan-ar-vocalise-mauvais.pdf", "ar-vocalise-naskh.pdf", 19, {"ppp": 150, "flou": 0.8, "bruit": 120, "qualite": 45, "rotation": 0.8}, "mauvais scan 150 ppp"),
+    ):
+        scanner(ICI / src, ICI / nom, graine, **opts)
+        attendu[nom] = {**attendu[src], "producteur": producteur, "scan": True}
     for nom, meta in attendu.items():
         with fitz.open(ICI / nom) as pdf:
             meta["pages"] = pdf.page_count

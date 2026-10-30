@@ -97,6 +97,45 @@ Tests rapides (vitest) : `conversions-haute-fidelite.test.ts` (ar-note et mixte 
 pas : le Word source du corpus passe tous les critères) ; `atelier.test.ts` (PDF → Word par la file : images, tableau 4×4,
 paragraphes bidi — ou le secours, dit) ; `controle.test.ts`.
 
+## Suite (30/10, soir) — l'arabe VOCALISÉ
+
+Demande : le scan arabe vocalisé sous 1 % ; trois scans vocalisés ajoutés au corpus (Naskh 300 ppp, Amiri 200 ppp,
+**mauvais** : 150 ppp, flou, bruit dense, page de travers, JPEG 45), et leurs PDF natifs.
+
+**Les PDF NATIFS vocalisés étaient le vrai trou** (mesuré : 14 % en Naskh, 41 % en Amiri). Cause : LibreOffice entoure
+chaque lettre vocalisée d'un `/ActualText` couvrant deux glyphes, PyMuPDF en rend le texte deux fois. Corrigé dans
+`normaliser.py` / `pdf_docx.py` : les **échos** (répétition de largeur nulle) sont retirés ; la **convention du producteur**
+est reconnue ligne par ligne (LibreOffice 24.x [marque, base] avec échos ; LibreOffice 7.4 [base, marque] sans écho — la
+marque posée sur la jointure de deux lettres, seule l'ordre du flux tranche) ; une marque ne se pose jamais sur un point
+quand une lettre arabe la réclame ; une base orpheline posée dans la boîte d'une autre lettre est replacée par le flux ; la
+grappe de fin de ligne que la lecture `/ActualText` perd est reprise de la lecture glyphe par glyphe.
+
+**L'image passe sur Debian 12 « bookworm » pour TESSERACT 5.3** (mesuré : 5.5 lit moins bien l'arabe).
+
+| Banc (dans l'image) | Avant (trixie, tesseract 5.5) | Après (bookworm, tesseract 5.3) |
+|---|---|---|
+| PDF natif vocalisé Naskh | 13,97 % | **0,81 %** ✓ |
+| PDF natif vocalisé Amiri | 40,89 % | **0,81 %** ✓ |
+| Word vocalisé → PDF (LibreOffice 7.4) → Word | — (≈ 48 % avant les correctifs) | 2,02 % / 2,63 % |
+| ar-note Word → PDF → Word | 0,26 % | 0,13 % |
+| scan arabe (texte courant) | 2,95 % | **1,28 %** |
+| scan vocalisé Naskh 300 ppp | 23,48 % | 13,56 % ✗ |
+| scan vocalisé Amiri 200 ppp | 64,37 % | 58,10 % ✗ |
+| mauvais scan vocalisé | 25,71 % | 25,71 % ✗ |
+| tous les autres (FR, mixte, colonnes, Chromium, scan FR) | conformes | conformes |
+
+**L'OCR de l'arabe entièrement vocalisé reste hors d'atteinte localement**, mesures à l'appui :
+- tesseract 5.3, modèles « best » : prétraitements essayés — médiane, binarisation de Sauvola, rendu à 400 et 500 ppp,
+  psm 3/6 — **meilleur 12,5 %** (Naskh), 50,8 % (Amiri) : le modèle confond les points des lettres sous les harakat ;
+- **EasyOCR** (`ar`) : ne rend **aucun** harakat (sauf le tanwin), lignes fragmentées — écarté ;
+- **Surya 0.23** : c'est désormais un modèle vision-langage servi par `llama.cpp` (plusieurs Go) — impossible sur le worker
+  `starter` (512 Mo), non mesuré ;
+- **Kraken** : installation abandonnée après 20 min de résolution de dépendances (torch), non mesuré ;
+- PaddleOCR (arabe) : modèle entraîné sans vocalisation, non retenu pour l'essai.
+Aucun envoi à un service externe (documents confidentiels). La voie restante est un **modèle OCR arabe vocalisé entraîné**
+(Kraken/Calamari sur un corpus vocalisé, ou un VLM sur un worker plus gros) : un lot à part, avec un plan Render plus grand.
+Le texte arabe courant (non vocalisé, le cas des documents de l'entreprise) sort à 1,28 % en scan, 0–0,26 % en natif.
+
 ## B. Le worker « cliquez Sync, c'est tout »
 
 `render.yaml` : `TACHES_DE_FOND=les-deux` sur le web ET le worker (le bail par tâche départage ; tant que le worker n'a pas
