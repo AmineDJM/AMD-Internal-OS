@@ -27,6 +27,8 @@ import { join } from "node:path";
 const ECARTS_CONNUS = new Set([
   "20270131110000_materiel_promo_budget",
   "20270131130000_adpro_circuit_prevalidation",
+  // Son nom réel depuis la fusion du 27/10 (e15445fd) — l'entrée ci-dessus portait l'ancien ; déployée, elle ne se renomme pas.
+  "20270131130500_adpro_circuit_prevalidation",
   "20270131160000_ordre_historique_masque",
   "20270131170000_enrichissement_file",
   "20270131170000_lieux_wilaya_code",

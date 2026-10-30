@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### J2 : LES TRAVAUX LONGS — L'ASSISTANT IA TRAVAILLE DES HEURES OU DES SEMAINES, SUR LE MOTEUR DES MISSIONS (2026-10-30)
+
+Décision de la Direction (29/10, lot J2) — `docs/assistant/decisions/0016-travaux.md`.
+- **Un travail** = une `Mission` `kind = "TRAVAIL"` conduite par le même moteur qu'Adam, pour **n'importe quel
+  collaborateur** (`principalId`, `persona`) ; migration additive `20270208100000_travaux` (aucune mission d'Adam réécrite).
+- **L'Assistant IA l'ouvre** quand la demande dépasse un tour (`lancer_un_travail`, plan proposé) ; la personne
+  **approuve le plan une fois** (gestes autorisés bornés à la console, plafond) dans le nouveau **panneau « Travaux »**.
+- **Reprise exacte** : chaque étape écrit son reçu ; un redémarrage reprend la dernière étape, rien n'est refait, aucun geste
+  n'est doublé (`TravailEcriture`). Carnet de travail ; lots bornés ; attentes sur fait métier (prédicat, échéance,
+  relance) et minuteries ; droits relus à chaque étape et à chaque écriture.
+- **Plafonds** (console) : 20 $ par travail et 50 $ par personne et par mois par défaut — atteint, le travail **dort**
+  (`BUDGET_HOLD`) et repart seul. Notification de fin, point quotidien.
+- **Worker** en image Docker (`Dockerfile.worker` : LibreOffice, ffmpeg, Tesseract fra/ara/eng, non root) ;
+  `TACHES_DE_FOND=web` gardé — la Direction bascule (procédure au déploiement).
+- **Mesuré** : un travail de 2 h (horloge factice) traverse 3 redémarrages forcés sans refaire une étape ni doubler un
+  geste ; banc live : le modèle propose lui-même le travail, livré jusqu'au rapport (0,12 $).
+
 ### ASSISTANT IA : GLISSER-DÉPOSER DE FICHIERS ET DE DOSSIERS, APERÇU DES PIÈCES (2026-10-29)
 
 - **Déposer** (Direction) : sur `/assistant`, des fichiers ou des **dossiers** glissés n'importe où sur la conversation font

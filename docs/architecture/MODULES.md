@@ -44,6 +44,11 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
                       sauf la « dette héritée » nommée dans frontieres.test.ts)
 ```
 
+**Hors modules, au moteur des missions — les travaux (J2, 30/10/2026)** : `src/lib/missions/travaux/` généralise le Mission
+Runtime à tous (façade `missions/`, pas un module métier) ; il ne connaît les assistants que par un PORT (`persona.ts`). La part
+partagée par les assistants (l'outil `lancer_un_travail`) vit au socle IA `src/platform/ia/travaux/` sans aucun import ; la persona
+de l'Assistant IA est `src/lib/agent/travaux.ts`. Décision 0016.
+
 **Prochains candidats** (ordre du rapport 08, §3.5) : `produits` et `annuaires` (ils effacent la dette héritée de
 `consommation`), puis `segmentation`, `kpi`, `qualite`, `stocks`… ; `promo` (le stock et le dossier de matériel promotionnel, reste du pôle Ad & Pro) après (`rh`, `finances` et `ad-pro` migrés au lot V4) ; Adam en dernier.
 

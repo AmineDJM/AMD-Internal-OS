@@ -7,6 +7,7 @@ import {
   type ElementMemoire,
 } from "@/lib/agent/memoire";
 import type { PieceDuTour } from "@/lib/agent/fil/service";
+import type { TravailDetail, TravailVue } from "@/lib/missions/travaux/service";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -148,4 +149,56 @@ export async function reglerMaReponseVocale(active: boolean) {
   const { reglerReponseVocale } = await import("@/lib/agent/fil/service");
   await reglerReponseVocale(p.user.id, active === true);
   return { ok: true as const, active: active === true };
+}
+
+// ─────────────────────────────── LES TRAVAUX (J2, décision 0016) ───────────────────────────────
+//
+// Les gestes de la personne sur SES travaux longs (panneau « Travaux ») : un identifiant reçu ne donne rien
+// s'il n'est pas le sien (le service met la personne dans chaque `where`) ; pas d'écriture en « Vue exacte ».
+
+const id = (v: unknown): string | null => (typeof v === "string" && v.length > 0 && v.length < 64 ? v : null);
+// Chargés à l'appel : le moteur des travaux et la persona ne pèsent que sur ces gestes-là.
+const travaux = () => import("@/lib/missions/travaux/service");
+const persona = async () => (await import("@/lib/agent/travaux")).PERSONA_ASSISTANT_IA;
+
+export async function listerMesTravaux(): Promise<{ ok: true; travaux: TravailVue[]; aApprouver: number } | { ok: false; erreur: string }> {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  const liste = await (await travaux()).listerTravaux(p.user.id);
+  return { ok: true, travaux: liste, aApprouver: liste.filter((t) => t.etat === "A_APPROUVER").length };
+}
+
+export async function lireMonTravail(travailId: string): Promise<{ ok: true; travail: TravailDetail } | { ok: false; erreur: string }> {
+  const p = await porte(false);
+  if (!p.ok) return p;
+  const t = id(travailId) ? await (await travaux()).lireTravail(travailId, p.user.id) : null;
+  return t ? { ok: true, travail: t } : { ok: false, erreur: "Travail introuvable." };
+}
+
+export async function approuverMonTravail(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).approuverTravail(travailId, p.user.id, await persona());
+}
+
+export async function pauserMonTravail(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).pauserTravail(travailId, p.user.id);
+}
+
+export async function reprendreMonTravailIA(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).reprendreMonTravail(travailId, p.user.id, await persona());
+}
+
+export async function annulerMonTravail(travailId: string) {
+  const p = await porte(true);
+  if (!p.ok) return p;
+  if (!id(travailId)) return { ok: false as const, erreur: "Travail introuvable." };
+  return (await travaux()).annulerTravail(travailId, p.user.id);
 }

@@ -205,6 +205,9 @@ const SOCLE = [
   "src/lib/agent/memoire-ui", "src/lib/agent/fil/partiel",
   // Les FAMILLES d'accès de l'Assistant IA (décision 0012) : le moteur les applique, la console les règle.
   "src/lib/agent/acces-regles",
+  // Le MARKDOWN des réponses (zéro import) : l'arbre que l'écran dessine — même critère que les règles ci-dessus,
+  // déclaré au lot J2 (il n'était dans aucune couche).
+  "src/lib/agent/ui/markdown",
   /**
    * `lecture/depot` (décision 0015, glisser-déposer) — les règles PURES du dépôt de fichiers dans la conversation :
    * parcours d'un dossier, fichiers système, bornes d'un envoi, phrases. Son seul import est `lecture/regles`

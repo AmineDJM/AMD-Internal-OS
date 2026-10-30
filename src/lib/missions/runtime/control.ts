@@ -43,9 +43,16 @@ const introuvable: ResultatControle = {
   message: "Mission introuvable — ou elle ne vous appartient pas.",
 };
 
-async function etat(missionId: string, ownerId: string): Promise<MissionState | null> {
+/**
+ * `kind` : les gestes valent pour les missions d'Adam (`RUNTIME`, défaut) ET pour les travaux (`TRAVAIL`, J2) —
+ * la même main sur le même moteur. Le `where` garde la famille : un geste sur un travail ne touche jamais une
+ * mission d'Adam, et l'inverse.
+ */
+export type FamilleMission = "RUNTIME" | "TRAVAIL";
+
+async function etat(missionId: string, ownerId: string, kind: FamilleMission = "RUNTIME"): Promise<MissionState | null> {
   const m = await prisma.mission.findFirst({
-    where: { id: missionId, ownerId, kind: "RUNTIME" },
+    where: { id: missionId, ownerId, kind },
     select: { status: true },
   });
   return (m?.status as MissionState) ?? null;
@@ -59,9 +66,9 @@ async function etat(missionId: string, ownerId: string): Promise<MissionState | 
  * seul endroit qui puisse répondre.
  */
 export async function mettreEnPause(
-  missionId: string, ownerId: string, motif?: string,
+  missionId: string, ownerId: string, motif?: string, kind: FamilleMission = "RUNTIME",
 ): Promise<ResultatControle> {
-  const depuis = await etat(missionId, ownerId);
+  const depuis = await etat(missionId, ownerId, kind);
   if (!depuis) return introuvable;
   if (depuis === "PAUSED") {
     return { ok: true, depuis, vers: depuis, message: "Cette mission était déjà en pause." };
@@ -107,8 +114,8 @@ export async function mettreEnPause(
  * événement serait arrivé pendant la pause. RUNNING est l'état honnête : « elle travaille » ;
  * le moteur redécouvre en un tour, sans effet de bord, ce qu'elle attend réellement.
  */
-export async function reprendre(missionId: string, ownerId: string): Promise<ResultatControle> {
-  const depuis = await etat(missionId, ownerId);
+export async function reprendre(missionId: string, ownerId: string, kind: FamilleMission = "RUNTIME"): Promise<ResultatControle> {
+  const depuis = await etat(missionId, ownerId, kind);
   if (!depuis) return introuvable;
   if (depuis !== "PAUSED") {
     return { ok: false, depuis, vers: depuis, message: `Cette mission n'est pas en pause (${depuis}).` };
@@ -150,11 +157,9 @@ export async function reprendre(missionId: string, ownerId: string): Promise<Res
  * pas trois jours après. Ce qui a DÉJÀ été fait reste fait — on n'annule pas un e-mail parti, et
  * prétendre le contraire serait le pire des mensonges d'interface.
  */
-export async function annuler(
-  missionId: string, ownerId: string, motif?: string,
-): Promise<ResultatControle> {
-  const depuis = await etat(missionId, ownerId);
-  if (!depuis) return introuvable;
+export async function annuler(missionId: string, ownerId: string, motif?: string, kind: FamilleMission = "RUNTIME"): Promise<ResultatControle> {
+  const depuis = await etat(missionId, ownerId, kind);
+  if (depuis === null) return introuvable;
   if (depuis === "CANCELLED") {
     return { ok: true, depuis, vers: depuis, message: "Cette mission était déjà arrêtée." };
   }

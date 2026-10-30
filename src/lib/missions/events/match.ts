@@ -16,6 +16,7 @@
  * premier fait venu, ce qui est exactement la panne qu'on ne veut pas.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+import { lireChemin } from "@/lib/missions/runtime/condition";
 
 /** L'attente, telle que le plan l'a écrite. */
 export interface Attente {
@@ -45,6 +46,13 @@ export interface Attente {
    * attente : la condition demandait le document, pas une promesse.
    */
   attachment?: true | string;
+  /**
+   * LE PRÉDICAT SUR LA CHARGE UTILE (J2) — chaque champ nommé doit valoir exactement la valeur donnée
+   * (texte comparé sans casse ni espaces de bord, nombre et booléen à l'identique ; chemin pointé admis :
+   * « statut », « bc.etat »). « Quand le BC est SIGNÉ » : `{ event: "DOCUMENT_STATUT", entity: "BC:…",
+   * payload: { statut: "SIGNE" } }` — un BC seulement « transmis » ne règle pas l'attente.
+   */
+  payload?: Record<string, string | number | boolean>;
   /** Composition OU : réglée dès qu'UNE branche l'est. */
   anyOf?: Attente[];
   /** Composition ET : réglée quand TOUTES les branches le sont (progression persistée). */
@@ -190,6 +198,14 @@ export function correspond(attente: Attente, fait: FaitObserve): boolean {
     if (!objet || attendu.length < 4 || !norm(objet).includes(attendu)) return false;
   }
 
+  // 6 bis. LE PRÉDICAT SUR LA CHARGE UTILE — chaque champ exigé, à l'identique. Un champ absent ne règle rien.
+  if (attente.payload) {
+    for (const [chemin, attendu] of Object.entries(attente.payload)) {
+      const v = lireChemin(charge, chemin);
+      if (typeof attendu === "string" ? typeof v !== "string" || norm(v) !== norm(attendu) : v !== attendu) return false;
+    }
+  }
+
   // 6. LA PIÈCE JOINTE — « je te l'envoie demain » SANS pièce ne règle pas l'attente (§26).
   if (attente.attachment !== undefined) {
     const noms = piecesJointes(fait);
@@ -284,9 +300,14 @@ export function lireAttente(v: unknown, profondeur = 0): Attente | null {
       .filter((b): b is Attente => b !== null);
     return lues.length > 0 ? lues : undefined;
   };
+  const charge = o.payload && typeof o.payload === "object" && !Array.isArray(o.payload)
+    ? Object.fromEntries(Object.entries(o.payload as Record<string, unknown>)
+      .filter((e): e is [string, string | number | boolean] => ["string", "number", "boolean"].includes(typeof e[1]) && e[0].trim() !== ""))
+    : {};
   const a: Attente = {
     event: s("event"), from: s("from"), entity: s("entity"), withinDays: n,
     until: s("until"), threadId: s("threadId"), subject: s("subject"), attachment: piece,
+    ...(Object.keys(charge).length ? { payload: charge } : {}),
     anyOf: branches("anyOf"), allOf: branches("allOf"),
   };
   const feuilleValide = Boolean(a.event || a.until || a.from || a.entity);

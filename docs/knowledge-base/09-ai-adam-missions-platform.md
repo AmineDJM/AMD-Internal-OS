@@ -279,6 +279,16 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   journal reason, never deleted (§118.136, §118.119b). Also applied to lost-launch recovery (`runtime.ts:907`).
 - **Controls** [V] `platform/in-process/missions/control.ts`: pause, resume, suspend-all, stop, refuse approval, replan, prioritise, model cap.
 
+- **Travaux (J2, 30/10/2026)** [V] `src/lib/missions/travaux/`: the SAME engine for every employee. A *travail* is a `Mission` with
+  `kind = "TRAVAIL"`, `principalId` (any user) and `persona` (`ASSISTANT_IA` today; `ADAM` port-ready). Persona injected through
+  `travaux/persona.ts` (the runtime never imports an assistant); plan DSL compiled to `CompiledStep`s at approval (`plan.ts`);
+  `conduite.ts` drives `avancer` wave by wave, re-reading rights (`refusTravail`) and spend caps (`motifPlafond` → pause
+  `pausedReason = "BUDGET_HOLD — …"`) before each wave; writes go through `TravailEcriture` receipts (claimed before, closed after;
+  an unclosed claim is never replayed). Sweep `travaux.balayage` (`balayage.ts`, raw-SQL candidate query that skips sleeping
+  travaux; web abstains under `les-deux` when the worker is alive). Adam's sweeps/views filter `kind = "RUNTIME"`, so they never
+  touch travaux. Additive engine changes: `materialiser({ kind, naissance })`, `kind` on pause/resume/cancel, `payload` predicate
+  on waits (`events/match.ts`), `reveillerAttentesTemporelles(now, seulement?)`. Decision `docs/assistant/decisions/0016-travaux.md`.
+
 ### 4.5 `src/platform` — the boundary
 
 - **Why** [V] `docs/ADAM_PLATFORM_BOUNDARY.md`: separate Adam from ERP *in code*, same process (no microservices, no local cache —

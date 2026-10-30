@@ -575,3 +575,35 @@ Décision : `docs/assistant/decisions/0014-bibliotheque.md`. Module `src/modules
 - **Super Admin** — `/bibliotheque` montre l'état de la file et le mode (hybride / plein texte) ; « Lire maintenant »
   (`bibliotheque-actions:lancerPassageBibliotheque`), relance d'une pièce (`relancerFicheBibliotheque`), audités.
 - **Pas encore** branchée dans l'Assistant IA ni dans Adam ; le corpus réglementaire garde son index (pont : lot J2).
+
+### Travaux longs de l'Assistant IA — le Mission Runtime pour tous (lot J2, 30/10/2026)
+
+Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missions/travaux/` (moteur, ports),
+`src/platform/ia/travaux/outil.ts` (outil du socle IA), `src/lib/agent/travaux.ts` (persona Assistant IA),
+`src/lib/actions/assistant-ia-actions.ts` (gestes « travaux »), `src/components/assistant-beta/travaux-panel.tsx`.
+
+- **Un travail = une `Mission` `kind = "TRAVAIL"`** conduite par le même `avancer` qu'Adam : `principalId` = n'importe quel
+  collaborateur (accès au module `ASSISTANT_IA`), `persona` = `ASSISTANT_IA` (ou `ADAM`, port prêt), plusieurs par
+  personne. Les balayages et écrans d'Adam filtrent `kind = "RUNTIME"` : ils ne voient pas les travaux.
+- **Ouvrir** : le tour de l'Assistant IA porte l'outil `lancer_un_travail` et sa consigne (+ un indice quand la demande a la
+  forme d'un travail long) ; le modèle propose un plan (`LECTURE`, `LOTS`, `ANALYSE` avec `pourChaque`, `GESTE`,
+  `ATTENTE`, `LIVRABLE`, condition `si`), relu contre ce que la persona sait lire et faire **pour la personne** (familles de
+  la console comprises). Rien ne tourne avant **« Approuver le plan »** (panneau « Travaux », bouton à côté des routines) :
+  étapes, gestes autorisés (libellé, famille), plafond.
+- **Conduire** (tâche `travaux.balayage`, sous bail) : vagues d'`avancer` ; avant chaque vague, **droits relus**
+  (compte actif, module `ASSISTANT_IA` — sinon pause `DROITS`) et **plafonds** (travail : 20 $ par défaut ; mois de la
+  personne : 50 $ ; jetons du jour) — atteint : pause `BUDGET_HOLD`, notifiée, réveil automatique quand le plafond le
+  permet. Chaque étape écrit son résultat en finissant (point de reprise) ; une étape « en cours » d'un processus mort est
+  reprise après 10 min ; rien d'autre n'est refait.
+- **Gestes** : opérations de l'Assistant IA (`OPERATIONS_IA` hors routines) — permis seulement s'ils sont dans la liste
+  approuvée ET ouverts par la console au moment d'agir ; reçu `TravailEcriture` réclamé avant, clos après : fait = jamais
+  refait, interrompu = jamais rejoué (l'étape échoue et le dit). Trace `ACTION_TRACED` (demandé par… / exécuté par l'Assistant IA).
+- **Carnet** : objectif, plan, notes, trouvailles, livrables — relu par chaque étape de modèle à la place de l'historique.
+- **Attentes** : fait métier (`recordEvent` réveille aussitôt ; prédicat `champs` sur la charge utile ; échéance `jours`)
+  ou minuterie ; « relance si pas de réponse sous 21 jours » = attente + geste `si: { issue: "TIMEOUT" }`.
+- **Panneau** : liste (état, « attend « … » depuis 2 jours », étapes faites, coût / plafond), détail (étapes, livrable,
+  trouvailles, journal), pause / reprendre / annuler ; notification à la fin et **point quotidien** pour un travail de
+  plus d'un jour (lien `/assistant?travail=…`).
+- **Console** `/admin/ai/acces` : plafonds par défaut (par travail, par mois) et par personne (`enregistrerPlafondsTravaux`, audité).
+- **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
+  Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
