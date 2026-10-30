@@ -51,6 +51,9 @@ const RESIDUS = [
   // `npm run actions:contrat` doit rendre identique au lot J0.
   "src/app/(app)/assistant/beta/actions.ts → src/lib/actions/assistant-actions",
   "src/lib/actions/assistant-actions.ts → src/lib/agent/operations",
+  // … et, depuis la suite de V4-G, elle revérifie les repères ⟦Sn⟧ d'une carte avant de l'exécuter
+  // (`verifierReperesAvantExecution`, import paresseux). Même racine, même remède en phase B.
+  "src/lib/actions/assistant-actions.ts → src/lib/agent/role-config",
   // LE CATALOGUE D'ADAM, emprunté tel quel par les droits métier de l'Assistant IA (décision 0012, V4-G) :
   // ses schémas et ses conditions d'accès (`assistantToolsFor`), ses lectures (`executeReadTool`, et
   // `executePowerTool` pour les lectures ouvertes par droit), ses cartes d'écriture (`buildProposal`) et
@@ -63,6 +66,8 @@ const RESIDUS = [
   // Un TEST de bout en bout : la carte `send_message` de l'Assistant IA, confirmée sans le droit,
   // est refusée par l'exécuteur — qui est `performAction` d'Adam tant que l'action ci-dessus y vit.
   "src/lib/agent/limites.test.ts → src/lib/assistant",
+  // Le banc des droits métier (V4-G) confirme ses cartes par cette même action.
+  "src/lib/agent/droits-metier.test.ts → src/lib/actions/assistant-actions",
 ];
 
 const dans = (f: string, perimetre: string[]): boolean =>

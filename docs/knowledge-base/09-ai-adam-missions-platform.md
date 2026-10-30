@@ -25,11 +25,11 @@
 >   business rights): 38 IA→Adam imports in 24 files. After: 4, named — `lib/agent/outils-v1.ts` borrows Adam's tool
 >   catalogue (`assistantToolsFor`, `executeReadTool`, `buildProposal`, `executePowerTool`, `DOMAIN_TOOLS`; decision 0012),
 >   and `assistant/beta/actions.ts → lib/actions/assistant-actions` (`confirmerIntentionAssistantIA` lives in Adam's actions
->   file and executes business cards via Adam's `performAction`; moving it changes the action contract). Plus the reverse 2
->   imports of that file into `lib/agent/operations*`, plus test `lib/agent/limites.test.ts`. All → phase B.
-> - **Ratchets.** `boundary.test.ts`: Adam→ERP `DEBT_CEILING` 419 → **393**; new `SOCLE_IA_CEILING = 179` (socle ERP
+>   file and executes business cards via Adam's `performAction`; moving it changes the action contract). Plus the reverse 3
+>   imports of that file into `lib/agent/{operations*,role-config}`, plus tests `lib/agent/{limites,droits-metier}.test.ts`. All → phase B.
+> - **Ratchets.** `boundary.test.ts`: Adam→ERP `DEBT_CEILING` 419 → **393**; new `SOCLE_IA_CEILING = 180` (socle ERP
 >   imports counted apart; `src/app/(app)/assistant/` left `ADAM_PATHS`). `domains.ts`: new layer "socle IA";
->   crossings 67 → 57, providers 42 → 40 (measured after merging b42a952c). Action contract (`npm run actions:contrat`) byte-identical.
+>   crossings 58 / providers 39 (base 37a29edc measures 62 / 39: this lot removes 4). Action contract (`npm run actions:contrat`) byte-identical.
 > - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
 >   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
 
@@ -72,7 +72,17 @@ Covered:
   `role-config.ts`) with SALAIRES/CONTRATS_RH CLOSED; `AssistantIaAcces` rows (per role, per user — user wins) open/close
   families; explicit opening may exceed app rights (own HR tools, token reveal — audited — and the RH document route).
   Re-read every turn (`accesAssistantIa`); closed family → tool refuses naming it (`refusFamille`). Console
-  `/admin/ai/acces` (`enregistrerAccesAssistantIa`, Super Admin, audit, EXCLUDED in the action registry). Bench: `src/lib/agent/droits-metier.test.ts`.
+  `/admin/ai/acces` (`enregistrerAccesAssistantIa`, Super Admin, audit, EXCLUDED in the action registry).
+  Follow-up (Direction 29/10): `vueDeLAssistant` adds VIEW on the modules of explicitly-opened families, so engine READS
+  accept "app right OR console opening" (writes still run under the real session); `Revelateur`/`peutVoirLaValeur` live
+  in `role-config.ts`; tokens inside a card input are substituted server-side (`substituerReperes`, refused without the
+  right), stored as `reperesSubstitues` on the intent, re-checked at confirmation (`verifierReperesAvantExecution` in
+  `confirmerIntentionAssistantIA`), audited at card and execution; non-vault values are journaled through
+  `journaliserLectureHorsColonne` (coffre door) with tool name and source (`PayrollEntry`, `EmployeeDocument`).
+  Bench V4-H gaps closed: directory returns manager/department (`findPeople`), `list_pending_decisions` exposed,
+  `demandes_adpro` / `etat_dossier_reglementaire` (`lecturesMetier`, `lectures.ts`, under the elevated view, perimeter-
+  scoped — `product_360` not lent), leave requests on the HR card, cached input billed at `cacheParM`
+  (`ASSISTANT_IA_PRICE_CACHED`, defaults `TARIFS_PAR_DEFAUT` 2/12/0.2 $ per M), `consigneGestesFermes` (refusals name the right). Bench: `src/lib/agent/droits-metier.test.ts`.
   **Voice notes & reading attachments (decision 0011, 2026-10-28)**: `src/lib/agent/lecture/` — `pieces.ts` READS each
   attachment before the turn (text/Office/PPTX/CSV natively, scanned PDF and images by VISION through the `genererTexte`
   door with role `vision`, audio/video by STT + ffmpeg key frames), after vault gates (local nature, CONFIDENTIAL, file

@@ -42,8 +42,8 @@ describe("outils V1", () => {
     // ouverts par droit, la mémoire proposée et les opérations de l'Assistant IA (le Super Admin a tout ;
     // chacun revérifie à l'exécution par l'action de l'écran).
     expect(noms).toEqual([
-      "assign_regulatory_responsible", "comparer_versions", "create_admin_request", "create_hr_request", "create_task", "directory_list", "directory_lookup", "documents_rh",
-      "drive_operation", "finance_totals", "hr_operation", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks",
+      "assign_regulatory_responsible", "comparer_versions", "demandes_adpro", "create_admin_request", "create_hr_request", "create_task", "directory_list", "directory_lookup", "documents_rh",
+      "drive_operation", "etat_dossier_reglementaire", "finance_totals", "hr_operation", "lire_devis_facture", "lire_document", "lire_fiche_rh", "lire_formulaire_pdf", "lire_paie", "list_my_requests", "list_my_tasks", "list_pending_decisions",
       "mes_brouillons", "mes_conversations", "mes_demandes_en_attente", "mes_routines", "my_overview",
       "proposer_memoire", "read_budget", "read_calendar", "read_hr_overview", "read_workflow",
       "regulatory_knowledge", "regulatory_operation", "regulatory_portfolio", "regulatory_workload", "request_operation", "request_regulatory_status_update",

@@ -13,6 +13,7 @@ import {
   type ArticleADeviser, type LettreDevis,
 } from "@/modules/ad-pro/partage";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -199,13 +200,15 @@ export async function deposerLettreDevis(
   for (const c of cibles) {
     for (const f of fichiers) {
       const cle = `${c.entityType}/${c.entityId}/${randomUUID()}__${f.nom}`;
-      await saveFile(cle, f.octets);
-      await prisma.document.create({
+      const ecrit = await saveFile(cle, f.octets);
+      const docEcrit = await prisma.document.create({
         data: {
           name: f.nom, category: "OTHER", entityType: c.entityType, entityId: c.entityId, stepKey: ETAPE_DEMANDE_DEVIS,
           fileKey: cle, mimeType: f.mime, sizeBytes: f.octets.length, confidentiality: "INTERNAL", uploadedById: user.id,
         },
       });
+      // La pièce entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.
+      await inscrireDocumentEcrit(docEcrit, ecrit);
     }
   }
   return { ok: true, parLuna, texte: texteDeLaLettre(lettre), pdf: pdf.ok, surPapierEnTete: composition.surPapierEnTete, referenceRegistre };

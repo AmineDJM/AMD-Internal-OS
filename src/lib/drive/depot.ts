@@ -4,6 +4,7 @@ import { resolveDriveAccess, effectiveSpaceId, canCreateInSpace } from "@/lib/dr
 import { recordAudit } from "@/lib/audit";
 import type { SessionUser } from "@/lib/rbac";
 import { signalerFichierDrive } from "@/lib/enrichissement/signalement";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * DÉPOSER UN FICHIER DANS LE DRIVE — la porte et l'écriture, une seule fois pour les deux chemins.
@@ -63,8 +64,11 @@ export async function enregistrerFichierDrive(
 ): Promise<{ id: string; version?: number }> {
   const { blobId, size, mimeType, name } = fichier;
   // La pièce nourrit les fiches (refonte, lot V2-A), une fois le fichier inscrit — interrupteur fermé : rien.
-  const signaler = (nodeId: string, version: number | null) =>
-    signalerFichierDrive({ nodeId, version, blobId, sha256: fichier.sha256 ?? null, nom: name, mime: mimeType, taille: size, deposeParId: user.id });
+  // Et elle entre à la bibliothèque (J1) : registre, clé d'accès du nœud, file d'ingestion. Ni l'un ni l'autre ne lève.
+  const signaler = async (nodeId: string, version: number | null) => {
+    await signalerFichierDrive({ nodeId, version, blobId, sha256: fichier.sha256 ?? null, nom: name, mime: mimeType, taille: size, deposeParId: user.id });
+    await inscrireFichierDrive({ nodeId, version, blobId, sha256: fichier.sha256 ?? null, nom: name, mime: mimeType, taille: size, deposeParId: user.id });
+  };
   if (cible.nodeId) {
     const nodeId = cible.nodeId;
     const last = await prisma.fileVersion.findFirst({ where: { nodeId }, orderBy: { version: "desc" }, select: { version: true } });

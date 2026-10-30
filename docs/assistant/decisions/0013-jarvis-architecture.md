@@ -52,16 +52,16 @@ J1 et J2 avancent en parallèle après J0. Chaque lot : migration additive, test
 
 ## 4. Ce que le lot J0 a livré
 
-**Mesures** (après fusion de la base `b42a952c`, qui apporte les droits métier V4-G — décision 0012 — et le module
+**Mesures** (après fusion des bases `b42a952c` puis `37a29edc` (J1 Bibliothèque) ; la première apporte les droits métier V4-G — décision 0012 — et le module
 Finances ; non-tests, « tests compris » entre parenthèses) :
 
-| | Base `b42a952c` | Après J0 |
+| | Base `b42a952c` / `37a29edc` | Après J0 |
 |---|---|---|
 | Imports de l'Assistant IA vers Adam | 38 dans 24 fichiers (45) | **4**, nommés (5 avec le test `limites.test.ts`) |
-| Imports d'Adam vers l'Assistant IA | 2 (`lib/actions/assistant-actions.ts`) | 2 — les mêmes, nommés |
+| Imports d'Adam vers l'Assistant IA | 2 sur `b42a952c`, 3 sur `37a29edc` (tous de `lib/actions/assistant-actions.ts`) | 3 — les mêmes, nommés (tous dans `confirmerIntentionAssistantIA`) |
 | Imports du socle vers l'un ou l'autre | — | **0** |
-| Frontière Adam → ERP (`boundary.test.ts`) | plafond 419 | **393** + socle IA **179** (plafond propre) |
-| Domaines (`domains.test.ts`) : traversées / fournisseurs | plafonds 67 / 42 | 57 / 40 |
+| Frontière Adam → ERP (`boundary.test.ts`) | plafond 419 | **393** + socle IA **180** (plafond propre ; +1 venu de J1 dans `artifact/ports.ts`) |
+| Domaines (`domains.test.ts`) : traversées / fournisseurs | 62 / 39 mesurés sur 37a29edc (plafonds 67 / 42) | **58 / 39** (−4 : le code parti au socle) |
 | Contrat des actions (`npm run actions:contrat`) | — | **identique, octet pour octet** |
 
 **Ce qui est allé au socle** (`git mv` quand c'était un fichier entier ; extrait sinon) : la forme d'un outil (`outil.ts`,

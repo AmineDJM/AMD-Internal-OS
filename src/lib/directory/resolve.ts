@@ -51,7 +51,12 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
 
   const push = (key: string, base: Omit<PersonMatch, "endpoints">, endpoints: ResolvedEndpoint[]) => {
     const existing = byKey.get(key);
-    if (existing) { existing.endpoints.push(...endpoints); return; }
+    if (existing) {
+      existing.endpoints.push(...endpoints);
+      // La fiche RH COMPLÈTE le compte ERP trouvé avant elle (poste, entité, N+1, département) — sans rien écraser.
+      for (const k of ["jobTitle", "company", "employeeId", "manager", "department"] as const) if (existing[k] == null && base[k] != null) existing[k] = base[k] as never;
+      return;
+    }
     byKey.set(key, { ...base, endpoints: [...endpoints] });
   };
 
@@ -96,7 +101,10 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
     prisma.employee.findMany({
       where: { isActive: true, fullName: { contains: q, mode: "insensitive" } },
       take: limit * 2,
-      select: { id: true, fullName: true, position: true, email: true, phone: true, userId: true, company: { select: { shortName: true, name: true } } },
+      select: {
+        id: true, fullName: true, position: true, email: true, phone: true, userId: true, company: { select: { shortName: true, name: true } },
+        manager: { select: { fullName: true } }, departmentRef: { select: { name: true } },
+      },
     }).catch(sansBloquer("resolve.findPeople.employee", [])),
   ]);
 
@@ -117,6 +125,7 @@ export async function findPeople(query: string, limit = 5): Promise<PersonMatch[
       key, name: e.fullName, jobTitle: e.position,
       company: e.company?.shortName ?? e.company?.name ?? null,
       userId: e.userId, employeeId: e.id, contactId: null, directoryEntryId: null,
+      manager: e.manager?.fullName ?? null, department: e.departmentRef?.name ?? null,
     }, endpoints);
   }
 

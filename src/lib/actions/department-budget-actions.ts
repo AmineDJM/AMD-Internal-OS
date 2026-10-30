@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { userCan, hasGlobalView } from "@/lib/rbac";
@@ -8,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { lienDemandeBudgetDepartement } from "@/lib/chemins/budgets";
-import { saveFile, deleteFileByKey } from "@/lib/storage";
+import { deleteFileByKey, deposerPieceDeModule } from "@/lib/storage";
 import { validateAttachments } from "@/lib/attach-files";
 import {
   canEditDepartmentBudget, canManageDepartmentBudgetAccess, canRequestDepartmentBudget,
@@ -463,19 +462,8 @@ export async function addDepartmentExpense(formData: FormData): Promise<ActionRe
   if (ticket) await saveReceiptLines(created.id, lignes);
 
   for (const file of files) {
-    const key = `DEPARTMENT_EXPENSE/${created.id}/${randomUUID()}__${file.name}`;
-    try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
-    } catch (err) {
-      console.error("[dept-expense] storage write failed, recording metadata only", err);
-    }
-    await prisma.document.create({
-      data: {
-        name: file.name, category: "INVOICE", entityType: "DEPARTMENT_EXPENSE", entityId: created.id,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
-        confidentiality: "INTERNAL", uploadedById: user.id,
-      },
-    });
+    // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+    await deposerPieceDeModule(file, { entityType: "DEPARTMENT_EXPENSE", entityId: created.id, category: "INVOICE", confidentiality: "INTERNAL", uploadedById: user.id, journal: "dept-expense" });
   }
 
   await recordAudit({

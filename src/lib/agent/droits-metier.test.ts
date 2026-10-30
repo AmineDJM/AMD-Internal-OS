@@ -18,7 +18,7 @@ import type { CurrentUser } from "@/lib/session";
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 vi.mock("@/lib/push", () => ({ sendPushToUser: async () => undefined }));
 let ACTEUR: unknown = null;
-vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR }));
+vi.mock("@/lib/session", async (original) => ({ ...(await original<typeof import("@/lib/session")>()), requireUser: async () => ACTEUR, getCurrentUser: async () => ACTEUR }));
 
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
@@ -32,6 +32,10 @@ import { REFUS_PAIE_AUTRUI } from "@/lib/agent/lectures";
 import { accesAssistantIa } from "@/lib/agent/role-config";
 import { FAMILLES_IA, refusFamille, resoudreAccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
 import { enregistrerAccesAssistantIa } from "@/lib/actions/assistant-ia-consommation-actions";
+import { confirmerIntentionAssistantIA } from "@/lib/actions/assistant-actions";
+import { consigneFamilles } from "@/lib/agent/acces-regles";
+import { GET as telechargerDocumentRh } from "@/app/api/rh/document/[id]/route";
+import { NextRequest } from "next/server";
 import {
   BORNE_REVELEE, CoffretDuTour, jetonnerMontants, jetonnerObjet, jetonnerSortie, jetonnerTexte, masquerReperesPartiels, MASQUE_CONFIDENTIEL, sansValeursRevelees,
 } from "@/lib/agent/filtre-confidentialite";
@@ -119,10 +123,16 @@ suite("contre la base, au faux modèle", () => {
   let karim: CurrentUser;
   let assistante: CurrentUser;
   let autreAssistante: CurrentUser;
+  let lecteur: CurrentUser;
+  let voisin: CurrentUser;
   let employeAssia = "";
   let contratKarim = "";
   let contratAssia = "";
 
+  const session2 = async (u: CurrentUser): Promise<CurrentUser> => {
+    const access = await getAccess(u.id, u.role);
+    return { ...u, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access } as CurrentUser;
+  };
   const session = async (role: string, nom: string): Promise<CurrentUser> => {
     const u = await prisma.user.create({ data: { name: `${nom} ${TAG}`, email: `${TAG}${nom.toLowerCase()}@t.dz`, passwordHash: "x", role: role as never } });
     const access = await getAccess(u.id, u.role);
@@ -136,6 +146,14 @@ suite("contre la base, au faux modèle", () => {
     karim = await session("MEDICAL_DELEGATE", "Karim");
     assistante = await session("DIRECTION_ASSISTANT", "Samia");
     autreAssistante = await session("DIRECTION_ASSISTANT", "Nadia");
+    // Deux lecteurs SANS Drive ni Documents dans l'application : chaque famille testée est au-delà de leurs droits.
+    const sansDrive = async (role: string, nom: string) => {
+      const u = await session(role, nom);
+      await prisma.userAccess.createMany({ data: ["DRIVE", "DOCUMENTS"].map((module) => ({ userId: u.id, module, canView: false })) });
+      return session2(u);
+    };
+    lecteur = await sansDrive("VIEWER", "Leila");
+    voisin = await sansDrive("VIEWER", "Lyes");
     const ea = await prisma.employee.create({
       data: { fullName: `Assia ${TAG}Benali`, userId: assia.id, position: "Pharmacienne", baseSalary: 185000, netToPay: 152340, iban: "DZ5900400174401234567890" },
     });
@@ -147,7 +165,10 @@ suite("contre la base, au faux modèle", () => {
   });
   afterEach(() => { remplacerModelesPourTests(null); });
   afterAll(async () => {
-    const ids = [superAdmin, kam, assia, karim, assistante, autreAssistante].filter(Boolean).map((u) => u.id);
+    const ids = [superAdmin, kam, assia, karim, assistante, autreAssistante, lecteur, voisin].filter(Boolean).map((u) => u.id);
+    await prisma.accesDonneeSensible.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
+    await prisma.message.deleteMany({ where: { senderId: { in: ids } } }).catch(() => {});
+    await prisma.userAccess.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.assistantIaAcces.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.auditLog.deleteMany({ where: { actorId: { in: ids } } }).catch(() => {});
     await effacerJournalDe(ids);
@@ -315,5 +336,122 @@ suite("contre la base, au faux modèle", () => {
     fd.set("fermees", "SALAIRES");
     expect((await enregistrerAccesAssistantIa(fd)).ok).toBe(false);
     expect((await accesAssistantIa(superAdmin)).ouvertes).toEqual([...FAMILLES_IA]);
+  });
+
+  it("BUDGETS, DRIVE, RÉGLEMENTAIRE, AD & PRO : fermées par défaut (au-delà des droits) → refus ; ouvertes dans la console → l'outil lit ; seule la personne visée", async () => {
+    const CAS: [FamilleIa, string, Record<string, unknown>][] = [
+      ["BUDGETS", "read_budget", {}],
+      ["DRIVE", "search_everything", { query: "contrat" }],
+      ["REGLEMENTAIRE", "regulatory_portfolio", {}],
+      ["AD_PRO", "read_workflow", { category: "SPONSORING" }],
+    ];
+    const lire = async (u: CurrentUser, nom: string, entree: Record<string, unknown>) => {
+      const acces = await accesAssistantIa(u);
+      const o = outilsV1(u, [], [], [], new CoffretDuTour(), acces).find((t) => t.def.name === nom);
+      return o ? await o.run(entree, u) : null;
+    };
+    const fermee = (r: string | null, f: FamilleIa) => r === null || r.includes(JSON.stringify(refusFamille(f)).slice(1, 40));
+
+    for (const [f, nom, entree] of CAS) {
+      expect(fermee(await lire(lecteur, nom, entree), f), `${f} fermée par défaut`).toBe(true);
+      expect(consigneFamilles(await accesAssistantIa(lecteur))).toContain(`FERMÉES :`);
+    }
+
+    ACTEUR = superAdmin;
+    const fd = new FormData();
+    fd.set("cible", `user:${lecteur.id}`);
+    fd.set("ouvertes", "BUDGETS,DRIVE,REGLEMENTAIRE,AD_PRO");
+    expect(await enregistrerAccesAssistantIa(fd)).toEqual({ ok: true });
+    expect(await prisma.auditLog.count({ where: { actorId: superAdmin.id, field: "Assistant IA — accès", summary: { contains: "Leila" } } })).toBe(1);
+
+    for (const [f, nom, entree] of CAS) {
+      const r = await lire(lecteur, nom, entree);
+      expect(r, `${f} ouverte : l'outil est offert`).not.toBeNull();
+      expect(fermee(r, f), `${f} ouverte : pas de refus de famille`).toBe(false);
+      expect(r!, `${f} ouverte : pas de refus de module`).not.toMatch(/ne vous est pas ouvert/);
+      expect(fermee(await lire(voisin, nom, entree), f), `${f} : le voisin reste au défaut`).toBe(true);
+    }
+  });
+
+  it("UN REPÈRE DANS UNE CARTE — « envoie le salaire d'Assia à Karim » : la carte porte la valeur, le modèle jamais ; refus sans droit ; rejugé à la confirmation ; tracé", async () => {
+    // Le Super Admin lit la paie (repères), puis prépare un message qui CITE le repère.
+    const c = new CoffretDuTour();
+    const props: PropositionPreparee[] = [];
+    const outils = outilsV1(superAdmin, props, [], [], c, await accesAssistantIa(superAdmin));
+    const paie = JSON.parse(await outils.find((o) => o.def.name === "lire_paie")!.run({ nom: `Assia ${TAG}Benali` }, superAdmin));
+    const j = paie.ficheActuelle.salaireBase as string;
+    const sortie = await outils.find((o) => o.def.name === "send_message")!.run({ recipientName: `Karim ${TAG}`, body: `Le salaire de base d'Assia est de ${j}.` }, superAdmin);
+    expect(chiffres(sortie)).not.toContain("185000");
+    expect(sortie).toContain(j);
+    expect(props).toHaveLength(1);
+    const intent = await prisma.assistantActionIntent.findUniqueOrThrow({ where: { id: props[0]!.intentId } });
+    expect(chiffres(JSON.stringify(intent.payload))).toContain("185000DZD");
+    expect((intent.payload as { reperesSubstitues?: unknown[] }).reperesSubstitues).toHaveLength(1);
+    expect(await prisma.auditLog.count({ where: { actorId: superAdmin.id, summary: { contains: "insérée dans la carte" } } })).toBe(1);
+
+    // La confirmation par la même personne exécute — et trace l'usage à l'exécution.
+    ACTEUR = superAdmin;
+    const r = await confirmerIntentionAssistantIA(props[0]!.intentId);
+    expect(r.ok).toBe(true);
+    expect(await prisma.auditLog.count({ where: { actorId: superAdmin.id, summary: { contains: "utilisée à l'exécution" } } })).toBe(1);
+
+    // Un KAM, dont « Salaires & paie » est fermée, ne peut pas glisser le même repère dans une carte.
+    const props2: PropositionPreparee[] = [];
+    const ck = new CoffretDuTour();
+    ck.jeton(c.entree(1)!);
+    const refuse = JSON.parse(await outilsV1(kam, props2, [], [], ck, await accesAssistantIa(kam)).find((o) => o.def.name === "send_message")!
+      .run({ recipientName: `Karim ${TAG}`, body: "Salaire : ⟦S1⟧" }, kam));
+    expect(refuse.statut).toBe("REFUS");
+    expect(props2).toHaveLength(0);
+  });
+
+  it("une carte porteuse d'une valeur dont la famille a été FERMÉE entre-temps ne s'exécute pas", async () => {
+    // Samia a « Salaires & paie » ouverte (test précédent) : elle prépare, puis la Direction referme, puis elle confirme.
+    const c = new CoffretDuTour();
+    const props: PropositionPreparee[] = [];
+    const outils = outilsV1(assistante, props, [], [], c, await accesAssistantIa(assistante));
+    const paie = JSON.parse(await outils.find((o) => o.def.name === "lire_paie")!.run({ nom: `Assia ${TAG}Benali` }, assistante));
+    await outils.find((o) => o.def.name === "create_task")!.run({ title: `Vérifier ${paie.ficheActuelle.salaireBase}`, assigneeName: `Karim ${TAG}` }, assistante);
+    expect(props).toHaveLength(1);
+    ACTEUR = superAdmin;
+    const fd = new FormData();
+    fd.set("cible", `user:${assistante.id}`);
+    fd.set("fermees", "SALAIRES");
+    expect(await enregistrerAccesAssistantIa(fd)).toEqual({ ok: true });
+    await prisma.userAccess.create({ data: { userId: assistante.id, module: "ASSISTANT_IA", canView: true, scope: "ASSIGNED" } });
+    ACTEUR = await session2(assistante);
+    const r = await confirmerIntentionAssistantIA(props[0]!.intentId);
+    expect(r).toMatchObject({ ok: false });
+    expect(r.error).toMatch(/plus le droit/);
+  });
+
+  it("TOUT EST TRACÉ : une valeur hors colonne du coffre (historique de paie, contrat) écrit une ligne au journal des accès, avec l'outil", async () => {
+    const c = new CoffretDuTour();
+    const acces = await accesAssistantIa(superAdmin);
+    const outils = outilsV1(superAdmin, [], [], [], c, acces);
+    const lu = json(await outils.find((o) => o.def.name === "documents_rh")!.run({ documentId: contratAssia, lire: true }, superAdmin));
+    const repere = (lu.contenu as string).match(/⟦S\d+⟧/)![0];
+    await new Revelateur(c, superAdmin, acces).texte(repere);
+    const ligne = await prisma.accesDonneeSensible.findFirst({ where: { userId: superAdmin.id, origineModele: "EmployeeDocument", origineId: contratAssia } });
+    expect(ligne).toMatchObject({ nature: "SALAIRE", autorise: true });
+    expect(ligne!.geste).toContain("documents_rh");
+    // Un refus se journalise aussi.
+    await new Revelateur(c, kam, await accesAssistantIa(kam)).texte(repere);
+    expect(await prisma.accesDonneeSensible.count({ where: { userId: kam.id, origineId: contratAssia, autorise: false } })).toBe(1);
+  });
+
+  it("« Contrats & documents RH » ouverte → la route sert le fichier ; fermée → 403 ; seulement la personne visée", async () => {
+    const req = () => new NextRequest(`http://localhost/api/rh/document/${contratAssia}?dl=1`);
+    const servir = async (u: CurrentUser) => { ACTEUR = u; return (await telechargerDocumentRh(req(), { params: Promise.resolve({ id: contratAssia }) })).status; };
+    expect(await servir(karim)).toBe(403);
+    expect(await servir(autreAssistante)).toBe(403);
+    ACTEUR = superAdmin;
+    const fd = new FormData();
+    fd.set("cible", `user:${autreAssistante.id}`);
+    fd.set("ouvertes", "CONTRATS_RH");
+    expect(await enregistrerAccesAssistantIa(fd)).toEqual({ ok: true });
+    expect(await servir(autreAssistante)).toBe(200);
+    expect(await servir(karim)).toBe(403);
+    expect(await servir(superAdmin)).toBe(200);
   });
 });

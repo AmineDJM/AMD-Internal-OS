@@ -16,6 +16,7 @@ import {
   type ChampsAttestation, type Civilite, type ProvenanceChamp,
 } from "./attestation-travail/modele";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -232,24 +233,29 @@ export async function genererEtRemettreAttestation(
   const p = pdf.ok ? await putBlob(pdf.pdf) : null;
 
   let remplacees = 0;
+  const remises: { id: string; nom: string; mime: string; ecrit: { blobId: string; sha256: string; size: number } }[] = [];
   try {
     await prisma.$transaction(async (tx) => {
       // UNE NOUVELLE VERSION, JAMAIS UN ÉCRASEMENT : la pièce précédente quitte la demande et n'est plus montrée au
       // salarié — elle reste au dossier RH, avec son nom (et son numéro de version).
       remplacees = (await tx.employeeDocument.updateMany({ where: { requestId }, data: { requestId: null, visibleToEmployee: false } })).count;
-      await tx.employeeDocument.create({
+      const word = await tx.employeeDocument.create({
         data: {
           employeeId: d.employeeId, category: "WORK_CERTIFICATE", name: `${nom}.docx`, blobId: w.blobId, mime: MIME_DOCX, size: w.size,
           visibleToEmployee: !p, uploadedById: acteurId, requestId: p ? undefined : requestId,
         },
+        select: { id: true },
       });
+      remises.push({ id: word.id, nom: `${nom}.docx`, mime: MIME_DOCX, ecrit: w });
       if (p) {
-        await tx.employeeDocument.create({
+        const pdfRemis = await tx.employeeDocument.create({
           data: {
             employeeId: d.employeeId, category: "WORK_CERTIFICATE", name: `${nom}.pdf`, blobId: p.blobId, mime: MIME_PDF, size: p.size,
             visibleToEmployee: true, uploadedById: acteurId, requestId,
           },
+          select: { id: true },
         });
+        remises.push({ id: pdfRemis.id, nom: `${nom}.pdf`, mime: MIME_PDF, ecrit: p });
       }
       await tx.hrDocumentRequest.update({ where: { id: requestId }, data: { status: "READY", handledById: acteurId } });
     });
@@ -257,6 +263,10 @@ export async function genererEtRemettreAttestation(
     return { ok: false, error: "L'attestation n'a pas pu être rattachée à la demande (une autre génération était peut-être en cours) : réessayez." };
   }
   await marquerDemandeRhTraitee(requestId); // brique KPI « demandes traitées »
+  // Les pièces remises entrent à la bibliothèque, CONFIDENTIELLES (J1), une fois la transaction acquise.
+  for (const r of remises) {
+    await inscrireDocumentRh({ id: r.id, blobId: r.ecrit.blobId, sha256: r.ecrit.sha256, nom: r.nom, mime: r.mime, taille: r.ecrit.size, deposeParId: acteurId });
+  }
 
   const salarie = d.employee.fullName;
   if (d.employee.userId) {

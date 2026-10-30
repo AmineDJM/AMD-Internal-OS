@@ -120,14 +120,57 @@ encadré comme contenu non fiable (« document du dossier RH »).
 
 Coût : 59 outils pour le Super Admin (≈ 67 Ko de définitions), 54 pour un KAM ; ~5–8 s par tour.
 
-## Décisions à prendre (Direction)
-- **Ouverture au-delà des droits pour Budgets, Drive, Réglementaire, Ad & Pro** : aujourd'hui l'ouverture explicite n'y va
-  pas au-delà de la garde de l'écran (les outils du moteur jugent sur les droits de la personne). Faut-il un passe-droit ?
-- **Repère dans une écriture** : aujourd'hui interdit (le modèle doit dire de copier la valeur). Faut-il remplacer, côté
-  serveur, un repère dans l'entrée d'une carte (ex. « envoie son salaire à X ») quand la personne a le droit de le voir ?
-- **Valeurs hors colonnes du coffre** (historique de paie, montants lus dans un contrat) : jugées par la même politique, mais
-  pas journalisées dans `AccesDonneeSensible` (aucune ligne du coffre ne les porte). Faut-il un journal « lecture par
-  l'assistant » pour celles-là ?
-- **Masse salariale** : traitée comme une rémunération (repère, visible des RH et du Super Admin). La garder pour un
-  agrégat ?
-- **Étendre** : autres domaines (Finance, Legal, réunions, courrier) — même mécanisme, à ouvrir domaine par domaine.
+## Réponses de la Direction (29/10/2026) — implémentées
+1. **Ouverture explicite au-delà des droits pour Budgets & finances, Drive & documents, Réglementaire, Ad & Pro**
+   (comme Salaires et Contrats). La garde devient « droit applicatif OU ouverture explicite de la console » :
+   `vueDeLAssistant` (`role-config.ts`) donne aux LECTURES du moteur la personne avec, en plus, le droit de VOIR les
+   modules des familles ouvertes explicitement (Budgets → BUDGETS, FINANCES ; Drive → DRIVE, DOCUMENTS ; Réglementaire →
+   REGULATORY, REGULATORY_PIPELINE ; Ad & Pro → SPONSORING, AD_PRO_CENTRE, EVENTS, congrès, PROMO_MATERIAL, AD_PRO_OTHER ;
+   Fiches → RH). `assistantToolsFor`, `executeReadTool`, `executePowerTool` et les lectures annuaire / Regulatory jugent
+   sur cette vue. Limites dites : les ÉCRITURES s'exécutent toujours sous la vraie session (l'action de l'écran relit
+   `requireUser`) — ouvrir une famille n'ouvre pas ses gestes ; le partage nœud par nœud du Drive et l'étanchéité des
+   sociétés restent. Chaque ouverture est à l'audit (action de la console). Le Super Admin a toujours tout.
+2. **Un repère dans une carte, après confirmation** (« envoie le salaire d'Assia à Karim ») : tout geste préparé passe par
+   `substituerReperes` — chaque `⟦Sn⟧` de l'entrée est remplacé par la vraie valeur AVANT la carte, si la personne a le
+   droit de la voir (même décision que la révélation, journalisée), sinon la carte est refusée et rien n'est préparé ; la
+   carte garde ses valeurs substituées (`reperesSubstitues` dans la charge de l'intention) ; la sortie rendue au modèle
+   remet chaque valeur en repère ; à la CONFIRMATION, `verifierReperesAvantExecution` rejuge chaque valeur pour qui
+   confirme, avec ses accès du moment (une famille refermée entre-temps → rien ne s'exécute) ; chaque substitution est
+   tracée à l'audit — qui, quelle donnée (nature, origine), vers quelle carte et quel destinataire — à la carte ET à
+   l'exécution.
+3. **Tout tracer** : une valeur HORS colonne du coffre (historique de paie, montant d'un contrat, IBAN lu dans un
+   document) écrit une ligne `AccesDonneeSensible` quand l'assistant la montre ou la refuse —
+   `journaliserLectureHorsColonne` (porte `@/modules/coffre/api`, sans déchiffrement) : qui, nature, quand, geste avec
+   l'OUTIL qui l'a lue (« Assistant IA — réponse à la personne — outil documents_rh »), origine (`PayrollEntry`,
+   `EmployeeDocument`) quand l'outil la connaît, motif (POLITIQUE, OUVERTURE_DIRECTION, FAMILLE_FERMEE, HORS_PERIMETRE).
+   Une valeur d'une colonne du coffre l'était déjà (`controlerLecture`).
+4. **« Contrats & documents RH » ouverte → téléchargement par la route** : gardé, testé (403 fermée, 200 ouverte, 403
+   pour une autre personne).
+
+Bancs (`droits-metier.test.ts`) : par famille (Budgets, Drive, Réglementaire, Ad & Pro) fermée par défaut → refus, ouverte →
+l'outil lit, la voisine du même rôle reste au défaut ; repère dans une carte (valeur dans la carte, jamais au modèle ;
+refus sans droit ; exécution tracée ; famille refermée → refus à la confirmation) ; journal hors colonne (accord et
+refus) ; route des documents RH.
+
+## Manques du banc « Jarvis » en direct (V4-H, 29/10/2026) — corrigés dans ce lot
+Le banc (`docs/bench/assistant-jarvis-live.md`, `scripts/bench/assistant-jarvis-live.ts`) avait été joué sur `ed81866f`,
+AVANT ce lot. Repris un à un :
+
+| N° | Manque | Correction |
+|---|---|---|
+| 1 | le filtre de saisie détruisait « le salaire d'Assia » ; « salaire de base de 165 000 DZD » laissait passer le montant | motif : un montant commence par un chiffre ; « est / de / du / à » acceptés devant le montant |
+| 2 | aucun outil RH | `lire_fiche_rh` (avec N+1 et **congés de l'année**), `lire_paie`, `documents_rh` — familles et repères (ci-dessus) |
+| 3 | l'annuaire ne rend pas le manager | `findPeople` charge `Employee.manager` et le département ; `directory_lookup` rend `responsable` |
+| 5 | pas de file « à valider par moi » | `list_pending_decisions` offerte (centre d'action + congés à trancher, la file de l'utilisateur) |
+| 6 | pas de lecture des demandes Ad & Pro ni des budgets | `demandes_adpro` (requête de l'écran `getAdProRequests`, par année / état / nature, totaux) ; `read_budget`, `finance_totals` |
+| 7 | pas d'écriture Regulatory ni de demande administrative | `regulatory_operation` (`create_product`…) et `create_admin_request` sont offerts (outils du moteur, cartes) — pas dans `OPERATIONS_IA` |
+| 8 | état d'un dossier superficiel | `etat_dossier_reglementaire` : dossier du PÉRIMÈTRE (société, portée, verrou) — statut, échéances, retards, blocages, frise (réserves ANPP), commentaires. `product_360` n'est pas prêté : il résout le produit sans périmètre |
+| 9 | coût du cache au plein tarif ; « inconnu » sans variable | le cache à son tarif (`ASSISTANT_IA_PRICE_CACHED`) ; défauts documentés `gpt-6.1-terra` 2 $ / 12 $ / 0,20 $ par million (`TARIFS_PAR_DEFAUT`) |
+| — | refus « avec les outils disponibles » | règle fondamentale : un refus nomme le DROIT ; le contexte liste les gestes non ouverts au rôle |
+| — | `send_message` renvoyait à `search_people`, absent | la description renvoie à `directory_lookup` |
+
+Hors de ce lot (consigne) : recherche du Drive par contenu (lot J1), réduction du prompt (lot J4).
+
+## Encore ouvert
+- Les ÉCRITURES d'une famille ouverte au-delà des droits (créer un dossier réglementaire sans le droit de l'écran) :
+  il faudrait une exécution « au nom de la Direction » — non fait, à décider.

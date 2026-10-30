@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { prisma } from "@/lib/prisma";
-import { putBlob } from "@/lib/drive-storage";
+import { deposerFichierDrive } from "@/lib/drive/mirror";
 import { userCan, isTopManagement, type SessionUser } from "@/lib/rbac";
 import { companyScopedWhere } from "@/lib/company";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
@@ -235,30 +235,7 @@ export async function depositBufferToDrive(
   opts: { folder: string; filename: string; data: Buffer; mime: string; category?: string },
 ): Promise<{ nodeId: string }> {
   const folderId = await ensurePersonalFolder(ownerId, opts.folder);
-  const { blobId, size } = await putBlob(opts.data);
-  const existing = await prisma.driveNode.findFirst({
-    where: { type: "FILE", name: opts.filename, parentId: folderId, isTrashed: false },
-    select: { id: true },
-  });
-  if (existing) {
-    const last = await prisma.fileVersion.findFirst({
-      where: { nodeId: existing.id }, orderBy: { version: "desc" }, select: { version: true },
-    });
-    await prisma.fileVersion.create({
-      data: { nodeId: existing.id, blobId, version: (last?.version ?? 0) + 1, size, mimeType: opts.mime, createdById: ownerId },
-    });
-    await prisma.driveNode.update({ where: { id: existing.id }, data: { size, mimeType: opts.mime } });
-    return { nodeId: existing.id };
-  }
-  const node = await prisma.driveNode.create({
-    data: {
-      name: opts.filename, type: "FILE", parentId: folderId, ownerId, createdById: ownerId,
-      mimeType: opts.mime, size, category: opts.category ?? "Export",
-      versions: { create: { blobId, version: 1, size, mimeType: opts.mime, createdById: ownerId } },
-    },
-    select: { id: true },
-  });
-  return { nodeId: node.id };
+  return deposerFichierDrive({ parentId: folderId, name: opts.filename, data: opts.data, mimeType: opts.mime, ownerId, category: opts.category ?? "Export" });
 }
 
 export interface ExportResult {

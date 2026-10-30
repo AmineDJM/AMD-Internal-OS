@@ -8,7 +8,6 @@
  * contrat des actions, ce corps est celui du fichier d'actions (`contrat/internes.ts`) : ses champs, ses
  * écritures et ses écrivains importés comptent pour l'action.
  */
-import { randomUUID } from "crypto";
 import type {
   ManufacturingStatus, Priority, ProductType, RegulatoryCategory, RegulatoryProduct, RegulatoryStatus, StepStatus,
   VariationStatus,
@@ -27,7 +26,7 @@ import { regSupervisorRoles } from "@/lib/regulatory/sync-status";
 import { createExpenseOrder } from "@/modules/finances/api";
 import { categorieBvPourOrdre } from "@/lib/queries/budget-regulatory";
 import { natureDuLibelle } from "@/lib/budget-regulatory/bv";
-import { saveFile } from "@/lib/storage";
+import { deposerPieceDeModule } from "@/lib/storage";
 import { REGULATORY_STEP_ORDER, VARIATION_TARGETS } from "@/lib/labels";
 import { BV_REQUEST_STEPS } from "@/lib/regulatory-workflow";
 import { parseProductChannel, upperMolecules, normalizeDci } from "@/lib/actions/internes/regulatory/dossier";
@@ -496,18 +495,8 @@ export async function emettreLeBv(
   // puis à déposer le reste ailleurs — c'est-à-dire nulle part.
   if (files.length > 0) {
     for (const file of files) {
-      const key = `EXPENSE_ORDER/${order.id}/${randomUUID()}__${file.name}`;
-      try {
-        await saveFile(key, Buffer.from(await file.arrayBuffer()));
-      } catch (e) {
-        console.error("[requestBV] storage write failed", e);
-      }
-      await prisma.document.create({
-        data: {
-          name: file.name, category: "PROFORMA", entityType: "EXPENSE_ORDER", entityId: order.id,
-          fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: "INTERNAL", uploadedById: user.id,
-        },
-      });
+      // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+      await deposerPieceDeModule(file, { entityType: "EXPENSE_ORDER", entityId: order.id, category: "PROFORMA", confidentiality: "INTERNAL", uploadedById: user.id, journal: "requestBV" });
     }
   }
   return { ok: true as const, order, bvType, amount, pieces: files.length };

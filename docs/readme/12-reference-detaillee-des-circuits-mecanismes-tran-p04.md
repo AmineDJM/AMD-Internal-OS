@@ -546,3 +546,32 @@ file, rien n'est traité.
   sable SQL, filtre de confidentialité, frontière d'import `frontiere.test.ts`).
 
 ---
+
+### Bibliothèque — toute pièce inscrite, lue une fois, retrouvée par son contenu (lot J1, 29/10/2026)
+
+Décision : `docs/assistant/decisions/0014-bibliotheque.md`. Module `src/modules/bibliotheque/`, écran `/bibliotheque`.
+
+- **Inscription** — tout point d'entrée qui écrit au coffre (`putBlob`, `saveFile`) appelle, APRÈS l'écriture métier,
+  `inscrirePiece` (ou `inscrireDocument`, `inscrireDocumentEcrit`, `inscrireDocumentExistant`, `inscrireDocumentRh`,
+  `inscrireFichierDrive`) de `@/modules/bibliotheque/api-inscription` ; les goulots `enregistrerFichierDrive`,
+  `persistUploadedDocument`, `inscrireDocumentDirect`, `attachFiles`, `putDriveFile` le font pour leurs appelants. Registre
+  `Piece` (une par empreinte, `piece_<sha256>`) + `PieceLien` (l'endroit, type ENTITE) + `BibliothequeFiche` (clés d'accès,
+  métadonnées, file). Ne lève jamais. Cliquet `src/modules/bibliotheque/inscription-cliquet.test.ts` (exceptions nommées).
+- **Clés d'accès** — `FAMILLE:id` : `DRIVE_NODE`, `DOCUMENT`, `MESSAGE_PIECE`, `SUJET_PIECE`, `REUNION_PIECE`,
+  `REUNION_AUDIO`, `RH_DOCUMENT`, `TERRAIN_PIECE`, `TERRAIN_AUDIO`, `RETOUR_PIECE`, `KPI_PIECE`. Exclusives (une version
+  remplace l'autre) : `DRIVE_NODE`, `DOCUMENT`, `REUNION_AUDIO`, `TERRAIN_AUDIO`, `KPI_PIECE`.
+- **Lecture** (tâche `bibliotheque.ingestion`, sous bail, 10 fiches par passage) — lecteurs existants : `lireFichierUneFois`
+  (texte, OCR LOCAL), `parsePptx`, transcription (celle de l'écran si elle existe ; sinon Whisper sous la bascule « voix »,
+  jamais pour une pièce confidentielle). Classement local : identité / paie / RIB → `sensible`. Passages ~800 jetons
+  (chevauchement), vecteurs 512 d par lots de 64 si pgvector est là et si la pièce n'est ni confidentielle ni sensible.
+  Ignorée (dit) : archive, format inconnu, > 40 Mo (enregistrement > 25 Mo). Réessais 1 min → 6 h, ÉCHEC au 6ᵉ.
+- **Rattrapage** (tâche `bibliotheque.rattrapage`) — 25 lignes par famille et par passage, par la même porte ; relecture
+  par lots quand `VERSION_INGESTION` monte. Débrayage des deux tâches : `BIBLIOTHEQUE_INGESTION=off`.
+- **Recherche** `chercherDocuments(user, requête, filtres, { pourModele })` — plein texte français replié (GIN), titre
+  (trigrammes), sens (HNSW, si pgvector) fusionnés par RRF ; filtres format, période, source, objet, famille ; extraits
+  surlignés. Une pièce n'est rendue qu'à qui peut ouvrir l'un de ses endroits — la règle de la route qui sert le fichier
+  (`infra/acces.ts` → `resolveDriveAccess`, `entity-access/ouverture-pieces.ts`, `canAccessConversation`…). `pourModele` :
+  ni confidentiel, ni sensible, extraits filtrés. `ouvrirDocuments(user, ids)` : le texte recousu, mêmes droits.
+- **Super Admin** — `/bibliotheque` montre l'état de la file et le mode (hybride / plein texte) ; « Lire maintenant »
+  (`bibliotheque-actions:lancerPassageBibliotheque`), relance d'une pièce (`relancerFicheBibliotheque`), audités.
+- **Pas encore** branchée dans l'Assistant IA ni dans Adam ; le corpus réglementaire garde son index (pont : lot J2).

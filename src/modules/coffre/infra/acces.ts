@@ -196,3 +196,26 @@ export async function controlerRibDePiece(
   });
   return decisions.every(({ d }) => d.autorise) ? k.valeur : masqueDepuisClair(c, rib);
 }
+
+/**
+ * UNE VALEUR SENSIBLE HORS DES COLONNES DU COFFRE, MONTRÉE PAR L'ASSISTANT IA (décision 0012, Direction 29/10/2026 :
+ * « tout tracer ») — un net de l'historique de paie, un montant lu dans un contrat, un IBAN lu dans un document. Aucune
+ * copie au coffre ne la porte : la ligne du journal dit qui, quelle nature, quand, par quel geste (l'outil y est nommé),
+ * et d'où elle vient quand on le sait (`PayrollEntry`, `EmployeeDocument`). Accord comme refus. Rien n'est déchiffré.
+ */
+export async function journaliserLectureHorsColonne(d: {
+  userId: string;
+  nature: NatureCoffre;
+  geste: string;
+  autorise: boolean;
+  motif?: string | null;
+  origineModele?: string | null;
+  origineId?: string | null;
+}): Promise<void> {
+  await prisma.accesDonneeSensible.create({
+    data: {
+      userId: d.userId, nature: d.nature, geste: d.geste.trim() || "Assistant IA", autorise: d.autorise, motif: d.motif ?? null,
+      origineModele: d.origineModele ?? null, origineId: d.origineId ?? null,
+    },
+  });
+}

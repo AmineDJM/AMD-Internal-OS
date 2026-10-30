@@ -8,6 +8,7 @@ import { messagePartiel } from "@/lib/agent/fil/partiel";
 import { sansBloquer } from "@/lib/journal";
 import { auNomDe } from "@/lib/agent/consommation";
 import { resumeLecture, type AudioDuTour, type LecturePiece, type VocalDuTour } from "@/lib/agent/lecture/regles";
+import { PIECES_PAR_ENVOI_MAX } from "@/lib/agent/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "@/lib/agent/lecture/voix";
 import { sansValeursRevelees } from "@/lib/agent/filtre-confidentialite";
 
@@ -80,7 +81,7 @@ export async function deposerMessage(
   userId: string, texte: string, pieces: PieceDuTour[], vocal?: { id: string; dureeS: number | null } | null,
 ): Promise<{ ok: true; tour: AssistantIaTour } | { ok: false; erreur: string }> {
   const t = (texte ?? "").trim().slice(0, 8000);
-  const p = pieces.filter((x) => x && typeof x.id === "string").slice(0, 10).map((x) => ({ id: x.id, nom: String(x.nom ?? "").slice(0, 200) }));
+  const p = pieces.filter((x) => x && typeof x.id === "string").slice(0, PIECES_PAR_ENVOI_MAX).map((x) => ({ id: x.id, nom: String(x.nom ?? "").slice(0, 200) }));
   const v: VocalDuTour | null = vocal && typeof vocal.id === "string" && vocal.id
     ? { id: vocal.id, dureeS: Number.isFinite(vocal.dureeS) ? Math.max(0, Math.round(vocal.dureeS as number)) : null, etat: "TRANSCRIPTION" }
     : null;

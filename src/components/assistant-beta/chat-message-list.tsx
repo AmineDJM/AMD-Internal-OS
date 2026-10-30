@@ -5,7 +5,7 @@ import { User, Loader2, Wrench, Clock, Mic, AlertTriangle } from "lucide-react";
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
-import { PiecesDuMessage } from "./pieces-jointes";
+import { PiecesDuMessage, PiecesRendues, type PieceOuvrable } from "./pieces-jointes";
 import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "@/lib/agent/lecture/regles";
 import type { MemoireProposee } from "@/lib/agent/memoire-ui";
@@ -20,6 +20,8 @@ export interface ChatMessage {
   blocs?: WorkspaceBlock[];
   /** Les pièces jointes d'un message de la personne (dans son Drive). */
   pieces?: { id: string; nom: string }[];
+  /** Les fichiers que l'ASSISTANT a renvoyés (document créé, traduction…), droits revérifiés par le serveur. */
+  piecesRendues?: { id: string; nom: string }[] | null;
   /** Ce que la lecture de chaque pièce a donné (lue, partielle, refusée…) — dit sous la pièce. */
   lectures?: LecturePiece[] | null;
   /** Un message VOCAL : le lecteur, la durée, la transcription dessous. `local` : l'enregistrement pas encore envoyé. */
@@ -55,9 +57,11 @@ export interface ChatMessageListProps {
   messages: ChatMessage[];
   isLoading: boolean;
   onConfirmIntent: (intentId: string, confirmTyped?: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
+  /** Ouvre une pièce (envoyée ou renvoyée) dans l'aperçu latéral. */
+  onOuvrirPiece?: (p: PieceOuvrable) => void;
 }
 
-export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -111,7 +115,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                     {m.content}
                   </div>
                 )}
-                {m.pieces && m.pieces.length > 0 && <PiecesDuMessage pieces={m.pieces} lectures={m.lectures} />}
+                {m.pieces && m.pieces.length > 0 && <PiecesDuMessage pieces={m.pieces} lectures={m.lectures} onOuvrir={onOuvrirPiece} />}
                 {m.etat === "attente" && (
                   <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-zinc-400">
                     <Clock className="h-3 w-3" /> En file — traité après le message précédent
@@ -163,6 +167,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent }: ChatMe
                     <WorkspaceBlocks composition={{ source: "assistant-ia", blocks: m.blocs }} />
                   </div>
                 )}
+                {m.piecesRendues && m.piecesRendues.length > 0 && onOuvrirPiece && <PiecesRendues pieces={m.piecesRendues} onOuvrir={onOuvrirPiece} />}
                 {m.memoireProposee && (
                   <div className="mt-3">
                     <MemoireProposeeCard memoire={m.memoireProposee} />

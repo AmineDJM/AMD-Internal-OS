@@ -54,6 +54,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "ad-pro-transfer-actions": "src/modules/ad-pro/actions-transfert.ts",
   "care-actions": ["src/modules/ad-pro/actions-prise-en-charge.ts", "src/modules/ad-pro/actions-prise-en-charge-logistique.ts"],
   "actualisation-soldes-actions": "src/modules/finances/actions-soldes.ts",
+  "bibliotheque-actions": "src/modules/bibliotheque/actions.ts",
   "coffre-actions": "src/modules/coffre/actions.ts",
   "congress-beneficiary-actions": "src/modules/ad-pro/actions-congres-beneficiaires.ts",
   "congress-request-actions": "src/modules/ad-pro/actions-congres.ts",

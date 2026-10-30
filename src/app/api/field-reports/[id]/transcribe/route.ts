@@ -7,6 +7,7 @@ import { transcribeAudio } from "@/lib/ai";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { getAppSettings } from "@/lib/settings";
 import { managesReports } from "@/lib/queries/field-reports";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 
@@ -30,8 +31,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (file.size > maxMb * 1024 * 1024) return NextResponse.json({ error: `Audio trop volumineux (max ${maxMb} Mo).` }, { status: 400 });
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const { blobId } = await putBlob(buf);
+  const { blobId, sha256 } = await putBlob(buf);
   await prisma.fieldReport.update({ where: { id: params.id }, data: { audioBlobId: blobId } });
+  // Le vocal entre à la bibliothèque (J1) ; sa transcription sera celle que cette route écrit (pas un second appel).
+  await inscrirePiece({
+    blobId, empreinte: sha256, nom: file.name || "vocal.webm", mime: file.type || "audio/webm", taille: buf.length, source: "AUTRE",
+    objet: { famille: "TERRAIN_AUDIO", id: params.id }, proprietaireId: user.id, role: "vocal",
+  });
 
   // L'audio est conservé (chiffré) même si la transcription IA est coupée : le
   // délégué peut alors saisir/relire son compte rendu manuellement.

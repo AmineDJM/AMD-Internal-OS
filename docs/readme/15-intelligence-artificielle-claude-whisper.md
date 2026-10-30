@@ -55,8 +55,21 @@ affiche proprement « IA non configurée » — **aucune fonctionnalité ne cass
     paie, Budgets & finances, Contrats & documents RH, Fiches collaborateurs, Drive & documents, Réglementaire, Ad & Pro,
     Écritures métier. Le Super Admin a tout ; les autres suivent leurs droits, **salaires et contrats fermés** tant que la
     Direction ne les ouvre pas. Relu à chaque tour ; un refus nomme la famille et dit que la Direction l'ouvre dans la
-    console ; chaque changement à l'audit.
-  - Décisions : `docs/assistant/decisions/0001` → `0012`.
+    console ; chaque changement à l'audit. Une famille ouverte explicitement vaut au-delà des droits applicatifs pour
+    les LECTURES (salaires, contrats, fiches, budgets, Drive, réglementaire, Ad & Pro) ; les gestes restent jugés par
+    l'écran. Un repère peut entrer dans une carte (« envoie le salaire d'Assia à Karim ») : valeur mise par le serveur,
+    rejugée à la confirmation, tracée ; toute valeur sensible montrée par l'assistant est journalisée
+    (`AccesDonneeSensible`, avec l'outil).
+  - *Glisser-déposer (décision 0015, 29/10)* : fichiers **et dossiers** déposés sur toute la conversation (parcours
+    récursif, chemin relatif gardé, `.DS_Store`/`Thumbs.db` ignorés), collés (Ctrl+V) ou choisis au trombone (fichiers
+    ou dossier) → des **puces** dans la saisie (taille, icône, miniature, sélection, Suppr, « Tout retirer »). **Rien
+    n'est téléversé avant Entrée** : une puce retirée ne laisse rien dans le Drive ; à l'envoi, progression par puce, un
+    échec arrête l'envoi et le dit. 10 pièces et 40 Mo par fichier au plus ; au-delà de 6, jointes et rangées mais pas
+    lues — dit avant l'envoi. Les pièces envoyées ET les fichiers renvoyés par l'assistant (lien `/drive/<id>`, droits
+    revérifiés) s'ouvrent dans un **aperçu latéral** (lecture seule, « Télécharger », « Ouvrir dans le Drive ») ; sur un
+    Word, « **Demander une modification** » joint la pièce et pré-remplit la saisie → nouvelle version par
+    `preparer_document`, jamais d'écrasement.
+  - Décisions : `docs/assistant/decisions/0001` → `0015`.
 - **Ancien Assistant IA — moteur d'Adam (en pause depuis 09/2026, `/chief-of-staff`)** — module à part entière
   à l'époque (entrée de menu dédiée, page plein écran ; l'ancienne bulle flottante a été retirée). **Boucle agent Claude**,
   comprend l'app et les données **filtrées par les droits**. **Proactif** sur les messages non lus. Outils de

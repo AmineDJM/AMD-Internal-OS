@@ -31,6 +31,7 @@ import { formatDeFichier } from "@/lib/artifact/adapters/registry";
 import type {
   FicheDocument, PortAudit, PortDocuments, PortVision, PortsArtefact, VersionEcrite,
 } from "@/lib/artifact/ports";
+import { inscrireFichierDrive } from "@/modules/bibliotheque/api-inscription";
 
 /** Le dossier où atterrissent les « enregistrer sous » quand la personne n'en désigne pas. */
 const DOSSIER_DEFAUT = "Documents Adam";
@@ -111,7 +112,7 @@ const documents: PortDocuments = {
     if (!parLaPiece && !canEditDrive(await resolveDriveAccess(u, nodeId))) {
       throw new Error("vous n'avez pas le droit de modifier ce document");
     }
-    const { blobId, size } = await putBlob(octets);
+    const { blobId, size, sha256 } = await putBlob(octets);
     const derniere = await prisma.fileVersion.findFirst({
       where: { nodeId }, orderBy: { version: "desc" }, select: { version: true },
     });
@@ -119,7 +120,9 @@ const documents: PortDocuments = {
     await prisma.fileVersion.create({
       data: { nodeId, blobId, version, size, mimeType: opts.mime, note: opts.resume.slice(0, 1000), createdById: userId },
     });
-    await prisma.driveNode.update({ where: { id: nodeId }, data: { size, mimeType: opts.mime } });
+    const n = await prisma.driveNode.update({ where: { id: nodeId }, data: { size, mimeType: opts.mime }, select: { name: true } });
+    // La révision entre à la bibliothèque (J1) : la clé du nœud passe à ce contenu. Ne lève jamais.
+    await inscrireFichierDrive({ nodeId, version, blobId, sha256, nom: n.name, mime: opts.mime, taille: size, deposeParId: userId });
     return { version, taille: size };
   },
 
@@ -136,7 +139,7 @@ const documents: PortDocuments = {
       data: { name: nomDossier, type: "FOLDER", ownerId: userId, createdById: userId },
       select: { id: true },
     });
-    const { blobId, size } = await putBlob(opts.octets);
+    const { blobId, size, sha256 } = await putBlob(opts.octets);
     const node = await prisma.driveNode.create({
       data: {
         name: opts.nom, type: "FILE", parentId: dossier.id, ownerId: userId, createdById: userId,
@@ -145,6 +148,7 @@ const documents: PortDocuments = {
       },
       select: { id: true },
     });
+    await inscrireFichierDrive({ nodeId: node.id, blobId, sha256, nom: opts.nom, mime: opts.mime, taille: size, deposeParId: userId });
     return { nodeId: node.id, version: 1 };
   },
 

@@ -53,6 +53,19 @@ export const REGLES: Regle[] = [
     accepte: (e: Ecart) => e.cle === "index:ExpenseOrder_source_unique_vivant:DROP",
     raison: "Unicité partielle des ordres vivants d'une demande de paiement / d'une avance (DONNEES-10) : inexprimable en Prisma 5.",
   },
+  /**
+   * VOULU — LA BIBLIOTHÈQUE (J1, migration 20270207110000) : la recherche plein texte (`recherche` tsvector généré,
+   * GIN), les index GIN des clés d'accès, les trigrammes du titre et, si pgvector est là, `vecteur vector(512)` +
+   * HNSW. Prisma 5 ne modélise ni `tsvector` généré, ni `vector`, ni ces index. Une règle et non une exception :
+   * sans pgvector (CI `verifier`) ou sans pg_trgm, la migration ne les pose pas — ils peuvent manquer.
+   */
+  {
+    nom: "bibliotheque-index-sql",
+    accepte: (e: Ecart) =>
+      /^index:Bibliotheque(Fiche_(cles_gin|familles_gin|titrePlie_trgm)|Passage_(recherche_gin|vecteur_hnsw)):DROP$/.test(e.cle)
+      || /^colonne:BibliothequePassage\.(recherche|vecteur):DROP$/.test(e.cle),
+    raison: "Bibliothèque : tsvector généré, vector(512), index GIN / trigrammes / HNSW — inexprimables en Prisma 5, posés selon les extensions présentes.",
+  },
   {
     nom: "banc-facture-reprise",
     accepte: (e: Ecart) => /^(table:Invoice:|type:InvoiceStatus:|fk:Invoice_|index:Invoice_)/.test(e.cle),

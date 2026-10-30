@@ -15,7 +15,36 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
   vit dans le fichier d'actions d'Adam (la déplacer changerait le contrat des actions). Garde-fous :
   `src/platform/ia/frontieres.test.ts` et une règle ESLint dans les trois sens.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
-  socle, plafonné à part : 179) ; traversées entre domaines 67 → 57 (plafonds). Aucun plafond relevé.
+  socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
+
+### ASSISTANT IA : GLISSER-DÉPOSER DE FICHIERS ET DE DOSSIERS, APERÇU DES PIÈCES (2026-10-29)
+
+- **Déposer** (Direction) : sur `/assistant`, des fichiers ou des **dossiers** glissés n'importe où sur la conversation font
+  apparaître « Déposez vos fichiers ou dossiers » ; un dossier est parcouru en entier, le chemin relatif affiché
+  (« Congrès Oran/devis/imprimeur.pdf »), les fichiers système ignorés et comptés. Aussi : Ctrl+V d'une image, trombone
+  « Des fichiers… / Un dossier… » (téléphone : fichiers).
+- **Rien ne part avant Entrée** : chaque fichier est une puce (taille, icône, miniature) qu'on retire (croix, Suppr sur la
+  sélection, « Tout retirer ») sans rien laisser dans le Drive — le téléversement n'a lieu qu'à l'envoi, avec sa progression.
+- **Ouvrir** : pièces envoyées et fichiers renvoyés par l'assistant s'ouvrent dans un aperçu latéral (Échap ferme) ;
+  « Demander une modification » sur un Word. Décision [0015](../assistant/decisions/0015-glisser-deposer.md).
+
+### J1 : LA BIBLIOTHÈQUE — TOUTE PIÈCE INSCRITE, LUE UNE FOIS, RETROUVÉE PAR SON CONTENU SOUS LES DROITS (2026-10-29)
+
+Décision de la Direction (lot J1, pgvector approuvé) — `docs/assistant/decisions/0014-bibliotheque.md`.
+- **Une porte d'inscription** (`@/modules/bibliotheque/api-inscription`) branchée sur ≈ 45 points d'entrée : Drive (dépôts,
+  versions, éditeurs, copies, miroirs, exports, fabrique), pièces de module, messagerie, sujets, réunions, rapports terrain,
+  RH, courriels Microsoft 365, retours, KPI, candidatures, Assistant IA. Registre R5 réutilisé (`Piece`/`PieceLien`) +
+  `BibliothequeFiche`/`BibliothequePassage`. Cliquet `inscription-cliquet.test.ts` (9 exceptions nommées).
+- **Lue une fois** par empreinte (tâches `bibliotheque.ingestion` et `.rattrapage`, sous bail), par les lecteurs existants
+  (texte, OCR local, PowerPoint, transcription), découpée en passages ~800 jetons, vectorisée (text-embedding-3-small, 512 d)
+  quand la pièce n'est ni confidentielle ni sensible.
+- **Index hybride** : `tsvector` français replié + trigrammes + `vector` HNSW si pgvector (migration idempotente qui passe
+  sans l'extension ; repli détecté), fusion RRF, extraits surlignés. CI : tests sur `pgvector/pgvector:pg16`, migrations
+  sur Postgres nu.
+- **Droits** : la règle de la route qui sert chaque fichier, appelée telle quelle (règles des routes sorties dans
+  `entity-access/ouverture-pieces.ts`) ; `pourModele` écarte le confidentiel et le coffre. Écran de vérification `/bibliotheque`.
+- **Mesuré** (2 000 pièces) : p50 23 ms / p95 115 ms, rappel@10 30/30, 0 résultat hors droits ; avec le vrai fournisseur
+  d'embeddings, p95 ≈ 360–400 ms (l'appel au fournisseur, ≈ 280 ms, borné et mis en cache).
 
 ### ASSISTANT IA : LES DROITS DE LA PERSONNE, ET LES DONNÉES SENSIBLES EN REPÈRES (2026-10-28)
 
@@ -33,6 +62,14 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
 - **Console « Assistant IA — accès »** (précision de la Direction, 29/10) : `/admin/ai/acces`, par rôle et par personne,
   huit familles cochables (défaut / ouverte / fermée). Le Super Admin a tout ; salaires et contrats fermés par défaut pour
   les autres ; relu à chaque tour ; audit de chaque changement. Table `AssistantIaAcces` (migration additive).
+- **Suite (réponses de la Direction, 29/10)** : ouverture explicite au-delà des droits pour Budgets, Drive, Réglementaire,
+  Ad & Pro (lectures) ; repère `⟦Sn⟧` accepté dans une carte (valeur substituée par le serveur, rejugée à la confirmation,
+  tracée) ; toute valeur sensible hors colonne du coffre journalisée avec l'outil ; route des documents RH ouverte par la
+  famille « Contrats & documents RH ».
+- **Manques du banc « Jarvis » (V4-H)** : l'annuaire rend le N+1 ; « qu'ai-je à valider ? » (`list_pending_decisions`) ; demandes
+  Ad & Pro par année / état / nature (`demandes_adpro`) ; état d'un dossier réglementaire du périmètre avec réserves, échéances
+  et commentaires (`etat_dossier_reglementaire`) ; congés de l'année sur la fiche ; coût du cache à son tarif et tarif par
+  défaut documenté de `gpt-6.1-terra` ; refus formulés par le droit.
   Décision [0012](../assistant/decisions/0012-droits-de-la-personne-et-reperes-sensibles.md).
 
 ### V4 : PLUS AUCUN FICHIER GÉANT — 49 FICHIERS > 1 000 LIGNES → 1, ET UN CLIQUET DE TAILLE (2026-10-28)

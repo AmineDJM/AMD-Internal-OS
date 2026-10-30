@@ -153,8 +153,13 @@ const DEBT_CEILING = 393;
  * code venu d'Adam portait déjà (≈ 24, ils quittent la dette d'Adam), et ceux du code venu du PONT (fabrique de documents, enseignements, médias, puits d'usage,
  * propriétaire d'un travail), qui n'étaient comptés nulle part. Même règle que la dette d'Adam : on le
  * baisse en migrant, on ne le relève jamais. Un besoin neuf de l'ERP dans le socle passe par un port.
+ *
+ * 179 → 180 (2026-10-30, fusion de la base 37a29edc, J1 Bibliothèque) : J1 a branché `inscrirePiece` dans
+ * `artifact/ports.ts` (`@/modules/bibliotheque/api-inscription`, la porte du module). Sur la base, ce fichier est
+ * encore dans le pont, où rien ne se compte ; ici il est au socle, où l'import se voit. Ce n'est pas un couplage
+ * de ce lot : c'est le compte honnête d'un import venu avec la base. La porte d'un module est le chemin voulu.
  */
-const SOCLE_IA_CEILING = 179;
+const SOCLE_IA_CEILING = 180;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();

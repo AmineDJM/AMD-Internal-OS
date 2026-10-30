@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { servirPiece } from "@/lib/http/servir-piece";
 import { getCurrentUser } from "@/lib/session";
-import { voitLesSalaires } from "@/lib/hr/confidentialite";
+import { peutOuvrirDocumentRh } from "@/lib/entity-access/ouverture-pieces";
 import { entitePermisePourFiche } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
@@ -25,16 +25,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   });
   if (!doc) return new NextResponse(null, { status: 404 });
 
-  // Un bulletin, un contrat, une pièce d'identité : la LECTURE du module ne suffisait plus à les
-  // télécharger (audit 360°, S5) — il faut GÉRER les RH (`voitLesSalaires`), et dans une société
-  // permise (S6). L'employé garde ses propres pièces marquées visibles.
-  const isOwner = doc.employee.userId === user.id && doc.visibleToEmployee;
-  const isHr = voitLesSalaires(user) && (await entitePermisePourFiche(user.id, doc.employee.companyId));
+  // Un bulletin, un contrat, une pièce d'identité : GÉRER les RH dans une société permise, ou l'employé pour ses pièces
+  // visibles — la règle est partagée avec la bibliothèque (`entity-access/ouverture-pieces.ts`).
   // Décision 0012 : la Direction peut OUVRIR explicitement « Contrats & documents RH » à une personne dans la
   // console de l'Assistant IA — le lien que l'assistant lui donne doit alors s'ouvrir (société permise toujours).
-  const ouvertParDirection = !isOwner && !isHr
-    && familleExplicite(await accesAssistantIa(user), "CONTRATS_RH") && (await entitePermisePourFiche(user.id, doc.employee.companyId));
-  if (!isOwner && !isHr && !ouvertParDirection) return new NextResponse(null, { status: 403 });
+  // Cette ouverture vaut pour le LIEN de l'assistant : la recherche de la bibliothèque, elle, s'en tient à la règle de base.
+  const ouvertParDirection = async () => familleExplicite(await accesAssistantIa(user), "CONTRATS_RH")
+    && (await entitePermisePourFiche(user.id, doc.employee.companyId));
+  if (!(await peutOuvrirDocumentRh(user, doc)) && !(await ouvertParDirection())) return new NextResponse(null, { status: 403 });
 
   const bytes = await getBlob(doc.blobId);
   if (!bytes) return new NextResponse(null, { status: 404 });

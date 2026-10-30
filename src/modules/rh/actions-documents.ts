@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import type { HrRequestType, HrRequestStatus } from "@prisma/client";
 import { requireUser } from "@/lib/session";
@@ -8,7 +7,7 @@ import { entitePermisePourFiche } from "@/lib/company";
 import { userCan, hasGlobalView, rolesWithModule } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { releaseBlob } from "@/lib/drive-storage";
-import { saveFile, validateUpload } from "@/lib/storage";
+import { validateUpload, deposerPieceDeModule } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
@@ -120,20 +119,8 @@ async function attachRequestFiles(requestId: string, files: File[], uploaderId: 
   for (const file of files) {
     const invalid = validateUpload(file.name, file.size, maxMb);
     if (invalid) return invalid;
-    const key = `HR_REQUEST/${requestId}/${randomUUID()}__${file.name}`;
-    try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
-    } catch (err) {
-      // ON GARDE LA LIGNE MÊME SI L'ÉCRITURE A ÉCHOUÉ : une pièce annoncée puis introuvable se
-      // voit et se redemande ; une pièce silencieusement disparue laisse croire au dépôt.
-      console.error("[hr-request] storage write failed, recording metadata only", err);
-    }
-    await prisma.document.create({
-      data: {
-        name: file.name, category: "OTHER", entityType: "HR_REQUEST", entityId: requestId,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: "INTERNAL", uploadedById: uploaderId,
-      },
-    });
+    // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+    await deposerPieceDeModule(file, { entityType: "HR_REQUEST", entityId: requestId, category: "OTHER", confidentiality: "INTERNAL", uploadedById: uploaderId, journal: "hr-request" });
   }
   return null;
 }

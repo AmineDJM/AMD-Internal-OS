@@ -12,6 +12,7 @@ import { getManagerOf, getManagementChain } from "@/lib/departments";
 import { stageNotifyRoles, type LeaveDecider } from "../domaine/leave-workflow";
 import { LIEN_CONGES_A_SIGNER } from "@/lib/chemins/rh";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentEcrit } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * LE CONGÉ EST **UNE** DEMANDE — quel que soit l'écran d'où elle part.
@@ -137,18 +138,21 @@ export async function attachLeaveFiles(leaveId: string, files: File[], uploaderI
     const invalid = validateUpload(file.name, file.size, maxMb);
     if (invalid) return invalid;
     const key = `LEAVE_REQUEST/${leaveId}/${randomUUID()}__${file.name}`;
+    let ecrit: { blobId: string; sha256: string } | null = null;
     try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
+      ecrit = await saveFile(key, Buffer.from(await file.arrayBuffer()));
     } catch (err) {
       console.error("[leave] storage write failed, recording metadata only", err);
     }
-    await prisma.document.create({
+    const docEcrit = await prisma.document.create({
       data: {
         name: file.name, category: "OTHER", entityType: "LEAVE_REQUEST", entityId: leaveId,
         fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
         confidentiality: "CONFIDENTIAL", uploadedById: uploaderId,
       },
     });
+    // La pièce entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.
+    await inscrireDocumentEcrit(docEcrit, ecrit);
   }
   return null;
 }

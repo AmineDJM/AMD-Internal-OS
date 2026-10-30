@@ -399,6 +399,32 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/referentiels/infra/reprises/rattrapage-pieces.ts → src/lib/enrichissement/file",
     "src/modules/referentiels/infra/reprises/rattrapage-pieces.ts → src/lib/enrichissement/signalement",
   ],
+  bibliotheque: [
+    // LES RÈGLES D'OUVERTURE, appelées telles quelles (« même règle que l'ouverture du fichier ») : le Drive, la
+    // messagerie, les réunions, les retours, les KPI, et les règles sorties des routes (`entity-access/ouverture-pieces`).
+    // Elles restent chez leur métier : la bibliothèque les CONSULTE, elle ne les possède pas.
+    "src/modules/bibliotheque/infra/acces.ts → src/lib/drive",
+    "src/modules/bibliotheque/infra/acces.ts → src/lib/entity-access/ouverture-pieces",
+    "src/modules/bibliotheque/infra/acces.ts → src/lib/feedback/access",
+    "src/modules/bibliotheque/infra/acces.ts → src/lib/kpi/droits",
+    "src/modules/bibliotheque/infra/acces.ts → src/lib/kpi/service",
+    "src/modules/bibliotheque/infra/acces.ts → src/lib/meetings",
+    "src/modules/bibliotheque/infra/acces.ts → src/lib/messaging",
+    // LES LECTEURS EXISTANTS (consigne : n'en écrire aucun) — coffre, texte/OCR une fois par empreinte, PowerPoint,
+    // transcription et sa bascule, classement local des pièces du coffre. Cible : un module `lecture` le jour où il naît.
+    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/agent/lecture/regles",
+    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/ai",
+    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/ai-settings",
+    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/drive-storage",
+    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/enrichissement/classement",
+    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/knowledge/parsers/pptx",
+    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/pieces-lues/lecture-fichier",
+    // Le registre R5 est partagé avec l'enrichissement : même identifiant de pièce, même relèvement de confidentialité.
+    "src/modules/bibliotheque/infra/inscription.ts → src/lib/enrichissement/file",
+    // Les embeddings par la porte commune (interrupteur IA, clé, mandataire) ; le filtre de confidentialité avant un modèle.
+    "src/modules/bibliotheque/infra/capacites.ts → src/lib/openai-luna",
+    "src/modules/bibliotheque/infra/recherche.ts → src/lib/agent/filtre-confidentialite",
+  ],
   rh: [
     // La paie et les avances partent au CENTRE DE PAIEMENT par `@/modules/finances/api` (carte : rh → finances) ;
     // restent le budget et la numérotation, que le module Finances ne porte pas.
@@ -450,7 +476,7 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/rh/infra/attestation-travail-depot.ts → src/lib/references/registre",
     "src/modules/rh/infra/attestation-travail-depot.ts → src/lib/references/registre-serveur",
     "src/modules/rh/infra/conge-escalade.ts → src/lib/notify",
-    "src/modules/rh/infra/hr-drive-mirror.ts → src/lib/drive-storage",
+    "src/modules/rh/infra/hr-drive-mirror.ts → src/lib/drive/mirror",
     "src/modules/rh/infra/leave-core.ts → src/lib/notify",
     "src/modules/rh/infra/leave-core.ts → src/lib/storage",
     "src/modules/rh/infra/ordre-mission-depot.ts → src/lib/drive-storage",

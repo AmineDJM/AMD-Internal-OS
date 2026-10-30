@@ -14,6 +14,7 @@ import {
 } from "@/lib/files/attachment-policy";
 import { canRemoveFeedbackAttachment } from "@/lib/feedback/access";
 import { sansBloquer } from "@/lib/journal";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 const STATUSES: FeedbackStatus[] = ["NEW", "SEEN", "IN_PROGRESS", "DONE"];
 
@@ -98,6 +99,16 @@ export async function submitFeedback(
     return { ok: false, error: "L'enregistrement du retour a échoué. Rien n'a été conservé." };
   }
 
+  // Les pièces du retour entrent à la bibliothèque (J1), ouvertes par la règle des retours (auteur, Super Admin).
+  if (att.prepared.length > 0) {
+    const jointes = await prisma.feedbackAttachment.findMany({ where: { feedbackId: created.id }, select: { id: true, blobId: true, name: true, mime: true, size: true } });
+    for (const j of jointes) {
+      await inscrirePiece({
+        blobId: j.blobId, nom: j.name, mime: j.mime, taille: j.size, source: "AUTRE",
+        objet: { famille: "RETOUR_PIECE", id: j.id }, proprietaireId: user.id, role: "piece-jointe",
+      });
+    }
+  }
   await notifyRoles(["SUPER_ADMIN"], {
     type: "GENERIC",
     title: "Nouveau feedback",
