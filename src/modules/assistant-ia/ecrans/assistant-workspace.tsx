@@ -8,6 +8,7 @@ import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
 import { RoutinesPanel } from "./routines-panel";
 import { TravauxPanel } from "./travaux-panel";
+import { VeillePanel } from "./veille-panel";
 import { BoutonJoindre, PiecesEnAttente, type PieceOuvrable } from "./pieces-jointes";
 import { ApercuPiece } from "./apercu-piece";
 import { Atelier } from "./atelier/atelier";
@@ -21,7 +22,7 @@ import { ListeConversations } from "./conversations/liste-conversations";
 import { PanneauDuDossier } from "./conversations/dossier-panneau";
 import "./app/theme.css";
 import { EnregistreurVocal } from "./enregistreur-vocal";
-import { AlarmClock, Brain, Briefcase, MessagesSquare, MoreHorizontal, Sparkles, Volume2, VolumeX, X } from "lucide-react";
+import { AlarmClock, Brain, Briefcase, MessagesSquare, MoreHorizontal, Radar, Sparkles, Volume2, VolumeX, X } from "lucide-react";
 import { listerMesRoutines, listerMesTravaux } from "@/modules/assistant-ia/actions";
 import { confirmerActionBeta, envoyerMessageBeta } from "@/app/(app)/assistant/beta/actions";
 import type { KpiData } from "./kpi-glass-strip";
@@ -60,6 +61,10 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     const t = setInterval(compter, 20_000);
     return () => clearInterval(t);
   }, []);
+
+  // J12 : « Ce que mon assistant surveille » — une notification de veilleur mène ici (« ?veille=1 »).
+  const [veilleOuverte, setVeilleOuverte] = useState(false);
+  useEffect(() => { if (new URLSearchParams(window.location.search).get("veille")) setVeilleOuverte(true); }, []);
 
   // Une notification de routine mène ici (« ?routine=… ») : le panneau s'ouvre sur son dernier passage.
   useEffect(() => {
@@ -260,6 +265,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
                   onMemoire={() => { setMenuOuvert(false); setMemoireOuverte(true); }}
                   onRoutines={() => { setMenuOuvert(false); setRoutinesOuvertes(true); }}
                   onTravaux={() => { setMenuOuvert(false); setTravauxOuverts(true); }}
+                  onVeille={() => { setMenuOuvert(false); setVeilleOuverte(true); }}
                   onAtelier={() => { setMenuOuvert(false); setAtelierOuvert((o) => !o); }}
                   atelierOuvert={atelierOuvert}
                   aApprouver={aApprouver}
@@ -299,6 +305,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
       <PanneauDuDossier panneau={panneauDossier} etat={conversations} onPanneau={setPanneauDossier} onDossierOuvert={setDossierOuvert} onNouvelleConversation={nouvelleConversation} />
+      <VeillePanel ouvert={veilleOuverte} onFermer={() => setVeilleOuverte(false)} />
       <TravauxPanel ouvert={travauxOuverts} onFermer={() => setTravauxOuverts(false)} travailInitial={travailInitial} onAApprouver={majAApprouver} />
     </div>
   );
@@ -309,8 +316,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
  * téléphone, un seul « ⋯ » qui les déplie : à 375 px, trois boutons de plus ne laissaient que
  * quelques lettres au champ de saisie.
  */
-function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onAtelier, atelierOuvert, aApprouver, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
-  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; onTravaux: () => void; onAtelier: () => void; atelierOuvert: boolean; aApprouver: number; nonLus: number;
+function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille, onAtelier, atelierOuvert, aApprouver, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
+  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; onTravaux: () => void; onVeille: () => void; onAtelier: () => void; atelierOuvert: boolean; aApprouver: number; nonLus: number;
   reponseVocale: boolean; onReponseVocale: () => void; vueExacte: boolean;
 }) {
   const bouton = "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800";
@@ -326,6 +333,7 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onAtelie
         <button type="button" onClick={onMemoire} aria-label="Ma mémoire" title="Ma mémoire" className={bouton}><Brain className="h-4 w-4" /></button>
         <button type="button" onClick={onRoutines} aria-label={libelleRoutines} title="Mes routines" className={bouton}><AlarmClock className="h-4 w-4" />{point}</button>
         <button type="button" onClick={onTravaux} aria-label={libelleTravaux} title="Mes travaux" className={bouton}><Briefcase className="h-4 w-4" />{pointTravaux}</button>
+        <button type="button" onClick={onVeille} aria-label="Ce que mon assistant surveille" title="Ce que mon assistant surveille" className={bouton}><Radar className="h-4 w-4" /></button>
         {!vueExacte && <button type="button" onClick={onAtelier} aria-pressed={atelierOuvert} aria-label="Atelier — documents" title="Atelier — documents" className={`${bouton} ${atelierOuvert ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300" : ""}`}><Sparkles className="h-4 w-4" /></button>}
         {!vueExacte && (
           <button type="button" onClick={onReponseVocale} aria-pressed={reponseVocale} aria-label={libelleVoix} title={libelleVoix}
@@ -348,6 +356,9 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onAtelie
             </button>
             <button type="button" role="menuitem" onClick={onTravaux} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
               <Briefcase className="h-4 w-4" /> {libelleTravaux}
+            </button>
+            <button type="button" role="menuitem" onClick={onVeille} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+              <Radar className="h-4 w-4" /> Ce que mon assistant surveille
             </button>
             {!vueExacte && (
               <button type="button" role="menuitem" onClick={onAtelier} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">

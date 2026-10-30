@@ -5,7 +5,7 @@
 La maquette validée par la Direction devient une app : **`/ia`**, et son propre site **adventum-ia.onrender.com** (service
 Render `adventum-ia`, créé par « Sync », même dépôt et même build, `APP_MODE=adventum-ia`). Le MÊME assistant que l'ERP
 (outils, droits, console, repères, travaux sur le worker). **Plusieurs conversations par personne** (le fil unique devient
-la première — migration additive `20270210100000_adventum_ia_conversations`) : titre proposé par le modèle rapide, renommer,
+la première — migration additive `20270211100000_adventum_ia_conversations`) : titre proposé par le modèle rapide, renommer,
 épingler, rechercher (titres et contenu), archiver, supprimer, groupées par date ; l'écran `/assistant` de l'ERP a la même
 liste. **Mémoire commune** + recherche dans ses conversations passées (`chercher_conversations`), « Mémoire mise à jour ».
 **Conversation privée** : choisie avant le premier message, verrouillée ensuite, sans mémoire, supprimée à 30 jours.
@@ -13,6 +13,17 @@ liste. **Mémoire commune** + recherche dans ses conversations passées (`cherch
 ligne. Voix en direct (`gpt-live-1`) et bloc-notes : écrans et points d'accroche, en attente des lots J13 et Notes. Thème
 « bleu pharma » clair/sombre dans un seul fichier ; PWA iPhone (manifeste, icônes, écran de démarrage, Web Push qui ouvre la
 bonne conversation) ; déconnexion à distance de ses appareils. Décision [0027](../assistant/decisions/0027-adventum-ia.md).
+### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
+
+L'Assistant IA suit désormais les **relations** de l'entreprise : `explorer_relations` (« qu'est-ce qui dépend de Saidal ? »,
+« qui a travaillé sur ce dossier ? », « quels documents parlent du sofosbuvir ? »), `etat_a_une_date` (la valeur d'alors,
+jamais celle d'aujourd'hui ; et ce qu'on en savait à une autre date) et `d_ou_vient` (pièce, extraction, qui a confirmé,
+ce qui a été remplacé). Module `graphe-entreprise` : une vue sur les fiches canoniques et les liens déjà écrits, sans second
+registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermée retire ses types. La résolution lit l'arabe
+(« مجمع صيدال » = Groupe Saidal), les fautes, les sigles et les NIF/RC. Un fait périmé se ferme (`fermeLe`, `fermeParId`,
+`remplaceParId`), il n'est jamais écrasé ; chaque chiffre rendu porte sa source. Banc : résolution 101/101 sur un corpus
+semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
+[0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
 
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
@@ -48,6 +59,20 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
   cliqueté jusqu'à J6 : le catalogue d'outils d'Adam qu'emprunte l'Assistant IA.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
   socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
+
+### J12 : L'ASSISTANT IA PROACTIF — VEILLEURS, BUDGET D'INTERRUPTIONS, MANDATS (2026-10-30)
+
+Lot J12 — `docs/assistant/decisions/0024-proactivite.md`.
+- **12 veilleurs par rôle** (Ad & Pro, Réglementaire, RH, Finances, Terrain, pour tous) : des règles de code sur ce qui est
+  à la personne — demande bloquée, budget à 90 %, BC non signé, échéance ANPP, réserve non levée, fin d'essai, CDD,
+  paiement en retard, facture en double, visite non rapportée, validation qui traîne, réunion dans l'heure. Dit une fois.
+- **Budget d'interruptions** : heures calmes (heure d'Alger), week-end vendredi-samedi, regroupement, **5 par jour au plus** ;
+  au-delà, le journal. Point du matin (ce qui a attendu, ce qui a été fait sous mandat). Retour « utile / pas utile » en un clic,
+  mesuré (cible 60 %), qui ajuste le veilleur.
+- **Mandats** : une approbation durable, bornée et révocable — « relance le validateur de mes demandes qui traînent »
+  (R1). Le geste passe par l'action de l'écran, dans la session de la personne ; tout va à l'audit.
+- **Écrans** : « Ce que mon assistant surveille » (`/assistant`), suggestions à l'ouverture d'un dossier, console
+  (`/admin/ai/acces` : plafond, interrupteur, mesure, mandats).
 
 ### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)
 

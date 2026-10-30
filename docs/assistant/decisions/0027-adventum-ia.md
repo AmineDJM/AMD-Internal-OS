@@ -8,7 +8,7 @@ livré, où, et ce qui reste branché sur d'autres lots.
 > `actions-conversations.ts` (clé `assistant-ia-conversations-actions`), `ecrans/{use-fil,use-pieces,use-echap,zone-depot}.ts(x)`,
 > `ecrans/conversations/`, `ecrans/app/` (l'app, son thème) ; `src/app/ia/` (la page), `src/platform/app-mode.ts` (le mode
 > d'application, lu par le middleware via `src/auth.config.ts`), `public/adventum-ia/` (logo, icônes, manifeste, écrans de
-> démarrage), `public/ia-sw.js` ; migration additive `20270210100000_adventum_ia_conversations` ; service Render `adventum-ia`.
+> démarrage), `public/ia-sw.js` ; migration additive `20270211100000_adventum_ia_conversations` ; service Render `adventum-ia`.
 
 ## 1. Les onze décisions et ce qui les tient
 

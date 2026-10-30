@@ -9210,6 +9210,8 @@ model Event {
   @@index([startDate])
   @@index([type])
   @@index([companyId])
+  @@index([requesterId])
+  @@index([responsibleId])
 }
 
 model EventRegistration {
@@ -9492,6 +9494,10 @@ model AssistantIaReglage {
   plafondTravailUsd      Float    @default(20)
   /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.
   plafondMensuelUsd      Float    @default(50)
+  /// J12 (décision 0024) : interruptions des veilleurs par personne et par jour, au plus (la personne peut baisser).
+  interruptionsMaxJour   Int      @default(5)
+  /// J12 : coupe toute la proactivité (veilleurs, point du matin, gestes sous mandat) — les écrans restent lisibles.
+  proactiviteCoupee      Boolean  @default(false)
   updatedAt              DateTime @default(now()) @updatedAt
   updatedById            String?
 }
@@ -9507,6 +9513,115 @@ model AssistantIaPlafondAtteint {
   createdAt DateTime @default(now())
 
   @@unique([userId, jour])
+}
+
+// ─────────────────────────────── J12 — PROACTIVITÉ SOUS MANDAT (décision 0024) ───────────────────────────────
+
+/// LA VEILLE D'UNE PERSONNE — ses préférences (budget d'interruptions, heures calmes) et l'état du battement.
+model AssistantVeille {
+  userId                   String    @id
+  /// Interruptions par jour, au plus (bornée par `AssistantIaReglage.interruptionsMaxJour`).
+  interruptionsMax         Int       @default(5)
+  /// Heures calmes, heures entières d'Alger [debut, fin) — 19 → 8 traverse minuit.
+  calmeDebut               Int       @default(19)
+  calmeFin                 Int       @default(8)
+  /// Vendredi et samedi calmes.
+  weekendCalme             Boolean   @default(true)
+  pointDuMatin             Boolean   @default(true)
+  derniereVeilleLe         DateTime?
+  dernierMatinLe           DateTime?
+  derniereInterruptionLe   DateTime?
+  /// Les gestes sous mandat se font dans une requête de la personne : au plus une fois par fenêtre.
+  derniersGestesLe         DateTime?
+  updatedAt                DateTime  @default(now()) @updatedAt
+}
+
+/// UN VEILLEUR D'UNE PERSONNE — actif ou non, son seuil, et ce que ses retours ont appris.
+model AssistantVeilleur {
+  id        String   @id @default(cuid())
+  userId    String
+  /// Code du veilleur (`domaine/proactivite/veilleurs.ts`).
+  code      String
+  actif     Boolean  @default(true)
+  /// Seuil choisi par la personne (jours, %, minutes) ; null = celui par défaut.
+  seuil     Int?
+  /// Multiplicateur du seuil appris des retours « pas utile » (1 → 3).
+  facteur   Float    @default(1)
+  utiles    Int      @default(0)
+  inutiles  Int      @default(0)
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([userId, code])
+}
+
+/// UN CONSTAT D'UN VEILLEUR — dit une fois (clé unique), livré selon le budget d'interruptions, jugé en un clic.
+model AssistantSignal {
+  id         String    @id @default(cuid())
+  userId     String
+  veilleur   String
+  /// La signature : même clé = même constat, jamais redit.
+  cle        String
+  titre      String
+  detail     String
+  /// INFO | ATTENTION | URGENT
+  gravite    String
+  lien       String?
+  entiteType String?
+  entiteId   String?
+  /// EN_ATTENTE (heures calmes, regroupement) | LIVRE (interruption ou point du matin) | JOURNAL (sans notification) | RESOLU | ECARTE
+  etat       String    @default("EN_ATTENTE")
+  /// INTERRUPTION | MATIN | JOURNAL | DOSSIER — comment il a été dit.
+  canal      String?
+  detecteLe  DateTime  @default(now())
+  livreLe    DateTime?
+  resoluLe   DateTime?
+  /// UTILE | PAS_UTILE
+  retour     String?
+  retourLe   DateTime?
+
+  @@unique([userId, veilleur, cle])
+  @@index([userId, etat])
+  @@index([userId, entiteType, entiteId])
+}
+
+/// UN MANDAT — approbation durable, bornée, révocable : un geste fait sans carte à chaque fois.
+model AssistantMandat {
+  id            String                @id @default(cuid())
+  userId        String
+  /// Code de la capacité (`domaine/proactivite/mandats.ts`).
+  capacite      String
+  /// ACTIF | EN_ATTENTE_CONSOLE | REVOQUE | EXPIRE
+  statut        String                @default("ACTIF")
+  /// Personnes que le geste peut toucher (vide : celles que le geste vise déjà).
+  destinataires String[]              @default([])
+  montantMax    Float?
+  gestesParJour Int                   @default(3)
+  expireLe      DateTime
+  accordeLe     DateTime              @default(now())
+  consoleParId  String?
+  consoleLe     DateTime?
+  revoqueLe     DateTime?
+  revoqueParId  String?
+  gestes        AssistantMandatGeste[]
+
+  @@index([userId, statut])
+}
+
+/// LE REÇU D'UN GESTE SOUS MANDAT — un par constat (jamais deux relances pour la même étape).
+model AssistantMandatGeste {
+  id        String          @id @default(cuid())
+  mandatId  String
+  mandat    AssistantMandat @relation(fields: [mandatId], references: [id], onDelete: Cascade)
+  userId    String
+  signalId  String
+  /// EN_COURS (reçu pris, jamais rejoué) | FAIT | REFUSE | ECHEC
+  statut    String
+  resume    String
+  lien      String?
+  faitLe    DateTime        @default(now())
+
+  @@unique([mandatId, signalId])
+  @@index([userId, faitLe])
 }
 
 /// Seuils de déclenchement du Risk Radar (Adventum Brain), ajustables par le
@@ -17805,9 +17920,15 @@ model FaitConfirme {
   valideDu         DateTime?
   valideAu         DateTime?
   actif            Boolean            @default(true)
+  /// J9 (décision 0021) — le temps de CONSTAT de la fermeture (≠ `valideAu`, fin de validité), qui l'a fermé, et
+  /// le fait confirmé qui le remplace. Un fait périmé se ferme, il n'est jamais écrasé.
+  fermeLe          DateTime?
+  fermeParId       String?
+  remplaceParId    String?
   conflits         ConflitDeFait[]
 
   @@index([sujetType, sujetId, attribut, actif])
+  @@index([sujetType, sujetId, valideDu])
   @@index([attribut, valeurNormalisee])
   @@index([pieceId])
 }

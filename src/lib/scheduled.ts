@@ -198,6 +198,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
   // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
   { cle: "assistant.routines", executer: async () => (await import("@/modules/assistant-ia/api")).executerRoutinesDues() },
+  // J12 (décision 0024) — LES VEILLEURS de l'Assistant IA : règles de code par personne (au plus une veille par quart
+  // d'heure chacune), budget d'interruptions, point du matin. Les gestes sous mandat, eux, se font dans la requête de la personne.
+  { cle: "assistant.veilleurs", executer: async () => (await import("@/modules/assistant-ia/api")).executerVeilles() },
   // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
   { cle: "assistant.fils", executer: async () => (await import("@/modules/assistant-ia/api")).reprendreLesFils() },
   // LES CONVERSATIONS PRIVÉES (décision 0027) : supprimées 30 jours après leur création, tours compris.

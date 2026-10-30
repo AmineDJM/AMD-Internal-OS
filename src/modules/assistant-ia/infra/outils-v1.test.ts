@@ -50,6 +50,8 @@ describe("outils V1", () => {
       "search_drive", "search_everything", "search_products", "send_message", "set_regulatory_step", "task_operation", "update_regulatory_product", "update_task", "web_research",
       // J4 : la connaissance de l'entreprise (Bibliothèque, faits confirmés — `platform/ia/lectures/connaissance.ts`).
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
+      // J9 : le graphe de l'entreprise et les faits datés (`platform/ia/lectures/graphe.ts`).
+      "explorer_relations", "etat_a_une_date", "d_ou_vient",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
       ...OPERATIONS_IA.map((o) => o.nom),

@@ -44,6 +44,9 @@ export {
   changerStatut, executerMaintenant, executerRoutinesDues, lirePassage, listerRoutines, passagesNonLus, supprimerRoutine,
 } from "./infra/routines/service";
 
+// ── La proactivité sous mandat (J12, décision 0024) : veilleurs, budget d'interruptions, mandats
+export { executerVeilles, passerLaVeille } from "./infra/proactivite/veille";
+
 // ── Opérations (écritures confirmées) et accès
 export { executerOperationIA } from "./infra/operations";
 export { accesAssistantIa, chargerConsoleAccesIa, verifierReperesAvantExecution } from "./infra/role-config";

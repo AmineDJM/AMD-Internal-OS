@@ -201,7 +201,7 @@ suite("Adventum IA — conversations multiples, privées, dossiers (vraie base)"
     const ancien = await prisma.assistantIaFil.create({ data: { userId: collegue.id } });
     await prisma.assistantIaTour.create({ data: { filId: ancien.id, userId: collegue.id, role: "user", etat: "TRAITE", contenu: "Bonjour" } });
     await prisma.assistantIaFil.update({ where: { id: ancien.id }, data: { titre: null } });
-    const sql = fs.readFileSync(path.join(process.cwd(), "prisma/migrations/20270210100000_adventum_ia_conversations/migration.sql"), "utf8");
+    const sql = fs.readFileSync(path.join(process.cwd(), "prisma/migrations/20270211100000_adventum_ia_conversations/migration.sql"), "utf8");
     for (const instruction of instructions(sql)) await prisma.$executeRawUnsafe(instruction);
     const apres = await prisma.assistantIaFil.findUniqueOrThrow({ where: { id: ancien.id }, include: { tours: true } });
     expect(apres.titre).toBe("Ma conversation");

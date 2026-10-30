@@ -222,6 +222,16 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-conversations-actions:supprimerMonDossier", "assistant-ia-conversations-actions:ajouterDocumentsAuDossier",
     "assistant-ia-conversations-actions:retirerDocumentDuDossier", "assistant-ia-conversations-actions:listerMesAppareils",
     "assistant-ia-conversations-actions:deconnecterMonAppareil",
+  X("LA VEILLE PERSONNELLE de l'Assistant IA (J12, décision 0024) — les gestes de la personne sur SA veille : voir ce que ses veilleurs ont constaté, juger un constat « utile / pas utile », l'écarter, activer un veilleur ou régler son seuil, régler son budget d'interruptions ; et les constats d'une fiche qu'elle ouvre. Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-proactivite-actions:lireMaVeille", "assistant-ia-proactivite-actions:jugerConstat", "assistant-ia-proactivite-actions:ecarterConstat",
+    "assistant-ia-proactivite-actions:reglerMonVeilleur", "assistant-ia-proactivite-actions:reglerMaVeille", "assistant-ia-proactivite-actions:suggestionsPourDossier",
+  ]);
+  X("LES MANDATS de l'Assistant IA (J12, décision 0024) — une approbation que SEULE la personne accorde ou révoque à l'écran, et le geste de la coque qui fait, dans SA requête, les gestes qu'elle a confiés (bornés, journalisés). Un assistant qui s'accorderait un mandat se donnerait un droit : jamais proposé par un assistant.", [
+    "assistant-ia-proactivite-actions:accorderMonMandat", "assistant-ia-proactivite-actions:revoquerMonMandat", "assistant-ia-proactivite-actions:executerMesGestesSousMandat",
+  ]);
+  X("LA CONSOLE DE LA PROACTIVITÉ (J12, décision 0024) — Super Admin : plafond d'interruptions, interrupteur général, mesure, accord et révocation des mandats. Réglage de gouvernance de l'IA elle-même : un assistant ne règle pas ses propres bornes.", [
+    "assistant-ia-proactivite-actions:lireConsoleProactivite", "assistant-ia-proactivite-actions:reglerConsoleProactivite",
+    "assistant-ia-proactivite-actions:approuverMandatConsole", "assistant-ia-proactivite-actions:revoquerMandatConsole",
   ]);
   X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
     "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",
