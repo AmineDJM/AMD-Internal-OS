@@ -114,7 +114,7 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     // ses cas depuis les Rapports terrain — une entrée de pôle Regulatory lui ouvrirait une boîte presque vide.
     pharmacovigilance: voitTousLesCasPv(user),
     // LES RECETTES (J10) : la Direction, un responsable de processus, ou qui voit le circuit d'une recette.
-    recettes: await voitDesRecettes(user).catch(() => false),
+    recettes: await voitDesRecettes(user).catch(sansBloquer("nav-access.navigationFor.voitDesRecettes", false)),
   };
 
   // Les SOUS-MODULES suivent la même règle que leur parent : chacun a son module et sa garde, et
