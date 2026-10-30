@@ -14,7 +14,8 @@ import { demanderConversion, LIBELLE_VOIE, type VersFormat } from "@/platform/ia
  *                           et rend sa STRUCTURE (rangs, titres, diapositives, cellules) pour désigner ;
  *   modifier_document       applique des GESTES typés sur le FICHIER D'ORIGINE (styles, tableaux, mise en
  *                           page conservés) — un par un, l'écran les montre arriver ; rien n'est enregistré ;
- *   convertir_document      Word/PowerPoint/Excel → PDF, tableau → Excel, PDF → Word ; dit la voie.
+ *   convertir_document      Word/PowerPoint/Excel → PDF, tableau → Excel, PDF → Word/Excel, image → PDF/Word,
+ *                           PowerPoint → images ; dit la voie (décision 0019).
  *
  * Au-dessus du socle (`platform/ia/artifact/atelier`) : les droits du Drive y sont relus à chaque geste.
  * Ce ne sont pas des écritures de l'ERP : modifier un document ouvert ne change rien tant que la personne
@@ -42,6 +43,18 @@ async function resoudre(user: CurrentUser, document: string): Promise<Resolu> {
     return { ok: false, sortie: JSON.stringify({ statut: "AMBIGU", raison: o.motif, candidats: o.candidats, consigne: "Demande à l'utilisateur lequel ; ne choisis pas." }) };
   }
   return { ok: false, sortie: JSON.stringify({ statut: "REFUS", raison: o.motif ?? "Ce document n'existe pas, ou vous n'y avez pas accès." }) };
+}
+
+/** Ce que le modèle relit d'une conversion : l'état, la VOIE (à répéter), le fichier produit, la note du moteur. */
+function reponseConversion(c: Awaited<ReturnType<typeof demanderConversion>>, nonEnregistre: boolean): string {
+  return JSON.stringify({
+    statut: c.etat ?? "REFUS",
+    ...(c.motif ? { raison: c.motif } : {}),
+    ...(c.voie ? { voie: LIBELLE_VOIE[c.voie] } : {}),
+    ...(c.resultat ? { fichier: c.resultat.nom, lien: `/drive/${c.resultat.nodeId}` } : {}),
+    ...(c.note ? { note: c.note } : {}),
+    ...(nonEnregistre ? { avertissement: "Des modifications non enregistrées ne sont PAS dans la conversion : dis-le." } : {}),
+  });
 }
 
 const texteDe = (e: Record<string, unknown>, cle: string) => (typeof e[cle] === "string" ? (e[cle] as string) : "");
@@ -124,14 +137,15 @@ export function outilsAtelier(user: CurrentUser): PowerTool[] {
       def: {
         name: "convertir_document",
         description:
-          "CONVERTIT un document : Word → PDF, PowerPoint → PDF, Excel → PDF, tableau d'un Word → Excel, PDF → Word (texte seulement). Le résultat est un "
+          "CONVERTIT un document : Word → PDF, PowerPoint → PDF ou images, Excel → PDF, tableau d'un Word → Excel, PDF → Word (mise en page, images, tableaux, "
+          + "arabe ; pages scannées lues par OCR), PDF → Excel (ses tableaux), image → PDF ou Word (OCR). Le résultat est un "
           + "NOUVEAU fichier dans le Drive de la personne (dossier « Atelier »), l'original n'est pas touché ; c'est la dernière version ENREGISTRÉE qui est convertie. "
           + "La réponse dit la VOIE (LibreOffice du worker, éditeur Office, rendu intégré…) : répète-la.",
         input_schema: {
           type: "object",
           properties: {
             document: { type: "string", description: "La référence de l'Atelier, l'identifiant Drive ou le nom du fichier." },
-            vers: { type: "string", enum: ["PDF", "XLSX", "DOCX"] },
+            vers: { type: "string", enum: ["PDF", "XLSX", "DOCX", "IMAGES"] },
           },
           required: ["document", "vers"],
         },
@@ -140,20 +154,18 @@ export function outilsAtelier(user: CurrentUser): PowerTool[] {
       label: "Document converti",
       run: async (e, u) => {
         const vers = texteDe(e, "vers").toUpperCase() as VersFormat;
-        if (!["PDF", "XLSX", "DOCX"].includes(vers)) return JSON.stringify({ statut: "INCOMPLET", raison: "`vers` : PDF, XLSX ou DOCX" });
-        const r = await resoudre(u, texteDe(e, "document"));
-        if (!r.ok) return r.sortie;
+        if (!["PDF", "XLSX", "DOCX", "IMAGES"].includes(vers)) return JSON.stringify({ statut: "INCOMPLET", raison: "`vers` : PDF, XLSX, DOCX ou IMAGES" });
+        const ref = texteDe(e, "document").trim();
+        const r = await resoudre(u, ref);
+        if (!r.ok) {
+          // Une IMAGE ne s'ouvre pas dans l'Atelier : désignée par son identifiant Drive, elle se convertit directement.
+          if (!RE_ID.test(ref)) return r.sortie;
+          const c = await demanderConversion(u, ref, vers, null);
+          return !c.ok && !c.id ? r.sortie : reponseConversion(c, false);
+        }
         const vue = r.o?.vue ?? (await vueAtelier(u, r.sessionId));
         if (!vue) return JSON.stringify({ statut: "ECHEC", raison: "Le document n'a pas pu être relu." });
-        const c = await demanderConversion(u, vue.nodeId, vers, r.sessionId);
-        return JSON.stringify({
-          statut: c.etat ?? "REFUS",
-          ...(c.motif ? { raison: c.motif } : {}),
-          ...(c.voie ? { voie: LIBELLE_VOIE[c.voie] } : {}),
-          ...(c.resultat ? { fichier: c.resultat.nom, lien: `/drive/${c.resultat.nodeId}` } : {}),
-          ...(c.note ? { note: c.note } : {}),
-          ...(vue.dirty ? { avertissement: "Des modifications non enregistrées ne sont PAS dans la conversion : dis-le." } : {}),
-        });
+        return reponseConversion(await demanderConversion(u, vue.nodeId, vers, r.sessionId), vue.dirty);
       },
     },
   ];

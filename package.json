@@ -34,6 +34,7 @@
     "autotest:live": "tsx scripts/auto-test/run.ts --live",
     "test:e2e": "playwright test",
     "adam:boundary": "tsx scripts/adam-boundary.ts",
+    "conversions:bench": "tsx scripts/bench/conversions.ts",
     "office:bench": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/office-bench.ts",
     "office:sabotage": "NODE_OPTIONS=\"--require ./scripts/proxy-dispatcher.cjs\" DATABASE_URL=\"${BENCH_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_bench}\" tsx scripts/bench/office-sabotage.ts",
     "evals:report": "tsx scripts/evals-report.ts",

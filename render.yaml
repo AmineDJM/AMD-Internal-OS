@@ -76,6 +76,15 @@ services:
         generateValue: true
       - key: AUTH_TRUST_HOST
         value: "true"
+      # LES DEUX BATTENT (décision 0019, « cliquez Sync, c'est tout ») : le bail par tâche (table `TacheDeFond`) fait
+      # qu'UN seul exécutant tient chaque tâche. Tant que le worker n'a pas battu (première construction, panne), le web
+      # fait TOUT comme avant ; dès qu'il bat, le web lui laisse les travaux longs et les conversions.
+      - key: TACHES_DE_FOND
+        value: les-deux
+      # La clé du fournisseur d'IA, posée à la main sur le web : déclarée ici pour que le worker la reçoive (`fromService`).
+      # `sync: false` = le Blueprint ne touche jamais à la valeur déjà posée dans le tableau de bord.
+      - key: OPENAI_API_KEY
+        sync: false
       - key: NODE_VERSION
         value: "22"
       # Limites d'upload par DÉFAUT (repli si la ligne de réglages est absente). Généreuses :
@@ -127,74 +136,59 @@ services:
         sync: false
 
   # ───────────────────────────────────────────────────────────────────────────────────────────
-  # WORKER DES TÂCHES DE FOND (refonte V2-F) — ACTIVÉ (28/10/2026), EN ATTENTE jusqu'à la bascule.
+  # LE WORKER (refonte V2-F ; image Docker J2 ; « CLIQUEZ SYNC, C'EST TOUT » : décision 0019, 30/10/2026).
   #
-  # Même dépôt, même build, autre point d'entrée : `npm run worker` exécute la table des tâches de
-  # `src/lib/scheduled.ts` (rappels, paie notifiée, jobs réglementaires, routines et fil de
-  # l'Assistant, missions, boîte Gmail d'Adam, site public…), chaque tâche sous un BAIL en base
-  # (table `TacheDeFond`) : un seul exécutant la tient, même si le web bat encore.
+  # Même dépôt, autre point d'entrée : `tsx scripts/worker.ts` exécute la table des tâches de `src/lib/scheduled.ts`
+  # (rappels, paie notifiée, jobs réglementaires, routines et fil de l'Assistant, missions, travaux longs, CONVERSIONS
+  # de l'Atelier…), chaque tâche sous un BAIL en base (table `TacheDeFond`) : un seul exécutant la tient.
   #
-  # Le service est déclaré (Direction, 28/10/2026 : « fais-le ») : la synchronisation du Blueprint le CRÉE
-  # (payant : Render n'a pas d'offre gratuite pour un Background Worker). Il démarre EN ATTENTE
-  # (TACHES_DE_FOND=web) : la production ne change en rien tant que la bascule ci-dessous n'est pas faite.
+  # LA DIRECTION CLIQUE « SYNC », RIEN D'AUTRE : la synchronisation CRÉE ce service (payant : Render n'a pas d'offre
+  # gratuite pour un Background Worker), lui DONNE ses variables (ci-dessous, reliées au web), et il TRAVAILLE aussitôt
+  # (TACHES_DE_FOND=les-deux, ici ET sur le web). Ce qui est vérifié tout seul :
+  #   • au build de l'image : le moteur de conversion se déclare complet (Python, paquets, tesseract ara/fra/eng « best »,
+  #     LibreOffice, polices) — sinon l'image n'est pas construite ;
+  #   • au démarrage : le worker attend que la base porte les migrations de son commit (seul le web migre), puis
+  #     CONTRÔLE ses variables et son moteur — chaque manque est écrit EN CLAIR dans le journal (`worker.controle`) et
+  #     dans Administration › Diagnostic › « Worker et conversions » ;
+  #   • en marche : GET /api/health/worker (exécutants récents), le même écran (dernier battement, file, échecs).
+  # Retour arrière : suspendre le service (le web, en `les-deux`, reprend tout seul les tâches) — aucun code.
   #
-  # ACTIVATION (procédure complète : docs/readme/24-deploiement-render.md, « Worker séparé ») :
-  #   1. Render → Blueprint → Sync (ou créer à la main un « Background Worker » sur ce dépôt avec les
-  #      mêmes commandes). Recopier sur le worker les variables posées à la main sur le web.
-  #   2. Poser TACHES_DE_FOND=les-deux sur le worker ET sur le web.
-  #   3. Vérifier GET /api/health/worker (ou Administration › Diagnostic › Tâches de fond) : des
-  #      tâches passent avec l'exécutant « worker ».
-  #   4. Poser TACHES_DE_FOND=worker sur le web, PUIS sur le worker. Le web ne bat plus.
-  #   Retour arrière : TACHES_DE_FOND=web sur le web (le worker se met en attente dès qu'il lit
-  #   `web` à son redémarrage ; on peut aussi suspendre le service).
-  #
-  # ⚠️ VARIABLES : le worker exécute le MÊME code que le web, il lui faut les MÊMES variables —
-  # AUTH_SECRET identique (il chiffre et déchiffre le coffre et les secrets de connexion), les clés
-  # VAPID (push), S3, ADVENTUM_*, les clés des fournisseurs d'IA, Google/Microsoft, SMTP. Celles du
-  # Blueprint sont reprises ci-dessous ; celles posées à la main sur le web se recopient (ou mieux :
-  # un Environment Group partagé par les deux services). APP_URL est OBLIGATOIRE ici : Render ne
-  # donne RENDER_EXTERNAL_URL qu'aux services web, et les liens des notifications en dépendent.
-  # Contrôle : Shell du worker → `npm run adam:doctor`.
-  #
-  #
-  # IMAGE DOCKER (J2, décision 3 de la Direction, 29/10/2026) : `Dockerfile.worker` à la racine — Node 22,
-  # `npm ci`, `prisma generate`, plus LibreOffice headless (conversions fidèles), ffmpeg (vidéo) et Tesseract
-  # fra/ara/eng (OCR), utilisateur non root. Les travaux longs (`travaux.balayage`) y tournent ; tant que
-  # TACHES_DE_FOND=web, le web les fait encore tourner (procédure de bascule : docs/readme/24-deploiement-render.md).
+  # LES VARIABLES (recensées dans le code du worker, `src/lib/taches-de-fond/controle.ts`) : chacune vient du web par
+  # `fromService` — la MÊME valeur, sans recopie. Ne sont reliées que des clés que le web PORTE (déclarées dans son bloc
+  # ci-dessus) : Render ne documente pas le sort d'un `fromService` vers une clé absente, et un Sync en échec serait
+  # pire qu'une clé manquante. Les autres (Google, Microsoft, Mistral, courriel) : le contrôle au démarrage les dit
+  # absentes, en clair ; les ajouter ici le jour où elles sont posées sur le web (une ligne chacune, même forme).
+  # APP_URL est littérale : Render ne donne RENDER_EXTERNAL_URL qu'aux services web.
   - type: worker
     name: amd-worker
     runtime: docker
     plan: starter
-    # Même dépôt, même installation, même client Prisma — mais NI compilation Next (le worker ne
-    # sert aucune page : `tsx` exécute le code source) NI migration : seul le build du web migre,
-    # APRÈS son lint, son typecheck et sa compilation (refonte P0). Le worker démarré attend que la
-    # base porte les migrations de son commit (`src/lib/taches-de-fond/migrations.ts`) avant son
-    # premier passage — il ne fait jamais tourner un code plus récent que le schéma.
-    # L'image construit et démarre seule (`CMD` du Dockerfile : `tsx scripts/worker.ts`, sous `tini`).
+    # Ni compilation Next (le worker ne sert aucune page) NI migration : seul le build du web migre, APRÈS son lint, son
+    # typecheck et sa compilation (refonte P0). L'image démarre seule (`CMD` du Dockerfile : `tsx scripts/worker.ts`).
     dockerfilePath: ./Dockerfile.worker
     dockerContext: .
     envVars:
-      # EN ATTENTE au démarrage (`web`) : le worker existe et attend ; le web bat comme avant. On bascule en
-      # `les-deux` APRÈS avoir recopié sur ce service les clés posées à la main sur le web (IA, Google/Microsoft,
-      # SMTP…) — sans elles, une tâche prise par le worker échouerait là où le web la réussissait.
       - key: TACHES_DE_FOND
-        value: web
+        value: les-deux
+      - key: APP_URL
+        value: https://amd-internal-os-k3uc.onrender.com
       - key: DATABASE_URL
         fromDatabase:
           name: amd-postgres
           property: connectionString
+      # La clé maître : la MÊME que le web (coffre, secrets de connexion).
       - key: AUTH_SECRET
-        fromService:
-          type: web
-          name: amd-internal-os
-          envVarKey: AUTH_SECRET
-      - key: APP_URL
-        sync: false # l'URL publique du web, ex. https://amd-internal-os-k3uc.onrender.com
-      # (Node 22 vient de l'image Docker : NODE_VERSION n'a plus d'effet ici.)
-      # LES CLÉS D'IA : un travail confié à l'Assistant IA appelle le modèle depuis le worker. Posée à la main sur le
-      # web (hors Blueprint) : la recopier ici, ou mieux, la mettre dans l'Environment Group partagé (procédure).
+        fromService: { type: web, name: amd-internal-os, envVarKey: AUTH_SECRET }
+      - key: AUTH_TRUST_HOST
+        value: "true"
       - key: OPENAI_API_KEY
-        sync: false
+        fromService: { type: web, name: amd-internal-os, envVarKey: OPENAI_API_KEY }
+      - key: MAX_UPLOAD_MB
+        value: "200"
+      - key: MAX_DRIVE_UPLOAD_MB
+        value: "1024"
+      - key: MAX_DB_UPLOAD_MB
+        value: "100"
       - key: S3_ENDPOINT
         fromService: { type: web, name: amd-internal-os, envVarKey: S3_ENDPOINT }
       - key: S3_BUCKET

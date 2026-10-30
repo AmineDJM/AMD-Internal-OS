@@ -1,0 +1,14 @@
+# Le moteur de conversion haute fidélité (décision 0019) — versions ÉPINGLÉES, celles que le banc a mesurées
+# (`npm run conversions:bench`). Installé dans l'image du worker (`Dockerfile.worker`, /opt/conversions).
+pdf2docx==0.5.13
+pymupdf==2.0
+python-docx==1.2.0
+lxml==6.1.3
+openpyxl==3.1.5
+et_xmlfile==2.0.0
+opencv-python-headless==5.0.0.93
+numpy==2.5.4
+pillow==13.0.0
+fonttools==4.68.0
+fire==0.7.1
+typing_extensions==4.16.0

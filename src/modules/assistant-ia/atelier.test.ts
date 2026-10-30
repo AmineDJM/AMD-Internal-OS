@@ -166,4 +166,28 @@ suite("l'Atelier — droits, modification en place, nouvelle version (vraie base
     expect(pdf.voie).toBe((await libreOfficeLocal()) ? "LOCAL" : "RENDU");
     expect(pdf.resultat?.nom).toMatch(/\.pdf$/);
   }, 120_000);
+
+  it("PDF → WORD HAUTE FIDÉLITÉ (décision 0019) : par la file, le moteur garde images, tableau et arabe ; sinon le secours le DIT", async () => {
+    const fs = await import("node:fs");
+    const { etatMoteur } = await import("@/lib/office/conversions-haute-fidelite");
+    const { analyserDocx } = await import("@/lib/office/conversions-mesure");
+    const octets = fs.readFileSync("scripts/conversions/corpus/ar-note.pdf");
+    const b = await putBlob(octets);
+    const n = await prisma.driveNode.create({
+      data: { name: `${TAG} note.pdf`, type: "FILE", mimeType: "application/pdf", ownerId: proprietaire.id, size: b.size, versions: { create: { blobId: b.blobId, version: 1, size: b.size } } },
+    });
+    const r = await demanderConversion(proprietaire, n.id, "DOCX");
+    expect(r.ok).toBe(true);
+    const v = await prisma.fileVersion.findFirst({ where: { nodeId: r.resultat!.nodeId } });
+    const a = analyserDocx((await getBlob(v!.blobId))!);
+    if ((await etatMoteur()).pret) {
+      expect(r.voie).toBe("LOCAL");
+      expect(a.images).toHaveLength(1);
+      expect(a.tableaux[0]).toEqual({ lignes: 4, colonnes: 4 });
+      expect(a.paragraphes.filter((p) => p.bidi).length).toBeGreaterThan(5);
+    } else {
+      expect(r.voie).toBe("MAISON");
+      expect(r.note).toMatch(/secours/);
+    }
+  }, 120_000);
 });

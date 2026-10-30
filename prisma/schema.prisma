@@ -17907,6 +17907,16 @@ model Commune {
 /// un bail non renouvelé (`bailJusqua` dépassé) appartient à un processus mort et se reprend — c'est la reprise
 /// après plantage. Le SIGNAL DE SANTÉ : dernier passage, durée, issue, lus par `/api/health/worker` et le
 /// Diagnostic. La ligne naît au premier passage de la tâche ; la règle vit dans `src/lib/taches-de-fond/bail.ts`.
+/// LE CONTRÔLE AU DÉMARRAGE DU WORKER (décision 0019) — variables présentes/absentes (jamais leurs valeurs), moteur de
+/// conversion. Écrit par `scripts/worker.ts` à chaque démarrage ; lu par Administration › Diagnostic.
+model ControleWorker {
+  id        String   @id
+  detenteur String
+  verifieA  DateTime @default(now())
+  pret      Boolean  @default(false)
+  rapport   Json
+}
+
 model TacheDeFond {
   /// Clé stable de la tâche (« rappels.reunions », « missions.balayage »).
   cle             String             @id

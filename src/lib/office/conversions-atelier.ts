@@ -7,14 +7,15 @@
  * droits de la personne ; ici, on transforme des octets et on tient la file `AtelierConversion`.
  *
  * Les voies, dans l'ordre où on les essaie :
- *   WORKER   LibreOffice headless, dans l'image du worker (J2) — fidèle. Choisie quand le worker BAT
- *            (il a pris une tâche dans les cinq dernières minutes) : la demande entre en FILE, le worker
- *            la prend à son passage suivant (`atelier.conversions`).
- *   EDITEUR  le Document Server OnlyOffice, quand il est configuré — fidèle (la voie d'avant J3).
- *   LOCAL    LibreOffice présent dans CE processus (poste de développement, conteneur) — fidèle.
+ *   WORKER   le MOTEUR HAUTE FIDÉLITÉ de l'image du worker (décision 0019 : pdf2docx + PyMuPDF corrigés pour l'arabe,
+ *            tesseract ara+fra+eng, LibreOffice et ses polices) — `conversions-haute-fidelite.ts`. Choisie quand le
+ *            worker BAT (il a pris une tâche dans les cinq dernières minutes) : la demande entre en FILE, le worker la
+ *            prend à son passage suivant (`atelier.conversions`). Le web ne convertit JAMAIS lui-même dans ce cas.
+ *   EDITEUR  le Document Server OnlyOffice, quand il est configuré — Office → PDF (la voie d'avant J3).
+ *   LOCAL    le même moteur, ou à défaut LibreOffice, présent dans CE processus (poste de développement, conteneur).
  *   RENDU    le rendu PDF de ce dépôt (`docxToPdf`) — Word seulement, mise en page approchée, DIT.
- *   MAISON   ce que le dépôt compose lui-même : un tableau Word → un classeur vérifié ; un PDF → un Word
- *            (texte et paragraphes — la mise en page n'est pas reprise, et c'est DIT).
+ *   MAISON   ce que le dépôt compose lui-même : un tableau Word → un classeur vérifié ; et, en DERNIER recours quand
+ *            aucun moteur ne tourne, un PDF → un Word texte seul (c'est DIT).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -32,14 +33,15 @@ import { lireTextePdf } from "@/lib/artifact/pdf/read";
 import { composerDocx, MIME_DOCX, paragraphe } from "@/lib/artifact/factory/word";
 import { construireClasseurVerifie } from "@/lib/artifact/sheets/build";
 import { sansBloquer } from "@/lib/journal";
+import { CONVERSIONS_HAUTE_FIDELITE, convertirHauteFidelite, etatMoteur, noteDuBilan, type FormatSource } from "@/lib/office/conversions-haute-fidelite";
 
-export type VersFormat = "PDF" | "XLSX" | "DOCX";
+export type VersFormat = "PDF" | "XLSX" | "DOCX" | "IMAGES";
 export type Voie = "WORKER" | "EDITEUR" | "LOCAL" | "RENDU" | "MAISON";
 
 export const LIBELLE_VOIE: Record<Voie, string> = {
-  WORKER: "LibreOffice, sur le worker",
+  WORKER: "le moteur haute fidélité, sur le worker",
   EDITEUR: "l'éditeur Office du serveur (OnlyOffice)",
-  LOCAL: "LibreOffice, sur ce serveur",
+  LOCAL: "le moteur de conversion de ce serveur",
   RENDU: "le rendu PDF intégré (mise en page approchée)",
   MAISON: "la composition intégrée",
 };
@@ -48,8 +50,19 @@ export const MIME_CONVERSION: Record<VersFormat, string> = {
   PDF: "application/pdf",
   XLSX: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   DOCX: MIME_DOCX,
+  IMAGES: "application/zip",
 };
+/** L'extension du fichier produit. */
+export const EXT_CONVERSION: Record<VersFormat, string> = { PDF: "pdf", XLSX: "xlsx", DOCX: "docx", IMAGES: "zip" };
 const EXT: Record<string, string> = { DOCX: "docx", PPTX: "pptx", XLSX: "xlsx", PDF: "pdf" };
+const RE_IMAGE = /\.(png|jpe?g|tiff?|bmp|webp|gif)$/i;
+
+/** Le format SOURCE d'une conversion : ceux de l'Atelier, plus les images (OCR). */
+export function formatSource(format: string | null, nom: string, mime: string | null): string | null {
+  if (format) return format;
+  if ((mime ?? "").startsWith("image/") || RE_IMAGE.test(nom)) return "IMAGE";
+  return null;
+}
 /** Le worker « bat » s'il a pris une tâche dans les cinq dernières minutes — même seuil que sa sonde (J2). */
 const WORKER_VIVANT_MS = 5 * 60_000;
 
@@ -91,10 +104,14 @@ export async function convertirParLibreOffice(bin: string, octets: Buffer, extSo
 /** Les conversions possibles depuis un format — ce que l'écran propose. */
 export function conversionsPossibles(format: string | null): VersFormat[] {
   if (format === "DOCX") return ["PDF", "XLSX"];
-  if (format === "PPTX" || format === "XLSX") return ["PDF"];
-  if (format === "PDF") return ["DOCX"];
+  if (format === "PPTX") return ["PDF", "IMAGES"];
+  if (format === "XLSX") return ["PDF"];
+  if (format === "PDF") return ["DOCX", "XLSX"];
+  if (format === "IMAGE") return ["PDF", "DOCX"];
   return [];
 }
+
+const parLeMoteur = (format: string, vers: VersFormat) => (CONVERSIONS_HAUTE_FIDELITE[format as FormatSource] ?? []).includes(vers as never);
 
 
 /** Le tableau → un classeur : une feuille par tableau du Word, l'en-tête en titres, les nombres en nombres. */
@@ -120,7 +137,7 @@ async function tableauxEnClasseur(octets: Buffer): Promise<{ octets: Buffer; not
   return { octets: c.octets, note: `${feuilles.length} tableau${feuilles.length > 1 ? "x" : ""} repris, une feuille chacun` };
 }
 
-/** Le PDF → un Word : le texte, page par page, en paragraphes. La mise en page ne suit pas — c'est dit. */
+/** DERNIER RECOURS (aucun moteur ne tourne) — le PDF → un Word : le texte, page par page. La mise en page ne suit pas — c'est dit. */
 async function pdfEnWord(octets: Buffer, titre: string): Promise<{ octets: Buffer; note: string } | { erreur: string }> {
   const lu = await lireTextePdf(octets, { max: 300 });
   const blocs: string[] = [];
@@ -131,7 +148,7 @@ async function pdfEnWord(octets: Buffer, titre: string): Promise<{ octets: Buffe
   if (!blocs.length) return { erreur: "ce PDF n'a pas de texte lisible (pages scannées) : rien à reprendre dans un Word" };
   const doc = composerDocx({ blocs, titre });
   const sans = lu.sansTexte.length ? ` ; ${lu.sansTexte.length} page${lu.sansTexte.length > 1 ? "s" : ""} sans texte (scannées) non reprises` : "";
-  return { octets: doc.octets, note: `texte et paragraphes repris de ${lu.pages.length} page${lu.pages.length > 1 ? "s" : ""} — la mise en page, les images et les tableaux ne suivent pas${sans}${lu.tronque ? " ; document tronqué à 300 pages" : ""}` };
+  return { octets: doc.octets, note: `secours, le moteur haute fidélité ne tourne pas : texte et paragraphes repris de ${lu.pages.length} page${lu.pages.length > 1 ? "s" : ""} — la mise en page, les images et les tableaux ne suivent pas${sans}${lu.tronque ? " ; document tronqué à 300 pages" : ""}` };
 }
 
 export const nomSans = (nom: string) => nom.replace(/\.[^.]+$/, "");
@@ -152,28 +169,47 @@ export async function produire(userId: string, src: SourceConversion, octets: Bu
     const token = makeFileReadToken(src.nodeId, userId, 300);
     r = { octets: await convertDocument({ srcUrl: `${appBaseUrl()}/api/onlyoffice/file?token=${token}`, fromExt: EXT[src.format]!, outputType: "pdf", key: `atelier_${src.nodeId}_${src.version}` }), note: null };
   } else if (voie === "LOCAL" || voie === "WORKER") {
-    const bin = await libreOfficeLocal();
-    if (!bin) throw new Error(voie === "WORKER" ? "LibreOffice est absent de ce worker" : "LibreOffice n'est pas installé sur ce serveur");
-    r = { octets: await convertirParLibreOffice(bin, octets, EXT[src.format]!, "pdf"), note: null };
+    const moteur = parLeMoteur(src.format, vers) ? await etatMoteur() : null;
+    if (moteur?.pret) {
+      const extension = src.format === "IMAGE" ? (src.nom.match(/\.([a-z0-9]+)$/i)?.[1] ?? "png") : undefined;
+      const hf = await convertirHauteFidelite(octets, src.format as FormatSource, vers as never, { extension });
+      r = { octets: hf.octets, note: noteDuBilan(src.format as FormatSource, vers as never, hf.bilan) };
+    } else {
+      const bin = vers === "PDF" && src.format !== "IMAGE" ? await libreOfficeLocal() : null;
+      if (!bin) {
+        const manque = moteur ? ` (manque : ${moteur.manquants.join(", ") || moteur.erreur})` : "";
+        throw new Error(voie === "WORKER" ? `le moteur haute fidélité est incomplet sur ce worker${manque}` : `aucun moteur de conversion sur ce serveur${manque}`);
+      }
+      r = { octets: await convertirParLibreOffice(bin, octets, EXT[src.format]!, "pdf"), note: null };
+    }
   } else {
     const d = await docxToPdf(octets);
     if (!d.ok) throw new Error(d.error);
     r = { octets: d.pdf, note: `rendu intégré : ${d.pages} page${d.pages > 1 ? "s" : ""}, mise en page approchée${d.limites?.length ? ` (${d.limites.join(", ")})` : ""}` };
   }
   if (!r.octets.length) throw new Error("le fichier produit est vide");
-  await adaptateurPour(vers).ouvrir(r.octets);
+  if (vers === "IMAGES") {
+    if (r.octets.subarray(0, 2).toString("latin1") !== "PK") throw new Error("l'archive d'images produite est illisible");
+  } else {
+    await adaptateurPour(vers).ouvrir(r.octets);
+  }
   return r;
 }
 
 /** Choisit la voie — et dit pourquoi aucune n'existe quand c'est le cas. */
 export async function choisirVoie(format: string, vers: VersFormat): Promise<{ voie: Voie } | { refus: string }> {
   if (!conversionsPossibles(format).includes(vers)) return { refus: `un ${format} ne se convertit pas en ${vers} ici` };
-  if (vers !== "PDF") return { voie: "MAISON" };
+  if (format === "DOCX" && vers === "XLSX") return { voie: "MAISON" };
+  // Le worker bat : TOUT passe par lui (le web ne convertit jamais lui-même — décision 0019).
   if (await workerActif()) return { voie: "WORKER" };
-  if (convertConfigured()) return { voie: "EDITEUR" };
-  if (await libreOfficeLocal()) return { voie: "LOCAL" };
-  if (format === "DOCX") return { voie: "RENDU" };
-  return { refus: `aucune voie fidèle n'est disponible pour convertir un ${format === "PPTX" ? "PowerPoint" : "classeur"} en PDF : le worker (LibreOffice) ne tourne pas et l'éditeur Office n'est pas configuré` };
+  if (parLeMoteur(format, vers) && (await etatMoteur()).pret) return { voie: "LOCAL" };
+  if (format === "PDF" && vers === "DOCX") return { voie: "MAISON" };
+  if (vers === "PDF" && format !== "IMAGE") {
+    if (convertConfigured()) return { voie: "EDITEUR" };
+    if (await libreOfficeLocal()) return { voie: "LOCAL" };
+    if (format === "DOCX") return { voie: "RENDU" };
+  }
+  return { refus: "le moteur haute fidélité (worker) ne tourne pas en ce moment : cette conversion l'attend — réessayez dans quelques minutes, ou demandez à l'administrateur l'état du worker" };
 }
 
 // ─────────────────────────── La file ───────────────────────────

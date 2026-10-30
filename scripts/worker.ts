@@ -43,15 +43,21 @@ async function main(): Promise<void> {
   const { executerTachesPlanifiees, identiteDesBaux, TICK_MS } = await import("../src/lib/scheduled");
   const { prisma } = await import("../src/lib/prisma");
   const { migrationsManquantes } = await import("../src/lib/taches-de-fond/migrations");
+  const { controlerAuDemarrage } = await import("../src/lib/taches-de-fond/sante");
+
+  const detenteur = identiteDesBaux();
 
   await demarrerWorker({
     signal: controleur.signal,
     passage: executerTachesPlanifiees,
-    detenteur: identiteDesBaux(),
+    detenteur,
     tickMs: TICK_MS,
     suspendu: process.env.SCHEDULER_DISABLED === "1",
     // Le code d'un commit ne tourne pas sur la base du commit d'avant (seul le build du web migre).
     migrationsManquantes: () => migrationsManquantes(),
+    // Le CONTRÔLE AU DÉMARRAGE (décision 0019), une fois la base à jour : chaque variable ou pièce du moteur qui manque
+    // est dite en clair, dans le journal ET dans Administration › Diagnostic. Il ne bloque pas.
+    apresMigrations: () => controlerAuDemarrage({ detenteur }),
   });
   await prisma.$disconnect().catch(() => undefined);
 }
