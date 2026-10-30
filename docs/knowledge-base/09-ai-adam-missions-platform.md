@@ -511,6 +511,12 @@ on BLOCKED: `replanifierMission` (Reasoner → `callModel("orchestrator")`) → 
 `createEmployee` (hr-actions) → `emit({type:"hr.employee-added",…})` → `event-bus.publish` → change-feed array (in memory) →
 later `what_changed` tool reads it as a hint and re-reads canonical data.
 
+### 6.4 Field voice & realtime voice of the Assistant IA (J13, decision 0025)
+
+- **Capture → cards**: `infra/terrain/captation.ts` (idempotent on `(userId, cle)`) → Drive → `transcrireMedia` (`gpt-transcribe`, no forced language, vocabulary hint; `modeleSttTerrain` in `platform/ia/modeles-roles.ts`, chosen by the bench `scripts/banc-stt-terrain.mjs`) → `genererTexte` + `lireCompteRendu` (untrusted JSON) → `resoudreMedecin` over `scopeMedicalDoctors` → `preparerCarte` (same `proposer` + `persistActionIntents` as model tools). Operations `terrain_*` live in `OPERATIONS_IA` (MOTS_CLES fiches, not SOCLE_OUTILS) and execute through screen actions (`createFieldReport`/`updateFieldReport`, `demanderMateriel`, `ouvrirPlanTournee`+`planifierVisites`, `rattacherPhotoTerrain`).
+- **Realtime voice (GPT-Live, `gpt-live-1` only — Direction 30/10, no fallback)**: socle `platform/ia/voix/session-temps-reel.ts` (server-side SDP exchange with `POST /v1/live/sessions`, `delegation: { type: "client" }`, no secret reaches the browser; zero imports) + `client-temps-reel.ts` (thin WebRTC client: on `session.delegation.created` it posts what the user said to `/api/assistant-ia/voix/delegation` and returns the result with `session.commentary.append`; latency read on the session timeline from transcript `start_ms`/`end_ms`; graceful `session.close` → `session.closed` usage). Module `infra/voix/temps-reel.ts`: delegation = `deposerMessage` + `traiterFil` — the SAME text assistant (tools, rights, console, repères, cards) in the SAME fil; voice text via `sansValeursRevelees`; transcript appended to the fil at the end; model = admin setting `AssistantIaReglage.modeleVoix` → `ASSISTANT_IA_VOICE_MODEL` → `gpt-live-1`. Adam's realtime untouched.
+- **Known limit**: a real `gpt-live-1` session was created (HTTP 201, 6.8 s) but WebRTC media (UDP) does not pass the dev container's egress; first real p50 is logged in production (`[assistant-ia] voix temps réel`).
+
 ## 7. Coupling & blast radius
 
 **Adam → ERP** [V] (boundary scan, read-only run): 288 Adam files, **433** crossing imports to 181 ERP targets; top targets `src/lib/prisma` 63,

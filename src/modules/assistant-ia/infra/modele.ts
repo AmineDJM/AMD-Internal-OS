@@ -71,3 +71,6 @@ export function optionsFournisseur(m: unknown, cleCache?: string): { openai: Rec
   if (!estOpenAi(m)) return undefined;
   return { openai: { ...(m.effort ? { reasoningEffort: m.effort } : {}), ...(cleCache ? { promptCacheKey: cleCache } : {}) } };
 }
+
+/** J13 : la clé du fournisseur pour la voix temps réel (le secret éphémère se crée côté serveur, la clé ne sort pas). */
+export const cleFournisseurVoix = (env: NodeJS.ProcessEnv = process.env): string => cleOpenAI(env);
