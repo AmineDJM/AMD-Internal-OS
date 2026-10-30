@@ -32,7 +32,7 @@ import { REFUS_PAIE_AUTRUI } from "@/lib/agent/lectures";
 import { accesAssistantIa } from "@/lib/agent/role-config";
 import { FAMILLES_IA, refusFamille, resoudreAccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
 import { enregistrerAccesAssistantIa } from "@/lib/actions/assistant-ia-consommation-actions";
-import { confirmerIntentionAssistantIA } from "@/lib/actions/assistant-actions";
+import { confirmerIntentionAssistantIA } from "@/lib/actions/assistant-ia-actions";
 import { consigneFamilles } from "@/lib/agent/acces-regles";
 import { GET as telechargerDocumentRh } from "@/app/api/rh/document/[id]/route";
 import { NextRequest } from "next/server";

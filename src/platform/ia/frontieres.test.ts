@@ -44,30 +44,19 @@ const SOCLE = ["src/platform/ia/"];
  * changer de comportement. Phase B (le déménagement de l'Assistant IA en module) les reprend.
  */
 const RESIDUS = [
-  // `confirmerIntentionAssistantIA` — l'action serveur qui exécute une carte de l'Assistant IA — vit
-  // dans le fichier d'actions d'Adam : la page `/assistant` l'appelle, et elle aiguille vers le registre
-  // d'opérations de l'IA (ou vers `performAction` d'Adam pour la tâche et le message). La déplacer change
-  // son identifiant dans le contrat des actions (`assistant-actions:confirmerIntentionAssistantIA`), que
-  // `npm run actions:contrat` doit rendre identique au lot J0.
-  "src/app/(app)/assistant/beta/actions.ts → src/lib/actions/assistant-actions",
-  "src/lib/actions/assistant-actions.ts → src/lib/agent/operations",
-  // … et, depuis la suite de V4-G, elle revérifie les repères ⟦Sn⟧ d'une carte avant de l'exécuter
-  // (`verifierReperesAvantExecution`, import paresseux). Même racine, même remède en phase B.
-  "src/lib/actions/assistant-actions.ts → src/lib/agent/role-config",
-  // LE CATALOGUE D'ADAM, emprunté tel quel par les droits métier de l'Assistant IA (décision 0012, V4-G) :
-  // ses schémas et ses conditions d'accès (`assistantToolsFor`), ses lectures (`executeReadTool`, et
-  // `executePowerTool` pour les lectures ouvertes par droit), ses cartes d'écriture (`buildProposal`) et
-  // ses outils de domaine (`DOMAIN_TOOLS`). Les sortir veut dire sortir le catalogue d'Adam au socle —
-  // un chantier à part entière, mené en phase B avec le module `assistant-ia` (une suite de V4-G est en cours).
+  // LE CATALOGUE D'OUTILS D'ADAM, emprunté tel quel par l'Assistant IA (décisions 0001 Q7/Q20 et 0012) :
+  //   • `outils-v1.ts` — les schémas et les conditions d'accès (`assistantToolsFor`), les lectures
+  //     (`executeReadTool`, et `executePowerTool` pour les lectures ouvertes par droit), les cartes d'écriture
+  //     (`buildProposal`) et les outils de domaine (`DOMAIN_TOOLS`) ;
+  //   • `assistant-ia-actions.ts` — l'exécution, à la confirmation, de ces mêmes cartes (`performAction`).
+  // Leur fermeture fait 284 fichiers, 92 % d'Adam : les sortir est une décision d'architecture (rapport de
+  // phase B, décision 0013 §4), pas un déménagement mécanique.
+  "src/lib/actions/assistant-ia-actions.ts → src/lib/assistant",
   "src/lib/agent/outils-v1.ts → src/lib/assistant",
   "src/lib/agent/outils-v1.ts → src/lib/assistant/ops",
   "src/lib/agent/outils-v1.ts → src/lib/assistant/power-tools",
-  "src/lib/actions/assistant-actions.ts → src/lib/agent/operations/types",
-  // Un TEST de bout en bout : la carte `send_message` de l'Assistant IA, confirmée sans le droit,
-  // est refusée par l'exécuteur — qui est `performAction` d'Adam tant que l'action ci-dessus y vit.
+  // Un TEST de bout en bout : la carte `send_message`, confirmée sans le droit, est refusée par `performAction`.
   "src/lib/agent/limites.test.ts → src/lib/assistant",
-  // Le banc des droits métier (V4-G) confirme ses cartes par cette même action.
-  "src/lib/agent/droits-metier.test.ts → src/lib/actions/assistant-actions",
 ];
 
 const dans = (f: string, perimetre: string[]): boolean =>
@@ -115,14 +104,8 @@ describe("Adam, l'Assistant IA et leur socle — la frontière (décision 0013)"
     ).toEqual([...RESIDUS].sort());
   });
 
-  it("le code de l'Assistant IA n'atteint plus Adam que par son catalogue d'outils et l'action qui confirme ses cartes", () => {
-    // Avant le lot J0 : 38 imports (24 fichiers) vers `lib/assistant*`, le pont et l'action. Après : ces quatre.
-    expect(iaVersAdam.filter((a) => !/\.test\.tsx? → /.test(a))).toEqual([
-      "src/app/(app)/assistant/beta/actions.ts → src/lib/actions/assistant-actions",
-      "src/lib/agent/outils-v1.ts → src/lib/assistant",
-      "src/lib/agent/outils-v1.ts → src/lib/assistant/ops",
-      "src/lib/agent/outils-v1.ts → src/lib/assistant/power-tools",
-    ]);
+  it("Adam n'importe plus rien de l'Assistant IA (phase B : la confirmation de l'IA a quitté le fichier d'Adam)", () => {
+    expect(adamVersIa).toEqual([]);
   });
 
   it("les périmètres désignent des fichiers qui existent — une frontière sur un chemin mort ne garde rien", () => {

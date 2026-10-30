@@ -362,7 +362,8 @@
       "@/app/(app)/assistant/realtime-voice/contrats": ["./src/components/chief/realtime-voice/contrats"],
       "@/app/(app)/assistant/realtime-voice/fournisseur": ["./src/components/chief/realtime-voice/fournisseur"],
       "@/app/(app)/assistant/realtime-voice/refus-sdp": ["./src/components/chief/realtime-voice/refus-sdp"],
-      "@/app/(app)/assistant/realtime-voice/socle": ["./src/components/chief/realtime-voice/socle"]
+      "@/app/(app)/assistant/realtime-voice/socle": ["./src/components/chief/realtime-voice/socle"],
+      "@/lib/assistant/confirm": ["./src/platform/ia/intentions/confirm"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

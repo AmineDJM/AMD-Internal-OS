@@ -812,7 +812,8 @@
       ],
       "excludedFiles": [
         "src/lib/agent/limites.test.ts",
-        "src/lib/agent/outils-v1.ts"
+        "src/lib/agent/outils-v1.ts",
+        "src/lib/actions/assistant-ia-actions.ts"
       ],
       "plugins": [
         "@typescript-eslint"

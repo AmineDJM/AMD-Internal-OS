@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeConfirmText, matchesConfirmText } from "./confirm";
+import { normalizeConfirmText, matchesConfirmText } from "@/platform/ia/intentions/confirm";
 import { payloadRequiresStrongConfirm, type AssistantActionPayload } from "@/lib/assistant";
 
 /**

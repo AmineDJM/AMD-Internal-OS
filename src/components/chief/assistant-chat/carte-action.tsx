@@ -8,7 +8,7 @@ import Link from "next/link";
 import { Sparkles, Loader2, CheckCircle2, AlertTriangle, ArrowRight, X, ShieldAlert } from "lucide-react";
 import { Button } from "./erp";
 import type { ProposedAction } from "@/lib/assistant";
-import { matchesConfirmText } from "@/lib/assistant/confirm";
+import { matchesConfirmText } from "@/platform/ia/intentions/confirm";
 import type { ActionState } from "./modele";
 
 export function ActionCard({

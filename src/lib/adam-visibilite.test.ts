@@ -113,12 +113,14 @@ describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => 
     // appartient déjà à la personne (§118.15), et leur seul écran est déjà fermé. Les fermer
     // aussi retiendrait des données qu'elle ne pourrait plus effacer.
     const REDUCTEURS = new Set(["cancelAssistantAction", "deleteMyAssistantThread", "forgetMyAssistantMemory"]);
-    // La confirmation de l'ASSISTANT IA (autre produit, /assistant) lit SA règle, pas celle d'Adam.
-    const PORTE_ASSISTANT_IA = "confirmerIntentionAssistantIA";
+    // La confirmation de l'ASSISTANT IA (autre produit, /assistant) lit SA règle, pas celle d'Adam — et vit
+    // dans le fichier d'actions de l'Assistant IA depuis la phase B du lot J0 (décision 0013).
+    const confirmationIA = corpsExportes(lire("src/lib/actions/assistant-ia-actions.ts")).get("confirmerIntentionAssistantIA");
+    expect(confirmationIA, "la confirmation de l'Assistant IA lit sa règle").toContain("peutUtiliserAssistantIA(user)");
     const corps = corpsExportes(lire("src/lib/actions/assistant-actions.ts"));
     expect(corps.size, "PLANCHER : le découpage doit trouver les actions").toBeGreaterThanOrEqual(10);
-    expect(corps.get(PORTE_ASSISTANT_IA), "la confirmation de l'Assistant IA lit sa règle").toContain("peutUtiliserAssistantIA(user)");
-    const sansGarde = [...corps].filter(([n, c]) => n !== PORTE_ASSISTANT_IA && !c.includes("peutVoirAdam(user)")).map(([n]) => n).sort();
+    expect(corps.has("confirmerIntentionAssistantIA"), "elle ne revient pas chez Adam").toBe(false);
+    const sansGarde = [...corps].filter(([, c]) => !c.includes("peutVoirAdam(user)")).map(([n]) => n).sort();
     expect(sansGarde).toEqual([...REDUCTEURS].sort());
   });
 
