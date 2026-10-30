@@ -10,7 +10,7 @@
 #
 # Notes:
 #   - LES OFFRES ÉCRITES ICI SONT CELLES DE LA PRODUCTION (relevées par la Direction le 30/10/2026) : base
-#     Basic-4gb, web Pro Plus. Un Sync APPLIQUE l'offre du fichier : une offre plus basse ici rétrograderait le
+#     Basic-4gb, web Standard (1 CPU, 2 Go). Un Sync APPLIQUE l'offre du fichier : une offre plus basse ici rétrograderait le
 #     service, et Render refuse de rétrograder une base (« cannot downgrade database from Basic-4gb to Free » —
 #     le Sync entier échouait). Changer d'offre dans le tableau de bord ⇒ la reporter ici dans le même temps.
 
@@ -23,7 +23,7 @@ services:
   - type: web
     name: amd-internal-os
     runtime: node
-    plan: pro plus
+    plan: standard
     # LA SONDE REGARDE LA BASE ET LES MIGRATIONS (audit 27/10, INFRA-05) : `/login` est statique et répondait 200,
     # même base perdue. `/api/health` rend 503 si Postgres ne répond pas ou si une migration du dépôt n'est pas
     # appliquée — le déploiement échoue au lieu de servir du code sur un schéma en retard. ⚠️ Le tableau de bord
