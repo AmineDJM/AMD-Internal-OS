@@ -31,7 +31,7 @@ export async function transcriptionPersistee(
 ): Promise<{ name: string; text: string; note: string | null; truncated: boolean } | null> {
   try {
     const { transcrireMediaDrive } = await import("@/platform/in-process/media/transcription");
-    const { texteHorodate, formatHorodatage } = await import("@/platform/in-process/media");
+    const { texteHorodate, formatHorodatage } = await import("@/platform/ia/media");
     const r = await transcrireMediaDrive(user, { nodeId });
     if (!r.ok) return null;
     const texte = texteHorodate(r.vue.segments, { locuteurs: false });

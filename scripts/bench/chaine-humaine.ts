@@ -213,7 +213,7 @@ async function main(): Promise<void> {
   const { chargerEtat } = await import("@/lib/missions/runtime/store");
   const { reveillerMissions } = await import("@/lib/missions/events/router");
   const { lireAttente } = await import("@/lib/missions/events/match");
-  const { viderTampon } = await import("@/platform/in-process/telemetry/usage-sink");
+  const { viderTampon } = await import("@/platform/ia/telemetry/usage-sink");
   const { tentativesSortantes, oublierTentativesSortantes, sortiesInterdites } = await import("@/lib/sortie/garde");
   const { VERITES } = await import("./seed-adam-bench");
   type CurrentUser = import("@/lib/session").CurrentUser;

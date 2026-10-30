@@ -2,7 +2,7 @@ import { Prisma, type Confidentiality, type SourcePiece } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sansBloquer } from "@/lib/journal";
 import type { SessionUser } from "@/lib/rbac";
-import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
+import { censurerTexte } from "@/modules/assistant-ia/partage";
 import { fusionner, type Touche, type Voie } from "../domaine/classement";
 import { extraire, type Segment } from "../domaine/extrait";
 import { FAMILLES, lienDe, lireCle } from "../domaine/familles";

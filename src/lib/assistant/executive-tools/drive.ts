@@ -1,10 +1,10 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { prisma, searchDrive, resolveDriveAccess, canViewDrive, getBlob, readFileByKey } from "./dependances";
-import { extractAttachmentText } from "@/lib/assistant-files";
-import { estMedia } from "@/platform/in-process/media";
+import { extractAttachmentText } from "@/platform/ia/media/assistant-files";
+import { estMedia } from "@/platform/ia/media";
 import { indexDriveNodeText } from "@/lib/assistant/document-discovery";
-import { resultatIndisponible } from "@/lib/assistant/capability-failure";
-import { resultatVide } from "@/lib/assistant/empty-result";
+import { resultatIndisponible } from "@/platform/ia/lectures/capability-failure";
+import { resultatVide } from "@/platform/ia/lectures/empty-result";
 import { fichierALire, fichiersDe } from "@/lib/assistant/artifact-ref";
 import { sansBloquer } from "@/lib/journal";
 import { transcriptionPersistee, noteDeMethode, EXEC, str, DOC_TEXT_CAP } from "./commun";

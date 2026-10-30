@@ -13,7 +13,7 @@ import { getAccess, userCan, type SessionUser } from "@/lib/rbac";
 import { canEditDrive, resolveDriveAccess } from "@/lib/drive";
 import { legalWriteAllowed } from "@/lib/lecteurs/legal";
 import { LIBELLE_CHAMP_DU_FICHIER, pieceEmise, refusChampsDuFichier, refusRevisionAval } from "@/lib/legal/piece-emise";
-import { emettreDocumentDrive, reviserDocumentDrive, type DemandeDocument, type DocumentEmis } from "@/platform/in-process/artifact/factory";
+import { emettreDocumentDrive, reviserDocumentDrive, type DemandeDocument, type DocumentEmis } from "@/platform/ia/artifact/factory";
 import { legalFields } from "@/app/(app)/legal/legal-fields";
 import { updateLegalDocument } from "./legal-actions";
 import { reviserPieceCommerciale } from "./fabrique-actions";
@@ -417,7 +417,7 @@ suite("Legal — une pièce émise se révise depuis sa fiche, et le formulaire 
     expect(corps).toContain("reviserDocumentDrive(");
     expect(corps).not.toMatch(/legalDocument\.count\(/);
     // Et la fabrique tient la règle AVANT la version et le motif : l'état d'abord.
-    const fab = readFileSync("src/platform/in-process/artifact/factory/revision.ts", "utf8"); // la fabrique est découpée : la révision a son fichier
+    const fab = readFileSync("src/platform/ia/artifact/factory/revision.ts", "utf8"); // la fabrique est découpée : la révision a son fichier
     const rev = fab.slice(fab.indexOf("export async function reviserDocumentDrive"));
     const iAval = rev.indexOf("avalActif(doc.id, f.type)");
     expect(iAval).toBeGreaterThan(-1);

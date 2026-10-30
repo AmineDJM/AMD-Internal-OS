@@ -23,7 +23,7 @@ import { attachFormFiles, persistUploadedDocument } from "@/lib/documents";
 import { controlerFacture, refusDemandePaiementBC, type ControleFacture } from "@/lib/bons-de-commande/copie-signee";
 import { verifierFacturesAvantDepot, marquerDoublonPossible } from "@/lib/factures/connues";
 import type { FactureDejaConnue } from "@/lib/factures/blocage-vue";
-import { apercuPourEcran, estRevisionDeNumeroSeul, previsualiserRevision, reviserDocumentDrive, type ApercuPiece } from "@/platform/in-process/artifact/factory";
+import { apercuPourEcran, estRevisionDeNumeroSeul, previsualiserRevision, reviserDocumentDrive, type ApercuPiece } from "@/platform/ia/artifact/factory";
 import { sansBloquer } from "@/lib/journal";
 import { type ParentInfo, PARENTS, revalidate, canEditItems, canAllocate, audit, refusDemandeFermee, loadItem, REFUS_HISTORIQUE, etatBcDe, appliquerGesteVisa, lireModificationsDuBc, chargerVoyageur, filePoste, validerAutomatiquementLesLignesLues } from "./infra/postes/commun";
 

@@ -331,7 +331,7 @@ export const DEFIS: Cas[] = [
       const r = regles.find((x) => x.scope === "COMPANY");
       if (!r) return [`aucune règle de périmètre SOCIÉTÉ créée (${regles.map((x) => x.scope).join(", ") || "rien"})`];
       if (validite(r.params) !== 45) m.push(`params.validiteDevis = ${JSON.stringify(validite(r.params))} au lieu de 45`);
-      const { profilDocumentaire } = await import("@/platform/in-process/artifact/factory");
+      const { profilDocumentaire } = await import("@/platform/ia/artifact/factory");
       const prof = await profilDocumentaire(ctx.user, "Adventum");
       if (!prof.ok) m.push(`profil documentaire : ${prof.motif}`);
       else {
@@ -475,7 +475,7 @@ export const DEFIS: Cas[] = [
       const traces = await ctx.prisma.adamRule.findMany({ where: { ownerId: ctx.user.id, statement: { contains: "jours", mode: "insensitive" } }, select: { status: true } });
       if (traces.length === 0) m.push("la règle de validité a été EFFACÉE de la base : une règle supprimée reste en base avec son statut");
       else if (!traces.some((t) => ["DELETED", "DISABLED", "SUPERSEDED"].includes(t.status))) m.push(`aucune ligne de validité en statut DELETED/DISABLED/SUPERSEDED (${traces.map((t) => t.status).join(", ")})`);
-      const { profilDocumentaire } = await import("@/platform/in-process/artifact/factory");
+      const { profilDocumentaire } = await import("@/platform/ia/artifact/factory");
       const prof = await profilDocumentaire(ctx.user, "Adventum");
       if (prof.ok && prof.profil.reglages.quoteValidityDays === 60) {
         // Le diagnostic complet : d'où viennent les 60 jours — d'une règle encore citée, ou d'un profil écrit en base.

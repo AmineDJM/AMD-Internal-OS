@@ -263,7 +263,7 @@ async function replanifierMissionInterne(
   const contexteReplan = {
     aujourdhui: new Date().toLocaleDateString("fr-FR"),
     demandeur: demandeurDe(user),
-    politiques: await import("@/platform/in-process/teach/store").then((m) => m.politiquesPourMission(user.id)).catch(sansBloquer("missions-runtime.replanifierMissionInterne", [] as string[])),
+    politiques: await import("@/platform/ia/teach/store").then((m) => m.politiquesPourMission(user.id)).catch(sansBloquer("missions-runtime.replanifierMissionInterne", [] as string[])),
     // CE QUI EST DÉJÀ FAIT : le planificateur doit repartir de là, pas de zéro. Lui cacher
     // l'acquis le ferait renvoyer trente-et-un messages déjà partis — l'idempotence les
     // arrêterait, mais au prix d'un plan illisible et d'un travail inutile.

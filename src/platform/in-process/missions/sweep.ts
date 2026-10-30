@@ -93,8 +93,8 @@ export interface DependancesBalayage {
 }
 
 // `proprietaire` vit dans son propre module : la porte d'attention l'emploie aussi, sans dépendre du balayage.
-export { proprietaire } from "@/platform/in-process/missions/proprietaire";
-import { proprietaire } from "@/platform/in-process/missions/proprietaire";
+export { proprietaire } from "@/platform/ia/proprietaire";
+import { proprietaire } from "@/platform/ia/proprietaire";
 import { estReplanifiable } from "@/lib/missions/runtime/replan";
 import { lireInterrupteurMissions, type LecteurInterrupteur } from "@/lib/interrupteurs/missions";
 import { sansBloquer } from "@/lib/journal";

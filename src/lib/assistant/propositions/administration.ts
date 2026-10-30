@@ -10,10 +10,10 @@ import {
 } from "@/lib/assistant/coeur/erp";
 // Les demandes Ad & Pro, le secrétariat et les circuits : par le pont (frontière Adam ↔ ERP).
 import { WORKFLOW_CATEGORIES, CATEGORY_LABELS } from "@/platform/in-process/demandes";
-import { readWorkflowState, resolveWorkflowRequest, resolveWorkflowCategory } from "@/lib/assistant/workflow-admin";
+import { readWorkflowState, resolveWorkflowRequest, resolveWorkflowCategory } from "@/platform/ia/lectures/workflow-admin";
 import { ROLE_LABELS, ENTITY_TYPE_LABELS } from "@/lib/labels";
 import type { ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import { normalizeRole, type ContexteProposition } from "@/lib/assistant/propositions/aides";
 
 /** La famille « administration » de `buildProposal` : rend `undefined` quand l'outil n'est pas le sien. */

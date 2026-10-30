@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { composeWorkspace } from "./compose";
-import { VIZ_TYPES, WORKSPACE_LIMITS } from "./protocol";
-import { FAMILLE, construireViz, profiler, readDashboardBlock, readVizBlock } from "./viz-block";
+import { VIZ_TYPES, WORKSPACE_LIMITS } from "@/platform/ia/workspace/protocol";
+import { FAMILLE, construireViz, profiler, readDashboardBlock, readVizBlock } from "@/platform/ia/workspace/viz-block";
 
 /**
  * LA REPRÉSENTATION GÉNÉRIQUE (§35) — le lecteur refuse ce qui ne passe pas champ par champ, les

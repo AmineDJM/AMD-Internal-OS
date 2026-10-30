@@ -24,8 +24,8 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
-import { construireViz } from "@/lib/assistant/workspace/viz-block";
+import type { PowerTool } from "@/platform/ia/outil";
+import { construireViz } from "@/platform/ia/workspace/viz-block";
 import { TABLE_SOURCES, rowsOf } from "@/lib/assistant/show-tools";
 import { faitCalcule, declarerProvenance } from "@/platform/in-process/fabric/provenance";
 import {

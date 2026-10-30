@@ -197,12 +197,12 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   } },
   // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
   // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
-  { cle: "assistant.routines", executer: async () => (await import("@/lib/agent/routines/service")).executerRoutinesDues() },
+  { cle: "assistant.routines", executer: async () => (await import("@/modules/assistant-ia/api")).executerRoutinesDues() },
   // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
-  { cle: "assistant.fils", executer: async () => (await import("@/lib/agent/fil/service")).reprendreLesFils() },
+  { cle: "assistant.fils", executer: async () => (await import("@/modules/assistant-ia/api")).reprendreLesFils() },
   // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT
   // (jamais rejouée) ; une carte jamais confirmée expire (délai réglé par le Super Admin, 24 h par défaut).
-  { cle: "assistant.intentions", executer: async () => (await import("@/lib/assistant/action-intents")).balayerIntentions() },
+  { cle: "assistant.intentions", executer: async () => (await import("@/platform/ia/intentions/action-intents")).balayerIntentions() },
   // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
   // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
   { cle: "finance.caisse-avance", executer: runPettyCashRechargeReminders },
@@ -331,7 +331,7 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   { cle: "travaux.balayage", bailMs: 180_000, executer: async () => {
     if (process.env.TRAVAUX_SWEEP === "off") return ignoree("TRAVAUX_SWEEP=off");
     const { balayerTravaux } = await import("@/lib/missions/travaux/balayage");
-    const { PERSONA_ASSISTANT_IA } = await import("@/lib/agent/travaux");
+    const { PERSONA_ASSISTANT_IA } = await import("@/modules/assistant-ia/api");
     const r = await balayerTravaux({ personas: { ASSISTANT_IA: PERSONA_ASSISTANT_IA }, mode: lireModeTachesDeFond(), executeur: executeurDuProcessus() });
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
   } },

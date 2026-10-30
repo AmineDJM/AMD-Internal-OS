@@ -25,10 +25,10 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { CommandeArtefact } from "@/platform/in-process/artifact/view-types";
-import { SCHEMA_COMMANDE } from "@/platform/in-process/artifact/view-types";
-import type { PowerTool } from "@/lib/assistant/power-tools";
-import { peutEmettrePieces } from "@/platform/in-process/artifact/factory-access";
+import type { CommandeArtefact } from "@/platform/ia/artifact/view-types";
+import { SCHEMA_COMMANDE } from "@/platform/ia/artifact/view-types";
+import type { PowerTool } from "@/platform/ia/outil";
+import { peutEmettrePieces } from "@/platform/ia/artifact/factory-access";
 
 const str = (input: Record<string, unknown>, k: string): string =>
   typeof input[k] === "string" ? (input[k] as string).trim() : "";
@@ -81,7 +81,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Bureautique — ouvrir un document",
     run: async (input, user) => {
-      const { ouvrirDocument, structureNonFiable } = await import("@/platform/in-process/artifact/office");
+      const { ouvrirDocument, structureNonFiable } = await import("@/platform/ia/artifact/office");
       const r = await ouvrirDocument(user, { nom: str(input, "nom") || undefined, nodeId: str(input, "nodeId") || undefined });
       if (!r.ok || !r.vue) {
         return JSON.stringify({ ouvert: false, message: r.motif, candidats: r.candidats });
@@ -143,7 +143,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Bureautique — modifier",
     run: async (input, user) => {
-      const { editerDocument, sessionVisee, structureNonFiable } = await import("@/platform/in-process/artifact/office");
+      const { editerDocument, sessionVisee, structureNonFiable } = await import("@/platform/ia/artifact/office");
       const session = await sessionVisee(user, str(input, "sessionId") || null);
       if (!session) return JSON.stringify({ fait: false, message: "Aucun document n'est ouvert. Ouvre-le d'abord avec artifact_open." });
 
@@ -220,7 +220,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Bureautique — annuler / enregistrer / comparer",
     run: async (input, user) => {
-      const office = await import("@/platform/in-process/artifact/office");
+      const office = await import("@/platform/ia/artifact/office");
       const session = await office.sessionVisee(user, str(input, "sessionId") || null);
       if (!session) return JSON.stringify({ fait: false, message: "Aucun document n'est ouvert." });
 
@@ -356,7 +356,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Excel — vérifier un classeur",
     run: async (input, user) => {
-      const { auditerClasseurDrive } = await import("@/platform/in-process/artifact/sheets");
+      const { auditerClasseurDrive } = await import("@/platform/ia/artifact/sheets");
       const r = await auditerClasseurDrive(user, cibleDe(input));
       if (!r.ok) return JSON.stringify({ fait: false, message: r.motif, candidats: r.candidats });
       return JSON.stringify({
@@ -393,7 +393,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Excel — expliquer une cellule",
     run: async (input, user) => {
-      const { tracerCelluleDrive } = await import("@/platform/in-process/artifact/sheets");
+      const { tracerCelluleDrive } = await import("@/platform/ia/artifact/sheets");
       const r = await tracerCelluleDrive(user, cibleDe(input), str(input, "cellule"), str(input, "feuille") || null);
       if (!r.ok) return JSON.stringify({ fait: false, message: r.motif, candidats: "candidats" in r ? r.candidats : undefined });
       const t = r.trace;
@@ -431,7 +431,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Excel — comparer deux versions",
     run: async (input, user) => {
-      const { comparerClasseursDrive } = await import("@/platform/in-process/artifact/sheets");
+      const { comparerClasseursDrive } = await import("@/platform/ia/artifact/sheets");
       const apres = { nom: str(input, "nom") || null, nodeId: str(input, "nodeId") || null, version: typeof input.versionApres === "number" ? input.versionApres : null };
       const autreFichier = Boolean(str(input, "nomAvant") || str(input, "nodeIdAvant"));
       const avant = autreFichier
@@ -470,7 +470,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Excel — lire une plage",
     run: async (input, user) => {
-      const { lirePlageDrive } = await import("@/platform/in-process/artifact/sheets");
+      const { lirePlageDrive } = await import("@/platform/ia/artifact/sheets");
       const r = await lirePlageDrive(user, cibleDe(input), str(input, "plage"), str(input, "feuille") || null);
       if (!r.ok) return JSON.stringify({ fait: false, message: r.motif, candidats: "candidats" in r ? r.candidats : undefined });
       return JSON.stringify({ fait: true, document: r.document, feuille: r.feuille, plage: r.plage, lignes: r.lignes, tronque: r.tronque });
@@ -510,7 +510,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "PDF — lire, chercher, plan",
     run: async (input, user) => {
-      const { lirePdfDrive } = await import("@/platform/in-process/artifact/documents");
+      const { lirePdfDrive } = await import("@/platform/ia/artifact/documents");
       const mode = (["lire", "chercher", "plan"] as const).find((m) => m === str(input, "mode")) ?? "lire";
       if (mode === "lire") {
         // LE REPLI À QUATRE PALIERS (§38) : natif → OCR → lecture visuelle rapide → modèle supérieur, par page, sous budget.
@@ -584,7 +584,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "PowerPoint — construire un deck vérifié",
     run: async (input, user) => {
-      const { construireDeckDrive } = await import("@/platform/in-process/artifact/documents");
+      const { construireDeckDrive } = await import("@/platform/ia/artifact/documents");
       const diapos = Array.isArray(input.diapos) ? input.diapos : [];
       if (diapos.length === 0) return JSON.stringify({ fait: false, message: "Il faut au moins une diapositive (titre + contenu)." });
       const r = await construireDeckDrive(user, {
@@ -656,7 +656,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Excel — construire un classeur vérifié",
     run: async (input, user) => {
-      const { construireClasseurDrive } = await import("@/platform/in-process/artifact/sheets");
+      const { construireClasseurDrive } = await import("@/platform/ia/artifact/sheets");
       const feuilles = Array.isArray(input.feuilles) ? input.feuilles : [];
       if (feuilles.length === 0) return JSON.stringify({ fait: false, message: "Il faut au moins une feuille avec ses colonnes et ses lignes." });
       const r = await construireClasseurDrive(user, {
@@ -752,7 +752,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: (user) => peutEmettrePieces(user),
     label: "Fabrique — émettre un devis, un bon de commande, une facture",
     run: async (input, user) => {
-      const { emettreDocumentDrive } = await import("@/platform/in-process/artifact/factory");
+      const { emettreDocumentDrive } = await import("@/platform/ia/artifact/factory");
       // C'est ADAM qui émet ici : la pièce et l'audit le disent (§118.153).
       const r = await emettreDocumentDrive(user, input as never, { canal: "ADAM" });
       if (!r.ok) return JSON.stringify({ fait: false, echec: r.echec, message: r.motif, bloquants: r.bloquants, candidats: r.candidats });
@@ -842,7 +842,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Fabrique — profil documentaire d'une société",
     run: async (input, user) => {
-      const { profilDocumentaire, definirProfilDocumentaire } = await import("@/platform/in-process/artifact/factory");
+      const { profilDocumentaire, definirProfilDocumentaire } = await import("@/platform/ia/artifact/factory");
       const geste = str(input, "geste") === "definir" ? "definir" : "lire";
       // LA MARQUE d'abord, quand le geste en règle une : refus nommés, puis le profil relu la porte.
       let marqueRefus: string[] = [];
@@ -915,7 +915,7 @@ export const OFFICE_TOOLS: PowerTool[] = [
     allowed: () => true,
     label: "Fabrique — dossier Excel + PowerPoint + Word cohérent",
     run: async (input, user) => {
-      const { construireDossierDrive } = await import("@/platform/in-process/artifact/factory");
+      const { construireDossierDrive } = await import("@/platform/ia/artifact/factory");
       const brut = (input.canon && typeof input.canon === "object" ? input.canon : {}) as Record<string, unknown>;
       const canon = {
         titre: typeof brut.titre === "string" ? brut.titre : "", sousTitre: typeof brut.sousTitre === "string" ? brut.sousTitre : null,

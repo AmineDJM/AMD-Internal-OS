@@ -2,9 +2,7 @@ import { NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
-import { deposerMessage, traiterFil } from "@/lib/agent/fil/service";
-import { deposerAudio, nomDeVocal } from "@/lib/agent/lecture/voix";
-import { DUREE_VOCAL_MAX_S } from "@/lib/agent/lecture/regles";
+import { deposerAudio, deposerMessage, DUREE_VOCAL_MAX_S, nomDeVocal, traiterFil } from "@/modules/assistant-ia/api";
 import { TAILLE_MAX_STT } from "@/lib/media/stt";
 
 export const dynamic = "force-dynamic";

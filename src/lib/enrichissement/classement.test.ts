@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chiffreDeControle } from "@/lib/agent/operations/mrz";
+import { chiffreDeControle } from "@/modules/assistant-ia/partage";
 import { classerPiece, estNatureLocale } from "./classement";
 import { NATURES_LOCALES, NATURES_PIECE, type NaturePiece } from "./types";
 

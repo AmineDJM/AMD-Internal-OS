@@ -11,7 +11,7 @@ import { papierEnTeteDeDemonstration } from "@/lib/artifact/factory/word";
 import { putBlob, releaseBlob } from "@/lib/drive-storage";
 import { definirModeleDePiece, televerserModele, televerserModeleDePiece } from "@/lib/actions/direction-artistique-actions";
 import { deleteLetterhead } from "@/lib/actions/letterhead-actions";
-import { profilDocumentaire } from "@/platform/in-process/artifact/factory";
+import { profilDocumentaire } from "@/platform/ia/artifact/factory";
 import { lireModelesParType } from "./modeles";
 
 let dbOk = false;

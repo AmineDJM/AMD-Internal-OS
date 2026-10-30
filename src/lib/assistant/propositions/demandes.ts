@@ -10,7 +10,7 @@ import { REFUS_MATERIEL_PAR_ADAM, type ProposedAction } from "@/lib/assistant/co
 import {
   HR_REQUEST_FR, HR_REQUEST_TYPES, HR_LEAVE_TYPES, HR_PERIOD_TYPES, YM_RE,
 } from "@/lib/assistant/outils/catalogue-lecture";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import { isoDate, pastWarning, findDoctor, type ContexteProposition } from "@/lib/assistant/propositions/aides";
 
 /** La famille « demandes » de `buildProposal` : rend `undefined` quand l'outil n'est pas le sien. */

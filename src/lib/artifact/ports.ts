@@ -7,7 +7,7 @@
  * autorisations. Un adaptateur qui saurait écrire dans le Drive serait un adaptateur capable
  * d'écrire SANS passer par les droits — et §74 l'interdit.
  *
- * Le composeur (`src/platform/in-process/artifact/`) remplit ces ports avec le vrai Drive, en
+ * Le composeur (`src/platform/ia/artifact/`) remplit ces ports avec le vrai Drive, en
  * vérifiant les droits AVANT de rendre le moindre octet. C'est le seul endroit où les deux se
  * rencontrent, et il est visible.
  */

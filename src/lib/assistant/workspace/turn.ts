@@ -1,4 +1,4 @@
-import type { WorkspaceBlock, WorkspaceBlockKind, WorkspaceComposition } from "./protocol";
+import type { WorkspaceBlock, WorkspaceBlockKind, WorkspaceComposition } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

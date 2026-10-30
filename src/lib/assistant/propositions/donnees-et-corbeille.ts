@@ -11,7 +11,7 @@ import {
 import { resolveDeletableTarget, resolveTrashEntry } from "@/lib/assistant/delete-resolve";
 import { toNumber, formatMontant } from "@/lib/utils";
 import type { AssistantActionPayload, ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import type { ContexteProposition } from "@/lib/assistant/propositions/aides";
 
 /** La famille « donnees-et-corbeille » de `buildProposal` : rend `undefined` quand l'outil n'est pas le sien. */

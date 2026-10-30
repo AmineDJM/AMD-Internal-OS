@@ -9,7 +9,7 @@ import { capabilityMeta } from "@/lib/missions/registry/capability-meta";
 import { EFFET_NOEUD, effetDuNoeud } from "@/lib/missions/registry/node-effect";
 import { verifierContrat } from "@/lib/missions/registry/result-contract";
 import { ERROR_KINDS } from "@/lib/missions/recovery/strategy";
-import { ECHECS_CAPACITE, resultatIndisponible } from "@/lib/assistant/capability-failure";
+import { ECHECS_CAPACITE, resultatIndisponible } from "@/platform/ia/lectures/capability-failure";
 import { executePowerTool } from "@/lib/assistant/power-tools";
 import { executeReadTool } from "@/lib/assistant";
 import { preconditionAbsence, jetonUnique, verdictLectureSeule } from "@/platform/in-process/missions/provider-smoke";

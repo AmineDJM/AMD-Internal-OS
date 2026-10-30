@@ -1,9 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
-import { lireFil } from "@/lib/agent/fil/service";
-import { piecesCitees } from "@/lib/agent/operations/pieces";
-import { idsDriveCites } from "@/lib/agent/lecture/depot";
+import { idsDriveCites, lireFil, piecesCitees } from "@/modules/assistant-ia/api";
 
 export const dynamic = "force-dynamic";
 

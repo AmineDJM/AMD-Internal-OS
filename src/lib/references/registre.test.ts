@@ -230,11 +230,11 @@ describe("le registre, branché partout où un document porte une référence", 
 
   it("chaque générateur attribue au registre au moment de FINALISER — jamais sur un aperçu", () => {
     // La fabrique est découpée (`artifact/factory/`) : l'émission et l'aperçu ont chacun leur fichier.
-    const fabrique = lire("src/platform/in-process/artifact/factory/emission.ts");
+    const fabrique = lire("src/platform/ia/artifact/factory/emission.ts");
     const emission = fabrique.slice(fabrique.indexOf("export async function emettreDocumentDrive"), fabrique.indexOf("async function terminerEmission"));
     expect(emission).toMatch(/attribuerReference\(magasinPrisma\(tx\)/);
     // L'aperçu termine son fichier, comme il précédait « La révision » dans la fabrique d'un seul tenant.
-    const fichierApercu = lire("src/platform/in-process/artifact/factory/apercu.ts");
+    const fichierApercu = lire("src/platform/ia/artifact/factory/apercu.ts");
     const apercu = fichierApercu.slice(fichierApercu.indexOf("export async function previsualiserDocument"));
     expect(apercu, "l'aperçu prévoit, il n'attribue pas").not.toMatch(/attribuerReference|attribuerAuRegistre/);
     expect(apercu).toMatch(/prevoirReference\(/);

@@ -27,7 +27,7 @@ import {
   lignesProposeesFacturePromo, preremplirFacturePromo, type PrerempliFacturePromo,
 } from "@/lib/pieces-lues/prerempli-facture-promo";
 import { fdCase } from "@/lib/actions/types";
-import { reviserDocumentDrive } from "@/platform/in-process/artifact/factory";
+import { reviserDocumentDrive } from "@/platform/ia/artifact/factory";
 import { genererLesBonsDeCommande, apercuDuBcPromo, type ApercuBcPromo } from "@/lib/promo-automatismes";
 import { cloreLeDossierPromoSiSolde } from "@/lib/promo-cloture";
 import { brouillonPromoEnJson, type BrouillonBcPromo } from "@/lib/promo-material/bc-brouillon-promo";

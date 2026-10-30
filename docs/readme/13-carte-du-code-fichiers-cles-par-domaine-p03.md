@@ -409,7 +409,7 @@ vérifie, compose, relit, dessine.
   invalide DITE. Aucun droit propre : représenter n'est pas lire, la source porte le sien.
 - **À la volée** : `run_analysis` et `sql_query` rendent AUSSI le graphique recommandé sous leur
   tableau (`rendu` le dit au modèle) — une analyse se voit, elle ne se lit pas seulement.
-- **Le rendu** (`components/chief/workspace/blocks/viz-figure.tsx`) : UN composant SVG/HTML pour les
+- **Le rendu** (`platform/ia/ecrans/blocks/viz-figure.tsx`) : UN composant SVG/HTML pour les
   dix-sept formes, sans dépendance. Une barre part TOUJOURS de zéro ; une courbe dont l'axe ne part
   pas de zéro le DIT sous l'axe ; les alertes se lisent AVANT la figure (`blocks/viz.tsx`) ; chaque
   élément porte sa valeur exacte en `<title>` ; les séries ont leurs données en clair (`<details>`).

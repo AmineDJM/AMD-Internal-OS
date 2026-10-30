@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import sharp from "sharp";
-import { buildAttachmentContext, extractAttachmentText } from "./assistant-files";
+import { buildAttachmentContext, extractAttachmentText } from "@/platform/ia/media/assistant-files";
 
 /**
  * UNE IMAGE DEVIENT DU TEXTE (mandat 4 §30) — par le vrai OCR de la maison (Tesseract local, données

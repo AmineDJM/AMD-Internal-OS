@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   prisma, createMission, missionSnapshot, activeMissions, setMissionExtracted, nudgeCandidates, MISSION_STATUS_LABEL,
 } from "./dependances";

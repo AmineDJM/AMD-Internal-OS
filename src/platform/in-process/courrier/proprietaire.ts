@@ -35,7 +35,7 @@ import { prisma } from "@/lib/prisma";
 import { getMailAccount, sendMail } from "@/lib/mail";
 import { estUneAdresse, lireAdressesDeContact } from "@/lib/personnes/joignabilite";
 import { sansConfirmation, type NatureAutonome } from "@/lib/personnes/autonomie-proprietaire";
-import { reglesEnVigueurPour } from "@/platform/in-process/teach/store";
+import { reglesEnVigueurPour } from "@/platform/ia/teach/store";
 import { sansBloquer } from "@/lib/journal";
 
 /** Ce qu'un envoi a réellement fait — jamais un booléen : « pas envoyé » a plusieurs causes. */

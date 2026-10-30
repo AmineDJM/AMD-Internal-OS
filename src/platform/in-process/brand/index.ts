@@ -19,7 +19,7 @@ import { canManageLetterheads } from "@/lib/office/letterhead";
 import { hasGlobalView } from "@/lib/rbac";
 import { peutGererDirectionArtistique } from "@/lib/direction-artistique/droits";
 import type { CurrentUser } from "@/lib/session";
-import { resoudreSociete, type EchecFabrique } from "@/platform/in-process/artifact/factory";
+import { resoudreSociete, type EchecFabrique } from "@/platform/ia/artifact/factory";
 import { charteDe, lireMarque, resumerMarque, validerMarque, type Charte, type Marque } from "@/lib/brand/model";
 import { sansBloquer } from "@/lib/journal";
 

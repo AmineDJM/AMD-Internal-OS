@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { octetsImageArtefact } from "@/platform/in-process/artifact/render";
+import { octetsImageArtefact } from "@/platform/ia/artifact/render";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

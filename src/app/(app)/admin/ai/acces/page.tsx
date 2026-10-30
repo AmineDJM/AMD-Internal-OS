@@ -5,7 +5,7 @@ import { requireModule } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { ModuleTabs } from "@/components/shared/module-tabs";
 import { ADMIN_TABS, ROLE_LABELS } from "@/lib/labels";
-import { chargerConsoleAccesIa } from "@/lib/agent/role-config";
+import { chargerConsoleAccesIa } from "@/modules/assistant-ia/api";
 import { AccesAssistantIaForm, type LignePersonne, type LigneRole } from "./acces-form";
 
 export const metadata = { title: "Assistant IA — accès — AMD Internal OS" };

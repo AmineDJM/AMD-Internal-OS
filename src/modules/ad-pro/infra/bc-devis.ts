@@ -6,7 +6,7 @@ import type { CurrentUser } from "@/lib/session";
 import {
   apercuPourEcran, emettreDocumentDrive, previsualiserDocument, previsualiserRevision, reviserDocumentDrive,
   type ApercuDocument, type ApercuPiece, type DemandeDocument, type ModificationsDocument,
-} from "@/platform/in-process/artifact/factory";
+} from "@/platform/ia/artifact/factory";
 import { valeursDeLaSpec, type ValeursComposables } from "@/lib/legal/piece-emise";
 import { calculerTotaux, type LigneCommerciale, type PartieCommerciale } from "@/lib/artifact/factory/commercial";
 import {

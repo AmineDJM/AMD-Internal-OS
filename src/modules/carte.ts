@@ -39,7 +39,13 @@ export const CARTE = {
    * Bibliothèque (J1) : toute pièce entrée est inscrite au registre (`Piece`/`PieceLien`), lue une fois, découpée,
    * vectorisée ; une requête la retrouve par son contenu, sous la règle d'ouverture de l'écran qui la sert.
    */
-  bibliotheque: [],
+  bibliotheque: ["assistant-ia"],
+  /**
+   * Assistant IA (« Adventum Brain », décision 0013) : le fil gardé, la mémoire, les routines, les opérations
+   * confirmées, la console d'accès. Lit Ad & Pro (ses créations, par les actions de l'écran) et le coffre (ce qui
+   * ne déchiffre pas). La Bibliothèque lit sa règle de confidentialité (ce qui ne part jamais à un modèle).
+   */
+  "assistant-ia": ["ad-pro", "coffre"],
 } as const satisfies Record<string, readonly string[]>;
 
 export type NomModule = keyof typeof CARTE;

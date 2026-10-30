@@ -39,7 +39,7 @@
  * précisément ce qu'on attend d'un chef de cabinet.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import { WORKSPACE_LIMITS, type WorkspaceComposition, type WorkspaceItem } from "./protocol";
+import { WORKSPACE_LIMITS, type WorkspaceComposition, type WorkspaceItem } from "@/platform/ia/workspace/protocol";
 
 /** Une source telle que le tour la produit déjà : libellé, lien interne, et parfois un résumé. */
 export interface SourceLue {

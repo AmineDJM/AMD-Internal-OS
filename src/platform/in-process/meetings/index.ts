@@ -22,7 +22,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
-import { reglesEnVigueurPour } from "@/platform/in-process/teach/store";
+import { reglesEnVigueurPour } from "@/platform/ia/teach/store";
 import { intelligenceComplete } from "@/platform/in-process/intelligence";
 import { resoudreEntitesDe } from "@/lib/fabric";
 import { auMoins, CONTENU_PAR_NIVEAU, LIBELLE_NIVEAU, niveauDepuisRegles, niveauParDefaut, NIVEAUX, type NiveauReunion } from "@/lib/meetings/niveau";

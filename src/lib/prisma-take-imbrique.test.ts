@@ -91,7 +91,7 @@ describe("Prisma — `take` imbriqué sous un findMany (LIMIT en mémoire)", () 
   it("les sondages de la messagerie et Adam « Conversations consultées » ne bornent plus les messages en mémoire", () => {
     expect(sites.filter((s) => s.startsWith("src/lib/queries/messaging.ts"))).toEqual([]);
     // Les membres (6) et l'étape en attente (1) d'une demande restent : des relations petites par nature.
-    const lectures = readFileSync(join(RACINE, "lib/agent/lectures.ts"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const lectures = readFileSync(join(RACINE, "modules/assistant-ia/infra/lectures.ts"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     expect(lectures).not.toMatch(/messages:\s*\{[^}]*\btake:/);
   });
 });

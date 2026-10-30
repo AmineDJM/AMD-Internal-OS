@@ -8,7 +8,7 @@
  * gestes humains (ou des actions confirmées) : un signal dit ce qu'il y a à FAIRE, il ne le fait pas.
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { faitCalcule, declarerProvenance } from "@/platform/in-process/fabric/provenance";
 import {
   peutLireFinance, peutLireLegal, peutLireRegulatory, signauxFinance, signauxLegal, signauxRegulatory,

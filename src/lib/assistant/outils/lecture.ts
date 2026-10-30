@@ -7,13 +7,13 @@ import {
   prisma, recordAudit, getMailAccount, listMessages, getMessage, userCan, accessibleModules, scopeMedicalDoctors,
   scopeRegulatory, scopeAdminRequests, type CurrentUser, getAppSettings,
 } from "@/lib/assistant/coeur/erp";
-import { resultatListe, resultatVide } from "@/lib/assistant/empty-result";
+import { resultatListe, resultatVide } from "@/platform/ia/lectures/empty-result";
 // Les demandes Ad & Pro, le secrétariat et les circuits : par le pont (frontière Adam ↔ ERP).
 import {
   WORKFLOW_CATEGORIES, CATEGORY_LABELS, SCOPE_LABELS, POWER_LABELS, ACTOR_SCOPES, WORKFLOW_POWERS,
 } from "@/platform/in-process/demandes";
 import { actionsForUser } from "@/lib/assistant/action-registry";
-import { readWorkflowState, resolveWorkflowCategory } from "@/lib/assistant/workflow-admin";
+import { readWorkflowState, resolveWorkflowCategory } from "@/platform/ia/lectures/workflow-admin";
 import { executePowerTool } from "@/lib/assistant/power-tools";
 import { verdictEmpreinte } from "@/lib/mutations/empreinte";
 import {
@@ -24,7 +24,7 @@ import { DATASETS, isExportDataset, exportDatasetToDrive } from "@/lib/assistant
 import { WRITABLE_SETTINGS } from "@/lib/assistant/admin-write";
 import { sansBloquer } from "@/lib/journal";
 import { MODULE_FR } from "@/lib/assistant/outils/catalogue-lecture";
-import { asStr, asNum, findPeople } from "@/lib/assistant/outils/arguments";
+import { asStr, asNum, findPeople } from "@/platform/ia/outils/arguments";
 
 // ───────────────────────────── Exécuteurs d'outils de lecture ─────────────────────────────
 

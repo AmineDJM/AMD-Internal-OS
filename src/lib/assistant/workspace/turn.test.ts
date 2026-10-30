@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { composeTurn, elaguerFil, phasesOf, isWorkspaceTurn, VISIBLE_BEFORE_FOLD, type TurnProposal } from "./turn";
-import type { WorkspaceBlock, WorkspaceComposition } from "./protocol";
+import type { WorkspaceBlock, WorkspaceComposition } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

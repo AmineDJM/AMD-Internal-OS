@@ -37,17 +37,24 @@ import { mesurerCouverture } from "./couverture";
  * Lot V4 (découpage des fichiers géants, 28/10/2026) : hors carte −9 (mesuré 714 après fusion des lots code mort, primitives UI et module Ad & Pro) — les dossiers découpés sont rangés
  * dans une couche : `payslip/` → office, `carte-plateforme/` → couche `carte`, `admin-delete-registry`,
  * `entity-access/`, `actions/internes/` → façades, `actions/contrat/` → socle ; tests de texte mesurés 107 après fusion.
+ *
+ * Lot J0 (séparation Adam / Assistant IA, 29/10/2026) : hors carte −1 (706 → 705 après fusion de la base b42a952c) (`lib/assistant-files.ts` rangé au socle IA,
+ * `src/platform/ia/media/`) ; composants → `src/app/` −3 : l'écran de conversation d'Adam quitte
+ * `src/app/(app)/assistant/` pour `src/components/chief/`, et ceux qui l'importaient (`chief-workspace`, la
+ * barre d'appel de `layout/call-provider`) n'importent plus une page.
+ * Phase B du lot J0 (30/10/2026) : hors carte 705 → 656 — `src/lib/agent/` (49 fichiers de production, dont 42 hors
+ * carte) devient le module `src/modules/assistant-ia/`, mesuré par `src/modules/frontieres.test.ts`.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 706,
+  horsCarte: 656,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */
   routesPrisma: 52,
   /** Imports `src/components/` (et des `ecrans/` de modules) → `src/app/` : un composant partagé ne dépend pas d'une page. */
-  composantsVersApp: 10,
+  composantsVersApp: 7,
   /** Imports du kit d'interface du socle (`components/ui`, `components/shared`) vers un métier. */
   kitVersMetier: 2,
   /**

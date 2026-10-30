@@ -7,7 +7,7 @@
 import type { CurrentUser } from "@/lib/assistant/coeur/erp";
 import { designationDePersonne, direCeQuiEstArrive } from "@/lib/personnes/designation";
 import type { ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { resolvePerson } from "@/lib/assistant/outils/arguments";
+import { resolvePerson } from "@/platform/ia/outils/arguments";
 import type { ContexteProposition } from "@/lib/assistant/propositions/aides";
 import { proposerReglementaire } from "@/lib/assistant/propositions/reglementaire";
 import { proposerEspaceEtCourrier } from "@/lib/assistant/propositions/espace-et-courrier";

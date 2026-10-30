@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { OUTILS_GMAIL } from "./adam-tools/gmail";
 import { OUTILS_MISSIONS } from "./adam-tools/missions";
 import { OUTILS_AGENDA_DRIVE } from "./adam-tools/agenda-drive";

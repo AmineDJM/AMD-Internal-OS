@@ -2,13 +2,13 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { WorkspaceBlocks, WorkspaceAskProvider } from "./blocks";
+import { WorkspaceBlocks, WorkspaceAskProvider } from "@/platform/ia/ecrans/blocks";
 import { TurnWorkspaceView } from "./turn-workspace";
 import { SCENARIOS } from "./scenarios";
 import { PLANCHE_GODMODE } from "./planche-godmode";
 import { PLANCHE_VIZ } from "./planche-viz";
 import { composeTurn } from "@/lib/assistant/workspace/turn";
-import type { WorkspaceComposition } from "@/lib/assistant/workspace/protocol";
+import type { WorkspaceComposition } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

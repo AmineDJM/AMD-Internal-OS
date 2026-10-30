@@ -272,7 +272,7 @@ async function lancerMissionInterne(
   // Ce que la personne et sa société ont appris à Adam entre DANS le contexte du planificateur
   // (`politiques`), avec ce que l'appelant savait déjà. Composé par le code, sous budget, jamais
   // accumulé : la même règle ne s'y répète pas d'un plan à l'autre.
-  const politiquesEnseignees = await import("@/platform/in-process/teach/store")
+  const politiquesEnseignees = await import("@/platform/ia/teach/store")
     .then((m) => m.politiquesPourMission(user.id))
     .catch(sansBloquer("missions-runtime.lancerMissionInterne", [] as string[]));
   const contexte: ContextePlanification = {

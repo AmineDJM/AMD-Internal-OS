@@ -17,7 +17,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import { casse, chiffreDeControle } from "@/lib/agent/operations/mrz";
+import { casse, chiffreDeControle } from "@/modules/assistant-ia/partage";
 import type { FaitExtrait, ResultatExtraction } from "../types";
 import { champEtiquete, dedoublonner, fait, MOTIF_DATE, normaliserDate, normaliserTexte, pageDe, paysMrz, type EntreeExtraction } from "./commun-personnes";
 

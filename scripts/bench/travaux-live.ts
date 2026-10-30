@@ -28,9 +28,9 @@ async function main() {
   if (!estUneBaseDeBanc(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
   const F = lireFixtures();
   if (!F.assistante) throw new Error("Semis manquant : lancer seed-assistant-jarvis.ts d'abord.");
-  const { proprietaire } = await import("@/platform/in-process/missions/proprietaire");
-  const { jouerTour } = await import("@/lib/agent/fil/tour");
-  const { PERSONA_ASSISTANT_IA } = await import("@/lib/agent/travaux");
+  const { proprietaire } = await import("@/platform/ia/proprietaire");
+  const { jouerTour } = await import("@/modules/assistant-ia/api");
+  const { PERSONA_ASSISTANT_IA } = await import("@/modules/assistant-ia/api");
   const svc = await import("@/lib/missions/travaux/service");
   const { balayerTravaux } = await import("@/lib/missions/travaux/balayage");
   const debut = new Date();

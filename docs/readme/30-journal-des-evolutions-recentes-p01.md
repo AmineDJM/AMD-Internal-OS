@@ -1,5 +1,26 @@
 ## 🧾 Journal des évolutions récentes
 
+### J0 : ADAM ET L'ASSISTANT IA SÉPARÉS — UN SOCLE COMMUN `src/platform/ia/`, ZÉRO IMPORT DU SOCLE VERS L'UN OU L'AUTRE (2026-10-29)
+
+Premier lot du plan « Jarvis » validé par la Direction le 29/10 (décision `docs/assistant/decisions/0013-jarvis-architecture.md`).
+Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
+- **Deux produits, un socle.** Adam (Super Admin, `/chief-of-staff`) et l'Assistant IA (chacun selon ses droits,
+  `/assistant`) ne s'importent plus : ce qu'ils partagent — la forme d'un outil, les intentions, les lectures annuaire/Regulatory, la
+  résolution d'un fichier du Drive, la recherche web, les médias, la fabrique de documents, les blocs de l'espace de
+  travail — vit au **socle IA** `src/platform/ia/`, qui n'importe ni l'un ni l'autre.
+- **L'écran d'Adam** (conversation, appel vocal) quitte `src/app/(app)/assistant/` pour `src/components/chief/` : le dossier
+  `/assistant` ne porte plus que l'Assistant IA.
+- **Mesure** : 38 imports de l'Assistant IA vers Adam (24 fichiers) → 4, nommés pour la phase B : le catalogue d'outils
+  d'Adam qu'empruntent les droits métier (`outils-v1.ts`, décision 0012) et l'action `confirmerIntentionAssistantIA`, qui
+  vit dans le fichier d'actions d'Adam (la déplacer changerait le contrat des actions). Garde-fous :
+  `src/platform/ia/frontieres.test.ts` et une règle ESLint dans les trois sens.
+- **Phase B (30/10)** : `src/lib/agent/` devient le module `src/modules/assistant-ia/` (moteur, écrans ex-`assistant-beta`,
+  actions sous leurs clés) ; la confirmation d'une carte de l'IA (`confirmerIntentionAssistantIA`) quitte le fichier d'Adam —
+  seule clé du contrat qui change (`assistant-ia-actions:`) ; Adam n'importe plus rien de l'Assistant IA. Reste, nommé et
+  cliqueté jusqu'à J6 : le catalogue d'outils d'Adam qu'emprunte l'Assistant IA.
+- **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
+  socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
+
 ### J2 : LES TRAVAUX LONGS — L'ASSISTANT IA TRAVAILLE DES HEURES OU DES SEMAINES, SUR LE MOTEUR DES MISSIONS (2026-10-30)
 
 Décision de la Direction (29/10, lot J2) — `docs/assistant/decisions/0016-travaux.md`.

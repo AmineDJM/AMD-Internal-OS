@@ -12,7 +12,7 @@
  *
  * ── POURQUOI CE FICHIER EST ICI ET PAS DANS `assistant/` ─────────────────────────────────
  *
- * Ces primitives vivaient dans `src/lib/assistant/entity-normalize.ts`. Elles n'ont pourtant rien
+ * Ces primitives vivaient dans `src/platform/ia/lectures/entity-normalize.ts`. Elles n'ont pourtant rien
  * d'Adam : ce sont des mathématiques de chaînes. La couche de connaissance de l'ERP en a besoin,
  * et un module de l'ERP qui importerait « du Adam » serait le couplage inverse — le plus
  * difficile à voir et le premier à casser le jour où Adam est extrait. Le fichier d'origine

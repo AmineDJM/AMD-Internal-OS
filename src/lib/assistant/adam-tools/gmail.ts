@@ -1,10 +1,10 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   prisma, getGoogleStatus, adamConnection, getThread, addLabels, archiveMessage, ensureLabel, markRead, trashMessage,
   createOutboundIntent, pendingApprovals, getCommunicationPolicy, POLICY_LABEL, wrapUntrusted, wrapAttachmentText,
   shouldReplyTo, checkRateLimits, activeMissions, MISSION_STATUS_LABEL, resolveDriveAccess, canViewDrive,
 } from "./dependances";
-import { geste } from "@/lib/assistant/workspace/emit";
+import { geste } from "@/platform/ia/workspace/emit";
 import { EXEC, str, num, fr, NOT_CONNECTED, activeOrMessage } from "./commun";
 
 /**

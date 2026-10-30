@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { DIRECT_INTENTS, directIntent, intentArgs, intentFor, intentPhrase } from "./direct-intents";
+import { DIRECT_INTENTS, directIntent, intentArgs, intentFor, intentPhrase } from "@/platform/ia/workspace/direct-intents";
 import { RESOLVER_WRITE_NAMES } from "@/lib/assistant";
 import { composeWorkspace } from "./compose";
 

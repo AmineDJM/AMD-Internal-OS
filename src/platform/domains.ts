@@ -192,28 +192,10 @@ const SOCLE = [
    * dossier ; Adam (par le pont), les tests et les scripts le lisent. Pur par construction.
    */
   "src/lib/actions/contrat/",
-  /**
-   * LES RÈGLES PURES DE L'ASSISTANT IA (décision 0011) — zéro import chacune : ce qu'une lecture de pièce
-   * a donné et la phrase de sa limite (`lecture/regles`), les plafonds et le coût (`consommation-regles`),
-   * le cadre du contenu non fiable (`contenu-non-fiable`), la mémoire telle que l'écran la montre
-   * (`memoire-ui`), le texte partiel d'une réponse qui s'écrit (`fil/partiel`). Le moteur (serveur) et
-   * l'écran (composants client) les lisent tous deux et n'ont pas le droit de s'importer : une seconde copie
-   * de la phrase d'une limite aurait dit autre chose à l'écran qu'au modèle. Chemins EXACTS : un fichier
-   * serveur posé à côté n'est pas exempté sans décision.
-   */
-  "src/lib/agent/lecture/regles", "src/lib/agent/consommation-regles", "src/lib/agent/contenu-non-fiable",
-  "src/lib/agent/memoire-ui", "src/lib/agent/fil/partiel",
-  // Les FAMILLES d'accès de l'Assistant IA (décision 0012) : le moteur les applique, la console les règle.
-  "src/lib/agent/acces-regles",
-  // Le MARKDOWN des réponses (zéro import) : l'arbre que l'écran dessine — même critère que les règles ci-dessus,
-  // déclaré au lot J2 (il n'était dans aucune couche).
-  "src/lib/agent/ui/markdown",
-  /**
-   * `lecture/depot` (décision 0015, glisser-déposer) — les règles PURES du dépôt de fichiers dans la conversation :
-   * parcours d'un dossier, fichiers système, bornes d'un envoi, phrases. Son seul import est `lecture/regles`
-   * (même couche) : la borne de 40 Mo et les 6 pièces lues sont LES MÊMES à l'écran et dans le moteur.
-   */
-  "src/lib/agent/lecture/depot",
+  // Les règles pures de l'Assistant IA (décisions 0011, 0012, 0015 : lecture des pièces, plafonds, contenu non
+  // fiable, mémoire affichée, texte partiel, familles d'accès, dépôt, et le markdown déclaré au lot J2) étaient
+  // déclarées ici par chemin exact : elles vivent dans `src/modules/assistant-ia/domaine/` depuis la phase B du
+  // lot J0, où `frontieres.test.ts` tient leur pureté.
   /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions
@@ -399,6 +381,16 @@ const FACADES = [
 const BRIDGE = ["src/platform/in-process/"];
 
 /**
+ * LE SOCLE IA (`src/platform/ia/`, lot J0, décision 0013) — ce que partagent Adam et l'Assistant IA :
+ * la forme d'un outil, les lectures et les propositions communes, les intentions, la fabrique de
+ * documents, les médias. Comme le pont, il CONNAÎT l'ERP par dessein (il lit et prépare pour les
+ * deux assistants) ; il n'est donc ni au socle L0 ni dans un domaine. Sa dette vers l'ERP est
+ * comptée et plafonnée à part (`boundary.test.ts`, `SOCLE_IA_CEILING`) ; ce qu'il n'importe JAMAIS
+ * — Adam, l'Assistant IA — est tenu par `src/platform/ia/frontieres.test.ts`.
+ */
+const SOCLE_IA = ["src/platform/ia/"];
+
+/**
  * LES FOURNISSEURS EXTERNES, qui doivent rester ISOLÉS (§1).
  *
  * Un domaine métier qui importe directement le client OpenAI ou le SDK Google se lie à un
@@ -465,7 +457,7 @@ const isFacade = (t: string): boolean => inList(t, FACADES);
 const isProvider = (t: string): boolean => PROVIDERS.some((s) => t === s || t.startsWith(`${s}/`));
 
 /** La couche d'un fichier de `src/lib/` ou `src/platform/` — `null` s'il n'est dans AUCUNE (hors carte). */
-export type Couche = "socle" | "façade" | "pont" | "fournisseur" | `domaine:${string}`;
+export type Couche = "socle" | "façade" | "pont" | "socle IA" | "fournisseur" | `domaine:${string}`;
 
 /**
  * Où un fichier vit sur la carte. Un fichier `null` n'est mesuré par aucun cliquet : c'est ce
@@ -474,6 +466,7 @@ export type Couche = "socle" | "façade" | "pont" | "fournisseur" | `domaine:${s
  */
 export function coucheDe(file: string): Couche | null {
   if (BRIDGE.some((b) => file.startsWith(b))) return "pont";
+  if (SOCLE_IA.some((b) => file.startsWith(b))) return "socle IA";
   if (isSocle(file)) return "socle";
   if (isFacade(file)) return "façade";
   if (isProvider(file.replace(/\.tsx?$/, ""))) return "fournisseur";
@@ -507,7 +500,7 @@ export function scanDomains(root = process.cwd()): DomainReport {
 
     for (const file of files) {
       const fromDomain = domainOf(file);
-      const fromSocle = isSocle(file) && !BRIDGE.some((b) => file.startsWith(b));
+      const fromSocle = isSocle(file) && !BRIDGE.some((b) => file.startsWith(b)) && !SOCLE_IA.some((b) => file.startsWith(b));
 
       for (const spec of specificateurs(fs.readFileSync(file, "utf8"))) {
         const target = cibleInterne(spec, file);

@@ -24,7 +24,7 @@
  * Les morceaux n'importent jamais cette porte : ils s'importent entre frères.
  */
 
-import "@/platform/in-process/telemetry/usage-sink";
+import "@/platform/ia/telemetry/usage-sink";
 
 export { type ChatTurn, type AssistantActionPayload, ACTION_POLICY, payloadRequiresStrongConfirm, type ProposedAction, type AssistantResult } from "./assistant/coeur/contrat-actions";
 export { RESOLVER_WRITE_NAMES, assistantToolsFor } from "./assistant/outils/catalogue-ecriture";

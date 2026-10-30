@@ -46,8 +46,10 @@ export const ADAM_PATHS = [
   "src/components/chief/",
   // Adam n'a plus de groupe de routes à lui : il est un MODULE, dans la coque de l'ERP
   // (§118.100). Sa page reste du périmètre ADAM et sa dette continue d'être comptée ici.
+  // `src/app/(app)/assistant/` n'y est plus (lot J0, décision 0013) : ce dossier ne porte que
+  // l'Assistant IA, qui n'est pas Adam ; l'écran de conversation d'Adam a déménagé dans
+  // `src/components/chief/` (déjà du périmètre).
   "src/app/(app)/chief-of-staff/",
-  "src/app/(app)/assistant/",
   "src/app/api/assistant/",
 ] as const;
 
@@ -73,6 +75,22 @@ export const ADAM_PATHS = [
  * ses ports, ce que ce dossier montre comment faire.
  */
 export const BRIDGE_PATHS = ["src/platform/in-process/"] as const;
+
+/**
+ * LE SOCLE IA — `src/platform/ia/` (lot J0, décision 0013 de l'Assistant IA).
+ *
+ * Deux produits : Adam (le Chief of Staff du Super Admin) et l'Assistant IA (tout le monde, selon ses
+ * droits). Le second importait le premier à 38 endroits pour réutiliser ce que les deux font : la forme
+ * d'un outil, des outils, les intentions, la fabrique de documents, les médias. Ce code est au socle,
+ * qu'aucun des deux ne possède et qui n'importe ni l'un ni l'autre.
+ *
+ * Il CONNAÎT l'ERP — c'est son travail, comme celui du pont. Ses imports vers l'ERP sont donc comptés,
+ * mais À PART de la dette d'Adam : le code venu d'Adam emporte sa dette avec lui (elle ne disparaît pas,
+ * elle change de colonne), et le code venu du pont y est compté pour la première fois. Plafond propre,
+ * qui ne peut que baisser (`SOCLE_IA_CEILING`, `boundary.test.ts`).
+ */
+export const SOCLE_IA_PATHS = ["src/platform/ia/"] as const;
+export const estSocleIA = (f: string): boolean => SOCLE_IA_PATHS.some((p) => f.startsWith(p));
 
 /** Ce qui n'est PAS l'ERP : les paquets externes, et Adam lui-même. */
 const isAdam = (f: string) => ADAM_PATHS.some((p) => f.startsWith(p));

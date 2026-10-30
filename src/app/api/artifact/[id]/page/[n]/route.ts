@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { rendrePageArtefact } from "@/platform/in-process/artifact/render";
+import { rendrePageArtefact } from "@/platform/ia/artifact/render";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

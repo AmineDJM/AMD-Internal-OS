@@ -583,7 +583,7 @@ coûte **quelques millisecondes** au lieu d'un aller-retour de conversion.
   JPEG / GIF / BMP / TIFF / WEBP, `null` sur ce qu'il ne reconnaît pas à coup sûr — et
   `adapters/{docx,pptx,xlsx}/media.ts`), ports remplis par `src/platform/in-process/artifact/`,
   outils Adam dans `src/lib/assistant/office-capabilities.ts`, UI
-  `src/components/chief/workspace/blocks/artifact.tsx`.
+  `src/platform/ia/ecrans/blocks/artifact.tsx`.
 
 ### Excel God Mode — lire, vérifier, expliquer et comparer un classeur de cent mille lignes (`src/lib/artifact/sheets/`)
 
@@ -591,7 +591,7 @@ Le Live Office **édite** un classeur ; il est borné à vingt mille cellules pa
 le refermer à l'octet près. Raisonner sur un classeur — « vérifie ce budget », « d'où vient ce
 41,3 M ? », « qu'est-ce qui a changé depuis la v3 ? » — demande de **tout lire**, et de le lire
 **exactement**. Ce module est pur (aucun Drive, aucun Prisma, aucun droit : le pont
-`platform/in-process/artifact/sheets.ts` les apporte), et chaque brique a été mesurée
+`platform/ia/artifact/sheets.ts` les apporte), et chaque brique a été mesurée
 (`npm run sheets:bench` : 1 feuille × 100 000 lignes × 12 colonnes avec 200 000 formules, et
 120 feuilles × 400 lignes avec 145 000 formules et une synthèse inter-feuilles).
 
@@ -796,10 +796,10 @@ les factures ? », « finalement 60 jours », « suspends-la », « supprime cet
   précédence, conflits, mille règles), `platform/in-process/teach/store.test.ts` (9 cas sur base réelle, par
   `executePowerTool` et `personalContext` : refus, société, conflit → v2 → v3, précédence contraignante, désactiver /
   réactiver / supprimer, date d'effet future, fabrique, comptage SQL), `policy/guard.test.ts` (l'agent refusé).
-- **Fichiers** : `lib/teach/model.ts`, `classify.ts`, `resolve.ts`, `compose.ts` ; `platform/in-process/teach/store.ts` ;
+- **Fichiers** : `lib/teach/model.ts`, `classify.ts`, `resolve.ts`, `compose.ts` ; `platform/ia/teach/store.ts` ;
   `lib/assistant/teach-tools.ts` ; migration `20261021090000_teach_adam` (`AdamRule`) ; injections dans
   `lib/assistant-memory.ts` (`personalContext`), `platform/in-process/missions/runtime.ts` (`politiques`),
-  `platform/in-process/artifact/factory.ts` (`profilDocumentaire`).
+  `platform/ia/artifact/factory.ts` (`profilDocumentaire`).
 
 **Ce que le banc des défis a corrigé (2026-09) — six défauts invisibles aux tests sur base, visibles au vrai point
 d'entrée (§14).** (1) Les cinq outils Teach Adam étaient classés `GENERAL`, un domaine que le résolveur d'outils ne
@@ -1026,7 +1026,7 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   relations, marges — intact ; `word.test.ts` le vérifie pièce du ZIP par pièce du ZIP, octet pour octet. Sans papier,
   un paquet neuf complet (styles, propriétés, A4, marges 2 cm).
 - **Une pièce émise EST une pièce du registre Legal (§17 : pas de second registre).** `emettreDocumentDrive`
-  (`platform/in-process/artifact/factory.ts`) crée un `LegalDocument` de nature QUOTE / PURCHASE_ORDER / INVOICE /
+  (`platform/ia/artifact/factory.ts`) crée un `LegalDocument` de nature QUOTE / PURCHASE_ORDER / INVOICE /
   CREDIT_NOTE — l'avoir, §118.195
   (référence, titre exact, contrepartie, montant TTC, `direction: IN` pour une facture émise, échéance ou fin de
   validité, `chainFromId` vers la pièce amont, `driveNodeId` vers le Word) et range la spécification complète, les
@@ -1088,7 +1088,7 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   pouvoir le composer ; leur vue de Legal, `legalViewScope` → `PURCHASE_CHAIN`, montre ces natures — et les avoirs
   qui en corrigent les factures (`PURCHASE_CHAIN_KINDS`, §118.195) —, rien d'autre, et la fiche d'un contrat leur rend `notFound`) et `canEditCompanyId` (voir une société ne suffit pas à
   l'engager). L'outil `document_build` est FERMÉ par
-  `peutEmettrePieces` (`platform/in-process/artifact/factory-access.ts`) : le planificateur ne le voit pas sans le
+  `peutEmettrePieces` (`platform/ia/artifact/factory-access.ts`) : le planificateur ne le voit pas sans le
   droit ; la garde est rejouée dans le pont au moment d'agir. En mission : `document_build` déclaré (`legal`,
   `INTERNAL_REVERSIBLE_WRITE`, rejouable par empreinte, groupable, sous politique de confirmation — un accord pour
   les 25 BC, §8).
@@ -1122,7 +1122,7 @@ fichiers dérivés des MÊMES données, cohérents chiffre par chiffre — ou au
   sort en `001/FS/26` à 8 925 000 TTC et se relit dans le Word ; rejouée, elle ne crée ni pièce ni numéro ; le BC sort
   à 961 345 TTC ; le devis reste à Legal).
 - **Fichiers** : `lib/artifact/factory/lettres.ts`, `commercial.ts` (pur, sans import Node), `empreinte.ts`,
-  `word.ts`, `build.ts`, `canonical.ts`, `dossier.ts` ; `platform/in-process/artifact/factory.ts`
+  `word.ts`, `build.ts`, `canonical.ts`, `dossier.ts` ; `platform/ia/artifact/factory.ts`
   (`previsualiserDocument`, `pdfDeLaPiece`), `factory-access.ts` ; le bouton `components/pieces/composer-piece.tsx` et
   `lib/actions/fabrique-actions.ts` ; le jumeau `lib/payslip/{docx-blocks,to-pdf}.ts` ; outils `document_build`,
   `document_profile`, `dossier_build` dans `lib/assistant/office-capabilities.ts` ; capacités

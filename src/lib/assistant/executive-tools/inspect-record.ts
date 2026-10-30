@@ -1,12 +1,12 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { prisma, chainOf, amountDrift, type ChainDoc } from "./dependances";
 import { toNumber } from "@/lib/utils";
 import { paymentExecutiveState } from "@/lib/assistant/executive-state";
 import { REGULATORY_STEP_TYPE as REG_STEP_FR } from "@/lib/labels";
 import {
   REG_STEPS, hasWorkflowState, regProgress, workflowAsSteps, type RegWorkflowState,
-} from "@/lib/assistant/regulatory-read";
-import { geste, retardJours, retardLabel } from "@/lib/assistant/workspace/emit";
+} from "@/platform/ia/lectures/regulatory-read";
+import { geste, retardJours, retardLabel } from "@/platform/ia/workspace/emit";
 import { invoiceSettlementState, INVOICE_SETTLEMENT } from "@/lib/labels";
 import { libelleEtape } from "@/platform/in-process/promo";
 import { docKindFromName, EXEC, str, fr, validationsOf, auditOf, documentsOf, renderTimeline } from "./commun";

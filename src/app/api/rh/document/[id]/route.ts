@@ -5,8 +5,8 @@ import { peutOuvrirDocumentRh } from "@/lib/entity-access/ouverture-pieces";
 import { entitePermisePourFiche } from "@/lib/company";
 import { prisma } from "@/lib/prisma";
 import { getBlob } from "@/lib/drive-storage";
-import { accesAssistantIa } from "@/lib/agent/role-config";
-import { familleExplicite } from "@/lib/agent/acces-regles";
+import { accesAssistantIa } from "@/modules/assistant-ia/api";
+import { familleExplicite } from "@/modules/assistant-ia/partage";
 
 export const dynamic = "force-dynamic";
 

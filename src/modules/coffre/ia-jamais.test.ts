@@ -4,7 +4,7 @@ import { peutLire } from "./domaine/politique";
 import { NATURES_COFFRE } from "./domaine/natures";
 import { champJamaisExpose, serialize } from "@/lib/api/query";
 import { COLONNES_MASQUEES } from "@/lib/sandbox/sql";
-import { censurerObjet } from "@/lib/agent/filtre-confidentialite";
+import { censurerObjet } from "@/modules/assistant-ia/partage";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

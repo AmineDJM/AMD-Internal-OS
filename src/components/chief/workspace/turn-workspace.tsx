@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { ChevronDown, Check, Loader2 } from "lucide-react";
-import { WorkspaceOneBlock } from "./blocks";
+import { WorkspaceOneBlock } from "@/platform/ia/ecrans/blocks";
 import { VISIBLE_BEFORE_FOLD, type TurnSlot, type TurnWorkspace } from "@/lib/assistant/workspace/turn";
 
 /**

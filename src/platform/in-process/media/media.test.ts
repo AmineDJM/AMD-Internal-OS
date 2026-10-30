@@ -4,12 +4,13 @@ import { getAccess, type EffectiveAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { consignerMesure } from "@/lib/evals/registre";
 import { chargerMupdf } from "@/lib/artifact/adapters/pdf/adapter";
-import { portsArtefact } from "@/platform/in-process/artifact/ports";
+import { portsArtefact } from "@/platform/ia/artifact/ports";
 import { executePowerTool } from "@/lib/assistant/power-tools";
-import { extractAttachmentText } from "@/lib/assistant-files";
+import { extractAttachmentText } from "@/platform/ia/media/assistant-files";
 import type { ResultatStt } from "@/lib/media/stt";
 import { lireDocumentParPaliers } from "./lecture";
-import { __forcerFfmpeg, chercherDansMediaDrive, regarderVideoDrive, transcrireMediaDrive } from "./transcription";
+import { chercherDansMediaDrive, regarderVideoDrive, transcrireMediaDrive } from "./transcription";
+import { __forcerFfmpeg } from "@/platform/ia/media/ffmpeg";
 
 /**
  * MÉDIAS ET DOCUMENTS (§38), depuis les VRAIS points d'entrée : un PDF du Drive lu par paliers, un

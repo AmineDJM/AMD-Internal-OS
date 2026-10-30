@@ -11,7 +11,7 @@ import {
 import { toNumber, formatMontant } from "@/lib/utils";
 import { ROLE_LABELS } from "@/lib/labels";
 import type { ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import { isoDate, pastWarning, normalizeRole, type ContexteProposition } from "@/lib/assistant/propositions/aides";
 
 /** La famille « paiement-agenda-notification » de `buildProposal` : rend `undefined` quand l'outil n'est pas le sien. */

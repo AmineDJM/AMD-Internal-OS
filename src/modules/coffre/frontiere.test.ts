@@ -111,8 +111,8 @@ describe("Frontière du coffre", () => {
   it("l'assistant et les agents n'atteignent du coffre que ce qui ne déchiffre pas, même par une action serveur", () => {
     const ia = tous.filter((f) => {
       const r = rel(f).split(path.sep).join("/");
-      return r.startsWith("src/lib/agent/") || r.startsWith("src/lib/assistant/") || r === "src/lib/assistant.ts"
-        || r.startsWith("src/components/assistant-beta/") || r.startsWith("src/app/(app)/assistant/");
+      return r.startsWith("src/modules/assistant-ia/") || r.startsWith("src/lib/assistant/") || r === "src/lib/assistant.ts"
+        || r.startsWith("src/platform/ia/") || r.startsWith("src/app/(app)/assistant/");
     });
     expect(ia.length).toBeGreaterThan(0);
     const fautifs = ia.map((f) => cheminVersCoffre(f, SANS_DECHIFFREMENT, true)).filter((t): t is string[] => t !== null).map((t) => t.map(rel).join(" → "));

@@ -3,7 +3,7 @@
  * UNE PIÈCE ÉMISE PAR LA PLATEFORME — ce que son FICHIER porte, et que le formulaire Legal ne
  * réécrit donc pas (§118.194 — audit 360°, R15).
  *
- * La fabrique (`platform/in-process/artifact/factory.ts`) émet devis, bons de commande et factures :
+ * La fabrique (`platform/ia/artifact/factory.ts`) émet devis, bons de commande et factures :
  * un numéro, un Word et un PDF dans le Drive, et la pièce au registre Legal. Le formulaire générique
  * de la fiche Legal changeait pourtant le montant, la partie, le numéro ou les dates SANS régénérer le
  * fichier : la fiche disait un montant, la pièce partie chez le fournisseur en disait un autre — et

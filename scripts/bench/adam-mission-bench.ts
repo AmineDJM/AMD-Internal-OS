@@ -159,7 +159,7 @@ async function main(): Promise<void> {
   const { conduireMission } = await import("@/platform/in-process/missions/sweep");
   const { decider } = await import("@/lib/missions/approval/gate");
   const { chargerEtat } = await import("@/lib/missions/runtime/store");
-  const { viderTampon } = await import("@/platform/in-process/telemetry/usage-sink");
+  const { viderTampon } = await import("@/platform/ia/telemetry/usage-sink");
   const { VERITES } = await import("./seed-adam-bench");
   type CurrentUser = import("@/lib/session").CurrentUser;
 

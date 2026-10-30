@@ -1,4 +1,4 @@
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import { inProcessPlatform, principalOf } from "@/platform/in-process/adapter";
 
 /**

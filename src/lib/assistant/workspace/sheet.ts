@@ -1,5 +1,5 @@
 import ExcelJS from "exceljs";
-import { WORKSPACE_LIMITS, type WorkspaceColumn } from "./protocol";
+import { WORKSPACE_LIMITS, type WorkspaceColumn } from "@/platform/ia/workspace/protocol";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════

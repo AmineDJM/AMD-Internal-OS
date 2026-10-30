@@ -14,7 +14,7 @@ import { inferMailSubject, defaultMailBody, firstNameOf } from "@/lib/assistant/
 import { PRIORITY, ADMIN_REQUEST_TYPE } from "@/lib/labels";
 import { lirePersonne, direCeQuiEstArrive, collectifDesigne, CONSEIL_COLLECTIF } from "@/lib/personnes/designation";
 import type { ProposedAction } from "@/lib/assistant/coeur/contrat-actions";
-import { asStr } from "@/lib/assistant/outils/arguments";
+import { asStr } from "@/platform/ia/outils/arguments";
 import {
   normPriority, isoDate, pastWarning, mailApprovalCard, type ContexteProposition,
 } from "@/lib/assistant/propositions/aides";

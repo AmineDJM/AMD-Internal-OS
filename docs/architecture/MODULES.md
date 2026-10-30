@@ -31,6 +31,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels`, `finances`, `bibliotheque` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 | `finances` | métier | `api.ts`, `partage.ts`, `actions-{centre,demandes,depenses,relances,sieges,soldes,tresorerie}.ts` | `referentiels`, `coffre` | tout métier qui émet un ordre de dépense (Ad & Pro, RH, Legal, Regulatory, moyens généraux…), pages `/finances`, `/centre-de-paiement`, `/validations/paiements` | **migré** (V4) — ex-`lib/{finance,finances,payments}/`, fusionnés |
 | `bibliotheque` | métier (transverse) | `api-inscription.ts` (inscrire — porte étroite), `api.ts` (chercher, ouvrir, file), `partage.ts`, `actions.ts`, `ecrans/` | — | ≈ 45 points d'entrée (inscription), `rh`, `scheduled.ts` (tâches `bibliotheque.*`), page `/bibliotheque` | **neuf** (J1, 29/10) — dette : les règles d'ouverture et les lecteurs existants (`DETTE_HERITEE`) |
+| `assistant-ia` | métier | `api.ts`, `partage.ts`, `actions.ts` (clé `assistant-ia-actions`), `actions-consommation.ts` (clé `assistant-ia-consommation-actions`), `ecrans/` | `ad-pro`, `coffre` | page `/assistant`, routes `/api/assistant-ia/*`, consoles `/admin/ai/{acces,consommation}`, `bibliotheque` (confidentialité), enrichissement (MRZ), `runScheduledJobs` | **migré** (J0, phase B) — dette : 68 imports vers `src/lib/` dont 4 vers Adam (catalogue, §7) et 5 vers le moteur des travaux (J2) |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐
@@ -297,3 +298,40 @@ et `npm run graphify:refresh` en fin de lot.
 | Un test lisait le fichier découpé | `sourceDeLaCle("<clé>")` (`parc.ts`) ou `lireSources(fichier, "dossier/")` (`platform/source.ts`) |
 | Un composant du kit (`components/shared`) appelle une action du module | Le socle n'importe aucun module : le composant n'est pas du kit — il sort (les pièces liées vers `components/pieces/`) |
 | Deux modules métiers se lisaient l'un l'autre (rh ⇄ finances, ad-pro ⇄ finances) | Ce que le règlement lit d'un métier est une règle de PAIEMENT : elle déménage dans `finances` (la paie versée, les statuts qu'un règlement solde) ; le métier lit `finances`, jamais l'inverse |
+
+---
+
+## 7. Adam, l'Assistant IA et leur socle — la frontière (lot J0, 29/10/2026)
+
+Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (décision
+[`docs/assistant/decisions/0013-jarvis-architecture.md`](../assistant/decisions/0013-jarvis-architecture.md)) :
+
+```
+   Adam (Super Admin, /chief-of-staff)                Assistant IA (chacun selon ses droits, /assistant)
+   lib/assistant*, components/chief/,                 src/modules/assistant-ia/ (moteur, écrans,
+   app/(app)/chief-of-staff/, app/api/assistant/,     actions — ex-lib/agent, ex-assistant-beta),
+   platform/in-process/ (son pont),                   app/(app)/assistant/, app/api/assistant-ia/
+   lib/actions/assistant-actions.ts
+                    │                                              │
+                    └──────────────►  src/platform/ia/  ◄──────────┘
+                                   LE SOCLE IA : n'importe ni l'un ni l'autre
+              (forme d'un outil, intentions, lectures, arguments, Drive, web,
+               médias, fabrique de documents, enseignements, puits d'usage, blocs d'écran)
+```
+
+| Règle | ESLint | Test |
+|---|---|---|
+| L'Assistant IA n'importe pas Adam | `@typescript-eslint/no-restricted-imports` (une règle DISTINCTE de `no-restricted-imports` : un override qui la redéclarerait écraserait ses motifs) | `src/platform/ia/frontieres.test.ts` |
+| Adam n'importe pas l'Assistant IA | idem | idem |
+| Le socle n'importe ni l'un ni l'autre — zéro, sans exception | idem | idem |
+| Ce qui reste est une liste EXACTE (`RESIDUS`), qui ne peut que rétrécir | — | idem |
+| Le socle connaît l'ERP (comme le pont) : sa dette est comptée À PART | — | `boundary.test.ts` (`SOCLE_IA_CEILING`), `domains.ts` (couche « socle IA ») |
+
+**Résidus nommés** (après la phase B, 30/10/2026 : Adam n'importe plus rien de l'Assistant IA) : le **catalogue d'outils
+d'Adam** emprunté par l'Assistant IA — `assistant-ia/infra/outils-v1.ts` → `@/lib/assistant`, `power-tools`, `ops`
+(décision 0012), et `assistant-ia/actions.ts` → `performAction` pour exécuter ces mêmes cartes —, plus le test
+`assistant-ia/limites.test.ts`. Leur fermeture fait 92 % d'Adam : le couplage reste nommé et cliqueté, il disparaîtra par J6 (registre des capacités dérivé du contrat des actions — décision 0013 §5). ESLint
+exclut nommément ces trois fichiers ; le test tient la liste exacte.
+
+**Un test qui exerce le socle À TRAVERS Adam** (il importe `POWER_TOOLS`, `composeWorkspace`…) reste côté Adam, à côté de
+l'ancien emplacement du code : le socle n'a pas de test qui connaisse Adam.

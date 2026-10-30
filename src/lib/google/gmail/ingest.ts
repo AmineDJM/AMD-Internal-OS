@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notifyUser } from "@/lib/notify";
 import { recordEvent } from "@/lib/events/ledger";
-import { extractAttachmentText } from "@/lib/assistant-files";
+import { extractAttachmentText } from "@/platform/ia/media/assistant-files";
 import { analyzeEmail, deservesAttention, stripQuotedReply, type EmailIntelligence } from "@/lib/comms/email-intelligence";
 import { scanForInjection } from "@/lib/comms/untrusted";
 import { isAutomatedSender, isBounce } from "@/lib/comms/loop-safety";

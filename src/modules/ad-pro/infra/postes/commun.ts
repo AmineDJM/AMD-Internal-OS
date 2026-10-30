@@ -24,7 +24,7 @@ import { devisDesPostes } from "../requetes/devis-poste";
 import { libelleArticleStock } from "@/lib/promo/stock";
 import type { PromoFamille } from "@/lib/promo/catalogue";
 import { lireSaisieDuComposeur } from "@/lib/bons-de-commande/saisie-composeur";
-import type { ModificationsDocument } from "@/platform/in-process/artifact/factory";
+import type { ModificationsDocument } from "@/platform/ia/artifact/factory";
 import { ecrireDansLeSujet } from "@/lib/dossiers-core";
 import { annulerDemandeSecretariat } from "@/lib/secretariat/annulation";
 import { sansBloquer } from "@/lib/journal";

@@ -19,7 +19,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import type { PowerTool } from "@/lib/assistant/power-tools";
+import type { PowerTool } from "@/platform/ia/outil";
 import {
   compiler, raconter, repli, anglesUtiles, regarder,
   ANGLES, CONTENANTS, type Angle, type Ligne, type Noeud, type Planche,

@@ -47,7 +47,7 @@ import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 import { withTurn, summarize } from "@/lib/models/telemetry";
 import type { ChatTurn } from "@/lib/assistant";
-import { candidatsMontres, demandeNomme } from "@/lib/assistant/cible-designee";
+import { candidatsMontres, demandeNomme } from "@/platform/ia/intentions/cible-designee";
 
 type Classe = "ELLIPSE" | "REPRISE" | "DEIXIS" | "CORRECTION" | "AMBIGU" | "TRIVIAL";
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
-import { scanBoundary, ADAM_PATHS, BRIDGE_PATHS, NEUTRAL } from "./boundary-scan";
+import { scanBoundary, ADAM_PATHS, BRIDGE_PATHS, NEUTRAL, estSocleIA } from "./boundary-scan";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -136,27 +136,52 @@ import { scanBoundary, ADAM_PATHS, BRIDGE_PATHS, NEUTRAL } from "./boundary-scan
  * portillon ci-dessous (dialogue, retour, leurs règles pures, `Button`, `useScrollLock`, `useRafraichir`,
  * `action-outcome` : aucune base, aucune règle métier). Les deux imports de `Button` déjà comptés tombent avec.
  * Mesuré : 419.
+ *
+ * 419 → 393 (2026-10-29, lot J0 « séparation Adam / Assistant IA », décision 0013) : rien n'a été
+ * découplé ici, le chiffre change de colonne. Le code que les deux assistants partagent (intentions,
+ * annuaire et Regulatory en lecture, circuits, arguments, espace de travail, recherche web, pièces
+ * jointes) quitte `lib/assistant/` pour le SOCLE IA (`src/platform/ia/`) et y emporte ses imports vers
+ * l'ERP, comptés sous `SOCLE_IA_CEILING`. `src/app/(app)/assistant/` sort du périmètre : il ne porte plus
+ * que l'Assistant IA (deux imports de la page et de ses actions). Mesuré : 393 (Adam) + 179 (socle IA, après fusion de b42a952c).
  */
-const DEBT_CEILING = 419;
+const DEBT_CEILING = 393;
+
+/**
+ * LE PLAFOND DU SOCLE IA — mesuré le jour de sa création (lot J0, 2026-10-29).
+ *
+ * 179 imports vers l'ERP (184 au premier comptage, 179 après fusion de la base b42a952c) : ceux que le
+ * code venu d'Adam portait déjà (≈ 24, ils quittent la dette d'Adam), et ceux du code venu du PONT (fabrique de documents, enseignements, médias, puits d'usage,
+ * propriétaire d'un travail), qui n'étaient comptés nulle part. Même règle que la dette d'Adam : on le
+ * baisse en migrant, on ne le relève jamais. Un besoin neuf de l'ERP dans le socle passe par un port.
+ *
+ * 179 → 180 (2026-10-30, fusion de la base 37a29edc, J1 Bibliothèque) : J1 a branché `inscrirePiece` dans
+ * `artifact/ports.ts` (`@/modules/bibliotheque/api-inscription`, la porte du module). Sur la base, ce fichier est
+ * encore dans le pont, où rien ne se compte ; ici il est au socle, où l'import se voit. Ce n'est pas un couplage
+ * de ce lot : c'est le compte honnête d'un import venu avec la base. La porte d'un module est le chemin voulu.
+ */
+const SOCLE_IA_CEILING = 180;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();
+  /** La dette d'ADAM : tout ce qui traverse, hors le socle IA (compté à part, plus bas). */
+  const dette = report.violations.filter((v) => !estSocleIA(v.from));
+  const socleIA = report.violations.filter((v) => estSocleIA(v.from));
 
   it("le code NEUF d'Adam ne connaît pas l'ERP — zéro, hors le pont", () => {
     const neuf = report.violations.filter(
-      (v) => v.from.startsWith("src/platform/") && !BRIDGE_PATHS.some((b) => v.from.startsWith(b)),
+      (v) => v.from.startsWith("src/platform/") && !BRIDGE_PATHS.some((b) => v.from.startsWith(b)) && !estSocleIA(v.from),
     );
     // Message explicite : un échec ici doit se corriger sans avoir à lire ce fichier.
     expect(
       neuf.map((v) => `${v.from} → ${v.to}`),
-      "src/platform/ (hors pont) doit rester sans dépendance ERP",
+      "src/platform/ (hors pont et socle IA) doit rester sans dépendance ERP",
     ).toEqual([]);
   });
 
   it("la dette historique ne remonte pas", () => {
     expect(
-      report.violations.length,
-      `La frontière a été franchie ${report.violations.length} fois (plafond ${DEBT_CEILING}). `
+      dette.length,
+      `La frontière a été franchie ${dette.length} fois (plafond ${DEBT_CEILING}). `
       + "Un NOUVEL import d'Adam vers l'ERP a été ajouté : passer par le contrat de plateforme "
       + "plutôt que relever ce plafond.",
     ).toBeLessThanOrEqual(DEBT_CEILING);
@@ -165,7 +190,17 @@ describe("frontière Adam ↔ ERP", () => {
   it("le plafond enregistré reste crédible — il colle à la mesure du jour", () => {
     // Un plafond très au-dessus de la réalité laisserait rentrer des dizaines d'imports sans
     // rien signaler : le cliquet existerait sans mordre. On exige qu'il reste serré.
-    expect(DEBT_CEILING - report.violations.length).toBeLessThanOrEqual(25);
+    expect(DEBT_CEILING - dette.length).toBeLessThanOrEqual(25);
+  });
+
+  it("le socle IA ne connaît pas l'ERP davantage qu'au jour de sa création — et le plafond reste serré", () => {
+    const top = [...new Set(socleIA.map((v) => v.to))].slice(0, 12).join(", ");
+    expect(
+      socleIA.length,
+      `Le socle IA importe l'ERP ${socleIA.length} fois (plafond ${SOCLE_IA_CEILING}) — cibles : ${top}. `
+      + "Un besoin neuf passe par un port, pas par un relèvement.",
+    ).toBeLessThanOrEqual(SOCLE_IA_CEILING);
+    expect(SOCLE_IA_CEILING - socleIA.length).toBeLessThanOrEqual(25);
   });
 
   it("le CONTRAT lui-même n'importe rien — c'est ce qui le rend portable", () => {
