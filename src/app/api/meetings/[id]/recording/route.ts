@@ -8,6 +8,7 @@ import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { getAppSettings } from "@/lib/settings";
 import { canManageMeeting } from "@/lib/meetings";
 import { sansBloquer } from "@/lib/journal";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 
@@ -35,11 +36,16 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (file.size > maxMb * 1024 * 1024) return NextResponse.json({ error: `Enregistrement trop volumineux (max ${maxMb} Mo).` }, { status: 400 });
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const { blobId } = await putBlob(buf);
+  const { blobId, sha256 } = await putBlob(buf);
   // Remplace un enregistrement précédent éventuel (on libère l'ancien blob).
   const previous = meeting.audioBlobId;
   await prisma.meeting.update({ where: { id: meeting.id }, data: { audioBlobId: blobId } });
   if (previous && previous !== blobId) await releaseBlob(previous).catch(sansBloquer("recording-route.POST.releaseBlob"));
+  // L'enregistrement entre à la bibliothèque (J1) — clé exclusive : il remplace le précédent. Sa transcription sera celle d'ici.
+  await inscrirePiece({
+    blobId, empreinte: sha256, nom: file.name || "reunion.webm", mime: file.type || "audio/webm", taille: buf.length, source: "CONVERSATION",
+    objet: { famille: "REUNION_AUDIO", id: meeting.id }, proprietaireId: user.id, role: "enregistrement",
+  });
 
   if (!(await aiFeatureEnabled("voice"))) {
     return NextResponse.json({ configured: true, error: "La transcription vocale est désactivée dans le Centre de contrôle IA." });

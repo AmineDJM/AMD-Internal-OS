@@ -15,6 +15,7 @@ import {
 } from "@/modules/rh/api";
 import { synchroniserOrdreEmis } from "@/lib/missions-equipe/serveur";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
   );
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const { blobId, size } = await putBlob(buf);
+  const { blobId, size, sha256 } = await putBlob(buf);
 
   const doc = await prisma.employeeDocument.create({
     data: {
@@ -74,6 +75,8 @@ export async function POST(req: NextRequest) {
     },
     select: { id: true, name: true },
   });
+  // La pièce entre à la bibliothèque, CONFIDENTIELLE (J1) : ouverte par la règle de `/api/rh/document`, jamais à un modèle.
+  await inscrireDocumentRh({ id: doc.id, blobId, sha256, nom: doc.name, mime: file.type || "application/octet-stream", taille: size, deposeParId: user.id });
 
   // Si le document répond à une demande : la marquer « prête » et prévenir l'employé.
   if (requestId) {

@@ -6,6 +6,7 @@ import { putBlob } from "@/lib/drive-storage";
 import { validateUpload } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import { managesReports } from "@/lib/queries/field-reports";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 export const dynamic = "force-dynamic";
 
@@ -27,10 +28,15 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   if (err) return NextResponse.json({ error: err }, { status: 400 });
 
   const buf = Buffer.from(await file.arrayBuffer());
-  const { blobId, size } = await putBlob(buf);
+  const { blobId, size, sha256 } = await putBlob(buf);
   const att = await prisma.fieldReportAttachment.create({
     data: { reportId: params.id, blobId, name: file.name, mime: file.type || "application/octet-stream", size },
     select: { id: true },
+  });
+  // La pièce entre à la bibliothèque (J1), ouverte par la règle des pièces du rapport. Ne lève jamais.
+  await inscrirePiece({
+    blobId, empreinte: sha256, nom: file.name, mime: file.type || null, taille: size, source: "AUTRE",
+    objet: { famille: "TERRAIN_PIECE", id: att.id }, proprietaireId: user.id, role: "piece-jointe",
   });
   return NextResponse.json({ id: att.id });
 }

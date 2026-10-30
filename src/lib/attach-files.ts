@@ -7,6 +7,7 @@ import { mirrorDocumentsToDrive, type MirrorFile } from "@/lib/drive/document-mi
 import { notifyUser } from "@/lib/notify";
 import { entityHref } from "@/lib/entity-href";
 import { signalerDocumentDepose } from "@/lib/enrichissement/signalement";
+import { inscrireDocument } from "@/modules/bibliotheque/api-inscription";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -114,6 +115,11 @@ export async function attachFiles(input: {
     // La pièce nourrit les fiches (refonte, lot V2-A) — interrupteur fermé : rien ; ne lève jamais.
     await signalerDocumentDepose({
       documentId, entityType: input.entityType, entityId: input.entityId, category: input.category ?? "OTHER", confidentiality: "INTERNAL",
+      blobId: ecrit.blobId, sha256: ecrit.sha256, nom: file.name, mime: file.type || null, taille: file.size, deposeParId: input.uploadedById,
+    });
+    // Et elle entre à la bibliothèque (J1) : registre, clé du document, file de lecture. Ne lève jamais.
+    await inscrireDocument({
+      documentId, entityType: input.entityType, category: input.category ?? "OTHER", confidentiality: "INTERNAL",
       blobId: ecrit.blobId, sha256: ecrit.sha256, nom: file.name, mime: file.type || null, taille: file.size, deposeParId: input.uploadedById,
     });
   }

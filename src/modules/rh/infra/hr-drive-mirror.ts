@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { putBlob } from "@/lib/drive-storage";
+import { deposerFichierDrive } from "@/lib/drive/mirror";
 import { rolesWithModule } from "@/lib/rbac";
 
 /**
@@ -76,25 +76,10 @@ export async function mirrorEmployeeContractToDrive(opts: {
   try {
     const spaceId = await ensureContractSpace(opts.ownerId);
     const folderId = await ensureFolder(opts.employeeName.trim() || "Employé", null, spaceId, opts.ownerId);
-    const { blobId, size } = await putBlob(opts.data);
-    const mimeType = opts.mime || "application/octet-stream";
-
-    const existing = await prisma.driveNode.findFirst({
-      where: { type: "FILE", name: opts.filename, parentId: folderId, isTrashed: false },
-      select: { id: true },
+    // Même nom au même endroit → nouvelle version ; un contrat de travail entre à la bibliothèque CONFIDENTIEL (J1).
+    await deposerFichierDrive({
+      parentId: folderId, name: opts.filename, data: opts.data, mimeType: opts.mime, ownerId: opts.ownerId, spaceId, confidentielle: true,
     });
-    if (existing) {
-      const last = await prisma.fileVersion.findFirst({ where: { nodeId: existing.id }, orderBy: { version: "desc" }, select: { version: true } });
-      await prisma.fileVersion.create({ data: { nodeId: existing.id, blobId, version: (last?.version ?? 0) + 1, size, mimeType, createdById: opts.ownerId } });
-      await prisma.driveNode.update({ where: { id: existing.id }, data: { size, mimeType } });
-    } else {
-      await prisma.driveNode.create({
-        data: {
-          name: opts.filename, type: "FILE", parentId: folderId, spaceId, ownerId: opts.ownerId, mimeType, size, createdById: opts.ownerId,
-          versions: { create: { blobId, version: 1, size, mimeType, createdById: opts.ownerId } },
-        },
-      });
-    }
   } catch (e) {
     console.error("[hr-drive-mirror] miroir contrat → Drive échoué (non-bloquant)", e);
   }

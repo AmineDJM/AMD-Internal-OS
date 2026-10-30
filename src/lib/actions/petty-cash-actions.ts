@@ -1,6 +1,5 @@
 "use server";
 
-import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import type { UserRole } from "@prisma/client";
@@ -9,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser } from "@/lib/notify";
 import { lienRemiseCaisse, lienRallongeCaisse, lienCaisseAvance } from "@/lib/chemins/moyens-generaux";
-import { saveFile } from "@/lib/storage";
+import { deposerPieceDeModule } from "@/lib/storage";
 import { validateAttachments } from "@/lib/attach-files";
 import { normalizeAmount, normalizeYear } from "@/lib/department-budget";
 import {
@@ -369,19 +368,8 @@ export async function spendFromPettyCash(formData: FormData): Promise<ActionResu
   if (ticket) await saveReceiptLines(created.id, lignes);
 
   for (const file of files) {
-    const key = `DEPARTMENT_EXPENSE/${created.id}/${randomUUID()}__${file.name}`;
-    try {
-      await saveFile(key, Buffer.from(await file.arrayBuffer()));
-    } catch (err) {
-      console.error("[petty-cash] storage write failed, recording metadata only", err);
-    }
-    await prisma.document.create({
-      data: {
-        name: file.name, category: "INVOICE", entityType: "DEPARTMENT_EXPENSE", entityId: created.id,
-        fileKey: key, mimeType: file.type || null, sizeBytes: file.size,
-        confidentiality: "INTERNAL", uploadedById: user.id,
-      },
-    });
+    // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+    await deposerPieceDeModule(file, { entityType: "DEPARTMENT_EXPENSE", entityId: created.id, category: "INVOICE", confidentiality: "INTERNAL", uploadedById: user.id, journal: "petty-cash" });
   }
 
   // Le fond baisse : on prévient AVANT d'être à sec, pas une fois bloqué.

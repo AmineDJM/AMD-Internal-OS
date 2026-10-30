@@ -10,7 +10,10 @@
 # Trois jobs PARALLÈLES, chacun dans son propre conteneur — même raison que build:render : lint,
 # typecheck et compilation additionnés dans un seul processus dépassent la mémoire.
 #   verifier : migrations sur base vide · code mort / doublons · contrat des actions · typecheck · lint · npm audit (prod)
-#   tests    : Vitest complet en 4 tranches, chacune contre son Postgres 16 (les suites DB tournent)
+#              — sur un Postgres 16 NU (sans pgvector) : la migration de la bibliothèque (J1) doit y passer, et y passe
+#   tests    : Vitest complet en 4 tranches, chacune contre son Postgres 16 AVEC pgvector (image pgvector/pgvector:pg16,
+#              celle de la production) — le chemin vectoriel de la bibliothèque est éprouvé ; son repli plein texte
+#              l'est aussi, forcé dans `src/modules/bibliotheque/bibliotheque.test.ts`
 #   build    : `npm run build:render` à froid — la commande exacte du déploiement — puis le plafond
 #              du JS de la coque (`npm run bundle:plafond`)
 #
@@ -67,6 +70,11 @@ jobs:
       # Les migrations, rejouées sur une base VIDE : un SQL non idempotent ou mal ordonné échoue
       # ici et non pendant le déploiement.
       - run: npx prisma migrate deploy
+      # LA BIBLIOTHÈQUE SANS pgvector (J1) : ce Postgres n'a pas l'extension — la migration est passée, et elle n'a
+      # posé ni colonne `vecteur` ni index HNSW (le code retombe sur plein texte + trigrammes).
+      - name: Bibliothèque — la migration passe sans pgvector
+        run: |
+          echo "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'BibliothequePassage') OR EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'BibliothequePassage' AND column_name = 'vecteur') THEN RAISE EXCEPTION 'migration bibliotheque inattendue sans pgvector'; END IF; END \$\$;" | npx prisma db execute --stdin --url "$DATABASE_URL"
       # La dérive schéma ↔ base (558 lignes de `prisma migrate diff` au 27/10) est tenue par le
       # test-cliquet de refonte/p0-outillage (src/lib/derive-schema/), qui tourne dans `tests`.
       - run: npm run db:bootstrap
@@ -108,7 +116,9 @@ jobs:
     timeout-minutes: 60
     services:
       postgres:
-        image: postgres:16
+        # pgvector (approuvé en production, décision J1 du 29/10/2026) : la colonne `vecteur` et son index HNSW
+        # existent, le chemin hybride de la recherche est testé. Le chemin SANS extension : job `verifier`.
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: amd
           POSTGRES_PASSWORD: amd
@@ -129,6 +139,10 @@ jobs:
       # on prouve qu'elle répond avant de lancer la suite.
       - name: La base répond (sinon les suites DB se sauteraient)
         run: echo "SELECT 1" | npx prisma db execute --stdin --url "$DATABASE_URL"
+      # Et elle porte pgvector : la colonne `vecteur` de la bibliothèque existe (le chemin hybride est éprouvé).
+      - name: Bibliothèque — pgvector présent
+        run: |
+          echo "DO \$\$ BEGIN IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'BibliothequePassage' AND column_name = 'vecteur') THEN RAISE EXCEPTION 'pgvector absent du Postgres des tests'; END IF; END \$\$;" | npx prisma db execute --stdin --url "$DATABASE_URL"
       - run: npm test -- --shard=${{ matrix.shard }}/4
         env: { NODE_OPTIONS: --max-old-space-size=4096 }
 

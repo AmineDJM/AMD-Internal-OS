@@ -9,7 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
 import { notifyUser, notifyRoles } from "@/lib/notify";
 import { createExpenseOrder, annulerOrdreNonRegle } from "@/modules/finances/api";
-import { saveFile, validateUpload } from "@/lib/storage";
+import { validateUpload, deposerPieceDeModule } from "@/lib/storage";
 import { getAppSettings } from "@/lib/settings";
 import {
   getDeclaration, canViewDeclaration, dernieresRelancesPieces, RELANCE_PIECE_CHAMP, REFUS_FINAL_CHAMP,
@@ -168,19 +168,8 @@ export async function fulfillDocRequest(_prev: ActionResult | undefined, formDat
   const validationError = validateUpload(file.name, file.size, (await getAppSettings()).maxUploadMb);
   if (validationError) return { ok: false, error: validationError };
 
-  const key = `MEDICAL_INFO_DECLARATION/${r.declarationId}/${randomUUID()}__${file.name}`;
-  try {
-    const buffer = Buffer.from(await file.arrayBuffer());
-    await saveFile(key, buffer);
-  } catch (err) {
-    console.error("[medical-info] storage write failed, recording metadata only", err);
-  }
-  const doc = await prisma.document.create({
-    data: {
-      name: file.name, category: "OTHER", entityType: "MEDICAL_INFO_DECLARATION", entityId: r.declarationId,
-      fileKey: key, mimeType: file.type || null, sizeBytes: file.size, confidentiality: "INTERNAL", uploadedById: user.id,
-    },
-  });
+  // Fichier au coffre, fiche, inscription à la bibliothèque (J1) — une écriture ratée garde la fiche (métadonnées seules).
+  const doc = await deposerPieceDeModule(file, { entityType: "MEDICAL_INFO_DECLARATION", entityId: r.declarationId, category: "OTHER", confidentiality: "INTERNAL", uploadedById: user.id, journal: "medical-info" });
   await prisma.medicalInfoDocRequest.update({
     where: { id: requestId },
     data: { status: "FULFILLED", documentId: doc.id, note: fdStr(formData, "note"), fulfilledAt: new Date() },

@@ -26,6 +26,7 @@ import { proposerCibles, proposerDefinitions, proposerNiveau, redigerCommentaire
 import type { ApercuKpi, BilanKpi, LigneDetail } from "@/lib/kpi/types";
 import type { HorsBriques } from "@/lib/kpi/luna-pur";
 import { sansBloquer } from "@/lib/journal";
+import { inscrirePiece } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -343,16 +344,23 @@ export async function declarerKpi(formData: FormData): Promise<ActionResult> {
   if (!libelle) return { ok: false, error: "Dites ce que vous déclarez (« Formation pharmacovigilance, 12/10 »)." };
   if (valeur <= 0 || valeur > 1000) return { ok: false, error: "Valeur invalide." };
   const fichier = formData.get("piece");
-  let piece: { pieceBlobId: string; pieceNom: string; pieceMime: string } | null = null;
+  let piece: { pieceBlobId: string; pieceNom: string; pieceMime: string; empreinte: string; taille: number } | null = null;
   if (fichier instanceof File && fichier.size > 0) {
     const bytes = Buffer.from(await fichier.arrayBuffer());
     const v = checkAttachment(fichier.name, bytes, fichier.type);
     if (!v.ok) return { ok: false, error: rejectionMessage(v.reason!, v.safeName) };
-    const { blobId } = await putBlob(bytes);
-    piece = { pieceBlobId: blobId, pieceNom: v.safeName, pieceMime: v.mime };
+    const { blobId, sha256 } = await putBlob(bytes);
+    piece = { pieceBlobId: blobId, pieceNom: v.safeName, pieceMime: v.mime, empreinte: sha256, taille: bytes.length };
   }
   if (!piece) return { ok: false, error: "Joignez la pièce qui le prouve (attestation, programme…)." };
-  const cree = await prisma.kpiDeclaration.create({ data: { definitionId: d.id, userId: user.id, periode: f.cle, libelle: libelle.slice(0, 200), valeur, ...piece } });
+  const cree = await prisma.kpiDeclaration.create({
+    data: { definitionId: d.id, userId: user.id, periode: f.cle, libelle: libelle.slice(0, 200), valeur, pieceBlobId: piece.pieceBlobId, pieceNom: piece.pieceNom, pieceMime: piece.pieceMime },
+  });
+  // La pièce qui prouve la déclaration entre à la bibliothèque (J1), ouverte par la règle du bilan KPI.
+  await inscrirePiece({
+    blobId: piece.pieceBlobId, empreinte: piece.empreinte, nom: piece.pieceNom, mime: piece.pieceMime, taille: piece.taille, source: "AUTRE",
+    objet: { famille: "KPI_PIECE", id: cree.id }, proprietaireId: user.id, role: "justificatif",
+  });
   const n1 =await getManagerOfUser(user.id).catch(sansBloquer("kpi-actions.declarerKpi.getManagerOfUser", null));
   if (n1?.userId) {
     await notifyUser({ userId: n1.userId, type: "GENERIC", title: "Déclaration à valider", body: `${user.name} — ${d.def.nom} : ${libelle.slice(0, 80)}`, link: lienKpiEquipe(f.cle) });

@@ -12,6 +12,7 @@ import { marquerDemandeRhTraitee } from "./hr-demande-traitee";
 import { saisieEffective } from "@/lib/references/registre";
 import { anneeDuRegistre, attribuerAuRegistre, registreDe } from "@/lib/references/registre-serveur";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
 
 /**
  * HORS DU DOMAINE RH, À DESSEIN (comme hr-drive-mirror.ts) : c'est l'orchestration qui touche au stockage (drive-storage)
@@ -99,20 +100,25 @@ export async function genererEtRemettreOrdreDeMission(
   // gardé par les RH pour une retouche ; sans PDF (conversion impossible), c'est le Word qui est remis — et la phrase le dit.
   const pdf = await docxToPdf(docx).catch(sansBloquer("ordre-mission-depot.genererEtRemettreOrdreDeMission.docxToPdf", { ok: false as const, error: "conversion impossible" }));
   const w = await putBlob(docx);
-  await prisma.employeeDocument.create({
+  const word = await prisma.employeeDocument.create({
     data: {
       employeeId: demande.employeeId, category: "OTHER", name: `${nom}.docx`, blobId: w.blobId, mime: MIME_DOCX, size: w.size,
       visibleToEmployee: !pdf.ok, uploadedById: acteurId, requestId: pdf.ok ? undefined : requestId,
     },
+    select: { id: true },
   });
+  // Les pièces remises entrent à la bibliothèque, CONFIDENTIELLES (J1). Ne lève jamais.
+  await inscrireDocumentRh({ id: word.id, blobId: w.blobId, sha256: w.sha256, nom: `${nom}.docx`, mime: MIME_DOCX, taille: w.size, deposeParId: acteurId });
   if (pdf.ok) {
     const p = await putBlob(pdf.pdf);
-    await prisma.employeeDocument.create({
+    const remis = await prisma.employeeDocument.create({
       data: {
         employeeId: demande.employeeId, category: "OTHER", name: `${nom}.pdf`, blobId: p.blobId, mime: "application/pdf", size: p.size,
         visibleToEmployee: true, uploadedById: acteurId, requestId,
       },
+      select: { id: true },
     });
+    await inscrireDocumentRh({ id: remis.id, blobId: p.blobId, sha256: p.sha256, nom: `${nom}.pdf`, mime: "application/pdf", taille: p.size, deposeParId: acteurId });
   }
   await prisma.hrDocumentRequest.update({ where: { id: requestId }, data: { status: "READY", handledById: acteurId } });
   await marquerDemandeRhTraitee(requestId); // brique KPI « demandes traitées »

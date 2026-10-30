@@ -19,6 +19,7 @@ import { entryCost, etatVirement, etatSalaire, virementCouvre, moisDeLEntite, li
 import { docxToPdf, isConvertibleWord, pdfFileName } from "@/lib/payslip/to-pdf";
 import { MIME_DOCX } from "@/lib/artifact/adapters/docx/adapter";
 import { sansBloquer } from "@/lib/journal";
+import { inscrireDocumentRh } from "@/modules/bibliotheque/api-inscription";
 
 const PATH = "/rh/paie";
 /** Marge avant de notifier l'employé (en cas d'erreur de saisie, les RH peuvent annuler). */
@@ -64,14 +65,17 @@ async function deposerFicheDePaie(
 
   const octets = Buffer.from(await file.arrayBuffer());
   const creer = async (name: string, bytes: Buffer, mime: string, visibleToEmployee: boolean) => {
-    const { blobId } = await putBlob(bytes);
-    return prisma.employeeDocument.create({
+    const { blobId, sha256 } = await putBlob(bytes);
+    const doc = await prisma.employeeDocument.create({
       data: {
         employeeId, category: "PAYSLIP", name, blobId, mime, size: bytes.length,
         period, visibleToEmployee, uploadedById,
       },
       select: { id: true },
     });
+    // Le bulletin entre à la bibliothèque, CONFIDENTIEL (J1) : jamais à un modèle. Ne lève jamais.
+    await inscrireDocumentRh({ id: doc.id, blobId, sha256, nom: name, mime, taille: bytes.length, deposeParId: uploadedById });
+    return doc;
   };
 
   if (isConvertibleWord(file.name, file.type)) {

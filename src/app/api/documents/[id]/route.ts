@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { dispositionPourBucket } from "@/lib/http/types-actifs";
 import { getCurrentUser } from "@/lib/session";
-import { canAccessEntity } from "@/lib/entity-access";
-import { peutLirePasseportDuSujet, peutLirePieceDePriseEnCharge } from "@/modules/ad-pro/api";
+import { peutOuvrirDocument } from "@/lib/entity-access/ouverture-pieces";
 import { readFileByKey } from "@/lib/storage";
 import { cleObjetDirect, infoBlob } from "@/lib/drive-storage";
 import { presignGetUrl } from "@/lib/storage/object-storage";
@@ -25,13 +24,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const doc = await prisma.document.findUnique({ where: { id: params.id } });
   if (!doc) return NextResponse.json({ error: "Introuvable" }, { status: 404 });
 
-  // Le passeport d'un voyageur s'ouvre aussi à qui réserve son billet (audit 360°, I10) — une porte
-  // ÉTROITE, à la pièce près : voir `peutLirePasseportDuSujet`.
-  // Même porte pour un congrès (passeports, billets émis, vouchers, livrets de séjour) : `peutLirePieceDePriseEnCharge`.
-  const allowed = (await canAccessEntity(user, doc.entityType, doc.entityId, "VIEW"))
-    || (await peutLirePasseportDuSujet(user.id, doc))
-    || (await peutLirePieceDePriseEnCharge(user, doc));
-  if (!allowed) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
+  // La règle est partagée avec la recherche de la bibliothèque (`entity-access/ouverture-pieces.ts`).
+  if (!(await peutOuvrirDocument(user, doc))) return NextResponse.json({ error: "Accès refusé" }, { status: 403 });
 
   if (!doc.fileKey) {
     return NextResponse.json(

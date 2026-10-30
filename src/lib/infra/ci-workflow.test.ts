@@ -37,7 +37,8 @@ describe(".github/workflows/ci.yml — la porte avant le déploiement", () => {
     expect(r).toContain("npm test");
     expect(r).toContain("SELECT 1");
     expect(r.indexOf("SELECT 1")).toBeLessThan(r.indexOf("npm test"));
-    expect(r).toMatch(/image: postgres:16/);
+    // Postgres 16 AVEC pgvector (bibliothèque, J1) : l'image de la production ; le Postgres nu reste celui de `verifier`.
+    expect(r).toMatch(/image: pgvector\/pgvector:pg16/);
   });
 
   it("build : la commande exacte du déploiement, sans cache .next restauré", () => {
