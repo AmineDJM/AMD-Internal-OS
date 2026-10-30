@@ -52,3 +52,12 @@ livré, où, et ce qui reste branché sur d'autres lots.
 | `src/platform/app-mode.test.ts` | le middleware du mode app : racine, `/assistant?c=`, pages et API permises, renvoi vers l'ERP, refus |
 | `infra/fil/{fil,resume}.test.ts` | le fil reste juste avec plusieurs conversations ; lien de notification vers la conversation |
 | `e2e/adventum-ia.spec.ts` | bureau 1440 px et iPhone 390 px : créer une conversation, privée, dossier, vocal enregistré (micro simulé) avec réécoute, panneau Notes, recherche ; `/assistant` montre les mêmes conversations |
+
+## 5. Essai réel (30/10/2026) et captures
+
+Un tour réel (`gpt-6.1-terra`, compte d'essai assistante de direction, effacé ensuite) : « Peux-tu me rappeler… préparer un
+congrès médical à Oran ? » → réponse en **6,4 s**, famille Ad & Pro fermée **dite** (droits respectés) ; titre proposé par le
+modèle rapide : **« Préparation du congrès médical d'Oran »** (`titreSource = auto`). Coût mesuré : **≈ 0,015 $**.
+
+Captures (Playwright, build de production) : [`docs/assistant/captures/0027/`](../captures/0027/) — bureau 1440 px
+(`bureau-*.png`), iPhone 390 px (`iphone-*.png`), et l'écran `/assistant` de l'ERP avec la même liste (`erp-assistant.png`).
