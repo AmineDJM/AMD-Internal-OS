@@ -9,6 +9,12 @@ import type { CurrentUser } from "@/lib/session";
  * Le socle (`src/platform/ia/`) n'appartient à aucun des deux produits ; la forme d'un outil y vit,
  * et chacun la lit ici. `power-tools.ts` la réexporte pour le code d'Adam qui l'écrivait déjà.
  */
+/**
+ * La personne au nom de qui un outil s'exécute — lue ICI par le reste du socle (J4) : chaque fichier du socle qui
+ * importait `@/lib/session` pour ce seul type comptait un franchissement de plus vers l'ERP (`SOCLE_IA_CEILING`).
+ */
+export type UtilisateurOutil = CurrentUser;
+
 export interface PowerTool {
   def: ClaudeToolDef;
   /** Le droit qui ouvre l'outil — une PERMISSION, jamais un rôle en dur. */

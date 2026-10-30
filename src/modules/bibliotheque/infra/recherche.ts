@@ -262,6 +262,19 @@ export async function chercherDocuments(
   return { resultats, mode: { ...cap, vecteurUtilise: !!vecteur }, ecartesParLesDroits: ecartes };
 }
 
+/**
+ * LES PIÈCES, parmi celles données, que cette personne peut ouvrir (au moins un de leurs endroits) — la même règle que
+ * `chercherDocuments` et `ouvrirDocuments`. Lue par qui rend un fait TIRÉ d'une pièce (J4 : faits confirmés) : le fait
+ * ne se montre pas à qui ne pourrait pas ouvrir la pièce dont il vient.
+ */
+export async function piecesOuvrables(user: SessionUser, ids: readonly string[]): Promise<Set<string>> {
+  const voulus = [...new Set(ids)];
+  if (!voulus.length) return new Set();
+  const fiches = await prisma.bibliothequeFiche.findMany({ where: { pieceId: { in: voulus } }, select: { pieceId: true, cles: true } });
+  const ouvrables = await clesOuvrables(user, fiches.flatMap((f) => f.cles));
+  return new Set(fiches.filter((f) => f.cles.some((k) => ouvrables.has(k))).map((f) => f.pieceId));
+}
+
 // ─────────────────────────────── Ouvrir ───────────────────────────────
 
 export interface DocumentOuvert {

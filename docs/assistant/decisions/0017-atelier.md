@@ -23,7 +23,7 @@ rejeu (version Drive + journal), annuler reste exact, l'enregistrement reste une
 |---|---|
 | `src/lib/artifact/runtime/engine.ts` | `revoir(seq, ACCEPTER \| REFUSER \| A_REVOIR)` — refuser une modification qui n'est **pas** la dernière = la marquer annulée et **rejouer** (aucune commande inverse) ; l'opération garde ses **zones touchées** (`touches`) et sa **revue** |
 | `src/lib/artifact/adapters/docx/…` | opération neuve `docx.inserer_tableau` (bordé, en-tête en gras, police du voisin, avant `w:sectPr`) |
-| `prisma/migrations/20270209100000_atelier` | `ArtifactOperation.touches`, `.revue` ; table `AtelierConversion` (file + **voie**) — additive, idempotente |
+| `prisma/migrations/20270209110000_atelier` | `ArtifactOperation.touches`, `.revue` ; table `AtelierConversion` (file + **voie**) — additive, idempotente |
 | `src/platform/ia/artifact/atelier/gestes.ts` | **pur** : le vocabulaire des GESTES (`remplacer_texte`, `reecrire_paragraphe`, `inserer_paragraphe`, `supprimer_paragraphe`, `modifier_titre`, `mettre_en_forme`, `inserer_tableau`, `modifier_cellule`, `ajouter_diapo`, `supprimer_diapo`, `dupliquer_diapo`, `deplacer_diapo`, `texte_forme`, `supprimer_pages`, `pivoter_pages`, `filigrane`) → commandes IR **par format** (lit la vue quand il faut trouver où agir : un remplacement dans un PowerPoint vise chaque zone qui porte le texte) ; refus motivé hors format ; `zonesModifiees(avant, après)` — ce qui a changé, **par contenu** (une insertion ne surligne pas tout ce qui suit) |
 | `…/atelier/service.ts` | droits relus (`voir` / `modifier`) ; ouvrir (réutilise une session ouverte, §36) ; **appliquer les gestes un par un** (un pas de 0,7 s : chaque commande = une révision que l'écran voit arriver) ; revue ; enregistrer ; comparer (version d'origine + état courant + différences constatées, §52) ; document **sensible** (pièce juridique, courrier, espace partagé) |
 | `…/atelier/conversions.ts` + `src/lib/office/conversions-atelier.ts` | la composition (droits et dépôt par le port) au socle, les moteurs et la file en bibliothèque ERP ; Word/PowerPoint/Excel → PDF, tableau Word → Excel, PDF → Word (texte) ; **voies** : WORKER (LibreOffice de l'image, file prise par `atelier.conversions`), EDITEUR (OnlyOffice), LOCAL (LibreOffice du processus), RENDU (`docxToPdf`), MAISON (composition) — **la voie est rendue et affichée** ; le résultat est un **nouveau fichier** (dossier « Atelier »), relu avant dépôt, inscrit à la Bibliothèque par le port |
@@ -87,6 +87,10 @@ n'importe quel processus l'écrit. Un SSE demanderait un bus entre processus pou
   par défaut) : le modèle refusait de toucher le contrat **de la personne**, dans **son** Drive. La consigne dit désormais
   qu'une pièce du **dossier RH d'autrui** relève de cette famille, un fichier joint ou du Drive de « Drive & documents » —
   les droits du fichier décident.
+- **Après fusion de J4** (outils choisis à la demande, décision 0018) : mots de la personne ajoutés aux fiches des outils de
+  l'Atelier (`selection-outils.ts`), consigne de l'Atelier dans le préfixe stable ; le banc repasse — titre + synthèse,
+  essai à 6 mois enregistré en v2, styles et tableau gardés — pour **0,048 $**, 6 appels, 22 s. Dépense totale des bancs du
+  lot : ≈ 0,27 $.
 
 ### Le socle n'a pas grossi
 

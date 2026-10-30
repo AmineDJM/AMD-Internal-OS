@@ -11,6 +11,7 @@ import { resumeLecture, type AudioDuTour, type LecturePiece, type VocalDuTour } 
 import { PIECES_PAR_ENVOI_MAX } from "../../domaine/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
+import { compacterFil } from "./resume";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -46,6 +47,10 @@ export const ETAT = { ATTENTE: "EN_ATTENTE", COURS: "EN_COURS", TRAITE: "TRAITE"
 const PRISE_PERDUE_MS = 10 * 60_000;
 // Pendant un tour, l'écran relit le fil toutes les 0,9 s : six secondes sans lecture, la personne est ailleurs.
 const ABSENT_APRES_MS = 6_000;
+/**
+ * Au plus 16 tours mot pour mot — une borne de sûreté : en régime, J4 (décision 0018) n'en garde que les échanges
+ * POSTÉRIEURS au résumé roulant (`resume.ts`), soit 4 à 7 échanges, et l'assembleur les met dans leur enveloppe.
+ */
 const TOURS_EN_CONTEXTE = 16;
 const MAX_EN_FILE = 10;
 const DELAI_FOND_MS = Number(process.env.ASSISTANT_FOND_TIMEOUT_MS) || 240_000;
@@ -153,7 +158,7 @@ export async function nouvelleConversation(userId: string): Promise<{ ok: true }
   const fil = await filDe(userId);
   const enCours = await prisma.assistantIaTour.count({ where: { filId: fil.id, etat: { in: [ETAT.ATTENTE, ETAT.COURS] } } });
   if (enCours) return { ok: false, erreur: "L'assistant travaille encore : attendez sa réponse avant de repartir de zéro." };
-  await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { depuisLe: new Date() } });
+  await prisma.assistantIaFil.update({ where: { id: fil.id }, data: { depuisLe: new Date(), resume: null, resumeJusquA: null, resumeLe: null } });
   return { ok: true };
 }
 
@@ -250,9 +255,14 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     take: TOURS_EN_CONTEXTE * 3,
   }));
   const questions = new Set(anterieurs.filter((t) => t.role === "user" && t.createdAt < tour.createdAt).map((t) => t.id));
+  // J4 : ce que le RÉSUMÉ ROULANT couvre déjà ne repart pas mot pour mot (la question de l'échange en fait foi).
+  const dateQuestion = new Map(anterieurs.filter((t) => t.role === "user").map((t) => [t.id, t.createdAt.getTime()]));
+  const apresResume = (t: AssistantIaTour) => !fil.resumeJusquA
+    || (dateQuestion.get(t.role === "user" ? t.id : t.repondA ?? "") ?? 0) > fil.resumeJusquA.getTime();
   const precedents = anterieurs
     .filter((t) => (t.role === "user" ? questions.has(t.id) && t.etat === ETAT.TRAITE : !!t.repondA && questions.has(t.repondA) && t.etat === ETAT.TERMINE))
     .filter((t) => (t.role === "user" ? texteDuTour(t) || (t.pieces as unknown[] | null)?.length : t.contenu.trim()))
+    .filter(apresResume)
     .slice(-TOURS_EN_CONTEXTE);
 
   // LE TEXTE QUI S'ÉCRIT : une écriture toutes les 350 ms au plus, jamais en parallèle.
@@ -291,6 +301,7 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
     },
     pieces: tour.pieces ?? [],
     historique: precedents.map(pourHistorique),
+    resume: fil.resume,
     delaiMs: DELAI_FOND_MS,
     maxEtapes: ETAPES_FOND,
     conversation: tour.filId,
@@ -337,6 +348,9 @@ async function jouerTourDuFil(userId: string, tour: AssistantIaTour): Promise<vo
       link: "/assistant",
     }).catch(sansBloquer("fil-service.jouerTourDuFil.notifyUser"));
   }
+
+  // LE RÉSUMÉ ROULANT (J4) : après la réponse, jamais avant — il ne retarde aucun premier mot.
+  if (r.ok) await compacterFil(tour.filId);
 }
 
 /**

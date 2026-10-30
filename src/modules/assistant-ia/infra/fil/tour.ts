@@ -4,6 +4,11 @@ import { accesAssistantIa, getRoleConfig, resoudreConsignesRole, Revelateur } fr
 import { consigneFamilles, type AccesIa } from "../../domaine/acces-regles";
 import { consigneGestesFermes, outilsV1, type MemoireProposee, type PropositionPreparee } from "../outils-v1";
 import { consigneTravaux, outilTravailPour } from "../travaux";
+import { selectionDuTour, type SelectionDuTour } from "../selection";
+import { CONSIGNE_SELECTION, OUTIL_TROUVER } from "../../domaine/selection-outils";
+import { historiqueDansEnveloppe } from "../../domaine/assembleur";
+import { sectionResume } from "../../domaine/fil/resume";
+import { roleDuTour } from "@/platform/ia/modeles-roles";
 import { CONSIGNE_ATELIER } from "../atelier/outils";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
@@ -66,6 +71,8 @@ export interface DemandeDuTour {
   surLecture?: (lectures: LecturePiece[]) => Promise<void> | void;
   /** RÉSERVÉ AUX BANCS : les gestes de lecture (Drive, OCR, vision, transcription) remplacés. */
   lecture?: DependancesLecture;
+  /** J4 : le résumé roulant des échanges plus anciens que `historique` (le fil le garde). */
+  resume?: string | null;
 }
 
 /** Les appels de modèle du tour — et ceux que ses outils déclenchent — sont imputés à la personne. */
@@ -109,7 +116,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   const dit = d.vocal && texteSaisi ? `[Message vocal, transcrit automatiquement — un nom propre peut y être écorché]\n${texteSaisi}` : texteSaisi;
   if (!dit && !pieces.length) return { ok: false, error: "Message vide.", message: dit };
 
-  const modeles = modelesEffectifs();
+  // J4 : le modèle du geste — effort de raisonnement bas pour une question, plus haut pour une analyse.
+  const modeles = modelesEffectifs(roleDuTour({ texte: texteSaisi, pieces: pieces.length }));
   if (modeles.length === 0) return { ok: false, error: IA_NON_CONFIGUREE, message: dit };
   if (pieces.length && (await interrupteurIaCoupe())) return { ok: false, error: REFUS_IA_COUPEE, message: dit };
 
@@ -127,39 +135,55 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
   let config;
   // LES ACCÈS RÉGLÉS PAR LA DIRECTION (décision 0012), relus à chaque tour : un réglage changé vaut dès maintenant.
   let acces: AccesIa;
-  try {
-    acces = await accesAssistantIa(user);
-    config = await getRoleConfig(user.role);
-    instructions = (await compileContext({ user, consignesRole: resoudreConsignesRole(config) })).systemPrompt;
-    if (d.consigne) instructions = `${instructions}\n\n${d.consigne}`;
-    instructions = `${instructions}\n\n${CONSIGNE_JETONS}`;
-    for (const c of [consigneFamilles(acces), consigneGestesFermes(user), consigneTravaux(texteSaisi), CONSIGNE_ATELIER]) if (c) instructions = `${instructions}\n\n${c}`;
-  } catch (e) {
-    // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
-    console.error("[assistant] contexte indisponible", e);
-    return { ok: false, error: "Service momentanément indisponible. Réessayez dans un instant.", message };
-  }
-
   const propositions: PropositionPreparee[] = [];
   const sorties: string[] = [];
   const memoires: MemoireProposee[] = [];
   // LE COFFRET DU TOUR (décision 0012) : les valeurs sensibles lues par les outils y restent ; le modèle n'en a que les repères.
   const coffret = new CoffretDuTour();
-  // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
-  const outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces), outilTravailPour(user)];
+  let outils;
+  let selection: SelectionDuTour;
+  try {
+    acces = await accesAssistantIa(user);
+    config = await getRoleConfig(user.role);
+    // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
+    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces), outilTravailPour(user)];
+    // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
+    const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
+    selection = selectionDuTour(outils, user, message, config, precedente);
+    outils.push(selection.outil);
+    // LE PRÉFIXE STABLE (J4) : identité, règles, présentation, consignes générales, puis la personne ; la partie
+    // variable du tour (indice de travail long, résumé de la conversation, heure) ferme la consigne.
+    const sauf = (xs: (string | null | undefined)[]) => xs.filter((c): c is string => !!c);
+    instructions = (await compileContext({
+      user, consignesRole: resoudreConsignesRole(config),
+      consignesGenerales: sauf([CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, d.consigne]),
+      consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user)]),
+      outilsActifs: selection.initiaux, question: texteSaisi,
+      sectionsDuTour: sauf([consigneTravaux(texteSaisi), sectionResume(d.resume)]),
+    })).systemPrompt;
+  } catch (e) {
+    // ÉCHEC FERMÉ (Q17) : sans contexte, l'agent ne sait pas qui lui parle — il ne répond pas.
+    console.error("[assistant] contexte indisponible", e);
+    return { ok: false, error: "Service momentanément indisponible. Réessayez dans un instant.", message };
+  }
   const libelles = new Map(outils.map((o) => [o.def.name, o.label]));
   try {
     const r = await repondreAvecSecours({
-      user, message, historique: saisie.historique, instructions,
+      // L'historique dans son ENVELOPPE (J4) : les échanges les plus récents, le reste est au résumé roulant.
+      user, message, historique: historiqueDansEnveloppe(saisie.historique), instructions,
       origine: d.conversation ? "fil" : "conversation", conversation: d.conversation ?? null,
       outils, modeles, delaiMs: d.delaiMs ?? DELAI_MODELE_MS, config,
+      actifs: selection.actifs, cleCache: `assistant-ia:${user.id}`,
       propositionsFaites: () => propositions.length,
       maxEtapes: d.maxEtapes,
       // En flux, un repère n'est pas encore jugé : il s'affiche « ••• » jusqu'à la réponse finale.
       surTexte: d.surTexte ? (brut) => d.surTexte!(masquerReperesPartiels(brut)) : undefined,
-      surOutil: d.surOutil ? (nom) => d.surOutil!(libelles.get(nom) ?? nom) : undefined,
+      // `trouver_outil` est de la cuisine du tour : la personne ne lit que ce qui a été CONSULTÉ.
+      surOutil: d.surOutil ? (nom) => { if (nom !== OUTIL_TROUVER) d.surOutil!(libelles.get(nom) ?? nom); } : undefined,
     });
     if (r.echecs.length) console.warn("[assistant] modèles abandonnés", r.echecs);
+    // J4 : ce que la présélection n'avait pas vu — le banc et l'exploitation y lisent où affiner les mots des outils.
+    if (selection.trouves().length) console.info("[assistant] outils trouvés en cours de tour", selection.trouves());
     // R5 : le modèle a choisi ses composants ; seuls ceux que les outils du tour prouvent restent.
     const ui = composantsEnBlocs(lireReponseModele(r.texte), { sorties, question: message, contexte: instructions });
     if (ui.retires.length) console.warn("[assistant] composants retirés", ui.retires);
@@ -174,7 +198,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
       blocs: await revelateur.objet(ui.blocs),
       memoireProposee: memoires[0] ?? null,
       // Ce que la personne lit : « Annuaire consulté », jamais « directory_lookup ».
-      outilsAppeles: [...new Set(r.outilsAppeles.map((n) => libelles.get(n) ?? n))],
+      outilsAppeles: [...new Set(r.outilsAppeles.filter((n) => n !== OUTIL_TROUVER).map((n) => libelles.get(n) ?? n))],
       intent: p ? {
         id: p.intentId, kind: p.proposition.kind, title: p.proposition.title, fields: p.proposition.fields,
         ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),

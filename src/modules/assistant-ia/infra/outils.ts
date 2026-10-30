@@ -2,6 +2,7 @@ import { createTool } from "@mastra/core/tools";
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { zodDepuisSchemaJson } from "../domaine/schema";
+import { OUTIL_TROUVER } from "../domaine/selection-outils";
 
 /**
  * L'ADAPTATEUR D'OUTIL — mince à dessein (Q7).
@@ -37,7 +38,8 @@ export function outilsPour(
 ) {
   let filtres = outils.filter((o) => o.allowed(user));
   if (config?.allowedTools && config.allowedTools.length > 0) {
-    const autorises = new Set(config.allowedTools);
+    // `trouver_outil` (J4) ne cherche que parmi les outils déjà restreints : il reste offert.
+    const autorises = new Set([...config.allowedTools, OUTIL_TROUVER]);
     filtres = filtres.filter((o) => autorises.has(o.def.name));
   }
   return Object.fromEntries(filtres.map((o) => [o.def.name, adapterOutil(o, user)]));

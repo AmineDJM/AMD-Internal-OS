@@ -12,7 +12,7 @@ compare avant / après, **enregistre une nouvelle version** (jamais d'écrasemen
 rattaché à un objet métier ; inscrite à la Bibliothèque) et **convertit** (Word/PowerPoint → PDF par LibreOffice du worker
 quand il bat, tableau → Excel, PDF → Word) — l'écran dit la voie. « Demander une modification » passe par l'Atelier ;
 `preparer_document` ne sert plus qu'à créer. Banc live : 0,09 $ pour un deck (titre + synthèse) et un contrat (essai à
-6 mois, styles gardés). Décision [0017](../assistant/decisions/0017-atelier.md) ; migration `20270209100000_atelier`.
+6 mois, styles gardés). Décision [0017](../assistant/decisions/0017-atelier.md) ; migration `20270209110000_atelier`.
 
 ### J0 : ADAM ET L'ASSISTANT IA SÉPARÉS — UN SOCLE COMMUN `src/platform/ia/`, ZÉRO IMPORT DU SOCLE VERS L'UN OU L'AUTRE (2026-10-29)
 
@@ -34,6 +34,19 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
   cliqueté jusqu'à J6 : le catalogue d'outils d'Adam qu'emprunte l'Assistant IA.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
   socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
+
+### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)
+
+Lot J4 — `docs/assistant/decisions/0018-vitesse-memoire.md` ; banc `docs/bench/assistant-jarvis-live.md` § J4.
+- **Outils à la demande** : le modèle ne reçoit plus les 65 définitions d'outils à chaque étape (~18 700 jetons), mais un
+  socle de 10, une présélection de 6 par la demande (plein texte français, 0 ms) et `trouver_outil` pour le reste — jamais
+  un outil hors des droits de la personne. Entrée par appel : **~22 900 → ~6 100 jetons**.
+- **Consigne stable** (l'heure en dernier, règles chargées selon les outils offerts) et **effort de raisonnement adaptatif**
+  (bas pour une question, moyen pour une analyse). Premier mot **P50 5,3 → 3,4–3,7 s, P95 15,4 → 7,1–8,2 s** ; coût par tour −24 %.
+- **Mémoire en 4 couches** : carnet de travail (J2), conversation = 4 échanges mot pour mot + **résumé roulant** (modèle
+  rapide, après la réponse, jamais une valeur sensible), mémoire personnelle triée par pertinence, **Bibliothèque branchée**
+  (`chercher_documents`, `ouvrir_documents`, `faits_confirmes` — sous les droits, jamais une pièce confidentielle).
+- Migration additive `20270209100000_assistant_ia_resume_roulant` (3 colonnes nullables sur `AssistantIaFil`).
 
 ### J2 : LES TRAVAUX LONGS — L'ASSISTANT IA TRAVAILLE DES HEURES OU DES SEMAINES, SUR LE MOTEUR DES MISSIONS (2026-10-30)
 

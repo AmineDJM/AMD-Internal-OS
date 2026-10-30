@@ -293,7 +293,9 @@ suite("une pièce n'est lue qu'une fois — par l'empreinte de ses octets", () =
 
   it("qui attendait une tentative en partage l'échec : deux dépôts simultanés d'un scan illisible, le moteur une seule fois", async () => {
     const o = octets("ocr-tombe-ensemble");
-    const ko = vi.fn<MoteurOcr>(async () => { await dormir(300); throw new Error("Tesseract : page illisible"); });
+    // La lecture dure assez pour que le second dépôt la trouve EN COURS même quand la suite complète charge la
+    // machine (à 300 ms, le second arrivait parfois après l'échec conclu et retentait, à bon droit).
+    const ko = vi.fn<MoteurOcr>(async () => { await dormir(2_000); throw new Error("Tesseract : page illisible"); });
     const [a, b] = await Promise.all([
       lireFichierUneFois({ octets: o, ext: "png", userId: UTILISATEUR }, { ocr: ko, intervalleMs: 25 }),
       lireFichierUneFois({ octets: o, ext: "png", userId: UTILISATEUR }, { ocr: ko, intervalleMs: 25 }),

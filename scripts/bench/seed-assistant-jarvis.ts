@@ -297,6 +297,18 @@ async function semer(): Promise<void> {
   // tomberait au milieu. Relevé ICI, dans la base du banc, comme l'écran Consommation le permet — et dit.
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, update: { plafondJetonsJour: 5_000_000 }, create: { id: "global", plafondJetonsJour: 5_000_000 } as never });
   flush();
+  // J4 : la BIBLIOTHÈQUE lit les fichiers du banc (inscription + lecture), comme le rattrapage et la file de fond le
+  // font en production — sans quoi `chercher_documents` n'aurait rien à retrouver.
+  const { rattraper, traiterFile } = await import("@/modules/bibliotheque/api");
+  await rattraper({ lot: 500 });
+  let lues = 0;
+  for (let i = 0; i < 20; i++) {
+    const b = await traiterFile({ max: 50 });
+    lues += b.faites;
+    if (b.prises === 0) break;
+  }
+  console.log(`Bibliothèque : ${lues} pièce(s) lue(s).`);
+
   console.log(`Semis Jarvis : ${Object.values(ids).reduce((s, x) => s + x.length, 0)} lignes · fixtures ${Object.keys(fixtures).join(", ")} · plafond jour relevé à 5 000 000 jetons (base de banc).`);
 }
 
