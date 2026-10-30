@@ -767,3 +767,13 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 - [U] That every "…SiDu" job is DB-gated (three checked).
 - [U] Per-route self-guarding of all `/api/*` and non-`(app)` pages given the inactive middleware.
 - [U] Exact provenance/intent of `docs/wip/*.patch`.
+
+
+## J5 + J14 (2026-10-30) — scheduled bench & quality tests [V]
+
+- Worker task `qualite.banc` (no-op outside the worker) spawns `tsx scripts/bench/banc-programme.ts` with `DATABASE_URL` =
+  the declared trial DB; `@/lib/prisma` (`estLaBaseEssaiDeclaree`) is the ONLY door for a bench to open a remote DB.
+  One-time setup: `BANC_ESSAI_DATABASE_URL=… npm run banc:essai:semer` (migrations applied on that DB first).
+- Bench scripts write a normalized `BANC_SORTIE` JSON; `BANC_SEULEMENT=jarvis,…` runs a reduced pass.
+- Tests (fake model only): `infra/qualite/{regles,banc,traces,pieges-regles}.test.ts`, `pieges.test.ts` (35 traps through
+  `jouerTour`). Task `assistant.traces` purges traces older than `ASSISTANT_IA_TRACES_JOURS` (30).

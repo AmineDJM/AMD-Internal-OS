@@ -147,6 +147,8 @@ export default async function AiControlCenterPage() {
             <Link href="/admin/ai/consommation" className="underline">Consommation IA de l'Assistant IA — plafonds par personne</Link>
             {" · "}
             <Link href="/admin/ai/acces" className="underline">Assistant IA — accès (salaires, contrats, budgets… par rôle et par personne)</Link>
+            {" · "}
+            <Link href="/admin/ai/qualite" className="underline">Qualité IA — banc programmé, modèles par rôle</Link>
           </p>
         </div>
       </div>

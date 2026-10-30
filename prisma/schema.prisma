@@ -9472,6 +9472,126 @@ model AssistantIaPlafondAtteint {
   @@unique([userId, jour])
 }
 
+/// J5 (décision 0022) — LE CALENDRIER DU BANC PROGRAMMÉ, réglé par le Super Admin (Administration › Qualité IA).
+/// Une ligne (`id = "global"`). Le banc tourne sur le WORKER, contre la base d'essai déclarée — jamais la production.
+model AssistantIaBancReglage {
+  id          String   @id @default("global")
+  actif       Boolean  @default(true)
+  /// QUOTIDIEN | HEBDOMADAIRE | MENSUEL
+  frequence   String   @default("HEBDOMADAIRE")
+  /// 0 = dimanche … 6 = samedi (heure d'Alger) — HEBDOMADAIRE ; le jour du mois (1 à 28) — MENSUEL.
+  jour        Int      @default(5)
+  /// L'heure de départ (0 à 23, heure d'Alger).
+  heure       Int      @default(3)
+  /// Plafond de dépense d'UN passage, en dollars : atteint, le banc s'arrête et le dit.
+  plafondUsd  Float    @default(1)
+  updatedAt   DateTime @default(now()) @updatedAt
+  updatedById String?
+}
+
+/// J5 — UN PASSAGE DU BANC : demandé (écran, A/B), en cours (worker), terminé, refusé (base d'essai absente ou douteuse), échoué.
+model AssistantIaBancPassage {
+  id                 String    @id @default(cuid())
+  /// PROGRAMME | MANUEL | AB
+  declencheur        String
+  /// DEMANDE | EN_COURS | TERMINE | ECHEC | REFUSE
+  statut             String    @default("DEMANDE")
+  raison             String?
+  demandeParId       String?
+  /// Les modèles par rôle EN SERVICE pendant le passage : `{ rapide, standard, raisonnement }` → `{ modelId, effort }`.
+  modeles            Json?
+  /// A/B : le candidat éprouvé `{ role, modelId, effort }` — le passage tourne avec lui à la place du modèle du rôle.
+  candidat           Json?
+  plafondUsd         Float     @default(1)
+  reussis            Int       @default(0)
+  total              Int       @default(0)
+  erreurs            Int       @default(0)
+  ecrituresSansCarte Int       @default(0)
+  latenceP50Ms       Int?
+  latenceP95Ms       Int?
+  premierMotP50Ms    Int?
+  premierMotP95Ms    Int?
+  jetonsEntree       Int       @default(0)
+  jetonsCache        Int       @default(0)
+  jetonsSortie       Int       @default(0)
+  coutUsd            Float     @default(0)
+  budgetAtteint      Boolean   @default(false)
+  /// Le passage de référence auquel il a été comparé, et ce qui a régressé (réussite, latence +30 %, coût +30 %).
+  referenceId        String?
+  regressions        Json?
+  /// Vert : rien n'a régressé, aucune écriture sans carte, aucun scénario en erreur — la condition d'un changement de modèle.
+  vert               Boolean?
+  notifieLe          DateTime?
+  demandeLe          DateTime  @default(now())
+  debutLe            DateTime?
+  finLe              DateTime?
+  scenarios          AssistantIaBancScenario[]
+
+  @@index([statut, demandeLe])
+  @@index([finLe])
+}
+
+/// J5 — LE RÉSULTAT D'UN SCÉNARIO dans un passage (Jarvis, Atelier, Bibliothèque, Travaux).
+model AssistantIaBancScenario {
+  id           String                 @id @default(cuid())
+  passageId    String
+  passage      AssistantIaBancPassage @relation(fields: [passageId], references: [id], onDelete: Cascade)
+  scenario     String
+  famille      String
+  /// OK | ÉCHEC | SANS OUTIL | ERREUR | NON JOUÉ
+  verdict      String
+  motifs       String[]               @default([])
+  ms           Int?
+  premierMotMs Int?
+  appels       Int                    @default(0)
+  jetonsEntree Int                    @default(0)
+  jetonsCache  Int                    @default(0)
+  jetonsSortie Int                    @default(0)
+  coutUsd      Float                  @default(0)
+
+  @@index([passageId])
+  @@index([scenario])
+}
+
+/// J14 (décision 0022) — LE MODÈLE D'UN RÔLE (rapide, standard, raisonnement) choisi À L'ÉCRAN, seulement sur un banc vert.
+/// Absente : le modèle de l'environnement (`ASSISTANT_IA_MODEL…`, `platform/ia/modeles-roles.ts`).
+model AssistantIaModeleRole {
+  role        String   @id
+  modelId     String
+  effort      String
+  /// Le passage VERT qui l'a autorisé (décision tracée : qui, quand, sur quelle mesure).
+  passageId   String
+  decideParId String
+  decideLe    DateTime @default(now())
+}
+
+/// J14 — LA TRACE REJOUABLE D'UN TOUR : ce que le modèle a reçu (consigne, messages, outils) et ce qu'il a rendu, appel par
+/// appel, avec les sorties d'outils — compressée (gzip). Rejouée à l'identique SANS rappeler le modèle
+/// (`npm run assistant:rejouer`). Aucune valeur sensible : tout y est déjà passé par le filtre et les repères.
+model AssistantIaTrace {
+  id        String   @id @default(cuid())
+  /// La réponse (tour « assistant ») — ou, hors du fil, une clé propre au tour.
+  tourId    String   @unique
+  messageId String?
+  userId    String
+  version   Int      @default(1)
+  appels    Int      @default(0)
+  octets    Int      @default(0)
+  donnees   Bytes
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+/// J5 — LE MARQUEUR D'UNE BASE D'ESSAI : posé par le semis du banc, dans la base d'essai SEULEMENT. Le banc refuse une base
+/// qui ne le porte pas ; le worker refuse de lancer le banc si la base de PRODUCTION le porte.
+model BancBaseEssai {
+  id         String   @id @default("base-essai")
+  nom        String
+  declareeLe DateTime @default(now())
+}
+
 /// Seuils de déclenchement du Risk Radar (Adventum Brain), ajustables par le
 /// Super Admin. Une seule ligne (`id = "global"`). Les détecteurs lisent ces
 /// valeurs ; en l'absence de ligne, des valeurs par défaut s'appliquent.

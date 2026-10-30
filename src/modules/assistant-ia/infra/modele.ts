@@ -10,6 +10,7 @@
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { cleOpenAI } from "@/lib/models/openai-acces";
 import { MODELE_STANDARD_DEFAUT, modelePourRole, type EffortRaisonnement, type RoleModele } from "@/platform/ia/modeles-roles";
+import { surchargesCourantes } from "./qualite/modeles";
 
 /** Le modèle par défaut ; `ASSISTANT_IA_MODEL` le change sans redéploiement de code. */
 export const MODELE_ASSISTANT_DEFAUT = MODELE_STANDARD_DEFAUT;
@@ -32,7 +33,8 @@ export interface ModeleConfig {
 export function modeleOpenAi(env: NodeJS.ProcessEnv = process.env, role: RoleModele = "standard"): ModeleConfig | null {
   const apiKey = cleOpenAI(env);
   if (!apiKey) return null;
-  const choix = modelePourRole(role, env);
+  // J14 : le choix fait à l'écran (sur banc vert) passe avant l'environnement — sauf pour un environnement explicite (le banc).
+  const choix = modelePourRole(role, env, env === process.env ? surchargesCourantes() : undefined);
   return { providerId: "openai", modelId: choix.modelId, apiKey, effort: choix.effort };
 }
 

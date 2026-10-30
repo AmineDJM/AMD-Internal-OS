@@ -35,6 +35,21 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
   socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
 
+### J5 + J14 : LA QUALITÉ CONTINUE DE L'ASSISTANT IA — BANC PROGRAMMÉ, TRACES REJOUABLES, CARTES QUI DISENT LEUR SOURCE, A/B DES MODÈLES (2026-10-30)
+
+Lots J5 et J14 — `docs/assistant/decisions/0022-qualite-continue.md`.
+
+- **Banc programmé** (Administration › Qualité IA, `/admin/ai/qualite`) : le banc « Jarvis » (26 scénarios) + Atelier, Travaux,
+  Bibliothèque, rejoué SUR LE WORKER selon le calendrier du Super Admin (défaut : chaque vendredi à 3 h, 1 $ par passage),
+  contre une base d'essai SÉPARÉE (`BANC_ESSAI_DATABASE_URL`, marqueur `BancBaseEssai`) — jamais la production : sans base
+  d'essai, il le dit et ne tourne pas. Historique (réussite, latence P50/P95, jetons, coût, par scénario) ; une régression
+  (réussite en baisse, latence ou coût +30 %) notifie le Super Admin.
+- **Traces rejouables** : chaque tour du fil se rejoue à l'identique sans rappeler le modèle (`npm run assistant:rejouer`).
+- **Cartes qui disent leur source** : une valeur reprise d'un document tiers (RIB, adresse, montant, destinataire…) est
+  signalée sur la carte (« ce RIB provient du document X, à vérifier ») ; consignes cachées (français, arabe) repérées.
+  240 contenus piégés : 0 carte trompeuse non signalée.
+- **A/B des modèles** : le modèle d'un rôle (rapide, standard, raisonnement) ne change à l'écran qu'avec un banc vert.
+
 ### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)
 
 Lot J4 — `docs/assistant/decisions/0018-vitesse-memoire.md` ; banc `docs/bench/assistant-jarvis-live.md` § J4.

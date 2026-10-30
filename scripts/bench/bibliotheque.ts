@@ -17,7 +17,7 @@
  *   npm run bench:bibliotheque -- --nettoyer      retire le corpus semé
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
-import { prisma } from "@/lib/prisma";
+import { prisma, estUneBaseDeBancOuDEssai } from "@/lib/prisma";
 import { getAccess, type SessionUser } from "@/lib/rbac";
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
@@ -188,7 +188,7 @@ async function nettoyer() {
 
 async function main() {
   const url = process.env.DATABASE_URL ?? "";
-  if (!/@(localhost|127\.0\.0\.1)[:/]/.test(url)) throw new Error("Banc LOCAL seulement : DATABASE_URL doit viser localhost.");
+  if (!/@(localhost|127\.0\.0\.1)[:/]/.test(url) && !estUneBaseDeBancOuDEssai(url)) throw new Error("Banc LOCAL seulement : DATABASE_URL doit viser localhost (ou la base d'essai déclarée du banc programmé).");
   if (args.has("--nettoyer")) { await nettoyer(); return; }
   const vivant = args.has("--vivant");
   const embed: Embedder = vivant ? embedderParDefaut : embedderDeterministe();
@@ -204,6 +204,7 @@ async function main() {
   console.log(`Latence : p50 ${m.p50.toFixed(0)} ms · p95 ${m.p95.toFixed(0)} ms (cible < 300 ms) ${m.p95 < 300 ? "✓" : "✗"} — premier passage de chaque requête : p95 ${m.p95Froid.toFixed(0)} ms, sens utilisé ${m.avecSens}/30`);
   console.log(`Rappel@10 : ${(m.rappel * 100).toFixed(0)} % ${m.manquees.length ? `(manquées : ${m.manquees.join(" ; ")})` : ""}`);
   console.log(`Hors droits : ${m.horsDroits} sur ${m.rendus} résultats rendus à « gamma » ${m.horsDroits === 0 ? "✓" : "✗"}`);
+  if (process.env.BANC_SORTIE) (await import("node:fs")).writeFileSync(process.env.BANC_SORTIE, JSON.stringify({ ...m, total }));
   if (m.horsDroits > 0 || m.p95 >= 300) process.exitCode = 1;
 }
 

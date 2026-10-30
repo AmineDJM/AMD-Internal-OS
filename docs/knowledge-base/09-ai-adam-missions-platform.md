@@ -37,6 +37,16 @@
 >   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
 >   Adam → IA = 0. Remaining IA → Adam = Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
 >   closure is 92 % of Adam; kept, named and ratcheted until J6 (capability registry derived from the action contract — decision 0013 §5).
+> - **J5 + J14 (2026-10-30) — continuous quality of the Assistant IA** (decision `docs/assistant/decisions/0022-qualite-continue.md`) [V]:
+>   scheduled bench on the WORKER (`qualite.banc` → child process `scripts/bench/banc-programme.ts`, trial DB only:
+>   `BANC_ESSAI_DATABASE_URL` + fingerprint ≠ prod + `BancBaseEssai` marker; refused and said otherwise), Super-Admin calendar
+>   (default weekly, 1 $ cap per run), history `AssistantIaBancPassage`/`Scenario`, regression (success down, P50/P95 or cost
+>   +30 %) → Super Admin notified; dashboard `/admin/ai/qualite`. Replayable traces of every fil turn (`AssistantIaTrace`, gzip,
+>   30 d; `modeleTrace` wraps the Mastra model; `npm run assistant:rejouer`). Third-party provenance on every card
+>   (`domaine/provenance-tierce.ts`: RIB/e-mail/phone/link/amount/name from a framed third-party content and not said by the
+>   person → "ce RIB provient du document X, à vérifier"; injection detection FR/AR/EN, hidden text) — 240-item trap corpus,
+>   0 unflagged misleading card. Model per role changed on screen (`AssistantIaModeleRole`) ONLY with a green A/B bench for that
+>   exact candidate (< 14 d); revert to env always allowed. New env: `ASSISTANT_IA_MODEL_RAISONNEMENT`, `ASSISTANT_IA_TRACES(_JOURS)`.
 > - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
 >   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
 >   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay
