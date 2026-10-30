@@ -27,7 +27,8 @@ export type {
 } from "@/lib/artifact/render/view";
 
 export type { ArtifactFormat, TextStyle } from "@/lib/artifact/object-model/model";
-export type { CommandeArtefact } from "@/lib/artifact/commands/ir";
+// `commande` (le constructeur, une valeur PURE) voyage avec son type : l'Atelier traduit ses gestes côté navigateur aussi.
+export { commande, type Cible, type CommandeArtefact } from "@/lib/artifact/commands/ir";
 
 /**
  * LE SCHÉMA DE COMMANDE est une VALEUR, pas un type : c'est ce que le modèle doit remplir. Le

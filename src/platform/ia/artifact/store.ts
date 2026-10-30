@@ -97,6 +97,8 @@ export const magasinSessions: MagasinSessions = {
       operationId: o.operationId, seq: o.seq, beforeVersion: o.beforeVersion, afterVersion: o.afterVersion,
       command: o.command as unknown as CommandeArtefact, summary: o.summary,
       actorId: o.actorId, actorLabel: o.actorLabel, undone: o.undone, createdAt: o.createdAt,
+      touches: Array.isArray(o.touches) ? (o.touches as string[]) : null,
+      revue: o.revue === "ACCEPTEE" || o.revue === "REFUSEE" ? o.revue : null,
     }));
   },
 
@@ -109,6 +111,7 @@ export const magasinSessions: MagasinSessions = {
           command: op.command as unknown as Prisma.InputJsonValue,
           summary: op.summary.slice(0, 900),
           actorId: op.actorId, actorLabel: op.actorLabel, undone: op.undone,
+          ...(op.touches?.length ? { touches: op.touches as unknown as Prisma.InputJsonValue } : {}),
         },
       });
       return true;
@@ -124,9 +127,40 @@ export const magasinSessions: MagasinSessions = {
     await prisma.artifactOperation.updateMany({ where: { sessionId, seq }, data: { undone: annulee } });
   },
 
+  async marquerRevue(sessionId, seq, revue) {
+    await prisma.artifactOperation.updateMany({ where: { sessionId, seq }, data: { revue } });
+  },
+
   async fermer(sessionId) {
     await prisma.artifactSession.update({
       where: { id: sessionId }, data: { state: "CLOSED", closedAt: new Date() },
     });
   },
 };
+
+/**
+ * LES ONGLETS DE L'ATELIER (J3) — les sessions vivantes de la personne dont le `blockId` porte le préfixe de
+ * l'Atelier. Le magasin les connaît : c'est lui qui sait ce qu'est une session « vivante ».
+ */
+export async function ongletsDe(userId: string, prefixe: string) {
+  return prisma.artifactSession.findMany({
+    where: { userId, blockId: { startsWith: prefixe }, state: { in: [...VIVANTS] } },
+    orderBy: { openedAt: "asc" },
+    take: 12,
+    select: { id: true, nodeId: true, name: true, format: true, revision: true, dirty: true, baseVersion: true, savedVersion: true, state: true },
+  });
+}
+
+/** Une session ouverte ailleurs (le workspace d'Adam) rejoint les onglets : même document, même journal (§36). */
+export async function rattacherAuxOnglets(sessionId: string, blockId: string): Promise<void> {
+  await prisma.artifactSession.update({ where: { id: sessionId }, data: { blockId } });
+}
+
+/** L'onglet désigné par son identifiant de session OU de fichier — ce que l'assistant cite. */
+export async function ongletDesigne(userId: string, prefixe: string, ref: string) {
+  return prisma.artifactSession.findFirst({
+    where: { userId, blockId: { startsWith: prefixe }, state: { not: "CLOSED" }, OR: [{ id: ref }, { nodeId: ref }] },
+    orderBy: { updatedAt: "desc" },
+    select: { id: true, nodeId: true, name: true, dirty: true, baseVersion: true, savedVersion: true, _count: { select: { operations: { where: { undone: false } } } } },
+  });
+}

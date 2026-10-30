@@ -9,6 +9,7 @@ import { CONSIGNE_SELECTION, OUTIL_TROUVER } from "../../domaine/selection-outil
 import { historiqueDansEnveloppe } from "../../domaine/assembleur";
 import { sectionResume } from "../../domaine/fil/resume";
 import { roleDuTour } from "@/platform/ia/modeles-roles";
+import { CONSIGNE_ATELIER } from "../atelier/outils";
 import { DELAI_MODELE_MS, IA_NON_CONFIGUREE } from "../modele";
 import { modelesEffectifs } from "../generer";
 import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repondreAvecSecours } from "../repondre";
@@ -155,7 +156,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     const sauf = (xs: (string | null | undefined)[]) => xs.filter((c): c is string => !!c);
     instructions = (await compileContext({
       user, consignesRole: resoudreConsignesRole(config),
-      consignesGenerales: sauf([CONSIGNE_JETONS, CONSIGNE_SELECTION, d.consigne]),
+      consignesGenerales: sauf([CONSIGNE_JETONS, CONSIGNE_SELECTION, CONSIGNE_ATELIER, d.consigne]),
       consignesPersonne: sauf([consigneFamilles(acces), consigneGestesFermes(user)]),
       outilsActifs: selection.initiaux, question: texteSaisi,
       sectionsDuTour: sauf([consigneTravaux(texteSaisi), sectionResume(d.resume)]),

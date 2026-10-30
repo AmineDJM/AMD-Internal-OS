@@ -77,7 +77,16 @@ export interface OperationPersistee {
   actorLabel: string;
   undone: boolean;
   createdAt: Date;
+  /** Les zones que l'opération a touchées (Atelier, J3) — l'écran les surligne. Absent = non noté. */
+  touches?: string[] | null;
+  /**
+   * LA REVUE de la personne (Atelier, J3), comme le suivi des modifications : « ACCEPTEE », ou « REFUSEE » —
+   * une opération refusée est ANNULÉE (`undone`) et le reste, la revue dit pourquoi. Absent = pas encore revue.
+   */
+  revue?: RevueOperation | null;
 }
+
+export type RevueOperation = "ACCEPTEE" | "REFUSEE";
 
 /**
  * LE MAGASIN. Le moteur ne connaît pas Prisma : c'est ce qui rend ses tests exécutables sans
@@ -95,6 +104,8 @@ export interface MagasinSessions {
   /** Écrit une opération. Rend `false` si `operationId` existait déjà (idempotence, §18). */
   ajouterOperation(sessionId: string, op: OperationPersistee): Promise<boolean>;
   marquerAnnulee(sessionId: string, seq: number, annulee: boolean): Promise<void>;
+  /** La revue d'une opération (Atelier). Facultatif : un magasin qui ne la porte pas refuse la revue. */
+  marquerRevue?(sessionId: string, seq: number, revue: RevueOperation | null): Promise<void>;
   fermer(sessionId: string): Promise<void>;
 }
 
@@ -436,7 +447,7 @@ export async function editer(
       seq, beforeVersion: avant, afterVersion: revision,
       command: cmd, summary: effet.resume,
       actorId: ctx.acteur.id, actorLabel: ctx.acteur.libelle,
-      undone: false, createdAt: new Date(),
+      undone: false, createdAt: new Date(), touches: effet.touches.length ? effet.touches : null,
     });
     if (!ecrite) {
       // Une requête CONCURRENTE a gagné la course entre notre vérification et l'écriture. Le
@@ -490,6 +501,59 @@ export async function annuler(ctx: ContexteMoteur, sessionId: string): Promise<R
 
 export async function retablir(ctx: ContexteMoteur, sessionId: string): Promise<ResultatEdition> {
   return bougerHistorique(ctx, sessionId, "retablir");
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ * LA REVUE D'UNE OPÉRATION (Atelier, J3) — accepter, refuser, remettre à revoir, comme le suivi des
+ * modifications de Word.
+ *
+ * Refuser une opération qui n'est PAS la dernière ne demande, ici non plus, aucune commande inverse :
+ * on la marque annulée et on REJOUE (§104.3). Les opérations suivantes se rejouent sur l'état sans elle ;
+ * une qui n'a plus de cible (elle visait le paragraphe que la refusée avait inséré) est sautée par le
+ * rejeu — la vue, reconstruite, montre ce qui est VRAIMENT là.
+ *
+ * Accepter ne change pas le document : c'est un jugement, porté au journal. « À revoir » efface le
+ * jugement et rétablit l'opération si elle avait été refusée.
+ * ═══════════════════════════════════════════════════════════════════════════════════════════
+ */
+export async function revoir(
+  ctx: ContexteMoteur,
+  sessionId: string,
+  seq: number,
+  decision: "ACCEPTER" | "REFUSER" | "A_REVOIR",
+): Promise<ResultatEdition> {
+  const chrono = mesurer();
+  const session = await ctx.magasin.lire(sessionId, ctx.acteur.id);
+  if (!session) return { ok: false, effets: [], motif: "Aucun document ouvert sous cette référence.", vue: null, chrono: chrono.fin("review") };
+  if (!ctx.magasin.marquerRevue) return { ok: false, effets: [], motif: "La revue n'est pas disponible ici.", vue: null, chrono: chrono.fin("review") };
+  const op = (await ctx.magasin.operations(session.id)).find((o) => o.seq === seq);
+  if (!op) return { ok: false, effets: [], motif: "Cette modification n'existe pas dans l'historique.", vue: null, chrono: chrono.fin("review") };
+
+  const annulee = decision === "REFUSER";
+  const revue: RevueOperation | null = decision === "ACCEPTER" ? "ACCEPTEE" : decision === "REFUSER" ? "REFUSEE" : null;
+  await ctx.magasin.marquerRevue(session.id, seq, revue);
+  let revision = session.revision;
+  if (op.undone !== annulee) {
+    await ctx.magasin.marquerAnnulee(session.id, seq, annulee);
+    revision += 1;
+    oublierSession(session.id);
+    await ctx.magasin.majSession(session.id, { revision, dirty: true, state: "DIRTY" });
+  }
+  const maj = { ...session, revision, ...(op.undone !== annulee ? { dirty: true, state: "DIRTY" } : {}) };
+  const etat = await etatCourant(ctx, maj);
+  const resume = decision === "ACCEPTER" ? `Accepté : ${op.summary}` : decision === "REFUSER" ? `Refusé : ${op.summary}` : `À revoir : ${op.summary}`;
+  await ctx.ports.audit.tracer({
+    userId: ctx.acteur.id, action: decision === "REFUSER" ? "ARTIFACT_REJECT" : decision === "ACCEPTER" ? "ARTIFACT_ACCEPT" : "ARTIFACT_REVIEW_RESET",
+    cible: session.nodeId, detail: op.summary.slice(0, 300),
+  });
+  return {
+    ok: true,
+    effets: [{ ok: true, resume, motif: null, touches: annulee ? [] : (op.touches ?? []), candidats: [] }],
+    motif: null,
+    vue: await construireVue(ctx, maj, etat, annulee ? [] : (op.touches ?? [])),
+    chrono: chrono.fin("review"),
+  };
 }
 
 async function bougerHistorique(ctx: ContexteMoteur, sessionId: string, sens: "annuler" | "retablir"): Promise<ResultatEdition> {
@@ -713,6 +777,21 @@ export async function comparerDepuis(
 }
 
 /**
+ * LA VUE D'UNE VERSION DU DRIVE (Atelier, J3) — « avant », pour la comparaison côte à côte. Lue à travers le
+ * port, donc sous les droits de la personne ; `version` absente = celle sur laquelle la session s'est ouverte.
+ */
+export async function vueDeVersion(
+  ctx: ContexteMoteur, sessionId: string, version?: number,
+): Promise<{ version: number; contenu: VueArtefact["contenu"] } | null> {
+  const session = await ctx.magasin.lire(sessionId, ctx.acteur.id);
+  if (!session) return null;
+  const v = version ?? session.baseVersion;
+  const octets = await ctx.ports.documents.lire(ctx.acteur.id, session.nodeId, v);
+  if (!octets) return null;
+  return { version: v, contenu: vueDuModele((await adaptateurPour(session.format).ouvrir(octets)).modele()) };
+}
+
+/**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * « QUE DIT LE TAMPON SUR LA PAGE 4 ? » — LIRE une image que le document PORTE.
  *
@@ -870,6 +949,7 @@ async function construireVue(
     historique: ops.map((o) => ({
       operationId: o.operationId, seq: o.seq, resume: o.summary,
       annulee: o.undone, quand: o.createdAt.toISOString(),
+      revue: o.revue ?? null, touches: o.touches ?? [], acteur: o.actorLabel,
     })),
     contenu: vueDuModele(modele),
     alertes: controlerVisuel(modele, etat.proportions),

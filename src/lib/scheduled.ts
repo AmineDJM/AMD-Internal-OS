@@ -336,6 +336,13 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
   } },
 
+  // L'ATELIER (J3, décision 0017) : les conversions confiées au worker (LibreOffice de son image). Ailleurs, rien.
+  { cle: "atelier.conversions", bailMs: 300_000, executer: async () => {
+    if (executeurDuProcessus() !== "worker") return ignoree("les conversions LibreOffice tournent sur le worker");
+    const { traiterConversionsEnFile } = await import("@/platform/ia/artifact/atelier/conversions");
+    await traiterConversionsEnFile({ executeur: executeurDuProcessus() });
+  } },
+
   // LE VIEILLISSEMENT DE LA MÉMOIRE — le seul des deux mouvements de la mémoire épisodique
   // qui n'ait pas de conversation pour le déclencher.
   //

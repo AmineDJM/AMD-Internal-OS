@@ -15606,6 +15606,31 @@ model ArtifactSession {
 ///
 /// `operationId` est fourni par l'appelant et rend l'application IDEMPOTENTE : un double clic,
 /// un retry réseau ou un rejeu de file ne centre pas le titre deux fois.
+/// J3 (décision 0017) : une CONVERSION demandée dans l'Atelier — Word/PowerPoint → PDF, tableau → Excel,
+/// PDF → Word. `voie` dit qui l'exécute (WORKER = LibreOffice du worker, EDITEUR = OnlyOffice, LOCAL = LibreOffice
+/// de ce processus, RENDU = le rendu PDF du dépôt, MAISON = composition du dépôt) ; l'écran la montre.
+model AtelierConversion {
+  id          String   @id @default(cuid())
+  userId      String
+  nodeId      String
+  version     Int
+  sessionId   String?
+  /// PDF | XLSX | DOCX
+  vers        String
+  voie        String
+  /// EN_FILE | EN_COURS | FAITE | ECHEC
+  etat        String   @default("EN_FILE")
+  resultatId  String?
+  resultatNom String?
+  note        String?
+  erreur      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([etat, voie])
+}
+
 model ArtifactOperation {
   id        String          @id @default(cuid())
   sessionId String
@@ -15625,6 +15650,10 @@ model ArtifactOperation {
   actorLabel String
   /// Une opération annulée reste EN BASE : c'est ce qui permet de la rétablir (§18).
   undone     Boolean  @default(false)
+  /// J3 (Atelier) : les zones que l'opération a touchées — l'écran les surligne pendant que l'assistant travaille.
+  touches    Json?
+  /// J3 (Atelier) : la revue de la personne — « ACCEPTEE » ou « REFUSEE » (refusée = annulée, et dit pourquoi).
+  revue      String?
   createdAt  DateTime @default(now())
 
   @@unique([sessionId, operationId])

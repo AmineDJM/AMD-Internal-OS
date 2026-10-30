@@ -115,6 +115,11 @@ const MOTS_CLES: Record<string, string> = {
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",
+  // J3 — l'Atelier : les mots d'une personne qui veut voir ou retoucher SON document (joint, renvoyé, trouvé).
+  ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",
+  modifier_document: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese en place document",
+  convertir_document: "convertis convertir conversion pdf word excel exporte transforme en",
+  enregistrer_document: "enregistre sauvegarde nouvelle version garde valide document atelier",
 };
 
 const MOTS_VIDES = new Set((

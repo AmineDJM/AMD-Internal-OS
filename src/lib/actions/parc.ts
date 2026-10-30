@@ -56,6 +56,7 @@ export const ACTIONS_DES_MODULES: Readonly<Record<string, string | readonly stri
   "actualisation-soldes-actions": "src/modules/finances/actions-soldes.ts",
   "assistant-ia-actions": "src/modules/assistant-ia/actions.ts",
   "assistant-ia-consommation-actions": "src/modules/assistant-ia/actions-consommation.ts",
+  "assistant-ia-atelier-actions": "src/modules/assistant-ia/actions-atelier.ts",
   "bibliotheque-actions": "src/modules/bibliotheque/actions.ts",
   "coffre-actions": "src/modules/coffre/actions.ts",
   "congress-beneficiary-actions": "src/modules/ad-pro/actions-congres-beneficiaires.ts",

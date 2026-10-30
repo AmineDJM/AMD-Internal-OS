@@ -33,7 +33,7 @@ export const AIDE_FAMILLE: Record<FamilleIa, string> = {
   BUDGETS: "Enveloppes, consommé, restant, agrégats financiers.",
   CONTRATS_RH: "Contrats, avenants, attestations et autres pièces du dossier RH d'autrui : lien de téléchargement et lecture.",
   FICHES: "Fiche RH d'un collaborateur (poste, contrat, congés) et situation RH.",
-  DRIVE: "Recherche dans le Drive et dans tout l'ERP, gestes Drive.",
+  DRIVE: "Recherche dans le Drive et dans tout l'ERP, gestes Drive ; l'Atelier : ouvrir, modifier en place et convertir un fichier du Drive ou une pièce jointe (même un contrat ou une lettre) — les droits du fichier décident.",
   REGLEMENTAIRE: "Portefeuille, charge, dossiers réglementaires — et leur création ou modification (avec les écritures).",
   AD_PRO: "Circuits et demandes Ad & Pro, bons de commande.",
   ECRITURES: "Préparer des cartes à confirmer (dossier, tâche, demande RH…). Sans elle, l'assistant ne fait que lire.",
@@ -116,8 +116,9 @@ export function consigneFamilles(a: AccesIa): string | null {
     "ACCÈS RÉGLÉS PAR LA DIRECTION pour cette personne (une famille = un périmètre ; elles sont indépendantes).",
     `FERMÉES :\n${fermees.map(ligne).join("\n")}`,
     ...(a.ouvertes.length ? [`OUVERTES :\n${a.ouvertes.map(ligne).join("\n")}`] : []),
-    "Une demande qui relève d'une famille OUVERTE : appelle l'outil (un salaire relève de « Salaires & paie », un contrat ou un document RH de "
-      + "« Contrats & documents RH », même si « Fiches collaborateurs » est fermée). Une demande d'une famille FERMÉE : dis-le directement, "
+    "Une demande qui relève d'une famille OUVERTE : appelle l'outil (un salaire relève de « Salaires & paie », une pièce du DOSSIER RH d'autrui de "
+      + "« Contrats & documents RH », même si « Fiches collaborateurs » est fermée ; un fichier joint ou du Drive à ouvrir ou modifier — même un contrat — "
+      + "de « Drive & documents », les droits du fichier décident). Une demande d'une famille FERMÉE : dis-le directement, "
       + "en nommant la famille, et que la Direction l'ouvre dans Administration › Contrôle de l'IA › Assistant IA — accès.",
   ].join("\n");
 }

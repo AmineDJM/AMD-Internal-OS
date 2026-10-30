@@ -139,9 +139,11 @@ describe("les pièces de la conversation", () => {
   it("une modification est proposée sur Word et PowerPoint, jamais d'écrasement", () => {
     expect(modifiable("Congrès/lettre.docx")).toBe("word");
     expect(modifiable("deck.pptx")).toBe("presentation");
-    expect(modifiable("scan.pdf")).toBeNull();
-    expect(texteDemandeModification("Congrès/lettre.docx")).toBe("Modifie ce document « lettre.docx » — produis une nouvelle version dans mon Drive, sans écraser l'original : ");
-    expect(texteDemandeModification("deck.pptx")).toMatch(/si tu n'as pas d'outil pour les présentations, dis-le/);
+    // J3 : l'Atelier modifie en place Word, PowerPoint, Excel et PDF ; un ancien format ne s'ouvre pas en place.
+    expect(modifiable("budget.xlsx")).toBe("tableur");
+    expect(modifiable("scan.pdf")).toBe("pdf");
+    expect(modifiable("vieux.doc")).toBeNull();
+    expect(texteDemandeModification("Congrès/lettre.docx")).toBe("Modifie « lettre.docx » directement dans l'Atelier (sur le fichier d'origine, en gardant sa mise en page) : ");
   });
 
   it("icônes et tailles", () => {

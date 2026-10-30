@@ -6,6 +6,10 @@ const config: Config = {
     "./src/pages/**/*.{ts,tsx}",
     "./src/components/**/*.{ts,tsx}",
     "./src/app/**/*.{ts,tsx}",
+    // Les modules (J0) et le socle IA portent aussi des écrans : sans eux, une classe qu'ils sont seuls à employer
+    // n'est pas générée (mesuré au lot J3 : `lg:basis-[var(--conversation)]` absente, l'Atelier recevait une largeur nulle).
+    "./src/modules/**/*.{ts,tsx}",
+    "./src/platform/**/*.{ts,tsx}",
   ],
   theme: {
     container: {

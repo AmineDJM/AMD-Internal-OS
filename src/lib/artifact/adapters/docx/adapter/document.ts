@@ -5,7 +5,7 @@
 import PizZip from "pizzip";
 import { type Alignment, type DocxModel, cmEnEmu, cmEnTwip } from "@/lib/artifact/object-model/model";
 import { abreger, normaliserTexte } from "@/lib/artifact/object-model/text";
-import { cibleVide, type CommandeArtefact } from "@/lib/artifact/commands/ir";
+import { COMMANDE_VIDE, cibleVide, type CommandeArtefact } from "@/lib/artifact/commands/ir";
 import { resoudre } from "@/lib/artifact/commands/resolve";
 import { type AdaptateurArtefact, type DesignationImage, type DocumentOuvert, type EffetCommande, type ExtractionImage, type RessourceBinaire, type Validation, effetEchec, effetOk, extractionEchec } from "@/lib/artifact/adapters/contract";
 import { lireImage, tailleInsertion } from "@/lib/artifact/object-model/image";
@@ -69,6 +69,7 @@ class DocxOuvert implements DocumentOuvert {
       case "docx.retrait": return this.retrait(c);
       case "docx.texte": return this.texte(c);
       case "docx.inserer_paragraphe": return this.insererParagraphe(c);
+      case "docx.inserer_tableau": return this.insererTableau(c);
       case "docx.supprimer_paragraphe": return this.supprimerParagraphe(c);
       case "docx.deplacer": return this.deplacer(c);
       case "docx.remplacer_texte": return this.remplacerTexte(c);
@@ -211,6 +212,54 @@ class DocxOuvert implements DocumentOuvert {
     return effetOk(`Paragraphe inséré ${c.position === "avant" ? "avant" : "après"} ${libelleParagraphe(t.p.modele)}.`, [t.p.id]);
   }
 
+  /**
+   * INSÉRER UN TABLEAU — bordé, l'en-tête en gras, les cellules héritant de la police du paragraphe voisin.
+   * Le tableau se pose dans le CORPS (jamais dans une cellule) et toujours AVANT `w:sectPr`, qui doit rester
+   * le dernier enfant du corps. Word exige un paragraphe dans chaque cellule : il y est, même vide.
+   */
+  private insererTableau(c: CommandeArtefact): EffetCommande {
+    const lignes = (c.texte ?? "").split("\n").filter((l) => l.trim()).map((l) => l.split("|").map((x) => x.trim()));
+    const nCol = Math.max(...lignes.map((l) => l.length));
+    const largeur = Math.floor(9000 / nCol);
+    const voisin = cibleVide(c.cible) ? this.etat.paragraphes[this.etat.paragraphes.length - 1] ?? null : null;
+    const t = cibleVide(c.cible) ? null : this.ciblerParagraphe(c);
+    if (t && !t.ok) return t.echec;
+    const ref = t?.p ?? voisin;
+    const modeleRun = ref ? child(ref.noeud, "w:r") : null;
+    const bord = (nom: string) => element(nom, { "w:val": "single", "w:sz": "4", "w:space": "0", "w:color": "808080" });
+    const tblPr = element("w:tblPr", {}, [
+      element("w:tblW", { "w:w": "0", "w:type": "auto" }),
+      element("w:tblBorders", {}, ["w:top", "w:left", "w:bottom", "w:right", "w:insideH", "w:insideV"].map(bord)),
+      element("w:tblLook", { "w:val": "04A0", "w:firstRow": "1", "w:lastRow": "0", "w:firstColumn": "0", "w:lastColumn": "0", "w:noHBand": "0", "w:noVBand": "1" }),
+    ]);
+    const grille = element("w:tblGrid", {}, Array.from({ length: nCol }, () => element("w:gridCol", { "w:w": String(largeur) })));
+    const rangs = lignes.map((cellules, i) => element("w:tr", {}, Array.from({ length: nCol }, (_, j) => {
+      const texte = cellules[j] ?? "";
+      const p = element("w:p");
+      if (texte) {
+        const run = nouveauRun(texte, modeleRun);
+        if (i === 0) appliquerStyleProps(rPr(run), { ...COMMANDE_VIDE, op: c.op, gras: true });
+        run.parent = p;
+        p.children.push(run);
+        p.selfClosing = false;
+      }
+      return element("w:tc", {}, [element("w:tcPr", {}, [element("w:tcW", { "w:w": String(largeur), "w:type": "dxa" })]), p]);
+    })));
+    const tbl = element("w:tbl", {}, [tblPr, grille, ...rangs]);
+    const body = this.etat.body;
+    if (ref && ref.noeud.parent === body) {
+      if (c.position === "avant") insertBefore(body, ref.noeud, tbl);
+      else insertAfter(body, ref.noeud, tbl);
+    } else {
+      const sectPr = child(body, "w:sectPr");
+      if (sectPr) insertBefore(body, sectPr, tbl);
+      else insertAfter(body, body.children[body.children.length - 1] ?? null, tbl);
+    }
+    markDirty(body);
+    const ou = t ? `${c.position === "avant" ? "avant" : "après"} ${libelleParagraphe(t.p.modele)}` : "à la fin du document";
+    return effetOk(`Tableau de ${lignes.length} ligne${lignes.length > 1 ? "s" : ""} × ${nCol} colonne${nCol > 1 ? "s" : ""} inséré ${ou}.`, [`t${this.etat.tables.length + 1}`]);
+  }
+
   private supprimerParagraphe(c: CommandeArtefact): EffetCommande {
     const t = this.ciblerParagraphe(c);
     if (!t.ok) return t.echec;
@@ -240,6 +289,7 @@ class DocxOuvert implements DocumentOuvert {
   private remplacerTexte(c: CommandeArtefact): EffetCommande {
     const cible = normaliserTexte(c.chercher ?? "");
     let n = 0;
+    const touches: string[] = [];
     for (const { noeud, modele } of this.etat.paragraphes) {
       if (!normaliserTexte(modele.text).includes(cible)) continue;
       // On réécrit au niveau du PARAGRAPHE parce qu'un mot cherché est presque toujours coupé
@@ -247,10 +297,12 @@ class DocxOuvert implements DocumentOuvert {
       // par fragment raterait « rémunération » écrit en trois morceaux.
       remplacerTexteParagraphe(noeud, modele.text.replace(new RegExp(echapperRegex(c.chercher ?? ""), "gi"), c.remplacer ?? ""));
       n += 1;
+      touches.push(modele.id);
       if (c.tout !== true) break;
     }
     if (n === 0) return effetEchec(`« ${c.chercher} » ne figure pas dans ce document`);
-    return effetOk(`${n} paragraphe${n > 1 ? "s" : ""} modifié${n > 1 ? "s" : ""}.`, []);
+    // Le résumé dit CE QUI a changé : c'est la ligne que la personne accepte ou refuse dans l'Atelier.
+    return effetOk(`« ${abreger(c.chercher ?? "", 40)} » → « ${abreger(c.remplacer ?? "", 40)} » (${n} paragraphe${n > 1 ? "s" : ""}).`, touches);
   }
 
   private ciblerTable(c: CommandeArtefact) {

@@ -458,6 +458,7 @@
 .artifact-coin { min-width: 38px; background: #e8edf2; position: sticky; left: 0; z-index: 3; }
 .artifact-grille td { cursor: cell; }
 .artifact-cellule-active { outline: 2px solid var(--art-accent); outline-offset: -2px; }
+.artifact-cellule-surlignee { background: rgba(27, 127, 121, 0.13); outline: 1px solid rgba(27, 127, 121, 0.45); outline-offset: -1px; }
 .artifact-ligne-figee td { background: #fbfcfd; }
 
 /* ─────────────── Barre de commande ─────────────── */

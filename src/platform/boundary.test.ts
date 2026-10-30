@@ -162,8 +162,13 @@ const DEBT_CEILING = 393;
  * 180 → 179 (2026-10-30, lot J4, décision 0018) : les outils de connaissance (`lectures/connaissance.ts`) n'importent
  * que la porte de la Bibliothèque (la lecture des faits confirmés y vit) ; le type de la personne se lit sur
  * `outil.ts` (`UtilisateurOutil`), ce qui retire aussi deux imports de `@/lib/session` (`regulatory-read`, `action-intents`).
+ *
+ * 179 → 177 (2026-10-30, lot J3 « l'Atelier », décision 0017) : l'Atelier entre au socle SANS import neuf vers l'ERP
+ * hors un seul (`lib/office/conversions-atelier`, les moteurs de conversion) — ses accès au Drive et à la base passent par
+ * le port, le magasin et `office.ts`, qui les avaient déjà ; trois imports en double (`office.ts` → `nl` et `engine`,
+ * `teach/store.ts` → `model`) ont été fusionnés au passage. On baisse.
  */
-const SOCLE_IA_CEILING = 179;
+const SOCLE_IA_CEILING = 177;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();

@@ -145,6 +145,10 @@ export function magasinMemoire(): MagasinSessions {
       const cible = (ops.get(sessionId) ?? []).find((o) => o.seq === seq);
       if (cible) cible.undone = annulee;
     },
+    async marquerRevue(sessionId, seq, revue) {
+      const cible = (ops.get(sessionId) ?? []).find((o) => o.seq === seq);
+      if (cible) cible.revue = revue;
+    },
     async fermer(sessionId) {
       const s = sessions.get(sessionId);
       if (s) s.state = "CLOSED";

@@ -13,6 +13,7 @@ import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "../domaine/memoire-ui";
 import { OPERATIONS_IA, outilsOperations, REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { lecturesDocuments } from "./operations/documents-lus";
+import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
 import { rechercheWeb } from "./recherche-web";
@@ -88,6 +89,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   preparer_materiel_promo: ["AD_PRO", "ECRITURES"], preparer_demande_autre: ["AD_PRO", "ECRITURES"], preparer_poste: ["AD_PRO", "ECRITURES"],
   preparer_bon_de_commande: ["AD_PRO", "ECRITURES"], preparer_bc_depuis_devis: ["AD_PRO", "ECRITURES"], preparer_voyageur_passeport: ["AD_PRO", "ECRITURES"],
   hr_operation: ["FICHES", "ECRITURES"],
+  // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
+  ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
 };
 const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire"]);
 
@@ -115,7 +118,8 @@ const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTo
 });
 
 /** TOUT ce qui prépare une écriture du moteur — une routine (lecture seule) n'en reçoit aucun (`routines/passage.ts`). */
-export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...ECRITURES, ...DOMAINES]);
+// L'Atelier (J3) n'a rien à faire dans une routine ou un travail : il ouvre des onglets sous les yeux de la personne.
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...ECRITURES, ...DOMAINES, ...OUTILS_ATELIER]);
 /** Ce que l'utilisateur lit sous la réponse (« sources consultées ») — jamais un nom d'outil. */
 const LIBELLES: Record<string, string> = {
   list_my_tasks: "Tâches consultées",
@@ -366,7 +370,7 @@ export function outilsV1(
 
   const lectures = [
     ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
-    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...outilsConnaissance(user),
+    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
