@@ -155,11 +155,21 @@ export async function reglerMaReponseVocale(active: boolean) {
  * elle est ici depuis la phase B du lot J0 (décision 0013) — seule clé du contrat qui change. La garde
  * d'exécution (confirmation forte, idempotence) est au socle, `platform/ia/intentions/action-intents.ts`.
  */
-export async function confirmerIntentionAssistantIA(intentId: string, confirmTyped?: string): Promise<ResultatExecution> {
+export async function confirmerIntentionAssistantIA(intentId: string, confirmTyped?: string, corrections?: string): Promise<ResultatExecution> {
   try {
     const user = await requireUser();
     if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
     if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
+    // J11 (décision 0030) : la personne a CORRIGÉ le formulaire de la carte — la correction repasse par les portes de
+    // la proposition et réécrit la carte (ressaisie comprise) AVANT la confirmation ordinaire, qui n'en sait rien.
+    // L'entrée corrigée voyage en JSON (`corrections`) : le contrat de l'action reste lisible (trois textes).
+    if (typeof corrections === "string" && corrections) {
+      let saisie: unknown;
+      try { saisie = JSON.parse(corrections); } catch { return { ok: false, error: "Formulaire illisible. Rien n'a été exécuté." }; }
+      const { accesAssistantIa, corrigerCarteCapacite } = await import("@/modules/assistant-ia/api");
+      const c = await corrigerCarteCapacite(user, intentId, saisie, await accesAssistantIa(user));
+      if (!c.ok) return { ok: false, error: c.error };
+    }
     const executeur = async (stored: unknown) => {
       // Une valeur confidentielle substituée dans la carte (décision 0012) est rejugée pour qui confirme, maintenant.
       const reperes = (stored as { reperesSubstitues?: unknown } | null)?.reperesSubstitues;
@@ -177,6 +187,19 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
   } catch (err) {
     console.error("[assistant] confirmerIntentionAssistantIA failed", err);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
+  }
+}
+
+/** Le sélecteur d'une référence du formulaire de carte (J11) : les fiches que la personne voit, pour un champ de SA carte. */
+export async function chercherReferenceCarteAssistantIA(intentId: string, champ: string, texte: string) {
+  try {
+    const user = await requireUser();
+    if (!peutUtiliserAssistantIA(user)) return { ok: false as const, error: REFUS_ASSISTANT_IA };
+    const { chercherReferenceDeCarte } = await import("@/modules/assistant-ia/api");
+    return await chercherReferenceDeCarte(user, intentId, String(champ ?? ""), String(texte ?? ""));
+  } catch (err) {
+    console.error("[assistant-ia] chercherReferenceCarteAssistantIA", err);
+    return { ok: false as const, error: "La recherche n'a pas abouti. Réessayez." };
   }
 }
 

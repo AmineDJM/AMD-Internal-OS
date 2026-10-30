@@ -1,4 +1,5 @@
 import { estFichierSysteme, parcourirDepot, type EntreeDepot, type Parcours } from "../domaine/lecture/depot";
+import { entreesMaxDossier } from "../domaine/lecture/depot-dossier";
 
 /**
  * LE NAVIGATEUR, CÔTÉ DÉPÔT — ce que les règles pures (`lib/agent/lecture/depot.ts`) ne peuvent pas
@@ -43,14 +44,15 @@ export const deposeDesFichiers = (dt: DataTransfer | null): boolean => !!dt && A
  * CE QUI A ÉTÉ DÉPOSÉ — fichiers et dossiers, parcourus récursivement. Les entrées sont prises
  * PENDANT l'événement (le navigateur vide `items` ensuite) ; sans `webkitGetAsEntry`, les fichiers seuls.
  */
-export function lireDepot(dt: DataTransfer): Promise<Parcours<File>> {
+export function lireDepot(dt: DataTransfer, max = entreesMaxDossier()): Promise<Parcours<File>> {
   const entrees: EntreeDepot[] = [];
   for (const it of Array.from(dt.items ?? [])) {
     if (it.kind !== "file") continue;
     const e = (it as DataTransferItem & { webkitGetAsEntry?: () => EntreeNavigateur | null }).webkitGetAsEntry?.();
     if (e) entrees.push(adapter(e));
   }
-  if (entrees.length) return parcourirDepot<File>(entrees);
+  // J11 : un dossier se parcourt jusqu'à la borne du mode « dépôt de dossier » (1 000 fichiers par défaut).
+  if (entrees.length) return parcourirDepot<File>(entrees, max);
   return Promise.resolve(depuisListe(Array.from(dt.files ?? [])));
 }
 
@@ -77,10 +79,12 @@ export function nommerCollage(f: File, i: number): File {
  * TÉLÉVERSE un fichier dans le Drive de la personne (`/api/drive/upload` : droits, quotas, formats,
  * chiffrement) en rapportant la progression ; seul son identifiant revient.
  */
-export function televerser(fichier: File, surProgression?: (part: number) => void): Promise<{ id: string } | { erreur: string }> {
+export function televerser(fichier: File, surProgression?: (part: number) => void, parentId?: string): Promise<{ id: string } | { erreur: string }> {
   return new Promise((resoudre) => {
     const fd = new FormData();
     fd.set("file", fichier);
+    // J11 : le fichier d'un dossier déposé rejoint SON dossier recréé dans le Drive (sinon : la racine, comme avant).
+    if (parentId) fd.set("parentId", parentId);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/drive/upload");
     xhr.responseType = "text";

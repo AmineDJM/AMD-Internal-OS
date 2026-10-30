@@ -296,6 +296,10 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
 8. **Cleanup**: abandoned sessions (>7 days) are aborted by `nettoyerDepotsDirectsPerimes`, invoked from `runScheduledJobs` (`scheduled.ts:112`) [V].
    *Small files* (< 20 MB, or any size without bucket up to `MAX_DB_UPLOAD_MB`, and ≤ 2 GB) use `POST /api/drive/upload` (multipart form → `putBlob` → encrypted/compressed/deduped → `enregistrerFichierDrive`, with a timing breakdown returned and logged) (`api/drive/upload/route.ts:15-86`) [V].
 
+### 6.2b Folder dropped into the Assistant IA → Drive tree (J11, decision 0030)
+
+`POST /api/assistant-ia/depot-dossier` (paths + sizes only; `refusDepotDrive(user, {})` = personal-root upload right) → `ouvrirLotDossier` creates a named root folder in the personal Drive (`nomLibre`: « X (2) » if taken; several roots → « Dépôt du … ») and the sub-tree via `creerArborescenceDrive` (same loop as Drive import & messaging), returns `{lotId, racineId, map, deja}`. The browser then enqueues `envoiArborescenceDrive` (steps 2–6 above for big files; `POST /api/drive/upload` otherwise) → `enregistrerFichierDrive` → `inscrireFichierDrive` (one Bibliothèque piece per file). Resume: same fingerprint → same lot, `deja` lists files already under the root (same relative path and size), only the rest is re-sent. `PATCH /api/assistant-ia/depot-dossier/<id>` closes (TERMINE / ABANDONNE).
+
 ### 6.3 OnlyOffice edit/save
 
 `/drive/<id>` builds `sessionEditeur` → config `{document.url: /api/onlyoffice/file?token=<edit JWT>, editorConfig.callbackUrl (edit mode only), token: signJwt(config)}` sent to the browser → DS loads `api.js`, fetches the file server-to-server, user edits → DS POSTs `/api/onlyoffice/callback?id=<node>&token=<edit JWT>` with status 2/6 and a result `url` → route verifies our token (+ body JWT **if present**), `fetch(body.url)`, `putBlob`, creates `FileVersion` n+1, updates node size, audits; for `Document` targets: `saveFile` on same `fileKey`, `version++` (`callback/route.ts:16-80`) [V].

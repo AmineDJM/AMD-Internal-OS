@@ -1,7 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Check, X, ShieldAlert, CheckCircle2, ArrowUpRight, Loader2 } from "lucide-react";
+import { champsCorriges, saisiesInitiales, verifierFormulaire, type FormulaireCarte, type Saisie, type Saisies } from "@/platform/ia/capacites/formulaire";
+import { texteARessaisir } from "../domaine/capacites";
+import { chercherReferenceCarteAssistantIA } from "../actions";
+import { FormulaireCarteCapacite } from "./formulaire-carte";
 
 export interface ActionIntentCardProps {
   intentId: string;
@@ -18,7 +22,9 @@ export interface ActionIntentCardProps {
   initialStatus?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
   resultLink?: string;
   resultMessage?: string;
-  onConfirm: (intentId: string, confirmTyped?: string) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
+  /** J11 (décision 0030) : le formulaire généré depuis le contrat — la personne corrige, puis signe. */
+  formulaire?: FormulaireCarte;
+  onConfirm: (intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
 }
 
 export function ActionConfirmationCard({
@@ -33,6 +39,7 @@ export function ActionConfirmationCard({
   initialStatus = "PROPOSED",
   resultLink,
   resultMessage,
+  formulaire,
   onConfirm,
 }: ActionIntentCardProps) {
   const [status, setStatus] = useState(initialStatus);
@@ -41,13 +48,33 @@ export function ActionConfirmationCard({
   const [link, setLink] = useState(resultLink || "");
   const [error, setError] = useState<string | null>(null);
   const [ressaisie, setRessaisie] = useState("");
-  const arme = !confirmText || ressaisie.trim().toLowerCase() === confirmText.trim().toLowerCase();
+  // LE FORMULAIRE (J11) : la proposition pré-remplie ; chaque frappe revalide contre le schéma du registre.
+  const [saisies, setSaisies] = useState<Saisies>(() => (formulaire ? saisiesInitiales(formulaire) : {}));
+  const [tente, setTente] = useState(false);
+  const verification = useMemo(() => (formulaire ? verifierFormulaire(formulaire, saisies) : null), [formulaire, saisies]);
+  const corriges = useMemo(() => new Set(formulaire && verification ? champsCorriges(formulaire, verification.entree) : []), [formulaire, verification]);
+  // Une carte renforcée se ressaisit sur l'entrée CORRIGÉE (un montant changé se relit changé) — le serveur recalcule pareil.
+  const aRessaisir = confirmText && formulaire && verification && corriges.size ? texteARessaisir(title, verification.entree) : confirmText;
+  const arme = !aRessaisir || ressaisie.trim().toLowerCase() === aRessaisir.trim().toLowerCase();
+  const changer = useCallback((nom: string, valeur: Saisie) => setSaisies((s) => ({ ...s, [nom]: valeur })), []);
+  const chercher = useCallback(async (champ: string, texte: string) => {
+    const r = await chercherReferenceCarteAssistantIA(intentId, champ, texte);
+    return r.ok ? r.options : [];
+  }, [intentId]);
+  const erreurs = tente && verification ? verification.erreurs : {};
 
   const handleConfirm = async () => {
+    if (verification && Object.keys(verification.erreurs).length) {
+      setTente(true);
+      setError("Le formulaire n'est pas complet : corrigez les champs signalés, puis signez.");
+      const premier = Object.keys(verification.erreurs)[0];
+      document.querySelector<HTMLElement>(`[data-champ="${premier}"] input, [data-champ="${premier}"] select, [data-champ="${premier}"] textarea`)?.focus();
+      return;
+    }
     setIsPending(true);
     setError(null);
     try {
-      const res = await onConfirm(intentId, confirmText ? ressaisie : undefined);
+      const res = await onConfirm(intentId, aRessaisir ? ressaisie : undefined, verification && corriges.size ? verification.entree : undefined);
       if (res.ok) {
         setStatus("EXECUTED");
         setMessage(res.message || "Action exécutée avec succès.");
@@ -92,8 +119,14 @@ export function ActionConfirmationCard({
         {summary && <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-400">{summary}</p>}
       </div>
 
+      {/* LE FORMULAIRE généré depuis le contrat (J11) — tant que la carte est à signer. */}
+      {formulaire && status === "PROPOSED" && (
+        <FormulaireCarteCapacite formulaire={formulaire} saisies={saisies} erreurs={erreurs} corriges={corriges}
+          desactive={isPending} onChange={changer} onChercher={chercher} />
+      )}
+
       {/* Détails des champs */}
-      {fields.length > 0 && (
+      {fields.length > 0 && !(formulaire && status === "PROPOSED") && (
         <div className="mt-3 grid grid-cols-1 gap-2 rounded-xl bg-zinc-50/70 p-2.5 text-xs dark:bg-zinc-950/40 sm:grid-cols-2">
           {fields.map((f, i) => (
             <div key={i} className="flex flex-col">
@@ -114,9 +147,9 @@ export function ActionConfirmationCard({
       )}
 
       {/* CONFIRMATION FORTE : la valeur se ressaisit, le serveur la revérifie. */}
-      {confirmText && status === "PROPOSED" && (
+      {aRessaisir && status === "PROPOSED" && (
         <label className="mt-3 block text-xs text-zinc-700 dark:text-zinc-300">
-          Pour confirmer, ressaisissez <strong>{confirmText}</strong>
+          Pour confirmer, ressaisissez <strong>{aRessaisir}</strong>
           <input
             value={ressaisie}
             onChange={(e) => setRessaisie(e.target.value)}
@@ -127,7 +160,7 @@ export function ActionConfirmationCard({
 
       {/* Message d'erreur s'il y a lieu */}
       {error && (
-        <p className="mt-2 rounded-lg bg-destructive/10 p-2 text-xs font-medium text-destructive">
+        <p role="alert" className="mt-2 rounded-lg bg-destructive/10 p-2 text-xs font-medium text-destructive">
           {error}
         </p>
       )}
@@ -156,7 +189,7 @@ export function ActionConfirmationCard({
                 </>
               ) : (
                 <>
-                  <Check className="h-3.5 w-3.5" /> {libelleBouton ?? "Confirmer"}
+                  <Check className="h-3.5 w-3.5" /> {libelleBouton ?? (formulaire ? (corriges.size ? "Signer avec mes corrections" : "Signer") : "Confirmer")}
                 </>
               )}
             </button>

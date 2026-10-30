@@ -88,11 +88,11 @@ export interface Parcours<F extends FichierDepot = FichierDepot> {
  * RELATIF (« Congrès Oran/devis/imprimeur.pdf »). Les fichiers et dossiers système sont ignorés
  * (comptés), la profondeur et le nombre d'entrées sont bornés. Une entrée illisible est sautée.
  */
-export async function parcourirDepot<F extends FichierDepot>(racines: EntreeDepot[]): Promise<Parcours<F>> {
+export async function parcourirDepot<F extends FichierDepot>(racines: EntreeDepot[], max = ENTREES_MAX_PARCOURUES): Promise<Parcours<F>> {
   const out: Parcours<F> = { trouves: [], ignores: 0, tronque: false };
   let vues = 0;
   const visiter = async (e: EntreeDepot, prefixe: string, profondeur: number): Promise<void> => {
-    if (vues >= ENTREES_MAX_PARCOURUES) { out.tronque = true; return; }
+    if (vues >= max) { out.tronque = true; return; }
     vues++;
     const chemin = prefixe ? `${prefixe}/${e.name}` : e.name;
     if (estFichierSysteme(chemin)) { out.ignores++; return; }
@@ -152,14 +152,14 @@ export function planifierDepot<T extends PieceAPlanifier>(dejaLa: PieceAPlanifie
 }
 
 /** La phrase qui résume les refus d'un dépôt (aria-live) — chaque fichier nommé, jusqu'à 4. */
-export function phraseRefus(refus: Refus[], ignores = 0, tronque = false): string | null {
+export function phraseRefus(refus: Refus[], ignores = 0, tronque = false, max = ENTREES_MAX_PARCOURUES): string | null {
   const parties: string[] = [];
   if (refus.length) {
     const vus = refus.slice(0, 4).map((r) => `« ${dernier(r.chemin)} » : ${r.raison}`);
     parties.push(`${refus.length} fichier${refus.length > 1 ? "s" : ""} non joint${refus.length > 1 ? "s" : ""} — ${vus.join(" ; ")}${refus.length > 4 ? ` ; et ${refus.length - 4} autre${refus.length - 4 > 1 ? "s" : ""}` : ""}`);
   }
   if (ignores) parties.push(`${ignores} fichier${ignores > 1 ? "s" : ""} système ou caché${ignores > 1 ? "s" : ""} ignoré${ignores > 1 ? "s" : ""} (.DS_Store, Thumbs.db…)`);
-  if (tronque) parties.push(`dossier trop grand ou trop profond : parcours arrêté après ${ENTREES_MAX_PARCOURUES} entrées`);
+  if (tronque) parties.push(`dossier trop grand ou trop profond : parcours arrêté après ${max.toLocaleString("fr-FR")} entrées`);
   return parties.length ? `${parties.join(". ")}.` : null;
 }
 

@@ -68,10 +68,10 @@ function historiqueSur(historique: unknown): Tour[] {
  * qui s'exécute est STOCKÉ sur l'intention de CE compte. `confirmerIntentionAssistantIA` garde
  * l'idempotence, la confirmation forte et revérifie le droit au moment de l'exécution (Q14).
  */
-export async function confirmerActionBeta(intentId: string, confirmTyped?: string) {
+export async function confirmerActionBeta(intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) {
   const user = await exigerAccesAssistant();
   if (!user) return { ok: false as const, error: REFUS };
-  return confirmerIntentionAssistantIA(intentId, confirmTyped);
+  return confirmerIntentionAssistantIA(intentId, confirmTyped, corrections ? JSON.stringify(corrections) : undefined);
 }
 
 /**
