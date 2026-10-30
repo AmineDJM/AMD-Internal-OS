@@ -50,6 +50,8 @@ export { outilsV1 } from "./infra/outils-v1";
 
 // ── Les travaux longs (J2, décision 0016) : la persona que le moteur des travaux joue pour l'Assistant IA
 export { PERSONA_ASSISTANT_IA } from "./infra/travaux";
+// ── J8 (décision 0023) : la vue d'un responsable sur les travaux de son équipe (console + audit)
+export { equipeVisible, lireTravailEquipe, listerTravauxEquipe, type TravailDEquipe } from "./infra/travaux-equipe";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";

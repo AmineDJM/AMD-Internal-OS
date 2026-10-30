@@ -16,6 +16,7 @@ import { lecturesDocuments } from "./operations/documents-lus";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
+import { lectureDemandesRecues } from "./operations/delegation";
 import { rechercheWeb } from "./recherche-web";
 import { outilsConnaissance } from "@/platform/ia/lectures/connaissance";
 import { sortiePourModele } from "../domaine/contenu-non-fiable";
@@ -370,7 +371,7 @@ export function outilsV1(
 
   const lectures = [
     ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
-    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
+    lectureFormulaire(user), lectureRoutines(user), lectureDemandesRecues(user), ...rechercheWeb(), ...outilsConnaissance(user), ...outilsAtelier(user),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a

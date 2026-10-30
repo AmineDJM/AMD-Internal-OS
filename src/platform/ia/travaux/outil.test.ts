@@ -22,6 +22,7 @@ describe("l'outil « lancer_un_travail » (socle IA, J2)", () => {
     expect(demandeLongue("Analyse toutes les demandes Ad & Pro de l'année")).toBe(true);
     expect(demandeLongue("Relance l'agence si pas de réponse sous 48 h")).toBe(true);
     expect(demandeLongue("Préviens-moi quand le BC sera signé")).toBe(true);
+    expect(demandeLongue("Demande à Karim le devis signé, attends sa réponse puis fais le BC")).toBe(true);
     expect(demandeLongue("Quel est le numéro de Karim ?")).toBe(false);
   });
 

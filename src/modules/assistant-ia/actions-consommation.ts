@@ -135,3 +135,24 @@ export async function enregistrerPlafondsTravaux(formData: FormData): Promise<Ac
   revalidatePath("/admin/ai/acces");
   return { ok: true };
 }
+
+/**
+ * J8 (décision 0023) — UN RESPONSABLE VOIT-IL LES TRAVAUX DE SON ÉQUIPE ? Super Admin seul ; défaut : non. Le
+ * changement est à l'audit, comme chaque consultation qu'il rend possible (`infra/travaux-equipe.ts`).
+ */
+export async function enregistrerVisibiliteEquipe(formData: FormData): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  const voit = fdBool(formData, "managerVoitEquipe");
+  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { managerVoitEquipe: true } });
+  const data = { managerVoitEquipe: voit, updatedById: admin.id };
+  await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
+  const dire = (v: boolean | undefined) => (v ? "oui" : "non");
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Travaux — un responsable voit ceux de son équipe",
+    oldValue: dire(avant?.managerVoitEquipe), newValue: dire(voit),
+    summary: `Les responsables ${voit ? "voient désormais" : "ne voient plus"} les travaux de leur équipe (résumé et étapes, chaque consultation à l'audit)`,
+  });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}

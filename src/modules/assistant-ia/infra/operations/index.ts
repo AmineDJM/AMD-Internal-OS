@@ -17,6 +17,7 @@ import { TRADUCTION } from "./traduction";
 import { FORMULAIRE_PDF } from "./formulaire-pdf";
 import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { ENREGISTRER_ATELIER } from "./atelier-enregistrer";
+import { REPONSE_DEMANDE } from "./delegation";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 
@@ -29,6 +30,7 @@ export const OPERATIONS_IA: OperationIA[] = [
   DOCUMENT_MODELE, TRADUCTION, FORMULAIRE_PDF,
   PROGRAMMER_ROUTINE, GERER_ROUTINE,
   ENREGISTRER_ATELIER,
+  REPONSE_DEMANDE,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));

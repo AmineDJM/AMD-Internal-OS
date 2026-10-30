@@ -52,6 +52,8 @@ describe("outils V1", () => {
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
+      // J8 — les demandes reçues du travail d'un collègue (la réponse est une opération, `preparer_reponse_demande`).
+      "mes_demandes_recues",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
   });

@@ -90,6 +90,10 @@ function personaDeTest(o: {
       return { ok: true, texte: JSON.stringify({ resultat: `analyse de ${etape}`, trouvailles: [`trouvaille ${etape}`], notes: [] }), usage };
     },
     plafonds: async () => ({ travailUsd: o.plafondTravailUsd ?? 20, mensuelUsd: 1000, depenseMoisUsd: 0, jourAtteint: false }),
+    // J8 : sans demande ni livrable au Drive dans ces plans (format Markdown par défaut des anciens plans → Word : le double le rend).
+    pieces: { visibles: async () => [], partager: async () => undefined },
+    responsable: async () => null,
+    deposerLivrable: async (_p, d) => ({ ok: true, document: { nodeId: "doc", nom: `${d.titre}.docx`, format: "docx", lien: "/drive/doc" } }),
   };
   return { persona, lectures, raisonnements, gestes };
 }
@@ -211,7 +215,9 @@ suite("travaux — le Mission Runtime pour tous (J2)", () => {
     expect(compte(/^Synthèse$/)).toBe(1);
     expect(compte(/Rapport final/)).toBe(2);
     expect(t.gestes).toHaveLength(1);
-    expect(await prisma.travailEcriture.count({ where: { missionId: id } })).toBe(1);
+    expect(await prisma.travailEcriture.count({ where: { missionId: id, NOT: { geste: { startsWith: "livrable:" } } } })).toBe(1);
+    // J8 : le livrable est déposé au Drive sous son propre reçu — une fois, malgré sa rédaction recommencée.
+    expect(await prisma.travailEcriture.count({ where: { missionId: id, geste: { startsWith: "livrable:" } } })).toBe(1);
     const reprises = await prisma.missionEvent.count({ where: { missionId: id, kind: "STEP_RECLAIMED" } });
     expect(reprises).toBe(3);
     // Le carnet porte les trouvailles des trois lots et le livrable — une seule fois chacun.

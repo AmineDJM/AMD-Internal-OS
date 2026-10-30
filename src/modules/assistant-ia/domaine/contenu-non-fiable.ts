@@ -43,6 +43,8 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
   ouvrir_documents: "documents de la Bibliothèque",
   ouvrir_dans_l_atelier: "document ouvert dans l'Atelier",
   modifier_document: "document modifié dans l'Atelier",
+  // J8 : la question d'une demande est écrite par le travail d'un COLLÈGUE — une donnée, jamais une consigne.
+  mes_demandes_recues: "demandes reçues du travail d'un collègue",
 };
 
 /**

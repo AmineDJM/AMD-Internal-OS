@@ -100,6 +100,31 @@ function armHeartbeat(): void {
     void runScheduledJobs().catch((e) => console.error("[scheduler] battement échoué", e));
   }, TICK_MS);
   timer.unref?.();
+  armerReveilsTravaux("web");
+}
+
+/**
+ * LE RÉVEIL RAPIDE DES TRAVAUX (J8, décision 0023) — « reprise en moins de 90 s après l'événement ». Le battement
+ * passe toutes les minutes ; un fait, une réponse ou une minuterie qui règle l'attente d'un travail le SIGNALE, et
+ * cette boucle courte le conduit en quelques secondes (`travaux/reveil.ts`). Armée par le worker et par le web ; le
+ * web s'abstient quand l'interrupteur confie les travaux au worker, ou quand le worker bat (`les-deux`). Un passage
+ * à la fois ; la conduite prend le bail du travail : deux boucles ne conduisent jamais le même travail ensemble.
+ */
+export const BOUCLE_REVEILS_MS = Math.max(2_000, Number(process.env.TRAVAUX_REVEILS_MS ?? 10_000));
+
+export function armerReveilsTravaux(executeur: "web" | "worker"): () => void {
+  let enCours = false;
+  const t = setInterval(() => {
+    if (enCours || process.env.TRAVAUX_SWEEP === "off" || process.env.SCHEDULER_DISABLED === "1" || !executeurAutorise(lireModeTachesDeFond(), executeur)) return;
+    enCours = true;
+    void (async () => {
+      const { reveillerTravauxSignales } = await import("@/lib/missions/travaux/reveil");
+      const { PERSONA_ASSISTANT_IA } = await import("@/modules/assistant-ia/api");
+      await reveillerTravauxSignales({ personas: { ASSISTANT_IA: PERSONA_ASSISTANT_IA }, mode: lireModeTachesDeFond(), executeur });
+    })().catch((e) => console.error("[travaux] boucle des réveils", e)).finally(() => { enCours = false; });
+  }, BOUCLE_REVEILS_MS);
+  t.unref?.();
+  return () => clearInterval(t);
 }
 
 /**

@@ -15,6 +15,8 @@ import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/mi
 import type { PersonaTravaux, PlafondsTravail } from "@/lib/missions/travaux/persona";
 import { proposerTravail } from "@/lib/missions/travaux/service";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
+import { PIECES_TRAVAUX, responsableDe } from "./travaux-pieces";
+import { deposerLivrableTravail } from "./travaux-livrables";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -35,7 +37,8 @@ import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTr
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-const GESTES_EXCLUS = new Set(["programmer_routine", "gerer_routine"]);
+// J8 : répondre à une demande est un geste de la personne SOLLICITÉE, dans sa conversation — jamais d'un travail.
+const GESTES_EXCLUS = new Set(["programmer_routine", "gerer_routine", "preparer_reponse_demande"]);
 const GESTES_TRAVAIL = OPERATIONS_IA.filter((o) => !GESTES_EXCLUS.has(o.nom));
 /** Ce qui n'est pas une LECTURE parmi les outils du tour : les gestes (cartes) et la mémoire proposée. */
 const PAS_UNE_LECTURE = new Set([...OPERATIONS_IA.map((o) => o.nom), ...ECRITURES_DU_MOTEUR, "proposer_memoire"]);
@@ -176,6 +179,10 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
   },
 
   plafonds: (principalId) => plafondsDe(principalId),
+
+  pieces: PIECES_TRAVAUX,
+  responsable: (userId) => responsableDe(userId),
+  deposerLivrable: (principalId, d) => deposerLivrableTravail(principalId, d),
 };
 
 /** L'outil « lancer_un_travail » du tour — le socle le décrit, le moteur des travaux l'exécute pour CETTE personne. */

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAction } from "@/components/shared/use-action";
-import { enregistrerAccesAssistantIa, enregistrerPlafondsTravaux } from "@/modules/assistant-ia/actions-consommation";
+import { enregistrerAccesAssistantIa, enregistrerPlafondsTravaux, enregistrerVisibiliteEquipe } from "@/modules/assistant-ia/actions-consommation";
 import {
   AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, LIBELLE_FAMILLE, resoudreAccesIa, type FamilleIa, type ReglageFamilles,
 } from "@/modules/assistant-ia/partage";
@@ -230,8 +230,35 @@ function ParPersonne({ personnes, plafondsGlobaux }: { personnes: LignePersonne[
   );
 }
 
-export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux }: {
-  roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number };
+/**
+ * J8 (décision 0023) — UN RESPONSABLE VOIT-IL LES TRAVAUX DE SON ÉQUIPE ? Défaut : non. Oui : en lecture seule, le
+ * résumé et les étapes (jamais le carnet), et chaque consultation est enregistrée à l'audit.
+ */
+function VisibiliteEquipe({ initial }: { initial: boolean }) {
+  const { saving, err, run } = useAction();
+  const [voit, setVoit] = React.useState(initial);
+  const [ok, setOk] = React.useState(false);
+  const basculer = (v: boolean) => {
+    const fd = new FormData();
+    fd.set("managerVoitEquipe", v ? "true" : "false");
+    setOk(false);
+    void run(() => enregistrerVisibiliteEquipe(fd), () => { setVoit(v); setOk(true); });
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <label className="inline-flex items-center gap-2 text-sm">
+        <input type="checkbox" checked={voit} disabled={saving} onChange={(e) => basculer(e.target.checked)} className="h-4 w-4" />
+        Un responsable voit les travaux de son équipe
+      </label>
+      {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {ok && !err && <span className="text-xs text-success">Enregistré.</span>}
+      {err && <span className="text-xs text-destructive">{err}</span>}
+    </div>
+  );
+}
+
+export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux, managerVoitEquipe }: {
+  roles: LigneRole[]; personnes: LignePersonne[]; plafondsGlobaux: { travailUsd: number; mensuelUsd: number }; managerVoitEquipe: boolean;
 }) {
   return (
     <div className="space-y-5">
@@ -244,6 +271,17 @@ export function AccesAssistantIaForm({ roles, personnes, plafondsGlobaux }: {
             Chaque personne peut avoir les siens (ci-dessous).
           </p>
           <Plafonds cible="global" travail={plafondsGlobaux.travailUsd} mensuel={plafondsGlobaux.mensuelUsd} />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle className="text-base">Travaux de l&apos;équipe</CardTitle></CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            Par défaut, chacun ne voit que ses travaux. Activé, un responsable voit ceux des personnes de son équipe (ligne hiérarchique
+            de l&apos;organigramme) : en lecture seule, le résumé et les étapes — jamais le carnet ni les livrables. Chaque consultation
+            est enregistrée à l&apos;audit.
+          </p>
+          <VisibiliteEquipe initial={managerVoitEquipe} />
         </CardContent>
       </Card>
       <ParPersonne personnes={personnes} plafondsGlobaux={plafondsGlobaux} />

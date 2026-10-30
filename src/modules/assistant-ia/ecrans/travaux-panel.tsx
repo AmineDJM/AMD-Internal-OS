@@ -2,10 +2,13 @@
 
 import { actionFailureMessage } from "@/lib/action-outcome";
 import React, { useCallback, useEffect, useState } from "react";
-import { Ban, Briefcase, CheckCircle2, Clock, Loader2, Pause, Play } from "lucide-react";
+import { Ban, Briefcase, CheckCircle2, Clock, FileText, Loader2, Pause, Play } from "lucide-react";
 import {
   annulerMonTravail, approuverMonTravail, lireMonTravail, listerMesTravaux, pauserMonTravail, reprendreMonTravailIA,
 } from "../actions";
+import { equipeVisiblePourMoi, reglerPrioriteMonTravail } from "../actions-travaux";
+import { DemandesRecues } from "./demandes-recues";
+import { TravauxEquipe } from "./travaux-equipe";
 import { LIBELLE_ETAT, peutAnnuler, peutPauser, peutReprendre, type EtatTravail } from "@/lib/missions/travaux/regles";
 import { MarkdownMessage } from "./markdown-message";
 import { PanneauLateral } from "./panneau-lateral";
@@ -19,7 +22,14 @@ import { PanneauLateral } from "./panneau-lateral";
  * les étapes, le carnet (trouvailles, livrables), le journal. Un plan proposé s'approuve ICI, en
  * voyant les étapes, les gestes autorisés (bornés à la console) et le plafond. Pause, reprise,
  * annulation : ici. Le travail lui-même tourne en arrière-plan — fermer l'écran n'arrête rien.
+ *
+ * J8 (décision 0023) : trois onglets — MES TRAVAUX (avec leur priorité, leurs demandes chez d'autres, et leurs
+ * livrables déposés au Drive), DEMANDES REÇUES (ce que les travaux de collègues me demandent), MON ÉQUIPE (si la
+ * console l'autorise : lecture seule, chaque consultation à l'audit).
  */
+
+type Onglet = "TRAVAUX" | "DEMANDES" | "EQUIPE";
+const STATUT_DEMANDE: Record<string, string> = { OUVERTE: "en attente", REPONDUE: "répondue", DECLINEE: "déclinée", EXPIREE: "sans réponse", ANNULEE: "retirée" };
 
 type Liste = Extract<Awaited<ReturnType<typeof listerMesTravaux>>, { ok: true }>;
 type Travail = Liste["travaux"][number];
@@ -44,9 +54,14 @@ const usd = (n: number) => `${n.toFixed(2).replace(".", ",")} $`;
 const quand = (iso: string) => new Date(iso).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Algiers" });
 const bouton = "inline-flex h-9 items-center gap-1 rounded-lg border border-slate-200 px-2.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60 dark:border-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-900";
 
-export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver }: {
+export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver, demandeInitiale, onPreparer, onDemandesOuvertes }: {
   ouvert: boolean; onFermer: () => void; travailInitial?: string | null; onAApprouver?: (n: number) => void;
+  demandeInitiale?: string | null; onPreparer?: (texte: string) => void; onDemandesOuvertes?: (n: number) => void;
 }) {
+  const [onglet, setOnglet] = useState<Onglet>(demandeInitiale ? "DEMANDES" : "TRAVAUX");
+  const [equipeVisible, setEquipeVisible] = useState(false);
+  useEffect(() => { if (demandeInitiale) setOnglet("DEMANDES"); }, [demandeInitiale]);
+  useEffect(() => { if (ouvert) void equipeVisiblePourMoi().then(setEquipeVisible).catch(() => setEquipeVisible(false)); }, [ouvert]);
   const [travaux, setTravaux] = useState<Travail[] | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -120,6 +135,20 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver }:
       {peutReprendre(t.etat) && (
         <button type="button" disabled={!!occupe} onClick={() => agir(`r${t.id}`, t.id, reprendreMonTravailIA)} className={bouton}><Play className="h-3.5 w-3.5" /> Reprendre</button>
       )}
+      {!["TERMINE", "ANNULE", "ECHEC"].includes(t.etat) && (
+        <label className="inline-flex items-center gap-1 text-[12px] text-slate-600 dark:text-zinc-400">
+          <span className="sr-only">Priorité</span>
+          <select
+            value={t.priorite} disabled={!!occupe} aria-label={`Priorité de « ${t.titre} »`}
+            onChange={(e) => agir(`q${t.id}`, t.id, (id) => reglerPrioriteMonTravail(id, e.target.value))}
+            className="h-9 rounded-lg border border-slate-200 bg-transparent px-2 text-[12px] dark:border-zinc-800"
+          >
+            <option value="HAUTE">Priorité haute</option>
+            <option value="NORMALE">Priorité normale</option>
+            <option value="BASSE">Priorité basse</option>
+          </select>
+        </label>
+      )}
       <div className="flex-1" />
       {peutAnnuler(t.etat) && (aAnnuler === t.id ? (
         <>
@@ -156,10 +185,24 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver }:
       onFermer={onFermer}
       pied={detail ? null : <>Un travail tourne en arrière-plan, sous vos droits relus à chaque étape ; il reprend où il en était après un redémarrage. Vous êtes notifié à la fin, et chaque jour pour un travail long.</>}
     >
+      {!detail && (
+        <div role="tablist" aria-label="Travaux" className="flex gap-1 rounded-lg bg-slate-100 p-1 dark:bg-zinc-900">
+          {([["TRAVAUX", "Mes travaux"], ["DEMANDES", "Demandes reçues"], ...(equipeVisible ? [["EQUIPE", "Mon équipe"]] : [])] as [Onglet, string][]).map(([o, l]) => (
+            <button
+              key={o} type="button" role="tab" aria-selected={onglet === o} onClick={() => setOnglet(o)}
+              className={`h-9 flex-1 rounded-md text-[12px] font-medium ${onglet === o ? "bg-white text-slate-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100" : "text-slate-600 dark:text-zinc-400"}`}
+            >{l}</button>
+          ))}
+        </div>
+      )}
       {erreur && <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-[13px] text-red-700 dark:bg-red-950/40 dark:text-red-400">{erreur}</p>}
       {info && !erreur && <p role="status" className="rounded-lg bg-emerald-50 px-3 py-2 text-[13px] text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">{info}</p>}
 
-      {detail ? (
+      {!detail && onglet === "DEMANDES" ? (
+        <DemandesRecues demandeInitiale={demandeInitiale} onPreparer={onPreparer} onOuvertes={onDemandesOuvertes} />
+      ) : !detail && onglet === "EQUIPE" ? (
+        <TravauxEquipe onVisible={setEquipeVisible} />
+      ) : detail ? (
         <article className="space-y-4">
           {resume(detail)}
           <p className="text-[13px] text-slate-700 dark:text-zinc-300">{detail.objectif}</p>
@@ -181,9 +224,31 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver }:
           {detail.carnet.livrables.map((l) => (
             <section key={l.etape} className="space-y-1 rounded-xl border border-emerald-200 p-3 dark:border-emerald-900">
               <h3 className="text-[13px] font-semibold text-emerald-800 dark:text-emerald-300">Livrable — {l.titre}</h3>
+              {l.document && (
+                <p className="text-[12px]">
+                  <a href={l.document.lien} className="inline-flex items-center gap-1 font-medium text-emerald-800 underline dark:text-emerald-300"><FileText className="h-3.5 w-3.5" /> {l.document.nom}</a>
+                  <span className="text-slate-500"> — dans votre Drive (dossier « Travaux »), inscrit à la Bibliothèque{l.document.note ? ` · ${l.document.note}` : ""}</span>
+                </p>
+              )}
               <div className="text-sm text-slate-800 dark:text-zinc-200"><MarkdownMessage texte={l.contenu} /></div>
             </section>
           ))}
+
+          {detail.demandes.length > 0 && (
+            <section>
+              <h3 className="mb-1 text-[13px] font-semibold text-slate-800 dark:text-zinc-200">Demandes à d&apos;autres personnes</h3>
+              <ul className="space-y-1.5 text-[12px] text-slate-700 dark:text-zinc-300">
+                {detail.demandes.map((d) => (
+                  <li key={d.id} className="rounded-lg border border-slate-100 px-2.5 py-2 dark:border-zinc-800">
+                    <span className="font-medium">{d.a}</span> — {STATUT_DEMANDE[d.statut] ?? d.statut}{d.relances ? " · relancé" : ""}{d.escalade ? " · escaladé" : ""}
+                    <p className="text-slate-500 [overflow-wrap:anywhere]">{d.question}</p>
+                    {d.reponse && <p className="mt-0.5 [overflow-wrap:anywhere]">Réponse : {d.reponse}</p>}
+                    {d.piecesFournies.map((p) => <a key={p.nodeId} href={`/drive/${p.nodeId}`} className="mr-2 text-violet-700 underline dark:text-violet-300">{p.nom}</a>)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
 
           {detail.liste.length > 0 && (
             <section>
