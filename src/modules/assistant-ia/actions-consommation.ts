@@ -29,13 +29,14 @@ export async function enregistrerReglagesAssistantIa(formData: FormData): Promis
     expirationCartesHeures: formData.get("expirationCartesHeures"),
     censurerSaisie: fdBool(formData, "censurerSaisie"),
     retirerCartesCaduques: fdBool(formData, "retirerCartesCaduques"),
+    modeleVoix: formData.get("modeleVoix"),
   });
-  const data = { ...r, updatedById: admin.id };
+  const data = { ...r, modeleVoix: r.modeleVoix || null, updatedById: admin.id };
   await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
   await recordAudit({
     actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA",
     summary: `Bornes de l'Assistant IA : ${r.plafondJetonsJour} jetons/jour/personne, ${r.plafondJetonsTour} par tour, ${r.etapesMaxTour} étapes`
-      + `${r.censurerSaisie ? "" : " — filtre de la saisie COUPÉ"}${r.retirerCartesCaduques ? "" : " — retrait des cartes caduques COUPÉ"}`,
+      + `${r.modeleVoix ? ` — voix temps réel : ${r.modeleVoix}` : ""}${r.censurerSaisie ? "" : " — filtre de la saisie COUPÉ"}${r.retirerCartesCaduques ? "" : " — retrait des cartes caduques COUPÉ"}`,
   });
   revalidatePath("/admin/ai/consommation");
   return { ok: true };

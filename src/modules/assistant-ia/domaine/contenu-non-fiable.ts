@@ -56,6 +56,9 @@ export const OUTILS_INTERNES_NOMMES: readonly string[] = [
   "preparer_formulaire_pdf", "preparer_bc_depuis_devis",
   // L'Atelier (J3) : une conversion rend un nom de fichier et une voie, écrits par l'ERP ; l'enregistrement, une carte.
   "convertir_document", "enregistrer_document",
+  // Le terrain (J13) : rattacher une photo rend une carte, écrite par l'ERP ; la lecture de la photo, elle, ne
+  // passe pas par cet outil (elle est faite à la captation, sous la consigne et le filtre du terrain).
+  "terrain_piece_visite",
 ];
 
 /** Ce qui, dans le nom d'un outil, évoque un contenu venu d'ailleurs — le filet du cliquet. */
@@ -75,6 +78,18 @@ export function encadrerNonFiable(source: string, texte: string): string {
 export function sortiePourModele(outil: string, sortie: string): string {
   const source = OUTILS_A_CONTENU_TIERS[outil];
   return source ? encadrerNonFiable(source, sortie) : sortie;
+}
+
+/**
+ * J14 (décision 0022) : les contenus tiers PORTÉS par un texte déjà encadré (le message et ses pièces lues, une sortie
+ * d'outil) — la source et le texte de chaque cadre. Les marqueurs ayant été neutralisés à l'encadrement, un cadre ne
+ * peut en contenir un autre : la lecture est exacte.
+ */
+export function extraireNonFiables(texte: string): { source: string; texte: string }[] {
+  const out: { source: string; texte: string }[] = [];
+  const re = /<<<CONTENU_NON_FIABLE source="([^"]*)">>>\n([\s\S]*?)\n<<<FIN_CONTENU_NON_FIABLE>>>/g;
+  for (let m = re.exec(texte); m; m = re.exec(texte)) out.push({ source: m[1]!, texte: m[2]! });
+  return out;
 }
 
 /** La règle, dite UNE fois au modèle, dans ses règles fondamentales. */

@@ -42,7 +42,7 @@ process.env.ASSISTANT_IA_AUDIO_PRICE_OUT ||= "10";
 
 import fs from "node:fs";
 import path from "node:path";
-import { prisma, estUneBaseDeBanc } from "@/lib/prisma";
+import { prisma, estUneBaseDeBancOuDEssai } from "@/lib/prisma";
 import { JARVIS, lireFixtures } from "./seed-assistant-jarvis";
 
 type Role = "SA" | "AD";
@@ -192,7 +192,7 @@ interface Resultat {
 // ─────────────────────────────── Le tour, comme l'écran ───────────────────────────────
 
 async function main() {
-  if (!estUneBaseDeBanc(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
+  if (!estUneBaseDeBancOuDEssai(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
   const F = lireFixtures();
   if (!F.superAdmin || !F.assistante) throw new Error("Semis manquant : lancer seed-assistant-jarvis.ts d'abord.");
   const svc = await import("@/modules/assistant-ia/api");
@@ -217,10 +217,11 @@ async function main() {
   const seuls = (process.env.JARVIS_ONLY ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   const choisis = SCENARIOS.filter((s) => !seuls.length || seuls.some((x) => s.id.includes(x)));
   const resultats: Resultat[] = [];
+  let budgetAtteint = false;
 
   for (const s of choisis) {
     const depense = await prisma.modelCallLog.aggregate({ where: { userId: { in: Object.values(ID) }, at: { gte: debutBanc } }, _sum: { costUsd: true } });
-    if (Number(depense._sum.costUsd ?? 0) > budgetUsd * 0.9) { console.log(`⛔ budget presque atteint (${Number(depense._sum.costUsd ?? 0).toFixed(3)} $) — arrêt avant ${s.id}`); break; }
+    if (Number(depense._sum.costUsd ?? 0) > budgetUsd * 0.9) { console.log(`⛔ budget presque atteint (${Number(depense._sum.costUsd ?? 0).toFixed(3)} $) — arrêt avant ${s.id}`); budgetAtteint = true; break; }
 
     const userId = ID[s.role];
     if (!s.suite) {
@@ -357,6 +358,18 @@ async function main() {
   fs.mkdirSync(path.dirname(sortie), { recursive: true });
   fs.writeFileSync(sortie, JSON.stringify({ quand: new Date().toISOString(), modele: modeleOpenAi()?.modelId, catalogue, depenseUsd: Number(total._sum.costUsd ?? 0), j4, resultats }, (k, v) => (v instanceof RegExp ? v.source : v), 2));
   console.log(`Détail : ${sortie}`);
+  // J5 (décision 0022) : le résultat NORMALISÉ que relit le banc programmé (`BANC_SORTIE`) — un scénario non joué
+  // (plafond atteint) est dit « NON JOUÉ », jamais compté comme un échec.
+  if (process.env.BANC_SORTIE) {
+    const joues = new Set(resultats.map((r) => r.id));
+    fs.writeFileSync(process.env.BANC_SORTIE, JSON.stringify({
+      depenseUsd: Number(total._sum.costUsd ?? 0), budgetAtteint,
+      scenarios: [
+        ...resultats.map((r) => ({ scenario: r.id, famille: "jarvis", verdict: r.verdict, motifs: r.motifs, ms: r.totalMs, premierMotMs: r.premierMotMs, appels: r.conso.appels, entree: r.conso.entree, cache: r.conso.cache, sortie: r.conso.sortie, coutUsd: r.conso.coutUsd })),
+        ...choisis.filter((c) => !joues.has(c.id)).map((c) => ({ scenario: c.id, famille: "jarvis", verdict: "NON JOUÉ", motifs: ["plafond de dépense du passage atteint"] })),
+      ],
+    }));
+  }
 }
 
 main().then(() => prisma.$disconnect()).then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

@@ -118,11 +118,20 @@ const MOTS_CLES: Record<string, string> = {
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",
+  // J9 — le graphe de l'entreprise et les faits datés (fiches, pas socle : la sélection les trouve à la demande).
+  explorer_relations: "depend dependent relie lien liens relation relations graphe reseau chemin qui travaille travaillent sur fournisseur dossier tombe impacte touche quels documents parlent concernent mentionnent lies a autour",
+  etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passe quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
+  d_ou_vient: "d ou vient provenance source origine qui a confirme justifie piece prouve preuve vient cette information ce chiffre fiable",
   // J3 — l'Atelier : les mots d'une personne qui veut voir ou retoucher SON document (joint, renvoyé, trouvé).
   ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",
   modifier_document: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese en place document",
   convertir_document: "convertis convertir conversion pdf word excel exporte transforme en",
   enregistrer_document: "enregistre sauvegarde nouvelle version garde valide document atelier",
+  // J13 (décision 0025) — le terrain : les mots d'un délégué qui sort d'une visite.
+  terrain_compte_rendu: "compte rendu visite rapport terrain medecin docteur dr pr cabinet chu hopital clinique vu rencontre presente interesse objection",
+  terrain_demande_materiel: "echantillons echantillon boites materiel promotionnel brochures magasin demande stock delegue",
+  terrain_tournee_demain: "tournee demain revoir repasser plan de tournee visite prevue ajoute medecin",
+  terrain_piece_visite: "photo rattache joins piece compte rendu visite ordonnance presentoir carte de visite",
 };
 
 const MOTS_VIDES = new Set((

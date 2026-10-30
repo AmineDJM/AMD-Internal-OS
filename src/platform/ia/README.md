@@ -9,8 +9,11 @@ tenue par `frontieres.test.ts` et ESLint.
 |---|---|
 | `outil.ts` | `PowerTool` — la forme d'un outil qu'un assistant appelle |
 | `outils/arguments.ts` | lecture des arguments du modèle (`asStr`, `asNum`, `fold`), recherche et résolution de personnes |
-| `lectures/` | annuaire, Regulatory, circuits de validation, résultats vides, échecs de capacité ; `connaissance.ts` (J4) : Bibliothèque et faits confirmés pour un modèle |
+| `lectures/` | annuaire, Regulatory, circuits de validation, résultats vides, échecs de capacité ; `connaissance.ts` (J4) : Bibliothèque et faits confirmés pour un modèle ; `graphe.ts` (J9) : graphe de l'entreprise et faits datés (module `graphe-entreprise`) |
 | `modeles-roles.ts` | J4 : le modèle de chaque geste (rapide, standard, raisonnement) et l'effort de raisonnement adaptatif — OpenAI seul |
+| `lectures/` | annuaire, Regulatory, circuits de validation, résultats vides, échecs de capacité ; `connaissance.ts` (J4) : Bibliothèque et faits confirmés pour un modèle |
+| `modeles-roles.ts` | J4 : le modèle de chaque geste (rapide, standard, raisonnement) et l'effort de raisonnement adaptatif — OpenAI seul ; J13 : la transcription de terrain (`gpt-transcribe`, mesuré) et la voix (`gpt-live-1`, réglable) |
+| `voix/` | J13 (décision 0025) : la session GPT-Live (échange SDP côté serveur, délégation « client ») et le client WebRTC mince (navigateur) — zéro import, Adam garde le sien |
 | `intentions/` | une écriture proposée devient une intention en base (`AssistantActionIntent`) ; propositions périmées |
 | `drive.ts` | un fichier du Drive désigné par son nom, relu à l'exécution (droits revérifiés) |
 | `web-research.ts` | la recherche web (passerelle `lib/models/`) |

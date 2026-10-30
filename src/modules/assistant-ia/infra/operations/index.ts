@@ -18,6 +18,7 @@ import { FORMULAIRE_PDF } from "./formulaire-pdf";
 import { GERER_ROUTINE, PROGRAMMER_ROUTINE } from "./routines";
 import { ENREGISTRER_ATELIER } from "./atelier-enregistrer";
 import { REPONSE_DEMANDE } from "./delegation";
+import { OPERATIONS_TERRAIN } from "./terrain";
 import { estChargeOperationIA, type ChargeOperationIA, type OperationIA, type ResultatOperation } from "../../domaine/operations/types";
 import { sansBloquer } from "@/lib/journal";
 
@@ -31,6 +32,8 @@ export const OPERATIONS_IA: OperationIA[] = [
   PROGRAMMER_ROUTINE, GERER_ROUTINE,
   ENREGISTRER_ATELIER,
   REPONSE_DEMANDE,
+  // J13 (décision 0025) : le terrain — compte rendu pré-rempli, échantillons, tournée de demain, photo rattachée.
+  ...OPERATIONS_TERRAIN,
 ];
 
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));
@@ -127,4 +130,43 @@ export async function executerOperationIA(user: CurrentUser, charge: unknown): P
     console.error("[assistant-ia] exécution", charge.op, e);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
   }
+}
+
+/** Une carte préparée HORS d'un tour de conversation (J13 : le vocal ou la photo du terrain, la voix temps réel). */
+export interface CartePreparee {
+  intentId: string;
+  op: string;
+  kind: "assistant_ia_op";
+  title: string;
+  fields: { label: string; value: string }[];
+  warnings: string[];
+  libelleBouton?: string;
+  confirmText?: string;
+}
+
+/**
+ * PRÉPARER UNE CARTE depuis une entrée déjà structurée — le même `proposer` que l'outil du modèle, la même intention
+ * persistée, la même confirmation au clic. Rend aussi `manque` / `erreur` tels quels : l'écran les dit.
+ */
+export async function preparerCarte(
+  user: CurrentUser, nom: string, entree: Record<string, unknown>, origine: "text" | "voice" = "text",
+): Promise<{ carte: CartePreparee } | { manque: string[] } | { erreur: string }> {
+  const o = PAR_NOM.get(nom);
+  if (!o || !o.ouverte(user)) return { erreur: "Ce geste ne vous est pas ouvert." };
+  const p = await o.proposer(entree, user);
+  if ("manque" in p) return { manque: p.manque };
+  if ("erreur" in p) return { erreur: p.erreur };
+  const charge: ChargeOperationIA = { kind: "assistant_ia_op", op: o.nom, args: p.args };
+  const [intentId] = await persistActionIntents(user.id, [{
+    kind: "assistant_ia_op", module: o.module, title: p.carte.title, fields: p.carte.fields,
+    ...(p.carte.level ? { level: p.carte.level } : {}), ...(p.carte.confirmText ? { confirmText: p.carte.confirmText } : {}),
+    payload: charge,
+  }], origine);
+  if (!intentId) return { erreur: "La proposition n'a pas pu être enregistrée." };
+  return {
+    carte: {
+      intentId, op: o.nom, kind: "assistant_ia_op", title: p.carte.title, fields: p.carte.fields, warnings: p.carte.warnings,
+      ...(p.carte.libelleBouton ? { libelleBouton: p.carte.libelleBouton } : {}), ...(p.carte.confirmText ? { confirmText: p.carte.confirmText } : {}),
+    },
+  };
 }

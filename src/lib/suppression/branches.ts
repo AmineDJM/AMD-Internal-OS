@@ -130,6 +130,8 @@ export const REFERENTS: readonly Referent[] = [
     raison: "l'index de connaissance : une entrée périmée s'y retrouve sans rien casser." },
   { modele: "KnowledgeEntity", champType: "refType", champId: "refId", conduite: "HISTOIRE",
     raison: "idem : un index, pas une branche." },
+  { modele: "AssistantSignal", champType: "entiteType", champId: "entiteId", conduite: "HISTOIRE",
+    raison: "un constat d'un veilleur de l'Assistant IA (J12) : son passage suivant constate lui-même la disparition de l'objet (RÉSOLU) ; le constat reste à l'écran de sa personne comme une trace." },
   { modele: "AdamWatch", champType: "targetType", champId: "targetId", conduite: "HISTOIRE",
     raison: "une surveillance d'Adam : son balayage constate lui-même la disparition de sa cible." },
   { modele: "ApiCall", champType: "entityType", champId: "entityId", conduite: "HISTOIRE",

@@ -37,6 +37,16 @@
 >   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
 >   Adam → IA = 0. Remaining IA → Adam = Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
 >   closure is 92 % of Adam; kept, named and ratcheted until J6 (capability registry derived from the action contract — decision 0013 §5).
+> - **J5 + J14 (2026-10-30) — continuous quality of the Assistant IA** (decision `docs/assistant/decisions/0022-qualite-continue.md`) [V]:
+>   scheduled bench on the WORKER (`qualite.banc` → child process `scripts/bench/banc-programme.ts`, trial DB only:
+>   `BANC_ESSAI_DATABASE_URL` + fingerprint ≠ prod + `BancBaseEssai` marker; refused and said otherwise), Super-Admin calendar
+>   (default weekly, 1 $ cap per run), history `AssistantIaBancPassage`/`Scenario`, regression (success down, P50/P95 or cost
+>   +30 %) → Super Admin notified; dashboard `/admin/ai/qualite`. Replayable traces of every fil turn (`AssistantIaTrace`, gzip,
+>   30 d; `modeleTrace` wraps the Mastra model; `npm run assistant:rejouer`). Third-party provenance on every card
+>   (`domaine/provenance-tierce.ts`: RIB/e-mail/phone/link/amount/name from a framed third-party content and not said by the
+>   person → "ce RIB provient du document X, à vérifier"; injection detection FR/AR/EN, hidden text) — 240-item trap corpus,
+>   0 unflagged misleading card. Model per role changed on screen (`AssistantIaModeleRole`) ONLY with a green A/B bench for that
+>   exact candidate (< 14 d); revert to env always allowed. New env: `ASSISTANT_IA_MODEL_RAISONNEMENT`, `ASSISTANT_IA_TRACES(_JOURS)`.
 > - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
 >   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
 >   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay
@@ -372,6 +382,23 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `enregistrer_document`. The screen polls `/api/assistant-ia/atelier` (no SSE: the op journal IS the stream). Decision
   `docs/assistant/decisions/0017-atelier.md`.
 
+- **Proactivity under mandate (J12, 30/10/2026)** [V] `src/modules/assistant-ia/{domaine,infra}/proactivite/`: 12 **watchers**
+  (veilleurs) = pure CODE rules over what belongs to the person (own Ad & Pro requests, own budget lines ≥ 90 %, own unsigned
+  POs, ANPP obligations/deadlines, assigned reserve points, DIRECT reports' trial/CDD end, own overdue payments, duplicate
+  invoices, unreported visits, own stale validations, meeting within the hour). Gated by a screen module AND the console family
+  (re-read each pass). Signature = unique `(userId, veilleur, cle)` on `AssistantSignal` → said once; vanished → RESOLU;
+  reappears → reopened as JOURNAL (never rings twice). **Interruption budget** (`domaine/proactivite/budget.ts`, pure):
+  quiet hours 19→8 Algiers + Fri/Sat, one grouped notification per pass, ≥ 1 h apart, ≤ 5/day (console
+  `AssistantIaReglage.interruptionsMaxJour`, person can only lower) → else JOURNAL. One-click useful/not-useful adjusts the
+  watcher (threshold factor ×1.25 up to ×3; < 1/3 useful over ≥ 3 → discreet). Morning point = only model call (fast role,
+  confidentiality filter, fallback text). Heartbeat task `assistant.veilleurs` (15 min/person, 20/beat). **Mandates**
+  (`AssistantMandat`, receipts `AssistantMandatGeste` unique per mandate+signal, taken BEFORE acting): bounded capability /
+  recipients / amount / per-day / expiry ≤ 90 d, revocable, R1 by default (`NIVEAU_OPERATION`), sensitive family or R2 →
+  console approval. **Gestures run in the person's own request** (`ExecuteurMandats` in the `(app)` layout, server-side
+  10-min window): screen actions need `requireUser` and `revalidatePath` throws outside a request (after the write) — the
+  same limit applies to J2 travaux gestures on the worker. Actions key `assistant-ia-proactivite-actions`. Decision
+  `docs/assistant/decisions/0024-proactivite.md`.
+
 ### 4.5 `src/platform` — the boundary
 
 - **Why** [V] `docs/ADAM_PLATFORM_BOUNDARY.md`: separate Adam from ERP *in code*, same process (no microservices, no local cache —
@@ -473,6 +500,12 @@ on BLOCKED: `replanifierMission` (Reasoner → `callModel("orchestrator")`) → 
 
 `createEmployee` (hr-actions) → `emit({type:"hr.employee-added",…})` → `event-bus.publish` → change-feed array (in memory) →
 later `what_changed` tool reads it as a hint and re-reads canonical data.
+
+### 6.4 Field voice & realtime voice of the Assistant IA (J13, decision 0025)
+
+- **Capture → cards**: `infra/terrain/captation.ts` (idempotent on `(userId, cle)`) → Drive → `transcrireMedia` (`gpt-transcribe`, no forced language, vocabulary hint; `modeleSttTerrain` in `platform/ia/modeles-roles.ts`, chosen by the bench `scripts/banc-stt-terrain.mjs`) → `genererTexte` + `lireCompteRendu` (untrusted JSON) → `resoudreMedecin` over `scopeMedicalDoctors` → `preparerCarte` (same `proposer` + `persistActionIntents` as model tools). Operations `terrain_*` live in `OPERATIONS_IA` (MOTS_CLES fiches, not SOCLE_OUTILS) and execute through screen actions (`createFieldReport`/`updateFieldReport`, `demanderMateriel`, `ouvrirPlanTournee`+`planifierVisites`, `rattacherPhotoTerrain`).
+- **Realtime voice (GPT-Live, `gpt-live-1` only — Direction 30/10, no fallback)**: socle `platform/ia/voix/session-temps-reel.ts` (server-side SDP exchange with `POST /v1/live/sessions`, `delegation: { type: "client" }`, no secret reaches the browser; zero imports) + `client-temps-reel.ts` (thin WebRTC client: on `session.delegation.created` it posts what the user said to `/api/assistant-ia/voix/delegation` and returns the result with `session.commentary.append`; latency read on the session timeline from transcript `start_ms`/`end_ms`; graceful `session.close` → `session.closed` usage). Module `infra/voix/temps-reel.ts`: delegation = `deposerMessage` + `traiterFil` — the SAME text assistant (tools, rights, console, repères, cards) in the SAME fil; voice text via `sansValeursRevelees`; transcript appended to the fil at the end; model = admin setting `AssistantIaReglage.modeleVoix` → `ASSISTANT_IA_VOICE_MODEL` → `gpt-live-1`. Adam's realtime untouched.
+- **Known limit**: a real `gpt-live-1` session was created (HTTP 201, 6.8 s) but WebRTC media (UDP) does not pass the dev container's egress; first real p50 is logged in production (`[assistant-ia] voix temps réel`).
 
 ## 7. Coupling & blast radius
 

@@ -22,7 +22,7 @@ import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
 import JSZip from "jszip";
-import { prisma, estUneBaseDeBanc } from "@/lib/prisma";
+import { prisma, estUneBaseDeBancOuDEssai } from "@/lib/prisma";
 
 const MANIFEST = path.join(process.cwd(), "bench-out", "assistant-jarvis-manifest.json");
 const DOMAINE = "adventum-bench.dz";
@@ -56,7 +56,7 @@ export const JARVIS = {
 interface Manifest { createdAt: string; ids: Record<string, string[]>; fixtures: Record<string, string> }
 
 function garde(): void {
-  if (!estUneBaseDeBanc(process.env.DATABASE_URL ?? "")) throw new Error("Refus : ce n'est pas une base de banc locale (hôte local + nom contenant « bench »).");
+  if (!estUneBaseDeBancOuDEssai(process.env.DATABASE_URL ?? "")) throw new Error("Refus : ce n'est pas une base de banc locale (hôte local + nom contenant « bench »).");
   if (process.env.BENCH_SEED_ALLOW !== "1") throw new Error("Refus : BENCH_SEED_ALLOW=1 est exigé.");
 }
 

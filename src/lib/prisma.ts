@@ -86,6 +86,30 @@ export function estUneBaseDeBanc(url: string): boolean {
 }
 
 /**
+ * LA BASE D'ESSAI DU BANC PROGRAMMÉ (J5, décision 0022) — la seule base DISTANTE qu'un banc puisse ouvrir : celle que
+ * le worker lui a DÉCLARÉE (`BANC_ESSAI_DATABASE_URL`, identique à `DATABASE_URL`), dont l'empreinte (hôte, port, nom)
+ * diffère de celle de la production qu'il lui a transmise (`BANC_EMPREINTE_PRODUCTION`). Le marqueur en base
+ * (`BancBaseEssai`) est vérifié ensuite par le banc lui-même. Même empreinte que `domaine/qualite/base-essai.ts`.
+ */
+export function estLaBaseEssaiDeclaree(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const prod = env.BANC_EMPREINTE_PRODUCTION?.trim();
+  if (!prod || !url || url !== env.BANC_ESSAI_DATABASE_URL?.trim()) return false;
+  try {
+    const u = new URL(url);
+    const h = u.hostname.toLowerCase();
+    const e = `${["localhost", "127.0.0.1", "::1"].includes(h) ? "local" : h}:${u.port || "5432"}/${decodeURIComponent(u.pathname.slice(1)).toLowerCase()}`;
+    return e !== prod;
+  } catch {
+    return false;
+  }
+}
+
+/** La base d'un banc : locale « bench », ou la base d'essai déclarée par le worker. */
+export function estUneBaseDeBancOuDEssai(url: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  return estUneBaseDeBanc(url) || estLaBaseEssaiDeclaree(url, env);
+}
+
+/**
  * Rend le REFUS (une phrase) ou `null`. Pur : `prisma.ts` l'appelle à la construction, et un
  * test l'exerce sans ouvrir de connexion — vérifier un corps sans son appelant ne prouverait
  * rien (§118.49), d'où l'appel juste en dessous.
@@ -99,7 +123,7 @@ export function refusDeBase(
   if (!test && !banc) return null;
 
   const url = env.DATABASE_URL ?? "";
-  if (banc ? estUneBaseDeBanc(url) : estUneBaseLocale(url)) return null;
+  if (banc ? estUneBaseDeBanc(url) || estLaBaseEssaiDeclaree(url, env) : estUneBaseLocale(url)) return null;
 
   let ou = "(DATABASE_URL absente)";
   try { const u = new URL(url); ou = `${u.hostname}${u.pathname}`; } catch { if (url) ou = "(URL illisible)"; }

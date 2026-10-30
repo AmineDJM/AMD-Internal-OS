@@ -183,6 +183,12 @@ export function classerExclusionsAttestations(): void {
     // La confirmation de l'ASSISTANT IA (/assistant) : la même porte que `executeAssistantAction`
     // (intention de CE compte, idempotence, `performAction`), sous la règle de l'Assistant IA.
     "assistant-ia-actions:confirmerIntentionAssistantIA",
+    // La confirmation d'une carte de TERRAIN (J13, décision 0025) : même garde, porte du module Rapports terrain,
+    // seulement les opérations `terrain_*` que ce compte a préparées.
+    "assistant-ia-actions:confirmerCarteTerrain",
+    // Rattacher une photo de terrain au compte rendu : le geste qu'exécute la carte `terrain_piece_visite` (J13) —
+    // une capture de la personne seulement, jamais une pièce désignée par un modèle.
+    "field-report-actions:rattacherPhotoTerrain",
     // LE GESTE DÉTERMINISTE d'un bouton de l'espace de travail (§23). Il n'ouvre AUCUNE capacité
     // nouvelle : il exécute une LECTURE déjà exposée au Chief comme outil, en sautant l'appel au
     // modèle que le serveur n'avait aucune raison de payer — il connaissait l'intention exacte au
@@ -216,6 +222,17 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-atelier-actions:ouvrirDansLAtelier", "assistant-ia-atelier-actions:relireOnglet", "assistant-ia-atelier-actions:revoirModificationAtelier",
     "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",
     "assistant-ia-atelier-actions:comparerOnglet", "assistant-ia-atelier-actions:convertirDansAtelier", "assistant-ia-atelier-actions:fermerOngletAtelier",
+  ]);
+  X("LA VEILLE PERSONNELLE de l'Assistant IA (J12, décision 0024) — les gestes de la personne sur SA veille : voir ce que ses veilleurs ont constaté, juger un constat « utile / pas utile », l'écarter, activer un veilleur ou régler son seuil, régler son budget d'interruptions ; et les constats d'une fiche qu'elle ouvre. Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-proactivite-actions:lireMaVeille", "assistant-ia-proactivite-actions:jugerConstat", "assistant-ia-proactivite-actions:ecarterConstat",
+    "assistant-ia-proactivite-actions:reglerMonVeilleur", "assistant-ia-proactivite-actions:reglerMaVeille", "assistant-ia-proactivite-actions:suggestionsPourDossier",
+  ]);
+  X("LES MANDATS de l'Assistant IA (J12, décision 0024) — une approbation que SEULE la personne accorde ou révoque à l'écran, et le geste de la coque qui fait, dans SA requête, les gestes qu'elle a confiés (bornés, journalisés). Un assistant qui s'accorderait un mandat se donnerait un droit : jamais proposé par un assistant.", [
+    "assistant-ia-proactivite-actions:accorderMonMandat", "assistant-ia-proactivite-actions:revoquerMonMandat", "assistant-ia-proactivite-actions:executerMesGestesSousMandat",
+  ]);
+  X("LA CONSOLE DE LA PROACTIVITÉ (J12, décision 0024) — Super Admin : plafond d'interruptions, interrupteur général, mesure, accord et révocation des mandats. Réglage de gouvernance de l'IA elle-même : un assistant ne règle pas ses propres bornes.", [
+    "assistant-ia-proactivite-actions:lireConsoleProactivite", "assistant-ia-proactivite-actions:reglerConsoleProactivite",
+    "assistant-ia-proactivite-actions:approuverMandatConsole", "assistant-ia-proactivite-actions:revoquerMandatConsole",
   ]);
   X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
     "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",

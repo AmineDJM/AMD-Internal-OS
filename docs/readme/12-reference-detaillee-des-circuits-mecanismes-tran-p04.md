@@ -679,3 +679,47 @@ Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/mo
   documents »), `faits_confirmes` (un fait n'est rendu qu'à qui peut ouvrir sa pièce ; jamais un fait sensible).
 - **Modèle par geste** : rapide `gpt-6-luna` (résumé), standard `gpt-6.1-terra` effort `low`, raisonnement effort
   `medium` (analyse, comparaison, plusieurs pièces) — variables `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`.
+
+### Graphe de l'entreprise et faits datés (lot J9, 30/10/2026)
+
+Décision [0021](../assistant/decisions/0021-graphe.md). Module `src/modules/graphe-entreprise/` ; outils au socle
+`src/platform/ia/lectures/graphe.ts` ; fermeture bitemporelle `src/lib/enrichissement/confirmation.ts`.
+
+- **Une vue, pas un registre** : nœuds = fiches canoniques (`Personne`, `Organisation`, `Product`, `RegulatoryProduct`,
+  sponsoring / événement / demande « autre », congrès, `Piece`), arêtes datées lues dans `EntityLink`, `PieceLien`,
+  `FaitConfirme` (`atteste`, jamais un fait sensible), `EntityMention` et les clés métier (affiliation, emploi, dossier,
+  demandes, congrès). Une clé étrangère dit l'état actuel, et l'arête le dit.
+- **Droits avant le parcours** : types fermés non lus (module RBAC, ou famille de la console fermée : Réglementaire →
+  dossiers, Ad & Pro → demandes et congrès, Drive & documents → documents) ; chaque nœud jugé par la portée de son écran
+  (`scopeRegulatory` + verrou, `scopeSponsoring`, `scopeCongress*`, `scopeAdProOther`, `piecesOuvrables`) AVANT d'être
+  traversé ; pour un modèle, ni pièce confidentielle ni pièce du coffre. Profondeur ≤ 3, bornes dites (`tronque`).
+- **Résolution** : arabe ↔ latin (translittération + squelette consonantique), particules (Ben, Abd El, Aït), fautes,
+  sigles (ENPP), NIF/RC ; homonymes = question ; les candidats hors droits sont écartés avant le verdict.
+- **Faits bitemporels** : validité (`valideDu`/`valideAu`) ≠ constat (`confirmeLe`/`fermeLe`) ; un fait remplacé est
+  FERMÉ (`fermeLe`, `fermeParId`, `remplaceParId`), jamais écrasé. État à une date, et « ce qu'on savait » à une autre.
+- **Outils de l'Assistant IA** : `explorer_relations`, `etat_a_une_date`, `d_ou_vient` — fiches de la sélection ; chaque
+  chiffre porte sa `source` (vérifié au banc : `chiffresSansSource`).
+### Terrain et voix (lot J13, 30/10/2026)
+
+Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modules/assistant-ia/domaine/terrain/`,
+`infra/terrain/captation.ts`, `infra/operations/terrain.ts`, `infra/voix/temps-reel.ts`, `ecrans/terrain/`,
+`ecrans/voix-temps-reel.tsx` ; socle `src/platform/ia/voix/` ; page `/medical/terrain` ; routes `/api/assistant-ia/terrain`,
+`/api/assistant-ia/voix/{session,delegation,journal}` ; table `AssistantIaTerrainCapture`.
+
+- **Vocal → compte rendu** : file locale → dépôt idempotent (clé de capture) → Drive « Terrain — vocaux et photos » →
+  `gpt-transcribe` (langue détectée, indice du panel et de la gamme ; mesuré meilleur des quatre moteurs) → structuration
+  JSON relue → médecin résolu dans l'annuaire DU délégué (jamais deviné) → **cartes** : brouillon de compte rendu
+  pré-rempli (`createFieldReport` + `updateFieldReport`), demande d'échantillons (`demanderMateriel`), tournée de demain
+  (`planifierVisites`, sélection complète relue). **Rien n'est écrit sans clic** ; confirmation par `confirmerCarteTerrain`
+  (porte : module Rapports terrain ; seulement les opérations `terrain_*` de ce compte).
+- **Photos** : présentoir, ordonnance anonymisée (aucune donnée patient recopiée, filtrée en sortie), facture, carte de
+  visite → faits proposés ; carte « rattacher au compte rendu » → `rattacherPhotoTerrain` (brouillon seulement).
+- **Hors ligne** : IndexedDB, un élément ne sort de la file que sur l'accusé du serveur ; réessai 5 s → 5 min ; refus 4xx
+  gardé à relire ; envoi au retour du réseau ; état visible ; `sw.js` sert l'écran Terrain hors ligne (et rien d'autre).
+- **Voix temps réel de l'Assistant IA** (GPT-Live `gpt-live-1` seul, décision de Direction du 30/10 ; bouton à côté du
+  micro de `/assistant`) : l'offre WebRTC est échangée par notre serveur (`/v1/live/sessions`, aucun secret au
+  navigateur) ; GPT-Live converse et **délègue** ; la demande dite part dans **le même fil** que le texte, jouée par le
+  même assistant (outils, droits, console, repères, cartes) ; le résultat revient à la voix sans valeur sensible ;
+  **aucune confirmation à la voix** — une écriture est une carte, exécutée par son bouton. Modèle réglable par le Super
+  Admin (Consommation IA) ou `ASSISTANT_IA_VOICE_MODEL`. Latence mesurée sur la ligne de temps de la session (cible p50
+  ≤ 1,5 s, première mesure réelle à relever en production).

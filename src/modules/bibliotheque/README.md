@@ -18,4 +18,4 @@ Décision d'architecture : [`docs/assistant/decisions/0014-bibliotheque.md`](../
 - **Tâches de fond** : `bibliotheque.ingestion`, `bibliotheque.rattrapage` (`src/lib/scheduled.ts`, sous bail `TacheDeFond`).
 - **Règles tenues** : `inscription-cliquet.test.ts` (tout écrivain du coffre inscrit, ou figure parmi les exceptions nommées) ;
   `droits.test.ts` (aucun résultat hors droits, refus par rôle) ; un modèle ne reçoit ni pièce confidentielle ni pièce du coffre.
-- **Consommateurs** : ~40 points d'entrée (inscription), l'écran `/bibliotheque`. Pas encore l'Assistant IA ni Adam.
+- **Consommateurs** : ~40 points d'entrée (inscription), l'écran `/bibliotheque`, l'Assistant IA par le socle (`connaissance.ts`, J4), le module `graphe-entreprise` (J9 : `piecesOuvrables`, `faitsVisibles` — la règle de lecture d'un fait, une seule écriture).

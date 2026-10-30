@@ -13,6 +13,12 @@ export function classerExclusionsCircuits(): void {
     "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa", "assistant-ia-consommation-actions:enregistrerAccesAssistantIa", "assistant-ia-consommation-actions:enregistrerPlafondsTravaux",
     "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe",
   ]);
+  X("LA QUALITÉ CONTINUE DE L'ASSISTANT IA (J5 + J14, décision 0022) : le calendrier du banc programmé, un passage ou un "
+    + "banc A/B demandé, et le modèle de chaque rôle — changé SEULEMENT sur un banc vert. Une IA ne choisit JAMAIS son propre "
+    + "modèle ni ne règle le banc qui la juge : c'est le geste du Super Admin, sur l'écran `/admin/ai/qualite`, devant les mesures.", [
+    "assistant-ia-qualite-actions:enregistrerCalendrierBanc", "assistant-ia-qualite-actions:lancerBancMaintenant", "assistant-ia-qualite-actions:lancerBancAB",
+    "assistant-ia-qualite-actions:appliquerModeleRole", "assistant-ia-qualite-actions:revenirModeleRole",
+  ]);
   X("SEGMENTATION STUDIO (Direction, 06/10) : stratégie, classement des produits, règles VERSIONNÉES publiées après l'aperçu "
     + "de leur impact, import d'un classeur relu ligne à ligne, potentiel terrain, statut, dérogations MOTIVÉES. Chaque geste "
     + "demande de VOIR ce qu'il change (impact, aperçu d'import, valeur calculée à côté de la dérogation) : c'est l'écran "
