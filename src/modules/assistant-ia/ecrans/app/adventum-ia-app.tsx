@@ -95,7 +95,10 @@ function Application({ userName }: { userName?: string }) {
   }, []);
 
   const versUrl = (c: string | null) => window.history.replaceState(null, "", c ? `/ia?c=${encodeURIComponent(c)}` : "/ia");
-  const surConversation = useCallback((c: { id: string }) => {
+  // Ce que le serveur dit de la conversation ouverte : titre, privée, dossier — sans attendre la relecture de la liste.
+  const [meta, setMeta] = useState<{ id: string; titre: string | null; prive: boolean; dossierId: string | null } | null>(null);
+  const surConversation = useCallback((c: { id: string; titre: string | null; prive: boolean; dossierId: string | null }) => {
+    setMeta(c);
     setConversation((avant) => (avant === c.id ? avant : c.id));
     setNouvelle(null);
     versUrl(c.id);
@@ -107,7 +110,8 @@ function Application({ userName }: { userName?: string }) {
 
   const f = useFil({ conversation, nouvelle, onConversation: surConversation });
   const p = usePieces(f.setErreur);
-  const ouverte = conversations.conversations.find((c) => c.id === conversation) ?? conversations.archivees?.find((c) => c.id === conversation);
+  const listee = conversations.conversations.find((c) => c.id === conversation) ?? conversations.archivees?.find((c) => c.id === conversation);
+  const ouverte = listee ?? (meta && meta.id === conversation ? { titre: meta.titre ?? "Conversation", prive: meta.prive, dossierId: meta.dossierId } : undefined);
   const commencee = f.fil.length > 0;
   const prive = nouvelle ? nouvelle.prive : !!ouverte?.prive;
   const dossierId = nouvelle ? nouvelle.dossierId : ouverte?.dossierId ?? null;
