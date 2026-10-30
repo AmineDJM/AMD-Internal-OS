@@ -36,6 +36,7 @@ import { sansBloquer } from "@/lib/journal";
 import { CONVERSIONS_HAUTE_FIDELITE, convertirHauteFidelite, etatMoteur, noteDuBilan, type FormatSource, type LecteurVision } from "@/lib/office/conversions-haute-fidelite";
 
 export type VersFormat = "PDF" | "XLSX" | "DOCX" | "IMAGES";
+export type { LecteurVision };
 export type Voie = "WORKER" | "EDITEUR" | "LOCAL" | "RENDU" | "MAISON";
 
 export const LIBELLE_VOIE: Record<Voie, string> = {

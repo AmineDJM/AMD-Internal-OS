@@ -1,7 +1,5 @@
 import { prisma } from "@/lib/prisma";
 import { sansBloquer } from "@/lib/journal";
-import { aiFeatureEnabled } from "@/lib/ai-settings";
-import type { DemandeVision, LecteurVision } from "@/lib/office/conversions-haute-fidelite";
 import { auNomDe } from "../consommation";
 import { genererTexte } from "../generer";
 
@@ -33,6 +31,11 @@ export const CONSIGNE_OCR = [
 
 const DELAI_PAGE_MS = 120_000;
 
+/** La forme attendue par le moteur (`LecteurVision` de `lib/office/conversions-haute-fidelite`), redite ici : le
+ * module ne prend pas une dépendance de plus vers `src/lib/` pour une signature. */
+interface DemandeVision { page: number; image: Buffer; raison: string; tesseract: string[] }
+type LecteurVision = (demandes: DemandeVision[]) => Promise<{ transcriptions: Record<number, string>; note: string | null; coutUsd: number }>;
+
 export interface ReglageOcrVision { actif: boolean; plafondUsd: number }
 
 export async function lireReglageOcrVision(): Promise<ReglageOcrVision> {
@@ -56,7 +59,8 @@ export function fabriqueVisionOcr(userId: string): LecteurVision {
   return async (demandes: DemandeVision[]) => {
     const transcriptions: Record<number, string> = {};
     const reglage = await lireReglageOcrVision();
-    if (!reglage.actif || !(await aiFeatureEnabled("assistant"))) {
+    // L'interrupteur général de l'IA est relu par `genererTexte` à chaque page.
+    if (!reglage.actif) {
       return { transcriptions, coutUsd: 0, note: `OCR vision coupé par l'administrateur : ${demandes.length} page${demandes.length > 1 ? "s" : ""} difficile${demandes.length > 1 ? "s" : ""} lue${demandes.length > 1 ? "s" : ""} en local seulement` };
     }
     const avant = await depenseOcrVisionDuMois();

@@ -14,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, formatDateTime } from "@/lib/utils";
 import { AiSettingsForm } from "./ai-settings-form";
-import { OcrVisionForm } from "./ocr-vision-form";
 import { depenseOcrVisionDuMois, lireReglageOcrVision } from "@/modules/assistant-ia/api";
 import { AiHealthCheckButton } from "./health-check-button";
 import { adamHealth, type HealthLevel } from "@/lib/google/health";
@@ -274,17 +273,10 @@ export default async function AiControlCenterPage() {
       <Card>
         <CardHeader><CardTitle>Activation par fonction</CardTitle></CardHeader>
         <CardContent>
-          <AiSettingsForm initial={settings} />
+          <AiSettingsForm initial={settings} ocrVision={{ plafondUsd: ocrVision.plafondUsd, depenseMois: depenseOcr }} />
         </CardContent>
       </Card>
 
-      {/* OCR vision des conversions (décision 0019) : activation et plafond mensuel, à part des bascules */}
-      <Card>
-        <CardHeader><CardTitle>OCR vision des conversions</CardTitle></CardHeader>
-        <CardContent>
-          <OcrVisionForm initial={ocrVision} depenseMois={depenseOcr} />
-        </CardContent>
-      </Card>
 
       {/* COÛT — où part l'argent. Lu dans ModelCallLog (une ligne par appel) et AiUsageLog (une
           ligne par tour). Un tarif inconnu s'affiche comme tel : jamais un zéro qui aurait l'air

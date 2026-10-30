@@ -149,7 +149,7 @@ Demande : « toutes les technologies nécessaires » pour les scans arabes, sans
    (`sensible`), de nature identité/paie/RIB/contrat, d'un dossier RH (clé `RH_DOCUMENT`, famille fermée), une pièce
    juridique ou un courrier enregistré, un nom qui l'annonce. Refusée : la lecture locale reste et la note le DIT
    (« OCR vision non utilisé : la pièce est classée CONFIDENTIELLE »).
-3. **Le lecteur** (Assistant IA) : réglage Super Admin **Administration › IA › OCR vision des conversions** (COUPÉ par
+3. **Le lecteur** (Assistant IA) : réglage Super Admin **Administration › IA** — une bascule du Centre de contrôle (lue par l'action, offerte par l'écran, rejouée par l'op d'Adam), COUPÉE par
    défaut, migration `20270211100000_ocr_vision`) et **plafond mensuel en dollars** (somme des appels au rôle « ocr »,
    vérifiée avant chaque page) ; appel par la porte `genererTexte` — modèle du rôle « standard » de la passerelle
    `modeles-roles.ts` (`gpt-6.1-terra`), interrupteur général, budget et **journal au nom du demandeur** (`auNomDe`,

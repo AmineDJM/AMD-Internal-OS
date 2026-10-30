@@ -30,13 +30,21 @@ export async function updateAiSettings(formData: FormData): Promise<ActionResult
     siteWebAiEnabled: fdBool(formData, "siteWebAiEnabled"),
     lecturePiecesEnabled: fdBool(formData, "lecturePiecesEnabled"),
     conseilPiecesEnabled: fdBool(formData, "conseilPiecesEnabled"),
+    ocrVisionEnabled: fdBool(formData, "ocrVisionEnabled"),
     updatedById: admin.id,
   };
+  // Le plafond MENSUEL de l'OCR vision (décision 0019) : seulement s'il est envoyé — une bascule rejouée ailleurs
+  // (l'op d'Adam) ne le remet pas à zéro.
+  const plafond = formData.has("ocrVisionPlafondUsd") ? fdNum(formData, "ocrVisionPlafondUsd") : null;
+  if (formData.has("ocrVisionPlafondUsd") && (plafond === null || !Number.isFinite(plafond) || plafond < 0 || plafond > 10_000)) {
+    return { ok: false, error: "Plafond mensuel de l'OCR vision : un montant en dollars entre 0 et 10 000." };
+  }
+  const donnees = plafond === null ? data : { ...data, ocrVisionPlafondUsd: Math.round(plafond * 100) / 100 };
 
   await prisma.aiSetting.upsert({
     where: { id: "global" },
-    create: { id: "global", ...data },
-    update: data,
+    create: { id: "global", ...donnees },
+    update: donnees,
   });
 
   await recordAudit({
@@ -49,23 +57,3 @@ export async function updateAiSettings(formData: FormData): Promise<ActionResult
   return { ok: true };
 }
 
-/**
- * L'OCR VISION DES CONVERSIONS (décision 0019) — l'activer et fixer son plafond MENSUEL en dollars (Super Admin).
- * Action à part : les bascules ci-dessus se réécrivent toutes ensemble, celle-ci ne doit pas être remise à zéro par elles.
- */
-export async function reglerOcrVision(formData: FormData): Promise<ActionResult> {
-  const admin = await requireUser();
-  if (!estSuperAdmin(admin)) return REFUS_SUPER_ADMIN;
-  const plafond = fdNum(formData, "ocrVisionPlafondUsd");
-  if (plafond === null || !Number.isFinite(plafond) || plafond < 0 || plafond > 10_000) {
-    return { ok: false, error: "Plafond mensuel : un montant en dollars entre 0 et 10 000." };
-  }
-  const data = { ocrVisionEnabled: fdBool(formData, "ocrVisionEnabled"), ocrVisionPlafondUsd: Math.round(plafond * 100) / 100, updatedById: admin.id };
-  await prisma.aiSetting.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
-  await recordAudit({
-    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA",
-    summary: `OCR vision des conversions ${data.ocrVisionEnabled ? "ACTIVÉ" : "coupé"} — plafond ${data.ocrVisionPlafondUsd} $ par mois`,
-  });
-  revalidatePath("/admin/ai");
-  return { ok: true };
-}

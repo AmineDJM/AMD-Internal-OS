@@ -13,9 +13,8 @@
 
 import {
   choisirVoie, conversionsPossibles, EXT_CONVERSION, fileConversions, formatSource, LIBELLE_VOIE, libreOfficeLocal, MIME_CONVERSION, nomSans, produire,
-  type VersFormat, type Voie,
+  type LecteurVision, type VersFormat, type Voie,
 } from "@/lib/office/conversions-atelier";
-import type { LecteurVision } from "@/lib/office/conversions-haute-fidelite";
 import type { Personne } from "@/platform/ia/artifact/office";
 import { droitsSurDocument, gardeOcrVision, portsArtefact } from "@/platform/ia/artifact/ports";
 
