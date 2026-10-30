@@ -5,6 +5,7 @@ import { SCHEMA_GESTE, type GesteAtelier } from "@/platform/ia/artifact/atelier/
 import { structurePourModele } from "@/platform/ia/artifact/atelier/structure";
 import { appliquerGestes, ouvrirDansAtelier, PREFIXE_ATELIER, vueAtelier, type OuvertureAtelier } from "@/platform/ia/artifact/atelier/service";
 import { demanderConversion, LIBELLE_VOIE, type VersFormat } from "@/platform/ia/artifact/atelier/conversions";
+import { fabriqueVisionOcr } from "./ocr-vision";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -160,12 +161,12 @@ export function outilsAtelier(user: CurrentUser): PowerTool[] {
         if (!r.ok) {
           // Une IMAGE ne s'ouvre pas dans l'Atelier : désignée par son identifiant Drive, elle se convertit directement.
           if (!RE_ID.test(ref)) return r.sortie;
-          const c = await demanderConversion(u, ref, vers, null);
+          const c = await demanderConversion(u, ref, vers, null, { vision: fabriqueVisionOcr });
           return !c.ok && !c.id ? r.sortie : reponseConversion(c, false);
         }
         const vue = r.o?.vue ?? (await vueAtelier(u, r.sessionId));
         if (!vue) return JSON.stringify({ statut: "ECHEC", raison: "Le document n'a pas pu être relu." });
-        return reponseConversion(await demanderConversion(u, vue.nodeId, vers, r.sessionId), vue.dirty);
+        return reponseConversion(await demanderConversion(u, vue.nodeId, vers, r.sessionId, { vision: fabriqueVisionOcr }), vue.dirty);
       },
     },
   ];

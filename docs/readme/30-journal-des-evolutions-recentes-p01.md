@@ -1,5 +1,14 @@
 ## 🧾 Journal des évolutions récentes
 
+### OCR VISION DES CONVERSIONS — LES SCANS ARABES VOCALISÉS SOUS 1 % (2026-10-30)
+
+Une page scannée que tesseract lit mal (arabe vocalisé, scan dégradé) est transcrite par le modèle de vision de
+l'Assistant IA, au nom du demandeur, puis vérifiée contre tesseract — **jamais** pour une pièce confidentielle, du coffre,
+d'un dossier RH ou un contrat (la lecture locale reste, et l'écran dit pourquoi). Réglage Super Admin (coupé par défaut) et
+plafond mensuel en dollars : **Administration › IA**. Banc : scans vocalisés 13,6 / 58,1 / 25,7 % → 0,20 / 0,40 / 0,00 % ;
+un passage réel 0,060 $. Aller-retour Word vocalisé (LibreOffice 7.4) : 2,0 → 0,40 % (Naskh). Décision
+[0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270211100000_ocr_vision`.
+
 ### CONVERSIONS HAUTE FIDÉLITÉ SUR LE WORKER, ET LE WORKER « CLIQUEZ SYNC, C'EST TOUT » (2026-10-30)
 
 « Pas de limitations ; c'est notre différenciation. » **PDF → Word** garde désormais images (nombre et taille), tableaux,

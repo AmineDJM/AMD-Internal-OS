@@ -118,7 +118,7 @@ def remettre_a_l_endroit(blocs: list[Bloc], stats: Statistiques | None = None, e
             for g in ordonnees:
                 for ch in g.chars:
                     gab = ch["_span"]
-                    propre = {k: v for k, v in ch.items() if k != "_span"}
+                    propre = {k: v for k, v in ch.items() if not k.startswith("_")}
                     # Une espace rejoint le span courant : pdf2docx jette les spans qui ne sont que du blanc.
                     if spans and (spans[-1]["_gab"] is gab or not ch["c"].strip()):
                         spans[-1]["chars"].append(propre)

@@ -334,7 +334,8 @@ def elements_par_page(corps) -> list[list]:
     return pages
 
 
-def remplacer_pages_scannees(d, source: Path, scannees: list[int], langues: str) -> dict:
+def remplacer_pages_scannees(d, source: Path, scannees: list[int], langues: str, *, vision_dossier: Path | None = None,
+                             transcriptions: dict[int, str] | None = None) -> dict:
     """Chaque page scannée : l'image pleine page posée par pdf2docx est remplacée par la page LUE et COMPOSÉE."""
     from docx.oxml.ns import qn
 
@@ -351,13 +352,33 @@ def remplacer_pages_scannees(d, source: Path, scannees: list[int], langues: str)
             pix.save(png)
             pngs[num], largeurs[num], hauteurs[num] = png, pix.width, pix.height
             lectures[num] = ocr.lire_page(png, langues)
-        bilan["_entetes_pieds"] = ocr.entetes_pieds_lus(lectures, hauteurs)
+        from . import vision
+
+        hf_lus = ocr.entetes_pieds_lus(lectures, hauteurs)
+        bilan["_entetes_pieds"] = hf_lus
+        a_retirer = [e["texte"] for e in hf_lus["entete"] + hf_lus["pied"]]
+        demandes = []
         for num in scannees:
             png, lecture = pngs[num], lectures[num]
-            fiable = lecture["mots"] and lecture["confiance"] >= ocr.SEUIL_CONFIANCE
-            nouveaux = ocr.composer_dans_word(d, png, lecture, largeurs[num]) if fiable else ocr.composer_image_et_texte(d, png, lecture)
-            bilan[num + 1] = {"confiance": round(lecture["confiance"], 1), "mots": len(lecture["mots"]), "reconstruite": bool(fiable),
-                              "figures": len(lecture["figures"]), "tableaux": len(ocr.grille(lecture["traits"])) if fiable else 0}
+            raison = vision.raison_vision(lecture)
+            if raison and vision_dossier is not None:
+                # Passage 1 : la page est DÉSIGNÉE (image + ce que tesseract a lu) ; l'ERP décide d'appeler ou non.
+                vision_dossier.mkdir(parents=True, exist_ok=True)
+                cible = vision_dossier / f"page-{num + 1}.png"
+                src[num].get_pixmap(dpi=200).save(cible)
+                demandes.append({"page": num + 1, "image": str(cible), "raison": raison,
+                                 "tesseract": [l["texte"] for l in ocr.lignes_de_mots(lecture["mots"])]})
+            texte_vision = (transcriptions or {}).get(num + 1)
+            if texte_vision:
+                nouveaux, controle = vision.composer_transcription(d, png, lecture, texte_vision, largeurs[num], a_retirer)
+                bilan[num + 1] = {"confiance": round(lecture["confiance"], 1), "mots": len(lecture["mots"]), "reconstruite": True,
+                                  "figures": len(lecture["figures"]), "tableaux": 0, "vision": True, "raison_vision": raison, "controle": controle}
+            else:
+                fiable = lecture["mots"] and lecture["confiance"] >= ocr.SEUIL_CONFIANCE
+                nouveaux = ocr.composer_dans_word(d, png, lecture, largeurs[num]) if fiable else ocr.composer_image_et_texte(d, png, lecture)
+                bilan[num + 1] = {"confiance": round(lecture["confiance"], 1), "mots": len(lecture["mots"]), "reconstruite": bool(fiable),
+                                  "figures": len(lecture["figures"]), "tableaux": len(ocr.grille(lecture["traits"])) if fiable else 0,
+                                  **({"raison_vision": raison} if raison else {})}
             anciens = pages[num] if num < len(pages) else []
             # Le paragraphe qui porte le saut de section de la page reste (vidé) : il garde taille et marges de la page.
             porteur = next((el for el in anciens if el.tag == qn("w:p") and el.find(f"{qn('w:pPr')}/{qn('w:sectPr')}") is not None), None)
@@ -379,10 +400,16 @@ def remplacer_pages_scannees(d, source: Path, scannees: list[int], langues: str)
                 fin = corps.find(qn("w:sectPr"))
                 for el in nouveaux:
                     (fin.addprevious(el) if fin is not None else corps.append(el))
+        if vision_dossier is not None and demandes:
+            import json
+
+            (vision_dossier / "demandes.json").write_text(json.dumps(demandes, ensure_ascii=False), encoding="utf-8")
+            bilan["_vision_demandes"] = [x["page"] for x in demandes]
     return bilan
 
 
-def pdf_vers_docx(source: Path, sortie: Path, *, langues: str = "ara+fra+eng") -> dict:
+def pdf_vers_docx(source: Path, sortie: Path, *, langues: str = "ara+fra+eng", vision_dossier: Path | None = None,
+                  transcriptions: dict[int, str] | None = None) -> dict:
     """Convertit. Rend le bilan (pages, pages OCRisées, paragraphes RTL, en-têtes…) que l'écran et le banc affichent."""
     logging.getLogger().setLevel(logging.ERROR)
     from docx import Document
@@ -407,7 +434,8 @@ def pdf_vers_docx(source: Path, sortie: Path, *, langues: str = "ara+fra+eng") -
                 cv.close()
         d = Document(str(brut))
         if scannees:
-            bilan["ocr"] = remplacer_pages_scannees(d, source, scannees, langues)
+            bilan["ocr"] = remplacer_pages_scannees(d, source, scannees, langues, vision_dossier=vision_dossier, transcriptions=transcriptions)
+            bilan["vision_demandes"] = bilan["ocr"].pop("_vision_demandes", [])
             bilan["pages_ocr"] = [n + 1 for n in scannees]
             lus = bilan["ocr"].pop("_entetes_pieds")
             hf["entete"] = hf["entete"] or lus["entete"]

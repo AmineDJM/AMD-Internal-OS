@@ -33,7 +33,7 @@ import { lireTextePdf } from "@/lib/artifact/pdf/read";
 import { composerDocx, MIME_DOCX, paragraphe } from "@/lib/artifact/factory/word";
 import { construireClasseurVerifie } from "@/lib/artifact/sheets/build";
 import { sansBloquer } from "@/lib/journal";
-import { CONVERSIONS_HAUTE_FIDELITE, convertirHauteFidelite, etatMoteur, noteDuBilan, type FormatSource } from "@/lib/office/conversions-haute-fidelite";
+import { CONVERSIONS_HAUTE_FIDELITE, convertirHauteFidelite, etatMoteur, noteDuBilan, type FormatSource, type LecteurVision } from "@/lib/office/conversions-haute-fidelite";
 
 export type VersFormat = "PDF" | "XLSX" | "DOCX" | "IMAGES";
 export type Voie = "WORKER" | "EDITEUR" | "LOCAL" | "RENDU" | "MAISON";
@@ -159,7 +159,7 @@ export interface SourceConversion { nodeId: string; version: number; format: str
  * PRODUIT les octets convertis par la voie choisie, puis les RELIT (§48) : un fichier vide ou illisible ne devient
  * pas un document. `userId` ne sert qu'à l'éditeur Office (jeton de lecture signé, 5 minutes).
  */
-export async function produire(userId: string, src: SourceConversion, octets: Buffer, vers: VersFormat, voie: Voie): Promise<{ octets: Buffer; note: string | null }> {
+export async function produire(userId: string, src: SourceConversion, octets: Buffer, vers: VersFormat, voie: Voie, vision?: LecteurVision): Promise<{ octets: Buffer; note: string | null }> {
   let r: { octets: Buffer; note: string | null };
   if (voie === "MAISON") {
     const m = vers === "XLSX" ? await tableauxEnClasseur(octets) : await pdfEnWord(octets, nomSans(src.nom));
@@ -172,7 +172,7 @@ export async function produire(userId: string, src: SourceConversion, octets: Bu
     const moteur = parLeMoteur(src.format, vers) ? await etatMoteur() : null;
     if (moteur?.pret) {
       const extension = src.format === "IMAGE" ? (src.nom.match(/\.([a-z0-9]+)$/i)?.[1] ?? "png") : undefined;
-      const hf = await convertirHauteFidelite(octets, src.format as FormatSource, vers as never, { extension });
+      const hf = await convertirHauteFidelite(octets, src.format as FormatSource, vers as never, { extension, vision });
       r = { octets: hf.octets, note: noteDuBilan(src.format as FormatSource, vers as never, hf.bilan) };
     } else {
       const bin = vers === "PDF" && src.format !== "IMAGE" ? await libreOfficeLocal() : null;

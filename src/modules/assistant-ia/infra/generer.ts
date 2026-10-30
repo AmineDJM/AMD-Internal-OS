@@ -34,7 +34,7 @@ export interface ImageJointe {
 export interface OptionsGeneration {
   images?: ImageJointe[];
   /** La colonne `role` du journal quand l'appel ouvre son propre budget (« redaction » par défaut). */
-  origine?: Extract<OrigineAppel, "redaction" | "vision">;
+  origine?: Extract<OrigineAppel, "redaction" | "vision" | "ocr">;
   /** J4 : le rôle du modèle (« rapide » pour un résumé roulant) — « standard » par défaut. */
   role?: RoleModele;
 }

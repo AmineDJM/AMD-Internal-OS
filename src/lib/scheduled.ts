@@ -359,7 +359,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
       return ignoree("les conversions tournent sur le worker (moteur haute fidélité)");
     }
     const { traiterConversionsEnFile } = await import("@/platform/ia/artifact/atelier/conversions");
-    await traiterConversionsEnFile({ executeur: executeurDuProcessus() });
+    // L'OCR vision (décision 0019) : fourni par l'Assistant IA, au nom de chaque demandeur ; garde et réglage décident.
+    const { fabriqueVisionOcr } = await import("@/modules/assistant-ia/api");
+    await traiterConversionsEnFile({ executeur: executeurDuProcessus(), vision: fabriqueVisionOcr });
   } },
 
   // LE VIEILLISSEMENT DE LA MÉMOIRE — le seul des deux mouvements de la mémoire épisodique

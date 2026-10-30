@@ -151,6 +151,10 @@ def retirer_echos(chars: list[dict]) -> list[dict]:
             if (len(b) == longueur and [c["c"] for c in a] == [c["c"] for c in b] and any(classe(c["c"]) == "R" for c in a)
                     and all(_largeur_nulle(c) for c in b)
                     and (not all(_largeur_nulle(c) for c in a) or abs(a[-1]["bbox"][0] - b[-1]["bbox"][0]) < 2)):
+                # L'écho DIT la grappe : ses marques appartiennent à SA base (lien le plus sûr, avant toute géométrie).
+                bases_a = [c for c in a if classe(c["c"]) != "M"]
+                if len(bases_a) == 1:
+                    a = [{**c, "_base": id(bases_a[0])} if classe(c["c"]) == "M" else c for c in a]
                 out.extend(a)
                 i += 2 * longueur
                 break
@@ -250,6 +254,11 @@ def grappes(chars: list[dict]) -> list[Grappe]:
         prefere = arabes(exactes) or arabes(contenantes) or loin or arabes(voisins)
         if prefere:
             exactes, contenantes, voisins = prefere, [], []
+        lien = ch.get("_base")
+        if lien is not None:
+            lie = next((k for k in bases if id(chars[k]) == lien), None)
+            if lie is not None:
+                exactes, contenantes, voisins = [lie], [], []
         choix = exactes or contenantes or voisins
         if choix:
             # À distance égale, la base qui SUIT la marque dans le flux : LibreOffice émet [marque, base], et une marque

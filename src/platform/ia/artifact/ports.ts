@@ -105,6 +105,32 @@ export async function documentSensible(nodeId: string): Promise<string | null> {
   return null;
 }
 
+/** Les natures qu'aucun modèle externe ne lit (coffre, paie, contrat), et les noms qui les annoncent. */
+const NATURES_SANS_VISION = new Set(["PASSEPORT", "CNI", "PERMIS_CONDUIRE", "VISA", "BULLETIN_PAIE", "RIB", "CONTRAT"]);
+const NOM_SENSIBLE = /passeport|passport|\bcni\b|carte.?d.?identit|permis|visa|bulletin|fiche.?de.?paie|salaire|paie\b|\brib\b|relev[eé].?d.?identit|contrat|avenant/i;
+
+/**
+ * LA GARDE DE L'OCR VISION (décision 0019, suite) — rend la RAISON du refus, ou `null` si la page peut partir au modèle
+ * de vision. Jamais : une pièce CONFIDENTIELLE, du coffre ou reconnue sensible (identité, paie, RIB), un contrat ou une
+ * pièce juridique, un courrier enregistré, une pièce d'un dossier RH (famille fermée), un nom qui l'annonce.
+ */
+export async function gardeOcrVision(nodeId: string, version: number, nom: string): Promise<string | null> {
+  if (NOM_SENSIBLE.test(nom)) return "le nom du fichier annonce une pièce sensible (identité, paie, RIB ou contrat)";
+  const v = await prisma.fileVersion.findFirst({ where: { nodeId, version }, select: { blobId: true } });
+  if (!v) return "version introuvable";
+  const [fiches, pieces, sensible] = await Promise.all([
+    prisma.bibliothequeFiche.findMany({ where: { blobId: v.blobId }, select: { confidentiality: true, sensible: true, nature: true, cles: true } }),
+    prisma.piece.findMany({ where: { blobId: v.blobId }, select: { confidentiality: true, nature: true } }),
+    documentSensible(nodeId),
+  ]);
+  if ([...fiches, ...pieces].some((f) => f.confidentiality === "CONFIDENTIAL")) return "la pièce est classée CONFIDENTIELLE";
+  if (fiches.some((f) => f.sensible)) return "la pièce relève du coffre (identité, paie, RIB)";
+  if ([...fiches, ...pieces].some((f) => f.nature && NATURES_SANS_VISION.has(f.nature))) return "la nature de la pièce (identité, paie, RIB ou contrat) interdit l'envoi au modèle";
+  if (fiches.some((f) => f.cles.some((c) => c.startsWith("RH_DOCUMENT:")))) return "la pièce appartient à un dossier RH (famille fermée)";
+  if (sensible && !sensible.startsWith("ce fichier appartient à l'espace partagé")) return sensible;
+  return null;
+}
+
 const documents: PortDocuments = {
   async decrire(userId, nodeId) {
     const u = await personne(userId);

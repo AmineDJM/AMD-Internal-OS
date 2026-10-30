@@ -1,5 +1,5 @@
 {
- "date": "2026-10-30T20:27:43.786Z",
+ "date": "2026-10-30T21:51:31.370Z",
  "moteur": {
   "python": "3.11.2",
   "pymupdf": "2.0",
@@ -29,11 +29,13 @@
   "pret": true
  },
  "seuilCer": 0.01,
+ "vision": false,
+ "coutVisionUsd": 0,
  "pdfVersWord": [
   {
    "fichier": "fr-rapport.pdf",
    "producteur": "LibreOffice",
-   "secondes": 0.896,
+   "secondes": 0.994,
    "mesure": {
     "cer": 0,
     "interdits": [],
@@ -63,7 +65,7 @@
   {
    "fichier": "ar-note.pdf",
    "producteur": "LibreOffice",
-   "secondes": 1.459,
+   "secondes": 1.444,
    "mesure": {
     "cer": 0.0025673940949935813,
     "interdits": [],
@@ -93,7 +95,7 @@
   {
    "fichier": "mixte-ar-fr.pdf",
    "producteur": "LibreOffice",
-   "secondes": 0.775,
+   "secondes": 0.684,
    "mesure": {
     "cer": 0,
     "interdits": [],
@@ -119,7 +121,7 @@
   {
    "fichier": "fr-deux-colonnes.pdf",
    "producteur": "LibreOffice",
-   "secondes": 0.714,
+   "secondes": 0.635,
    "mesure": {
     "cer": 0,
     "interdits": [],
@@ -145,7 +147,7 @@
   {
    "fichier": "ar-vocalise-naskh.pdf",
    "producteur": "LibreOffice",
-   "secondes": 0.894,
+   "secondes": 0.783,
    "mesure": {
     "cer": 0.008097165991902834,
     "interdits": [],
@@ -171,7 +173,7 @@
   {
    "fichier": "ar-vocalise-amiri.pdf",
    "producteur": "LibreOffice",
-   "secondes": 0.993,
+   "secondes": 0.716,
    "mesure": {
     "cer": 0.008097165991902834,
     "interdits": [],
@@ -197,7 +199,7 @@
   {
    "fichier": "ar-chromium.pdf",
    "producteur": "Chromium",
-   "secondes": 1.006,
+   "secondes": 1.001,
    "mesure": {
     "cer": 0,
     "interdits": [],
@@ -227,7 +229,7 @@
   {
    "fichier": "scan-fr.pdf",
    "producteur": "scan 200 ppp",
-   "secondes": 7.965,
+   "secondes": 8.082,
    "mesure": {
     "cer": 0.005888125613346418,
     "interdits": [],
@@ -273,7 +275,7 @@
   {
    "fichier": "scan-ar.pdf",
    "producteur": "scan 200 ppp",
-   "secondes": 7.27,
+   "secondes": 7.353,
    "mesure": {
     "cer": 0.012836970474967908,
     "interdits": [],
@@ -314,14 +316,15 @@
      "mots": 25,
      "reconstruite": true,
      "figures": 0,
-     "tableaux": 0
+     "tableaux": 0,
+     "raison_vision": "arabe vocalisé"
     }
    }
   },
   {
    "fichier": "scan-ar-vocalise.pdf",
    "producteur": "scan 300 ppp",
-   "secondes": 3.921,
+   "secondes": 3.925,
    "mesure": {
     "cer": 0.13562753036437247,
     "interdits": [],
@@ -350,15 +353,16 @@
      "confiance": 49.6,
      "mots": 54,
      "reconstruite": false,
-     "figures": 7,
-     "tableaux": 0
+     "figures": 0,
+     "tableaux": 0,
+     "raison_vision": "arabe vocalisé"
     }
    }
   },
   {
    "fichier": "scan-ar-vocalise-amiri.pdf",
    "producteur": "scan 200 ppp",
-   "secondes": 3.914,
+   "secondes": 4.045,
    "mesure": {
     "cer": 0.5809716599190283,
     "interdits": [],
@@ -388,14 +392,15 @@
      "mots": 61,
      "reconstruite": true,
      "figures": 1,
-     "tableaux": 0
+     "tableaux": 0,
+     "raison_vision": "arabe lu avec une confiance basse"
     }
    }
   },
   {
    "fichier": "scan-ar-vocalise-mauvais.pdf",
    "producteur": "mauvais scan 150 ppp",
-   "secondes": 4.259,
+   "secondes": 3.646,
    "mesure": {
     "cer": 0.25708502024291496,
     "interdits": [],
@@ -425,7 +430,8 @@
      "mots": 53,
      "reconstruite": false,
      "figures": 0,
-     "tableaux": 0
+     "tableaux": 0,
+     "raison_vision": "arabe vocalisé"
     }
    }
   }
@@ -503,18 +509,18 @@
   {
    "fichier": "ar-vocalise-naskh.docx",
    "conversion": "Word → PDF (aller-retour)",
-   "cer": 0.020242914979757085,
+   "cer": 0.004048582995951417,
    "pages": 1,
    "polices": [
     "BAAAAA+NotoNaskhArabic-Bold",
     "CAAAAA+NotoNaskhArabic-Regular"
    ],
-   "ok": false
+   "ok": true
   },
   {
    "fichier": "ar-vocalise-amiri.docx",
    "conversion": "Word → PDF (aller-retour)",
-   "cer": 0.02631578947368421,
+   "cer": 0.010121457489878543,
    "pages": 1,
    "polices": [
     "BAAAAA+Amiri-Bold",

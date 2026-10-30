@@ -46,7 +46,7 @@ import {
 export const FEATURE_ASSISTANT_IA = "assistant_ia" as const;
 
 /** D'où part l'appel — la colonne `role` du journal : ce que « par usage » distingue à l'écran. */
-export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction" | "transcription" | "vision" | "synthese";
+export type OrigineAppel = "conversation" | "fil" | "routine" | "redaction" | "transcription" | "vision" | "synthese" | "ocr";
 
 export class PlafondIaAtteint extends Error {
   constructor(message: string) { super(message); this.name = "PlafondIaAtteint"; }

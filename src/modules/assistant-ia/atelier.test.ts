@@ -73,6 +73,7 @@ suite("l'Atelier — droits, modification en place, nouvelle version (vraie base
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
     await prisma.atelierConversion.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
     await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } });
+    await prisma.piece.deleteMany({ where: { nom: { startsWith: TAG }, empreinte: { startsWith: TAG } } });
     await prisma.driveNode.deleteMany({ where: { ownerId: { in: users.map((u) => u.id) } } });
     await prisma.driveSpace.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
@@ -190,4 +191,17 @@ suite("l'Atelier — droits, modification en place, nouvelle version (vraie base
       expect(r.note).toMatch(/secours/);
     }
   }, 120_000);
+
+  it("OCR VISION (décision 0019) : la GARDE — une pièce sensible ne part jamais au modèle ; une pièce ordinaire, si", async () => {
+    const { gardeOcrVision } = await import("@/platform/ia/artifact/ports");
+    const b = await putBlob(Buffer.from(`%PDF-1.4 garde ${TAG} ${Date.now()}`));
+    const ordinaire = await prisma.driveNode.create({
+      data: { name: `${TAG} notice.pdf`, type: "FILE", mimeType: "application/pdf", ownerId: proprietaire.id, size: b.size, versions: { create: { blobId: b.blobId, version: 1, size: b.size } } },
+    });
+    expect(await gardeOcrVision(ordinaire.id, 1, `${TAG} notice.pdf`)).toBeNull();
+    expect(await gardeOcrVision(ordinaire.id, 1, "Passeport de Karim.pdf")).toMatch(/pièce sensible/);
+    // Une fiche de la Bibliothèque CONFIDENTIELLE sur le même contenu : refus.
+    await prisma.piece.create({ data: { blobId: b.blobId, empreinte: `${TAG}-garde-${b.blobId}`, nom: `${TAG} notice.pdf`, confidentiality: "CONFIDENTIAL" } });
+    expect(await gardeOcrVision(ordinaire.id, 1, `${TAG} notice.pdf`)).toMatch(/CONFIDENTIELLE/);
+  }, 60_000);
 });

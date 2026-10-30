@@ -72,7 +72,7 @@ def _nombre(v: str):
     return v
 
 
-def pdf_vers_xlsx(source: Path, sortie: Path, langues: str = "ara+fra+eng") -> dict:
+def pdf_vers_xlsx(source: Path, sortie: Path, langues: str = "ara+fra+eng", **vision) -> dict:
     from docx import Document
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font
@@ -81,7 +81,7 @@ def pdf_vers_xlsx(source: Path, sortie: Path, langues: str = "ara+fra+eng") -> d
 
     with tempfile.TemporaryDirectory(prefix="amd-xlsx-") as d:
         docx = Path(d) / "intermediaire.docx"
-        bilan = pdf_vers_docx(source, docx, langues=langues)
+        bilan = pdf_vers_docx(source, docx, langues=langues, **vision)
         doc = Document(str(docx))
         wb = Workbook()
         wb.remove(wb.active)
@@ -121,7 +121,7 @@ def image_vers_pdf(source: Path, sortie: Path, langues: str = "ara+fra+eng") -> 
     return {"moteur": "tesseract (calque texte)", **image_vers_pdf_cherchable([source], sortie, langues)}
 
 
-def image_vers_docx(source: Path, sortie: Path, langues: str = "ara+fra+eng") -> dict:
+def image_vers_docx(source: Path, sortie: Path, langues: str = "ara+fra+eng", **vision) -> dict:
     from .pdf_docx import pdf_vers_docx
 
     with tempfile.TemporaryDirectory(prefix="amd-img-") as d:
@@ -132,7 +132,7 @@ def image_vers_docx(source: Path, sortie: Path, langues: str = "ara+fra+eng") ->
             page = doc.new_page(width=rect.width, height=rect.height)
             page.insert_image(page.rect, filename=str(source))
             doc.save(pdf)
-        return pdf_vers_docx(pdf, sortie, langues=langues)
+        return pdf_vers_docx(pdf, sortie, langues=langues, **vision)
 
 
 def pptx_vers_images(source: Path, sortie: Path, ppp: int = 150) -> dict:

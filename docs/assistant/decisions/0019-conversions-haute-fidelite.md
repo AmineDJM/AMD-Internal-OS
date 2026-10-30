@@ -136,6 +136,49 @@ Aucun envoi à un service externe (documents confidentiels). La voie restante es
 (Kraken/Calamari sur un corpus vocalisé, ou un VLM sur un worker plus gros) : un lot à part, avec un plan Render plus grand.
 Le texte arabe courant (non vocalisé, le cas des documents de l'entreprise) sort à 1,28 % en scan, 0–0,26 % en natif.
 
+## Suite 2 (30/10, nuit) — l'OCR VISION, et l'aller-retour Word vocalisé
+
+Demande : « toutes les technologies nécessaires » pour les scans arabes, sans jamais envoyer une pièce sensible.
+
+**Le circuit** (`scripts/conversions/amd_conversions/vision.py`, `src/lib/office/conversions-haute-fidelite.ts`,
+`src/modules/assistant-ia/infra/atelier/ocr-vision.ts`, garde `gardeOcrVision` dans `src/platform/ia/artifact/ports.ts`) :
+1. **Passage 1** du moteur : chaque page scannée est lue localement ; celles que tesseract lit mal sont DÉSIGNÉES (arabe
+   vocalisé — une lettre sur cinq porte une marque —, arabe à confiance < 85, confiance de page < 80), image et lecture
+   tesseract à l'appui. Aucune ne part d'elle-même.
+2. **La garde** (le socle, avant tout appel) : jamais une pièce CONFIDENTIELLE (Bibliothèque ou `Piece`), du coffre
+   (`sensible`), de nature identité/paie/RIB/contrat, d'un dossier RH (clé `RH_DOCUMENT`, famille fermée), une pièce
+   juridique ou un courrier enregistré, un nom qui l'annonce. Refusée : la lecture locale reste et la note le DIT
+   (« OCR vision non utilisé : la pièce est classée CONFIDENTIELLE »).
+3. **Le lecteur** (Assistant IA) : réglage Super Admin **Administration › IA › OCR vision des conversions** (COUPÉ par
+   défaut, migration `20270211100000_ocr_vision`) et **plafond mensuel en dollars** (somme des appels au rôle « ocr »,
+   vérifiée avant chaque page) ; appel par la porte `genererTexte` — modèle du rôle « standard » de la passerelle
+   `modeles-roles.ts` (`gpt-6.1-terra`), interrupteur général, budget et **journal au nom du demandeur** (`auNomDe`,
+   `AiUsageLog`/`ModelCallLog`, route « ocr »). Consigne : transcription exacte, ordre logique, harakat tels qu'imprimés,
+   aucune reformulation, tableaux en `| … |`.
+4. **Passage 2** : la page est composée depuis la transcription (paragraphes, tableaux, illustrations à leur hauteur),
+   **vérifiée contre tesseract** (lettres de base alignées ligne à ligne : une ligne vue d'un seul côté est comptée et
+   dite dans la note). **Arbitrage** : le modèle ajoute systématiquement un soukoun sur le lam de l'article (« الْ »),
+   non imprimé (mesuré sur les trois scans) — il n'est gardé que si tesseract le voit aussi.
+
+**Mesure** — UN passage réel du banc (`npm run conversions:bench -- --vision`, poste avec tesseract 5.3, base de banc,
+réglage actif) : **0,060 $** pour 4 pages. Dépense totale des essais : **0,119 $** (3 passages : une page, puis tous les
+scans avant et après l'arbitrage du soukoun), journalisée au rôle « ocr ».
+
+| Scan | Local seul (tesseract 5.3) | Avec OCR vision |
+|---|---|---|
+| scan arabe courant (page 2 vocalisée désignée) | 1,28 % | **0,64 %** ✓ |
+| scan vocalisé Naskh 300 ppp | 13,56 % | **0,20 %** ✓ |
+| scan vocalisé Amiri 200 ppp | 58,10 % | **0,40 %** ✓ |
+| mauvais scan vocalisé (150 ppp, flou, bruit, de travers) | 25,71 % | **0,00 %** ✓ |
+| scan français (non désigné : lu localement) | 0,59 % | 0,59 % ✓ |
+
+**L'aller-retour Word vocalisé → PDF (LibreOffice 7.4) → Word** : cause trouvée — LibreOffice 7.4 n'émet d'écho que pour
+les lettres porteuses de hamza (« لأ ») et pose la marque sur la jointure de deux lettres ; corrigé localement : l'écho
+désigne la base de ses marques (lien prioritaire), une marque ne va jamais sur un point. **Naskh 2,02 % → 0,40 % ✓,
+Amiri 2,63 % → 1,01 %** (une erreur de trop : « اِقْرَأْ » final, fatha et soukoun posés au même point, aucune lecture ne
+les départage). Les illustrations d'un scan : les « figures » faites de texte mal lu ou de bruit sont écartées
+(composantes de la taille d'une lettre, encre résiduelle < 2 %).
+
 ## B. Le worker « cliquez Sync, c'est tout »
 
 `render.yaml` : `TACHES_DE_FOND=les-deux` sur le web ET le worker (le bail par tâche départage ; tant que le worker n'a pas

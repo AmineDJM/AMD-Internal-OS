@@ -289,7 +289,9 @@ def traits_et_figures(png: Path, mots: list[dict]) -> tuple[list[tuple], list[tu
     figures = []
     for c in cv2.findContours(plein, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)[0]:
         x, y, cw, ch = cv2.boundingRect(c)
-        if cw * ch < 0.01 * w * h or cw < 60 or ch < 60:
+        # Une illustration est HAUTE (≥ 4 % de la page) : des harakat ou une ligne mal lue n'en sont pas (mesuré sur
+        # le scan vocalisé : sept « figures » qui étaient des bouts de texte).
+        if cw * ch < 0.01 * w * h or cw < 60 or ch < max(60, 0.04 * h):
             continue
         boite = (x, y, x + cw, y + ch)
         dedans = [m for m in mots if _recouvrement(m["bbox"], boite) > 0.8]
@@ -299,6 +301,16 @@ def traits_et_figures(png: Path, mots: list[dict]) -> tuple[list[tuple], list[tu
         part_traits = int(np.count_nonzero(zone_encre & zone_traits)) / encre
         if len(dedans) >= 4 and part_traits > 0.5:
             continue  # un tableau : ses traits restent des traits
+        # Du TEXTE que tesseract n'a pas lu (arabe vocalisé, scan dégradé) : beaucoup de petites composantes de la
+        # hauteur d'une lettre. Une illustration a de grandes formes pleines.
+        n, _, stats, _ = cv2.connectedComponentsWithStats(zone_encre, connectivity=8)
+        hauteurs = [stats[i, cv2.CC_STAT_HEIGHT] for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] > 8]
+        grandes = sum(1 for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] > 0.05 * cw * ch)
+        if len(hauteurs) > 25 and not grandes and statistics.median(hauteurs) < 0.08 * ch:
+            continue
+        # Du BRUIT de numérisation que la fermeture a soudé : presque pas d'encre une fois les points isolés retirés.
+        if sum(int(stats[i, cv2.CC_STAT_AREA]) for i in range(1, n) if stats[i, cv2.CC_STAT_AREA] > 8) < 0.02 * cw * ch:
+            continue
         figures.append(boite)
     dans = lambda t, f: f[0] - 8 <= min(t[0], t[2]) and max(t[0], t[2]) <= f[2] + 8 and f[1] - 8 <= min(t[1], t[3]) and max(t[1], t[3]) <= f[3] + 8
     traits = [t for t in traits if not any(dans(t, f) for f in figures)]

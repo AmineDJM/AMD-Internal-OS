@@ -11,19 +11,21 @@
  *
  * Aucun appel réseau, aucune base : seulement le moteur local (Python de `CONVERSIONS_PYTHON`, tesseract, LibreOffice).
  * Rapport : tableau à l'écran + `scripts/bench/resultats/conversions.json`. Sortie 1 si un critère tombe.
- * Options : `-- --seulement=ar-note,scan-ar` · `-- --sans-office`.
+ * Options : `-- --seulement=ar-note,scan-ar` · `-- --sans-office` · `-- --vision` (UN passage RÉEL de l'OCR vision sur les
+ * pages scannées que le moteur désigne — appel payant au modèle, journalisé au rôle « ocr » ; il faut le réglage actif
+ * en base de banc et la clé OpenAI).
  */
 
 import fs from "node:fs";
 import path from "node:path";
 import PizZip from "pizzip";
-import { convertirHauteFidelite, etatMoteur } from "@/lib/office/conversions-haute-fidelite";
-import { analyserDocx, mesurer, tauxErreurCaracteres, type Attendu, type Mesure } from "@/lib/office/conversions-mesure";
+import { convertirHauteFidelite, etatMoteur, type LecteurVision } from "@/lib/office/conversions-haute-fidelite";
+import { analyserDocx, mesurer, normaliserPourComparer, tauxErreurCaracteres, type Attendu, type Mesure } from "@/lib/office/conversions-mesure";
 
 const CORPUS = path.join(process.cwd(), "scripts", "conversions", "corpus");
 const SEUIL_CER = 0.01;
 
-type Ligne = { fichier: string; producteur: string; secondes: number; mesure: Mesure; ok: boolean; motifs: string[]; ocr?: unknown };
+type Ligne = { fichier: string; producteur: string; secondes: number; mesure: Mesure; ok: boolean; motifs: string[]; ocr?: unknown; vision?: unknown };
 
 function verdict(m: Mesure, att: Attendu): string[] {
   const motifs: string[] = [];
@@ -38,6 +40,11 @@ function verdict(m: Mesure, att: Attendu): string[] {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const seulement = args.find((a) => a.startsWith("--seulement="))?.split("=")[1]?.split(",") ?? null;
+  let vision: LecteurVision | undefined;
+  if (args.includes("--vision")) {
+    const { fabriqueVisionOcr } = await import("@/modules/assistant-ia/api");
+    vision = fabriqueVisionOcr("banc-conversions");
+  }
   const moteur = await etatMoteur(true);
   if (!moteur.pret) {
     console.error(`Moteur incomplet : ${moteur.manquants.join(", ") || moteur.erreur}. (CONVERSIONS_PYTHON=${process.env.CONVERSIONS_PYTHON ?? "python3"})`);
@@ -48,10 +55,17 @@ async function main(): Promise<void> {
   for (const [fichier, att] of Object.entries(attendu)) {
     if (seulement && !seulement.some((s) => fichier.startsWith(s))) continue;
     const debut = Date.now();
-    const r = await convertirHauteFidelite(fs.readFileSync(path.join(CORPUS, fichier)), "PDF", "DOCX");
-    const m = mesurer(analyserDocx(r.octets), att);
+    const r = await convertirHauteFidelite(fs.readFileSync(path.join(CORPUS, fichier)), "PDF", "DOCX", { vision: att.scan ? vision : undefined });
+    const a = analyserDocx(r.octets);
+    const m = mesurer(a, att);
     const motifs = verdict(m, att);
-    lignes.push({ fichier, producteur: att.producteur, secondes: (Date.now() - debut) / 1000, mesure: m, ok: motifs.length === 0, motifs, ocr: r.bilan.ocr ?? undefined });
+    if (process.env.BANC_GARDER) {
+      // Le texte obtenu et attendu, mot par mot : de quoi lire l'écart (`diff`), sans relancer un passage payant.
+      fs.mkdirSync(process.env.BANC_GARDER, { recursive: true });
+      fs.writeFileSync(path.join(process.env.BANC_GARDER, `${fichier}.obtenu.txt`), normaliserPourComparer(a.texte).split(" ").join("\n"));
+      fs.writeFileSync(path.join(process.env.BANC_GARDER, `${fichier}.attendu.txt`), normaliserPourComparer(att.texte.join("\n")).split(" ").join("\n"));
+    }
+    lignes.push({ fichier, producteur: att.producteur, secondes: (Date.now() - debut) / 1000, mesure: m, ok: motifs.length === 0, motifs, ocr: r.bilan.ocr ?? undefined, vision: r.bilan.vision ?? undefined });
   }
 
   // Word → PDF (LibreOffice), mesuré en aller-retour ; PDF → Excel.
@@ -93,11 +107,13 @@ async function main(): Promise<void> {
       console.log(`${o.fichier.padEnd(24)} ${o.conversion.padEnd(26)} ${o.cer !== undefined ? `CER ${pct(o.cer)}` : `${o.feuilles}/${o.attendues} feuilles`}${o.polices ? `  polices : ${o.polices.join(", ")}` : ""}  ${o.ok ? "OK" : "ÉCHEC"}`);
     }
   }
-  const rapport = { date: new Date().toISOString(), moteur: moteur.detail, seuilCer: SEUIL_CER, pdfVersWord: lignes, office };
+  const coutVision = lignes.reduce((n, l) => n + ((l.vision as { coutUsd?: number } | undefined)?.coutUsd ?? 0), 0);
+  if (vision) console.log(`\nOCR vision : ${lignes.filter((l) => (l.vision as { pages?: number[] } | undefined)?.pages?.length).length} fichier(s) transcrit(s), coût ${coutVision.toFixed(4)} $`);
+  const rapport = { date: new Date().toISOString(), moteur: moteur.detail, seuilCer: SEUIL_CER, vision: Boolean(vision), coutVisionUsd: coutVision, pdfVersWord: lignes, office };
   fs.mkdirSync(path.join(process.cwd(), "scripts", "bench", "resultats"), { recursive: true });
-  fs.writeFileSync(path.join(process.cwd(), "scripts", "bench", "resultats", "conversions.json"), JSON.stringify(rapport, null, 1) + "\n");
+  fs.writeFileSync(path.join(process.cwd(), "scripts", "bench", "resultats", vision ? "conversions-vision.json" : "conversions.json"), JSON.stringify(rapport, null, 1) + "\n");
   const echecs = lignes.filter((l) => !l.ok).length + office.filter((o) => !o.ok).length;
-  console.log(`\n${lignes.length + office.length - echecs}/${lignes.length + office.length} conformes — rapport : scripts/bench/resultats/conversions.json`);
+  console.log(`\n${lignes.length + office.length - echecs}/${lignes.length + office.length} conformes — rapport : scripts/bench/resultats/${vision ? "conversions-vision.json" : "conversions.json"}`);
   process.exit(echecs ? 1 : 0);
 }
 

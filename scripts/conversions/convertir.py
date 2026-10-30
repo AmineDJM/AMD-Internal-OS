@@ -72,6 +72,10 @@ def main() -> int:
     ap.add_argument("--vers")
     ap.add_argument("--sortie")
     ap.add_argument("--langues", default="ara+fra+eng")
+    # OCR vision (décision 0019, suite) : passage 1, désigner les pages (images + demandes.json) ; passage 2, composer
+    # avec les transcriptions reçues ({"<page>": "texte"}).
+    ap.add_argument("--vision-dossier")
+    ap.add_argument("--transcriptions")
     a = ap.parse_args()
     if a.verifier:
         print(json.dumps({"ok": True, "bilan": verifier()}, ensure_ascii=False))
@@ -87,10 +91,16 @@ def main() -> int:
             from amd_conversions import autres
             from amd_conversions.pdf_docx import pdf_vers_docx
 
+            vision: dict = {}
+            if a.vision_dossier:
+                vision["vision_dossier"] = Path(a.vision_dossier)
+            if a.transcriptions:
+                vision["transcriptions"] = {int(k): v for k, v in json.loads(Path(a.transcriptions).read_text(encoding="utf-8")).items()}
+
             if de == "PDF" and vers == "DOCX":
-                bilan = pdf_vers_docx(source, sortie, langues=a.langues)
+                bilan = pdf_vers_docx(source, sortie, langues=a.langues, **vision)
             elif de == "PDF" and vers == "XLSX":
-                bilan = autres.pdf_vers_xlsx(source, sortie, langues=a.langues)
+                bilan = autres.pdf_vers_xlsx(source, sortie, langues=a.langues, **vision)
             elif de in ("DOCX", "PPTX", "XLSX") and vers == "PDF":
                 bilan = autres.office_vers_pdf(source, sortie)
             elif de == "PPTX" and vers == "IMAGES":
@@ -98,7 +108,7 @@ def main() -> int:
             elif de == "IMAGE" and vers == "PDF":
                 bilan = autres.image_vers_pdf(source, sortie, langues=a.langues)
             elif de == "IMAGE" and vers == "DOCX":
-                bilan = autres.image_vers_docx(source, sortie, langues=a.langues)
+                bilan = autres.image_vers_docx(source, sortie, langues=a.langues, **vision)
             else:
                 raise ValueError(f"conversion {de} → {vers} non prise en charge")
         sys.stderr.write(bruit.getvalue()[-2000:])
