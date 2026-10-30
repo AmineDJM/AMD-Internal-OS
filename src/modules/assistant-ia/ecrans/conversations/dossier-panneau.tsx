@@ -34,7 +34,9 @@ export function DossierPanneau({ dossier, onFermer, onChange, onNouvelleConversa
   const [avis, setAvis] = useState<string | null>(null);
   const fichier = useRef<HTMLInputElement>(null);
   const confirmer = useConfirmer();
-  useEffect(() => { setNom(dossier?.nom ?? ""); setConsignes(dossier?.consignes ?? ""); setAvis(null); }, [dossier?.id, dossier?.nom, dossier?.consignes]);
+  // Un AUTRE dossier : tout repart ; le même, relu après un geste : le texte suit, l'avis du geste reste affiché.
+  useEffect(() => { setAvis(null); }, [dossier?.id]);
+  useEffect(() => { setNom(dossier?.nom ?? ""); setConsignes(dossier?.consignes ?? ""); }, [dossier?.id, dossier?.nom, dossier?.consignes]);
   useEchap(onFermer);
 
   const faire = async (f: () => Promise<{ ok: boolean; erreur?: string }>, reussite?: string) => {

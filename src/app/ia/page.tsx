@@ -1,3 +1,8 @@
+// EN PREMIER, À DESSEIN : le catalogue d'Adam (que l'Assistant IA emprunte, décision 0013) a un cycle d'imports
+// `assistant.ts` ↔ `assistant/ops` qui ne tient que si `@/lib/assistant` est évalué avant `ops`. Dans l'ERP, la coque
+// `(app)` le charge d'abord ; `/ia` n'a pas cette coque — sans cette ligne, les actions de la page levaient
+// « Cannot access 'DOMAIN_TOOL_DEFS' before initialization ».
+import "@/lib/assistant";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";

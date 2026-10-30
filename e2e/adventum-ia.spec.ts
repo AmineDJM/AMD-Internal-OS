@@ -43,9 +43,6 @@ for (const ecran of [{ nom: "bureau", largeur: 1440, hauteur: 900 }, { nom: "iph
     const ouvrirListe = async () => {
       if (telephone) await page.getByRole("button", { name: "Ouvrir la liste des conversations" }).click();
     };
-    const fermerListe = async () => {
-      if (telephone) await page.getByRole("button", { name: "Fermer la liste" }).first().click();
-    };
 
     // 1. CRÉER une conversation : le premier message la crée ; elle rejoint la liste sous son titre provisoire.
     const sujet = `Budget congrès d'Oran ${ecran.nom}`;
@@ -74,11 +71,11 @@ for (const ecran of [{ nom: "bureau", largeur: 1440, hauteur: 900 }, { nom: "iph
     await page.getByLabel("Nom du dossier").fill(NOM_DOSSIER + ecran.nom);
     await page.getByRole("button", { name: "Créer le dossier" }).click();
     await page.getByLabel("Consignes du dossier").fill("Réponds en tableau, montants en DZD.");
-    await page.getByRole("button", { name: "Enregistrer" }).click();
+    await page.getByRole("dialog", { name: /^Dossier « / }).getByRole("button", { name: "Enregistrer", exact: true }).click();
     await expect(page.getByText("Consignes enregistrées.")).toBeVisible({ timeout: 15_000 });
     await page.screenshot({ path: `e2e-screenshots/adventum-ia-${ecran.nom}-4-dossier.png` });
     await page.getByRole("button", { name: "Nouvelle conversation dans ce dossier" }).click();
-    await fermerListe().catch(() => undefined);
+    // (sur téléphone, ouvrir la conversation du dossier a refermé la liste)
     await expect(page.getByText(`Dans le dossier « ${NOM_DOSSIER + ecran.nom} »`)).toBeVisible();
 
     // 4. MESSAGE VOCAL : appui bref → enregistrement verrouillé ; « ■ » → réécoute ; « Envoyer » → la bulle vocale.
