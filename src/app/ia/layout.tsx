@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   applicationName: "Adventum IA",
   manifest: "/adventum-ia/manifest.webmanifest",
   icons: {
-    icon: [{ url: "/adventum-ia/logo.svg", type: "image/svg+xml" }, { url: "/adventum-ia/icone-192.png", sizes: "192x192", type: "image/png" }],
-    apple: [{ url: "/adventum-ia/apple-touch-icon.png", sizes: "180x180" }],
+    icon: [{ url: "/adventum-ia/icone-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/adventum-ia/icone-180.png", sizes: "180x180" }],
   },
   appleWebApp: {
     capable: true,
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 /** La barre d'état et le cadre aux couleurs de l'app (le reste du viewport — `viewport-fit=cover` — vient de la racine). */
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#0b4fa8" },
+    { media: "(prefers-color-scheme: light)", color: "#2c59a7" },
     { media: "(prefers-color-scheme: dark)", color: "#08111f" },
   ],
 };

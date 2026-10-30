@@ -368,6 +368,6 @@ Server code creates a `Notification` row → within ≤ 20 s `NotificationChime`
 (`src/modules/assistant-ia/ecrans/app/adventum-ia-app.tsx`): conversation list left (shared with `/assistant`:
 `ecrans/conversations/liste-conversations.tsx`), thread centre (`ChatMessageList apparence="app"`), drawer right (Notes /
 Travaux / Documents), full-screen list and drawer below `lg`, safe-area insets, 16 px input on phones. Its **only theme file**
-is `ecrans/app/theme.css`: `--aia-*` tokens under `.adventum-ia`, "bleu pharma" `#0b4fa8`, light/dark/system (`data-theme`
+is `ecrans/app/theme.css`: `--aia-*` tokens under `.adventum-ia`, Adventum charter (`docs/charte/adventum-pharma.md`: `#2C59A7` primary, teal/cyan accents, Helvetica Neue), light/dark/system (`data-theme`
 + the `dark` class so shared components follow), no green. Logo/icons in `public/adventum-ia/`. State logic shared with the
 ERP screen through hooks (`ecrans/use-fil.ts`, `ecrans/use-pieces.ts`) — one implementation.

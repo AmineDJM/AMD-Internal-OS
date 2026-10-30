@@ -75,8 +75,8 @@ const STYLES = {
     fil: "flex-1 space-y-4 overflow-y-auto overscroll-contain px-3 py-4 scrollbar-thin sm:px-4 sm:py-6",
   },
   app: {
-    bulle: "bg-[var(--aia-bulle)] text-[var(--aia-texte)]",
-    avatar: "A",
+    bulle: "bg-[var(--aia-bulle)] text-[var(--aia-bulle-texte)]",
+    avatar: "",
     reponse: "w-full px-0.5 py-1 text-[15px] leading-relaxed text-[var(--aia-texte)]",
     fil: "mx-auto w-full max-w-3xl flex-1 space-y-5 overflow-y-auto overscroll-contain px-4 py-5 scrollbar-thin sm:px-6",
   },
@@ -114,7 +114,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
               <div className="flex max-w-[85%] flex-col items-end gap-1.5 sm:max-w-[75%]">
                 {m.vocal && (
                   <div className={`flex max-w-full flex-col gap-1.5 rounded-2xl rounded-tr-md px-3 py-2.5 ${st.bulle}`} data-testid="bulle-vocale">
-                    <BulleVocale id={m.vocal.id} local={m.vocal.local ?? null} dureeS={m.vocal.dureeS} sombre={apparence === "erp"} libelle="votre message vocal" />
+                    <BulleVocale id={m.vocal.id} local={m.vocal.local ?? null} dureeS={m.vocal.dureeS} sombre libelle="votre message vocal" />
                     {m.vocal.etat === "TRANSCRIT" && m.vocal.transcription && (
                       <p className="whitespace-pre-wrap border-t border-white/15 pt-1.5 text-[13px] leading-snug text-white/85 [overflow-wrap:anywhere] dark:border-zinc-900/15 dark:text-zinc-700">
                         {m.vocal.transcription}
@@ -155,8 +155,11 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
         return (
           <div key={m.id} className="flex items-start gap-3">
             {/* Sur téléphone, pas d'avatar : la réponse prend toute la largeur. */}
-            <div className={`hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-semibold shadow-2xs sm:flex ${apparence === "app" ? "bg-[var(--aia-accent)] text-[var(--aia-accent-fg)]" : "border border-slate-200 bg-white text-slate-700 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"}`}>
-              {st.avatar}
+            <div className={`hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-semibold shadow-2xs sm:flex ${apparence === "app" ? "border border-[var(--aia-filet)] bg-white" : "border border-slate-200 bg-white text-slate-700 dark:border-zinc-800 dark:bg-zinc-800 dark:text-zinc-300"}`}>
+              {apparence === "app" ? (
+                // eslint-disable-next-line @next/next/no-img-element -- le symbole de la charte (public/adventum-ia/)
+                <img src="/adventum-ia/logo-marque.png" alt="" width={20} height={20} className="h-5 w-5" />
+              ) : st.avatar}
             </div>
             <div className={`flex min-w-0 flex-1 flex-col items-start gap-2 ${apparence === "app" ? "" : "sm:max-w-[85%]"}`}>
               {m.outilsAppeles && m.outilsAppeles.length > 0 && (

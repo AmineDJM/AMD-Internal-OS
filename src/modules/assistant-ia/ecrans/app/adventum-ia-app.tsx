@@ -204,8 +204,8 @@ function Application({ userName }: { userName?: string }) {
             entete={
               <div className="flex items-center gap-2.5 px-3.5 pb-2.5 pt-3.5">
                 {/* eslint-disable-next-line @next/next/no-img-element -- le logo provisoire, remplaçable tel quel (public/adventum-ia/) */}
-                <img src="/adventum-ia/logo.svg" alt="" width={28} height={28} className="h-7 w-7 rounded-lg" />
-                <b className="flex-1 text-[17px] font-semibold tracking-tight">Adventum IA</b>
+                <img src="/adventum-ia/logo-complet.png" alt="Adventum Pharma" width={126} height={27} className="h-[27px] w-auto dark:rounded dark:bg-white dark:px-1" />
+                <b className="flex-1 text-[15px] font-semibold tracking-tight text-[var(--aia-voix)]">IA</b>
                 <button type="button" onClick={() => setListeOuverte(false)} aria-label="Fermer la liste" className={`${bouton} lg:hidden`}><X className="h-4 w-4" /></button>
               </div>
             }
@@ -249,7 +249,7 @@ function Application({ userName }: { userName?: string }) {
         ) : (
           <div className="mx-auto flex w-full max-w-[560px] flex-1 flex-col items-center justify-center gap-4 overflow-y-auto px-4 py-6 text-center" data-testid="accueil">
             {/* eslint-disable-next-line @next/next/no-img-element -- le logo provisoire, remplaçable tel quel */}
-            <img src="/adventum-ia/logo.svg" alt="" width={44} height={44} className="h-11 w-11 rounded-xl" />
+            <img src="/adventum-ia/logo-marque.png" alt="" width={48} height={48} className="h-12 w-12" />
             <h2 className="text-[24px] font-semibold tracking-tight">Bonjour{prenom(userName) ? ` ${prenom(userName)}` : ""}, par quoi on commence ?</h2>
             {dossier && <p className="text-[13px] text-[var(--aia-accent)]">Dans le dossier « {dossier.nom} » : ses consignes et ses documents s&apos;appliquent.</p>}
             <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2">

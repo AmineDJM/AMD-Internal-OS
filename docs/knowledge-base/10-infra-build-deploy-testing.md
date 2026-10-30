@@ -502,7 +502,7 @@ Method: `rg` for `process.env.X`, `process.env["X"]`, `env.X` (functions taking
 `src/components/layout/push-register.tsx:25,45`.
 
 **Adventum IA (decision 0027, 2026-10-30)** — a second PWA served by the same build: `public/adventum-ia/manifest.webmanifest`
-(`start_url`/`id` `/ia`, theme `#0b4fa8`, PNG icons + maskable, `apple-touch-icon`, iPhone startup images; metadata in
+(`start_url`/`id` `/ia`, theme `#2C59A7` (Adventum charter), PNG icons + maskable, `icone-180.png` as apple-touch-icon, iPhone startup images; metadata in
 `src/app/ia/layout.tsx`) and `public/ia-sw.js` (scope `/ia`: Web Push with the same VAPID keys, `notificationclick` maps
 `/assistant?c=` → `/ia?c=`, **fetch handler**: cache-first for `/_next/static/` and `/adventum-ia/`, network-first for `/ia`
 navigations with the last page as offline fallback). Offline voice notes are queued in IndexedDB

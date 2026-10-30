@@ -59,7 +59,7 @@ export function SaisieAdventum({ onEnvoyer, dessus, joindre, vocal, onVoixDirect
         <span className="flex-1" />
         {onVoixDirecte && (
           <button type="button" onClick={onVoixDirecte} aria-label="Conversation vocale en direct" title="Parler en direct (gpt-live-1)"
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--aia-filet)] text-[var(--aia-texte)] hover:bg-[var(--aia-survol)]">
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-[var(--aia-filet)] text-[var(--aia-voix)] hover:bg-[var(--aia-voix-doux)]">
             <AudioLines className="h-4 w-4" />
           </button>
         )}

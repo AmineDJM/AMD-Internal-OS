@@ -44,7 +44,7 @@ export function VoixDirecte({ conversation, onFermer }: { conversation: string |
     <div role="dialog" aria-modal="true" aria-label="Conversation vocale" data-testid="voix-directe"
       className="fixed inset-0 z-[60] flex flex-col items-center justify-center gap-6 bg-[var(--aia-panneau)] p-6 text-center text-[var(--aia-texte)]">
       <div aria-hidden className={`h-36 w-36 rounded-full ${etat === "ecoute" ? "aia-onde" : "opacity-50"}`}
-        style={{ background: "radial-gradient(circle, var(--aia-accent) 0 38%, var(--aia-accent-doux) 39% 100%)" }} />
+        style={{ background: "radial-gradient(circle, var(--aia-voix) 0 30%, #57c8dd 31% 42%, var(--aia-voix-doux) 43% 100%)" }} />
       <p className="text-[22px] font-semibold">{etat === "connexion" ? "Connexion…" : etat === "ecoute" ? (micCoupe ? "Micro coupé" : "Je vous écoute…") : "Pas encore disponible"}</p>
       {message && <p className="max-w-md text-[14px] text-[var(--aia-discret)]" role="status">{message}</p>}
       <div className="flex gap-3">

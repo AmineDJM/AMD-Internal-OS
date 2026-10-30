@@ -10,7 +10,7 @@
 (l'adresse de l'ERP, où sont renvoyées ses pages) ; `TACHES_DE_FOND=worker` (l'app ne bat pas les tâches de fond).
 Contrôle : `https://adventum-ia.onrender.com/` mène à `/ia` après connexion (mêmes comptes) ; `/finances` renvoie vers l'ERP ;
 `/api/health` répond `ok`. Sur iPhone : Safari → Partager → « Sur l'écran d'accueil » → « Adventum IA » ; Réglages → activer
-les notifications. Logo et charte : remplacer `public/adventum-ia/*` (mêmes noms) et `src/modules/assistant-ia/ecrans/app/theme.css`.
+les notifications. Charte Adventum appliquée (`docs/charte/adventum-pharma.md`) : logos dans `public/adventum-ia/`, couleurs dans `src/modules/assistant-ia/ecrans/app/theme.css`.
 
 Un **Blueprint** [`render.yaml`](render.yaml) provisionne **l'app Next.js + une base PostgreSQL managée**,
 applique les migrations et crée le Super Admin (aucune donnée de démo).
