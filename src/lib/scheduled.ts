@@ -197,9 +197,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   } },
   // LES ROUTINES DE L'ASSISTANT IA : celles que chaque personne a programmées (« un briefing chaque dimanche à 8 h »).
   // Lecture seule, sous ses droits relus au passage ; chargé à l'appel (la chaîne du modèle ne pèse que si elle sert).
-  { cle: "assistant.routines", executer: async () => (await import("@/lib/agent/routines/service")).executerRoutinesDues() },
+  { cle: "assistant.routines", executer: async () => (await import("@/modules/assistant-ia/api")).executerRoutinesDues() },
   // LE FIL GARDÉ DE L'ASSISTANT IA : un message resté en file, un tour coupé par un redémarrage — repris.
-  { cle: "assistant.fils", executer: async () => (await import("@/lib/agent/fil/service")).reprendreLesFils() },
+  { cle: "assistant.fils", executer: async () => (await import("@/modules/assistant-ia/api")).reprendreLesFils() },
   // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT
   // (jamais rejouée) ; une carte jamais confirmée expire (délai réglé par le Super Admin, 24 h par défaut).
   { cle: "assistant.intentions", executer: async () => (await import("@/platform/ia/intentions/action-intents")).balayerIntentions() },

@@ -30,6 +30,13 @@
 > - **Ratchets.** `boundary.test.ts`: Adam→ERP `DEBT_CEILING` 419 → **393**; new `SOCLE_IA_CEILING = 180` (socle ERP
 >   imports counted apart; `src/app/(app)/assistant/` left `ADAM_PATHS`). `domains.ts`: new layer "socle IA";
 >   crossings 58 / providers 39 (base 37a29edc measures 62 / 39: this lot removes 4). Action contract (`npm run actions:contrat`) byte-identical.
+> - **Phase B (2026-10-30).** `src/lib/agent/` → module **`src/modules/assistant-ia/`** (`domaine/` 14 pure rules, `infra/` engine,
+>   `ecrans/` = ex-`components/assistant-beta/`, `actions.ts` / `actions-consommation.ts` keep keys `assistant-ia-actions` /
+>   `assistant-ia-consommation-actions`; doors `api.ts` / `partage.ts`; map `assistant-ia → ad-pro, coffre`, `bibliotheque →
+>   assistant-ia`). `confirmerIntentionAssistantIA` moved there — the ONLY action-contract key change
+>   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
+>   Adam → IA = 0. Remaining IA → Adam = Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
+>   closure is 92 % of Adam, extraction strategy under arbitration (decision 0013 §5).
 > - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
 >   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
 

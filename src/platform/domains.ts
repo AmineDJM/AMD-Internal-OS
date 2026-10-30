@@ -192,25 +192,10 @@ const SOCLE = [
    * dossier ; Adam (par le pont), les tests et les scripts le lisent. Pur par construction.
    */
   "src/lib/actions/contrat/",
-  /**
-   * LES RÈGLES PURES DE L'ASSISTANT IA (décision 0011) — zéro import chacune : ce qu'une lecture de pièce
-   * a donné et la phrase de sa limite (`lecture/regles`), les plafonds et le coût (`consommation-regles`),
-   * le cadre du contenu non fiable (`contenu-non-fiable`), la mémoire telle que l'écran la montre
-   * (`memoire-ui`), le texte partiel d'une réponse qui s'écrit (`fil/partiel`). Le moteur (serveur) et
-   * l'écran (composants client) les lisent tous deux et n'ont pas le droit de s'importer : une seconde copie
-   * de la phrase d'une limite aurait dit autre chose à l'écran qu'au modèle. Chemins EXACTS : un fichier
-   * serveur posé à côté n'est pas exempté sans décision.
-   */
-  "src/lib/agent/lecture/regles", "src/lib/agent/consommation-regles", "src/lib/agent/contenu-non-fiable",
-  "src/lib/agent/memoire-ui", "src/lib/agent/fil/partiel",
-  // Les FAMILLES d'accès de l'Assistant IA (décision 0012) : le moteur les applique, la console les règle.
-  "src/lib/agent/acces-regles",
-  /**
-   * `lecture/depot` (décision 0015, glisser-déposer) — les règles PURES du dépôt de fichiers dans la conversation :
-   * parcours d'un dossier, fichiers système, bornes d'un envoi, phrases. Son seul import est `lecture/regles`
-   * (même couche) : la borne de 40 Mo et les 6 pièces lues sont LES MÊMES à l'écran et dans le moteur.
-   */
-  "src/lib/agent/lecture/depot",
+  // Les règles pures de l'Assistant IA (décisions 0011, 0012, 0015 : lecture des pièces, plafonds, contenu non
+  // fiable, mémoire affichée, texte partiel, familles d'accès, dépôt) étaient déclarées ici par chemin exact :
+  // elles vivent dans `src/modules/assistant-ia/domaine/` depuis la phase B du lot J0, où `frontieres.test.ts`
+  // tient leur pureté.
   /**
    * `bons-de-commande/prevalidation` — la règle PURE de la pré-validation d'un BC (Demandes de validations, 10/2026),
    * zéro import : la règle des BC (`regle`, au socle) en lit la phrase, et l'écran des validations comme les actions

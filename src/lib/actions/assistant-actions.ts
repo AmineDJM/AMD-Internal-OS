@@ -10,12 +10,11 @@ import { resolveDriveAccess, canViewDrive } from "@/lib/drive";
 import { aiConfigured, aiModel, aiModelCheap } from "@/lib/ai";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { getUnreadDigest } from "@/lib/assistant-nudge";
-import { executeIntentGuarded, cancelActionIntent } from "@/platform/ia/intentions/action-intents";
+import { executeIntentGuarded, cancelActionIntent, executerIntention as executerIntentionDuSocle } from "@/platform/ia/intentions/action-intents";
 import {
   executeBundle, referencesPrevious,
   type BundleItem, type BundleLevel, type BundleResult,
 } from "@/lib/assistant/execution/bundle";
-import { executerIntention as executerIntentionDuSocle } from "@/platform/ia/intentions/executer-intention";
 import { featureEnabled, FEATURES } from "@/lib/features";
 import {
   personalContext, listThreads, getThreadMessages,

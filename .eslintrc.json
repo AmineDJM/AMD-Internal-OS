@@ -213,9 +213,86 @@
               "@/app/(app)/assistant/realtime-voice/contrats",
               "@/app/(app)/assistant/realtime-voice/fournisseur",
               "@/app/(app)/assistant/realtime-voice/refus-sdp",
-              "@/app/(app)/assistant/realtime-voice/socle"
+              "@/app/(app)/assistant/realtime-voice/socle",
+              "@/lib/assistant/confirm"
             ],
             "message": "Ce fichier a déménagé au socle IA (src/platform/ia/) ou, pour l'écran d'Adam, dans src/components/chief/ (lot J0, décision 0013) : importer la nouvelle adresse. L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+          },
+          {
+            "group": [
+              "@/lib/agent/acces-regles",
+              "@/lib/agent/role-config",
+              "@/lib/agent/outils-v1",
+              "@/lib/agent/contenu-non-fiable",
+              "@/lib/agent/consommation-regles",
+              "@/lib/agent/contexte",
+              "@/lib/agent/memoire",
+              "@/lib/agent/memoire-ui",
+              "@/lib/agent/consommation",
+              "@/lib/agent/consommation-stats",
+              "@/lib/agent/modele",
+              "@/lib/agent/schema",
+              "@/lib/agent/generer",
+              "@/lib/agent/lectures",
+              "@/lib/agent/recherche-web",
+              "@/lib/agent/repondre",
+              "@/lib/agent/filtre-confidentialite",
+              "@/lib/agent/outils",
+              "@/lib/agent/ui/composants",
+              "@/lib/agent/ui/markdown",
+              "@/lib/agent/lecture/regles",
+              "@/lib/agent/lecture/voix",
+              "@/lib/agent/lecture/depot",
+              "@/lib/agent/lecture/pieces",
+              "@/lib/agent/fil/service",
+              "@/lib/agent/fil/partiel",
+              "@/lib/agent/fil/tour",
+              "@/lib/agent/routines/calendrier",
+              "@/lib/agent/routines/service",
+              "@/lib/agent/routines/passage",
+              "@/lib/agent/operations/adpro-evenement",
+              "@/lib/agent/operations/traduction",
+              "@/lib/agent/operations",
+              "@/lib/agent/operations/adpro-sponsoring",
+              "@/lib/agent/operations/bon-de-commande",
+              "@/lib/agent/operations/devis-lu",
+              "@/lib/agent/operations/demandes-visibles",
+              "@/lib/agent/operations/bc-depuis-devis",
+              "@/lib/agent/operations/document-modele",
+              "@/lib/agent/operations/routines",
+              "@/lib/agent/operations/adpro-prise-en-charge",
+              "@/lib/agent/operations/adpro-poste-autre",
+              "@/lib/agent/operations/documents-lus",
+              "@/lib/agent/operations/formulaire-pdf",
+              "@/lib/agent/operations/pieces",
+              "@/lib/agent/operations/annuaire-medical",
+              "@/lib/agent/operations/budget",
+              "@/lib/agent/operations/quotidien",
+              "@/lib/agent/operations/mrz",
+              "@/lib/agent/operations/voyageur-passeport",
+              "@/lib/agent/operations/types",
+              "@/lib/agent/operations/adpro-materiel-promo",
+              "@/lib/agent/testing/modele-factice",
+              "@/lib/agent/testing/journal",
+              "@/components/assistant-beta/action-confirmation-card",
+              "@/components/assistant-beta/apercu-piece",
+              "@/components/assistant-beta/assistant-workspace",
+              "@/components/assistant-beta/bulle-vocale",
+              "@/components/assistant-beta/chat-message-list",
+              "@/components/assistant-beta/command-pill-bar",
+              "@/components/assistant-beta/depot-navigateur",
+              "@/components/assistant-beta/enregistreur-vocal",
+              "@/components/assistant-beta/kpi-glass-strip",
+              "@/components/assistant-beta/luminescent-cursor",
+              "@/components/assistant-beta/markdown-message",
+              "@/components/assistant-beta/memoire-panel",
+              "@/components/assistant-beta/memoire-proposee-card",
+              "@/components/assistant-beta/pieces-jointes",
+              "@/components/assistant-beta/routines-panel",
+              "@/lib/actions/assistant-ia-actions",
+              "@/lib/actions/assistant-ia-consommation-actions"
+            ],
+            "message": "Ce fichier a déménagé dans src/modules/assistant-ia/ (phase B du lot J0, décision 0013) : importer la porte du module (/api, /partage, /actions ou /actions-consommation ; un écran depuis src/app/ : /ecrans/<écran>). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
           }
         ]
       }
@@ -444,9 +521,86 @@
                   "@/app/(app)/assistant/realtime-voice/contrats",
                   "@/app/(app)/assistant/realtime-voice/fournisseur",
                   "@/app/(app)/assistant/realtime-voice/refus-sdp",
-                  "@/app/(app)/assistant/realtime-voice/socle"
+                  "@/app/(app)/assistant/realtime-voice/socle",
+                  "@/lib/assistant/confirm"
                 ],
                 "message": "Ce fichier a déménagé au socle IA (src/platform/ia/) ou, pour l'écran d'Adam, dans src/components/chief/ (lot J0, décision 0013) : importer la nouvelle adresse. L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
+              },
+              {
+                "group": [
+                  "@/lib/agent/acces-regles",
+                  "@/lib/agent/role-config",
+                  "@/lib/agent/outils-v1",
+                  "@/lib/agent/contenu-non-fiable",
+                  "@/lib/agent/consommation-regles",
+                  "@/lib/agent/contexte",
+                  "@/lib/agent/memoire",
+                  "@/lib/agent/memoire-ui",
+                  "@/lib/agent/consommation",
+                  "@/lib/agent/consommation-stats",
+                  "@/lib/agent/modele",
+                  "@/lib/agent/schema",
+                  "@/lib/agent/generer",
+                  "@/lib/agent/lectures",
+                  "@/lib/agent/recherche-web",
+                  "@/lib/agent/repondre",
+                  "@/lib/agent/filtre-confidentialite",
+                  "@/lib/agent/outils",
+                  "@/lib/agent/ui/composants",
+                  "@/lib/agent/ui/markdown",
+                  "@/lib/agent/lecture/regles",
+                  "@/lib/agent/lecture/voix",
+                  "@/lib/agent/lecture/depot",
+                  "@/lib/agent/lecture/pieces",
+                  "@/lib/agent/fil/service",
+                  "@/lib/agent/fil/partiel",
+                  "@/lib/agent/fil/tour",
+                  "@/lib/agent/routines/calendrier",
+                  "@/lib/agent/routines/service",
+                  "@/lib/agent/routines/passage",
+                  "@/lib/agent/operations/adpro-evenement",
+                  "@/lib/agent/operations/traduction",
+                  "@/lib/agent/operations",
+                  "@/lib/agent/operations/adpro-sponsoring",
+                  "@/lib/agent/operations/bon-de-commande",
+                  "@/lib/agent/operations/devis-lu",
+                  "@/lib/agent/operations/demandes-visibles",
+                  "@/lib/agent/operations/bc-depuis-devis",
+                  "@/lib/agent/operations/document-modele",
+                  "@/lib/agent/operations/routines",
+                  "@/lib/agent/operations/adpro-prise-en-charge",
+                  "@/lib/agent/operations/adpro-poste-autre",
+                  "@/lib/agent/operations/documents-lus",
+                  "@/lib/agent/operations/formulaire-pdf",
+                  "@/lib/agent/operations/pieces",
+                  "@/lib/agent/operations/annuaire-medical",
+                  "@/lib/agent/operations/budget",
+                  "@/lib/agent/operations/quotidien",
+                  "@/lib/agent/operations/mrz",
+                  "@/lib/agent/operations/voyageur-passeport",
+                  "@/lib/agent/operations/types",
+                  "@/lib/agent/operations/adpro-materiel-promo",
+                  "@/lib/agent/testing/modele-factice",
+                  "@/lib/agent/testing/journal",
+                  "@/components/assistant-beta/action-confirmation-card",
+                  "@/components/assistant-beta/apercu-piece",
+                  "@/components/assistant-beta/assistant-workspace",
+                  "@/components/assistant-beta/bulle-vocale",
+                  "@/components/assistant-beta/chat-message-list",
+                  "@/components/assistant-beta/command-pill-bar",
+                  "@/components/assistant-beta/depot-navigateur",
+                  "@/components/assistant-beta/enregistreur-vocal",
+                  "@/components/assistant-beta/kpi-glass-strip",
+                  "@/components/assistant-beta/luminescent-cursor",
+                  "@/components/assistant-beta/markdown-message",
+                  "@/components/assistant-beta/memoire-panel",
+                  "@/components/assistant-beta/memoire-proposee-card",
+                  "@/components/assistant-beta/pieces-jointes",
+                  "@/components/assistant-beta/routines-panel",
+                  "@/lib/actions/assistant-ia-actions",
+                  "@/lib/actions/assistant-ia-consommation-actions"
+                ],
+                "message": "Ce fichier a déménagé dans src/modules/assistant-ia/ (phase B du lot J0, décision 0013) : importer la porte du module (/api, /partage, /actions ou /actions-consommation ; un écran depuis src/app/ : /ecrans/<écran>). L'ancien chemin n'est qu'une adresse de réexpédition (tsconfig.json) pour les autres branches."
               }
             ]
           }
@@ -803,17 +957,14 @@
     },
     {
       "files": [
-        "src/lib/agent/**",
-        "src/components/assistant-beta/**",
+        "src/modules/assistant-ia/**",
         "src/app/(app)/assistant/**",
-        "src/app/api/assistant-ia/**",
-        "src/lib/actions/assistant-ia-actions.ts",
-        "src/lib/actions/assistant-ia-consommation-actions.ts"
+        "src/app/api/assistant-ia/**"
       ],
       "excludedFiles": [
-        "src/lib/agent/limites.test.ts",
-        "src/lib/agent/outils-v1.ts",
-        "src/lib/actions/assistant-ia-actions.ts"
+        "src/modules/assistant-ia/limites.test.ts",
+        "src/modules/assistant-ia/infra/outils-v1.ts",
+        "src/modules/assistant-ia/actions.ts"
       ],
       "plugins": [
         "@typescript-eslint"
@@ -860,15 +1011,11 @@
             "patterns": [
               {
                 "group": [
-                  "@/lib/agent",
-                  "@/lib/agent/**",
-                  "@/components/assistant-beta/**",
+                  "@/modules/assistant-ia/**",
                   "@/app/(app)/assistant/**",
-                  "@/app/api/assistant-ia/**",
-                  "@/lib/actions/assistant-ia-actions",
-                  "@/lib/actions/assistant-ia-consommation-actions"
+                  "@/app/api/assistant-ia/**"
                 ],
-                "message": "Adam n'importe jamais l'Assistant IA (lib/agent, assistant-beta, /assistant) : ce que les deux partagent vit au socle src/platform/ia/ — décision 0013, src/platform/ia/frontieres.test.ts."
+                "message": "Adam n'importe jamais l'Assistant IA (src/modules/assistant-ia, /assistant) : ce que les deux partagent vit au socle src/platform/ia/ — décision 0013, src/platform/ia/frontieres.test.ts."
               }
             ]
           }
@@ -896,13 +1043,9 @@
                   "@/app/(app)/chief-of-staff/**",
                   "@/app/api/assistant/**",
                   "@/platform/in-process/**",
-                  "@/lib/agent",
-                  "@/lib/agent/**",
-                  "@/components/assistant-beta/**",
+                  "@/modules/assistant-ia/**",
                   "@/app/(app)/assistant/**",
-                  "@/app/api/assistant-ia/**",
-                  "@/lib/actions/assistant-ia-actions",
-                  "@/lib/actions/assistant-ia-consommation-actions"
+                  "@/app/api/assistant-ia/**"
                 ],
                 "message": "Le socle IA (src/platform/ia/) n'importe ni Adam ni l'Assistant IA : il est sous les deux — décision 0013, src/platform/ia/frontieres.test.ts."
               }

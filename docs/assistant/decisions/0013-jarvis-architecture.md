@@ -92,3 +92,33 @@ modules du socle qui appellent un modèle (`web-research.ts`, `media/assistant-f
 
 Les adresses de réexpédition (`tsconfig.json`, une par fichier déplacé) servent aux branches ouvertes avant J0 ;
 `src/modules/frontieres.test.ts` (règle 5) et ESLint disent au code qui arrive quelle adresse écrire.
+
+## 5. Phase B (30/10/2026) — le module `assistant-ia`, la confirmation chez l'IA, le catalogue en arbitrage
+
+**Étape 2 — la confirmation d'une carte de l'Assistant IA quitte le fichier d'Adam.** `confirmerIntentionAssistantIA` vit
+dans le fichier d'actions du module (`src/modules/assistant-ia/actions.ts`, clé historique `assistant-ia-actions`). La garde
+d'exécution qu'elle partage avec Adam — confirmation forte, idempotence, revalidation (`executerIntention`) — et la
+comparaison de la valeur ressaisie (`confirm.ts`) sont au socle, dans `platform/ia/intentions/`.
+
+> **Seule clé du contrat des actions qui change** : `assistant-actions:confirmerIntentionAssistantIA` devient
+> `assistant-ia-actions:confirmerIntentionAssistantIA` (champs `id` et `fichier`). Porte, gardes, écritures et toutes les
+> autres actions : identiques (vérifié champ par champ). Le registre de classement (`action-registry/exclusions-attestations.ts`)
+> suit la nouvelle clé.
+
+**Étape 3 — `src/lib/agent/` devient le module `src/modules/assistant-ia/`** (guide `docs/architecture/MODULES.md` §6) :
+14 règles pures en `domaine/` (accès, plafonds, confidentialité, lecture, dépôt, mémoire affichée, MRZ, UI générative),
+le moteur en `infra/` (fil, tour, outils, opérations, lecture, voix, mémoire, routines, consommation, modèle, `testing/`),
+l'interface de `/assistant` en `ecrans/` (ex-`components/assistant-beta/`), les deux fichiers d'actions en portes
+(`actions.ts`, `actions-consommation.ts`, clés inchangées). Portes `api.ts` / `partage.ts` ; carte : `assistant-ia → ad-pro,
+coffre`, `bibliotheque → assistant-ia` (le filtre de confidentialité) ; dette héritée vers `src/lib/` : 63 imports, nommés
+dans `frontieres.test.ts`. Une adresse de réexpédition par fichier déplacé (`tsconfig.json`).
+
+**Frontière après la phase B** : Adam → Assistant IA **0** ; socle → l'un ou l'autre **0** ; Assistant IA → Adam **4**, tous
+le **catalogue d'outils d'Adam** (`infra/outils-v1.ts` → `@/lib/assistant`, `power-tools`, `ops` ; `actions.ts` →
+`performAction`), plus un test (`limites.test.ts`).
+
+**Étape 1 — en arbitrage.** La fermeture de ce catalogue fait 284 fichiers et 76 000 lignes, 92 % d'Adam : le « sortir au
+socle » tel quel déménagerait Adam. Trois voies ont été proposées à la Direction technique : (a) extraction outil par outil
+de ce que l'Assistant IA utilise (5 lectures moteur, 7 lectures par droit, 9 écritures, 5 domaines d'opérations) — la
+recommandation ; (b) un port au socle rempli par Adam au démarrage (découplage de façade, déconseillé) ; (c) accepter ce
+couplage comme durable et nommé.

@@ -5,8 +5,8 @@ import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAction } from "@/components/shared/use-action";
-import { enregistrerReglagesAssistantIa } from "@/lib/actions/assistant-ia-consommation-actions";
-import { BORNES, REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa } from "@/lib/agent/consommation-regles";
+import { enregistrerReglagesAssistantIa } from "@/modules/assistant-ia/actions-consommation";
+import { BORNES, REGLAGES_PAR_DEFAUT, type ReglagesAssistantIa } from "@/modules/assistant-ia/partage";
 
 type CleNombre = "plafondJetonsJour" | "plafondJetonsTour" | "etapesMaxTour" | "expirationCartesHeures";
 type CleDecision = "censurerSaisie" | "retirerCartesCaduques";

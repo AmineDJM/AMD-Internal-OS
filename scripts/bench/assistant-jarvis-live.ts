@@ -193,12 +193,12 @@ async function main() {
   if (!estUneBaseDeBanc(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
   const F = lireFixtures();
   if (!F.superAdmin || !F.assistante) throw new Error("Semis manquant : lancer seed-assistant-jarvis.ts d'abord.");
-  const svc = await import("@/lib/agent/fil/service");
+  const svc = await import("@/modules/assistant-ia/api");
   const { proprietaire } = await import("@/platform/ia/proprietaire");
-  const { outilsV1 } = await import("@/lib/agent/outils-v1");
-  const { synthetiser, deposerAudio, nomDeVocal } = await import("@/lib/agent/lecture/voix");
-  const { auNomDe } = await import("@/lib/agent/consommation");
-  const { modeleOpenAi } = await import("@/lib/agent/modele");
+  const { outilsV1 } = await import("@/modules/assistant-ia/api");
+  const { synthetiser, deposerAudio, nomDeVocal } = await import("@/modules/assistant-ia/api");
+  const { auNomDe } = await import("@/modules/assistant-ia/api");
+  const { modeleOpenAi } = await import("@/modules/assistant-ia/api");
   const ID: Record<Role, string> = { SA: F.superAdmin, AD: F.assistante };
   const budgetUsd = Number(process.env.JARVIS_BUDGET_USD ?? "5");
   const debutBanc = new Date();

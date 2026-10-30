@@ -31,6 +31,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels`, `finances`, `bibliotheque` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 | `finances` | métier | `api.ts`, `partage.ts`, `actions-{centre,demandes,depenses,relances,sieges,soldes,tresorerie}.ts` | `referentiels`, `coffre` | tout métier qui émet un ordre de dépense (Ad & Pro, RH, Legal, Regulatory, moyens généraux…), pages `/finances`, `/centre-de-paiement`, `/validations/paiements` | **migré** (V4) — ex-`lib/{finance,finances,payments}/`, fusionnés |
 | `bibliotheque` | métier (transverse) | `api-inscription.ts` (inscrire — porte étroite), `api.ts` (chercher, ouvrir, file), `partage.ts`, `actions.ts`, `ecrans/` | — | ≈ 45 points d'entrée (inscription), `rh`, `scheduled.ts` (tâches `bibliotheque.*`), page `/bibliotheque` | **neuf** (J1, 29/10) — dette : les règles d'ouverture et les lecteurs existants (`DETTE_HERITEE`) |
+| `assistant-ia` | métier | `api.ts`, `partage.ts`, `actions.ts` (clé `assistant-ia-actions`), `actions-consommation.ts` (clé `assistant-ia-consommation-actions`), `ecrans/` | `ad-pro`, `coffre` | page `/assistant`, routes `/api/assistant-ia/*`, consoles `/admin/ai/{acces,consommation}`, `bibliotheque` (confidentialité), enrichissement (MRZ), `runScheduledJobs` | **migré** (J0, phase B) — dette : 63 imports vers `src/lib/` dont 4 vers Adam (catalogue, §7) |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐
@@ -302,9 +303,9 @@ Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (déci
 
 ```
    Adam (Super Admin, /chief-of-staff)                Assistant IA (chacun selon ses droits, /assistant)
-   lib/assistant*, components/chief/,                 lib/agent/, app/(app)/assistant/,
-   app/(app)/chief-of-staff/, app/api/assistant/,     components/assistant-beta/, app/api/assistant-ia/,
-   platform/in-process/ (son pont),                   lib/actions/assistant-ia-*.ts
+   lib/assistant*, components/chief/,                 src/modules/assistant-ia/ (moteur, écrans,
+   app/(app)/chief-of-staff/, app/api/assistant/,     actions — ex-lib/agent, ex-assistant-beta),
+   platform/in-process/ (son pont),                   app/(app)/assistant/, app/api/assistant-ia/
    lib/actions/assistant-actions.ts
                     │                                              │
                     └──────────────►  src/platform/ia/  ◄──────────┘
@@ -321,11 +322,11 @@ Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (déci
 | Ce qui reste est une liste EXACTE (`RESIDUS`), qui ne peut que rétrécir | — | idem |
 | Le socle connaît l'ERP (comme le pont) : sa dette est comptée À PART | — | `boundary.test.ts` (`SOCLE_IA_CEILING`), `domains.ts` (couche « socle IA ») |
 
-**Résidus nommés** (phase B, avec le déménagement de `lib/agent/` en module `src/modules/assistant-ia/`) : le catalogue
-d'outils d'Adam emprunté par les droits métier de l'Assistant IA (`lib/agent/outils-v1.ts` → `@/lib/assistant`, `power-tools`,
-`ops` — décision 0012) ; l'action `confirmerIntentionAssistantIA`, qui vit dans le fichier d'actions d'Adam (la déplacer
-change le contrat des actions) ; le test `lib/agent/limites.test.ts` qui vérifie ce chemin. ESLint exclut nommément
-`outils-v1.ts` et ce test ; le test tient la liste exacte.
+**Résidus nommés** (après la phase B, 30/10/2026 : Adam n'importe plus rien de l'Assistant IA) : le **catalogue d'outils
+d'Adam** emprunté par l'Assistant IA — `assistant-ia/infra/outils-v1.ts` → `@/lib/assistant`, `power-tools`, `ops`
+(décision 0012), et `assistant-ia/actions.ts` → `performAction` pour exécuter ces mêmes cartes —, plus le test
+`assistant-ia/limites.test.ts`. Leur fermeture fait 92 % d'Adam : les sortir est en arbitrage (décision 0013 §5). ESLint
+exclut nommément ces trois fichiers ; le test tient la liste exacte.
 
 **Un test qui exerce le socle À TRAVERS Adam** (il importe `POWER_TOOLS`, `composeWorkspace`…) reste côté Adam, à côté de
 l'ancien emplacement du code : le socle n'a pas de test qui connaisse Adam.

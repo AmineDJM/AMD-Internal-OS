@@ -12,7 +12,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import { casse, lireMrz } from "@/lib/agent/operations/mrz";
+import { casse, lireMrz } from "@/modules/assistant-ia/partage";
 import type { FaitExtrait, ResultatExtraction } from "../types";
 import { champEtiquete, dedoublonner, fait, normaliserTexte, pageDe, paysMrz, type EntreeExtraction } from "./commun-personnes";
 

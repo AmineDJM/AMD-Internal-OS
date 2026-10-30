@@ -22,7 +22,7 @@
     "e2e/**/*.ts",
     "e2e-live/**/*.ts",
     "*.ts",
-    "!src/lib/agent/testing/**!",
+    "!src/modules/assistant-ia/infra/testing/**!",
     "!src/lib/artifact/runtime/fakes.ts!",
     "!src/lib/assistant/context/bench.ts!",
     "!src/lib/assistant/context/holdout-corpus.ts!",

@@ -33,7 +33,7 @@
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-import { chiffreDeControle, lireMrz } from "@/lib/agent/operations/mrz";
+import { chiffreDeControle, lireMrz } from "@/modules/assistant-ia/partage";
 import { repererEntetes } from "@/lib/pieces-lues/entetes";
 import { NATURES_LOCALES, type ClassementPiece, type NaturePiece } from "./types";
 

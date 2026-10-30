@@ -42,11 +42,13 @@ import { mesurerCouverture } from "./couverture";
  * `src/platform/ia/media/`) ; composants → `src/app/` −3 : l'écran de conversation d'Adam quitte
  * `src/app/(app)/assistant/` pour `src/components/chief/`, et ceux qui l'importaient (`chief-workspace`, la
  * barre d'appel de `layout/call-provider`) n'importent plus une page.
+ * Phase B du lot J0 (30/10/2026) : hors carte 705 → 656 — `src/lib/agent/` (49 fichiers de production, dont 42 hors
+ * carte) devient le module `src/modules/assistant-ia/`, mesuré par `src/modules/frontieres.test.ts`.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 const PLAFONDS = {
   /** Fichiers de production de `src/lib/` dans aucune couche : jamais mesurés par les autres cliquets. */
-  horsCarte: 705,
+  horsCarte: 656,
   /** Pages et layouts qui importent `@/lib/prisma` : une page lit par la porte d'un module. */
   pagesPrisma: 126,
   /** Routes (`route.ts`) qui importent `@/lib/prisma`. */

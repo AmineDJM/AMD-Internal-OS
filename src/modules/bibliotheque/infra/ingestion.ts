@@ -5,7 +5,7 @@ import { getBlob } from "@/lib/drive-storage";
 import { lireFichierUneFois } from "@/lib/pieces-lues/lecture-fichier";
 import { parsePptx, pptxToText } from "@/lib/knowledge/parsers/pptx";
 import { classerPiece, estNatureLocale } from "@/lib/enrichissement/classement";
-import { nomAnnonceLeCoffre } from "@/lib/agent/lecture/regles";
+import { nomAnnonceLeCoffre } from "@/modules/assistant-ia/partage";
 import { transcribeAudio } from "@/lib/ai";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
 import { decouper } from "../domaine/decoupage";

@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAction } from "@/components/shared/use-action";
-import { enregistrerAccesAssistantIa } from "@/lib/actions/assistant-ia-consommation-actions";
+import { enregistrerAccesAssistantIa } from "@/modules/assistant-ia/actions-consommation";
 import {
   AIDE_FAMILLE, FAMILLES_IA, FAMILLES_SENSIBLES, LIBELLE_FAMILLE, resoudreAccesIa, type FamilleIa, type ReglageFamilles,
-} from "@/lib/agent/acces-regles";
+} from "@/modules/assistant-ia/partage";
 
 export interface LigneRole { role: string; libelle: string; reglage: ReglageFamilles }
 export interface LignePersonne {

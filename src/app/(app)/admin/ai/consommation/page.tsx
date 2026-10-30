@@ -7,8 +7,7 @@ import { ADMIN_TABS } from "@/lib/labels";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatNumber } from "@/lib/utils";
-import { consommationAssistantIa, type Agregat } from "@/lib/agent/consommation-stats";
-import { lireReglagesAssistantIa, tarifPose } from "@/lib/agent/consommation";
+import { type Agregat, consommationAssistantIa, lireReglagesAssistantIa, tarifPose } from "@/modules/assistant-ia/api";
 import { ReglagesAssistantIaForm } from "./reglages-form";
 
 export const metadata = { title: "Consommation IA — AMD Internal OS" };

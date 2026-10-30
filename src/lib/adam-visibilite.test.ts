@@ -115,7 +115,7 @@ describe("les portes d'Adam lisent la règle (points d'appel, §118.49)", () => 
     const REDUCTEURS = new Set(["cancelAssistantAction", "deleteMyAssistantThread", "forgetMyAssistantMemory"]);
     // La confirmation de l'ASSISTANT IA (autre produit, /assistant) lit SA règle, pas celle d'Adam — et vit
     // dans le fichier d'actions de l'Assistant IA depuis la phase B du lot J0 (décision 0013).
-    const confirmationIA = corpsExportes(lire("src/lib/actions/assistant-ia-actions.ts")).get("confirmerIntentionAssistantIA");
+    const confirmationIA = corpsExportes(lire("src/modules/assistant-ia/actions.ts")).get("confirmerIntentionAssistantIA");
     expect(confirmationIA, "la confirmation de l'Assistant IA lit sa règle").toContain("peutUtiliserAssistantIA(user)");
     const corps = corpsExportes(lire("src/lib/actions/assistant-actions.ts"));
     expect(corps.size, "PLANCHER : le découpage doit trouver les actions").toBeGreaterThanOrEqual(10);

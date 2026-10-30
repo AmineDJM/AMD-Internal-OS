@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireUser } from "@/lib/session";
 import { peutUtiliserAssistantIA } from "@/lib/rbac";
-import { AssistantWorkspace } from "@/components/assistant-beta/assistant-workspace";
+import { AssistantWorkspace } from "@/modules/assistant-ia/ecrans/assistant-workspace";
 
 export const metadata: Metadata = {
   title: "Adventum Brain — Assistant IA",

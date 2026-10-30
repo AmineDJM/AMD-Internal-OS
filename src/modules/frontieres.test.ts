@@ -412,7 +412,6 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/bibliotheque/infra/acces.ts → src/lib/messaging",
     // LES LECTEURS EXISTANTS (consigne : n'en écrire aucun) — coffre, texte/OCR une fois par empreinte, PowerPoint,
     // transcription et sa bascule, classement local des pièces du coffre. Cible : un module `lecture` le jour où il naît.
-    "src/modules/bibliotheque/infra/ingestion.ts → src/lib/agent/lecture/regles",
     "src/modules/bibliotheque/infra/ingestion.ts → src/lib/ai",
     "src/modules/bibliotheque/infra/ingestion.ts → src/lib/ai-settings",
     "src/modules/bibliotheque/infra/ingestion.ts → src/lib/drive-storage",
@@ -421,9 +420,9 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/bibliotheque/infra/ingestion.ts → src/lib/pieces-lues/lecture-fichier",
     // Le registre R5 est partagé avec l'enrichissement : même identifiant de pièce, même relèvement de confidentialité.
     "src/modules/bibliotheque/infra/inscription.ts → src/lib/enrichissement/file",
-    // Les embeddings par la porte commune (interrupteur IA, clé, mandataire) ; le filtre de confidentialité avant un modèle.
+    // Les embeddings par la porte commune (interrupteur IA, clé, mandataire). Le filtre de confidentialité avant un modèle
+    // passe par `@/modules/assistant-ia/partage` (carte : bibliotheque → assistant-ia).
     "src/modules/bibliotheque/infra/capacites.ts → src/lib/openai-luna",
-    "src/modules/bibliotheque/infra/recherche.ts → src/lib/agent/filtre-confidentialite",
   ],
   rh: [
     // La paie et les avances partent au CENTRE DE PAIEMENT par `@/modules/finances/api` (carte : rh → finances) ;
@@ -505,6 +504,92 @@ const DETTE_HERITEE: Record<string, string[]> = {
     "src/modules/rh/actions-documents.ts → src/lib/queries/visibilite-listes",
     "src/modules/rh/infra/depart.ts → src/lib/admin/garde-comptes",
     "src/modules/rh/infra/requetes/hr.ts → src/lib/queries/visibilite-listes",
+  ],
+  "assistant-ia": [
+    // LE CATALOGUE D'ADAM (outils-v1, performAction) : résidu nommé de la frontière Adam / Assistant IA (décision 0013). Cible = le socle IA, selon l'arbitrage de la phase B.
+    "src/modules/assistant-ia/actions.ts → src/lib/assistant",
+    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant",
+    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/ops",
+    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/power-tools",
+    // Le Drive (droits, dépôt, quota) : cible = un module `drive` quand il sera migré.
+    "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive/depot",
+    "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive/quota",
+    "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive/usage",
+    "src/modules/assistant-ia/infra/operations/document-modele.ts → src/lib/drive/depot",
+    "src/modules/assistant-ia/infra/operations/documents-lus.ts → src/lib/drive",
+    "src/modules/assistant-ia/infra/operations/formulaire-pdf.ts → src/lib/drive/depot",
+    "src/modules/assistant-ia/infra/operations/pieces.ts → src/lib/drive",
+    "src/modules/assistant-ia/infra/operations/traduction.ts → src/lib/drive/depot",
+    // Le stockage des fichiers (blobs) : fournisseur de stockage, cible = une porte de stockage commune.
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/drive-storage",
+    "src/modules/assistant-ia/infra/lecture/voix.ts → src/lib/drive-storage",
+    "src/modules/assistant-ia/infra/lectures.ts → src/lib/drive-storage",
+    "src/modules/assistant-ia/infra/operations/document-modele.ts → src/lib/drive-storage",
+    "src/modules/assistant-ia/infra/operations/documents-lus.ts → src/lib/drive-storage",
+    "src/modules/assistant-ia/infra/operations/formulaire-pdf.ts → src/lib/drive-storage",
+    "src/modules/assistant-ia/infra/operations/traduction.ts → src/lib/drive-storage",
+    // L'interrupteur général de l'IA et son journal d'usage : socle IA à terme.
+    "src/modules/assistant-ia/infra/consommation.ts → src/lib/ai-settings",
+    "src/modules/assistant-ia/infra/fil/tour.ts → src/lib/ai-settings",
+    "src/modules/assistant-ia/infra/generer.ts → src/lib/ai-settings",
+    "src/modules/assistant-ia/infra/repondre.ts → src/lib/ai-settings",
+    // Les règles des bons de commande : cible = `@/modules/bons-de-commande/api`.
+    "src/modules/assistant-ia/infra/operations/bc-depuis-devis.ts → src/lib/bons-de-commande/regle",
+    "src/modules/assistant-ia/infra/operations/bc-depuis-devis.ts → src/lib/bons-de-commande/retenue-bc",
+    "src/modules/assistant-ia/infra/operations/bon-de-commande.ts → src/lib/bons-de-commande/regle",
+    "src/modules/assistant-ia/infra/operations/bon-de-commande.ts → src/lib/bons-de-commande/retenue-bc",
+    // Les lecteurs de documents (texte, OCR) de l'intelligence Regulatory : cible = la Bibliothèque (lecture une fois, J1).
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/regulatory/intelligence/extract/extract-text",
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/regulatory/intelligence/extract/texte-ou-ocr",
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/regulatory/intelligence/ocr/ocr-engine",
+    "src/modules/assistant-ia/infra/operations/documents-lus.ts → src/lib/regulatory/intelligence/extract/texte-ou-ocr",
+    // Les seuils Ad & Pro : cible = `@/modules/ad-pro/partage` le jour où ils y entrent.
+    "src/modules/assistant-ia/infra/operations/adpro-evenement.ts → src/lib/seuils/ad-pro",
+    "src/modules/assistant-ia/infra/operations/adpro-poste-autre.ts → src/lib/seuils/ad-pro",
+    "src/modules/assistant-ia/infra/operations/adpro-prise-en-charge.ts → src/lib/seuils/ad-pro",
+    "src/modules/assistant-ia/infra/operations/adpro-sponsoring.ts → src/lib/seuils/ad-pro",
+    // La fabrique de documents (Word, pièces commerciales) : cible = le socle IA (`platform/ia/artifact`).
+    "src/modules/assistant-ia/infra/operations/bc-depuis-devis.ts → src/lib/artifact/factory/commercial",
+    "src/modules/assistant-ia/infra/operations/document-modele.ts → src/lib/artifact/factory/word",
+    "src/modules/assistant-ia/infra/operations/traduction.ts → src/lib/artifact/factory/word",
+    // « Qui voit les salaires » (`hr/confidentialite`) : reste au socle des droits (voir le module rh).
+    "src/modules/assistant-ia/infra/lectures.ts → src/lib/hr/confidentialite",
+    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/hr/confidentialite",
+    "src/modules/assistant-ia/infra/role-config.ts → src/lib/hr/confidentialite",
+    // Les notifications : cible = une porte de notification commune.
+    "src/modules/assistant-ia/infra/consommation.ts → src/lib/notify",
+    "src/modules/assistant-ia/infra/fil/service.ts → src/lib/notify",
+    "src/modules/assistant-ia/infra/routines/service.ts → src/lib/notify",
+    // Des lectures d'écrans (budget, messagerie, contacts) : cible = les portes des modules concernés.
+    "src/modules/assistant-ia/infra/lectures.ts → src/lib/queries/messaging",
+    "src/modules/assistant-ia/infra/operations/bon-de-commande.ts → src/lib/queries/company-contacts",
+    "src/modules/assistant-ia/infra/operations/budget.ts → src/lib/queries/budget",
+    // Le vocabulaire et le circuit par défaut des circuits de validation : cible = la porte du circuit de validation.
+    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/workflow/defaults",
+    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/workflow/parcours",
+    "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/workflow/types",
+    // Les entités du groupe : cible = `@/modules/referentiels/api`.
+    "src/modules/assistant-ia/infra/lectures.ts → src/lib/company",
+    "src/modules/assistant-ia/infra/operations/bon-de-commande.ts → src/lib/company",
+    // L'enrichissement (classement d'une pièce, type) : cible = la Bibliothèque.
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/enrichissement/classement",
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/enrichissement/types",
+    // La visibilité des fiches liées : façade d'accès, cible = les portes des modules.
+    "src/modules/assistant-ia/infra/operations/adpro-evenement.ts → src/lib/entity-access",
+    "src/modules/assistant-ia/infra/operations/demandes-visibles.ts → src/lib/entity-access",
+    // Les pièces lues (devis pré-rempli) : cible = la Bibliothèque.
+    "src/modules/assistant-ia/infra/operations/devis-lu.ts → src/lib/pieces-lues/prerempli-devis-promo",
+    "src/modules/assistant-ia/infra/operations/devis-lu.ts → src/lib/pieces-lues/service",
+    // La vue du budget marketing : cible = un module budget.
+    "src/modules/assistant-ia/infra/operations/budget.ts → src/lib/budget/marketing-vue",
+    // La phrase « IA non configurée » : socle IA à terme.
+    "src/modules/assistant-ia/infra/modele.ts → src/lib/ia/cle-manquante",
+    // Le lecteur PPTX : cible = la Bibliothèque.
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/knowledge/parsers/pptx",
+    // La transcription (STT) : cible = `platform/ia/media`.
+    "src/modules/assistant-ia/infra/lecture/pieces.ts → src/lib/media/stt",
+    // L'accès OpenAI (clé) : passerelle `lib/models`, socle IA à terme.
+    "src/modules/assistant-ia/infra/modele.ts → src/lib/models/openai-acces",
   ],
 };
 

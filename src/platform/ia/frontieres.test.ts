@@ -9,8 +9,8 @@ import { cibleInterne, specificateurs } from "@/platform/imports";
  *
  *   • ADAM, le « Chief of Staff » du Super Admin : `lib/assistant*`, son écran (`components/chief/`,
  *     la page `/chief-of-staff`, les routes `/api/assistant/`), son pont `platform/in-process/`.
- *   • L'ASSISTANT IA, « Adventum Brain », ouvert à chacun selon ses droits : `lib/agent/`, la page
- *     `/assistant`, `components/assistant-beta/`, les routes `/api/assistant-ia/`, ses actions.
+ *   • L'ASSISTANT IA, « Adventum Brain », ouvert à chacun selon ses droits : le module
+ *     `src/modules/assistant-ia/` (moteur, écrans, actions), la page `/assistant`, les routes `/api/assistant-ia/`.
  *   • Le SOCLE IA, `src/platform/ia/` : ce que les deux utilisent. Il n'appartient à aucun.
  *
  * Trois règles, imports RELATIFS compris (`../imports`), tests compris :
@@ -34,8 +34,8 @@ const ADAM = [
   "src/lib/actions/assistant-actions.ts",
 ];
 const ASSISTANT_IA = [
-  "src/lib/agent/", "src/app/(app)/assistant/", "src/components/assistant-beta/", "src/app/api/assistant-ia/",
-  "src/lib/actions/assistant-ia-actions.ts", "src/lib/actions/assistant-ia-consommation-actions.ts",
+  // Le module (phase B du lot J0) : moteur, écrans (ex-`components/assistant-beta/`), actions (ex-`lib/actions/assistant-ia-*`).
+  "src/modules/assistant-ia/", "src/app/(app)/assistant/", "src/app/api/assistant-ia/",
 ];
 const SOCLE = ["src/platform/ia/"];
 
@@ -45,18 +45,18 @@ const SOCLE = ["src/platform/ia/"];
  */
 const RESIDUS = [
   // LE CATALOGUE D'OUTILS D'ADAM, emprunté tel quel par l'Assistant IA (décisions 0001 Q7/Q20 et 0012) :
-  //   • `outils-v1.ts` — les schémas et les conditions d'accès (`assistantToolsFor`), les lectures
+  //   • `infra/outils-v1.ts` — les schémas et les conditions d'accès (`assistantToolsFor`), les lectures
   //     (`executeReadTool`, et `executePowerTool` pour les lectures ouvertes par droit), les cartes d'écriture
   //     (`buildProposal`) et les outils de domaine (`DOMAIN_TOOLS`) ;
-  //   • `assistant-ia-actions.ts` — l'exécution, à la confirmation, de ces mêmes cartes (`performAction`).
+  //   • `actions.ts` — l'exécution, à la confirmation, de ces mêmes cartes (`performAction`).
   // Leur fermeture fait 284 fichiers, 92 % d'Adam : les sortir est une décision d'architecture (rapport de
   // phase B, décision 0013 §4), pas un déménagement mécanique.
-  "src/lib/actions/assistant-ia-actions.ts → src/lib/assistant",
-  "src/lib/agent/outils-v1.ts → src/lib/assistant",
-  "src/lib/agent/outils-v1.ts → src/lib/assistant/ops",
-  "src/lib/agent/outils-v1.ts → src/lib/assistant/power-tools",
+  "src/modules/assistant-ia/actions.ts → src/lib/assistant",
+  "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant",
+  "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/ops",
+  "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/power-tools",
   // Un TEST de bout en bout : la carte `send_message`, confirmée sans le droit, est refusée par `performAction`.
-  "src/lib/agent/limites.test.ts → src/lib/assistant",
+  "src/modules/assistant-ia/limites.test.ts → src/lib/assistant",
 ];
 
 const dans = (f: string, perimetre: string[]): boolean =>
