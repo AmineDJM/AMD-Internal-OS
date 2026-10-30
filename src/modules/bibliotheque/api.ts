@@ -24,7 +24,7 @@ export {
   chercherDocuments, ouvrirDocuments, piecesOuvrables,
   type DocumentOuvert, type OptionsRecherche, type RechercheDocuments, type Refus, type ResultatDocument,
 } from "./infra/recherche";
-export { faitsConfirmesPourModele, type FaitRendu } from "./infra/faits";
+export { faitsConfirmesPourModele, faitsVisibles, type FaitRendu } from "./infra/faits";
 
 // ── La file (tâches de fond `bibliotheque.ingestion` et `bibliotheque.rattrapage`) ───────────────
 export { traiterFile, vectoriserEnRetard, relancerFiche, etatDeLaFile, type BilanIngestion, type DependancesIngestion } from "./infra/ingestion";

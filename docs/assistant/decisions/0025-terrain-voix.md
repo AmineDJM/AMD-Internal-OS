@@ -12,7 +12,7 @@ vocale en 1,5 s* ; piège nommé : *confirmer un paiement ou une signature à la
 > `src/platform/ia/modeles-roles.ts` (`modeleSttTerrain`, `modeleTempsReel`). Page `/medical/terrain`, routes
 > `/api/assistant-ia/terrain`, `/api/assistant-ia/voix/{session,delegation,journal}`. Action métier ajoutée :
 > `field-report-actions:rattacherPhotoTerrain`. `public/sw.js` (écran Terrain hors ligne). Migration additive
-> `20270210100000_terrain_voix` (`AssistantIaTerrainCapture`). Banc STT : `scripts/banc-stt-terrain.mjs`,
+> `20270210110000_terrain_voix` (`AssistantIaTerrainCapture`). Banc STT : `scripts/banc-stt-terrain.mjs`,
 > `data/bancs/terrain-voix/`. E2E 390 px : `e2e/terrain-voix.spec.ts`.
 
 ## 1. Le compte rendu vocal
