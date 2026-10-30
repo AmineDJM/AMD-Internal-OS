@@ -133,10 +133,8 @@ const PRIORITES: readonly Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
  */
 export async function modifierTache(formData: FormData): Promise<ActionResult> {
   const user = await requireUser();
-  if (!userCan(user, "WORKSPACE", "UPDATE")) return { ok: false, error: "Non autorisé." };
-
   const id = fdStr(formData, "id");
-  if (!id) return { ok: false, error: "Tâche introuvable." };
+  if (!userCan(user, "WORKSPACE", "UPDATE") || !id) return { ok: false, error: id ? "Non autorisé." : "Tâche introuvable." };
   const echeance = fdStr(formData, "dueDate");
   const dueDate = fdDate(formData, "dueDate");
   const retirerEcheance = fdStr(formData, "clearDueDate") === "1";
