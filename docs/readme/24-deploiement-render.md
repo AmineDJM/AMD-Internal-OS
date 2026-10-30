@@ -32,7 +32,41 @@ applique les migrations et crée le Super Admin (aucune donnée de démo).
 > **Mémoire de build (Next 15)** : la compilation tourne avec un tas de **3584 Mo** (`TAS_DU_BUILD_MO`,
 > `next.config.mjs`) — Next 15 meurt en OOM à 3072. Pic mesuré sur build propre : 5150 Mo.
 
-### Worker séparé — les tâches de fond hors du web (refonte V2-F, déclaré le 28/10/2026, en attente de bascule)
+### Le worker — « Cliquez Sync, c'est tout » (décision 0019, 30/10/2026)
+
+**La seule manipulation : Render → Blueprint → *Sync*.** La synchronisation crée le service `amd-worker` (image Docker
+[`Dockerfile.worker`](../../Dockerfile.worker), plan `starter` — payant, Render n'a pas d'offre gratuite pour un worker), lui
+donne ses variables (reliées au web), et il travaille aussitôt : `TACHES_DE_FOND=les-deux` est posé par le Blueprint sur le
+web ET sur le worker. Aucune recopie de variable, aucun interrupteur à basculer.
+
+**Ce qui est vérifié tout seul :**
+1. **Au build de l'image** — le moteur de conversion (Python et paquets épinglés, tesseract ara/fra/eng « best » à empreintes
+   vérifiées, LibreOffice, polices arabes et latines) se déclare complet (`convertir.py --verifier`), sinon l'image n'est pas
+   construite et le déploiement échoue en le disant.
+2. **Au démarrage** — le worker attend que la base porte les migrations de son commit (seul le web migre), puis **contrôle**
+   ses variables et son moteur : chaque manque est écrit en clair dans son journal (`worker.controle.manque`, ex. « À poser
+   — OPENAI_API_KEY absente : les travaux de l'Assistant IA… ») et dans **Administration › Diagnostic › Worker et
+   conversions**. Une clé facultative absente ne l'empêche pas de tourner ; il le dit.
+3. **En marche** — `GET /api/health/worker` (exécutants récents) et le même écran : dernier battement, file des conversions,
+   échecs des dernières 24 h avec leur motif.
+
+**Sûr pendant que le worker n'existe pas encore** (construction de l'image, panne) : en `les-deux`, le web bat comme avant,
+et le **bail par tâche** (table `TacheDeFond`) garantit qu'UN seul exécutant tient chaque tâche dès que le worker arrive. Les
+travaux longs restent au web tant que le worker n'a pas battu depuis 5 min ; les conversions aussi (moteur local, ou le
+secours texte — dit à l'écran) ; une conversion mise en file puis jamais prise échoue au bout de 15 min, en le disant.
+
+**Les variables du worker** (recensées dans le code, `src/lib/taches-de-fond/sante.ts`) : `DATABASE_URL` (`fromDatabase`),
+`AUTH_SECRET`, `OPENAI_API_KEY`, `S3_*`, `VAPID_*`, `ADVENTUM_*` (`fromService` depuis le web : la **même** valeur),
+`APP_URL` (littérale : `https://amd-internal-os-k3uc.onrender.com`). ⚠️ Render ne documente pas ce que fait un `fromService`
+vers une clé que le web ne porte pas : seules des clés **déclarées** dans le bloc du web sont reliées (`OPENAI_API_KEY` y est
+déclarée en `sync: false`, ce qui ne modifie pas la valeur déjà posée). Google, Microsoft, Mistral, courriel : non reliées
+— le contrôle les signale ; pour les relier, ajouter une ligne `fromService` (même forme) une fois la clé posée sur le web.
+Si un *Sync* échouait sur une clé reliée absente, retirer sa ligne du bloc `amd-worker` : le contrôle dira ce qui manque.
+
+**Retour arrière** : suspendre le service `amd-worker` — le web, en `les-deux`, reprend seul les tâches. Aucun code.
+
+### Worker séparé — les mécanismes (refonte V2-F, 28/10/2026)
+
 
 Les tâches de fond (rappels, paie notifiée, jobs réglementaires, routines et fil de l'Assistant IA, missions, boîte
 Gmail d'Adam, site public, couche de connaissance… — la table `TACHES_PLANIFIEES` de `src/lib/scheduled.ts`) tournent
@@ -47,7 +81,7 @@ par défaut **dans le processus web**. Le même passage peut tourner dans un **s
 - **Journal** : une ligne JSON par événement (`"source":"taches-de-fond"`) — `passage.fin` (durée de chaque tâche),
   `tache.echec`, `tache.lente` (≥ 2 s), `tache.bail-perdu`, `worker.*`.
 
-**Activation sur Render — procédure exacte**
+**Activation manuelle (historique — remplacée par le Sync ci-dessus, gardée pour un service créé à la main)**
 
 1. **Créer le service.** Le bloc `amd-worker` est déclaré dans [`render.yaml`](../../render.yaml) depuis le 28/10/2026
    (en attente : `TACHES_DE_FOND=web`) — **en image Docker depuis J2** (décision 3 de la Direction, 29/10/2026) :

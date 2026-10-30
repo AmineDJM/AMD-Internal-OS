@@ -80,3 +80,4 @@ ui-audit-out/
 
 # Sorties du banc Adam (jeu semé localement, mesures) — régénérables
 bench-out/
+__pycache__/

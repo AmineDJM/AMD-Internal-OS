@@ -17,6 +17,31 @@ scans) **lus en ≈ 2 min** sur le banc local. L'assistant **classe le dossier p
 manquantes** à partir de ce que la Bibliothèque a déjà lu — sans relire les fichiers (`lire_dossier_depose`). Migration
 additive `20270215140000_assistant_ia_depot_dossier`.
 
+### OCR VISION DES CONVERSIONS — LES SCANS ARABES VOCALISÉS SOUS 1 % (2026-10-30)
+
+Une page scannée que tesseract lit mal (arabe vocalisé, scan dégradé) est transcrite par le modèle de vision de
+l'Assistant IA, au nom du demandeur, puis vérifiée contre tesseract — **jamais** pour une pièce confidentielle, du coffre,
+d'un dossier RH ou un contrat (la lecture locale reste, et l'écran dit pourquoi). Réglage Super Admin (coupé par défaut) et
+plafond mensuel en dollars : **Administration › IA**. Banc : scans vocalisés 13,6 / 58,1 / 25,7 % → 0,20 / 0,40 / 0,00 % ;
+un passage réel 0,060 $. Aller-retour Word vocalisé (LibreOffice 7.4) : 2,0 → 0,40 % (Naskh). Décision
+[0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270215130000_ocr_vision`.
+
+### CONVERSIONS HAUTE FIDÉLITÉ SUR LE WORKER, ET LE WORKER « CLIQUEZ SYNC, C'EST TOUT » (2026-10-30)
+
+« Pas de limitations ; c'est notre différenciation. » **PDF → Word** garde désormais images (nombre et taille), tableaux,
+colonnes, en-têtes et pieds (dans les vraies zones, numéro de page en champ), listes, polices/tailles/gras/couleurs, et
+rend l'**arabe** juste : ordre logique retrouvé par la géométrie, `w:bidi`/`w:rtl`/`w:cs`, chiffres et mélange arabe-français,
+aucune forme de présentation, aucun U+FFFD, aucun mojibake ; les **pages scannées** passent par l'OCR (tesseract ara+fra+eng
+« best », deux passages) et sont recomposées (tableaux depuis les traits, illustrations découpées) — l'image est gardée si
+la lecture est trop incertaine. Plus : PDF → Excel, image → PDF/Word, PowerPoint → images ; Office → PDF avec polices arabes
+et Carlito/Caladea. Le moteur (`scripts/conversions/`, pdf2docx + PyMuPDF corrigés) vit dans l'image du worker ; le web ne
+convertit jamais quand le worker bat. Banc `npm run conversions:bench` dans l'image : CER 0–0,26 % sur les PDF numériques
+(FR, AR, mixte, deux colonnes, Chromium), 0,59 % sur le scan français, **2,95 % sur le scan arabe vocalisé** (limite de
+tesseract, dite) ; 100 % des images, 0 caractère interdit, 100 % des paragraphes arabes en RTL. **Render** : *Sync* crée le
+worker, lui relie ses variables (`fromService`) et il travaille (`TACHES_DE_FOND=les-deux` partout) ; il contrôle ses
+variables et son moteur au démarrage et l'écrit — journal et **Administration › Diagnostic › Worker et conversions**.
+Décision [0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270215120000_controle_worker`.
+
 ### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
 
 Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur de l'ERP (1 206, lues sur leur source) devient une

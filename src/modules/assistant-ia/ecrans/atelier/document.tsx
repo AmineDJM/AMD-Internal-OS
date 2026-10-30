@@ -68,7 +68,7 @@ export function BarreOnglet({ o, occupe, coteACote, peutCote, onAnnuler, onRetab
               {o.conversions!.map((c) => (
                 <button key={c} type="button" role="menuitem" onClick={() => { setMenu(false); onConvertir(c); }}
                   className="rounded-md px-2.5 py-2 text-left text-xs text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
-                  {v.format === "DOCX" && c === "XLSX" ? "Tableaux → Excel" : `${nomFormat(v.format)} → ${nomFormat(c)}`}
+                  {v.format === "DOCX" && c === "XLSX" ? "Tableaux → Excel" : v.format === "PDF" && c === "XLSX" ? "Tableaux → Excel" : c === "IMAGES" ? "Diapositives → images" : `${nomFormat(v.format)} → ${nomFormat(c)}`}
                 </button>
               ))}
             </span>

@@ -19,6 +19,7 @@ export interface AiSettings {
   siteWebAiEnabled: boolean;
   lecturePiecesEnabled: boolean;
   conseilPiecesEnabled: boolean;
+  ocrVisionEnabled: boolean;
 }
 
 type FeatureKey = Exclude<keyof AiSettings, "masterEnabled">;
@@ -32,6 +33,7 @@ const FEATURES: { key: FeatureKey; label: string; desc: string }[] = [
   { key: "voiceTranscriptEnabled", label: "Transcription vocale (Whisper)", desc: "Dictée → texte des rapports terrain (OpenAI)." },
   { key: "siteWebAiEnabled", label: "Rédaction du site (articles et offres)", desc: "« Rédiger avec l'IA » : un brouillon d'article ou d'offre d'emploi, relu et publié par une personne." },
   { key: "lecturePiecesEnabled", label: "Lecture des pièces commerciales (lignes par l'IA)", desc: "Devis, bons de commande et factures déposés : l'IA propose les lignes, une personne les confirme une à une. Chaque pièce lue est un appel payant au fournisseur d'IA, une seule fois par fichier ; une pièce confidentielle n'est jamais envoyée. Coupée (le réglage par défaut), la lecture locale — texte du fichier, OCR sur ce serveur, en-tête et totaux — continue sans rien envoyer ni rien coûter." },
+  { key: "ocrVisionEnabled", label: "OCR vision des conversions (pages scannées difficiles)", desc: "Une page scannée que la lecture locale (tesseract) lit mal — arabe vocalisé, scan dégradé — est transcrite par le modèle de vision de l'Assistant IA, au nom de la personne qui convertit, puis vérifiée contre la lecture locale. Jamais une pièce confidentielle, du coffre (identité, paie, RIB), un contrat ou une pièce d'un dossier RH : la lecture locale reste et l'écran dit pourquoi. Chaque page est un appel payant, sous le plafond mensuel ci-dessous. Coupé par défaut." },
   { key: "conseilPiecesEnabled", label: "Luna — conseil de rangement des pièces Ad & Pro", desc: "Après un dépôt sur une demande Ad & Pro, Luna lit la pièce et dit si elle est au bon endroit (Détails de la demande, ou la bonne case du bon poste) ; sinon il conseille où la mettre. Il n'écrit ni ne déplace rien. Chaque pièce lue est un appel au fournisseur d'IA ; une pièce confidentielle n'est jamais envoyée." },
 ];
 
@@ -53,11 +55,13 @@ function Toggle({ checked, onClick, disabled }: { checked: boolean; onClick: () 
   );
 }
 
-export function AiSettingsForm({ initial }: { initial: AiSettings }) {
+export function AiSettingsForm({ initial, ocrVision }: { initial: AiSettings; ocrVision?: { plafondUsd: number; depenseMois: number } }) {
   const [s, setS] = React.useState<AiSettings>(initial);
+  const [plafond, setPlafond] = React.useState(String(ocrVision?.plafondUsd ?? 20));
   const { busy: saving, err, run } = useAction();
   const [saved, setSaved] = React.useState(false);
-  const dirty = React.useMemo(() => (Object.keys(s) as (keyof AiSettings)[]).some((k) => s[k] !== initial[k]), [s, initial]);
+  const dirty = React.useMemo(() => (Object.keys(s) as (keyof AiSettings)[]).some((k) => s[k] !== initial[k])
+    || (ocrVision !== undefined && Number(plafond) !== ocrVision.plafondUsd), [s, initial, plafond, ocrVision]);
 
   const toggle = (k: keyof AiSettings) => {
     setS((prev) => ({ ...prev, [k]: !prev[k] }));
@@ -67,6 +71,7 @@ export function AiSettingsForm({ initial }: { initial: AiSettings }) {
   async function save() {
     const fd = new FormData();
     for (const [k, v] of Object.entries(s)) if (v) fd.set(k, "on");
+    if (ocrVision) fd.set("ocrVisionPlafondUsd", plafond);
     await run(() => updateAiSettings(fd), () => { setSaved(true); setTimeout(() => setSaved(false), 1800); });
   }
 
@@ -99,6 +104,16 @@ export function AiSettingsForm({ initial }: { initial: AiSettings }) {
             <Toggle checked={s[f.key]} onClick={() => toggle(f.key)} disabled={!s.masterEnabled} />
           </div>
         ))}
+        {ocrVision && (
+          <div className="flex flex-col gap-2 p-3 sm:flex-row sm:items-end sm:gap-4 sm:p-4">
+            <label className="flex flex-col gap-1 text-xs text-muted-foreground">
+              Plafond mensuel de l&apos;OCR vision ($)
+              <input type="number" min={0} max={10000} step={1} value={plafond} onChange={(e) => { setPlafond(e.target.value); setSaved(false); }}
+                className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm sm:w-32" />
+            </label>
+            <p className="text-xs text-muted-foreground">Dépensé ce mois-ci : <span className="font-medium text-foreground">{ocrVision.depenseMois.toFixed(2)} $</span></p>
+          </div>
+        )}
       </div>
 
       <Retour ton="erreur">{err}</Retour>

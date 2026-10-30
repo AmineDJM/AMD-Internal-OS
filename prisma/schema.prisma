@@ -9415,6 +9415,11 @@ model AiSetting {
   lecturePiecesEnabled   Boolean  @default(false)
   /// Luna CONSEILLE où ranger une pièce déposée sur une demande Ad & Pro — consultatif, aucune écriture : allumé par défaut.
   conseilPiecesEnabled   Boolean  @default(true)
+  /// OCR « VISION » des conversions (décision 0019) : une page scannée mal lue par tesseract (arabe vocalisé, scan
+  /// dégradé) transcrite par le modèle de vision — jamais une pièce confidentielle, du coffre ou d'un dossier RH. COUPÉ.
+  ocrVisionEnabled       Boolean  @default(false)
+  /// Son plafond de dépense, en dollars, par mois civil (somme des appels journalisés au rôle « ocr »).
+  ocrVisionPlafondUsd    Decimal  @default(20) @db.Decimal(10, 2)
   updatedAt              DateTime @updatedAt
   updatedById            String?
 }
@@ -18195,6 +18200,16 @@ model Commune {
 /// un bail non renouvelé (`bailJusqua` dépassé) appartient à un processus mort et se reprend — c'est la reprise
 /// après plantage. Le SIGNAL DE SANTÉ : dernier passage, durée, issue, lus par `/api/health/worker` et le
 /// Diagnostic. La ligne naît au premier passage de la tâche ; la règle vit dans `src/lib/taches-de-fond/bail.ts`.
+/// LE CONTRÔLE AU DÉMARRAGE DU WORKER (décision 0019) — variables présentes/absentes (jamais leurs valeurs), moteur de
+/// conversion. Écrit par `scripts/worker.ts` à chaque démarrage ; lu par Administration › Diagnostic.
+model ControleWorker {
+  id        String   @id
+  detenteur String
+  verifieA  DateTime @default(now())
+  pret      Boolean  @default(false)
+  rapport   Json
+}
+
 model TacheDeFond {
   /// Clé stable de la tâche (« rappels.reunions », « missions.balayage »).
   cle             String             @id

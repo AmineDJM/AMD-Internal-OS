@@ -8,6 +8,7 @@ import {
   comparerAtelier, documentSensible, type Comparatif, droitsSurDocument, enregistrerAtelier, fermerOnglet, ouvrirDansAtelier, revoirModification,
   toutAccepter, vueAtelier, type Droits,
 } from "@/platform/ia/artifact/atelier/service";
+import { fabriqueVisionOcr } from "./infra/atelier/ocr-vision";
 import { conversionsPossibles, demanderConversion, LIBELLE_VOIE, type DemandeConversion, type VersFormat } from "@/platform/ia/artifact/atelier/conversions";
 import { annulerDocument, retablirDocument } from "@/platform/ia/artifact/office";
 import { carteEnregistrement } from "./infra/operations/atelier-enregistrer";
@@ -142,8 +143,8 @@ export async function convertirDansAtelier(nodeId: string, vers: string, session
   const vide = { id: null, voie: null, etat: null, resultat: null, note: null, libelleVoie: null };
   if (!p.ok) return { ok: false, motif: p.erreur, ...vide };
   const n = id(nodeId);
-  if (!n || !["PDF", "XLSX", "DOCX"].includes(vers)) return { ok: false, motif: "Demande illisible.", ...vide };
-  const r = await demanderConversion(p.user, n, vers as VersFormat, id(sessionId) ?? null);
+  if (!n || !["PDF", "XLSX", "DOCX", "IMAGES"].includes(vers)) return { ok: false, motif: "Demande illisible.", ...vide };
+  const r = await demanderConversion(p.user, n, vers as VersFormat, id(sessionId) ?? null, { vision: fabriqueVisionOcr });
   if (r.ok) revalidatePath("/drive");
   return { ...r, libelleVoie: r.voie ? LIBELLE_VOIE[r.voie] : null };
 }

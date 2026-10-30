@@ -381,9 +381,17 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
 
   // L'ATELIER (J3, décision 0017) : les conversions confiées au worker (LibreOffice de son image). Ailleurs, rien.
   { cle: "atelier.conversions", bailMs: 300_000, executer: async () => {
-    if (executeurDuProcessus() !== "worker") return ignoree("les conversions LibreOffice tournent sur le worker");
+    if (executeurDuProcessus() !== "worker") {
+      // Le web ne convertit pas (décision 0019), mais il fait échouer EN LE DISANT une demande que le worker n'a pas
+      // prise à temps (worker arrêté) — sans lui, elle resterait « en file » pour toujours.
+      const { expirerConversionsEnFile } = await import("@/platform/ia/artifact/atelier/conversions");
+      await expirerConversionsEnFile();
+      return ignoree("les conversions tournent sur le worker (moteur haute fidélité)");
+    }
     const { traiterConversionsEnFile } = await import("@/platform/ia/artifact/atelier/conversions");
-    await traiterConversionsEnFile({ executeur: executeurDuProcessus() });
+    // L'OCR vision (décision 0019) : fourni par l'Assistant IA, au nom de chaque demandeur ; garde et réglage décident.
+    const { fabriqueVisionOcr } = await import("@/modules/assistant-ia/api");
+    await traiterConversionsEnFile({ executeur: executeurDuProcessus(), vision: fabriqueVisionOcr });
   } },
 
   // LE VIEILLISSEMENT DE LA MÉMOIRE — le seul des deux mouvements de la mémoire épisodique

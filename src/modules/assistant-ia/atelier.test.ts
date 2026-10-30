@@ -73,6 +73,7 @@ suite("l'Atelier — droits, modification en place, nouvelle version (vraie base
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
     await prisma.atelierConversion.deleteMany({ where: { userId: { in: users.map((u) => u.id) } } });
     await prisma.driveNode.deleteMany({ where: { name: { startsWith: TAG } } });
+    await prisma.piece.deleteMany({ where: { nom: { startsWith: TAG }, empreinte: { startsWith: TAG } } });
     await prisma.driveNode.deleteMany({ where: { ownerId: { in: users.map((u) => u.id) } } });
     await prisma.driveSpace.deleteMany({ where: { name: { startsWith: TAG } } });
     await prisma.user.deleteMany({ where: { id: { in: users.map((u) => u.id) } } });
@@ -166,4 +167,41 @@ suite("l'Atelier — droits, modification en place, nouvelle version (vraie base
     expect(pdf.voie).toBe((await libreOfficeLocal()) ? "LOCAL" : "RENDU");
     expect(pdf.resultat?.nom).toMatch(/\.pdf$/);
   }, 120_000);
+
+  it("PDF → WORD HAUTE FIDÉLITÉ (décision 0019) : par la file, le moteur garde images, tableau et arabe ; sinon le secours le DIT", async () => {
+    const fs = await import("node:fs");
+    const { etatMoteur } = await import("@/lib/office/conversions-haute-fidelite");
+    const { analyserDocx } = await import("@/lib/office/conversions-mesure");
+    const octets = fs.readFileSync("scripts/conversions/corpus/ar-note.pdf");
+    const b = await putBlob(octets);
+    const n = await prisma.driveNode.create({
+      data: { name: `${TAG} note.pdf`, type: "FILE", mimeType: "application/pdf", ownerId: proprietaire.id, size: b.size, versions: { create: { blobId: b.blobId, version: 1, size: b.size } } },
+    });
+    const r = await demanderConversion(proprietaire, n.id, "DOCX");
+    expect(r.ok).toBe(true);
+    const v = await prisma.fileVersion.findFirst({ where: { nodeId: r.resultat!.nodeId } });
+    const a = analyserDocx((await getBlob(v!.blobId))!);
+    if ((await etatMoteur()).pret) {
+      expect(r.voie).toBe("LOCAL");
+      expect(a.images).toHaveLength(1);
+      expect(a.tableaux[0]).toEqual({ lignes: 4, colonnes: 4 });
+      expect(a.paragraphes.filter((p) => p.bidi).length).toBeGreaterThan(5);
+    } else {
+      expect(r.voie).toBe("MAISON");
+      expect(r.note).toMatch(/secours/);
+    }
+  }, 120_000);
+
+  it("OCR VISION (décision 0019) : la GARDE — une pièce sensible ne part jamais au modèle ; une pièce ordinaire, si", async () => {
+    const { gardeOcrVision } = await import("@/platform/ia/artifact/ports");
+    const b = await putBlob(Buffer.from(`%PDF-1.4 garde ${TAG} ${Date.now()}`));
+    const ordinaire = await prisma.driveNode.create({
+      data: { name: `${TAG} notice.pdf`, type: "FILE", mimeType: "application/pdf", ownerId: proprietaire.id, size: b.size, versions: { create: { blobId: b.blobId, version: 1, size: b.size } } },
+    });
+    expect(await gardeOcrVision(ordinaire.id, 1, `${TAG} notice.pdf`)).toBeNull();
+    expect(await gardeOcrVision(ordinaire.id, 1, "Passeport de Karim.pdf")).toMatch(/pièce sensible/);
+    // Une fiche de la Bibliothèque CONFIDENTIELLE sur le même contenu : refus.
+    await prisma.piece.create({ data: { blobId: b.blobId, empreinte: `${TAG}-garde-${b.blobId}`, nom: `${TAG} notice.pdf`, confidentiality: "CONFIDENTIAL" } });
+    expect(await gardeOcrVision(ordinaire.id, 1, `${TAG} notice.pdf`)).toMatch(/CONFIDENTIELLE/);
+  }, 60_000);
 });

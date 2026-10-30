@@ -49,6 +49,8 @@ export type OptionsWorker = {
   migrationsManquantes?: () => Promise<string[]>;
   /** Délai entre deux vérifications de la base. */
   attenteMigrationsMs?: number;
+  /** Appelé une fois la base à jour, avant le premier passage (le contrôle au démarrage, décision 0019). Ne bloque jamais. */
+  apresMigrations?: () => Promise<unknown>;
 };
 
 export const ATTENTE_MIGRATIONS_MS = 30_000;
@@ -107,6 +109,9 @@ export async function demarrerWorker(o: OptionsWorker): Promise<BilanWorker> {
 
   journal("info", "worker.demarrage", { mode, detenteur: o.detenteur, tickMs: o.tickMs });
   if (o.migrationsManquantes) await attendreLaBase(o.migrationsManquantes, o.signal, journal, o.attenteMigrationsMs ?? ATTENTE_MIGRATIONS_MS);
+  if (o.apresMigrations && !o.signal.aborted) {
+    await o.apresMigrations().catch((e) => journal("avertissement", "worker.apres-migrations", { erreur: messageErreur(e) }));
+  }
   let passages = 0;
   while (!o.signal.aborted) {
     const debut = Date.now();

@@ -1,16 +1,23 @@
 # syntax=docker/dockerfile:1
 # ═══════════════════════════════════════════════════════════════════════════════════════════
-# L'IMAGE DU WORKER (J2, décision 3 de la Direction, 29/10/2026) — le service Render `amd-worker`.
+# L'IMAGE DU WORKER (J2, décision 3 de la Direction, 29/10/2026 ; moteur de conversion : décision 0019, 30/10/2026)
+# — le service Render `amd-worker`.
 #
-# Le MÊME code que le web, sans compilation Next : `tsx scripts/worker.ts` exécute la table des tâches
-# de fond (dont les TRAVAUX longs, `travaux.balayage`) sous leurs baux. L'image porte en plus ce que le
-# web n'a pas et dont les travaux ont besoin :
-#   • LibreOffice headless (Writer, Impress, Calc — sans interface) : conversions fidèles Word/PowerPoint → PDF ;
-#   • ffmpeg : images clés et son des vidéos ;
-#   • Tesseract (français, arabe, anglais) : OCR local des pièces scannées.
+# Le MÊME code que le web, sans compilation Next : `tsx scripts/worker.ts` exécute la table des tâches de fond
+# (dont les TRAVAUX longs, `travaux.balayage`, et les CONVERSIONS de l'Atelier, `atelier.conversions`) sous leurs
+# baux. L'image porte en plus ce que le web n'a pas :
+#   • le MOTEUR DE CONVERSION HAUTE FIDÉLITÉ (`scripts/conversions/`) : Python 3 et ses paquets ÉPINGLÉS dans
+#     /opt/conversions (pdf2docx, PyMuPDF, python-docx, openpyxl, OpenCV) — PDF → Word / Excel, image → PDF / Word ;
+#   • LibreOffice headless (Writer, Impress, Calc) : Word / PowerPoint / Excel → PDF ;
+#   • Tesseract avec les modèles « best » arabe, français, anglais (tessdata_best 4.1.0, empreintes vérifiées) ;
+#   • les POLICES : Noto Naskh Arabic + Amiri (arabe), Noto Sans/Serif, DejaVu, Liberation (Arial, Times, Courier),
+#     Carlito/Caladea (métriques de Calibri/Cambria : la pagination d'un Word reste celle de Word) ;
+#   • ffmpeg : images clés et son des vidéos.
 #
-# Deux étages : le premier installe les dépendances (`npm ci`, il lui faut de quoi compiler un module
-# natif) et génère le client Prisma ; le second ne garde que l'exécution. Utilisateur non root (`node`).
+# Base Debian 12 « bookworm » : Python 3.11, LibreOffice 7.4, TESSERACT 5.3 — choisi sur mesure (décision 0019) :
+# tesseract 5.5 (Debian 13) lit moins bien l'arabe (scan arabe : CER 2,95 % contre 1,28 % en 5.3 ; scan vocalisé :
+# 23,5 % contre 13,6 %). Ne pas monter de version sans relancer `npm run conversions:bench` dans l'image.
+# Trois étages : dépendances Node (`npm ci`, client Prisma), moteur Python (venv), exécution. Utilisateur non root.
 # Construire : docker build -f Dockerfile.worker -t amd-worker .
 # ═══════════════════════════════════════════════════════════════════════════════════════════
 
@@ -24,22 +31,55 @@ COPY prisma ./prisma
 # `npm ci` : EXACTEMENT le verrou, comme le web. Les dépendances de développement restent : `tsx` exécute le worker.
 RUN npm ci --no-audit --no-fund && npx prisma generate && npm cache clean --force
 
+FROM node:22-bookworm-slim AS moteur
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends python3 python3-venv ca-certificates curl \
+ && rm -rf /var/lib/apt/lists/*
+COPY scripts/conversions/requirements.txt /tmp/requirements.txt
+# `--no-deps` : la liste est COMPLÈTE et épinglée (PyMuPDF 2 tirerait sinon onnxruntime & co., inutiles ici).
+RUN python3 -m venv /opt/conversions \
+ && /opt/conversions/bin/pip install --no-cache-dir --no-deps -r /tmp/requirements.txt \
+ && /opt/conversions/bin/python -c "import pymupdf, pdf2docx, docx, openpyxl, cv2, PIL; print('moteur ok', pymupdf.VersionBind)"
+# Les modèles tesseract « best » : mesurés meilleurs sur l'arabe (décision 0019). Empreintes vérifiées.
+RUN mkdir -p /opt/tessdata && cd /opt/tessdata \
+ && for m in "ara ab9d157d8e38ca00e7e39c7d5363a5239e053f5b0dbdb3167dde9d8124335896" \
+            "fra 907743d98915c91a3906dfbf6e48b97598346698fe53aaa797e1a064ffcac913" \
+            "eng 8280aed0782fe27257a68ea10fe7ef324ca0f8d85bd2fd145d1c2b560bcb66ba"; do \
+      set -- $m; \
+      curl -fsSL --retry 4 -o "$1.traineddata" "https://raw.githubusercontent.com/tesseract-ocr/tessdata_best/4.1.0/$1.traineddata"; \
+      echo "$2  $1.traineddata" | sha256sum -c -; \
+    done
+
 FROM node:22-bookworm-slim AS execution
 ENV NODE_ENV=production \
     TACHES_DE_FOND=web \
-    HOME=/home/node
+    HOME=/home/node \
+    CONVERSIONS_PYTHON=/opt/conversions/bin/python \
+    AMD_TESSDATA=/opt/tessdata
 RUN apt-get update \
  && apt-get install -y --no-install-recommends \
-      openssl ca-certificates tini \
-      libreoffice-writer-nogui libreoffice-impress-nogui libreoffice-calc-nogui fonts-dejavu-core fonts-liberation \
+      openssl ca-certificates tini python3 \
+      libreoffice-writer-nogui libreoffice-impress-nogui libreoffice-calc-nogui \
+      fonts-noto-core fonts-hosny-amiri fonts-dejavu-core fonts-liberation fonts-liberation2 \
+      fonts-crosextra-carlito fonts-crosextra-caladea \
       ffmpeg \
       tesseract-ocr tesseract-ocr-fra tesseract-ocr-ara tesseract-ocr-eng \
  && apt-get purge -y --auto-remove \
- && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/*
+ && rm -rf /var/lib/apt/lists/* /usr/share/doc/* /usr/share/man/* \
+ && fc-cache -f >/dev/null
+COPY --from=moteur /opt/conversions /opt/conversions
+COPY --from=moteur /opt/tessdata /opt/tessdata
+# Les configurations de sortie de tesseract (tsv, pdf) vivent à côté des modèles du paquet : on les relie.
+RUN for d in configs tessconfigs; do \
+      src="$(dirname "$(find /usr/share/tesseract-ocr -name eng.traineddata | head -1)")/$d"; \
+      [ -d "$src" ] && ln -s "$src" "/opt/tessdata/$d"; \
+    done; ls /opt/tessdata
 WORKDIR /app
 COPY --from=dependances --chown=node:node /app/node_modules ./node_modules
 COPY --chown=node:node . .
 USER node
+# Contrôle de l'image : le moteur doit se déclarer complet (paquets, langues, LibreOffice, polices).
+RUN /opt/conversions/bin/python scripts/conversions/convertir.py --verifier | tee /tmp/moteur.json && grep -q '"pret": true' /tmp/moteur.json
 # `tini` relaie SIGTERM au worker (et `tsx` directement, pas `npx`, qui ne le relaie pas) : l'arrêt propre (25 s de grâce,
 # `scripts/worker.ts`) fonctionne sous Render — mesuré : sortie 0 à l'arrêt.
 ENTRYPOINT ["/usr/bin/tini", "--"]

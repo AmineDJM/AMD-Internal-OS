@@ -91,6 +91,8 @@ export interface AiSettingsView {
   siteWebAiEnabled: boolean;
   lecturePiecesEnabled: boolean;
   conseilPiecesEnabled: boolean;
+  /** OCR vision des conversions (décision 0019) — COUPÉ par défaut, comme sa colonne. */
+  ocrVisionEnabled: boolean;
 }
 
 const DEFAULTS: AiSettingsView = {
@@ -109,6 +111,7 @@ const DEFAULTS: AiSettingsView = {
   // Le conseil de rangement n'écrit rien et ne fait que conseiller : allumé, comme sa colonne
   // (`@default(true)`, migration `20270106100000_conseil_pieces`).
   conseilPiecesEnabled: true,
+  ocrVisionEnabled: false,
 };
 
 /** Quelle bascule gouverne quelle fonction. */
@@ -156,6 +159,7 @@ export async function getAiSettings(): Promise<AiSettingsView> {
       siteWebAiEnabled: row.siteWebAiEnabled,
       lecturePiecesEnabled: row.lecturePiecesEnabled,
       conseilPiecesEnabled: row.conseilPiecesEnabled,
+      ocrVisionEnabled: row.ocrVisionEnabled,
     };
   } catch {
     return DEFAULTS;

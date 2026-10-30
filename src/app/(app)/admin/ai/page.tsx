@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { formatNumber, formatDateTime } from "@/lib/utils";
 import { AiSettingsForm } from "./ai-settings-form";
+import { depenseOcrVisionDuMois, lireReglageOcrVision } from "@/modules/assistant-ia/api";
 import { AiHealthCheckButton } from "./health-check-button";
 import { adamHealth, type HealthLevel } from "@/lib/google/health";
 import { statistiquesCout, fmtUsd } from "@/platform/in-process/telemetry/usage-stats";
@@ -56,6 +57,7 @@ const libelleFonction = (f: string): string => (FEATURE_LABEL as Record<string, 
 export default async function AiControlCenterPage() {
   const user = await requireModule("ADMIN", "UPDATE");
   const settings = await getAiSettings();
+  const [ocrVision, depenseOcr] = await Promise.all([lireReglageOcrVision(), depenseOcrVisionDuMois().catch(sansBloquer("admin-ia.depense-ocr", 0))]);
 
   const since30 = new Date(Date.now() - 30 * 86400000);
   const since7 = new Date(Date.now() - 7 * 86400000);
@@ -271,9 +273,10 @@ export default async function AiControlCenterPage() {
       <Card>
         <CardHeader><CardTitle>Activation par fonction</CardTitle></CardHeader>
         <CardContent>
-          <AiSettingsForm initial={settings} />
+          <AiSettingsForm initial={settings} ocrVision={{ plafondUsd: ocrVision.plafondUsd, depenseMois: depenseOcr }} />
         </CardContent>
       </Card>
+
 
       {/* COÛT — où part l'argent. Lu dans ModelCallLog (une ligne par appel) et AiUsageLog (une
           ligne par tour). Un tarif inconnu s'affiche comme tel : jamais un zéro qui aurait l'air

@@ -66,6 +66,7 @@ export {
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";
+export { depenseOcrVisionDuMois, fabriqueVisionOcr, lireReglageOcrVision } from "./infra/atelier/ocr-vision";
 
 // J14 (décision 0022) : les traces rejouables d'un tour, et leur rejeu sans modèle.
 export { decoderTrace, lireTrace, purgerTraces, type Trace } from "./infra/qualite/traces";
