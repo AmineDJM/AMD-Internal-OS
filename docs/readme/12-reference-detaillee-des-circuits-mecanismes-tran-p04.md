@@ -661,6 +661,23 @@ conversions, structure — socle IA), `src/modules/assistant-ia/infra/atelier/ou
   **affichée** ; résultat = nouveau fichier du dossier « Atelier » ; la dernière version enregistrée.
 - « Demander une modification » ouvre l'Atelier et pré-remplit la demande ; `preparer_document` ne sert plus qu'à créer.
 
+### « Mes notes » — le bloc-notes privé de l'Assistant IA (30/10/2026)
+
+Décision [0026](../assistant/decisions/0026-notes.md). Code : `src/modules/assistant-ia/domaine/notes/` (règles pures),
+`infra/notes/{pages,propositions,outils}.ts`, `actions-notes.ts` (clé `assistant-ia-notes-actions`), `ecrans/notes/` (panneau,
+éditeur — chargés à la demande), `ecrans/notes-proposees-card.tsx` ; tables `AssistantIaNote{Page,Version,Corbeille,Proposition}`.
+
+- **Ouvrir** : l'icône bloc-notes en haut de la conversation (`/assistant`) ; panneau à droite (plein écran sur téléphone).
+- **Écrire** : pages créées, nommées (double-clic / F2), réordonnées, mises à la corbeille ; blocs texte, titre, puce, case ;
+  Tab / Maj+Tab, Alt+↑/↓ ou glisser, Ctrl+Entrée coche ; raccourcis « - », « [] », « # ». Enregistrement automatique
+  (verrou de version) ; historique (≤ 1 version / 5 min, toujours avant une modification de l'IA) ; corbeille 30 jours.
+- **Privé** : seule la personne (session) ; « Vue exacte » refusée même en lecture ; aucun écran d'administration ; le
+  journal d'audit ne garde que les gestes de l'IA, jamais le texte.
+- **L'IA propose, la personne décide** : `lire_notes` (seulement si la demande en parle), `ajouter_note`, `modifier_note`,
+  `cocher_note`, `deplacer_note`, `supprimer_note`, `creer_page`, `renommer_page` créent une **proposition** — surlignée dans la
+  page et sur une carte de la conversation ; Accepter / Refuser, « Tout accepter », puis « Annuler » (24 h). Un montant d'une
+  ligne sensible part au modèle en repère ⟦Sn⟧. Hors routines et travaux. La voix utilise les mêmes outils.
+
 ### Assistant IA — vitesse et mémoire (lot J4, 30/10/2026)
 
 Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/modules/assistant-ia/domaine/{selection-outils,assembleur}.ts`,

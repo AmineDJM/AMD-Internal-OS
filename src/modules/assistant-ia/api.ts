@@ -7,7 +7,8 @@
  *
  * Tables possédées : `AssistantIaFil` / `AssistantIaTour` (le fil gardé), `AssistantMemoryItem` (mémoire
  * personnelle), `AssistantRoutine` / `AssistantRoutineRun`, `AssistantRoleConfig`, `AssistantIaAcces` (console
- * d'accès), `AssistantIaReglage` / `AssistantIaPlafondAtteint` (consommation). Les intentions (cartes à
+ * d'accès), `AssistantIaReglage` / `AssistantIaPlafondAtteint` (consommation), `AssistantIaNote{Page,Version,Corbeille,
+ * Proposition}` (« Mes notes », décision 0026 — privées, aucune porte pour un autre compte). Les intentions (cartes à
  * confirmer, `AssistantActionIntent`) sont au socle IA, partagées avec Adam.
  *
  * Ce que le module n'importe JAMAIS : Adam (`lib/assistant*`, son écran, son pont) — sauf le catalogue d'outils
@@ -68,6 +69,9 @@ export {
 export { etatAtelier } from "./infra/atelier/etat";
 export { depenseOcrVisionDuMois, fabriqueVisionOcr, lireReglageOcrVision } from "./infra/atelier/ocr-vision";
 
+// ── « Mes notes » (décision 0026) : le bloc-notes privé de chacun ; l'IA propose, la personne accepte
+export { outilsNotes, OUTILS_NOTES } from "./infra/notes/outils";
+export { propositionsParIds, type PropositionNote } from "./infra/notes/propositions";
 // J14 (décision 0022) : les traces rejouables d'un tour, et leur rejeu sans modèle.
 export { decoderTrace, lireTrace, purgerTraces, type Trace } from "./infra/qualite/traces";
 export { rejouerTrace, type BilanRejeu } from "./infra/qualite/rejeu";

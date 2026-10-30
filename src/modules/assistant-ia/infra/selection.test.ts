@@ -10,7 +10,7 @@ import { classer, OUTIL_TROUVER, PRESELECTION_MAX, SOCLE_OUTILS, TROUVES_MAX } f
 /**
  * LES OUTILS CHOISIS À LA DEMANDE (J4, décision 0018) — sur les VRAIS catalogues (Super Admin, assistante de direction).
  *
- *   • le corpus de référence : 74 demandes (60 de J4, 5 de l’Atelier J3, 3 des recettes J10), l'outil juste dans les 8 premiers (`trouver_outil`) ;
+ *   • le corpus de référence : 81 demandes (60 de J4, 5 de l’Atelier J3, 6 du graphe J9, 3 des recettes J10, 7 de « Mes notes »), l'outil juste dans les 8 premiers (`trouver_outil`) ;
  *   • jamais un outil hors droits : ni présélectionné, ni trouvé, quelle que soit la demande ;
  *   • la présélection reste petite (socle + 6) et son ordre est stable.
  */
@@ -31,9 +31,17 @@ async function compte(nom: string, role: "SUPER_ADMIN" | "DIRECTION_ASSISTANT"):
 // J6 : le catalogue de la CONVERSATION — ses outils et les capacités de l'ERP que la porte de l'écran ouvre.
 const catalogue = (u: CurrentUser) => [...outilsV1(u, [], [], [], null, undefined, { capacites: true }), outilTravailPour(u)];
 
-/** 74 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
+/** 81 demandes de référence — et les outils qui y répondent (l'un d'eux doit être dans les 8 premiers). */
 export const CORPUS: [string, string[]][] = [
   ["Qui est Assia ? Donne-moi son poste et son manager.", ["directory_lookup", "lire_fiche_rh"]],
+  // « Mes notes » (décision 0026) : le bloc-notes privé.
+  ["Ajoute « relancer l'imprimeur » à ma liste de la semaine", ["ajouter_note"]],
+  ["Ajoute « relancer l'agence de voyage » à ma page Congrès d'Oran", ["ajouter_note"]],
+  ["Qu'est-ce qu'il me reste à faire dans mes notes ?", ["lire_notes"]],
+  ["Coche « valider le budget » dans mes notes, c'est fait", ["cocher_note"]],
+  ["Supprime la ligne sur les kakémonos de mes notes", ["supprimer_note"]],
+  ["Fais-moi une nouvelle page de notes « Congrès d'Oran »", ["creer_page"]],
+  ["Renomme ma page de notes « Idées » en « Idées 2027 »", ["renommer_page"]],
   // J3 — l'Atelier : modifier en place, ouvrir, convertir.
   ["Dans ce contrat, mets la période d'essai à 6 mois.", ["modifier_document"]],
   ["Remplace le titre de la présentation et ajoute une diapositive de synthèse.", ["modifier_document"]],
@@ -121,20 +129,30 @@ suite("Sélection d'outils (J4) — corpus, droits, stabilité", () => {
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
 
-  it("le corpus a 74 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
-    expect(CORPUS).toHaveLength(74);
+  it("le corpus a 81 demandes, et chaque outil attendu existe au catalogue du Super Admin", () => {
+    expect(CORPUS).toHaveLength(81);
     const noms = new Set(fichesOffertes(catalogue(sa), sa).map((f) => f.nom));
     for (const [, attendus] of CORPUS) for (const a of attendus) expect(noms, a).toContain(a);
   });
 
-  it("l'outil juste est dans les 8 premiers, pour les 74 demandes (Super Admin)", () => {
+  it("l'outil juste est dans les 8 premiers, pour les 81 demandes (Super Admin)", () => {
     const fiches = fichesOffertes(catalogue(sa), sa);
     const rates = CORPUS.filter(([d, attendus]) => !classer(d, fiches, TROUVES_MAX).some((c) => attendus.includes(c.nom)))
       .map(([d, a]) => `${d} → ${a.join("|")} ; rendu : ${classer(d, fiches, TROUVES_MAX).map((c) => c.nom).join(", ")}`);
     expect(rates).toEqual([]);
   });
 
-  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 74 demandes)", async () => {
+  // « Mes notes » (décision 0026) : un outil inactif est REFUSÉ par Mastra (mesuré à l'E2E) — le geste de note doit être
+  // dans la PRÉSÉLECTION elle-même, pas seulement trouvable.
+  it("une demande sur les notes présélectionne son geste (Super Admin)", () => {
+    const fiches = fichesOffertes(catalogue(sa), sa);
+    const rates = CORPUS.filter(([, a]) => a.some((n) => /_note$|_page$|^lire_notes$/.test(n)))
+      .filter(([d, a]) => !classer(d, fiches, PRESELECTION_MAX).some((c) => a.includes(c.nom)))
+      .map(([d, a]) => `${d} → ${a.join("|")} ; rendu : ${classer(d, fiches, PRESELECTION_MAX).map((c) => c.nom).join(", ")}`);
+    expect(rates).toEqual([]);
+  });
+
+  it("jamais un outil hors droits : ni présélectionné, ni trouvé (assistante de direction, les 81 demandes)", async () => {
     const outils = catalogue(ad);
     const permis = new Set(fichesOffertes(outils, ad).map((f) => f.nom));
     const horsDroits = fichesOffertes(catalogue(sa), sa).map((f) => f.nom).filter((n) => !permis.has(n));

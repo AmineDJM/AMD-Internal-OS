@@ -12,6 +12,7 @@ import { OPERATIONS_IA, outilsOperations, type PropositionCarte } from "./operat
 import { lecturesDocuments } from "./operations/documents-lus";
 import { lectureBudget } from "./operations/budget";
 import { OUTILS_ATELIER, outilsAtelier } from "./atelier/outils";
+import { OUTILS_NOTES_ECRITURE, outilsNotes } from "./notes/outils";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
 import { lectureDossierDepose } from "./lecture-dossier";
@@ -68,7 +69,8 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   // J3 — l'Atelier : ouvrir, modifier en place (rien n'est enregistré sans la personne), convertir.
   ouvrir_dans_l_atelier: ["DRIVE"], modifier_document: ["DRIVE"], convertir_document: ["DRIVE"], enregistrer_document: ["DRIVE", "ECRITURES"],
 };
-const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire"]);
+// « Mes notes » (décision 0026) : le bloc-notes de la personne, chaque geste proposé puis accepté par elle — comme la mémoire.
+const SANS_FAMILLE_ECRITURE = new Set(["programmer_routine", "gerer_routine", "proposer_memoire", ...OUTILS_NOTES_ECRITURE]);
 
 /** Les familles qu'un GESTE exige (J2 : un travail rejuge chaque geste contre la console avant d'agir). */
 export const famillesDuGeste = (nom: string): FamilleIa[] => famillesDe(nom, !SANS_FAMILLE_ECRITURE.has(nom));
@@ -96,7 +98,8 @@ const garde = (outil: PowerTool, familles: FamilleIa[], acces: AccesIa): PowerTo
 /** TOUT ce qui prépare une écriture du moteur hors des opérations — une routine (lecture seule) n'en reçoit aucun (`routines/passage.ts`). */
 // L'Atelier (J3) n'a rien à faire dans une routine ou un travail : il ouvre des onglets sous les yeux de la personne.
 // Les CAPACITÉS (J6) ne sont pas même construites hors de la conversation (`outilsV1(…, { capacites: true })`).
-export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER]);
+// Les notes (décision 0026) non plus : une proposition attend le geste de la personne, qui n'est pas là.
+export const ECRITURES_DU_MOTEUR: ReadonlySet<string> = new Set([...OUTILS_ATELIER, ...OUTILS_NOTES_ECRITURE]);
 
 /**
  * LA SORTIE D'UN OUTIL, AVANT LE MODÈLE : jetonnée (confidentialité), CONSIGNÉE (le garde-fou de l'UI
@@ -237,6 +240,8 @@ export interface OptionsCatalogue {
   capacites?: boolean;
   /** J14 : ce que le tour lit d'un tiers, face à ce que la personne a écrit — une carte dit ses valeurs d'origine tierce. */
   provenance?: ProvenanceDuTour;
+  /** « Mes notes » (décision 0026) : les propositions de notes du tour, pour la carte. */
+  notesProposees?: string[];
 }
 
 export function outilsV1(
@@ -296,7 +301,9 @@ export function outilsV1(
     ...o,
     run: (entree, u) => (u.id === user.id ? o.run(entree, u) : Promise.resolve(JSON.stringify({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." }))),
   });
-  return [...lectures, ...gestes, outilMemoire(user, memoires)].map((o) => filtre(aSoi(o), journal, coffret, provenance));
+  // « Mes notes » (décision 0026) : lire SES notes, et PROPOSER des modifications qu'elle accepte ou refuse.
+  const notes = outilsNotes(user, { coffret, acces, proposees: options.notesProposees });
+  return [...lectures, ...gestes, outilMemoire(user, memoires), ...notes].map((o) => filtre(aSoi(o), journal, coffret, provenance));
 }
 
 /**

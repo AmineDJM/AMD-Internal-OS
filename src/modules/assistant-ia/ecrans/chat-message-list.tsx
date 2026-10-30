@@ -5,11 +5,13 @@ import { User, Loader2, Wrench, Clock, Mic, AlertTriangle } from "lucide-react";
 import { ActionConfirmationCard } from "./action-confirmation-card";
 import { MarkdownMessage } from "./markdown-message";
 import { MemoireProposeeCard } from "./memoire-proposee-card";
+import { NotesProposeesCard } from "./notes-proposees-card";
 import { PiecesDuMessage, PiecesRendues, type PieceOuvrable } from "./pieces-jointes";
 import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../domaine/lecture/regles";
 import type { MemoireProposee } from "../domaine/memoire-ui";
 import type { FormulaireCarte } from "@/platform/ia/capacites/formulaire";
+import type { PropositionNote } from "../domaine/notes/gestes";
 import { WorkspaceBlocks } from "@/platform/ia/ecrans/blocks";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
@@ -31,6 +33,8 @@ export interface ChatMessage {
   audio?: AudioDuTour | null;
   /** Une mémoire PROPOSÉE par l'assistant — retenue seulement au geste de la personne. */
   memoireProposee?: MemoireProposee | null;
+  /** « Mes notes » (décision 0026) : les modifications de notes PROPOSÉES par ce tour, dans leur état présent. */
+  notesProposees?: PropositionNote[] | null;
   outilsAppeles?: string[];
   /**
    * Le fil gardé (27/10) : « attente » = message en file (répondu après les précédents) ;
@@ -62,9 +66,11 @@ export interface ChatMessageListProps {
   onConfirmIntent: (intentId: string, confirmTyped?: string, corrections?: Record<string, unknown>) => Promise<{ ok: boolean; message?: string; link?: string; error?: string }>;
   /** Ouvre une pièce (envoyée ou renvoyée) dans l'aperçu latéral. */
   onOuvrirPiece?: (p: PieceOuvrable) => void;
+  /** Ouvre le panneau « Mes notes » (la carte des notes y renvoie). */
+  onOuvrirNotes?: () => void;
 }
 
-export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece }: ChatMessageListProps) {
+export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrirPiece, onOuvrirNotes }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -174,6 +180,11 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                 {m.memoireProposee && (
                   <div className="mt-3">
                     <MemoireProposeeCard memoire={m.memoireProposee} />
+                  </div>
+                )}
+                {m.notesProposees && m.notesProposees.length > 0 && (
+                  <div className="mt-3">
+                    <NotesProposeesCard propositions={m.notesProposees} onOuvrirNotes={onOuvrirNotes} />
                   </div>
                 )}
                 {m.intent && (

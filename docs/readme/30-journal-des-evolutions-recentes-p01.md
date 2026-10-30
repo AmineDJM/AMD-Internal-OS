@@ -78,6 +78,16 @@ registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermé
 `remplaceParId`), il n'est jamais écrasé ; chaque chiffre rendu porte sa source. Banc : résolution 101/101 sur un corpus
 semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
 [0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
+### « MES NOTES » — UN BLOC-NOTES PRIVÉ DANS L'ASSISTANT IA, QUE L'IA NE MODIFIE QU'AVEC L'ACCORD DE LA PERSONNE (2026-10-30)
+
+Une icône bloc-notes en haut de la conversation ouvre « Mes notes » (plein écran sur téléphone) : des **pages** que chacun
+crée, nomme et réordonne ; texte, titres, puces, cases à cocher, listes imbriquées, raccourcis « - » / « [] » / « # », glisser
+une ligne ; enregistrement automatique, historique des versions, corbeille de 30 jours. **Privé** : personne d'autre ne les
+voit, Super Admin compris (« Vue exacte » refusée). L'assistant lit les notes quand la question s'y rapporte et **propose**
+d'ajouter, modifier, cocher, déplacer, supprimer une ligne ou de créer / renommer une page : la proposition s'affiche
+**surlignée** dans la page et sur une carte de la conversation — Accepter / Refuser / Tout accepter, puis Annuler ; **rien
+n'est écrit avant l'acceptation** (décision de la Direction). Un montant de paie noté reste en repère vers le modèle.
+Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270215150000_assistant_ia_notes`.
 
 ### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
 

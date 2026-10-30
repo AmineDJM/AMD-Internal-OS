@@ -425,6 +425,20 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   10-min window): screen actions need `requireUser` and `revalidatePath` throws outside a request (after the write) — the
   same limit applies to J2 travaux gestures on the worker. Actions key `assistant-ia-proactivite-actions`. Decision
   `docs/assistant/decisions/0024-proactivite.md`.
+- **« Mes notes » (30/10/2026)** [V] `src/modules/assistant-ia/{domaine,infra}/notes/`: a private per-person notebook. Tables
+  `AssistantIaNotePage` (flat `blocs` JSON with a nesting LEVEL 0–4, `version` optimistic lock, `supprimeeLe` trash),
+  `AssistantIaNoteVersion` (state BEFORE a change: ≤ 1 per 5 min of typing, always before an AI change; 50/page),
+  `AssistantIaNoteCorbeille` (non-empty deleted lines, 30 days, purged lazily on read), `AssistantIaNoteProposition`, and
+  `AssistantIaTour.notesProposees` (migration `20270215150000_assistant_ia_notes`). **Private**: every query filters on the
+  session/turn `userId`; no action or tool takes an account; « Vue exacte » refused even for reads (`porte(true)`, tool check);
+  no admin screen; audit records AI gestures only, never note text. **The AI never writes** (Direction decision): tools
+  `lire_notes` + `ajouter_note` / `modifier_note` / `cocher_note` / `deplacer_note` / `supprimer_note` / `creer_page` /
+  `renommer_page` (`infra/notes/outils.ts`) only create proposals, resolved against the VIRTUAL page (page + pending proposals,
+  explicit `dependDe`); `accepter` claims the row in a transaction, applies (`appliquerSurBlocs`), stores `inverseDe` for
+  « Annuler »; refusal cascades to dependants. `lire_notes` is not in the tool socle (only preselected by notes words —
+  `MOTS_CLES`; rule `REGLE_NOTES` only when a notes tool is offered); amounts on a sensitive-context line become ⟦Sn⟧ with the
+  person as holder. No console family (like `proposer_memoire`); writes excluded from routines/travaux (`ECRITURES_DU_MOTEUR`).
+  Voice reuses `outilsNotes(user, { canal: "voix" })` from `api.ts`. Decision `docs/assistant/decisions/0026-notes.md`.
 
 ### 4.5 `src/platform` — the boundary
 

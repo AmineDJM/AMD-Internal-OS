@@ -226,6 +226,14 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",
     "assistant-ia-atelier-actions:comparerOnglet", "assistant-ia-atelier-actions:convertirDansAtelier", "assistant-ia-atelier-actions:fermerOngletAtelier",
   ]);
+  X("« MES NOTES » de l'Assistant IA (décision 0026) — le bloc-notes PRIVÉ de la personne : ses pages, l'enregistrement automatique, l'historique, la corbeille, et accepter / refuser / annuler ce que l'assistant a PROPOSÉ. Identité prise de la session, jamais d'un paramètre ; refusé en « Vue exacte » (pas même le Super Admin ne lit les notes d'autrui) : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-notes-actions:etatMesNotes", "assistant-ia-notes-actions:enregistrerMaPage", "assistant-ia-notes-actions:creerMaPage",
+    "assistant-ia-notes-actions:renommerMaPage", "assistant-ia-notes-actions:reordonnerMesPages", "assistant-ia-notes-actions:supprimerMaPage",
+    "assistant-ia-notes-actions:versionsDeMaPage", "assistant-ia-notes-actions:lireMaVersion", "assistant-ia-notes-actions:restaurerMaVersion",
+    "assistant-ia-notes-actions:maCorbeille", "assistant-ia-notes-actions:restaurerDeMaCorbeille", "assistant-ia-notes-actions:oublierDeMaCorbeille",
+    "assistant-ia-notes-actions:accepterPropositionNote", "assistant-ia-notes-actions:refuserPropositionNote", "assistant-ia-notes-actions:toutAccepterNotes",
+    "assistant-ia-notes-actions:annulerPropositionNote",
+  ]);
   X("LA VEILLE PERSONNELLE de l'Assistant IA (J12, décision 0024) — les gestes de la personne sur SA veille : voir ce que ses veilleurs ont constaté, juger un constat « utile / pas utile », l'écarter, activer un veilleur ou régler son seuil, régler son budget d'interruptions ; et les constats d'une fiche qu'elle ouvre. Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable : ce n'est pas une action métier à proposer.", [
     "assistant-ia-proactivite-actions:lireMaVeille", "assistant-ia-proactivite-actions:jugerConstat", "assistant-ia-proactivite-actions:ecarterConstat",
     "assistant-ia-proactivite-actions:reglerMonVeilleur", "assistant-ia-proactivite-actions:reglerMaVeille", "assistant-ia-proactivite-actions:suggestionsPourDossier",

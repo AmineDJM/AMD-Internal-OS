@@ -1594,6 +1594,148 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-notes-actions:accepterPropositionNote": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:annulerPropositionNote": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:creerMaPage": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:enregistrerMaPage": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:etatMesNotes": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:lireMaVersion": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:maCorbeille": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:oublierDeMaCorbeille": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:refuserPropositionNote": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:renommerMaPage": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:reordonnerMesPages": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:restaurerDeMaCorbeille": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:restaurerMaVersion": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:supprimerMaPage": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:toutAccepterNotes": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-notes-actions:versionsDeMaPage": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
  "assistant-ia-proactivite-actions:accorderMonMandat": {
   "risque": "R1",
   "familles": [

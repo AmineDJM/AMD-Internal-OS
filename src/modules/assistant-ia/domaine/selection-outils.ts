@@ -125,6 +125,15 @@ const MOTS_CLES: Record<string, string> = {
   terrain_demande_materiel: "echantillons echantillon boites materiel promotionnel brochures magasin demande stock delegue",
   terrain_tournee_demain: "tournee demain revoir repasser plan de tournee visite prevue ajoute medecin",
   terrain_piece_visite: "photo rattache joins piece compte rendu visite ordonnance presentoir carte de visite",
+  // « Mes notes » (décision 0026) — le bloc-notes privé : offert seulement quand la demande en parle.
+  lire_notes: "notes note bloc liste reste faire semaine page pages relis lis mes notes todo cases cochees noter",
+  ajouter_note: "ajoute note notes noter liste bloc ligne puce case inscris rajoute semaine page ma page dans",
+  modifier_note: "modifie corrige change remplace reecris ligne note notes liste",
+  cocher_note: "coche cocher decoche fait termine barre case ligne note notes liste page",
+  deplacer_note: "deplace bouge remonte descend range ligne note notes liste section",
+  supprimer_note: "supprime retire efface enleve raye ligne note notes liste page",
+  creer_page: "page nouvelle cree fais notes bloc",
+  renommer_page: "renomme page nom appelle notes",
 };
 
 const MOTS_VIDES = new Set((
@@ -161,7 +170,8 @@ const MEME_VERBE = 1.2;
 /** Les verbes d'un GESTE : ils poussent les outils qui préparent une carte. */
 const GESTE = /\b(cree|creer|prepare|preparer|ajoute|ajouter|envoie|envoyer|programme|planifie|organise|redige|remplis|modifie|depose|relance|confie|ouvre un|lance)\b/;
 // Un geste : un outil qui prépare une carte — ou une CAPACITÉ (J6, `fichier__fonction`) qui n'est pas une lecture.
-const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set_|request_regulatory|programmer_|gerer_)|_operation$/.test(nom)
+// « Mes notes » (décision 0026) : ajouter, cocher… une note est un geste (proposé, puis accepté par la personne).
+const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set_|request_regulatory|programmer_|gerer_)|_operation$|^(ajouter|modifier|cocher|deplacer|supprimer)_note$|^(creer|renommer)_page$/.test(nom)
   || /__(?!(get|list|lister|lire|read|search|chercher|apercu|preview|previsualiser|verifier|check|compter|browse))/.test(nom);
 
 interface Index {

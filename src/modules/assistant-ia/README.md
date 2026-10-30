@@ -2,19 +2,21 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0025, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0026, 0030 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
-capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0025 : terrain et voix ; 0026 : « Mes notes » ; 0030 : formulaires de carte, dépôt de dossier, gros volumes).
 
 | Porte / dossier | Rôle |
 |---|---|
 | `api.ts` | **Porte serveur** : le fil (`deposerMessage`, `traiterFil`, `lireFil`, `reprendreLesFils`, `jouerTour`), vocaux, mémoire, routines, opérations, accès, consommation |
+| `api-banc.ts` | porte des **bancs et de l'E2E** (`scripts/e2e/`) : le faux modèle et son branchement — jamais importée par la production |
 | `partage.ts` | **Porte pure** : familles d'accès, plafonds, filtre de confidentialité, règles de lecture et de dépôt, MRZ |
 | `actions.ts` | clé `assistant-ia-actions` : mémoire, routines, fil, et `confirmerIntentionAssistantIA` (l'exécution d'une carte) |
 | `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) |
 | `actions-qualite.ts` | clé `assistant-ia-qualite-actions` (J5 + J14, décision 0022) : calendrier du banc programmé, passage maintenant, banc A/B, modèle d'un rôle (sur banc vert seulement) |
 | `actions-atelier.ts` | clé `assistant-ia-atelier-actions` (J3, décision 0017) : l'Atelier — ouvrir, revoir, enregistrer (nouvelle version), comparer, convertir |
 | `actions-travaux.ts` | clé `assistant-ia-travaux-actions` (J8, décision 0023) : demandes reçues (lister, répondre, décliner), priorité d'un travail, travaux de mon équipe (si la console l'autorise, audités) |
+| `actions-notes.ts` | clé `assistant-ia-notes-actions` (décision 0026) : « Mes notes » — pages, enregistrement automatique, historique, corbeille ; accepter / refuser / annuler ce que l'IA propose |
 | `actions-proactivite.ts` | clé `assistant-ia-proactivite-actions` (J12, décision 0024) : ma veille (veilleurs, réglages, retours), mandats, gestes sous mandat (coque), console |
 | `domaine/` | règles pures (accès, plafonds, confidentialité, lecture, dépôt, mémoire affichée, MRZ, UI générative) |
 | `infra/` | le moteur : fil, tour, outils, opérations, lecture des pièces, voix, mémoire, routines, consommation, modèle ; `testing/` (faux modèle, tests seulement) |
@@ -22,7 +24,8 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 
 - **Tables** : `AssistantIaFil`, `AssistantIaTour`, `AssistantMemoryItem`, `AssistantRoutine`, `AssistantRoutineRun`,
   `AssistantRoleConfig`, `AssistantIaAcces`, `AssistantIaReglage`, `AssistantIaPlafondAtteint` ; J12 : `AssistantVeille`,
-  `AssistantVeilleur`, `AssistantSignal`, `AssistantMandat`, `AssistantMandatGeste` ; J11 : `AssistantIaDepotDossier`. Les intentions
+  `AssistantVeilleur`, `AssistantSignal`, `AssistantMandat`, `AssistantMandatGeste` ; J11 : `AssistantIaDepotDossier` ; « Mes notes » : `AssistantIaNote{Page,Version,Corbeille,Proposition}`
+  (privées : aucune porte pour un autre compte). Les intentions
   (`AssistantActionIntent`) sont au socle IA (`src/platform/ia/intentions/`), partagées avec Adam.
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12) (`src/lib/scheduled.ts`).
 - **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
@@ -136,3 +139,12 @@ capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 002
 - `recette_pour` (`infra/recettes.ts`, module `recettes`) : la version VALIDÉE d'une recette ou rien ; plan de travail tiré de la
   recette, phrase « selon la recette … validée par … le … », écarts. Fiche de la sélection (`MOTS_CLES`), règle 13 de la consigne
   (`contexte.ts`). Une famille FERMÉE retire les processus qu'elle couvre. Banc : `infra/recettes.test.ts` (faux modèle).
+
+## « Mes notes » (décision 0026)
+
+- **Le bloc-notes privé de chacun** : pages, blocs (texte, titre, puce, case), imbrication par niveau, raccourcis — règles pures
+  `domaine/notes/` ; serveur `infra/notes/{pages,propositions}.ts` ; écran `ecrans/notes/` (chargé à la demande) et la carte
+  `ecrans/notes-proposees-card.tsx`. Privé : `userId` de la session, « Vue exacte » refusée, aucune porte d'administration.
+- **L'IA propose, la personne accepte** : `infra/notes/outils.ts` (`lire_notes` + 7 gestes) n'écrit qu'une
+  `AssistantIaNoteProposition` ; `accepter` applique (version d'avant gardée, inverse posé), `annuler` rejoue l'inverse.
+  Mêmes outils pour la voix (`outilsNotes`, `canal: "voix"`, par `api.ts`).

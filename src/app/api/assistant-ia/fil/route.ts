@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { idsDriveCites, lireFil, piecesCitees } from "@/modules/assistant-ia/api";
+import { idsDriveCites, lireFil, piecesCitees, propositionsParIds, type PropositionNote } from "@/modules/assistant-ia/api";
 import { getCurrentUser } from "@/lib/session";
 import { enVueExacte, refusAssistantIA, SANS_CACHE } from "../personne";
 
@@ -26,6 +26,13 @@ export async function GET() {
     const ids = idsDriveCites(t.contenu, (t.intent as { resultLink?: string } | null)?.resultLink);
     if (ids.length) rendues.set(t.id, await piecesCitees(user, ids));
   }
+  // « MES NOTES » (décision 0026) : les modifications proposées par un tour, dans leur état présent (la carte).
+  const idsNotes = fil.tours.flatMap((t) => (Array.isArray(t.notesProposees) ? (t.notesProposees as unknown[]).filter((x): x is string => typeof x === "string") : []));
+  const notes = new Map((await propositionsParIds(user.id, idsNotes)).map((p) => [p.id, p]));
+  const notesDu = (v: unknown): PropositionNote[] | null => {
+    const ps = Array.isArray(v) ? v.flatMap((id) => (typeof id === "string" && notes.has(id) ? [notes.get(id)!] : [])) : [];
+    return ps.length ? ps : null;
+  };
   return NextResponse.json({
     vueExacte: false,
     enCours: fil.enCours,
@@ -33,7 +40,7 @@ export async function GET() {
     tours: fil.tours.map((t) => ({
       id: t.id, role: t.role, contenu: t.contenu, etat: t.etat, pieces: t.pieces, blocs: t.blocs, intent: t.intent,
       memoireProposee: t.memoireProposee, outils: t.outils, etapes: t.etapes, createdAt: t.createdAt.toISOString(),
-      vocal: t.vocal, lecture: t.lecture, audio: t.audio, piecesRendues: rendues.get(t.id) ?? null,
+      vocal: t.vocal, lecture: t.lecture, audio: t.audio, piecesRendues: rendues.get(t.id) ?? null, notesProposees: notesDu(t.notesProposees),
     })),
   }, SANS_CACHE);
 }

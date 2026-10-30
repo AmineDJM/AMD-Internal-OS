@@ -56,6 +56,8 @@ describe("outils V1", () => {
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
       // J8 — les demandes reçues du travail d'un collègue (la réponse est une opération, `preparer_reponse_demande`).
       "mes_demandes_recues",
+      // « Mes notes » (décision 0026) : lire, et PROPOSER des modifications que la personne accepte.
+      "lire_notes", "ajouter_note", "modifier_note", "cocher_note", "deplacer_note", "supprimer_note", "creer_page", "renommer_page",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
     expect(new Set(noms).size).toBe(noms.length);

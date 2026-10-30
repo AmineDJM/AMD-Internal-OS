@@ -1049,6 +1049,8 @@ model AssistantIaTour {
   lecture         Json?
   /// Réponse VOCALE de l'assistant : `{ id, dureeS, coupe?, erreur? }` — un fichier du Drive de la personne.
   audio           Json?
+  /// « Mes notes » (décision 0026) : les identifiants des modifications de notes PROPOSÉES pendant ce tour (la carte).
+  notesProposees  Json?
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
 
@@ -18337,6 +18339,77 @@ model BibliothequePassage {
 
   @@unique([pieceId, rang])
   @@index([vectoriseLe])
+}
+
+/// ═══ « MES NOTES » (décision 0026) — l'espace de notes PRIVÉ d'une personne, dans l'Assistant IA ═══
+/// Lu et écrit SEULEMENT par sa propriétaire (`userId` pris de la session) : aucun écran d'administration, aucun
+/// accès du Super Admin. L'IA n'écrit jamais : elle PROPOSE (`AssistantIaNoteProposition`), la personne accepte.
+
+/// UNE PAGE de notes (« Mes notes », « Cette semaine », « Congrès »…). `blocs` : `[{ id, type, texte, fait?, niveau }]`.
+/// `version` : verrou optimiste de l'enregistrement automatique. `supprimeeLe` : à la corbeille (30 jours).
+model AssistantIaNotePage {
+  id          String    @id @default(cuid())
+  userId      String
+  titre       String
+  rang        Int       @default(0)
+  blocs       Json
+  version     Int       @default(1)
+  supprimeeLe DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, supprimeeLe, rang])
+}
+
+/// L'HISTORIQUE d'une page : l'état AVANT un changement (au plus un toutes les 5 minutes, et avant chaque modification de l'IA).
+model AssistantIaNoteVersion {
+  id        String   @id @default(cuid())
+  pageId    String
+  userId    String
+  version   Int
+  titre     String
+  blocs     Json
+  /// « PERSONNE » | « IA » (la modification acceptée qui a suivi cet état) | « RESTAURATION »
+  auteur    String   @default("PERSONNE")
+  createdAt DateTime @default(now())
+
+  @@index([pageId, createdAt])
+  @@index([userId])
+}
+
+/// LA CORBEILLE des LIGNES supprimées (non vides) — restaurables 30 jours (les pages ont `supprimeeLe`).
+model AssistantIaNoteCorbeille {
+  id         String   @id @default(cuid())
+  userId     String
+  pageId     String
+  bloc       Json
+  position   Int      @default(0)
+  supprimeLe DateTime @default(now())
+
+  @@index([userId, supprimeLe])
+}
+
+/// UNE MODIFICATION PROPOSÉE PAR L'IA — rien n'est écrit avant `ACCEPTEE`. `geste` : le nom de l'outil ;
+/// `args` : le geste résolu (identifiants des lignes) ; `inverse` : ce qui l'annule, posé à l'acceptation.
+/// etat : PROPOSEE | ACCEPTEE | REFUSEE | ANNULEE | PERIMEE. Seule trace des actions de l'IA sur les notes (sans leur texte au journal d'audit).
+model AssistantIaNoteProposition {
+  id        String    @id @default(cuid())
+  userId    String
+  pageId    String?
+  filId     String?
+  geste     String
+  args      Json
+  resume    String
+  etat      String    @default("PROPOSEE")
+  dependDe  String[]  @default([])
+  inverse   Json?
+  /// « voix » quand elle vient de la conversation vocale (mêmes outils) ; « texte » sinon.
+  canal     String    @default("texte")
+  createdAt DateTime  @default(now())
+  decideLe  DateTime?
+
+  @@index([userId, etat, createdAt])
+  @@index([pageId])
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
