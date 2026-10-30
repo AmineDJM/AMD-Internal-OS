@@ -130,7 +130,21 @@ hr/confidentialite`) et en gagne 5 (`annulation/reversibilite`, `cibles/resoudre
 `queries/action-center`, `queries/search-everything`) — compte égal, aucun plafond relevé ; `SOCLE_IA_CEILING` 177 inchangé
 (le registre n'importe rien de l'ERP) ; frontière Adam ↔ ERP, domaines, doublons (1 437 / 12 959), code mort : inchangés.
 
-## 5. Limites connues
+## 5. L'essai réel (un tour, `gpt-6.1-terra`, base locale `amd_bench`, `scripts/bench/capacites-essai.ts`)
+
+« Crée une tâche pour Karim … : préparer le stand du congrès, échéance le 6 novembre 2026. » — Super Admin, comptes
+synthétiques effacés après coup.
+
+| Passage | Résultat | Appels · entrée | Coût |
+|---|---|---|---|
+| 1 (« pour vendredi ») | une question juste : « ce vendredi 30 octobre ou le 6 novembre ? » | 4 · 21 207 | 0,027 $ |
+| 2, 3 | **défaut trouvé** : `assignedToId` (sans modèle lu au contrat) était décrit « identifiant » — le modèle demandait l'identifiant de Karim, sans appeler la capacité | 5 · 28 333 | 0,042 + 0,029 $ |
+| 4 (correctif : la règle « un identifiant de PERSONNE se désigne par son nom » passe au registre, `avecPersonnes`) | **carte `Créer tâche`** — capacité présélectionnée, remplie du premier coup, Karim résolu par l'annuaire, aucune tâche créée ; 5,4 s | 2 · 9 823 | 0,013 $ |
+| 5 (libellés des champs de la carte en français : « attribué à », « échéance date », « titre ») | idem | 2 | 0,013 $ |
+
+Dépense totale de l'essai : **≈ 0,12 $** (plafond 0,50 $). Le banc complet se rejoue une fois, à la fin des lots.
+
+## 6. Limites connues
 
 - **Changer l'échéance ou la priorité d'une tâche** : Adam l'écrivait lui-même en base ; aucune action d'écran ne le fait
   (seuls `updateTaskStatus` et `reattribuerDemandeTache` existent). Le geste n'est pas repris — il viendra avec l'action de
@@ -143,7 +157,7 @@ hr/confidentialite`) et en gagne 5 (`annulation/reversibilite`, `cibles/resoudre
   exécutant dans une transaction annulée.
 - Le banc réel (modèle, coût, premier mot) se rejoue une fois, à la fin des lots.
 
-## 6. Les preuves
+## 7. Les preuves
 
 | Test | Ce qu'il prouve |
 |---|---|

@@ -6,7 +6,7 @@
  * `assistant_ia_capacite` — rien n'est créé. Base LOCALE seulement (`BENCH_DATABASE_URL`), comptes synthétiques effacés à la
  * fin ; un seul tour (≈ 0,05 $).
  *
- *   BENCH_DATABASE_URL=postgresql://amd:amd@localhost:5432/amd_internal_os npm run bench:live -- scripts/bench/capacites-essai.ts
+ *   npm run bench:live -- scripts/bench/capacites-essai.ts
  */
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
@@ -23,7 +23,7 @@ async function main(): Promise<void> {
     const access = await getAccess(u.id, u.role);
     const user = { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false } as CurrentUser;
     const t0 = Date.now();
-    const r = await jouerTour(user, { texte: `Crée une tâche pour Karim Essai${TAG} : préparer le stand du congrès, pour vendredi.`, pieces: [], historique: [] });
+    const r = await jouerTour(user, { texte: `Crée une tâche pour Karim Essai${TAG} : préparer le stand du congrès, échéance le 6 novembre 2026.`, pieces: [], historique: [] });
     const ms = Date.now() - t0;
     const appels = await prisma.modelCallLog.findMany({ where: { userId: u.id }, select: { inputTokens: true, outputTokens: true, costUsd: true } });
     const intent = r.ok ? r.intent : null;

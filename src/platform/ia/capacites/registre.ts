@@ -45,7 +45,9 @@ const PHRASE_RISQUE: Readonly<Record<Risque, string>> = {
 /** Le libellé français d'un nom de champ (`assignedToId` → « attribuer à id ») — la carte et la recherche le lisent. */
 export const libelleChamp = (nom: string): string => {
   const morceaux = nom.match(/[A-Z]?[a-z]+|[A-Z]+(?![a-z])|\d+/g) ?? [nom];
-  return morceaux.map((m) => MOTS[m.toLowerCase()] ?? VERBES[m.toLowerCase()] ?? m.toLowerCase()).join(" ");
+  // `Id` / `Ids` et les mots-outils (`to`, `of`) ne disent rien à une personne : la carte montre « attribué à », pas « assigned to id ».
+  const utiles = morceaux.map((m) => m.toLowerCase()).filter((m) => !["id", "ids", "to", "of", "by", "for", "the"].includes(m));
+  return (utiles.length ? utiles : [nom.toLowerCase()]).map((m) => MOTS[m] ?? VERBES[m] ?? m).join(" ");
 };
 
 /** La description d'un champ pour le modèle — seulement quand elle aide (une référence, des valeurs admises). */
@@ -85,6 +87,21 @@ export function zodDe(cap: Pick<Capacite, "champs">): z.ZodTypeAny {
   return z.object(forme).strict();
 }
 
+/**
+ * UNE PERSONNE DÉSIGNÉE PAR SON NOM, même quand le schéma ne le dit pas : `task-actions:createTask` porte `assignedToId`
+ * sans modèle lu. Un champ de référence SANS modèle dont le nom désigne une personne (assigné, responsable, validateur…)
+ * est un champ `User` : la fiche le dit au modèle (« un nom ou l'identifiant »), et la préparation le résout par
+ * l'annuaire. Mesuré à l'essai réel (J6) : décrit « identifiant », le modèle demandait l'identifiant de Karim.
+ */
+const NOM_DE_PERSONNE = /^(user|assigned|assignee|responsible|manager|validator|owner|recipient|participant|reader|member|decideur|collaborator|standIn|person|personne|productManager|assistant)/i;
+export function avecPersonnes<C extends ContratLu>(c: C): C {
+  return {
+    ...c,
+    champs: c.champs.map((ch) => (!ch.modele && (ch.type === "reference" || ch.type === "liste") && NOM_DE_PERSONNE.test(ch.nom) && /Ids?$/.test(ch.nom)
+      ? { ...ch, modele: "User" } : ch)),
+  };
+}
+
 /** LA FICHE D'UNE ACTION DU CONTRAT. */
 export function ficheDeLAction<C extends ContratLu>(c: C, ports: PortsRegistre<C>): Capacite {
   const { risque, raison } = risqueDe(c);
@@ -100,7 +117,7 @@ export function ficheDeLAction<C extends ContratLu>(c: C, ports: PortsRegistre<C
   const libelle = libelleDeFonction(c.fonction);
   const module = c.porte.moduleFr ?? (porte.modules[0] ? ports.modules[porte.modules[0]] ?? null : null);
   const description = `${libelle}${module ? ` — ${module}` : ""}. ${PHRASE_RISQUE[risque]}`;
-  const champs = c.champs.filter((ch) => !CHAMP_BINAIRE.test(ch.nom));
+  const champs = avecPersonnes(c).champs.filter((ch) => !CHAMP_BINAIRE.test(ch.nom));
   return {
     id: c.id, source: "action", outil: nomOutilDe(c.id), libelle, description, risque, raisonRisque: raison,
     familles: famillesDeLAction(c, ecriture), simulable, annulation, raisonAnnulation,

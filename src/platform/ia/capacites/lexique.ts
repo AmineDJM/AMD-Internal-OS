@@ -73,7 +73,12 @@ export const VERBES: Readonly<Record<string, string>> = {
 /** Les autres mots du code → le français (noms, qualificatifs). Un mot absent reste tel quel. */
 export const MOTS: Readonly<Record<string, string>> = {
   // Un verbe employé comme NOM, en fin d'identifiant (`requestRegulatoryStatusUpdate`).
-  update: "mise à jour", invite: "invitation", submission: "soumission", classification: "classification",
+  update: "mise à jour", invite: "invitation",
+  // Les mots des CHAMPS (la carte les montre) : `assignedToId` → « attribué à », `dueDate` → « échéance date ».
+  assigned: "attribué à", due: "échéance", title: "titre", name: "nom", body: "texte", amount: "montant",
+  description: "description", reason: "motif", motif: "motif", start: "début", end: "fin",
+  estimated: "estimé", expected: "prévu", minutes: "minutes", address: "adresse", phone: "téléphone",
+  label: "libellé", kind: "nature", type: "type", recipient: "destinataire", value: "valeur", submission: "soumission", classification: "classification",
   opinion: "avis", appeal: "appel", award: "attribution", checklist: "liste de contrôle", definition: "définition",
   task: "tâche", tasks: "tâches", tache: "tâche", taches: "tâches", message: "message", messaging: "messagerie",
   conversation: "conversation", thread: "fil", threads: "fils", channel: "canal", member: "membre", members: "membres",

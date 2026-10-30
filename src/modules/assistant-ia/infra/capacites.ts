@@ -6,12 +6,11 @@ import { getAppSettings } from "@/lib/settings";
 import { MODULE_LABELS } from "@/lib/labels";
 import { sansBloquer } from "@/lib/journal";
 import { CONTRAT_PAR_ID, CONTRATS_ACTIONS } from "@/lib/actions/contrat.genere";
-import type { ContratAction } from "@/lib/actions/contrat";
 import { interdictionGenerique, validerEntree } from "@/lib/actions/generique";
 import { executerAction } from "@/lib/actions/executer";
 import { classerGeste } from "@/lib/annulation/reversibilite";
 import { resoudreEntrees } from "@/lib/cibles/resoudre-entrees";
-import { deriverRegistre, libelleChamp, schemaDe, type Registre } from "@/platform/ia/capacites/registre";
+import { avecPersonnes, deriverRegistre, libelleChamp, schemaDe, type Registre } from "@/platform/ia/capacites/registre";
 import type { Capacite, OutilDecrit } from "@/platform/ia/capacites/types";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { familleOuverte, refusFamille, type AccesIa } from "../domaine/acces-regles";
@@ -78,17 +77,6 @@ function entreeNettoyee(cap: Capacite, brute: Record<string, unknown>): Record<s
 }
 
 /** Préparer : résoudre les noms (sous la portée de la personne), valider contre le contrat. */
-/**
- * UNE PERSONNE DÉSIGNÉE PAR SON NOM, même quand le schéma ne le dit pas : `task-actions:createTask` porte `assignedToId`
- * sans modèle lu. Un champ de référence SANS modèle dont le nom désigne une personne (assigné, responsable, validateur…)
- * se résout par l'annuaire, comme un champ `User` — plusieurs homonymes n'en désignent aucun (`resoudreEntrees`).
- */
-const NOM_DE_PERSONNE = /^(user|assigned|assignee|responsible|manager|validator|owner|recipient|participant|reader|member|decideur|collaborator|standIn|person|personne|productManager|assistant)/i;
-const avecPersonnes = (c: ContratAction): ContratAction => ({
-  ...c,
-  champs: c.champs.map((ch) => (!ch.modele && (ch.type === "reference" || ch.type === "liste") && NOM_DE_PERSONNE.test(ch.nom) && /Ids?$/.test(ch.nom) ? { ...ch, modele: "User" } : ch)),
-});
-
 async function preparer(user: CurrentUser, cap: Capacite, brute: Record<string, unknown>) {
   const lu = CONTRAT_PAR_ID.get(cap.id);
   if (!lu) return { refus: `L'action « ${cap.id} » n'existe plus dans l'ERP.` } as const;
