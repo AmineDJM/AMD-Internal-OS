@@ -243,6 +243,7 @@ suite("Graphe de l'entreprise (J9) — banc sur la base", () => {
       ["etat_a_une_date", { entite: "Groupe Saidal", date: "2026-06-01" }, comptes.admin],
       ["etat_a_une_date", { entite: "NIF 000116001234567", date: "2025-06-01" }, comptes.admin],
       ["etat_a_une_date", { entite: "Saidal", date: "2026-02-01", connu_le: "2026-02-02" }, comptes.proprio],
+      ["etat_a_une_date", { entite: "Saidal" }, comptes.admin],
       ["d_ou_vient", { fait: `${TAG}f1` }, comptes.admin],
       ["d_ou_vient", { entite: "Saidal", attribut: "capital" }, comptes.admin],
       ["explorer_relations", { entite: "Benali" }, comptes.admin],

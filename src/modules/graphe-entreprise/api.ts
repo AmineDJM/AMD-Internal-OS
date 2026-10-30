@@ -10,9 +10,7 @@
  */
 
 export * from "./partage";
-export { perimetreDe, typesOuverts, type Perimetre } from "./infra/perimetre";
-export { aretesDe } from "./infra/aretes";
-export { decrire, type NoeudDecrit } from "./infra/noeuds";
+export { type NoeudDecrit } from "./infra/noeuds";
 export { indexEntites, oublierIndex, resoudreEntite } from "./infra/index-entites";
-export { explorerRelations, type EtapeRendue, type Exploration, type NoeudAtteint } from "./infra/explorer";
-export { dOuVient, etatALaDate, faitsDeLAttribut, type EtatEntite, type Provenance360, type RelationALaDate, type ValeurSourcee } from "./infra/faits";
+export { explorerRelations } from "./infra/explorer";
+export { dOuVient, etatALaDate, faitsDeLAttribut } from "./infra/faits";

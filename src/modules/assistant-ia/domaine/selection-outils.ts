@@ -117,7 +117,7 @@ const MOTS_CLES: Record<string, string> = {
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",
   // J9 — le graphe de l'entreprise et les faits datés (fiches, pas socle : la sélection les trouve à la demande).
   explorer_relations: "depend dependent relie lien liens relation relations graphe reseau chemin qui travaille travaillent sur fournisseur dossier tombe impacte touche quels documents parlent concernent mentionnent lies a autour",
-  etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passe quelle etait qui etait responsable en mars janvier",
+  etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passe quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
   d_ou_vient: "d ou vient provenance source origine qui a confirme justifie piece prouve preuve vient cette information ce chiffre fiable",
   // J3 — l'Atelier : les mots d'une personne qui veut voir ou retoucher SON document (joint, renvoyé, trouvé).
   ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",

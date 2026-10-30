@@ -110,23 +110,24 @@ function etat(user: CurrentUser, exclus: TypeNoeud[]): PowerTool {
     def: {
       name: "etat_a_une_date",
       description:
-        "L'ÉTAT D'UNE ENTITÉ À UNE DATE : ses faits confirmés (raison sociale, forme juridique, capital, adresse, identité…) et ses relations "
-        + "(responsable, fournisseur, affiliation…) tels qu'ils étaient ce jour-là — jamais la valeur d'aujourd'hui à la place. `connu_le` : ce que "
+        "L'ÉTAT D'UNE ENTITÉ, AUJOURD'HUI OU À UNE DATE : ses faits confirmés (raison sociale, forme juridique, capital, adresse, identité…) et ses "
+        + "relations (responsable, fournisseur, affiliation…) tels qu'ils étaient ce jour-là — jamais la valeur d'aujourd'hui à la place. Sans date : "
+        + "aujourd'hui (« quel est le capital de Saidal ? »). `connu_le` : ce que "
         + "le référentiel en savait à une autre date. Chaque valeur porte sa SOURCE ; un attribut sans valeur à cette date est listé « inconnu ».",
       input_schema: {
         type: "object",
         properties: {
           entite: { type: "string", description: "Nom, sigle, NIF/RC, ou référence TYPE:id." },
-          date: { type: "string", description: "AAAA-MM-JJ." },
+          date: { type: "string", description: "AAAA-MM-JJ (défaut : aujourd'hui)." },
           connu_le: { type: "string", description: "AAAA-MM-JJ (facultatif) : l'état tel qu'on le savait ce jour-là." },
         },
-        required: ["entite", "date"],
+        required: ["entite"],
       },
     },
     allowed: (u) => u.id === user.id,
     label: "État à une date consulté",
     run: async (entree, u) => {
-      const date = dateDe(entree.date);
+      const date = entree.date === undefined || entree.date === null || entree.date === "" ? new Date() : dateDe(entree.date);
       if (!date) return JSON.stringify({ statut: "REFUS", raison: "Date attendue au format AAAA-MM-JJ." });
       const c = await cible(u, entree.entite, exclus);
       if (!c.ok) return c.sortie;
@@ -198,4 +199,3 @@ export function outilsGraphe(user: CurrentUser, famillesFermees: readonly string
   return [explorer(user, exclus), etat(user, exclus), provenance(user, exclus)];
 }
 
-export const OUTILS_GRAPHE = ["explorer_relations", "etat_a_une_date", "d_ou_vient"] as const;

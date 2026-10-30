@@ -37,13 +37,22 @@ l'arabe. L'Assistant IA ne lisait que `faits_confirmes`.
 | Critère | Seuil | Mesuré |
 |---|---|---|
 | Résolution juste sur le corpus semé (101 mentions : 20 personnes, 12 organisations, 3 produits, 1 dossier ; arabe/latin, fautes, sigles, NIF/RC, homonyme, inconnus) | ≥ 95 % | **101/101** |
-| Chiffres servis avec leur source (10 appels des trois outils, 4 rôles) | 100 % | **202/202** |
+| Chiffres servis avec leur source (11 appels des trois outils, 3 rôles) | 100 % | **239/239** |
 | Parcours profondeur 3, 50 000 arêtes (5 000 personnes × 1 000 organisations), 40 départs | p95 < 300 ms | **Super Admin p95 ≈ 120 ms, lecteur ≈ 125 ms** (p50 ≈ 100 ms) |
 | Aucun résultat hors droits (lecteur, deux délégués, responsable réglementaire, Super Admin) | 0 | **0** — chaque nœud rejugé par la règle de l'écran ; rien atteint à travers un dossier interdit ; pièce du coffre jamais rendue |
 
 **Limite honnête** : le corpus de résolution a été écrit en même temps que le résolveur ; il mesure la couverture des cas voulus
 (graphies arabes, particules, fautes, sigles) plus qu'un taux sur des données réelles. À rejouer sur un échantillon de la base de
 production (mentions réelles des pièces) avant d'annoncer un taux.
+
+## 3bis. L'essai réel (un tour, `gpt-6.1-terra`, base de banc locale, 0,019 $)
+
+« Qu'est-ce qui dépend du fournisseur Saidal ? Et quel est son capital ? » (Super Admin) : `explorer_relations` appelé du
+premier coup ; la réponse cite le dossier daclatasvir, le produit et sa responsable, **avec la source**
+(`RegulatoryProduct#…`) et la mention « valeur actuelle, non historisée ». Le capital, confirmé par saisie, n'a PAS été
+trouvé : le modèle a pris `faits_confirmes` (qui cherche une VALEUR, pas un sujet). Correction sans nouvel essai payant :
+`etat_a_une_date` accepte une date absente (aujourd'hui), sa fiche de sélection porte « capital, forme juridique, siège,
+raison sociale actuelle » ; le corpus de la sélection l'exige désormais (« Quel est le capital de Saidal ? »).
 
 ## 4. Ce qui reste
 
