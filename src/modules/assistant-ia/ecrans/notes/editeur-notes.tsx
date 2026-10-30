@@ -81,8 +81,12 @@ export function EditeurNotes({ blocs, onChange, propositions, onDecider, neuves,
   useEffect(() => { if (aFocaliser) setFocus({ id: aFocaliser.id, pos: "fin" }); }, [aFocaliser]);
 
   // Chaque zone de texte prend la hauteur de son contenu.
+  // … et la reprend quand la largeur change (téléphone tourné, panneau qui passe en plein écran).
   useEffect(() => {
-    for (const el of champs.current.values()) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; }
+    const ajuster = () => { for (const el of champs.current.values()) { el.style.height = "auto"; el.style.height = `${el.scrollHeight}px`; } };
+    ajuster();
+    window.addEventListener("resize", ajuster);
+    return () => window.removeEventListener("resize", ajuster);
   }, [blocs, propositions]);
 
   const changer = (id: string, texte: string) => {

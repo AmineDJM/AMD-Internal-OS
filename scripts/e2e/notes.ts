@@ -35,7 +35,10 @@ async function main(): Promise<void> {
     if (!d.ok) throw new Error(d.erreur);
     await traiterFil(u.id);
     const propositions = await prisma.assistantIaNoteProposition.findMany({ where: { userId: u.id, etat: "PROPOSEE" }, select: { id: true, resume: true } });
-    process.stdout.write(JSON.stringify({ propositions, tours: f.toursJoues() }));
+    // Ce que le tour a répondu (le diagnostic, si la proposition manque).
+    const reponse = await prisma.assistantIaTour.findFirst({ where: { repondA: d.tour.id }, select: { etat: true, contenu: true, erreur: true } });
+    const sortieOutil = JSON.stringify(f.promptsRecus[1] ?? "").match(/tool-result.{0,600}/)?.[0];
+    process.stdout.write(JSON.stringify({ propositions, tours: f.toursJoues(), reponse: { ...reponse, sortieOutil } }));
   } else {
     throw new Error(`commande inconnue : ${cmd}`);
   }

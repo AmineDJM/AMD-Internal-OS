@@ -122,11 +122,11 @@ const MOTS_CLES: Record<string, string> = {
   enregistrer_document: "enregistre sauvegarde nouvelle version garde valide document atelier",
   // « Mes notes » (décision 0026) — le bloc-notes privé : offert seulement quand la demande en parle.
   lire_notes: "notes note bloc liste reste faire semaine page pages relis lis mes notes todo cases cochees noter",
-  ajouter_note: "ajoute note notes noter liste bloc ligne puce case inscris rajoute semaine",
+  ajouter_note: "ajoute note notes noter liste bloc ligne puce case inscris rajoute semaine page ma page dans",
   modifier_note: "modifie corrige change remplace reecris ligne note notes liste",
-  cocher_note: "coche cocher decoche fait termine barre case ligne note notes liste",
+  cocher_note: "coche cocher decoche fait termine barre case ligne note notes liste page",
   deplacer_note: "deplace bouge remonte descend range ligne note notes liste section",
-  supprimer_note: "supprime retire efface enleve raye ligne note notes liste",
+  supprimer_note: "supprime retire efface enleve raye ligne note notes liste page",
   creer_page: "page nouvelle cree fais notes bloc",
   renommer_page: "renomme page nom appelle notes",
 };
@@ -157,7 +157,8 @@ const POIDS = { cles: 3, nom: 2, libelle: 2, description: 1 } as const;
 
 /** Les verbes d'un GESTE : ils poussent les outils qui préparent une carte. */
 const GESTE = /\b(cree|creer|prepare|preparer|ajoute|ajouter|envoie|envoyer|programme|planifie|organise|redige|remplis|modifie|depose|relance|confie|ouvre un|lance)\b/;
-const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set_|request_regulatory|programmer_|gerer_)|_operation$/.test(nom);
+// « Mes notes » (décision 0026) : ajouter, cocher… une note est un geste (proposé, puis accepté par la personne).
+const estGeste = (nom: string) => /^(preparer_|create_|update_|send_|assign_|set_|request_regulatory|programmer_|gerer_)|_operation$|^(ajouter|modifier|cocher|deplacer|supprimer)_note$|^(creer|renommer)_page$/.test(nom);
 
 interface Index {
   fiches: { nom: string; poids: Map<string, number> }[];

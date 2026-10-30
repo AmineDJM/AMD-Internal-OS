@@ -82,8 +82,8 @@ test("Mes notes : une page nommée, des puces et des cases, puis « ajoute X » 
 
   // 5. « Ajoute X » à l'assistant (faux modèle) : une PROPOSITION — surlignée dans la page, rien n'est écrit.
   const r = JSON.parse(notes("demander", E2E.superAdminEmail, "Ajoute « relancer l'agence de voyage » à ma page Congrès d'Oran", "ajouter_note",
-    JSON.stringify({ page: "Congrès d'Oran", texte: "Relancer l'agence de voyage", type: "tache" }))) as { propositions: unknown[] };
-  expect(r.propositions).toHaveLength(1);
+    JSON.stringify({ page: "Congrès d'Oran", texte: "Relancer l'agence de voyage", type: "tache" }))) as { propositions: unknown[]; reponse: unknown };
+  expect(r.propositions, JSON.stringify(r.reponse)).toHaveLength(1);
   const proposee = panneau.getByTestId("note-ligne-proposee");
   await expect(proposee).toContainText("Relancer l'agence de voyage", { timeout: 20_000 });
   await expect(panneau.getByTestId("note-proposition")).toHaveCount(1);
