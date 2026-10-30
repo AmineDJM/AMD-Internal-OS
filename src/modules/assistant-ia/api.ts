@@ -44,7 +44,7 @@ export { executerVeilles, passerLaVeille } from "./infra/proactivite/veille";
 // ── Opérations (écritures confirmées) et accès
 export { executerOperationIA } from "./infra/operations";
 // J6 (décision 0020) : le registre des capacités de l'ERP, branché — l'exécution d'une carte de capacité confirmée.
-export { capacitesOffertes, executerCapacite, registreDesCapacites } from "./infra/capacites";
+export { capacitesOffertes, executerCapacite, porteOuverte, registreDesCapacites } from "./infra/capacites";
 export { estChargeCapacite } from "./domaine/capacites";
 export { accesAssistantIa, chargerConsoleAccesIa, verifierReperesAvantExecution } from "./infra/role-config";
 

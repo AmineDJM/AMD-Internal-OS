@@ -36,6 +36,14 @@ export function fichesOffertes(outils: readonly PowerTool[], user: CurrentUser, 
     .map((o) => ({ nom: o.def.name, libelle: o.label, description: o.def.description, ...mots.get(o.def.name) }));
 }
 
+/** Le poids d'un outil envoyé au modèle, en jetons (÷ 3,2 : la calibration du banc J4) — calculé une fois par définition. */
+const JETONS = new WeakMap<PowerTool["def"], number>();
+const jetonsDe = (d: PowerTool["def"]): number => {
+  let j = JETONS.get(d);
+  if (j === undefined) { j = Math.ceil(JSON.stringify(d).length / 3.2); JETONS.set(d, j); }
+  return j;
+};
+
 export function selectionDuTour(
   outils: readonly PowerTool[], user: CurrentUser, demande: string, config?: { allowedTools?: string[] } | null, precedente = "",
 ): SelectionDuTour {
@@ -43,7 +51,9 @@ export function selectionDuTour(
   const disponibles = new Set([OUTIL_TROUVER, ...fiches.map((f) => f.nom)]);
   const index = indexer(fiches);
   const parNom = new Map(fiches.map((f) => [f.nom, f]));
-  const initiaux = preselectionner(demande, fiches, undefined, precedente).filter((n) => disponibles.has(n));
+  const defs = new Map(outils.map((o) => [o.def.name, o.def]));
+  const poids = (nom: string) => { const d = defs.get(nom); return d ? jetonsDe(d) : 0; };
+  const initiaux = preselectionner(demande, fiches, undefined, precedente, poids).filter((n) => disponibles.has(n));
   const actifs = new Set<string>([OUTIL_TROUVER, ...initiaux]);
   const trouves: string[] = [];
 

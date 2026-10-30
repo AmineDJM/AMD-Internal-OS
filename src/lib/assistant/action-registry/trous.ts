@@ -179,7 +179,7 @@ export function classerTrous(): void {
   G("demandes administratives avancées (approbations, missions, lots, corbeille propre, validations)", [
     "admin-request-actions:requestApproval", "admin-request-actions:decideApproval",
     "admin-request-actions:toggleMissionStop", "admin-request-actions:updateMission",
-    "admin-request-actions:editOwnRequest",
+    "admin-request-actions:editOwnRequest", "admin-request-actions:corrigerMaDemande",
     "admin-request-actions:deleteOwnRequest", "admin-request-actions:deleteRequests",
     "admin-request-actions:restoreRequest", "admin-request-actions:startRequestProcessing",
     "admin-request-actions:requestFinanceValidation", "admin-request-actions:requestInternalValidation",
@@ -281,7 +281,7 @@ export function classerTrous(): void {
   classify("NATIVE", "advance_workflow", ["workflow-actions:advanceWorkflow"]);
   classify("NATIVE", "manage_custom_field", ["custom-field-actions:upsertCustomFieldDef", "custom-field-actions:deleteCustomFieldDef"]);
   G("saisie des VALEURS de champs personnalisés sur une fiche (l'écran de la fiche le fait déjà)", [
-    "custom-field-actions:saveCustomValues",
+    "custom-field-actions:saveCustomValues", "custom-field-actions:modifierChampPersonnalise",
   ]);
   G("règles et demandes de VALIDATION (module Validations)", [
     "validation-actions:createValidationRule", "validation-actions:updateValidationRule",

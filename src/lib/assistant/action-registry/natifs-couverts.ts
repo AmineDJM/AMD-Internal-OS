@@ -51,7 +51,7 @@ export function classerNatifsEtCouverts(): void {
   // fonction du registre : une seule lecture de « ce qui part avec » pour les deux portes.
   classify("COVERED", "delete_record (carte : « Part aussi »)", ["admin-delete-actions:apercuDeSuppression"]);
   classify("COVERED", "create_task (planifiée, circuit demande)", ["task-actions:requestTask"]);
-  classify("COVERED", "update_task", ["task-actions:updateTaskStatus", "task-actions:startTask"]);
+  classify("COVERED", "update_task", ["task-actions:updateTaskStatus", "task-actions:startTask", "task-actions:modifierTache"]);
   classify("COVERED", "create_dossier", ["dossier-actions:createDossier"]);
   classify("COVERED", "create_calendar_event", ["calendar-actions:createCalendarEvent"]);
   classify("COVERED", "create_hr_request", ["hr-document-actions:requestHrDocument"]);

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import AVANT from "./equivalents-avant-j6.json";
+import AVANT from "./infra/equivalents-avant-j6.json";
 import { porteOuverte, registreDesCapacites } from "./infra/capacites";
 import { outilsV1 } from "./infra/outils-v1";
 

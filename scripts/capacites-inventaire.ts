@@ -6,7 +6,7 @@
  * d'une action d'écran, ou un outil propre au module) ; le script vérifie que l'équivalent existe, qu'il est APPELABLE,
  * et que sa porte s'ouvre à CHAQUE rôle que la porte d'Adam laissait passer (droits par défaut du rôle). Il écrit :
  *
- *   • `src/modules/assistant-ia/equivalents-avant-j6.json` — l'instantané figé, que `equivalents-avant-j6.test.ts` rejoue
+ *   • `src/modules/assistant-ia/infra/equivalents-avant-j6.json` — l'instantané figé, que `equivalents-avant-j6.test.ts` rejoue
  *     à chaque `npm test` (le module n'importe pas Adam : l'instantané est la seule mémoire du « avant ») ;
  *   • `docs/assistant/decisions/0020-inventaire.md` — le tableau joint à la décision.
  *
@@ -19,10 +19,10 @@ import { OPS_CATALOG } from "@/lib/assistant/ops/catalog";
 import { ROLE_LABELS } from "@/lib/labels";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import { porteOuverte, registreDesCapacites } from "@/modules/assistant-ia/infra/capacites";
+import { porteOuverte, registreDesCapacites } from "@/modules/assistant-ia/api";
 
 const DOMAINES = ["regulatory_operation", "hr_operation", "task_operation", "drive_operation", "request_operation"];
-const SORTIE_JSON = "src/modules/assistant-ia/equivalents-avant-j6.json";
+const SORTIE_JSON = "src/modules/assistant-ia/infra/equivalents-avant-j6.json";
 const SORTIE_MD = "docs/assistant/decisions/0020-inventaire.md";
 
 /** Là où le `covers` d'Adam ne dit pas l'équivalent d'après (action refusée au générique, ou geste repris autrement). */

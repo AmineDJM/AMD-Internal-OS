@@ -84,6 +84,13 @@
 >   reads → own tools (`infra/lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`). Known gap: task due-date /
 >   priority change (no screen action). Per-turn cost (1 039 tools, warm): catalogue ~5–30 ms, selection ~15 ms, Mastra
 >   adapter ~90–110 ms (definitions, zod schemas and fiche weights are memoised per process).
+>   **No capability regression (0020 §8, 30/10):** generated inventory `npm run capacites:inventaire` maps the 123 gestures the IA
+>   borrowed from Adam before J6 (114 domain ops + 9 writes) to an appelable capability whose gate opens for every role Adam's
+>   gate passed (snapshot `modules/assistant-ia/infra/equivalents-avant-j6.json`, replayed by `equivalents-avant-j6.test.ts`). Gaps
+>   closed: new screen actions `modifierTache` (due date/priority/assignee), `corrigerMaDemande`, `modifierChampPersonnalise`;
+>   employee fiche via IA-only policy `interdictionDeLAssistantIa` (`GESTES_DE_FICHE`, never `userId`, R4 "account follows the
+>   fiche", `updateEmployee` re-read and replayed at confirmation); `PORTES_DU_GESTE` (owner-OR-module-right gestures get the
+>   workspace gate); optional file no longer blocks a call; `assistant-ia-*` files always out of reach.
 > - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
 >   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
 
@@ -634,11 +641,3 @@ Gotchas [V]:
 [U] Whether `ModelCallLog` misses calls in processes that never import the usage sink.
 [U] `node:vm` + worker sandbox strength against hostile model-generated code.
 [U] Production `AiSetting` / `AppSetting` values (switch states) — not read.
-
->   **No capability regression (0020 §8, 30/10):** generated inventory `npm run capacites:inventaire` maps the 123 gestures the IA
->   borrowed from Adam before J6 (114 domain ops + 9 writes) to an appelable capability whose gate opens for every role Adam's
->   gate passed (snapshot `modules/assistant-ia/equivalents-avant-j6.json`, replayed by `equivalents-avant-j6.test.ts`). Gaps
->   closed: new screen actions `modifierTache` (due date/priority/assignee), `corrigerMaDemande`, `modifierChampPersonnalise`;
->   employee fiche via IA-only policy `interdictionDeLAssistantIa` (`GESTES_DE_FICHE`, never `userId`, R4 "account follows the
->   fiche", `updateEmployee` re-read and replayed at confirmation); `PORTES_DU_GESTE` (owner-OR-module-right gestures get the
->   workspace gate); optional file no longer blocks a call; `assistant-ia-*` files always out of reach.

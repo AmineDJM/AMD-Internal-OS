@@ -194,7 +194,7 @@ export const SYNONYMES: Readonly<Record<string, string>> = {
   rapport: "compte rendu CR", stock: "inventaire quantités", formation: "training", recrutement: "embauche poste offre",
   candidat: "candidature CV", pharmacovigilance: "effet indésirable PV", circuit: "workflow validation",
   validation: "valider approbation", projet: "project", société: "entreprise entité", département: "service",
-  notification: "alerte", mission: "déplacement ordre de mission", avance: "acompte", caisse: "petite caisse",
+  notification: "alerte", statut: "terminée terminé fait en cours", mission: "déplacement ordre de mission", avance: "acompte", caisse: "petite caisse",
 };
 
 /** Plie un texte : minuscules, sans accents, sans ponctuation (même règle que la sélection J4). */

@@ -107,7 +107,7 @@ const MOTS_CLES: Record<string, string> = {
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",
   // J9 — le graphe de l'entreprise et les faits datés (fiches, pas socle : la sélection les trouve à la demande).
   explorer_relations: "depend dependent relie lien liens relation relations graphe reseau chemin qui travaille travaillent sur fournisseur dossier tombe impacte touche quels documents parlent concernent mentionnent lies a autour",
-  etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passe quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
+  etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passee autrefois quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
   d_ou_vient: "d ou vient provenance source origine qui a confirme justifie piece prouve preuve vient cette information ce chiffre fiable",
   // J3 — l'Atelier : les mots d'une personne qui veut voir ou retoucher SON document (joint, renvoyé, trouvé).
   ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",
@@ -241,10 +241,35 @@ export const HERITES_MAX = 3;
  * La présélection d'un tour : le socle disponible, les meilleurs outils pour la demande, et quelques-uns de ceux de la
  * question précédente (MESURÉ au banc : sans eux, « Au nom d'Adventum Pharma. » passait par `trouver_outil`, une étape de plus).
  */
-export function preselectionner(demande: string, fiches: readonly FicheOutil[], k = PRESELECTION_MAX, precedente = ""): string[] {
+export function preselectionner(
+  demande: string, fiches: readonly FicheOutil[], k = PRESELECTION_MAX, precedente = "", poids?: (nom: string) => number,
+): string[] {
   const disponibles = new Set(fiches.map((f) => f.nom));
   const herites = precedente ? classer(precedente, fiches, HERITES_MAX).map((c) => c.nom) : [];
-  return ordonnerActifs([...SOCLE_OUTILS, ...classer(demande, fiches, k).map((c) => c.nom), ...herites], disponibles);
+  const candidats = [...classer(demande, fiches, k).map((c) => c.nom), ...herites];
+  const retenus = poids ? dansLeBudget(SOCLE_OUTILS.filter((n) => disponibles.has(n)), candidats, poids) : candidats;
+  return ordonnerActifs([...SOCLE_OUTILS, ...retenus], disponibles);
+}
+
+/**
+ * LE BUDGET FIXE D'UNE ÉTAPE (J6, décision 0020 : ≤ 4 000 jetons d'outils, `trouver_outil` compris — d'où la marge).
+ * Le socle passe toujours ; les candidats entrent dans l'ordre du classement tant qu'ils tiennent — un schéma trop
+ * lourd cède sa place au suivant, et reste à portée de `trouver_outil`. Mesuré : quatre pièces commerciales et une
+ * facture (≈ 700 jetons chacune) dépassaient le budget sur « émets une facture ».
+ */
+export const BUDGET_JETONS_FIXES = 3_800;
+
+function dansLeBudget(socle: readonly string[], candidats: readonly string[], poids: (nom: string) => number): string[] {
+  let total = socle.reduce((s, n) => s + poids(n), 0);
+  const retenus: string[] = [];
+  for (const n of candidats) {
+    if (socle.includes(n) || retenus.includes(n)) continue;
+    const p = poids(n);
+    if (total + p > BUDGET_JETONS_FIXES) continue;
+    total += p;
+    retenus.push(n);
+  }
+  return retenus;
 }
 
 /** Ce que le contexte dit au modèle de cette mécanique (une ligne, stable). */

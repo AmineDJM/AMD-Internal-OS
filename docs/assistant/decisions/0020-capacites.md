@@ -177,7 +177,7 @@ GÉNÉRÉ (`npm run capacites:inventaire`, `scripts/capacites-inventaire.ts`) : 
 les **114 ops** des cinq outils de domaine (`regulatory_/hr_/task_/drive_/request_operation`, `OPS_CATALOG` et leurs `covers`)
 et les **9 écritures** (`create_task`, `update_task`, `send_message`…) —, donne à chacun son équivalent d'APRÈS, vérifie qu'il
 est **appelable** et que sa **porte s'ouvre à chaque rôle** que la porte d'Adam laissait passer (droits par défaut des 18 rôles),
-et sort en échec au premier trou. Il écrit l'instantané `src/modules/assistant-ia/equivalents-avant-j6.json`, que
+et sort en échec au premier trou. Il écrit l'instantané `src/modules/assistant-ia/infra/equivalents-avant-j6.json`, que
 `equivalents-avant-j6.test.ts` rejoue à chaque `npm test` sans importer Adam. **Tableau complet : [0020-inventaire.md](0020-inventaire.md)
 (123 gestes, 0 trou).** Les lectures empruntées sont au § 4 ; les outils propres du module (lectures RH, métier, documents,
 formulaires, routines, recherche web, Bibliothèque, Atelier, opérations Ad & Pro, `proposer_memoire`) n'ont pas bougé.
