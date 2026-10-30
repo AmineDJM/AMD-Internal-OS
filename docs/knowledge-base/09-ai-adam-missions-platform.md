@@ -355,6 +355,23 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `enregistrer_document`. The screen polls `/api/assistant-ia/atelier` (no SSE: the op journal IS the stream). Decision
   `docs/assistant/decisions/0017-atelier.md`.
 
+- **Proactivity under mandate (J12, 30/10/2026)** [V] `src/modules/assistant-ia/{domaine,infra}/proactivite/`: 12 **watchers**
+  (veilleurs) = pure CODE rules over what belongs to the person (own Ad & Pro requests, own budget lines ≥ 90 %, own unsigned
+  POs, ANPP obligations/deadlines, assigned reserve points, DIRECT reports' trial/CDD end, own overdue payments, duplicate
+  invoices, unreported visits, own stale validations, meeting within the hour). Gated by a screen module AND the console family
+  (re-read each pass). Signature = unique `(userId, veilleur, cle)` on `AssistantSignal` → said once; vanished → RESOLU;
+  reappears → reopened as JOURNAL (never rings twice). **Interruption budget** (`domaine/proactivite/budget.ts`, pure):
+  quiet hours 19→8 Algiers + Fri/Sat, one grouped notification per pass, ≥ 1 h apart, ≤ 5/day (console
+  `AssistantIaReglage.interruptionsMaxJour`, person can only lower) → else JOURNAL. One-click useful/not-useful adjusts the
+  watcher (threshold factor ×1.25 up to ×3; < 1/3 useful over ≥ 3 → discreet). Morning point = only model call (fast role,
+  confidentiality filter, fallback text). Heartbeat task `assistant.veilleurs` (15 min/person, 20/beat). **Mandates**
+  (`AssistantMandat`, receipts `AssistantMandatGeste` unique per mandate+signal, taken BEFORE acting): bounded capability /
+  recipients / amount / per-day / expiry ≤ 90 d, revocable, R1 by default (`NIVEAU_OPERATION`), sensitive family or R2 →
+  console approval. **Gestures run in the person's own request** (`ExecuteurMandats` in the `(app)` layout, server-side
+  10-min window): screen actions need `requireUser` and `revalidatePath` throws outside a request (after the write) — the
+  same limit applies to J2 travaux gestures on the worker. Actions key `assistant-ia-proactivite-actions`. Decision
+  `docs/assistant/decisions/0024-proactivite.md`.
+
 ### 4.5 `src/platform` — the boundary
 
 - **Why** [V] `docs/ADAM_PLATFORM_BOUNDARY.md`: separate Adam from ERP *in code*, same process (no microservices, no local cache —

@@ -3,7 +3,8 @@ import { demandeurAfficheDe } from "@/lib/budget-marketing/integration-serveur";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Gavel } from "lucide-react";
 import { requireModule } from "@/lib/session";
-import { userCan, hasGlobalView, hasRole, scopeSponsoring } from "@/lib/rbac";
+import { userCan, hasGlobalView, hasRole, peutUtiliserAssistantIA, scopeSponsoring } from "@/lib/rbac";
+import { SuggestionsDossier } from "@/modules/assistant-ia/ecrans/suggestions-dossier";
 import { canAccessEntity } from "@/lib/entity-access";
 import { getEntityMissions } from "@/lib/queries/missions";
 import { getWorkflowForEntity } from "@/lib/queries/workflow";
@@ -221,6 +222,8 @@ export default async function SponsoringDetailPage(props: { params: Promise<{ id
       <BackLink href="/sponsoring">
         <ArrowLeft className="h-4 w-4" /> Retour au sponsoring
       </BackLink>
+      {/* J12 : à l'ouverture du dossier, ce que les veilleurs de l'Assistant IA ont constaté ici. */}
+      {!user.impersonatedBy && peutUtiliserAssistantIA(user) && <SuggestionsDossier entiteType="SPONSORING" entiteId={req.id} />}
 
       <PageHeader
         title={req.institution}
