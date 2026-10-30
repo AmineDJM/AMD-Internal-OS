@@ -1,5 +1,21 @@
 ## 🧾 Journal des évolutions récentes
 
+### CONVERSIONS HAUTE FIDÉLITÉ SUR LE WORKER, ET LE WORKER « CLIQUEZ SYNC, C'EST TOUT » (2026-10-30)
+
+« Pas de limitations ; c'est notre différenciation. » **PDF → Word** garde désormais images (nombre et taille), tableaux,
+colonnes, en-têtes et pieds (dans les vraies zones, numéro de page en champ), listes, polices/tailles/gras/couleurs, et
+rend l'**arabe** juste : ordre logique retrouvé par la géométrie, `w:bidi`/`w:rtl`/`w:cs`, chiffres et mélange arabe-français,
+aucune forme de présentation, aucun U+FFFD, aucun mojibake ; les **pages scannées** passent par l'OCR (tesseract ara+fra+eng
+« best », deux passages) et sont recomposées (tableaux depuis les traits, illustrations découpées) — l'image est gardée si
+la lecture est trop incertaine. Plus : PDF → Excel, image → PDF/Word, PowerPoint → images ; Office → PDF avec polices arabes
+et Carlito/Caladea. Le moteur (`scripts/conversions/`, pdf2docx + PyMuPDF corrigés) vit dans l'image du worker ; le web ne
+convertit jamais quand le worker bat. Banc `npm run conversions:bench` dans l'image : CER 0–0,26 % sur les PDF numériques
+(FR, AR, mixte, deux colonnes, Chromium), 0,59 % sur le scan français, **2,95 % sur le scan arabe vocalisé** (limite de
+tesseract, dite) ; 100 % des images, 0 caractère interdit, 100 % des paragraphes arabes en RTL. **Render** : *Sync* crée le
+worker, lui relie ses variables (`fromService`) et il travaille (`TACHES_DE_FOND=les-deux` partout) ; il contrôle ses
+variables et son moteur au démarrage et l'écrit — journal et **Administration › Diagnostic › Worker et conversions**.
+Décision [0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270210090000_controle_worker`.
+
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
 « Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les

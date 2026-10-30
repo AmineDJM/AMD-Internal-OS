@@ -16,7 +16,8 @@
 | `ASSISTANT_IA_AUDIO_PRICE_IN` · `ASSISTANT_IA_AUDIO_PRICE_OUT` | ⬜ | Tarif de la VOIX de l'Assistant IA (transcription, synthèse ; fournisseur `openai-audio`) en dollars par million de jetons — équivalents compris (10 par seconde d'audio). Absent → coût « inconnu ». |
 | `MAX_UPLOAD_MB` | ⬜ | Taille max d'upload par défaut (réglable aussi en base depuis l'admin). |
 | `APP_URL` | ⬜* | URL **publique** de l'app — requise pour le callback OnlyOffice, et écrite dans le bloc de liaison du site (`ERP_BASE_URL`) : c'est par elle que les candidatures du site arrivent (à défaut, l'adresse par laquelle le Super Admin a ouvert l'écran, puis celle de Render). |
-| `TACHES_DE_FOND` | ⬜ | **Qui porte les tâches de fond** (refonte V2-F) : `web` (défaut) · `worker` (service `npm run worker` seul) · `les-deux` (bascule ; un bail par tâche en base). Lu par chaque service. Procédure : [24-deploiement-render.md](24-deploiement-render.md). |
+| `TACHES_DE_FOND` | ⬜ | **Qui porte les tâches de fond** (refonte V2-F) : `web` (défaut du code) · `worker` (service `npm run worker` seul) · `les-deux` (un bail par tâche en base). Lu par chaque service. **Posé à `les-deux` sur le web ET le worker par le Blueprint** (décision 0019). Procédure : [24-deploiement-render.md](24-deploiement-render.md). |
+| `CONVERSIONS_PYTHON` · `AMD_TESSDATA` · `CONVERSIONS_MOTEUR` | ⬜ | Le **moteur de conversion haute fidélité** (décision 0019) : le Python qui porte ses paquets (défaut `/opt/conversions/bin/python` dans l'image du worker, sinon `python3`) ; le dossier des modèles tesseract « best » (`/opt/tessdata` dans l'image) ; `CONVERSIONS_MOTEUR=off` le débraye. |
 | `SCHEDULER_DISABLED` · `SCHEDULER_TICK_MS` | ⬜ | Soupape (`1` = aucun battement, web ni worker) · période du battement en ms (défaut 60000, min 15000). |
 | `ONLYOFFICE_URL` | ⬜* | URL **publique** du Document Server OnlyOffice. |
 | `ONLYOFFICE_JWT_SECRET` | ⬜* | Secret JWT **identique** à celui du Document Server. |

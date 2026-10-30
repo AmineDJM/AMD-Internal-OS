@@ -78,6 +78,7 @@ Out of scope: business logic of the individual jobs (each domain page covers it)
 | `src/lib/scheduled.ts` | The scheduler: web heartbeat + `runScheduledJobs()` (web wake-up) + the task table `TACHES_PLANIFIEES` (one entry per sweep) run by `executerTachesPlanifiees()` — shared by web and worker (V2-F). |
 | `src/lib/taches-de-fond/` | V2-F: switch `mode.ts` (`TACHES_DE_FOND`, pure), per-task DB lease `bail.ts` (table `TacheDeFond`), runner `executer.ts` (lease, renewal, duration, outcome, JSON log), worker loop `worker.ts`, migration wait `migrations.ts`, health `sante.ts`, V2-A slot `enrichissement.ts`. |
 | `scripts/worker.ts` | `npm run worker` entry point (tsx): declares the process as worker, SIGTERM/SIGINT → clean stop (25 s grace), runs the same task table. |
+| `scripts/conversions/` + `src/lib/office/conversions-haute-fidelite.ts` | Decision 0019: the high-fidelity conversion engine (Python, pinned `requirements.txt`, venv `/opt/conversions` in the worker image): pdf2docx + PyMuPDF patched (logical bidi order from glyph geometry, targeted NFKC, harakat, intended line breaks, headers/footers), DOCX post-processing (`w:bidi`/`w:rtl`/`w:cs`, lists, RTL tables), two-pass tesseract OCR (`tessdata_best` 4.1.0, sha256-checked) composed into Word, LibreOffice Office → PDF, PDF → XLSX, image → PDF/DOCX, PPTX → PNG zip. CLI `convertir.py` (one JSON line); `--verifier` lists missing pieces. Bench `npm run conversions:bench` on the versioned corpus (`scripts/conversions/corpus/`, `attendu.json`), metrics `src/lib/office/conversions-mesure.ts`. |
 | `src/app/api/health/worker/route.ts` | Background-task health: 200 if a task started < 5 min ago, else 503; holder/error detail for Super Admin only. |
 | `src/lib/scheduler/runner.ts` | User-defined *workflow* schedules (atomic claim, `WORKFLOW_SCHEDULER=off`). |
 | `src/app/api/messaging/sync/route.ts` | The hot route (polled every 12 s by each client) that imports `scheduled.ts` and kicks `runScheduledJobs()`. |
@@ -767,3 +768,16 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 - [U] That every "…SiDu" job is DB-gated (three checked).
 - [U] Per-route self-guarding of all `/api/*` and non-`(app)` pages given the inactive middleware.
 - [U] Exact provenance/intent of `docs/wip/*.patch`.
+
+
+> **Updated 2026-10-30 (decision 0019, « Cliquez Sync, c'est tout »)** [V: code of this lot]. `render.yaml` sets
+> `TACHES_DE_FOND=les-deux` on BOTH web and worker (the per-task lease arbitrates; the web keeps doing everything until the
+> worker has beaten); the worker gets `AUTH_SECRET`, `OPENAI_API_KEY`, `S3_*`, `VAPID_*`, `ADVENTUM_*` via `fromService` (only keys
+> the web block declares — Render does not document `fromService` to an absent key), `DATABASE_URL` via `fromDatabase`, literal
+> `APP_URL`; plans of DB and web unchanged, worker `starter`. `Dockerfile.worker` now on `node:22-trixie-slim` (Python 3.13,
+> LibreOffice 25.2, Tesseract 5.5), three stages (deps, Python engine, runtime), Arabic/Latin fonts incl. Carlito/Caladea, and a
+> build-time `convertir.py --verifier` gate. Worker start-up control (`evaluerControle`/`controlerAuDemarrage` in
+> `src/lib/taches-de-fond/sante.ts`, after the migration wait via `apresMigrations`) logs each missing variable/engine piece
+> (`worker.controle.manque`) and upserts table `ControleWorker` (migration `20270210090000_controle_worker`, additive; presence only,
+> never values). Web side: `atelier.conversions` still never converts on the web, but expires queued conversions the worker did not
+> take (15 min). Local docker builds behind the agent proxy need a CA-injected variant (not shipped).

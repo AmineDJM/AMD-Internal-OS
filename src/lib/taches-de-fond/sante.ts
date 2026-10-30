@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { StatutTacheDeFond, TacheDeFond } from "@prisma/client";
 import { etatMoteur } from "@/lib/office/conversions-haute-fidelite";
+import { sansBloquer } from "@/lib/journal";
 import { journalConsole, messageErreur, type Journal } from "./journal";
 import { lireModeTachesDeFond, modeInconnu, type ModeTachesDeFond } from "./mode";
 
@@ -204,7 +205,7 @@ export async function lireEtatWorker(): Promise<{
 }> {
   const depuis = new Date(Date.now() - 24 * 3600_000);
   const [ligne, enFile, enCours, faites, echecs, ancienne, derniers] = await Promise.all([
-    prisma.controleWorker.findUnique({ where: { id: "worker" } }).catch(() => null),
+    prisma.controleWorker.findUnique({ where: { id: "worker" } }).catch(sansBloquer("worker.lireControle", null)),
     prisma.atelierConversion.count({ where: { etat: "EN_FILE" } }),
     prisma.atelierConversion.count({ where: { etat: "EN_COURS" } }),
     prisma.atelierConversion.count({ where: { etat: "FAITE", updatedAt: { gte: depuis } } }),

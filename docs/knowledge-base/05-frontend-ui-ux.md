@@ -171,6 +171,11 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
   `atelier-apparait`), all disabled under `prefers-reduced-motion`. Review list (`data-testid="atelier-modif"`, `data-etat`),
   compare overlay, conversion menu, inline `ActionConfirmationCard` for sensitive saves. Polls `/api/assistant-ia/atelier`
   (0.6 s while the assistant works, 8 s idle). The preview panel gains « Ouvrir dans l'Atelier ».
+  Conversion menu (decision 0019): PDF → Word (high fidelity) and « Tableaux → Excel », PowerPoint « Diapositives → images »;
+  the toast says the route (« le moteur haute fidélité, sur le worker ») and the engine's note (pages rebuilt, RTL paragraphs, OCR).
+- **Diagnostic › « Worker et conversions »** (decision 0019) [V] `src/app/(app)/admin/diagnostic/worker.tsx` (server component,
+  Super Admin): worker alive/silent, last beat, start-up control (ready/incomplete + each missing variable in plain French),
+  engine complete or not, conversion queue (queued, running, done/failed over 24 h, oldest queued), last 5 failures.
 
 ### 4.11 Real-time UX — polling + Web Audio
 
