@@ -18364,3 +18364,78 @@ model AssistantIaTerrainCapture {
   @@unique([userId, cle])
   @@index([userId, createdAt])
 }
+
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// LES RECETTES — la mémoire procédurale (J10, décision 0028) : « comment on fait chez nous », tiré des circuits réels,
+/// validé par le RESPONSABLE DU PROCESSUS. Rien n'est appris en silence : l'assistant ne lit qu'une version VALIDÉE.
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+/// Le responsable d'un processus (AD_PRO, REGLEMENTAIRE, RH, FINANCES…) désigné par la Direction — un rôle, ou une personne.
+model RecetteResponsable {
+  processus        String    @id
+  role             UserRole?
+  userId           String?
+  /// Le nombre minimal de dossiers réels (clos, acceptés) pour proposer une recette ; nul = défaut (5).
+  seuilOccurrences Int?
+  designeParId     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+/// Une recette : un CIRCUIT (`WF:CONGRESS_NATIONAL`, `VAL:REGULATORY`, `REC`, `TRAVAIL:…`, `FORME:…`), ses versions.
+model Recette {
+  id                 String           @id @default(cuid())
+  circuit            String           @unique
+  processus          String
+  titre              String
+  /// PROPOSEE | VALIDEE | REJETEE | RETIREE
+  statut             String           @default("PROPOSEE")
+  /// La version en usage (VALIDEE) — nulle tant qu'aucune n'est validée.
+  versionValideeId   String?
+  derniereExtraction DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  versions           RecetteVersion[]
+  usages             RecetteUsage[]
+
+  @@index([processus, statut])
+}
+
+/// Une version d'une recette — jamais réécrite une fois validée : une correction est une version de plus.
+model RecetteVersion {
+  id          String    @id @default(cuid())
+  recetteId   String
+  recette     Recette   @relation(fields: [recetteId], references: [id], onDelete: Cascade)
+  numero      Int
+  /// PROPOSEE | VALIDEE | REJETEE | REMPLACEE | RETIREE
+  statut      String    @default("PROPOSEE")
+  contenu     Json
+  signature   String
+  occurrences Int
+  /// EXTRACTION (tirée des dossiers) | CORRECTION (écrite par le responsable)
+  origine     String    @default("EXTRACTION")
+  auteurId    String?
+  decideParId String?
+  decideLe    DateTime?
+  motif       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([recetteId, numero])
+  @@index([recetteId, statut])
+}
+
+/// Un usage d'une recette VALIDÉE par l'assistant : la demande, le plan proposé (signature) — l'acceptation se lit au travail.
+model RecetteUsage {
+  id            String   @id @default(cuid())
+  recetteId     String
+  recette       Recette  @relation(fields: [recetteId], references: [id], onDelete: Cascade)
+  versionId     String
+  userId        String
+  intention     String
+  planSignature String?
+  createdAt     DateTime @default(now())
+
+  @@index([recetteId, createdAt])
+  @@index([userId, createdAt])
+}

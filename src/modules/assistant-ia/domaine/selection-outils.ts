@@ -112,6 +112,8 @@ const MOTS_CLES: Record<string, string> = {
   explorer_relations: "depend dependent relie lien liens relation relations graphe reseau chemin qui travaille travaillent sur fournisseur dossier tombe impacte touche quels documents parlent concernent mentionnent lies a autour",
   etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passee autrefois quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
   d_ou_vient: "d ou vient provenance source origine qui a confirme justifie piece prouve preuve vient cette information ce chiffre fiable",
+  // J10 — les recettes de la maison (fiche, pas socle) : « comment on fait chez nous » un circuit, et le plan qui en est tiré.
+  recette_pour: "comment fait on chez nous recette procedure processus habitude habituellement etapes circuit qui valide pieces faut combien temps delai prise charge sponsoring evenement recrutement validation plan lance prepare organise",
   // J3 — l'Atelier : les mots d'une personne qui veut voir ou retoucher SON document (joint, renvoyé, trouvé).
   ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",
   modifier_document: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese en place document",

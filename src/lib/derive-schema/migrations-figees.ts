@@ -504,4 +504,6 @@ export const MIGRATIONS_FIGEES: readonly string[] = [
   "20270210100000_assistant_ia_proactivite",
   "20270210100000_qualite_continue",
   "20270210110000_terrain_voix",
+  "20270211090000_recettes",
+  "20270214100000_travaux_delegation",
 ];

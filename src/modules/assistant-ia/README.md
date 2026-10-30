@@ -118,3 +118,9 @@ capacités ; 0022 : la qualité continue ; 0024 : la proactivité).
 - **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
   assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune
   confirmation à la voix ; valeurs sensibles jamais lues ; modèle `gpt-live-1` réglable (Consommation IA).
+
+## Recettes de la maison (lot J10, décision 0028)
+
+- `recette_pour` (`infra/recettes.ts`, module `recettes`) : la version VALIDÉE d'une recette ou rien ; plan de travail tiré de la
+  recette, phrase « selon la recette … validée par … le … », écarts. Fiche de la sélection (`MOTS_CLES`), règle 13 de la consigne
+  (`contexte.ts`). Une famille FERMÉE retire les processus qu'elle couvre. Banc : `infra/recettes.test.ts` (faux modèle).
