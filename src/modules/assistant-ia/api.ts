@@ -58,6 +58,11 @@ export { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 
 // ── Les travaux longs (J2, décision 0016) : la persona que le moteur des travaux joue pour l'Assistant IA
 export { PERSONA_ASSISTANT_IA } from "./infra/travaux";
+// ── J8 (décision 0023) : délégation (demandes reçues), priorité, vue d'un responsable sur son équipe (console + audit)
+export {
+  declinerDemande, equipeVisible, lireTravailEquipe, listerDemandesRecues, listerTravauxEquipe, PIECES_TRAVAUX, reglerPrioriteTravail, repondreDemande,
+  type DemandeRecue, type EtapeVue, type TravailDEquipe,
+} from "./infra/travaux";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";

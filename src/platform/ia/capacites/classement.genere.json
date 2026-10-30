@@ -1584,6 +1584,16 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe": {
+  "risque": "R1",
+  "familles": [
+   "BUDGETS",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
  "assistant-ia-proactivite-actions:accorderMonMandat": {
   "risque": "R1",
   "familles": [
@@ -1739,6 +1749,63 @@
    "ECRITURES"
   ],
   "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:declinerMaDemande": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:equipeVisiblePourMoi": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:lireTravailDeMonEquipe": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:listerMesDemandesRecues": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:listerTravauxDeMonEquipe": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:reglerPrioriteMonTravail": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-travaux-actions:repondreAMaDemande": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": false
  },
@@ -9212,6 +9279,60 @@
   "risque": "R1",
   "familles": [
    "AD_PRO",
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "recettes-actions:corrigerRecetteAction": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "recettes-actions:designerResponsableAction": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "recettes-actions:rejeterRecetteAction": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "recettes-actions:relireLesCircuitsAction": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "recettes-actions:retirerRecetteAction": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
+ "recettes-actions:validerRecetteAction": {
+  "risque": "R4",
+  "familles": [
    "ECRITURES"
   ],
   "simulable": "oui",

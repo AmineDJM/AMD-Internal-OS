@@ -51,9 +51,11 @@ describe("outils V1", () => {
       // J4 : la connaissance de l'entreprise (Bibliothèque, faits confirmés — `platform/ia/lectures/connaissance.ts`).
       "chercher_documents", "ouvrir_documents", "faits_confirmes",
       // J9 : le graphe de l'entreprise et les faits datés (`platform/ia/lectures/graphe.ts`).
-      "explorer_relations", "etat_a_une_date", "d_ou_vient",
+      "explorer_relations", "etat_a_une_date", "d_ou_vient", "recette_pour",
       // J3 — l'Atelier : ouvrir, modifier en place, convertir (l'enregistrement est une opération, `enregistrer_document`).
       "ouvrir_dans_l_atelier", "modifier_document", "convertir_document",
+      // J8 — les demandes reçues du travail d'un collègue (la réponse est une opération, `preparer_reponse_demande`).
+      "mes_demandes_recues",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
     expect(new Set(noms).size).toBe(noms.length);

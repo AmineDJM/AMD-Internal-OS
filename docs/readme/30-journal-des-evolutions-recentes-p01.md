@@ -15,7 +15,7 @@ sous-dossiers, une pièce de la Bibliothèque par fichier) ; au-delà de 10 fich
 échoués, en file). La Bibliothèque **vide sa file dans un budget** (deux lecteurs) : **300 fichiers** (PDF, Word, images,
 scans) **lus en ≈ 2 min** sur le banc local. L'assistant **classe le dossier par module CTD** et nomme les **pièces
 manquantes** à partir de ce que la Bibliothèque a déjà lu — sans relire les fichiers (`lire_dossier_depose`). Migration
-additive `20270215090000_assistant_ia_depot_dossier`.
+additive `20270215140000_assistant_ia_depot_dossier`.
 
 ### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
 
@@ -29,6 +29,19 @@ et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assi
 les 123 gestes qu'Adam lui prêtait ont chacun leur équivalent (inventaire généré et rejoué par un test) ; changer l'échéance,
 la priorité ou le responsable d'une tâche est désormais une action d'écran (`modifierTache`).
 
+### J10 : LES RECETTES — « COMMENT ON FAIT ÇA CHEZ NOUS ? », TIRÉ DES DOSSIERS RÉELS, VALIDÉ PAR LE RESPONSABLE (2026-10-30)
+
+Une **recette** décrit un circuit réel : étapes dans l'ordre, qui valide, pièces habituelles, seuils (« la DG signe au-delà
+d'environ 1,2 M DZD (observé) »), durée médiane, pièges (renvois répétés, étape la plus lente). Elle est **proposée** par
+l'extraction (tâche quotidienne `recettes.extraction`, jamais sous le seuil d'occurrences : 5 dossiers clos acceptés par défaut),
+puis **validée, corrigée (nouvelle version), rejetée ou retirée** par le responsable du processus que la Direction désigne dans
+l'écran `/recettes`. L'Assistant IA ne sert que la version validée (`recette_pour`) : il propose le plan tiré de la recette en
+disant « selon la recette … validée par X le … », et signale les écarts (seuil franchi, délai court, plan retouché). Statistiques :
+utilisations et taux de plans acceptés sans retouche. Une recette ne se montre qu'à qui voit l'écran du circuit ; elle ne porte ni
+dossier, ni nom, ni montant d'un dossier. Banc : 12/12 recettes justes sur le corpus semé, 13/14 plans acceptés sans retouche
+(93 %), zéro recette servie avant validation, zéro hors droits. Décision [0028](../assistant/decisions/0028-recettes.md) ;
+migration `20270211090000_recettes`.
+
 ### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
 
 L'Assistant IA suit désormais les **relations** de l'entreprise : `explorer_relations` (« qu'est-ce qui dépend de Saidal ? »,
@@ -40,6 +53,20 @@ registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermé
 `remplaceParId`), il n'est jamais écrasé ; chaque chiffre rendu porte sa source. Banc : résolution 101/101 sur un corpus
 semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
 [0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
+
+### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
+
+Lot J8 — `docs/assistant/decisions/0023-delegation.md` ; migration additive `20270214100000_travaux_delegation`.
+- **« Demander à »** : un travail dépose une demande précise (question, pièces attendues, échéance, pièces partagées en
+  lecture) chez un collègue — notification et carte dans **son** Assistant IA ; il répond avec ses pièces ou décline ;
+  le travail reprend. Relance, escalade au responsable, abandon. Il ne voit jamais le carnet de l'autre.
+- **Attentes métier** sur les 34 types de faits (prédicat), relance et escalade ; **reprise mesurée** après l'événement :
+  médiane 7,5 s, p95 10 s (boucle courte des réveils, 10 s).
+- **Plusieurs travaux par personne** avec priorités ; **vue « Mon équipe »** pour un responsable si la console l'autorise
+  (défaut : non), chaque consultation à l'audit.
+- **Livrables = vrais documents** (Word, PDF, Excel) déposés dans le Drive de la personne et inscrits à la Bibliothèque.
+- **Robustesse** : un travail de 3 semaines traverse 10 arrêts brutaux (`SIGKILL`) de vrais processus sans doublon ;
+  web + worker simultanés : un seul exécute.
 
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 

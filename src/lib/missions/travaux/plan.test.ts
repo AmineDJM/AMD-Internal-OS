@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attenteDuMoteur, compilerTravail, decouperEnLots, lirePlan, type CatalogueTravail } from "@/lib/missions/travaux/plan";
+import { attenteDuMoteur, compilerTravail, decouperEnLots, demandeCompilee, lirePlan, prioriteDe, type CatalogueTravail } from "@/lib/missions/travaux/plan";
 import { etatTravail, motifPlafond, phraseAttente } from "@/lib/missions/travaux/regles";
 import { lireAnalyse } from "@/lib/missions/travaux/consignes";
 import { correspond, lireAttente } from "@/lib/missions/events/match";
@@ -117,5 +117,54 @@ describe("le prédicat sur la charge utile d'une attente (J2, `events/match.ts`)
   });
   it("une attente sans prédicat garde son comportement d'avant", () => {
     expect(lireAttente({ event: "X" })).not.toHaveProperty("payload");
+  });
+});
+
+describe("le plan, suite (J8) — demande, jalons, priorité, format — pur", () => {
+  const demande = (d: Record<string, unknown>) => ({
+    titre: "t", objectif: "o", priorite: "haute",
+    etapes: [
+      { cle: "devis", titre: "Demander le devis", type: "DEMANDE", demande: d },
+      { cle: "cr", titre: "CR", type: "LIVRABLE", consigne: "x", format: "XLSX", apres: ["devis"] },
+    ],
+  });
+  it("lit une demande juste : priorité, format, pièces ; compile en WAIT_INPUT avec ses délais relatifs au dépôt", () => {
+    const r = lirePlan(demande({ a: "karim@x.dz", question: "Le devis signé ?", pieces: ["devis"], partager: ["noeud1"], jours: 4 }), CAT);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.plan.priorite).toBe("HAUTE");
+    expect(r.plan.etapes[1]!.format).toBe("xlsx");
+    const c = compilerTravail(r.plan, new Date("2026-11-02T08:00:00Z"));
+    const s = c.steps.find((x) => x.key === "devis")!;
+    expect(s.nodeType).toBe("WAIT_INPUT");
+    expect((s.input as { demande: unknown }).demande).toMatchObject({ destinataireId: "karim@x.dz", echeanceMin: 4 * 1440, relanceMin: 2 * 1440, escaladeMin: 4 * 1440, abandonMin: 8 * 1440, pieces: ["devis"], partager: ["noeud1"] });
+    expect(c.steps.find((x) => x.key === "cr")!.input).toMatchObject({ format: "xlsx" });
+  });
+  it("refuse une demande sans personne, sans question, sans échéance, ou trop longue ; une priorité ou un format inconnus", () => {
+    const r = lirePlan({ ...demande({ jours: 200 }), priorite: "urgente", etapes: [...demande({ jours: 200 }).etapes.slice(0, 1), { cle: "cr", titre: "CR", type: "LIVRABLE", consigne: "x", format: "odt", apres: ["devis"] }] }, CAT);
+    const f = r.ok ? "" : r.fautes.join(" ");
+    expect(f).toMatch(/demande\.a/);
+    expect(f).toMatch(/demande\.question/);
+    expect(f).toMatch(/180 jours/);
+    expect(f).toMatch(/Priorité « URGENTE »/);
+    expect(f).toMatch(/format « odt »/);
+    expect(lirePlan(demande({ a: "k", question: "q" }), CAT).ok).toBe(false);
+  });
+  it("les défauts d'une demande : relance à mi-délai (pas sous une heure), escalade à l'échéance, abandon un délai plus tard", () => {
+    expect(demandeCompilee({ a: "k", question: "q", minutes: 30 })).toMatchObject({ echeanceMin: 30, relanceMin: null, escaladeMin: 30, abandonMin: 60 });
+    expect(demandeCompilee({ a: "k", question: "q", jours: 2, relance: { jours: 1.5 }, escalade: { jours: 3 }, abandon: { jours: 1 } }))
+      .toMatchObject({ relanceMin: 2160, escaladeMin: 4320, abandonMin: 4320 });
+  });
+  it("les jalons d'une attente : dates absolues à l'approbation, escalade au responsable", () => {
+    const r = lirePlan({ titre: "t", objectif: "o", etapes: [
+      { cle: "a", titre: "Attendre", type: "ATTENTE", attente: { evenement: "PAYMENT_RECEIVED", jours: 10, relance: { jours: 2 }, escalade: { jours: 5, a: "responsable" } } },
+      { cle: "cr", titre: "CR", type: "LIVRABLE", consigne: "x", apres: ["a"] },
+    ] }, CAT);
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const c = compilerTravail(r.plan, new Date("2026-11-02T08:00:00Z"));
+    expect(c.steps[0]!.input).toEqual({ jalons: { relanceA: "2026-11-04T08:00:00.000Z", escaladeA: "2026-11-07T08:00:00.000Z", escaladeVers: "RESPONSABLE" } });
+    expect(prioriteDe(10)).toBe("HAUTE");
+    expect(prioriteDe(null)).toBe("NORMALE");
   });
 });

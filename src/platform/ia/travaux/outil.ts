@@ -29,14 +29,16 @@ const ETAPE = {
   properties: {
     cle: { type: "string", description: "Identifiant court, minuscules (« lire-demandes »)." },
     titre: { type: "string" },
-    type: { type: "string", enum: ["LECTURE", "ANALYSE", "LOTS", "GESTE", "ATTENTE", "LIVRABLE"] },
+    type: { type: "string", enum: ["LECTURE", "ANALYSE", "LOTS", "GESTE", "ATTENTE", "DEMANDE", "LIVRABLE"] },
     outil: { type: "string", description: "LECTURE : un de tes outils de lecture ; GESTE : un de tes gestes (préparer_…)." },
     apres: { type: "array", items: { type: "string" }, description: "Clés des étapes PRÉCÉDENTES à attendre." },
     entree: { type: "object", description: "Arguments ; « {{cle.chemin}} » lit la sortie d'une étape amont." },
     consigne: { type: "string", description: "ANALYSE / LIVRABLE : ce qu'il faut en tirer." },
     lots: { type: "object", description: "LOTS : { etape, chemin, taille } — la liste à découper (taille 5 à 100)." },
     pourChaque: { type: "object", description: "ANALYSE : { etape } — une analyse par lot rendu par cette étape LOTS." },
-    attente: { type: "object", description: "ATTENTE : { evenement, entite « TYPE:id », champs { statut: \"SIGNE\" }, jours } ou une minuterie { jours | minutes }." },
+    attente: { type: "object", description: "ATTENTE : { evenement, entite « TYPE:id », champs { statut: \"SIGNE\" }, jours, relance { jours }, escalade { jours, a: PRINCIPAL|RESPONSABLE } } ou une minuterie { jours | minutes } — délais comptés de l'APPROBATION du plan." },
+    demande: { type: "object", description: "DEMANDE (demander à une personne) : { a (nom exact ou e-mail), question, pieces [ce qu'on attend d'elle], partager [identifiants Drive à lui montrer], jours (échéance), relance { jours }, escalade { jours }, abandon { jours } } — délais comptés du DÉPÔT de la demande. Elle ne voit que la question et les pièces partagées." },
+    format: { type: "string", enum: ["docx", "pdf", "xlsx", "md"], description: "LIVRABLE : le document déposé au Drive de la personne (défaut docx ; xlsx pour des tableaux ; md = au carnet seulement)." },
     si: { type: "object", description: "{ etape, issue: EVENT|TIMEOUT|DONE|FAILED|SKIPPED } — ne part que si l'étape s'est terminée ainsi (relance : TIMEOUT)." },
   },
   required: ["cle", "titre", "type"],
@@ -44,7 +46,8 @@ const ETAPE = {
 
 export const CONSIGNE_TRAVAUX = [
   "TRAVAUX LONGS : quand une demande dépasse un tour — beaucoup de lectures, un gros volume à analyser (« toutes les demandes de l'année »), une attente (« quand le BC sera signé », « si pas de réponse sous 21 jours, relance »), ou plusieurs heures de travail —, ne la fais pas dans la conversation : appelle `lancer_un_travail` avec un PLAN.",
-  "Le plan : des étapes LECTURE (tes outils de lecture), LOTS (découper une liste), ANALYSE (avec `pourChaque` sur les lots, puis une synthèse), GESTE (une écriture, autorisée une fois avec le plan), ATTENTE (événement métier avec échéance, ou minuterie), et au moins un LIVRABLE à la fin.",
+  "Le plan : des étapes LECTURE (tes outils de lecture), LOTS (découper une liste), ANALYSE (avec `pourChaque` sur les lots, puis une synthèse), GESTE (une écriture, autorisée une fois avec le plan), ATTENTE (événement métier avec échéance, relance et escalade, ou minuterie), DEMANDE (demander à un collègue une information ou une pièce, avec une échéance : le travail attend sa réponse), et au moins un LIVRABLE à la fin (un document Word, PDF ou Excel déposé dans son Drive).",
+  "DEMANDE : jamais une discussion — une question précise, les pièces attendues, une échéance. N'y mets rien que la personne sollicitée ne doive voir : elle voit la question et les pièces partagées, pas le reste du travail.",
   "Rien ne démarre avant que la personne approuve le plan dans le panneau « Travaux » : dis-le-lui, en une phrase, avec le nombre d'étapes et les gestes qu'elle autorisera. Ne prétends jamais que le travail est fait.",
 ].join("\n");
 
@@ -54,7 +57,9 @@ export function demandeLongue(texte: string): boolean {
   return /\b(toutes?|tous|chaque|l'ensemble)\b.{0,40}\b(demandes?|dossiers?|factures?|contrats?|courriers?|fichiers?|bons? de commande)\b/.test(t)
     || /\b(de l'année|du trimestre|des \d+ derniers mois|depuis (janvier|le début))\b/.test(t)
     || /\b(si (pas|aucune?) (de )?réponse|relance[rs]? (si|dans|sous)|quand (le|la|les) .{0,30}(sign|valid|répon|reçu))/.test(t)
-    || /\b(surveille|suis|suivre) .{0,40}\b(jusqu'à|pendant)\b/.test(t);
+    || /\b(surveille|suis|suivre) .{0,40}\b(jusqu'à|pendant)\b/.test(t)
+    // J8 : « demande à Karim le devis, attends sa réponse, puis… » — une délégation.
+    || /\bdemander? à [a-zà-ÿ-]+\b.{0,80}\b(attends?|sa réponse|puis|ensuite|relance)/.test(t);
 }
 
 export const INDICE_DEMANDE_LONGUE = "INDICE : cette demande ressemble à un TRAVAIL LONG (volume, attente ou relance). Propose un plan avec `lancer_un_travail` plutôt que de tout faire dans ce tour.";
@@ -71,6 +76,7 @@ export function outilLancerUnTravail(principalId: string, ouvrir: (plan: unknown
         properties: {
           titre: { type: "string" },
           objectif: { type: "string", description: "Ce qu'on cherche à obtenir, en une ou deux phrases." },
+          priorite: { type: "string", enum: ["HAUTE", "NORMALE", "BASSE"], description: "Parmi les travaux de la personne (défaut NORMALE)." },
           etapes: { type: "array", items: ETAPE },
         },
         required: ["titre", "objectif", "etapes"],

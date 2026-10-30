@@ -99,10 +99,13 @@ const MOTS_CLES: Record<string, string> = {
   preparer_document: "lettre note compte rendu word redige prepare remerciement courrier",
   preparer_traduction: "traduis traduction anglais arabe francais",
   preparer_formulaire_pdf: "remplis formulaire pdf",
+  // J8 (décision 0023) : la délégation des travaux, côté de la personne sollicitée.
+  mes_demandes_recues: "demandes recues on me demande collegue attend ma reponse question piece a fournir delegation travail echeance",
+  preparer_reponse_demande: "repondre demande collegue reponse envoyer piece fournir joindre delegation travail",
   programmer_routine: "chaque tous les matins dimanche lundi semaine mois heure programme routine regulierement",
   gerer_routine: "pause reprends supprime routine execute",
   proposer_memoire: "retiens souviens memoire rappelle toi",
-  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese",
+  lancer_un_travail: "analyse toutes rapport complet annee travail long lot chaque plusieurs etapes synthese demande a attends sa reponse relance escalade echeance",
   chercher_documents: "document retrouve cherche note compte rendu parle contenu bibliotheque piece qui mentionne",
   ouvrir_documents: "ouvre affiche montre document lis texte",
   faits_confirmes: "faits confirmes fiche referentiel organisation fournisseur adresse identite verifie",
@@ -110,6 +113,8 @@ const MOTS_CLES: Record<string, string> = {
   explorer_relations: "depend dependent relie lien liens relation relations graphe reseau chemin qui travaille travaillent sur fournisseur dossier tombe impacte touche quels documents parlent concernent mentionnent lies a autour",
   etat_a_une_date: "etat date epoque etait a l epoque au moment le historique avant ancienne ancien valeur passee autrefois quelle etait qui etait responsable en mars janvier capital forme juridique siege raison sociale actuelle actuel aujourd hui",
   d_ou_vient: "d ou vient provenance source origine qui a confirme justifie piece prouve preuve vient cette information ce chiffre fiable",
+  // J10 — les recettes de la maison (fiche, pas socle) : « comment on fait chez nous » un circuit, et le plan qui en est tiré.
+  recette_pour: "comment fait on chez nous recette procedure processus habitude habituellement etapes circuit qui valide pieces faut combien temps delai prise charge sponsoring evenement recrutement validation plan lance prepare organise",
   // J3 — l'Atelier : les mots d'une personne qui veut voir ou retoucher SON document (joint, renvoyé, trouvé).
   ouvrir_dans_l_atelier: "atelier ouvre affiche montre document word powerpoint presentation diapositive excel classeur pdf piece jointe modifie modifier remplace mets change corrige",
   modifier_document: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese en place document",

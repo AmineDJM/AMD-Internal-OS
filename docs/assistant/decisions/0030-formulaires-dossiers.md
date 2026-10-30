@@ -11,7 +11,7 @@ des capacités de J6 ([0020](0020-capacites.md)).
 > `app/api/assistant-ia/depot-dossier/` ; `domaine/ctd.ts`, `infra/lecture-dossier.ts` (`lire_dossier_depose`) ;
 > Bibliothèque : `infra/ingestion.ts` (budget, parallélisme), `infra/recherche.ts` (`fichesDeDossier`) ;
 > `lib/cibles/resoudre-entrees.ts` (`candidatsDuChamp`) ; `lib/scheduled.ts`. Migration additive
-> `20270215090000_assistant_ia_depot_dossier` (une table). Banc : `npm run bench:dossier`.
+> `20270215140000_assistant_ia_depot_dossier` (une table). Banc : `npm run bench:dossier`.
 
 ## 1. La carte de confirmation est un FORMULAIRE généré depuis le contrat
 

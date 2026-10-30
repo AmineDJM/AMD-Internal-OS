@@ -379,6 +379,23 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   touch travaux. Additive engine changes: `materialiser({ kind, naissance })`, `kind` on pause/resume/cancel, `payload` predicate
   on waits (`events/match.ts`), `reveillerAttentesTemporelles(now, seulement?)`. Decision `docs/assistant/decisions/0016-travaux.md`.
 
+- **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
+  → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique
+  `missionId, stepKey`; delays counted from the deposit; shared Drive pieces granted VIEW via the persona port
+  `pieces`, audited). The recipient sees `DemandeRecue` only (question, expected/shared pieces, due date — never the
+  carnet); `repondreDemande` / `declinerDemande` settle the step (conditional on WAITING), write the answer to the carnet,
+  signal the fast wake. **Jalons** `jalons.ts` (relance / escalade to N+1 via `persona.responsable` / abandon → TIMEOUT),
+  run by `travaux.balayage` before conducting. **Fast wake** `reveil.ts`: `router.ts` (events + timers) and delegation set
+  `Mission.reveilDemandeLe`; `scheduled.ts armerReveilsTravaux` (10 s loop, worker + web) conducts flagged travaux under the
+  mission lease — measured p95 10 s. **Fairness**: `travauxAFaireAvancer` round-robins per `principalId` (window
+  function), priority within a person. **Team view** `assistant-ia/infra/travaux-equipe.ts`: gated by
+  `AssistantIaReglage.managerVoitEquipe` (default false), team = `isManagerOfUser`, summary + steps only, every read
+  audited. **Deliverables** `assistant-ia/infra/travaux-livrables.ts`: Markdown → `composerDocx` / `construireClasseurVerifie`,
+  deposited through `portsArtefact.documents.creerFichier` (personal Drive « Travaux », Bibliothèque inscription), PDF via
+  Atelier conversions; deposit under a `TravailEcriture` receipt (`|livrable`), reprise finds the document by its
+  deterministic name. **Robustness** `robustesse.test.ts`: real child processes (`scripts/bench/travail-processus.ts`)
+  SIGKILLed 10× over a 3-week fake-clock travail, plus web + worker processes racing on one travail.
+
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
   (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for
@@ -520,7 +537,7 @@ later `what_changed` tool reads it as a hint and re-reads canonical data.
 ### 6.5 Card forms, folder deposit, large volumes (J11, decision 0030)
 
 - **Form from the contract**: `platform/ia/capacites/schema.ts` (extracted from `registre.ts`, re-exported: `libelleChamp`, `schemaDe`, `zodDe`) + `formulaire.ts` (pure: `widgetDe`, `formulaireDe`, `entreeDepuisSaisies`, `verifierFormulaire`, `champsCorriges`). `infra/capacites.ts:carteDe` builds fields/level/confirmText/form for every R1+ card; `corrigerCarteCapacite` (called by `confirmerIntentionAssistantIA(intentId, confirmTyped, corrections)` BEFORE `executerIntention`) re-runs the proposal gates (contract keys, `zodDe`, console families incl. salary, `preparer` = name resolution + `validerEntree`) and rewrites the intent (payload, summary, confirmText, `CORRECTED` event) only while `PROPOSED`. `chercherReferenceDeCarte` → `lib/cibles/resoudre-entrees.ts:candidatsDuChamp` (directory for `User`, `resoudreCible` under `porteeEntite` otherwise). Bench `formulaires.test.ts`: all 1 157 R1–R4 capacities, 0 schema gap.
-- **Folder lot**: table `AssistantIaDepotDossier` (migration `20270215090000_assistant_ia_depot_dossier`); `infra/depot-dossier.ts` (`ouvrirLotDossier` with a **port** `creerArborescence` supplied by the app route — the module adds no `lib/drive` debt; resume by list fingerprint; `etatDesLots` = recursive CTE under the root + LATERAL join on `BibliothequeFiche.cles @> ['DRIVE_NODE:<id>']`). Pure rules `domaine/lecture/depot-dossier.ts` (bounds `ASSISTANT_DEPOT_DOSSIER_FICHIERS/_MO`, default 1 000 / 2 GB).
+- **Folder lot**: table `AssistantIaDepotDossier` (migration `20270215140000_assistant_ia_depot_dossier`); `infra/depot-dossier.ts` (`ouvrirLotDossier` with a **port** `creerArborescence` supplied by the app route — the module adds no `lib/drive` debt; resume by list fingerprint; `etatDesLots` = recursive CTE under the root + LATERAL join on `BibliothequeFiche.cles @> ['DRIVE_NODE:<id>']`). Pure rules `domaine/lecture/depot-dossier.ts` (bounds `ASSISTANT_DEPOT_DOSSIER_FICHIERS/_MO`, default 1 000 / 2 GB).
 - **Ingestion throughput**: `bibliotheque/infra/ingestion.ts:traiterFile({ budgetMs, parallele })` drains batch after batch within a budget with N concurrent readers; `scheduled.ts` passes `BIBLIOTHEQUE_BUDGET_S` (45) / `BIBLIOTHEQUE_PARALLELE` (2). Without budget: one batch (previous behaviour). Bench `npm run bench:dossier` (300 unique files, fake embedder).
 - **Answering on the folder**: tool `lire_dossier_depose` (`infra/lecture-dossier.ts`, family DRIVE, third-party framed) reads the lot's files and their fiches in ONE batch (`bibliotheque:fichesDeDossier` via socle `connaissance.ts:fichesDeDossierPourModele` — same rights as `ouvrirDocuments`, vault/confidential without text) and classifies by CTD rules (`domaine/ctd.ts`: section number in path wins, else FR/EN keywords, S vs P tie-break, unclassified is said) + expected-but-missing sections of a generic dossier. No file re-read, no per-file model call.
 
@@ -565,6 +582,14 @@ and the scheduler; the Mission Runtime (`src/lib/missions`) itself only depends 
 - `rbac.ts` `peutVoirAdam`/`peutPiloterMissionsAdam` → ~19 files + mission pause semantics (owners lose rights → all their missions PAUSE).
 - `faitDepuisAudit` whitelist → which ERP writes wake missions/watches/reminders.
 - Registry defaults → cost dashboards (price `null` if unknown model), protocol validation (`capabilities.ts`).
+
+### 7bis. Recipes (lot J10, decision 0028)
+
+- The Assistant IA reads the `recettes` module (`assistant-ia/infra/recettes.ts`, tool `recette_pour`, a selection card in
+  `MOTS_CLES`, context rule 13). Only VALIDATED versions are served; `AUCUNE`/`AMBIGU` never claim a recipe. The plan it returns is a
+  J2 work plan (ANALYSE → LIVRABLE → ATTENTE timer → LIVRABLE) valid against any persona catalogue; `RecetteUsage` + the TRAVAIL
+  mission launched afterwards measure "accepted unchanged". `MissionPlanPattern` VALIDATED shapes become Super-Admin-only recipe
+  cards (no plan): a pattern validated by repetition is still only a PROPOSAL until a human process owner validates it.
 
 ## 8. Invariants, gotchas, doctrine rules
 

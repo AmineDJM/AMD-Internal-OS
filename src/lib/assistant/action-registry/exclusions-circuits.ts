@@ -11,6 +11,7 @@ export function classerExclusionsCircuits(): void {
     + "Une IA ne règle JAMAIS ses propres plafonds ni ses propres garde-fous : c'est le geste du Super Admin, sur l'écran "
     + "`/admin/ai/consommation`, en regardant la consommation réelle — ni ses propres ACCÈS (décision 0012, `/admin/ai/acces`).", [
     "assistant-ia-consommation-actions:enregistrerReglagesAssistantIa", "assistant-ia-consommation-actions:enregistrerAccesAssistantIa", "assistant-ia-consommation-actions:enregistrerPlafondsTravaux",
+    "assistant-ia-consommation-actions:enregistrerVisibiliteEquipe",
   ]);
   X("LA QUALITÉ CONTINUE DE L'ASSISTANT IA (J5 + J14, décision 0022) : le calendrier du banc programmé, un passage ou un "
     + "banc A/B demandé, et le modèle de chaque rôle — changé SEULEMENT sur un banc vert. Une IA ne choisit JAMAIS son propre "
@@ -82,6 +83,13 @@ export function classerExclusionsCircuits(): void {
     + "file. Des gestes d'EXPLOITATION de l'index (ils ne modifient aucune pièce) décidés devant l'état de la file que l'écran "
     + "`/bibliotheque` montre ; chaque geste relit le rôle. Réservé au SUPER ADMIN ; aucune ouverture conversationnelle.", [
     "bibliotheque-actions:lancerPassageBibliotheque", "bibliotheque-actions:relancerFicheBibliotheque",
+  ]);
+  X("RECETTES (J10, décision 0028) : valider, corriger, rejeter, retirer une recette, désigner le responsable d'un processus, "
+    + "relire les circuits. RIEN N'EST APPRIS EN SILENCE : une recette est une proposition que le RESPONSABLE DU PROCESSUS juge "
+    + "devant le contenu et les versions que l'écran `/recettes` montre — une IA ne valide jamais sa propre mémoire procédurale. "
+    + "Chaque geste relit la désignation et la visibilité du circuit ; aucune ouverture conversationnelle.", [
+    "recettes-actions:validerRecetteAction", "recettes-actions:corrigerRecetteAction", "recettes-actions:rejeterRecetteAction",
+    "recettes-actions:retirerRecetteAction", "recettes-actions:designerResponsableAction", "recettes-actions:relireLesCircuitsAction",
   ]);
   X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de configuration — variables, adresses, réponse du "
     + "Document Server. Une moitié du test se joue DANS LE NAVIGATEUR de l'administrateur (chargement d'api.js) : une "

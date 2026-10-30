@@ -9460,6 +9460,8 @@ model AssistantIaReglage {
   plafondTravailUsd      Float    @default(20)
   /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.
   plafondMensuelUsd      Float    @default(50)
+  /// J8 (décision 0023) : un responsable voit les travaux de son équipe (lecture seule, chaque consultation à l'audit). Défaut : non.
+  managerVoitEquipe      Boolean  @default(false)
   /// J12 (décision 0024) : interruptions des veilleurs par personne et par jour, au plus (la personne peut baisser).
   interruptionsMaxJour   Int      @default(5)
   /// J12 : coupe toute la proactivité (veilleurs, point du matin, gestes sous mandat) — les écrans restent lisibles.
@@ -14583,6 +14585,9 @@ model Mission {
   /// Le dernier « point quotidien » envoyé pour un travail de plus d'un jour.
   pointQuotidienLe DateTime?
   ecrituresTravail TravailEcriture[]
+  /// J8 : un fait qui règle une attente de ce travail le signale ici — la boucle courte des réveils le reprend aussitôt.
+  reveilDemandeLe  DateTime?
+  demandesTravail  TravailDemande[]
 
   artifacts    MissionArtifact[]
   participants MissionParticipant[]
@@ -14604,6 +14609,7 @@ model Mission {
   @@index([parentMissionId])
   @@index([status, replanBloque])
   @@index([principalId, kind, status])
+  @@index([kind, reveilDemandeLe])
 }
 
 /// LE REÇU D'UN GESTE ÉCRIT PAR UN TRAVAIL (J2) — réclamé AVANT d'agir (`cle` unique), clos APRÈS.
@@ -14622,6 +14628,43 @@ model TravailEcriture {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@index([missionId])
+}
+
+/// LA DEMANDE D'UN TRAVAIL À UNE AUTRE PERSONNE (J8, `DEMANDER_A`) — déposée dans SON espace (notification + carte
+/// dans son Assistant IA). Le destinataire ne voit que `question`, `piecesAttendues` et `piecesPartagees`, jamais le
+/// carnet. OUVERTE | REPONDUE | DECLINEE | EXPIREE | ANNULEE. Une par étape : un redémarrage ne la double pas.
+model TravailDemande {
+  id                String    @id @default(cuid())
+  missionId         String
+  mission           Mission   @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  stepKey           String
+  demandeurId       String
+  destinataireId    String
+  question          String    @db.Text
+  /// Les pièces attendues, en mots (« le devis signé », « la facture proforma »).
+  piecesAttendues   Json      @default("[]")
+  /// Les pièces du Drive du demandeur partagées en lecture avec le destinataire : [{ nodeId, nom }].
+  piecesPartagees   Json      @default("[]")
+  echeance          DateTime
+  /// Les jalons, posés à l'approbation : relance (au destinataire), escalade (à son N+1), abandon (issue TIMEOUT).
+  relanceA          DateTime?
+  escaladeA         DateTime?
+  abandonA          DateTime
+  statut            String    @default("OUVERTE")
+  relances          Int       @default(0)
+  derniereRelanceLe DateTime?
+  escaladeLe        DateTime?
+  reponse           String?   @db.Text
+  /// Les pièces jointes à la réponse (Drive du destinataire, partagées en lecture avec le demandeur) : [{ nodeId, nom }].
+  piecesFournies    Json      @default("[]")
+  reponduLe         DateTime?
+  reponduPar        String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @default(now()) @updatedAt
+
+  @@unique([missionId, stepKey])
+  @@index([destinataireId, statut])
+  @@index([statut, echeance])
 }
 
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -18343,5 +18386,80 @@ model AssistantIaTerrainCapture {
   updatedAt     DateTime @default(now()) @updatedAt
 
   @@unique([userId, cle])
+  @@index([userId, createdAt])
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// LES RECETTES — la mémoire procédurale (J10, décision 0028) : « comment on fait chez nous », tiré des circuits réels,
+/// validé par le RESPONSABLE DU PROCESSUS. Rien n'est appris en silence : l'assistant ne lit qu'une version VALIDÉE.
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+
+/// Le responsable d'un processus (AD_PRO, REGLEMENTAIRE, RH, FINANCES…) désigné par la Direction — un rôle, ou une personne.
+model RecetteResponsable {
+  processus        String    @id
+  role             UserRole?
+  userId           String?
+  /// Le nombre minimal de dossiers réels (clos, acceptés) pour proposer une recette ; nul = défaut (5).
+  seuilOccurrences Int?
+  designeParId     String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+/// Une recette : un CIRCUIT (`WF:CONGRESS_NATIONAL`, `VAL:REGULATORY`, `REC`, `TRAVAIL:…`, `FORME:…`), ses versions.
+model Recette {
+  id                 String           @id @default(cuid())
+  circuit            String           @unique
+  processus          String
+  titre              String
+  /// PROPOSEE | VALIDEE | REJETEE | RETIREE
+  statut             String           @default("PROPOSEE")
+  /// La version en usage (VALIDEE) — nulle tant qu'aucune n'est validée.
+  versionValideeId   String?
+  derniereExtraction DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+  versions           RecetteVersion[]
+  usages             RecetteUsage[]
+
+  @@index([processus, statut])
+}
+
+/// Une version d'une recette — jamais réécrite une fois validée : une correction est une version de plus.
+model RecetteVersion {
+  id          String    @id @default(cuid())
+  recetteId   String
+  recette     Recette   @relation(fields: [recetteId], references: [id], onDelete: Cascade)
+  numero      Int
+  /// PROPOSEE | VALIDEE | REJETEE | REMPLACEE | RETIREE
+  statut      String    @default("PROPOSEE")
+  contenu     Json
+  signature   String
+  occurrences Int
+  /// EXTRACTION (tirée des dossiers) | CORRECTION (écrite par le responsable)
+  origine     String    @default("EXTRACTION")
+  auteurId    String?
+  decideParId String?
+  decideLe    DateTime?
+  motif       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([recetteId, numero])
+  @@index([recetteId, statut])
+}
+
+/// Un usage d'une recette VALIDÉE par l'assistant : la demande, le plan proposé (signature) — l'acceptation se lit au travail.
+model RecetteUsage {
+  id            String   @id @default(cuid())
+  recetteId     String
+  recette       Recette  @relation(fields: [recetteId], references: [id], onDelete: Cascade)
+  versionId     String
+  userId        String
+  intention     String
+  planSignature String?
+  createdAt     DateTime @default(now())
+
+  @@index([recetteId, createdAt])
   @@index([userId, createdAt])
 }
