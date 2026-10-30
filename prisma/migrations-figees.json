@@ -1,11 +1,4 @@
-/**
- * LES MIGRATIONS DÉJÀ INTÉGRÉES — figées. Leur ordre d'ajout est de l'histoire : la production les a appliquées, et le
- * relire dans git dépend de la profondeur du clone (CI et sessions en profondeur 50, historique complet en local) — le
- * même dépôt rendait trois verdicts. Une migration NEUVE (absente d'ici) est jugée sans git : son nom doit dépasser la
- * plus grande de cette liste. Ne pas éditer à la main : la liste ne s'allonge que par `npm run migrations:figer`
- * après une intégration verte.
- */
-export const MIGRATIONS_FIGEES: readonly string[] = [
+[
   "20260624172824_init",
   "20260624223203_dynamic_access_activity_sessions",
   "20260624225907_custom_fields",
@@ -505,5 +498,5 @@ export const MIGRATIONS_FIGEES: readonly string[] = [
   "20270210100000_qualite_continue",
   "20270210110000_terrain_voix",
   "20270211090000_recettes",
-  "20270214100000_travaux_delegation",
-];
+  "20270214100000_travaux_delegation"
+]

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { MIGRATIONS_FIGEES } from "./migrations-figees";
+
+const MIGRATIONS_FIGEES: string[] = JSON.parse(readFileSync("prisma/migrations-figees.json", "utf8"));
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -24,7 +25,7 @@ import { MIGRATIONS_FIGEES } from "./migrations-figees";
  *
  * 30/10/2026 — le même dépôt rendait TROIS verdicts selon la profondeur du clone (vert en local, vert en CI, rouge
  * dans chaque session de lot sur des migrations anciennes déjà déployées). Les migrations intégrées sont désormais
- * FIGÉES (`migrations-figees.ts`, `npm run migrations:figer`) : hors jugement. Une migration NEUVE est jugée sans
+ * FIGÉES (`prisma/migrations-figees.json`, `npm run migrations:figer`) : hors jugement. Une migration NEUVE est jugée sans
  * git — son nom dépasse la plus grande figée — puis, entre neuves, par l'historique récent (toujours présent).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
