@@ -9,7 +9,7 @@ import { supprimerReversible, type DeleteResult } from "@/lib/suppression/coeur"
 import { peutSupprimerUnRapportTerrain } from "@/lib/queries/field-reports";
 import { prisma } from "@/lib/prisma";
 import { companyIdForNew } from "@/lib/company";
-import { releaseBlob } from "@/lib/drive-storage";
+import { releaseBlob, retainBlob } from "@/lib/drive-storage";
 import { recordAudit } from "@/lib/audit";
 import { analyzeFieldReport, aiModelCheap } from "@/lib/ai";
 import { aiFeatureEnabled, logAiUsage } from "@/lib/ai-settings";
@@ -339,6 +339,32 @@ export async function deleteFieldReport(formData: FormData): Promise<DeleteResul
   }
   revalidatePath(CHEMIN_RAPPORTS_TERRAIN);
   return r;
+}
+
+/**
+ * RATTACHER UNE PHOTO DE TERRAIN au compte rendu (lot J13, décision 0025) — la carte de l'assistant l'exécute au clic.
+ * La photo est une CAPTATION de la personne (déjà au Drive, analysée) : on n'accepte que la sienne, sur un compte rendu
+ * qu'elle peut écrire et encore en brouillon. La pièce prend SA référence au fichier (`retainBlob`) : la supprimer
+ * libère sa part, pas la photo du Drive.
+ */
+export async function rattacherPhotoTerrain(formData: FormData): Promise<ActionResult> {
+  const user = await requireUser();
+  const id = fdStr(formData, "id");
+  const captationId = fdStr(formData, "captationId");
+  if (!id || !captationId) return { ok: false, error: "Compte rendu ou photo introuvable." };
+  if (!(await porteDuRapport(user, id)).ok) return { ok: false, error: "Non autorisé." };
+  const rapport = await prisma.fieldReport.findUnique({ where: { id }, select: { status: true } });
+  if (rapport?.status !== "DRAFT") return { ok: false, error: "Ce compte rendu est déjà envoyé : rouvrez-le (« Corriger / renvoyer ») pour y ajouter une pièce." };
+  const c = await prisma.assistantIaTerrainCapture.findFirst({
+    where: { id: captationId, userId: user.id, sorte: "PHOTO" },
+    select: { id: true, blobId: true, nom: true, mime: true, taille: true },
+  });
+  if (!c?.blobId) return { ok: false, error: "Photo introuvable." };
+  if (!(await retainBlob(c.blobId))) return { ok: false, error: "Le fichier de la photo n'existe plus." };
+  await prisma.fieldReportAttachment.create({ data: { reportId: id, blobId: c.blobId, name: c.nom, mime: c.mime, size: c.taille } });
+  await prisma.assistantIaTerrainCapture.update({ where: { id: c.id }, data: { fieldReportId: id } });
+  revalidatePath(lienRapportTerrain(id));
+  return { ok: true, id };
 }
 
 export async function deleteFieldReportAttachment(formData: FormData): Promise<ActionResult> {

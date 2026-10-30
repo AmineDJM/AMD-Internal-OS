@@ -53,3 +53,9 @@ export { PERSONA_ASSISTANT_IA } from "./infra/travaux";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";
+
+// ── Le terrain et la voix (J13, décision 0025) : vocaux et photos de délégué → cartes ; voix temps réel
+export {
+  capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
+} from "./infra/terrain/captation";
+export { executerOutilVocal, journaliserVoix, ouvrirVoixAssistant, type ResultatOutilVoix } from "./infra/voix/temps-reel";

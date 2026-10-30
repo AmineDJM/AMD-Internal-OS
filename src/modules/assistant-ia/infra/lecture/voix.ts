@@ -139,15 +139,18 @@ export async function synthetiser(
 
 export const NOM_DOSSIER_VOCAUX = "Assistant IA — vocaux";
 
+/** J13 : les vocaux et photos du terrain (décision 0025) — un dossier à part, pour que le délégué les retrouve. */
+export const NOM_DOSSIER_TERRAIN = "Terrain — vocaux et photos";
+
 /** Le dossier des vocaux de la personne — retrouvé, ou créé à la racine de SON Drive. */
-export async function dossierVocaux(userId: string): Promise<string> {
+export async function dossierVocaux(userId: string, nom: string = NOM_DOSSIER_VOCAUX): Promise<string> {
   const existant = await prisma.driveNode.findFirst({
-    where: { ownerId: userId, type: "FOLDER", name: NOM_DOSSIER_VOCAUX, parentId: null, spaceId: null, isTrashed: false },
+    where: { ownerId: userId, type: "FOLDER", name: nom, parentId: null, spaceId: null, isTrashed: false },
     select: { id: true },
   });
   if (existant) return existant.id;
   const cree = await prisma.driveNode.create({
-    data: { name: NOM_DOSSIER_VOCAUX, type: "FOLDER", ownerId: userId, createdById: userId, category: "Assistant IA" },
+    data: { name: nom, type: "FOLDER", ownerId: userId, createdById: userId, category: "Assistant IA" },
     select: { id: true },
   });
   return cree.id;
@@ -160,8 +163,8 @@ export function nomDeVocal(sorte: "vocal" | "reponse", ext: string, quand = new 
   return `${sorte === "vocal" ? "Vocal" : "Réponse vocale"} ${d}.${ext}`;
 }
 
-/** Dépose un audio dans le dossier des vocaux. Rend l'identifiant du fichier, ou le refus (quota). */
-export async function deposerAudio(user: CurrentUser, octets: Buffer, nom: string, mime: string): Promise<{ id: string } | { erreur: string }> {
+/** Dépose un audio (ou, J13, une photo de terrain) dans un dossier de la personne. Rend le fichier, ou le refus (quota). */
+export async function deposerAudio(user: CurrentUser, octets: Buffer, nom: string, mime: string, dossier: string = NOM_DOSSIER_VOCAUX): Promise<{ id: string; blobId: string } | { erreur: string }> {
   const reglages = await getAppSettings();
   const [mien, physique] = await Promise.all([userUsageBytes(user.id), physicalUsageBytes()]);
   const verdict = quotaVerdict({
@@ -171,7 +174,7 @@ export async function deposerAudio(user: CurrentUser, octets: Buffer, nom: strin
   if (!verdict.ok) return { erreur: verdict.error };
   const ecrit = await putBlob(octets);
   if (!ecrit.deduplicated) addPhysicalUsage(ecrit.storedSize ?? ecrit.size);
-  const parentId = await dossierVocaux(user.id);
+  const parentId = await dossierVocaux(user.id, dossier);
   const r = await enregistrerFichierDrive(user, { parentId }, { blobId: ecrit.blobId, size: ecrit.size, mimeType: mime, name: nom, sha256: ecrit.sha256 });
-  return { id: r.id };
+  return { id: r.id, blobId: ecrit.blobId };
 }

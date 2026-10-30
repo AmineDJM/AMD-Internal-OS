@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Filter, ShieldAlert } from "lucide-react";
+import { BarChart3, Filter, Mic, ShieldAlert } from "lucide-react";
 import { requireModule } from "@/lib/session";
 import { getAppSettings } from "@/lib/settings";
 import { canViewFieldReportsOverview } from "@/lib/queries/field-reports";
@@ -45,6 +45,9 @@ export default async function RapportsPage(
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader title="Rapports">
+        <Link href="/medical/terrain" className="inline-flex min-h-10 items-center gap-1.5 text-sm text-primary hover:underline sm:min-h-8">
+          <Mic className="h-4 w-4" /> Dicter (terrain)
+        </Link>
         {signalements && (
           <Link href={CHEMIN_PV_KAM} className="inline-flex min-h-10 items-center gap-1.5 text-sm text-primary hover:underline sm:min-h-8">
             <ShieldAlert className="h-4 w-4" /> Mes signalements
