@@ -15,7 +15,7 @@ import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/mi
 import type { PersonaTravaux, PieceTravail, PlafondsTravail, PortPiecesTravail } from "@/lib/missions/travaux/persona";
 import { proposerTravail, responsableDe } from "@/lib/missions/travaux/service";
 import { recordAudit } from "@/lib/audit";
-import { executerHorsRequete } from "@/lib/contexte-geste";
+import { executerHorsRequete } from "@/platform/ia/hors-requete";
 import { droitsSurDocument } from "@/platform/ia/artifact/ports";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
 import { deposerLivrableTravail } from "./travaux-livrables";

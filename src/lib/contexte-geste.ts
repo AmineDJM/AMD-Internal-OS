@@ -1,6 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import "@/lib/async-local-storage-global";
 import { workAsyncStorage } from "next/dist/server/app-render/work-async-storage.external";
+import { prisma } from "@/lib/prisma";
+import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
 
 /**
@@ -38,6 +40,17 @@ interface ContexteGeste {
 }
 
 const contexte = new AsyncLocalStorage<ContexteGeste>();
+
+/**
+ * LA PERSONNE, RECONSTRUITE DEPUIS SON COMPTE — sans session (worker, balayage) : compte actif, droits relus en base
+ * (`getAccess`), jamais supposés. C'est elle qu'un travail passe à `executerHorsRequete` (`platform/ia/proprietaire`).
+ */
+export async function personneDuGeste(userId: string): Promise<CurrentUser | null> {
+  const u = await prisma.user.findFirst({ where: { id: userId, isActive: true }, select: { id: true, name: true, email: true, role: true } });
+  if (!u) return null;
+  const access = await getAccess(u.id, u.role);
+  return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false };
+}
 
 /** La personne au nom de qui un geste hors requête s'exécute, ou `null` (le cas ordinaire : une requête). */
 export function utilisateurDuGeste(): CurrentUser | null {
