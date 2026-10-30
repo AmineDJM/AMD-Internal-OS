@@ -49,8 +49,8 @@ const RESIDUS = [
   //     (`executeReadTool`, et `executePowerTool` pour les lectures ouvertes par droit), les cartes d'écriture
   //     (`buildProposal`) et les outils de domaine (`DOMAIN_TOOLS`) ;
   //   • `actions.ts` — l'exécution, à la confirmation, de ces mêmes cartes (`performAction`).
-  // Leur fermeture fait 284 fichiers, 92 % d'Adam : les sortir est une décision d'architecture (rapport de
-  // phase B, décision 0013 §4), pas un déménagement mécanique.
+  // Leur fermeture fait 284 fichiers, 92 % d'Adam. Tranché le 30/10 (décision 0013 §5, voie c) : le couplage reste,
+  // nommé ici, et disparaîtra par J6 (registre des capacités dérivé du contrat des actions), pas par un déménagement.
   "src/modules/assistant-ia/actions.ts → src/lib/assistant",
   "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant",
   "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/ops",

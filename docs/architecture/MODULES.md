@@ -325,7 +325,7 @@ Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (déci
 **Résidus nommés** (après la phase B, 30/10/2026 : Adam n'importe plus rien de l'Assistant IA) : le **catalogue d'outils
 d'Adam** emprunté par l'Assistant IA — `assistant-ia/infra/outils-v1.ts` → `@/lib/assistant`, `power-tools`, `ops`
 (décision 0012), et `assistant-ia/actions.ts` → `performAction` pour exécuter ces mêmes cartes —, plus le test
-`assistant-ia/limites.test.ts`. Leur fermeture fait 92 % d'Adam : les sortir est en arbitrage (décision 0013 §5). ESLint
+`assistant-ia/limites.test.ts`. Leur fermeture fait 92 % d'Adam : le couplage reste nommé et cliqueté, il disparaîtra par J6 (registre des capacités dérivé du contrat des actions — décision 0013 §5). ESLint
 exclut nommément ces trois fichiers ; le test tient la liste exacte.
 
 **Un test qui exerce le socle À TRAVERS Adam** (il importe `POWER_TOOLS`, `composeWorkspace`…) reste côté Adam, à côté de

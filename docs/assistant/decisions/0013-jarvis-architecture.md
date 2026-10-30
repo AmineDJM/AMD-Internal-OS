@@ -117,8 +117,9 @@ dans `frontieres.test.ts`. Une adresse de réexpédition par fichier déplacé (
 le **catalogue d'outils d'Adam** (`infra/outils-v1.ts` → `@/lib/assistant`, `power-tools`, `ops` ; `actions.ts` →
 `performAction`), plus un test (`limites.test.ts`).
 
-**Étape 1 — en arbitrage.** La fermeture de ce catalogue fait 284 fichiers et 76 000 lignes, 92 % d'Adam : le « sortir au
-socle » tel quel déménagerait Adam. Trois voies ont été proposées à la Direction technique : (a) extraction outil par outil
-de ce que l'Assistant IA utilise (5 lectures moteur, 7 lectures par droit, 9 écritures, 5 domaines d'opérations) — la
-recommandation ; (b) un port au socle rempli par Adam au démarrage (découplage de façade, déconseillé) ; (c) accepter ce
-couplage comme durable et nommé.
+**Étape 1 — tranchée (Direction technique, 30/10/2026) : voie (c).** La fermeture du catalogue d'Adam fait 284 fichiers et
+76 000 lignes, 92 % d'Adam : le « sortir au socle » tel quel déménagerait Adam, et un port de façade ne découplerait rien.
+Le couplage « l'Assistant IA emprunte le catalogue d'outils d'Adam » **reste, nommé et cliqueté** (`RESIDUS` de
+`src/platform/ia/frontieres.test.ts`, qui ne peut que rétrécir). Il disparaîtra par **J6** — un registre des capacités
+dérivé de `contrat.genere.json`, un appel générique des actions (`src/lib/actions/executer.ts`) et une sélection dynamique
+des outils —, pas par un déménagement d'Adam.
