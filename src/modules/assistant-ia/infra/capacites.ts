@@ -6,11 +6,13 @@ import { getAppSettings } from "@/lib/settings";
 import { MODULE_LABELS } from "@/lib/labels";
 import { sansBloquer } from "@/lib/journal";
 import { CONTRAT_PAR_ID, CONTRATS_ACTIONS } from "@/lib/actions/contrat.genere";
-import { interdictionGenerique, validerEntree } from "@/lib/actions/generique";
+import { contratVuParLAssistantIa, interdictionDeLAssistantIa, validerEntree } from "@/lib/actions/generique";
+import { prisma } from "@/lib/prisma";
 import { executerAction } from "@/lib/actions/executer";
 import { classerGeste } from "@/lib/annulation/reversibilite";
 import { resoudreEntrees } from "@/lib/cibles/resoudre-entrees";
 import { avecPersonnes, deriverRegistre, libelleChamp, schemaDe, type Registre } from "@/platform/ia/capacites/registre";
+import { CHAMP_SALAIRE } from "@/platform/ia/capacites/classement";
 import type { Capacite, OutilDecrit } from "@/platform/ia/capacites/types";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { familleOuverte, refusFamille, type AccesIa } from "../domaine/acces-regles";
@@ -42,12 +44,19 @@ import { auNomDe } from "./consommation";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
+/**
+ * LE CONTRAT VU PAR L'ASSISTANT IA — celui de l'ERP, moins les champs que l'assistant ne remplit jamais
+ * (`GESTES_DE_FICHE` : le rattachement d'une fiche à un compte reste un geste d'écran).
+ */
+const CONTRATS_IA = CONTRATS_ACTIONS.map(contratVuParLAssistantIa);
+const CONTRAT_IA = new Map(CONTRATS_IA.map((c) => [c.id, c]));
+
 let registre: Registre | null = null;
 
 /** LE REGISTRE DES ACTIONS ET DE L'ATELIER (une fois par processus) ; les outils du module s'y ajoutent à la demande. */
 export function registreDesCapacites(outils: readonly OutilDecrit[] = []): Registre {
   if (!outils.length && registre) return registre;
-  const r = deriverRegistre(CONTRATS_ACTIONS, { interdiction: interdictionGenerique, classerGeste, modules: MODULE_LABELS }, outils);
+  const r = deriverRegistre(CONTRATS_IA, { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS }, outils);
   if (!outils.length) registre = r;
   return r;
 }
@@ -65,20 +74,22 @@ export function capacitesOffertes(user: CurrentUser): Capacite[] {
   return registreDesCapacites().capacites.filter((c) => c.source === "action" && c.appelable && porteOuverte(user, c));
 }
 
-const refusFamilleDe = (cap: Capacite, acces: AccesIa): string | null => {
-  const fermee = cap.familles.find((f) => !familleOuverte(acces, f));
+/** Les familles de la console : celles de la capacité, et « Salaires & paie » dès que l'entrée touche une rémunération. */
+const refusFamilleDe = (cap: Capacite, acces: AccesIa, entree: Readonly<Record<string, unknown>> = {}): string | null => {
+  const salaire = !cap.familles.includes("SALAIRES") && Object.keys(entree).some((k) => CHAMP_SALAIRE.test(k));
+  const fermee = [...cap.familles, ...(salaire ? ["SALAIRES" as const] : [])].find((f) => !familleOuverte(acces, f));
   return fermee ? refusFamille(fermee) : null;
 };
 
 /** L'entrée du modèle, nettoyée : seuls les champs du contrat, sans vide. */
 function entreeNettoyee(cap: Capacite, brute: Record<string, unknown>): Record<string, unknown> {
-  const connus = new Set(CONTRAT_PAR_ID.get(cap.id)?.champs.map((c) => c.nom) ?? []);
+  const connus = new Set(CONTRAT_IA.get(cap.id)?.champs.map((c) => c.nom) ?? []);
   return Object.fromEntries(Object.entries(brute ?? {}).filter(([k, v]) => connus.has(k) && v !== undefined && v !== null && v !== ""));
 }
 
 /** Préparer : résoudre les noms (sous la portée de la personne), valider contre le contrat. */
 async function preparer(user: CurrentUser, cap: Capacite, brute: Record<string, unknown>) {
-  const lu = CONTRAT_PAR_ID.get(cap.id);
+  const lu = CONTRAT_IA.get(cap.id);
   if (!lu) return { refus: `L'action « ${cap.id} » n'existe plus dans l'ERP.` } as const;
   const contrat = avecPersonnes(lu);
   const r = await resoudreEntrees(user, contrat, entreeNettoyee(cap, brute));
@@ -125,14 +136,16 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
         if (!session || session.id !== u.id) {
           return json({ statut: "REFUS", raison: "Cette lecture s'exécute dans votre session ouverte : reposez la question depuis l'écran de l'assistant." });
         }
-        const r = await executerAction(u, cap.id, p.entree);
+        const r = await executerAction(u, cap.id, p.entree, "assistant-ia");
         if (!r.ok) return json({ statut: "REFUS", raison: r.message });
         const sortie = sortieBornee(r.retour);
         return cap.contenuTiers ? encadrerNonFiable(cap.libelle, sortie) : sortie;
       }
 
+      const salaire = refusFamilleDe(cap, acces, p.entree);
+      if (salaire) return json({ statut: "REFUS", raison: salaire });
       if (propositions.length > 0) return REFUS_SECONDE_CARTE;
-      const contrat = CONTRAT_PAR_ID.get(cap.id)!;
+      const contrat = CONTRAT_IA.get(cap.id)!;
       const fields = contrat.champs.filter((c) => p.entree[c.nom] !== undefined)
         .map((c) => ({ label: libelleChamp(c.nom), value: p.affichage.get(c.nom) ?? valeurAffichee(p.entree[c.nom]) }));
       const level = niveauDeCarte(cap.risque);
@@ -170,6 +183,35 @@ export function motsDesCapacites(): ReadonlyMap<string, { mots: string; contexte
 }
 
 /**
+ * LES ACTIONS QUI REMPLACENT LA FICHE ENTIÈRE — `updateEmployee` relit tout le formulaire : un champ absent y devient
+ * vide (salaire à 0, compte délié, fiche inactive). La carte ne porte que ce que la personne change ; à la
+ * confirmation, la fiche est RELUE et rejouée sous ces changements (le département, lui, reste inchangé quand le
+ * formulaire n'en parle pas). Relue au dernier moment : une correction faite entre-temps à l'écran n'est pas écrasée.
+ */
+const FUSIONS: Readonly<Record<string, (id: string) => Promise<Record<string, unknown> | null>>> = {
+  "hr-actions:updateEmployee": (id) => prisma.employee.findUnique({ where: { id } }),
+};
+const NON_REJOUES = new Set(["department", "departmentId"]);
+
+const valeurRejouee = (v: unknown): unknown =>
+  v instanceof Date ? v.toISOString().slice(0, 10)
+    : v && typeof v === "object" && "toNumber" in v ? (v as { toNumber: () => number }).toNumber() : v;
+
+async function fusionnee(id: string, entree: Record<string, unknown>): Promise<Record<string, unknown>> {
+  const lire = FUSIONS[id];
+  const cible = entree.id;
+  if (!lire || typeof cible !== "string") return entree;
+  const fiche = await lire(cible);
+  if (!fiche) return entree;
+  const rejoue: Record<string, unknown> = {};
+  for (const ch of CONTRAT_PAR_ID.get(id)?.champs ?? []) {
+    const v = fiche[ch.nom];
+    if (!NON_REJOUES.has(ch.nom) && v !== null && v !== undefined && v !== false) rejoue[ch.nom] = valeurRejouee(v);
+  }
+  return { ...rejoue, ...entree };
+}
+
+/**
  * EXÉCUTER une capacité confirmée — appelé SEULEMENT par la confirmation de l'Assistant IA, sous la réclamation
  * atomique de l'intention, dans la requête (donc la session) de la personne qui confirme.
  */
@@ -180,9 +222,12 @@ export async function executerCapacite(user: CurrentUser, charge: unknown, acces
   const cap = registreDesCapacites().parId.get(charge.id);
   if (!cap || !cap.appelable || cap.risque === "R0") return { ok: false, error: cap?.refus ?? "Cette action n'est plus appelable par l'assistant." };
   if (!porteOuverte(user, cap)) return { ok: false, error: "Vous n'avez plus accès à l'écran de ce geste." };
-  const famille = refusFamilleDe(cap, acces);
+  const famille = refusFamilleDe(cap, acces, charge.entree);
   if (famille) return { ok: false, error: famille };
-  const r = await auNomDe(user.id, () => executerAction(user, cap.id, charge.entree));
+  // Les champs retenus ne passent jamais, même glissés dans une charge : seuls ceux du contrat de l'assistant.
+  const connus = new Set(CONTRAT_IA.get(cap.id)?.champs.map((c) => c.nom) ?? []);
+  const entree = await fusionnee(cap.id, Object.fromEntries(Object.entries(charge.entree).filter(([k]) => connus.has(k))));
+  const r = await auNomDe(user.id, () => executerAction(user, cap.id, entree, "assistant-ia"));
   return r.ok ? { ok: true, message: `${cap.libelle} : fait.` } : { ok: false, error: r.message };
 }
 

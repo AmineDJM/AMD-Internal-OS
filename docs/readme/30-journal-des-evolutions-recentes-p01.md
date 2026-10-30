@@ -8,8 +8,9 @@ Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur d
 **trouve** les 3 à 8 utiles parmi toutes celles que l'écran ouvre à la personne (96 % de rappel dans les 5 premières sur 300
 demandes, moins de 4 000 jetons d'outils par étape), les **exécute par l'action elle-même** sous la vraie session — une lecture
 directement, une écriture par la carte de confirmation, renforcée (ressaisie) pour l'argent, les décisions, les suppressions
-et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assistant IA → Adam est à zéro. Limite : changer
-l'échéance d'une tâche n'a pas d'action d'écran et n'est pas repris.
+et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assistant IA → Adam est à zéro — **sans rien perdre** :
+les 123 gestes qu'Adam lui prêtait ont chacun leur équivalent (inventaire généré et rejoué par un test) ; changer l'échéance,
+la priorité ou le responsable d'une tâche est désormais une action d'écran (`modifierTache`).
 
 ### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
 

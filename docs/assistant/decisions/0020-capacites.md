@@ -40,16 +40,19 @@ de `ContratAction` — le compilateur vérifie qu'elles se recouvrent.
 | **R1** écriture interne réversible | le reste des écritures — et toute action SANS écriture lue qui ne porte pas un verbe de lecture (prudence : `setMessageRead` change une boîte sans écrire en base) | carte |
 | **R0** lecture | aucune écriture lue ET un verbe de lecture (lire, lister, chercher, aperçu, vérifier…) | exécutée pendant le tour |
 
-Mesure (1 206 actions) : **R0 70 · R1 628 · R2 159 · R3 61 · R4 288** ; simulable **oui 809 · inconnu 247 · non 150** ;
-annulation **retour 641 · compensation 336 · aucune 226 · délégation 3**. 1 042 fiches appelables (avant la porte d'écran).
+Mesure (1 227 actions, après la fusion des lots J9/J12/J14 et le § 8) : **R0 72 · R1 618 · R2 160 · R3 61 · R4 316** ;
+simulable **oui 816 · inconnu 260 · non 151** ; annulation **retour 655 · compensation 337 · aucune 232 · délégation 3**.
+Un geste qui écrit le COMPTE d'une personne (`user`, `userSession` : la fiche employé désactivée ferme le compte) est **R4**.
 
 ### Jamais appelable génériquement
 
 Une action **`illisible`** ; une action refusée au chemin générique (`generique.ts` : droits, réglages, garde-fous,
 attestations — Mission Control, signature des BC, garde-fous d'Adam) ; un **fichier hors de l'assistant**
 (`portes.ts` — `SURFACES_HORS_ASSISTANT` : les actions de l'Assistant IA lui-même — il ne confirme pas ses cartes —, Adam, la
-connexion, la « Vue exacte », le portail fournisseur, la plomberie d'administration, la corbeille du Super Admin, l'intérim
-des droits) ; une action dont l'objet est un **fichier binaire** (`file`, `scan`, `attachment`… : elle se fait à l'écran).
+connexion, la « Vue exacte », le portail fournisseur, la plomberie d'administration, la corbeille du Super Admin — sauf les
+gestes nommés de `PORTES_DU_GESTE`, § 8) ; une action dont l'objet est un **fichier binaire** (déposer, importer, lire un
+`file`, `scan`, `attachment`… : elle se fait à l'écran) — un fichier FACULTATIF (la pièce d'une demande de BV) n'empêche pas
+l'appel, le champ est seulement retiré.
 Elles restent des fiches, avec leur refus.
 
 **Les exclusions écrites d'Adam ne lient pas l'Assistant IA** (565 décisions EXCLUDED de `lib/assistant/action-registry/`,
@@ -146,9 +149,6 @@ Dépense totale de l'essai : **≈ 0,12 $** (plafond 0,50 $). Le banc complet se
 
 ## 6. Limites connues
 
-- **Changer l'échéance ou la priorité d'une tâche** : Adam l'écrivait lui-même en base ; aucune action d'écran ne le fait
-  (seuls `updateTaskStatus` et `reattribuerDemandeTache` existent). Le geste n'est pas repris — il viendra avec l'action de
-  l'écran (J11, formulaires générés). Rien d'autre n'est perdu au banc.
 - Les libellés sont tirés des noms de code : lisibles, pas toujours élégants (« Définir payé facture »). Ils ne servent qu'à
   la recherche et à la carte ; le contrat reste la vérité des champs.
 - La porte d'écran lue sur le PRÉFIXE du fichier est un vocabulaire (`portes.ts`) : une action d'un fichier inconnu reste
@@ -167,3 +167,37 @@ Dépense totale de l'essai : **≈ 0,12 $** (plafond 0,50 $). Le banc complet se
 | `infra/banc-selection.test.ts` | les 26 scénarios du banc Jarvis au faux modèle (sélection) : ≥ 22 / 26 |
 | `infra/selection.test.ts`, `droits-metier.test.ts`, `limites.test.ts`, `outils-v1.test.ts`, `routines.test.ts`, `contenu-non-fiable.test.ts` | le catalogue sans Adam ; les droits, les repères et les familles sur les capacités ; une routine n'a aucune capacité ; une capacité de lecture qui évoque un tiers est encadrée |
 | `platform/ia/frontieres.test.ts` | Assistant IA → Adam = 0 (`RESIDUS` vide) |
+| `modules/assistant-ia/equivalents-avant-j6.test.ts` | § 8 : chaque geste d'avant J6 garde un équivalent appelable, ouvert à chaque rôle que la porte d'Adam laissait passer ; outils propres et lectures d'avant toujours au catalogue |
+| `lib/actions/modifier-tache.test.ts` | § 8 : `modifierTache` — échéance, priorité, responsable ; qui peut quoi ; prévenus ; audit |
+
+## 8. Aucune régression de capacité — l'inventaire « avant J6 → après » (complément du 30/10)
+
+Exigence de la Direction avant intégration : **tout geste que l'Assistant IA offrait avant J6 revient**. L'inventaire est
+GÉNÉRÉ (`npm run capacites:inventaire`, `scripts/capacites-inventaire.ts`) : il lit le catalogue d'Adam emprunté avant J6 —
+les **114 ops** des cinq outils de domaine (`regulatory_/hr_/task_/drive_/request_operation`, `OPS_CATALOG` et leurs `covers`)
+et les **9 écritures** (`create_task`, `update_task`, `send_message`…) —, donne à chacun son équivalent d'APRÈS, vérifie qu'il
+est **appelable** et que sa **porte s'ouvre à chaque rôle** que la porte d'Adam laissait passer (droits par défaut des 18 rôles),
+et sort en échec au premier trou. Il écrit l'instantané `src/modules/assistant-ia/equivalents-avant-j6.json`, que
+`equivalents-avant-j6.test.ts` rejoue à chaque `npm test` sans importer Adam. **Tableau complet : [0020-inventaire.md](0020-inventaire.md)
+(123 gestes, 0 trou).** Les lectures empruntées sont au § 4 ; les outils propres du module (lectures RH, métier, documents,
+formulaires, routines, recherche web, Bibliothèque, Atelier, opérations Ad & Pro, `proposer_memoire`) n'ont pas bougé.
+
+### Les trous trouvés — et comblés dans la branche
+
+| Avant J6 | Trou | Comblé par |
+|---|---|---|
+| `update_task` (échéance, priorité, responsable — écriture directe d'Adam) | aucune action d'écran | **`modifierTache`** (`task-actions.ts`) : responsable, créateur, participant ou vue globale pour l'échéance et la priorité ; responsable, créateur ou vue globale pour confier ; une demande en attente se réattribue par son circuit ; l'ancien et le nouveau responsable prévenus ; audit. Test : `modifier-tache.test.ts` |
+| `task.refuse` | pas de `covers` | `respondTaskRequest` (`accept=0`, motif) — déjà appelable |
+| `regulatory.request_bv` | refusée : « attend un fichier » — la pièce est FACULTATIVE | la règle du fichier binaire ne refuse plus que le fichier obligatoire ou celui qui EST l'objet du geste (`registre.ts`, `GESTE_SUR_FICHIER`) ; 15 actions rouvertes (pièce facultative) |
+| `regulatory.link_/unlink_catalog_product` | « entrée typée » (`CatalogKind`) illisible | la signature écrit l'union de littéraux (`"BD" \| "PROMO"`) : le contrat la lit |
+| `hr.create_/update_employee`, `update_employee_salary`, `set_employee_active` | refusées au générique (le compte suit la fiche : `user`, `userSession`) | **politique de l'Assistant IA** (`generique.ts` — `GESTES_DE_FICHE`, `interdictionDeLAssistantIa` ; `executerAction(…, "assistant-ia")`) : ces trois gestes, JAMAIS avec `userId` (lier un compte reste un geste d'écran) ; **R4** (carte renforcée) ; `updateEmployee` remplace la fiche entière, la confirmation la RELIT et rejoue tout sous le seul champ changé (`FUSIONS`, `infra/capacites.ts`) ; un champ de rémunération exige aussi « Salaires & paie ». Le chemin générique d'Adam les refuse toujours. Test : `capacites.test.ts` |
+| `hr.propose_stand_in`, `decide_stand_in` | surface « intérim » fermée par J6 | surface rouverte (carte ; `decideStandIn` est R4) |
+| `task.delete_own_record` | corbeille d'administration fermée par J6 | `deleteOwnRecord` (et son aperçu) rouverts, nommés (`PORTES_DU_GESTE`) ; le reste de la corbeille reste fermé |
+| `request.edit_own_request` | « champs calculés » (`f_…`) illisible | **`corrigerMaDemande`** (`admin-request-actions.ts`) : titre, description, priorité, échéance — le corps est celui de `editOwnRequest`, les champs propres au type ne passent pas |
+| `task.set_custom_field` | « champs calculés » (`cf_…`) illisible | **`modifierChampPersonnalise`** (`custom-field-actions.ts`) : UN champ, par sa clé ou son libellé ; même droit, même lecture des types, mêmes champs obligatoires que le formulaire (lecture commune `valeurDuChamp`) |
+| `task.upload_document` | fichier binaire | l'opération propre `preparer_depot_piece` accepte toute fiche (`typeFiche`, `idFiche`) au-delà des demandes Ad & Pro ; le dépôt passe par `uploadDocument` |
+| 21 ops « le propriétaire OU le droit du module » (mon congé, mon avance, ma demande RH, mon rappel, mes formations, ma demande d'achat, la mission du chauffeur, le dossier Drive dont on est éditeur) + `create_hr_request` | la porte lue (le `userCan` de l'action) les cachait aux rôles à qui l'action les accorde | **`PORTES_DU_GESTE`** (`portes.ts`) : liste fermée, geste par geste, porte = l'espace où le geste se fait ; l'action rejuge tout |
+
+Reste, nommé : `drive.update_/delete_letterhead` — la porte d'Adam s'ouvrait à tous, mais l'action réserve le papier à
+en-tête à l'assistante de direction et à la direction artistique ; ce n'est pas une capacité perdue.
+

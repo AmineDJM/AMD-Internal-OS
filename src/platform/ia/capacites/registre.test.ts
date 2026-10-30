@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import { describe, expect, it } from "vitest";
 import { CONTRATS_ACTIONS } from "@/lib/actions/contrat.genere";
-import { interdictionGenerique } from "@/lib/actions/generique";
+import { PORTES_DU_GESTE } from "./portes";
+import { contratVuParLAssistantIa, GESTES_DE_FICHE, interdictionDeLAssistantIa, interdictionGenerique } from "@/lib/actions/generique";
 import { classerGeste } from "@/lib/annulation/reversibilite";
 import { MODULE_LABELS } from "@/lib/labels";
 import { ACTIONS_GESTE } from "@/platform/ia/artifact/atelier/gestes";
@@ -16,7 +17,7 @@ import { libelleDeFonction } from "./lexique";
  * ne doive pas l'être. Le cliché (`classement.genere.json`) est la revue : une action nouvelle du contrat qui n'y est
  * pas fait échouer ce test (`npm run capacites:classement`, puis relire le diff).
  */
-const registre = deriverRegistre(CONTRATS_ACTIONS, { interdiction: interdictionGenerique, classerGeste, modules: MODULE_LABELS });
+const registre = deriverRegistre(CONTRATS_ACTIONS.map(contratVuParLAssistantIa), { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS });
 const actions = registre.capacites.filter((c) => c.source === "action");
 const de = (id: string) => registre.parId.get(id)!;
 
@@ -57,8 +58,13 @@ describe("jamais appelable génériquement", () => {
     for (const c of illisibles) expect(de(c.id).appelable, c.id).toBe(false);
   });
 
-  it("le refus d'auto-escalade et des attestations (generique.ts) est repris tel quel", () => {
-    for (const c of CONTRATS_ACTIONS) if (interdictionGenerique(c)) expect(de(c.id).appelable, c.id).toBe(false);
+  it("le refus d'auto-escalade et des attestations (generique.ts) est repris tel quel — sauf les gestes de fiche, sans leur champ de compte", () => {
+    for (const c of CONTRATS_ACTIONS) if (interdictionGenerique(c) && !Object.hasOwn(GESTES_DE_FICHE, c.id)) expect(de(c.id).appelable, c.id).toBe(false);
+    expect(Object.keys(GESTES_DE_FICHE).sort()).toEqual(["hr-actions:createEmployee", "hr-actions:setEmployeeActive", "hr-actions:updateEmployee"]);
+    for (const id of Object.keys(GESTES_DE_FICHE)) {
+      expect(de(id).appelable, id).toBe(true);
+      expect(de(id).champs.map((ch) => ch.nom), id).not.toContain("userId");
+    }
     expect(de("bc-signature-actions:signerBonDeCommande").appelable).toBe(false);
     expect(de("access-actions:adminResetPassword").appelable).toBe(false);
   });
@@ -70,10 +76,31 @@ describe("jamais appelable génériquement", () => {
     for (const c of actions.filter((x) => /^(assistant-|adam-|auth-|impersonation-)/.test(x.id))) expect(c.appelable, c.id).toBe(false);
   });
 
-  it("une action qui exige un FICHIER binaire se fait à l'écran", () => {
-    const fichier = actions.filter((c) => CONTRATS_ACTIONS.find((x) => x.id === c.id)!.champs.some((ch) => /^(file|fichier|scan|attachment)$/.test(ch.nom)));
-    expect(fichier.length).toBeGreaterThan(0);
+  it("une action qui exige un FICHIER binaire se fait à l'écran ; un fichier facultatif n'empêche pas l'appel", () => {
+    // Le fichier qui EST l'objet du geste (déposer, importer, lire…) : sans octets, l'action n'a rien à faire.
+    const fichier = actions.filter((c) => /^(upload|import|scan|parse|extract|analy)/.test(c.id.split(":")[1]!)
+      && CONTRATS_ACTIONS.find((x) => x.id === c.id)!.champs.some((ch) => /^(file|fichier|scan|attachment)$/.test(ch.nom)));
+    expect(fichier.length).toBeGreaterThan(5);
     for (const c of fichier) expect(c.appelable, c.id).toBe(false);
+    expect(de("document-actions:uploadDocument").appelable).toBe(false);
+    // La demande de BV : la pièce est facultative — Adam l'appelait sans elle, l'Assistant IA aussi.
+    expect(de("regulatory-actions:requestBV").appelable).toBe(true);
+    expect(de("regulatory-actions:requestBV").champs.map((ch) => ch.nom)).not.toContain("file");
+  });
+});
+
+describe("les portes nommées geste par geste (`PORTES_DU_GESTE`, décision 0020 § 8)", () => {
+  it("chaque geste nommé existe au contrat, reste appelable et prend la porte de l'espace où il se fait", () => {
+    for (const [id, porte] of Object.entries(PORTES_DU_GESTE)) {
+      const c = de(id);
+      expect(c, id).toBeTruthy();
+      expect(c.appelable, `${id} : ${c.refus}`).toBe(true);
+      expect(c.modules, id).toEqual(porte.modules);
+      expect(c.superAdminSeul, id).toBe(false);
+    }
+    // Le reste de la corbeille d'administration reste fermé.
+    expect(de("admin-delete-actions:superAdminDelete").appelable).toBe(false);
+    expect(de("admin-delete-actions:destroyDeletedRecord").appelable).toBe(false);
   });
 });
 

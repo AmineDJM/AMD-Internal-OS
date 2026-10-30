@@ -54,6 +54,10 @@ capacités ; 0022 : la qualité continue ; 0024 : la proactivité).
   recherche fédérée, agenda, file des décisions), `operations/budget.ts` (`read_budget`), `lectures.ts` (`read_hr_overview`,
   `finance_totals`), `outils-v1.ts` (`read_workflow`) ; `operations/quotidien.ts` : `send_message` (opération propre).
 - **Preuves** : `capacites.test.ts`, `infra/selection-capacites.test.ts` (300 demandes), `infra/banc-selection.test.ts` (banc 26).
+- **Aucune régression** (0020 § 8) : `equivalents-avant-j6.json` (écrit par `npm run capacites:inventaire`) — chaque geste
+  qu'Adam prêtait avant J6 et son équivalent ; `equivalents-avant-j6.test.ts` le rejoue (appelable, porte ouverte par rôle).
+  La fiche employé passe par `executerAction(…, "assistant-ia")` (`GESTES_DE_FICHE`, sans `userId`) ; `updateEmployee` est
+  relue et rejouée à la confirmation (`FUSIONS`).
 
 
 ## Graphe de l'entreprise (lot J9, décision 0021)

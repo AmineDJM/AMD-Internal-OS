@@ -265,6 +265,30 @@ export function interdictionGenerique(c: ContratAction): string | null {
   return null;
 }
 
+/**
+ * LE COMPTE SUIT LA FICHE (§118.184 — décision 0020) — trois gestes de la fiche employé écrivent le compte PAR
+ * CONSÉQUENCE : une fiche désactivée ferme le compte qui lui est lié, une fiche rattachée aligne son département.
+ * Le chemin générique d'Adam les refuse (`user` est un modèle interdit) ; l'ASSISTANT IA les appelle, parce qu'il
+ * les offrait avant J6 — derrière une carte renforcée, et JAMAIS avec les champs listés ici (`userId` : lier une
+ * fiche à un compte reste un geste d'écran). Liste FERMÉE : une action neuve qui écrit `user` reste refusée.
+ */
+export const GESTES_DE_FICHE: Readonly<Record<string, readonly string[]>> = {
+  "hr-actions:createEmployee": ["userId"],
+  "hr-actions:updateEmployee": ["userId"],
+  "hr-actions:setEmployeeActive": [],
+};
+
+/** Le refus générique, vu par l'Assistant IA : le même, sauf les gestes de fiche (sans leurs champs retenus). */
+export function interdictionDeLAssistantIa(c: ContratAction): string | null {
+  return Object.hasOwn(GESTES_DE_FICHE, c.id) ? null : interdictionGenerique(c);
+}
+
+/** Le contrat tel que l'Assistant IA le voit : sans les champs retenus d'un geste de fiche. */
+export function contratVuParLAssistantIa<C extends ContratAction>(c: C): C {
+  const retenus = GESTES_DE_FICHE[c.id];
+  return retenus?.length ? { ...c, champs: c.champs.filter((ch) => !retenus.includes(ch.nom)) } : c;
+}
+
 // ───────────────────────────────────────────────────────────────────────────────────────────
 // LA VALIDATION D'UNE ENTRÉE CONTRE SON CONTRAT
 // ───────────────────────────────────────────────────────────────────────────────────────────

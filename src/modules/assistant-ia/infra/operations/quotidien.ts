@@ -5,7 +5,7 @@ import { uploadDocument } from "@/lib/actions/document-actions";
 import { createCalendarEvent } from "@/lib/actions/calendar-actions";
 import { createDirect, sendMessage } from "@/lib/actions/messaging-actions";
 import { findPeople } from "@/platform/ia/outils/arguments";
-import { DOCUMENT_CATEGORY } from "@/lib/labels";
+import { DOCUMENT_CATEGORY, ENTITY_TYPE_LABELS } from "@/lib/labels";
 import type { CurrentUser } from "@/lib/session";
 import { champs, liste, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import { fichiersDepuisDrive, idsDe, resoudrePieces } from "./pieces";
@@ -95,13 +95,24 @@ export const RELANCE: OperationIA = {
 
 const CATEGORIES = Object.entries(DOCUMENT_CATEGORY) as [string, string][];
 
+/** La fiche nommée par son type et son identifiant (toute l'ERP), sinon une demande Ad & Pro. Le droit, l'action le juge. */
+async function ficheOuDemande(user: CurrentUser, type: string, id: string, demande: string, nature: string) {
+  if (!type && !id) return trouverDemande(user, demande, nature);
+  const t = type.trim().toUpperCase();
+  const libelle = ENTITY_TYPE_LABELS[t as keyof typeof ENTITY_TYPE_LABELS];
+  if (!libelle) return { manque: `le type de la fiche (« ${type || "?"} » inconnu)` };
+  if (!id.trim()) return { manque: "l'identifiant de la fiche" };
+  return { nature: t, id: id.trim(), libelle: `${libelle} ${id.trim()}`, lien: "" };
+}
+
 export const DEPOT_PIECE: OperationIA = {
   nom: "preparer_depot_piece",
   module: "DOCUMENTS",
   libelle: "Dépôt de pièce préparé",
   description:
     "PRÉPARE le DÉPÔT d'une ou plusieurs pièces (fichiers du Drive ou glissés dans la conversation) sur une demande Ad & Pro que tu vois "
-    + "(sponsoring, prise en charge, événement, matériel promotionnel, demande « autre »). Le droit de téléverser est revérifié par l'action de l'écran.",
+    + "(sponsoring, prise en charge, événement, matériel promotionnel, demande « autre ») — ou sur TOUTE AUTRE FICHE de l'ERP (tâche, dossier, "
+    + "courrier, employé…) dont tu as le type et l'identifiant (`typeFiche`, `idFiche`). Le droit de téléverser est revérifié par l'action de l'écran.",
   schema: {
     type: "object",
     properties: {
@@ -109,12 +120,14 @@ export const DEPOT_PIECE: OperationIA = {
       natureDemande: { type: "string" },
       pieces: { type: "string", description: "Noms ou identifiants des fichiers." },
       categorie: { type: "string", description: "Catégorie (ex. Lettre de demande, Facture, Devis, Autre)." },
+      typeFiche: { type: "string", description: "Hors Ad & Pro : le type de la fiche (TASK, DOSSIER, MAIL_ENTRY, EMPLOYEE…)." },
+      idFiche: { type: "string", description: "Hors Ad & Pro : l'identifiant de la fiche (lu par une recherche)." },
     },
   },
   ouverte: (u) => Boolean(u.id),
 
   async proposer(e, user): Promise<PropositionOperation> {
-    const demande = await trouverDemande(user, texte(e, "demande"), texte(e, "natureDemande"));
+    const demande = await ficheOuDemande(user, texte(e, "typeFiche"), texte(e, "idFiche"), texte(e, "demande"), texte(e, "natureDemande"));
     const refs = liste(e, "pieces");
     const manque = ["manque" in demande ? demande.manque : null, !refs.length ? "la ou les pièces à déposer (glissez-les dans la conversation ou nommez-les)" : null]
       .filter((x): x is string => x !== null);

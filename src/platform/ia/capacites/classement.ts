@@ -60,6 +60,9 @@ export function risqueDe(c: ContratLu): RisqueLu {
   if (aMot(c, VERBES_SUPPRESSION) || ecrits.includes("deletedRecord")) {
     return { risque: "R4", raison: "suppression : une fiche ou un fichier disparaît" };
   }
+  if (ecrits.some((m) => /^(user|userSession)$/.test(m))) {
+    return { risque: "R4", raison: "le compte d'une personne suit le geste (fermé avec sa fiche, rattaché à son département)" };
+  }
   if (aMot(c, VERBES_DECISION) || ecrits.some((m) => /(Visa|Approval|Decision|Signature|Grant)$/i.test(m))) {
     return { risque: "R4", raison: "décision ou signature : l'audit portera le nom de la personne" };
   }
@@ -96,6 +99,9 @@ export function famillesDeLAction(c: ContratLu, ecriture: boolean): FamilleIa[] 
   if (ecriture) out.push("ECRITURES");
   return out;
 }
+
+/** Un champ de RÉMUNÉRATION : la carte qui le porte exige aussi « Salaires & paie » (jugé sur l'entrée, pas sur l'action). */
+export const CHAMP_SALAIRE = /^(baseSalary|grossSalary|netToPay|employerCost|retSS9|retSS35|retIrg|tfp|expenseRefund)$/;
 
 /** Les champs que le modèle ne peut pas remplir : un FICHIER (des octets), pas une valeur. */
 export const CHAMP_BINAIRE = /^(file|files|fichier|fichiers|attachment|attachments|scan|bcFile|bcFiles|ctdFichiers|logo|image|photo|pieceIdentite|cv)$/;

@@ -43,11 +43,50 @@ export const SURFACES_HORS_ASSISTANT: Readonly<Record<string, string>> = {
   "access-actions": "les comptes et les droits",
   "company-access-actions": "le rattachement des personnes aux sociétés",
   "admin-delete-actions": "la suppression d'administration (corbeille du Super Admin)",
-  "stand-in-actions": "l'intérim des droits d'un absent",
+};
+
+/**
+ * LES GESTES QUE L'ACTION JUGE SUR LA PERSONNE — « le propriétaire, OU le droit du module » : mon congé, mon avance,
+ * ma demande RH, mon rappel, mon invitation à une formation, ma demande d'achat, la mission de son chauffeur, le
+ * dossier du Drive dont on est éditeur. Le contrat ne lit que le `userCan` (la moitié « droit du module ») ; la
+ * comparaison de propriété, elle, ne se voit pas. Lue seule, la porte cachait le geste à qui l'action l'accorde
+ * (inventaire de la décision 0020 : 21 ops qu'Adam offrait, rôle par rôle, et la demande de document RH). Ici la porte est celle de l'ESPACE où
+ * le geste se fait ; l'action rejuge tout. Les gestes d'une surface fermée qui restent à la personne y figurent aussi.
+ * Liste FERMÉE, nommée geste par geste : `registre.test.ts` la tient.
+ */
+const ESPACE = { modules: ["WORKSPACE"], verbe: "VIEW" } as const;
+export const PORTES_DU_GESTE: Readonly<Record<string, { readonly modules: readonly string[]; readonly verbe: string }>> = {
+  // le créateur d'un courrier ou d'un document légal ; l'aperçu de ce qui part avec
+  "admin-delete-actions:deleteOwnRecord": ESPACE, "admin-delete-actions:apercuDeSuppression": ESPACE,
+  // l'absent désigne son intérimaire ; l'accès à l'objet (`canAccessEntity`) juge un champ personnalisé
+  "stand-in-actions:proposeStandIn": ESPACE, "custom-field-actions:modifierChampPersonnalise": ESPACE,
+  // mes rappels
+  "reminder-actions:completeReminder": ESPACE, "reminder-actions:cancelReminder": ESPACE, "reminder-actions:snoozeReminder": ESPACE,
+  // mon congé, mon avance, ma demande RH (la déposer : le dossier RH lié au compte) ; le N+1 qui décide un congé (`canDecideLeave`)
+  "hr-document-actions:requestHrDocument": ESPACE,
+  "hr-actions:cancelLeave": ESPACE, "hr-actions:cancelAdvance": ESPACE, "hr-actions:decideLeave": ESPACE,
+  "hr-document-actions:addHrRequestComment": ESPACE, "hr-document-actions:proposeHrMeeting": ESPACE,
+  "hr-document-actions:confirmHrMeeting": ESPACE, "hr-document-actions:deleteHrRequest": ESPACE,
+  // la chaîne de validation d'une formation, ses invités
+  "training-actions:decideTraining": ESPACE, "training-actions:updateTraining": ESPACE, "training-actions:respondToTrainingInvitation": ESPACE,
+  // ma demande d'achat (moyens généraux)
+  "purchase-request-actions:createPurchaseRequest": ESPACE, "purchase-request-actions:withdrawPurchaseRequest": ESPACE,
+  // le chauffeur assigné, le demandeur d'une validation de pièce
+  "admin-request-actions:toggleMissionStop": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
+  "admin-request-actions:updateMission": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
+  "admin-request-actions:submitAttachmentValidation": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
+  "admin-request-actions:cancelAttachmentValidation": { modules: ["ADMIN_REQUESTS"], verbe: "VIEW" },
+  // l'éditeur du dossier parent (`canCreateInSpace`), sans le droit « Créer » à la racine
+  "drive-actions:createFolder": { modules: ["DRIVE"], verbe: "VIEW" },
+  "drive-actions:createOfficeNode": { modules: ["DRIVE"], verbe: "VIEW" },
 };
 
 export function refusSurface(c: ContratLu): string | null {
-  const s = SURFACES_HORS_ASSISTANT[c.fichier];
+  if (Object.hasOwn(PORTES_DU_GESTE, c.id)) return null;
+  // Tout fichier de l'Assistant IA lui-même (mandats de proactivité, qualité continue… et ceux à venir) : il ne se
+  // règle ni ne se confirme lui-même — la règle tient sans attendre qu'un nouveau fichier soit rangé dans la table.
+  const s = SURFACES_HORS_ASSISTANT[c.fichier]
+    ?? (c.fichier.startsWith("assistant-ia-") ? "les réglages et les gestes de l'Assistant IA lui-même (mandats, qualité, plafonds)" : undefined);
   return s ? `Cette action appartient à ${s}. L'Assistant IA ne l'appelle jamais : ce geste se fait à l'écran.` : null;
 }
 
@@ -95,12 +134,14 @@ export interface PorteLueEcran {
   verbe: string | null;
   superAdminSeul: boolean;
   /** D'où vient la porte — `contrat` (un `userCan`), `audit` (son module), `fichier`, ou `aucune`. */
-  origine: "contrat" | "audit" | "fichier" | "aucune";
+  origine: "contrat" | "audit" | "fichier" | "personne" | "aucune";
 }
 
 export function porteDeLAction(c: ContratLu, modules: Readonly<Record<string, string>>): PorteLueEcran {
   const verbe = c.porte.verbe;
   const superAdmin = c.porte.gardes.some((g) => GARDES_SUPER_ADMIN.has(g));
+  const duGeste = PORTES_DU_GESTE[c.id];
+  if (duGeste) return { modules: duGeste.modules.filter((m) => modules[m]), verbe: duGeste.verbe, superAdminSeul: false, origine: "personne" };
   if (c.porte.module && modules[c.porte.module]) return { modules: [c.porte.module], verbe, superAdminSeul: superAdmin, origine: "contrat" };
   if (c.porte.moduleFr) {
     const fr = plierMot(c.porte.moduleFr).trim();

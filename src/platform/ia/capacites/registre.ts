@@ -102,12 +102,18 @@ export function avecPersonnes<C extends ContratLu>(c: C): C {
   };
 }
 
+/** Les verbes dont le fichier est l'objet même : sans octets, l'action n'a rien à faire. */
+const GESTE_SUR_FICHIER = /^(upload|import|replace|attach|scan|parse|extract|read|analy|ocr|deposer|joindre|televerser|lire|remplacer|importer|analyser|extraire|verifier|check|preview|apercu)|(Upload|Import|File|Fichier|Scan|Document|Logo|Photo|Image|Attachment|Piece|Cv)$/;
+
 /** LA FICHE D'UNE ACTION DU CONTRAT. */
 export function ficheDeLAction<C extends ContratLu>(c: C, ports: PortsRegistre<C>): Capacite {
   const { risque, raison } = risqueDe(c);
   const ecriture = risque !== "R0";
   const porte = porteDeLAction(c, ports.modules);
-  const binaires = c.champs.filter((ch) => CHAMP_BINAIRE_PRINCIPAL.test(ch.nom) || (ch.obligatoire && CHAMP_BINAIRE.test(ch.nom)));
+  // Un fichier FACULTATIF (la pièce jointe d'une demande de BV) n'empêche pas l'appel : le geste a son sens sans lui.
+  // Seul compte le fichier obligatoire, ou celui qui EST l'objet du geste (déposer, importer, lire).
+  const binaires = c.champs.filter((ch) => CHAMP_BINAIRE.test(ch.nom)
+    && (ch.obligatoire || (CHAMP_BINAIRE_PRINCIPAL.test(ch.nom) && GESTE_SUR_FICHIER.test(c.fonction))));
   const refus = c.illisible ? `Cette action ne s'appelle pas génériquement : ${c.illisible}.`
     : refusSurface(c) ?? ports.interdiction(c)
       ?? (binaires.length ? `Cette action attend un FICHIER (${binaires.map((b) => b.nom).join(", ")}) : elle se fait à l'écran, où l'on choisit le fichier.` : null);

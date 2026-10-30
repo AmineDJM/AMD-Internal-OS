@@ -673,6 +673,12 @@ portes, lexique, cliché `classement.genere.json`) ; module `src/modules/assista
   demandes, 3 837 jetons fixes au pire, jamais hors droits.
 - **Adam n'est plus emprunté** (`RESIDUS` vide) : écritures → capacités ; `send_message` → opération propre ; lectures
   transverses → outils propres (`lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`).
+- **Aucune régression de capacité** (0020 § 8, [inventaire](../assistant/decisions/0020-inventaire.md)) : les 123 gestes
+  qu'Adam prêtait avant J6 ont chacun leur équivalent appelable, ouvert à chaque rôle d'avant (`npm run capacites:inventaire`,
+  test `equivalents-avant-j6.test.ts`). Actions d'écran ajoutées : `modifierTache` (échéance, priorité, responsable),
+  `corrigerMaDemande`, `modifierChampPersonnalise` ; fiche employé par la politique `interdictionDeLAssistantIa`
+  (`GESTES_DE_FICHE` : jamais `userId`, R4, fiche relue et rejouée à la confirmation) ; portes nommées geste par geste
+  (`PORTES_DU_GESTE` : « le propriétaire OU le droit du module ») ; un fichier facultatif n'empêche plus l'appel.
 
 
 ### Graphe de l'entreprise et faits datés (lot J9, 30/10/2026)

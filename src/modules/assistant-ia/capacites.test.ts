@@ -59,6 +59,7 @@ suite("l'appel générique d'une capacité (J6)", () => {
   afterAll(async () => {
     const ids = [sa?.id, karim?.id, lecteur?.id].filter(Boolean) as string[];
     await prisma.task.deleteMany({ where: { title: { contains: TAG } } }).catch(() => {});
+    await prisma.employee.deleteMany({ where: { fullName: { contains: TAG } } }).catch(() => {});
     await prisma.assistantActionIntent.deleteMany({ where: { userId: { in: ids } } }).catch(() => {});
     await prisma.user.deleteMany({ where: { email: { startsWith: TAG } } }).catch(() => {});
   });
@@ -160,6 +161,35 @@ suite("l'appel générique d'une capacité (J6)", () => {
     expect(duLecteur.length).toBeLessThan(offertes.size);
     expect(duLecteur).not.toContain("regulatory-actions:createRegulatoryProduct");
     expect(duLecteur).not.toContain("finance-actions:createTransaction");
+  });
+
+  it("FICHE EMPLOYÉ : jamais le champ du compte ; la carte est renforcée ; confirmée, la fiche est RELUE et seul le champ demandé change", async () => {
+    ACTEUR = sa;
+    const fiche = await prisma.employee.create({ data: { fullName: `Fiche ${TAG}`, userId: karim.id, isActive: true, baseSalary: 185000, phone: "0550000000", hireDate: new Date("2024-03-01T00:00:00.000Z") } });
+    const o = outil(sa, "hr__updateEmployee", []);
+    expect(Object.keys((o.def.input_schema as { properties: Record<string, unknown> }).properties)).not.toContain("userId");
+    const props: PropositionPreparee[] = [];
+    const sortie = JSON.parse(await outil(sa, "hr__updateEmployee", props).run({ id: fiche.id, phone: "0661234567", userId: sa.id }, sa));
+    expect(sortie.statut).toBe("EN_ATTENTE_DE_CONFIRMATION");
+    expect(props[0]!.proposition).toMatchObject({ level: "CRITICAL" });
+    const charge = props[0]!.proposition.payload as { entree: Record<string, unknown> };
+    expect(charge.entree).toEqual({ id: fiche.id, phone: "0661234567" });
+    // Une charge où l'on aurait glissé le compte : le champ retenu ne passe pas.
+    const r = await executerCapacite(sa, { ...charge, entree: { ...charge.entree, userId: sa.id } }, await accesAssistantIa(sa));
+    expect(r.ok, r.ok ? "" : r.error).toBe(true);
+    const apres = await prisma.employee.findUniqueOrThrow({ where: { id: fiche.id } });
+    expect(apres).toMatchObject({ phone: "0661234567", userId: karim.id, isActive: true, fullName: `Fiche ${TAG}` });
+    expect(Number(apres.baseSalary)).toBe(185000);
+    expect(apres.hireDate?.toISOString().slice(0, 10)).toBe("2024-03-01");
+  });
+
+  it("FICHE EMPLOYÉ : toucher la rémunération exige aussi la famille « Salaires & paie »", async () => {
+    ACTEUR = sa;
+    const fiche = await prisma.employee.create({ data: { fullName: `Paie ${TAG}`, isActive: true, baseSalary: 100000 } });
+    const sansSalaires = { superAdmin: false, ouvertes: FAMILLES_IA.filter((f) => f !== "SALAIRES"), explicites: [] };
+    const o = outilsV1(sa, [], [], [], null, sansSalaires, { capacites: true }).find((t) => t.def.name === "hr__updateEmployee")!;
+    expect(JSON.parse(await o.run({ id: fiche.id, baseSalary: 120000 }, sa)).statut).toBe("REFUS");
+    expect(JSON.parse(await o.run({ id: fiche.id, phone: "0770000000" }, sa)).statut).toBe("EN_ATTENTE_DE_CONFIRMATION");
   });
 
   it("une carte d'avant J6 (charge d'Adam) ne s'exécute plus : elle se redemande", async () => {

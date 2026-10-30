@@ -1,6 +1,6 @@
 {
  "access-actions:adminResetPassword": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -9,7 +9,7 @@
   "appelable": false
  },
  "access-actions:requestOnboarding": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -18,7 +18,7 @@
   "appelable": false
  },
  "access-actions:revokeAllSessions": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -27,7 +27,7 @@
   "appelable": false
  },
  "access-actions:revokeSession": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -63,7 +63,7 @@
   "appelable": false
  },
  "access-actions:setUserActive": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -72,7 +72,7 @@
   "appelable": false
  },
  "access-actions:updateUserProfile": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -177,7 +177,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "ad-pro-item-actions:ajouterDevisVoyageur": {
   "risque": "R1",
@@ -187,7 +187,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "ad-pro-item-actions:ajouterHebergement": {
   "risque": "R1",
@@ -197,7 +197,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "ad-pro-item-actions:ajouterVoyageur": {
   "risque": "R1",
@@ -296,7 +296,7 @@
   ],
   "simulable": "non",
   "annulation": "aucune",
-  "appelable": false
+  "appelable": true
  },
  "ad-pro-item-actions:demanderPieceSecretariat": {
   "risque": "R2",
@@ -814,7 +814,7 @@
   "appelable": false
  },
  "admin-actions:createUser": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -823,7 +823,7 @@
   "appelable": false
  },
  "admin-actions:setSecondaryRole": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -832,7 +832,7 @@
   "appelable": false
  },
  "admin-actions:toggleUserActive": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -841,7 +841,7 @@
   "appelable": false
  },
  "admin-actions:updateUserRole": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -854,7 +854,7 @@
   "familles": [],
   "simulable": "oui",
   "annulation": "aucune",
-  "appelable": false
+  "appelable": true
  },
  "admin-delete-actions:apercuSuppressionGroupee": {
   "risque": "R0",
@@ -870,7 +870,7 @@
   ],
   "simulable": "oui",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "admin-delete-actions:destroyDeletedRecord": {
   "risque": "R4",
@@ -953,6 +953,15 @@
   "annulation": "retour",
   "appelable": true
  },
+ "admin-request-actions:corrigerMaDemande": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": true
+ },
  "admin-request-actions:createRequest": {
   "risque": "R2",
   "familles": [
@@ -994,7 +1003,7 @@
   "familles": [
    "ECRITURES"
   ],
-  "simulable": "oui",
+  "simulable": "inconnu",
   "annulation": "retour",
   "appelable": false
  },
@@ -1098,7 +1107,7 @@
   "appelable": true
  },
  "adoption-actions:resetActivityTime": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -1107,7 +1116,7 @@
   "appelable": false
  },
  "adoption-actions:saveAdoptionSettings": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -1559,6 +1568,164 @@
   "annulation": "compensation",
   "appelable": false
  },
+ "assistant-ia-proactivite-actions:accorderMonMandat": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:approuverMandatConsole": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:ecarterConstat": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:executerMesGestesSousMandat": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:jugerConstat": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:lireConsoleProactivite": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:lireMaVeille": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:reglerConsoleProactivite": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:reglerMaVeille": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:reglerMonVeilleur": {
+  "risque": "R4",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "aucune",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:revoquerMandatConsole": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:revoquerMonMandat": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-proactivite-actions:suggestionsPourDossier": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-qualite-actions:appliquerModeleRole": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-qualite-actions:enregistrerCalendrierBanc": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "compensation",
+  "appelable": false
+ },
+ "assistant-ia-qualite-actions:lancerBancAB": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-qualite-actions:lancerBancMaintenant": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
+ "assistant-ia-qualite-actions:revenirModeleRole": {
+  "risque": "R1",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "oui",
+  "annulation": "retour",
+  "appelable": false
+ },
  "auth-actions:authenticate": {
   "risque": "R1",
   "familles": [
@@ -1569,7 +1736,7 @@
   "appelable": false
  },
  "auth-actions:changePassword": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -2350,7 +2517,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "care-actions:creerProfilProfessionnel": {
   "risque": "R1",
@@ -2430,7 +2597,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "care-actions:linkCareCellPromoMaterial": {
   "risque": "R1",
@@ -2989,6 +3156,16 @@
   "annulation": "compensation",
   "appelable": true
  },
+ "custom-field-actions:modifierChampPersonnalise": {
+  "risque": "R4",
+  "familles": [
+   "SALAIRES",
+   "ECRITURES"
+  ],
+  "simulable": "non",
+  "annulation": "aucune",
+  "appelable": true
+ },
  "custom-field-actions:saveCustomValues": {
   "risque": "R4",
   "familles": [
@@ -3117,7 +3294,7 @@
   "appelable": true
  },
  "department-actions:assignEmployeeDepartment": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "FICHES",
    "ECRITURES"
@@ -4161,7 +4338,7 @@
   "appelable": false
  },
  "feature-actions:toggleMyTestMode": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -4474,14 +4651,14 @@
   "appelable": true
  },
  "hr-actions:createEmployee": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "FICHES",
    "ECRITURES"
   ],
   "simulable": "oui",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "hr-actions:decideAdvance": {
   "risque": "R4",
@@ -4534,24 +4711,24 @@
   "appelable": true
  },
  "hr-actions:setEmployeeActive": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "FICHES",
    "ECRITURES"
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "hr-actions:updateEmployee": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "FICHES",
    "ECRITURES"
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "hr-actions:updateLeaveRequest": {
   "risque": "R1",
@@ -4855,7 +5032,7 @@
   ],
   "simulable": "non",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "intelligence-terrain-actions:deciderLienInfluence": {
   "risque": "R4",
@@ -4883,7 +5060,7 @@
   ],
   "simulable": "non",
   "annulation": "aucune",
-  "appelable": false
+  "appelable": true
  },
  "invoice-actions:deleteInvoice": {
   "risque": "R4",
@@ -5996,7 +6173,7 @@
   ],
   "simulable": "non",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "medical-info-actions:recordAuthorityDeclaration": {
   "risque": "R1",
@@ -6377,7 +6554,7 @@
   "appelable": false
  },
  "messaging-actions:setMessagingStatus": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -6548,7 +6725,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "mission-actions:assignMission": {
   "risque": "R1",
@@ -6638,7 +6815,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "mission-actions:enregistrerHotelMission": {
   "risque": "R2",
@@ -6648,7 +6825,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "mission-actions:enregistrerRapportMission": {
   "risque": "R1",
@@ -7041,7 +7218,7 @@
   "appelable": true
  },
  "onboarding-actions:completeOnboarding": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "FICHES",
    "ECRITURES"
@@ -7051,7 +7228,7 @@
   "appelable": false
  },
  "onboarding-actions:saveOnboardingProfile": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "FICHES",
    "ECRITURES"
@@ -7090,7 +7267,7 @@
   "appelable": true
  },
  "org-coherence-actions:alignerCompteSurFiche": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -7099,7 +7276,7 @@
   "appelable": false
  },
  "org-coherence-actions:alignerToutSurOrganigramme": {
-  "risque": "R1",
+  "risque": "R4",
   "familles": [
    "ECRITURES"
   ],
@@ -7936,7 +8113,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "product-catalog-actions:unlinkProductFromDossier": {
   "risque": "R1",
@@ -7945,7 +8122,7 @@
   ],
   "simulable": "oui",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "product-range-actions:createProductRange": {
   "risque": "R1",
@@ -8338,7 +8515,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "promo-devis-actions:lireScanDevisPromo": {
   "risque": "R0",
@@ -9335,7 +9512,7 @@
   ],
   "simulable": "non",
   "annulation": "aucune",
-  "appelable": false
+  "appelable": true
  },
  "regulatory-actions:requestRegulatoryDossierAccess": {
   "risque": "R2",
@@ -10562,7 +10739,7 @@
   ],
   "simulable": "inconnu",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "stand-in-actions:proposeStandIn": {
   "risque": "R2",
@@ -10571,7 +10748,7 @@
   ],
   "simulable": "inconnu",
   "annulation": "retour",
-  "appelable": false
+  "appelable": true
  },
  "stock-pch-actions:enregistrerStockPch": {
   "risque": "R1",
@@ -10821,6 +10998,15 @@
   ],
   "simulable": "oui",
   "annulation": "compensation",
+  "appelable": true
+ },
+ "task-actions:modifierTache": {
+  "risque": "R2",
+  "familles": [
+   "ECRITURES"
+  ],
+  "simulable": "inconnu",
+  "annulation": "retour",
   "appelable": true
  },
  "task-actions:reattribuerDemandeTache": {
@@ -11120,7 +11306,7 @@
   ],
   "simulable": "non",
   "annulation": "compensation",
-  "appelable": false
+  "appelable": true
  },
  "validation-actions:createValidationRule": {
   "risque": "R1",

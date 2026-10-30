@@ -9,13 +9,13 @@
  */
 import fs from "node:fs";
 import { CONTRATS_ACTIONS } from "@/lib/actions/contrat.genere";
-import { interdictionGenerique } from "@/lib/actions/generique";
+import { contratVuParLAssistantIa, interdictionDeLAssistantIa } from "@/lib/actions/generique";
 import { classerGeste } from "@/lib/annulation/reversibilite";
 import { MODULE_LABELS } from "@/lib/labels";
 import { deriverRegistre } from "@/platform/ia/capacites/registre";
 import { CHEMIN_CLICHE, clicheDuRegistre } from "@/platform/ia/capacites/cliche";
 
-const cliche = clicheDuRegistre(deriverRegistre(CONTRATS_ACTIONS, { interdiction: interdictionGenerique, classerGeste, modules: MODULE_LABELS }));
+const cliche = clicheDuRegistre(deriverRegistre(CONTRATS_ACTIONS.map(contratVuParLAssistantIa), { interdiction: interdictionDeLAssistantIa, classerGeste, modules: MODULE_LABELS }));
 fs.writeFileSync(CHEMIN_CLICHE, `${JSON.stringify(cliche, null, 1)}\n`);
 const compte = (k: "risque" | "simulable" | "annulation") =>
   Object.values(cliche).reduce<Record<string, number>>((m, c) => ({ ...m, [c[k]]: (m[c[k]] ?? 0) + 1 }), {});
