@@ -167,6 +167,10 @@ const DEBT_CEILING = 393;
  * hors un seul (`lib/office/conversions-atelier`, les moteurs de conversion) — ses accès au Drive et à la base passent par
  * le port, le magasin et `office.ts`, qui les avaient déjà ; trois imports en double (`office.ts` → `nl` et `engine`,
  * `teach/store.ts` → `model`) ont été fusionnés au passage. On baisse.
+ *
+ * 177 → 177 (2026-10-30, lot J9 « graphe de l'entreprise », décision 0021) : les outils du graphe (`lectures/graphe.ts`)
+ * importent la porte du module `graphe-entreprise` (+1) ; `lectures/directory-tools.ts` n'importe plus l'énumération
+ * `DirectoryChannel` de `@prisma/client` pour comparer deux libellés (−1 : la valeur littérale est typée par Prisma).
  */
 const SOCLE_IA_CEILING = 177;
 

@@ -9173,6 +9173,8 @@ model Event {
   @@index([startDate])
   @@index([type])
   @@index([companyId])
+  @@index([requesterId])
+  @@index([responsibleId])
 }
 
 model EventRegistration {
@@ -17768,9 +17770,15 @@ model FaitConfirme {
   valideDu         DateTime?
   valideAu         DateTime?
   actif            Boolean            @default(true)
+  /// J9 (décision 0021) — le temps de CONSTAT de la fermeture (≠ `valideAu`, fin de validité), qui l'a fermé, et
+  /// le fait confirmé qui le remplace. Un fait périmé se ferme, il n'est jamais écrasé.
+  fermeLe          DateTime?
+  fermeParId       String?
+  remplaceParId    String?
   conflits         ConflitDeFait[]
 
   @@index([sujetType, sujetId, attribut, actif])
+  @@index([sujetType, sujetId, valideDu])
   @@index([attribut, valeurNormalisee])
   @@index([pieceId])
 }

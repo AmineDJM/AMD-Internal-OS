@@ -36,3 +36,10 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   `platform/ia/lectures/connaissance.ts`). **Assembleur** : `domaine/assembleur.ts` (enveloppes fixes).
 - **Le bon modèle** — `platform/ia/modeles-roles.ts` (rapide / standard / raisonnement, effort adaptatif) ;
   `infra/modele.ts` (`optionsFournisseur` : effort, clé de cache).
+
+## Graphe de l'entreprise (lot J9, décision 0021)
+
+- `explorer_relations`, `etat_a_une_date`, `d_ou_vient` — au socle (`platform/ia/lectures/graphe.ts`, module `graphe-entreprise`),
+  branchés dans `infra/outils-v1.ts` : les familles FERMÉES de la console retirent leurs types du graphe (pas de refus de
+  l'outil). Fiches de la sélection (`MOTS_CLES`), règle 12 de la consigne (`contexte.ts`) : chaque chiffre cité avec sa source.
+
