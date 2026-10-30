@@ -1,159 +1,147 @@
+import { prisma } from "@/lib/prisma";
 import type { CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
-import type { PowerTool } from "@/platform/ia/outil";
-import { modeleSttTerrain, modeleTempsReel } from "@/platform/ia/modeles-roles";
-import { ouvrirSessionTempsReel, type OutilTempsReel, type SessionAccordee } from "@/platform/ia/voix/session-temps-reel";
-import { compileContext } from "../contexte";
-import { accesAssistantIa, getRoleConfig, resoudreConsignesRole, Revelateur } from "../role-config";
-import { consigneFamilles, type AccesIa } from "../../domaine/acces-regles";
-import { consigneGestesFermes, outilsV1, type PropositionPreparee } from "../outils-v1";
-import { fichesOffertes, selectionDuTour } from "../selection";
-import { CONSIGNE_SELECTION, OUTIL_TROUVER, SOCLE_OUTILS } from "../../domaine/selection-outils";
-import { CoffretDuTour, reperesDe } from "../../domaine/filtre-confidentialite";
-import { CONSIGNES_VOIX, outilInterditALaVoix, pourLaVoix } from "../../domaine/terrain/voix";
-import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget } from "../consommation";
+import { modeleVoix } from "@/platform/ia/modeles-roles";
+import { ouvrirSessionLive, type SessionLiveOuverte } from "@/platform/ia/voix/session-temps-reel";
+import { accesAssistantIa } from "../role-config";
+import { consigneFamilles } from "../../domaine/acces-regles";
+import { consigneGestesFermes } from "../outils-v1";
+import { MASQUE_CONFIDENTIEL, sansValeursRevelees } from "../../domaine/filtre-confidentialite";
+import { CONSIGNES_VOIX, DIT_A_L_ECRAN, pourLaVoix } from "../../domaine/terrain/voix";
+import { appelVoix, auNomDe, budgetDeLAppel, fermerBudget, jetonsAudio, lireReglagesAssistantIa } from "../consommation";
 import { cleFournisseurVoix } from "../modele";
+import { deposerMessage, ETAT, filDe, traiterFil } from "../fil/service";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA VOIX TEMPS RÉEL DE L'ASSISTANT IA (lot J13, décision 0025) — les MÊMES outils, droits et repères que le texte.
+ * LA VOIX TEMPS RÉEL DE L'ASSISTANT IA — GPT-Live, délégation « client » (lot J13, décision 0025 ; Direction 30/10 :
+ * `gpt-live-1` seul, sans modèle de secours).
  *
- *   • OUVRIR : la porte de l'Assistant IA (`peutUtiliserAssistantIA`), la console d'accès relue, le plafond du jour,
- *     puis un secret éphémère (socle `platform/ia/voix/`). La session reçoit le SOCLE des outils de la personne
- *     (filtré par ses droits et la configuration de son rôle), `trouver_outil` et `utiliser_outil` — le même choix à la
- *     demande que le texte (J4), parce que le contexte vocal se paie en latence.
- *   • EXÉCUTER : chaque appel d'outil revient ICI. Les outils sont reconstruits sous les droits RELUS (console comprise) ;
- *     les valeurs sensibles restent des repères dans ce que la voix reçoit (`pourLaVoix` : « affichée à l'écran ») et ne
- *     sont révélées qu'à l'écran, à qui a le droit. Une écriture ne rend qu'une CARTE, affichée ; aucun outil de
- *     confirmation n'existe pour la voix (R3/R4 : la ressaisie de la carte vaut aussi).
+ *   • OUVRIR : la porte de l'Assistant IA, la console d'accès relue, le plafond du jour ; puis l'offre WebRTC du
+ *     navigateur est échangée ICI contre la réponse (`/v1/live/sessions`) — aucun secret ne sort du serveur.
+ *   • DÉLÉGUER : GPT-Live tient la conversation ; dès qu'il faut l'ERP, il délègue. La demande dite part dans LE MÊME
+ *     FIL que le texte (`deposerMessage` → `traiterFil`) : c'est le MÊME assistant — mêmes outils, mêmes droits, mêmes
+ *     familles, mêmes repères, mêmes cartes. Sa réponse revient à la voix SANS valeur sensible (« affichée à l'écran »),
+ *     l'écran la reçoit révélée à qui a le droit ; une écriture reste une CARTE, confirmée à l'écran seulement.
+ *   • JOURNALISER : la durée vocale facturée au nom de la personne, les latences, et la transcription de la conversation
+ *     dans le fil.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export const OUTIL_UTILISER = "utiliser_outil";
-export const VOIX_ASSISTANT = (process.env.ASSISTANT_IA_REALTIME_VOICE || "marin").trim();
+export const VOIX_ASSISTANT = (process.env.ASSISTANT_IA_VOICE || "marin").trim();
+/** Le temps qu'on attend la réponse de l'assistant délégué (un tour d'outils peut prendre 20 à 40 s). */
+export const DELAI_DELEGATION_MS = 45_000;
 
-interface Contexte { acces: AccesIa; config: Awaited<ReturnType<typeof getRoleConfig>> }
+export type OuvertureVoix = SessionLiveOuverte | { ok: false; erreur: string; statut: number };
 
-async function contexte(user: CurrentUser): Promise<Contexte> {
-  return { acces: await accesAssistantIa(user), config: await getRoleConfig(user.role) };
-}
-
-/** Les outils de la personne, MAINTENANT — la même fabrique que le tour écrit. */
-function outilsDe(user: CurrentUser, c: Contexte, propositions: PropositionPreparee[], coffret: CoffretDuTour): PowerTool[] {
-  return outilsV1(user, propositions, [], [], coffret, c.acces);
-}
-
-const enTempsReel = (o: PowerTool): OutilTempsReel => ({
-  type: "function", name: o.def.name, description: o.def.description.slice(0, 1_000), parameters: o.def.input_schema as Record<string, unknown>,
-});
-
-const OUTIL_UTILISER_DEF: OutilTempsReel = {
-  type: "function",
-  name: OUTIL_UTILISER,
-  description: "UTILISE un outil rendu par `trouver_outil` : son nom et ses arguments (selon le schéma rendu). Les droits de la personne sont revérifiés.",
-  parameters: {
-    type: "object",
-    properties: { outil: { type: "string" }, arguments: { type: "object", additionalProperties: true } },
-    required: ["outil"],
-  },
-};
-
-export type OuvertureVoix = (SessionAccordee & { outils: string[] }) | { ok: false; erreur: string; statut: number };
-
-export async function ouvrirVoixAssistant(user: CurrentUser, opts: { fetchImpl?: typeof fetch } = {}): Promise<OuvertureVoix> {
+async function porte(user: CurrentUser): Promise<{ ok: false; erreur: string; statut: number } | null> {
   if (!peutUtiliserAssistantIA(user)) return { ok: false, erreur: REFUS_ASSISTANT_IA, statut: 403 };
   if (user.impersonatedBy || user.visualise) return { ok: false, erreur: "Indisponible en « Vue exacte ».", statut: 403 };
+  return null;
+}
+
+export async function ouvrirVoixAssistant(user: CurrentUser, sdp: string, opts: { fetchImpl?: typeof fetch } = {}): Promise<OuvertureVoix> {
+  const refus = await porte(user);
+  if (refus) return refus;
   // Le plafond du jour : une session vocale qui ne pourrait rien dépenser ne s'ouvre pas.
   const budget = await auNomDe(user.id, () => budgetDeLAppel("synthese"));
   if (!budget.ok) return { ok: false, erreur: budget.raison, statut: 429 };
   if (budget.proprietaire) await fermerBudget(budget.budget, { ok: true, ms: 0 });
 
-  const c = await contexte(user);
-  const outils = outilsDe(user, c, [], new CoffretDuTour());
-  const offertes = new Set(fichesOffertes(outils, user, c.config).map((f) => f.nom));
-  const socle = SOCLE_OUTILS.filter((n) => n !== OUTIL_TROUVER && offertes.has(n));
-  const selection = selectionDuTour(outils, user, "", c.config);
-  const defs = [enTempsReel(selection.outil), ...outils.filter((o) => socle.includes(o.def.name)).map(enTempsReel), OUTIL_UTILISER_DEF];
-  const sauf = (xs: (string | null | undefined)[]) => xs.filter((x): x is string => !!x);
-  const instructions = (await compileContext({
-    user, consignesRole: resoudreConsignesRole(c.config),
-    consignesGenerales: [CONSIGNES_VOIX, CONSIGNE_SELECTION, `En voix, un outil trouvé s'appelle par « ${OUTIL_UTILISER} » (nom + arguments selon le schéma rendu).`],
-    consignesPersonne: sauf([consigneFamilles(c.acces), consigneGestesFermes(user)]),
-    outilsActifs: socle,
-  })).systemPrompt;
-  const s = await ouvrirSessionTempsReel({
-    cle: cleFournisseurVoix(), modele: modeleTempsReel(), instructions, outils: defs, voix: VOIX_ASSISTANT,
-    transcription: modeleSttTerrain(), langue: null, fetchImpl: opts.fetchImpl,
-  });
-  return s.ok ? { ...s, outils: defs.map((d) => d.name) } : s;
+  const [acces, reglages] = await Promise.all([accesAssistantIa(user), lireReglagesAssistantIa()]);
+  const instructions = [
+    `Tu es la voix de l'Assistant IA d'Adventum Pharma (laboratoire pharmaceutique algérien). Tu parles avec ${user.name}.`,
+    CONSIGNES_VOIX,
+    "Pour TOUT ce qui touche l'entreprise (personnes, dossiers, demandes, chiffres, documents, comptes rendus, agenda), DÉLÈGUE :",
+    "l'assistant de l'entreprise répond avec les droits de la personne. N'invente jamais une donnée de l'entreprise.",
+    consigneFamilles(acces), consigneGestesFermes(user),
+  ].filter(Boolean).join("\n");
+  const modele = modeleVoix(reglages.modeleVoix);
+  const s = await ouvrirSessionLive({ cle: cleFournisseurVoix(), modele, instructions, voix: VOIX_ASSISTANT, sdp, fetchImpl: opts.fetchImpl });
+  if (s.ok) console.info("[assistant-ia] voix ouverte", { userId: user.id, modele, session: s.id });
+  return s;
 }
 
-export interface ResultatOutilVoix {
-  pourModele: string;
-  carte?: PropositionPreparee["proposition"] & { intentId: string; status: "PROPOSED" };
+export interface ResultatDelegationVoix {
+  pourVoix: string;
+  carte?: Record<string, unknown> & { intentId: string };
   ecran?: string | null;
 }
 
-const refus = (raison: string): ResultatOutilVoix => ({ pourModele: JSON.stringify({ statut: "REFUS", raison }) });
+const NETTOYER_MD = (t: string) => t.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1").replace(/[*_`#>|]+/g, " ").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
 
-/**
- * EXÉCUTER UN APPEL D'OUTIL DE LA VOIX — droits relus, repères gardés, carte à l'écran. `utiliser_outil` désigne
- * n'importe quel outil OFFERT à la personne (les mêmes fiches que `trouver_outil` cherche) ; rien d'autre.
- */
-export async function executerOutilVocal(user: CurrentUser, nom: string, args: Record<string, unknown>): Promise<ResultatOutilVoix> {
-  if (!peutUtiliserAssistantIA(user)) return refus(REFUS_ASSISTANT_IA);
-  let cible = nom;
-  let entree = args ?? {};
-  if (nom === OUTIL_UTILISER) {
-    cible = typeof args.outil === "string" ? args.outil : "";
-    entree = args.arguments && typeof args.arguments === "object" ? (args.arguments as Record<string, unknown>) : {};
-  }
-  if (!cible || cible === OUTIL_UTILISER || outilInterditALaVoix(cible)) {
-    return refus("Cet outil ne s'appelle pas à la voix : une écriture se confirme à l'écran, sur sa carte.");
-  }
-  const c = await contexte(user);
-  const coffret = new CoffretDuTour();
-  const propositions: PropositionPreparee[] = [];
-  const outils = outilsDe(user, c, propositions, coffret);
-  const selection = selectionDuTour(outils, user, "", c.config);
-  const offertes = new Set(fichesOffertes(outils, user, c.config).map((f) => f.nom));
-  const outil = cible === OUTIL_TROUVER ? selection.outil : outils.find((o) => o.def.name === cible && offertes.has(cible));
-  if (!outil || !outil.allowed(user)) return refus("Cet outil n'est pas ouvert à cette personne (ses droits, ou une famille fermée par la Direction). Dis-le.");
-
-  const sortie = await auNomDe(user.id, () => outil.run(entree, user));
-  let pourModele = sortie;
-  if (cible === OUTIL_TROUVER) {
-    // En voix, l'outil trouvé s'appelle par `utiliser_outil` : il lui faut son schéma.
-    try {
-      const r = JSON.parse(sortie) as { trouves?: { outil: string; quoi: string }[] };
-      const schemas = Object.fromEntries((r.trouves ?? []).map((t) => [t.outil, outils.find((o) => o.def.name === t.outil)?.def.input_schema ?? {}]));
-      pourModele = JSON.stringify({ ...r, schemas, consigne: `Appelle « ${OUTIL_UTILISER} » avec l'outil choisi et ses arguments.` });
-    } catch { /* sortie libre : rendue telle quelle */ }
-  }
-  const p = propositions[0];
-  // L'ÉCRAN, ET LUI SEUL, voit la valeur — si la personne y a droit (politique du coffre, journal).
-  const ecran = reperesDe(sortie).length ? await new Revelateur(coffret, user, c.acces).texte(sortie) : null;
-  return {
-    // Les schémas de `trouver_outil` ne se coupent pas (un JSON coupé est illisible) : la borne est plus large.
-    pourModele: pourLaVoix(p ? JSON.stringify({ statut: "CARTE_A_L_ECRAN", titre: p.proposition.title, consigne: "La carte est affichée : dis-le, et que seule la personne la confirme à l'écran. Ne dis jamais que c'est fait." }) : pourModele, cible === OUTIL_TROUVER ? 24_000 : undefined),
-    ...(p ? { carte: { ...p.proposition, intentId: p.intentId, status: "PROPOSED" as const } } : {}),
-    ecran,
-  };
+/** Ce que la voix peut dire d'une réponse écrite : sans valeur sensible, sans Markdown, borné (500 jetons). */
+export function reponsePourVoix(contenu: string): string {
+  return pourLaVoix(NETTOYER_MD(sansValeursRevelees(contenu)).split(MASQUE_CONFIDENTIEL).join(DIT_A_L_ECRAN), 1_600);
 }
 
 /**
- * LE JOURNAL D'UNE SESSION VOCALE : sa consommation (les jetons que le fournisseur a rendus) au compte de la personne, et
- * ses latences (de la fin de la parole au premier son) dans les journaux d'exploitation.
+ * DÉLÉGUER UNE DEMANDE DITE à l'assistant — par le FIL (le même que le texte) : la demande y est déposée, le fil la
+ * joue, on attend sa réponse (45 s au plus ; au-delà, la voix dit que la réponse arrivera à l'écran).
  */
-export async function journaliserVoix(user: CurrentUser, d: { entree: number; sortie: number; latences: number[]; dureeMs: number }): Promise<void> {
+export async function deleguerALaVoix(user: CurrentUser, demande: string): Promise<ResultatDelegationVoix> {
+  const refus = await porte(user);
+  if (refus) return { pourVoix: `Refus : ${refus.erreur}` };
+  const texte = demande.trim();
+  if (!texte) return { pourVoix: "Je n'ai pas compris la demande : demande à la personne de la répéter." };
+  const d = await deposerMessage(user.id, `[Conversation vocale] ${texte}`.slice(0, 8_000), []);
+  if (!d.ok) return { pourVoix: d.erreur };
+  void traiterFil(user.id);
+  const fin = Date.now() + DELAI_DELEGATION_MS;
+  for (;;) {
+    const [rep, q] = await Promise.all([
+      prisma.assistantIaTour.findFirst({ where: { repondA: d.tour.id, role: "assistant" }, orderBy: { createdAt: "desc" }, select: { contenu: true, intent: true, etat: true } }),
+      prisma.assistantIaTour.findUnique({ where: { id: d.tour.id }, select: { etat: true, erreur: true } }),
+    ]);
+    if (rep && rep.etat === ETAT.TERMINE) {
+      const intent = rep.intent as (Record<string, unknown> & { id?: string }) | null;
+      return {
+        pourVoix: intent?.id
+          ? `${reponsePourVoix(rep.contenu)} — Une carte est affichée à l'écran : seule la personne la confirme, sur l'écran. Ne dis pas que c'est fait.`.slice(0, 1_800)
+          : reponsePourVoix(rep.contenu),
+        ...(intent?.id ? { carte: { ...intent, intentId: intent.id } } : {}),
+        ecran: rep.contenu,
+      };
+    }
+    if (q?.etat === ETAT.ECHEC) return { pourVoix: `L'assistant n'a pas pu répondre : ${(q.erreur ?? "erreur").slice(0, 200)}` };
+    if (Date.now() > fin) return { pourVoix: "La recherche prend plus de temps : dis que la réponse s'affichera dans la conversation écrite." };
+    await new Promise((r) => setTimeout(r, 350));
+  }
+}
+
+/**
+ * LE JOURNAL D'UNE CONVERSATION VOCALE : la durée facturée (secondes GPT-Live, en équivalents jetons) au compte de la
+ * personne ; les latences au journal d'exploitation ; la TRANSCRIPTION dans le fil, à côté du texte (une question
+ * « traitée » et sa réponse, pour que l'historique et le résumé roulant la voient).
+ */
+export async function journaliserVoix(user: CurrentUser, d: {
+  secondes: number; latences: number[]; confirme: boolean; lignes: { qui: "personne" | "assistant"; texte: string }[];
+}): Promise<void> {
   const borne = (n: unknown, max: number) => (typeof n === "number" && Number.isFinite(n) && n >= 0 ? Math.min(Math.round(n), max) : 0);
-  const entree = borne(d.entree, 5_000_000);
-  const sortie = borne(d.sortie, 5_000_000);
+  const secondes = borne(d.secondes, 7_200);
   const latences = (Array.isArray(d.latences) ? d.latences : []).map((x) => borne(x, 120_000)).slice(0, 500);
-  await auNomDe(user.id, () => appelVoix("synthese", async (inscrire) => {
-    inscrire({ provider: "openai-realtime", model: modeleTempsReel(), entree, sortie, ms: borne(d.dureeMs, 7_200_000) });
-    return { ok: true, valeur: null };
-  }));
+  const reglages = await lireReglagesAssistantIa();
+  if (secondes > 0) {
+    await auNomDe(user.id, () => appelVoix("synthese", async (inscrire) => {
+      inscrire({ provider: "openai-live", model: modeleVoix(reglages.modeleVoix), entree: jetonsAudio(secondes), sortie: 0, ms: secondes * 1000 });
+      return { ok: true, valeur: null };
+    }));
+  }
+  const lignes = (Array.isArray(d.lignes) ? d.lignes : [])
+    .filter((l) => l && (l.qui === "personne" || l.qui === "assistant") && typeof l.texte === "string" && l.texte.trim())
+    .slice(0, 400);
+  if (lignes.length) {
+    const dit = (q: string) => lignes.filter((l) => l.qui === q).map((l) => l.texte.trim()).join("\n").slice(0, 7_900);
+    const fil = await filDe(user.id);
+    const question = await prisma.assistantIaTour.create({
+      data: { filId: fil.id, userId: user.id, role: "user", contenu: `[Conversation vocale — transcription]\n${dit("personne")}`, etat: ETAT.TRAITE },
+    });
+    await prisma.assistantIaTour.create({
+      data: { filId: fil.id, userId: user.id, role: "assistant", contenu: dit("assistant") || "(réponses vocales)", etat: ETAT.TERMINE, repondA: question.id },
+    });
+  }
   const tri = [...latences].sort((a, b) => a - b);
-  console.info("[assistant-ia] voix temps réel", { userId: user.id, entree, sortie, reponses: latences.length, p50: tri.length ? tri[Math.floor(tri.length / 2)] : null });
+  console.info("[assistant-ia] voix temps réel", {
+    userId: user.id, secondes, usageConfirme: d.confirme, reponses: latences.length, p50: tri.length ? tri[Math.floor(tri.length / 2)] : null,
+  });
 }

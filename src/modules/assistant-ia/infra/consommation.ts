@@ -88,6 +88,8 @@ export async function lireReglagesAssistantIa(): Promise<ReglagesAssistantIa> {
 export const VARIABLES_TARIF: Record<string, readonly [string, string, string?]> = {
   openai: ["ASSISTANT_IA_PRICE_IN", "ASSISTANT_IA_PRICE_OUT", "ASSISTANT_IA_PRICE_CACHED"],
   "openai-audio": ["ASSISTANT_IA_AUDIO_PRICE_IN", "ASSISTANT_IA_AUDIO_PRICE_OUT"],
+  // J13 : la voix GPT-Live se paie à la DURÉE ; elle est inscrite en équivalents (10 par seconde).
+  "openai-live": ["ASSISTANT_IA_LIVE_PRICE_IN", "ASSISTANT_IA_LIVE_PRICE_OUT"],
   mimo: ["MIMO_PRICE_IN", "MIMO_PRICE_OUT"],
 };
 
@@ -101,6 +103,8 @@ export const VARIABLES_TARIF: Record<string, readonly [string, string, string?]>
 export const TARIFS_PAR_DEFAUT: Record<string, Tarif> = {
   openai: { entreeParM: 2, sortieParM: 12, cacheParM: 0.2 },
   "openai-audio": { entreeParM: 2.5, sortieParM: 10 },
+  // `gpt-live-1` : 0,05 $ la minute (grille publique, 30/10/2026) = 600 équivalents → 83,33 $ le million.
+  "openai-live": { entreeParM: 83.33, sortieParM: 0 },
 };
 
 export function tarifDe(provider: string, env: NodeJS.ProcessEnv = process.env): Tarif | null {

@@ -1,16 +1,17 @@
-import { NextResponse } from "next/server";
 import { getCurrentUserPourEcrire } from "@/lib/session";
 import { journaliserVoix } from "@/modules/assistant-ia/api";
 
-export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-/** La fin d'une session vocale : sa consommation au compte de la personne, ses latences au journal (lot J13). */
+type Fin = { secondes?: number; latences?: number[]; confirme?: boolean; lignes?: { qui: "personne" | "assistant"; texte: string }[] };
+
+/** La fin d'une conversation vocale : durée au compte de la personne, latences au journal, transcription au fil (lot J13). */
 export async function POST(req: Request) {
-  const user = await getCurrentUserPourEcrire();
-  if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  let d: { entree?: number; sortie?: number; latences?: number[]; dureeMs?: number } = {};
-  try { d = (await req.json()) as typeof d; } catch { return NextResponse.json({ error: "Requête invalide." }, { status: 400 }); }
-  await journaliserVoix(user, { entree: d.entree ?? 0, sortie: d.sortie ?? 0, latences: d.latences ?? [], dureeMs: d.dureeMs ?? 0 });
-  return NextResponse.json({ ok: true });
+  const personne = await getCurrentUserPourEcrire();
+  if (!personne) return Response.json({ error: "Non authentifié." }, { status: 401 });
+  let fin: Fin;
+  try { fin = (await req.json()) as Fin; } catch { return Response.json({ error: "Requête invalide." }, { status: 400 }); }
+  await journaliserVoix(personne, { secondes: fin.secondes ?? 0, latences: fin.latences ?? [], confirme: fin.confirme === true, lignes: fin.lignes ?? [] });
+  return Response.json({ ok: true });
 }

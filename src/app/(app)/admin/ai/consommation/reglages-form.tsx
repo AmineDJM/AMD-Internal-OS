@@ -32,6 +32,7 @@ export function ReglagesAssistantIaForm({ initial }: { initial: ReglagesAssistan
     const fd = new FormData();
     for (const { cle } of NOMBRES) fd.set(cle, String(r[cle]));
     for (const { cle } of DECISIONS) fd.set(cle, r[cle] ? "true" : "false");
+    fd.set("modeleVoix", r.modeleVoix);
     setOk(false);
     void run(() => enregistrerReglagesAssistantIa(fd), () => setOk(true));
   };
@@ -51,6 +52,11 @@ export function ReglagesAssistantIaForm({ initial }: { initial: ReglagesAssistan
           </label>
         ))}
       </div>
+      <label className="block space-y-1">
+        <span className="text-sm font-medium">Modèle de la voix temps réel</span>
+        <Input value={r.modeleVoix} placeholder="gpt-live-1" onChange={(e) => setR({ ...r, modeleVoix: e.target.value })} />
+        <span className="block text-xs text-muted-foreground">La conversation vocale de l&apos;Assistant IA. Vide : la variable ASSISTANT_IA_VOICE_MODEL, sinon gpt-live-1. Pas de modèle de secours : s&apos;il ne répond pas, l&apos;écran le dit.</span>
+      </label>
       <div className="space-y-3">
         {DECISIONS.map(({ cle, label, aide }) => (
           <label key={cle} className="flex items-start gap-3">

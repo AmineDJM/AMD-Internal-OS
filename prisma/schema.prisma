@@ -9451,6 +9451,9 @@ model AssistantIaReglage {
   retirerCartesCaduques  Boolean  @default(true)
   /// IA-ASSISTANT-07 : une carte non confirmée expire après ce délai (heures).
   expirationCartesHeures Int      @default(24)
+  /// J13 (décision 0025) : le modèle de la voix temps réel, réglé par le Super Admin sans redéploiement. Nul = la variable
+  /// `ASSISTANT_IA_VOICE_MODEL`, sinon `gpt-live-1` (décision de Direction du 30/10 : pas de modèle de secours).
+  modeleVoix             String?
   /// J2 (décision 0016) : plafond de dépense d'UN travail, en dollars. Atteint : le travail dort (BUDGET_HOLD).
   plafondTravailUsd      Float    @default(20)
   /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.

@@ -5,7 +5,7 @@ import {
   aEnvoyer, apresEnvoi, delaiApresEchec, nouvelElement, phraseFile, reprendreApresRedemarrage, viderFile,
   type ElementFile, type IssueEnvoi, type StockageFile,
 } from "./file-hors-ligne";
-import { DIT_A_L_ECRAN, mediane, outilInterditALaVoix, pourLaVoix } from "./voix";
+import { DIT_A_L_ECRAN, mediane, pourLaVoix } from "./voix";
 import { lireLecturePhoto, nettoyerFaits } from "./photo";
 
 describe("compte rendu dicté — relecture de la réponse du modèle", () => {
@@ -149,11 +149,6 @@ describe("voix temps réel — règles", () => {
   it("aucun repère ne part à la voix : la valeur est « affichée à l'écran »", () => {
     expect(pourLaVoix('{"salaire":"⟦S3⟧","iban":"⟦S12⟧"}')).toBe(`{"salaire":"${DIT_A_L_ECRAN}","iban":"${DIT_A_L_ECRAN}"}`);
     expect(pourLaVoix("x".repeat(7000)).length).toBeLessThan(6_100);
-  });
-  it("aucun outil de confirmation n'est appelable à la voix", () => {
-    expect(outilInterditALaVoix("confirmer_intention")).toBe(true);
-    expect(outilInterditALaVoix("executer_paiement")).toBe(true);
-    expect(outilInterditALaVoix("directory_lookup")).toBe(false);
   });
   it("médiane des latences", () => {
     expect(mediane([1200, 900, 3000])).toBe(1200);

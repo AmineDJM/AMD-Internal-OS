@@ -45,8 +45,9 @@ Lot J13 — `docs/assistant/decisions/0025-terrain-voix.md` ; banc STT `scripts/
 - **Photos de terrain** → faits proposés (ordonnance : jamais le patient) → photo rattachée au compte rendu par carte.
 - **Hors ligne** : file IndexedDB, envoi automatique au retour du réseau, état visible, aucune perte (50 éléments sur
   réseau intermittent au banc ; E2E 390 px).
-- **Voix temps réel de l'Assistant IA** : mêmes outils, droits et repères que le texte ; valeurs sensibles jamais lues ;
-  écritures confirmées à l'écran seulement. Adam inchangé.
+- **Voix temps réel de l'Assistant IA** : GPT-Live (`gpt-live-1` seul, réglable par le Super Admin), délégation au
+  même assistant que le texte, dans le même fil ; valeurs sensibles jamais lues ; écritures confirmées à l'écran
+  seulement. Adam inchangé.
 - Migration additive `20270210100000_terrain_voix`. Aucun cliquet relevé.
 
 ### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)

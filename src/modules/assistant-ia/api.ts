@@ -58,4 +58,4 @@ export { etatAtelier } from "./infra/atelier/etat";
 export {
   capterPhoto, capterVocal, lireCaptations, peutCapterTerrain, TAILLE_MAX_CAPTATION, type IssueCaptation, type VueCaptation,
 } from "./infra/terrain/captation";
-export { executerOutilVocal, journaliserVoix, ouvrirVoixAssistant, type ResultatOutilVoix } from "./infra/voix/temps-reel";
+export { deleguerALaVoix, journaliserVoix, ouvrirVoixAssistant, type ResultatDelegationVoix } from "./infra/voix/temps-reel";

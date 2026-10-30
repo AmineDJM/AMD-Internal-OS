@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AudioLines, Loader2, Mic, MicOff, PhoneOff, X } from "lucide-react";
-import { ClientVoixTempsReel, type EtatVoix, type ResultatOutilVocal } from "@/platform/ia/voix/client-temps-reel";
+import { ClientVoixTempsReel, type EtatVoix, type ResultatDelegation } from "@/platform/ia/voix/client-temps-reel";
 import { confirmerIntentionAssistantIA } from "@/modules/assistant-ia/actions";
 import { CIBLE_LATENCE_VOCALE_MS, mediane } from "@/modules/assistant-ia/partage";
 import { ActionConfirmationCard } from "./action-confirmation-card";
@@ -11,7 +11,8 @@ import { attendu, sansBloquer } from "@/lib/journal";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA CONVERSATION VOCALE DE L'ASSISTANT IA (lot J13, décision 0025) — mêmes outils, droits et repères que le texte.
+ * LA CONVERSATION VOCALE DE L'ASSISTANT IA (lot J13, décision 0025) — GPT-Live tient la conversation, l'assistant du fil
+ * (mêmes outils, droits et repères que le texte) fait le travail délégué.
  *
  * Ce que l'écran garde, parce qu'une parole ne se reprend pas : les CARTES (une écriture préparée à la voix ne
  * s'exécute que par son bouton, ressaisie comprise pour une carte critique), les VALEURS CONFIDENTIELLES (montrées
@@ -24,8 +25,8 @@ interface Carte { intentId: string; kind: string; title: string; fields?: { labe
 type Ligne = { qui: "personne" | "assistant"; texte: string } | { qui: "carte"; carte: Carte } | { qui: "ecran"; texte: string };
 
 const LIBELLE_ETAT: Record<EtatVoix, string> = {
-  INACTIF: "Prêt", CONNEXION: "Connexion…", ECOUTE: "À l'écoute", REFLEXION: "Je réfléchis…", PAROLE: "L'assistant parle",
-  ERREUR: "Erreur", TERMINE: "Conversation terminée",
+  INACTIF: "Prêt", CONNEXION: "Connexion…", ECOUTE: "À l'écoute", REFLEXION: "Je regarde…", PAROLE: "L'assistant parle",
+  FERMETURE: "Fin de la conversation…", ERREUR: "Erreur", TERMINE: "Conversation terminée",
 };
 
 export function BoutonVoixTempsReel({ desactive }: { desactive?: boolean }) {
@@ -50,22 +51,31 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
   const [latences, setLatences] = useState<number[]>([]);
   const [muet, setMuet] = useState(false);
   const client = useRef<ClientVoixTempsReel | null>(null);
-  const debut = useRef(0);
+  const dites = useRef<{ qui: "personne" | "assistant"; texte: string }[]>([]);
 
   const ajouter = (l: Ligne) => setLignes((xs) => [...xs, l].slice(-60));
 
-  const executer = useCallback(async (nom: string, args: Record<string, unknown>): Promise<ResultatOutilVocal> => {
-    const r = await fetch("/api/assistant-ia/voix/outil", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ nom, arguments: args }) });
-    if (!r.ok) return { pourModele: JSON.stringify({ statut: "ECHEC", raison: "Le serveur n'a pas répondu." }) };
-    return (await r.json()) as ResultatOutilVocal;
+  const deleguer = useCallback(async (demande: string): Promise<ResultatDelegation> => {
+    const r = await fetch("/api/assistant-ia/voix/delegation", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ demande }) });
+    if (!r.ok) return { pourVoix: "Le serveur n'a pas répondu : dis-le et propose de réessayer." };
+    return (await r.json()) as ResultatDelegation;
   }, []);
 
-  const terminer = useCallback(() => {
+  const ouvrir = useCallback(async (sdp: string): Promise<{ sdp: string }> => {
+    const r = await fetch("/api/assistant-ia/voix/session", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sdp }) });
+    const d = (await r.json().catch(attendu("réponse non JSON : le statut HTTP décide", {}))) as { sdp?: string; error?: string };
+    // Pas de modèle de secours (Direction, 30/10) : l'échec se DIT.
+    if (!r.ok || !d.sdp) throw new Error(d.error ?? "La conversation vocale est indisponible.");
+    return { sdp: d.sdp };
+  }, []);
+
+  const terminer = useCallback(async () => {
     const c = client.current;
     client.current = null;
     if (!c) return;
-    c.fermer();
-    const corps = JSON.stringify({ ...c.consommation, latences: c.latences, dureeMs: Date.now() - debut.current });
+    await c.fermer();
+    const corps = JSON.stringify({ secondes: c.secondes, confirme: c.usageConfirme, latences: c.latences, lignes: dites.current });
+    dites.current = [];
     // Le journal part même si l'onglet se ferme.
     if (!navigator.sendBeacon?.("/api/assistant-ia/voix/journal", new Blob([corps], { type: "application/json" }))) {
       void fetch("/api/assistant-ia/voix/journal", { method: "POST", headers: { "content-type": "application/json" }, body: corps, keepalive: true }).catch(sansBloquer("voix-temps-reel.journal"));
@@ -74,32 +84,23 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
 
   const demarrer = useCallback(async () => {
     setDetail(null);
-    setEtat("CONNEXION");
-    const r = await fetch("/api/assistant-ia/voix/session", { method: "POST" }).catch(sansBloquer("voix-temps-reel.session", null));
-    const d = r ? ((await r.json().catch(attendu("réponse non JSON : le statut HTTP décide", {}))) as { secret?: string; urlAppel?: string; error?: string }) : { error: "Réseau indisponible." };
-    if (!r?.ok || !d.secret || !d.urlAppel) {
-      setEtat("ERREUR");
-      setDetail(d.error ?? "La voix temps réel est indisponible.");
-      return;
-    }
-    const c = new ClientVoixTempsReel({ executer }, {
+    const c = new ClientVoixTempsReel({ ouvrir, deleguer }, {
       etat: (e, x) => { setEtat(e); if (x) setDetail(x); },
-      ligne: (qui, texte) => ajouter({ qui, texte }),
-      outil: (_n, res) => {
+      ligne: (qui, texte) => { dites.current.push({ qui, texte }); ajouter({ qui, texte }); },
+      delegation: (_demande, res) => {
         if (res.carte) ajouter({ qui: "carte", carte: res.carte as Carte });
         if (res.ecran) ajouter({ qui: "ecran", texte: res.ecran });
       },
       latence: (ms) => setLatences((xs) => [...xs, ms]),
     });
     client.current = c;
-    debut.current = Date.now();
-    try { await c.connecter(d.secret, d.urlAppel); } catch { client.current = null; }
-  }, [executer]);
+    try { await c.connecter(); } catch { client.current = null; }
+  }, [ouvrir, deleguer]);
 
-  useEffect(() => () => terminer(), [terminer]);
+  useEffect(() => () => { void terminer(); }, [terminer]);
 
   const p50 = mediane(latences);
-  const actif = etat === "ECOUTE" || etat === "REFLEXION" || etat === "PAROLE";
+  const actif = etat === "ECOUTE" || etat === "REFLEXION" || etat === "PAROLE" || etat === "FERMETURE";
   return (
     <div role="dialog" aria-label="Conversation vocale" className="fixed inset-0 z-[60] flex flex-col bg-white dark:bg-zinc-950 sm:inset-auto sm:bottom-24 sm:right-6 sm:h-[34rem] sm:w-[26rem] sm:rounded-2xl sm:border sm:border-slate-200 sm:shadow-2xl dark:sm:border-zinc-800">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-zinc-800">
@@ -107,7 +108,7 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
           <p className="text-sm font-semibold">Conversation vocale</p>
           <p className="text-xs text-slate-500" data-testid="etat-voix">{LIBELLE_ETAT[etat]}{p50 != null ? ` · réponse en ${(p50 / 1000).toFixed(1)} s (médiane)` : ""}</p>
         </div>
-        <button type="button" onClick={() => { terminer(); onFermer(); }} aria-label="Fermer" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-4 w-4" /></button>
+        <button type="button" onClick={() => { void terminer(); onFermer(); }} aria-label="Fermer" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800"><X className="h-4 w-4" /></button>
       </div>
       <div className="flex-1 space-y-2 overflow-y-auto px-4 py-3 text-sm">
         <p className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-600 dark:bg-zinc-900 dark:text-zinc-400">
@@ -135,7 +136,7 @@ function PanneauVoix({ onFermer }: { onFermer: () => void }) {
           <>
             <button type="button" onClick={() => { const m = !muet; setMuet(m); client.current?.muet(m); }} aria-pressed={muet} aria-label={muet ? "Réactiver le micro" : "Couper le micro"}
               className="flex h-14 w-14 items-center justify-center rounded-full bg-slate-100 dark:bg-zinc-800">{muet ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}</button>
-            <button type="button" onClick={terminer} aria-label="Raccrocher" className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white"><PhoneOff className="h-5 w-5" /></button>
+            <button type="button" onClick={() => void terminer()} aria-label="Raccrocher" className="flex h-14 w-14 items-center justify-center rounded-full bg-red-600 text-white"><PhoneOff className="h-5 w-5" /></button>
           </>
         )}
       </div>

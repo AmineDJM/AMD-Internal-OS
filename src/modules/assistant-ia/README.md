@@ -43,5 +43,6 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   voix — pur), `infra/terrain/captation.ts` (vocal / photo → cartes, idempotent), `infra/operations/terrain.ts`
   (`terrain_*`), `ecrans/terrain/` (écran mobile, file IndexedDB), page `/medical/terrain`, confirmation
   `confirmerCarteTerrain`. Table `AssistantIaTerrainCapture`.
-- **Voix temps réel** — `infra/voix/temps-reel.ts` (session, exécution des outils sous les droits relus, journal),
-  `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune confirmation à la voix ; valeurs sensibles jamais lues.
+- **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
+  assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune
+  confirmation à la voix ; valeurs sensibles jamais lues ; modèle `gpt-live-1` réglable (Consommation IA).

@@ -1,87 +1,74 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
- * LA SESSION VOCALE TEMPS RÉEL — côté SERVEUR, au socle IA (lot J13, décision 0025). Zéro import.
+ * LA SESSION VOCALE GPT-LIVE — côté SERVEUR, au socle IA (lot J13, décision 0025). Zéro import.
  *
- * Le navigateur parle directement à l'API Realtime d'OpenAI (WebRTC) ; le serveur garde ce que rien ne délègue :
- * la CLÉ (le navigateur ne reçoit qu'un secret éphémère de quelques minutes) et la CONFIGURATION (modèle, consignes,
- * outils, transcription) — un client trafiqué ne peut ni élargir ses outils ni réécrire ses consignes.
+ * GPT-Live (décision de Direction du 30/10 : `gpt-live-1` seul, sans modèle de secours) tient la CONVERSATION ; le
+ * travail est DÉLÉGUÉ à notre serveur (délégation « client ») : c'est notre assistant, sous les droits de la personne,
+ * qui lit, prépare les cartes et rend le résultat que la voix dit.
  *
- * Partagée : Adam a la sienne (`lib/assistant/voice-realtime.ts`, inchangée) ; l'Assistant IA prend celle-ci. Le
- * fournisseur se joint par un `fetch` injectable : le banc tient le contrat sans réseau.
+ * L'ÉCHANGE SE FAIT ICI, PAS DANS LE NAVIGATEUR : le navigateur crée son offre WebRTC (SDP), notre serveur la remet à
+ * `POST /v1/live/sessions` avec la clé du projet et la configuration (modèle, consignes, voix, délégation), et rend la
+ * réponse SDP. Aucun secret — même éphémère — n'atteint le navigateur ; un client trafiqué ne peut ni changer de modèle
+ * ni réécrire les consignes. Le fournisseur se joint par un `fetch` injectable : le banc tient le contrat sans réseau.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-export const URL_SECRETS_TEMPS_REEL = "https://api.openai.com/v1/realtime/client_secrets";
-export const URL_APPELS_TEMPS_REEL = "https://api.openai.com/v1/realtime/calls";
+export const URL_SESSIONS_LIVE = "https://api.openai.com/v1/live/sessions";
 
-export interface OutilTempsReel {
-  type: "function";
-  name: string;
-  description: string;
-  parameters: Record<string, unknown>;
-}
-
-export interface DemandeSession {
+export interface DemandeSessionLive {
   cle: string;
   modele: string;
+  /** Les consignes de CONVERSATION (16 384 jetons au plus) — les règles métier vivent dans l'assistant délégué. */
   instructions: string;
-  outils: OutilTempsReel[];
   voix: string;
-  /** Le moteur de transcription parallèle (ce que l'écran affiche de la parole de la personne). */
-  transcription: string;
-  /** `null` : la langue n'est pas forcée (français et arabe dialectal mêlés). */
-  langue?: string | null;
-  dureeS?: number;
+  /** L'offre SDP du navigateur. */
+  sdp: string;
+  /** Délai avant l'accusé automatique d'une délégation (« je regarde ») — laissé au modèle par défaut. */
+  delaiAccuseMs?: number | null;
   fetchImpl?: typeof fetch;
-  urlSecrets?: string;
+  url?: string;
 }
 
-export type SessionAccordee = { ok: true; secret: string; expireA: number | null; modele: string; voix: string; urlAppel: string };
-export type SessionRefusee = { ok: false; erreur: string; statut: number };
+export type SessionLiveOuverte = { ok: true; id: string; sdp: string; modele: string };
+export type SessionLiveRefusee = { ok: false; erreur: string; statut: number };
 
-/** Le corps envoyé au fournisseur — exporté pour que le banc vérifie ce qui part (outils, langue, consignes). */
-export function corpsSession(d: DemandeSession): Record<string, unknown> {
+/** Le corps envoyé au fournisseur — exporté pour que le banc vérifie ce qui part (modèle, délégation, pas de format audio). */
+export function corpsSessionLive(d: DemandeSessionLive): Record<string, unknown> {
   return {
-    expires_after: { anchor: "created_at", seconds: Math.min(Math.max(d.dureeS ?? 600, 60), 1800) },
     session: {
-      type: "realtime",
       model: d.modele,
       instructions: d.instructions,
-      tools: d.outils,
-      tool_choice: "auto",
-      audio: {
-        input: {
-          transcription: { model: d.transcription, ...(d.langue ? { language: d.langue } : {}) },
-          // VAD sémantique, empressement « auto » : la réponse part dès la fin de phrase — la cible est 1,5 s au p50.
-          turn_detection: { type: "semantic_vad", eagerness: "auto", create_response: true, interrupt_response: true },
-        },
-        output: { voice: d.voix },
-      },
+      // WebRTC négocie le format audio dans le SDP : `audio.format` ne s'envoie pas.
+      audio: { output: { voice: d.voix } },
+      delegation: { type: "client", ...(d.delaiAccuseMs != null ? { acknowledgement_delay_ms: d.delaiAccuseMs } : {}) },
     },
+    transport: { type: "webrtc", sdp: d.sdp },
   };
 }
 
-export async function ouvrirSessionTempsReel(d: DemandeSession): Promise<SessionAccordee | SessionRefusee> {
-  if (!d.cle) return { ok: false, erreur: "La voix temps réel n'est pas configurée (clé du fournisseur absente).", statut: 503 };
+export async function ouvrirSessionLive(d: DemandeSessionLive): Promise<SessionLiveOuverte | SessionLiveRefusee> {
+  if (!d.cle) return { ok: false, erreur: "La conversation vocale n'est pas configurée (clé du fournisseur absente).", statut: 503 };
+  if (!d.sdp?.trim() || d.sdp.length > 200_000) return { ok: false, erreur: "Offre de connexion invalide.", statut: 400 };
   const f = d.fetchImpl ?? fetch;
+  const indisponible = `Le modèle vocal ${d.modele} ne répond pas : la conversation vocale est indisponible pour le moment.`;
   try {
-    const res = await f(d.urlSecrets ?? URL_SECRETS_TEMPS_REEL, {
+    const res = await f(d.url ?? URL_SESSIONS_LIVE, {
       method: "POST",
       headers: { Authorization: `Bearer ${d.cle}`, "Content-Type": "application/json" },
-      body: JSON.stringify(corpsSession(d)),
+      body: JSON.stringify(corpsSessionLive(d)),
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {
       let detail = "";
       try { detail = await res.text(); } catch (e) { detail = `corps illisible : ${e instanceof Error ? e.message : String(e)}`; }
-      console.error("[voix] session refusée par le fournisseur", res.status, detail.slice(0, 300));
-      return { ok: false, erreur: "La voix temps réel est momentanément indisponible.", statut: 502 };
+      console.error("[voix] session GPT-Live refusée", res.status, detail.slice(0, 300));
+      return { ok: false, erreur: indisponible, statut: 502 };
     }
-    const data = (await res.json()) as { value?: string; expires_at?: number };
-    if (!data.value) return { ok: false, erreur: "La voix temps réel est momentanément indisponible.", statut: 502 };
-    return { ok: true, secret: data.value, expireA: data.expires_at ?? null, modele: d.modele, voix: d.voix, urlAppel: URL_APPELS_TEMPS_REEL };
+    const data = (await res.json()) as { session?: { id?: string }; transport?: { sdp?: string } };
+    if (!data.session?.id || !data.transport?.sdp) return { ok: false, erreur: indisponible, statut: 502 };
+    return { ok: true, id: data.session.id, sdp: data.transport.sdp, modele: d.modele };
   } catch (e) {
-    console.error("[voix] session temps réel : réseau", e instanceof Error ? e.message : e);
-    return { ok: false, erreur: "La voix temps réel est momentanément indisponible (réseau).", statut: 502 };
+    console.error("[voix] session GPT-Live : réseau", e instanceof Error ? e.message : e);
+    return { ok: false, erreur: indisponible, statut: 502 };
   }
 }

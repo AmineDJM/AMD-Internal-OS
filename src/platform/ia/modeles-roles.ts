@@ -75,7 +75,11 @@ export const MODELE_STT_TERRAIN_DEFAUT = "gpt-transcribe";
 export const modeleSttTerrain = (env: Record<string, string | undefined> = process.env): string =>
   env.TERRAIN_STT_MODEL?.trim() || MODELE_STT_TERRAIN_DEFAUT;
 
-/** La voix temps réel de l'Assistant IA (pas celle d'Adam) : `ASSISTANT_IA_REALTIME_MODEL`, défaut `gpt-realtime-2.1`. */
-export const MODELE_TEMPS_REEL_DEFAUT = "gpt-realtime-2.1";
-export const modeleTempsReel = (env: Record<string, string | undefined> = process.env): string =>
-  env.ASSISTANT_IA_REALTIME_MODEL?.trim() || MODELE_TEMPS_REEL_DEFAUT;
+/**
+ * La voix temps réel de l'Assistant IA (pas celle d'Adam) — GPT-Live, décision de Direction du 30/10 : `gpt-live-1` SEUL,
+ * sans modèle de secours. Réglable sans redéploiement : le réglage du Super Admin (Consommation IA), sinon
+ * `ASSISTANT_IA_VOICE_MODEL`, sinon `gpt-live-1`.
+ */
+export const MODELE_VOIX_DEFAUT = "gpt-live-1";
+export const modeleVoix = (reglage?: string | null, env: Record<string, string | undefined> = process.env): string =>
+  reglage?.trim() || env.ASSISTANT_IA_VOICE_MODEL?.trim() || MODELE_VOIX_DEFAUT;

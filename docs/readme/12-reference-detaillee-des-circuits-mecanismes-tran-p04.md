@@ -660,7 +660,7 @@ Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/mo
 Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modules/assistant-ia/domaine/terrain/`,
 `infra/terrain/captation.ts`, `infra/operations/terrain.ts`, `infra/voix/temps-reel.ts`, `ecrans/terrain/`,
 `ecrans/voix-temps-reel.tsx` ; socle `src/platform/ia/voix/` ; page `/medical/terrain` ; routes `/api/assistant-ia/terrain`,
-`/api/assistant-ia/voix/{session,outil,journal}` ; table `AssistantIaTerrainCapture`.
+`/api/assistant-ia/voix/{session,delegation,journal}` ; table `AssistantIaTerrainCapture`.
 
 - **Vocal → compte rendu** : file locale → dépôt idempotent (clé de capture) → Drive « Terrain — vocaux et photos » →
   `gpt-transcribe` (langue détectée, indice du panel et de la gamme ; mesuré meilleur des quatre moteurs) → structuration
@@ -672,8 +672,10 @@ Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modul
   visite → faits proposés ; carte « rattacher au compte rendu » → `rattacherPhotoTerrain` (brouillon seulement).
 - **Hors ligne** : IndexedDB, un élément ne sort de la file que sur l'accusé du serveur ; réessai 5 s → 5 min ; refus 4xx
   gardé à relire ; envoi au retour du réseau ; état visible ; `sw.js` sert l'écran Terrain hors ligne (et rien d'autre).
-- **Voix temps réel de l'Assistant IA** (bouton à côté du micro de `/assistant`) : secret éphémère, socle des outils de la
-  personne + `trouver_outil` / `utiliser_outil`, chaque appel rejugé au serveur (droits, console) ; valeurs sensibles
-  jamais lues (« affichée à l'écran »), révélées à l'écran à qui a le droit ; **aucune confirmation à la voix** — une
-  écriture est une carte, exécutée par son bouton. Latence fin de parole → premier son mesurée et journalisée (cible p50
+- **Voix temps réel de l'Assistant IA** (GPT-Live `gpt-live-1` seul, décision de Direction du 30/10 ; bouton à côté du
+  micro de `/assistant`) : l'offre WebRTC est échangée par notre serveur (`/v1/live/sessions`, aucun secret au
+  navigateur) ; GPT-Live converse et **délègue** ; la demande dite part dans **le même fil** que le texte, jouée par le
+  même assistant (outils, droits, console, repères, cartes) ; le résultat revient à la voix sans valeur sensible ;
+  **aucune confirmation à la voix** — une écriture est une carte, exécutée par son bouton. Modèle réglable par le Super
+  Admin (Consommation IA) ou `ASSISTANT_IA_VOICE_MODEL`. Latence mesurée sur la ligne de temps de la session (cible p50
   ≤ 1,5 s, première mesure réelle à relever en production).

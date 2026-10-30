@@ -10,7 +10,7 @@ vocale en 1,5 s* ; piège nommé : *confirmer un paiement ou une signature à la
 > `ecrans/terrain/{ecran-terrain.tsx,file-locale.ts}`, `ecrans/voix-temps-reel.tsx`, `actions.ts`
 > (`confirmerCarteTerrain`). Socle `src/platform/ia/voix/{session-temps-reel,client-temps-reel}.ts` (zéro import),
 > `src/platform/ia/modeles-roles.ts` (`modeleSttTerrain`, `modeleTempsReel`). Page `/medical/terrain`, routes
-> `/api/assistant-ia/terrain`, `/api/assistant-ia/voix/{session,outil,journal}`. Action métier ajoutée :
+> `/api/assistant-ia/terrain`, `/api/assistant-ia/voix/{session,delegation,journal}`. Action métier ajoutée :
 > `field-report-actions:rattacherPhotoTerrain`. `public/sw.js` (écran Terrain hors ligne). Migration additive
 > `20270210100000_terrain_voix` (`AssistantIaTerrainCapture`). Banc STT : `scripts/banc-stt-terrain.mjs`,
 > `data/bancs/terrain-voix/`. E2E 390 px : `e2e/terrain-voix.spec.ts`.
@@ -82,25 +82,49 @@ brouillon seulement, seconde référence sur le fichier : supprimer la pièce ne
   serveur la clé absorbe le doublon (`captation.test.ts`) ; E2E 390 px : hors ligne → 2 en file, rien envoyé ; réseau
   revenu → file vide, IndexedDB vide, captations affichées.
 
-## 4. La voix temps réel de l'Assistant IA
+## 4. La voix temps réel de l'Assistant IA — GPT-Live
 
-Bouton « Conversation vocale » à côté du micro de `/assistant`. Le socle `platform/ia/voix/` porte la session (secret
-éphémère : la clé ne quitte pas le serveur) et un client WebRTC mince ; **Adam n'est pas touché** (son transport reste le
-sien).
+**Décision de Direction (30/10)** : la voix est **`gpt-live-1` seul** — pas de modèle de secours ; s'il ne répond pas,
+l'écran le dit (« Le modèle vocal gpt-live-1 ne répond pas… »). Modèle réglable **sans redéploiement** : réglage du
+Super Admin (Administration › Consommation IA, colonne `AssistantIaReglage.modeleVoix`), sinon la variable
+`ASSISTANT_IA_VOICE_MODEL`, sinon `gpt-live-1`. Forme de l'API vérifiée dans la documentation OpenAI (guides GPT-Live :
+démarrage, sessions, délégation, WebRTC) puis par UN essai réel (§4.1).
+
+Bouton « Conversation vocale » à côté du micro de `/assistant`. Adam n'est pas touché (son transport reste le sien).
 
 | Exigence | Comment |
 |---|---|
-| MÊMES outils, droits, repères | Session = socle des outils de la personne (`outilsV1` sous ses droits, configuration du rôle) + `trouver_outil` + `utiliser_outil` (qui rend le schéma : en voix, l'outil trouvé s'appelle par lui). Chaque appel revient au serveur (`executerOutilVocal`) : outils reconstruits, console d'accès RELUE, `allowed` revérifié. Consigne compilée par le même `compileContext` (familles, gestes fermés). |
-| Valeurs sensibles jamais lues à voix haute | La voix ne reçoit que des repères, et `pourLaVoix` remplace même le repère par « valeur confidentielle affichée à l'écran ». L'écran les révèle (`Revelateur`) à qui a le droit — journal compris —, « [confidentiel] » sinon. |
-| R3/R4 confirmée à l'écran, jamais à la voix | Aucun outil de confirmation n'est offert ; tout nom qui confirme / exécute / signe / paie est refusé par la route (même via `utiliser_outil`, test) ; une écriture rend une CARTE affichée dans le panneau, exécutée par son bouton (ressaisie pour une carte critique). La consigne interdit de tenir un « oui » oral pour une confirmation. |
-| Consommation | Plafond du jour vérifié à l'ouverture ; à la fin, les jetons rendus par le fournisseur sont inscrits au nom de la personne (`openai-realtime`, `ModelCallLog`/`AiUsageLog`). |
-| Latence p50 ≤ 1,5 s | Mesurée par le client à chaque tour : fin de parole (`speech_stopped`) → premier son (`output_audio_buffer.started`), hors tours d'outil ; la médiane s'affiche dans le panneau et part au journal (`[assistant-ia] voix temps réel {p50}`). VAD sémantique, empressement « auto ». |
+| Rien de sensible côté navigateur | Le navigateur crée son offre WebRTC ; **notre serveur** l'échange contre la réponse (`POST /v1/live/sessions`, clé du projet, configuration : modèle, consignes, voix, `delegation: { type: "client" }`) après avoir vérifié la porte de l'Assistant IA, la « Vue exacte », la console d'accès et le plafond du jour. Aucun secret — même éphémère — n'atteint le navigateur (c'est le parcours « unifié » recommandé par OpenAI pour GPT-Live ; il remplace le jeton éphémère d'une minute envisagé). Socle `platform/ia/voix/session-temps-reel.ts`. |
+| MÊMES outils, droits, repères | GPT-Live tient la conversation et n'a **aucun outil**. Tout ce qui touche l'entreprise est **délégué** (`session.delegation.created`) : le client envoie à `/api/assistant-ia/voix/delegation` ce que la personne a dit depuis la délégation précédente ; le serveur le **dépose dans le fil de la personne** (`[Conversation vocale] …`) et le fait jouer par **le même assistant que le texte** (mêmes outils à la demande, droits, familles de la console, repères, cartes). Le résultat revient à la voix par `session.commentary.append` (500 jetons au plus) sous le même identifiant. |
+| Valeurs sensibles jamais lues à voix haute | La réponse écrite est révélée à l'écran (`Revelateur`) à qui a le droit ; ce qui part à la voix passe `sansValeursRevelees` puis « valeur confidentielle affichée à l'écran » (test : un salaire révélé ne repart pas). |
+| R3/R4 confirmée à l'écran, jamais à la voix | La voix n'a aucun outil ; l'assistant délégué ne fait que PRÉPARER une carte ; la carte s'affiche dans le panneau et ne s'exécute que par son bouton (ressaisie pour une carte critique). La voix reçoit « une carte est affichée : seule la personne la confirme, sur l'écran ; ne dis pas que c'est fait ». |
+| Transcription dans le même fil | Chaque demande déléguée et sa réponse sont des tours du fil ; à la fin, la transcription de la conversation y est ajoutée (une question « traitée » et sa réponse), que l'historique et le résumé roulant voient. |
+| Consommation | Plafond du jour vérifié à l'ouverture ; à la fin, la durée facturée (`session.usage.updated` / `session.closed`, secondes) est inscrite au nom de la personne (`openai-live`, 10 équivalents jetons par seconde ; tarif public 0,05 $/min). On raccroche par `session.close` et on attend `session.closed` (15 s) : sinon la consommation est dite « non confirmée ». |
+| Latence p50 ≤ 1,5 s | Mesurée sur la LIGNE DE TEMPS de la session (les `start_ms`/`end_ms` des fragments de transcription, pas l'arrivée des paquets) : fin de la parole de la personne → début de la réponse parlée. Affichée dans le panneau, journalisée (`[assistant-ia] voix temps réel {p50}`). |
 
-**Limite dite** : la latence vocale RÉELLE n'a pas pu être mesurée depuis le conteneur de développement — l'API Realtime
-y est joignable en HTTPS (secret éphémère créé, échange SDP accepté) mais le média WebRTC (UDP) ne passe pas, et le
-proxy ne relaie pas l'upgrade WebSocket. Le calcul est tenu au banc sur un flux rejoué ; **la première mesure réelle se
-lit dans les journaux de production** (ligne `voix temps réel`, p50) — à relever à la première semaine, et à comparer à la
-cible avant d'ouvrir la voix à tous.
+**Transcription** : GPT-Live transcrit lui-même la parole (événements `session.input_transcript.delta` /
+`session.output_transcript.delta`, avec `start_ms`/`end_ms`) ; sa configuration de session (modèle, consignes, historique,
+voix, délégation, stockage) n'a **aucun champ de modèle de transcription**. `gpt-live-transcribe` est le moteur de l'API de
+transcription en direct, pas un réglage d'une session `gpt-live-1` : il n'est donc pas utilisé ici. Les vocaux de terrain
+(fichiers) gardent `gpt-transcribe`, mesuré au §1.1. La délégation pouvant arriver avant la fin de la transcription de la
+phrase (documentation GPT-Live), le client attend que les fragments se taisent (0,5 s, 1,5 s au plus) avant d'envoyer la
+demande.
+
+**Coût** : la voix GPT-Live se paie à la durée, **0,05 $ par minute** (à la seconde ; 15 s prépayées à la création d'une
+session WebRTC, déduites ensuite) ; le travail délégué se paie comme un tour écrit de l'assistant (jetons du modèle de
+conversation, même plafond). Une conversation de 3 minutes avec deux délégations ≈ 0,15 $ de voix + deux tours écrits.
+La durée est inscrite au journal de consommation (fournisseur `openai-live`, 10 équivalents jetons par seconde) et la
+grille de coût la valorise par défaut à 83,33 $ le million d'équivalents (= 0,05 $/min) ; `ASSISTANT_IA_LIVE_PRICE_IN`
+la change.
+
+### 4.1 L'essai réel (30/10, ≈ 0,01 $)
+
+Une session `gpt-live-1` créée avec EXACTEMENT le corps de `corpsSessionLive` (offre SDP réelle de Chromium) :
+**HTTP 201**, identifiant `live_…`, réponse SDP rendue — **6,8 s** pour la création (à surveiller : c'est un temps
+d'attente avant la première parole ; OpenAI propose « WebRTC with WARP » pour le réduire). **Limite dite** : depuis le
+conteneur de développement, le média WebRTC (UDP) ne passe pas (la connexion reste « connecting »), donc ni la parole ni
+la latence n'ont pu être mesurées ici. **La première mesure réelle se lit en production** (ligne `voix temps réel`, p50) —
+à relever la première semaine et à comparer à la cible avant d'ouvrir la voix à tous.
 
 ## 5. Décisions à confirmer par la Direction
 
@@ -114,5 +138,5 @@ cible avant d'ouvrir la voix à tous.
 
 ## 6. Variables d'environnement (toutes facultatives)
 
-`TERRAIN_STT_MODEL` (défaut `gpt-transcribe`), `ASSISTANT_IA_REALTIME_MODEL` (défaut `gpt-realtime-2.1`),
-`ASSISTANT_IA_REALTIME_VOICE` (défaut `marin`).
+`TERRAIN_STT_MODEL` (défaut `gpt-transcribe`), `ASSISTANT_IA_VOICE_MODEL` (défaut `gpt-live-1` ; le réglage du Super Admin
+prime), `ASSISTANT_IA_VOICE` (défaut `marin`).

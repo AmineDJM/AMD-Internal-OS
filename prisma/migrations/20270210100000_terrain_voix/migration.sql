@@ -4,7 +4,7 @@
 -- La matière des cartes (compte rendu pré-rempli, demande d'échantillons, tournée du lendemain, pièce
 -- rattachée) : rien de métier n'est écrit sans confirmation. `cle` = clé d'idempotence de la file hors ligne.
 --
--- ADDITIVE ET IDEMPOTENTE : une table neuve.
+-- ADDITIVE ET IDEMPOTENTE : une table neuve, une colonne nullable.
 -- ═══════════════════════════════════════════════════════════════════════════════════════════
 
 CREATE TABLE IF NOT EXISTS "AssistantIaTerrainCapture" (
@@ -33,3 +33,6 @@ CREATE TABLE IF NOT EXISTS "AssistantIaTerrainCapture" (
 
 CREATE UNIQUE INDEX IF NOT EXISTS "AssistantIaTerrainCapture_userId_cle_key" ON "AssistantIaTerrainCapture"("userId", "cle");
 CREATE INDEX IF NOT EXISTS "AssistantIaTerrainCapture_userId_createdAt_idx" ON "AssistantIaTerrainCapture"("userId", "createdAt");
+
+-- Le modèle de la voix temps réel de l'Assistant IA, réglable par le Super Admin (nul = variable, sinon gpt-live-1).
+ALTER TABLE "AssistantIaReglage" ADD COLUMN IF NOT EXISTS "modeleVoix" TEXT;
