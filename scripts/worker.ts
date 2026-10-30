@@ -15,6 +15,9 @@
  * de `GRACE_MS`, sortie forcée : le bail de la tâche coupée expire seul et un autre exécutant la
  * reprend.
  */
+// EN PREMIER : le contexte asynchrone de Next, réel hors de son serveur — un geste d'un travail appelle l'action de
+// l'écran (`revalidatePath`, `requireUser`), et Next crée ses magasins au chargement (`async-local-storage-global.ts`).
+import "../src/lib/async-local-storage-global";
 import { declarerProcessusWorker } from "../src/lib/taches-de-fond/mode";
 import { journalConsole, messageErreur } from "../src/lib/taches-de-fond/journal";
 import { demarrerWorker } from "../src/lib/taches-de-fond/worker";

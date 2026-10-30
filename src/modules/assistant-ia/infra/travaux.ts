@@ -15,6 +15,7 @@ import { PLAFOND_MENSUEL_DEFAUT_USD, PLAFOND_TRAVAIL_DEFAUT_USD } from "@/lib/mi
 import type { PersonaTravaux, PieceTravail, PlafondsTravail, PortPiecesTravail } from "@/lib/missions/travaux/persona";
 import { proposerTravail, responsableDe } from "@/lib/missions/travaux/service";
 import { recordAudit } from "@/lib/audit";
+import { executerHorsRequete } from "@/lib/contexte-geste";
 import { droitsSurDocument } from "@/platform/ia/artifact/ports";
 import { CONSIGNE_TRAVAUX, demandeLongue, INDICE_DEMANDE_LONGUE, outilLancerUnTravail, type OutilTravail } from "@/platform/ia/travaux/outil";
 import { deposerLivrableTravail } from "./travaux-livrables";
@@ -192,7 +193,9 @@ export const PERSONA_ASSISTANT_IA: PersonaTravaux = {
     if ("erreur" in prop) return { ok: false, erreur: prop.erreur };
     const charge = { kind: "assistant_ia_op" as const, op: o.nom, args: prop.args };
     if (!estChargeOperationIA(charge)) return { ok: false, erreur: "Geste illisible." };
-    const r = await executerOperationIA(p.user, charge);
+    // HORS REQUÊTE (le worker) : l'action de l'écran trouve la personne du geste et un store pour ses invalidations
+    // (`contexte-geste.ts`) — sans quoi `requireUser` redirigeait et `revalidatePath` levait APRÈS l'écriture.
+    const { resultat: r } = await executerHorsRequete(p.user, "travail", () => executerOperationIA(p.user, charge));
     return r.ok ? { ok: true, resultat: { titre: prop.carte.title }, message: r.message, lien: r.link } : { ok: false, erreur: r.error ?? "Le geste n'a pas pu être exécuté." };
   },
 
