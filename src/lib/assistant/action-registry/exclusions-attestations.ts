@@ -222,6 +222,7 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-conversations-actions:supprimerMonDossier", "assistant-ia-conversations-actions:ajouterDocumentsAuDossier",
     "assistant-ia-conversations-actions:retirerDocumentDuDossier", "assistant-ia-conversations-actions:listerMesAppareils",
     "assistant-ia-conversations-actions:deconnecterMonAppareil",
+  ]);
   X("LA VEILLE PERSONNELLE de l'Assistant IA (J12, décision 0024) — les gestes de la personne sur SA veille : voir ce que ses veilleurs ont constaté, juger un constat « utile / pas utile », l'écarter, activer un veilleur ou régler son seuil, régler son budget d'interruptions ; et les constats d'une fiche qu'elle ouvre. Identité prise de la session, jamais d'un paramètre ; rien d'un collègue n'y est atteignable : ce n'est pas une action métier à proposer.", [
     "assistant-ia-proactivite-actions:lireMaVeille", "assistant-ia-proactivite-actions:jugerConstat", "assistant-ia-proactivite-actions:ecarterConstat",
     "assistant-ia-proactivite-actions:reglerMonVeilleur", "assistant-ia-proactivite-actions:reglerMaVeille", "assistant-ia-proactivite-actions:suggestionsPourDossier",
