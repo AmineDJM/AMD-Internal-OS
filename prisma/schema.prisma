@@ -17898,7 +17898,7 @@ enum StatutIngestionPiece {
 /// `cles` : une clé « FAMILLE:id » par source où la pièce est rangée (`DRIVE_NODE:…`, `DOCUMENT:…`) — la même règle
 /// que l'ouverture du fichier la juge (`src/modules/bibliotheque/infra/acces.ts`). `familles` en est la projection,
 /// pour écarter en SQL ce qu'une personne ne peut ouvrir d'aucune façon. Index GIN et trigrammes : SQL seulement
-/// (migration `20270207100000_bibliotheque`).
+/// (migration `20270207110000_bibliotheque`).
 model BibliothequeFiche {
   pieceId          String               @id
   piece            Piece                @relation(fields: [pieceId], references: [id], onDelete: Cascade)

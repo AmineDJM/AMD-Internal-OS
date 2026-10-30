@@ -1,3 +1,5 @@
+import { lienRapportTerrain } from "@/lib/chemins/rapports-terrain";
+
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * LES CLÉS D'ACCÈS — « FAMILLE:id » : l'endroit où une pièce est rangée, et donc la règle qui dit qui
@@ -12,9 +14,10 @@
  * le fichier d'un `Document` réécrit par l'éditeur, l'enregistrement d'une réunion remplacé). Inscrire un
  * nouveau contenu sous cette clé la RETIRE des autres pièces : une ancienne version ne ressort plus.
  *
- * Module pur, sans import : lu par le navigateur (écran de recherche) comme par le serveur.
+ * Module pur (seule l'adresse des rapports terrain vient du registre des chemins) : lu par le navigateur comme par le serveur.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
+
 
 export const FAMILLES = {
   DRIVE_NODE: { libelle: "Drive", exclusive: true, lien: (id: string) => `/drive/${id}` },
@@ -25,7 +28,7 @@ export const FAMILLES = {
   REUNION_AUDIO: { libelle: "Enregistrement de réunion", exclusive: true, lien: (id: string) => `/meetings/${id}` },
   RH_DOCUMENT: { libelle: "Dossier RH", exclusive: false, lien: (id: string) => `/api/rh/document/${id}` },
   TERRAIN_PIECE: { libelle: "Rapport terrain", exclusive: false, lien: (id: string) => `/api/field-reports/attachment/${id}` },
-  TERRAIN_AUDIO: { libelle: "Vocal de rapport terrain", exclusive: true, lien: (id: string) => `/field-reports/${id}` },
+  TERRAIN_AUDIO: { libelle: "Vocal de rapport terrain", exclusive: true, lien: lienRapportTerrain },
   RETOUR_PIECE: { libelle: "Retour", exclusive: false, lien: (id: string) => `/api/feedback/attachment/${id}` },
   KPI_PIECE: { libelle: "Déclaration de KPI", exclusive: true, lien: (id: string) => `/api/kpi/piece/${id}` },
 } as const satisfies Record<string, { libelle: string; exclusive: boolean; lien: (id: string) => string }>;

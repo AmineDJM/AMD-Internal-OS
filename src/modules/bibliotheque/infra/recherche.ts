@@ -1,5 +1,6 @@
 import { Prisma, type Confidentiality, type SourcePiece } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 import type { SessionUser } from "@/lib/rbac";
 import { censurerTexte } from "@/lib/agent/filtre-confidentialite";
 import { fusionner, type Touche, type Voie } from "../domaine/classement";
@@ -87,7 +88,7 @@ function vecteurDeLaRequete(embed: Embedder, texte: string): Promise<number[] | 
       garde.set(cle, vecteur);
     }
     return vecteur;
-  }).catch(() => null);
+  }).catch(sansBloquer("bibliotheque.vecteur-requete", null));
   return Promise.race([appel, new Promise<null>((r) => setTimeout(() => r(null), DELAI_VECTEUR_MS))]);
 }
 

@@ -135,7 +135,7 @@ Out of scope (other chapters): validations engine internals, Ad & Pro, Regulator
   identity/payslip/RIB `sensible`; embeddings (`lunaEmbed`, 512 d, batches of 64) only if pgvector is present AND the piece
   is neither CONFIDENTIAL nor sensible. Ignored with a reason: archive/unknown, > 40 MB (> 25 MB audio). Backfill
   `bibliotheque.rattrapage`: 25 rows per family per pass. Kill switch `BIBLIOTHEQUE_INGESTION=off`.
-- **Index** (migration `20270207100000_bibliotheque`, idempotent): `recherche` generated tsvector with config
+- **Index** (migration `20270207110000_bibliotheque`, idempotent): `recherche` generated tsvector with config
   `bibliotheque_fr` (unaccent + french_stem) + GIN; GIN on `cles`/`familles`; trigram GIN on `titrePlie`; `vecteur vector(512)`
   + HNSW **only if** pgvector is available (DO block; never fails without it). `infra/capacites.ts` detects and falls back
   (full text + trigrams / folded LIKE).

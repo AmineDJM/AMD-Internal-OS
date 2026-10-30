@@ -54,7 +54,7 @@ export const REGLES: Regle[] = [
     raison: "Unicité partielle des ordres vivants d'une demande de paiement / d'une avance (DONNEES-10) : inexprimable en Prisma 5.",
   },
   /**
-   * VOULU — LA BIBLIOTHÈQUE (J1, migration 20270207100000) : la recherche plein texte (`recherche` tsvector généré,
+   * VOULU — LA BIBLIOTHÈQUE (J1, migration 20270207110000) : la recherche plein texte (`recherche` tsvector généré,
    * GIN), les index GIN des clés d'accès, les trigrammes du titre et, si pgvector est là, `vecteur vector(512)` +
    * HNSW. Prisma 5 ne modélise ni `tsvector` généré, ni `vector`, ni ces index. Une règle et non une exception :
    * sans pgvector (CI `verifier`) ou sans pg_trgm, la migration ne les pose pas — ils peuvent manquer.

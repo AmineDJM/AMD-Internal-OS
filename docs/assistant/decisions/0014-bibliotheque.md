@@ -6,7 +6,7 @@ filtrée par les droits ». **pgvector est approuvé en production.**
 
 > Code : `src/modules/bibliotheque/` (portes `api-inscription.ts`, `api.ts`, `partage.ts`, `actions.ts` ; `domaine/` pur ;
 > `infra/` ; écran `ecrans/` → page `/bibliotheque`), règles d'ouverture partagées `src/lib/entity-access/ouverture-pieces.ts`,
-> tâches `bibliotheque.ingestion` et `bibliotheque.rattrapage` (`src/lib/scheduled.ts`). Migration `20270207100000_bibliotheque`.
+> tâches `bibliotheque.ingestion` et `bibliotheque.rattrapage` (`src/lib/scheduled.ts`). Migration `20270207110000_bibliotheque`.
 > Bancs : `bibliotheque.test.ts`, `droits.test.ts`, `inscription-cliquet.test.ts`, `domaine/*.test.ts`, `scripts/bench/bibliotheque.ts`.
 
 ## 1. Ce qui existait, et pourquoi ce n'était pas une bibliothèque

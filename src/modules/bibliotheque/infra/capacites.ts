@@ -5,7 +5,7 @@ import { lunaEmbed } from "@/lib/openai-luna";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  * CE QUE LA BASE SAIT FAIRE — détecté, jamais supposé (J1).
  *
- * La migration `20270207100000_bibliotheque` ne pose la colonne `vecteur` (et son index HNSW) que si
+ * La migration `20270207110000_bibliotheque` ne pose la colonne `vecteur` (et son index HNSW) que si
  * l'extension pgvector est disponible sur le serveur, les trigrammes que si pg_trgm l'est. Le code lit
  * ce que la base porte VRAIMENT et retombe sans bruit :
  *   • sans vecteur : plein texte + trigrammes (aucun embedding n'est calculé, aucun appel ne sort) ;
