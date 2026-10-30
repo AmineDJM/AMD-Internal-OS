@@ -478,6 +478,29 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 13. **One clause per family** (§118.177, §118.5, §118.71). Search, the action centre and entity access must not re-implement a list's visibility.
 14. **Lint before build** (CLAUDE.md, §118.155). Render runs `next lint && next build`, so a single lint error blocks deployment.
 
+## 8bis. Enterprise graph and dated facts (lot J9, 2026-10-30)
+
+> Added with J9 (decision `docs/assistant/decisions/0021-graphe.md`). Verified against the code of `jarvis/j9-graphe`.
+
+- **Where**: module `src/modules/graphe-entreprise/` (doors `api.ts`, `partage.ts`; reads `referentiels` and `bibliotheque`).
+  Assistant IA tools at the AI base `src/platform/ia/lectures/graphe.ts` (`explorer_relations`, `etat_a_une_date`, `d_ou_vient`).
+- **No second register**: a node is a reference `TYPE:id` to the canonical row (`Personne`, `Organisation`, `Product`,
+  `RegulatoryProduct`, Ad & Pro requests, congresses, `Piece`); fallback nodes keep a prefix (`u:`, `e:`, `f:`, `c:`). Edges are
+  read where they are already written: `EntityLink`, `PieceLien`, `FaitConfirme` (`atteste`, never a sensitive fact),
+  `EntityMention`, and business foreign keys (`infra/aretes.ts`). A foreign key is the CURRENT value; the edge says so in its note.
+- **Rights before traversal** (`infra/perimetre.ts`): closed node types are not even queried; each reached node is judged by the
+  screen's own rule (`scopeRegulatory` + pipeline lock, `scopeSponsoring`, `scopeCongress*`, `scopeAdProOther`, Events scope,
+  `piecesOuvrables`) BEFORE it enters the frontier — a denied node is neither returned nor traversed. `pourModele` adds the
+  Bibliothèque policy (no confidential or vault piece). Entity resolution filters candidates by rights before the verdict.
+- **Bitemporal facts**: `FaitConfirme.fermeLe` / `fermeParId` / `remplaceParId` (migration `20270210090000_graphe_faits_dates`).
+  `lib/enrichissement/confirmation.ts` closes the previous value with `fermeture()` — validity end ≠ knowledge end.
+- **Blast radius**: changing a `scope*` builder in `lib/rbac/portees.ts`, `piecesOuvrables`/`faitsVisibles` in the Bibliothèque, or
+  a foreign key read in `infra/aretes.ts` changes what the graph shows. `src/lib/graphe/` (pure, mandate 5) is a different,
+  older in-memory library; the module is named `graphe-entreprise` because `frontieres.test.ts` would read `graphe` as a
+  half-migrated `src/lib/graphe`.
+- **Guards**: `graphe-entreprise/graphe.test.ts` (real DB: resolution ≥ 95 %, 100 % sourced figures, p95 < 300 ms on 50,000
+  edges, no out-of-rights result per role); AI base ceiling `SOCLE_IA_CEILING` stays 177 (+1 module door, −1 enum import).
+
 ## 9. Docs versus code discrepancies
 
 | Doc claim | Code reality |

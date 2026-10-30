@@ -1,5 +1,17 @@
 ## 🧾 Journal des évolutions récentes
 
+### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
+
+L'Assistant IA suit désormais les **relations** de l'entreprise : `explorer_relations` (« qu'est-ce qui dépend de Saidal ? »,
+« qui a travaillé sur ce dossier ? », « quels documents parlent du sofosbuvir ? »), `etat_a_une_date` (la valeur d'alors,
+jamais celle d'aujourd'hui ; et ce qu'on en savait à une autre date) et `d_ou_vient` (pièce, extraction, qui a confirmé,
+ce qui a été remplacé). Module `graphe-entreprise` : une vue sur les fiches canoniques et les liens déjà écrits, sans second
+registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermée retire ses types. La résolution lit l'arabe
+(« مجمع صيدال » = Groupe Saidal), les fautes, les sigles et les NIF/RC. Un fait périmé se ferme (`fermeLe`, `fermeParId`,
+`remplaceParId`), il n'est jamais écrasé ; chaque chiffre rendu porte sa source. Banc : résolution 101/101 sur un corpus
+semé, 202/202 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
+[0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
+
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
 « Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les
