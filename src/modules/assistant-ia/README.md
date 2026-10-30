@@ -9,6 +9,7 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
 | Porte / dossier | Rôle |
 |---|---|
 | `api.ts` | **Porte serveur** : le fil (`deposerMessage`, `traiterFil`, `lireFil`, `reprendreLesFils`, `jouerTour`), vocaux, mémoire, routines, opérations, accès, consommation |
+| `api-banc.ts` | porte des **bancs et de l'E2E** (`scripts/e2e/`) : le faux modèle et son branchement — jamais importée par la production |
 | `partage.ts` | **Porte pure** : familles d'accès, plafonds, filtre de confidentialité, règles de lecture et de dépôt, MRZ |
 | `actions.ts` | clé `assistant-ia-actions` : mémoire, routines, fil, et `confirmerIntentionAssistantIA` (l'exécution d'une carte) |
 | `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) |

@@ -12,8 +12,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { deposerMessage, traiterFil } from "@/modules/assistant-ia/api";
-import { remplacerModelesPourTests } from "@/modules/assistant-ia/infra/generer";
-import { modeleFactice } from "@/modules/assistant-ia/infra/testing/modele-factice";
+import { modeleFactice, remplacerModelesPourTests } from "@/modules/assistant-ia/api-banc";
 
 async function main(): Promise<void> {
   const [cmd, email, message, outil, json] = process.argv.slice(2);
