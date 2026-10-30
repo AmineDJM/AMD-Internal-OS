@@ -9,9 +9,10 @@
  */
 import { phraseIaNonConfiguree } from "@/lib/ia/cle-manquante";
 import { cleOpenAI } from "@/lib/models/openai-acces";
+import { MODELE_STANDARD_DEFAUT, modelePourRole, type EffortRaisonnement, type RoleModele } from "@/platform/ia/modeles-roles";
 
 /** Le modèle par défaut ; `ASSISTANT_IA_MODEL` le change sans redéploiement de code. */
-export const MODELE_ASSISTANT_DEFAUT = "gpt-6.1-terra";
+export const MODELE_ASSISTANT_DEFAUT = MODELE_STANDARD_DEFAUT;
 
 /** Délai d'un tour complet (mesuré : ~6 s par appel, 2 à 3 appels par tour avec outils). */
 export const DELAI_MODELE_MS = Number(process.env.ASSISTANT_IA_TIMEOUT_MS) || 45_000;
@@ -20,13 +21,19 @@ export interface ModeleConfig {
   providerId: string;
   modelId: string;
   apiKey: string;
+  /** J4 : l'effort de raisonnement du rôle (`platform/ia/modeles-roles.ts`). */
+  effort?: EffortRaisonnement;
 }
 
-/** Le modèle OpenAI de l'assistant — `null` tant que `OPENAI_API_KEY` n'est pas posée. */
-export function modeleOpenAi(env: NodeJS.ProcessEnv = process.env): ModeleConfig | null {
+/**
+ * Le modèle OpenAI de l'assistant pour un RÔLE (J4 : rapide, standard, raisonnement) — `null` tant que
+ * `OPENAI_API_KEY` n'est pas posée.
+ */
+export function modeleOpenAi(env: NodeJS.ProcessEnv = process.env, role: RoleModele = "standard"): ModeleConfig | null {
   const apiKey = cleOpenAI(env);
   if (!apiKey) return null;
-  return { providerId: "openai", modelId: env.ASSISTANT_IA_MODEL?.trim() || MODELE_ASSISTANT_DEFAUT, apiKey };
+  const choix = modelePourRole(role, env);
+  return { providerId: "openai", modelId: choix.modelId, apiKey, effort: choix.effort };
 }
 
 /**
@@ -36,12 +43,12 @@ export function modeleOpenAi(env: NodeJS.ProcessEnv = process.env): ModeleConfig
 export const IA_NON_CONFIGUREE = phraseIaNonConfiguree("OPENAI_API_KEY", "l'Assistant IA");
 
 /** Les modèles à essayer, dans l'ordre. Vide = IA non configurée. */
-export function modelesAssistant(): ModeleConfig[] {
-  const m = modeleOpenAi();
+export function modelesAssistant(role: RoleModele = "standard"): ModeleConfig[] {
+  const m = modeleOpenAi(process.env, role);
   return m ? [m] : [];
 }
 
-const estOpenAi = (m: unknown): m is ModeleConfig =>
+export const estOpenAi = (m: unknown): m is ModeleConfig =>
   typeof m === "object" && m !== null && (m as Partial<ModeleConfig>).providerId === "openai";
 
 /**
@@ -52,4 +59,13 @@ const estOpenAi = (m: unknown): m is ModeleConfig =>
  */
 export function pourMastra<T>(m: T): T | { id: `openai/${string}`; apiKey: string } {
   return estOpenAi(m) ? { id: `openai/${m.modelId}`, apiKey: m.apiKey } : m;
+}
+
+/**
+ * LES OPTIONS DU FOURNISSEUR d'un appel (J4) : l'effort de raisonnement du rôle, et la clé de cache du préfixe — les
+ * appels d'une même personne partagent le même début de consigne, le fournisseur les route vers le même cache.
+ */
+export function optionsFournisseur(m: unknown, cleCache?: string): { openai: Record<string, string> } | undefined {
+  if (!estOpenAi(m)) return undefined;
+  return { openai: { ...(m.effort ? { reasoningEffort: m.effort } : {}), ...(cleCache ? { promptCacheKey: cleCache } : {}) } };
 }

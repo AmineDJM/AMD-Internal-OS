@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import type { CurrentUser } from "@/lib/session";
 import { userCan } from "@/lib/rbac";
 import { regulatoryVisibleWhere } from "@/lib/queries/regulatory-rows";
 import { geste, retardJours, retardLabel } from "@/platform/ia/workspace/emit";
@@ -17,7 +16,7 @@ export { REG_STEPS, hasWorkflowState, regProgress, workflowAsSteps };
 export type { RegWorkflowState };
 import { REGULATORY_STATUS } from "@/lib/labels";
 import { resolveOrg, coreTokens } from "@/platform/ia/lectures/entity-normalize";
-import type { PowerTool } from "@/platform/ia/outil";
+import type { PowerTool, UtilisateurOutil as CurrentUser } from "@/platform/ia/outil";
 import { regulatoryKnowledgeDigest } from "@/lib/regulatory/anpp-knowledge";
 import { sansBloquer } from "@/lib/journal";
 

@@ -61,6 +61,8 @@ partagées) :
 
 - **Pas branché dans l'Assistant IA ni dans Adam** : deux autres sessions modifient leurs outils. La fonction est prête
   (`chercherDocuments(user, requête, filtres, { pourModele: true })`, `ouvrirDocuments(user, ids, { pourModele: true })`).
+  **Mise à jour J4 (30/10/2026)** : branchée dans l'Assistant IA — décision [0018](0018-vitesse-memoire.md) (outils
+  `chercher_documents`, `ouvrir_documents`, `faits_confirmes`). Adam : pas encore.
 - **Corpus réglementaire** (dossiers CTD, réserves ANPP, documents générés) : index et droits propres ; le pont (sans relecture)
   est le lot J2. Les miroirs Drive de ces pièces, eux, sont inscrits (ce sont des fichiers du Drive).
 - **Vision** d'une image scannée : l'OCR **local** suffit à l'index ; la vision (cloud) reste réservée à l'Assistant IA, qui la

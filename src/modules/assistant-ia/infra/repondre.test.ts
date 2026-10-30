@@ -89,3 +89,35 @@ describe("repondreAvecSecours", () => {
       .rejects.toThrow(/aucun modèle configuré/);
   });
 });
+
+describe("outils choisis à la demande (J4) — seuls les ACTIFS partent au modèle", () => {
+  it("une étape n'envoie que les actifs ; un outil trouvé en cours de tour part à l'étape suivante", async () => {
+    const actifs = new Set(["socle_a"]);
+    const outils = [
+      outil("socle_a", async () => "a"),
+      outil("trouver_outil", async () => { actifs.add("rare_b"); return JSON.stringify({ trouves: [{ outil: "rare_b" }] }); }),
+      outil("rare_b", async () => "b"),
+      outil("jamais_c", async () => "c"),
+    ];
+    actifs.add("trouver_outil");
+    const { modele, outilsRecus } = modeleFactice([
+      { appel: { outil: "trouver_outil", entree: {} } },
+      { appel: { outil: "rare_b", entree: {} } },
+      { texte: "Fait." },
+    ]);
+    const r = await repondreAvecSecours({
+      ...base, message: "?", outils, modeles: [modele], propositionsFaites: () => 0, actifs: () => [...actifs].sort(),
+    });
+    expect(r.texte).toBe("Fait.");
+    // L'ordre envoyé est celui de l'enregistrement des outils (le catalogue) : stable d'un tour à l'autre.
+    expect(outilsRecus[0]).toEqual(["socle_a", "trouver_outil"]);
+    expect(outilsRecus[1]).toEqual(["socle_a", "trouver_outil", "rare_b"]);
+    expect(outilsRecus.flat()).not.toContain("jamais_c");
+  });
+
+  it("sans sélection (routines, anciens appelants), tous les outils offerts partent", async () => {
+    const { modele, outilsRecus } = modeleFactice([{ texte: "Ok." }]);
+    await repondreAvecSecours({ ...base, message: "?", outils: [outil("x", async () => "x"), outil("y", async () => "y")], modeles: [modele], propositionsFaites: () => 0 });
+    expect(outilsRecus[0].sort()).toEqual(["x", "y"]);
+  });
+});

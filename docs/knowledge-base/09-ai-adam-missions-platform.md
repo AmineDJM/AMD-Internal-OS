@@ -37,6 +37,23 @@
 >   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
 >   Adam → IA = 0. Remaining IA → Adam = Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
 >   closure is 92 % of Adam; kept, named and ratcheted until J6 (capability registry derived from the action contract — decision 0013 §5).
+> - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
+>   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
+>   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay
+>   registered with Mastra, only the step's ACTIVE ones are sent (`prepareStep` → `activeTools`, `infra/repondre.ts`). Fiches =
+>   tools the adapter would offer (`allowed`, `config.allowedTools`) → never out of rights; console families still judged at
+>   run time. Stable prompt prefix (`infra/contexte.ts`: rules → presentation → general instructions → person → variable tail →
+>   time LAST; per-tool-family rules via `reglesPour`/`reglesAjoutees`; `promptCacheKey` per user). **Measured: any change to
+>   the tool list voids the whole cached prefix** (tools precede instructions) — cache rate fell 89 % → ~47 %, accepted for a
+>   4× smaller input. Memory in 4 layers: (a) J2 work notebook; (b) 4 verbatim exchanges + ROLLING SUMMARY
+>   (`AssistantIaFil.resume/resumeJusquA/resumeLe`, migration `20270209100000_assistant_ia_resume_roulant`, `infra/fil/resume.ts`,
+>   fast model, after the reply, idempotent, filtered twice); (c) `AssistantMemoryItem` ranked by relevance; (d) knowledge tools
+>   `chercher_documents`/`ouvrir_documents`/`faits_confirmes` in the AI socle (`platform/ia/lectures/connaissance.ts`, facts rule in `bibliotheque/infra/faits.ts`; `SOCLE_IA_CEILING` 180 → 179,
+>   `pourModele: true`, framed as untrusted content; placed in the socle because `bibliotheque → assistant-ia` already exists
+>   in `carte.ts`). Context assembler `domaine/assembleur.ts` (fixed envelopes 500/700/3 500 tokens). Model per gesture:
+>   `platform/ia/modeles-roles.ts` (fast `gpt-6-luna`, standard `gpt-6.1-terra` effort low, reasoning effort medium;
+>   env `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`). Bench (same 26 scenarios, same criteria): input/call 22 925 →
+>   ~6 100 tokens, first word P50 5.3 → 3.4–3.7 s, P95 15.4 → 7.1–8.2 s (long task excluded; 3 passes), cost/turn 0.0238 → 0.018 $, 21 → 22/26.
 > - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
 >   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
 

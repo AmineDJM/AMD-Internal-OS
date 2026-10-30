@@ -1,7 +1,6 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import type { CurrentUser } from "@/lib/session";
-import type { PowerTool } from "@/platform/ia/outil";
+import type { PowerTool, UtilisateurOutil as CurrentUser } from "@/platform/ia/outil";
 import { caduquesParMessage, natureComparable, propositionsPerimees, retraitDesPerimeesDesactive, type PropositionComparable } from "@/platform/ia/intentions/proposition-perimee";
 import { sansBloquer } from "@/lib/journal";
 import { matchesConfirmText } from "./confirm";

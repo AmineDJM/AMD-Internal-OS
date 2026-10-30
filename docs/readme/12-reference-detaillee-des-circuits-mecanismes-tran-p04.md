@@ -574,7 +574,9 @@ Décision : `docs/assistant/decisions/0014-bibliotheque.md`. Module `src/modules
   ni confidentiel, ni sensible, extraits filtrés. `ouvrirDocuments(user, ids)` : le texte recousu, mêmes droits.
 - **Super Admin** — `/bibliotheque` montre l'état de la file et le mode (hybride / plein texte) ; « Lire maintenant »
   (`bibliotheque-actions:lancerPassageBibliotheque`), relance d'une pièce (`relancerFicheBibliotheque`), audités.
-- **Pas encore** branchée dans l'Assistant IA ni dans Adam ; le corpus réglementaire garde son index (pont : lot J2).
+- **Branchée dans l'Assistant IA** (lot J4, décision [0018](../assistant/decisions/0018-vitesse-memoire.md)) : outils
+  `chercher_documents` / `ouvrir_documents` (`pourModele: true`) et `faits_confirmes` (`src/platform/ia/lectures/connaissance.ts`).
+  Pas encore dans Adam ; le corpus réglementaire garde son index (pont : lot J2).
 
 ### Travaux longs de l'Assistant IA — le Mission Runtime pour tous (lot J2, 30/10/2026)
 
@@ -607,3 +609,22 @@ Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missio
 - **Console** `/admin/ai/acces` : plafonds par défaut (par travail, par mois) et par personne (`enregistrerPlafondsTravaux`, audité).
 - **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
   Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
+
+### Assistant IA — vitesse et mémoire (lot J4, 30/10/2026)
+
+Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/modules/assistant-ia/domaine/{selection-outils,assembleur}.ts`,
+`domaine/fil/resume.ts`, `infra/{selection,contexte,repondre,modele}.ts`, `infra/fil/{tour,service,resume}.ts` ; socle
+`src/platform/ia/{modeles-roles.ts,lectures/connaissance.ts}`.
+
+- **Outils d'un tour** : tous enregistrés, seuls les **actifs** partent au modèle à chaque étape — socle (10), présélection
+  par la demande (6), et ceux qu'ajoute `trouver_outil(intention)`. Les fiches sont les outils offerts sous les droits
+  (`allowed`, configuration du rôle) ; les familles de la console jugent à l'exécution. `trouver_outil` n'apparaît pas
+  dans « sources consultées ».
+- **Consigne** : préfixe stable (identité, règles, présentation, consignes générales, la personne), partie variable
+  (indice de travail long, mémoire, résumé), heure en dernier ; règles d'une famille d'outils seulement si elle est offerte.
+- **Conversation** : 4 échanges mot pour mot ; au-delà de 7, les plus anciens passent au **résumé roulant**
+  (`AssistantIaFil.resume`), régénéré par le modèle rapide après la réponse ; « nouvelle conversation » l'efface.
+- **Connaissance** : `chercher_documents` / `ouvrir_documents` (Bibliothèque, `pourModele: true`, famille « Drive &
+  documents »), `faits_confirmes` (un fait n'est rendu qu'à qui peut ouvrir sa pièce ; jamais un fait sensible).
+- **Modèle par geste** : rapide `gpt-6-luna` (résumé), standard `gpt-6.1-terra` effort `low`, raisonnement effort
+  `medium` (analyse, comparaison, plusieurs pièces) — variables `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`.

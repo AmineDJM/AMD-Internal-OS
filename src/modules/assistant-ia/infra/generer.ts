@@ -1,5 +1,6 @@
 import { Agent } from "@mastra/core/agent";
-import { modelesAssistant, pourMastra } from "./modele";
+import { modelesAssistant, optionsFournisseur, pourMastra } from "./modele";
+import type { RoleModele } from "@/platform/ia/modeles-roles";
 import { fournisseurDe, type ModeleTour } from "./repondre";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { appelDepuisEtape, budgetDeLAppel, fermerBudget, type OrigineAppel } from "./consommation";
@@ -32,6 +33,8 @@ export interface OptionsGeneration {
   images?: ImageJointe[];
   /** La colonne `role` du journal quand l'appel ouvre son propre budget (« redaction » par défaut). */
   origine?: Extract<OrigineAppel, "redaction" | "vision">;
+  /** J4 : le rôle du modèle (« rapide » pour un résumé roulant) — « standard » par défaut. */
+  role?: RoleModele;
 }
 
 let modelesDeTest: ModeleTour[] | null = null;
@@ -40,11 +43,11 @@ export function remplacerModelesPourTests(m: ModeleTour[] | null): void {
   modelesDeTest = m;
 }
 
-/** Les modèles de l'assistant — ou le faux modèle d'un test. */
-export const modelesEffectifs = (): ModeleTour[] => modelesDeTest ?? modelesAssistant();
+/** Les modèles de l'assistant pour un rôle — ou le faux modèle d'un test (le même, quel que soit le rôle). */
+export const modelesEffectifs = (role: RoleModele = "standard"): ModeleTour[] => modelesDeTest ?? modelesAssistant(role);
 
 export async function genererTexte(consigne: string, texte: string, delaiMs = 60_000, opts: OptionsGeneration = {}): Promise<{ ok: true; texte: string } | { ok: false; raison: string }> {
-  const modeles = modelesEffectifs();
+  const modeles = modelesEffectifs(opts.role);
   if (!modeles.length) return { ok: false, raison: "L'assistant n'a pas de modèle configuré." };
   // L'interrupteur général — lu ici comme dans `repondreAvecSecours` : l'autre porte vers le modèle.
   if (await interrupteurIaCoupe()) return { ok: false, raison: REFUS_IA_COUPEE };
@@ -69,7 +72,7 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
             ]),
           ]
           : texte;
-        const r = await agent.generate([{ role: "user" as const, content: contenu }] as never, { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs) });
+        const r = await agent.generate([{ role: "user" as const, content: contenu }] as never, { maxSteps: 1, abortSignal: AbortSignal.timeout(delaiMs), providerOptions: optionsFournisseur(m) } as never);
         budget.enregistrer(appelDepuisEtape(fournisseurDe(m), (r as { usage?: unknown }).usage, Date.now() - t0));
         const fin = (r as { finishReason?: string }).finishReason;
         if (fin === "aborted") throw new Error(`délai dépassé (${delaiMs} ms)`);

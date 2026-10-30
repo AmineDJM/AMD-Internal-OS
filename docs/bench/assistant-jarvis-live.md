@@ -172,3 +172,42 @@ confirmation**. Rejeu de 07, 20, 21, 22 avec les critères mis à jour : **4 / 4
 | Entrée par appel (Super Admin / assistante) | ~10 200 / ~6 300 jetons | **~23 400 / ~17 800** — les définitions des outils ouverts (lot J4 : réduction du prompt) |
 | Coût du passage complet (journal, cache à son tarif) | 2,10 $ au journal (cache plein tarif), ~0,52 $ réel | **0,60 $** (57 appels, 1 234 745 jetons d'entrée, 5 740 de sortie) |
 | Coût moyen d'un tour en cache | ~0,010 $ | **~0,012 $** (tour à 2 appels, cache chaud) |
+
+## J4 — vitesse et mémoire (décision 0018, `jarvis/j4-vitesse-memoire`, 30/10/2026)
+
+Même banc, mêmes 26 scénarios, base locale `amd_bench`, `gpt-6.1-terra`. AVANT = `jarvis/j0-separation` (J1 + J2
+fusionnés), joué depuis une copie figée du dépôt ; APRÈS = ce lot, **trois passages complets**. Le semis fait désormais
+lire ses fichiers par la Bibliothèque (`rattraper` + `traiterFile`), comme la file de fond en production.
+
+**Critères mis à jour, appliqués aux DEUX colonnes** (les réponses AVANT, gardées en JSON, ont été rejugées) : le refus
+reconnaît « ne dispose pas du droit » et « est également fermée » (10c : refus juste, formulé autrement) ; 13 accepte
+« Document ouvert » (la Bibliothèque) en plus de « Document lu » ; 18 accepte le **plan de travail proposé** (J2,
+décision 0016 — c'est la réponse du produit à « analyse toutes les demandes de l'année », AVANT comme APRÈS). Le premier
+mot se mesure, comme les totaux, hors de la tâche longue (arrière-plan, redémarrage forcé).
+
+| Mesure | AVANT | APRÈS (3 passages) | Cible J4 |
+| --- | --- | --- | --- |
+| Réussite | 21 / 26 | **22 / 26** · 22 · 22 | ≥ 23, sans régresser |
+| Entrée moyenne par appel | **22 925** jetons (SA 23 613 · AD 18 538) | **6 137 · 6 129 · 6 079** (SA ~6 000 · AD ~6 900) | ≤ ~10 000 |
+| Premier mot P50 | 5,3 s | **3,4 · 3,4 · 3,7 s** | ≤ 4 s |
+| Premier mot P95 | 15,4 s | **7,1 · 8,2 · 8,2 s** | ≤ 8 s |
+| Coût moyen d'un tour (journal, cache à son tarif) | 0,0238 $ | **0,0182 · 0,0185 · 0,0180 $** (−24 %) | stable ou en baisse |
+| Part de l'entrée servie par le cache | 89 % | 47 · 47 · 48 % | mesurée |
+| Appels par tour | 2,27 | 2,2 | — |
+| Écritures sans confirmation | 0 | **0** | 0 |
+
+**Lecture.** L'entrée est divisée par 3,8 : les définitions d'outils (~18 700 jetons pour 65 outils) ne partent plus en
+bloc — socle de 10, présélection de 6, `trouver_outil` pour le reste. Le premier mot gagne ~1,8 s en médiane et ~7 s au
+95ᵉ centile. Le P95 reste **à la limite** (8,2 s sur deux passages sur trois) : il est fait de la photo de facture
+(9,6 à 17,5 s — la lecture « vision » précède le tour et varie d'un passage à l'autre) et de « affiche-moi ces deux
+documents » (7,4 à 8,2 s, trois appels). Le cache tombe à ~47 % : MESURÉ, toute variation de la liste d'outils invalide
+le préfixe entier (les définitions précèdent la consigne) — assumé, le coût par tour baisse quand même.
+
+**Restants (4, aucun ne relève de J4, les mêmes qu'AVANT)** : 06 et 14 posent UNE question (l'entité du dossier, la
+société de la lettre) — la carte vient au tour suivant (14b : OK, et en 2 appels au lieu de 3 grâce à l'héritage de la
+question précédente) ; 09 liste bien les validations mais sans leur référence `VAL-…` ; 11 retrouve la bonne note par la
+Bibliothèque (AVANT : introuvable) mais n'en cite pas le chiffre « 340 » exigé. **Gagné par J4** : 13 (le compte rendu
+retrouvé par son contenu et résumé ; AVANT « je n'ai pas trouvé »).
+
+**Coût de la campagne J4** : AVANT 0,62 $ ; APRÈS 0,47 + 0,48 + 0,47 $ ; un passage interrompu par un redémarrage du
+conteneur (~0,3 $, écarté) ; essais de modèles et de cache ~0,01 $ — **≈ 2,3 $** (budget 4 $).
