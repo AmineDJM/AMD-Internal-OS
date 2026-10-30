@@ -27,7 +27,7 @@ export interface FormulaireCarteProps {
   onChercher: (champ: string, texte: string) => Promise<OptionReference[]>;
 }
 
-const CHAMP = "h-11 w-full rounded-lg border bg-white px-2.5 text-base text-zinc-900 outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60 sm:text-sm dark:bg-zinc-900 dark:text-zinc-100";
+const CHAMP = "w-full rounded-lg border bg-white px-2.5 text-base text-zinc-900 outline-none transition focus-visible:ring-2 focus-visible:ring-blue-500 disabled:opacity-60 sm:text-sm dark:bg-zinc-900 dark:text-zinc-100";
 
 function bordure(proposee: boolean, corrige: boolean, erreur: boolean): string {
   if (erreur) return "border-red-400 dark:border-red-500";
@@ -55,6 +55,9 @@ export function FormulaireCarteCapacite({ formulaire, saisies, erreurs, corriges
         const large = c.widget === "zone" || c.widget === "references" || c.widget === "etiquettes" || c.widget === "choix-multiple";
         const commun = { id, "aria-invalid": erreur ? true : undefined, "aria-describedby": decrit, "aria-required": c.obligatoire || undefined };
         const classe = `${CHAMP} ${bordure(proposee, corrige, !!erreur)}`;
+        // Une ligne fait 44 px ; une zone, au moins 88 px — la hauteur n'est jamais dans `CHAMP` (une seule déclaration).
+        const ligne = `${classe} h-11`;
+        const zone = `${classe} min-h-[5.5rem] py-2`;
         const v = saisies[c.nom];
         return (
           <div key={c.nom} className={`flex min-w-0 flex-col gap-1 ${large ? "sm:col-span-2" : ""}`} data-champ={c.nom}>
@@ -77,9 +80,9 @@ export function FormulaireCarteCapacite({ formulaire, saisies, erreurs, corriges
                 <span className="text-zinc-700 dark:text-zinc-300">{v === true ? "Oui" : "Non"}</span>
               </label>
             ) : c.widget === "zone" ? (
-              <textarea {...commun} rows={3} value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={`${classe} h-auto min-h-[5.5rem] py-2`} />
+              <textarea {...commun} rows={3} value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={zone} />
             ) : c.widget === "choix" ? (
-              <select {...commun} value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={classe}>
+              <select {...commun} value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={ligne}>
                 <option value="">{c.obligatoire ? "— Choisir —" : "— Aucun —"}</option>
                 {(c.valeurs ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
@@ -98,14 +101,14 @@ export function FormulaireCarteCapacite({ formulaire, saisies, erreurs, corriges
                 })}
               </div>
             ) : c.widget === "etiquettes" ? (
-              <textarea {...commun} rows={3} value={Array.isArray(v) ? v.join("\n") : ""} onChange={(e) => onChange(c.nom, e.target.value.split("\n"))} className={`${classe} h-auto min-h-[5.5rem] py-2`} />
+              <textarea {...commun} rows={3} value={Array.isArray(v) ? v.join("\n") : ""} onChange={(e) => onChange(c.nom, e.target.value.split("\n"))} className={zone} />
             ) : c.widget === "reference" || c.widget === "references" ? (
               <SelecteurReference champ={c} id={id} decrit={decrit} invalide={!!erreur} classe={bordure(proposee, corrige, !!erreur)}
                 valeurs={Array.isArray(v) ? v : v ? [String(v)] : []} multiple={c.widget === "references"}
                 onChange={(ids) => onChange(c.nom, c.widget === "references" ? ids : ids[0] ?? "")} onChercher={onChercher} />
             ) : (
               <input {...commun} type={c.widget === "date" ? "date" : "text"} inputMode={c.widget === "nombre" ? "decimal" : undefined}
-                value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={classe} />
+                value={String(v ?? "")} onChange={(e) => onChange(c.nom, e.target.value)} className={ligne} />
             )}
 
             {c.aide && <p id={aide} className="text-[11px] text-zinc-500 dark:text-zinc-400">{c.aide}</p>}

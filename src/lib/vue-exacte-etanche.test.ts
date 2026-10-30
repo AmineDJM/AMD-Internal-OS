@@ -288,6 +288,9 @@ describe("les actions qui CHARGENT un écran voient la personne visualisée", ()
     // et le lot partirait sur celles de l'administrateur. Lire une tranche de pièces du rapprochement ÉCRIT (empreintes, lectures Luna).
     "lireFichierIntegrationAdPro", "apercuIntegrationAdPro", "lireTranchePiecesRapprochement",
     "searchRelations", "compterDossiersNonEntames", "searchCorpusAction", // réservés au Super Admin
+    // J11 : le sélecteur d'une référence du formulaire de carte — la carte se signe ensuite au nom de la session réelle
+    // (`confirmerIntentionAssistantIA`, `requireUser`) ; ses options doivent être celles de qui signe.
+    "chercherReferenceCarteAssistantIA",
     "apercuReprise", // l'aperçu à blanc d'une reprise de la refonte des données — Super Admin seul, qui exécute ensuite en son nom
   ]);
   const corpsDe = (src: string, nom: string) => src.slice(src.indexOf(`export async function ${nom}(`)).split(/\nexport /)[0];
