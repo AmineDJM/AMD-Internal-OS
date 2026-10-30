@@ -2,7 +2,7 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018 ; 0013 : la séparation d'Adam et le socle IA ;
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0025 ; 0013 : la séparation d'Adam et le socle IA ;
 0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle).
 
 | Porte / dossier | Rôle |
@@ -36,3 +36,12 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   `platform/ia/lectures/connaissance.ts`). **Assembleur** : `domaine/assembleur.ts` (enveloppes fixes).
 - **Le bon modèle** — `platform/ia/modeles-roles.ts` (rapide / standard / raisonnement, effort adaptatif) ;
   `infra/modele.ts` (`optionsFournisseur` : effort, clé de cache).
+
+## Terrain et voix (lot J13, décision 0025)
+
+- **Terrain** — `domaine/terrain/` (compte rendu dicté, résolution dans l'annuaire, file hors ligne, photos, règles de la
+  voix — pur), `infra/terrain/captation.ts` (vocal / photo → cartes, idempotent), `infra/operations/terrain.ts`
+  (`terrain_*`), `ecrans/terrain/` (écran mobile, file IndexedDB), page `/medical/terrain`, confirmation
+  `confirmerCarteTerrain`. Table `AssistantIaTerrainCapture`.
+- **Voix temps réel** — `infra/voix/temps-reel.ts` (session, exécution des outils sous les droits relus, journal),
+  `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune confirmation à la voix ; valeurs sensibles jamais lues.

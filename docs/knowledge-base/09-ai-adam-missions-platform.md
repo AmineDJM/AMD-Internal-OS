@@ -457,6 +457,12 @@ on BLOCKED: `replanifierMission` (Reasoner → `callModel("orchestrator")`) → 
 `createEmployee` (hr-actions) → `emit({type:"hr.employee-added",…})` → `event-bus.publish` → change-feed array (in memory) →
 later `what_changed` tool reads it as a hint and re-reads canonical data.
 
+### 6.4 Field voice & realtime voice of the Assistant IA (J13, decision 0025)
+
+- **Capture → cards**: `infra/terrain/captation.ts` (idempotent on `(userId, cle)`) → Drive → `transcrireMedia` (`gpt-transcribe`, no forced language, vocabulary hint; `modeleSttTerrain` in `platform/ia/modeles-roles.ts`, chosen by the bench `scripts/banc-stt-terrain.mjs`) → `genererTexte` + `lireCompteRendu` (untrusted JSON) → `resoudreMedecin` over `scopeMedicalDoctors` → `preparerCarte` (same `proposer` + `persistActionIntents` as model tools). Operations `terrain_*` live in `OPERATIONS_IA` (MOTS_CLES fiches, not SOCLE_OUTILS) and execute through screen actions (`createFieldReport`/`updateFieldReport`, `demanderMateriel`, `ouvrirPlanTournee`+`planifierVisites`, `rattacherPhotoTerrain`).
+- **Realtime voice**: socle `platform/ia/voix/session-temps-reel.ts` (ephemeral secret, zero imports) + `client-temps-reel.ts` (thin WebRTC client, tool calls round-trip to the server, latency speech_stopped → first audio). Module `infra/voix/temps-reel.ts`: tools rebuilt per call from `outilsV1` under re-read console access; `pourLaVoix` strips repères; `Revelateur` reveals for the screen only; no confirm tool; names matching confirm/execute/sign/pay refused. Adam's realtime (`lib/assistant/voice-realtime.ts`, `components/chief/realtime-voice/`) untouched.
+- **Known limit**: realtime latency could not be measured from the dev container (WebRTC media/UDP and WebSocket upgrade blocked by the egress proxy); first real p50 is logged in production (`[assistant-ia] voix temps réel`).
+
 ## 7. Coupling & blast radius
 
 **Adam → ERP** [V] (boundary scan, read-only run): 288 Adam files, **433** crossing imports to 181 ERP targets; top targets `src/lib/prisma` 63,

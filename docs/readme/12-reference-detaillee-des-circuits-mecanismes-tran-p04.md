@@ -654,3 +654,26 @@ Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/mo
   documents »), `faits_confirmes` (un fait n'est rendu qu'à qui peut ouvrir sa pièce ; jamais un fait sensible).
 - **Modèle par geste** : rapide `gpt-6-luna` (résumé), standard `gpt-6.1-terra` effort `low`, raisonnement effort
   `medium` (analyse, comparaison, plusieurs pièces) — variables `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`.
+
+### Terrain et voix (lot J13, 30/10/2026)
+
+Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modules/assistant-ia/domaine/terrain/`,
+`infra/terrain/captation.ts`, `infra/operations/terrain.ts`, `infra/voix/temps-reel.ts`, `ecrans/terrain/`,
+`ecrans/voix-temps-reel.tsx` ; socle `src/platform/ia/voix/` ; page `/medical/terrain` ; routes `/api/assistant-ia/terrain`,
+`/api/assistant-ia/voix/{session,outil,journal}` ; table `AssistantIaTerrainCapture`.
+
+- **Vocal → compte rendu** : file locale → dépôt idempotent (clé de capture) → Drive « Terrain — vocaux et photos » →
+  `gpt-transcribe` (langue détectée, indice du panel et de la gamme ; mesuré meilleur des quatre moteurs) → structuration
+  JSON relue → médecin résolu dans l'annuaire DU délégué (jamais deviné) → **cartes** : brouillon de compte rendu
+  pré-rempli (`createFieldReport` + `updateFieldReport`), demande d'échantillons (`demanderMateriel`), tournée de demain
+  (`planifierVisites`, sélection complète relue). **Rien n'est écrit sans clic** ; confirmation par `confirmerCarteTerrain`
+  (porte : module Rapports terrain ; seulement les opérations `terrain_*` de ce compte).
+- **Photos** : présentoir, ordonnance anonymisée (aucune donnée patient recopiée, filtrée en sortie), facture, carte de
+  visite → faits proposés ; carte « rattacher au compte rendu » → `rattacherPhotoTerrain` (brouillon seulement).
+- **Hors ligne** : IndexedDB, un élément ne sort de la file que sur l'accusé du serveur ; réessai 5 s → 5 min ; refus 4xx
+  gardé à relire ; envoi au retour du réseau ; état visible ; `sw.js` sert l'écran Terrain hors ligne (et rien d'autre).
+- **Voix temps réel de l'Assistant IA** (bouton à côté du micro de `/assistant`) : secret éphémère, socle des outils de la
+  personne + `trouver_outil` / `utiliser_outil`, chaque appel rejugé au serveur (droits, console) ; valeurs sensibles
+  jamais lues (« affichée à l'écran »), révélées à l'écran à qui a le droit ; **aucune confirmation à la voix** — une
+  écriture est une carte, exécutée par son bouton. Latence fin de parole → premier son mesurée et journalisée (cible p50
+  ≤ 1,5 s, première mesure réelle à relever en production).

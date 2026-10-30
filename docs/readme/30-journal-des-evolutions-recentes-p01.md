@@ -35,6 +35,20 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
   socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
 
+### J13 : TERRAIN ET VOIX — LE VOCAL D'UN DÉLÉGUÉ DEVIENT UN COMPTE RENDU PRÊT, HORS LIGNE COMPRIS (2026-10-30)
+
+Lot J13 — `docs/assistant/decisions/0025-terrain-voix.md` ; banc STT `scripts/banc-stt-terrain.mjs`.
+- **Compte rendu vocal** : écran `/medical/terrain` (mobile, 390 px) ; transcription `gpt-transcribe` + indice (banc :
+  WER 0,229, 11 entités sur 12, ~1 s — devant whisper-1, gpt-4o-transcribe, gpt-4o-mini-transcribe) ; compte rendu
+  structuré, médecin résolu dans l'annuaire du délégué ; cartes compte rendu / échantillons / tournée de demain ; rien
+  d'écrit sans confirmation.
+- **Photos de terrain** → faits proposés (ordonnance : jamais le patient) → photo rattachée au compte rendu par carte.
+- **Hors ligne** : file IndexedDB, envoi automatique au retour du réseau, état visible, aucune perte (50 éléments sur
+  réseau intermittent au banc ; E2E 390 px).
+- **Voix temps réel de l'Assistant IA** : mêmes outils, droits et repères que le texte ; valeurs sensibles jamais lues ;
+  écritures confirmées à l'écran seulement. Adam inchangé.
+- Migration additive `20270210100000_terrain_voix`. Aucun cliquet relevé.
+
 ### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)
 
 Lot J4 — `docs/assistant/decisions/0018-vitesse-memoire.md` ; banc `docs/bench/assistant-jarvis-live.md` § J4.
