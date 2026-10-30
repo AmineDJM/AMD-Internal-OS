@@ -48,7 +48,7 @@ const CONSIGNE_MATIN = [
 ].join("\n");
 
 export const redacteurParDefaut: Redacteur = async (userId, faits) => {
-  const r = await auNomDe(userId, () => genererTexte(CONSIGNE_MATIN, censurerTexte(faits).texte, 30_000, { role: "rapide" })).catch(() => null);
+  const r = await auNomDe(userId, () => genererTexte(CONSIGNE_MATIN, censurerTexte(faits).texte, 30_000, { role: "rapide" })).catch(sansBloquer("veille.redacteur", null));
   return r && r.ok && r.texte.trim() ? r.texte.trim() : null;
 };
 
@@ -157,7 +157,7 @@ async function livrer(user: CurrentUser, prefs: Awaited<ReturnType<typeof prefer
     if (discrets.length) await prisma.assistantSignal.updateMany({ where: { id: { in: discrets.map((s) => s.id) } }, data: { etat: "JOURNAL", canal: "JOURNAL", livreLe: now } });
     if (!retenus.length && !gestes.length) return { interrompu: 0, journal: discrets.length, matin: false };
     const faits = faitsDuMatin(retenus, gestes);
-    const texte = (await redacteur(user.id, faits).catch(() => null)) ?? texteDeSecours(retenus, gestes);
+    const texte = (await redacteur(user.id, faits).catch(sansBloquer("veille.livrer.redacteur", null))) ?? texteDeSecours(retenus, gestes);
     await prisma.assistantSignal.updateMany({ where: { id: { in: retenus.map((s) => s.id) } }, data: { etat: "LIVRE", canal: "MATIN", livreLe: now } });
     if (!retenus.length) {
       // Seulement des gestes à récapituler : le récapitulatif part, sans constat à marquer.

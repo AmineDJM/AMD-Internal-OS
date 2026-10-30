@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { sansBloquer } from "@/lib/journal";
 import { INTERRUPTIONS_MAX_CONSOLE, INTERRUPTIONS_PAR_DEFAUT } from "../../domaine/proactivite/budget";
 
 /**
@@ -13,7 +14,7 @@ export function remplacerConsolePourTests(c: ConsoleProactivite | null): void { 
 
 export async function lireConsoleProactivite(): Promise<ConsoleProactivite> {
   if (pourTests) return pourTests;
-  const r = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { interruptionsMaxJour: true, proactiviteCoupee: true } }).catch(() => null);
+  const r = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { interruptionsMaxJour: true, proactiviteCoupee: true } }).catch(sansBloquer("proactivite.lireConsole", null));
   return { interruptionsMaxJour: r?.interruptionsMaxJour ?? INTERRUPTIONS_PAR_DEFAUT, coupee: r?.proactiviteCoupee ?? false };
 }
 

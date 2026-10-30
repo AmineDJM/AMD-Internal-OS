@@ -87,13 +87,14 @@ export async function listerMandats(userId: string | null, now = new Date()) {
   const mandats = await prisma.assistantMandat.findMany({
     where: userId ? { userId } : { statut: { in: ["ACTIF", "EN_ATTENTE_CONSOLE"] } },
     orderBy: [{ statut: "asc" }, { accordeLe: "desc" }], take: 50,
-    include: { gestes: { orderBy: { faitLe: "desc" }, take: 10 } },
   });
+  // Les derniers gestes, lus à part (un `take` imbriqué ne serait pas un LIMIT) : 10 par mandat au plus à l'écran.
+  const gestes = mandats.length ? await prisma.assistantMandatGeste.findMany({ where: { mandatId: { in: mandats.map((m) => m.id) } }, orderBy: { faitLe: "desc" }, take: 300 }) : [];
   return mandats.map((m) => ({
     id: m.id, userId: m.userId, capacite: m.capacite, libelle: CAPACITE.get(m.capacite)?.libelle ?? m.capacite, statut: m.statut,
     destinataires: m.destinataires.length, montantMax: m.montantMax, gestesParJour: m.gestesParJour,
     expireLe: m.expireLe.toISOString(), accordeLe: m.accordeLe.toISOString(),
-    gestes: m.gestes.map((g) => ({ id: g.id, statut: g.statut, resume: g.resume, lien: g.lien, faitLe: g.faitLe.toISOString() })),
+    gestes: gestes.filter((g) => g.mandatId === m.id).slice(0, 10).map((g) => ({ id: g.id, statut: g.statut, resume: g.resume, lien: g.lien, faitLe: g.faitLe.toISOString() })),
   }));
 }
 

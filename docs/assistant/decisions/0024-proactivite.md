@@ -105,6 +105,12 @@ opération inconnue vaut R4) en attendant le registre des capacités (J6), qui l
   retours → seuil ×1,95 et discret ; désactivation ; mandat de relance **par l'action de l'écran**, 2 par jour tenus, une
   fois par étape, audit, révocation ; destinataire hors mandat refusé ; échéance → `EXPIRE` ; console coupée ; assistant fermé.
 
+- **Essai réel** (30/10, un seul appel, modèle « rapide » `gpt-6-luna`) : un point du matin rédigé à partir de 3 constats et
+  d'un geste sous mandat — 4,3 s, 282 jetons en entrée, 203 en sortie, **0,003 $** ; texte fidèle (le plus urgent d'abord,
+  aucun chiffre ajouté, le geste récapitulé).
+- Suite complète : seul échec restant, `derive-schema/ordre-migrations.test.ts`, lié au clone superficiel du conteneur (il
+  lit l'historique git des migrations ; 2 migrations de janvier mises en cause, aucune de J12).
+
 ## Ce qui reste
 
 - Le taux d'utilité réel (cible 60 %) se mesure en production : la console l'affiche sur 7 jours.

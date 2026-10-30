@@ -167,7 +167,7 @@ export interface LigneReserve { id: string; titre: string; dossier: string; recu
 export interface LigneCollaborateur { id: string; nom: string; finEssai: Date | null; contrat: string | null; finContrat: Date | null }
 export interface LignePaiement { id: string; source: "DEMANDE" | "ORDRE"; reference: string; beneficiaire: string | null; montant: number | null; echeance: Date; lien: string }
 export interface LigneFacture { id: string; reference: string | null; fournisseur: string | null; montant: number | null; date: Date | null }
-export interface LigneVisite { id: string; praticien: string; date: Date }
+export interface LigneVisite { id: string; praticien: string; date: Date; lien: string }
 export interface LigneValidation { id: string; reference: string; titre: string; validateur: string | null; etapeId: string; depuis: Date }
 export interface LigneReunion { id: string; source: "AGENDA" | "REUNION"; titre: string; debut: Date; participants: string[]; lien: string }
 
@@ -325,7 +325,7 @@ export function visitesNonRapportees(lignes: readonly LigneVisite[], seuilJours:
     veilleur: "TERRAIN_VISITE_NON_RAPPORTEE" as const, cle: `${l.id}:${ymd(l.date)}`,
     titre: `Visite du ${ymd(l.date)} sans compte rendu — ${l.praticien}`,
     detail: "Un vocal suffit : l'assistant en fait le compte rendu.", gravite: "INFO" as const,
-    lien: "/field-reports", entite: { type: "MEDICAL_VISIT", id: l.id },
+    lien: l.lien, entite: { type: "MEDICAL_VISIT", id: l.id },
   }));
 }
 

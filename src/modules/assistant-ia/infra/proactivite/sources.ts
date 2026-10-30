@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { userCan, type Module } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
+import { CHEMIN_RAPPORTS_TERRAIN } from "@/lib/chemins/rapports-terrain";
 import type { AccesIa } from "../../domaine/acces-regles";
 import {
   bcNonSignes, budgetsAuSeuil, contratsAFin, demandesBloquees, doublonsDeFactures, echeancesReglementaires, finsDEssai,
@@ -153,7 +154,7 @@ export const LECTEURS: Record<CodeVeilleur, Lecteur> = {
       },
       select: { id: true, date: true, doctor: { select: { name: true } } }, orderBy: { date: "asc" }, take: LOT,
     });
-    return visitesNonRapportees(visites.map((v) => ({ id: v.id, praticien: v.doctor?.name ?? "praticien", date: v.date })), seuil, now);
+    return visitesNonRapportees(visites.map((v) => ({ id: v.id, praticien: v.doctor?.name ?? "praticien", date: v.date, lien: CHEMIN_RAPPORTS_TERRAIN })), seuil, now);
   },
 
   async VALIDATION_EN_ATTENTE(user, seuil, now) {
@@ -183,12 +184,12 @@ export const LECTEURS: Record<CodeVeilleur, Lecteur> = {
     const [evenements, reunions] = await Promise.all([
       prisma.calendarEvent.findMany({
         where: { startAt: { gte: de, lte: a }, OR: [{ organizerId: user.id }, { invitees: { some: { userId: user.id, status: { not: "DECLINED" } } } }] },
-        select: { id: true, title: true, startAt: true, organizer: { select: { id: true, name: true } }, invitees: { select: { user: { select: { id: true, name: true } } }, take: 12 } },
+        select: { id: true, title: true, startAt: true, organizer: { select: { id: true, name: true } }, invitees: { select: { user: { select: { id: true, name: true } } } } },
         take: 10,
       }),
       prisma.meeting.findMany({
         where: { status: "SCHEDULED", scheduledAt: { gte: de, lte: a }, OR: [{ organizerId: user.id }, { participants: { some: { userId: user.id } } }] },
-        select: { id: true, title: true, scheduledAt: true, organizer: { select: { id: true, name: true } }, participants: { select: { user: { select: { id: true, name: true } } }, take: 12 } },
+        select: { id: true, title: true, scheduledAt: true, organizer: { select: { id: true, name: true } }, participants: { select: { user: { select: { id: true, name: true } } } } },
         take: 10,
       }),
     ]);
