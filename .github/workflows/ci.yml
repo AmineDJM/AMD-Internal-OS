@@ -89,10 +89,11 @@ jobs:
           npm run actions:contrat
           git diff --exit-code -- src/lib/actions/
       # Les deux typechecks : complet (tests, scripts, e2e) et celui du build de production.
+      # Tas mesuré le 30/10 : 6,45 Go pour le typecheck complet (6 144 Mo ne suffisaient plus) — runner à 16 Go.
       - run: npm run typecheck
-        env: { NODE_OPTIONS: --max-old-space-size=6144 }
+        env: { NODE_OPTIONS: --max-old-space-size=8192 }
       - run: npx tsc --noEmit -p tsconfig.build.json
-        env: { NODE_OPTIONS: --max-old-space-size=6144 }
+        env: { NODE_OPTIONS: --max-old-space-size=8192 }
       # Render lance `next lint` AVANT le build (build:render) : une erreur bloque le déploiement.
       - run: npx next lint
         env: { NODE_OPTIONS: --max-old-space-size=3072 }

@@ -11,6 +11,8 @@ import { DocumentList, type DocItem } from "@/components/documents/document-list
 import { VALIDATION_STATUS, VALIDATION_STEP_STATE, VALIDATION_MODE, PRIORITY } from "@/lib/labels";
 import { formatCurrency, formatDate, formatDateTime, toNumber } from "@/lib/utils";
 import { WithdrawRequestButton } from "./withdraw";
+import { SuggestionsDossier } from "@/modules/assistant-ia/ecrans/suggestions-dossier";
+import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { lecteurDeLaDemandeDeValidation } from "@/lib/entity-access";
 import { resoumissionSurPlace } from "@/lib/validations/decision";
 import { refusDuRetraitValidation, retraitEfface } from "@/lib/validations/retrait";
@@ -142,6 +144,9 @@ export default async function ValidationRequestPage(props: { params: Promise<{ i
           </CardContent>
         </Card>
       )}
+
+      {/* J12 : à l'ouverture du dossier, ce que les veilleurs de l'Assistant IA ont constaté ici (rien s'il n'y a rien). */}
+      {!user.impersonatedBy && peutUtiliserAssistantIA(user) && <SuggestionsDossier entiteType="VALIDATION_REQUEST" entiteId={req.id} />}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">

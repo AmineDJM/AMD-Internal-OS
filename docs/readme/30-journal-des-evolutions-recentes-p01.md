@@ -60,6 +60,20 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
   socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
 
+### J12 : L'ASSISTANT IA PROACTIF — VEILLEURS, BUDGET D'INTERRUPTIONS, MANDATS (2026-10-30)
+
+Lot J12 — `docs/assistant/decisions/0024-proactivite.md`.
+- **12 veilleurs par rôle** (Ad & Pro, Réglementaire, RH, Finances, Terrain, pour tous) : des règles de code sur ce qui est
+  à la personne — demande bloquée, budget à 90 %, BC non signé, échéance ANPP, réserve non levée, fin d'essai, CDD,
+  paiement en retard, facture en double, visite non rapportée, validation qui traîne, réunion dans l'heure. Dit une fois.
+- **Budget d'interruptions** : heures calmes (heure d'Alger), week-end vendredi-samedi, regroupement, **5 par jour au plus** ;
+  au-delà, le journal. Point du matin (ce qui a attendu, ce qui a été fait sous mandat). Retour « utile / pas utile » en un clic,
+  mesuré (cible 60 %), qui ajuste le veilleur.
+- **Mandats** : une approbation durable, bornée et révocable — « relance le validateur de mes demandes qui traînent »
+  (R1). Le geste passe par l'action de l'écran, dans la session de la personne ; tout va à l'audit.
+- **Écrans** : « Ce que mon assistant surveille » (`/assistant`), suggestions à l'ouverture d'un dossier, console
+  (`/admin/ai/acces` : plafond, interrupteur, mesure, mandats).
+
 ### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)
 
 Lot J4 — `docs/assistant/decisions/0018-vitesse-memoire.md` ; banc `docs/bench/assistant-jarvis-live.md` § J4.

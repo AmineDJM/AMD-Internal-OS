@@ -145,9 +145,17 @@ type Statut = "SUCCES" | "RIEN_DE_NOUVEAU" | "ECHEC" | "IGNOREE";
 
 const lien = (id: string) => `/assistant?routine=${id}`;
 
+/**
+ * PRÉVENIR LA PERSONNE — la seule porte de notification de ce qui se déclenche SANS elle (routines, veilleurs
+ * de J12, gestes sous mandat). Ne lève jamais. La décision de déranger (heures calmes, budget) est prise AVANT.
+ */
+export async function prevenir(userId: string, titre: string, corps: string, lienCible: string): Promise<void> {
+  await notifyUser({ userId, type: "GENERIC", title: titre.slice(0, 160), body: corps.slice(0, 280), link: lienCible }).catch(sansBloquer("routines-service.prevenir.notifyUser"));
+}
+
 async function notifier(r: AssistantRoutine, titre: string, corps: string, toujours = false): Promise<void> {
   if (!r.notifier && !toujours) return;
-  await notifyUser({ userId: r.userId, type: "GENERIC", title: titre, body: corps.slice(0, 280), link: lien(r.id) }).catch(sansBloquer("routines-service.notifier.notifyUser"));
+  await prevenir(r.userId, titre, corps, lien(r.id));
 }
 
 /**
