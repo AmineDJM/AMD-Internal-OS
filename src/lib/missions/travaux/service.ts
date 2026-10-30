@@ -295,3 +295,10 @@ export async function lireTravail(travailId: string, principalId: string, mainte
     demandes: await demandesDuTravail(travailId),
   };
 }
+
+// ─────────────────────── J8 (décision 0023) : la porte des travaux, suite ───────────────────────
+// Un assistant (persona) atteint la délégation et la vue d'équipe par CE fichier : une seule porte du moteur.
+export {
+  declinerDemande, lireDemandeRecue, listerDemandesRecues, repondreDemande, type DemandeRecue,
+} from "@/lib/missions/travaux/delegation";
+export { equipeVisible, lireTravailEquipe, listerTravauxEquipe, responsableDe, type TravailDEquipe } from "@/lib/missions/travaux/equipe";

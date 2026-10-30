@@ -3,7 +3,6 @@
 import { actionFailureMessage } from "@/lib/action-outcome";
 import React, { useCallback, useEffect, useState } from "react";
 import { ChevronLeft, Clock, Loader2, Users } from "lucide-react";
-import { LIBELLE_ETAT } from "@/lib/missions/travaux/regles";
 import { lireTravailDeMonEquipe, listerTravauxDeMonEquipe } from "../actions-travaux";
 
 /**
@@ -20,7 +19,8 @@ const STATUT_ETAPE: Record<string, string> = {
   PENDING: "À venir", READY: "Prête", RUNNING: "En cours", WAITING: "En attente", DONE: "Faite", FAILED: "Échec", SKIPPED: "Écartée", CANCELLED: "Annulée",
 };
 
-export function TravauxEquipe({ onVisible }: { onVisible?: (v: boolean) => void }) {
+/** `libelles` : les états affichés, ceux du panneau (une seule table, `travaux/regles.ts`). */
+export function TravauxEquipe({ onVisible, libelles }: { onVisible?: (v: boolean) => void; libelles: Record<string, string> }) {
   const [liste, setListe] = useState<Liste | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);
@@ -50,7 +50,7 @@ export function TravauxEquipe({ onVisible }: { onVisible?: (v: boolean) => void 
     <>
       <div className="flex items-start gap-2">
         <p className="min-w-0 flex-1 text-sm font-semibold text-slate-900 [overflow-wrap:anywhere] dark:text-zinc-100">{t.titre}</p>
-        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-zinc-800 dark:text-zinc-300">{LIBELLE_ETAT[t.etat]}</span>
+        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-zinc-800 dark:text-zinc-300">{libelles[t.etat] ?? t.etat}</span>
       </div>
       <p className="mt-0.5 text-[12px] text-slate-600 dark:text-zinc-400">{t.personne}{t.priorite !== "NORMALE" ? ` · priorité ${t.priorite.toLowerCase()}` : ""}</p>
       {t.attente && <p className="mt-1 flex items-center gap-1 text-[12px] text-slate-600 dark:text-zinc-400"><Clock className="h-3.5 w-3.5" /> {t.attente}</p>}

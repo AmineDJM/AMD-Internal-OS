@@ -1,10 +1,11 @@
 import { putBlob } from "@/lib/drive-storage";
 import { enregistrerFichierDrive } from "@/lib/drive/depot";
-import { composerDocx, MIME_DOCX, paragraphe, vide } from "@/lib/artifact/factory/word";
+import { composerDocx, MIME_DOCX, paragraphe, tableau, vide, type Fragment } from "@/lib/artifact/factory/word";
 import { profilDocumentaire } from "@/platform/ia/artifact/factory";
 import type { CurrentUser } from "@/lib/session";
 import { champs, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 import { replier } from "./annuaire-medical";
+import { analyserMarkdown, type MdBlock, type MdInline } from "../../domaine/ui/markdown";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -136,3 +137,60 @@ export const DOCUMENT_MODELE: OperationIA = {
     return { ok: true, message: `Document créé dans votre Drive${doc.surPapierEnTete ? ", sur le papier en-tête" : ""}.`, link: `/drive/${r.id}` };
   },
 };
+
+// ─────────────────────────── J8 (décision 0023) : le livrable d'un travail en Word ───────────────────────────
+
+const enLigne = (xs: MdInline[], h: { gras?: boolean; italique?: boolean } = {}): Fragment[] => xs.flatMap((x): Fragment[] => {
+  switch (x.t) {
+    case "texte": return [{ texte: x.v, ...(h.gras ? { gras: true } : {}), ...(h.italique ? { italique: true } : {}) }];
+    case "code": return [{ texte: x.v }];
+    case "saut": return [{ texte: "\n" }];
+    case "gras": return enLigne(x.c, { ...h, gras: true });
+    case "italique": return enLigne(x.c, { ...h, italique: true });
+    case "barre": return enLigne(x.c, h);
+    case "lien": return enLigne(x.c, h);
+  }
+});
+/** Le texte d'une ligne Markdown, sans sa mise en forme. */
+export const texteEnLigne = (xs: MdInline[]): string => enLigne(xs).map((f) => f.texte).join("");
+const brut = texteEnLigne;
+
+/** Le Markdown du modèle → les blocs Word de la fabrique (J8 : les livrables des travaux). */
+export function blocsWord(md: string): string[] {
+  const out: string[] = [];
+  const poser = (blocs: MdBlock[], retrait = "") => {
+    for (const b of blocs) {
+      switch (b.t) {
+        case "titre": out.push(paragraphe(enLigne(b.c), { style: b.niveau === 1 ? "Titre1" : "Titre2", garderAvecSuivant: true })); break;
+        case "paragraphe": out.push(paragraphe(enLigne(b.c), { alignement: "both", apresPt: 6 })); break;
+        case "liste":
+          b.items.forEach((item, k) => {
+            const [tete, ...reste] = item;
+            const puce = b.ordonnee ? `${b.debut + k}.` : "•";
+            out.push(paragraphe([{ texte: `${retrait}${puce}  ` }, ...(tete && (tete.t === "paragraphe" || tete.t === "titre") ? enLigne(tete.c) : [])], { apresPt: 2 }));
+            poser(tete && tete.t !== "paragraphe" && tete.t !== "titre" ? item : reste, `${retrait}    `);
+          });
+          break;
+        case "tableau": {
+          const n = Math.max(1, b.entete.length);
+          const largeur = Math.max(1.5, 16 / n);
+          out.push(tableau([b.entete.map(brut), ...b.lignes.map((l) => Array.from({ length: n }, (_, j) => brut(l[j] ?? [])))], {
+            colonnes: Array.from({ length: n }, () => ({ largeurCm: largeur })), entete: true,
+          }));
+          out.push(paragraphe("", { apresPt: 4 }));
+          break;
+        }
+        case "code": out.push(paragraphe(b.v, { apresPt: 6 })); break;
+        case "citation": poser(b.c, retrait); break;
+        case "separateur": out.push(paragraphe("", { apresPt: 6 })); break;
+      }
+    }
+  };
+  poser(analyserMarkdown(md));
+  return out;
+}
+
+/** UNE NOTE WORD DEPUIS LE MARKDOWN D'UN TRAVAIL — titre, intertitres, gras, puces, tableaux ; paquet neuf. */
+export function composerNoteMarkdown(titre: string, md: string, auteur?: string): { octets: Buffer; mime: string } {
+  return { octets: composerDocx({ blocs: [paragraphe(titre, { style: "Titre" }), ...blocsWord(md)], titre, auteur, maintenant: new Date() }).octets, mime: MIME_DOCX };
+}

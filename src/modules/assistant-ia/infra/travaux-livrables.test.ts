@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import PizZip from "pizzip";
 import { prisma } from "@/lib/prisma";
-import { blocsWord, deposerLivrableTravail, DOSSIER_TRAVAUX, nomDuLivrable } from "./travaux-livrables";
+import { deposerLivrableTravail, DOSSIER_TRAVAUX, nomDuLivrable } from "./travaux-livrables";
+import { blocsWord } from "./operations/document-modele";
 
 /**
  * LES LIVRABLES DES TRAVAUX (J8, décision 0023) — un vrai Word / Excel au Drive de la personne (dossier « Travaux »),

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { lireTravailEquipe, listerTravauxEquipe } from "./travaux-equipe";
+import { lireTravailEquipe, listerTravauxEquipe } from "@/lib/missions/travaux/equipe";
 
 /**
  * LES TRAVAUX DE MON ÉQUIPE (J8, décision 0023) — fermé par défaut ; ouvert par la console, un N+1 voit le résumé et les

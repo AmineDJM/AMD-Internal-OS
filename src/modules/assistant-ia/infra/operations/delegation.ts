@@ -1,7 +1,7 @@
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
-import { lireDemandeRecue, listerDemandesRecues, repondreDemande } from "@/lib/missions/travaux/delegation";
-import { PIECES_TRAVAUX } from "../travaux-pieces";
+// La porte du moteur des travaux (`../travaux`), chargée à l'appel : elle importe elle-même le registre des opérations.
+const travaux = () => import("../travaux");
 import { champs, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
 
 /**
@@ -32,7 +32,7 @@ export function lectureDemandesRecues(user: CurrentUser): PowerTool {
     allowed: (u) => u.id === user.id,
     label: "Demandes reçues consultées",
     run: async () => {
-      const r = (await listerDemandesRecues(user.id)).filter((d) => d.statut === "OUVERTE");
+      const r = (await (await travaux()).listerDemandesRecues(user.id)).filter((d) => d.statut === "OUVERTE");
       return JSON.stringify({
         demandes: r.map((d) => ({
           id: d.id, de: d.de, question: d.question, piecesAttendues: d.piecesAttendues,
@@ -69,11 +69,12 @@ export const REPONSE_DEMANDE: OperationIA = {
     const reponse = texte(e, "reponse");
     const pieces = idsDe(e.pieces);
     if (!id) return { manque: ["la demande à laquelle répondre (son identifiant, via mes_demandes_recues)"] };
-    const d = await lireDemandeRecue(id, user.id);
+    const t = await travaux();
+    const d = await t.lireDemandeRecue(id, user.id);
     if (!d) return { erreur: "Cette demande n'existe pas, ou elle ne vous est pas adressée." };
     if (d.statut !== "OUVERTE") return { erreur: "Cette demande n'attend plus de réponse." };
     if (!reponse && pieces.length === 0) return { manque: ["ce que vous répondez (ou les pièces à joindre)"] };
-    const vues = await PIECES_TRAVAUX.visibles(user.id, pieces);
+    const vues = await t.PIECES_TRAVAUX.visibles(user.id, pieces);
     if (vues.length !== pieces.length) return { erreur: "Une pièce à joindre n'existe pas, ou vous n'y avez pas accès dans votre Drive." };
     return {
       carte: {
@@ -92,7 +93,8 @@ export const REPONSE_DEMANDE: OperationIA = {
   },
 
   async executer(a, user) {
-    const r = await repondreDemande(a.demande ?? "", user.id, { texte: a.reponse ?? "", pieces: idsDe(a.pieces ?? "") }, PIECES_TRAVAUX);
+    const t = await travaux();
+    const r = await t.repondreDemande(a.demande ?? "", user.id, { texte: a.reponse ?? "", pieces: idsDe(a.pieces ?? "") }, t.PIECES_TRAVAUX);
     return r.ok ? { ok: true, message: r.message, link: "/assistant" } : { ok: false, error: r.erreur };
   },
 };

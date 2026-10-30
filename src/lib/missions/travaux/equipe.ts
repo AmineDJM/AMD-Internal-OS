@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
-import { isManagerOfUser } from "@/lib/departments";
+import { getManagerOfUser, isManagerOfUser } from "@/lib/departments";
 import { lireTravail, listerTravauxDe, type EtapeVue, type TravailVue } from "@/lib/missions/travaux/service";
 
 /**
@@ -24,6 +24,12 @@ const REFUS_CONSOLE = "La console de l'Assistant IA ne permet pas aux responsabl
 export async function equipeVisible(): Promise<boolean> {
   const r = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { managerVoitEquipe: true } });
   return r?.managerVoitEquipe === true;
+}
+
+/** Le N+1 d'un compte (organigramme) — l'escalade d'une attente. `null` = aucun responsable connu. */
+export async function responsableDe(userId: string): Promise<string | null> {
+  const m = await getManagerOfUser(userId).catch(() => null);
+  return m?.userId && m.userId !== userId ? m.userId : null;
 }
 
 /** Les personnes de l'équipe de `viewerId` qui ont des travaux — la ligne hiérarchique, relue maintenant. */

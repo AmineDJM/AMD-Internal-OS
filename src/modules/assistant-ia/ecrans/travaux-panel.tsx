@@ -201,7 +201,7 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver, d
       {!detail && onglet === "DEMANDES" ? (
         <DemandesRecues demandeInitiale={demandeInitiale} onPreparer={onPreparer} onOuvertes={onDemandesOuvertes} />
       ) : !detail && onglet === "EQUIPE" ? (
-        <TravauxEquipe onVisible={setEquipeVisible} />
+        <TravauxEquipe onVisible={setEquipeVisible} libelles={LIBELLE_ETAT} />
       ) : detail ? (
         <article className="space-y-4">
           {resume(detail)}
