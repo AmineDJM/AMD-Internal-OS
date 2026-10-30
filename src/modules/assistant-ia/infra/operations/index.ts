@@ -39,6 +39,8 @@ export const OPERATIONS_IA: OperationIA[] = [
 const PAR_NOM = new Map(OPERATIONS_IA.map((o) => [o.nom, o]));
 
 /** Ce que l'agent remet à l'écran : la carte, liée à son intention persistée. */
+import type { FormulaireCarte } from "@/platform/ia/capacites/formulaire";
+
 export interface PropositionCarte {
   intentId: string;
   proposition: {
@@ -49,6 +51,8 @@ export interface PropositionCarte {
     level?: "SENSITIVE" | "CRITICAL";
     confirmText?: string;
     libelleBouton?: string;
+    /** J11 (décision 0030) : le formulaire généré depuis le contrat — la carte d'une capacité le rend éditable. */
+    formulaire?: FormulaireCarte;
     payload?: unknown;
   };
 }

@@ -15,7 +15,11 @@ Décision d'architecture : [`docs/assistant/decisions/0014-bibliotheque.md`](../
 | `ecrans/` | l'écran de vérification `/bibliotheque` |
 
 - **Tables** : `BibliothequeFiche`, `BibliothequePassage` (en propre) ; le registre `Piece` / `PieceLien` (partagé avec l'enrichissement).
-- **Tâches de fond** : `bibliotheque.ingestion`, `bibliotheque.rattrapage` (`src/lib/scheduled.ts`, sous bail `TacheDeFond`).
+- **Tâches de fond** : `bibliotheque.ingestion`, `bibliotheque.rattrapage` (`src/lib/scheduled.ts`, sous bail `TacheDeFond`). Depuis J11
+  (décision 0030), l'ingestion **vide la file dans un budget** (`traiterFile({ budgetMs, parallele })`, `BIBLIOTHEQUE_BUDGET_S` 45 s,
+  `BIBLIOTHEQUE_PARALLELE` 2) : 300 fichiers d'un dossier déposé se lisent en quelques passages.
 - **Règles tenues** : `inscription-cliquet.test.ts` (tout écrivain du coffre inscrit, ou figure parmi les exceptions nommées) ;
   `droits.test.ts` (aucun résultat hors droits, refus par rôle) ; un modèle ne reçoit ni pièce confidentielle ni pièce du coffre.
-- **Consommateurs** : ~40 points d'entrée (inscription), l'écran `/bibliotheque`, l'Assistant IA par le socle (`connaissance.ts`, J4), le module `graphe-entreprise` (J9 : `piecesOuvrables`, `faitsVisibles` — la règle de lecture d'un fait, une seule écriture).
+- **Consommateurs** : ~40 points d'entrée (inscription), l'écran `/bibliotheque`, l'Assistant IA par le socle (`connaissance.ts`, J4), le module `graphe-entreprise` (J9 : `piecesOuvrables`, `faitsVisibles` — la règle de lecture d'un fait, une seule écriture) ;
+  l'Assistant IA par le socle pour un dossier déposé (J11 : `fichesDeDossier` — les fiches d'un dossier en lot, mêmes droits
+  que `ouvrirDocuments`, sans texte pour le coffre et le confidentiel).

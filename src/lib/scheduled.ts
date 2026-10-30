@@ -214,7 +214,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // Chargées à l'appel (les lecteurs ne pèsent que s'ils servent). Débrayage : BIBLIOTHEQUE_INGESTION=off.
   { cle: "bibliotheque.ingestion", executer: async () => {
     if (bibliothequeDebrayee()) return ignoree("BIBLIOTHEQUE_INGESTION=off");
-    await (await import("@/modules/bibliotheque/api")).traiterFile({ max: 10 });
+    // J11 (décision 0030) : la file se VIDE dans un budget (un dossier de 300 fichiers déposé d'un coup), sous le bail
+    // de la tâche (2 min) et avant le battement suivant (1 min) ; deux lecteurs en même temps par défaut.
+    await (await import("@/modules/bibliotheque/api")).traiterFile({ max: 10, ...budgetBibliotheque() });
   } },
   { cle: "bibliotheque.rattrapage", executer: async () => {
     if (bibliothequeDebrayee()) return ignoree("BIBLIOTHEQUE_INGESTION=off");
@@ -407,6 +409,16 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // tiers depuis un battement serait une communication sortante que personne n'a relue.
   { cle: "missions.engagements", executer: () => relancerEngagements() },
 ];
+
+/** Le budget d'un passage de la Bibliothèque : `BIBLIOTHEQUE_BUDGET_S` (défaut 45 s), `BIBLIOTHEQUE_PARALLELE` (défaut 2). */
+function budgetBibliotheque(): { budgetMs: number; parallele: number } {
+  const s = Number(process.env.BIBLIOTHEQUE_BUDGET_S);
+  const p = Number(process.env.BIBLIOTHEQUE_PARALLELE);
+  return {
+    budgetMs: (Number.isFinite(s) && s > 0 ? Math.min(s, 100) : 45) * 1000,
+    parallele: Number.isFinite(p) && p > 0 ? Math.min(6, Math.floor(p)) : 2,
+  };
+}
 
 function bibliothequeDebrayee(): boolean {
   return (process.env.BIBLIOTHEQUE_INGESTION ?? "").trim().toLowerCase() === "off";

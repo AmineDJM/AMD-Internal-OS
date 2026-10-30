@@ -1,5 +1,22 @@
 ## 🧾 Journal des évolutions récentes
 
+### J11 : LA CARTE SE CORRIGE AVANT DE SE SIGNER — ET UN DOSSIER DE 300 FICHIERS SE DÉPOSE, SE LIT ET SE CLASSE (2026-10-30)
+
+Lot J11 — `docs/assistant/decisions/0030-formulaires-dossiers.md`. **La carte de confirmation de toute action de l'ERP**
+(R1 → R4) est désormais un **formulaire généré depuis le contrat** de l'action : chaque champ selon son type (liste de choix,
+date, nombre, case, texte long), les **références** vers d'autres fiches choisies dans un sélecteur qui ne propose que ce
+que la personne voit, les valeurs proposées par l'assistant pré-remplies et surlignées. La personne **corrige, puis signe** :
+la correction repasse par les mêmes contrôles que la proposition (schéma du registre, familles, droits), et une carte
+renforcée se ressaisit sur la valeur corrigée. Banc : les 1 157 capacités R1–R4, **0 écart de schéma**.
+**Un dossier glissé dans l'Assistant IA recrée son arborescence** dans le Drive de la personne (dossier nommé,
+sous-dossiers, une pièce de la Bibliothèque par fichier) ; au-delà de 10 fichiers, il passe en **mode « dépôt de dossier »**
+(une puce, jusqu'à 1 000 fichiers et 2 Go — bornes réglables), téléversé en arrière-plan par le gestionnaire d'envois
+(envoi direct par morceaux, **reprise** : redéposer ne renvoie que ce qui manque), suivi sous la conversation (fichiers, lus,
+échoués, en file). La Bibliothèque **vide sa file dans un budget** (deux lecteurs) : **300 fichiers** (PDF, Word, images,
+scans) **lus en ≈ 2 min** sur le banc local. L'assistant **classe le dossier par module CTD** et nomme les **pièces
+manquantes** à partir de ce que la Bibliothèque a déjà lu — sans relire les fichiers (`lire_dossier_depose`). Migration
+additive `20270215140000_assistant_ia_depot_dossier`.
+
 ### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
 
 Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur de l'ERP (1 206, lues sur leur source) devient une

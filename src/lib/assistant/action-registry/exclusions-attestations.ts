@@ -186,6 +186,9 @@ export function classerExclusionsAttestations(): void {
     // La confirmation d'une carte de TERRAIN (J13, décision 0025) : même garde, porte du module Rapports terrain,
     // seulement les opérations `terrain_*` que ce compte a préparées.
     "assistant-ia-actions:confirmerCarteTerrain",
+    // Le sélecteur d'une référence du FORMULAIRE de carte (J11, décision 0030) : une lecture pour un champ de la carte
+    // de CE compte, sous ses droits — pas un geste à proposer au Chief.
+    "assistant-ia-actions:chercherReferenceCarteAssistantIA",
     // Rattacher une photo de terrain au compte rendu : le geste qu'exécute la carte `terrain_piece_visite` (J13) —
     // une capture de la personne seulement, jamais une pièce désignée par un modèle.
     "field-report-actions:rattacherPhotoTerrain",

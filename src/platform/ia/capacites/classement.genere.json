@@ -1320,6 +1320,13 @@
   "annulation": "retour",
   "appelable": false
  },
+ "assistant-ia-actions:chercherReferenceCarteAssistantIA": {
+  "risque": "R0",
+  "familles": [],
+  "simulable": "oui",
+  "annulation": "aucune",
+  "appelable": false
+ },
  "assistant-ia-actions:confirmerCarteTerrain": {
   "risque": "R1",
   "familles": [

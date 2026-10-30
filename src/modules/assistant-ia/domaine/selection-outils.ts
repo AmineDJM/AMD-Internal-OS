@@ -79,6 +79,7 @@ const MOTS_CLES: Record<string, string> = {
   lire_document: "lire resume resumer document pdf word excel image contenu dit",
   comparer_versions: "comparer versions difference changements deux",
   lire_formulaire_pdf: "formulaire pdf champs remplir",
+  lire_dossier_depose: "dossier depose classe classer fichiers module ctd pieces manquent manquantes section dossier glisse lecture",
   mes_routines: "mes routines programmees briefing",
   web_research: "web internet actualite marche externe prix public congres etranger concurrent",
   send_message: "envoie message ecris dis previens collegue",

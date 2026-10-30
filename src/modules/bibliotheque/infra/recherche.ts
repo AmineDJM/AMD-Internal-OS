@@ -339,3 +339,46 @@ export async function ouvrirDocuments(
   }
   return { documents, refus };
 }
+
+/** Une pièce d'un DOSSIER, telle que la Bibliothèque la connaît déjà — sans relire le fichier (J11, décision 0030). */
+export interface FicheDeDossier {
+  pieceId: string;
+  titre: string;
+  format: string;
+  nature: string | null;
+  statut: string;
+  /** Le début du texte lu (premier passage, censuré) — absent si la pièce n'est pas lue ou ne part pas au modèle. */
+  extrait: string | null;
+  /** Pourquoi le texte ne part pas au modèle (pièce du coffre, confidentielle) — `null` sinon. */
+  exclusion: RaisonExclusionModele | null;
+}
+
+/**
+ * LES FICHES D'UN DOSSIER, en lot (jusqu'à 2 000 pièces) : titre, format, nature, état de lecture, et le début du texte
+ * lu. MÊMES DROITS que `ouvrirDocuments` (une pièce dont aucun endroit n'est ouvert à la personne n'est pas rendue) et
+ * même politique pour un modèle (coffre, confidentiel : le titre seul, sans texte). Une requête par table, pas une
+ * par pièce : 300 fichiers se lisent en une passe.
+ */
+export async function fichesDeDossier(
+  user: SessionUser, ids: readonly string[], opts: { pourModele?: boolean; caracteres?: number } = {},
+): Promise<FicheDeDossier[]> {
+  const voulus = [...new Set(ids)].slice(0, 2000);
+  if (!voulus.length) return [];
+  const fiches = await prisma.bibliothequeFiche.findMany({
+    where: { pieceId: { in: voulus } },
+    select: { pieceId: true, titre: true, format: true, nature: true, statut: true, confidentiality: true, sensible: true, cles: true },
+  });
+  const ouvrables = await clesOuvrables(user, fiches.flatMap((f) => f.cles));
+  const visibles = fiches.filter((f) => f.cles.some((k) => ouvrables.has(k)));
+  const exclusions = new Map(visibles.map((f) => [f.pieceId, opts.pourModele ? exclusionPourModele(f) : null]));
+  const lisibles = visibles.filter((f) => f.statut === "FAITE" && !exclusions.get(f.pieceId)).map((f) => f.pieceId);
+  const premiers = lisibles.length
+    ? await prisma.bibliothequePassage.findMany({ where: { pieceId: { in: lisibles }, rang: 0 }, select: { pieceId: true, texte: true } })
+    : [];
+  const max = opts.caracteres ?? 600;
+  const extraits = new Map(premiers.map((p) => [p.pieceId, opts.pourModele ? censurerTexte(p.texte.slice(0, max)).texte : p.texte.slice(0, max)]));
+  return visibles.map((f) => ({
+    pieceId: f.pieceId, titre: f.titre, format: f.format, nature: f.nature, statut: f.statut,
+    extrait: extraits.get(f.pieceId) ?? null, exclusion: exclusions.get(f.pieceId) ?? null,
+  }));
+}

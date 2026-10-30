@@ -18332,6 +18332,30 @@ model BibliothequePassage {
 /// stock ou la tournée sans cette confirmation. `cle` est la clé d'idempotence tirée par le téléphone à la
 /// capture : un renvoi de la file hors ligne retrouve la captation, il n'en crée pas une seconde.
 /// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// J11 (décision 0030) — UN DÉPÔT DE DOSSIER de l'Assistant IA : l'arborescence recréée dans le Drive de la personne,
+/// sous `racineId`. Le Drive est la vérité des fichiers ; la Bibliothèque, celle de leur lecture.
+model AssistantIaDepotDossier {
+  id               String    @id @default(cuid())
+  userId           String
+  /// Le dossier racine créé dans le Drive personnel (nommé comme le dossier déposé).
+  racineId         String
+  nom              String
+  /// MESSAGE (≤ 10 pièces, jointes au message) | DOSSIER (mode « dépôt de dossier », au-delà).
+  mode             String    @default("DOSSIER")
+  fichiersAnnonces Int
+  octetsAnnonces   Float     @default(0)
+  /// L'empreinte de la liste (chemins et tailles) : la reprise retrouve le même lot.
+  empreinte        String
+  /// TELEVERSEMENT | TERMINE | ABANDONNE
+  statut           String    @default("TELEVERSEMENT")
+  termineLe        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([userId, empreinte])
+}
+
 model AssistantIaTerrainCapture {
   id            String   @id @default(cuid())
   userId        String
