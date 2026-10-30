@@ -17,8 +17,11 @@ export const dynamic = "force-dynamic";
  * seuil, inscription à la Bibliothèque). Le droit est celui d'un dépôt à la racine du Drive personnel.
  * GET : l'état des derniers lots (arrivés, lus, échoués, en file) — le panneau de suivi.
  */
+/** L'identité selon la méthode : une lecture voit la personne visualisée (Vue exacte), une écriture la session réelle. */
+const identite = async (req: NextRequest) => (req.method === "GET" ? await getCurrentUser() : await getCurrentUserPourEcrire());
+
 export async function POST(req: NextRequest) {
-  const user = await getCurrentUserPourEcrire();
+  const user = await identite(req);
   const refus = refusAssistantIA(user);
   if (refus || !user) return refus ?? NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (user.mustChangePassword) return NextResponse.json({ error: "Mot de passe à changer." }, { status: 403 });
@@ -37,7 +40,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const user = await getCurrentUser();
+  const user = await identite(req);
   const refus = refusAssistantIA(user);
   if (refus || !user) return refus ?? NextResponse.json({ error: "Non authentifié." }, { status: 401 });
   if (enVueExacte(user)) return NextResponse.json({ lots: [] }, SANS_CACHE);

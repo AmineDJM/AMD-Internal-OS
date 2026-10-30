@@ -2,6 +2,7 @@
 
 import React, { useEffect, useId, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
+import { sansBloquer } from "@/lib/journal";
 import type { ChampFormulaire, FormulaireCarte, Saisie, Saisies } from "@/platform/ia/capacites/formulaire";
 
 /**
@@ -140,8 +141,9 @@ function SelecteurReference({ champ, id, decrit, invalide, classe, valeurs, mult
     let vivant = true;
     setCharge(true);
     const t = setTimeout(() => {
-      onChercher(champ.nom, q).then((o) => { if (vivant) { setOptions(o); setActif(o.length ? 0 : -1); setOuvert(true); } })
-        .catch(() => { if (vivant) setOptions([]); })
+      // Une recherche qui échoue rend une liste vide (« aucune fiche ») — jamais une erreur muette.
+      onChercher(champ.nom, q).catch(sansBloquer("formulaire-carte.chercher", [] as OptionReference[]))
+        .then((o) => { if (vivant) { setOptions(o); setActif(o.length ? 0 : -1); setOuvert(true); } })
         .finally(() => { if (vivant) setCharge(false); });
     }, 250);
     return () => { vivant = false; clearTimeout(t); };
