@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { recordAudit } from "@/lib/audit";
+import { sansBloquer } from "@/lib/journal";
 import { getManagerOfUser, isManagerOfUser } from "@/lib/departments";
 import { lireTravail, listerTravauxDe, type EtapeVue, type TravailVue } from "@/lib/missions/travaux/service";
 
@@ -28,7 +29,7 @@ export async function equipeVisible(): Promise<boolean> {
 
 /** Le N+1 d'un compte (organigramme) — l'escalade d'une attente. `null` = aucun responsable connu. */
 export async function responsableDe(userId: string): Promise<string | null> {
-  const m = await getManagerOfUser(userId).catch(() => null);
+  const m = await getManagerOfUser(userId).catch(sansBloquer("travaux.responsableDe", null));
   return m?.userId && m.userId !== userId ? m.userId : null;
 }
 

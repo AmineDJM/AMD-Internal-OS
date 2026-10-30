@@ -1,6 +1,7 @@
 "use client";
 
 import { actionFailureMessage } from "@/lib/action-outcome";
+import { sansBloquer } from "@/lib/journal";
 import React, { useCallback, useEffect, useState } from "react";
 import { Ban, Briefcase, CheckCircle2, Clock, FileText, Loader2, Pause, Play } from "lucide-react";
 import {
@@ -61,7 +62,7 @@ export function TravauxPanel({ ouvert, onFermer, travailInitial, onAApprouver, d
   const [onglet, setOnglet] = useState<Onglet>(demandeInitiale ? "DEMANDES" : "TRAVAUX");
   const [equipeVisible, setEquipeVisible] = useState(false);
   useEffect(() => { if (demandeInitiale) setOnglet("DEMANDES"); }, [demandeInitiale]);
-  useEffect(() => { if (ouvert) void equipeVisiblePourMoi().then(setEquipeVisible).catch(() => setEquipeVisible(false)); }, [ouvert]);
+  useEffect(() => { if (ouvert) void equipeVisiblePourMoi().catch(sansBloquer("travaux-panel.equipeVisiblePourMoi", false)).then(setEquipeVisible); }, [ouvert]);
   const [travaux, setTravaux] = useState<Travail[] | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const [erreur, setErreur] = useState<string | null>(null);

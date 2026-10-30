@@ -276,9 +276,9 @@ export async function conduireTravail(travailId: string, deps: DepsTravaux): Pro
   /** LA DEMANDE À UNE AUTRE PERSONNE (J8) — déposée une fois ; l'étape attend la réponse (WAIT_INPUT). */
   const etapeDemande = async (ctx: StepContext): Promise<StepOutcome> => {
     const demande = (ctx.step.input as { demande?: DemandeCompilee }).demande;
-    if (!demande?.destinataireId) return { status: "FAILED", error: "demande illisible (destinataire manquant)", errorKind: "INVALID_INPUT", retryable: false };
+    if (!demande?.destinataireId) return { status: "FAILED", error: "demande illisible (destinataire manquant)", errorKind: "MISSING_INPUT", retryable: false };
     const r = await deposerDemande({ travailId, stepKey: ctx.step.key, principalId, demande, pieces: persona.pieces, maintenant: clock.now() });
-    if (r.etat === "IMPOSSIBLE") return { status: "FAILED", error: r.erreur, errorKind: "INVALID_INPUT", retryable: false };
+    if (r.etat === "IMPOSSIBLE") return { status: "FAILED", error: r.erreur, errorKind: "MISSING_INPUT", retryable: false };
     if (r.etat === "CLOSE") return { status: "DONE", result: r.resultat as never, receipt: "DEMANDE" };
     return { status: "WAITING", raison: `attend la réponse de ${demande.destinataireNom}`, result: { demandeId: r.demandeId } };
   };
