@@ -7,7 +7,6 @@ import {
   ajouterMemoire, effacerMemoire, estChargeOperationIA, executerOperationIA, listerMemoire, modifierMemoire, toutEffacerMemoire,
   type ElementMemoire, type PieceDuTour,
 } from "@/modules/assistant-ia/api";
-import { performAction, type AssistantActionPayload } from "@/lib/assistant";
 import { executerIntention, type ResultatExecution } from "@/platform/ia/intentions/action-intents";
 import type { TravailDetail, TravailVue } from "@/lib/missions/travaux/service";
 
@@ -147,8 +146,10 @@ export async function reglerMaReponseVocale(active: boolean) {
 
 /**
  * LA CONFIRMATION DE L'ASSISTANT IA (/assistant) — sa porte à lui, `peutUtiliserAssistantIA`, et
- * JAMAIS de payload reçu : seulement une intention que CE compte a préparée. `performAction`
- * revérifie le droit métier de la personne au moment d'exécuter.
+ * JAMAIS de payload reçu : seulement une intention que CE compte a préparée. Deux exécuteurs, tous deux
+ * de l'Assistant IA : ses opérations (`executerOperationIA`) et, depuis J6 (décision 0020), les CAPACITÉS de
+ * l'ERP (`executerCapacite` — l'action elle-même, sous cette session, ses gardes d'origine, la famille de la
+ * console relue). Plus rien n'est exécuté par Adam (`performAction`) : une carte d'avant J6 se redemande.
  *
  * Elle vivait dans le fichier d'actions d'Adam (`assistant-actions:confirmerIntentionAssistantIA`) ;
  * elle est ici depuis la phase B du lot J0 (décision 0013) — seule clé du contrat qui change. La garde
@@ -159,8 +160,6 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
     const user = await requireUser();
     if (!peutUtiliserAssistantIA(user)) return { ok: false, error: REFUS_ASSISTANT_IA };
     if (typeof intentId !== "string" || !intentId) return { ok: false, error: "Action introuvable." };
-    // Les opérations de l'Assistant IA s'exécutent par SON registre ; les écritures V1 partagées
-    // (tâche, message) par `performAction`. Jamais l'inverse : Adam n'exécute pas un geste de l'IA.
     const executeur = async (stored: unknown) => {
       // Une valeur confidentielle substituée dans la carte (décision 0012) est rejugée pour qui confirme, maintenant.
       const reperes = (stored as { reperesSubstitues?: unknown } | null)?.reperesSubstitues;
@@ -169,7 +168,10 @@ export async function confirmerIntentionAssistantIA(intentId: string, confirmTyp
         const refus = await verifierReperesAvantExecution(user, reperes, (stored as { title?: string }).title ?? "carte de l'Assistant IA");
         if (refus) return { ok: false, error: refus };
       }
-      return estChargeOperationIA(stored) ? executerOperationIA(user, stored) : performAction(user, stored as AssistantActionPayload);
+      if (estChargeOperationIA(stored)) return executerOperationIA(user, stored);
+      const { accesAssistantIa, estChargeCapacite, executerCapacite } = await import("@/modules/assistant-ia/api");
+      if (estChargeCapacite(stored)) return executerCapacite(user, stored, await accesAssistantIa(user));
+      return { ok: false, error: "Cette carte a été préparée avant une mise à jour de l'assistant : redemandez-la, puis confirmez la nouvelle carte. Rien n'a été exécuté." };
     };
     return (await executerIntention(user, intentId, confirmTyped, executeur)) ?? { ok: false, error: "Action introuvable." };
   } catch (err) {

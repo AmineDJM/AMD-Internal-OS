@@ -654,3 +654,23 @@ Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/mo
   documents »), `faits_confirmes` (un fait n'est rendu qu'à qui peut ouvrir sa pièce ; jamais un fait sensible).
 - **Modèle par geste** : rapide `gpt-6-luna` (résumé), standard `gpt-6.1-terra` effort `low`, raisonnement effort
   `medium` (analyse, comparaison, plusieurs pièces) — variables `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`.
+
+### Assistant IA — le registre des capacités et l'appel générique (lot J6, 30/10/2026)
+
+Décision [0020](../assistant/decisions/0020-capacites.md). Code : socle `src/platform/ia/capacites/` (registre PUR, classement,
+portes, lexique, cliché `classement.genere.json`) ; module `src/modules/assistant-ia/infra/{capacites,lectures-erp}.ts`,
+`domaine/capacites.ts` ; `npm run capacites:classement`.
+
+- **Registre dérivé** de `lib/actions/contrat.genere.json` (1 206 actions), des outils de l'Assistant IA et des 16 commandes de
+  l'Atelier : schéma JSON + zod, famille de la console, libellé français, risque **R0 → R4**, simulable (J7), annulation
+  (`lib/annulation/reversibilite.ts`), contenu tiers, porte d'écran. Jamais appelable : `illisible`, refusée au chemin
+  générique, hors de l'assistant (`portes.ts`), objet binaire. Le cliché relu fait échouer `registre.test.ts` pour toute
+  action nouvelle non classée.
+- **Appel** : offerte si la porte de l'écran est ouverte ; R0 exécutée pendant le tour sous la session de la personne ; R1/R2
+  carte, R3/R4 carte renforcée (ressaisie) ; à la confirmation, arrêt d'urgence, porte et famille relus, puis l'ACTION ELLE-MÊME
+  (`executerAction`). Pas dans les travaux (J2) : un geste de capacité repasse toujours par une carte.
+- **Sélection** : les capacités sont des fiches de `trouver_outil` et de la présélection (J4) — rappel@5 96 % sur 300
+  demandes, 3 837 jetons fixes au pire, jamais hors droits.
+- **Adam n'est plus emprunté** (`RESIDUS` vide) : écritures → capacités ; `send_message` → opération propre ; lectures
+  transverses → outils propres (`lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`).
+

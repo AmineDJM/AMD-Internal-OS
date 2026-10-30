@@ -148,6 +148,16 @@ describe("Points d'appel (§118.49)", () => {
       .filter((p) => p !== "src/lib/actions/executer.ts")
       .sort();
     // PLANCHER implicite : si la définition a été renommée, l'op elle-même disparaît de la liste.
-    expect(appelants).toEqual(["src/lib/assistant/ops/impl-capabilite.ts"]);
+    // LE SECOND APPELANT EST UN AUTRE PRODUIT (lot J6, décision 0020) : l'Assistant IA appelle l'exécuteur par SON registre
+    // des capacités. Les décisions EXCLUDED d'Adam ne le lient pas (« ce sont deux produits », `domaine/operations/types.ts`) —
+    // il ne touche une action qu'après une carte confirmée par la personne, dans sa session, renforcée en R3/R4 —, mais il
+    // porte ses PROPRES refus, relus avant l'appel : le chemin générique (`interdictionGenerique`), ses surfaces hors
+    // assistant, `illisible` (la fiche `appelable`).
+    expect(appelants).toEqual(["src/lib/assistant/ops/impl-capabilite.ts", "src/modules/assistant-ia/infra/capacites.ts"]);
+    const ia = sansCommentaires(readFileSync(join(process.cwd(), "src/modules/assistant-ia/infra/capacites.ts"), "utf8"));
+    const execution = ia.slice(ia.indexOf("export async function executerCapacite("));
+    expect(execution.indexOf("cap.appelable"), "la confirmation de l'Assistant IA ne relit pas la fiche").toBeGreaterThan(-1);
+    expect(execution.indexOf("cap.appelable")).toBeLessThan(execution.indexOf("executerAction("));
+    expect(ia).toMatch(/c\.source === "action" && c\.appelable && porteOuverte\(user, c\)/);
   });
 });

@@ -1,5 +1,16 @@
 ## 🧾 Journal des évolutions récentes
 
+### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
+
+Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur de l'ERP (1 206, lues sur leur source) devient une
+**capacité** de l'Assistant IA, sans une ligne déclarée à la main : son schéma, sa famille de la console, son niveau de risque
+(R0 lecture → R4 argent, droits, signature, suppression), sa simulabilité (préparée pour J7) et son annulation. L'assistant
+**trouve** les 3 à 8 utiles parmi toutes celles que l'écran ouvre à la personne (96 % de rappel dans les 5 premières sur 300
+demandes, moins de 4 000 jetons d'outils par étape), les **exécute par l'action elle-même** sous la vraie session — une lecture
+directement, une écriture par la carte de confirmation, renforcée (ressaisie) pour l'argent, les décisions, les suppressions
+et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assistant IA → Adam est à zéro. Limite : changer
+l'échéance d'une tâche n'a pas d'action d'écran et n'est pas repris.
+
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 
 « Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les

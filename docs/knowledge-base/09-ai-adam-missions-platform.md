@@ -35,8 +35,8 @@
 >   `assistant-ia-consommation-actions`; doors `api.ts` / `partage.ts`; map `assistant-ia → ad-pro, coffre`, `bibliotheque →
 >   assistant-ia`). `confirmerIntentionAssistantIA` moved there — the ONLY action-contract key change
 >   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
->   Adam → IA = 0. Remaining IA → Adam = Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
->   closure is 92 % of Adam; kept, named and ratcheted until J6 (capability registry derived from the action contract — decision 0013 §5).
+>   Adam → IA = 0. Remaining IA → Adam was Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
+>   closure is 92 % of Adam; kept, named and ratcheted until J6, which removed it (see J6 below).
 > - **J4 (2026-10-30) — speed & memory of the Assistant IA** (decision `docs/assistant/decisions/0018-vitesse-memoire.md`) [V]:
 >   tools on demand — a 10-tool socle + a 6-tool lexical preselection (`domaine/selection-outils.ts`, French full-text, 0 ms;
 >   reference corpus 60 requests: top-1 56/60, top-3 60/60) + meta-tool `trouver_outil` (`infra/selection.ts`); ALL tools stay
@@ -54,6 +54,26 @@
 >   `platform/ia/modeles-roles.ts` (fast `gpt-6-luna`, standard `gpt-6.1-terra` effort low, reasoning effort medium;
 >   env `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`). Bench (same 26 scenarios, same criteria): input/call 22 925 →
 >   ~6 100 tokens, first word P50 5.3 → 3.4–3.7 s, P95 15.4 → 7.1–8.2 s (long task excluded; 3 passes), cost/turn 0.0238 → 0.018 $, 21 → 22/26.
+> - **J6 (2026-10-30) — capability registry & generic call** (decision `docs/assistant/decisions/0020-capacites.md`) [V]:
+>   `src/platform/ia/capacites/` is a PURE registry derived from `lib/actions/contrat.genere.json` (1 206 actions) + the
+>   Assistant IA's own tools + the 16 Atelier commands; ports injected by the module (`interdictionGenerique`, `classerGeste`,
+>   `MODULE_LABELS`) so `SOCLE_IA_CEILING` stays 177. Each fiche: JSON + zod input schema, console family, French label (word
+>   lexicon, no per-action table), risk R0→R4 (R0 70 / R1 628 / R2 159 / R3 61 / R4 288), simulable (oui 809 / inconnu 247 /
+>   non 150, for J7), annulation (retour/compensation/délégation/aucune via `reversibilite.ts`), third-party content, screen gate
+>   (RBAC modules from `userCan` → audit module → file prefix; unknown → Super Admin only). Never callable: `illisible`,
+>   generic refusal, `SURFACES_HORS_ASSISTANT` (the IA's own actions, Adam, auth, impersonation, supplier portal, admin
+>   plumbing), binary-object actions. Reviewed snapshot `classement.genere.json` (`npm run capacites:classement`) fails
+>   `registre.test.ts` on any unclassified new action. Module side `infra/capacites.ts`: one PowerTool per offered capability
+>   (`fichier__fonction`), R0 executed in-turn via `executerAction` under the person's own session (no session → refusal),
+>   R1+ → intent `assistant_ia_capacite` (one card per turn), R3/R4 CRITICAL + server-checked retype; confirmation
+>   (`confirmerIntentionAssistantIA` → `executerCapacite`) re-reads kill switch, gate, family, then calls the action itself.
+>   Not in J2 plans (capability gestures always go through a card). Selection: capabilities are J4 fiches (weights: label 2,
+>   context 1; first word ×1.4, same verb ×1.2; infinitive/imperative merged) — recall@5 96 % on a 300-request French corpus,
+>   worst fixed tool tokens 3 837, never out of rights, bench 26/26 at fake-model selection level. Adam residues removed
+>   (`RESIDUS` = []): writes → capabilities; `send_message` → own operation (`createDirect` + `sendMessage`); cross-cutting
+>   reads → own tools (`infra/lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`). Known gap: task due-date /
+>   priority change (no screen action). Per-turn cost (1 039 tools, warm): catalogue ~5–30 ms, selection ~15 ms, Mastra
+>   adapter ~90–110 ms (definitions, zod schemas and fiche weights are memoised per process).
 > - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
 >   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
 

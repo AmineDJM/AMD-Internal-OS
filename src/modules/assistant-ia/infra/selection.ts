@@ -4,6 +4,8 @@ import {
   classer, indexer, OUTIL_TROUVER, ordonnerActifs, preselectionner, TROUVES_MAX, type FicheOutil,
 } from "../domaine/selection-outils";
 import { reglesAjoutees } from "./contexte";
+import { motsDesCapacites } from "./capacites";
+import { autoriseParLaConfig } from "../domaine/capacites";
 
 /**
  * LA SÉLECTION D'OUTILS D'UN TOUR (J4, décision 0018) — la règle est pure (`domaine/selection-outils.ts`) ; ici, on
@@ -28,9 +30,10 @@ export interface SelectionDuTour {
 /** Les fiches des outils qu'une personne se verra offrir — même filtre que l'adaptateur (`outilsPour`). */
 export function fichesOffertes(outils: readonly PowerTool[], user: CurrentUser, config?: { allowedTools?: string[] } | null): FicheOutil[] {
   const autorises = config?.allowedTools?.length ? new Set(config.allowedTools) : null;
+  const mots = motsDesCapacites();
   return outils
-    .filter((o) => o.def.name !== OUTIL_TROUVER && o.allowed(user) && (!autorises || autorises.has(o.def.name)))
-    .map((o) => ({ nom: o.def.name, libelle: o.label, description: o.def.description }));
+    .filter((o) => o.def.name !== OUTIL_TROUVER && o.allowed(user) && autoriseParLaConfig(o.def.name, autorises))
+    .map((o) => ({ nom: o.def.name, libelle: o.label, description: o.def.description, ...mots.get(o.def.name) }));
 }
 
 export function selectionDuTour(

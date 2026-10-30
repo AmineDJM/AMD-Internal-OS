@@ -10,6 +10,7 @@ tenue par `frontieres.test.ts` et ESLint.
 | `outil.ts` | `PowerTool` — la forme d'un outil qu'un assistant appelle |
 | `outils/arguments.ts` | lecture des arguments du modèle (`asStr`, `asNum`, `fold`), recherche et résolution de personnes |
 | `lectures/` | annuaire, Regulatory, circuits de validation, résultats vides, échecs de capacité ; `connaissance.ts` (J4) : Bibliothèque et faits confirmés pour un modèle |
+| `capacites/` | J6 (décision 0020) : le REGISTRE DES CAPACITÉS — pur, dérivé du contrat des actions (reçu du module avec trois ports) : fiche, schéma JSON + zod, risque R0 → R4, famille (`familles.ts`, la liste de la console), simulable, annulation, porte d'écran, refus ; cliché relu `classement.genere.json` |
 | `modeles-roles.ts` | J4 : le modèle de chaque geste (rapide, standard, raisonnement) et l'effort de raisonnement adaptatif — OpenAI seul |
 | `intentions/` | une écriture proposée devient une intention en base (`AssistantActionIntent`) ; propositions périmées |
 | `drive.ts` | un fichier du Drive désigné par son nom, relu à l'exécution (droits revérifiés) |

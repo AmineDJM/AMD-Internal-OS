@@ -31,7 +31,7 @@ Source de vérité : [`src/modules/carte.ts`](../../src/modules/carte.ts) — qu
 | `rh` | métier | `api.ts`, `partage.ts`, `actions{,-documents,-paie,-interim,-conges-discussion}.ts`, `ecrans/` | `coffre`, `referentiels`, `finances`, `bibliotheque` | pages `/rh`, `/mon-dossier`, `/mon-equipe`, `/mon-espace`, `components/hr/`, Adam (actions), centre de paiement (`solderVirementPaie`) | **migré** (V4) |
 | `finances` | métier | `api.ts`, `partage.ts`, `actions-{centre,demandes,depenses,relances,sieges,soldes,tresorerie}.ts` | `referentiels`, `coffre` | tout métier qui émet un ordre de dépense (Ad & Pro, RH, Legal, Regulatory, moyens généraux…), pages `/finances`, `/centre-de-paiement`, `/validations/paiements` | **migré** (V4) — ex-`lib/{finance,finances,payments}/`, fusionnés |
 | `bibliotheque` | métier (transverse) | `api-inscription.ts` (inscrire — porte étroite), `api.ts` (chercher, ouvrir, file), `partage.ts`, `actions.ts`, `ecrans/` | — | ≈ 45 points d'entrée (inscription), `rh`, `scheduled.ts` (tâches `bibliotheque.*`), page `/bibliotheque` | **neuf** (J1, 29/10) — dette : les règles d'ouverture et les lecteurs existants (`DETTE_HERITEE`) |
-| `assistant-ia` | métier | `api.ts`, `partage.ts`, `actions.ts` (clé `assistant-ia-actions`), `actions-consommation.ts` (clé `assistant-ia-consommation-actions`), `actions-atelier.ts` (clé `assistant-ia-atelier-actions`, J3), `ecrans/` | `ad-pro`, `coffre` | page `/assistant`, routes `/api/assistant-ia/*` (dont `atelier`), consoles `/admin/ai/{acces,consommation}`, `bibliotheque` (confidentialité), enrichissement (MRZ), `runScheduledJobs` | **migré** (J0, phase B) — dette : 68 imports vers `src/lib/` dont 4 vers Adam (catalogue, §7) et 5 vers le moteur des travaux (J2) ; l'Atelier (J3) passe par le socle `platform/ia/artifact/atelier`, sans dette neuve |
+| `assistant-ia` | métier | `api.ts`, `partage.ts`, `actions.ts` (clé `assistant-ia-actions`), `actions-consommation.ts` (clé `assistant-ia-consommation-actions`), `actions-atelier.ts` (clé `assistant-ia-atelier-actions`, J3), `ecrans/` | `ad-pro`, `coffre` | page `/assistant`, routes `/api/assistant-ia/*` (dont `atelier`), consoles `/admin/ai/{acces,consommation}`, `bibliotheque` (confidentialité), enrichissement (MRZ), `runScheduledJobs` | **migré** (J0, phase B) — dette : 68 imports vers `src/lib/`, dont 5 vers le moteur des travaux (J2) et 0 vers Adam depuis J6 (les 4 du catalogue remplacés par le registre des capacités, §7, compte égal) ; l'Atelier (J3) passe par le socle `platform/ia/artifact/atelier`, sans dette neuve |
 
 ```
             ┌──────────────── socle métier (lu par tous, ne lit que le socle) ────────────────┐
@@ -327,11 +327,11 @@ Deux produits d'IA vivent dans le dépôt, et **aucun n'importe l'autre** (déci
 | Ce qui reste est une liste EXACTE (`RESIDUS`), qui ne peut que rétrécir | — | idem |
 | Le socle connaît l'ERP (comme le pont) : sa dette est comptée À PART | — | `boundary.test.ts` (`SOCLE_IA_CEILING`), `domains.ts` (couche « socle IA ») |
 
-**Résidus nommés** (après la phase B, 30/10/2026 : Adam n'importe plus rien de l'Assistant IA) : le **catalogue d'outils
-d'Adam** emprunté par l'Assistant IA — `assistant-ia/infra/outils-v1.ts` → `@/lib/assistant`, `power-tools`, `ops`
-(décision 0012), et `assistant-ia/actions.ts` → `performAction` pour exécuter ces mêmes cartes —, plus le test
-`assistant-ia/limites.test.ts`. Leur fermeture fait 92 % d'Adam : le couplage reste nommé et cliqueté, il disparaîtra par J6 (registre des capacités dérivé du contrat des actions — décision 0013 §5). ESLint
-exclut nommément ces trois fichiers ; le test tient la liste exacte.
+**Résidus nommés : aucun depuis J6** (décision [0020](../assistant/decisions/0020-capacites.md), 30/10/2026). Le **catalogue
+d'outils d'Adam**, que l'Assistant IA empruntait (`assistant-ia/infra/outils-v1.ts` → `@/lib/assistant`, `power-tools`, `ops` ;
+`assistant-ia/actions.ts` → `performAction` ; le test `limites.test.ts`), est remplacé par le **registre des capacités**
+dérivé du contrat des actions (`src/platform/ia/capacites/`, pur), l'appel générique (`lib/actions/executer.ts`) et des
+lectures propres au module. `RESIDUS` est vide ; ESLint n'exclut plus aucun fichier de l'Assistant IA.
 
 **Un test qui exerce le socle À TRAVERS Adam** (il importe `POWER_TOOLS`, `composeWorkspace`…) reste côté Adam, à côté de
 l'ancien emplacement du code : le socle n'a pas de test qui connaisse Adam.

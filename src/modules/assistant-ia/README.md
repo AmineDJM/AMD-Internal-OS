@@ -2,8 +2,8 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018 ; 0013 : la séparation d'Adam et le socle IA ;
-0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle).
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0020 ; 0013 : la séparation d'Adam et le socle IA ;
+0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des capacités).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -20,8 +20,8 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   `AssistantRoleConfig`, `AssistantIaAcces`, `AssistantIaReglage`, `AssistantIaPlafondAtteint`. Les intentions
   (`AssistantActionIntent`) sont au socle IA (`src/platform/ia/intentions/`), partagées avec Adam.
 - **Tâches de fond** : `assistant.routines`, `assistant.fils` (`src/lib/scheduled.ts`).
-- **Frontière** : le module n'importe pas Adam, sauf le catalogue d'outils nommé dans `src/platform/ia/frontieres.test.ts` ;
-  ce que les deux partagent vit au socle `src/platform/ia/`.
+- **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
+  `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
 
 ## Vitesse et mémoire (lot J4, décision 0018)
 
@@ -36,3 +36,18 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   `platform/ia/lectures/connaissance.ts`). **Assembleur** : `domaine/assembleur.ts` (enveloppes fixes).
 - **Le bon modèle** — `platform/ia/modeles-roles.ts` (rapide / standard / raisonnement, effort adaptatif) ;
   `infra/modele.ts` (`optionsFournisseur` : effort, clé de cache).
+
+## Le registre des capacités (lot J6, décision 0020)
+
+- **Registre** (socle, pur) : `src/platform/ia/capacites/` — une fiche par action du contrat (`contrat.genere.json`), par outil
+  du module et par commande de l'Atelier ; risque R0 → R4, famille, simulable, annulation, contenu tiers, porte d'écran.
+  Cliché relu `classement.genere.json` (`npm run capacites:classement`).
+- **Branché** : `infra/capacites.ts` — `registreDesCapacites` (les ports : refus générique, annulation, modules), `porteOuverte`,
+  `outilsCapacites` (un outil par capacité offerte, `fichier__fonction`), `executerCapacite` (la confirmation) ;
+  `domaine/capacites.ts` (charge `assistant_ia_capacite`, niveau de carte, ressaisie, anciens noms d'outils).
+  `outilsV1(…, { capacites: true })` ne sert qu'à la CONVERSATION (`fil/tour.ts`) : ni les routines ni les travaux.
+- **Lectures propres** (plus d'emprunt à Adam) : `infra/lectures-erp.ts` (tâches, demandes, aperçu, catalogue Regulatory,
+  recherche fédérée, agenda, file des décisions), `operations/budget.ts` (`read_budget`), `lectures.ts` (`read_hr_overview`,
+  `finance_totals`), `outils-v1.ts` (`read_workflow`) ; `operations/quotidien.ts` : `send_message` (opération propre).
+- **Preuves** : `capacites.test.ts`, `infra/selection-capacites.test.ts` (300 demandes), `infra/banc-selection.test.ts` (banc 26).
+

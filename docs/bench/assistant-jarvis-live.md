@@ -211,3 +211,19 @@ retrouvé par son contenu et résumé ; AVANT « je n'ai pas trouvé »).
 
 **Coût de la campagne J4** : AVANT 0,62 $ ; APRÈS 0,47 + 0,48 + 0,47 $ ; un passage interrompu par un redémarrage du
 conteneur (~0,3 $, écarté) ; essais de modèles et de cache ~0,01 $ — **≈ 2,3 $** (budget 4 $).
+
+## J6 — le registre des capacités (décision 0020, `jarvis/j6-capacites`, 30/10/2026)
+
+**Joué au faux modèle, pour la sélection** (`src/modules/assistant-ia/infra/banc-selection.test.ts`) : les 26 scénarios, sur les
+catalogues de la conversation APRÈS J6 — plus rien d'emprunté à Adam, les ≈ 1 000 capacités de l'ERP en plus. Un scénario
+réussit si l'outil qui y répond est à portée du modèle (présélection du tour ou `trouver_outil`) ; un scénario de refus, si
+l'outil fermé n'est pas offert (ou refuse par sa famille : paie, contrat RH).
+
+| Mesure | Résultat | Critère |
+|---|---|---|
+| Scénarios à portée (sélection, faux modèle) | **26 / 26** | ≥ 22 / 26 |
+| Jetons fixes d'outils par étape (pire des 300 demandes du corpus J6) | 3 837 | ≤ 4 000 |
+
+Les scénarios « SANS OUTIL » de 2026-10-29 portaient sur des outils manquants ; 06 (dossier réglementaire) et 10b (demande
+administrative de l'assistante de direction) sont désormais des CAPACITÉS (`regulatory__createRegulatoryProduct`,
+`admin-request__createRequest`). Le banc réel (modèle, premier mot, coût) se rejoue une fois, à la fin des lots.

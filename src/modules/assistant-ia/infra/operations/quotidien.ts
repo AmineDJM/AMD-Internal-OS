@@ -3,7 +3,8 @@ import { hasGlobalView, userCan } from "@/lib/rbac";
 import { commenterValidation, remindValidator } from "@/lib/actions/validation-actions";
 import { uploadDocument } from "@/lib/actions/document-actions";
 import { createCalendarEvent } from "@/lib/actions/calendar-actions";
-import { sendMessage } from "@/lib/actions/messaging-actions";
+import { createDirect, sendMessage } from "@/lib/actions/messaging-actions";
+import { findPeople } from "@/platform/ia/outils/arguments";
 import { DOCUMENT_CATEGORY } from "@/lib/labels";
 import type { CurrentUser } from "@/lib/session";
 import { champs, liste, texte, type OperationIA, type PropositionOperation } from "../../domaine/operations/types";
@@ -286,3 +287,56 @@ export async function convsDe(user: CurrentUser, q: string): Promise<{ id: strin
     .map((m) => ({ id: m.conversation.id, libelle: m.conversation.title || m.conversation.members.map((x) => x.user.name).join(", ") || "Conversation" }))
     .filter((c) => replier(c.libelle).includes(k));
 }
+
+/**
+ * UN MESSAGE À UN COLLÈGUE (J6, décision 0020) — l'outil propre au module qui remplace `send_message` d'Adam. Aucune
+ * action serveur ne porte « écrire à une personne » en un geste : l'écran ouvre la conversation directe
+ * (`createDirect`, retrouvée si elle existe), puis envoie (`sendMessage`). La carte nomme le destinataire RÉSOLU par
+ * l'annuaire ; plusieurs homonymes n'en désignent aucun (une question), personne ne se devine.
+ */
+export const MESSAGE_DIRECT: OperationIA = {
+  nom: "send_message",
+  module: "MESSAGING",
+  libelle: "Message préparé",
+  description:
+    "PRÉPARE un message interne à UN collègue (messagerie de l'ERP), désigné par son nom ou sa fonction. Rien ne part avant la confirmation. "
+    + "Pour répondre dans une conversation existante : preparer_reponse_message.",
+  schema: {
+    type: "object",
+    properties: {
+      recipientName: { type: "string", description: "Le nom (ou la fonction) du destinataire." },
+      body: { type: "string", description: "Le texte du message." },
+    },
+    required: ["recipientName", "body"],
+  },
+  ouverte: (u) => userCan(u, "MESSAGING", "CREATE"),
+
+  async proposer(e, user: CurrentUser): Promise<PropositionOperation> {
+    const qui = texte(e, "recipientName");
+    const corps = texte(e, "body");
+    const manque = [!qui ? "à qui (le nom du collègue)" : null, !corps ? "le texte du message" : null].filter((x): x is string => x !== null);
+    if (manque.length) return { manque };
+    const gens = (await findPeople(qui, 6)).filter((p) => p.id !== user.id);
+    if (!gens.length) return { erreur: `Aucun collègue « ${qui} » dans l'annuaire : vérifiez le nom.` };
+    const exact = gens.find((p) => p.name.toLowerCase() === qui.toLowerCase());
+    if (!exact && gens.length > 1) return { manque: [`lequel : ${gens.map((p) => `${p.name}${p.title ? ` (${p.title})` : ""}`).join(" ; ")}`] };
+    const dest = exact ?? gens[0]!;
+    return {
+      carte: { title: `Message à ${dest.name}`, fields: champs([["Destinataire", dest.name], ["Fonction", dest.title], ["Message", corps]]), warnings: [], libelleBouton: "Envoyer" },
+      args: { userId: dest.id, body: corps },
+    };
+  },
+
+  async executer(a) {
+    const direct = new FormData();
+    direct.set("userId", a.userId ?? "");
+    const conv = await createDirect(direct);
+    const id = conv.ok ? (conv as { id?: string }).id : null;
+    if (!id) return { ok: false, error: conv.ok ? "Conversation introuvable." : conv.error ?? "Conversation refusée." };
+    const fd = new FormData();
+    fd.set("conversationId", id);
+    fd.set("body", a.body ?? "");
+    const r = await sendMessage(fd);
+    return r.ok ? { ok: true, message: "Message envoyé.", link: `/messages?c=${id}` } : { ok: false, error: r.error ?? "Envoi refusé." };
+  },
+};

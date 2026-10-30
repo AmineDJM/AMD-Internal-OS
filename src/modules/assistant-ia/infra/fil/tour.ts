@@ -146,7 +146,8 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
     acces = await accesAssistantIa(user);
     config = await getRoleConfig(user.role);
     // J2 : « lancer_un_travail » — une demande qui dépasse un tour devient un travail (plan à approuver).
-    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces), outilTravailPour(user)];
+    // J6 : avec les CAPACITÉS de l'ERP (registre dérivé du contrat) — enregistrées toutes, seules les actives partent.
+    outils = [...outilsV1(user, propositions, sorties, memoires, coffret, acces, { capacites: true }), outilTravailPour(user)];
     // J4 : les outils choisis à la demande — le socle, la présélection par la demande, et `trouver_outil`.
     const precedente = [...saisie.historique].reverse().find((h) => h.role === "user")?.content ?? "";
     selection = selectionDuTour(outils, user, message, config, precedente);

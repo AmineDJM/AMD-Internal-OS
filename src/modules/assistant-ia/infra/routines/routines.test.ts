@@ -81,7 +81,9 @@ suite("Assistant IA — routines programmées", () => {
     expect(noms.some((n) => n.startsWith("preparer_"))).toBe(false);
     // Les gestes métier du moteur ouverts à la conversation (décision 0012) ne le sont pas à une routine.
     const { ECRITURES_DU_MOTEUR, outilsV1 } = await import("../outils-v1");
-    expect(outilsV1(assistante, []).map((o) => o.def.name)).toContain("create_hr_request");
+    // J6 : les CAPACITÉS de l'ERP (un nom `fichier__fonction`) sont offertes à la conversation, jamais à une routine.
+    expect(outilsV1(assistante, [], [], [], null, undefined, { capacites: true }).some((o) => o.def.name.includes("__"))).toBe(true);
+    expect(noms.some((n) => n.includes("__"))).toBe(false);
     for (const ecriture of ECRITURES_DU_MOTEUR) expect(noms).not.toContain(ecriture);
     expect(noms).toContain("web_research");
   });
