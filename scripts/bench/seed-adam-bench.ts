@@ -31,7 +31,7 @@ import path from "node:path";
 // Le client PARTAGÉ, et non un second : c'est lui qui porte la garde de base de banc, et un
 // second client la contournerait en silence — une porte gardée à côté d'une porte ouverte
 // (§118.71). L'import suffit à l'armer : il refuse AVANT la première requête.
-import { prisma, estUneBaseDeBanc } from "@/lib/prisma";
+import { prisma, estUneBaseDeBancOuDEssai } from "@/lib/prisma";
 const MANIFEST = path.join(process.cwd(), "bench-out", "adam-bench-manifest.json");
 export const BENCH_PASSWORD = "Bench12345!";
 export const BENCH_DOMAIN = "adventum-bench.dz";
@@ -90,7 +90,7 @@ function garde(): void {
   // seconde ici donnerait deux vérités qui divergeraient au premier ajustement (§118.5), et
   // c'est la version en retard qui laisserait passer un semis dans la base de travail.
   const url = process.env.DATABASE_URL ?? "";
-  if (!estUneBaseDeBanc(url)) {
+  if (!estUneBaseDeBancOuDEssai(url)) {
     let ou = "?";
     try { const u = new URL(url); ou = `${u.hostname}${u.pathname}`; } catch { /* URL illisible */ }
     throw new Error(
@@ -286,7 +286,7 @@ async function retirerParIdentite(): Promise<void> {
  */
 async function reinitialiser(): Promise<void> {
   const url = process.env.DATABASE_URL ?? "";
-  if (!estUneBaseDeBanc(url)) throw new Error("Refus : la remise à zéro n'agit que sur une base de banc.");
+  if (!estUneBaseDeBancOuDEssai(url)) throw new Error("Refus : la remise à zéro n'agit que sur une base de banc.");
 
   const tables = await prisma.$queryRaw<{ tablename: string }[]>`
     SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename`;

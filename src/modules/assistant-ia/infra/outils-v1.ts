@@ -21,6 +21,7 @@ import { outilsConnaissance } from "@/platform/ia/lectures/connaissance";
 import { outilsGraphe } from "@/platform/ia/lectures/graphe";
 import { outilRecettePour } from "./recettes";
 import { sortiePourModele } from "../domaine/contenu-non-fiable";
+import { avecProvenance, type ProvenanceDuTour } from "./provenance";
 import { lecturesMetier, lecturesQuotidien, lecturesRh } from "./lectures";
 import { censurerTexte, jetonnerSortie, jetonOuMasque, type CoffretDuTour } from "../domaine/filtre-confidentialite";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
@@ -163,7 +164,7 @@ const PREAMBULE_DOMAINE: Partial<Record<(typeof DOMAINES)[number], string>> = {
  * contenu écrit par un tiers (`contenu-non-fiable.ts` — un document ne donne pas d'ordres). Le journal
  * du tour garde la sortie censurée SANS cadre : c'est elle que l'UI générative confronte aux faits.
  */
-const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null): PowerTool => ({
+const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | null, provenance?: ProvenanceDuTour): PowerTool => ({
   ...outil,
   run: async (entree, user) => {
     // Avec un coffret (la conversation) : les valeurs sensibles deviennent des REPÈRES (décision 0012) ;
@@ -172,7 +173,10 @@ const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | 
     const sortie = jetonnerSortie(await outil.run(entree, user), coffret);
     coffret?.nommer(avant, outil.def.name);
     journal?.push(sortie);
-    return sortiePourModele(outil.def.name, sortie);
+    const pourModele = sortiePourModele(outil.def.name, sortie);
+    // J14 : ce que le tour a lu d'un tiers (encadré) ou de l'ERP — la carte dira ce qui vient d'un tiers.
+    provenance?.noter(pourModele);
+    return pourModele;
   },
 });
 
@@ -293,6 +297,7 @@ export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret:
 
 export function outilsV1(
   user: CurrentUser, propositions: PropositionPreparee[], journal?: string[], memoires?: MemoireProposee[], coffret?: CoffretDuTour | null, accesDuTour?: AccesIa,
+  provenance?: ProvenanceDuTour,
 ): PowerTool[] {
   const acces = accesDuTour ?? accesParDefaut(user);
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
@@ -401,8 +406,8 @@ export function outilsV1(
     },
   });
   const gestes = [
-    ...[...ecritures, ...domaines].map((o) => garde(avecReperes(o), famillesDe(o.def.name, true), acces)),
-    ...outilsOperations(user, propositions).map((o) => garde(avecReperes(o), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
+    ...[...ecritures, ...domaines].map((o) => garde(avecProvenance(avecReperes(o), propositions, provenance), famillesDe(o.def.name, true), acces)),
+    ...outilsOperations(user, propositions).map((o) => garde(avecProvenance(avecReperes(o), propositions, provenance), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
   ];
   // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le
   // refuse déjà au modèle), il refuse au lieu de prêter ces accès.
@@ -410,7 +415,7 @@ export function outilsV1(
     ...o,
     run: (entree, u) => (u.id === user.id ? o.run(entree, u) : Promise.resolve(JSON.stringify({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." }))),
   });
-  return [...lectures, ...gestes, outilMemoire(user, memoires)].map((o) => filtre(aSoi(o), journal, coffret));
+  return [...lectures, ...gestes, outilMemoire(user, memoires)].map((o) => filtre(aSoi(o), journal, coffret, provenance));
 }
 
 /**

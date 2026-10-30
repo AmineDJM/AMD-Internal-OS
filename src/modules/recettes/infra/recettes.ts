@@ -20,10 +20,12 @@ import { decrireCircuit, estProcessus, LIBELLE_PROCESSUS, type Processus } from 
  */
 
 const MODULES_CONNUS = new Set<string>(MODULES);
+/** Ce que la règle de visibilité lit d'une personne (une session suffit : le menu n'a pas de `CurrentUser`). */
+type Lecteur = Pick<CurrentUser, "id" | "role" | "secondaryRole" | "access">;
 const libelleRole = (r: string) => ROLE_LABELS[r] ?? r;
 
 /** La règle de visibilité d'une recette : voir au moins un des modules qui servent les dossiers de son circuit. */
-export function voitLeCircuit(user: CurrentUser, circuit: string): boolean {
+export function voitLeCircuit(user: Lecteur, circuit: string): boolean {
   const d = decrireCircuit(circuit);
   if (!d) return false;
   if (d.superAdminSeul) return user.role === "SUPER_ADMIN";
@@ -42,6 +44,18 @@ async function nomsDe(ids: readonly (string | null | undefined)[]): Promise<Map<
   const voulus = [...new Set(ids)].filter((x): x is string => typeof x === "string" && x.length > 0);
   const lignes = voulus.length ? await prisma.user.findMany({ where: { id: { in: voulus } }, select: { id: true, name: true } }) : [];
   return lignes.reduce((m, u) => m.set(u.id, u.name), new Map<string, string>());
+}
+
+/**
+ * L'ENTRÉE « RECETTES » DU MENU : la Direction (qui désigne), un responsable désigné, ou qui voit au moins un circuit
+ * ayant une recette. Une entrée qui ouvrirait une page vide n'est pas envoyée.
+ */
+export async function voitDesRecettes(user: Lecteur): Promise<boolean> {
+  if (peutDesigner(user)) return true;
+  const designations = await designationsParProcessus();
+  if ([...designations.values()].some((d) => estResponsable(user, d))) return true;
+  const lignes = await prisma.recette.findMany({ where: { statut: { in: ["PROPOSEE", "VALIDEE"] } }, select: { circuit: true }, take: 500 });
+  return lignes.some((r) => voitLeCircuit(user, r.circuit));
 }
 
 // ───────────────────────────── Statistiques d'usage ─────────────────────────────

@@ -15,7 +15,7 @@ import { proposerLesRecettes } from "./infra/extraction";
 export * from "./partage";
 export { proposerLesRecettes, type BilanExtraction } from "./infra/extraction";
 export {
-  corrigerEtValider, designerResponsable, lireEcranRecettes, recettePour, rejeterVersion, retirerRecette, statsUsages, validerVersion, voitLeCircuit,
+  corrigerEtValider, designerResponsable, lireEcranRecettes, recettePour, rejeterVersion, retirerRecette, statsUsages, validerVersion, voitDesRecettes, voitLeCircuit,
   type EcranRecettes, type RecetteLue, type ReponseRecette, type StatsUsage, type VersionLue,
 } from "./infra/recettes";
 

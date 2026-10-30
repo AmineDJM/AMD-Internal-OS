@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { estDirecteurDesOperations } from "@/lib/suppression/delegation";
 import { voitTousLesCasPv } from "@/lib/pharmacovigilance/acces";
 import { sansBloquer } from "@/lib/journal";
+import { voitDesRecettes } from "@/modules/recettes/api";
 
 /**
  * CE QU'UNE PERSONNE A LE DROIT D'OUVRIR — la réponse, une fois, pour tous les écrans.
@@ -112,6 +113,8 @@ export async function navigationFor(user: SessionUser): Promise<NavItem[]> {
     // LA BOÎTE DE PHARMACOVIGILANCE (Direction, 06/10) : à qui REÇOIT les cas (portée TOUT). Le KAM qui signale lit
     // ses cas depuis les Rapports terrain — une entrée de pôle Regulatory lui ouvrirait une boîte presque vide.
     pharmacovigilance: voitTousLesCasPv(user),
+    // LES RECETTES (J10) : la Direction, un responsable de processus, ou qui voit le circuit d'une recette.
+    recettes: await voitDesRecettes(user).catch(() => false),
   };
 
   // Les SOUS-MODULES suivent la même règle que leur parent : chacun a son module et sa garde, et

@@ -15,6 +15,8 @@
     "adam:doctor": "tsx scripts/adam-doctor.ts",
     "start": "next start",
     "worker": "tsx scripts/worker.ts",
+    "assistant:rejouer": "tsx scripts/assistant-rejouer.ts",
+    "banc:essai:semer": "tsx scripts/banc-essai-semer.ts",
     "lint": "next lint",
     "typecheck": "NODE_OPTIONS=--max-old-space-size=8192 tsc --noEmit",
     "test": "DATABASE_URL=\"${TEST_DATABASE_URL:-postgresql://amd:amd@localhost:5432/amd_internal_os}\" vitest run",

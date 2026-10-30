@@ -1,0 +1,34 @@
+{
+  "_note": "Banc STT du lot J13 (décision 0025). Vocaux de délégués SYNTHÉTISÉS (gpt-4o-mini-tts, consigne d'accent algérien) — un proxy, pas un enregistrement de terrain : le banc se rejoue sur de vrais vocaux en les déposant ici avec leur vérité. Noms et produits fictifs.",
+  "indice": "Dr Karim Benali, Dr Meriem Haddad, Pr Yacine Ould Ali, CHU Oran, CHU Mustapha Pacha, EHU Oran, Cardiovex, Glucorine, Neurolam, Adventum Pharma",
+  "clips": [
+    {
+      "id": "fr-simple",
+      "langue": "fr",
+      "voix": "ash",
+      "texte": "Compte rendu. Je sors de chez le docteur Karim Benali, au CHU d'Oran, service de cardiologie. Il est très intéressé par la gamme Cardiovex. Il veut des échantillons, une dizaine de boîtes. Je repasse le voir demain matin.",
+      "attendus": { "medecin": "Benali", "etablissement": "CHU Oran", "produits": ["Cardiovex"], "demande": "échantillons" }
+    },
+    {
+      "id": "darja-melange",
+      "langue": "ar",
+      "voix": "ash",
+      "texte": "راني خرجت من عند الدكتور بن علي في CHU وهران. هو intéressé بزاف بالـ gamme Cardiovex، يحب des échantillons، عشرة boîtes. نرجعلو غدوة الصباح.",
+      "attendus": { "medecin": "Benali", "etablissement": "CHU Oran", "produits": ["Cardiovex"], "demande": "échantillons" }
+    },
+    {
+      "id": "arabe",
+      "langue": "ar",
+      "voix": "coral",
+      "texte": "زرت الدكتورة مريم حداد في مستشفى مصطفى باشا. طلبت وثائق علمية على دواء Glucorine و تحب نرسلولها الدراسات. ماكانش موعد جديد.",
+      "attendus": { "medecin": "Haddad", "etablissement": "CHU Mustapha Pacha", "produits": ["Glucorine"], "demande": "documentation" }
+    },
+    {
+      "id": "fr-rapide",
+      "langue": "fr",
+      "voix": "verse",
+      "texte": "Alors, visite du professeur Ould Ali, EHU d'Oran, neurologie. Présentation de Neurolam, objection sur le prix par rapport au concurrent. Il demande des brochures et deux boîtes d'échantillons de Neurolam. Rien de prévu demain.",
+      "attendus": { "medecin": "Ould Ali", "etablissement": "EHU Oran", "produits": ["Neurolam"], "demande": "échantillons" }
+    }
+  ]
+}

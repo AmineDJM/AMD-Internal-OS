@@ -3,6 +3,8 @@ import { modelesAssistant, optionsFournisseur, pourMastra } from "./modele";
 import type { RoleModele } from "@/platform/ia/modeles-roles";
 import { fournisseurDe, type ModeleTour } from "./repondre";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
+import { modeleTrace } from "./qualite/traces";
+import { chargerModelesRoles } from "./qualite/modeles";
 import { appelDepuisEtape, budgetDeLAppel, fermerBudget, type OrigineAppel } from "./consommation";
 
 /**
@@ -47,6 +49,7 @@ export function remplacerModelesPourTests(m: ModeleTour[] | null): void {
 export const modelesEffectifs = (role: RoleModele = "standard"): ModeleTour[] => modelesDeTest ?? modelesAssistant(role);
 
 export async function genererTexte(consigne: string, texte: string, delaiMs = 60_000, opts: OptionsGeneration = {}): Promise<{ ok: true; texte: string } | { ok: false; raison: string }> {
+  await chargerModelesRoles();
   const modeles = modelesEffectifs(opts.role);
   if (!modeles.length) return { ok: false, raison: "L'assistant n'a pas de modèle configuré." };
   // L'interrupteur général — lu ici comme dans `repondreAvecSecours` : l'autre porte vers le modèle.
@@ -61,7 +64,7 @@ export async function genererTexte(consigne: string, texte: string, delaiMs = 60
   try {
     for (const m of modeles) {
       try {
-        const agent = new Agent({ id: "redaction", name: "Rédaction", instructions: consigne, model: pourMastra(m) as ConstructorParameters<typeof Agent>[0]["model"] });
+        const agent = new Agent({ id: "redaction", name: "Rédaction", instructions: consigne, model: modeleTrace(pourMastra(m), opts.origine ?? "redaction") as ConstructorParameters<typeof Agent>[0]["model"] });
         const t0 = Date.now();
         const contenu = opts.images?.length
           ? [
