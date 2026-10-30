@@ -499,6 +499,14 @@ and the scheduler; the Mission Runtime (`src/lib/missions`) itself only depends 
 - `faitDepuisAudit` whitelist → which ERP writes wake missions/watches/reminders.
 - Registry defaults → cost dashboards (price `null` if unknown model), protocol validation (`capabilities.ts`).
 
+### 7bis. Recipes (lot J10, decision 0028)
+
+- The Assistant IA reads the `recettes` module (`assistant-ia/infra/recettes.ts`, tool `recette_pour`, a selection card in
+  `MOTS_CLES`, context rule 13). Only VALIDATED versions are served; `AUCUNE`/`AMBIGU` never claim a recipe. The plan it returns is a
+  J2 work plan (ANALYSE → LIVRABLE → ATTENTE timer → LIVRABLE) valid against any persona catalogue; `RecetteUsage` + the TRAVAIL
+  mission launched afterwards measure "accepted unchanged". `MissionPlanPattern` VALIDATED shapes become Super-Admin-only recipe
+  cards (no plan): a pattern validated by repetition is still only a PROPOSAL until a human process owner validates it.
+
 ## 8. Invariants, gotchas, doctrine rules
 
 Most constraining §118 rules (paraphrased; source `docs/claude-md/03-*` and `08-*`):

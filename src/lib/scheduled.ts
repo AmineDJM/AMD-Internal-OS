@@ -203,6 +203,9 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
   // LES INTENTIONS EN PLAN (IA-ASSISTANT-07) : une action interrompue par un redémarrage passe en échec DIT
   // (jamais rejouée) ; une carte jamais confirmée expire (délai réglé par le Super Admin, 24 h par défaut).
   { cle: "assistant.intentions", executer: async () => (await import("@/platform/ia/intentions/action-intents")).balayerIntentions() },
+  // LES RECETTES (J10, décision 0028) : une fois par jour, les circuits réels relus — des PROPOSITIONS seulement (jamais sous le
+  // seuil d'occurrences) ; le responsable du processus valide. Idempotent : une façon de faire inchangée ne propose rien.
+  { cle: "recettes.extraction", executer: async () => (await import("@/modules/recettes/api")).proposerLesRecettesSiDu() },
   // Caisse d'avance : prévenir les RH 48 h AVANT le rechargement mensuel. Prévenir le jour
   // même ne sert à rien — sortir la somme demande une préparation. Idempotent par échéance.
   { cle: "finance.caisse-avance", executer: runPettyCashRechargeReminders },

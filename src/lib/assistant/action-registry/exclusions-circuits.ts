@@ -77,6 +77,13 @@ export function classerExclusionsCircuits(): void {
     + "`/bibliotheque` montre ; chaque geste relit le rôle. Réservé au SUPER ADMIN ; aucune ouverture conversationnelle.", [
     "bibliotheque-actions:lancerPassageBibliotheque", "bibliotheque-actions:relancerFicheBibliotheque",
   ]);
+  X("RECETTES (J10, décision 0028) : valider, corriger, rejeter, retirer une recette, désigner le responsable d'un processus, "
+    + "relire les circuits. RIEN N'EST APPRIS EN SILENCE : une recette est une proposition que le RESPONSABLE DU PROCESSUS juge "
+    + "devant le contenu et les versions que l'écran `/recettes` montre — une IA ne valide jamais sa propre mémoire procédurale. "
+    + "Chaque geste relit la désignation et la visibilité du circuit ; aucune ouverture conversationnelle.", [
+    "recettes-actions:validerRecetteAction", "recettes-actions:corrigerRecetteAction", "recettes-actions:rejeterRecetteAction",
+    "recettes-actions:retirerRecetteAction", "recettes-actions:designerResponsableAction", "recettes-actions:relireLesCircuitsAction",
+  ]);
   X("TESTER L'ÉDITEUR OFFICE (Administration, Super Admin) : diagnostic de configuration — variables, adresses, réponse du "
     + "Document Server. Une moitié du test se joue DANS LE NAVIGATEUR de l'administrateur (chargement d'api.js) : une "
     + "conversation ne peut pas la faire. C'est un écran de dépannage, pas un geste métier.", [

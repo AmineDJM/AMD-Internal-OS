@@ -501,6 +501,24 @@ guide: [`docs/architecture/MODULES.md`](../architecture/MODULES.md).
 - **Guards**: `graphe-entreprise/graphe.test.ts` (real DB: resolution ≥ 95 %, 100 % sourced figures, p95 < 300 ms on 50,000
   edges, no out-of-rights result per role); AI base ceiling `SOCLE_IA_CEILING` stays 177 (+1 module door, −1 enum import).
 
+## 8ter. Recipes — procedural memory (lot J10, 2026-10-30)
+
+> Added with J10 (decision `docs/assistant/decisions/0028-recettes.md`). Verified against the code of `jarvis/j10-recettes`.
+
+- **Where**: module `src/modules/recettes/` (doors `api.ts`, `partage.ts`, `actions.ts` key `recettes-actions`; reads Prisma only —
+  no `src/lib/` debt). Read by `assistant-ia` (`infra/recettes.ts`: tool `recette_pour`). Screen `/recettes`. Job `recettes.extraction`.
+- **Tables**: `RecetteResponsable` (process → role/user, occurrence threshold), `Recette` (one per circuit key `WF:<category>`,
+  `VAL:<module>`, `REC`, `TRAVAIL:<shape hash>`, `FORME:<signature>`), `RecetteVersion` (never rewritten once validated),
+  `RecetteUsage` (plan served; acceptance read from the `Mission` TRAVAIL launched within 2 h — same plan signature + approved).
+- **Invariants**: nothing proposed below the threshold; only the VALIDATED version is served; only the designated process owner who
+  can see the circuit's screen decides; content carries roles, frequencies, durations and rounded thresholds — never a case id,
+  a person's name or a case amount (`seuilRond`, `motifMontrable`).
+- **Blast radius**: changing `WorkflowStep.actorRoles`/`autoSkipMaxAmount`, the validation/recruitment journals, `Mission.carnet.plan`
+  shape (J2 `lirePlan`), or RBAC module VIEW rights changes what recipes say or who sees them. A new workflow category needs a
+  line in `domaine/processus.ts`.
+- **Guards**: `assistant-ia/infra/recettes.test.ts` (real DB, seeded corpus dated 2031, fake model: ≥ 10 correct recipes, ≥ 70 %
+  plans accepted unchanged, nothing served before validation, rights per role); `recettes/domaine/domaine.test.ts`.
+
 ## 9. Docs versus code discrepancies
 
 | Doc claim | Code reality |

@@ -123,6 +123,7 @@ export const REGLES = [
   CONSIGNE_CONTENU_NON_FIABLE,
   "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
   "Graphe et faits datés : « qu'est-ce qui dépend de… », « qui a travaillé sur… », « quels documents parlent de… » → explorer_relations ; « quelle était… à telle date » → etat_a_une_date (jamais la valeur d'aujourd'hui à la place) ; « d'où vient ce chiffre » → d_ou_vient. CHAQUE chiffre, date ou identifiant que tu en reprends est suivi de sa source entre parenthèses (la `source` rendue) ; une entité AMBIGUË se tranche par une question, jamais par un choix.",
+  "Recettes de la maison : une demande qui suit un processus de l'entreprise (prise en charge, sponsoring, événement, validation, recrutement…) → recette_pour d'abord. Une recette VALIDÉE rend un plan : propose-le TEL QUEL (lancer_un_travail) en disant d'où il vient avec la phrase `selon` (« selon la recette … validée par … le … »), et signale chaque écart rendu ; tu ne retouches le plan qu'à la demande de la personne, en disant ce que tu changes. AUCUNE ou AMBIGU : jamais de « selon la recette ».",
 ];
 
 /**
@@ -135,6 +136,7 @@ const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
   7: (n) => /^(programmer_routine|mes_routines|gerer_routine)$/.test(n),
   8: (n) => n === "web_research",
   11: (n) => n === "explorer_relations" || n === "etat_a_une_date" || n === "d_ou_vient",
+  12: (n) => n === "recette_pour",
 };
 
 /** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */
