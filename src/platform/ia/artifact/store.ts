@@ -97,6 +97,8 @@ export const magasinSessions: MagasinSessions = {
       operationId: o.operationId, seq: o.seq, beforeVersion: o.beforeVersion, afterVersion: o.afterVersion,
       command: o.command as unknown as CommandeArtefact, summary: o.summary,
       actorId: o.actorId, actorLabel: o.actorLabel, undone: o.undone, createdAt: o.createdAt,
+      touches: Array.isArray(o.touches) ? (o.touches as string[]) : null,
+      revue: o.revue === "ACCEPTEE" || o.revue === "REFUSEE" ? o.revue : null,
     }));
   },
 
@@ -109,6 +111,7 @@ export const magasinSessions: MagasinSessions = {
           command: op.command as unknown as Prisma.InputJsonValue,
           summary: op.summary.slice(0, 900),
           actorId: op.actorId, actorLabel: op.actorLabel, undone: op.undone,
+          ...(op.touches?.length ? { touches: op.touches as unknown as Prisma.InputJsonValue } : {}),
         },
       });
       return true;
@@ -122,6 +125,10 @@ export const magasinSessions: MagasinSessions = {
 
   async marquerAnnulee(sessionId, seq, annulee) {
     await prisma.artifactOperation.updateMany({ where: { sessionId, seq }, data: { undone: annulee } });
+  },
+
+  async marquerRevue(sessionId, seq, revue) {
+    await prisma.artifactOperation.updateMany({ where: { sessionId, seq }, data: { revue } });
   },
 
   async fermer(sessionId) {

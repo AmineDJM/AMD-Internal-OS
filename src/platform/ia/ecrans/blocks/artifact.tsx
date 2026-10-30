@@ -282,7 +282,7 @@ function styleDuBloc(b: BlocVue): React.CSSProperties {
   };
 }
 
-function SceneDocx({ vue, contenu, zoom, surbrillance, onCliquer }: {
+export function SceneDocx({ vue, contenu, zoom, surbrillance, onCliquer }: {
   vue: VueArtefact; contenu: VueDocx; zoom: number; surbrillance: string[]; onCliquer: (id: string) => void;
 }) {
   const enSurbrillance = new Set(surbrillance);
@@ -410,7 +410,7 @@ function BlocDocx({ b, actif, onCliquer, sessionId, revision }: {
 
 // ─────────────────────────── PDF ───────────────────────────
 
-function ScenePdf({ vue, contenu, zoom, onPage }: {
+export function ScenePdf({ vue, contenu, zoom, onPage }: {
   vue: VueArtefact; contenu: VuePdf; zoom: number; onPage: (p: number) => void;
 }) {
   const active = vue.activePage ?? 1;
@@ -452,7 +452,7 @@ function ScenePdf({ vue, contenu, zoom, onPage }: {
 
 // ─────────────────────────── PowerPoint ───────────────────────────
 
-function ScenePptx({ vue, contenu, zoom, onDiapo, onForme }: {
+export function ScenePptx({ vue, contenu, zoom, onDiapo, onForme }: {
   vue: VueArtefact; contenu: VuePptx; zoom: number; onDiapo: (d: number) => void; onForme: (id: string) => void;
 }) {
   const active = vue.activeSlide ?? 1;
@@ -467,7 +467,8 @@ function ScenePptx({ vue, contenu, zoom, onDiapo, onForme }: {
       <nav className="artifact-miniatures artifact-miniatures-diapos" aria-label="Diapositives">
         {contenu.diapos.map((d) => (
           <button key={d.id} type="button"
-            className={`artifact-miniature${d.index === active ? " artifact-miniature-active" : ""}`}
+            className={`artifact-miniature${d.index === active ? " artifact-miniature-active" : ""}${enSurbrillance.has(d.id) ? " artifact-miniature-neuve" : ""}`}
+            data-id={d.id}
             onClick={() => onDiapo(d.index)} aria-current={d.index === active}>
             <span className="artifact-miniature-num">{d.index}</span>
             <span className="artifact-miniature-texte">{d.titre || "Sans titre"}</span>
@@ -475,12 +476,12 @@ function ScenePptx({ vue, contenu, zoom, onDiapo, onForme }: {
         ))}
       </nav>
       <div className="artifact-diapo-cadre">
-        <div className="artifact-diapo"
+        <div className={`artifact-diapo${enSurbrillance.has(diapo.id) ? " artifact-diapo-neuve" : ""}`} data-id={diapo.id} key={diapo.id}
           style={{ width: `${largeur}px`, height: `${contenu.hauteurCm * PX_PAR_CM * echelle}px` }}>
           {diapo.formes.map((f) => (
             <div key={f.id}
               className={`artifact-forme${enSurbrillance.has(f.id) ? " artifact-forme-active" : ""}`}
-              data-role={f.role}
+              data-role={f.role} data-id={f.id}
               onClick={() => onForme(f.id)} role="presentation"
               style={{
                 left: `${f.xCm * PX_PAR_CM * echelle}px`,
@@ -518,7 +519,7 @@ function ScenePptx({ vue, contenu, zoom, onDiapo, onForme }: {
 const COLONNES_VUE_MAX = 26;
 const LIGNES_VUE_MAX = 60;
 
-function SceneXlsx({ vue, contenu, onFeuille, onCellule }: {
+export function SceneXlsx({ vue, contenu, onFeuille, onCellule }: {
   vue: VueArtefact; contenu: VueXlsx; onFeuille: (f: string) => void; onCellule: (id: string) => void;
 }) {
   const nomActif = vue.activeSheet ?? contenu.feuilles[0]?.nom ?? "";
@@ -535,6 +536,8 @@ function SceneXlsx({ vue, contenu, onFeuille, onCellule }: {
     return s;
   };
   const selection = vue.surbrillance[0] ?? null;
+  // Plusieurs cellules touchées (un tableau posé, un remplacement) : toutes sont surlignées, la première est « active ».
+  const surlignees = new Set(vue.surbrillance);
   const cellSelection = selection ? feuille.cellules.find((c) => c.id === selection) : null;
 
   return (
@@ -569,7 +572,8 @@ function SceneXlsx({ vue, contenu, onFeuille, onCellule }: {
                   const cel = parRef.get(ref);
                   return (
                     <td key={c} data-ref={ref}
-                      className={cel && cel.id === selection ? "artifact-cellule-active" : undefined}
+                      className={cel && cel.id === selection ? "artifact-cellule-active" : cel && surlignees.has(cel.id) ? "artifact-cellule-surlignee" : undefined}
+                      data-id={cel?.id}
                       onClick={() => cel && onCellule(cel.id)}
                       style={cel ? {
                         fontWeight: cel.style.bold ? 700 : undefined,

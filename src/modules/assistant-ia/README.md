@@ -2,7 +2,7 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0013 ; 0013 : la séparation d'Adam et le socle IA).
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0017 ; 0013 : la séparation d'Adam et le socle IA ; 0017 : l'Atelier).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -10,6 +10,7 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
 | `partage.ts` | **Porte pure** : familles d'accès, plafonds, filtre de confidentialité, règles de lecture et de dépôt, MRZ |
 | `actions.ts` | clé `assistant-ia-actions` : mémoire, routines, fil, et `confirmerIntentionAssistantIA` (l'exécution d'une carte) |
 | `actions-consommation.ts` | clé `assistant-ia-consommation-actions` : réglages de consommation et d'accès (Super Admin) |
+| `actions-atelier.ts` | clé `assistant-ia-atelier-actions` (J3, décision 0017) : l'Atelier — ouvrir, revoir, enregistrer (nouvelle version), comparer, convertir |
 | `domaine/` | règles pures (accès, plafonds, confidentialité, lecture, dépôt, mémoire affichée, MRZ, UI générative) |
 | `infra/` | le moteur : fil, tour, outils, opérations, lecture des pièces, voix, mémoire, routines, consommation, modèle ; `testing/` (faux modèle, tests seulement) |
 | `ecrans/` | l'interface de `/assistant` (ex-`components/assistant-beta/`) |

@@ -224,23 +224,26 @@ export function idsDriveCites(...textes: (string | null | undefined)[]): string[
   return out;
 }
 
-/** Un format que l'assistant sait reprendre en NOUVELLE VERSION (Word) — ou annoncer qu'il ne sait pas. */
-export type Modifiable = "word" | "presentation" | null;
+/**
+ * Un format que l'Atelier sait modifier EN PLACE (J3, décision 0017) : Word, PowerPoint, Excel (le fichier
+ * d'origine, styles et mise en page conservés) et PDF (par pages : supprimer, pivoter, filigrane). Les
+ * anciens formats (`.doc`, `.ppt`, `.odt`…) ne s'ouvrent pas en place : `null`, l'assistant le dit.
+ */
+export type Modifiable = "word" | "presentation" | "tableur" | "pdf" | null;
 export function modifiable(nom: string): Modifiable {
   const e = extensionDe(nom);
-  if (["docx", "doc", "odt", "rtf"].includes(e)) return "word";
-  if (["pptx", "ppt", "odp"].includes(e)) return "presentation";
+  if (e === "docx") return "word";
+  if (e === "pptx") return "presentation";
+  if (e === "xlsx" || e === "xlsm") return "tableur";
+  if (e === "pdf") return "pdf";
   return null;
 }
 
 /**
- * Le texte que « Demander une modification » pose dans la saisie — la personne le complète. Il
- * demande une NOUVELLE VERSION (jamais d'écrasement) ; pour une présentation, que l'assistant dise
- * s'il n'a pas d'outil pour ce format.
+ * Le texte que « Demander une modification » pose dans la saisie — la personne le complète. La modification se
+ * fait EN PLACE dans l'Atelier (jamais recomposée) ; rien n'est enregistré sans elle, et l'enregistrement crée
+ * une NOUVELLE version (jamais d'écrasement).
  */
 export function texteDemandeModification(nom: string): string {
-  const base = `Modifie ce document « ${dernier(nom)} » — produis une nouvelle version dans mon Drive, sans écraser l'original`;
-  return modifiable(nom) === "presentation"
-    ? `${base} (si tu n'as pas d'outil pour les présentations, dis-le) : `
-    : `${base} : `;
+  return `Modifie « ${dernier(nom)} » directement dans l'Atelier (sur le fichier d'origine, en gardant sa mise en page) : `;
 }

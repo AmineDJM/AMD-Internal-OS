@@ -163,6 +163,14 @@ Error/404: `src/app/(app)/error.tsx` (client, `reset()` + digest), `src/app/(app
 - OnlyOffice: `office-editor.tsx` loads the Document Server `api.js` with `next/script`, instantiates `new window.DocsAPI.DocEditor("onlyoffice-editor", config)` (`:73-75`), shows an explicit error if the script fails (`:185`); `editeur-en-ligne.tsx` does the same with its own loader and timeout (`:33-41,112-114`); `src/app/office-embed/[id]/page.tsx` is a shell-less embed [V].
 
 - Assistant IA (`src/components/assistant-beta/apercu-piece.tsx`, decision 0015): a side panel that renders `ApercuUniversel` **without** an edit target (read-only viewers), loaded with `next/dynamic` on first open so `/assistant` does not pay for the Office viewers; download via `/api/drive/<id>/raw?dl=1`, "Ouvrir dans le Drive", Escape closes and restores focus [V].
+- **Atelier** (J3, decision 0017) [V] `src/modules/assistant-ia/ecrans/atelier/`: tabbed document pane beside the chat in
+  `/assistant` (`assistant-workspace.tsx`: glass container becomes `flex-row`, conversation width via `--conversation`
+  25–75 %, `role="separator"` handle with arrow keys, full-screen toggle, `fixed inset-0` panel below `lg`). Renders with the Live
+  Office scenes exported from `platform/ia/ecrans/blocks/artifact.tsx` (`SceneDocx/Pdf/Pptx/Xlsx`, now with `data-id` and
+  multi-cell highlight). Effects in `atelier.css` (keyframes `atelier-lueur`, `atelier-ecrit` clip-path reveal,
+  `atelier-apparait`), all disabled under `prefers-reduced-motion`. Review list (`data-testid="atelier-modif"`, `data-etat`),
+  compare overlay, conversion menu, inline `ActionConfirmationCard` for sensitive saves. Polls `/api/assistant-ia/atelier`
+  (0.6 s while the assistant works, 8 s idle). The preview panel gains « Ouvrir dans l'Atelier ».
 
 ### 4.11 Real-time UX — polling + Web Audio
 

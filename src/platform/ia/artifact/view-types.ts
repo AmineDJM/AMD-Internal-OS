@@ -28,6 +28,7 @@ export type {
 
 export type { ArtifactFormat, TextStyle } from "@/lib/artifact/object-model/model";
 export type { CommandeArtefact } from "@/lib/artifact/commands/ir";
+export type { Comparaison, Changement } from "@/lib/artifact/versions/diff";
 
 /**
  * LE SCHÉMA DE COMMANDE est une VALEUR, pas un type : c'est ce que le modèle doit remplir. Le

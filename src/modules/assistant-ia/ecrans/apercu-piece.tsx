@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
-import { Download, ExternalLink, Loader2, PenLine, X } from "lucide-react";
+import { Download, ExternalLink, Loader2, PenLine, Sparkles, X } from "lucide-react";
 import { modifiable } from "../domaine/lecture/depot";
 import { IconePiece, type PieceOuvrable } from "./pieces-jointes";
 
@@ -19,13 +19,16 @@ const ApercuUniversel = dynamic(() => import("@/components/documents/apercu-univ
  * de l'aperçu universel (sans éditeur : on n'édite pas ici) ; le reste se télécharge. Les octets
  * viennent de `/api/drive/<id>/raw` — droits revérifiés à chaque lecture.
  *
- * « Télécharger », « Ouvrir dans le Drive » et, sur un Word (ou une présentation), « Demander une
- * modification » — qui pré-remplit la saisie, la pièce jointe. Échap ferme ; le focus revient où il était.
+ * « Télécharger », « Ouvrir dans le Drive » et, sur un Word, un PowerPoint, un Excel ou un PDF (J3) : « Ouvrir
+ * dans l'Atelier » (rendu fidèle, modifiable en place) et « Demander une modification » — qui ouvre l'Atelier et
+ * pré-remplit la saisie, la pièce jointe. Échap ferme ; le focus revient où il était.
  */
-export function ApercuPiece({ piece, onFermer, onDemanderModification }: {
+export function ApercuPiece({ piece, onFermer, onDemanderModification, onOuvrirAtelier }: {
   piece: PieceOuvrable | null;
   onFermer: () => void;
   onDemanderModification?: (p: PieceOuvrable) => void;
+  /** J3 : l'ouvrir dans l'Atelier — rendu fidèle, à côté de la conversation, modifiable en place. */
+  onOuvrirAtelier?: (p: PieceOuvrable) => void;
 }) {
   const fermer = useRef<HTMLButtonElement>(null);
   const avant = useRef<HTMLElement | null>(null);
@@ -64,6 +67,11 @@ export function ApercuPiece({ piece, onFermer, onDemanderModification }: {
         <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-2 dark:border-zinc-800">
           <a href={`${src}?dl=1`} className={bouton} download><Download className="h-3.5 w-3.5" /> Télécharger</a>
           <a href={`/drive/${piece.id}`} target="_blank" rel="noopener" className={bouton}><ExternalLink className="h-3.5 w-3.5" /> Ouvrir dans le Drive</a>
+          {peutModifier && onOuvrirAtelier && (
+            <button type="button" onClick={() => onOuvrirAtelier(piece)} className={bouton} data-testid="ouvrir-atelier">
+              <Sparkles className="h-3.5 w-3.5" /> Ouvrir dans l&apos;Atelier
+            </button>
+          )}
           {peutModifier && onDemanderModification && (
             <button type="button" onClick={() => onDemanderModification(piece)} className={`${bouton} border-violet-300 text-violet-800 dark:border-violet-800 dark:text-violet-200`}>
               <PenLine className="h-3.5 w-3.5" /> Demander une modification

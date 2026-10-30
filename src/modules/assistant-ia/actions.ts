@@ -1,5 +1,6 @@
 "use server";
 
+import { porte } from "./infra/porte-actions";
 import { requireUser, type CurrentUser } from "@/lib/session";
 import { peutUtiliserAssistantIA, REFUS_ASSISTANT_IA } from "@/lib/rbac";
 import {
@@ -22,14 +23,6 @@ import type { TravailDetail, TravailVue } from "@/lib/missions/travaux/service";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-type Porte = { ok: true; user: CurrentUser } | { ok: false; erreur: string };
-
-async function porte(ecriture: boolean): Promise<Porte> {
-  const user = await requireUser();
-  if (!peutUtiliserAssistantIA(user)) return { ok: false, erreur: REFUS_ASSISTANT_IA };
-  if (ecriture && (user.impersonatedBy || user.visualise)) return { ok: false, erreur: "Indisponible en « Vue exacte »." };
-  return { ok: true, user };
-}
 
 export async function listerMaMemoire(): Promise<{ ok: true; elements: ElementMemoire[] } | { ok: false; erreur: string }> {
   const p = await porte(false);

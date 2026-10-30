@@ -325,6 +325,19 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   touch travaux. Additive engine changes: `materialiser({ kind, naissance })`, `kind` on pause/resume/cancel, `payload` predicate
   on waits (`events/match.ts`), `reveillerAttentesTemporelles(now, seulement?)`. Decision `docs/assistant/decisions/0016-travaux.md`.
 
+- **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
+  `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
+  (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for
+  highlighting). `service.ts`: rights re-read (`voir`/`modifier` — edits refused before applying for viewers), gestures applied
+  ONE command per revision (0.7 s pace), review via engine `revoir(seq, ACCEPTER|REFUSER|A_REVOIR)` (reject = undone + replay,
+  no inverse command), save = new `FileVersion` (port inscribes Bibliothèque), `documentSensible` (legal doc, mail entry,
+  shared space → confirmation card). `conversions.ts`: voies WORKER (LibreOffice in worker image, queue `AtelierConversion`,
+  task `atelier.conversions`), EDITEUR, LOCAL, RENDU, MAISON — the voie is returned and shown. Engine additions:
+  `OperationPersistee.touches/revue`, `MagasinSessions.marquerRevue?`, op `docx.inserer_tableau`. Module tools
+  `ouvrir_dans_l_atelier` / `modifier_document` / `convertir_document` (family DRIVE, excluded from routines/travaux) and op
+  `enregistrer_document`. The screen polls `/api/assistant-ia/atelier` (no SSE: the op journal IS the stream). Decision
+  `docs/assistant/decisions/0017-atelier.md`.
+
 ### 4.5 `src/platform` — the boundary
 
 - **Why** [V] `docs/ADAM_PLATFORM_BOUNDARY.md`: separate Adam from ERP *in code*, same process (no microservices, no local cache —

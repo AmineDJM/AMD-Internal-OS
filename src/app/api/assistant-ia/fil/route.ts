@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/session";
-import { peutUtiliserAssistantIA } from "@/lib/rbac";
 import { idsDriveCites, lireFil, piecesCitees } from "@/modules/assistant-ia/api";
+import { personneDeLAssistant, SANS_CACHE } from "../personne";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +11,11 @@ export const dynamic = "force-dynamic";
  * Chaque lecture dit aussi que la personne est là (`consulteLe`) : présente, elle n'est pas notifiée.
  */
 export async function GET() {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Non authentifié." }, { status: 401 });
-  if (!peutUtiliserAssistantIA(user)) return NextResponse.json({ error: "Non autorisé." }, { status: 403 });
+  const p = await personneDeLAssistant();
+  if ("refus" in p) return p.refus;
+  const user = p.user;
   // En « Vue exacte », on ne marque pas la présence de la personne regardée (ni ne lit son fil).
-  if (user.impersonatedBy || user.visualise) return NextResponse.json({ tours: [], enCours: false, vueExacte: true }, { headers: { "Cache-Control": "no-store" } });
+  if (p.vueExacte) return NextResponse.json({ tours: [], enCours: false, vueExacte: true }, SANS_CACHE);
   const fil = await lireFil(user.id);
   // LES PIÈCES RENVOYÉES PAR L'ASSISTANT (décision 0015) : les fichiers du Drive cités par une réponse
   // terminée ou par le résultat d'une action exécutée — droits revérifiés, ouvrables dans l'aperçu.
@@ -35,5 +34,5 @@ export async function GET() {
       memoireProposee: t.memoireProposee, outils: t.outils, etapes: t.etapes, createdAt: t.createdAt.toISOString(),
       vocal: t.vocal, lecture: t.lecture, audio: t.audio, piecesRendues: rendues.get(t.id) ?? null,
     })),
-  }, { headers: { "Cache-Control": "no-store" } });
+  }, SANS_CACHE);
 }

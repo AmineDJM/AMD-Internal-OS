@@ -138,7 +138,15 @@ export interface VueArtefact {
   peutAnnuler: boolean;
   peutRetablir: boolean;
   /** L'historique lisible : « ¶1 → centré », « ¶3 supprimé »… */
-  historique: { operationId: string; seq: number; resume: string; annulee: boolean; quand: string }[];
+  historique: {
+    operationId: string; seq: number; resume: string; annulee: boolean; quand: string;
+    /** La revue de la personne (Atelier, J3) : acceptée, refusée (= annulée), ou pas encore revue. */
+    revue?: "ACCEPTEE" | "REFUSEE" | null;
+    /** Les zones que l'opération a touchées — surlignées à l'écran. */
+    touches?: string[];
+    /** Qui l'a faite (« Assistant IA », le nom de la personne). */
+    acteur?: string;
+  }[];
   contenu: VueContenu;
   /** Constats du contrôle qualité visuel (§26) — vides quand tout va bien. */
   alertes: string[];

@@ -10,13 +10,14 @@ import { RoutinesPanel } from "./routines-panel";
 import { TravauxPanel } from "./travaux-panel";
 import { BoutonJoindre, PiecesEnAttente, type PieceJointe, type PieceOuvrable } from "./pieces-jointes";
 import { ApercuPiece } from "./apercu-piece";
+import { Atelier } from "./atelier/atelier";
 import { deposeDesFichiers, depuisListe, lireDepot, nommerCollage, televerser } from "./depot-navigateur";
 import {
   avertissementPiece, miniaturePossible, OCTETS_MAX_DEPOT, phraseRefus, PIECES_PAR_ENVOI_MAX, planifierDepot, retirerPieces, texteDemandeModification,
   type Parcours,
 } from "../domaine/lecture/depot";
 import { EnregistreurVocal } from "./enregistreur-vocal";
-import { AlarmClock, Brain, Briefcase, FolderUp, MoreHorizontal, Volume2, VolumeX } from "lucide-react";
+import { AlarmClock, Brain, Briefcase, FolderUp, MoreHorizontal, Sparkles, Volume2, VolumeX } from "lucide-react";
 import { envoyerAuFil, listerMesRoutines, listerMesTravaux, reglerMaReponseVocale, repartirDeZero } from "@/modules/assistant-ia/actions";
 import type { AudioDuTour, LecturePiece, VocalDuTour } from "../domaine/lecture/regles";
 import { envoyerMessageBeta, confirmerActionBeta } from "@/app/(app)/assistant/beta/actions";
@@ -114,6 +115,29 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const [apercu, setApercu] = useState<PieceOuvrable | null>(null);
   const [brouillon, setBrouillon] = useState<{ texte: string; jeton: number } | null>(null);
   const [survol, setSurvol] = useState(false);
+  // J3 — L'ATELIER : les documents à côté de la conversation (redimensionnable, plein écran ; panneau plein écran sur mobile).
+  const [atelierOuvert, setAtelierOuvert] = useState(false);
+  const [atelierPlein, setAtelierPlein] = useState(false);
+  const [aOuvrir, setAOuvrir] = useState<{ nodeId: string; jeton: number } | null>(null);
+  const [largeurConversation, setLargeurConversation] = useState(42);
+  const verre = useRef<HTMLDivElement>(null);
+  const afficherAtelier = useCallback(() => setAtelierOuvert(true), []);
+  const fermerAtelier = useCallback(() => { setAtelierOuvert(false); setAtelierPlein(false); }, []);
+  const ouvrirDansAtelier = useCallback((p: PieceOuvrable) => {
+    setApercu(null);
+    setAtelierOuvert(true);
+    setAOuvrir({ nodeId: p.id, jeton: Date.now() });
+  }, []);
+  /** La poignée : glisser (pointeur) ou flèches (clavier) — la conversation garde entre 25 % et 75 %. */
+  const redimensionner = (e: React.PointerEvent<HTMLDivElement>) => {
+    const boite = verre.current?.getBoundingClientRect();
+    if (!boite) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    const bouge = (ev: PointerEvent) => setLargeurConversation(Math.min(75, Math.max(25, ((ev.clientX - boite.left) / boite.width) * 100)));
+    const fin = () => { window.removeEventListener("pointermove", bouge); window.removeEventListener("pointerup", fin); };
+    window.addEventListener("pointermove", bouge);
+    window.addEventListener("pointerup", fin);
+  };
 
   // ── LE FIL GARDÉ (27/10) : la conversation vit sur le serveur, pas dans l'onglet ──────────────
   // À l'ouverture : le fil tel qu'il est (même si l'on était parti pendant une réponse). Tant
@@ -287,9 +311,12 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
     return () => document.removeEventListener("paste", colle);
   }, [joindre]);
 
-  /** « Demander une modification » : la pièce rejoint le message, la saisie est pré-remplie. */
+  /**
+   * « Demander une modification » (J3) : le document s'ouvre dans l'Atelier, la pièce rejoint le message, la saisie
+   * est pré-remplie — l'assistant modifiera EN PLACE, sous les yeux de la personne.
+   */
   const demanderModification = (p: PieceOuvrable) => {
-    setApercu(null);
+    ouvrirDansAtelier(p);
     if (!piecesRef.current.some((x) => x.id === p.id)) {
       piecesRef.current = [...piecesRef.current, { cle: `drive-${p.id}`, nom: p.nom, id: p.id, etat: "prete" }];
       setPieces(piecesRef.current);
@@ -439,9 +466,14 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       {/* 3. Conteneur principal — plein écran sur téléphone (chaque pixel compte), verre dépoli au-delà. */}
       <div className="relative z-10 flex h-full w-full flex-1 flex-col overflow-hidden sm:p-4 lg:p-6">
         <div
+          ref={verre}
           data-glass="true"
-          className="relative mx-auto flex h-full w-full max-w-5xl flex-1 flex-col overflow-hidden bg-white/80 backdrop-blur-2xl sm:rounded-3xl sm:border sm:border-white/60 sm:bg-white/75 sm:shadow-2xl dark:bg-zinc-950/75 sm:dark:border-white/10 sm:dark:bg-zinc-950/70"
+          className={`relative mx-auto flex h-full w-full flex-1 flex-row overflow-hidden bg-white/80 backdrop-blur-2xl sm:rounded-3xl sm:border sm:border-white/60 sm:bg-white/75 sm:shadow-2xl dark:bg-zinc-950/75 sm:dark:border-white/10 sm:dark:bg-zinc-950/70 ${atelierOuvert ? "max-w-none" : "max-w-5xl"}`}
         >
+          <div
+            className={`relative flex min-h-0 min-w-0 flex-1 flex-col ${atelierOuvert ? "lg:flex-none lg:basis-[var(--conversation)]" : ""} ${atelierOuvert && atelierPlein ? "lg:hidden" : ""}`}
+            style={{ "--conversation": `${largeurConversation}%` } as React.CSSProperties}
+          >
           <ChatMessageList
             messages={messages}
             isLoading={attente}
@@ -473,6 +505,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
                   onMemoire={() => { setMenuOuvert(false); setMemoireOuverte(true); }}
                   onRoutines={() => { setMenuOuvert(false); setRoutinesOuvertes(true); }}
                   onTravaux={() => { setMenuOuvert(false); setTravauxOuverts(true); }}
+                  onAtelier={() => { setMenuOuvert(false); setAtelierOuvert((o) => !o); }}
+                  atelierOuvert={atelierOuvert}
                   aApprouver={aApprouver}
                   nonLus={nonLus}
                   reponseVocale={reponseVocale}
@@ -495,9 +529,29 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
               </p>
             </div>
           )}
+          </div>
+          {atelierOuvert && !atelierPlein && (
+            <div
+              role="separator" aria-orientation="vertical" aria-label="Largeur de la conversation et de l'Atelier" tabIndex={0}
+              aria-valuemin={25} aria-valuemax={75} aria-valuenow={Math.round(largeurConversation)}
+              onPointerDown={redimensionner}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowLeft") setLargeurConversation((l) => Math.max(25, l - 5));
+                if (e.key === "ArrowRight") setLargeurConversation((l) => Math.min(75, l + 5));
+              }}
+              className="atelier-poignee hidden w-1.5 shrink-0 bg-slate-200/70 hover:bg-violet-300 lg:block dark:bg-zinc-800 dark:hover:bg-violet-800"
+            />
+          )}
+          <div className={atelierOuvert ? "fixed inset-0 z-40 flex min-h-0 min-w-0 lg:static lg:z-auto lg:flex-1" : "hidden"}>
+            <Atelier
+              ouvert={atelierOuvert} travaille={travaille || envoi} aOuvrir={aOuvrir} pleinEcran={atelierPlein}
+              onAfficher={afficherAtelier} onFermer={fermerAtelier} onPleinEcran={() => setAtelierPlein((p) => !p)}
+              onConfirmIntent={handleConfirmIntent}
+            />
+          </div>
         </div>
       </div>
-      <ApercuPiece piece={apercu} onFermer={fermerApercu} onDemanderModification={vueExacte ? undefined : demanderModification} />
+      <ApercuPiece piece={apercu} onFermer={fermerApercu} onDemanderModification={vueExacte ? undefined : demanderModification} onOuvrirAtelier={vueExacte ? undefined : ouvrirDansAtelier} />
       <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
       <TravauxPanel ouvert={travauxOuverts} onFermer={() => setTravauxOuverts(false)} travailInitial={travailInitial} onAApprouver={majAApprouver} />
@@ -510,8 +564,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
  * téléphone, un seul « ⋯ » qui les déplie : à 375 px, trois boutons de plus ne laissaient que
  * quelques lettres au champ de saisie.
  */
-function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, aApprouver, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
-  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; onTravaux: () => void; aApprouver: number; nonLus: number;
+function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onAtelier, atelierOuvert, aApprouver, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
+  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; onTravaux: () => void; onAtelier: () => void; atelierOuvert: boolean; aApprouver: number; nonLus: number;
   reponseVocale: boolean; onReponseVocale: () => void; vueExacte: boolean;
 }) {
   const bouton = "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800";
@@ -527,6 +581,7 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, aApprouv
         <button type="button" onClick={onMemoire} aria-label="Ma mémoire" title="Ma mémoire" className={bouton}><Brain className="h-4 w-4" /></button>
         <button type="button" onClick={onRoutines} aria-label={libelleRoutines} title="Mes routines" className={bouton}><AlarmClock className="h-4 w-4" />{point}</button>
         <button type="button" onClick={onTravaux} aria-label={libelleTravaux} title="Mes travaux" className={bouton}><Briefcase className="h-4 w-4" />{pointTravaux}</button>
+        {!vueExacte && <button type="button" onClick={onAtelier} aria-pressed={atelierOuvert} aria-label="Atelier — documents" title="Atelier — documents" className={`${bouton} ${atelierOuvert ? "bg-violet-50 text-violet-700 dark:bg-violet-950/40 dark:text-violet-300" : ""}`}><Sparkles className="h-4 w-4" /></button>}
         {!vueExacte && (
           <button type="button" onClick={onReponseVocale} aria-pressed={reponseVocale} aria-label={libelleVoix} title={libelleVoix}
             className={`${bouton} ${reponseVocale ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400" : ""}`}>
@@ -549,6 +604,11 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, aApprouv
             <button type="button" role="menuitem" onClick={onTravaux} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
               <Briefcase className="h-4 w-4" /> {libelleTravaux}
             </button>
+            {!vueExacte && (
+              <button type="button" role="menuitem" onClick={onAtelier} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
+                <Sparkles className="h-4 w-4" /> Atelier — documents
+              </button>
+            )}
             {!vueExacte && (
               <button type="button" role="menuitemcheckbox" aria-checked={reponseVocale} onClick={onReponseVocale} className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm text-slate-700 hover:bg-slate-100 dark:text-zinc-200 dark:hover:bg-zinc-800">
                 <IconeVoix className="h-4 w-4" /> Réponses vocales : {reponseVocale ? "activées" : "désactivées"}

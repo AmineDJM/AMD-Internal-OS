@@ -1,0 +1,51 @@
+/**
+ * L'ATELIER (J3) — les documents à côté de la conversation. Les scènes de rendu sont celles du Live Office
+ * (`platform/ia/ecrans/blocks/artifact.css`) ; cette feuille ne porte que l'Atelier et ses EFFETS : la zone qui
+ * vient de changer se surligne, son texte « s'écrit », une diapositive ajoutée apparaît. `prefers-reduced-motion` :
+ * aucun mouvement, le surlignage seul.
+ */
+
+.atelier .artifact { border: 0; border-radius: 0; background: transparent; }
+.atelier .artifact-scene { max-height: none; height: 100%; }
+
+/* Le texte qui s'écrit : la zone se dévoile de gauche à droite, comme une plume. */
+@keyframes atelier-ecrit {
+  from { clip-path: inset(0 100% 0 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+/* Le surlignage qui arrive, puis se pose. */
+@keyframes atelier-lueur {
+  0% { background-color: rgba(250, 204, 21, 0.55); box-shadow: 0 0 0 3px rgba(250, 204, 21, 0.35); }
+  100% { background-color: rgba(27, 127, 121, 0.13); box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
+}
+/* La diapositive qui apparaît. */
+@keyframes atelier-apparait {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.atelier-anime .artifact-bloc-actif,
+.atelier-anime .artifact-forme-active,
+.atelier-anime .artifact-cellule-surlignee,
+.atelier-anime .artifact-cellule-active { animation: atelier-lueur 1.6s ease-out both; }
+.atelier-anime .artifact-bloc-actif p,
+.atelier-anime .artifact-bloc-actif table,
+.atelier-anime .artifact-forme-active { animation: atelier-ecrit 0.9s steps(28, end) both, atelier-lueur 1.6s ease-out both; }
+.atelier-anime .artifact-diapo-neuve,
+.atelier-anime .artifact-miniature-neuve { animation: atelier-apparait 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.artifact-miniature-neuve { outline: 2px solid rgba(250, 204, 21, 0.8); outline-offset: -2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .atelier-anime .artifact-bloc-actif,
+  .atelier-anime .artifact-bloc-actif p,
+  .atelier-anime .artifact-bloc-actif table,
+  .atelier-anime .artifact-forme-active,
+  .atelier-anime .artifact-cellule-surlignee,
+  .atelier-anime .artifact-cellule-active,
+  .atelier-anime .artifact-diapo-neuve,
+  .atelier-anime .artifact-miniature-neuve { animation: none; }
+}
+
+/* La poignée qui redimensionne la conversation et l'Atelier. */
+.atelier-poignee { cursor: col-resize; touch-action: none; }
+.atelier-poignee:focus-visible { outline: 2px solid #7c3aed; outline-offset: -2px; }

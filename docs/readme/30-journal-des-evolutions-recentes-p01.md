@@ -1,5 +1,19 @@
 ## 🧾 Journal des évolutions récentes
 
+### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
+
+« Afficher un ou plusieurs documents et surtout les modifier, en live, avec un côté magique. » L'Assistant IA ouvre les
+pièces (jointes, renvoyées, trouvées) dans un **Atelier à onglets** à droite de la conversation (redimensionnable, plein
+écran, panneau plein écran sur téléphone), rendu fidèle par format. **Il modifie EN PLACE** (`modifier_document` :
+remplacer un texte, réécrire un paragraphe, ajouter une diapositive, modifier une cellule, insérer un tableau, ajuster un
+titre…) sur le fichier d'origine — styles, tableaux, mise en page conservés — et chaque modification **apparaît pendant qu'il
+travaille**, surlignée, le texte qui s'écrit, la diapositive qui apparaît. La personne **accepte ou refuse** chaque ligne,
+compare avant / après, **enregistre une nouvelle version** (jamais d'écrasement ; carte de confirmation pour un document
+rattaché à un objet métier ; inscrite à la Bibliothèque) et **convertit** (Word/PowerPoint → PDF par LibreOffice du worker
+quand il bat, tableau → Excel, PDF → Word) — l'écran dit la voie. « Demander une modification » passe par l'Atelier ;
+`preparer_document` ne sert plus qu'à créer. Banc live : 0,09 $ pour un deck (titre + synthèse) et un contrat (essai à
+6 mois, styles gardés). Décision [0017](../assistant/decisions/0017-atelier.md) ; migration `20270209100000_atelier`.
+
 ### J0 : ADAM ET L'ASSISTANT IA SÉPARÉS — UN SOCLE COMMUN `src/platform/ia/`, ZÉRO IMPORT DU SOCLE VERS L'UN OU L'AUTRE (2026-10-29)
 
 Premier lot du plan « Jarvis » validé par la Direction le 29/10 (décision `docs/assistant/decisions/0013-jarvis-architecture.md`).

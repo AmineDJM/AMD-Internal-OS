@@ -607,3 +607,29 @@ Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missio
 - **Console** `/admin/ai/acces` : plafonds par défaut (par travail, par mois) et par personne (`enregistrerPlafondsTravaux`, audité).
 - **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
   Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
+
+### L'Atelier de l'Assistant IA — documents affichés et modifiés en direct (lot J3, 30/10/2026)
+
+Décision [0017](../assistant/decisions/0017-atelier.md). Code : `src/platform/ia/artifact/atelier/` (gestes, service,
+conversions, structure — socle IA), `src/modules/assistant-ia/infra/atelier/outils.ts` (outils),
+`src/modules/assistant-ia/actions-atelier.ts` (clé `assistant-ia-atelier-actions`), `src/app/api/assistant-ia/atelier/route.ts`,
+`src/modules/assistant-ia/ecrans/atelier/` (écran).
+
+- **Ouvrir** : « Ouvrir dans l'Atelier » (aperçu d'une pièce) ou l'outil `ouvrir_dans_l_atelier` ; un onglet = une
+  `ArtifactSession` (`blockId` `atelier-…`) ; rendu fidèle par format (scènes du Live Office : Word, PowerPoint, grille Excel,
+  pages PDF rastérisées). Droits = ceux du fichier (`canViewDrive`) ; sans `canEditDrive` : **lecture seule**, modification
+  refusée avant d'être appliquée. Onglets multiples, « Côte à côte », poignée 25–75 %, plein écran ; téléphone : panneau plein écran.
+- **Modifier** : l'outil `modifier_document` reçoit des **gestes** typés, traduits en commandes IR par format
+  (`gestes.ts`) et appliqués **un par un sur le fichier d'origine** (styles, tableaux, mise en page conservés). L'écran relit
+  `/api/assistant-ia/atelier` (0,6 s pendant un tour, 8 s sinon), relit la vue d'un onglet dont la révision a bougé,
+  calcule ce qui a changé **par contenu** (`zonesModifiees`), y navigue et l'anime (surlignage, texte qui s'écrit, diapositive
+  qui apparaît ; rien sous `prefers-reduced-motion`).
+- **Revue** : une ligne par modification (`ArtifactOperation.revue`) — accepter, refuser (= annulée, rejeu exact), remettre à
+  revoir ; tout accepter ; annuler / rétablir.
+- **Enregistrer** : `FileVersion` n+1, jamais d'écrasement ; inscription Bibliothèque par le port. Document rattaché à un
+  objet métier (pièce juridique, courrier, espace partagé — `documentSensible`) : **carte de confirmation**
+  (`enregistrer_document`, famille Drive + Écritures). **Comparer** : avant / après côte à côte + différences constatées.
+- **Convertir** : Word/PowerPoint/Excel → PDF, tableau Word → Excel, PDF → Word (texte seulement) ; voie WORKER (LibreOffice
+  de l'image, tâche `atelier.conversions` sur le worker), EDITEUR (OnlyOffice), LOCAL, RENDU (`docxToPdf`), MAISON —
+  **affichée** ; résultat = nouveau fichier du dossier « Atelier » ; la dernière version enregistrée.
+- « Demander une modification » ouvre l'Atelier et pré-remplit la demande ; `preparer_document` ne sert plus qu'à créer.

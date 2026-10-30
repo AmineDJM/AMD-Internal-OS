@@ -38,6 +38,8 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
   web_research: "pages web",
   mes_conversations: "messages reçus",
   documents_rh: "document du dossier RH",
+  ouvrir_dans_l_atelier: "document ouvert dans l'Atelier",
+  modifier_document: "document modifié dans l'Atelier",
 };
 
 /**
@@ -47,6 +49,8 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
 export const OUTILS_INTERNES_NOMMES: readonly string[] = [
   "send_message", "preparer_reponse_message", "preparer_document", "preparer_depot_piece",
   "preparer_formulaire_pdf", "preparer_bc_depuis_devis",
+  // L'Atelier (J3) : une conversion rend un nom de fichier et une voie, écrits par l'ERP ; l'enregistrement, une carte.
+  "convertir_document", "enregistrer_document",
 ];
 
 /** Ce qui, dans le nom d'un outil, évoque un contenu venu d'ailleurs — le filet du cliquet. */

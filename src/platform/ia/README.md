@@ -14,7 +14,7 @@ tenue par `frontieres.test.ts` et ESLint.
 | `drive.ts` | un fichier du Drive désigné par son nom, relu à l'exécution (droits revérifiés) |
 | `web-research.ts` | la recherche web (passerelle `lib/models/`) |
 | `media/` | ffmpeg (image d'une vidéo), pièces jointes (texte, OCR, transcription), porte des médias |
-| `artifact/` | la fabrique de documents (`factory`), les artefacts Live Office (ports, store, rendu) |
+| `artifact/` | la fabrique de documents (`factory`), les artefacts Live Office (ports, store, rendu) ; `artifact/atelier/` (J3) : gestes → commandes par format, onglets, revue, conversions |
 | `teach/store.ts` | les règles enseignées (dont les standards documentaires que lit la fabrique) |
 | `proprietaire.ts` | le propriétaire d'un travail (relu en base, droits compris) |
 | `telemetry/usage-sink.ts` | le puits d'usage des modèles — branché par chaque module qui appelle un modèle |

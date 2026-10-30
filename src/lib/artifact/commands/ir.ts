@@ -105,6 +105,11 @@ export const OPS_DOCX = [
   "docx.interligne",
   /** La bordure d'UNE cellule — « change seulement la bordure de cette cellule ». */
   "docx.cellule_bordure",
+  /**
+   * INSÉRER UN TABLEAU (Atelier, J3) — `texte` porte les lignes (une par ligne, cellules séparées par « | »),
+   * la première est l'en-tête ; `cible` + `position` disent où (sans cible : à la fin du document).
+   */
+  "docx.inserer_tableau",
 ] as const;
 
 export const OPS_XLSX = [

@@ -207,6 +207,11 @@ export function classerExclusionsAttestations(): void {
     "assistant-ia-actions:listerMesTravaux", "assistant-ia-actions:lireMonTravail", "assistant-ia-actions:approuverMonTravail",
     "assistant-ia-actions:pauserMonTravail", "assistant-ia-actions:reprendreMonTravailIA", "assistant-ia-actions:annulerMonTravail",
   ]);
+  X("L'ATELIER de l'Assistant IA (J3, décision 0017) — les gestes de la personne sur SES onglets de documents (ouvrir, relire, accepter / refuser une modification, annuler, comparer, convertir, enregistrer une NOUVELLE version, fermer). Identité prise de la session, droits du Drive relus à chaque geste ; un document rattaché à un objet métier s'enregistre par une carte de confirmation : ce n'est pas une action métier à proposer.", [
+    "assistant-ia-atelier-actions:ouvrirDansLAtelier", "assistant-ia-atelier-actions:relireOnglet", "assistant-ia-atelier-actions:revoirModificationAtelier",
+    "assistant-ia-atelier-actions:toutAccepterAtelier", "assistant-ia-atelier-actions:annulerDansAtelier", "assistant-ia-atelier-actions:enregistrerOnglet",
+    "assistant-ia-atelier-actions:comparerOnglet", "assistant-ia-atelier-actions:convertirDansAtelier", "assistant-ia-atelier-actions:fermerOngletAtelier",
+  ]);
   X("préférence d'affichage PERSONNELLE (sans effet métier au-delà de l'écran de la personne)", [
     "adoption-actions:saveAdoptionSettings", "adoption-actions:resetActivityTime", "feature-actions:toggleMyTestMode",
     "budget-scope-actions:rememberBudgetEnvelope", "supplier-actions:updateSupplierView",
