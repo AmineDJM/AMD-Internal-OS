@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+
+const MIGRATIONS_FIGEES: string[] = JSON.parse(readFileSync("prisma/migrations-figees.json", "utf8"));
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -20,6 +22,11 @@ import { join } from "node:path";
  *
  * Sur un clone SANS historique (CI en profondeur 1), toutes les migrations semblent ajoutées par le même commit :
  * la règle ne voit rien et le dit — elle mord en local et sur toute copie qui porte l'historique.
+ *
+ * 30/10/2026 — le même dépôt rendait TROIS verdicts selon la profondeur du clone (vert en local, vert en CI, rouge
+ * dans chaque session de lot sur des migrations anciennes déjà déployées). Les migrations intégrées sont désormais
+ * FIGÉES (`prisma/migrations-figees.json`, `npm run migrations:figer`) : hors jugement. Une migration NEUVE est jugée sans
+ * git — son nom dépasse la plus grande figée — puis, entre neuves, par l'historique récent (toujours présent).
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -79,10 +86,22 @@ describe("ordre des migrations", () => {
     expect(migrationsMalDatees(dates)).toEqual([{ nom: "20270130100000_b", depasse: "20270131140000_a" }]);
   });
 
-  it("aucune migration NEUVE n'est datée avant une migration déjà intégrée", () => {
+  it("une migration NEUVE dépasse toutes les migrations figées — sans git, même verdict sur tout clone", () => {
+    const figees = new Set(MIGRATIONS_FIGEES);
+    const maximum = [...MIGRATIONS_FIGEES].sort().at(-1) ?? "";
+    const surDisque = readdirSync("prisma/migrations").filter((n) => /^\d{14}_/.test(n));
+    const neuves = surDisque.filter((n) => !figees.has(n));
+    expect(neuves.filter((n) => n <= maximum).map((n) => `${n} (neuve, nommée sous ${maximum} : renommer au-dessus)`)).toEqual([]);
+    // Une migration figée ne disparaît pas du disque (la production l'a appliquée).
+    expect(MIGRATIONS_FIGEES.filter((n) => !surDisque.includes(n))).toEqual([]);
+  });
+
+  it("entre migrations NEUVES, l'ordre d'ajout suit l'ordre des noms (historique récent)", () => {
     const dates = datesDAjout();
     if (!dates || dates.size === 0) return; // pas de git : rien à lire, rien à juger
-    const neuves = migrationsMalDatees(dates).filter((m) => !ECARTS_CONNUS.has(m.nom));
-    expect(neuves.map((m) => `${m.nom} (ajoutée après ${m.depasse} : renommer au-dessus du maximum)`)).toEqual([]);
+    const figees = new Set(MIGRATIONS_FIGEES);
+    const neuves = new Map([...dates].filter(([n]) => !figees.has(n)));
+    const mal = migrationsMalDatees(neuves).filter((m) => !ECARTS_CONNUS.has(m.nom));
+    expect(mal.map((m) => `${m.nom} (ajoutée après ${m.depasse} : renommer au-dessus du maximum)`)).toEqual([]);
   });
 });

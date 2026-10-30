@@ -82,7 +82,7 @@ export function ActionConfirmationCard({
           </span>
         </div>
         <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
-          {kind === "create_task" ? "Tâche" : kind === "send_message" ? "Message interne" : "À confirmer"}
+          {kind === "create_task" ? "Tâche" : kind === "send_message" ? "Message interne" : kind === "assistant_ia_capacite" ? "Action de l'ERP" : "À confirmer"}
         </span>
       </div>
 

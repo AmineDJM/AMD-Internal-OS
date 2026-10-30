@@ -3,7 +3,7 @@ import type { UserRole } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
-import { performAction, type AssistantActionPayload } from "@/lib/assistant";
+import { executerOperationIA } from "./infra/operations";
 import { compileContext } from "./infra/contexte";
 import { outilsV1, type PropositionPreparee } from "./infra/outils-v1";
 import { repondreAvecSecours } from "./infra/repondre";
@@ -117,11 +117,12 @@ describe("L3 + L4 — rien sans confirmation, et le droit revérifié à l'exéc
 
   it("le droit retiré entre la proposition et la confirmation : l'exécution refuse, rien n'est écrit", async () => {
     const { propositions } = await tour(assistante, "send_message", { recipientName: collegue.name, body: "Relance" });
-    const payload = propositions[0]!.proposition.payload as AssistantActionPayload;
+    const payload = propositions[0]!.proposition.payload;
     await prisma.userAccess.create({ data: { userId: assistante.id, module: "MESSAGING", canView: true, canCreate: false, scope: "ASSIGNED" } });
     try {
       const sansDroit = await relire(assistante.id);
-      const r = await performAction(sansDroit, payload);
+      // L'exécuteur de l'Assistant IA lui-même (J6 : plus rien ne passe par Adam) — le droit d'écran est rejugé.
+      const r = await executerOperationIA(sansDroit, payload);
       expect(r.ok).toBe(false);
       expect(await prisma.message.count({ where: { senderId: assistante.id } })).toBe(0);
     } finally {

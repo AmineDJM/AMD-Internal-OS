@@ -961,11 +961,6 @@
         "src/app/(app)/assistant/**",
         "src/app/api/assistant-ia/**"
       ],
-      "excludedFiles": [
-        "src/modules/assistant-ia/limites.test.ts",
-        "src/modules/assistant-ia/infra/outils-v1.ts",
-        "src/modules/assistant-ia/actions.ts"
-      ],
       "plugins": [
         "@typescript-eslint"
       ],

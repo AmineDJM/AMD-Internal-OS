@@ -7,7 +7,7 @@ l'Assistant IA, au nom du demandeur, puis vérifiée contre tesseract — **jama
 d'un dossier RH ou un contrat (la lecture locale reste, et l'écran dit pourquoi). Réglage Super Admin (coupé par défaut) et
 plafond mensuel en dollars : **Administration › IA**. Banc : scans vocalisés 13,6 / 58,1 / 25,7 % → 0,20 / 0,40 / 0,00 % ;
 un passage réel 0,060 $. Aller-retour Word vocalisé (LibreOffice 7.4) : 2,0 → 0,40 % (Naskh). Décision
-[0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270211100000_ocr_vision`.
+[0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270215130000_ocr_vision`.
 
 ### CONVERSIONS HAUTE FIDÉLITÉ SUR LE WORKER, ET LE WORKER « CLIQUEZ SYNC, C'EST TOUT » (2026-10-30)
 
@@ -23,7 +23,32 @@ convertit jamais quand le worker bat. Banc `npm run conversions:bench` dans l'im
 tesseract, dite) ; 100 % des images, 0 caractère interdit, 100 % des paragraphes arabes en RTL. **Render** : *Sync* crée le
 worker, lui relie ses variables (`fromService`) et il travaille (`TACHES_DE_FOND=les-deux` partout) ; il contrôle ses
 variables et son moteur au démarrage et l'écrit — journal et **Administration › Diagnostic › Worker et conversions**.
-Décision [0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270211090000_controle_worker`.
+Décision [0019](../assistant/decisions/0019-conversions-haute-fidelite.md) ; migration `20270215120000_controle_worker`.
+
+### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
+
+Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur de l'ERP (1 206, lues sur leur source) devient une
+**capacité** de l'Assistant IA, sans une ligne déclarée à la main : son schéma, sa famille de la console, son niveau de risque
+(R0 lecture → R4 argent, droits, signature, suppression), sa simulabilité (préparée pour J7) et son annulation. L'assistant
+**trouve** les 3 à 8 utiles parmi toutes celles que l'écran ouvre à la personne (96 % de rappel dans les 5 premières sur 300
+demandes, moins de 4 000 jetons d'outils par étape), les **exécute par l'action elle-même** sous la vraie session — une lecture
+directement, une écriture par la carte de confirmation, renforcée (ressaisie) pour l'argent, les décisions, les suppressions
+et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assistant IA → Adam est à zéro — **sans rien perdre** :
+les 123 gestes qu'Adam lui prêtait ont chacun leur équivalent (inventaire généré et rejoué par un test) ; changer l'échéance,
+la priorité ou le responsable d'une tâche est désormais une action d'écran (`modifierTache`).
+
+### J10 : LES RECETTES — « COMMENT ON FAIT ÇA CHEZ NOUS ? », TIRÉ DES DOSSIERS RÉELS, VALIDÉ PAR LE RESPONSABLE (2026-10-30)
+
+Une **recette** décrit un circuit réel : étapes dans l'ordre, qui valide, pièces habituelles, seuils (« la DG signe au-delà
+d'environ 1,2 M DZD (observé) »), durée médiane, pièges (renvois répétés, étape la plus lente). Elle est **proposée** par
+l'extraction (tâche quotidienne `recettes.extraction`, jamais sous le seuil d'occurrences : 5 dossiers clos acceptés par défaut),
+puis **validée, corrigée (nouvelle version), rejetée ou retirée** par le responsable du processus que la Direction désigne dans
+l'écran `/recettes`. L'Assistant IA ne sert que la version validée (`recette_pour`) : il propose le plan tiré de la recette en
+disant « selon la recette … validée par X le … », et signale les écarts (seuil franchi, délai court, plan retouché). Statistiques :
+utilisations et taux de plans acceptés sans retouche. Une recette ne se montre qu'à qui voit l'écran du circuit ; elle ne porte ni
+dossier, ni nom, ni montant d'un dossier. Banc : 12/12 recettes justes sur le corpus semé, 13/14 plans acceptés sans retouche
+(93 %), zéro recette servie avant validation, zéro hors droits. Décision [0028](../assistant/decisions/0028-recettes.md) ;
+migration `20270211090000_recettes`.
 
 ### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
 
@@ -36,6 +61,20 @@ registre ; les droits jugent chaque nœud AVANT le parcours ; une famille fermé
 `remplaceParId`), il n'est jamais écrasé ; chaque chiffre rendu porte sa source. Banc : résolution 101/101 sur un corpus
 semé, 239/239 chiffres sourcés, p95 ≈ 120 ms sur 50 000 arêtes, zéro résultat hors droits par rôle. Décision
 [0021](../assistant/decisions/0021-graphe.md) ; migration `20270210090000_graphe_faits_dates`.
+
+### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
+
+Lot J8 — `docs/assistant/decisions/0023-delegation.md` ; migration additive `20270214100000_travaux_delegation`.
+- **« Demander à »** : un travail dépose une demande précise (question, pièces attendues, échéance, pièces partagées en
+  lecture) chez un collègue — notification et carte dans **son** Assistant IA ; il répond avec ses pièces ou décline ;
+  le travail reprend. Relance, escalade au responsable, abandon. Il ne voit jamais le carnet de l'autre.
+- **Attentes métier** sur les 34 types de faits (prédicat), relance et escalade ; **reprise mesurée** après l'événement :
+  médiane 7,5 s, p95 10 s (boucle courte des réveils, 10 s).
+- **Plusieurs travaux par personne** avec priorités ; **vue « Mon équipe »** pour un responsable si la console l'autorise
+  (défaut : non), chaque consultation à l'audit.
+- **Livrables = vrais documents** (Word, PDF, Excel) déposés dans le Drive de la personne et inscrits à la Bibliothèque.
+- **Robustesse** : un travail de 3 semaines traverse 10 arrêts brutaux (`SIGKILL`) de vrais processus sans doublon ;
+  web + worker simultanés : un seul exécute.
 
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 

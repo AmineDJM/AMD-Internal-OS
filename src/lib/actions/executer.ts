@@ -1,7 +1,7 @@
 import type { CurrentUser } from "@/lib/session";
 import { CONTRAT_PAR_ID } from "./contrat.genere";
 import { MODULES_ACTIONS } from "./aiguillage.genere";
-import { interdictionGenerique, validerEntree, argumentsDAppel, type EntreeRefusee } from "./generique";
+import { interdictionDeLAssistantIa, interdictionGenerique, validerEntree, argumentsDAppel, type EntreeRefusee } from "./generique";
 import type { ContratAction } from "./contrat";
 
 /**
@@ -94,13 +94,16 @@ export async function executerAction(
   _user: CurrentUser,
   id: string,
   entree: Readonly<Record<string, unknown>> = {},
+  politique: "generique" | "assistant-ia" = "generique",
 ): Promise<ResultatGenerique> {
   const contrat = CONTRAT_PAR_ID.get(id);
   if (!contrat) {
     return { ok: false, motif: "inconnue", message: `Aucune action « ${id} » dans l'ERP.` };
   }
 
-  const interdit = interdictionGenerique(contrat);
+  // L'ASSISTANT IA a sa politique (décision 0020) : le refus générique, moins les gestes de fiche ; leurs champs
+  // retenus (`GESTES_DE_FICHE`), le module les ôte de ce que propose le modèle.
+  const interdit = politique === "assistant-ia" ? interdictionDeLAssistantIa(contrat) : interdictionGenerique(contrat);
   if (interdit) return { ok: false, motif: "interdite", message: interdit, contrat };
 
   const refus = validerEntree(contrat, entree);

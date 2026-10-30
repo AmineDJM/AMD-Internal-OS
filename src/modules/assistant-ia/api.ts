@@ -43,6 +43,9 @@ export { executerVeilles, passerLaVeille } from "./infra/proactivite/veille";
 
 // ── Opérations (écritures confirmées) et accès
 export { executerOperationIA } from "./infra/operations";
+// J6 (décision 0020) : le registre des capacités de l'ERP, branché — l'exécution d'une carte de capacité confirmée.
+export { capacitesOffertes, executerCapacite, porteOuverte, registreDesCapacites } from "./infra/capacites";
+export { estChargeCapacite } from "./domaine/capacites";
 export { accesAssistantIa, chargerConsoleAccesIa, verifierReperesAvantExecution } from "./infra/role-config";
 
 // ── Consommation (budget par tour, plafonds, tableau de bord) et moteur
@@ -53,6 +56,11 @@ export { outilsV1 } from "./infra/outils-v1";
 
 // ── Les travaux longs (J2, décision 0016) : la persona que le moteur des travaux joue pour l'Assistant IA
 export { PERSONA_ASSISTANT_IA } from "./infra/travaux";
+// ── J8 (décision 0023) : délégation (demandes reçues), priorité, vue d'un responsable sur son équipe (console + audit)
+export {
+  declinerDemande, equipeVisible, lireTravailEquipe, listerDemandesRecues, listerTravauxEquipe, PIECES_TRAVAUX, reglerPrioriteTravail, repondreDemande,
+  type DemandeRecue, type EtapeVue, type TravailDEquipe,
+} from "./infra/travaux";
 
 // ── L'Atelier (J3, décision 0017) : documents ouverts côte à côte, modifiés en place, convertis
 export { etatAtelier } from "./infra/atelier/etat";

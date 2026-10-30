@@ -778,7 +778,7 @@ arm its heartbeat (`VITEST`), and every outbound transport is refused by `sortie
 > LibreOffice 7.4, **Tesseract 5.3** — measured better on Arabic than 5.5; do not bump without re-running the bench in the image), three stages (deps, Python engine, runtime), Arabic/Latin fonts incl. Carlito/Caladea, and a
 > build-time `convertir.py --verifier` gate. Worker start-up control (`evaluerControle`/`controlerAuDemarrage` in
 > `src/lib/taches-de-fond/sante.ts`, after the migration wait via `apresMigrations`) logs each missing variable/engine piece
-> (`worker.controle.manque`) and upserts table `ControleWorker` (migration `20270211090000_controle_worker`, additive; presence only,
+> (`worker.controle.manque`) and upserts table `ControleWorker` (migration `20270215120000_controle_worker`, additive; presence only,
 > never values). Web side: `atelier.conversions` still never converts on the web, but expires queued conversions the worker did not
 > take (15 min). Local docker builds behind the agent proxy need a CA-injected variant (not shipped).
 

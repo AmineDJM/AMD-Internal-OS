@@ -610,6 +610,31 @@ Décision [0016](../assistant/decisions/0016-travaux.md). Code : `src/lib/missio
 - **Worker** : sous `TACHES_DE_FOND=les-deux`, le web s'abstient de conduire les travaux dès que le worker bat. Image
   Docker `Dockerfile.worker` (LibreOffice, ffmpeg, Tesseract) — procédure : [Déploiement — Render](24-deploiement-render.md).
 
+### Travaux, suite — délégation, attentes avancées, équipe, livrables au Drive (lot J8, 30/10/2026)
+
+Décision [0023](../assistant/decisions/0023-delegation.md). Code : `src/lib/missions/travaux/` (`delegation.ts`, `jalons.ts`,
+`reveil.ts`, `signaux.ts`), `src/modules/assistant-ia/infra/travaux-{pieces,livrables,equipe}.ts`,
+`src/modules/assistant-ia/infra/operations/delegation.ts`, `src/modules/assistant-ia/actions-travaux.ts`, écrans
+`ecrans/{demandes-recues,travaux-equipe}.tsx`.
+
+- **Délégation** : étape `DEMANDE` (`a`, `question`, `pieces`, `partager`, `jours`) → nœud `WAIT_INPUT`. Dépôt **une fois**
+  par étape (`TravailDemande`, clé `missionId, stepKey`), pièces partagées **en lecture** (`DriveShare`, audit), avis à la
+  personne sollicitée (`/assistant?demande=…`). Elle ne voit que la question, les pièces attendues et partagées — jamais
+  le carnet. Réponse (texte + pièces de **son** Drive, accordées en lecture au demandeur) ou refus motivé → l'étape se
+  règle, la réponse entre au carnet, le travail reprend. Relance (mi-délai), escalade (échéance, au N+1 de l'organigramme),
+  abandon (second délai → issue `TIMEOUT`). Faits `DEMANDE_DEPOSEE` / `DEMANDE_REPONDUE`. Côté sollicité : lecture
+  `mes_demandes_recues` (contenu non fiable) et carte `preparer_reponse_demande` (fiches de la sélection, hors socle).
+- **Attentes** : prédicat de charge utile sur les 34 types du catalogue ; jalons `relance` / `escalade { a: RESPONSABLE }` ;
+  **réveil rapide** — tout ce qui règle une attente signale le travail (`Mission.reveilDemandeLe`), la boucle courte
+  (`armerReveilsTravaux`, 10 s, worker et web) le conduit : p95 mesuré 10 s (critère 90 s).
+- **Plusieurs travaux par personne** : priorité (`HAUTE` / `NORMALE` / `BASSE`), battement servi à tour de rôle par personne.
+- **Équipe** : option console `/admin/ai/acces` « Travaux de l'équipe » (défaut **non**) — un N+1 voit résumé et étapes
+  des travaux de son équipe, en lecture seule ; chaque consultation à l'audit (`Assistant IA — travaux`).
+- **Livrables** : `format` `docx` | `pdf` | `xlsx` | `md` — Word / Excel de la fabrique, déposé au Drive personnel
+  (dossier « Travaux »), inscrit à la Bibliothèque ; PDF par les conversions de l'Atelier. Dépôt sous reçu : jamais deux.
+- **Robustesse mesurée** (`robustesse.test.ts`) : 3 semaines, 10 `SIGKILL` sur de vrais processus, aucun doublon ;
+  web + worker simultanés : un seul exécute.
+
 ### L'Atelier de l'Assistant IA — documents affichés et modifiés en direct (lot J3, 30/10/2026)
 
 Décision [0017](../assistant/decisions/0017-atelier.md). Code : `src/platform/ia/artifact/atelier/` (gestes, service,
@@ -655,6 +680,32 @@ Décision [0018](../assistant/decisions/0018-vitesse-memoire.md). Code : `src/mo
 - **Modèle par geste** : rapide `gpt-6-luna` (résumé), standard `gpt-6.1-terra` effort `low`, raisonnement effort
   `medium` (analyse, comparaison, plusieurs pièces) — variables `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`.
 
+### Assistant IA — le registre des capacités et l'appel générique (lot J6, 30/10/2026)
+
+Décision [0020](../assistant/decisions/0020-capacites.md). Code : socle `src/platform/ia/capacites/` (registre PUR, classement,
+portes, lexique, cliché `classement.genere.json`) ; module `src/modules/assistant-ia/infra/{capacites,lectures-erp}.ts`,
+`domaine/capacites.ts` ; `npm run capacites:classement`.
+
+- **Registre dérivé** de `lib/actions/contrat.genere.json` (1 206 actions), des outils de l'Assistant IA et des 16 commandes de
+  l'Atelier : schéma JSON + zod, famille de la console, libellé français, risque **R0 → R4**, simulable (J7), annulation
+  (`lib/annulation/reversibilite.ts`), contenu tiers, porte d'écran. Jamais appelable : `illisible`, refusée au chemin
+  générique, hors de l'assistant (`portes.ts`), objet binaire. Le cliché relu fait échouer `registre.test.ts` pour toute
+  action nouvelle non classée.
+- **Appel** : offerte si la porte de l'écran est ouverte ; R0 exécutée pendant le tour sous la session de la personne ; R1/R2
+  carte, R3/R4 carte renforcée (ressaisie) ; à la confirmation, arrêt d'urgence, porte et famille relus, puis l'ACTION ELLE-MÊME
+  (`executerAction`). Pas dans les travaux (J2) : un geste de capacité repasse toujours par une carte.
+- **Sélection** : les capacités sont des fiches de `trouver_outil` et de la présélection (J4) — rappel@5 96 % sur 300
+  demandes, 3 837 jetons fixes au pire, jamais hors droits.
+- **Adam n'est plus emprunté** (`RESIDUS` vide) : écritures → capacités ; `send_message` → opération propre ; lectures
+  transverses → outils propres (`lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`).
+- **Aucune régression de capacité** (0020 § 8, [inventaire](../assistant/decisions/0020-inventaire.md)) : les 123 gestes
+  qu'Adam prêtait avant J6 ont chacun leur équivalent appelable, ouvert à chaque rôle d'avant (`npm run capacites:inventaire`,
+  test `equivalents-avant-j6.test.ts`). Actions d'écran ajoutées : `modifierTache` (échéance, priorité, responsable),
+  `corrigerMaDemande`, `modifierChampPersonnalise` ; fiche employé par la politique `interdictionDeLAssistantIa`
+  (`GESTES_DE_FICHE` : jamais `userId`, R4, fiche relue et rejouée à la confirmation) ; portes nommées geste par geste
+  (`PORTES_DU_GESTE` : « le propriétaire OU le droit du module ») ; un fichier facultatif n'empêche plus l'appel.
+
+
 ### Graphe de l'entreprise et faits datés (lot J9, 30/10/2026)
 
 Décision [0021](../assistant/decisions/0021-graphe.md). Module `src/modules/graphe-entreprise/` ; outils au socle
@@ -698,3 +749,23 @@ Décision [0025](../assistant/decisions/0025-terrain-voix.md). Code : `src/modul
   **aucune confirmation à la voix** — une écriture est une carte, exécutée par son bouton. Modèle réglable par le Super
   Admin (Consommation IA) ou `ASSISTANT_IA_VOICE_MODEL`. Latence mesurée sur la ligne de temps de la session (cible p50
   ≤ 1,5 s, première mesure réelle à relever en production).
+
+### Recettes — la mémoire procédurale (lot J10, 30/10/2026)
+
+Décision [0028](../assistant/decisions/0028-recettes.md). Module `src/modules/recettes/` ; page `/recettes` ; outil
+`src/modules/assistant-ia/infra/recettes.ts` ; tâche `recettes.extraction`.
+
+- **Sources** (`infra/sources.ts`, 24 mois) : circuits Ad & Pro (`WorkflowStepEvent` + définition : rôles, `autoSkipMaxAmount`),
+  validations par module (`ValidationStep`), recrutement (`RecruitmentApproval`), travaux J2 réussis (forme du plan), formes
+  d'Adam `VALIDATED` ; pièces `PieceLien` → `Piece.nature` ; acteurs par RÔLE, jamais par nom.
+- **Extraction** (`domaine/extraction.ts`) : rien sous le seuil (5 dossiers clos acceptés, plancher 3, réglable par processus) ;
+  étapes par rang moyen, validateurs, pièces ≥ 50 %, seuil réglé ou observé (palier rond strictement entre les deux groupes,
+  `seuilRond`), médiane et p90, pièges répétés sur ≥ 2 dossiers (chiffres masqués). Idempotente (signature de structure).
+- **Vie** (`domaine/etats.ts`) : PROPOSEE → VALIDEE → REMPLACEE / RETIREE, ou REJETEE (motif). Seul le responsable désigné
+  (`RecetteResponsable` : rôle ou personne, par processus ; désigné par Super Admin / Direction) tranche, et seulement un
+  circuit dont il voit l'écran. Corriger = une version de plus.
+- **Assistant** : `recette_pour(intention, plan?)` → `AUCUNE` | `AMBIGU` (question) | `RECETTE` (fiche, phrase « selon la
+  recette … validée par … le … », plan J2 : ANALYSE → LIVRABLE → ATTENTE médiane → LIVRABLE, écarts). Version VALIDÉE
+  seulement ; famille fermée → processus retirés. `RecetteUsage` ; acceptation lue au travail lancé (même plan approuvé).
+- **Droits** : `voitLeCircuit` (module de l'écran du circuit ; formes d'Adam : Super Admin) — écran et assistant.
+

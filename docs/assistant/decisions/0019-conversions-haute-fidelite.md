@@ -150,7 +150,7 @@ Demande : « toutes les technologies nécessaires » pour les scans arabes, sans
    juridique ou un courrier enregistré, un nom qui l'annonce. Refusée : la lecture locale reste et la note le DIT
    (« OCR vision non utilisé : la pièce est classée CONFIDENTIELLE »).
 3. **Le lecteur** (Assistant IA) : réglage Super Admin **Administration › IA** — une bascule du Centre de contrôle (lue par l'action, offerte par l'écran, rejouée par l'op d'Adam), COUPÉE par
-   défaut, migration `20270211100000_ocr_vision`) et **plafond mensuel en dollars** (somme des appels au rôle « ocr »,
+   défaut, migration `20270215130000_ocr_vision`) et **plafond mensuel en dollars** (somme des appels au rôle « ocr »,
    vérifiée avant chaque page) ; appel par la porte `genererTexte` — modèle du rôle « standard » de la passerelle
    `modeles-roles.ts` (`gpt-6.1-terra`), interrupteur général, budget et **journal au nom du demandeur** (`auNomDe`,
    `AiUsageLog`/`ModelCallLog`, route « ocr »). Consigne : transcription exacte, ordre logique, harakat tels qu'imprimés,
@@ -192,7 +192,7 @@ inchangés (décision en attente) ; worker `starter`.
 **Contrôle au démarrage** (`src/lib/taches-de-fond/sante.ts`, appelé par `scripts/worker.ts` une fois la base à jour) :
 chaque variable recensée dans le code du worker (critique / importante / facultative, avec ce qui ne marche pas sans elle)
 et le moteur (`convertir.py --verifier` : paquets, tesseract ara/fra/eng, LibreOffice, polices) ; une ligne de journal par
-manque (`worker.controle.manque`) et le rapport en base (table `ControleWorker`, migration `20270211090000_controle_worker`,
+manque (`worker.controle.manque`) et le rapport en base (table `ControleWorker`, migration `20270215120000_controle_worker`,
 additive) — jamais une valeur. L'image elle-même refuse de se construire si le moteur ne se déclare pas complet.
 
 ## C. L'écran
