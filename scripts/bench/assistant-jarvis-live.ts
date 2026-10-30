@@ -76,7 +76,7 @@ interface Scenario {
   outilManquant?: string;
 }
 
-const REFUS = /(ne figure pas parmi (vos|tes) accès|ne vous est pas ouvert|pas (accès|le droit|autoris)|ne (peux|puis) pas|n'ai pas accès|n'(est|êtes) pas (autoris|ouvert)|confidenti|réservé|aucun (accès|droit)|hors de (mes|vos) droits|pas habilit|pas disponible pour (vous|votre)|vos droits ne|(est|sont) ferm[ée]e?s?|vous est ferm)/i; // « … est fermée … la Direction l'ouvre » : le refus d'une famille (décision 0012)
+const REFUS = /(ne figure pas parmi (vos|tes) accès|ne vous est pas ouvert|pas (accès|le droit|autoris)|ne (peux|puis) pas|n'ai pas accès|n'(est|êtes) pas (autoris|ouvert)|confidenti|réservé|aucun (accès|droit)|hors de (mes|vos) droits|pas habilit|pas disponible pour (vous|votre)|vos droits ne|(est|sont) (également |aussi )?ferm[ée]e?s?|vous est ferm|ne dispose pas du droit)/i; // « … est fermée … la Direction l'ouvre » : le refus d'une famille (décision 0012)
 /** Un manager « non indiqué / non confirmé » n'est pas une réponse, même si le directeur du service est cité. */
 const HESITE = /(pas (indiqu|précis|confirm|renseign)|ne précise pas|n'est pas confirm)/i;
 const LIEN = /(\/drive|\/api\/drive|\/rh|\/hr|\/documents?|https?:\/\/)\S*/i;
@@ -118,7 +118,8 @@ const SCENARIOS: Scenario[] = [
   { id: "12-doc-afficher-deux", cat: "documents", role: "SA", suite: true, texte: "Affiche-moi ce document, et aussi le compte rendu de la réunion BU Hépatologie du 7 octobre.",
     attendu: { contient: [/Ouargla/i, /Daclavir/i], carte: false }, outilManquant: "recherche du Drive par nom/contenu (les ids ne sont connus que si on les donne)" },
   { id: "13-doc-resumer", cat: "documents", role: "SA", texte: "Résume-moi le compte rendu de la réunion de la BU Hépatologie du 7 octobre 2026.",
-    attendu: { outils: ["Document lu"], contient: [/Daclavir/i, /trimestre|2027/i], carte: false }, outilManquant: "recherche du Drive (lire_document exige l'identifiant ou le nom exact)" },
+    // J4 : la Bibliothèque lit le compte rendu par « Document ouvert » (`ouvrir_documents`), comme « Document lu » le faisait.
+    attendu: { outils: ["Document lu", "Document ouvert"], contient: [/Daclavir/i, /trimestre|2027/i], carte: false }, outilManquant: "recherche du Drive (lire_document exige l'identifiant ou le nom exact)" },
   { id: "14-doc-generer-word", cat: "documents", role: "SA", texte: "Prépare une lettre Word au Dr Nabil Mansouri pour le remercier de sa participation au séminaire Hépatologie du 15 octobre à Oran.",
     attendu: { outils: ["Document préparé"], carte: true } },
   { id: "14b-doc-generer-societe", cat: "documents", role: "SA", suite: true, texte: "Au nom d'Adventum Pharma.",
@@ -132,7 +133,8 @@ const SCENARIOS: Scenario[] = [
     attendu: { contient: [/chef(fe)? de produit/i, /Karim/i], interdit: [HESITE], carte: false }, outilManquant: "le manager (Employee.managerId) n'est rendu par aucun outil d'annuaire" },
   // ── Tâche longue ──
   { id: "18-longue-rapport-annee", cat: "longue", role: "SA", longue: true, texte: "Analyse toutes les demandes Ad & Pro de l'année et fais-moi un rapport.",
-    attendu: { contient: [/AUT-\d{4}-J0\d|kits|stand|abonnement/i], carte: false }, outilManquant: "lecture de TOUTES les demandes Ad & Pro (seules MES demandes en attente se lisent)" },
+    // J2 (décision 0016) : une analyse de l'année est un TRAVAIL — le plan proposé, à approuver, est la réponse attendue.
+    attendu: { outils: ["Travail proposé", "Demandes Ad & Pro consultées"], contient: [/AUT-\d{4}-J0\d|kits|stand|abonnement|panneau « ?Travaux|plan/i], carte: false }, outilManquant: "lecture de TOUTES les demandes Ad & Pro (seules MES demandes en attente se lisent)" },
   // ── Assistante de direction : droits limités ──
   { id: "19-ad-manager-assia", cat: "annuaire", role: "AD", texte: "Qui est le manager d'Assia Benmoussa ?",
     attendu: { outils: ["Annuaire consulté", "Liste de l'annuaire"], contient: [/Karim/i], interdit: [HESITE], carte: false }, outilManquant: "le manager (Employee.managerId) n'est rendu par aucun outil d'annuaire" },
@@ -330,15 +332,30 @@ async function main() {
   const total = await prisma.modelCallLog.aggregate({ where: { userId: { in: Object.values(ID) }, at: { gte: debutBanc } }, _sum: { costUsd: true, inputTokens: true, outputTokens: true }, _count: true });
   const ok = resultats.filter((r) => r.verdict === "OK").length;
   const q = (xs: number[], p: number) => { const t = [...xs].sort((x, y) => x - y); return t.length ? t[Math.min(t.length - 1, Math.round((p / 100) * (t.length - 1)))]! : 0; };
-  const mots = resultats.map((r) => r.premierMotMs).filter((x): x is number => x !== null);
+  // Le premier mot d'une conversation : la tâche longue (arrière-plan, reprise forcée) est à part, comme pour les totaux.
+  const mots = resultats.filter((r) => !r.id.includes("longue")).map((r) => r.premierMotMs).filter((x): x is number => x !== null);
   const totaux = resultats.filter((r) => !r.id.includes("longue")).map((r) => r.totalMs);
   console.log("\n" + "═".repeat(110));
   console.log(`VERDICTS : ${ok}/${resultats.length} OK · ${resultats.filter((r) => r.verdict === "SANS OUTIL").length} sans outil · ${resultats.filter((r) => r.verdict === "ÉCHEC").length} échec · ${resultats.filter((r) => r.verdict === "ERREUR").length} erreur`);
   console.log(`1er mot P50 ${q(mots, 50)} ms / P95 ${q(mots, 95)} ms · total (hors longue) P50 ${q(totaux, 50)} / P95 ${q(totaux, 95)} ms`);
+  // J4 (décision 0018) : les critères de fin — entrée moyenne par appel, part servie par le cache, coût par tour.
+  const somme = (rs: Resultat[], k: "appels" | "entree" | "cache" | "coutUsd") => rs.reduce((t, r) => t + r.conso[k], 0);
+  const parAppel = (rs: Resultat[]) => Math.round(somme(rs, "entree") / Math.max(1, somme(rs, "appels")));
+  const tauxCache = (rs: Resultat[]) => Math.round((100 * somme(rs, "cache")) / Math.max(1, somme(rs, "entree")));
+  const j4 = {
+    entreeParAppel: parAppel(resultats),
+    entreeParAppelSA: parAppel(resultats.filter((r) => r.role === "SA")),
+    entreeParAppelAD: parAppel(resultats.filter((r) => r.role === "AD")),
+    tauxCachePct: tauxCache(resultats),
+    coutParTourUsd: Math.round((somme(resultats, "coutUsd") / Math.max(1, resultats.length)) * 1e4) / 1e4,
+    appelsParTour: Math.round((somme(resultats, "appels") / Math.max(1, resultats.length)) * 10) / 10,
+    premierMotP50: q(mots, 50), premierMotP95: q(mots, 95),
+  };
+  console.log(`J4 · entrée moyenne par appel ${j4.entreeParAppel} jetons (SA ${j4.entreeParAppelSA} · AD ${j4.entreeParAppelAD}) · cache ${j4.tauxCachePct} % · ${j4.appelsParTour} appels/tour · ${j4.coutParTourUsd} $/tour`);
   console.log(`DÉPENSE DU BANC (journal de consommation) : ${Number(total._sum.costUsd ?? 0).toFixed(4)} $ · ${total._count} appels · ${total._sum.inputTokens ?? 0} in / ${total._sum.outputTokens ?? 0} out`);
   const sortie = path.join(process.cwd(), "bench-out", `assistant-jarvis-live-${new Date().toISOString().replace(/[:.]/g, "-")}.json`);
   fs.mkdirSync(path.dirname(sortie), { recursive: true });
-  fs.writeFileSync(sortie, JSON.stringify({ quand: new Date().toISOString(), modele: modeleOpenAi()?.modelId, catalogue, depenseUsd: Number(total._sum.costUsd ?? 0), resultats }, (k, v) => (v instanceof RegExp ? v.source : v), 2));
+  fs.writeFileSync(sortie, JSON.stringify({ quand: new Date().toISOString(), modele: modeleOpenAi()?.modelId, catalogue, depenseUsd: Number(total._sum.costUsd ?? 0), j4, resultats }, (k, v) => (v instanceof RegExp ? v.source : v), 2));
   console.log(`Détail : ${sortie}`);
 }
 

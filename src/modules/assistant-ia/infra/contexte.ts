@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { censurerTexte } from "../domaine/filtre-confidentialite";
 import { CONSIGNE_COMPOSANTS } from "../domaine/ui/composants";
 import { memoirePourContexte } from "./memoire";
+import { souvenirsPourQuestion } from "../domaine/assembleur";
 
 /**
  * COUCHE DE CONTEXTE (Q9, Q11, Q14, Q17, C10).
@@ -33,6 +34,20 @@ export interface OptionsContexte {
   page?: ContextePage;
   consignesRole?: string;
   maxMessagesHistorique?: number;
+  /**
+   * J4 : les outils offerts au DÉBUT du tour. Donnés, les règles propres à une famille d'outils (agir, documents,
+   * routines, web) ne sont dites que si l'un d'eux est offert — `trouver_outil` rend la règle des outils qu'il ajoute.
+   * Absents (routines, anciens appelants) : toutes les règles.
+   */
+  outilsActifs?: readonly string[];
+  /** J4 : consignes du PRODUIT, les mêmes pour tous (confidentialité, sélection d'outils, fond) — dans le préfixe stable. */
+  consignesGenerales?: readonly string[];
+  /** J4 : consignes propres à la personne (familles réglées, gestes fermés) — stables d'un tour à l'autre. */
+  consignesPersonne?: readonly string[];
+  /** J4 : la question du tour — l'assembleur y choisit les souvenirs pertinents, dans leur enveloppe. */
+  question?: string;
+  /** J4 : la partie VARIABLE du tour (mémoire assemblée, résumé de la conversation…), posée APRÈS le préfixe stable. */
+  sectionsDuTour?: readonly string[];
 }
 
 export interface MessageHistorique {
@@ -109,12 +124,39 @@ export const REGLES = [
   "Mémoire : « retiens que…, « souviens-toi… », ou un fait durable sur l'utilisateur lui-même (sa société, ses produits, une préférence, une habitude) → outil proposer_memoire, JAMAIS une tâche, et aucun composant pour la montrer : la carte « Retenir » s'affiche seule. Rien n'est retenu avant son geste.",
 ];
 
+/**
+ * LES RÈGLES D'UNE FAMILLE D'OUTILS (J4) — dites seulement quand l'un de ces outils est offert : un « bonjour » n'a
+ * pas à relire le mode d'emploi des formulaires PDF. Clé = rang dans `REGLES` ; valeur = l'outil qui la rend utile.
+ */
+const REGLE_SI_OUTIL: Record<number, (nom: string) => boolean> = {
+  5: (n) => /^(preparer_|create_|update_|send_message|assign_|set_regulatory|request_regulatory)|_operation$/.test(n),
+  6: (n) => /^(lire_devis_facture|preparer_bc_depuis_devis|lire_document|comparer_versions|preparer_document|preparer_traduction|lire_formulaire_pdf|preparer_formulaire_pdf|preparer_voyageur_passeport)$/.test(n),
+  7: (n) => /^(programmer_routine|mes_routines|gerer_routine)$/.test(n),
+  8: (n) => n === "web_research",
+};
+
+/** Les règles à dire pour ces outils : toutes les règles générales, et celles des familles offertes. */
+export function reglesPour(outils?: readonly string[]): string[] {
+  if (!outils) return REGLES;
+  return REGLES.filter((_, i) => !REGLE_SI_OUTIL[i] || outils.some(REGLE_SI_OUTIL[i]));
+}
+
+/** Les règles qu'ajoutent des outils TROUVÉS en cours de tour (rendues par `trouver_outil`). */
+export function reglesAjoutees(dejaOfferts: readonly string[], trouves: readonly string[]): string[] {
+  return REGLES.filter((_, i) => REGLE_SI_OUTIL[i] && !dejaOfferts.some(REGLE_SI_OUTIL[i]) && trouves.some(REGLE_SI_OUTIL[i]));
+}
+
 export async function compileContext({
   user,
   threadId,
   page,
   consignesRole,
   maxMessagesHistorique = 12,
+  outilsActifs,
+  sectionsDuTour = [],
+  consignesGenerales = [],
+  consignesPersonne = [],
+  question,
 }: OptionsContexte): Promise<ContexteCompile> {
   let censureGlobale = false;
 
@@ -133,24 +175,17 @@ export async function compileContext({
   ]);
   if (censureMessages) censureGlobale = true;
 
+  // LE PRÉFIXE STABLE D'ABORD (J4) : ce qui ne change pas d'un tour à l'autre, ni d'une personne à l'autre, ouvre
+  // la consigne — le fournisseur le garde en cache (≈ 10 % du tarif, et plus vite). L'heure, qui change chaque
+  // minute, la ferme : placée en tête, elle invalidait le cache de tout ce qui la suivait.
   const sections: string[] = [
     "Tu es l'assistant interne d'Adventum Pharma, un laboratoire pharmaceutique algérien. Tu réponds en français, avec rigueur et clarté, en t'appuyant uniquement sur les données de l'entreprise que te donnent tes outils.",
-    `### HORODATAGE\nNous sommes le ${dateLisible}. Heure locale d'Alger : ${heureLisible}.`,
+    `### RÈGLES FONDAMENTALES\n${reglesPour(outilsActifs).map((r, i) => `${i + 1}. ${r}`).join("\n")}`,
+    `### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`,
+    ...consignesGenerales.filter(Boolean),
     `### INTERLOCUTEUR\nNom : ${user.name}\nRôle : ${roleLabel}${user.secondaryRole ? ` (rôle secondaire : ${ROLE_LABELS[user.secondaryRole] ?? user.secondaryRole})` : ""}`,
     `### PÉRIMÈTRE D'ACCÈS (RBAC)\nModules ouverts à cet utilisateur :\n- ${modulesAccessibles.join("\n- ")}\nHors de ce périmètre, tu indiques avec courtoisie que le module ne lui est pas ouvert.`,
   ];
-
-  const adresse = adresseSure(page?.pathname);
-  if (adresse) sections.push(`### ÉCRAN OUVERT\nPage : ${adresse}. Pour en connaître le contenu, utilise tes outils de lecture.`);
-
-  if (memoireFaits.length > 0) {
-    const faits = memoireFaits.map((f) => {
-      const { texte, censure } = censurerTexte(f);
-      if (censure) censureGlobale = true;
-      return `- ${texte}`;
-    });
-    sections.push(`### MÉMOIRE DE L'INTERLOCUTEUR\n${faits.join("\n")}`);
-  }
 
   if (consignesRole) {
     const { texte, censure } = censurerTexte(consignesRole);
@@ -158,8 +193,24 @@ export async function compileContext({
     sections.push(`### CONSIGNES DU RÔLE\n${texte}`);
   }
 
-  sections.push(`### RÈGLES FONDAMENTALES\n${REGLES.map((r, i) => `${i + 1}. ${r}`).join("\n")}`);
-  sections.push(`### PRÉSENTATION (UI générative)\n${CONSIGNE_COMPOSANTS}`);
+  sections.push(...consignesPersonne.filter(Boolean));
+
+  const adresse = adresseSure(page?.pathname);
+  if (adresse) sections.push(`### ÉCRAN OUVERT\nPage : ${adresse}. Pour en connaître le contenu, utilise tes outils de lecture.`);
+
+  // LA MÉMOIRE PERSONNELLE (couche c) : les souvenirs pertinents pour la question d'abord, dans leur enveloppe.
+  const souvenirs = question === undefined ? memoireFaits : souvenirsPourQuestion(memoireFaits, question);
+  if (souvenirs.length > 0) {
+    const faits = souvenirs.map((f) => {
+      const { texte, censure } = censurerTexte(f);
+      if (censure) censureGlobale = true;
+      return `- ${texte}`;
+    });
+    sections.push(`### MÉMOIRE DE L'INTERLOCUTEUR\n${faits.join("\n")}`);
+  }
+
+  sections.push(...sectionsDuTour.filter(Boolean));
+  sections.push(`### HORODATAGE\nNous sommes le ${dateLisible}. Heure locale d'Alger : ${heureLisible}.`);
 
   const systemPrompt = sections.join("\n\n");
   const tokensSys = estimerTokens(systemPrompt);

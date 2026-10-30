@@ -158,8 +158,12 @@ const DEBT_CEILING = 393;
  * `artifact/ports.ts` (`@/modules/bibliotheque/api-inscription`, la porte du module). Sur la base, ce fichier est
  * encore dans le pont, où rien ne se compte ; ici il est au socle, où l'import se voit. Ce n'est pas un couplage
  * de ce lot : c'est le compte honnête d'un import venu avec la base. La porte d'un module est le chemin voulu.
+ *
+ * 180 → 179 (2026-10-30, lot J4, décision 0018) : les outils de connaissance (`lectures/connaissance.ts`) n'importent
+ * que la porte de la Bibliothèque (la lecture des faits confirmés y vit) ; le type de la personne se lit sur
+ * `outil.ts` (`UtilisateurOutil`), ce qui retire aussi deux imports de `@/lib/session` (`regulatory-read`, `action-intents`).
  */
-const SOCLE_IA_CEILING = 180;
+const SOCLE_IA_CEILING = 179;
 
 describe("frontière Adam ↔ ERP", () => {
   const report = scanBoundary();

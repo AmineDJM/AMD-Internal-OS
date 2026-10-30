@@ -1008,6 +1008,11 @@ model AssistantIaFil {
   traitementLe DateTime?
   /// Option « réponse vocale » (28/10/2026) : chaque réponse est AUSSI lue à voix haute (synthèse OpenAI).
   reponseVocale Boolean          @default(false)
+  /// J4 (décision 0018) : le RÉSUMÉ ROULANT des échanges sortis de la fenêtre mot pour mot — jamais une valeur sensible.
+  resume       String?
+  /// Le dernier tour (sa date) que le résumé couvre : la compaction ne refait rien tant qu'aucun tour ne le dépasse.
+  resumeJusquA DateTime?
+  resumeLe     DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   tours        AssistantIaTour[]

@@ -22,6 +22,9 @@ export function modeleFactice(scenario: TourScenario[], usage: { inputTokens: nu
   const u: Usage = { ...usage, totalTokens: usage.inputTokens + usage.outputTokens };
   let tour = 0;
   const promptsRecus: unknown[] = [];
+  /** J4 : les noms des outils envoyés au modèle, appel par appel — ce que `activeTools` a laissé passer. */
+  const outilsRecus: string[][] = [];
+  const noter = (options: { tools?: { name?: string }[] }) => outilsRecus.push((options.tools ?? []).map((t) => t.name ?? "").filter(Boolean));
   let compteurAppels = 0;
 
   const prochain = (): TourScenario => {
@@ -41,13 +44,15 @@ export function modeleFactice(scenario: TourScenario[], usage: { inputTokens: nu
     provider: "factice",
     modelId: "modele-factice",
     supportedUrls: {},
-    async doGenerate(options: { prompt: unknown }) {
+    async doGenerate(options: { prompt: unknown; tools?: { name?: string }[] }) {
       promptsRecus.push(options.prompt);
+      noter(options);
       const t = prochain();
       return { content: contenu(t), finishReason: fin(t), usage: u, warnings: [] };
     },
-    async doStream(options: { prompt: unknown }) {
+    async doStream(options: { prompt: unknown; tools?: { name?: string }[] }) {
       promptsRecus.push(options.prompt);
+      noter(options);
       const t = prochain();
       const parts: unknown[] = [{ type: "stream-start", warnings: [] }];
       if ("texte" in t) {
@@ -68,5 +73,5 @@ export function modeleFactice(scenario: TourScenario[], usage: { inputTokens: nu
     },
   };
 
-  return { modele, promptsRecus, toursJoues: () => tour };
+  return { modele, promptsRecus, outilsRecus, toursJoues: () => tour };
 }

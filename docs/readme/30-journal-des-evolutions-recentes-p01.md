@@ -21,6 +21,19 @@ Aucun écran, aucune URL, aucune donnée ne change ; aucune migration.
 - **Contrat des actions identique octet pour octet.** Frontière Adam → ERP 417 → 393 (le code partagé emporte sa dette au
   socle, plafonné à part : 180) ; traversées entre domaines −4 par rapport à la base (62 → 58). Aucun plafond relevé.
 
+### J4 : L'ASSISTANT IA PLUS RAPIDE, AVEC UNE MÉMOIRE — OUTILS À LA DEMANDE, RÉSUMÉ ROULANT, BIBLIOTHÈQUE BRANCHÉE (2026-10-30)
+
+Lot J4 — `docs/assistant/decisions/0018-vitesse-memoire.md` ; banc `docs/bench/assistant-jarvis-live.md` § J4.
+- **Outils à la demande** : le modèle ne reçoit plus les 65 définitions d'outils à chaque étape (~18 700 jetons), mais un
+  socle de 10, une présélection de 6 par la demande (plein texte français, 0 ms) et `trouver_outil` pour le reste — jamais
+  un outil hors des droits de la personne. Entrée par appel : **~22 900 → ~6 100 jetons**.
+- **Consigne stable** (l'heure en dernier, règles chargées selon les outils offerts) et **effort de raisonnement adaptatif**
+  (bas pour une question, moyen pour une analyse). Premier mot **P50 5,3 → 3,4–3,7 s, P95 15,4 → 7,1–8,2 s** ; coût par tour −24 %.
+- **Mémoire en 4 couches** : carnet de travail (J2), conversation = 4 échanges mot pour mot + **résumé roulant** (modèle
+  rapide, après la réponse, jamais une valeur sensible), mémoire personnelle triée par pertinence, **Bibliothèque branchée**
+  (`chercher_documents`, `ouvrir_documents`, `faits_confirmes` — sous les droits, jamais une pièce confidentielle).
+- Migration additive `20270209100000_assistant_ia_resume_roulant` (3 colonnes nullables sur `AssistantIaFil`).
+
 ### J2 : LES TRAVAUX LONGS — L'ASSISTANT IA TRAVAILLE DES HEURES OU DES SEMAINES, SUR LE MOTEUR DES MISSIONS (2026-10-30)
 
 Décision de la Direction (29/10, lot J2) — `docs/assistant/decisions/0016-travaux.md`.

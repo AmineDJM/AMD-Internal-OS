@@ -38,6 +38,9 @@ export const OUTILS_A_CONTENU_TIERS: Readonly<Record<string, string>> = {
   web_research: "pages web",
   mes_conversations: "messages reçus",
   documents_rh: "document du dossier RH",
+  // J4 : la Bibliothèque — extraits et textes de pièces déposées par n'importe qui.
+  chercher_documents: "extraits de documents de la Bibliothèque",
+  ouvrir_documents: "documents de la Bibliothèque",
 };
 
 /**

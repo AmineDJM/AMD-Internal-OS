@@ -2,7 +2,8 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0013 ; 0013 : la séparation d'Adam et le socle IA).
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018 ; 0013 : la séparation d'Adam et le socle IA ;
+0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -20,3 +21,17 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
 - **Tâches de fond** : `assistant.routines`, `assistant.fils` (`src/lib/scheduled.ts`).
 - **Frontière** : le module n'importe pas Adam, sauf le catalogue d'outils nommé dans `src/platform/ia/frontieres.test.ts` ;
   ce que les deux partagent vit au socle `src/platform/ia/`.
+
+## Vitesse et mémoire (lot J4, décision 0018)
+
+- **Outils à la demande** — `domaine/selection-outils.ts` (règle pure : socle de 10, présélection plein texte de 6,
+  `trouver_outil`), `infra/selection.ts` (fiches = outils offerts sous les droits ; `trouver_outil`). `repondre.ts` ne
+  fait partir que les ACTIFS de chaque étape (`prepareStep` → `activeTools`). Corpus de référence : `infra/selection.test.ts`.
+- **Consigne stable** — `infra/contexte.ts` : préfixe identique d'un tour à l'autre, règles par famille d'outils
+  (`reglesPour`, `reglesAjoutees`), partie variable et heure à la fin ; clé de cache par personne.
+- **Mémoire en 4 couches** — (a) carnet d'un travail (J2) ; (b) conversation : 4 échanges mot pour mot + **résumé
+  roulant** (`domaine/fil/resume.ts`, `infra/fil/resume.ts`, colonnes `AssistantIaFil.resume*`) ; (c) mémoire
+  personnelle ; (d) connaissance : `chercher_documents`, `ouvrir_documents`, `faits_confirmes` (socle,
+  `platform/ia/lectures/connaissance.ts`). **Assembleur** : `domaine/assembleur.ts` (enveloppes fixes).
+- **Le bon modèle** — `platform/ia/modeles-roles.ts` (rapide / standard / raisonnement, effort adaptatif) ;
+  `infra/modele.ts` (`optionsFournisseur` : effort, clé de cache).

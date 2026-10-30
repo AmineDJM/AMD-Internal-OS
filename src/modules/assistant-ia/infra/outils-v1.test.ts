@@ -48,6 +48,8 @@ describe("outils V1", () => {
       "proposer_memoire", "read_budget", "read_calendar", "read_hr_overview", "read_workflow",
       "regulatory_knowledge", "regulatory_operation", "regulatory_portfolio", "regulatory_workload", "request_operation", "request_regulatory_status_update",
       "search_drive", "search_everything", "search_products", "send_message", "set_regulatory_step", "task_operation", "update_regulatory_product", "update_task", "web_research",
+      // J4 : la connaissance de l'entreprise (Bibliothèque, faits confirmés — `platform/ia/lectures/connaissance.ts`).
+      "chercher_documents", "ouvrir_documents", "faits_confirmes",
       ...OPERATIONS_IA.map((o) => o.nom),
     ].sort());
   });

@@ -16,6 +16,7 @@ import { lecturesDocuments } from "./operations/documents-lus";
 import { lectureFormulaire } from "./operations/formulaire-pdf";
 import { lectureRoutines } from "./operations/routines";
 import { rechercheWeb } from "./recherche-web";
+import { outilsConnaissance } from "@/platform/ia/lectures/connaissance";
 import { sortiePourModele } from "../domaine/contenu-non-fiable";
 import { lecturesMetier, lecturesQuotidien, lecturesRh } from "./lectures";
 import { censurerTexte, jetonnerSortie, jetonOuMasque, type CoffretDuTour } from "../domaine/filtre-confidentialite";
@@ -74,6 +75,8 @@ const DOMAINES = ["regulatory_operation", "hr_operation", "task_operation", "dri
 const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   read_hr_overview: ["FICHES"],
   search_drive: ["DRIVE"], search_everything: ["DRIVE"], drive_operation: ["DRIVE", "ECRITURES"],
+  // J4 : la Bibliothèque — « Drive & documents » ; ses propres droits (l'écran qui sert chaque pièce) jugent en plus.
+  chercher_documents: ["DRIVE"], ouvrir_documents: ["DRIVE"],
   read_budget: ["BUDGETS"], finance_totals: ["BUDGETS"],
   demandes_adpro: ["AD_PRO"], etat_dossier_reglementaire: ["REGLEMENTAIRE"],
   regulatory_portfolio: ["REGLEMENTAIRE"], regulatory_workload: ["REGLEMENTAIRE"], regulatory_knowledge: ["REGLEMENTAIRE"],
@@ -363,7 +366,7 @@ export function outilsV1(
 
   const lectures = [
     ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
-    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(),
+    lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(), ...outilsConnaissance(user),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
   /**
    * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a

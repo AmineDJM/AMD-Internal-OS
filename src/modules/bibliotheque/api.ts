@@ -11,8 +11,8 @@
  * Tables : `BibliothequeFiche`, `BibliothequePassage` (en propre) ; `Piece` et `PieceLien` (le registre R5,
  * partagé avec l'enrichissement : le module y écrit la pièce et son endroit, jamais une nature ni un fait).
  *
- * ⚠ L'outil n'est PAS encore branché dans l'Assistant IA ni dans Adam (lot J1 : la fonction et un écran de
- * vérification). Qui le branchera passera `pourModele: true`.
+ * Branché dans l'Assistant IA au lot J4 (`src/platform/ia/lectures/connaissance.ts` : `chercher_documents`,
+ * `ouvrir_documents`, `faits_confirmes`), toujours avec `pourModele: true`.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -21,9 +21,10 @@ export * from "./api-inscription";
 
 // ── Chercher, ouvrir (sous les droits de la personne) ─────────────────────────────────────────
 export {
-  chercherDocuments, ouvrirDocuments,
+  chercherDocuments, ouvrirDocuments, piecesOuvrables,
   type DocumentOuvert, type OptionsRecherche, type RechercheDocuments, type Refus, type ResultatDocument,
 } from "./infra/recherche";
+export { faitsConfirmesPourModele, type FaitRendu } from "./infra/faits";
 
 // ── La file (tâches de fond `bibliotheque.ingestion` et `bibliotheque.rattrapage`) ───────────────
 export { traiterFile, vectoriserEnRetard, relancerFiche, etatDeLaFile, type BilanIngestion, type DependancesIngestion } from "./infra/ingestion";

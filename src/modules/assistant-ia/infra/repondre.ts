@@ -3,7 +3,7 @@ import type { AssistantRoleConfig } from "@prisma/client";
 import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { outilsPour } from "./outils";
-import { pourMastra, type ModeleConfig } from "./modele";
+import { optionsFournisseur, pourMastra, type ModeleConfig } from "./modele";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { appelDepuisEtape, fermerBudget, ouvrirBudget, PlafondIaAtteint, sousBudget, type Budget, type OrigineAppel } from "./consommation";
 
@@ -40,6 +40,13 @@ export interface TourAssistant {
   /** Pour le journal : d'où part le tour, et la conversation (le fil) à laquelle il appartient. */
   origine?: OrigineAppel;
   conversation?: string | null;
+  /**
+   * J4 : les outils ACTIFS de l'étape (relus avant chacune — `trouver_outil` en ajoute). Absent : tous les outils
+   * offerts partent à chaque étape (routines, anciens appelants).
+   */
+  actifs?: () => string[];
+  /** J4 : la clé de cache du préfixe (une par personne) — les appels qui partagent leur début de consigne. */
+  cleCache?: string;
 }
 
 /** Ce que reçoivent `generate` et `stream` : la borne d'étapes, l'arrêt (délai OU budget), le compteur. */
@@ -47,6 +54,8 @@ interface OptionsBoucle {
   maxSteps: number;
   abortSignal: AbortSignal;
   onStepFinish: (etape: { usage?: unknown; finishReason?: string }) => void;
+  prepareStep?: () => { activeTools: string[] };
+  providerOptions?: ReturnType<typeof optionsFournisseur>;
 }
 
 type Resultat = { text?: string; finishReason?: string; error?: unknown; steps?: { toolCalls?: unknown[] }[] };
@@ -153,6 +162,9 @@ async function boucle(t: TourAssistant, budget: Budget): Promise<ResultatTour> {
         // Une étape qui a RÉDIGÉ la réponse finit le tour — on ne jette pas une réponse déjà payée.
         if (budget.enregistrer(appel) && etape.finishReason === "tool-calls") arret.abort(new PlafondIaAtteint(budget.refus()));
       },
+      // J4 : seuls les outils actifs partent au modèle — relus avant chaque étape.
+      ...(t.actifs ? { prepareStep: () => ({ activeTools: t.actifs!() }) } : {}),
+      providerOptions: optionsFournisseur(m, t.cleCache),
     };
     try {
       // Chaque tour reçoit un rôle LITTÉRAL : Mastra distingue messages utilisateur et assistant par type.
