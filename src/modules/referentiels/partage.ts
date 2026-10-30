@@ -8,7 +8,7 @@
  */
 
 // ── Normaliser ───────────────────────────────────────────────────────────────────────────────
-export { plier } from "./domaine/normalisation";
+export { cleSociete, motPhonetique, motsDuNom, normaliserNif, normaliserRc, plier } from "./domaine/normalisation";
 
 // ── Doublons : comparer, proposer, regrouper (moteur pur, `doublons.ts`) ─────────────────────
 export {
