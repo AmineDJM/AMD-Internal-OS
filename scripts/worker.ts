@@ -15,6 +15,9 @@
  * de `GRACE_MS`, sortie forcée : le bail de la tâche coupée expire seul et un autre exécutant la
  * reprend.
  */
+// EN PREMIER : le contexte asynchrone de Next, réel hors de son serveur — un geste d'un travail appelle l'action de
+// l'écran (`revalidatePath`, `requireUser`), et Next crée ses magasins au chargement (`async-local-storage-global.ts`).
+import "../src/lib/async-local-storage-global";
 import { declarerProcessusWorker } from "../src/lib/taches-de-fond/mode";
 import { journalConsole, messageErreur } from "../src/lib/taches-de-fond/journal";
 import { demarrerWorker } from "../src/lib/taches-de-fond/worker";
@@ -40,10 +43,12 @@ async function main(): Promise<void> {
   process.once("SIGTERM", arreter);
   process.once("SIGINT", arreter);
 
-  const { executerTachesPlanifiees, identiteDesBaux, TICK_MS } = await import("../src/lib/scheduled");
+  const { executerTachesPlanifiees, identiteDesBaux, TICK_MS, armerReveilsTravaux } = await import("../src/lib/scheduled");
   const { prisma } = await import("../src/lib/prisma");
   const { migrationsManquantes } = await import("../src/lib/taches-de-fond/migrations");
 
+  // J8 : la boucle courte des réveils (un travail réveillé par un fait reprend en quelques secondes, pas à la minute).
+  const arreterReveils = armerReveilsTravaux("worker");
   await demarrerWorker({
     signal: controleur.signal,
     passage: executerTachesPlanifiees,
@@ -53,6 +58,7 @@ async function main(): Promise<void> {
     // Le code d'un commit ne tourne pas sur la base du commit d'avant (seul le build du web migre).
     migrationsManquantes: () => migrationsManquantes(),
   });
+  arreterReveils();
   await prisma.$disconnect().catch(() => undefined);
 }
 

@@ -123,6 +123,12 @@ const SOCLE = [
    */
   "src/lib/journal", "src/lib/migrations-appliquees",
   /**
+   * J8 : `contexte-geste` (la personne d'un geste exécuté HORS requête, lue par `session` avant le cookie, et le store
+   * de Next pour `revalidatePath`) et `async-local-storage-global` (le contexte asynchrone réel hors du serveur Next).
+   * Le prolongement de `session`, au même rang : ils ne lisent aucun métier.
+   */
+  "src/lib/contexte-geste", "src/lib/async-local-storage-global",
+  /**
    * `acces/compose` : `et(…)`, la composition des clauses Prisma en `AND` (audit 27/10, SA-03 — deux `OR`
    * étalés s'écrasent). Zéro import ; lue par les façades, les domaines et les actions.
    */

@@ -8,6 +8,7 @@ import { ChatMessageList, type ChatMessage } from "./chat-message-list";
 import { CommandPillBar } from "./command-pill-bar";
 import { MemoirePanel } from "./memoire-panel";
 import { RoutinesPanel } from "./routines-panel";
+import { listerMesDemandesRecues } from "../actions-travaux";
 import { TravauxPanel } from "./travaux-panel";
 import { VeillePanel } from "./veille-panel";
 import { BoutonJoindre, PiecesEnAttente, type PieceJointe, type PieceOuvrable } from "./pieces-jointes";
@@ -106,10 +107,19 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
   const [travailInitial, setTravailInitial] = useState<string | null>(null);
   const [aApprouver, setAApprouver] = useState(0);
   const majAApprouver = useCallback((n: number) => setAApprouver(n), []);
+  // J8 : une DEMANDE reçue du travail d'un collègue (« /assistant?demande=… ») ouvre le panneau sur elle.
+  const [demandeInitiale, setDemandeInitiale] = useState<string | null>(null);
+  const [demandesOuvertes, setDemandesOuvertes] = useState(0);
+  const majDemandesOuvertes = useCallback((n: number) => setDemandesOuvertes(n), []);
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("travail");
     if (id) { setTravailInitial(id); setTravauxOuverts(true); }
-    const compter = () => void listerMesTravaux().then((r) => { if (r.ok) setAApprouver(r.aApprouver); }).catch(sansBloquer("assistant-workspace.listerMesTravaux"));
+    const demande = new URLSearchParams(window.location.search).get("demande");
+    if (demande) { setDemandeInitiale(demande); setTravauxOuverts(true); }
+    const compter = () => {
+      void listerMesTravaux().then((r) => { if (r.ok) setAApprouver(r.aApprouver); }).catch(sansBloquer("assistant-workspace.listerMesTravaux"));
+      void listerMesDemandesRecues().then((r) => { if (r.ok) setDemandesOuvertes(r.ouvertes); }).catch(sansBloquer("assistant-workspace.listerMesDemandesRecues"));
+    };
     compter();
     // Un plan arrive pendant que la personne écrit (l'assistant l'a proposé au tour d'avant) : le point s'allume.
     const t = setInterval(compter, 20_000);
@@ -557,6 +567,7 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
                   onAtelier={() => { setMenuOuvert(false); setAtelierOuvert((o) => !o); }}
                   atelierOuvert={atelierOuvert}
                   aApprouver={aApprouver}
+                  demandes={demandesOuvertes}
                   nonLus={nonLus}
                   reponseVocale={reponseVocale}
                   onReponseVocale={() => void basculerReponseVocale()}
@@ -609,7 +620,11 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
       <MemoirePanel ouvert={memoireOuverte} onFermer={() => setMemoireOuverte(false)} />
       <RoutinesPanel ouvert={routinesOuvertes} onFermer={() => setRoutinesOuvertes(false)} routineInitiale={routineInitiale} onNonLus={majNonLus} />
       <VeillePanel ouvert={veilleOuverte} onFermer={() => setVeilleOuverte(false)} />
-      <TravauxPanel ouvert={travauxOuverts} onFermer={() => setTravauxOuverts(false)} travailInitial={travailInitial} onAApprouver={majAApprouver} />
+      <TravauxPanel
+        ouvert={travauxOuverts} onFermer={() => setTravauxOuverts(false)} travailInitial={travailInitial} onAApprouver={majAApprouver}
+        demandeInitiale={demandeInitiale} onDemandesOuvertes={majDemandesOuvertes}
+        onPreparer={(texte) => { setTravauxOuverts(false); setBrouillon({ texte, jeton: Date.now() }); }}
+      />
     </div>
   );
 }
@@ -619,8 +634,8 @@ export function AssistantWorkspace({ userName }: AssistantWorkspaceProps) {
  * téléphone, un seul « ⋯ » qui les déplie : à 375 px, trois boutons de plus ne laissaient que
  * quelques lettres au champ de saisie.
  */
-function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille, onAtelier, atelierOuvert, aApprouver, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
-  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; onTravaux: () => void; onVeille: () => void; onAtelier: () => void; atelierOuvert: boolean; aApprouver: number; nonLus: number;
+function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille, onAtelier, atelierOuvert, aApprouver, demandes = 0, nonLus, reponseVocale, onReponseVocale, vueExacte }: {
+  ouvert: boolean; onBasculer: () => void; onMemoire: () => void; onRoutines: () => void; onTravaux: () => void; onVeille: () => void; onAtelier: () => void; atelierOuvert: boolean; aApprouver: number; demandes?: number; nonLus: number;
   reponseVocale: boolean; onReponseVocale: () => void; vueExacte: boolean;
 }) {
   const bouton = "relative flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 dark:text-zinc-400 dark:hover:bg-zinc-800";
@@ -628,8 +643,12 @@ function Outils({ ouvert, onBasculer, onMemoire, onRoutines, onTravaux, onVeille
   const libelleVoix = reponseVocale ? "Réponses vocales activées — désactiver" : "Réponses vocales désactivées — activer";
   const IconeVoix = reponseVocale ? Volume2 : VolumeX;
   const point = nonLus > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-violet-600" />;
-  const libelleTravaux = aApprouver ? `Mes travaux (${aApprouver} plan${aApprouver > 1 ? "s" : ""} à approuver)` : "Mes travaux";
-  const pointTravaux = aApprouver > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-500" />;
+  const enAttente = [
+    aApprouver ? `${aApprouver} plan${aApprouver > 1 ? "s" : ""} à approuver` : null,
+    demandes ? `${demandes} demande${demandes > 1 ? "s" : ""} reçue${demandes > 1 ? "s" : ""}` : null,
+  ].filter(Boolean);
+  const libelleTravaux = enAttente.length ? `Mes travaux (${enAttente.join(", ")})` : "Mes travaux";
+  const pointTravaux = aApprouver + demandes > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-500" />;
   return (
     <>
       <div className="hidden sm:contents">

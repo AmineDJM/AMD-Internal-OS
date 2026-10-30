@@ -58,6 +58,9 @@ export const CATALOGUE: readonly TypeFait[] = [
   { type: "CRM_CONTACT_UPDATED", libelle: "Contact CRM mis à jour", sourceDomain: "SALES", sources: ["hubspot"], entites: ["PERSON", "COMPANY"], description: "Un contact HubSpot a été créé ou modifié." },
   { type: "MARKET_DATA_UPDATED", libelle: "Données de marché publiées", sourceDomain: "REGULATORY", sources: ["iqvia"], entites: ["PRODUCT"], description: "IQVIA a publié une nouvelle période de ventes de marché." },
   { type: "SUPPLIER_DELIVERY_UPDATED", libelle: "Livraison fournisseur mise à jour", sourceDomain: "LOGISTICS", sources: ["sap", "generic"], entites: ["SUPPLIER", "EXPENSE_ORDER"], description: "Un fournisseur a expédié, retardé ou livré." },
+  // ── Les travaux (J8, décision 0023) : la délégation d'un travail à une autre personne ──
+  { type: "DEMANDE_DEPOSEE", libelle: "Demande d'un travail déposée", sourceDomain: "TRAVAUX", sources: ["erp"], entites: ["TRAVAIL_DEMANDE", "USER"], description: "Le travail d'une personne a déposé une demande (question, pièces attendues, échéance) dans l'espace d'une autre." },
+  { type: "DEMANDE_REPONDUE", libelle: "Demande d'un travail répondue", sourceDomain: "TRAVAUX", sources: ["erp"], entites: ["TRAVAIL_DEMANDE", "USER"], description: "La personne sollicitée a répondu à la demande d'un travail (texte et pièces partagées) : le travail reprend." },
   { type: "WEBHOOK_RECEIVED", libelle: "Fait externe (type non catalogué)", sourceDomain: "external", sources: ["generic"], entites: [], description: "Un système externe a envoyé un fait dont le type n'est pas au catalogue : il entre sous son nom brut." },
 ];
 

@@ -35,8 +35,8 @@
 >   `assistant-ia-consommation-actions`; doors `api.ts` / `partage.ts`; map `assistant-ia → ad-pro, coffre`, `bibliotheque →
 >   assistant-ia`). `confirmerIntentionAssistantIA` moved there — the ONLY action-contract key change
 >   (`assistant-actions:` → `assistant-ia-actions:`); `executerIntention` + `confirm.ts` moved to `platform/ia/intentions/`.
->   Adam → IA = 0. Remaining IA → Adam = Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
->   closure is 92 % of Adam; kept, named and ratcheted until J6 (capability registry derived from the action contract — decision 0013 §5).
+>   Adam → IA = 0. Remaining IA → Adam was Adam's tool catalogue (`infra/outils-v1.ts`, `actions.ts` → `performAction`) — its
+>   closure is 92 % of Adam; kept, named and ratcheted until J6, which removed it (see J6 below).
 > - **J5 + J14 (2026-10-30) — continuous quality of the Assistant IA** (decision `docs/assistant/decisions/0022-qualite-continue.md`) [V]:
 >   scheduled bench on the WORKER (`qualite.banc` → child process `scripts/bench/banc-programme.ts`, trial DB only:
 >   `BANC_ESSAI_DATABASE_URL` + fingerprint ≠ prod + `BancBaseEssai` marker; refused and said otherwise), Super-Admin calendar
@@ -64,6 +64,33 @@
 >   `platform/ia/modeles-roles.ts` (fast `gpt-6-luna`, standard `gpt-6.1-terra` effort low, reasoning effort medium;
 >   env `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT*`). Bench (same 26 scenarios, same criteria): input/call 22 925 →
 >   ~6 100 tokens, first word P50 5.3 → 3.4–3.7 s, P95 15.4 → 7.1–8.2 s (long task excluded; 3 passes), cost/turn 0.0238 → 0.018 $, 21 → 22/26.
+> - **J6 (2026-10-30) — capability registry & generic call** (decision `docs/assistant/decisions/0020-capacites.md`) [V]:
+>   `src/platform/ia/capacites/` is a PURE registry derived from `lib/actions/contrat.genere.json` (1 206 actions) + the
+>   Assistant IA's own tools + the 16 Atelier commands; ports injected by the module (`interdictionGenerique`, `classerGeste`,
+>   `MODULE_LABELS`) so `SOCLE_IA_CEILING` stays 177. Each fiche: JSON + zod input schema, console family, French label (word
+>   lexicon, no per-action table), risk R0→R4 (R0 70 / R1 628 / R2 159 / R3 61 / R4 288), simulable (oui 809 / inconnu 247 /
+>   non 150, for J7), annulation (retour/compensation/délégation/aucune via `reversibilite.ts`), third-party content, screen gate
+>   (RBAC modules from `userCan` → audit module → file prefix; unknown → Super Admin only). Never callable: `illisible`,
+>   generic refusal, `SURFACES_HORS_ASSISTANT` (the IA's own actions, Adam, auth, impersonation, supplier portal, admin
+>   plumbing), binary-object actions. Reviewed snapshot `classement.genere.json` (`npm run capacites:classement`) fails
+>   `registre.test.ts` on any unclassified new action. Module side `infra/capacites.ts`: one PowerTool per offered capability
+>   (`fichier__fonction`), R0 executed in-turn via `executerAction` under the person's own session (no session → refusal),
+>   R1+ → intent `assistant_ia_capacite` (one card per turn), R3/R4 CRITICAL + server-checked retype; confirmation
+>   (`confirmerIntentionAssistantIA` → `executerCapacite`) re-reads kill switch, gate, family, then calls the action itself.
+>   Not in J2 plans (capability gestures always go through a card). Selection: capabilities are J4 fiches (weights: label 2,
+>   context 1; first word ×1.4, same verb ×1.2; infinitive/imperative merged) — recall@5 96 % on a 300-request French corpus,
+>   worst fixed tool tokens 3 837, never out of rights, bench 26/26 at fake-model selection level. Adam residues removed
+>   (`RESIDUS` = []): writes → capabilities; `send_message` → own operation (`createDirect` + `sendMessage`); cross-cutting
+>   reads → own tools (`infra/lectures-erp.ts`, `read_budget`, `read_hr_overview`, `finance_totals`). Known gap: task due-date /
+>   priority change (no screen action). Per-turn cost (1 039 tools, warm): catalogue ~5–30 ms, selection ~15 ms, Mastra
+>   adapter ~90–110 ms (definitions, zod schemas and fiche weights are memoised per process).
+>   **No capability regression (0020 §8, 30/10):** generated inventory `npm run capacites:inventaire` maps the 123 gestures the IA
+>   borrowed from Adam before J6 (114 domain ops + 9 writes) to an appelable capability whose gate opens for every role Adam's
+>   gate passed (snapshot `modules/assistant-ia/infra/equivalents-avant-j6.json`, replayed by `equivalents-avant-j6.test.ts`). Gaps
+>   closed: new screen actions `modifierTache` (due date/priority/assignee), `corrigerMaDemande`, `modifierChampPersonnalise`;
+>   employee fiche via IA-only policy `interdictionDeLAssistantIa` (`GESTES_DE_FICHE`, never `userId`, R4 "account follows the
+>   fiche", `updateEmployee` re-read and replayed at confirmation); `PORTES_DU_GESTE` (owner-OR-module-right gestures get the
+>   workspace gate); optional file no longer blocks a call; `assistant-ia-*` files always out of reach.
 > - Paths below that name `src/lib/assistant/action-intents.ts`, `in-process/artifact/`, `in-process/telemetry/usage-sink.ts`,
 >   `src/app/(app)/assistant/assistant-chat.tsx` predate J0: read them as their `src/platform/ia/…` / `src/components/chief/…` homes.
 
@@ -352,6 +379,23 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   touch travaux. Additive engine changes: `materialiser({ kind, naissance })`, `kind` on pause/resume/cancel, `payload` predicate
   on waits (`events/match.ts`), `reveillerAttentesTemporelles(now, seulement?)`. Decision `docs/assistant/decisions/0016-travaux.md`.
 
+- **Travaux J8 (30/10/2026)** [V] decision `docs/assistant/decisions/0023-delegation.md`. **Delegation**: plan step `DEMANDE`
+  → `WAIT_INPUT`, handled in `conduite.ts` by `delegation.ts deposerDemande` (one `TravailDemande` per step, unique
+  `missionId, stepKey`; delays counted from the deposit; shared Drive pieces granted VIEW via the persona port
+  `pieces`, audited). The recipient sees `DemandeRecue` only (question, expected/shared pieces, due date — never the
+  carnet); `repondreDemande` / `declinerDemande` settle the step (conditional on WAITING), write the answer to the carnet,
+  signal the fast wake. **Jalons** `jalons.ts` (relance / escalade to N+1 via `persona.responsable` / abandon → TIMEOUT),
+  run by `travaux.balayage` before conducting. **Fast wake** `reveil.ts`: `router.ts` (events + timers) and delegation set
+  `Mission.reveilDemandeLe`; `scheduled.ts armerReveilsTravaux` (10 s loop, worker + web) conducts flagged travaux under the
+  mission lease — measured p95 10 s. **Fairness**: `travauxAFaireAvancer` round-robins per `principalId` (window
+  function), priority within a person. **Team view** `assistant-ia/infra/travaux-equipe.ts`: gated by
+  `AssistantIaReglage.managerVoitEquipe` (default false), team = `isManagerOfUser`, summary + steps only, every read
+  audited. **Deliverables** `assistant-ia/infra/travaux-livrables.ts`: Markdown → `composerDocx` / `construireClasseurVerifie`,
+  deposited through `portsArtefact.documents.creerFichier` (personal Drive « Travaux », Bibliothèque inscription), PDF via
+  Atelier conversions; deposit under a `TravailEcriture` receipt (`|livrable`), reprise finds the document by its
+  deterministic name. **Robustness** `robustesse.test.ts`: real child processes (`scripts/bench/travail-processus.ts`)
+  SIGKILLed 10× over a 3-week fake-clock travail, plus web + worker processes racing on one travail.
+
 - **Atelier (J3, 30/10/2026)** [V] `src/platform/ia/artifact/atelier/`: the Live Office (§104) as TABS for every employee. A tab is an
   `ArtifactSession` with `blockId` `atelier-…`. `gestes.ts` (pure) translates assistant "gestures" into IR commands **per format**
   (reads the view to locate targets, e.g. every PPTX shape holding a text) and computes `zonesModifiees` (content-based diff for
@@ -385,7 +429,7 @@ and timeouts. [U] `node:vm` is not a security boundary per Node docs; isolation 
   `AssistantIaNotePage` (flat `blocs` JSON with a nesting LEVEL 0–4, `version` optimistic lock, `supprimeeLe` trash),
   `AssistantIaNoteVersion` (state BEFORE a change: ≤ 1 per 5 min of typing, always before an AI change; 50/page),
   `AssistantIaNoteCorbeille` (non-empty deleted lines, 30 days, purged lazily on read), `AssistantIaNoteProposition`, and
-  `AssistantIaTour.notesProposees` (migration `20270210140000_assistant_ia_notes`). **Private**: every query filters on the
+  `AssistantIaTour.notesProposees` (migration `20270215100000_assistant_ia_notes`). **Private**: every query filters on the
   session/turn `userId`; no action or tool takes an account; « Vue exacte » refused even for reads (`porte(true)`, tool check);
   no admin screen; audit records AI gestures only, never note text. **The AI never writes** (Direction decision): tools
   `lire_notes` + `ajouter_note` / `modifier_note` / `cocher_note` / `deplacer_note` / `supprimer_note` / `creer_page` /
@@ -545,6 +589,14 @@ and the scheduler; the Mission Runtime (`src/lib/missions`) itself only depends 
 - `rbac.ts` `peutVoirAdam`/`peutPiloterMissionsAdam` → ~19 files + mission pause semantics (owners lose rights → all their missions PAUSE).
 - `faitDepuisAudit` whitelist → which ERP writes wake missions/watches/reminders.
 - Registry defaults → cost dashboards (price `null` if unknown model), protocol validation (`capabilities.ts`).
+
+### 7bis. Recipes (lot J10, decision 0028)
+
+- The Assistant IA reads the `recettes` module (`assistant-ia/infra/recettes.ts`, tool `recette_pour`, a selection card in
+  `MOTS_CLES`, context rule 13). Only VALIDATED versions are served; `AUCUNE`/`AMBIGU` never claim a recipe. The plan it returns is a
+  J2 work plan (ANALYSE → LIVRABLE → ATTENTE timer → LIVRABLE) valid against any persona catalogue; `RecetteUsage` + the TRAVAIL
+  mission launched afterwards measure "accepted unchanged". `MissionPlanPattern` VALIDATED shapes become Super-Admin-only recipe
+  cards (no plan): a pattern validated by repetition is still only a PROPOSAL until a human process owner validates it.
 
 ## 8. Invariants, gotchas, doctrine rules
 

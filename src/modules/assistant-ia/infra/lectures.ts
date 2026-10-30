@@ -5,7 +5,7 @@ import type { PowerTool } from "@/platform/ia/outil";
 import type { CurrentUser } from "@/lib/session";
 import { REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { scopeRegulatory, userCan } from "@/lib/rbac";
-import { companyScopedWhere, entitePermisePourFiche, ficheScopedWhere } from "@/lib/company";
+import { companyScopedWhere, entitePermisePourFiche, ficheScopedWhere, platformScope } from "@/lib/company";
 import { getBlob } from "@/lib/drive-storage";
 import { formatMontant, toNumber } from "@/lib/utils";
 import { HR_DOCUMENT_CATEGORY, LEAVE_TYPE, REGULATORY_STATUS, REGULATORY_STEP_TYPE, ROLE_LABELS } from "@/lib/labels";
@@ -536,4 +536,127 @@ export function lecturesMetier(user: CurrentUser, vue: CurrentUser): PowerTool[]
       },
     },
   ];
+}
+
+// ─────────────────────────── La situation RH et les agrégats financiers (J6) ───────────────────────────
+
+/**
+ * LA SITUATION RH ET LES AGRÉGATS FINANCIERS — les outils propres au module qui remplacent l'emprunt à Adam
+ * (`read_hr_overview`, `finance_totals` ; lot J6, décision 0020). Mêmes portes qu'avant : le module RH (lecture),
+ * le module Finances (lecture) ; les familles de la console (« Fiches collaborateurs », « Budgets & finances »)
+ * sont rejugées par la garde du catalogue (`outils-v1.ts`). La masse salariale n'est pas ici : elle se lit par
+ * `lire_paie` (mois), sous la famille « Salaires & paie » et la règle de l'écran de paie.
+ */
+export function lecturesSituation(user: CurrentUser): PowerTool[] {
+  const rh: PowerTool = {
+    def: def("read_hr_overview",
+      "Lit la SITUATION RH de mon périmètre : effectif (actif / total) par société et par département, congés en attente, avances en attente, "
+      + "contrats qui finissent sous 60 jours. La masse salariale se lit par `lire_paie` (avec `mois`).",
+      { entite: { type: "string", description: "Nom court de la société ; vide = tout mon périmètre." } }),
+    allowed: (u) => u.id === user.id && userCan(u, "RH", "VIEW"),
+    label: "Situation RH consultée",
+    run: async (entree, u) => {
+      if (!userCan(u, "RH", "VIEW")) return refus(REFUS_FICHE);
+      const portee = await ficheScopedWhere(u.id, {} as Prisma.EmployeeWhereInput);
+      const voulu = str(entree, "entite").toLowerCase();
+      const salaries = await prisma.employee.findMany({
+        where: portee, select: { id: true, fullName: true, isActive: true, department: true, contractEnd: true, company: { select: { shortName: true, name: true } } },
+      });
+      const nomSociete = (e: (typeof salaries)[number]) => e.company?.shortName ?? e.company?.name ?? "Sans société";
+      const dans = voulu ? salaries.filter((e) => nomSociete(e).toLowerCase().includes(voulu) || (e.company?.name ?? "").toLowerCase().includes(voulu)) : salaries;
+      const ids = dans.map((e) => e.id);
+      const dans60 = new Date(Date.now() + 60 * 86_400_000);
+      const [conges, avances] = await Promise.all([
+        prisma.leaveRequest.count({ where: { status: "PENDING", employeeId: { in: ids } } }),
+        prisma.salaryAdvance.count({ where: { status: { in: ["PENDING", "APPROVED"] }, employeeId: { in: ids } } }),
+      ]);
+      const compte = (cle: (e: (typeof dans)[number]) => string) => {
+        const m = new Map<string, { actifs: number; total: number }>();
+        for (const e of dans) {
+          const k = cle(e);
+          const c = m.get(k) ?? { actifs: 0, total: 0 };
+          c.total += 1;
+          if (e.isActive) c.actifs += 1;
+          m.set(k, c);
+        }
+        return [...m].map(([nom, c]) => ({ nom, ...c })).sort((a, b) => b.actifs - a.actifs);
+      };
+      return JSON.stringify({
+        perimetre: voulu ? `« ${voulu} » seulement` : "tout votre périmètre RH, sociétés confondues",
+        effectifActif: dans.filter((e) => e.isActive).length, effectifTotal: dans.length,
+        parSociete: compte(nomSociete), parDepartement: compte((e) => e.department || "Non affecté"),
+        congesEnAttente: conges, avancesEnAttente: avances,
+        contratsQuiFinissent: dans.filter((e) => e.isActive && e.contractEnd && e.contractEnd >= new Date() && e.contractEnd <= dans60)
+          .map((e) => ({ nom: e.fullName, fin: jour(e.contractEnd) })),
+        lien: "/rh",
+      });
+    },
+  };
+
+  const finances: PowerTool = {
+    def: def("finance_totals",
+      "AGRÈGE les écritures financières réglées en base (jamais d'addition à la main) : total payé (`OUT`, défaut) ou encaissé (`IN`) sur une période, "
+      + "filtré par bénéficiaire et/ou catégorie (FOURNISSEUR, SALAIRE, VOYAGE, EVENEMENT…), avec le détail par mois.",
+      {
+        direction: { type: "string", enum: ["OUT", "IN"] },
+        counterparty: { type: "string", description: "Fragment du nom du bénéficiaire ou du client." },
+        category: { type: "string", description: "Catégorie exacte (FOURNISSEUR, SALAIRE…)." },
+        from: { type: "string", description: "Début AAAA-MM-JJ (défaut : 1er janvier)." },
+        to: { type: "string", description: "Fin AAAA-MM-JJ incluse (défaut : aujourd'hui)." },
+      }),
+    allowed: (u) => u.id === user.id && userCan(u, "FINANCES", "VIEW"),
+    label: "Finances consultées",
+    run: async (entree, u) => {
+      if (!userCan(u, "FINANCES", "VIEW")) return refus("Le module Finances ne vous est pas ouvert.");
+      const jourLu = (k: string) => (/^\d{4}-\d{2}-\d{2}$/.test(str(entree, k)) ? new Date(`${str(entree, k)}T00:00:00Z`) : null);
+      const du = jourLu("from") ?? new Date(Date.UTC(new Date().getUTCFullYear(), 0, 1));
+      const au = jourLu("to") ? new Date(jourLu("to")!.getTime() + 86_400_000) : new Date();
+      const sens = str(entree, "direction") === "IN" ? "IN" : "OUT";
+      const tiers = str(entree, "counterparty");
+      const categorie = str(entree, "category").toUpperCase();
+      const ecritures = await prisma.financeTransaction.findMany({
+        where: {
+          AND: [
+            await platformScope(u.id), { direction: sens, status: "SETTLED", date: { gte: du, lt: au } },
+            tiers ? { counterparty: { contains: tiers, mode: "insensitive" } } : {}, categorie ? { category: categorie as never } : {},
+          ],
+        },
+        select: { amount: true, date: true, counterparty: true, label: true, reference: true }, orderBy: { date: "asc" }, take: 5000,
+      });
+      const parMois = new Map<string, number>();
+      for (const e of ecritures) parMois.set(e.date.toISOString().slice(0, 7), (parMois.get(e.date.toISOString().slice(0, 7)) ?? 0) + toNumber(e.amount));
+      return JSON.stringify({
+        sens: sens === "OUT" ? "décaissements" : "encaissements", du: jour(du), au: jour(new Date(au.getTime() - 86_400_000)),
+        filtre: [tiers && `bénéficiaire ≈ « ${tiers} »`, categorie].filter(Boolean).join(" · ") || "toutes écritures",
+        total: dzd(ecritures.reduce((s, e) => s + toNumber(e.amount), 0)), nombre: ecritures.length,
+        mois: [...parMois].map(([mois, m]) => ({ mois, total: dzd(m) })),
+        dernieres: ecritures.slice(-8).reverse().map((e) => ({ ref: e.reference, libelle: e.label, tiers: e.counterparty, le: jour(e.date), montant: dzd(e.amount) })),
+        lien: "/finances",
+      });
+    },
+  };
+  return [rh, finances];
+}
+
+/**
+ * LA MASSE SALARIALE d'une situation RH : un REPÈRE pour qui gère les RH, rien pour qui n'a que la lecture
+ * du module — l'écran ne la lui montre pas non plus (`voitLesSalaires`, §118.184). Appliquée à toute sortie de
+ * `read_hr_overview` : une clé « masse » qui y apparaîtrait demain ne passerait pas en clair.
+ */
+export function situationRhSansMasse(sortie: string, user: CurrentUser, coffret: CoffretDuTour | null | undefined, acces: AccesIa): string {
+  let o: unknown;
+  try { o = JSON.parse(sortie); } catch { return sortie; }
+  const voit = familleOuverte(acces, "SALAIRES") && (voitLesSalaires(user) || familleExplicite(acces, "SALAIRES"));
+  const visiter = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(visiter);
+    if (!v || typeof v !== "object") return v;
+    const out: Record<string, unknown> = {};
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (!/masse/i.test(k)) { out[k] = visiter(x); continue; }
+      if (!voit) continue;
+      out[k] = typeof x === "number" ? jetonOuMasque(coffret, { valeur: `${formatMontant(x)} DZD`, nature: "SALAIRE", titulaireUserId: null }) : visiter(x);
+    }
+    return out;
+  };
+  return JSON.stringify(visiter(o));
 }

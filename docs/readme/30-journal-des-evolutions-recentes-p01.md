@@ -1,5 +1,30 @@
 ## 🧾 Journal des évolutions récentes
 
+### J6 : L'ASSISTANT IA PEUT AGIR PARTOUT DANS L'ERP — LE REGISTRE DES CAPACITÉS (2026-10-30)
+
+Lot J6 — `docs/assistant/decisions/0020-capacites.md`. Chaque action serveur de l'ERP (1 206, lues sur leur source) devient une
+**capacité** de l'Assistant IA, sans une ligne déclarée à la main : son schéma, sa famille de la console, son niveau de risque
+(R0 lecture → R4 argent, droits, signature, suppression), sa simulabilité (préparée pour J7) et son annulation. L'assistant
+**trouve** les 3 à 8 utiles parmi toutes celles que l'écran ouvre à la personne (96 % de rappel dans les 5 premières sur 300
+demandes, moins de 4 000 jetons d'outils par étape), les **exécute par l'action elle-même** sous la vraie session — une lecture
+directement, une écriture par la carte de confirmation, renforcée (ressaisie) pour l'argent, les décisions, les suppressions
+et les effets externes. Il **n'emprunte plus rien à Adam** : la frontière Assistant IA → Adam est à zéro — **sans rien perdre** :
+les 123 gestes qu'Adam lui prêtait ont chacun leur équivalent (inventaire généré et rejoué par un test) ; changer l'échéance,
+la priorité ou le responsable d'une tâche est désormais une action d'écran (`modifierTache`).
+
+### J10 : LES RECETTES — « COMMENT ON FAIT ÇA CHEZ NOUS ? », TIRÉ DES DOSSIERS RÉELS, VALIDÉ PAR LE RESPONSABLE (2026-10-30)
+
+Une **recette** décrit un circuit réel : étapes dans l'ordre, qui valide, pièces habituelles, seuils (« la DG signe au-delà
+d'environ 1,2 M DZD (observé) »), durée médiane, pièges (renvois répétés, étape la plus lente). Elle est **proposée** par
+l'extraction (tâche quotidienne `recettes.extraction`, jamais sous le seuil d'occurrences : 5 dossiers clos acceptés par défaut),
+puis **validée, corrigée (nouvelle version), rejetée ou retirée** par le responsable du processus que la Direction désigne dans
+l'écran `/recettes`. L'Assistant IA ne sert que la version validée (`recette_pour`) : il propose le plan tiré de la recette en
+disant « selon la recette … validée par X le … », et signale les écarts (seuil franchi, délai court, plan retouché). Statistiques :
+utilisations et taux de plans acceptés sans retouche. Une recette ne se montre qu'à qui voit l'écran du circuit ; elle ne porte ni
+dossier, ni nom, ni montant d'un dossier. Banc : 12/12 recettes justes sur le corpus semé, 13/14 plans acceptés sans retouche
+(93 %), zéro recette servie avant validation, zéro hors droits. Décision [0028](../assistant/decisions/0028-recettes.md) ;
+migration `20270211090000_recettes`.
+
 ### J9 : LE GRAPHE DE L'ENTREPRISE ET LES FAITS DATÉS — « QU'EST-CE QUI DÉPEND DE CE FOURNISSEUR ? » (2026-10-30)
 
 L'Assistant IA suit désormais les **relations** de l'entreprise : `explorer_relations` (« qu'est-ce qui dépend de Saidal ? »,
@@ -20,7 +45,21 @@ voit, Super Admin compris (« Vue exacte » refusée). L'assistant lit les notes
 d'ajouter, modifier, cocher, déplacer, supprimer une ligne ou de créer / renommer une page : la proposition s'affiche
 **surlignée** dans la page et sur une carte de la conversation — Accepter / Refuser / Tout accepter, puis Annuler ; **rien
 n'est écrit avant l'acceptation** (décision de la Direction). Un montant de paie noté reste en repère vers le modèle.
-Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270210140000_assistant_ia_notes`.
+Décision [0026](../assistant/decisions/0026-notes.md) ; migration `20270215100000_assistant_ia_notes`.
+
+### J8 : LES TRAVAUX POUR TOUS, SUITE — DÉLÉGATION, ATTENTES MÉTIER, ÉQUIPE, LIVRABLES AU DRIVE (2026-10-30)
+
+Lot J8 — `docs/assistant/decisions/0023-delegation.md` ; migration additive `20270214100000_travaux_delegation`.
+- **« Demander à »** : un travail dépose une demande précise (question, pièces attendues, échéance, pièces partagées en
+  lecture) chez un collègue — notification et carte dans **son** Assistant IA ; il répond avec ses pièces ou décline ;
+  le travail reprend. Relance, escalade au responsable, abandon. Il ne voit jamais le carnet de l'autre.
+- **Attentes métier** sur les 34 types de faits (prédicat), relance et escalade ; **reprise mesurée** après l'événement :
+  médiane 7,5 s, p95 10 s (boucle courte des réveils, 10 s).
+- **Plusieurs travaux par personne** avec priorités ; **vue « Mon équipe »** pour un responsable si la console l'autorise
+  (défaut : non), chaque consultation à l'audit.
+- **Livrables = vrais documents** (Word, PDF, Excel) déposés dans le Drive de la personne et inscrits à la Bibliothèque.
+- **Robustesse** : un travail de 3 semaines traverse 10 arrêts brutaux (`SIGKILL`) de vrais processus sans doublon ;
+  web + worker simultanés : un seul exécute.
 
 ### J3 : L'ATELIER — LES DOCUMENTS À CÔTÉ DE LA CONVERSATION, MODIFIÉS EN DIRECT, ACCEPTÉS OU REFUSÉS UN PAR UN (2026-10-30)
 

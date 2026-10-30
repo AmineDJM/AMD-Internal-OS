@@ -40,24 +40,16 @@ const ASSISTANT_IA = [
 const SOCLE = ["src/platform/ia/"];
 
 /**
- * CE QUI RESTE — chaque entrée nommée, avec la raison pour laquelle elle ne se défait pas sans
- * changer de comportement. Phase B (le déménagement de l'Assistant IA en module) les reprend.
+ * CE QUI RESTE — chaque entrée nommée, avec la raison pour laquelle elle ne se défait pas sans changer de comportement.
+ *
+ * VIDE depuis le lot J6 (décision 0020). Jusque-là, l'Assistant IA empruntait le CATALOGUE D'OUTILS D'ADAM
+ * (`infra/outils-v1.ts` → `assistantToolsFor`, `executeReadTool`, `buildProposal`, `executePowerTool`, `DOMAIN_TOOLS` ;
+ * `actions.ts` → `performAction` ; et le test `limites.test.ts`). Le registre des capacités dérivé du contrat des actions
+ * (`platform/ia/capacites/`), l'appel générique (`lib/actions/executer.ts`) et les lectures propres au module
+ * (`infra/lectures-erp.ts`…) l'ont remplacé : Assistant IA → Adam = 0. Une entrée qui reviendrait ici est un couplage
+ * ajouté — ce que les deux partagent va au socle.
  */
-const RESIDUS = [
-  // LE CATALOGUE D'OUTILS D'ADAM, emprunté tel quel par l'Assistant IA (décisions 0001 Q7/Q20 et 0012) :
-  //   • `infra/outils-v1.ts` — les schémas et les conditions d'accès (`assistantToolsFor`), les lectures
-  //     (`executeReadTool`, et `executePowerTool` pour les lectures ouvertes par droit), les cartes d'écriture
-  //     (`buildProposal`) et les outils de domaine (`DOMAIN_TOOLS`) ;
-  //   • `actions.ts` — l'exécution, à la confirmation, de ces mêmes cartes (`performAction`).
-  // Leur fermeture fait 284 fichiers, 92 % d'Adam. Tranché le 30/10 (décision 0013 §5, voie c) : le couplage reste,
-  // nommé ici, et disparaîtra par J6 (registre des capacités dérivé du contrat des actions), pas par un déménagement.
-  "src/modules/assistant-ia/actions.ts → src/lib/assistant",
-  "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant",
-  "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/ops",
-  "src/modules/assistant-ia/infra/outils-v1.ts → src/lib/assistant/power-tools",
-  // Un TEST de bout en bout : la carte `send_message`, confirmée sans le droit, est refusée par `performAction`.
-  "src/modules/assistant-ia/limites.test.ts → src/lib/assistant",
-];
+const RESIDUS: string[] = [];
 
 const dans = (f: string, perimetre: string[]): boolean =>
   perimetre.some((p) => f.startsWith(p) || `${f}/`.startsWith(p) || (/\.tsx?$/.test(p) && f === p.replace(/\.tsx?$/, "")));

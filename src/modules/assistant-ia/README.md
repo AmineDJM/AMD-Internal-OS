@@ -2,9 +2,9 @@
 
 Le second produit d'IA du dépôt, à côté d'Adam (le Chief of Staff du Super Admin). Moteur Mastra + `gpt-6.1-terra`,
 page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admin/ai/acces`. Décisions :
-[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0018, 0021, 0022, 0024, 0025, 0026 ; 0013 : la séparation d'Adam et le socle IA ;
-0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ;
-0026 : « Mes notes »).
+[`docs/assistant/decisions/`](../../../docs/assistant/decisions/) (0001 → 0028 ; 0013 : la séparation d'Adam et le socle IA ;
+0017 : l'Atelier ; 0018 : vitesse et mémoire — outils à la demande, consigne stable, résumé roulant, assembleur, modèle par rôle ; 0020 : le registre des
+capacités ; 0022 : la qualité continue ; 0023 : délégation des travaux ; 0024 : la proactivité ; 0026 : « Mes notes » ; 0028 : les recettes).
 
 | Porte / dossier | Rôle |
 |---|---|
@@ -16,6 +16,7 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
 | `actions-qualite.ts` | clé `assistant-ia-qualite-actions` (J5 + J14, décision 0022) : calendrier du banc programmé, passage maintenant, banc A/B, modèle d'un rôle (sur banc vert seulement) |
 | `actions-atelier.ts` | clé `assistant-ia-atelier-actions` (J3, décision 0017) : l'Atelier — ouvrir, revoir, enregistrer (nouvelle version), comparer, convertir |
 | `actions-notes.ts` | clé `assistant-ia-notes-actions` (décision 0026) : « Mes notes » — pages, enregistrement automatique, historique, corbeille ; accepter / refuser / annuler ce que l'IA propose |
+| `actions-travaux.ts` | clé `assistant-ia-travaux-actions` (J8, décision 0023) : demandes reçues (lister, répondre, décliner), priorité d'un travail, travaux de mon équipe (si la console l'autorise, audités) |
 | `actions-proactivite.ts` | clé `assistant-ia-proactivite-actions` (J12, décision 0024) : ma veille (veilleurs, réglages, retours), mandats, gestes sous mandat (coque), console |
 | `domaine/` | règles pures (accès, plafonds, confidentialité, lecture, dépôt, mémoire affichée, MRZ, UI générative) |
 | `infra/` | le moteur : fil, tour, outils, opérations, lecture des pièces, voix, mémoire, routines, consommation, modèle ; `testing/` (faux modèle, tests seulement) |
@@ -27,8 +28,8 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   (privées : aucune porte pour un autre compte). Les intentions
   (`AssistantActionIntent`) sont au socle IA (`src/platform/ia/intentions/`), partagées avec Adam.
 - **Tâches de fond** : `assistant.routines`, `assistant.fils`, `assistant.veilleurs` (J12) (`src/lib/scheduled.ts`).
-- **Frontière** : le module n'importe pas Adam, sauf le catalogue d'outils nommé dans `src/platform/ia/frontieres.test.ts` ;
-  ce que les deux partagent vit au socle `src/platform/ia/`.
+- **Frontière** : le module n'importe pas Adam — plus aucune exception depuis J6 (`RESIDUS` vide dans
+  `src/platform/ia/frontieres.test.ts`) ; ce que les deux partagent vit au socle `src/platform/ia/`.
 
 ## Vitesse et mémoire (lot J4, décision 0018)
 
@@ -43,6 +44,37 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
   `platform/ia/lectures/connaissance.ts`). **Assembleur** : `domaine/assembleur.ts` (enveloppes fixes).
 - **Le bon modèle** — `platform/ia/modeles-roles.ts` (rapide / standard / raisonnement, effort adaptatif) ;
   `infra/modele.ts` (`optionsFournisseur` : effort, clé de cache).
+
+## Le registre des capacités (lot J6, décision 0020)
+
+- **Registre** (socle, pur) : `src/platform/ia/capacites/` — une fiche par action du contrat (`contrat.genere.json`), par outil
+  du module et par commande de l'Atelier ; risque R0 → R4, famille, simulable, annulation, contenu tiers, porte d'écran.
+  Cliché relu `classement.genere.json` (`npm run capacites:classement`).
+- **Branché** : `infra/capacites.ts` — `registreDesCapacites` (les ports : refus générique, annulation, modules), `porteOuverte`,
+  `outilsCapacites` (un outil par capacité offerte, `fichier__fonction`), `executerCapacite` (la confirmation) ;
+  `domaine/capacites.ts` (charge `assistant_ia_capacite`, niveau de carte, ressaisie, anciens noms d'outils).
+  `outilsV1(…, { capacites: true })` ne sert qu'à la CONVERSATION (`fil/tour.ts`) : ni les routines ni les travaux.
+- **Lectures propres** (plus d'emprunt à Adam) : `infra/lectures-erp.ts` (tâches, demandes, aperçu, catalogue Regulatory,
+  recherche fédérée, agenda, file des décisions), `operations/budget.ts` (`read_budget`), `lectures.ts` (`read_hr_overview`,
+  `finance_totals`), `outils-v1.ts` (`read_workflow`) ; `operations/quotidien.ts` : `send_message` (opération propre).
+- **Preuves** : `capacites.test.ts`, `infra/selection-capacites.test.ts` (300 demandes), `infra/banc-selection.test.ts` (banc 26).
+- **Aucune régression** (0020 § 8) : `infra/equivalents-avant-j6.json` (écrit par `npm run capacites:inventaire`) — chaque geste
+  qu'Adam prêtait avant J6 et son équivalent ; `equivalents-avant-j6.test.ts` le rejoue (appelable, porte ouverte par rôle).
+  La fiche employé passe par `executerAction(…, "assistant-ia")` (`GESTES_DE_FICHE`, sans `userId`) ; `updateEmployee` est
+  relue et rejouée à la confirmation (`FUSIONS`).
+
+
+## Travaux, suite (lot J8, décision 0023)
+
+- **Persona** (`infra/travaux.ts`) : en plus de J2, `pieces` (`PIECES_TRAVAUX` : voir / accorder la lecture d'une
+  pièce du Drive, à l'audit), `responsable` (N+1 de l'organigramme, pour les escalades), `deposerLivrable`
+  (`infra/travaux-livrables.ts` : Word / Excel de la fabrique au Drive « Travaux », inscrit à la Bibliothèque ; PDF par
+  l'Atelier).
+- **Côté sollicité** (`infra/operations/delegation.ts`) : lecture `mes_demandes_recues` (contenu non fiable), carte
+  `preparer_reponse_demande` — fiches MOTS_CLES de la sélection (pas le socle) ; exclue des gestes de travail.
+- **Équipe** (`lib/missions/travaux/equipe.ts`, par la porte `service.ts`) : option console `managerVoitEquipe` (défaut non), résumé et étapes seulement,
+  chaque consultation à l'audit.
+- **Écrans** : `ecrans/demandes-recues.tsx`, `ecrans/travaux-equipe.tsx`, onglets du panneau « Travaux ».
 
 ## Graphe de l'entreprise (lot J9, décision 0021)
 
@@ -85,6 +117,12 @@ page `/assistant`, accès par le module RBAC `ASSISTANT_IA` et la console `/admi
 - **Voix temps réel (GPT-Live)** — `infra/voix/temps-reel.ts` (session ouverte par le serveur, délégation au même
   assistant par le fil, journal et transcription), `ecrans/voix-temps-reel.tsx` ; socle `platform/ia/voix/`. Aucune
   confirmation à la voix ; valeurs sensibles jamais lues ; modèle `gpt-live-1` réglable (Consommation IA).
+
+## Recettes de la maison (lot J10, décision 0028)
+
+- `recette_pour` (`infra/recettes.ts`, module `recettes`) : la version VALIDÉE d'une recette ou rien ; plan de travail tiré de la
+  recette, phrase « selon la recette … validée par … le … », écarts. Fiche de la sélection (`MOTS_CLES`), règle 13 de la consigne
+  (`contexte.ts`). Une famille FERMÉE retire les processus qu'elle couvre. Banc : `infra/recettes.test.ts` (faux modèle).
 
 ## « Mes notes » (décision 0026)
 
