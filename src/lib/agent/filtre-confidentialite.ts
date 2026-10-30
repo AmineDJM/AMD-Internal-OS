@@ -276,11 +276,17 @@ export interface EntreeJeton {
    */
   titulaireUserId: string | null;
   origine?: OrigineColonne;
+  /** D'où vient une valeur HORS colonne du coffre, quand l'outil le sait (`PayrollEntry`, `EmployeeDocument`) — pour le journal. */
+  source?: { modele: string; id: string };
+  /** L'outil qui l'a lue — posé par le filtre de sortie, pour le journal (« par quel outil »). */
+  outil?: string;
 }
 
 /** Le contexte d'une sortie : à qui appartiennent les valeurs qu'elle porte, quand l'outil le sait. */
 export interface ContexteJetons {
   titulaireUserId?: string | null;
+  /** D'où viennent les valeurs (un document, une ligne de paie) — pour le journal. */
+  source?: { modele: string; id: string };
 }
 
 /** LE COFFRET D'UN TOUR — les valeurs remplacées, rangées par numéro de repère. Ne quitte jamais le serveur. */
@@ -299,6 +305,11 @@ export class CoffretDuTour {
   /** L'entrée d'un repère (numéro à partir de 1) ; `undefined` pour un repère que ce tour n'a pas émis. */
   entree(n: number): EntreeJeton | undefined {
     return this.entrees[n - 1];
+  }
+
+  /** Les entrées posées depuis le n-ième repère (exclu) : l'outil qui vient de tourner les a lues. */
+  nommer(depuis: number, outil: string): void {
+    for (const e of this.entrees.slice(depuis)) e.outil ??= outil;
   }
 
   get taille(): number {
@@ -322,7 +333,7 @@ export function remplacerReperes(texte: string, valeurDe: (n: number) => string)
  */
 export function jetonnerTexte(texte: string, coffret: CoffretDuTour, ctx: ContexteJetons = {}): string {
   const neutre = (texte ?? "").replace(RE_JETON, (j, n: string) => (coffret.entree(Number(n)) ? j : "⟦?⟧"));
-  return remplacerSensibles(neutre, (valeur, nature) => coffret.jeton({ valeur: valeur.trim(), nature, titulaireUserId: ctx.titulaireUserId ?? null }));
+  return remplacerSensibles(neutre, (valeur, nature) => coffret.jeton({ valeur: valeur.trim(), nature, titulaireUserId: ctx.titulaireUserId ?? null, ...(ctx.source ? { source: ctx.source } : {}) }));
 }
 
 /**
@@ -335,7 +346,7 @@ const MOTS_NOMBRES = "z[ée]ro|un|une|deux|trois|quatre|cinq|six|sept|huit|neuf|
 const RE_MONTANT_LETTRES = new RegExp(`\\b(?:(?:${MOTS_NOMBRES})[\\s-]+)+(?:dinars?|DA|DZD)(?:\\s+alg[ée]riens?)?(?![A-Za-z])`, "gi");
 
 export function jetonnerMontants(texte: string, coffret: CoffretDuTour, ctx: ContexteJetons = {}): string {
-  const jeton = (m: string) => coffret.jeton({ valeur: m.trim(), nature: "SALAIRE", titulaireUserId: ctx.titulaireUserId ?? null });
+  const jeton = (m: string) => coffret.jeton({ valeur: m.trim(), nature: "SALAIRE", titulaireUserId: ctx.titulaireUserId ?? null, ...(ctx.source ? { source: ctx.source } : {}) });
   return (texte ?? "").replace(RE_MONTANT_CHIFFRES, jeton).replace(RE_MONTANT_LETTRES, jeton);
 }
 
@@ -354,7 +365,7 @@ export function jetonnerObjet<T>(donnees: T, coffret: CoffretDuTour, ctx: Contex
         if (typeof val === "string" && RE_JETON_SEUL.test(val) && coffret.entree(Number(val.slice(2, -1)))) { out[cle] = val; continue; }
         if (val === null || val === undefined || val === "") { out[cle] = val; continue; }
         const texte = typeof val === "object" ? JSON.stringify(val) : String(val);
-        out[cle] = coffret.jeton({ valeur: texte, nature, titulaireUserId: ctx.titulaireUserId ?? null });
+        out[cle] = coffret.jeton({ valeur: texte, nature, titulaireUserId: ctx.titulaireUserId ?? null, ...(ctx.source ? { source: ctx.source } : {}) });
       }
       return out;
     }
@@ -402,5 +413,5 @@ export const CONSIGNE_JETONS = [
   "DONNÉES CONFIDENTIELLES (salaires, nets, coût employeur, IBAN / RIB, n° de pièce d'identité) : tes outils te les rendent sous forme de REPÈRES opaques, ⟦S1⟧, ⟦S2⟧…",
   "Recopie le repère TEL QUEL, à l'endroit exact où la valeur doit paraître (« Le salaire de base d'Assia est de ⟦S1⟧. ») : le serveur l'affichera à la personne si elle a le droit de la voir, et « [confidentiel] » sinon.",
   "Ne dis jamais que tu ne peux pas communiquer une valeur que tes outils t'ont rendue en repère ; ne la devine pas, ne calcule rien avec un repère, n'en invente aucun.",
-  "Ne mets jamais un repère dans l'entrée d'un outil (message, tâche, carte) : il n'y serait pas remplacé. Si la personne veut transmettre la valeur, dis-lui de la copier depuis ta réponse.",
+  "Pour TRANSMETTRE une valeur (« envoie son salaire à Karim », « mets-le dans la tâche »), écris le repère tel quel dans l'entrée de l'outil d'écriture : le serveur y met la vraie valeur sur la carte, si la personne a le droit de la voir, et la rejuge à la confirmation. Ne dis jamais à la personne de la recopier elle-même.",
 ].join("\n");

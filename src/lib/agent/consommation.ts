@@ -79,26 +79,47 @@ export async function lireReglagesAssistantIa(): Promise<ReglagesAssistantIa> {
 /**
  * LE TARIF N'EST PAS DANS LE CODE — il se pose dans l'environnement (dollars par million de jetons),
  * comme les tarifs surchargés d'Adam (`ADAM_PRICE_*`) : `ASSISTANT_IA_PRICE_IN` / `_OUT` pour le modèle
- * OpenAI de l'assistant, `MIMO_PRICE_IN` / `_OUT` pour les journaux d'avant le 28/10/2026. Absent : le
+ * OpenAI de l'assistant (`ASSISTANT_IA_PRICE_CACHED` pour l'entrée lue en cache), `MIMO_PRICE_IN` / `_OUT` pour les
+ * journaux d'avant le 28/10/2026. Absent : les défauts DOCUMENTÉS ci-dessous (`TARIFS_PAR_DEFAUT`) ; sans défaut, le
  * coût est INCONNU, et l'écran le dit ; jamais un chiffre deviné. La VOIX (transcription d'un vocal,
  * synthèse d'une réponse) n'a pas le tarif du modèle de conversation : fournisseur `openai-audio`,
  * `ASSISTANT_IA_AUDIO_PRICE_IN` / `_OUT` (dollars par million de jetons, équivalents compris).
  */
-export const VARIABLES_TARIF: Record<string, readonly [string, string]> = {
-  openai: ["ASSISTANT_IA_PRICE_IN", "ASSISTANT_IA_PRICE_OUT"],
+export const VARIABLES_TARIF: Record<string, readonly [string, string, string?]> = {
+  openai: ["ASSISTANT_IA_PRICE_IN", "ASSISTANT_IA_PRICE_OUT", "ASSISTANT_IA_PRICE_CACHED"],
   "openai-audio": ["ASSISTANT_IA_AUDIO_PRICE_IN", "ASSISTANT_IA_AUDIO_PRICE_OUT"],
   mimo: ["MIMO_PRICE_IN", "MIMO_PRICE_OUT"],
+};
+
+/**
+ * LES TARIFS PAR DÉFAUT DOCUMENTÉS (Direction, 29/10/2026 — banc V4-H : « inconnu » à l'écran faute de variables) :
+ * la grille publique de `gpt-6.1-terra`, 2 $ l'entrée, 12 $ la sortie, 0,20 $ l'entrée lue en cache (un dixième),
+ * par million de jetons ; la voix (`gpt-4o-mini-tts`, `whisper-1`) 2,5 $ / 10 $. Une variable posée prime toujours ;
+ * l'entrée en cache, sans `ASSISTANT_IA_PRICE_CACHED`, vaut un dixième de l'entrée posée. Un fournisseur sans défaut
+ * (MiMo, journaux d'avant le 28/10) reste « inconnu ».
+ */
+export const TARIFS_PAR_DEFAUT: Record<string, Tarif> = {
+  openai: { entreeParM: 2, sortieParM: 12, cacheParM: 0.2 },
+  "openai-audio": { entreeParM: 2.5, sortieParM: 10 },
 };
 
 export function tarifDe(provider: string, env: NodeJS.ProcessEnv = process.env): Tarif | null {
   const noms = VARIABLES_TARIF[provider];
   if (!noms) return null;
-  const [brutE, brutS] = [env[noms[0]], env[noms[1]]];
-  const e = Number(brutE);
-  const s = Number(brutS);
-  return brutE && brutS && Number.isFinite(e) && Number.isFinite(s) && e >= 0 && s >= 0
-    ? { entreeParM: e, sortieParM: s }
-    : null;
+  const nombre = (nom?: string) => {
+    const brut = nom ? env[nom] : undefined;
+    const n = Number(brut);
+    return brut && Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const [e, s, c] = [nombre(noms[0]), nombre(noms[1]), nombre(noms[2])];
+  if (e != null && s != null) return { entreeParM: e, sortieParM: s, ...(noms[2] ? { cacheParM: c ?? e / 10 } : {}) };
+  return TARIFS_PAR_DEFAUT[provider] ?? null;
+}
+
+/** Le tarif vient-il des variables posées (ou des défauts documentés) ? — l'écran Consommation le dit. */
+export function tarifPose(provider: string, env: NodeJS.ProcessEnv = process.env): boolean {
+  const noms = VARIABLES_TARIF[provider];
+  return !!noms && !!env[noms[0]] && !!env[noms[1]];
 }
 
 // ─────────────────────────────── Le jour ───────────────────────────────
@@ -219,7 +240,7 @@ export async function fermerBudget(b: Budget, issue: { ok: boolean; erreur?: str
     userId: b.userId, threadId: b.conversation, missionId: null,
     role: b.origine, provider: a.provider, model: a.model,
     inputTokens: a.entree, outputTokens: a.sortie, cachedInputTokens: a.cache, reasoningTokens: a.raisonnement, webSearchCalls: 0,
-    costUsd: coutEstimeUsd(a.entree, a.sortie, tarifDe(a.provider)), ms: a.ms, attempts: 1, incompleteReason: null,
+    costUsd: coutEstimeUsd(a.entree, a.sortie, tarifDe(a.provider), a.cache), ms: a.ms, attempts: 1, incompleteReason: null,
   }));
   if (lignes.length) {
     await prisma.modelCallLog.createMany({ data: lignes }).catch((e) => console.error("[assistant-ia] journal des appels", e));

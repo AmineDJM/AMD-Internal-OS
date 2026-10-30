@@ -11,18 +11,18 @@ import { SLUG_DG } from "@/lib/workflow/parcours";
 import { WORKFLOW_CATEGORIES, type WorkflowCategory } from "@/lib/workflow/types";
 import { ROLE_LABELS } from "@/lib/labels";
 import { estSorteMemoire, MEMOIRE_MAX_CARACTERES, SORTES_MEMOIRE, type MemoireProposee } from "@/lib/agent/memoire-ui";
-import { outilsOperations, REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
+import { OPERATIONS_IA, outilsOperations, REFUS_SECONDE_CARTE, type PropositionCarte } from "@/lib/agent/operations";
 import { lecturesDocuments } from "@/lib/agent/operations/documents-lus";
 import { lectureFormulaire } from "@/lib/agent/operations/formulaire-pdf";
 import { lectureRoutines } from "@/lib/agent/operations/routines";
 import { rechercheWeb } from "@/lib/agent/recherche-web";
 import { sortiePourModele } from "@/lib/agent/contenu-non-fiable";
-import { lecturesQuotidien, lecturesRh } from "@/lib/agent/lectures";
+import { lecturesMetier, lecturesQuotidien, lecturesRh } from "@/lib/agent/lectures";
 import { censurerTexte, jetonnerSortie, jetonOuMasque, type CoffretDuTour } from "@/lib/agent/filtre-confidentialite";
 import { voitLesSalaires } from "@/lib/hr/confidentialite";
 import { formatMontant } from "@/lib/utils";
 import { familleExplicite, familleOuverte, refusFamille, resoudreAccesIa, type AccesIa, type FamilleIa } from "@/lib/agent/acces-regles";
-import { droitsApplicatifsIa } from "@/lib/agent/role-config";
+import { ajouterReperesAIntention, droitsApplicatifsIa, substituerReperes, tracerSubstitutions, vueDeLAssistant } from "@/lib/agent/role-config";
 
 /**
  * LES OUTILS DE L'ASSISTANT IA — tous EXISTANTS au moteur ou à l'Assistant IA, aucun réécrit (Q7, Q20).
@@ -47,7 +47,7 @@ const LECTURES_MOTEUR = new Set(["list_my_tasks", "search_products", "read_workf
  * `read_employee` et `read_payroll` n'en sont PAS : leur garde (lecture du module RH, sans société) est
  * plus large que l'écran ; l'Assistant IA lit la fiche et la paie par `lectures.ts` — `lecturesRh`.
  */
-const LECTURES_DROIT = new Set(["read_hr_overview", "search_everything", "read_calendar", "search_drive", "read_budget", "finance_totals"]);
+const LECTURES_DROIT = new Set(["read_hr_overview", "search_everything", "read_calendar", "search_drive", "read_budget", "finance_totals", "list_pending_decisions"]);
 /**
  * LES ÉCRITURES MÉTIER (décision 0012) — préparées par `buildProposal` (qui juge le droit et résout les
  * noms), enregistrées en intention, exécutées seulement à la confirmation (`performAction` rejuge tout).
@@ -75,6 +75,7 @@ const FAMILLES_DES_OUTILS: Record<string, FamilleIa[]> = {
   read_hr_overview: ["FICHES"],
   search_drive: ["DRIVE"], search_everything: ["DRIVE"], drive_operation: ["DRIVE", "ECRITURES"],
   read_budget: ["BUDGETS"], finance_totals: ["BUDGETS"],
+  demandes_adpro: ["AD_PRO"], etat_dossier_reglementaire: ["REGLEMENTAIRE"],
   regulatory_portfolio: ["REGLEMENTAIRE"], regulatory_workload: ["REGLEMENTAIRE"], regulatory_knowledge: ["REGLEMENTAIRE"],
   regulatory_operation: ["REGLEMENTAIRE", "ECRITURES"], update_regulatory_product: ["REGLEMENTAIRE", "ECRITURES"],
   assign_regulatory_responsible: ["REGLEMENTAIRE", "ECRITURES"], set_regulatory_step: ["REGLEMENTAIRE", "ECRITURES"],
@@ -119,6 +120,7 @@ const LIBELLES: Record<string, string> = {
   search_drive: "Drive fouillé",
   read_budget: "Budget consulté",
   finance_totals: "Finances consultées",
+  list_pending_decisions: "Validations en attente consultées",
   my_overview: "Vue d'ensemble consultée",
   create_task: "Tâche préparée",
   update_task: "Tâche préparée",
@@ -152,7 +154,9 @@ const filtre = (outil: PowerTool, journal?: string[], coffret?: CoffretDuTour | 
   run: async (entree, user) => {
     // Avec un coffret (la conversation) : les valeurs sensibles deviennent des REPÈRES (décision 0012) ;
     // sans (une routine) : censurées comme avant.
+    const avant = coffret?.taille ?? 0;
     const sortie = jetonnerSortie(await outil.run(entree, user), coffret);
+    coffret?.nommer(avant, outil.def.name);
     journal?.push(sortie);
     return sortiePourModele(outil.def.name, sortie);
   },
@@ -278,10 +282,13 @@ export function outilsV1(
 ): PowerTool[] {
   const acces = accesDuTour ?? accesParDefaut(user);
   // `assistantToolsFor` applique déjà les conditions d'accès de l'assistant de production.
-  const defs = assistantToolsFor(user);
+  // LA VUE : la personne, plus en lecture les modules des familles que la Direction lui a ouvertes explicitement.
+  const vue = vueDeLAssistant(user, acces);
+  const sousVue = (o: PowerTool): PowerTool => ({ ...o, allowed: (u) => u.id === user.id && o.allowed(vue), run: (entree, u) => o.run(entree, u.id === user.id ? vue : u) });
+  const defs = assistantToolsFor(vue);
   const defParNom = new Map(defs.map((d) => [d.name, d]));
 
-  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name));
+  const lecturesPower = [...DIRECTORY_TOOLS, ...REGULATORY_READ_TOOLS].filter((o) => LECTURES_POWER.has(o.def.name)).map(sousVue);
 
   const lecturesMoteur: PowerTool[] = [...LECTURES_MOTEUR].flatMap((nom) => {
     const def = defParNom.get(nom);
@@ -291,10 +298,10 @@ export function outilsV1(
         def: { ...def, description: "Lit le CIRCUIT DE VALIDATION d'une catégorie Ad & Pro (SPONSORING, CONGRESS_INTERNATIONAL, CONGRESS_NATIONAL, EVENTS) : étapes dans l'ordre et qui agit. À appeler AVANT d'expliquer un circuit — n'en décris jamais un de mémoire." },
         allowed: (u) => u.id === user.id,
         label: LIBELLES[nom] ?? def.name,
-        run: async (entree, u) => circuitLisible(await executeReadTool(nom, entree, u)),
+        run: async (entree, u) => circuitLisible(await executeReadTool(nom, entree, u.id === user.id ? vue : u)),
       }];
     }
-    return [{ def, allowed: (u) => u.id === user.id, label: LIBELLES[nom] ?? def.name, run: (entree, u) => executeReadTool(nom, entree, u) }];
+    return [{ def, allowed: (u) => u.id === user.id, label: LIBELLES[nom] ?? def.name, run: (entree, u) => executeReadTool(nom, entree, u.id === user.id ? vue : u) }];
   });
 
   // LES LECTURES PAR DROIT : offertes si `assistantToolsFor` les donne (le droit de l'outil), rejugées à l'exécution.
@@ -306,7 +313,7 @@ export function outilsV1(
       allowed: (u) => u.id === user.id,
       label: LIBELLES[nom] ?? def.name,
       run: async (entree, u) => {
-        const sortie = (await executePowerTool(nom, entree, u)) ?? "Cette lecture n'est pas disponible.";
+        const sortie = (await executePowerTool(nom, entree, u.id === user.id ? vue : u)) ?? "Cette lecture n'est pas disponible.";
         return nom === "read_hr_overview" ? situationRhSansMasse(sortie, u, coffret, acces) : sortie;
       },
     }];
@@ -344,16 +351,40 @@ export function outilsV1(
 
   const ecritures: PowerTool[] = [...ECRITURES].flatMap((nom) => {
     const def = defParNom.get(nom);
-    return def ? [carte(nom, def)] : [];
+    if (!def) return [];
+    // `search_people` n'est pas au catalogue de l'Assistant IA (banc V4-H) : la résolution se fait par l'annuaire.
+    return [carte(nom, { ...def, description: def.description.replace(/search_people/g, "directory_lookup") })];
   });
 
   const lectures = [
-    ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
+    ...lecturesPower, ...lecturesMoteur, ...lecturesDroit, ...lecturesRh(user, coffret, acces), ...lecturesMetier(user, vue), ...lecturesQuotidien(user, propositions), ...lecturesDocuments(user),
     lectureFormulaire(user), lectureRoutines(user), ...rechercheWeb(),
   ].map((o) => garde(o, famillesDe(o.def.name, false), acces));
+  /**
+   * UN REPÈRE DANS L'ENTRÉE D'UN GESTE (décision 0012) : remplacé par la vraie valeur AVANT la carte, si la personne a
+   * le droit de la voir (sinon refus) ; la carte garde la liste des valeurs substituées, rejugées à l'exécution ; la
+   * substitution est tracée ; la sortie rendue au modèle remet chaque valeur en repère.
+   */
+  const avecReperes = (o: PowerTool): PowerTool => ({
+    ...o,
+    run: async (entree, u) => {
+      const s = await substituerReperes(entree ?? {}, coffret, u, acces, o.def.name);
+      if ("refus" in s) return JSON.stringify({ statut: "REFUS", raison: s.refus });
+      const avant = propositions.length;
+      let sortie = await o.run(s.entree, u);
+      if (!s.substitues.length) return sortie;
+      const p = propositions.length > avant ? propositions[propositions.length - 1] : null;
+      if (p) {
+        await ajouterReperesAIntention(p.intentId, s.substitues.map((x) => x.e));
+        await tracerSubstitutions(u, s.substitues, { titre: p.proposition.title, champs: p.proposition.fields }, "carte");
+      }
+      for (const { n, e } of s.substitues) sortie = sortie.split(e.valeur).join(`⟦S${n}⟧`);
+      return sortie;
+    },
+  });
   const gestes = [
-    ...[...ecritures, ...domaines].map((o) => garde(o, famillesDe(o.def.name, true), acces)),
-    ...outilsOperations(user, propositions).map((o) => garde(o, famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
+    ...[...ecritures, ...domaines].map((o) => garde(avecReperes(o), famillesDe(o.def.name, true), acces)),
+    ...outilsOperations(user, propositions).map((o) => garde(avecReperes(o), famillesDe(o.def.name, !SANS_FAMILLE_ECRITURE.has(o.def.name)), acces)),
   ];
   // Chaque outil porte les accès de CETTE personne : appelé sous une autre (jamais en production — `allowed` le
   // refuse déjà au modèle), il refuse au lieu de prêter ces accès.
@@ -362,4 +393,16 @@ export function outilsV1(
     run: (entree, u) => (u.id === user.id ? o.run(entree, u) : Promise.resolve(JSON.stringify({ statut: "REFUS", raison: "Cet outil a été préparé pour une autre personne." }))),
   });
   return [...lectures, ...gestes, outilMemoire(user, memoires)].map((o) => filtre(aSoi(o), journal, coffret));
+}
+
+/**
+ * LES GESTES QUE L'APPLICATION NE LUI OUVRE PAS (banc V4-H : « je ne peux pas… avec les outils disponibles ») — une
+ * opération de l'Assistant IA dont la personne n'a pas le droit d'écran n'est pas offerte ; le contexte le dit, pour que
+ * le refus nomme le DROIT et non « les outils ».
+ */
+export function consigneGestesFermes(user: CurrentUser): string | null {
+  const fermes = OPERATIONS_IA.filter((o) => !o.ouverte(user)).map((o) => `« ${o.libelle.replace(/ préparée?$/, "")} »`);
+  if (!fermes.length) return null;
+  return `GESTES NON OUVERTS À SON RÔLE dans l'application (droit de l'écran, réglé en Administration › Accès) : ${fermes.join(", ")}. `
+    + "Une demande de ce genre : dis que son rôle n'a pas ce droit dans l'application — jamais « je n'ai pas l'outil ».";
 }

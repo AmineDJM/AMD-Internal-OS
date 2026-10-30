@@ -55,7 +55,11 @@ affiche proprement « IA non configurée » — **aucune fonctionnalité ne cass
     paie, Budgets & finances, Contrats & documents RH, Fiches collaborateurs, Drive & documents, Réglementaire, Ad & Pro,
     Écritures métier. Le Super Admin a tout ; les autres suivent leurs droits, **salaires et contrats fermés** tant que la
     Direction ne les ouvre pas. Relu à chaque tour ; un refus nomme la famille et dit que la Direction l'ouvre dans la
-    console ; chaque changement à l'audit.
+    console ; chaque changement à l'audit. Une famille ouverte explicitement vaut au-delà des droits applicatifs pour
+    les LECTURES (salaires, contrats, fiches, budgets, Drive, réglementaire, Ad & Pro) ; les gestes restent jugés par
+    l'écran. Un repère peut entrer dans une carte (« envoie le salaire d'Assia à Karim ») : valeur mise par le serveur,
+    rejugée à la confirmation, tracée ; toute valeur sensible montrée par l'assistant est journalisée
+    (`AccesDonneeSensible`, avec l'outil).
   - Décisions : `docs/assistant/decisions/0001` → `0012`.
 - **Ancien Assistant IA — moteur d'Adam (en pause depuis 09/2026, `/chief-of-staff`)** — module à part entière
   à l'époque (entrée de menu dédiée, page plein écran ; l'ancienne bulle flottante a été retirée). **Boucle agent Claude**,

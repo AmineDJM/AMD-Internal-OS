@@ -36,6 +36,9 @@ export interface PersonMatch {
   employeeId: string | null;
   contactId: string | null;
   directoryEntryId: string | null;
+  /** Le N+1 et le département de la fiche RH, quand la personne en a une (banc V4-H : « son manager n'est pas indiqué »). */
+  manager?: string | null;
+  department?: string | null;
   endpoints: ResolvedEndpoint[];
 }
 
