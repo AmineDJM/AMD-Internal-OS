@@ -14,7 +14,11 @@
  * présélection des outils est une règle (`selection-outils.ts`), 0 ms.
  *
  * Chaque rôle se change dans l'environnement, sans redéploiement de code : `ASSISTANT_IA_MODEL` (standard et
- * raisonnement), `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_EFFORT` / `ASSISTANT_IA_EFFORT_RAISONNEMENT`.
+ * raisonnement), `ASSISTANT_IA_MODEL_RAPIDE`, `ASSISTANT_IA_MODEL_RAISONNEMENT` (J14 : un modèle à part pour le
+ * raisonnement), `ASSISTANT_IA_EFFORT` / `ASSISTANT_IA_EFFORT_RAISONNEMENT`.
+ *
+ * J14 (décision 0022) : au-dessus de l'environnement, le choix FAIT À L'ÉCRAN (Administration › Qualité IA) — permis
+ * seulement sur un banc vert — arrive en `surcharges`. Ce module reste pur : l'appelant les lit en base.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
@@ -36,11 +40,27 @@ const effortLu = (v: string | undefined, defaut: EffortRaisonnement): EffortRais
   return e && (EFFORTS as readonly string[]).includes(e) ? (e as EffortRaisonnement) : defaut;
 };
 
-export function modelePourRole(role: RoleModele, env: Record<string, string | undefined> = process.env): ChoixModele {
+export type SurchargesModeles = Partial<Record<RoleModele, { modelId: string; effort: EffortRaisonnement }>>;
+
+export function modelePourRole(role: RoleModele, env: Record<string, string | undefined> = process.env, surcharges?: SurchargesModeles): ChoixModele {
+  const s = surcharges?.[role];
+  if (s) return { role, modelId: s.modelId, effort: effortLu(s.effort, "low") };
   const standard = env.ASSISTANT_IA_MODEL?.trim() || MODELE_STANDARD_DEFAUT;
   if (role === "rapide") return { role, modelId: env.ASSISTANT_IA_MODEL_RAPIDE?.trim() || MODELE_RAPIDE_DEFAUT, effort: effortLu(env.ASSISTANT_IA_EFFORT_RAPIDE, "low") };
-  if (role === "raisonnement") return { role, modelId: standard, effort: effortLu(env.ASSISTANT_IA_EFFORT_RAISONNEMENT, "medium") };
+  if (role === "raisonnement") return { role, modelId: env.ASSISTANT_IA_MODEL_RAISONNEMENT?.trim() || standard, effort: effortLu(env.ASSISTANT_IA_EFFORT_RAISONNEMENT, "medium") };
   return { role, modelId: standard, effort: effortLu(env.ASSISTANT_IA_EFFORT, "low") };
+}
+
+/** Les trois rôles, tels qu'en service — l'écran et le banc les enregistrent avec chaque passage. */
+export const ROLES_MODELE: readonly RoleModele[] = ["rapide", "standard", "raisonnement"];
+
+/** L'environnement d'un processus (le banc) qui doit tourner avec EXACTEMENT ces modèles. */
+export function envDesModeles(m: Record<RoleModele, { modelId: string; effort: EffortRaisonnement }>): Record<string, string> {
+  return {
+    ASSISTANT_IA_MODEL: m.standard.modelId, ASSISTANT_IA_EFFORT: m.standard.effort,
+    ASSISTANT_IA_MODEL_RAPIDE: m.rapide.modelId, ASSISTANT_IA_EFFORT_RAPIDE: m.rapide.effort,
+    ASSISTANT_IA_MODEL_RAISONNEMENT: m.raisonnement.modelId, ASSISTANT_IA_EFFORT_RAISONNEMENT: m.raisonnement.effort,
+  };
 }
 
 /** Une demande qui ANALYSE, COMPARE ou parcourt « toutes » les pièces d'un ensemble. */

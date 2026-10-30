@@ -339,6 +339,16 @@ export const TACHES_PLANIFIEES: readonly TachePlanifiee[] = [
     if (r.abstenu) return ignoree("le worker conduit les travaux (TACHES_DE_FOND=les-deux)");
   } },
 
+  // LE BANC PROGRAMMÉ (J5, décision 0022) : le banc de l'Assistant IA, selon le calendrier du Super Admin (Administration ›
+  // Qualité IA), SUR LE WORKER, contre la base d'essai déclarée (BANC_ESSAI_DATABASE_URL) — jamais la production. Le
+  // passage tourne dans un processus à part : la tâche le lance et rend la main ; le worker historise à la fin.
+  { cle: "qualite.banc", executer: async () => {
+    const r = await (await import("@/modules/assistant-ia/api")).tacheBancProgramme({ executeur: executeurDuProcessus() });
+    if (r.issue === "rien" && r.raison) return ignoree(r.raison);
+  } },
+  // J14 : les traces rejouables des tours, gardées ASSISTANT_IA_TRACES_JOURS jours (30 par défaut).
+  { cle: "assistant.traces", executer: async () => (await import("@/modules/assistant-ia/api")).purgerTraces() },
+
   // L'ATELIER (J3, décision 0017) : les conversions confiées au worker (LibreOffice de son image). Ailleurs, rien.
   { cle: "atelier.conversions", bailMs: 300_000, executer: async () => {
     if (executeurDuProcessus() !== "worker") return ignoree("les conversions LibreOffice tournent sur le worker");

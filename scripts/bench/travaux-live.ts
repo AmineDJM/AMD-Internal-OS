@@ -19,13 +19,13 @@ process.env.ASSISTANT_IA_PRICE_IN ||= "2";
 process.env.ASSISTANT_IA_PRICE_OUT ||= "12";
 
 import fs from "node:fs";
-import { prisma, estUneBaseDeBanc } from "@/lib/prisma";
+import { prisma, estUneBaseDeBancOuDEssai } from "@/lib/prisma";
 import { lireFixtures } from "./seed-assistant-jarvis";
 
 const DEMANDE = "Analyse toutes les demandes Ad & Pro de l'année : repère les plus gros montants, celles qui attendent une validation depuis longtemps, et rends-moi un rapport d'une page. Fais-en un travail en arrière-plan.";
 
 async function main() {
-  if (!estUneBaseDeBanc(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
+  if (!estUneBaseDeBancOuDEssai(process.env.DATABASE_URL ?? "")) throw new Error("Refus : base de banc locale uniquement.");
   const F = lireFixtures();
   if (!F.assistante) throw new Error("Semis manquant : lancer seed-assistant-jarvis.ts d'abord.");
   const { proprietaire } = await import("@/platform/ia/proprietaire");
@@ -80,7 +80,8 @@ async function main() {
   // ── 2. L'APPROBATION, comme au clic — plafond de banc : 2 $ ──────────────────────────────────
   const a = await svc.approuverTravail(id, user.id, PERSONA_ASSISTANT_IA);
   if (!a.ok) throw new Error(a.erreur);
-  await svc.reglerPlafondTravail(id, user.id, 2);
+  // J5 : sous le banc programmé, le plafond du travail est ce qui reste du plafond du passage (`BANC_BUDGET_USD`).
+  await svc.reglerPlafondTravail(id, user.id, Math.min(2, Number(process.env.BANC_BUDGET_USD) || 2));
 
   // ── 3. LE BATTEMENT, jusqu'au livrable (10 min au plus) ──────────────────────────────────────
   const limite = Date.now() + 10 * 60_000;
