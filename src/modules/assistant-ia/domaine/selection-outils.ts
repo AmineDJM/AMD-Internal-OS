@@ -114,6 +114,11 @@ const MOTS_CLES: Record<string, string> = {
   modifier_document: "modifie modifier remplace mets change corrige reecris ajoute supprime diapositive slide titre paragraphe cellule tableau periode clause article synthese en place document",
   convertir_document: "convertis convertir conversion pdf word excel exporte transforme en",
   enregistrer_document: "enregistre sauvegarde nouvelle version garde valide document atelier",
+  // J13 (décision 0025) — le terrain : les mots d'un délégué qui sort d'une visite.
+  terrain_compte_rendu: "compte rendu visite rapport terrain medecin docteur dr pr cabinet chu hopital clinique vu rencontre presente interesse objection",
+  terrain_demande_materiel: "echantillons echantillon boites materiel promotionnel brochures magasin demande stock delegue",
+  terrain_tournee_demain: "tournee demain revoir repasser plan de tournee visite prevue ajoute medecin",
+  terrain_piece_visite: "photo rattache joins piece compte rendu visite ordonnance presentoir carte de visite",
 };
 
 const MOTS_VIDES = new Set((

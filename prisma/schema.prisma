@@ -9453,6 +9453,9 @@ model AssistantIaReglage {
   retirerCartesCaduques  Boolean  @default(true)
   /// IA-ASSISTANT-07 : une carte non confirmée expire après ce délai (heures).
   expirationCartesHeures Int      @default(24)
+  /// J13 (décision 0025) : le modèle de la voix temps réel, réglé par le Super Admin sans redéploiement. Nul = la variable
+  /// `ASSISTANT_IA_VOICE_MODEL`, sinon `gpt-live-1` (décision de Direction du 30/10 : pas de modèle de secours).
+  modeleVoix             String?
   /// J2 (décision 0016) : plafond de dépense d'UN travail, en dollars. Atteint : le travail dort (BUDGET_HOLD).
   plafondTravailUsd      Float    @default(20)
   /// J2 : plafond de dépense IA d'une personne sur le mois (heure d'Alger), en dollars.
@@ -18276,4 +18279,45 @@ model BibliothequePassage {
 
   @@unique([pieceId, rang])
   @@index([vectoriseLe])
+}
+
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+/// UNE CAPTATION DE TERRAIN (lot J13, décision 0025) — un vocal ou une photo reçus du téléphone d'un délégué.
+///
+/// Ce n'est PAS une donnée métier : c'est la matière des CARTES (compte rendu pré-rempli, demande d'échantillons,
+/// tournée du lendemain, pièce rattachée) que la personne confirme ou non. Rien n'est écrit dans les rapports, le
+/// stock ou la tournée sans cette confirmation. `cle` est la clé d'idempotence tirée par le téléphone à la
+/// capture : un renvoi de la file hors ligne retrouve la captation, il n'en crée pas une seconde.
+/// ═══════════════════════════════════════════════════════════════════════════════════════════
+model AssistantIaTerrainCapture {
+  id            String   @id @default(cuid())
+  userId        String
+  cle           String
+  /// VOCAL | PHOTO
+  sorte         String
+  /// RECU | PRET | ECHEC
+  etat          String   @default("RECU")
+  blobId        String?
+  nom           String
+  mime          String
+  taille        Int
+  dureeS        Int?
+  transcription String?
+  /// fr | ar | mixte | inconnue
+  langue        String?
+  modeleStt     String?
+  /// Le compte rendu structuré (vocal) ou la lecture de la photo (faits proposés).
+  analyse       Json?
+  /// Les cartes préparées : [{ intentId, op, titre }].
+  cartes        Json?
+  /// Le rapport de visite dont la photo est déjà pièce, ou celui que la carte « compte rendu » a créé.
+  fieldReportId String?
+  erreur        String?
+  /// Du dépôt à l'analyse prête (la cible du lot : 30 s).
+  msTotal       Int?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@unique([userId, cle])
+  @@index([userId, createdAt])
 }

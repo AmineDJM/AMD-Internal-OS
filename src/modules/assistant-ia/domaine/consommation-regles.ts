@@ -32,6 +32,8 @@ export interface ReglagesAssistantIa {
   retirerCartesCaduques: boolean;
   /** IA-ASSISTANT-07 : une carte jamais confirmée expire après ce délai. */
   expirationCartesHeures: number;
+  /** J13 (décision 0025) : le modèle de la voix temps réel ; vide = la variable d'environnement, sinon `gpt-live-1`. */
+  modeleVoix: string;
 }
 
 export const REGLAGES_PAR_DEFAUT: ReglagesAssistantIa = {
@@ -41,6 +43,13 @@ export const REGLAGES_PAR_DEFAUT: ReglagesAssistantIa = {
   censurerSaisie: true,
   retirerCartesCaduques: true,
   expirationCartesHeures: 24,
+  modeleVoix: "",
+};
+
+/** Un nom de modèle tel que l'API les écrit (« gpt-live-1 ») — tout autre texte est ignoré, jamais transmis. */
+export const nomDeModeleValide = (v: unknown): string => {
+  const t = typeof v === "string" ? v.trim() : "";
+  return /^[a-z0-9][a-z0-9.\-]{1,63}$/i.test(t) ? t : "";
 };
 
 /** Les bornes de l'écran : un réglage hors bornes est ramené dedans, jamais refusé en silence. */
@@ -69,6 +78,7 @@ export function normaliserReglages(r: Partial<Record<keyof ReglagesAssistantIa, 
     expirationCartesHeures: r?.expirationCartesHeures == null ? REGLAGES_PAR_DEFAUT.expirationCartesHeures : borner("expirationCartesHeures", r.expirationCartesHeures),
     censurerSaisie: b(r?.censurerSaisie, REGLAGES_PAR_DEFAUT.censurerSaisie),
     retirerCartesCaduques: b(r?.retirerCartesCaduques, REGLAGES_PAR_DEFAUT.retirerCartesCaduques),
+    modeleVoix: nomDeModeleValide(r?.modeleVoix),
   };
 }
 
