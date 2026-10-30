@@ -12,6 +12,7 @@ import { PIECES_PAR_ENVOI_MAX } from "../../domaine/lecture/depot";
 import { repondreAVoixHaute, transcrireVocal } from "../lecture/voix";
 import { sansValeursRevelees } from "../../domaine/filtre-confidentialite";
 import { compacterFil } from "./resume";
+import { lireVueSimulation } from "../../domaine/simulation";
 
 /**
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -134,14 +135,16 @@ export async function lireFil(userId: string, limite = 80) {
   // L'état d'une carte vit sur l'intention (confirmée, exécutée…), pas sur le tour qui l'a proposée.
   const ids = tours.map((t) => (t.intent as { id?: string } | null)?.id).filter((x): x is string => !!x);
   const intents = ids.length
-    ? await prisma.assistantActionIntent.findMany({ where: { id: { in: ids }, userId }, select: { id: true, status: true, resultLink: true, resultMessage: true } })
+    ? await prisma.assistantActionIntent.findMany({ where: { id: { in: ids }, userId }, select: { id: true, status: true, resultLink: true, resultMessage: true, payload: true } })
     : [];
   const parId = new Map(intents.map((i) => [i.id, i]));
   return {
     tours: tours.map((t) => {
       const i = t.intent as { id?: string } | null;
       const etat = i?.id ? parId.get(i.id) : undefined;
-      return etat ? { ...t, intent: { ...i, status: etat.status, resultLink: etat.resultLink ?? undefined, resultMessage: etat.resultMessage ?? undefined } } : t;
+      // J7 : une carte REMONTRÉE (la simulation rejouée a changé) montre son nouveau diff, pas celui du tour.
+      const simulation = lireVueSimulation((etat?.payload as { simulation?: unknown } | null)?.simulation);
+      return etat ? { ...t, intent: { ...i, status: etat.status, resultLink: etat.resultLink ?? undefined, resultMessage: etat.resultMessage ?? undefined, ...(simulation ? { simulation } : {}) } } : t;
     }),
     enCours: tours.some((t) => t.etat === ETAT.ATTENTE || t.etat === ETAT.COURS),
     reponseVocale: fil.reponseVocale,

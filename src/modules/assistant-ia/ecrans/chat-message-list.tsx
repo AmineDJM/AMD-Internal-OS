@@ -9,6 +9,7 @@ import { PiecesDuMessage, PiecesRendues, type PieceOuvrable } from "./pieces-joi
 import { BulleVocale } from "./bulle-vocale";
 import { PHRASE_VOCAL_COUPE, type AudioDuTour, type LecturePiece, type VocalDuTour } from "../domaine/lecture/regles";
 import type { MemoireProposee } from "../domaine/memoire-ui";
+import type { VueSimulation } from "../domaine/simulation";
 import { WorkspaceBlocks } from "@/platform/ia/ecrans/blocks";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
 
@@ -46,6 +47,8 @@ export interface ChatMessage {
     confirmText?: string;
     /** Le libellé du bouton quand « Confirmer » ne dit pas le geste. */
     libelleBouton?: string;
+    /** J7 : le diff réel de la simulation — ou « non simulable », dit. */
+    simulation?: VueSimulation;
     status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
     resultLink?: string;
     resultMessage?: string;
@@ -184,6 +187,7 @@ export function ChatMessageList({ messages, isLoading, onConfirmIntent, onOuvrir
                       warnings={m.intent.warnings}
                       confirmText={m.intent.confirmText}
                       libelleBouton={m.intent.libelleBouton}
+                      simulation={m.intent.simulation}
                       initialStatus={m.intent.status}
                       resultLink={m.intent.resultLink}
                       resultMessage={m.intent.resultMessage}

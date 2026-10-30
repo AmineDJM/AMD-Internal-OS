@@ -157,3 +157,24 @@ export async function enregistrerVisibiliteEquipe(formData: FormData): Promise<A
   revalidatePath("/admin/ai/acces");
   return { ok: true };
 }
+
+/**
+ * J7 (décision 0029) — LA DURÉE DE GARDE DU JOURNAL DES EFFETS : combien de jours un geste de l'assistant reste
+ * annulable (sa valeur AVANT gardée). Super Admin seul ; entre 7 jours et 3 ans ; à l'audit.
+ */
+export async function enregistrerRetentionEffets(formData: FormData): Promise<ActionResult> {
+  const admin = await requireUser();
+  if (!userCan(admin, "ADMIN", "UPDATE") || admin.role !== "SUPER_ADMIN") return { ok: false, error: "Réservé au Super Admin." };
+  const jours = Number(String(formData.get("retentionEffetsJours") ?? "").trim());
+  if (!Number.isInteger(jours) || jours < 7 || jours > 1095) return { ok: false, error: "Une durée en jours, entre 7 et 1 095 (trois ans)." };
+  const avant = await prisma.assistantIaReglage.findUnique({ where: { id: "global" }, select: { retentionEffetsJours: true } });
+  const data = { retentionEffetsJours: jours, updatedById: admin.id };
+  await prisma.assistantIaReglage.upsert({ where: { id: "global" }, create: { id: "global", ...data }, update: data });
+  await recordAudit({
+    actorId: admin.id, action: "UPDATE", module: "Centre de contrôle IA", field: "Journal des effets — durée de garde",
+    oldValue: `${avant?.retentionEffetsJours ?? 180} jours`, newValue: `${jours} jours`,
+    summary: `Les gestes de l'assistant restent annulables ${jours} jours (journal des effets)`,
+  });
+  revalidatePath("/admin/ai/acces");
+  return { ok: true };
+}

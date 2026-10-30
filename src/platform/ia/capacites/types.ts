@@ -97,6 +97,8 @@ export interface Capacite {
   /** Les familles de la console qu'exige l'exécution (« Écritures métier » comprise pour un geste). */
   familles: FamilleIa[];
   simulable: Simulable;
+  /** POURQUOI elle se simule ou non (J7) — la carte le dit quand elle ne se simule pas. */
+  raisonSimulable: string;
   annulation: Annulation;
   raisonAnnulation: string;
   /** Sa sortie peut porter un contenu écrit par un tiers (courrier, document, pièce) : encadrée avant le modèle. */

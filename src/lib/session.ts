@@ -9,7 +9,7 @@ import { getAppSettings } from "./settings";
 import { canOpenModule } from "./modules-visibility";
 import { lireSessionRevocable, vueDemandee, type CompteDeSession, type OptionsDeSession } from "./session-compte";
 // J8 : un geste métier exécuté HORS requête (worker) porte la personne du geste — consultée AVANT le cookie.
-import { utilisateurDuGeste } from "./contexte-geste";
+import { utilisateurDuGeste } from "./effets/geste";
 
 /**
  * Nom du cookie de « Vue exacte » (impersonation), honoré uniquement pour un Super Admin. Défini dans

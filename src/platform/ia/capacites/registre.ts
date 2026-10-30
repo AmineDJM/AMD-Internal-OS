@@ -117,7 +117,7 @@ export function ficheDeLAction<C extends ContratLu>(c: C, ports: PortsRegistre<C
   const refus = c.illisible ? `Cette action ne s'appelle pas génériquement : ${c.illisible}.`
     : refusSurface(c) ?? ports.interdiction(c)
       ?? (binaires.length ? `Cette action attend un FICHIER (${binaires.map((b) => b.nom).join(", ")}) : elle se fait à l'écran, où l'on choisit le fichier.` : null);
-  const { simulable } = simulableDe(c, risque);
+  const { simulable, raison: raisonSimulable } = simulableDe(c, risque);
   const nature = natureDeLAction(c, risque, raison);
   const { annulation, raison: raisonAnnulation } = annulationDe(nature, ports.classerGeste);
   const libelle = libelleDeFonction(c.fonction);
@@ -126,7 +126,7 @@ export function ficheDeLAction<C extends ContratLu>(c: C, ports: PortsRegistre<C
   const champs = avecPersonnes(c).champs.filter((ch) => !CHAMP_BINAIRE.test(ch.nom));
   return {
     id: c.id, source: "action", outil: nomOutilDe(c.id), libelle, description, risque, raisonRisque: raison,
-    familles: famillesDeLAction(c, ecriture), simulable, annulation, raisonAnnulation,
+    familles: famillesDeLAction(c, ecriture), simulable, raisonSimulable, annulation, raisonAnnulation,
     contenuTiers: contenuTiersDe(c, risque), appelable: refus === null, refus,
     modules: porte.modules, verbe: porte.verbe, superAdminSeul: porte.superAdminSeul || porte.modules.length === 0,
     champs,
@@ -144,7 +144,9 @@ export function ficheDeLOutil(o: OutilDecrit): Capacite {
   return {
     id: `outil:${o.nom}`, source: "outil", outil: o.nom, libelle: o.libelle, description: o.description, risque,
     raisonRisque: o.ecriture ? "outil de l'Assistant IA qui prépare une carte" : "outil de lecture de l'Assistant IA",
-    familles, simulable: o.ecriture ? "inconnu" : "oui", annulation: o.ecriture ? "compensation" : "aucune",
+    familles, simulable: o.ecriture ? "inconnu" : "oui",
+    raisonSimulable: o.ecriture ? "opération propre à l'Assistant IA : sa carte montre ce qui est proposé" : "lecture : rien à annuler",
+    annulation: o.ecriture ? "compensation" : "aucune",
     raisonAnnulation: o.ecriture ? "le geste confirmé s'exécute par l'action métier de l'écran : on le compense comme lui" : "lecture : rien à défaire",
     contenuTiers: !o.ecriture && /(document|lire|piece|devis|web|mail|formulaire|connaissance|chercher|ouvrir)/.test(o.nom),
     appelable: true, refus: null, modules: [], verbe: null, superAdminSeul: false, champs: [],
@@ -160,7 +162,8 @@ export function fichesDeLAtelier(): Capacite[] {
       id: `atelier:${g}`, source: "atelier" as const, outil: "modifier_document", libelle: `${libelle} (Atelier)`,
       description: `${libelle} dans le document ouvert dans l'Atelier — rien n'est enregistré sans la personne.`,
       risque: "R1" as const, raisonRisque: "retouche d'un brouillon de l'Atelier, acceptée ou refusée par la personne",
-      familles: ["DRIVE" as const], simulable: "oui" as const, annulation: "delegation" as const,
+      familles: ["DRIVE" as const], simulable: "oui" as const, raisonSimulable: "retouche d'un brouillon : rien n'est enregistré sans la personne",
+      annulation: "delegation" as const,
       raisonAnnulation: "Live Office annule une retouche en rejouant les opérations non annulées (§104.3)",
       contenuTiers: false, appelable: true, refus: null, modules: [], verbe: null, superAdminSeul: false, champs: [],
       mots: `${libelle} atelier document modifier ${g.replace(/_/g, " ")}`, contexte: "", executeePar: "modifier_document",

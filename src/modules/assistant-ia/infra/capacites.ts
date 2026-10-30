@@ -15,11 +15,13 @@ import { avecPersonnes, deriverRegistre, libelleChamp, schemaDe, type Registre }
 import { CHAMP_SALAIRE } from "@/platform/ia/capacites/classement";
 import type { Capacite, OutilDecrit } from "@/platform/ia/capacites/types";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
+import { journaliserGeste, simulerEnDiff } from "@/platform/ia/hors-requete";
 import { familleOuverte, refusFamille, type AccesIa } from "../domaine/acces-regles";
 import {
   estChargeCapacite, KIND_CAPACITE, niveauDeCarte, sortieBornee, texteARessaisir, valeurAffichee, type ChargeCapacite,
 } from "../domaine/capacites";
 import { encadrerNonFiable } from "../domaine/contenu-non-fiable";
+import { ecartAvecLaCarte, lireVueSimulation, vueDeCarte, vueNonSimulable, type VueSimulation } from "../domaine/simulation";
 import type { ResultatOperation } from "../domaine/operations/types";
 import { REFUS_ARRET_URGENCE, REFUS_SECONDE_CARTE, type PropositionCarte } from "./operations";
 import { auNomDe } from "./consommation";
@@ -38,7 +40,10 @@ import { auNomDe } from "./consommation";
  *     aucune — une reprise de fond — refuse), sortie bornée et encadrée si elle porte un contenu tiers ;
  *   • R1+ : une CARTE (intention persistée, une par tour), renforcée en R3/R4 (ressaisie) ; à la confirmation,
  *     `executerCapacite` rejuge l'arrêt d'urgence, la porte, la famille et l'entrée, puis appelle L'ACTION ELLE-MÊME
- *     (`executerAction`) — la vraie session est celle de la requête de confirmation.
+ *     (`executerAction`) — la vraie session est celle de la requête de confirmation ;
+ *   • J7 (décision 0029) : une capacité SIMULABLE est jouée dans une transaction annulée AVANT la carte, qui montre le
+ *     diff réel ; à la confirmation, la simulation est REJOUÉE et son empreinte comparée — un écart, et rien ne
+ *     s'exécute (la carte se remontre) ; l'exécution réelle va au JOURNAL DES EFFETS (valeur avant de chaque champ).
  *
  * Rien n'est déclaré à la main : une action ajoutée à l'ERP arrive ici par `npm run actions:contrat`.
  * ═══════════════════════════════════════════════════════════════════════════════════════════
@@ -154,18 +159,22 @@ function outilDe(cap: Capacite, user: CurrentUser, propositions: PropositionCart
         `${cap.raisonRisque.charAt(0).toUpperCase()}${cap.raisonRisque.slice(1)}.`,
         cap.annulation === "aucune" ? "Ce geste ne se défait pas." : `Annulation : ${cap.raisonAnnulation}.`,
       ];
-      const charge: ChargeCapacite = { kind: KIND_CAPACITE, id: cap.id, entree: p.entree };
+      // LA SIMULATION (J7) : le diff RÉEL de l'action, jouée dans une transaction annulée — ou « non simulable », dit.
+      const simulation = cap.simulable === "oui" ? await simulerLaCapacite(u, cap, p.entree) : vueNonSimulable(cap.raisonSimulable);
+      if (simulation.statut === "ECHEC") warnings.unshift(`La simulation n'a pas abouti : ${simulation.raison ?? "raison inconnue"}. Confirmer exécutera quand même l'action, qui revérifiera tout.`);
+      const charge: ChargeCapacite = { kind: KIND_CAPACITE, id: cap.id, entree: p.entree, simulation };
       const [intentId] = await persistActionIntents(u.id, [{
         kind: KIND_CAPACITE, module: cap.modules[0] ?? "ASSISTANT_IA", title: cap.libelle, fields,
         ...(level ? { level } : {}), ...(confirmText ? { confirmText } : {}), payload: charge,
       }], "text");
       if (!intentId) return json({ statut: "ECHEC", raison: "La proposition n'a pas pu être enregistrée." });
-      propositions.push({ intentId, proposition: { kind: KIND_CAPACITE, title: cap.libelle, fields, warnings, ...(level ? { level } : {}), ...(confirmText ? { confirmText } : {}), payload: charge } });
+      propositions.push({ intentId, proposition: { kind: KIND_CAPACITE, title: cap.libelle, fields, warnings, simulation, ...(level ? { level } : {}), ...(confirmText ? { confirmText } : {}), payload: charge } });
       return json({
         statut: "EN_ATTENTE_DE_CONFIRMATION",
         titre: cap.libelle,
         champs: fields,
         avertissements: warnings,
+        simulation: simulation.resume,
         consigne: `Rien n'est exécuté : une carte de confirmation est affichée${confirmText ? ` — la personne devra ressaisir « ${confirmText} »` : ""}. Ne dis pas que c'est fait.`,
       });
     },
@@ -212,10 +221,27 @@ async function fusionnee(id: string, entree: Record<string, unknown>): Promise<R
 }
 
 /**
+ * LA SIMULATION D'UNE CAPACITÉ (J7) — l'action elle-même, avec l'entrée qui serait exécutée (la fiche relue pour
+ * `updateEmployee`), au nom de la personne, dans une transaction annulée. Rend ce que la carte montre.
+ */
+async function simulerLaCapacite(user: CurrentUser, cap: Capacite, entree: Record<string, unknown>): Promise<VueSimulation> {
+  const complete = await fusionnee(cap.id, entree);
+  const { diff } = await simulerEnDiff(user, { origine: "carte" }, () => executerAction(user, cap.id, complete, "assistant-ia"), (r) => (r.ok ? null : r.message));
+  return vueDeCarte(diff);
+}
+
+/** La carte, remontrée avec le diff de ce qui s'exécuterait MAINTENANT (la confirmation suivante le comparera). */
+async function remontrerLaCarte(intentId: string, simulation: VueSimulation): Promise<void> {
+  const i = await prisma.assistantActionIntent.findUnique({ where: { id: intentId }, select: { payload: true } });
+  const payload = (i?.payload && typeof i.payload === "object" ? i.payload : {}) as Record<string, unknown>;
+  await prisma.assistantActionIntent.update({ where: { id: intentId }, data: { payload: { ...payload, simulation } as never } });
+}
+
+/**
  * EXÉCUTER une capacité confirmée — appelé SEULEMENT par la confirmation de l'Assistant IA, sous la réclamation
  * atomique de l'intention, dans la requête (donc la session) de la personne qui confirme.
  */
-export async function executerCapacite(user: CurrentUser, charge: unknown, acces: AccesIa): Promise<ResultatOperation> {
+export async function executerCapacite(user: CurrentUser, charge: unknown, acces: AccesIa, intentId: string | null = null): Promise<ResultatOperation> {
   if (!estChargeCapacite(charge)) return { ok: false, error: "Action inconnue." };
   const reglages = await getAppSettings().catch(sansBloquer("capacites.executer.getAppSettings", null));
   if (reglages?.aiExternalActionsDisabled) return { ok: false, error: REFUS_ARRET_URGENCE };
@@ -227,8 +253,22 @@ export async function executerCapacite(user: CurrentUser, charge: unknown, acces
   // Les champs retenus ne passent jamais, même glissés dans une charge : seuls ceux du contrat de l'assistant.
   const connus = new Set(CONTRAT_IA.get(cap.id)?.champs.map((c) => c.nom) ?? []);
   const entree = await fusionnee(cap.id, Object.fromEntries(Object.entries(charge.entree).filter(([k]) => connus.has(k))));
-  const r = await auNomDe(user.id, () => executerAction(user, cap.id, entree, "assistant-ia"));
-  return r.ok ? { ok: true, message: `${cap.libelle} : fait.` } : { ok: false, error: r.message };
+  // CE QUI S'EXÉCUTE EST CE QUE LA CARTE A MONTRÉ (J7) : la simulation rejouée, son empreinte comparée.
+  const montree = lireVueSimulation(charge.simulation);
+  if (montree?.statut === "SIMULE") {
+    const rejouee = await simulerLaCapacite(user, cap, charge.entree);
+    const ecart = ecartAvecLaCarte(montree, rejouee);
+    if (ecart) {
+      if (intentId) await remontrerLaCarte(intentId, rejouee).catch(sansBloquer("capacites.remontrer"));
+      return { ok: false, error: `Rien n'a été exécuté : ${ecart} Relisez, puis confirmez de nouveau si c'est toujours ce que vous voulez.` };
+    }
+  }
+  const { resultat: r, ecart } = await journaliserGeste(user, {
+    origine: "carte", capaciteId: cap.id, libelle: cap.libelle, cleIdempotence: intentId,
+    empreinteSimulee: montree?.statut === "SIMULE" ? montree.empreinte : null,
+  }, () => auNomDe(user.id, () => executerAction(user, cap.id, entree, "assistant-ia")));
+  if (!r.ok) return { ok: false, error: r.message };
+  return { ok: true, message: `${cap.libelle} : fait.${ecart ? " Attention : l'écriture réelle diffère de la simulation montrée (le monde a changé entre-temps) — voyez « Ce que l'assistant a fait »." : ""}` };
 }
 
 export { estChargeCapacite };

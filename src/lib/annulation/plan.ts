@@ -126,6 +126,8 @@ export function composer(
   changements: readonly Changement[],
   etats: readonly EtatActuel[],
   posterieurs: readonly Changement[] = [],
+  /** Qui avait écrit (« Adam », « l'assistant ») — pour la phrase d'un changement survenu depuis. */
+  agent = "Adam",
 ): PlanAnnulation {
   const cle = (e: string, i: string, c: string) => `${e}|${i}|${c}`;
   const actuel = new Map(etats.map((e) => [cle(e.entite, e.entiteId, e.champ), e.valeur]));
@@ -195,7 +197,7 @@ export function composer(
         changementId: c.id, nature, motif: "MODIFIE_DEPUIS", reversibilite: v.reversibilite,
         explication: auteurs.length
           ? `« ${c.champ} » a changé depuis : ${auteurs.join(" ; ")}. Le remettre à « ${c.avant ?? "vide"} » effacerait ce travail.`
-          : `« ${c.champ} » vaut « ${maintenant ?? "vide"} » alors qu'Adam y avait laissé « ${c.apres ?? "vide"} » : quelque chose a changé entre-temps.`,
+          : `« ${c.champ} » vaut « ${maintenant ?? "vide"} » alors ${/^[aeiouyéh]/i.test(agent) ? "qu'" : "que "}${agent} y avait laissé « ${c.apres ?? "vide"} » : quelque chose a changé entre-temps.`,
         compensation: "reprendre la valeur voulue à la main, en connaissance du changement",
         delegueA: null,
       });

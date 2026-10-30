@@ -3,6 +3,8 @@ import type { CurrentUser } from "@/lib/session";
 import { persistActionIntents } from "@/platform/ia/intentions/action-intents";
 import { getAppSettings } from "@/lib/settings";
 import { auNomDe } from "../consommation";
+import { journaliserGeste } from "@/platform/ia/hors-requete";
+import type { VueSimulation } from "../../domaine/simulation";
 import { SPONSORING_CREATION } from "./adpro-sponsoring";
 import { PRISE_EN_CHARGE_CREATION } from "./adpro-prise-en-charge";
 import { EVENEMENT_CREATION } from "./adpro-evenement";
@@ -50,6 +52,8 @@ export interface PropositionCarte {
     confirmText?: string;
     libelleBouton?: string;
     payload?: unknown;
+    /** J7 : le diff réel de la simulation (capacités simulables) — ou « non simulable », dit. */
+    simulation?: VueSimulation;
   };
 }
 
@@ -130,6 +134,20 @@ export async function executerOperationIA(user: CurrentUser, charge: unknown): P
     console.error("[assistant-ia] exécution", charge.op, e);
     return { ok: false, error: "L'action n'a pas pu être exécutée. Réessayez dans un instant." };
   }
+}
+
+/**
+ * UNE OPÉRATION CONFIRMÉE, SOUS LE JOURNAL DES EFFETS (J7, décision 0029) — une carte, un geste sous mandat : chaque
+ * écriture garde sa valeur avant (`lib/effets/journal.ts`), ce qui la rend annulable depuis « Ce que l'assistant a fait ».
+ */
+export async function executerOperationJournalisee(
+  user: CurrentUser, charge: unknown, meta: { origine: "carte" | "mandat"; cle?: string | null; libelle?: string },
+): Promise<ResultatOperation> {
+  const o = estChargeOperationIA(charge) ? PAR_NOM.get(charge.op) : undefined;
+  const { resultat } = await journaliserGeste(user, {
+    origine: meta.origine, capaciteId: o ? `operation:${o.nom}` : null, libelle: meta.libelle ?? o?.libelle ?? "Geste de l'assistant", cleIdempotence: meta.cle ?? null,
+  }, () => executerOperationIA(user, charge));
+  return resultat;
 }
 
 /** Une carte préparée HORS d'un tour de conversation (J13 : le vocal ou la photo du terrain, la voix temps réel). */

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Check, X, ShieldAlert, CheckCircle2, ArrowUpRight, Loader2 } from "lucide-react";
+import { Check, X, ShieldAlert, CheckCircle2, ArrowUpRight, Loader2, FlaskConical } from "lucide-react";
+import type { VueSimulation } from "../domaine/simulation";
 
 export interface ActionIntentCardProps {
   intentId: string;
@@ -15,6 +16,8 @@ export interface ActionIntentCardProps {
   confirmText?: string;
   /** Le libellé du bouton quand « Confirmer » ne dit pas le geste. */
   libelleBouton?: string;
+  /** J7 : ce que la simulation (transaction annulée) a réellement écrit — ou « non simulable », dit. */
+  simulation?: VueSimulation;
   initialStatus?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
   resultLink?: string;
   resultMessage?: string;
@@ -30,6 +33,7 @@ export function ActionConfirmationCard({
   warnings = [],
   confirmText,
   libelleBouton,
+  simulation,
   initialStatus = "PROPOSED",
   resultLink,
   resultMessage,
@@ -105,6 +109,9 @@ export function ActionConfirmationCard({
           ))}
         </div>
       )}
+
+      {/* J7 — CE QUE LA SIMULATION A ÉCRIT, à côté des champs proposés : le diff réel, ou « non simulable ». */}
+      {simulation && status === "PROPOSED" && <BlocSimulation simulation={simulation} />}
 
       {/* À SAVOIR AVANT DE CONFIRMER — doublon possible, seuil, pièce, budget. */}
       {warnings.length > 0 && status === "PROPOSED" && (
@@ -187,5 +194,42 @@ export function ActionConfirmationCard({
         )}
       </div>
     </div>
+  );
+}
+
+/**
+ * LE DIFF DE LA SIMULATION (J7, décision 0029) — l'action a été jouée dans une transaction annulée : voici ce qu'elle
+ * a écrit, champ par champ, et ce qui serait sorti (courriel, notification) — rien n'est parti. Une capacité non
+ * prouvée simulable le dit ; une simulation qui n'a pas abouti aussi.
+ */
+function BlocSimulation({ simulation }: { simulation: VueSimulation }) {
+  const ton = simulation.statut === "SIMULE"
+    ? "border-sky-200 bg-sky-50/80 text-sky-950 dark:border-sky-900/50 dark:bg-sky-950/30 dark:text-sky-100"
+    : "border-zinc-200 bg-zinc-50/80 text-zinc-700 dark:border-zinc-800 dark:bg-zinc-950/40 dark:text-zinc-300";
+  return (
+    <section aria-label="Simulation" className={`mt-3 rounded-xl border p-2.5 text-xs ${ton}`}>
+      <p className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider opacity-80">
+        <FlaskConical className="h-3 w-3" aria-hidden />
+        {simulation.statut === "SIMULE" ? "Simulé — rien n'a été écrit" : simulation.statut === "ECHEC" ? "Simulation sans résultat" : "Non simulable"}
+      </p>
+      <p className="mt-1 [overflow-wrap:anywhere]">{simulation.resume}</p>
+      {simulation.lignes.some((l) => l.champs.length > 0) && (
+        <ul className="mt-2 space-y-1.5">
+          {simulation.lignes.filter((l) => l.champs.length > 0).map((l, i) => (
+            <li key={i}>
+              <span className="font-medium">{l.phrase}</span>
+              <ul className="mt-0.5 space-y-0.5 pl-3">
+                {l.champs.map((c) => (
+                  <li key={c.champ} className="[overflow-wrap:anywhere]">
+                    <span className="opacity-70">{c.champ}</span>{" "}
+                    {l.operation === "UPDATE" ? <><s className="opacity-60">{c.avant}</s> → <strong>{c.apres}</strong></> : <strong>{c.apres}</strong>}
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }

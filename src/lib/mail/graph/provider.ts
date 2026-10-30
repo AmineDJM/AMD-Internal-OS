@@ -6,6 +6,7 @@ import { MailError } from "../provider";
 import { graphJson, graphBinary } from "./client";
 import { toFolder, toSummary, toMessage, skipToken, deltaToken, isRemoved } from "./map";
 import { exigerSortieAutorisee } from "@/lib/sortie/garde";
+import { noterEffetExterne } from "@/lib/effets/magasin";
 import { sansBloquer } from "@/lib/journal";
 
 /**
@@ -242,6 +243,8 @@ export class MicrosoftGraphMailProvider implements MailProvider {
   async send(input: MailDraftInput): Promise<void> {
     // LA GARDE D'ABORD (`sortie/garde.ts`) : le brouillon lui-même est déjà une écriture chez
     // Microsoft, et l'envoi qui suit est irréversible. On refuse AVANT la création du brouillon.
+    // LE PORT DE SIMULATION (J7) : un geste simulé note le courriel et ne crée même pas le brouillon.
+    if (noterEffetExterne({ acte: "COURRIEL", cible: input.to.map((a) => a.address).join(", ") || "(sans destinataire)", apercu: `« ${input.subject ?? ""} »`, origine: "mail/graph:send" })) return;
     exigerSortieAutorisee("COURRIEL", input.to.map((a) => a.address).join(", ") || "(sans destinataire)", {
       apercu: `« ${input.subject ?? ""} »`,
       origine: "mail/graph:send",

@@ -16,6 +16,7 @@ import { composantsEnBlocs, IaCoupee, lireReponseModele, piecesDuMessage, repond
 import { auNomDe, lireReglagesAssistantIa, PlafondIaAtteint } from "../consommation";
 import { retirerCaduquesAvantLeTour } from "@/platform/ia/intentions/action-intents";
 import type { WorkspaceBlock } from "@/platform/ia/workspace/protocol";
+import type { VueSimulation } from "../../domaine/simulation";
 import { interrupteurIaCoupe, REFUS_IA_COUPEE } from "@/lib/ai-settings";
 import { lirePieces, type DependancesLecture } from "../lecture/pieces";
 import { ProvenanceDuTour } from "../provenance";
@@ -43,6 +44,8 @@ export interface IntentionDuTour {
   warnings?: string[];
   confirmText?: string;
   libelleBouton?: string;
+  /** J7 : le diff réel de la simulation (capacités simulables) — ou « non simulable », dit. */
+  simulation?: VueSimulation;
   fields?: { label: string; value: string }[];
   status?: "PROPOSED" | "CONFIRMED" | "EXECUTING" | "EXECUTED" | "CANCELLED";
   resultLink?: string;
@@ -214,6 +217,7 @@ async function tourAuNomDe(user: CurrentUser, d: DemandeDuTour): Promise<Resulta
         ...(p.proposition.warnings?.length ? { warnings: p.proposition.warnings } : {}),
         ...(p.proposition.confirmText ? { confirmText: p.proposition.confirmText } : {}),
         ...(p.proposition.libelleBouton ? { libelleBouton: p.proposition.libelleBouton } : {}),
+        ...(p.proposition.simulation ? { simulation: p.proposition.simulation } : {}),
         status: "PROPOSED",
       } : null,
     };

@@ -1,6 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import "@/lib/async-local-storage-global";
-import { workAsyncStorage } from "next/dist/server/app-render/work-async-storage.external";
 import { prisma } from "@/lib/prisma";
 import { getAccess } from "@/lib/rbac";
 import type { CurrentUser } from "@/lib/session";
@@ -34,13 +32,6 @@ import type { CurrentUser } from "@/lib/session";
  * ═══════════════════════════════════════════════════════════════════════════════════════════
  */
 
-interface ContexteGeste {
-  user: CurrentUser;
-  origine: string;
-}
-
-const contexte = new AsyncLocalStorage<ContexteGeste>();
-
 /**
  * LA PERSONNE, RECONSTRUITE DEPUIS SON COMPTE — sans session (worker, balayage) : compte actif, droits relus en base
  * (`getAccess`), jamais supposés. C'est elle qu'un travail passe à `executerHorsRequete` (`platform/ia/proprietaire`).
@@ -52,26 +43,17 @@ export async function personneDuGeste(userId: string): Promise<CurrentUser | nul
   return { id: u.id, name: u.name, email: u.email, role: access.role ?? u.role, secondaryRole: access.secondaryRole, access, mustChangePassword: false };
 }
 
-/** La personne au nom de qui un geste hors requête s'exécute, ou `null` (le cas ordinaire : une requête). */
-export function utilisateurDuGeste(): CurrentUser | null {
-  return contexte.getStore()?.user ?? null;
-}
-
-export interface IssueHorsRequete<T> {
-  resultat: T;
-  /** Les chemins et étiquettes que l'action a demandé d'invalider — sans objet hors rendu, gardés pour le journal. */
-  invalidations: string[];
-}
-
-export async function executerHorsRequete<T>(user: CurrentUser, origine: string, geste: () => Promise<T>): Promise<IssueHorsRequete<T>> {
-  const existant = workAsyncStorage.getStore();
-  if (existant) return { resultat: await contexte.run({ user, origine }, geste), invalidations: [] };
-  const store = {
-    isStaticGeneration: false, page: `/hors-requete/${origine}`, route: `/hors-requete/${origine}`,
-    // Présent pour que `revalidatePath` accepte d'enregistrer ; aucune lecture de cache ne passe par ici.
-    incrementalCache: {}, pendingRevalidatedTags: [] as string[], forceDynamic: true,
-  } as unknown as Parameters<typeof workAsyncStorage.run>[0];
-  const resultat = await contexte.run({ user, origine }, () => workAsyncStorage.run(store, geste));
-  const s = store as unknown as { pendingRevalidatedTags?: unknown[] };
-  return { resultat, invalidations: (s.pendingRevalidatedTags ?? []).map((t) => (typeof t === "string" ? t : JSON.stringify(t))) };
-}
+/**
+ * ── J7 (décision 0029) : LA PORTE DU CONTEXTE DE GESTE ──────────────────────────────────
+ *
+ * Le mode (réel ou simulation), la simulation transactionnelle, le journal des effets et l'annulation honnête vivent
+ * sous `lib/effets/` ; cette façade les nomme pour le reste de l'ERP et pour le socle IA (`platform/ia/hors-requete`).
+ */
+export {
+  avecStoreHorsRequete, contexteDuGeste, etatPour, executerHorsRequete, utilisateurDuGeste,
+  type ContexteDuGeste, type IssueHorsRequete,
+} from "@/lib/effets/geste";
+export { simulerEnDiff, simulerGeste, type IssueSimulation } from "@/lib/effets/simulation";
+export { journaliserGeste, purgerJournalDesEffets, type MetaGesteAgent } from "@/lib/effets/journal";
+export { annulerGeste, gestesDeLAssistant, planDAnnulation, type CompteRenduAnnulation, type GesteListe } from "@/lib/effets/annulation";
+export type { DiffSimulation, LigneDiff, EffetDiff } from "@/lib/effets/diff";

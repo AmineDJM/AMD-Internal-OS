@@ -129,6 +129,12 @@ const SOCLE = [
    */
   "src/lib/contexte-geste", "src/lib/async-local-storage-global",
   /**
+   * J7 (décision 0029) : `effets/` — le contexte de geste étendu (mode réel / simulation), la capture des écritures,
+   * la simulation transactionnelle, les ports de sortie, le journal des effets et l'annulation. Le prolongement de
+   * `prisma` et de `contexte-geste` : il ne lit aucun métier (le schéma seul, par le DMMF).
+   */
+  "src/lib/effets/",
+  /**
    * `acces/compose` : `et(…)`, la composition des clauses Prisma en `AND` (audit 27/10, SA-03 — deux `OR`
    * étalés s'écrasent). Zéro import ; lue par les façades, les domaines et les actions.
    */

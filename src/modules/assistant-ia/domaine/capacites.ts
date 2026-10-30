@@ -22,6 +22,8 @@ export interface ChargeCapacite {
   id: string;
   /** L'entrée DÉJÀ résolue (un nom remplacé par l'identifiant de la fiche que la personne voit). */
   entree: Record<string, unknown>;
+  /** J7 : ce que la simulation a montré sur la carte (forme `domaine/simulation.ts`) — rejouée et comparée à la confirmation. */
+  simulation?: unknown;
 }
 
 export function estChargeCapacite(v: unknown): v is ChargeCapacite {
